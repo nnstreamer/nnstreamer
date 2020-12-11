@@ -49,7 +49,7 @@ if [ -z ${SO_EXT} ]; then
 fi
 
 # Generate video_4x4xBGRx.xraw & golden
-python generateTestCase.py
+python3 generateTestCase.py
 
 gstTest "--gst-plugin-path=../../build \
 tensor_mux name=mux sync_mode=nosync ! \

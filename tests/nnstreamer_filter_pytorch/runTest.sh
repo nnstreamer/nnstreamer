@@ -69,7 +69,7 @@ else
 fi
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=GRAY8,framerate=0/1 ! tensor_converter ! tensor_filter framework=pytorch model=${PATH_TO_MODEL} input=1:28:28:1 inputtype=uint8 output=10:1:1:1 outputtype=uint8 ! filesink location=tensorfilter.out.log" 1 0 0 $PERFORMANCE
-python checkLabel.py tensorfilter.out.log ${PATH_TO_IMAGE}
+python3 checkLabel.py tensorfilter.out.log ${PATH_TO_IMAGE}
 testResult $? 1 "Golden test comparison" 0 1
 
 # Fail test for invalid input properties
@@ -81,7 +81,7 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} !
 # Input and output combination test
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc pattern=13 num-buffers=1 ! videoconvert !  video/x-raw,width=640,height=480,framerate=30/1 ! tensor_converter ! tee name=t t. ! queue ! mux.sink_0 t. ! queue ! filesink location=combi.dummy.golden buffer-mode=unbuffered sync=false async=false  filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=GRAY8,framerate=0/1 ! tensor_converter ! mux.sink_1 tensor_mux name=mux ! tensor_filter framework=pytorch model=${PATH_TO_MODEL} input=1:28:28:1 inputtype=uint8 output=10:1:1:1 outputtype=uint8 inputCombination=1 outputCombination=i0,o0 ! tensor_demux name=demux demux.src_0 ! filesink location=tensorfilter.combi.in.log buffer-mode=unbuffered sync=false async=false demux.src_1 ! filesink location=tensorfilter.combi.out.log buffer-mode=unbuffered sync=false async=false" 4 0 0 $PERFORMANCE
 callCompareTest combi.dummy.golden tensorfilter.combi.in.log 4_0 "Output Combination Golden Test 4-0" 1 0
-python checkLabel.py tensorfilter.out.log ${PATH_TO_IMAGE}
+python3 checkLabel.py tensorfilter.out.log ${PATH_TO_IMAGE}
 testResult $? 1 "Golden test comparison" 0 1
 
 # Test the setting of accelerators

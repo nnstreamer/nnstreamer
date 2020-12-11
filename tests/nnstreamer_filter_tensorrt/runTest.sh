@@ -76,7 +76,7 @@ gstTest "-v --gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_DATA_
     ! tensor_transform mode=arithmetic option=typecast:float32,div:-255.0,add:1 
     ! tensor_filter framework=tensorrt model=${PATH_TO_MODEL} input=28:28:1 inputtype=float32 inputname=in output=10 outputtype=float32 outputname=out
     ! filesink location=sj.out.log " 1 0 0 $PERFORMANCE
-python CheckMnist.py ./sj.out.log 1
+python3 CheckMnist.py ./sj.out.log 1
 testResult $? 1 "Golden test comparison" 0 1
 
 gstTest "-v --gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_DATA_9} ! image/x-portable-graymap,width=28,height=28,framerate=0/1 
@@ -85,5 +85,5 @@ gstTest "-v --gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_DATA_
     ! tensor_transform mode=arithmetic option=typecast:float32,div:-255.0,add:1 
     ! tensor_filter framework=tensorrt model=${PATH_TO_MODEL} input=28:28:1 inputtype=float32 custom=input_rank:3 inputname=in output=10 outputtype=float32 outputname=out
     ! filesink location=sj.out.log " 2 0 0 $PERFORMANCE
-python CheckMnist.py ./sj.out.log 9
+python3 CheckMnist.py ./sj.out.log 9
 testResult $? 2 "Golden test comparison" 0 1
