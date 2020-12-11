@@ -18,7 +18,23 @@ fi
 # This is compatible with SSAT (https://github.com/myungjoo/SSAT)
 testInit $1
 
+# NNStreamer and plugins path for test
 PATH_TO_PLUGIN="../../build"
+
+if [[ -d $PATH_TO_PLUGIN ]]; then
+    ini_path="${PATH_TO_PLUGIN}/ext/nnstreamer"
+    if [[ -d ${ini_path} ]]; then
+        check=$(ls ${ini_path} | grep nnstreamer-grpc.so)
+        if [[ ! $check ]]; then
+            echo "Cannot find nnstreamer-grpc shared lib"
+            report
+            exit
+        fi
+    else
+        echo "Cannot find ${ini_path}"
+    fi
+fi
+
 NUM_BUFFERS=10
 
 # Dump original frames, passthrough, other/tensor
