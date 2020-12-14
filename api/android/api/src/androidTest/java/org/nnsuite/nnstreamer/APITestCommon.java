@@ -47,8 +47,7 @@ public class APITestCommon {
      * Grants required runtime permissions.
      */
     public static GrantPermissionRule grantPermissions() {
-        return GrantPermissionRule.grant(Manifest.permission.READ_EXTERNAL_STORAGE,
-                Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        return GrantPermissionRule.grant(Manifest.permission.READ_EXTERNAL_STORAGE);
     }
 
     /**
