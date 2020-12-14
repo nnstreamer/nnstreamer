@@ -482,6 +482,7 @@ popd
 rm -rf $build_dir
 
 popd
+cd ${NNSTREAMER_ROOT} && find -name nnstreamer_version.h -delete
 
 # exit with success/failure status
 exit $android_lib_build_res
