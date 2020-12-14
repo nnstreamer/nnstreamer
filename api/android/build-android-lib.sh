@@ -265,10 +265,10 @@ if [[ $enable_nnfw == "yes" ]]; then
     wget --directory-prefix=./$build_dir/external https://github.com/Samsung/ONE/releases/download/$nnfw_ver/onert-$nnfw_ver-android-aarch64.tar.gz
     wget --directory-prefix=./$build_dir/external https://github.com/Samsung/ONE/releases/download/$nnfw_ver/onert-devel-$nnfw_ver.tar.gz
 
-   # You should get ONE-EXT release and copy it into NNFW_DIRECTORY.
-   if [[ $enable_nnfw_ext == "yes" ]]; then
-      cp $NNFW_DIRECTORY/onert-ext-$nnfw_ver-android-aarch64.tar.gz ./$build_dir/external
-   fi
+    # You should get ONE-EXT release and copy it into NNFW_DIRECTORY.
+    if [[ $enable_nnfw_ext == "yes" ]]; then
+        cp $NNFW_DIRECTORY/onert-ext-$nnfw_ver-android-aarch64.tar.gz ./$build_dir/external
+    fi
 fi
 
 pushd ./$build_dir

@@ -43,9 +43,9 @@ ENABLE_SNPE := false
 ENABLE_DECODER_FLATBUF := false
 
 ifeq ($(ENABLE_SNAP),true)
-  ifeq ($(ENABLE_SNPE),true)
-   $(error DO NOT enable SNAP and SNPE both. The app would fail to use DSP or NPU runtime.)
-  endif
+ifeq ($(ENABLE_SNPE),true)
+$(error DO NOT enable SNAP and SNPE both. The app would fail to use DSP or NPU runtime.)
+endif
 endif
 
 # Common options
