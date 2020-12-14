@@ -67,6 +67,7 @@ decoder_flatbuf_ver="1.12.0"
 
 # Set tensorflow-lite version (available: 1.9.0 / 1.13.1 / 1.15.2 / 2.3.0)
 tf_lite_ver="1.13.1"
+tf_lite_vers_support="1.9.0 1.13.1 1.15.2 2.3.0"
 
 # Set NNFW version (https://github.com/Samsung/ONE/releases)
 nnfw_ver="1.12.0"
@@ -127,7 +128,25 @@ for arg in "$@"; do
             enable_snpe=${arg#*=}
             ;;
         --enable_tflite=*)
-            enable_tflite=${arg#*=}
+            IFS=':' read -ra enable_tflite_args <<< "${arg#*=}"
+            is_valid_tflite_version=0
+            enable_tflite=${enable_tflite_args[0]}
+            if [[ ${enable_tflite} == "yes" ]]; then
+                if [[ ${enable_tflite_args[1]} == "" ]]; then
+                    break
+                fi
+                for ver in ${tf_lite_vers_support}; do
+                    if [[ ${ver} == ${enable_tflite_args[1]} ]]; then
+                        is_valid_tflite_version=1
+                        tf_lite_ver=${ver}
+                        break
+                    fi
+                done
+                if [[ ${is_valid_tflite_version} == 0 ]]; then
+                    printf "'%s' is not a supported version of TensorFlow Lite." "${enable_tflite_args[1]}"
+                    printf "The default version, '%s', will be used.\n"  "${tf_lite_ver}"
+                fi
+            fi
             ;;
         --enable_decoder_flatbuf=*)
             enable_decoder_flatbuf=${arg#*=}
