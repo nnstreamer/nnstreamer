@@ -204,15 +204,15 @@ BuildRequires:	gst-plugins-base-devel
 BuildRequires:	pkgconfig(sensor)
 BuildRequires:	capi-system-sensor-devel
 
-%ifarch %arm aarch64
 %if 0%{?nnfw_support}
 # Tizen 5.5 M2+ support nn-runtime (nnfw)
 # As of 2019-09-24, unfortunately, nnfw does not support pkg-config
 BuildRequires:  nnfw-devel
+%ifarch %arm aarch64
 BuildRequires:  libarmcl
 BuildConflicts: libarmcl-release
-BuildRequires:  json-glib-devel
 %endif
+BuildRequires:  json-glib-devel
 %endif
 %endif  # tizen
 
@@ -367,11 +367,13 @@ You can construct a data stream pipeline with neural networks easily.
 %post -n capi-nnstreamer -p /sbin/ldconfig
 %postun -n capi-nnstreamer -p /sbin/ldconfig
 
+%if 0%{?nnfw_support}
 %package nnfw
 Summary:	NNStreamer Tizen-nnfw runtime support
 Requires:	nnfw
 %description nnfw
 NNStreamer's tensor_filter subplugin of Tizen-NNFW Runtime. (5.5 M2 +)
+%endif
 
 %package -n capi-nnstreamer-devel
 Summary:	Tizen Native API Devel Kit for NNStreamer
@@ -496,12 +498,10 @@ NNStreamer developer utilities include nnstreamer configuration checker.
 %if %{with tizen}
 %define enable_tizen -Denable-tizen=true -Dtizen-version-major=0%{tizen_version_major}
 %define enable_api -Denable-capi=true
-%ifarch %arm aarch64
 %if 0%{?nnfw_support}
 %define enable_nnfw_runtime -Dnnfw-runtime-support=enabled
 %endif  # nnfw_support
 
-%endif
 # Element restriction in Tizen
 %define restricted_element	'capsfilter input-selector output-selector queue tee valve appsink appsrc audioconvert audiorate audioresample audiomixer videoconvert videocrop videorate videoscale videoflip videomixer compositor fakesrc fakesink filesrc filesink audiotestsrc videotestsrc jpegparse jpegenc jpegdec pngenc pngdec tcpclientsink tcpclientsrc tcpserversink tcpserversrc udpsink udpsrc xvimagesink ximagesink evasimagesink evaspixmapsink glimagesink theoraenc lame vorbisenc wavenc volume oggmux avimux matroskamux v4l2src avsysvideosrc camerasrc tvcamerasrc pulsesrc fimcconvert tizenwlsink gdppay gdpdepay'
 %define element_restriction -Denable-element-restriction=true -Drestricted-elements=%{restricted_element}
@@ -828,13 +828,11 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %files -n nnstreamer-tizen-internal-capi-devel
 %{_includedir}/nnstreamer/nnstreamer-tizen-internal.h
 
-%ifarch %arm aarch64
 %if 0%{?nnfw_support}
 %files nnfw
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_nnfw.so
-%endif
 %endif
 
 %if 0%{?armnn_support}
