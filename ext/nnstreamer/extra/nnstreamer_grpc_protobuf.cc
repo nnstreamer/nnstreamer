@@ -58,6 +58,25 @@ ServiceImplProtobuf::RecvTensors (ServerContext *context,
   return _write_tensors (writer);
 }
 
+/** @brief read tensors and invoke the registered callback */
+template <typename T>
+Status ServiceImplProtobuf::_read_tensors (T reader)
+{
+  Tensors tensors;
+
+  while (reader->Read (&tensors)) {
+    GstBuffer *buffer;
+
+    _get_buffer_from_tensors (tensors, &buffer);
+
+    if (cb_)
+      cb_ (cb_data_, buffer);
+  }
+
+  return Status::OK;
+}
+
+/** @brief obtain tensors from data queue and send them over gRPC */
 template <typename T>
 Status ServiceImplProtobuf::_write_tensors (T writer)
 {
@@ -72,23 +91,6 @@ Status ServiceImplProtobuf::_write_tensors (T writer)
 
     GDestroyNotify destroy = (item->destroy) ? item->destroy : g_free;
     destroy (item);
-  }
-
-  return Status::OK;
-}
-
-template <typename T>
-Status ServiceImplProtobuf::_read_tensors (T reader)
-{
-  Tensors tensors;
-
-  while (reader->Read (&tensors)) {
-    GstBuffer *buffer;
-
-    _get_buffer_from_tensors (tensors, &buffer);
-
-    if (cb_)
-      cb_ (cb_data_, buffer);
   }
 
   return Status::OK;
@@ -223,4 +225,9 @@ ServiceImplProtobuf::_get_tensors_from_buffer (GstBuffer *buffer,
   gst_buffer_unmap (buffer, &map);
 }
 
-
+/** @brief create gRPC/Protobuf instance */
+extern "C" void *
+create_instance (gboolean server, const gchar *host, const gint port)
+{
+  return new ServiceImplProtobuf (server, host, port);
+}

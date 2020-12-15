@@ -13,15 +13,17 @@
  */
 
 #include "nnstreamer_grpc_common.h"
-#include "nnstreamer_grpc_protobuf.h"
-#include "nnstreamer_grpc_flatbuf.h"
+
+#include <gmodule.h>
 
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api.h>
 
-#include <thread>
-
 #include <grpcpp/health_check_service_interface.h>
+
+#define NNS_GRPC_PROTOBUF_NAME   "libnnstreamer_grpc_protobuf.so"
+#define NNS_GRPC_FLATBUF_NAME    "libnnstreamer_grpc_flatbuf.so"
+#define NNS_GRPC_CREATE_INSTANCE "create_instance"
 
 using namespace grpc;
 
@@ -30,20 +32,50 @@ NNStreamerRPC *
 NNStreamerRPC::createInstance (grpc_idl idl, gboolean server,
   const gchar *host, const gint port)
 {
-  switch (idl) {
-    case GRPC_IDL_PROTOBUF:
-      return new ServiceImplProtobuf (server, host, port);
-    case GRPC_IDL_FLATBUF:
-      return new ServiceImplFlatbuf (server, host, port);
-    default:
-      return NULL;
+  const gchar * name = NULL;
+
+  if (idl == GRPC_IDL_PROTOBUF)
+    name = NNS_GRPC_PROTOBUF_NAME;
+  else if (idl == GRPC_IDL_FLATBUF)
+    name = NNS_GRPC_FLATBUF_NAME;
+
+  if (name == NULL) {
+    ml_loge ("Unsupported IDL detected: %d\n", idl);
+    return NULL;
   }
+
+  GModule * module = g_module_open (name, G_MODULE_BIND_LAZY);
+  if (!module) {
+    ml_loge ("Error opening %s\n", name);
+    return NULL;
+  }
+
+  using function_ptr = void * (*)(gboolean, const gchar *, const gint);
+  function_ptr create_instance;
+
+  if (!g_module_symbol (module, NNS_GRPC_CREATE_INSTANCE,
+        (gpointer *) &create_instance)) {
+    ml_loge ("Error loading create_instance: %s\n", g_module_error ());
+    g_module_close (module);
+    return NULL;
+  }
+
+  NNStreamerRPC * instance = (NNStreamerRPC *) create_instance (server, host, port);
+  if (!instance) {
+    ml_loge ("Error creating an instance\n");
+    g_module_close (module);
+    return NULL;
+  }
+
+  instance->setModuleHandle (module);
+  return instance;
 }
 
 /** @brief constructor of NNStreamerRPC */
 NNStreamerRPC::NNStreamerRPC (gboolean is_server, const gchar *host, const gint port):
   is_server_ (is_server), host_ (host), port_ (port),
-  cb_ (nullptr), cb_data_ (nullptr), server_worker_ (nullptr), queue_ (nullptr)
+  cb_ (nullptr), cb_data_ (nullptr), server_worker_ (nullptr), queue_ (nullptr),
+  handle_ (nullptr)
 {
   gst_tensors_config_init (&config_);
   queue_ = gst_data_queue_new (_data_queue_check_full_cb,
@@ -82,8 +114,10 @@ NNStreamerRPC::stop () {
   if (client_worker_.joinable ())
     client_worker_.join ();
 
-  if (server_worker_.get ())
+  if (server_worker_.get ()) {
     server_worker_->Shutdown ();
+    server_worker_.reset();
+  }
 }
 
 /** @brief send buffer holding tensors */
@@ -183,8 +217,12 @@ _grpc_destroy (void *priv)
   g_return_if_fail (priv != NULL);
 
   NNStreamerRPC * self = static_cast<NNStreamerRPC *> (priv);
+  void *handle = self->getModuleHandle ();
 
   delete self;
+
+  if (handle)
+    g_module_close ((GModule *) handle);
 }
 
 /**
