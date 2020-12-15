@@ -127,6 +127,7 @@ ServiceImplFlatbuf::_client_thread ()
      *
      * writer->Finish ();
      */
+    g_usleep (G_USEC_PER_SEC / 100);
   } else if (direction_ == GRPC_DIRECTION_BUFFER_TO_TENSORS) {
     MessageBuilder builder;
 
@@ -251,4 +252,11 @@ ServiceImplFlatbuf::_get_tensors_from_buffer (GstBuffer *buffer,
   msg = builder.ReleaseMessage<Tensors>();
 
   gst_buffer_unmap (buffer, &map);
+}
+
+/** @brief create gRPC/Flatbuf instance */
+extern "C" NNStreamerRPC *
+create_instance (gboolean server, const gchar *host, const gint port)
+{
+  return new ServiceImplFlatbuf (server, host, port);
 }

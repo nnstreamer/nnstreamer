@@ -28,54 +28,61 @@ if protobuf_support_is_available
 endif
 
 if grpc_support_is_available
-  if not protobuf_support_is_available
-    error('failed to resolve dependency: gRPC requires libprotobuf.')
-  endif
+  grpc_common_src = ['nnstreamer_grpc_common.cc']
+  grpc_util_sources = []
 
-  if not flatbuf_support_is_available
-    error('failed to resolve dependency: gRPC requires libflatbuf.')
-  endif
-
-  # Don't generate proto files twice
-  nns_protobuf_grpc_lib = shared_library ('nnstreamer_grpc_protobuf',
-    sources : grpc_pb_gen_src,
-    dependencies : [grpc_support_deps, nns_protobuf_dep],
-    install: true,
-    install_dir: nnstreamer_libdir
-  )
-  nns_protobuf_grpc_dep = declare_dependency(
-    link_with: nns_protobuf_grpc_lib,
-    dependencies : [grpc_support_deps, nns_protobuf_dep],
-    include_directories: nns_protobuf_grpc_lib.private_dir_include()
-  )
-
-  nns_flatbuf_grpc_lib = shared_library ('nnstreamer_grpc_flatbuf',
-    sources : grpc_fb_gen_src,
-    dependencies : [grpc_support_deps, flatbuf_dep],
-    install: true,
-    install_dir: nnstreamer_libdir
-  )
-  nns_flatbuf_grpc_dep = declare_dependency(
-    link_with: nns_flatbuf_grpc_lib,
-    dependencies : [grpc_support_deps, flatbuf_dep],
-    include_directories: nns_flatbuf_grpc_lib.private_dir_include()
-  )
-
-  grpc_util_sources = [
-    'nnstreamer_grpc_common.cc',
-    'nnstreamer_grpc_protobuf.cc',
-    'nnstreamer_grpc_flatbuf.cc'
-  ]
-  grpc_util_deps = [nns_protobuf_grpc_dep, nns_flatbuf_grpc_dep]
-
-  nns_grpc_util_sources = []
-  foreach s : grpc_util_sources
-    nns_grpc_util_sources += join_paths(meson.current_source_dir(), s)
+  foreach s : grpc_common_src
+    grpc_util_sources += join_paths(meson.current_source_dir(), s)
   endforeach
 
   grpc_util_dep = declare_dependency(
-    sources: nns_grpc_util_sources,
-    dependencies: [nnstreamer_dep, glib_dep, gst_dep, grpc_util_deps],
+    sources: grpc_util_sources,
+    dependencies: [nnstreamer_dep, glib_dep, gst_dep, libdl_dep, grpc_support_deps],
     include_directories: include_directories('.')
   )
+
+  if protobuf_support_is_available
+    nns_protobuf_grpc_src = ['nnstreamer_grpc_protobuf.cc']
+    nns_protobuf_grpc_sources = []
+    foreach s : nns_protobuf_grpc_src
+      nns_protobuf_grpc_sources += join_paths(meson.current_source_dir(), s)
+    endforeach
+
+    # Don't generate proto files twice
+    nns_protobuf_grpc_lib = shared_library ('nnstreamer_grpc_protobuf',
+      sources : [grpc_pb_gen_src, nns_protobuf_grpc_sources],
+      dependencies : [grpc_util_dep, nns_protobuf_dep],
+      install: true,
+      install_dir: nnstreamer_libdir
+    )
+    nns_protobuf_grpc_dep = declare_dependency(
+      link_with: nns_protobuf_grpc_lib,
+      dependencies : [grpc_util_dep, nns_protobuf_dep],
+      include_directories: nns_protobuf_grpc_lib.private_dir_include()
+    )
+  else
+    warning('gRPC/Protobuf is not supported')
+  endif
+
+  if flatbuf_support_is_available
+    nns_flatbuf_grpc_src = ['nnstreamer_grpc_flatbuf.cc']
+    nns_flatbuf_grpc_sources = []
+    foreach s : nns_flatbuf_grpc_src
+      nns_flatbuf_grpc_sources += join_paths(meson.current_source_dir(), s)
+    endforeach
+
+    nns_flatbuf_grpc_lib = shared_library ('nnstreamer_grpc_flatbuf',
+      sources : [grpc_fb_gen_src, nns_flatbuf_grpc_sources],
+      dependencies : [grpc_util_dep, flatbuf_dep],
+      install: true,
+      install_dir: nnstreamer_libdir
+    )
+    nns_flatbuf_grpc_dep = declare_dependency(
+      link_with: nns_flatbuf_grpc_lib,
+      dependencies : [grpc_util_dep, flatbuf_dep],
+      include_directories: nns_flatbuf_grpc_lib.private_dir_include()
+    )
+  else
+    warning('gRPC/Flatbuf is not supported')
+  endif
 endif

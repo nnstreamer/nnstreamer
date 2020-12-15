@@ -65,6 +65,17 @@ class NNStreamerRPC {
         return -EINVAL;
     }
 
+    /** @brief set library module handle */
+    void setModuleHandle (void * handle) {
+      if (handle_ == NULL)
+        handle_ = handle;
+    }
+
+    /** @brief get library module handle */
+    void *getModuleHandle () {
+      return handle_;
+    }
+
   protected:
     gboolean is_server_;
     const gchar *host_;
@@ -80,6 +91,8 @@ class NNStreamerRPC {
 
     GstDataQueue *queue_;
     GstTensorsConfig config_;
+
+    void * handle_;
 
   private:
     /** @brief start gRPC server */

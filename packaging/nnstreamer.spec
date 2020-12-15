@@ -908,8 +908,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %defattr(-,root,root,-)
 %manifest nnstreamer.manifest
 %license LICENSE
-%{_libdir}/libnnstreamer_grpc_protobuf.so
-%{_libdir}/libnnstreamer_grpc_flatbuf.so
+%{_libdir}/libnnstreamer_grpc_*.so
 %{gstlibdir}/libnnstreamer-grpc.so
 %endif  # grpc_support
 
