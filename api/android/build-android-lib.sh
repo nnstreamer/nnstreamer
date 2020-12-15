@@ -257,6 +257,8 @@ mkdir -p $build_dir/external
 
 svn --force export https://github.com/nnstreamer/nnstreamer-android-resource/trunk/android_api ./$build_dir
 
+# @todo We need another mechanism for downloading third-party/external softwares
+rm -f ./$build_dir/external/*.tar.gz ./$build_dir/external/*.tar.xz
 if [[ $enable_tflite == "yes" ]]; then
     wget --directory-prefix=./$build_dir/external https://raw.githubusercontent.com/nnstreamer/nnstreamer-android-resource/master/external/tensorflow-lite-$tf_lite_ver.tar.xz
 fi
