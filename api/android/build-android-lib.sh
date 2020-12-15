@@ -6,28 +6,57 @@
 # @file  build-android-lib.sh
 # @brief A script to build NNStreamer API library for Android
 #
-# Before running this script, below variables must be set.
-# - ANDROID_SDK_ROOT: Android SDK
-# - ANDROID_NDK_ROOT: Android NDK
-# - GSTREAMER_ROOT_ANDROID: GStreamer prebuilt libraries for Android
-# - NNSTREAMER_ROOT: NNStreamer root directory
-#
-# To include sub-plugin for SNAP, you also should define the variable 'SNAP_DIRECTORY'.
-# - SNAP_DIRECTORY: Absolute path to SNAP SDK interface.
-#
-# Build options
-# --build_type (default 'all', 'lite' to build with GStreamer core plugins)
-# --target_abi (default 'arm64-v8a', 'armeabi-v7a' available)
-# --run_test (default 'no', 'yes' to run the instrumentation test)
-# --enable_snap (default 'no', 'yes' to build with sub-plugin for SNAP)
-# --enable_nnfw (default 'yes' to build with sub-plugin for NNFW)
-# --enable_snpe (default 'no', 'yes' to build with sub-plugin for SNPE)
-# --enable_tflite (default 'yes' to build with sub-plugin for tensorflow-lite)
-# --enable_decoder_flatbuf (default 'yes' to build with a decoder sub-plugin for flatbuffers)
-#
-# For example, to build library with core plugins for arm64-v8a
-# ./build-android-lib.sh --api_option=lite --target_abi=arm64-v8a
-#
+# The following comments that start with '##@@' are for the generation of usage messages.
+##@@ Build script for Android NNStreamer API Library
+##@@  - Before running this script, below variables must be set.
+##@@  - ANDROID_SDK_ROOT: Android SDK
+##@@  - ANDROID_NDK_ROOT: Android NDK
+##@@  - GSTREAMER_ROOT_ANDROID: GStreamer prebuilt libraries for Android
+##@@  - NNSTREAMER_ROOT: The source root directory of NNStreamer
+##@@ 
+##@@ usage: build-android-lib.sh [OPTIONS]
+##@@ 
+##@@ basic options:
+##@@   --help
+##@@       display this help and exit
+##@@   --build-type=(all|lite|single|internal)
+##@@       'all'      : default
+##@@       'lite'     : build with GStreamer core plugins
+##@@       'single'   : no plugins, single-shot only
+##@@       'internal' : no plugins except for enable single-shot only, enable NNFW only
+##@@   --target_abi=(armeabi-v7a|arm64-v8a)
+##@@       'arm64-v8a' is the default Android ABI
+##@@   --run_test=(yes|no)
+##@@       'yes'      : run instrumentation test after build procedure is done
+##@@       'no'       : [default]
+##@@   --nnstreamer_dir=(the_source_root_of_nnstreamer)
+##@@       This option overrides the NNSTREAMER_ROOT variable
+##@@ 
+##@@ options for tensor filter sub-plugins:
+##@@   --enable_snap=(yes|no)
+##@@       'yes'      : build with sub-plugin for SNAP
+##@@                    This option requires 1n additional variable, 'SNAP_DIRECTORY',
+##@@                    which indicates the SNAP SDK interface's absolute path.
+##@@       'no'       : [default]
+##@@   --enable_nnfw=(yes|no)
+##@@       'yes'      : [default]
+##@@       'no'       : build without the sub-plugin for NNFW
+##@@   --enable_snpe=(yes|no)
+##@@       'yes'      : build with sub-plugin for SNPE
+##@@       'no'       : [default]
+##@@   --enable_tflite=(yes(:(1.9|1.13.1|1.15.2|2.3.0))?|no)
+##@@       'yes'      : [default] you can optionally specify the version of tensorflow-lite to use
+##@@                    by appending ':version' [1.13.1 is the default].
+##@@       'no'       : build without the sub-plugin for tensorflow-lite
+##@@ 
+##@@ options for tensor decoder sub-plugins:
+##@@   --enable_decoder_flatbuf=(yes|no)
+##@@       'yes'      : [default]
+##@@       'no'       : build without the sub-plugin for FlatBuffers
+##@@ 
+##@@ For example, to build library with core plugins for arm64-v8a
+##@@  ./build-android-lib.sh --api_option=lite --target_abi=arm64-v8a
+
 set -e
 
 # API build option
@@ -72,6 +101,14 @@ tf_lite_vers_support="1.9.0 1.13.1 1.15.2 2.3.0"
 # Set NNFW version (https://github.com/Samsung/ONE/releases)
 nnfw_ver="1.12.0"
 enable_nnfw_ext="no"
+
+# Find '--help' in the given arguments
+arg_help="--help"
+for arg in "$@"; do
+    if [[ $arg == $arg_help ]]; then
+        sed -ne 's/^##@@ \(.*\)/\1/p' $0 && exit 1
+    fi
+done
 
 # Parse args
 for arg in "$@"; do
@@ -207,6 +244,10 @@ if [[ $release_bintray == "yes" ]]; then
     [ -z "$bintray_user_name" ] || [ -z "$bintray_user_key" ] && echo "Set user info to release." && exit 1
 
     echo "Release version: $release_version user: $bintray_user_name"
+fi
+
+if [[ $enable_decoder_flatbuf == "yes" ]]; then
+    echo "Build with flatbuffers v$decoder_flatbuf_ver for the decoder sub-plugin"
 fi
 
 # Set library name
