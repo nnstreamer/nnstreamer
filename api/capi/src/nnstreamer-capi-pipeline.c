@@ -630,6 +630,17 @@ construct_pipeline_internal (const char *pipeline_description,
   /* finally set pipeline state to PAUSED */
   if (status == ML_ERROR_NONE) {
     status = ml_pipeline_stop ((ml_pipeline_h) pipe_h);
+
+    if (status == ML_ERROR_NONE) {
+      /**
+       * Let's wait until the pipeline state is changed to paused.
+       * Otherwise, the following APIs like 'set_property' may incur
+       * unintended behaviors. But, don't need to return any error
+       * even if this state change is not finished within the timeout,
+       * just replying on the caller.
+       */
+      gst_element_get_state (pipeline, NULL, NULL, 10 * GST_MSECOND);
+    }
   }
 
 failed:
