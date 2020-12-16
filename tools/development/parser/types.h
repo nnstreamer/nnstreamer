@@ -14,6 +14,12 @@
 
 #include <glib-object.h>
 
+/** Define GST macro's substitutions */
+#define __GST_BIN(e) (((e)->id == oTI_GstBin && (e)->specialType == 0) ? \
+  (e) : NULL)
+#define __GST_IS_BIN(e) ((e)->id == oTI_GstBin)
+#define __GST_BIN_CAST(e) (e)
+
 typedef enum {
   eST_normal = 0,
   eST_URI_SINK,
@@ -129,43 +135,6 @@ struct _graph_t {
   _ParseFlags flags;
 };
 
-
-/**
- * Memory checking. Should probably be done with gsttrace stuff, but that
- * doesn't really work.
- * This is not safe from reentrance issues, but that doesn't matter as long as
- * we lock a mutex before parsing anyway.
- *
- * FIXME: Disable this for now for the above reasons
- */
-#if 0
-#ifdef GST_DEBUG_ENABLED
-#  define __GST_PARSE_TRACE
-#endif
-#endif
-
-#ifdef __GST_PARSE_TRACE
-G_GNUC_INTERNAL  gchar  *__gst_parse_strdup (gchar *org);
-G_GNUC_INTERNAL  void	__gst_parse_strfree (gchar *str);
-G_GNUC_INTERNAL  link_t *__gst_parse_link_new (void);
-G_GNUC_INTERNAL  void	__gst_parse_link_free (link_t *data);
-G_GNUC_INTERNAL  chain_t *__gst_parse_chain_new (void);
-G_GNUC_INTERNAL  void	__gst_parse_chain_free (chain_t *data);
-#  define gst_parse_strdup __gst_parse_strdup
-#  define gst_parse_strfree __gst_parse_strfree
-#  define gst_parse_link_new __gst_parse_link_new
-#  define gst_parse_link_free __gst_parse_link_free
-#  define gst_parse_chain_new __gst_parse_chain_new
-#  define gst_parse_chain_free __gst_parse_chain_free
-#else /* __GST_PARSE_TRACE */
-#  define gst_parse_strdup g_strdup
-#  define gst_parse_strfree g_free
-#  define gst_parse_link_new() g_slice_new0 (link_t)
-#  define gst_parse_link_free(l) g_slice_free (link_t, l)
-#  define gst_parse_chain_new() g_slice_new0 (chain_t)
-#  define gst_parse_chain_free(c) g_slice_free (chain_t, c)
-#endif /* __GST_PARSE_TRACE */
-
 /** @brief GST Parser's internal function imported */
 static inline void
 gst_parse_unescape (gchar *str)
@@ -219,5 +188,13 @@ G_GNUC_INTERNAL _Element *priv_gst_parse_launch (const gchar      * str,
                                                    GError          ** err,
                                                    _ParseContext  * ctx,
                                                    _ParseFlags      flags);
+
+/** @brief Substitutes GST's gst_bin_get_by_name () */
+_Element *
+nnstparser_bin_get_by_name (_Bin * bin, const gchar * name);
+
+/** @brief Substitutes GST's gst_bin_get_by_name_recurse_up () */
+_Element *
+nnstparser_bin_get_by_name_recurse_up (_Bin * bin, const gchar * name);
 
 #endif /* __GST_PARSE_TYPES_H__ */

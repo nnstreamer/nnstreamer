@@ -168,14 +168,14 @@ typedef struct {
   gulong signal_id;
 } DelayedSet;
 
-static int  gst_resolve_reference(reference_t *rr, GstElement *pipeline){
-  GstBin *bin;
+static int  gst_resolve_reference(reference_t *rr, _Element *pipeline){
+  _Element *bin;
 
   if(rr->element) return  0;  /* already resolved! */
   if(!rr->name)   return -2;  /* no chance! */
 
-  if (GST_IS_BIN (pipeline)){
-    bin = GST_BIN (pipeline);
+  if (__GST_IS_BIN (pipeline)){
+    bin = __GST_BIN (pipeline);
     rr->element = gst_bin_get_by_name_recurse_up (bin, rr->name);
   } else {
     rr->element = strcmp (GST_ELEMENT_NAME (pipeline), rr->name) == 0 ?
@@ -209,15 +209,15 @@ static void gst_parse_add_delayed_set (GstElement *element, gchar *name, gchar *
       gst_parse_free_delayed_set, (GConnectFlags) 0);
 
   /* FIXME: we would need to listen on all intermediate bins too */
-  if (GST_IS_BIN (element)) {
+  if (__GST_IS_BIN (element)) {
     gchar **names, **current;
     GstElement *parent, *child;
 
     current = names = g_strsplit (name, "::", -1);
-    parent = gst_bin_get_by_name (GST_BIN_CAST (element), current[0]);
+    parent = gst_bin_get_by_name (__GST_BIN_CAST (element), current[0]);
     current++;
     while (parent && current[0]) {
-      child = gst_bin_get_by_name (GST_BIN (parent), current[0]);
+      child = gst_bin_get_by_name (__GST_BIN (parent), current[0]);
       if (!child && current[1]) {
         char *sub_name = g_strjoinv ("::", &current[0]);
 
@@ -1078,9 +1078,9 @@ priv_gst_parse_launch (const gchar *str, GError **error, GstParseContext *ctx,
   /* put all elements in our bin if necessary */
   if(g.chain->elements->next){
     if (flags & GST_PARSE_FLAG_PLACE_IN_BIN)
-      bin = GST_BIN (gst_element_factory_make ("bin", NULL));
+      bin = __GST_BIN (gst_element_factory_make ("bin", NULL));
     else
-      bin = GST_BIN (gst_element_factory_make ("pipeline", NULL));
+      bin = __GST_BIN (gst_element_factory_make ("pipeline", NULL));
     g_assert (bin);
 
     for (walk = g.chain->elements; walk; walk = walk->next) {
@@ -1094,8 +1094,8 @@ priv_gst_parse_launch (const gchar *str, GError **error, GstParseContext *ctx,
   ret = (GstElement *) g.chain->elements->data;
   g_slist_free (g.chain->elements);
   g.chain->elements=NULL;
-  if (GST_IS_BIN (ret))
-    bin = GST_BIN (ret);
+  if (__GST_IS_BIN (ret))
+    bin = __GST_BIN (ret);
   gst_parse_free_chain (g.chain);
   g.chain = NULL;
 
