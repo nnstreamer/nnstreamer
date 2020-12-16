@@ -312,7 +312,7 @@ gst_tensor_demux_get_tensor_pad (GstTensorDemux * tensor_demux,
   gchar *name;
   GstEvent *event;
   gchar *stream_id;
-  GstCaps *caps;
+  GstCaps *caps = NULL;
 
   walk = tensor_demux->srcpads;
   while (walk) {
@@ -387,8 +387,8 @@ gst_tensor_demux_get_tensor_pad (GstTensorDemux * tensor_demux,
     if (num == 1 && gst_pad_has_tensor_caps (pad)) {
       GstTensorConfig config;
       gint64 idx = g_ascii_strtoll (strv[0], NULL, 10);
-      gst_tensor_demux_get_tensor_config (tensor_demux, &config, idx);
-      caps = gst_tensor_caps_from_config (&config);
+      if (gst_tensor_demux_get_tensor_config (tensor_demux, &config, idx))
+        caps = gst_tensor_caps_from_config (&config);
     } else {
       GstTensorsConfig config;
       guint i;
@@ -405,12 +405,16 @@ gst_tensor_demux_get_tensor_pad (GstTensorDemux * tensor_demux,
     g_strfreev (strv);
   } else {
     GstTensorConfig config;
-    gst_tensor_demux_get_tensor_config (tensor_demux, &config, nth);
-    caps = gst_tensor_caps_from_config (&config);
+    if (gst_tensor_demux_get_tensor_config (tensor_demux, &config, nth))
+      caps = gst_tensor_caps_from_config (&config);
   }
 
-  gst_pad_set_caps (pad, caps);
-  gst_caps_unref (caps);
+  if (caps) {
+    gst_pad_set_caps (pad, caps);
+    gst_caps_unref (caps);
+  } else {
+    GST_WARNING_OBJECT (tensor_demux, "Unable to set pad caps");
+  }
 
   if (created) {
     *created = TRUE;
