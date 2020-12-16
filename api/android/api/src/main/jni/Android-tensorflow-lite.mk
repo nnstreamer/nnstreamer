@@ -79,6 +79,7 @@ include $(CLEAR_VARS)
 
 LOCAL_MODULE := tensorflow-lite-lib
 LOCAL_SRC_FILES := $(TF_LITE_LIB_PATH)/libtensorflow-lite.a
+LOCAL_EXPORT_LDFLAGS := -Wl,--exclude-libs,libtensorflow-lite.a
 
 include $(PREBUILT_STATIC_LIBRARY)
 
