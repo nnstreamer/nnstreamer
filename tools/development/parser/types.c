@@ -119,3 +119,29 @@ nnstparser_element_from_uri (_URIType type, const gchar * uri,
   ret->refcount = 1;
   return ret;
 }
+
+/**
+ * @brief Substitutes GST's gst_bin_get_by_name ()
+ */
+_Element *
+nnstparser_bin_get_by_name (_Bin * bin, const gchar * name)
+{
+}
+
+/**
+ * @brief Substitutes GST's gst_bin_get_by_name_recurse_up ()
+ */
+_Element *
+nnstparser_bin_get_by_name_recurse_up (_Bin * bin, const gchar * name)
+{
+  _Element *result;
+
+  g_return_val_if_fail (__GST_IS_BIN (bin), NULL);
+  g_return_val_if_fail (name != NULL, NULL);
+
+  result = gst_bin_get_by_name (bin, name);
+
+  if (!result) {
+    ///////////////// WORKING HERE. May need to analyze gst object parent structure
+  }
+}
