@@ -231,7 +231,7 @@ typedef enum {
  * @remarks The @a info can be used only in the callback. To use outside, make a copy.
  * @param[in] data The handle of the tensor output of the pipeline (a single frame. tensor/tensors). Number of tensors is determined by ml_tensors_info_get_count() with the handle 'info'. Note that the maximum number of tensors is 16 (#ML_TENSOR_SIZE_LIMIT).
  * @param[in] info The handle of tensors information (cardinality, dimension, and type of given tensor/tensors).
- * @param[in/out] user_data User application's private data.
+ * @param[in,out] user_data User application's private data.
  */
 typedef void (*ml_pipeline_sink_cb) (const ml_tensors_data_h data, const ml_tensors_info_h info, void *user_data);
 
@@ -245,15 +245,15 @@ typedef void (*ml_pipeline_sink_cb) (const ml_tensors_data_h data, const ml_tens
 typedef void (*ml_pipeline_state_cb) (ml_pipeline_state_e state, void *user_data);
 
 /**
- * @brief Callback for custom condition of tensor_if
+ * @brief Callback for custom condition of tensor_if.
  * @since_tizen 6.5
  * @param[in] info The handle of tensors information (cardinality, dimension, and type of given tensor/tensors).
  * @param[in] data The handle of the tensor output of the pipeline (a single frame. tensor/tensors). Number of tensors is determined by ml_tensors_info_get_count() with the handle 'info'. Note that the maximum number of tensors is 16 (#ML_TENSOR_SIZE_LIMIT).
- * @param[in/out] user_data User application's private data.
  * @param[out] result Result of the user-defined condition. 0 refers to FALSE and a non-zero value refers to TRUE.
+ * @param[in,out] user_data User application's private data.
  * @return @c 0 on success. Otherwise a negative error value.
  */
-typedef int (*ml_pipeline_if_custom_cb) (const ml_tensors_info_h info, const ml_tensors_data_h data, void *user_data, int *result);
+typedef int (*ml_pipeline_if_custom_cb) (const ml_tensors_info_h info, const ml_tensors_data_h data, int *result, void *user_data);
 
 /**
  * @brief Callback to execute the custom-easy filter in NNStreamer pipelines.
@@ -262,7 +262,7 @@ typedef int (*ml_pipeline_if_custom_cb) (const ml_tensors_info_h info, const ml_
  * @remarks The @a out can be used only in the callback. To use outside, make a copy.
  * @param[in] in The handle of the tensor input (a single frame. tensor/tensors).
  * @param[out] out The handle of the tensor output to be filled (a single frame. tensor/tensors).
- * @param[in/out] user_data User application's private data.
+ * @param[in,out] user_data User application's private data.
  * @return @c 0 on success. @c 1 to ignore the input data. Otherwise a negative error value.
  */
 typedef int (*ml_custom_easy_invoke_cb) (const ml_tensors_data_h in, ml_tensors_data_h out, void *user_data);
@@ -920,8 +920,8 @@ int ml_pipeline_element_get_property_enum (ml_pipeline_element_h elem_h, const c
  * @retval #ML_ERROR_INVALID_PARAMETER The parameter is invalid, or duplicated name exists.
  * @retval #ML_ERROR_OUT_OF_MEMORY Failed to allocate required memory to register the custom filter.
  * @warning A custom condition of the tensor_if is registered to the process globally.
- *          If the custom condition "X" is registered , this "X" may be referred in any pipelines of the current process.
- *          So, Be careful not to use the same tensor_if name when using multiple pipelines.
+ *          If the custom condition "X" is registered, this "X" may be referred in any pipelines of the current process.
+ *          So, be careful not to use the same tensor_if name when using multiple pipelines.
  *
  * Here is an example of the usage:
  * @code
