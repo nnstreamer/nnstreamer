@@ -10001,6 +10001,250 @@ TEST (nnstreamer_capi_custom, register_filter_10_n)
 }
 
 /**
+ * @brief Callback for tensor_if custom condition.
+ */
+static int
+test_if_custom_cb (const ml_tensors_data_h data, const ml_tensors_info_h info, int *result, void *user_data)
+{
+  void *data_ptr;
+  guint sum = 0, i;
+  size_t data_size;
+
+  ml_tensors_data_get_tensor_data (data, 0, &data_ptr, &data_size);
+
+  for (i = 0; i < data_size; i++)
+    sum += ((guint8 *) data_ptr)[i];
+
+  /* Sum value 30 means that the sixth buffer has arrived.*/
+  if (sum >= 30)
+    *result = 0;
+  else
+    *result = 1;
+
+  return 0;
+}
+
+/**
+ * @brief Test for tensor_if custom condition
+ */
+TEST (nnstreamer_capi_if, custom_01_p)
+{
+  const gchar *_tmpdir = g_get_tmp_dir ();
+  const gchar *_dirname = "nns-tizen-XXXXXX";
+  gchar *fullpath = g_build_path ("/", _tmpdir, _dirname, NULL);
+  gchar *dir = g_mkdtemp ((gchar *)fullpath);
+  gchar *file = g_build_path ("/", dir, "output", NULL);
+  ml_pipeline_h pipe;
+  ml_pipeline_src_h srchandle;
+  ml_pipeline_sink_h sink_false;
+  ml_pipeline_if_h custom;
+  ml_tensors_info_h info;
+  ml_tensors_data_h data;
+  unsigned int count = 0;
+  ml_tensor_type_e type = ML_TENSOR_TYPE_UNKNOWN;
+  int status;
+  uint8_t *uintarray[10];
+  uint8_t *content = NULL;
+  guint i;
+  gsize len;
+  gchar *pipeline = g_strdup_printf (
+      "appsrc name=appsrc ! other/tensor,dimension=(string)4:1:1:1, type=(string)uint8,framerate=(fraction)0/1 ! "
+      "tensor_if name=tif compared-value=CUSTOM compared-value-option=tif_custom_cb_name then=PASSTHROUGH else=PASSTHROUGH "
+      "tif.src_0 ! queue ! filesink location=\"%s\" buffer-mode=unbuffered "
+      "tif.src_1 ! queue ! tensor_sink name=sink_false sync=false async=false", file);
+
+  guint *count_sink = (guint *)g_malloc0 (sizeof (guint));
+  ASSERT_TRUE (count_sink != NULL);
+  *count_sink = 0;
+
+  /* test code for tensor_if custom */
+  status = ml_pipeline_tensor_if_custom_register ("tif_custom_cb_name", test_if_custom_cb, NULL, &custom);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_construct (pipeline, NULL, NULL, &pipe);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_sink_register (
+      pipe, "sink_false", test_sink_callback_count, count_sink, &sink_false);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_src_get_handle (pipe, "appsrc", &srchandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_start (pipe);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  for (i = 0; i < 10; i++) {
+    uintarray[i] = (uint8_t *)g_malloc (4);
+    ASSERT_TRUE (uintarray[i] != NULL);
+    uintarray[i][0] = i + 4;
+    uintarray[i][1] = i + 1;
+    uintarray[i][2] = i + 3;
+    uintarray[i][3] = i + 2;
+  }
+
+  status = ml_pipeline_src_get_tensors_info (srchandle, &info);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  ml_tensors_info_get_count (info, &count);
+  EXPECT_EQ (count, 1U);
+
+  ml_tensors_info_get_tensor_type (info, 0, &type);
+  EXPECT_EQ (type, ML_TENSOR_TYPE_UINT8);
+
+  status = ml_tensors_data_create (info, &data);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* Set tensor data and push buffers to source pad */
+  for (i = 0; i < 10; i++) {
+    status = ml_tensors_data_set_tensor_data (data, 0, uintarray[i], 4);
+    EXPECT_EQ (status, ML_ERROR_NONE);
+
+    status = ml_pipeline_src_input_data (srchandle, data, ML_PIPELINE_BUF_POLICY_DO_NOT_FREE);
+    EXPECT_EQ (status, ML_ERROR_NONE);
+
+    g_usleep (50000); /* 50ms. Wait a bit. */
+  }
+
+  status = ml_pipeline_stop (pipe);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_src_release_handle (srchandle);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_sink_unregister (sink_false);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_destroy (pipe);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_tensor_if_custom_unregister (custom);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  EXPECT_TRUE (g_file_get_contents (file, (gchar **)&content, &len, NULL));
+  EXPECT_EQ (len, 4U * 5);
+  EXPECT_TRUE (content != nullptr);
+
+  /* Check if the TRUE path data is received correctly.  */
+  if (content && len == 20) {
+    for (i = 0; i < 5; i++) {
+      EXPECT_EQ (content[i * 4 + 0], i + 4);
+      EXPECT_EQ (content[i * 4 + 1], i + 1);
+      EXPECT_EQ (content[i * 4 + 2], i + 3);
+      EXPECT_EQ (content[i * 4 + 3], i + 2);
+    }
+  }
+  g_free (content);
+
+  /* The FALSE path receives 5 buffers. */
+  EXPECT_EQ (*count_sink, 5U);
+
+  for (i = 0; i < 10; i++) {
+    g_free (uintarray[i]);
+  }
+  ml_tensors_info_destroy (info);
+  ml_tensors_data_destroy (data);
+  g_free (pipeline);
+  g_free (count_sink);
+  g_free (fullpath);
+  g_free (file);
+}
+
+/**
+ * @brief Test for tensor_if custom registration.
+ * @detail Invalid params.
+ */
+TEST (nnstreamer_capi_if, register_01_n)
+{
+  ml_pipeline_if_h custom;
+  int status;
+
+  /* test code with null param */
+  status = ml_pipeline_tensor_if_custom_register (NULL, test_if_custom_cb, NULL, &custom);
+  EXPECT_NE (status, ML_ERROR_NONE);
+}
+
+/**
+ * @brief Test for tensor_if custom registration.
+ * @detail Invalid params.
+ */
+TEST (nnstreamer_capi_if, register_02_n)
+{
+  ml_pipeline_if_h custom;
+  int status;
+
+  /* test code with null param */
+  status = ml_pipeline_tensor_if_custom_register ("tif_custom_cb_name", NULL, NULL, &custom);
+  EXPECT_NE (status, ML_ERROR_NONE);
+}
+
+/**
+ * @brief Test for tensor_if custom registration.
+ * @detail Invalid params.
+ */
+TEST (nnstreamer_capi_if, register_03_n)
+{
+  int status;
+
+  /* test code with null param */
+  status = ml_pipeline_tensor_if_custom_register ("tif_custom_cb_name", test_if_custom_cb, NULL, NULL);
+  EXPECT_NE (status, ML_ERROR_NONE);
+}
+
+/**
+ * @brief Test for tensor_if custom registration.
+ * @detail Invalid params.
+ */
+TEST (nnstreamer_capi_if, register_04_n)
+{
+  ml_pipeline_if_h custom1, custom2;
+  int status;
+
+  status = ml_pipeline_tensor_if_custom_register ("tif_custom_cb_name", test_if_custom_cb, NULL, &custom1);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* test to register tensor_if custom twice with same name */
+  status = ml_pipeline_tensor_if_custom_register ("tif_custom_cb_name", test_if_custom_cb, NULL, &custom2);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_tensor_if_custom_unregister (custom1);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+}
+
+/**
+ * @brief Test for tensor_if custom unregistration.
+ * @detail Invalid params.
+ */
+TEST (nnstreamer_capi_if, unregister_01_n)
+{
+  int status;
+
+  /* test code with null param */
+  status = ml_pipeline_tensor_if_custom_unregister (NULL);
+  EXPECT_NE (status, ML_ERROR_NONE);
+}
+
+/**
+ * @brief Test for tensor_if custom unregistration.
+ * @detail Invalid params.
+ */
+TEST (nnstreamer_capi_if, unregister_02_n)
+{
+  ml_pipeline_if_h custom;
+  int status;
+
+  status = ml_pipeline_tensor_if_custom_register ("tif_custom_cb_name", test_if_custom_cb, NULL, &custom);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_pipeline_tensor_if_custom_unregister (custom);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  /* test to unregister tensor_if custom twice */
+  status = ml_pipeline_tensor_if_custom_unregister (custom);
+  EXPECT_NE (status, ML_ERROR_NONE);
+}
+
+/**
  * @brief Main gtest
  */
 int
