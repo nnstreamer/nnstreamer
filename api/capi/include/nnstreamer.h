@@ -247,13 +247,13 @@ typedef void (*ml_pipeline_state_cb) (ml_pipeline_state_e state, void *user_data
 /**
  * @brief Callback for custom condition of tensor_if.
  * @since_tizen 6.5
- * @param[in] info The handle of tensors information (cardinality, dimension, and type of given tensor/tensors).
  * @param[in] data The handle of the tensor output of the pipeline (a single frame. tensor/tensors). Number of tensors is determined by ml_tensors_info_get_count() with the handle 'info'. Note that the maximum number of tensors is 16 (#ML_TENSOR_SIZE_LIMIT).
+ * @param[in] info The handle of tensors information (cardinality, dimension, and type of given tensor/tensors).
  * @param[out] result Result of the user-defined condition. 0 refers to FALSE and a non-zero value refers to TRUE.
  * @param[in,out] user_data User application's private data.
  * @return @c 0 on success. Otherwise a negative error value.
  */
-typedef int (*ml_pipeline_if_custom_cb) (const ml_tensors_info_h info, const ml_tensors_data_h data, int *result, void *user_data);
+typedef int (*ml_pipeline_if_custom_cb) (const ml_tensors_data_h data, const ml_tensors_info_h info, int *result, void *user_data);
 
 /**
  * @brief Callback to execute the custom-easy filter in NNStreamer pipelines.
@@ -919,6 +919,7 @@ int ml_pipeline_element_get_property_enum (ml_pipeline_element_h elem_h, const c
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER The parameter is invalid, or duplicated name exists.
  * @retval #ML_ERROR_OUT_OF_MEMORY Failed to allocate required memory to register the custom filter.
+ * @retval #ML_ERROR_STREAMS_PIPE Failed to register the tensor_if custom.
  * @warning A custom condition of the tensor_if is registered to the process globally.
  *          If the custom condition "X" is registered, this "X" may be referred in any pipelines of the current process.
  *          So, be careful not to use the same tensor_if name when using multiple pipelines.
@@ -939,6 +940,7 @@ int ml_pipeline_tensor_if_custom_register (const char *name, ml_pipeline_if_cust
  * @retval #ML_ERROR_NONE Successful.
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER The parameter is invalid.
+ * @retval #ML_ERROR_STREAMS_PIPE Failed to unregister the tensor_if custom.
  */
 int ml_pipeline_tensor_if_custom_unregister (ml_pipeline_if_h if_custom);
 
