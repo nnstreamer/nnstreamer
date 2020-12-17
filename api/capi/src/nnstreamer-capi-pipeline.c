@@ -27,6 +27,7 @@
 #include <gst/app/app.h>        /* To push data to pipeline */
 
 #include "nnstreamer-capi-private.h"
+#include "tensor_if.h"
 #include "tensor_typedef.h"
 #include "tensor_filter_custom_easy.h"
 #include "nnstreamer_plugin_api.h"
@@ -2157,5 +2158,124 @@ ml_pipeline_custom_easy_filter_unregister (ml_custom_easy_filter_h custom)
   }
 
   ml_pipeline_custom_free_handle (c);
+  return ML_ERROR_NONE;
+}
+
+/**
+ * @brief Callback for tensor_if custom condition.
+ */
+static gboolean
+ml_pipeline_if_custom (const GstTensorsInfo *info, const GstTensorMemory *input,
+    void *data, gboolean *result)
+{
+  int status = 0;
+  guint i;
+  ml_if_custom_s *c;
+  ml_tensors_data_h in_data;
+  ml_tensors_data_s *_data;
+  ml_tensors_info_h ml_info;
+  GstTensorsInfo in_info = *info;
+  gboolean ret = FALSE;
+
+  c = (ml_if_custom_s *) data;
+  in_data = NULL;
+
+  /* internal error? */
+  if (!c || !c->cb)
+    return FALSE;
+
+  ml_tensors_info_create_from_gst (&ml_info, &in_info);
+  status = ml_tensors_data_create_no_alloc (ml_info, &in_data);
+  if (status != ML_ERROR_NONE)
+    goto done;
+
+  _data = (ml_tensors_data_s *) in_data;
+  for (i = 0; i < _data->num_tensors; i++)
+    _data->tensors[i].tensor = input[i].data;
+
+  /* call invoke callback */
+  status = c->cb (in_data, ml_info, result, c->pdata);
+  if (status == 0)
+    ret = TRUE;
+
+done:
+  ml_tensors_info_destroy (ml_info);
+  g_free (in_data);
+
+  return ret;
+}
+
+/**
+ * @brief Releases tensor_if custom condition.
+ */
+static void
+ml_pipeline_if_custom_free (ml_if_custom_s * custom)
+{
+  g_free (custom->name);
+  g_free (custom);
+}
+
+/**
+ * @brief Registers the tensor_if custom callback.
+ */
+int
+ml_pipeline_tensor_if_custom_register (const char *name, ml_pipeline_if_custom_cb cb,
+    void *user_data, ml_pipeline_if_h *if_custom)
+{
+  int status = ML_ERROR_NONE;
+  ml_if_custom_s *c;
+
+  check_feature_state ();
+
+  if (!name || !cb || !if_custom)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  /* init null */
+  *if_custom = NULL;
+
+  /* create and init custom handle */
+  if ((c = g_try_new0 (ml_if_custom_s, 1)) == NULL)
+    return ML_ERROR_OUT_OF_MEMORY;
+
+  c->name = g_strdup (name);
+  c->cb = cb;
+  c->pdata = user_data;
+
+  if (nnstreamer_if_custom_register (name, ml_pipeline_if_custom, c) != 0) {
+    nns_loge ("Failed to register tensor_if custom condition %s.", name);
+    status = ML_ERROR_STREAMS_PIPE;
+  }
+
+  if (status == ML_ERROR_NONE) {
+    *if_custom = c;
+  } else {
+    ml_pipeline_if_custom_free (c);
+  }
+
+  return status;
+}
+
+/**
+ * @brief Unregisters the tensor_if custom callback.
+ */
+int
+ml_pipeline_tensor_if_custom_unregister (ml_pipeline_if_h if_custom)
+{
+  ml_if_custom_s *c;
+
+  check_feature_state ();
+
+  if (!if_custom)
+    return ML_ERROR_INVALID_PARAMETER;
+
+  c = (ml_if_custom_s *) if_custom;
+
+  if (nnstreamer_if_custom_unregister (c->name) != 0) {
+    ml_loge ("Failed to unregister tensor_if custom condition %s.", c->name);
+    return ML_ERROR_STREAMS_PIPE;
+  }
+
+  ml_pipeline_if_custom_free (c);
+
   return ML_ERROR_NONE;
 }

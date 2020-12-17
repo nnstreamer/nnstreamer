@@ -152,6 +152,16 @@ typedef struct {
 } ml_tensors_data_s;
 
 /**
+ * @brief Internal private representation of tensor_if custom conditon.
+ * @since_tizen 6.5
+ */
+typedef struct {
+  char *name;
+  ml_pipeline_if_custom_cb cb;
+  void *pdata;
+} ml_if_custom_s;
+
+/**
  * @brief Possible controls on elements of a pipeline.
  */
 typedef enum {
