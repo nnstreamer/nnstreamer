@@ -298,9 +298,10 @@ if [[ $enable_nnfw == "yes" ]]; then
         tar -zxf external/onert-ext-$nnfw_ver-android-aarch64.tar.gz -C external/nnfw
     fi
 
-    # Remove duplicated, unnecessary files (c++shared and tensorflowlite_jni)
+    # Remove duplicated, unnecessary files (c++shared and tensorflow-lite)
     rm -f external/nnfw/lib/libc++_shared.so
     rm -f external/nnfw/lib/libtensorflowlite_jni.so
+    rm -f external/nnfw/lib/libneuralnetworks.so
 
     mkdir -p api/src/main/jni/nnfw/include api/src/main/jni/nnfw/lib
     mkdir -p api/src/main/jni/nnfw/ext/arm64-v8a
