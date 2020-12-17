@@ -147,7 +147,7 @@ int ml_single_invoke (ml_single_h single, const ml_tensors_data_h input, ml_tens
  * @since_tizen 6.5
  * @param[in] single The model handle to be inferred.
  * @param[in] input The input data to be inferred.
- * @param[in/out] output The output data to be filled by the API. Output should be preallocated before calling the API.
+ * @param[in,out] output The output data to be filled by the API. Output should be preallocated before calling the API.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful.
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
