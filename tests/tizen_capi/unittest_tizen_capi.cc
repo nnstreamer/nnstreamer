@@ -3429,12 +3429,11 @@ TEST (nnstreamer_capi_singleshot, invoke_01)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (output != NULL);
 
-  ml_tensors_data_destroy (output);
-  ml_tensors_data_destroy (input);
-
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
+  ml_tensors_data_destroy (output);
+  ml_tensors_data_destroy (input);
   ml_tensors_info_destroy (in_res);
   ml_tensors_info_destroy (out_res);
 
@@ -3492,12 +3491,11 @@ TEST (nnstreamer_capi_singleshot, invoke_02)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (output != NULL);
 
-  ml_tensors_data_destroy (output);
-  ml_tensors_data_destroy (input);
-
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
+  ml_tensors_data_destroy (output);
+  ml_tensors_data_destroy (input);
   ml_tensors_info_destroy (in_info);
 skip_test:
   g_free (test_model);
@@ -3716,13 +3714,12 @@ TEST (nnstreamer_capi_singleshot, invoke_03)
     EXPECT_FLOAT_EQ (((float *)data_ptr)[i], f32);
   }
 
-  ml_tensors_data_destroy (output);
-  ml_tensors_data_destroy (input);
-
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_free (test_model);
+  ml_tensors_data_destroy (output);
+  ml_tensors_data_destroy (input);
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
 }
@@ -3875,15 +3872,14 @@ TEST (nnstreamer_capi_singleshot, invoke_04)
 
   EXPECT_EQ (max_score_index, 2);
 
-  ml_tensors_data_destroy (output);
-  ml_tensors_data_destroy (input);
-
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_free (test_model);
   g_free (test_file);
   g_free (contents);
+  ml_tensors_data_destroy (output);
+  ml_tensors_data_destroy (input);
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
   ml_tensors_info_destroy (in_res);
@@ -4275,14 +4271,14 @@ single_shot_loop_test (void *arg)
     output = NULL;
   }
 
-  ml_tensors_data_destroy (output);
-  ml_tensors_data_destroy (input);
-  ml_tensors_info_destroy (in_info);
-
   status = ml_single_close (single);
   if (ss_data->expect) {
     EXPECT_EQ (status, ML_ERROR_NONE);
   }
+
+  ml_tensors_data_destroy (output);
+  ml_tensors_data_destroy (input);
+  ml_tensors_info_destroy (in_info);
 
   return NULL;
 }
@@ -4908,12 +4904,12 @@ TEST (nnstreamer_capi_singleshot, property_01_p)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (data_size, 1001U);
 
+  status = ml_single_close (single);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
   ml_tensors_data_destroy (output);
   ml_tensors_data_destroy (input);
   ml_tensors_info_destroy (in_info);
-
-  status = ml_single_close (single);
-  EXPECT_EQ (status, ML_ERROR_NONE);
 
 skip_test:
   g_free (test_model);
@@ -5097,13 +5093,13 @@ TEST (nnstreamer_capi_singleshot, property_03_n)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (data_size, 1001U);
 
+  status = ml_single_close (single);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
   ml_tensors_data_destroy (input);
   ml_tensors_data_destroy (output);
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
-
-  status = ml_single_close (single);
-  EXPECT_EQ (status, ML_ERROR_NONE);
 
 skip_test:
   g_free (test_model);
@@ -5317,11 +5313,11 @@ TEST (nnstreamer_capi_singleshot, invoke_05)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_TRUE (output != NULL);
 
-  ml_tensors_data_destroy (output);
-  ml_tensors_data_destroy (input);
-
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
+
+  ml_tensors_data_destroy (output);
+  ml_tensors_data_destroy (input);
 
   g_free (test_model);
   ml_tensors_info_destroy (in_info);
@@ -5516,11 +5512,11 @@ TEST (nnstreamer_capi_singleshot, invoke_06)
 
   EXPECT_EQ (max_score_index, 9);
 
-  ml_tensors_data_destroy (output);
-  ml_tensors_data_destroy (input);
-
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
+
+  ml_tensors_data_destroy (output);
+  ml_tensors_data_destroy (input);
 
   g_free (test_model);
   g_free (test_file);
@@ -5649,11 +5645,11 @@ TEST (nnstreamer_capi_singleshot, invoke_07)
   EXPECT_EQ (status, ML_ERROR_NONE);
   EXPECT_EQ (((float *)data_ptr)[0], 12.0);
 
-  ml_tensors_data_destroy (output);
-  ml_tensors_data_destroy (input);
-
   status = ml_single_close (single);
   EXPECT_EQ (status, ML_ERROR_NONE);
+
+  ml_tensors_data_destroy (output);
+  ml_tensors_data_destroy (input);
 
   g_free (test_model);
   ml_tensors_info_destroy (in_info);
