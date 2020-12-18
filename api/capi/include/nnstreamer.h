@@ -917,16 +917,51 @@ int ml_pipeline_element_get_property_enum (ml_pipeline_element_h elem_h, const c
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful.
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
- * @retval #ML_ERROR_INVALID_PARAMETER The parameter is invalid, or duplicated name exists.
- * @retval #ML_ERROR_OUT_OF_MEMORY Failed to allocate required memory to register the custom filter.
- * @retval #ML_ERROR_STREAMS_PIPE Failed to register the tensor_if custom.
+ * @retval #ML_ERROR_INVALID_PARAMETER The parameter is invalid.
+ * @retval #ML_ERROR_OUT_OF_MEMORY Failed to allocate required memory to register the custom callback.
+ * @retval #ML_ERROR_STREAMS_PIPE Failed to register the custom callback.
  * @warning A custom condition of the tensor_if is registered to the process globally.
  *          If the custom condition "X" is registered, this "X" may be referred in any pipelines of the current process.
- *          So, be careful not to use the same tensor_if name when using multiple pipelines.
+ *          So, be careful not to use the same condition name when using multiple pipelines.
  *
  * Here is an example of the usage:
  * @code
- * TBU
+ * // Define callback for tensor_if custom condition.
+ * static int tensor_if_custom_cb (const ml_tensors_data_h data, const ml_tensors_info_h info, int *result, void *user_data)
+ * {
+ *  // Describe the conditions and pass the result.
+ *  // Result 0 refers to FALSE and a non-zero value refers to TRUE.
+*   // Return 0 if tehere is no error.
+ * }
+ * // The pipeline description (input data with dimension 2:1:1:1 and type int8 will be passed to tensor_if custom condition. Depending on the result, proceed to true or false paths.)
+ * const char pipeline[] = "appsrc ! other/tensor,dimension=(string)2:1:1:1,type=(string)int8,framerate=(fraction)0/1 ! tensor_if name=tif compared-value=CUSTOM compared-value-option=tif_custom_cb_name then=PASSTHROUGH else=PASSTHROUGH tif.src_0 ! tensor_sink tif.src_1 ! tensor_sink
+ * int status;
+ * ml_pipeline_h pipe;
+ * ml_pipeline_if_h custom;
+ *
+ * // Register tensor_if custom with name 'tif_custom_cb_name'.
+ * status = ml_pipeline_tensor_if_custom_register ("tif_custom_cb_name", tensor_if_custom_cb, NULL, &custom);
+ * if (status != ML_ERROR_NONE) {
+ *   // Handle error case.
+ *   goto error;
+ * }
+ *
+ * // Construct the pipeline.
+ * status = ml_pipeline_construct (pipeline, NULL, NULL, &pipe);
+ * if (status != ML_ERROR_NONE) {
+ *   // Handle error case.
+ *   goto error;
+ * }
+ *
+ * // Start the pipeline and execute the tensor.
+ * ml_pipeline_start (pipe);
+ *
+ * error:
+ * // Destroy the pipeline and unregister tensor_if custom.
+ * ml_pipeline_stop (pipe);
+ * ml_pipeline_destroy (pipe);
+ * ml_pipeline_tensor_if_custom_unregister (custom);
+ *
  * @endcode
  */
 int ml_pipeline_tensor_if_custom_register (const char *name, ml_pipeline_if_custom_cb cb, void *user_data, ml_pipeline_if_h *if_custom);
@@ -940,7 +975,7 @@ int ml_pipeline_tensor_if_custom_register (const char *name, ml_pipeline_if_cust
  * @retval #ML_ERROR_NONE Successful.
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER The parameter is invalid.
- * @retval #ML_ERROR_STREAMS_PIPE Failed to unregister the tensor_if custom.
+ * @retval #ML_ERROR_STREAMS_PIPE Failed to unregister the custom callback.
  */
 int ml_pipeline_tensor_if_custom_unregister (ml_pipeline_if_h if_custom);
 
