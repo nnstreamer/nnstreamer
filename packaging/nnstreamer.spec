@@ -496,9 +496,31 @@ You can include Tizen sensor framework nodes as source elements of GStreamer/NNS
 %package grpc
 Summary:	NNStreamer gRPC support
 Requires:	nnstreamer = %{version}-%{release}
-Requires:	grpc-devel
+%if %{with tizen}
+Recommends:	nnstreamer-grpc-protobuf = %{version}-%{release}
+Recommends:	nnstreamer-grpc-flatbuf = %{version}-%{release}
+%endif
 %description  grpc
 NNStreamer's tensor_source/sink plugins for gRPC support.
+
+%if 0%{protobuf_support}
+%package grpc-protobuf
+Summary:	NNStreamer gRPC/Protobuf support
+Requires:	nnstreamer-grpc = %{version}-%{release}
+Requires:	nnstreamer-protobuf = %{version}-%{release}
+%description  grpc-protobuf
+NNStreamer's gRPC IDL support for protobuf
+%endif
+
+%if 0%{flatbuf_support}
+%package grpc-flatbuf
+Summary:	NNStreamer gRPC/Flatbuf support
+Requires:	nnstreamer-grpc = %{version}-%{release}
+Requires:	nnstreamer-flatbuf = %{version}-%{release}
+%description  grpc-flatbuf
+NNStreamer's gRPC IDL support for flatbuf
+%endif
+
 %endif # grpc_support
 
 %if 0%{?edgetpu_support}
@@ -952,8 +974,24 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %defattr(-,root,root,-)
 %manifest nnstreamer.manifest
 %license LICENSE
-%{_libdir}/libnnstreamer_grpc_*.so
 %{gstlibdir}/libnnstreamer-grpc.so
+
+%if 0%{?protobuf_support}
+%files grpc-protobuf
+%defattr(-,root,root,-)
+%manifest nnstreamer.manifest
+%license LICENSE
+%{_libdir}/libnnstreamer_grpc_protobuf.so
+%endif
+
+%if 0%{?flatbuf_support}
+%files grpc-flatbuf
+%defattr(-,root,root,-)
+%manifest nnstreamer.manifest
+%license LICENSE
+%{_libdir}/libnnstreamer_grpc_flatbuf.so
+%endif
+
 %endif  # grpc_support
 
 %if 0%{?edgetpu_support}
