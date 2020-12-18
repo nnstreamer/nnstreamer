@@ -102,9 +102,24 @@ Description: NNStreamer Flatbuf converter/decoder support
 Package: nnstreamer-grpc
 Architecture: amd64
 Multi-Arch: same
-Depends: nnstreamer, libgrpc7, libgrpc++1, ${shlibs:Depends}, ${misc:Depends}
+Depends: nnstreamer, ${shlibs:Depends}, ${misc:Depends}
+Recommends: nnstreamer-grpc-protobuf, nnstreamer-grpc-flatbuf
 Description: NNStreamer gRPC tensor source/sink support
  This package allows nnstreamer to support gRPC tensor source/sink as a extra plugin
+
+Package: nnstreamer-grpc-protobuf
+Architecture: amd64
+Multi-Arch: same
+Depends: nnstreamer, nnstreamer-grpc, nnstreamer-protobuf, ${shlibs:Depends}, ${misc:Depends}
+Description: NNStreamer gRPC IDL support for protobuf
+ This package allows nnstreamer-grpc to use protobuf as its IDL
+
+Package: nnstreamer-grpc-flatbuf
+Architecture: amd64
+Multi-Arch: same
+Depends: nnstreamer, nnstreamer-grpc, nnstreamer-flatbuf, ${shlibs:Depends}, ${misc:Depends}
+Description: NNStreamer gRPC IDL support for flatbuf
+ This package allows nnstreamer-grpc to use flatbuf as its IDL
 
 Package: nnstreamer-dev
 Architecture: any
