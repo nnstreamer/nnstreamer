@@ -18,7 +18,7 @@
 #include <gst/gst.h>
 #include <gst/base/gstbasesink.h>
 
-#include <nnstreamer_grpc.h>
+#include <tensor_typedef.h>
 
 G_BEGIN_DECLS
 
@@ -48,21 +48,15 @@ typedef enum {
  */
 struct _GstTensorSinkGRPC
 {
-  GstBaseSink element; /**< parent class object */
+  GstBaseSink element;      /**< parent class object */
 
   /** Properties saved */
-  gboolean silent;      /**< true to print minimized log */
-  gboolean server;      /**< true to enable server mode */
-  gint port;            /**< gRPC server port number */
-  gchar *host;          /**< gRPC server host name */
-  grpc_idl idl;         /**< gRPC IDL for comm. */
-  guint out;            /**< number of output messages */
+  gboolean silent;          /**< true to print minimized log */
+  guint out;                /**< number of output messages */
 
   /** Working variables */
-  GstTensorsConfig config;
-
-  /** private data */
-  void *priv;
+  GstTensorsConfig config;  /**< tensors config */
+  void * priv;              /**< gRPC private data */
 };
 
 /**
