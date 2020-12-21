@@ -43,31 +43,41 @@ typedef enum {
 } grpc_direction;
 
 /**
- * @brief wrapper for gRPC C++ codes
+ * @brief structure for grpc configuration
  */
-#define grpc_new(self)                _grpc_new(self->idl, self->server, self->host, self->port)
-#define grpc_destroy(self)            _grpc_destroy(self->priv)
-#define grpc_set_callback(self, cb)   _grpc_set_callback(self->priv, cb, self)
-#define grpc_set_config(self, config) _grpc_set_config(self->priv, config)
-#define grpc_start(self, direction)   _grpc_start(self->priv, direction)
-#define grpc_stop(self)               _grpc_stop(self->priv)
-#define grpc_send(self, buffer)       _grpc_send(self->priv, buffer)
-#define grpc_get_listening_port(self) _grpc_get_listening_port(self->priv)
+typedef struct {
+  grpc_idl idl;
+  grpc_direction dir;
 
+  gchar * host;
+  gint port;
+
+  gboolean is_server;
+  gboolean is_blocking;
+
+  grpc_cb cb;
+  void *cb_data;
+
+  GstTensorsConfig *config;
+} grpc_config;
+
+/**
+ * @brief C++ wrappers for gRPC per-IDL codes
+ */
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 grpc_idl grpc_get_idl (const gchar *idl_str);
 
-void * _grpc_new (grpc_idl idl, gboolean server, const gchar *host, const gint port);
-void _grpc_destroy (void *priv);
-void _grpc_set_callback (void *priv, grpc_cb cb, void *data);
-void _grpc_set_config (void *priv, GstTensorsConfig *config);
-gboolean _grpc_start (void *priv, grpc_direction direction);
-void _grpc_stop (void *priv);
-gboolean _grpc_send (void *priv, GstBuffer *buffer);
-int _grpc_get_listening_port (void *priv);
+void * grpc_new (const grpc_config * config);
+void grpc_destroy (void * instance);
+
+gboolean grpc_start (void * instance);
+void grpc_stop (void * instance);
+
+gboolean grpc_send (void * instance, GstBuffer * buffer);
+int grpc_get_listening_port (void * instance);
 
 #ifdef __cplusplus
 }

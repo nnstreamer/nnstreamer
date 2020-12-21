@@ -28,8 +28,7 @@ class ServiceImplFlatbuf final
     public nnstreamer::flatbuf::TensorService::Service
 {
   public:
-    ServiceImplFlatbuf (gboolean is_server, const gchar *host, const gint port);
-    ~ServiceImplFlatbuf () {}
+    ServiceImplFlatbuf (const grpc_config * config);
 
     Status SendTensors (ServerContext *context,
         ServerReader<flatbuffers::grpc::Message<nnstreamer::flatbuf::Tensors>> *reader,
