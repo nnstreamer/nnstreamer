@@ -29,18 +29,17 @@ using namespace grpc;
 
 /** @brief create new instance of NNStreamerRPC */
 NNStreamerRPC *
-NNStreamerRPC::createInstance (grpc_idl idl, gboolean server,
-  const gchar *host, const gint port)
+NNStreamerRPC::createInstance (const grpc_config * config)
 {
   const gchar * name = NULL;
 
-  if (idl == GRPC_IDL_PROTOBUF)
+  if (config->idl == GRPC_IDL_PROTOBUF)
     name = NNS_GRPC_PROTOBUF_NAME;
-  else if (idl == GRPC_IDL_FLATBUF)
+  else if (config->idl == GRPC_IDL_FLATBUF)
     name = NNS_GRPC_FLATBUF_NAME;
 
   if (name == NULL) {
-    ml_loge ("Unsupported IDL detected: %d\n", idl);
+    ml_loge ("Unsupported IDL detected: %d\n", config->idl);
     return NULL;
   }
 
@@ -50,7 +49,7 @@ NNStreamerRPC::createInstance (grpc_idl idl, gboolean server,
     return NULL;
   }
 
-  using function_ptr = void * (*)(gboolean, const gchar *, const gint);
+  using function_ptr = void * (*)(const grpc_config * config);
   function_ptr create_instance;
 
   if (!g_module_symbol (module, NNS_GRPC_CREATE_INSTANCE,
@@ -60,7 +59,7 @@ NNStreamerRPC::createInstance (grpc_idl idl, gboolean server,
     return NULL;
   }
 
-  NNStreamerRPC * instance = (NNStreamerRPC *) create_instance (server, host, port);
+  NNStreamerRPC * instance = (NNStreamerRPC *) create_instance (config);
   if (!instance) {
     ml_loge ("Error creating an instance\n");
     g_module_close (module);
@@ -72,15 +71,14 @@ NNStreamerRPC::createInstance (grpc_idl idl, gboolean server,
 }
 
 /** @brief constructor of NNStreamerRPC */
-NNStreamerRPC::NNStreamerRPC (gboolean is_server, const gchar *host, const gint port):
-  is_server_ (is_server), host_ (host), port_ (port),
-  cb_ (nullptr), cb_data_ (nullptr), server_worker_ (nullptr), queue_ (nullptr),
-  handle_ (nullptr)
+NNStreamerRPC::NNStreamerRPC (const grpc_config * config):
+  host_ (config->host), port_ (config->port),
+  is_server_ (config->is_server), is_blocking_ (config->is_blocking),
+  direction_ (config->dir), cb_ (config->cb), cb_data_ (config->cb_data),
+  config_ (config->config), server_worker_ (nullptr), handle_ (nullptr)
 {
-  gst_tensors_config_init (&config_);
   queue_ = gst_data_queue_new (_data_queue_check_full_cb,
       NULL, NULL, NULL);
-  direction_ = GRPC_DIRECTION_NONE;
 }
 
 /** @brief destructor of NNStreamerRPC */
@@ -198,12 +196,11 @@ grpc_get_idl (const gchar *idl_str)
  * @brief gRPC C++ wrapper to create the class instance
  */
 void *
-_grpc_new (grpc_idl idl, gboolean server, const gchar *host, const gint port)
+grpc_new (const grpc_config * config)
 {
-  g_return_val_if_fail (host != NULL, NULL);
+  g_return_val_if_fail (config != NULL, NULL);
 
-  NNStreamerRPC * self =
-    NNStreamerRPC::createInstance (idl, server, host, port);
+  NNStreamerRPC * self = NNStreamerRPC::createInstance (config);
 
   return static_cast <void *> (self);
 }
@@ -212,11 +209,11 @@ _grpc_new (grpc_idl idl, gboolean server, const gchar *host, const gint port)
  * @brief gRPC C++ wrapper to destroy the class instance
  */
 void
-_grpc_destroy (void *priv)
+grpc_destroy (void *instance)
 {
-  g_return_if_fail (priv != NULL);
+  g_return_if_fail (instance != NULL);
 
-  NNStreamerRPC * self = static_cast<NNStreamerRPC *> (priv);
+  NNStreamerRPC * self = static_cast<NNStreamerRPC *> (instance);
   void *handle = self->getModuleHandle ();
 
   delete self;
@@ -226,42 +223,14 @@ _grpc_destroy (void *priv)
 }
 
 /**
- * @brief gRPC C++ wrapper to set callback
- */
-void
-_grpc_set_callback (void *priv, grpc_cb cb, void *cb_data)
-{
-  g_return_if_fail (priv != NULL);
-
-  NNStreamerRPC * self = static_cast<NNStreamerRPC *> (priv);
-
-  self->setCallback (cb, cb_data);
-}
-
-/**
- * @brief gRPC C++ wrapper to set config
- */
-void
-_grpc_set_config (void *priv, GstTensorsConfig *config)
-{
-  g_return_if_fail (priv != NULL);
-
-  NNStreamerRPC * self = static_cast<NNStreamerRPC *> (priv);
-
-  self->setConfig (config);
-}
-
-/**
  * @brief gRPC C++ wrapper to start gRPC service
  */
 gboolean
-_grpc_start (void *priv, grpc_direction direction)
+grpc_start (void * instance)
 {
-  g_return_val_if_fail (priv != NULL, FALSE);
+  g_return_val_if_fail (instance != NULL, FALSE);
 
-  NNStreamerRPC * self = static_cast<NNStreamerRPC *> (priv);
-
-  self->setDirection (direction);
+  NNStreamerRPC * self = static_cast<NNStreamerRPC *> (instance);
 
   return self->start ();
 }
@@ -270,11 +239,11 @@ _grpc_start (void *priv, grpc_direction direction)
  * @brief gRPC C++ wrapper to stop service
  */
 void
-_grpc_stop (void *priv)
+grpc_stop (void * instance)
 {
-  g_return_if_fail (priv != NULL);
+  g_return_if_fail (instance != NULL);
 
-  grpc::NNStreamerRPC * self = static_cast<grpc::NNStreamerRPC *> (priv);
+  grpc::NNStreamerRPC * self = static_cast<grpc::NNStreamerRPC *> (instance);
 
   self->stop ();
 }
@@ -283,11 +252,11 @@ _grpc_stop (void *priv)
  * @brief gRPC C++ wrapper to send messages
  */
 gboolean
-_grpc_send (void *priv, GstBuffer *buffer)
+grpc_send (void * instance, GstBuffer *buffer)
 {
-  g_return_val_if_fail (priv != NULL, FALSE);
+  g_return_val_if_fail (instance != NULL, FALSE);
 
-  grpc::NNStreamerRPC * self = static_cast<grpc::NNStreamerRPC *> (priv);
+  grpc::NNStreamerRPC * self = static_cast<grpc::NNStreamerRPC *> (instance);
 
   return self->send (buffer);
 }
@@ -296,11 +265,11 @@ _grpc_send (void *priv, GstBuffer *buffer)
  * @brief get gRPC listening port of the server instance
  */
 int
-_grpc_get_listening_port (void *priv)
+grpc_get_listening_port (void * instance)
 {
-  g_return_val_if_fail (priv != NULL, -EINVAL);
+  g_return_val_if_fail (instance != NULL, -EINVAL);
 
-  NNStreamerRPC * self = static_cast<NNStreamerRPC *> (priv);
+  NNStreamerRPC * self = static_cast<NNStreamerRPC *> (instance);
 
   return self->getListeningPort ();
 }

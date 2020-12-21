@@ -36,9 +36,8 @@ using google::protobuf::Empty;
 using namespace grpc;
 
 /** @brief constructor */
-ServiceImplProtobuf::ServiceImplProtobuf (gboolean is_server,
-    const gchar *host, const gint port):
-  NNStreamerRPC (is_server, host, port), client_stub_ (nullptr)
+ServiceImplProtobuf::ServiceImplProtobuf (const grpc_config * config):
+  NNStreamerRPC (config), client_stub_ (nullptr)
 {
 }
 
@@ -193,17 +192,17 @@ ServiceImplProtobuf::_get_tensors_from_buffer (GstBuffer *buffer,
   GstMapInfo map;
   gsize data_ptr = 0;
 
-  tensors.set_num_tensor (config_.info.num_tensors);
+  tensors.set_num_tensor (config_->info.num_tensors);
 
   fr = tensors.mutable_fr ();
-  fr->set_rate_n (config_.rate_n);
-  fr->set_rate_d (config_.rate_d);
+  fr->set_rate_n (config_->rate_n);
+  fr->set_rate_d (config_->rate_d);
 
   gst_buffer_map (buffer, &map, GST_MAP_READ);
 
-  for (guint i = 0; i < config_.info.num_tensors; i++) {
+  for (guint i = 0; i < config_->info.num_tensors; i++) {
     nnstreamer::protobuf::Tensor *tensor = tensors.add_tensor ();
-    const GstTensorInfo * info = &config_.info.info[i];
+    const GstTensorInfo * info = &config_->info.info[i];
     gsize tsize = gst_tensor_info_get_size (info);
 
     /* set tensor info */
@@ -227,7 +226,7 @@ ServiceImplProtobuf::_get_tensors_from_buffer (GstBuffer *buffer,
 
 /** @brief create gRPC/Protobuf instance */
 extern "C" void *
-create_instance (gboolean server, const gchar *host, const gint port)
+create_instance (const grpc_config * config)
 {
-  return new ServiceImplProtobuf (server, host, port);
+  return new ServiceImplProtobuf (config);
 }

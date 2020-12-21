@@ -43,9 +43,8 @@ using flatbuffers::grpc::MessageBuilder;
 using namespace grpc;
 
 /** @brief constructor */
-ServiceImplFlatbuf::ServiceImplFlatbuf (gboolean is_server,
-    const gchar *host, const gint port):
-  NNStreamerRPC (is_server, host, port), client_stub_ (nullptr)
+ServiceImplFlatbuf::ServiceImplFlatbuf (const grpc_config * config):
+  NNStreamerRPC (config), client_stub_ (nullptr)
 {
 }
 
@@ -219,8 +218,8 @@ ServiceImplFlatbuf::_get_tensors_from_buffer (GstBuffer *buffer,
   std::vector<flatbuffers::Offset<Tensor>> tensor_vector;
   Tensor_type tensor_type;
 
-  unsigned int num_tensors = config_.info.num_tensors;
-  frame_rate fr = frame_rate (config_.rate_n, config_.rate_d);
+  unsigned int num_tensors = config_->info.num_tensors;
+  frame_rate fr = frame_rate (config_->rate_n, config_->rate_d);
 
   GstMapInfo map;
   gsize data_ptr = 0;
@@ -228,7 +227,7 @@ ServiceImplFlatbuf::_get_tensors_from_buffer (GstBuffer *buffer,
   gst_buffer_map (buffer, &map, GST_MAP_READ);
 
   for (guint i = 0; i < num_tensors; i++) {
-    const GstTensorInfo * info = &config_.info.info[i];
+    const GstTensorInfo * info = &config_->info.info[i];
     gsize tsize = gst_tensor_info_get_size (info);
 
     tensor_dim = builder.CreateVector (info->dimension, NNS_TENSOR_RANK_LIMIT);
@@ -256,7 +255,7 @@ ServiceImplFlatbuf::_get_tensors_from_buffer (GstBuffer *buffer,
 
 /** @brief create gRPC/Flatbuf instance */
 extern "C" NNStreamerRPC *
-create_instance (gboolean server, const gchar *host, const gint port)
+create_instance (const grpc_config * config)
 {
-  return new ServiceImplFlatbuf (server, host, port);
+  return new ServiceImplFlatbuf (config);
 }

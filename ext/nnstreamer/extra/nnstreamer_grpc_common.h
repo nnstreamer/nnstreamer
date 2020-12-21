@@ -31,31 +31,14 @@ namespace grpc {
  */
 class NNStreamerRPC {
   public:
-    static NNStreamerRPC * createInstance (grpc_idl idl, gboolean server,
-        const gchar *host, const gint port);
+    static NNStreamerRPC * createInstance (const grpc_config *config);
 
-    NNStreamerRPC (gboolean is_server, const gchar *host, const gint port);
+    NNStreamerRPC (const grpc_config *config);
     virtual ~NNStreamerRPC ();
 
     gboolean start ();
     void stop ();
     gboolean send (GstBuffer *buffer);
-
-    /** @brief set callback */
-    void setCallback (grpc_cb cb, void *cb_data) {
-      cb_ = cb;
-      cb_data_ = cb_data;
-    }
-
-    /** @brief set tensor config */
-    void setConfig (GstTensorsConfig *config) {
-      memcpy (&config_, config, sizeof (*config));
-    }
-
-    /** @brief set grpc direction */
-    void setDirection (grpc_direction direction) {
-      direction_ = direction;
-    }
 
     /** @brief get gRPC listening port (server only) */
     int getListeningPort () {
@@ -77,20 +60,22 @@ class NNStreamerRPC {
     }
 
   protected:
-    gboolean is_server_;
     const gchar *host_;
     gint port_;
+
+    gboolean is_server_;
+    gboolean is_blocking_;
 
     grpc_direction direction_;
 
     grpc_cb cb_;
     void * cb_data_;
 
+    GstTensorsConfig *config_;
+    GstDataQueue *queue_;
+
     std::unique_ptr<Server> server_worker_;
     std::thread client_worker_;
-
-    GstDataQueue *queue_;
-    GstTensorsConfig config_;
 
     void * handle_;
 

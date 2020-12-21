@@ -28,7 +28,7 @@ class ServiceImplProtobuf final
     public nnstreamer::protobuf::TensorService::Service
 {
   public:
-    ServiceImplProtobuf (gboolean is_server, const gchar *host, const gint port);
+    ServiceImplProtobuf (const grpc_config * config);
 
     Status SendTensors (ServerContext *context,
         ServerReader<nnstreamer::protobuf::Tensors> *reader,
