@@ -236,28 +236,114 @@ $ cd $NNSTREAMER_ROOT
 $ bash ./api/android/build-android-lib.sh --run_test=yes
 ```
 
+### Using Model File with Scoped Storage
+
+Android keeps trying to protect app and user data on external storage. As a result, "scoped storage" is introduced in Android 10 and enhanced in Android 11.
+It makes an application has [access only to the app-specific directory on external storage](https://developer.android.com/training/data-storage#scoped-storage).
+
+With scoped storage, consider either options below:
+
+1. (**Recommended**) Provide your model files with [`assets`](https://developer.android.com/guide/topics/resources/providing-resources#OriginalFiles).
+    * Place your model files in `assets/models/`.
+    * Copy it into app-specific directory using [AssetManager](https://developer.android.com/reference/android/content/res/AssetManager).
+    * Use the File object with NNStreamer Java API.
+
+    Code example:
+
+    ```java
+    /**
+     * Copy files in `assets/models` into app-specific directory.
+     *
+     * @param context  The application context
+     */
+    void copyModelFromAssetsToAppDir(Context context) {
+      AssetManager am = context.getResources().getAssets();
+      String[] files = null;
+
+      // Get names of files in `assets/models` directory.
+      try {
+        files = am.list("models");
+      } catch (Exception e) {
+        Log.e("TAG", "Failed to get asset file list");
+        e.printStackTrace();
+        return;
+      }
+
+      // Copy files into app-specific directory.
+      for (String filename : files) {
+        try {
+          InputStream in = am.open("models/" + filename);
+          String outDir = context.getFilesDir().getAbsolutePath();
+          // Use `getExternalFilesDir` if you want external directory.
+          File outFile = new File(outDir, filename);
+          OutputStream out = new FileOutputStream(outFile);
+
+          byte[] buffer = new byte[1024];
+          int read;
+          while ((read = in.read(buffer)) != -1) {
+            out.write(buffer, 0, read);
+          }
+
+          in.close();
+          out.flush();
+          out.close();
+        } catch (IOException e) {
+          Log.e("TAG", "Failed to copy file: " + filename);
+          e.printStackTrace();
+          return;
+        }
+      }
+    }
+    ```
+
+2. Provide your model files with absolute path.
+    * Place your model files in the device's external storage.
+    * (If your app targets API level 30 (Android 11) or later) Set `android:preserveLegacyExternalStorage="true"` in your `AndroidManifest.xml` to use the deprecated method `getExternalStorageDirectory`.
+    * Use method `getExternalStorageDirectory` to get the File object.
+    * Use the File object with NNStreamer Java API.
+    * **Note:** Use this option only for test purporse. This assumes that the model files should be in the right hardcoded path in the target device.
+
+    Code example:
+
+    ```java
+    /**
+     * Return a model file in external storage.
+     *
+     * @return The File object
+     */
+    File getModelFile() {
+      String root = Environment.getExternalStorageDirectory().getAbsolutePath();
+      File model = new File(root + "/path/to/modelfile/sample.tflite");
+
+      if (!model.exists()) {
+        return null;
+      }
+
+      return model;
+    }
+    ```
+
 ### Using TensorFlow Lite NNAPI Delegate
 
-Since Android 10, all applications are in scoped storage and the `getExternalStorageDirectory()` is deprecated.
-There are some workarounds to use files with external path (e.g. set `requestLegacyExternalStorage` true in app's manifest file). With TensorFlow Lite model files in external storage, however, all workarounds do not work when an application attempts to access the NNAPI, and TensorFlow Lite fails to use available backend like GPU, DSP, or NPU.
+If the TensorFlow Lite model file is provided from external storage, TensorFlow Lite NNAPI delegate fails to use available backend like GPU, DSP, or NPU.
 
-If you want to use NNAPI delegate, you should provide the model file from internal storage. You may copy the model files into app-specific directory or cache directory. Or let your application access model files reside in the asset directory.
+To use NNAPI delegate properly, you should provide the model file from **internal** storage. You may copy the model files into **internal** app-specific directory (`getFilesDir`) or cache directory (`getCacheDir`).
 
-Here are sample java methods:
+Here are sample Java methods that copy given files into internal app-specific directory:
 
 ```java
 /**
- * Copy a model file in external storage into app-specific internal storage and return it
+ * Copy a model file into app-specific internal storage and return it.
  *
  * @param context  The application context
- * @param model    The File object of a model file in external storage
+ * @param model    The File object of a model file
  *
  * @return The copied File object
  */
 File modelFromFilesDir(Context context, File model) {
   File appSpecificFile = new File(context.getFilesDir(), model.getName());
   appSpecificFile.mkdirs();
-  // Copy the model file in external storage to app specific internal storage
+  // Copy the model file in external storage to app specific internal storage.
   try {
     Files.copy(model.toPath(), appSpecificFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
   } catch (Exception e) {
@@ -269,17 +355,17 @@ File modelFromFilesDir(Context context, File model) {
 }
 
 /**
- * Copy a model file in external storage into app-specific cache directory and return it
+ * Copy a model file into app-specific cache directory and return it.
  *
  * @param context  The application context
- * @param model    The File object of a model file in external storage
+ * @param model    The File object of a model file
  *
  * @return         The copied File object
  */
 File modelFromCacheDir(Context context, File model) {
   File cacheFile = new File(context.getCacheDir(), model.getName());
   cacheFile.getParentFile().mkdirs();
-  // Copy the model file in external storage to app-specific cache directory
+  // Copy the model file in external storage to app-specific cache directory.
   try {
     Files.copy(model.toPath(), cacheFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
   } catch (Exception e) {
