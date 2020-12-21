@@ -453,9 +453,9 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   GstTensorFilter *self;
   GstTensorFilterPrivate *priv;
   GstTensorFilterProperties *prop;
-  GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT];
+  GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
   GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT];
-  GstMemory *out_mem[NNS_TENSOR_SIZE_LIMIT];
+  GstMemory *out_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
   GstMapInfo out_info[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMemory invoke_tensors[NNS_TENSOR_SIZE_LIMIT];
@@ -591,6 +591,28 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   if (TRUE == need_profiling)
     record_statistics (priv);
 
+  /* 4. Free map info and handle error case */
+  for (i = 0; i < num_mems; i++)
+    gst_memory_unmap (in_mem[i], &in_info[i]);
+
+  if (allocate_in_invoke == FALSE) {
+    for (i = 0; i < prop->output_meta.num_tensors; i++) {
+      gst_memory_unmap (out_mem[i], &out_info[i]);
+      if (ret != 0)
+        gst_allocator_free (out_mem[i]->allocator, out_mem[i]);
+    }
+  }
+
+  /** @todo define enum to indicate status code */
+  if (ret < 0) {
+    ml_loge ("Tensor-filter invoke failed (error code = %d).\n", ret);
+    return GST_FLOW_ERROR;
+  } else if (ret > 0) {
+    /* drop this buffer */
+    return GST_BASE_TRANSFORM_FLOW_DROPPED;
+  }
+
+  /* 5. Update result */
   /* If output combination is defined, append input tensors first */
   if (TRUE == priv->combi.out_combi_i_defined) {
     GList *list = NULL;
@@ -602,54 +624,42 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     }
   }
 
-  /* 4. Update result and free map info. */
   for (i = 0; i < prop->output_meta.num_tensors; i++) {
     if (TRUE == priv->combi.out_combi_o_defined) {
       GList *list = NULL;
       gboolean out_combi = FALSE;
       for (list = priv->combi.out_combi_o; list != NULL; list = list->next) {
-        if (i == GPOINTER_TO_INT (list->data))
+        if (i == GPOINTER_TO_INT (list->data)) {
           out_combi = TRUE;
+          break;
+        }
       }
-      if (FALSE == out_combi)
+      if (FALSE == out_combi) {
+        /* release memory block */
+        if (allocate_in_invoke) {
+          gst_tensor_filter_destroy_notify_util (priv, out_tensors[i].data);
+        } else {
+          gst_allocator_free (out_mem[i]->allocator, out_mem[i]);
+        }
+
         continue;
+      }
     }
 
     if (allocate_in_invoke) {
       /* prepare memory block if successfully done */
-      if (ret == 0) {
-        GPtrArray *data_array = g_ptr_array_new ();
-        g_ptr_array_add (data_array, (gpointer) self);
-        g_ptr_array_add (data_array, (gpointer) out_tensors[i].data);
+      GPtrArray *data_array = g_ptr_array_new ();
+      g_ptr_array_add (data_array, (gpointer) self);
+      g_ptr_array_add (data_array, (gpointer) out_tensors[i].data);
 
-        /* filter-subplugin allocated new memory, update this */
-        out_mem[i] = gst_memory_new_wrapped (0, out_tensors[i].data,
-            out_tensors[i].size, 0, out_tensors[i].size, (gpointer) data_array,
-            gst_tensor_filter_destroy_notify);
-      }
-    } else {
-      gst_memory_unmap (out_mem[i], &out_info[i]);
+      /* filter-subplugin allocated new memory, update this */
+      out_mem[i] = gst_memory_new_wrapped (0, out_tensors[i].data,
+          out_tensors[i].size, 0, out_tensors[i].size, (gpointer) data_array,
+          gst_tensor_filter_destroy_notify);
     }
 
     /* append the memory block to outbuf */
-    if (ret == 0) {
-      gst_buffer_append_memory (outbuf, out_mem[i]);
-    } else if (allocate_in_invoke == FALSE)
-      gst_allocator_free (out_mem[i]->allocator, out_mem[i]);
-  }
-
-  for (i = 0; i < num_mems; i++) {
-    gst_memory_unmap (in_mem[i], &in_info[i]);
-  }
-
-  /* 5. Return result! */
-  /** @todo define enum to indicate status code */
-  if (ret < 0) {
-    ml_loge ("Tensor-filter invoke failed (error code = %d).\n", ret);
-    return GST_FLOW_ERROR;
-  } else if (ret > 0) {
-    /* drop this buffer */
-    return GST_BASE_TRANSFORM_FLOW_DROPPED;
+    gst_buffer_append_memory (outbuf, out_mem[i]);
   }
 
   return GST_FLOW_OK;
