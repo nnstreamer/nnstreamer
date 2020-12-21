@@ -19,7 +19,7 @@
 #include <gst/base/gstpushsrc.h>
 #include <gst/base/gstdataqueue.h>
 
-#include <nnstreamer_grpc.h>
+#include <tensor_typedef.h>
 
 G_BEGIN_DECLS
 #define GST_TYPE_TENSOR_SRC_GRPC \
@@ -49,22 +49,16 @@ typedef enum
  */
 struct _GstTensorSrcGRPC
 {
-  GstPushSrc element; /**< parent class object */
+  GstPushSrc element;       /**< parent class object */
 
   /** Properties saved */
-  gboolean silent;      /**< true to print minimized log */
-  gboolean server;      /**< true to enable server mode */
-  gint port;            /**< gRPC server port number */
-  gchar *host;          /**< gRPC server host name */
-  guint out;            /**< number of output */
-  grpc_idl idl;         /**< gRPC IDL for comm. */
+  gboolean silent;          /**< true to print minimized log */
+  guint out;                /**< number of output */
 
   /** Working variables */
-  GstDataQueue *queue; /**< data queue to hold input data */
-  GstTensorsConfig config;
-
-  /** private data */
-  void *priv;
+  GstDataQueue *queue;      /**< data queue to hold input data */
+  GstTensorsConfig config;  /**< tensors config */
+  void * priv;              /**< gRPC private data */
 };
 
 /**

@@ -42,6 +42,7 @@
 #include <nnstreamer_log.h>
 
 #include "tensor_src_grpc.h"
+#include "nnstreamer_grpc.h"
 
 /**
  * @brief Macro for debug mode.
@@ -68,9 +69,14 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_src_grpc_debug);
 #define DEFAULT_PROP_SILENT TRUE
 
 /**
- * @brief Default gRPC mode for tensor source
+ * @brief Default gRPC server mode for tensor source
  */
 #define DEFAULT_PROP_SERVER TRUE
+
+/**
+ * @brief Default gRPC blocking mode for tensor source
+ */
+#define DEFAULT_PROP_BLOCKING TRUE
 
 /**
  * @brief Default IDL for RPC comm.
@@ -99,11 +105,20 @@ enum
   PROP_0,
   PROP_SILENT,
   PROP_SERVER,
+  PROP_BLOCKING,
   PROP_IDL,
   PROP_HOST,
   PROP_PORT,
   PROP_OUT,
 };
+
+/** gRPC private data */
+typedef struct {
+  grpc_config config;
+  void * instance;
+} grpc_private;
+
+#define GET_GRPC_PRIVATE(arg) (grpc_private *) (arg->priv)
 
 /** GObject method implementation */
 static void gst_tensor_src_grpc_finalize (GObject * object);
@@ -152,6 +167,11 @@ gst_tensor_src_grpc_class_init (GstTensorSrcGRPCClass * klass)
       g_param_spec_boolean ("server", "Server",
           "Specify its working mode either server or client",
           DEFAULT_PROP_SERVER, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_BLOCKING,
+      g_param_spec_boolean ("blocking", "Blocking",
+          "Specify its working mode either blocking or non-blocking",
+          DEFAULT_PROP_BLOCKING, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_IDL,
       g_param_spec_string ("idl", "IDL",
@@ -216,42 +236,6 @@ _data_queue_item_free (GstDataQueueItem * item)
   if (item->object)
     gst_mini_object_unref (item->object);
   g_free (item);
-}
-
-/**
- * @brief initialize tensor_src_grpc element.
- */
-static void
-gst_tensor_src_grpc_init (GstTensorSrcGRPC * self)
-{
-  self->silent = DEFAULT_PROP_SILENT;
-  self->server = DEFAULT_PROP_SERVER;
-  self->idl = grpc_get_idl (DEFAULT_PROP_IDL);
-  self->port = DEFAULT_PROP_PORT;
-  self->host = g_strdup (DEFAULT_PROP_HOST);
-  self->priv = NULL;
-  self->out = 0;
-  self->queue =
-      gst_data_queue_new (_data_queue_check_full_cb, NULL, NULL, NULL);
-
-  gst_tensors_config_init (&self->config);
-
-  GST_OBJECT_FLAG_UNSET (self, GST_TENSOR_SRC_GRPC_CONFIGURED);
-  GST_OBJECT_FLAG_UNSET (self, GST_TENSOR_SRC_GRPC_STARTED);
-}
-
-/**
- * @brief finalize tensor_src_grpc element.
- */
-static void
-gst_tensor_src_grpc_finalize (GObject * object)
-{
-  GstTensorSrcGRPC *self = GST_TENSOR_SRC_GRPC (object);
-
-  g_free (self->host);
-  g_clear_pointer (&self->queue, gst_object_unref);
-
-  G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
 /**
@@ -327,29 +311,86 @@ _grpc_callback (void *obj, void *data)
 }
 
 /**
+ * @brief initialize grpc config.
+ */
+static void
+grpc_config_init (GstTensorSrcGRPC * self)
+{
+  grpc_private *grpc = GET_GRPC_PRIVATE (self);
+
+  grpc->config.is_server = DEFAULT_PROP_SERVER;
+  grpc->config.is_blocking = DEFAULT_PROP_BLOCKING;
+  grpc->config.idl = grpc_get_idl (DEFAULT_PROP_IDL);
+  grpc->config.dir = GRPC_DIRECTION_BUFFER_TO_TENSORS;
+  grpc->config.port = DEFAULT_PROP_PORT;
+  grpc->config.host = g_strdup (DEFAULT_PROP_HOST);
+  grpc->config.cb = _grpc_callback;
+  grpc->config.cb_data = (void *) self;
+  grpc->config.config = &self->config;
+}
+
+/**
+ * @brief initialize tensor_src_grpc element.
+ */
+static void
+gst_tensor_src_grpc_init (GstTensorSrcGRPC * self)
+{
+  gst_tensors_config_init (&self->config);
+
+  self->queue = gst_data_queue_new (_data_queue_check_full_cb,
+      NULL, NULL, NULL);
+  self->silent = DEFAULT_PROP_SILENT;
+  self->out = 0;
+
+  self->priv = g_new0 (grpc_private, 1);
+  grpc_config_init (self);
+
+  GST_OBJECT_FLAG_UNSET (self, GST_TENSOR_SRC_GRPC_CONFIGURED);
+  GST_OBJECT_FLAG_UNSET (self, GST_TENSOR_SRC_GRPC_STARTED);
+}
+
+/**
+ * @brief finalize tensor_src_grpc element.
+ */
+static void
+gst_tensor_src_grpc_finalize (GObject * object)
+{
+  GstTensorSrcGRPC *self = GST_TENSOR_SRC_GRPC (object);
+  grpc_private *grpc = GET_GRPC_PRIVATE (self);
+
+  g_free (grpc->config.host);
+  g_free (grpc);
+  g_clear_pointer (&self->queue, gst_object_unref);
+
+  G_OBJECT_CLASS (parent_class)->finalize (object);
+}
+
+/**
  * @brief start function
  */
 static gboolean
 gst_tensor_src_grpc_start (GstBaseSrc * src)
 {
   GstTensorSrcGRPC *self = GST_TENSOR_SRC_GRPC (src);
+  grpc_private *grpc = GET_GRPC_PRIVATE (self);
   gboolean ret;
 
-  if (self->priv)
-    grpc_destroy (self);
+  if (grpc->instance)
+    grpc_destroy (grpc->instance);
 
-  self->priv = grpc_new (self);
-  if (!self->priv)
+  grpc->instance = grpc_new (&grpc->config);
+  if (!grpc->instance)
     return FALSE;
 
-  grpc_set_callback (self, _grpc_callback);
-
-  ret = grpc_start (self, GRPC_DIRECTION_BUFFER_TO_TENSORS);
+  ret = grpc_start (grpc->instance);
   if (ret) {
     GST_OBJECT_FLAG_SET (self, GST_TENSOR_SRC_GRPC_STARTED);
 
-    if (self->server)
-      g_object_set (self, "port", grpc_get_listening_port (self), NULL);
+    if (grpc->config.is_server) {
+      gint port = grpc_get_listening_port (grpc->instance);
+      if (port > 0)
+        g_object_set (self, "port", port, NULL);
+    }
   }
 
   return ret;
@@ -362,12 +403,18 @@ static gboolean
 gst_tensor_src_grpc_stop (GstBaseSrc * src)
 {
   GstTensorSrcGRPC *self = GST_TENSOR_SRC_GRPC (src);
+  grpc_private *grpc = GET_GRPC_PRIVATE (self);
+
+  if (!GST_OBJECT_FLAG_IS_SET (self, GST_TENSOR_SRC_GRPC_STARTED))
+    return TRUE;
 
   _send_eos_event (self);
 
-  if (self->priv)
-    grpc_destroy (self);
-  self->priv = NULL;
+  if (grpc->instance)
+    grpc_destroy (grpc->instance);
+  grpc->instance = NULL;
+
+  GST_OBJECT_FLAG_UNSET (self, GST_TENSOR_SRC_GRPC_STARTED);
 
   return TRUE;
 }
@@ -379,9 +426,11 @@ static gboolean
 gst_tensor_src_grpc_unlock (GstBaseSrc * src)
 {
   GstTensorSrcGRPC *self = GST_TENSOR_SRC_GRPC (src);
+  grpc_private *grpc = GET_GRPC_PRIVATE (self);
 
   /* notify to gRPC */
-  grpc_stop (self);
+  if (grpc->instance)
+    grpc_stop (grpc->instance);
 
   silent_debug ("Unlocking create");
   gst_data_queue_set_flushing (self->queue, TRUE);
@@ -466,7 +515,13 @@ static void
 gst_tensor_src_grpc_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
-  GstTensorSrcGRPC *self = GST_TENSOR_SRC_GRPC (object);
+  GstTensorSrcGRPC *self;
+  grpc_private *grpc;
+
+  g_return_if_fail (GST_IS_TENSOR_SRC_GRPC (object));
+
+  self = GST_TENSOR_SRC_GRPC (object);
+  grpc = GET_GRPC_PRIVATE (self);
 
   switch (prop_id) {
     case PROP_SILENT:
@@ -474,8 +529,12 @@ gst_tensor_src_grpc_set_property (GObject * object, guint prop_id,
       silent_debug ("Set silent = %d", self->silent);
       break;
     case PROP_SERVER:
-      self->server = g_value_get_boolean (value);
-      silent_debug ("Set server = %d", self->server);
+      grpc->config.is_server = g_value_get_boolean (value);
+      silent_debug ("Set server = %d", grpc->config.is_server);
+      break;
+    case PROP_BLOCKING:
+      grpc->config.is_blocking = g_value_get_boolean (value);
+      silent_debug ("Set blocking = %d", grpc->config.is_blocking);
       break;
     case PROP_IDL:
     {
@@ -484,7 +543,7 @@ gst_tensor_src_grpc_set_property (GObject * object, guint prop_id,
       if (idl_str) {
         grpc_idl idl = grpc_get_idl (idl_str);
         if (idl != GRPC_IDL_NONE) {
-          self->idl = idl;
+          grpc->config.idl = idl;
           silent_debug ("Set idl = %s", idl_str);
         } else {
           ml_loge ("Invalid IDL string provided: %s", idl_str);
@@ -501,17 +560,17 @@ gst_tensor_src_grpc_set_property (GObject * object, guint prop_id,
 
       host = g_value_dup_string (value);
       if (_check_hostname (host)) {
-        g_free (self->host);
-        self->host = host;
-        silent_debug ("Set host = %s", self->host);
+        g_free (grpc->config.host);
+        grpc->config.host = host;
+        silent_debug ("Set host = %s", grpc->config.host);
       } else {
         g_free (host);
       }
       break;
     }
     case PROP_PORT:
-      self->port = g_value_get_int (value);
-      silent_debug ("Set port = %d", self->port);
+      grpc->config.port = g_value_get_int (value);
+      silent_debug ("Set port = %d", grpc->config.port);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -526,17 +585,26 @@ static void
 gst_tensor_src_grpc_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec)
 {
-  GstTensorSrcGRPC *self = GST_TENSOR_SRC_GRPC (object);
+  GstTensorSrcGRPC *self;
+  grpc_private *grpc;
+
+  g_return_if_fail (GST_IS_TENSOR_SRC_GRPC (object));
+
+  self = GST_TENSOR_SRC_GRPC (object);
+  grpc = GET_GRPC_PRIVATE (self);
 
   switch (prop_id) {
     case PROP_SILENT:
       g_value_set_boolean (value, self->silent);
       break;
     case PROP_SERVER:
-      g_value_set_boolean (value, self->server);
+      g_value_set_boolean (value, grpc->config.is_server);
+      break;
+    case PROP_BLOCKING:
+      g_value_set_boolean (value, grpc->config.is_blocking);
       break;
     case PROP_IDL:
-      switch (self->idl) {
+      switch (grpc->config.idl) {
         case GRPC_IDL_PROTOBUF:
           g_value_set_string (value, "protobuf");
           break;
@@ -548,10 +616,10 @@ gst_tensor_src_grpc_get_property (GObject * object, guint prop_id,
       }
       break;
     case PROP_HOST:
-      g_value_set_string (value, self->host);
+      g_value_set_string (value, grpc->config.host);
       break;
     case PROP_PORT:
-      g_value_set_int (value, self->port);
+      g_value_set_int (value, grpc->config.port);
       break;
     case PROP_OUT:
       g_value_set_uint (value, self->out);
