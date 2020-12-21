@@ -1164,6 +1164,9 @@ int ml_tensors_data_create (const ml_tensors_info_h info, ml_tensors_data_h *dat
 
 /**
  * @brief Frees the given tensors' data handle.
+ * @details Note that the opened handle should be closed before calling this function in the case of a single API.
+ *          If not, the inference engine might try to access the data that is already freed.
+ *          And it causes the segmentation fault.
  * @since_tizen 5.5
  * @param[in] data The handle of tensors data.
  * @return @c 0 on success. Otherwise a negative error value.

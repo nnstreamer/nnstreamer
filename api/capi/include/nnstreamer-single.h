@@ -111,6 +111,9 @@ int ml_single_open_full (ml_single_h * single, const char *model, const ml_tenso
 
 /**
  * @brief Closes the opened model handle.
+ * @details Note that this should be called before destroying the inference data by ml_tensors_data_destroy().
+ *          If not, the inference engine might try to access the data that is already freed.
+ *          And it causes the segmentation fault.
  * @since_tizen 5.5
  * @param[in] single The model handle to be closed.
  * @return @c 0 on success. Otherwise a negative error value.
