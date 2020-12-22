@@ -52,7 +52,7 @@ override_dh_auto_test:
 	./packaging/run_unittests_binaries.sh ./tests
 	# SKIP CAPI-UnitTest until we fix it. In Launchpad emulator, capi_src.dummy01 and single_invoke01/02 makes errors due to the slugghish issue.
 	# cd build && ./tests/tizen_capi/unittest_tizen_capi --gst-plugin-path=. && cd ..
-	cd tests && ssat -n && cd ..
+	cd tests && ssat -n -p=1 && cd ..
 
 override_dh_auto_install:
 	DESTDIR=$(CURDIR)/debian/tmp ninja -C ${BUILDDIR} install

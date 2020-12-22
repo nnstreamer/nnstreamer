@@ -684,7 +684,7 @@ export NNSTREAMER_CONVERTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor
     LD_LIBRARY_PATH=${NNSTREAMER_BUILD_ROOT_PATH}/tests/nnstreamer_filter_edgetpu:. bash %{test_script} ./tests/nnstreamer_filter_edgetpu/unittest_edgetpu
 %endif #ifarch 64
     pushd tests
-    ssat -n --summary summary.txt -cn _n
+    ssat -n -p=1 --summary summary.txt -cn _n
     popd
 %endif #if unit_test
 
