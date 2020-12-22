@@ -75,7 +75,8 @@ NNStreamerRPC::NNStreamerRPC (const grpc_config * config):
   host_ (config->host), port_ (config->port),
   is_server_ (config->is_server), is_blocking_ (config->is_blocking),
   direction_ (config->dir), cb_ (config->cb), cb_data_ (config->cb_data),
-  config_ (config->config), server_worker_ (nullptr), handle_ (nullptr)
+  config_ (config->config), server_instance_ (nullptr), handle_ (nullptr),
+  stop_ (false)
 {
   queue_ = gst_data_queue_new (_data_queue_check_full_cb,
       NULL, NULL, NULL);
@@ -101,6 +102,12 @@ NNStreamerRPC::start () {
 /** @brief stop the thread */
 void
 NNStreamerRPC::stop () {
+  if (stop_)
+    return;
+
+  /* notify to the worker */
+  stop_ = true;
+
   if (queue_) {
     /* wait until the queue's flushed */
     while (!gst_data_queue_is_empty (queue_))
@@ -109,13 +116,16 @@ NNStreamerRPC::stop () {
     gst_data_queue_set_flushing (queue_, TRUE);
   }
 
-  if (client_worker_.joinable ())
-    client_worker_.join ();
+  if (is_server_) {
+    if (server_instance_.get ())
+      server_instance_->Shutdown ();
 
-  if (server_worker_.get ()) {
-    server_worker_->Shutdown ();
-    server_worker_.reset();
+    if (completion_queue_.get ())
+      completion_queue_->Shutdown ();
   }
+
+  if (worker_.joinable ())
+    worker_.join ();
 }
 
 /** @brief send buffer holding tensors */

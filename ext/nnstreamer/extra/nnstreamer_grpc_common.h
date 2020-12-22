@@ -59,6 +59,11 @@ class NNStreamerRPC {
       return handle_;
     }
 
+    /** @brief get the grpc direction */
+    grpc_direction getDirection () {
+      return direction_;
+    }
+
   protected:
     const gchar *host_;
     gint port_;
@@ -74,10 +79,13 @@ class NNStreamerRPC {
     GstTensorsConfig *config_;
     GstDataQueue *queue_;
 
-    std::unique_ptr<Server> server_worker_;
-    std::thread client_worker_;
+    std::unique_ptr<Server> server_instance_;
+    std::unique_ptr<ServerCompletionQueue> completion_queue_;
+
+    std::thread worker_;
 
     void * handle_;
+    gboolean stop_;
 
   private:
     /** @brief start gRPC server */
