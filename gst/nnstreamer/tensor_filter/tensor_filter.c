@@ -335,6 +335,23 @@ gst_tensor_filter_destroy_notify (void *data)
 }
 
 /**
+ * @brief Allocate new memory block from given data.
+ * @details tensor-filter should send event to sub-plugin when memory is freed.
+ */
+static GstMemory *
+gst_tensor_filter_get_wrapped_mem (GstTensorFilter * self, gpointer data,
+    gsize size)
+{
+  GPtrArray *data_array = g_ptr_array_new ();
+
+  g_ptr_array_add (data_array, (gpointer) self);
+  g_ptr_array_add (data_array, (gpointer) data);
+
+  return gst_memory_new_wrapped (0, data, size, 0, size, (gpointer) data_array,
+      gst_tensor_filter_destroy_notify);
+}
+
+/**
  * @brief Prepare statistics for performance profiling (e.g, latency, throughput)
  */
 static void
@@ -430,17 +447,60 @@ record_statistics (GstTensorFilterPrivate * priv)
 }
 
 /**
- * @brief send qos overflow event to upstream elements
+ * @brief Check throttling delay and send qos overflow event to upstream elements
  */
-static void
-gst_tensor_filter_send_qos_overflow (GstTensorFilter * self,
-    GstClockTime timestamp, GstClockTimeDiff diff, gdouble avg_rate)
+static gboolean
+gst_tensor_filter_check_throttling_delay (GstBaseTransform * trans,
+    GstBuffer * inbuf)
 {
-  GstPad *sinkpad = GST_BASE_TRANSFORM_SINK_PAD (&self->element);
-  GstEvent *event = gst_event_new_qos (GST_QOS_TYPE_OVERFLOW,
-      avg_rate, -diff, timestamp);
+  GstTensorFilter *self;
+  GstTensorFilterPrivate *priv;
 
-  gst_pad_push_event (sinkpad, event);
+  self = GST_TENSOR_FILTER_CAST (trans);
+  priv = &self->priv;
+
+  GST_OBJECT_LOCK (trans);
+
+  if (priv->throttling_delay != 0) {
+    GstClockTime curr_ts = GST_BUFFER_PTS (inbuf);
+    GstClockTime prev_ts = priv->prev_ts;
+
+    priv->prev_ts = curr_ts;
+
+    if (GST_CLOCK_TIME_IS_VALID (prev_ts)) {
+      GstClockTimeDiff diff = curr_ts - prev_ts;
+      GstClockTimeDiff delay;
+
+      priv->throttling_accum += diff;
+
+      /* check whether the average latency is longer than throttling delay */
+      delay = MAX (priv->prop.latency * 1000, priv->throttling_delay);
+
+      if (priv->throttling_accum < delay) {
+        GstClockTimeDiff duration = GST_BUFFER_DURATION (inbuf);        /* original */
+        gdouble avg_rate = gst_guint64_to_gdouble (duration) /
+            gst_guint64_to_gdouble (delay);
+
+        /**
+         * Send qos overflow event to upstream elements.
+         * Upstream elements (e.g., tensor_src, tensor_converter) may handle this.
+         */
+        GstPad *sinkpad = GST_BASE_TRANSFORM_SINK_PAD (&self->element);
+        GstEvent *event = gst_event_new_qos (GST_QOS_TYPE_OVERFLOW,
+            avg_rate, (priv->throttling_accum - delay), curr_ts);
+
+        gst_pad_push_event (sinkpad, event);
+
+        GST_OBJECT_UNLOCK (trans);
+        return TRUE;
+      }
+
+      priv->throttling_accum = 0;
+    }
+  }
+
+  GST_OBJECT_UNLOCK (trans);
+  return FALSE;
 }
 
 /**
@@ -460,7 +520,8 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMemory invoke_tensors[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT];
-  guint i, j, num_mems;
+  GList *list;
+  guint i, num_mems;
   gint ret;
   gboolean allocate_in_invoke;
   gboolean need_profiling;
@@ -485,45 +546,12 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   /* 0. Check all properties. */
   silent_debug ("Invoking %s with %s model\n", priv->fw->name,
       GST_STR_NULL (prop->model_files[0]));
-  allocate_in_invoke = gst_tensor_filter_allocate_in_invoke (priv);
 
   /* skip input data when throttling delay is set */
-  GST_OBJECT_LOCK (trans);
+  if (gst_tensor_filter_check_throttling_delay (trans, inbuf))
+    return GST_BASE_TRANSFORM_FLOW_DROPPED;
 
-  if (priv->throttling_delay != 0) {
-    GstClockTime curr_ts = GST_BUFFER_PTS (inbuf);
-    GstClockTime prev_ts = priv->prev_ts;
-
-    priv->prev_ts = curr_ts;
-
-    if (GST_CLOCK_TIME_IS_VALID (prev_ts)) {
-      GstClockTimeDiff diff = curr_ts - prev_ts;
-      GstClockTimeDiff delay;
-
-      priv->throttling_accum += diff;
-
-      /* check whether the average latency is longer than throttling delay */
-      delay = MAX (priv->prop.latency * 1000, priv->throttling_delay);
-
-      if (priv->throttling_accum < delay) {
-        GstClockTimeDiff duration = GST_BUFFER_DURATION (inbuf);        /* original */
-        gdouble avg_rate = gst_guint64_to_gdouble (duration) /
-            gst_guint64_to_gdouble (delay);
-
-        /* Upstream elements (e.g., tensor_src, tensor_converter) may handle this */
-        gst_tensor_filter_send_qos_overflow (self, curr_ts,
-            delay - priv->throttling_accum, avg_rate);
-
-        GST_OBJECT_UNLOCK (trans);
-
-        return GST_BASE_TRANSFORM_FLOW_DROPPED;
-      }
-
-      priv->throttling_accum = 0;
-    }
-  }
-
-  GST_OBJECT_UNLOCK (trans);
+  allocate_in_invoke = gst_tensor_filter_allocate_in_invoke (priv);
 
   /* 1. Get all input tensors from inbuf. */
   /* Internal Logic Error or GST Bug (sinkcap changed!) */
@@ -534,10 +562,8 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   for (i = 0; i < num_mems; i++) {
     in_mem[i] = gst_buffer_peek_memory (inbuf, i);
     if (FALSE == gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
-      for (j = 0; j < i; j++)
-        gst_memory_unmap (in_mem[j], &in_info[j]);
       ml_logf ("Cannot map input memory buffer(%d)\n", i);
-      return GST_FLOW_ERROR;
+      goto mem_map_error;
     }
 
     in_tensors[i].data = in_info[i].data;
@@ -546,7 +572,6 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
 
   /* 1.1 Prepare tensors to invoke. */
   if (TRUE == priv->combi.in_combi_defined) {
-    GList *list;
     gint info_idx = 0;
 
     for (list = priv->combi.in_combi; list != NULL; list = list->next) {
@@ -570,12 +595,8 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     if (allocate_in_invoke == FALSE) {
       out_mem[i] = gst_allocator_alloc (NULL, out_tensors[i].size, NULL);
       if (FALSE == gst_memory_map (out_mem[i], &out_info[i], GST_MAP_WRITE)) {
-        for (j = 0; j < i; j++)
-          gst_memory_unmap (out_mem[j], &out_info[j]);
-        for (j = 0; j < prop->input_meta.num_tensors; j++)
-          gst_memory_unmap (in_mem[j], &in_info[j]);
         ml_logf ("Cannot map output memory buffer(%d)\n", i);
-        return GST_FLOW_ERROR;
+        goto mem_map_error;
       }
 
       out_tensors[i].data = out_info[i].data;
@@ -615,8 +636,6 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   /* 5. Update result */
   /* If output combination is defined, append input tensors first */
   if (TRUE == priv->combi.out_combi_i_defined) {
-    GList *list = NULL;
-
     for (list = priv->combi.out_combi_i; list != NULL; list = list->next) {
       i = GPOINTER_TO_INT (list->data);
       gst_memory_ref (in_mem[i]);
@@ -626,8 +645,8 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
 
   for (i = 0; i < prop->output_meta.num_tensors; i++) {
     if (TRUE == priv->combi.out_combi_o_defined) {
-      GList *list = NULL;
       gboolean out_combi = FALSE;
+
       for (list = priv->combi.out_combi_o; list != NULL; list = list->next) {
         if (i == GPOINTER_TO_INT (list->data)) {
           out_combi = TRUE;
@@ -635,7 +654,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
         }
       }
       if (FALSE == out_combi) {
-        /* release memory block */
+        /* release memory block if output tensor is not in the combi list */
         if (allocate_in_invoke) {
           gst_tensor_filter_destroy_notify_util (priv, out_tensors[i].data);
         } else {
@@ -648,14 +667,8 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
 
     if (allocate_in_invoke) {
       /* prepare memory block if successfully done */
-      GPtrArray *data_array = g_ptr_array_new ();
-      g_ptr_array_add (data_array, (gpointer) self);
-      g_ptr_array_add (data_array, (gpointer) out_tensors[i].data);
-
-      /* filter-subplugin allocated new memory, update this */
-      out_mem[i] = gst_memory_new_wrapped (0, out_tensors[i].data,
-          out_tensors[i].size, 0, out_tensors[i].size, (gpointer) data_array,
-          gst_tensor_filter_destroy_notify);
+      out_mem[i] = gst_tensor_filter_get_wrapped_mem (self,
+          out_tensors[i].data, out_tensors[i].size);
     }
 
     /* append the memory block to outbuf */
@@ -685,6 +698,22 @@ unknown_model:
 unknown_invoke:
   GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL),
       ("invoke function is not defined"));
+  return GST_FLOW_ERROR;
+mem_map_error:
+  num_mems = gst_buffer_n_memory (inbuf);
+  for (i = 0; i < num_mems; i++) {
+    if (in_mem[i])
+      gst_memory_unmap (in_mem[i], &in_info[i]);
+  }
+
+  if (allocate_in_invoke == FALSE) {
+    for (i = 0; i < prop->output_meta.num_tensors; i++) {
+      if (out_mem[i]) {
+        gst_memory_unmap (out_mem[i], &out_info[i]);
+        gst_allocator_free (out_mem[i]->allocator, out_mem[i]);
+      }
+    }
+  }
   return GST_FLOW_ERROR;
 }
 
