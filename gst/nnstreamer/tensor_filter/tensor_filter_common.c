@@ -960,11 +960,11 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
           0 /** min */ , 1 /** max */ , 0 /** default: off */ ,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_INPUTCOMBINATION,
-      g_param_spec_string ("inputCombination", "input tensor(s) to invoke",
+      g_param_spec_string ("input-combination", "input tensor(s) to invoke",
           "Select the input tensor(s) to invoke the models", "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_OUTPUTCOMBINATION,
-      g_param_spec_string ("outputCombination", "output tensor(s) combination",
+      g_param_spec_string ("output-combination", "output tensor(s) combination",
           "Select the output tensor(s) from the input tensor(s) and/or model output",
           "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 }
@@ -1784,8 +1784,8 @@ _gtfc_setprop_OUTPUTCOMBINATION (GstTensorFilterPrivate * priv,
       priv->combi.out_combi_o_defined = TRUE;
     } else {
       ml_loge ("Wrong format for output combination properties. "
-          "Please specify for input tensor(s): p#num, for output tensor(s): o#num "
-          "e.g., outputCombination=p0,p2,o0,o1");
+          "Please specify for input tensor(s): i#num, for output tensor(s): o#num "
+          "e.g., output-combination=i0,i2,o0,o1");
       ret = EINVAL;
       break;
     }
@@ -1908,10 +1908,10 @@ gst_tensor_filter_property_to_string (GValue * value,
               GPOINTER_TO_INT (list->data)));
   } else if (prop_id == PROP_OUTPUTCOMBINATION) {
     for (list = priv->combi.out_combi_i; list != NULL; list = list->next)
-      g_ptr_array_add (arr, g_strdup_printf ("%c%i", 'p',
+      g_ptr_array_add (arr, g_strdup_printf ("i%i",
               GPOINTER_TO_INT (list->data)));
     for (list = priv->combi.out_combi_o; list != NULL; list = list->next)
-      g_ptr_array_add (arr, g_strdup_printf ("%c%i", 'o',
+      g_ptr_array_add (arr, g_strdup_printf ("o%i",
               GPOINTER_TO_INT (list->data)));
   }
 

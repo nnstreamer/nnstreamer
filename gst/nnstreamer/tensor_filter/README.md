@@ -26,7 +26,7 @@ More launch line examples here: [nnstreamer example](https://github.com/nnstream
 - Framerate policies
 - Recurrent network support
 - Supported framework
-  - TensorFlow, TensorFlow-lite, TensorFlow-lit, NNFW(ONE), Caffe2, Python 2, Python 3, PyTorch, OpenVINO, EdgeTPU, ArmNN, TensorRT, SNPE, SNAP
+  - TensorFlow, TensorFlow-lite, NNFW(ONE), Caffe2, Python 3, PyTorch, OpenVINO, EdgeTPU, ArmNN, TensorRT, SNPE, SNAP
 
 ## Planned Features
 - Timestamp handling
@@ -44,31 +44,31 @@ The number of frames in a buffer is always 1. Although the data semantics of a t
 
 ## Performance Characteristics
 - We do not support in-place operations with tensor\_filter. Actually, with tensor\_filter, in-place operations are considered harmful for the performance and correctness.  
-- It is supposed that There is no memcpy from the previous element's source pad to this element's sink or from this element's source to the next element's sink pad.  
+- It is supposed that there is no memcpy from the previous element's source pad to this element's sink or from this element's source to the next element's sink pad.  
 
 ## QoS policy
-In a nnstreamer pipeline, the QoS is currently satisfied by adjusting a input or output framerate, initiated by 'tensor_rate' element.  
+In a nnstreamer pipeline, the QoS is currently satisfied by adjusting input or output framerate, initiated by 'tensor_rate' element.  
 When 'tensor_filter' receives a throttling QoS event from the 'tensor_rate' element, it compares the average processing latency and throttling delay, and takes the maximum value as the threshold to drop incoming frames by checking a buffer timestamp.  
-In this way, 'tensor filter' can avoid unncessary calculation and adjust a framerate, effectively reducing resource utilizations.  
+In this way, 'tensor filter' can avoid unnecessary calculation and adjust a framerate, effectively reducing resource utilizations.  
 Even in the case of receiving QoS events from multiple downstream pipelines (e.g., tee), 'tensor_filter' takes the minimum value as the throttling delay for downstream pipeline with more tight QoS requirement. Lastly, 'tensor_filter' also sends QoS events to upstream elements (e.g., tensor_converter, tensor_src) to possibly reduce incoming framerates, which is a better solution than dropping framerates.  
 
 ## In/Out combination
-### inputCombination
+### Input combination
 Select the input tensor(s) to invoke the models  
 #### Example launch line
 ```
-... (tensors 0,1,2) ! tensor_filter framework=auto model=${MODEL_PATH} inputCombination=0,2 ! (output tensor(s) stream) ...
+... (tensors 0,1,2) ! tensor_filter framework=auto model=${MODEL_PATH} input-combination=0,2 ! (output tensor(s) stream) ...
 ```
-If the input is tensors 0,1 and 2, only tensors 0 and 2 are used to invoke the model
+If the input is tensors '0,1,2', only tensors '0' and '2' are used to invoke the model
 
-### outputCombination
+### Output combination
 Select the output tensor(s) from the input tensor(s) and/or model output  
 #### Example launch line
 ```
-... (tensors 0,1) ! tensor_filter framework=auto model=${MODEL_PATH} outputCombination=i0,o0,o2 ! (input tensor 0 and output tensor 0 and 2) ...
+... (tensors 0,1) ! tensor_filter framework=auto model=${MODEL_PATH} output-combination=i0,o0,o2 ! (input tensor 0 and output tensor 0 and 2) ...
 ```
-Suppose the model receives tensors 0,1 as an input and outputs tensor 0,1,2.  
-Src pad of the tensor_filter can produce input tensor 0 and output tensors 0,2 using outputCombination.  
+Suppose the model receives tensors '0,1' as an input and outputs tensor '0,1,2'.  
+Src pad of the tensor_filter can produce input tensor '0' and output tensors '0,2' using output-combination.  
 
 ## Sub-Components
 
@@ -78,7 +78,7 @@ The main component is supposed process the standard properties for subcomponents
 The subcomponents as supposed to fill in ```GstTensor_Filter_Framework``` struct and register it with ```supported``` array in ```tensor_filter.h```.  
 Note that the registering sturcture may be updated later. (We may follow what ```Linux.kernel/drivers/devfreq/devfreq.c``` does)
 
-### Tensorflow-lite support, ```tensor_filter_tensorflow_lite.c```
+### Tensorflow-lite support, ```tensor_filter_tensorflow_lite.cc```
 This should fill in ```GstTensor_Filter_Framework``` supporting tensorflow_lite.  
 
 ### Custom function support, ```tensor_filter_custom.c```
