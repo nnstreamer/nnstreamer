@@ -374,8 +374,8 @@ TEST (nnstreamer_rate, passthrough)
 
   EXPECT_EQ (in, option.source_num_buffers);
   EXPECT_EQ (out, option.source_num_buffers);
-  EXPECT_EQ (dup, 0);
-  EXPECT_EQ (drop, 0);
+  EXPECT_EQ (dup, 0U);
+  EXPECT_EQ (drop, 0U);
 
   EXPECT_EQ (setPipelineStateSync (test_data.pipeline, GST_STATE_NULL,
         UNITTEST_STATECHANGE_TIMEOUT), 0);
@@ -413,7 +413,7 @@ TEST (nnstreamer_rate, no_throttling)
   g_object_get (rate, "drop", &drop, NULL);
 
   EXPECT_EQ (in, option.source_num_buffers);
-  EXPECT_EQ (dup, 0);
+  EXPECT_EQ (dup, 0U);
 
   /** we don't expect the exact values */
   EXPECT_GE (out, (guint64) ((option.source_num_buffers / 2) * 0.95));
