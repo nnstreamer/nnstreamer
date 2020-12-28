@@ -572,26 +572,9 @@ gst_tensordec_get_property (GObject * object, guint prop_id,
     case PROP_SUBPLUGINS:
     {
       subplugin_info_s sinfo;
-      guint i, total;
 
-      total = nnsconf_get_subplugin_info (NNSCONF_PATH_DECODERS, &sinfo);
-
-      if (total > 0) {
-        GString *subplugins = g_string_new (NULL);
-
-        for (i = 0; i < total; ++i) {
-          g_string_append (subplugins, sinfo.names[i]);
-
-          if (i < total - 1) {
-            g_string_append (subplugins, ",");
-          }
-        }
-
-        g_value_take_string (value, g_string_free (subplugins, FALSE));
-      } else {
-        g_value_set_string (value, "");
-      }
-
+      nnsconf_get_subplugin_info (NNSCONF_PATH_DECODERS, &sinfo);
+      g_value_take_string (value, g_strjoinv (",", sinfo.names));
       break;
     }
     default:

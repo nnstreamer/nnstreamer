@@ -132,6 +132,7 @@ enum
   PROP_INPUT_TYPE,
   PROP_FRAMES_PER_TENSOR,
   PROP_SET_TIMESTAMP,
+  PROP_SUBPLUGINS,
   PROP_SILENT
 };
 
@@ -253,6 +254,16 @@ gst_tensor_converter_class_init (GstTensorConverterClass * klass)
       g_param_spec_boolean ("set-timestamp", "Set timestamp",
           "The flag to set timestamp when received a buffer with invalid timestamp",
           DEFAULT_SET_TIMESTAMP, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  /**
+   * GstTensorConverter::sub-plugins:
+   *
+   * Registrable sub-plugins list of tensor-converter.
+   */
+  g_object_class_install_property (object_class, PROP_SUBPLUGINS,
+      g_param_spec_string ("sub-plugins", "Sub-plugins",
+          "Registrable sub-plugins list", "",
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   /**
    * GstTensorConverter::silent:
@@ -474,6 +485,14 @@ gst_tensor_converter_get_property (GObject * object, guint prop_id,
     case PROP_SET_TIMESTAMP:
       g_value_set_boolean (value, self->set_timestamp);
       break;
+    case PROP_SUBPLUGINS:
+    {
+      subplugin_info_s sinfo;
+
+      nnsconf_get_subplugin_info (NNSCONF_PATH_CONVERTERS, &sinfo);
+      g_value_take_string (value, g_strjoinv (",", sinfo.names));
+      break;
+    }
     case PROP_SILENT:
       g_value_set_boolean (value, self->silent);
       break;
