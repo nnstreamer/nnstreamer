@@ -289,8 +289,11 @@ gst_tensor_if_init (GstTensorIf * tensor_if)
 
   tensor_if->num_srcpads = 0;
   tensor_if->srcpads = NULL;
-  tensor_if->custom.func = NULL;
-  tensor_if->custom.data = NULL;
+  tensor_if->cv_option = NULL;
+  tensor_if->then_option = NULL;
+  tensor_if->else_option = NULL;
+  memset (tensor_if->sv, 0, sizeof (tensor_if_sv_s) * 2);
+  memset (&tensor_if->custom, 0, sizeof (custom_cb_s));
   tensor_if->custom_configured = FALSE;
 
   g_mutex_init (&tensor_if->lock);
@@ -326,6 +329,7 @@ gst_tensor_if_dispose (GObject * object)
   g_list_free (tensor_if->cv_option);
   g_list_free (tensor_if->then_option);
   g_list_free (tensor_if->else_option);
+  g_free (tensor_if->custom.name);
   tensor_if->custom.func = NULL;
   tensor_if->custom.data = NULL;
   tensor_if->custom_configured = FALSE;
@@ -583,7 +587,7 @@ gst_tensor_if_set_property (GObject * object, guint prop_id,
       break;
     case PROP_CV_OPTION:
       g_free (self->custom.name);
-      self->custom.name = g_strdup (g_value_get_string (value));
+      self->custom.name = g_value_dup_string (value);
       gst_tensor_if_configure_custom_prop (self);
       gst_tensor_if_set_property_glist (value, &self->cv_option, ":,");
       break;
@@ -623,10 +627,16 @@ gst_tensor_if_property_to_string (GValue * value, GList * prop_list,
 {
   GList *list;
   gchar *p;
-  GPtrArray *arr = g_ptr_array_new ();
+  GPtrArray *arr;
   gchar **strings;
   guint len;
 
+  if (prop_list == NULL) {
+    g_value_set_string (value, "");
+    return;
+  }
+
+  arr = g_ptr_array_new ();
   for (list = prop_list; list != NULL; list = list->next) {
     g_ptr_array_add (arr, g_strdup_printf ("%i", GPOINTER_TO_INT (list->data)));
   }
@@ -654,9 +664,15 @@ gst_tensor_if_get_property_supplied_value (GValue * value, tensor_if_sv_s * sv)
 {
   gint i;
   gchar *p;
-  GPtrArray *arr = g_ptr_array_new ();
+  GPtrArray *arr;
   gchar **strings;
 
+  if (sv == NULL || sv->num == 0) {
+    g_value_set_string (value, "");
+    return;
+  }
+
+  arr = g_ptr_array_new ();
   for (i = 0; i < sv->num; i++) {
     if (sv->type == _NNS_FLOAT64) {
       g_ptr_array_add (arr, g_strdup_printf ("%lf", sv->data[i]._double));
@@ -687,7 +703,7 @@ gst_tensor_if_get_property (GObject * object, guint prop_id,
       break;
     case PROP_CV_OPTION:
       if (self->cv == TIFCV_CUSTOM) {
-        g_value_take_string (value, self->custom.name);
+        g_value_set_string (value, self->custom.name ? self->custom.name : "");
       } else {
         gst_tensor_if_property_to_string (value, self->cv_option, prop_id);
       }
