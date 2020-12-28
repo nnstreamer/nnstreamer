@@ -84,13 +84,15 @@ pbc_convert (GstBuffer *in_buf, gsize *frame_size, guint *frames_in, GstTensorsC
   return gst_tensor_converter_protobuf (in_buf, frame_size, frames_in, config);
 }
 
-static gchar converter_subplugin_protobuf[] = "libnnstreamer_converter_protobuf";
+static gchar converter_subplugin_protobuf[] = "protobuf";
 
 /** @brief protobuf tensor converter sub-plugin NNStreamerExternalConverter instance */
-static NNStreamerExternalConverter protobuf = {.name = converter_subplugin_protobuf,
+static NNStreamerExternalConverter protobuf = {
+  .name = converter_subplugin_protobuf,
   .convert = pbc_convert,
   .get_out_config = pbc_get_out_config,
-  .query_caps = pbc_query_caps };
+  .query_caps = pbc_query_caps
+};
 
 /** @brief Initialize this object for tensor converter sub-plugin */
 void

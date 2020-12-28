@@ -145,13 +145,15 @@ done:
   return out_buf;
 }
 
-static const gchar converter_subplugin_flatbuf[] = "libnnstreamer_converter_flatbuf";
+static const gchar converter_subplugin_flatbuf[] = "flatbuf";
 
 /** @brief flatbuffer tensor converter sub-plugin NNStreamerExternalConverter instance */
-static NNStreamerExternalConverter flatBuf = {.name = converter_subplugin_flatbuf,
+static NNStreamerExternalConverter flatBuf = {
+  .name = converter_subplugin_flatbuf,
   .convert = fbc_convert,
   .get_out_config = fbc_get_out_config,
-  .query_caps = fbc_query_caps };
+  .query_caps = fbc_query_caps
+};
 
 /** @brief Initialize this object for tensor converter sub-plugin */
 void
