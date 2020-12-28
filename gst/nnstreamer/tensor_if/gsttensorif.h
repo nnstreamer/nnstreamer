@@ -137,8 +137,6 @@ struct _GstTensorIf
   GstTensorsConfig in_config; /**< input tensor info */
   GstTensorsConfig out_config[2]; /**< output tensor info */
   guint32 num_srcpads;
-  gboolean have_group_id;
-  guint group_id;
 
   tensor_if_compared_value cv; /**< compared value */
   tensor_if_operator op;
