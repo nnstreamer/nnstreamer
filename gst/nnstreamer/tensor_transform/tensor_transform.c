@@ -253,7 +253,7 @@ gst_tensor_transform_class_init (GstTensorTransformClass * klass)
 
   gst_element_class_set_details_simple (gstelement_class,
       "TensorTransform",
-      "Converter/Filter/Tensor",
+      "Filter/Tensor",
       "Transforms other/tensor dimensions for different models or frameworks",
       "MyungJoo Ham <myungjoo.ham@samsung.com>");
 

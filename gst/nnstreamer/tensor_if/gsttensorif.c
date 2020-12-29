@@ -255,8 +255,8 @@ gst_tensor_if_class_init (GstTensorIfClass * klass)
   gst_tensor_if_install_properties (gobject_class);
 
   gst_element_class_set_details_simple (gstelement_class,
-      "Tensor_If",
-      "NNStreamer/If",
+      "TensorIf",
+      "Filter/Tensor",
       "Controls streams based on the tensor(s) values",
       "MyungJoo Ham <myungjoo.ham@samsung.com>");
 

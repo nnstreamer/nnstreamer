@@ -238,12 +238,13 @@ gst_wrapped_buf_unref (GstWrappedBuf * self)
  * @brief define boxed type for a wrapped buf
  */
 G_DEFINE_BOXED_TYPE (GstWrappedBuf, gst_wrapped_buf,
-    gst_wrapped_buf_ref, gst_wrapped_buf_unref)
+    gst_wrapped_buf_ref, gst_wrapped_buf_unref);
 
 /**
  * @brief get system's nanotime
  */
-     int64_t systemnanotime ()
+static int64_t
+systemnanotime (void)
 {
   struct timespec now;
   clock_gettime (CLOCK_MONOTONIC, &now);
@@ -288,7 +289,7 @@ gst_amc_src_class_init (GstAMCSrcClass * klass)
       gst_pad_template_new ("src", GST_PAD_SRC, GST_PAD_ALWAYS, GST_CAPS_ANY));
 
   gst_element_class_set_static_metadata (gstelement_class,
-      "amcsrc", "Source/AMC",
+      "amcsrc", "Source/File",
       "Src element to feed the decoded data from Android MediaCodec (AMC)",
       "Dongju Chae <dongju.chae@samsung.com>");
 

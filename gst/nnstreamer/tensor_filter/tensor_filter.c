@@ -190,8 +190,8 @@ gst_tensor_filter_class_init (GstTensorFilterClass * klass)
   gst_tensor_filter_install_properties (gobject_class);
 
   gst_element_class_set_details_simple (gstelement_class,
-      "Tensor_Filter",
-      "Converter/Filter/Tensor",
+      "TensorFilter",
+      "Filter/Tensor",
       "Handles NN Frameworks (e.g., tensorflow) as Media Filters with other/tensor type stream",
       "MyungJoo Ham <myungjoo.ham@samsung.com>");
 

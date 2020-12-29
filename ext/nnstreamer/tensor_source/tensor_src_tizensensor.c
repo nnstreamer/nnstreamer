@@ -408,8 +408,8 @@ gst_tensor_src_tizensensor_class_init (GstTensorSrcTIZENSENSORClass * klass)
   gst_caps_unref (pad_caps);
 
   gst_element_class_set_static_metadata (gstelement_class,
-      "TensorSrcTizenSensor", "Source/Tizen-Sensor-FW/Tensor",
-      "Creates tensor(s) stream from a given Tizen sensour framework node",
+      "TensorSrcTizenSensor", "Source/Tensor/Device",
+      "Creates tensor(s) stream from a given Tizen sensor framework node",
       "MyungJoo Ham <myungjoo.ham@samsung.com>");
 
   gstbasesrc_class->set_caps =
