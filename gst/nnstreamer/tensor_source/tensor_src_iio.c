@@ -1543,7 +1543,7 @@ gst_tensor_src_iio_create_config (GstTensorSrcIIO * tensor_src_iio)
   GList *list;
   GstTensorSrcIIOChannelProperties *channel_prop;
   gint tensor_info_merged_size;
-  gint info_idx = 0, dim_idx = 0;
+  guint info_idx = 0, dim_idx = 0;
   GstTensorInfo *info;
   GstTensorsConfig *config;
 
@@ -1570,7 +1570,11 @@ gst_tensor_src_iio_create_config (GstTensorSrcIIO * tensor_src_iio)
     info[info_idx].dimension[1] = tensor_src_iio->buffer_capacity;
     info_idx += 1;
   }
-  g_assert_cmpint (info_idx, ==, tensor_src_iio->num_channels_enabled);
+
+  if (info_idx != tensor_src_iio->num_channels_enabled) {
+    GST_ERROR_OBJECT (tensor_src_iio, "The number of channel is different.");
+    goto error_ret;
+  }
 
   /** merge info about the tensors with same type */
   tensor_info_merged_size = tensor_src_iio->num_channels_enabled;
