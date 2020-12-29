@@ -390,7 +390,7 @@ gst_tensor_src_iio_class_init (GstTensorSrcIIOClass * klass)
 
   gst_element_class_set_static_metadata (gstelement_class,
       "TensorSrcIIO",
-      "SrcIIO/Tensor",
+      "Source/Tensor/Device",
       "Src element to support linux IIO",
       "Parichay Kapoor <pk.kapoor@samsung.com>");
 

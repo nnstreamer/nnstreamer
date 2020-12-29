@@ -249,7 +249,7 @@ gst_tensor_aggregator_class_init (GstTensorAggregatorClass * klass)
 
   gst_element_class_set_static_metadata (element_class,
       "TensorAggregator",
-      "Converter/Tensor",
+      "Filter/Tensor",
       "Element to aggregate tensor stream", "Samsung Electronics Co., Ltd.");
 
   gst_element_class_add_pad_template (element_class,

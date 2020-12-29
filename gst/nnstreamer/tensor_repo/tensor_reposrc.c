@@ -106,7 +106,7 @@ gst_tensor_reposrc_class_init (GstTensorRepoSrcClass * klass)
 
   gst_element_class_set_static_metadata (element_class,
       "TensorRepoSrc",
-      "Pop/TensorRepo",
+      "Source/Tensor/Repository",
       "Pop element to handle tensor repository",
       "Samsung Electronics Co., Ltd.");
 

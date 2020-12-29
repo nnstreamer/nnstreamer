@@ -187,8 +187,8 @@ gst_tensor_rate_class_init (GstTensorRateClass * klass)
   gst_tensor_rate_install_properties (gobject_class);
 
   gst_element_class_set_details_simple (gstelement_class,
-      "Tensor_Rate",
-      "Tensor/Framerate",
+      "TensorRate",
+      "Filter/Tensor",
       "Adjusts a framerate of incoming tensors",
       "Dongju Chae <dongju.chae@samsung.com>");
 

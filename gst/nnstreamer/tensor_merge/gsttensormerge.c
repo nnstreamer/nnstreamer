@@ -179,7 +179,7 @@ gst_tensor_merge_class_init (GstTensorMergeClass * klass)
 
   gst_element_class_set_details_simple (gstelement_class,
       "TensorMerge",
-      "Merger/Tensor",
+      "Muxer/Tensor",
       "Merge multiple tensor stream to tensor stream",
       "Jijoong Moon <jijoong.moon@samsung.com>");
 

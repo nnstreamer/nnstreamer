@@ -117,7 +117,7 @@ gst_tensor_reposink_class_init (GstTensorRepoSinkClass * klass)
 
   gst_element_class_set_static_metadata (element_class,
       "TensorRepoSink",
-      "Set/TensorRepo",
+      "Sink/Tensor/Repository",
       "Set element to handle tensor repository",
       "Samsung Electronics Co., Ltd.");
 
