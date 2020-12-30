@@ -222,10 +222,14 @@ if not get_option('tensorrt-support').disabled()
   endforeach
 
   nvinfer_lib = cxx.find_library('nvinfer', required: false)
-  nvinfer_dep = declare_dependency(dependencies: nvinfer_lib)
+  if nvinfer_lib.found() and cxx.check_header('NvInfer.h')
+    nvinfer_dep = declare_dependency(dependencies: nvinfer_lib)
+  endif
 
   nvparsers_lib = cxx.find_library('nvparsers', required: false)
-  nvparsers_dep = declare_dependency(dependencies: nvparsers_lib)
+  if nvparsers_lib.found() and cxx.check_header('NvUffParser.h')
+    nvparsers_dep = declare_dependency(dependencies: nvparsers_lib)
+  endif
 endif
 
 # gRPC
