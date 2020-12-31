@@ -253,6 +253,15 @@ BuildConflicts: libarmcl-release
 BuildRequires:  json-glib-devel
 %endif
 
+%if 0%{?pytorch_support}
+BuildRequires:	pytorch-devel
+%endif
+
+# Caffe2 is merged to pytorch
+%if 0%{?caffe2_support}
+BuildRequires:	pytorch-devel
+%endif
+
 # Unit Testing Uses SSAT (hhtps://github.com/myungjoo/SSAT.git)
 %if 0%{?unit_test}
 BuildRequires:	ssat >= 1.1.0
@@ -356,6 +365,26 @@ Requires:	nnstreamer = %{version}-%{release}
 Requires:	flatbuffers
 %description flatbuf
 NNStreamer's tensor_converter and decoder subplugin of flatbuf.
+%endif
+
+# for pytorch
+%if 0%{?pytorch_support}
+%package pytorch
+Summary:	NNStreamer PyTorch Support
+Requires:	nnstreamer = %{version}-%{release}
+Requires:	pytorch
+%description pytorch
+NNStreamer's tensor_fliter subplugin of pytorch
+%endif
+
+# for caffe2
+%if 0%{?caffe2_support}
+%package caffe2
+Summary:	NNStreamer caffe2 Support
+Requires:	nnstreamer = %{version}-%{release}
+Requires:	pytorch
+%description caffe2
+NNStreamer's tensor_fliter subplugin of caffe2
 %endif
 
 %package devel
@@ -824,6 +853,22 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_flatbuf.so
 %{_prefix}/lib/nnstreamer/converters/libnnstreamer_converter_flatbuf.so
+%endif
+
+# for pytorch
+%if 0%{?pytorch_support}
+%files pytorch
+%manifest nnstreamer.manifest
+%defattr(-,root,root,-)
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_pytorch.so
+%endif
+
+# for caffe2
+%if 0%{?caffe2_support}
+%files caffe2
+%manifest nnstreamer.manifest
+%defattr(-,root,root,-)
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_caffe2.so
 %endif
 
 %files devel
