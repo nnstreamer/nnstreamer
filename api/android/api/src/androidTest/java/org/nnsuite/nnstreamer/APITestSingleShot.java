@@ -933,9 +933,46 @@ public class APITestSingleShot {
             /* single-shot invoke */
             TensorsData in = APITestCommon.readRawImageDataSNPE();
             TensorsData out = single.invoke(in);
-            int labelIndex = APITestCommon.getMaxScoreSNPE(out.getTensorData(0));
+            int labelIndex = APITestCommon.getMaxScoreFloatBuffer(out.getTensorData(0), 1001);
 
             /* check label index (measuring cup) */
+            if (labelIndex != expected_label) {
+                fail();
+            }
+
+            single.close();
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
+    public void testPytorchClassificationResult() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.PYTORCH)) {
+            /* cannot run the test */
+            return;
+        }
+
+        /* expected label is orange (950) */
+        final int expected_label = 950;
+
+        try {
+            File model = APITestCommon.getPytorchModel();
+
+            TensorsInfo in = new TensorsInfo();
+            in.addTensorInfo("", NNStreamer.TensorType.FLOAT32, new int[]{224, 224, 3, 1});
+
+            TensorsInfo out = new TensorsInfo();
+            out.addTensorInfo("", NNStreamer.TensorType.FLOAT32, new int[]{1000, 1});
+
+            SingleShot single = new SingleShot(new File[]{model}, in, out, NNStreamer.NNFWType.PYTORCH, "");
+
+            /* invoke */
+            TensorsData output = single.invoke(APITestCommon.readRawImageDataPytorch());
+
+            int labelIndex = APITestCommon.getMaxScoreFloatBuffer(output.getTensorData(0), 1000);
+
+            /* check label index (orange) */
             if (labelIndex != expected_label) {
                 fail();
             }
