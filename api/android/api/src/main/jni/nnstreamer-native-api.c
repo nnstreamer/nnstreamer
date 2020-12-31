@@ -54,6 +54,9 @@ extern void init_filter_nnfw (void);
 #if defined (ENABLE_SNPE)
 extern void init_filter_snpe (JNIEnv * env, jobject context);
 #endif
+#if defined (ENABLE_PYTORCH)
+extern void init_filter_torch (void);
+#endif
 
 /**
  * @brief External function from GStreamer Android.
@@ -715,6 +718,13 @@ nns_get_nnfw_type (jint fw_type, ml_nnfw_type_e * nnfw)
       is_supported = FALSE;
 #endif
       break;
+    case 4: /* NNFWType.PYTORCH */
+      *nnfw = ML_NNFW_TYPE_PYTORCH;
+#if !defined (ENABLE_PYTORCH)
+      nns_logw ("PYTORCH is not supported.");
+      is_supported = FALSE;
+#endif
+      break;
     default: /* Unknown */
       nns_logw ("Unknown NNFW type (%d).", fw_type);
       is_supported = FALSE;
@@ -792,6 +802,9 @@ nnstreamer_native_initialize (JNIEnv * env, jobject context)
 #endif
 #if defined (ENABLE_SNPE)
     init_filter_snpe (env, context);
+#endif
+#if defined (ENABLE_PYTORCH)
+    init_filter_torch ();
 #endif
 
     nns_is_initilaized = TRUE;

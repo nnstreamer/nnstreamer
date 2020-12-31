@@ -84,8 +84,10 @@ class TorchCore
   int processIValue (torch::jit::IValue value, GstTensorMemory *output);
 };
 
+extern "C" { /* accessed by android api */
 void init_filter_torch (void) __attribute__ ((constructor));
 void fini_filter_torch (void) __attribute__ ((destructor));
+}
 
 /**
  * @brief	TorchCore creator
@@ -188,9 +190,9 @@ TorchCore::loadModel ()
 
   try {
 #ifdef PYTORCH_VER_ATLEAST_1_2_0
-  model = std::make_shared<torch::jit::script::Module> (torch::jit::load (model_path));
+    model = std::make_shared<torch::jit::script::Module> (torch::jit::load (model_path));
 #else
-  model = torch::jit::load (model_path);
+    model = torch::jit::load (model_path);
 #endif
   } catch (const std::invalid_argument &ia) {
     ml_loge ("Invalid argument while loading the model: %s", ia.what ());

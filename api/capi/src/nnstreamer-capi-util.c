@@ -45,6 +45,7 @@ static const char *ml_nnfw_subplugin_name[] = {
   [ML_NNFW_TYPE_EDGE_TPU] = "edgetpu",
   [ML_NNFW_TYPE_ARMNN] = "armnn",
   [ML_NNFW_TYPE_SNPE] = "snpe",
+  [ML_NNFW_TYPE_PYTORCH] = "pytorch",
   NULL
 };
 
@@ -1141,6 +1142,11 @@ ml_validate_model_file (char **model, unsigned int num_models,
         status = ML_ERROR_INVALID_PARAMETER;
       }
 #endif
+      break;
+    case ML_NNFW_TYPE_PYTORCH:
+      if (g_ascii_strcasecmp (file_ext[0], ".pt") != 0) {
+        status = ML_ERROR_INVALID_PARAMETER;
+      }
       break;
     case ML_NNFW_TYPE_ARMNN:
       if (g_ascii_strcasecmp (file_ext[0], ".caffemodel") != 0 &&

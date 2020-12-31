@@ -39,6 +39,9 @@ ENABLE_NNFW := false
 # SNPE (Snapdragon Neural Processing Engine)
 ENABLE_SNPE := false
 
+# PyTorch
+ENABLE_PYTORCH := false
+
 # Decoder sub-plugin for flatbuffers support
 ENABLE_DECODER_FLATBUF := false
 
@@ -90,6 +93,13 @@ NNS_API_FLAGS += -DENABLE_SNPE=1
 NNS_SUBPLUGINS += snpe-subplugin
 
 include $(LOCAL_PATH)/Android-snpe.mk
+endif
+
+ifeq ($(ENABLE_PYTORCH),true)
+NNS_API_FLAGS += -DENABLE_PYTORCH=1
+NNS_SUBPLUGINS += pytorch-subplugin
+
+include $(LOCAL_PATH)/Android-pytorch.mk
 endif
 
 ifeq ($(ENABLE_DECODER_FLATBUF),true)

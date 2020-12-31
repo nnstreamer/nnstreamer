@@ -712,7 +712,7 @@ ml_single_open_custom (ml_single_h * single, ml_single_preset * info)
    * 3. Construct a pipeline
    * Set the pipeline desc with nnfw.
    */
-  if (nnfw == ML_NNFW_TYPE_TENSORFLOW || nnfw == ML_NNFW_TYPE_SNAP) {
+  if (nnfw == ML_NNFW_TYPE_TENSORFLOW || nnfw == ML_NNFW_TYPE_SNAP || nnfw == ML_NNFW_TYPE_PYTORCH) {
     /* set input and output tensors information */
     if (in_tensors_info && out_tensors_info) {
       status =
