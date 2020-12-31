@@ -86,6 +86,11 @@ public final class NNStreamer {
          */
         SNPE,
         /**
+         * <a href="https://pytorch.org/mobile/home/">PyTorch Mobile</a>
+         * is an on-device solution for the open source machine learning framework, PyTorch.
+         */
+        PYTORCH,
+        /**
          * Unknown framework (usually error)
          */
         UNKNOWN

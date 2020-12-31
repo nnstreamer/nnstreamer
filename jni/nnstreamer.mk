@@ -99,7 +99,7 @@ NNSTREAMER_FILTER_NNFW_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_nnfw.c
 
 # filter pytorch
-NNSTREAMER_FILTER_TORCH_SRCS := \
+NNSTREAMER_FILTER_PYTORCH_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_pytorch.cc
 
 # filter caffe2
