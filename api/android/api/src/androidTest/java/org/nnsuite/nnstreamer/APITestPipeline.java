@@ -1938,7 +1938,7 @@ public class APITestPipeline {
                     }
 
                     ByteBuffer buffer = data.getTensorData(0);
-                    int labelIndex = APITestCommon.getMaxScoreSNPE(buffer);
+                    int labelIndex = APITestCommon.getMaxScoreFloatBuffer(buffer, 1001);
 
                     /* check label index (measuring cup) */
                     if (labelIndex != expected_label) {
@@ -2008,5 +2008,67 @@ public class APITestPipeline {
         }
 
         runSNPEInception("NPU");
+    }
+
+    @Test
+    public void testPytorchClassificationResult() {
+        if (!NNStreamer.isAvailable(NNStreamer.NNFWType.PYTORCH)) {
+            /* cannot run the test */
+            return;
+        }
+
+        File model = APITestCommon.getPytorchModel();
+        String desc = "appsrc name=srcx ! " +
+                "other/tensor,dimension=(string)3:224:224:1,type=(string)uint8,framerate=(fraction)0/1 ! " +
+                "tensor_transform mode=dimchg option=0:2 ! " +
+                "tensor_transform mode=arithmetic option=typecast:float32,add:-127.5,div:127.5 ! " +
+                "tensor_filter framework=pytorch model=" + model.getAbsolutePath() + " " +
+                "input=224:224:3:1 inputtype=float32 output=1000:1 outputtype=float32 ! " +
+                "tensor_sink name=sinkx";
+
+        /* expected label is orange (950) */
+        final int expected_label = 950;
+
+        try (Pipeline pipe = new Pipeline(desc)) {
+            /* register sink callback */
+            pipe.registerSinkCallback("sinkx", new Pipeline.NewDataCallback() {
+                @Override
+                public void onNewDataReceived(TensorsData data) {
+                    if (data == null || data.getTensorsCount() != 1) {
+                        mInvalidState = true;
+                        return;
+                    }
+
+                    ByteBuffer buffer = data.getTensorData(0);
+                    int labelIndex = APITestCommon.getMaxScoreFloatBuffer(buffer, 1000);
+
+                    /* check label index (orange) */
+                    if (labelIndex != expected_label) {
+                        mInvalidState = true;
+                    }
+                    mReceived++;
+                }
+            });
+
+            /* start pipeline */
+            pipe.start();
+
+            /* push input buffer */
+            TensorsData in = APITestCommon.readRawImageData();
+            pipe.inputData("srcx", in);
+
+            /* sleep 1000 to invoke */
+            Thread.sleep(1000);
+
+            /* stop pipeline */
+            pipe.stop();
+
+            /* check received data from sink */
+            assertFalse(mInvalidState);
+            assertTrue(mReceived > 0);
+        } catch (Exception e) {
+            fail();
+        }
+
     }
 }

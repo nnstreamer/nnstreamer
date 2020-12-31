@@ -130,6 +130,62 @@ public class APITestCommon {
     }
 
     /**
+     * Reads raw float image file (orange) and returns TensorsData instance.
+     */
+    public static TensorsData readRawImageDataPytorch() {
+        String root = Environment.getExternalStorageDirectory().getAbsolutePath();
+        File raw = new File(root + "/nnstreamer/pytorch_data/orange_float.raw");
+
+        if (!raw.exists()) {
+            fail();
+        }
+
+        TensorsInfo info = new TensorsInfo();
+        info.addTensorInfo(NNStreamer.TensorType.FLOAT32, new int[]{224, 224, 3, 1});
+
+        int size = info.getTensorSize(0);
+        TensorsData data = TensorsData.allocate(info);
+
+        try {
+            byte[] content = Files.readAllBytes(raw.toPath());
+            if (content.length != size) {
+                fail();
+            }
+
+            ByteBuffer buffer = TensorsData.allocateByteBuffer(size);
+            buffer.put(content);
+
+            data.setTensorData(0, buffer);
+        } catch (Exception e) {
+            fail();
+        }
+
+        return data;
+    }
+
+    /**
+     * Gets the label index with max score for float buffer with given length.
+     */
+    public static int getMaxScoreFloatBuffer(ByteBuffer buffer, int length) {
+        int index = -1;
+        float maxScore = -Float.MAX_VALUE;
+
+        if (isValidBuffer(buffer, 4 * length)) {
+            for (int i = 0; i < length; i++) {
+                /* convert to float */
+                float score = buffer.getFloat(i * 4);
+
+                if (score > maxScore) {
+                    maxScore = score;
+                    index = i;
+                }
+            }
+        }
+
+        return index;
+    }
+
+    /**
      * Reads raw float image file (plastic_cup) and returns TensorsData instance.
      */
     public static TensorsData readRawImageDataSNPE() {
@@ -161,28 +217,6 @@ public class APITestCommon {
         }
 
         return data;
-    }
-
-    /**
-     * Gets the label index with max score, for SNPE image classification.
-     */
-    public static int getMaxScoreSNPE(ByteBuffer buffer) {
-        int index = -1;
-        float maxScore = -Float.MAX_VALUE;
-
-        if (isValidBuffer(buffer, 4004)) {
-            for (int i = 0; i < 1001; i++) {
-                /* convert to float */
-                float score = buffer.getFloat(i * 4);
-
-                if (score > maxScore) {
-                    maxScore = score;
-                    index = i;
-                }
-            }
-        }
-
-        return index;
     }
 
     /**
@@ -330,6 +364,18 @@ public class APITestCommon {
         return model;
     }
 
+    public static File getPytorchModel() {
+        String root = Environment.getExternalStorageDirectory().getAbsolutePath();
+
+        File model = new File(root + "/nnstreamer/pytorch_data/mobilenetv2-quant_core-nnapi.pt");
+
+        if (!model.exists()) {
+            fail();
+        }
+
+        return model;
+    }
+
     /**
      * Verifies the byte buffer is direct buffer with native order.
      *
@@ -391,6 +437,7 @@ public class APITestCommon {
         assertEquals(NNStreamer.NNFWType.SNAP, NNStreamer.NNFWType.valueOf("SNAP"));
         assertEquals(NNStreamer.NNFWType.NNFW, NNStreamer.NNFWType.valueOf("NNFW"));
         assertEquals(NNStreamer.NNFWType.SNPE, NNStreamer.NNFWType.valueOf("SNPE"));
+        assertEquals(NNStreamer.NNFWType.PYTORCH, NNStreamer.NNFWType.valueOf("PYTORCH"));
         assertEquals(NNStreamer.NNFWType.UNKNOWN, NNStreamer.NNFWType.valueOf("UNKNOWN"));
     }
 }
