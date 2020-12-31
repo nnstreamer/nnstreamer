@@ -186,11 +186,22 @@ TorchCore::loadModel ()
   gint64 start_time = g_get_real_time ();
 #endif
 
+  try {
 #ifdef PYTORCH_VER_ATLEAST_1_2_0
   model = std::make_shared<torch::jit::script::Module> (torch::jit::load (model_path));
 #else
   model = torch::jit::load (model_path);
 #endif
+  } catch (const std::invalid_argument &ia) {
+    ml_loge ("Invalid argument while loading the model: %s", ia.what ());
+    return -1;
+  } catch (const std::exception &ex) {
+    ml_loge ("Exception while loading the model: %s", ex.what ());
+    return -1;
+  } catch (...) {
+    ml_loge ("Unknown exception while loading the pytorch model");
+    return -1;
+  }
 
   if (model == nullptr) {
     ml_loge ("Failed to read graph.");
