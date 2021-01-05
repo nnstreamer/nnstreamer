@@ -1140,6 +1140,8 @@ gst_tensor_filter_framework_auto_detection (const gchar ** model_files,
       detected_fw = g_strdup ("tensorflow");
     else if (g_ascii_strcasecmp (file_extension, ".pt") == 0)
       detected_fw = g_strdup ("pytorch");
+    else if (g_ascii_strcasecmp (file_extension, ".dlc") == 0)
+      detected_fw = g_strdup ("snpe");
     else if (g_ascii_strcasecmp (file_extension, ".py") == 0)
       detected_fw = g_strdup ("python");
     else if (g_ascii_strcasecmp (file_extension, ".graph") == 0)
