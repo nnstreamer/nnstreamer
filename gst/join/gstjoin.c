@@ -67,12 +67,6 @@ enum
   PROP_ACTIVE_PAD,
 };
 
-enum
-{
-  PROP_PAD_0,
-  PROP_PAD_ACTIVE,
-};
-
 static GstPad *gst_join_get_active_sinkpad (GstJoin * sel);
 static GstPad *gst_join_get_linked_pad (GstJoin * sel,
     GstPad * pad, gboolean strict);
@@ -310,7 +304,6 @@ gst_join_pad_event (GstPad * pad, GstObject * parent, GstEvent * event)
   gboolean forward;
   GstJoin *sel;
   GstJoinPad *selpad;
-  GstPad *prev_active_sinkpad;
   GstPad *active_sinkpad;
 
   sel = GST_JOIN (parent);
@@ -318,17 +311,7 @@ gst_join_pad_event (GstPad * pad, GstObject * parent, GstEvent * event)
   GST_DEBUG_OBJECT (selpad, "received event %" GST_PTR_FORMAT, event);
 
   GST_JOIN_LOCK (sel);
-  prev_active_sinkpad =
-      sel->active_sinkpad ? gst_object_ref (sel->active_sinkpad) : NULL;
-  active_sinkpad = gst_join_get_active_sinkpad (sel);
-  gst_object_ref (active_sinkpad);
-  GST_JOIN_UNLOCK (sel);
 
-  if (prev_active_sinkpad)
-    gst_object_unref (prev_active_sinkpad);
-  gst_object_unref (active_sinkpad);
-
-  GST_JOIN_LOCK (sel);
   active_sinkpad = gst_join_get_active_sinkpad (sel);
 
   /* only forward if we are dealing with the active sinkpad */
@@ -339,17 +322,18 @@ gst_join_pad_event (GstPad * pad, GstObject * parent, GstEvent * event)
     {
       GstCaps *prev_caps, *new_caps;
 
-      if (!prev_active_sinkpad)
+      if (!(prev_caps = gst_pad_get_current_caps (active_sinkpad)))
         break;
 
-      prev_caps = gst_pad_get_current_caps (prev_active_sinkpad);
       gst_event_parse_caps (event, &new_caps);
 
       if (!gst_caps_is_equal (prev_caps, new_caps)) {
         GST_ERROR_OBJECT (sel, "Capabilities of the sinks should be the same.");
         res = FALSE;
       }
+
       gst_caps_unref (prev_caps);
+
       break;
     }
     case GST_EVENT_STREAM_START:{
