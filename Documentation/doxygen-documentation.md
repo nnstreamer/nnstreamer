@@ -1,3 +1,6 @@
+---
+title: Doxygen documentation
+...
 
 Doxygen: Generate documentation from source code
 =================================================

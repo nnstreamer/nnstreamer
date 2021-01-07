@@ -1,3 +1,7 @@
+---
+title: tensor_sink
+...
+
 # NNStreamer::tensor\_sink
 
 ## Supported features

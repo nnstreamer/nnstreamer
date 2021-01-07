@@ -1,0 +1,30 @@
+@require(page)
+
+<li class="dropdown">
+    <a class="dropdown-toggle" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+        API References<span class="caret"></span>
+    </a>
+	<ul class="dropdown-menu" id="modules-menu">
+		@for tup in (("Documentation/hotdoc/index.html","NNStreamer doc"), \
+				("gst/nnstreamer/README.html","NNStreamer Elements"), \
+				("nnstreamer-example/index.html","NNStreamer Examples"), \
+				("Documentation/API-reference.html","API reference")):
+			<li>
+				<a href="@tup[0]">@tup[1]</a>
+			</li>
+		@end
+</li>
+
+<li>
+	<a href="Documentation/hotdoc/index.html">Documents</a>
+</li>
+<li>
+	<a href="gst/nnstreamer/README.html">Elements</a>
+</li>
+<li>
+	<a href="nnstreamer-example/index.html">Examples</a>
+</li>
+<li>
+	<a href="Documentation/API-reference.html">API reference</a>
+</li>
+

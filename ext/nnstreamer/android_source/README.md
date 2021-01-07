@@ -1,3 +1,7 @@
+---
+title: android_source
+...
+
 # NNStreamer::android_source
 
 ## Motivation

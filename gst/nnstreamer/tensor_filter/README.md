@@ -1,3 +1,7 @@
+---
+title: tensor_filter
+...
+
 # NNStreamer::tensor\_filter
 This is the main element of the whole NNStreamer project. This connects gstreamer data stream with neural network frameworks (NNFW) such as Tensorflow or Caffe.  
 ```tensor_filter``` is supposed to attach an instance of neural network model with the given NNFW as a filter to a gstreamer stream.  

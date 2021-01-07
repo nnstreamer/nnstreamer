@@ -1,3 +1,7 @@
+---
+title: tensor_transform
+...
+
 # NNStreamer::tensor_transform
 
 ## Supported Features

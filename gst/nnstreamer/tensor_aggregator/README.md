@@ -1,3 +1,7 @@
+---
+title: tensor_aggregator
+...
+
 # NNStreamer::tensor\_aggregator
 
 ## Supported features

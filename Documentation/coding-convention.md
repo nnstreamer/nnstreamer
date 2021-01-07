@@ -1,3 +1,6 @@
+---
+title: Coding Convention
+...
 
 # Coding Convention
 

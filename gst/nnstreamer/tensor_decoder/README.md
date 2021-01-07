@@ -1,3 +1,7 @@
+---
+title: tensor_decoder
+...
+
 # NNStreamer::tensor\_decoder
 
 ## Supported features

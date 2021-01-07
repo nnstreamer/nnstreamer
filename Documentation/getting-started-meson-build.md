@@ -1,3 +1,7 @@
+---
+title: Meson/Ninja Build
+...
+
 ## Getting Started: Meson/Ninja Build
 
 NNStreamer uses meson/ninja as its standard build environment; both Tizen(GBS-OBS/.rpm) and Ubuntu(pdebuild/.deb) builds uses meson/ninja.
@@ -57,7 +61,7 @@ Configure build in ```./build``` directory with default options.
 $ meson build
 ```
 
-For possible configurations, please refer to [meson_options.txt](../meson_options.txt).
+For possible configurations, please refer to [meson_options.txt](https://github.com/nnstreamer/nnstreamer/blob/main/meson_options.txt).
 If you want to designate nnstreamer's binary locations, provide such with ```--prefix```, ```--sysconfdir```, ```--libdir```, ```--bindir```, and ```--includedir```.
 For example, in order to install as general Linux system libraries you may configure:
 ```bash

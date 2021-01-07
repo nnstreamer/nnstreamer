@@ -1,3 +1,6 @@
+---
+title: Contributing
+...
 
 # Technical Steering Committee
 

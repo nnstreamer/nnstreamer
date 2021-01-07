@@ -1,3 +1,7 @@
+---
+title: Writing tensor filter subplugin
+...
+
 # Writing a subplugin for NNStreamer's tensor\_filter
 
 You can support a new neural-network framework (e.g., Tensorflow and Caffe) or a new neural-network hardware accelerator with its own software interface (e.g., openVINO for NCS and some python library for edge-TPU) by writing a tensor\_filter subplugin.

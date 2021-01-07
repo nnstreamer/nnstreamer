@@ -1,3 +1,6 @@
+---
+title: How to archive large files
+...
 
 # How to archive large files with git-lfs
 In order to archive a big data such as map, training, network model, and image data,

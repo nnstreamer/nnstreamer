@@ -1,3 +1,7 @@
+---
+title: tensor_source
+...
+
 # NNStreamer::tensor_source
 
 ## Motivation
