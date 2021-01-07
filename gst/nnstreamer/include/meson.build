@@ -1,5 +1,6 @@
 # Common headers to be installed
 nnst_common_headers = [
+  'tensor_if.h',
   'tensor_typedef.h',
   'tensor_filter_custom.h',
   'tensor_filter_custom_easy.h',
