@@ -827,6 +827,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %endif
 
 %files devel
+%{_includedir}/nnstreamer/tensor_if.h
 %{_includedir}/nnstreamer/tensor_typedef.h
 %{_includedir}/nnstreamer/tensor_filter_custom.h
 %{_includedir}/nnstreamer/tensor_filter_custom_easy.h
