@@ -1,3 +1,7 @@
+---
+title: tensor_if
+...
+
 # NNStreamer::tensor\_if
 
 ## Supported features

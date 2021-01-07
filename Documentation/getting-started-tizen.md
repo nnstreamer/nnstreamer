@@ -1,3 +1,7 @@
+---
+title: Tizen GBS
+...
+
 ## Getting Started: Tizen GBS
 
 * If you are a Tizen platform developer, you may use GBS to build your customized nnstreamer for your developmental requirements.
@@ -52,4 +56,4 @@ You will need root permission and your device should be unlocked or SMACK should
 
 ### Additional materials for Tizen developers
 
-[Writing Tizen Native Apps with NNStreamer / ML APIs](writing-tizen-native-apps.md)
+[Writing Tizen Native Apps with NNStreamer / ML APIs](Documentation/writing-tizen-native-apps.md)

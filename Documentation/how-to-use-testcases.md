@@ -1,8 +1,12 @@
+---
+title: How to use Test Cases
+...
+
 ## How to run Test Cases
 
 - Use the built library as a general gstreamer plugin.
 
-- Unit Test 
+- Unit Test
 
 For gtest based test cases (common library and nnstreamer plugins)
 ```
@@ -17,4 +21,4 @@ $ ssat
 ```
 
 ## How to write Test Cases
-* [How to write Test Cases](how-to-write-testcase.md)
+* [How to write Test Cases](Documentation/how-to-write-testcase.md)

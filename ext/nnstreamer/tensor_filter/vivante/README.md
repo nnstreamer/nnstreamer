@@ -1,3 +1,6 @@
+---
+title: vivante
+...
 
 This describes how to enable the NNstreamer tensor filter as a sub-plugin for Vivante NPU.
 
@@ -15,7 +18,7 @@ The entire procedure is as follows:
 ## Reference
  * http://www.vivantecorp.com/
  * https://www.khadas.com/product-page/vim3 (Amlogic A311D with 5.0 TOPS NPU)
- 
+
 ## How to buid
 First of all, you must generate a library of a model (e.g., libvivantev3.so, libyolov3.so) to use NNStreamer tensor filter.
 For more details, please refer to the below repository.

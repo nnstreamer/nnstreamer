@@ -1,3 +1,6 @@
+---
+title: Products
+...
 
 This is WIP page
 

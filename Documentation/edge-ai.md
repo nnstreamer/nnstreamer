@@ -1,3 +1,7 @@
+---
+title: Edge-AI
+...
+
 # What is Edge-AI?
 Currently, the heavy computing capacity required to run deep learning models necessitates that the majority of AI processes be carried out in the cloud.
 

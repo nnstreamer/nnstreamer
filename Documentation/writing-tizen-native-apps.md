@@ -1,3 +1,7 @@
+---
+title: Writing Tizen native apps
+...
+
 # Writing a Tizen Native App
 
 This document guides how to write a Tizen Native (C/C++) app with NNStreamer APIs (Tizen Machine-Learning Inference API Set).
@@ -81,4 +85,4 @@ A simple sample Tizen app with Pipeline APIs is at nnstreamer-example.git, [Pipe
 
 # Tizen ML API Documentation
 
-The official Tizen ML API Documentation will be available after the release of Tizen 5.5. Before the release, you may create doxygen documents created from [api/capi/include](../api/capi/include) and [api/capi/doc](../api/capi/doc).
+The official Tizen ML API Documentation will be available after the release of Tizen 5.5. Before the release, you may create doxygen documents created from [api/capi/include](https://github.com/nnstreamer/nnstreamer/tree/main/api/capi/include) and [api/capi/doc](https://github.com/nnstreamer/nnstreamer/tree/main/api/capi/doc).
