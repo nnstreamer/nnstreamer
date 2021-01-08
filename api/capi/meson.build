@@ -19,12 +19,11 @@ endif
 
 
 capi_inc = []
+capi_inc += include_directories('include')
+capi_inc += include_directories('../../gst') #TODO remove this
 if not get_option('enable-tizen')
-  capi_inc += include_directories ('include/platform')
+  capi_inc += include_directories('include/platform')
 endif
-inc = include_directories('include')
-nninc = include_directories('../../gst')
-capi_inc += [inc, nninc]
 
 capi_main = []
 capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-pipeline.c')
@@ -32,12 +31,14 @@ capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-util
 capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-single.c')
 capi_main += join_paths(meson.current_source_dir(), 'src', 'tensor_filter_single.c')
 
-if get_option('enable-tizen') and get_option('enable-tizen-feature-check')
-  capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-tizen-feature-check.c')
-endif
+if get_option('enable-tizen')
+  if get_option('enable-tizen-feature-check')
+    capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-tizen-feature-check.c')
+  endif
 
-if get_option('enable-tizen') and get_option('enable-tizen-privilege-check')
-  capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-tizen-privilege-check.c')
+  if get_option('enable-tizen-privilege-check')
+    capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-tizen-privilege-check.c')
+  endif
 endif
 
 capi_devel_main = []
@@ -59,30 +60,19 @@ capi_deps = [
 if (get_option('enable-tizen'))
   message('CAPI is in Tizen mode')
 
-  if (tizenVmajor == 4)
-    tizen_deps = [
-      dependency('dpm'),
-      dependency('mm-camcorder'),
-      dependency('capi-base-common'),
-      dependency('capi-system-info'),
-      dependency('dlog')
-    ]
+  tizen_deps = [
+    dependency('capi-base-common'),
+    dependency('capi-system-info'),
+    dependency('dlog')
+  ]
 
-    if get_option('enable-tizen-privilege-check')
-      tizen_deps += dependency('capi-privacy-privilege-manager')
-    endif
-  else
-    tizen_deps = [
-      dependency('dpm'),
-      dependency('mm-camcorder'),
-      dependency('capi-base-common'),
-      dependency('capi-system-info'),
-      dependency('dlog')
-    ]
+  if get_option('enable-tizen-privilege-check')
+    tizen_deps += dependency('dpm')
+    tizen_deps += dependency('capi-privacy-privilege-manager')
+    tizen_deps += dependency('mm-camcorder')
 
-    if get_option('enable-tizen-privilege-check')
+    if (tizenVmajor >= 5)
       tizen_deps += dependency('mm-resource-manager')
-      tizen_deps += dependency('capi-privacy-privilege-manager')
     endif
   endif
 
