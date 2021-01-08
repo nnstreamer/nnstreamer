@@ -224,15 +224,13 @@ BuildRequires:  grpc-devel
 %endif
 
 %if %{with tizen}
-BuildRequires:	pkgconfig(dpm)
-%if 0%{tizen_version_major} >= 5
 %if 0%{?enable_tizen_privilege}
+BuildRequires:	pkgconfig(dpm)
+BuildRequires:	pkgconfig(capi-privacy-privilege-manager)
+BuildRequires:	pkgconfig(mm-camcorder)
+%if 0%{tizen_version_major} >= 5
 BuildRequires:	pkgconfig(mm-resource-manager)
 %endif
-%endif
-BuildRequires:	pkgconfig(mm-camcorder)
-%if 0%{?enable_tizen_privilege}
-BuildRequires:	pkgconfig(capi-privacy-privilege-manager)
 %endif
 BuildRequires:	pkgconfig(capi-system-info)
 BuildRequires:	pkgconfig(capi-base-common)
