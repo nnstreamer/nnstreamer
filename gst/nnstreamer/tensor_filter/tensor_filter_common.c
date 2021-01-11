@@ -802,66 +802,6 @@ gst_tensor_filter_destroy_notify_util (GstTensorFilterPrivate * priv,
 }
 
 /**
- * @brief Printout the comparison results of two tensors.
- * @param[in] info1 The tensors to be shown on the left hand side
- * @param[in] info2 The tensors to be shown on the right hand side
- */
-void
-gst_tensor_filter_compare_tensors (GstTensorsInfo * info1,
-    GstTensorsInfo * info2)
-{
-  gchar *result = NULL;
-  gchar *line, *tmp, *left, *right;
-  guint i;
-
-  for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
-    if (info1->num_tensors <= i && info2->num_tensors <= i)
-      break;
-
-    if (info1->num_tensors > i) {
-      tmp = gst_tensor_get_dimension_string (info1->info[i].dimension);
-      left = g_strdup_printf ("%s [%s]",
-          gst_tensor_get_type_string (info1->info[i].type), tmp);
-      g_free (tmp);
-    } else {
-      left = g_strdup ("None");
-    }
-
-    if (info2->num_tensors > i) {
-      tmp = gst_tensor_get_dimension_string (info2->info[i].dimension);
-      right = g_strdup_printf ("%s [%s]",
-          gst_tensor_get_type_string (info2->info[i].type), tmp);
-      g_free (tmp);
-    } else {
-      right = g_strdup ("None");
-    }
-
-    line =
-        g_strdup_printf ("%2d : %s | %s %s\n", i, left, right,
-        g_str_equal (left, right) ? "" : "FAILED");
-
-    g_free (left);
-    g_free (right);
-
-    if (result) {
-      tmp = g_strdup_printf ("%s%s", result, line);
-      g_free (result);
-      g_free (line);
-
-      result = tmp;
-    } else {
-      result = line;
-    }
-  }
-
-  if (result) {
-    /* print warning message */
-    nns_logw ("Tensor info :\n%s", result);
-    g_free (result);
-  }
-}
-
-/**
  * @brief Installs all the properties for tensor_filter
  * @param[in] gobject_class Glib object class whose properties will be set
  */
@@ -2130,7 +2070,7 @@ gst_tensor_filter_load_tensor_info (GstTensorFilterPrivate * priv)
     if (prop->input_meta.num_tensors > 0) {
       if (!gst_tensors_info_is_equal (&in_info, &prop->input_meta)) {
         g_critical ("The input tensor is not compatible.");
-        gst_tensor_filter_compare_tensors (&in_info, &prop->input_meta);
+        gst_tensors_info_print_comparison (&in_info, &prop->input_meta);
         goto done;
       }
     } else {
@@ -2149,7 +2089,7 @@ gst_tensor_filter_load_tensor_info (GstTensorFilterPrivate * priv)
     if (prop->output_meta.num_tensors > 0) {
       if (!gst_tensors_info_is_equal (&out_info, &prop->output_meta)) {
         g_critical ("The output tensor is not compatible.");
-        gst_tensor_filter_compare_tensors (&out_info, &prop->output_meta);
+        gst_tensors_info_print_comparison (&out_info, &prop->output_meta);
         goto done;
       }
     } else {

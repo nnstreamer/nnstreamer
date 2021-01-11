@@ -189,6 +189,14 @@ extern gboolean
 gst_tensors_info_is_equal (const GstTensorsInfo * i1, const GstTensorsInfo * i2);
 
 /**
+ * @brief Printout the comparison results of two tensors.
+ * @param[in] i1 The tensors to be shown on the left hand side
+ * @param[in] i2 The tensors to be shown on the right hand side
+ */
+extern void
+gst_tensors_info_print_comparison (const GstTensorsInfo * i1, const GstTensorsInfo * i2);
+
+/**
  * @brief Copy tensor info
  * @note Copied info should be freed with gst_tensors_info_free()
  */

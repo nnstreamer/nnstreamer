@@ -356,6 +356,66 @@ gst_tensors_info_is_equal (const GstTensorsInfo * i1, const GstTensorsInfo * i2)
 }
 
 /**
+ * @brief Printout the comparison results of two tensors.
+ * @param[in] i1 The tensors to be shown on the left hand side
+ * @param[in] i2 The tensors to be shown on the right hand side
+ */
+void
+gst_tensors_info_print_comparison (const GstTensorsInfo * i1,
+    const GstTensorsInfo * i2)
+{
+  gchar *result = NULL;
+  gchar *line, *tmp, *left, *right;
+  guint i;
+
+  g_return_if_fail (i1 != NULL && i2 != NULL);
+
+  for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
+    if (i1->num_tensors <= i && i2->num_tensors <= i)
+      break;
+
+    if (i1->num_tensors > i) {
+      tmp = gst_tensor_get_dimension_string (i1->info[i].dimension);
+      left = g_strdup_printf ("%s [%s]",
+          gst_tensor_get_type_string (i1->info[i].type), tmp);
+      g_free (tmp);
+    } else {
+      left = g_strdup ("None");
+    }
+
+    if (i2->num_tensors > i) {
+      tmp = gst_tensor_get_dimension_string (i2->info[i].dimension);
+      right = g_strdup_printf ("%s [%s]",
+          gst_tensor_get_type_string (i2->info[i].type), tmp);
+      g_free (tmp);
+    } else {
+      right = g_strdup ("None");
+    }
+
+    line = g_strdup_printf ("%2d : %s | %s %s\n", i, left, right,
+        g_str_equal (left, right) ? "" : "Not equal");
+
+    g_free (left);
+    g_free (right);
+
+    if (result) {
+      tmp = g_strdup_printf ("%s%s", result, line);
+      g_free (result);
+      g_free (line);
+
+      result = tmp;
+    } else {
+      result = line;
+    }
+  }
+
+  if (result) {
+    nns_logi ("Tensor info :\n%s", result);
+    g_free (result);
+  }
+}
+
+/**
  * @brief Copy tensor info
  * @note Copied info should be freed with gst_tensors_info_free()
  */

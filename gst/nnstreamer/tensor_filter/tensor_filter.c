@@ -760,7 +760,7 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
       if (priv->combi.in_combi_defined == FALSE) {
         if (!gst_tensors_info_is_equal (&in_config.info, &prop->input_meta)) {
           GST_ERROR_OBJECT (self, "The input tensor is not compatible.");
-          gst_tensor_filter_compare_tensors (&in_config.info,
+          gst_tensors_info_print_comparison (&in_config.info,
               &prop->input_meta);
           goto done;
         }
@@ -790,7 +790,7 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
         if (prop->output_meta.num_tensors > 0) {
           if (!gst_tensors_info_is_equal (&out_info, &prop->output_meta)) {
             GST_ERROR_OBJECT (self, "The output tensor is not compatible.");
-            gst_tensor_filter_compare_tensors (&out_info, &prop->output_meta);
+            gst_tensors_info_print_comparison (&out_info, &prop->output_meta);
             gst_tensors_info_free (&out_info);
             goto done;
           }

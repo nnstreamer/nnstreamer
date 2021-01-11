@@ -128,16 +128,6 @@ typedef struct _GstTensorFilterPrivate
 } GstTensorFilterPrivate;
 
 /**
- * @brief Printout the comparison results of two tensors.
- * @param[in] info1 The tensors to be shown on the left hand side
- * @param[in] info2 The tensors to be shown on the right hand side
- * @todo If this is going to be used by other elements, move this to nnstreamer/tensor_common.
- */
-extern void
-gst_tensor_filter_compare_tensors (GstTensorsInfo * info1,
-    GstTensorsInfo * info2);
-
-/**
  * @brief check if the allocate_in_invoke is valid for the framework
  * @param[in] priv Struct containing the properties of the object
  * @return TRUE if valid, FALSE on error
