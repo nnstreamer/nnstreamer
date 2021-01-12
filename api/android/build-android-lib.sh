@@ -44,6 +44,10 @@
 ##@@   --enable_snpe=(yes|no)
 ##@@       'yes'      : build with sub-plugin for SNPE
 ##@@       'no'       : [default]
+##@@   --enable_pytorch=(yes(:(1.8.0))?|no)
+##@@       'yes'      : build with sub-plugin for PyTorch. You can optionally specify the version of
+##@@                    PyTorch to use by appending ':version' [1.8.0 is the default].
+##@@       'no'       : [default] build without the sub-plugin for PyTorch
 ##@@   --enable_tflite=(yes(:(1.9|1.13.1|1.15.2|2.3.0))?|no)
 ##@@       'yes'      : [default] you can optionally specify the version of tensorflow-lite to use
 ##@@                    by appending ':version' [1.13.1 is the default].
@@ -86,6 +90,13 @@ enable_nnfw="yes"
 
 # Enable SNPE
 enable_snpe="no"
+
+# Enable PyTorch
+enable_pytorch="no"
+
+# Set PyTorch version (available: 1.8.0 (unstable))
+pytorch_ver="1.8.0"
+pytorch_vers_support="1.8.0"
 
 # Enable tensorflow-lite
 enable_tflite="yes"
@@ -164,6 +175,27 @@ for arg in "$@"; do
         --enable_snpe=*)
             enable_snpe=${arg#*=}
             ;;
+        --enable_pytorch=*)
+            IFS=':' read -ra enable_pytorch_args <<< "${arg#*=}"
+            is_valid_pytorch_version=0
+            enable_pytorch=${enable_pytorch_args[0]}
+            if [[ ${enable_pytorch} == "yes" ]]; then
+                if [[ ${enable_pytorch_args[1]} == "" ]]; then
+                    break
+                fi
+                for ver in ${pytorch_vers_support}; do
+                    if [[ ${ver} == ${enable_pytorch_args[1]} ]]; then
+                        is_valid_pytorch_version=1
+                        pytorch_ver=${ver}
+                        break
+                    fi
+                done
+                if [[ ${is_valid_pytorch_version} == 0 ]]; then
+                    printf "'%s' is not a supported version of PyTorch." "${enable_pytorch_args[1]}"
+                    printf "The default version, '%s', will be used.\n"  "${pytorch_ver}"
+                fi
+            fi
+            ;;
         --enable_tflite=*)
             IFS=':' read -ra enable_tflite_args <<< "${arg#*=}"
             is_valid_tflite_version=0
@@ -203,6 +235,7 @@ elif [[ $build_type == "internal" ]]; then
     enable_nnfw="yes"
     enable_nnfw_ext="yes"
     enable_snpe="no"
+    enable_pytorch="no"
     enable_tflite="no"
 
     target_abi="arm64-v8a"
@@ -233,6 +266,10 @@ if [[ $enable_snpe == "yes" ]]; then
     [ $target_abi != "arm64-v8a" ] && echo "Set target ABI arm64-v8a to build sub-plugin for SNPE." && exit 1
 
     echo "Build with SNPE: $SNPE_DIRECTORY"
+fi
+
+if [[ $enable_pytorch == "yes" ]]; then
+    echo "Build with PyTorch $pytorch_ver"
 fi
 
 if [[ $enable_tflite == "yes" ]]; then
@@ -333,6 +370,10 @@ if [[ $enable_nnfw == "yes" ]]; then
     fi
 fi
 
+if [[ $enable_pytorch == "yes" ]]; then
+    wget --directory-prefix=./$build_dir/external https://raw.githubusercontent.com/nnstreamer/nnstreamer-android-resource/master/external/pytorch-$pytorch_ver.tar.xz
+fi
+
 pushd ./$build_dir
 
 # Update target ABI
@@ -402,6 +443,13 @@ if [[ $enable_snpe == "yes" ]]; then
     cp $SNPE_DIRECTORY/lib/aarch64-android-clang6.0/lib*dsp*.so api/src/main/jni/snpe/lib/ext/arm64-v8a
     cp $SNPE_DIRECTORY/lib/aarch64-android-clang6.0/libhta.so api/src/main/jni/snpe/lib/ext/arm64-v8a
     cp $SNPE_DIRECTORY/lib/dsp/libsnpe*.so api/src/main/jni/snpe/lib/ext/arm64-v8a
+fi
+
+# Update PyTorch option
+if [[ $enable_pytorch == "yes" ]]; then
+    sed -i "s|ENABLE_PYTORCH := false|ENABLE_PYTORCH := true|" api/src/main/jni/Android.mk
+    sed -i "s|PYTORCH_VERSION := 1.8.0|PYTORCH_VERSION := $pytorch_ver|" api/src/main/jni/Android-pytorch.mk
+    tar -xJf ./external/pytorch-$pytorch_ver.tar.xz -C ./api/src/main/jni
 fi
 
 # Update tf-lite option
