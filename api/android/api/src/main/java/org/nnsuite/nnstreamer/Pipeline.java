@@ -145,12 +145,12 @@ public final class Pipeline implements AutoCloseable {
             throw new IllegalArgumentException("Given description is invalid");
         }
 
+        mStateCallback = callback;
+
         mHandle = nativeConstruct(description, (callback != null));
         if (mHandle == 0) {
             throw new IllegalStateException("Failed to construct the pipeline");
         }
-
-        mStateCallback = callback;
     }
 
     /**
