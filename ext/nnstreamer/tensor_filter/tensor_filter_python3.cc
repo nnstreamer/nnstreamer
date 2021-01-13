@@ -76,11 +76,9 @@
 #else
 #define SO_EXT "so.1.0"
 #endif
-#if PY_VERSION_HEX >= 0x03080000
-#define PYCORE_LIB_NAME_FORMAT "libpython%d.%d.%s"
-#else
+
+/** @todo fix pycore name format (PY_VERSION_HEX) */
 #define PYCORE_LIB_NAME_FORMAT "libpython%d.%dm.%s"
-#endif
 
 #define Py_ERRMSG(...)     \
   do {                     \
@@ -181,9 +179,7 @@ PYCore::PYCore (const char *_script_path, const char *_custom)
    * To fix import error of python extension modules
    * (e.g., multiarray.x86_64-linux-gnu.so: undefined symbol: PyExc_SystemError)
    */
-  gchar libname[32] = {
-    0,
-  };
+  gchar libname[32] = { 0, };
 
   g_snprintf (libname, sizeof (libname), PYCORE_LIB_NAME_FORMAT,
       PY_MAJOR_VERSION, PY_MINOR_VERSION, SO_EXT);
