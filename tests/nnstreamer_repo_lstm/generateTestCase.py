@@ -57,7 +57,7 @@ def genFrame(seq, out0, out1):
                 out0[location(c,w,h)] = in0[location(c,w,h)]
                 out1[location(c,w,h)] = (np.tanh(in0[location(c,w,h)]) * in2_tmp0)
 
-    return frame.tostring(), out0, out1
+    return frame.tobytes(), out0, out1
 
 filename = "video_4x4xBGRx.xraw"
 f = open(filename, "wb")
@@ -70,7 +70,7 @@ for seq in range(0, 10):
     string, out0, out1=genFrame(seq,out0, out1)
     if(seq == 9):
         with open(outfilename,'wb') as file:
-            file.write(out1.tostring())
+            file.write(out1.tobytes())
 
     f.write(string)
 

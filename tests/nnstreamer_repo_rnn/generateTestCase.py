@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 ##
 # SPDX-License-Identifier: LGPL-2.1-only
@@ -75,7 +75,7 @@ for seq in range(0, 10):
 
     if(seq == 9):
         with open(outfilename,'wb') as file:
-            file.write(out.tostring())
+            file.write(out.tobytes())
 
     f.write(frame)
 
