@@ -18,7 +18,6 @@ import random
 import numpy as np
 
 def saveTestData(filename, width, height, channel, batch):
-    string = b''
     data = []
 
     for b in range(0,batch):
@@ -26,9 +25,9 @@ def saveTestData(filename, width, height, channel, batch):
             for w in range(0,width):
                 for c in range(0,channel):
                     n = random.uniform(0.0, 10.0)
-                    string += pack('f', n)
                     data.append(n)
 
+    string = pack('%df' % (len(data)), *data)
     with open(filename,'wb') as file:
         file.write(string)
     file.close()
@@ -47,14 +46,15 @@ buf.append(saveTestData("channel_00.dat", width, height, 3, batch))
 buf.append(saveTestData("channel_01.dat", width, height, 2, batch))
 buf.append(saveTestData("channel_02.dat", width, height, 4, batch))
 
-out = b''
+out_data = []
 for b in range(0, batch):
     for h in range(0,height):
         for w in range(0,width):
             for n in range(0,3):
                 for c in range(0,ch[n]):
-                    out += pack('f',buf[n][b*height*width*ch[n]+h*width*ch[n] + w * ch[n] + c])
+                    out_data.append(buf[n][b*height*width*ch[n]+h*width*ch[n] + w * ch[n] + c])
 
+out = pack('%df' % (len(out_data)), *out_data)
 with open("channel.golden", 'wb') as file:
     file.write(out)
 
@@ -70,15 +70,15 @@ buf.append(saveTestData("width_100.dat", width[0], height, ch, batch))
 buf.append(saveTestData("width_200.dat", width[1], height, ch, batch))
 buf.append(saveTestData("width_300.dat", width[2], height, ch, batch))
 
-out = b''
-
+out_data = []
 for b in range(0, batch):
     for h in range(0,height):
         for n in range(0,3):
             for w in range(0,width[n]):
                 for c in range(0,ch):
-                    out += pack('f',buf[n][b*height*width[n]*ch + h*width[n]*ch + w * ch + c])
+                    out_data.append(buf[n][b*height*width[n]*ch + h*width[n]*ch + w * ch + c])
 
+out = pack('%df' % (len(out_data)), *out_data)
 with open("width.golden", 'wb') as file:
     file.write(out)
 
@@ -94,13 +94,14 @@ buf.append(saveTestData("batch_1.dat", width, height, ch, batch[0]))
 buf.append(saveTestData("batch_2.dat", width, height, ch, batch[1]))
 buf.append(saveTestData("batch_3.dat", width, height, ch, batch[2]))
 
-out = b''
+out_data = []
 for n in range(0,3):
     for b in range(0, batch[n]):
         for h in range(0,height):
             for w in range(0,width):
                 for c in range(0,ch):
-                    out += pack('f',buf[n][b*height*width*ch + h*width*ch + w * ch + c])
+                    out_data.append(buf[n][b*height*width*ch + h*width*ch + w * ch + c])
 
+out = pack('%df' % (len(out_data)), *out_data)
 with open("batch.golden", 'wb') as file:
     file.write(out)

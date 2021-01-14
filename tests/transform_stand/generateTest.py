@@ -18,15 +18,14 @@ import random
 import numpy as np
 
 def saveTestData(filename, width, height):
-    string = b''
     data = []
 
     for w in range(0,width):
         for h in range(0,height):
             n = random.uniform(0.0, 10.0)
-            string += pack('f', n)
             data.append(n)
 
+    string = pack('%df' % (len(data)), *data)
     with open(filename,'wb') as file:
         file.write(string)
 
@@ -37,13 +36,14 @@ def saveTestData(filename, width, height):
     standard = np.std(a)
     result=abs((a-np.mean(a)) / (np.std(a)+1e-10))
 
-    s = b''
+    data = []
     for w in range(0,width):
         for h in range(0,height):
-            s += pack('f',result[w*height+h])
+            data.append(result[w*height + h])
 
+    string = pack('%df' % (len(data)), *data)
     with open(filename+".golden",'wb') as file1:
-        file1.write(s)
+        file1.write(string)
 
     return result, mean, standard
 

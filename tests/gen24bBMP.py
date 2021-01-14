@@ -37,13 +37,13 @@ def convert_to_bytes(data):
 ##
 # @brief Save bitmap "data" to "filename"
 # @param[in] filename The filename to be saves as a .bmp file.
-# @param[in] data string of RGB (packed in 'BBB') or BGRx (packed in 'BBBB')
+# @param[in] data list of numbers that would be saved as BMP format
 # @param[in] colorspace "RGB" or "BGRx"
 # @param[in] width Width of the picture
 # @param[in] height Height of the picture
 def saveBMP(filename, data, colorspace, width, height):
     size = len(data)
-    graphics = b''
+    pixel_list = []
     # Default value of bytes per pixel value for RGB
     bytes_per_px = 3
 
@@ -53,11 +53,11 @@ def saveBMP(filename, data, colorspace, width, height):
         for h in range(height-1, -1, -1):
             for w in range(0, width):
                 pos = 3 * (w + width * h)
-                graphics += convert_to_bytes(data[pos + 2])
-                graphics += convert_to_bytes(data[pos + 1])
-                graphics += convert_to_bytes(data[pos])
+                pixel_list.append(data[pos + 2])
+                pixel_list.append(data[pos + 1])
+                pixel_list.append(data[pos + 0])
             for x in range(0, (width * 3) % 4):
-                graphics += pack('<B', 0)
+                pixel_list.append(0)
     elif colorspace == 'BGRx':
         bytes_per_px = 4
         assert(size == (width * height * bytes_per_px))
@@ -65,11 +65,11 @@ def saveBMP(filename, data, colorspace, width, height):
         for h in range(height-1, -1, -1):
             for w in range(0, width):
                 pos = bytes_per_px * (w + width * h)
-                graphics += convert_to_bytes(data[pos])
-                graphics += convert_to_bytes(data[pos + 1])
-                graphics += convert_to_bytes(data[pos + 2])
+                pixel_list.append(data[pos + 0])
+                pixel_list.append(data[pos + 1])
+                pixel_list.append(data[pos + 2])
             for x in range(0, (width * 3) % 4):
-                graphics += pack('<B', 0)
+                pixel_list.append(0)
     elif colorspace == 'GRAY8':
         bytes_per_px = 1
         assert(size == (width * height * bytes_per_px))
@@ -77,13 +77,14 @@ def saveBMP(filename, data, colorspace, width, height):
         for h in range(height-1, -1, -1):
             for w in range(0, width):
                 pos = bytes_per_px * (w + width * h)
-                graphics += convert_to_bytes(data[pos])
+                pixel_list.append(data[pos])
             for x in range(0, (width * 3) % 4):
-                graphics += pack('<B', 0)
+                pixel_list.append(0)
     else:
         print('Unrecognized colorspace %', colorspace)
         sys.exit(1)
 
+    graphics = pack('%dB' % (len(pixel_list)), *pixel_list)
     # BMP file header
     if colorspace == 'GRAY8':
         header = pack('<HLHHL', 19778, (26 + width * height), 0, 0, 26)
@@ -112,89 +113,70 @@ def write(filename, data):
 # If string_size < expected_size, you do not need to check the results offset >= string_size.
 # string: binary string (b'\xff\x00....')
 def gen_RGB():
-    string = b''
-    string_size = 0
     expected_size = 280 * 40 * 3
+    pixels = []
     for i in range(0, 26):
         # White
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('BBB', 255, 255, 255)
+            pixels += [255, 255, 255]
         # Yellow
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('BBB', 255, 255, 0)
+            pixels += [255, 255, 0]
         # Light Blue
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('BBB', 0, 255, 255)
+            pixels += [0, 255, 255]
         # Green
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('BBB', 0, 255, 0)
+            pixels += [0, 255, 0]
         # Purple
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('BBB', 255, 0, 255)
+            pixels += [255, 0, 255]
         # Red
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('BBB', 255, 0, 0)
+            pixels += [255, 0, 0]
         # Blue
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('BBB', 0, 0, 255)
+            pixels += [0, 0, 255]
     for i in range(26, 30):
         # Blue
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('BBB', 0, 0, 255)
+            pixels += [0, 0, 255]
         # Black
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('BBB', 0, 0, 0)
+            pixels += [0, 0, 0]
         # Purple
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('BBB', 255, 0, 255)
+            pixels += [255, 0, 255]
         # Black
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('BBB', 0, 0, 0)
+            pixels += [0, 0, 0]
         # Light Blue
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('BBB', 0, 255, 255)
+            pixels += [0, 255, 255]
         # Black
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('BBB', 0, 0, 0)
+            pixels += [0, 0, 0]
         # White
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('BBB', 255, 255, 255)
+            pixels += [255, 255, 255]
     for i in range(0, 46):
         # Dark Blue
-        string_size = string_size + 46
-        string += pack('BBB', 0, 0, 128)
+        pixels += [0, 0, 128]
     for i in range(46, 93):
         # White
-        string_size = string_size + 47
-        string += pack('BBB', 255, 255, 255)
+        pixels += [255, 255, 255]
     for i in range(93, 140):
         # Gray Blue
-        string_size = string_size + 47
-        string += pack('BBB', 0, 128, 255)
+        pixels += [0, 128, 255]
     for i in range(140, 186):
         # Black
-        string_size = string_size + 46
-        string += pack('BBB', 0, 0, 0)
+        pixels += [0, 0, 0]
     for i in range(186, 210):
         # Dark Gray
-        string_size = string_size + 24
-        string += pack('BBB', 19, 19, 19)
+        pixels += [19, 19, 19]
     # We do not check the reset pixels: they are randomly generated.
-    string_size = string_size * 3
+    string_size = len(pixels)
+    string = pack('%dB' % (len(pixels)), *pixels)
     return string, string_size, expected_size
 
 
@@ -203,89 +185,70 @@ def gen_RGB():
 # @return (string, string_size, expected_size)
 #
 def gen_BGRx():
-    string = b''
-    string_size = 0
+    pixels = []
     expected_size = 280 * 40 * 4
     for i in range(0, 26):
         # White
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('BBBB', 255, 255, 255, 255)
+            pixels += [255, 255, 255, 255]
         # Yellow
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('BBBB', 0, 255, 255, 255)
+            pixels += [0, 255, 255, 255]
         # Light Blue
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('BBBB', 255, 255, 0, 255)
+            pixels += [255, 255, 0, 255]
         # Green
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('BBBB', 0, 255, 0, 255)
+            pixels += [0, 255, 0, 255]
         # Purple
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('BBBB', 255, 0, 255, 255)
+            pixels += [255, 0, 255, 255]
         # Red
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('BBBB', 0, 0, 255, 255)
+            pixels += [0, 0, 255, 255]
         # Blue
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('BBBB', 255, 0, 0, 255)
+            pixels += [255, 0, 0, 255]
     for i in range(26, 30):
         # Blue
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('BBBB', 255, 0, 0, 255)
+            pixels += [255, 0, 0, 255]
         # Black
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('BBBB', 0, 0, 0, 255)
+            pixels += [0, 0, 0, 255]
         # Purple
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('BBBB', 255, 0, 255, 255)
+            pixels += [255, 0, 255, 255]
         # Black
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('BBBB', 0, 0, 0, 255)
+            pixels += [0, 0, 0, 255]
         # Light Blue
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('BBBB', 255, 255, 0, 255)
+            pixels += [255, 255, 0, 255]
         # Black
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('BBBB', 0, 0, 0, 255)
+            pixels += [0, 0, 0, 255]
         # White
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('BBBB', 255, 255, 255, 255)
+            pixels += [255, 255, 255, 255]
     for i in range(0, 46):
         # Dark Blue
-        string_size = string_size + 46
-        string += pack('BBBB', 128, 0, 0, 255)
+        pixels += [128, 0, 0, 255]
     for i in range(46, 93):
         # White
-        string_size = string_size + 47
-        string += pack('BBBB', 255, 255, 255, 255)
+        pixels += [255, 255, 255, 255]
     for i in range(93, 140):
         # Gray Blue
-        string_size = string_size + 47
-        string += pack('BBBB', 255, 128, 0, 255)
+        pixels += [255, 128, 0, 255]
     for i in range(140, 186):
         # Black
-        string_size = string_size + 46
-        string += pack('BBBB', 0, 0, 0, 255)
+        pixels += [0, 0, 0, 255]
     for i in range(186, 210):
         # Dark Gray
-        string_size = string_size + 24
-        string += pack('BBBB', 19, 19, 19, 255)
+        pixels += [19, 19, 19, 255]
     # We do not check the reset pixels: they are randomly generated.
-    string_size = string_size * 4
+    string_size = len(pixels)
+    string = pack('%dB' % (len(pixels)), *pixels)
     return string, string_size, expected_size
 
 
@@ -296,92 +259,73 @@ def gen_BGRx():
 # If string_size < expected_size, you do not need to check the results offset >= string_size.
 # string: binary string (b'\xff\x00....')
 def gen_GRAY8():
-    string = b''
-    string_size = 0
+    pixels = []
     expected_size = 280 * 40
     for i in range(0, 26):
         # 0xEB
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('B', 235)
+            pixels += [235]
         # 0xD2
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('B', 210)
+            pixels += [210]
         # 0xAA
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('B', 170)
+            pixels += [170]
         # 0x91
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('B', 145)
+            pixels += [145]
         # 0x6A
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('B', 106)
+            pixels += [106]
         # 0x51
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('B', 81)
+            pixels += [81]
         # 0x29
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('B', 41)
+            pixels += [41]
     for i in range(26, 30):
         # 0x29
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('B', 41)
+            pixels += [41]
         # 0x10
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('B', 16)
+            pixels += [16]
         # 0x6A
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('B', 106)
+            pixels += [106]
         # 0x10
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('B', 16)
+            pixels += [16]
         # 0xAA
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('B', 170)
+            pixels += [170]
         # 0x10
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('B', 16)
+            pixels += [16]
         # 0xEB
-        string_size = string_size + 40
         for j in range(0, 40):
-            string += pack('B', 235)
+            pixels += [235]
     for i in range(0, 46):
         # 0x10
-        string_size = string_size + 46
-        string += pack('B', 16)
+        pixels += [16]
     for i in range(46, 93):
         # 0xEB
-        string_size = string_size + 47
-        string += pack('B', 235)
+        pixels += [235]
     for i in range(93, 140):
         # 0x10
-        string_size = string_size + 47
-        string += pack('B', 16)
+        pixels += [16]
     for i in range(140, 163):
         # 0x00
-        string_size = string_size + 23
-        string += pack('B', 0)
+        pixels += [0]
     for i in range(163, 186):
         # 0x10
-        string_size = string_size + 23
-        string += pack('B', 16)
+        pixels += [16]
     for i in range(186, 210):
         # 0x20
-        string_size = string_size + 24
-        string += pack('B', 32)
+        pixels += [32]
     # We do not check the reset pixels: they are randomly generated.
+    string_size = len(pixels)
+    string = pack('%dB' % (len(pixels)), *pixels)
     return string, string_size, expected_size
 
 ##
@@ -389,8 +333,7 @@ def gen_GRAY8():
 # @return (string, string_size, expected_size)
 #
 def gen_BMP_random(color_type, width, height, filename_prefix):
-    string = b''
-    string_size = 0
+    pixel_list = []
     size_per_pixel = 3
     if color_type == 'BGRx':
         size_per_pixel = 4
@@ -400,30 +343,20 @@ def gen_BMP_random(color_type, width, height, filename_prefix):
     # The result has no stride for other/tensor types.
 
     if color_type == 'BGRx':
-        for y in range(0, height):
-            for x in range(0, width):
-                pval = (random.randrange(256), random.randrange(256), random.randrange(256))
-                pixel = pack('BBBB', pval[2], pval[1], pval[0], 255)
-                string += pixel
-                string_size += 4
+        for _ in range(height * width):
+            pixel_list += [random.randrange(256), random.randrange(256), random.randrange(256), 255]
     elif color_type == 'GRAY8':
-        for y in range(0, height):
-            for x in range(0, width):
-                pval = random.randrange(256)
-                pixel = pack('B', pval)
-                string += pixel
-                string_size += size_per_pixel
+        pixel_list = [random.randrange(256) for _ in range(height * width * 1)]
     else:
         # Assume RGB
-        for y in range(0, height):
-            for x in range(0, width):
-                pval = (random.randrange(256), random.randrange(256), random.randrange(256))
-                pixel = pack('BBB', pval[0], pval[1], pval[2])
-                string += pixel
-                string_size += 3
+        pixel_list = [random.randrange(256) for _ in range(height * width * 3)]
 
     saveBMP(filename_prefix + '_' + color_type + '_' + str(width) + 'x' + str(height) + '.bmp',
-            string, color_type, width, height)
+            pixel_list, color_type, width, height)
+
+    string_size = len(pixel_list)
+    string = pack('%dB' % (string_size), *pixel_list)
+
     return string, string_size, expected_size
 
 
@@ -435,51 +368,52 @@ def gen_BMP_random(color_type, width, height, filename_prefix):
 # red-cross-on-white, blue-cross-on-black (4x4 x 16, left-top/right-bottom white/red/green).
 # "10 files" with 0 ~ 9 postfix in the filename
 def gen_BMP_stream(filename_prefix, golden_filename, num_sink):
-    string = [b'' for _ in range(10)]
+    pixels = [[] for _ in range(10)]
     size_x = 16
     size_y = 16
 
     for y in range(0, size_y):
         for x in range(0, size_x):
             # black. Frame 0
-            string[0] += pack('BBB', 0, 0, 0)
-            # white. Frame 1
-            string[1] += pack('BBB', 255, 255, 255)
-            # green, Frame 2
-            string[2] += pack('BBB', 0, 255, 0)
-            # red, Frame 3
-            string[3] += pack('BBB', 255, 0, 0)
-            # blue, Frame 4
-            string[4] += pack('BBB', 0, 0, 255)
+            pixels[0] += [0, 0, 0]
+                # white. Frame 1
+            pixels[1] += [255, 255, 255]
+                # green, Frame 2
+            pixels[2] += [0, 255, 0]
+                # red, Frame 3
+            pixels[3] += [255, 0, 0]
+                # blue, Frame 4
+            pixels[4] += [0, 0, 255]
             # white-black checker, Frame 5
             if (((x / 4) % 2) + ((y / 4) % 2)) == 1:
-                string[5] += pack('BBB', 0, 0, 0)
+                pixels[5] += [0, 0, 0]
             else:
-                string[5] += pack('BBB', 255, 255, 255)
+                pixels[5] += [255, 255, 255]
             # red-blue checker, Frame 6
             if (((x / 4) % 2) + ((y / 4) % 2)) == 1:
-                string[6] += pack('BBB', 0, 0, 255)
+                pixels[6] += [0, 0, 255]
             else:
-                string[6] += pack('BBB', 255, 0, 0)
+                pixels[6] += [255, 0, 0]
             # green-red checker, Frame 7
             if (((x / 4) % 2) + ((y / 4) % 2)) == 1:
-                string[7] += pack('BBB', 255, 0, 0)
+                pixels[7] += [255, 0, 0]
             else:
-                string[7] += pack('BBB', 0, 255, 0)
+                pixels[7] += [0, 255, 0]
             # red-cross-on-white, Frame 8
             if x == y:
-                string[8] += pack('BBB', 255, 0, 0)
+                pixels[8] += [255, 0, 0]
             else:
-                string[8] += pack('BBB', 255, 255, 255)
+                pixels[8] += [255, 255, 255]
             # blue-cross-on-black, Frame 9
             if x == y:
-                string[9] += pack('BBB', 0, 0, 255)
+                pixels[9] += [0, 0, 255]
             else:
-                string[9] += pack('BBB', 0, 0, 0)
+                pixels[9] += [0, 0, 0]
 
     with open(golden_filename, 'wb') as file:
         for i in range(0, 10):
-            saveBMP(filename_prefix + '_' + str(i) + '.bmp', string[i], 'RGB', 16, 16)
+            saveBMP(filename_prefix + '_' + str(i) + '.bmp', pixels[i], 'RGB', 16, 16)
+            string = [ pack('%dB' % (len(v)), *v) for v in pixels ]
             for j in range(0, num_sink):
                 file.write(string[i])
     return string
