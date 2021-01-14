@@ -181,15 +181,6 @@ __destroy_notify (gpointer data_h, gpointer single_data)
 }
 
 /**
- * @brief Wrapper for ml_tensors_data_destroy with signature of GDestroyNotify
- */
-static void
-ml_tensors_data_destroy_gwrapper (gpointer data)
-{
-  ml_tensors_data_destroy (data);
-}
-
-/**
  * @brief Wrapper function for __destroy_notify
  */
 int
@@ -843,8 +834,7 @@ ml_single_close (ml_single_h single)
   /** locking ensures correctness with parallel calls on close */
   if (single_h->filter) {
     g_list_foreach (single_h->destroy_data_list, __destroy_notify, single_h);
-    g_list_free_full (single_h->destroy_data_list,
-        ml_tensors_data_destroy_gwrapper);
+    g_list_free (single_h->destroy_data_list);
 
     if (single_h->klass)
       single_h->klass->stop (single_h->filter);
