@@ -18,7 +18,6 @@ import random
 import numpy as np
 
 def saveTestData(filename, channel, height, width, batch, idx_i, idx_j, idx_k, idx_l):
-    string = b''
     data = []
 
     for b in range(0,batch):
@@ -26,9 +25,9 @@ def saveTestData(filename, channel, height, width, batch, idx_i, idx_j, idx_k, i
             for h in range(0,height):
                 for w in range(0,width):
                     n = random.uniform(0.0, 10.0)
-                    string += pack('f', n)
                     data.append(n)
 
+    string = pack('%df' % (len(data)), *data)
     with open(filename,'wb') as file:
         file.write(string)
 
