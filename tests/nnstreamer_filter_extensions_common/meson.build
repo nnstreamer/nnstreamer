@@ -57,9 +57,9 @@ foreach ext : extensions
     input : ext_test_template,
     output : ext_test_path_each,
     command : [copy, '-f', '@INPUT@', '@OUTPUT@', \
-      '&&', 'sed', '-i\'.cc\'', sed_ext_name_option, '@OUTPUT@', \
-      '&&', 'sed', '-i\'.cc\'', sed_ext_abbrv_option, '@OUTPUT@', \
-      '&&', 'sed', '-i\'.cc\'', sed_ext_mf_option, '@OUTPUT@']
+      '&&', 'sed', '-i', sed_ext_name_option, '@OUTPUT@', \
+      '&&', 'sed', '-i', sed_ext_abbrv_option, '@OUTPUT@', \
+      '&&', 'sed', '-i', sed_ext_mf_option, '@OUTPUT@']
   )
 
   exec = executable(
