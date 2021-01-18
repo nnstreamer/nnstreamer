@@ -74,7 +74,7 @@ warning_c_flags = [
   '-Wdeclaration-after-statement'
 ]
 
-# Setup warning flags for c anc cpp
+# Setup warning flags for c and cpp
 foreach extra_arg : warning_flags
   if cc.has_argument (extra_arg)
     add_project_arguments([extra_arg], language: 'c')

@@ -379,7 +379,7 @@ int ml_initialize_gstreamer (void);
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
-int ml_validate_model_file (char **model, unsigned int num_models, ml_nnfw_type_e * nnfw);
+int ml_validate_model_file (const char * const *model, const unsigned int num_models, ml_nnfw_type_e * nnfw);
 
 /**
  * @brief Checks the availability of the plugin.

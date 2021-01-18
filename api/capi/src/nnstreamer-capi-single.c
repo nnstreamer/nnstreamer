@@ -26,7 +26,7 @@
 #include <nnstreamer-capi-private.h>
 #include <nnstreamer_plugin_api.h>
 
-#include "tensor_filter_single.h"
+#include <tensor_filter_single.h>
 
 #define ML_SINGLE_MAGIC 0xfeedfeed
 
@@ -676,7 +676,7 @@ ml_single_open_custom (ml_single_h * single, ml_single_preset * info)
   list_models = g_strsplit (info->models, ",", -1);
   num_models = g_strv_length (list_models);
 
-  status = ml_validate_model_file (list_models, num_models, &nnfw);
+  status = ml_validate_model_file ((const char **) list_models, num_models, &nnfw);
   if (status != ML_ERROR_NONE) {
     g_strfreev (list_models);
     return status;

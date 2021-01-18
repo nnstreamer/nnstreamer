@@ -83,9 +83,7 @@ static const gchar *regex_accl_elem_utils[] = {
 #define g_free_const(x) g_free((void*)(long)(x))
 #define g_strfreev_const(x) g_strfreev((void*)(long)(x))
 
-/**
- * @brief parse user given string to extract list of accelerators based on given regex
- */
+static GType accl_hw_get_type (void);
 static GList *parse_accl_hw_all (const gchar * accelerators,
     const gchar ** supported_accelerators);
 static gint _gtfc_setprop_IS_UPDATABLE (GstTensorFilterPrivate * priv,
@@ -425,19 +423,13 @@ gst_tensor_filter_get_layout_string (const GstTensorFilterProperties * prop,
 }
 
 /**
- * @brief to get and register hardware accelerator backend enum
- */
-static GType
-accl_hw_get_type (void)
-    G_GNUC_CONST;
-
-/**
  * @brief copy the string from src to destination
  * @param[in] dest destination string
  * @param[in] src source string
  * @return updated destination string
  */
-     static gchar *strcpy2 (gchar * dest, const gchar * src)
+static gchar *
+strcpy2 (gchar * dest, const gchar * src)
 {
   memcpy (dest, src, strlen (src));
   return dest + strlen (src);
@@ -807,12 +799,14 @@ gst_tensor_filter_destroy_notify_util (GstTensorFilterPrivate * priv,
  * @param[in] info2 The tensors to be shown on the right hand side
  */
 void
-gst_tensor_filter_compare_tensors (GstTensorsInfo * info1,
-    GstTensorsInfo * info2)
+gst_tensor_filter_compare_tensors (const GstTensorsInfo * info1,
+    const GstTensorsInfo * info2)
 {
   gchar *result = NULL;
   gchar *line, *tmp, *left, *right;
   guint i;
+
+  g_return_if_fail (info1 != NULL && info2 != NULL);
 
   for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
     if (info1->num_tensors <= i && info2->num_tensors <= i)
@@ -836,9 +830,8 @@ gst_tensor_filter_compare_tensors (GstTensorsInfo * info1,
       right = g_strdup ("None");
     }
 
-    line =
-        g_strdup_printf ("%2d : %s | %s %s\n", i, left, right,
-        g_str_equal (left, right) ? "" : "FAILED");
+    line = g_strdup_printf ("%2d : %s | %s %s\n", i, left, right,
+        g_str_equal (left, right) ? "" : "Not equal");
 
     g_free (left);
     g_free (right);
@@ -855,8 +848,7 @@ gst_tensor_filter_compare_tensors (GstTensorsInfo * info1,
   }
 
   if (result) {
-    /* print warning message */
-    nns_logw ("Tensor info :\n%s", result);
+    nns_logi ("Tensor info :\n%s", result);
     g_free (result);
   }
 }
@@ -1106,101 +1098,126 @@ gst_tensor_filter_parse_accelerator (GstTensorFilterPrivate * priv,
 }
 
 /**
- * @brief Get available framework from given file when user selects auto option
+ * @brief Get available framework from config.
+ */
+static gchar *
+_detect_framework_from_config (const gchar * extension)
+{
+  gchar *detected = NULL;
+  gchar *fw_key;
+  gchar *priority_str;
+  gchar **priority_arr;
+  guint i, len;
+
+  /**
+   * key str: framework_priority_<file ext>
+   * (e.g., for tensorflow-lite model, model_file.tflite, key str is 'framework_priority_tflite'.
+   */
+  fw_key = g_strdup_printf ("framework_priority_%s", extension);
+  priority_str = nnsconf_get_custom_value_string ("filter", fw_key);
+  g_free (fw_key);
+
+  if (priority_str) {
+    priority_arr = g_strsplit (priority_str, ",", -1);
+    len = g_strv_length (priority_arr);
+
+    for (i = 0; i < len; i++) {
+      if (nnstreamer_filter_find (priority_arr[i])) {
+        detected = g_strdup (priority_arr[i]);
+        nns_logi ("Detected framework is %s.", detected);
+        nns_logd
+            ("If you want to change priority of framework for auto detection, please edit meson_option.txt. You can find the file at root path of nnstreamer.");
+        break;
+      }
+    }
+
+    g_free (priority_str);
+    g_strfreev (priority_arr);
+  }
+
+  return detected;
+}
+
+/**
+ * @brief Get neural network framework name from given model file. This does not guarantee the framework is available on the target device.
  * @param[in] model_files the prediction model paths
  * @param[in] num_models the number of model files
- * @return Detected framework name (NULL if it fails to detect automatically)
+ * @param[in] load_conf flag to load configuration for the priority of framework
+ * @return Possible framework name (NULL if it fails to detect automatically). Caller should free returned value using g_free().
  */
 gchar *
-gst_tensor_filter_framework_auto_detection (const gchar ** model_files,
-    unsigned int num_models)
+gst_tensor_filter_detect_framework (const gchar * const *model_files,
+    const guint num_models, const gboolean load_conf)
 {
-  const GstTensorFilterFramework *fw = NULL;
-  gchar *file_extension, *file_extension_2;
-  gchar *fw_priority_str = NULL, *detected_fw = NULL;
-  gchar **fw_priority_str_arr;
+  gchar *detected_fw = NULL;
+  gchar **ext = NULL;
+  gchar *pos;
   guint i;
 
-  /* supposed it is ONE if given model is directory */
+  g_return_val_if_fail (model_files && num_models > 0, NULL);
+
+  /* Supposed it is ONE if given model is directory */
   if (g_file_test (model_files[0], G_FILE_TEST_IS_DIR)) {
     detected_fw = g_strdup ("nnfw");
     goto done;
   }
 
-  file_extension = strrchr (model_files[0], '.');
+  /**
+   * @note When adding new file extension for auto fw detection,
+   * you should check the condition to validate model file - ml_validate_model_file() in ML-API.
+   */
+  ext = g_malloc0 (sizeof (char *) * (num_models + 1));
+  for (i = 0; i < num_models; i++) {
+    if ((pos = strrchr (model_files[i], '.')) == NULL) {
+      nns_logw ("Given model file %s has invalid extension.", model_files[i]);
+      goto done;
+    }
+
+    ext[i] = g_ascii_strdown (pos, -1);
+  }
 
   /* Detect framework based on file extension */
   if (num_models == 1) {
-    if (g_ascii_strcasecmp (file_extension, ".tflite") == 0) {
-      detected_fw = g_strdup ("tensorflow-lite");
-      fw_priority_str =
-          nnsconf_get_custom_value_string ("filter",
-          "framework_priority_tflite");
-    } else if (g_ascii_strcasecmp (file_extension, ".pb") == 0)
-      detected_fw = g_strdup ("tensorflow");
-    else if (g_ascii_strcasecmp (file_extension, ".pt") == 0)
-      detected_fw = g_strdup ("pytorch");
-    else if (g_ascii_strcasecmp (file_extension, ".dlc") == 0)
-      detected_fw = g_strdup ("snpe");
-    else if (g_ascii_strcasecmp (file_extension, ".py") == 0)
-      detected_fw = g_strdup ("python");
-    else if (g_ascii_strcasecmp (file_extension, ".graph") == 0)
-      detected_fw = g_strdup ("movidius-ncsdk2");
-    else if (g_ascii_strcasecmp (file_extension, ".circle") == 0)
-      detected_fw = g_strdup ("nnfw");
-    else if (g_ascii_strcasecmp (file_extension,
-            NNSTREAMER_SO_FILE_EXTENSION) == 0)
-      detected_fw = g_strdup ("custom");
-    else if (g_ascii_strcasecmp (file_extension, ".bin") == 0
-        || g_ascii_strcasecmp (file_extension, ".xml") == 0)
-      detected_fw = g_strdup ("openvino");
-  } else if (num_models == 2) {
-    file_extension_2 = strrchr (model_files[1], '.');
-    if (g_ascii_strcasecmp (file_extension, ".pb") == 0
-        && g_ascii_strcasecmp (file_extension_2, ".pb") == 0
-        && g_ascii_strcasecmp (model_files[0], model_files[1]))
-      detected_fw = g_strdup ("caffe2");
-    else if ((g_ascii_strcasecmp (file_extension, ".so") == 0
-            && g_ascii_strcasecmp (file_extension_2, ".nb") == 0)
-        || (g_ascii_strcasecmp (file_extension_2, ".so") == 0
-            && g_ascii_strcasecmp (file_extension, ".nb") == 0))
-      detected_fw = g_strdup ("vivante");
-  } else {
-    nns_logw ("Invalid the number of models");
-    return detected_fw;
-  }
-
-  /* .tflite have multiple framework. */
-  if (fw_priority_str != NULL) {
-    fw_priority_str_arr = g_strsplit (fw_priority_str, ",", -1);
-
-    for (i = 0; i < g_strv_length (fw_priority_str_arr); i++) {
-      fw = nnstreamer_filter_find (fw_priority_str_arr[i]);
-
-      if (fw) {
-        if (detected_fw)
-          g_free (detected_fw);
-        detected_fw = g_strdup (fw_priority_str_arr[i]);
-        break;
-      } else {
-        nns_logd ("Cannot identify the neural network framework. %s\n",
-            fw_priority_str_arr[i]);
-      }
+    if (load_conf) {
+      detected_fw = _detect_framework_from_config (ext[0] + 1);
+      if (detected_fw)
+        goto done;
     }
 
-    g_free (fw_priority_str);
-    g_strfreev (fw_priority_str_arr);
+    if (g_str_equal (ext[0], ".tflite"))
+      detected_fw = g_strdup ("tensorflow-lite");
+    else if (g_str_equal (ext[0], ".pb"))
+      detected_fw = g_strdup ("tensorflow");
+    else if (g_str_equal (ext[0], ".pt"))
+      detected_fw = g_strdup ("pytorch");
+    else if (g_str_equal (ext[0], ".dlc"))
+      detected_fw = g_strdup ("snpe");
+    else if (g_str_equal (ext[0], ".py"))
+      detected_fw = g_strdup ("python");
+    else if (g_str_equal (ext[0], ".graph"))
+      detected_fw = g_strdup ("movidius-ncsdk2");
+    else if (g_str_equal (ext[0], ".circle"))
+      detected_fw = g_strdup ("nnfw");
+    else if (g_str_equal (ext[0], NNSTREAMER_SO_FILE_EXTENSION))
+      detected_fw = g_strdup ("custom");
+    else if (g_str_equal (ext[0], ".bin") || g_str_equal (ext[0], ".xml"))
+      detected_fw = g_strdup ("openvino");
+  } else if (num_models == 2) {
+    if (g_str_equal (ext[0], ".pb") && g_str_equal (ext[1], ".pb") &&
+        !g_str_equal (model_files[0], model_files[1]))
+      detected_fw = g_strdup ("caffe2");
+    else if ((g_str_equal (ext[0], ".so") && g_str_equal (ext[1], ".nb")) ||
+        (g_str_equal (ext[1], ".so") && g_str_equal (ext[0], ".nb")))
+      detected_fw = g_strdup ("vivante");
+  } else {
+    nns_logw ("Invalid number of model files.");
   }
 
 done:
-  if (detected_fw) {
-    nns_logi ("Automatically detected framework is %s.", detected_fw);
-    nns_logd
-        ("If you want to change priority of framework for auto detection, Please edit meson_option.txt. You can find the file at root path of nnstreamer. \n");
-  } else {
-    nns_logw ("Cannot get any neural network framework for given model");
-  }
+  g_strfreev (ext);
 
+  if (!detected_fw)
+    nns_logw ("Cannot get any neural network framework for given model.");
   return detected_fw;
 }
 
@@ -1209,7 +1226,7 @@ done:
  * @param[in] priv Struct containing the properties of the object
  * @param[in] fw_name Framework name
  */
-void
+static void
 gst_tensor_filter_get_available_framework (GstTensorFilterPrivate * priv,
     const char *fw_name)
 {
@@ -1230,9 +1247,8 @@ gst_tensor_filter_get_available_framework (GstTensorFilterPrivate * priv,
       return;
     }
 
-    detected_fw =
-        gst_tensor_filter_framework_auto_detection (prop->model_files,
-        prop->num_models);
+    detected_fw = gst_tensor_filter_detect_framework (prop->model_files,
+        prop->num_models, TRUE);
   } else {
     detected_fw = g_strdup (fw_name);
   }
@@ -2575,23 +2591,29 @@ accl_hw_get_type (void)
  * @brief check if the given hw is supported by the framework
  */
 gboolean
-gst_tensor_filter_check_hw_availability (const GstTensorFilterFramework * fw,
-    accl_hw hw)
+gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw)
 {
   gint idx = 0;
   gboolean available = FALSE;
   GstTensorFilterFrameworkInfo info;
   GstTensorFilterProperties prop;
+  const GstTensorFilterFramework *fw;
+
+  if ((fw = nnstreamer_filter_find (name)) == NULL) {
+    nns_logw ("Cannot find sub-plugin for %s.", GST_STR_NULL (name));
+    return FALSE;
+  }
 
   /** Only check for specific HW, DEFAULT/AUTO are always supported */
   if (hw == ACCL_AUTO || hw == ACCL_DEFAULT) {
     available = TRUE;
-  } else if (GST_TF_FW_V0 (fw) &&
-      (!fw->checkAvailability || fw->checkAvailability (hw) == 0)) {
-    available = TRUE;
+  } else if (GST_TF_FW_V0 (fw)) {
+    if (fw->checkAvailability && fw->checkAvailability (hw) == 0)
+      available = TRUE;
   } else if (GST_TF_FW_V1 (fw)) {
     gst_tensor_filter_properties_init (&prop);
-    if (!fw->getFrameworkInfo (fw, &prop, NULL, &info)) {
+
+    if (fw->getFrameworkInfo (fw, &prop, NULL, &info) == 0) {
       for (idx = 0; idx < info.num_hw; idx++) {
         if (info.hw_list[idx] == hw) {
           available = TRUE;

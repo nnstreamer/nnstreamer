@@ -64,7 +64,7 @@ NNSTREAMER_PLUGINS_SRCS := \
 
 # nnstreamer c-api
 NNSTREAMER_CAPI_INCLUDES := \
-    $(NNSTREAMER_ROOT)/gst \
+    $(NNSTREAMER_ROOT)/gst/nnstreamer/tensor_filter \
     $(NNSTREAMER_CAPI_HOME)/include/platform \
     $(NNSTREAMER_CAPI_HOME)/include
 

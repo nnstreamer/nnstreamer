@@ -27,7 +27,7 @@
 #include "nnstreamer_plugin_api.h"
 #include "nnstreamer_plugin_api_filter.h"
 #include "nnstreamer_conf.h"
-#include <tensor_filter/tensor_filter_common.h>
+#include <tensor_filter_common.h>
 
 /**
  * @brief The name of sub-plugin for defined neural net frameworks.
@@ -962,8 +962,8 @@ ml_initialize_gstreamer (void)
  * @brief Internal helper function to validate model files.
  */
 static int
-_ml_validate_model_file (char **model, unsigned int num_models,
-    gboolean * is_dir)
+_ml_validate_model_file (const char *const *model,
+    const unsigned int num_models, gboolean * is_dir)
 {
   guint i;
 
@@ -989,39 +989,6 @@ _ml_validate_model_file (char **model, unsigned int num_models,
 }
 
 /**
- * @brief Gets available nn framework using file extension.
- * @return @c 0 on success. Otherwise a negative error value.
- */
-static int
-_ml_detect_framework (char **model, unsigned int num_models,
-    ml_nnfw_type_e * nnfw)
-{
-  int status = ML_ERROR_NONE;
-  gchar *detected;
-
-  detected =
-      gst_tensor_filter_framework_auto_detection ((const gchar **) model,
-      num_models);
-
-  *nnfw = ml_get_nnfw_type_by_subplugin_name (detected);
-
-  if (*nnfw == ML_NNFW_TYPE_ANY) {
-    ml_loge ("The given model has unknown or not supported extension.");
-    status = ML_ERROR_INVALID_PARAMETER;
-  } else {
-    ml_logi ("The given model is supposed a %s model.", detected);
-
-    if (!ml_nnfw_is_available (*nnfw, ML_NNFW_HW_ANY)) {
-      ml_loge ("%s is not available.", detected);
-      status = ML_ERROR_NOT_SUPPORTED;
-    }
-  }
-
-  g_free (detected);
-  return status;
-}
-
-/**
  * @brief Validates the nnfw model file.
  * @since_tizen 5.5
  * @param[in] model The path of model file.
@@ -1032,13 +999,14 @@ _ml_detect_framework (char **model, unsigned int num_models,
  * @retval #ML_ERROR_INVALID_PARAMETER Given parameter is invalid.
  */
 int
-ml_validate_model_file (char **model, unsigned int num_models,
-    ml_nnfw_type_e * nnfw)
+ml_validate_model_file (const char *const *model,
+    const unsigned int num_models, ml_nnfw_type_e * nnfw)
 {
   int status = ML_ERROR_NONE;
+  ml_nnfw_type_e detected = ML_NNFW_TYPE_ANY;
   gboolean is_dir = FALSE;
-  gchar *pos;
-  gchar **file_ext;
+  gchar *pos, *fw_name;
+  gchar **file_ext = NULL;
   guint i;
 
   if (!nnfw)
@@ -1048,19 +1016,37 @@ ml_validate_model_file (char **model, unsigned int num_models,
   if (status != ML_ERROR_NONE)
     return status;
 
-  /* supposed it is ONE if given model is directory */
-  if (is_dir) {
-    if (*nnfw == ML_NNFW_TYPE_ANY) {
-      *nnfw = ML_NNFW_TYPE_NNFW;
-    } else if (*nnfw != ML_NNFW_TYPE_NNFW) {
-      ml_loge ("The given model is directory, check model and framework.");
+  /**
+   * @note detect-fw checks the file ext and returns proper fw name for given models.
+   * If detected fw and given nnfw are same, we don't need to check the file extension.
+   * If any condition for auto detection is added later, below code also should be updated.
+   */
+  fw_name = gst_tensor_filter_detect_framework (model, num_models, FALSE);
+  detected = ml_get_nnfw_type_by_subplugin_name (fw_name);
+  g_free (fw_name);
+
+  if (*nnfw == ML_NNFW_TYPE_ANY) {
+    if (detected == ML_NNFW_TYPE_ANY) {
+      ml_loge ("The given model has unknown or not supported extension.");
       status = ML_ERROR_INVALID_PARAMETER;
+    } else {
+      ml_logi ("The given model is supposed a %s model.",
+          ml_get_nnfw_subplugin_name (detected));
+      *nnfw = detected;
     }
 
-    return status;
+    goto done;
+  } else if (is_dir && *nnfw != ML_NNFW_TYPE_NNFW) {
+    /* supposed it is ONE if given model is directory */
+    ml_loge ("The given model is directory, check model and framework.");
+    status = ML_ERROR_INVALID_PARAMETER;
+    goto done;
+  } else if (detected == *nnfw) {
+    /* Expected framework, nothing to do. */
+    goto done;
   }
 
-  /* Check file extention. */
+  /* Handle mismatched case, check file extension. */
   file_ext = g_malloc0 (sizeof (char *) * (num_models + 1));
   for (i = 0; i < num_models; i++) {
     if ((pos = strrchr (model[i], '.')) == NULL) {
@@ -1074,50 +1060,12 @@ ml_validate_model_file (char **model, unsigned int num_models,
 
   /** @todo Make sure num_models is correct for each nnfw type */
   switch (*nnfw) {
-    case ML_NNFW_TYPE_ANY:
-      status = _ml_detect_framework (model, num_models, nnfw);
-      break;
-    case ML_NNFW_TYPE_CUSTOM_FILTER:
-      if (g_ascii_strcasecmp (file_ext[0], NNSTREAMER_SO_FILE_EXTENSION) != 0) {
-        status = ML_ERROR_INVALID_PARAMETER;
-      }
-      break;
-    case ML_NNFW_TYPE_TENSORFLOW_LITE:
-      if (g_ascii_strcasecmp (file_ext[0], ".tflite") != 0) {
-        status = ML_ERROR_INVALID_PARAMETER;
-      }
-      break;
-    case ML_NNFW_TYPE_TENSORFLOW:
-      if (g_ascii_strcasecmp (file_ext[0], ".pb") != 0) {
-        status = ML_ERROR_INVALID_PARAMETER;
-      }
-      break;
     case ML_NNFW_TYPE_NNFW:
       /**
        * We cannot check the file ext with NNFW.
        * NNFW itself will validate metadata and model file.
        */
       break;
-    case ML_NNFW_TYPE_VIVANTE:
-    {
-      if (num_models != 2) {
-        ml_loge ("Vivante requires 2 model files.");
-        status = ML_ERROR_INVALID_PARAMETER;
-        break;
-      }
-
-      if ((g_ascii_strcasecmp (file_ext[0], ".so") == 0 &&
-              g_ascii_strcasecmp (file_ext[1], ".nb") == 0) ||
-          (g_ascii_strcasecmp (file_ext[0], ".nb") == 0 &&
-              g_ascii_strcasecmp (file_ext[1], ".so") == 0)) {
-        break;
-      }
-
-      ml_loge ("The given model [%s,%s] does not appear Vivante model.",
-          model[0], model[1]);
-      status = ML_ERROR_INVALID_PARAMETER;
-      break;
-    }
     case ML_NNFW_TYPE_MVNC:
     case ML_NNFW_TYPE_OPENVINO:
     case ML_NNFW_TYPE_EDGE_TPU:
@@ -1132,27 +1080,11 @@ ml_validate_model_file (char **model, unsigned int num_models,
 #endif
       /* SNAP requires multiple files, set supported if model file exists. */
       break;
-    case ML_NNFW_TYPE_SNPE:
-#if !defined (__ANDROID__)
-      ml_loge
-          ("Given framework, SNPE is not supported yet for non Android (arm64-v8a).");
-      status = ML_ERROR_NOT_SUPPORTED;
-#else
-      if (g_ascii_strcasecmp (file_ext[0], ".dlc") != 0) {
-        status = ML_ERROR_INVALID_PARAMETER;
-      }
-#endif
-      break;
-    case ML_NNFW_TYPE_PYTORCH:
-      if (g_ascii_strcasecmp (file_ext[0], ".pt") != 0) {
-        status = ML_ERROR_INVALID_PARAMETER;
-      }
-      break;
     case ML_NNFW_TYPE_ARMNN:
-      if (g_ascii_strcasecmp (file_ext[0], ".caffemodel") != 0 &&
-          g_ascii_strcasecmp (file_ext[0], ".tflite") != 0 &&
-          g_ascii_strcasecmp (file_ext[0], ".pb") != 0 &&
-          g_ascii_strcasecmp (file_ext[0], ".prototxt") != 0) {
+      if (!g_str_equal (file_ext[0], ".caffemodel") &&
+          !g_str_equal (file_ext[0], ".tflite") &&
+          !g_str_equal (file_ext[0], ".pb") &&
+          !g_str_equal (file_ext[0], ".prototxt")) {
         status = ML_ERROR_INVALID_PARAMETER;
       }
       break;
@@ -1162,8 +1094,14 @@ ml_validate_model_file (char **model, unsigned int num_models,
   }
 
 done:
-  if (status != ML_ERROR_NONE)
+  if (status == ML_ERROR_NONE) {
+    if (!ml_nnfw_is_available (*nnfw, ML_NNFW_HW_ANY)) {
+      ml_loge ("%s is not available.", ml_get_nnfw_subplugin_name (*nnfw));
+      status = ML_ERROR_NOT_SUPPORTED;
+    }
+  } else {
     ml_loge ("The given model file is invalid.");
+  }
 
   g_strfreev (file_ext);
   return status;
@@ -1270,7 +1208,6 @@ int
 ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw,
     bool * available)
 {
-  const GstTensorFilterFramework *fw;
   const char *fw_name = NULL;
 
   check_feature_state ();
@@ -1287,10 +1224,12 @@ ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw,
   fw_name = ml_get_nnfw_subplugin_name (nnfw);
 
   if (fw_name) {
-    if ((fw = nnstreamer_filter_find (fw_name)) != NULL) {
-      *available = gst_tensor_filter_check_hw_availability
-          (fw, ml_nnfw_to_accl_hw (hw));
-      if (*available == false) {
+    if (nnstreamer_filter_find (fw_name) != NULL) {
+      accl_hw accl = ml_nnfw_to_accl_hw (hw);
+
+      if (gst_tensor_filter_check_hw_availability (fw_name, accl)) {
+        *available = true;
+      } else {
         ml_logw ("%s is supported but not with the specified hardware.",
             fw_name);
       }
