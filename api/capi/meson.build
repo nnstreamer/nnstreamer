@@ -20,7 +20,7 @@ endif
 
 capi_inc = []
 capi_inc += include_directories('include')
-capi_inc += include_directories('../../gst') #TODO remove this
+capi_inc += include_directories('../../gst/nnstreamer/tensor_filter') #TODO remove this
 if not get_option('enable-tizen')
   capi_inc += include_directories('include/platform')
 endif

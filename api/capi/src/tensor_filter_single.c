@@ -43,7 +43,7 @@
 #include <glib.h>
 #include <string.h>
 
-#include <nnstreamer/tensor_filter/tensor_filter_common.h> /** @todo remove common header, or move single-class to gst directory. */
+#include "tensor_filter_common.h"
 #include "tensor_filter_single.h"
 
 /**

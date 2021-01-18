@@ -134,8 +134,8 @@ typedef struct _GstTensorFilterPrivate
  * @todo If this is going to be used by other elements, move this to nnstreamer/tensor_common.
  */
 extern void
-gst_tensor_filter_compare_tensors (GstTensorsInfo * info1,
-    GstTensorsInfo * info2);
+gst_tensor_filter_compare_tensors (const GstTensorsInfo * info1,
+    const GstTensorsInfo * info2);
 
 /**
  * @brief check if the allocate_in_invoke is valid for the framework
@@ -162,25 +162,6 @@ gst_tensor_filter_common_init_property (GstTensorFilterPrivate * priv);
  */
 extern void
 gst_tensor_filter_common_free_property (GstTensorFilterPrivate * priv);
-
-/**
- * @brief Get available framework from given file when user selects auto option
- * @param[in] model_files the prediction model paths
- * @param[in] num_models the number of model files
- * @return Detected framework name (NULL if it fails to detect automatically). Caller should free returned value using g_free().
- */
-extern gchar *
-gst_tensor_filter_framework_auto_detection (const gchar ** model_files,
-    unsigned int num_models);
-
-/**
- * @brief automatically selecting framework for tensor filter
- * @param[in] priv Struct containing the properties of the object
- * @param[in] fw_name Framework name
- */
-extern void
-gst_tensor_filter_get_available_framework (GstTensorFilterPrivate * priv,
-    const char *fw_name);
 
 /**
  * @brief Set the properties for tensor_filter
@@ -224,11 +205,23 @@ extern void gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv);
 extern void gst_tensor_filter_common_close_fw (GstTensorFilterPrivate * priv);
 
 /**
- * @brief check if the given hw is supported by the framework
+ * @brief Get neural network framework name from given model file. This does not guarantee the framework is available on the target device.
+ * @param[in] model_files the prediction model paths
+ * @param[in] num_models the number of model files
+ * @param[in] load_conf flag to load configuration for the priority of framework
+ * @return Possible framework name (NULL if it fails to detect automatically). Caller should free returned value using g_free().
+ */
+extern gchar *
+gst_tensor_filter_detect_framework (const gchar * const *model_files, const guint num_models, const gboolean load_conf);
+
+/**
+ * @brief Check if the given hw is supported by the framework.
+ * @param[in] name The name of filter sub-plugin.
+ * @param[in] hw Backend accelerator hardware.
+ * @return TRUE if given hw is available.
  */
 extern gboolean
-gst_tensor_filter_check_hw_availability (const GstTensorFilterFramework *fw,
-    accl_hw hw);
+gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw);
 
 /**
  * @brief Free the data allocated for tensor filter output

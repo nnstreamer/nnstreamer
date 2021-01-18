@@ -4429,8 +4429,8 @@ TEST (nnstreamer_capi_singleshot, parallel_runs)
 
 /**
  * @brief Test NNStreamer single shot (tensorflow-lite)
- * @detail Close the single handle while running. This test shuuld not crash.
- *         This closes the single handle twice, while opens it once
+ * @detail Close the single handle while running. This test should not crash.
+ *         This closes the single handle twice, while opens it once.
  */
 TEST (nnstreamer_capi_singleshot, close_while_running)
 {
