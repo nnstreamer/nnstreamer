@@ -27,8 +27,7 @@
 
 #include <stdint.h>
 #include <glib-object.h>
-
-#include <nnstreamer/tensor_filter/tensor_filter_common.h>
+#include <tensor_typedef.h>
 
 G_BEGIN_DECLS
 #define G_TYPE_TENSOR_FILTER_SINGLE \
@@ -52,9 +51,9 @@ typedef struct _GTensorFilterSingleClass GTensorFilterSingleClass;
 struct _GTensorFilterSingle
 {
   GObject element;          /**< This is the parent object */
-  gboolean allocate_in_invoke;  /**< cached value after first invoke */
 
-  GstTensorFilterPrivate priv; /**< Internal properties for tensor-filter */
+  /* private */
+  gpointer priv; /**< Internal properties for tensor-filter single class */
 };
 
 /**

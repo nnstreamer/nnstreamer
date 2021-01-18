@@ -43,10 +43,23 @@
 #include <glib.h>
 #include <string.h>
 
+#include <nnstreamer/tensor_filter/tensor_filter_common.h> /** @todo remove common header, or move single-class to gst directory. */
 #include "tensor_filter_single.h"
 
+/**
+ * @brief Private data struct for tensor-filter single class.
+ */
+typedef struct _GTensorFilterSinglePrivate
+{
+  GstTensorFilterPrivate filter_priv; /**< Internal properties for tensor-filter */
+  gboolean allocate_in_invoke;  /**< cached value after first invoke */
+} GTensorFilterSinglePrivate;
+
+#define G_TENSOR_FILTER_SINGLE_PRIV(obj) ((GTensorFilterSinglePrivate *) (obj)->priv)
+
 #define g_tensor_filter_single_parent_class parent_class
-G_DEFINE_TYPE (GTensorFilterSingle, g_tensor_filter_single, G_TYPE_OBJECT);
+G_DEFINE_TYPE_WITH_PRIVATE (GTensorFilterSingle, g_tensor_filter_single,
+    G_TYPE_OBJECT);
 
 /* GObject vmethod implementations */
 static void g_tensor_filter_single_finalize (GObject * object);
@@ -62,12 +75,9 @@ static gboolean g_tensor_filter_input_configured (GTensorFilterSingle * self);
 static gboolean g_tensor_filter_output_configured (GTensorFilterSingle * self);
 static gint g_tensor_filter_set_input_info (GTensorFilterSingle * self,
     const GstTensorsInfo * in_info, GstTensorsInfo * out_info);
-static void
-g_tensor_filter_destroy_notify (GTensorFilterSingle * self,
+static void g_tensor_filter_destroy_notify (GTensorFilterSingle * self,
     GstTensorMemory * mem);
 static gboolean g_tensor_filter_allocate_in_invoke (GTensorFilterSingle * self);
-
-/* Private functions */
 static gboolean g_tensor_filter_single_start (GTensorFilterSingle * self);
 static gboolean g_tensor_filter_single_stop (GTensorFilterSingle * self);
 
@@ -103,12 +113,16 @@ g_tensor_filter_single_class_init (GTensorFilterSingleClass * klass)
 static void
 g_tensor_filter_single_init (GTensorFilterSingle * self)
 {
+  GTensorFilterSinglePrivate *spriv;
   GstTensorFilterPrivate *priv;
 
-  priv = &self->priv;
+  self->priv = g_type_instance_get_private ((GTypeInstance *) self,
+      G_TYPE_TENSOR_FILTER_SINGLE);
+  spriv = (GTensorFilterSinglePrivate *) self->priv;
+  priv = &spriv->filter_priv;
 
   gst_tensor_filter_common_init_property (priv);
-  self->allocate_in_invoke = FALSE;
+  spriv->allocate_in_invoke = FALSE;
 }
 
 /**
@@ -118,10 +132,12 @@ static void
 g_tensor_filter_single_finalize (GObject * object)
 {
   GTensorFilterSingle *self;
+  GTensorFilterSinglePrivate *spriv;
   GstTensorFilterPrivate *priv;
 
   self = G_TENSOR_FILTER_SINGLE (object);
-  priv = &self->priv;
+  spriv = G_TENSOR_FILTER_SINGLE_PRIV (self);
+  priv = &spriv->filter_priv;
 
   /** stop if not already stopped */
   if (priv->configured == TRUE) {
@@ -141,10 +157,12 @@ g_tensor_filter_single_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
   GTensorFilterSingle *self;
+  GTensorFilterSinglePrivate *spriv;
   GstTensorFilterPrivate *priv;
 
   self = G_TENSOR_FILTER_SINGLE (object);
-  priv = &self->priv;
+  spriv = G_TENSOR_FILTER_SINGLE_PRIV (self);
+  priv = &spriv->filter_priv;
 
   g_debug ("Setting property for prop %d.\n", prop_id);
 
@@ -160,10 +178,12 @@ g_tensor_filter_single_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec)
 {
   GTensorFilterSingle *self;
+  GTensorFilterSinglePrivate *spriv;
   GstTensorFilterPrivate *priv;
 
   self = G_TENSOR_FILTER_SINGLE (object);
-  priv = &self->priv;
+  spriv = G_TENSOR_FILTER_SINGLE_PRIV (self);
+  priv = &spriv->filter_priv;
 
   g_debug ("Getting property for prop %d.\n", prop_id);
 
@@ -178,9 +198,11 @@ g_tensor_filter_single_get_property (GObject * object, guint prop_id,
 static gboolean
 g_tensor_filter_input_configured (GTensorFilterSingle * self)
 {
+  GTensorFilterSinglePrivate *spriv;
   GstTensorFilterPrivate *priv;
 
-  priv = &self->priv;
+  spriv = G_TENSOR_FILTER_SINGLE_PRIV (self);
+  priv = &spriv->filter_priv;
 
   return priv->prop.input_configured;
 }
@@ -192,9 +214,11 @@ g_tensor_filter_input_configured (GTensorFilterSingle * self)
 static gboolean
 g_tensor_filter_output_configured (GTensorFilterSingle * self)
 {
+  GTensorFilterSinglePrivate *spriv;
   GstTensorFilterPrivate *priv;
 
-  priv = &self->priv;
+  spriv = G_TENSOR_FILTER_SINGLE_PRIV (self);
+  priv = &spriv->filter_priv;
 
   return priv->prop.output_configured;
 }
@@ -205,9 +229,12 @@ g_tensor_filter_output_configured (GTensorFilterSingle * self)
 static inline gboolean
 g_tensor_filter_allocate_in_invoke (GTensorFilterSingle * self)
 {
-  return self->allocate_in_invoke;
-}
+  GTensorFilterSinglePrivate *spriv;
 
+  spriv = G_TENSOR_FILTER_SINGLE_PRIV (self);
+
+  return spriv->allocate_in_invoke;
+}
 
 /**
  * @brief Called when the element starts processing, if fw not laoded
@@ -217,9 +244,11 @@ g_tensor_filter_allocate_in_invoke (GTensorFilterSingle * self)
 static gboolean
 g_tensor_filter_single_start (GTensorFilterSingle * self)
 {
+  GTensorFilterSinglePrivate *spriv;
   GstTensorFilterPrivate *priv;
 
-  priv = &self->priv;
+  spriv = G_TENSOR_FILTER_SINGLE_PRIV (self);
+  priv = &spriv->filter_priv;
 
   /** open framework, load model */
   if (G_UNLIKELY (priv->fw == NULL))
@@ -230,8 +259,8 @@ g_tensor_filter_single_start (GTensorFilterSingle * self)
   if (G_UNLIKELY (priv->prop.fw_opened == FALSE))
     return FALSE;
 
-  gst_tensor_filter_load_tensor_info (&self->priv);
-  self->allocate_in_invoke = gst_tensor_filter_allocate_in_invoke (priv);
+  gst_tensor_filter_load_tensor_info (priv);
+  spriv->allocate_in_invoke = gst_tensor_filter_allocate_in_invoke (priv);
 
   priv->configured = TRUE;
 
@@ -246,9 +275,11 @@ g_tensor_filter_single_start (GTensorFilterSingle * self)
 static gboolean
 g_tensor_filter_single_stop (GTensorFilterSingle * self)
 {
+  GTensorFilterSinglePrivate *spriv;
   GstTensorFilterPrivate *priv;
 
-  priv = &self->priv;
+  spriv = G_TENSOR_FILTER_SINGLE_PRIV (self);
+  priv = &spriv->filter_priv;
 
   /** close framework, unload model */
   gst_tensor_filter_common_close_fw (priv);
@@ -265,9 +296,11 @@ g_tensor_filter_destroy_notify (GTensorFilterSingle * self,
     GstTensorMemory * mem)
 {
   guint i;
+  GTensorFilterSinglePrivate *spriv;
   GstTensorFilterPrivate *priv;
 
-  priv = &self->priv;
+  spriv = G_TENSOR_FILTER_SINGLE_PRIV (self);
+  priv = &spriv->filter_priv;
 
   for (i = 0; i < priv->prop.output_meta.num_tensors; i++) {
     gst_tensor_filter_destroy_notify_util (priv, mem[i].data);
@@ -285,16 +318,17 @@ g_tensor_filter_destroy_notify (GTensorFilterSingle * self,
  */
 static gboolean
 g_tensor_filter_single_invoke (GTensorFilterSingle * self,
-    const GstTensorMemory * input, GstTensorMemory * output,
-    gboolean allocate)
+    const GstTensorMemory * input, GstTensorMemory * output, gboolean allocate)
 {
+  GTensorFilterSinglePrivate *spriv;
   GstTensorFilterPrivate *priv;
   GstTensorMemory *_out;
   GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT] = { 0, };
   guint i;
   gint status;
 
-  priv = &self->priv;
+  spriv = G_TENSOR_FILTER_SINGLE_PRIV (self);
+  priv = &spriv->filter_priv;
 
   /** start if not already started */
   if (priv->configured == FALSE) {
@@ -306,7 +340,7 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
   /* set output tensors for given params */
   _out = output;
 
-  if (self->allocate_in_invoke) {
+  if (spriv->allocate_in_invoke) {
     if (!allocate) {
       /**
        * @todo how can we remove memcpy if output data is already allocated
@@ -345,7 +379,7 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
 
 error:
   /* if failed to invoke the model, release allocated memory. */
-  if (self->allocate_in_invoke == FALSE && allocate) {
+  if (spriv->allocate_in_invoke == FALSE && allocate) {
     for (i = 0; i < priv->prop.output_meta.num_tensors; i++) {
       g_free (output[i].data);
       output[i].data = NULL;
@@ -365,10 +399,13 @@ static gint
 g_tensor_filter_set_input_info (GTensorFilterSingle * self,
     const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
 {
+  GTensorFilterSinglePrivate *spriv;
   GstTensorFilterPrivate *priv;
   gint status = -EINVAL;
 
-  priv = &self->priv;
+  spriv = G_TENSOR_FILTER_SINGLE_PRIV (self);
+  priv = &spriv->filter_priv;
+
   if (G_UNLIKELY (!priv->fw) || G_UNLIKELY (!priv->prop.fw_opened))
     return -EINVAL;
 
