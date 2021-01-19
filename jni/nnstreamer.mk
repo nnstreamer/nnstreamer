@@ -40,6 +40,7 @@ NNSTREAMER_COMMON_SRCS := \
     $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_custom.c \
     $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_custom_easy.c \
     $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_support_cc.cc \
+    $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_single.c \
     $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_cpp.cc
 
 # nnstreamer plugins. Not used for SINGLE-only build.
@@ -72,14 +73,12 @@ NNSTREAMER_CAPI_INCLUDES := \
 NNSTREAMER_CAPI_SRCS := \
     $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-pipeline.c \
     $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-single.c \
-    $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-util.c \
-    $(NNSTREAMER_CAPI_HOME)/src/tensor_filter_single.c
+    $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-util.c
 
 # nnstreamer c-api for single-shot only
 NNSTREAMER_SINGLE_SRCS := \
     $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-single.c \
-    $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-util.c \
-    $(NNSTREAMER_CAPI_HOME)/src/tensor_filter_single.c
+    $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-util.c
 
 # source AMC (Android MediaCodec)
 NNSTREAMER_SOURCE_AMC_SRCS := \

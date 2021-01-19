@@ -28,8 +28,3 @@ generated_h = configure_file(input: 'nnstreamer_version.h.in',
   configuration: version_conf
 )
 nnstreamer_headers += generated_h
-
-# Install headers into /{includedir}/nnstreamer
-install_headers(nnstreamer_headers,
-  subdir: 'nnstreamer'
-)
