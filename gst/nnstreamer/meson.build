@@ -89,3 +89,8 @@ endif
 nnstreamer_dep = declare_dependency(link_with: nnstreamer_lib,
   dependencies: nnstreamer_base_deps,
   include_directories: nnstreamer_inc)
+
+# Install headers into /{includedir}/nnstreamer
+install_headers(nnstreamer_headers,
+  subdir: 'nnstreamer'
+)

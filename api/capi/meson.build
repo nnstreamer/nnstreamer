@@ -29,7 +29,6 @@ capi_main = []
 capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-pipeline.c')
 capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-util.c')
 capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-single.c')
-capi_main += join_paths(meson.current_source_dir(), 'src', 'tensor_filter_single.c')
 
 if get_option('enable-tizen')
   if get_option('enable-tizen-feature-check')
