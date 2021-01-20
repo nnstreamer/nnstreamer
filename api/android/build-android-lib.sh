@@ -13,9 +13,9 @@
 ##@@  - ANDROID_NDK_ROOT: Android NDK
 ##@@  - GSTREAMER_ROOT_ANDROID: GStreamer prebuilt libraries for Android
 ##@@  - NNSTREAMER_ROOT: The source root directory of NNStreamer
-##@@ 
+##@@
 ##@@ usage: build-android-lib.sh [OPTIONS]
-##@@ 
+##@@
 ##@@ basic options:
 ##@@   --help
 ##@@       display this help and exit
@@ -31,7 +31,7 @@
 ##@@       'no'       : [default]
 ##@@   --nnstreamer_dir=(the_source_root_of_nnstreamer)
 ##@@       This option overrides the NNSTREAMER_ROOT variable
-##@@ 
+##@@
 ##@@ options for tensor filter sub-plugins:
 ##@@   --enable_snap=(yes|no)
 ##@@       'yes'      : build with sub-plugin for SNAP
@@ -52,12 +52,12 @@
 ##@@       'yes'      : [default] you can optionally specify the version of tensorflow-lite to use
 ##@@                    by appending ':version' [1.13.1 is the default].
 ##@@       'no'       : build without the sub-plugin for tensorflow-lite
-##@@ 
+##@@
 ##@@ options for tensor decoder sub-plugins:
 ##@@   --enable_decoder_flatbuf=(yes|no)
 ##@@       'yes'      : [default]
 ##@@       'no'       : build without the sub-plugin for FlatBuffers
-##@@ 
+##@@
 ##@@ For example, to build library with core plugins for arm64-v8a
 ##@@  ./build-android-lib.sh --api_option=lite --target_abi=arm64-v8a
 
@@ -528,8 +528,7 @@ if [[ -e "$nnstreamer_android_api_lib" ]]; then
     # header for C-API
     cp $nnstreamer_dir/api/capi/include/nnstreamer.h main/jni/nnstreamer/include
     cp $nnstreamer_dir/api/capi/include/nnstreamer-single.h main/jni/nnstreamer/include
-    cp $nnstreamer_dir/api/capi/include/ml-api-common.h main/jni/nnstreamer/include
-    cp $nnstreamer_dir/api/capi/include/platform/tizen_error.h main/jni/nnstreamer/include
+    cp $nnstreamer_dir/api/capi/include/platform/ml-api-common.h main/jni/nnstreamer/include
 
     # header for plugin
     if [[ $nnstreamer_api_option != "single" ]]; then

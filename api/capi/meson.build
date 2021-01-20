@@ -19,11 +19,11 @@ endif
 
 
 capi_inc = []
-capi_inc += include_directories('include')
-capi_inc += include_directories('../../gst') #TODO remove this
 if not get_option('enable-tizen')
   capi_inc += include_directories('include/platform')
 endif
+capi_inc += include_directories('include')
+capi_inc += include_directories('../../gst') #TODO remove this
 
 capi_main = []
 capi_main += join_paths(meson.current_source_dir(), 'src', 'nnstreamer-capi-pipeline.c')
@@ -44,12 +44,12 @@ endif
 capi_devel_main = []
 capi_devel_main += join_paths(meson.current_source_dir(), 'include', 'nnstreamer.h')
 capi_devel_main += join_paths(meson.current_source_dir(), 'include', 'nnstreamer-single.h')
-capi_devel_main += join_paths(meson.current_source_dir(), 'include', 'ml-api-common.h')
 if get_option('enable-tizen')
+  capi_devel_main += join_paths(meson.current_source_dir(), 'include', 'ml-api-common.h')
   # header for Tizen internal API
   capi_devel_main += join_paths(meson.current_source_dir(), 'include', 'nnstreamer-tizen-internal.h')
 else
-  capi_devel_main += join_paths(meson.current_source_dir(), 'include', 'platform', 'tizen_error.h')
+  capi_devel_main += join_paths(meson.current_source_dir(), 'include', 'platform', 'ml-api-common.h')
 endif
 
 # Dependencies
