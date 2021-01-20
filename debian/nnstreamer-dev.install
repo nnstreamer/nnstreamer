@@ -9,10 +9,10 @@
 /usr/include/nnstreamer/tensor_typedef.h
 /usr/include/nnstreamer/tensor_filter_cpp.hh
 /usr/include/nnstreamer/nnstreamer_cppplugin_api_filter.hh
-/usr/include/nnstreamer/ml-api-common.h
-/usr/include/nnstreamer/tizen_error.h
 /usr/include/nnstreamer/nnstreamer.h
 /usr/include/nnstreamer/nnstreamer-single.h
-/usr/lib/*/pkgconfig/*.pc
+/usr/lib/*/pkgconfig/capi-nnstreamer.pc
+/usr/lib/*/pkgconfig/nnstreamer.pc
+/usr/lib/*/pkgconfig/nnstreamer-cpp.pc
 /usr/lib/*/*.a
 /usr/lib/*/libcapi-*.so
