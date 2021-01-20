@@ -105,6 +105,11 @@ configure_file(input: 'capi-nnstreamer.pc.in', output: 'capi-nnstreamer.pc',
   configuration: nnstreamer_conf
 )
 
+configure_file(input: 'capi-ml-common.pc.in', output: 'capi-ml-common.pc',
+  install_dir: join_paths(nnstreamer_libdir, 'pkgconfig'),
+  configuration: nnstreamer_conf
+)
+
 install_headers(capi_devel_main,
   subdir: 'nnstreamer'
 )
