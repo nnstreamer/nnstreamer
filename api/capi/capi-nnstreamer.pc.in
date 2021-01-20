@@ -9,6 +9,6 @@ includedir=@INCLUDE_INSTALL_DIR@
 Name: tizen-api-nnstreamer
 Description: NNStreamer API for Tizen
 Version: @VERSION@
-Requires:
+Requires: capi-ml-common
 Libs: -L${libdir} -lcapi-nnstreamer
 Cflags: -I${includedir}/nnstreamer
