@@ -931,6 +931,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 
 %files -n capi-ml-common-devel
 %{_includedir}/nnstreamer/ml-api-common.h
+%{_libdir}/pkgconfig/capi-ml-common.pc
 
 %files -n nnstreamer-tizen-internal-capi-devel
 %{_includedir}/nnstreamer/nnstreamer-tizen-internal.h
