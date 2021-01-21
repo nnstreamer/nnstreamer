@@ -384,7 +384,7 @@ gst_tensor_demux_get_tensor_pad (GstTensorDemux * tensor_demux,
     strv = g_strsplit_set (seleted_tensor, ":+", -1);
     num = g_strv_length (strv);
 
-    if (num == 1 && gst_pad_has_tensor_caps (pad)) {
+    if (num == 1 && gst_pad_peer_has_tensor_caps (pad)) {
       GstTensorConfig config;
       gint64 idx = g_ascii_strtoll (strv[0], NULL, 10);
       if (gst_tensor_demux_get_tensor_config (tensor_demux, &config, idx))

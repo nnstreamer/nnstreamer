@@ -1056,7 +1056,7 @@ TEST (common_pad_cap, tensor_0)
   EXPECT_NE (pad, nullptr);
 
   /* "any" cap returns tensor cap */
-  is_tensor = gst_pad_has_tensor_caps (pad);
+  is_tensor = gst_pad_peer_has_tensor_caps (pad);
   EXPECT_EQ (TRUE, is_tensor);
 
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
@@ -1094,7 +1094,7 @@ TEST (common_pad_cap, tensors_0)
   pad = gst_element_get_static_pad (src_handle, "src");
   EXPECT_NE (pad, nullptr);
 
-  is_tensor = gst_pad_has_tensor_caps (pad);
+  is_tensor = gst_pad_peer_has_tensor_caps (pad);
   EXPECT_EQ (FALSE, is_tensor);
 
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
