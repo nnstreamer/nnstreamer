@@ -352,7 +352,7 @@ extern const gchar *
 gst_tensor_get_type_string (tensor_type type);
 
 /**
- * @brief Get tensors caps from tensors config and peer caps of the src pad
+ * @brief Get tensors caps from tensors config and caps of the peer connected to the pad
  * @param config tensors config structure
  * @param pad GstPad to check if it supports other/tensor
  * @return caps for given config and pad. Caller is responsible for unreffing the returned caps.
@@ -361,12 +361,12 @@ extern GstCaps *
 gst_tensors_get_caps (GstPad * pad, const GstTensorsConfig * config);
 
 /**
- * @brief Check whether pad's caps support other/tensor or not
- * @param pad GstPad to check if it supports other/tensor
+ * @brief Check whether the peer connected to the pad supports other/tensor or not
+ * @param pad GstPad to check if the peer pad supports other/tensor
  * @return TRUE if other/tensor, FALSE if not
  */
 extern gboolean
-gst_pad_has_tensor_caps (GstPad * pad);
+gst_pad_peer_has_tensor_caps (GstPad * pad);
 
 /**
  * @brief Find the index value of the given key string array
