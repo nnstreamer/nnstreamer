@@ -102,6 +102,7 @@ TorchCore::TorchCore (const char *_model_path)
   configured = false;
   use_gpu = false;
   first_run = true;
+  accelerator = ACCL_NONE;
 
   gst_tensors_info_init (&inputTensorMeta);
   gst_tensors_info_init (&outputTensorMeta);

@@ -757,12 +757,16 @@ _gst_tensor_converter_chain_push (GstTensorConverter * self, GstBuffer * buf)
 
       g_assert (self->frames_per_tensor == 1);
 
-      buffer = gst_buffer_new ();
-
       mem = gst_buffer_get_all_memory (buf);
-      gst_memory_map (mem, &info, GST_MAP_READ);
+      if (!gst_memory_map (mem, &info, GST_MAP_READ)) {
+        ml_logf ("Failed to map the input buffer for octet stream.");
+        gst_memory_unref (mem);
+        return GST_FLOW_ERROR;
+      }
 
       idx = 0;
+      buffer = gst_buffer_new ();
+
       for (i = 0; i < self->tensors_info.num_tensors; ++i) {
         size = gst_tensors_info_get_size (&self->tensors_info, i);
         data = g_memdup (info.data + idx, size);

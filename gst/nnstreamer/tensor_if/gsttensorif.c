@@ -1034,7 +1034,7 @@ gst_tensor_if_get_comparison_result (GstTensorIf * tensor_if,
 /**
  * @brief Calculate average value of the nth tensor
  */
-static void
+static gboolean
 gst_tensor_if_get_tensor_average (GstTensorIf * tensor_if,
     GstBuffer * buf, tensor_if_data_s * cv, gint nth)
 {
@@ -1051,7 +1051,10 @@ gst_tensor_if_get_tensor_average (GstTensorIf * tensor_if,
   size = in_dim[0] * in_dim[1] * in_dim[2] * in_dim[3];
 
   in_mem = gst_buffer_peek_memory (buf, nth);
-  gst_memory_map (in_mem, &in_info, GST_MAP_READ);
+  if (!gst_memory_map (in_mem, &in_info, GST_MAP_READ)) {
+    GST_WARNING_OBJECT (tensor_if, "Failed to map the input buffer.");
+    return FALSE;
+  }
 
   for (i = 0; i < size; i++) {
     get_double_val (type, &in_info.data[i * dsize], val);
@@ -1065,6 +1068,7 @@ gst_tensor_if_get_tensor_average (GstTensorIf * tensor_if,
   cv->data._double = avg;
 
   gst_tensor_if_typecast_value (tensor_if, cv, type);
+  return TRUE;
 }
 
 /**
@@ -1086,7 +1090,7 @@ gst_tensor_if_calculate_cv (GstTensorIf * tensor_if, GstBuffer * buf,
 
       if (g_list_length (tensor_if->cv_option) != 5) {
         GST_ERROR_OBJECT (tensor_if,
-            " Please specify a proper 'compared-value-option' property, e.g., 0:1:2:3,0");
+            "Please specify a proper 'compared-value-option' property, e.g., 0:1:2:3,0");
         return FALSE;
       }
       for (list = tensor_if->cv_option; list->next != NULL; list = list->next) {
@@ -1095,7 +1099,7 @@ gst_tensor_if_calculate_cv (GstTensorIf * tensor_if, GstBuffer * buf,
 
       nth = GPOINTER_TO_INT (list->data);
       if (gst_buffer_n_memory (buf) <= nth) {
-        GST_ERROR_OBJECT (tensor_if, " index should be lower than buffer size");
+        GST_ERROR_OBJECT (tensor_if, "Index should be lower than buffer size");
         return FALSE;
       }
       cv->type = tensor_if->in_config.info.info[nth].type;
@@ -1103,7 +1107,10 @@ gst_tensor_if_calculate_cv (GstTensorIf * tensor_if, GstBuffer * buf,
       in_dim = tensor_if->in_config.info.info[nth].dimension;
 
       in_mem = gst_buffer_peek_memory (buf, nth);
-      gst_memory_map (in_mem, &in_info, GST_MAP_READ);
+      if (!gst_memory_map (in_mem, &in_info, GST_MAP_READ)) {
+        GST_WARNING_OBJECT (tensor_if, "Failed to map the input buffer.");
+        return FALSE;
+      }
 
       /* Find data index for mem access */
       idx = target[0];
@@ -1124,20 +1131,19 @@ gst_tensor_if_calculate_cv (GstTensorIf * tensor_if, GstBuffer * buf,
       uint32_t nth;
       if (g_list_length (tensor_if->cv_option) != 1) {
         GST_ERROR_OBJECT (tensor_if,
-            " Please specify a proper 'compared-value-option' property, For TENSOR_AVERAGE_VALUE, specify only one tensor. Tensors is not supported.");
+            "Please specify a proper 'compared-value-option' property, For TENSOR_AVERAGE_VALUE, specify only one tensor. Tensors is not supported.");
         return FALSE;
       }
       nth = GPOINTER_TO_INT (tensor_if->cv_option->data);
       if (gst_buffer_n_memory (buf) <= nth) {
-        GST_ERROR_OBJECT (tensor_if, " index should be lower than buufer size");
+        GST_ERROR_OBJECT (tensor_if, "Index should be lower than buffer size");
         return FALSE;
       }
-      gst_tensor_if_get_tensor_average (tensor_if, buf, cv, nth);
-      break;
+      return gst_tensor_if_get_tensor_average (tensor_if, buf, cv, nth);
     }
     default:
       GST_ERROR_OBJECT (tensor_if,
-          " Compared value is not supported yet or not defined");
+          "Compared value is not supported yet or not defined");
       return FALSE;
   }
   return TRUE;
