@@ -494,11 +494,6 @@ gst_join_pad_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     selpad->events_pending = FALSE;
   }
 
-  if (prev_active_sinkpad) {
-    gst_object_unref (prev_active_sinkpad);
-    prev_active_sinkpad = NULL;
-  }
-
   if (selpad->discont) {
     buf = gst_buffer_make_writable (buf);
 
