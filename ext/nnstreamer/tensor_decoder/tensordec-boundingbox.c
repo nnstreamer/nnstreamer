@@ -2,6 +2,7 @@
  * GStreamer / NNStreamer tensor_decoder subplugin, "bounding boxes"
  * Copyright (C) 2018 Samsung Electronics Co. Ltd.
  * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
+ * Copyright 2021 NXP
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -98,6 +99,18 @@ typedef enum
 } bounding_box_modes;
 
 /**
+ * @brief TF SSD Output tensor feature mapping.
+ */
+typedef enum
+{
+  TF_SSD_BBOX_IDX_LOCATIONS = 0,
+  TF_SSD_BBOX_IDX_CLASSES = 1,
+  TF_SSD_BBOX_IDX_SCORES = 2,
+  TF_SSD_BBOX_IDX_NUM = 3,
+  TF_SSD_BBOX_IDX_UNKNOWN
+} tf_ssd_bbox_idx_t;
+
+/**
  * @brief List of bounding-box decoding schemes in string
  */
 static const char *bb_modes[] = {
@@ -109,7 +122,7 @@ static const char *bb_modes[] = {
 };
 
 /**
- * @brief Data structure for SSD boundig box info for tf-lite ssd model.
+ * @brief Data structure for SSD bounding box info for tf-lite ssd model.
  */
 typedef struct
 {
@@ -117,6 +130,15 @@ typedef struct
   char *box_prior_path; /**< Box Prior file path */
   gfloat box_priors[BOX_SIZE][TFLITE_SSD_DETECTION_MAX + 1]; /** loaded box prior */
 } properties_TFLite_SSD;
+
+/**
+ * @brief Data structure for SSD bounding box info for tf ssd model.
+ */
+typedef struct
+{
+  /* From option3, output tensor mapping */
+  gint tensor_mapping[TF_SSD_MAX_TENSORS];      /* Output tensor index mapping */
+} properties_TF_SSD;
 
 /**
  * @brief Data structure for boundig box info.
@@ -128,6 +150,7 @@ typedef struct
   union
   {
     properties_TFLite_SSD tflite_ssd; /**< Properties for tflite_ssd configured by option 1 + 3 */
+    properties_TF_SSD tf_ssd; /**< tf_ssd mode properties configuration settings */
   };
 
   /* From option2 */
@@ -146,6 +169,13 @@ typedef struct
   gboolean flag_use_label;
 } bounding_boxes;
 
+/** @brief Helper to retrieve tensor index by feature */
+static inline int
+_get_tf_ssd_tensor_idx (bounding_boxes * bdata, tf_ssd_bbox_idx_t idx)
+{
+  return bdata->tf_ssd.tensor_mapping[idx];
+}
+
 /** @brief Initialize bounding_boxes per mode */
 static int
 _init_modes (bounding_boxes * bdata)
@@ -154,6 +184,21 @@ _init_modes (bounding_boxes * bdata)
     /* properties_TFLite_SSD *data = &bdata->tflite-ssd; */
     return TRUE;
   } else if (bdata->mode == TF_SSD_BOUNDING_BOX) {
+    properties_TF_SSD *data = &bdata->tf_ssd;
+
+#define TF_SSD_BBOX_IDX_LOCATIONS_DEFAULT 3
+#define TF_SSD_BBOX_IDX_CLASSES_DEFAULT 1
+#define TF_SSD_BBOX_IDX_SCORES_DEFAULT 2
+#define TF_SSD_BBOX_IDX_NUM_DEFAULT 0
+
+    data->tensor_mapping[TF_SSD_BBOX_IDX_LOCATIONS] =
+        TF_SSD_BBOX_IDX_LOCATIONS_DEFAULT;
+    data->tensor_mapping[TF_SSD_BBOX_IDX_CLASSES] =
+        TF_SSD_BBOX_IDX_CLASSES_DEFAULT;
+    data->tensor_mapping[TF_SSD_BBOX_IDX_SCORES] =
+        TF_SSD_BBOX_IDX_SCORES_DEFAULT;
+    data->tensor_mapping[TF_SSD_BBOX_IDX_NUM] = TF_SSD_BBOX_IDX_NUM_DEFAULT;
+
     return TRUE;
   }
   return TRUE;
@@ -302,7 +347,28 @@ _setOption_mode (bounding_boxes * bdata, const char *param)
     if (NULL != tflite_ssd->box_prior_path)
       return _tflite_ssd_loadBoxPrior (bdata);
 
+  } else if (bdata->mode == TF_SSD_BOUNDING_BOX) {
+    properties_TF_SSD *tf_ssd = &bdata->tf_ssd;
+    int ret = sscanf (param,
+        "%i:%i:%i:%i",
+        &tf_ssd->tensor_mapping[TF_SSD_BBOX_IDX_LOCATIONS],
+        &tf_ssd->tensor_mapping[TF_SSD_BBOX_IDX_CLASSES],
+        &tf_ssd->tensor_mapping[TF_SSD_BBOX_IDX_SCORES],
+        &tf_ssd->tensor_mapping[TF_SSD_BBOX_IDX_NUM]
+        );
+
+    GST_INFO ("TF SSD output tensors mapping: "
+        "locations idx (%d), classes idx (%d), scores idx (%d), num detections idx (%d)",
+        tf_ssd->tensor_mapping[TF_SSD_BBOX_IDX_LOCATIONS],
+        tf_ssd->tensor_mapping[TF_SSD_BBOX_IDX_CLASSES],
+        tf_ssd->tensor_mapping[TF_SSD_BBOX_IDX_SCORES],
+        tf_ssd->tensor_mapping[TF_SSD_BBOX_IDX_NUM]
+        );
+
+    if (ret == EOF)
+      return FALSE;
   }
+
   return TRUE;
 }
 
@@ -465,10 +531,16 @@ _set_max_detection (bounding_boxes * data, const guint max_detection,
  * Both tensors are MANDATORY!
  *
  * [Tensorflow SSD Model]
- * The first tensor is num_detection. 1, ANY-TYPE
- * The second tensor is detection_classes. #MaxDetection, ANY-TYPE
- * The third tensor is detection_scores. #MaxDetection, ANY-TYPE
- * The fourth tensor is detection_boxes. BOX_SIZE : #MaxDetection, ANY-TYPE
+ * Tensors mapping is defined through option-3, with following syntax:
+ * LOCATIONS_IDX:CLASSES_IDX:SCORES_IDX:NUM_DETECTION_IDX
+ *
+ * Default configuration is: 3:1:2:0
+ *
+ * num_detection (default 1st tensor). 1, ANY-TYPE
+ * detection_classes (default 2nd tensor). #MaxDetection, ANY-TYPE
+ * detection_scores (default 3rd tensor). #MaxDetection, ANY-TYPE
+ * detection_boxes (default 4th tensor). BOX_SIZE : #MaxDetection, ANY-TYPE
+ *
  * all of tensors are MANDATORY!
  *
  * If there are third or more tensors, such tensors will be ignored.
@@ -515,18 +587,24 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
     }
   } else if (data->mode == TF_SSD_BOUNDING_BOX) {
     const uint32_t *dim1, *dim2, *dim3, *dim4;
+    int locations_idx, classes_idx, scores_idx, num_idx;
     if (!_check_tensors (config, TF_SSD_MAX_TENSORS))
       return NULL;
 
-    /* Check if the first tensor is compatible */
-    dim1 = config->info.info[0].dimension;
+    locations_idx = _get_tf_ssd_tensor_idx (data, TF_SSD_BBOX_IDX_LOCATIONS);
+    classes_idx = _get_tf_ssd_tensor_idx (data, TF_SSD_BBOX_IDX_CLASSES);
+    scores_idx = _get_tf_ssd_tensor_idx (data, TF_SSD_BBOX_IDX_SCORES);
+    num_idx = _get_tf_ssd_tensor_idx (data, TF_SSD_BBOX_IDX_NUM);
+
+    /* Check if the number of detections tensor is compatible */
+    dim1 = config->info.info[num_idx].dimension;
     g_return_val_if_fail (dim1[0] == 1, NULL);
     for (i = 1; i < NNS_TENSOR_RANK_LIMIT; ++i)
       g_return_val_if_fail (dim1[i] == 1, NULL);
 
-    /* Check if the second & third tensor is compatible */
-    dim2 = config->info.info[1].dimension;
-    dim3 = config->info.info[2].dimension;
+    /* Check if the classes & scores tensors are compatible */
+    dim2 = config->info.info[classes_idx].dimension;
+    dim3 = config->info.info[scores_idx].dimension;
     g_return_val_if_fail (dim3[0] == dim2[0], NULL);
     max_detection = dim2[0];
     for (i = 1; i < NNS_TENSOR_RANK_LIMIT; ++i) {
@@ -534,8 +612,8 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
       g_return_val_if_fail (dim3[i] == 1, NULL);
     }
 
-    /* Check if the fourth tensor is compatible */
-    dim4 = config->info.info[3].dimension;
+    /* Check if the bbox locations tensor is compatible */
+    dim4 = config->info.info[locations_idx].dimension;
     g_return_val_if_fail (BOX_SIZE == dim4[0], NULL);
     g_return_val_if_fail (max_detection == dim4[1], NULL);
     for (i = 2; i < NNS_TENSOR_RANK_LIMIT; ++i)
@@ -768,9 +846,10 @@ nms (GArray * results)
     _type * classes_ = (_type *) classinput; \
     _type * scores_ = (_type *) scoreinput; \
     _type * boxes_ = (_type *) boxesinput; \
+    int locations_idx = _get_tf_ssd_tensor_idx(bb, TF_SSD_BBOX_IDX_LOCATIONS); \
     num = (int) num_detection_[0]; \
     results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), num); \
-    boxbpi = config->info.info[3].dimension[0]; \
+    boxbpi = config->info.info[locations_idx].dimension[0]; \
     for (d = 0; d < num; d++) { \
       detectedObject object; \
       object.valid = TRUE; \
@@ -989,6 +1068,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
     nms (results);
   } else if (bdata->mode == TF_SSD_BOUNDING_BOX) {
     const GstTensorMemory *mem_num, *mem_classes, *mem_scores, *mem_boxes;
+    int locations_idx, classes_idx, scores_idx, num_idx;
     results =
         g_array_sized_new (FALSE, TRUE, sizeof (detectedObject),
         TF_SSD_DETECTION_MAX);
@@ -996,12 +1076,17 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
     /* Already checked with getOutCaps. Thus, this is an internal bug */
     g_assert (num_tensors >= TF_SSD_MAX_TENSORS);
 
-    mem_num = &input[0];
-    mem_classes = &input[1];
-    mem_scores = &input[2];
-    mem_boxes = &input[3];
+    locations_idx = _get_tf_ssd_tensor_idx (bdata, TF_SSD_BBOX_IDX_LOCATIONS);
+    classes_idx = _get_tf_ssd_tensor_idx (bdata, TF_SSD_BBOX_IDX_CLASSES);
+    scores_idx = _get_tf_ssd_tensor_idx (bdata, TF_SSD_BBOX_IDX_SCORES);
+    num_idx = _get_tf_ssd_tensor_idx (bdata, TF_SSD_BBOX_IDX_NUM);
 
-    switch (config->info.info[0].type) {
+    mem_num = &input[num_idx];
+    mem_classes = &input[classes_idx];
+    mem_scores = &input[scores_idx];
+    mem_boxes = &input[locations_idx];
+
+    switch (config->info.info[num_idx].type) {
         _get_objects_tf_ (uint8_t, _NNS_UINT8);
         _get_objects_tf_ (int8_t, _NNS_INT8);
         _get_objects_tf_ (uint16_t, _NNS_UINT16);
