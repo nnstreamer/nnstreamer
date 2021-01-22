@@ -159,7 +159,11 @@ cb_sink_event (GstElement * e, GstBuffer * b, gpointer user_data)
   data->num_tensors = num_mems;
   for (i = 0; i < num_mems; i++) {
     mem[i] = gst_buffer_peek_memory (b, i);
-    gst_memory_map (mem[i], &info[i], GST_MAP_READ);
+    if (!gst_memory_map (mem[i], &info[i], GST_MAP_READ)) {
+      nns_loge ("Failed to map the output in sink '%s' callback", elem->name);
+      num_mems = i;
+      goto error;
+    }
 
     data->tensors[i].tensor = info[i].data;
     data->tensors[i].size = info[i].size;
