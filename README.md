@@ -2,7 +2,7 @@
 
 [![Gitter][gitter-image]][gitter-url] 
 [![Code Coverage](http://nnsuite.mooo.com/nnstreamer/ci/badge/codecoverage.svg)](http://nnsuite.mooo.com/nnstreamer/ci/gcov_html/index.html) 
-<a href="https://scan.coverity.com/projects/nnsuite-nnstreamer">
+<a href="https://scan.coverity.com/projects/nnstreamer-nnstreamer">
 <img alt="Coverity Scan Defect Status" src="https://img.shields.io/endpoint?url=https://nnsuite.mooo.com/nnstreamer/ci/badge/badge_coverity.json" />
 </a> 
 [![DailyBuild](http://nnsuite.mooo.com/nnstreamer/ci/daily-build/badge/daily_build_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/daily-build/build_result/)
