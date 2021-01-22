@@ -727,6 +727,7 @@ export NNSTREAMER_CONVERTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor
 %if 0%{?unit_test}
     bash %{test_script} ./tests
     bash %{test_script} ./tests/tizen_capi/unittest_tizen_capi
+    bash %{test_script} ./tests/cpp_methods
     bash %{test_script} ./tests/nnstreamer_filter_extensions_common
     LD_LIBRARY_PATH=${NNSTREAMER_BUILD_ROOT_PATH}/tests/nnstreamer_filter_mvncsdk2:. bash %{test_script} ./tests/nnstreamer_filter_mvncsdk2/unittest_filter_mvncsdk2
 %ifarch aarch64 x86_64
