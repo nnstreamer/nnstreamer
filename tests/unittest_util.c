@@ -82,8 +82,7 @@ wait_pipeline_process_buffers (const guint * data_received,
 {
   guint timer = 0;
   guint tick = TEST_DEFAULT_SLEEP_TIME / 1000U;
-  if (tick == 0)
-    tick = 1;
+
   /* Waiting for expected buffers to arrive */
   while (*data_received < expected_num_buffers) {
     g_usleep (TEST_DEFAULT_SLEEP_TIME);

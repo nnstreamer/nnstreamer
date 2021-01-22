@@ -524,12 +524,14 @@ new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
   GstMapInfo info_res;
   gint *output, i;
   gint index = *(gint *)user_data;
+  gboolean ret;
 
   data_received++;
   /* Index 100 means a callback that is not allowed. */
   EXPECT_NE (100, index);
   mem_res = gst_buffer_get_memory (buffer, 0);
-  g_assert (gst_memory_map (mem_res, &info_res, GST_MAP_READ));
+  ret = gst_memory_map (mem_res, &info_res, GST_MAP_READ);
+  ASSERT_TRUE (ret);
   output = (gint *)info_res.data;
 
   for (i = 0; i < 48; i++) {
@@ -553,6 +555,7 @@ TEST (tensor_if_appsrc, action_0)
   gchar *caps_name;
   GstStructure *structure;
   GstPad *pad;
+  gboolean ret;
   gchar *str_pipeline = g_strdup (
       "appsrc name=appsrc ! other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! "
       "tensor_if name=tif compared-value=A_VALUE compared-value-option=1:1:1:1,0 supplied-value=1217 "
@@ -577,7 +580,8 @@ TEST (tensor_if_appsrc, action_0)
 
   buf_0 = gst_buffer_new ();
   mem = gst_allocator_alloc (NULL, 192, NULL);
-  gst_memory_map (mem, &info, GST_MAP_WRITE);
+  ret = gst_memory_map (mem, &info, GST_MAP_WRITE);
+  ASSERT_TRUE (ret);
   memcpy (info.data, test_frames[0], 192);
   gst_memory_unmap (mem, &info);
   gst_buffer_append_memory (buf_0, mem);
@@ -665,8 +669,10 @@ TEST (tensor_if_appsrc, action_1)
 
   buf_0 = gst_buffer_new ();
   for (i = 0; i < 2; i++) {
+    gboolean ret;
     mem = gst_allocator_alloc (NULL, 192, NULL);
-    gst_memory_map (mem, &info, GST_MAP_WRITE);
+    ret = gst_memory_map (mem, &info, GST_MAP_WRITE);
+    ASSERT_TRUE (ret);
     memcpy (info.data, test_frames[i], 192);
     gst_memory_unmap (mem, &info);
     gst_buffer_append_memory (buf_0, mem);
@@ -772,8 +778,10 @@ TEST (tensor_if_custom, normal_0)
 
   buf_0 = gst_buffer_new ();
   for (i = 0; i < 2; i++) {
+    gboolean ret;
     mem = gst_allocator_alloc (NULL, 192, NULL);
-    gst_memory_map (mem, &info, GST_MAP_WRITE);
+    ret = gst_memory_map (mem, &info, GST_MAP_WRITE);
+    ASSERT_TRUE (ret);
     memcpy (info.data, test_frames[i], 192);
     gst_memory_unmap (mem, &info);
     gst_buffer_append_memory (buf_0, mem);
