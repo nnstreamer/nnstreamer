@@ -248,9 +248,12 @@ typedef void (*ml_pipeline_state_cb) (ml_pipeline_state_e state, void *user_data
 /**
  * @brief Callback for custom condition of tensor_if.
  * @since_tizen 6.5
+ * @remarks The @a data can be used only in the callback. To use outside, make a copy.
+ * @remarks The @a info can be used only in the callback. To use outside, make a copy.
+ * @remarks The @a result can be used only in the callback and should not be released.
  * @param[in] data The handle of the tensor output of the pipeline (a single frame. tensor/tensors). Number of tensors is determined by ml_tensors_info_get_count() with the handle 'info'. Note that the maximum number of tensors is 16 (#ML_TENSOR_SIZE_LIMIT).
  * @param[in] info The handle of tensors information (cardinality, dimension, and type of given tensor/tensors).
- * @param[out] result Result of the user-defined condition. 0 refers to FALSE and a non-zero value refers to TRUE.
+ * @param[out] result Result of the user-defined condition. 0 refers to FALSE and a non-zero value refers to TRUE. The application should set the result value for given data.
  * @param[in,out] user_data User application's private data.
  * @return @c 0 on success. Otherwise a negative error value.
  */
@@ -910,7 +913,7 @@ int ml_pipeline_element_get_property_enum (ml_pipeline_element_h elem_h, const c
  * @brief Registers a tensor_if custom callback.
  * @details If the if-condition is complex and cannot be expressed with tensor_if expressions, you can define custom condition.
  * @since_tizen 6.5
- * @remarks If the function succeeds, @a tensor_if handle must be released using ml_pipeline_if_custom_unregister().
+ * @remarks If the function succeeds, @a if_custom handle must be released using ml_pipeline_tensor_if_custom_unregister().
  * @param[in] name The name of custom condition
  * @param[in] cb The function to be called when the pipeline runs.
  * @param[in] user_data Private data for the callback. This value is passed to the callback when it's invoked.
@@ -930,12 +933,15 @@ int ml_pipeline_element_get_property_enum (ml_pipeline_element_h elem_h, const c
  * // Define callback for tensor_if custom condition.
  * static int tensor_if_custom_cb (const ml_tensors_data_h data, const ml_tensors_info_h info, int *result, void *user_data)
  * {
- *  // Describe the conditions and pass the result.
- *  // Result 0 refers to FALSE and a non-zero value refers to TRUE.
-*   // Return 0 if tehere is no error.
+ *   // Describe the conditions and pass the result.
+ *   // Result 0 refers to FALSE and a non-zero value refers to TRUE.
+ *   *result = 1;
+ *   // Return 0 if there is no error.
+ *   return 0;
  * }
+ *
  * // The pipeline description (input data with dimension 2:1:1:1 and type int8 will be passed to tensor_if custom condition. Depending on the result, proceed to true or false paths.)
- * const char pipeline[] = "appsrc ! other/tensor,dimension=(string)2:1:1:1,type=(string)int8,framerate=(fraction)0/1 ! tensor_if name=tif compared-value=CUSTOM compared-value-option=tif_custom_cb_name then=PASSTHROUGH else=PASSTHROUGH tif.src_0 ! tensor_sink tif.src_1 ! tensor_sink
+ * const char pipeline[] = "appsrc ! other/tensor,dimension=(string)2:1:1:1,type=(string)int8,framerate=(fraction)0/1 ! tensor_if name=tif compared-value=CUSTOM compared-value-option=tif_custom_cb_name then=PASSTHROUGH else=PASSTHROUGH tif.src_0 ! tensor_sink name=true_condition async=false tif.src_1 ! tensor_sink name=false_condition async=false"
  * int status;
  * ml_pipeline_h pipe;
  * ml_pipeline_if_h custom;
@@ -971,7 +977,7 @@ int ml_pipeline_tensor_if_custom_register (const char *name, ml_pipeline_if_cust
  * @brief Unregisters the tensor_if custom callback.
  * @details Use this function to release and unregister the tensor_if custom callback.
  * @since_tizen 6.5
- * @param[in] if_custom The tensor_if to be unregistered.
+ * @param[in] if_custom The tensor_if handle to be unregistered.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful.
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.

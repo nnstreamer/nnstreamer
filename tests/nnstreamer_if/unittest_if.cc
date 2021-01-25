@@ -701,7 +701,7 @@ TEST (tensor_if_appsrc, action_1)
 /**
  * @brief custom callback function
  */
-gboolean
+static gboolean
 tensor_if_custom_cb (const GstTensorsInfo *info, const GstTensorMemory *input,
     void *user_data, gboolean *result)
 {
