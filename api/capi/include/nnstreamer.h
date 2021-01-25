@@ -261,6 +261,8 @@ typedef int (*ml_pipeline_if_custom_cb) (const ml_tensors_data_h data, const ml_
 
 /**
  * @brief Callback to execute the custom-easy filter in NNStreamer pipelines.
+ * @details Note that if ml_custom_easy_invoke_cb() returns negative error values, the constructed pipeline does not work properly anymore.
+ *          So developers should release the pipeline handle and recreate it again.
  * @since_tizen 6.0
  * @remarks The @a in can be used only in the callback. To use outside, make a copy.
  * @remarks The @a out can be used only in the callback. To use outside, make a copy.
@@ -1245,6 +1247,8 @@ int ml_check_element_availability (const char *element_name, bool *available);
  * @details NNStreamer provides an interface for processing the tensors with 'custom-easy' framework which can execute without independent shared object.
  *          Using this function, the application can easily register and execute the processing code.
  *          If a custom filter with same name exists, this will be failed and return the error code #ML_ERROR_INVALID_PARAMETER.
+ *          Note that if ml_custom_easy_invoke_cb() returns negative error values, the constructed pipeline does not work properly anymore.
+ *          So developers should release the pipeline handle and recreate it again.
  * @since_tizen 6.0
  * @remarks If the function succeeds, @a custom handle must be released using ml_pipeline_custom_easy_filter_unregister().
  * @param[in] name The name of custom filter.
