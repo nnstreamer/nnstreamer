@@ -1249,7 +1249,7 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   gint num_tensors, i;
   GstFlowReturn res = GST_FLOW_OK;
   GstTensorIf *tensor_if = GST_TENSOR_IF (parent);
-  gboolean condition_result;
+  gboolean condition_result = FALSE;
   tensor_if_behavior curr_act = TIFB_PASSTHROUGH;
   tensor_if_srcpads which_srcpad = TIFSP_THEN_PAD;
   GList *curr_act_option = NULL;
