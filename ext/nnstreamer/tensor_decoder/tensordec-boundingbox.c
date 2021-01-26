@@ -138,6 +138,7 @@ typedef struct
 {
   /* From option3, output tensor mapping */
   gint tensor_mapping[TF_SSD_MAX_TENSORS];      /* Output tensor index mapping */
+  gfloat threshold;             /* Detection threshold */
 } properties_TF_SSD;
 
 /**
@@ -176,6 +177,13 @@ _get_tf_ssd_tensor_idx (bounding_boxes * bdata, tf_ssd_bbox_idx_t idx)
   return bdata->tf_ssd.tensor_mapping[idx];
 }
 
+/** @brief Helper to retrieve object detection confidence threshold */
+static inline float
+_get_tf_ssd_threshold (bounding_boxes * bdata)
+{
+  return bdata->tf_ssd.threshold;
+}
+
 /** @brief Initialize bounding_boxes per mode */
 static int
 _init_modes (bounding_boxes * bdata)
@@ -190,6 +198,7 @@ _init_modes (bounding_boxes * bdata)
 #define TF_SSD_BBOX_IDX_CLASSES_DEFAULT 1
 #define TF_SSD_BBOX_IDX_SCORES_DEFAULT 2
 #define TF_SSD_BBOX_IDX_NUM_DEFAULT 0
+#define TF_SSD_BBOX_THRESHOLD_DEFAULT G_MINFLOAT
 
     data->tensor_mapping[TF_SSD_BBOX_IDX_LOCATIONS] =
         TF_SSD_BBOX_IDX_LOCATIONS_DEFAULT;
@@ -198,6 +207,7 @@ _init_modes (bounding_boxes * bdata)
     data->tensor_mapping[TF_SSD_BBOX_IDX_SCORES] =
         TF_SSD_BBOX_IDX_SCORES_DEFAULT;
     data->tensor_mapping[TF_SSD_BBOX_IDX_NUM] = TF_SSD_BBOX_IDX_NUM_DEFAULT;
+    data->threshold = TF_SSD_BBOX_THRESHOLD_DEFAULT;
 
     return TRUE;
   }
@@ -349,13 +359,20 @@ _setOption_mode (bounding_boxes * bdata, const char *param)
 
   } else if (bdata->mode == TF_SSD_BOUNDING_BOX) {
     properties_TF_SSD *tf_ssd = &bdata->tf_ssd;
+    int threshold_percent;
     int ret = sscanf (param,
-        "%i:%i:%i:%i",
+        "%i:%i:%i:%i,%i",
         &tf_ssd->tensor_mapping[TF_SSD_BBOX_IDX_LOCATIONS],
         &tf_ssd->tensor_mapping[TF_SSD_BBOX_IDX_CLASSES],
         &tf_ssd->tensor_mapping[TF_SSD_BBOX_IDX_SCORES],
-        &tf_ssd->tensor_mapping[TF_SSD_BBOX_IDX_NUM]
-        );
+        &tf_ssd->tensor_mapping[TF_SSD_BBOX_IDX_NUM],
+        &threshold_percent);
+
+    if ((ret == EOF) || (ret < 5)) {
+      GST_ERROR
+          ("Invalid options, must be \"locations idx:classes idx:scores idx:num idx,threshold\"");
+      return FALSE;
+    }
 
     GST_INFO ("TF SSD output tensors mapping: "
         "locations idx (%d), classes idx (%d), scores idx (%d), num detections idx (%d)",
@@ -365,8 +382,15 @@ _setOption_mode (bounding_boxes * bdata, const char *param)
         tf_ssd->tensor_mapping[TF_SSD_BBOX_IDX_NUM]
         );
 
-    if (ret == EOF)
-      return FALSE;
+    if ((threshold_percent > 100) || (threshold_percent < 0)) {
+      GST_ERROR
+          ("Invalid TF SSD threshold detection (%i), must be in range [0 100]",
+          threshold_percent);
+    } else {
+      tf_ssd->threshold = threshold_percent / 100.0;
+    }
+
+    GST_INFO ("TF SSD object detection threshold: %.2f", tf_ssd->threshold);
   }
 
   return TRUE;
@@ -853,6 +877,8 @@ nms (GArray * results)
     for (d = 0; d < num; d++) { \
       _type x1, x2, y1, y2; \
       detectedObject object; \
+      if (scores_[d] < _get_tf_ssd_threshold(bb)) \
+        continue; \
       object.valid = TRUE; \
       object.class_id = (int) classes_[d]; \
       x1 = MIN(MAX(boxes_[d * boxbpi + 1], 0), 1); \
