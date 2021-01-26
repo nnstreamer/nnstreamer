@@ -76,7 +76,7 @@ typedef void *ml_single_h;
 int ml_single_open (ml_single_h *single, const char *model, const ml_tensors_info_h input_info, const ml_tensors_info_h output_info, ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw);
 
 /**
- * @brief Opens an ML model and returns the instance as a handle.
+ * @brief Opens an ML model and returns the instance as a handle with custom options.
  * @details Even if the model has flexible input data dimensions,
  *          input data frames of an instance of a model should share the same dimension.
  * @since_tizen 6.5
@@ -96,9 +96,9 @@ int ml_single_open (ml_single_h *single, const char *model, const ml_tensors_inf
  * @param[in] hw Tell the corresponding @a nnfw to use a specific hardware.
  *               Set #ML_NNFW_HW_ANY if it does not matter.
  * @param[in] custom_option Comma separated list of options.
- *                      It is necessary to optimize the control for some neural network framework. (e.g. NumThreads:N to set the number of threads in TensorFlow-Lite)
+ *                      Use this parameter to fine-tune and optimize specific neural network framework. (e.g. NumThreads:N to set the number of threads in TensorFlow-Lite)
  *                      You may set NULL if it's not required.
- *                      See NNStreamer (https://github.com/nnstreamer/nnstreamer) documentation for the details.
+ *                      See NNStreamer documentation (https://nnstreamer.github.io/gst/nnstreamer/tensor_filter/README.html) for the details.
  * @return @c 0 on success. Otherwise a negative error value.
  * @retval #ML_ERROR_NONE Successful.
  * @retval #ML_ERROR_NOT_SUPPORTED Not supported.

@@ -1231,7 +1231,7 @@ int ml_tensors_data_set_tensor_data (ml_tensors_data_h data, unsigned int index,
 int ml_check_nnfw_availability (ml_nnfw_type_e nnfw, ml_nnfw_hw_e hw, bool *available);
 
 /**
- * @brief Checks the element is registered and available on the pipeline.
+ * @brief Checks if the element is registered and available on the pipeline.
  * @details If the function returns an error, @a available may not be changed.
  * @since_tizen 6.5
  * @param[in] element_name The name of element.
