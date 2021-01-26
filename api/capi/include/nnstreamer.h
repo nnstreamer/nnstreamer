@@ -149,6 +149,7 @@ typedef enum {
   ML_NNFW_TYPE_ARMNN = 9,             /**< Arm Neural Network framework (support for caffe and tensorflow-lite). (Since 6.0) */
   ML_NNFW_TYPE_SNPE = 10,             /**< Qualcomm SNPE (Snapdgragon Neural Processing Engine (.dlc). (Since 6.0) */
   ML_NNFW_TYPE_PYTORCH = 11,          /**< PyTorch (.pt). (Since 6.5) */
+  ML_NNFW_TYPE_NNTR_INF = 12,         /**< Inference supported from NNTrainer, SR On-device Training Framework (since 6.5) */
   ML_NNFW_TYPE_SNAP = 0x2001,         /**< SNAP (Samsung Neural Acceleration Platform), only for Android. (Since 6.0) */
 } ml_nnfw_type_e;
 
