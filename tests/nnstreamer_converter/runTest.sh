@@ -84,4 +84,6 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=1 samplesp
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! tensor_converter ! filesink location=\"testcase08.log\"" 6-1 0 0 $PERFORMANCE
 callCompareTest testcase08.golden testcase08.log 6-2 "PNG Stream Test" 0 0
 
+rm *.log
+
 report

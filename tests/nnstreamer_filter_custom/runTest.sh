@@ -195,4 +195,6 @@ if [ "$TEST_TENSORRT" == "YES" ]; then
   fi
 fi
 
+rm *.log
+
 report

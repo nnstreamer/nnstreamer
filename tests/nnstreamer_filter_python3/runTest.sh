@@ -74,4 +74,6 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/
 python3 checkScaledTensor.py testcase3.direct.log 640 480 testcase3.scaled.log 1280 960 3
 testResult $? 3 "Golden test comparison" 0 1
 
+rm *.log
+
 report

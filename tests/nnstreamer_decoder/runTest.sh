@@ -77,4 +77,6 @@ callCompareTest test_06_raw_0.log test_06_decoded_0.log 6-1 "Compare for case 6-
 callCompareTest test_06_raw_1.log test_06_decoded_1.log 6-2 "Compare for case 6-2" 1 0
 callCompareTest test_06_raw_2.log test_06_decoded_2.log 6-3 "Compare for case 6-3" 1 0
 
+rm *.log
+
 report
