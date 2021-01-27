@@ -6,6 +6,7 @@ index.md
 		Documentation/doxygen-documentation.md
 		Documentation/edge-ai.md
 		Documentation/getting-started.md
+			Documentation/getting-started-android.md
 			Documentation/getting-started-macos.md
 			Documentation/getting-started-meson-build.md
 			Documentation/getting-started-tizen.md
@@ -13,6 +14,7 @@ index.md
 			Documentation/getting-started-ubuntu-ppa.md
 		Documentation/how-to-archive-large-data.md
 		Documentation/how-to-run-examples.md
+			Documentation/gst-launch-script-example.md
 		Documentation/how-to-use-testcases.md
 		Documentation/how-to-write-testcase.md
 		Documentation/nnstreamer_capi.md
@@ -20,6 +22,9 @@ index.md
 		Documentation/writing-subplugin-tensor-filter.md
 		Documentation/writing-tizen-csharp-apps.md
 		Documentation/writing-tizen-native-apps.md
+		Documentation/data-type-and-flow-control.md
+			Documentation/rank-counting-with-other-tensor.md
+		Documentation/synchronization-policies-at-mux-merge.md
 		CODE_OF_CONDUCT.md
 		CONTRIBUTING.md
 		MAINTAINERS.md
