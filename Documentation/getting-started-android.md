@@ -1,4 +1,10 @@
+---
+title: Android
+...
+
 # NNStreamer API Library for Android
+
+## Note: The API will be separated into a new repository soon.
 
 ## Prerequisite
 
