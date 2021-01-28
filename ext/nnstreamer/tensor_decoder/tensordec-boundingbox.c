@@ -851,13 +851,18 @@ nms (GArray * results)
     results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), num); \
     boxbpi = config->info.info[locations_idx].dimension[0]; \
     for (d = 0; d < num; d++) { \
+      _type x1, x2, y1, y2; \
       detectedObject object; \
       object.valid = TRUE; \
       object.class_id = (int) classes_[d]; \
-      object.x = (int) (boxes_[d * boxbpi + 1] * bb->i_width); \
-      object.y = (int) (boxes_[d * boxbpi] * bb->i_height); \
-      object.width = (int) ((boxes_[d * boxbpi + 3] - boxes_[d * boxbpi + 1]) * bb->i_width); \
-      object.height = (int) ((boxes_[d * boxbpi + 2] - boxes_[d * boxbpi]) * bb->i_height); \
+      x1 = MIN(MAX(boxes_[d * boxbpi + 1], 0), 1); \
+      y1 = MIN(MAX(boxes_[d * boxbpi], 0), 1); \
+      x2 = MIN(MAX(boxes_[d * boxbpi + 3], 0), 1); \
+      y2 = MIN(MAX(boxes_[d * boxbpi + 2], 0), 1); \
+      object.x = (int) (x1 * bb->i_width); \
+      object.y = (int) (y1 * bb->i_height); \
+      object.width = (int) ((x2 - x1) * bb->i_width); \
+      object.height = (int) ((y2 - y1) * bb->i_height); \
       object.prob = scores_[d]; \
       g_array_append_val (results, object); \
     } \
