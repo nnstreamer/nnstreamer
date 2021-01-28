@@ -61,8 +61,8 @@
 #include <nnstreamer_log.h>
 #include "tensordecutil.h"
 
-void init_bb (void) __attribute__ ((constructor));
-void fini_bb (void) __attribute__ ((destructor));
+void init_bb (void) __attribute__((constructor));
+void fini_bb (void) __attribute__((destructor));
 
 /* font.c */
 extern uint8_t rasters[][13];
@@ -76,7 +76,7 @@ extern uint8_t rasters[][13];
 #define OV_PERSON_DETECTION_MAX_TENSORS         (1U)
 #define OV_PERSON_DETECTION_SIZE_DETECTION_DESC (7)
 #define OV_PERSON_DETECTION_CONF_THRESHOLD      (0.8)
-#define PIXEL_VALUE                             (0xFF0000FF) /* RED 100% in RGBA */
+#define PIXEL_VALUE                             (0xFF0000FF)    /* RED 100% in RGBA */
 
 /**
  * @todo Fill in the value at build time or hardcode this. It's const value
@@ -427,7 +427,7 @@ _check_tensors (const GstTensorsConfig * config, const int limit)
  * @brief check the label relevant properties are valid
 */
 static gboolean
-_check_label_props(bounding_boxes * data)
+_check_label_props (bounding_boxes * data)
 {
   if ((!data->label_path) || (!data->labeldata.labels) ||
       (data->labeldata.total_labels <= 0))
@@ -546,7 +546,7 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
       return NULL;
     }
   } else if ((data->mode == OV_PERSON_DETECTION_BOUNDING_BOX) ||
-      (data->mode == OV_FACE_DETECTION_BOUNDING_BOX)){
+      (data->mode == OV_FACE_DETECTION_BOUNDING_BOX)) {
     const guint *dim;
 
     if (!_check_tensors (config, OV_PERSON_DETECTION_MAX_TENSORS))
@@ -565,8 +565,7 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
   }
 
   str = g_strdup_printf ("video/x-raw, format = RGBA, " /* Use alpha channel to make the background transparent */
-      "width = %u, height = %u"
-      , data->width, data->height);
+      "width = %u, height = %u", data->width, data->height);
   caps = gst_caps_from_string (str);
   setFramerateFromConfig (caps, config);
   g_free (str);
@@ -904,7 +903,7 @@ draw (GstMapInfo * out_info, bounding_boxes * bdata, GArray * results)
       for (j = 0; j < label_len; j++) {
         unsigned int char_index = label[j];
         if ((x1 + 8) > bdata->width)
-          break;                  /* Stop drawing if it may overfill */
+          break;                /* Stop drawing if it may overfill */
         pos2 = pos1;
         for (y2 = 0; y2 < 13; y2++) {
           /* 13 : character height */
@@ -915,7 +914,7 @@ draw (GstMapInfo * out_info, bounding_boxes * bdata, GArray * results)
           pos2 += bdata->width;
         }
         x1 += 9;
-        pos1 += 9;                /* charater width + 1px */
+        pos1 += 9;              /* charater width + 1px */
       }
     }
   }
@@ -935,7 +934,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
 
   g_assert (outbuf);
 
-  if (_check_label_props(bdata))
+  if (_check_label_props (bdata))
     bdata->flag_use_label = TRUE;
   else
     bdata->flag_use_label = FALSE;
@@ -1017,7 +1016,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
         g_assert (0);
     }
   } else if ((bdata->mode == OV_PERSON_DETECTION_BOUNDING_BOX) ||
-      (bdata->mode == OV_FACE_DETECTION_BOUNDING_BOX))  {
+      (bdata->mode == OV_FACE_DETECTION_BOUNDING_BOX)) {
     results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject),
         OV_PERSON_DETECTION_MAX);
 
@@ -1025,16 +1024,16 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
     g_assert (num_tensors >= OV_PERSON_DETECTION_MAX_TENSORS);
 
     switch (config->info.info[0].type) {
-      _get_persons_ov(bdata, uint8_t, input[0].data, _NNS_UINT8, results);
-      _get_persons_ov(bdata, int8_t, input[0].data, _NNS_INT8, results);
-      _get_persons_ov(bdata, uint16_t, input[0].data, _NNS_UINT16, results);
-      _get_persons_ov(bdata, int16_t, input[0].data, _NNS_INT16, results);
-      _get_persons_ov(bdata, uint32_t, input[0].data, _NNS_UINT32, results);
-      _get_persons_ov(bdata, int32_t, input[0].data, _NNS_INT32, results);
-      _get_persons_ov(bdata, uint64_t, input[0].data, _NNS_UINT64, results);
-      _get_persons_ov(bdata, int64_t, input[0].data, _NNS_INT64, results);
-      _get_persons_ov(bdata, float, input[0].data, _NNS_FLOAT32, results);
-      _get_persons_ov(bdata, double, input[0].data, _NNS_FLOAT64, results);
+        _get_persons_ov (bdata, uint8_t, input[0].data, _NNS_UINT8, results);
+        _get_persons_ov (bdata, int8_t, input[0].data, _NNS_INT8, results);
+        _get_persons_ov (bdata, uint16_t, input[0].data, _NNS_UINT16, results);
+        _get_persons_ov (bdata, int16_t, input[0].data, _NNS_INT16, results);
+        _get_persons_ov (bdata, uint32_t, input[0].data, _NNS_UINT32, results);
+        _get_persons_ov (bdata, int32_t, input[0].data, _NNS_INT32, results);
+        _get_persons_ov (bdata, uint64_t, input[0].data, _NNS_UINT64, results);
+        _get_persons_ov (bdata, int64_t, input[0].data, _NNS_INT64, results);
+        _get_persons_ov (bdata, float, input[0].data, _NNS_FLOAT32, results);
+        _get_persons_ov (bdata, double, input[0].data, _NNS_FLOAT64, results);
       default:
         g_assert (0);
     }
