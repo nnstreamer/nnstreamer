@@ -37,6 +37,7 @@ new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
 {
   GstMemory *mem_res;
   GstMapInfo info_res;
+  gboolean mapped;
   gint *output, i;
   gint index = *(gint *)user_data;
 
@@ -44,7 +45,8 @@ new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
   /* Index 100 means a callback that is not allowed. */
   EXPECT_NE (100, index);
   mem_res = gst_buffer_get_memory (buffer, 0);
-  g_assert (gst_memory_map (mem_res, &info_res, GST_MAP_READ));
+  mapped = gst_memory_map (mem_res, &info_res, GST_MAP_READ);
+  ASSERT_TRUE (mapped);
   output = (gint *)info_res.data;
 
   for (i = 0; i < 48; i++) {
@@ -61,8 +63,6 @@ TEST (join, normal_0)
 {
   gint idx, n_pads;
   GstBuffer *buf_0, *buf_1, *buf_3, *buf_4;
-  GstMemory *mem;
-  GstMapInfo info;
   GstElement *appsrc_handle_0, *appsrc_handle_1, *sink_handle, *join_handle;
   GstPad *active_pad;
   gchar *active_name;
@@ -91,20 +91,10 @@ TEST (join, normal_0)
 
   g_signal_connect (sink_handle, "new-data", (GCallback)new_data_cb, (gpointer)&idx);
 
-  buf_0 = gst_buffer_new ();
-  mem = gst_allocator_alloc (NULL, 192, NULL);
-  gst_memory_map (mem, &info, GST_MAP_WRITE);
-  memcpy (info.data, test_frames[0], 192);
-  gst_memory_unmap (mem, &info);
-  gst_buffer_append_memory (buf_0, mem);
+  buf_0 = gst_buffer_new_wrapped (g_memdup (test_frames[0], 192), 192);
   buf_3 = gst_buffer_copy (buf_0);
 
-  buf_1 = gst_buffer_new ();
-  mem = gst_allocator_alloc (NULL, 192, NULL);
-  gst_memory_map (mem, &info, GST_MAP_WRITE);
-  memcpy (info.data, test_frames[1], 192);
-  gst_memory_unmap (mem, &info);
-  gst_buffer_append_memory (buf_1, mem);
+  buf_1 = gst_buffer_new_wrapped (g_memdup (test_frames[1], 192), 192);
   buf_4 = gst_buffer_copy (buf_1);
 
   data_received = 0;
