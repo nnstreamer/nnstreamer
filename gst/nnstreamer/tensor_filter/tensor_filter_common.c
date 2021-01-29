@@ -1144,6 +1144,8 @@ _detect_framework_from_config (const gchar * extension)
  * @param[in] num_models the number of model files
  * @param[in] load_conf flag to load configuration for the priority of framework
  * @return Possible framework name (NULL if it fails to detect automatically). Caller should free returned value using g_free().
+ * @note This function is included in nnstreamer internal header for native APIs.
+ *       When changing the declaration, you should update the internal header (nnstreamer_internal.h).
  */
 gchar *
 gst_tensor_filter_detect_framework (const gchar * const *model_files,
@@ -2588,7 +2590,9 @@ accl_hw_get_type (void)
 }
 
 /**
- * @brief check if the given hw is supported by the framework
+ * @brief Check if the given hw is supported by the framework.
+ * @note This function is included in nnstreamer internal header for native APIs.
+ *       When changing the declaration, you should update the internal header (nnstreamer_internal.h).
  */
 gboolean
 gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw)

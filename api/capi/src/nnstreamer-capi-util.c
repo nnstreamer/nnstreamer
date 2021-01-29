@@ -26,8 +26,7 @@
 #include "nnstreamer-capi-private.h"
 #include "nnstreamer_plugin_api.h"
 #include "nnstreamer_plugin_api_filter.h"
-#include "nnstreamer_conf.h"
-#include <tensor_filter_common.h>
+#include "nnstreamer_internal.h"
 
 /**
  * @brief The name of sub-plugin for defined neural net frameworks.

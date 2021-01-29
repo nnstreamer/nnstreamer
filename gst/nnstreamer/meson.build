@@ -64,6 +64,10 @@ endforeach
 
 subdir('include')
 
+# Private header for sub-plugins and native APIs
+nnstreamer_headers += join_paths(meson.current_source_dir(), 'nnstreamer_internal.h')
+nnstreamer_headers += join_paths(meson.current_source_dir(), 'nnstreamer_log.h')
+
 # Build libraries ("both_libraries" are supported from 0.46.)
 nnstreamer_shared = shared_library('nnstreamer',
   nnstreamer_sources,

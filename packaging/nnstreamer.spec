@@ -394,6 +394,14 @@ Requires:	gstreamer-devel
 Development package for custom tensor operator developers (tensor_filter/custom).
 This contains corresponding header files and .pc pkgconfig file.
 
+%package devel-internal
+Summary:    Development package to access internal functions of NNStreamer
+Requires:   devel = %{version}-%{release}
+%description devel-internal
+Development package to access internal functions of NNStreamer.
+This may be used by API packages.
+In most cases, custom-filter or subplugin authors do not need this internal devel package; however, if they want to access more internal functions, they may need this.
+
 %package devel-static
 Summary:    Static library for nnstreamer-devel package
 Requires:   devel = %{version}-%{release}
@@ -897,7 +905,6 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_includedir}/nnstreamer/tensor_typedef.h
 %{_includedir}/nnstreamer/tensor_filter_custom.h
 %{_includedir}/nnstreamer/tensor_filter_custom_easy.h
-%{_includedir}/nnstreamer/tensor_filter_single.h
 %{_includedir}/nnstreamer/nnstreamer_plugin_api_filter.h
 %{_includedir}/nnstreamer/nnstreamer_plugin_api_decoder.h
 %{_includedir}/nnstreamer/nnstreamer_plugin_api_converter.h
@@ -907,6 +914,11 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_includedir}/nnstreamer/nnstreamer_cppplugin_api_filter.hh
 %{_libdir}/pkgconfig/nnstreamer.pc
 %{_libdir}/pkgconfig/nnstreamer-cpp.pc
+
+%files devel-internal
+%{_includedir}/nnstreamer/nnstreamer_internal.h
+%{_includedir}/nnstreamer/nnstreamer_log.h
+%{_includedir}/nnstreamer/tensor_filter_single.h
 
 %files devel-static
 %{_libdir}/*.a
