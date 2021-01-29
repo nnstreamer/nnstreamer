@@ -58,13 +58,6 @@ Depends: nnstreamer, python3, python3-numpy, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer Python Custom Filter Support (3.x)
  This Package allows nnstreamer to support python custom filters
 
-Package: nnstreamer-cpp
-Architecture: any
-Multi-Arch: same
-Depends: nnstreamer, ${shlibs:Depends}, ${misc:Depends}
-Description: NNStreamer CPP Filter Subplugin Support
- This package allows nnstreamer to support custom filters of C++ classes
-
 Package: nnstreamer-edgetpu
 Architecture: any
 Multi-Arch: same
@@ -119,25 +112,31 @@ Package: nnstreamer-api-common-dev
 Architecture: any
 Multi-Arch: same
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Description: NNStreamer api common
- Provides headers commonly used across api, such as error definitions.
+Description: NNStreamer API common
+ Provides headers commonly used across API, such as error definitions.
  This is a development package for nnstreamer.
+
+Package: nnstreamer-api
+Architecture: any
+Multi-Arch: same
+Depends: nnstreamer, ${shlibs:Depends}, ${misc:Depends}
+Description: NNStreamer API
+ This package provides native API set to easily construct a data stream pipeline with neural networks.
+
+Package: nnstreamer-api-dev
+Architecture: any
+Multi-Arch: same
+Depends: nnstreamer-api, nnstreamer-api-common-dev, ${shlibs:Depends}, ${misc:Depends}
+Description: Development package for NNStreamer API
+ This is a development package for NNStreamer API.
 
 Package: nnstreamer-dev
 Architecture: any
 Multi-Arch: same
-Depends: nnstreamer, nnstreamer-api-common-dev, ${shlibs:Depends}, ${misc:Depends}
+Depends: nnstreamer, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer development package
  Gstreamer plugins, "NNStreamer", provides access to neural network frameworks for media streams.
  This is development package for nnstreamer.
- If you want to develop Android applications with nnstreamer+gstreamer, you need the libnnstreamer.a from this package.
-
-Package: nnstreamer-cpp-dev
-Architecture: any
-Multi-Arch: same
-Depends: nnstreamer-cpp, nnstreamer-dev, nnstreamer-api-common-dev, ${shlibs:Depends}, ${misc:Depends}
-Description: NNStreamer CPP Filter Subplugin Development Support
- This package allows developers to write custom filters of C++ classes
 
 Package: nnstreamer-util
 Architecture: any
