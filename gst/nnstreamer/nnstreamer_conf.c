@@ -500,7 +500,11 @@ nnsconf_get_subplugin_info (nnsconf_type_path type, subplugin_info_s * info)
  */
 static GHashTable *custom_table = NULL;
 
-/** @brief Public function defined in the header */
+/**
+ * @brief Public function defined in the header.
+ * @note This function is included in nnstreamer internal header for native APIs.
+ *       When changing the declaration, you should update the internal header (nnstreamer_internal.h).
+ */
 gchar *
 nnsconf_get_custom_value_string (const gchar * group, const gchar * key)
 {
@@ -548,7 +552,11 @@ nnsconf_get_custom_value_string (const gchar * group, const gchar * key)
   return g_strdup (value);
 }
 
-/** @brief Public function defined in the header */
+/**
+ * @brief Public function defined in the header.
+ * @note This function is included in nnstreamer internal header for native APIs.
+ *       When changing the declaration, you should update the internal header (nnstreamer_internal.h).
+ */
 gboolean
 nnsconf_get_custom_value_bool (const gchar * group, const gchar * key,
     gboolean def)

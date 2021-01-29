@@ -138,6 +138,14 @@ Description: NNStreamer development package
  Gstreamer plugins, "NNStreamer", provides access to neural network frameworks for media streams.
  This is development package for nnstreamer.
 
+Package: nnstreamer-dev-internal
+Architecture: any
+Multi-Arch: same
+Depends: nnstreamer-dev, ${shlibs:Depends}, ${misc:Depends}
+Description: Development package to access internal functions of NNStreamer.
+ This may be used by API packages.
+ In most cases, custom-filter or subplugin authors do not need this internal devel package; however, if they want to access more internal functions, they may need this.
+
 Package: nnstreamer-util
 Architecture: any
 Multi-Arch: same
