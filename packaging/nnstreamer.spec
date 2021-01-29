@@ -730,6 +730,7 @@ export NNSTREAMER_CONVERTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor
 
 %if %{with tizen}
     bash %{test_script} ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw
+    bash %{test_script} ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_api
     bash %{test_script} ./tests/tizen_capi/unittest_tizen_sensor
 %endif #if tizen
 %if 0%{?unit_test}
