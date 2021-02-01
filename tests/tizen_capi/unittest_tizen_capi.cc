@@ -7091,31 +7091,44 @@ TEST (nnstreamer_capi_element, get_property_bool_05_n)
 TEST (nnstreamer_capi_element, set_property_string_01_p)
 {
   ml_pipeline_h handle = nullptr;
-  ml_pipeline_element_h demux_h = nullptr;
-  gchar *pipeline;
+  ml_pipeline_element_h filter_h = nullptr;
+  gchar *pipeline, *test_model;
   int status;
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
 
-  pipeline = g_strdup (
-      "videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! "
-      "tensor_converter ! tensor_mux ! tensor_demux name=demux ! tensor_sink");
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  /* start pipeline test with valid model file */
+  test_model = g_build_filename (
+      root_path, "tests", "test_models", "models", "add.tflite", NULL);
+  EXPECT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  pipeline = g_strdup_printf (
+      "appsrc name=appsrc ! "
+      "other/tensor,dimension=(string)1:1:1:1,type=(string)float32,framerate=(fraction)0/1 ! "
+      "tensor_filter name=filter_h framework=tensorflow-lite model=%s ! tensor_sink name=tensor_sink",
+      test_model);
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_element_get_handle (handle, "demux", &demux_h);
+  status = ml_pipeline_element_get_handle (handle, "filter_h", &filter_h);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* Test Code */
-  status = ml_pipeline_element_set_property_string (demux_h, "tensorpick", "1,2");
+  status = ml_pipeline_element_set_property_string (filter_h, "framework", "nnfw");
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_element_release_handle (demux_h);
+  status = ml_pipeline_element_release_handle (filter_h);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_free (pipeline);
+  g_free (test_model);
 }
 
 /**
@@ -7127,7 +7140,7 @@ TEST (nnstreamer_capi_element, set_property_string_02_n)
   int status;
 
   /* Test Code */
-  status = ml_pipeline_element_set_property_string (nullptr, "tensorpick", "1,2");
+  status = ml_pipeline_element_set_property_string (nullptr, "framework", "nnfw");
   EXPECT_NE (status, ML_ERROR_NONE);
 }
 
@@ -7138,31 +7151,44 @@ TEST (nnstreamer_capi_element, set_property_string_02_n)
 TEST (nnstreamer_capi_element, set_property_string_03_n)
 {
   ml_pipeline_h handle = nullptr;
-  ml_pipeline_element_h demux_h = nullptr;
-  gchar *pipeline;
+  ml_pipeline_element_h filter_h = nullptr;
+  gchar *pipeline, *test_model;
   int status;
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
 
-  pipeline = g_strdup (
-      "videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! "
-      "tensor_converter ! tensor_mux ! tensor_demux name=demux ! tensor_sink");
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  /* start pipeline test with valid model file */
+  test_model = g_build_filename (
+      root_path, "tests", "test_models", "models", "add.tflite", NULL);
+  EXPECT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  pipeline = g_strdup_printf (
+      "appsrc name=appsrc ! "
+      "other/tensor,dimension=(string)1:1:1:1,type=(string)float32,framerate=(fraction)0/1 ! "
+      "tensor_filter name=filter_h framework=tensorflow-lite model=%s ! tensor_sink name=tensor_sink",
+      test_model);
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_element_get_handle (handle, "demux", &demux_h);
+  status = ml_pipeline_element_get_handle (handle, "filter_h", &filter_h);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* Test Code */
-  status = ml_pipeline_element_set_property_string (demux_h, "WRONG_NAME", "1,2");
+  status = ml_pipeline_element_set_property_string (filter_h, "WRONG_NAME", "invalid");
   EXPECT_NE (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_element_release_handle (demux_h);
+  status = ml_pipeline_element_release_handle (filter_h);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_free (pipeline);
+  g_free (test_model);
 }
 
 /**
@@ -7207,45 +7233,57 @@ TEST (nnstreamer_capi_element, set_property_string_04_n)
 TEST (nnstreamer_capi_element, get_property_string_01_p)
 {
   ml_pipeline_h handle = nullptr;
-  ml_pipeline_element_h demux_h = nullptr;
-  gchar *pipeline;
-  gchar *ret_tensorpick;
+  ml_pipeline_element_h filter_h = nullptr;
+  gchar *pipeline, *test_model;
+  gchar *ret_prop;
   int status;
 
-  pipeline = g_strdup (
-      "videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! "
-      "tensor_converter ! tensor_mux ! tensor_demux name=demux ! tensor_sink");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  /* start pipeline test with valid model file */
+  test_model = g_build_filename (
+      root_path, "tests", "test_models", "models", "add.tflite", NULL);
+  EXPECT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  pipeline = g_strdup_printf (
+      "appsrc name=appsrc ! "
+      "other/tensor,dimension=(string)1:1:1:1,type=(string)float32,framerate=(fraction)0/1 ! "
+      "tensor_filter name=filter_h framework=tensorflow-lite model=%s ! tensor_sink name=tensor_sink",
+      test_model);
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_element_get_handle (handle, "demux", &demux_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_set_property_string (demux_h, "tensorpick", "1,2");
+  status = ml_pipeline_element_get_handle (handle, "filter_h", &filter_h);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* Test Code */
-  status = ml_pipeline_element_get_property_string (demux_h, "tensorpick", &ret_tensorpick);
+  status = ml_pipeline_element_get_property_string (filter_h, "framework", &ret_prop);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_TRUE (g_str_equal (ret_tensorpick, "1,2"));
-  g_free (ret_tensorpick);
+  EXPECT_TRUE (g_str_equal (ret_prop, "tensorflow-lite"));
+  g_free (ret_prop);
 
-  status = ml_pipeline_element_set_property_string (demux_h, "tensorpick", "1");
+  status = ml_pipeline_element_set_property_string (filter_h, "framework", "nnfw");
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_element_get_property_string (demux_h, "tensorpick", &ret_tensorpick);
+  /* Test Code */
+  status = ml_pipeline_element_get_property_string (filter_h, "framework", &ret_prop);
   EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_TRUE (g_str_equal (ret_tensorpick, "1"));
-  g_free (ret_tensorpick);
+  EXPECT_TRUE (g_str_equal (ret_prop, "nnfw"));
+  g_free (ret_prop);
 
-  status = ml_pipeline_element_release_handle (demux_h);
+  status = ml_pipeline_element_release_handle (filter_h);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_free (pipeline);
+  g_free (test_model);
 }
 
 /**
@@ -7255,10 +7293,10 @@ TEST (nnstreamer_capi_element, get_property_string_01_p)
 TEST (nnstreamer_capi_element, get_property_string_02_n)
 {
   int status;
-  gchar *ret_tensorpick;
+  gchar *ret_prop;
 
   /* Test Code */
-  status = ml_pipeline_element_get_property_string (nullptr, "tensorpick", &ret_tensorpick);
+  status = ml_pipeline_element_get_property_string (nullptr, "framework", &ret_prop);
   EXPECT_NE (status, ML_ERROR_NONE);
 }
 
@@ -7269,35 +7307,46 @@ TEST (nnstreamer_capi_element, get_property_string_02_n)
 TEST (nnstreamer_capi_element, get_property_string_03_n)
 {
   ml_pipeline_h handle = nullptr;
-  ml_pipeline_element_h demux_h = nullptr;
-  gchar *pipeline;
-  gchar *ret_tensorpick;
+  ml_pipeline_element_h filter_h = nullptr;
+  gchar *pipeline, *test_model;
+  gchar *ret_prop;
   int status;
 
-  pipeline = g_strdup (
-      "videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! "
-      "tensor_converter ! tensor_mux ! tensor_demux name=demux ! tensor_sink");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  /* start pipeline test with valid model file */
+  test_model = g_build_filename (
+      root_path, "tests", "test_models", "models", "add.tflite", NULL);
+  EXPECT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  pipeline = g_strdup_printf (
+      "appsrc name=appsrc ! "
+      "other/tensor,dimension=(string)1:1:1:1,type=(string)float32,framerate=(fraction)0/1 ! "
+      "tensor_filter name=filter_h framework=tensorflow-lite model=%s ! tensor_sink name=tensor_sink",
+      test_model);
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_element_get_handle (handle, "demux", &demux_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_set_property_string (demux_h, "tensorpick", "1,2");
+  status = ml_pipeline_element_get_handle (handle, "filter_h", &filter_h);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* Test Code */
-  status = ml_pipeline_element_get_property_string (demux_h, "WRONG_NAME", &ret_tensorpick);
+  status = ml_pipeline_element_get_property_string (filter_h, "WRONG_NAME", &ret_prop);
   EXPECT_NE (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_element_release_handle (demux_h);
+  status = ml_pipeline_element_release_handle (filter_h);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_free (pipeline);
+  g_free (test_model);
 }
 
 /**
@@ -7307,34 +7356,45 @@ TEST (nnstreamer_capi_element, get_property_string_03_n)
 TEST (nnstreamer_capi_element, get_property_string_04_n)
 {
   ml_pipeline_h handle = nullptr;
-  ml_pipeline_element_h demux_h = nullptr;
-  gchar *pipeline;
+  ml_pipeline_element_h filter_h = nullptr;
+  gchar *pipeline, *test_model;
   int status;
 
-  pipeline = g_strdup (
-      "videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! videorate max-rate=1 ! "
-      "tensor_converter ! tensor_mux ! tensor_demux name=demux ! tensor_sink");
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  /* start pipeline test with valid model file */
+  test_model = g_build_filename (
+      root_path, "tests", "test_models", "models", "add.tflite", NULL);
+  EXPECT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  pipeline = g_strdup_printf (
+      "appsrc name=appsrc ! "
+      "other/tensor,dimension=(string)1:1:1:1,type=(string)float32,framerate=(fraction)0/1 ! "
+      "tensor_filter name=filter_h framework=tensorflow-lite model=%s ! tensor_sink name=tensor_sink",
+      test_model);
 
   status = ml_pipeline_construct (pipeline, nullptr, nullptr, &handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_element_get_handle (handle, "demux", &demux_h);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_element_set_property_string (demux_h, "tensorpick", "1,2");
+  status = ml_pipeline_element_get_handle (handle, "filter_h", &filter_h);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   /* Test Code */
-  status = ml_pipeline_element_get_property_string (demux_h, "tensorpick", nullptr);
+  status = ml_pipeline_element_get_property_string (filter_h, "framework", nullptr);
   EXPECT_NE (status, ML_ERROR_NONE);
 
-  status = ml_pipeline_element_release_handle (demux_h);
+  status = ml_pipeline_element_release_handle (filter_h);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   status = ml_pipeline_destroy (handle);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
   g_free (pipeline);
+  g_free (test_model);
 }
 
 /**
