@@ -74,6 +74,45 @@ Select the output tensor(s) from the input tensor(s) and/or model output
 Suppose the model receives tensors '0,1' as an input and outputs tensor '0,1,2'.  
 Src pad of the tensor_filter can produce input tensor '0' and output tensors '0,2' using output-combination.  
 
+### Comparison of tee and combination option
+#### Object detection using tee
+The video is the same as the original camera output and the labels and bounding boxes are updated after processing in the tensor filter.  
+  - launch script
+```
+gst-launch-1.0 \
+v4l2src name=cam_src ! videoscale ! videoconvert ! video/x-raw,width=640,height=480,format=RGB,framerate=30/1 ! tee name=t \
+  t. ! queue leaky=2 max-size-buffers=2 ! videoscale ! tensor_converter ! \
+    tensor_filter framework=tensorflow model=tf_model/ssdlite_mobilenet_v2.pb \
+      input=3:640:480:1 inputname=image_tensor inputtype=uint8 \
+      output=1:1:1:1,100:1:1:1,100:1:1:1,4:100:1:1 \
+      outputname=num_detections,detection_classes,detection_scores,detection_boxes \
+      outputtype=float32,float32,float32,float32 ! \
+    tensor_decoder mode=bounding_boxes option1=tf-ssd option2=tf_model/coco_labels_list.txt option4=640:480 option5=640:480 ! \
+    compositor name=mix sink_0::zorder=2 sink_1::zorder=1 ! videoconvert ! ximagesink \
+  t. ! queue leaky=2 max-size-buffers=10 ! mix.
+```
+  - Graphical description of the pipeline
+  ![tee-pipeline-img](./filter_tee.png)  
+
+#### Object detection using output combination option
+The orignal video frame is passed to output of tensor-filter using the property output-combination.  
+  - launch script
+```
+gst-launch-1.0 \
+v4l2src name=cam_src ! videoscale ! videoconvert ! video/x-raw,width=640,height=480,format=RGB,framerate=30/1 ! \
+  tensor_converter ! tensor_filter framework=tensorflow model=tf_model/ssdlite_mobilenet_v2.pb \
+      input=3:640:480:1 inputname=image_tensor inputtype=uint8 \
+      output=1:1:1:1,100:1:1:1,100:1:1:1,4:100:1:1 \
+      outputname=num_detections,detection_classes,detection_scores,detection_boxes \
+      outputtype=float32,float32,float32,float32 output-combination=i0,o0,o1,o2,o3 ! \
+  tensor_demux name=demux tensorpick=0,1:2:3:4 demux.src_1 ! queue leaky=2 max-size-buffers=2 ! \
+    tensor_decoder mode=bounding_boxes option1=tf-ssd option2=tf_model/coco_labels_list.txt option4=640:480 option5=640:480 ! \
+    compositor name=mix sink_0::zorder=2 sink_1::zorder=1 ! videoconvert ! ximagesink \
+  demux.src_0 ! queue leaky=2 max-size-buffers=2 ! tensor_decoder mode=direct_video ! videoconvert ! mix.
+```
+  - Graphical description of the pipeline
+  ![combi-pipeline-img](./filter_input_combi.png)  
+
 ## Sub-Components
 
 ### Main ```tensor_filter.c```
