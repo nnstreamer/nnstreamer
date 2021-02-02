@@ -1,3 +1,6 @@
+---
+title: NNStreamer Tools
+...
 
 Table of Contents
 =================
@@ -10,7 +13,7 @@ Table of Contents
 
 
 # Tools
-
+### You can find nnstreamer tools [here](https://github.com/nnstreamer/nnstreamer/tree/main/tools). 
 This section describes how to do tracing, debugging, profiling when developers deploy NNStreamer on their own devices. 
 There are three features as following: 
 
@@ -24,13 +27,13 @@ If you are interested in the tool technology to optimize your application using 
 
 
 ## Development 
-* Press [Here](development/README.md)
- 
+* Press [Here](tools/development/README.md)
+
 ## Tracing
-* Press [Here](tracing/README.md)
+* Press [Here](tools/tracing/README.md)
 
 ## Debugging
-* Press [Here](debugging/README.md)
+* Press [Here](tools/debugging/README.md)
 
 ## Profiling
-* Press [Here](profiling/README.md)
+* Press [Here](tools/profiling/README.md)

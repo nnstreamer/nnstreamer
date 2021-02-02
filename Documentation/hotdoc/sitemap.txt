@@ -35,3 +35,8 @@ index.md
 		ext/nnstreamer/android_source/README.md
 	Documentation/nnst-exam/nnst_exam.json
 	Documentation/API-reference.md
+	tools/README.md
+		tools/debugging/README.md
+		tools/development/README.md
+		tools/profiling/README.md
+		tools/tracing/README.md
