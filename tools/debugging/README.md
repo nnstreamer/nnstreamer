@@ -1,12 +1,15 @@
+---
+title: Debugging tools
+...
 
 ## Debugging
  GStreamer has a debugging feature that automatically generates pipeline graphs. 
 * https://gstreamer.freedesktop.org/documentation/tutorials/basic/debugging-tools.html
 
 * Table of Contents
-  * [Displaying debug messages with $GST_DEBUG](#displaying-debug-messages-with-$gst_debug)
-  * [Generating pipeline graph with $GST_DEBUG_DUMP_DOT_DIR](#generating-pipeline-graph-with-$gst_debug_dump_dot_dir)
-  * [Debugging remotely with gst-debugger](#debugging-remotely-with-gst-debugger)
+  * [Displaying debug messages with $GST_DEBUG](#displaying-debug-messages-with-gst_debug)
+  * [Generating pipeline graph with $GST_DEBUG_DUMP_DOT_DIR](#generating-pipeline-graph-with-gst_debug_dump_dot_dir)
+  * [Debugging remotely with gst-debugger](#debugging-remotely-with-gstdebugger)
 
 
 ### Displaying debug messages with $GST_DEBUG

@@ -1,3 +1,6 @@
+---
+title: Tracing tools
+...
 
 ## Tracing
 

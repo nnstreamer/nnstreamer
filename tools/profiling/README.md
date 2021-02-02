@@ -1,3 +1,6 @@
+---
+title: Profiling tools
+...
 
 ## Profiling
 
