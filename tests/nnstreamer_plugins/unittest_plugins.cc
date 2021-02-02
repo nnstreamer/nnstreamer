@@ -4342,6 +4342,109 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_wrong_inputtype_n)
   g_free (test_model);
 }
 
+/**
+ * @brief Test framework auto detecion without specifying the option in tensor-filter.
+ */
+TEST (test_tensor_filter, framework_auto_wo_opt_ext_tflite)
+{
+  gchar *test_model, *str_launch_line;
+  GstElement *gstpipe;
+  const gchar fw_name[] = "tensorflow-lite";
+  GET_MODEL_PATH ("mobilenet_v1_1.0_224_quant.tflite");
+
+  str_launch_line = g_strdup_printf (
+      "videotestsrc ! videoconvert ! videoscale ! videorate ! video/x-raw,format=RGB,width=224,height=224 ! tensor_converter ! tensor_filter name=tfilter model=%s ! tensor_sink",
+      test_model);
+  gstpipe = gst_parse_launch (str_launch_line, NULL);
+  g_free (str_launch_line);
+  EXPECT_TRUE (gstpipe != nullptr);
+  TEST_TENSOR_FILTER_AUTO_OPTION_P (gstpipe, fw_name);
+}
+
+/**
+ * @brief Test framework auto detecion option in tensor-filter.
+ * @details Negative case when model file does not exist
+ */
+TEST (test_tensor_filter, framework_auto_wo_opt_ext_tflite_model_not_found_n)
+{
+  gchar *test_model, *str_launch_line;
+  const gchar *fw_name = NULL;
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  GstElement *gstpipe;
+
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (
+      root_path, "tests", "test_models", "models", "mirage.tflite", NULL);
+
+  str_launch_line = g_strdup_printf (
+      "videotestsrc ! videoconvert ! videoscale ! videorate ! video/x-raw,format=RGB,width=224,height=224 ! tensor_converter ! tensor_filter model=%s ! tensor_sink",
+      test_model);
+  gstpipe = gst_parse_launch (str_launch_line, NULL);
+  g_free (str_launch_line);
+  ASSERT_NE (gstpipe, nullptr);
+  TEST_TENSOR_FILTER_AUTO_OPTION_N (gstpipe, fw_name);
+
+  g_free (test_model);
+}
+
+/**
+ * @brief Test framework auto detecion without specifying the option in tensor-filter.
+ * @details Negative case with not supported extension
+ */
+TEST (test_tensor_filter, framework_auto_wo_opt_tflite_not_supported_ext_n)
+{
+  gchar *test_model, *str_launch_line;
+  const gchar *fw_name = NULL;
+  GstElement *gstpipe;
+  GET_MODEL_PATH ("mobilenet_v1_1.0_224_quant.invalid");
+
+  str_launch_line = g_strdup_printf (
+      "videotestsrc ! videoconvert ! videoscale ! videorate ! video/x-raw,format=RGB,width=224,height=224 ! tensor_converter ! tensor_filter model=%s ! tensor_sink",
+      test_model);
+  gstpipe = gst_parse_launch (str_launch_line, NULL);
+  g_free (str_launch_line);
+  ASSERT_NE (gstpipe, nullptr);
+  TEST_TENSOR_FILTER_AUTO_OPTION_N (gstpipe, fw_name);
+
+  g_free (test_model);
+}
+
+/**
+ * @brief Test framework auto detecion without specifying the option in tensor-filter.
+ * @details Negative case when permission of model file is not given.
+ */
+TEST (test_tensor_filter, framework_auto_wo_opt_no_permission_n)
+{
+  int ret;
+  gchar *test_model, *str_launch_line;
+  const gchar *fw_name = NULL;
+  GstElement *gstpipe;
+
+  /** If the user is root, skip this test */
+  if (geteuid () == 0)
+    return;
+
+  GET_MODEL_PATH ("mobilenet_v1_1.0_224_quant.tflite");
+
+  ret = g_chmod (test_model, 0000);
+  EXPECT_TRUE (ret == 0);
+
+  str_launch_line = g_strdup_printf (
+      "videotestsrc ! videoconvert ! videoscale ! videorate ! video/x-raw,format=RGB,width=224,height=224 ! tensor_converter ! tensor_filter model=%s ! tensor_sink",
+      test_model);
+  gstpipe = gst_parse_launch (str_launch_line, NULL);
+  g_free (str_launch_line);
+  ASSERT_NE (gstpipe, nullptr);
+  TEST_TENSOR_FILTER_AUTO_OPTION_N (gstpipe, fw_name);
+
+  ret = g_chmod (test_model, 0664);
+  EXPECT_TRUE (ret == 0);
+
+  g_free (test_model);
+}
+
 #elif ENABLE_NNFW_RUNTIME
 /**
  * @brief Test framework auto detecion option in tensor-filter.
@@ -4362,6 +4465,27 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_nnfw_04)
   EXPECT_TRUE (gstpipe != nullptr);
   TEST_TENSOR_FILTER_AUTO_OPTION_P (gstpipe, fw_name);
 }
+
+/**
+ * @brief Test framework auto detecion without specifying the option in tensor-filter.
+ * @details Check if nnfw (second priority) is detected automatically
+ */
+TEST (test_tensor_filter, framework_auto_wo_opt_ext_tflite_nnfw)
+{
+  gchar *test_model, *str_launch_line;
+  GstElement *gstpipe;
+  const gchar fw_name[] = "nnfw";
+  GET_MODEL_PATH ("mobilenet_v1_1.0_224_quant.tflite");
+
+  str_launch_line = g_strdup_printf (
+      "videotestsrc ! videoconvert ! videoscale ! videorate ! video/x-raw,format=RGB,width=224,height=224 ! tensor_converter ! tensor_filter name=tfilter model=%s ! tensor_sink",
+      test_model);
+  gstpipe = gst_parse_launch (str_launch_line, NULL);
+  g_free (str_launch_line);
+  EXPECT_TRUE (gstpipe != nullptr);
+  TEST_TENSOR_FILTER_AUTO_OPTION_P (gstpipe, fw_name);
+}
+
 #endif /* ENABLE_TENSORFLOW_LITE */
 
 #ifdef ENABLE_TENSORFLOW
@@ -4395,6 +4519,37 @@ TEST (test_tensor_filter, framework_auto_ext_pb_01)
 
   g_free (data_path);
 }
+
+/**
+ * @brief Test framework auto detecion without specifying the option in tensor-filter.
+ * @details Check if tensoflow is detected automatically
+ */
+TEST (test_tensor_filter, framework_auto_wo_opt_ext_pb)
+{
+  gchar *test_model, *str_launch_line, *data_path;
+  GstElement *gstpipe;
+  const gchar fw_name[] = "tensorflow";
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (
+      root_path, "tests", "test_models", "models", "mnist.pb", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+  data_path = g_build_filename (root_path, "tests", "test_models", "data", "9.raw", NULL);
+  ASSERT_TRUE (g_file_test (data_path, G_FILE_TEST_EXISTS));
+
+  str_launch_line = g_strdup_printf (
+      "filesrc location=%s ! application/octet-stream ! tensor_converter input-dim=784:1 input-type=uint8 ! tensor_transform mode=arithmetic option=typecast:float32,add:-127.5,div:127.5 ! tensor_filter name=tfilter model=%s input=784:1 inputtype=float32 inputname=input output=10:1 outputtype=float32 outputname=softmax ! tensor_sink",
+      data_path, test_model);
+  gstpipe = gst_parse_launch (str_launch_line, NULL);
+  g_free (str_launch_line);
+  EXPECT_TRUE (gstpipe != nullptr);
+  TEST_TENSOR_FILTER_AUTO_OPTION_P (gstpipe, fw_name);
+
+  g_free (data_path);
+}
 #else
 /**
  * @brief Test framework auto detecion option in tensor-filter.
@@ -4418,6 +4573,38 @@ TEST (test_tensor_filter, framework_auto_ext_pb_tf_disabled_n)
 
   str_launch_line = g_strdup_printf (
       "filesrc location=%s ! application/octet-stream ! tensor_converter input-dim=784:1 input-type=uint8 ! tensor_transform mode=arithmetic option=typecast:float32,add:-127.5,div:127.5 ! tensor_filter name=tfilter framework=auto model=%s input=784:1 inputtype=float32 inputname=input output=10:1 outputtype=float32 outputname=softmax ! tensor_sink",
+      data_path, test_model);
+  gstpipe = gst_parse_launch (str_launch_line, NULL);
+  g_free (str_launch_line);
+  ASSERT_NE (gstpipe, nullptr);
+  TEST_TENSOR_FILTER_AUTO_OPTION_N (gstpipe, fw_name);
+
+  g_free (test_model);
+  g_free (data_path);
+}
+
+/**
+ * @brief Test framework auto detecion without specifying the option in tensor-filter.
+ * @details Negative case whtn tensorflow is not enabled
+ */
+TEST (test_tensor_filter, framework_auto_wo_opt_ext_pb_tf_disabled_n)
+{
+  gchar *test_model, *str_launch_line, *data_path;
+  const gchar *fw_name = NULL;
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  GstElement *gstpipe;
+
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (
+      root_path, "tests", "test_models", "models", "mnist.pb", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+  data_path = g_build_filename (root_path, "tests", "test_models", "data", "9.raw", NULL);
+  ASSERT_TRUE (g_file_test (data_path, G_FILE_TEST_EXISTS));
+
+  str_launch_line = g_strdup_printf (
+      "filesrc location=%s ! application/octet-stream ! tensor_converter input-dim=784:1 input-type=uint8 ! tensor_transform mode=arithmetic option=typecast:float32,add:-127.5,div:127.5 ! tensor_filter name=tfilter model=%s input=784:1 inputtype=float32 inputname=input output=10:1 outputtype=float32 outputname=softmax ! tensor_sink",
       data_path, test_model);
   gstpipe = gst_parse_launch (str_launch_line, NULL);
   g_free (str_launch_line);
@@ -4535,6 +4722,37 @@ TEST (test_tensor_filter, framework_auto_ext_pt_01)
   g_free (image_path);
 }
 
+/**
+ * @brief Test framework auto detecion without specifying the option in tensor-filter.
+ * @details Check if pytorch is detected automatically
+ */
+TEST (test_tensor_filter, framework_auto_wo_opt_ext_pt_01)
+{
+  gchar *test_model, *str_launch_line, *image_path;
+  GstElement *gstpipe;
+  const gchar fw_name[] = "pytorch";
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (
+      root_path, "tests", "test_models", "models", "pytorch_lenet5.pt", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+  image_path = g_build_filename (root_path, "tests", "test_models", "data", "9.png", NULL);
+  ASSERT_TRUE (g_file_test (image_path, G_FILE_TEST_EXISTS));
+
+  str_launch_line = g_strdup_printf (
+      "filesrc location=%s ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=GRAY8,framerate=0/1 ! tensor_converter ! tensor_filter name=tfilter model=%s input=1:28:28:1 inputtype=uint8 output=10:1:1:1 outputtype=uint8 ! tensor_sink",
+      image_path, test_model);
+  gstpipe = gst_parse_launch (str_launch_line, NULL);
+  g_free (str_launch_line);
+  EXPECT_TRUE (gstpipe != nullptr);
+  TEST_TENSOR_FILTER_AUTO_OPTION_P (gstpipe, fw_name);
+
+  g_free (image_path);
+}
+
 #else
 /**
  * @brief Test framework auto detecion option in tensor-filter.
@@ -4559,6 +4777,39 @@ TEST (test_tensor_filter, framework_auto_ext_pt_pytorch_disabled_n)
 
   str_launch_line = g_strdup_printf (
       "filesrc location=%s ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=GRAY8,framerate=0/1 ! tensor_converter ! tensor_filter framework=auto model=%s input=1:28:28:1 inputtype=uint8 output=10:1:1:1 outputtype=uint8 ! tensor_sink",
+      image_path, test_model);
+  gstpipe = gst_parse_launch (str_launch_line, NULL);
+  g_free (str_launch_line);
+  ASSERT_NE (gstpipe, nullptr);
+  TEST_TENSOR_FILTER_AUTO_OPTION_N (gstpipe, fw_name);
+
+  g_free (image_path);
+  g_free (test_model);
+}
+
+/**
+ * @brief Test framework auto detecion without specifying the option in tensor-filter.
+ * @details Check if pytorch is not enabled
+ */
+TEST (test_tensor_filter, framework_auto_wo_opt_ext_pt_pytorch_disabled_n)
+{
+  gchar *test_model, *str_launch_line;
+  const gchar *fw_name = NULL;
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  GstElement *gstpipe;
+
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (
+      root_path, "tests", "test_models", "models", "pytorch_lenet5.pt", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+  gchar *image_path
+      = g_build_filename (root_path, "tests", "test_models", "data", "9.png", NULL);
+  ASSERT_TRUE (g_file_test (image_path, G_FILE_TEST_EXISTS));
+
+  str_launch_line = g_strdup_printf (
+      "filesrc location=%s ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=GRAY8,framerate=0/1 ! tensor_converter ! tensor_filter model=%s input=1:28:28:1 inputtype=uint8 output=10:1:1:1 outputtype=uint8 ! tensor_sink",
       image_path, test_model);
   gstpipe = gst_parse_launch (str_launch_line, NULL);
   g_free (str_launch_line);
