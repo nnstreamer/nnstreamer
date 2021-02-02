@@ -523,7 +523,7 @@ verify_model_path (const GstTensorFilterPrivate * priv)
 static void
 gst_tensor_filter_properties_init (GstTensorFilterProperties * prop)
 {
-  prop->fwname = NULL;
+  prop->fwname = g_strdup ("auto");
   prop->fw_opened = FALSE;
   prop->model_files = NULL;
   prop->num_models = 0;
@@ -865,7 +865,7 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
           FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_FRAMEWORK,
       g_param_spec_string ("framework", "Framework",
-          "Neural network framework", "",
+          "Neural network framework", "auto",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_MODEL,
       g_param_spec_string ("model", "Model filepath",
