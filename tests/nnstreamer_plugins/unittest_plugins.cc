@@ -142,9 +142,7 @@
     EXPECT_STREQ (prop_string, fw_name);                         \
                                                                  \
     g_free (prop_string);                                        \
-    g_free (test_model);                                         \
     gst_object_unref (filter);                                   \
-    gst_object_unref (gstpipe);                                  \
   } while (0)
 
 /**
@@ -152,10 +150,8 @@
  */
 #define TEST_TENSOR_FILTER_AUTO_OPTION_N(gstpipe, fw_name)                  \
   do {                                                                      \
-    int status = 0;                                                         \
     GstStateChangeReturn ret;                                               \
                                                                             \
-    status = 0;                                                             \
     if (fw_name) {                                                          \
       GstElement *filter;                                                   \
       gchar *prop_string;                                                   \
@@ -163,16 +159,13 @@
       EXPECT_NE (filter, nullptr);                                          \
       g_object_get (filter, "framework", &prop_string, NULL);               \
       EXPECT_STREQ (prop_string, fw_name);                                  \
+      g_free (prop_string);                                                 \
       gst_object_unref (filter);                                            \
     }                                                                       \
     gst_element_set_state (gstpipe, GST_STATE_PLAYING);                     \
     g_usleep (100000);                                                      \
     ret = gst_element_get_state (gstpipe, NULL, NULL, GST_CLOCK_TIME_NONE); \
     EXPECT_TRUE (ret == GST_STATE_CHANGE_FAILURE);                          \
-                                                                            \
-    gst_object_unref (gstpipe);                                             \
-                                                                            \
-    EXPECT_EQ (status, 0);                                                  \
                                                                             \
   } while (0)
 
@@ -4150,6 +4143,8 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_01)
   g_free (str_launch_line);
   EXPECT_TRUE (gstpipe != nullptr);
   TEST_TENSOR_FILTER_AUTO_OPTION_P (gstpipe, fw_name);
+  g_free (test_model);
+  gst_object_unref (gstpipe);
 }
 
 /**
@@ -4170,6 +4165,8 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_02)
   g_free (str_launch_line);
   EXPECT_TRUE (gstpipe != nullptr);
   TEST_TENSOR_FILTER_AUTO_OPTION_P (gstpipe, fw_name);
+  g_free (test_model);
+  gst_object_unref (gstpipe);
 }
 
 /**
@@ -4190,6 +4187,8 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_03)
   g_free (str_launch_line);
   EXPECT_TRUE (gstpipe != nullptr);
   TEST_TENSOR_FILTER_AUTO_OPTION_P (gstpipe, fw_name);
+  g_free (test_model);
+  gst_object_unref (gstpipe);
 }
 
 /**
@@ -4218,6 +4217,7 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_model_not_found_n)
   TEST_TENSOR_FILTER_AUTO_OPTION_N (gstpipe, fw_name);
 
   g_free (test_model);
+  gst_object_unref (gstpipe);
 }
 
 /**
@@ -4240,6 +4240,7 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_not_supported_ext_n)
   TEST_TENSOR_FILTER_AUTO_OPTION_N (gstpipe, fw_name);
 
   g_free (test_model);
+  gst_object_unref (gstpipe);
 }
 
 /**
@@ -4274,6 +4275,7 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_no_permission_n)
   EXPECT_TRUE (ret == 0);
 
   g_free (test_model);
+  gst_object_unref (gstpipe);
 }
 
 /**
@@ -4296,6 +4298,7 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_invalid_fw_name_n)
   TEST_TENSOR_FILTER_AUTO_OPTION_N (gstpipe, fw_name);
 
   g_free (test_model);
+  gst_object_unref (gstpipe);
 }
 
 /**
@@ -4318,6 +4321,7 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_wrong_dimension_n)
   TEST_TENSOR_FILTER_AUTO_OPTION_N (gstpipe, fw_name);
 
   g_free (test_model);
+  gst_object_unref (gstpipe);
 }
 
 /**
@@ -4340,6 +4344,7 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_wrong_inputtype_n)
   TEST_TENSOR_FILTER_AUTO_OPTION_N (gstpipe, fw_name);
 
   g_free (test_model);
+  gst_object_unref (gstpipe);
 }
 
 /**
@@ -4359,6 +4364,8 @@ TEST (test_tensor_filter, framework_auto_wo_opt_ext_tflite)
   g_free (str_launch_line);
   EXPECT_TRUE (gstpipe != nullptr);
   TEST_TENSOR_FILTER_AUTO_OPTION_P (gstpipe, fw_name);
+  g_free (test_model);
+  gst_object_unref (gstpipe);
 }
 
 /**
@@ -4387,6 +4394,7 @@ TEST (test_tensor_filter, framework_auto_wo_opt_ext_tflite_model_not_found_n)
   TEST_TENSOR_FILTER_AUTO_OPTION_N (gstpipe, fw_name);
 
   g_free (test_model);
+  gst_object_unref (gstpipe);
 }
 
 /**
@@ -4409,6 +4417,7 @@ TEST (test_tensor_filter, framework_auto_wo_opt_tflite_not_supported_ext_n)
   TEST_TENSOR_FILTER_AUTO_OPTION_N (gstpipe, fw_name);
 
   g_free (test_model);
+  gst_object_unref (gstpipe);
 }
 
 /**
@@ -4443,6 +4452,7 @@ TEST (test_tensor_filter, framework_auto_wo_opt_no_permission_n)
   EXPECT_TRUE (ret == 0);
 
   g_free (test_model);
+  gst_object_unref (gstpipe);
 }
 
 #elif ENABLE_NNFW_RUNTIME
@@ -4464,6 +4474,8 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_nnfw_04)
   g_free (str_launch_line);
   EXPECT_TRUE (gstpipe != nullptr);
   TEST_TENSOR_FILTER_AUTO_OPTION_P (gstpipe, fw_name);
+  g_free (test_model);
+  gst_object_unref (gstpipe);
 }
 
 /**
@@ -4484,6 +4496,8 @@ TEST (test_tensor_filter, framework_auto_wo_opt_ext_tflite_nnfw)
   g_free (str_launch_line);
   EXPECT_TRUE (gstpipe != nullptr);
   TEST_TENSOR_FILTER_AUTO_OPTION_P (gstpipe, fw_name);
+  g_free (test_model);
+  gst_object_unref (gstpipe);
 }
 
 #endif /* ENABLE_TENSORFLOW_LITE */
@@ -4516,7 +4530,8 @@ TEST (test_tensor_filter, framework_auto_ext_pb_01)
   g_free (str_launch_line);
   EXPECT_TRUE (gstpipe != nullptr);
   TEST_TENSOR_FILTER_AUTO_OPTION_P (gstpipe, fw_name);
-
+  g_free (test_model);
+  gst_object_unref (gstpipe);
   g_free (data_path);
 }
 
@@ -4547,7 +4562,8 @@ TEST (test_tensor_filter, framework_auto_wo_opt_ext_pb)
   g_free (str_launch_line);
   EXPECT_TRUE (gstpipe != nullptr);
   TEST_TENSOR_FILTER_AUTO_OPTION_P (gstpipe, fw_name);
-
+  g_free (test_model);
+  gst_object_unref (gstpipe);
   g_free (data_path);
 }
 #else
@@ -4581,6 +4597,7 @@ TEST (test_tensor_filter, framework_auto_ext_pb_tf_disabled_n)
 
   g_free (test_model);
   g_free (data_path);
+  gst_object_unref (gstpipe);
 }
 
 /**
@@ -4613,6 +4630,7 @@ TEST (test_tensor_filter, framework_auto_wo_opt_ext_pb_tf_disabled_n)
 
   g_free (test_model);
   g_free (data_path);
+  gst_object_unref (gstpipe);
 }
 #endif /* ENABLE_TENSORFLOW */
 
@@ -4647,9 +4665,10 @@ TEST (test_tensor_filter, framework_auto_ext_pb_03)
   g_free (str_launch_line);
   EXPECT_TRUE (gstpipe != nullptr);
   TEST_TENSOR_FILTER_AUTO_OPTION_P (gstpipe, fw_name);
-
+  g_free (test_model);
   g_free (test_model_2);
   g_free (data_path);
+  gst_object_unref (gstpipe);
 }
 
 #else
@@ -4687,6 +4706,7 @@ TEST (test_tensor_filter, framework_auto_ext_pb_caffe2_disabled_n)
   g_free (test_model);
   g_free (test_model_2);
   g_free (data_path);
+  gst_object_unref (gstpipe);
 }
 #endif /* ENABLE_CAFFE2 */
 
@@ -4718,8 +4738,9 @@ TEST (test_tensor_filter, framework_auto_ext_pt_01)
   g_free (str_launch_line);
   EXPECT_TRUE (gstpipe != nullptr);
   TEST_TENSOR_FILTER_AUTO_OPTION_P (gstpipe, fw_name);
-
+  g_free (test_model);
   g_free (image_path);
+  gst_object_unref (gstpipe);
 }
 
 /**
@@ -4750,7 +4771,9 @@ TEST (test_tensor_filter, framework_auto_wo_opt_ext_pt_01)
   EXPECT_TRUE (gstpipe != nullptr);
   TEST_TENSOR_FILTER_AUTO_OPTION_P (gstpipe, fw_name);
 
+  g_free (test_model);
   g_free (image_path);
+  gst_object_unref (gstpipe);
 }
 
 #else
@@ -4785,6 +4808,7 @@ TEST (test_tensor_filter, framework_auto_ext_pt_pytorch_disabled_n)
 
   g_free (image_path);
   g_free (test_model);
+  gst_object_unref (gstpipe);
 }
 
 /**
@@ -4818,6 +4842,7 @@ TEST (test_tensor_filter, framework_auto_wo_opt_ext_pt_pytorch_disabled_n)
 
   g_free (image_path);
   g_free (test_model);
+  gst_object_unref (gstpipe);
 }
 #endif /* ENABLE_PYTORCH */
 
