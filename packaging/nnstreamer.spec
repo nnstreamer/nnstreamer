@@ -220,7 +220,9 @@ BuildRequires:  pkgconfig(amlogic-vsi-npu-sdk)
 %endif
 
 %if 0%{?grpc_support}
-BuildRequires:  grpc-devel
+BuildRequires:	pkgconfig(re2)
+BuildRequires:	pkgconfig(libcares)
+BuildRequires:	grpc-devel
 %endif
 
 %if %{with tizen}
