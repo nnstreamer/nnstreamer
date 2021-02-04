@@ -45,7 +45,7 @@
  * 2. Packaging, Build & run test, and Custom property
  * 2.1. Distribution: Tizen packaging
  * ubuntu$ git clone https://github.sec.samsung.net/AIP/vivante-nnstreamer-filter.git
- * ubuntu$ time gbs build -A armv7l --clean --include-all
+ * ubuntu$ time gbs -c .TAOS-CI/.gbs.conf build -A armv7l --clean --include-all
  *
  * 2.2. Development: Build and run source code on real target
  * You may run the below script to build and run on the real target boards manually.

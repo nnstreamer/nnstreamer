@@ -52,7 +52,7 @@ Build and run the NNStreamer tensor filter on Tizen (aarch64).
 
 ```bash
 $ vi ~/.gbs.conf
-$ gbs build -A aarch64 --clean --include-all
+$ gbs -c .TAOS-CI/.gbs.conf build -A aarch64 --clean --include-all
 ```
 
 ## How to run
