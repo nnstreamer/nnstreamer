@@ -699,6 +699,7 @@ ml_pipeline_destroy (ml_pipeline_h pipe)
       scret = gst_element_set_state (p->element, GST_STATE_PAUSED);
       if (scret == GST_STATE_CHANGE_FAILURE) {
         g_mutex_unlock (&p->lock);
+        ml_loge ("Failed to wait until state changed PLAYING to PAUSED. For the detail, please check the GStreamer log messages.");
         return ML_ERROR_STREAMS_PIPE;
       }
     }
@@ -719,6 +720,7 @@ ml_pipeline_destroy (ml_pipeline_h pipe)
     scret = gst_element_set_state (p->element, GST_STATE_NULL);
     if (scret != GST_STATE_CHANGE_SUCCESS) {
       g_mutex_unlock (&p->lock);
+      ml_loge ("Failed to wait until state changed to NULL(STOP). For the detail, please check the GStreamer log messages.");
       return ML_ERROR_STREAMS_PIPE;
     }
 
@@ -764,8 +766,10 @@ ml_pipeline_get_state (ml_pipeline_h pipe, ml_pipeline_state_e * state)
   scret = gst_element_get_state (p->element, &_state, NULL, GST_MSECOND);       /* Do it within 1ms! */
   g_mutex_unlock (&p->lock);
 
-  if (scret == GST_STATE_CHANGE_FAILURE)
+  if (scret == GST_STATE_CHANGE_FAILURE) {
+    ml_loge ("Failed to get the state of the pipeline. For the detail, please check the GStreamer log messages.");
     return ML_ERROR_STREAMS_PIPE;
+  }
 
   *state = (ml_pipeline_state_e) _state;
   return ML_ERROR_NONE;
@@ -808,8 +812,10 @@ ml_pipeline_start (ml_pipeline_h pipe)
   }
 
   scret = gst_element_set_state (p->element, GST_STATE_PLAYING);
-  if (scret == GST_STATE_CHANGE_FAILURE)
+  if (scret == GST_STATE_CHANGE_FAILURE) {
+    ml_loge ("Failed to set the state of the pipeline to PLAYING. For the detail, please check the GStreamer log messages.");
     status = ML_ERROR_STREAMS_PIPE;
+  }
 
 done:
   g_mutex_unlock (&p->lock);
@@ -834,8 +840,10 @@ ml_pipeline_stop (ml_pipeline_h pipe)
   scret = gst_element_set_state (p->element, GST_STATE_PAUSED);
   g_mutex_unlock (&p->lock);
 
-  if (scret == GST_STATE_CHANGE_FAILURE)
+  if (scret == GST_STATE_CHANGE_FAILURE) {
+    ml_loge ("Failed to set the state of the pipeline to PAUSED. For the detail, please check the GStreamer log messages.");
     return ML_ERROR_STREAMS_PIPE;
+  }
 
   return ML_ERROR_NONE;
 }
@@ -992,6 +1000,7 @@ ml_pipeline_src_parse_tensors_info (ml_pipeline_element * elem)
     elem->size = 0;
 
     if (elem->src == NULL) {
+      ml_loge ("Failed to get the src pad of the element[%s]. For the detail, please check the GStreamer log messages.", elem->name);
       ret = ML_ERROR_STREAMS_PIPE;
     } else {
       GstCaps *caps = gst_pad_get_allowed_caps (elem->src);
