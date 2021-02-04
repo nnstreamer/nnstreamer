@@ -2,13 +2,13 @@
 #
 #              Options for gbs/rpmbuild users
 #
-# gbs build --define "unit_test 1"
+# gbs -c .TAOS-CI/.gbs.conf build --define "unit_test 1"
 #       Execute all unit test cases
 #
-# gbs build --define "testcoverage 1"
+# gbs -c .TAOS-CI/.gbs.conf build --define "testcoverage 1"
 # 	Generate unittest coverage statistics
 #       Use with "unit_test 1" to do it with as many cases as possible:
-#       $ gbs build --define "unit_test 1" --define "testcoverage 1"
+#       $ gbs -c .TAOS-CI/.gbs.conf build --define "unit_test 1" --define "testcoverage 1"
 #
 
 %define		gstpostfix	gstreamer-1.0
@@ -269,7 +269,7 @@ BuildRequires:	ssat >= 1.1.0
 BuildRequires:	pkgconfig(orc-0.4)
 
 # Note that debug packages generate an additional build and storage cost.
-# If you do not need debug packages, run '$ gbs build ... --define "_skip_debug_rpm 1"'.
+# If you do not need debug packages, run '$ gbs -c .TAOS-CI/.gbs.conf build ... --define "_skip_debug_rpm 1"'.
 
 %if "%{?_skip_debug_rpm}" == "1"
 %global debug_package %{nil}

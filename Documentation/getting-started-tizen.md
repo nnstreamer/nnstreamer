@@ -16,26 +16,26 @@ title: Tizen GBS
 ### Build without options
 
 ```bash
-$ gbs build
+$ gbs -c .TAOS-CI/.gbs.conf build
 ```
 
 ### Build with options
 
 ***Enable full unit testing***
 ```bash
-$ gbs build --define "unit_test 1"
+$ gbs -c .TAOS-CI/.gbs.conf build --define "unit_test 1"
 ```
 
 ***Get unit-test coverage report with the unit test for aarch64***
 ```bash
-$ gbs build -A aarch64 --define "unit_test 1" --define "testcoverage 1"
+$ gbs -c .TAOS-CI/.gbs.conf build -A aarch64 --define "unit_test 1" --define "testcoverage 1"
 ```
 
 ***Update Tizen-build options and build it without git commit***
 ```bash
 $ vi packaging/nnstreamer.spec
 # Modify the default options described in the top lines
-$ gbs build --include-all
+$ gbs -c .TAOS-CI/.gbs.conf build --include-all
 # Build with changes not committed.
 ```
 
