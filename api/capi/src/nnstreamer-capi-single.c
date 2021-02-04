@@ -230,6 +230,7 @@ __invoke (ml_single * single_h)
   /** invoke the thread */
   if (!single_h->klass->invoke (single_h->filter, in_tensors, out_tensors,
       single_h->free_output)) {
+    ml_loge ("Failed to invoke the tensors.");
     status = ML_ERROR_STREAMS_PIPE;
     if (single_h->free_output)
       ml_tensors_data_destroy (single_h->output);
@@ -752,6 +753,7 @@ ml_single_open_custom (ml_single_h * single, ml_single_preset * info)
 
   /* 4. Start the nnfw to get inout configurations if needed */
   if (!single_h->klass->start (single_h->filter)) {
+    ml_loge ("Failed to start NNFW to get inout configurations.");
     status = ML_ERROR_STREAMS_PIPE;
     goto error;
   }
