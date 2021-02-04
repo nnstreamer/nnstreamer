@@ -148,13 +148,9 @@ typedef struct _GstTensorFilterProperties
   tensors_layout output_layout; /**< data layout info provided as a property to tensor_filter for the output, defaults to _NNS_LAYOUT_ANY for all the tensors */
 
   const char *custom_properties; /**< sub-plugin specific custom property values in string */
-  union {
-    struct {
-      accl_hw *hw_list; /**< accelerators supported by framework intersected with user provided accelerator preference, use in GstTensorFilterFramework V1 only */
-      int num_hw;       /**< number of hardare accelerators in the hw_list supported by the framework */
-    };
-    const char *accl_str; /**< accelerator configuration passed in as parameter, use in GstTensorFilterFramework V0 only */
-  };
+  accl_hw *hw_list; /**< accelerators supported by framework intersected with user provided accelerator preference, use in GstTensorFilterFramework V1 only */
+  int num_hw;       /**< number of hardare accelerators in the hw_list supported by the framework */
+  const char *accl_str; /**< accelerator configuration passed in as parameter, use in GstTensorFilterFramework V0 only */
 
   int latency; /**< The average latency over the recent 10 inferences in microseconds */
   int throughput; /**< The average throughput in the number of outputs per second */
