@@ -26,12 +26,6 @@ export NNSTREAMER_DECODERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_d
 export NNSTREAMER_CONVERTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_converter
 export PYTHONIOENCODING=utf-8
 
-ifneq ($(filter $(DEB_HOST_ARCH),amd64),)
-enable_tf=enabled
-else
-enable_tf=disabled
-endif
-
 %:
 	dh $@ --parallel
 
@@ -41,9 +35,8 @@ override_dh_auto_clean:
 override_dh_auto_configure:
 	mkdir -p ${BUILDDIR}
 	meson --buildtype=plain --prefix=/usr --sysconfdir=/etc --libdir=lib/$(DEB_HOST_MULTIARCH) --bindir=lib/nnstreamer/bin --includedir=include \
-	-Dtf-support=$(enable_tf) -Dtflite-support=enabled -Dpytorch-support=enabled -Dcaffe2-support=enabled \
-	-Dpython2-support=enabled -Dpython3-support=enabled -Denable-capi=true -Denable-edgetpu=true -Denable-tizen=false \
-	-Denable-openvino=true ${BUILDDIR}
+	-Denable-edgetpu=true -Denable-openvino=true \
+	-Denable-tizen=false ${BUILDDIR}
 
 override_dh_auto_build:
 	ninja -C ${BUILDDIR}
