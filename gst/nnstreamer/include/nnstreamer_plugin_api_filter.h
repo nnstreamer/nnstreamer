@@ -152,13 +152,9 @@ typedef struct _GstTensorFilterProperties
   unsigned int output_ranks[NNS_TENSOR_SIZE_LIMIT];  /**< the rank list of output tensors, it is calculated based on the dimension string. */
 
   const char *custom_properties; /**< sub-plugin specific custom property values in string */
-  union {
-    struct {
-      accl_hw *hw_list; /**< accelerators supported by framework intersected with user provided accelerator preference, use in GstTensorFilterFramework V1 only */
-      int num_hw;       /**< number of hardare accelerators in the hw_list supported by the framework */
-    };
-    const char *accl_str; /**< accelerator configuration passed in as parameter, use in GstTensorFilterFramework V0 only */
-  };
+  accl_hw *hw_list; /**< accelerators supported by framework intersected with user provided accelerator preference, use in GstTensorFilterFramework V1 only */
+  int num_hw;       /**< number of hardare accelerators in the hw_list supported by the framework */
+  const char *accl_str; /**< accelerator configuration passed in as parameter, use in GstTensorFilterFramework V0 only */
 
   int latency; /**< The average latency over the recent 10 inferences in microseconds */
   int throughput; /**< The average throughput in the number of outputs per second */

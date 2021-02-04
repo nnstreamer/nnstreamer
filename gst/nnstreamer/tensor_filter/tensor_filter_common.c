@@ -540,6 +540,8 @@ gst_tensor_filter_properties_init (GstTensorFilterProperties * prop)
 
   prop->custom_properties = NULL;
   prop->accl_str = NULL;
+  prop->hw_list = NULL;
+  prop->num_hw = 0;
 }
 
 /**
@@ -1003,11 +1005,9 @@ gst_tensor_filter_common_free_property (GstTensorFilterPrivate * priv)
   prop = &priv->prop;
 
   g_free_const (prop->fwname);
-  if (GST_TF_FW_V0 (priv->fw)) {
-    g_free_const (prop->accl_str);
-  } else if (GST_TF_FW_V1 (priv->fw)) {
-    g_free (prop->hw_list);
-  }
+  g_free_const (prop->accl_str);
+  g_free (prop->hw_list);
+
   g_free_const (prop->custom_properties);
   g_strfreev_const (prop->model_files);
 
@@ -1278,14 +1278,8 @@ gst_tensor_filter_get_available_framework (GstTensorFilterPrivate * priv,
     prop->fwname = detected_fw;
 
     /** update the accelerator if already set based on v0 or v1 */
-    if (GST_TF_FW_V1 (priv->fw)) {
-      if (prop->accl_str) {
-        const gchar *accl_str = prop->accl_str;
-        gst_tensor_filter_parse_accelerator (priv, &priv->prop, accl_str);
-        g_free_const (accl_str);
-      } else {
-        prop->hw_list = NULL;
-      }
+    if (GST_TF_FW_V1 (priv->fw) && prop->accl_str) {
+      gst_tensor_filter_parse_accelerator (priv, &priv->prop, prop->accl_str);
     }
   } else {
     nns_logw ("Cannot identify the given neural network framework, %s\n",
@@ -1588,7 +1582,6 @@ _gtfc_setprop_ACCELERATOR (GstTensorFilterPrivate * priv,
       GstTensorFilterFrameworkEventData data;
       memcpy (&_prop, prop, sizeof (GstTensorFilterProperties));
 
-      prop->hw_list = NULL;
       gst_tensor_filter_parse_accelerator (priv, prop, accelerators);
       data.num_hw = prop->num_hw;
       data.hw_list = prop->hw_list;
@@ -1614,6 +1607,7 @@ _gtfc_setprop_ACCELERATOR (GstTensorFilterPrivate * priv,
       gst_tensor_filter_parse_accelerator (priv, &priv->prop, accelerators);
     }
   } else {
+    g_free_const (prop->accl_str);
     prop->accl_str = g_strdup (accelerators);
   }
   return 0;
