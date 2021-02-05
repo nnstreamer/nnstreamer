@@ -716,7 +716,8 @@ ml_pipeline_destroy (ml_pipeline_h pipe)
       scret = gst_element_set_state (p->element, GST_STATE_PAUSED);
       if (scret == GST_STATE_CHANGE_FAILURE) {
         g_mutex_unlock (&p->lock);
-        ml_loge ("Failed to wait until state changed PLAYING to PAUSED. For the detail, please check the GStreamer log messages.");
+        ml_loge
+            ("Failed to wait until state changed PLAYING to PAUSED. For the detail, please check the GStreamer log messages.");
         return ML_ERROR_STREAMS_PIPE;
       }
     }
@@ -737,7 +738,8 @@ ml_pipeline_destroy (ml_pipeline_h pipe)
     scret = gst_element_set_state (p->element, GST_STATE_NULL);
     if (scret != GST_STATE_CHANGE_SUCCESS) {
       g_mutex_unlock (&p->lock);
-      ml_loge ("Failed to wait until state changed to NULL(STOP). For the detail, please check the GStreamer log messages.");
+      ml_loge
+          ("Failed to wait until state changed to NULL(STOP). For the detail, please check the GStreamer log messages.");
       return ML_ERROR_STREAMS_PIPE;
     }
 
@@ -784,7 +786,8 @@ ml_pipeline_get_state (ml_pipeline_h pipe, ml_pipeline_state_e * state)
   g_mutex_unlock (&p->lock);
 
   if (scret == GST_STATE_CHANGE_FAILURE) {
-    ml_loge ("Failed to get the state of the pipeline. For the detail, please check the GStreamer log messages.");
+    ml_loge
+        ("Failed to get the state of the pipeline. For the detail, please check the GStreamer log messages.");
     return ML_ERROR_STREAMS_PIPE;
   }
 
@@ -830,7 +833,8 @@ ml_pipeline_start (ml_pipeline_h pipe)
 
   scret = gst_element_set_state (p->element, GST_STATE_PLAYING);
   if (scret == GST_STATE_CHANGE_FAILURE) {
-    ml_loge ("Failed to set the state of the pipeline to PLAYING. For the detail, please check the GStreamer log messages.");
+    ml_loge
+        ("Failed to set the state of the pipeline to PLAYING. For the detail, please check the GStreamer log messages.");
     status = ML_ERROR_STREAMS_PIPE;
   }
 
@@ -858,7 +862,8 @@ ml_pipeline_stop (ml_pipeline_h pipe)
   g_mutex_unlock (&p->lock);
 
   if (scret == GST_STATE_CHANGE_FAILURE) {
-    ml_loge ("Failed to set the state of the pipeline to PAUSED. For the detail, please check the GStreamer log messages.");
+    ml_loge
+        ("Failed to set the state of the pipeline to PAUSED. For the detail, please check the GStreamer log messages.");
     return ML_ERROR_STREAMS_PIPE;
   }
 
@@ -1017,7 +1022,9 @@ ml_pipeline_src_parse_tensors_info (ml_pipeline_element * elem)
     elem->size = 0;
 
     if (elem->src == NULL) {
-      ml_loge ("Failed to get the src pad of the element[%s]. For the detail, please check the GStreamer log messages.", elem->name);
+      ml_loge
+          ("Failed to get the src pad of the element[%s]. For the detail, please check the GStreamer log messages.",
+          elem->name);
       ret = ML_ERROR_STREAMS_PIPE;
     } else {
       GstCaps *caps = gst_pad_get_allowed_caps (elem->src);
@@ -2189,8 +2196,8 @@ ml_pipeline_custom_easy_filter_unregister (ml_custom_easy_filter_h custom)
  * @brief Callback for tensor_if custom condition.
  */
 static gboolean
-ml_pipeline_if_custom (const GstTensorsInfo *info, const GstTensorMemory *input,
-    void *data, gboolean *result)
+ml_pipeline_if_custom (const GstTensorsInfo * info,
+    const GstTensorMemory * input, void *data, gboolean * result)
 {
   int status = 0;
   guint i;
@@ -2243,8 +2250,8 @@ ml_pipeline_if_custom_free (ml_if_custom_s * custom)
  * @brief Registers the tensor_if custom callback.
  */
 int
-ml_pipeline_tensor_if_custom_register (const char *name, ml_pipeline_if_custom_cb cb,
-    void *user_data, ml_pipeline_if_h *if_custom)
+ml_pipeline_tensor_if_custom_register (const char *name,
+    ml_pipeline_if_custom_cb cb, void *user_data, ml_pipeline_if_h * if_custom)
 {
   int status = ML_ERROR_NONE;
   ml_if_custom_s *c;
