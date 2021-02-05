@@ -33,7 +33,7 @@
  * @note The sub-plugin for Android is not declared (e.g., snap)
  */
 static const char *ml_nnfw_subplugin_name[] = {
-  [ML_NNFW_TYPE_ANY] = "any", /* DO NOT use this name ('any') to get the sub-plugin */
+  [ML_NNFW_TYPE_ANY] = "any",   /* DO NOT use this name ('any') to get the sub-plugin */
   [ML_NNFW_TYPE_CUSTOM_FILTER] = "custom",
   [ML_NNFW_TYPE_TENSORFLOW_LITE] = "tensorflow-lite",
   [ML_NNFW_TYPE_TENSORFLOW] = "tensorflow",
