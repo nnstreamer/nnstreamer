@@ -333,7 +333,7 @@ This contains corresponding header files and .pc pkgconfig file.
 
 %package devel-static
 Summary:    Static library for nnstreamer-devel package
-Requires:   devel = %{version}-%{release}
+Requires:   nnstreamer-devel = %{version}-%{release}
 %description devel-static
 Static library package of nnstreamer-devel.
 
