@@ -396,7 +396,7 @@ This contains corresponding header files and .pc pkgconfig file.
 
 %package devel-internal
 Summary:    Development package to access internal functions of NNStreamer
-Requires:   devel = %{version}-%{release}
+Requires:   nnstreamer-devel = %{version}-%{release}
 %description devel-internal
 Development package to access internal functions of NNStreamer.
 This may be used by API packages.
@@ -404,7 +404,7 @@ In most cases, custom-filter or subplugin authors do not need this internal deve
 
 %package devel-static
 Summary:    Static library for nnstreamer-devel package
-Requires:   devel = %{version}-%{release}
+Requires:   nnstreamer-devel = %{version}-%{release}
 %description devel-static
 Static library package of nnstreamer-devel.
 
