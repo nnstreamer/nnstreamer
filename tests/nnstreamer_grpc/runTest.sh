@@ -18,6 +18,13 @@ fi
 # This is compatible with SSAT (https://github.com/myungjoo/SSAT)
 testInit $1
 
+# Skip test on qemu env.
+if [[ "$SKIP_QEMU_ARM64_INCOMPATIBLE_TESTS" == "1" ]]; then
+  echo "Skip ssat tests on qemu/arm64 env."
+  report
+  exit
+fi
+
 # Check gRPC availability
 PATH_TO_PLUGIN=${NNSTREAMER_BUILD_ROOT_PATH}
 if [[ -d $PATH_TO_PLUGIN ]]; then
