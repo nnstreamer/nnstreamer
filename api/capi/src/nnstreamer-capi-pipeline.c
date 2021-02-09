@@ -440,7 +440,8 @@ convert_element (ml_pipeline_h pipe, const gchar * description, gchar ** result,
  * @brief Iterate elements and prepare element handle.
  */
 static int
-iterate_element (ml_pipeline * pipe_h, GstElement * pipeline)
+iterate_element (ml_pipeline * pipe_h, GstElement * pipeline,
+    gboolean is_internal)
 {
   GstIterator *it = NULL;
   int status = ML_ERROR_NONE;
@@ -471,7 +472,7 @@ iterate_element (ml_pipeline * pipe_h, GstElement * pipeline)
             const gchar *element_name = gst_plugin_feature_get_name (feature);
 
             /* validate the availability of the plugin */
-            if (ml_check_plugin_availability (plugin_name,
+            if (!is_internal && ml_check_plugin_availability (plugin_name,
                     element_name) != ML_ERROR_NONE) {
               status = ML_ERROR_NOT_SUPPORTED;
               done = TRUE;
@@ -630,7 +631,7 @@ construct_pipeline_internal (const char *pipeline_description,
   pipe_h->state_cb.user_data = user_data;
 
   /* iterate elements and prepare element handle */
-  status = iterate_element (pipe_h, pipeline);
+  status = iterate_element (pipe_h, pipeline, is_internal);
 
   /* finally set pipeline state to PAUSED */
   if (status == ML_ERROR_NONE) {
