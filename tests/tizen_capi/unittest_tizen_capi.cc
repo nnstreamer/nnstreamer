@@ -5975,9 +5975,7 @@ TEST (nnstreamer_capi_singleshot, invoke_10_p)
   g_free (test_model);
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
-
-  /** This will destroy twice resulting in UB */
-  // EXPECT_DEATH (ml_tensors_data_destroy (output), ".*");
+  ml_tensors_data_destroy (output);
 }
 
 /**
@@ -6049,7 +6047,6 @@ TEST (nnstreamer_capi_singleshot, invoke_11_p)
   status = ml_tensors_data_get_tensor_data (output, 0, &data_ptr, &data_size);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  /** User can destroy by themselves */
   status = ml_tensors_data_destroy (output);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
@@ -6131,7 +6128,6 @@ TEST (nnstreamer_capi_singleshot, invoke_12_p)
   status = ml_tensors_data_destroy (input);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
-  /** Destroy one data by user */
   status = ml_tensors_data_destroy (output1);
   EXPECT_EQ (status, ML_ERROR_NONE);
 
@@ -6142,9 +6138,7 @@ TEST (nnstreamer_capi_singleshot, invoke_12_p)
   g_free (test_model);
   ml_tensors_info_destroy (in_info);
   ml_tensors_info_destroy (out_info);
-
-  /** This will destroy twice resulting in UB */
-  // EXPECT_DEATH (ml_tensors_data_destroy (output2), ".*");
+  ml_tensors_data_destroy (output2);
 }
 
 /**
