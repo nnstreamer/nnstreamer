@@ -390,29 +390,29 @@ gst_tensor_rate_set_property (GObject * object, guint prop_id,
 
       if (g_strv_length (strv) != 2) {
         ml_loge ("Please specify a proper 'framerate' property");
-        break;
+        goto done;
       }
 
       rate_n = (gint) g_ascii_strtoll (strv[0], NULL, 10);
       if (errno == ERANGE || rate_n < 0) {
         ml_loge ("Invalid frame rate numerator in 'framerate'");
-        g_strfreev (strv);
-        break;
+        goto done;
       }
 
       rate_d = (gint) g_ascii_strtoll (strv[1], NULL, 10);
       if (errno == ERANGE || rate_d <= 0) {
         ml_loge ("Invalid frame rate denominator in 'framerate'");
-        g_strfreev (strv);
-        break;
+        goto done;
       }
 
       self->rate_n = rate_n;
       self->rate_d = rate_d;
 
+    done:
       g_strfreev (strv);
-    }
       break;
+    }
+
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;

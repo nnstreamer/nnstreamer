@@ -92,7 +92,7 @@ static void gst_tensor_split_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
 static void gst_tensor_split_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
-static void gst_tensor_split_dispose (GObject * object);
+static void gst_tensor_split_finalize (GObject * object);
 
 #define gst_tensor_split_parent_class parent_class
 G_DEFINE_TYPE (GstTensorSplit, gst_tensor_split, GST_TYPE_ELEMENT);
@@ -115,7 +115,7 @@ gst_tensor_split_class_init (GstTensorSplitClass * klass)
 
   parent_class = g_type_class_peek_parent (klass);
 
-  gobject_class->dispose = gst_tensor_split_dispose;
+  gobject_class->finalize = gst_tensor_split_finalize;
   gobject_class->get_property = gst_tensor_split_get_property;
   gobject_class->set_property = gst_tensor_split_set_property;
 
@@ -191,17 +191,18 @@ gst_tensor_split_remove_src_pads (GstTensorSplit * split)
 }
 
 /**
- * @brief dispose function for tensor split (gst element vmethod)
+ * @brief finalize function for tensor split (gst element vmethod)
  */
 static void
-gst_tensor_split_dispose (GObject * object)
+gst_tensor_split_finalize (GObject * object)
 {
   GstTensorSplit *split;
 
   split = GST_TENSOR_SPLIT (object);
   gst_tensor_split_remove_src_pads (split);
-
-  G_OBJECT_CLASS (parent_class)->dispose (object);
+  g_list_free (split->tensorpick);
+  g_array_free (split->tensorseg, TRUE);
+  G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
 /**
