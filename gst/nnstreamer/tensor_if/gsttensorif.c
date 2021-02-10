@@ -1171,6 +1171,7 @@ nnstreamer_if_custom_register (const gchar * name, tensor_if_custom func,
   if (register_subplugin (NNS_IF_CUSTOM, name, ptr) == TRUE)
     return 0;
 
+  g_free (ptr);
   return -EINVAL;
 }
 
