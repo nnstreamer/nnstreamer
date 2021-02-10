@@ -205,7 +205,7 @@ static TestData g_test_data;
  * @brief Free resources in test data.
  */
 static void
-_free_test_data (void)
+_free_test_data (TestOption &option)
 {
   if (g_test_data.loop) {
     g_main_loop_unref (g_test_data.loop);
@@ -234,6 +234,14 @@ _free_test_data (void)
   }
 
   g_free (g_test_data.caps_name);
+
+  /** remove temp file */	
+  if (option.tmpfile) {
+    if (g_remove (option.tmpfile) != 0) {	
+      _print_log ("failed to remove temp file %s", option.tmpfile);	
+    }	
+    g_free (option.tmpfile);	
+  }
 }
 
 /**
@@ -1044,7 +1052,7 @@ _setup_pipeline (TestOption &option)
 
 error:
   g_test_data.test_failed = TRUE;
-  _free_test_data ();
+  _free_test_data (option);
   return FALSE;
 }
 
@@ -1114,7 +1122,7 @@ TEST (tensor_sink_test, properties)
   EXPECT_EQ (res_qos, !qos);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -1173,7 +1181,7 @@ TEST (tensor_sink_test, signals)
   }
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -1218,7 +1226,7 @@ TEST (tensor_sink_test, emit_signal)
   EXPECT_FALSE (g_test_data.invalid_timestamp);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -1268,7 +1276,7 @@ TEST (tensor_sink_test, signal_rate)
   }
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -1312,7 +1320,7 @@ TEST (tensor_sink_test, caps_error_n)
   }
 
   EXPECT_TRUE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -1378,7 +1386,7 @@ TEST (tensor_sink_test, caps_tensors)
   }
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -1422,7 +1430,7 @@ TEST (tensor_stream_test, video_rgb)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -1466,7 +1474,7 @@ TEST (tensor_stream_test, video_bgr)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -1510,7 +1518,7 @@ TEST (tensor_stream_test, video_rgb_padding)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -1554,7 +1562,7 @@ TEST (tensor_stream_test, video_bgr_padding)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -1598,7 +1606,7 @@ TEST (tensor_stream_test, video_rgb_3f)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -1642,7 +1650,7 @@ TEST (tensor_stream_test, video_rgba)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -1686,7 +1694,7 @@ TEST (tensor_stream_test, video_bgra)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -1730,7 +1738,7 @@ TEST (tensor_stream_test, video_argb)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -1774,7 +1782,7 @@ TEST (tensor_stream_test, video_abgr)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -1818,7 +1826,7 @@ TEST (tensor_stream_test, video_rgbx)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -1862,7 +1870,7 @@ TEST (tensor_stream_test, video_xrgb)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -1906,7 +1914,7 @@ TEST (tensor_stream_test, video_xbgr)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -1950,7 +1958,7 @@ TEST (tensor_stream_test, video_bgrx)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -1994,7 +2002,7 @@ TEST (tensor_stream_test, video_bgrx_2f)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -2038,7 +2046,7 @@ TEST (tensor_stream_test, video_gray8)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -2082,7 +2090,7 @@ TEST (tensor_stream_test, video_gray8_padding)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -2126,7 +2134,7 @@ TEST (tensor_stream_test, video_gray8_3f_padding)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -2170,7 +2178,7 @@ TEST (tensor_stream_test, audio_s8)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -2214,7 +2222,7 @@ TEST (tensor_stream_test, audio_u8_100f)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -2258,7 +2266,7 @@ TEST (tensor_stream_test, audio_s16)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -2302,7 +2310,7 @@ TEST (tensor_stream_test, audio_u16_1000f)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -2346,7 +2354,7 @@ TEST (tensor_stream_test, audio_s32)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -2390,7 +2398,7 @@ TEST (tensor_stream_test, audio_u32)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -2434,7 +2442,7 @@ TEST (tensor_stream_test, audio_f32)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -2478,7 +2486,7 @@ TEST (tensor_stream_test, audio_f64)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -2528,7 +2536,7 @@ TEST (tensor_stream_test, text_utf8)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -2605,7 +2613,7 @@ TEST (tensor_stream_test, text_utf8_3f)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -2655,7 +2663,7 @@ TEST (tensor_stream_test, octet_current_ts)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -2705,7 +2713,7 @@ TEST (tensor_stream_test, octet_framerate_ts)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -2782,7 +2790,7 @@ TEST (tensor_stream_test, octet_valid_ts)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -2859,7 +2867,7 @@ TEST (tensor_stream_test, octet_invalid_ts)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -2936,7 +2944,7 @@ TEST (tensor_stream_test, octet_2f)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -3015,7 +3023,7 @@ TEST (tensor_stream_test, octet_multi_tensors)
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -3075,7 +3083,7 @@ TEST (tensor_stream_test, custom_filter_tensor)
   }
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -3151,7 +3159,7 @@ TEST (tensor_stream_test, custom_filter_tensors)
   }
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -3211,7 +3219,7 @@ TEST (tensor_stream_test, custom_filter_multi)
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -3353,7 +3361,7 @@ TEST (tensor_stream_test, filter_properties_1)
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -3462,7 +3470,7 @@ TEST (tensor_stream_test, filter_properties_2)
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -3597,7 +3605,7 @@ TEST (tensor_stream_test, filter_properties_3)
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -3624,7 +3632,7 @@ TEST (tensor_stream_test, filter_properties_4_n)
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -3666,7 +3674,7 @@ TEST (tensor_stream_test, custom_filter_drop_buffer)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -3827,7 +3835,7 @@ test_custom_run_pipeline (void)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -4083,7 +4091,7 @@ TEST (tensor_stream_test, tensors_mix)
   }
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -4149,7 +4157,7 @@ TEST (tensor_stream_test, demux_properties_1)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -4215,7 +4223,7 @@ TEST (tensor_stream_test, demux_properties_2)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -4241,7 +4249,7 @@ TEST (tensor_stream_test, demux_properties_3_n)
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -4292,7 +4300,7 @@ _test_transform_typecast (TestType test, tensor_type type, guint buffers)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -4452,7 +4460,7 @@ TEST (tensor_stream_test, video_split)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -4481,7 +4489,7 @@ TEST (tensor_stream_test, split_properties_1_n)
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -4525,7 +4533,7 @@ TEST (tensor_stream_test, video_aggregate_1)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -4569,7 +4577,7 @@ TEST (tensor_stream_test, video_aggregate_2)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -4613,7 +4621,7 @@ TEST (tensor_stream_test, video_aggregate_3)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -4657,7 +4665,7 @@ TEST (tensor_stream_test, audio_aggregate_s16)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -4701,7 +4709,7 @@ TEST (tensor_stream_test, audio_aggregate_u16)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -4759,16 +4767,10 @@ TEST (tensor_stream_test, issue739_mux_parallel_1)
 
       g_free (data);
     }
-
-    /* remove temp file */
-    if (g_remove (option.tmpfile) != 0) {
-      _print_log ("failed to remove temp file %s", option.tmpfile);
-    }
-    g_free (option.tmpfile);
   }
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -4826,16 +4828,10 @@ TEST (tensor_stream_test, issue739_mux_parallel_2)
 
       g_free (data);
     }
-
-    /* remove temp file */
-    if (g_remove (option.tmpfile) != 0) {
-      _print_log ("failed to remove temp file %s", option.tmpfile);
-    }
-    g_free (option.tmpfile);
   }
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -4903,16 +4899,10 @@ TEST (tensor_stream_test, issue739_mux_parallel_3)
 
       g_free (data);
     }
-
-    /* remove temp file */
-    if (g_remove (option.tmpfile) != 0) {
-      _print_log ("failed to remove temp file %s", option.tmpfile);
-    }
-    g_free (option.tmpfile);
   }
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -4979,16 +4969,10 @@ TEST (tensor_stream_test, issue739_merge_parallel_1)
 
       g_free (data);
     }
-
-    /* remove temp file */
-    if (g_remove (option.tmpfile) != 0) {
-      _print_log ("failed to remove temp file %s", option.tmpfile);
-    }
-    g_free (option.tmpfile);
   }
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -5046,16 +5030,10 @@ TEST (tensor_stream_test, issue739_merge_parallel_2)
 
       g_free (data);
     }
-
-    /* remove temp file */
-    if (g_remove (option.tmpfile) != 0) {
-      _print_log ("failed to remove temp file %s", option.tmpfile);
-    }
-    g_free (option.tmpfile);
   }
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -5123,16 +5101,10 @@ TEST (tensor_stream_test, issue739_merge_parallel_3)
 
       g_free (data);
     }
-
-    /* remove temp file */
-    if (g_remove (option.tmpfile) != 0) {
-      _print_log ("failed to remove temp file %s", option.tmpfile);
-    }
-    g_free (option.tmpfile);
   }
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -5176,7 +5148,7 @@ TEST (tensor_stream_test, mux_properties_1)
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -5208,7 +5180,7 @@ TEST (tensor_stream_test, mux_properties_2_n)
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -5262,7 +5234,7 @@ TEST (tensor_stream_test, merge_properties_1)
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -5294,7 +5266,7 @@ TEST (tensor_stream_test, merge_properties_2_n)
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -5380,7 +5352,7 @@ TEST (tensor_stream_test, tensor_decoder_property_1)
   EXPECT_FALSE (g_test_data.invalid_timestamp);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -5409,7 +5381,7 @@ TEST (tensor_stream_test, tensor_decoder_property_2_n)
   gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -5473,7 +5445,7 @@ TEST (tensor_stream_test, tensor_cap_0)
   }
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -5537,7 +5509,7 @@ TEST (tensor_stream_test, tensor_cap_1)
   }
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -5602,7 +5574,7 @@ TEST (tensor_stream_test, tensors_cap_0)
   }
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 /**
@@ -5679,7 +5651,7 @@ TEST (tensor_stream_test, tensors_cap_1)
   }
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 }
 
 #include <tensor_filter_custom_easy.h>
@@ -5759,7 +5731,7 @@ TEST (tensor_filter_custom_easy, in_code_func_01)
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
-  _free_test_data ();
+  _free_test_data (option);
 
   /** cleanup registered custom_easy filter */
   ret = NNS_custom_easy_unregister ("safe_memcpy_10x10");
