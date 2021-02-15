@@ -106,7 +106,6 @@ typedef struct
   ml_tensors_data_h output;           /**< output to be sent back to user */
   guint timeout;                      /**< timeout for invoking */
   thread_state state;                 /**< current state of the thread */
-  gboolean ignore_output;             /**< ignore and free the output */
   gboolean free_output;               /**< true if output tensors are allocated in single-shot */
   int status;                         /**< status of processing */
 
@@ -147,22 +146,6 @@ __setup_in_out_tensors (ml_single * single_h)
 }
 
 /**
- * @brief setup the destroy notify for the allocated output data.
- * @note this stores the data entry in the single list.
- * @note this has not overhead if the allocation of output is not performed by
- * the framework but by tensor filter element.
- */
-static void
-set_destroy_notify (ml_single * single_h, ml_tensors_data_s * data)
-{
-  if (single_h->klass->allocate_in_invoke (single_h->filter)) {
-    data->handle = single_h;
-    single_h->destroy_data_list = g_list_append (single_h->destroy_data_list,
-        (gpointer) data);
-  }
-}
-
-/**
  * @brief To call the framework to destroy the allocated output data
  */
 static inline void
@@ -173,18 +156,23 @@ __destroy_notify (gpointer data_h, gpointer single_data)
 
   data = (ml_tensors_data_s *) data_h;
   single_h = (ml_single *) single_data;
+
   if (G_LIKELY (single_h->filter)) {
-    single_h->klass->destroy_notify (single_h->filter,
-        (GstTensorMemory *) data->tensors);
+    if (single_h->klass->allocate_in_invoke (single_h->filter)) {
+      single_h->klass->destroy_notify (single_h->filter,
+          (GstTensorMemory *) data->tensors);
+    }
   }
-  data->handle = NULL;
+
+  /* reset callback function */
+  data->destroy = NULL;
 }
 
 /**
  * @brief Wrapper function for __destroy_notify
  */
-int
-ml_single_destroy_notify (ml_single_h single, ml_tensors_data_s * data)
+static int
+ml_single_destroy_notify_cb (ml_tensors_data_h data, ml_single_h single)
 {
   ml_single *single_h;
   int status = ML_ERROR_NONE;
@@ -212,17 +200,39 @@ exit:
 }
 
 /**
+ * @brief setup the destroy notify for the allocated output data.
+ * @note this stores the data entry in the single list.
+ * @note this has not overhead if the allocation of output is not performed by
+ * the framework but by tensor filter element.
+ */
+static void
+set_destroy_notify (ml_single * single_h, ml_tensors_data_s * data,
+    gboolean add)
+{
+  if (single_h->klass->allocate_in_invoke (single_h->filter)) {
+    data->destroy = ml_single_destroy_notify_cb;
+    data->user_data = single_h;
+    add = TRUE;
+  }
+
+  if (add) {
+    single_h->destroy_data_list = g_list_append (single_h->destroy_data_list,
+        (gpointer) data);
+  }
+}
+
+/**
  * @brief Internal function to call subplugin's invoke
  */
 static inline int
-__invoke (ml_single * single_h)
+__invoke (ml_single * single_h, ml_tensors_data_h in, ml_tensors_data_h out)
 {
   ml_tensors_data_s *in_data, *out_data;
   int status = ML_ERROR_NONE;
   GstTensorMemory *in_tensors, *out_tensors;
 
-  in_data = (ml_tensors_data_s *) single_h->input;
-  out_data = (ml_tensors_data_s *) single_h->output;
+  in_data = (ml_tensors_data_s *) in;
+  out_data = (ml_tensors_data_s *) out;
 
   in_tensors = (GstTensorMemory *) in_data->tensors;
   out_tensors = (GstTensorMemory *) out_data->tensors;
@@ -233,8 +243,7 @@ __invoke (ml_single * single_h)
     ml_loge ("Failed to invoke the tensors.");
     status = ML_ERROR_STREAMS_PIPE;
     if (single_h->free_output)
-      ml_tensors_data_destroy (single_h->output);
-    single_h->output = NULL;
+      ml_tensors_data_destroy (out);
   }
 
   return status;
@@ -244,7 +253,7 @@ __invoke (ml_single * single_h)
  * @brief Internal function to post-process given output.
  */
 static inline void
-__process_output (ml_single * single_h)
+__process_output (ml_single * single_h, ml_tensors_data_h output)
 {
   ml_tensors_data_s *out_data;
 
@@ -253,16 +262,17 @@ __process_output (ml_single * single_h)
     return;
   }
 
-  if (single_h->ignore_output == TRUE) {
+  if (g_list_find (single_h->destroy_data_list, output)) {
     /**
-     * Caller of the invoke thread has returned back with timeout
-     * so, free the memory allocated by the invoke as their is no receiver
+     * Caller of the invoke thread has returned back with timeout.
+     * So, free the memory allocated by the invoke as their is no receiver.
      */
-    ml_tensors_data_destroy (single_h->output);
-    single_h->output = NULL;
+    single_h->destroy_data_list =
+        g_list_remove (single_h->destroy_data_list, output);
+    ml_tensors_data_destroy (output);
   } else {
-    out_data = (ml_tensors_data_s *) single_h->output;
-    set_destroy_notify (single_h, out_data);
+    out_data = (ml_tensors_data_s *) output;
+    set_destroy_notify (single_h, out_data, FALSE);
   }
 }
 
@@ -289,6 +299,7 @@ static void *
 invoke_thread (void *arg)
 {
   ml_single *single_h;
+  ml_tensors_data_h input, output;
 
   single_h = (ml_single *) arg;
 
@@ -304,14 +315,17 @@ invoke_thread (void *arg)
         goto exit;
     }
 
+    input = single_h->input;
+    output = single_h->output;
+
     g_mutex_unlock (&single_h->mutex);
-    status = __invoke (single_h);
+    status = __invoke (single_h, input, output);
     g_mutex_lock (&single_h->mutex);
 
     if (status != ML_ERROR_NONE)
       goto wait_for_next;
 
-    __process_output (single_h);
+    __process_output (single_h, output);
 
     /** loop over to wait for the next element */
   wait_for_next:
@@ -573,7 +587,6 @@ ml_single_create_handle (ml_nnfw_type_e nnfw)
   single_h->timeout = SINGLE_DEFAULT_TIMEOUT;
   single_h->nnfw = nnfw;
   single_h->state = IDLE;
-  single_h->ignore_output = FALSE;
   single_h->thread = NULL;
   single_h->input = NULL;
   single_h->output = NULL;
@@ -1014,7 +1027,6 @@ _ml_single_invoke_internal (ml_single_h single,
 
   single_h->input = input;
   single_h->state = RUNNING;
-  single_h->ignore_output = FALSE;
   single_h->free_output = need_alloc;
 
   if (single_h->timeout > 0) {
@@ -1031,7 +1043,8 @@ _ml_single_invoke_internal (ml_single_h single,
       ml_logw ("Wait for invoke has timed out");
       status = ML_ERROR_TIMED_OUT;
       /** This is set to notify invoke_thread to not process if timed out */
-      single_h->ignore_output = TRUE;
+      if (need_alloc)
+        set_destroy_notify (single_h, single_h->output, TRUE);
     }
   } else {
     /**
@@ -1042,24 +1055,23 @@ _ml_single_invoke_internal (ml_single_h single,
      * with the same handle. Thus we can call __invoke without
      * having yet another mutex for __invoke.
      */
-    status = __invoke (single_h);
+    status = __invoke (single_h, single_h->input, single_h->output);
     if (status != ML_ERROR_NONE)
       goto exit;
-    __process_output (single_h);
+    __process_output (single_h, single_h->output);
     single_h->state = IDLE;
   }
 
-  if (single_h->ignore_output == FALSE) {
+exit:
+  if (G_UNLIKELY (status != ML_ERROR_NONE)) {
+    ml_loge ("Failed to invoke the model.");
+  } else {
     if (need_alloc)
       *output = single_h->output;
-    single_h->output = NULL;
   }
 
-exit:
+  single_h->output = NULL;
   ML_SINGLE_HANDLE_UNLOCK (single_h);
-
-  if (G_UNLIKELY (status != ML_ERROR_NONE))
-    ml_loge ("Failed to invoke the model.");
   return status;
 }
 

@@ -133,6 +133,15 @@ typedef struct {
 } ml_tensors_info_s;
 
 /**
+ * @brief The function to be called to release the allocated buffer.
+ * @since_tizen 6.5
+ * @param[in] data The handle of the tensors data.
+ * @param[in,out] user_data The user data to pass to the callback function.
+ * @return @c 0 on success. Otherwise a negative error value.
+ */
+typedef int (*ml_tensors_data_destroy_cb) (ml_tensors_data_h data, void *user_data);
+
+/**
  * @brief An instance of a single input or output frame.
  * @since_tizen 5.5
  */
@@ -148,7 +157,10 @@ typedef struct {
 typedef struct {
   unsigned int num_tensors; /**< The number of tensors. */
   ml_tensor_data_s tensors[ML_TENSOR_SIZE_LIMIT]; /**< The list of tensor data. NULL for unused tensors. */
-  void *handle; /**< The handle which owns this buffer and will be used to de-alloc the data */
+
+  /* private */
+  void *user_data; /**< The user data to pass to the callback function */
+  ml_tensors_data_destroy_cb destroy; /**< The function to be called to release the allocated buffer */
 } ml_tensors_data_s;
 
 /**
@@ -409,8 +421,6 @@ ml_nnfw_type_e ml_get_nnfw_type_by_subplugin_name (const char *name);
  * @return The reference of pipeline itself. Null if the pipeline is not constructed or closed.
  */
 GstElement* ml_pipeline_get_gst_element (ml_pipeline_h pipe);
-
-int ml_single_destroy_notify (ml_single_h single, ml_tensors_data_s *data);
 
 #if defined (__TIZEN__)
 /**
