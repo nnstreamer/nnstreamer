@@ -351,6 +351,7 @@ TEST (common_tensor_info, copy_tensor)
   EXPECT_EQ (dest.dimension[1], src.dimension[1]);
   EXPECT_EQ (dest.dimension[2], src.dimension[2]);
   EXPECT_EQ (dest.dimension[3], src.dimension[3]);
+  gst_tensor_info_free (&dest);
 
   src = { NULL, _NNS_INT32, { 5, 6, 7, 8 } };
   gst_tensor_info_copy (&dest, &src);
@@ -362,6 +363,7 @@ TEST (common_tensor_info, copy_tensor)
   EXPECT_EQ (dest.dimension[2], src.dimension[2]);
   EXPECT_EQ (dest.dimension[3], src.dimension[3]);
 
+  gst_tensor_info_free (&dest);
   g_free (test_name);
 }
 
@@ -394,6 +396,7 @@ TEST (common_tensor_info, copy_tensors)
     EXPECT_EQ (dest.info[i].dimension[3], src.info[i].dimension[3]);
   }
 
+  gst_tensors_info_free (&dest);
   g_free (test_name);
 }
 
@@ -759,6 +762,7 @@ TEST (common_tensors_info_string, names)
   str_names = gst_tensors_info_get_names_string (&info);
   EXPECT_STREQ (str_names, "tensor1,tensor2,tensor3,tensor4");
   g_free (str_names);
+  gst_tensors_info_free (&info);
 
   /* empty name string */
   num_names = gst_tensors_info_parse_names_string (&info, ",,");
@@ -772,12 +776,15 @@ TEST (common_tensors_info_string, names)
   str_names = gst_tensors_info_get_names_string (&info);
   EXPECT_STREQ (str_names, ",,");
   g_free (str_names);
+  gst_tensors_info_free (&info);
 
   /* max */
   num_names = gst_tensors_info_parse_names_string (&info,
       "t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, "
       "t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28");
   EXPECT_EQ (num_names, (guint)NNS_TENSOR_SIZE_LIMIT);
+  info.num_tensors = num_names;
+  gst_tensors_info_free (&info);
 }
 
 /**
@@ -995,6 +1002,11 @@ TEST (conf_custom, env_str_01)
   g_free (f4);
   g_free (f5);
   g_free (f6);
+  g_free (fullpath);
+  g_free (filename);
+  g_free (dirf);
+  g_free (dircf);
+  g_free (dird);
 
   if (confenv) {
     EXPECT_TRUE (g_setenv ("NNSTREAMER_CONF", confenv, TRUE));
