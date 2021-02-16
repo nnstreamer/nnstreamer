@@ -150,9 +150,9 @@ if gtest_dep.found()
     test('unittest_grpc', unittest_grpc, env: testenv)
   endif
 
-  # Tizen C-API
-  if get_option('enable-capi')
-    subdir('tizen_capi')
+  # Tizen sensor-src
+  if get_option('enable-tizen-sensor')
+    subdir('tizen_sensor')
   endif
 
   # Tensor filter extensions basic test cases

@@ -33,8 +33,6 @@
 %define		caffe2_support 0
 
 %define		check_test 1
-%define		enable_tizen_privilege 1
-%define		enable_tizen_feature 1
 %define		release_test 1
 
 ###########################################################################
@@ -84,7 +82,6 @@
 
 # Disable a few features for TV releases
 %if "%{?profile}" == "tv"
-%define		enable_tizen_privilege 0
 %define		grpc_support 0
 %define		check_test 0
 %define		edgetpu_support 0
@@ -126,9 +123,6 @@ License:	LGPL-2.1
 Source0:	nnstreamer-%{version}.tar.gz
 Source1:	generate-tarball.sh
 Source1001:	nnstreamer.manifest
-%if %{with tizen}
-Source1002:	capi-nnstreamer.manifest
-%endif
 
 ## Define build requirements ##
 Requires:	gstreamer >= 1.8.0
@@ -224,16 +218,6 @@ BuildRequires:  grpc-devel
 %endif
 
 %if %{with tizen}
-%if 0%{?enable_tizen_privilege}
-BuildRequires:	pkgconfig(dpm)
-BuildRequires:	pkgconfig(capi-privacy-privilege-manager)
-BuildRequires:	pkgconfig(mm-camcorder)
-%if 0%{tizen_version_major} >= 5
-BuildRequires:	pkgconfig(mm-resource-manager)
-%endif
-%endif
-BuildRequires:	pkgconfig(capi-system-info)
-BuildRequires:	pkgconfig(capi-base-common)
 BuildRequires:	pkgconfig(dlog)
 # For tizen sensor support
 BuildRequires:	pkgconfig(sensor)
@@ -248,7 +232,6 @@ BuildRequires:  nnfw-devel
 BuildRequires:  libarmcl
 BuildConflicts: libarmcl-release
 %endif
-BuildRequires:  json-glib-devel
 %endif
 
 %if 0%{?pytorch_support}
@@ -415,27 +398,6 @@ Summary:	NNStreamer UnitTest Coverage Analysis Result
 HTML pages of lcov results of NNStreamer generated during rpmbuild
 %endif
 
-%package -n capi-nnstreamer
-Summary:	Tizen Native API for NNStreamer
-Group:		Multimedia/Framework
-Requires:	%{name} = %{version}-%{release}
-Requires:	%{name}-misc = %{version}-%{release}
-# Workaround: Since the rootstrap of Tizen v6.5 is not ready,
-# some application built on v6.0 needs libcapi-nnstreamer.so file.
-# This code will be removed when the rootstrap of Tizen v6.5 is ready.
-%if %{with tizen}
-Requires:	capi-nnstreamer-devel = %{version}-%{release}
-%endif
-%if 0%{?tizen_sensor_support}
-Requires:	%{name}-tizen-sensor = %{version}-%{release}
-%endif
-%description -n capi-nnstreamer
-Tizen Native API wrapper for NNStreamer.
-You can construct a data stream pipeline with neural networks easily.
-
-%post -n capi-nnstreamer -p /sbin/ldconfig
-%postun -n capi-nnstreamer -p /sbin/ldconfig
-
 %if 0%{?nnfw_support}
 %package nnfw
 Summary:	NNStreamer Tizen-nnfw runtime support
@@ -443,34 +405,6 @@ Requires:	nnfw
 %description nnfw
 NNStreamer's tensor_filter subplugin of Tizen-NNFW Runtime. (5.5 M2 +)
 %endif
-
-%package -n capi-nnstreamer-devel
-Summary:	Tizen Native API Devel Kit for NNStreamer
-Group:		Multimedia/Framework
-Requires:	capi-nnstreamer = %{version}-%{release}
-Requires:	capi-ml-common-devel
-%description -n capi-nnstreamer-devel
-Developmental kit for Tizen Native NNStreamer API.
-
-%package -n capi-nnstreamer-devel-static
-Summary:    Static library for Tizen Native API
-Group:      Multimedia/Framework
-Requires:   capi-nnstreamer-devel = %{version}-%{release}
-%description -n capi-nnstreamer-devel-static
-Static library of capi-nnstreamer-devel package.
-
-%package -n capi-ml-common-devel
-Summary:	Common headers for Tizen Machine Learning API set.
-Group:		Multimedia/Framework
-%description -n capi-ml-common-devel
-Common headers for Tizen Machine Learning API set.
-
-%package -n nnstreamer-tizen-internal-capi-devel
-Summary:	Tizen internal API to construct the pipeline
-Group:		Multimedia/Framework
-Requires:	capi-nnstreamer-devel = %{version}-%{release}
-%description -n nnstreamer-tizen-internal-capi-devel
-Tizen internal API to construct the pipeline without the permissions.
 
 %if 0%{?mvncsdk2_support}
 %package	ncsdk2
@@ -542,7 +476,7 @@ You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML 
 
 %if 0%{?release_test}
 %package unittests
-Summary:	NNStreamer unittests for core, API and plugins
+Summary:	NNStreamer unittests for core and plugins
 Requires:	nnstreamer = %{version}-%{release}
 %description unittests
 Various unit test cases and custom subplugin examples for NNStreamer.
@@ -561,13 +495,10 @@ Provides additional gstreamer plugins for nnstreamer pipelines
 ## Define build options ##
 %define enable_tizen -Denable-tizen=false
 %define enable_tizen_sensor -Denable-tizen-sensor=false
-%define enable_api -Denable-capi=false
 %define enable_mvncsdk2 -Dmvncsdk2-support=disabled
 %define enable_openvino -Denable-openvino=false
 %define enable_nnfw_runtime -Dnnfw-runtime-support=disabled
 %define element_restriction -Denable-element-restriction=false
-%define enable_tizen_privilege_check -Denable-tizen-privilege-check=true
-%define enable_tizen_feature_check -Denable-tizen-feature-check=true
 %define enable_test -Denable-test=true
 %define install_test -Dinstall-test=false
 
@@ -595,17 +526,8 @@ Provides additional gstreamer plugins for nnstreamer pipelines
 %define install_test -Dinstall-test=true
 %endif
 
-%if !0%{?enable_tizen_privilege}
-%define enable_tizen_privilege_check -Denable-tizen-privilege-check=false
-%endif
-
-%if !0%{?enable_tizen_feature}
-%define enable_tizen_feature_check -Denable-tizen-feature-check=false
-%endif
-
 %if %{with tizen}
 %define enable_tizen -Denable-tizen=true -Dtizen-version-major=0%{tizen_version_major}
-%define enable_api -Denable-capi=true
 # Element restriction in Tizen
 %define restricted_element	'capsfilter input-selector output-selector queue tee valve appsink appsrc audioconvert audiorate audioresample audiomixer videoconvert videocrop videorate videoscale videoflip videomixer compositor fakesrc fakesink filesrc filesink audiotestsrc videotestsrc jpegparse jpegenc jpegdec pngenc pngdec tcpclientsink tcpclientsrc tcpserversink tcpserversrc udpsink udpsrc xvimagesink ximagesink evasimagesink evaspixmapsink glimagesink theoraenc lame vorbisenc wavenc volume oggmux avimux matroskamux v4l2src avsysvideosrc camerasrc tvcamerasrc pulsesrc fimcconvert tizenwlsink gdppay gdpdepay join'
 %define element_restriction -Denable-element-restriction=true -Drestricted-elements=%{restricted_element}
@@ -686,8 +608,6 @@ cp %{SOURCE1001} .
 pushd %{_sourcedir}
 sh %{SOURCE1} %{name} %{version}
 popd
-cp %{SOURCE1002} .
-rm -rf ./api/capi/include/platform
 %endif
 
 %build
@@ -710,10 +630,10 @@ mkdir -p build
 
 meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} \
 	--bindir=%{nnstbindir} --includedir=%{_includedir} \
-	%{enable_api} %{enable_tizen} %{element_restriction} -Denable-env-var=false -Denable-symbolic-link=false \
+	%{enable_tizen} %{element_restriction} -Denable-env-var=false -Denable-symbolic-link=false \
 	%{enable_tf_lite} %{enable_tf2_lite} %{enable_tf} %{enable_pytorch} %{enable_caffe2} %{enable_python3} \
 	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_openvino} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} %{enable_flatbuf} \
-	%{enable_tizen_privilege_check} %{enable_tizen_feature_check} %{enable_tizen_sensor} %{enable_test} %{enable_test_coverage} %{install_test} \
+	%{enable_tizen_sensor} %{enable_test} %{enable_test_coverage} %{install_test} \
 	build
 
 ninja -C build %{?_smp_mflags}
@@ -730,12 +650,10 @@ export NNSTREAMER_CONVERTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor
 
 %if %{with tizen}
     bash %{test_script} ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw
-    bash %{test_script} ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_api
-    bash %{test_script} ./tests/tizen_capi/unittest_tizen_sensor
+    bash %{test_script} ./tests/tizen_sensor/unittest_tizen_sensor
 %endif #if tizen
 %if 0%{?unit_test}
     bash %{test_script} ./tests
-    bash %{test_script} ./tests/tizen_capi/unittest_tizen_capi
     bash %{test_script} ./tests/cpp_methods
     bash %{test_script} ./tests/nnstreamer_filter_extensions_common
     LD_LIBRARY_PATH=${NNSTREAMER_BUILD_ROOT_PATH}/tests/nnstreamer_filter_mvncsdk2:. bash %{test_script} ./tests/nnstreamer_filter_mvncsdk2/unittest_filter_mvncsdk2
@@ -776,16 +694,10 @@ ln -sf %{_prefix}/lib/nnstreamer/filters/nnstreamer_python3.so nnstreamer_python
 popd
 %endif
 
-# Hotfix: Support the backward compatibility of the .Net APIs
-pushd %{buildroot}%{_libdir}
-ln -sf libcapi-nnstreamer.so.%{version} libcapi-nnstreamer.so.0
-popd
-
 %if 0%{?testcoverage}
 ##
 # The included directories are:
 #
-# api: nnstreamer api
 # gst: the nnstreamer elements
 # nnstreamer_example: custom plugin examples
 # common: common libraries for gst (elements)
@@ -794,13 +706,7 @@ popd
 # Intentionally excluded directories are:
 #
 # tests: We are not going to show testcoverage of the test code itself or example applications
-
-%if %{with tizen}
-%define testtarget $(pwd)/api/capi
-%else
-%define testtarget
-%endif
-
+#
 # 'lcov' generates the date format with UTC time zone by default. Let's replace UTC with KST.
 # If you ccan get a root privilege, run ln -sf /usr/share/zoneinfo/Asia/Seoul /etc/localtime
 TZ='Asia/Seoul'; export TZ
@@ -931,33 +837,11 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 
 %files devel-static
 %{_libdir}/*.a
-%exclude %{_libdir}/libcapi*.a
 
 %if 0%{?testcoverage}
 %files unittest-coverage
 %{_datadir}/nnstreamer/unittest/*
 %endif
-
-%files -n capi-nnstreamer
-%manifest capi-nnstreamer.manifest
-%license LICENSE
-%{_libdir}/libcapi-nnstreamer.so.*
-
-%files -n capi-nnstreamer-devel
-%{_includedir}/nnstreamer/nnstreamer.h
-%{_includedir}/nnstreamer/nnstreamer-single.h
-%{_libdir}/libcapi-nnstreamer.so
-%{_libdir}/pkgconfig/capi-nnstreamer.pc
-
-%files -n capi-nnstreamer-devel-static
-%{_libdir}/libcapi-nnstreamer.a
-
-%files -n capi-ml-common-devel
-%{_includedir}/nnstreamer/ml-api-common.h
-%{_libdir}/pkgconfig/capi-ml-common.pc
-
-%files -n nnstreamer-tizen-internal-capi-devel
-%{_includedir}/nnstreamer/nnstreamer-tizen-internal.h
 
 %if 0%{?nnfw_support}
 %files nnfw
