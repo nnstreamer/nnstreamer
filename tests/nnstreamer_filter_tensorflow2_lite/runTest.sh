@@ -69,6 +69,7 @@ fi
 PATH_TO_MODEL="../test_models/models/mobilenet_v1_1.0_224_quant.tflite"
 PATH_TO_LABEL="../test_models/labels/labels.txt"
 PATH_TO_IMAGE="../test_models/data/orange.png"
+PATH_TO_OPENCL="/usr/lib/libOpenCL.so"
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter framework=tensorflow2-lite model=${PATH_TO_MODEL} ! filesink location=tensorfilter.out.log" 1 0 0 $PERFORMANCE
 python3 checkLabel.py tensorfilter.out.log ${PATH_TO_LABEL} orange
@@ -188,6 +189,26 @@ testResult $? 2-16 "accelerator set test" 0 1
 run_pipeline true:${auto_accl},cpu
 cat info | grep "accl = ${auto_accl}$"
 testResult $? 2-17 "accelerator set test" 0 1
+
+# GPU Delegate test
+if [ -e $PATH_TO_OPENCL]; then
+    run_pipeline true:gpu
+    cat info | grep "GPU delegate kernels.$"
+    testResult $? 3-1 "GPU Delegate test" 0 1
+
+    run_pipeline true:!cpu,gpu
+    cat info | grep "GPU delegate kernels.$"
+    testResult $? 3-2 "GPU Delegate test" 0 1
+
+    run_pipeline true:true:!cpu,!npu,gpu
+    cat info | grep "GPU delegate kernels.$"
+    testResult $? 3-3 "GPU Delegate test" 0 1
+
+    # Since CPU is a higher priority than GPU, GPU delegate is not used.
+    run_pipeline true:cpu,gpu
+    cat info | grep "accl = cpu$"
+    testResult $? 3-4 "GPU Delegate test" 0 1
+fi
 
 # Cleanup
 rm info

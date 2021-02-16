@@ -6652,6 +6652,125 @@ skip_test:
 }
 
 /**
+ * @brief Test NNStreamer single shot (tflite with GPU Delegate)
+ * @detail After enabling tflite with GPU option, run the `ml_single_invoke()` api works properly.
+ */
+TEST (nnstreamer_capi_singleshot, invoke_gpu_delegate_00_p)
+{
+  ml_single_h single;
+  ml_tensors_info_h in_info;
+  ml_tensors_data_h input, output;
+  int status;
+  bool result;
+  void *data;
+  size_t data_size;
+  gchar *test_model;
+  const gchar *opencl_path = "/usr/lib/libOpenCL.so";
+
+  /* supposed to run test in build directory */
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  if (!g_file_test (opencl_path, G_FILE_TEST_EXISTS)) {
+    /** @todo If libOpenCL.so library is not installed,
+     * TfLiteGpuDelegate Init function is failed. So skip this test
+     */
+    goto skip_test;
+  }
+
+  /* Since tensorflow2-lite is higher priority than tensorflow1-lite, tensorflow2-lite is used as default */
+  status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_GPU, &result);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  if (!result) {
+    /* GPU is not available so skip this test */
+    goto skip_test;
+  }
+
+  status = ml_single_open (&single, test_model, NULL, NULL,
+      ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_GPU);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_single_get_input_info (single, &in_info);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+  status = ml_tensors_data_create (in_info, &input);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (input != NULL);
+
+  status = ml_single_invoke (single, input, &output);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_TRUE (output != NULL);
+
+  status = ml_tensors_data_get_tensor_data (output, 0, (void **)&data, &data_size);\
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (data_size, 1001U);
+
+  ml_tensors_data_destroy (output);
+  ml_tensors_data_destroy (input);
+  ml_tensors_info_destroy (in_info);
+
+  status = ml_single_close (single);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+
+skip_test:
+  g_free (test_model);
+}
+
+/**
+ * @brief Test NNStreamer single shot (tflite with GPU Delegate)
+ * @detail Set invalid option when calling ml_single_open()
+ */
+TEST (nnstreamer_capi_singleshot, invoke_gpu_delegate_01_n)
+{
+  ml_single_h single;
+  int status;
+  bool result;
+  gchar *test_model;
+  const gchar *opencl_path = "/usr/lib/libOpenCL.so";
+
+  /* supposed to run test in build directory */
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  if (!g_file_test (opencl_path, G_FILE_TEST_EXISTS)) {
+    /** @todo If libOpenCL.so library is not installed,
+     * TfLiteGpuDelegate Init function is failed. So skip this test
+     */
+    goto skip_test;
+  }
+
+  /* Since tensorflow2-lite is higher priority than tensorflow1-lite, tensorflow2-lite is used as default */
+  status = ml_check_nnfw_availability (ML_NNFW_TYPE_TENSORFLOW_LITE, ML_NNFW_HW_GPU, &result);
+  EXPECT_EQ (status, ML_ERROR_NONE);
+  if (!result) {
+    /* GPU is not available so skip this test */
+    goto skip_test;
+  }
+
+  /* Set invalid option */
+  status = ml_single_open (&single, test_model, NULL, NULL,
+      ML_NNFW_TYPE_ARMNN, ML_NNFW_HW_GPU);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+  status = ml_single_open (&single, test_model, NULL, NULL,
+      ML_NNFW_TYPE_VIVANTE, ML_NNFW_HW_GPU);
+  EXPECT_NE (status, ML_ERROR_NONE);
+
+skip_test:
+  g_free (test_model);
+}
+
+/**
  * @brief Test case of Element Property Control.
  * @detail Run the `ml_pipeline_element_get_handle()` API and check its results.
  */
