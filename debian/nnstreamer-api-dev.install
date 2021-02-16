@@ -1,5 +1,0 @@
-/usr/include/nnstreamer/nnstreamer.h
-/usr/include/nnstreamer/nnstreamer-single.h
-/usr/lib/*/pkgconfig/capi-nnstreamer.pc
-/usr/lib/*/libcapi-*.a
-/usr/lib/*/libcapi-*.so

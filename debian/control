@@ -108,28 +108,6 @@ Depends: nnstreamer, nnstreamer-grpc, nnstreamer-flatbuf, ${shlibs:Depends}, ${m
 Description: NNStreamer gRPC IDL support for flatbuf
  This package allows nnstreamer-grpc to use flatbuf as its IDL
 
-Package: nnstreamer-api-common-dev
-Architecture: any
-Multi-Arch: same
-Depends: ${shlibs:Depends}, ${misc:Depends}
-Description: NNStreamer API common
- Provides headers commonly used across API, such as error definitions.
- This is a development package for nnstreamer.
-
-Package: nnstreamer-api
-Architecture: any
-Multi-Arch: same
-Depends: nnstreamer, ${shlibs:Depends}, ${misc:Depends}
-Description: NNStreamer API
- This package provides native API set to easily construct a data stream pipeline with neural networks.
-
-Package: nnstreamer-api-dev
-Architecture: any
-Multi-Arch: same
-Depends: nnstreamer-api, nnstreamer-api-common-dev, ${shlibs:Depends}, ${misc:Depends}
-Description: Development package for NNStreamer API
- This is a development package for NNStreamer API.
-
 Package: nnstreamer-dev
 Architecture: any
 Multi-Arch: same
