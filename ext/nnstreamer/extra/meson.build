@@ -55,11 +55,6 @@ if grpc_support_is_available
       install: true,
       install_dir: nnstreamer_libdir
     )
-    nns_protobuf_grpc_dep = declare_dependency(
-      link_with: nns_protobuf_grpc_lib,
-      dependencies : [grpc_util_dep, nns_protobuf_dep],
-      include_directories: nns_protobuf_grpc_lib.private_dir_include()
-    )
   else
     warning('gRPC/Protobuf is not supported')
   endif
@@ -76,11 +71,6 @@ if grpc_support_is_available
       dependencies : [grpc_util_dep, flatbuf_dep],
       install: true,
       install_dir: nnstreamer_libdir
-    )
-    nns_flatbuf_grpc_dep = declare_dependency(
-      link_with: nns_flatbuf_grpc_lib,
-      dependencies : [grpc_util_dep, flatbuf_dep],
-      include_directories: nns_flatbuf_grpc_lib.private_dir_include()
     )
   else
     warning('gRPC/Flatbuf is not supported')
