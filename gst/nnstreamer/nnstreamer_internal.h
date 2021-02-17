@@ -17,6 +17,8 @@
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_filter.h>
 
+G_BEGIN_DECLS
+
 /**
  * @brief Get the custom configuration value from .ini and envvar.
  * @detail For predefined configurations defined in this header,
@@ -75,4 +77,5 @@ gst_tensor_filter_detect_framework (const gchar * const *model_files, const guin
 extern gboolean
 gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw);
 
+G_END_DECLS
 #endif /* __NNSTREAMER_INTERNAL_H__ */
