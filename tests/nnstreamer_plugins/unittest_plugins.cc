@@ -20,6 +20,12 @@
 
 #include "../gst/nnstreamer/tensor_transform/tensor_transform.h"
 
+#ifdef ENABLE_TENSORFLOW_LITE
+#define TEST_REQUIRE_TFLITE(Case, Name) TEST (Case, Name)
+#else
+#define TEST_REQUIRE_TFLITE(Case, Name) TEST (Case, DISABLED_##Name)
+#endif
+
 /**
  * @brief Macro for debug mode.
  */
@@ -3649,11 +3655,10 @@ TEST (test_tensor_transform, orc_performance)
 }
 #endif /* HAVE_ORC */
 
-#ifdef ENABLE_TENSORFLOW_LITE
 /**
  * @brief Test to re-open tf-lite model file in tensor-filter.
  */
-TEST (test_tensor_filter, reopen_tflite_01_p)
+TEST_REQUIRE_TFLITE (test_tensor_filter, reopen_tflite_01_p)
 {
   GstHarness *h;
   GstBuffer *in_buf, *out_buf;
@@ -3730,7 +3735,7 @@ TEST (test_tensor_filter, reopen_tflite_01_p)
 /**
  * @brief Test to re-open tf-lite model file directly with nnfw struct.
  */
-TEST (test_tensor_filter, reopen_tflite_02_p)
+TEST_REQUIRE_TFLITE (test_tensor_filter, reopen_tflite_02_p)
 {
   const gchar fw_name[] = "tensorflow-lite";
   const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
@@ -3779,7 +3784,7 @@ TEST (test_tensor_filter, reopen_tflite_02_p)
 /**
  * @brief Test to reload tf-lite model set_property of model/is-updatable
  */
-TEST (test_tensor_filter, reload_tflite_set_property)
+TEST_REQUIRE_TFLITE (test_tensor_filter, reload_tflite_set_property)
 {
   GstHarness *h;
   GstBuffer *in_buf, *out_buf;
@@ -3879,7 +3884,7 @@ TEST (test_tensor_filter, reload_tflite_set_property)
 /**
  * @brief Test to reload tf-lite; model does not exist (negative)
  */
-TEST (test_tensor_filter, reload_tflite_model_not_found_n)
+TEST_REQUIRE_TFLITE (test_tensor_filter, reload_tflite_model_not_found_n)
 {
   const gchar fw_name[] = "tensorflow-lite";
   const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
@@ -3942,7 +3947,7 @@ TEST (test_tensor_filter, reload_tflite_model_not_found_n)
 /**
  * @brief Test to reload tf-lite; model has wrong dimension (negative)
  */
-TEST (test_tensor_filter, reload_tflite_model_wrong_dims_n)
+TEST_REQUIRE_TFLITE (test_tensor_filter, reload_tflite_model_wrong_dims_n)
 {
   const gchar fw_name[] = "tensorflow-lite";
   const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
@@ -3997,7 +4002,7 @@ TEST (test_tensor_filter, reload_tflite_model_wrong_dims_n)
 /**
  * @brief Test to reload tf-lite; same model does not exist (negative)
  */
-TEST (test_tensor_filter, reload_tflite_same_model_not_found_n)
+TEST_REQUIRE_TFLITE (test_tensor_filter, reload_tflite_same_model_not_found_n)
 {
   const gchar fw_name[] = "tensorflow-lite";
   const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
@@ -4060,7 +4065,7 @@ TEST (test_tensor_filter, reload_tflite_same_model_not_found_n)
 /**
  * @brief Test to reload tf-lite; same model has wrong dimension (negative)
  */
-TEST (test_tensor_filter, reload_tflite_same_model_wrong_dims_n)
+TEST_REQUIRE_TFLITE (test_tensor_filter, reload_tflite_same_model_wrong_dims_n)
 {
   const gchar fw_name[] = "tensorflow-lite";
   const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
@@ -4129,7 +4134,7 @@ TEST (test_tensor_filter, reload_tflite_same_model_wrong_dims_n)
 /**
  * @brief Test framework auto detecion option in tensor-filter.
  */
-TEST (test_tensor_filter, framework_auto_ext_tflite_01)
+TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_ext_tflite_01)
 {
   gchar *test_model, *str_launch_line;
   GstElement *gstpipe;
@@ -4151,7 +4156,7 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_01)
  * @brief Test framework auto detecion option in tensor-filter.
  * @details The order of tensor filter options has changed.
  */
-TEST (test_tensor_filter, framework_auto_ext_tflite_02)
+TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_ext_tflite_02)
 {
   gchar *test_model, *str_launch_line;
   GstElement *gstpipe;
@@ -4173,7 +4178,7 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_02)
  * @brief Test framework auto detecion option in tensor-filter.
  * @details Test if options are insensitive to the case
  */
-TEST (test_tensor_filter, framework_auto_ext_tflite_03)
+TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_ext_tflite_03)
 {
   gchar *test_model, *str_launch_line;
   GstElement *gstpipe;
@@ -4195,7 +4200,7 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_03)
  * @brief Test framework auto detecion option in tensor-filter.
  * @details Negative case when model file does not exist
  */
-TEST (test_tensor_filter, framework_auto_ext_tflite_model_not_found_n)
+TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_ext_tflite_model_not_found_n)
 {
   gchar *test_model, *str_launch_line;
   const gchar *fw_name = NULL;
@@ -4224,7 +4229,7 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_model_not_found_n)
  * @brief Test framework auto detecion option in tensor-filter.
  * @details Negative case with not supported extension
  */
-TEST (test_tensor_filter, framework_auto_ext_tflite_not_supported_ext_n)
+TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_ext_tflite_not_supported_ext_n)
 {
   gchar *test_model, *str_launch_line;
   const gchar *fw_name = NULL;
@@ -4247,7 +4252,7 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_not_supported_ext_n)
  * @brief Test framework auto detecion option in tensor-filter.
  * @details Negative case when permission of model file is not given.
  */
-TEST (test_tensor_filter, framework_auto_ext_tflite_no_permission_n)
+TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_ext_tflite_no_permission_n)
 {
   int ret;
   gchar *test_model, *str_launch_line;
@@ -4282,7 +4287,7 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_no_permission_n)
  * @brief Test framework auto detecion option in tensor-filter.
  * @details Negative case with invalid framework name
  */
-TEST (test_tensor_filter, framework_auto_ext_tflite_invalid_fw_name_n)
+TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_ext_tflite_invalid_fw_name_n)
 {
   gchar *test_model, *str_launch_line;
   const gchar *fw_name = NULL;
@@ -4305,7 +4310,7 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_invalid_fw_name_n)
  * @brief Test framework auto detecion option in tensor-filter.
  * @details Negative case with invalid dimension of tensor filter
  */
-TEST (test_tensor_filter, framework_auto_ext_tflite_wrong_dimension_n)
+TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_ext_tflite_wrong_dimension_n)
 {
   gchar *test_model, *str_launch_line;
   const gchar *fw_name = "tensorflow-lite";
@@ -4328,7 +4333,7 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_wrong_dimension_n)
  * @brief Test framework auto detecion option in tensor-filter.
  * @details Negative case with invalid input type of tensor filter
  */
-TEST (test_tensor_filter, framework_auto_ext_tflite_wrong_inputtype_n)
+TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_ext_tflite_wrong_inputtype_n)
 {
   gchar *test_model, *str_launch_line;
   const gchar *fw_name = "tensorflow-lite";
@@ -4350,7 +4355,7 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_wrong_inputtype_n)
 /**
  * @brief Test framework auto detecion without specifying the option in tensor-filter.
  */
-TEST (test_tensor_filter, framework_auto_wo_opt_ext_tflite)
+TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_wo_opt_ext_tflite)
 {
   gchar *test_model, *str_launch_line;
   GstElement *gstpipe;
@@ -4372,7 +4377,7 @@ TEST (test_tensor_filter, framework_auto_wo_opt_ext_tflite)
  * @brief Test framework auto detecion option in tensor-filter.
  * @details Negative case when model file does not exist
  */
-TEST (test_tensor_filter, framework_auto_wo_opt_ext_tflite_model_not_found_n)
+TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_wo_opt_ext_tflite_model_not_found_n)
 {
   gchar *test_model, *str_launch_line;
   const gchar *fw_name = NULL;
@@ -4401,7 +4406,7 @@ TEST (test_tensor_filter, framework_auto_wo_opt_ext_tflite_model_not_found_n)
  * @brief Test framework auto detecion without specifying the option in tensor-filter.
  * @details Negative case with not supported extension
  */
-TEST (test_tensor_filter, framework_auto_wo_opt_tflite_not_supported_ext_n)
+TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_wo_opt_tflite_not_supported_ext_n)
 {
   gchar *test_model, *str_launch_line;
   const gchar *fw_name = NULL;
@@ -4424,7 +4429,7 @@ TEST (test_tensor_filter, framework_auto_wo_opt_tflite_not_supported_ext_n)
  * @brief Test framework auto detecion without specifying the option in tensor-filter.
  * @details Negative case when permission of model file is not given.
  */
-TEST (test_tensor_filter, framework_auto_wo_opt_no_permission_n)
+TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_wo_opt_no_permission_n)
 {
   int ret;
   gchar *test_model, *str_launch_line;
@@ -4455,7 +4460,7 @@ TEST (test_tensor_filter, framework_auto_wo_opt_no_permission_n)
   gst_object_unref (gstpipe);
 }
 
-#elif ENABLE_NNFW_RUNTIME
+#if !defined(ENABLE_TENSORFLOW_LITE) && defined(ENABLE_NNFW_RUNTIME)
 /**
  * @brief Test framework auto detecion option in tensor-filter.
  * @details Check if nnfw (second priority) is detected automatically
@@ -4500,7 +4505,7 @@ TEST (test_tensor_filter, framework_auto_wo_opt_ext_tflite_nnfw)
   gst_object_unref (gstpipe);
 }
 
-#endif /* ENABLE_TENSORFLOW_LITE */
+#endif /* !defined(ENABLE_TENSORFLOW_LTIE) && defined(ENABLE_NNFW_RUNTIME) */
 
 #ifdef ENABLE_TENSORFLOW
 /**
@@ -4850,7 +4855,7 @@ TEST (test_tensor_filter, framework_auto_wo_opt_ext_pt_pytorch_disabled_n)
  * @brief Test for inputranks and outputranks property of the tensor_filter
  * @details Given dimension string, check its rank value.
  */
-TEST (test_tensor_filter, property_rank_01_p)
+TEST_REQUIRE_TFLITE (test_tensor_filter, property_rank_01_p)
 {
   gchar *str_launch_line;
   GstHarness *hrnss;
@@ -4911,7 +4916,7 @@ TEST (test_tensor_filter, property_rank_01_p)
  * @brief Test for inputranks and outputranks property of the tensor_filter
  * @details Given dimension string, check its rank value.
  */
-TEST (test_tensor_filter, property_rank_02_p)
+TEST_REQUIRE_TFLITE (test_tensor_filter, property_rank_02_p)
 {
   gchar *str_launch_line;
   GstHarness *hrnss;
@@ -4967,7 +4972,7 @@ TEST (test_tensor_filter, property_rank_02_p)
  * @brief Test for inputranks and outputranks property of the tensor_filter
  * @details Given dimension string, check its rank value.
  */
-TEST (test_tensor_filter, property_rank_03_n)
+TEST_REQUIRE_TFLITE (test_tensor_filter, property_rank_03_n)
 {
   gchar *str_launch_line;
   GstHarness *hrnss;
