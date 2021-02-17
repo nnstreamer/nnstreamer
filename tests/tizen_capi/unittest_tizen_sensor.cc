@@ -15,23 +15,26 @@
 #include <gtest/gtest.h>
 #include <glib.h>
 #include <gst/gst.h>
-#include <nnstreamer-capi-private.h>
-#include <nnstreamer.h>
 #include <unittest_util.h>
+#include <tensor_typedef.h>
 #include "dummy_sensor.h" /* Dummy Tizen Sensor Framework */
 
 static const unsigned int TEST_TIME_OUT_TIZEN_SENSOR_MS
     = 10000U; /* timeout occur after 10 seconds */
 
-#define wait_for_start(handle, state, status)                     \
+#define wait_for_start(pipe)                                      \
   do {                                                            \
     int counter = 0;                                              \
-    while (state != ML_PIPELINE_STATE_PLAYING && counter < 100) { \
+    GstState state = GST_STATE_NULL;                              \
+    GstStateChangeReturn ret;                                     \
+    g_usleep (10000);                                             \
+    while (state != GST_STATE_PLAYING && counter < 100) {         \
       g_usleep (100000);                                          \
       counter++;                                                  \
-      status = ml_pipeline_get_state (handle, &state);            \
-      EXPECT_EQ (status, ML_ERROR_NONE);                          \
+      ret = gst_element_get_state (pipe, &state, NULL, GST_MSECOND); \
+      EXPECT_NE (ret, GST_STATE_CHANGE_FAILURE);                  \
     }                                                             \
+    ASSERT_EQ (state, GST_STATE_PLAYING); \
   } while (0)
 
 /**
@@ -67,7 +70,7 @@ TEST (tizensensor_as_source, virtual_sensor_create_01)
         (err) ? err->message : "unknown reason");
     g_clear_error (&err);
   }
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (status, 0);
   g_free (pipeline);
 }
 
@@ -105,7 +108,7 @@ TEST (tizensensor_as_source, virtual_sensor_create_02)
   } else {
     status = -1;
   }
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (status, 0);
   g_free (pipeline);
 }
 
@@ -114,7 +117,7 @@ typedef struct {
   int cursor;
   int num_data;
   float golden[256][16];
-  ml_tensor_type_e type;
+  tensor_type type;
   int dim0;
   unsigned int checked;
   int negative;
@@ -126,46 +129,39 @@ static verify_data data; /* Too big for stack. Use this global var */
  * @brief Test if the sensor-reading matches the golden values.
  */
 static void
-callback_nns (const ml_tensors_data_h data, const ml_tensors_info_h info, void *user_data)
+callback_nns (GstElement *element, GstBuffer *buffer, gpointer user_data)
 {
-  verify_data *vdata = (verify_data *)user_data;
-  int status;
-  unsigned int count;
-  ml_tensor_type_e type;
-  ml_tensor_dimension dimension;
-
-  void *raw_data;
-  size_t data_size;
+  verify_data *vdata = (verify_data *) user_data;
+  guint count;
+  gsize buf_size;
   float *dataptr;
+  GstMemory *mem;
+  GstMapInfo map_info;
 
-  status = ml_tensors_info_get_count (info, &count);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_EQ (count, 1);
+  count = gst_buffer_n_memory (buffer);
+  EXPECT_EQ (count, 1U);
 
-  status = ml_tensors_info_get_tensor_type (info, 0, &type);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_EQ (type, ML_TENSOR_TYPE_FLOAT32);
+  buf_size = gst_buffer_get_size (buffer);
+  EXPECT_EQ (buf_size, sizeof (float));
 
-  status = ml_tensors_info_get_tensor_dimension (info, 0, dimension);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_EQ (dimension[0], 1);
+  mem = gst_buffer_peek_memory (buffer, 0);
+  if (gst_memory_map (mem, &map_info, GST_MAP_READ)) {
+    dataptr = (float *) map_info.data;
 
-  status = ml_tensors_data_get_tensor_data (data, 0, &raw_data, &data_size);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  dataptr = (float *)raw_data;
+    if (vdata->negative) {
+      EXPECT_FALSE (dataptr[0] == vdata->golden[vdata->cursor][0]
+                    || dataptr[0] == vdata->golden[vdata->cursor + 1][0]);
+    } else {
+      EXPECT_TRUE (dataptr[0] == vdata->golden[vdata->cursor][0]
+                   || dataptr[0] == vdata->golden[vdata->cursor + 1][0]);
+    }
 
-  if (vdata->negative) {
-    EXPECT_FALSE (dataptr[0] == vdata->golden[vdata->cursor][0]
-                  || dataptr[0] == vdata->golden[vdata->cursor + 1][0]);
-  } else {
-    EXPECT_TRUE (dataptr[0] == vdata->golden[vdata->cursor][0]
-                 || dataptr[0] == vdata->golden[vdata->cursor + 1][0]);
+    if (dataptr[0] == vdata->golden[vdata->cursor + 1][0])
+      vdata->cursor += 1;
+
+    vdata->checked += 1;
+    gst_memory_unmap (mem, &map_info);
   }
-
-  if (dataptr[0] == vdata->golden[vdata->cursor + 1][0])
-    vdata->cursor += 1;
-
-  vdata->checked += 1;
 }
 
 /**
@@ -173,13 +169,12 @@ callback_nns (const ml_tensors_data_h data, const ml_tensors_info_h info, void *
  */
 TEST (tizensensor_as_source, virtual_sensor_flow_03)
 {
+  GError *err = NULL;
+  GstElement *pipe, *sink;
   gchar *pipeline;
   sensor_event_s value;
   sensor_h sensor;
   int status = 0;
-  ml_pipeline_h handle;
-  ml_pipeline_sink_h s_handle;
-  ml_pipeline_state_e state;
 
   status = sensor_get_default_sensor (SENSOR_LIGHT, &sensor);
   EXPECT_EQ (status, 0);
@@ -192,7 +187,7 @@ TEST (tizensensor_as_source, virtual_sensor_flow_03)
 
   data.checked = 0;
   data.dim0 = 1;
-  data.type = ML_TENSOR_TYPE_FLOAT32;
+  data.type = _NNS_FLOAT32;
   data.cursor = 0;
   data.num_data = 3;
   data.golden[0][0] = 0.01;
@@ -203,24 +198,16 @@ TEST (tizensensor_as_source, virtual_sensor_flow_03)
   /* Create a nnstreamer pipeline */
   pipeline = g_strdup_printf (
       "tensor_src_tizensensor type=SENSOR_LIGHT sequence=-1 num-buffers=30 framerate=60/1 ! tensor_sink name=getv");
-  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  pipe = gst_parse_launch (pipeline, &err);
+  ASSERT_TRUE (pipe && !err);
+  g_clear_error (&err);
 
-  status = ml_pipeline_sink_register (handle, "getv", callback_nns, &data, &s_handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_TRUE (s_handle != NULL);
+  sink = gst_bin_get_by_name (GST_BIN (pipe), "getv");
+  EXPECT_TRUE (sink != NULL);
+  g_signal_connect (sink, "new-data", (GCallback) callback_nns, &data);
 
-  status = ml_pipeline_start (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  g_usleep (10000); /* 10ms. Wait a bit. */
-  status = ml_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  /* At this moment, it can be READY, PAUSED, or PLAYING */
-  EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
-  EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
-
-  wait_for_start (handle, state, status);
-  EXPECT_EQ (state, ML_PIPELINE_STATE_PLAYING);
+  gst_element_set_state (pipe, GST_STATE_PLAYING);
+  wait_for_start (pipe);
 
   g_usleep (10000); /* Let a frame or more flow */
   value.values[0] = 1.01;
@@ -228,20 +215,10 @@ TEST (tizensensor_as_source, virtual_sensor_flow_03)
 
   EXPECT_TRUE (wait_pipeline_process_buffers (&data.checked, 2, TEST_TIME_OUT_TIZEN_SENSOR_MS));
 
-  status = ml_pipeline_stop (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  g_usleep (10000); /* 10ms. Wait a bit. */
+  gst_element_set_state (pipe, GST_STATE_NULL);
 
-  status = ml_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_EQ (state, ML_PIPELINE_STATE_PAUSED);
-
-  status = ml_pipeline_sink_unregister (s_handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_destroy (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
+  gst_object_unref (sink);
+  gst_object_unref (pipe);
   g_free (pipeline);
 }
 
@@ -250,15 +227,13 @@ TEST (tizensensor_as_source, virtual_sensor_flow_03)
  */
 TEST (tizensensor_as_source, virtual_sensor_flow_04)
 {
+  GError *err = NULL;
+  GstElement *pipe, *sink;
   gchar *pipeline;
   sensor_event_s value;
   sensor_h sensor;
   sensor_h *sensor_list;
-  int status = 0;
   int count;
-  ml_pipeline_h handle;
-  ml_pipeline_sink_h s_handle;
-  ml_pipeline_state_e state;
 
   sensor_get_sensor_list (SENSOR_LIGHT, &sensor_list, &count);
   EXPECT_EQ (count, 3);
@@ -273,7 +248,7 @@ TEST (tizensensor_as_source, virtual_sensor_flow_04)
 
   data.checked = 0;
   data.dim0 = 1;
-  data.type = ML_TENSOR_TYPE_FLOAT32;
+  data.type = _NNS_FLOAT32;
   data.cursor = 0;
   data.num_data = 3;
   data.golden[0][0] = 0.01;
@@ -284,25 +259,16 @@ TEST (tizensensor_as_source, virtual_sensor_flow_04)
   /* Create a nnstreamer pipeline */
   pipeline = g_strdup_printf (
       "tensor_src_tizensensor type=SENSOR_LIGHT sequence=2 num-buffers=50 framerate=100/1 ! tensor_sink name=getv");
-  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  pipe = gst_parse_launch (pipeline, &err);
+  ASSERT_TRUE (pipe && !err);
+  g_clear_error (&err);
 
-  status = ml_pipeline_sink_register (handle, "getv", callback_nns, &data, &s_handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_TRUE (s_handle != NULL);
+  sink = gst_bin_get_by_name (GST_BIN (pipe), "getv");
+  EXPECT_TRUE (sink != NULL);
+  g_signal_connect (sink, "new-data", (GCallback) callback_nns, &data);
 
-  status = ml_pipeline_start (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  g_usleep (10000); /* 10ms. Wait a bit. */
-  status = ml_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  /* At this moment, it can be READY, PAUSED, or PLAYING */
-  EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
-  EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
-
-  count = 0;
-  wait_for_start (handle, state, status);
-  EXPECT_EQ (state, ML_PIPELINE_STATE_PLAYING);
+  gst_element_set_state (pipe, GST_STATE_PLAYING);
+  wait_for_start (pipe);
 
   g_usleep (10000); /* Let a frame or more flow */
   value.values[0] = 1.01;
@@ -310,20 +276,10 @@ TEST (tizensensor_as_source, virtual_sensor_flow_04)
 
   EXPECT_TRUE (wait_pipeline_process_buffers (&data.checked, 2, TEST_TIME_OUT_TIZEN_SENSOR_MS));
 
-  status = ml_pipeline_stop (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  g_usleep (10000); /* 10ms. Wait a bit. */
+  gst_element_set_state (pipe, GST_STATE_NULL);
 
-  status = ml_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_EQ (state, ML_PIPELINE_STATE_PAUSED);
-
-  status = ml_pipeline_sink_unregister (s_handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_destroy (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
+  gst_object_unref (sink);
+  gst_object_unref (pipe);
   g_free (pipeline);
 }
 
@@ -332,15 +288,13 @@ TEST (tizensensor_as_source, virtual_sensor_flow_04)
  */
 TEST (tizensensor_as_source, virtual_sensor_flow_05_n)
 {
+  GError *err = NULL;
+  GstElement *pipe, *sink;
   gchar *pipeline;
   sensor_event_s value;
   sensor_h sensor;
   sensor_h *sensor_list;
-  int status = 0;
   int count;
-  ml_pipeline_h handle;
-  ml_pipeline_sink_h s_handle;
-  ml_pipeline_state_e state;
 
   sensor_get_sensor_list (SENSOR_LIGHT, &sensor_list, &count);
   EXPECT_EQ (count, 3);
@@ -363,7 +317,7 @@ TEST (tizensensor_as_source, virtual_sensor_flow_05_n)
 
   data.checked = 0;
   data.dim0 = 1;
-  data.type = ML_TENSOR_TYPE_FLOAT32;
+  data.type = _NNS_FLOAT32;
   data.cursor = 0;
   data.num_data = 3;
   data.golden[0][0] = 0.01;
@@ -374,24 +328,16 @@ TEST (tizensensor_as_source, virtual_sensor_flow_05_n)
   /* Create a nnstreamer pipeline */
   pipeline = g_strdup_printf (
       "tensor_src_tizensensor type=SENSOR_LIGHT sequence=1 num-buffers=50 framerate=100/1 ! tensor_sink name=getv");
-  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  pipe = gst_parse_launch (pipeline, &err);
+  ASSERT_TRUE (pipe && !err);
+  g_clear_error (&err);
 
-  status = ml_pipeline_sink_register (handle, "getv", callback_nns, &data, &s_handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_TRUE (s_handle != NULL);
+  sink = gst_bin_get_by_name (GST_BIN (pipe), "getv");
+  EXPECT_TRUE (sink != NULL);
+  g_signal_connect (sink, "new-data", (GCallback) callback_nns, &data);
 
-  status = ml_pipeline_start (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  g_usleep (10000); /* 10ms. Wait a bit. */
-  status = ml_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  /* At this moment, it can be READY, PAUSED, or PLAYING */
-  EXPECT_NE (state, ML_PIPELINE_STATE_UNKNOWN);
-  EXPECT_NE (state, ML_PIPELINE_STATE_NULL);
-
-  wait_for_start (handle, state, status);
-  EXPECT_EQ (state, ML_PIPELINE_STATE_PLAYING);
+  gst_element_set_state (pipe, GST_STATE_PLAYING);
+  wait_for_start (pipe);
 
   g_usleep (10000); /* Let a frame or more flow */
   value.values[0] = 1.01;
@@ -399,20 +345,10 @@ TEST (tizensensor_as_source, virtual_sensor_flow_05_n)
 
   EXPECT_TRUE (wait_pipeline_process_buffers (&data.checked, 2, TEST_TIME_OUT_TIZEN_SENSOR_MS));
 
-  status = ml_pipeline_stop (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  g_usleep (10000); /* 10ms. Wait a bit. */
+  gst_element_set_state (pipe, GST_STATE_NULL);
 
-  status = ml_pipeline_get_state (handle, &state);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-  EXPECT_EQ (state, ML_PIPELINE_STATE_PAUSED);
-
-  status = ml_pipeline_sink_unregister (s_handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
-  status = ml_pipeline_destroy (handle);
-  EXPECT_EQ (status, ML_ERROR_NONE);
-
+  gst_object_unref (sink);
+  gst_object_unref (pipe);
   g_free (pipeline);
 }
 
@@ -421,18 +357,26 @@ TEST (tizensensor_as_source, virtual_sensor_flow_05_n)
  */
 TEST (tizensensor_as_source, virtual_sensor_create_06_n)
 {
+  GError *err = NULL;
+  GstElement *pipe;
+  GstStateChangeReturn ret;
   gchar *pipeline;
-  int status = 0;
-  ml_pipeline_h handle;
+  gboolean failed = FALSE;
 
   /* Create a nnstreamer pipeline */
   pipeline = g_strdup_printf ("tensor_src_tizensensor type=SENSOR_HRM_LED_GREEN ! tensor_sink");
-  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
-  EXPECT_EQ (status, ML_ERROR_STREAMS_PIPE);
+  pipe = gst_parse_launch (pipeline, &err);
 
-  status = ml_pipeline_destroy (handle);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+  if (pipe) {
+    gst_element_set_state (pipe, GST_STATE_PAUSED);
+    failed = (ret == GST_STATE_CHANGE_FAILURE);
+    gst_object_unref (pipe);
+  } else {
+    failed = TRUE;
+  }
 
+  EXPECT_TRUE (failed);
+  g_clear_error (&err);
   g_free (pipeline);
 }
 
@@ -441,18 +385,26 @@ TEST (tizensensor_as_source, virtual_sensor_create_06_n)
  */
 TEST (tizensensor_as_source, virtual_sensor_create_07_n)
 {
+  GError *err = NULL;
+  GstElement *pipe;
+  GstStateChangeReturn ret;
   gchar *pipeline;
-  int status = 0;
-  ml_pipeline_h handle;
+  gboolean failed = FALSE;
 
   /* Create a nnstreamer pipeline */
   pipeline = g_strdup_printf ("tensor_src_tizensensor type=invalid_sensor ! tensor_sink");
-  status = ml_pipeline_construct (pipeline, NULL, NULL, &handle);
-  EXPECT_EQ (status, ML_ERROR_STREAMS_PIPE);
+  pipe = gst_parse_launch (pipeline, &err);
 
-  status = ml_pipeline_destroy (handle);
-  EXPECT_EQ (status, ML_ERROR_INVALID_PARAMETER);
+  if (pipe) {
+    gst_element_set_state (pipe, GST_STATE_PAUSED);
+    failed = (ret == GST_STATE_CHANGE_FAILURE);
+    gst_object_unref (pipe);
+  } else {
+    failed = TRUE;
+  }
 
+  EXPECT_TRUE (failed);
+  g_clear_error (&err);
   g_free (pipeline);
 }
 
@@ -507,7 +459,7 @@ TEST (tizensensor_as_source, get_property_1)
         (err) ? err->message : "unknown reason");
     g_clear_error (&err);
   }
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (status, 0);
   g_free (pipeline);
 }
 
@@ -544,7 +496,7 @@ TEST (tizensensor_as_source, get_property_2_n)
         (err) ? err->message : "unknown reason");
     g_clear_error (&err);
   }
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (status, 0);
   g_free (pipeline);
 }
 
@@ -608,7 +560,7 @@ TEST (tizensensor_as_source, get_property_3_n)
         (err) ? err->message : "unknown reason");
     g_clear_error (&err);
   }
-  EXPECT_EQ (status, ML_ERROR_NONE);
+  EXPECT_EQ (status, 0);
   g_free (pipeline);
 }
 
@@ -626,17 +578,12 @@ main (int argc, char **argv)
     g_warning ("catch 'testing::internal::<unnamed>::ClassUniqueToAlwaysTrue'");
   }
 
-  /* ignore tizen feature status while running the testcases */
-  set_feature_state (SUPPORTED);
-
   gst_init (&argc, &argv);
   try {
     result = RUN_ALL_TESTS ();
   } catch (...) {
     g_warning ("catch `testing::internal::GoogleTestFailureException`");
   }
-
-  set_feature_state (NOT_CHECKED_YET);
 
   return result;
 }

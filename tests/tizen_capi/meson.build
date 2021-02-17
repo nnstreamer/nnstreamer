@@ -21,7 +21,6 @@ unittest_tizen_capi_latency = executable('unittest_tizen_capi_latency',
 test('unittest_tizen_capi_latency', unittest_tizen_capi_latency, env: testenv)
 
 if get_option('enable-tizen-sensor')
-
   unittest_sensor_helper = shared_library('capi-system-sensor',
     ['dummy_sensor.c'],
     dependencies: [glib_dep],
@@ -36,7 +35,6 @@ if get_option('enable-tizen-sensor')
     gst_dep,
     gst_base_dep,
     nnstreamer_dep,
-    nnstreamer_capi_dep,
     unittest_sensor_helper_dep,
   ]
   unittest_tizen_sensor = executable('unittest_tizen_sensor',
