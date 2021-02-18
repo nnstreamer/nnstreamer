@@ -189,7 +189,7 @@ tensor_filter_ext_enabled = tflite_support_is_available or \
     pytorch_support_is_available or caffe2_support_is_available or \
     nnfw_runtime_support_is_available or get_option('enable-edgetpu') or \
     mvncsdk2_support_is_available or get_option('enable-openvino')
-if get_option('install-test') and (get_option('enable-capi') or tensor_filter_ext_enabled)
+if get_option('install-test') and tensor_filter_ext_enabled
   install_subdir('test_models', install_dir: unittest_tests_install_dir)
 endif
 

@@ -27,7 +27,6 @@ option('tflite2-nnapi-delegate-support', type: 'boolean', value: 'false')
 option('enable-mediapipe', type: 'boolean', value: false)
 option('enable-env-var', type: 'boolean', value: true)
 option('enable-symbolic-link', type: 'boolean', value: true)
-option('enable-capi', type: 'boolean', value: false)
 option('enable-tizen', type: 'boolean', value: false)
 option('tizen-version-major', type: 'integer', min : 4, max : 9999, value: 9999) # 9999 means "not Tizen"
 option('enable-element-restriction', type: 'boolean', value: false) # true to restrict gst-elements in api

@@ -52,9 +52,9 @@ As of 2018/10/13, we support 16.04 and 18.04
   * You can find the option definitions here: [meson options](https://github.com/nnstreamer/nnstreamer/blob/main/meson_options.txt)
   * For more information about meson build options itself, see [here](https://mesonbuild.com/Build-options.html).
 
-  For example, to build and install NNStreamer by enabling C-API and disabling tensorflow2-lite,
+  For example, to build and install NNStreamer by disabling tensorflow2-lite,
    ```
-   $ meson --prefix=${NNST_ROOT} --sysconfdir=${NNST_ROOT} --libdir=lib --bindir=bin --includedir=include -Denable-capi=true -Dtflite2-support=disabled build
+   $ meson --prefix=${NNST_ROOT} --sysconfdir=${NNST_ROOT} --libdir=lib --bindir=bin --includedir=include -Dtflite2-support=disabled build
    ```
 
 - Build source code

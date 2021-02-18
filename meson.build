@@ -457,9 +457,6 @@ subdir('gst')
 # Build ext subplugins
 subdir('ext')
 
-# Build API
-subdir('api')
-
 # Build Utility
 subdir('tools/development')
 
