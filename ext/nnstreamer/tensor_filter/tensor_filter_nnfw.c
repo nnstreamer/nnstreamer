@@ -735,7 +735,7 @@ nnfw_invoke_internal (const nnfw_pdata * pdata,
   nnfw_internal_stats.total_invoke_num += 1;
 
 #if (DBG)
-  g_message ("Invoke() is finished: %" G_GINT64_FORMAT ", model path: %s", stop_time - start_time, pdata->model_file);
+  g_message ("Invoke() is finished: %" G_GINT64_FORMAT "ms, model path: %s", (stop_time - start_time) / 1000, pdata->model_file);
   g_message ("%" G_GINT64_FORMAT " invoke average %" G_GINT64_FORMAT ", total overhead %" G_GINT64_FORMAT,
       nnfw_internal_stats.total_invoke_num,
       (nnfw_internal_stats.total_invoke_latency / nnfw_internal_stats.total_invoke_num),

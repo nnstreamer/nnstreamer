@@ -274,8 +274,8 @@ TFLiteInterpreter::invoke (const GstTensorMemory *input, GstTensorMemory *output
   tflite_internal_stats.total_invoke_num += 1;
 
 #if (DBG)
-  g_critical ("Invoke() is finished: %" G_GINT64_FORMAT ", model path: %s", (stop_time - start_time), getModelPath());
-  g_critical ("%" G_GINT64_FORMAT " invoke average %" G_GINT64_FORMAT ", total overhead %" G_GINT64_FORMAT,
+  g_message ("Invoke() is finished: %" G_GINT64_FORMAT "ms, model path: %s", (stop_time - start_time) / 1000, getModelPath());
+  g_message ("%" G_GINT64_FORMAT " invoke average %" G_GINT64_FORMAT ", total overhead %" G_GINT64_FORMAT,
       tflite_internal_stats.total_invoke_num,
       (tflite_internal_stats.total_invoke_latency / tflite_internal_stats.total_invoke_num),
       tflite_internal_stats.total_overhead_latency);
