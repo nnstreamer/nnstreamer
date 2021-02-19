@@ -1,3 +1,6 @@
+# Set unittest install dir
+unittest_install_dir = join_paths(unittest_base_dir, 'tests')
+
 # Build and copy exe for ssat
 copy = find_program('cp', required: true)
 libpng_dep = dependency('libpng', required: false)
@@ -180,9 +183,6 @@ if gtest_dep.found()
   endif
 endif # gtest_dep.found()
 
-# Install data required for unittest
-unittest_tests_install_dir = join_paths(unittest_install_dir,'tests')
-
 tensor_filter_ext_enabled = tflite_support_is_available or \
     tf_support_is_available or \
     have_python3 or \
@@ -190,54 +190,48 @@ tensor_filter_ext_enabled = tflite_support_is_available or \
     nnfw_runtime_support_is_available or get_option('enable-edgetpu') or \
     mvncsdk2_support_is_available or get_option('enable-openvino')
 if get_option('install-test') and tensor_filter_ext_enabled
-  install_subdir('test_models', install_dir: unittest_tests_install_dir)
+  install_subdir('test_models', install_dir: unittest_install_dir)
 endif
 
 
 # Install Unittest
 if get_option('install-test')
-  install_data('gen24bBMP.py', install_dir: unittest_tests_install_dir)
-  install_subdir('nnstreamer_converter', install_dir: unittest_tests_install_dir)
-  install_subdir('nnstreamer_merge', install_dir: unittest_tests_install_dir)
-  install_subdir('nnstreamer_decoder', install_dir: unittest_tests_install_dir)
-  install_subdir('nnstreamer_demux', install_dir: unittest_tests_install_dir)
-  install_subdir('nnstreamer_filter_custom', install_dir: unittest_tests_install_dir)
+  install_data('gen24bBMP.py', install_dir: unittest_install_dir)
+  install_subdir('nnstreamer_converter', install_dir: unittest_install_dir)
+  install_subdir('nnstreamer_merge', install_dir: unittest_install_dir)
+  install_subdir('nnstreamer_decoder', install_dir: unittest_install_dir)
+  install_subdir('nnstreamer_demux', install_dir: unittest_install_dir)
+  install_subdir('nnstreamer_filter_custom', install_dir: unittest_install_dir)
   if tflite_support_is_available
-    install_subdir('nnstreamer_filter_tensorflow_lite', install_dir: unittest_tests_install_dir)
-    install_subdir('nnstreamer_decoder_image_labeling', install_dir: unittest_tests_install_dir)
-    install_subdir('nnstreamer_filter_reload', install_dir: unittest_tests_install_dir)
+    install_subdir('nnstreamer_filter_tensorflow_lite', install_dir: unittest_install_dir)
+    install_subdir('nnstreamer_decoder_image_labeling', install_dir: unittest_install_dir)
+    install_subdir('nnstreamer_filter_reload', install_dir: unittest_install_dir)
   endif
   if tflite2_support_is_available
-    install_subdir('nnstreamer_filter_tensorflow2_lite', install_dir: unittest_tests_install_dir)
+    install_subdir('nnstreamer_filter_tensorflow2_lite', install_dir: unittest_install_dir)
   endif
   if have_python3
-    install_subdir('nnstreamer_filter_python3', install_dir: unittest_tests_install_dir)
+    install_subdir('nnstreamer_filter_python3', install_dir: unittest_install_dir)
   endif
   if tf_support_is_available
-    install_subdir('nnstreamer_filter_tensorflow', install_dir: unittest_tests_install_dir)
+    install_subdir('nnstreamer_filter_tensorflow', install_dir: unittest_install_dir)
   endif
   if pytorch_support_is_available
-    install_subdir('nnstreamer_filter_pytorch', install_dir: unittest_tests_install_dir)
+    install_subdir('nnstreamer_filter_pytorch', install_dir: unittest_install_dir)
   endif
   if caffe2_support_is_available
-    install_subdir('nnstreamer_filter_caffe2', install_dir: unittest_tests_install_dir)
+    install_subdir('nnstreamer_filter_caffe2', install_dir: unittest_install_dir)
   endif
-  if mvncsdk2_support_is_available
-    install_subdir('unittest_filter_mvncsdk2', install_dir: unittest_tests_install_dir)
-  endif
-  install_subdir('nnstreamer_mux', install_dir: unittest_tests_install_dir)
-  install_subdir('nnstreamer_rate', install_dir: unittest_tests_install_dir)
-  install_subdir('nnstreamer_repo', install_dir: unittest_tests_install_dir)
-  install_subdir('nnstreamer_repo_dynamicity', install_dir: unittest_tests_install_dir)
-  install_subdir('nnstreamer_repo_lstm', install_dir: unittest_tests_install_dir)
-  install_subdir('nnstreamer_repo_rnn', install_dir: unittest_tests_install_dir)
-  install_subdir('nnstreamer_split', install_dir: unittest_tests_install_dir)
-  install_subdir('transform_arithmetic', install_dir: unittest_tests_install_dir)
-  install_subdir('transform_dimchg', install_dir: unittest_tests_install_dir)
-  install_subdir('transform_stand', install_dir: unittest_tests_install_dir)
-  install_subdir('transform_transpose', install_dir: unittest_tests_install_dir)
-  install_subdir('transform_typecast', install_dir: unittest_tests_install_dir)
-  if get_option('enable-cppfilter')
-    install_subdir('cpp_methods', install_dir: unittest_tests_install_dir)
-  endif
+  install_subdir('nnstreamer_mux', install_dir: unittest_install_dir)
+  install_subdir('nnstreamer_rate', install_dir: unittest_install_dir)
+  install_subdir('nnstreamer_repo', install_dir: unittest_install_dir)
+  install_subdir('nnstreamer_repo_dynamicity', install_dir: unittest_install_dir)
+  install_subdir('nnstreamer_repo_lstm', install_dir: unittest_install_dir)
+  install_subdir('nnstreamer_repo_rnn', install_dir: unittest_install_dir)
+  install_subdir('nnstreamer_split', install_dir: unittest_install_dir)
+  install_subdir('transform_arithmetic', install_dir: unittest_install_dir)
+  install_subdir('transform_dimchg', install_dir: unittest_install_dir)
+  install_subdir('transform_stand', install_dir: unittest_install_dir)
+  install_subdir('transform_transpose', install_dir: unittest_install_dir)
+  install_subdir('transform_typecast', install_dir: unittest_install_dir)
 endif

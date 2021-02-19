@@ -99,7 +99,7 @@ filter_subplugin_install_dir = join_paths(subplugin_install_prefix, 'filters')
 decoder_subplugin_install_dir = join_paths(subplugin_install_prefix, 'decoders')
 customfilter_install_dir = join_paths(subplugin_install_prefix, 'customfilters')
 converter_subplugin_install_dir = join_paths(subplugin_install_prefix, 'converters')
-unittest_install_dir = join_paths(subplugin_install_prefix, 'unittest')
+unittest_base_dir = join_paths(nnstreamer_bindir, 'unittest-nnstreamer')
 
 # Set default configuration
 nnstreamer_conf = configuration_data()
@@ -495,7 +495,7 @@ if get_option('enable-test')
 
   configure_file(input: 'nnstreamer.ini.in', output: 'nnstreamer-test.ini',
     install: get_option('install-test'),
-    install_dir: unittest_install_dir,
+    install_dir: unittest_base_dir,
     configuration: nnstreamer_test_conf
   )
 
