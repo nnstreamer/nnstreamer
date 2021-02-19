@@ -4,7 +4,7 @@ unittest_nnfw_runtime_raw = executable('unittest_nnfw_runtime_raw',
   'unittest_tizen_nnfw_runtime_raw.cc',
   dependencies: test_nnfw_deps,
   install: get_option('install-test'),
-  install_dir: join_paths(unittest_install_dir,'tests'),
+  install_dir: unittest_install_dir,
 )
 
 test('unittest_nnfw_runtime_raw', unittest_nnfw_runtime_raw, env: testenv)

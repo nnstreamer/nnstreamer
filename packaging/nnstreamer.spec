@@ -913,8 +913,10 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %files unittests
 %manifest nnstreamer.manifest
 %{_libdir}/libnnstreamer_unittest_util.so
+%{_libdir}/libcppfilter_test.so
+%{_libdir}/libmvncsdk_test.so
 %{_prefix}/lib/nnstreamer/customfilters/*.so
-%{_prefix}/lib/nnstreamer/unittest
+%{nnstbindir}/unittest-nnstreamer
 %endif
 
 %if 0%{?openvino_support}
