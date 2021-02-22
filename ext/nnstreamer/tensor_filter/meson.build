@@ -59,7 +59,22 @@ if armnn_support_is_available
     dependencies: nnstreamer_filter_armnn_deps)
 endif
 
+tf_ver_dep = disabler()
 if tf_support_is_available
+  tf_ver = tf_support_deps[0].version()
+  tf_ver_major = tf_ver.split('.')[0]
+  tf_ver_minor = tf_ver.split('.')[1]
+  tf_ver_micro = tf_ver.split('.')[2]
+
+  tf_ver_dep = declare_dependency (
+    compile_args : [
+      '-DTF_VERSION=' + tf_ver,
+      '-DTF_VERSION_MAJOR=' + tf_ver_major,
+      '-DTF_VERSION_MINOR=' + tf_ver_minor,
+      '-DTF_VERSION_MICRO=' + tf_ver_micro,
+    ],
+  )
+
   filter_sub_tf_sources = ['tensor_filter_tensorflow.cc']
 
   nnstreamer_filter_tf_sources = []
@@ -68,6 +83,7 @@ if tf_support_is_available
   endforeach
 
   nnstreamer_filter_tf_deps = tf_support_deps + [glib_dep, gst_dep, nnstreamer_dep]
+  nnstreamer_filter_tf_deps += tf_ver_dep
 
   shared_library('nnstreamer_filter_tensorflow',
     nnstreamer_filter_tf_sources,

@@ -491,6 +491,8 @@ TFCore::run (const GstTensorMemory *input, GstTensorMemory *output)
     input_ops.push_back (input_op);
 
     if (input_tensor_info[i].type == TF_STRING) {
+#if (TF_VERSION_MAJOR < 2) || (TF_VERSION_MAJOR == 2 && TF_VERSION_MINOR <= 3)
+      /* TF 2.3 or lower */
       size_t encoded_size = TF_StringEncodedSize (input[i].size);
       size_t total_size = 8 + encoded_size;
 
@@ -512,6 +514,10 @@ TFCore::run (const GstTensorMemory *input, GstTensorMemory *output)
       }
       in_tensor = TF_NewTensor (input_tensor_info[i].type, NULL, 0, input_encoded,
           total_size, DeallocateInputTensor, &input_tensor_info[i]);
+#else /* TF 2.4 or higher */
+      in_tensor = TF_NewTensor (input_tensor_info[i].type, NULL, 0, input[i].data,
+          input[i].size, DeallocateInputTensor, &input_tensor_info[i]);
+#endif /* TF <= 2.3 or >= 2.4 */
     } else {
       in_tensor = TF_NewTensor (input_tensor_info[i].type,
           input_tensor_info[i].dims.data (), input_tensor_info[i].rank, input[i].data,
