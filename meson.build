@@ -316,11 +316,13 @@ foreach feature_name, data : features
 
   target = data.get('target', '')
 
-  _deps = data.get('extra_deps', [])
+  _deps = []
 
   if target != ''
     _deps += dependency(target, required: get_option(feature_name))
   endif
+  _deps += data.get('extra_deps', [])
+
 
   foreach dep : _deps
     if not dep.found()

@@ -74,6 +74,7 @@ if tf_support_is_available
       '-DTF_VERSION_MICRO=' + tf_ver_micro,
     ],
   )
+  message('TensorFlow version: ' + tf_ver)
 
   filter_sub_tf_sources = ['tensor_filter_tensorflow.cc']
 
@@ -115,6 +116,7 @@ if tflite_support_is_available
       '-DTFLITE_VERSION_MICRO=' + tflite_ver_micro,
     ],
   )
+  message('TensorFlow-lite version: ' + tflite_ver)
 
   if not flatbuf_support_is_available
     flatbuf_dep = dependency('flatbuffers', required : true, \
@@ -187,6 +189,7 @@ if tflite2_support_is_available
       '-DTFLITE_VERSION_MICRO=' + tflite2_ver_micro,
     ],
   )
+  message('TensorFlow2-lite version: ' + tflite2_ver)
 
   filter_sub_tflite2_sources = ['tensor_filter_tensorflow_lite.cc']
 
