@@ -152,17 +152,6 @@ pb_comp = find_program('protoc', required: get_option('protobuf-support'))
 pg_orcc = find_program('orcc', required: get_option('orcc-support'))
 orc_dep = dependency('orc-0.4', version: '>= 0.4.17', required: get_option('orcc-support'))
 
-#movidius
-mvncsdk2_dep = dependency('', required: false)
-if not get_option('mvncsdk2-support').disabled()
-  mvncsdk2_dep = cc.find_library('mvnc', required: false)
-  if not mvncsdk2_dep.found()
-    if cc.check_header('mvnc2/mvnc.h', required: get_option('mvncsdk2-support'))
-      mvncsdk2_dep = declare_dependency()
-    endif
-  endif
-endif
-
 ## nnfw
 nnfw_dep = dependency('', required: false)
 if not get_option('nnfw-runtime-support').disabled()
@@ -268,7 +257,7 @@ features = {
     'project_args': { 'ENABLE_CAFFE2': 1 }
   },
   'mvncsdk2-support': {
-    'extra_deps': [ mvncsdk2_dep ],
+    'target': 'libmvnc',
     'project_args': { 'ENABLE_MOVIDIUS_NCSDK2' : 1}
   },
   'nnfw-runtime-support': {
