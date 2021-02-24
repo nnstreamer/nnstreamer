@@ -30,7 +30,7 @@ neural network developers to manage neural network pipelines and their filters e
 
 |     | [Tizen](http://download.tizen.org/snapshots/tizen/unified/latest/repos/standard/packages/) | [Ubuntu](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) | Android/NDK Build | Android/APK | Yocto | macOS |
 | :-- | :--: | :--: | :--: | :--: | :--: | :--: |
-|     | 5.5M2 and later | 16.04/18.04 | 9/P | 9/P | TBD |   |
+|     | 5.5M2 and later | 16.04/18.04/20.04 | 9/P | 9/P | Zeus and later |   |
 | arm | [![armv7l badge](http://nnsuite.mooo.com/nnstreamer/ci/daily-build/badge/armv7l_result_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/daily-build/build_result/) | Available  | Ready | Available| Ready | N/A |
 | arm64 |  [![aarch64 badge](http://nnsuite.mooo.com/nnstreamer/ci/daily-build/badge/aarch64_result_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/daily-build/build_result/) | Available  | Ready | [![android badge](http://nnsuite.mooo.com/nnstreamer/ci/daily-build/badge/android_result_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/daily-build/build_result/) | Planned | N/A |
 | x64 | [![x64 badge](http://nnsuite.mooo.com/nnstreamer/ci/daily-build/badge/x86_64_result_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/daily-build/build_result/)  | [![ubuntu badge](http://nnsuite.mooo.com/nnstreamer/ci/daily-build/badge/ubuntu_result_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/daily-build/build_result/)  | Ready  | Ready | Ready | Available |
@@ -42,6 +42,7 @@ neural network developers to manage neural network pipelines and their filters e
 - Available: binary packages are released and deployed automatically and periodically along with CI tests.
 - [Daily Release](http://nnsuite.mooo.com/nnstreamer/ci/daily-build/build_result/)
 - SDK Support: Tizen Studio (5.5 M2+) / Android Studio (JCenter, "nnstreamer")
+- [Enabled features of official releases](Documentation/features-per-distro.md)
 
 
 

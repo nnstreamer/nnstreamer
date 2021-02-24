@@ -5,6 +5,7 @@ index.md
 		Documentation/contributing.md
 		Documentation/doxygen-documentation.md
 		Documentation/edge-ai.md
+		Documentation/features-per-distro.md 
 		Documentation/getting-started.md
 			Documentation/getting-started-android.md
 			Documentation/getting-started-macos.md
