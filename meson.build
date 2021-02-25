@@ -303,6 +303,10 @@ features = {
   },
   'grpc-support': {
     'extra_deps': [ grpc_dep, gpr_dep, grpcpp_dep ]
+  },
+  'lua-support': {
+    'target': 'lua',
+    'project_args': { 'ENABLE_LUA' : 1}
   }
 }
 
