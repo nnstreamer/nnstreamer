@@ -324,13 +324,18 @@ foreach feature_name, data : features
   _deps = []
 
   if target != ''
-    target_dep = dependency(target, required: get_option(feature_name))
+    target_dep = dependency(target, required: false)
     if not target_dep.found()
       target_alt = data.get('target_alt', '')
       if target_alt != ''
-        target_dep = dependency(target_alt, required: get_option(feature_name))
+        target_dep = dependency(target_alt, required: false)
       endif
     endif
+
+    if get_option(feature_name).enabled() and not target_dep.found()
+      error('@0@ is enabled but unable to find the target dependency'.format(feature_name))
+    endif
+
     _deps += target_dep
   endif
   _deps += data.get('extra_deps', [])
