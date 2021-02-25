@@ -13,7 +13,7 @@
 
 %define		gstpostfix	gstreamer-1.0
 %define		gstlibdir	%{_libdir}/%{gstpostfix}
-%define		nnstbindir	/usr/lib/nnstreamer/bin
+%define		nnstbindir	lib/nnstreamer/bin
 
 ###########################################################################
 # Default features for Tizen releases
@@ -628,8 +628,8 @@ CXXFLAGS=`echo $CXXFLAGS | sed -e "s|-Wp,-D_FORTIFY_SOURCE=[1-9]||g"`
 
 mkdir -p build
 
-meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_libdir} \
-	--bindir=%{nnstbindir} --includedir=%{_includedir} \
+meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_lib} \
+	--bindir=%{nnstbindir} --includedir=include \
 	%{enable_tizen} %{element_restriction} -Denable-env-var=false -Denable-symbolic-link=false \
 	%{enable_tf_lite} %{enable_tf2_lite} %{enable_tf} %{enable_pytorch} %{enable_caffe2} %{enable_python3} \
 	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_openvino} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} %{enable_flatbuf} \
@@ -684,7 +684,7 @@ popd
 
 mkdir -p %{buildroot}%{_bindir}
 pushd %{buildroot}%{_bindir}
-ln -sf %{nnstbindir}/nnstreamer-check nnstreamer-check
+ln -sf %{_prefix}/%{nnstbindir}/nnstreamer-check nnstreamer-check
 popd
 
 %if 0%{?python3_support}
@@ -926,7 +926,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 
 %files util
 %{_bindir}/nnstreamer-check
-%{nnstbindir}/nnstreamer-check
+%{_prefix}/%{nnstbindir}/nnstreamer-check
 
 %files misc
 %{gstlibdir}/libgstjoin.so
