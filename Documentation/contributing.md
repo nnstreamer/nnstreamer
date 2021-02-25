@@ -10,7 +10,7 @@ Consistent code conventions are important for several reasons:
 * To make it easy to debug the code, with both a system call tracer and GNU debuggers. It should be easy to set breakpoints, view locals, and display and view data structures.
 * To attempt to improve code quality through consistency, and requiring patterns that are less likely to result in bugs either initially, or after code modification.
 
-For more information, please refer to [coding-convention.md](Documentation/coding-convention.md).
+For more information, please refer to [coding-convention.md](https://github.com/nnstreamer/nnstreamer/blob/main/Documentation/coding-convention.md).
 
 For C code, you may use [gst-indent](https://github.com/nnstreamer/nnstreamer/blob/main/tools/development/gst-indent).
 
@@ -42,7 +42,7 @@ The submitter has the first responsibility of keeping the created PR clean and n
 A PR is required to meet the following criteria.
 * It has passed all the tests defined for TAOS-CI.
     - This includes unit tests and integration tests in various platforms and different static analysis tools.
-    - Note that one of the tests includes the "Signed-off-by" check, which means that the author has agreed with [Code of Conduct](CODE_OF_CONDUCT.md). You may need to refer to later section.
+    - Note that one of the tests includes the "Signed-off-by" check, which means that the author has agreed with [Code of Conduct](https://github.com/nnstreamer/nnstreamer/blob/main/CODE_OF_CONDUCT.md). You may need to refer to later section.
 * At least TWO committers (reviewers with voting rights, elected by TSC or other committers) have approved the PR.
     - This is a necessary condition, not sufficient.
     - If the PR touches sensitive codes or may affect wide ranges of components, reviewers will wait for other reviewers to back them up.
