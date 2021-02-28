@@ -15,12 +15,34 @@
  *      Users are supposed to supply LUA scripts processing
  *  given input tensors.
  *
- *      With file mode, a file path to the script file is
+ *   With file mode, a file path to the script file is
  * specified. To update its contents, the file path property
  * should be updated. (or send "reload" event. method: TBD)
  *
- *      With script mode, the script is specified as a property
+ *   With script mode, the script is specified as a property
  * value, which can be updated in run-time.
+ *
+ *   The input and output dimensions may be * constant,
+ * designated by global LUA variables, "inputConf"
+ * and "outputConf".
+ *
+ *   Or the dimensions may be provided by the following
+ * global functions, which have LOWER priority than
+ * the constants.
+ * - getInputOutputConf ()
+ * - getOutputConfFromInputConf ()
+ *
+ *   Then, users need to provide a global "nnstreamer_invoke" function,
+ * "invokeNN", where the function type is:
+ *   @todo TBD
+ *   Both input/outputConf are required to have:
+ * {
+ *    // Array starts from 1, ends at num
+ *    num, // Number of tensors (1 .. 16)
+ *    types = string[num], // TYPES (INT32, INT64, ...)
+ *    dims = int[num][4], // Dimension { 1, 2, 3} == 1 : 2 : 3
+ *    names = string[num], // The optional tensor names.
+ * }
  */
 
 extern "C" {
@@ -177,6 +199,17 @@ const char *
 lua_subplugin::loadScript (const GstTensorFilterProperties *prop)
 {
   /** @todo NYI */
+
+  /** 1. from prop, determine if it's file mode or prop mode */
+
+  /** 2. get string of it's file mode */
+
+  /** 3. get input/output conf (if they are constants) */
+
+  /** 4. 3 failed, load up the conf functions */
+
+  /** 5. load up invoke function */
+
   return NULL;
 }
 
