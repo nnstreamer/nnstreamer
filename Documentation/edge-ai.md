@@ -24,16 +24,16 @@ Example shows how to implement edge AI using NNStreamer.
 
 These examples are tested using Ubuntu PC and Raspberry PI.
 
-  * [Image Classification](https://github.com/nnstreamer/nnstreamer-example/tree/master/Tizen.platform/Tizen_IoT_ImageClassification)
+  * [Image Classification](https://github.com/nnstreamer/nnstreamer-example/tree/main/Tizen.platform/Tizen_IoT_ImageClassification)
 
     The device analyzes the camera image before transmitting it, and then transmits meaningful information only.
 
     In this example, if the device finds a target that the user wants, it starts video streaming to the server.
-  * [Text Classification](https://github.com/nnstreamer/nnstreamer-example/tree/master/Tizen.platform/Tizen_IoT_text_classification_NonGUI)
+  * [Text Classification](https://github.com/nnstreamer/nnstreamer-example/tree/main/Tizen.platform/Tizen_IoT_text_classification_NonGUI)
 
     Text classifications are classified into predefined groups based on sentences.
 
-  * [Image segmentation on edgeTPU](https://github.com/nnstreamer/nnstreamer-example/tree/master/bash_script/example_image_segmentation_tensorflow_lite)
+  * [Image segmentation on edgeTPU](https://github.com/nnstreamer/nnstreamer-example/tree/main/bash_script/example_image_segmentation_tensorflow_lite)
 
     Image segmentation is the process of partitioning a digital image into multiple segments.
 

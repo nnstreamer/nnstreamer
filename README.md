@@ -83,7 +83,7 @@ In [Component Description](Documentation/component-description.md) page, we desc
 For more details, please access the following manuals.
 * For Linux-like systems such as Tizen, Debian, and Ubuntu, press [here](Documentation/getting-started.md).
 * For macOS systems, press [here](Documentation/getting-started-macos.md).
-* To build an API library for Android, press [here](api/android/README.md).
+* To build an API library for Android, press [here](Documentation/getting-started-android.md).
 
 ## Applications
 
@@ -126,11 +126,11 @@ Although a framework may accelerate transparently as Tensorflow-GPU does, nnstre
 
 
 [gitter-url]: https://gitter.im/nnstreamer/Lobby
-[gitter-image]: http://img.shields.io/badge/+%20GITTER-JOIN%20CHAT%20%E2%86%92-1DCE73.svg?style=flat-square
+[gitter-image]: https://img.shields.io/badge/+%20GITTER-JOIN%20CHAT%20%E2%86%92-1DCE73.svg?style=flat-square
 
 
 ## Contributing
 
-Contributions are welcome! Please see our [Contributing](https://github.com/nnstreamer/nnstreamer/blob/main/Documentation/contributing.md) Guide for more details.
+Contributions are welcome! Please see our [Contributing](Documentation/contributing.md) Guide for more details.
 
 [![](https://sourcerer.io/fame/dongju-chae/nnstreamer/nnstreamer/images/0)](https://sourcerer.io/fame/dongju-chae/nnstreamer/nnstreamer/links/0)[![](https://sourcerer.io/fame/dongju-chae/nnstreamer/nnstreamer/images/1)](https://sourcerer.io/fame/dongju-chae/nnstreamer/nnstreamer/links/1)[![](https://sourcerer.io/fame/dongju-chae/nnstreamer/nnstreamer/images/2)](https://sourcerer.io/fame/dongju-chae/nnstreamer/nnstreamer/links/2)[![](https://sourcerer.io/fame/dongju-chae/nnstreamer/nnstreamer/images/3)](https://sourcerer.io/fame/dongju-chae/nnstreamer/nnstreamer/links/3)[![](https://sourcerer.io/fame/dongju-chae/nnstreamer/nnstreamer/images/4)](https://sourcerer.io/fame/dongju-chae/nnstreamer/nnstreamer/links/4)[![](https://sourcerer.io/fame/dongju-chae/nnstreamer/nnstreamer/images/5)](https://sourcerer.io/fame/dongju-chae/nnstreamer/nnstreamer/links/5)[![](https://sourcerer.io/fame/dongju-chae/nnstreamer/nnstreamer/images/6)](https://sourcerer.io/fame/dongju-chae/nnstreamer/nnstreamer/links/6)[![](https://sourcerer.io/fame/dongju-chae/nnstreamer/nnstreamer/images/7)](https://sourcerer.io/fame/dongju-chae/nnstreamer/nnstreamer/links/7)

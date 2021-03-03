@@ -21,4 +21,4 @@ $ ssat
 ```
 
 ## How to write Test Cases
-* [How to write Test Cases](Documentation/how-to-write-testcase.md)
+* [How to write Test Cases](how-to-write-testcase.md)
