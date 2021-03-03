@@ -28,7 +28,7 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
         videotestsrc num-buffers=4 pattern=12 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! mux.sink_0 \
         videotestsrc pattern=13 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! mux.sink_1 \
         videotestsrc pattern=15 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! mux.sink_2 \
-        tensor_mux name=mux ! tensor_if name=tif compared_value=TENSOR_AVERAGE_VALUE compared-value-option=0 supplied-value=100 operator=LT then=TENSORPICK then-option=1 else=TENSORPICK else-option=2 \
+        tensor_mux name=mux ! tensor_if name=tif compared-value=TENSOR_AVERAGE_VALUE compared-value-option=0 supplied-value=100 operator=LT then=TENSORPICK then-option=1 else=TENSORPICK else-option=2 \
             tif.src_0 ! queue ! join.sink_0 \
             tif.src_1 ! queue ! join.sink_1 \
             join name=join ! multifilesink location=testJoin1_%1d.log sync=false async=false" 1 0 0 $PERFORMANCE
@@ -45,7 +45,7 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
         videotestsrc num-buffers=4 pattern=12 ! tensor_converter ! mux.sink_0 \
         videotestsrc pattern=13 ! tensor_converter ! mux.sink_1 \
         videotestsrc pattern=15 ! tensor_converter ! mux.sink_2 \
-        tensor_mux name=mux ! tensor_if name=tif compared_value=TENSOR_AVERAGE_VALUE compared-value-option=0 supplied-value=100 operator=LT then=TENSORPICK then-option=1 else=TENSORPICK else-option=2 \
+        tensor_mux name=mux ! tensor_if name=tif compared-value=TENSOR_AVERAGE_VALUE compared-value-option=0 supplied-value=100 operator=LT then=TENSORPICK then-option=1 else=TENSORPICK else-option=2 \
             tif.src_0 ! queue ! join.sink_0 \
             tif.src_1 ! queue ! join.sink_1 \
             join name=join ! multifilesink location=testJoin2_%1d.log sync=false async=false" 2 0 0 $PERFORMANCE
@@ -59,7 +59,7 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
         videotestsrc num-buffers=4 pattern=12 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! mux.sink_0 \
         videotestsrc pattern=13 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! mux.sink_1 \
         videotestsrc pattern=15 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=480,height=240 ! tensor_converter ! mux.sink_2 \
-        tensor_mux name=mux ! tensor_if name=tif compared_value=TENSOR_AVERAGE_VALUE compared-value-option=0 supplied-value=100 operator=LT then=TENSORPICK then-option=1 else=TENSORPICK else-option=2 \
+        tensor_mux name=mux ! tensor_if name=tif compared-value=TENSOR_AVERAGE_VALUE compared-value-option=0 supplied-value=100 operator=LT then=TENSORPICK then-option=1 else=TENSORPICK else-option=2 \
             tif.src_0 ! queue ! join.sink_0 \
             tif.src_1 ! queue ! join.sink_1 \
             join name=join ! fakesink sync=true" 3_n 0 1 $PERFORMANCE

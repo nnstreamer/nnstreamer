@@ -24,7 +24,7 @@
  * if (Compared_Value OPERATOR Supplied_Value(s))) then THEN else ELSE
  * Compared_Value and Supplied_Value are the operands.
  * Compared_Value is a value from input tensor(s).
- * SUpplied_Value is a value from tensor-if properties.
+ * Supplied_Value is a value from tensor-if properties.
  *
  * If the given if-condition is simple enough (e.g., if a specific element
  * is between a given range in a tensor frame), it can be expressed as:
@@ -32,12 +32,12 @@
  * <title>Example launch line with simple if condition</title>
  * gst-launch ... (some tensor stream) !
  *      tensor_if name=tif
- *        compared_value=A_VALUE compared_value_option=3:4:2:5,0
+ *        compared-value=A_VALUE compared-value-option=3:4:2:5,0
  *        operator=RANGE_INCLUSIVE
- *        supplied_values=10,100
+ *        supplied-value=10,100
  *        then=PASSTHROUGH
  *        else=TENSORPICK
- *        else_option=1
+ *        else-option=1
  *      tif.src_0 ! queue ! (tensor(s) stream for TRUE action) ...
  *      tif.src_1 ! queue ! (tensor(s) stream for FALSE action) ...
  * </refsect2>
@@ -52,10 +52,10 @@
  * <title>Example launch line with complex if condition</title>
  * gst-launch ... (some tensor stream)
  *      ! tensor_filter framework=custom name=your_code.so
- *      ! tensor_if compared_value=A_VALUE
- *          compared_value_option=0:0:0:0,0 # 1st tensor's [0][0][0][0].
+ *      ! tensor_if compared-value=A_VALUE
+ *          compared-value-option=0:0:0:0,0 # 1st tensor's [0][0][0][0].
  *          operator=EQ
- *          supplied_values=1
+ *          supplied-value=1
  *          then=PASSTHROUGH # or whatsoever you want
  *          else=SKIP # or whatsoever you want
  *      ! tensor_demux name=d
@@ -154,7 +154,7 @@ static void gst_tensor_if_install_properties (GObjectClass * gobject_class);
 
 #define GST_TYPE_TENSOR_IF_CV (gst_tensor_if_cv_get_type ())
 /**
- * @brief A private function to register GEnumValue array for the 'compared_value' property
+ * @brief A private function to register GEnumValue array for the 'compared-value' property
  *        to a GType and return it
  */
 static GType
