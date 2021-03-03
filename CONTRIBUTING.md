@@ -53,7 +53,7 @@ If there is no chairperson or its deputy available, the most senior among availa
 
 Anyone who has been contributed to the repository by submitting a pull-request and have it reviewed, accepted, and merged by committers is a contributor.
 
-Each contributor should comply with the [Code of Conduct](https://github.com/nnstreamer/nnstreamer/blob/master/CODE_OF_CONDUCT.md), this document (CONTRIBUTING.md), and [the Linux Foundation's policies](http://lfprojects.org/policies/).
+Each contributor should comply with the [Code of Conduct](CODE_OF_CONDUCT.md), this document (CONTRIBUTING.md), and [the Linux Foundation's policies](https://lfprojects.org/policies/).
 
 Every contributor is able and encouraged to review codes and to participate in other developmental activities.
 
@@ -69,7 +69,7 @@ A committer may be retired by approvals of more than half of the committers.
 
 Alternatively, TSC may decide to elect or to retire a committer with TSC voting as well or amend the rules on how to elect/retire committers.
 
-Each committer is also a contributor and should comply with the [Code of Conduct](https://github.com/nnstreamer/nnstreamer/blob/master/CODE_OF_CONDUCT.md), this document (CONTRIBUTING.md), and [the Linux Foundation's policies](http://lfprojects.org/policies/).
+Each committer is also a contributor and should comply with the [Code of Conduct](CODE_OF_CONDUCT.md), this document (CONTRIBUTING.md), and [the Linux Foundation's policies](https://lfprojects.org/policies/).
 
 The committers are:
 

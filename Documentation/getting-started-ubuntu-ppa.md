@@ -37,8 +37,8 @@ $ sudo apt install nnstreamer
 
 You need to rebuild nnstreamer's corresponding subplugins (e.g., nnstreamer-tensorflow) with the nerual network framework version you want to use.
 
-* You may configure/update, build with pdebuild/debuild, and install its resulting .deb packages [Ubuntu: Pbuilder / Pdebuild](Documentation/getting-started-ubuntu-debuild.md).
-* You may configure/update, build with meson/ninja, and install binraies with ninja [Linux generic: build with meson and ninja](Documentation/getting-started-meson-build.md): For advanced users with feature customization.
+* You may configure/update, build with pdebuild/debuild, and install its resulting .deb packages [Ubuntu: Pbuilder / Pdebuild](getting-started-ubuntu-debuild.md).
+* You may configure/update, build with meson/ninja, and install binraies with ninja [Linux generic: build with meson and ninja](getting-started-meson-build.md): For advanced users with feature customization.
 * Be careful on install paths and duplicated installation. You need to check the configuration (/etc/nnstreamer.ini and env-vars)
 
 #### Unsafe method (no need for rebuild)

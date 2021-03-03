@@ -2,7 +2,7 @@
 title: Data type and flow control
 ...
 
-[Rank counting with other/tensor types](Documentation/rank-counting-with-other-tensor.md)
+[Rank counting with other/tensor types](rank-counting-with-other-tensor.md)
 
 # GStreamer data types (pad capabilities)
 
@@ -100,7 +100,7 @@ We have the following principles for timestamp policies. Timestamping policies o
 Besides timestamping, we have additional synchronization issues when there are merging streams. We need to determine which frames are going to be merged (or muxed) when we have multiple available and unused frames in an incoming sink pad. In general, we might say that the synchronization of frames determines which frames to be used for mux/merge and timestamping rule determins which timestamp to be used among the chosen frames for mux/merge.  
 In principle and by default,
 - If there are mutliple unused and available frames in a sink pad, unlike most media filters, we take a buffer that arrived most recently.
-- For more about the synchronization policies, see [Synchronization policies at Mux and Merge](synchronization-policies-at-mux-and-merge.md)
+- For more about the synchronization policies, see [Synchronization policies at Mux and Merge](synchronization-policies-at-mux-merge.md)
 
 ### Leaky Queue
 

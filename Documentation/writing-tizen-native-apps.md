@@ -76,11 +76,11 @@ However, with an internal API, allowed to platform binaries only (.rpm. not .tpk
 
 ## Single
 
-A simple sample Tizen app with Single APIs is at nnstreamer-example.git, [SingleSample](https://github.com/nnstreamer/nnstreamer-example/tree/master/Tizen.native/SingleSample).
+A simple sample Tizen app with Single APIs is at nnstreamer-example.git, [SingleSample](https://github.com/nnstreamer/nnstreamer-example/tree/main/Tizen.native/SingleSample).
 
 ## Pipeline
 
-A simple sample Tizen app with Pipeline APIs is at nnstreamer-example.git, [PipelineSample](https://github.com/nnstreamer/nnstreamer-example/tree/master/Tizen.native/PipelineSample).
+A simple sample Tizen app with Pipeline APIs is at nnstreamer-example.git, [PipelineSample](https://github.com/nnstreamer/nnstreamer-example/tree/main/Tizen.native/PipelineSample).
 
 
 # Tizen ML API Documentation

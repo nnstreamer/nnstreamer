@@ -30,7 +30,7 @@ Doxygen is the de facto standard tool for generating documentation from annotate
     ```
     # for src app
     $ cd ./gst
-    $ doxygen ../Doxyfile.prj # from https://github.com/nnstreamer/TAOS-CI/blob/master/ci/Doxyfile.prj
+    $ doxygen ../Doxyfile.prj # from https://github.com/nnstreamer/TAOS-CI/blob/main/ci/Doxyfile.prj
 
     # launch with the browser to view the results
     $ chromium-browser ./html/index.html

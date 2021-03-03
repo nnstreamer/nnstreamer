@@ -59,8 +59,8 @@ In this page, we focus on the status of each elements. For requirements and desi
   - SNPE (stable)
   - Vivante (stable)
   - WIP: SNAP (Exynos-NPU & Qualcomm-SNPE), ...
-  - [Guide on writing a filter subplugin](Documentation/writing-subplugin-tensor-filter.md)
-  - [Codegen and code template for tensor\_filter subplugin](https://github.com/nnstreamer/nnstreamer-example/tree/master/templates)
+  - [Guide on writing a filter subplugin](writing-subplugin-tensor-filter.md)
+  - [Codegen and code template for tensor\_filter subplugin](https://github.com/nnstreamer/nnstreamer-example/tree/main/templates)
 - [tensor\_sink](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_sink) (stable)
 - [tensor\_transform](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_transform) (stable)
   - Supported features
@@ -84,7 +84,7 @@ In this page, we focus on the status of each elements. For requirements and desi
 - [tensor\_mux](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_mux) (stable)
 - [tensor\_demux](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_demux) (stable)
 - [tensor\_source](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_source) (stable for IIO. More sources coming soon)
-- [tensor\_aggregator](https://github.com/nnstreamer/nnstreamer/tree/main//gst/nnstreamer/tensor_aggregator) (stable)
+- [tensor\_aggregator](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_aggregator) (stable)
 - [tensor\_repo\_sink](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_repo) (stable)
 - [tensor\_repo\_src](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_repo) (stable)
 - [tensor\_src\_iio](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_source) (stable)
@@ -111,7 +111,7 @@ Note that test elements in /tests/ are not elements for applications. They exist
 - JAVA-API (Android)
   - [Android sample app](https://github.com/nnstreamer/nnstreamer-example/tree/master/android/example_app/api-sample) uses JAVA APIs to implement Android-NNStreamer apps.
   - [Available at JCenter](https://bintray.com/beta/#/nnsuite/nnstreamer?tab=packages)
-  - Note that the Android Sample Applications published via Google Play Store, [Source Code](https://github.com/nnstreamer/nnstreamer-example/tree/master/android/example_app), are developed before NNStreamer Java API. They use GStreamer functions.
+  - Note that the Android Sample Applications published via Google Play Store, [Source Code](https://github.com/nnstreamer/nnstreamer-example/tree/main/android/example_app), are developed before NNStreamer Java API. They use GStreamer functions.
 - Web API (HTML5) Planned (Tizen 7.0?)
 - Python API Planned (Tizen 7.0?)
 

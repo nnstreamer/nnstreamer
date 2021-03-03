@@ -40,7 +40,7 @@ $ cd /usr/lib/nnstreamer/bin
 As of 2018/10/13, we support 16.04 and 18.04
 
 ## Build examples (Ubuntu 16.04 and 18.04)
-* https://github.com/nnstreamer/nnstreamer/blob/main/Documentation/getting-started.md
+* [getting-started](getting-started.md)
 
 - Install related packages before building nnstreamer and examples.
 1. ninja-build, meson (>=0.50)
