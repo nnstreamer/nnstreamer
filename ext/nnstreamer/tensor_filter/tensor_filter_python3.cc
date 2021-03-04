@@ -77,9 +77,6 @@
 #define SO_EXT "so.1.0"
 #endif
 
-/** @todo fix pycore name format (PY_VERSION_HEX) */
-#define PYCORE_LIB_NAME_FORMAT "libpython%d.%dm.%s"
-
 #define Py_ERRMSG(...)     \
   do {                     \
     PyErr_Print ();        \
@@ -181,12 +178,19 @@ PYCore::PYCore (const char *_script_path, const char *_custom)
    */
   gchar libname[32] = { 0, };
 
-  g_snprintf (libname, sizeof (libname), PYCORE_LIB_NAME_FORMAT,
+  g_snprintf (libname, sizeof (libname), "libpython%d.%d.%s",
       PY_MAJOR_VERSION, PY_MINOR_VERSION, SO_EXT);
 
   handle = dlopen (libname, RTLD_LAZY | RTLD_GLOBAL);
-  if (nullptr == handle)
-    throw std::runtime_error (dlerror ());
+  if (nullptr == handle) {
+    /* check the python was compiled with '--with-pymalloc' */
+    g_snprintf (libname, sizeof (libname), "libpython%d.%dm.%s",
+        PY_MAJOR_VERSION, PY_MINOR_VERSION, SO_EXT);
+
+    handle = dlopen (libname, RTLD_LAZY | RTLD_GLOBAL);
+    if (nullptr == handle)
+      throw std::runtime_error (dlerror ());
+  }
 
   _import_array (); /** for numpy */
 
