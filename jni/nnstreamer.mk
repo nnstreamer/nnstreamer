@@ -15,7 +15,6 @@ NNSTREAMER_VERSION_MICRO := $(word 3,$(subst ., ,${NNSTREAMER_VERSION}))
 
 NNSTREAMER_GST_HOME := $(NNSTREAMER_ROOT)/gst/nnstreamer
 NNSTREAMER_EXT_HOME := $(NNSTREAMER_ROOT)/ext/nnstreamer
-NNSTREAMER_CAPI_HOME := $(NNSTREAMER_ROOT)/api/capi
 
 CMDRESULT1 := $(shell sed "s/@__NNSTREAMER_VERSION_MAJOR__@/${NNSTREAMER_VERSION_MAJOR}/" ${NNSTREAMER_GST_HOME}/include/nnstreamer_version.h.in > ${NNSTREAMER_GST_HOME}/include/nnstreamer_version.h && echo "Processed sed 1")
 CMDRESULT2 := $(shell sed -i "s/@__NNSTREAMER_VERSION_MINOR__@/${NNSTREAMER_VERSION_MINOR}/" ${NNSTREAMER_GST_HOME}/include/nnstreamer_version.h && echo "Processed sed 2")
@@ -62,23 +61,6 @@ NNSTREAMER_PLUGINS_SRCS := \
     $(NNSTREAMER_GST_HOME)/tensor_transform/tensor_transform.c \
     $(NNSTREAMER_GST_HOME)/tensor_if/gsttensorif.c \
     $(NNSTREAMER_GST_HOME)/tensor_rate/gsttensorrate.c
-
-# nnstreamer c-api
-NNSTREAMER_CAPI_INCLUDES := \
-    $(NNSTREAMER_ROOT)/gst/nnstreamer/tensor_filter \
-    $(NNSTREAMER_CAPI_HOME)/include/platform \
-    $(NNSTREAMER_CAPI_HOME)/include
-
-# nnstreamer c-api (single+pipeline). requires NNSTREAMER_PLUGINS_SRCS as well.
-NNSTREAMER_CAPI_SRCS := \
-    $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-pipeline.c \
-    $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-single.c \
-    $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-util.c
-
-# nnstreamer c-api for single-shot only
-NNSTREAMER_SINGLE_SRCS := \
-    $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-single.c \
-    $(NNSTREAMER_CAPI_HOME)/src/nnstreamer-capi-util.c
 
 # source AMC (Android MediaCodec)
 NNSTREAMER_SOURCE_AMC_SRCS := \
