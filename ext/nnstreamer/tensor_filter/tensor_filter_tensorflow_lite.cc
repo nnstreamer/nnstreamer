@@ -465,16 +465,19 @@ TFLiteInterpreter::setTensorProp (
   tensorMeta->num_tensors = tensor_idx_list.size ();
 
   for (unsigned int i = 0; i < tensorMeta->num_tensors; ++i) {
-    if (getTensorDim (tensor_idx_list[i], tensorMeta->info[i].dimension)) {
+    int idx = tensor_idx_list[i];
+
+    if (getTensorDim (idx, tensorMeta->info[i].dimension)) {
       ml_loge ("failed to get the dimension of input tensors");
       return -1;
     }
-    tensorMeta->info[i].type
-        = getTensorType (interpreter->tensor (tensor_idx_list[i])->type);
+    tensorMeta->info[i].type = getTensorType (interpreter->tensor (idx)->type);
+    tensorMeta->info[i].name = g_strdup (interpreter->tensor (idx)->name);
 
 #if (DBG)
     gchar *dim_str = gst_tensor_get_dimension_string (tensorMeta->info[i].dimension);
-    g_message ("tensorMeta[%d] >> type:%d, dim[%s]", i, tensorMeta->info[i].type, dim_str);
+    g_message ("tensorMeta[%d] >> name[%s], type[%d], dim[%s]", i,
+        tensorMeta->info[i].name, tensorMeta->info[i].type, dim_str);
     g_free (dim_str);
 #endif
   }
@@ -534,7 +537,7 @@ TFLiteInterpreter::setInputTensorsInfo (const GstTensorsInfo *info)
      * iterate over all possible ranks starting from MAX rank to the actual rank
      * of the dimension array. In case of none of these ranks work, return error
      */
-    input_rank = gst_tensor_info_get_rank (&info->info[tensor_idx]);
+    input_rank = gst_tensor_info_get_rank (tensor_info);
     for (int rank = NNS_TENSOR_RANK_LIMIT; rank >= input_rank; rank--) {
       std::vector<int> dims (rank);
       /* the order of dimension is reversed at CAPS negotiation */
