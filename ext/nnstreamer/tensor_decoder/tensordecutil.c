@@ -38,6 +38,10 @@ loadImageLabels (const char *label_path, imglabel_t * l)
     g_clear_error (&err);
     return;
   }
+  len = strlen (contents);
+
+  if (contents[len - 1] == '\n')
+    contents[len - 1] = '\0';
 
   _labels = g_strsplit (contents, "\n", -1);
   l->total_labels = g_strv_length (_labels);
