@@ -28,6 +28,7 @@
  *
  * option1: Video Output Dimension (WIDTH:HEIGHT)
  * option2: Input Dimension (WIDTH:HEIGHT)
+ * option3: Location of label file (optional)
  */
 
 #include <stdlib.h>
@@ -46,8 +47,26 @@ void finish_pose (void) __attribute__ ((destructor));
 /* font.c */
 extern uint8_t rasters[][13];
 
-#define POSE_SIZE                  14
+#define POSE_SIZE_DEFAULT                  14
 #define PIXEL_VALUE               (0xFFFFFFFF)
+
+static const char *label_default[POSE_SIZE_DEFAULT + 1] = {
+  "top",
+  "neck",
+  "r_shoulder",
+  "r_elbow",
+  "r_wrist",
+  "l_shoulder",
+  "l_elbow",
+  "l_wrist",
+  "r_hip",
+  "r_knee",
+  "r_ankle",
+  "l_hip",
+  "l_knee",
+  "l_ankle",
+  NULL
+};
 
 /**
  * @todo Fill in the value at build time or hardcode this. It's const value
@@ -69,6 +88,9 @@ typedef struct
   guint i_width; /**< Input Video Width */
   guint i_height; /**< Input Video Height */
 
+  /* From option3 */
+  imglabel_t labeldata; /**< Pose labels from file, if any*/
+
 } pose_data;
 
 /** @brief tensordec-plugin's TensorDecDef callback */
@@ -76,6 +98,7 @@ static int
 pose_init (void **pdata)
 {
   pose_data *data;
+  unsigned i = 0, maxlen = 0;
 
   data = *pdata = g_new0 (pose_data, 1);
   if (data == NULL) {
@@ -87,6 +110,16 @@ pose_init (void **pdata)
   data->height = 0;
   data->i_width = 0;
   data->i_height = 0;
+  data->labeldata.labels = g_strdupv ((gchar **) label_default);
+  data->labeldata.total_labels = POSE_SIZE_DEFAULT;
+  while (data->labeldata.labels[i]) {
+    unsigned len = strlen (data->labeldata.labels[i]);
+    i++;
+    if (len > maxlen)
+      maxlen = len;
+  }
+  data->labeldata.max_word_length = maxlen;
+
 
   initSingleLineSprite (singleLineSprite, rasters, PIXEL_VALUE);
 
@@ -97,6 +130,8 @@ pose_init (void **pdata)
 static void
 pose_exit (void **pdata)
 {
+  pose_data *data = *pdata;
+  _free_labels (&data->labeldata);
   g_free (*pdata);
   *pdata = NULL;
 }
@@ -155,6 +190,20 @@ pose_setOption (void **pdata, int opNum, const char *param)
     data->i_width = dim[0];
     data->i_height = dim[1];
     return TRUE;
+  } else if (opNum == 2) {
+
+    if (!g_file_test ((const gchar *) param, G_FILE_TEST_EXISTS)) {
+      GST_WARNING
+          ("Labels file %s does not exist ! Fallback to default mapping",
+          (const char *) param);
+      return TRUE;
+    }
+
+    loadImageLabels ((const char *) param, &data->labeldata);
+    if (data->labeldata.total_labels > 0)
+      return TRUE;
+    else
+      return FALSE;
   }
 
   GST_INFO ("Property mode-option-%d is ignored", opNum + 1);
@@ -193,15 +242,18 @@ pose_getOutCaps (void **pdata, const GstTensorsConfig * config)
   GstCaps *caps;
   int i;
   char *str;
+  guint pose_size;
 
   const uint32_t *dim1;
 
   if (!_check_tensors (config))
     return NULL;
 
+  pose_size = data->labeldata.total_labels;
+
   /* Check if the first tensor is compatible */
   dim1 = config->info.info[0].dimension;
-  g_return_val_if_fail (dim1[0] == POSE_SIZE, NULL);
+  g_return_val_if_fail (dim1[0] == pose_size, NULL);
   for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
     g_return_val_if_fail (dim1[i] == 1, NULL);
 
@@ -332,13 +384,11 @@ draw_label (uint32_t * frame, pose_data * data, pose * xydata)
   int i, j, x1, y1, x2, y2;
   int label_len;
   uint32_t *pos1, *pos2;
-  const char *label[POSE_SIZE] =
-      { "top", "neck", "r_shoulder", "r_elbow", "r_wrist", "l_shoulder",
-    "l_elbow", "l_wrist", "r_hip", "r_knee", "r_ankle", "l_hip", "l_knee",
-    "l_ankle"
-  };
 
-  for (i = 0; i < POSE_SIZE; i++) {
+  guint pose_size = data->labeldata.total_labels;
+  char **label = data->labeldata.labels;
+
+  for (i = 0; i < pose_size; i++) {
     if (xydata[i].valid) {
       x1 = (xydata[i].x * data->width) / data->i_width;
       y1 = (xydata[i].y * data->height) / data->i_height;
@@ -374,8 +424,11 @@ draw (GstMapInfo * out_info, pose_data * data, GArray * results)
 {
   int i;
   uint32_t *frame = (uint32_t *) out_info->data;        /* Let's draw per pixel (4bytes) */
-  pose *XYdata[POSE_SIZE];
-  for (i = 0; i < POSE_SIZE; i++) {
+  guint pose_size = data->labeldata.total_labels;
+
+  pose **XYdata = g_new0 (pose *, pose_size);
+
+  for (i = 0; i < pose_size; i++) {
     XYdata[i] = &g_array_index (results, pose, i);
     if (XYdata[i]->prob < 0.5) {
       XYdata[i]->valid = FALSE;
@@ -422,6 +475,8 @@ draw (GstMapInfo * out_info, pose_data * data, GArray * results)
     draw_line_with_dot (frame, data, XYdata[12]->x, XYdata[12]->y,
         XYdata[13]->x, XYdata[13]->y);
   draw_label (frame, data, *XYdata);
+
+  g_free (XYdata);
 }
 
 /** @brief tensordec-plugin's TensorDecDef callback */
@@ -437,6 +492,7 @@ pose_decode (void **pdata, const GstTensorsConfig * config,
   const GstTensorMemory *detections = NULL;
   float *arr;
   int index, i, j;
+  guint pose_size;
 
   g_assert (outbuf); /** GST Internal Bug */
   /* Ensure we have outbuf properly allocated */
@@ -455,17 +511,19 @@ pose_decode (void **pdata, const GstTensorsConfig * config,
   /** reset the buffer with alpha 0 / black */
   memset (out_info.data, 0, size);
 
-  results = g_array_sized_new (FALSE, TRUE, sizeof (pose), POSE_SIZE);
+  pose_size = data->labeldata.total_labels;
+
+  results = g_array_sized_new (FALSE, TRUE, sizeof (pose), pose_size);
   detections = &input[0];
   arr = detections->data;
-  for (index = 0; index < POSE_SIZE; index++) {
+  for (index = 0; index < pose_size; index++) {
     int maxX = 0;
     int maxY = 0;
     float max = 0.0;
     pose p;
     for (j = 0; j < data->i_height; j++) {
       for (i = 0; i < data->i_width; i++) {
-        float cen = arr[i * POSE_SIZE + j * data->i_width * POSE_SIZE + index];
+        float cen = arr[i * pose_size + j * data->i_width * pose_size + index];
         if (cen > max) {
           max = cen;
           maxX = i;
