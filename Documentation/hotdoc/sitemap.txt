@@ -1,31 +1,31 @@
 index.md
-	Documentation/hotdoc/index.md
-		Documentation/coding-convention.md
-		Documentation/component-description.md
-		Documentation/contributing.md
-		Documentation/doxygen-documentation.md
-		Documentation/edge-ai.md
-		Documentation/features-per-distro.md 
-		Documentation/getting-started.md
-			Documentation/getting-started-android.md
-			Documentation/getting-started-macos.md
-			Documentation/getting-started-meson-build.md
-			Documentation/getting-started-tizen.md
-			Documentation/getting-started-ubuntu-debuild.md
-			Documentation/getting-started-ubuntu-ppa.md
-		Documentation/how-to-archive-large-data.md
-		Documentation/how-to-run-examples.md
-			Documentation/gst-launch-script-example.md
-		Documentation/how-to-use-testcases.md
-		Documentation/how-to-write-testcase.md
-		Documentation/nnstreamer_capi.md
-		Documentation/products.md
-		Documentation/writing-subplugin-tensor-filter.md
-		Documentation/writing-tizen-csharp-apps.md
-		Documentation/writing-tizen-native-apps.md
-		Documentation/data-type-and-flow-control.md
-			Documentation/rank-counting-with-other-tensor.md
-		Documentation/synchronization-policies-at-mux-merge.md
+	doc-index.md
+		coding-convention.md
+		component-description.md
+		contributing.md
+		doxygen-documentation.md
+		edge-ai.md
+		features-per-distro.md
+		getting-started.md
+			getting-started-android.md
+			getting-started-macos.md
+			getting-started-meson-build.md
+			getting-started-tizen.md
+			getting-started-ubuntu-debuild.md
+			getting-started-ubuntu-ppa.md
+		how-to-archive-large-data.md
+		how-to-run-examples.md
+			gst-launch-script-example.md
+		how-to-use-testcases.md
+		how-to-write-testcase.md
+		nnstreamer_capi.md
+		products.md
+		writing-subplugin-tensor-filter.md
+		writing-tizen-csharp-apps.md
+		writing-tizen-native-apps.md
+		data-type-and-flow-control.md
+			rank-counting-with-other-tensor.md
+		synchronization-policies-at-mux-merge.md
 		CODE_OF_CONDUCT.md
 		CONTRIBUTING.md
 		MAINTAINERS.md
@@ -40,7 +40,7 @@ index.md
 		gst/nnstreamer/tensor_transform/README.md
 		ext/nnstreamer/android_source/README.md
 	Documentation/nnst-exam/nnst_exam.json
-	Documentation/API-reference.md
+	API-reference.md
 	tools/README.md
 		tools/debugging/README.md
 		tools/development/README.md
