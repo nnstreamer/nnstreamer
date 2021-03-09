@@ -1,2 +1,3 @@
-subdir('nnstreamer')
 subdir('join')
+subdir('mqtt')
+subdir('nnstreamer')
