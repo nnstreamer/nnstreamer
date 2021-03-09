@@ -11,6 +11,6 @@ render-subpages: false
 NNStreamer is a set of Gstreamer plugins that allow Gstreamer developers to adopt neural network models
 easily and efficiently and neural network developers to manage neural network pipelines and their filters easily and efficiently.
     </p>
-    <a class="btn btn-default btn-xl page-scroll" href="Documentation/hotdoc/index.html" data-hotdoc-relative-link=true>Get Started</a>
+    <a class="btn btn-default btn-xl page-scroll" href="doc-index.html" data-hotdoc-relative-link=true>Get Started</a>
 </div>
 </div>
