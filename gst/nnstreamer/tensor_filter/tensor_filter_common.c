@@ -1198,6 +1198,8 @@ gst_tensor_filter_detect_framework (const gchar * const *model_files,
       detected_fw = g_strdup ("python");
     else if (g_str_equal (ext[0], ".graph"))
       detected_fw = g_strdup ("movidius-ncsdk2");
+    else if (g_str_equal (ext[0], ".ini"))
+      detected_fw = g_strdup ("nntrainer");
     else if (g_str_equal (ext[0], ".circle"))
       detected_fw = g_strdup ("nnfw");
     else if (g_str_equal (ext[0], NNSTREAMER_SO_FILE_EXTENSION))
