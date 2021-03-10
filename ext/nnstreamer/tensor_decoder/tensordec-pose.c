@@ -206,8 +206,7 @@ pose_getOutCaps (void **pdata, const GstTensorsConfig * config)
     g_return_val_if_fail (dim1[i] == 1, NULL);
 
   str = g_strdup_printf ("video/x-raw, format = RGBA, " /* Use alpha channel to make the background transparent */
-      "width = %u, height = %u"
-      , data->width, data->height);
+      "width = %u, height = %u", data->width, data->height);
   caps = gst_caps_from_string (str);
   setFramerateFromConfig (caps, config);
   g_free (str);
