@@ -200,7 +200,7 @@ gst_tensor_transform_mode_get_type (void)
             "option=D1\':D2\':D3\':D4 (fixed to 3)",
           "transpose"},
       {GTT_STAND, "Mode for statistical standardization of tensor, "
-            "option=default",
+            "option=default[:TYPE]",
           "stand"},
       {GTT_CLAMP, "Mode for clamping all elements of tensor into the range, "
             "option=CLAMP_MIN:CLAMP_MAX",
@@ -918,8 +918,17 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
     }
     case GTT_STAND:
     {
-      filter->data_stand.mode =
-          gst_tensor_transform_get_stand_mode (filter->option);
+      gchar **strv = NULL;
+
+      strv = g_strsplit (filter->option, ":", -1);
+
+      filter->data_stand.mode = gst_tensor_transform_get_stand_mode (strv[0]);
+      filter->data_stand.out_type = _NNS_END;
+      if (g_strv_length (strv) > 1)
+        filter->data_stand.out_type = gst_tensor_get_type (strv[1]);
+
+      g_strfreev (strv);
+
       if (filter->data_stand.mode == STAND_END) {
         ml_loge
             ("%s: stand: \'%s\' is not valid option string: it should be \'default\', currently the only supported mode.\n",
@@ -1395,33 +1404,74 @@ static GstFlowReturn
 gst_tensor_transform_stand (GstTensorTransform * filter,
     const uint8_t * inptr, uint8_t * outptr)
 {
-  int i;
-  size_t Size;
-  uint32_t *fromDim = filter->in_config.info.dimension;
-  double average, stand;
+  tensor_type in_tensor_type = filter->in_config.info.type;
+  tensor_type out_tensor_type = filter->out_config.info.type;
+  gsize in_element_size, out_element_size;
+  gulong i, num, data_idx;
+  tensor_transform_operand_s value;
+  gdouble tmp, average, stand;
 
-  float *in = (float *) inptr;
-  float *out = (float *) outptr;
-  Size = fromDim[3] * fromDim[2] * fromDim[1] * fromDim[0];
+  in_element_size = gst_tensor_get_element_size (in_tensor_type);
+  out_element_size = gst_tensor_get_element_size (out_tensor_type);
+  num = gst_tensor_get_element_count (filter->in_config.info.dimension);
+
+  /* calc average */
+  average = 0.0;
+
+  if (filter->data_stand.mode == STAND_DEFAULT) {
+    for (i = 0; i < num; ++i) {
+      /* extract the value */
+      data_idx = in_element_size * i;
+      gst_tensor_transform_set_value (filter, &value, in_tensor_type,
+          (gpointer) (inptr + data_idx));
+
+      /* in_tensor_type to double */
+      gst_tensor_transform_typecast_value (filter, &value, _NNS_FLOAT64);
+      gst_tensor_transform_get_value (filter, &value, &tmp);
+
+      average = (tmp - average) / (i + 1) + average;
+    }
+  }
 
   switch (filter->data_stand.mode) {
     case STAND_DEFAULT:
     {
-      average = 0.0;
-
-      for (i = 0; i < Size; i++) {
-        average = (in[i] - average) / (i + 1) + average;
-      }
-
       stand = 0.0;
 
-      for (i = 0; i < Size; i++) {
-        stand += pow (in[i] - average, 2) / (Size - 1);
+      for (i = 0; i < num; i++) {
+        /* extract the value */
+        data_idx = in_element_size * i;
+        gst_tensor_transform_set_value (filter, &value, in_tensor_type,
+            (gpointer) (inptr + data_idx));
+
+        /* in_tensor_type to double */
+        gst_tensor_transform_typecast_value (filter, &value, _NNS_FLOAT64);
+        gst_tensor_transform_get_value (filter, &value, &tmp);
+
+        stand += pow (tmp - average, 2) / (num - 1);
       }
 
-      stand = sqrt (stand);
-      for (i = 0; i < Size; i++) {
-        out[i] = fabs ((in[i] - average) / (stand + 1e-10));
+      stand = (stand != 0.0) ? sqrt (stand) : (1e-10);
+      for (i = 0; i < num; i++) {
+        /* extract the value */
+        data_idx = in_element_size * i;
+        gst_tensor_transform_set_value (filter, &value, in_tensor_type,
+            (gpointer) (inptr + data_idx));
+
+        /* in_tensor_type to double */
+        gst_tensor_transform_typecast_value (filter, &value, _NNS_FLOAT64);
+        gst_tensor_transform_get_value (filter, &value, &tmp);
+
+        tmp = fabs ((tmp - average) / stand);
+
+        /* double to out_tensor_type */
+        gst_tensor_transform_set_value (filter, &value, _NNS_FLOAT64, &tmp);
+        gst_tensor_transform_typecast_value (filter, &value, out_tensor_type);
+
+        /* store the value */
+        data_idx = out_element_size * i;
+        gst_tensor_transform_get_value (filter, &value,
+            (gpointer) (outptr + data_idx));
       }
 
       break;
@@ -1632,7 +1682,7 @@ gst_tensor_transform_convert_dimension (GstTensorTransform * filter,
     case GTT_TYPECAST:
       /** For both directions, dimension does not change */
       if (direction == GST_PAD_SINK) {
-          /** src = SINKPAD / dest = SRCPAD */
+        /** src = SINKPAD / dest = SRCPAD */
         out_info->type = filter->data_typecast.to;
       } else {
         /* cannot get the incoming data type on sink pad */
@@ -1669,7 +1719,16 @@ gst_tensor_transform_convert_dimension (GstTensorTransform * filter,
       break;
 
     case GTT_STAND:
-      /* no-break */
+      /** For both directions, dimension does not change */
+      if (direction == GST_PAD_SINK) {
+        if (filter->data_stand.out_type != _NNS_END)
+          out_info->type = filter->data_stand.out_type;
+      } else {
+        /* cannot get the incoming data type on sink pad */
+        out_info->type = _NNS_END;
+      }
+      break;
+
     case GTT_CLAMP:
       /* same tensors info, do nothing. */
       break;

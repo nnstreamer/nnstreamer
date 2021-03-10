@@ -133,6 +133,7 @@ typedef struct _tensor_transform_transpose {
  */
 typedef struct _tensor_transform_stand {
   tensor_transform_stand_mode mode;
+  tensor_type out_type;
 } tensor_transform_stand;
 
 /**
