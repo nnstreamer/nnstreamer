@@ -125,7 +125,7 @@ _free_labels (imglabel_t * data)
  * @param[in]   config to copy from
  */
 void
-setFramerateFromConfig  (GstCaps * caps, const GstTensorsConfig * config)
+setFramerateFromConfig (GstCaps * caps, const GstTensorsConfig * config)
 {
   gint fn, fd;
 
