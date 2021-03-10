@@ -43,6 +43,7 @@ typedef struct _GstMqttSinkClass GstMqttSinkClass;
  */
 struct _GstMqttSink {
   GstBaseSink parent;
+  guint num_buffers;
 };
 
 /**
