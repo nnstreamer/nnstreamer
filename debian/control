@@ -127,10 +127,10 @@ Description: Development package to access internal functions of NNStreamer.
 Package: nnstreamer-test-dev
 Architecture: any
 Multi-Arch: same
-Depends: nnstreamer, ${shlibs:Depends}, ${misc:Depends}
-Description: NNStreamer development package
- Gstreamer plugins, "NNStreamer", provides access to neural network frameworks for media streams.
- This is development package for nnstreamer.
+Depends: nnstreamer-dev, ${shlibs:Depends}, ${misc:Depends}
+Description: Development package to provide testable environment of a subplugin (tensor_filter/custom).
+ This package enables testable environment of NNStreamer sub-plugin by making nnstreamer to recognize NNSTREAMER_CONF_PATH to steer a sub-plugin path to a custom path.
+ Also This package provides test templates to be used with.
 
 Package: nnstreamer-util
 Architecture: any

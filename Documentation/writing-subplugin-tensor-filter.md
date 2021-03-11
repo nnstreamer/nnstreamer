@@ -63,12 +63,49 @@ As you can see in packaging/*.spec and meson.build of the template, ```nnstreame
 
 In order to provide callbacks required by ```tensor_filter```, you need to include ```nnstreamer_plugin_api_filter.h```, which is supplied with ```nnstreamer-dev``` package (in Tizen or Ubuntu).
 
+### Testing
+
+There is a templated test suite provided inside `nnstreamer-test-dev` package for dpkg, `nnstreamer-test-devel` for tizen distro.
+You may install or _BuildRequire_ this package to utilize predefined test templates.
+After installing the package, you can locate the package.
+
+
+```sh
+$ TEMPLATE_DIR=$(pkg-config nnstreamer --variable=test_templatedir)
+$ echo $TEMPLATE_DIR # result varies depending on the platform
+/usr/lib/nnstreamer/bin/unittest-nnstreamer
+$ ls $TEMPLATE_DIR
+nnstreamer-test.ini.in  subplugin_unittest_template.cc.in
+```
+
+There are two test template provided. One is conf file for the test enviornment, and the other is for the basic unittests (requires gtest).
+
+List of variables that needs to be provided are provided below...
+| File                              | Variables                                                                                                                            |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| nnstreamer-test.ini.in            | SUBPLUGIN_INSTALL_PREFIX, ENABLE_ENV_VAR, ENABLE_SYMBOLIC_LINK, TORCH_USE_GPU, TFLITE_SUBPLUGIN_PRIORITY, ELEMENT_RESTRICTION_CONFIG |
+| subplugin_unittest_template.cc.in | EXT_NAME, EXT_ABBRV, MODEL_FILE,                                                                                                     |
+
+You can change the provided each variable on the go using a script, for example...
+```sh
+$ sed s/@EXT_ABBRV@/cutom_plugin/g subplugin_unittest_template.cc.in > subplugin_unittest.cc
+```
+
+but preferably, using meson through `configure_data` and `configure_file`
+
+and defining `NNSTREAMER_CONF_PATH` environment variable will locate the `nnstreamer-test.ini` to find your subplugin
+
+with generated `nnstreamer-test.ini`
+
+You can run the test as below:
+
+```sh
+NNSTREMAER_CONF_PATH=your/conf/file.ini ./subplugin_unittest
+```
 
 ### Install Path
 
 The default ```tensor_filter``` subplugin path is ```/usr/lib/nnstreamer/filters/```. It can be modified by configuring ```/etc/nnstreamer.ini```.
-
-
 ### Flexible/Dynamic Input/Output Tensor Dimension
 
 Although the given template code supports static input/output tensor dimension (a single neural network model is supposed to have a single set of input/output tensor/tensors dimensions), NNStreamer's ```tensor_filter``` itself supports dynamic input/output tensor/tensors dimensions; output dimensions may be determined by input dimensions, which is determined at run-time.
