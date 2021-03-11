@@ -20,7 +20,7 @@
 /**
  * @brief Test gRPC tensor_src/sink existence.
  */
-TEST (nnstreamer_grpc, check_existence)
+TEST (nnstreamerGrpc, checkExistence)
 {
   GstPlugin *plugin;
   GstElementFactory *factory;
@@ -42,7 +42,7 @@ TEST (nnstreamer_grpc, check_existence)
 /**
  * @brief Test gRPC tensor_src/sink existence (negative).
  */
-TEST (nnstreamer_grpc, check_existence_n)
+TEST (nnstreamerGrpc, checkExistence_n)
 {
   GstPlugin *plugin;
   GstElementFactory *factory;
@@ -157,7 +157,7 @@ _set_default_option (TestOption &option)
 /**
  * @brief Test gRPC tensor_src get default property
  */
-TEST (nnstreamer_grpc, src_get_property_default)
+TEST (nnstreamerGrpc, srcGetPropertyDefault)
 {
   TestOption option;
   GstElement *src;
@@ -196,7 +196,7 @@ TEST (nnstreamer_grpc, src_get_property_default)
 /**
  * @brief Test gRPC tensor_sink get default property
  */
-TEST (nnstreamer_grpc, sink_get_property_default)
+TEST (nnstreamerGrpc, sinkGetPropertyDefault)
 {
   TestOption option;
   GstElement *sink;
@@ -235,7 +235,7 @@ TEST (nnstreamer_grpc, sink_get_property_default)
 /**
  * @brief Test gRPC tensor_src set property
  */
-TEST (nnstreamer_grpc, src_set_property)
+TEST (nnstreamerGrpc, srcSetProperty)
 {
   TestOption option;
   GstElement *src;
@@ -275,7 +275,7 @@ TEST (nnstreamer_grpc, src_set_property)
 /**
  * @brief Test gRPC tensor_sink set property
  */
-TEST (nnstreamer_grpc, sink_set_property)
+TEST (nnstreamerGrpc, sinkSetProperty)
 {
   TestOption option;
   GstElement *sink;
@@ -315,7 +315,7 @@ TEST (nnstreamer_grpc, sink_set_property)
 /**
  * @brief Test gRPC tensor_src invalid host
  */
-TEST (nnstreamer_grpc, src_invalid_host_n)
+TEST (nnstreamerGrpc, srcInvalidHost_n)
 {
   TestOption option;
   GstElement *src;
@@ -341,7 +341,7 @@ TEST (nnstreamer_grpc, src_invalid_host_n)
 /**
  * @brief Test gRPC tensor_sink invalid host
  */
-TEST (nnstreamer_grpc, sink_invalid_host_n)
+TEST (nnstreamerGrpc, sinkInvalidHost_n)
 {
   TestOption option;
   GstElement *sink;
@@ -367,7 +367,7 @@ TEST (nnstreamer_grpc, sink_invalid_host_n)
 /**
  * @brief Test gRPC tensor_src invalid port
  */
-TEST (nnstreamer_grpc, src_invalid_port_n)
+TEST (nnstreamerGrpc, srcInvalidPort_n)
 {
   TestOption option;
   GstElement *src;
@@ -396,7 +396,7 @@ TEST (nnstreamer_grpc, src_invalid_port_n)
 /**
  * @brief Test gRPC tensor_sink invalid port
  */
-TEST (nnstreamer_grpc, sink_invalid_port_n)
+TEST (nnstreamerGrpc, sinkInvalidPort_n)
 {
   TestOption option;
   GstElement *sink;

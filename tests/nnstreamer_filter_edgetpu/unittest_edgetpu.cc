@@ -16,7 +16,7 @@
 /**
  * @brief Standard positive case with a small tensorflow-lite model
  */
-TEST (edgetpu_tflite_direct, run_01)
+TEST (edgetpuTfliteDirect, run01)
 {
   gchar *pipeline;
   GstElement *gstpipe;
@@ -53,7 +53,7 @@ TEST (edgetpu_tflite_direct, run_01)
 /**
  * @brief Negative case with incorrect path
  */
-TEST (edgetpu_tflite_direct, error_01_n)
+TEST (edgetpuTfliteDirect, error01_n)
 {
   gchar *pipeline;
   GstElement *gstpipe;
@@ -93,7 +93,7 @@ TEST (edgetpu_tflite_direct, error_01_n)
 /**
  * @brief Negative case with incorrect tensor meta
  */
-TEST (edgetpu_tflite_direct, error_02_n)
+TEST (edgetpuTfliteDirect, error02_n)
 {
   gchar *pipeline;
   GstElement *gstpipe;

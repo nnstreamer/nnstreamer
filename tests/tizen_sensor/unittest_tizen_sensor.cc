@@ -40,7 +40,7 @@ static const unsigned int TEST_TIME_OUT_TIZEN_SENSOR_MS
 /**
  * @brief Test pipeline creation of it
  */
-TEST (tizensensor_as_source, virtual_sensor_create_01)
+TEST (tizensensorAsSource, virtualSensorCreate01)
 {
   gchar *pipeline;
   sensor_event_s value;
@@ -77,7 +77,7 @@ TEST (tizensensor_as_source, virtual_sensor_create_01)
 /**
  * @brief Test pipeline creation.
  */
-TEST (tizensensor_as_source, virtual_sensor_create_02)
+TEST (tizensensorAsSource, virtualSensorCreate02)
 {
   gchar *pipeline;
   sensor_event_s value;
@@ -167,7 +167,7 @@ callback_nns (GstElement *element, GstBuffer *buffer, gpointer user_data)
 /**
  * @brief Test pipeline creation and sink
  */
-TEST (tizensensor_as_source, virtual_sensor_flow_03)
+TEST (tizensensorAsSource, virtualSensorFlow03)
 {
   GError *err = NULL;
   GstElement *pipe, *sink;
@@ -225,7 +225,7 @@ TEST (tizensensor_as_source, virtual_sensor_flow_03)
 /**
  * @brief Test pipeline creation and sink
  */
-TEST (tizensensor_as_source, virtual_sensor_flow_04)
+TEST (tizensensorAsSource, virtualSensorFlow04)
 {
   GError *err = NULL;
   GstElement *pipe, *sink;
@@ -286,7 +286,7 @@ TEST (tizensensor_as_source, virtual_sensor_flow_04)
 /**
  * @brief Test pipeline creation and sink (negative)
  */
-TEST (tizensensor_as_source, virtual_sensor_flow_05_n)
+TEST (tizensensorAsSource, virtualSensorFlow05_n)
 {
   GError *err = NULL;
   GstElement *pipe, *sink;
@@ -355,7 +355,7 @@ TEST (tizensensor_as_source, virtual_sensor_flow_05_n)
 /**
  * @brief Test pipeline creation with not supported sensor (negative)
  */
-TEST (tizensensor_as_source, virtual_sensor_create_06_n)
+TEST (tizensensorAsSource, virtualSensorCreate06_n)
 {
   GError *err = NULL;
   GstElement *pipe;
@@ -383,7 +383,7 @@ TEST (tizensensor_as_source, virtual_sensor_create_06_n)
 /**
  * @brief Test pipeline creation with invalid sensor (negative)
  */
-TEST (tizensensor_as_source, virtual_sensor_create_07_n)
+TEST (tizensensorAsSource, virtualSensorCreate07_n)
 {
   GError *err = NULL;
   GstElement *pipe;
@@ -411,7 +411,7 @@ TEST (tizensensor_as_source, virtual_sensor_create_07_n)
 /**
  * @brief Test for tizen sensor get property
  */
-TEST (tizensensor_as_source, get_property_1)
+TEST (tizensensorAsSource, getProperty1)
 {
   gchar *pipeline;
   GstElement *gstpipe;
@@ -466,7 +466,7 @@ TEST (tizensensor_as_source, get_property_1)
 /**
  * @brief Test for tizen sensor get property
  */
-TEST (tizensensor_as_source, get_property_2_n)
+TEST (tizensensorAsSource, getProperty2_n)
 {
   gchar *pipeline;
   GstElement *gstpipe;
@@ -503,7 +503,7 @@ TEST (tizensensor_as_source, get_property_2_n)
 /**
  * @brief Test for tizen sensor set and get property
  */
-TEST (tizensensor_as_source, get_property_3_n)
+TEST (tizensensorAsSource, getProperty3_n)
 {
   gchar *pipeline;
   GstElement *gstpipe;

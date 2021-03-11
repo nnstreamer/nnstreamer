@@ -17,7 +17,7 @@
 /**
  * @brief Test @EXT_ABBRV@ subplugin existence.
  */
-TEST (nnstreamer_@EXT_ABBRV@_basic_functions, check_existence)
+TEST (nnstreamer@EXT_ABBRV@BasicFunctions, checkExistence)
 {
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("@EXT_NAME@");
   EXPECT_NE (sp, (void *) NULL);
@@ -26,7 +26,7 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, check_existence)
 /**
  * @brief Test @EXT_ABBRV@ subplugin with failing open/close (no model file)
  */
-TEST (nnstreamer_@EXT_ABBRV@_basic_functions, open_close_00_n)
+TEST (nnstreamer@EXT_ABBRV@BasicFunctions, openClose00_n)
 {
   int ret;
   const gchar *model_files[] = {
@@ -106,7 +106,7 @@ ret:
 /**
  * @brief Test @EXT_ABBRV@ subplugin with successful open/close
  */
-TEST (nnstreamer_@EXT_ABBRV@_basic_functions, open_close_01_n)
+TEST (nnstreamer@EXT_ABBRV@BasicFunctions, openClose01_n)
 {
   int ret;
   void *data = NULL;
@@ -141,7 +141,7 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, open_close_01_n)
 /**
  * @brief Get input/output dimensions with @EXT_ABBRV@ subplugin
  */
-TEST (nnstreamer_@EXT_ABBRV@_basic_functions, get_dimension_fail_n)
+TEST (nnstreamer@EXT_ABBRV@BasicFunctions, getDimensionFail_n)
 {
   int ret;
   void *data = NULL;
@@ -187,7 +187,7 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, get_dimension_fail_n)
 /**
  * @brief Get input/output dimensions with @EXT_ABBRV@ subplugin
  */
-TEST (nnstreamer_@EXT_ABBRV@_basic_functions, get_dimension)
+TEST (nnstreamer@EXT_ABBRV@BasicFunctions, getDimension)
 {
   int ret;
   void *data = NULL;
@@ -231,7 +231,7 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, get_dimension)
 /**
  * @brief Set input dimensions with @EXT_ABBRV@ subplugin
  */
-TEST (nnstreamer_@EXT_ABBRV@_basic_functions, set_dimension_fail_n)
+TEST (nnstreamer@EXT_ABBRV@BasicFunctions, setDimensionFail_n)
 {
   int ret;
   void *data = NULL;
@@ -280,7 +280,7 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, set_dimension_fail_n)
 /**
  * @brief Set input dimensions with @EXT_ABBRV@ subplugin
  */
-TEST (nnstreamer_@EXT_ABBRV@_basic_functions, set_dimension)
+TEST (nnstreamer@EXT_ABBRV@BasicFunctions, setDimension)
 {
   int ret;
   void *data = NULL;
@@ -366,7 +366,7 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, set_dimension)
 /**
  * @brief Test @EXT_ABBRV@ subplugin with unsuccessful invoke
  */
-TEST (nnstreamer_@EXT_ABBRV@_basic_functions, invoke_fail_n)
+TEST (nnstreamer@EXT_ABBRV@BasicFunctions, invokeFail_n)
 {
   int ret;
   void *data = NULL;
@@ -416,7 +416,7 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, invoke_fail_n)
 /**
  * @brief Test @EXT_ABBRV@ subplugin with successful invoke
  */
-TEST (nnstreamer_@EXT_ABBRV@_basic_functions, invoke)
+TEST (nnstreamer@EXT_ABBRV@BasicFunctions, invoke)
 {
   int ret;
   int ret_get_in, ret_get_out, ret_set_in;
@@ -523,7 +523,7 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, invoke)
 /**
  * @brief Reload model with @EXT_ABBRV@ subplugin
  */
-TEST (nnstreamer_@EXT_ABBRV@_basic_functions, reload_model)
+TEST (nnstreamer@EXT_ABBRV@BasicFunctions, reloadModel)
 {
   int ret;
   void *data = NULL;
@@ -588,7 +588,7 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, reload_model)
 /**
  * @brief Validate destroy notify with @EXT_ABBRV@ subplugin
  */
-TEST (nnstreamer_@EXT_ABBRV@_basic_functions, destroyNotify_n)
+TEST (nnstreamer@EXT_ABBRV@BasicFunctions, destroyNotify_n)
 {
   int ret;
   void *data = NULL;
@@ -626,7 +626,7 @@ TEST (nnstreamer_@EXT_ABBRV@_basic_functions, destroyNotify_n)
 /**
  * @brief Check allocate in invoke with @EXT_ABBRV@ subplugin
  */
-TEST (nnstreamer_@EXT_ABBRV@_basic_functions, allocateInInvoke_n)
+TEST (nnstreamer@EXT_ABBRV@BasicFunctions, allocateInInvoke_n)
 {
   int ret;
   void *data = NULL;

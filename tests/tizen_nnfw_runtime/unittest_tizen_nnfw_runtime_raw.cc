@@ -54,7 +54,7 @@ get_model_file ()
 /**
  * @brief Get input/output dimensions with nnfw subplugin
  */
-TEST (nnstreamer_nnfw_runtime_raw_functions, get_dimension)
+TEST (nnstreamerNnfwRuntimeRawFunctions, getDimension)
 {
   int ret;
   void *data = NULL;
@@ -111,7 +111,7 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, get_dimension)
 /**
  * @brief Set input dimensions with nnfw subplugin
  */
-TEST (nnstreamer_nnfw_runtime_raw_functions, set_dimension)
+TEST (nnstreamerNnfwRuntimeRawFunctions, setDimension)
 {
   int ret;
   void *data = NULL;
@@ -209,7 +209,7 @@ TEST (nnstreamer_nnfw_runtime_raw_functions, set_dimension)
 /**
  * @brief Test nnfw subplugin with successful invoke
  */
-TEST (nnstreamer_nnfw_runtime_raw_functions, invoke)
+TEST (nnstreamerNnfwRuntimeRawFunctions, invoke)
 {
   int ret;
   void *data = NULL;
@@ -272,7 +272,7 @@ get_argmax (guint8 *array, size_t size)
 /**
  * @brief Test nnfw subplugin with successful invoke for tflite advanced model
  */
-TEST (nnstreamer_nnfw_runtime_raw_functions, invoke_advanced)
+TEST (nnstreamerNnfwRuntimeRawFunctions, invokeAdvanced)
 {
   int ret;
   void *data = NULL;

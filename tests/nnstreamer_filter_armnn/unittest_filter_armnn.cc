@@ -19,7 +19,7 @@
 /**
  * @brief Test armnn subplugin existence.
  */
-TEST (nnstreamer_filter_armnn, check_existence)
+TEST (nnstreamerFilterArmnn, checkExistence)
 {
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
   EXPECT_NE (sp, (void *)NULL);
@@ -28,7 +28,7 @@ TEST (nnstreamer_filter_armnn, check_existence)
 /**
  * @brief Test armnn subplugin with failing open/close (no model file)
  */
-TEST (nnstreamer_filter_armnn, open_close_00_n)
+TEST (nnstreamerFilterArmnn, openClose00_n)
 {
   int ret;
   const gchar *model_files[] = {
@@ -49,7 +49,7 @@ TEST (nnstreamer_filter_armnn, open_close_00_n)
 /**
  * @brief Test armnn subplugin with successful open/close
  */
-TEST (nnstreamer_filter_armnn, open_close_01_n)
+TEST (nnstreamerFilterArmnn, openClose01_n)
 {
   int ret;
   void *data = NULL;
@@ -87,7 +87,7 @@ TEST (nnstreamer_filter_armnn, open_close_01_n)
 /**
  * @brief Get input/output dimensions with armnn subplugin
  */
-TEST (nnstreamer_filter_armnn, get_dimension)
+TEST (nnstreamerFilterArmnn, getDimension)
 {
   int ret;
   void *data = NULL;
@@ -159,7 +159,7 @@ TEST (nnstreamer_filter_armnn, get_dimension)
 /**
  * @brief Test armnn subplugin with successful invoke for tflite
  */
-TEST (nnstreamer_filter_armnn, invoke_00)
+TEST (nnstreamerFilterArmnn, invoke00)
 {
   int ret;
   void *data = NULL;
@@ -241,7 +241,7 @@ get_argmax (T *array, size_t size)
 /**
  * @brief Test armnn subplugin with successful invoke for tflite advanced model
  */
-TEST (nnstreamer_filter_armnn, invoke_advanced)
+TEST (nnstreamerFilterArmnn, invokeAdvanced)
 {
   int ret, fd;
   void *data = NULL;
@@ -350,7 +350,7 @@ TEST (nnstreamer_filter_armnn, invoke_advanced)
 /**
  * @brief Test armnn subplugin with successful invoke for caffe
  */
-TEST (nnstreamer_filter_armnn, invoke_01)
+TEST (nnstreamerFilterArmnn, invoke01)
 {
   int ret;
   void *data = NULL;

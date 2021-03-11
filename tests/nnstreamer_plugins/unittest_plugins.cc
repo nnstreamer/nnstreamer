@@ -54,7 +54,7 @@
 #define str(s) #s
 #define TEST_TRANSFORM_TYPECAST(                                               \
     name, num_bufs, size, from_t, from_nns_t, to_t, str_to_t, to_nns_t, accel) \
-  TEST (test_tensor_transform, name)                                           \
+  TEST (testTensorTransform, name)                                             \
   {                                                                            \
     const guint num_buffers = num_bufs;                                        \
     const guint array_size = size;                                             \
@@ -195,7 +195,7 @@
 /**
  * @brief Test for setting/getting properties of tensor_transform
  */
-TEST (test_tensor_transform, properties_01)
+TEST (testTensorTransform, properties01)
 {
   const gboolean default_silent = TRUE;
   const gboolean default_accl = DEFAULT_VAL_PROP_ACCELERATION;
@@ -257,7 +257,7 @@ TEST (test_tensor_transform, properties_01)
 /**
  * @brief Test for invalid properties of tensor_transform
  */
-TEST (test_tensor_transform, properties_02_n)
+TEST (testTensorTransform, properties02_n)
 {
   GstHarness *h;
   gchar *str = NULL;
@@ -276,7 +276,7 @@ TEST (test_tensor_transform, properties_02_n)
 /**
  * @brief Test for invalid properties of tensor_transform
  */
-TEST (test_tensor_transform, properties_03_n)
+TEST (testTensorTransform, properties03_n)
 {
   GstHarness *h;
   gchar *str = NULL;
@@ -299,7 +299,7 @@ TEST (test_tensor_transform, properties_03_n)
 /**
  * @brief Test for invalid properties of tensor_transform
  */
-TEST (test_tensor_transform, properties_04_n)
+TEST (testTensorTransform, properties04_n)
 {
   GstHarness *h;
   gchar *str = NULL;
@@ -318,7 +318,7 @@ TEST (test_tensor_transform, properties_04_n)
 /**
  * @brief Test for invalid properties of tensor_transform
  */
-TEST (test_tensor_transform, properties_05_n)
+TEST (testTensorTransform, properties05_n)
 {
   GstHarness *h;
   gchar *str = NULL;
@@ -505,7 +505,7 @@ TEST_TRANSFORM_TYPECAST (typecast_14_accel, 3U, 5U, double, _NNS_FLOAT64,
 /**
  * @brief Test for tensor_transform arithmetic (float32, add .5)
  */
-TEST (test_tensor_transform, arithmetic_1)
+TEST (testTensorTransform, arithmetic1)
 {
   const guint num_buffers = 3;
   const guint array_size = 5;
@@ -575,7 +575,7 @@ TEST (test_tensor_transform, arithmetic_1)
 /**
  * @brief Test for tensor_transform arithmetic (acceleration, float32, add .5)
  */
-TEST (test_tensor_transform, arithmetic_1_accel)
+TEST (testTensorTransform, arithmetic1Accel)
 {
   const guint num_buffers = 3;
   const guint array_size = 5;
@@ -645,7 +645,7 @@ TEST (test_tensor_transform, arithmetic_1_accel)
 /**
  * @brief Test for tensor_transform arithmetic (float64, mul .5)
  */
-TEST (test_tensor_transform, arithmetic_2)
+TEST (testTensorTransform, arithmetic2)
 {
   const guint num_buffers = 3;
   const guint array_size = 5;
@@ -715,7 +715,7 @@ TEST (test_tensor_transform, arithmetic_2)
 /**
  * @brief Test for tensor_transform arithmetic (acceleration, float64, mul .5)
  */
-TEST (test_tensor_transform, arithmetic_2_accel)
+TEST (testTensorTransform, arithmetic2Accel)
 {
   const guint num_buffers = 3;
   const guint array_size = 5;
@@ -785,7 +785,7 @@ TEST (test_tensor_transform, arithmetic_2_accel)
 /**
  * @brief Test for tensor_transform arithmetic (typecast uint8 > float32, add .5, mul .2)
  */
-TEST (test_tensor_transform, arithmetic_3)
+TEST (testTensorTransform, arithmetic3)
 {
   const guint num_buffers = 3;
   const guint array_size = 5;
@@ -859,7 +859,7 @@ TEST (test_tensor_transform, arithmetic_3)
 /**
  * @brief Test for tensor_transform arithmetic (acceleration, typecast uint8 > float32, add .5, mul .2)
  */
-TEST (test_tensor_transform, arithmetic_3_accel)
+TEST (testTensorTransform, arithmetic3Accel)
 {
   const guint num_buffers = 3;
   const guint array_size = 5;
@@ -933,7 +933,7 @@ TEST (test_tensor_transform, arithmetic_3_accel)
 /**
  * @brief Test for tensor_transform arithmetic (typecast uint8 > float64, add .2, add .1, final typecast uint16 will be ignored)
  */
-TEST (test_tensor_transform, arithmetic_4)
+TEST (testTensorTransform, arithmetic4)
 {
   const guint num_buffers = 3;
   const guint array_size = 5;
@@ -1007,7 +1007,7 @@ TEST (test_tensor_transform, arithmetic_4)
 /**
  * @brief Test for tensor_transform arithmetic (acceleration, typecast uint8 > float64, add .2, add .1, final typecast uint16 will be ignored)
  */
-TEST (test_tensor_transform, arithmetic_4_accel)
+TEST (testTensorTransform, arithmetic4Accel)
 {
   const guint num_buffers = 3;
   const guint array_size = 5;
@@ -1081,7 +1081,7 @@ TEST (test_tensor_transform, arithmetic_4_accel)
 /**
  * @brief Test for tensor_transform arithmetic (typecast uint8 > int32, mul 2, div 2, add -1)
  */
-TEST (test_tensor_transform, arithmetic_5)
+TEST (testTensorTransform, arithmetic5)
 {
   const guint num_buffers = 3;
   const guint array_size = 5;
@@ -1155,7 +1155,7 @@ TEST (test_tensor_transform, arithmetic_5)
 /**
  * @brief Test for tensor_transform arithmetic (acceleration, typecast uint8 > int32, mul 2, div 2, add -1)
  */
-TEST (test_tensor_transform, arithmetic_5_accel)
+TEST (testTensorTransform, arithmetic5Accel)
 {
   const guint num_buffers = 3;
   const guint array_size = 5;
@@ -1229,7 +1229,7 @@ TEST (test_tensor_transform, arithmetic_5_accel)
 /**
  * @brief Test for tensor_transform arithmetic (changing option string dynamically)
  */
-TEST (test_tensor_transform, arithmetic_change_option_string)
+TEST (testTensorTransform, arithmeticChangeOptionString)
 {
   const guint array_size = 5;
   GstHarness *h;
@@ -1339,7 +1339,7 @@ const gint aggr_test_frames[2][48]
 /**
  * @brief Test for tensor aggregator properties
  */
-TEST (test_tensor_aggregator, properties)
+TEST (testTensorAggregator, properties)
 {
   GstHarness *h;
   guint fr_val, res_fr_val;
@@ -1406,7 +1406,7 @@ TEST (test_tensor_aggregator, properties)
 /**
  * @brief Test for tensor_aggregator (concatenate 2 frames with frames-dim 3, out-dimension 3:4:2:4)
  */
-TEST (test_tensor_aggregator, aggregate_1)
+TEST (testTensorAggregator, aggregate1)
 {
   GstHarness *h;
   GstBuffer *in_buf, *out_buf;
@@ -1480,7 +1480,7 @@ TEST (test_tensor_aggregator, aggregate_1)
 /**
  * @brief Test for tensor_aggregator (concatenate 2 frames with frames-dim 2, out-dimension 3:4:4:2)
  */
-TEST (test_tensor_aggregator, aggregate_2)
+TEST (testTensorAggregator, aggregate2)
 {
   GstHarness *h;
   GstBuffer *in_buf, *out_buf;
@@ -1554,7 +1554,7 @@ TEST (test_tensor_aggregator, aggregate_2)
 /**
  * @brief Test for tensor_aggregator (concatenate 2 frames with frames-dim 1, out-dimension 3:8:2:2)
  */
-TEST (test_tensor_aggregator, aggregate_3)
+TEST (testTensorAggregator, aggregate3)
 {
   GstHarness *h;
   GstBuffer *in_buf, *out_buf;
@@ -1628,7 +1628,7 @@ TEST (test_tensor_aggregator, aggregate_3)
 /**
  * @brief Test for tensor_aggregator (concatenate 2 frames with frames-dim 0, out-dimension 6:4:2:2)
  */
-TEST (test_tensor_aggregator, aggregate_4)
+TEST (testTensorAggregator, aggregate4)
 {
   GstHarness *h;
   GstBuffer *in_buf, *out_buf;
@@ -1702,7 +1702,7 @@ TEST (test_tensor_aggregator, aggregate_4)
 /**
  * @brief Test for tensor_aggregator (no-concat, same in-out frames)
  */
-TEST (test_tensor_aggregator, aggregate_5)
+TEST (testTensorAggregator, aggregate5)
 {
   GstHarness *h;
   GstBuffer *in_buf, *out_buf;
@@ -1764,7 +1764,7 @@ TEST (test_tensor_aggregator, aggregate_5)
 /**
  * @brief Test for tensor_converter (bytes to multi tensors)
  */
-TEST (test_tensor_converter, bytes_to_multi_1)
+TEST (testTensorConverter, bytesToMulti1)
 {
   GstHarness *h;
   GstBuffer *in_buf, *out_buf;
@@ -1838,7 +1838,7 @@ TEST (test_tensor_converter, bytes_to_multi_1)
 /**
  * @brief Test for tensor_converter (bytes to multi tensors)
  */
-TEST (test_tensor_converter, bytes_to_multi_2)
+TEST (testTensorConverter, bytesToMulti2)
 {
   GstHarness *h;
   GstBuffer *in_buf, *out_buf;
@@ -1930,7 +1930,7 @@ TEST (test_tensor_converter, bytes_to_multi_2)
 /**
  * @brief Test for tensor_converter (bytes to multi tensors)
  */
-TEST (test_tensor_converter, bytes_to_multi_invalid_dim_01_n)
+TEST (testTensorConverter, bytesToMultiInvalidDim01_n)
 {
   GstHarness *h;
   GstBuffer *in_buf;
@@ -1969,7 +1969,7 @@ TEST (test_tensor_converter, bytes_to_multi_invalid_dim_01_n)
 /**
  * @brief Test for tensor_converter (bytes to multi tensors)
  */
-TEST (test_tensor_converter, bytes_to_multi_invalid_dim_02_n)
+TEST (testTensorConverter, bytesToMultiInvalidDim02_n)
 {
   GstHarness *h;
   GstBuffer *in_buf;
@@ -2009,7 +2009,7 @@ TEST (test_tensor_converter, bytes_to_multi_invalid_dim_02_n)
 /**
  * @brief Test for tensor_converter (bytes to multi tensors)
  */
-TEST (test_tensor_converter, bytes_to_multi_invalid_type_01_n)
+TEST (testTensorConverter, bytesToMultiInvalidType01_n)
 {
   GstHarness *h;
   GstBuffer *in_buf;
@@ -2048,7 +2048,7 @@ TEST (test_tensor_converter, bytes_to_multi_invalid_type_01_n)
 /**
  * @brief Test for tensor_converter (bytes to multi tensors)
  */
-TEST (test_tensor_converter, bytes_to_multi_invalid_type_02_n)
+TEST (testTensorConverter, bytesToMultiInvalidType02_n)
 {
   GstHarness *h;
   GstBuffer *in_buf;
@@ -2088,7 +2088,7 @@ TEST (test_tensor_converter, bytes_to_multi_invalid_type_02_n)
 /**
  * @brief Test for tensor_converter (bytes to multi tensors)
  */
-TEST (test_tensor_converter, bytes_to_multi_invalid_type_03_n)
+TEST (testTensorConverter, bytesToMultiInvalidType03_n)
 {
   GstHarness *h;
   GstBuffer *in_buf;
@@ -2130,7 +2130,7 @@ TEST (test_tensor_converter, bytes_to_multi_invalid_type_03_n)
 /**
  * @brief Test for tensor_converter (bytes to multi tensors)
  */
-TEST (test_tensor_converter, bytes_to_multi_invalid_size_n)
+TEST (testTensorConverter, bytesToMultiInvalidSize_n)
 {
   GstHarness *h;
   GstBuffer *in_buf;
@@ -2170,7 +2170,7 @@ TEST (test_tensor_converter, bytes_to_multi_invalid_size_n)
 /**
  * @brief Test for tensor_converter (bytes to multi tensors)
  */
-TEST (test_tensor_converter, bytes_to_multi_invalid_frames_n)
+TEST (testTensorConverter, bytesToMultiInvalidFrames_n)
 {
   GstHarness *h;
   GstBuffer *in_buf;
@@ -2213,7 +2213,7 @@ TEST (test_tensor_converter, bytes_to_multi_invalid_frames_n)
 /**
  * @brief Test for tensor_transform orc functions (add constant value)
  */
-TEST (test_tensor_transform, orc_add)
+TEST (testTensorTransform, orcAdd)
 {
   const guint array_size = 10;
   guint i;
@@ -2392,7 +2392,7 @@ TEST (test_tensor_transform, orc_add)
 /**
  * @brief Test for tensor_transform orc functions (mul constant value)
  */
-TEST (test_tensor_transform, orc_mul)
+TEST (testTensorTransform, orcMul)
 {
   const guint array_size = 10;
   guint i;
@@ -2571,7 +2571,7 @@ TEST (test_tensor_transform, orc_mul)
 /**
  * @brief Test for tensor_transform orc functions (div constant value)
  */
-TEST (test_tensor_transform, orc_div)
+TEST (testTensorTransform, orcDiv)
 {
   const guint array_size = 10;
   guint i;
@@ -2630,7 +2630,7 @@ TEST (test_tensor_transform, orc_div)
 /**
  * @brief Test for tensor_transform orc functions (convert s8 to other type)
  */
-TEST (test_tensor_transform, orc_conv_s8)
+TEST (testTensorTransform, orcConvS8)
 {
   const guint array_size = 10;
   guint i;
@@ -2735,7 +2735,7 @@ TEST (test_tensor_transform, orc_conv_s8)
 /**
  * @brief Test for tensor_transform orc functions (convert u8 to other type)
  */
-TEST (test_tensor_transform, orc_conv_u8)
+TEST (testTensorTransform, orcConvU8)
 {
   const guint array_size = 10;
   guint i;
@@ -2840,7 +2840,7 @@ TEST (test_tensor_transform, orc_conv_u8)
 /**
  * @brief Test for tensor_transform orc functions (convert s16 to other type)
  */
-TEST (test_tensor_transform, orc_conv_s16)
+TEST (testTensorTransform, orcConvS16)
 {
   const guint array_size = 10;
   guint i;
@@ -2945,7 +2945,7 @@ TEST (test_tensor_transform, orc_conv_s16)
 /**
  * @brief Test for tensor_transform orc functions (convert u16 to other type)
  */
-TEST (test_tensor_transform, orc_conv_u16)
+TEST (testTensorTransform, orcConvU16)
 {
   const guint array_size = 10;
   guint i;
@@ -3050,7 +3050,7 @@ TEST (test_tensor_transform, orc_conv_u16)
 /**
  * @brief Test for tensor_transform orc functions (convert s32 to other type)
  */
-TEST (test_tensor_transform, orc_conv_s32)
+TEST (testTensorTransform, orcConvS32)
 {
   const guint array_size = 10;
   guint i;
@@ -3155,7 +3155,7 @@ TEST (test_tensor_transform, orc_conv_s32)
 /**
  * @brief Test for tensor_transform orc functions (convert u32 to other type)
  */
-TEST (test_tensor_transform, orc_conv_u32)
+TEST (testTensorTransform, orcConvU32)
 {
   const guint array_size = 10;
   guint i;
@@ -3260,7 +3260,7 @@ TEST (test_tensor_transform, orc_conv_u32)
 /**
  * @brief Test for tensor_transform orc functions (convert f32 to other type)
  */
-TEST (test_tensor_transform, orc_conv_f32)
+TEST (testTensorTransform, orcConvF32)
 {
   const guint array_size = 10;
   guint i;
@@ -3368,7 +3368,7 @@ TEST (test_tensor_transform, orc_conv_f32)
 /**
  * @brief Test for tensor_transform orc functions (convert f64 to other type)
  */
-TEST (test_tensor_transform, orc_conv_f64)
+TEST (testTensorTransform, orcConvF64)
 {
   const guint array_size = 10;
   guint i;
@@ -3476,7 +3476,7 @@ TEST (test_tensor_transform, orc_conv_f64)
 /**
  * @brief Test for tensor_transform orc functions (performance)
  */
-TEST (test_tensor_transform, orc_performance)
+TEST (testTensorTransform, orcPerformance)
 {
   const guint array_size = 80000;
   guint i;
@@ -4465,7 +4465,7 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_wo_opt_no_permission_n)
  * @brief Test framework auto detecion option in tensor-filter.
  * @details Check if nnfw (second priority) is detected automatically
  */
-TEST (test_tensor_filter, framework_auto_ext_tflite_nnfw_04)
+TEST (testTensorFilter, frameworkAutoExtTfliteNnfw04)
 {
   gchar *test_model, *str_launch_line;
   GstElement *gstpipe;
@@ -4487,7 +4487,7 @@ TEST (test_tensor_filter, framework_auto_ext_tflite_nnfw_04)
  * @brief Test framework auto detecion without specifying the option in tensor-filter.
  * @details Check if nnfw (second priority) is detected automatically
  */
-TEST (test_tensor_filter, framework_auto_wo_opt_ext_tflite_nnfw)
+TEST (testTensorFilter, frameworkAutoWoOptExtTfliteNnfw)
 {
   gchar *test_model, *str_launch_line;
   GstElement *gstpipe;
@@ -4512,7 +4512,7 @@ TEST (test_tensor_filter, framework_auto_wo_opt_ext_tflite_nnfw)
  * @brief Test framework auto detecion option in tensor-filter.
  * @details Check if tensoflow is detected automatically
  */
-TEST (test_tensor_filter, framework_auto_ext_pb_01)
+TEST (testTensorFilter, frameworkAutoExtPb01)
 {
   gchar *test_model, *str_launch_line, *data_path;
   GstElement *gstpipe;
@@ -4544,7 +4544,7 @@ TEST (test_tensor_filter, framework_auto_ext_pb_01)
  * @brief Test framework auto detecion without specifying the option in tensor-filter.
  * @details Check if tensoflow is detected automatically
  */
-TEST (test_tensor_filter, framework_auto_wo_opt_ext_pb)
+TEST (testTensorFilter, frameworkAutoWoOptExtPb)
 {
   gchar *test_model, *str_launch_line, *data_path;
   GstElement *gstpipe;
@@ -4576,7 +4576,7 @@ TEST (test_tensor_filter, framework_auto_wo_opt_ext_pb)
  * @brief Test framework auto detecion option in tensor-filter.
  * @details Negative case whtn tensorflow is not enabled
  */
-TEST (test_tensor_filter, framework_auto_ext_pb_tf_disabled_n)
+TEST (testTensorFilter, frameworkAutoExtPbTfDisabled_n)
 {
   gchar *test_model, *str_launch_line, *data_path;
   const gchar *fw_name = NULL;
@@ -4609,7 +4609,7 @@ TEST (test_tensor_filter, framework_auto_ext_pb_tf_disabled_n)
  * @brief Test framework auto detecion without specifying the option in tensor-filter.
  * @details Negative case whtn tensorflow is not enabled
  */
-TEST (test_tensor_filter, framework_auto_wo_opt_ext_pb_tf_disabled_n)
+TEST (testTensorFilter, frameworkAutoWoOptExtPbTfDisabled_n)
 {
   gchar *test_model, *str_launch_line, *data_path;
   const gchar *fw_name = NULL;
@@ -4644,7 +4644,7 @@ TEST (test_tensor_filter, framework_auto_wo_opt_ext_pb_tf_disabled_n)
  * @brief Test framework auto detecion option in tensor-filter.
  * @details Check if caffe2 is detected automatically
  */
-TEST (test_tensor_filter, framework_auto_ext_pb_03)
+TEST (testTensorFilter, frameworkAutoExtPb03)
 {
   gchar *test_model, *str_launch_line, *test_model_2, *data_path;
   GstElement *gstpipe;
@@ -4681,7 +4681,7 @@ TEST (test_tensor_filter, framework_auto_ext_pb_03)
  * @brief Test framework auto detecion option in tensor-filter.
  * @details Check if caffe2 is not enabled
  */
-TEST (test_tensor_filter, framework_auto_ext_pb_caffe2_disabled_n)
+TEST (testTensorFilter, frameworkAutoExtPbCaffe2Disabled_n)
 {
   gchar *test_model, *str_launch_line, *test_model_2, *data_path;
   const gchar *fw_name = NULL;
@@ -4720,7 +4720,7 @@ TEST (test_tensor_filter, framework_auto_ext_pb_caffe2_disabled_n)
  * @brief Test framework auto detecion option in tensor-filter.
  * @details Check if pytorch is detected automatically
  */
-TEST (test_tensor_filter, framework_auto_ext_pt_01)
+TEST (testTensorFilter, frameworkAutoExtPt01)
 {
   gchar *test_model, *str_launch_line, *image_path;
   GstElement *gstpipe;
@@ -4752,7 +4752,7 @@ TEST (test_tensor_filter, framework_auto_ext_pt_01)
  * @brief Test framework auto detecion without specifying the option in tensor-filter.
  * @details Check if pytorch is detected automatically
  */
-TEST (test_tensor_filter, framework_auto_wo_opt_ext_pt_01)
+TEST (testTensorFilter, frameworkAutoWoOptExtPt01)
 {
   gchar *test_model, *str_launch_line, *image_path;
   GstElement *gstpipe;
@@ -4786,7 +4786,7 @@ TEST (test_tensor_filter, framework_auto_wo_opt_ext_pt_01)
  * @brief Test framework auto detecion option in tensor-filter.
  * @details Check if pytorch is not enabled
  */
-TEST (test_tensor_filter, framework_auto_ext_pt_pytorch_disabled_n)
+TEST (testTensorFilter, frameworkAutoExtPtPytorchDisabled_n)
 {
   gchar *test_model, *str_launch_line;
   const gchar *fw_name = NULL;
@@ -4820,7 +4820,7 @@ TEST (test_tensor_filter, framework_auto_ext_pt_pytorch_disabled_n)
  * @brief Test framework auto detecion without specifying the option in tensor-filter.
  * @details Check if pytorch is not enabled
  */
-TEST (test_tensor_filter, framework_auto_wo_opt_ext_pt_pytorch_disabled_n)
+TEST (testTensorFilter, frameworkAutoWoOptExtPtPytorchDisabled_n)
 {
   gchar *test_model, *str_launch_line;
   const gchar *fw_name = NULL;

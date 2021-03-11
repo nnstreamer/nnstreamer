@@ -20,7 +20,7 @@
 /**
  * @brief Test tensor_rate existence.
  */
-TEST (nnstreamer_rate, check_existence)
+TEST (nnstreamerRate, checkExistence)
 {
   GstElementFactory *factory;
 
@@ -32,7 +32,7 @@ TEST (nnstreamer_rate, check_existence)
 /**
  * @brief Test tensor_rate existence (negative).
  */
-TEST (nnstreamer_rate, check_existence_n)
+TEST (nnstreamerRate, checkExistence_n)
 {
   GstElementFactory *factory;
   gchar *name;
@@ -161,7 +161,7 @@ _set_default_option (TestOption &option)
 /**
  * @brief Test tensor_rate get default property
  */
-TEST (nnstreamer_rate, get_property_default)
+TEST (nnstreamerRate, getPropertyDefault)
 {
   TestOption option;
   GstElement *rate;
@@ -206,7 +206,7 @@ TEST (nnstreamer_rate, get_property_default)
 /**
  * @brief Test tensor_rate set property
  */
-TEST (nnstreamer_rate, set_property)
+TEST (nnstreamerRate, setProperty)
 {
   TestOption option;
   GstElement *rate;
@@ -241,7 +241,7 @@ TEST (nnstreamer_rate, set_property)
 /**
  * @brief Test tensor_rate set property stats (negative)
  */
-TEST (nnstreamer_rate, set_propery_stats_n)
+TEST (nnstreamerRate, setProperyStats_n)
 {
   TestOption option;
   GstElement *rate;
@@ -278,7 +278,7 @@ TEST (nnstreamer_rate, set_propery_stats_n)
 /**
  * @brief Test tensor_rate set invalide framerate (negative)
  */
-TEST (nnstreamer_rate, set_propery_invalid_framerate_n)
+TEST (nnstreamerRate, setProperyInvalidFramerate_n)
 {
   TestOption option;
   GstElement *rate;
@@ -348,7 +348,7 @@ static gboolean wait_pipeline_eos (GstElement *pipeline)
 /**
  * @brief Test tensor_rate with passthrough mode
  */
-TEST (nnstreamer_rate, passthrough)
+TEST (nnstreamerRate, passthrough)
 {
   TestOption option;
   GstElement *rate;
@@ -387,7 +387,7 @@ TEST (nnstreamer_rate, passthrough)
 /**
  * @brief Test tensor_rate with no-throttling mode
  */
-TEST (nnstreamer_rate, no_throttling)
+TEST (nnstreamerRate, noThrottling)
 {
   TestOption option;
   GstElement *rate;
@@ -434,7 +434,7 @@ TEST (nnstreamer_rate, no_throttling)
 /**
  * @brief Test tensor_rate with throttling mode
  */
-TEST (nnstreamer_rate, throttling)
+TEST (nnstreamerRate, throttling)
 {
   TestOption option;
   GstElement *rate;

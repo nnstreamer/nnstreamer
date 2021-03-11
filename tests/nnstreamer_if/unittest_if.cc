@@ -94,7 +94,7 @@ class tensor_if_run : public ::testing::Test
 /**
  * @brief Test for tensor_if get and set properties
  */
-TEST (tensor_if_prop, properties_0)
+TEST (tensorIfProp, properties0)
 {
   gchar *pipeline;
   GstElement *gstpipe;
@@ -195,7 +195,7 @@ TEST (tensor_if_prop, properties_0)
 /**
  * @brief Test for invalid properties of tensor_if
  */
-TEST (tensor_if_prop, properties_1_n)
+TEST (tensorIfProp, properties1_n)
 {
   gchar *pipeline;
   GstElement *gstpipe;
@@ -229,7 +229,7 @@ TEST (tensor_if_prop, properties_1_n)
 /**
  * @brief Test for invalid tensor index of tensor_if compared value option
  */
-TEST (tensor_if_prop, properties_2_n)
+TEST (tensorIfProp, properties2_n)
 {
   gchar *str_pipeline = g_strdup_printf (
       "videotestsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! "
@@ -251,7 +251,7 @@ TEST (tensor_if_prop, properties_2_n)
 /**
  * @brief Test for invalid tensor index of tensor_if compared value option
  */
-TEST (tensor_if_prop, properties_3_n)
+TEST (tensorIfProp, properties3_n)
 {
   gchar *str_pipeline = g_strdup_printf (
       "videotestsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! "
@@ -273,7 +273,7 @@ TEST (tensor_if_prop, properties_3_n)
 /**
  * @brief Test for invalid value of tensor_if compared value option
  */
-TEST (tensor_if_prop, properties_4_n)
+TEST (tensorIfProp, properties4_n)
 {
   gchar *str_pipeline = g_strdup_printf (
       "videotestsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! "
@@ -295,7 +295,7 @@ TEST (tensor_if_prop, properties_4_n)
 /**
  * @brief Test for invalid value of tensor_if compared value option
  */
-TEST (tensor_if_prop, properties_5_n)
+TEST (tensorIfProp, properties5_n)
 {
   gchar *str_pipeline = g_strdup_printf (
       "videotestsrc num-buffers=2 pattern=13 ! videoconvert ! videoscale ! "
@@ -544,7 +544,7 @@ new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
 /**
  * @brief Test behavior: PASSTHROUGH, SKIP with tensor stream using appsrc
  */
-TEST (tensor_if_appsrc, action_0)
+TEST (tensorIfAppsrc, action0)
 {
   GstBuffer *buf_0, *buf_1;
   GstMemory *mem;
@@ -631,7 +631,7 @@ TEST (tensor_if_appsrc, action_0)
 /**
  * @brief Test behavior: TENSORPICK with tensors stream using appsrc
  */
-TEST (tensor_if_appsrc, action_1)
+TEST (tensorIfAppsrc, action1)
 {
   GstBuffer *buf_0, *buf_1;
   GstMemory *mem;
@@ -733,7 +733,7 @@ tensor_if_custom_cb (const GstTensorsInfo *info, const GstTensorMemory *input,
 /**
  * @brief Test behavior: custom callback
  */
-TEST (tensor_if_custom, normal_0)
+TEST (tensorIfCustom, normal0)
 {
   GstBuffer *buf_0, *buf_1;
   GstMemory *mem;
@@ -814,7 +814,7 @@ TEST (tensor_if_custom, normal_0)
 /**
  * @brief Test behavior: custom callback, change the order of compared value option.
  */
-TEST (tensor_if_custom, normal_1)
+TEST (tensorIfCustom, normal1)
 {
   GstElement *tif_handle;
   gchar *str_val;
@@ -848,7 +848,7 @@ TEST (tensor_if_custom, normal_1)
 /**
  * @brief Register custom callback with NULL parameter
  */
-TEST (tensor_if_custom, invalid_param_0_n)
+TEST (tensorIfCustom, invalidParam0_n)
 {
   EXPECT_NE (0, nnstreamer_if_custom_register (NULL, tensor_if_custom_cb, NULL));
   EXPECT_NE (0, nnstreamer_if_custom_register ("tifx", NULL, NULL));
@@ -857,7 +857,7 @@ TEST (tensor_if_custom, invalid_param_0_n)
 /**
  * @brief Register custom callback twice with same name
  */
-TEST (tensor_if_custom, invalid_param_1_n)
+TEST (tensorIfCustom, invalidParam1_n)
 {
   EXPECT_EQ (0, nnstreamer_if_custom_register ("tifx", tensor_if_custom_cb, NULL));
   EXPECT_NE (0, nnstreamer_if_custom_register ("tifx", tensor_if_custom_cb, NULL));
@@ -867,7 +867,7 @@ TEST (tensor_if_custom, invalid_param_1_n)
 /**
  * @brief Unregister custom callback with NULL parameter
  */
-TEST (tensor_if_custom, invalid_param_2_n)
+TEST (tensorIfCustom, invalidParam2_n)
 {
   EXPECT_NE (0, nnstreamer_if_custom_unregister (NULL));
 }
@@ -875,7 +875,7 @@ TEST (tensor_if_custom, invalid_param_2_n)
 /**
  * @brief Unregister custom callback which is not registered
  */
-TEST (tensor_if_custom, invalid_param_3_n)
+TEST (tensorIfCustom, invalidParam3_n)
 {
   EXPECT_NE (0, nnstreamer_if_custom_unregister ("tifx"));
 }

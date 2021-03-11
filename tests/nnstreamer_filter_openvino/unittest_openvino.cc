@@ -93,7 +93,7 @@ TensorFilterOpenvinoTest::setOutputsDataMap (InferenceEngine::OutputsDataMap &ma
 /**
  * @brief Test cases for open and close callbacks varying the model files
  */
-TEST (tensor_filter_openvino, open_and_close_0)
+TEST (tensorFilterOpenvino, openAndClose0)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const gchar fw_name[] = "openvino";
@@ -227,7 +227,7 @@ TEST (tensor_filter_openvino, open_and_close_0)
 /**
  * @brief A test case for open and close callbacks with the private_data, which has the models already loaded
  */
-TEST (tensor_filter_openvino, open_and_close_1)
+TEST (tensorFilterOpenvino, openAndClose1)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const gchar fw_name[] = "openvino";
@@ -301,7 +301,7 @@ TEST (tensor_filter_openvino, open_and_close_1)
 /**
  * @brief A test case for open and close callbacks with the private_data, which has the models are not loaded
  */
-TEST (tensor_filter_openvino, open_and_close_2)
+TEST (tensorFilterOpenvino, openAndClose2)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const gchar fw_name[] = "openvino";
@@ -368,7 +368,7 @@ TEST (tensor_filter_openvino, open_and_close_2)
 /**
  * @brief Negative test cases for open and close callbacks with wrong model files
  */
-TEST (tensor_filter_openvino, open_and_close_0_n)
+TEST (tensorFilterOpenvino, openAndClose0_n)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const gchar fw_name[] = "openvino";
@@ -470,7 +470,7 @@ TEST (tensor_filter_openvino, open_and_close_0_n)
  * @brief Negative test cases for open and close callbacks with accelerator
  *        property values, which are not supported
  */
-TEST (tensor_filter_openvino, open_and_close_1_n)
+TEST (tensorFilterOpenvino, openAndClose1_n)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const gchar fw_name[] = "openvino";
@@ -539,7 +539,7 @@ TEST (tensor_filter_openvino, open_and_close_1_n)
  * @brief Negative test cases for open and close callbacks with accelerator
  *        property values, which are wrong
  */
-TEST (tensor_filter_openvino, open_and_close_2_n)
+TEST (tensorFilterOpenvino, openAndClose2_n)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const gchar fw_name[] = "openvino";
@@ -595,7 +595,7 @@ TEST (tensor_filter_openvino, open_and_close_2_n)
 /**
  * @brief Test cases for getInputTensorDim and getOutputTensorDim callbacks
  */
-TEST (tensor_filter_openvino, getTensorDim_0)
+TEST (tensorFilterOpenvino, getTensorDim0)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const gchar fw_name[] = "openvino";
@@ -670,7 +670,7 @@ TEST (tensor_filter_openvino, getTensorDim_0)
 /**
  * @brief A negative test case for getInputTensorDim callbacks (The number of tensors is exceeded NNS_TENSOR_SIZE_LIMIT)
  */
-TEST (tensor_filter_openvino, getTensorDim_0_n)
+TEST (tensorFilterOpenvino, getTensorDim0_n)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const gchar fw_name[] = "openvino";
@@ -748,7 +748,7 @@ TEST (tensor_filter_openvino, getTensorDim_0_n)
 /**
  * @brief A negative test case for the getInputTensorDim callback (A wrong rank)
  */
-TEST (tensor_filter_openvino, getTensorDim_1_n)
+TEST (tensorFilterOpenvino, getTensorDim1_n)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const gchar fw_name[] = "openvino";
@@ -824,7 +824,7 @@ TEST (tensor_filter_openvino, getTensorDim_1_n)
 /**
  * @brief A negative test case for getOutputTensorDim callbacks (The number of tensors is exceeded NNS_TENSOR_SIZE_LIMIT)
  */
-TEST (tensor_filter_openvino, getTensorDim_2_n)
+TEST (tensorFilterOpenvino, getTensorDim2_n)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const gchar fw_name[] = "openvino";
@@ -899,7 +899,7 @@ TEST (tensor_filter_openvino, getTensorDim_2_n)
 /**
  * @brief A negative test case for getOutputTensorDim callbacks (The number of tensors is exceeded NNS_TENSOR_SIZE_LIMIT)
  */
-TEST (tensor_filter_openvino, getTensorDim_3_n)
+TEST (tensorFilterOpenvino, getTensorDim3_n)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const gchar fw_name[] = "openvino";
@@ -972,7 +972,7 @@ TEST (tensor_filter_openvino, getTensorDim_3_n)
 /**
  * @brief A test case for the helper function, convertFromIETypeStr ()
  */
-TEST (tensor_filter_openvino, convertFromIETypeStr_0)
+TEST (tensorFilterOpenvino, convertFromIETypeStr0)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const std::vector<std::string> ie_suport_type_strs = {
@@ -1018,7 +1018,7 @@ TEST (tensor_filter_openvino, convertFromIETypeStr_0)
 /**
  * @brief A negative test case for the helper function, convertFromIETypeStr ()
  */
-TEST (tensor_filter_openvino, convertFromIETypeStr_0_n)
+TEST (tensorFilterOpenvino, convertFromIETypeStr0_n)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const std::vector<std::string> ie_not_suport_type_strs = {
@@ -1063,7 +1063,7 @@ TEST (tensor_filter_openvino, convertFromIETypeStr_0_n)
 /**
  * @brief A negative test case for the helper function, convertFromIETypeStr ()
  */
-TEST (tensor_filter_openvino, convertFromIETypeStr_1_n)
+TEST (tensorFilterOpenvino, convertFromIETypeStr1_n)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const std::string ie_suport_type_str ("Q78");
@@ -1126,7 +1126,7 @@ TEST (tensor_filter_openvino, convertFromIETypeStr_1_n)
 /**
  * @brief A test case for the helper function, convertFromIETypeStr ()
  */
-TEST (tensor_filter_openvino, convertGstTensorMemoryToBlobPtr_0)
+TEST (tensorFilterOpenvino, convertGstTensorMemoryToBlobPtr0)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   std::string str_test_model;
