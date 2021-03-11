@@ -21,6 +21,7 @@
 
 #include <gst/gst.h>
 #include <tensor_common.h>
+#include <tensor_data.h>
 #include <tensor_if.h>
 
 G_BEGIN_DECLS
@@ -97,15 +98,6 @@ typedef enum
   TIFSP_THEN_PAD = 0,
   TIFSP_ELSE_PAD,
 } tensor_if_srcpads;
-
-/**
- * @brief Internal data structure for value
- */
-typedef struct
-{
-  tensor_type type;
-  tensor_element data;
-} tensor_if_data_s;
 
 /**
  * @brief Internal data structure for supplied value

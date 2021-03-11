@@ -338,165 +338,6 @@ gst_tensor_if_dispose (GObject * object)
 }
 
 /**
- * @brief Macro for typecast
- */
-#define typecast_value_to(v,itype,otype) do { \
-    itype in_val = (v)->data._##itype; \
-    otype out_val = (otype) in_val; \
-    (v)->data._##otype = out_val; \
-  } while (0)
-
-#define typecast_value(v,otype) do { \
-    switch ((v)->type) { \
-      case _NNS_INT32: typecast_value_to (v, int32_t, otype); break; \
-      case _NNS_UINT32: typecast_value_to (v, uint32_t, otype); break; \
-      case _NNS_INT16: typecast_value_to (v, int16_t, otype); break; \
-      case _NNS_UINT16:  typecast_value_to (v, uint16_t, otype); break; \
-      case _NNS_INT8: typecast_value_to (v, int8_t, otype); break; \
-      case _NNS_UINT8: typecast_value_to (v, uint8_t, otype); break; \
-      case _NNS_FLOAT64: typecast_value_to (v, double, otype); break; \
-      case _NNS_FLOAT32: typecast_value_to (v, float, otype); break; \
-      case _NNS_INT64: typecast_value_to (v, int64_t, otype); break; \
-      case _NNS_UINT64: typecast_value_to (v, uint64_t, otype); break; \
-      default: g_assert (0); break; \
-    } \
-  } while (0)
-
-/**
- * @brief Typecast tensor element value
- * @param filter "this" pointer
- * @param value struct for operand of arith mode
- * @param type tensor type to be transformed
- * @return TRUE if no error
- */
-static gboolean
-gst_tensor_if_typecast_value (GstTensorIf * tensor_if,
-    tensor_if_data_s * value, tensor_type type)
-{
-  gboolean is_float;
-
-  g_return_val_if_fail (value != NULL, FALSE);
-  g_return_val_if_fail (type != _NNS_END, FALSE);
-
-  /* do nothing when transform to same type */
-  if (value->type != type) {
-    is_float = (value->type == _NNS_FLOAT32 || value->type == _NNS_FLOAT64);
-
-    switch (type) {
-      case _NNS_INT32:
-        typecast_value (value, int32_t);
-        break;
-      case _NNS_UINT32:
-        if (is_float) {
-          typecast_value (value, int32_t);
-          value->type = _NNS_INT32;
-        }
-        typecast_value (value, uint32_t);
-        break;
-      case _NNS_INT16:
-        typecast_value (value, int16_t);
-        break;
-      case _NNS_UINT16:
-        if (is_float) {
-          typecast_value (value, int16_t);
-          value->type = _NNS_INT16;
-        }
-        typecast_value (value, uint16_t);
-        break;
-      case _NNS_INT8:
-        typecast_value (value, int8_t);
-        break;
-      case _NNS_UINT8:
-        if (is_float) {
-          typecast_value (value, int8_t);
-          value->type = _NNS_INT8;
-        }
-        typecast_value (value, uint8_t);
-        break;
-      case _NNS_FLOAT64:
-        typecast_value (value, double);
-        break;
-      case _NNS_FLOAT32:
-        typecast_value (value, float);
-        break;
-      case _NNS_INT64:
-        typecast_value (value, int64_t);
-        break;
-      case _NNS_UINT64:
-        if (is_float) {
-          typecast_value (value, int64_t);
-          value->type = _NNS_INT64;
-        }
-        typecast_value (value, uint64_t);
-        break;
-      default:
-        GST_ERROR_OBJECT (tensor_if, "Unknown tensor type %d", type);
-        return FALSE;
-    }
-
-    value->type = type;
-  }
-
-  return TRUE;
-}
-
-/**
- * @brief Macro to set tensor_if data
- */
-#define set_tensor_data(v,d,vtype) do { \
-    (v)->data._##vtype = *((vtype *) d); \
-  } while (0)
-
-/**
- * @brief Set tensor element data with given type
- * @param value struct for tesnor_if data
- * @param data pointer of tensor element value
- * @return TRUE if no error
- */
-static gboolean
-gst_tensor_if_set_data (tensor_if_data_s * value, gpointer data)
-{
-  g_return_val_if_fail (value != NULL, FALSE);
-  g_return_val_if_fail (data != NULL, FALSE);
-
-  switch (value->type) {
-    case _NNS_INT32:
-      set_tensor_data (value, data, int32_t);
-      break;
-    case _NNS_UINT32:
-      set_tensor_data (value, data, uint32_t);
-      break;
-    case _NNS_INT16:
-      set_tensor_data (value, data, int16_t);
-      break;
-    case _NNS_UINT16:
-      set_tensor_data (value, data, uint16_t);
-      break;
-    case _NNS_INT8:
-      set_tensor_data (value, data, int8_t);
-      break;
-    case _NNS_UINT8:
-      set_tensor_data (value, data, uint8_t);
-      break;
-    case _NNS_FLOAT64:
-      set_tensor_data (value, data, double);
-      break;
-    case _NNS_FLOAT32:
-      set_tensor_data (value, data, float);
-      break;
-    case _NNS_INT64:
-      set_tensor_data (value, data, int64_t);
-      break;
-    case _NNS_UINT64:
-      set_tensor_data (value, data, uint64_t);
-      break;
-    default:
-      return FALSE;
-  }
-  return TRUE;
-}
-
-/**
  * @brief Convert GValue to GList according to delimiters
  */
 static void
@@ -951,19 +792,19 @@ done:
  */
 static gboolean
 gst_tensor_if_get_comparison_result (GstTensorIf * tensor_if,
-    tensor_if_data_s * cv, gboolean * result)
+    tensor_data_s * cv, gboolean * result)
 {
   gboolean ret = FALSE;
-  tensor_if_data_s svtc_1, svtc_2;
+  tensor_data_s svtc_1, svtc_2;
 
   svtc_1.type = tensor_if->sv->type;
   svtc_1.data = tensor_if->sv->data[0];
-  gst_tensor_if_typecast_value (tensor_if, &svtc_1, cv->type);
+  gst_tensor_data_typecast (&svtc_1, cv->type);
 
   if (tensor_if->sv->num > 1) {
     svtc_2.type = tensor_if->sv->type;
     svtc_2.data = tensor_if->sv->data[1];
-    gst_tensor_if_typecast_value (tensor_if, &svtc_2, cv->type);
+    gst_tensor_data_typecast (&svtc_2, cv->type);
   }
 
   switch (cv->type) {
@@ -1015,40 +856,17 @@ gst_tensor_if_get_comparison_result (GstTensorIf * tensor_if,
   return TRUE;
 }
 
-#define get_double_val(type, in, out) do { \
-    switch (type) { \
-      case _NNS_INT32: out = (double) (*(int32_t *) in); break; \
-      case _NNS_UINT32: out = (double) (*(uint32_t *) in); break; \
-      case _NNS_INT16: out = (double) (*(int16_t *) in);break; \
-      case _NNS_UINT16: out = (double) (*(uint16_t *) in); break; \
-      case _NNS_INT8: out = (double) (*(int8_t *) in); break; \
-      case _NNS_UINT8: out = (double) (*(uint8_t *) in); break; \
-      case _NNS_FLOAT64: out = (double) (*(double *) in); break; \
-      case _NNS_FLOAT32: out = (double) (*(float *) in); break; \
-      case _NNS_INT64: out = (double) (*(int64_t *) in); break; \
-      case _NNS_UINT64: out = (double) (*(uint64_t *) in); break; \
-      default: g_assert (0); break; \
-    } \
-  } while (0)
-
 /**
  * @brief Calculate average value of the nth tensor
  */
 static gboolean
 gst_tensor_if_get_tensor_average (GstTensorIf * tensor_if,
-    GstBuffer * buf, tensor_if_data_s * cv, gint nth)
+    GstBuffer * buf, tensor_data_s * cv, gint nth)
 {
   GstMemory *in_mem;
   GstMapInfo in_info;
-  uint32_t i, size, dsize;
-  const uint32_t *in_dim;
-  double avg, val = 0.0, sum = 0.0;
-
+  double avg;
   tensor_type type = tensor_if->in_config.info.info[nth].type;
-  dsize = gst_tensor_get_element_size (type);
-
-  in_dim = tensor_if->in_config.info.info[nth].dimension;
-  size = in_dim[0] * in_dim[1] * in_dim[2] * in_dim[3];
 
   in_mem = gst_buffer_peek_memory (buf, nth);
   if (!gst_memory_map (in_mem, &in_info, GST_MAP_READ)) {
@@ -1056,18 +874,12 @@ gst_tensor_if_get_tensor_average (GstTensorIf * tensor_if,
     return FALSE;
   }
 
-  for (i = 0; i < size; i++) {
-    get_double_val (type, &in_info.data[i * dsize], val);
-    sum += val;
-  }
-  avg = sum / size;
+  avg = gst_tensor_data_raw_average (in_info.data, in_info.size, type);
 
   gst_memory_unmap (in_mem, &in_info);
 
-  cv->type = _NNS_FLOAT64;
-  cv->data._double = avg;
-
-  gst_tensor_if_typecast_value (tensor_if, cv, type);
+  gst_tensor_data_set (cv, _NNS_FLOAT64, &avg);
+  gst_tensor_data_typecast (cv, type);
   return TRUE;
 }
 
@@ -1076,7 +888,7 @@ gst_tensor_if_get_tensor_average (GstTensorIf * tensor_if,
  */
 static gboolean
 gst_tensor_if_calculate_cv (GstTensorIf * tensor_if, GstBuffer * buf,
-    tensor_if_data_s * cv)
+    tensor_data_s * cv)
 {
   switch (tensor_if->cv) {
     case TIFCV_A_VALUE:
@@ -1087,6 +899,7 @@ gst_tensor_if_calculate_cv (GstTensorIf * tensor_if, GstBuffer * buf,
       uint32_t idx = 0, nth, i, offset = 1;
       tensor_dim target;
       const uint32_t *in_dim;
+      tensor_type in_type;
 
       if (g_list_length (tensor_if->cv_option) != 5) {
         GST_ERROR_OBJECT (tensor_if,
@@ -1102,8 +915,8 @@ gst_tensor_if_calculate_cv (GstTensorIf * tensor_if, GstBuffer * buf,
         GST_ERROR_OBJECT (tensor_if, "Index should be lower than buffer size");
         return FALSE;
       }
-      cv->type = tensor_if->in_config.info.info[nth].type;
 
+      in_type = tensor_if->in_config.info.info[nth].type;
       in_dim = tensor_if->in_config.info.info[nth].dimension;
 
       in_mem = gst_buffer_peek_memory (buf, nth);
@@ -1119,9 +932,9 @@ gst_tensor_if_calculate_cv (GstTensorIf * tensor_if, GstBuffer * buf,
         idx += (target[i]) * offset;
       }
 
-      idx *= gst_tensor_get_element_size (cv->type);
+      idx *= gst_tensor_get_element_size (in_type);
 
-      gst_tensor_if_set_data (cv, (gpointer) & in_info.data[idx]);
+      gst_tensor_data_set (cv, in_type, in_info.data + idx);
       gst_memory_unmap (in_mem, &in_info);
 
       break;
@@ -1232,7 +1045,7 @@ gst_tensor_if_check_condition (GstTensorIf * tensor_if, GstBuffer * buf,
     return tensor_if->custom.func (&tensor_if->in_config.info, in_tensors,
         tensor_if->custom.data, result);
   } else {
-    tensor_if_data_s cv = {.type = _NNS_END,.data._uint8_t = 0 };
+    tensor_data_s cv = {.type = _NNS_END,.data._uint8_t = 0 };
     if (!gst_tensor_if_calculate_cv (tensor_if, buf, &cv)) {
       GST_ERROR_OBJECT (tensor_if, " failed to calculate compared value");
       return FALSE;

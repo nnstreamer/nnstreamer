@@ -35,6 +35,7 @@
 #include <gst/gst.h>
 #include <gst/base/gstbasetransform.h>
 #include <tensor_common.h>
+#include <tensor_data.h>
 
 G_BEGIN_DECLS
 
@@ -97,21 +98,12 @@ typedef struct _tensor_transform_typecast {
 } tensor_transform_typecast;
 
 /**
- * @brief Internal data structure for operand of arithmetic mode.
- */
-typedef struct
-{
-  tensor_type type;
-  tensor_element data;
-} tensor_transform_operand_s;
-
-/**
  * @brief Internal data structure for operator of arithmetic mode.
  */
 typedef struct
 {
   tensor_transform_operator op;
-  tensor_transform_operand_s value;
+  tensor_data_s value;
 } tensor_transform_operator_s;
 
 /**
