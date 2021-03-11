@@ -759,7 +759,7 @@ destroy_dev_dir (const iio_dev_dir_struct *iio_dev)
 /**
  * @brief tests properties of tensor source IIO
  */
-TEST (test_tensor_src_iio, properties)
+TEST (testTensorSrcIio, properties)
 {
   const gchar default_name[] = "tensorsrciio0";
 
@@ -945,7 +945,7 @@ make_full_device (const guint64 data_value, const gint data_bits,
 /**
  * @brief tests state change of tensor source IIO
  */
-TEST (test_tensor_src_iio, start_stop)
+TEST (testTensorSrcIio, startStop)
 {
   iio_dev_dir_struct *dev0;
   GstHarness *hrnss = NULL;
@@ -1024,7 +1024,7 @@ TEST (test_tensor_src_iio, start_stop)
   /**                                                                                            \
    * @brief tests tensor source IIO data without trigger                                         \
    */                                                                                            \
-  TEST (test_tensor_src_iio, data_verify_no_trigger_bits##DATA_BITS##_alternate##SKIP)           \
+  TEST (testTensorSrcIio, dataVerifyNoTriggerBits##DATA_BITS##alternate##SKIP)                   \
   {                                                                                              \
     static const int MAX_NUM_TRY = 100;                                                          \
     int num_try;                                                                                 \
@@ -1233,7 +1233,7 @@ test_tensor_src_iio_data_verify_util (
  * @note verifies that no frames have been lost as well
  * @note verifies caps for the src pad as well
  */
-TEST (test_tensor_src_iio, data_verify_trigger)
+TEST (testTensorSrcIio, dataVerifyTrigger)
 {
   iio_dev_dir_struct *dev0;
   GstElement *src_iio_pipeline;
@@ -1317,7 +1317,7 @@ TEST (test_tensor_src_iio, data_verify_trigger)
  * @brief tests tensor source IIO caps with custom channels
  * @note data verification with/without all channels is verified in another test
  */
-TEST (test_tensor_src_iio, data_verify_custom_channels)
+TEST (testTensorSrcIio, dataVerifyCustomChannels)
 {
   iio_dev_dir_struct *dev0;
   GstElement *src_iio_pipeline;
@@ -1401,7 +1401,7 @@ TEST (test_tensor_src_iio, data_verify_custom_channels)
  * @note verifies enabling of channels automatically
  * @note verifies using generic type information for channels
  */
-TEST (test_tensor_src_iio, data_verify_freq_generic_type)
+TEST (testTensorSrcIio, dataVerifyFreqGenericType)
 {
   iio_dev_dir_struct *dev0;
   GstElement *src_iio_pipeline;
@@ -1529,12 +1529,12 @@ TEST (test_tensor_src_iio, data_verify_freq_generic_type)
 /**
  * @brief test the unusual/exceptional cases.
  */
-TEST (test_tensor_src_iio, unusual_cases)
+TEST (testTensorSrcIio, unusualCases)
 #else
 /**
  * @brief test the unusual/exceptional cases.
  */
-TEST (test_tensor_src_iio, DISABLED_unusual_cases)
+TEST (testTensorSrcIio, DISABLED_unusualCases)
 #endif
 {
   iio_dev_dir_struct *dev0;
@@ -1631,7 +1631,7 @@ TEST (test_tensor_src_iio, DISABLED_unusual_cases)
 /**
  * @brief test the logic with invalid frequency value
  */
-TEST (test_tensor_src_iio, set_frequency_n)
+TEST (testTensorSrcIio, setFrequency_n)
 {
   iio_dev_dir_struct *dev0;
   GstElement *src_iio_pipeline;
@@ -1679,7 +1679,7 @@ TEST (test_tensor_src_iio, set_frequency_n)
 /**
  * @brief test the logic with invalid base dir
  */
-TEST (test_tensor_src_iio, set_base_dir_n)
+TEST (testTensorSrcIio, setBaseDir_n)
 {
   iio_dev_dir_struct *dev0;
   GstHarness *hrnss = NULL;

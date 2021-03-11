@@ -25,7 +25,7 @@
 /**
  * @brief Test for int32 type string.
  */
-TEST (common_get_tensor_type, failure_n)
+TEST (commonGetTensorType, failure_n)
 {
   EXPECT_EQ (gst_tensor_get_type (""), _NNS_END);
   EXPECT_EQ (gst_tensor_get_type (NULL), _NNS_END);
@@ -34,7 +34,7 @@ TEST (common_get_tensor_type, failure_n)
 /**
  * @brief Test for int32 type string.
  */
-TEST (common_get_tensor_type, int32)
+TEST (commonGetTensorType, int32)
 {
   EXPECT_EQ (gst_tensor_get_type ("int32"), _NNS_INT32);
   EXPECT_EQ (gst_tensor_get_type ("INT32"), _NNS_INT32);
@@ -45,7 +45,7 @@ TEST (common_get_tensor_type, int32)
 /**
  * @brief Test for int32 type string.
  */
-TEST (common_get_tensor_type, int32_n)
+TEST (commonGetTensorType, int32_n)
 {
   EXPECT_EQ (gst_tensor_get_type ("InT322"), _NNS_END);
   EXPECT_EQ (gst_tensor_get_type ("int3"), _NNS_END);
@@ -54,7 +54,7 @@ TEST (common_get_tensor_type, int32_n)
 /**
  * @brief Test for int16 type string.
  */
-TEST (common_get_tensor_type, int16)
+TEST (commonGetTensorType, int16)
 {
   EXPECT_EQ (gst_tensor_get_type ("int16"), _NNS_INT16);
   EXPECT_EQ (gst_tensor_get_type ("INT16"), _NNS_INT16);
@@ -65,7 +65,7 @@ TEST (common_get_tensor_type, int16)
 /**
  * @brief Test for int16 type string.
  */
-TEST (common_get_tensor_type, int16_n)
+TEST (commonGetTensorType, int16_n)
 {
   EXPECT_EQ (gst_tensor_get_type ("InT162"), _NNS_END);
   EXPECT_EQ (gst_tensor_get_type ("int1"), _NNS_END);
@@ -74,7 +74,7 @@ TEST (common_get_tensor_type, int16_n)
 /**
  * @brief Test for int8 type string.
  */
-TEST (common_get_tensor_type, int8)
+TEST (commonGetTensorType, int8)
 {
   EXPECT_EQ (gst_tensor_get_type ("int8"), _NNS_INT8);
   EXPECT_EQ (gst_tensor_get_type ("INT8"), _NNS_INT8);
@@ -85,7 +85,7 @@ TEST (common_get_tensor_type, int8)
 /**
  * @brief Test for int8 type string.
  */
-TEST (common_get_tensor_type, int8_n)
+TEST (commonGetTensorType, int8_n)
 {
   EXPECT_EQ (gst_tensor_get_type ("InT82"), _NNS_END);
   EXPECT_EQ (gst_tensor_get_type ("int3"), _NNS_END);
@@ -94,7 +94,7 @@ TEST (common_get_tensor_type, int8_n)
 /**
  * @brief Test for uint32 type string.
  */
-TEST (common_get_tensor_type, uint32)
+TEST (commonGetTensorType, uint32)
 {
   EXPECT_EQ (gst_tensor_get_type ("uint32"), _NNS_UINT32);
   EXPECT_EQ (gst_tensor_get_type ("UINT32"), _NNS_UINT32);
@@ -105,7 +105,7 @@ TEST (common_get_tensor_type, uint32)
 /**
  * @brief Test for uint32 type string.
  */
-TEST (common_get_tensor_type, uint32_n)
+TEST (commonGetTensorType, uint32_n)
 {
   EXPECT_EQ (gst_tensor_get_type ("UInT322"), _NNS_END);
   EXPECT_EQ (gst_tensor_get_type ("uint3"), _NNS_END);
@@ -114,7 +114,7 @@ TEST (common_get_tensor_type, uint32_n)
 /**
  * @brief Test for uint16 type string.
  */
-TEST (common_get_tensor_type, uint16)
+TEST (commonGetTensorType, uint16)
 {
   EXPECT_EQ (gst_tensor_get_type ("uint16"), _NNS_UINT16);
   EXPECT_EQ (gst_tensor_get_type ("UINT16"), _NNS_UINT16);
@@ -125,7 +125,7 @@ TEST (common_get_tensor_type, uint16)
 /**
  * @brief Test for uint16 type string.
  */
-TEST (common_get_tensor_type, uint16_n)
+TEST (commonGetTensorType, uint16_n)
 {
   EXPECT_EQ (gst_tensor_get_type ("UInT162"), _NNS_END);
   EXPECT_EQ (gst_tensor_get_type ("uint1"), _NNS_END);
@@ -134,7 +134,7 @@ TEST (common_get_tensor_type, uint16_n)
 /**
  * @brief Test for uint8 type string.
  */
-TEST (common_get_tensor_type, uint8)
+TEST (commonGetTensorType, uint8)
 {
   EXPECT_EQ (gst_tensor_get_type ("uint8"), _NNS_UINT8);
   EXPECT_EQ (gst_tensor_get_type ("UINT8"), _NNS_UINT8);
@@ -145,7 +145,7 @@ TEST (common_get_tensor_type, uint8)
 /**
  * @brief Test for uint8 type string.
  */
-TEST (common_get_tensor_type, uint8_n)
+TEST (commonGetTensorType, uint8_n)
 {
   EXPECT_EQ (gst_tensor_get_type ("UInT82"), _NNS_END);
   EXPECT_EQ (gst_tensor_get_type ("uint3"), _NNS_END);
@@ -154,7 +154,7 @@ TEST (common_get_tensor_type, uint8_n)
 /**
  * @brief Test for float32 type string.
  */
-TEST (common_get_tensor_type, float32)
+TEST (commonGetTensorType, float32)
 {
   EXPECT_EQ (gst_tensor_get_type ("float32"), _NNS_FLOAT32);
   EXPECT_EQ (gst_tensor_get_type ("FLOAT32"), _NNS_FLOAT32);
@@ -165,7 +165,7 @@ TEST (common_get_tensor_type, float32)
 /**
  * @brief Test for float32 type string.
  */
-TEST (common_get_tensor_type, float32_n)
+TEST (commonGetTensorType, float32_n)
 {
   EXPECT_EQ (gst_tensor_get_type ("FloaT322"), _NNS_END);
   EXPECT_EQ (gst_tensor_get_type ("float3"), _NNS_END);
@@ -174,7 +174,7 @@ TEST (common_get_tensor_type, float32_n)
 /**
  * @brief Test for float64 type string.
  */
-TEST (common_get_tensor_type, float64)
+TEST (commonGetTensorType, float64)
 {
   EXPECT_EQ (gst_tensor_get_type ("float64"), _NNS_FLOAT64);
   EXPECT_EQ (gst_tensor_get_type ("FLOAT64"), _NNS_FLOAT64);
@@ -185,7 +185,7 @@ TEST (common_get_tensor_type, float64)
 /**
  * @brief Test for float64 type string.
  */
-TEST (common_get_tensor_type, float64_n)
+TEST (commonGetTensorType, float64_n)
 {
   EXPECT_EQ (gst_tensor_get_type ("FloaT642"), _NNS_END);
   EXPECT_EQ (gst_tensor_get_type ("float6"), _NNS_END);
@@ -194,7 +194,7 @@ TEST (common_get_tensor_type, float64_n)
 /**
  * @brief Test for int64 type string.
  */
-TEST (common_get_tensor_type, int64)
+TEST (commonGetTensorType, int64)
 {
   EXPECT_EQ (gst_tensor_get_type ("int64"), _NNS_INT64);
   EXPECT_EQ (gst_tensor_get_type ("INT64"), _NNS_INT64);
@@ -205,7 +205,7 @@ TEST (common_get_tensor_type, int64)
 /**
  * @brief Test for int64 type string.
  */
-TEST (common_get_tensor_type, int64_n)
+TEST (commonGetTensorType, int64_n)
 {
   EXPECT_EQ (gst_tensor_get_type ("InT642"), _NNS_END);
   EXPECT_EQ (gst_tensor_get_type ("int6"), _NNS_END);
@@ -214,7 +214,7 @@ TEST (common_get_tensor_type, int64_n)
 /**
  * @brief Test for uint64 type string.
  */
-TEST (common_get_tensor_type, uint64)
+TEST (commonGetTensorType, uint64)
 {
   EXPECT_EQ (gst_tensor_get_type ("uint64"), _NNS_UINT64);
   EXPECT_EQ (gst_tensor_get_type ("UINT64"), _NNS_UINT64);
@@ -225,7 +225,7 @@ TEST (common_get_tensor_type, uint64)
 /**
  * @brief Test for uint64 type string.
  */
-TEST (common_get_tensor_type, uint64_n)
+TEST (commonGetTensorType, uint64_n)
 {
   EXPECT_EQ (gst_tensor_get_type ("UInT642"), _NNS_END);
   EXPECT_EQ (gst_tensor_get_type ("uint6"), _NNS_END);
@@ -234,7 +234,7 @@ TEST (common_get_tensor_type, uint64_n)
 /**
  * @brief Test to find index of the key.
  */
-TEST (common_find_key_strv, key_index)
+TEST (commonFindKeyStrv, keyIndex)
 {
   const gchar *teststrv[] = { "abcde", "ABCDEF", "1234", "abcabc", "tester", NULL };
 
@@ -249,7 +249,7 @@ TEST (common_find_key_strv, key_index)
 /**
  * @brief Test for tensor dimension.
  */
-TEST (common_get_tensor_dimension, case1)
+TEST (commonGetTensorDimension, case1)
 {
   tensor_dim dim;
   gchar *dim_str;
@@ -270,7 +270,7 @@ TEST (common_get_tensor_dimension, case1)
 /**
  * @brief Test for tensor dimension.
  */
-TEST (common_get_tensor_dimension, case2)
+TEST (commonGetTensorDimension, case2)
 {
   tensor_dim dim;
   gchar *dim_str;
@@ -291,7 +291,7 @@ TEST (common_get_tensor_dimension, case2)
 /**
  * @brief Test for tensor dimension.
  */
-TEST (common_get_tensor_dimension, case3)
+TEST (commonGetTensorDimension, case3)
 {
   tensor_dim dim;
   gchar *dim_str;
@@ -312,7 +312,7 @@ TEST (common_get_tensor_dimension, case3)
 /**
  * @brief Test for tensor dimension.
  */
-TEST (common_get_tensor_dimension, case4)
+TEST (commonGetTensorDimension, case4)
 {
   tensor_dim dim;
   gchar *dim_str;
@@ -333,7 +333,7 @@ TEST (common_get_tensor_dimension, case4)
 /**
  * @brief Test to copy tensor info.
  */
-TEST (common_tensor_info, copy_tensor)
+TEST (commonTensorInfo, copyTensor)
 {
   GstTensorInfo src, dest;
   gchar *test_name = g_strdup ("test-tensor");
@@ -370,7 +370,7 @@ TEST (common_tensor_info, copy_tensor)
 /**
  * @brief Test to copy tensor info.
  */
-TEST (common_tensor_info, copy_tensors)
+TEST (commonTensorInfo, copyTensors)
 {
   GstTensorsInfo src, dest;
   gchar *test_name = g_strdup ("test-tensors");
@@ -447,7 +447,7 @@ fill_tensors_config_for_test (GstTensorsConfig *conf1, GstTensorsConfig *conf2)
 /**
  * @brief Test for data size.
  */
-TEST (common_tensor_info, size_01_p)
+TEST (commonTensorInfo, size01_p)
 {
   GstTensorsInfo info1, info2;
   gsize size1, size2;
@@ -473,7 +473,7 @@ TEST (common_tensor_info, size_01_p)
 /**
  * @brief Test for data size.
  */
-TEST (common_tensor_info, size_02_n)
+TEST (commonTensorInfo, size02_n)
 {
   GstTensorsInfo info1, info2;
   gsize size1;
@@ -491,7 +491,7 @@ TEST (common_tensor_info, size_02_n)
 /**
  * @brief Test for data size.
  */
-TEST (common_tensor_info, size_03_n)
+TEST (commonTensorInfo, size03_n)
 {
   GstTensorsInfo info1, info2;
   gsize size1;
@@ -509,7 +509,7 @@ TEST (common_tensor_info, size_03_n)
 /**
  * @brief Test for same tensors info.
  */
-TEST (common_tensor_info, equal_01_p)
+TEST (commonTensorInfo, equal01_p)
 {
   GstTensorsInfo info1, info2;
 
@@ -521,7 +521,7 @@ TEST (common_tensor_info, equal_01_p)
 /**
  * @brief Test for same tensors info.
  */
-TEST (common_tensor_info, equal_02_n)
+TEST (commonTensorInfo, equal02_n)
 {
   GstTensorsInfo info1, info2;
 
@@ -535,7 +535,7 @@ TEST (common_tensor_info, equal_02_n)
 /**
  * @brief Test for same tensors info.
  */
-TEST (common_tensor_info, equal_03_n)
+TEST (commonTensorInfo, equal03_n)
 {
   GstTensorsInfo info1, info2;
 
@@ -550,7 +550,7 @@ TEST (common_tensor_info, equal_03_n)
 /**
  * @brief Test for same tensors info.
  */
-TEST (common_tensor_info, equal_04_n)
+TEST (commonTensorInfo, equal04_n)
 {
   GstTensorsInfo info1, info2;
 
@@ -565,7 +565,7 @@ TEST (common_tensor_info, equal_04_n)
 /**
  * @brief Test for same tensors info.
  */
-TEST (common_tensor_info, equal_05_n)
+TEST (commonTensorInfo, equal05_n)
 {
   GstTensorsInfo info1, info2;
 
@@ -580,7 +580,7 @@ TEST (common_tensor_info, equal_05_n)
 /**
  * @brief Test for same tensors config.
  */
-TEST (common_tensors_config, equal_01_p)
+TEST (commonTensorsConfig, equal01_p)
 {
   GstTensorsConfig conf1, conf2;
 
@@ -592,7 +592,7 @@ TEST (common_tensors_config, equal_01_p)
 /**
  * @brief Test for same tensors config.
  */
-TEST (common_tensors_config, equal_02_p)
+TEST (commonTensorsConfig, equal02_p)
 {
   GstTensorsConfig conf1, conf2;
 
@@ -606,7 +606,7 @@ TEST (common_tensors_config, equal_02_p)
 /**
  * @brief Test for same tensors config.
  */
-TEST (common_tensors_config, equal_03_p)
+TEST (commonTensorsConfig, equal03_p)
 {
   GstTensorsConfig conf1, conf2;
 
@@ -620,7 +620,7 @@ TEST (common_tensors_config, equal_03_p)
 /**
  * @brief Test for same tensors config.
  */
-TEST (common_tensors_config, equal_04_n)
+TEST (commonTensorsConfig, equal04_n)
 {
   GstTensorsConfig conf1, conf2;
 
@@ -633,7 +633,7 @@ TEST (common_tensors_config, equal_04_n)
 /**
  * @brief Test for same tensors config.
  */
-TEST (common_tensors_config, equal_05_n)
+TEST (commonTensorsConfig, equal05_n)
 {
   GstTensorsConfig conf1, conf2;
 
@@ -647,7 +647,7 @@ TEST (common_tensors_config, equal_05_n)
 /**
  * @brief Test for same tensors config.
  */
-TEST (common_tensors_config, equal_06_n)
+TEST (commonTensorsConfig, equal06_n)
 {
   GstTensorsConfig conf1, conf2;
 
@@ -660,7 +660,7 @@ TEST (common_tensors_config, equal_06_n)
 /**
  * @brief Test for dimensions string in tensors info.
  */
-TEST (common_tensors_info_string, dimensions)
+TEST (commonTensorsInfoString, dimensions)
 {
   GstTensorsInfo info;
   guint num_dims;
@@ -697,7 +697,7 @@ TEST (common_tensors_info_string, dimensions)
 /**
  * @brief Test for types string in tensors info.
  */
-TEST (common_tensors_info_string, types)
+TEST (commonTensorsInfoString, types)
 {
   GstTensorsInfo info;
   guint num_types;
@@ -735,7 +735,7 @@ TEST (common_tensors_info_string, types)
 /**
  * @brief Test for names string in tensors info.
  */
-TEST (common_tensors_info_string, names)
+TEST (commonTensorsInfoString, names)
 {
   GstTensorsInfo info;
   guint i, num_names;
@@ -790,7 +790,7 @@ TEST (common_tensors_info_string, names)
 /**
  * @brief Test to replace string.
  */
-TEST (common_string_util, replace_str_01)
+TEST (commonStringUtil, replaceStr01)
 {
   gchar *result;
   guint changed;
@@ -819,7 +819,7 @@ TEST (common_string_util, replace_str_01)
 /**
  * @brief Test to replace string.
  */
-TEST (common_string_util, replace_str_02)
+TEST (commonStringUtil, replaceStr02)
 {
   gchar *result;
   guint changed;
@@ -879,7 +879,7 @@ check_custom_conf (const gchar *group, const gchar *key, const gchar *expected)
 /**
  * @brief Test custom configurations
  */
-TEST (conf_custom, env_str_01)
+TEST (confCustom, envStr01)
 {
   gchar *fullpath = g_build_path ("/", g_get_tmp_dir (), "nns-tizen-XXXXXX", NULL);
   gchar *dir = g_mkdtemp (fullpath);
@@ -1019,7 +1019,7 @@ TEST (conf_custom, env_str_01)
 /**
  * @brief Test version control (positive)
  */
-TEST (version_control, get_ver_01)
+TEST (versionControl, getVer01)
 {
   gchar *verstr = nnstreamer_version_string ();
   guint major, minor, micro;
@@ -1045,7 +1045,7 @@ TEST (version_control, get_ver_01)
 /**
  * @brief Test pad has tensor cap
  */
-TEST (common_pad_cap, tensor_0)
+TEST (commonPadCap, tensor0)
 {
   gchar *pipeline;
   GstElement *gstpipe;
@@ -1083,7 +1083,7 @@ TEST (common_pad_cap, tensor_0)
 /**
  * @brief Test pad has tensor cap
  */
-TEST (common_pad_cap, tensors_0)
+TEST (commonPadCap, tensors0)
 {
   gchar *pipeline;
   GstElement *gstpipe;

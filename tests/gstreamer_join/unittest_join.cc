@@ -59,7 +59,7 @@ new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
 /**
  * @brief Test join element with appsrc
  */
-TEST (join, normal_0)
+TEST (join, normal0)
 {
   gint idx, n_pads;
   GstBuffer *buf_0, *buf_1, *buf_3, *buf_4;
@@ -148,7 +148,7 @@ TEST (join, normal_0)
 /**
  * @brief Test get property with invalid parameter
  */
-TEST (join, prop_0_n)
+TEST (join, prop0_n)
 {
   GstElement *join_handle;
   gchar *str_val = NULL;
@@ -176,7 +176,7 @@ TEST (join, prop_0_n)
 /**
  * @brief Test get property with NULL parameter
  */
-TEST (join, prop_1_n)
+TEST (join, prop1_n)
 {
   GstElement *join_handle;
   gchar *str_val = NULL;

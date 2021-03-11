@@ -1059,7 +1059,7 @@ error:
 /**
  * @brief Test for tensor sink properties.
  */
-TEST (tensor_sink_test, properties)
+TEST (tensorSinkTest, properties)
 {
   guint rate, res_rate;
   gint64 lateness, res_lateness;
@@ -1128,7 +1128,7 @@ TEST (tensor_sink_test, properties)
 /**
  * @brief Test for tensor sink signals.
  */
-TEST (tensor_sink_test, signals)
+TEST (tensorSinkTest, signals)
 {
   const guint num_buffers = 5;
   gulong handle_id;
@@ -1187,7 +1187,7 @@ TEST (tensor_sink_test, signals)
 /**
  * @brief Test for tensor sink emit-signal (case for no signal).
  */
-TEST (tensor_sink_test, emit_signal)
+TEST (tensorSinkTest, emitSignal)
 {
   const guint num_buffers = 5;
   gulong handle_id;
@@ -1232,7 +1232,7 @@ TEST (tensor_sink_test, emit_signal)
 /**
  * @brief Test for tensor sink signal-rate.
  */
-TEST (tensor_sink_test, signal_rate)
+TEST (tensorSinkTest, signalRate)
 {
   const guint num_buffers = 6;
   TestOption option = { num_buffers, TEST_TYPE_VIDEO_RGB };
@@ -1282,7 +1282,7 @@ TEST (tensor_sink_test, signal_rate)
 /**
  * @brief Test for caps negotiation failed.
  */
-TEST (tensor_sink_test, caps_error_n)
+TEST (tensorSinkTest, capsError_n)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_NEGO_FAILED };
@@ -1326,7 +1326,7 @@ TEST (tensor_sink_test, caps_error_n)
 /**
  * @brief Test for other/tensors caps negotiation.
  */
-TEST (tensor_sink_test, caps_tensors)
+TEST (tensorSinkTest, capsTensors)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_TENSORS };
@@ -1392,7 +1392,7 @@ TEST (tensor_sink_test, caps_tensors)
 /**
  * @brief Test for video format RGB.
  */
-TEST (tensor_stream_test, video_rgb)
+TEST (tensorStreamTest, videoRgb)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_VIDEO_RGB };
@@ -1436,7 +1436,7 @@ TEST (tensor_stream_test, video_rgb)
 /**
  * @brief Test for video format BGR.
  */
-TEST (tensor_stream_test, video_bgr)
+TEST (tensorStreamTest, videoBgr)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_VIDEO_BGR };
@@ -1480,7 +1480,7 @@ TEST (tensor_stream_test, video_bgr)
 /**
  * @brief Test for video format RGB, remove padding.
  */
-TEST (tensor_stream_test, video_rgb_padding)
+TEST (tensorStreamTest, videoRgbPadding)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_VIDEO_RGB_PADDING };
@@ -1524,7 +1524,7 @@ TEST (tensor_stream_test, video_rgb_padding)
 /**
  * @brief Test for video format BGR, remove padding.
  */
-TEST (tensor_stream_test, video_bgr_padding)
+TEST (tensorStreamTest, videoBgrPadding)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_VIDEO_BGR_PADDING };
@@ -1568,7 +1568,7 @@ TEST (tensor_stream_test, video_bgr_padding)
 /**
  * @brief Test for video format RGB, 3 frames from tensor_converter.
  */
-TEST (tensor_stream_test, video_rgb_3f)
+TEST (tensorStreamTest, videoRgb3f)
 {
   const guint num_buffers = 7;
   TestOption option = { num_buffers, TEST_TYPE_VIDEO_RGB_3F };
@@ -1612,7 +1612,7 @@ TEST (tensor_stream_test, video_rgb_3f)
 /**
  * @brief Test for video format RGBA.
  */
-TEST (tensor_stream_test, video_rgba)
+TEST (tensorStreamTest, videoRgba)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_VIDEO_RGBA };
@@ -1656,7 +1656,7 @@ TEST (tensor_stream_test, video_rgba)
 /**
  * @brief Test for video format BGRA.
  */
-TEST (tensor_stream_test, video_bgra)
+TEST (tensorStreamTest, videoBgra)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_VIDEO_BGRA };
@@ -1700,7 +1700,7 @@ TEST (tensor_stream_test, video_bgra)
 /**
  * @brief Test for video format ARGB.
  */
-TEST (tensor_stream_test, video_argb)
+TEST (tensorStreamTest, videoArgb)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_VIDEO_ARGB };
@@ -1744,7 +1744,7 @@ TEST (tensor_stream_test, video_argb)
 /**
  * @brief Test for video format ABGR.
  */
-TEST (tensor_stream_test, video_abgr)
+TEST (tensorStreamTest, videoAbgr)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_VIDEO_ABGR };
@@ -1788,7 +1788,7 @@ TEST (tensor_stream_test, video_abgr)
 /**
  * @brief Test for video format RGBx.
  */
-TEST (tensor_stream_test, video_rgbx)
+TEST (tensorStreamTest, videoRgbx)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_VIDEO_RGBx };
@@ -1832,7 +1832,7 @@ TEST (tensor_stream_test, video_rgbx)
 /**
  * @brief Test for video format xRGB.
  */
-TEST (tensor_stream_test, video_xrgb)
+TEST (tensorStreamTest, videoXrgb)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_VIDEO_xRGB };
@@ -1876,7 +1876,7 @@ TEST (tensor_stream_test, video_xrgb)
 /**
  * @brief Test for video format xBGR.
  */
-TEST (tensor_stream_test, video_xbgr)
+TEST (tensorStreamTest, videoXbgr)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_VIDEO_xBGR };
@@ -1920,7 +1920,7 @@ TEST (tensor_stream_test, video_xbgr)
 /**
  * @brief Test for video format BGRx.
  */
-TEST (tensor_stream_test, video_bgrx)
+TEST (tensorStreamTest, videoBgrx)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_VIDEO_BGRx };
@@ -1964,7 +1964,7 @@ TEST (tensor_stream_test, video_bgrx)
 /**
  * @brief Test for video format BGRx, 2 frames from tensor_converter.
  */
-TEST (tensor_stream_test, video_bgrx_2f)
+TEST (tensorStreamTest, videoBgrx2f)
 {
   const guint num_buffers = 6;
   TestOption option = { num_buffers, TEST_TYPE_VIDEO_BGRx_2F };
@@ -2008,7 +2008,7 @@ TEST (tensor_stream_test, video_bgrx_2f)
 /**
  * @brief Test for video format GRAY8.
  */
-TEST (tensor_stream_test, video_gray8)
+TEST (tensorStreamTest, videoGray8)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_VIDEO_GRAY8 };
@@ -2052,7 +2052,7 @@ TEST (tensor_stream_test, video_gray8)
 /**
  * @brief Test for video format GRAY8, remove padding.
  */
-TEST (tensor_stream_test, video_gray8_padding)
+TEST (tensorStreamTest, videoGray8Padding)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_VIDEO_GRAY8_PADDING };
@@ -2096,7 +2096,7 @@ TEST (tensor_stream_test, video_gray8_padding)
 /**
  * @brief Test for video format GRAY8, 3 frames from tensor_converter, remove padding.
  */
-TEST (tensor_stream_test, video_gray8_3f_padding)
+TEST (tensorStreamTest, videoGray83fPadding)
 {
   const guint num_buffers = 6;
   TestOption option = { num_buffers, TEST_TYPE_VIDEO_GRAY8_3F_PADDING };
@@ -2140,7 +2140,7 @@ TEST (tensor_stream_test, video_gray8_3f_padding)
 /**
  * @brief Test for audio format S8.
  */
-TEST (tensor_stream_test, audio_s8)
+TEST (tensorStreamTest, audioS8)
 {
   const guint num_buffers = 5; /** 5 * 500 frames */
   TestOption option = { num_buffers, TEST_TYPE_AUDIO_S8 };
@@ -2184,7 +2184,7 @@ TEST (tensor_stream_test, audio_s8)
 /**
  * @brief Test for audio format U8, 100 frames from tensor_converter.
  */
-TEST (tensor_stream_test, audio_u8_100f)
+TEST (tensorStreamTest, audioU8100f)
 {
   const guint num_buffers = 5; /** 5 * 500 frames */
   TestOption option = { num_buffers, TEST_TYPE_AUDIO_U8_100F };
@@ -2228,7 +2228,7 @@ TEST (tensor_stream_test, audio_u8_100f)
 /**
  * @brief Test for audio format S16.
  */
-TEST (tensor_stream_test, audio_s16)
+TEST (tensorStreamTest, audioS16)
 {
   const guint num_buffers = 5; /** 5 * 500 frames */
   TestOption option = { num_buffers, TEST_TYPE_AUDIO_S16 };
@@ -2272,7 +2272,7 @@ TEST (tensor_stream_test, audio_s16)
 /**
  * @brief Test for audio format U16, 1000 frames from tensor_converter.
  */
-TEST (tensor_stream_test, audio_u16_1000f)
+TEST (tensorStreamTest, audioU161000f)
 {
   const guint num_buffers = 5; /** 5 * 500 frames */
   TestOption option = { num_buffers, TEST_TYPE_AUDIO_U16_1000F };
@@ -2316,7 +2316,7 @@ TEST (tensor_stream_test, audio_u16_1000f)
 /**
  * @brief Test for audio format S32.
  */
-TEST (tensor_stream_test, audio_s32)
+TEST (tensorStreamTest, audioS32)
 {
   const guint num_buffers = 5; /** 5 * 500 frames */
   TestOption option = { num_buffers, TEST_TYPE_AUDIO_S32 };
@@ -2360,7 +2360,7 @@ TEST (tensor_stream_test, audio_s32)
 /**
  * @brief Test for audio format U32.
  */
-TEST (tensor_stream_test, audio_u32)
+TEST (tensorStreamTest, audioU32)
 {
   const guint num_buffers = 5; /** 5 * 500 frames */
   TestOption option = { num_buffers, TEST_TYPE_AUDIO_U32 };
@@ -2404,7 +2404,7 @@ TEST (tensor_stream_test, audio_u32)
 /**
  * @brief Test for audio format F32.
  */
-TEST (tensor_stream_test, audio_f32)
+TEST (tensorStreamTest, audioF32)
 {
   const guint num_buffers = 5; /** 5 * 500 frames */
   TestOption option = { num_buffers, TEST_TYPE_AUDIO_F32 };
@@ -2448,7 +2448,7 @@ TEST (tensor_stream_test, audio_f32)
 /**
  * @brief Test for audio format F64.
  */
-TEST (tensor_stream_test, audio_f64)
+TEST (tensorStreamTest, audioF64)
 {
   const guint num_buffers = 5; /** 5 * 500 frames */
   TestOption option = { num_buffers, TEST_TYPE_AUDIO_F64 };
@@ -2492,7 +2492,7 @@ TEST (tensor_stream_test, audio_f64)
 /**
  * @brief Test for text format utf8.
  */
-TEST (tensor_stream_test, text_utf8)
+TEST (tensorStreamTest, textUtf8)
 {
   const guint num_buffers = 10;
   TestOption option = { num_buffers, TEST_TYPE_TEXT };
@@ -2542,7 +2542,7 @@ TEST (tensor_stream_test, text_utf8)
 /**
  * @brief Test for text format utf8, 3 frames from tensor_converter.
  */
-TEST (tensor_stream_test, text_utf8_3f)
+TEST (tensorStreamTest, textUtf83f)
 {
   const guint num_buffers = 10;
   TestOption option = { num_buffers, TEST_TYPE_TEXT_3F };
@@ -2619,7 +2619,7 @@ TEST (tensor_stream_test, text_utf8_3f)
 /**
  * @brief Test for octet stream.
  */
-TEST (tensor_stream_test, octet_current_ts)
+TEST (tensorStreamTest, octetCurrentTs)
 {
   const guint num_buffers = 10;
   TestOption option = { num_buffers, TEST_TYPE_OCTET_CUR_TS };
@@ -2669,7 +2669,7 @@ TEST (tensor_stream_test, octet_current_ts)
 /**
  * @brief Test for octet stream.
  */
-TEST (tensor_stream_test, octet_framerate_ts)
+TEST (tensorStreamTest, octetFramerateTs)
 {
   const guint num_buffers = 10;
   TestOption option = { num_buffers, TEST_TYPE_OCTET_RATE_TS };
@@ -2719,7 +2719,7 @@ TEST (tensor_stream_test, octet_framerate_ts)
 /**
  * @brief Test for octet stream.
  */
-TEST (tensor_stream_test, octet_valid_ts)
+TEST (tensorStreamTest, octetValidTs)
 {
   const guint num_buffers = 10;
   TestOption option = { num_buffers, TEST_TYPE_OCTET_VALID_TS };
@@ -2796,7 +2796,7 @@ TEST (tensor_stream_test, octet_valid_ts)
 /**
  * @brief Test for octet stream.
  */
-TEST (tensor_stream_test, octet_invalid_ts)
+TEST (tensorStreamTest, octetInvalidTs)
 {
   const guint num_buffers = 10;
   TestOption option = { num_buffers, TEST_TYPE_OCTET_INVALID_TS };
@@ -2873,7 +2873,7 @@ TEST (tensor_stream_test, octet_invalid_ts)
 /**
  * @brief Test for octet stream.
  */
-TEST (tensor_stream_test, octet_2f)
+TEST (tensorStreamTest, octet2f)
 {
   const guint num_buffers = 10;
   TestOption option = { num_buffers, TEST_TYPE_OCTET_2F };
@@ -2950,7 +2950,7 @@ TEST (tensor_stream_test, octet_2f)
 /**
  * @brief Test for octet stream.
  */
-TEST (tensor_stream_test, octet_multi_tensors)
+TEST (tensorStreamTest, octetMultiTensors)
 {
   const guint num_buffers = 10;
   TestOption option = { num_buffers, TEST_TYPE_OCTET_MULTI_TENSORS };
@@ -3029,7 +3029,7 @@ TEST (tensor_stream_test, octet_multi_tensors)
 /**
  * @brief Test for other/tensor, passthrough custom filter.
  */
-TEST (tensor_stream_test, custom_filter_tensor)
+TEST (tensorStreamTest, customFilterTensor)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_CUSTOM_TENSOR };
@@ -3089,7 +3089,7 @@ TEST (tensor_stream_test, custom_filter_tensor)
 /**
  * @brief Test for other/tensors, passthrough custom filter.
  */
-TEST (tensor_stream_test, custom_filter_tensors)
+TEST (tensorStreamTest, customFilterTensors)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_CUSTOM_TENSORS_1 };
@@ -3165,7 +3165,7 @@ TEST (tensor_stream_test, custom_filter_tensors)
 /**
  * @brief Test for multiple custom filters.
  */
-TEST (tensor_stream_test, custom_filter_multi)
+TEST (tensorStreamTest, customFilterMulti)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_CUSTOM_MULTI };
@@ -3225,7 +3225,7 @@ TEST (tensor_stream_test, custom_filter_multi)
 /**
  * @brief Test for tensor filter properties.
  */
-TEST (tensor_stream_test, filter_properties_1)
+TEST (tensorStreamTest, filterProperties1)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_CUSTOM_TENSOR };
@@ -3367,7 +3367,7 @@ TEST (tensor_stream_test, filter_properties_1)
 /**
  * @brief Test for tensor filter properties.
  */
-TEST (tensor_stream_test, filter_properties_2)
+TEST (tensorStreamTest, filterProperties2)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_CUSTOM_TENSORS_1 };
@@ -3476,7 +3476,7 @@ TEST (tensor_stream_test, filter_properties_2)
 /**
  * @brief Test for tensor filter properties.
  */
-TEST (tensor_stream_test, filter_properties_3)
+TEST (tensorStreamTest, filterProperties3)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_CUSTOM_TENSORS_2 };
@@ -3611,7 +3611,7 @@ TEST (tensor_stream_test, filter_properties_3)
 /**
  * @brief Test for tensor filter properties.
  */
-TEST (tensor_stream_test, filter_properties_4_n)
+TEST (tensorStreamTest, filterProperties4_n)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_CUSTOM_TENSOR };
@@ -3638,7 +3638,7 @@ TEST (tensor_stream_test, filter_properties_4_n)
 /**
  * @brief Test to drop incoming buffer in tensor_filter using custom filter.
  */
-TEST (tensor_stream_test, custom_filter_drop_buffer)
+TEST (tensorStreamTest, customFilterDropBuffer)
 {
   const guint num_buffers = 22;
   TestOption option = { num_buffers, TEST_TYPE_CUSTOM_BUF_DROP };
@@ -3841,7 +3841,7 @@ test_custom_run_pipeline (void)
 /**
  * @brief Test for plugin registration with invalid param.
  */
-TEST (tensor_stream_test, subplugin_invalid_ver_n)
+TEST (tensorStreamTest, subpluginInvalidVer_n)
 {
   GstTensorFilterFramework *fw = g_new0 (GstTensorFilterFramework, 1);
 
@@ -3860,7 +3860,7 @@ TEST (tensor_stream_test, subplugin_invalid_ver_n)
 /**
  * @brief Test for passthrough custom filter without model.
  */
-TEST (tensor_stream_test, subplugin_v0_run)
+TEST (tensorStreamTest, subpluginV0Run)
 {
   GstTensorFilterFramework *fw = g_new0 (GstTensorFilterFramework, 1);
 
@@ -3884,7 +3884,7 @@ TEST (tensor_stream_test, subplugin_v0_run)
 /**
  * @brief Test for preserved sub-plugin name.
  */
-TEST (tensor_stream_test, subplugin_v0_preserved_name_n)
+TEST (tensorStreamTest, subpluginV0PreservedName_n)
 {
   GstTensorFilterFramework *fw = g_new0 (GstTensorFilterFramework, 1);
 
@@ -3908,7 +3908,7 @@ TEST (tensor_stream_test, subplugin_v0_preserved_name_n)
 /**
  * @brief Test for plugin registration with invalid param.
  */
-TEST (tensor_stream_test, subplugin_v0_null_name_n)
+TEST (tensorStreamTest, subpluginV0NullName_n)
 {
   GstTensorFilterFramework *fw = g_new0 (GstTensorFilterFramework, 1);
 
@@ -3927,7 +3927,7 @@ TEST (tensor_stream_test, subplugin_v0_null_name_n)
 /**
  * @brief Test for plugin registration with invalid param.
  */
-TEST (tensor_stream_test, subplugin_v0_null_cb_n)
+TEST (tensorStreamTest, subpluginV0NullCb_n)
 {
   GstTensorFilterFramework *fw = g_new0 (GstTensorFilterFramework, 1);
 
@@ -3951,7 +3951,7 @@ TEST (tensor_stream_test, subplugin_v0_null_cb_n)
 /**
  * @brief Test for passthrough custom filter without model (v1).
  */
-TEST (tensor_stream_test, subplugin_v1_run)
+TEST (tensorStreamTest, subpluginV1Run)
 {
   GstTensorFilterFramework *fw = g_new0 (GstTensorFilterFramework, 1);
 
@@ -3975,7 +3975,7 @@ TEST (tensor_stream_test, subplugin_v1_run)
 /**
  * @brief Test for plugin registration with invalid param (v1).
  */
-TEST (tensor_stream_test, subplugin_v1_null_name_n)
+TEST (tensorStreamTest, subpluginV1NullName_n)
 {
   GstTensorFilterFramework *fw = g_new0 (GstTensorFilterFramework, 1);
 
@@ -3994,7 +3994,7 @@ TEST (tensor_stream_test, subplugin_v1_null_name_n)
 /**
  * @brief Test for plugin registration with invalid param (v1).
  */
-TEST (tensor_stream_test, subplugin_v1_invalid_cb_n)
+TEST (tensorStreamTest, subpluginV1InvalidCb_n)
 {
   GstTensorFilterFramework *fw = g_new0 (GstTensorFilterFramework, 1);
 
@@ -4013,7 +4013,7 @@ TEST (tensor_stream_test, subplugin_v1_invalid_cb_n)
 /**
  * @brief Test for plugin registration with invalid param (v1).
  */
-TEST (tensor_stream_test, subplugin_v1_null_cb_n)
+TEST (tensorStreamTest, subpluginV1NullCb_n)
 {
   GstTensorFilterFramework *fw = g_new0 (GstTensorFilterFramework, 1);
 
@@ -4036,7 +4036,7 @@ TEST (tensor_stream_test, subplugin_v1_null_cb_n)
 /**
  * @brief Test for tensors (mixed, video and audio).
  */
-TEST (tensor_stream_test, tensors_mix)
+TEST (tensorStreamTest, tensorsMix)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_TENSORS_MIX_1 };
@@ -4097,7 +4097,7 @@ TEST (tensor_stream_test, tensors_mix)
 /**
  * @brief Test for tensor demux properties.
  */
-TEST (tensor_stream_test, demux_properties_1)
+TEST (tensorStreamTest, demuxProperties1)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_TENSORS_MIX_2 };
@@ -4163,7 +4163,7 @@ TEST (tensor_stream_test, demux_properties_1)
 /**
  * @brief Test for tensor demux properties.
  */
-TEST (tensor_stream_test, demux_properties_2)
+TEST (tensorStreamTest, demuxProperties2)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_TENSORS_MIX_3 };
@@ -4229,7 +4229,7 @@ TEST (tensor_stream_test, demux_properties_2)
 /**
  * @brief Test for tensor demux properties.
  */
-TEST (tensor_stream_test, demux_properties_3_n)
+TEST (tensorStreamTest, demuxProperties3_n)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_TENSORS_MIX_3 };
@@ -4306,7 +4306,7 @@ _test_transform_typecast (TestType test, tensor_type type, guint buffers)
 /**
  * @brief Test for typecast to int32 using tensor_transform.
  */
-TEST (tensor_stream_test, typecast_int32)
+TEST (tensorStreamTest, typecastInt32)
 {
   _test_transform_typecast (TEST_TYPE_TYPECAST, _NNS_INT32, 2);
 }
@@ -4314,7 +4314,7 @@ TEST (tensor_stream_test, typecast_int32)
 /**
  * @brief Test for typecast to uint32 using tensor_transform.
  */
-TEST (tensor_stream_test, typecast_uint32)
+TEST (tensorStreamTest, typecastUint32)
 {
   _test_transform_typecast (TEST_TYPE_TYPECAST, _NNS_UINT32, 2);
 }
@@ -4322,7 +4322,7 @@ TEST (tensor_stream_test, typecast_uint32)
 /**
  * @brief Test for typecast to int16 using tensor_transform.
  */
-TEST (tensor_stream_test, typecast_int16)
+TEST (tensorStreamTest, typecastInt16)
 {
   _test_transform_typecast (TEST_TYPE_TYPECAST, _NNS_INT16, 2);
 }
@@ -4330,7 +4330,7 @@ TEST (tensor_stream_test, typecast_int16)
 /**
  * @brief Test for typecast to uint16 using tensor_transform.
  */
-TEST (tensor_stream_test, typecast_uint16)
+TEST (tensorStreamTest, typecastUint16)
 {
   _test_transform_typecast (TEST_TYPE_TYPECAST, _NNS_UINT16, 2);
 }
@@ -4338,7 +4338,7 @@ TEST (tensor_stream_test, typecast_uint16)
 /**
  * @brief Test for typecast to float64 using tensor_transform.
  */
-TEST (tensor_stream_test, typecast_float64)
+TEST (tensorStreamTest, typecastFloat64)
 {
   _test_transform_typecast (TEST_TYPE_TYPECAST, _NNS_FLOAT64, 2);
 }
@@ -4346,7 +4346,7 @@ TEST (tensor_stream_test, typecast_float64)
 /**
  * @brief Test for typecast to float32 using tensor_transform.
  */
-TEST (tensor_stream_test, typecast_float32)
+TEST (tensorStreamTest, typecastFloat32)
 {
   _test_transform_typecast (TEST_TYPE_TYPECAST, _NNS_FLOAT32, 2);
 }
@@ -4354,7 +4354,7 @@ TEST (tensor_stream_test, typecast_float32)
 /**
  * @brief Test for typecast to int64 using tensor_transform.
  */
-TEST (tensor_stream_test, typecast_int64)
+TEST (tensorStreamTest, typecastInt64)
 {
   _test_transform_typecast (TEST_TYPE_TYPECAST, _NNS_INT64, 2);
 }
@@ -4362,7 +4362,7 @@ TEST (tensor_stream_test, typecast_int64)
 /**
  * @brief Test for typecast to uint64 using tensor_transform.
  */
-TEST (tensor_stream_test, typecast_uint64)
+TEST (tensorStreamTest, typecastUint64)
 {
   _test_transform_typecast (TEST_TYPE_TYPECAST, _NNS_UINT64, 2);
 }
@@ -4370,7 +4370,7 @@ TEST (tensor_stream_test, typecast_uint64)
 /**
  * @brief Test for caps negotiation in tensor_transform.
  */
-TEST (tensor_stream_test, transform_caps_nego_typecast_float32)
+TEST (tensorStreamTest, transformCapsNegoTypecastFloat32)
 {
   _test_transform_typecast (TEST_TYPE_TRANSFORM_CAPS_NEGO_1, _NNS_FLOAT32, 2);
 }
@@ -4378,7 +4378,7 @@ TEST (tensor_stream_test, transform_caps_nego_typecast_float32)
 /**
  * @brief Test for caps negotiation in tensor_transform.
  */
-TEST (tensor_stream_test, transform_caps_nego_arithmetic_float32)
+TEST (tensorStreamTest, transformCapsNegoArithmeticFloat32)
 {
   _test_transform_typecast (TEST_TYPE_TRANSFORM_CAPS_NEGO_2, _NNS_FLOAT32, 2);
 }
@@ -4386,7 +4386,7 @@ TEST (tensor_stream_test, transform_caps_nego_arithmetic_float32)
 /**
  * @brief Test for caps negotiation in tensor_transform.
  */
-TEST (tensor_stream_test, transform_caps_nego_typecast_uint32)
+TEST (tensorStreamTest, transformCapsNegoTypecastUint32)
 {
   _test_transform_typecast (TEST_TYPE_TRANSFORM_CAPS_NEGO_1, _NNS_UINT32, 2);
 }
@@ -4394,7 +4394,7 @@ TEST (tensor_stream_test, transform_caps_nego_typecast_uint32)
 /**
  * @brief Test for caps negotiation in tensor_transform.
  */
-TEST (tensor_stream_test, transform_caps_nego_arithmetic_uint32)
+TEST (tensorStreamTest, transformCapsNegoArithmeticUint32)
 {
   _test_transform_typecast (TEST_TYPE_TRANSFORM_CAPS_NEGO_2, _NNS_UINT32, 2);
 }
@@ -4402,7 +4402,7 @@ TEST (tensor_stream_test, transform_caps_nego_arithmetic_uint32)
 /**
  * @brief Test for video stream with tensor_split.
  */
-TEST (tensor_stream_test, video_split)
+TEST (tensorStreamTest, videoSplit)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_VIDEO_RGB_SPLIT };
@@ -4466,7 +4466,7 @@ TEST (tensor_stream_test, video_split)
 /**
  * @brief Test for tensor_split properties.
  */
-TEST (tensor_stream_test, split_properties_1_n)
+TEST (tensorStreamTest, splitProperties1_n)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_VIDEO_RGB_SPLIT };
@@ -4495,7 +4495,7 @@ TEST (tensor_stream_test, split_properties_1_n)
 /**
  * @brief Test for video stream with tensor_aggregator.
  */
-TEST (tensor_stream_test, video_aggregate_1)
+TEST (tensorStreamTest, videoAggregate1)
 {
   const guint num_buffers = 35;
   TestOption option = { num_buffers, TEST_TYPE_VIDEO_RGB_AGGR_1 };
@@ -4539,7 +4539,7 @@ TEST (tensor_stream_test, video_aggregate_1)
 /**
  * @brief Test for video stream with tensor_aggregator.
  */
-TEST (tensor_stream_test, video_aggregate_2)
+TEST (tensorStreamTest, videoAggregate2)
 {
   const guint num_buffers = 35;
   TestOption option = { num_buffers, TEST_TYPE_VIDEO_RGB_AGGR_2 };
@@ -4583,7 +4583,7 @@ TEST (tensor_stream_test, video_aggregate_2)
 /**
  * @brief Test for video stream with tensor_aggregator.
  */
-TEST (tensor_stream_test, video_aggregate_3)
+TEST (tensorStreamTest, videoAggregate3)
 {
   const guint num_buffers = 40;
   TestOption option = { num_buffers, TEST_TYPE_VIDEO_RGB_AGGR_3 };
@@ -4627,7 +4627,7 @@ TEST (tensor_stream_test, video_aggregate_3)
 /**
  * @brief Test for audio stream with tensor_aggregator.
  */
-TEST (tensor_stream_test, audio_aggregate_s16)
+TEST (tensorStreamTest, audioAggregateS16)
 {
   const guint num_buffers = 21;
   TestOption option = { num_buffers, TEST_TYPE_AUDIO_S16_AGGR };
@@ -4671,7 +4671,7 @@ TEST (tensor_stream_test, audio_aggregate_s16)
 /**
  * @brief Test for audio stream with tensor_aggregator.
  */
-TEST (tensor_stream_test, audio_aggregate_u16)
+TEST (tensorStreamTest, audioAggregateU16)
 {
   const guint num_buffers = 10;
   TestOption option = { num_buffers, TEST_TYPE_AUDIO_U16_AGGR };
@@ -4715,7 +4715,7 @@ TEST (tensor_stream_test, audio_aggregate_u16)
 /**
  * @brief Test multi-stream sync & frame-dropping of Issue #739, 1st subissue
  */
-TEST (tensor_stream_test, issue739_mux_parallel_1)
+TEST (tensorStreamTest, issue739MuxParallel1)
 {
   const guint num_buffers = 2;
   TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MUX_PARALLEL_1 };
@@ -4776,7 +4776,7 @@ TEST (tensor_stream_test, issue739_mux_parallel_1)
 /**
  * @brief Test multi-stream sync & frame-dropping of Issue #739, 1st subissue
  */
-TEST (tensor_stream_test, issue739_mux_parallel_2)
+TEST (tensorStreamTest, issue739MuxParallel2)
 {
   const guint num_buffers = 2;
   TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MUX_PARALLEL_2 };
@@ -4837,7 +4837,7 @@ TEST (tensor_stream_test, issue739_mux_parallel_2)
 /**
  * @brief Test multi-stream sync & frame-dropping of Issue #739, 1st subissue
  */
-TEST (tensor_stream_test, issue739_mux_parallel_3)
+TEST (tensorStreamTest, issue739MuxParallel3)
 {
   const guint num_buffers = 2;
   TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MUX_PARALLEL_3 };
@@ -4908,7 +4908,7 @@ TEST (tensor_stream_test, issue739_mux_parallel_3)
 /**
  * @brief Test multi-stream sync & frame-dropping of Issue #739, 1st subissue
  */
-TEST (tensor_stream_test, issue739_mux_parallel_4)
+TEST (tensorStreamTest, issue739MuxParallel4)
 {
   /** @todo Write this after the tensor-mux/merge sync-option "basepad" is updated */
   EXPECT_EQ (1, 1);
@@ -4917,7 +4917,7 @@ TEST (tensor_stream_test, issue739_mux_parallel_4)
 /**
  * @brief Test multi-stream sync & frame-dropping of Issue #739, 1st subissue
  */
-TEST (tensor_stream_test, issue739_merge_parallel_1)
+TEST (tensorStreamTest, issue739MergeParallel1)
 {
   const guint num_buffers = 2;
   TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MERGE_PARALLEL_1 };
@@ -4978,7 +4978,7 @@ TEST (tensor_stream_test, issue739_merge_parallel_1)
 /**
  * @brief Test multi-stream sync & frame-dropping of Issue #739, 1st subissue
  */
-TEST (tensor_stream_test, issue739_merge_parallel_2)
+TEST (tensorStreamTest, issue739MergeParallel2)
 {
   const guint num_buffers = 2;
   TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MERGE_PARALLEL_2 };
@@ -5039,7 +5039,7 @@ TEST (tensor_stream_test, issue739_merge_parallel_2)
 /**
  * @brief Test multi-stream sync & frame-dropping of Issue #739, 1st subissue
  */
-TEST (tensor_stream_test, issue739_merge_parallel_3)
+TEST (tensorStreamTest, issue739MergeParallel3)
 {
   const guint num_buffers = 2;
   TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MERGE_PARALLEL_3 };
@@ -5110,7 +5110,7 @@ TEST (tensor_stream_test, issue739_merge_parallel_3)
 /**
  * @brief Test for tensor_mux properties.
  */
-TEST (tensor_stream_test, mux_properties_1)
+TEST (tensorStreamTest, muxProperties1)
 {
   const guint num_buffers = 2;
   TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MUX_PARALLEL_2 };
@@ -5154,7 +5154,7 @@ TEST (tensor_stream_test, mux_properties_1)
 /**
  * @brief Test for tensor_mux properties.
  */
-TEST (tensor_stream_test, mux_properties_2_n)
+TEST (tensorStreamTest, muxProperties2_n)
 {
   const guint num_buffers = 2;
   TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MUX_PARALLEL_2 };
@@ -5186,7 +5186,7 @@ TEST (tensor_stream_test, mux_properties_2_n)
 /**
  * @brief Test for tensor_merge properties.
  */
-TEST (tensor_stream_test, merge_properties_1)
+TEST (tensorStreamTest, mergeProperties1)
 {
   const guint num_buffers = 2;
   TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MERGE_PARALLEL_2 };
@@ -5240,7 +5240,7 @@ TEST (tensor_stream_test, merge_properties_1)
 /**
  * @brief Test for tensor_merge properties.
  */
-TEST (tensor_stream_test, merge_properties_2_n)
+TEST (tensorStreamTest, mergeProperties2_n)
 {
   const guint num_buffers = 2;
   TestOption option = { num_buffers, TEST_TYPE_ISSUE739_MERGE_PARALLEL_2 };
@@ -5272,7 +5272,7 @@ TEST (tensor_stream_test, merge_properties_2_n)
 /**
  * @brief Test get/set property of tensor_decoder
  */
-TEST (tensor_stream_test, tensor_decoder_property_1)
+TEST (tensorStreamTest, tensorDecoderProperty1)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_DECODER_PROPERTY };
@@ -5358,7 +5358,7 @@ TEST (tensor_stream_test, tensor_decoder_property_1)
 /**
  * @brief Test get/set property of tensor_decoder
  */
-TEST (tensor_stream_test, tensor_decoder_property_2_n)
+TEST (tensorStreamTest, tensorDecoderProperty2_n)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_DECODER_PROPERTY };
@@ -5387,7 +5387,7 @@ TEST (tensor_stream_test, tensor_decoder_property_2_n)
 /**
  * @brief Test tensor out
  */
-TEST (tensor_stream_test, tensor_cap_0)
+TEST (tensorStreamTest, tensorCap0)
 {
    const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_TENSOR_CAP_1 };
@@ -5451,7 +5451,7 @@ TEST (tensor_stream_test, tensor_cap_0)
 /**
  * @brief Test tensor out
  */
-TEST (tensor_stream_test, tensor_cap_1)
+TEST (tensorStreamTest, tensorCap1)
 {
    const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_TENSOR_CAP_2 };
@@ -5515,7 +5515,7 @@ TEST (tensor_stream_test, tensor_cap_1)
 /**
  * @brief Test tensors out when the number of the tensors is 1.
  */
-TEST (tensor_stream_test, tensors_cap_0)
+TEST (tensorStreamTest, tensorsCap0)
 {
    const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_TENSORS_CAP_1 };
@@ -5580,7 +5580,7 @@ TEST (tensor_stream_test, tensors_cap_0)
 /**
  * @brief Test for other/tensors, passthrough custom filter.
  */
-TEST (tensor_stream_test, tensors_cap_1)
+TEST (tensorStreamTest, tensorsCap1)
 {
   const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_TENSORS_CAP_2 };
@@ -5676,7 +5676,7 @@ cef_func_safe_memcpy (void *data, const GstTensorFilterProperties *prop,
 /**
  * @brief Test custom-easy filter with an in-code function.
  */
-TEST (tensor_filter_custom_easy, in_code_func_01)
+TEST (tensorFilterCustomEasy, inCodeFunc01)
 {
   int ret;
   const guint num_buffers = 10;
@@ -5743,7 +5743,7 @@ TEST (tensor_filter_custom_easy, in_code_func_01)
 /**
  * @brief Test unregister custom_easy filter
  */
-TEST (tensor_filter_custom_easy, unregister_1_p)
+TEST (tensorFilterCustomEasy, unregister1_p)
 {
   int ret;
   const GstTensorsInfo info_in = {
@@ -5767,7 +5767,7 @@ TEST (tensor_filter_custom_easy, unregister_1_p)
 /**
  * @brief Test non-registered custom_easy filter
  */
-TEST (tensor_filter_custom_easy, unregister_1_n)
+TEST (tensorFilterCustomEasy, unregister1_n)
 {
   int ret;
 

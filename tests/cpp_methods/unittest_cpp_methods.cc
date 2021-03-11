@@ -16,7 +16,7 @@
 static char *path_to_lib = NULL;
 
 /** @brief Positive case for the simpliest execution path */
-TEST (cpp_filter_on_demand, basic_01)
+TEST (cppFilterOnDemand, basic01)
 {
   filter_basic basic ("basic_01");
   EXPECT_EQ (basic._register (), 0);
@@ -24,7 +24,7 @@ TEST (cpp_filter_on_demand, basic_01)
 }
 
 /** @brief Negative case for the simpliest execution path */
-TEST (cpp_filter_on_demand, basic_02_n)
+TEST (cppFilterOnDemand, basic02_n)
 {
   filter_basic basic ("basic_02");
   EXPECT_NE (basic._unregister (), 0);
@@ -35,7 +35,7 @@ TEST (cpp_filter_on_demand, basic_02_n)
 }
 
 /** @brief Negative case for the simpliest execution path w/ static calls */
-TEST (cpp_filter_on_demand, basic_03_n)
+TEST (cppFilterOnDemand, basic03_n)
 {
   filter_basic basic ("basic_03");
   EXPECT_NE (filter_basic::__unregister ("basic_03"), 0);
@@ -46,7 +46,7 @@ TEST (cpp_filter_on_demand, basic_03_n)
 }
 
 /** @brief Negative case for the simpliest execution path w/ static calls */
-TEST (cpp_filter_on_demand, basic_04_n)
+TEST (cppFilterOnDemand, basic04_n)
 {
   filter_basic basic ("basic_04");
   EXPECT_NE (filter_basic::__unregister ("basic_xx"), 0);
@@ -63,7 +63,7 @@ TEST (cpp_filter_on_demand, basic_04_n)
 }
 
 /** @brief Actual GST Pipeline with cpp on demand */
-TEST (cpp_filter_on_demand, pipeline_01)
+TEST (cppFilterOnDemand, pipelne01)
 {
   filter_basic basic ("pl01");
   char *tmp1 = getTempFilename ();
@@ -112,7 +112,7 @@ TEST (cpp_filter_on_demand, pipeline_01)
 }
 
 /** @brief Negative case for the simpliest execution path */
-TEST (cpp_filter_on_demand, unregistered_01_n)
+TEST (cppFilterOnDemand, unregstered01_n)
 {
   filter_basic basic ("basic_01");
   gchar *str_pipeline = g_strdup_printf (
@@ -146,7 +146,7 @@ TEST (cpp_filter_on_demand, unregistered_01_n)
 }
 
 /** @brief gtest method */
-TEST (cpp_filter_obj, base_01_n)
+TEST (cppFilterObj, base01_n)
 {
   char *tmp1 = getTempFilename ();
   char *tmp2 = getTempFilename ();
@@ -189,7 +189,7 @@ TEST (cpp_filter_obj, base_01_n)
 }
 
 /** @brief gtest method */
-TEST (cpp_filter_obj, base_02_n)
+TEST (cppFilterObj, base02_n)
 {
   char *tmp1 = getTempFilename ();
   char *tmp2 = getTempFilename ();
@@ -232,7 +232,7 @@ TEST (cpp_filter_obj, base_02_n)
 }
 
 /** @brief gtest method */
-TEST (cpp_filter_obj, base_03)
+TEST (cppFilterObj, base03)
 {
   char *tmp1 = getTempFilename ();
   char *tmp2 = getTempFilename ();

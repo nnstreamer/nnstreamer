@@ -22,7 +22,7 @@
 /**
  * @brief Testing valid pipeline launching and its state changing
  */
-TEST (pipeline_mvncsdk2_filter, launch_normal)
+TEST (pipelineMvncsdk2Filter, launchNormal)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *pipeline;
@@ -111,7 +111,7 @@ TEST (pipeline_mvncsdk2_filter, launch_normal)
 }
 
 #define TEST_PIPELINE_LAUNCH_NORMAL_FAILURE(idx, fail_stage)                                                  \
-  TEST (pipeline_mvncsdk2_filter, launch_normal_##idx##_n)                                                    \
+  TEST (pipelineMvncsdk2Filter, launchNormal##idx##_n)                                                        \
   {                                                                                                           \
     const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");                                        \
     gchar *pipeline;                                                                                          \
