@@ -131,7 +131,7 @@ if protobuf_support_is_available
   foreach s : decoder_sub_protobuf_sources
     nnstreamer_decoder_protobuf_sources += join_paths(meson.current_source_dir(), s)
   endforeach
-  
+
   shared_library('nnstreamer_decoder_protobuf',
     nnstreamer_decoder_protobuf_sources,
     dependencies: [nnstreamer_dep, glib_dep, gst_dep, protobuf_util_dep],
@@ -150,10 +150,27 @@ if flatbuf_support_is_available
   nnstreamer_decoder_flatbuf_sources = [fb_gen_src]
   foreach s : decoder_sub_flatbuf_sources
     nnstreamer_decoder_flatbuf_sources += join_paths(meson.current_source_dir(), s)
-  endforeach  
+  endforeach
 
   shared_library('nnstreamer_decoder_flatbuf',
     nnstreamer_decoder_flatbuf_sources,
+    dependencies: [nnstreamer_dep, glib_dep, gst_dep, flatbuf_dep],
+    install: true,
+    install_dir: decoder_subplugin_install_dir,
+  )
+
+  decoder_sub_flexbuf_sources = [
+    'tensordec-flexbuf.cc',
+    'tensordecutil.c'
+  ]
+
+  nnstreamer_decoder_flexbuf_sources = []
+  foreach s : decoder_sub_flexbuf_sources
+    nnstreamer_decoder_flexbuf_sources += join_paths(meson.current_source_dir(), s)
+  endforeach
+
+  shared_library('nnstreamer_decoder_flexbuf',
+    nnstreamer_decoder_flexbuf_sources,
     dependencies: [nnstreamer_dep, glib_dep, gst_dep, flatbuf_dep],
     install: true,
     install_dir: decoder_subplugin_install_dir,

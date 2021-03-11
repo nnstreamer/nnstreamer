@@ -96,6 +96,11 @@
     "framerate = " GST_TENSOR_RATE_RANGE
 
 /**
+ * @brief Default static capability for flexbuffers
+ */
+#define GST_FLEXBUF_CAP_DEFAULT "other/flexbuf"
+
+/**
  * @brief Possible data element types of other/tensor.
  */
 typedef enum _nns_tensor_type
