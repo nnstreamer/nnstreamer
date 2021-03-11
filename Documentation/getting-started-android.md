@@ -4,7 +4,7 @@ title: Android
 
 # NNStreamer API Library for Android
 
-## Note: The API will be separated into a new repository soon.
+## Note: The API is separated into a [new repository](https://github.com/nnstreamer/api)
 
 ## Prerequisite
 
@@ -40,6 +40,7 @@ export ANDROID_DEV_ROOT=$HOME/android               # Set your own path (default
 # $ANDROID_DEV_ROOT/tools/ndk/: Android NDK root directory (default location: $HOME/Android/Sdk/ndk/<ndk-version>)
 # $ANDROID_DEV_ROOT/gstreamer-1.0/: GStreamer binaries
 # $ANDROID_DEV_ROOT/workspace/nnstreamer/: The git repository of NNStreamer
+# $ANDROID_DEV_ROOT/workspace/api/: The git repository of ML API
 
 export ANDROID_SDK=$ANDROID_DEV_ROOT/tools/sdk
 export ANDROID_NDK=$ANDROID_DEV_ROOT/tools/ndk
@@ -47,6 +48,7 @@ export ANDROID_SDK_ROOT=$ANDROID_SDK
 export ANDROID_NDK_ROOT=$ANDROID_NDK
 export GSTREAMER_ROOT_ANDROID=$ANDROID_DEV_ROOT/gstreamer-1.0
 export NNSTREAMER_ROOT=$ANDROID_DEV_ROOT/workspace/nnstreamer
+export ML_API_ROT=$ANDROID_DEV_ROOT/workspace/api
 ```
 
 ### Install required packages
@@ -162,11 +164,12 @@ copyjavasource_$(TARGET_ARCH_ABI):
          "Could not register native methods for org.freedesktop.gstreamer.GStreamer");
 ```
 
-### Download NNStreamer source code
+### Download NNStreamer source code and ML API source code
 
 ```bash
 $ cd $ANDROID_DEV_ROOT/workspace
 $ git clone https://github.com/nnstreamer/nnstreamer.git
+$ git clone https://github.com/nnstreamer/api.git
 ```
 
 ### Build Android API
@@ -188,17 +191,18 @@ Run the build script in NNStreamer.
   4. Run test: Default no. `--run_test=yes` to run the instrumentation test.
   5. Other options
       - `--nnstreamer_dir=<path>` path to NNStreamer root directory. Default `NNSTREAMER_ROOT` is used if this is not set.
-      - `--result_dir=<path>` path to build result. Default path is `NNSTREAMER_ROOT/android_lib`.
+      - `--ml_api_dir=<path>` path to ML API root directory. `ML_API_ROOT` is used if this is not set.
+      - `--result_dir=<path>` path to build result. Default path is `ML_API_ROOT/android_lib`.
       - `--gstreamer_dir=<path>` path to GStreamer binaries. Default path is `GSTREAMER_ROOT_ANDROID`.
       - `--android_sdk_dir=<path>` path to Android SDK. Default path is `ANDROID_SDK_ROOT`.
       - `--android_ndk_dir=<path>` path to Android NDK. Default path is `ANDROID_NDK_ROOT`.
 
 ```bash
-$ cd $NNSTREAMER_ROOT
-$ bash ./api/android/build-android-lib.sh
+$ cd $ML_API_ROOT
+$ bash ./java/android/build-nnstreamer-android-lib.sh
 ```
 
-After building the Android API, you can find the library(.aar) in `$NNSTREAMER_ROOT/android_lib`.
+After building the Android API, you can find the library(.aar) in `$ML_API_ROOT/android_lib`.
 - Build result
   1. nnstreamer-[BUILD_DATE].aar: NNStreamer library for Android
   2. nnstreamer-native-[BUILD_DATE].zip: shared objects and header files for native developer
@@ -235,11 +239,11 @@ You can download these files from [nnsuite testcases repository](https://github.
 ```
 
 To check the testcases, run the build script with an option ```--run_test=yes```.
-You can find the result in ```$NNSTREAMER_ROOT/android_lib```.
+You can find the result in ```$ML_API_ROOT/android_lib```.
 
 ```bash
-$ cd $NNSTREAMER_ROOT
-$ bash ./api/android/build-android-lib.sh --run_test=yes
+$ cd $ML_API_ROOT
+$ bash ./java/android/build-nnstreamer-android-lib.sh --run_test=yes
 ```
 
 ### Using Model File with Scoped Storage
