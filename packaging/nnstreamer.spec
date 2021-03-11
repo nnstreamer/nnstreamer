@@ -835,6 +835,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_flatbuf.so
 %{_prefix}/lib/nnstreamer/converters/libnnstreamer_converter_flatbuf.so
 %{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_flexbuf.so
+%{_prefix}/lib/nnstreamer/converters/libnnstreamer_converter_flexbuf.so
 %endif
 
 # for pytorch
