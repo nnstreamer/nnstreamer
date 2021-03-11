@@ -74,7 +74,13 @@ title: tensor_transform
         ```
 
     - (4): stand
-      - A Mode for statistical standardization of tensor, option=default
+      - A mode for statistical standardization or normalization of tensor
+      - An option should be provided as option=(default|dc-average)[:TYPE] where `default` for statistical standardization and `dc-average` to remove DC offset (average value). `TYPE` denotes output data type.
+      - Example: Remove DC offset, output type to float32
+
+        ```bash
+        ... ! tensor_converter ! tensor_transform mode=stand option=dc-average:float32 ! ...
+        ```
 
 - acceleration (readable, writable): A flat indicating whether to enable ```orc``` acceleration
 

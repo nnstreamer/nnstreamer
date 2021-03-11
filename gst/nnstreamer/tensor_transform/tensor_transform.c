@@ -124,6 +124,7 @@ enum
 
 static const gchar *gst_tensor_transform_stand_string[] = {
   [STAND_DEFAULT] = "default",
+  [STAND_DC_AVERAGE] = "dc-average",
   [STAND_END] = NULL
 };
 
@@ -200,7 +201,7 @@ gst_tensor_transform_mode_get_type (void)
             "option=D1\':D2\':D3\':D4 (fixed to 3)",
           "transpose"},
       {GTT_STAND, "Mode for statistical standardization of tensor, "
-            "option=default[:TYPE]",
+            "option=(default|dc-average)[:TYPE]",
           "stand"},
       {GTT_CLAMP, "Mode for clamping all elements of tensor into the range, "
             "option=CLAMP_MIN:CLAMP_MAX",
@@ -701,7 +702,7 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
 
       if (filter->data_stand.mode == STAND_END) {
         ml_loge
-            ("%s: stand: \'%s\' is not valid option string: it should be \'default\', currently the only supported mode.\n",
+            ("%s: stand: \'%s\' is not valid option string: it should be in the form of (default|dc-average)[:TYPE]\n",
             filter_name, filter->option);
         break;
       }
@@ -1199,6 +1200,21 @@ gst_tensor_transform_stand (GstTensorTransform * filter,
             (gpointer) (outptr + data_idx), out_tensor_type);
       }
 
+      break;
+    }
+    case STAND_DC_AVERAGE:
+    {
+      for (i = 0; i < num; i++) {
+        data_idx = in_element_size * i;
+        gst_tensor_data_raw_typecast ((gpointer) (inptr + data_idx),
+            in_tensor_type, &tmp, _NNS_FLOAT64);
+
+        tmp -= average;
+
+        data_idx = out_element_size * i;
+        gst_tensor_data_raw_typecast (&tmp, _NNS_FLOAT64,
+            (gpointer) (outptr + data_idx), out_tensor_type);
+      }
       break;
     }
     default:
