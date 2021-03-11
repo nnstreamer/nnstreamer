@@ -391,6 +391,14 @@ Requires:   nnstreamer-devel = %{version}-%{release}
 %description devel-static
 Static library package of nnstreamer-devel.
 
+%package test-devel
+Summary: Development package to provide testable environment of a subplugin (tensor_filter/custom)
+Requires: nnstreamer-devel = %{version}-%{release}
+%description test-devel
+Development package to provide testable environment of NNStreamer sub-plugin.
+This package enables testable environment of NNStreamer sub-plugin by making nnstreamer to recognize NNSTREAMER_CONF_PATH to steer a sub-plugin path to a custom path.
+Also This package provides test templates to be used with.
+
 %if 0%{?testcoverage}
 %package unittest-coverage
 Summary:	NNStreamer UnitTest Coverage Analysis Result
@@ -736,6 +744,12 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 
 %postun -p /sbin/ldconfig
 
+%post test-devel
+mv /etc/nnstreamer.ini /etc/nnstreamer.ini.bak
+
+%postun test-devel
+mv /etc/nnstreamer.ini.bak /etc/nnstreamer.ini
+
 %files
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
@@ -932,6 +946,12 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 
 %files misc
 %{gstlibdir}/libgstjoin.so
+
+%if 0%{?release_test}
+%files test-devel
+%{_prefix}/%{nnstbindir}/unittest-nnstreamer/subplugin_unittest_template.cc.in
+%{_prefix}/%{nnstbindir}/unittest-nnstreamer/nnstreamer-test.ini.in
+%endif
 
 %changelog
 * Fri Nov 20 2020 MyungJoo Ham <myungjoo.ham@samsung.com>
