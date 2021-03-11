@@ -4,6 +4,7 @@ prefix=@PREFIX@
 exec_prefix=@EXEC_PREFIX@
 libdir=@LIB_INSTALL_DIR@
 includedir=@INCLUDE_INSTALL_DIR@
+test_templatedir=@TEST_TEMPLATE_DIR@ # test template dir to be used
 
 Name: nnstreamer
 Description: Dev Kit of Neural Network Suite (NNStreamer) for GStreamer

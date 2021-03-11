@@ -43,7 +43,16 @@ endif
 
 sed_command = find_program('sed', required: true)
 ext_test_template_prefix = 'unittest_tizen_'
-ext_test_template = files (ext_test_template_prefix + 'template.cc.in')
+ext_test_template_str = ext_test_template_prefix + 'template.cc.in'
+ext_test_template = files (ext_test_template_str)
+
+configure_file(
+  input: ext_test_template_str,
+  output: 'subplugin_unittest_template.cc.in',
+  install: get_option('install-test'),
+  install_dir: unittest_base_dir,
+  copy: true
+)
 
 foreach ext : extensions
   ext_test_path_each = ext_test_template_prefix + ext[4] + '.cc'

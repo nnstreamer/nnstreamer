@@ -446,6 +446,7 @@ restricted_elements=''' + get_option('restricted-elements')
 endif
 
 nnstreamer_install_conf.set('ELEMENT_RESTRICTION_CONFIG', restriction_config)
+nnstreamer_install_conf.set('TEST_TEMPLATE_DIR', unittest_base_dir) # TEST_TEMPLATE_DIR will be empty if `install-test` is false
 
 # Install .ini
 configure_file(input: 'nnstreamer.ini.in', output: 'nnstreamer.ini',
@@ -472,6 +473,13 @@ subdir('tools/development')
 if get_option('enable-test')
   # Build nnstreamer examples
   subdir('nnstreamer_example')
+
+  # ini file generator template for the plugins from other repository
+  configure_file(input: 'nnstreamer.ini.in', output: 'nnstreamer-test.ini.in',
+    install: get_option('install-test'),
+    install_dir: unittest_base_dir,
+    copy: true,
+  )
 
   # temporary ini file for test, enable env variables.
   nnstreamer_test_conf = configuration_data()
