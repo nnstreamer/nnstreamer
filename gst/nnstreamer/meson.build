@@ -33,7 +33,8 @@ nnst_common_sources = [
   'nnstreamer_conf.c',
   'nnstreamer_subplugin.c',
   'tensor_common.c',
-  'tensor_common_pipeline.c'
+  'tensor_common_pipeline.c',
+  'tensor_data.c'
 ]
 
 foreach s : nnst_common_sources

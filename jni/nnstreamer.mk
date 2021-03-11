@@ -44,6 +44,7 @@ NNSTREAMER_COMMON_SRCS := \
 
 # nnstreamer plugins. Not used for SINGLE-only build.
 NNSTREAMER_PLUGINS_SRCS := \
+    $(NNSTREAMER_GST_HOME)/tensor_data.c \
     $(NNSTREAMER_GST_HOME)/tensor_common_pipeline.c \
     $(NNSTREAMER_GST_HOME)/registerer/nnstreamer.c \
     $(NNSTREAMER_GST_HOME)/tensor_converter/tensor_converter.c \

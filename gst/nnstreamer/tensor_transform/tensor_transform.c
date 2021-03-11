@@ -414,132 +414,6 @@ gst_tensor_transform_get_stand_mode (const gchar * str)
 #endif /* HAVE_ORC */
 
 /**
- * @brief Macro to set operand
- */
-#define set_operand_value(v,d,vtype) do { \
-    (v)->data._##vtype = *((vtype *) d); \
-  } while (0)
-
-/**
- * @brief Set tensor element value with given type
- * @param filter "this" pointer
- * @param value struct for operand of arith mode
- * @param type tensor type
- * @param data pointer of tensor element value
- * @return TRUE if no error
- */
-static gboolean
-gst_tensor_transform_set_value (GstTensorTransform * filter,
-    tensor_transform_operand_s * value, tensor_type type, gpointer data)
-{
-  g_return_val_if_fail (value != NULL, FALSE);
-  g_return_val_if_fail (data != NULL, FALSE);
-
-  /* init tensor value */
-  memset (value, 0, sizeof (tensor_transform_operand_s));
-  value->type = _NNS_END;
-
-  switch (type) {
-    case _NNS_INT32:
-      set_operand_value (value, data, int32_t);
-      break;
-    case _NNS_UINT32:
-      set_operand_value (value, data, uint32_t);
-      break;
-    case _NNS_INT16:
-      set_operand_value (value, data, int16_t);
-      break;
-    case _NNS_UINT16:
-      set_operand_value (value, data, uint16_t);
-      break;
-    case _NNS_INT8:
-      set_operand_value (value, data, int8_t);
-      break;
-    case _NNS_UINT8:
-      set_operand_value (value, data, uint8_t);
-      break;
-    case _NNS_FLOAT64:
-      set_operand_value (value, data, double);
-      break;
-    case _NNS_FLOAT32:
-      set_operand_value (value, data, float);
-      break;
-    case _NNS_INT64:
-      set_operand_value (value, data, int64_t);
-      break;
-    case _NNS_UINT64:
-      set_operand_value (value, data, uint64_t);
-      break;
-    default:
-      GST_ERROR_OBJECT (filter, "Unknown tensor type %d", type);
-      return FALSE;
-  }
-
-  value->type = type;
-  return TRUE;
-}
-
-/**
- * @brief Macro to get operand
- */
-#define get_operand_value(v,d,vtype) do { \
-    *((vtype *) d) = (v)->data._##vtype; \
-  } while (0)
-
-/**
- * @brief Get tensor element value with given type
- * @param filter "this" pointer
- * @param value struct for operand of arith mode
- * @param data pointer of tensor element value
- * @return TRUE if no error
- */
-static gboolean
-gst_tensor_transform_get_value (GstTensorTransform * filter,
-    tensor_transform_operand_s * value, gpointer data)
-{
-  g_return_val_if_fail (value != NULL, FALSE);
-  g_return_val_if_fail (data != NULL, FALSE);
-
-  switch (value->type) {
-    case _NNS_INT32:
-      get_operand_value (value, data, int32_t);
-      break;
-    case _NNS_UINT32:
-      get_operand_value (value, data, uint32_t);
-      break;
-    case _NNS_INT16:
-      get_operand_value (value, data, int16_t);
-      break;
-    case _NNS_UINT16:
-      get_operand_value (value, data, uint16_t);
-      break;
-    case _NNS_INT8:
-      get_operand_value (value, data, int8_t);
-      break;
-    case _NNS_UINT8:
-      get_operand_value (value, data, uint8_t);
-      break;
-    case _NNS_FLOAT64:
-      get_operand_value (value, data, double);
-      break;
-    case _NNS_FLOAT32:
-      get_operand_value (value, data, float);
-      break;
-    case _NNS_INT64:
-      get_operand_value (value, data, int64_t);
-      break;
-    case _NNS_UINT64:
-      get_operand_value (value, data, uint64_t);
-      break;
-    default:
-      GST_ERROR_OBJECT (filter, "Unknown tensor type %d", value->type);
-      return FALSE;
-  }
-
-  return TRUE;
-}
-
-/**
  * @brief Macro for operator
  */
 #define handle_operator(d,v,oper,vtype) do { \
@@ -573,7 +447,7 @@ gst_tensor_transform_get_value (GstTensorTransform * filter,
  */
 static gboolean
 gst_tensor_transform_do_operator (GstTensorTransform * filter,
-    tensor_transform_operand_s * desc, const tensor_transform_operand_s * val,
+    tensor_data_s * desc, const tensor_data_s * val,
     tensor_transform_operator op)
 {
   g_return_val_if_fail (desc != NULL, FALSE);
@@ -614,113 +488,6 @@ gst_tensor_transform_do_operator (GstTensorTransform * filter,
     default:
       GST_ERROR_OBJECT (filter, "Unknown tensor type %d", desc->type);
       return FALSE;
-  }
-
-  return TRUE;
-}
-
-/**
- * @brief Macro for typecast
- */
-#define typecast_value_to(v,itype,otype) do { \
-    itype in_val = (v)->data._##itype; \
-    otype out_val = (otype) in_val; \
-    (v)->data._##otype = out_val; \
-  } while (0)
-
-#define typecast_value(v,otype) do { \
-    switch ((v)->type) { \
-      case _NNS_INT32: typecast_value_to (v, int32_t, otype); break; \
-      case _NNS_UINT32: typecast_value_to (v, uint32_t, otype); break; \
-      case _NNS_INT16: typecast_value_to (v, int16_t, otype); break; \
-      case _NNS_UINT16:  typecast_value_to (v, uint16_t, otype); break; \
-      case _NNS_INT8: typecast_value_to (v, int8_t, otype); break; \
-      case _NNS_UINT8: typecast_value_to (v, uint8_t, otype); break; \
-      case _NNS_FLOAT64: typecast_value_to (v, double, otype); break; \
-      case _NNS_FLOAT32: typecast_value_to (v, float, otype); break; \
-      case _NNS_INT64: typecast_value_to (v, int64_t, otype); break; \
-      case _NNS_UINT64: typecast_value_to (v, uint64_t, otype); break; \
-      default: g_assert (0); break; \
-    } \
-  } while (0)
-
-/**
- * @brief Typecast tensor element value
- * @param filter "this" pointer
- * @param value struct for operand of arith mode
- * @param type tensor type to be transformed
- * @return TRUE if no error
- */
-static gboolean
-gst_tensor_transform_typecast_value (GstTensorTransform * filter,
-    tensor_transform_operand_s * value, tensor_type type)
-{
-  gboolean is_float;
-
-  g_return_val_if_fail (value != NULL, FALSE);
-  g_return_val_if_fail (type != _NNS_END, FALSE);
-
-  /* do nothing when transform to same type */
-  if (value->type != type) {
-    is_float = (value->type == _NNS_FLOAT32 || value->type == _NNS_FLOAT64);
-
-    switch (type) {
-      case _NNS_INT32:
-        typecast_value (value, int32_t);
-        break;
-      case _NNS_UINT32:
-        if (is_float) {
-          /* int32 -> uint32 */
-          typecast_value (value, int32_t);
-          value->type = _NNS_INT32;
-        }
-        typecast_value (value, uint32_t);
-        break;
-      case _NNS_INT16:
-        typecast_value (value, int16_t);
-        break;
-      case _NNS_UINT16:
-        if (is_float) {
-          /* int16 -> uint16 */
-          typecast_value (value, int16_t);
-          value->type = _NNS_INT16;
-        }
-        typecast_value (value, uint16_t);
-        break;
-      case _NNS_INT8:
-        typecast_value (value, int8_t);
-        break;
-      case _NNS_UINT8:
-        if (is_float) {
-          /* int8 -> uint8 */
-          typecast_value (value, int8_t);
-          value->type = _NNS_INT8;
-        }
-        typecast_value (value, uint8_t);
-        break;
-      case _NNS_FLOAT64:
-        typecast_value (value, double);
-        break;
-      case _NNS_FLOAT32:
-        typecast_value (value, float);
-        break;
-      case _NNS_INT64:
-        typecast_value (value, int64_t);
-        break;
-      case _NNS_UINT64:
-        if (is_float) {
-          /* int64 -> uint64 */
-          typecast_value (value, int64_t);
-          value->type = _NNS_INT64;
-        }
-        typecast_value (value, uint64_t);
-        break;
-      default:
-        GST_ERROR_OBJECT (filter, "Unknown tensor type %d", type);
-        return FALSE;
-    }
-
-    value->type = type;
   }
 
   return TRUE;
@@ -861,14 +628,12 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
                   double val;
 
                   val = g_ascii_strtod (str_op[1], NULL);
-                  gst_tensor_transform_set_value (filter, &op_s->value,
-                      _NNS_FLOAT64, &val);
+                  gst_tensor_data_set (&op_s->value, _NNS_FLOAT64, &val);
                 } else {
                   int64_t val;
 
                   val = g_ascii_strtoll (str_op[1], NULL, 10);
-                  gst_tensor_transform_set_value (filter, &op_s->value,
-                      _NNS_INT64, &val);
+                  gst_tensor_data_set (&op_s->value, _NNS_INT64, &val);
                 }
               } else {
                 GST_WARNING_OBJECT (filter, "Invalid option for arithmetic %s",
@@ -1181,13 +946,12 @@ static GstFlowReturn
 gst_tensor_transform_typecast (GstTensorTransform * filter,
     const uint8_t * inptr, uint8_t * outptr)
 {
-  gulong num = gst_tensor_get_element_count (filter->in_config.info.dimension);
+  gulong i, num;
   tensor_type in_tensor_type = filter->in_config.info.type;
   tensor_type out_tensor_type = filter->out_config.info.type;
   gsize in_element_size, out_element_size;
 
-  tensor_transform_operand_s value;
-  gsize i, data_idx;
+  num = gst_tensor_get_element_count (filter->in_config.info.dimension);
 
 #ifdef HAVE_ORC
   if (orc_supported (filter)) {
@@ -1200,19 +964,9 @@ gst_tensor_transform_typecast (GstTensorTransform * filter,
   out_element_size = gst_tensor_get_element_size (out_tensor_type);
 
   for (i = 0; i < num; ++i) {
-    /* init value with input tensor type */
-    data_idx = in_element_size * i;
-    gst_tensor_transform_set_value (filter, &value, in_tensor_type,
-        (gpointer) (inptr + data_idx));
-
-    /* typecast */
-    gst_tensor_transform_typecast_value (filter, &value, out_tensor_type);
-
-    /* set output value */
-    g_assert (out_tensor_type == value.type);
-    data_idx = out_element_size * i;
-    gst_tensor_transform_get_value (filter, &value,
-        (gpointer) (outptr + data_idx));
+    gst_tensor_data_raw_typecast ((gpointer) (inptr + in_element_size * i),
+        in_tensor_type, (gpointer) (outptr + out_element_size * i),
+        out_tensor_type);
   }
 
   return GST_FLOW_OK;
@@ -1229,15 +983,16 @@ static GstFlowReturn
 gst_tensor_transform_arithmetic (GstTensorTransform * filter,
     const uint8_t * inptr, uint8_t * outptr)
 {
-  gulong num = gst_tensor_get_element_count (filter->in_config.info.dimension);
+  gulong i, num;
   tensor_type in_tensor_type = filter->in_config.info.type;
   tensor_type out_tensor_type = filter->out_config.info.type;
   guint in_element_size, out_element_size;
 
   GSList *walk;
   tensor_transform_operator_s *op_s;
-  tensor_transform_operand_s value;
-  gsize i, data_idx;
+  tensor_data_s value;
+
+  num = gst_tensor_get_element_count (filter->in_config.info.dimension);
 
 #ifdef HAVE_ORC
   if (orc_supported (filter)) {
@@ -1253,8 +1008,7 @@ gst_tensor_transform_arithmetic (GstTensorTransform * filter,
       op_s = (tensor_transform_operator_s *) walk->data;
 
       if (op_s->op != GTT_OP_TYPECAST) {
-        gst_tensor_transform_typecast_value (filter, &op_s->value,
-            out_tensor_type);
+        gst_tensor_data_typecast (&op_s->value, out_tensor_type);
         orc_operator (outptr, num, &op_s->value, op_s->op);
       }
 
@@ -1270,9 +1024,8 @@ gst_tensor_transform_arithmetic (GstTensorTransform * filter,
 
   for (i = 0; i < num; ++i) {
     /* init value with input tensor type */
-    data_idx = in_element_size * i;
-    gst_tensor_transform_set_value (filter, &value, in_tensor_type,
-        (gpointer) (inptr + data_idx));
+    gst_tensor_data_set (&value, in_tensor_type,
+        (gpointer) (inptr + in_element_size * i));
 
     walk = filter->operators;
     while (walk) {
@@ -1283,14 +1036,12 @@ gst_tensor_transform_arithmetic (GstTensorTransform * filter,
        */
       switch (op_s->op) {
         case GTT_OP_TYPECAST:
-          gst_tensor_transform_typecast_value (filter, &value,
-              op_s->value.type);
+          gst_tensor_data_typecast (&value, op_s->value.type);
           break;
         case GTT_OP_ADD:
         case GTT_OP_MUL:
         case GTT_OP_DIV:
-          gst_tensor_transform_typecast_value (filter, &op_s->value,
-              value.type);
+          gst_tensor_data_typecast (&op_s->value, value.type);
           gst_tensor_transform_do_operator (filter, &value, &op_s->value,
               op_s->op);
           break;
@@ -1304,9 +1055,7 @@ gst_tensor_transform_arithmetic (GstTensorTransform * filter,
 
     /* set output value */
     g_assert (out_tensor_type == value.type);
-    data_idx = out_element_size * i;
-    gst_tensor_transform_get_value (filter, &value,
-        (gpointer) (outptr + data_idx));
+    gst_tensor_data_get (&value, outptr + out_element_size * i);
   }
 
   return GST_FLOW_OK;
@@ -1411,9 +1160,8 @@ gst_tensor_transform_stand (GstTensorTransform * filter,
 {
   tensor_type in_tensor_type = filter->in_config.info.type;
   tensor_type out_tensor_type = filter->out_config.info.type;
-  gsize in_element_size, out_element_size;
+  gsize in_element_size, out_element_size, data_size;
   gulong i, num, data_idx;
-  tensor_transform_operand_s value;
   gdouble tmp, average, stand;
 
   in_element_size = gst_tensor_get_element_size (in_tensor_type);
@@ -1421,22 +1169,9 @@ gst_tensor_transform_stand (GstTensorTransform * filter,
   num = gst_tensor_get_element_count (filter->in_config.info.dimension);
 
   /* calc average */
-  average = 0.0;
-
-  if (filter->data_stand.mode == STAND_DEFAULT) {
-    for (i = 0; i < num; ++i) {
-      /* extract the value */
-      data_idx = in_element_size * i;
-      gst_tensor_transform_set_value (filter, &value, in_tensor_type,
-          (gpointer) (inptr + data_idx));
-
-      /* in_tensor_type to double */
-      gst_tensor_transform_typecast_value (filter, &value, _NNS_FLOAT64);
-      gst_tensor_transform_get_value (filter, &value, &tmp);
-
-      average = (tmp - average) / (i + 1) + average;
-    }
-  }
+  data_size = gst_tensor_info_get_size (&filter->in_config.info);
+  average = gst_tensor_data_raw_average ((gpointer) inptr, data_size,
+      in_tensor_type);
 
   switch (filter->data_stand.mode) {
     case STAND_DEFAULT:
@@ -1444,39 +1179,24 @@ gst_tensor_transform_stand (GstTensorTransform * filter,
       stand = 0.0;
 
       for (i = 0; i < num; i++) {
-        /* extract the value */
         data_idx = in_element_size * i;
-        gst_tensor_transform_set_value (filter, &value, in_tensor_type,
-            (gpointer) (inptr + data_idx));
-
-        /* in_tensor_type to double */
-        gst_tensor_transform_typecast_value (filter, &value, _NNS_FLOAT64);
-        gst_tensor_transform_get_value (filter, &value, &tmp);
+        gst_tensor_data_raw_typecast ((gpointer) (inptr + data_idx),
+            in_tensor_type, &tmp, _NNS_FLOAT64);
 
         stand += pow (tmp - average, 2) / (num - 1);
       }
 
       stand = (stand != 0.0) ? sqrt (stand) : (1e-10);
       for (i = 0; i < num; i++) {
-        /* extract the value */
         data_idx = in_element_size * i;
-        gst_tensor_transform_set_value (filter, &value, in_tensor_type,
-            (gpointer) (inptr + data_idx));
-
-        /* in_tensor_type to double */
-        gst_tensor_transform_typecast_value (filter, &value, _NNS_FLOAT64);
-        gst_tensor_transform_get_value (filter, &value, &tmp);
+        gst_tensor_data_raw_typecast ((gpointer) (inptr + data_idx),
+            in_tensor_type, &tmp, _NNS_FLOAT64);
 
         tmp = fabs ((tmp - average) / stand);
 
-        /* double to out_tensor_type */
-        gst_tensor_transform_set_value (filter, &value, _NNS_FLOAT64, &tmp);
-        gst_tensor_transform_typecast_value (filter, &value, out_tensor_type);
-
-        /* store the value */
         data_idx = out_element_size * i;
-        gst_tensor_transform_get_value (filter, &value,
-            (gpointer) (outptr + data_idx));
+        gst_tensor_data_raw_typecast (&tmp, _NNS_FLOAT64,
+            (gpointer) (outptr + data_idx), out_tensor_type);
       }
 
       break;
@@ -1507,9 +1227,6 @@ gst_tensor_transform_clamp (GstTensorTransform * filter,
 
   gsize in_element_size, out_element_size;
   gulong i, num, data_idx;
-
-  /* let's utilize transform typecast */
-  tensor_transform_operand_s value;
   gdouble tmp;
 
   in_element_size = gst_tensor_get_element_size (in_tensor_type);
@@ -1517,25 +1234,15 @@ gst_tensor_transform_clamp (GstTensorTransform * filter,
   num = gst_tensor_get_element_count (filter->in_config.info.dimension);
 
   for (i = 0; i < num; ++i) {
-    /* extract the value */
     data_idx = in_element_size * i;
-    gst_tensor_transform_set_value (filter, &value, in_tensor_type,
-        (gpointer) (inptr + data_idx));
-
-    /* in_tensor_type to double */
-    gst_tensor_transform_typecast_value (filter, &value, _NNS_FLOAT64);
-    gst_tensor_transform_get_value (filter, &value, (gpointer) (&tmp));
+    gst_tensor_data_raw_typecast ((gpointer) (inptr + data_idx), in_tensor_type,
+        &tmp, _NNS_FLOAT64);
 
     tmp = CLAMP (tmp, filter->data_clamp.min, filter->data_clamp.max);
 
-    /* double to out_tensor_type */
-    gst_tensor_transform_set_value (filter, &value, _NNS_FLOAT64, &tmp);
-    gst_tensor_transform_typecast_value (filter, &value, out_tensor_type);
-
-    /* store the value */
     data_idx = out_element_size * i;
-    gst_tensor_transform_get_value (filter, &value,
-        (gpointer) (outptr + data_idx));
+    gst_tensor_data_raw_typecast (&tmp, _NNS_FLOAT64, outptr + data_idx,
+        out_tensor_type);
   }
 
   return GST_FLOW_OK;
