@@ -79,6 +79,7 @@ typedef enum
 typedef enum
 {
   STAND_DEFAULT = 0,
+  STAND_DC_AVERAGE = 1,
   STAND_END,
 } tensor_transform_stand_mode;
 
