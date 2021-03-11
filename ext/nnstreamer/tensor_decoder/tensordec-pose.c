@@ -29,6 +29,31 @@
  * option1: Video Output Dimension (WIDTH:HEIGHT)
  * option2: Input Dimension (WIDTH:HEIGHT)
  * option3: Location of label file (optional)
+ * 	The file describes the keypoints and their body connections.
+ * 	A line per keypoint description is expected with the following syntax:
+ * 	<label name> <keypoint id> <keypoint id>
+ *
+ * 	For instance, the posenet model label description of model
+ * 	https://www.tensorflow.org/lite/examples/pose_estimation/overview
+ * 	would be the following:
+ * 	nose 1 2 3 4
+ * 	leftEye 0 2 3
+ * 	rightEye 0 1 4
+ * 	leftEar 0 1
+ * 	rightEar 0 2
+ * 	leftShoulder 6 7 11
+ * 	rightShoulder 5 8 12
+ * 	leftElbow 5 9
+ * 	rightElbow 6 10
+ * 	leftWrist 7
+ * 	rightWrist 8
+ * 	leftHip 5 12 13
+ * 	rightHip 6 11 14
+ * 	leftKnee 11 15
+ * 	rightKnee 12 16
+ * 	leftAnkle 13
+ * 	rightAnkle 14
+ *
  */
 
 #include <stdlib.h>
@@ -47,26 +72,54 @@ void finish_pose (void) __attribute__ ((destructor));
 /* font.c */
 extern uint8_t rasters[][13];
 
-#define POSE_SIZE_DEFAULT                  14
 #define PIXEL_VALUE               (0xFFFFFFFF)
 
-static const char *label_default[POSE_SIZE_DEFAULT + 1] = {
-  "top",
-  "neck",
-  "r_shoulder",
-  "r_elbow",
-  "r_wrist",
-  "l_shoulder",
-  "l_elbow",
-  "l_wrist",
-  "r_hip",
-  "r_knee",
-  "r_ankle",
-  "l_hip",
-  "l_knee",
-  "l_ankle",
-  NULL
+#define POSE_MD_MAX_LABEL_SZ 16
+#define POSE_MD_MAX_CONNECTIONS_SZ 8
+
+/**
+ * @brief Data structure for key body point description.
+ */
+static struct pose_metadata_s
+{
+  gchar label[POSE_MD_MAX_LABEL_SZ]; /**< Key body name */
+  gint connections[POSE_MD_MAX_CONNECTIONS_SZ];/**< Connections list */
+  gint num_connections; /** Total number of connections */
+} pose_metadata_default[] = {
+  {
+    "top", {
+  1}, 1}, {
+    "neck", {
+  0, 2, 5, 8, 11}, 5}, {
+    "r_shoulder", {
+  1, 3}, 2}, {
+    "r_elbow", {
+  2, 4}, 2}, {
+    "r_wrist", {
+  3}, 1}, {
+    "l_shoulder", {
+  1, 6}, 2}, {
+    "l_elbow", {
+  5, 7}, 2}, {
+    "l_wrist", {
+  6}, 1}, {
+    "r_hip", {
+  1, 9}, 2}, {
+    "r_knee", {
+  8, 10}, 2}, {
+    "r_ankle", {
+  9}, 1}, {
+    "l_hip", {
+  1, 12}, 2}, {
+    "l_knee", {
+  11, 13}, 2}, {
+    "l_ankle", {
+  12}, 1}
 };
+
+typedef struct pose_metadata_s pose_metadata_t;
+
+#define POSE_SIZE_DEFAULT   (sizeof(pose_metadata_default) / sizeof(pose_metadata_t))
 
 /**
  * @todo Fill in the value at build time or hardcode this. It's const value
@@ -89,16 +142,111 @@ typedef struct
   guint i_height; /**< Input Video Height */
 
   /* From option3 */
-  imglabel_t labeldata; /**< Pose labels from file, if any*/
-
+  pose_metadata_t *metadata; /**< Pose metadata from file, if any*/
+  guint total_labels; /**< Total number of key body point */
 } pose_data;
+
+/**
+ * @brief Load key body metadata from file
+ *
+ * The file describes the different key body point reported by the model,
+ * with one line dedicated per key body point.
+ *
+ * The first word is the key body string, followed by its connections with other key body point.
+ * Connections are represented through key body integer id
+ * Token separator is space, .i.e. ' '
+ *
+ * File example of fallback configuration:
+ *
+ * top 1
+ * neck 0 2 5 8 11
+ * r_shoulder 1 3
+ * r_elbow 2 4
+ * r_wrist 3
+ * l_shoulder 1 6
+ * l_elbow 5 7
+ * l_wrist 6 1
+ * r_hip 1 9
+ * r_knee 8 10
+ * r_ankle 9
+ * l_hip 1 12
+ * l_knee 11 13
+ * l_ankle 12
+ *
+ * @param[in] file_path The filename path to load
+ * @param[in] pd The pose data object
+ * @return Return TRUE on file loading success, otherwise FALSE
+ */
+static gboolean
+pose_load_metadata_from_file (pose_data * pd, const gchar * file_path)
+{
+  size_t len;
+  GError *err = NULL;
+  gchar *contents = NULL;
+  gchar **lines;
+  guint i;
+
+  if (!g_file_test (file_path, G_FILE_TEST_EXISTS)) {
+    GST_WARNING ("Labels file %s does not exist !", file_path);
+    return FALSE;
+  }
+
+  if (!g_file_get_contents (file_path, &contents, &len, &err)) {
+    ml_loge ("Unable to read file %s with error %s.", file_path, err->message);
+    g_clear_error (&err);
+    return FALSE;
+  }
+
+  if (contents[len - 1] == '\n')
+    contents[len - 1] = '\0';
+
+  lines = g_strsplit (contents, "\n", -1);
+  pd->total_labels = g_strv_length (lines);
+  pd->metadata = g_new0 (pose_metadata_t, pd->total_labels);
+
+  for (i = 0; i < pd->total_labels; i++) {
+    guint j;
+    guint len;
+    gchar **tokens;
+
+    g_strstrip (lines[i]);
+    tokens = g_strsplit (lines[i], " ", -1);
+    len = g_strv_length (tokens);
+    if (len > POSE_MD_MAX_CONNECTIONS_SZ) {
+      GST_WARNING ("Too many connections (%d) declared, clamping (%d)\n",
+          len, POSE_MD_MAX_CONNECTIONS_SZ);
+      len = POSE_MD_MAX_CONNECTIONS_SZ;
+    }
+    g_strlcpy (pd->metadata[i].label, tokens[0], POSE_MD_MAX_LABEL_SZ);
+    pd->metadata[i].num_connections = len - 1;
+    for (j = 1; j < len; j++)
+      pd->metadata[i].connections[j - 1] = atoi (tokens[j]);
+
+    g_strfreev (tokens);
+  }
+
+  g_strfreev (lines);
+
+  return TRUE;
+}
+
+/** @brief Return pose metadata by id */
+static inline pose_metadata_t *
+pose_get_metadata_by_id (pose_data * data, guint id)
+{
+  pose_metadata_t *md = data->metadata;
+
+  if (id > data->total_labels)
+    return NULL;
+
+  return &md[id];
+}
 
 /** @brief tensordec-plugin's TensorDecDef callback */
 static int
 pose_init (void **pdata)
 {
   pose_data *data;
-  unsigned i = 0, maxlen = 0;
 
   data = *pdata = g_new0 (pose_data, 1);
   if (data == NULL) {
@@ -110,16 +258,9 @@ pose_init (void **pdata)
   data->height = 0;
   data->i_width = 0;
   data->i_height = 0;
-  data->labeldata.labels = g_strdupv ((gchar **) label_default);
-  data->labeldata.total_labels = POSE_SIZE_DEFAULT;
-  while (data->labeldata.labels[i]) {
-    unsigned len = strlen (data->labeldata.labels[i]);
-    i++;
-    if (len > maxlen)
-      maxlen = len;
-  }
-  data->labeldata.max_word_length = maxlen;
 
+  data->metadata = pose_metadata_default;
+  data->total_labels = POSE_SIZE_DEFAULT;
 
   initSingleLineSprite (singleLineSprite, rasters, PIXEL_VALUE);
 
@@ -131,7 +272,10 @@ static void
 pose_exit (void **pdata)
 {
   pose_data *data = *pdata;
-  _free_labels (&data->labeldata);
+
+  if (data->metadata != pose_metadata_default)
+    g_free (data->metadata);
+
   g_free (*pdata);
   *pdata = NULL;
 }
@@ -191,19 +335,7 @@ pose_setOption (void **pdata, int opNum, const char *param)
     data->i_height = dim[1];
     return TRUE;
   } else if (opNum == 2) {
-
-    if (!g_file_test ((const gchar *) param, G_FILE_TEST_EXISTS)) {
-      GST_WARNING
-          ("Labels file %s does not exist ! Fallback to default mapping",
-          (const char *) param);
-      return TRUE;
-    }
-
-    loadImageLabels ((const char *) param, &data->labeldata);
-    if (data->labeldata.total_labels > 0)
-      return TRUE;
-    else
-      return FALSE;
+    return pose_load_metadata_from_file (data, (const gchar *) param);
   }
 
   GST_INFO ("Property mode-option-%d is ignored", opNum + 1);
@@ -249,7 +381,7 @@ pose_getOutCaps (void **pdata, const GstTensorsConfig * config)
   if (!_check_tensors (config))
     return NULL;
 
-  pose_size = data->labeldata.total_labels;
+  pose_size = data->total_labels;
 
   /* Check if the first tensor is compatible */
   dim1 = config->info.info[0].dimension;
@@ -385,18 +517,21 @@ draw_label (uint32_t * frame, pose_data * data, pose * xydata)
   int label_len;
   uint32_t *pos1, *pos2;
 
-  guint pose_size = data->labeldata.total_labels;
-  char **label = data->labeldata.labels;
-
+  guint pose_size = data->total_labels;
+  char *label;
   for (i = 0; i < pose_size; i++) {
     if (xydata[i].valid) {
+      pose_metadata_t *md = pose_get_metadata_by_id (data, i);
       x1 = (xydata[i].x * data->width) / data->i_width;
       y1 = (xydata[i].y * data->height) / data->i_height;
-      label_len = strlen (label[i]);
+      if (md == NULL)
+        continue;
+      label = md->label;
+      label_len = strlen (label);
       y1 = MAX (0, (y1 - 14));
       pos1 = &frame[y1 * data->width + x1];
       for (j = 0; j < label_len; j++) {
-        unsigned int char_index = label[i][j];
+        unsigned int char_index = label[j];
         if ((x1 + 8) > data->width)
           break;
         pos2 = pos1;
@@ -422,9 +557,9 @@ draw_label (uint32_t * frame, pose_data * data, pose * xydata)
 static void
 draw (GstMapInfo * out_info, pose_data * data, GArray * results)
 {
-  int i;
+  int i, j;
   uint32_t *frame = (uint32_t *) out_info->data;        /* Let's draw per pixel (4bytes) */
-  guint pose_size = data->labeldata.total_labels;
+  guint pose_size = data->total_labels;
 
   pose **XYdata = g_new0 (pose *, pose_size);
 
@@ -435,45 +570,26 @@ draw (GstMapInfo * out_info, pose_data * data, GArray * results)
     }
   }
 
-  if (XYdata[0]->valid && XYdata[1]->valid)
-    draw_line_with_dot (frame, data, XYdata[0]->x, XYdata[0]->y, XYdata[1]->x,
-        XYdata[1]->y);
-  if (XYdata[1]->valid && XYdata[2]->valid)
-    draw_line_with_dot (frame, data, XYdata[1]->x, XYdata[1]->y, XYdata[2]->x,
-        XYdata[2]->y);
-  if (XYdata[2]->valid && XYdata[3]->valid)
-    draw_line_with_dot (frame, data, XYdata[2]->x, XYdata[2]->y, XYdata[3]->x,
-        XYdata[3]->y);
-  if (XYdata[3]->valid && XYdata[4]->valid)
-    draw_line_with_dot (frame, data, XYdata[3]->x, XYdata[3]->y, XYdata[4]->x,
-        XYdata[4]->y);
-  if (XYdata[1]->valid && XYdata[5]->valid)
-    draw_line_with_dot (frame, data, XYdata[1]->x, XYdata[1]->y, XYdata[5]->x,
-        XYdata[5]->y);
-  if (XYdata[5]->valid && XYdata[6]->valid)
-    draw_line_with_dot (frame, data, XYdata[5]->x, XYdata[5]->y, XYdata[6]->x,
-        XYdata[6]->y);
-  if (XYdata[6]->valid && XYdata[7]->valid)
-    draw_line_with_dot (frame, data, XYdata[6]->x, XYdata[6]->y, XYdata[7]->x,
-        XYdata[7]->y);
-  if (XYdata[1]->valid && XYdata[8]->valid)
-    draw_line_with_dot (frame, data, XYdata[1]->x, XYdata[1]->y, XYdata[8]->x,
-        XYdata[8]->y);
-  if (XYdata[8]->valid && XYdata[9]->valid)
-    draw_line_with_dot (frame, data, XYdata[8]->x, XYdata[8]->y, XYdata[9]->x,
-        XYdata[9]->y);
-  if (XYdata[9]->valid && XYdata[10]->valid)
-    draw_line_with_dot (frame, data, XYdata[9]->x, XYdata[9]->y,
-        XYdata[10]->x, XYdata[10]->y);
-  if (XYdata[1]->valid && XYdata[11]->valid)
-    draw_line_with_dot (frame, data, XYdata[1]->x, XYdata[1]->y,
-        XYdata[11]->x, XYdata[11]->y);
-  if (XYdata[11]->valid && XYdata[12]->valid)
-    draw_line_with_dot (frame, data, XYdata[11]->x, XYdata[11]->y,
-        XYdata[12]->x, XYdata[12]->y);
-  if (XYdata[12]->valid && XYdata[13]->valid)
-    draw_line_with_dot (frame, data, XYdata[12]->x, XYdata[12]->y,
-        XYdata[13]->x, XYdata[13]->y);
+  for (i = 0; i < pose_size; i++) {
+    pose_metadata_t *smd;
+    if (XYdata[i]->valid == FALSE)
+      continue;
+    smd = pose_get_metadata_by_id (data, i);
+    if (smd == NULL)
+      continue;
+    for (j = 0; j < smd->num_connections; j++) {
+      gint k = smd->connections[j];
+      /* Have we already drawn the connection ? */
+      if ((k > data->total_labels) || (k < i))
+        continue;
+      /* Is the body point valid ? */
+      if (XYdata[k]->valid == FALSE)
+        continue;
+      draw_line_with_dot (frame, data,
+          XYdata[i]->x, XYdata[i]->y, XYdata[k]->x, XYdata[k]->y);
+    }
+  }
+
   draw_label (frame, data, *XYdata);
 
   g_free (XYdata);
@@ -511,7 +627,7 @@ pose_decode (void **pdata, const GstTensorsConfig * config,
   /** reset the buffer with alpha 0 / black */
   memset (out_info.data, 0, size);
 
-  pose_size = data->labeldata.total_labels;
+  pose_size = data->total_labels;
 
   results = g_array_sized_new (FALSE, TRUE, sizeof (pose), pose_size);
   detections = &input[0];
