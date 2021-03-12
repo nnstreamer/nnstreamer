@@ -63,7 +63,7 @@ TEST (cppFilterOnDemand, basic04_n)
 }
 
 /** @brief Actual GST Pipeline with cpp on demand */
-TEST (cppFilterOnDemand, pipelne01)
+TEST (cppFilterOnDemand, pipeline01)
 {
   filter_basic basic ("pl01");
   char *tmp1 = getTempFilename ();
