@@ -740,6 +740,11 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
   if (filter->mode == GTT_UNKNOWN || filter->option == NULL)
     return TRUE;
 
+  if (strlen (filter->option) == 0) {
+    ml_loge ("Given option string is empty, you should set proper option.");
+    return FALSE;
+  }
+
   filter_name = gst_object_get_name ((GstObject *) filter);
 
   switch (filter->mode) {
