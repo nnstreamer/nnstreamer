@@ -416,11 +416,11 @@ TEST (nnstreamer_rate, no_throttling)
   EXPECT_EQ (dup, 0U);
 
   /** we don't expect the exact values */
-  EXPECT_GE (out, (guint64) ((option.source_num_buffers / 2) * 0.95));
-  EXPECT_LE (out, (guint64) ((option.source_num_buffers / 2) * 1.05));
+  EXPECT_GE (out, (guint64) (((float) option.source_num_buffers / 2.0) * 0.95));
+  EXPECT_LE (out, (guint64) (((float) option.source_num_buffers / 2.0) * 1.05));
 
-  EXPECT_GE (drop, (guint64) ((option.source_num_buffers / 2) * 0.95));
-  EXPECT_LE (drop, (guint64) ((option.source_num_buffers / 2) * 1.05));
+  EXPECT_GE (drop, (guint64) (((float) option.source_num_buffers / 2.0) * 0.95));
+  EXPECT_LE (drop, (guint64) (((float) option.source_num_buffers / 2.0) * 1.05));
 
   EXPECT_EQ (setPipelineStateSync (test_data.pipeline, GST_STATE_NULL,
         UNITTEST_STATECHANGE_TIMEOUT), 0);
@@ -471,11 +471,11 @@ TEST (nnstreamer_rate, throttling)
   g_object_get (rate, "drop", &drop, NULL);
 
   /** we don't expect the exact values */
-  EXPECT_GE (in, (guint64) ((option.source_num_buffers / 2) * 0.95));
-  EXPECT_LE (in, (guint64) ((option.source_num_buffers / 2) * 1.05));
+  EXPECT_GE (in, (guint64) (((float) option.source_num_buffers / 2.0) * 0.95));
+  EXPECT_LE (in, (guint64) (((float) option.source_num_buffers / 2.0) * 1.05));
 
-  EXPECT_GE (out, (guint64) ((option.source_num_buffers / 2) * 0.95));
-  EXPECT_LE (out, (guint64) ((option.source_num_buffers / 2) * 1.05));
+  EXPECT_GE (out, (guint64) (((float) option.source_num_buffers / 2.0) * 0.95));
+  EXPECT_LE (out, (guint64) (((float) option.source_num_buffers / 2.0) * 1.05));
 
   EXPECT_EQ (setPipelineStateSync (test_data.pipeline, GST_STATE_NULL,
         UNITTEST_STATECHANGE_TIMEOUT), 0);
