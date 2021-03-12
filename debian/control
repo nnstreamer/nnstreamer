@@ -11,7 +11,6 @@ Build-Depends: gcc-9 | gcc-8 | gcc-7 | gcc-6 | gcc-5 (>=5.4),
  tensorflow-lite-dev, pytorch, libedgetpu1-std (>=12), libedgetpu-dev (>=12),
  openvino-dev, openvino-cpu-mkldnn [amd64], libflatbuffers-dev, flatbuffers-compiler,
  protobuf-compiler (>=3.12), libprotobuf-dev [amd64 arm64 armhf],
- protobuf-compiler-grpc [amd64], libgrpc-dev [amd64], libgrpc++-dev [amd64],
  tensorflow-dev [amd64], python2.7-dev
 Standards-Version: 3.9.6
 Homepage: https://github.com/nnstreamer/nnstreamer
@@ -103,28 +102,6 @@ Multi-Arch: same
 Depends: nnstreamer, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer Flatbuf converter/decoder support
  This package allows to pack/unpack tensor streams to/from flatbuf.
-
-Package: nnstreamer-grpc
-Architecture: amd64
-Multi-Arch: same
-Depends: nnstreamer, ${shlibs:Depends}, ${misc:Depends}
-Recommends: nnstreamer-grpc-protobuf, nnstreamer-grpc-flatbuf
-Description: NNStreamer gRPC tensor source/sink support
- This package allows nnstreamer to support gRPC tensor source/sink as a extra plugin
-
-Package: nnstreamer-grpc-protobuf
-Architecture: amd64
-Multi-Arch: same
-Depends: nnstreamer, nnstreamer-grpc, nnstreamer-protobuf, ${shlibs:Depends}, ${misc:Depends}
-Description: NNStreamer gRPC IDL support for protobuf
- This package allows nnstreamer-grpc to use protobuf as its IDL
-
-Package: nnstreamer-grpc-flatbuf
-Architecture: amd64
-Multi-Arch: same
-Depends: nnstreamer, nnstreamer-grpc, nnstreamer-flatbuf, ${shlibs:Depends}, ${misc:Depends}
-Description: NNStreamer gRPC IDL support for flatbuf
- This package allows nnstreamer-grpc to use flatbuf as its IDL
 
 Package: nnstreamer-dev
 Architecture: any
