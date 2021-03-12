@@ -54,11 +54,53 @@
  * 	leftAnkle 13
  * 	rightAnkle 14
  *
+ * option4: Mode (optional)
+ *      Available: heatmap-only (default)
+ *                 heatmap-offset
+ *
+ * 	Expected input dims:
+ * 		Note: Width, Height are related to heatmap resolution.
+ * 		- heatmap-only:
+ *   			Tensors mapping: Heatmap
+ *   			Tensor[0]: #labels x width x height (float32, label probability)
+ *                    		(e.g., 14 x 33 x 33 )
+ * 		- heatmap-offset:
+ * 			Compatible with posenet_mobilenet_v1_100_257x257_multi_kpt_stripped.tflite
+ *   			Tensors mapping: Heatmap, Offset
+ *   			Tensor[0]: #labels : width : height (float32, label sigmoid probability)
+ *	                    	(e.g., 17 x 9 x 9 )
+ *   			Tensor[1]: #labels x 2: width : height (float32, Offset position within heatmap grid)
+ *	                    	(e.g., 34 x 9 x 9 )
+ *
+ * Pipeline:
+ * 	v4l2src
+ * 	   |
+ * 	videoconvert
+ * 	   |
+ * 	videoscale -- tee ------------------------------------------------- compositor -- videoconvert -- ximagesink 
+ * 	                |                                                       |
+ *		   videoscale							| 
+ * 	                |                                                       |
+ *		   tensor_converter -- tensor_transform -- tensor_filter -- tensor_decoder
+ *
+ * 	- Used model is posenet_mobilenet_v1_100_257x257_multi_kpt_stripped.tflite
+ * 	- Resize image into 257:257 at the second videoscale.
+ * 	- Transform RGB value into float32 in range [0,1] at tensor_transform.
+ *
+ * 	gst-launch-1.0 v4l2src ! videoconvert ! videoscale ! \
+ * 	   video/x-raw,format=RGB,width=640,height=480,framerate=30/1 ! \tee name=t \
+ * 	   t. ! queue ! videoscale ! video/x-raw,width=257,height=257,format=RGB ! \
+ * 	   tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-127.5,div:127.5 ! \
+ * 	   tensor_filter framework=tensorflow-lite model=posenet_mobilenet_v1_100_257x257_multi_kpt_stripped.tflite ! \
+ * 	   tensor_decoder mode=pose_estimation option1=640:480 option2=257:257 option3=pose_label.txt option4=heatmap-offset ! \
+ * 	   compositor name=mix sink_0::zorder=1 sink_1::zorder=0 ! videoconvert ! ximagesink \
+ * 	   t. ! queue ! mix.
  */
 
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <math.h>
 #include <glib.h>
 #include <gst/gst.h>
 #include <nnstreamer_plugin_api_decoder.h>
@@ -76,6 +118,31 @@ extern uint8_t rasters[][13];
 
 #define POSE_MD_MAX_LABEL_SZ 16
 #define POSE_MD_MAX_CONNECTIONS_SZ 8
+
+/**
+ * @brief Macro for calculating sigmoid
+ */
+#define _sigmoid(x) \
+    (1.f / (1.f + expf (-x)))
+
+/**
+ * @brief There can be different schemes for pose estimation decoding scheme.
+ */
+typedef enum
+{
+  HEATMAP_ONLY = 0,
+  HEATMAP_OFFSET = 1,
+  HEATMAP_UNKNOWN,
+} pose_modes;
+
+/**
+ * @brief List of pose estimation decoding schemes in string
+ */
+static const char *pose_string_modes[] = {
+  [HEATMAP_ONLY] = "heatmap-only",
+  [HEATMAP_OFFSET] = "heatmap-offset",
+  NULL,
+};
 
 /**
  * @brief Data structure for key body point description.
@@ -144,6 +211,9 @@ typedef struct
   /* From option3 */
   pose_metadata_t *metadata; /**< Pose metadata from file, if any*/
   guint total_labels; /**< Total number of key body point */
+
+  /* From option4 */
+  pose_modes mode; /**< The pose estimation decoding mode */
 } pose_data;
 
 /**
@@ -262,6 +332,8 @@ pose_init (void **pdata)
   data->metadata = pose_metadata_default;
   data->total_labels = POSE_SIZE_DEFAULT;
 
+  data->mode = HEATMAP_ONLY;
+
   initSingleLineSprite (singleLineSprite, rasters, PIXEL_VALUE);
 
   return TRUE;
@@ -336,6 +408,15 @@ pose_setOption (void **pdata, int opNum, const char *param)
     return TRUE;
   } else if (opNum == 2) {
     return pose_load_metadata_from_file (data, (const gchar *) param);
+  } else if (opNum == 3) {
+    gint mode = find_key_strv (pose_string_modes, param);
+    if (mode == -1) {
+      GST_ERROR ("Mode %s is not supported\n", param);
+      return FALSE;
+    }
+    data->mode = mode;
+
+    return TRUE;
   }
 
   GST_INFO ("Property mode-option-%d is ignored", opNum + 1);
@@ -376,7 +457,7 @@ pose_getOutCaps (void **pdata, const GstTensorsConfig * config)
   char *str;
   guint pose_size;
 
-  const uint32_t *dim1;
+  const uint32_t *dim;
 
   if (!_check_tensors (config))
     return NULL;
@@ -384,10 +465,18 @@ pose_getOutCaps (void **pdata, const GstTensorsConfig * config)
   pose_size = data->total_labels;
 
   /* Check if the first tensor is compatible */
-  dim1 = config->info.info[0].dimension;
-  g_return_val_if_fail (dim1[0] == pose_size, NULL);
+  dim = config->info.info[0].dimension;
+  g_return_val_if_fail (dim[0] == pose_size, NULL);
   for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
-    g_return_val_if_fail (dim1[i] == 1, NULL);
+    g_return_val_if_fail (dim[i] == 1, NULL);
+
+  if (data->mode == HEATMAP_OFFSET) {
+    dim = config->info.info[1].dimension;
+    g_return_val_if_fail (dim[0] == (2 * pose_size), NULL);
+
+    for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
+      g_return_val_if_fail (dim[i] == 1, NULL);
+  }
 
   str = g_strdup_printf ("video/x-raw, format = RGBA, " /* Use alpha channel to make the background transparent */
       "width = %u, height = %u", data->width, data->height);
@@ -458,16 +547,18 @@ draw_line_with_dot (uint32_t * frame, pose_data * data, int x1, int y1, int x2,
     -1, 1, 2, 3, -3, -2, -1, 0, 1, 2, 3, -2, -1, 0, 1, 2, -1, 0, 1
   };
 
-  int xs = (x1 * data->width) / data->i_width;
-  int ys = (y1 * data->height) / data->i_height;
-  int xe = (x2 * data->width) / data->i_width;
-  int ye = (y2 * data->height) / data->i_height;
+  int xs, ys, xe, ye;
 
-  if (xs > xe) {
-    xs = (x2 * data->width) / data->i_width;
-    ys = (y2 * data->height) / data->i_height;
-    xe = (x1 * data->width) / data->i_width;
-    ye = (y1 * data->height) / data->i_height;
+  if (x1 > x2) {
+    xs = x2;
+    ys = y2;
+    xe = x1;
+    ye = y1;
+  } else {
+    xs = x1;
+    ys = y1;
+    xe = x2;
+    ye = y2;
   }
 
 
@@ -522,8 +613,8 @@ draw_label (uint32_t * frame, pose_data * data, pose * xydata)
   for (i = 0; i < pose_size; i++) {
     if (xydata[i].valid) {
       pose_metadata_t *md = pose_get_metadata_by_id (data, i);
-      x1 = (xydata[i].x * data->width) / data->i_width;
-      y1 = (xydata[i].y * data->height) / data->i_height;
+      x1 = xydata[i].x;
+      y1 = xydata[i].y;
       if (md == NULL)
         continue;
       label = md->label;
@@ -608,6 +699,7 @@ pose_decode (void **pdata, const GstTensorsConfig * config,
   const GstTensorMemory *detections = NULL;
   float *arr;
   int index, i, j;
+  int grid_xsize, grid_ysize;
   guint pose_size;
 
   g_assert (outbuf); /** GST Internal Bug */
@@ -629,17 +721,23 @@ pose_decode (void **pdata, const GstTensorsConfig * config,
 
   pose_size = data->total_labels;
 
+  grid_xsize = config->info.info[0].dimension[1];
+  grid_ysize = config->info.info[0].dimension[2];
+
   results = g_array_sized_new (FALSE, TRUE, sizeof (pose), pose_size);
   detections = &input[0];
   arr = detections->data;
   for (index = 0; index < pose_size; index++) {
     int maxX = 0;
     int maxY = 0;
-    float max = 0.0;
+    float max = G_MINFLOAT;
     pose p;
-    for (j = 0; j < data->i_height; j++) {
-      for (i = 0; i < data->i_width; i++) {
-        float cen = arr[i * pose_size + j * data->i_width * pose_size + index];
+    for (j = 0; j < grid_ysize; j++) {
+      for (i = 0; i < grid_xsize; i++) {
+        float cen = arr[i * pose_size + j * grid_xsize * pose_size + index];
+        if (data->mode == HEATMAP_OFFSET) {
+          cen = _sigmoid (cen);
+        }
         if (cen > max) {
           max = cen;
           maxX = i;
@@ -647,10 +745,29 @@ pose_decode (void **pdata, const GstTensorsConfig * config,
         }
       }
     }
+
     p.valid = TRUE;
-    p.x = maxX;
-    p.y = maxY;
     p.prob = max;
+    if (data->mode == HEATMAP_OFFSET) {
+      const gfloat *offset = ((const GstTensorMemory *) &input[1])->data;
+      gfloat offsetX, offsetY, posX, posY;
+      int offsetIdx;
+      offsetIdx = (maxY * grid_xsize + maxX) * pose_size * 2 + index;
+      offsetY = offset[offsetIdx];
+      offsetX = offset[offsetIdx + pose_size];
+      posX = (((gfloat) maxX) / (grid_xsize - 1)) * data->i_width + offsetX;
+      posY = (((gfloat) maxY) / (grid_ysize - 1)) * data->i_height + offsetY;
+      p.x = posX * data->width / data->i_width;
+      p.y = posY * data->height / data->i_height;
+
+    } else {
+      p.x = (maxX * data->width) / data->i_width;
+      p.y = (maxY * data->height) / data->i_height;;
+    }
+    /* Some keypoints can be estimated slightly out of image range */
+    p.x = MIN (data->width, MAX (0, p.x));
+    p.y = MIN (data->height, MAX (0, p.y));
+
     g_array_append_val (results, p);
   }
 
