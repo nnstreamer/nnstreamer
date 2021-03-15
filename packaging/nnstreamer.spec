@@ -124,8 +124,11 @@ Source0:	nnstreamer-%{version}.tar.gz
 Source1:	generate-tarball.sh
 Source1001:	nnstreamer.manifest
 
+## Define requirements ##
+Requires: nnstreamer-core = %{version}-%{release}
+Requires: nnstreamer-configuration = %{version}-%{release}
+
 ## Define build requirements ##
-Requires:	gstreamer >= 1.8.0
 BuildRequires:	gstreamer-devel
 BuildRequires:	gst-plugins-base-devel
 BuildRequires:	gst-plugins-bad-devel
@@ -262,7 +265,20 @@ BuildRequires:	pkgconfig(orc-0.4)
 ## Define Packages ##
 %description
 NNStreamer is a set of gstreamer plugins to support general neural networks
-and their plugins in a gstreamer stream.
+and their plugins in a gstreamer stream. NNStreamer is a meta package of
+nnstreamer-core and nnstreamer-configuration
+
+%package core
+Requires: gstreamer >= 1.8.0
+Summary: NNStreamer core package
+%description core
+NNStreamer is a set of gstreamer plugins to support general neural networks
+and their plugins in a gstreamer stream, this package is core package without configuration
+
+%package configuration
+Summary: NNStreamer global configuration
+%description configuration
+NNStreamer's configuration setup for the end user.
 
 # for tensorflow
 %if 0%{?tensorflow_support}
@@ -370,7 +386,7 @@ NNStreamer's tensor_fliter subplugin of caffe2
 
 %package devel
 Summary:	Development package for custom tensor operator developers (tensor_filter/custom)
-Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-core = %{version}-%{release}
 Requires:	glib2-devel
 Requires:	gstreamer-devel
 %description devel
@@ -394,6 +410,7 @@ Static library package of nnstreamer-devel.
 %package test-devel
 Summary: Development package to provide testable environment of a subplugin (tensor_filter/custom)
 Requires: nnstreamer-devel = %{version}-%{release}
+Conflicts: nnstreamer-configuration
 %description test-devel
 Development package to provide testable environment of NNStreamer sub-plugin.
 This package enables testable environment of NNStreamer sub-plugin by making nnstreamer to recognize NNSTREAMER_CONF_PATH to steer a sub-plugin path to a custom path.
@@ -744,13 +761,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 
 %postun -p /sbin/ldconfig
 
-%post test-devel
-mv /etc/nnstreamer.ini /etc/nnstreamer.ini.bak
-
-%postun test-devel
-mv /etc/nnstreamer.ini.bak /etc/nnstreamer.ini
-
-%files
+%files core
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %license LICENSE
@@ -762,6 +773,8 @@ mv /etc/nnstreamer.ini.bak /etc/nnstreamer.ini
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_cpp.so
 %{gstlibdir}/libnnstreamer.so
 %{_libdir}/libnnstreamer.so
+
+%files configuration
 %{_sysconfdir}/nnstreamer.ini
 
 # for tensorflow

@@ -19,9 +19,27 @@ Homepage: https://github.com/nnstreamer/nnstreamer
 Package: nnstreamer
 Architecture: any
 Multi-Arch: same
+Depends: nnstreamer-core, nnstreamer-configuration, ${shlibs:Depends}, ${misc:Depends}
+Description: NNStreamer plugins for Gstreamer
+ Gstreamer plugins, "NNStreamer", provides access to neural network frameworks for media streams.
+ This package is meta package of nnstreamer-core and nnstreamer-configuration.
+
+Package: nnstreamer-core
+Architecture: any
+Multi-Arch: same
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer plugins for Gstreamer
  Gstreamer plugins, "NNStreamer", provides access to neural network frameworks for media streams.
+ This package is core package without configuration.
+
+Package: nnstreamer-configuration
+Architecture: any
+Multi-Arch: same
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: NNStreamer plugins for Gstreamer
+ Gstreamer plugins, "NNStreamer", provides access to neural network frameworks for media streams.
+ This package contains nnstreamer configuration.
+
 
 Package: nnstreamer-tensorflow
 Architecture: amd64
