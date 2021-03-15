@@ -222,6 +222,12 @@ if not get_option('grpc-support').disabled()
   grpcpp_dep = dependency('grpc++', required: false)
 endif
 
+# mqtt (paho.mqtt.c)
+pahomqttc_dep = dependency('', required: false)
+if not get_option('mqtt-support').disabled()
+  pahomqttc_dep = dependency('paho-mqtt-c', required: false)
+endif
+
 # features registration to be controlled
 #
 # register feature as follows
@@ -296,6 +302,9 @@ features = {
   'lua-support': {
     'target': 'lua',
     'project_args': { 'ENABLE_LUA' : 1}
+  },
+  'mqtt-support': {
+    'extra_deps': [ pahomqttc_dep ]
   }
 }
 

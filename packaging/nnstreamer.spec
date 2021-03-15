@@ -31,6 +31,7 @@
 %define		grpc_support 1
 %define		pytorch_support 0
 %define		caffe2_support 0
+%define		mqtt_support 0
 
 %define		check_test 1
 %define		release_test 1
@@ -635,6 +636,13 @@ Provides additional gstreamer plugins for nnstreamer pipelines
 %define enable_flatbuf -Dflatbuf-support=disabled
 %endif
 
+# Support mqtt
+%if 0%{?mqtt_support}
+%define enable_mqtt -Dmqtt-support=enabled
+%else
+%define enable_mqtt -Dmqtt-support=disabled
+%endif
+
 %prep
 rm -rf ./build
 %setup -q
@@ -663,7 +671,7 @@ meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir
 	%{enable_tizen} %{element_restriction} -Denable-env-var=false -Denable-symbolic-link=false \
 	%{enable_tf_lite} %{enable_tf2_lite} %{enable_tf} %{enable_pytorch} %{enable_caffe2} %{enable_python3} \
 	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_openvino} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} %{enable_flatbuf} \
-	%{enable_tizen_sensor} %{enable_test} %{enable_test_coverage} %{install_test} \
+	%{enable_tizen_sensor} %{enable_mqtt} %{enable_test} %{enable_test_coverage} %{install_test} \
 	build
 
 ninja -C build %{?_smp_mflags}
