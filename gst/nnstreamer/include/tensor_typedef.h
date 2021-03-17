@@ -135,7 +135,7 @@ typedef enum _nns_media_type
   _NNS_AUDIO = 1, /**< supposedly audio/x-raw */
   _NNS_TEXT = 2, /**< supposedly text/x-raw */
   _NNS_OCTET = 3, /**< supposedly application/octet-stream */
-  _NNS_MEDIA_PLUGINS = 0x1000, /**< external converters */
+  _NNS_MEDIA_ANY = 0x1000, /**< any media type (find proper external converter in tensor-converter element) */
 } media_type;
 
 /**
