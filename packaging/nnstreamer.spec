@@ -88,6 +88,7 @@
 %define		protobuf_support 0
 %define		python3_support 0
 %define		mvncsdk2_support 0
+%define		openvino_support 0
 %endif
 
 # DA requested to remove unnecessary module builds
@@ -673,10 +674,11 @@ export NNSTREAMER_CONVERTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor
 
 %define test_script $(pwd)/packaging/run_unittests_binaries.sh
 
-%if %{with tizen}
+%if ( %{with tizen} && "%{?profile}" != "tv" )
     bash %{test_script} ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw
     bash %{test_script} ./tests/tizen_sensor/unittest_tizen_sensor
 %endif #if tizen
+
 %if 0%{?unit_test}
     bash %{test_script} ./tests
     bash %{test_script} ./tests/cpp_methods
@@ -696,9 +698,9 @@ export NNSTREAMER_CONVERTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor
 
     ssat -n -p=1 --summary summary.txt -cn _n
     popd
-%endif #if unit_test
 
 python tools/development/count_test_cases.py build tests/summary.txt
+%endif #if unit_test
 
 %install
 DESTDIR=%{buildroot} ninja -C build %{?_smp_mflags} install
