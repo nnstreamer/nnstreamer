@@ -72,6 +72,7 @@ static subpluginSearchLogic searchAlgorithm[] = {
   [NNS_SUBPLUGIN_DECODER] = NNS_SEARCH_FILENAME,
   [NNS_EASY_CUSTOM_FILTER] = NNS_SEARCH_FILENAME,
   [NNS_SUBPLUGIN_CONVERTER] = NNS_SEARCH_GETALL,
+  [NNS_CUSTOM_CONVERTER] = NNS_SEARCH_NO_OP,
   [NNS_IF_CUSTOM] = NNS_SEARCH_NO_OP,
   [NNS_SUBPLUGIN_END] = NNS_SEARCH_NO_OP,
 };
@@ -182,6 +183,7 @@ register_subplugin (subpluginType type, const char *name, const void *data)
     case NNS_EASY_CUSTOM_FILTER:
     case NNS_SUBPLUGIN_CONVERTER:
     case NNS_IF_CUSTOM:
+    case NNS_CUSTOM_CONVERTER:
       break;
     default:
       /* unknown sub-plugin type */

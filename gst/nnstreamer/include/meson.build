@@ -4,6 +4,7 @@ nnst_common_headers = [
   'tensor_typedef.h',
   'tensor_filter_custom.h',
   'tensor_filter_custom_easy.h',
+  'tensor_converter_custom.h',
   'nnstreamer_plugin_api_filter.h',
   'nnstreamer_plugin_api_decoder.h',
   'nnstreamer_plugin_api_converter.h',

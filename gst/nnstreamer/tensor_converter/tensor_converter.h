@@ -38,6 +38,7 @@
 #include <gst/base/gstadapter.h>
 #include <tensor_common.h>
 #include "nnstreamer_plugin_api_converter.h"
+#include "tensor_converter_custom.h"
 
 G_BEGIN_DECLS
 
@@ -54,6 +55,19 @@ G_BEGIN_DECLS
 
 typedef struct _GstTensorConverter GstTensorConverter;
 typedef struct _GstTensorConverterClass GstTensorConverterClass;
+typedef struct
+{
+  tensor_converter_custom func;
+  void * data;
+} converter_custom_cb_s;
+
+/**
+ * @brief tensor converter mode
+ */
+typedef enum {
+  _CONVERTER_MODE_NONE = 0,	/**< Normal mode (default) */
+  _CONVERTER_MODE_CUSTOM = 1,	/**<  Custom mode */
+} tensor_converter_mode;
 
 /**
  * @brief Internal data structure for tensor_converter instances.
@@ -85,6 +99,10 @@ struct _GstTensorConverter
   gboolean need_segment; /**< True to handle seg event */
   GstSegment segment; /**< Segment, supposed time format */
   GstClockTime old_timestamp; /**< timestamp at prev buffer */
+
+  tensor_converter_mode mode; /**< tensor converter operating mode */
+  gchar *mode_option; /**< tensor converter mode option */
+  converter_custom_cb_s custom;
 };
 
 /**

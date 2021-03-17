@@ -6,6 +6,7 @@
 /usr/include/nnstreamer/tensor_if.h
 /usr/include/nnstreamer/tensor_filter_custom.h
 /usr/include/nnstreamer/tensor_filter_custom_easy.h
+/usr/include/nnstreamer/tensor_converter_custom.h
 /usr/include/nnstreamer/tensor_typedef.h
 /usr/include/nnstreamer/tensor_filter_cpp.hh
 /usr/include/nnstreamer/nnstreamer_cppplugin_api_filter.hh
