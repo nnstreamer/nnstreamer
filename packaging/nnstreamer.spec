@@ -761,6 +761,8 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 
 %postun -p /sbin/ldconfig
 
+%files
+
 %files core
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
@@ -775,7 +777,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_libdir}/libnnstreamer.so
 
 %files configuration
-%{_sysconfdir}/nnstreamer.ini
+%config %{_sysconfdir}/nnstreamer.ini
 
 # for tensorflow
 %if 0%{?tensorflow_support}
