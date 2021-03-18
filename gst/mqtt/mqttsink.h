@@ -15,6 +15,7 @@
 #define __GST_MQTT_SINK_H__
 #include <gst/base/gstbasesink.h>
 #include <gst/gst.h>
+#include <MQTTClient.h>
 
 #include "mqttcommon.h"
 
@@ -44,6 +45,17 @@ typedef struct _GstMqttSinkClass GstMqttSinkClass;
 struct _GstMqttSink {
   GstBaseSink parent;
   guint num_buffers;
+  GQuark gquark_err_tag;
+  GError *err;
+  MQTTClient *mqtt_client_handle;
+  MQTTClient_connectOptions *mqtt_conn_opts;
+  gchar *mqtt_client_id;
+  gchar *mqtt_host_address;
+  gchar *mqtt_host_port;
+  gchar *mqtt_topic;
+  gulong mqtt_pub_wait_timeout;
+  gboolean mqtt_msg_hdr_update_flag;
+  GstMQTTMessageHdr *mqtt_msg_hdr;
 };
 
 /**
