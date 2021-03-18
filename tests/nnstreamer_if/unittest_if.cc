@@ -17,28 +17,6 @@
 #include "../gst/nnstreamer/tensor_if/gsttensorif.h"
 
 #define TEST_TIMEOUT_MS (1000U)
-/**
- * @brief Wait until the pipeline saving the file
- * @return TRUE on success, FALSE when a time-out occurs
- */
-#define _wait_pipeline_save_files(file, content, len, exp_len, timeout_ms) \
-  do {                                                                     \
-    guint timer = 0;                                                       \
-    guint tick = TEST_DEFAULT_SLEEP_TIME / 1000U;                          \
-    if (tick == 0)                                                         \
-      tick = 1;                                                            \
-    do {                                                                   \
-      g_usleep (TEST_DEFAULT_SLEEP_TIME);                                  \
-      g_file_get_contents (file, &content, &len, NULL);                    \
-      timer += tick;                                                       \
-      if (timer > timeout_ms) {                                            \
-        EXPECT_GE (timeout_ms, timer);                                     \
-        break;                                                             \
-      }                                                                    \
-      if (len != exp_len)                                                  \
-        g_free (content);                                                  \
-    } while (len != exp_len);                                              \
-  } while (0)
 
 static int data_received;
 
