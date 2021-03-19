@@ -35,6 +35,7 @@
 #include "tensor_common.h"
 #include "nnstreamer_subplugin.h"
 #include "nnstreamer_plugin_api_decoder.h"
+#include "tensor_decoder_custom.h"
 
 G_BEGIN_DECLS
 
@@ -52,6 +53,11 @@ G_BEGIN_DECLS
 
 typedef struct _GstTensorDec GstTensorDec;
 typedef struct _GstTensorDecClass GstTensorDecClass;
+typedef struct
+{
+  tensor_decoder_custom func;
+  void * data;
+} decoder_custom_cb_s;
 
 #define TensorDecMaxOpNum (9)
 
@@ -70,6 +76,10 @@ struct _GstTensorDec
   /** For Tensor */
   gboolean configured; /**< TRUE if already successfully configured tensor metadata */
   GstTensorsConfig tensor_config; /**< configured tensor info @todo support tensors in the future */
+
+  /** For tensor decoder custom */
+  gboolean is_custom;
+  decoder_custom_cb_s custom;
 
   const GstTensorDecoderDef *decoder; /**< Plugin object */
   void *plugin_data;

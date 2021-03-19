@@ -242,6 +242,14 @@ gst_tensordec_media_caps_from_tensor (GstTensorDec * self,
   g_return_val_if_fail (config != NULL, NULL);
 
   if (self->decoder == NULL) {
+    if (self->is_custom) {
+      GstCaps *caps;
+      caps = gst_caps_from_string ("application/octet-stream");
+      if (config->rate_n >= 0 && config->rate_d > 0)
+        gst_caps_set_simple (caps, "framerate",
+            GST_TYPE_FRACTION, config->rate_n, config->rate_d, NULL);
+      return caps;
+    }
     GST_ERROR_OBJECT (self, "Decoder plugin is not yet configured.");
     return NULL;
   }
@@ -418,7 +426,9 @@ gst_tensordec_init (GstTensorDec * self)
   self->negotiated = FALSE;
   self->decoder = NULL;
   self->plugin_data = NULL;
-
+  self->is_custom = FALSE;
+  self->custom.func = NULL;
+  self->custom.data = NULL;
   for (i = 0; i < TensorDecMaxOpNum; i++)
     self->option[i] = NULL;
 
@@ -478,6 +488,11 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
       guint i;
 
       mode_string = g_value_get_string (value);
+      if (g_ascii_strcasecmp (mode_string, "custom-code") == 0) {
+        self->is_custom = TRUE;
+        break;
+      }
+
       decoder = nnstreamer_decoder_find (mode_string);
 
       /* See if we are using "plugin" */
@@ -512,7 +527,6 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
         gst_tensor_decoder_clean_plugin (self);
         self->decoder = NULL;
       }
-
       break;
     }
       PROP_MODE_OPTION (1);
@@ -524,6 +538,7 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
       PROP_MODE_OPTION (7);
       PROP_MODE_OPTION (8);
       PROP_MODE_OPTION (9);
+
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -555,7 +570,9 @@ gst_tensordec_get_property (GObject * object, guint prop_id,
       g_value_set_boolean (value, self->silent);
       break;
     case PROP_MODE:
-      if (self->decoder)
+      if (self->is_custom)
+        g_value_set_string (value, "custom");
+      else if (self->decoder)
         g_value_set_string (value, self->decoder->modename);
       else
         g_value_set_string (value, "");
@@ -599,6 +616,8 @@ gst_tensordec_class_finalize (GObject * object)
   for (i = 0; i < TensorDecMaxOpNum; ++i) {
     g_free (self->option[i]);
   }
+  self->custom.func = NULL;
+  self->custom.data = NULL;
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -626,7 +645,7 @@ gst_tensordec_configure (GstTensorDec * self, const GstCaps * in_caps,
     return FALSE;
   }
 
-  if (self->decoder == NULL) {
+  if (self->decoder == NULL && !self->is_custom) {
     GST_ERROR_OBJECT (self, "Decoder plugin is not yet configured.");
     return FALSE;
   }
@@ -675,7 +694,7 @@ gst_tensordec_transform (GstBaseTransform * trans,
   if (G_UNLIKELY (!self->configured))
     goto unknown_format;
 
-  if (self->decoder) {
+  if (self->decoder || self->is_custom) {
     GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT];
     GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT];
     GstTensorMemory input[NNS_TENSOR_SIZE_LIMIT];
@@ -699,9 +718,16 @@ gst_tensordec_transform (GstBaseTransform * trans,
       input[i].data = in_info[i].data;
       input[i].size = in_info[i].size;
     }
-
-    res = self->decoder->decode (&self->plugin_data, &self->tensor_config,
-        input, outbuf);
+    if (!self->is_custom) {
+      res = self->decoder->decode (&self->plugin_data, &self->tensor_config,
+          input, outbuf);
+    } else if (self->custom.func != NULL) {
+      res = self->custom.func (input, &self->tensor_config, self->custom.data,
+          outbuf);
+    } else {
+      GST_ERROR_OBJECT (self, "Custom decoder callback is not registered.");
+      res = GST_FLOW_ERROR;
+    }
 
     for (i = 0; i < num_tensors; i++)
       gst_memory_unmap (in_mem[i], &in_info[i]);
@@ -745,8 +771,24 @@ gst_tensordec_transform_caps (GstBaseTransform * trans,
   self = GST_TENSOR_DECODER_CAST (trans);
 
   /* Not ready */
-  if (self->decoder == NULL)
+  if (self->decoder == NULL && !self->is_custom)
     return NULL;
+
+  if (self->is_custom) {
+    const decoder_custom_cb_s *ptr = NULL;
+    if (self->option[0] == NULL) {
+      nns_logw ("Tensor decoder custom option is not given.");
+      return NULL;
+    }
+    self->custom.func = NULL;
+    ptr = get_subplugin (NNS_CUSTOM_DECODER, self->option[0]);
+    if (!ptr) {
+      nns_logw ("Failed to find custom subplugin of the tensor_decoder");
+      return NULL;
+    }
+    self->custom.func = ptr->func;
+    self->custom.data = ptr->data;
+  }
 
   silent_debug ("Direction = %d\n", direction);
   silent_debug_caps (caps, "from");
@@ -850,9 +892,7 @@ static gboolean
 gst_tensordec_set_caps (GstBaseTransform * trans,
     GstCaps * incaps, GstCaps * outcaps)
 {
-  GstTensorDec *self;
-
-  self = GST_TENSOR_DECODER_CAST (trans);
+  GstTensorDec *self = GST_TENSOR_DECODER_CAST (trans);
 
   silent_debug_caps (incaps, "from incaps");
   silent_debug_caps (outcaps, "from outcaps");
@@ -893,13 +933,57 @@ gst_tensordec_transform_size (GstBaseTransform * trans,
   self = GST_TENSOR_DECODER_CAST (trans);
 
   g_assert (self->configured);
-  g_assert (self->decoder);
 
-  if (self->decoder->getTransformSize)
+  if (!self->is_custom && self->decoder->getTransformSize)
     *othersize = self->decoder->getTransformSize (&self->plugin_data,
         &self->tensor_config, caps, size, othercaps, direction);
   else
     *othersize = 0;
 
   return TRUE;
+}
+
+/**
+ * @brief Registers a callback for tensor_decoder custom condition
+ * @return 0 if success. -ERRNO if error.
+ */
+int
+nnstreamer_decoder_custom_register (const gchar * name,
+    tensor_decoder_custom func, void *data)
+{
+  decoder_custom_cb_s *ptr;
+
+  g_return_val_if_fail (name && strlen (name), -EINVAL);
+  g_return_val_if_fail (func, -EINVAL);
+
+  if (!(ptr = g_try_new0 (decoder_custom_cb_s, 1)))
+    return -ENOMEM;
+
+  ptr->func = func;
+  ptr->data = data;
+
+  if (register_subplugin (NNS_CUSTOM_DECODER, name, ptr) == TRUE)
+    return 0;
+
+  g_free (ptr);
+  return -EINVAL;
+}
+
+/**
+ * @brief Unregisters a callback for tensor_decoder custom condition
+ * @return 0 if success. -ERRNO if error.
+ */
+int
+nnstreamer_decoder_custom_unregister (const gchar * name)
+{
+  decoder_custom_cb_s *ptr;
+
+  ptr = (decoder_custom_cb_s *) get_subplugin (NNS_CUSTOM_DECODER, name);
+  if (!unregister_subplugin (NNS_CUSTOM_DECODER, name)) {
+    ml_loge ("Failed to unregister custom callback %s.", name);
+    return -EINVAL;
+  }
+  g_free (ptr);
+
+  return 0;
 }
