@@ -33,6 +33,27 @@
  *                          Blob | <tensor data>
  *                         }
  * }
+ *
+ * If you want to convert tensors to your own binary format of the flexbuffers,
+ * You can use custom mode of the tensor decoder.
+ * This is an example of a callback type custom mode.
+ * @code
+ * // Define custom callback function
+ * int * tensor_decoder_custom_cb (const GstTensorMemory *input,
+ *   const GstTensorsConfig *config, void * data, GstBuffer * out_buf) {
+ *   // Write a code to convert tensors to flexbuffers.
+ * }
+ *
+ * ...
+ * // Register custom callback function
+ * nnstreamer_decoder_custom_register ("tdec", tensor_converter_custom_cb, NULL);
+ * ...
+ * // Use the custom tensor converter in a pipeline.
+ * // E.g., Pipeline of " ... (tensors) ! tensor_decoder mode=custom-code option1=tdec ! (flexbuffers)... "
+ * ...
+ * // After everything is done.
+ * nnstreamer_decoder_custom_unregister ("tdec");
+ * @endcode
  */
 
 
