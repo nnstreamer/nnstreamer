@@ -571,7 +571,7 @@ gst_tensordec_get_property (GObject * object, guint prop_id,
       break;
     case PROP_MODE:
       if (self->is_custom)
-        g_value_set_string (value, "custom");
+        g_value_set_string (value, "custom-code");
       else if (self->decoder)
         g_value_set_string (value, self->decoder->modename);
       else

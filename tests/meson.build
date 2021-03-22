@@ -153,6 +153,18 @@ if gtest_dep.found()
     test('unittest_filter_armnn', unittest_filter_armnn, env: testenv)
   endif
 
+  # Run unittest_decoder
+  if flatbuf_support_is_available
+    unittest_decoder = executable('unittest_decoder',
+      join_paths('nnstreamer_decoder', 'unittest_decoder.cc'),
+      dependencies: [nnstreamer_unittest_deps, unittest_util_dep, flatbuf_dep],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+
+    test('unittest_decoder', unittest_decoder, env: testenv)
+  endif
+
   # gRPC unittest
   if grpc_support_is_available
     unittest_grpc = executable('unittest_grpc',
