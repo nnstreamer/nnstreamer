@@ -134,6 +134,7 @@ Source1001:	nnstreamer.manifest
 ## Define requirements ##
 Requires: nnstreamer-core = %{version}-%{release}
 Requires: nnstreamer-configuration = %{version}-%{release}
+Recommends: nnstreamer-default-configuration = %{version}-%{release}
 
 ## Define build requirements ##
 BuildRequires:	gstreamer-devel
@@ -282,10 +283,12 @@ Summary: NNStreamer core package
 NNStreamer is a set of gstreamer plugins to support general neural networks
 and their plugins in a gstreamer stream, this package is core package without configuration
 
-%package configuration
+%package default-configuration
 Summary: NNStreamer global configuration
-%description configuration
-NNStreamer's configuration setup for the end user.
+Provides: nnstreamer-configuration = %{version}-%{release}
+Conflicts: nnstreamer-test-devel
+%description default-configuration
+NNStreamer's global configuration setup for the end user.
 
 # for tensorflow
 %if 0%{?tensorflow_support}
@@ -393,7 +396,7 @@ NNStreamer's tensor_fliter subplugin of caffe2
 
 %package devel
 Summary:	Development package for custom tensor operator developers (tensor_filter/custom)
-Requires:	nnstreamer-core = %{version}-%{release}
+Requires:	nnstreamer = %{version}-%{release}
 Requires:	glib2-devel
 Requires:	gstreamer-devel
 %description devel
@@ -417,7 +420,8 @@ Static library package of nnstreamer-devel.
 %package test-devel
 Summary: Development package to provide testable environment of a subplugin (tensor_filter/custom)
 Requires: nnstreamer-devel = %{version}-%{release}
-Conflicts: nnstreamer-configuration
+Provides: nnstreamer-configuration = %{version}-%{release}
+Conflicts: nnstreamer-default-configuration
 %description test-devel
 Development package to provide testable environment of NNStreamer sub-plugin.
 This package enables testable environment of NNStreamer sub-plugin by making nnstreamer to recognize NNSTREAMER_CONF_PATH to steer a sub-plugin path to a custom path.
@@ -784,7 +788,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{gstlibdir}/libnnstreamer.so
 %{_libdir}/libnnstreamer.so
 
-%files configuration
+%files default-configuration
 %config %{_sysconfdir}/nnstreamer.ini
 
 # for tensorflow
