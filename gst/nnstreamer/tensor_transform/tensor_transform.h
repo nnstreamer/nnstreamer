@@ -161,8 +161,8 @@ struct _GstTensorTransform
 #endif
   GSList *operators; /**< operators list */
 
-  GstTensorConfig in_config; /**< input tensor info */
-  GstTensorConfig out_config; /**< output tensor info */
+  GstTensorsConfig in_config; /**< input tensors config */
+  GstTensorsConfig out_config; /**< output tensors config */
 };
 
 /**
