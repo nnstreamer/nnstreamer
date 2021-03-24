@@ -89,6 +89,12 @@
 %define		python3_support 0
 %define		mvncsdk2_support 0
 %define		openvino_support 0
+%define		nnfw_support 0
+%define		armnn_support 0
+%define		vivante_support 0
+%define		pytorch_support 0
+%define		caffe2_support 0
+%define		tensorflow_support 0
 %endif
 
 # DA requested to remove unnecessary module builds
