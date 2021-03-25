@@ -39,9 +39,14 @@ namespace nnstreamer
 {
 namespace flatbuf
 {
-
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 void init_fbc (void) __attribute__ ((constructor));
 void fini_fbc (void) __attribute__ ((destructor));
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 /** @brief tensor converter plugin's NNStreamerExternalConverter callback */
 static GstCaps *
@@ -155,6 +160,9 @@ static NNStreamerExternalConverter flatBuf = {
   .query_caps = fbc_query_caps
 };
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 /** @brief Initialize this object for tensor converter sub-plugin */
 void
 init_fbc (void)
@@ -168,6 +176,9 @@ fini_fbc (void)
 {
   unregisterExternalConverter (flatBuf.name);
 }
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 }; /* Namespace flatbuf */
 }; /* Namespace nnstreamer */
