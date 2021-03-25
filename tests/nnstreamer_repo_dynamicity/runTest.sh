@@ -34,12 +34,12 @@ convertBMP2PNG
 if [[ ! -z "${UNITTEST_DIR}" ]]; then
     TESTBINDIR="${UNITTEST_DIR}"
 elif [ ! -d "${PATH_TO_PLUGIN}" ] && [ ! -d "${UNITTEST_DIR}" ]; then
-    TESTBINDIR="/usr/lib/nnstreamer/unittest"
+    TESTBINDIR="/usr/bin/unittest-nnstreamer/tests"
 else
-    TESTBINDIR="../../build/tests"
+    TESTBINDIR="../../build/tests/nnstreamer_repo_dynamicity"
 fi
 
-${TESTBINDIR}/nnstreamer_repo_dynamicity/unittest_repo --gst-plugin-path=../../build
+${TESTBINDIR}/unittest_repo --gst-plugin-path=../../build
 
 callCompareTest testsequence_1.golden tensorsequence01_1.log 1-1 "Compare 1-1" 1 0
 callCompareTest testsequence_2.golden tensorsequence01_2.log 1-2 "Compare 1-2" 1 0
