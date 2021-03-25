@@ -127,13 +127,13 @@ Release:	0
 Group:		Applications/Multimedia
 Packager:	MyungJoo Ham <myungjoo.ham@samsung.com>
 License:	LGPL-2.1
-Source0:	nnstreamer-%{version}.tar.gz
+Source0:	%{name}-%{version}.tar.gz
 Source1:	generate-tarball.sh
-Source1001:	nnstreamer.manifest
+Source1001:	%{name}.manifest
 
 ## Define requirements ##
-Requires: nnstreamer-core = %{version}-%{release}
-Requires: nnstreamer-configuration = %{version}-%{release}
+Requires: %{name}-core = %{version}-%{release}
+Requires: %{name}-configuration = %{version}-%{release}
 
 ## Define build requirements ##
 BuildRequires:	gstreamer-devel
@@ -772,7 +772,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %files
 
 %files core
-%manifest nnstreamer.manifest
+%manifest %{name}.manifest
 %defattr(-,root,root,-)
 %license LICENSE
 %{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_bounding_boxes.so
