@@ -96,10 +96,23 @@ NNSTREAMER_FILTER_SNPE_SRCS := \
 NNSTREAMER_FILTER_SNAP_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_snap.cc
 
+# converter flatbuffers
+NNSTREAMER_CONVERTER_FLATBUF_SRCS := \
+    $(NNSTREAMER_EXT_HOME)/tensor_converter/tensor_converter_flatbuf.cc
+
+# converter flexbuffers
+NNSTREAMER_CONVERTER_FLEXBUF_SRCS := \
+    $(NNSTREAMER_EXT_HOME)/tensor_converter/tensor_converter_flexbuf.cc
+
 # decoder flatbuffers
 NNSTREAMER_DECODER_FLATBUF_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-flatbuf.cc \
-    $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordecutil.c \
+    $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordecutil.c
+
+# decoder flexbuffers
+NNSTREAMER_DECODER_FLEXBUF_SRCS := \
+    $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-flexbuf.cc \
+    $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordecutil.c
 
 # decoder boundingbox
 NNSTREAMER_DECODER_BB_SRCS := \
