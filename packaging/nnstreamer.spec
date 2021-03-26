@@ -127,8 +127,7 @@ Release:	0
 Group:		Applications/Multimedia
 Packager:	MyungJoo Ham <myungjoo.ham@samsung.com>
 License:	LGPL-2.1
-Source0:	nnstreamer-%{version}.tar.gz
-Source1:	generate-tarball.sh
+Source0:	nnstreamer-%{version}.tar
 Source1001:	nnstreamer.manifest
 
 ## Define requirements ##
@@ -640,11 +639,6 @@ Provides additional gstreamer plugins for nnstreamer pipelines
 rm -rf ./build
 %setup -q
 cp %{SOURCE1001} .
-%if %{with tizen}
-pushd %{_sourcedir}
-sh %{SOURCE1} %{name} %{version}
-popd
-%endif
 
 %build
 # Remove compiler flags for meson to decide the cpp version
