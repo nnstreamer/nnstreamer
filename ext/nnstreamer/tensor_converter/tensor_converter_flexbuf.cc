@@ -116,9 +116,9 @@ flxc_convert (GstBuffer *in_buf, gsize *frame_size, guint *frames_in, GstTensors
   GstMemory *in_mem, *out_mem;
   GstMapInfo in_info;
   guint mem_size;
-  gpointer mem_data;
 
   in_mem = gst_buffer_peek_memory (in_buf, 0);
+
   if (gst_memory_map (in_mem, &in_info, GST_MAP_READ) == FALSE) {
     ml_loge ("Cannot map input memory / tensor_converter::flexbuf.\n");
     return NULL;
@@ -139,6 +139,7 @@ flxc_convert (GstBuffer *in_buf, gsize *frame_size, guint *frames_in, GstTensors
 
   for (guint i = 0; i < config->info.num_tensors; i++) {
     gchar * tensor_key = g_strdup_printf ("tensor_%d", i);
+    gsize offset;
     flexbuffers::Vector tensor = tensors[tensor_key].AsVector ();
     config->info.info[i].name = g_strdup (tensor[0].AsString ().c_str ());
     config->info.info[i].type = (tensor_type) tensor[1].AsInt32 ();
@@ -151,11 +152,9 @@ flxc_convert (GstBuffer *in_buf, gsize *frame_size, guint *frames_in, GstTensors
     mem_size = tensor_data.size ();
     *frame_size += mem_size;
 
-    /** @todo Consider removing memory copies for better performance. */
-    mem_data = g_memdup (tensor_data.data (), mem_size);
+    offset = tensor_data.data () - in_info.data;
 
-    out_mem = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY, mem_data,
-        mem_size, 0, mem_size, mem_data, g_free);
+    out_mem = gst_memory_share (in_mem, offset, mem_size);
 
     gst_buffer_append_memory (out_buf, out_mem);
     g_free (tensor_key);
