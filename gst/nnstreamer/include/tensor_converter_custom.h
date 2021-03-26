@@ -24,11 +24,12 @@ G_BEGIN_DECLS
 /**
  * @brief Convert to tensors as customized operation
  * @param[in] in_buf the input stream buffer
+ * @param[in/out] data private data for the callback
  * @param[out] config tensors config structure to be filled
  * @return output buffer filled by user
  */
 typedef GstBuffer * (* tensor_converter_custom) (GstBuffer *in_buf,
-    GstTensorsConfig *config);
+    void *data, GstTensorsConfig *config);
 
 /**
  * @brief Register the custom callback function.

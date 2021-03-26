@@ -66,7 +66,7 @@ typedef struct
  */
 typedef enum {
   _CONVERTER_MODE_NONE = 0,	/**< Normal mode (default) */
-  _CONVERTER_MODE_CUSTOM = 1,	/**<  Custom mode */
+  _CONVERTER_MODE_CUSTOM_CODE = 1,	/**<  Custom mode (callback type) */
 } tensor_converter_mode;
 
 /**

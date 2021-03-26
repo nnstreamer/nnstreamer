@@ -22,7 +22,7 @@ static int data_received;
  * @brief custom callback function
  */
 GstBuffer * tensor_converter_custom_cb (GstBuffer *in_buf,
-    GstTensorsConfig *config) {
+    void *data, GstTensorsConfig *config) {
   GstMemory *in_mem, *out_mem;
   GstBuffer *out_buf = NULL;
   GstMapInfo in_info;
@@ -117,7 +117,7 @@ TEST (tensorConverterCustom, normal0)
   g_free (str_pipeline);
 
   str_pipeline = g_strdup_printf (
-      "filesrc location=%s blocksize=-1 ! application/octet-stream ! tensor_converter mode=custom:tconv ! "
+      "filesrc location=%s blocksize=-1 ! application/octet-stream ! tensor_converter mode=custom-code:tconv ! "
       "filesink location=%s buffer-mode=unbuffered sync=false async=false ",
       tmp_flex_raw, tmp_flex_to_tensor);
 

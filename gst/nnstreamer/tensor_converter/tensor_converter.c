@@ -478,8 +478,8 @@ gst_tensor_converter_set_property (GObject * object, guint prop_id,
         break;
       }
 
-      if (g_ascii_strcasecmp (strv[0], "custom") == 0)
-        self->mode = _CONVERTER_MODE_CUSTOM;
+      if (g_ascii_strcasecmp (strv[0], "custom-code") == 0)
+        self->mode = _CONVERTER_MODE_CUSTOM_CODE;
       self->mode_option = g_strdup (strv[1]);
       g_strfreev (strv);
 
@@ -550,7 +550,7 @@ gst_tensor_converter_get_property (GObject * object, guint prop_id,
       if (self->mode_option == NULL)
         mode_str = g_strdup ("");
       else
-        mode_str = g_strdup_printf ("%s:%s", "custom", self->mode_option);
+        mode_str = g_strdup_printf ("%s:%s", "custom-code", self->mode_option);
       g_value_take_string (value, mode_str);
       break;
     }
@@ -1049,14 +1049,14 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       frames_in = buf_size / frame_size;
       break;
     case _NNS_MEDIA_ANY:
-      if (self->mode == _CONVERTER_MODE_CUSTOM) {
+      if (self->mode == _CONVERTER_MODE_CUSTOM_CODE) {
         GstTensorsConfig new_config;
         if (self->custom.func == NULL) {
           nns_loge
               ("custom condition of the tensor_converter is not configured.");
           return GST_FLOW_ERROR;
         }
-        inbuf = self->custom.func (buf, &new_config);
+        inbuf = self->custom.func (buf, self->custom.data, &new_config);
         if (inbuf == NULL) {
           nns_loge ("Failed to run custom tensor converter.");
           gst_buffer_unref (buf);
@@ -1747,7 +1747,7 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
   g_return_val_if_fail (gst_caps_is_fixed (caps), FALSE);
 
   structure = gst_caps_get_structure (caps, 0);
-  if (self->mode == _CONVERTER_MODE_CUSTOM) {
+  if (self->mode == _CONVERTER_MODE_CUSTOM_CODE) {
     in_type = _NNS_MEDIA_ANY;
   } else {
     in_type = gst_tensor_media_type_from_structure (structure);
@@ -1800,7 +1800,7 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
       break;
     default:
     {
-      if (self->mode == _CONVERTER_MODE_CUSTOM) {
+      if (self->mode == _CONVERTER_MODE_CUSTOM_CODE) {
         gst_tensors_config_init (&config);
 
         /* All tensor info should be updated later in chain function. */

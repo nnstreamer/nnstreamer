@@ -36,10 +36,11 @@
  *
  * If you want to convert your own binary format of the flexbuffers to tensors,
  * You can use custom mode of the tensor converter.
+ * This is an example of a callback type custom mode.
  * @code
  * // Define custom callback function
  * GstBuffer * tensor_converter_custom_cb (GstBuffer *in_buf,
- *     GstTensorsConfig *config) {
+ *     void *data, GstTensorsConfig *config) {
  *   // Write a code to convert flexbuffers to tensors.
  * }
  *
@@ -48,7 +49,7 @@
  * nnstreamer_converter_custom_register ("tconv", tensor_converter_custom_cb, NULL);
  * ...
  * // Use the custom tensor converter in a pipeline.
- * // E.g., Pipeline of " ... (flexbuffers) ! tensor_converter mode=custom:tconv ! (tensors)... "
+ * // E.g., Pipeline of " ... (flexbuffers) ! tensor_converter mode=custom-code:tconv ! (tensors)... "
  * ...
  * // After everything is done.
  * nnstreamer_converter_custom_unregister ("tconv");
