@@ -14,7 +14,9 @@
 #ifndef __GST_MQTT_SRC_H__
 #define __GST_MQTT_SRC_H__
 #include <gst/base/gstbasesrc.h>
+#include <gst/base/gstdataqueue.h>
 #include <gst/gst.h>
+#include <MQTTAsync.h>
 
 #include "mqttcommon.h"
 
@@ -36,10 +38,35 @@ G_BEGIN_DECLS
 typedef struct _GstMqttSrc GstMqttSrc;
 typedef struct _GstMqttSrcClass GstMqttSrcClass;
 
+/**
+ * @brief GstMqttSrc data structure.
+ *
+ * GstMqttSec inherits GstBaseSrc.
+ */
 struct _GstMqttSrc {
   GstBaseSrc parent;
+  GQuark gquark_err_tag;
+  GError *err;
+  MQTTAsync *mqtt_client_handle;
+  MQTTAsync_connectOptions *mqtt_conn_opts;
+  gchar *mqtt_client_id;
+  gchar *mqtt_host_address;
+  gchar *mqtt_host_port;
+  gchar *mqtt_topic;
+  gint64 mqtt_sub_timeout;
+
+  GAsyncQueue *aqueue;
+	GCond gcond;
+	gboolean is_connected;
+	gboolean is_subscribed;
+	GstStateChange transition;
 };
 
+/**
+ * @brief GstMqttSrcClass data structure.
+ *
+ * GstMqttSrcClass inherits GstBaseSrcClass.
+ */
 struct _GstMqttSrcClass {
   GstBaseSrcClass parent_class;
 };
