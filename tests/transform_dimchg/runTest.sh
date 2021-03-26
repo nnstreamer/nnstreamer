@@ -49,4 +49,21 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequenc
 python3 checkResult.py dimchg0:b testcase02.direct.log testcase02.dimchg02.log 4 1024 1
 testResult $? 2 "Golden test comparison" 0 1
 
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
+        multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=BGRx ! tensor_converter ! tee name=t \
+        t. ! queue ! mux.sink_0 \
+        t. ! queue ! mux.sink_1 \
+        t. ! queue ! mux.sink_2 \
+        tensor_mux name=mux ! tensor_transform mode=dimchg option=0:2  ! tensor_demux name=demux \
+        demux.src_0 ! queue ! filesink location=\"testcase03_0.dimchg02.log\" sync=true \
+        demux.src_1 ! queue ! filesink location=\"testcase03_1.dimchg02.log\" sync=true \
+        demux.src_2 ! queue ! filesink location=\"testcase03_2.dimchg02.log\" sync=true \
+        t. ! queue ! filesink location=\"testcase03.direct.log\" sync=true" 3 0 0 $PERFORMANCE
+python3 checkResult.py dimchg0:b testcase03.direct.log testcase03_0.dimchg02.log 4 1024 1
+testResult $? 2 "Golden test comparison 3-0" 0 1
+python3 checkResult.py dimchg0:b testcase03.direct.log testcase03_1.dimchg02.log 4 1024 1
+testResult $? 2 "Golden test comparison 3-1" 0 1
+python3 checkResult.py dimchg0:b testcase03.direct.log testcase03_2.dimchg02.log 4 1024 1
+testResult $? 2 "Golden test comparison 3-2" 0 1
+
 report

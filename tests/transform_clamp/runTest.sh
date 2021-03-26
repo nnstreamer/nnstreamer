@@ -41,4 +41,18 @@ callCompareTest result_01.dat test_01.dat.golden 2 "Golden test comparison 2" 1 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_02.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=50:100:1:1 input-type=float32 ! tensor_transform mode=clamp option=-33.3:+77.7 ! filesink location=\"./result_02.dat\" sync=true" 3 0 0 $PERFORMANCE
 callCompareTest result_02.dat test_02.dat.golden 3 "Golden test comparison 3" 1 0
 
+# Test tensors stream
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
+        filesrc location=\"test_02.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=50:100:1:1 input-type=float32 ! tee name=t \
+        t. ! queue ! mux.sink_0 \
+        t. ! queue ! mux.sink_1 \
+        t. ! queue ! mux.sink_2 \
+        tensor_mux name=mux ! tensor_transform mode=clamp option=-33.3:+77.7 ! tensor_demux name=demux \
+        demux.src_0 ! queue ! filesink location=\"./result_03_0.dat\" sync=true \
+        demux.src_1 ! queue ! filesink location=\"./result_03_1.dat\" sync=true \
+        demux.src_2 ! queue ! filesink location=\"./result_03_2.dat\" sync=true" 4 0 0 $PERFORMANCE
+callCompareTest result_03_0.dat test_02.dat.golden 3 "Golden test comparison 4-0" 1 0
+callCompareTest result_03_1.dat test_02.dat.golden 3 "Golden test comparison 4-0" 1 0
+callCompareTest result_03_2.dat test_02.dat.golden 3 "Golden test comparison 4-0" 1 0
+
 report
