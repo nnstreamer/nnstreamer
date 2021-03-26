@@ -808,7 +808,6 @@ _gst_tensor_converter_chain_push (GstTensorConverter * self, GstBuffer * buf)
     if (self->tensors_info.num_tensors > 1) {
       GstMemory *mem;
       GstMapInfo info;
-      gpointer data;
       gsize idx, size;
       guint i;
 
@@ -826,11 +825,8 @@ _gst_tensor_converter_chain_push (GstTensorConverter * self, GstBuffer * buf)
 
       for (i = 0; i < self->tensors_info.num_tensors; ++i) {
         size = gst_tensors_info_get_size (&self->tensors_info, i);
-        data = g_memdup (info.data + idx, size);
+        gst_buffer_append_memory (buffer, gst_memory_share (mem, idx, size));
         idx += size;
-
-        gst_buffer_append_memory (buffer,
-            gst_memory_new_wrapped (0, data, size, 0, size, data, g_free));
       }
 
       gst_memory_unmap (mem, &info);

@@ -100,10 +100,12 @@ fbc_convert (GstBuffer *in_buf, gsize *frame_size, guint *frames_in, GstTensorsC
   GstMemory *in_mem, *out_mem;
   GstMapInfo in_info;
   guint mem_size;
-  gpointer mem_data;
 
   in_mem = gst_buffer_peek_memory (in_buf, 0);
-  g_assert (gst_memory_map (in_mem, &in_info, GST_MAP_READ));
+  if (FALSE == gst_memory_map (in_mem, &in_info, GST_MAP_READ)) {
+    nns_loge ("Cannot map input memory / tensor_converter::flatbuf");
+    return NULL;
+  }
 
   tensors = GetTensors (in_info.data);
   g_assert (tensors);
@@ -121,8 +123,9 @@ fbc_convert (GstBuffer *in_buf, gsize *frame_size, guint *frames_in, GstTensorsC
   *frame_size = 0;
   *frames_in = 1;
 
-
   for (guint i = 0; i < config->info.num_tensors; i++) {
+    gsize offset;
+
     config->info.info[i].name = g_strdup (tensor->Get (i)->name ()->str ().c_str ());
     config->info.info[i].type = (tensor_type)tensor->Get (i)->type ();
     tensor_data = tensor->Get (i)->data ();
@@ -133,10 +136,9 @@ fbc_convert (GstBuffer *in_buf, gsize *frame_size, guint *frames_in, GstTensorsC
     mem_size = VectorLength (tensor_data);
     *frame_size += mem_size;
 
-    mem_data = g_memdup (tensor_data->data (), mem_size);
+    offset = tensor_data->data () - in_info.data;
 
-    out_mem = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY, mem_data,
-        mem_size, 0, mem_size, mem_data, g_free);
+    out_mem = gst_memory_share (in_mem, offset, mem_size);
 
     gst_buffer_append_memory (out_buf, out_mem);
   }
