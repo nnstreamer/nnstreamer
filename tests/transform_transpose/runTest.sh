@@ -45,4 +45,19 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"test03_%02d
 
 callCompareTest test03_00.dat.golden result03_00.log 3 "Compare 3" 1 0
 
+# Test tensors stream
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
+        multifilesrc location=\"test03_%02d.dat\" caps=\"application/octet-stream\" ! tensor_converter input-dim=200:100:3:1 input-type=float32 ! tee name=t 
+        t. ! queue ! mux.sink_0 \
+        t. ! queue ! mux.sink_1 \
+        t. ! queue ! mux.sink_2 \
+        tensor_mux name=mux ! tensor_transform mode=transpose option=1:0:2:3 ! tensor_demux name=demux \
+        demux.src_0 ! queue ! multifilesink location=\"./result04_0_%02d.log\" sync=true \
+        demux.src_1 ! queue ! multifilesink location=\"./result04_1_%02d.log\" sync=true \
+        demux.src_2 ! queue ! multifilesink location=\"./result04_2_%02d.log\" sync=true" 4 0 0 $PERFORMANCE
+
+callCompareTest test03_00.dat.golden result04_0_00.log 3 "Compare 3" 1 0
+callCompareTest test03_00.dat.golden result04_1_00.log 3 "Compare 3" 1 0
+callCompareTest test03_00.dat.golden result04_2_00.log 3 "Compare 3" 1 0
+
 report

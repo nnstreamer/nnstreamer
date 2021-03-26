@@ -84,4 +84,22 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequenc
 python3 checkResult.py typecast testcase09.direct.log testcase09.typecast.log uint8 1 B uint8 1 B
 testResult $? 9 "Golden test comparison" 0 1
 
+# Tensor tensors stream
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! \
+        pngdec ! videoconvert ! video/x-raw, format=BGRx ! tensor_converter ! tee name=t \
+        t. ! queue ! filesink location=\"testcase_tensors.direct.log\" buffer-mode=unbuffered sync=false async=false \
+        t. ! queue ! mux.sink_0 \
+        t. ! queue ! mux.sink_1 \
+        t. ! queue ! mux.sink_2 \
+        tensor_mux name=mux ! tensor_transform mode=typecast option=float32 ! tensor_demux name=demux \
+        demux.src_0 ! queue ! filesink location=\"testcase_tensors_0.typecast.log\" buffer-mode=unbuffered sync=false async=false \
+        demux.src_1 ! queue ! filesink location=\"testcase_tensors_1.typecast.log\" buffer-mode=unbuffered sync=false async=false \
+        demux.src_2 ! queue ! filesink location=\"testcase_tensors_2.typecast.log\" buffer-mode=unbuffered sync=false async=false" 10 0 0 $PERFORMANCE
+python3 checkResult.py typecast testcase_tensors.direct.log testcase_tensors_0.typecast.log uint8 1 B float32 4 f
+testResult $? 10 "Golden test comparison 0" 0 1
+python3 checkResult.py typecast testcase_tensors.direct.log testcase_tensors_1.typecast.log uint8 1 B float32 4 f
+testResult $? 10 "Golden test comparison 1" 0 1
+python3 checkResult.py typecast testcase_tensors.direct.log testcase_tensors_2.typecast.log uint8 1 B float32 4 f
+testResult $? 10 "Golden test comparison 2" 0 1
+
 report
