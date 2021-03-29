@@ -10,6 +10,7 @@
  * @bug	No known bugs except for NYI items
  */
 
+#include <math.h>
 #include "tensor_data.h"
 #include "nnstreamer_log.h"
 #include "nnstreamer_plugin_api.h"
@@ -292,4 +293,132 @@ gst_tensor_data_raw_average (gpointer raw, gsize length, tensor_type type)
   }
 
   return average;
+}
+
+/**
+ * @brief Calculate average value of the tensor per channel (the first dim).
+ * @param raw pointer of raw tensor data
+ * @param length byte size of raw tensor data
+ * @param type tensor type
+ * @param tensor_dim tensor dimension
+ * @param results double array contains average values of each channel
+ * @return TRUE if no error
+ */
+gboolean
+gst_tensor_data_raw_average_per_channel (gpointer raw, gsize length,
+    tensor_type type, tensor_dim dim, gdouble * results)
+{
+  gdouble value, average;
+  gulong ch, i, num, offset;
+  gsize element_size;
+  guint8 *data;
+
+  g_return_val_if_fail (raw != NULL, FALSE);
+  g_return_val_if_fail (length > 0, FALSE);
+  g_return_val_if_fail (dim[0] > 0, FALSE);
+  g_return_val_if_fail (type != _NNS_END, FALSE);
+
+  element_size = gst_tensor_get_element_size (type);
+  num = length / element_size;
+
+  offset = dim[0];
+  num = num / offset;
+
+  for (ch = 0; ch < offset; ++ch) {
+    average = 0.0;
+    for (i = 0; i < num; ++i) {
+      /* extract value and typecast to double */
+      data = (guint8 *) raw + element_size * ((i * offset) + ch);
+      gst_tensor_data_raw_typecast (data, type, &value, _NNS_FLOAT64);
+      average = (value - average) / (i + 1) + average;
+    }
+
+    results[ch] = average;
+  }
+
+  return TRUE;
+}
+
+/**
+ * @brief Calculate standard deviation of the tensor.
+ * @param raw pointer of raw tensor data
+ * @param length byte size of raw tensor data
+ * @param type tensor type
+ * @param average average value of given tensor
+ * @return standard deviation
+ */
+gdouble
+gst_tensor_data_raw_std (gpointer raw, gsize length, tensor_type type,
+    gdouble average)
+{
+  gdouble value, std;
+  gulong i, num;
+  gsize element_size;
+  guint8 *data;
+
+  g_return_val_if_fail (raw != NULL, 0.0);
+  g_return_val_if_fail (length > 0, 0.0);
+  g_return_val_if_fail (type != _NNS_END, 0.0);
+
+  element_size = gst_tensor_get_element_size (type);
+  num = length / element_size;
+
+  std = 0.0;
+  for (i = 0; i < num; ++i) {
+    /* extract value and typecast to double */
+    data = (guint8 *) raw + element_size * i;
+    gst_tensor_data_raw_typecast (data, type, &value, _NNS_FLOAT64);
+
+    std += pow (value - average, 2) / (num - 1);
+  }
+
+  std = (std != 0.0) ? sqrt (std) : (1e-10);
+
+  return std;
+}
+
+/**
+ * @brief Calculate standard deviation of the tensor per channel (the first dim).
+ * @param raw pointer of raw tensor data
+ * @param length byte size of raw tensor data
+ * @param type tensor type
+ * @param tensor_dim tensor dimension
+ * @param averages average values of given tensor per-channel
+ * @param results double array contains standard deviation of each channel
+ * @return TRUE if no error
+ */
+gboolean
+gst_tensor_data_raw_std_per_channel (gpointer raw, gsize length,
+    tensor_type type, tensor_dim dim, gdouble * averages, gdouble * results)
+{
+  gdouble value, std;
+  gulong ch, i, num, offset;
+  gsize element_size;
+  guint8 *data;
+
+  g_return_val_if_fail (raw != NULL, FALSE);
+  g_return_val_if_fail (length > 0, FALSE);
+  g_return_val_if_fail (dim[0] > 0, FALSE);
+  g_return_val_if_fail (type != _NNS_END, FALSE);
+
+  element_size = gst_tensor_get_element_size (type);
+  num = length / element_size;
+
+  offset = dim[0];
+  num = num / offset;
+
+  for (ch = 0; ch < offset; ++ch) {
+    std = 0.0;
+    for (i = 0; i < num; ++i) {
+      /* extract value and typecast to double */
+      data = (guint8 *) raw + element_size * ((i * offset) + ch);
+      gst_tensor_data_raw_typecast (data, type, &value, _NNS_FLOAT64);
+      std += pow (value - averages[ch], 2) / (num - 1);
+    }
+
+    std = (std != 0.0) ? sqrt (std) : (1e-10);
+    results[ch] = std;
+  }
+
+  return TRUE;
 }

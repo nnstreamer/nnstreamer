@@ -17,7 +17,6 @@
 #include <tensor_typedef.h>
 
 G_BEGIN_DECLS
-
 /**
  * @brief Structure for tensor data.
  */
@@ -64,7 +63,8 @@ gst_tensor_data_typecast (tensor_data_s * td, tensor_type type);
  * @return TRUE if no error
  */
 extern gboolean
-gst_tensor_data_raw_typecast (gpointer input, tensor_type in_type, gpointer output, tensor_type out_type);
+gst_tensor_data_raw_typecast (gpointer input, tensor_type in_type,
+    gpointer output, tensor_type out_type);
 
 /**
  * @brief Calculate average value of the tensor.
@@ -75,6 +75,45 @@ gst_tensor_data_raw_typecast (gpointer input, tensor_type in_type, gpointer outp
  */
 extern gdouble
 gst_tensor_data_raw_average (gpointer raw, gsize length, tensor_type type);
+
+/**
+ * @brief Calculate average value of the tensor per channel (the first dim).
+ * @param raw pointer of raw tensor data
+ * @param length byte size of raw tensor data
+ * @param type tensor type
+ * @param tensor_dim tensor dimension
+ * @param results double array contains average values of each channel
+ * @return TRUE if no error
+ */
+extern gboolean
+gst_tensor_data_raw_average_per_channel (gpointer raw, gsize length,
+    tensor_type type, tensor_dim dim, gdouble * results);
+
+/**
+ * @brief Calculate standard deviation of the tensor.
+ * @param raw pointer of raw tensor data
+ * @param length byte size of raw tensor data
+ * @param type tensor type
+ * @param average average value of given tensor
+ * @return standard deviation
+ */
+extern gdouble
+gst_tensor_data_raw_std (gpointer raw, gsize length, tensor_type type,
+    gdouble average);
+
+/**
+ * @brief Calculate standard deviation of the tensor per channel (the first dim).
+ * @param raw pointer of raw tensor data
+ * @param length byte size of raw tensor data
+ * @param type tensor type
+ * @param tensor_dim tensor dimension
+ * @param averages average values of given tensor per-channel
+ * @param results double array contains standard deviation of each channel
+ * @return TRUE if no error
+ */
+extern gboolean
+gst_tensor_data_raw_std_per_channel (gpointer raw, gsize length, 
+    tensor_type type, tensor_dim dim, gdouble * averages, gdouble * results);
 
 G_END_DECLS
 #endif /* __NNS_TENSOR_DATA_H__ */

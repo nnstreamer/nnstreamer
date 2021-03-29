@@ -202,7 +202,7 @@ gst_tensor_transform_mode_get_type (void)
             "option=D1\':D2\':D3\':D4 (fixed to 3)",
           "transpose"},
       {GTT_STAND, "Mode for statistical standardization of tensor, "
-            "option=(default|dc-average)[:TYPE]",
+            "option=(default|dc-average)[:TYPE][,per-channel:(false|true)]",
           "stand"},
       {GTT_CLAMP, "Mode for clamping all elements of tensor into the range, "
             "option=CLAMP_MIN:CLAMP_MAX",
@@ -694,20 +694,41 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
     }
     case GTT_STAND:
     {
-      gchar **strv = NULL;
+      gchar **options = NULL;
+      guint i, num_options;
 
-      strv = g_strsplit (filter->option, ":", -1);
-
-      filter->data_stand.mode = gst_tensor_transform_get_stand_mode (strv[0]);
       filter->data_stand.out_type = _NNS_END;
-      if (g_strv_length (strv) > 1)
-        filter->data_stand.out_type = gst_tensor_get_type (strv[1]);
+      filter->data_stand.per_channel = FALSE;
 
-      g_strfreev (strv);
+      options = g_strsplit (filter->option, ",", -1);
+      num_options = g_strv_length (options);
+
+      for (i = 0; i < num_options; i++) {
+        gchar **strv = g_strsplit (options[i], ":", -1);
+
+        if (g_ascii_strcasecmp (strv[0], "default") == 0 ||
+            g_ascii_strcasecmp (strv[0], "dc-average") == 0) {
+          filter->data_stand.mode =
+              gst_tensor_transform_get_stand_mode (strv[0]);
+          if (g_strv_length (strv) > 1)
+            filter->data_stand.out_type = gst_tensor_get_type (strv[1]);
+        } else if (g_ascii_strcasecmp (strv[0], "per-channel") == 0) {
+          if (g_strv_length (strv) > 1 &&
+              g_ascii_strcasecmp (strv[1], "true") == 0)
+            filter->data_stand.per_channel = TRUE;
+        } else {
+          filter->data_stand.mode = STAND_END;
+          ml_logw ("Unknown option for stand mode: %s", strv[0]);
+        }
+
+        g_strfreev (strv);
+      }
+
+      g_strfreev (options);
 
       if (filter->data_stand.mode == STAND_END) {
         ml_loge
-            ("%s: stand: \'%s\' is not valid option string: it should be in the form of (default|dc-average)[:TYPE]\n",
+            ("%s: stand: \'%s\' is not a valid option string: it should be in the form of (default|dc-average)[:TYPE][,per-channel:(false|true)]\n",
             filter_name, filter->option);
         break;
       }
@@ -1221,60 +1242,113 @@ gst_tensor_transform_stand (GstTensorTransform * filter,
 {
   tensor_type in_tensor_type = filter->in_config.info.info[idx].type;
   tensor_type out_tensor_type = filter->out_config.info.info[idx].type;
-  gsize in_element_size, out_element_size, data_size;
-  gulong i, num, data_idx;
-  gdouble tmp, average, stand;
+  gsize in_element_size, out_element_size, data_size, ch_size;
+  gulong i, num, data_idx, ch;
+  gdouble tmp, average, std;
+  gdouble *avg_per_ch, *std_per_ch;
 
   in_element_size = gst_tensor_get_element_size (in_tensor_type);
   out_element_size = gst_tensor_get_element_size (out_tensor_type);
   num =
       gst_tensor_get_element_count (filter->in_config.info.info[idx].dimension);
 
-  /* calc average */
+  ch_size = filter->in_config.info.info[idx].dimension[0];
+
+  /* calc average and std */
   data_size = gst_tensor_info_get_size (&filter->in_config.info.info[idx]);
   average = gst_tensor_data_raw_average ((gpointer) inptr, data_size,
       in_tensor_type);
+  std =
+      gst_tensor_data_raw_std ((gpointer) inptr, data_size, in_tensor_type,
+      average);
 
   switch (filter->data_stand.mode) {
     case STAND_DEFAULT:
     {
-      stand = 0.0;
+      if (filter->data_stand.per_channel == FALSE) {
+        for (i = 0; i < num; i++) {
+          data_idx = in_element_size * i;
+          gst_tensor_data_raw_typecast ((gpointer) (inptr + data_idx),
+              in_tensor_type, &tmp, _NNS_FLOAT64);
 
-      for (i = 0; i < num; i++) {
-        data_idx = in_element_size * i;
-        gst_tensor_data_raw_typecast ((gpointer) (inptr + data_idx),
-            in_tensor_type, &tmp, _NNS_FLOAT64);
+          tmp = fabs ((tmp - average) / std);
 
-        stand += pow (tmp - average, 2) / (num - 1);
+          data_idx = out_element_size * i;
+          gst_tensor_data_raw_typecast (&tmp, _NNS_FLOAT64,
+              (gpointer) (outptr + data_idx), out_tensor_type);
+        }
+      } else {
+        avg_per_ch =
+            (gdouble *) g_malloc0 (sizeof (gdouble) *
+            filter->in_config.info.info[idx].dimension[0]);
+
+        gst_tensor_data_raw_average_per_channel ((gpointer) inptr, data_size,
+            in_tensor_type, filter->in_config.info.info[idx].dimension,
+            avg_per_ch);
+
+        std_per_ch =
+            (gdouble *) g_malloc0 (sizeof (gdouble) *
+            filter->in_config.info.info[idx].dimension[0]);
+        gst_tensor_data_raw_std_per_channel ((gpointer) inptr, data_size,
+            in_tensor_type, filter->in_config.info.info[idx].dimension,
+            avg_per_ch, std_per_ch);
+
+        for (ch = 0; ch < ch_size; ++ch) {
+          for (i = 0; i < num / ch_size; i++) {
+            data_idx = in_element_size * ((i * ch_size) + ch);
+            gst_tensor_data_raw_typecast ((gpointer) (inptr + data_idx),
+                in_tensor_type, &tmp, _NNS_FLOAT64);
+
+            tmp = fabs ((tmp - avg_per_ch[ch]) / std_per_ch[ch]);
+
+            data_idx = out_element_size * ((i * ch_size) + ch);
+            gst_tensor_data_raw_typecast (&tmp, _NNS_FLOAT64,
+                (gpointer) (outptr + data_idx), out_tensor_type);
+          }
+        }
+
+        g_free (avg_per_ch);
+        g_free (std_per_ch);
       }
-
-      stand = (stand != 0.0) ? sqrt (stand) : (1e-10);
-      for (i = 0; i < num; i++) {
-        data_idx = in_element_size * i;
-        gst_tensor_data_raw_typecast ((gpointer) (inptr + data_idx),
-            in_tensor_type, &tmp, _NNS_FLOAT64);
-
-        tmp = fabs ((tmp - average) / stand);
-
-        data_idx = out_element_size * i;
-        gst_tensor_data_raw_typecast (&tmp, _NNS_FLOAT64,
-            (gpointer) (outptr + data_idx), out_tensor_type);
-      }
-
       break;
     }
     case STAND_DC_AVERAGE:
     {
-      for (i = 0; i < num; i++) {
-        data_idx = in_element_size * i;
-        gst_tensor_data_raw_typecast ((gpointer) (inptr + data_idx),
-            in_tensor_type, &tmp, _NNS_FLOAT64);
+      if (filter->data_stand.per_channel == FALSE) {
+        for (i = 0; i < num; i++) {
+          data_idx = in_element_size * i;
+          gst_tensor_data_raw_typecast ((gpointer) (inptr + data_idx),
+              in_tensor_type, &tmp, _NNS_FLOAT64);
 
-        tmp -= average;
+          tmp -= average;
+          data_idx = out_element_size * i;
+          gst_tensor_data_raw_typecast (&tmp, _NNS_FLOAT64,
+              (gpointer) (outptr + data_idx), out_tensor_type);
+        }
+      } else {
+        avg_per_ch =
+            (gdouble *) g_malloc0 (sizeof (gdouble) *
+            filter->in_config.info.info[idx].dimension[0]);
 
-        data_idx = out_element_size * i;
-        gst_tensor_data_raw_typecast (&tmp, _NNS_FLOAT64,
-            (gpointer) (outptr + data_idx), out_tensor_type);
+        gst_tensor_data_raw_average_per_channel ((gpointer) inptr, data_size,
+            in_tensor_type, filter->in_config.info.info[idx].dimension,
+            avg_per_ch);
+
+        for (ch = 0; ch < ch_size; ++ch) {
+          for (i = 0; i < num / ch_size; i++) {
+            data_idx = in_element_size * ((i * ch_size) + ch);
+            gst_tensor_data_raw_typecast ((gpointer) (inptr + data_idx),
+                in_tensor_type, &tmp, _NNS_FLOAT64);
+
+            tmp -= avg_per_ch[ch];
+
+            data_idx = out_element_size * ((i * ch_size) + ch);
+            gst_tensor_data_raw_typecast (&tmp, _NNS_FLOAT64,
+                (gpointer) (outptr + data_idx), out_tensor_type);
+          }
+        }
+
+        g_free (avg_per_ch);
       }
       break;
     }
