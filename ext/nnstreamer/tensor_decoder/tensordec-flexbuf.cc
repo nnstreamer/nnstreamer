@@ -46,15 +46,15 @@
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-void init_flxb (void) __attribute__ ((constructor));
-void fini_flxb (void) __attribute__ ((destructor));
+void init_flxd (void) __attribute__ ((constructor));
+void fini_flxd (void) __attribute__ ((destructor));
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static int
-flxb_init (void **pdata)
+flxd_init (void **pdata)
 {
   *pdata = NULL;
   return TRUE;
@@ -62,21 +62,21 @@ flxb_init (void **pdata)
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static void
-flxb_exit (void **pdata)
+flxd_exit (void **pdata)
 {
   return;
 }
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static int
-flxb_setOption (void **pdata, int opNum, const char *param)
+flxd_setOption (void **pdata, int opNum, const char *param)
 {
   return TRUE;
 }
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static GstCaps *
-flxb_getOutCaps (void **pdata, const GstTensorsConfig *config)
+flxd_getOutCaps (void **pdata, const GstTensorsConfig *config)
 {
   GstCaps *caps;
   caps = gst_caps_from_string (GST_FLEXBUF_CAP_DEFAULT);
@@ -86,7 +86,7 @@ flxb_getOutCaps (void **pdata, const GstTensorsConfig *config)
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static GstFlowReturn
-flxb_decode (void **pdata, const GstTensorsConfig *config,
+flxd_decode (void **pdata, const GstTensorsConfig *config,
     const GstTensorMemory *input, GstBuffer *outbuf)
 {
   GstMapInfo out_info;
@@ -157,11 +157,11 @@ static gchar decoder_subplugin_flexbuf[] = "flexbuf";
 
 /** @brief flexbuffer tensordec-plugin GstTensorDecoderDef instance */
 static GstTensorDecoderDef flexBuf = {.modename = decoder_subplugin_flexbuf,
-  .init = flxb_init,
-  .exit = flxb_exit,
-  .setOption = flxb_setOption,
-  .getOutCaps = flxb_getOutCaps,
-  .decode = flxb_decode };
+  .init = flxd_init,
+  .exit = flxd_exit,
+  .setOption = flxd_setOption,
+  .getOutCaps = flxd_getOutCaps,
+  .decode = flxd_decode };
 
 #ifdef __cplusplus
 extern "C" {
@@ -169,14 +169,14 @@ extern "C" {
 
 /** @brief Initialize this object for tensordec-plugin */
 void
-init_flxb (void)
+init_flxd (void)
 {
   nnstreamer_decoder_probe (&flexBuf);
 }
 
 /** @brief Destruct this object for tensordec-plugin */
 void
-fini_flxb (void)
+fini_flxd (void)
 {
   nnstreamer_decoder_exit (flexBuf.modename);
 }

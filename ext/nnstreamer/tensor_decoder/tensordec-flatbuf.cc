@@ -33,15 +33,15 @@ namespace flatbuf
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-void init_fb (void) __attribute__ ((constructor));
-void fini_fb (void) __attribute__ ((destructor));
+void init_fbd (void) __attribute__ ((constructor));
+void fini_fbd (void) __attribute__ ((destructor));
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static int
-fb_init (void **pdata)
+fbd_init (void **pdata)
 {
   *pdata = NULL;
   return TRUE;
@@ -49,21 +49,21 @@ fb_init (void **pdata)
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static void
-fb_exit (void **pdata)
+fbd_exit (void **pdata)
 {
   return;
 }
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static int
-fb_setOption (void **pdata, int opNum, const char *param)
+fbd_setOption (void **pdata, int opNum, const char *param)
 {
   return TRUE;
 }
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static GstCaps *
-fb_getOutCaps (void **pdata, const GstTensorsConfig *config)
+fbd_getOutCaps (void **pdata, const GstTensorsConfig *config)
 {
   GstCaps *caps;
   caps = gst_caps_from_string (GST_FLATBUF_TENSOR_CAP_DEFAULT);
@@ -73,7 +73,7 @@ fb_getOutCaps (void **pdata, const GstTensorsConfig *config)
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static GstFlowReturn
-fb_decode (void **pdata, const GstTensorsConfig *config,
+fbd_decode (void **pdata, const GstTensorsConfig *config,
     const GstTensorMemory *input, GstBuffer *outbuf)
 {
   char *name;
@@ -150,11 +150,11 @@ static gchar decoder_subplugin_flatbuf[] = "flatbuf";
 
 /** @brief flatbuffer tensordec-plugin GstTensorDecoderDef instance */
 static GstTensorDecoderDef flatBuf = {.modename = decoder_subplugin_flatbuf,
-  .init = fb_init,
-  .exit = fb_exit,
-  .setOption = fb_setOption,
-  .getOutCaps = fb_getOutCaps,
-  .decode = fb_decode };
+  .init = fbd_init,
+  .exit = fbd_exit,
+  .setOption = fbd_setOption,
+  .getOutCaps = fbd_getOutCaps,
+  .decode = fbd_decode };
 
 #ifdef __cplusplus
 extern "C" {
@@ -162,14 +162,14 @@ extern "C" {
 
 /** @brief Initialize this object for tensordec-plugin */
 void
-init_fb (void)
+init_fbd (void)
 {
   nnstreamer_decoder_probe (&flatBuf);
 }
 
 /** @brief Destruct this object for tensordec-plugin */
 void
-fini_fb (void)
+fini_fbd (void)
 {
   nnstreamer_decoder_exit (flatBuf.modename);
 }
