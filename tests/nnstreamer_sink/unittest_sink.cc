@@ -140,6 +140,8 @@ typedef enum {
                                       tensor_transform (arithmetic mode) */
   TEST_TYPE_TRANSFORM_TENSORS,  /**< pipeline for tensors
                                      with tensor_transform (typecast mode) */
+  TEST_TYPE_TRANSFORM_APPLY,  /**< pipeline for apply option
+                                     with tensor_transform (typecast mode) */
   TEST_TYPE_TYPECAST, /**< pipeline for typecast with tensor_transform */
   TEST_TYPE_ISSUE739_MUX_PARALLEL_1, /**< pipeline to test Mux/Parallel case in
                                         #739 */
@@ -921,6 +923,15 @@ _setup_pipeline (TestOption &option)
     /* tensors stream with tensor_transform, typecast to float32 */
     str_pipeline = g_strdup_printf (
         "tensor_mux name=mux ! tensor_transform mode=typecast option=float32 ! tensor_sink name=test_sink "
+        "videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_0 "
+        "videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=280,height=40,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_1 "
+        "videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=320,height=240,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_2",
+        option.num_buffers, option.num_buffers, option.num_buffers);
+    break;
+  case TEST_TYPE_TRANSFORM_APPLY:
+    /* tensors stream with apply option, typecast to float32 */
+    str_pipeline = g_strdup_printf (
+        "tensor_mux name=mux ! tensor_transform mode=typecast option=float32 apply=2,0 ! tensor_sink name=test_sink "
         "videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_0 "
         "videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=280,height=40,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_1 "
         "videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=320,height=240,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_2",
@@ -4452,6 +4463,66 @@ TEST (tensorStreamTest, transformTensors)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
 
   EXPECT_EQ (g_test_data.tensors_config.info.info[1].type, _NNS_FLOAT32);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[1].dimension[0], 3U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[1].dimension[1], 280U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[1].dimension[2], 40U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[1].dimension[3], 1U);
+
+  EXPECT_EQ (g_test_data.tensors_config.info.info[2].type, _NNS_FLOAT32);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[2].dimension[0], 3U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[2].dimension[1], 320U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[2].dimension[2], 240U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[2].dimension[3], 1U);
+
+  EXPECT_EQ (g_test_data.tensors_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data (option);
+}
+
+/**
+ * @brief Test for apply option of the tensor transform
+ */
+TEST (tensorStreamTest, transformApplyOpt)
+{
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_TRANSFORM_APPLY };
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.mem_blocks, 3U);
+  EXPECT_EQ (g_test_data.received_size, 1185600U);
+  /** (160 * 120 * 3 + 320 * 240 * 3) * 4 +  (280 * 40 * 3) */
+
+  /** check caps name */
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensors");
+
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  /** check tensors config for video */
+  EXPECT_TRUE (gst_tensors_config_validate (&g_test_data.tensors_config));
+  EXPECT_EQ (g_test_data.tensors_config.info.num_tensors, 3U);
+
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_FLOAT32);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 3U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 160U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 120U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+
+  EXPECT_EQ (g_test_data.tensors_config.info.info[1].type, _NNS_UINT8);
   EXPECT_EQ (g_test_data.tensors_config.info.info[1].dimension[0], 3U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[1].dimension[1], 280U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[1].dimension[2], 40U);
