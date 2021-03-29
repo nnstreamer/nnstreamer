@@ -110,7 +110,8 @@ enum
   PROP_SILENT,
   PROP_MODE,
   PROP_OPTION,
-  PROP_ACCELERATION
+  PROP_ACCELERATION,
+  PROP_APPLY
 };
 
 /**
@@ -251,6 +252,10 @@ gst_tensor_transform_class_init (GstTensorTransformClass * klass)
   g_object_class_install_property (gobject_class, PROP_ACCELERATION,
       g_param_spec_boolean ("acceleration", "Acceleration", "Orc acceleration",
           DEFAULT_ACCELERATION, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_APPLY,
+      g_param_spec_string ("apply", "Apply", "Select tensors to apply, "
+          "separated with ',' in case of multiple tensors. Default to apply all tensors.",
+          "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_set_details_simple (gstelement_class,
       "TensorTransform",
@@ -295,6 +300,7 @@ gst_tensor_transform_init (GstTensorTransform * filter)
   filter->loaded = FALSE;
   filter->operators = NULL;
   filter->acceleration = DEFAULT_ACCELERATION;
+  filter->apply = NULL;
 
   gst_tensors_config_init (&filter->in_config);
   gst_tensors_config_init (&filter->out_config);
@@ -797,6 +803,25 @@ gst_tensor_transform_set_property (GObject * object, guint prop_id,
       filter->acceleration = FALSE;
 #endif
       break;
+    case PROP_APPLY:
+    {
+      gint64 val;
+      const gchar *param = g_value_get_string (value);
+      gchar **strv = g_strsplit_set (param, ",", -1);
+      guint i, num = g_strv_length (strv);
+      gchar *endptr = NULL;
+
+      for (i = 0; i < num; i++) {
+        errno = 0;
+        val = g_ascii_strtoll (strv[i], &endptr, 10);
+        if (errno == ERANGE || errno == EINVAL || (endptr == strv[i])) {
+          ml_loge ("Cannot convert string %s to a gint64 value", strv[i]);
+        }
+        filter->apply = g_list_append (filter->apply, GINT_TO_POINTER (val));
+      }
+      g_strfreev (strv);
+      break;
+    }
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -825,6 +850,31 @@ gst_tensor_transform_get_property (GObject * object, guint prop_id,
     case PROP_ACCELERATION:
       g_value_set_boolean (value, filter->acceleration);
       break;
+    case PROP_APPLY:
+    {
+      GList *list;
+      gchar *p;
+      GPtrArray *arr;
+      gchar **strings;
+
+      if (filter->apply == NULL) {
+        g_value_set_string (value, "");
+        return;
+      }
+
+      arr = g_ptr_array_new ();
+      for (list = filter->apply; list != NULL; list = list->next) {
+        g_ptr_array_add (arr, g_strdup_printf ("%i",
+                GPOINTER_TO_INT (list->data)));
+      }
+      g_ptr_array_add (arr, NULL);
+      strings = (gchar **) g_ptr_array_free (arr, FALSE);
+      p = g_strjoinv (",", strings);
+
+      g_strfreev (strings);
+      g_value_take_string (value, p);
+      break;
+    }
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -849,6 +899,11 @@ gst_tensor_transform_finalize (GObject * object)
   if (filter->operators) {
     g_slist_free_full (filter->operators, g_free);
     filter->operators = NULL;
+  }
+
+  if (filter->apply) {
+    g_list_free (filter->apply);
+    filter->apply = NULL;
   }
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
@@ -1303,6 +1358,11 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
   for (i = 0; i < num_tensors; i++) {
     gsize buf_size = 0;
 
+    if (filter->apply && !g_list_find (filter->apply, GINT_TO_POINTER (i))) {
+      gst_buffer_append_memory (outbuf, gst_buffer_get_memory (inbuf, i));
+      continue;
+    }
+
     in_mem[i] = gst_buffer_peek_memory (inbuf, i);
     if (FALSE == gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
       ml_loge ("Cannot map input buffer to gst-buf at tensor-transform.\n");
@@ -1388,19 +1448,23 @@ gst_tensor_transform_read_caps (GstTensorTransform * filter,
  * @brief Dimension conversion calculation
  * @param[in] filter "this" pointer
  * @param[in] direction GST_PAD_SINK if input->output conv
+ * @param[in] idx index of the input tensors
  * @param[in] in_info tensor info structure of source tensor (input if direction is SINK)
  * @param[out] out_info tensor info structure of destination tensor (output if direction is SINK)
  * @return TRUE if success
  */
 static gboolean
 gst_tensor_transform_convert_dimension (GstTensorTransform * filter,
-    GstPadDirection direction, const GstTensorInfo * in_info,
+    GstPadDirection direction, guint idx, const GstTensorInfo * in_info,
     GstTensorInfo * out_info)
 {
-  int i;
+  guint i;
 
   /* copy input info first, then update output info */
   gst_tensor_info_copy (out_info, in_info);
+
+  if (filter->apply && !g_list_find (filter->apply, GINT_TO_POINTER (idx)))
+    return TRUE;
 
   switch (filter->mode) {
     case GTT_DIMCHG:
@@ -1540,7 +1604,7 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
 
     for (j = 0; j < in_config.info.num_tensors; j++) {
       gst_tensor_transform_convert_dimension (filter, direction,
-          &in_config.info.info[j], &out_config.info.info[j]);
+          j, &in_config.info.info[j], &out_config.info.info[j]);
     }
     out_config.rate_d = in_config.rate_d;
     out_config.rate_n = in_config.rate_n;
@@ -1635,7 +1699,7 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
   /* compare type and dimension */
   for (i = 0; i < in_config.info.num_tensors; i++) {
     if (!gst_tensor_transform_convert_dimension (filter, GST_PAD_SINK,
-            &in_config.info.info[i], &config.info.info[i])) {
+            i, &in_config.info.info[i], &config.info.info[i])) {
       GST_ERROR_OBJECT (filter,
           "Tensor info is not matched with given properties.");
       goto error;
