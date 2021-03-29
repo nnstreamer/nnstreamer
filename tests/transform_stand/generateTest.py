@@ -17,7 +17,7 @@ import random
 
 import numpy as np
 
-def saveTestData(filename, width, height):
+def saveTestData(filename, width, height, dc_average=False):
     data = []
 
     for w in range(0,width):
@@ -34,7 +34,10 @@ def saveTestData(filename, width, height):
     a=np.array(data)
     mean = np.mean(a)
     standard = np.std(a)
-    result=abs((a-np.mean(a)) / (np.std(a)+1e-10))
+    if dc_average:
+        result=a-np.mean(a)
+    else:
+        result=abs((a-np.mean(a)) / (np.std(a)+1e-10))
 
     data = []
     for w in range(0,width):
@@ -47,4 +50,22 @@ def saveTestData(filename, width, height):
 
     return result, mean, standard
 
-buf = saveTestData("test_00.dat", 100, 50)
+def saveTestPerChannelData(filename, num_channel, num_sample, dc_average=False):
+    arr = np.random.randn(num_sample, num_channel)
+    with open(filename, 'wb') as f:
+        f.write(arr.astype('f').tobytes())
+
+    means = np.mean(arr, axis=0)
+    result = arr - means
+
+    if dc_average == False:
+        std = np.std(arr, axis=0)
+        result = abs(result / (std + 1e-10))
+
+    with open(filename+".golden", 'wb') as f:
+        f.write(result.astype('f').tobytes())
+
+buf = saveTestData("test_00.dat", 100, 50, False)
+buf = saveTestPerChannelData("test_01.dat", 50, 100, False)
+buf = saveTestData("test_02.dat", 100, 50, True)
+buf = saveTestPerChannelData("test_03.dat", 50, 100, True)

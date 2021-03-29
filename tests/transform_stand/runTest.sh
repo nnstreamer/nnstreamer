@@ -37,6 +37,24 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"test_%02d.d
 
 python3 checkResult.py standardization test_00.dat.golden result_00.log 4 4 f f default
 
-testResult $? 1 "Golden test comparison" 0 1
+testResult $? 1 "Golden test comparison 1" 0 1
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"test_%02d.dat\" caps=\"application/octet-stream\" ! tensor_converter input-dim=50:100:1:1 input-type=float32 ! tensor_transform mode=stand option=default,per-channel:true ! multifilesink location=\"./result_%02d.log\" sync=true" 2 0 0 $PERFORMANCE
+
+python3 checkResult.py standardization test_01.dat.golden result_01.log 4 4 f f default
+
+testResult $? 1 "Golden test comparison 2" 0 1
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"test_%02d.dat\" caps=\"application/octet-stream\" ! tensor_converter input-dim=50:100:1:1 input-type=float32 ! tensor_transform mode=stand option=dc-average:float32 ! multifilesink location=\"./result_%02d.log\" sync=true" 3 0 0 $PERFORMANCE
+
+python3 checkResult.py standardization test_02.dat.golden result_02.log 4 4 f f default
+
+testResult $? 1 "Golden test comparison 3" 0 1
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"test_%02d.dat\" caps=\"application/octet-stream\" ! tensor_converter input-dim=50:100:1:1 input-type=float32 ! tensor_transform mode=stand option=dc-average:float32,per-channel:true ! multifilesink location=\"./result_%02d.log\" sync=true" 4 0 0 $PERFORMANCE
+
+python3 checkResult.py standardization test_03.dat.golden result_03.log 4 4 f f default
+
+testResult $? 1 "Golden test comparison 4" 0 1
 
 report

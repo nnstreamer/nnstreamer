@@ -17,7 +17,7 @@ import struct
 ##
 # @brief Check typecast from typea to typeb with file fna/fnb
 #
-def testStandardization (fna, fnb, typeasize, typebsize,typeapack, typebpack):
+def testStandardization (fna, fnb, typeasize, typebsize, typeapack, typebpack):
   lena = len(fna)
   lenb = len(fnb)
 
@@ -32,7 +32,7 @@ def testStandardization (fna, fnb, typeasize, typebsize,typeapack, typebpack):
     vala = struct.unpack(typeapack, fna[x * typeasize: x * typeasize + typeasize])[0]
     valb = struct.unpack(typebpack, fnb[x * typebsize: x * typebsize + typebsize])[0]
     diff = vala - valb
-    if diff > 0.01 or diff < -0.01:
+    if diff > 0.00001 or diff < -0.00001:
       return 20
   return 0
 
