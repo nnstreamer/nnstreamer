@@ -295,9 +295,6 @@ gst_tensor_transform_init (GstTensorTransform * filter)
   filter->loaded = FALSE;
   filter->operators = NULL;
   filter->acceleration = DEFAULT_ACCELERATION;
-#ifdef HAVE_ORC
-  filter->orc_supported = FALSE;
-#endif
 
   gst_tensors_config_init (&filter->in_config);
   gst_tensors_config_init (&filter->out_config);
@@ -335,7 +332,9 @@ gst_tensor_transform_get_stand_mode (const gchar * str)
 
 #ifdef HAVE_ORC
 /* define macros for orc */
-#define orc_supported(filter) (filter->acceleration && filter->orc_supported)
+/** @todo support 64bit integer and remove below line */
+#define type_64bit_integer(t) ((t) == _NNS_INT64 || (t) == _NNS_UINT64)
+#define orc_supported(f,itype,otype) ((f)->acceleration && !(type_64bit_integer (itype) || type_64bit_integer (otype)))
 
 #define orc_func_conv(intype,outtype) nns_orc_conv_ ## intype ## _to_ ## outtype
 #define orc_func_add(intype) nns_orc_add_c_ ## intype
@@ -957,7 +956,7 @@ gst_tensor_transform_typecast (GstTensorTransform * filter,
       gst_tensor_get_element_count (filter->in_config.info.info[idx].dimension);
 
 #ifdef HAVE_ORC
-  if (orc_supported (filter)) {
+  if (orc_supported (filter, in_tensor_type, out_tensor_type)) {
     orc_typecast (inptr, outptr, num, in_tensor_type, out_tensor_type);
     return GST_FLOW_OK;
   }
@@ -1000,7 +999,7 @@ gst_tensor_transform_arithmetic (GstTensorTransform * filter,
       gst_tensor_get_element_count (filter->in_config.info.info[idx].dimension);
 
 #ifdef HAVE_ORC
-  if (orc_supported (filter)) {
+  if (orc_supported (filter, in_tensor_type, out_tensor_type)) {
     walk = filter->operators;
 
     /**
@@ -1657,26 +1656,6 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
   filter->in_config = in_config;
   filter->out_config = out_config;
   allowed = TRUE;
-
-#ifdef HAVE_ORC
-  /**
-   * @todo support 64bit integer and remove the flag orc_supported
-   */
-  for (i = 0; i < in_config.info.num_tensors; i++) {
-    if (in_config.info.info[i].type == _NNS_INT64 ||
-        in_config.info.info[i].type == _NNS_UINT64 ||
-        out_config.info.info[i].type == _NNS_INT64 ||
-        out_config.info.info[i].type == _NNS_UINT64) {
-      filter->orc_supported = FALSE;
-    } else {
-      filter->orc_supported = TRUE;
-    }
-  }
-
-  if (orc_supported (filter)) {
-    GST_INFO_OBJECT (filter, "Orc acceleration enabled.");
-  }
-#endif
 
 error:
   if (!allowed)
