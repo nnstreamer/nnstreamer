@@ -156,9 +156,6 @@ struct _GstTensorTransform
   };
   gboolean loaded; /**< TRUE if mode & option are loaded */
   gboolean acceleration; /**< TRUE to set orc acceleration */
-#ifdef HAVE_ORC
-  gboolean orc_supported; /**< TRUE if orc supported */
-#endif
   GSList *operators; /**< operators list */
 
   GstTensorsConfig in_config; /**< input tensors config */
