@@ -6,31 +6,23 @@ title: tensor_if
 
 ## Supported features
 
-GstTensorIF controls its src-pad based on the values (other/tensor(s)) of its sink-pad.
-
-For example, you may skip frames if there is no object detected with high confidence.
-
-The input/output stream data type is either ```other/tensor``` or ```other/tensors```.
+The if (tensor_if) element allows creating conditional branches based on tensor values.  
+For example, you may skip frames if there is no object detected with high confidence.  
+The input and output stream data type is either `other/tensor` or `other/tensors`.  
 
 ## Properties
+- compared-value: Specifies the compared value and is represented as operand 1 from input tensors.
+  * A_VALUE: Decided based on a single scalar value.
+  * TENSOR_AVERAGE_VALUE: Decided based on an average value of a specific tensor.
+  * CUSTOM: Decided based on a user-defined callback.
 
-- compared_value: Compared Value (CV), operand 1 (from input tensor(s))
-  * A_VALUE:  Decide based on a single scalar value
-  * TENSOR_TOTAL_VALUE: Decide based on a total (sum) value of a specific tensor
-  * ALL_TENSORS_TOTAL_VALUE:  Decide based on a total (sum) value of tensors or a specific tensor
-  * TENSOR_AVERAGE_VALUE: Decide based on a average value of a specific tensor
-  * ALL_TENSORS_AVERAGE_VALUE: Decide based on a average value of tensors or a specific tensor
+- compared-value-option: Specifies an element of the nth tensor or you can pick one from the tensors.
+  * [C][W][H][B],n: used for A_VALUE of the compared-value, for example 0:1:2:3,0 means [0][1][2][3] value of first tensor.
+  * nth tensor: used for TENSOR_AVERAGE_VALUE of the compared-value, and specifies which tensor is used.
 
-- compared_value_option: An element of the nth tensor
-  * [C][W][H][B],n (e.g., [0][0][0][0],0 means [0][0][0][0] value of first tensor)
-  * nth tensor,nth tensor,...
-
-- supplied_values: Supplied Value (SV), operand 2 (from the properties)
+- supplied-value: Specifies the supplied value (SV) from the user.
   * SV
-  * SV1,SV2 (for RANGE operators)
-
-- supplied_values_option: Supplied Value Option
-  * type of the supplied value (e.g., type:uint8)
+  * SV1, SV2 (used for RANGE operators)
 
 - operator: Comparison Operator
   * EQ: Check if CV == SV
@@ -45,15 +37,9 @@ The input/output stream data type is either ```other/tensor``` or ```other/tenso
   * NOT_IN_RANGE_EXCLUSIVE: Check if CV <= SV1 or SV2 <= CV
 
 - then: Action if it is TRUE
-  * PASSTHROUGH: The element will not make changes to the buffers, buffers are pushed straight through.
-  * SKIP: Do not generate output frame (frame skip)
-  * FILL_ZERO: Fill output frame with zeros
-  * FILL_VALUES: Fill output frame with a user given value
-  * FILL_WITH_FILE: Fill output frame with a user given file (a raw data of tensor/tensors). If the filesize is smaller, the reset is filled with 0
-  * FILL_WITH_FILE_RPT: Fill output frame with a user given file (a raw data of tensor/tensors). If the filesize is smally, the file is repeatedly used
-  * REPEAT_PREVIOUS_FRAME: Resend the previous output frame. If this is the first, send ZERO values.
-  * TENSORPICK: Choose nth tensor (or tensors) among tensors
-
+  * PASSTHROUGH: Does not let you make changes to the buffers. Buffers are pushed straight through.
+  * SKIP: Does not let you generate the output frame (frame skip).
+  * TENSORPICK: Lets you choose the nth tensor among the input tensors.
 ```
    [ tensor 0 ]
    [ tensor 1 ]  ->   tensor if    ->    [ tensor 0 ]
@@ -61,23 +47,16 @@ The input/output stream data type is either ```other/tensor``` or ```other/tenso
   input tensors                         output tensors
 ```
 
-- then_option: Option for TRUE Action
-  * nth tensor, nth tensor, ... (for TENSORPICK option)
-  * ${path_to_file}
+- then-option: Option for TRUE Action
+  * nth tensor: used for TENSORPICK option, for example, `then-option`=0,2 means tensor 0 and tensor 2 are selected as output tensors among the input tensors.
 
 - else: Action if it is FALSE
-  * PASSTHROUGH: The element will not make changes to the buffers, buffers are pushed straight through.
-  * SKIP: Do not generate output frame (frame skip)
-  * FILL_ZERO: Fill output frame with zeros
-  * FILL_VALUES: Fill output frame with a user given value
-  * FILL_WITH_FILE: Fill output frame with a user given file (a raw data of tensor/tensors). If the filesize is smaller, the reset is filled with 0
-  * FILL_WITH_FILE_RPT: Fill output frame with a user given file (a raw data of tensor/tensors). If the filesize is smally, the file is repeatedly used
-  * REPEAT_PREVIOUS_FRAME: Resend the previous output frame. If this is the first, send ZERO values.
-  * TENSORPICK: Choose nth tensor (or tensors) among tensors
+  * PASSTHROUGH: Does not let you make changes to the buffers. Buffers are pushed straight through.
+  * SKIP: Does not let you generate the output frame (frame skip).
+  * TENSORPICK: Lets you choose the nth tensor among the input tensors.
 
-- else_option: Option for FALSE Action
-  * nth tensor,nth tensor,... (for TENSORPICK option)
-  * ${path_to_file}
+- else-option: Option for FALSE Action
+  * nth tensor: used for TENSORPICK option, for example, `else-option`=0,2 means tensor 0 and tensor 2 are selected as output tensors among the input tensors.
 
 ## Usage Examples
 
@@ -95,7 +74,7 @@ gst-launch ... (some tensor stream) !
       tensor_if name=tif \
                 compared-value=A_VALUE compared-value_option=3:4:2:5,0 \
                 operator=RANGE_INCLUSIVE \
-                supplied-values=10,100 \
+                supplied-value=10,100 \
                 then=PASSTHROUGH \
                 else=TENSORPICK \
                 else-option=0 \
@@ -114,10 +93,10 @@ Then, you can create a pipeline as follows:
 gst-launch ... (some tensor stream)
        ! tensor_filter framework=custom name=your_code.so
        ! tensor_if name=tif \
-           compared_value=A_VALUE \
-           compared_value_option=0:0:0:0,0 \# 1st tensor's [0][0][0][0].
+           compared-value=A_VALUE \
+           compared-value-option=0:0:0:0,0 \# 1st tensor's [0][0][0][0].
            operator=EQ \
-           supplied_values=1 \
+           supplied-value=1 \
            then=PASSTHROUGH \# or whatsoever you want
            else=SKIP \# or whatsoever you want
        ! tif.src_0 ! tensor_demux name=d \ #for TRUE action
