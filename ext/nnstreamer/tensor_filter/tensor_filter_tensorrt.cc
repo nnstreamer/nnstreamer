@@ -76,6 +76,8 @@ void _fini_filter_tensorrt (void) __attribute__ ((destructor));
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
+/** @brief tensorrt subplugin class */
 class tensorrt_subplugin final : public tensor_filter_subplugin
 {
   template <typename T> using UniquePtr = std::unique_ptr<T, InferDeleter>;
@@ -118,6 +120,7 @@ class tensorrt_subplugin final : public tensor_filter_subplugin
   int loadModel (const GstTensorFilterProperties *prop);
   int checkUnifiedMemory ();
 
+  /** @brief Make unique pointer */
   template <typename T> UniquePtr<T> makeUnique (T *t)
   {
     return UniquePtr<T>{ t };
@@ -480,12 +483,14 @@ tensorrt_subplugin::fini_filter_tensorrt (void)
   tensor_filter_subplugin::unregister_subplugin (registeredRepresentation);
 }
 
+/** @brief Initialize this object for tensor_filter subplugin runtime register */
 void
 _init_filter_tensorrt (void)
 {
   tensorrt_subplugin::init_filter_tensorrt ();
 }
 
+/** @brief Destruct the subplugin */
 void
 _fini_filter_tensorrt (void)
 {
