@@ -78,7 +78,7 @@ $ ls $TEMPLATE_DIR
 nnstreamer-test.ini.in  subplugin_unittest_template.cc.in
 ```
 
-There are two test template provided. One is conf file for the test enviornment, and the other is for the basic unittests (requires gtest).
+There are two test template provided. One is conf file for the test environment, and the other is for the basic unittests (requires gtest).
 
 List of variables that needs to be provided are provided below...
 | File                              | Variables                                                                                                                            |

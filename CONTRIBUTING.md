@@ -6,7 +6,7 @@ title: Contributing
 
 Technical Steering Committee (TSC) is responsible for overseeing all technical aspects of the project, NNStreamer, and its subsidiary projects in the same Github organization.
 
-The initial TSC voting members are the committers of NNStreamer at the time of the first TSC meeting. Election or removal of TSC voting members should be approved by TSC voting. Except for approvals of license exceptions and the community charger amendments, approval of TCS voting requires approvals of more than half of present TSC voting members in a TSC meeting, which requires to have at least the half of the voting members present in the TSC meeting. Approvals of electronic TSC voting requires approvals of more than half of all TSC voting members. TSC may elect or replace the chairperson of the project with TSC voting.
+The initial TSC voting members are the committers of NNStreamer at the time of the first TSC meeting. Election or removal of TSC voting members should be approved by TSC voting. Except for approvals of license exceptions and the community charger amendments, approval of TSC voting requires approvals of more than half of present TSC voting members in a TSC meeting, which requires to have at least the half of the voting members present in the TSC meeting. Approvals of electronic TSC voting requires approvals of more than half of all TSC voting members. TSC may elect or replace the chairperson of the project with TSC voting.
 
 With unresolvable issues with TSC voting, a TSC voting member may inquire about the issues to the Linux Foundation Series managers.
 

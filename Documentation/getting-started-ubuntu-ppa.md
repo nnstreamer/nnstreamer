@@ -35,12 +35,12 @@ $ sudo apt install nnstreamer
 
 #### Safe method (need rebuild)
 
-You need to rebuild nnstreamer's corresponding subplugins (e.g., nnstreamer-tensorflow) with the nerual network framework version you want to use.
+You need to rebuild nnstreamer's corresponding subplugins (e.g., nnstreamer-tensorflow) with the neural network framework version you want to use.
 
 * You may configure/update, build with pdebuild/debuild, and install its resulting .deb packages [Ubuntu: Pbuilder / Pdebuild](getting-started-ubuntu-debuild.md).
-* You may configure/update, build with meson/ninja, and install binraies with ninja [Linux generic: build with meson and ninja](getting-started-meson-build.md): For advanced users with feature customization.
+* You may configure/update, build with meson/ninja, and install binaries with ninja [Linux generic: build with meson and ninja](getting-started-meson-build.md): For advanced users with feature customization.
 * Be careful on install paths and duplicated installation. You need to check the configuration (/etc/nnstreamer.ini and env-vars)
 
 #### Unsafe method (no need for rebuild)
 
-Try to let prebuilt nnstreamer binraies use another versions of tensorflow/pytorch installed. Theoretically, it should work by simply replacing tensorflow/pytorch with different versions. Unless symbols and their semantics are chnaged, it should work. (but that happens often with neural network frameworks, which are still not that stable.)
+Try to let prebuilt nnstreamer binaries use another versions of tensorflow/pytorch installed. Theoretically, it should work by simply replacing tensorflow/pytorch with different versions. Unless symbols and their semantics are changed, it should work. (but that happens often with neural network frameworks, which are still not that stable.)
