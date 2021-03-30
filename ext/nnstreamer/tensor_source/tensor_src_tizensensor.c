@@ -486,13 +486,15 @@ gst_tensor_src_tizensensor_init (GstTensorSrcTIZENSENSOR * self)
  * @details This cleans up the Tizen sensor handle/context,
  *          ready for a new handle/context or exit.
  *          This does not alter saved properties.
+ * @returns it returns -1 if there is an error.
  */
 static int
 _ts_clean_up_handle (GstTensorSrcTIZENSENSOR * self)
 {
   if (TRUE == self->running) {
     sensor_listener_stop (self->listener);
-    g_assert (self->configured == TRUE);
+    if (self->configured != TRUE)
+      return -1;
   }
 
   self->running = FALSE;
