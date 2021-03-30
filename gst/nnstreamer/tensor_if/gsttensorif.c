@@ -370,9 +370,18 @@ gst_tensor_if_set_property_supplied_value (const GValue * value,
 {
   gint i;
   gboolean is_float = FALSE;
-  const gchar *param = g_value_get_string (value);
-  gchar **strv = g_strsplit_set (param, delimiters, -1);
-  gint num = g_strv_length (strv);
+  const gchar *param;
+  gchar **strv;
+  gint num;
+
+  if (!value) {
+    ml_loge ("Invalid supplied value. The value is NULL");
+    return;
+  }
+
+  param = g_value_get_string (value);
+  strv = g_strsplit_set (param, delimiters, -1);
+  num = g_strv_length (strv);
 
   if (strchr (param, '.') || strchr (param, 'E') || strchr (param, 'e')) {
     is_float = TRUE;
