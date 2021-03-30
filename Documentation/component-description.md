@@ -35,7 +35,7 @@ In this page, we focus on the status of each elements. For requirements and desi
 - [tensor\_filter](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_filter)
   - Main (stable)
     - Supported features
-      - Fixed input/ouput dimensions (fixed by subplugin)
+      - Fixed input/output dimensions (fixed by subplugin)
       - Flexible dimensions (output dimension determined by subplugin according to the input dimension determined by pipeline initialization)
       - Invoke subplugin with pre-allocated buffers
       - Invoke subplugin and let subplugin allocate output buffers.
@@ -129,7 +129,7 @@ Note that test elements in /tests/ are not elements for applications. They exist
 - Examples: Example GStreamer applications using NNStreamer and example sub-plugins for NNStreamer. The binaries from this directory is not supposed to be packaged with the main binary package.
   - [Example GStreamer applications](https://github.com/nnstreamer/nnstreamer-example)
   - [Example sub-plugins](https://github.com/nnstreamer/nnstreamer/tree/main/nnstreamer_example)
-- Packaing for Distros / SW-Platform Compatibility.
+- Packaging for Distros / SW-Platform Compatibility.
   - [Tizen](https://github.com/nnstreamer/nnstreamer/tree/main/packaging) (stable): RPM packaging for Tizen 5.0+. It is expected to be compatible with other RPM-based distros; however, it is not tested or guaranteed.
   - [Ubuntu](https://github.com/nnstreamer/nnstreamer/tree/main/debian) (stable): DEB packaging for Ubuntu 16.04. It is highly expected to be compatible with later versions as well; but, not tested yet. Debian is not tested, either.
   - [Yocto](https://github.com/nnsuite/meta-nerual-network) (stable)

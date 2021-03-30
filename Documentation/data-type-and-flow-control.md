@@ -97,9 +97,9 @@ We have the following principles for timestamp policies. Timestamping policies o
 
 ## Synchronization of frames in sink pads with Mux and Merge
 
-Besides timestamping, we have additional synchronization issues when there are merging streams. We need to determine which frames are going to be merged (or muxed) when we have multiple available and unused frames in an incoming sink pad. In general, we might say that the synchronization of frames determines which frames to be used for mux/merge and timestamping rule determins which timestamp to be used among the chosen frames for mux/merge.  
+Besides timestamping, we have additional synchronization issues when there are merging streams. We need to determine which frames are going to be merged (or muxed) when we have multiple available and unused frames in an incoming sink pad. In general, we might say that the synchronization of frames determines which frames to be used for mux/merge and timestamping rule determines which timestamp to be used among the chosen frames for mux/merge.  
 In principle and by default,
-- If there are mutliple unused and available frames in a sink pad, unlike most media filters, we take a buffer that arrived most recently.
+- If there are multiple unused and available frames in a sink pad, unlike most media filters, we take a buffer that arrived most recently.
 - For more about the synchronization policies, see [Synchronization policies at Mux and Merge](synchronization-policies-at-mux-merge.md)
 
 ### Leaky Queue
@@ -118,4 +118,4 @@ This is an obvious case. The timestamp is copied to all source pads from the sin
 ## Synchronization with Aggregator
 Unlike mux and merge, aggregator merges tensors chronologically, not spatially.  
 Moreover, unlike mux and merge, which merges entries into one entry, aggregator, depending on the properties, may divide or even simultaneously merge and divide entries. Thus, timestamping and synchronization may become much more complicated.  
-The timestamp of the outging buffer is timestamp of the oldest frame from the aggregated frames.
+The timestamp of the outgoing buffer is timestamp of the oldest frame from the aggregated frames.

@@ -65,7 +65,7 @@ However, please try to stick with the same indentation rules (2 spaces) and comm
 
 ## Related git repositories
 
-- [NNStreamer Examplie Applications \& Documents](https://github.com/nnstreamer/nnstreamer-example)
+- [NNStreamer Example Applications \& Documents](https://github.com/nnstreamer/nnstreamer-example)
 - [TAOS-CI, CI Service for On-Device AI Systems](https://github.com/nnstreamer/TAOS-CI)
 - [NNStreamer ROS (Robot OS) Support](https://github.com/nnstreamer/nnstreamer-ros)
 - [NNStreamer Android Build Resource](https://github.com/nnstreamer/nnstreamer-android-resource): additional files required by Android builds.

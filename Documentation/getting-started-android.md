@@ -311,7 +311,7 @@ With scoped storage, consider either options below:
     * (If your app targets API level 30 (Android 11) or later) Set `android:preserveLegacyExternalStorage="true"` in your `AndroidManifest.xml` to use the deprecated method `getExternalStorageDirectory`.
     * Use method `getExternalStorageDirectory` to get the File object.
     * Use the File object with NNStreamer Java API.
-    * **Note:** Use this option only for test purporse. This assumes that the model files should be in the right hardcoded path in the target device.
+    * **Note:** Use this option only for test purpose. This assumes that the model files should be in the right hardcoded path in the target device.
 
     Code example:
 
