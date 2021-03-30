@@ -443,6 +443,7 @@ gst_tensor_src_tizensensor_init (GstTensorSrcTIZENSENSOR * self)
   self->running = FALSE;
   self->freq_n = DEFAULT_PROP_FREQ_N;
   self->freq_d = DEFAULT_PROP_FREQ_D;
+  self->type = SENSOR_ALL;
 
   g_mutex_init (&self->lock);
 
