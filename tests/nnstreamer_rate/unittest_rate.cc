@@ -390,17 +390,20 @@ TEST (nnstreamerRate, passthrough)
 TEST (nnstreamerRate, noThrottling)
 {
   TestOption option;
-  GstElement *rate;
+  GstElement *rate = NULL;
   guint64 in, out, dup, drop;
+  gboolean ret = true;
 
   _set_default_option (option);
   option.mode = TENSOR_RATE_MODE_NO_THROTTLE;
   option.target_framerate = g_strdup ("15/1");
 
-  ASSERT_TRUE (_setup_pipeline (option));
+  ret = _setup_pipeline (option);
+  if (!ret) goto error;
 
   rate = gst_bin_get_by_name (GST_BIN (test_data.pipeline), "rate");
-  ASSERT_TRUE (rate != NULL);
+  ret = rate != NULL;
+  if (!ret) goto error;
 
   EXPECT_EQ (setPipelineStateSync (test_data.pipeline, GST_STATE_PLAYING,
         UNITTEST_STATECHANGE_TIMEOUT), 0);
@@ -425,10 +428,15 @@ TEST (nnstreamerRate, noThrottling)
   EXPECT_EQ (setPipelineStateSync (test_data.pipeline, GST_STATE_NULL,
         UNITTEST_STATECHANGE_TIMEOUT), 0);
 
+error:
   g_free (option.target_framerate);
 
-  gst_object_unref (rate);
-  gst_object_unref (test_data.pipeline);
+  if (rate)
+    gst_object_unref (rate);
+  if (test_data.pipeline)
+    gst_object_unref (test_data.pipeline);
+
+  ASSERT_TRUE (ret);
 }
 
 /**
@@ -437,8 +445,9 @@ TEST (nnstreamerRate, noThrottling)
 TEST (nnstreamerRate, throttling)
 {
   TestOption option;
-  GstElement *rate;
+  GstElement *rate = NULL;
   guint64 in, out, dup, drop;
+  gboolean ret = true;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   if (root_path == NULL)
@@ -455,10 +464,12 @@ TEST (nnstreamerRate, throttling)
   option.mode = TENSOR_RATE_MODE_THROTTLE;
   option.target_framerate = g_strdup ("15/1");
 
-  ASSERT_TRUE (_setup_pipeline (option));
+  ret = _setup_pipeline (option);
+  if (!ret) goto error;
 
   rate = gst_bin_get_by_name (GST_BIN (test_data.pipeline), "rate");
-  ASSERT_TRUE (rate != NULL);
+  ret = rate != NULL;
+  if (!ret) goto error;
 
   EXPECT_EQ (setPipelineStateSync (test_data.pipeline, GST_STATE_PLAYING,
         UNITTEST_STATECHANGE_TIMEOUT), 0);
@@ -480,12 +491,17 @@ TEST (nnstreamerRate, throttling)
   EXPECT_EQ (setPipelineStateSync (test_data.pipeline, GST_STATE_NULL,
         UNITTEST_STATECHANGE_TIMEOUT), 0);
 
+error:
   g_free (option.target_framerate);
   g_free (option.model_file);
   g_free (option.framework);
 
-  gst_object_unref (rate);
-  gst_object_unref (test_data.pipeline);
+  if (rate)
+    gst_object_unref (rate);
+  if (test_data.pipeline)
+    gst_object_unref (test_data.pipeline);
+
+  ASSERT_TRUE (ret);
 }
 
 

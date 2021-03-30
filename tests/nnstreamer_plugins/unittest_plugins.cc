@@ -3483,9 +3483,12 @@ TEST (testTensorTransform, orcPerformance)
   gint64 start_ts, stop_ts, diff_loop, diff_orc;
   uint8_t *data_u8 = (uint8_t *)g_malloc0 (sizeof (uint8_t) * array_size);
   float *data_float = (float *)g_malloc0 (sizeof (float) * array_size);
+  gboolean ret = true;
 
-  ASSERT_TRUE (data_u8 != NULL);
-  ASSERT_TRUE (data_float != NULL);
+  ret = data_u8 != NULL;
+  if (!ret) goto error;
+  ret = data_float != NULL;
+  if (!ret) goto error;
 
   /* orc add u8 */
   start_ts = g_get_real_time ();
@@ -3650,8 +3653,11 @@ TEST (testTensorTransform, orcPerformance)
   diff_loop = stop_ts - start_ts;
   _print_log ("combined loop: %" G_GINT64_FORMAT, diff_loop);
 
+error:
   g_free (data_u8);
   g_free (data_float);
+
+  ASSERT_TRUE (ret);
 }
 #endif /* HAVE_ORC */
 
