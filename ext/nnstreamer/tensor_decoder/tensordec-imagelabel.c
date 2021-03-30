@@ -200,7 +200,11 @@ il_decode (void **pdata, const GstTensorsConfig * config,
 
   /** @todo With option-2, allow to change output format */
   str = data->labels.labels[max_index];
-  size = strlen (str);
+
+  if (!str || (size = strlen (str)) == 0) {
+    ml_loge ("Invalid labels. Please check the label data.");
+    return GST_FLOW_ERROR;
+  }
 
   /* Ensure we have outbuf properly allocated */
   if (gst_buffer_get_size (outbuf) == 0) {

@@ -431,6 +431,10 @@ gst_tensor_filter_get_layout_string (const GstTensorFilterProperties * prop,
 static gchar *
 strcpy2 (gchar * dest, const gchar * src)
 {
+  if (!dest || !src) {
+    ml_loge ("Failed to copy a string. The variables shouldn't be NULL.");
+    return NULL;
+  }
   memcpy (dest, src, strlen (src));
   return dest + strlen (src);
 }
