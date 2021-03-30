@@ -50,8 +50,14 @@ namespace nnstreamer
 namespace tensorfilter_edgetpu
 {
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 void _init_filter_edgetpu (void) __attribute__ ((constructor));
 void _fini_filter_edgetpu (void) __attribute__ ((destructor));
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 /** @brief enum for edgetpu device type */
 enum class edgetpu_subplugin_device_type : uint32_t {

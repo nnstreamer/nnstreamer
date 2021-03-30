@@ -39,8 +39,14 @@
 #include <vector>
 #include "tensor_filter_openvino.hh"
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 void init_filter_openvino (void) __attribute__ ((constructor));
 void fini_filter_openvino (void) __attribute__ ((destructor));
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 static const gchar *openvino_accl_support[]
     = { ACCL_NPU_MOVIDIUS_STR, /** ACCL for default and auto config */

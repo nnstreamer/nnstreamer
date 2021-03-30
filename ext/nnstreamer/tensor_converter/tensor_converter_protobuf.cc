@@ -36,9 +36,14 @@
 #include "nnstreamer_plugin_api_converter.h"
 #include "nnstreamer_protobuf.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 void init_pbc (void) __attribute__ ((constructor));
 void fini_pbc (void) __attribute__ ((destructor));
-
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 /** @brief tensor converter plugin's NNStreamerExternalConverter callback */
 static GstCaps *
 pbc_query_caps (const GstTensorsConfig *config)
