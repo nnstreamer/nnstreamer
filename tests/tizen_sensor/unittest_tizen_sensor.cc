@@ -368,7 +368,7 @@ TEST (tizensensorAsSource, virtualSensorCreate06_n)
   pipe = gst_parse_launch (pipeline, &err);
 
   if (pipe) {
-    gst_element_set_state (pipe, GST_STATE_PAUSED);
+    ret = gst_element_set_state (pipe, GST_STATE_PAUSED);
     failed = (ret == GST_STATE_CHANGE_FAILURE);
     gst_object_unref (pipe);
   } else {
@@ -396,7 +396,7 @@ TEST (tizensensorAsSource, virtualSensorCreate07_n)
   pipe = gst_parse_launch (pipeline, &err);
 
   if (pipe) {
-    gst_element_set_state (pipe, GST_STATE_PAUSED);
+    ret = gst_element_set_state (pipe, GST_STATE_PAUSED);
     failed = (ret == GST_STATE_CHANGE_FAILURE);
     gst_object_unref (pipe);
   } else {
