@@ -100,8 +100,14 @@ class TFCore
   static void releaseBuffer (void *data, size_t t);
 };
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 void init_filter_tf (void) __attribute__ ((constructor));
 void fini_filter_tf (void) __attribute__ ((destructor));
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 /**
  * @brief	TFCore creator

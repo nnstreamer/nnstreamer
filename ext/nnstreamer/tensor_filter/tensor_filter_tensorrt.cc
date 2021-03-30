@@ -68,10 +68,14 @@ namespace nnstreamer
 {
 namespace tensorfilter_tensorrt
 {
-
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 void _init_filter_tensorrt (void) __attribute__ ((constructor));
 void _fini_filter_tensorrt (void) __attribute__ ((destructor));
-
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 class tensorrt_subplugin final : public tensor_filter_subplugin
 {
   template <typename T> using UniquePtr = std::unique_ptr<T, InferDeleter>;
