@@ -653,6 +653,10 @@ draw (GstMapInfo * out_info, pose_data * data, GArray * results)
   guint pose_size = data->total_labels;
 
   pose **XYdata = g_new0 (pose *, pose_size);
+  if (!XYdata) {
+    ml_loge ("The memory allocation is failed.");
+    return;
+  }
 
   for (i = 0; i < pose_size; i++) {
     XYdata[i] = &g_array_index (results, pose, i);
