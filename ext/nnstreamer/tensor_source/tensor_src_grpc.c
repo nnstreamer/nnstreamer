@@ -290,6 +290,7 @@ _grpc_callback (void *obj, void *data)
   GST_BUFFER_PTS (buffer) = timestamp;
 
   item = g_new0 (GstDataQueueItem, 1);
+  g_assert (item != NULL);
   item->object = GST_MINI_OBJECT (buffer);
   item->size = gst_buffer_get_size (buffer);
   item->visible = TRUE;
@@ -343,6 +344,7 @@ gst_tensor_src_grpc_init (GstTensorSrcGRPC * self)
   self->out = 0;
 
   self->priv = g_new0 (grpc_private, 1);
+  g_assert (self->priv != NULL);
   grpc_config_init (self);
 
   GST_OBJECT_FLAG_UNSET (self, GST_TENSOR_SRC_GRPC_CONFIGURED);

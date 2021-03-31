@@ -380,6 +380,7 @@ gst_tensor_if_set_property_supplied_value (const GValue * value,
   }
 
   param = g_value_get_string (value);
+  g_assert (param != NULL);
   strv = g_strsplit_set (param, delimiters, -1);
   num = g_strv_length (strv);
 
