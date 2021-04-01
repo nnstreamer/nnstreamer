@@ -874,7 +874,7 @@ gst_tensor_if_get_tensor_average (GstTensorIf * tensor_if,
 {
   GstMemory *in_mem;
   GstMapInfo in_info;
-  double avg;
+  gdouble *avg = NULL;
   tensor_type type = tensor_if->in_config.info.info[nth].type;
 
   in_mem = gst_buffer_peek_memory (buf, nth);
@@ -883,12 +883,14 @@ gst_tensor_if_get_tensor_average (GstTensorIf * tensor_if,
     return FALSE;
   }
 
-  avg = gst_tensor_data_raw_average (in_info.data, in_info.size, type);
+  gst_tensor_data_raw_average (in_info.data, in_info.size, type, &avg);
 
   gst_memory_unmap (in_mem, &in_info);
 
-  gst_tensor_data_set (cv, _NNS_FLOAT64, &avg);
+  gst_tensor_data_set (cv, _NNS_FLOAT64, avg);
   gst_tensor_data_typecast (cv, type);
+
+  g_free (avg);
   return TRUE;
 }
 
