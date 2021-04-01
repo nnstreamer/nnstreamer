@@ -47,16 +47,18 @@ struct looper_message {
 class Looper {
   public:
     Looper ();
+    ~Looper ();
 
     void loop (void);
     void start (void);
     void exit (void);
     void post (gint cmd, void *data, bool flush);
-    void add_msg (looper_message *new_msg, bool flush);
     void (*handle) (gint cmd, void *data);  /**< should be implemented */
 
   private:
     static void *entry (void *data);
+    void add_msg (looper_message *new_msg, bool flush);
+    void flush_msg (void);
 
     pthread_t thread;
     pthread_mutex_t mutex;
@@ -75,6 +77,7 @@ extern "C"
 {
 #endif
   void *Looper_new (void);
+  void Looper_delete (void *looper);
   void Looper_exit (void *looper);
   void Looper_post (void *looper, gint cmd, void *data, gboolean flush);
   void Looper_set_handle (void *looper, void (*handle) (gint, void*));

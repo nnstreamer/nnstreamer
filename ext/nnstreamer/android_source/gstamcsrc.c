@@ -640,16 +640,21 @@ static void
 feed_frame_buf (GstAMCSrc * self, guint8 * buf, gint idx, gsize real_size,
     gsize buf_size)
 {
-  GstAMCSrcPrivate *priv = GST_AMC_SRC_GET_PRIVATE (self);
-  GstElement *element = GST_ELEMENT (self);
+  GstAMCSrcPrivate *priv;
+  GstElement *element;
   GstBuffer *buffer;
   GstMemory *mem;
   GstDataQueueItem *item;
   GstClockTime duration = GST_CLOCK_TIME_NONE;
   GstClockTime current_ts = GST_CLOCK_TIME_NONE;
   GstClock *clock;
-
   GstWrappedBuf *wrapped_buf;
+
+  g_return_if_fail (self != NULL);
+  g_return_if_fail (buf != NULL);
+
+  priv = GST_AMC_SRC_GET_PRIVATE (self);
+  element = GST_ELEMENT (self);
 
   if ((clock = gst_element_get_clock (element))) {
     current_ts =
@@ -794,6 +799,21 @@ check_codec_buf (GstAMCSrc * self)
 }
 
 /**
+ * @brief Close looper
+ */
+static void
+looper_close (GstAMCSrc * self)
+{
+  GstAMCSrcPrivate *priv = GST_AMC_SRC_GET_PRIVATE (self);
+
+  if (priv->looper) {
+    Looper_set_handle (priv->looper, NULL);
+    Looper_delete (priv->looper);
+    priv->looper = NULL;
+  }
+}
+
+/**
  * @brief looper internal function to handle each command
  */
 static void
@@ -815,6 +835,7 @@ looper_handle (gint cmd, void *data)
         priv->sawInputEOS = TRUE;
         priv->sawOutputEOS = TRUE;
 
+        looper_close (self);
         LOGI ("Finished");
         break;
       case MSG_CODEC_SEEK:
@@ -972,6 +993,7 @@ gst_amc_src_finalize (GObject * object)
   AMediaExtractor_delete (priv->ex);
 
   g_clear_pointer (&priv->outbound_queue, gst_object_unref);
+  looper_close (self);
 
   g_mutex_clear (&priv->mutex);
   G_OBJECT_CLASS (parent_class)->finalize (object);
