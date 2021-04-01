@@ -99,7 +99,7 @@ fbd_decode (void **pdata, const GstTensorsConfig *config,
     name = config->info.info[i].name;
 
     if (name == NULL)
-      tensor_name = builder.CreateString ("Anonymous");
+      tensor_name = builder.CreateString ("");
     else
       tensor_name = builder.CreateString (name);
 
