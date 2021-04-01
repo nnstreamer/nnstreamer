@@ -142,7 +142,9 @@ flxc_convert (GstBuffer *in_buf, gsize *frame_size, guint *frames_in, GstTensors
     gchar * tensor_key = g_strdup_printf ("tensor_%d", i);
     gsize offset;
     flexbuffers::Vector tensor = tensors[tensor_key].AsVector ();
-    config->info.info[i].name = g_strdup (tensor[0].AsString ().c_str ());
+    const gchar *name = tensor[0].AsString ().c_str ();
+
+    config->info.info[i].name = (name && strlen (name) > 0) ? g_strdup (name) : NULL;
     config->info.info[i].type = (tensor_type) tensor[1].AsInt32 ();
 
     flexbuffers::TypedVector dim = tensor[2].AsTypedVector ();

@@ -125,8 +125,9 @@ fbc_convert (GstBuffer *in_buf, gsize *frame_size, guint *frames_in, GstTensorsC
 
   for (guint i = 0; i < config->info.num_tensors; i++) {
     gsize offset;
+    const gchar *name = tensor->Get (i)->name ()->str ().c_str ();
 
-    config->info.info[i].name = g_strdup (tensor->Get (i)->name ()->str ().c_str ());
+    config->info.info[i].name = (name && strlen (name) > 0) ? g_strdup (name) : NULL;
     config->info.info[i].type = (tensor_type)tensor->Get (i)->type ();
     tensor_data = tensor->Get (i)->data ();
 

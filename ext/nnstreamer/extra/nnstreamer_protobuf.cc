@@ -69,7 +69,7 @@ gst_tensor_decoder_protobuf (const GstTensorsConfig *config,
 
     name = config->info.info[i].name;
     if (name == NULL) {
-      tensor->set_name ("Anonymous");
+      tensor->set_name ("");
     } else {
       tensor->set_name (name);
     }
@@ -144,7 +144,9 @@ gst_tensor_converter_protobuf (GstBuffer *in_buf, gsize *frame_size,
 
   for (guint i = 0; i < config->info.num_tensors; i++) {
     const nnstreamer::protobuf::Tensor *tensor = &tensors.tensor (i);
-    config->info.info[i].name = g_strdup (tensor->name ().c_str ());
+    const gchar *name = tensor->name ().c_str ();
+
+    config->info.info[i].name = (name && strlen (name) > 0) ? g_strdup (name) : NULL;
     config->info.info[i].type = (tensor_type)tensor->type ();
     for (guint j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
       config->info.info[i].dimension[j] = tensor->dimension (j);

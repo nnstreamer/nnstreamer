@@ -178,7 +178,7 @@ static GstCaps *gst_tensor_converter_query_caps (GstTensorConverter * self,
     GstPad * pad, GstCaps * filter);
 static gboolean gst_tensor_converter_parse_caps (GstTensorConverter * self,
     const GstCaps * caps);
-static gboolean gst_tensor_converter_update_caps (GstTensorConverter * self,
+static void gst_tensor_converter_update_caps (GstTensorConverter * self,
     GstPad * pad, GstTensorsConfig * config);
 static const NNStreamerExternalConverter *findExternalConverter (const char
     *media_type_name);
@@ -584,8 +584,9 @@ gst_tensor_converter_sink_event (GstPad * pad, GstObject * parent,
 
       if (gst_tensor_converter_parse_caps (self, in_caps)) {
         gst_event_unref (event);
-        return gst_tensor_converter_update_caps (self, self->srcpad,
+        gst_tensor_converter_update_caps (self, self->srcpad,
             &self->tensors_config);
+        return TRUE;
       }
       break;
     }
@@ -1049,61 +1050,45 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       frames_in = buf_size / frame_size;
       break;
     case _NNS_MEDIA_ANY:
+    {
+      GstTensorsConfig new_config;
       if (self->mode == _CONVERTER_MODE_CUSTOM_CODE) {
-        GstTensorsConfig new_config;
         if (self->custom.func == NULL) {
           nns_loge
               ("custom condition of the tensor_converter is not configured.");
           return GST_FLOW_ERROR;
         }
         inbuf = self->custom.func (buf, self->custom.data, &new_config);
-        if (inbuf == NULL) {
-          nns_loge ("Failed to run custom tensor converter.");
-          gst_buffer_unref (buf);
-          return GST_FLOW_ERROR;
-        }
-        if (gst_tensors_config_is_equal (config, &new_config) != TRUE) {
-          if (gst_tensor_converter_update_caps (self, self->srcpad,
-                  &new_config) == TRUE) {
-            self->tensors_config = new_config;
-          } else {
-            gst_buffer_unref (buf);
-            return GST_FLOW_ERROR;
-          }
-        }
         frames_in = 1;
         frame_size = gst_buffer_get_size (inbuf);
-
-        gst_buffer_unref (buf);
-        break;
       } else if (self->externalConverter && self->externalConverter->convert) {
-        GstTensorsConfig new_config;
-
-        inbuf =
-            self->externalConverter->convert (buf, &frame_size, &frames_in,
+        inbuf = self->externalConverter->convert (buf, &frame_size, &frames_in,
             &new_config);
-
-        if (gst_tensors_config_is_equal (config, &new_config) != TRUE) {
-          if (gst_tensor_converter_update_caps (self, self->srcpad,
-                  &new_config) == TRUE) {
-            self->tensors_config = new_config;
-          } else {
-            return GST_FLOW_ERROR;
-          }
-        }
-
-        g_assert (inbuf != NULL);
-        g_assert (frame_size > 0);
-
-        if (inbuf != buf)
-          gst_buffer_unref (buf);
-
-        break;
       } else {
         GST_ERROR_OBJECT (self, "Undefined behavior with type %d\n",
             self->in_media_type);
         return GST_FLOW_NOT_SUPPORTED;
       }
+
+      if (inbuf == NULL) {
+        nns_loge ("Failed to convert media to tensors.");
+        gst_buffer_unref (buf);
+        gst_tensors_info_free (&new_config.info);
+        return GST_FLOW_ERROR;
+      }
+
+      if (!gst_tensors_config_is_equal (config, &new_config)) {
+        gst_tensor_converter_update_caps (self, self->srcpad, &new_config);
+        gst_tensors_info_free (&config->info);
+        *config = new_config;
+      } else {
+        gst_tensors_info_free (&new_config.info);
+      }
+
+      gst_buffer_unref (buf);
+
+      break;
+    }
     default:
       GST_ERROR_OBJECT (self, "Unsupported type %d\n", self->in_media_type);
       return GST_FLOW_ERROR;
@@ -1175,6 +1160,7 @@ gst_tensor_converter_reset (GstTensorConverter * self)
   }
 
   self->tensors_configured = FALSE;
+  gst_tensors_info_free (&self->tensors_config.info);
   gst_tensors_config_init (&self->tensors_config);
 
   self->have_segment = FALSE;
@@ -1878,13 +1864,13 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
 }
 
 /**
- * @brief Update pas caps from tensors config
+ * @brief Update pad caps from tensors config
  */
-static gboolean
+static void
 gst_tensor_converter_update_caps (GstTensorConverter * self,
     GstPad * pad, GstTensorsConfig * config)
 {
-  GstCaps *curr_caps, *out_caps = NULL;
+  GstCaps *curr_caps, *out_caps;
 
   out_caps = gst_tensors_get_caps (pad, config);
 
@@ -1898,7 +1884,6 @@ gst_tensor_converter_update_caps (GstTensorConverter * self,
     gst_caps_unref (curr_caps);
 
   gst_caps_unref (out_caps);
-  return TRUE;
 }
 
 /**
