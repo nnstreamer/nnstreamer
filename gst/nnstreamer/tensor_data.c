@@ -266,24 +266,32 @@ gst_tensor_data_raw_typecast (gpointer input, tensor_type in_type,
  * @param raw pointer of raw tensor data
  * @param length byte size of raw tensor data
  * @param type tensor type
- * @return average value
+ * @param result double pointer for average value of given tensor. Caller should release allocated memory.
+ * @return TRUE if no error
  */
-gdouble
-gst_tensor_data_raw_average (gpointer raw, gsize length, tensor_type type)
+gboolean
+gst_tensor_data_raw_average (gpointer raw, gsize length, tensor_type type,
+    gdouble ** result)
 {
   gdouble value, average;
   gulong i, num;
   gsize element_size;
   guint8 *data;
 
-  g_return_val_if_fail (raw != NULL, 0.0);
-  g_return_val_if_fail (length > 0, 0.0);
-  g_return_val_if_fail (type != _NNS_END, 0.0);
+  g_return_val_if_fail (raw != NULL, FALSE);
+  g_return_val_if_fail (length > 0, FALSE);
+  g_return_val_if_fail (type != _NNS_END, FALSE);
 
   element_size = gst_tensor_get_element_size (type);
   num = length / element_size;
 
   average = 0.0;
+  *result = (gdouble *) g_try_malloc0 (sizeof (gdouble));
+  if (*result == NULL) {
+    nns_loge ("Failed to allocate memory for calculating average");
+    return FALSE;
+  }
+
   for (i = 0; i < num; ++i) {
     /* extract value and typecast to double */
     data = (guint8 *) raw + element_size * i;
@@ -292,7 +300,9 @@ gst_tensor_data_raw_average (gpointer raw, gsize length, tensor_type type)
     average = (value - average) / (i + 1) + average;
   }
 
-  return average;
+  **result = average;
+
+  return TRUE;
 }
 
 /**
@@ -301,12 +311,12 @@ gst_tensor_data_raw_average (gpointer raw, gsize length, tensor_type type)
  * @param length byte size of raw tensor data
  * @param type tensor type
  * @param tensor_dim tensor dimension
- * @param results double array contains average values of each channel
+ * @param results double array contains average values of each channel. Caller should release allocated array.
  * @return TRUE if no error
  */
 gboolean
 gst_tensor_data_raw_average_per_channel (gpointer raw, gsize length,
-    tensor_type type, tensor_dim dim, gdouble * results)
+    tensor_type type, tensor_dim dim, gdouble ** results)
 {
   gdouble value, average;
   gulong ch, i, num, offset;
@@ -323,6 +333,11 @@ gst_tensor_data_raw_average_per_channel (gpointer raw, gsize length,
 
   offset = dim[0];
   num = num / offset;
+  *results = (gdouble *) g_try_malloc0 (sizeof (gdouble) * offset);
+  if (*results == NULL) {
+    nns_loge ("Failed to allocate memory for calculating average");
+    return FALSE;
+  }
 
   for (ch = 0; ch < offset; ++ch) {
     average = 0.0;
@@ -333,7 +348,7 @@ gst_tensor_data_raw_average_per_channel (gpointer raw, gsize length,
       average = (value - average) / (i + 1) + average;
     }
 
-    results[ch] = average;
+    (*results)[ch] = average;
   }
 
   return TRUE;
@@ -345,23 +360,29 @@ gst_tensor_data_raw_average_per_channel (gpointer raw, gsize length,
  * @param length byte size of raw tensor data
  * @param type tensor type
  * @param average average value of given tensor
- * @return standard deviation
+ * @param result double pointer for standard deviation of given tensor. Caller should release allocated memory.
+ * @return TRUE if no error
  */
-gdouble
+gboolean
 gst_tensor_data_raw_std (gpointer raw, gsize length, tensor_type type,
-    gdouble average)
+    gdouble * average, gdouble ** result)
 {
   gdouble value, std;
   gulong i, num;
   gsize element_size;
   guint8 *data;
 
-  g_return_val_if_fail (raw != NULL, 0.0);
-  g_return_val_if_fail (length > 0, 0.0);
-  g_return_val_if_fail (type != _NNS_END, 0.0);
+  g_return_val_if_fail (raw != NULL, FALSE);
+  g_return_val_if_fail (length > 0, FALSE);
+  g_return_val_if_fail (type != _NNS_END, FALSE);
 
   element_size = gst_tensor_get_element_size (type);
   num = length / element_size;
+  *result = (gdouble *) g_try_malloc0 (sizeof (gdouble));
+  if (*result == NULL) {
+    nns_loge ("Failed to allocate memory for calculating standard deviation");
+    return FALSE;
+  }
 
   std = 0.0;
   for (i = 0; i < num; ++i) {
@@ -369,12 +390,13 @@ gst_tensor_data_raw_std (gpointer raw, gsize length, tensor_type type,
     data = (guint8 *) raw + element_size * i;
     gst_tensor_data_raw_typecast (data, type, &value, _NNS_FLOAT64);
 
-    std += pow (value - average, 2) / (num - 1);
+    std += pow (value - *average, 2) / num;
   }
 
   std = (std != 0.0) ? sqrt (std) : (1e-10);
+  **result = std;
 
-  return std;
+  return TRUE;
 }
 
 /**
@@ -384,12 +406,12 @@ gst_tensor_data_raw_std (gpointer raw, gsize length, tensor_type type,
  * @param type tensor type
  * @param tensor_dim tensor dimension
  * @param averages average values of given tensor per-channel
- * @param results double array contains standard deviation of each channel
+ * @param results double array contains standard deviation of each channel. Caller should release allocated array.
  * @return TRUE if no error
  */
 gboolean
 gst_tensor_data_raw_std_per_channel (gpointer raw, gsize length,
-    tensor_type type, tensor_dim dim, gdouble * averages, gdouble * results)
+    tensor_type type, tensor_dim dim, gdouble * averages, gdouble ** results)
 {
   gdouble value, std;
   gulong ch, i, num, offset;
@@ -406,6 +428,11 @@ gst_tensor_data_raw_std_per_channel (gpointer raw, gsize length,
 
   offset = dim[0];
   num = num / offset;
+  *results = (gdouble *) g_try_malloc0 (sizeof (gdouble) * offset);
+  if (*results == NULL) {
+    nns_loge ("Failed to allocate memory for calculating standard deviation");
+    return FALSE;
+  }
 
   for (ch = 0; ch < offset; ++ch) {
     std = 0.0;
@@ -413,11 +440,11 @@ gst_tensor_data_raw_std_per_channel (gpointer raw, gsize length,
       /* extract value and typecast to double */
       data = (guint8 *) raw + element_size * ((i * offset) + ch);
       gst_tensor_data_raw_typecast (data, type, &value, _NNS_FLOAT64);
-      std += pow (value - averages[ch], 2) / (num - 1);
+      std += pow (value - averages[ch], 2) / num;
     }
 
     std = (std != 0.0) ? sqrt (std) : (1e-10);
-    results[ch] = std;
+    (*results)[ch] = std;
   }
 
   return TRUE;

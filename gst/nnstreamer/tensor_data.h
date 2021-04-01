@@ -71,10 +71,12 @@ gst_tensor_data_raw_typecast (gpointer input, tensor_type in_type,
  * @param raw pointer of raw tensor data
  * @param length byte size of raw tensor data
  * @param type tensor type
- * @return average value
+ * @param result double pointer for average value of given tensor. Caller should release allocated memory.
+ * @return TRUE if no error
  */
-extern gdouble
-gst_tensor_data_raw_average (gpointer raw, gsize length, tensor_type type);
+extern gboolean
+gst_tensor_data_raw_average (gpointer raw, gsize length, tensor_type type,
+    gdouble ** result);
 
 /**
  * @brief Calculate average value of the tensor per channel (the first dim).
@@ -82,12 +84,12 @@ gst_tensor_data_raw_average (gpointer raw, gsize length, tensor_type type);
  * @param length byte size of raw tensor data
  * @param type tensor type
  * @param tensor_dim tensor dimension
- * @param results double array contains average values of each channel
+ * @param results double array contains average values of each channel. Caller should release allocated array.
  * @return TRUE if no error
  */
 extern gboolean
 gst_tensor_data_raw_average_per_channel (gpointer raw, gsize length,
-    tensor_type type, tensor_dim dim, gdouble * results);
+    tensor_type type, tensor_dim dim, gdouble ** results);
 
 /**
  * @brief Calculate standard deviation of the tensor.
@@ -95,11 +97,12 @@ gst_tensor_data_raw_average_per_channel (gpointer raw, gsize length,
  * @param length byte size of raw tensor data
  * @param type tensor type
  * @param average average value of given tensor
- * @return standard deviation
+ * @param result double pointer for standard deviation of given tensor. Caller should release allocated memory.
+ * @return TRUE if no error
  */
-extern gdouble
+extern gboolean
 gst_tensor_data_raw_std (gpointer raw, gsize length, tensor_type type,
-    gdouble average);
+    gdouble * average, gdouble ** result);
 
 /**
  * @brief Calculate standard deviation of the tensor per channel (the first dim).
@@ -108,12 +111,12 @@ gst_tensor_data_raw_std (gpointer raw, gsize length, tensor_type type,
  * @param type tensor type
  * @param tensor_dim tensor dimension
  * @param averages average values of given tensor per-channel
- * @param results double array contains standard deviation of each channel
+ * @param results double array contains standard deviation of each channel. Caller should release allocated array.
  * @return TRUE if no error
  */
 extern gboolean
 gst_tensor_data_raw_std_per_channel (gpointer raw, gsize length, 
-    tensor_type type, tensor_dim dim, gdouble * averages, gdouble * results);
+    tensor_type type, tensor_dim dim, gdouble * averages, gdouble ** results);
 
 G_END_DECLS
 #endif /* __NNS_TENSOR_DATA_H__ */
