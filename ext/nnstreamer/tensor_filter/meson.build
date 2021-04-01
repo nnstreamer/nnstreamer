@@ -386,48 +386,56 @@ if get_option('enable-edgetpu')
     error ('enable-filter-cpp-class should be set as \'true\' to build the tensor filter for Edge TPU.')
   endif
 
-  if tflite_support_is_available
-    edgetpu_dep = dependency('edgetpu', required: false)
-    if not edgetpu_dep.found()
-      # Since the developement package for Ubuntu does not have pkgconfig file,
-      # check that the required header and library files exist in the system
-      # include and lib directories.
-      if cxx.has_header('edgetpu.h')
-        edgetpu_dep = declare_dependency (
-          dependencies: cxx.find_library('edgetpu'),
-        )
-      else
-        error('failed to resolve the build dependency of the tensor filter for Edge TPU.')
-      endif
+  edgetpu_dep = dependency('edgetpu', required: false)
+  if not edgetpu_dep.found()
+    # Since the developement package for Ubuntu does not have pkgconfig file,
+    # check that the required header and library files exist in the system
+    # include and lib directories.
+    if cxx.has_header('edgetpu.h')
+      edgetpu_dep = declare_dependency (
+        dependencies: cxx.find_library('edgetpu'),
+      )
+    else
+      error('failed to resolve the build dependency of the tensor filter for Edge TPU.')
     endif
-    filter_sub_edgetpu_sources = ['tensor_filter_edgetpu.cc']
-
-    nnstreamer_filter_edgetpu_sources = []
-    foreach s : filter_sub_edgetpu_sources
-      nnstreamer_filter_edgetpu_sources += join_paths(meson.current_source_dir(), s)
-    endforeach
-
-    rpath_edgetpu_test_helper = ''
-    if get_option('enable-test')
-      '''
-      In order to use the test helper library, add build_rpath.
-      This temporarily overrides the runtime dependency on edge tpu and
-      it is removed after installation.
-      '''
-      rpath_edgetpu_test_helper = join_paths(meson.build_root(), 'tests/nnstreamer_filter_edgetpu')
-
-    endif
-
-    shared_library('nnstreamer_filter_edgetpu',
-      nnstreamer_filter_edgetpu_sources,
-      dependencies: tflite_support_deps + [glib_dep, gst_dep, nnstreamer_dep, edgetpu_dep, libdl_dep, tflite_ver_dep],
-      install: true,
-      install_dir: filter_subplugin_install_dir,
-      build_rpath: rpath_edgetpu_test_helper
-    )
-  else
-    error ('enable-tensorflow-lite should be set as \'true\' to build the tensor filter for Edge TPU.')
   endif
+
+  nnstreamer_filter_edgetpu_deps = [glib_dep, gst_dep, nnstreamer_dep, edgetpu_dep, libdl_dep]
+
+  if tflite2_support_is_available
+    nnstreamer_filter_edgetpu_deps += [tflite2_support_deps, tflite2_ver_dep]
+    message('build Edge TPU sub-plugin with tensorflow2-lite')
+  elif tflite_support_is_available
+    nnstreamer_filter_edgetpu_deps += [tflite_support_deps, tflite_ver_dep]
+    message('build Edge TPU sub-plugin with tensorflow1-lite')
+  else
+    error ('tflite2-support or tflite-support should be set as \'enabled\' to build the tensor filter for Edge TPU.')
+  endif
+
+  filter_sub_edgetpu_sources = ['tensor_filter_edgetpu.cc']
+
+  nnstreamer_filter_edgetpu_sources = []
+  foreach s : filter_sub_edgetpu_sources
+    nnstreamer_filter_edgetpu_sources += join_paths(meson.current_source_dir(), s)
+  endforeach
+
+  rpath_edgetpu_test_helper = ''
+  if get_option('enable-test')
+    '''
+    In order to use the test helper library, add build_rpath.
+    This temporarily overrides the runtime dependency on edge tpu and
+    it is removed after installation.
+    '''
+    rpath_edgetpu_test_helper = join_paths(meson.build_root(), 'tests/nnstreamer_filter_edgetpu')
+  endif
+
+  shared_library('nnstreamer_filter_edgetpu',
+    nnstreamer_filter_edgetpu_sources,
+    dependencies: nnstreamer_filter_edgetpu_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir,
+    build_rpath: rpath_edgetpu_test_helper
+  )
 endif
 
 if get_option('enable-openvino')
