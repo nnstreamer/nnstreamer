@@ -95,6 +95,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_transform_debug);
 #define REGEX_DIMCHG_OPTION "^([0-3]):([0-3])$"
 #define REGEX_TYPECAST_OPTION "(^[u]?int(8|16|32|64)$|^float(32|64)$)"
 #define REGEX_TRANSPOSE_OPTION "^(?:([0-2]):(?!.*\\1)){3}3$"
+#define REGEX_STAND_OPTION "^(default|dc-average)(:([u]?int(8|16|32|64)|float(32|64)))?(,per-channel:(true|false))?$"
 #define REGEX_CLAMP_OPTION "^((([-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?))):"\
     "((([-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?)))$"
 #define REGEX_ARITH_OPTION "^(typecast:([u]?int(8|16|32|64)|float(32|64)),)?"\
@@ -513,11 +514,6 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
   if (filter->mode == GTT_UNKNOWN || filter->option == NULL)
     return TRUE;
 
-  if (strlen (filter->option) == 0) {
-    ml_loge ("Given option string is empty, you should set proper option.");
-    return FALSE;
-  }
-
   filter_name = gst_object_get_name ((GstObject *) filter);
 
   switch (filter->mode) {
@@ -525,7 +521,8 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
     {
       gchar **strv = NULL;
 
-      if (!g_regex_match_simple (REGEX_DIMCHG_OPTION, filter->option, 0, 0)) {
+      if (!g_regex_match_simple (REGEX_DIMCHG_OPTION, filter->option,
+              G_REGEX_CASELESS, 0)) {
         ml_loge
             ("%s: dimchg: \'%s\' is not valid option string: it should be in the form of IDX_DIM_FROM:IDX_DIM_TO: with a regex, "
             REGEX_DIMCHG_OPTION "\n", filter_name, filter->option);
@@ -542,7 +539,8 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
     }
     case GTT_TYPECAST:
     {
-      if (g_regex_match_simple (REGEX_TYPECAST_OPTION, filter->option, 0, 0)) {
+      if (g_regex_match_simple (REGEX_TYPECAST_OPTION, filter->option,
+              G_REGEX_CASELESS, 0)) {
         filter->data_typecast.to = gst_tensor_get_type (filter->option);
         ret = filter->loaded = TRUE;
       } else {
@@ -572,7 +570,8 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
         filter->operators = NULL;
       }
 
-      regex_option_tc = g_regex_new (REGEX_ARITH_OPTION_TYPECAST, 0, 0, 0);
+      regex_option_tc = g_regex_new (REGEX_ARITH_OPTION_TYPECAST,
+          G_REGEX_CASELESS, 0, 0);
 
       if (!regex_option_tc) {
         GST_ERROR_OBJECT (filter,
@@ -593,7 +592,8 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
       }
       g_regex_unref (regex_option_tc);
 
-      if (!g_regex_match_simple (REGEX_ARITH_OPTION, str_option, 0, 0)) {
+      if (!g_regex_match_simple (REGEX_ARITH_OPTION, str_option,
+              G_REGEX_CASELESS, 0)) {
         ml_loge
             ("%s: arithmetic: \'%s\' is not valid option string: it should be in the form of [typecast:TYPE,]add|mul|div:NUMBER..., ...\n",
             filter_name, str_option);
@@ -675,7 +675,8 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
       int i;
       gchar **strv = NULL;
 
-      if (!g_regex_match_simple (REGEX_TRANSPOSE_OPTION, filter->option, 0, 0)) {
+      if (!g_regex_match_simple (REGEX_TRANSPOSE_OPTION, filter->option,
+              G_REGEX_CASELESS, 0)) {
         ml_loge
             ("%s: transpose: \'%s\' is not valid option string: it should be in the form of NEW_IDX_DIM0:NEW_IDX_DIM1:NEW_IDX_DIM2:3 (note that the index of the last dim is alwayes fixed to 3)\n",
             filter_name, filter->option);
@@ -696,6 +697,14 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
     {
       gchar **options = NULL;
       guint i, num_options;
+
+      if (!g_regex_match_simple (REGEX_STAND_OPTION, filter->option,
+              G_REGEX_CASELESS, 0)) {
+        ml_loge
+            ("%s: stand: \'%s\' is not a valid option string: it should be in the form of (default|dc-average)[:TYPE][,per-channel:(false|true)]\n",
+            filter_name, filter->option);
+        break;
+      }
 
       filter->data_stand.out_type = _NNS_END;
       filter->data_stand.per_channel = FALSE;
@@ -725,13 +734,6 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
       }
 
       g_strfreev (options);
-
-      if (filter->data_stand.mode == STAND_END) {
-        ml_loge
-            ("%s: stand: \'%s\' is not a valid option string: it should be in the form of (default|dc-average)[:TYPE][,per-channel:(false|true)]\n",
-            filter_name, filter->option);
-        break;
-      }
       ret = filter->loaded = TRUE;
       break;
     }
@@ -739,7 +741,8 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
     {
       gchar **strv = NULL;
 
-      if (!g_regex_match_simple (REGEX_CLAMP_OPTION, filter->option, 0, 0)) {
+      if (!g_regex_match_simple (REGEX_CLAMP_OPTION, filter->option,
+              G_REGEX_CASELESS, 0)) {
         ml_loge
             ("%s: clamp: \'%s\' is not valid option string: it should be in the form of [CLAMP_MIN:CLAMP_MAX]\n",
             filter_name, filter->option);
