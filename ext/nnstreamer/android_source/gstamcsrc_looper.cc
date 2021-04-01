@@ -56,6 +56,16 @@ Looper::Looper ()
 }
 
 /**
+ * @brief Looper desctructor
+ */
+Looper::~Looper ()
+{
+  flush_msg ();
+  pthread_mutex_destroy (&mutex);
+  pthread_cond_destroy (&cond);
+}
+
+/**
  * @brief Creates a looper thread
  */
 void
@@ -103,15 +113,7 @@ Looper::add_msg (looper_message *new_msg, bool flush)
 
   /** Flush old pending messages */
   if (flush) {
-    msg = head;
-    while (msg) {
-      head = msg->next;
-      delete msg;
-      msg = head;
-    }
-
-    head = NULL;
-    num_msg = 0;
+    flush_msg ();
   }
 
   /** Append new message */
@@ -130,12 +132,32 @@ Looper::add_msg (looper_message *new_msg, bool flush)
 }
 
 /**
+ * @brief Flush all messages.
+ */
+void
+Looper::flush_msg (void)
+{
+  looper_message *msg;
+
+  msg = head;
+  while (msg) {
+    head = msg->next;
+    delete msg;
+    msg = head;
+  }
+
+  head = NULL;
+  num_msg = 0;
+}
+
+/**
  * @brief looper's entry function
  */
 void *
 Looper::entry (void *data)
 {
-  ((Looper *)data)->loop ();
+  if (data)
+    ((Looper *) data)->loop ();
   return NULL;
 }
 
@@ -195,12 +217,23 @@ Looper_new (void)
 }
 
 /**
+ * @brief C-wrapper for Looper destructor
+ */
+void
+Looper_delete (void *looper)
+{
+  if (looper)
+    delete ((Looper *) looper);
+}
+
+/**
  * @brief C-wrapper for Looper post function
  */
 void
 Looper_post (void *looper, gint cmd, void *data, gboolean flush)
 {
-  ((Looper *)looper)->post (cmd, data, flush);
+  if (looper)
+    ((Looper *) looper)->post (cmd, data, flush);
 }
 
 /**
@@ -209,7 +242,8 @@ Looper_post (void *looper, gint cmd, void *data, gboolean flush)
 void
 Looper_set_handle (void *looper, void (*handle) (gint, void *))
 {
-  ((Looper *)looper)->handle = handle;
+  if (looper)
+    ((Looper *) looper)->handle = handle;
 }
 
 /**
@@ -218,5 +252,6 @@ Looper_set_handle (void *looper, void (*handle) (gint, void *))
 void
 Looper_exit (void *looper)
 {
-  ((Looper *)looper)->exit ();
+  if (looper)
+    ((Looper *) looper)->exit ();
 }
