@@ -134,36 +134,29 @@ static void
 gst_mqtt_src_init (GstMqttSrc * self)
 {
   MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
+  MQTTAsync_responseOptions respn_opts = MQTTAsync_responseOptions_initializer;
 
   self->gquark_err_tag = g_quark_from_string (TAG_ERR_MQTTSRC);
 
-  self->mqtt_client_handle = g_malloc0 (sizeof (*self->mqtt_client_handle));
-  if (!self->mqtt_client_handle) {
-    self->err = g_error_new (self->gquark_err_tag, ENOMEM,
-        "%s: self->mqtt_client_handle: %s", __func__, g_strerror (ENOMEM));
-    return;
-  }
-  self->mqtt_conn_opts = g_malloc0 (sizeof (*self->mqtt_conn_opts));
-  if (!self->mqtt_conn_opts) {
-    self->err = g_error_new (self->gquark_err_tag, ENOMEM,
-        "%s: self->mqtt_conn_opts: %s", __func__, g_strerror (ENOMEM));
-    return;
-  }
-  self->mqtt_conn_opts = memcpy (self->mqtt_conn_opts, &conn_opts,
-      sizeof (conn_opts));
   /** init mqttsrc properties */
   self->mqtt_client_id = (gchar *) DEFAULT_MQTT_CLIENT_ID;
   self->mqtt_host_address = g_strdup (DEFAULT_MQTT_HOST_ADDRESS);
   self->mqtt_host_port = g_strdup (DEFAULT_MQTT_HOST_PORT);
   self->mqtt_topic = (gchar *) DEFAULT_MQTT_SUB_TOPIC;
   self->mqtt_sub_timeout = (gint64) DEFAULT_MQTT_SUB_TIMEOUT;
-  self->mqtt_conn_opts->cleansession = DEFAULT_MQTT_OPT_CLEANSESSION;
-  self->mqtt_conn_opts->keepAliveInterval =
-      DEFAULT_MQTT_OPT_KEEP_ALIVE_INTERVAL;
-  self->mqtt_conn_opts->onSuccess = cb_mqtt_on_connect;
-  self->mqtt_conn_opts->onFailure = cb_mqtt_on_connect_failure;
+  self->mqtt_conn_opts.cleansession = DEFAULT_MQTT_OPT_CLEANSESSION;
+  self->mqtt_conn_opts.keepAliveInterval = DEFAULT_MQTT_OPT_KEEP_ALIVE_INTERVAL;
+  self->mqtt_conn_opts = conn_opts;
+  self->mqtt_conn_opts.onSuccess = cb_mqtt_on_connect;
+  self->mqtt_conn_opts.onFailure = cb_mqtt_on_connect_failure;
+  self->mqtt_conn_opts.context = self;
+  self->mqtt_respn_opts = respn_opts;
+  self->mqtt_respn_opts.onSuccess = cb_mqtt_on_subscribe;
+  self->mqtt_respn_opts.onFailure = cb_mqtt_on_subscribe_failure;
+  self->mqtt_respn_opts.context = self;
 
   /** init private member variables */
+  self->err = NULL;
   self->aqueue = g_async_queue_new ();
   self->is_connected = FALSE;
   self->is_subscribed = FALSE;
@@ -241,7 +234,7 @@ gst_mqtt_src_class_init (GstMqttSrcClass * klass)
   gstbasesrc_class->create = GST_DEBUG_FUNCPTR (gst_mqtt_src_create);
 
   gst_element_class_set_static_metadata (gstelement_class,
-      "MQTT Source", "Source/MQTT",
+      "MQTT source", "Source/MQTT",
       "Subscribe a MQTT topic and push incoming data to the GStreamer pipeline",
       "Wook Song <wook16.song@samsung.com>");
   gst_element_class_add_static_pad_template (gstelement_class,
@@ -333,7 +326,6 @@ gst_mqtt_src_class_finalize (GObject * object)
   g_free (self->mqtt_host_address);
   g_free (self->mqtt_host_port);
   g_free (self->mqtt_client_handle);
-  g_free (self->mqtt_conn_opts);
   if (self->err)
     g_error_free (self->err);
 
@@ -407,18 +399,17 @@ gst_mqtt_src_start (GstBaseSrc * basesrc)
    *    MQTTCLIENT_PERSISTENCE_USER: An application-specific persistence
    *                                 mechanism
    */
-  ret = MQTTAsync_create (self->mqtt_client_handle, haddr,
+  ret = MQTTAsync_create (&self->mqtt_client_handle, haddr,
       self->mqtt_client_id, MQTTCLIENT_PERSISTENCE_DEFAULT, NULL);
   g_free (haddr);
   if (ret != MQTTASYNC_SUCCESS)
     return FALSE;
 
-  MQTTAsync_setCallbacks (*self->mqtt_client_handle, self,
+  MQTTAsync_setCallbacks (self->mqtt_client_handle, self,
       cb_mqtt_on_connection_lost, cb_mqtt_on_message_arrived,
       cb_mqtt_on_delivery_complete);
 
-  self->mqtt_conn_opts->context = self;
-  ret = MQTTAsync_connect (*self->mqtt_client_handle, self->mqtt_conn_opts);
+  ret = MQTTAsync_connect (self->mqtt_client_handle, &self->mqtt_conn_opts);
   if (ret != MQTTASYNC_SUCCESS)
     return FALSE;
   return TRUE;
@@ -433,8 +424,8 @@ gst_mqtt_src_stop (GstBaseSrc * basesrc)
   GstMqttSrc *self = GST_MQTT_SRC (basesrc);
 
   /* todo */
-  MQTTAsync_disconnect (*self->mqtt_client_handle, NULL);
-  MQTTAsync_destroy (self->mqtt_client_handle);
+  MQTTAsync_disconnect (self->mqtt_client_handle, NULL);
+  MQTTAsync_destroy (&self->mqtt_client_handle);
 
   return TRUE;
 }
@@ -644,7 +635,7 @@ gst_mqtt_src_set_sub_topic (GstMqttSrc * self, const gchar * topic)
 static gboolean
 gst_mqtt_src_get_opt_cleansession (GstMqttSrc * self)
 {
-  return self->mqtt_conn_opts->cleansession;
+  return self->mqtt_conn_opts.cleansession;
 }
 
 /**
@@ -654,7 +645,7 @@ static void
 gst_mqtt_src_set_opt_cleansession (GstMqttSrc * self, const gboolean val)
 {
   GST_OBJECT_LOCK (self);
-  self->mqtt_conn_opts->cleansession = val;
+  self->mqtt_conn_opts.cleansession = val;
   GST_OBJECT_UNLOCK (self);
 }
 
@@ -664,7 +655,7 @@ gst_mqtt_src_set_opt_cleansession (GstMqttSrc * self, const gboolean val)
 static gint
 gst_mqtt_src_get_opt_keep_alive_interval (GstMqttSrc * self)
 {
-  return self->mqtt_conn_opts->keepAliveInterval;
+  return self->mqtt_conn_opts.keepAliveInterval;
 }
 
 /**
@@ -674,7 +665,7 @@ static void
 gst_mqtt_src_set_opt_keep_alive_interval (GstMqttSrc * self, const gint num)
 {
   GST_OBJECT_LOCK (self);
-  self->mqtt_conn_opts->keepAliveInterval = num;
+  self->mqtt_conn_opts.keepAliveInterval = num;
   GST_OBJECT_UNLOCK (self);
 }
 
@@ -784,7 +775,6 @@ static void
 cb_mqtt_on_connect (void *context, MQTTAsync_successData * response)
 {
   GstMqttSrc *self = GST_MQTT_SRC (context);
-  MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
   int ret;
 
   GST_OBJECT_LOCK (self);
@@ -792,13 +782,9 @@ cb_mqtt_on_connect (void *context, MQTTAsync_successData * response)
   g_cond_signal (&self->gcond);
   GST_OBJECT_UNLOCK (self);
 
-  opts.context = self;
-  opts.onSuccess = cb_mqtt_on_subscribe;
-  opts.onFailure = cb_mqtt_on_subscribe_failure;
-
   /** @todo Support QoS option */
-  ret = MQTTAsync_subscribe (*self->mqtt_client_handle, self->mqtt_topic, 1,
-      &opts);
+  ret = MQTTAsync_subscribe (self->mqtt_client_handle, self->mqtt_topic, 1,
+      &self->mqtt_respn_opts);
   if (ret != MQTTASYNC_SUCCESS) {
     g_printerr ("Failed to start subscribe, return code %d\n", ret);
     return;
