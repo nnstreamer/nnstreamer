@@ -160,7 +160,8 @@ gst_mqtt_src_init (GstMqttSrc * self)
   self->aqueue = g_async_queue_new ();
   self->is_connected = FALSE;
   self->is_subscribed = FALSE;
-  g_cond_init (&self->gcond);
+  g_cond_init (&self->mqtt_src_gcond);
+  g_mutex_init (&self->mqtt_src_mutex);
 }
 
 /**
@@ -435,12 +436,10 @@ gst_mqtt_src_stop (GstBaseSrc * basesrc)
 static GstCaps *
 gst_mqtt_src_get_caps (GstBaseSrc * basesrc, GstCaps * filter)
 {
-  GstMqttSrc *self = GST_MQTT_SRC (basesrc);
   GstPad *pad = basesrc->srcpad;
   GstCaps *cur_caps = gst_pad_get_current_caps (pad);
   GstCaps *caps = gst_caps_new_any ();
 
-  GST_OBJECT_LOCK (self);
   if (cur_caps) {
     GstCaps *intersection =
         gst_caps_intersect_full (cur_caps, caps, GST_CAPS_INTERSECT_FIRST);
@@ -449,7 +448,6 @@ gst_mqtt_src_get_caps (GstBaseSrc * basesrc, GstCaps * filter)
     gst_caps_unref (caps);
     caps = intersection;
   }
-  GST_OBJECT_UNLOCK (self);
 
   return caps;
 }
@@ -484,15 +482,15 @@ gst_mqtt_src_create (GstBaseSrc * basesrc, guint64 offset, guint size,
   GstMqttSrc *self = GST_MQTT_SRC (basesrc);
   gint64 elapsed = self->mqtt_sub_timeout;
 
-  GST_OBJECT_LOCK (self);
+  g_mutex_lock (&self->mqtt_src_mutex);
   while ((!self->is_connected) || (!self->is_subscribed)) {
-    g_cond_wait (&self->gcond, GST_OBJECT_GET_LOCK (self));
+    g_cond_wait (&self->mqtt_src_gcond, &self->mqtt_src_mutex);
     if (self->err) {
-      GST_OBJECT_UNLOCK (self);
+      g_mutex_unlock (&self->mqtt_src_mutex);
       goto ret_flow_err;
     }
   }
-  GST_OBJECT_UNLOCK (self);
+  g_mutex_unlock (&self->mqtt_src_mutex);
 
   while (elapsed > 0) {
     *buf = g_async_queue_timeout_pop (self->aqueue,
@@ -536,9 +534,7 @@ gst_mqtt_src_get_client_id (GstMqttSrc * self)
 static void
 gst_mqtt_src_set_client_id (GstMqttSrc * self, const gchar * id)
 {
-  GST_OBJECT_LOCK (self);
   self->mqtt_client_id = g_strdup (id);
-  GST_OBJECT_UNLOCK (self);
   g_free ((void *) DEFAULT_MQTT_CLIENT_ID);
 }
 
@@ -561,9 +557,7 @@ gst_mqtt_src_set_host_address (GstMqttSrc * self, const gchar * addr)
    * @todo Handle the case where the addr is changed at runtime
    */
   g_free (self->mqtt_host_address);
-  GST_OBJECT_LOCK (self);
   self->mqtt_host_address = g_strdup (addr);
-  GST_OBJECT_UNLOCK (self);
 }
 
 /**
@@ -582,9 +576,7 @@ static void
 gst_mqtt_src_set_host_port (GstMqttSrc * self, const gchar * port)
 {
   g_free (self->mqtt_host_port);
-  GST_OBJECT_LOCK (self);
   self->mqtt_host_port = g_strdup (port);
-  GST_OBJECT_UNLOCK (self);
 }
 
 /**
@@ -602,9 +594,7 @@ gst_mqtt_src_get_sub_timeout (GstMqttSrc * self)
 static void
 gst_mqtt_src_set_sub_timeout (GstMqttSrc * self, const gint64 t)
 {
-  GST_OBJECT_LOCK (self);
   self->mqtt_sub_timeout = t;
-  GST_OBJECT_UNLOCK (self);
 }
 
 /**
@@ -622,10 +612,7 @@ gst_mqtt_src_get_sub_topic (GstMqttSrc * self)
 static void
 gst_mqtt_src_set_sub_topic (GstMqttSrc * self, const gchar * topic)
 {
-  GST_OBJECT_LOCK (self);
   self->mqtt_topic = g_strdup (topic);
-  GST_OBJECT_UNLOCK (self);
-  g_free ((void *) DEFAULT_MQTT_SUB_TOPIC);
 }
 
 /**
@@ -643,9 +630,7 @@ gst_mqtt_src_get_opt_cleansession (GstMqttSrc * self)
 static void
 gst_mqtt_src_set_opt_cleansession (GstMqttSrc * self, const gboolean val)
 {
-  GST_OBJECT_LOCK (self);
   self->mqtt_conn_opts.cleansession = val;
-  GST_OBJECT_UNLOCK (self);
 }
 
 /**
@@ -663,9 +648,7 @@ gst_mqtt_src_get_opt_keep_alive_interval (GstMqttSrc * self)
 static void
 gst_mqtt_src_set_opt_keep_alive_interval (GstMqttSrc * self, const gint num)
 {
-  GST_OBJECT_LOCK (self);
   self->mqtt_conn_opts.keepAliveInterval = num;
-  GST_OBJECT_UNLOCK (self);
 }
 
 /**
@@ -676,16 +659,16 @@ cb_mqtt_on_connection_lost (void *context, char *cause)
 {
   GstMqttSrc *self = GST_MQTT_SRC_CAST (context);
 
-  GST_OBJECT_LOCK (self);
+  g_mutex_lock (&self->mqtt_src_mutex);
   self->is_connected = FALSE;
   self->is_subscribed = FALSE;
-  g_cond_broadcast (&self->gcond);
+  g_cond_broadcast (&self->mqtt_src_gcond);
   if (!self->err) {
     self->err = g_error_new (self->gquark_err_tag, EHOSTDOWN,
         "Connection to the host (broker) has been lost: %s",
         g_strerror (EHOSTDOWN));
   }
-  GST_OBJECT_UNLOCK (self);
+  g_mutex_unlock (&self->mqtt_src_mutex);
 }
 
 /**
@@ -782,10 +765,10 @@ cb_mqtt_on_connect (void *context, MQTTAsync_successData * response)
   GstMqttSrc *self = GST_MQTT_SRC (context);
   int ret;
 
-  GST_OBJECT_LOCK (self);
+  g_mutex_lock (&self->mqtt_src_mutex);
   self->is_connected = TRUE;
-  g_cond_signal (&self->gcond);
-  GST_OBJECT_UNLOCK (self);
+  g_cond_broadcast (&self->mqtt_src_gcond);
+  g_mutex_unlock (&self->mqtt_src_mutex);
 
   /** @todo Support QoS option */
   ret = MQTTAsync_subscribe (self->mqtt_client_handle, self->mqtt_topic, 1,
@@ -795,9 +778,9 @@ cb_mqtt_on_connect (void *context, MQTTAsync_successData * response)
     return;
   }
 
-  GST_OBJECT_LOCK (self);
+  g_mutex_lock (&self->mqtt_src_mutex);
   self->is_subscribed = TRUE;
-  GST_OBJECT_UNLOCK (self);
+  g_mutex_unlock (&self->mqtt_src_mutex);
 }
 
 /**
@@ -808,14 +791,15 @@ cb_mqtt_on_connect_failure (void *context, MQTTAsync_failureData * response)
 {
   GstMqttSrc *self = GST_MQTT_SRC (context);
 
-  GST_OBJECT_LOCK (self);
+  g_mutex_lock (&self->mqtt_src_mutex);
   self->is_connected = FALSE;
+
   if (!self->err) {
     self->err = g_error_new (self->gquark_err_tag, response->code,
         "%s: failed to connect to the broker: %s", __func__, response->message);
   }
-  g_cond_signal (&self->gcond);
-  GST_OBJECT_UNLOCK (self);
+  g_cond_broadcast (&self->mqtt_src_gcond);
+  g_mutex_unlock (&self->mqtt_src_mutex);
 }
 
 /**
@@ -826,10 +810,10 @@ cb_mqtt_on_subscribe (void *context, MQTTAsync_successData * response)
 {
   GstMqttSrc *self = GST_MQTT_SRC (context);
 
-  GST_OBJECT_LOCK (self);
+  g_mutex_lock (&self->mqtt_src_mutex);
   self->is_subscribed = TRUE;
-  g_cond_signal (&self->gcond);
-  GST_OBJECT_UNLOCK (self);
+  g_cond_broadcast (&self->mqtt_src_gcond);
+  g_mutex_unlock (&self->mqtt_src_mutex);
 }
 
 /**
@@ -840,15 +824,15 @@ cb_mqtt_on_subscribe_failure (void *context, MQTTAsync_failureData * response)
 {
   GstMqttSrc *self = GST_MQTT_SRC (context);
 
-  GST_OBJECT_LOCK (self);
+  g_mutex_lock (&self->mqtt_src_mutex);
   self->is_connected = FALSE;
   if (!self->err) {
     self->err = g_error_new (self->gquark_err_tag, response->code,
         "%s: failed to subscribe the given topic, %s: %s", __func__,
         self->mqtt_topic, response->message);
   }
-  g_cond_signal (&self->gcond);
-  GST_OBJECT_UNLOCK (self);
+  g_cond_broadcast (&self->mqtt_src_gcond);
+  g_mutex_unlock (&self->mqtt_src_mutex);
 }
 
 /**
