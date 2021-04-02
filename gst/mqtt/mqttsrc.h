@@ -54,7 +54,8 @@ struct _GstMqttSrc {
   gint64 mqtt_sub_timeout;
 
   GAsyncQueue *aqueue;
-  GCond gcond;
+  GMutex mqtt_src_mutex;
+  GCond mqtt_src_gcond;
   gboolean is_connected;
   gboolean is_subscribed;
 
