@@ -4,7 +4,7 @@
  */
 /**
  * @file    mqttsink.c
- * @date    08 Mar 2021
+ * @date    01 Apr 2021
  * @brief   Publish incoming data streams as a MQTT topic
  * @see     https://github.com/nnstreamer/nnstreamer
  * @author  Wook Song <wook16.song@samsung.com>
@@ -23,7 +23,7 @@
 #endif
 
 #include <gst/base/gstbasesink.h>
-#include <MQTTClient.h>
+#include <MQTTAsync.h>
 
 #include "mqttsink.h"
 
@@ -59,8 +59,8 @@ enum
   DEFAULT_SYNC = FALSE,
   DEFAULT_MQTT_OPT_CLEANSESSION = TRUE,
   DEFAULT_MQTT_OPT_KEEP_ALIVE_INTERVAL = 60,    /* 1 minute */
-  DEFAULT_MQTT_DISCONNECT_TIMEOUT = 10000,      /* 10 secs */
-  DEFAULT_MQTT_PUB_WAIT_TIMEOUT = 10000,        /* 10 secs */
+  DEFAULT_MQTT_DISCONNECT_TIMEOUT = 3000,       /* 3 secs */
+  DEFAULT_MQTT_PUB_WAIT_TIMEOUT = 1,    /* 1 secs */
 };
 
 static const gchar DEFAULT_MQTT_HOST_ADDRESS[] = "tcp://localhost";
@@ -113,6 +113,23 @@ static void gst_mqtt_sink_set_opt_keep_alive_interval (GstMqttSink * self,
 static gint gst_mqtt_sink_get_num_buffers (GstMqttSink * self);
 static void gst_mqtt_sink_set_num_buffers (GstMqttSink * self, const gint num);
 
+static void cb_mqtt_on_connect (void *context,
+    MQTTAsync_successData * response);
+static void cb_mqtt_on_connect_failure (void *context,
+    MQTTAsync_failureData * response);
+static void cb_mqtt_on_disconnect (void *context,
+    MQTTAsync_successData * response);
+static void cb_mqtt_on_disconnect_failure (void *context,
+    MQTTAsync_failureData * response);
+static void cb_mqtt_on_delivery_complete (void *context, MQTTAsync_token token);
+static void cb_mqtt_on_connection_lost (void *context, char *cause);
+static int cb_mqtt_on_message_arrived (void *context, char *topicName,
+    int topicLen, MQTTAsync_message * message);
+static void cb_mqtt_on_send_success (void *context,
+    MQTTAsync_successData * response);
+static void cb_mqtt_on_send_failure (void *context,
+    MQTTAsync_failureData * response);
+
 /**
  * @brief Initialize GstMqttSink object
  */
@@ -120,32 +137,28 @@ static void
 gst_mqtt_sink_init (GstMqttSink * self)
 {
   GstBaseSink *basesink = GST_BASE_SINK (self);
-  MQTTClient_connectOptions conn_opts = MQTTClient_connectOptions_initializer;
+  MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
+  MQTTAsync_responseOptions respn_opts = MQTTAsync_responseOptions_initializer;
 
+  /** init MQTT related variables */
+  self->mqtt_conn_opts = conn_opts;
+  self->mqtt_conn_opts.onSuccess = cb_mqtt_on_connect;
+  self->mqtt_conn_opts.onFailure = cb_mqtt_on_connect_failure;
+  self->mqtt_conn_opts.context = self;
+  self->mqtt_respn_opts = respn_opts;
+  self->mqtt_respn_opts.onSuccess = cb_mqtt_on_send_success;
+  self->mqtt_respn_opts.onFailure = cb_mqtt_on_send_failure;
+  self->mqtt_respn_opts.context = self;
+
+  /** init private variables */
+  self->mqtt_sink_state = SINK_INITIALIZING;
+  self->err = NULL;
   self->gquark_err_tag = g_quark_from_string (TAG_ERR_MQTTSINK);
-
-  self->mqtt_client_handle = g_malloc0 (sizeof (*self->mqtt_client_handle));
-  if (!self->mqtt_client_handle) {
-    self->err = g_error_new (self->gquark_err_tag, ENOMEM,
-        "%s: self->mqtt_client_handle: %s", __func__, g_strerror (ENOMEM));
-    return;
-  }
-  self->mqtt_conn_opts = g_malloc0 (sizeof (*self->mqtt_conn_opts));
-  if (!self->mqtt_conn_opts) {
-    self->err = g_error_new (self->gquark_err_tag, ENOMEM,
-        "%s: self->mqtt_conn_opts: %s", __func__, g_strerror (ENOMEM));
-    return;
-  }
-  self->mqtt_conn_opts = memcpy (self->mqtt_conn_opts, &conn_opts,
-      sizeof (conn_opts));
-
-  self->mqtt_msg_hdr = g_malloc0 (sizeof (GST_MQTT_LEN_MSG_HDR));
-  if (!self->mqtt_msg_hdr) {
-    self->err = g_error_new (self->gquark_err_tag, ENOMEM,
-        "%s: self->mqtt_msg_hdr: %s", __func__, g_strerror (ENOMEM));
-    return;
-  }
-  self->mqtt_msg_hdr_update_flag = TRUE;
+  g_mutex_init (&self->mqtt_sink_mutex);
+  g_cond_init (&self->mqtt_sink_gcond);
+  self->mqtt_msg_buf = NULL;
+  self->mqtt_msg_buf_size = 0;
+  memset (&self->mqtt_msg_hdr, 0x0, sizeof (self->mqtt_msg_hdr));
 
   /** init mqttsink properties */
   self->num_buffers = DEFAULT_NUM_BUFFERS;
@@ -154,9 +167,8 @@ gst_mqtt_sink_init (GstMqttSink * self)
   self->mqtt_host_port = g_strdup (DEFAULT_MQTT_HOST_PORT);
   self->mqtt_topic = (gchar *) DEFAULT_MQTT_PUB_TOPIC;
   self->mqtt_pub_wait_timeout = DEFAULT_MQTT_PUB_WAIT_TIMEOUT;
-  self->mqtt_conn_opts->cleansession = DEFAULT_MQTT_OPT_CLEANSESSION;
-  self->mqtt_conn_opts->keepAliveInterval =
-      DEFAULT_MQTT_OPT_KEEP_ALIVE_INTERVAL;
+  self->mqtt_conn_opts.cleansession = DEFAULT_MQTT_OPT_CLEANSESSION;
+  self->mqtt_conn_opts.keepAliveInterval = DEFAULT_MQTT_OPT_KEEP_ALIVE_INTERVAL;
 
   /** init basesink properties */
   gst_base_sink_set_qos_enabled (basesink, DEFAULT_QOS);
@@ -206,8 +218,8 @@ gst_mqtt_sink_class_init (GstMqttSinkClass * klass)
 
   g_object_class_install_property (gobject_class,
       PROP_MQTT_PUB_WAIT_TIMEOUT,
-      g_param_spec_ulong ("pub-wait-timeout", "Timeout for SyncPublish",
-          "Timeout for synchronize execution of the main thread with completed publication of a message",
+      g_param_spec_ulong ("pub-wait-timeout", "Timeout for Publish a message",
+          "Timeout for execution of the main thread with completed publication of a message",
           1UL, G_MAXULONG, DEFAULT_MQTT_PUB_WAIT_TIMEOUT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
@@ -339,8 +351,6 @@ gst_mqtt_sink_class_finalize (GObject * object)
   g_free (self->mqtt_host_address);
   g_free (self->mqtt_host_port);
   g_free (self->mqtt_client_handle);
-  g_free (self->mqtt_conn_opts);
-  g_free (self->mqtt_msg_hdr);
   if (self->err)
     g_error_free (self->err);
 
@@ -412,15 +422,18 @@ gst_mqtt_sink_start (GstBaseSink * basesink)
    *    MQTTCLIENT_PERSISTENCE_USER: An application-specific persistence
    *                                 mechanism
    */
-  ret = MQTTClient_create (self->mqtt_client_handle, haddr,
-      self->mqtt_client_id, MQTTCLIENT_PERSISTENCE_DEFAULT, NULL);
+  ret = MQTTAsync_create (&self->mqtt_client_handle, haddr,
+      self->mqtt_client_id, MQTTCLIENT_PERSISTENCE_NONE, NULL);
   g_free (haddr);
-  if (ret != MQTTCLIENT_SUCCESS)
+  if (ret != MQTTASYNC_SUCCESS)
     return FALSE;
 
-  ret = MQTTClient_connect (*self->mqtt_client_handle, self->mqtt_conn_opts);
-  if (ret != MQTTCLIENT_SUCCESS) {
-    MQTTClient_destroy (self->mqtt_client_handle);
+  MQTTAsync_setCallbacks (self->mqtt_client_handle, self,
+      cb_mqtt_on_connection_lost, cb_mqtt_on_message_arrived,
+      cb_mqtt_on_delivery_complete);
+
+  ret = MQTTAsync_connect (self->mqtt_client_handle, &self->mqtt_conn_opts);
+  if (ret != MQTTASYNC_SUCCESS) {
     return FALSE;
   }
 
@@ -434,10 +447,27 @@ static gboolean
 gst_mqtt_sink_stop (GstBaseSink * basesink)
 {
   GstMqttSink *self = GST_MQTT_SINK (basesink);
+  MQTTAsync_disconnectOptions disconn_opts =
+      MQTTAsync_disconnectOptions_initializer;
 
-  MQTTClient_disconnect (*self->mqtt_client_handle,
-      DEFAULT_MQTT_DISCONNECT_TIMEOUT);
-  MQTTClient_destroy (self->mqtt_client_handle);
+  disconn_opts.timeout = DEFAULT_MQTT_DISCONNECT_TIMEOUT;
+  disconn_opts.onSuccess = cb_mqtt_on_disconnect;
+  disconn_opts.onFailure = cb_mqtt_on_disconnect_failure;
+  disconn_opts.context = self;
+
+  g_mutex_lock (&self->mqtt_sink_mutex);
+  self->mqtt_sink_state = SINK_RENDER_STOPPED;
+  while (MQTTAsync_isConnected (self->mqtt_client_handle)) {
+    MQTTAsync_disconnect (self->mqtt_client_handle, &disconn_opts);
+    g_cond_wait (&self->mqtt_sink_gcond, &self->mqtt_sink_mutex);
+    if ((self->mqtt_sink_state == MQTT_DISCONNECTED) ||
+        (self->mqtt_sink_state == MQTT_DISCONNECT_FAILED) ||
+        (self->mqtt_sink_state == SINK_RENDER_EOS) ||
+        (self->mqtt_sink_state == SINK_RENDER_ERROR))
+      break;
+  }
+  g_mutex_unlock (&self->mqtt_sink_mutex);
+  MQTTAsync_destroy (&self->mqtt_client_handle);
 
   return TRUE;
 }
@@ -470,108 +500,131 @@ gst_mqtt_sink_query (GstBaseSink * basesink, GstQuery * query)
 }
 
 /**
+ * @brief A utility function to set the message header
+ */
+static gboolean
+_set_msg_buf_hdr (GstBuffer * gst_buf, GstMQTTMessageHdr * hdr)
+{
+  gboolean ret = TRUE;
+  guint i;
+
+  hdr->num_mems = gst_buffer_n_memory (gst_buf);
+  for (i = 0; i < hdr->num_mems; ++i) {
+    GstMemory *each_mem;
+
+    each_mem = gst_buffer_peek_memory (gst_buf, i);
+    if (!each_mem) {
+      memset (hdr, 0x0, sizeof (*hdr));
+      ret = FALSE;
+      break;
+    }
+
+    hdr->size_mems[i] = each_mem->size;
+  }
+
+  return ret;
+}
+
+/**
  * @brief The callback to process each buffer receiving on the sink pad
  */
 static GstFlowReturn
 gst_mqtt_sink_render (GstBaseSink * basesink, GstBuffer * in_buf)
 {
-  MQTTClient_message pubmsg = MQTTClient_message_initializer;
-  MQTTClient_deliveryToken token;
   GstMqttSink *self = GST_MQTT_SINK (basesink);
-  GstMQTTMessageHdr *mqtt_msg_hdr;
-  GstBuffer *pubmsg_buf;
-  GstMemory *hdr_mem;
-  GstMemory *payload_mem;
-  GstMapInfo payload_mem_map;
-  GstFlowReturn ret = GST_FLOW_OK;
-  gsize payload_len;
+  GstFlowReturn ret = GST_FLOW_ERROR;
+  GstMemory *in_buf_mem;
+  GstMapInfo in_buf_map;
   gint mqtt_rc;
-  guint i;
+  guint8 *msg_pub;
 
-  GST_OBJECT_LOCK (self);
-  if (self->num_buffers == 0)
-    goto ret_eos;
+  g_mutex_lock (&self->mqtt_sink_mutex);
+  while (self->mqtt_sink_state != MQTT_CONNECTED) {
+    gint64 end_time = g_get_monotonic_time ();
 
-  if (self->num_buffers != -1)
-    self->num_buffers -= 1;
-  GST_OBJECT_UNLOCK (self);
-
-  /** Create a new empty GstBuffer since in_buf is not writeable */
-  pubmsg_buf = gst_buffer_new ();
-  if (!pubmsg_buf) {
-    ret = GST_FLOW_ERROR;
-    goto ret_err;
-  }
-
-  payload_len = 0;
-  mqtt_msg_hdr = self->mqtt_msg_hdr;
-  GST_OBJECT_LOCK (self);
-  mqtt_msg_hdr->num_mems = gst_buffer_n_memory (in_buf);
-  GST_OBJECT_UNLOCK (self);
-  for (i = 0; i < mqtt_msg_hdr->num_mems; ++i) {
-    GstMemory *each_mem;
-
-    each_mem = gst_buffer_peek_memory (in_buf, i);
-    if (!each_mem) {
-      ret = GST_FLOW_ERROR;
-      goto ret_err_unref_pub_buf;
+    end_time += (self->mqtt_pub_wait_timeout * G_TIME_SPAN_SECOND);
+    g_cond_wait_until (&self->mqtt_sink_gcond, &self->mqtt_sink_mutex,
+        end_time);
+    switch (self->mqtt_sink_state) {
+      case MQTT_CONNECT_FAILURE:
+      case MQTT_DISCONNECTED:
+      case MQTT_CONNECTION_LOST:
+      case SINK_RENDER_ERROR:
+        ret = GST_FLOW_ERROR;
+        break;
+      case SINK_RENDER_EOS:
+        ret = GST_FLOW_EOS;
+        break;
+      default:
+        continue;
     }
-    GST_OBJECT_LOCK (self);
-    mqtt_msg_hdr->size_mems[i] = each_mem->size;
-    GST_OBJECT_UNLOCK (self);
-    payload_len += each_mem->size;
-    gst_memory_ref (each_mem);
-    gst_buffer_append_memory (pubmsg_buf, each_mem);
+    goto ret_unlock;
+  }
+  g_mutex_unlock (&self->mqtt_sink_mutex);
+
+  if (self->num_buffers == 0) {
+    ret = GST_FLOW_EOS;
+    goto ret_with;
   }
 
-  hdr_mem = gst_memory_new_wrapped (0, mqtt_msg_hdr, GST_MQTT_LEN_MSG_HDR, 0,
-      GST_MQTT_LEN_MSG_HDR, NULL, NULL);
-  if (!hdr_mem) {
+  if (self->num_buffers != -1) {
+    self->num_buffers -= 1;
+  }
+
+  if ((!self->mqtt_msg_buf) && (self->mqtt_msg_buf_size == 0)) {
+    if (!_set_msg_buf_hdr (in_buf, &self->mqtt_msg_hdr)) {
+      ret = GST_FLOW_ERROR;
+      goto ret_with;
+    }
+    self->mqtt_msg_buf_size = gst_buffer_get_size (in_buf) +
+        GST_MQTT_LEN_MSG_HDR;
+    self->mqtt_msg_buf = g_malloc0 (self->mqtt_msg_buf_size);
+    if (!self->mqtt_msg_buf) {
+      self->mqtt_msg_buf_size = 0;
+      ret = GST_FLOW_ERROR;
+      goto ret_with;
+    }
+
+    msg_pub = self->mqtt_msg_buf;
+    memcpy (msg_pub, &self->mqtt_msg_hdr, sizeof (self->mqtt_msg_hdr));
+  } else {
+    msg_pub = self->mqtt_msg_buf;
+  }
+
+  in_buf_mem = gst_buffer_get_all_memory (in_buf);
+  if (!in_buf_mem) {
     ret = GST_FLOW_ERROR;
-    goto ret_err_unref_pub_buf;
+    goto ret_with;
   }
 
-  payload_len += GST_MQTT_LEN_MSG_HDR;
-  gst_buffer_prepend_memory (pubmsg_buf, hdr_mem);
-
-  payload_mem = gst_buffer_get_all_memory (pubmsg_buf);
-  if (!gst_memory_map (payload_mem, &payload_mem_map, GST_MAP_READ)) {
+  if (!gst_memory_map (in_buf_mem, &in_buf_map, GST_MAP_READ)) {
     ret = GST_FLOW_ERROR;
-    goto ret_err_unref_pub_buf;
+    goto ret_unref_in_buf_mem;
   }
 
-  pubmsg.payload = payload_mem_map.data;
-  /** the data type of payloadlen is int */
-  pubmsg.payloadlen = (gint) payload_len;
-  /** @todo MQTTClient_message's properties should be adjustable. */
-  pubmsg.qos = 1;
-  pubmsg.retained = 0;
+  ret = GST_FLOW_OK;
 
-  mqtt_rc = MQTTClient_publishMessage (*self->mqtt_client_handle,
-      self->mqtt_topic, &pubmsg, &token);
-  if (mqtt_rc != MQTTCLIENT_SUCCESS) {
+  memcpy (&msg_pub[sizeof (self->mqtt_msg_hdr)], in_buf_map.data,
+      in_buf_map.size);
+  mqtt_rc = MQTTAsync_send (self->mqtt_client_handle, self->mqtt_topic,
+      self->mqtt_msg_buf_size, self->mqtt_msg_buf, 0, 0,
+      &self->mqtt_respn_opts);
+  if (mqtt_rc != MQTTASYNC_SUCCESS) {
     ret = GST_FLOW_ERROR;
-    goto ret_err_cleanup_payload;
   }
 
-  MQTTClient_waitForCompletion (*self->mqtt_client_handle, token,
-      self->mqtt_pub_wait_timeout);
+  gst_memory_unmap (in_buf_mem, &in_buf_map);
 
-  GST_DEBUG_OBJECT (self, "Message with delivery token %d delivered\n", token);
+ret_unref_in_buf_mem:
+  gst_memory_unref (in_buf_mem);
 
-ret_err_cleanup_payload:
-  gst_memory_unmap (payload_mem, &payload_mem_map);
-  gst_memory_unref (payload_mem);
-
-ret_err_unref_pub_buf:
-  gst_buffer_unref (pubmsg_buf);
-
-ret_err:
+ret_with:
   return ret;
 
-ret_eos:
-  GST_OBJECT_UNLOCK (self);
-  return GST_FLOW_EOS;
+ret_unlock:
+  g_mutex_unlock (&self->mqtt_sink_mutex);
+
+  return ret;
 }
 
 /**
@@ -602,14 +655,22 @@ gst_mqtt_sink_render_list (GstBaseSink * basesink, GstBufferList * list)
 static gboolean
 gst_mqtt_sink_event (GstBaseSink * basesink, GstEvent * event)
 {
+  GstMqttSink *self = GST_MQTT_SINK (basesink);
   GstEventType type = GST_EVENT_TYPE (event);
   gboolean ret = FALSE;
 
   switch (type) {
+    case GST_EVENT_EOS:
+      g_mutex_lock (&self->mqtt_sink_mutex);
+      self->mqtt_sink_state = SINK_RENDER_EOS;
+      g_cond_broadcast (&self->mqtt_sink_gcond);
+      g_mutex_unlock (&self->mqtt_sink_mutex);
+      break;
     default:
-      ret = GST_BASE_SINK_CLASS (parent_class)->event (basesink, event);
       break;
   }
+
+  ret = GST_BASE_SINK_CLASS (parent_class)->event (basesink, event);
 
   return ret;
 }
@@ -629,9 +690,7 @@ gst_mqtt_sink_get_client_id (GstMqttSink * self)
 static void
 gst_mqtt_sink_set_client_id (GstMqttSink * self, const gchar * id)
 {
-  GST_OBJECT_LOCK (self);
   self->mqtt_client_id = g_strdup (id);
-  GST_OBJECT_UNLOCK (self);
   g_free ((void *) DEFAULT_MQTT_CLIENT_ID);
 }
 
@@ -653,9 +712,8 @@ gst_mqtt_sink_set_host_address (GstMqttSink * self, const gchar * addr)
   /**
    * @todo Handle the case where the addr is changed at runtime
    */
-  GST_OBJECT_LOCK (self);
+  g_free (self->mqtt_host_address);
   self->mqtt_host_address = g_strdup (addr);
-  GST_OBJECT_UNLOCK (self);
 }
 
 /**
@@ -673,9 +731,8 @@ gst_mqtt_sink_get_host_port (GstMqttSink * self)
 static void
 gst_mqtt_sink_set_host_port (GstMqttSink * self, const gchar * port)
 {
-  GST_OBJECT_LOCK (self);
+  g_free (self->mqtt_host_port);
   self->mqtt_host_port = g_strdup (port);
-  GST_OBJECT_UNLOCK (self);
 }
 
 /**
@@ -693,9 +750,7 @@ gst_mqtt_sink_get_pub_topic (GstMqttSink * self)
 static void
 gst_mqtt_sink_set_pub_topic (GstMqttSink * self, const gchar * topic)
 {
-  GST_OBJECT_LOCK (self);
   self->mqtt_topic = g_strdup (topic);
-  GST_OBJECT_UNLOCK (self);
   g_free ((void *) DEFAULT_MQTT_PUB_TOPIC);
 }
 
@@ -705,7 +760,7 @@ gst_mqtt_sink_set_pub_topic (GstMqttSink * self, const gchar * topic)
 static gboolean
 gst_mqtt_sink_get_opt_cleansession (GstMqttSink * self)
 {
-  return self->mqtt_conn_opts->cleansession;
+  return self->mqtt_conn_opts.cleansession;
 }
 
 /**
@@ -714,9 +769,7 @@ gst_mqtt_sink_get_opt_cleansession (GstMqttSink * self)
 static void
 gst_mqtt_sink_set_opt_cleansession (GstMqttSink * self, const gboolean val)
 {
-  GST_OBJECT_LOCK (self);
-  self->mqtt_conn_opts->cleansession = val;
-  GST_OBJECT_UNLOCK (self);
+  self->mqtt_conn_opts.cleansession = val;
 }
 
 /**
@@ -734,9 +787,7 @@ gst_mqtt_sink_get_pub_wait_timeout (GstMqttSink * self)
 static void
 gst_mqtt_sink_set_pub_wait_timeout (GstMqttSink * self, const gulong to)
 {
-  GST_OBJECT_LOCK (self);
   self->mqtt_pub_wait_timeout = to;
-  GST_OBJECT_UNLOCK (self);
 }
 
 /**
@@ -745,7 +796,7 @@ gst_mqtt_sink_set_pub_wait_timeout (GstMqttSink * self, const gulong to)
 static gint
 gst_mqtt_sink_get_opt_keep_alive_interval (GstMqttSink * self)
 {
-  return self->mqtt_conn_opts->keepAliveInterval;
+  return self->mqtt_conn_opts.keepAliveInterval;
 }
 
 /**
@@ -754,9 +805,7 @@ gst_mqtt_sink_get_opt_keep_alive_interval (GstMqttSink * self)
 static void
 gst_mqtt_sink_set_opt_keep_alive_interval (GstMqttSink * self, const gint num)
 {
-  GST_OBJECT_LOCK (self);
-  self->mqtt_conn_opts->keepAliveInterval = num;
-  GST_OBJECT_UNLOCK (self);
+  self->mqtt_conn_opts.keepAliveInterval = num;
 }
 
 /**
@@ -767,9 +816,7 @@ gst_mqtt_sink_get_num_buffers (GstMqttSink * self)
 {
   gint num_buffers;
 
-  GST_OBJECT_LOCK (self);
   num_buffers = self->num_buffers;
-  GST_OBJECT_UNLOCK (self);
 
   return num_buffers;
 }
@@ -780,7 +827,141 @@ gst_mqtt_sink_get_num_buffers (GstMqttSink * self)
 static void
 gst_mqtt_sink_set_num_buffers (GstMqttSink * self, const gint num)
 {
-  GST_OBJECT_LOCK (self);
   self->num_buffers = num;
-  GST_OBJECT_UNLOCK (self);
+}
+
+/** Callback function definitions */
+/**
+ * @brief A callback function corresponding to MQTTAsync_connectOptions's
+ *        onSuccess. This callback is invoked when the connection between
+ *        this element and the broker is properly established.
+ */
+static void
+cb_mqtt_on_connect (void *context, MQTTAsync_successData * response)
+{
+  GstMqttSink *self = (GstMqttSink *) context;
+
+  g_mutex_lock (&self->mqtt_sink_mutex);
+  self->mqtt_sink_state = MQTT_CONNECTED;
+  g_cond_broadcast (&self->mqtt_sink_gcond);
+  g_mutex_unlock (&self->mqtt_sink_mutex);
+}
+
+/**
+ * @brief A callback function corresponding to MQTTAsync_connectOptions's
+ *        onFailure. This callback is invoked when it is failed to connect to
+ *        the broker.
+ */
+static void
+cb_mqtt_on_connect_failure (void *context, MQTTAsync_failureData * response)
+{
+  GstMqttSink *self = (GstMqttSink *) context;
+
+  g_mutex_lock (&self->mqtt_sink_mutex);
+  self->mqtt_sink_state = MQTT_CONNECT_FAILURE;
+  g_cond_broadcast (&self->mqtt_sink_gcond);
+  g_mutex_unlock (&self->mqtt_sink_mutex);
+}
+
+/**
+ * @brief A callback function corresponding to MQTTAsync_disconnectOptions's
+ *        onSuccess. Regardless of the MQTTAsync_disconnect function's result,
+ *        the pipeline should be stopped after this callback.
+ */
+static void
+cb_mqtt_on_disconnect (void *context, MQTTAsync_successData * response)
+{
+  GstMqttSink *self = (GstMqttSink *) context;
+
+  g_mutex_lock (&self->mqtt_sink_mutex);
+  self->mqtt_sink_state = MQTT_DISCONNECTED;
+  g_cond_broadcast (&self->mqtt_sink_gcond);
+  g_mutex_unlock (&self->mqtt_sink_mutex);
+}
+
+/**
+ * @brief A callback function corresponding to MQTTAsync_disconnectOptions's
+ *        onFailure. Regardless of the MQTTAsync_disconnect function's result,
+ *        the pipeline should be stopped after this callback.
+ */
+static void
+cb_mqtt_on_disconnect_failure (void *context, MQTTAsync_failureData * response)
+{
+  GstMqttSink *self = (GstMqttSink *) context;
+
+  g_mutex_lock (&self->mqtt_sink_mutex);
+  self->mqtt_sink_state = MQTT_DISCONNECT_FAILED;
+  g_cond_broadcast (&self->mqtt_sink_gcond);
+  g_mutex_unlock (&self->mqtt_sink_mutex);
+
+}
+
+/**
+ * @brief A callback function to be given to the MQTTAsync_setCallbacks funtion.
+ */
+static void
+cb_mqtt_on_delivery_complete (void *context, MQTTAsync_token token)
+{
+  /** Currently, Nothing to do */
+}
+
+/**
+ * @brief A callback function to be given to the MQTTAsync_setCallbacks funtion.
+ *        When the connection between this element and the broker is broken,
+ *        this callback will be invoked.
+ */
+static void
+cb_mqtt_on_connection_lost (void *context, char *cause)
+{
+  GstMqttSink *self = (GstMqttSink *) context;
+
+  g_mutex_lock (&self->mqtt_sink_mutex);
+  self->mqtt_sink_state = MQTT_CONNECTION_LOST;
+  g_cond_broadcast (&self->mqtt_sink_gcond);
+  g_mutex_unlock (&self->mqtt_sink_mutex);
+}
+
+/**
+ * @brief A callback function to be given to the MQTTAsync_setCallbacks funtion.
+ *        In the case of the publisher, this callbase is not used.
+ */
+static int
+cb_mqtt_on_message_arrived (void *context, char *topicName, int topicLen,
+    MQTTAsync_message * message)
+{
+  return 1;
+}
+
+/**
+ * @brief A callback function corresponding to MQTTAsync_responseOptions's
+ *        onSuccess.
+ */
+static void
+cb_mqtt_on_send_success (void *context, MQTTAsync_successData * response)
+{
+  GstMqttSink *self = (GstMqttSink *) context;
+
+  g_mutex_lock (&self->mqtt_sink_mutex);
+  if (self->mqtt_sink_state == SINK_RENDER_STOPPED) {
+    self->mqtt_sink_state = SINK_RENDER_EOS;
+    g_cond_broadcast (&self->mqtt_sink_gcond);
+  }
+  g_mutex_unlock (&self->mqtt_sink_mutex);
+}
+
+/**
+ * @brief A callback function corresponding to MQTTAsync_responseOptions's
+ *        onFailure.
+ */
+static void
+cb_mqtt_on_send_failure (void *context, MQTTAsync_failureData * response)
+{
+  GstMqttSink *self = (GstMqttSink *) context;
+
+  g_mutex_lock (&self->mqtt_sink_mutex);
+  if (self->mqtt_sink_state == SINK_RENDER_STOPPED) {
+    self->mqtt_sink_state = SINK_RENDER_ERROR;
+    g_cond_broadcast (&self->mqtt_sink_gcond);
+  }
+  g_mutex_unlock (&self->mqtt_sink_mutex);
 }

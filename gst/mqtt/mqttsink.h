@@ -15,7 +15,7 @@
 #define __GST_MQTT_SINK_H__
 #include <gst/base/gstbasesink.h>
 #include <gst/gst.h>
-#include <MQTTClient.h>
+#include <MQTTAsync.h>
 
 #include "mqttcommon.h"
 
@@ -38,6 +38,21 @@ typedef struct _GstMqttSink GstMqttSink;
 typedef struct _GstMqttSinkClass GstMqttSinkClass;
 
 /**
+ * @brief A type definition to indicate the state of this element
+ */
+typedef enum _mqtt_sink_state_t {
+  MQTT_CONNECTION_LOST = -3,
+  MQTT_CONNECT_FAILURE = -2,
+  SINK_INITIALIZING = -1,
+  SINK_RENDER_STOPPED = 0,
+  SINK_RENDER_EOS,
+  SINK_RENDER_ERROR,
+  MQTT_CONNECTED,
+  MQTT_DISCONNECTED,
+  MQTT_DISCONNECT_FAILED,
+} mqtt_sink_state_t;
+
+/**
  * @brief GstMqttSink data structure.
  *
  * GstMqttSink inherits GstBaseSink.
@@ -47,15 +62,22 @@ struct _GstMqttSink {
   guint num_buffers;
   GQuark gquark_err_tag;
   GError *err;
-  MQTTClient *mqtt_client_handle;
-  MQTTClient_connectOptions *mqtt_conn_opts;
   gchar *mqtt_client_id;
   gchar *mqtt_host_address;
   gchar *mqtt_host_port;
   gchar *mqtt_topic;
   gulong mqtt_pub_wait_timeout;
-  gboolean mqtt_msg_hdr_update_flag;
-  GstMQTTMessageHdr *mqtt_msg_hdr;
+  GMutex mqtt_sink_mutex;
+  GCond mqtt_sink_gcond;
+  mqtt_sink_state_t mqtt_sink_state;
+
+  GstMQTTMessageHdr mqtt_msg_hdr;
+  gpointer mqtt_msg_buf;
+  gsize mqtt_msg_buf_size;
+
+  MQTTAsync mqtt_client_handle;
+  MQTTAsync_connectOptions mqtt_conn_opts;
+  MQTTAsync_responseOptions mqtt_respn_opts;
 };
 
 /**

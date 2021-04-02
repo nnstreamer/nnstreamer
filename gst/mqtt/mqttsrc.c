@@ -574,6 +574,7 @@ gst_mqtt_src_set_host_address (GstMqttSrc * self, const gchar * addr)
   /**
    * @todo Handle the case where the addr is changed at runtime
    */
+  g_free (self->mqtt_host_address);
   GST_OBJECT_LOCK (self);
   self->mqtt_host_address = g_strdup (addr);
   GST_OBJECT_UNLOCK (self);
@@ -594,6 +595,7 @@ gst_mqtt_src_get_host_port (GstMqttSrc * self)
 static void
 gst_mqtt_src_set_host_port (GstMqttSrc * self, const gchar * port)
 {
+  g_free (self->mqtt_host_port);
   GST_OBJECT_LOCK (self);
   self->mqtt_host_port = g_strdup (port);
   GST_OBJECT_UNLOCK (self);

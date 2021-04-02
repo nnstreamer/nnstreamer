@@ -22,11 +22,13 @@
 #define GST_MQTT_ELEM_NAME_SRC "mqttsrc"
 
 #define GST_MQTT_LEN_MSG_HDR    512
+
 /**
- * @brief GST_BUFFER_MEM_MAX in gstreamer/gstbuffer.c is 16 so that 15 memory
- * slots ramained in GstBuffer, which we are going to publish and subscribe.
+ * @brief GST_BUFFER_MEM_MAX in gstreamer/gstbuffer.c is 16. To represent each
+ *        size of the memory block that the GstBuffer contains, GST_MQTT_MAX_NUM_MEMS
+ *        should be 16.
  */
-#define GST_MQTT_MAX_NUM_MEMS   15
+#define GST_MQTT_MAX_NUM_MEMS   16
 
 /**
  * @brief Defined a custom data type, GstMQTTMessageHdr
