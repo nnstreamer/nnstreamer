@@ -292,6 +292,10 @@ gst_tensor_aggregator_init (GstTensorAggregator * self)
   self->frames_dim = DEFAULT_FRAMES_DIMENSION;
   self->concat = DEFAULT_CONCAT;
 
+  self->tensor_configured = FALSE;
+  gst_tensor_config_init (&self->in_config);
+  gst_tensor_config_init (&self->out_config);
+
   self->adapter = gst_adapter_new ();
   gst_tensor_aggregator_reset (self);
 }
@@ -307,6 +311,9 @@ gst_tensor_aggregator_finalize (GObject * object)
   self = GST_TENSOR_AGGREGATOR (object);
 
   gst_tensor_aggregator_reset (self);
+
+  gst_tensor_info_free (&self->in_config.info);
+  gst_tensor_info_free (&self->out_config.info);
 
   if (self->adapter) {
     g_object_unref (self->adapter);
@@ -971,13 +978,10 @@ gst_tensor_aggregator_change_state (GstElement * element,
 static void
 gst_tensor_aggregator_reset (GstTensorAggregator * self)
 {
+  /* remove all buffers from adapter */
   if (self->adapter) {
     gst_adapter_clear (self->adapter);
   }
-
-  self->tensor_configured = FALSE;
-  gst_tensor_config_init (&self->in_config);
-  gst_tensor_config_init (&self->out_config);
 }
 
 /**

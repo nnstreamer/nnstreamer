@@ -371,9 +371,10 @@ gst_tensor_converter_init (GstTensorConverter * self)
   self->custom.data = NULL;
 
   gst_tensors_info_init (&self->tensors_info);
+  gst_tensors_config_init (&self->tensors_config);
+  self->tensors_configured = FALSE;
 
   self->adapter = gst_adapter_new ();
-  g_assert (self->adapter != NULL);
   gst_tensor_converter_reset (self);
 }
 
@@ -388,6 +389,9 @@ gst_tensor_converter_finalize (GObject * object)
   self = GST_TENSOR_CONVERTER (object);
 
   gst_tensor_converter_reset (self);
+
+  gst_tensors_info_free (&self->tensors_config.info);
+  gst_tensors_info_free (&self->tensors_info);
 
   if (self->adapter) {
     g_object_unref (self->adapter);
@@ -1153,13 +1157,10 @@ gst_tensor_converter_change_state (GstElement * element,
 static void
 gst_tensor_converter_reset (GstTensorConverter * self)
 {
+  /* remove all buffers from adapter */
   if (self->adapter) {
     gst_adapter_clear (self->adapter);
   }
-
-  self->tensors_configured = FALSE;
-  gst_tensors_info_free (&self->tensors_config.info);
-  gst_tensors_config_init (&self->tensors_config);
 
   self->have_segment = FALSE;
   self->need_segment = FALSE;
