@@ -47,8 +47,6 @@ struct _GstMqttSrc {
   GstBaseSrc parent;
   GQuark gquark_err_tag;
   GError *err;
-  MQTTAsync *mqtt_client_handle;
-  MQTTAsync_connectOptions *mqtt_conn_opts;
   gchar *mqtt_client_id;
   gchar *mqtt_host_address;
   gchar *mqtt_host_port;
@@ -56,10 +54,13 @@ struct _GstMqttSrc {
   gint64 mqtt_sub_timeout;
 
   GAsyncQueue *aqueue;
-	GCond gcond;
-	gboolean is_connected;
-	gboolean is_subscribed;
-	GstStateChange transition;
+  GCond gcond;
+  gboolean is_connected;
+  gboolean is_subscribed;
+
+  MQTTAsync mqtt_client_handle;
+  MQTTAsync_connectOptions mqtt_conn_opts;
+  MQTTAsync_responseOptions mqtt_respn_opts;
 };
 
 /**
