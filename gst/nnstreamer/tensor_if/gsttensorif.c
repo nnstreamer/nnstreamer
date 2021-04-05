@@ -389,7 +389,7 @@ gst_tensor_if_set_property_supplied_value (const GValue * value,
 
   sv->num = num;
   for (i = 0; i < num; i++) {
-    if (is_float == TRUE) {
+    if (is_float) {
       sv->type = _NNS_FLOAT64;
       sv->data[i]._double = g_ascii_strtod (strv[i], NULL);
     } else {
@@ -992,7 +992,7 @@ nnstreamer_if_custom_register (const gchar * name, tensor_if_custom func,
   ptr->func = func;
   ptr->data = data;
 
-  if (register_subplugin (NNS_IF_CUSTOM, name, ptr) == TRUE)
+  if (register_subplugin (NNS_IF_CUSTOM, name, ptr))
     return 0;
 
   g_free (ptr);
@@ -1034,14 +1034,14 @@ gst_tensor_if_check_condition (GstTensorIf * tensor_if, GstBuffer * buf,
     GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT];
     guint i, j;
 
-    if (FALSE == tensor_if->custom_configured) {
+    if (!tensor_if->custom_configured) {
       nns_loge ("custom condition of the tensor_if is not configured.");
       return FALSE;
     }
 
     for (i = 0; i < tensor_if->in_config.info.num_tensors; i++) {
       in_mem[i] = gst_buffer_peek_memory (buf, i);
-      if (FALSE == gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
+      if (!gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
         for (j = 0; j < i; j++)
           gst_memory_unmap (in_mem[j], &in_info[j]);
         GST_WARNING_OBJECT (tensor_if, "Cannot map input memory buffer(%d)\n",
@@ -1095,7 +1095,7 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     return GST_FLOW_ERROR;
   }
 
-  if (condition_result == TRUE) {
+  if (condition_result) {
     curr_act = tensor_if->act_then;
     curr_act_option = tensor_if->then_option;
     which_srcpad = TIFSP_THEN_PAD;

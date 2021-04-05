@@ -92,7 +92,7 @@ NNS_custom_easy_register (const char *modelname,
   gst_tensors_info_copy (&ptr->in_info, in_info);
   gst_tensors_info_copy (&ptr->out_info, out_info);
 
-  if (register_subplugin (NNS_EASY_CUSTOM_FILTER, modelname, ptr) == TRUE)
+  if (register_subplugin (NNS_EASY_CUSTOM_FILTER, modelname, ptr))
     return 0;
 
   custom_free_internal_data (ptr);

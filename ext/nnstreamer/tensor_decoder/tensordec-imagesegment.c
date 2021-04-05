@@ -582,11 +582,11 @@ is_decode (void **pdata, const GstTensorsConfig * config,
   GstMapInfo out_info;
   GstMemory *out_mem;
 
-  if (FALSE == _init_modes (idata) || outbuf == NULL)
+  if (!_init_modes (idata) || outbuf == NULL)
     return GST_FLOW_ERROR;
 
   need_output_alloc = (gst_buffer_get_size (outbuf) == 0);
-  if (TRUE == need_output_alloc) {
+  if (need_output_alloc) {
     out_mem = gst_allocator_alloc (NULL, size, NULL);
   } else {
     if (gst_buffer_get_size (outbuf) < size) {
@@ -594,14 +594,14 @@ is_decode (void **pdata, const GstTensorsConfig * config,
     }
     out_mem = gst_buffer_get_all_memory (outbuf);
   }
-  if (FALSE == gst_memory_map (out_mem, &out_info, GST_MAP_WRITE)) {
+  if (!gst_memory_map (out_mem, &out_info, GST_MAP_WRITE)) {
     ml_loge ("Cannot map output memory / tensordec-imagesegment.\n");
     goto error_free;
   }
 
   memset (out_info.data, '\x00', size);
 
-  if (FALSE == check_sanity (idata, config)) {
+  if (!check_sanity (idata, config)) {
     ml_loge ("Invalid input data format detected.\n");
     goto error_unmap;
   }
@@ -610,7 +610,7 @@ is_decode (void **pdata, const GstTensorsConfig * config,
 
   gst_memory_unmap (out_mem, &out_info);
 
-  if (TRUE == need_output_alloc)
+  if (need_output_alloc)
     gst_buffer_append_memory (outbuf, out_mem);
 
   return GST_FLOW_OK;
@@ -618,7 +618,7 @@ is_decode (void **pdata, const GstTensorsConfig * config,
 error_unmap:
   gst_memory_unmap (out_mem, &out_info);
 error_free:
-  if (TRUE == need_output_alloc)
+  if (need_output_alloc)
     gst_allocator_free (NULL, out_mem);
 
   return GST_FLOW_ERROR;

@@ -1113,7 +1113,7 @@ gst_tensor_src_iio_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
   GstTensorSrcIIO *self;
-  GstStateChangeReturn status;
+  GstStateChangeReturn ret;
   GstState state;
 
   self = GST_TENSOR_SRC_IIO (object);
@@ -1123,9 +1123,9 @@ gst_tensor_src_iio_set_property (GObject * object, guint prop_id,
    * reset the device. To change the properties, user should stop the pipeline
    * and set element state to READY/NULL and then change the properties
    */
-  status = gst_element_get_state (GST_ELEMENT (self), &state, NULL,
+  ret = gst_element_get_state (GST_ELEMENT (self), &state, NULL,
       GST_CLOCK_TIME_NONE);
-  if (status == GST_STATE_CHANGE_FAILURE || status == GST_STATE_CHANGE_ASYNC
+  if (ret == GST_STATE_CHANGE_FAILURE || ret == GST_STATE_CHANGE_ASYNC
       || state == GST_STATE_PLAYING || state == GST_STATE_PAUSED) {
     GST_ERROR_OBJECT (self, "Can only set property in NULL or READY state.");
     return;
@@ -1233,7 +1233,7 @@ gst_tensor_src_iio_set_property (GObject * object, guint prop_id,
             status = FALSE;
             break;
           }
-          if (FALSE == g_hash_table_insert (self->custom_channel_table,
+          if (!g_hash_table_insert (self->custom_channel_table,
                   GINT_TO_POINTER (val), NULL)) {
             /** this means val is duplicated. just skip it, then. */
             ml_logw
@@ -1241,7 +1241,7 @@ gst_tensor_src_iio_set_property (GObject * object, guint prop_id,
                 strv[i]);
           }
         }
-        if (TRUE == status)
+        if (status)
           self->channels_enabled = CHANNELS_ENABLED_CUSTOM;
         g_strfreev (strv);
         break;
@@ -1872,10 +1872,10 @@ gst_tensor_src_iio_setup_scan_channels (GstTensorSrcIIO * self)
       item_in_table = g_hash_table_contains (self->custom_channel_table,
           GINT_TO_POINTER (channel_prop->index));
       channel_en = -1;
-      if (item_in_table == FALSE && channel_prop->enabled == TRUE) {
+      if (!item_in_table && channel_prop->enabled) {
         channel_en = 0;
         channel_prop->enabled = FALSE;
-      } else if (item_in_table != FALSE && channel_prop->enabled == FALSE) {
+      } else if (item_in_table && !channel_prop->enabled) {
         channel_en = 1;
         channel_prop->enabled = TRUE;
       }
@@ -2000,27 +2000,27 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
     goto error_return;
   }
 
-  if (FALSE == gst_tensor_src_iio_setup_device_properties (self)) {
+  if (!gst_tensor_src_iio_setup_device_properties (self)) {
     GST_ERROR_OBJECT (self, "Error setting up IIO device.");
     goto error_return;
   }
 
-  if (FALSE == gst_tensor_src_iio_setup_trigger_properties (self)) {
+  if (!gst_tensor_src_iio_setup_trigger_properties (self)) {
     GST_ERROR_OBJECT (self, "Error setting up IIO trigger for device.");
     goto error_device_free;
   }
 
-  if (FALSE == gst_tensor_src_iio_setup_sampling_frequency (self)) {
+  if (!gst_tensor_src_iio_setup_sampling_frequency (self)) {
     GST_ERROR_OBJECT (self, "Error setting up sampling frequency for device.");
     goto error_trigger_free;
   }
 
-  if (FALSE == gst_tensor_src_iio_setup_scan_channels (self)) {
+  if (!gst_tensor_src_iio_setup_scan_channels (self)) {
     GST_ERROR_OBJECT (self, "Error setting up scan channels for device.");
     goto error_trigger_free;
   }
 
-  if (FALSE == gst_tensor_src_iio_setup_device_buffer (self)) {
+  if (!gst_tensor_src_iio_setup_device_buffer (self)) {
     GST_ERROR_OBJECT (self, "Error setting up data buffer for device.");
     goto error_config_free;
   }
@@ -2291,7 +2291,7 @@ gst_tensor_src_iio_change_state (GstElement * element,
       break;
   }
 
-  if (buffer_state_change_success == FALSE) {
+  if (!buffer_state_change_success) {
     ret = GST_STATE_CHANGE_FAILURE;
   }
 

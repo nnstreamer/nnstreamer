@@ -174,8 +174,7 @@ gst_tensor_info_is_equal (const GstTensorInfo * i1, const GstTensorInfo * i2)
 {
   guint i;
 
-  if (gst_tensor_info_validate (i1) == FALSE ||
-      gst_tensor_info_validate (i2) == FALSE) {
+  if (!gst_tensor_info_validate (i1) || !gst_tensor_info_validate (i2)) {
     return FALSE;
   }
 

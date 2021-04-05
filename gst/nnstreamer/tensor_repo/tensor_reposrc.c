@@ -302,7 +302,7 @@ gst_tensor_reposrc_gen_dummy_buffer (GstTensorRepoSrc * self)
     size = gst_tensor_info_get_size (&self->config.info.info[i]);
     mem = gst_allocator_alloc (NULL, size, NULL);
 
-    if (FALSE == gst_memory_map (mem, &info, GST_MAP_WRITE)) {
+    if (!gst_memory_map (mem, &info, GST_MAP_WRITE)) {
       gst_allocator_free (NULL, mem);
       ml_logf ("Cannot mep gst memory (tensor-repo-src)\n");
       gst_buffer_unref (buf);

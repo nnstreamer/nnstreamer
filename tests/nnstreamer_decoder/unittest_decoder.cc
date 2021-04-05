@@ -73,7 +73,7 @@ int tensor_decoder_custom_cb (const GstTensorMemory *input,
     out_mem = gst_buffer_get_all_memory (out_buf);
   }
 
-  if (FALSE == gst_memory_map (out_mem, &out_info, GST_MAP_WRITE)) {
+  if (!gst_memory_map (out_mem, &out_info, GST_MAP_WRITE)) {
     if (need_alloc)
       gst_allocator_free (NULL, out_mem);
     nns_loge ("Cannot map gst memory (tensor decoder custom)\n");

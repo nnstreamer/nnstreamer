@@ -102,7 +102,7 @@ fbc_convert (GstBuffer *in_buf, gsize *frame_size, guint *frames_in, GstTensorsC
   guint mem_size;
 
   in_mem = gst_buffer_peek_memory (in_buf, 0);
-  if (FALSE == gst_memory_map (in_mem, &in_info, GST_MAP_READ)) {
+  if (!gst_memory_map (in_mem, &in_info, GST_MAP_READ)) {
     nns_loge ("Cannot map input memory / tensor_converter::flatbuf");
     return NULL;
   }

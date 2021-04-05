@@ -34,7 +34,7 @@ GstBuffer * tensor_converter_custom_cb (GstBuffer *in_buf,
 
   data_received++;
   in_mem = gst_buffer_peek_memory (in_buf, 0);
-  if (gst_memory_map (in_mem, &in_info, GST_MAP_READ) == FALSE) {
+  if (!gst_memory_map (in_mem, &in_info, GST_MAP_READ)) {
     ml_loge ("Cannot map input memory / tensor_converter::flexbuf.\n");
     return NULL;
   }

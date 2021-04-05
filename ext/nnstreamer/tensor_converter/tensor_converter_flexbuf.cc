@@ -120,7 +120,7 @@ flxc_convert (GstBuffer *in_buf, gsize *frame_size, guint *frames_in, GstTensors
 
   in_mem = gst_buffer_peek_memory (in_buf, 0);
 
-  if (gst_memory_map (in_mem, &in_info, GST_MAP_READ) == FALSE) {
+  if (!gst_memory_map (in_mem, &in_info, GST_MAP_READ)) {
     ml_loge ("Cannot map input memory / tensor_converter::flexbuf.\n");
     return NULL;
   }

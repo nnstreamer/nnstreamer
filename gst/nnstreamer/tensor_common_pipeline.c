@@ -305,7 +305,7 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
       case SYNC_SLOWEST:
         /* fall-through */
       case SYNC_BASEPAD:
-        if (FALSE == _gst_tensor_time_sync_buffer_update (&buf, collect, data,
+        if (!_gst_tensor_time_sync_buffer_update (&buf, collect, data,
                 current_time, base_time, sync))
           return FALSE;
         is_empty = (buf == NULL);

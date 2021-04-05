@@ -561,7 +561,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
 
   for (i = 0; i < num_mems; i++) {
     in_mem[i] = gst_buffer_peek_memory (inbuf, i);
-    if (FALSE == gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
+    if (!gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
       ml_logf ("Cannot map input memory buffer(%d)\n", i);
       goto mem_map_error;
     }
@@ -571,7 +571,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   }
 
   /* 1.1 Prepare tensors to invoke. */
-  if (TRUE == priv->combi.in_combi_defined) {
+  if (priv->combi.in_combi_defined) {
     gint info_idx = 0;
 
     for (list = priv->combi.in_combi; list != NULL; list = list->next) {
@@ -592,9 +592,9 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     out_tensors[i].size = gst_tensor_filter_get_output_size (self, i);
 
     /* allocate memory if allocate_in_invoke is FALSE */
-    if (allocate_in_invoke == FALSE) {
+    if (!allocate_in_invoke) {
       out_mem[i] = gst_allocator_alloc (NULL, out_tensors[i].size, NULL);
-      if (FALSE == gst_memory_map (out_mem[i], &out_info[i], GST_MAP_WRITE)) {
+      if (!gst_memory_map (out_mem[i], &out_info[i], GST_MAP_WRITE)) {
         ml_logf ("Cannot map output memory buffer(%d)\n", i);
         goto mem_map_error;
       }
@@ -604,19 +604,19 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   }
 
   need_profiling = (priv->latency_mode > 0 || priv->throughput_mode > 0);
-  if (TRUE == need_profiling)
+  if (need_profiling)
     prepare_statistics (priv);
 
   /* 3. Call the filter-subplugin callback, "invoke" */
   GST_TF_FW_INVOKE_COMPAT (priv, ret, invoke_tensors, out_tensors);
-  if (TRUE == need_profiling)
+  if (need_profiling)
     record_statistics (priv);
 
   /* 4. Free map info and handle error case */
   for (i = 0; i < num_mems; i++)
     gst_memory_unmap (in_mem[i], &in_info[i]);
 
-  if (allocate_in_invoke == FALSE) {
+  if (!allocate_in_invoke) {
     for (i = 0; i < prop->output_meta.num_tensors; i++) {
       gst_memory_unmap (out_mem[i], &out_info[i]);
       if (ret != 0)
@@ -635,7 +635,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
 
   /* 5. Update result */
   /* If output combination is defined, append input tensors first */
-  if (TRUE == priv->combi.out_combi_i_defined) {
+  if (priv->combi.out_combi_i_defined) {
     for (list = priv->combi.out_combi_i; list != NULL; list = list->next) {
       i = GPOINTER_TO_INT (list->data);
       gst_memory_ref (in_mem[i]);
@@ -644,7 +644,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   }
 
   for (i = 0; i < prop->output_meta.num_tensors; i++) {
-    if (TRUE == priv->combi.out_combi_o_defined) {
+    if (priv->combi.out_combi_o_defined) {
       gboolean out_combi = FALSE;
 
       for (list = priv->combi.out_combi_o; list != NULL; list = list->next) {
@@ -653,7 +653,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
           break;
         }
       }
-      if (FALSE == out_combi) {
+      if (!out_combi) {
         /* release memory block if output tensor is not in the combi list */
         if (allocate_in_invoke) {
           gst_tensor_filter_destroy_notify_util (priv, out_tensors[i].data);
@@ -706,7 +706,7 @@ mem_map_error:
       gst_memory_unmap (in_mem[i], &in_info[i]);
   }
 
-  if (allocate_in_invoke == FALSE) {
+  if (!allocate_in_invoke) {
     for (i = 0; i < prop->output_meta.num_tensors; i++) {
       if (out_mem[i]) {
         gst_memory_unmap (out_mem[i], &out_info[i]);
@@ -757,7 +757,7 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
   if (gst_tensors_config_validate (&in_config)) {
     /** if set-property called and already has info, verify it! */
     if (prop->input_meta.num_tensors > 0) {
-      if (priv->combi.in_combi_defined == FALSE) {
+      if (!priv->combi.in_combi_defined) {
         if (!gst_tensors_info_is_equal (&in_config.info, &prop->input_meta)) {
           GST_ERROR_OBJECT (self, "The input tensor is not compatible.");
           gst_tensor_filter_compare_tensors (&in_config.info,
@@ -996,7 +996,7 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
     }
   } else {
     /* caps: src pad. get sink pad info */
-    if (prop->input_configured && priv->combi.in_combi_defined == FALSE) {
+    if (prop->input_configured && !priv->combi.in_combi_defined) {
       /* caps with sub-plugin's tensor info */
       config.info = prop->input_meta;
       result = gst_tensor_filter_caps_from_config (self, &config);

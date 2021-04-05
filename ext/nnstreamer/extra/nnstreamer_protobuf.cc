@@ -96,7 +96,7 @@ gst_tensor_decoder_protobuf (const GstTensorsConfig *config,
     out_mem = gst_buffer_get_all_memory (outbuf);
   }
 
-  if (FALSE == gst_memory_map (out_mem, &out_info, GST_MAP_WRITE)) {
+  if (!gst_memory_map (out_mem, &out_info, GST_MAP_WRITE)) {
     nns_loge ("Cannot map output memory / tensordec-protobuf");
     return GST_FLOW_ERROR;
   }
@@ -127,7 +127,7 @@ gst_tensor_converter_protobuf (GstBuffer *in_buf, gsize *frame_size,
 
   in_mem = gst_buffer_peek_memory (in_buf, 0);
 
-  if (FALSE == gst_memory_map (in_mem, &in_info, GST_MAP_READ)) {
+  if (!gst_memory_map (in_mem, &in_info, GST_MAP_READ)) {
     nns_loge ("Cannot map input memory / tensor_converter_protobuf");
     return NULL;
   }

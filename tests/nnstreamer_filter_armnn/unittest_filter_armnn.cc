@@ -260,7 +260,7 @@ TEST (nnstreamerFilterArmnn, invokeAdvanced)
   model_file = g_build_filename (root_path, "tests", "test_models", "models",
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
   status = g_file_test (model_file, G_FILE_TEST_EXISTS);
-  if (status == FALSE) {
+  if (!status) {
     g_free (model_file);
     ASSERT_EQ (status, TRUE);
   }

@@ -461,7 +461,7 @@ gst_tensordec_process_plugin_options (GstTensorDec * self, guint opnum)
     case PROP_MODE_OPTION ## opnum: \
       g_free (self->option[(opnum) - 1]); \
       self->option[(opnum) - 1] = g_value_dup_string (value); \
-      if (gst_tensordec_process_plugin_options (self, (opnum) - 1) != TRUE) \
+      if (!gst_tensordec_process_plugin_options (self, (opnum) - 1)) \
         GST_ERROR_OBJECT (self, "Configuring option for tensor-decoder failed (option %d = %s)", \
             (opnum), self->option[(opnum) - 1]); \
       break
@@ -706,7 +706,7 @@ gst_tensordec_transform (GstBaseTransform * trans,
 
     for (i = 0; i < num_tensors; i++) {
       in_mem[i] = gst_buffer_peek_memory (inbuf, i);
-      if (FALSE == gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
+      if (!gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
         guint j;
         ml_logf ("Failed to map in_mem[%u].\n", i);
 
@@ -962,7 +962,7 @@ nnstreamer_decoder_custom_register (const gchar * name,
   ptr->func = func;
   ptr->data = data;
 
-  if (register_subplugin (NNS_CUSTOM_DECODER, name, ptr) == TRUE)
+  if (register_subplugin (NNS_CUSTOM_DECODER, name, ptr))
     return 0;
 
   g_free (ptr);

@@ -807,7 +807,7 @@ gst_tensor_transform_set_property (GObject * object, guint prop_id,
     {
       gchar *backup_option = filter->option;
       filter->option = g_value_dup_string (value);
-      if (TRUE == gst_tensor_transform_set_option_data (filter)) {
+      if (gst_tensor_transform_set_option_data (filter)) {
         silent_debug ("Option = %s --> %s\n", backup_option, filter->option);
         g_free (backup_option);
       } else {
@@ -1283,7 +1283,7 @@ gst_tensor_transform_stand (GstTensorTransform * filter,
   switch (filter->data_stand.mode) {
     case STAND_DEFAULT:
     {
-      if (filter->data_stand.per_channel == FALSE) {
+      if (!filter->data_stand.per_channel) {
         for (i = 0; i < num; i++) {
           data_idx = in_element_size * i;
           gst_tensor_data_raw_typecast ((gpointer) (inptr + data_idx),
@@ -1314,7 +1314,7 @@ gst_tensor_transform_stand (GstTensorTransform * filter,
     }
     case STAND_DC_AVERAGE:
     {
-      if (filter->data_stand.per_channel == FALSE) {
+      if (!filter->data_stand.per_channel) {
         for (i = 0; i < num; i++) {
           data_idx = in_element_size * i;
           gst_tensor_data_raw_typecast ((gpointer) (inptr + data_idx),
@@ -1432,7 +1432,7 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
     }
 
     in_mem[i] = gst_buffer_peek_memory (inbuf, i);
-    if (FALSE == gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
+    if (!gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
       ml_loge ("Cannot map input buffer to gst-buf at tensor-transform.\n");
       res = GST_FLOW_ERROR;
       goto done;
@@ -1443,7 +1443,7 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
     out_mem[i] = gst_allocator_alloc (NULL, buf_size, NULL);
     gst_buffer_append_memory (outbuf, out_mem[i]);
 
-    if (FALSE == gst_memory_map (out_mem[i], &out_info[i], GST_MAP_READ)) {
+    if (!gst_memory_map (out_mem[i], &out_info[i], GST_MAP_READ)) {
       ml_loge ("Cannot map output buffer to gst-buf at tensor-transform.\n");
       res = GST_FLOW_ERROR;
       goto done;

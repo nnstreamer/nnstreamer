@@ -474,7 +474,7 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
 
   for (i = 0; i < num_mem; i++) {
     mem[i] = gst_buffer_peek_memory (tensors_buf, i);
-    if (FALSE == gst_memory_map (mem[i], &mInfo[i], GST_MAP_READ)) {
+    if (!gst_memory_map (mem[i], &mInfo[i], GST_MAP_READ)) {
       ml_logf ("Cannot map input memory buffers (%d)\n", i);
       num_mem = i;
       ret = GST_FLOW_ERROR;
@@ -484,7 +484,7 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
   }
 
   outMem = gst_allocator_alloc (NULL, outSize, NULL);
-  if (FALSE == gst_memory_map (outMem, &outInfo, GST_MAP_WRITE)) {
+  if (!gst_memory_map (outMem, &outInfo, GST_MAP_WRITE)) {
     gst_allocator_free (NULL, outMem);
     ml_logf ("Cannot map output memory buffer\n");
     ret = GST_FLOW_ERROR;
@@ -805,14 +805,14 @@ gst_tensor_merge_set_property (GObject * object, guint prop_id,
             g_value_get_string (value));
         break;
       }
-      if (FALSE == gst_tensor_merge_set_option_data (tensor_merge)) {
+      if (!gst_tensor_merge_set_option_data (tensor_merge)) {
         tensor_merge->loaded = FALSE;
         ml_logw ("Given mode property is not consistent with its options.\n");
       }
       break;
     case PROP_OPTION:
       tensor_merge->option = g_value_dup_string (value);
-      if (FALSE == gst_tensor_merge_set_option_data (tensor_merge)) {
+      if (!gst_tensor_merge_set_option_data (tensor_merge)) {
         tensor_merge->loaded = FALSE;
         ml_logw ("Given option property is not consistent with its mode.\n");
       }

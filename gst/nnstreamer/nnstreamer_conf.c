@@ -315,10 +315,10 @@ nnsconf_loadconf (gboolean force_reload)
   GKeyFile *key_file = NULL;
   guint i, t;
 
-  if (FALSE == force_reload && TRUE == conf.loaded)
+  if (!force_reload && conf.loaded)
     return TRUE;
 
-  if (TRUE == force_reload && TRUE == conf.loaded) {
+  if (force_reload && conf.loaded) {
     /* Do Clean Up */
     g_free (conf.conffile);
     conf.conffile = NULL;
@@ -583,7 +583,7 @@ nnsconf_dump (gchar * str, gulong size)
   gulong _size = size;
   gint len;
 
-  if (FALSE == conf.loaded)
+  if (!conf.loaded)
     nnsconf_loadconf (FALSE);
 
   len = g_snprintf (cur, _size,
@@ -657,7 +657,7 @@ nnsconf_subplugin_dump (gchar * str, gulong size)
   subplugin_info_s info;
   guint i, j, ret;
 
-  if (FALSE == conf.loaded)
+  if (!conf.loaded)
     nnsconf_loadconf (FALSE);
 
   buf.base = str;
