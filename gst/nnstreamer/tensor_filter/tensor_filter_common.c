@@ -1208,6 +1208,8 @@ gst_tensor_filter_detect_framework (const gchar * const *model_files,
       detected_fw = g_strdup ("custom");
     else if (g_str_equal (ext[0], ".bin") || g_str_equal (ext[0], ".xml"))
       detected_fw = g_strdup ("openvino");
+    else if (g_str_equal (ext[0], ".tvn"))
+      detected_fw = g_strdup ("srnpu");
   } else if (num_models == 2) {
     if (g_str_equal (ext[0], ".pb") && g_str_equal (ext[1], ".pb") &&
         !g_str_equal (model_files[0], model_files[1]))
