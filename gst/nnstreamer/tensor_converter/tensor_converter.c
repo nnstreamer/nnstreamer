@@ -959,19 +959,18 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         unsigned int src_idx = 0, dest_idx = 0;
         size_t size, offset;
 
-        inbuf = gst_buffer_new_and_alloc (frame_size);
-        gst_buffer_memset (inbuf, 0, 0, frame_size);
-
         if (FALSE == gst_buffer_map (buf, &src_info, GST_MAP_READ)) {
           ml_logf ("Cannot map src buffer at tensor_converter/video.\n");
-          gst_buffer_unref (inbuf);     /* the new buffer is wasted. */
-          return GST_FLOW_ERROR;
+          goto error;
         }
+
+        inbuf = gst_buffer_new_and_alloc (frame_size);
+        gst_buffer_memset (inbuf, 0, 0, frame_size);
         if (FALSE == gst_buffer_map (inbuf, &dest_info, GST_MAP_WRITE)) {
           ml_logf ("Cannot map dest buffer at tensor_converter/video.\n");
           gst_buffer_unmap (buf, &src_info);
           gst_buffer_unref (inbuf);     /* the new buffer is wasted. */
-          return GST_FLOW_ERROR;
+          goto error;
         }
 
         /**
@@ -997,8 +996,6 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
         /** copy timestamps */
         gst_buffer_copy_into (inbuf, buf, GST_BUFFER_COPY_METADATA, 0, -1);
-
-        gst_buffer_unref (buf);
       }
       break;
     }
@@ -1016,19 +1013,18 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         GstMapInfo src_info, dest_info;
         gsize block_size = MIN (buf_size, frame_size);
 
-        inbuf = gst_buffer_new_and_alloc (frame_size);
-        gst_buffer_memset (inbuf, 0, 0, frame_size);
-
         if (FALSE == gst_buffer_map (buf, &src_info, GST_MAP_READ)) {
           ml_logf ("Cannot map src buffer at tensor_converter/text.\n");
-          gst_buffer_unref (inbuf);     /* the new buffer is wasted. */
-          return GST_FLOW_ERROR;
+          goto error;
         }
+
+        inbuf = gst_buffer_new_and_alloc (frame_size);
+        gst_buffer_memset (inbuf, 0, 0, frame_size);
         if (FALSE == gst_buffer_map (inbuf, &dest_info, GST_MAP_WRITE)) {
           ml_logf ("Cannot map dest buffer at tensor_converter/text.\n");
           gst_buffer_unmap (buf, &src_info);
           gst_buffer_unref (inbuf);     /* the new buffer is wasted. */
-          return GST_FLOW_ERROR;
+          goto error;
         }
 
         memcpy (dest_info.data, src_info.data, block_size);
@@ -1038,8 +1034,6 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
         /** copy timestamps */
         gst_buffer_copy_into (inbuf, buf, GST_BUFFER_COPY_METADATA, 0, -1);
-
-        gst_buffer_unref (buf);
       }
       break;
     case _NNS_OCTET:
@@ -1056,7 +1050,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         if (self->custom.func == NULL) {
           nns_loge
               ("custom condition of the tensor_converter is not configured.");
-          return GST_FLOW_ERROR;
+          goto error;
         }
         inbuf = self->custom.func (buf, self->custom.data, &new_config);
         frames_in = 1;
@@ -1067,14 +1061,13 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       } else {
         GST_ERROR_OBJECT (self, "Undefined behavior with type %d\n",
             self->in_media_type);
-        return GST_FLOW_NOT_SUPPORTED;
+        goto error;
       }
 
       if (inbuf == NULL) {
         nns_loge ("Failed to convert media to tensors.");
-        gst_buffer_unref (buf);
         gst_tensors_info_free (&new_config.info);
-        return GST_FLOW_ERROR;
+        goto error;
       }
 
       if (!gst_tensors_config_is_equal (config, &new_config)) {
@@ -1085,14 +1078,15 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         gst_tensors_info_free (&new_config.info);
       }
 
-      gst_buffer_unref (buf);
-
       break;
     }
     default:
       GST_ERROR_OBJECT (self, "Unsupported type %d\n", self->in_media_type);
-      return GST_FLOW_ERROR;
+      goto error;
   }
+
+  if (inbuf != buf)
+    gst_buffer_unref (buf);
 
   /** convert format (bytes > time) and push segment event.
     * It will push event if needed (self->need_segment is true). */
@@ -1114,6 +1108,10 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   /* push multiple buffers */
   return _gst_tensor_converter_chain_chunk (self, config, inbuf, frames_in,
       frames_out, frame_size);
+
+error:
+  gst_buffer_unref (buf);
+  return GST_FLOW_ERROR;
 }
 
 /**
