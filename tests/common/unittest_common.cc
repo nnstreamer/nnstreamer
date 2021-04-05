@@ -937,8 +937,8 @@ TEST (confCustom, envStr01)
   gchar *f5 = create_null_file (dircf, "custom_mechanism" NNSTREAMER_SO_FILE_EXTENSION);
   gchar *f6 = create_null_file (dircf, "fastfaster" NNSTREAMER_SO_FILE_EXTENSION);
 
-  EXPECT_TRUE (FALSE != g_setenv ("NNSTREAMER_CONF", filename, TRUE));
-  EXPECT_TRUE (nnsconf_loadconf (TRUE) == TRUE);
+  EXPECT_TRUE (g_setenv ("NNSTREAMER_CONF", filename, TRUE));
+  EXPECT_TRUE (nnsconf_loadconf (TRUE));
 
   fn = nnsconf_get_fullpath ("fantastic", NNSCONF_PATH_FILTERS);
   EXPECT_STREQ (fn, f1);

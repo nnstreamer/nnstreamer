@@ -475,7 +475,7 @@ gst_tensor_src_tizensensor_init (GstTensorSrcTIZENSENSOR * self)
     for (i = 0; tizensensorspecs[i].type != SENSOR_LAST; i++) {
       g_assert (g_hash_table_insert (tizensensors,
               GINT_TO_POINTER (tizensensorspecs[i].type),
-              &tizensensorspecs[i].tinfo) == TRUE);
+              &tizensensorspecs[i].tinfo));
       g_assert (tizensensorspecs[i].value_count ==
           tizensensorspecs[i].tinfo.dimension[0]);
     }
@@ -492,15 +492,15 @@ gst_tensor_src_tizensensor_init (GstTensorSrcTIZENSENSOR * self)
 static int
 _ts_clean_up_handle (GstTensorSrcTIZENSENSOR * self)
 {
-  if (TRUE == self->running) {
+  if (self->running) {
     sensor_listener_stop (self->listener);
-    if (self->configured != TRUE)
+    if (!self->configured)
       return -1;
   }
 
   self->running = FALSE;
 
-  if (TRUE == self->configured) {
+  if (self->configured) {
     sensor_destroy_listener (self->listener);
   }
 
@@ -873,7 +873,7 @@ gst_tensor_src_tizensensor_start (GstBaseSrc * src)
   _LOCK (self);
 
   /* 1. Clean it up if there is a previous session */
-  if (TRUE == self->configured) {
+  if (self->configured) {
     ret = _ts_clean_up_handle (self);
     if (ret) {
       GST_ERROR_OBJECT (self,
@@ -890,7 +890,7 @@ gst_tensor_src_tizensensor_start (GstBaseSrc * src)
     retval = FALSE;
     goto exit;
   }
-  g_assert (self->configured == TRUE);
+  g_assert (self->configured);
 
   /* 3. Fire it up! */
   if (sensor_listener_start (self->listener) != 0) {
@@ -940,7 +940,7 @@ gst_tensor_src_tizensensor_stop (GstBaseSrc * src)
     goto exit;
   }
 
-  g_assert (FALSE == self->configured);
+  g_assert (!self->configured);
 
 exit:
   _UNLOCK (self);
@@ -968,7 +968,7 @@ _ts_get_gstcaps_from_conf (GstTensorSrcTIZENSENSOR * self)
 
   spec = self->src_spec;
 
-  if (FALSE == self->configured || SENSOR_ALL == self->type || NULL == spec) {
+  if (!self->configured || SENSOR_ALL == self->type || NULL == spec) {
     retval = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT "; "
       GST_TENSORS_CAP_WITH_NUM ("1"));
   } else {
@@ -1060,7 +1060,7 @@ gst_tensor_src_tizensensor_fixate (GstBaseSrc * src, GstCaps * caps)
 
   cap_tensor = _ts_get_gstcaps_from_conf (self);
 
-  if (TRUE == gst_caps_can_intersect (caps, cap_tensor))
+  if (gst_caps_can_intersect (caps, cap_tensor))
     retval = gst_caps_intersect (caps, cap_tensor);
   gst_caps_unref (cap_tensor);
 
@@ -1142,7 +1142,7 @@ gst_tensor_src_tizensensor_create (GstBaseSrc * src, guint64 offset,
 
   _LOCK (self);
 
-  if (FALSE == self->configured) {
+  if (!self->configured) {
     GST_ERROR_OBJECT (self,
         "Buffer creation requested while the element is not configured. gst_tensor_src_tizensensor_create() cannot proceed if it is not configured.");
     retval = GST_FLOW_ERROR;
@@ -1231,7 +1231,7 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
 
   _LOCK (self);
 
-  if (FALSE == self->configured) {
+  if (!self->configured) {
     GST_ERROR_OBJECT (self,
         "gst_tensor_src_tizensensor_fill() cannot proceed if it is not configured.");
     retval = GST_FLOW_ERROR;
@@ -1247,7 +1247,7 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
   }
 
   mem = gst_buffer_peek_memory (buffer, 0);
-  if (FALSE == gst_memory_map (mem, &map, GST_MAP_WRITE)) {
+  if (!gst_memory_map (mem, &map, GST_MAP_WRITE)) {
     GST_ERROR_OBJECT (self,
         "gst_tensor_src_tizensensor_fill() cannot map the given buffer for writing data.");
     retval = GST_FLOW_ERROR;

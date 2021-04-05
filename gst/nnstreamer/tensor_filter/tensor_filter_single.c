@@ -140,7 +140,7 @@ g_tensor_filter_single_finalize (GObject * object)
   priv = &spriv->filter_priv;
 
   /** stop if not already stopped */
-  if (priv->configured == TRUE) {
+  if (priv->configured) {
     g_tensor_filter_single_stop (self);
   }
 
@@ -256,7 +256,7 @@ g_tensor_filter_single_start (GTensorFilterSingle * self)
 
   gst_tensor_filter_common_open_fw (priv);
 
-  if (G_UNLIKELY (priv->prop.fw_opened == FALSE))
+  if (G_UNLIKELY (!priv->prop.fw_opened))
     return FALSE;
 
   gst_tensor_filter_load_tensor_info (priv);
@@ -331,7 +331,7 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
   priv = &spriv->filter_priv;
 
   /** start if not already started */
-  if (priv->configured == FALSE) {
+  if (!priv->configured) {
     if (!g_tensor_filter_single_start (self)) {
       return FALSE;
     }
@@ -379,7 +379,7 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
 
 error:
   /* if failed to invoke the model, release allocated memory. */
-  if (spriv->allocate_in_invoke == FALSE && allocate) {
+  if (!spriv->allocate_in_invoke && allocate) {
     for (i = 0; i < priv->prop.output_meta.num_tensors; i++) {
       g_free (output[i].data);
       output[i].data = NULL;

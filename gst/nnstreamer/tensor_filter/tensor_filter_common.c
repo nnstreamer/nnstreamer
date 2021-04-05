@@ -2312,7 +2312,7 @@ parse_accl_hw_all (const gchar * accelerators,
   use_accl = (gboolean) g_regex_match_simple (regex_accl, accelerators,
       G_REGEX_CASELESS, G_REGEX_MATCH_NOTEMPTY);
   g_free (regex_accl);
-  if (use_accl == TRUE) {
+  if (use_accl) {
     /** Default to auto mode */
     accl = ACCL_AUTO;
     regex_accl_elem =

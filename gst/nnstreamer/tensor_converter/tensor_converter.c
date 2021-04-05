@@ -959,14 +959,14 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         unsigned int src_idx = 0, dest_idx = 0;
         size_t size, offset;
 
-        if (FALSE == gst_buffer_map (buf, &src_info, GST_MAP_READ)) {
+        if (!gst_buffer_map (buf, &src_info, GST_MAP_READ)) {
           ml_logf ("Cannot map src buffer at tensor_converter/video.\n");
           goto error;
         }
 
         inbuf = gst_buffer_new_and_alloc (frame_size);
         gst_buffer_memset (inbuf, 0, 0, frame_size);
-        if (FALSE == gst_buffer_map (inbuf, &dest_info, GST_MAP_WRITE)) {
+        if (!gst_buffer_map (inbuf, &dest_info, GST_MAP_WRITE)) {
           ml_logf ("Cannot map dest buffer at tensor_converter/video.\n");
           gst_buffer_unmap (buf, &src_info);
           gst_buffer_unref (inbuf);     /* the new buffer is wasted. */
@@ -1013,14 +1013,14 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         GstMapInfo src_info, dest_info;
         gsize block_size = MIN (buf_size, frame_size);
 
-        if (FALSE == gst_buffer_map (buf, &src_info, GST_MAP_READ)) {
+        if (!gst_buffer_map (buf, &src_info, GST_MAP_READ)) {
           ml_logf ("Cannot map src buffer at tensor_converter/text.\n");
           goto error;
         }
 
         inbuf = gst_buffer_new_and_alloc (frame_size);
         gst_buffer_memset (inbuf, 0, 0, frame_size);
-        if (FALSE == gst_buffer_map (inbuf, &dest_info, GST_MAP_WRITE)) {
+        if (!gst_buffer_map (inbuf, &dest_info, GST_MAP_WRITE)) {
           ml_logf ("Cannot map dest buffer at tensor_converter/text.\n");
           gst_buffer_unmap (buf, &src_info);
           gst_buffer_unref (inbuf);     /* the new buffer is wasted. */
@@ -1972,7 +1972,7 @@ nnstreamer_converter_custom_register (const gchar * name,
   ptr->func = func;
   ptr->data = data;
 
-  if (register_subplugin (NNS_CUSTOM_CONVERTER, name, ptr) == TRUE)
+  if (register_subplugin (NNS_CUSTOM_CONVERTER, name, ptr))
     return 0;
 
   g_free (ptr);

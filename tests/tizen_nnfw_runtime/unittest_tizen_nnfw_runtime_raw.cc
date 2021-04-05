@@ -295,7 +295,7 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, invokeAdvanced)
   model_file = g_build_filename (root_path, "tests", "test_models", "models",
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
   status = g_file_test (model_file, G_FILE_TEST_EXISTS);
-  if (status == FALSE) {
+  if (!status) {
     g_free (model_file);
     ASSERT_EQ (status, TRUE);
   }
@@ -303,7 +303,7 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, invokeAdvanced)
   manifest_file = g_build_filename (
       root_path, "tests", "test_models", "models", "metadata", "MANIFEST", NULL);
   status = g_file_test (manifest_file, G_FILE_TEST_EXISTS);
-  if (status == FALSE) {
+  if (!status) {
     g_free (model_file);
     g_free (manifest_file);
     ASSERT_EQ (status, TRUE);

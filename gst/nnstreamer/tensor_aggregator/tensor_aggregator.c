@@ -575,12 +575,12 @@ gst_tensor_aggregator_concat (GstTensorAggregator * self, GstBuffer * outbuf,
   srcbuf = gst_buffer_copy (outbuf);
   outbuf = gst_buffer_make_writable (outbuf);
 
-  if (FALSE == gst_buffer_map (srcbuf, &src_info, GST_MAP_READ)) {
+  if (!gst_buffer_map (srcbuf, &src_info, GST_MAP_READ)) {
     ml_logf ("Failed to map source buffer with tensor_aggregator.\n");
     gst_buffer_unref (srcbuf);
     return FALSE;
   }
-  if (FALSE == gst_buffer_map (outbuf, &dest_info, GST_MAP_WRITE)) {
+  if (!gst_buffer_map (outbuf, &dest_info, GST_MAP_WRITE)) {
     ml_logf ("Failed to map destination buffer with tensor_aggregator.\n");
     gst_buffer_unmap (srcbuf, &src_info);
     gst_buffer_unref (srcbuf);
@@ -814,7 +814,7 @@ gst_tensor_aggregator_push (GstTensorAggregator * self, GstBuffer * outbuf,
 
   if (gst_tensor_aggregator_check_concat_axis (self, &info)) {
     /** change data in buffer with given axis */
-    if (FALSE == gst_tensor_aggregator_concat (self, outbuf, &info))
+    if (!gst_tensor_aggregator_concat (self, outbuf, &info))
       return GST_FLOW_ERROR;
   }
 

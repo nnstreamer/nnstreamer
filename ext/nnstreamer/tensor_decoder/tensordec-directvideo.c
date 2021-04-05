@@ -161,7 +161,7 @@ dv_decode (void **pdata, const GstTensorsConfig * config,
   } else {
     out_mem = gst_allocator_alloc (NULL, size, NULL);
   }
-  if (FALSE == gst_memory_map (out_mem, &out_info, GST_MAP_WRITE)) {
+  if (!gst_memory_map (out_mem, &out_info, GST_MAP_WRITE)) {
     ml_loge ("Cannot map output memory / tensordec-directvideo.\n");
     return GST_FLOW_ERROR;
   }
