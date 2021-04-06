@@ -75,6 +75,15 @@ typedef struct _NNStreamerExternalConverter
 } NNStreamerExternalConverter;
 
 /**
+ * @brief Find converter sub-plugin with the name.
+ * @param[in] name The name of converter sub-plugin.
+ * @return NNStreamerExternalConverter if subplugin is found.
+ *         NULL if not found or the sub-plugin object has an error.
+ */
+extern const NNStreamerExternalConverter *
+nnstreamer_converter_find (const char *name);
+
+/**
  * @brief Converter's sub-plugin should call this function to register itself.
  * @param[in] ex Converter sub-plugin to be registered.
  * @return TRUE if registered. FALSE is failed or duplicated.

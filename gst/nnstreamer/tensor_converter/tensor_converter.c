@@ -308,7 +308,7 @@ gst_tensor_converter_class_init (GstTensorConverterClass * klass)
   /* append sub-plugin template caps */
   total = nnsconf_get_subplugin_info (NNSCONF_PATH_CONVERTERS, &info);
   for (i = 0; i < total; i++) {
-    ex = get_subplugin (NNS_SUBPLUGIN_CONVERTER, info.names[i]);
+    ex = nnstreamer_converter_find (info.names[i]);
     if (ex && ex->query_caps)
       gst_caps_append (pad_caps, ex->query_caps (NULL));
   }
@@ -1886,6 +1886,17 @@ gst_tensor_converter_update_caps (GstTensorConverter * self,
 }
 
 /**
+ * @brief Find converter sub-plugin with the name.
+ * @param[in] name The name of converter sub-plugin.
+ * @return NULL if not found or the sub-plugin object has an error.
+ */
+const NNStreamerExternalConverter *
+nnstreamer_converter_find (const char *name)
+{
+  return get_subplugin (NNS_SUBPLUGIN_CONVERTER, name);
+}
+
+/**
  * @brief Converter's external subplugins should call this at init.
  */
 int
@@ -1917,7 +1928,7 @@ findExternalConverter (const char *media_type)
 
   total = nnsconf_get_subplugin_info (NNSCONF_PATH_CONVERTERS, &info);
   for (i = 0; i < total; i++) {
-    ex = get_subplugin (NNS_SUBPLUGIN_CONVERTER, info.names[i]);
+    ex = nnstreamer_converter_find (info.names[i]);
 
     if (ex && ex->query_caps) {
       caps = ex->query_caps (NULL);
