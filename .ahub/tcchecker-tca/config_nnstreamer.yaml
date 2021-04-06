@@ -1,6 +1,6 @@
 version: 2
 test:
-  - name: GTEST_CPP_EXAMPLE
+  - name: GTEST_NNSTREAMER
     testCaseLanguage: CPP
     testFW: GTEST
     testCaseFolder:
