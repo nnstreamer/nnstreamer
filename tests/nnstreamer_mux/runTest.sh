@@ -59,28 +59,28 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_mux name=mux ! filesink loc
 
 callCompareTest testcase03.golden testcase03.log 7 "Compare 7" 1 0
 
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_mux name=mux sync_mode=slowest ! multifilesink location=testsynch00_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! tensor_converter ! mux.sink_1" 8 0 0 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_mux name=mux sync-mode=slowest ! multifilesink location=testsynch00_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! tensor_converter ! mux.sink_1" 8 0 0 $PERFORMANCE
 
 callCompareTest testsynch00_0.golden testsynch00_0.log 8-1 "Compare 8-1" 1 0
 callCompareTest testsynch00_1.golden testsynch00_1.log 8-2 "Compare 8-2" 1 0
 callCompareTest testsynch00_2.golden testsynch00_2.log 8-3 "Compare 8-3" 1 0
 callCompareTest testsynch00_3.golden testsynch00_3.log 8-4 "Compare 8-4" 1 0
 
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_mux name=mux sync_mode=slowest ! multifilesink location=testsynch01_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! tensor_converter ! mux.sink_1" 9 0 0 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_mux name=mux sync-mode=slowest ! multifilesink location=testsynch01_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! tensor_converter ! mux.sink_1" 9 0 0 $PERFORMANCE
 
 callCompareTest testsynch01_0.golden testsynch01_0.log 9-1 "Compare 9-1" 1 0
 callCompareTest testsynch01_1.golden testsynch01_1.log 9-2 "Compare 9-2" 1 0
 callCompareTest testsynch01_2.golden testsynch01_2.log 9-3 "Compare 9-3" 1 0
 callCompareTest testsynch01_3.golden testsynch01_3.log 9-4 "Compare 9-4" 1 0
 
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_mux name=mux sync_mode=slowest ! multifilesink location=testsynch02_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! tensor_converter ! mux.sink_1 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! tensor_converter ! mux.sink_2" 10 0 0 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_mux name=mux sync-mode=slowest ! multifilesink location=testsynch02_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! tensor_converter ! mux.sink_1 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! tensor_converter ! mux.sink_2" 10 0 0 $PERFORMANCE
 
 callCompareTest testsynch02_0.golden testsynch02_0.log 10-1 "Compare 10-1" 1 0
 callCompareTest testsynch02_1.golden testsynch02_1.log 10-2 "Compare 10-2" 1 0
 callCompareTest testsynch02_2.golden testsynch02_2.log 10-3 "Compare 10-3" 1 0
 callCompareTest testsynch02_3.golden testsynch02_3.log 10-4 "Compare 10-4" 1 0
 
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_mux name=mux silent=true sync_mode=basepad sync_option=0:33333333 ! multifilesink location=testsynch03_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! tensor_converter ! mux.sink_1" 11 0 0 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_mux name=mux silent=true sync-mode=basepad sync-option=0:33333333 ! multifilesink location=testsynch03_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! tensor_converter ! mux.sink_1" 11 0 0 $PERFORMANCE
 
 callCompareTest testsynch03_0.golden testsynch03_0.log 11-1 "Compare 11-1" 1 0
 callCompareTest testsynch03_1.golden testsynch03_1.log 11-2 "Compare 11-2" 1 0
@@ -93,7 +93,7 @@ callCompareTest testsynch03_7.golden testsynch03_7.log 11-8 "Compare 11-8" 1 0
 callCompareTest testsynch03_8.golden testsynch03_8.log 11-9 "Compare 11-9" 1 0
 callCompareTest testsynch03_9.golden testsynch03_9.log 11-10 "Compare 11-10" 1 0
 
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_mux name=mux silent=true sync_mode=basepad sync_option=0:33333333 ! multifilesink location=testsynch04_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! tensor_converter ! mux.sink_1" 12 0 0 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_mux name=mux silent=true sync-mode=basepad sync-option=0:33333333 ! multifilesink location=testsynch04_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! tensor_converter ! mux.sink_1" 12 0 0 $PERFORMANCE
 
 callCompareTest testsynch04_0.golden testsynch04_0.log 12-1 "Compare 12-1" 1 0
 callCompareTest testsynch04_1.golden testsynch04_1.log 12-2 "Compare 12-2" 1 0
@@ -106,7 +106,7 @@ callCompareTest testsynch04_7.golden testsynch04_7.log 12-8 "Compare 12-8" 1 0
 callCompareTest testsynch04_8.golden testsynch04_8.log 12-9 "Compare 12-9" 1 0
 callCompareTest testsynch04_9.golden testsynch04_9.log 12-10 "Compare 12-10" 1 0
 
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_mux name=mux silent=true sync_mode=basepad sync_option=0:33333333 ! multifilesink location=testsynch05_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! tensor_converter ! mux.sink_1 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! tensor_converter ! mux.sink_2" 13 0 0 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_mux name=mux silent=true sync-mode=basepad sync-option=0:33333333 ! multifilesink location=testsynch05_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! mux.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! tensor_converter ! mux.sink_1 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! tensor_converter ! mux.sink_2" 13 0 0 $PERFORMANCE
 
 callCompareTest testsynch05_0.golden testsynch05_0.log 13-1 "Compare 13-1" 1 0
 callCompareTest testsynch05_1.golden testsynch05_1.log 13-2 "Compare 13-2" 1 0
@@ -153,8 +153,8 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=tensors_mux ! files
 
 callCompareTest testcase04_RGB_100x100.golden testcase16_RGB_100x100.log 16 "Compare 16" 1 0
 
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=tensors_mux sync_mode=slowest ! multifilesink location=testsynch17_%1d.log \
-    tensor_mux name=tensor_mux  sync_mode=slowest ! tensors_mux.sink_0 \
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=tensors_mux sync-mode=slowest ! multifilesink location=testsynch17_%1d.log \
+    tensor_mux name=tensor_mux  sync-mode=slowest ! tensors_mux.sink_0 \
     multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! \
         tensor_converter ! tensor_mux.sink_0 \
     multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! \
@@ -167,9 +167,9 @@ callCompareTest testsynch17_1.golden testsynch17_1.log 17-2 "Compare 17-2" 1 0
 callCompareTest testsynch17_2.golden testsynch17_2.log 17-3 "Compare 17-3" 1 0
 callCompareTest testsynch17_3.golden testsynch17_3.log 17-4 "Compare 17-4" 1 0
 
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=tensors_mux sync_mode=slowest ! multifilesink location=testsynch18_%1d.log \
-    tensor_mux name=tensor_mux0  sync_mode=slowest ! tensors_mux.sink_0 \
-    tensor_mux name=tensor_mux1  sync_mode=slowest ! tensors_mux.sink_1 \
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=tensors_mux sync-mode=slowest ! multifilesink location=testsynch18_%1d.log \
+    tensor_mux name=tensor_mux0  sync-mode=slowest ! tensors_mux.sink_0 \
+    tensor_mux name=tensor_mux1  sync-mode=slowest ! tensors_mux.sink_1 \
     multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! \
         tensor_converter ! tensor_mux0.sink_0 \
     multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! \
@@ -184,9 +184,9 @@ callCompareTest testsynch18_1.golden testsynch18_1.log 18-2 "Compare 18-2" 1 0
 callCompareTest testsynch18_2.golden testsynch18_2.log 18-3 "Compare 18-3" 1 0
 callCompareTest testsynch18_3.golden testsynch18_3.log 18-4 "Compare 18-4" 1 0
 
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=tensors_mux sync_mode=basepad sync_option=1:50000000 ! multifilesink location=testsynch19_%1d.log \
-    tensor_mux name=tensor_mux0  sync_mode=slowest ! tensors_mux.sink_0 \
-    tensor_mux name=tensor_mux1  sync_mode=slowest ! tensors_mux.sink_1 \
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=tensors_mux sync-mode=basepad sync-option=1:50000000 ! multifilesink location=testsynch19_%1d.log \
+    tensor_mux name=tensor_mux0  sync-mode=slowest ! tensors_mux.sink_0 \
+    tensor_mux name=tensor_mux1  sync-mode=slowest ! tensors_mux.sink_1 \
     multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! \
         tensor_converter ! tensor_mux0.sink_0 \
     multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! \

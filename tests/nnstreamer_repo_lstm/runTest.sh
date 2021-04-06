@@ -52,7 +52,7 @@ fi
 python3 generateTestCase.py
 
 gstTest "--gst-plugin-path=../../build \
-tensor_mux name=mux sync_mode=nosync ! \
+tensor_mux name=mux sync-mode=nosync ! \
 tensor_filter framework=custom model=${LSTM_DIR}/libdummyLSTM.${SO_EXT} ! \
 tensor_demux name=demux \
     demux.src_0 ! queue ! tensor_reposink slot-index=0 silent=false \

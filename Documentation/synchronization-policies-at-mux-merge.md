@@ -30,7 +30,7 @@ For the case of merge/mux element which has three pads with different framerate 
 
 # Slowest
 
-"Slowest" policy (sync_mode=slowest) synchronize tensors based on slowest timestamp among pads.  
+"Slowest" policy (sync-mode=slowest) synchronize tensors based on slowest timestamp among pads.  
 Finding slowest timestamp among pads and used as base timestamp. It drops buffers which is earlier than this base timestamp. However if the difference with timestamp of previous buffer is smaller than with current buffer, then previous buffer is used.  
 For the case of three pad with different framerates, It merged/muxed
 
@@ -46,9 +46,9 @@ As you can see, second and third buffers of srcpad0 are dropped. Because it is s
 
 # BasePad
 
-With "Base Pad", Base timestamp is decided with designated pad which is given by user with sync_option.  
-Sync_option consists of two variables and first denotes the base pad number and second is duration in nanoseconds ( as a GstClockTime ). In this policy, every buffer which has pts is within duration from base time stamp is merged/muxed. For the case of buffer with greater pts than base timestamp plus duration, previous buffer is going to used instead.  
-Test case with "sync_mode=basepad sync_option=0:33333333" is below,
+With "Base Pad", Base timestamp is decided with designated pad which is given by user with sync-option.  
+Sync option consists of two variables and first denotes the base pad number and second is duration in nanoseconds ( as a GstClockTime ). In this policy, every buffer which has pts is within duration from base time stamp is merged/muxed. For the case of buffer with greater pts than base timestamp plus duration, previous buffer is going to used instead.  
+Test case with "sync-mode=basepad sync-option=0:33333333" is below,
 
 ```
     *srcpad0        srcpad1         srcpad2
@@ -71,7 +71,7 @@ The base timestamp is 0, so that every buffer of srcpad0 is pushed to downstream
 The other is "Refresh" policy. The Base timestamp is decided with the pad which receives a new buffer.  
 The above 3 policies require all pads are collected state. It means all of the sinkpads of `tensor_mux` have to be filled. However, with "Refresh", `tensor_mux` pushes the buffers to srcpad when each sinkpad receives a new buffer. For the sinkpads which not received the new buffer will use again the previous one.  
 
-Test case with "sync_mode=refresh" is below,
+Test case with "sync-mode=refresh" is below,
 
 ```
     sinkpad0         sinkpad1         sinkpad2

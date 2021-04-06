@@ -51,7 +51,7 @@ gst_tensor_time_sync_get_mode_string (tensor_time_sync_mode mode)
 
 /**
  * @brief Setup time sync option.
- * @param[in/out] filter "this" pointer. sync_mode & option MUST BE set already.
+ * @param[in/out] filter "this" pointer. Sync mode & option MUST BE set already.
  * @return True if successfully set the option.
  */
 gboolean
