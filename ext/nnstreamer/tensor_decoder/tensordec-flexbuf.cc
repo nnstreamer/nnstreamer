@@ -112,11 +112,17 @@ flxd_decode (void **pdata, const GstTensorsConfig *config,
 {
   GstMapInfo out_info;
   GstMemory *out_mem;
-  unsigned int i, num_tensors = config->info.num_tensors;
+  guint i, num_tensors;
   gboolean need_alloc;
   size_t flex_size;
   flexbuffers::Builder fbb;
 
+  if (!config || !input || !outbuf) {
+    ml_loge ("NULL parameter is passed to tensor_decoder::flexbuf");
+    return GST_FLOW_ERROR;
+  }
+
+  num_tensors = config->info.num_tensors;
   fbb.Map ([&]() {
     fbb.UInt ("num_tensors", num_tensors);
     fbb.Int ("rate_n", config->rate_n);
@@ -145,7 +151,6 @@ flxd_decode (void **pdata, const GstTensorsConfig *config,
   fbb.Finish ();
   flex_size = fbb.GetSize ();
 
-  g_assert (outbuf);
   need_alloc = (gst_buffer_get_size (outbuf) == 0);
 
   if (need_alloc) {
