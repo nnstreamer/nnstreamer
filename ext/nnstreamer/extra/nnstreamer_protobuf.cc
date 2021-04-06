@@ -39,13 +39,14 @@ gst_tensor_decoder_protobuf (const GstTensorsConfig *config,
   size_t size, outbuf_size;
   nnstreamer::protobuf::Tensors tensors;
   nnstreamer::protobuf::Tensors::frame_rate *fr = NULL;
-  const unsigned int num_tensors = config->info.num_tensors;
+  guint num_tensors;
 
-  if (NULL == outbuf) {
-    ml_loge ("GStreamer internal error : outbuf is empty");
+  if (!config || !input || !outbuf) {
+    ml_loge ("NULL parameter is passed to tensor_decoder::protobuf");
     return GST_FLOW_ERROR;
   }
 
+  num_tensors = config->info.num_tensors;
   if (num_tensors <= 0 || num_tensors > NNS_TENSOR_SIZE_LIMIT) {
     ml_loge ("The number of input tenosrs "
              "exceeds more than NNS_TENSOR_SIZE_LIMIT, %s",
@@ -124,6 +125,11 @@ gst_tensor_converter_protobuf (GstBuffer *in_buf, gsize *frame_size,
   GstBuffer *out_buf;
   guint mem_size;
   gpointer mem_data;
+
+  if (!in_buf || !frame_size || !frames_in || !config) {
+    ml_loge ("NULL parameter is passed to tensor_converter::protobuf");
+    return NULL;
+  }
 
   in_mem = gst_buffer_peek_memory (in_buf, 0);
 

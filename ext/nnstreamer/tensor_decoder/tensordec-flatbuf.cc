@@ -80,7 +80,7 @@ fbd_decode (void **pdata, const GstTensorsConfig *config,
   Tensor_type type;
   GstMapInfo out_info;
   GstMemory *out_mem;
-  unsigned int i, num_tensors = config->info.num_tensors;
+  guint i, num_tensors;
   flatbuffers::uoffset_t fb_size;
   flatbuffers::FlatBufferBuilder builder;
   std::vector<flatbuffers::Offset<Tensor>> tensor_vector;
@@ -89,8 +89,15 @@ fbd_decode (void **pdata, const GstTensorsConfig *config,
   flatbuffers::Offset<flatbuffers::Vector<unsigned char>> input_vector;
   flatbuffers::Offset<Tensor> tensor;
   flatbuffers::Offset<Tensors> tensors;
-  frame_rate fr = frame_rate (config->rate_n, config->rate_d);
+  frame_rate fr;
 
+  if (!config || !input || !outbuf) {
+    ml_loge ("NULL parameter is passed to tensor_decoder::flatbuf");
+    return GST_FLOW_ERROR;
+  }
+
+  num_tensors = config->info.num_tensors;
+  fr = frame_rate (config->rate_n, config->rate_d);
   /* Fill the info in tensor and puth to tensor vector */
   for (i = 0; i < num_tensors; i++) {
     unsigned char *tmp_buf;
@@ -119,8 +126,6 @@ fbd_decode (void **pdata, const GstTensorsConfig *config,
   /* Serialize the data.*/
   builder.Finish (tensors);
   fb_size = builder.GetSize ();
-
-  g_assert (outbuf);
 
   if (gst_buffer_get_size (outbuf) == 0) {
     out_mem = gst_allocator_alloc (NULL, fb_size, NULL);

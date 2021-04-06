@@ -101,6 +101,11 @@ fbc_convert (GstBuffer *in_buf, gsize *frame_size, guint *frames_in, GstTensorsC
   GstMapInfo in_info;
   guint mem_size;
 
+  if (!in_buf || !frame_size || !frames_in || !config) {
+    ml_loge ("NULL parameter is passed to tensor_converter::flatbuf");
+    return NULL;
+  }
+
   in_mem = gst_buffer_peek_memory (in_buf, 0);
   if (FALSE == gst_memory_map (in_mem, &in_info, GST_MAP_READ)) {
     nns_loge ("Cannot map input memory / tensor_converter::flatbuf");
