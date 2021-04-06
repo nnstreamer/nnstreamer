@@ -161,11 +161,11 @@ gst_tensor_mux_class_init (GstTensorMuxClass * klass)
           TRUE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_SYNC_MODE,
-      g_param_spec_string ("sync_mode", "Sync_Mode",
+      g_param_spec_string ("sync-mode", "Sync Mode",
           "Time synchronization mode?", "", G_PARAM_READWRITE));
 
   g_object_class_install_property (gobject_class, PROP_SYNC_OPTION,
-      g_param_spec_string ("sync_option", "Sync_Option",
+      g_param_spec_string ("sync-option", "Sync Option",
           "Option for the time synchronization mode ?", "", G_PARAM_READWRITE));
 
   gstelement_class->request_new_pad =

@@ -74,7 +74,7 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=1 samplesp
 callCompareTest test.audio16k2c.u16le.origin.log test.audio16k2c.u16le.log 2-6 "Audio16k2c-u16le Golden Test" 0 0
 
 # tensor merge test (The output is always in the format of other/tensor)
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_merge name=merge mode=linear option=2 silent=true sync_mode=basepad sync_option=0:0 ! multifilesink location=testsynch08_%1d.log \
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_merge name=merge mode=linear option=2 silent=true sync-mode=basepad sync-option=0:0 ! multifilesink location=testsynch08_%1d.log \
     multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! tensor_converter !  \
         tensor_decoder mode=flatbuf ! other/flatbuf-tensor ! tensor_converter ! merge.sink_0 \
     multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! \
@@ -85,9 +85,9 @@ callCompareTest testsynch08_2.golden testsynch08_2.log 3-3 "Tensor merge Compare
 callCompareTest testsynch08_3.golden testsynch08_3.log 3-4 "Tensor merge Compare 3-4" 1 0
 
 # tensor mux test (The output is always in the format of other/tensors)
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=tensors_mux sync_mode=basepad sync_option=1:50000000 ! multifilesink location=testsynch19_%1d.log \
-    tensor_mux name=tensor_mux0  sync_mode=slowest ! tensors_mux.sink_0 \
-    tensor_mux name=tensor_mux1  sync_mode=slowest ! tensors_mux.sink_1 \
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=tensors_mux sync-mode=basepad sync-option=1:50000000 ! multifilesink location=testsynch19_%1d.log \
+    tensor_mux name=tensor_mux0  sync-mode=slowest ! tensors_mux.sink_0 \
+    tensor_mux name=tensor_mux1  sync-mode=slowest ! tensors_mux.sink_1 \
     multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! \
         tensor_converter ! tensor_decoder mode=flatbuf ! other/flatbuf-tensor ! tensor_converter ! tensor_mux0.sink_0 \
     multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! \
@@ -103,9 +103,9 @@ callCompareTest testsynch19_3.golden testsynch19_3.log 4-4 "Tensor mux Compare 4
 callCompareTest testsynch19_4.golden testsynch19_4.log 4-5 "Tensor mux Compare 4-5" 1 0
 
 # test other/tensors
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=tensors_mux sync_mode=basepad sync_option=1:50000000 ! tensor_decoder mode=flatbuf ! other/flatbuf-tensor ! tensor_converter ! multifilesink location=testsynch19_5_%1d.log \
-    tensor_mux name=tensor_mux0  sync_mode=slowest ! tensor_decoder mode=flatbuf ! other/flatbuf-tensor ! tensor_converter ! tensors_mux.sink_0 \
-    tensor_mux name=tensor_mux1  sync_mode=slowest ! tensor_decoder mode=flatbuf ! other/flatbuf-tensor ! tensor_converter ! tensors_mux.sink_1 \
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=tensors_mux sync-mode=basepad sync-option=1:50000000 ! tensor_decoder mode=flatbuf ! other/flatbuf-tensor ! tensor_converter ! multifilesink location=testsynch19_5_%1d.log \
+    tensor_mux name=tensor_mux0  sync-mode=slowest ! tensor_decoder mode=flatbuf ! other/flatbuf-tensor ! tensor_converter ! tensors_mux.sink_0 \
+    tensor_mux name=tensor_mux1  sync-mode=slowest ! tensor_decoder mode=flatbuf ! other/flatbuf-tensor ! tensor_converter ! tensors_mux.sink_1 \
     multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! tensor_converter ! tensor_mux0.sink_0 \
     multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! tensor_converter ! tensor_mux0.sink_1 \
     multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! tensor_mux1.sink_0 \
