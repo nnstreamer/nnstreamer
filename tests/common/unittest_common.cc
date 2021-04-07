@@ -578,6 +578,202 @@ TEST (commonTensorInfo, equal05_n)
 }
 
 /**
+ * @brief Test for getting size of the tensor info with invalid param.
+ */
+TEST (commonTensorInfo, sizeInvalidParam_n)
+{
+  EXPECT_EQ (0U, gst_tensor_info_get_size (NULL));
+}
+
+/**
+ * @brief Test for validating of the tensor info with invalid param.
+ */
+TEST (commonTensorInfo, validateInvalidParam_n)
+{
+  EXPECT_FALSE (gst_tensor_info_validate (NULL));
+}
+
+/**
+ * @brief Test for validating of the tensors info with invalid param.
+ */
+TEST (commonTensorsInfo, validateInvalidParam_n)
+{
+  EXPECT_FALSE (gst_tensors_info_validate (NULL));
+}
+
+/**
+ * @brief Test for comparing two tensor info with invalid param.
+ */
+TEST (commonTensorInfo, equalInvalidParam0_n)
+{
+  GstTensorInfo info;
+  EXPECT_FALSE (gst_tensor_info_is_equal (NULL, &info));
+}
+
+/**
+ * @brief Test for comparing two tensor info with invalid param.
+ */
+TEST (commonTensorInfo, equalInvalidParam1_n)
+{
+  GstTensorInfo info;
+  EXPECT_FALSE (gst_tensor_info_is_equal (&info, NULL));
+}
+
+/**
+ * @brief Test for comparing two tensors info with invalid param.
+ */
+TEST (commonTensorsInfo, equalInvalidParam0_n)
+{
+  GstTensorsInfo info;
+  EXPECT_FALSE (gst_tensors_info_is_equal (NULL, &info));
+}
+
+/**
+ * @brief Test for comparing two tensors info with invalid param.
+ */
+TEST (commonTensorsInfo, equalInvalidParam1_n)
+{
+  GstTensorsInfo info;
+  EXPECT_FALSE (gst_tensors_info_is_equal (&info, NULL));
+}
+
+/**
+ * @brief Test for getting rank with invalid param.
+ */
+TEST (commonTensorInfo, getrankInvalidParam0_n)
+{
+  EXPECT_EQ (0, gst_tensor_info_get_rank (NULL));
+}
+
+/**
+ * @brief Test for parsing dimension with invalid param.
+ */
+TEST (commonTensorsInfo, parsingDimInvalidParam0_n)
+{
+  const gchar * dim_str = "1:2:3:4";
+  EXPECT_EQ (0U, gst_tensors_info_parse_dimensions_string (NULL, dim_str));
+}
+
+/**
+ * @brief Test for parsing dimension with invalid param.
+ */
+TEST (commonTensorsInfo, parsingDimInvalidParam1_n)
+{
+  GstTensorsInfo info;
+  EXPECT_EQ (0U, gst_tensors_info_parse_dimensions_string (&info, NULL));
+}
+
+/**
+ * @brief Test for parsing type with invalid param.
+ */
+TEST (commonTensorsInfo, parsingTypeInvalidParam0_n)
+{
+  const gchar * dim_str = "uint8";
+  EXPECT_EQ (0U, gst_tensors_info_parse_types_string (NULL, dim_str));
+}
+
+/**
+ * @brief Test for parsing type with invalid param.
+ */
+TEST (commonTensorsInfo, parsingTypeInvalidParam1_n)
+{
+  GstTensorsInfo info;
+  EXPECT_EQ (0U, gst_tensors_info_parse_types_string (&info, NULL));
+}
+
+/**
+ * @brief Test for parsing name with invalid param.
+ */
+TEST (commonTensorsInfo, parsingNameInvalidParam0_n)
+{
+  const gchar * dim_str = "tname";
+  EXPECT_EQ (0U, gst_tensors_info_parse_names_string (NULL, dim_str));
+}
+
+/**
+ * @brief Test for parsing name with invalid param.
+ */
+TEST (commonTensorsInfo, parsingNameInvalidParam1_n)
+{
+  GstTensorsInfo info;
+  EXPECT_EQ (0U, gst_tensors_info_parse_names_string (&info, NULL));
+}
+
+/**
+ * @brief Test for getting dimension with invalid param.
+ */
+TEST (commonTensorsInfo, getDimInvalidParam0_n)
+{
+  EXPECT_EQ (NULL, gst_tensors_info_get_dimensions_string (NULL));
+}
+
+/**
+ * @brief Test for getting dimension with invalid param.
+ */
+TEST (commonTensorsInfo, getDimInvalidParam1_n)
+{
+  GstTensorsInfo info;
+  info.num_tensors = 0;
+  EXPECT_EQ (0U, gst_tensors_info_get_dimensions_string (&info));
+}
+
+/**
+ * @brief Test for getting type with invalid param.
+ */
+TEST (commonTensorsInfo, getTypeInvalidParam0_n)
+{
+  EXPECT_EQ (NULL, gst_tensors_info_get_types_string (NULL));
+}
+
+/**
+ * @brief Test for getting type with invalid param.
+ */
+TEST (commonTensorsInfo, getTypeInvalidParam1_n)
+{
+  GstTensorsInfo info;
+  info.num_tensors = 0;
+  EXPECT_EQ (0U, gst_tensors_info_get_types_string (&info));
+}
+
+/**
+ * @brief Test for getting name with invalid param.
+ */
+TEST (commonTensorsInfo, getNameInvalidParam0_n)
+{
+  EXPECT_EQ (NULL, gst_tensors_info_get_names_string (NULL));
+}
+
+/**
+ * @brief Test for getting name with invalid param.
+ */
+TEST (commonTensorsInfo, getNameInvalidParam1_n)
+{
+  GstTensorsInfo info;
+  info.num_tensors = 0;
+  EXPECT_EQ (0U, gst_tensors_info_get_names_string (&info));
+}
+
+/**
+ * @brief Test for same tensor config.
+ */
+TEST (commonTensorConfig, equal07_n)
+{
+  GstTensorConfig conf;
+
+  EXPECT_FALSE (gst_tensor_config_is_equal (NULL, &conf));
+}
+
+/**
+ * @brief Test for same tensor config.
+ */
+TEST (commonTensorConfig, equal08_n)
+{
+  GstTensorConfig conf;
+
+  EXPECT_FALSE (gst_tensor_config_is_equal (NULL, &conf));
+}
+
+/**
  * @brief Test for same tensors config.
  */
 TEST (commonTensorsConfig, equal01_p)
@@ -655,6 +851,144 @@ TEST (commonTensorsConfig, equal06_n)
   conf1.rate_d *= 0;
 
   EXPECT_FALSE (gst_tensors_config_is_equal (&conf1, &conf2));
+}
+
+/**
+ * @brief Test for same tensors config.
+ */
+TEST (commonTensorsConfig, equal07_n)
+{
+  GstTensorsConfig conf;
+
+  EXPECT_FALSE (gst_tensors_config_is_equal (NULL, &conf));
+}
+
+/**
+ * @brief Test for same tensors config.
+ */
+TEST (commonTensorsConfig, equal08_n)
+{
+  GstTensorsConfig conf;
+
+  EXPECT_FALSE (gst_tensors_config_is_equal (&conf, NULL));
+}
+
+/**
+ * @brief Test for validating of the tensor config with invalid param.
+ */
+TEST (commonTensorConfig, validateInvalidParam0_n)
+{
+  EXPECT_FALSE (gst_tensor_config_validate (NULL));
+}
+
+/**
+ * @brief Test for validating of the tensor config with invalid param.
+ */
+TEST (commonTensorConfig, validateInvalidParam1_n)
+{
+  GstTensorConfig conf;
+  gst_tensor_config_init (&conf);
+  conf.rate_n = 1;
+
+  EXPECT_FALSE (gst_tensor_config_validate (NULL));
+}
+
+/**
+ * @brief Test for validating of the tensor config with invalid param.
+ */
+TEST (commonTensorConfig, validateInvalidParam2_n)
+{
+  GstTensorConfig conf;
+  gst_tensor_config_init (&conf);
+  conf.rate_d = 1;
+  EXPECT_FALSE (gst_tensor_config_validate (NULL));
+}
+
+/**
+ * @brief Test for validating of the tensors config with invalid param.
+ */
+TEST (commonTensorsConfig, validateInvalidParam0_n)
+{
+  EXPECT_FALSE (gst_tensors_config_validate (NULL));
+}
+
+/**
+ * @brief Test for validating of the tensors config with invalid param.
+ */
+TEST (commonTensorsConfig, validateInvalidParam1_n)
+{
+  GstTensorsConfig conf;
+  gst_tensors_config_init (&conf);
+  conf.rate_n = 1;
+
+  EXPECT_FALSE (gst_tensors_config_validate (NULL));
+}
+
+/**
+ * @brief Test for validating of the tensors config with invalid param.
+ */
+TEST (commonTensorsConfig, validateInvalidParam2_n)
+{
+  GstTensorsConfig conf;
+  gst_tensors_config_init (&conf);
+  conf.rate_d = 1;
+  EXPECT_FALSE (gst_tensors_config_validate (NULL));
+}
+
+/**
+ * @brief Test for getting config from strucrure with invalid param.
+ */
+TEST (commonTensorConfig, fromStructreInvalidParam0_n)
+{
+  GstStructure structure;
+
+  EXPECT_FALSE (gst_tensor_config_from_structure (NULL, &structure));
+}
+
+/**
+ * @brief Test for getting config from strucrure with invalid param.
+ */
+TEST (commonTensorConfig, fromStructreInvalidParam1_n)
+{
+  GstTensorConfig conf;
+
+  EXPECT_FALSE (gst_tensor_config_from_structure (&conf, NULL));
+}
+
+/**
+ * @brief Test for getting config from strucrure with invalid param.
+ */
+TEST (commonTensorsConfig, fromStructreInvalidParam0_n)
+{
+  GstStructure structure;
+
+  EXPECT_FALSE (gst_tensors_config_from_structure (NULL, &structure));
+}
+
+/**
+ * @brief Test for getting config from strucrure with invalid param.
+ */
+TEST (commonTensorsConfig, fromStructreInvalidParam1_n)
+{
+  GstTensorsConfig conf;
+
+  EXPECT_FALSE (gst_tensors_config_from_structure (&conf, NULL));
+}
+
+/**
+ * @brief Test for getting tensor cap with invalid param.
+ */
+TEST (commonTensorConfig, capInvalidParam0_n)
+{
+  EXPECT_FALSE (gst_tensor_caps_from_config (NULL));
+}
+
+/**
+ * @brief Test for getting tensor cap with invalid param.
+ */
+TEST (commonTensorsConfig, capInvalidParam1_n)
+{
+  EXPECT_FALSE (gst_tensors_caps_from_config (NULL));
 }
 
 /**
