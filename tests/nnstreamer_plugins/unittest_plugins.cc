@@ -266,8 +266,29 @@ TEST (testTensorTransform, properties02_n)
   gchar *str = NULL;
 
   h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
 
-  /* invalid option (from:to) */
+  /* invalid option (unknown mode) */
+  g_object_set (h->element, "mode", "unknown", NULL);
+
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, dimchgProperties0_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* It should be in the form of ^([0-3]):([0-3]) */
   g_object_set (h->element, "mode", GTT_DIMCHG, "option", "10:11", NULL);
 
   g_object_get (h->element, "option", &str, NULL);
@@ -279,19 +300,94 @@ TEST (testTensorTransform, properties02_n)
 /**
  * @brief Test for invalid properties of tensor_transform
  */
-TEST (testTensorTransform, properties03_n)
+TEST (testTensorTransform, dimchgProperties1_n)
 {
   GstHarness *h;
   gchar *str = NULL;
 
   h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
 
-  /* invalid option (typecast:type) */
+  /* It should be in the form of ^([0-3]):([0-3]) */
+  g_object_set (h->element, "mode", GTT_DIMCHG, "option", "1,2", NULL);
+
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, dimchgProperties2_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* Option is not given */
+  g_object_set (h->element, "mode", GTT_DIMCHG, NULL);
+
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, dimchgProperties3_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* It should be in the form of ^([0-3]):([0-3]) */
+  g_object_set (h->element, "mode", GTT_DIMCHG, "option", "0:2,1:3", NULL);
+
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, arithmeticProperties0_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* It should be in the form of [typecast:TYPE,]add|mul|div:NUMBER..., */
   g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "typecast", NULL);
   g_object_get (h->element, "option", &str, NULL);
   EXPECT_TRUE (str == NULL);
 
-  /* invalid option (typecast:type) */
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, arithmeticProperties1_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* It should be in the form of [typecast:TYPE,]add|mul|div:NUMBER..., */
   g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "typecast:unknown", NULL);
   g_object_get (h->element, "option", &str, NULL);
   EXPECT_TRUE (str == NULL);
@@ -302,14 +398,205 @@ TEST (testTensorTransform, properties03_n)
 /**
  * @brief Test for invalid properties of tensor_transform
  */
-TEST (testTensorTransform, properties04_n)
+TEST (testTensorTransform, arithmeticProperties2_n)
 {
   GstHarness *h;
   gchar *str = NULL;
 
   h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
 
-  /* invalid option (from:to) */
+  /* It should be in the form of [typecast:TYPE,]add|mul|div:NUMBER..., */
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "typecast:char", NULL);
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, arithmeticProperties3_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* It should be in the form of [typecast:TYPE,]add|mul|div:NUMBER..., */
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "typecast:double", NULL);
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, arithmeticProperties4_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* It should be in the form of [typecast:TYPE,]add|mul|div:NUMBER..., */
+  g_object_set (h->element, "mode", "typecast:int8", NULL);
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, arithmeticProperties5_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* It should be in the form of [typecast:TYPE,]add|mul|div:NUMBER..., */
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "add:0xF", NULL);
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, arithmeticProperties6_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* It should be in the form of [typecast:TYPE,]add|mul|div:NUMBER..., */
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "add:1U", NULL);
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, arithmeticProperties7_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* It should be in the form of [typecast:TYPE,]add|mul|div:NUMBER..., */
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "+2", NULL);
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, arithmeticProperties8_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* It should be in the form of [typecast:TYPE,]add|mul|div:NUMBER..., */
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "*2", NULL);
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, arithmeticProperties9_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* It should be in the form of [typecast:TYPE,]add|mul|div:NUMBER..., */
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "/2", NULL);
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, arithmeticProperties10_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* It should be in the form of [typecast:TYPE,]add|mul|div:NUMBER..., */
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "max", NULL);
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, arithmeticProperties11_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* Option is not given */
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, NULL);
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, transposeProperties0_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* It should be in the form of NEW_IDX_DIM0:NEW_IDX_DIM1:NEW_IDX_DIM2:3 */
   g_object_set (h->element, "mode", GTT_TRANSPOSE, "option", "5:2:4:3", NULL);
 
   g_object_get (h->element, "option", &str, NULL);
@@ -321,15 +608,296 @@ TEST (testTensorTransform, properties04_n)
 /**
  * @brief Test for invalid properties of tensor_transform
  */
-TEST (testTensorTransform, properties05_n)
+TEST (testTensorTransform, transposeProperties1_n)
 {
   GstHarness *h;
   gchar *str = NULL;
 
   h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* It should be in the form of NEW_IDX_DIM0:NEW_IDX_DIM1:NEW_IDX_DIM2:3 */
+  g_object_set (h->element, "mode", GTT_TRANSPOSE, "option", "2:3:1:0", NULL);
+
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, transposeProperties2_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* It should be in the form of NEW_IDX_DIM0:NEW_IDX_DIM1:NEW_IDX_DIM2:3 */
+  g_object_set (h->element, "mode", GTT_TRANSPOSE, "option", "0:3", NULL);
+
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, transposeProperties3_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* Option is not given */
+  g_object_set (h->element, "mode", GTT_TRANSPOSE, NULL);
+
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, clmapProperties0_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* it should be in the form of [CLAMP_MIN:CLAMP_MAX] */
+  g_object_set (h->element, "mode", GTT_CLAMP, "option", "50:20", NULL);
+
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, clmapProperties1_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* it should be in the form of [CLAMP_MIN:CLAMP_MAX] */
+  g_object_set (h->element, "mode", GTT_CLAMP, "option", "+-1", NULL);
+
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, clmapProperties2_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* it should be in the form of [CLAMP_MIN:CLAMP_MAX] */
+  g_object_set (h->element, "mode", GTT_CLAMP, "option", "+1:-2", NULL);
+
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, clmapProperties3_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* overflow case */
+  g_object_set (h->element, "mode", GTT_CLAMP, "option", "1:1.7e309", NULL);
+
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, clmapProperties4_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* underflow case */
+  g_object_set (h->element, "mode", GTT_CLAMP, "option", "-1.7e309:1", NULL);
+
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, clmapProperties5_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* Option is not given */
+  g_object_set (h->element, "mode", GTT_CLAMP, NULL);
+
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, standProperties0_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
 
   /* invalid option (stand mode) */
   g_object_set (h->element, "mode", GTT_STAND, "option", "invalid", NULL);
+
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, standProperties1_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* It should be in the form of (default|dc-average)[:TYPE][,per-channel:(false|true)] */
+  g_object_set (h->element, "mode", GTT_STAND, "option", "dc-average:unknown", NULL);
+
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, standProperties2_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* It should be in the form of (default|dc-average)[:TYPE][,per-channel:(false|true)] */
+  g_object_set (h->element, "mode", GTT_STAND, "option", "dc-average,per-channel", NULL);
+
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, standProperties3_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /** It should be in the form of (default|dc-average)[:TYPE][,per-channel:(false|true)] */
+  g_object_set (h->element, "mode", GTT_STAND, "option", "dc-average:uint8,per-channel:yes", NULL);
+
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, standProperties4_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /** it should be in the form of (default|dc-average)[:TYPE][,per-channel:(false|true)] */
+  g_object_set (h->element, "mode", GTT_STAND, "option", "dc-average:uint8,true", NULL);
+
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, standProperties5_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* Option is not given */
+  g_object_set (h->element, "mode", GTT_STAND, NULL);
 
   g_object_get (h->element, "option", &str, NULL);
   EXPECT_TRUE (str == NULL);
