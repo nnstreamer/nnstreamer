@@ -1897,11 +1897,32 @@ nnstreamer_converter_find (const char *name)
 }
 
 /**
+ * @brief Validate converter sub-plugin's data.
+ */
+static gboolean
+nnstreamer_converter_validate (const NNStreamerExternalConverter * converter)
+{
+  if (!converter || !converter->name) {
+    /* invalid name */
+    return FALSE;
+  }
+
+  if (!converter->query_caps || !converter->get_out_config
+      || !converter->convert) {
+    /* invalid methods in converter sub-plugin */
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+/**
  * @brief Converter's external subplugins should call this at init.
  */
 int
 registerExternalConverter (NNStreamerExternalConverter * ex)
 {
+  g_return_val_if_fail (nnstreamer_converter_validate (ex), FALSE);
   return register_subplugin (NNS_SUBPLUGIN_CONVERTER, ex->name, ex);
 }
 
