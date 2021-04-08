@@ -14,6 +14,7 @@
 #include <unittest_util.h>
 #include <tensor_decoder_custom.h>
 #include <flatbuffers/flexbuffers.h>
+#include <nnstreamer_plugin_api_decoder.h>
 
 #define TEST_TIMEOUT_MS (1000U)
 
@@ -173,6 +174,147 @@ TEST (tensorDecoderCustom, invalidParam2_n)
 TEST (tensorDecoderCustom, invalidParam3_n)
 {
   EXPECT_NE (0, nnstreamer_decoder_custom_unregister ("tdec"));
+}
+
+/** @brief tensordec-plugin's init callback */
+static int
+decsub_init (void **pdata)
+{
+  return TRUE;
+}
+
+/** @brief tensordec-plugin's getOutCaps callback */
+static GstCaps *
+decsub_getOutCaps (void **pdata, const GstTensorsConfig *config)
+{
+  return NULL;
+}
+
+/** @brief tensordec-plugin's decode callback */
+static GstFlowReturn
+decsub_decode (void **pdata, const GstTensorsConfig * config,
+    const GstTensorMemory * input, GstBuffer * outbuf)
+{
+  return GST_FLOW_OK;
+}
+
+/**
+ * @brief Get default decoder subplugin
+ */
+static GstTensorDecoderDef *
+get_default_decoder (const gchar *name)
+{
+  GstTensorDecoderDef *sub = g_try_new0 (GstTensorDecoderDef, 1);
+  g_assert (sub);
+
+  sub->modename = (char *) g_strdup (name);
+  sub->init = decsub_init;
+  sub->getOutCaps = decsub_getOutCaps;
+  sub->decode = decsub_decode;
+
+  return sub;
+}
+
+/**
+ * @brief Free decoder subplugin
+ */
+static void
+free_default_decoder (GstTensorDecoderDef *sub)
+{
+  g_free ((char *)sub->modename);
+  g_free (sub);
+}
+
+/**
+ * @brief Test for plugin registration
+ */
+TEST (tensorDecoder, subpluginNoraml)
+{
+  GstTensorDecoderDef *sub = get_default_decoder ("mode");
+
+  EXPECT_TRUE (nnstreamer_decoder_probe (sub));
+
+  nnstreamer_decoder_exit ("mode");
+  free_default_decoder (sub);
+}
+
+/**
+ * @brief Test for plugin registration with invalid param
+ */
+TEST (tensorDecoder, probeSubplugInvalidParam0_n)
+{
+  GstTensorDecoderDef *sub = get_default_decoder (NULL);
+
+  EXPECT_FALSE (nnstreamer_decoder_probe (sub));
+
+  free_default_decoder (sub);
+}
+
+/**
+ * @brief Test for plugin registration with invalid param
+ */
+TEST (tensorDecoder, probeSubplugInvalidParam1_n)
+{
+  GstTensorDecoderDef *sub = get_default_decoder ("mode");
+
+  sub->init = NULL;
+  EXPECT_FALSE (nnstreamer_decoder_probe (sub));
+
+  free_default_decoder (sub);
+}
+
+/**
+ * @brief Test for plugin registration with invalid param
+ */
+TEST (tensorDecoder, probeSubplugInvalidParam2_n)
+{
+  GstTensorDecoderDef *sub = get_default_decoder ("mode");
+
+  sub->getOutCaps = NULL;
+  EXPECT_FALSE (nnstreamer_decoder_probe (sub));
+
+  free_default_decoder (sub);
+}
+
+/**
+ * @brief Test for plugin registration with invalid param
+ */
+TEST (tensorDecoder, probeSubplugInvalidParam3_n)
+{
+  GstTensorDecoderDef *sub = get_default_decoder ("mode");
+
+  sub->decode = NULL;
+  EXPECT_FALSE (nnstreamer_decoder_probe (sub));
+
+  free_default_decoder (sub);
+}
+
+/**
+ * @brief Test for plugin registration with invalid param
+ */
+TEST (tensorDecoder, probeSubplugInvalidParam4_n)
+{
+  GstTensorDecoderDef *sub = get_default_decoder ("any");
+
+  EXPECT_FALSE (nnstreamer_decoder_probe (sub));
+
+  free_default_decoder (sub);
+}
+
+/**
+ * @brief Test for plugin registration with invalid param
+ */
+TEST (tensorDecoder, probeSubplugInvalidParam5_n)
+{
+  EXPECT_FALSE (nnstreamer_decoder_probe (NULL));
+}
+
+/**
+ * @brief Test for plugin registration with invalid param
+ */
+TEST (tensorDecoder, subplugFindInvalidParam_n)
+{
+  EXPECT_EQ (NULL, nnstreamer_decoder_find (NULL));
 }
 
 /**

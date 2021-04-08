@@ -14,6 +14,7 @@
 #include <unittest_util.h>
 #include <tensor_converter_custom.h>
 #include <flatbuffers/flexbuffers.h>
+#include <nnstreamer_plugin_api_converter.h>
 
 #define TEST_TIMEOUT_MS (1000U)
 
@@ -182,6 +183,147 @@ TEST (tensorConverterCustom, invalidParam2_n)
 TEST (tensorConverterCustom, invalidParam3_n)
 {
   EXPECT_NE (0, nnstreamer_converter_custom_unregister ("tconv"));
+}
+
+/** @brief tensor converter plugin's query caps callback */
+static GstCaps *
+conv_query_caps (const GstTensorsConfig *config)
+{
+  return NULL;
+}
+
+/** @brief tensor converter plugin's get out caps callback */
+static gboolean
+conv_get_out_config (const GstCaps *in_cap, GstTensorsConfig *config)
+{
+  return TRUE;
+}
+
+/** @brief tensor converter plugin's convert callback
+ */
+static GstBuffer *
+conv_convert (GstBuffer *in_buf, gsize *frame_size, guint *frames_in, GstTensorsConfig *config)
+{
+  return NULL;
+}
+
+/**
+ * @brief Get default external converter
+ */
+static NNStreamerExternalConverter *
+get_default_external_converter (const gchar *name)
+{
+  NNStreamerExternalConverter *sub = g_try_new0 (NNStreamerExternalConverter, 1);
+  g_assert (sub);
+
+  sub->name = (char *) g_strdup (name);
+  sub->query_caps = conv_query_caps;
+  sub->get_out_config = conv_get_out_config;
+  sub->convert = conv_convert;
+
+  return sub;
+}
+
+/**
+ * @brief Free converter subplugin
+ */
+static void
+free_default_external_converter (NNStreamerExternalConverter *sub)
+{
+  g_free ((char *)sub->name);
+  g_free (sub);
+}
+
+/**
+ * @brief Test for plugin registration
+ */
+TEST (tensorConverter, subpluginNoraml)
+{
+  NNStreamerExternalConverter *sub = get_default_external_converter ("mode");
+
+  EXPECT_TRUE (registerExternalConverter (sub));
+
+  unregisterExternalConverter ("mode");
+  free_default_external_converter (sub);
+}
+
+/**
+ * @brief Test for plugin registration with invalid param
+ */
+TEST (tensorConverter, subpluginInvalidParam0_n)
+{
+  EXPECT_FALSE (registerExternalConverter (NULL));
+}
+
+/**
+ * @brief Test for plugin registration with invalid param
+ */
+TEST (tensorConverter, subpluginInvalidParam1_n)
+{
+  NNStreamerExternalConverter *sub = get_default_external_converter (NULL);
+
+  EXPECT_FALSE (registerExternalConverter (sub));
+
+  free_default_external_converter (sub);
+}
+
+/**
+ * @brief Test for plugin registration with invalid param
+ */
+TEST (tensorConverter, subpluginInvalidParam2_n)
+{
+  NNStreamerExternalConverter *sub = get_default_external_converter ("mode");
+
+  sub->query_caps = NULL;
+  EXPECT_FALSE (registerExternalConverter (sub));
+
+  free_default_external_converter (sub);
+}
+
+/**
+ * @brief Test for plugin registration with invalid param
+ */
+TEST (tensorConverter, subpluginInvalidParam3_n)
+{
+  NNStreamerExternalConverter *sub = get_default_external_converter ("mode");
+
+  sub->get_out_config = NULL;
+  EXPECT_FALSE (registerExternalConverter (sub));
+
+  free_default_external_converter (sub);
+}
+
+/**
+ * @brief Test for plugin registration with invalid param
+ */
+TEST (tensorConverter, subpluginInvalidParam4_n)
+{
+  NNStreamerExternalConverter *sub = get_default_external_converter ("mode");
+
+  sub->convert = NULL;
+  EXPECT_FALSE (registerExternalConverter (sub));
+
+  free_default_external_converter (sub);
+}
+
+/**
+ * @brief Test for plugin registration with invalid param
+ */
+TEST (tensorConverter, subpluginInvalidParam5_n)
+{
+  NNStreamerExternalConverter *sub = get_default_external_converter ("any");
+
+  EXPECT_FALSE (registerExternalConverter (sub));
+
+  free_default_external_converter (sub);
+}
+
+/**
+ * @brief Test for plugin registration with invalid param
+ */
+TEST (tensorConverter, subpluginFindInvalidParam_n)
+{
+  EXPECT_FALSE (nnstreamer_converter_find (NULL));
 }
 
 /**
