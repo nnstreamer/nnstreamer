@@ -234,6 +234,7 @@ gst_tensor_mux_finalize (GObject * object)
   tensor_mux = GST_TENSOR_MUX (object);
 
   if (tensor_mux->collect) {
+    gst_tensor_time_sync_flush (tensor_mux->collect);
     gst_object_unref (tensor_mux->collect);
     tensor_mux->collect = NULL;
   }
@@ -343,6 +344,8 @@ gst_tensor_mux_sink_event (GstCollectPads * pads, GstCollectData * data,
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_FLUSH_STOP:
       tensor_mux->need_segment = TRUE;
+      tensor_mux->need_set_time = TRUE;
+      gst_tensor_time_sync_flush (tensor_mux->collect);
       break;
     case GST_EVENT_EOS:
       gst_tensor_mux_set_waiting (tensor_mux, FALSE);

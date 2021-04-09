@@ -261,6 +261,7 @@ gst_tensor_merge_finalize (GObject * object)
   tensor_merge = GST_TENSOR_MERGE (object);
 
   if (tensor_merge->collect) {
+    gst_tensor_time_sync_flush (tensor_merge->collect);
     gst_object_unref (tensor_merge->collect);
     tensor_merge->collect = NULL;
   }
@@ -355,6 +356,8 @@ gst_tensor_merge_sink_event (GstCollectPads * pads, GstCollectData * data,
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_FLUSH_STOP:
       tensor_merge->need_segment = TRUE;
+      tensor_merge->need_set_time = TRUE;
+      gst_tensor_time_sync_flush (tensor_merge->collect);
       break;
     default:
       break;
