@@ -67,11 +67,23 @@
 #endif
 
 /**
+ * @brief Possible tensorflow-lite delegates.
+ */
+typedef enum {
+  TFLITE_DELEGATE_NONE = 0,
+  TFLITE_DELEGATE_GPU,
+  TFLITE_DELEGATE_NNAPI,
+
+  TFLITE_DELEGATE_MAX
+} tflite_delegate_e;
+
+/**
  * @brief Option to open tf-lite model.
  */
 typedef struct {
   const gchar *model_file; /**< path to tensorflow-lite model file */
   const gchar *accelerators; /**< accelerators set for this subplugin */
+  tflite_delegate_e delegate; /**< tensorflow-lite delegate */
   gint num_threads; /**< the number of threads */
 } tflite_option_s;
 
@@ -104,7 +116,7 @@ class TFLiteInterpreter
   ~TFLiteInterpreter ();
 
   int invoke (const GstTensorMemory *input, GstTensorMemory *output);
-  int loadModel (int num_threads, accl_hw accelerator);
+  int loadModel (int num_threads, tflite_delegate_e delegate);
   void moveInternals (TFLiteInterpreter &interp);
 
   int setInputTensorProp ();
@@ -201,11 +213,12 @@ class TFLiteCore
   private:
   int num_threads;
   accl_hw accelerator;
+  tflite_delegate_e delegate;
 
   TFLiteInterpreter interpreter;
   TFLiteInterpreter interpreter_sub;
 
-  void setAccelerator (const char *accelerators);
+  void setAccelerator (const char *accelerators, tflite_delegate_e d);
 };
 
 extern "C" { /* accessed by android api */
@@ -302,7 +315,7 @@ TFLiteInterpreter::invoke (const GstTensorMemory *input, GstTensorMemory *output
  * @return 0 if OK. non-zero if error.
  */
 int
-TFLiteInterpreter::loadModel (int num_threads, accl_hw accelerator)
+TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate)
 {
 #if (DBG)
   gint64 start_time = g_get_monotonic_time ();
@@ -328,46 +341,56 @@ TFLiteInterpreter::loadModel (int num_threads, accl_hw accelerator)
   if (num_threads > 0) {
     int n = static_cast<int> (std::thread::hardware_concurrency ());
 
-    n = MIN (n, num_threads);
-    ml_logi ("Set the number of threads (%d)", n);
-    interpreter->SetNumThreads (n);
+    num_threads = MIN (n, num_threads);
+    ml_logi ("Set the number of threads (%d)", num_threads);
+    interpreter->SetNumThreads (num_threads);
   }
 
   /** set delegate after the accelerator prop */
-  if (accelerator == ACCL_CPU_NEON || accelerator == ACCL_NPU) {
-#ifdef TFLITE_NNAPI_DELEGATE_SUPPORTED
-    /** set nnapi delegate when accelerator set to auto (cpu.neon in Android) or
-     * NPU */
-    stateful_nnapi_delegate.reset (new tflite::StatefulNnApiDelegate ());
-    setDelegate (stateful_nnapi_delegate.get ());
-#else
-    ml_logw ("NNAPI delegate support is available only in Android with tflite v1.14.0 or higher");
-#endif
-  } else if (accelerator == ACCL_GPU) {
+  switch (delegate) {
+    case TFLITE_DELEGATE_GPU:
+    {
 #ifdef TFLITE_GPU_DELEGATE_SUPPORTED
-    /** set gpu delegate when accelerator set to GPU */
-    TfLiteGpuDelegateOptionsV2 options = TfLiteGpuDelegateOptionsV2Default ();
-    options.experimental_flags = TFLITE_GPU_EXPERIMENTAL_FLAGS_NONE;
-    options.experimental_flags |= TFLITE_GPU_EXPERIMENTAL_FLAGS_ENABLE_QUANT;
+      /* set gpu delegate when accelerator set to GPU */
+      TfLiteGpuDelegateOptionsV2 options = TfLiteGpuDelegateOptionsV2Default ();
+      options.experimental_flags = TFLITE_GPU_EXPERIMENTAL_FLAGS_NONE;
+      options.experimental_flags |= TFLITE_GPU_EXPERIMENTAL_FLAGS_ENABLE_QUANT;
 
-    /** NNStreamer filter for TFLite2 GPU delegate only supports OpenCL backend
-     * since GLES v3.1 backend has a constraint that
-     * Invoke() must be called from the same EGLContext. */
-    options.experimental_flags |= TFLITE_GPU_EXPERIMENTAL_FLAGS_CL_ONLY;
-    options.inference_priority1 = TFLITE_GPU_INFERENCE_PRIORITY_MIN_LATENCY;
-    options.inference_priority2 = TFLITE_GPU_INFERENCE_PRIORITY_MIN_MEMORY_USAGE;
-    options.inference_priority3 = TFLITE_GPU_INFERENCE_PRIORITY_MAX_PRECISION;
+      /**
+       * NNStreamer filter for TFLite2 GPU delegate only supports OpenCL backend
+       * since GLES v3.1 backend has a constraint that
+       * Invoke() must be called from the same EGLContext.
+       */
+      options.experimental_flags |= TFLITE_GPU_EXPERIMENTAL_FLAGS_CL_ONLY;
+      options.inference_priority1 = TFLITE_GPU_INFERENCE_PRIORITY_MIN_LATENCY;
+      options.inference_priority2 = TFLITE_GPU_INFERENCE_PRIORITY_MIN_MEMORY_USAGE;
+      options.inference_priority3 = TFLITE_GPU_INFERENCE_PRIORITY_MAX_PRECISION;
 
-    gpu_delegate.reset (TfLiteGpuDelegateV2Create (&options));
-    setDelegate (gpu_delegate.get ());
+      gpu_delegate.reset (TfLiteGpuDelegateV2Create (&options));
+      setDelegate (gpu_delegate.get ());
 #else
-    ml_logw ("GPU delegate support is available only in Android with tflite v2.3.0 or higher");
+      ml_logw ("GPU delegate support is available with tflite v2.3.0 or higher");
 #endif
+      break;
+    }
+    case TFLITE_DELEGATE_NNAPI:
+    {
+#ifdef TFLITE_NNAPI_DELEGATE_SUPPORTED
+      /* set nnapi delegate when accelerator set to auto (cpu.neon in Android) or NPU */
+      stateful_nnapi_delegate.reset (new tflite::StatefulNnApiDelegate ());
+      setDelegate (stateful_nnapi_delegate.get ());
+#else
+      ml_logw ("NNAPI delegate support is available only in Android with tflite v1.14.0 or higher");
+#endif
+      break;
+    }
+    default:
+      break;
   }
 
   if (delegate_ != nullptr) {
     if (interpreter->ModifyGraphWithDelegate (delegate_) != kTfLiteOk) {
-      ml_loge ("Failed to allocate tensors with NNAPI delegate\n");
+      ml_loge ("Failed to allocate tensors with delegate\n");
       return -2;
     }
   } else {
@@ -638,11 +661,26 @@ fail_exit:
  * @brief	Set the accelerator for the tf engine
  */
 void
-TFLiteCore::setAccelerator (const char *accelerators)
+TFLiteCore::setAccelerator (const char *accelerators, tflite_delegate_e d)
 {
   accelerator = parse_accl_hw (
       accelerators, tflite_accl_support, tflite_accl_auto, tflite_accl_default);
 
+  delegate = d;
+
+  /* set possible tensorflow-lite delegate from accelerator */
+  if (delegate == TFLITE_DELEGATE_NONE) {
+    /** @todo update condition to set delegate from accl hw */
+    switch (accelerator) {
+      case ACCL_GPU:
+        delegate = TFLITE_DELEGATE_GPU;
+        break;
+      default:
+        break;
+    }
+  }
+
+  ml_logd ("Set tensorflow-lite delegate %d", delegate);
   return;
 }
 
@@ -661,7 +699,7 @@ TFLiteCore::init (tflite_option_s *option)
   interpreter.setModelPath (option->model_file);
   num_threads = option->num_threads;
 
-  setAccelerator (option->accelerators);
+  setAccelerator (option->accelerators, option->delegate);
   g_message ("accl = %s", get_accl_hw_str (accelerator));
 
   if (loadModel ()) {
@@ -710,7 +748,7 @@ TFLiteCore::loadModel ()
   int err;
 
   interpreter.lock ();
-  err = interpreter.loadModel (num_threads, accelerator);
+  err = interpreter.loadModel (num_threads, delegate);
   interpreter.unlock ();
 
   return err;
@@ -823,7 +861,7 @@ TFLiteCore::reloadModel (const char *_model_path)
    * load a model into sub interpreter. This loading overhead is indenendent
    * with main one's activities.
    */
-  err = interpreter_sub.loadModel (num_threads, accelerator);
+  err = interpreter_sub.loadModel (num_threads, delegate);
   if (err != 0) {
     ml_loge ("Failed to load model %s\n", _model_path);
     goto out_unlock;
@@ -913,6 +951,7 @@ tflite_parseCustomOption (const GstTensorFilterProperties *prop, tflite_option_s
 
   option->model_file = prop->model_files[0];
   option->accelerators = prop->accl_str;
+  option->delegate = TFLITE_DELEGATE_NONE;
   option->num_threads = -1;
 
   if (prop->custom_properties) {
@@ -933,9 +972,9 @@ tflite_parseCustomOption (const GstTensorFilterProperties *prop, tflite_option_s
           option->num_threads = (int)g_ascii_strtoll (pair[1], NULL, 10);
         } else if (g_ascii_strcasecmp (pair[0], "Delegate") == 0) {
           if (g_ascii_strcasecmp (pair[1], "NNAPI") == 0)
-            option->accelerators = "true:" ACCL_CPU_NEON_STR;
+            option->delegate = TFLITE_DELEGATE_NNAPI;
           else if (g_ascii_strcasecmp (pair[1], "GPU") == 0)
-            option->accelerators = "true:" ACCL_GPU_STR;
+            option->delegate = TFLITE_DELEGATE_GPU;
           else
             ml_logw ("Unknown option to set tensorflow-lite delegate (%s).", pair[1]);
         } else {
