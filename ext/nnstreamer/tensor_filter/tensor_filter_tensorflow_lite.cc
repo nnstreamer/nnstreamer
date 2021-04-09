@@ -46,6 +46,10 @@
 #include <tensorflow/contrib/lite/model.h>
 #endif
 
+#ifdef TFLITE_XNNPACK_DELEGATE_SUPPORTED
+#include <tensorflow/lite/delegates/xnnpack/xnnpack_delegate.h>
+#endif
+
 #ifdef TFLITE_NNAPI_DELEGATE_SUPPORTED
 #include <tensorflow/lite/delegates/nnapi/nnapi_delegate.h>
 #endif
@@ -167,6 +171,10 @@ class TFLiteInterpreter
 
   TfLiteDelegate *delegate_
       = nullptr; /**< The delegate for tflite interpreter */
+
+#ifdef TFLITE_XNNPACK_DELEGATE_SUPPORTED
+  std::unique_ptr<TfLiteDelegate> xnnpack_delegate; /**< The pointer of XNNPACK delegate */
+#endif
 
 #ifdef TFLITE_NNAPI_DELEGATE_SUPPORTED
   std::unique_ptr<tflite::StatefulNnApiDelegate>
@@ -334,7 +342,18 @@ TFLiteInterpreter::loadModel (int num_threads, accl_hw accelerator)
   }
 
   /** set delegate after the accelerator prop */
-  if (accelerator == ACCL_CPU_NEON || accelerator == ACCL_NPU) {
+  if (accelerator == ACCL_CPU_NEON) {
+#ifdef TFLITE_XNNPACK_DELEGATE_SUPPORTED
+    /* for xnnpack delegate */
+    TfLiteXNNPackDelegateOptions xnnpack_options = TfLiteXNNPackDelegateOptionsDefault();
+    xnnpack_options.num_threads = num_threads;
+
+    xnnpack_delegate.reset (TfLiteXNNPackDelegateCreate (&xnnpack_options));
+    setDelegate (xnnpack_delegate.get ());
+#else
+    ml_logw ("XNNPACK delegate support is available only in Android with tflite v2.3.0 or higher");
+#endif
+  } else if (accelerator == ACCL_NPU) {
 #ifdef TFLITE_NNAPI_DELEGATE_SUPPORTED
     /** set nnapi delegate when accelerator set to auto (cpu.neon in Android) or
      * NPU */
@@ -361,13 +380,13 @@ TFLiteInterpreter::loadModel (int num_threads, accl_hw accelerator)
     gpu_delegate.reset (TfLiteGpuDelegateV2Create (&options));
     setDelegate (gpu_delegate.get ());
 #else
-    ml_logw ("GPU delegate support is available only in Android with tflite v2.3.0 or higher");
+    ml_logw ("GPU delegate support is available with tflite v2.3.0 or higher");
 #endif
   }
 
   if (delegate_ != nullptr) {
     if (interpreter->ModifyGraphWithDelegate (delegate_) != kTfLiteOk) {
-      ml_loge ("Failed to allocate tensors with NNAPI delegate\n");
+      ml_loge ("Failed to allocate tensors with delegate\n");
       return -2;
     }
   } else {
@@ -932,8 +951,10 @@ tflite_parseCustomOption (const GstTensorFilterProperties *prop, tflite_option_s
         if (g_ascii_strcasecmp (pair[0], "NumThreads") == 0) {
           option->num_threads = (int)g_ascii_strtoll (pair[1], NULL, 10);
         } else if (g_ascii_strcasecmp (pair[0], "Delegate") == 0) {
-          if (g_ascii_strcasecmp (pair[1], "NNAPI") == 0)
+          if (g_ascii_strcasecmp (pair[1], "XNNPACK") == 0)
             option->accelerators = "true:" ACCL_CPU_NEON_STR;
+          else if (g_ascii_strcasecmp (pair[1], "NNAPI") == 0)
+            option->accelerators = "true:" ACCL_NPU_STR;
           else if (g_ascii_strcasecmp (pair[1], "GPU") == 0)
             option->accelerators = "true:" ACCL_GPU_STR;
           else
