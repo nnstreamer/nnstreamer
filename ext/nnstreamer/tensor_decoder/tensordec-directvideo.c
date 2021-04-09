@@ -30,6 +30,7 @@
 #include <glib.h>
 #include <gst/video/video-format.h>
 #include <nnstreamer_plugin_api_decoder.h>
+#include <nnstreamer_plugin_api.h>
 #include <nnstreamer_log.h>
 #include "tensordecutil.h"
 
@@ -37,14 +38,76 @@ void init_dv (void) __attribute__ ((constructor));
 void fini_dv (void) __attribute__ ((destructor));
 
 #define DECODER_DV_VIDEO_CAPS_STR \
-    GST_VIDEO_CAPS_MAKE ("{ RGB, BGRx, GRAY8 }") \
+    GST_VIDEO_CAPS_MAKE ("{ GRAY8, RGB, BGR, RGBx, BGRx, xRGB, xBGR, RGBA, BGRA, ARGB, ABGR }") \
     ", views = (int) 1, interlace-mode = (string) progressive"
+
+/**
+ * @brief The supported video formats
+ */
+typedef enum
+{
+  DIRECT_VIDEO_FORMAT_UNKNOWN = 0,
+
+  /* Single Channel, Default: GRAY8 */
+  DIRECT_VIDEO_FORMAT_GRAY8 = 1,
+
+  /* 3 Channels, Default: RGB */
+  DIRECT_VIDEO_FORMAT_RGB = 2,
+  DIRECT_VIDEO_FORMAT_BGR = 3,
+
+  /* 4 Channels, Default: BGRx */
+  DIRECT_VIDEO_FORMAT_RGBx = 4,
+  DIRECT_VIDEO_FORMAT_BGRx = 5,
+  DIRECT_VIDEO_FORMAT_xRGB = 6,
+  DIRECT_VIDEO_FORMAT_xBGR = 7,
+  DIRECT_VIDEO_FORMAT_RGBA = 8,
+  DIRECT_VIDEO_FORMAT_BGRA = 9,
+  DIRECT_VIDEO_FORMAT_ARGB = 10,
+  DIRECT_VIDEO_FORMAT_ABGR = 11,
+} direct_video_formats;
+
+/**
+ * @brief Data structure for direct video options.
+ */
+typedef struct
+{
+  /* From option1 */
+  direct_video_formats format;
+} direct_video_ops;
+
+/**
+ * @brief List of the formats of direct video
+ */
+static const char *dv_formats[] = {
+  [DIRECT_VIDEO_FORMAT_UNKNOWN] = "UNKNOWN",
+  [DIRECT_VIDEO_FORMAT_GRAY8] = "GRAY8",
+  [DIRECT_VIDEO_FORMAT_RGB] = "RGB",
+  [DIRECT_VIDEO_FORMAT_BGR] = "BGR",
+  [DIRECT_VIDEO_FORMAT_RGBx] = "RGBx",
+  [DIRECT_VIDEO_FORMAT_BGRx] = "BGRx",
+  [DIRECT_VIDEO_FORMAT_xRGB] = "xRGB",
+  [DIRECT_VIDEO_FORMAT_xBGR] = "xBGR",
+  [DIRECT_VIDEO_FORMAT_RGBA] = "RGBA",
+  [DIRECT_VIDEO_FORMAT_BGRA] = "BGRA",
+  [DIRECT_VIDEO_FORMAT_ARGB] = "ARGB",
+  [DIRECT_VIDEO_FORMAT_ABGR] = "ABGR",
+  NULL,
+};
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static int
 dv_init (void **pdata)
 {
-  *pdata = NULL;                /* We have no internal data */
+  direct_video_ops *ddata;
+  ddata = *pdata = g_try_new0 (direct_video_ops, 1);
+
+  if (ddata == NULL) {
+    GST_ERROR ("Failed to allocate memory for decoder subplugin.");
+    return FALSE;
+  }
+
+  ddata->format = DIRECT_VIDEO_FORMAT_UNKNOWN;
+
   return TRUE;
 }
 
@@ -52,7 +115,8 @@ dv_init (void **pdata)
 static void
 dv_exit (void **pdata)
 {
-  /* Nothing to do */
+  if (pdata)
+    g_free (*pdata);
   return;
 }
 
@@ -60,7 +124,36 @@ dv_exit (void **pdata)
 static int
 dv_setOption (void **pdata, int opNum, const char *param)
 {
-  /* We do not accept anything. */
+  direct_video_ops *ddata;
+
+  if (!pdata || !*pdata) {
+    GST_ERROR ("There is no plugin data.");
+    return FALSE;
+  }
+
+  if (NULL == param || *param == '\0') {
+    GST_ERROR ("Please set the valid value at option.");
+    return FALSE;
+  }
+
+  ddata = *pdata;
+
+  /* When the dimension[0] is 4, the video format will be decided by option1. */
+  switch (opNum) {
+    case 0:
+    {
+      int f = find_key_strv (dv_formats, param);
+
+      ddata->format = (f < 0) ? DIRECT_VIDEO_FORMAT_UNKNOWN : f;
+      if (ddata->format == DIRECT_VIDEO_FORMAT_UNKNOWN) {
+        return FALSE;
+      }
+      break;
+    }
+    default:
+      break;
+  }
+
   return TRUE;
 }
 
@@ -68,35 +161,90 @@ dv_setOption (void **pdata, int opNum, const char *param)
 static GstCaps *
 dv_getOutCaps (void **pdata, const GstTensorsConfig * config)
 {
+  direct_video_ops *ddata = *pdata;
   /* Old gst_tensordec_video_caps_from_config () had this */
   GstVideoFormat format;
-  gint width, height;
+  gint width, height, channel;
   GstCaps *caps;
 
   g_return_val_if_fail (config != NULL, NULL);
   GST_INFO ("Num Tensors = %d", config->info.num_tensors);
   g_return_val_if_fail (config->info.num_tensors >= 1, NULL);
 
-  caps = gst_caps_from_string (DECODER_DV_VIDEO_CAPS_STR);
-
   /* Direct video uses the first tensor only even if it's multi-tensor */
-  switch (config->info.info[0].dimension[0]) {
-    case 1:
-      format = GST_VIDEO_FORMAT_GRAY8;
-      break;
-    case 3:
-      format = GST_VIDEO_FORMAT_RGB;
-      break;
-    case 4:
-      format = GST_VIDEO_FORMAT_BGRx;
-      break;
-    default:
-      format = GST_VIDEO_FORMAT_UNKNOWN;
-      break;
+  channel = config->info.info[0].dimension[0];
+  if (channel == 1) {
+    switch (ddata->format) {
+      case DIRECT_VIDEO_FORMAT_GRAY8:
+        format = GST_VIDEO_FORMAT_GRAY8;
+        break;
+      case DIRECT_VIDEO_FORMAT_UNKNOWN:
+        GST_WARNING ("Default format has been applied: GRAY8");
+        format = GST_VIDEO_FORMAT_GRAY8;
+        break;
+      default:
+        GST_ERROR ("Invalid format. Please check the video format");
+        return NULL;
+    }
+  } else if (channel == 3) {
+    switch (ddata->format) {
+      case DIRECT_VIDEO_FORMAT_RGB:
+        format = GST_VIDEO_FORMAT_RGB;
+        break;
+      case DIRECT_VIDEO_FORMAT_BGR:
+        format = GST_VIDEO_FORMAT_BGR;
+        break;
+      case DIRECT_VIDEO_FORMAT_UNKNOWN:
+        GST_WARNING ("Default format has been applied: RGB");
+        format = GST_VIDEO_FORMAT_RGB;
+        break;
+      default:
+        GST_ERROR ("Invalid format. Please check the video format");
+        return NULL;
+    }
+  } else if (channel == 4) {
+    switch (ddata->format) {
+      case DIRECT_VIDEO_FORMAT_RGBx:
+        format = GST_VIDEO_FORMAT_RGBx;
+        break;
+      case DIRECT_VIDEO_FORMAT_BGRx:
+        format = GST_VIDEO_FORMAT_BGRx;
+        break;
+      case DIRECT_VIDEO_FORMAT_xRGB:
+        format = GST_VIDEO_FORMAT_xRGB;
+        break;
+      case DIRECT_VIDEO_FORMAT_xBGR:
+        format = GST_VIDEO_FORMAT_xBGR;
+        break;
+      case DIRECT_VIDEO_FORMAT_RGBA:
+        format = GST_VIDEO_FORMAT_RGBA;
+        break;
+      case DIRECT_VIDEO_FORMAT_BGRA:
+        format = GST_VIDEO_FORMAT_BGRA;
+        break;
+      case DIRECT_VIDEO_FORMAT_ARGB:
+        format = GST_VIDEO_FORMAT_ARGB;
+        break;
+      case DIRECT_VIDEO_FORMAT_ABGR:
+        format = GST_VIDEO_FORMAT_ABGR;
+        break;
+      case DIRECT_VIDEO_FORMAT_UNKNOWN:
+        GST_WARNING ("Default format has been applied: BGRx");
+        format = GST_VIDEO_FORMAT_BGRx;
+        break;
+      default:
+        GST_ERROR ("Invalid format. Please check the video format");
+        return NULL;
+    }
+  } else {
+    GST_ERROR ("%d channel is not supported", channel);
+    return NULL;
   }
 
   width = config->info.info[0].dimension[1];
   height = config->info.info[0].dimension[2];
+
+  caps = gst_caps_from_string (DECODER_DV_VIDEO_CAPS_STR);
 
   if (format != GST_VIDEO_FORMAT_UNKNOWN) {
     const char *format_string = gst_video_format_to_string (format);
