@@ -92,8 +92,6 @@ typedef struct _tensor_time_sync_data {
 typedef struct
 {
   GstCollectData collect;
-  GstClockTime pts_timestamp;
-  GstClockTime dts_timestamp;
   GstBuffer *buffer;
   GstPad *pad;
 } GstTensorCollectPadData;
@@ -142,6 +140,14 @@ gst_tensor_time_sync_set_option_data (tensor_time_sync_data * sync);
  */
 extern gboolean
 gst_tensor_time_sync_get_current_time (GstCollectPads * collect, tensor_time_sync_data * sync, GstClockTime * current_time);
+
+/**
+ * @brief A function to be called while processing a flushing event.
+ * It should clear old buffer and reset pad data.
+ * @param collect Collect pad.
+ */
+extern void
+gst_tensor_time_sync_flush (GstCollectPads * collect);
 
 /**
  * @brief  A function call to make tensors from collected pads

@@ -177,6 +177,29 @@ gst_tensor_time_sync_get_current_time (GstCollectPads * collect,
 }
 
 /**
+ * @brief A function to be called while processing a flushing event.
+ * It should clear old buffer and reset pad data.
+ */
+void
+gst_tensor_time_sync_flush (GstCollectPads * collect)
+{
+  GSList *walk;
+  GstTensorCollectPadData *pad;
+
+  walk = collect->data;
+  while (walk) {
+    pad = (GstTensorCollectPadData *) walk->data;
+
+    if (pad->buffer) {
+      gst_buffer_unref (pad->buffer);
+      pad->buffer = NULL;
+    }
+
+    walk = g_slist_next (walk);
+  }
+}
+
+/**
  * @brief Common code for both
  *        gst_tensor_time_sync_buffer_from_collectpad_SYNC_*
  */
