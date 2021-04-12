@@ -1785,9 +1785,24 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
       break;
     default:
     {
-      if (self->mode == _CONVERTER_MODE_CUSTOM_CODE) {
-        gst_tensors_config_init (&config);
+      GstCaps *peer_caps = gst_pad_peer_query_caps (self->srcpad, NULL);
+      gboolean is_fixed = FALSE;
 
+      if (peer_caps) {
+        is_fixed = gst_caps_is_fixed (peer_caps);
+
+        if (is_fixed)
+          gst_tensors_config_from_structure (&config,
+              gst_caps_get_structure (peer_caps, 0));
+
+        gst_caps_unref (peer_caps);
+      }
+
+      if (self->mode == _CONVERTER_MODE_CUSTOM_CODE) {
+        if (is_fixed)
+          break;
+
+        gst_tensors_config_init (&config);
         /* All tensor info should be updated later in chain function. */
         config.info.info[0].type = _NNS_UINT8;
         config.info.num_tensors = 1;
@@ -1817,6 +1832,9 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
           if (ex != NULL && self->externalConverter == NULL) {
             in_type = _NNS_MEDIA_ANY;
             self->externalConverter = ex;
+
+            if (is_fixed)
+              break;
 
             if (NULL == ex->get_out_config
                 || !ex->get_out_config (caps, &config)) {
