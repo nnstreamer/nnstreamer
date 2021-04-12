@@ -1,5 +1,5 @@
 ---
-title: Contributing
+title: How to contribute
 ...
 
 # How to Contribute

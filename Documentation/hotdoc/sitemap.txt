@@ -2,7 +2,6 @@ index.md
 	doc-index.md
 		coding-convention.md
 		component-description.md
-		contributing.md
 		doxygen-documentation.md
 		edge-ai.md
 		features-per-distro.md
@@ -18,6 +17,7 @@ index.md
 			gst-launch-script-example.md
 		how-to-use-testcases.md
 		how-to-write-testcase.md
+		contributing.md
 		nnstreamer_capi.md
 		products.md
 		writing-subplugin-tensor-filter.md
