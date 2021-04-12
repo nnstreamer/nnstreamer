@@ -57,6 +57,8 @@ gst_tensor_time_sync_get_mode_string (tensor_time_sync_mode mode)
 gboolean
 gst_tensor_time_sync_set_option_data (tensor_time_sync_data * sync)
 {
+  g_return_val_if_fail (sync != NULL, FALSE);
+
   if (sync->mode == SYNC_END || sync->option == NULL)
     return FALSE;
 
@@ -137,6 +139,10 @@ gst_tensor_time_sync_get_current_time (GstCollectPads * collect,
   GSList *walk = NULL;
   guint count, empty_pad;
 
+  g_return_val_if_fail (collect != NULL, FALSE);
+  g_return_val_if_fail (sync != NULL, FALSE);
+  g_return_val_if_fail (current_time != NULL, FALSE);
+
   walk = collect->data;
   count = empty_pad = 0;
 
@@ -185,6 +191,8 @@ gst_tensor_time_sync_flush (GstCollectPads * collect)
 {
   GSList *walk;
   GstTensorCollectPadData *pad;
+
+  g_return_if_fail (collect != NULL);
 
   walk = collect->data;
   while (walk) {
@@ -262,6 +270,12 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
   guint counting, empty_pad;
   GstTensorsConfig in_configs;
   GstClockTime base_time = 0;
+
+  g_return_val_if_fail (collect != NULL, FALSE);
+  g_return_val_if_fail (sync != NULL, FALSE);
+  g_return_val_if_fail (tensors_buf != NULL, FALSE);
+  g_return_val_if_fail (configs != NULL, FALSE);
+  g_return_val_if_fail (is_eos != NULL, FALSE);
 
   walk = collect->data;
   counting = empty_pad = 0;
