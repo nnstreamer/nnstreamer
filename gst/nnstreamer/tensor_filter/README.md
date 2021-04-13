@@ -87,7 +87,7 @@ v4l2src name=cam_src ! videoscale ! videoconvert ! video/x-raw,width=640,height=
       output=1:1:1:1,100:1:1:1,100:1:1:1,4:100:1:1 \
       outputname=num_detections,detection_classes,detection_scores,detection_boxes \
       outputtype=float32,float32,float32,float32 ! \
-    tensor_decoder mode=bounding_boxes option1=tf-ssd option2=tf_model/coco_labels_list.txt option4=640:480 option5=640:480 ! \
+    tensor_decoder mode=bounding_boxes option1=mobilenet-ssd-postprocess option2=tf_model/coco_labels_list.txt option4=640:480 option5=640:480 ! \
     compositor name=mix sink_0::zorder=2 sink_1::zorder=1 ! videoconvert ! ximagesink \
   t. ! queue leaky=2 max-size-buffers=10 ! mix.
 ```
@@ -106,7 +106,7 @@ v4l2src name=cam_src ! videoscale ! videoconvert ! video/x-raw,width=640,height=
       outputname=num_detections,detection_classes,detection_scores,detection_boxes \
       outputtype=float32,float32,float32,float32 output-combination=i0,o0,o1,o2,o3 ! \
   tensor_demux name=demux tensorpick=0,1:2:3:4 demux.src_1 ! queue leaky=2 max-size-buffers=2 ! \
-    tensor_decoder mode=bounding_boxes option1=tf-ssd option2=tf_model/coco_labels_list.txt option4=640:480 option5=640:480 ! \
+    tensor_decoder mode=bounding_boxes option1=mobilenet-ssd-postprocess option2=tf_model/coco_labels_list.txt option4=640:480 option5=640:480 ! \
     compositor name=mix sink_0::zorder=2 sink_1::zorder=1 ! videoconvert ! ximagesink \
   demux.src_0 ! queue leaky=2 max-size-buffers=2 ! tensor_decoder mode=direct_video ! videoconvert ! mix.
 ```
