@@ -28,8 +28,8 @@
  * @bug         No known bugs except for NYI items
  *
  * option1: Decoder mode of bounding box.
- *          Available: tflite-ssd (single shot multibox detector with priors.)
- *                     tf-ssd
+ *          Available: mobilenet-ssd (single shot multibox detector with priors.)
+ *                     mobilenet-ssd-postprocess
  *                     ov-person-detection
  * option2: Location of label file
  *          This is independent from option1
@@ -69,10 +69,10 @@ void fini_bb (void) __attribute__((destructor));
 extern uint8_t rasters[][13];
 
 #define BOX_SIZE                                (4)
-#define TFLITE_SSD_DETECTION_MAX                (1917)
-#define TFLITE_SSD_MAX_TENSORS                  (2U)
-#define TF_SSD_DETECTION_MAX                    (100)
-#define TF_SSD_MAX_TENSORS                      (4U)
+#define MOBILENET_SSD_DETECTION_MAX             (1917)
+#define MOBILENET_SSD_MAX_TENSORS               (2U)
+#define MOBILENET_SSD_PP_DETECTION_MAX          (100)
+#define MOBILENET_SSD_PP_MAX_TENSORS            (4U)
 #define OV_PERSON_DETECTION_MAX                 (200U)
 #define OV_PERSON_DETECTION_MAX_TENSORS         (1U)
 #define OV_PERSON_DETECTION_SIZE_DETECTION_DESC (7)
@@ -85,61 +85,62 @@ extern uint8_t rasters[][13];
  * [Character (ASCII)][Height][Width]
  */
 static singleLineSprite_t singleLineSprite;
+int64_t start_time, stop_time;
 
 /**
  * @brief There can be different schemes for bounding boxes.
  */
 typedef enum
 {
-  TFLITE_SSD_BOUNDING_BOX = 0,
-  TF_SSD_BOUNDING_BOX = 1,
+  MOBILENET_SSD_BOUNDING_BOX = 0,
+  MOBILENET_SSD_PP_BOUNDING_BOX = 1,
   OV_PERSON_DETECTION_BOUNDING_BOX = 2,
   OV_FACE_DETECTION_BOUNDING_BOX = 3,
   BOUNDING_BOX_UNKNOWN,
 } bounding_box_modes;
 
 /**
- * @brief TF SSD Output tensor feature mapping.
+ * @brief MOBILENET SSD PostProcess Output tensor feature mapping.
  */
 typedef enum
 {
-  TF_SSD_BBOX_IDX_LOCATIONS = 0,
-  TF_SSD_BBOX_IDX_CLASSES = 1,
-  TF_SSD_BBOX_IDX_SCORES = 2,
-  TF_SSD_BBOX_IDX_NUM = 3,
-  TF_SSD_BBOX_IDX_UNKNOWN
-} tf_ssd_bbox_idx_t;
+  MOBILENET_SSD_PP_BBOX_IDX_LOCATIONS = 0,
+  MOBILENET_SSD_PP_BBOX_IDX_CLASSES = 1,
+  MOBILENET_SSD_PP_BBOX_IDX_SCORES = 2,
+  MOBILENET_SSD_PP_BBOX_IDX_NUM = 3,
+  MOBILENET_SSD_PP_BBOX_IDX_UNKNOWN
+} mobilenet_ssd_pp_bbox_idx_t;
 
 /**
  * @brief List of bounding-box decoding schemes in string
  */
 static const char *bb_modes[] = {
-  [TFLITE_SSD_BOUNDING_BOX] = "tflite-ssd",
-  [TF_SSD_BOUNDING_BOX] = "tf-ssd",
+  [MOBILENET_SSD_BOUNDING_BOX] = "mobilenet-ssd",
+  [MOBILENET_SSD_PP_BOUNDING_BOX] = "mobilenet-ssd-postprocess",
   [OV_PERSON_DETECTION_BOUNDING_BOX] = "ov-person-detection",
   [OV_FACE_DETECTION_BOUNDING_BOX] = "ov-face-detection",
   NULL,
 };
 
 /**
- * @brief Data structure for SSD bounding box info for tf-lite ssd model.
+ * @brief Data structure for SSD bounding box info for mobilenet ssd model.
  */
 typedef struct
 {
   /* From option3, box prior data */
   char *box_prior_path; /**< Box Prior file path */
-  gfloat box_priors[BOX_SIZE][TFLITE_SSD_DETECTION_MAX + 1]; /** loaded box prior */
-} properties_TFLite_SSD;
+  gfloat box_priors[BOX_SIZE][MOBILENET_SSD_DETECTION_MAX + 1]; /** loaded box prior */
+} properties_MOBILENET_SSD;
 
 /**
- * @brief Data structure for SSD bounding box info for tf ssd model.
+ * @brief Data structure for SSD bounding box info for mobilenet ssd postprocess model.
  */
 typedef struct
 {
   /* From option3, output tensor mapping */
-  gint tensor_mapping[TF_SSD_MAX_TENSORS];      /* Output tensor index mapping */
+  gint tensor_mapping[MOBILENET_SSD_PP_MAX_TENSORS];      /* Output tensor index mapping */
   gfloat threshold;             /* Detection threshold */
-} properties_TF_SSD;
+} properties_MOBILENET_SSD_PP;
 
 /**
  * @brief Data structure for boundig box info.
@@ -150,8 +151,8 @@ typedef struct
 
   union
   {
-    properties_TFLite_SSD tflite_ssd; /**< Properties for tflite_ssd configured by option 1 + 3 */
-    properties_TF_SSD tf_ssd; /**< tf_ssd mode properties configuration settings */
+    properties_MOBILENET_SSD mobilenet_ssd; /**< Properties for mobilenet_ssd configured by option 1 + 3 */
+    properties_MOBILENET_SSD_PP mobilenet_ssd_pp; /**< mobilenet_ssd_pp mode properties configuration settings */
   };
 
   /* From option2 */
@@ -172,42 +173,42 @@ typedef struct
 
 /** @brief Helper to retrieve tensor index by feature */
 static inline int
-_get_tf_ssd_tensor_idx (bounding_boxes * bdata, tf_ssd_bbox_idx_t idx)
+_get_mobilenet_ssd_pp_tensor_idx (bounding_boxes * bdata, mobilenet_ssd_pp_bbox_idx_t idx)
 {
-  return bdata->tf_ssd.tensor_mapping[idx];
+  return bdata->mobilenet_ssd_pp.tensor_mapping[idx];
 }
 
 /** @brief Helper to retrieve object detection confidence threshold */
 static inline float
-_get_tf_ssd_threshold (bounding_boxes * bdata)
+_get_mobilenet_ssd_pp_threshold (bounding_boxes * bdata)
 {
-  return bdata->tf_ssd.threshold;
+  return bdata->mobilenet_ssd_pp.threshold;
 }
 
 /** @brief Initialize bounding_boxes per mode */
 static int
 _init_modes (bounding_boxes * bdata)
 {
-  if (bdata->mode == TFLITE_SSD_BOUNDING_BOX) {
-    /* properties_TFLite_SSD *data = &bdata->tflite-ssd; */
+  if (bdata->mode == MOBILENET_SSD_BOUNDING_BOX) {
+    /* properties_MOBILENET_SSD *data = &bdata->mobilenet_ssd-ssd; */
     return TRUE;
-  } else if (bdata->mode == TF_SSD_BOUNDING_BOX) {
-    properties_TF_SSD *data = &bdata->tf_ssd;
+  } else if (bdata->mode == MOBILENET_SSD_PP_BOUNDING_BOX) {
+    properties_MOBILENET_SSD_PP *data = &bdata->mobilenet_ssd_pp;
 
-#define TF_SSD_BBOX_IDX_LOCATIONS_DEFAULT 3
-#define TF_SSD_BBOX_IDX_CLASSES_DEFAULT 1
-#define TF_SSD_BBOX_IDX_SCORES_DEFAULT 2
-#define TF_SSD_BBOX_IDX_NUM_DEFAULT 0
-#define TF_SSD_BBOX_THRESHOLD_DEFAULT G_MINFLOAT
+#define MOBILENET_SSD_PP_BBOX_IDX_LOCATIONS_DEFAULT 3
+#define MOBILENET_SSD_PP_BBOX_IDX_CLASSES_DEFAULT 1
+#define MOBILENET_SSD_PP_BBOX_IDX_SCORES_DEFAULT 2
+#define MOBILENET_SSD_PP_BBOX_IDX_NUM_DEFAULT 0
+#define MOBILENET_SSD_PP_BBOX_THRESHOLD_DEFAULT G_MINFLOAT
 
-    data->tensor_mapping[TF_SSD_BBOX_IDX_LOCATIONS] =
-        TF_SSD_BBOX_IDX_LOCATIONS_DEFAULT;
-    data->tensor_mapping[TF_SSD_BBOX_IDX_CLASSES] =
-        TF_SSD_BBOX_IDX_CLASSES_DEFAULT;
-    data->tensor_mapping[TF_SSD_BBOX_IDX_SCORES] =
-        TF_SSD_BBOX_IDX_SCORES_DEFAULT;
-    data->tensor_mapping[TF_SSD_BBOX_IDX_NUM] = TF_SSD_BBOX_IDX_NUM_DEFAULT;
-    data->threshold = TF_SSD_BBOX_THRESHOLD_DEFAULT;
+    data->tensor_mapping[MOBILENET_SSD_PP_BBOX_IDX_LOCATIONS] =
+        MOBILENET_SSD_PP_BBOX_IDX_LOCATIONS_DEFAULT;
+    data->tensor_mapping[MOBILENET_SSD_PP_BBOX_IDX_CLASSES] =
+        MOBILENET_SSD_PP_BBOX_IDX_CLASSES_DEFAULT;
+    data->tensor_mapping[MOBILENET_SSD_PP_BBOX_IDX_SCORES] =
+        MOBILENET_SSD_PP_BBOX_IDX_SCORES_DEFAULT;
+    data->tensor_mapping[MOBILENET_SSD_PP_BBOX_IDX_NUM] = MOBILENET_SSD_PP_BBOX_IDX_NUM_DEFAULT;
+    data->threshold = MOBILENET_SSD_PP_BBOX_THRESHOLD_DEFAULT;
 
     return TRUE;
   }
@@ -244,9 +245,9 @@ bb_init (void **pdata)
 static void
 _exit_modes (bounding_boxes * bdata)
 {
-  if (bdata->mode == TFLITE_SSD_BOUNDING_BOX) {
-    /* properties_TFLite_SSD *data = &bdata->tflite_ssd; */
-  } else if (bdata->mode == TF_SSD_BOUNDING_BOX) {
+  if (bdata->mode == MOBILENET_SSD_BOUNDING_BOX) {
+    /* properties_MOBILENET_SSD *data = &bdata->mobilenet_ssd; */
+  } else if (bdata->mode == MOBILENET_SSD_PP_BOUNDING_BOX) {
   }
 }
 
@@ -272,9 +273,9 @@ bb_exit (void **pdata)
  * @return TRUE if loaded and configured. FALSE if failed to do so.
  */
 static int
-_tflite_ssd_loadBoxPrior (bounding_boxes * bdata)
+_mobilenet_ssd_loadBoxPrior (bounding_boxes * bdata)
 {
-  properties_TFLite_SSD *tflite_ssd = &bdata->tflite_ssd;
+  properties_MOBILENET_SSD *mobilenet_ssd = &bdata->mobilenet_ssd;
   gboolean failed = FALSE;
   GError *err = NULL;
   gchar **priors;
@@ -284,9 +285,9 @@ _tflite_ssd_loadBoxPrior (bounding_boxes * bdata)
   gint prev_reg = -1;
 
   /* Read file contents */
-  if (!g_file_get_contents (tflite_ssd->box_prior_path, &contents, NULL, &err)) {
+  if (!g_file_get_contents (mobilenet_ssd->box_prior_path, &contents, NULL, &err)) {
     GST_ERROR ("Decoder/Bound-Box/SSD's box prior file %s cannot be read: %s",
-        tflite_ssd->box_prior_path, err->message);
+        mobilenet_ssd->box_prior_path, err->message);
     g_clear_error (&err);
     return FALSE;
   }
@@ -295,7 +296,7 @@ _tflite_ssd_loadBoxPrior (bounding_boxes * bdata)
   /* If given prior file is inappropriate, report back to tensor-decoder */
   if (g_strv_length (priors) < BOX_SIZE) {
     ml_loge ("The given prior file, %s, should have at least %d lines.\n",
-        tflite_ssd->box_prior_path, BOX_SIZE);
+        mobilenet_ssd->box_prior_path, BOX_SIZE);
     failed = TRUE;
     goto error;
   }
@@ -312,13 +313,13 @@ _tflite_ssd_loadBoxPrior (bounding_boxes * bdata)
         column++;
 
         if (word && *word) {
-          if (registered > TFLITE_SSD_DETECTION_MAX) {
+          if (registered > MOBILENET_SSD_DETECTION_MAX) {
             GST_WARNING
                 ("Decoder/Bound-Box/SSD's box prior data file has too many priors. %d >= %d",
-                registered, TFLITE_SSD_DETECTION_MAX);
+                registered, MOBILENET_SSD_DETECTION_MAX);
             break;
           }
-          tflite_ssd->box_priors[row][registered] =
+          mobilenet_ssd->box_priors[row][registered] =
               (gfloat) g_ascii_strtod (word, NULL);
           registered++;
         }
@@ -346,26 +347,26 @@ error:
 static int
 _setOption_mode (bounding_boxes * bdata, const char *param)
 {
-  if (bdata->mode == TFLITE_SSD_BOUNDING_BOX) {
+  if (bdata->mode == MOBILENET_SSD_BOUNDING_BOX) {
     /* Load prior boxes with the path from option3 */
-    properties_TFLite_SSD *tflite_ssd = &bdata->tflite_ssd;
+    properties_MOBILENET_SSD *mobilenet_ssd = &bdata->mobilenet_ssd;
 
-    if (tflite_ssd->box_prior_path)
-      g_free (tflite_ssd->box_prior_path);
-    tflite_ssd->box_prior_path = g_strdup (param);
+    if (mobilenet_ssd->box_prior_path)
+      g_free (mobilenet_ssd->box_prior_path);
+    mobilenet_ssd->box_prior_path = g_strdup (param);
 
-    if (NULL != tflite_ssd->box_prior_path)
-      return _tflite_ssd_loadBoxPrior (bdata);
+    if (NULL != mobilenet_ssd->box_prior_path)
+      return _mobilenet_ssd_loadBoxPrior (bdata);
 
-  } else if (bdata->mode == TF_SSD_BOUNDING_BOX) {
-    properties_TF_SSD *tf_ssd = &bdata->tf_ssd;
+  } else if (bdata->mode == MOBILENET_SSD_PP_BOUNDING_BOX) {
+    properties_MOBILENET_SSD_PP *mobilenet_ssd_pp = &bdata->mobilenet_ssd_pp;
     int threshold_percent;
     int ret = sscanf (param,
         "%i:%i:%i:%i,%i",
-        &tf_ssd->tensor_mapping[TF_SSD_BBOX_IDX_LOCATIONS],
-        &tf_ssd->tensor_mapping[TF_SSD_BBOX_IDX_CLASSES],
-        &tf_ssd->tensor_mapping[TF_SSD_BBOX_IDX_SCORES],
-        &tf_ssd->tensor_mapping[TF_SSD_BBOX_IDX_NUM],
+        &mobilenet_ssd_pp->tensor_mapping[MOBILENET_SSD_PP_BBOX_IDX_LOCATIONS],
+        &mobilenet_ssd_pp->tensor_mapping[MOBILENET_SSD_PP_BBOX_IDX_CLASSES],
+        &mobilenet_ssd_pp->tensor_mapping[MOBILENET_SSD_PP_BBOX_IDX_SCORES],
+        &mobilenet_ssd_pp->tensor_mapping[MOBILENET_SSD_PP_BBOX_IDX_NUM],
         &threshold_percent);
 
     if ((ret == EOF) || (ret < 5)) {
@@ -374,23 +375,23 @@ _setOption_mode (bounding_boxes * bdata, const char *param)
       return FALSE;
     }
 
-    GST_INFO ("TF SSD output tensors mapping: "
+    GST_INFO ("MOBILENET SSD POST PROCESS output tensors mapping: "
         "locations idx (%d), classes idx (%d), scores idx (%d), num detections idx (%d)",
-        tf_ssd->tensor_mapping[TF_SSD_BBOX_IDX_LOCATIONS],
-        tf_ssd->tensor_mapping[TF_SSD_BBOX_IDX_CLASSES],
-        tf_ssd->tensor_mapping[TF_SSD_BBOX_IDX_SCORES],
-        tf_ssd->tensor_mapping[TF_SSD_BBOX_IDX_NUM]
+        mobilenet_ssd_pp->tensor_mapping[MOBILENET_SSD_PP_BBOX_IDX_LOCATIONS],
+        mobilenet_ssd_pp->tensor_mapping[MOBILENET_SSD_PP_BBOX_IDX_CLASSES],
+        mobilenet_ssd_pp->tensor_mapping[MOBILENET_SSD_PP_BBOX_IDX_SCORES],
+        mobilenet_ssd_pp->tensor_mapping[MOBILENET_SSD_PP_BBOX_IDX_NUM]
         );
 
     if ((threshold_percent > 100) || (threshold_percent < 0)) {
       GST_ERROR
-          ("Invalid TF SSD threshold detection (%i), must be in range [0 100]",
+          ("Invalid MOBILENET SSD POST PROCESS threshold detection (%i), must be in range [0 100]",
           threshold_percent);
     } else {
-      tf_ssd->threshold = threshold_percent / 100.0;
+      mobilenet_ssd_pp->threshold = threshold_percent / 100.0;
     }
 
-    GST_INFO ("TF SSD object detection threshold: %.2f", tf_ssd->threshold);
+    GST_INFO ("MOBILENET SSD POST PROCESS object detection threshold: %.2f", mobilenet_ssd_pp->threshold);
   }
 
   return TRUE;
@@ -401,7 +402,6 @@ static int
 bb_setOption (void **pdata, int opNum, const char *param)
 {
   bounding_boxes *bdata = *pdata;
-
   if (opNum == 0) {
     /* option1 = Bounding Box Decoding mode */
     bounding_box_modes previous = bdata->mode;
@@ -549,12 +549,12 @@ _set_max_detection (bounding_boxes * data, const guint max_detection,
 /**
  * @brief tensordec-plugin's GstTensorDecoderDef callback
  *
- * [TF-Lite SSD Model]
+ * [Mobilenet SSD Model]
  * The first tensor is boxes. BOX_SIZE : 1 : #MaxDetection, ANY-TYPE
  * The second tensor is labels. #MaxLabel : #MaxDetection, ANY-TYPE
  * Both tensors are MANDATORY!
  *
- * [Tensorflow SSD Model]
+ * [Mobilenet SSD Postprocess Model]
  * Tensors mapping is defined through option-3, with following syntax:
  * LOCATIONS_IDX:CLASSES_IDX:SCORES_IDX:NUM_DETECTION_IDX
  *
@@ -579,9 +579,9 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
   char *str;
   guint max_detection, max_label;
 
-  if (data->mode == TFLITE_SSD_BOUNDING_BOX) {
+  if (data->mode == MOBILENET_SSD_BOUNDING_BOX) {
     const uint32_t *dim1, *dim2;
-    if (!_check_tensors (config, TFLITE_SSD_MAX_TENSORS))
+    if (!_check_tensors (config, MOBILENET_SSD_MAX_TENSORS))
       return NULL;
 
     /* Check if the first tensor is compatible */
@@ -606,19 +606,19 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
       g_return_val_if_fail (dim2[i] == 1, NULL);
 
     /* Check consistency with max_detection */
-    if (!_set_max_detection (data, max_detection, TFLITE_SSD_DETECTION_MAX)) {
+    if (!_set_max_detection (data, max_detection, MOBILENET_SSD_DETECTION_MAX)) {
       return NULL;
     }
-  } else if (data->mode == TF_SSD_BOUNDING_BOX) {
+  } else if (data->mode == MOBILENET_SSD_PP_BOUNDING_BOX) {
     const uint32_t *dim1, *dim2, *dim3, *dim4;
     int locations_idx, classes_idx, scores_idx, num_idx;
-    if (!_check_tensors (config, TF_SSD_MAX_TENSORS))
+    if (!_check_tensors (config, MOBILENET_SSD_PP_MAX_TENSORS))
       return NULL;
 
-    locations_idx = _get_tf_ssd_tensor_idx (data, TF_SSD_BBOX_IDX_LOCATIONS);
-    classes_idx = _get_tf_ssd_tensor_idx (data, TF_SSD_BBOX_IDX_CLASSES);
-    scores_idx = _get_tf_ssd_tensor_idx (data, TF_SSD_BBOX_IDX_SCORES);
-    num_idx = _get_tf_ssd_tensor_idx (data, TF_SSD_BBOX_IDX_NUM);
+    locations_idx = _get_mobilenet_ssd_pp_tensor_idx (data, MOBILENET_SSD_PP_BBOX_IDX_LOCATIONS);
+    classes_idx = _get_mobilenet_ssd_pp_tensor_idx (data, MOBILENET_SSD_PP_BBOX_IDX_CLASSES);
+    scores_idx = _get_mobilenet_ssd_pp_tensor_idx (data, MOBILENET_SSD_PP_BBOX_IDX_SCORES);
+    num_idx = _get_mobilenet_ssd_pp_tensor_idx (data, MOBILENET_SSD_PP_BBOX_IDX_NUM);
 
     /* Check if the number of detections tensor is compatible */
     dim1 = config->info.info[num_idx].dimension;
@@ -644,7 +644,7 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
       g_return_val_if_fail (dim4[i] == 1, NULL);
 
     /* Check consistency with max_detection */
-    if (!_set_max_detection (data, max_detection, TF_SSD_DETECTION_MAX)) {
+    if (!_set_max_detection (data, max_detection, MOBILENET_SSD_PP_DETECTION_MAX)) {
       return NULL;
     }
   } else if ((data->mode == OV_PERSON_DETECTION_BOUNDING_BOX) ||
@@ -709,14 +709,14 @@ typedef struct
  * @brief C++-Template-like box location calculation for box-priors
  * @bug This is not macro-argument safe. Use paranthesis!
  * @param[in] bb The configuration, "bounding_boxes"
- * @param[in] index The index (3rd dimension of BOX_SIZE:1:TFLITE_SSD_DETECTION_MAX:1)
- * @param[in] total_labels The count of total labels. We can get this from input tensor info. (1st dimension of LABEL_SIZE:TFLITE_SSD_DETECTION_MAX:1:1)
+ * @param[in] index The index (3rd dimension of BOX_SIZE:1:MOBILENET_SSD_DETECTION_MAX:1)
+ * @param[in] total_labels The count of total labels. We can get this from input tensor info. (1st dimension of LABEL_SIZE:MOBILENET_SSD_DETECTION_MAX:1:1)
  * @param[in] boxprior The box prior data from the box file of SSD.
  * @param[in] boxinputptr Cursor pointer of input + byte-per-index * index (box)
  * @param[in] detinputptr Cursor pointer of input + byte-per-index * index (detection)
  * @param[in] result The object returned. (pointer to object)
  */
-#define _get_object_i_tflite(bb, index, total_labels, boxprior, boxinputptr, detinputptr, result) \
+#define _get_object_i_mobilenet_ssd(bb, index, total_labels, boxprior, boxinputptr, detinputptr, result) \
   do { \
     int c; \
     for (c = 1; c < total_labels; c++) { \
@@ -745,17 +745,17 @@ typedef struct
   } while (0);
 
 /**
- * @brief C++-Template-like box location calculation for box-priors for TF-Lite SSD Model
+ * @brief C++-Template-like box location calculation for box-priors for Mobilenet SSD Model
  * @param[in] bb The configuration, "bounding_boxes"
  * @param[in] type The tensor type of inputptr
  * @param[in] typename nnstreamer enum corresponding to the type
- * @param[in] boxprior The box prior data from the box file of TFLITE_SSD.
+ * @param[in] boxprior The box prior data from the box file of MOBILENET_SSD.
  * @param[in] boxinput Input Tensor Data (Boxes)
  * @param[in] detinput Input Tensor Data (Detection). Null if not available. (numtensor ==1)
  * @param[in] config Tensor configs of the input tensors
  * @param[out] results The object returned. (GArray with detectedObject)
  */
-#define _get_objects_tflite(bb, _type, typename, boxprior, boxinput, detinput, config, results) \
+#define _get_objects_mobilenet_ssd(bb, _type, typename, boxprior, boxinput, detinput, config, results) \
   case typename: \
   { \
     int d; \
@@ -763,10 +763,10 @@ typedef struct
     size_t boxbpi = config->info.info[0].dimension[0]; \
     _type * detinput_ = (_type *) detinput; \
     size_t detbpi = config->info.info[1].dimension[0]; \
-    int num = (TFLITE_SSD_DETECTION_MAX > bb->max_detection) ? bb->max_detection : TFLITE_SSD_DETECTION_MAX; \
+    int num = (MOBILENET_SSD_DETECTION_MAX > bb->max_detection) ? bb->max_detection : MOBILENET_SSD_DETECTION_MAX; \
     detectedObject object = { .valid = FALSE, .class_id = 0, .x = 0, .y = 0, .width = 0, .height = 0, .prob = .0 }; \
     for (d = 0; d < num; d++) { \
-      _get_object_i_tflite (bb, d, detbpi, boxprior, (boxinput_ + (d * boxbpi)), (detinput_ + (d * detbpi)), (&object)); \
+      _get_object_i_mobilenet_ssd (bb, d, detbpi, boxprior, (boxinput_ + (d * boxbpi)), (detinput_ + (d * detbpi)), (&object)); \
       if (object.valid == TRUE) { \
         g_array_append_val (results, object); \
       } \
@@ -774,9 +774,9 @@ typedef struct
   } \
   break
 
-/** @brief Macro to simplify calling _get_objects_tflite */
-#define _get_objects_tflite_(type, typename) \
-  _get_objects_tflite (bdata, type, typename, (bdata->tflite_ssd.box_priors), (boxes->data), (detections->data), config, results)
+/** @brief Macro to simplify calling _get_objects_mobilenet_ssd */
+#define _get_objects_mobilenet_ssd_(type, typename) \
+  _get_objects_mobilenet_ssd (bdata, type, typename, (bdata->mobilenet_ssd.box_priors), (boxes->data), (detections->data), config, results)
 
 /**
  * @brief Compare Function for g_array_sort with detectedObject.
@@ -812,7 +812,7 @@ iou (detectedObject * a, detectedObject * b)
 
 #define THRESHOLD_IOU (.5f)
 /**
- * @brief Apply NMS to the given results (obejcts[TFLITE_SSD_DETECTION_MAX])
+ * @brief Apply NMS to the given results (obejcts[MOBILENET_SSD_DETECTION_MAX])
  * @param[in/out] results The results to be filtered with nms
  */
 static void
@@ -861,7 +861,7 @@ nms (GArray * results)
  * @param[in] config Tensor configs of the input tensors
  * @param[out] results The object returned. (GArray with detectedObject)
  */
-#define _get_objects_tf(bb, _type, typename, numinput, classinput, scoreinput, boxesinput, config, results) \
+#define _get_objects_mobilenet_ssd_pp(bb, _type, typename, numinput, classinput, scoreinput, boxesinput, config, results) \
   case typename: \
   { \
     int d, num; \
@@ -870,14 +870,14 @@ nms (GArray * results)
     _type * classes_ = (_type *) classinput; \
     _type * scores_ = (_type *) scoreinput; \
     _type * boxes_ = (_type *) boxesinput; \
-    int locations_idx = _get_tf_ssd_tensor_idx(bb, TF_SSD_BBOX_IDX_LOCATIONS); \
+    int locations_idx = _get_mobilenet_ssd_pp_tensor_idx(bb, MOBILENET_SSD_PP_BBOX_IDX_LOCATIONS); \
     num = (int) num_detection_[0]; \
     results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), num); \
     boxbpi = config->info.info[locations_idx].dimension[0]; \
     for (d = 0; d < num; d++) { \
       _type x1, x2, y1, y2; \
       detectedObject object; \
-      if (scores_[d] < _get_tf_ssd_threshold(bb)) \
+      if (scores_[d] < _get_mobilenet_ssd_pp_threshold(bb)) \
         continue; \
       object.valid = TRUE; \
       object.class_id = (int) classes_[d]; \
@@ -895,9 +895,9 @@ nms (GArray * results)
   } \
   break
 
-/** @brief Macro to simplify calling _get_objects_tf */
-#define _get_objects_tf_(type, typename) \
-  _get_objects_tf (bdata, type, typename, (mem_num->data), (mem_classes->data), (mem_scores->data), (mem_boxes->data), config, results)
+/** @brief Macro to simplify calling _get_objects_mobilenet_ssd_pp */
+#define _get_objects_mobilenet_ssd_pp_(type, typename) \
+  _get_objects_mobilenet_ssd_pp (bdata, type, typename, (mem_num->data), (mem_classes->data), (mem_scores->data), (mem_boxes->data), config, results)
 
 /**
  * @brief C++-Template-like box location calculation for OpenVino Person Detection Model
@@ -948,7 +948,7 @@ nms (GArray * results)
   break
 
 /**
- * @brief Draw with the given results (obejcts[TFLITE_SSD_DETECTION_MAX]) to the output buffer
+ * @brief Draw with the given results (obejcts[MOBILENET_SSD_DETECTION_MAX]) to the output buffer
  * @param[out] out_info The output buffer (RGBA plain)
  * @param[in] bdata The bouding-box internal data.
  * @param[in] results The final results to be drawn.
@@ -1042,6 +1042,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
   GArray *results = NULL;
   const guint num_tensors = config->info.num_tensors;
 
+  start_time = g_get_monotonic_time ();
   g_assert (outbuf);
 
   if (_check_label_props (bdata))
@@ -1066,7 +1067,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
   /** reset the buffer with alpha 0 / black */
   memset (out_info.data, 0, size);
 
-  if (bdata->mode == TFLITE_SSD_BOUNDING_BOX) {
+  if (bdata->mode == MOBILENET_SSD_BOUNDING_BOX) {
     const GstTensorMemory *boxes, *detections = NULL;
     results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), 100);
     /**
@@ -1076,41 +1077,41 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
      */
 
     /* Already checked with getOutCaps. Thus, this is an internal bug */
-    g_assert (num_tensors >= TFLITE_SSD_MAX_TENSORS);
+    g_assert (num_tensors >= MOBILENET_SSD_MAX_TENSORS);
 
     boxes = &input[0];
-    if (num_tensors >= TFLITE_SSD_MAX_TENSORS)
+    if (num_tensors >= MOBILENET_SSD_MAX_TENSORS)
       detections = &input[1];
 
     switch (config->info.info[0].type) {
-        _get_objects_tflite_ (uint8_t, _NNS_UINT8);
-        _get_objects_tflite_ (int8_t, _NNS_INT8);
-        _get_objects_tflite_ (uint16_t, _NNS_UINT16);
-        _get_objects_tflite_ (int16_t, _NNS_INT16);
-        _get_objects_tflite_ (uint32_t, _NNS_UINT32);
-        _get_objects_tflite_ (int32_t, _NNS_INT32);
-        _get_objects_tflite_ (uint64_t, _NNS_UINT64);
-        _get_objects_tflite_ (int64_t, _NNS_INT64);
-        _get_objects_tflite_ (float, _NNS_FLOAT32);
-        _get_objects_tflite_ (double, _NNS_FLOAT64);
+        _get_objects_mobilenet_ssd_ (uint8_t, _NNS_UINT8);
+        _get_objects_mobilenet_ssd_ (int8_t, _NNS_INT8);
+        _get_objects_mobilenet_ssd_ (uint16_t, _NNS_UINT16);
+        _get_objects_mobilenet_ssd_ (int16_t, _NNS_INT16);
+        _get_objects_mobilenet_ssd_ (uint32_t, _NNS_UINT32);
+        _get_objects_mobilenet_ssd_ (int32_t, _NNS_INT32);
+        _get_objects_mobilenet_ssd_ (uint64_t, _NNS_UINT64);
+        _get_objects_mobilenet_ssd_ (int64_t, _NNS_INT64);
+        _get_objects_mobilenet_ssd_ (float, _NNS_FLOAT32);
+        _get_objects_mobilenet_ssd_ (double, _NNS_FLOAT64);
       default:
         g_assert (0);
     }
     nms (results);
-  } else if (bdata->mode == TF_SSD_BOUNDING_BOX) {
+  } else if (bdata->mode == MOBILENET_SSD_PP_BOUNDING_BOX) {
     const GstTensorMemory *mem_num, *mem_classes, *mem_scores, *mem_boxes;
     int locations_idx, classes_idx, scores_idx, num_idx;
     results =
         g_array_sized_new (FALSE, TRUE, sizeof (detectedObject),
-        TF_SSD_DETECTION_MAX);
+        MOBILENET_SSD_PP_DETECTION_MAX);
 
     /* Already checked with getOutCaps. Thus, this is an internal bug */
-    g_assert (num_tensors >= TF_SSD_MAX_TENSORS);
+    g_assert (num_tensors >= MOBILENET_SSD_PP_MAX_TENSORS);
 
-    locations_idx = _get_tf_ssd_tensor_idx (bdata, TF_SSD_BBOX_IDX_LOCATIONS);
-    classes_idx = _get_tf_ssd_tensor_idx (bdata, TF_SSD_BBOX_IDX_CLASSES);
-    scores_idx = _get_tf_ssd_tensor_idx (bdata, TF_SSD_BBOX_IDX_SCORES);
-    num_idx = _get_tf_ssd_tensor_idx (bdata, TF_SSD_BBOX_IDX_NUM);
+    locations_idx = _get_mobilenet_ssd_pp_tensor_idx (bdata, MOBILENET_SSD_PP_BBOX_IDX_LOCATIONS);
+    classes_idx = _get_mobilenet_ssd_pp_tensor_idx (bdata, MOBILENET_SSD_PP_BBOX_IDX_CLASSES);
+    scores_idx = _get_mobilenet_ssd_pp_tensor_idx (bdata, MOBILENET_SSD_PP_BBOX_IDX_SCORES);
+    num_idx = _get_mobilenet_ssd_pp_tensor_idx (bdata, MOBILENET_SSD_PP_BBOX_IDX_NUM);
 
     mem_num = &input[num_idx];
     mem_classes = &input[classes_idx];
@@ -1118,16 +1119,16 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
     mem_boxes = &input[locations_idx];
 
     switch (config->info.info[num_idx].type) {
-        _get_objects_tf_ (uint8_t, _NNS_UINT8);
-        _get_objects_tf_ (int8_t, _NNS_INT8);
-        _get_objects_tf_ (uint16_t, _NNS_UINT16);
-        _get_objects_tf_ (int16_t, _NNS_INT16);
-        _get_objects_tf_ (uint32_t, _NNS_UINT32);
-        _get_objects_tf_ (int32_t, _NNS_INT32);
-        _get_objects_tf_ (uint64_t, _NNS_UINT64);
-        _get_objects_tf_ (int64_t, _NNS_INT64);
-        _get_objects_tf_ (float, _NNS_FLOAT32);
-        _get_objects_tf_ (double, _NNS_FLOAT64);
+        _get_objects_mobilenet_ssd_pp_ (uint8_t, _NNS_UINT8);
+        _get_objects_mobilenet_ssd_pp_ (int8_t, _NNS_INT8);
+        _get_objects_mobilenet_ssd_pp_ (uint16_t, _NNS_UINT16);
+        _get_objects_mobilenet_ssd_pp_ (int16_t, _NNS_INT16);
+        _get_objects_mobilenet_ssd_pp_ (uint32_t, _NNS_UINT32);
+        _get_objects_mobilenet_ssd_pp_ (int32_t, _NNS_INT32);
+        _get_objects_mobilenet_ssd_pp_ (uint64_t, _NNS_UINT64);
+        _get_objects_mobilenet_ssd_pp_ (int64_t, _NNS_INT64);
+        _get_objects_mobilenet_ssd_pp_ (float, _NNS_FLOAT32);
+        _get_objects_mobilenet_ssd_pp_ (double, _NNS_FLOAT64);
       default:
         g_assert (0);
     }
@@ -1166,6 +1167,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
   if (gst_buffer_get_size (outbuf) == 0)
     gst_buffer_append_memory (outbuf, out_mem);
 
+  stop_time = g_get_monotonic_time ();
   return GST_FLOW_OK;
 }
 
