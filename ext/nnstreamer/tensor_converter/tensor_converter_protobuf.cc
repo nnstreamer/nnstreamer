@@ -84,9 +84,9 @@ pbc_get_out_config (const GstCaps *in_cap, GstTensorsConfig *config)
 
 /** @brief tensor converter plugin's NNStreamerExternalConverter callback */
 static GstBuffer *
-pbc_convert (GstBuffer *in_buf, gsize *frame_size, guint *frames_in, GstTensorsConfig *config)
+pbc_convert (GstBuffer *in_buf, GstTensorsConfig *config)
 {
-  return gst_tensor_converter_protobuf (in_buf, frame_size, frames_in, config);
+  return gst_tensor_converter_protobuf (in_buf, config);
 }
 
 static gchar converter_subplugin_protobuf[] = "protobuf";

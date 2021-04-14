@@ -115,8 +115,7 @@ gst_tensor_decoder_protobuf (const GstTensorsConfig *config,
 
 /** @brief tensor converter plugin's NNStreamerExternalConverter callback */
 GstBuffer *
-gst_tensor_converter_protobuf (GstBuffer *in_buf, gsize *frame_size,
-    guint *frames_in, GstTensorsConfig *config)
+gst_tensor_converter_protobuf (GstBuffer *in_buf, GstTensorsConfig *config)
 {
   nnstreamer::protobuf::Tensors tensors;
   nnstreamer::protobuf::Tensors::frame_rate *fr = NULL;
@@ -126,7 +125,7 @@ gst_tensor_converter_protobuf (GstBuffer *in_buf, gsize *frame_size,
   guint mem_size;
   gpointer mem_data;
 
-  if (!in_buf || !frame_size || !frames_in || !config) {
+  if (!in_buf || !config) {
     ml_loge ("NULL parameter is passed to tensor_converter::protobuf");
     return NULL;
   }
@@ -144,8 +143,6 @@ gst_tensor_converter_protobuf (GstBuffer *in_buf, gsize *frame_size,
   fr = tensors.mutable_fr ();
   config->rate_n = fr->rate_n ();
   config->rate_d = fr->rate_d ();
-  *frames_in = 1;
-  *frame_size = 0;
   out_buf = gst_buffer_new ();
 
   for (guint i = 0; i < config->info.num_tensors; i++) {
@@ -158,8 +155,6 @@ gst_tensor_converter_protobuf (GstBuffer *in_buf, gsize *frame_size,
       config->info.info[i].dimension[j] = tensor->dimension (j);
     }
     mem_size = tensor->data ().length ();
-    *frame_size += mem_size;
-
     mem_data = g_memdup (tensor->data ().c_str (), mem_size);
 
     out_mem = gst_memory_new_wrapped (

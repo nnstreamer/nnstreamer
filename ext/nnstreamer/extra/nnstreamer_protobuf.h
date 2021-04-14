@@ -39,16 +39,13 @@ gst_tensor_decoder_protobuf (const GstTensorsConfig * config,
     const GstTensorMemory * input, GstBuffer * outbuf);
 
 /**
- * @brief tensor converter plugin's NNStreamerExternalConverter callback 
- * @param[in] buf The input stream buffer
- * @param[out] frame_size The size of each frame (output buffer)
- * @param[out] frames_in The number of frames in the given input buffer.
+ * @brief tensor converter plugin's NNStreamerExternalConverter callback
+ * @param[in] in_buf The input stream buffer
  * @param[out] config tensors config structure to be filled
  * @retval Return input buffer(in_buf) if the data is to be kept untouched.
  * @retval Return a new GstBuf if the data is to be modified.
  */
 GstBuffer *
-gst_tensor_converter_protobuf (GstBuffer * in_buf, gsize * frame_size,
-    guint * frames_in, GstTensorsConfig * config);
+gst_tensor_converter_protobuf (GstBuffer * in_buf, GstTensorsConfig * config);
 
 #endif /* __NNS_PROTOBUF_UTIL_H__ */

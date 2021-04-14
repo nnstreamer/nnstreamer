@@ -1057,11 +1057,8 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
           goto error;
         }
         inbuf = self->custom.func (buf, self->custom.data, &new_config);
-        frames_in = 1;
-        frame_size = gst_buffer_get_size (inbuf);
       } else if (self->externalConverter && self->externalConverter->convert) {
-        inbuf = self->externalConverter->convert (buf, &frame_size, &frames_in,
-            &new_config);
+        inbuf = self->externalConverter->convert (buf, &new_config);
       } else {
         GST_ERROR_OBJECT (self, "Undefined behavior with type %d\n",
             self->in_media_type);
@@ -1073,6 +1070,8 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         gst_tensors_info_free (&new_config.info);
         goto error;
       }
+      frames_in = 1;
+      frame_size = gst_buffer_get_size (inbuf);
 
       if (!gst_tensors_config_is_equal (config, &new_config)) {
         gst_tensor_converter_update_caps (self, self->srcpad, &new_config);
