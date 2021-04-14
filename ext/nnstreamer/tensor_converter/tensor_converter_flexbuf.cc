@@ -111,14 +111,14 @@ flxc_get_out_config (const GstCaps *in_cap, GstTensorsConfig *config)
 /** @brief tensor converter plugin's NNStreamerExternalConverter callback
  */
 static GstBuffer *
-flxc_convert (GstBuffer *in_buf, gsize *frame_size, guint *frames_in, GstTensorsConfig *config)
+flxc_convert (GstBuffer *in_buf, GstTensorsConfig *config)
 {
   GstBuffer *out_buf = NULL;
   GstMemory *in_mem, *out_mem;
   GstMapInfo in_info;
   guint mem_size;
 
-  if (!in_buf || !frame_size || !frames_in || !config) {
+  if (!in_buf || !config) {
     ml_loge ("NULL parameter is passed to tensor_converter::flexbuf");
     return NULL;
   }
@@ -140,8 +140,6 @@ flxc_convert (GstBuffer *in_buf, gsize *frame_size, guint *frames_in, GstTensors
   config->rate_n = tensors["rate_n"].AsInt32 ();
   config->rate_d = tensors["rate_d"].AsInt32 ();
   out_buf = gst_buffer_new ();
-  *frame_size = 0;
-  *frames_in = 1;
 
   for (guint i = 0; i < config->info.num_tensors; i++) {
     gchar * tensor_key = g_strdup_printf ("tensor_%d", i);
@@ -158,7 +156,6 @@ flxc_convert (GstBuffer *in_buf, gsize *frame_size, guint *frames_in, GstTensors
     }
     flexbuffers::Blob tensor_data = tensor[3].AsBlob ();
     mem_size = tensor_data.size ();
-    *frame_size += mem_size;
 
     offset = tensor_data.data () - in_info.data;
 

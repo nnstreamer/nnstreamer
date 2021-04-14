@@ -43,13 +43,10 @@ typedef struct _NNStreamerExternalConverter
   const char *name;
 
   /* 1. chain func, data handling. */
-  GstBuffer *(*convert) (GstBuffer * in_buf, gsize * frame_size,
-      guint * frames_in, GstTensorsConfig * config);
+  GstBuffer *(*convert) (GstBuffer * in_buf, GstTensorsConfig * config);
   /**< Convert the given input stream to tensor/tensors stream.
    *
    * @param[in] buf The input stream buffer
-   * @param[out] frame_size The size of each frame (output buffer)
-   * @param[out] frames_in The number of frames in the given input buffer.
    * @param[out] config tensors config structure to be filled
    * @retval Return input buffer(in_buf) if the data is to be kept untouched.
    * @retval Return a new GstBuf if the data is to be modified.

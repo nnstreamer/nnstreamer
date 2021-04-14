@@ -5613,8 +5613,7 @@ TEST (testStreamBuffers, tensorsNormal)
   GstMemory *mem;
   GstTensorMemory input[NNS_TENSOR_SIZE_LIMIT];
   GstMapInfo info;
-  gsize data_size, frame_size = 0;
-  guint mode_idx, frames_in = 0, i, j;
+  guint mode_idx, i, j;
   const GstTensorDecoderDef *fb_dec;
   const NNStreamerExternalConverter *fb_conv;
 
@@ -5638,7 +5637,6 @@ TEST (testStreamBuffers, tensorsNormal)
     config.info.info[1].type = _NNS_INT32;
     gst_tensor_parse_dimension ("3:4:2:2", config.info.info[1].dimension);
 
-    data_size = gst_tensors_info_get_size (&config.info, -1);
     for (i = 0; i < config.info.num_tensors; i++) {
       input[i].size = gst_tensor_info_get_size (&config.info.info[i]);
       input[i].data = g_malloc0 (input[0].size);
@@ -5657,10 +5655,8 @@ TEST (testStreamBuffers, tensorsNormal)
     EXPECT_EQ (gst_buffer_n_memory (dec_out_buf), 1U);
 
     /** Convert flatbuf to tensors */
-    conv_out_buf = fb_conv->convert (dec_out_buf, &frame_size, &frames_in, &check_config);
+    conv_out_buf = fb_conv->convert (dec_out_buf, &check_config);
     EXPECT_EQ (gst_buffer_n_memory (conv_out_buf), 2U);
-    EXPECT_EQ (data_size, frame_size);
-    EXPECT_EQ (1U, frames_in);
 
     /** Check tensors config. */
     EXPECT_TRUE (check_config.info.info[0].name == NULL);
@@ -5750,8 +5746,6 @@ TEST (testConverterSubplugins, flatbufInvalidParam0_n)
   const gchar *mode_name = "flatbuf";
   GstBuffer *conv_out_buf = NULL;
   GstTensorsConfig config;
-  gsize frame_size = 0;
-  guint frames_in = 0;
   const NNStreamerExternalConverter *fb_conv;
 
   /** Find converter subplugins */
@@ -5759,7 +5753,7 @@ TEST (testConverterSubplugins, flatbufInvalidParam0_n)
   ASSERT_TRUE (fb_conv);
 
   gst_tensors_config_init (&config);
-  conv_out_buf = fb_conv->convert (NULL, &frame_size, &frames_in, &config);
+  conv_out_buf = fb_conv->convert (NULL, &config);
 
   EXPECT_TRUE (NULL == conv_out_buf);
   gst_tensors_info_free (&config.info);
@@ -5773,7 +5767,6 @@ TEST (testConverterSubplugins, flatbufInvalidParam1_n)
   const gchar *mode_name = "flatbuf";
   GstBuffer *in_buf = NULL, *conv_out_buf = NULL;
   GstTensorsConfig config;
-  guint frames_in = 0;
   const NNStreamerExternalConverter *fb_conv;
 
   /** Find converter subplugins */
@@ -5783,56 +5776,10 @@ TEST (testConverterSubplugins, flatbufInvalidParam1_n)
   /** Prepare input */
   gst_tensors_config_init (&config);
   in_buf = gst_buffer_new ();
-  conv_out_buf = fb_conv->convert (in_buf, NULL, &frames_in, &config);
+  conv_out_buf = fb_conv->convert (in_buf, NULL);
 
   EXPECT_TRUE (NULL == conv_out_buf);
   gst_tensors_info_free (&config.info);
-  gst_buffer_unref (in_buf);
-}
-
-/**
- * @brief Test for converter subplugins with invalid parameter
- */
-TEST (testConverterSubplugins, flatbufInvalidParam2_n)
-{
-  const gchar *mode_name = "flatbuf";
-  GstBuffer *in_buf = NULL, *conv_out_buf = NULL;
-  GstTensorsConfig config;
-  gsize frame_size = 0;
-  const NNStreamerExternalConverter *fb_conv;
-
-  /** Find converter subplugins */
-  fb_conv = nnstreamer_converter_find (mode_name);
-  ASSERT_TRUE (fb_conv);
-
-  gst_tensors_config_init (&config);
-  in_buf = gst_buffer_new ();
-  conv_out_buf = fb_conv->convert (in_buf, &frame_size, NULL, &config);
-
-  EXPECT_TRUE (NULL == conv_out_buf);
-  gst_tensors_info_free (&config.info);
-  gst_buffer_unref (in_buf);
-}
-
-/**
- * @brief Test for converter subplugins with invalid parameter
- */
-TEST (testConverterSubplugins, flatbufInvalidParam3_n)
-{
-  const gchar *mode_name = "flatbuf";
-  GstBuffer *in_buf = NULL, *conv_out_buf = NULL;
-  gsize frame_size = 0;
-  guint frames_in = 0;
-  const NNStreamerExternalConverter *fb_conv;
-
-  /** Find converter subplugins */
-  fb_conv = nnstreamer_converter_find (mode_name);
-  ASSERT_TRUE (fb_conv);
-
-  in_buf = gst_buffer_new ();
-  conv_out_buf = fb_conv->convert (in_buf, &frame_size, &frames_in, NULL);
-
-  EXPECT_TRUE (NULL == conv_out_buf);
   gst_buffer_unref (in_buf);
 }
 
@@ -5904,8 +5851,6 @@ TEST (testConverterSubplugins, protobufInvalidParam0_n)
   const gchar *mode_name = "protobuf";
   GstBuffer *conv_out_buf = NULL;
   GstTensorsConfig config;
-  gsize frame_size = 0;
-  guint frames_in = 0;
   const NNStreamerExternalConverter *pb_conv;
 
   /** Find converter subplugins */
@@ -5913,7 +5858,7 @@ TEST (testConverterSubplugins, protobufInvalidParam0_n)
   ASSERT_TRUE (pb_conv);
 
   gst_tensors_config_init (&config);
-  conv_out_buf = pb_conv->convert (NULL, &frame_size, &frames_in, &config);
+  conv_out_buf = pb_conv->convert (NULL, &config);
 
   EXPECT_TRUE (NULL == conv_out_buf);
   gst_tensors_info_free (&config.info);
@@ -5927,7 +5872,6 @@ TEST (testConverterSubplugins, protobufInvalidParam1_n)
   const gchar *mode_name = "protobuf";
   GstBuffer *in_buf = NULL, *conv_out_buf = NULL;
   GstTensorsConfig config;
-  guint frames_in = 0;
   const NNStreamerExternalConverter *pb_conv;
 
   /** Find converter subplugins */
@@ -5936,56 +5880,10 @@ TEST (testConverterSubplugins, protobufInvalidParam1_n)
 
   gst_tensors_config_init (&config);
   in_buf = gst_buffer_new ();
-  conv_out_buf = pb_conv->convert (in_buf, NULL, &frames_in, &config);
+  conv_out_buf = pb_conv->convert (in_buf, NULL);
 
   EXPECT_TRUE (NULL == conv_out_buf);
   gst_tensors_info_free (&config.info);
-  gst_buffer_unref (in_buf);
-}
-
-/**
- * @brief Test for converter subplugins with invalid parameter
- */
-TEST (testConverterSubplugins, protobufInvalidParam2_n)
-{
-  const gchar *mode_name = "protobuf";
-  GstBuffer *in_buf = NULL, *conv_out_buf = NULL;
-  GstTensorsConfig config;
-  gsize frame_size = 0;
-  const NNStreamerExternalConverter *pb_conv;
-
-  /** Find converter subplugins */
-  pb_conv = nnstreamer_converter_find (mode_name);
-  ASSERT_TRUE (pb_conv);
-
-  gst_tensors_config_init (&config);
-  in_buf = gst_buffer_new ();
-  conv_out_buf = pb_conv->convert (in_buf, &frame_size, NULL, &config);
-
-  EXPECT_TRUE (NULL == conv_out_buf);
-  gst_tensors_info_free (&config.info);
-  gst_buffer_unref (in_buf);
-}
-
-/**
- * @brief Test for converter subplugins with invalid parameter
- */
-TEST (testConverterSubplugins, protobufInvalidParam3_n)
-{
-  const gchar *mode_name = "protobuf";
-  GstBuffer *in_buf = NULL, *conv_out_buf = NULL;
-  gsize frame_size = 0;
-  guint frames_in = 0;
-  const NNStreamerExternalConverter *pb_conv;
-
-  /** Find converter subplugins */
-  pb_conv = nnstreamer_converter_find (mode_name);
-  ASSERT_TRUE (pb_conv);
-
-  in_buf = gst_buffer_new ();
-  conv_out_buf = pb_conv->convert (in_buf, &frame_size, &frames_in, NULL);
-
-  EXPECT_TRUE (NULL == conv_out_buf);
   gst_buffer_unref (in_buf);
 }
 
@@ -6061,8 +5959,6 @@ TEST (testConverterSubplugins, flexbufInvalidParam0_n)
   const gchar *mode_name = "flexbuf";
   GstBuffer *conv_out_buf = NULL;
   GstTensorsConfig config;
-  gsize frame_size = 0;
-  guint frames_in = 0;
   const NNStreamerExternalConverter *flx_conv;
 
   /** Find converter subplugins */
@@ -6070,7 +5966,7 @@ TEST (testConverterSubplugins, flexbufInvalidParam0_n)
   ASSERT_TRUE (flx_conv);
 
   gst_tensors_config_init (&config);
-  conv_out_buf = flx_conv->convert (NULL, &frame_size, &frames_in, &config);
+  conv_out_buf = flx_conv->convert (NULL, &config);
 
   EXPECT_TRUE (NULL == conv_out_buf);
   gst_tensors_info_free (&config.info);
@@ -6084,7 +5980,6 @@ TEST (testConverterSubplugins, flexbufInvalidParam1_n)
   const gchar *mode_name = "flexbuf";
   GstBuffer *in_buf = NULL, *conv_out_buf = NULL;
   GstTensorsConfig config;
-  guint frames_in = 0;
   const NNStreamerExternalConverter *flx_conv;
 
   /** Find converter subplugins */
@@ -6093,56 +5988,10 @@ TEST (testConverterSubplugins, flexbufInvalidParam1_n)
 
   gst_tensors_config_init (&config);
   in_buf = gst_buffer_new ();
-  conv_out_buf = flx_conv->convert (in_buf, NULL, &frames_in, &config);
+  conv_out_buf = flx_conv->convert (in_buf, NULL);
 
   EXPECT_TRUE (NULL == conv_out_buf);
   gst_tensors_info_free (&config.info);
-  gst_buffer_unref (in_buf);
-}
-
-/**
- * @brief Test for converter subplugins with invalid parameter
- */
-TEST (testConverterSubplugins, flexbufInvalidParam2_n)
-{
-  const gchar *mode_name = "flexbuf";
-  GstBuffer *in_buf = NULL, *conv_out_buf = NULL;
-  GstTensorsConfig config;
-  gsize frame_size = 0;
-  const NNStreamerExternalConverter *flx_conv;
-
-  /** Find converter subplugins */
-  flx_conv = nnstreamer_converter_find (mode_name);
-  ASSERT_TRUE (flx_conv);
-
-  gst_tensors_config_init (&config);
-  in_buf = gst_buffer_new ();
-  conv_out_buf = flx_conv->convert (in_buf, &frame_size, NULL, &config);
-
-  EXPECT_TRUE (NULL == conv_out_buf);
-  gst_tensors_info_free (&config.info);
-  gst_buffer_unref (in_buf);
-}
-
-/**
- * @brief Test for converter subplugins with invalid parameter
- */
-TEST (testConverterSubplugins, flexbufInvalidParam3_n)
-{
-  const gchar *mode_name = "flexbuf";
-  GstBuffer *in_buf = NULL, *conv_out_buf = NULL;
-  gsize frame_size = 0;
-  guint frames_in = 0;
-  const NNStreamerExternalConverter *flx_conv;
-
-  /** Find converter subplugins */
-  flx_conv = nnstreamer_converter_find (mode_name);
-  ASSERT_TRUE (flx_conv);
-
-  in_buf = gst_buffer_new ();
-  conv_out_buf = flx_conv->convert (in_buf, &frame_size, &frames_in, NULL);
-
-  EXPECT_TRUE (NULL == conv_out_buf);
   gst_buffer_unref (in_buf);
 }
 

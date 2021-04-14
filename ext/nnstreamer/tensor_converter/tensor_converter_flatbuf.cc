@@ -90,7 +90,7 @@ fbc_get_out_config (const GstCaps *in_cap, GstTensorsConfig *config)
  *          remove frame size and the number of frames
  */
 static GstBuffer *
-fbc_convert (GstBuffer *in_buf, gsize *frame_size, guint *frames_in, GstTensorsConfig *config)
+fbc_convert (GstBuffer *in_buf, GstTensorsConfig *config)
 {
   const Tensors *tensors;
   const flatbuffers::Vector<flatbuffers::Offset<Tensor>> *tensor;
@@ -101,7 +101,7 @@ fbc_convert (GstBuffer *in_buf, gsize *frame_size, guint *frames_in, GstTensorsC
   GstMapInfo in_info;
   guint mem_size;
 
-  if (!in_buf || !frame_size || !frames_in || !config) {
+  if (!in_buf || !config) {
     ml_loge ("NULL parameter is passed to tensor_converter::flatbuf");
     return NULL;
   }
@@ -125,8 +125,6 @@ fbc_convert (GstBuffer *in_buf, gsize *frame_size, guint *frames_in, GstTensorsC
 
   tensor = tensors->tensor ();
   out_buf = gst_buffer_new ();
-  *frame_size = 0;
-  *frames_in = 1;
 
   for (guint i = 0; i < config->info.num_tensors; i++) {
     gsize offset;
@@ -140,7 +138,6 @@ fbc_convert (GstBuffer *in_buf, gsize *frame_size, guint *frames_in, GstTensorsC
       config->info.info[i].dimension[j] = tensor->Get (i)->dimension ()->Get (j);
     }
     mem_size = VectorLength (tensor_data);
-    *frame_size += mem_size;
 
     offset = tensor_data->data () - in_info.data;
 
