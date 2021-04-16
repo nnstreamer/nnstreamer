@@ -651,3 +651,29 @@ if lua_support_is_available
     install_dir: nnstreamer_libdir
   )
 endif
+
+if tvm_support_is_available
+  nnstreamer_filter_tvm_deps = tvm_support_deps + [glib_dep, gst_dep, nnstreamer_dep]
+
+  filter_sub_tvm_sources = ['tensor_filter_tvm.cc']
+
+  nnstreamer_filter_tvm_sources = []
+  foreach s : filter_sub_tvm_sources
+    nnstreamer_filter_tvm_sources += join_paths(meson.current_source_dir(), s)
+  endforeach
+
+  shared_library('nnstreamer_filter_tvm',
+    nnstreamer_filter_tvm_sources,
+    dependencies: nnstreamer_filter_tvm_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_tvm',
+    nnstreamer_filter_tvm_sources,
+    dependencies: nnstreamer_filter_tvm_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+
+endif
