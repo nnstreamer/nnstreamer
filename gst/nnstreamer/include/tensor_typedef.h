@@ -36,6 +36,10 @@
 #define NNS_TENSOR_SIZE_LIMIT_STR	"16"
 #define NNS_TENSOR_DIM_NULL ({0, 0, 0, 0})
 
+#define NNS_MIMETYPE_TENSOR "other/tensor"
+#define NNS_MIMETYPE_TENSORS "other/tensors"
+#define NNS_MIMETYPE_TENSORS_FLEXIBLE "other/tensors-flexible"
+
 /**
  * @brief This value, 16, can be checked with gst_buffer_get_max_memory(),
  * which is GST_BUFFER_MEM_MAX in gstreamer/gstbuffer.c.
@@ -55,7 +59,7 @@
  * @brief Default static capability for other/tensor
  */
 #define GST_TENSOR_CAP_DEFAULT \
-    "other/tensor, " \
+    NNS_MIMETYPE_TENSOR ", " \
     "framerate = " GST_TENSOR_RATE_RANGE
     /**
      * type should be one of types in GST_TENSOR_TYPE_ALL
@@ -69,7 +73,7 @@
  * num should be a string format that describes the number of tensors, or the range of incoming tensors.
  */
 #define GST_TENSORS_CAP_WITH_NUM(num) \
-    "other/tensors, " \
+    NNS_MIMETYPE_TENSORS ", " \
     "num_tensors = " num ", " \
     "framerate = " GST_TENSOR_RATE_RANGE
     /**
@@ -85,6 +89,14 @@
  */
 #define GST_TENSORS_CAP_DEFAULT \
     GST_TENSORS_CAP_WITH_NUM(GST_TENSOR_NUM_TENSORS_RANGE)
+
+/**
+ * @brief Caps string for the caps template of flexible tensors.
+ * This mimetype handles non-static, flexible tensor stream without specifying the data type and shape of the tensor.
+ * The maximum number of tensors in a buffer is 16 (NNS_TENSOR_SIZE_LIMIT).
+ */
+#define GST_TENSORS_FLEX_CAP_DEFAULT \
+    NNS_MIMETYPE_TENSORS_FLEXIBLE
 
 /**
  * @brief Default static capability for flatbuffers
