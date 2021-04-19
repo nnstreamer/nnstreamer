@@ -857,6 +857,41 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
 }
 
 /**
+ * @brief Parse caps from peer pad and set tensors config.
+ * @param pad GstPad to get the capabilities
+ * @param config tensors config structure to be filled
+ * @param is_fixed flag to be updated when peer caps is fixed (not mandatory, do nothing when the param is null)
+ * @return TRUE if successfully configured from peer
+ */
+gboolean
+gst_tensors_config_from_peer (GstPad * pad, GstTensorsConfig * config,
+    gboolean * is_fixed)
+{
+  GstCaps *peer_caps;
+  GstStructure *structure;
+  gboolean ret = FALSE;
+
+  g_return_val_if_fail (GST_IS_PAD (pad), FALSE);
+  g_return_val_if_fail (config != NULL, FALSE);
+
+  gst_tensors_config_init (config);
+
+  if ((peer_caps = gst_pad_peer_query_caps (pad, NULL))) {
+    if (gst_caps_get_size (peer_caps) > 0) {
+      structure = gst_caps_get_structure (peer_caps, 0);
+      ret = gst_tensors_config_from_structure (config, structure);
+    }
+
+    if (ret && is_fixed)
+      *is_fixed = gst_caps_is_fixed (peer_caps);
+
+    gst_caps_unref (peer_caps);
+  }
+
+  return ret;
+}
+
+/**
  * @brief Get tensors caps from tensors config and caps of the peer connected to the pad
  * @param pad GstPad to check if it supports other/tensor
  * @param config tensors config structure
