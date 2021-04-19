@@ -248,6 +248,17 @@ gst_tensors_config_from_structure (GstTensorsConfig *config,
     const GstStructure *structure);
 
 /**
+ * @brief Parse caps from peer pad and set tensors config.
+ * @param pad GstPad to get the capabilities
+ * @param config tensors config structure to be filled
+ * @param is_fixed flag to be updated when peer caps is fixed (not mandatory, do nothing when the param is null)
+ * @return TRUE if successfully configured from peer
+ */
+extern gboolean
+gst_tensors_config_from_peer (GstPad * pad, GstTensorsConfig * config,
+    gboolean * is_fixed);
+
+/**
  * @brief Initialize the tensors config info structure (for other/tensors)
  * @param config tensors config structure to be initialized
  */
