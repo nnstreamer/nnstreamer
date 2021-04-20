@@ -361,9 +361,8 @@ gst_tensor_demux_get_tensor_pad (GstTensorDemux * tensor_demux,
     }
   }
 
-  stream_id =
-      gst_pad_create_stream_id (pad, GST_ELEMENT_CAST (tensor_demux),
-      "other/tensors");
+  stream_id = gst_pad_create_stream_id (pad, GST_ELEMENT_CAST (tensor_demux),
+      NNS_MIMETYPE_TENSORS);
 
   event = gst_event_new_stream_start (stream_id);
   if (tensor_demux->have_group_id)
