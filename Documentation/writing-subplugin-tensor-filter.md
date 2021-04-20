@@ -117,4 +117,4 @@ In order to support this, you need to supply an additional callback, ```setInput
 
 In normal usage cases, a subplugin exists as a shared library loaded dynamically (dlopen) by yet another shared library, ```tensor_filter```. By registering a ```tensor_filter``` object (a struct instance of GstTensorFilterFramework) with an init function, NNStreamer recognizes it with the given name. In the template code, it is registered with a function ```init_filter_${name}()```. For more information, refer to the doxygen entries of GstTensorFilterFramework in the header file.
 
-For more information about the struct, refer to [Doxygen Doc on GstTensorFilterFramework](http://nnsuite.mooo.com/nnstreamer/html/struct__GstTensorFilterFramework.html).
+For more information about the struct, refer to [Doxygen Doc on GstTensorFilterFramework](http://nnstreamer.mooo.com/nnstreamer/html/struct__GstTensorFilterFramework.html).

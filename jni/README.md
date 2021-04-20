@@ -21,7 +21,7 @@ export PATH=$ANDROID_NDK:$PATH
 ```
 
 ## Download prebuilt Android-Gstreamer libraries
-Please download required files such as "*.tar.bz2" from http://nnsuite.mooo.com/warehouse/.
+Please download required files such as "*.tar.bz2" from http://nnstreamer.mooo.com/warehouse/.
  * Dir: gstreamer-prebuilts-for-android-device/gst_root_android-custom-1.12.4-ndkr12b-20190213-0900/
 ```bash
 vi ~/.bashrc
@@ -46,11 +46,11 @@ ls -al ./libs/arm64-v8a/
 ```
 
 ## How to run the test application on the Android device
-Please download a nnstreamer snapshot file such as "*.tar" from http://nnsuite.mooo.com/warehouse/release-nnstreamer-for-android7/ .
+Please download a nnstreamer snapshot file such as "*.tar" from http://nnstreamer.mooo.com/warehouse/release-nnstreamer-for-android7/ .
 We assume that you run your test applications in the `/data/nnstreamer/` folder on the Android devices based on ARM64 CPU.
 Note that the 'linker64' file to interpret ELF files is located in the `/data/nnstreamer/libandroid/` folder.
 ```bash
-firefox http://nnsuite.mooo.com/warehouse/release-nnstreamer-for-android7/ - Download *.tar file
+firefox http://nnstreamer.mooo.com/warehouse/release-nnstreamer-for-android7/ - Download *.tar file
 adb push *.tar /data/
 adb shell
 android# cd /data
