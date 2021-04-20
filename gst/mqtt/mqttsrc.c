@@ -59,11 +59,13 @@ enum
   DEFAULT_MQTT_SUB_TIMEOUT_MIN = 1000000,       /* 1 seconds */
 };
 
+static guint8 src_client_id = 0;
 static const gchar DEFAULT_MQTT_HOST_ADDRESS[] = "tcp://localhost";
 static const gchar DEFAULT_MQTT_HOST_PORT[] = "1883";
 static const gchar TAG_ERR_MQTTSRC[] = "ERROR: MQTTSrc";
-const gchar *DEFAULT_MQTT_CLIENT_ID;
-const gchar *DEFAULT_MQTT_SUB_TOPIC;
+static const gchar DEFAULT_MQTT_CLIENT_ID[] =
+    "$HOSTNAME_$PID_^[0-9][0-9]?$|^255$";
+static const gchar DEFAULT_MQTT_CLIENT_ID_FORMAT[] = "%s_%u_src%u";
 
 /** Function prototype declarations */
 static void
@@ -139,10 +141,10 @@ gst_mqtt_src_init (GstMqttSrc * self)
   self->gquark_err_tag = g_quark_from_string (TAG_ERR_MQTTSRC);
 
   /** init mqttsrc properties */
-  self->mqtt_client_id = (gchar *) DEFAULT_MQTT_CLIENT_ID;
+  self->mqtt_client_id = g_strdup (DEFAULT_MQTT_CLIENT_ID);
   self->mqtt_host_address = g_strdup (DEFAULT_MQTT_HOST_ADDRESS);
   self->mqtt_host_port = g_strdup (DEFAULT_MQTT_HOST_PORT);
-  self->mqtt_topic = (gchar *) DEFAULT_MQTT_SUB_TOPIC;
+  self->mqtt_topic = NULL;
   self->mqtt_sub_timeout = (gint64) DEFAULT_MQTT_SUB_TIMEOUT;
   self->mqtt_conn_opts.cleansession = DEFAULT_MQTT_OPT_CLEANSESSION;
   self->mqtt_conn_opts.keepAliveInterval = DEFAULT_MQTT_OPT_KEEP_ALIVE_INTERVAL;
@@ -174,10 +176,6 @@ gst_mqtt_src_class_init (GstMqttSrcClass * klass)
   GstElementClass *gstelement_class = GST_ELEMENT_CLASS (klass);
   GstBaseSrcClass *gstbasesrc_class = GST_BASE_SRC_CLASS (klass);
 
-  DEFAULT_MQTT_CLIENT_ID = g_strdup_printf ("%s/%u/%u", g_get_host_name (),
-      getpid (), g_random_int_range (0, 0xFF));
-  DEFAULT_MQTT_SUB_TOPIC = g_strdup_printf ("%s/topic", DEFAULT_MQTT_CLIENT_ID);
-
   GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, GST_MQTT_ELEM_NAME_SRC, 0,
       "MQTT src");
 
@@ -207,8 +205,8 @@ gst_mqtt_src_class_init (GstMqttSrcClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_MQTT_SUB_TOPIC,
-      g_param_spec_string ("sub-topic", "Topic to Subscribe",
-          "The topic's name to subscribe", DEFAULT_MQTT_SUB_TOPIC,
+      g_param_spec_string ("sub-topic", "Topic to Subscribe (mandatory)",
+          "The topic's name to subscribe", NULL,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_MQTT_OPT_CLEANSESSION,
@@ -391,6 +389,11 @@ gst_mqtt_src_start (GstBaseSrc * basesrc)
       self->mqtt_host_port);
   int ret;
 
+  if (!g_strcmp0 (DEFAULT_MQTT_CLIENT_ID, self->mqtt_client_id)) {
+    self->mqtt_client_id = g_strdup_printf (DEFAULT_MQTT_CLIENT_ID_FORMAT,
+        g_get_host_name (), getpid (), src_client_id++);
+  }
+
   /**
    * @todo Support other persistence mechanisms
    *    MQTTCLIENT_PERSISTENCE_NONE: A memory-based persistence mechanism
@@ -534,8 +537,8 @@ gst_mqtt_src_get_client_id (GstMqttSrc * self)
 static void
 gst_mqtt_src_set_client_id (GstMqttSrc * self, const gchar * id)
 {
+  g_free (self->mqtt_client_id);
   self->mqtt_client_id = g_strdup (id);
-  g_free ((void *) DEFAULT_MQTT_CLIENT_ID);
 }
 
 /**
@@ -612,6 +615,7 @@ gst_mqtt_src_get_sub_topic (GstMqttSrc * self)
 static void
 gst_mqtt_src_set_sub_topic (GstMqttSrc * self, const gchar * topic)
 {
+  g_free (self->mqtt_topic);
   self->mqtt_topic = g_strdup (topic);
 }
 
