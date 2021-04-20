@@ -1,11 +1,11 @@
 # NNStreamer
 
 [![Gitter][gitter-image]][gitter-url] 
-[![Code Coverage](http://nnsuite.mooo.com/nnstreamer/ci/badge/codecoverage.svg)](http://nnsuite.mooo.com/nnstreamer/ci/gcov_html/index.html) 
+[![Code Coverage](http://nnstreamer.mooo.com/nnstreamer/ci/badge/codecoverage.svg)](http://nnstreamer.mooo.com/nnstreamer/ci/gcov_html/index.html) 
 <a href="https://scan.coverity.com/projects/nnstreamer-nnstreamer">
-<img alt="Coverity Scan Defect Status" src="https://img.shields.io/endpoint?url=https://nnsuite.mooo.com/nnstreamer/ci/badge/badge_coverity.json" />
+<img alt="Coverity Scan Defect Status" src="https://scan.coverity.com/projects/22501/badge.svg"/>
 </a> 
-[![DailyBuild](http://nnsuite.mooo.com/nnstreamer/ci/daily-build/badge/daily_build_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/daily-build/build_result/)
+[![DailyBuild](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/badge/daily_build_badge.svg)](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/build_result/)
 ![GitHub repo size](https://img.shields.io/github/repo-size/nnstreamer/nnstreamer)
 ![GitHub issues](https://img.shields.io/github/issues/nnstreamer/nnstreamer)
 ![GitHub pull requests](https://img.shields.io/github/issues-pr/nnstreamer/nnstreamer)
@@ -31,16 +31,16 @@ neural network developers to manage neural network pipelines and their filters e
 |     | [Tizen](http://download.tizen.org/snapshots/tizen/unified/latest/repos/standard/packages/) | [Ubuntu](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) | Android/NDK Build | Android/APK | Yocto | macOS |
 | :-- | :--: | :--: | :--: | :--: | :--: | :--: |
 |     | 5.5M2 and later | 16.04/18.04/20.04 | 9/P | 9/P | Zeus and later |   |
-| arm | [![armv7l badge](http://nnsuite.mooo.com/nnstreamer/ci/daily-build/badge/armv7l_result_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/daily-build/build_result/) | Available  | Ready | Available| Ready | N/A |
-| arm64 |  [![aarch64 badge](http://nnsuite.mooo.com/nnstreamer/ci/daily-build/badge/aarch64_result_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/daily-build/build_result/) | Available  | Ready | [![android badge](http://nnsuite.mooo.com/nnstreamer/ci/daily-build/badge/android_result_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/daily-build/build_result/) | Planned | N/A |
-| x64 | [![x64 badge](http://nnsuite.mooo.com/nnstreamer/ci/daily-build/badge/x86_64_result_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/daily-build/build_result/)  | [![ubuntu badge](http://nnsuite.mooo.com/nnstreamer/ci/daily-build/badge/ubuntu_result_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/daily-build/build_result/)  | Ready  | Ready | Ready | Available |
-| x86 | [![x86 badge](http://nnsuite.mooo.com/nnstreamer/ci/daily-build/badge/i586_result_badge.svg)](http://nnsuite.mooo.com/nnstreamer/ci/daily-build/build_result/)  | N/A  | N/A  | N/A  | N/A | N/A |
+| arm | [![armv7l badge](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/badge/armv7l_result_badge.svg)](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/build_result/) | Available  | Ready | Available| Ready | N/A |
+| arm64 |  [![aarch64 badge](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/badge/aarch64_result_badge.svg)](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/build_result/) | Available  | Ready | [![android badge](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/badge/android_result_badge.svg)](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/build_result/) | Planned | N/A |
+| x64 | [![x64 badge](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/badge/x86_64_result_badge.svg)](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/build_result/)  | [![ubuntu badge](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/badge/ubuntu_result_badge.svg)](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/build_result/)  | Ready  | Ready | Ready | Available |
+| x86 | [![x86 badge](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/badge/i586_result_badge.svg)](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/build_result/)  | N/A  | N/A  | N/A  | N/A | N/A |
 | Publish | [Tizen Repo](http://download.tizen.org/snapshots/tizen/unified/latest/repos/standard/packages/) | [PPA](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) |   | [JCenter](https://bintray.com/beta/#/nnsuite/nnstreamer/nnstreamer?tab=overview) |   | [Brew Tap](Documentation/getting-started-macos.md) |
 | API | C/C# (Official) | C |    | Java | C  | C  |
 
 - Ready: CI system ensures build-ability and unit-testing. Users may easily build and execute. However, we do not have automated release & deployment system for this instance.
 - Available: binary packages are released and deployed automatically and periodically along with CI tests.
-- [Daily Release](http://nnsuite.mooo.com/nnstreamer/ci/daily-build/build_result/)
+- [Daily Release](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/build_result/)
 - SDK Support: Tizen Studio (5.5 M2+) / Android Studio (JCenter, "nnstreamer")
 - [Enabled features of official releases](Documentation/features-per-distro.md)
 
@@ -109,7 +109,7 @@ For more details, please access the following manuals.
 
 ## CI Server
 
-- [CI service status](http://nnsuite.mooo.com/)
+- [CI service status](http://nnstreamer.mooo.com/)
 - [TAOS-CI config files for nnstreamer](.TAOS-CI).
 
 ## AI Acceleration Hardware Support

@@ -116,7 +116,7 @@ Note that test elements in /tests/ are not elements for applications. They exist
 - Python API Planned (Tizen 7.0?)
 
 # Other Components
-- CI ([@AWS](http://nnsuite.mooo.com/nnstreamer/ci/taos)) (stable): Up and Running.
+- CI ([@AWS](http://nnstreamer.mooo.com/nnstreamer/ci/taos)) (stable): Up and Running.
 - CD
   - Tizen (since 5.5 M1) [Package Download](http://download.tizen.org/snapshots/tizen/unified/latest/repos/standard/packages/) [Build & Release Infra](https://build.tizen.org/project/show/Tizen:Unified)
   - Ubuntu [Launchpad PPA](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa)
