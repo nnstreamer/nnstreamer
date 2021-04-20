@@ -1036,7 +1036,7 @@ gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
   g_return_val_if_fail (gst_caps_is_fixed (caps), FALSE);
 
   structure = gst_caps_get_structure (caps, 0);
-  if (!gst_structure_has_name (structure, "other/tensor")) {
+  if (!gst_structure_has_name (structure, NNS_MIMETYPE_TENSOR)) {
     GST_ERROR_OBJECT (self, "Invalid caps");
     return FALSE;
   }

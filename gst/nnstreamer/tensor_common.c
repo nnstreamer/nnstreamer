@@ -668,7 +668,7 @@ gst_tensor_config_from_structure (GstTensorConfig * config,
 
   g_return_val_if_fail (structure != NULL, FALSE);
 
-  if (!gst_structure_has_name (structure, "other/tensor")) {
+  if (!gst_structure_has_name (structure, NNS_MIMETYPE_TENSOR)) {
     const gchar *name = gst_structure_get_name (structure);
     GST_WARNING ("caps is not tensor [%s]\n", name ? name : "Unknown");
     return FALSE;
@@ -799,7 +799,7 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
 
   name = gst_structure_get_name (structure);
 
-  if (g_str_equal (name, "other/tensor")) {
+  if (g_str_equal (name, NNS_MIMETYPE_TENSOR)) {
     GstTensorConfig c;
 
     gst_tensor_config_from_structure (&c, structure);
@@ -808,7 +808,7 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
     config->info.info[0] = c.info;
     config->rate_d = c.rate_d;
     config->rate_n = c.rate_n;
-  } else if (g_str_equal (name, "other/tensors")) {
+  } else if (g_str_equal (name, NNS_MIMETYPE_TENSORS)) {
     gst_structure_get_int (structure, "num_tensors",
         (gint *) (&config->info.num_tensors));
     gst_structure_get_fraction (structure, "framerate", &config->rate_n,

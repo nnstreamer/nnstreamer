@@ -1678,7 +1678,7 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
     out_config.rate_n = in_config.rate_n;
     out_config.info.num_tensors = in_config.info.num_tensors;
 
-    if (g_strcmp0 (caps_name, "other/tensor") == 0) {
+    if (g_strcmp0 (caps_name, NNS_MIMETYPE_TENSOR) == 0) {
       GstTensorConfig tensor_config;
 
       gst_tensor_config_init (&tensor_config);

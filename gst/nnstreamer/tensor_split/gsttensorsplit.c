@@ -327,8 +327,8 @@ gst_tensor_split_get_tensor_pad (GstTensorSplit * split, GstBuffer * inbuf,
     }
   }
 
-  stream_id =
-      gst_pad_create_stream_id (pad, GST_ELEMENT_CAST (split), "other/tensor");
+  stream_id = gst_pad_create_stream_id (pad, GST_ELEMENT_CAST (split),
+      NNS_MIMETYPE_TENSOR);
 
   event = gst_event_new_stream_start (stream_id);
   if (split->have_group_id)
