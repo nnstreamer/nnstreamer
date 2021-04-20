@@ -69,8 +69,8 @@ static GstTensorFilterFramework NNS_support_cpp = {.version = GST_TENSOR_FILTER_
    } } };
 
 G_BEGIN_DECLS
-void init_filter_cpp (void) __attribute__ ((constructor));
-void fini_filter_cpp (void) __attribute__ ((destructor));
+void init_filter_cpp (void) __attribute__((constructor));
+void fini_filter_cpp (void) __attribute__((destructor));
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void
@@ -201,7 +201,7 @@ tensor_filter_cpp::invoke (const GstTensorFilterProperties *prop,
 /**
  * @brief Printout only once for a given error
  */
-__attribute__ ((format (printf, 3, 4))) static void
+__attribute__((format (printf, 3, 4))) static void
 g_printerr_once (const char *file, int line, const char *fmt, ...)
 {
   static guint file_hash = 0;

@@ -101,8 +101,8 @@ class ArmNNCore
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-void init_filter_armnn (void) __attribute__ ((constructor));
-void fini_filter_armnn (void) __attribute__ ((destructor));
+void init_filter_armnn (void) __attribute__((constructor));
+void fini_filter_armnn (void) __attribute__((destructor));
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

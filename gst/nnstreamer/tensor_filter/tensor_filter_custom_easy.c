@@ -29,8 +29,8 @@
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_subplugin.h>
 
-void init_filter_custom_easy (void) __attribute__ ((constructor));
-void fini_filter_custom_easy (void) __attribute__ ((destructor));
+void init_filter_custom_easy (void) __attribute__((constructor));
+void fini_filter_custom_easy (void) __attribute__((destructor));
 
 /**
  * @brief internal_data

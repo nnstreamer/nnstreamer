@@ -253,7 +253,7 @@ cg_allocate_invoke (void * _data, const GstTensorFilterProperties * prop,
   int i;
 
   /** If you want to look at input dimension/type, refer to prop->input_meta */
-  const GstTensorsInfo * in_info __attribute__ ((unused)) = &prop->input_meta;
+  const GstTensorsInfo * in_info __attribute__((unused)) = &prop->input_meta;
   /** If you want to look at output dimension/type, refer to prop->output_meta */
   const GstTensorsInfo * out_info = &prop->output_meta;
 
@@ -306,9 +306,9 @@ cg_invoke (void * _data, const GstTensorFilterProperties *prop,
   int i;
 
   /** If you want to look at input dimension/type, refer to prop->input_meta */
-  const GstTensorsInfo * in_info __attribute__ ((unused)) = &prop->input_meta;
+  const GstTensorsInfo * in_info __attribute__((unused)) = &prop->input_meta;
   /** If you want to look at output dimension/type, refer to prop->output_meta */
-  const GstTensorsInfo * out_info __attribute__ ((unused)) = &prop->output_meta;
+  const GstTensorsInfo * out_info __attribute__((unused)) = &prop->output_meta;
 
   /** @note Caller will allocate output buffer accornding to out_info. */
 

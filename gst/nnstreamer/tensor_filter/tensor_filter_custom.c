@@ -35,8 +35,8 @@
 #include "nnstreamer_conf.h"
 #include <nnstreamer_log.h>
 
-void init_filter_custom (void) __attribute__ ((constructor));
-void fini_filter_custom (void) __attribute__ ((destructor));
+void init_filter_custom (void) __attribute__((constructor));
+void fini_filter_custom (void) __attribute__((destructor));
 
 static const gchar *custom_accl_support[] = {
   ACCL_AUTO_STR,
