@@ -108,8 +108,8 @@
 #include <nnstreamer_log.h>
 #include "tensordecutil.h"
 
-void init_pose (void) __attribute__ ((constructor));
-void finish_pose (void) __attribute__ ((destructor));
+void init_pose (void) __attribute__((constructor));
+void finish_pose (void) __attribute__((destructor));
 
 /* font.c */
 extern uint8_t rasters[][13];

@@ -516,7 +516,7 @@ _ts_clean_up_handle (GstTensorSrcTIZENSENSOR * self)
  * @brief Sensor event (data retrieval) handler
  * @details This is for TZN_SENSOR_MODE_ACTIVE_POLLING
  */
-static void __attribute__ ((unused))
+static void __attribute__((unused))
 _ts_tizen_sensor_callback (sensor_h sensor, sensor_event_s events[],
     int events_count, void *user_data)
 {

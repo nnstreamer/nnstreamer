@@ -209,8 +209,8 @@ class TFLiteCore
 };
 
 extern "C" { /* accessed by android api */
-void init_filter_tflite (void) __attribute__ ((constructor));
-void fini_filter_tflite (void) __attribute__ ((destructor));
+void init_filter_tflite (void) __attribute__((constructor));
+void fini_filter_tflite (void) __attribute__((destructor));
 }
 
 /**

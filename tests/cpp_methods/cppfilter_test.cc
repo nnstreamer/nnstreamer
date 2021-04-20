@@ -276,8 +276,8 @@ filter_basic2::resultCompare (
 
 class tensor_filter_cpp *reg1, *reg2, *reg3;
 
-void init_shared_lib (void) __attribute__ ((constructor));
-void fini_shared_lib (void) __attribute__ ((destructor));
+void init_shared_lib (void) __attribute__((constructor));
+void fini_shared_lib (void) __attribute__((destructor));
 
 /** @brief API method */
 void

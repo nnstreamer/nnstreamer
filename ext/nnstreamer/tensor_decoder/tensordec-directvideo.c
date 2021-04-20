@@ -34,8 +34,8 @@
 #include <nnstreamer_log.h>
 #include "tensordecutil.h"
 
-void init_dv (void) __attribute__ ((constructor));
-void fini_dv (void) __attribute__ ((destructor));
+void init_dv (void) __attribute__((constructor));
+void fini_dv (void) __attribute__((destructor));
 
 #define DECODER_DV_VIDEO_CAPS_STR \
     GST_VIDEO_CAPS_MAKE ("{ GRAY8, RGB, BGR, RGBx, BGRx, xRGB, xBGR, RGBA, BGRA, ARGB, ABGR }") \

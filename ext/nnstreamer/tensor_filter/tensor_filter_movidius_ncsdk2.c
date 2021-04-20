@@ -44,8 +44,8 @@ static const gchar *mvncsdk2_accl_support[] = {
   NULL
 };
 
-void init_filter_mvncsdk2 (void) __attribute__ ((constructor));
-void fini_filter_mvncsdk2 (void) __attribute__ ((destructor));
+void init_filter_mvncsdk2 (void) __attribute__((constructor));
+void fini_filter_mvncsdk2 (void) __attribute__((destructor));
 
 enum _private_constants
 {

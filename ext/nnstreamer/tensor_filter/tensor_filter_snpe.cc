@@ -55,9 +55,9 @@ extern "C" {
 #if defined(__ANDROID__)
 void init_filter_snpe (JNIEnv *env, jobject context);
 #else
-void init_filter_snpe (void) __attribute__ ((constructor));
+void init_filter_snpe (void) __attribute__((constructor));
 #endif
-void fini_filter_snpe (void) __attribute__ ((destructor));
+void fini_filter_snpe (void) __attribute__((destructor));
 }
 
 /** @brief tensor-filter-subplugin concrete class for SNPE */
@@ -591,7 +591,8 @@ _snpe_set_env (JNIEnv *env, jobject context)
   new_path = g_strconcat (native_library_dir_path_str,
       ";/system/lib/rfsa/adsp;/system/vendor/lib/rfsa/adsp;/dsp", NULL);
 
-  /* See https://developer.qualcomm.com/docs/snpe/dsp_runtime.html for details
+  /**
+   *  See https://developer.qualcomm.com/docs/snpe/dsp_runtime.html for details
    */
   nns_logi ("Set env ADSP_LIBRARY_PATH for snpe DSP/AIP runtime: %s", new_path);
   g_setenv ("ADSP_LIBRARY_PATH", new_path, TRUE);

@@ -48,8 +48,8 @@ namespace tensorfilter_mediapipe
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-void _init_filter_mediapipe (void) __attribute__ ((constructor));
-void _fini_filter_mediapipe (void) __attribute__ ((destructor));
+void _init_filter_mediapipe (void) __attribute__((constructor));
+void _fini_filter_mediapipe (void) __attribute__((destructor));
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

@@ -17,7 +17,7 @@
 #include <errno.h>
 #include <string.h>
 
-static void init_timestamps (void) __attribute__ ((constructor));
+static void init_timestamps (void) __attribute__((constructor));
 
 static sensor_s sensors[][3] = {
   /* 0 = SENSOR_ACCELEROMETER */
