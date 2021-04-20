@@ -63,11 +63,14 @@ enum
   DEFAULT_MQTT_PUB_WAIT_TIMEOUT = 1,    /* 1 secs */
 };
 
+static guint8 sink_client_id = 0;
 static const gchar DEFAULT_MQTT_HOST_ADDRESS[] = "tcp://localhost";
 static const gchar DEFAULT_MQTT_HOST_PORT[] = "1883";
 static const gchar TAG_ERR_MQTTSINK[] = "ERROR: MQTTSink";
-const gchar *DEFAULT_MQTT_CLIENT_ID;
-const gchar *DEFAULT_MQTT_PUB_TOPIC;
+static const gchar DEFAULT_MQTT_CLIENT_ID[] = "$HOST_$PID_^[0-9][0-9]?$|^255$";
+static const gchar DEFAULT_MQTT_CLIENT_ID_FORMAT[] = "%s_%u_sink%u";
+static const gchar DEFAULT_MQTT_PUB_TOPIC[] = "$client-id/topic";
+static const gchar DEFAULT_MQTT_PUB_TOPIC_FORMAT[] = "%s/topic";
 
 /** Function prototype declarations */
 static void
@@ -162,10 +165,10 @@ gst_mqtt_sink_init (GstMqttSink * self)
 
   /** init mqttsink properties */
   self->num_buffers = DEFAULT_NUM_BUFFERS;
-  self->mqtt_client_id = (gchar *) DEFAULT_MQTT_CLIENT_ID;
+  self->mqtt_client_id = g_strdup (DEFAULT_MQTT_CLIENT_ID);
   self->mqtt_host_address = g_strdup (DEFAULT_MQTT_HOST_ADDRESS);
   self->mqtt_host_port = g_strdup (DEFAULT_MQTT_HOST_PORT);
-  self->mqtt_topic = (gchar *) DEFAULT_MQTT_PUB_TOPIC;
+  self->mqtt_topic = g_strdup (DEFAULT_MQTT_PUB_TOPIC);
   self->mqtt_pub_wait_timeout = DEFAULT_MQTT_PUB_WAIT_TIMEOUT;
   self->mqtt_conn_opts.cleansession = DEFAULT_MQTT_OPT_CLEANSESSION;
   self->mqtt_conn_opts.keepAliveInterval = DEFAULT_MQTT_OPT_KEEP_ALIVE_INTERVAL;
@@ -185,10 +188,6 @@ gst_mqtt_sink_class_init (GstMqttSinkClass * klass)
   GstElementClass *gstelement_class = GST_ELEMENT_CLASS (klass);
   GstBaseSinkClass *gstbasesink_class = GST_BASE_SINK_CLASS (klass);
 
-  DEFAULT_MQTT_CLIENT_ID = g_strdup_printf ("%s/%u/%u", g_get_host_name (),
-      getpid (), g_random_int_range (0, 0xFF));
-  DEFAULT_MQTT_PUB_TOPIC = g_strdup_printf ("%s/topic", DEFAULT_MQTT_CLIENT_ID);
-
   GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, GST_MQTT_ELEM_NAME_SINK, 0,
       "MQTT sink");
 
@@ -198,8 +197,8 @@ gst_mqtt_sink_class_init (GstMqttSinkClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_MQTT_CLIENT_ID,
       g_param_spec_string ("client-id", "Client ID",
-          "The client identifier passed to the server (broker)",
-          DEFAULT_MQTT_CLIENT_ID, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          "The client identifier passed to the server (broker).", NULL,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_MQTT_HOST_ADDRESS,
       g_param_spec_string ("host", "Host", "Host (broker) to connect to",
@@ -213,7 +212,7 @@ gst_mqtt_sink_class_init (GstMqttSinkClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_MQTT_PUB_TOPIC,
       g_param_spec_string ("pub-topic", "Topic to Publish",
-          "The topic's name to publish", DEFAULT_MQTT_PUB_TOPIC,
+          "The topic's name to publish", NULL,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class,
@@ -413,6 +412,16 @@ gst_mqtt_sink_start (GstBaseSink * basesink)
   gchar *haddr = g_strdup_printf ("%s:%s", self->mqtt_host_address,
       self->mqtt_host_port);
   int ret;
+
+  if (!g_strcmp0 (DEFAULT_MQTT_CLIENT_ID, self->mqtt_client_id)) {
+    self->mqtt_client_id = g_strdup_printf (DEFAULT_MQTT_CLIENT_ID_FORMAT,
+        g_get_host_name (), getpid (), sink_client_id++);
+  }
+
+  if (!g_strcmp0 (DEFAULT_MQTT_PUB_TOPIC, self->mqtt_topic)) {
+    self->mqtt_topic = g_strdup_printf (DEFAULT_MQTT_PUB_TOPIC_FORMAT,
+        self->mqtt_client_id);
+  }
 
   /**
    * @todo Support other persistence mechanisms
@@ -690,8 +699,8 @@ gst_mqtt_sink_get_client_id (GstMqttSink * self)
 static void
 gst_mqtt_sink_set_client_id (GstMqttSink * self, const gchar * id)
 {
+  g_free (self->mqtt_client_id);
   self->mqtt_client_id = g_strdup (id);
-  g_free ((void *) DEFAULT_MQTT_CLIENT_ID);
 }
 
 /**
@@ -750,8 +759,8 @@ gst_mqtt_sink_get_pub_topic (GstMqttSink * self)
 static void
 gst_mqtt_sink_set_pub_topic (GstMqttSink * self, const gchar * topic)
 {
+  g_free (self->mqtt_topic);
   self->mqtt_topic = g_strdup (topic);
-  g_free ((void *) DEFAULT_MQTT_PUB_TOPIC);
 }
 
 /**
