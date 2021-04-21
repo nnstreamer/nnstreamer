@@ -31,6 +31,8 @@
  *          Available: mobilenet-ssd (single shot multibox detector with priors.)
  *                     mobilenet-ssd-postprocess
  *                     ov-person-detection
+ *                     tf-ssd (deprecated, recommend to use mobilenet-ssd-postprocess)
+ *                     tflite-ssd (deprecated, recommend to use mobilenet-ssd)
  * option2: Location of label file
  *          This is independent from option1
  * option3: Location of box prior file (ssd) or any option1-dependent values
@@ -96,6 +98,11 @@ typedef enum
   MOBILENET_SSD_PP_BOUNDING_BOX = 1,
   OV_PERSON_DETECTION_BOUNDING_BOX = 2,
   OV_FACE_DETECTION_BOUNDING_BOX = 3,
+
+  /* the modes started with 'OLDNAME_' is for backward compatibility. */
+  OLDNAME_MOBILENET_SSD_BOUNDING_BOX = 4,
+  OLDNAME_MOBILENET_SSD_PP_BOUNDING_BOX = 5,
+
   BOUNDING_BOX_UNKNOWN,
 } bounding_box_modes;
 
@@ -119,6 +126,8 @@ static const char *bb_modes[] = {
   [MOBILENET_SSD_PP_BOUNDING_BOX] = "mobilenet-ssd-postprocess",
   [OV_PERSON_DETECTION_BOUNDING_BOX] = "ov-person-detection",
   [OV_FACE_DETECTION_BOUNDING_BOX] = "ov-face-detection",
+  [OLDNAME_MOBILENET_SSD_BOUNDING_BOX] = "tflite-ssd",
+  [OLDNAME_MOBILENET_SSD_PP_BOUNDING_BOX] = "tf-ssd",
   NULL,
 };
 
@@ -171,6 +180,30 @@ typedef struct
   gboolean flag_use_label;
 } bounding_boxes;
 
+/** @brief check the mode is mobilenet-ssd */
+static inline gboolean
+_check_mode_is_mobilenet_ssd (bounding_box_modes mode)
+{
+  gboolean ret = FALSE;
+  if (mode == MOBILENET_SSD_BOUNDING_BOX
+      || mode == OLDNAME_MOBILENET_SSD_BOUNDING_BOX) {
+    ret = TRUE;
+  }
+  return ret;
+}
+
+/** @brief check the mode is mobilenet-ssd-post-processing */
+static inline gboolean
+_check_mode_is_mobilenet_ssd_pp (bounding_box_modes mode)
+{
+  gboolean ret = FALSE;
+  if (mode == MOBILENET_SSD_PP_BOUNDING_BOX
+      || mode == OLDNAME_MOBILENET_SSD_PP_BOUNDING_BOX) {
+    ret = TRUE;
+  }
+  return ret;
+}
+
 /** @brief Helper to retrieve tensor index by feature */
 static inline int
 _get_mobilenet_ssd_pp_tensor_idx (bounding_boxes * bdata, mobilenet_ssd_pp_bbox_idx_t idx)
@@ -189,10 +222,10 @@ _get_mobilenet_ssd_pp_threshold (bounding_boxes * bdata)
 static int
 _init_modes (bounding_boxes * bdata)
 {
-  if (bdata->mode == MOBILENET_SSD_BOUNDING_BOX) {
+  if (_check_mode_is_mobilenet_ssd (bdata->mode)) {
     /* properties_MOBILENET_SSD *data = &bdata->mobilenet_ssd-ssd; */
     return TRUE;
-  } else if (bdata->mode == MOBILENET_SSD_PP_BOUNDING_BOX) {
+  } else if (_check_mode_is_mobilenet_ssd_pp (bdata->mode)) {
     properties_MOBILENET_SSD_PP *data = &bdata->mobilenet_ssd_pp;
 
 #define MOBILENET_SSD_PP_BBOX_IDX_LOCATIONS_DEFAULT 3
@@ -207,7 +240,8 @@ _init_modes (bounding_boxes * bdata)
         MOBILENET_SSD_PP_BBOX_IDX_CLASSES_DEFAULT;
     data->tensor_mapping[MOBILENET_SSD_PP_BBOX_IDX_SCORES] =
         MOBILENET_SSD_PP_BBOX_IDX_SCORES_DEFAULT;
-    data->tensor_mapping[MOBILENET_SSD_PP_BBOX_IDX_NUM] = MOBILENET_SSD_PP_BBOX_IDX_NUM_DEFAULT;
+    data->tensor_mapping[MOBILENET_SSD_PP_BBOX_IDX_NUM] =
+        MOBILENET_SSD_PP_BBOX_IDX_NUM_DEFAULT;
     data->threshold = MOBILENET_SSD_PP_BBOX_THRESHOLD_DEFAULT;
 
     return TRUE;
@@ -245,9 +279,9 @@ bb_init (void **pdata)
 static void
 _exit_modes (bounding_boxes * bdata)
 {
-  if (bdata->mode == MOBILENET_SSD_BOUNDING_BOX) {
+  if (_check_mode_is_mobilenet_ssd (bdata->mode)) {
     /* properties_MOBILENET_SSD *data = &bdata->mobilenet_ssd; */
-  } else if (bdata->mode == MOBILENET_SSD_PP_BOUNDING_BOX) {
+  } else if (_check_mode_is_mobilenet_ssd_pp (bdata->mode)) {
   }
 }
 
@@ -347,7 +381,7 @@ error:
 static int
 _setOption_mode (bounding_boxes * bdata, const char *param)
 {
-  if (bdata->mode == MOBILENET_SSD_BOUNDING_BOX) {
+  if (_check_mode_is_mobilenet_ssd (bdata->mode)) {
     /* Load prior boxes with the path from option3 */
     properties_MOBILENET_SSD *mobilenet_ssd = &bdata->mobilenet_ssd;
 
@@ -358,7 +392,7 @@ _setOption_mode (bounding_boxes * bdata, const char *param)
     if (NULL != mobilenet_ssd->box_prior_path)
       return _mobilenet_ssd_loadBoxPrior (bdata);
 
-  } else if (bdata->mode == MOBILENET_SSD_PP_BOUNDING_BOX) {
+  } else if (_check_mode_is_mobilenet_ssd_pp (bdata->mode)) {
     properties_MOBILENET_SSD_PP *mobilenet_ssd_pp = &bdata->mobilenet_ssd_pp;
     int threshold_percent;
     int ret = sscanf (param,
@@ -579,7 +613,7 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
   char *str;
   guint max_detection, max_label;
 
-  if (data->mode == MOBILENET_SSD_BOUNDING_BOX) {
+  if (_check_mode_is_mobilenet_ssd (data->mode)) {
     const uint32_t *dim1, *dim2;
     if (!_check_tensors (config, MOBILENET_SSD_MAX_TENSORS))
       return NULL;
@@ -609,7 +643,7 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
     if (!_set_max_detection (data, max_detection, MOBILENET_SSD_DETECTION_MAX)) {
       return NULL;
     }
-  } else if (data->mode == MOBILENET_SSD_PP_BOUNDING_BOX) {
+  } else if (_check_mode_is_mobilenet_ssd_pp (data->mode)) {
     const uint32_t *dim1, *dim2, *dim3, *dim4;
     int locations_idx, classes_idx, scores_idx, num_idx;
     if (!_check_tensors (config, MOBILENET_SSD_PP_MAX_TENSORS))
@@ -1067,7 +1101,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
   /** reset the buffer with alpha 0 / black */
   memset (out_info.data, 0, size);
 
-  if (bdata->mode == MOBILENET_SSD_BOUNDING_BOX) {
+  if (_check_mode_is_mobilenet_ssd (bdata->mode)) {
     const GstTensorMemory *boxes, *detections = NULL;
     results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), 100);
     /**
@@ -1098,7 +1132,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
         g_assert (0);
     }
     nms (results);
-  } else if (bdata->mode == MOBILENET_SSD_PP_BOUNDING_BOX) {
+  } else if (_check_mode_is_mobilenet_ssd_pp (bdata->mode)) {
     const GstTensorMemory *mem_num, *mem_classes, *mem_scores, *mem_boxes;
     int locations_idx, classes_idx, scores_idx, num_idx;
     results =
