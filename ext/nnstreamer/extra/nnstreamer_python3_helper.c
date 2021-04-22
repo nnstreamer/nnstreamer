@@ -14,7 +14,7 @@
  *
  */
 /**
- * @file	tensor_filter_python_helper.c
+ * @file	nnstreamer_python3_helper.c
  * @date	10 Apr 2019
  * @brief	python helper structure for nnstreamer tensor_filter
  * @see		http://github.com/nnstreamer/nnstreamer

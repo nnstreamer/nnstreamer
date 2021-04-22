@@ -5678,7 +5678,7 @@ TEST (testStreamBuffers, tensorsNormal)
     EXPECT_EQ (gst_buffer_n_memory (dec_out_buf), 1U);
 
     /** Convert flatbuf to tensors */
-    conv_out_buf = fb_conv->convert (dec_out_buf, &check_config);
+    conv_out_buf = fb_conv->convert (dec_out_buf, &check_config, NULL);
     EXPECT_EQ (gst_buffer_n_memory (conv_out_buf), 2U);
 
     /** Check tensors config. */
@@ -5776,7 +5776,7 @@ TEST (testConverterSubplugins, flatbufInvalidParam0_n)
   ASSERT_TRUE (fb_conv);
 
   gst_tensors_config_init (&config);
-  conv_out_buf = fb_conv->convert (NULL, &config);
+  conv_out_buf = fb_conv->convert (NULL, &config, NULL);
 
   EXPECT_TRUE (NULL == conv_out_buf);
   gst_tensors_info_free (&config.info);
@@ -5799,7 +5799,7 @@ TEST (testConverterSubplugins, flatbufInvalidParam1_n)
   /** Prepare input */
   gst_tensors_config_init (&config);
   in_buf = gst_buffer_new ();
-  conv_out_buf = fb_conv->convert (in_buf, NULL);
+  conv_out_buf = fb_conv->convert (in_buf, NULL, NULL);
 
   EXPECT_TRUE (NULL == conv_out_buf);
   gst_tensors_info_free (&config.info);
@@ -5881,7 +5881,7 @@ TEST (testConverterSubplugins, protobufInvalidParam0_n)
   ASSERT_TRUE (pb_conv);
 
   gst_tensors_config_init (&config);
-  conv_out_buf = pb_conv->convert (NULL, &config);
+  conv_out_buf = pb_conv->convert (NULL, &config, NULL);
 
   EXPECT_TRUE (NULL == conv_out_buf);
   gst_tensors_info_free (&config.info);
@@ -5903,7 +5903,7 @@ TEST (testConverterSubplugins, protobufInvalidParam1_n)
 
   gst_tensors_config_init (&config);
   in_buf = gst_buffer_new ();
-  conv_out_buf = pb_conv->convert (in_buf, NULL);
+  conv_out_buf = pb_conv->convert (in_buf, NULL, NULL);
 
   EXPECT_TRUE (NULL == conv_out_buf);
   gst_tensors_info_free (&config.info);
@@ -5986,7 +5986,7 @@ TEST (testConverterSubplugins, flexbufInvalidParam0_n)
   ASSERT_TRUE (flx_conv);
 
   gst_tensors_config_init (&config);
-  conv_out_buf = flx_conv->convert (NULL, &config);
+  conv_out_buf = flx_conv->convert (NULL, &config, NULL);
 
   EXPECT_TRUE (NULL == conv_out_buf);
   gst_tensors_info_free (&config.info);
@@ -6008,7 +6008,7 @@ TEST (testConverterSubplugins, flexbufInvalidParam1_n)
 
   gst_tensors_config_init (&config);
   in_buf = gst_buffer_new ();
-  conv_out_buf = flx_conv->convert (in_buf, NULL);
+  conv_out_buf = flx_conv->convert (in_buf, NULL, NULL);
 
   EXPECT_TRUE (NULL == conv_out_buf);
   gst_tensors_info_free (&config.info);

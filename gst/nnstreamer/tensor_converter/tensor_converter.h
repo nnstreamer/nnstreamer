@@ -67,6 +67,7 @@ typedef struct
 typedef enum {
   _CONVERTER_MODE_NONE = 0,	/**< Normal mode (default) */
   _CONVERTER_MODE_CUSTOM_CODE = 1,	/**<  Custom mode (callback type) */
+  _CONVERTER_MODE_CUSTOM_SCRIPT = 2,	/**<  Custom mode (script type) */
 } tensor_converter_mode;
 
 /**
@@ -102,7 +103,10 @@ struct _GstTensorConverter
 
   tensor_converter_mode mode; /**< tensor converter operating mode */
   gchar *mode_option; /**< tensor converter mode option */
+  gchar *ext_fw; /**< tensor converter custom mode framework */
   converter_custom_cb_s custom;
+
+  void *priv_data; /**< plugin's private data */
 };
 
 /**

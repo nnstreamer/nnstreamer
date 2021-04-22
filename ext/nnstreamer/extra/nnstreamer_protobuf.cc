@@ -117,7 +117,7 @@ gst_tensor_decoder_protobuf (const GstTensorsConfig *config,
 
 /** @brief tensor converter plugin's NNStreamerExternalConverter callback */
 GstBuffer *
-gst_tensor_converter_protobuf (GstBuffer *in_buf, GstTensorsConfig *config)
+gst_tensor_converter_protobuf (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
 {
   nnstreamer::protobuf::Tensors tensors;
   nnstreamer::protobuf::Tensors::frame_rate *fr = NULL;

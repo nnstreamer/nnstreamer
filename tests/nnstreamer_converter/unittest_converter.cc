@@ -207,7 +207,7 @@ conv_get_out_config (const GstCaps *in_cap, GstTensorsConfig *config)
 /** @brief tensor converter plugin's convert callback
  */
 static GstBuffer *
-conv_convert (GstBuffer *in_buf, GstTensorsConfig *config)
+conv_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
 {
   return NULL;
 }

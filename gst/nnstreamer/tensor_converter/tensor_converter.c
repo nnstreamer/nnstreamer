@@ -371,6 +371,7 @@ gst_tensor_converter_init (GstTensorConverter * self)
   self->frame_size = 0;
   self->remove_padding = FALSE;
   self->externalConverter = NULL;
+  self->priv_data = NULL;
   self->mode = _CONVERTER_MODE_NONE;
   self->mode_option = NULL;
   self->custom.func = NULL;
@@ -405,9 +406,11 @@ gst_tensor_converter_finalize (GObject * object)
   }
 
   g_free (self->mode_option);
+  g_free (self->ext_fw);
   self->custom.func = NULL;
   self->custom.data = NULL;
-
+  if (self->externalConverter && self->externalConverter->close)
+    self->externalConverter->close (&self->priv_data);
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
@@ -488,18 +491,23 @@ gst_tensor_converter_set_property (GObject * object, guint prop_id,
         break;
       }
 
-      if (g_ascii_strcasecmp (strv[0], "custom-code") == 0)
-        self->mode = _CONVERTER_MODE_CUSTOM_CODE;
       self->mode_option = g_strdup (strv[1]);
+      if (g_ascii_strcasecmp (strv[0], "custom-code") == 0) {
+        self->mode = _CONVERTER_MODE_CUSTOM_CODE;
+        ptr = get_subplugin (NNS_CUSTOM_CONVERTER, self->mode_option);
+        if (!ptr) {
+          nns_logw ("Failed to find custom subplugin of the tensor_converter");
+          return;
+        }
+        self->custom.func = ptr->func;
+        self->custom.data = ptr->data;
+      } else if (g_ascii_strcasecmp (strv[0], "custom-script") == 0) {
+        self->mode = _CONVERTER_MODE_CUSTOM_SCRIPT;
+        /** @todo detects framework based on the script extension */
+        self->ext_fw = g_strdup ("python3");
+      }
       g_strfreev (strv);
 
-      ptr = get_subplugin (NNS_CUSTOM_CONVERTER, self->mode_option);
-      if (!ptr) {
-        nns_logw ("Failed to find custom subplugin of the tensor_converter");
-        return;
-      }
-      self->custom.func = ptr->func;
-      self->custom.data = ptr->data;
       break;
     }
     default:
@@ -563,8 +571,14 @@ gst_tensor_converter_get_property (GObject * object, guint prop_id,
       gchar *mode_str = NULL;
       if (self->mode_option == NULL)
         mode_str = g_strdup ("");
-      else
-        mode_str = g_strdup_printf ("%s:%s", "custom-code", self->mode_option);
+      else {
+        if (self->mode == _CONVERTER_MODE_CUSTOM_CODE)
+          mode_str =
+              g_strdup_printf ("%s:%s", "custom-code", self->mode_option);
+        else if (self->mode == _CONVERTER_MODE_CUSTOM_SCRIPT)
+          mode_str =
+              g_strdup_printf ("%s:%s", "custom-script", self->mode_option);
+      }
       g_value_take_string (value, mode_str);
       break;
     }
@@ -1068,7 +1082,9 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         }
         inbuf = self->custom.func (buf, self->custom.data, &new_config);
       } else if (self->externalConverter && self->externalConverter->convert) {
-        inbuf = self->externalConverter->convert (buf, &new_config);
+        inbuf =
+            self->externalConverter->convert (buf, &new_config,
+            self->priv_data);
       } else {
         GST_ERROR_OBJECT (self, "Undefined behavior with type %d\n",
             self->in_media_type);
@@ -1573,7 +1589,9 @@ gst_tensor_converter_parse_custom (GstTensorConverter * self,
     }
   } else if (!self->externalConverter) {
     const NNStreamerExternalConverter *ex;
-
+    if (self->mode == _CONVERTER_MODE_CUSTOM_SCRIPT) {
+      mimetype = self->ext_fw;
+    }
     if (!(ex = findExternalConverter (mimetype))) {
       ml_loge ("Failed to get external converter for %s.", mimetype);
       return FALSE;
@@ -1587,6 +1605,14 @@ gst_tensor_converter_parse_custom (GstTensorConverter * self,
     }
 
     self->externalConverter = ex;
+    if (self->mode == _CONVERTER_MODE_CUSTOM_SCRIPT) {
+      if (self->externalConverter->open (self->mode_option,
+              &self->priv_data) < 0) {
+        ml_loge ("Failed to open tensor converter custom subplugin.\n");
+        self->externalConverter = NULL;
+        return FALSE;
+      }
+    }
   }
 
   return TRUE;
@@ -1789,7 +1815,7 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
   g_return_val_if_fail (gst_caps_is_fixed (caps), FALSE);
 
   structure = gst_caps_get_structure (caps, 0);
-  if (self->mode == _CONVERTER_MODE_CUSTOM_CODE) {
+  if (self->mode != _CONVERTER_MODE_NONE) {
     in_type = _NNS_MEDIA_ANY;
   } else {
     in_type = gst_tensor_media_type_from_structure (structure);
@@ -1966,6 +1992,11 @@ findExternalConverter (const char *media_type)
 
     for (i = 0; i < total; i++) {
       ex = nnstreamer_converter_find (str_array[i]);
+
+      if (g_strcmp0 (media_type, str_array[i]) == 0) {
+        /* found matched media type */
+        return ex;
+      }
 
       if (ex && ex->query_caps) {
         caps = ex->query_caps (NULL);
