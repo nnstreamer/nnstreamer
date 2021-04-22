@@ -28,6 +28,8 @@
  */
 #define GST_MQTT_MAX_NUM_MEMS   15
 
+#define GST_US_TO_NS_MULTIPLIER 1000
+
 /**
  * @brief Defined a custom data type, GstMQTTMessageHdr
  *
@@ -40,6 +42,11 @@ typedef struct _GstMQTTMessageHdr {
     struct {
       guint num_mems;
       gsize size_mems[GST_MQTT_MAX_NUM_MEMS];
+      gint64 base_time_epoch;
+      gint64 sent_time_epoch;
+      GstClockTime duration;
+      GstClockTime dts;
+      GstClockTime pts;
     };
     guint8 _reserved_hdr[GST_MQTT_LEN_MSG_HDR];
   };

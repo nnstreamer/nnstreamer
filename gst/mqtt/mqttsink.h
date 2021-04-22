@@ -62,6 +62,7 @@ struct _GstMqttSink {
   guint num_buffers;
   GQuark gquark_err_tag;
   GError *err;
+  gint64 base_time_epoch;
   gchar *mqtt_client_id;
   gchar *mqtt_host_address;
   gchar *mqtt_host_port;

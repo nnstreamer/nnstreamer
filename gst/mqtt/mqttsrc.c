@@ -126,7 +126,20 @@ static void cb_memory_wrapped_destroy (void *p);
 
 static GstMQTTMessageHdr *_extract_mqtt_msg_hdr_from (GstMemory * mem,
     GstMemory ** hdr_mem, GstMapInfo * hdr_map_info);
+static void _put_timestamp_on_gst_buf (GstMqttSrc * self,
+    GstMQTTMessageHdr * hdr, GstBuffer * buf);
 
+/**
+ * @brief A utility function to check whether the timestamp marked by _put_timestamp_on_gst_buf () is valid or not
+ */
+static inline gboolean
+_is_gst_buffer_timestamp_valid (GstBuffer * buf)
+{
+  if (!GST_BUFFER_PTS_IS_VALID (buf) && !GST_BUFFER_DTS_IS_VALID (buf) &&
+      !GST_BUFFER_DURATION_IS_VALID (buf))
+    return FALSE;
+  return TRUE;
+}
 
 /** Function defintions */
 /**
@@ -139,6 +152,8 @@ gst_mqtt_src_init (GstMqttSrc * self)
   MQTTAsync_responseOptions respn_opts = MQTTAsync_responseOptions_initializer;
 
   self->gquark_err_tag = g_quark_from_string (TAG_ERR_MQTTSRC);
+
+  gst_base_src_set_live (GST_BASE_SRC (self), TRUE);
 
   /** init mqttsrc properties */
   self->mqtt_client_id = g_strdup (DEFAULT_MQTT_CLIENT_ID);
@@ -164,6 +179,7 @@ gst_mqtt_src_init (GstMqttSrc * self)
   self->is_subscribed = FALSE;
   g_cond_init (&self->mqtt_src_gcond);
   g_mutex_init (&self->mqtt_src_mutex);
+  self->base_time_epoch = GST_CLOCK_TIME_NONE;
 }
 
 /**
@@ -341,6 +357,10 @@ gst_mqtt_src_change_state (GstElement * element, GstStateChange transition)
 {
   GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
   GstMqttSrc *self = GST_MQTT_SRC (element);
+  GstClock *elem_clock;
+  GstClockTime base_time;
+  GstClockTime cur_time;
+  GstClockTimeDiff diff;
 
   switch (transition) {
     case GST_STATE_CHANGE_NULL_TO_READY:
@@ -355,6 +375,16 @@ gst_mqtt_src_change_state (GstElement * element, GstStateChange transition)
       GST_INFO_OBJECT (self, "GST_STATE_CHANGE_READY_TO_PAUSED");
       break;
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+      self->base_time_epoch = GST_CLOCK_TIME_NONE;
+      elem_clock = gst_element_get_clock (element);
+      if (!elem_clock)
+        break;
+      base_time = gst_element_get_base_time (element);
+      cur_time = gst_clock_get_time (elem_clock);
+      gst_object_unref (elem_clock);
+      diff = GST_CLOCK_DIFF (base_time, cur_time);
+      self->base_time_epoch =
+          g_get_real_time () * GST_US_TO_NS_MULTIPLIER - diff;
       GST_INFO_OBJECT (self, "GST_STATE_CHANGE_PAUSED_TO_PLAYING");
       break;
     default:
@@ -463,7 +493,21 @@ static void
 gst_mqtt_src_get_times (GstBaseSrc * basesrc, GstBuffer * buffer,
     GstClockTime * start, GstClockTime * end)
 {
-  return;
+  GstClockTime sync_ts;
+  GstClockTime duration;
+
+  sync_ts = GST_BUFFER_DTS (buffer);
+  duration = GST_BUFFER_DURATION (buffer);
+
+  if (!GST_CLOCK_TIME_IS_VALID (sync_ts))
+    sync_ts = GST_BUFFER_PTS (buffer);
+
+  if (GST_CLOCK_TIME_IS_VALID (sync_ts)) {
+    *start = sync_ts;
+    if (GST_CLOCK_TIME_IS_VALID (duration)) {
+      *end = sync_ts + duration;
+    }
+  }
 }
 
 /**
@@ -497,10 +541,19 @@ gst_mqtt_src_create (GstBaseSrc * basesrc, guint64 offset, guint size,
   g_mutex_unlock (&self->mqtt_src_mutex);
 
   while (elapsed > 0) {
+    /** @todo DEFAULT_MQTT_SUB_TIMEOUT_MIN is too long */
     *buf = g_async_queue_timeout_pop (self->aqueue,
         DEFAULT_MQTT_SUB_TIMEOUT_MIN);
-    if (*buf || self->err)
+    if (*buf) {
+      /** This buffer is comming from the past. Drop it */
+      if (!_is_gst_buffer_timestamp_valid (*buf)) {
+        elapsed = self->mqtt_sub_timeout;
+        continue;
+      }
       break;
+    } else if (self->err) {
+      break;
+    }
     elapsed = elapsed - DEFAULT_MQTT_SUB_TIMEOUT_MIN;
   }
 
@@ -732,7 +785,8 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
     gst_buffer_append_memory (buffer, each_memory);
     offset += each_size;
   }
-
+  /** Timestamp synchronization */
+  _put_timestamp_on_gst_buf (self, mqtt_msg_hdr, buffer);
   g_async_queue_push (self->aqueue, buffer);
 
   gst_memory_unmap (hdr_mem, &hdr_map_info);
@@ -769,8 +823,9 @@ cb_mqtt_on_connect (void *context, MQTTAsync_successData * response)
   g_cond_broadcast (&self->mqtt_src_gcond);
   g_mutex_unlock (&self->mqtt_src_mutex);
 
+  self->mqtt_respn_opts.subscribeOptions.retainHandling = 1;
   /** @todo Support QoS option */
-  ret = MQTTAsync_subscribe (self->mqtt_client_handle, self->mqtt_topic, 1,
+  ret = MQTTAsync_subscribe (self->mqtt_client_handle, self->mqtt_topic, 0,
       &self->mqtt_respn_opts);
   if (ret != MQTTASYNC_SUCCESS) {
     g_printerr ("Failed to start subscribe, return code %d\n", ret);
@@ -845,4 +900,32 @@ _extract_mqtt_msg_hdr_from (GstMemory * mem, GstMemory ** hdr_mem,
   }
 
   return (GstMQTTMessageHdr *) hdr_map_info->data;
+}
+
+/**
+  * @brief A utility function to put the timestamp information
+  *        onto a GstBuffer-typed buffer using the given packet header
+  */
+static void
+_put_timestamp_on_gst_buf (GstMqttSrc * self, GstMQTTMessageHdr * hdr,
+    GstBuffer * buf)
+{
+  gint64 diff_base_epoch = hdr->base_time_epoch - self->base_time_epoch;
+
+  buf->pts = GST_CLOCK_TIME_NONE;
+  buf->dts = GST_CLOCK_TIME_NONE;
+  buf->duration = GST_CLOCK_TIME_NONE;
+
+  if (hdr->sent_time_epoch < self->base_time_epoch)
+    return;
+
+  if (hdr->pts != GST_CLOCK_TIME_NONE) {
+    buf->pts = hdr->pts + diff_base_epoch;
+  }
+
+  if (hdr->dts != GST_CLOCK_TIME_NONE) {
+    buf->dts = hdr->dts + diff_base_epoch;
+  }
+
+  buf->duration = hdr->duration;
 }
