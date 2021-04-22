@@ -90,7 +90,7 @@ fbc_get_out_config (const GstCaps *in_cap, GstTensorsConfig *config)
  *          remove frame size and the number of frames
  */
 static GstBuffer *
-fbc_convert (GstBuffer *in_buf, GstTensorsConfig *config)
+fbc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
 {
   const Tensors *tensors;
   const flatbuffers::Vector<flatbuffers::Offset<Tensor>> *tensor;

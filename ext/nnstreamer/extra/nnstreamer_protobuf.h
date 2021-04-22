@@ -46,6 +46,6 @@ gst_tensor_decoder_protobuf (const GstTensorsConfig * config,
  * @retval Return a new GstBuf if the data is to be modified.
  */
 GstBuffer *
-gst_tensor_converter_protobuf (GstBuffer * in_buf, GstTensorsConfig * config);
+gst_tensor_converter_protobuf (GstBuffer * in_buf, GstTensorsConfig * config, void *priv_data);
 
 #endif /* __NNS_PROTOBUF_UTIL_H__ */

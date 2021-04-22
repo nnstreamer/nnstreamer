@@ -43,7 +43,7 @@ typedef struct _NNStreamerExternalConverter
   const char *name;
 
   /* 1. chain func, data handling. */
-  GstBuffer *(*convert) (GstBuffer * in_buf, GstTensorsConfig * config);
+  GstBuffer *(*convert) (GstBuffer * in_buf, GstTensorsConfig * config, void *priv_data);
   /**< Convert the given input stream to tensor/tensors stream.
    *
    * @param[in] buf The input stream buffer
@@ -69,6 +69,19 @@ typedef struct _NNStreamerExternalConverter
    * @param[in] config The config of output tensor/tensors
    * @retval Return subplugin caps (if config is NULL, return default caps)
    */
+
+  int (*open) (const gchar *script_path, void **priv_data);
+  /**< tensor_converter will call this to open subplugin.
+   * @param[in] script_path script path of the subplugin.
+   * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer. Normally, open() allocates memory for private_data.
+   * @return 0 if ok. < 0 if error.
+   */
+
+  void (*close) (void **priv_data);
+  /**< tensor_converter will call this to close subplugin.
+   * @param[in] private_data frees private_data and set NULL.
+   */
+
 } NNStreamerExternalConverter;
 
 /**
