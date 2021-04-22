@@ -162,6 +162,7 @@ gst_mqtt_sink_init (GstMqttSink * self)
   self->mqtt_msg_buf = NULL;
   self->mqtt_msg_buf_size = 0;
   memset (&self->mqtt_msg_hdr, 0x0, sizeof (self->mqtt_msg_hdr));
+  self->base_time_epoch = GST_CLOCK_TIME_NONE;
 
   /** init mqttsink properties */
   self->num_buffers = DEFAULT_NUM_BUFFERS;
@@ -364,6 +365,10 @@ gst_mqtt_sink_change_state (GstElement * element, GstStateChange transition)
 {
   GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
   GstMqttSink *self = GST_MQTT_SINK (element);
+  GstClock *elem_clock;
+  GstClockTime base_time;
+  GstClockTime cur_time;
+  GstClockTimeDiff diff;
 
   switch (transition) {
     case GST_STATE_CHANGE_NULL_TO_READY:
@@ -378,6 +383,16 @@ gst_mqtt_sink_change_state (GstElement * element, GstStateChange transition)
       GST_INFO_OBJECT (self, "GST_STATE_CHANGE_READY_TO_PAUSED");
       break;
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+      self->base_time_epoch = GST_CLOCK_TIME_NONE;
+      elem_clock = gst_element_get_clock (element);
+      if (!elem_clock)
+        break;
+      base_time = gst_element_get_base_time (element);
+      cur_time = gst_clock_get_time (elem_clock);
+      gst_object_unref (elem_clock);
+      diff = GST_CLOCK_DIFF (base_time, cur_time);
+      self->base_time_epoch =
+          g_get_real_time () * GST_US_TO_NS_MULTIPLIER - diff;
       GST_INFO_OBJECT (self, "GST_STATE_CHANGE_PAUSED_TO_PLAYING");
       break;
     default:
@@ -509,10 +524,30 @@ gst_mqtt_sink_query (GstBaseSink * basesink, GstQuery * query)
 }
 
 /**
+ * @brief A utility function to set the timestamp information onto the given buffer
+ */
+static void
+_put_timestamp_to_msg_buf_hdr (GstMqttSink * self, GstBuffer * gst_buf,
+    GstMQTTMessageHdr * hdr)
+{
+  hdr->base_time_epoch = self->base_time_epoch;
+  hdr->sent_time_epoch = g_get_real_time () * GST_US_TO_NS_MULTIPLIER;
+
+  hdr->duration = GST_BUFFER_DURATION_IS_VALID (gst_buf) ?
+      GST_BUFFER_DURATION (gst_buf) : GST_CLOCK_TIME_NONE;
+
+  hdr->dts = GST_BUFFER_DTS_IS_VALID (gst_buf) ?
+      GST_BUFFER_DTS (gst_buf) : GST_CLOCK_TIME_NONE;
+
+  hdr->pts = GST_BUFFER_PTS_IS_VALID (gst_buf) ?
+      GST_BUFFER_PTS (gst_buf) : GST_CLOCK_TIME_NONE;
+}
+
+/**
  * @brief A utility function to set the message header
  */
 static gboolean
-_set_msg_buf_hdr (GstBuffer * gst_buf, GstMQTTMessageHdr * hdr)
+_mqtt_set_msg_buf_hdr (GstBuffer * gst_buf, GstMQTTMessageHdr * hdr)
 {
   gboolean ret = TRUE;
   guint i;
@@ -581,7 +616,7 @@ gst_mqtt_sink_render (GstBaseSink * basesink, GstBuffer * in_buf)
   }
 
   if ((!self->mqtt_msg_buf) && (self->mqtt_msg_buf_size == 0)) {
-    if (!_set_msg_buf_hdr (in_buf, &self->mqtt_msg_hdr)) {
+    if (!_mqtt_set_msg_buf_hdr (in_buf, &self->mqtt_msg_hdr)) {
       ret = GST_FLOW_ERROR;
       goto ret_with;
     }
@@ -600,6 +635,8 @@ gst_mqtt_sink_render (GstBaseSink * basesink, GstBuffer * in_buf)
     msg_pub = self->mqtt_msg_buf;
   }
 
+  _put_timestamp_to_msg_buf_hdr (self, in_buf, (GstMQTTMessageHdr *) msg_pub);
+
   in_buf_mem = gst_buffer_get_all_memory (in_buf);
   if (!in_buf_mem) {
     ret = GST_FLOW_ERROR;
@@ -616,7 +653,7 @@ gst_mqtt_sink_render (GstBaseSink * basesink, GstBuffer * in_buf)
   memcpy (&msg_pub[sizeof (self->mqtt_msg_hdr)], in_buf_map.data,
       in_buf_map.size);
   mqtt_rc = MQTTAsync_send (self->mqtt_client_handle, self->mqtt_topic,
-      self->mqtt_msg_buf_size, self->mqtt_msg_buf, 0, 0,
+      self->mqtt_msg_buf_size, self->mqtt_msg_buf, 0, 1,
       &self->mqtt_respn_opts);
   if (mqtt_rc != MQTTASYNC_SUCCESS) {
     ret = GST_FLOW_ERROR;
