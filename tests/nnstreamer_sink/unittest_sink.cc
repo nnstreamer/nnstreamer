@@ -92,6 +92,9 @@ typedef enum {
   TEST_TYPE_OCTET_INVALID_TS, /**< pipeline for octet stream, invalid timestamp */
   TEST_TYPE_OCTET_2F, /**< pipeline for octet stream, 2 frames */
   TEST_TYPE_OCTET_MULTI_TENSORS, /**< pipeline for octet stream, byte array to multi tensors */
+  TEST_TYPE_FLEX_TENSOR_1, /**< pipeline for flexible tensor (sink) */
+  TEST_TYPE_FLEX_TENSOR_2, /**< pipeline for flexible tensor (converter, static multi-tensors to flex) */
+  TEST_TYPE_FLEX_TENSOR_3, /**< pipeline for flexible tensor (converter, flex to static) */
   TEST_TYPE_TENSORS, /**< pipeline for tensors with tensor_mux */
   TEST_TYPE_TENSORS_MIX_1, /**< pipeline for tensors with tensor_mux, tensor_demux */
   TEST_TYPE_TENSORS_MIX_2, /**< pipeline for tensors with tensor_mux, tensor_demux pick 0,2 */
@@ -252,7 +255,7 @@ static void
 _new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
 {
   gsize buf_size;
-  guint mem_blocks;
+  guint i, mem_blocks;
 
   if (!GST_IS_BUFFER (buffer)) {
     _print_log ("received invalid buffer");
@@ -306,15 +309,33 @@ _new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
     g_test_data.caps_name = g_strdup (gst_structure_get_name (structure));
     _print_log ("caps name [%s]", g_test_data.caps_name);
 
-    if (g_str_equal (g_test_data.caps_name, "other/tensor")) {
+    if (g_str_equal (g_test_data.caps_name, NNS_MIMETYPE_TENSOR)) {
       if (!gst_tensor_config_from_structure (&g_test_data.tensor_config, structure)) {
         _print_log ("failed to get tensor config from caps");
         g_test_data.test_failed = TRUE;
       }
-    } else if (g_str_equal (g_test_data.caps_name, "other/tensors")) {
+    } else if (g_str_equal (g_test_data.caps_name, NNS_MIMETYPE_TENSORS)) {
       if (!gst_tensors_config_from_structure (&g_test_data.tensors_config, structure)) {
         _print_log ("failed to get tensors config from caps");
         g_test_data.test_failed = TRUE;
+      }
+    } else if (g_str_equal (g_test_data.caps_name, NNS_MIMETYPE_TENSORS_FLEXIBLE)) {
+      /**
+       * Cannot get data type and shape from caps.
+       * For the test, set type uint8 and dim with buffer size.
+       */
+      gst_tensors_config_from_structure (&g_test_data.tensors_config, structure);
+
+      g_test_data.tensors_config.info.num_tensors = mem_blocks;
+      for (i = 0; i < mem_blocks; i++) {
+        GstMemory *mem = gst_buffer_peek_memory (buffer, i);
+        guint mem_size = gst_memory_get_sizes (mem, NULL, NULL);
+
+        g_test_data.tensors_config.info.info[i].type = _NNS_UINT8;
+        g_test_data.tensors_config.info.info[i].dimension[0] = mem_size;
+        g_test_data.tensors_config.info.info[i].dimension[1] = 1U;
+        g_test_data.tensors_config.info.info[i].dimension[2] = 1U;
+        g_test_data.tensors_config.info.info[i].dimension[3] = 1U;
       }
     }
 
@@ -676,6 +697,21 @@ _setup_pipeline (TestOption &option)
     str_pipeline = g_strdup_printf (
         "appsrc name=appsrc caps=application/octet-stream,framerate=(fraction)10/1 ! "
         "tensor_converter name=convert input-dim=2,2 input-type=int32,int8 ! tensor_sink name=test_sink");
+    break;
+  case TEST_TYPE_FLEX_TENSOR_1:
+    str_pipeline = g_strdup_printf (
+        "appsrc name=appsrc caps=other/tensors-flexible,framerate=(fraction)10/1 ! tensor_sink name=test_sink");
+    break;
+  case TEST_TYPE_FLEX_TENSOR_2:
+    str_pipeline = g_strdup_printf (
+        "appsrc name=appsrc caps=application/octet-stream,framerate=(fraction)10/1 ! "
+        "tensor_converter name=convert input-dim=2,2 input-type=int32,int8 ! "
+        "other/tensors-flexible ! tensor_sink name=test_sink");
+    break;
+  case TEST_TYPE_FLEX_TENSOR_3:
+    str_pipeline = g_strdup_printf (
+        "appsrc name=appsrc caps=other/tensors-flexible,framerate=(fraction)10/1 ! "
+        "tensor_converter name=convert input-dim=10 input-type=int8 ! tensor_sink name=test_sink");
     break;
   case TEST_TYPE_TENSORS:
     /** other/tensors with tensor_mux */
@@ -3007,6 +3043,151 @@ TEST (tensorStreamTest, octetMultiTensors)
 
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 10);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data (option);
+}
+
+/**
+ * @brief Test for flexible tensor stream.
+ */
+TEST (tensorStreamTest, flexOnSink)
+{
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_FLEX_TENSOR_1 };
+  guint timeout_id;
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+
+  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (TRUE));
+
+  timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
+  g_main_loop_run (g_test_data.loop);
+  g_source_remove (timeout_id);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.mem_blocks, 1U);
+  EXPECT_EQ (g_test_data.received_size, 10U);
+
+  /** check caps name */
+  EXPECT_STREQ (g_test_data.caps_name, NNS_MIMETYPE_TENSORS_FLEXIBLE);
+
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  /** check buffer size from tensors config */
+  EXPECT_TRUE (gst_tensors_config_validate (&g_test_data.tensors_config));
+  EXPECT_EQ (g_test_data.tensors_config.info.num_tensors, 1U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 10U);
+  EXPECT_EQ (g_test_data.tensors_config.rate_n, 10);
+  EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data (option);
+}
+
+/**
+ * @brief Test for flexible tensor stream.
+ */
+TEST (tensorStreamTest, staticToFlex)
+{
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_FLEX_TENSOR_2 };
+  guint timeout_id;
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+
+  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (TRUE));
+
+  timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
+  g_main_loop_run (g_test_data.loop);
+  g_source_remove (timeout_id);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.mem_blocks, 2U);
+  EXPECT_EQ (g_test_data.received_size, 10U);
+
+  /** check caps name */
+  EXPECT_STREQ (g_test_data.caps_name, NNS_MIMETYPE_TENSORS_FLEXIBLE);
+
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  /** check buffer size from tensors config */
+  EXPECT_TRUE (gst_tensors_config_validate (&g_test_data.tensors_config));
+  EXPECT_EQ (g_test_data.tensors_config.info.num_tensors, 2U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 8U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[1].dimension[0], 2U);
+  EXPECT_EQ (g_test_data.tensors_config.rate_n, 10);
+  EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data (option);
+}
+
+/**
+ * @brief Test for flexible tensor stream.
+ */
+TEST (tensorStreamTest, flexToStatic)
+{
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_FLEX_TENSOR_3 };
+  guint timeout_id;
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+
+  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (TRUE));
+
+  timeout_id = g_timeout_add (5000, _test_src_eos_timer_cb, g_test_data.loop);
+  g_main_loop_run (g_test_data.loop);
+  g_source_remove (timeout_id);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.mem_blocks, 1U);
+  EXPECT_EQ (g_test_data.received_size, 10U);
+
+  /** check caps name */
+  EXPECT_STREQ (g_test_data.caps_name, NNS_MIMETYPE_TENSOR);
+
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  /** check tensor config */
+  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
+  EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_INT8);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[0], 10U);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 1U);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 1U);
+  EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, 10);
+  EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data (option);
