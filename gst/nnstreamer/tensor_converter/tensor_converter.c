@@ -1615,7 +1615,7 @@ gst_tensor_converter_get_possible_media_caps (GstTensorConverter * self)
 
     for (i = 0; i < caps_len; ++i) {
       st = gst_caps_get_structure (media_caps, i);
-      type = gst_tensor_media_type_from_structure (st);
+      type = gst_structure_get_media_type (st);
 
       switch (type) {
         case _NNS_VIDEO:
@@ -1792,7 +1792,7 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
   if (self->mode == _CONVERTER_MODE_CUSTOM_CODE) {
     in_type = _NNS_MEDIA_ANY;
   } else {
-    in_type = gst_tensor_media_type_from_structure (structure);
+    in_type = gst_structure_get_media_type (structure);
   }
 
   switch (in_type) {

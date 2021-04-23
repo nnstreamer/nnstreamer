@@ -134,7 +134,7 @@ typedef enum _nns_tensor_type
 /**
  * @brief Possible input stream types for other/tensor.
  *
- * This is realted with media input stream to other/tensor.
+ * This is related with media input stream to other/tensor.
  * There is no restrictions for the outputs.
  *
  * In order to prevent enum-mix issues between device profiles,
@@ -147,8 +147,18 @@ typedef enum _nns_media_type
   _NNS_AUDIO = 1, /**< supposedly audio/x-raw */
   _NNS_TEXT = 2, /**< supposedly text/x-raw */
   _NNS_OCTET = 3, /**< supposedly application/octet-stream */
+  _NNS_TENSOR = 4, /**< supposedly other/tensor(s) or flexible tensor */
   _NNS_MEDIA_ANY = 0x1000, /**< any media type (find proper external converter in tensor-converter element) */
 } media_type;
+
+/**
+ * @brief Data format of tensor stream in the pipeline.
+ */
+typedef enum _tensor_format
+{
+  _NNS_TENSOR_FORMAT_STATIC = 0,
+  _NNS_TENSOR_FORMAT_FLEXIBLE
+} tensor_format;
 
 /**
  * @brief To make the code simple with all the types. "C++ Template"-like.
@@ -189,6 +199,7 @@ typedef struct
                    and some (tensorflow-lite) do not need this. */
   tensor_type type; /**< Type of each element in the tensor. User must designate this. */
   tensor_dim dimension; /**< Dimension. We support up to 4th ranks.  */
+  tensor_format format; /**< Tensor format */
 } GstTensorInfo;
 
 /**
