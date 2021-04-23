@@ -34,6 +34,22 @@
 G_BEGIN_DECLS
 
 /**
+ * @brief Check given mimetype is tensor stream.
+ * @param structure structure to be interpreted
+ * @return TRUE if mimetype is tensor stream
+ */
+extern gboolean
+gst_structure_is_tensor_stream (const GstStructure * structure);
+
+/**
+ * @brief Get media type from structure
+ * @param structure structure to be interpreted
+ * @return corresponding media type (returns _NNS_MEDIA_INVALID for unsupported type)
+ */
+extern media_type
+gst_structure_get_media_type (const GstStructure * structure);
+
+/**
  * @brief Initialize the tensor info structure
  * @param info tensor info structure to be initialized
  */
@@ -69,6 +85,13 @@ gst_tensor_info_validate (const GstTensorInfo *info);
  */
 extern gboolean
 gst_tensor_info_is_equal (const GstTensorInfo * i1, const GstTensorInfo * i2);
+
+/**
+ * @brief Check given info is flexible tensor.
+ * @return TRUE if it is flexible.
+ */
+extern gboolean
+gst_tensor_info_is_flexible (const GstTensorInfo * info);
 
 /**
  * @brief Copy tensor info up to n elements
@@ -189,6 +212,13 @@ extern gboolean
 gst_tensors_info_is_equal (const GstTensorsInfo * i1, const GstTensorsInfo * i2);
 
 /**
+ * @brief Check given info contains flexible tensor.
+ * @return TRUE if it is flexible.
+ */
+extern gboolean
+gst_tensors_info_is_flexible (const GstTensorsInfo * info);
+
+/**
  * @brief Copy tensor info
  * @note Copied info should be freed with gst_tensors_info_free()
  */
@@ -217,14 +247,6 @@ gst_tensor_config_validate (const GstTensorConfig * config);
 extern gboolean
 gst_tensor_config_is_equal (const GstTensorConfig * c1,
     const GstTensorConfig * c2);
-
-/**
- * @brief Get media type from structure
- * @param structure structure to be interpreted
- * @return corresponding media type (returns _NNS_MEDIA_INVALID for unsupported type)
- */
-extern media_type
-gst_tensor_media_type_from_structure (const GstStructure * structure);
 
 /**
  * @brief Parse structure and set tensor config info (for other/tensor)

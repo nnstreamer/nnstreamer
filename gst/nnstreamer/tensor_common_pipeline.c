@@ -379,7 +379,8 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
 
       /** These are internal logic error. If given inputs are incorrect,
           the negotiation should have been failed before this stage. */
-      g_assert (n_mem == in_configs.info.num_tensors);
+      if (!gst_tensors_info_is_flexible (&in_configs.info))
+        g_assert (n_mem == in_configs.info.num_tensors);
       g_assert ((counting + n_mem) < NNS_TENSOR_SIZE_LIMIT);
 
       for (i = 0; i < n_mem; ++i) {

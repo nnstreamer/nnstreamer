@@ -62,12 +62,30 @@ static const guint tensor_element_size[] = {
 };
 
 /**
+ * @brief Check given mimetype is tensor stream.
+ * @param structure structure to be interpreted
+ * @return TRUE if mimetype is tensor stream
+ */
+gboolean
+gst_structure_is_tensor_stream (const GstStructure * structure)
+{
+  const gchar *name;
+
+  name = gst_structure_get_name (structure);
+  g_return_val_if_fail (name != NULL, FALSE);
+
+  return (g_str_equal (name, NNS_MIMETYPE_TENSOR) ||
+      g_str_equal (name, NNS_MIMETYPE_TENSORS) ||
+      g_str_equal (name, NNS_MIMETYPE_TENSORS_FLEXIBLE));
+}
+
+/**
  * @brief Get media type from structure
  * @param structure structure to be interpreted
  * @return corresponding media type (returns _NNS_MEDIA_INVALID for unsupported type)
  */
 media_type
-gst_tensor_media_type_from_structure (const GstStructure * structure)
+gst_structure_get_media_type (const GstStructure * structure)
 {
   const gchar *name;
 
@@ -91,6 +109,10 @@ gst_tensor_media_type_from_structure (const GstStructure * structure)
     return _NNS_OCTET;
   }
 
+  if (gst_structure_is_tensor_stream (structure)) {
+    return _NNS_TENSOR;
+  }
+
   /* unknown or unsupported type */
   return _NNS_MEDIA_INVALID;
 }
@@ -108,6 +130,7 @@ gst_tensor_info_init (GstTensorInfo * info)
 
   info->name = NULL;
   info->type = _NNS_END;
+  info->format = _NNS_TENSOR_FORMAT_STATIC;
 
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
     info->dimension[i] = 0;
@@ -157,6 +180,11 @@ gst_tensor_info_validate (const GstTensorInfo * info)
 {
   g_return_val_if_fail (info != NULL, FALSE);
 
+  if (gst_tensor_info_is_flexible (info)) {
+    /* true if given info is flexible format */
+    return TRUE;
+  }
+
   if (info->type == _NNS_END) {
     return FALSE;
   }
@@ -178,6 +206,10 @@ gst_tensor_info_is_equal (const GstTensorInfo * i1, const GstTensorInfo * i2)
     return FALSE;
   }
 
+  if (i1->format != i2->format) {
+    return FALSE;
+  }
+
   if (i1->type != i2->type) {
     return FALSE;
   }
@@ -190,6 +222,18 @@ gst_tensor_info_is_equal (const GstTensorInfo * i1, const GstTensorInfo * i2)
 
   /* matched all */
   return TRUE;
+}
+
+/**
+ * @brief Check given info is flexible tensor.
+ * @return TRUE if it is flexible.
+ */
+gboolean
+gst_tensor_info_is_flexible (const GstTensorInfo * info)
+{
+  g_return_val_if_fail (info != NULL, FALSE);
+
+  return (info->format == _NNS_TENSOR_FORMAT_FLEXIBLE);
 }
 
 /**
@@ -207,6 +251,7 @@ gst_tensor_info_copy_n (GstTensorInfo * dest, const GstTensorInfo * src,
 
   dest->name = g_strdup (src->name);
   dest->type = src->type;
+  dest->format = src->format;
 
   for (i = 0; i < n; i++) {
     dest->dimension[i] = src->dimension[i];
@@ -315,6 +360,11 @@ gst_tensors_info_validate (const GstTensorsInfo * info)
 
   g_return_val_if_fail (info != NULL, FALSE);
 
+  if (gst_tensors_info_is_flexible (info)) {
+    /* true if given info is flexible format */
+    return TRUE;
+  }
+
   if (info->num_tensors < 1) {
     return FALSE;
   }
@@ -336,11 +386,19 @@ gboolean
 gst_tensors_info_is_equal (const GstTensorsInfo * i1, const GstTensorsInfo * i2)
 {
   guint i;
+  gboolean compatible, flexible;
 
   g_return_val_if_fail (i1 != NULL, FALSE);
   g_return_val_if_fail (i2 != NULL, FALSE);
 
-  if (i1->num_tensors != i2->num_tensors || i1->num_tensors < 1) {
+  flexible = gst_tensors_info_is_flexible (i1);
+  if (flexible != gst_tensors_info_is_flexible (i2)) {
+    return FALSE;
+  }
+
+  compatible = (i1->num_tensors > 0 && i2->num_tensors > 0) || flexible;
+
+  if (i1->num_tensors != i2->num_tensors || !compatible) {
     return FALSE;
   }
 
@@ -355,20 +413,47 @@ gst_tensors_info_is_equal (const GstTensorsInfo * i1, const GstTensorsInfo * i2)
 }
 
 /**
+ * @brief Check given info contains flexible tensor.
+ * @return TRUE if it is flexible.
+ */
+gboolean
+gst_tensors_info_is_flexible (const GstTensorsInfo * info)
+{
+  guint i, num;
+
+  g_return_val_if_fail (info != NULL, FALSE);
+
+  /* flex-tensor may not have the number of tensors in info struct. */
+  num = MAX (info->num_tensors, 1);
+
+  for (i = 0; i < num; i++) {
+    if (gst_tensor_info_is_flexible (&info->info[i])) {
+      return TRUE;
+    }
+  }
+
+  return FALSE;
+}
+
+/**
  * @brief Copy tensor info
  * @note Copied info should be freed with gst_tensors_info_free()
  */
 void
 gst_tensors_info_copy (GstTensorsInfo * dest, const GstTensorsInfo * src)
 {
-  guint i;
+  guint i, num;
 
   g_return_if_fail (dest != NULL);
   g_return_if_fail (src != NULL);
 
-  dest->num_tensors = src->num_tensors;
+  num = dest->num_tensors = src->num_tensors;
 
-  for (i = 0; i < src->num_tensors; i++) {
+  /* If given info is flexible, set max size. */
+  if (gst_tensors_info_is_flexible (src))
+    num = NNS_TENSOR_SIZE_LIMIT;
+
+  for (i = 0; i < num; i++) {
     gst_tensor_info_copy (&dest->info[i], &src->info[i]);
   }
 }
@@ -684,8 +769,14 @@ gst_tensor_config_from_structure (GstTensorConfig * config,
     info->type = gst_tensor_get_type (type_str);
   }
 
-  gst_structure_get_fraction (structure, "framerate", &config->rate_n,
-      &config->rate_d);
+  if (gst_structure_has_field (structure, "framerate")) {
+    gst_structure_get_fraction (structure, "framerate", &config->rate_n,
+        &config->rate_d);
+  } else {
+    /* set default value */
+    config->rate_n = 0;
+    config->rate_d = 1;
+  }
 
   return TRUE;
 }
@@ -702,18 +793,22 @@ gst_tensor_caps_from_config (const GstTensorConfig * config)
 
   g_return_val_if_fail (config != NULL, NULL);
 
-  caps = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT);
+  if (gst_tensor_info_is_flexible (&config->info)) {
+    caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+  } else {
+    caps = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT);
 
-  if (gst_tensor_dimension_is_valid (config->info.dimension)) {
-    gchar *dim_str = gst_tensor_get_dimension_string (config->info.dimension);
+    if (gst_tensor_dimension_is_valid (config->info.dimension)) {
+      gchar *dim_str = gst_tensor_get_dimension_string (config->info.dimension);
 
-    gst_caps_set_simple (caps, "dimension", G_TYPE_STRING, dim_str, NULL);
-    g_free (dim_str);
-  }
+      gst_caps_set_simple (caps, "dimension", G_TYPE_STRING, dim_str, NULL);
+      g_free (dim_str);
+    }
 
-  if (config->info.type != _NNS_END) {
-    gst_caps_set_simple (caps, "type", G_TYPE_STRING,
-        gst_tensor_get_type_string (config->info.type), NULL);
+    if (config->info.type != _NNS_END) {
+      gst_caps_set_simple (caps, "type", G_TYPE_STRING,
+          gst_tensor_get_type_string (config->info.type), NULL);
+    }
   }
 
   if (config->rate_n >= 0 && config->rate_d > 0) {
@@ -791,6 +886,7 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
     const GstStructure * structure)
 {
   const gchar *name;
+  guint i;
 
   g_return_val_if_fail (config != NULL, FALSE);
   gst_tensors_config_init (config);
@@ -808,11 +904,10 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
     config->info.info[0] = c.info;
     config->rate_d = c.rate_d;
     config->rate_n = c.rate_n;
-  } else if (g_str_equal (name, NNS_MIMETYPE_TENSORS)) {
+  } else if (g_str_equal (name, NNS_MIMETYPE_TENSORS) ||
+      g_str_equal (name, NNS_MIMETYPE_TENSORS_FLEXIBLE)) {
     gst_structure_get_int (structure, "num_tensors",
         (gint *) (&config->info.num_tensors));
-    gst_structure_get_fraction (structure, "framerate", &config->rate_n,
-        &config->rate_d);
 
     if (config->info.num_tensors > NNS_TENSOR_SIZE_LIMIT) {
       GST_WARNING ("Invalid param, max size is %d", NNS_TENSOR_SIZE_LIMIT);
@@ -847,6 +942,21 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
         GST_WARNING ("Invalid param, types (%d) tensors (%d)\n",
             num_types, config->info.num_tensors);
       }
+    }
+
+    if (gst_structure_has_field (structure, "framerate")) {
+      gst_structure_get_fraction (structure, "framerate", &config->rate_n,
+          &config->rate_d);
+    } else {
+      /* set default value */
+      config->rate_n = 0;
+      config->rate_d = 1;
+    }
+
+    /* set flexible format */
+    if (g_str_equal (name, NNS_MIMETYPE_TENSORS_FLEXIBLE)) {
+      for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++)
+        config->info.info[i].format = _NNS_TENSOR_FORMAT_FLEXIBLE;
     }
   } else {
     GST_WARNING ("Unsupported type = %s\n", name ? name : "Unknown");
@@ -920,6 +1030,25 @@ _peer_has_tensor_caps (GstPad * pad)
 }
 
 /**
+ * @brief Check whether the peer connected to the pad is flexible tensor
+ * @param pad GstPad to check peer caps
+ * @return TRUE if other/tensor, FALSE if not
+ */
+static gboolean
+_peer_is_flexible_tensor_caps (GstPad * pad)
+{
+  GstTensorsConfig config;
+  gboolean fixed, flexible;
+
+  fixed = flexible = FALSE;
+
+  if (gst_tensors_config_from_peer (pad, &config, &fixed))
+    flexible = (fixed && gst_tensors_info_is_flexible (&config.info));
+
+  return flexible;
+}
+
+/**
  * @brief Get tensors caps from tensors config and caps of the peer connected to the pad
  * @param pad GstPad to check peer caps
  * @param config tensors config structure
@@ -929,11 +1058,25 @@ GstCaps *
 gst_tensors_get_pad_caps (GstPad * pad, const GstTensorsConfig * config)
 {
   GstCaps *caps = NULL;
+  gboolean is_flexible;
 
   g_return_val_if_fail (GST_IS_PAD (pad), NULL);
   g_return_val_if_fail (config != NULL, NULL);
 
-  if (config->info.num_tensors == 1 && _peer_has_tensor_caps (pad)) {
+  is_flexible = gst_tensors_info_is_flexible (&config->info);
+
+  /* check peer element is flexible */
+  if (!is_flexible)
+    is_flexible = _peer_is_flexible_tensor_caps (pad);
+
+  if (is_flexible) {
+    caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+
+    if (config->rate_n >= 0 && config->rate_d > 0) {
+      gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION,
+          config->rate_n, config->rate_d, NULL);
+    }
+  } else if (config->info.num_tensors == 1 && _peer_has_tensor_caps (pad)) {
     GstTensorConfig tensor_config;
 
     gst_tensor_config_init (&tensor_config);
@@ -960,21 +1103,25 @@ gst_tensors_caps_from_config (const GstTensorsConfig * config)
 
   g_return_val_if_fail (config != NULL, NULL);
 
-  caps = gst_caps_from_string (GST_TENSORS_CAP_DEFAULT);
+  if (gst_tensors_info_is_flexible (&config->info)) {
+    caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+  } else {
+    caps = gst_caps_from_string (GST_TENSORS_CAP_DEFAULT);
 
-  if (config->info.num_tensors > 0) {
-    gchar *dim_str, *type_str;
+    if (config->info.num_tensors > 0) {
+      gchar *dim_str, *type_str;
 
-    dim_str = gst_tensors_info_get_dimensions_string (&config->info);
-    type_str = gst_tensors_info_get_types_string (&config->info);
+      dim_str = gst_tensors_info_get_dimensions_string (&config->info);
+      type_str = gst_tensors_info_get_types_string (&config->info);
 
-    gst_caps_set_simple (caps, "num_tensors", G_TYPE_INT,
-        config->info.num_tensors, NULL);
-    gst_caps_set_simple (caps, "dimensions", G_TYPE_STRING, dim_str, NULL);
-    gst_caps_set_simple (caps, "types", G_TYPE_STRING, type_str, NULL);
+      gst_caps_set_simple (caps, "num_tensors", G_TYPE_INT,
+          config->info.num_tensors, NULL);
+      gst_caps_set_simple (caps, "dimensions", G_TYPE_STRING, dim_str, NULL);
+      gst_caps_set_simple (caps, "types", G_TYPE_STRING, type_str, NULL);
 
-    g_free (dim_str);
-    g_free (type_str);
+      g_free (dim_str);
+      g_free (type_str);
+    }
   }
 
   if (config->rate_n >= 0 && config->rate_d > 0) {
