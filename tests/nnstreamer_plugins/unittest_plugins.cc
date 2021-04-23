@@ -2798,6 +2798,100 @@ TEST (testTensorConverter, bytesToMultiInvalidFrames_n)
   gst_harness_teardown (h);
 }
 
+/**
+ * @brief Test for tensor_converter (flexible to static tensor)
+ */
+TEST (testTensorConverter, flexToStaticInvalidBuffer1_n)
+{
+  GstHarness *h;
+  GstBuffer *in_buf;
+  GstMemory *mem;
+  GstTensorsInfo info;
+  GstCaps *caps;
+  gpointer data;
+  gsize data_size;
+
+  h = gst_harness_new ("tensor_converter");
+
+  g_object_set (h->element, "input-dim", "3:4:2:2,3:4:2:2", "input-type",
+      "int32,int32", NULL);
+
+  /* in/out caps and tensors info */
+  caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+  gst_harness_set_src_caps (h, caps);
+
+  gst_tensors_info_init (&info);
+  info.num_tensors = 1;
+
+  info.info[0].type = _NNS_INT32;
+  gst_tensor_parse_dimension ("3:4:2:2", info.info[0].dimension);
+
+  /* push buffer (invalid number) */
+  in_buf = gst_buffer_new ();
+
+  data_size = gst_tensor_info_get_size (&info.info[0]);
+  data = g_malloc0 (data_size);
+  mem = gst_memory_new_wrapped (
+      GST_MEMORY_FLAG_READONLY, data, data_size, 0, data_size, data, g_free);
+  gst_buffer_append_memory (in_buf, mem);
+
+  EXPECT_NE (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_converter (flexible to static tensor)
+ */
+TEST (testTensorConverter, flexToStaticInvalidBuffer2_n)
+{
+  GstHarness *h;
+  GstBuffer *in_buf;
+  GstMemory *mem;
+  GstTensorsInfo info;
+  GstCaps *caps;
+  gpointer data;
+  gsize data_size;
+
+  h = gst_harness_new ("tensor_converter");
+
+  g_object_set (h->element, "input-dim", "3:4:2:2,3:4:2:2", "input-type",
+      "int32,int32", NULL);
+
+  /* in/out caps and tensors info */
+  caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+  gst_harness_set_src_caps (h, caps);
+
+  gst_tensors_info_init (&info);
+  info.num_tensors = 2;
+
+  info.info[0].type = _NNS_INT32;
+  gst_tensor_parse_dimension ("3:4:2:2", info.info[0].dimension);
+  info.info[1].type = _NNS_INT32;
+  gst_tensor_parse_dimension ("3:4:2:2", info.info[1].dimension);
+
+  /* push buffer (invalid buffer size) */
+  in_buf = gst_buffer_new ();
+
+  data_size = gst_tensor_info_get_size (&info.info[0]);
+  data = g_malloc0 (data_size);
+  mem = gst_memory_new_wrapped (
+      GST_MEMORY_FLAG_READONLY, data, data_size, 0, data_size, data, g_free);
+  gst_buffer_append_memory (in_buf, mem);
+
+  data_size = gst_tensor_info_get_size (&info.info[1]) / 2;
+  data = g_malloc0 (data_size);
+  mem = gst_memory_new_wrapped (
+      GST_MEMORY_FLAG_READONLY, data, data_size, 0, data_size, data, g_free);
+  gst_buffer_append_memory (in_buf, mem);
+
+  EXPECT_NE (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  gst_harness_teardown (h);
+}
+
 #ifdef HAVE_ORC
 #include "transform-orc.h"
 
