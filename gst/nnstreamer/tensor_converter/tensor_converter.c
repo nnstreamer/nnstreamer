@@ -78,6 +78,12 @@
     gst_caps_append (caps, gst_caps_from_string (OCTET_CAPS_STR))
 
 /**
+ * @brief Macro to append template caps for flexible tensor
+ */
+#define append_flex_tensor_caps_template(caps) \
+    gst_caps_append (caps, gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT))
+
+/**
  * @brief Macro for debug mode.
  */
 #ifndef DBG
@@ -287,8 +293,8 @@ gst_tensor_converter_class_init (GstTensorConverterClass * klass)
 
   /* set src pad template */
   pad_caps =
-      gst_caps_from_string (GST_TENSOR_CAP_DEFAULT "; "
-      GST_TENSORS_CAP_DEFAULT);
+      gst_caps_from_string (GST_TENSOR_CAP_DEFAULT ";"
+      GST_TENSORS_CAP_DEFAULT ";" GST_TENSORS_FLEX_CAP_DEFAULT);
 
   pad_template = gst_pad_template_new ("src", GST_PAD_SRC, GST_PAD_ALWAYS,
       pad_caps);
@@ -304,6 +310,7 @@ gst_tensor_converter_class_init (GstTensorConverterClass * klass)
   append_audio_caps_template (pad_caps);
   append_text_caps_template (pad_caps);
   append_octet_caps_template (pad_caps);
+  append_flex_tensor_caps_template (pad_caps);
 
   /* append sub-plugin template caps */
   str_array = get_all_subplugins (NNS_SUBPLUGIN_CONVERTER);
@@ -963,6 +970,13 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   frames_out = self->frames_per_tensor;
   inbuf = buf;
 
+  /**
+   * Supposed 1 frame in buffer (default).
+   * Update frame size for each media type.
+   */
+  frame_size = self->frame_size;
+  frames_in = 1;
+
   switch (self->in_media_type) {
     case _NNS_VIDEO:
     {
@@ -979,7 +993,6 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
       /** supposed 1 frame in buffer */
       g_assert ((buf_size / self->frame_size) == 1);
-      frames_in = 1;
 
       if (self->remove_padding) {
         GstMapInfo src_info, dest_info;
@@ -1029,14 +1042,9 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     }
     case _NNS_AUDIO:
       /* number of bytes for one frame */
-      frame_size = self->frame_size;
       frames_in = buf_size / frame_size;
       break;
     case _NNS_TEXT:
-      /* supposed 1 frame in buffer */
-      frame_size = self->frame_size;
-      frames_in = 1;
-
       if (buf_size != frame_size) {
         GstMapInfo src_info, dest_info;
         gsize block_size = MIN (buf_size, frame_size);
@@ -1066,11 +1074,41 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       break;
     case _NNS_OCTET:
       /** get frame size from the properties */
-      frame_size = self->frame_size;
-      g_assert (frame_size > 0);
       g_assert ((buf_size % frame_size) == 0);
       frames_in = buf_size / frame_size;
       break;
+    case _NNS_TENSOR:
+    {
+      GstMemory *mem;
+      gsize s1, s2;
+      guint n;
+
+      if (config->info.num_tensors != gst_buffer_n_memory (buf)) {
+        nns_loge ("Incoming buffer does not contain %u memories.",
+            config->info.num_tensors);
+        goto error;
+      }
+
+      /* compare data size */
+      for (n = 0; n < config->info.num_tensors; n++) {
+        mem = gst_buffer_peek_memory (buf, n);
+        s1 = gst_memory_get_sizes (mem, NULL, NULL);
+        s2 = gst_tensor_info_get_size (&config->info.info[n]);
+
+        /**
+         * @todo expand mem if given property is larger than mem size.
+         * Now compare same size, later we should modify mem block if developer sets different dimension.
+         */
+        if (s1 != s2) {
+          nns_loge
+              ("Incoming buffer has invalid data size %zd, expected size is %zd (%u/%u).",
+              s1, s2, (n + 1), config->info.num_tensors);
+          goto error;
+        }
+      }
+
+      break;
+    }
     case _NNS_MEDIA_ANY:
     {
       GstTensorsConfig new_config;
@@ -1544,7 +1582,7 @@ gst_tensor_converter_parse_octet (GstTensorConverter * self,
   }
 
   self->frame_size = gst_tensors_info_get_size (&config->info, -1);
-  return (config->info.info[0].type != _NNS_END);
+  return TRUE;
 }
 
 /**
@@ -1861,6 +1899,8 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
       frames_dim = 1;
       break;
     case _NNS_OCTET:
+    case _NNS_TENSOR:
+      /* byte array or flexible tensor to static tensor stream */
       if (!gst_tensor_converter_parse_octet (self, &config, structure)) {
         GST_ERROR_OBJECT (self, "Failed to configure tensors from octet info.");
         return FALSE;
@@ -1915,6 +1955,7 @@ gst_tensor_converter_update_caps (GstTensorConverter * self,
   /* Update pad caps. If it is different */
   curr_caps = gst_pad_get_current_caps (pad);
   if (curr_caps == NULL || !gst_caps_is_equal (curr_caps, out_caps)) {
+    silent_debug_caps (out_caps, "set out-caps");
     gst_pad_set_caps (pad, out_caps);
   }
 
