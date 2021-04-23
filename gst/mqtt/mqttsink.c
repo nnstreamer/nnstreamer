@@ -48,6 +48,7 @@ enum
   PROP_MQTT_OPT_CLEANSESSION,
   PROP_MQTT_OPT_KEEP_ALIVE_INTERVAL,
   PROP_NUM_BUFFERS,
+  PROP_MAX_MSG_BUF_SIZE,
 
   PROP_LAST
 };
@@ -61,6 +62,7 @@ enum
   DEFAULT_MQTT_OPT_KEEP_ALIVE_INTERVAL = 60,    /* 1 minute */
   DEFAULT_MQTT_DISCONNECT_TIMEOUT = 3000,       /* 3 secs */
   DEFAULT_MQTT_PUB_WAIT_TIMEOUT = 1,    /* 1 secs */
+  DEFAULT_MAX_MSG_BUF_SIZE = 0, /* Buffer size is not fixed */
 };
 
 static guint8 sink_client_id = 0;
@@ -113,6 +115,9 @@ static gint gst_mqtt_sink_get_opt_keep_alive_interval (GstMqttSink * self);
 static void gst_mqtt_sink_set_opt_keep_alive_interval (GstMqttSink * self,
     const gint num);
 
+static gsize gst_mqtt_sink_get_max_msg_buf_size (GstMqttSink * self);
+static void gst_mqtt_sink_set_max_msg_buf_size (GstMqttSink * self,
+    const gsize size);
 static gint gst_mqtt_sink_get_num_buffers (GstMqttSink * self);
 static void gst_mqtt_sink_set_num_buffers (GstMqttSink * self, const gint num);
 
@@ -166,6 +171,7 @@ gst_mqtt_sink_init (GstMqttSink * self)
 
   /** init mqttsink properties */
   self->num_buffers = DEFAULT_NUM_BUFFERS;
+  self->max_msg_buf_size = DEFAULT_MAX_MSG_BUF_SIZE;
   self->mqtt_client_id = g_strdup (DEFAULT_MQTT_CLIENT_ID);
   self->mqtt_host_address = g_strdup (DEFAULT_MQTT_HOST_ADDRESS);
   self->mqtt_host_port = g_strdup (DEFAULT_MQTT_HOST_PORT);
@@ -236,6 +242,13 @@ gst_mqtt_sink_class_init (GstMqttSinkClass * klass)
           1, G_MAXINT32, DEFAULT_MQTT_OPT_KEEP_ALIVE_INTERVAL,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_MAX_MSG_BUF_SIZE,
+      g_param_spec_ulong ("max-buffer-size",
+          "The maximum size of a message buffer",
+          "The maximum size in bytes of a message buffer (0 = dynamic buffer size)",
+          0, G_MAXULONG, DEFAULT_MAX_MSG_BUF_SIZE,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
   g_object_class_install_property (gobject_class, PROP_NUM_BUFFERS,
       g_param_spec_int ("num-buffers", "Num Buffers",
           "Number of (remaining) buffers to accept until sending EOS event (-1 = no limit)",
@@ -291,6 +304,9 @@ gst_mqtt_sink_set_property (GObject * object, guint prop_id,
     case PROP_MQTT_OPT_KEEP_ALIVE_INTERVAL:
       gst_mqtt_sink_set_opt_keep_alive_interval (self, g_value_get_int (value));
       break;
+    case PROP_MAX_MSG_BUF_SIZE:
+      gst_mqtt_sink_set_max_msg_buf_size (self, g_value_get_ulong (value));
+      break;
     case PROP_NUM_BUFFERS:
       gst_mqtt_sink_set_num_buffers (self, g_value_get_int (value));
       break;
@@ -330,6 +346,9 @@ gst_mqtt_sink_get_property (GObject * object, guint prop_id,
       break;
     case PROP_MQTT_OPT_KEEP_ALIVE_INTERVAL:
       g_value_set_int (value, gst_mqtt_sink_get_opt_keep_alive_interval (self));
+      break;
+    case PROP_MAX_MSG_BUF_SIZE:
+      g_value_set_ulong (value, gst_mqtt_sink_get_max_msg_buf_size (self));
       break;
     case PROP_NUM_BUFFERS:
       g_value_set_int (value, gst_mqtt_sink_get_num_buffers (self));
@@ -615,13 +634,29 @@ gst_mqtt_sink_render (GstBaseSink * basesink, GstBuffer * in_buf)
     self->num_buffers -= 1;
   }
 
+  /** Allocate a message buffer */
   if ((!self->mqtt_msg_buf) && (self->mqtt_msg_buf_size == 0)) {
     if (!_mqtt_set_msg_buf_hdr (in_buf, &self->mqtt_msg_hdr)) {
       ret = GST_FLOW_ERROR;
       goto ret_with;
     }
-    self->mqtt_msg_buf_size = gst_buffer_get_size (in_buf) +
-        GST_MQTT_LEN_MSG_HDR;
+
+    if (self->max_msg_buf_size == 0) {
+      self->mqtt_msg_buf_size = gst_buffer_get_size (in_buf) +
+          GST_MQTT_LEN_MSG_HDR;
+    } else {
+      gsize in_buf_size = gst_buffer_get_size (in_buf);
+
+      if (self->max_msg_buf_size < in_buf_size) {
+        g_printerr ("%s: The given size for a message buffer is too small: "
+            "given (%lu bytes) vs. incomming (%lu bytes)\n",
+            TAG_ERR_MQTTSINK, self->max_msg_buf_size, in_buf_size);
+        ret = GST_FLOW_ERROR;
+        goto ret_with;
+      }
+      self->mqtt_msg_buf_size = self->max_msg_buf_size + GST_MQTT_LEN_MSG_HDR;
+    }
+
     self->mqtt_msg_buf = g_malloc0 (self->mqtt_msg_buf_size);
     if (!self->mqtt_msg_buf) {
       self->mqtt_msg_buf_size = 0;
@@ -653,7 +688,7 @@ gst_mqtt_sink_render (GstBaseSink * basesink, GstBuffer * in_buf)
   memcpy (&msg_pub[sizeof (self->mqtt_msg_hdr)], in_buf_map.data,
       in_buf_map.size);
   mqtt_rc = MQTTAsync_send (self->mqtt_client_handle, self->mqtt_topic,
-      self->mqtt_msg_buf_size, self->mqtt_msg_buf, 0, 1,
+      GST_MQTT_LEN_MSG_HDR + in_buf_map.size, self->mqtt_msg_buf, 0, 1,
       &self->mqtt_respn_opts);
   if (mqtt_rc != MQTTASYNC_SUCCESS) {
     ret = GST_FLOW_ERROR;
@@ -852,6 +887,24 @@ static void
 gst_mqtt_sink_set_opt_keep_alive_interval (GstMqttSink * self, const gint num)
 {
   self->mqtt_conn_opts.keepAliveInterval = num;
+}
+
+/**
+ * @brief Getter for the 'max-buffer-size' property.
+ */
+static gsize
+gst_mqtt_sink_get_max_msg_buf_size (GstMqttSink * self)
+{
+  return self->max_msg_buf_size;
+}
+
+/**
+ * @brief Setter for the 'max-buffer-size' property.
+ */
+static void
+gst_mqtt_sink_set_max_msg_buf_size (GstMqttSink * self, const gsize size)
+{
+  self->max_msg_buf_size = size;
 }
 
 /**
