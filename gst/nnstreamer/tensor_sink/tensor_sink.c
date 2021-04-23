@@ -245,8 +245,8 @@ gst_tensor_sink_class_init (GstTensorSinkClass * klass)
       "Sink element to handle tensor stream", "Samsung Electronics Co., Ltd.");
 
   /** pad template */
-  pad_caps = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT "; "
-      GST_TENSORS_CAP_DEFAULT);
+  pad_caps = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT ";"
+      GST_TENSORS_CAP_DEFAULT ";" GST_TENSORS_FLEX_CAP_DEFAULT);
   pad_template = gst_pad_template_new ("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
       pad_caps);
   gst_element_class_add_pad_template (element_class, pad_template);
