@@ -1075,9 +1075,11 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
   GstMemory *out_mem;
   GArray *results = NULL;
   const guint num_tensors = config->info.num_tensors;
+  gboolean need_output_alloc;
 
   start_time = g_get_monotonic_time ();
   g_assert (outbuf);
+  need_output_alloc = gst_buffer_get_size (outbuf) == 0;
 
   if (_check_label_props (bdata))
     bdata->flag_use_label = TRUE;
@@ -1085,7 +1087,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
     bdata->flag_use_label = FALSE;
 
   /* Ensure we have outbuf properly allocated */
-  if (gst_buffer_get_size (outbuf) == 0) {
+  if (need_output_alloc) {
     out_mem = gst_allocator_alloc (NULL, size, NULL);
   } else {
     if (gst_buffer_get_size (outbuf) < size) {
@@ -1095,7 +1097,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
   }
   if (!gst_memory_map (out_mem, &out_info, GST_MAP_WRITE)) {
     ml_loge ("Cannot map output memory / tensordec-bounding_boxes.\n");
-    return GST_FLOW_ERROR;
+    goto error_free;
   }
 
   /** reset the buffer with alpha 0 / black */
@@ -1103,7 +1105,6 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
 
   if (_check_mode_is_mobilenet_ssd (bdata->mode)) {
     const GstTensorMemory *boxes, *detections = NULL;
-    results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), 100);
     /**
      * @todo 100 is a heuristic number of objects in a picture frame
      *       We may have better "heuristics" than this.
@@ -1112,6 +1113,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
 
     /* Already checked with getOutCaps. Thus, this is an internal bug */
     g_assert (num_tensors >= MOBILENET_SSD_MAX_TENSORS);
+    results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), 100);
 
     boxes = &input[0];
     if (num_tensors >= MOBILENET_SSD_MAX_TENSORS)
@@ -1135,9 +1137,6 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
   } else if (_check_mode_is_mobilenet_ssd_pp (bdata->mode)) {
     const GstTensorMemory *mem_num, *mem_classes, *mem_scores, *mem_boxes;
     int locations_idx, classes_idx, scores_idx, num_idx;
-    results =
-        g_array_sized_new (FALSE, TRUE, sizeof (detectedObject),
-        MOBILENET_SSD_PP_DETECTION_MAX);
 
     /* Already checked with getOutCaps. Thus, this is an internal bug */
     g_assert (num_tensors >= MOBILENET_SSD_PP_MAX_TENSORS);
@@ -1168,12 +1167,11 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
     }
   } else if ((bdata->mode == OV_PERSON_DETECTION_BOUNDING_BOX) ||
       (bdata->mode == OV_FACE_DETECTION_BOUNDING_BOX)) {
-    results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject),
-        OV_PERSON_DETECTION_MAX);
-
     /* Already checked with getOutCaps. Thus, this is an internal bug */
     g_assert (num_tensors >= OV_PERSON_DETECTION_MAX_TENSORS);
 
+    results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject),
+        OV_PERSON_DETECTION_MAX);
     switch (config->info.info[0].type) {
         _get_persons_ov (bdata, uint8_t, input[0].data, _NNS_UINT8, results);
         _get_persons_ov (bdata, int8_t, input[0].data, _NNS_INT8, results);
@@ -1190,19 +1188,28 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
     }
   } else {
     GST_ERROR ("Failed to get output buffer, unknown mode %d.", bdata->mode);
-    return GST_FLOW_ERROR;
+    goto error_unmap;
   }
 
   draw (&out_info, bdata, results);
-  g_array_free (results, FALSE);
+  g_array_free (results, TRUE);
 
   gst_memory_unmap (out_mem, &out_info);
 
-  if (gst_buffer_get_size (outbuf) == 0)
+  if (need_output_alloc)
     gst_buffer_append_memory (outbuf, out_mem);
+  else
+    gst_memory_unref (out_mem);
 
   stop_time = g_get_monotonic_time ();
   return GST_FLOW_OK;
+
+error_unmap:
+  gst_memory_unmap (out_mem, &out_info);
+error_free:
+  gst_memory_unref (out_mem);
+
+  return GST_FLOW_ERROR;
 }
 
 static gchar decoder_subplugin_bounding_box[] = "bounding_boxes";

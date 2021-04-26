@@ -612,14 +612,15 @@ is_decode (void **pdata, const GstTensorsConfig * config,
 
   if (need_output_alloc)
     gst_buffer_append_memory (outbuf, out_mem);
+  else
+    gst_memory_unref (out_mem);
 
   return GST_FLOW_OK;
 
 error_unmap:
   gst_memory_unmap (out_mem, &out_info);
 error_free:
-  if (need_output_alloc)
-    gst_allocator_free (NULL, out_mem);
+  gst_memory_unref (out_mem);
 
   return GST_FLOW_ERROR;
 }

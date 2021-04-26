@@ -137,6 +137,7 @@ fbd_decode (void **pdata, const GstTensorsConfig *config,
   }
 
   if (!gst_memory_map (out_mem, &out_info, GST_MAP_WRITE)) {
+    gst_memory_unref (out_mem);
     nns_loge ("Cannot map gst memory (tensor decoder flatbuf)\n");
     return GST_FLOW_ERROR;
   }
@@ -147,6 +148,8 @@ fbd_decode (void **pdata, const GstTensorsConfig *config,
 
   if (gst_buffer_get_size (outbuf) == 0)
     gst_buffer_append_memory (outbuf, out_mem);
+  else
+    gst_memory_unref (out_mem);
 
   return GST_FLOW_OK;
 }

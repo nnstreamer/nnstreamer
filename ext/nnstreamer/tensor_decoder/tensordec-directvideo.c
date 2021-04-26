@@ -303,13 +303,14 @@ dv_decode (void **pdata, const GstTensorsConfig * config,
   }
   g_assert (config->info.info[0].type == _NNS_UINT8);
 
-  if (gst_buffer_get_size (outbuf) == size) {
+  if (gst_buffer_get_size (outbuf) == 0) {
+    out_mem = gst_allocator_alloc (NULL, size, NULL);
+  } else {
     /* Don't reallocate. Reuse what's already given */
     out_mem = gst_buffer_get_all_memory (outbuf);
-  } else {
-    out_mem = gst_allocator_alloc (NULL, size, NULL);
   }
   if (!gst_memory_map (out_mem, &out_info, GST_MAP_WRITE)) {
+    gst_memory_unref (out_mem);
     ml_loge ("Cannot map output memory / tensordec-directvideo.\n");
     return GST_FLOW_ERROR;
   }
@@ -334,6 +335,8 @@ dv_decode (void **pdata, const GstTensorsConfig * config,
 
   if (gst_buffer_get_size (outbuf) == 0)
     gst_buffer_append_memory (outbuf, out_mem);
+  else
+    gst_memory_unref (out_mem);
 
   /** @todo Caller of dv_decode in tensordec.c should call gst_memory_unmap to inbuf */
 
