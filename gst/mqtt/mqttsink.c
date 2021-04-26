@@ -94,6 +94,7 @@ gst_mqtt_sink_render (GstBaseSink * basesink, GstBuffer * buffer);
 static GstFlowReturn
 gst_mqtt_sink_render_list (GstBaseSink * basesink, GstBufferList * list);
 static gboolean gst_mqtt_sink_event (GstBaseSink * basesink, GstEvent * event);
+static gboolean gst_mqtt_sink_set_caps (GstBaseSink * basesink, GstCaps * caps);
 static gchar *gst_mqtt_sink_get_client_id (GstMqttSink * self);
 static void gst_mqtt_sink_set_client_id (GstMqttSink * self, const gchar * id);
 static gchar *gst_mqtt_sink_get_host_address (GstMqttSink * self);
@@ -168,6 +169,7 @@ gst_mqtt_sink_init (GstMqttSink * self)
   self->mqtt_msg_buf_size = 0;
   memset (&self->mqtt_msg_hdr, 0x0, sizeof (self->mqtt_msg_hdr));
   self->base_time_epoch = GST_CLOCK_TIME_NONE;
+  self->in_caps = NULL;
 
   /** init mqttsink properties */
   self->num_buffers = DEFAULT_NUM_BUFFERS;
@@ -264,6 +266,7 @@ gst_mqtt_sink_class_init (GstMqttSinkClass * klass)
   gstbasesink_class->render_list =
       GST_DEBUG_FUNCPTR (gst_mqtt_sink_render_list);
   gstbasesink_class->event = GST_DEBUG_FUNCPTR (gst_mqtt_sink_event);
+  gstbasesink_class->set_caps = GST_DEBUG_FUNCPTR (gst_mqtt_sink_set_caps);
 
   gst_element_class_set_static_metadata (gstelement_class,
       "MQTT sink", "Sink/MQTT",
@@ -372,6 +375,8 @@ gst_mqtt_sink_class_finalize (GObject * object)
   g_free (self->mqtt_client_handle);
   if (self->err)
     g_error_free (self->err);
+  if (self->in_caps)
+    gst_caps_unref (self->in_caps);
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -760,6 +765,28 @@ gst_mqtt_sink_event (GstBaseSink * basesink, GstEvent * event)
   }
 
   ret = GST_BASE_SINK_CLASS (parent_class)->event (basesink, event);
+
+  return ret;
+}
+
+/**
+ * @brief An implementation of the set_caps vmethod in GstBaseSinkClass
+ */
+static gboolean
+gst_mqtt_sink_set_caps (GstBaseSink * basesink, GstCaps * caps)
+{
+  GstMqttSink *self = GST_MQTT_SINK (basesink);
+  gboolean ret;
+
+  ret = gst_caps_replace (&self->in_caps, caps);
+
+  if (ret && gst_caps_is_fixed (self->in_caps)) {
+    char *caps_str = gst_caps_to_string (caps);
+
+    strncpy (self->mqtt_msg_hdr.gst_caps_str, caps_str,
+        MIN (strlen (caps_str), GST_MQTT_MAX_LEN_GST_CPAS_STR - 1));
+    g_free (caps_str);
+  }
 
   return ret;
 }

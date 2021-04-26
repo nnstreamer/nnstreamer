@@ -59,6 +59,7 @@ typedef enum _mqtt_sink_state_t {
  */
 struct _GstMqttSink {
   GstBaseSink parent;
+  GstCaps *in_caps;
   guint num_buffers;
   gsize max_msg_buf_size;
   GQuark gquark_err_tag;
