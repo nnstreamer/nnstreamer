@@ -375,12 +375,15 @@ gst_tensor_merge_sink_event (GstCollectPads * pads, GstCollectData * data,
  */
 static gboolean
 gst_tensor_merge_get_merged_config (GstTensorMerge * tensor_merge,
-    GstTensorsConfig * configs, GstTensorConfig * config)
+    const GstTensorsConfig * configs, GstTensorConfig * config)
 {
   gboolean ret = FALSE;
   int i, j;
   tensor_dim dim;
   tensor_type type;
+
+  gst_tensor_config_init (config);
+
   type = configs->info.info[0].type;
   memcpy (&dim, &configs->info.info[0].dimension, sizeof (tensor_dim));
 

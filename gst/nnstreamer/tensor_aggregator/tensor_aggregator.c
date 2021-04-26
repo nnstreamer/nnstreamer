@@ -992,17 +992,17 @@ gst_tensor_aggregator_query_caps (GstTensorAggregator * self, GstPad * pad,
     GstCaps * filter)
 {
   GstCaps *caps;
-  GstTensorConfig config;
+  GstTensorConfig *config;
 
   /* tensor config info for given pad */
   if (pad == self->sinkpad) {
-    config = self->in_config;
+    config = &self->in_config;
   } else {
-    config = self->out_config;
+    config = &self->out_config;
   }
 
   /* caps from tensor config info */
-  caps = gst_tensor_caps_from_config (&config);
+  caps = gst_tensor_caps_from_config (config);
 
   silent_debug_caps (caps, "caps");
   silent_debug_caps (filter, "filter");
