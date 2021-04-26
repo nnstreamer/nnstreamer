@@ -95,7 +95,11 @@ typedef enum {
   TEST_TYPE_FLEX_TENSOR_1, /**< pipeline for flexible tensor (sink) */
   TEST_TYPE_FLEX_TENSOR_2, /**< pipeline for flexible tensor (converter, static multi-tensors to flex) */
   TEST_TYPE_FLEX_TENSOR_3, /**< pipeline for flexible tensor (converter, flex to static) */
-  TEST_TYPE_TENSORS, /**< pipeline for tensors with tensor_mux */
+  TEST_TYPE_TENSORS_MUX_1, /**< pipeline for tensors with tensor_mux (static tensor stream) */
+  TEST_TYPE_TENSORS_MUX_2, /**< pipeline for tensors with tensor_mux (static and flex tensor stream combined) */
+  TEST_TYPE_TENSORS_MUX_3, /**< pipeline for tensors with tensor_mux, tensor_demux (static and flex tensor stream combined) */
+  TEST_TYPE_TENSORS_FLEX_NEGO_FAILED_1, /**< pipeline for nego failure case (mux, cannot link flex and static pad) */
+  TEST_TYPE_TENSORS_FLEX_NEGO_FAILED_2, /**< pipeline for nego failure case (demux, cannot link flex and static pad) */
   TEST_TYPE_TENSORS_MIX_1, /**< pipeline for tensors with tensor_mux, tensor_demux */
   TEST_TYPE_TENSORS_MIX_2, /**< pipeline for tensors with tensor_mux, tensor_demux pick 0,2 */
   TEST_TYPE_TENSORS_MIX_3, /**< pipeline for tensors with tensor_mux, tensor_demux pick 1,2 */
@@ -713,12 +717,48 @@ _setup_pipeline (TestOption &option)
         "appsrc name=appsrc caps=other/tensors-flexible,framerate=(fraction)10/1 ! "
         "tensor_converter name=convert input-dim=10 input-type=int8 ! tensor_sink name=test_sink");
     break;
-  case TEST_TYPE_TENSORS:
+  case TEST_TYPE_TENSORS_MUX_1:
     /** other/tensors with tensor_mux */
     str_pipeline = g_strdup_printf (
         "tensor_mux name=mux ! tensor_sink name=test_sink "
         "videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_0 "
         "videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_1",
+        option.num_buffers, option.num_buffers);
+    break;
+  case TEST_TYPE_TENSORS_MUX_2:
+    /** other/tensors with tensor_mux (flex-tensor) */
+    str_pipeline = g_strdup_printf (
+        "tensor_mux name=mux ! tensor_sink name=test_sink "
+        "videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_0 "
+        "videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! other/tensors-flexible ! mux.sink_1",
+        option.num_buffers, option.num_buffers);
+    break;
+  case TEST_TYPE_TENSORS_MUX_3:
+    /** other/tensors with tensor_mux, tensor_demux (flex-tensor) */
+    str_pipeline = g_strdup_printf (
+        "tensor_mux name=mux ! tensor_demux name=demux "
+        "videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_0 "
+        "videotestsrc num-buffers=%d ! video/x-raw,width=320,height=240,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! other/tensors-flexible ! mux.sink_1 "
+        "demux.src_0 ! queue ! tensor_sink "
+        "demux.src_1 ! queue ! tensor_sink name=test_sink",
+        option.num_buffers, option.num_buffers);
+    break;
+  case TEST_TYPE_TENSORS_FLEX_NEGO_FAILED_1:
+    /** tensor_mux nego failure case */
+    str_pipeline = g_strdup_printf (
+        "tensor_mux name=mux ! other/tensors ! tensor_sink name=test_sink "
+        "videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_0 "
+        "videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! other/tensors-flexible ! mux.sink_1",
+        option.num_buffers, option.num_buffers);
+    break;
+  case TEST_TYPE_TENSORS_FLEX_NEGO_FAILED_2:
+    /** tensor_demux nego failure case */
+    str_pipeline = g_strdup_printf (
+        "tensor_mux name=mux ! other/tensors-flexible ! tensor_demux name=demux "
+        "videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_0 "
+        "videotestsrc num-buffers=%d ! video/x-raw,width=320,height=240,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_1 "
+        "demux.src_0 ! queue ! tensor_sink "
+        "demux.src_1 ! queue ! other/tensors ! tensor_sink name=test_sink",
         option.num_buffers, option.num_buffers);
     break;
   case TEST_TYPE_TENSORS_MIX_1:
@@ -1346,12 +1386,12 @@ TEST (tensorSinkTest, capsError_n)
 }
 
 /**
- * @brief Test for other/tensors caps negotiation.
+ * @brief Test for other/tensors with tensor_mux.
  */
-TEST (tensorSinkTest, capsTensors)
+TEST (tensorStreamTest, muxStaticTensors)
 {
   const guint num_buffers = 5;
-  TestOption option = { num_buffers, TEST_TYPE_TENSORS };
+  TestOption option = { num_buffers, TEST_TYPE_TENSORS_MUX_1 };
   guint i;
 
   ASSERT_TRUE (_setup_pipeline (option));
@@ -1371,7 +1411,7 @@ TEST (tensorSinkTest, capsTensors)
   EXPECT_EQ (g_test_data.received_size, 3U * 160 * 120 * 2);
 
   /** check caps name */
-  EXPECT_STREQ (g_test_data.caps_name, "other/tensors");
+  EXPECT_STREQ (g_test_data.caps_name, NNS_MIMETYPE_TENSORS);
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
@@ -1409,6 +1449,133 @@ TEST (tensorSinkTest, capsTensors)
 
   EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data (option);
+}
+
+/**
+ * @brief Test for other/tensors-flexible with tensor_mux.
+ */
+TEST (tensorStreamTest, muxFlexTensors)
+{
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_TENSORS_MUX_2 };
+  guint i;
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.mem_blocks, 2U);
+  EXPECT_EQ (g_test_data.received_size, 3U * 160 * 120 * 2);
+
+  /** check caps name */
+  EXPECT_STREQ (g_test_data.caps_name, NNS_MIMETYPE_TENSORS_FLEXIBLE);
+
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  /** check tensors config for flex tensor */
+  EXPECT_TRUE (gst_tensors_config_validate (&g_test_data.tensors_config));
+  EXPECT_EQ (g_test_data.tensors_config.info.num_tensors, 2U);
+
+  for (i = 0; i < g_test_data.tensors_config.info.num_tensors; i++) {
+    EXPECT_EQ (g_test_data.tensors_config.info.info[i].dimension[0], 3U * 160 * 120);
+  }
+
+  EXPECT_EQ (g_test_data.tensors_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data (option);
+}
+
+/**
+ * @brief Test for other/tensors-flexible with tensor_mux and tensor_demux.
+ */
+TEST (tensorStreamTest, demuxFlexTensors)
+{
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_TENSORS_MUX_3 };
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.mem_blocks, 1U);
+  EXPECT_EQ (g_test_data.received_size, 3U * 320 * 240);
+
+  /** check caps name */
+  EXPECT_STREQ (g_test_data.caps_name, NNS_MIMETYPE_TENSORS_FLEXIBLE);
+
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  /** check tensor config for flex tensor */
+  EXPECT_TRUE (gst_tensors_config_validate (&g_test_data.tensors_config));
+  EXPECT_EQ (g_test_data.tensors_config.info.num_tensors, 1U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 3U * 320 * 240);
+  EXPECT_EQ (g_test_data.tensors_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data (option);
+}
+
+/**
+ * @brief Test for other/tensors-flexible with tensor_mux (nego failure).
+ */
+TEST (tensorStreamTest, muxFlexNegoFailed_n)
+{
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_TENSORS_FLEX_NEGO_FAILED_1 };
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /* failed : cannot link mux (flex) and tensor_sink (static) */
+  EXPECT_EQ (g_test_data.status, TEST_ERR_MESSAGE);
+  EXPECT_EQ (g_test_data.received, 0U);
+}
+
+/**
+ * @brief Test for other/tensors-flexible with tensor_demux (nego failure).
+ */
+TEST (tensorStreamTest, demuxFlexNegoFailed_n)
+{
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_TENSORS_FLEX_NEGO_FAILED_2 };
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+  g_usleep (jitter);
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /* failed : cannot link demux (flex) and tensor_sink (static) */
+  EXPECT_EQ (g_test_data.status, TEST_ERR_MESSAGE);
+  EXPECT_EQ (g_test_data.received, 0U);
 }
 
 /**
