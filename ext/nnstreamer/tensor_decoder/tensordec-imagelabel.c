@@ -218,6 +218,7 @@ il_decode (void **pdata, const GstTensorsConfig * config,
 
   if (!gst_memory_map (out_mem, &out_info, GST_MAP_WRITE)) {
     ml_loge ("Cannot map output memory / tensordec-imagelabel.\n");
+    gst_memory_unref (out_mem);
     return GST_FLOW_ERROR;
   }
 
@@ -227,6 +228,8 @@ il_decode (void **pdata, const GstTensorsConfig * config,
 
   if (gst_buffer_get_size (outbuf) == 0)
     gst_buffer_append_memory (outbuf, out_mem);
+  else
+    gst_memory_unref (out_mem);
 
   return GST_FLOW_OK;
 }

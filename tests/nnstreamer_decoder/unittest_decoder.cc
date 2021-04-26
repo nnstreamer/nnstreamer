@@ -76,8 +76,7 @@ tensor_decoder_custom_cb (const GstTensorMemory *input,
   }
 
   if (!gst_memory_map (out_mem, &out_info, GST_MAP_WRITE)) {
-    if (need_alloc)
-      gst_allocator_free (NULL, out_mem);
+    gst_memory_unref (out_mem);
     nns_loge ("Cannot map gst memory (tensor decoder custom)\n");
     return GST_FLOW_ERROR;
   }
@@ -88,6 +87,8 @@ tensor_decoder_custom_cb (const GstTensorMemory *input,
 
   if (need_alloc)
     gst_buffer_append_memory (out_buf, out_mem);
+  else
+    gst_memory_unref (out_mem);
 
   return GST_FLOW_OK;
 }

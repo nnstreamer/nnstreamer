@@ -717,6 +717,7 @@ pose_decode (void **pdata, const GstTensorsConfig * config,
     out_mem = gst_buffer_get_all_memory (outbuf);
   }
   if (!gst_memory_map (out_mem, &out_info, GST_MAP_WRITE)) {
+    gst_memory_unref (out_mem);
     ml_loge ("Cannot map output memory / tensordec-pose.\n");
     return GST_FLOW_ERROR;
   }
@@ -780,6 +781,9 @@ pose_decode (void **pdata, const GstTensorsConfig * config,
   gst_memory_unmap (out_mem, &out_info);
   if (gst_buffer_get_size (outbuf) == 0)
     gst_buffer_append_memory (outbuf, out_mem);
+  else
+    gst_memory_unref (out_mem);
+
   return GST_FLOW_OK;
 }
 

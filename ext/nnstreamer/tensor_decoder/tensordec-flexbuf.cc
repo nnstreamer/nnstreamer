@@ -162,8 +162,7 @@ flxd_decode (void **pdata, const GstTensorsConfig *config,
   }
 
   if (!gst_memory_map (out_mem, &out_info, GST_MAP_WRITE)) {
-    if (need_alloc)
-      gst_allocator_free (NULL, out_mem);
+    gst_memory_unref (out_mem);
     nns_loge ("Cannot map gst memory (tensor decoder flexbuf)\n");
     return GST_FLOW_ERROR;
   }
@@ -174,6 +173,8 @@ flxd_decode (void **pdata, const GstTensorsConfig *config,
 
   if (need_alloc)
     gst_buffer_append_memory (outbuf, out_mem);
+  else
+    gst_memory_unref (out_mem);
 
   return GST_FLOW_OK;
 }
