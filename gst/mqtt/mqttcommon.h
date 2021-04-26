@@ -21,7 +21,8 @@
 #define GST_MQTT_ELEM_NAME_SINK "mqttsink"
 #define GST_MQTT_ELEM_NAME_SRC "mqttsrc"
 
-#define GST_MQTT_LEN_MSG_HDR    512
+#define GST_MQTT_LEN_MSG_HDR          1024
+#define GST_MQTT_MAX_LEN_GST_CPAS_STR 512
 /**
  * @brief GST_BUFFER_MEM_MAX in gstreamer/gstbuffer.c is 16 so that 15 memory
  * slots ramained in GstBuffer, which we are going to publish and subscribe.
@@ -47,6 +48,7 @@ typedef struct _GstMQTTMessageHdr {
       GstClockTime duration;
       GstClockTime dts;
       GstClockTime pts;
+      gchar gst_caps_str[GST_MQTT_MAX_LEN_GST_CPAS_STR];
     };
     guint8 _reserved_hdr[GST_MQTT_LEN_MSG_HDR];
   };
