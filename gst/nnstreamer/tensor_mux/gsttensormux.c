@@ -94,7 +94,12 @@ enum
 /**
  * @brief Default caps string for sink pad.
  */
-#define CAPS_STRING_SINK GST_TENSOR_CAP_DEFAULT "; " GST_TENSORS_CAP_DEFAULT
+#define CAPS_STRING_SINK GST_TENSOR_CAP_DEFAULT ";" GST_TENSORS_CAP_DEFAULT ";" GST_TENSORS_FLEX_CAP_DEFAULT
+
+/**
+ * @brief Default caps string for src pad.
+ */
+#define CAPS_STRING_SRC GST_TENSORS_CAP_DEFAULT ";" GST_TENSORS_FLEX_CAP_DEFAULT
 
 /**
  * @brief the capabilities of the inputs and outputs.
@@ -103,7 +108,7 @@ enum
 static GstStaticPadTemplate src_templ = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_TENSORS_CAP_DEFAULT)
+    GST_STATIC_CAPS (CAPS_STRING_SRC)
     );
 
 static GstStaticPadTemplate sink_templ = GST_STATIC_PAD_TEMPLATE ("sink_%u",
