@@ -1558,6 +1558,7 @@ gst_tensor_src_iio_create_config (GstTensorSrcIIO * tensor_src_iio)
   }
 
   /** compile tensor info data */
+  gst_tensor_info_init (info);
   for (list = tensor_src_iio->channels; list != NULL; list = list->next) {
     channel_prop = (GstTensorSrcIIOChannelProperties *) list->data;
     if (!channel_prop->enabled)
@@ -2208,6 +2209,8 @@ gst_tensor_src_iio_fixate (GstBaseSrc * src, GstCaps * caps)
 
   if (self->is_tensor) {
     GstTensorConfig tensor_config;
+
+    gst_tensor_config_init (&tensor_config);
     gst_tensor_info_copy (&tensor_config.info,
         &(self->tensors_config->info.info[0]));
     tensor_config.rate_n = self->tensors_config->rate_n;

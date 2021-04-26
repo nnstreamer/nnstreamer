@@ -907,9 +907,12 @@ gst_tensors_get_caps (GstPad * pad, const GstTensorsConfig * config)
 
   if (config->info.num_tensors == 1 && gst_pad_peer_has_tensor_caps (pad)) {
     GstTensorConfig tensor_config;
+
+    gst_tensor_config_init (&tensor_config);
     tensor_config.info = config->info.info[0];
     tensor_config.rate_n = config->rate_n;
     tensor_config.rate_d = config->rate_d;
+
     caps = gst_tensor_caps_from_config (&tensor_config);
   } else {
     caps = gst_tensors_caps_from_config (config);
