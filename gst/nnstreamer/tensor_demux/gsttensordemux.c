@@ -70,7 +70,16 @@
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_demux_debug);
 #define GST_CAT_DEFAULT gst_tensor_demux_debug
-#define CAPS_STRING GST_TENSOR_CAP_DEFAULT "; " GST_TENSORS_CAP_DEFAULT
+
+/**
+ * @brief Default caps string for sink pad.
+ */
+#define CAPS_STRING_SINK GST_TENSORS_CAP_DEFAULT ";" GST_TENSORS_FLEX_CAP_DEFAULT
+
+/**
+ * @brief Default caps string for src pad.
+ */
+#define CAPS_STRING_SRC GST_TENSOR_CAP_DEFAULT ";" GST_TENSORS_CAP_DEFAULT ";" GST_TENSORS_FLEX_CAP_DEFAULT
 
 enum
 {
@@ -86,13 +95,13 @@ enum
 static GstStaticPadTemplate src_templ = GST_STATIC_PAD_TEMPLATE ("src_%u",
     GST_PAD_SRC,
     GST_PAD_SOMETIMES,
-    GST_STATIC_CAPS (CAPS_STRING)
+    GST_STATIC_CAPS (CAPS_STRING_SRC)
     );
 
 static GstStaticPadTemplate sink_templ = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_TENSORS_CAP_DEFAULT)
+    GST_STATIC_CAPS (CAPS_STRING_SINK)
     );
 
 static GstFlowReturn gst_tensor_demux_chain (GstPad * pad, GstObject * parent,
@@ -463,11 +472,16 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   GList *list = NULL;
   tensor_demux = GST_TENSOR_DEMUX (parent);
 
-  num_tensors = tensor_demux->tensors_config.info.num_tensors;
-  GST_DEBUG_OBJECT (tensor_demux, " Number of Tensors: %d", num_tensors);
+  if (gst_tensors_info_is_flexible (&tensor_demux->tensors_config.info)) {
+    /* cannot get exact number of tensors from config */
+    num_tensors = gst_buffer_n_memory (buf);
+  } else {
+    num_tensors = tensor_demux->tensors_config.info.num_tensors;
 
-  /* supposed n memory blocks in buffer */
-  g_assert (gst_buffer_n_memory (buf) == num_tensors);
+    /* supposed n memory blocks in buffer */
+    g_assert (gst_buffer_n_memory (buf) == num_tensors);
+  }
+  GST_DEBUG_OBJECT (tensor_demux, " Number of Tensors: %d", num_tensors);
 
   num_srcs = num_tensors;
   if (tensor_demux->tensorpick != NULL) {
