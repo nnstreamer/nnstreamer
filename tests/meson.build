@@ -153,6 +153,18 @@ if gtest_dep.found()
     test('unittest_filter_armnn', unittest_filter_armnn, env: testenv)
   endif
 
+  # TVM unittest
+  if tvm_support_is_available
+    unittest_filter_tvm = executable('unittest_filter_tvm',
+      join_paths('nnstreamer_filter_tvm', 'unittest_filter_tvm.cc'),
+      dependencies: [unittest_util_dep, glib_dep, gst_dep, nnstreamer_dep, gtest_dep, tvm_dep],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+
+    test('unittest_filter_tvm', unittest_filter_tvm, env: testenv)
+  endif
+
   # Run unittest_decoder
   if flatbuf_support_is_available
     unittest_decoder = executable('unittest_decoder',
