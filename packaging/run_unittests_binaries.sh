@@ -30,7 +30,7 @@ run_entry() {
     TEST_PYTHONPATH=$(pwd)
     export PYTHONPATH=${TEST_PYTHONPATH}
     if [[ ! -f ${TEST_PYTHONPATH}/nnstreamer_python.so ]]; then
-      ln -sf ../nnstreamer_${PY}.so nnstreamer_python.so
+      ln -sf ../../extra/nnstreamer_${PY}.so nnstreamer_python.so
     fi
     popd
     popd

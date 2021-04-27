@@ -37,8 +37,8 @@ if caffe2_support_is_available
 endif
 
 if have_python3
-  extensions += [['python3', 'python3', nnstreamer_filter_python3_deps, 'passthrough.py', 'python3-get']]
-  extensions += [['python3', 'python3', nnstreamer_filter_python3_deps, 'scaler.py', 'python3-set']]
+  extensions += [['python3', 'python3', nnstreamer_python3_deps, 'passthrough.py', 'python3-get']]
+  extensions += [['python3', 'python3', nnstreamer_python3_deps, 'scaler.py', 'python3-set']]
 endif
 
 sed_command = find_program('sed', required: true)
@@ -87,20 +87,12 @@ foreach ext : extensions
   filter_ext_common_testenv.set('NNSTREAMER_CONVERTERS', path_nns_plugin_converters)
   filter_ext_common_testenv.set('NNSTREAMER_SOURCE_ROOT_PATH', meson.source_root())
 
-  if ext[0] == 'python2'
-    py2_module_path = join_paths(meson.build_root(), 'tests/' + ext[0] + '_module')
-    run_command('rm', '-rf', py2_module_path, check : true)
-    run_command('mkdir', '-p', py2_module_path, check : true)
-    run_command('ln', '-sf',
-        join_paths(meson.build_root(), 'ext/nnstreamer/tensor_filter/nnstreamer_python2.' + so_ext),
-        py2_module_path + '/nnstreamer_python.so', check : true)
-    filter_ext_common_testenv.set('PYTHONPATH', py2_module_path)
-  elif ext[0] == 'python3'
+  if ext[0] == 'python3'
     py3_module_path = join_paths(meson.build_root(), 'tests/' + ext[0] + '_module')
     run_command('rm', '-rf', py3_module_path, check : true)
     run_command('mkdir', '-p', py3_module_path, check : true)
     run_command('ln', '-sf',
-        join_paths(meson.build_root(), 'ext/nnstreamer/tensor_filter/nnstreamer_python3.' + so_ext),
+        join_paths(meson.build_root(), 'ext/nnstreamer/extra/nnstreamer_python3.' + so_ext),
         py3_module_path + '/nnstreamer_python.so', check : true)
     filter_ext_common_testenv.set('PYTHONPATH', py3_module_path)
   endif
