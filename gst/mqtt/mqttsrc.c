@@ -82,6 +82,7 @@ gst_mqtt_src_change_state (GstElement * element, GstStateChange transition);
 static gboolean gst_mqtt_src_start (GstBaseSrc * basesrc);
 static gboolean gst_mqtt_src_stop (GstBaseSrc * basesrc);
 static GstCaps *gst_mqtt_src_get_caps (GstBaseSrc * basesrc, GstCaps * filter);
+static gboolean gst_mqtt_src_renegotiate (GstBaseSrc * basesrc);
 
 static void
 gst_mqtt_src_get_times (GstBaseSrc * basesrc, GstBuffer * buffer,
@@ -180,6 +181,7 @@ gst_mqtt_src_init (GstMqttSrc * self)
   g_cond_init (&self->mqtt_src_gcond);
   g_mutex_init (&self->mqtt_src_mutex);
   self->base_time_epoch = GST_CLOCK_TIME_NONE;
+  self->caps = NULL;
 }
 
 /**
@@ -343,6 +345,8 @@ gst_mqtt_src_class_finalize (GObject * object)
   g_free (self->mqtt_client_handle);
   if (self->err)
     g_error_free (self->err);
+  if (self->caps)
+    gst_caps_unref (self->caps);
 
   g_clear_pointer (&self->aqueue, g_async_queue_unref);
 
@@ -470,7 +474,7 @@ gst_mqtt_src_stop (GstBaseSrc * basesrc)
 static GstCaps *
 gst_mqtt_src_get_caps (GstBaseSrc * basesrc, GstCaps * filter)
 {
-  GstPad *pad = basesrc->srcpad;
+  GstPad *pad = GST_BASE_SRC_PAD (basesrc);
   GstCaps *cur_caps = gst_pad_get_current_caps (pad);
   GstCaps *caps = gst_caps_new_any ();
 
@@ -484,6 +488,67 @@ gst_mqtt_src_get_caps (GstBaseSrc * basesrc, GstCaps * filter)
   }
 
   return caps;
+}
+
+/**
+ * @brief Do negotiation procedure again if it needed
+ */
+static gboolean
+gst_mqtt_src_renegotiate (GstBaseSrc * basesrc)
+{
+  GstMqttSrc *self = GST_MQTT_SRC (basesrc);
+  GstCaps *caps = NULL;
+  GstCaps *peercaps = NULL;
+  GstCaps *thiscaps;
+  gboolean result = FALSE;
+  GstCaps *fixed_caps = NULL;
+
+  if (self->caps == NULL || gst_caps_is_any (self->caps))
+    goto no_nego_needed;
+
+  thiscaps = gst_pad_query_caps (GST_BASE_SRC_PAD (basesrc), NULL);
+  if (thiscaps && gst_caps_is_equal (self->caps, thiscaps)) {
+    gst_caps_unref (thiscaps);
+    goto no_nego_needed;
+  }
+
+  peercaps = gst_pad_peer_query_caps (GST_BASE_SRC_PAD (basesrc), self->caps);
+  if (peercaps) {
+    caps = gst_caps_ref (peercaps);
+    if (peercaps != self->caps)
+      gst_caps_unref (peercaps);
+  } else {
+    caps = gst_caps_ref (self->caps);
+  }
+
+  if (caps && !gst_caps_is_empty (caps)) {
+    if (gst_caps_is_any (caps)) {
+      result = TRUE;
+    } else {
+      fixed_caps = gst_caps_fixate (caps);
+
+      if (fixed_caps && gst_caps_is_fixed (fixed_caps)) {
+        result = gst_base_src_set_caps (basesrc, fixed_caps);
+        if (peercaps == self->caps)
+          gst_caps_unref (fixed_caps);
+      }
+    }
+    gst_caps_unref (caps);
+  } else {
+    result = FALSE;
+  }
+
+  if (thiscaps)
+    gst_caps_unref (thiscaps);
+
+  return result;
+
+no_nego_needed:
+  {
+    GST_DEBUG_OBJECT (self, "no negotiation needed");
+
+    return TRUE;
+  }
 }
 
 /**
@@ -751,6 +816,7 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
   GstMemory *recieved_mem;
   GstMemory *hdr_mem;
   GstBuffer *buffer;
+  GstCaps *recv_caps;
   GstMqttSrc *self;
   gsize offset;
   guint i;
@@ -774,6 +840,18 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
     goto ret_unref_recieved_mem;
   }
 
+  recv_caps = gst_caps_from_string (mqtt_msg_hdr->gst_caps_str);
+  if (recv_caps) {
+    GstBaseSrc *basesrc = GST_BASE_SRC (self);
+
+    if (!self->caps) {
+      gst_caps_take (&self->caps, recv_caps);
+    } else if (!gst_caps_is_equal (self->caps, recv_caps)) {
+      gst_caps_replace (&self->caps, recv_caps);
+    }
+    gst_mqtt_src_renegotiate (basesrc);
+  }
+
   buffer = gst_buffer_new ();
   offset = GST_MQTT_LEN_MSG_HDR;
   for (i = 0; i < mqtt_msg_hdr->num_mems; ++i) {
@@ -785,6 +863,7 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
     gst_buffer_append_memory (buffer, each_memory);
     offset += each_size;
   }
+
   /** Timestamp synchronization */
   _put_timestamp_on_gst_buf (self, mqtt_msg_hdr, buffer);
   g_async_queue_push (self->aqueue, buffer);

@@ -45,6 +45,7 @@ typedef struct _GstMqttSrcClass GstMqttSrcClass;
  */
 struct _GstMqttSrc {
   GstBaseSrc parent;
+  GstCaps *caps;
   GQuark gquark_err_tag;
   GError *err;
   gint64 base_time_epoch;
