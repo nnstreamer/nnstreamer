@@ -188,6 +188,20 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
     guint prop_id, GValue * value, GParamSpec * pspec);
 
 /**
+ * @brief Configure output tensor info with combi option.
+ */
+extern gboolean
+gst_tensor_filter_common_get_combined_info (GstTensorFilterPrivate * priv,
+    const GstTensorsInfo * in, const GstTensorsInfo * out, GstTensorsInfo * combined);
+
+/**
+ * @brief Get output tensor info from NN model with given input info.
+ */
+extern gboolean
+gst_tensor_filter_common_get_out_info (GstTensorFilterPrivate * priv,
+    GstTensorsInfo * in, GstTensorsInfo * out);
+
+/**
  * @brief Load tensor info from NN model.
  * (both input and output tensor)
  */
