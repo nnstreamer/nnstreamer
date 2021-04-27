@@ -774,18 +774,9 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
     /** call setInputDimension if output tensor is not configured */
     if (!prop->output_configured) {
       GstTensorsInfo out_info;
-      int res;
 
-      gst_tensors_info_init (&out_info);
-      if (GST_TF_FW_V0 (priv->fw)) {
-        gst_tensor_filter_v0_call (priv, res, setInputDimension,
-            &prop->input_meta, &out_info);
-      } else {
-        gst_tensor_filter_v1_call (priv, res, getModelInfo, SET_INPUT_INFO,
-            &prop->input_meta, &out_info);
-      }
-
-      if (res == 0) {
+      if (gst_tensor_filter_common_get_out_info (priv, &prop->input_meta,
+              &out_info)) {
         /** if set-property called and already has info, verify it! */
         if (prop->output_meta.num_tensors > 0) {
           if (!gst_tensors_info_is_equal (&out_info, &prop->output_meta)) {
@@ -815,30 +806,14 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
      * GstTensorFilter cannot assure the framerate.
      * Simply set the framerate of out-tensor from incaps.
      */
-    if (priv->combi.out_combi_i_defined || priv->combi.out_combi_o_defined) {
-      GList *list;
-      gint i, idx = 0;
-
-      if (priv->combi.out_combi_i_defined) {
-        for (list = priv->combi.out_combi_i; list != NULL; list = list->next) {
-          i = GPOINTER_TO_INT (list->data);
-          gst_tensor_info_copy (&out_config.info.info[idx++],
-              &in_config.info.info[i]);
-        }
-      }
-      if (priv->combi.out_combi_o_defined) {
-        for (list = priv->combi.out_combi_o; list != NULL; list = list->next) {
-          i = GPOINTER_TO_INT (list->data);
-          gst_tensor_info_copy (&out_config.info.info[idx++],
-              &prop->output_meta.info[i]);
-        }
-      }
-      out_config.info.num_tensors = idx;
-    } else {
-      gst_tensors_info_copy (&out_config.info, &prop->output_meta);
-    }
     out_config.rate_n = in_config.rate_n;
     out_config.rate_d = in_config.rate_d;
+
+    if (!gst_tensor_filter_common_get_combined_info (priv, &in_config.info,
+            &prop->output_meta, &out_config.info)) {
+      GST_ERROR_OBJECT (self, "Failed to configure combined info.");
+      goto done;
+    }
 
     if (priv->configured) {
       /** already configured, compare to old. */
@@ -866,17 +841,22 @@ done:
  * @brief Get caps for given config.
  * @param self "this" pointer
  * @param config tensor config info
+ * @param is_output flag to check the config info is for src-pad.
  */
 static GstCaps *
 gst_tensor_filter_caps_from_config (GstTensorFilter * self,
-    GstTensorsConfig * config)
+    GstTensorsConfig * config, gboolean is_output)
 {
-  GstPad *src_pad;
+  GstPad *pad;
 
   g_return_val_if_fail (config != NULL, NULL);
-  src_pad = GST_BASE_TRANSFORM_SRC_PAD (&self->element);
 
-  return gst_tensors_get_caps (src_pad, config);
+  if (is_output)
+    pad = GST_BASE_TRANSFORM_SRC_PAD (&self->element);
+  else
+    pad = GST_BASE_TRANSFORM_SINK_PAD (&self->element);
+
+  return gst_tensors_get_caps (pad, config);
 }
 
 /**
@@ -896,9 +876,10 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
   GstTensorFilter *self;
   GstTensorFilterPrivate *priv;
   GstTensorFilterProperties *prop;
-  GstTensorsConfig config;
+  GstTensorsConfig in_config, out_config;
   GstCaps *result;
   GstStructure *structure;
+  gboolean configured = FALSE;
 
   self = GST_TENSOR_FILTER_CAST (trans);
   priv = &self->priv;
@@ -908,7 +889,8 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
   if (priv->fw == NULL)
     return NULL;
 
-  gst_tensors_config_init (&config);
+  gst_tensors_config_init (&in_config);
+  gst_tensors_config_init (&out_config);
 
   silent_debug_caps (caps, "from");
   silent_debug_caps (filter, "filter");
@@ -924,86 +906,50 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
   gst_tensor_filter_load_tensor_info (&self->priv);
 
   structure = gst_caps_get_structure (caps, 0);
-  gst_tensors_config_from_structure (&config, structure);
+  gst_tensors_config_from_structure (&in_config, structure);
+
+  /* set framerate from input config */
+  out_config.rate_n = in_config.rate_n;
+  out_config.rate_d = in_config.rate_d;
 
   if (direction == GST_PAD_SINK) {
-    GstTensorsConfig src_config;
+    GstTensorsInfo out_info;
 
-    src_config.rate_n = config.rate_n;
-    src_config.rate_d = config.rate_d;
+    gst_tensors_info_init (&out_info);
 
     /* caps: sink pad. get src pad info */
     if (prop->output_configured) {
       /* caps with sub-plugin's tensor info */
-      src_config.info = prop->output_meta;
-      result = gst_tensor_filter_caps_from_config (self, &src_config);
+      gst_tensors_info_copy (&out_info, &prop->output_meta);
+      configured = TRUE;
     } else {
       /* check in-tensor info to call setInputDimension */
-      if (gst_tensors_info_validate (&config.info)) {
-        GstTensorsInfo out_info;
-        int res = -1;
-
-        /* call setInputDimension with given input tensor */
-        gst_tensors_info_init (&out_info);
-        if (GST_TF_FW_V0 (priv->fw)) {
-          gst_tensor_filter_v0_call (priv, res, setInputDimension,
-              &config.info, &out_info);
-        } else {
-          gst_tensor_filter_v1_call (priv, res, getModelInfo, SET_INPUT_INFO,
-              &config.info, &out_info);
-        }
-
-        if (res == 0) {
-          src_config.info = out_info;
-          result = gst_tensor_filter_caps_from_config (self, &src_config);
-        } else {
-          GST_ERROR_OBJECT (self, "Cannot get the output tensor info.");
-          result = gst_caps_from_string (CAPS_STRING);
-        }
-
-        gst_tensors_info_free (&out_info);
-      } else {
-        /* we don't know the exact tensor info yet */
-        result = gst_caps_from_string (CAPS_STRING);
-      }
+      configured = gst_tensor_filter_common_get_out_info (priv,
+          &in_config.info, &out_info);
     }
+
     /* If output combibation option is given, reconfigure tensor info */
-    if (priv->combi.out_combi_i_defined || priv->combi.out_combi_o_defined) {
-      GList *list;
-      gint i, idx = 0;
-      GstTensorsConfig combi_config;
+    if (configured)
+      configured = gst_tensor_filter_common_get_combined_info (priv,
+          &in_config.info, &out_info, &out_config.info);
 
-      combi_config.rate_n = config.rate_n;
-      combi_config.rate_d = config.rate_d;
-      gst_caps_unref (result);
-
-      if (priv->combi.out_combi_i_defined) {
-        for (list = priv->combi.out_combi_i; list != NULL; list = list->next) {
-          i = GPOINTER_TO_INT (list->data);
-          gst_tensor_info_copy (&combi_config.info.info[idx++],
-              &config.info.info[i]);
-        }
-      }
-      if (priv->combi.out_combi_o_defined) {
-        for (list = priv->combi.out_combi_o; list != NULL; list = list->next) {
-          i = GPOINTER_TO_INT (list->data);
-          gst_tensor_info_copy (&combi_config.info.info[idx++],
-              &src_config.info.info[i]);
-        }
-      }
-      combi_config.info.num_tensors = idx;
-      result = gst_tensor_filter_caps_from_config (self, &combi_config);
-    }
+    gst_tensors_info_free (&out_info);
   } else {
     /* caps: src pad. get sink pad info */
     if (prop->input_configured && !priv->combi.in_combi_defined) {
       /* caps with sub-plugin's tensor info */
-      config.info = prop->input_meta;
-      result = gst_tensor_filter_caps_from_config (self, &config);
-    } else {
-      /* we don't know the exact tensor info from src pad caps */
-      result = gst_caps_from_string (CAPS_STRING);
+      gst_tensors_info_copy (&out_config.info, &prop->input_meta);
+      configured = TRUE;
     }
+  }
+
+  if (configured) {
+    /* output info may be configured */
+    result = gst_tensor_filter_caps_from_config (self, &out_config,
+        (direction == GST_PAD_SINK));
+  } else {
+    /* we don't know the exact tensor info yet */
+    result = gst_caps_from_string (CAPS_STRING);
   }
 
   if (filter && gst_caps_get_size (filter) > 0) {
@@ -1023,6 +969,8 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
   }
 
   silent_debug_caps (result, "to");
+  gst_tensors_info_free (&in_config.info);
+  gst_tensors_info_free (&out_config.info);
   return result;
 }
 

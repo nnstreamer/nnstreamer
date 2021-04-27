@@ -2114,6 +2114,96 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
 }
 
 /**
+ * @brief Configure output tensor info with combi option.
+ */
+gboolean
+gst_tensor_filter_common_get_combined_info (GstTensorFilterPrivate * priv,
+    const GstTensorsInfo * in, const GstTensorsInfo * out,
+    GstTensorsInfo * combined)
+{
+  GList *list;
+  guint i, idx = 0;
+
+  g_return_val_if_fail (in != NULL, FALSE);
+  g_return_val_if_fail (out != NULL, FALSE);
+  g_return_val_if_fail (combined != NULL, FALSE);
+
+  gst_tensors_info_init (combined);
+
+  if (priv->combi.out_combi_i_defined || priv->combi.out_combi_o_defined) {
+    if (priv->combi.out_combi_i_defined) {
+      for (list = priv->combi.out_combi_i; list != NULL; list = list->next) {
+        i = GPOINTER_TO_INT (list->data);
+
+        if (i >= in->num_tensors) {
+          nns_loge ("Invalid input index %u, failed to combine info.", i);
+          goto error;
+        }
+
+        gst_tensor_info_copy (&combined->info[idx++], &in->info[i]);
+      }
+    }
+
+    if (priv->combi.out_combi_o_defined) {
+      for (list = priv->combi.out_combi_o; list != NULL; list = list->next) {
+        i = GPOINTER_TO_INT (list->data);
+
+        if (i >= out->num_tensors) {
+          nns_loge ("Invalid output index %u, failed to combine info.", i);
+          goto error;
+        }
+
+        gst_tensor_info_copy (&combined->info[idx++], &out->info[i]);
+      }
+    }
+
+    combined->num_tensors = idx;
+  } else {
+    gst_tensors_info_copy (combined, out);
+  }
+
+  return TRUE;
+
+error:
+  gst_tensors_info_free (combined);
+  return FALSE;
+}
+
+/**
+ * @brief Get output tensor info from NN model with given input info.
+ */
+gboolean
+gst_tensor_filter_common_get_out_info (GstTensorFilterPrivate * priv,
+    GstTensorsInfo * in, GstTensorsInfo * out)
+{
+  int r = -1;
+
+  g_return_val_if_fail (in != NULL, FALSE);
+  g_return_val_if_fail (out != NULL, FALSE);
+
+  gst_tensors_info_init (out);
+
+  if (!gst_tensors_info_validate (in)) {
+    nns_logw ("Given input info is invalid, cannot get output info.");
+    return FALSE;
+  }
+
+  /* call setInputDimension with given input tensor */
+  if (GST_TF_FW_V0 (priv->fw)) {
+    gst_tensor_filter_v0_call (priv, r, setInputDimension, in, out);
+  } else {
+    gst_tensor_filter_v1_call (priv, r, getModelInfo, SET_INPUT_INFO, in, out);
+  }
+
+  if (r != 0) {
+    nns_loge ("Failed to get output info from NN model.");
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+/**
  * @brief Load tensor info from NN model.
  * (both input and output tensor)
  */
