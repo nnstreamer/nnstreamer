@@ -371,8 +371,14 @@ gst_mqtt_sink_class_finalize (GObject * object)
   GstMqttSink *self = GST_MQTT_SINK (object);
 
   g_free (self->mqtt_host_address);
+  self->mqtt_host_address = NULL;
   g_free (self->mqtt_host_port);
+  self->mqtt_host_port = NULL;
   g_free (self->mqtt_client_handle);
+  self->mqtt_client_handle = NULL;
+  g_free (self->mqtt_msg_buf);
+  self->mqtt_msg_buf = NULL;
+
   if (self->err)
     g_error_free (self->err);
   if (self->in_caps)
