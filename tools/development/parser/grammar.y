@@ -160,19 +160,27 @@ static int  gst_resolve_reference(reference_t *rr, _Element *pipeline){
 
   if (__GST_IS_BIN (pipeline)){
     bin = __GST_BIN (pipeline);
-    rr->element = gst_bin_get_by_name_recurse_up (bin, rr->name);
+    rr->element = nnstparser_bin_get_by_name_recurse_up (bin, rr->name);
   } else {
-    rr->element = strcmp (GST_ELEMENT_NAME (pipeline), rr->name) == 0 ?
-		gst_object_ref(pipeline) : NULL;
+    rr->element = strcmp (__GST_ELEMENT_NAME (pipeline), rr->name) == 0 ?
+            nnstparser_element_ref(pipeline) : NULL;
   }
   if(rr->element) return 0; /* resolved */
   else            return -1; /* not found */
 }
 
+static void nnstparser_element_set_property (_Element *element, gchar *key, gchar *value)
+{
+  /* Assign a "name=value" pair to element */
+  if (g_strcmp0 (key, "name") == 0) {
+    g_free (element->name);
+    element->name = strdup (value);
+  }
+}
+
 static void nnstparser_element_set (gchar *value, _Element *element, graph_t *graph)
 {
   gchar *pos = value;
-  _Property *prop;
 
   /* do nothing if assignment is for missing element */
   if (element == NULL)
@@ -197,11 +205,7 @@ static void nnstparser_element_set (gchar *value, _Element *element, graph_t *gr
   }
   gst_parse_unescape (pos);
 
-  /* Assign a "name=value" pair to element */
-  prop = g_new0 (_Property, 1);
-  prop->name = g_strdup (value);
-  prop->value = g_strdup (pos);
-  element->properties = g_slist_prepend (element->properties, prop);
+  nnstparser_element_set_property (element, value, pos);
 
 out:
   g_free (value);
@@ -232,7 +236,7 @@ static void gst_parse_free_chain (chain_t *ch)
   gst_parse_free_reference (&(ch->first));
   gst_parse_free_reference (&(ch->last));
   for(walk=ch->elements;walk;walk=walk->next)
-    gst_object_unref (walk->data);
+    nnstparser_element_unref (walk->data);
   g_slist_free (ch->elements);
   g_slice_free (chain_t, ch);
 }
@@ -240,7 +244,7 @@ static void gst_parse_free_chain (chain_t *ch)
 #define PRETTY_PAD_NAME_FMT "%s %s of %s named %s"
 #define PRETTY_PAD_NAME_ARGS(elem, pad_name) \
   (pad_name ? "pad " : "some"), (pad_name ? pad_name : "pad"), \
-  elem->element, GST_STR_NULL (GST_ELEMENT_NAME (elem))
+  elem->element, __GST_STR_NULL (__GST_ELEMENT_NAME (elem))
 
 /*
  * performs a link and frees the struct. src and sink elements must be given
@@ -250,12 +254,12 @@ static void gst_parse_free_chain (chain_t *ch)
 static gint
 gst_parse_perform_link (link_t *link, graph_t *graph)
 {
-  GstElement *src = link->src.element;
-  GstElement *sink = link->sink.element;
+  _Element *src = link->src.element;
+  _Element *sink = link->sink.element;
   GSList *srcs = link->src.pads;
   GSList *sinks = link->sink.pads;
-  g_assert (GST_IS_ELEMENT (src));
-  g_assert (GST_IS_ELEMENT (sink));
+  g_assert (__GST_IS_ELEMENT (src));
+  g_assert (__GST_IS_ELEMENT (sink));
 
   g_info ("linking " PRETTY_PAD_NAME_FMT " to " PRETTY_PAD_NAME_FMT " (%u/%u)\n",
       PRETTY_PAD_NAME_ARGS (src, link->src.name),
@@ -263,7 +267,7 @@ gst_parse_perform_link (link_t *link, graph_t *graph)
       g_slist_length (srcs), g_slist_length (sinks));
 
   if (!srcs || !sinks) {
-    gboolean found_one = gst_element_link_pads_filtered (src,
+    gboolean found_one = nnstparser_element_link_pads_filtered (src,
         srcs ? (const gchar *) srcs->data : NULL, sink,
         sinks ? (const gchar *) sinks->data : NULL, link->caps);
 
@@ -272,11 +276,10 @@ gst_parse_perform_link (link_t *link, graph_t *graph)
         goto success; /* Linked one, and not an all-pads link = we're done */
 
       /* Try and link more available pads */
-      while (gst_element_link_pads_filtered (src,
+      while (nnstparser_element_link_pads_filtered (src,
         srcs ? (const gchar *) srcs->data : NULL, sink,
         sinks ? (const gchar *) sinks->data : NULL, link->caps));
     }
-
     goto error;
   }
   if (g_slist_length (link->src.pads) != g_slist_length (link->sink.pads)) {
@@ -287,7 +290,7 @@ gst_parse_perform_link (link_t *link, graph_t *graph)
     const gchar *sink_pad = (const gchar *) sinks->data;
     srcs = g_slist_next (srcs);
     sinks = g_slist_next (sinks);
-    if (gst_element_link_pads_filtered (src, src_pad, sink, sink_pad,
+    if (nnstparser_element_link_pads_filtered (src, src_pad, sink, sink_pad,
         link->caps)) {
       continue;
     } else {
@@ -313,7 +316,7 @@ static int yyerror (void *scanner, graph_t *graph, const char *s);
     chain_t *cc;
     link_t *ll;
     reference_t rr;
-    GstElement *ee;
+    _Element *ee;
     GSList *pp;
     graph_t *gg;
 }
@@ -336,15 +339,15 @@ static int yyerror (void *scanner, graph_t *graph, const char *s);
 %type <ee> element
 %type <pp> morepads pads assignments
 
-%destructor {	gst_parse_strfree ($$);		} <ss>
+%destructor {	g_free ($$);		} <ss>
 %destructor {	if($$)
 		  gst_parse_free_chain($$);	} <cc>
 %destructor {	gst_parse_free_link ($$);	} <ll>
 %destructor {	gst_parse_free_reference(&($$));} <rr>
-%destructor {	gst_object_unref ($$);		} <ee>
+%destructor {	nnstparser_element_unref ($$);		} <ee>
 %destructor {	GSList *walk;
 		for(walk=$$;walk;walk=walk->next)
-		  gst_parse_strfree (walk->data);
+		  g_free (walk->data);
 		g_slist_free ($$);		} <pp>
 
 
@@ -374,7 +377,7 @@ static int yyerror (void *scanner, graph_t *graph, const char *s);
 element:	IDENTIFIER     		      { $$ = nnstparser_element_make ($1, NULL);
 						if ($$ == NULL) {
 						  add_missing_element(graph, $1);
-						  SET_ERROR (graph->error, GST_PARSE_ERROR_NO_SUCH_ELEMENT, "no element \"%s\"", $1);
+						  SET_ERROR (graph->error, GST2PBTXT_PARSE_ERROR_NO_SUCH_ELEMENT, "no element \"%s\"", $1);
 						}
 						g_free ($1);
                                               }
@@ -394,8 +397,8 @@ element:	IDENTIFIER     		      { $$ = nnstparser_element_make ($1, NULL);
 **************************************************************/
 elementary:
 	element				      { $$ = g_slice_new0 (chain_t);
-						$$->first.element = $1? ($1) : NULL;
-						$$->last.element = $1? ($1) : NULL;
+						$$->first.element = $1? nnstparser_element_ref ($1) : NULL;
+						$$->last.element = $1? nnstparser_element_ref ($1) : NULL;
 						$$->first.name = $$->last.name = NULL;
 						$$->first.pads = $$->last.pads = NULL;
 						$$->elements = $1 ? g_slist_prepend (NULL, $1) : NULL;
@@ -433,13 +436,13 @@ elementary:
 **************************************************************/
 chain:	openchain			      { $$=$1;
 						if($$->last.name){
-							SET_ERROR (graph->error, GST_PARSE_ERROR_SYNTAX,
+							SET_ERROR (graph->error, GST2PBTXT_PARSE_ERROR_SYNTAX,
 							"unexpected reference \"%s\" - ignoring", $$->last.name);
 							g_free ($$->last.name);
 							$$->last.name=NULL;
 						}
 						if($$->last.pads){
-							SET_ERROR (graph->error, GST_PARSE_ERROR_SYNTAX,
+							SET_ERROR (graph->error, GST2PBTXT_PARSE_ERROR_SYNTAX,
 							"unexpected pad-reference \"%s\" - ignoring", (gchar*)$$->last.pads->data);
 							g_slist_foreach ($$->last.pads, (GFunc) g_free, NULL);
 							g_slist_free ($$->last.pads);
@@ -460,7 +463,7 @@ openchain:
 						TRY_SETUP_LINK($2);
 						$4->first = $1->first;
 						$4->elements = g_slist_concat ($1->elements, $4->elements);
-						g_slice_free ($1);
+						g_slice_free (chain_t, $1);
 						$$ = $4;
 						$$->last.pads = g_slist_concat ($$->last.pads, $5);
 					      }
@@ -502,7 +505,7 @@ morepads:	/* NOP */		      { $$ = NULL; }
 chain:	openchain link PARSE_URL	      { _Element *element =
 							  nnstparser_element_from_uri (GST_URI_SINK, $3, NULL, NULL);
 						$$ = $1;
-						$2->sink.element = element;
+						$2->sink.element = element ? nnstparser_element_ref (element) : NULL;
 						$2->src = $1->last;
 						TRY_SETUP_LINK($2);
 						$$->last.element = NULL;
@@ -513,13 +516,13 @@ chain:	openchain link PARSE_URL	      { _Element *element =
 					      }
 	;
 openchain:
-	PARSE_URL			      { GstElement *element =
+	PARSE_URL			      { _Element *element =
 							  nnstparser_element_from_uri (GST_URI_SRC, $1, NULL, NULL);
 						$$ = g_slice_new0 (chain_t);
 						$$->first.element = NULL;
 						$$->first.name = NULL;
 						$$->first.pads = NULL;
-						$$->last.element = element ? gst_object_ref(element):NULL;
+						$$->last.element = element ? nnstparser_element_ref(element):NULL;
 						$$->last.name = NULL;
 						$$->last.pads = NULL;
 						$$->elements = g_slist_prepend (NULL, element);
@@ -602,7 +605,7 @@ chainlist: /* NOP */			      { $$ = NULL; }
 					      }
 	| chainlist error		      { $$=$1;
 						g_debug ("trying to recover from syntax error");
-						SET_ERROR (graph->error, GST_PARSE_ERROR_SYNTAX, "syntax error");
+						SET_ERROR (graph->error, GST2PBTXT_PARSE_ERROR_SYNTAX, "syntax error");
 					      }
 	;
 
@@ -624,9 +627,9 @@ bin:	binopener assignments chainlist ')'   {
 						GSList *walk;
 						_Element *bin = nnstparser_gstbin_make ($1, NULL);
 						if (!chain) {
-						  SET_ERROR (graph->error, GST_PARSE_ERROR_EMPTY_BIN,
+						  SET_ERROR (graph->error, GST2PBTXT_PARSE_ERROR_EMPTY_BIN,
 						    "specified empty bin \"%s\", not allowed", $1);
-						  chain = gst_parse_chain_new ();
+						  chain = g_slice_new0 (chain_t);
 						  chain->first.element = chain->last.element = NULL;
 						  chain->first.name    = chain->last.name    = NULL;
 						  chain->first.pads    = chain->last.pads    = NULL;
@@ -634,7 +637,7 @@ bin:	binopener assignments chainlist ')'   {
 						}
 						if (!bin) {
 						  add_missing_element(graph, $1);
-						  SET_ERROR (graph->error, GST_PARSE_ERROR_NO_SUCH_ELEMENT,
+						  SET_ERROR (graph->error, GST2PBTXT_PARSE_ERROR_NO_SUCH_ELEMENT,
 						    "no bin \"%s\", unpacking elements", $1);
 						  /* clear property-list */
 						  g_slist_foreach ($2, (GFunc) g_free, NULL);
@@ -671,7 +674,7 @@ bin:	binopener assignments chainlist ')'   {
 graph:	chainlist			      { $$ = graph;
 						$$->chain = $1;
 						if(!$1) {
-						  SET_ERROR (graph->error, GST_PARSE_ERROR_EMPTY, "empty pipeline not allowed");
+						  SET_ERROR (graph->error, GST2PBTXT_PARSE_ERROR_EMPTY, "empty pipeline not allowed");
 						}
 					      }
 	;
@@ -688,15 +691,15 @@ yyerror (void *scanner, graph_t *graph, const char *s)
 }
 
 
-GstElement *
-priv_gst_parse_launch (const gchar *str, GError **error, GstParseContext *ctx,
-    GstParseFlags flags)
+_Element *
+priv_gst_parse_launch (const gchar *str, GError **error, _ParseContext *ctx,
+    _ParseFlags flags)
 {
   graph_t g;
   gchar *dstr;
   GSList *walk;
-  GstBin *bin = NULL;
-  GstElement *ret;
+  _Element *bin = NULL;
+  _Element *ret;
   yyscan_t scanner;
 
   g_return_val_if_fail (str != NULL, NULL);
@@ -719,7 +722,7 @@ priv_gst_parse_launch (const gchar *str, GError **error, GstParseContext *ctx,
   g_info ("The given string: %s\n", str);
 
   if (yyparse (scanner, &g) != 0) {
-    SET_ERROR (error, GST_PARSE_ERROR_SYNTAX,
+    SET_ERROR (error, GST2PBTXT_PARSE_ERROR_SYNTAX,
         "Unrecoverable syntax error while parsing pipeline %s", str);
 
     priv_gst_parse_yylex_destroy (scanner);
@@ -735,73 +738,70 @@ priv_gst_parse_launch (const gchar *str, GError **error, GstParseContext *ctx,
       g_slist_length (g.links));
 
   /* ensure chain is not NULL */
-  if (!g.chain){
-    g.chain=g_slice_new0 (chain_t);
-    g.chain->elements=NULL;
-    g.chain->first.element=NULL;
-    g.chain->first.name=NULL;
-    g.chain->first.pads=NULL;
-    g.chain->last.element=NULL;
-    g.chain->last.name=NULL;
-    g.chain->last.pads=NULL;
-  };
+  if (!g.chain) {
+    g.chain = g_slice_new0 (chain_t);
+    g.chain->elements = NULL;
+    g.chain->first.element = NULL;
+    g.chain->first.name = NULL;
+    g.chain->first.pads = NULL;
+    g.chain->last.element = NULL;
+    g.chain->last.name = NULL;
+    g.chain->last.pads = NULL;
+  }
 
   /* ensure elements is not empty */
-  if(!g.chain->elements){
-    g.chain->elements= g_slist_prepend (NULL, NULL);
+  if (!g.chain->elements) {
+    g.chain->elements = g_slist_prepend (NULL, NULL);
   };
 
   /* put all elements in our bin if necessary */
-  if(g.chain->elements->next){
-    if (flags & GST_PARSE_FLAG_PLACE_IN_BIN)
-      bin = __GST_BIN (gst_element_factory_make ("bin", NULL));
-    else
-      bin = __GST_BIN (gst_element_factory_make ("pipeline", NULL));
+  if (g.chain->elements->next) {
+    bin = __GST_BIN_CAST (nnstparser_gstbin_make ("bin", NULL));
     g_assert (bin);
 
     for (walk = g.chain->elements; walk; walk = walk->next) {
       if (walk->data != NULL)
-        gst_bin_add (bin, GST_ELEMENT (walk->data));
+        nnstparser_bin_add (bin, __GST_ELEMENT_CAST (walk->data));
     }
     g_slist_free (g.chain->elements);
     g.chain->elements = g_slist_prepend (NULL, bin);
   }
 
-  ret = (GstElement *) g.chain->elements->data;
+  ret = (_Element *) g.chain->elements->data;
   g_slist_free (g.chain->elements);
-  g.chain->elements=NULL;
+  g.chain->elements = NULL;
   if (__GST_IS_BIN (ret))
     bin = __GST_BIN (ret);
   gst_parse_free_chain (g.chain);
   g.chain = NULL;
 
-
   /* resolve and perform links */
   for (walk = g.links; walk; walk = walk->next) {
     link_t *l = (link_t *) walk->data;
     int err;
-    err=gst_resolve_reference( &(l->src), ret);
+
+    err = gst_resolve_reference( &(l->src), ret);
     if (err) {
-       if(-1==err){
-          SET_ERROR (error, GST_PARSE_ERROR_NO_SUCH_ELEMENT,
+       if (-1 == err){
+          SET_ERROR (error, GST2PBTXT_PARSE_ERROR_NO_SUCH_ELEMENT,
               "No src-element named \"%s\" - omitting link", l->src.name);
-       }else{
+       } else {
           /* probably a missing element which we've handled already */
-          SET_ERROR (error, GST_PARSE_ERROR_NO_SUCH_ELEMENT,
+          SET_ERROR (error, GST2PBTXT_PARSE_ERROR_NO_SUCH_ELEMENT,
               "No src-element found - omitting link");
        }
        gst_parse_free_link (l);
        continue;
     }
 
-    err=gst_resolve_reference( &(l->sink), ret);
+    err = gst_resolve_reference( &(l->sink), ret);
     if (err) {
-       if(-1==err){
-          SET_ERROR (error, GST_PARSE_ERROR_NO_SUCH_ELEMENT,
+       if(-1 == err){
+          SET_ERROR (error, GST2PBTXT_PARSE_ERROR_NO_SUCH_ELEMENT,
               "No sink-element named \"%s\" - omitting link", l->src.name);
-       }else{
+       } else {
           /* probably a missing element which we've handled already */
-          SET_ERROR (error, GST_PARSE_ERROR_NO_SUCH_ELEMENT,
+          SET_ERROR (error, GST2PBTXT_PARSE_ERROR_NO_SUCH_ELEMENT,
               "No sink-element found - omitting link");
        }
        gst_parse_free_link (l);
