@@ -578,6 +578,58 @@ TEST (commonTensorInfo, equal05_n)
 }
 
 /**
+ * @brief Test for same tensors info.
+ */
+TEST (commonTensorInfo, equal06_p)
+{
+  GstTensorsInfo info1, info2;
+
+  fill_tensors_info_for_test (&info1, &info2);
+
+  /* compare flexible tensor */
+  info1.info[1].format = info2.info[1].format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  EXPECT_TRUE (gst_tensors_info_is_equal (&info1, &info2));
+
+  /* compare flexible tensor (size 0) */
+  gst_tensors_info_init (&info1);
+  gst_tensors_info_init (&info2);
+
+  info1.info[0].format = info2.info[0].format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  EXPECT_TRUE (gst_tensors_info_is_equal (&info1, &info2));
+}
+
+/**
+ * @brief Test for same tensors info.
+ */
+TEST (commonTensorInfo, equal07_n)
+{
+  GstTensorsInfo info1, info2;
+
+  fill_tensors_info_for_test (&info1, &info2);
+
+  /* change format, this should not be compatible */
+  info2.info[1].format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+  EXPECT_FALSE (gst_tensors_info_is_equal (&info1, &info2));
+}
+
+/**
+ * @brief Test for same tensors info.
+ */
+TEST (commonTensorInfo, equal08_n)
+{
+  GstTensorsInfo info1, info2;
+
+  fill_tensors_info_for_test (&info1, &info2);
+
+  /* change format, this should not be compatible */
+  info1.info[0].format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  info2.info[1].format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+  EXPECT_FALSE (gst_tensors_info_is_equal (&info1, &info2));
+}
+
+/**
  * @brief Test for getting size of the tensor info with invalid param.
  */
 TEST (commonTensorInfo, sizeInvalidParam_n)
