@@ -20,6 +20,15 @@
 #define __GST_IS_BIN(e) ((e)->id == oTI_GstBin)
 #define __GST_BIN_CAST(e) (e)
 
+#define __GST_IS_ELEMENT(e) ((e)->id == oTI_Element)
+#define __GST_ELEMENT(e) (__GST_IS_ELEMENT(e) ?\
+  (e) : NULL)
+#define __GST_ELEMENT_CAST(e) ((_Element *)(e))
+#define __GST_ELEMENT_NAME(e) (__GST_IS_ELEMENT(e) ?\
+  (e)->name : "__InvalidElement__")
+
+#define __GST_STR_NULL(s) ((s) ? (s) : "(NULL)")
+
 typedef enum {
   eST_normal = 0,
   eST_URI_SINK,
@@ -40,7 +49,6 @@ typedef struct {
 
   gchar *element;
   gchar *name;
-  GSList *properties; /**< List of key-value pairs (_Property), added for gst-pbtxt, except for name=.... */
   int refcount;
 
   union {
@@ -48,14 +56,9 @@ typedef struct {
   };
 } _Element;
 
+/** @brief Make simplified element */
 extern _Element *
 nnstparser_element_make (const gchar *element, const gchar *name);
-
-/** @brief Simplified GObject Property for GST Element */
-typedef struct {
-  gchar *name;
-  gchar *value;
-} _Property;
 
 /** @brief pipeline element/pad reference */
 typedef struct {
@@ -79,9 +82,9 @@ struct _chain_t {
   reference_t last;
 };
 
+/** @brief Make simplified gstbin element */
 extern _Element *
 nnstparser_gstbin_make (const gchar * element, const gchar * name);
-
 
 /**
  * @brief A dummy created for gst2pbtxt
@@ -111,6 +114,15 @@ typedef enum {
 } _URIType;
 
 /**
+ * @brief A copy of GstPadDirection from gstreamer/gstpad
+ */
+typedef enum {
+  GST_PAD_UNKNOWN,
+  GST_PAD_SRC,
+  GST_PAD_SINK
+} _PadDirection;
+
+/**
  * @brief A dummy copy of gst_element_make_from_uri from gstreamer/gsturi
  */
 extern _Element *
@@ -122,7 +134,7 @@ extern _Element *
 nnstparser_element_unref (_Element * element);
 
 /** @brief gst_object_ref for psuedo element */
-extern void
+extern _Element *
 nnstparser_element_ref (_Element * element);
 
 typedef struct _graph_t graph_t;
@@ -134,6 +146,11 @@ struct _graph_t {
   _ParseContext *ctx; /* may be NULL */
   _ParseFlags flags;
 };
+
+/** @brief Substitutes GST's gst_element_link_pads_filtered () */
+extern gboolean
+nnstparser_element_link_pads_filtered (_Element *src, const gchar *src_pad,
+    _Element *dst, const gchar *dst_pad, gchar *filter);
 
 /** @brief GST Parser's internal function imported */
 static inline void
@@ -166,6 +183,7 @@ gst_parse_unescape (gchar *str)
   *str = '\0';
 }
 
+/** @brief Substitutes GST's gst_parse_error_quark () */
 GQuark gst2pbtxt_parse_error_quark (void);
 #define GST2PBTXT_PARSE_ERROR gst2pbtxt_parse_error_quark ()
 
@@ -181,7 +199,7 @@ typedef enum
   GST2PBTXT_PARSE_ERROR_DELAYED_LINK
 } Gst2PbtxtParseError;
 
-
+/** @brief Create a new pipeline. Internal impl. of gst_parse_launch () */
 G_GNUC_INTERNAL _Element *priv_gst_parse_launch (const gchar      * str,
                                                    GError          ** err,
                                                    _ParseContext  * ctx,
@@ -189,10 +207,14 @@ G_GNUC_INTERNAL _Element *priv_gst_parse_launch (const gchar      * str,
 
 /** @brief Substitutes GST's gst_bin_get_by_name () */
 _Element *
-nnstparser_bin_get_by_name (_Bin * bin, const gchar * name);
+nnstparser_bin_get_by_name (_Element * bin, const gchar * name);
 
 /** @brief Substitutes GST's gst_bin_get_by_name_recurse_up () */
 _Element *
-nnstparser_bin_get_by_name_recurse_up (_Bin * bin, const gchar * name);
+nnstparser_bin_get_by_name_recurse_up (_Element * bin, const gchar * name);
+
+/** @brief Substitutes GST's gst_bin_add () */
+gboolean
+nnstparser_bin_add (_Element * bin, _Element * element);
 
 #endif /* __GST_PARSE_TYPES_H__ */

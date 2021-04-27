@@ -79,6 +79,8 @@ nnstparser_element_unref (_Element * element)
 
   element->refcount--;
   if (element->refcount <= 0) {
+    g_free (element->element);
+    g_free (element->name);
     g_free (element);
     return NULL;
   }
@@ -89,7 +91,7 @@ nnstparser_element_unref (_Element * element)
 /**
  * @brief Ref an element
  */
-void
+_Element *
 nnstparser_element_ref (_Element * element)
 {
   g_assert (element);
@@ -100,6 +102,8 @@ nnstparser_element_ref (_Element * element)
   g_assert (element->refcount > 0);
 
   element->refcount++;
+
+  return element;
 }
 
 /**
@@ -109,39 +113,65 @@ _Element *
 nnstparser_element_from_uri (_URIType type, const gchar * uri,
     const gchar * elementname, void **error)
 {
-  _Element ret = g_malloc (sizeof (_Element));
+  _Element *ret = g_new0 (_Element, 1);
 
   g_assert (type == GST_URI_SINK || type == GST_URI_SRC);
 
   ret->specialType = (type == GST_URI_SINK) ? eST_URI_SINK : eST_URI_SRC;
-  ret->element = g_strdup (url);
+  ret->element = g_strdup (uri);
   ret->name = g_strdup (elementname);
   ret->refcount = 1;
   return ret;
 }
 
 /**
+ * @brief Substitutes GST's gst_element_link_pads_filtered ()
+ */
+gboolean
+nnstparser_element_link_pads_filtered (_Element *src, const gchar *src_pad,
+    _Element *dst, const gchar *dst_pad, gchar *filter)
+{
+  /* NYI */
+}
+
+/**
  * @brief Substitutes GST's gst_bin_get_by_name ()
  */
 _Element *
-nnstparser_bin_get_by_name (_Bin * bin, const gchar * name)
+nnstparser_bin_get_by_name (_Element * bin, const gchar * name)
 {
+  /* NYI */
 }
 
 /**
  * @brief Substitutes GST's gst_bin_get_by_name_recurse_up ()
  */
 _Element *
-nnstparser_bin_get_by_name_recurse_up (_Bin * bin, const gchar * name)
+nnstparser_bin_get_by_name_recurse_up (_Element * bin, const gchar * name)
 {
   _Element *result;
 
   g_return_val_if_fail (__GST_IS_BIN (bin), NULL);
   g_return_val_if_fail (name != NULL, NULL);
 
-  result = gst_bin_get_by_name (bin, name);
+  result = nnstparser_bin_get_by_name (bin, name);
 
   if (!result) {
-    ///////////////// WORKING HERE. May need to analyze gst object parent structure
+    /* NYI: May need to analyze gst object parent structure */
   }
+}
+
+/**
+ * @brief Substitutes GST's gst_bin_add ()
+ */
+gboolean
+nnstparser_bin_add (_Element * bin, _Element * element)
+{
+  g_return_val_if_fail (bin != NULL, FALSE);
+  g_return_val_if_fail (__GST_IS_BIN (bin), FALSE);
+  g_return_val_if_fail (element != NULL, FALSE);
+
+  bin->elements = g_slist_append (bin->elements, element);
+
+  return TRUE;
 }
