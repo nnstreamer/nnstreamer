@@ -99,6 +99,7 @@ filter_subplugin_install_dir = join_paths(subplugin_install_prefix, 'filters')
 decoder_subplugin_install_dir = join_paths(subplugin_install_prefix, 'decoders')
 customfilter_install_dir = join_paths(subplugin_install_prefix, 'customfilters')
 converter_subplugin_install_dir = join_paths(subplugin_install_prefix, 'converters')
+extra_install_dir = join_paths(subplugin_install_prefix, 'extra')
 unittest_base_dir = join_paths(nnstreamer_bindir, 'unittest-nnstreamer')
 
 # Set default configuration

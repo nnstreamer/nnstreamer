@@ -76,3 +76,15 @@ if grpc_support_is_available
     warning('gRPC/Flatbuf is not supported')
   endif
 endif
+
+if have_python3
+  nnstreamer_python3_deps = [python3_dep, libdl_dep, glib_dep, gst_dep, nnstreamer_dep]
+
+  shared_library('nnstreamer_python3',
+    'nnstreamer_python3_helper.c',
+    name_prefix: '',
+    dependencies: nnstreamer_python3_deps,
+    install: true,
+    install_dir: extra_install_dir
+  )
+endif

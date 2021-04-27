@@ -50,7 +50,7 @@ pushd ${TEST_PYTHONPATH}
 # Covert to an absolute path from the relative path
 export PYTHONPATH=$(pwd)
 if [[ ! -f ./nnstreamer_python.so ]]; then
-  ln -s ../nnstreamer_${FRAMEWORK}.so nnstreamer_python.so
+  ln -s ../../extra/nnstreamer_${FRAMEWORK}.so nnstreamer_python.so
 fi
 popd
 popd

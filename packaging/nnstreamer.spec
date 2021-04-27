@@ -721,7 +721,7 @@ popd
 %if 0%{?python3_support}
 mkdir -p %{buildroot}%{python3_sitelib}
 pushd %{buildroot}%{python3_sitelib}
-ln -sf %{_prefix}/lib/nnstreamer/filters/nnstreamer_python3.so nnstreamer_python.so
+ln -sf %{_prefix}/lib/nnstreamer/extra/nnstreamer_python3.so nnstreamer_python.so
 popd
 %endif
 
@@ -813,7 +813,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_python3.so
-%{_prefix}/lib/nnstreamer/filters/nnstreamer_python3.so
+%{_prefix}/lib/nnstreamer/extra/nnstreamer_python3.so
 %{python3_sitelib}/nnstreamer_python.so
 %endif
 
