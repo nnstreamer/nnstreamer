@@ -657,11 +657,6 @@ gst_mqtt_sink_render (GstBaseSink * basesink, GstBuffer * in_buf)
 
   /** Allocate a message buffer */
   if ((!self->mqtt_msg_buf) && (self->mqtt_msg_buf_size == 0)) {
-    if (!_mqtt_set_msg_buf_hdr (in_buf, &self->mqtt_msg_hdr)) {
-      ret = GST_FLOW_ERROR;
-      goto ret_with;
-    }
-
     if (self->max_msg_buf_size == 0) {
       self->mqtt_msg_buf_size = in_buf_size + GST_MQTT_LEN_MSG_HDR;
     } else {
@@ -682,13 +677,15 @@ gst_mqtt_sink_render (GstBaseSink * basesink, GstBuffer * in_buf)
       ret = GST_FLOW_ERROR;
       goto ret_with;
     }
-
-    msg_pub = self->mqtt_msg_buf;
-    memcpy (msg_pub, &self->mqtt_msg_hdr, sizeof (self->mqtt_msg_hdr));
-  } else {
-    msg_pub = self->mqtt_msg_buf;
   }
 
+  msg_pub = self->mqtt_msg_buf;
+
+  if (!_mqtt_set_msg_buf_hdr (in_buf, &self->mqtt_msg_hdr)) {
+    ret = GST_FLOW_ERROR;
+    goto ret_with;
+  }
+  memcpy (msg_pub, &self->mqtt_msg_hdr, sizeof (self->mqtt_msg_hdr));
   _put_timestamp_to_msg_buf_hdr (self, in_buf, (GstMQTTMessageHdr *) msg_pub);
 
   in_buf_mem = gst_buffer_get_all_memory (in_buf);
