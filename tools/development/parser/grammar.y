@@ -153,21 +153,6 @@ static void  add_missing_element(graph_t *graph,gchar *name){
    }   \
 } G_STMT_END
 
-typedef struct {
-  gchar *src_pad;
-  gchar *sink_pad;
-  GstElement *sink;
-  GstCaps *caps;
-  gulong pad_added_signal_id, no_more_pads_signal_id;
-  gboolean all_pads;
-} DelayedLink;
-
-typedef struct {
-  gchar *name;
-  gchar *value_str;
-  gulong signal_id;
-} DelayedSet;
-
 static int  gst_resolve_reference(reference_t *rr, _Element *pipeline){
   _Element *bin;
 
@@ -183,114 +168,6 @@ static int  gst_resolve_reference(reference_t *rr, _Element *pipeline){
   }
   if(rr->element) return 0; /* resolved */
   else            return -1; /* not found */
-}
-
-static void gst_parse_free_delayed_set (DelayedSet *set)
-{
-  g_free(set->name);
-  g_free(set->value_str);
-  g_slice_free(DelayedSet, set);
-}
-
-static void gst_parse_new_child(GstChildProxy *child_proxy, GObject *object,
-    const gchar * name, gpointer data);
-
-static void gst_parse_add_delayed_set (GstElement *element, gchar *name, gchar *value_str)
-{
-  DelayedSet *data = g_slice_new0 (DelayedSet);
-
-  GST_CAT_LOG_OBJECT (GST_CAT_PIPELINE, element, "delaying property set %s to %s",
-    name, value_str);
-
-  data->name = g_strdup(name);
-  data->value_str = g_strdup(value_str);
-  data->signal_id = g_signal_connect_data(element, "child-added",
-      G_CALLBACK (gst_parse_new_child), data, (GClosureNotify)
-      gst_parse_free_delayed_set, (GConnectFlags) 0);
-
-  /* FIXME: we would need to listen on all intermediate bins too */
-  if (__GST_IS_BIN (element)) {
-    gchar **names, **current;
-    GstElement *parent, *child;
-
-    current = names = g_strsplit (name, "::", -1);
-    parent = gst_bin_get_by_name (__GST_BIN_CAST (element), current[0]);
-    current++;
-    while (parent && current[0]) {
-      child = gst_bin_get_by_name (__GST_BIN (parent), current[0]);
-      if (!child && current[1]) {
-        char *sub_name = g_strjoinv ("::", &current[0]);
-
-        gst_parse_add_delayed_set(parent, sub_name, value_str);
-        g_free (sub_name);
-      }
-      gst_object_unref (parent);
-      parent = child;
-      current++;
-    }
-    if (parent)
-      gst_object_unref (parent);
-    g_strfreev (names);
-  }
-}
-
-static void gst_parse_new_child(GstChildProxy *child_proxy, GObject *object,
-    const gchar * name, gpointer data)
-{
-  DelayedSet *set = (DelayedSet *) data;
-  GParamSpec *pspec;
-  GValue v = { 0, };
-  GObject *target = NULL;
-  GType value_type;
-
-  GST_CAT_LOG_OBJECT (GST_CAT_PIPELINE, child_proxy, "new child %s, checking property %s",
-      name, set->name);
-
-  if (gst_child_proxy_lookup (child_proxy, set->name, &target, &pspec)) {
-    gboolean got_value = FALSE;
-
-    value_type = pspec->value_type;
-
-    GST_CAT_LOG_OBJECT (GST_CAT_PIPELINE, child_proxy, "parsing delayed property %s as a %s from %s",
-      pspec->name, g_type_name (value_type), set->value_str);
-    g_value_init (&v, value_type);
-    if (gst_value_deserialize (&v, set->value_str))
-      got_value = TRUE;
-    else if (g_type_is_a (value_type, GST_TYPE_ELEMENT)) {
-       GstElement *bin;
-
-       bin = gst_parse_bin_from_description_full (set->value_str, TRUE, NULL,
-           GST_PARSE_FLAG_NO_SINGLE_ELEMENT_BINS | GST_PARSE_FLAG_PLACE_IN_BIN, NULL);
-       if (bin) {
-         g_value_set_object (&v, bin);
-         got_value = TRUE;
-       }
-    }
-    g_signal_handler_disconnect (child_proxy, set->signal_id);
-    if (!got_value)
-      goto error;
-    g_object_set_property (target, pspec->name, &v);
-  } else {
-    const gchar *obj_name = GST_OBJECT_NAME(object);
-    gint len = strlen (obj_name);
-
-    /* do a delayed set */
-    if ((strlen (set->name) > (len + 2)) && !strncmp (set->name, obj_name, len) && !strncmp (&set->name[len], "::", 2)) {
-      gst_parse_add_delayed_set (GST_ELEMENT(child_proxy), set->name, set->value_str);
-    }
-  }
-
-out:
-  if (G_IS_VALUE (&v))
-    g_value_unset (&v);
-  if (target)
-    g_object_unref (target);
-  return;
-
-error:
-  GST_CAT_ERROR (GST_CAT_PIPELINE, "could not set property \"%s\" in %"
-      GST_PTR_FORMAT, pspec->name, target);
-  goto out;
 }
 
 static void nnstparser_element_set (gchar *value, _Element *element, graph_t *graph)
@@ -361,156 +238,14 @@ static void gst_parse_free_chain (chain_t *ch)
   g_slice_free (chain_t, ch);
 }
 
-static void gst_parse_free_delayed_link (DelayedLink *link)
-{
-  g_free (link->src_pad);
-  g_free (link->sink_pad);
-  g_free (link->caps);
-  g_slice_free (DelayedLink, link);
-}
-
 #define PRETTY_PAD_NAME_FMT "%s %s of %s named %s"
 #define PRETTY_PAD_NAME_ARGS(elem, pad_name) \
   (pad_name ? "pad " : "some"), (pad_name ? pad_name : "pad"), \
   G_OBJECT_TYPE_NAME(elem), GST_STR_NULL (GST_ELEMENT_NAME (elem))
 
-static void gst_parse_no_more_pads (GstElement *src, gpointer data)
-{
-  DelayedLink *link = data;
-
-  /* Don't warn for all-pads links, as we expect those to
-   * still be active at no-more-pads */
-  if (!link->all_pads) {
-    GST_ELEMENT_WARNING(src, PARSE, DELAYED_LINK,
-      (_("Delayed linking failed.")),
-      ("failed delayed linking " PRETTY_PAD_NAME_FMT " to " PRETTY_PAD_NAME_FMT,
-          PRETTY_PAD_NAME_ARGS (src, link->src_pad),
-          PRETTY_PAD_NAME_ARGS (link->sink, link->sink_pad)));
-  }
-  /* we keep the handlers connected, so that in case an element still adds a pad
-   * despite no-more-pads, we will consider it for pending delayed links */
-}
-
-static void gst_parse_found_pad (GstElement *src, GstPad *pad, gpointer data)
-{
-  DelayedLink *link = data;
-
-  GST_CAT_INFO (GST_CAT_PIPELINE,
-                "trying delayed linking %s " PRETTY_PAD_NAME_FMT " to " PRETTY_PAD_NAME_FMT,
-		            link->all_pads ? "all pads" : "one pad",
-                PRETTY_PAD_NAME_ARGS (src, link->src_pad),
-                PRETTY_PAD_NAME_ARGS (link->sink, link->sink_pad));
-
-  if (gst_element_link_pads_filtered (src, link->src_pad, link->sink,
-      link->sink_pad, link->caps)) {
-    /* do this here, we don't want to get any problems later on when
-     * unlocking states */
-    GST_CAT_DEBUG (GST_CAT_PIPELINE,
-                   "delayed linking %s " PRETTY_PAD_NAME_FMT " to " PRETTY_PAD_NAME_FMT " worked",
-		               link->all_pads ? "all pads" : "one pad",
-                   PRETTY_PAD_NAME_ARGS (src, link->src_pad),
-                   PRETTY_PAD_NAME_ARGS (link->sink, link->sink_pad));
-    g_signal_handler_disconnect (src, link->no_more_pads_signal_id);
-    /* releases 'link' */
-    if (!link->all_pads)
-      g_signal_handler_disconnect (src, link->pad_added_signal_id);
-  }
-}
-
-/* both padnames and the caps may be NULL */
-static gboolean
-gst_parse_perform_delayed_link (GstElement *src, const gchar *src_pad,
-                                GstElement *sink, const gchar *sink_pad,
-                                GstCaps *caps, gboolean all_pads)
-{
-  GList *templs = gst_element_class_get_pad_template_list (
-      GST_ELEMENT_GET_CLASS (src));
-
-  for (; templs; templs = templs->next) {
-    GstPadTemplate *templ = (GstPadTemplate *) templs->data;
-    if ((GST_PAD_TEMPLATE_DIRECTION (templ) == GST_PAD_SRC) &&
-        (GST_PAD_TEMPLATE_PRESENCE(templ) == GST_PAD_SOMETIMES))
-    {
-      DelayedLink *data = g_slice_new (DelayedLink);
-
-      data->all_pads = all_pads;
-
-      /* TODO: maybe we should check if src_pad matches this template's names */
-
-      GST_CAT_DEBUG (GST_CAT_PIPELINE,
-                     "trying delayed link " PRETTY_PAD_NAME_FMT " to " PRETTY_PAD_NAME_FMT,
-                     PRETTY_PAD_NAME_ARGS (src, src_pad),
-                     PRETTY_PAD_NAME_ARGS (sink, sink_pad));
-
-      data->src_pad = g_strdup (src_pad);
-      data->sink = sink;
-      data->sink_pad = g_strdup (sink_pad);
-      if (caps) {
-        data->caps = gst_caps_copy (caps);
-      } else {
-        data->caps = NULL;
-      }
-      data->pad_added_signal_id = g_signal_connect_data (src, "pad-added",
-          G_CALLBACK (gst_parse_found_pad), data,
-          (GClosureNotify) gst_parse_free_delayed_link, (GConnectFlags) 0);
-      data->no_more_pads_signal_id = g_signal_connect (src, "no-more-pads",
-          G_CALLBACK (gst_parse_no_more_pads), data);
-      return TRUE;
-    }
-  }
-  return FALSE;
-}
-
-static gboolean
-gst_parse_element_can_do_caps (GstElement * e, GstPadDirection dir,
-    GstCaps * link_caps)
-{
-  gboolean can_do = FALSE, done = FALSE;
-  GstIterator *it;
-
-  it = (dir == GST_PAD_SRC) ? gst_element_iterate_src_pads (e) : gst_element_iterate_sink_pads (e);
-
-  while (!done && !can_do) {
-    GValue v = G_VALUE_INIT;
-    GstPad *pad;
-    GstCaps *caps;
-
-    switch (gst_iterator_next (it, &v)) {
-      case GST_ITERATOR_OK:
-        pad = g_value_get_object (&v);
-
-        caps = gst_pad_get_current_caps (pad);
-        if (caps == NULL)
-          caps = gst_pad_query_caps (pad, NULL);
-
-        can_do = gst_caps_can_intersect (caps, link_caps);
-
-        GST_TRACE ("can_do: %d for %" GST_PTR_FORMAT " and %" GST_PTR_FORMAT,
-            can_do, caps, link_caps);
-
-        gst_caps_unref (caps);
-
-        g_value_unset (&v);
-        break;
-      case GST_ITERATOR_DONE:
-      case GST_ITERATOR_ERROR:
-        done = TRUE;
-        break;
-      case GST_ITERATOR_RESYNC:
-        gst_iterator_resync (it);
-        break;
-    }
-  }
-
-  gst_iterator_free (it);
-
-  return can_do;
-}
-
 /*
  * performs a link and frees the struct. src and sink elements must be given
  * return values   0 - link performed
- *                 1 - link delayed
  *                <0 - error
  */
 static gint
@@ -544,17 +279,7 @@ gst_parse_perform_link (link_t *link, graph_t *graph)
         sinks ? (const gchar *) sinks->data : NULL, link->caps));
     }
 
-    /* We either didn't find any static pads, or this is a all-pads link,
-     * in which case watch for future pads and link those. Not a failure
-     * in the all-pads case if there's no sometimes pads to watch */
-    if (gst_parse_perform_delayed_link (src,
-          srcs ? (const gchar *) srcs->data : NULL,
-          sink, sinks ? (const gchar *) sinks->data : NULL, link->caps,
-	  link->all_pads) || link->all_pads) {
-      goto success;
-    } else {
-      goto error;
-    }
+    goto error;
   }
   if (g_slist_length (link->src.pads) != g_slist_length (link->sink.pads)) {
     goto error;
@@ -568,13 +293,7 @@ gst_parse_perform_link (link_t *link, graph_t *graph)
         link->caps)) {
       continue;
     } else {
-      if (gst_parse_perform_delayed_link (src, src_pad,
-                                          sink, sink_pad,
-					  link->caps, link->all_pads)) {
-	continue;
-      } else {
-        goto error;
-      }
+      goto error;
     }
   }
 
@@ -583,40 +302,6 @@ success:
   return 0;
 
 error:
-  if (link->caps != NULL) {
-    gboolean src_can_do_caps, sink_can_do_caps;
-    gchar *caps_str = gst_caps_to_string (link->caps);
-
-    src_can_do_caps =
-        gst_parse_element_can_do_caps (src, GST_PAD_SRC, link->caps);
-    sink_can_do_caps =
-        gst_parse_element_can_do_caps (sink, GST_PAD_SINK, link->caps);
-
-    if (!src_can_do_caps && sink_can_do_caps) {
-      SET_ERROR (graph->error, GST_PARSE_ERROR_LINK,
-          _("could not link %s to %s, %s can't handle caps %s"),
-          GST_ELEMENT_NAME (src), GST_ELEMENT_NAME (sink),
-          GST_ELEMENT_NAME (src), caps_str);
-    } else if (src_can_do_caps && !sink_can_do_caps) {
-      SET_ERROR (graph->error, GST_PARSE_ERROR_LINK,
-          _("could not link %s to %s, %s can't handle caps %s"),
-          GST_ELEMENT_NAME (src), GST_ELEMENT_NAME (sink),
-          GST_ELEMENT_NAME (sink), caps_str);
-    } else if (!src_can_do_caps && !sink_can_do_caps) {
-      SET_ERROR (graph->error, GST_PARSE_ERROR_LINK,
-          _("could not link %s to %s, neither element can handle caps %s"),
-          GST_ELEMENT_NAME (src), GST_ELEMENT_NAME (sink), caps_str);
-    } else {
-      SET_ERROR (graph->error, GST_PARSE_ERROR_LINK,
-          _("could not link %s to %s with caps %s"),
-          GST_ELEMENT_NAME (src), GST_ELEMENT_NAME (sink), caps_str);
-    }
-    g_free (caps_str);
-  } else {
-    SET_ERROR (graph->error, GST_PARSE_ERROR_LINK,
-        _("could not link %s to %s"), GST_ELEMENT_NAME (src),
-        GST_ELEMENT_NAME (sink));
-  }
   gst_parse_free_link (link);
   return -1;
 }
