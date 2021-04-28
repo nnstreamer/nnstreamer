@@ -1,5 +1,3 @@
-cc = meson.get_compiler('c')
-
 # Find flex, configure lex generator
 flex_cdata = configuration_data()
 
@@ -47,8 +45,6 @@ else
   message('bison version @0@ >= @1@: YES'.format(bversion, bison_min_version))
 endif
 
-
-
 bison_cdata.set('BISON', bison.path())
 bison_cdata.set('BISON_ARGS', '')
 
@@ -57,6 +53,9 @@ gen_grammar = configure_file(input : 'gen_grammar.py.in',
   configuration : bison_cdata)
 
 # Custom targets
+pymod = import('python')
+python3 = pymod.find_installation('python3')
+
 parser = custom_target('parselex',
   input : 'parse.l',
   output : ['lex.priv_gst_parse_yy.c', 'parse_lex.h'],
@@ -68,4 +67,21 @@ grammar = custom_target('parsegrammar',
   output : ['grammar.tab.c', 'grammar.tab.h'],
   command : [python3, gen_grammar, '@OUTPUT0@', '@OUTPUT1@', '@INPUT@'],
   depends : [parser],
+)
+
+# Top-level parser app
+toplevel_srcs = [
+  parser,
+  grammar,
+  'types.c',
+  'toplevel.c'
+]
+toplevel_deps = [
+  glib_dep,
+  gobject_dep
+]
+toplevel = executable('nnstreamer-parser', toplevel_srcs,
+  dependencies: toplevel_deps,
+  install: true,
+  install_dir: join_paths(get_option('prefix'), get_option('bindir')),
 )
