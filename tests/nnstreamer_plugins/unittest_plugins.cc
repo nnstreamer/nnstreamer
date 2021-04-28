@@ -13,13 +13,13 @@
 #include <gst/check/gstharness.h>
 #include <gst/check/gsttestclock.h>
 #include <gst/gst.h>
-#include <nnstreamer_subplugin.h>
-#include <nnstreamer_plugin_api_filter.h>
-#include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_plugin_api_converter.h>
+#include <nnstreamer_plugin_api_decoder.h>
+#include <nnstreamer_plugin_api_filter.h>
+#include <nnstreamer_subplugin.h>
 #include <string.h>
-#include <unistd.h>
 #include <tensor_common.h>
+#include <unistd.h>
 
 #include "../gst/nnstreamer/tensor_transform/tensor_transform.h"
 
@@ -126,16 +126,16 @@
     gst_harness_teardown (h);                                                  \
   }
 
-#define GET_MODEL_PATH(model_name)                                       \
-  do {                                                                   \
-    const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");   \
-                                                                         \
-    if (root_path == NULL)                                               \
-      root_path = "..";                                                  \
-                                                                         \
-    test_model = g_build_filename (                                      \
+#define GET_MODEL_PATH(model_name)                                      \
+  do {                                                                  \
+    const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");  \
+                                                                        \
+    if (root_path == NULL)                                              \
+      root_path = "..";                                                 \
+                                                                        \
+    test_model = g_build_filename (                                     \
         root_path, "tests", "test_models", "models", model_name, NULL); \
-    ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));          \
+    ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));         \
   } while (0)
 
 /**
@@ -857,8 +857,9 @@ TEST (testTensorTransform, standProperties3_n)
   h = gst_harness_new ("tensor_transform");
   ASSERT_TRUE (NULL != h);
 
-  /** It should be in the form of (default|dc-average)[:TYPE][,per-channel:(false|true)] */
-  g_object_set (h->element, "mode", GTT_STAND, "option", "dc-average:uint8,per-channel:yes", NULL);
+  /* It should be in the form of (default|dc-average)[:TYPE][,per-channel:(false|true)] */
+  g_object_set (h->element, "mode", GTT_STAND, "option",
+      "dc-average:uint8,per-channel:yes", NULL);
 
   g_object_get (h->element, "option", &str, NULL);
   EXPECT_TRUE (str == NULL);
@@ -877,7 +878,7 @@ TEST (testTensorTransform, standProperties4_n)
   h = gst_harness_new ("tensor_transform");
   ASSERT_TRUE (NULL != h);
 
-  /** it should be in the form of (default|dc-average)[:TYPE][,per-channel:(false|true)] */
+  /* It should be in the form of (default|dc-average)[:TYPE][,per-channel:(false|true)] */
   g_object_set (h->element, "mode", GTT_STAND, "option", "dc-average:uint8,true", NULL);
 
   g_object_get (h->element, "option", &str, NULL);
@@ -1584,7 +1585,9 @@ TEST (testTensorTransform, arithmetic4)
 }
 
 /**
- * @brief Test for tensor_transform arithmetic (acceleration, typecast uint8 > float64, add .2, add .1, final typecast uint16 will be ignored)
+ * @brief Test for tensor_transform arithmetic.
+ * - option : acceleration, typecast uint8 > float64, add .2, add .1
+ * - final typecast uint16 will be ignored.
  */
 TEST (testTensorTransform, arithmetic4Accel)
 {
@@ -4073,10 +4076,11 @@ TEST (testTensorTransform, orcPerformance)
   float *data_float = (float *)g_malloc0 (sizeof (float) * array_size);
   gboolean ret = true;
 
-  ret = data_u8 != NULL;
-  if (!ret) goto error;
-  ret = data_float != NULL;
-  if (!ret) goto error;
+  if (!(ret = (data_u8 != NULL)))
+    goto error;
+
+  if (!(ret = (data_float != NULL)))
+    goto error;
 
   /* orc add u8 */
   start_ts = g_get_real_time ();
@@ -4252,7 +4256,7 @@ error:
 /**
  * @brief Test to re-open tf-lite model file in tensor-filter.
  */
-TEST_REQUIRE_TFLITE (test_tensor_filter, reopen_tflite_01_p)
+TEST_REQUIRE_TFLITE (testTensorFilter, reopenTFlite01)
 {
   GstHarness *h;
   GstBuffer *in_buf, *out_buf;
@@ -4330,7 +4334,7 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, reopen_tflite_01_p)
 /**
  * @brief Test to re-open tf-lite model file directly with nnfw struct.
  */
-TEST_REQUIRE_TFLITE (test_tensor_filter, reopen_tflite_02_p)
+TEST_REQUIRE_TFLITE (testTensorFilter, reopenTFlite02)
 {
   const gchar fw_name[] = "tensorflow-lite";
   const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
@@ -4352,7 +4356,8 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, reopen_tflite_02_p)
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   const gchar *model_files[] = {
-    test_model, NULL,
+    test_model,
+    NULL,
   };
 
   /* prepare properties */
@@ -4379,7 +4384,7 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, reopen_tflite_02_p)
 /**
  * @brief Test to reload tf-lite model set_property of model/is-updatable
  */
-TEST_REQUIRE_TFLITE (test_tensor_filter, reload_tflite_set_property)
+TEST_REQUIRE_TFLITE (testTensorFilter, reloadTFliteSetProperty)
 {
   GstHarness *h;
   GstBuffer *in_buf, *out_buf;
@@ -4480,7 +4485,7 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, reload_tflite_set_property)
 /**
  * @brief Test to reload tf-lite; model does not exist (negative)
  */
-TEST_REQUIRE_TFLITE (test_tensor_filter, reload_tflite_model_not_found_n)
+TEST_REQUIRE_TFLITE (testTensorFilter, reloadTFliteModelNotFound_n)
 {
   const gchar fw_name[] = "tensorflow-lite";
   const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
@@ -4503,7 +4508,8 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, reload_tflite_model_not_found_n)
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   const gchar *model_files[] = {
-    test_model, NULL,
+    test_model,
+    NULL,
   };
 
   /* prepare properties */
@@ -4543,7 +4549,7 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, reload_tflite_model_not_found_n)
 /**
  * @brief Test to reload tf-lite; model has wrong dimension (negative)
  */
-TEST_REQUIRE_TFLITE (test_tensor_filter, reload_tflite_model_wrong_dims_n)
+TEST_REQUIRE_TFLITE (testTensorFilter, reloadTFliteModelWrongDims_n)
 {
   const gchar fw_name[] = "tensorflow-lite";
   const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
@@ -4566,7 +4572,8 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, reload_tflite_model_wrong_dims_n)
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   const gchar *model_files[] = {
-    test_model, NULL,
+    test_model,
+    NULL,
   };
 
   /* prepare properties */
@@ -4598,7 +4605,7 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, reload_tflite_model_wrong_dims_n)
 /**
  * @brief Test to reload tf-lite; same model does not exist (negative)
  */
-TEST_REQUIRE_TFLITE (test_tensor_filter, reload_tflite_same_model_not_found_n)
+TEST_REQUIRE_TFLITE (testTensorFilter, reloadTFliteSameModelNotFound_n)
 {
   const gchar fw_name[] = "tensorflow-lite";
   const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
@@ -4624,7 +4631,8 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, reload_tflite_same_model_not_found_n)
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   const gchar *model_files[] = {
-    test_model, NULL,
+    test_model,
+    NULL,
   };
 
   /* prepare properties */
@@ -4661,7 +4669,7 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, reload_tflite_same_model_not_found_n)
 /**
  * @brief Test to reload tf-lite; same model has wrong dimension (negative)
  */
-TEST_REQUIRE_TFLITE (test_tensor_filter, reload_tflite_same_model_wrong_dims_n)
+TEST_REQUIRE_TFLITE (testTensorFilter, reloadTFliteSameModelWrongDims_n)
 {
   const gchar fw_name[] = "tensorflow-lite";
   const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
@@ -4690,7 +4698,8 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, reload_tflite_same_model_wrong_dims_n)
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
   const gchar *model_files[] = {
-    test_model, NULL,
+    test_model,
+    NULL,
   };
 
   /* prepare properties */
@@ -4730,7 +4739,7 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, reload_tflite_same_model_wrong_dims_n)
 /**
  * @brief Test framework auto detecion option in tensor-filter.
  */
-TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_ext_tflite_01)
+TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoExtTFlite01)
 {
   gchar *test_model, *str_launch_line;
   GstElement *gstpipe;
@@ -4752,7 +4761,7 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_ext_tflite_01)
  * @brief Test framework auto detecion option in tensor-filter.
  * @details The order of tensor filter options has changed.
  */
-TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_ext_tflite_02)
+TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoExtTFlite02)
 {
   gchar *test_model, *str_launch_line;
   GstElement *gstpipe;
@@ -4774,7 +4783,7 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_ext_tflite_02)
  * @brief Test framework auto detecion option in tensor-filter.
  * @details Test if options are insensitive to the case
  */
-TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_ext_tflite_03)
+TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoExtTFlite03)
 {
   gchar *test_model, *str_launch_line;
   GstElement *gstpipe;
@@ -4796,7 +4805,7 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_ext_tflite_03)
  * @brief Test framework auto detecion option in tensor-filter.
  * @details Negative case when model file does not exist
  */
-TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_ext_tflite_model_not_found_n)
+TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoExtTFliteModelNotFound_n)
 {
   gchar *test_model, *str_launch_line;
   const gchar *fw_name = NULL;
@@ -4825,7 +4834,7 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_ext_tflite_model_not_fou
  * @brief Test framework auto detecion option in tensor-filter.
  * @details Negative case with not supported extension
  */
-TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_ext_tflite_not_supported_ext_n)
+TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoExtTFliteNotSupportedExt_n)
 {
   gchar *test_model, *str_launch_line;
   const gchar *fw_name = NULL;
@@ -4848,7 +4857,7 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_ext_tflite_not_supported
  * @brief Test framework auto detecion option in tensor-filter.
  * @details Negative case when permission of model file is not given.
  */
-TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_ext_tflite_no_permission_n)
+TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoExtTFliteNoPermission_n)
 {
   int ret;
   gchar *test_model, *str_launch_line;
@@ -4883,7 +4892,7 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_ext_tflite_no_permission
  * @brief Test framework auto detecion option in tensor-filter.
  * @details Negative case with invalid framework name
  */
-TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_ext_tflite_invalid_fw_name_n)
+TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoExtTFliteInvalidFWName_n)
 {
   gchar *test_model, *str_launch_line;
   const gchar *fw_name = NULL;
@@ -4906,7 +4915,7 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_ext_tflite_invalid_fw_na
  * @brief Test framework auto detecion option in tensor-filter.
  * @details Negative case with invalid dimension of tensor filter
  */
-TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_ext_tflite_wrong_dimension_n)
+TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoExtTFliteWrongDimension_n)
 {
   gchar *test_model, *str_launch_line;
   const gchar *fw_name = "tensorflow-lite";
@@ -4929,7 +4938,7 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_ext_tflite_wrong_dimensi
  * @brief Test framework auto detecion option in tensor-filter.
  * @details Negative case with invalid input type of tensor filter
  */
-TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_ext_tflite_wrong_inputtype_n)
+TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoExtTFliteWrongInputType_n)
 {
   gchar *test_model, *str_launch_line;
   const gchar *fw_name = "tensorflow-lite";
@@ -4951,7 +4960,7 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_ext_tflite_wrong_inputty
 /**
  * @brief Test framework auto detecion without specifying the option in tensor-filter.
  */
-TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_wo_opt_ext_tflite)
+TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoNoFw)
 {
   gchar *test_model, *str_launch_line;
   GstElement *gstpipe;
@@ -4973,7 +4982,7 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_wo_opt_ext_tflite)
  * @brief Test framework auto detecion option in tensor-filter.
  * @details Negative case when model file does not exist
  */
-TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_wo_opt_ext_tflite_model_not_found_n)
+TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoNoFwModelNotFound_n)
 {
   gchar *test_model, *str_launch_line;
   const gchar *fw_name = NULL;
@@ -5002,7 +5011,7 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_wo_opt_ext_tflite_model_
  * @brief Test framework auto detecion without specifying the option in tensor-filter.
  * @details Negative case with not supported extension
  */
-TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_wo_opt_tflite_not_supported_ext_n)
+TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoNoFwNotSupportedExt_n)
 {
   gchar *test_model, *str_launch_line;
   const gchar *fw_name = NULL;
@@ -5025,7 +5034,7 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_wo_opt_tflite_not_suppor
  * @brief Test framework auto detecion without specifying the option in tensor-filter.
  * @details Negative case when permission of model file is not given.
  */
-TEST_REQUIRE_TFLITE (test_tensor_filter, framework_auto_wo_opt_no_permission_n)
+TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoNoFwNoPermission_n)
 {
   int ret;
   gchar *test_model, *str_launch_line;
@@ -5451,7 +5460,7 @@ TEST (testTensorFilter, frameworkAutoWoOptExtPtPytorchDisabled_n)
  * @brief Test for inputranks and outputranks property of the tensor_filter
  * @details Given dimension string, check its rank value.
  */
-TEST_REQUIRE_TFLITE (test_tensor_filter, property_rank_01_p)
+TEST_REQUIRE_TFLITE (testTensorFilter, propertyRank01)
 {
   gchar *str_launch_line;
   GstHarness *hrnss;
@@ -5485,8 +5494,7 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, property_rank_01_p)
   EXPECT_STREQ (input_dim, "3:224:224");
   g_free (input_dim);
 
-  /** Rank should be 3 since dimension string of the input is explicitly
-    * '3:224:224'. */
+  /* Rank should be 3 since dimension string of the input is explicitly '3:224:224'. */
   gchar *input_ranks;
   g_object_get (filter, "inputranks", &input_ranks, NULL);
   EXPECT_STREQ (input_ranks, "3");
@@ -5497,8 +5505,7 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, property_rank_01_p)
   EXPECT_STREQ (output_dim, "1001:1:1:1");
   g_free (output_dim);
 
-  /** Rank should be 4 since dimension string of the output is explicitly
-    * '1000:1:1:1'. */
+  /* Rank should be 4 since dimension string of the output is explicitly '1000:1:1:1'. */
   gchar *output_ranks;
   g_object_get (filter, "outputranks", &output_ranks, NULL);
   EXPECT_STREQ (output_ranks, "4");
@@ -5512,7 +5519,7 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, property_rank_01_p)
  * @brief Test for inputranks and outputranks property of the tensor_filter
  * @details Given dimension string, check its rank value.
  */
-TEST_REQUIRE_TFLITE (test_tensor_filter, property_rank_02_p)
+TEST_REQUIRE_TFLITE (testTensorFilter, propertyRank02)
 {
   gchar *str_launch_line;
   GstHarness *hrnss;
@@ -5568,7 +5575,7 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, property_rank_02_p)
  * @brief Test for inputranks and outputranks property of the tensor_filter
  * @details Given dimension string, check its rank value.
  */
-TEST_REQUIRE_TFLITE (test_tensor_filter, property_rank_03_n)
+TEST_REQUIRE_TFLITE (testTensorFilter, propertyRank03_n)
 {
   gchar *str_launch_line;
   GstHarness *hrnss;
@@ -5596,22 +5603,19 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, property_rank_03_n)
   filter = gst_harness_find_element (hrnss, "tensor_filter");
   ASSERT_TRUE (filter != NULL);
 
-  /** The input dimension string should be '3:224:224' since it is given in the
-    * pipeline. */
+  /* The input dimension string should be '3:224:224' since it is given in the pipeline. */
   gchar *input_dim;
   g_object_get (filter, "input", &input_dim, NULL);
   EXPECT_STRNE (input_dim, "3:224:224:1");
   g_free (input_dim);
 
-  /** The input dimension string should be '1001:1' since it is given in the
-    * pipeline. */
+  /* The input dimension string should be '1001:1' since it is given in the pipeline. */
   gchar *output_dim;
   g_object_get (filter, "output", &output_dim, NULL);
   EXPECT_STRNE (output_dim, "1001:1:1:1");
   g_free (output_dim);
 
-  /** Rank should be 2 since dimension string of the output is explicitly
-    * '1000:1:1:1'. */
+  /* Rank should be 2 since dimension string of the output is explicitly '1000:1:1:1'. */
   gchar *output_ranks;
   g_object_get (filter, "outputranks", &output_ranks, NULL);
   EXPECT_STREQ (output_ranks, "2");
@@ -5626,7 +5630,7 @@ TEST_REQUIRE_TFLITE (test_tensor_filter, property_rank_03_n)
  */
 TEST (testStreamBuffers, tensorsNormal)
 {
-  const gchar *mode_name[3] = {"flatbuf", "flexbuf", "protobuf"};
+  const gchar *mode_name[3] = { "flatbuf", "flexbuf", "protobuf" };
   GstBuffer *dec_out_buf = NULL, *conv_out_buf = NULL;
   GstTensorsConfig config, check_config;
   GstMemory *mem;
@@ -5636,7 +5640,7 @@ TEST (testStreamBuffers, tensorsNormal)
   const GstTensorDecoderDef *fb_dec;
   const NNStreamerExternalConverter *fb_conv;
 
-  for (mode_idx = 0; mode_idx < 3; mode_idx ++) {
+  for (mode_idx = 0; mode_idx < 3; mode_idx++) {
     /** Find converter and decoder subplugins */
     fb_dec = nnstreamer_decoder_find (mode_name[mode_idx]);
     fb_conv = nnstreamer_converter_find (mode_name[mode_idx]);
@@ -5941,15 +5945,12 @@ TEST (testDecoderSubplugins, flexbufInvalidParam1_n)
   ASSERT_TRUE (flx_dec);
 
   gst_tensors_config_init (&config);
-  dec_out_buf = gst_buffer_new ();
-  g_critical ("point 1");
-  EXPECT_EQ (GST_FLOW_ERROR, flx_dec->decode (NULL, &config, NULL, dec_out_buf));
-g_critical ("point 2");
-  gst_tensors_info_free (&config.info);
-  g_critical ("point 3");
-  gst_buffer_unref (dec_out_buf);
-  g_critical ("point 4");
 
+  dec_out_buf = gst_buffer_new ();
+  EXPECT_EQ (GST_FLOW_ERROR, flx_dec->decode (NULL, &config, NULL, dec_out_buf));
+
+  gst_tensors_info_free (&config.info);
+  gst_buffer_unref (dec_out_buf);
 }
 
 /**
