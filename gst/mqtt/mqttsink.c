@@ -376,13 +376,17 @@ gst_mqtt_sink_class_finalize (GObject * object)
   self->mqtt_host_port = NULL;
   g_free (self->mqtt_client_handle);
   self->mqtt_client_handle = NULL;
+  g_free (self->mqtt_client_id);
+  self->mqtt_client_id = NULL;
   g_free (self->mqtt_msg_buf);
   self->mqtt_msg_buf = NULL;
+  g_free (self->mqtt_topic);
+  self->mqtt_topic = NULL;
+  gst_caps_replace (&self->in_caps, NULL);
+  g_free (self->mqtt_msg_buf);
 
   if (self->err)
     g_error_free (self->err);
-  if (self->in_caps)
-    gst_caps_unref (self->in_caps);
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -459,6 +463,7 @@ gst_mqtt_sink_start (GstBaseSink * basesink)
   int ret;
 
   if (!g_strcmp0 (DEFAULT_MQTT_CLIENT_ID, self->mqtt_client_id)) {
+    g_free (self->mqtt_client_id);
     self->mqtt_client_id = g_strdup_printf (DEFAULT_MQTT_CLIENT_ID_FORMAT,
         g_get_host_name (), getpid (), sink_client_id++);
   }
