@@ -8,7 +8,7 @@
 #include <string.h>
 
 #include <glib/gprintf.h>
-#include <glib/glib.h>
+#include <glib.h>
 
 #include "types.h"
 #include "grammar.tab.h"
@@ -33,7 +33,7 @@
    embedded-NUL case for now. We know yytext is NUL-terminated. */
 #define ECHO g_fprintf(yyout, "%s", yytext)
 
-#define PRINT(...) g_printinfo (__VA_ARGS__)
+#define PRINT(...) g_debug (__VA_ARGS__)
 
 %}
 
@@ -75,7 +75,7 @@ _link ([!:][[:space:]]*{_caps}([[:space:]]*(";"[[:space:]]*{_caps})*[[:space:]]*
 
 {_assignment} {
     /* "=" */
-    PRINT ("ASSIGNMENT: %s", yytext);
+    PRINT ("ASSIGNMENT: %s\n", yytext);
     yylval->ss = g_strdup (yytext);
     BEGIN (INITIAL);
     return ASSIGNMENT;
@@ -83,14 +83,14 @@ _link ([!:][[:space:]]*{_caps}([[:space:]]*(";"[[:space:]]*{_caps})*[[:space:]]*
 
 {_padref} {
     yytext++;
-    PRINT ("PADREF: %s", yytext);
+    PRINT ("PADREF: %s\n", yytext);
     yylval->ss = g_strdup (yytext);
     BEGIN (INITIAL);
     return PADREF;
 }
 
 {_ref} {
-    PRINT ("REF: %s", yytext);
+    PRINT ("REF: %s\n", yytext);
     yylval->ss = g_strdup (yytext);
     BEGIN (INITIAL);
     return REF;
@@ -100,14 +100,14 @@ _link ([!:][[:space:]]*{_caps}([[:space:]]*(";"[[:space:]]*{_caps})*[[:space:]]*
     gchar *pos = yytext;
     while (!g_ascii_isspace (*pos) && (*pos != '.')) pos++;
     *pos = '\0';
-    PRINT ("BINREF: %s", yytext);
+    PRINT ("BINREF: %s\n", yytext);
     yylval->ss = g_strdup (yytext);
     BEGIN (INITIAL);
     return BINREF;
 }
 
 {_identifier} {
-    PRINT ("IDENTIFIER: %s", yytext);
+    PRINT ("IDENTIFIER: %s\n", yytext);
     yylval->ss = g_strdup (yytext);
     BEGIN (INITIAL);
     return IDENTIFIER;
@@ -118,7 +118,7 @@ _link ([!:][[:space:]]*{_caps}([[:space:]]*(";"[[:space:]]*{_caps})*[[:space:]]*
     gchar op;
     gboolean link_all;
 
-    PRINT ("LINK: %s", yytext);
+    PRINT ("LINK: %s\n", yytext);
     /* First char is a link operator */
     link_all = (*c == ':');
     c++;
@@ -144,16 +144,16 @@ _link ([!:][[:space:]]*{_caps}([[:space:]]*(";"[[:space:]]*{_caps})*[[:space:]]*
     return link_all ? LINK_ALL : LINK;
 }
 {_url} {
-  PRINT ("URL: %s", yytext);
+  PRINT ("URL: %s\n", yytext);
   yylval->ss = g_strdup (yytext);
   gst_parse_unescape (yylval->ss);
   BEGIN (INITIAL);
   return PARSE_URL;
 }
 
-{_operator} { PRINT ("OPERATOR: [%s]", yytext); return *yytext; }
+{_operator} { PRINT ("OPERATOR: [%s]\n", yytext); return *yytext; }
 
-[[:space:]]+ { PRINT ("SPACE: [%s]", yytext); }
+[[:space:]]+ { PRINT ("SPACE: [%s]\n", yytext); }
 
 . {
     PRINT ("Invalid Lexer element: %s\n", yytext);
