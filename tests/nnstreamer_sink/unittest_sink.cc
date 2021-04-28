@@ -74,10 +74,8 @@ typedef enum {
   TEST_TYPE_VIDEO_BGRx, /**< pipeline for video (BGRx) */
   TEST_TYPE_VIDEO_BGRx_2F, /**< pipeline for video (BGRx) 2 frames */
   TEST_TYPE_VIDEO_GRAY8, /**< pipeline for video (GRAY8) */
-  TEST_TYPE_VIDEO_GRAY8_PADDING, /**< pipeline for video (GRAY8), remove padding
-                                    */
-  TEST_TYPE_VIDEO_GRAY8_3F_PADDING, /**< pipeline for video (GRAY8) 3 frames,
-                                       remove padding */
+  TEST_TYPE_VIDEO_GRAY8_PADDING, /**< pipeline for video (GRAY8), remove padding */
+  TEST_TYPE_VIDEO_GRAY8_3F_PADDING, /**< pipeline for video (GRAY8) 3 frames, remove padding */
   TEST_TYPE_AUDIO_S8, /**< pipeline for audio (S8) */
   TEST_TYPE_AUDIO_U8_100F, /**< pipeline for audio (U8) 100 frames */
   TEST_TYPE_AUDIO_S16, /**< pipeline for audio (S16) */
@@ -88,79 +86,47 @@ typedef enum {
   TEST_TYPE_AUDIO_F64, /**< pipeline for audio (F64) */
   TEST_TYPE_TEXT, /**< pipeline for text */
   TEST_TYPE_TEXT_3F, /**< pipeline for text 3 frames */
-  TEST_TYPE_OCTET_CUR_TS, /**< pipeline for octet stream, timestamp current time
-                             */
-  TEST_TYPE_OCTET_RATE_TS, /**< pipeline for octet stream, timestamp framerate
-                              */
+  TEST_TYPE_OCTET_CUR_TS, /**< pipeline for octet stream, timestamp current time */
+  TEST_TYPE_OCTET_RATE_TS, /**< pipeline for octet stream, timestamp framerate */
   TEST_TYPE_OCTET_VALID_TS, /**< pipeline for octet stream, valid timestamp */
-  TEST_TYPE_OCTET_INVALID_TS, /**< pipeline for octet stream, invalid timestamp
-                                 */
+  TEST_TYPE_OCTET_INVALID_TS, /**< pipeline for octet stream, invalid timestamp */
   TEST_TYPE_OCTET_2F, /**< pipeline for octet stream, 2 frames */
-  TEST_TYPE_OCTET_MULTI_TENSORS, /**< pipeline for octet stream, byte array to
-                                    multi tensors */
+  TEST_TYPE_OCTET_MULTI_TENSORS, /**< pipeline for octet stream, byte array to multi tensors */
   TEST_TYPE_TENSORS, /**< pipeline for tensors with tensor_mux */
-  TEST_TYPE_TENSORS_MIX_1, /**< pipeline for tensors with tensor_mux,
-                              tensor_demux */
-  TEST_TYPE_TENSORS_MIX_2, /**< pipeline for tensors with tensor_mux,
-                              tensor_demux pick 0,2 */
-  TEST_TYPE_TENSORS_MIX_3, /**< pipeline for tensors with tensor_mux,
-                              tensor_demux pick 1,2 */
-  TEST_TYPE_CUSTOM_TENSOR, /**< pipeline for single tensor with passthrough
-                              custom filter */
-  TEST_TYPE_CUSTOM_TENSORS_1, /**< pipeline for tensors with passthrough custom
-                                 filter */
-  TEST_TYPE_CUSTOM_TENSORS_2, /**< pipeline for tensors with passthrough custom
-                                 filter properties specified */
-  TEST_TYPE_TENSOR_CAP_1, /**< pipeline for tensor out test
-                            (tensor caps are specified) */
-  TEST_TYPE_TENSOR_CAP_2, /**< pipeline for tensor out test
-                             (tensor caps are not specified) */
-  TEST_TYPE_TENSORS_CAP_1, /**< pipeline for tensors out test
-                              (tensors caps are specified, num_tensors is 1) */
-  TEST_TYPE_TENSORS_CAP_2, /**< pipeline for tensors out test
-                              (tensors caps are specified, num_tensors is 3) */
+  TEST_TYPE_TENSORS_MIX_1, /**< pipeline for tensors with tensor_mux, tensor_demux */
+  TEST_TYPE_TENSORS_MIX_2, /**< pipeline for tensors with tensor_mux, tensor_demux pick 0,2 */
+  TEST_TYPE_TENSORS_MIX_3, /**< pipeline for tensors with tensor_mux, tensor_demux pick 1,2 */
+  TEST_TYPE_CUSTOM_TENSOR, /**< pipeline for single tensor with passthrough custom filter */
+  TEST_TYPE_CUSTOM_TENSORS_1, /**< pipeline for tensors with passthrough custom filter */
+  TEST_TYPE_CUSTOM_TENSORS_2, /**< pipeline for tensors with passthrough custom filter properties specified */
+  TEST_TYPE_TENSOR_CAP_1, /**< pipeline for tensor out test (tensor caps are specified) */
+  TEST_TYPE_TENSOR_CAP_2, /**< pipeline for tensor out test (tensor caps are not specified) */
+  TEST_TYPE_TENSORS_CAP_1, /**< pipeline for tensors out test (tensors caps are specified, num_tensors is 1) */
+  TEST_TYPE_TENSORS_CAP_2, /**< pipeline for tensors out test (tensors caps are specified, num_tensors is 3) */
   TEST_TYPE_CUSTOM_MULTI, /**< pipeline with multiple custom filters */
-  TEST_TYPE_CUSTOM_BUF_DROP, /**< pipeline to test buffer-drop in tensor_filter
-                                using custom filter */
-  TEST_TYPE_CUSTOM_PASSTHROUGH, /**< pipeline to test custom passthrough without
-                                   so file */
+  TEST_TYPE_CUSTOM_BUF_DROP, /**< pipeline to test buffer-drop in tensor_filter using custom filter */
+  TEST_TYPE_CUSTOM_PASSTHROUGH, /**< pipeline to test custom passthrough without so file */
   TEST_TYPE_NEGO_FAILED, /**< pipeline to test caps negotiation */
   TEST_TYPE_VIDEO_RGB_SPLIT, /**< pipeline to test tensor_split */
-  TEST_TYPE_VIDEO_RGB_AGGR_1, /**< pipeline to test tensor_aggregator (change
-                                 dimension index 3 : 1 > 10)*/
-  TEST_TYPE_VIDEO_RGB_AGGR_2, /**< pipeline to test tensor_aggregator (change
-                                 dimension index 1 : 160 > 1600) */
-  TEST_TYPE_VIDEO_RGB_AGGR_3, /**< pipeline to test tensor_aggregator (test to
-                                 get frames with the property concat) */
+  TEST_TYPE_VIDEO_RGB_AGGR_1, /**< pipeline to test tensor_aggregator (change dimension index 3 : 1 > 10)*/
+  TEST_TYPE_VIDEO_RGB_AGGR_2, /**< pipeline to test tensor_aggregator (change dimension index 1 : 160 > 1600) */
+  TEST_TYPE_VIDEO_RGB_AGGR_3, /**< pipeline to test tensor_aggregator (test to get frames with the property concat) */
   TEST_TYPE_AUDIO_S16_AGGR, /**< pipeline to test tensor_aggregator */
   TEST_TYPE_AUDIO_U16_AGGR, /**< pipeline to test tensor_aggregator */
-  TEST_TYPE_TRANSFORM_CAPS_NEGO_1, /**< pipeline for caps negotiation in
-                                      tensor_transform (typecast mode) */
-  TEST_TYPE_TRANSFORM_CAPS_NEGO_2, /**< pipeline for caps negotiation in
-                                      tensor_transform (arithmetic mode) */
-  TEST_TYPE_TRANSFORM_TENSORS,  /**< pipeline for tensors
-                                     with tensor_transform (typecast mode) */
-  TEST_TYPE_TRANSFORM_APPLY,  /**< pipeline for apply option
-                                     with tensor_transform (typecast mode) */
+  TEST_TYPE_TRANSFORM_CAPS_NEGO_1, /**< pipeline for caps negotiation in tensor_transform (typecast mode) */
+  TEST_TYPE_TRANSFORM_CAPS_NEGO_2, /**< pipeline for caps negotiation in tensor_transform (arithmetic mode) */
+  TEST_TYPE_TRANSFORM_TENSORS, /**< pipeline for tensors with tensor_transform (typecast mode) */
+  TEST_TYPE_TRANSFORM_APPLY, /**< pipeline for apply option with tensor_transform (typecast mode) */
   TEST_TYPE_TYPECAST, /**< pipeline for typecast with tensor_transform */
-  TEST_TYPE_ISSUE739_MUX_PARALLEL_1, /**< pipeline to test Mux/Parallel case in
-                                        #739 */
-  TEST_TYPE_ISSUE739_MUX_PARALLEL_2, /**< pipeline to test Mux/Parallel case in
-                                        #739 */
-  TEST_TYPE_ISSUE739_MUX_PARALLEL_3, /**< pipeline to test Mux/Parallel case in
-                                        #739 */
-  TEST_TYPE_ISSUE739_MUX_PARALLEL_4, /**< pipeline to test Mux/Parallel case in
-                                        #739 */
-  TEST_TYPE_ISSUE739_MERGE_PARALLEL_1, /**< pipeline to test Merge/Parallel case
-                                          in #739 */
-  TEST_TYPE_ISSUE739_MERGE_PARALLEL_2, /**< pipeline to test Merge/Parallel case
-                                          in #739 */
-  TEST_TYPE_ISSUE739_MERGE_PARALLEL_3, /**< pipeline to test Merge/Parallel case
-                                          in #739 */
-  TEST_TYPE_ISSUE739_MERGE_PARALLEL_4, /**< pipeline to test Merge/Parallel case
-                                          in #739 */
-  TEST_TYPE_DECODER_PROPERTY, /**< pipeline to test get/set_property of decoder
-                                 */
+  TEST_TYPE_ISSUE739_MUX_PARALLEL_1, /**< pipeline to test Mux/Parallel case in #739 */
+  TEST_TYPE_ISSUE739_MUX_PARALLEL_2, /**< pipeline to test Mux/Parallel case in #739 */
+  TEST_TYPE_ISSUE739_MUX_PARALLEL_3, /**< pipeline to test Mux/Parallel case in #739 */
+  TEST_TYPE_ISSUE739_MUX_PARALLEL_4, /**< pipeline to test Mux/Parallel case in #739 */
+  TEST_TYPE_ISSUE739_MERGE_PARALLEL_1, /**< pipeline to test Merge/Parallel case in #739 */
+  TEST_TYPE_ISSUE739_MERGE_PARALLEL_2, /**< pipeline to test Merge/Parallel case in #739 */
+  TEST_TYPE_ISSUE739_MERGE_PARALLEL_3, /**< pipeline to test Merge/Parallel case in #739 */
+  TEST_TYPE_ISSUE739_MERGE_PARALLEL_4, /**< pipeline to test Merge/Parallel case in #739 */
+  TEST_TYPE_DECODER_PROPERTY, /**< pipeline to test get/set_property of decoder */
   TEST_CUSTOM_EASY_ICF_01, /**< pipeline to test easy-custom in code func */
   TEST_TYPE_UNKNOWN /**< unknonwn */
 } TestType;
@@ -722,7 +688,7 @@ _setup_pipeline (TestOption &option)
   case TEST_TYPE_TENSORS_MIX_1:
     /** other/tensors with tensor_mux, tensor_demux */
     str_pipeline = g_strdup_printf (
-        "tensor_mux name=mux synch=false ! tensor_demux name=demux "
+        "tensor_mux name=mux ! tensor_demux name=demux "
         "videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_0 "
         "audiotestsrc num-buffers=%d samplesperbuffer=500 ! audioconvert ! audio/x-raw,format=S16LE,rate=16000,channels=1 ! tensor_converter frames-per-tensor=500 ! mux.sink_1 "
         "videotestsrc num-buffers=%d ! video/x-raw,width=64,height=48,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_2 "
@@ -734,7 +700,7 @@ _setup_pipeline (TestOption &option)
   case TEST_TYPE_TENSORS_MIX_2:
     /** other/tensors with tensor_mux, tensor_demux pick 0,2 */
     str_pipeline = g_strdup_printf (
-        "tensor_mux name=mux synch=false ! tensor_demux name=demux tensorpick=0,2 "
+        "tensor_mux name=mux ! tensor_demux name=demux tensorpick=0,2 "
         "videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_0 "
         "audiotestsrc num-buffers=%d samplesperbuffer=500 ! audioconvert ! audio/x-raw,format=S16LE,rate=16000,channels=1 ! tensor_converter frames-per-tensor=500 ! mux.sink_1 "
         "videotestsrc num-buffers=%d ! video/x-raw,width=64,height=48,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_2 "
@@ -745,7 +711,7 @@ _setup_pipeline (TestOption &option)
   case TEST_TYPE_TENSORS_MIX_3:
     /** other/tensors with tensor_mux, tensor_demux pick 1,2 */
     str_pipeline = g_strdup_printf (
-        "tensor_mux name=mux synch=false ! tensor_demux name=demux tensorpick=1,2 "
+        "tensor_mux name=mux ! tensor_demux name=demux tensorpick=1,2 "
         "videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_0 "
         "audiotestsrc num-buffers=%d samplesperbuffer=500 ! audioconvert ! audio/x-raw,format=S16LE,rate=16000,channels=1 ! tensor_converter frames-per-tensor=500 ! mux.sink_1 "
         "videotestsrc num-buffers=%d ! video/x-raw,width=64,height=48,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_2 "
@@ -785,35 +751,31 @@ _setup_pipeline (TestOption &option)
     break;
   case TEST_TYPE_TENSOR_CAP_1:
     /** other/tensor out, caps are specifed*/
-    str_pipeline =
-        g_strdup_printf
-        ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)%lu/1 ! "
+    str_pipeline = g_strdup_printf (
+        "videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)%lu/1 ! "
         "tensor_converter ! other/tensor,dimension=(string)3:160:120:1,type=(string)uint8,framerate=(fraction)30/1 ! "
         "tensor_sink name=test_sink async=false",
         option.num_buffers, fps);
     break;
   case TEST_TYPE_TENSOR_CAP_2:
     /** other/tensor out, caps are not specifed (other/tensor or other/tensors) */
-    str_pipeline =
-        g_strdup_printf
-        ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)%lu/1 ! "
+    str_pipeline = g_strdup_printf (
+        "videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)%lu/1 ! "
         "tensor_converter ! tensor_sink name=test_sink async=false",
         option.num_buffers, fps);
     break;
   case TEST_TYPE_TENSORS_CAP_1:
     /** other/tensors, caps are specifed (num_tensors is 1) */
-    str_pipeline =
-        g_strdup_printf
-        ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)%lu/1 ! "
+    str_pipeline = g_strdup_printf (
+        "videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)%lu/1 ! "
         "tensor_converter ! other/tensors,num_tensors=1,dimensions=(string)3:160:120:1, types=(string)uint8, framerate=(fraction)30/1 ! "
         "tensor_sink name=test_sink async=false",
         option.num_buffers, fps);
     break;
   case TEST_TYPE_TENSORS_CAP_2:
     /** other/tensors, caps are not specifed (num_tensors is 3) */
-    str_pipeline =
-        g_strdup_printf
-        ("tensor_mux name=mux ! tensor_sink name=test_sink "
+    str_pipeline = g_strdup_printf (
+        "tensor_mux name=mux ! tensor_sink name=test_sink "
         "videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_0 "
         "videotestsrc num-buffers=%d ! video/x-raw,width=120,height=80,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_1 "
         "videotestsrc num-buffers=%d ! video/x-raw,width=64,height=48,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_2",
@@ -3130,8 +3092,8 @@ TEST (tensorStreamTest, customFilterTensors)
   /** check received buffers */
   EXPECT_EQ (g_test_data.received, num_buffers);
   EXPECT_EQ (g_test_data.mem_blocks, 3U);
-  EXPECT_EQ (g_test_data.received_size,
-      95616U); /** 160 * 120 * 3 + 120 * 80 * 3 + 64 * 48 * 3 */
+  /* expected size: 160 * 120 * 3 + 120 * 80 * 3 + 64 * 48 * 3 */
+  EXPECT_EQ (g_test_data.received_size, 95616U);
 
   /** check caps name */
   EXPECT_STREQ (g_test_data.caps_name, "other/tensors");
@@ -3206,8 +3168,8 @@ TEST (tensorStreamTest, customFilterMulti)
   /** check received buffers */
   EXPECT_EQ (g_test_data.received, num_buffers);
   EXPECT_EQ (g_test_data.mem_blocks, 3U);
-  EXPECT_EQ (g_test_data.received_size,
-      1012800U); /** 160 * 120 * 3 + 280 * 40 * 3 + 640 * 480 * 3 */
+  /* expected size: 160 * 120 * 3 + 280 * 40 * 3 + 640 * 480 * 3 */
+  EXPECT_EQ (g_test_data.received_size, 1012800U);
 
   /** check caps name */
   EXPECT_STREQ (g_test_data.caps_name, "other/tensors");
@@ -3363,9 +3325,9 @@ TEST (tensorStreamTest, filterProperties1)
   EXPECT_TRUE (strstr (str, "custom") != NULL);
   EXPECT_TRUE (strstr (str, "custom-easy") != NULL);
 #ifdef ENABLE_TENSORFLOW_LITE
-  EXPECT_TRUE ((strstr (str, "tensorflow-lite") != NULL) ||
-      (strstr (str, "tensorflow1-lite") != NULL) ||
-      (strstr (str, "tensorflow2-lite") != NULL));
+  EXPECT_TRUE ((strstr (str, "tensorflow-lite") != NULL)
+               || (strstr (str, "tensorflow1-lite") != NULL)
+               || (strstr (str, "tensorflow2-lite") != NULL));
 #endif
   g_free (str);
 
@@ -4092,8 +4054,7 @@ TEST (tensorStreamTest, tensorsMix)
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 500U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 1U);
   EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
-  EXPECT_EQ (
-      g_test_data.tensor_config.rate_n, 30); /** 30 fps from video stream */
+  EXPECT_EQ (g_test_data.tensor_config.rate_n, 30); /** 30 fps from video stream */
   EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
 
   /** check caps and config for tensor */
@@ -5531,7 +5492,7 @@ TEST (tensorStreamTest, tensorDecoderProperty2_n)
  */
 TEST (tensorStreamTest, tensorCap0)
 {
-   const guint num_buffers = 5;
+  const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_TENSOR_CAP_1 };
 
   ASSERT_TRUE (_setup_pipeline (option));
@@ -5579,8 +5540,7 @@ TEST (tensorStreamTest, tensorCap0)
     structure = gst_caps_get_structure (caps, 0);
 
     EXPECT_TRUE (gst_tensor_config_from_structure (&config, structure));
-    EXPECT_TRUE (gst_tensor_config_is_equal (&config,
-            &g_test_data.tensor_config));
+    EXPECT_TRUE (gst_tensor_config_is_equal (&config, &g_test_data.tensor_config));
     EXPECT_TRUE (gst_caps_is_equal (g_test_data.current_caps, caps));
 
     gst_caps_unref (caps);
@@ -5595,7 +5555,7 @@ TEST (tensorStreamTest, tensorCap0)
  */
 TEST (tensorStreamTest, tensorCap1)
 {
-   const guint num_buffers = 5;
+  const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_TENSOR_CAP_2 };
 
   ASSERT_TRUE (_setup_pipeline (option));
@@ -5643,8 +5603,7 @@ TEST (tensorStreamTest, tensorCap1)
     structure = gst_caps_get_structure (caps, 0);
 
     EXPECT_TRUE (gst_tensor_config_from_structure (&config, structure));
-    EXPECT_TRUE (gst_tensor_config_is_equal (&config,
-            &g_test_data.tensor_config));
+    EXPECT_TRUE (gst_tensor_config_is_equal (&config, &g_test_data.tensor_config));
     EXPECT_TRUE (gst_caps_is_equal (g_test_data.current_caps, caps));
 
     gst_caps_unref (caps);
@@ -5659,7 +5618,7 @@ TEST (tensorStreamTest, tensorCap1)
  */
 TEST (tensorStreamTest, tensorsCap0)
 {
-   const guint num_buffers = 5;
+  const guint num_buffers = 5;
   TestOption option = { num_buffers, TEST_TYPE_TENSORS_CAP_1 };
 
   ASSERT_TRUE (_setup_pipeline (option));
@@ -5708,8 +5667,7 @@ TEST (tensorStreamTest, tensorsCap0)
     structure = gst_caps_get_structure (caps, 0);
 
     EXPECT_TRUE (gst_tensors_config_from_structure (&config, structure));
-    EXPECT_TRUE (gst_tensors_config_is_equal (&config,
-            &g_test_data.tensors_config));
+    EXPECT_TRUE (gst_tensors_config_is_equal (&config, &g_test_data.tensors_config));
     EXPECT_TRUE (gst_caps_is_equal (g_test_data.current_caps, caps));
 
     gst_caps_unref (caps);
@@ -5785,8 +5743,7 @@ TEST (tensorStreamTest, tensorsCap1)
     structure = gst_caps_get_structure (caps, 0);
 
     EXPECT_TRUE (gst_tensors_config_from_structure (&config, structure));
-    EXPECT_TRUE (gst_tensors_config_is_equal (&config,
-            &g_test_data.tensors_config));
+    EXPECT_TRUE (gst_tensors_config_is_equal (&config, &g_test_data.tensors_config));
     EXPECT_TRUE (gst_caps_is_equal (g_test_data.current_caps, caps));
 
     gst_caps_unref (caps);
@@ -5827,11 +5784,11 @@ TEST (tensorFilterCustomEasy, inCodeFunc01)
 
   const GstTensorsInfo info_in = {
     .num_tensors = 1U,
-    .info = { {.name = NULL, .type = _NNS_UINT8, .dimension = { 1, 10, 1, 1 } } },
+    .info = { { .name = NULL, .type = _NNS_UINT8, .dimension = { 1, 10, 1, 1 } } },
   };
   const GstTensorsInfo info_out = {
     .num_tensors = 1U,
-    .info = { {.name = NULL, .type = _NNS_UINT8, .dimension = { 1, 10, 1, 1 } } },
+    .info = { { .name = NULL, .type = _NNS_UINT8, .dimension = { 1, 10, 1, 1 } } },
   };
 
   ret = NNS_custom_easy_register (
@@ -5890,11 +5847,11 @@ TEST (tensorFilterCustomEasy, unregister1_p)
   int ret;
   const GstTensorsInfo info_in = {
     .num_tensors = 1U,
-    .info = { {.name = NULL, .type = _NNS_UINT8, .dimension = { 1, 10, 1, 1 } } },
+    .info = { { .name = NULL, .type = _NNS_UINT8, .dimension = { 1, 10, 1, 1 } } },
   };
   const GstTensorsInfo info_out = {
     .num_tensors = 1U,
-    .info = { {.name = NULL, .type = _NNS_UINT8, .dimension = { 1, 10, 1, 1 } } },
+    .info = { { .name = NULL, .type = _NNS_UINT8, .dimension = { 1, 10, 1, 1 } } },
   };
 
   ret = NNS_custom_easy_register (
