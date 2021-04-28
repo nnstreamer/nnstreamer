@@ -31,7 +31,7 @@
 
 #  define SET_ERROR(error, type, ...) \
 G_STMT_START { \
-  g_printerr (__VA_ARGS__); \
+  g_critical (__VA_ARGS__); \
   if ((error) && !*(error)) { \
     g_set_error ((error), GST2PBTXT_PARSE_ERROR, (type), __VA_ARGS__); \
   } \
@@ -41,7 +41,7 @@ G_STMT_START { \
 
 #  define SET_ERROR(error, type, args...) \
 G_STMT_START { \
-  g_printerr (args ); \
+  g_critical (args ); \
   if ((error) && !*(error)) { \
     g_set_error ((error), GST2PBTXT_PARSE_ERROR, (type), args ); \
   } \
@@ -82,17 +82,16 @@ SET_ERROR (GError **error, gint type, const char *format, ...)
 
 #  ifdef G_HAVE_ISO_VARARGS
 
-/* #  define YYFPRINTF(a, ...) g_printerr (__VA_ARGS__) */
 #    define YYFPRINTF(a, ...) \
 G_STMT_START { \
-     g_print (__VA_ARGS__); \
+     g_debug (__VA_ARGS__); \
 } G_STMT_END
 
 #  elif defined(G_HAVE_GNUC_VARARGS)
 
 #    define YYFPRINTF(a, args...) \
 G_STMT_START { \
-     g_print (args); \
+     g_debug (args); \
 } G_STMT_END
 
 #  else
@@ -105,7 +104,7 @@ YYPRINTF(const char *format, ...)
 
   va_start (varargs, format);
   temp = g_strdup_vprintf (format, varargs);
-  g_print ("%s", temp);
+  g_debug ("%s", temp);
   g_free (temp);
   va_end (varargs);
 }
@@ -139,12 +138,12 @@ static void  add_missing_element(graph_t *graph,gchar *name){
 
 #define TRY_SETUP_LINK(l) G_STMT_START { \
    if( (!(l)->src.element) && (!(l)->src.name) ){ \
-     SET_ERROR (graph->error, GST2PBTXT_PARSE_ERROR_LINK, _("link has no source [sink=%s@%p]"), \
+     SET_ERROR (graph->error, GST2PBTXT_PARSE_ERROR_LINK, "link has no source [sink=%s@%p]", \
 	(l)->sink.name ? (l)->sink.name : "", \
 	(l)->sink.element); \
      gst_parse_free_link (l); \
    }else if( (!(l)->sink.element) && (!(l)->sink.name) ){ \
-     SET_ERROR (graph->error, GST2PBTXT_PARSE_ERROR_LINK, _("link has no sink [source=%s@%p]"), \
+     SET_ERROR (graph->error, GST2PBTXT_PARSE_ERROR_LINK, "link has no sink [source=%s@%p]", \
 	(l)->src.name ? (l)->src.name : "", \
 	(l)->src.element); \
      gst_parse_free_link (l); \
@@ -241,7 +240,7 @@ static void gst_parse_free_chain (chain_t *ch)
 #define PRETTY_PAD_NAME_FMT "%s %s of %s named %s"
 #define PRETTY_PAD_NAME_ARGS(elem, pad_name) \
   (pad_name ? "pad " : "some"), (pad_name ? pad_name : "pad"), \
-  G_OBJECT_TYPE_NAME(elem), GST_STR_NULL (GST_ELEMENT_NAME (elem))
+  elem->element, GST_STR_NULL (GST_ELEMENT_NAME (elem))
 
 /*
  * performs a link and frees the struct. src and sink elements must be given
@@ -258,11 +257,10 @@ gst_parse_perform_link (link_t *link, graph_t *graph)
   g_assert (GST_IS_ELEMENT (src));
   g_assert (GST_IS_ELEMENT (sink));
 
-  GST_CAT_INFO (GST_CAT_PIPELINE,
-      "linking " PRETTY_PAD_NAME_FMT " to " PRETTY_PAD_NAME_FMT " (%u/%u) with caps \"%" GST_PTR_FORMAT "\"",
+  g_info ("linking " PRETTY_PAD_NAME_FMT " to " PRETTY_PAD_NAME_FMT " (%u/%u)\n",
       PRETTY_PAD_NAME_ARGS (src, link->src.name),
       PRETTY_PAD_NAME_ARGS (sink, link->sink.name),
-      g_slist_length (srcs), g_slist_length (sinks), link->caps);
+      g_slist_length (srcs), g_slist_length (sinks));
 
   if (!srcs || !sinks) {
     gboolean found_one = gst_element_link_pads_filtered (src,
@@ -376,7 +374,7 @@ static int yyerror (void *scanner, graph_t *graph, const char *s);
 element:	IDENTIFIER     		      { $$ = nnstparser_element_make ($1, NULL);
 						if ($$ == NULL) {
 						  add_missing_element(graph, $1);
-						  SET_ERROR (graph->error, GST_PARSE_ERROR_NO_SUCH_ELEMENT, _("no element \"%s\""), $1);
+						  SET_ERROR (graph->error, GST_PARSE_ERROR_NO_SUCH_ELEMENT, "no element \"%s\"", $1);
 						}
 						g_free ($1);
                                               }
@@ -396,7 +394,6 @@ element:	IDENTIFIER     		      { $$ = nnstparser_element_make ($1, NULL);
 **************************************************************/
 elementary:
 	element				      { $$ = g_slice_new0 (chain_t);
-						/* g_print ("@%p: CHAINing elementary\n", $$); */
 						$$->first.element = $1? ($1) : NULL;
 						$$->last.element = $1? ($1) : NULL;
 						$$->first.name = $$->last.name = NULL;
@@ -437,13 +434,13 @@ elementary:
 chain:	openchain			      { $$=$1;
 						if($$->last.name){
 							SET_ERROR (graph->error, GST_PARSE_ERROR_SYNTAX,
-							_("unexpected reference \"%s\" - ignoring"), $$->last.name);
+							"unexpected reference \"%s\" - ignoring", $$->last.name);
 							g_free ($$->last.name);
 							$$->last.name=NULL;
 						}
 						if($$->last.pads){
 							SET_ERROR (graph->error, GST_PARSE_ERROR_SYNTAX,
-							_("unexpected pad-reference \"%s\" - ignoring"), (gchar*)$$->last.pads->data);
+							"unexpected pad-reference \"%s\" - ignoring", (gchar*)$$->last.pads->data);
 							g_slist_foreach ($$->last.pads, (GFunc) g_free, NULL);
 							g_slist_free ($$->last.pads);
 							$$->last.pads=NULL;
@@ -454,7 +451,6 @@ chain:	openchain			      { $$=$1;
 openchain:
 	elementary pads			      { $$=$1;
 						$$->last.pads = g_slist_concat ($$->last.pads, $2);
-						/* g_print ("@%p@%p: FKI elementary pads\n", $1, $$->last.pads); */
 					      }
 	| openchain link pads elementary pads
 					      {
@@ -605,8 +601,8 @@ chainlist: /* NOP */			      { $$ = NULL; }
 						$$ = $2;
 					      }
 	| chainlist error		      { $$=$1;
-						GST_CAT_DEBUG (GST_CAT_PIPELINE,"trying to recover from syntax error");
-						SET_ERROR (graph->error, GST_PARSE_ERROR_SYNTAX, _("syntax error"));
+						g_debug ("trying to recover from syntax error");
+						SET_ERROR (graph->error, GST_PARSE_ERROR_SYNTAX, "syntax error");
 					      }
 	;
 
@@ -629,7 +625,7 @@ bin:	binopener assignments chainlist ')'   {
 						_Element *bin = nnstparser_gstbin_make ($1, NULL);
 						if (!chain) {
 						  SET_ERROR (graph->error, GST_PARSE_ERROR_EMPTY_BIN,
-						    _("specified empty bin \"%s\", not allowed"), $1);
+						    "specified empty bin \"%s\", not allowed", $1);
 						  chain = gst_parse_chain_new ();
 						  chain->first.element = chain->last.element = NULL;
 						  chain->first.name    = chain->last.name    = NULL;
@@ -639,7 +635,7 @@ bin:	binopener assignments chainlist ')'   {
 						if (!bin) {
 						  add_missing_element(graph, $1);
 						  SET_ERROR (graph->error, GST_PARSE_ERROR_NO_SUCH_ELEMENT,
-						    _("no bin \"%s\", unpacking elements"), $1);
+						    "no bin \"%s\", unpacking elements", $1);
 						  /* clear property-list */
 						  g_slist_foreach ($2, (GFunc) g_free, NULL);
 						  g_slist_free ($2);
@@ -675,7 +671,7 @@ bin:	binopener assignments chainlist ')'   {
 graph:	chainlist			      { $$ = graph;
 						$$->chain = $1;
 						if(!$1) {
-						  SET_ERROR (graph->error, GST_PARSE_ERROR_EMPTY, _("empty pipeline not allowed"));
+						  SET_ERROR (graph->error, GST_PARSE_ERROR_EMPTY, "empty pipeline not allowed");
 						}
 					      }
 	;
@@ -687,7 +683,7 @@ static int
 yyerror (void *scanner, graph_t *graph, const char *s)
 {
   /* FIXME: This should go into the GError somehow, but how? */
-  GST_WARNING ("Error during parsing: %s", s);
+  g_warning ("Error during parsing: %s", s);
   return -1;
 }
 
@@ -712,13 +708,6 @@ priv_gst_parse_launch (const gchar *str, GError **error, GstParseContext *ctx,
   g.ctx = ctx;
   g.flags = flags;
 
-#ifdef __GST_PARSE_TRACE
-  GST_CAT_DEBUG (GST_CAT_PIPELINE, "TRACE: tracing enabled");
-  __strings = __chains = __links = 0;
-#endif /* __GST_PARSE_TRACE */
-
-  /* g_print("Now scanning: %s\n", str); */
-
   dstr = g_strdup (str);
   priv_gst_parse_yylex_init (&scanner);
   priv_gst_parse_yy_scan_string (dstr, scanner);
@@ -726,6 +715,8 @@ priv_gst_parse_launch (const gchar *str, GError **error, GstParseContext *ctx,
 #if YYDEBUG
   yydebug = 1;
 #endif
+
+  g_info ("The given string: %s\n", str);
 
   if (yyparse (scanner, &g) != 0) {
     SET_ERROR (error, GST_PARSE_ERROR_SYNTAX,
@@ -739,7 +730,7 @@ priv_gst_parse_launch (const gchar *str, GError **error, GstParseContext *ctx,
   priv_gst_parse_yylex_destroy (scanner);
   g_free (dstr);
 
-  GST_CAT_DEBUG (GST_CAT_PIPELINE, "got %u elements and %u links",
+  g_info ("got %u elements and %u links\n",
       g.chain ? g_slist_length (g.chain->elements) : 0,
       g_slist_length (g.links));
 
@@ -821,16 +812,6 @@ priv_gst_parse_launch (const gchar *str, GError **error, GstParseContext *ctx,
   g_slist_free (g.links);
 
 out:
-#ifdef __GST_PARSE_TRACE
-  GST_CAT_DEBUG (GST_CAT_PIPELINE,
-      "TRACE: %u strings, %u chains and %u links left", __strings, __chains,
-      __links);
-  if (__strings || __chains || __links) {
-    g_warning ("TRACE: %u strings, %u chains and %u links left", __strings,
-        __chains, __links);
-  }
-#endif /* __GST_PARSE_TRACE */
-
   return ret;
 
 error1:

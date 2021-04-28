@@ -73,7 +73,7 @@ nnstparser_element_unref (_Element * element)
   g_assert (element);
 
   if (element->refcount <= 0) {
-    g_printerr ("ERROR! Refcounter is broken: %s.", __func__);
+    g_critical ("ERROR! Refcounter is broken: %s.", __func__);
   }
   g_assert (element->refcount > 0);
 
@@ -95,7 +95,7 @@ nnstparser_element_ref (_Element * element)
   g_assert (element);
 
   if (element->refcount <= 0) {
-    g_printerr ("ERROR! Refcounter is broken: %s.", __func__);
+    g_critical ("ERROR! Refcounter is broken: %s.", __func__);
   }
   g_assert (element->refcount > 0);
 
