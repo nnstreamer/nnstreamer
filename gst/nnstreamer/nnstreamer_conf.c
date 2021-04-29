@@ -1,4 +1,5 @@
-/** * NNStreamer Configurations / Environmental Variable Manager.
+/**
+ * NNStreamer Configurations / Environmental Variable Manager.
  * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
  *
  * This library is free software; you can redistribute it and/or

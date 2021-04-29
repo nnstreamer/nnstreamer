@@ -30,7 +30,8 @@ IncludeCategories:
     Priority:	10
   - Regex:	'<.*>'
     Priority:	0
-IndentCaseLabels: false
+IndentCaseLabels: true
+IndentCaseBlocks: true
 IndentFunctionDeclarationAfterType: true
 IndentWidth: 2
 IndentWrappedFunctionNames: false
