@@ -73,6 +73,9 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, getDimension)
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("nnfw");
   EXPECT_NE (sp, (void *)NULL);
 
+  gst_tensors_info_init (&info);
+  gst_tensors_info_init (&res);
+
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);
 
@@ -105,6 +108,9 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, getDimension)
   EXPECT_EQ (res.info[0].dimension[3], info.info[0].dimension[3]);
 
   sp->close (&prop, &data);
+
+  gst_tensors_info_free (&info);
+  gst_tensors_info_free (&res);
   g_free (model_file);
 }
 
@@ -131,6 +137,10 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, setDimension)
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("nnfw");
   EXPECT_NE (sp, (void *)NULL);
+
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+  gst_tensors_info_init (&res);
 
   /** set input dimension without open */
   ret = sp->setInputDimension (&prop, &data, &in_info, &out_info);
@@ -203,6 +213,10 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, setDimension)
   g_free (output.data);
 
   sp->close (&prop, &data);
+
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+  gst_tensors_info_free (&res);
   g_free (model_file);
 }
 
@@ -330,6 +344,9 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, invokeAdvanced)
     ASSERT_EQ (ret, 0);
   }
 
+  gst_tensors_info_init (&info);
+  gst_tensors_info_init (&res);
+
   info.num_tensors = 1;
   info.info[0].type = _NNS_UINT8;
   info.info[0].dimension[0] = 3;
@@ -400,6 +417,8 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, invokeAdvanced)
   ret = system (replace_command);
   g_free (replace_command);
   g_free (manifest_file);
+  gst_tensors_info_free (&info);
+  gst_tensors_info_free (&res);
   ASSERT_EQ (ret, 0);
 }
 
