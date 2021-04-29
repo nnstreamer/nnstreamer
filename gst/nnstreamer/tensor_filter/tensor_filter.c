@@ -731,6 +731,7 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
   GstTensorFilterProperties *prop;
   GstStructure *structure;
   GstTensorsConfig in_config, out_config;
+  GstTensorsInfo in_info, out_info;
 
   g_return_val_if_fail (incaps != NULL, FALSE);
 
@@ -738,6 +739,8 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
   prop = &priv->prop;
   gst_tensors_config_init (&in_config);
   gst_tensors_config_init (&out_config);
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
 
   /**
    * GstTensorFilter has to parse the tensor dimension and type from NN model.
@@ -754,86 +757,91 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
    * Check configuration from caps.
    * If true, fully configured tensor info from caps.
    */
-  if (gst_tensors_config_validate (&in_config)) {
-    /** if set-property called and already has info, verify it! */
-    if (prop->input_meta.num_tensors > 0) {
-      if (!priv->combi.in_combi_defined) {
-        if (!gst_tensors_info_is_equal (&in_config.info, &prop->input_meta)) {
-          GST_ERROR_OBJECT (self, "The input tensor is not compatible.");
-          gst_tensor_filter_compare_tensors (&in_config.info,
-              &prop->input_meta);
-          goto done;
-        }
-      }
-    } else {
-      gst_tensors_info_copy (&prop->input_meta, &in_config.info);
-    }
+  if (!gst_tensors_config_validate (&in_config)) {
+    GST_ERROR_OBJECT (self, "Invalid caps, failed to configure input info.");
+    goto done;
+  }
 
-    prop->input_configured = TRUE;
+  if (!gst_tensor_filter_common_get_combined_in_info (priv, &in_config.info,
+          &in_info)) {
+    GST_ERROR_OBJECT (self, "Failed to configure combined input info.");
+    goto done;
+  }
 
-    /** call setInputDimension if output tensor is not configured */
-    if (!prop->output_configured) {
-      GstTensorsInfo out_info;
-
-      if (gst_tensor_filter_common_get_out_info (priv, &prop->input_meta,
-              &out_info)) {
-        /** if set-property called and already has info, verify it! */
-        if (prop->output_meta.num_tensors > 0) {
-          if (!gst_tensors_info_is_equal (&out_info, &prop->output_meta)) {
-            GST_ERROR_OBJECT (self, "The output tensor is not compatible.");
-            gst_tensor_filter_compare_tensors (&out_info, &prop->output_meta);
-            gst_tensors_info_free (&out_info);
-            goto done;
-          }
-        } else {
-          gst_tensors_info_copy (&prop->output_meta, &out_info);
-        }
-
-        prop->output_configured = TRUE;
-      }
-
-      gst_tensors_info_free (&out_info);
-
-      if (!prop->output_configured) {
-        GST_ERROR_OBJECT (self, "Failed to get output tensor info.\n");
-        goto done;
-      }
-    }
-
-    /**
-     * @todo framerate of output tensors
-     * How can we update the framerate?
-     * GstTensorFilter cannot assure the framerate.
-     * Simply set the framerate of out-tensor from incaps.
-     */
-    out_config.rate_n = in_config.rate_n;
-    out_config.rate_d = in_config.rate_d;
-
-    if (!gst_tensor_filter_common_get_combined_info (priv, &in_config.info,
-            &prop->output_meta, &out_config.info)) {
-      GST_ERROR_OBJECT (self, "Failed to configure combined info.");
+  /** if set-property called and already has info, verify it! */
+  if (prop->input_meta.num_tensors > 0) {
+    if (!gst_tensors_info_is_equal (&in_info, &prop->input_meta)) {
+      GST_ERROR_OBJECT (self, "The input tensor is not compatible.");
+      gst_tensor_filter_compare_tensors (&in_info, &prop->input_meta);
       goto done;
     }
+  } else {
+    gst_tensors_info_copy (&prop->input_meta, &in_info);
+  }
 
-    if (priv->configured) {
-      /** already configured, compare to old. */
-      g_assert (gst_tensors_config_is_equal (&priv->in_config, &in_config));
-      g_assert (gst_tensors_config_is_equal (&priv->out_config, &out_config));
-    } else {
-      gst_tensors_info_copy (&priv->in_config.info, &in_config.info);
-      priv->in_config.rate_n = in_config.rate_n;
-      priv->in_config.rate_d = in_config.rate_d;
+  prop->input_configured = TRUE;
 
-      gst_tensors_info_copy (&priv->out_config.info, &out_config.info);
-      priv->out_config.rate_n = out_config.rate_n;
-      priv->out_config.rate_d = out_config.rate_d;
+  /** call setInputDimension if output tensor is not configured */
+  if (!prop->output_configured) {
+    if (gst_tensor_filter_common_get_out_info (priv, &prop->input_meta,
+            &out_info)) {
+      /** if set-property called and already has info, verify it! */
+      if (prop->output_meta.num_tensors > 0) {
+        if (!gst_tensors_info_is_equal (&out_info, &prop->output_meta)) {
+          GST_ERROR_OBJECT (self, "The output tensor is not compatible.");
+          gst_tensor_filter_compare_tensors (&out_info, &prop->output_meta);
+          gst_tensors_info_free (&out_info);
+          goto done;
+        }
+      } else {
+        gst_tensors_info_copy (&prop->output_meta, &out_info);
+      }
 
-      priv->configured = TRUE;
+      prop->output_configured = TRUE;
+    }
+
+    if (!prop->output_configured) {
+      GST_ERROR_OBJECT (self, "Failed to get output tensor info.\n");
+      goto done;
     }
   }
+
+  /**
+   * @todo framerate of output tensors
+   * How can we update the framerate?
+   * GstTensorFilter cannot assure the framerate.
+   * Simply set the framerate of out-tensor from incaps.
+   */
+  out_config.rate_n = in_config.rate_n;
+  out_config.rate_d = in_config.rate_d;
+
+  if (!gst_tensor_filter_common_get_combined_out_info (priv, &in_config.info,
+          &prop->output_meta, &out_config.info)) {
+    GST_ERROR_OBJECT (self, "Failed to configure combined output info.");
+    goto done;
+  }
+
+  if (priv->configured) {
+    /** already configured, compare to old. */
+    g_assert (gst_tensors_config_is_equal (&priv->in_config, &in_config));
+    g_assert (gst_tensors_config_is_equal (&priv->out_config, &out_config));
+  } else {
+    gst_tensors_info_copy (&priv->in_config.info, &in_config.info);
+    priv->in_config.rate_n = in_config.rate_n;
+    priv->in_config.rate_d = in_config.rate_d;
+
+    gst_tensors_info_copy (&priv->out_config.info, &out_config.info);
+    priv->out_config.rate_n = out_config.rate_n;
+    priv->out_config.rate_d = out_config.rate_d;
+
+    priv->configured = TRUE;
+  }
+
 done:
   gst_tensors_info_free (&in_config.info);
   gst_tensors_info_free (&out_config.info);
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
   return priv->configured;
 }
 
@@ -930,7 +938,7 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
 
     /* If output combibation option is given, reconfigure tensor info */
     if (configured)
-      configured = gst_tensor_filter_common_get_combined_info (priv,
+      configured = gst_tensor_filter_common_get_combined_out_info (priv,
           &in_config.info, &out_info, &out_config.info);
 
     gst_tensors_info_free (&out_info);
