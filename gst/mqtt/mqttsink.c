@@ -40,6 +40,7 @@ enum
 {
   PROP_0,
 
+  PROP_DEBUG,
   PROP_MQTT_CLIENT_ID,
   PROP_MQTT_HOST_ADDRESS,
   PROP_MQTT_HOST_PORT,
@@ -55,6 +56,7 @@ enum
 
 enum
 {
+  DEFAULT_DEBUG = FALSE,
   DEFAULT_NUM_BUFFERS = -1,
   DEFAULT_QOS = TRUE,
   DEFAULT_SYNC = FALSE,
@@ -95,6 +97,9 @@ static GstFlowReturn
 gst_mqtt_sink_render_list (GstBaseSink * basesink, GstBufferList * list);
 static gboolean gst_mqtt_sink_event (GstBaseSink * basesink, GstEvent * event);
 static gboolean gst_mqtt_sink_set_caps (GstBaseSink * basesink, GstCaps * caps);
+
+static gboolean gst_mqtt_sink_get_debug (GstMqttSink * self);
+static void gst_mqtt_sink_set_debug (GstMqttSink * self, const gboolean flag);
 static gchar *gst_mqtt_sink_get_client_id (GstMqttSink * self);
 static void gst_mqtt_sink_set_client_id (GstMqttSink * self, const gchar * id);
 static gchar *gst_mqtt_sink_get_host_address (GstMqttSink * self);
@@ -172,6 +177,7 @@ gst_mqtt_sink_init (GstMqttSink * self)
   self->in_caps = NULL;
 
   /** init mqttsink properties */
+  self->debug = DEFAULT_DEBUG;
   self->num_buffers = DEFAULT_NUM_BUFFERS;
   self->max_msg_buf_size = DEFAULT_MAX_MSG_BUF_SIZE;
   self->mqtt_client_id = g_strdup (DEFAULT_MQTT_CLIENT_ID);
@@ -203,6 +209,11 @@ gst_mqtt_sink_class_init (GstMqttSinkClass * klass)
   gobject_class->set_property = gst_mqtt_sink_set_property;
   gobject_class->get_property = gst_mqtt_sink_get_property;
   gobject_class->finalize = gst_mqtt_sink_class_finalize;
+
+  g_object_class_install_property (gobject_class, PROP_DEBUG,
+      g_param_spec_boolean ("debug", "Debug",
+          "Produce extra verbose output for debug purpose", DEFAULT_DEBUG,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_MQTT_CLIENT_ID,
       g_param_spec_string ("client-id", "Client ID",
@@ -286,6 +297,9 @@ gst_mqtt_sink_set_property (GObject * object, guint prop_id,
   GstMqttSink *self = GST_MQTT_SINK (object);
 
   switch (prop_id) {
+    case PROP_DEBUG:
+      gst_mqtt_sink_set_debug (self, g_value_get_boolean (value));
+      break;
     case PROP_MQTT_CLIENT_ID:
       gst_mqtt_sink_set_client_id (self, g_value_get_string (value));
       break;
@@ -329,6 +343,9 @@ gst_mqtt_sink_get_property (GObject * object, guint prop_id,
   GstMqttSink *self = GST_MQTT_SINK (object);
 
   switch (prop_id) {
+    case PROP_DEBUG:
+      g_value_set_boolean (value, gst_mqtt_sink_get_debug (self));
+      break;
     case PROP_MQTT_CLIENT_ID:
       g_value_set_string (value, gst_mqtt_sink_get_client_id (self));
       break;
@@ -576,6 +593,22 @@ _put_timestamp_to_msg_buf_hdr (GstMqttSink * self, GstBuffer * gst_buf,
 
   hdr->pts = GST_BUFFER_PTS_IS_VALID (gst_buf) ?
       GST_BUFFER_PTS (gst_buf) : GST_CLOCK_TIME_NONE;
+
+  if (self->debug) {
+    GstClockTime base_time = gst_element_get_base_time (GST_ELEMENT (self));
+    GstClock *clock;
+
+    clock = gst_element_get_clock (GST_ELEMENT (self));
+
+    GST_DEBUG_OBJECT (self,
+        "%s now %" GST_TIME_FORMAT " ts %" GST_TIME_FORMAT " sent %"
+        GST_TIME_FORMAT, self->mqtt_topic,
+        GST_TIME_ARGS (gst_clock_get_time (clock) - base_time),
+        GST_TIME_ARGS (hdr->pts),
+        GST_TIME_ARGS (hdr->sent_time_epoch - hdr->base_time_epoch));
+
+    gst_object_unref (clock);
+  }
 }
 
 /**
@@ -797,6 +830,24 @@ gst_mqtt_sink_set_caps (GstBaseSink * basesink, GstCaps * caps)
   }
 
   return ret;
+}
+
+/**
+ * @brief Getter for the 'debug' property.
+ */
+static gboolean
+gst_mqtt_sink_get_debug (GstMqttSink * self)
+{
+  return self->debug;
+}
+
+/**
+ * @brief Setter for the 'debug' property.
+ */
+static void
+gst_mqtt_sink_set_debug (GstMqttSink * self, const gboolean flag)
+{
+  self->debug = flag;
 }
 
 /**

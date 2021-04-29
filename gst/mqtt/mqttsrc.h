@@ -49,11 +49,14 @@ struct _GstMqttSrc {
   GQuark gquark_err_tag;
   GError *err;
   gint64 base_time_epoch;
+  GstClockTime latency;
   gchar *mqtt_client_id;
   gchar *mqtt_host_address;
   gchar *mqtt_host_port;
   gchar *mqtt_topic;
   gint64 mqtt_sub_timeout;
+  gboolean debug;
+  guint64 num_dumped;
 
   GAsyncQueue *aqueue;
   GMutex mqtt_src_mutex;

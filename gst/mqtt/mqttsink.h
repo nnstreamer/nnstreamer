@@ -73,6 +73,7 @@ struct _GstMqttSink {
   GMutex mqtt_sink_mutex;
   GCond mqtt_sink_gcond;
   mqtt_sink_state_t mqtt_sink_state;
+  gboolean debug;
 
   GstMQTTMessageHdr mqtt_msg_hdr;
   gpointer mqtt_msg_buf;
