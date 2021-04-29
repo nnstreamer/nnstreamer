@@ -54,7 +54,7 @@
 #include <tensorflow/lite/delegates/gpu/delegate.h>
 #endif
 
-#if !defined (TFLITE_SUBPLUGIN_NAME)
+#if !defined(TFLITE_SUBPLUGIN_NAME)
 #warning "The sub-plugin name for tensorflow-lite is not defined."
 #define TFLITE_SUBPLUGIN_NAME "tensorflow-lite"
 #endif
@@ -177,17 +177,14 @@ class TFLiteInterpreter
   int getTensorDim (int tensor_idx, tensor_dim dim);
   int setTensorProp (const std::vector<int> &tensor_idx_list, GstTensorsInfo *tensorMeta);
 
-  TfLiteDelegate *delegate_
-      = nullptr; /**< The delegate for tflite interpreter */
+  TfLiteDelegate *delegate_ = nullptr; /**< The delegate for tflite interpreter */
 
 #ifdef TFLITE_NNAPI_DELEGATE_SUPPORTED
-  std::unique_ptr<tflite::StatefulNnApiDelegate>
-      stateful_nnapi_delegate; /**< The pointer of NNAPI delegate */
+  std::unique_ptr<tflite::StatefulNnApiDelegate> stateful_nnapi_delegate; /**< The pointer of NNAPI delegate */
 #endif
 
 #ifdef TFLITE_GPU_DELEGATE_SUPPORTED
-  std::unique_ptr<TfLiteDelegate> gpu_delegate; /**< The pointer of GPU delegate
-                                                   */
+  std::unique_ptr<TfLiteDelegate> gpu_delegate; /**< The pointer of GPU delegate */
 #endif
 };
 
@@ -221,9 +218,9 @@ class TFLiteCore
   void setAccelerator (const char *accelerators, tflite_delegate_e d);
 };
 
-extern "C" { /* accessed by android api */
-void init_filter_tflite (void) __attribute__((constructor));
-void fini_filter_tflite (void) __attribute__((destructor));
+extern "C" {
+void init_filter_tflite (void) __attribute__ ((constructor));
+void fini_filter_tflite (void) __attribute__ ((destructor));
 }
 
 /**
@@ -287,8 +284,10 @@ TFLiteInterpreter::invoke (const GstTensorMemory *input, GstTensorMemory *output
   tflite_internal_stats.total_invoke_num += 1;
 
 #if (DBG)
-  g_message ("Invoke() is finished: %" G_GINT64_FORMAT "ms, model path: %s", (stop_time - start_time) / 1000, getModelPath());
-  g_message ("%" G_GINT64_FORMAT " invoke average %" G_GINT64_FORMAT ", total overhead %" G_GINT64_FORMAT,
+  ml_logi ("Invoke() is finished: %" G_GINT64_FORMAT "ms, model path: %s",
+      (stop_time - start_time) / 1000, getModelPath ());
+  ml_logi ("%" G_GINT64_FORMAT " invoke average %" G_GINT64_FORMAT
+           ", total overhead %" G_GINT64_FORMAT,
       tflite_internal_stats.total_invoke_num,
       (tflite_internal_stats.total_invoke_latency / tflite_internal_stats.total_invoke_num),
       tflite_internal_stats.total_overhead_latency);
@@ -318,7 +317,8 @@ int
 TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate)
 {
 #if (DBG)
-  gint64 start_time = g_get_monotonic_time ();
+  gint64 start_time, stop_time;
+  start_time = g_get_monotonic_time ();
 #endif
 
   model = tflite::FlatBufferModel::BuildFromFile (model_path);
@@ -326,8 +326,11 @@ TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate)
     ml_loge ("Failed to mmap model\n");
     return -1;
   }
-  /**If got any trouble at model, active below code. It'll be help to analyze.
-   * model->error_reporter (); */
+
+  /**
+   * If got any trouble at model, active below code. It'll be help to analyze.
+   * model->error_reporter ();
+   */
 
   interpreter = nullptr;
 
@@ -401,8 +404,8 @@ TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate)
   }
 
 #if (DBG)
-  gint64 stop_time = g_get_monotonic_time ();
-  g_message ("Model is loaded: %" G_GINT64_FORMAT, (stop_time - start_time));
+  stop_time = g_get_monotonic_time ();
+  ml_logi ("Model is loaded: %" G_GINT64_FORMAT, (stop_time - start_time));
 #endif
   return 0;
 }
@@ -499,7 +502,7 @@ TFLiteInterpreter::setTensorProp (
 
 #if (DBG)
     gchar *dim_str = gst_tensor_get_dimension_string (tensorMeta->info[i].dimension);
-    g_message ("tensorMeta[%d] >> name[%s], type[%d], dim[%s]", i,
+    ml_logi ("tensorMeta[%d] >> name[%s], type[%d], dim[%s]", i,
         tensorMeta->info[i].name, tensorMeta->info[i].type, dim_str);
     g_free (dim_str);
 #endif
@@ -1249,25 +1252,25 @@ tflite_checkAvailability (accl_hw hw)
 static gchar filter_subplugin_tensorflow_lite[] = TFLITE_SUBPLUGIN_NAME;
 
 static GstTensorFilterFramework NNS_support_tensorflow_lite
-    = {.version = GST_TENSOR_FILTER_FRAMEWORK_V0,
+    = { .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
         .open = tflite_open,
         .close = tflite_close,
-        {.v0 = {
-             .name = filter_subplugin_tensorflow_lite,
-             .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
-             .allocate_in_invoke = FALSE,
-             .run_without_model = FALSE,
-             .verify_model_path = TRUE,
-             .statistics = &tflite_internal_stats,
-             .invoke_NN = tflite_invoke,
-             .getInputDimension = tflite_getInputDim,
-             .getOutputDimension = tflite_getOutputDim,
-             .setInputDimension = tflite_setInputDim,
-             .destroyNotify = nullptr,
-             .reloadModel = tflite_reloadModel,
-             .checkAvailability = tflite_checkAvailability,
-             .allocateInInvoke = nullptr,
-         } } };
+        { .v0 = {
+              .name = filter_subplugin_tensorflow_lite,
+              .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
+              .allocate_in_invoke = FALSE,
+              .run_without_model = FALSE,
+              .verify_model_path = TRUE,
+              .statistics = &tflite_internal_stats,
+              .invoke_NN = tflite_invoke,
+              .getInputDimension = tflite_getInputDim,
+              .getOutputDimension = tflite_getOutputDim,
+              .setInputDimension = tflite_setInputDim,
+              .destroyNotify = nullptr,
+              .reloadModel = tflite_reloadModel,
+              .checkAvailability = tflite_checkAvailability,
+              .allocateInInvoke = nullptr,
+          } } };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void

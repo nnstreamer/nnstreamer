@@ -39,8 +39,8 @@
  * This is an example of a callback type custom mode.
  * @code
  * // Define custom callback function
- * int * tensor_decoder_custom_cb (const GstTensorMemory *input,
- *   const GstTensorsConfig *config, void * data, GstBuffer * out_buf) {
+ * int tensor_decoder_custom_cb (const GstTensorMemory *input,
+ *   const GstTensorsConfig *config, void *data, GstBuffer *out_buf) {
  *   // Write a code to convert tensors to flexbuffers.
  * }
  *
@@ -56,19 +56,18 @@
  * @endcode
  */
 
-
+#include <flatbuffers/flexbuffers.h>
 #include <glib.h>
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_decoder.h>
 #include "tensordecutil.h"
-#include <flatbuffers/flexbuffers.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-void init_flxd (void) __attribute__((constructor));
-void fini_flxd (void) __attribute__((destructor));
+void init_flxd (void) __attribute__ ((constructor));
+void fini_flxd (void) __attribute__ ((destructor));
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
@@ -128,8 +127,8 @@ flxd_decode (void **pdata, const GstTensorsConfig *config,
     fbb.Int ("rate_n", config->rate_n);
     fbb.Int ("rate_d", config->rate_d);
     for (i = 0; i < num_tensors; i++) {
-      gchar * tensor_key = g_strdup_printf ("tensor_%d", i);
-      gchar * tensor_name = NULL;
+      gchar *tensor_key = g_strdup_printf ("tensor_%d", i);
+      gchar *tensor_name = NULL;
 
       if (config->info.info[i].name == NULL) {
         tensor_name = g_strdup ("");
@@ -142,7 +141,7 @@ flxd_decode (void **pdata, const GstTensorsConfig *config,
         fbb += tensor_name;
         fbb += type;
         fbb.Vector (config->info.info[i].dimension, NNS_TENSOR_RANK_LIMIT);
-        fbb.Blob (input[i].data, (size_t) input[i].size);
+        fbb.Blob (input[i].data, input[i].size);
       });
       g_free (tensor_key);
       g_free (tensor_name);
@@ -182,7 +181,7 @@ flxd_decode (void **pdata, const GstTensorsConfig *config,
 static gchar decoder_subplugin_flexbuf[] = "flexbuf";
 
 /** @brief flexbuffer tensordec-plugin GstTensorDecoderDef instance */
-static GstTensorDecoderDef flexBuf = {.modename = decoder_subplugin_flexbuf,
+static GstTensorDecoderDef flexBuf = { .modename = decoder_subplugin_flexbuf,
   .init = flxd_init,
   .exit = flxd_exit,
   .setOption = flxd_setOption,

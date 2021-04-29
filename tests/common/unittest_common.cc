@@ -650,7 +650,7 @@ TEST (commonTensorInfo, getrankInvalidParam0_n)
  */
 TEST (commonTensorsInfo, parsingDimInvalidParam0_n)
 {
-  const gchar * dim_str = "1:2:3:4";
+  const gchar *dim_str = "1:2:3:4";
   EXPECT_EQ (0U, gst_tensors_info_parse_dimensions_string (NULL, dim_str));
 }
 
@@ -668,7 +668,7 @@ TEST (commonTensorsInfo, parsingDimInvalidParam1_n)
  */
 TEST (commonTensorsInfo, parsingTypeInvalidParam0_n)
 {
-  const gchar * dim_str = "uint8";
+  const gchar *dim_str = "uint8";
   EXPECT_EQ (0U, gst_tensors_info_parse_types_string (NULL, dim_str));
 }
 
@@ -686,7 +686,7 @@ TEST (commonTensorsInfo, parsingTypeInvalidParam1_n)
  */
 TEST (commonTensorsInfo, parsingNameInvalidParam0_n)
 {
-  const gchar * dim_str = "tname";
+  const gchar *dim_str = "tname";
   EXPECT_EQ (0U, gst_tensors_info_parse_names_string (NULL, dim_str));
 }
 
@@ -1388,8 +1388,7 @@ TEST (commonPadCap, tensor0)
   gboolean is_tensor;
 
   /* Create a nnstreamer pipeline */
-  pipeline = g_strdup_printf (
-      "fakesrc name=fsrc ! fakesink name=fsink");
+  pipeline = g_strdup_printf ("fakesrc name=fsrc ! fakesink name=fsink");
   gstpipe = gst_parse_launch (pipeline, NULL);
   EXPECT_NE (pipeline, nullptr);
 

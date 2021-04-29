@@ -1,5 +1,5 @@
+/* SPDX-License-Identifier: LGPL-2.1-only */
 /**
- * SPDX-License-Identifier: LGPL-2.1-only
  * Copyright (c) 2021 Samsung Electronics Co., Ltd. All Rights Reserved.
  *
  * @file	nnstreamer_internal.h

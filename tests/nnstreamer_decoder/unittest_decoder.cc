@@ -8,13 +8,13 @@
  */
 
 #include <gtest/gtest.h>
+#include <flatbuffers/flexbuffers.h>
 #include <glib.h>
 #include <gst/gst.h>
+#include <nnstreamer_plugin_api_decoder.h>
 #include <tensor_common.h>
 #include <unittest_util.h>
 #include <tensor_decoder_custom.h>
-#include <flatbuffers/flexbuffers.h>
-#include <nnstreamer_plugin_api_decoder.h>
 
 #define TEST_TIMEOUT_MS (1000U)
 
@@ -23,7 +23,8 @@ static int data_received;
 /**
  * @brief custom callback function
  */
-int tensor_decoder_custom_cb (const GstTensorMemory *input,
+static int
+tensor_decoder_custom_cb (const GstTensorMemory *input,
     const GstTensorsConfig *config, void * data, GstBuffer *out_buf)
 {
   GstMapInfo out_info;
@@ -39,8 +40,8 @@ int tensor_decoder_custom_cb (const GstTensorMemory *input,
     fbb.Int ("rate_n", config->rate_n);
     fbb.Int ("rate_d", config->rate_d);
     for (i = 0; i < num_tensors; i++) {
-      gchar * tensor_key = g_strdup_printf ("tensor_%d", i);
-      gchar * tensor_name = NULL;
+      gchar *tensor_key = g_strdup_printf ("tensor_%d", i);
+      gchar *tensor_name = NULL;
 
       if (config->info.info[i].name == NULL) {
         tensor_name = g_strdup ("");
@@ -49,11 +50,11 @@ int tensor_decoder_custom_cb (const GstTensorMemory *input,
       }
       tensor_type type = config->info.info[i].type;
 
-      fbb.Vector (tensor_key, [&] () {
+      fbb.Vector (tensor_key, [&]() {
         fbb += tensor_name;
         fbb += type;
         fbb.Vector (config->info.info[i].dimension, NNS_TENSOR_RANK_LIMIT);
-        fbb.Blob (input[i].data, (size_t) input[i].size);
+        fbb.Blob (input[i].data, input[i].size);
       });
       g_free (tensor_key);
       g_free (tensor_name);
@@ -192,8 +193,8 @@ decsub_getOutCaps (void **pdata, const GstTensorsConfig *config)
 
 /** @brief tensordec-plugin's decode callback */
 static GstFlowReturn
-decsub_decode (void **pdata, const GstTensorsConfig * config,
-    const GstTensorMemory * input, GstBuffer * outbuf)
+decsub_decode (void **pdata, const GstTensorsConfig *config,
+    const GstTensorMemory *input, GstBuffer *outbuf)
 {
   return GST_FLOW_OK;
 }
@@ -207,7 +208,7 @@ get_default_decoder (const gchar *name)
   GstTensorDecoderDef *sub = g_try_new0 (GstTensorDecoderDef, 1);
   g_assert (sub);
 
-  sub->modename = (char *) g_strdup (name);
+  sub->modename = g_strdup (name);
   sub->init = decsub_init;
   sub->getOutCaps = decsub_getOutCaps;
   sub->decode = decsub_decode;
@@ -221,7 +222,7 @@ get_default_decoder (const gchar *name)
 static void
 free_default_decoder (GstTensorDecoderDef *sub)
 {
-  g_free ((char *)sub->modename);
+  g_free (sub->modename);
   g_free (sub);
 }
 
