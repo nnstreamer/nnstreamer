@@ -40,6 +40,7 @@ enum
 {
   PROP_0,
 
+  PROP_DEBUG,
   PROP_MQTT_CLIENT_ID,
   PROP_MQTT_HOST_ADDRESS,
   PROP_MQTT_HOST_PORT,
@@ -53,6 +54,7 @@ enum
 
 enum
 {
+  DEFAULT_DEBUG = FALSE,
   DEFAULT_MQTT_OPT_CLEANSESSION = TRUE,
   DEFAULT_MQTT_OPT_KEEP_ALIVE_INTERVAL = 1000000,       /* 1 minute */
   DEFAULT_MQTT_SUB_TIMEOUT = 10000000,  /* 10 seconds */
@@ -92,6 +94,8 @@ static GstFlowReturn
 gst_mqtt_src_create (GstBaseSrc * basesrc, guint64 offset, guint size,
     GstBuffer ** buf);
 
+static gboolean gst_mqtt_src_get_debug (GstMqttSrc * self);
+static void gst_mqtt_src_set_debug (GstMqttSrc * self, const gboolean flag);
 static gchar *gst_mqtt_src_get_client_id (GstMqttSrc * self);
 static void gst_mqtt_src_set_client_id (GstMqttSrc * self, const gchar * id);
 static gchar *gst_mqtt_src_get_host_address (GstMqttSrc * self);
@@ -155,8 +159,10 @@ gst_mqtt_src_init (GstMqttSrc * self)
   self->gquark_err_tag = g_quark_from_string (TAG_ERR_MQTTSRC);
 
   gst_base_src_set_live (GST_BASE_SRC (self), TRUE);
+  gst_base_src_set_format (GST_BASE_SRC (self), GST_FORMAT_TIME);
 
   /** init mqttsrc properties */
+  self->debug = DEFAULT_DEBUG;
   self->mqtt_client_id = g_strdup (DEFAULT_MQTT_CLIENT_ID);
   self->mqtt_host_address = g_strdup (DEFAULT_MQTT_HOST_ADDRESS);
   self->mqtt_host_port = g_strdup (DEFAULT_MQTT_HOST_PORT);
@@ -182,6 +188,8 @@ gst_mqtt_src_init (GstMqttSrc * self)
   g_mutex_init (&self->mqtt_src_mutex);
   self->base_time_epoch = GST_CLOCK_TIME_NONE;
   self->caps = NULL;
+  self->latency = GST_CLOCK_TIME_NONE;
+  self->num_dumped = 0;
 }
 
 /**
@@ -200,6 +208,11 @@ gst_mqtt_src_class_init (GstMqttSrcClass * klass)
   gobject_class->set_property = gst_mqtt_src_set_property;
   gobject_class->get_property = gst_mqtt_src_get_property;
   gobject_class->finalize = gst_mqtt_src_class_finalize;
+
+  g_object_class_install_property (gobject_class, PROP_DEBUG,
+      g_param_spec_boolean ("debug", "Debug",
+          "Produce extra verbose output for debug purpose", DEFAULT_DEBUG,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_MQTT_CLIENT_ID,
       g_param_spec_string ("client-id", "Client ID",
@@ -268,6 +281,9 @@ gst_mqtt_src_set_property (GObject * object, guint prop_id,
   GstMqttSrc *self = GST_MQTT_SRC (object);
 
   switch (prop_id) {
+    case PROP_DEBUG:
+      gst_mqtt_src_set_debug (self, g_value_get_boolean (value));
+      break;
     case PROP_MQTT_CLIENT_ID:
       gst_mqtt_src_set_client_id (self, g_value_get_string (value));
       break;
@@ -305,6 +321,9 @@ gst_mqtt_src_get_property (GObject * object, guint prop_id,
   GstMqttSrc *self = GST_MQTT_SRC (object);
 
   switch (prop_id) {
+    case PROP_DEBUG:
+      g_value_set_boolean (value, gst_mqtt_src_get_debug (self));
+      break;
     case PROP_MQTT_CLIENT_ID:
       g_value_set_string (value, gst_mqtt_src_get_client_id (self));
       break;
@@ -621,6 +640,11 @@ gst_mqtt_src_create (GstBaseSrc * basesrc, guint64 offset, guint size,
     if (*buf) {
       /** This buffer is comming from the past. Drop it */
       if (!_is_gst_buffer_timestamp_valid (*buf)) {
+        if (self->debug) {
+          GST_DEBUG_OBJECT (self,
+              "%s: Dumped the received buffer! (total: %" G_GUINT64_FORMAT ")",
+              self->mqtt_topic, ++self->num_dumped);
+        }
         elapsed = self->mqtt_sub_timeout;
         gst_buffer_unref (*buf);
         continue;
@@ -649,6 +673,24 @@ ret_flow_err:
         self->err->message);
   }
   return GST_FLOW_ERROR;
+}
+
+/**
+ * @brief Getter for the 'debug' property.
+ */
+static gboolean
+gst_mqtt_src_get_debug (GstMqttSrc * self)
+{
+  return self->debug;
+}
+
+/**
+ * @brief Setter for the 'debug' property.
+ */
+static void
+gst_mqtt_src_set_debug (GstMqttSrc * self, const gboolean flag)
+{
+  self->debug = flag;
 }
 
 /**
@@ -830,11 +872,13 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
   GstBuffer *buffer;
   GstBaseSrc *basesrc;
   GstMqttSrc *self;
+  GstClock *clock;
   gsize offset;
   guint i;
 
   self = GST_MQTT_SRC_CAST (context);
   basesrc = GST_BASE_SRC (self);
+  clock = gst_element_get_clock (GST_ELEMENT (self));
   recieved_mem = gst_memory_new_wrapped (0, data, size, 0, size, message,
       (GDestroyNotify) cb_memory_wrapped_destroy);
   if (!recieved_mem) {
@@ -884,6 +928,19 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
   }
 
   /** Timestamp synchronization */
+  if (self->debug) {
+    GstClockTime base_time = gst_element_get_base_time (GST_ELEMENT (self));
+
+    if (clock) {
+      GST_DEBUG_OBJECT (self,
+          "A message has been arrived at %" GST_TIME_FORMAT
+          " and queue length is %d",
+          GST_TIME_ARGS (gst_clock_get_time (clock) - base_time),
+          g_async_queue_length (self->aqueue));
+
+      gst_object_unref (clock);
+    }
+  }
   _put_timestamp_on_gst_buf (self, mqtt_msg_hdr, buffer);
   g_async_queue_push (self->aqueue, buffer);
 
@@ -1022,6 +1079,9 @@ _put_timestamp_on_gst_buf (GstMqttSrc * self, GstMQTTMessageHdr * hdr,
   if (hdr->sent_time_epoch < self->base_time_epoch)
     return;
 
+  if (((GstClockTimeDiff) hdr->pts + diff_base_epoch) < 0)
+    return;
+
   if (hdr->pts != GST_CLOCK_TIME_NONE) {
     buf->pts = hdr->pts + diff_base_epoch;
   }
@@ -1031,4 +1091,22 @@ _put_timestamp_on_gst_buf (GstMqttSrc * self, GstMQTTMessageHdr * hdr,
   }
 
   buf->duration = hdr->duration;
+
+  if (self->debug) {
+    GstClockTime base_time = gst_element_get_base_time (GST_ELEMENT (self));
+    GstClock *clock;
+
+    clock = gst_element_get_clock (GST_ELEMENT (self));
+
+    if (clock) {
+      GST_DEBUG_OBJECT (self,
+          "%s diff %" GST_STIME_FORMAT " now %" GST_TIME_FORMAT " ts (%"
+          GST_TIME_FORMAT " -> %" GST_TIME_FORMAT ")", self->mqtt_topic,
+          GST_STIME_ARGS (diff_base_epoch),
+          GST_TIME_ARGS (gst_clock_get_time (clock) - base_time),
+          GST_TIME_ARGS (hdr->pts), GST_TIME_ARGS (buf->pts));
+
+      gst_object_unref (clock);
+    }
+  }
 }
