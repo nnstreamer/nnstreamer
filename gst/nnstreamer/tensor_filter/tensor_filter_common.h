@@ -188,10 +188,17 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
     guint prop_id, GValue * value, GParamSpec * pspec);
 
 /**
+ * @brief Configure input tensor info with combi option.
+ */
+extern gboolean
+gst_tensor_filter_common_get_combined_in_info (GstTensorFilterPrivate * priv,
+    const GstTensorsInfo * in, GstTensorsInfo * combined);
+
+/**
  * @brief Configure output tensor info with combi option.
  */
 extern gboolean
-gst_tensor_filter_common_get_combined_info (GstTensorFilterPrivate * priv,
+gst_tensor_filter_common_get_combined_out_info (GstTensorFilterPrivate * priv,
     const GstTensorsInfo * in, const GstTensorsInfo * out, GstTensorsInfo * combined);
 
 /**

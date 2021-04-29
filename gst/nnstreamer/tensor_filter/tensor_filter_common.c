@@ -2114,10 +2114,54 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
 }
 
 /**
+ * @brief Configure input tensor info with combi option.
+ */
+gboolean
+gst_tensor_filter_common_get_combined_in_info (GstTensorFilterPrivate * priv,
+    const GstTensorsInfo * in, GstTensorsInfo * combined)
+{
+  GList *list;
+  guint i, idx = 0;
+
+  g_return_val_if_fail (in != NULL, FALSE);
+  g_return_val_if_fail (combined != NULL, FALSE);
+
+  gst_tensors_info_init (combined);
+
+  if (priv->combi.in_combi_defined) {
+    for (list = priv->combi.in_combi; list != NULL; list = list->next) {
+      i = GPOINTER_TO_INT (list->data);
+
+      if (i >= in->num_tensors) {
+        nns_loge ("Invalid input index %u, failed to combine info.", i);
+        goto error;
+      }
+
+      gst_tensor_info_copy (&combined->info[idx++], &in->info[i]);
+
+      if (idx >= NNS_TENSOR_SIZE_LIMIT) {
+        nns_loge ("The max number of tensors is %d.", NNS_TENSOR_SIZE_LIMIT);
+        goto error;
+      }
+    }
+
+    combined->num_tensors = idx;
+  } else {
+    gst_tensors_info_copy (combined, in);
+  }
+
+  return TRUE;
+
+error:
+  gst_tensors_info_free (combined);
+  return FALSE;
+}
+
+/**
  * @brief Configure output tensor info with combi option.
  */
 gboolean
-gst_tensor_filter_common_get_combined_info (GstTensorFilterPrivate * priv,
+gst_tensor_filter_common_get_combined_out_info (GstTensorFilterPrivate * priv,
     const GstTensorsInfo * in, const GstTensorsInfo * out,
     GstTensorsInfo * combined)
 {
