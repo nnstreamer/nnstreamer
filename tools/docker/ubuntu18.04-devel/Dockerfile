@@ -1,4 +1,4 @@
-FROM ubuntu:16.04
+FROM ubuntu:18.04
 
 RUN apt update
 RUN apt install -y software-properties-common
@@ -25,6 +25,9 @@ RUN apt install -y \
     gstreamer1.0-tools \
     gstreamer1.0-x \
     gstreamer1.0-alsa \
+    gstreamer1.0-gl \
+    gstreamer1.0-gtk3 \
+    gstreamer1.0-qt5 \
     gstreamer1.0-pulseaudio \
     libgstreamer-plugins-base1.0-dev \
     libgtest-dev
@@ -32,3 +35,4 @@ RUN apt install -y \
 WORKDIR /opt/nnstreamer/
 RUN meson build
 RUN ninja -C build install
+ENV GST_PLUGIN_PATH=/usr/local/lib/x86_64-linux-gnu/gstreamer-1.0/
