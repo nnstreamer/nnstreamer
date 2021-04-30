@@ -1021,6 +1021,10 @@ gst_tensor_filter_common_free_property (GstTensorFilterPrivate * priv)
   gst_tensors_info_free (&priv->in_config.info);
   gst_tensors_info_free (&priv->out_config.info);
 
+  g_list_free (priv->combi.in_combi);
+  g_list_free (priv->combi.out_combi_i);
+  g_list_free (priv->combi.out_combi_o);
+
   if (priv->stat.recent_latencies != NULL) {
     GQueue *queue = priv->stat.recent_latencies;
     gint64 *latency;
@@ -1757,21 +1761,23 @@ static gint
 _gtfc_setprop_INPUTCOMBINATION (GstTensorFilterPrivate * priv,
     GList ** prop_list, const GValue * value)
 {
-  gint64 val;
+  guint64 val;
   const gchar *param = g_value_get_string (value);
   gchar **strv = g_strsplit_set (param, ",", -1);
   gint i, ret = 0, num = g_strv_length (strv);
+
+  /* release old list */
+  g_list_free (*prop_list);
   *prop_list = NULL;
 
   for (i = 0; i < num; i++) {
-    val = g_ascii_strtoll (strv[i], NULL, 10);
-    if (errno == ERANGE) {
-      ml_loge ("Overflow occured during converting %s to a gint64 value",
-          strv[i]);
+    val = g_ascii_strtoull (strv[i], NULL, 10);
+    if (errno == ERANGE || val >= NNS_TENSOR_SIZE_LIMIT) {
+      ml_loge ("Invalid value %s, cannot set combination option.", strv[i]);
       ret = ERANGE;
       break;
     }
-    *prop_list = g_list_append (*prop_list, GINT_TO_POINTER (val));
+    *prop_list = g_list_append (*prop_list, GUINT_TO_POINTER (val));
   }
   g_strfreev (strv);
 
@@ -1786,23 +1792,24 @@ static gint
 _gtfc_setprop_OUTPUTCOMBINATION (GstTensorFilterPrivate * priv,
     GList ** prop_list1, GList ** prop_list2, const GValue * value)
 {
-  gint64 val;
+  guint64 val;
   const gchar *param = g_value_get_string (value);
   gchar **strv = g_strsplit_set (param, ",", -1);
   gint i, ret = 0, num = g_strv_length (strv);
-  priv->combi.out_combi_i = NULL;
-  priv->combi.out_combi_o = NULL;
-  *prop_list1 = NULL;
-  *prop_list2 = NULL;
+
+  /* release old list */
+  g_list_free (*prop_list1);
+  g_list_free (*prop_list2);
+  *prop_list1 = *prop_list2 = NULL;
 
   for (i = 0; i < num; i++) {
     if (strv[i][0] == 'i') {
-      val = g_ascii_strtoll (&strv[i][1], NULL, 10);
-      *prop_list1 = g_list_append (*prop_list1, GINT_TO_POINTER (val));
+      val = g_ascii_strtoull (&strv[i][1], NULL, 10);
+      *prop_list1 = g_list_append (*prop_list1, GUINT_TO_POINTER (val));
       priv->combi.out_combi_i_defined = TRUE;
     } else if (strv[i][0] == 'o') {
-      val = g_ascii_strtoll (&strv[i][1], NULL, 10);
-      *prop_list2 = g_list_append (*prop_list2, GINT_TO_POINTER (val));
+      val = g_ascii_strtoull (&strv[i][1], NULL, 10);
+      *prop_list2 = g_list_append (*prop_list2, GUINT_TO_POINTER (val));
       priv->combi.out_combi_o_defined = TRUE;
     } else {
       ml_loge ("Wrong format for output combination properties. "
@@ -1812,9 +1819,8 @@ _gtfc_setprop_OUTPUTCOMBINATION (GstTensorFilterPrivate * priv,
       break;
     }
 
-    if (errno == ERANGE) {
-      ml_loge ("Overflow occured during converting %s to a gint64 value",
-          strv[i]);
+    if (errno == ERANGE || val >= NNS_TENSOR_SIZE_LIMIT) {
+      ml_loge ("Invalid value %s, cannot set combination option.", strv[i]);
       ret = ERANGE;
       break;
     }
@@ -1926,15 +1932,15 @@ gst_tensor_filter_property_to_string (GValue * value,
 
   if (prop_id == PROP_INPUTCOMBINATION) {
     for (list = priv->combi.in_combi; list != NULL; list = list->next)
-      g_ptr_array_add (arr, g_strdup_printf ("%i",
-              GPOINTER_TO_INT (list->data)));
+      g_ptr_array_add (arr, g_strdup_printf ("%u",
+              GPOINTER_TO_UINT (list->data)));
   } else if (prop_id == PROP_OUTPUTCOMBINATION) {
     for (list = priv->combi.out_combi_i; list != NULL; list = list->next)
-      g_ptr_array_add (arr, g_strdup_printf ("i%i",
-              GPOINTER_TO_INT (list->data)));
+      g_ptr_array_add (arr, g_strdup_printf ("i%u",
+              GPOINTER_TO_UINT (list->data)));
     for (list = priv->combi.out_combi_o; list != NULL; list = list->next)
-      g_ptr_array_add (arr, g_strdup_printf ("o%i",
-              GPOINTER_TO_INT (list->data)));
+      g_ptr_array_add (arr, g_strdup_printf ("o%u",
+              GPOINTER_TO_UINT (list->data)));
   }
 
   g_ptr_array_add (arr, NULL);
@@ -2130,7 +2136,7 @@ gst_tensor_filter_common_get_combined_in_info (GstTensorFilterPrivate * priv,
 
   if (priv->combi.in_combi_defined) {
     for (list = priv->combi.in_combi; list != NULL; list = list->next) {
-      i = GPOINTER_TO_INT (list->data);
+      i = GPOINTER_TO_UINT (list->data);
 
       if (i >= in->num_tensors) {
         nns_loge ("Invalid input index %u, failed to combine info.", i);
@@ -2177,7 +2183,7 @@ gst_tensor_filter_common_get_combined_out_info (GstTensorFilterPrivate * priv,
   if (priv->combi.out_combi_i_defined || priv->combi.out_combi_o_defined) {
     if (priv->combi.out_combi_i_defined) {
       for (list = priv->combi.out_combi_i; list != NULL; list = list->next) {
-        i = GPOINTER_TO_INT (list->data);
+        i = GPOINTER_TO_UINT (list->data);
 
         if (i >= in->num_tensors) {
           nns_loge ("Invalid input index %u, failed to combine info.", i);
@@ -2190,7 +2196,7 @@ gst_tensor_filter_common_get_combined_out_info (GstTensorFilterPrivate * priv,
 
     if (priv->combi.out_combi_o_defined) {
       for (list = priv->combi.out_combi_o; list != NULL; list = list->next) {
-        i = GPOINTER_TO_INT (list->data);
+        i = GPOINTER_TO_UINT (list->data);
 
         if (i >= out->num_tensors) {
           nns_loge ("Invalid output index %u, failed to combine info.", i);

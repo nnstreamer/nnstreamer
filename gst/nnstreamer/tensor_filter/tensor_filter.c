@@ -572,10 +572,10 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
 
   /* 1.1 Prepare tensors to invoke. */
   if (priv->combi.in_combi_defined) {
-    gint info_idx = 0;
+    guint info_idx = 0;
 
     for (list = priv->combi.in_combi; list != NULL; list = list->next) {
-      i = GPOINTER_TO_INT (list->data);
+      i = GPOINTER_TO_UINT (list->data);
       invoke_tensors[info_idx++] = in_tensors[i];
     }
   } else {
@@ -637,7 +637,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   /* If output combination is defined, append input tensors first */
   if (priv->combi.out_combi_i_defined) {
     for (list = priv->combi.out_combi_i; list != NULL; list = list->next) {
-      i = GPOINTER_TO_INT (list->data);
+      i = GPOINTER_TO_UINT (list->data);
       gst_memory_ref (in_mem[i]);
       gst_buffer_append_memory (outbuf, in_mem[i]);
     }
@@ -648,7 +648,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
       gboolean out_combi = FALSE;
 
       for (list = priv->combi.out_combi_o; list != NULL; list = list->next) {
-        if (i == GPOINTER_TO_INT (list->data)) {
+        if (i == GPOINTER_TO_UINT (list->data)) {
           out_combi = TRUE;
           break;
         }
