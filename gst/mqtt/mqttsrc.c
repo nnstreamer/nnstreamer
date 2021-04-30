@@ -93,6 +93,7 @@ static gboolean gst_mqtt_src_is_seekable (GstBaseSrc * basesrc);
 static GstFlowReturn
 gst_mqtt_src_create (GstBaseSrc * basesrc, guint64 offset, guint size,
     GstBuffer ** buf);
+static gboolean gst_mqtt_src_query (GstBaseSrc * basesrc, GstQuery * query);
 
 static gboolean gst_mqtt_src_get_debug (GstMqttSrc * self);
 static void gst_mqtt_src_set_debug (GstMqttSrc * self, const gboolean flag);
@@ -262,6 +263,7 @@ gst_mqtt_src_class_init (GstMqttSrcClass * klass)
   gstbasesrc_class->get_times = GST_DEBUG_FUNCPTR (gst_mqtt_src_get_times);
   gstbasesrc_class->is_seekable = GST_DEBUG_FUNCPTR (gst_mqtt_src_is_seekable);
   gstbasesrc_class->create = GST_DEBUG_FUNCPTR (gst_mqtt_src_create);
+  gstbasesrc_class->query = GST_DEBUG_FUNCPTR (gst_mqtt_src_query);
 
   gst_element_class_set_static_metadata (gstelement_class,
       "MQTT source", "Source/MQTT",
@@ -638,6 +640,10 @@ gst_mqtt_src_create (GstBaseSrc * basesrc, guint64 offset, guint size,
     *buf = g_async_queue_timeout_pop (self->aqueue,
         DEFAULT_MQTT_SUB_TIMEOUT_MIN);
     if (*buf) {
+      GstClockTime base_time = gst_element_get_base_time (GST_ELEMENT (self));
+      GstClockTime ulatency = GST_CLOCK_TIME_NONE;
+      GstClock *clock;
+
       /** This buffer is comming from the past. Drop it */
       if (!_is_gst_buffer_timestamp_valid (*buf)) {
         if (self->debug) {
@@ -649,6 +655,45 @@ gst_mqtt_src_create (GstBaseSrc * basesrc, guint64 offset, guint size,
         gst_buffer_unref (*buf);
         continue;
       }
+
+      /** Update latency */
+      clock = gst_element_get_clock (GST_ELEMENT (self));
+      if (clock) {
+        GstClockTime cur_time = gst_clock_get_time (clock);
+        GstClockTime buf_ts = GST_BUFFER_TIMESTAMP (*buf);
+        GstClockTimeDiff latency = 0;
+
+        if ((base_time != GST_CLOCK_TIME_NONE) &&
+            (cur_time != GST_CLOCK_TIME_NONE) &&
+            (buf_ts != GST_CLOCK_TIME_NONE)) {
+          GstClockTimeDiff now = GST_CLOCK_DIFF (base_time, cur_time);
+
+          latency = GST_CLOCK_DIFF (buf_ts, (GstClockTime) now);
+        }
+
+        if (latency > 0) {
+          ulatency = (GstClockTime) latency;
+
+          if (GST_BUFFER_DURATION_IS_VALID (*buf)) {
+            GstClockTime duration = GST_BUFFER_DURATION (*buf);
+
+            if (duration >= ulatency) {
+              ulatency = GST_CLOCK_TIME_NONE;
+            }
+          }
+        }
+        gst_object_unref (clock);
+      }
+
+      GST_OBJECT_LOCK (self);
+      self->latency = ulatency;
+      GST_OBJECT_UNLOCK (self);
+      /**
+       * @todo If the difference between new latency and old latency,
+       *      gst_element_post_message (GST_ELEMENT_CAST (self),
+       *          gst_message_new_latency (GST_OBJECT_CAST (self)));
+       *      is needed.
+       */
       break;
     } else if (self->err) {
       break;
@@ -673,6 +718,50 @@ ret_flow_err:
         self->err->message);
   }
   return GST_FLOW_ERROR;
+}
+
+/**
+ * @brief An implementation of the GstBaseSrc vmethod that handles queries
+ */
+static gboolean
+gst_mqtt_src_query (GstBaseSrc * basesrc, GstQuery * query)
+{
+  GstEventType type = GST_QUERY_TYPE (query);
+  GstMqttSrc *self = GST_MQTT_SRC (basesrc);
+  gboolean res = FALSE;
+
+  if (self->debug)
+    GST_DEBUG_OBJECT (self, "Got %s event", gst_query_type_get_name (type));
+
+  switch (GST_QUERY_TYPE (query)) {
+    case GST_QUERY_LATENCY:{
+      GstClockTime min_latency = 0;
+      GstClockTime max_latency = GST_CLOCK_TIME_NONE;
+
+      if (self->latency != GST_CLOCK_TIME_NONE) {
+        min_latency = self->latency;
+      }
+
+      if (self->debug) {
+        GST_DEBUG_OBJECT (self,
+            "Reporting latency min %" GST_TIME_FORMAT ", max %" GST_TIME_FORMAT,
+            GST_TIME_ARGS (min_latency), GST_TIME_ARGS (max_latency));
+      }
+      /**
+       * @brief The second argument of gst_query_set_latency should be always
+       *        TRUE.
+       */
+      gst_query_set_latency (query, TRUE, min_latency, max_latency);
+
+      res = TRUE;
+      break;
+    }
+    default:{
+      res = GST_BASE_SRC_CLASS (parent_class)->query (basesrc, query);
+    }
+  }
+
+  return res;
 }
 
 /**
