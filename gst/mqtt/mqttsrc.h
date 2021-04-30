@@ -56,6 +56,7 @@ struct _GstMqttSrc {
   gchar *mqtt_topic;
   gint64 mqtt_sub_timeout;
   gboolean debug;
+  gboolean is_live;
   guint64 num_dumped;
 
   GAsyncQueue *aqueue;
