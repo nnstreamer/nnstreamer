@@ -64,9 +64,9 @@ extern gboolean wait_pipeline_process_buffers (const guint * data_received, guin
         EXPECT_GE (timeout_ms, timer);                                     \
         break;                                                             \
       }                                                                    \
-      if (len != exp_len)                                                  \
+      if (len < exp_len)                                                   \
         g_free (content);                                                  \
-    } while (len != exp_len);                                              \
+    } while (len < exp_len);                                               \
   } while (0)
 
 #ifdef __cplusplus

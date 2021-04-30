@@ -18,22 +18,25 @@
 
 #define TEST_TIMEOUT_MS (1000U)
 
-static int data_received;
 /**
  * @brief custom callback function
  */
-GstBuffer * tensor_converter_custom_cb (GstBuffer *in_buf,
+static GstBuffer *
+tensor_converter_custom_cb (GstBuffer *in_buf,
     void *data, GstTensorsConfig *config) {
   GstMemory *in_mem, *out_mem;
   GstBuffer *out_buf = NULL;
   GstMapInfo in_info;
   guint mem_size;
   gpointer mem_data;
+  guint *received = (guint *) data;
 
   if (!in_buf || !config)
     return NULL;
 
-  data_received++;
+  if (received)
+    *received = *received + 1;
+
   in_mem = gst_buffer_peek_memory (in_buf, 0);
   if (!gst_memory_map (in_mem, &in_info, GST_MAP_READ)) {
     ml_loge ("Cannot map input memory / tensor_converter::flexbuf.\n");
@@ -91,10 +94,12 @@ TEST (tensorConverterCustom, normal0)
   char *tmp_tensor_raw = getTempFilename ();
   char *tmp_flex_raw = getTempFilename ();
   char *tmp_flex_to_tensor = getTempFilename ();
+  guint *received = (guint *) g_malloc0 (sizeof (guint));
 
   EXPECT_NE (tmp_tensor_raw, nullptr);
   EXPECT_NE (tmp_flex_raw, nullptr);
   EXPECT_NE (tmp_flex_to_tensor, nullptr);
+  EXPECT_NE (received, nullptr);
 
   gchar *str_pipeline = g_strdup_printf (
       "videotestsrc num-buffers=1 pattern=12 ! videoconvert ! videoscale ! "
@@ -107,7 +112,6 @@ TEST (tensorConverterCustom, normal0)
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   EXPECT_NE (pipeline, nullptr);
 
-  data_received = 0;
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   g_usleep (1000000);
 
@@ -122,7 +126,7 @@ TEST (tensorConverterCustom, normal0)
       "filesink location=%s buffer-mode=unbuffered sync=false async=false ",
       tmp_flex_raw, tmp_flex_to_tensor);
 
-  EXPECT_EQ (0, nnstreamer_converter_custom_register ("tconv", tensor_converter_custom_cb, NULL));
+  EXPECT_EQ (0, nnstreamer_converter_custom_register ("tconv", tensor_converter_custom_cb, received));
 
   pipeline = gst_parse_launch (str_pipeline, NULL);
   EXPECT_NE (pipeline, nullptr);
@@ -130,7 +134,7 @@ TEST (tensorConverterCustom, normal0)
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   g_usleep (1000000);
 
-  EXPECT_EQ (1, data_received);
+  EXPECT_EQ (1, *received);
   _wait_pipeline_save_files (tmp_tensor_raw, content1, len1, 230400, TEST_TIMEOUT_MS);
   _wait_pipeline_save_files (tmp_flex_to_tensor, content2, len2, 230400, TEST_TIMEOUT_MS);
   EXPECT_EQ (len1, len2);
@@ -148,6 +152,7 @@ TEST (tensorConverterCustom, normal0)
   g_free (tmp_tensor_raw);
   g_free (tmp_flex_raw);
   g_free (tmp_flex_to_tensor);
+  g_free (received);
 }
 
 /**
