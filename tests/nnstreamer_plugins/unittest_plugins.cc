@@ -5626,6 +5626,145 @@ TEST_REQUIRE_TFLITE (testTensorFilter, propertyRank03_n)
 }
 
 /**
+ * @brief Test for flex tensor in tensor_filter
+ */
+TEST_REQUIRE_TFLITE (testTensorFilter, flexInvalidBuffer1_n)
+{
+  GstHarness *h;
+  GstBuffer *in_buf;
+  GstMemory *mem;
+  gpointer data;
+  gsize data_size;
+  gchar *pipeline;
+  gchar *test_model;
+
+  GET_MODEL_PATH ("mobilenet_v1_1.0_224_quant.tflite");
+
+  h = gst_harness_new_empty ();
+  ASSERT_TRUE (h != NULL);
+
+  pipeline = g_strdup_printf (
+      "tensor_filter framework=tensorflow-lite model=%s", test_model);
+  gst_harness_add_parse (h, pipeline);
+  g_free (pipeline);
+
+  /* set caps (flex-tensor) */
+  gst_harness_set_src_caps (h,
+      gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT));
+
+  /* push buffer (invalid number) */
+  in_buf = gst_buffer_new ();
+
+  data_size = 3U * 224 * 224;
+  data = g_malloc0 (data_size);
+  mem = gst_memory_new_wrapped (
+      GST_MEMORY_FLAG_READONLY, data, data_size, 0, data_size, data, g_free);
+  gst_buffer_append_memory (in_buf, mem);
+
+  data_size = 3U * 8;
+  data = g_malloc0 (data_size);
+  mem = gst_memory_new_wrapped (
+      GST_MEMORY_FLAG_READONLY, data, data_size, 0, data_size, data, g_free);
+  gst_buffer_append_memory (in_buf, mem);
+
+  EXPECT_NE (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for flex tensor in tensor_filter
+ */
+TEST_REQUIRE_TFLITE (testTensorFilter, flexInvalidBuffer2_n)
+{
+  GstHarness *h;
+  GstBuffer *in_buf;
+  gsize data_size;
+  gchar *pipeline;
+  gchar *test_model;
+
+  GET_MODEL_PATH ("mobilenet_v1_1.0_224_quant.tflite");
+
+  h = gst_harness_new_empty ();
+  ASSERT_TRUE (h != NULL);
+
+  pipeline = g_strdup_printf (
+      "tensor_filter framework=tensorflow-lite model=%s", test_model);
+  gst_harness_add_parse (h, pipeline);
+  g_free (pipeline);
+
+  /* set caps (flex-tensor) */
+  gst_harness_set_src_caps (h,
+      gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT));
+
+  /* push buffer (invalid size) */
+  data_size = 3U * 224;
+  in_buf = gst_harness_create_buffer (h, data_size);
+
+  EXPECT_NE (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for flex tensor in tensor_filter
+ */
+TEST_REQUIRE_TFLITE (testTensorFilter, flexToFlex)
+{
+  GstHarness *h;
+  GstBuffer *in_buf, *out_buf;
+  gsize data_size;
+  gchar *pipeline;
+  gchar *test_model;
+  guint received, count;
+
+  GET_MODEL_PATH ("mobilenet_v1_1.0_224_quant.tflite");
+
+  h = gst_harness_new_empty ();
+  ASSERT_TRUE (h != NULL);
+
+  pipeline = g_strdup_printf (
+      "tensor_filter framework=tensorflow-lite model=%s", test_model);
+  gst_harness_add_parse (h, pipeline);
+  g_free (pipeline);
+
+  /* set caps (flex-tensor) */
+  gst_harness_set_src_caps (h,
+      gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT));
+
+  gst_harness_set_sink_caps (h,
+      gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT));
+
+  /* push buffer (uint8, 3:224:224:1) */
+  data_size = 3U * 224 * 224;
+  in_buf = gst_harness_create_buffer (h, data_size);
+
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+  /* wait for output buffer */
+  received = count = 0;
+  do {
+    g_usleep (100000);
+    received = gst_harness_buffers_received (h);
+    count++;
+  } while (received < 1 && count < 100);
+
+  EXPECT_EQ (received, 1U);
+
+  /* get output buffer (uint8, 1001:1) */
+  if (received) {
+    out_buf = gst_harness_pull (h);
+    EXPECT_EQ (gst_buffer_n_memory (out_buf), 1U);
+    EXPECT_EQ (gst_buffer_get_size (out_buf), 1001U);
+    gst_buffer_unref (out_buf);
+  }
+
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Test for flatbuf, flexbuf and protobuf (tensors -> serialized buf -> tensors)
  */
 TEST (testStreamBuffers, tensorsNormal)
