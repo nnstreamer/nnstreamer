@@ -2223,6 +2223,11 @@ gst_tensor_filter_common_get_out_info (GstTensorFilterPrivate * priv,
 
   gst_tensors_info_init (out);
 
+  if (gst_tensors_info_is_flexible (in)) {
+    nns_logw ("Given input info is flexible, cannot get output info.");
+    return FALSE;
+  }
+
   if (!gst_tensors_info_validate (in)) {
     nns_logw ("Given input info is invalid, cannot get output info.");
     return FALSE;
