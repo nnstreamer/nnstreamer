@@ -1,3 +1,4 @@
 /usr/lib/nnstreamer/filters/libnnstreamer_filter_python3.so
 /usr/lib/nnstreamer/converters/libnnstreamer_converter_python3.so
 /usr/lib/nnstreamer/extra/nnstreamer_python3.so
+/usr/lib/nnstreamer/decoders/libnnstreamer_decoder_python3.so

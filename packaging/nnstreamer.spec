@@ -826,6 +826,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_python3.so
 %{_prefix}/lib/nnstreamer/converters/libnnstreamer_converter_python3.so
 %{_prefix}/lib/nnstreamer/extra/nnstreamer_python3.so
+%{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_python3.so
 %{python3_sitelib}/nnstreamer_python.so
 %endif
 
