@@ -119,7 +119,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_filter_debug);
 /**
  * @brief Default caps string for both sink and source pad.
  */
-#define CAPS_STRING GST_TENSOR_CAP_DEFAULT "; " GST_TENSORS_CAP_DEFAULT
+#define CAPS_STRING GST_TENSOR_CAP_DEFAULT ";" GST_TENSORS_CAP_DEFAULT ";" GST_TENSORS_FLEX_CAP_DEFAULT
 
 /**
  * @brief The capabilities of the inputs
@@ -765,6 +765,7 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
   GstStructure *structure;
   GstTensorsConfig in_config, out_config;
   GstTensorsInfo in_info, out_info;
+  gboolean flexible;
 
   g_return_val_if_fail (incaps != NULL, FALSE);
 
@@ -801,15 +802,31 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
     goto done;
   }
 
+  /* flexible tensor case, we cannot get the exact info from caps. */
+  flexible = gst_tensors_info_is_flexible (&in_info);
+
   /** if set-property called and already has info, verify it! */
   if (prop->input_meta.num_tensors > 0) {
-    if (!gst_tensors_info_is_equal (&in_info, &prop->input_meta)) {
+    if (flexible) {
+      /**
+       * If incoming tensor is flexible, we cannot validate tensor info here.
+       * Need to compare buffer size in transform().
+       */
+      GST_INFO_OBJECT (self, "The input tensor is flexible.");
+    } else if (!gst_tensors_info_is_equal (&in_info, &prop->input_meta)) {
       GST_ERROR_OBJECT (self, "The input tensor is not compatible.");
       gst_tensor_filter_compare_tensors (&in_info, &prop->input_meta);
       goto done;
     }
   } else {
-    gst_tensors_info_copy (&prop->input_meta, &in_info);
+    if (flexible) {
+      /* cannot update meta from caps */
+      GST_ERROR_OBJECT (self,
+          "The input tensor is flexible, cannot configure input info.");
+      goto done;
+    } else {
+      gst_tensors_info_copy (&prop->input_meta, &in_info);
+    }
   }
 
   prop->input_configured = TRUE;
@@ -908,6 +925,16 @@ gst_tensor_filter_caps_from_config (GstTensorFilter * self,
 
   /* other/tensors */
   gst_caps_append (caps, gst_tensors_caps_from_config (config));
+
+  /* other/tensors-flexible */
+  if (!gst_tensors_info_is_flexible (&config->info)) {
+    GstTensorsConfig c;
+
+    c = *config;
+    c.info.info[0].format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+    gst_caps_append (caps, gst_tensors_caps_from_config (&c));
+  }
 
   return gst_caps_simplify (caps);
 }
@@ -1100,7 +1127,9 @@ gst_tensor_filter_set_caps (GstBaseTransform * trans,
   structure = gst_caps_get_structure (outcaps, 0);
   gst_tensors_config_from_structure (&config, structure);
 
-  if (!gst_tensors_config_is_equal (&priv->out_config, &config)) {
+  if (gst_tensors_info_is_flexible (&config.info)) {
+    GST_INFO_OBJECT (self, "Output tensor is flexible.");
+  } else if (!gst_tensors_config_is_equal (&priv->out_config, &config)) {
     GST_ERROR_OBJECT (self, "Invalid outcaps.");
     return FALSE;
   }
