@@ -116,7 +116,7 @@ flxc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
   GstBuffer *out_buf = NULL;
   GstMemory *in_mem, *out_mem;
   GstMapInfo in_info;
-  guint mem_size;
+  gsize mem_size;
 
   if (!in_buf || !config) {
     ml_loge ("NULL parameter is passed to tensor_converter::flexbuf");
@@ -155,8 +155,7 @@ flxc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
       config->info.info[i].dimension[j] = dim[j].AsInt32 ();
     }
     flexbuffers::Blob tensor_data = tensor[3].AsBlob ();
-    mem_size = tensor_data.size ();
-
+    mem_size = gst_tensor_info_get_size (&config->info.info[i]);
     offset = tensor_data.data () - in_info.data;
 
     out_mem = gst_memory_share (in_mem, offset, mem_size);
