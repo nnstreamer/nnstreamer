@@ -1028,6 +1028,8 @@ static gboolean
 gst_tensor_if_check_condition (GstTensorIf * tensor_if, GstBuffer * buf,
     gboolean * result)
 {
+  gboolean ret = FALSE;
+
   if (tensor_if->cv == TIFCV_CUSTOM) {
     GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT];
     GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT];
@@ -1050,19 +1052,23 @@ gst_tensor_if_check_condition (GstTensorIf * tensor_if, GstBuffer * buf,
       }
       in_tensors[i].data = in_info[i].data;
       in_tensors[i].size = in_info[i].size;
-      gst_memory_unmap (in_mem[i], &in_info[i]);
     }
 
-    return tensor_if->custom.func (&tensor_if->in_config.info, in_tensors,
+    ret = tensor_if->custom.func (&tensor_if->in_config.info, in_tensors,
         tensor_if->custom.data, result);
+
+    for (i = 0; i < tensor_if->in_config.info.num_tensors; i++)
+      gst_memory_unmap (in_mem[i], &in_info[i]);
   } else {
     tensor_data_s cv = {.type = _NNS_END,.data._uint8_t = 0 };
     if (!gst_tensor_if_calculate_cv (tensor_if, buf, &cv)) {
       GST_ERROR_OBJECT (tensor_if, " failed to calculate compared value");
       return FALSE;
     }
-    return gst_tensor_if_get_comparison_result (tensor_if, &cv, result);
+    ret = gst_tensor_if_get_comparison_result (tensor_if, &cv, result);
   }
+
+  return ret;
 }
 
 /**
