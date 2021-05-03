@@ -260,19 +260,24 @@ gst_tensor_filter_finalize (GObject * object)
 }
 
 /**
- * @brief Calculate output buffer size.
+ * @brief Calculate tensor buffer size.
  * @param self "this" pointer
- * @param index index of output tensors (if index < 0, the size of all output tensors will be returned.)
- * @return output buffer size
+ * @param index index of tensors
+ * @return tensor buffer size
  */
 static gsize
-gst_tensor_filter_get_output_size (GstTensorFilter * self, guint index)
+gst_tensor_filter_get_tensor_size (GstTensorFilter * self, guint index,
+    gboolean is_input)
 {
   GstTensorFilterPrivate *priv;
   GstTensorsInfo *info;
 
   priv = &self->priv;
-  info = &priv->prop.output_meta;
+  if (is_input)
+    info = &priv->prop.input_meta;
+  else
+    info = &priv->prop.output_meta;
+
   /* Internal Logic Error */
   g_assert (index < info->num_tensors);
 
@@ -525,6 +530,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   gint ret;
   gboolean allocate_in_invoke;
   gboolean need_profiling;
+  gsize expected;
 
   self = GST_TENSOR_FILTER_CAST (trans);
   priv = &self->priv;
@@ -556,8 +562,6 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   /* 1. Get all input tensors from inbuf. */
   /* Internal Logic Error or GST Bug (sinkcap changed!) */
   num_mems = gst_buffer_n_memory (inbuf);
-  if (!priv->combi.in_combi_defined)
-    g_assert (num_mems == prop->input_meta.num_tensors);
 
   for (i = 0; i < num_mems; i++) {
     in_mem[i] = gst_buffer_peek_memory (inbuf, i);
@@ -576,11 +580,40 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
 
     for (list = priv->combi.in_combi; list != NULL; list = list->next) {
       i = GPOINTER_TO_UINT (list->data);
+
+      if (i >= num_mems) {
+        ml_loge
+            ("Invalid combination index %u, incoming buffer has total %u memories.",
+            i, num_mems);
+        goto mem_map_error;
+      }
+
+      expected = gst_tensor_filter_get_tensor_size (self, info_idx, TRUE);
+      if (expected != in_tensors[i].size) {
+        ml_loge ("Incoming buffer size ([%u] %zd) is invalid, expected %zd.",
+            i, in_tensors[i].size, expected);
+        goto mem_map_error;
+      }
+
       invoke_tensors[info_idx++] = in_tensors[i];
     }
   } else {
-    for (i = 0; i < prop->input_meta.num_tensors; i++)
+    if (num_mems != prop->input_meta.num_tensors) {
+      ml_loge ("Incoming buffer has invalid memory blocks (%u), expected %u.",
+          num_mems, prop->input_meta.num_tensors);
+      goto mem_map_error;
+    }
+
+    for (i = 0; i < prop->input_meta.num_tensors; i++) {
+      expected = gst_tensor_filter_get_tensor_size (self, i, TRUE);
+      if (expected != in_tensors[i].size) {
+        ml_loge ("Incoming buffer size ([%u] %zd) is invalid, expected %zd.",
+            i, in_tensors[i].size, expected);
+        goto mem_map_error;
+      }
+
       invoke_tensors[i] = in_tensors[i];
+    }
   }
 
   /* 2. Prepare output tensors. */
@@ -589,7 +622,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
 
   for (i = 0; i < prop->output_meta.num_tensors; i++) {
     out_tensors[i].data = NULL;
-    out_tensors[i].size = gst_tensor_filter_get_output_size (self, i);
+    out_tensors[i].size = gst_tensor_filter_get_tensor_size (self, i, FALSE);
 
     /* allocate memory if allocate_in_invoke is FALSE */
     if (!allocate_in_invoke) {
