@@ -59,6 +59,15 @@ extern const void *
 get_subplugin (subpluginType type, const char *name);
 
 /**
+ * @brief Get the list of registered subplugins.
+ * @param[in] type Subplugin Type
+ * @return The list of subplugin name
+ * @note Caller should free the returned value using g_strfreev()
+ */
+extern gchar **
+get_all_subplugins (subpluginType type);
+
+/**
  * @brief Register the subplugin. If duplicated name exists, it is rejected.
  * @param[in] type Subplugin Type
  * @param[in] name Subplugin Name. The filename should be subplugin_prefixes[type]${name}.so

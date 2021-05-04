@@ -227,6 +227,11 @@ _get_subplugin_with_type (nnsconf_type_path type, gchar *** name,
     return FALSE;
   }
 
+  if (!conf.loaded) {
+    ml_loge ("Configuration file is not loaded.");
+    return FALSE;
+  }
+
   /* Easy custom uses the configuration of custom */
   if (type == NNSCONF_PATH_EASY_CUSTOM_FILTERS)
     type = NNSCONF_PATH_CUSTOM_FILTERS;

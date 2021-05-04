@@ -168,6 +168,55 @@ get_subplugin (subpluginType type, const char *name)
 }
 
 /** @brief Public function defined in the header */
+gchar **
+get_all_subplugins (subpluginType type)
+{
+  GString *names;
+  subplugin_info_s info;
+  gchar **list = NULL;
+  gchar *name;
+  guint i, total;
+
+  names = g_string_new (NULL);
+
+  /* get registered subplugins */
+  G_LOCK (splock);
+  if (subplugins[type]) {
+    list = (gchar **) g_hash_table_get_keys_as_array (subplugins[type], NULL);
+  }
+  G_UNLOCK (splock);
+
+  if (list) {
+    name = g_strjoinv (",", list);
+    g_string_append (names, name);
+    g_free (name);
+  }
+
+  /* get subplugins from configuration */
+  total = nnsconf_get_subplugin_info ((nnsconf_type_path) type, &info);
+
+  for (i = 0; i < total; i++) {
+    name = info.names[i];
+
+    if (!list || !g_strv_contains ((const gchar * const *) list, name)) {
+      if (list || i > 0)
+        g_string_append (names, ",");
+
+      g_string_append (names, name);
+    }
+  }
+
+  g_free (list);
+
+  /* finally get the list of subplugins */
+  name = g_string_free (names, FALSE);
+  list = g_strsplit (name, ",", -1);
+  g_free (name);
+
+  return list;
+}
+
+/** @brief Public function defined in the header */
 gboolean
 register_subplugin (subpluginType type, const char *name, const void *data)
 {
