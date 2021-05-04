@@ -82,6 +82,7 @@ TEST (nnstreamerFilterArmnn, openClose01_n)
 
   /** close twice, should not crash */
   sp->close (&prop, &data);
+  g_free (model_file);
 }
 
 /**
@@ -111,12 +112,6 @@ TEST (nnstreamerFilterArmnn, getDimension)
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
   EXPECT_NE (sp, (void *)NULL);
-
-  /** get input/output dimension without open */
-  ret = sp->getInputDimension (&prop, &data, &res);
-  EXPECT_NE (ret, 0);
-  ret = sp->getOutputDimension (&prop, &data, &res);
-  EXPECT_NE (ret, 0);
 
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);
@@ -154,6 +149,77 @@ TEST (nnstreamerFilterArmnn, getDimension)
   EXPECT_EQ (res.info[0].dimension[3], info.info[0].dimension[3]);
 
   sp->close (&prop, &data);
+  g_free (model_file);
+}
+
+/**
+ * @brief Get input dimensions before open
+ */
+TEST (nnstreamerFilterArmnn, getDimension1_n)
+{
+  int ret;
+  void *data = NULL;
+  gchar *model_file;
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  GstTensorsInfo res;
+
+  ASSERT_NE (root_path, nullptr);
+
+  /** armnn needs a directory with model file and metadata in that directory */
+  model_file = g_build_filename (
+      root_path, "tests", "test_models", "models", "add.tflite", NULL);
+  ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
+
+  const gchar *model_files[] = {
+    model_file, NULL,
+  };
+  GstTensorFilterProperties prop = {
+    .fwname = "armnn", .fw_opened = 0, .model_files = model_files, .num_models = 1,
+  };
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
+  EXPECT_NE (sp, (void *)NULL);
+
+  /** get input dimension without open */
+  ret = sp->getInputDimension (&prop, &data, &res);
+  EXPECT_NE (ret, 0);
+
+  g_free (model_file);
+}
+
+/**
+ * @brief Get output dimensions before open
+ */
+TEST (nnstreamerFilterArmnn, getDimension2_n)
+{
+  int ret;
+  void *data = NULL;
+  gchar *model_file;
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  GstTensorsInfo res;
+
+  ASSERT_NE (root_path, nullptr);
+
+  /** armnn needs a directory with model file and metadata in that directory */
+  model_file = g_build_filename (
+      root_path, "tests", "test_models", "models", "add.tflite", NULL);
+  ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
+
+  const gchar *model_files[] = {
+    model_file, NULL,
+  };
+  GstTensorFilterProperties prop = {
+    .fwname = "armnn", .fw_opened = 0, .model_files = model_files, .num_models = 1,
+  };
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
+  EXPECT_NE (sp, (void *)NULL);
+
+  /** get output dimension without open */
+  ret = sp->getOutputDimension (&prop, &data, &res);
+  EXPECT_NE (ret, 0);
+
+  g_free (model_file);
 }
 
 /**
@@ -189,21 +255,10 @@ TEST (nnstreamerFilterArmnn, invoke00)
   input.data = g_malloc (input.size);
   output.data = g_malloc (output.size);
 
-  /** invoke without open */
-  ret = sp->invoke_NN (&prop, &data, &input, &output);
-  EXPECT_NE (ret, 0);
-
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);
 
   /** invoke successful */
-  ret = sp->invoke_NN (&prop, &data, NULL, NULL);
-  EXPECT_NE (ret, 0);
-  ret = sp->invoke_NN (&prop, &data, &input, NULL);
-  EXPECT_NE (ret, 0);
-  ret = sp->invoke_NN (&prop, &data, NULL, &output);
-  EXPECT_NE (ret, 0);
-
   *((float *)input.data) = 10.0;
   ret = sp->invoke_NN (&prop, &data, &input, &output);
   EXPECT_EQ (ret, 0);
@@ -217,6 +272,182 @@ TEST (nnstreamerFilterArmnn, invoke00)
   g_free (input.data);
   g_free (output.data);
   sp->close (&prop, &data);
+  g_free (model_file);
+}
+
+/**
+ * @brief Test armnn invoke before open
+ */
+TEST (nnstreamerFilterArmnn, invoke01_n)
+{
+  int ret;
+  void *data = NULL;
+  gchar *model_file;
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  GstTensorMemory input, output;
+
+  ASSERT_NE (root_path, nullptr);
+
+  /** armnn needs a directory with model file and metadata in that directory */
+  model_file = g_build_filename (
+      root_path, "tests", "test_models", "models", "add.tflite", NULL);
+  ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
+
+  const gchar *model_files[] = {
+    model_file, NULL,
+  };
+  GstTensorFilterProperties prop = {
+    .fwname = "armnn", .fw_opened = 0, .model_files = model_files, .num_models = 1,
+  };
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
+  EXPECT_NE (sp, (void *)NULL);
+
+  output.size = input.size = sizeof (float) * 1;
+
+  input.data = g_malloc (input.size);
+  output.data = g_malloc (output.size);
+
+  /** invoke before open */
+  ret = sp->invoke_NN (&prop, &data, &input, &output);
+  EXPECT_NE (ret, 0);
+
+  g_free (model_file);
+}
+
+/**
+ * @brief Test armnn invoke with invalid param
+ */
+TEST (nnstreamerFilterArmnn, invoke02_n)
+{
+  int ret;
+  void *data = NULL;
+  gchar *model_file;
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  GstTensorMemory input, output;
+
+  ASSERT_NE (root_path, nullptr);
+
+  /** armnn needs a directory with model file and metadata in that directory */
+  model_file = g_build_filename (
+      root_path, "tests", "test_models", "models", "add.tflite", NULL);
+  ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
+
+  const gchar *model_files[] = {
+    model_file, NULL,
+  };
+  GstTensorFilterProperties prop = {
+    .fwname = "armnn", .fw_opened = 0, .model_files = model_files, .num_models = 1,
+  };
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
+  EXPECT_NE (sp, (void *)NULL);
+
+  output.size = input.size = sizeof (float) * 1;
+
+  input.data = g_malloc (input.size);
+  output.data = g_malloc (output.size);
+
+  ret = sp->open (&prop, &data);
+  EXPECT_EQ (ret, 0);
+
+  /** invoke without subplugin data */
+  ret = sp->invoke_NN (&prop, NULL, &input, &output);
+  EXPECT_NE (ret, 0);
+
+  g_free (input.data);
+  g_free (output.data);
+  sp->close (&prop, &data);
+  g_free (model_file);
+}
+
+/**
+ * @brief Test armnn invoke with invalid param
+ */
+TEST (nnstreamerFilterArmnn, invoke03_n)
+{
+  int ret;
+  void *data = NULL;
+  gchar *model_file;
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  GstTensorMemory output;
+
+  ASSERT_NE (root_path, nullptr);
+
+  /** armnn needs a directory with model file and metadata in that directory */
+  model_file = g_build_filename (
+      root_path, "tests", "test_models", "models", "add.tflite", NULL);
+  ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
+
+  const gchar *model_files[] = {
+    model_file, NULL,
+  };
+  GstTensorFilterProperties prop = {
+    .fwname = "armnn", .fw_opened = 0, .model_files = model_files, .num_models = 1,
+  };
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
+  EXPECT_NE (sp, (void *)NULL);
+
+  output.size = sizeof (float) * 1;
+
+  output.data = g_malloc (output.size);
+
+  ret = sp->open (&prop, &data);
+  EXPECT_EQ (ret, 0);
+
+  /** invoke without input */
+  ret = sp->invoke_NN (&prop, &data, NULL, &output);
+  EXPECT_NE (ret, 0);
+
+  g_free (output.data);
+  sp->close (&prop, &data);
+
+  g_free (model_file);
+}
+
+/**
+ * @brief Test armnn invoke with invalid param
+ */
+TEST (nnstreamerFilterArmnn, invoke04_n)
+{
+  int ret;
+  void *data = NULL;
+  gchar *model_file;
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  GstTensorMemory input;
+
+  ASSERT_NE (root_path, nullptr);
+
+  /** armnn needs a directory with model file and metadata in that directory */
+  model_file = g_build_filename (
+      root_path, "tests", "test_models", "models", "add.tflite", NULL);
+  ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
+
+  const gchar *model_files[] = {
+    model_file, NULL,
+  };
+  GstTensorFilterProperties prop = {
+    .fwname = "armnn", .fw_opened = 0, .model_files = model_files, .num_models = 1,
+  };
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
+  EXPECT_NE (sp, (void *)NULL);
+
+  input.size = sizeof (float) * 1;
+
+  input.data = g_malloc (input.size);
+
+  ret = sp->open (&prop, &data);
+  EXPECT_EQ (ret, 0);
+
+  /** invoke without output */
+  ret = sp->invoke_NN (&prop, &data, &input, NULL);
+  EXPECT_NE (ret, 0);
+
+  g_free (input.data);
+  sp->close (&prop, &data);
+  g_free (model_file);
 }
 
 /**
@@ -450,6 +681,7 @@ TEST (nnstreamerFilterArmnn, invoke01)
   g_free (output.data);
   g_free (prop.output_meta.info[0].name);
   g_free (prop.input_meta.info[0].name);
+  g_free (model_file);
 }
 
 /**
