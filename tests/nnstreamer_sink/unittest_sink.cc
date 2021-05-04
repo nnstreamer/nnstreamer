@@ -1001,6 +1001,8 @@ _setup_pipeline (TestOption &option)
     str_pipeline = g_strdup_printf ("appsrc name=appsrc caps=application/octet-stream ! "
                                     "tensor_converter input-dim=1:10 input-type=uint8 ! "
                                     "tensor_filter framework=custom-easy model=safe_memcpy_10x10 ! "
+                                    "tensor_filter framework=custom-easy model=safe_memcpy_10x10 ! "
+                                    "tensor_filter framework=custom-easy model=safe_memcpy_10x10 ! "
                                     "tensor_sink name=test_sink");
     break;
   default:
