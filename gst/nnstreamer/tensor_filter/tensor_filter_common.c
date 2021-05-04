@@ -2033,24 +2033,14 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
       break;
     case PROP_SUBPLUGINS:
     {
-      GString *subplugins;
-      subplugin_info_s sinfo;
-      guint i, total;
+      gchar **str_array = get_all_subplugins (NNS_SUBPLUGIN_FILTER);
 
-      subplugins = g_string_new (NULL);
-
-      /* add custom */
-      /** @todo Let's not hardcode default subplugins */
-      g_string_append (subplugins, "custom,custom-easy");
-
-      total = nnsconf_get_subplugin_info (NNSCONF_PATH_FILTERS, &sinfo);
-
-      for (i = 0; i < total; ++i) {
-        g_string_append (subplugins, ",");
-        g_string_append (subplugins, sinfo.names[i]);
+      if (str_array) {
+        g_value_take_string (value, g_strjoinv (",", str_array));
+        g_strfreev (str_array);
+      } else {
+        g_value_set_string (value, "");
       }
-
-      g_value_take_string (value, g_string_free (subplugins, FALSE));
       break;
     }
     case PROP_ACCELERATOR:

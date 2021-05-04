@@ -193,9 +193,9 @@ gst_tensor_converter_class_init (GstTensorConverterClass * klass)
   GstElementClass *element_class;
   GstPadTemplate *pad_template;
   GstCaps *pad_caps;
+  gchar **str_array;
   guint total, i;
   const NNStreamerExternalConverter *ex;
-  subplugin_info_s info;
 
   GST_DEBUG_CATEGORY_INIT (gst_tensor_converter_debug, "tensor_converter", 0,
       "Element to convert media stream to tensor stream");
@@ -306,11 +306,17 @@ gst_tensor_converter_class_init (GstTensorConverterClass * klass)
   append_octet_caps_template (pad_caps);
 
   /* append sub-plugin template caps */
-  total = nnsconf_get_subplugin_info (NNSCONF_PATH_CONVERTERS, &info);
-  for (i = 0; i < total; i++) {
-    ex = nnstreamer_converter_find (info.names[i]);
-    if (ex && ex->query_caps)
-      gst_caps_append (pad_caps, ex->query_caps (NULL));
+  str_array = get_all_subplugins (NNS_SUBPLUGIN_CONVERTER);
+  if (str_array) {
+    total = g_strv_length (str_array);
+
+    for (i = 0; i < total; i++) {
+      ex = nnstreamer_converter_find (str_array[i]);
+      if (ex && ex->query_caps)
+        gst_caps_append (pad_caps, ex->query_caps (NULL));
+    }
+
+    g_strfreev (str_array);
   }
 
   pad_template = gst_pad_template_new ("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
@@ -539,10 +545,14 @@ gst_tensor_converter_get_property (GObject * object, guint prop_id,
       break;
     case PROP_SUBPLUGINS:
     {
-      subplugin_info_s sinfo;
+      gchar **str_array = get_all_subplugins (NNS_SUBPLUGIN_CONVERTER);
 
-      nnsconf_get_subplugin_info (NNSCONF_PATH_CONVERTERS, &sinfo);
-      g_value_take_string (value, g_strjoinv (",", sinfo.names));
+      if (str_array) {
+        g_value_take_string (value, g_strjoinv (",", str_array));
+        g_strfreev (str_array);
+      } else {
+        g_value_set_string (value, "");
+      }
       break;
     }
     case PROP_SILENT:
@@ -1944,31 +1954,38 @@ unregisterExternalConverter (const char *name)
 static const NNStreamerExternalConverter *
 findExternalConverter (const char *media_type)
 {
+  gchar **str_array;
   guint total, i, j, caps_size;
-  subplugin_info_s info;
   GstCaps *caps;
   const gchar *caps_name;
   const NNStreamerExternalConverter *ex;
 
-  total = nnsconf_get_subplugin_info (NNSCONF_PATH_CONVERTERS, &info);
-  for (i = 0; i < total; i++) {
-    ex = nnstreamer_converter_find (info.names[i]);
+  str_array = get_all_subplugins (NNS_SUBPLUGIN_CONVERTER);
+  if (str_array) {
+    total = g_strv_length (str_array);
 
-    if (ex && ex->query_caps) {
-      caps = ex->query_caps (NULL);
-      caps_size = gst_caps_get_size (caps);
+    for (i = 0; i < total; i++) {
+      ex = nnstreamer_converter_find (str_array[i]);
 
-      for (j = 0; j < caps_size; j++) {
-        caps_name = gst_structure_get_name (gst_caps_get_structure (caps, j));
-        if (g_strcmp0 (media_type, caps_name) == 0) {
-          /* found matched media type */
-          gst_caps_unref (caps);
-          return ex;
+      if (ex && ex->query_caps) {
+        caps = ex->query_caps (NULL);
+        caps_size = gst_caps_get_size (caps);
+
+        for (j = 0; j < caps_size; j++) {
+          caps_name = gst_structure_get_name (gst_caps_get_structure (caps, j));
+          if (g_strcmp0 (media_type, caps_name) == 0) {
+            /* found matched media type */
+            gst_caps_unref (caps);
+            g_strfreev (str_array);
+            return ex;
+          }
         }
-      }
 
-      gst_caps_unref (caps);
+        gst_caps_unref (caps);
+      }
     }
+
+    g_strfreev (str_array);
   }
 
   return NULL;

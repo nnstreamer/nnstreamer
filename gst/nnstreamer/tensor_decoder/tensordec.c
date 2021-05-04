@@ -588,10 +588,14 @@ gst_tensordec_get_property (GObject * object, guint prop_id,
       PROP_READ_OPTION (9);
     case PROP_SUBPLUGINS:
     {
-      subplugin_info_s sinfo;
+      gchar **str_array = get_all_subplugins (NNS_SUBPLUGIN_DECODER);
 
-      nnsconf_get_subplugin_info (NNSCONF_PATH_DECODERS, &sinfo);
-      g_value_take_string (value, g_strjoinv (",", sinfo.names));
+      if (str_array) {
+        g_value_take_string (value, g_strjoinv (",", str_array));
+        g_strfreev (str_array);
+      } else {
+        g_value_set_string (value, "");
+      }
       break;
     }
     default:
