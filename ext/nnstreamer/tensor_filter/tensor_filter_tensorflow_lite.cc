@@ -46,6 +46,10 @@
 #include <tensorflow/contrib/lite/model.h>
 #endif
 
+#ifdef TFLITE_XNNPACK_DELEGATE_SUPPORTED
+#include <tensorflow/lite/delegates/xnnpack/xnnpack_delegate.h>
+#endif
+
 #ifdef TFLITE_NNAPI_DELEGATE_SUPPORTED
 #include <tensorflow/lite/delegates/nnapi/nnapi_delegate.h>
 #endif
@@ -73,6 +77,7 @@ typedef enum {
   TFLITE_DELEGATE_NONE = 0,
   TFLITE_DELEGATE_GPU,
   TFLITE_DELEGATE_NNAPI,
+  TFLITE_DELEGATE_XNNPACK,
 
   TFLITE_DELEGATE_MAX
 } tflite_delegate_e;
@@ -164,6 +169,7 @@ class TFLiteInterpreter
   GMutex mutex;
   char *model_path;
   bool is_cached_after_first_invoke; /**< To cache again after first invoke */
+  bool is_xnnpack_delegated; /**< To check if XNNPACK delegate is used */
 
   std::unique_ptr<tflite::Interpreter> interpreter;
   std::unique_ptr<tflite::FlatBufferModel> model;
@@ -185,6 +191,10 @@ class TFLiteInterpreter
 
 #ifdef TFLITE_GPU_DELEGATE_SUPPORTED
   std::unique_ptr<TfLiteDelegate> gpu_delegate; /**< The pointer of GPU delegate */
+#endif
+
+#ifdef TFLITE_XNNPACK_DELEGATE_SUPPORTED
+  std::unique_ptr<TfLiteDelegate> xnnpack_delegate; /**< The pointer of XNNPACK delegate */
 #endif
 };
 
@@ -238,6 +248,7 @@ TFLiteInterpreter::TFLiteInterpreter ()
   gst_tensors_info_init (&outputTensorMeta);
 
   is_cached_after_first_invoke = false;
+  is_xnnpack_delegated = false;
 }
 
 /**
@@ -263,14 +274,21 @@ TFLiteInterpreter::invoke (const GstTensorMemory *input, GstTensorMemory *output
   TfLiteStatus status;
 
   start_time = g_get_monotonic_time ();
-  for (unsigned int i = 0; i < outputTensorMeta.num_tensors; ++i) {
-    tensor_ptr = outputTensorPtr[i];
-    tensor_ptr->data.raw = (char *)output[i].data;
+
+  /**
+   * When XNNPACK Delegate is used, we should not assign other buffer as ptr of output tensor data.
+   * The output data should be memcpy-ed from interpreter's output tensors.
+   */
+  if (!is_xnnpack_delegated) {
+    for (unsigned int i = 0; i < outputTensorMeta.num_tensors; ++i) {
+      tensor_ptr = outputTensorPtr[i];
+      tensor_ptr->data.raw = (char *) output[i].data;
+    }
   }
 
   for (unsigned int i = 0; i < inputTensorMeta.num_tensors; ++i) {
     tensor_ptr = inputTensorPtr[i];
-    tensor_ptr->data.raw = (char *)input[i].data;
+    tensor_ptr->data.raw = (char *) input[i].data;
   }
   stop_time = g_get_monotonic_time ();
 
@@ -278,6 +296,13 @@ TFLiteInterpreter::invoke (const GstTensorMemory *input, GstTensorMemory *output
 
   start_time = g_get_monotonic_time ();
   status = interpreter->Invoke ();
+
+  if (is_xnnpack_delegated) {
+    for (unsigned int i = 0; i < outputTensorMeta.num_tensors; ++i) {
+      memcpy (output[i].data, outputTensorPtr[i]->data.raw, output[i].size);
+    }
+  }
+
   stop_time = g_get_monotonic_time ();
 
   tflite_internal_stats.total_invoke_latency += stop_time - start_time;
@@ -351,6 +376,24 @@ TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate)
 
   /** set delegate after the accelerator prop */
   switch (delegate) {
+    case TFLITE_DELEGATE_XNNPACK:
+    {
+#ifdef TFLITE_XNNPACK_DELEGATE_SUPPORTED
+      /* set xnnpack delegate */
+      TfLiteXNNPackDelegateOptions xnnpack_options =
+          TfLiteXNNPackDelegateOptionsDefault();
+      xnnpack_options.num_threads = (num_threads > 1) ? num_threads : 0;
+
+      xnnpack_delegate.reset (TfLiteXNNPackDelegateCreate (&xnnpack_options));
+      setDelegate (xnnpack_delegate.get ());
+      is_xnnpack_delegated = true;
+      ml_logw ("Output tensors should be memcpy-ed rather than explictly assigning its ptr when XNNPACK Delegate is used.");
+      ml_logw ("This could cause performance degradation if sizes of output tensors are large");
+#else
+      ml_logw ("XNNPACK delegate support is available only in Android with tflite v2.3.0 or higher and XNNPACK support should be enabled for tf-lite subplugin build.");
+#endif
+      break;
+    }
     case TFLITE_DELEGATE_GPU:
     {
 #ifdef TFLITE_GPU_DELEGATE_SUPPORTED
@@ -978,6 +1021,8 @@ tflite_parseCustomOption (const GstTensorFilterProperties *prop, tflite_option_s
             option->delegate = TFLITE_DELEGATE_NNAPI;
           else if (g_ascii_strcasecmp (pair[1], "GPU") == 0)
             option->delegate = TFLITE_DELEGATE_GPU;
+          else if (g_ascii_strcasecmp (pair[1], "XNNPACK") == 0)
+            option->delegate = TFLITE_DELEGATE_XNNPACK;
           else
             ml_logw ("Unknown option to set tensorflow-lite delegate (%s).", pair[1]);
         } else {
