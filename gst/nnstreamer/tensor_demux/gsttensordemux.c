@@ -271,26 +271,51 @@ gst_tensor_demux_event (GstPad * pad, GstObject * parent, GstEvent * event)
  * @brief Get tensor config info from configured tensors
  * @param tensor_demux "this" pointer
  * @param config tensor config to be filled
- * @param index index of configured tensors
- * @return
+ * @param nth source ordering
+ * @param total number of tensors
+ * @return TRUE if succesfully configured
  */
 static gboolean
 gst_tensor_demux_get_tensor_config (GstTensorDemux * tensor_demux,
-    GstTensorConfig * config, guint index)
+    GstTensorsConfig * config, const guint nth, const guint total)
 {
-  GstTensorsConfig *tensors_config;
+  gst_tensors_config_init (config);
 
-  g_return_val_if_fail (tensor_demux != NULL, FALSE);
-  g_return_val_if_fail (config != NULL, FALSE);
+  if (tensor_demux->tensorpick != NULL) {
+    gchar *seleted_tensor;
+    gchar **strv;
+    guint i, num, idx;
 
-  gst_tensor_config_init (config);
+    g_assert (g_list_length (tensor_demux->tensorpick) >= nth);
 
-  tensors_config = &tensor_demux->tensors_config;
-  g_return_val_if_fail (index < tensors_config->info.num_tensors, FALSE);
+    seleted_tensor = (gchar *) g_list_nth_data (tensor_demux->tensorpick, nth);
+    strv = g_strsplit_set (seleted_tensor, ":+", -1);
+    num = g_strv_length (strv);
 
-  config->info = tensors_config->info.info[index];
-  config->rate_n = tensors_config->rate_n;
-  config->rate_d = tensors_config->rate_d;
+    for (i = 0; i < num; i++) {
+      idx = (guint) g_ascii_strtoll (strv[i], NULL, 10);
+
+      /* Internal error, handle invalid index. */
+      if (idx >= total)
+        return FALSE;
+
+      gst_tensor_info_copy (&config->info.info[i],
+          &tensor_demux->tensors_config.info.info[idx]);
+    }
+
+    config->info.num_tensors = num;
+  } else {
+    /* Internal error, handle invalid index. */
+    if (nth >= total)
+      return FALSE;
+
+    config->info.num_tensors = 1;
+    gst_tensor_info_copy (&config->info.info[0],
+        &tensor_demux->tensors_config.info.info[nth]);
+  }
+
+  config->rate_n = tensor_demux->tensors_config.rate_n;
+  config->rate_d = tensor_demux->tensors_config.rate_d;
   return TRUE;
 }
 
@@ -299,12 +324,13 @@ gst_tensor_demux_get_tensor_config (GstTensorDemux * tensor_demux,
  * @param tesnor_demux TensorDemux Object
  * @param[out] created will be updated in this function
  * @param nth source ordering
+ * @param total number of tensors
  * @return TensorPad if pad is already created, then return created pad.
  *         If not return new pad after creation.
  */
 static GstTensorPad *
 gst_tensor_demux_get_tensor_pad (GstTensorDemux * tensor_demux,
-    gboolean * created, gint nth)
+    gboolean * created, const guint nth, const guint total)
 {
   GSList *walk;
   GstPad *pad;
@@ -313,6 +339,7 @@ gst_tensor_demux_get_tensor_pad (GstTensorDemux * tensor_demux,
   GstEvent *event;
   gchar *stream_id;
   GstCaps *caps = NULL;
+  GstTensorsConfig config;
 
   walk = tensor_demux->srcpads;
   while (walk) {
@@ -372,43 +399,10 @@ gst_tensor_demux_get_tensor_pad (GstTensorDemux * tensor_demux,
   g_free (stream_id);
   gst_event_unref (event);
 
-  if (tensor_demux->tensorpick != NULL) {
-    gchar *seleted_tensor;
-    gchar **strv;
-    guint num;
+  /* configure nth pad caps */
+  if (gst_tensor_demux_get_tensor_config (tensor_demux, &config, nth, total)) {
+    caps = gst_tensors_get_pad_caps (pad, &config);
 
-    g_assert (g_list_length (tensor_demux->tensorpick) >= nth);
-
-    seleted_tensor = (gchar *) g_list_nth_data (tensor_demux->tensorpick, nth);
-    strv = g_strsplit_set (seleted_tensor, ":+", -1);
-    num = g_strv_length (strv);
-
-    if (num == 1 && gst_pad_peer_has_tensor_caps (pad)) {
-      GstTensorConfig config;
-      gint64 idx = g_ascii_strtoll (strv[0], NULL, 10);
-      if (gst_tensor_demux_get_tensor_config (tensor_demux, &config, idx))
-        caps = gst_tensor_caps_from_config (&config);
-    } else {
-      GstTensorsConfig config;
-      guint i;
-      gst_tensors_config_init (&config);
-      config.rate_n = tensor_demux->tensors_config.rate_n;
-      config.rate_d = tensor_demux->tensors_config.rate_d;
-      config.info.num_tensors = num;
-      for (i = 0; i < num; i++) {
-        gint64 idx = g_ascii_strtoll (strv[i], NULL, 10);
-        config.info.info[i] = tensor_demux->tensors_config.info.info[idx];
-      }
-      caps = gst_tensors_caps_from_config (&config);
-    }
-    g_strfreev (strv);
-  } else {
-    GstTensorConfig config;
-    if (gst_tensor_demux_get_tensor_config (tensor_demux, &config, nth))
-      caps = gst_tensor_caps_from_config (&config);
-  }
-
-  if (caps) {
     gst_pad_set_caps (pad, caps);
     gst_caps_unref (caps);
   } else {
@@ -426,6 +420,7 @@ gst_tensor_demux_get_tensor_pad (GstTensorDemux * tensor_demux,
     }
   }
 
+  gst_tensors_info_free (&config.info);
   return tensorpad;
 }
 
@@ -462,7 +457,7 @@ done:
 static GstFlowReturn
 gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 {
-  gint num_tensors, num_srcs, i;
+  guint num_tensors, num_srcs, i;
   GstFlowReturn res = GST_FLOW_OK;
   GstTensorDemux *tensor_demux;
   GList *list = NULL;
@@ -487,7 +482,8 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     gboolean created;
     GstClockTime ts;
 
-    srcpad = gst_tensor_demux_get_tensor_pad (tensor_demux, &created, i);
+    srcpad = gst_tensor_demux_get_tensor_pad (tensor_demux, &created, i,
+        num_tensors);
     outbuf = gst_buffer_new ();
 
     if (tensor_demux->tensorpick != NULL) {

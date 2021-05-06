@@ -1884,7 +1884,7 @@ gst_tensor_converter_update_caps (GstTensorConverter * self,
 {
   GstCaps *curr_caps, *out_caps;
 
-  out_caps = gst_tensors_get_caps (pad, config);
+  out_caps = gst_tensors_get_pad_caps (pad, config);
 
   /* Update pad caps. If it is different */
   curr_caps = gst_pad_get_current_caps (pad);
