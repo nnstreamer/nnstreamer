@@ -892,41 +892,12 @@ gst_tensors_config_from_peer (GstPad * pad, GstTensorsConfig * config,
 }
 
 /**
- * @brief Get tensors caps from tensors config and caps of the peer connected to the pad
- * @param pad GstPad to check if it supports other/tensor
- * @param config tensors config structure
- * @return caps for given config and pad
- */
-GstCaps *
-gst_tensors_get_caps (GstPad * pad, const GstTensorsConfig * config)
-{
-  GstCaps *caps = NULL;
-
-  g_return_val_if_fail (GST_IS_PAD (pad), NULL);
-  g_return_val_if_fail (config != NULL, NULL);
-
-  if (config->info.num_tensors == 1 && gst_pad_peer_has_tensor_caps (pad)) {
-    GstTensorConfig tensor_config;
-
-    gst_tensor_config_init (&tensor_config);
-    tensor_config.info = config->info.info[0];
-    tensor_config.rate_n = config->rate_n;
-    tensor_config.rate_d = config->rate_d;
-
-    caps = gst_tensor_caps_from_config (&tensor_config);
-  } else {
-    caps = gst_tensors_caps_from_config (config);
-  }
-  return caps;
-}
-
-/**
  * @brief Check whether the peer connected to the pad supports other/tensor or not
- * @param pad GstPad to check if the peer pad supports other/tensor
- * @return TRUE if other/tensor, FALSE if not
+ * @param pad GstPad to check peer caps
+ * @return TRUE if other/tensor, FALSE if not.
  */
-gboolean
-gst_pad_peer_has_tensor_caps (GstPad * pad)
+static gboolean
+_peer_has_tensor_caps (GstPad * pad)
 {
   GstCaps *peer_caps;
   gboolean ret = FALSE;
@@ -946,6 +917,35 @@ gst_pad_peer_has_tensor_caps (GstPad * pad)
   }
 
   return ret;
+}
+
+/**
+ * @brief Get tensors caps from tensors config and caps of the peer connected to the pad
+ * @param pad GstPad to check peer caps
+ * @param config tensors config structure
+ * @return caps for given config and pad. Caller is responsible for unreffing the returned caps.
+ */
+GstCaps *
+gst_tensors_get_pad_caps (GstPad * pad, const GstTensorsConfig * config)
+{
+  GstCaps *caps = NULL;
+
+  g_return_val_if_fail (GST_IS_PAD (pad), NULL);
+  g_return_val_if_fail (config != NULL, NULL);
+
+  if (config->info.num_tensors == 1 && _peer_has_tensor_caps (pad)) {
+    GstTensorConfig tensor_config;
+
+    gst_tensor_config_init (&tensor_config);
+    tensor_config.info = config->info.info[0];
+    tensor_config.rate_n = config->rate_n;
+    tensor_config.rate_d = config->rate_d;
+
+    caps = gst_tensor_caps_from_config (&tensor_config);
+  } else {
+    caps = gst_tensors_caps_from_config (config);
+  }
+  return caps;
 }
 
 /**
