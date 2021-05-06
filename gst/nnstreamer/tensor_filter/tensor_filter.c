@@ -846,25 +846,37 @@ done:
 }
 
 /**
- * @brief Get caps for given config.
+ * @brief Get possible caps for given config.
  * @param self "this" pointer
  * @param config tensor config info
- * @param is_output flag to check the config info is for src-pad.
+ * @param is_output flag to check the config info is for src pad.
  */
 static GstCaps *
 gst_tensor_filter_caps_from_config (GstTensorFilter * self,
-    GstTensorsConfig * config, gboolean is_output)
+    const GstTensorsConfig * config, const gboolean is_output)
 {
-  GstPad *pad;
+  GstCaps *caps;
 
   g_return_val_if_fail (config != NULL, NULL);
 
-  if (is_output)
-    pad = GST_BASE_TRANSFORM_SRC_PAD (&self->element);
-  else
-    pad = GST_BASE_TRANSFORM_SINK_PAD (&self->element);
+  caps = gst_caps_new_empty ();
 
-  return gst_tensors_get_caps (pad, config);
+  /* other/tensor if the number of tensor is 1 */
+  if (config->info.num_tensors == 1) {
+    GstTensorConfig c;
+
+    gst_tensor_config_init (&c);
+    c.info = config->info.info[0];
+    c.rate_n = config->rate_n;
+    c.rate_d = config->rate_d;
+
+    gst_caps_append (caps, gst_tensor_caps_from_config (&c));
+  }
+
+  /* other/tensors */
+  gst_caps_append (caps, gst_tensors_caps_from_config (config));
+
+  return gst_caps_simplify (caps);
 }
 
 /**
