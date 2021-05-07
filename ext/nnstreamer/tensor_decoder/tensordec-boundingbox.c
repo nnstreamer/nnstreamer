@@ -87,7 +87,6 @@ extern uint8_t rasters[][13];
  * [Character (ASCII)][Height][Width]
  */
 static singleLineSprite_t singleLineSprite;
-int64_t start_time, stop_time;
 
 /**
  * @brief There can be different schemes for bounding boxes.
@@ -1077,7 +1076,6 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
   const guint num_tensors = config->info.num_tensors;
   gboolean need_output_alloc;
 
-  start_time = g_get_monotonic_time ();
   g_assert (outbuf);
   need_output_alloc = gst_buffer_get_size (outbuf) == 0;
 
@@ -1201,7 +1199,6 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
   else
     gst_memory_unref (out_mem);
 
-  stop_time = g_get_monotonic_time ();
   return GST_FLOW_OK;
 
 error_unmap:
