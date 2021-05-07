@@ -5783,15 +5783,20 @@ TEST (tensorFilterCustomEasy, inCodeFunc01)
   const guint num_buffers = 10;
   TestOption option = { num_buffers, TEST_CUSTOM_EASY_ICF_01 };
   guint timeout_id;
+  GstTensorsInfo info_in;
+  GstTensorsInfo info_out;
 
-  const GstTensorsInfo info_in = {
-    .num_tensors = 1U,
-    .info = { { .name = NULL, .type = _NNS_UINT8, .dimension = { 1, 10, 1, 1 } } },
-  };
-  const GstTensorsInfo info_out = {
-    .num_tensors = 1U,
-    .info = { { .name = NULL, .type = _NNS_UINT8, .dimension = { 1, 10, 1, 1 } } },
-  };
+  gst_tensors_info_init (&info_in);
+  gst_tensors_info_init (&info_out);
+  info_in.num_tensors = 1U;
+  info_in.info[0].name = NULL;
+  info_in.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("1:10:1:1", info_in.info[0].dimension);
+
+  info_out.num_tensors = 1U;
+  info_out.info[0].name = NULL;
+  info_out.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("1:10:1:1", info_out.info[0].dimension);
 
   ret = NNS_custom_easy_register (
       "safe_memcpy_10x10", cef_func_safe_memcpy, NULL, &info_in, &info_out);
@@ -5847,14 +5852,20 @@ TEST (tensorFilterCustomEasy, inCodeFunc01)
 TEST (tensorFilterCustomEasy, unregister1_p)
 {
   int ret;
-  const GstTensorsInfo info_in = {
-    .num_tensors = 1U,
-    .info = { { .name = NULL, .type = _NNS_UINT8, .dimension = { 1, 10, 1, 1 } } },
-  };
-  const GstTensorsInfo info_out = {
-    .num_tensors = 1U,
-    .info = { { .name = NULL, .type = _NNS_UINT8, .dimension = { 1, 10, 1, 1 } } },
-  };
+  GstTensorsInfo info_in;
+  GstTensorsInfo info_out;
+
+  gst_tensors_info_init (&info_in);
+  gst_tensors_info_init (&info_out);
+  info_in.num_tensors = 1U;
+  info_in.info[0].name = NULL;
+  info_in.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("1:10:1:1", info_in.info[0].dimension);
+
+  info_out.num_tensors = 1U;
+  info_out.info[0].name = NULL;
+  info_out.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("1:10:1:1", info_out.info[0].dimension);
 
   ret = NNS_custom_easy_register (
       "safe_memcpy_10x10", cef_func_safe_memcpy, NULL, &info_in, &info_out);

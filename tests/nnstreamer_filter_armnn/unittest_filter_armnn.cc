@@ -17,6 +17,20 @@
 #include <nnstreamer_plugin_api_filter.h>
 
 /**
+ * @brief Set tensor filter properties
+ */
+static void
+_SetFilterProp (GstTensorFilterProperties *prop, const gchar *name, const gchar **models)
+{
+  memset (prop, 0, sizeof (GstTensorFilterProperties));
+  prop->fwname = name;
+  prop->fw_opened = 0;
+  prop->model_files = models;
+  prop->num_models = g_strv_length ((gchar **)models);
+}
+
+
+/**
  * @brief Test armnn subplugin existence.
  */
 TEST (nnstreamerFilterArmnn, checkExistence)
@@ -34,14 +48,13 @@ TEST (nnstreamerFilterArmnn, openClose00_n)
   const gchar *model_files[] = {
     "temp.armnn", NULL,
   };
-  GstTensorFilterProperties prop = {
-    .fwname = "armnn", .fw_opened = 0, .model_files = model_files, .num_models = 1,
-  };
+  GstTensorFilterProperties prop;
   void *data = NULL;
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
   EXPECT_NE (sp, (void *)NULL);
 
+  _SetFilterProp (&prop, "armnn", model_files);
   ret = sp->open (&prop, &data);
   EXPECT_NE (ret, 0);
 }
@@ -55,7 +68,7 @@ TEST (nnstreamerFilterArmnn, openClose01_n)
   void *data = NULL;
   gchar *model_file;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
-
+  GstTensorFilterProperties prop;
   ASSERT_NE (root_path, nullptr);
 
   model_file = g_build_filename (
@@ -65,12 +78,9 @@ TEST (nnstreamerFilterArmnn, openClose01_n)
   const gchar *model_files[] = {
     model_file, NULL,
   };
-  GstTensorFilterProperties prop = {
-    .fwname = "armnn", .fw_opened = 0, .model_files = model_files, .num_models = 1,
-  };
-
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
   EXPECT_NE (sp, (void *)NULL);
+  _SetFilterProp (&prop, "armnn", model_files);
 
   /** close without open, should not crash */
   sp->close (&prop, &data);
@@ -95,7 +105,7 @@ TEST (nnstreamerFilterArmnn, getDimension)
   gchar *model_file;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   GstTensorsInfo info, res;
-
+  GstTensorFilterProperties prop;
   ASSERT_NE (root_path, nullptr);
 
   /** armnn needs a directory with model file and metadata in that directory */
@@ -106,9 +116,8 @@ TEST (nnstreamerFilterArmnn, getDimension)
   const gchar *model_files[] = {
     model_file, NULL,
   };
-  GstTensorFilterProperties prop = {
-    .fwname = "armnn", .fw_opened = 0, .model_files = model_files, .num_models = 1,
-  };
+
+  _SetFilterProp (&prop, "armnn", model_files);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
   EXPECT_NE (sp, (void *)NULL);
@@ -162,7 +171,7 @@ TEST (nnstreamerFilterArmnn, getDimension1_n)
   gchar *model_file;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   GstTensorsInfo res;
-
+  GstTensorFilterProperties prop;
   ASSERT_NE (root_path, nullptr);
 
   /** armnn needs a directory with model file and metadata in that directory */
@@ -173,9 +182,8 @@ TEST (nnstreamerFilterArmnn, getDimension1_n)
   const gchar *model_files[] = {
     model_file, NULL,
   };
-  GstTensorFilterProperties prop = {
-    .fwname = "armnn", .fw_opened = 0, .model_files = model_files, .num_models = 1,
-  };
+
+  _SetFilterProp (&prop, "armnn", model_files);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
   EXPECT_NE (sp, (void *)NULL);
@@ -197,7 +205,7 @@ TEST (nnstreamerFilterArmnn, getDimension2_n)
   gchar *model_file;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   GstTensorsInfo res;
-
+  GstTensorFilterProperties prop;
   ASSERT_NE (root_path, nullptr);
 
   /** armnn needs a directory with model file and metadata in that directory */
@@ -208,9 +216,7 @@ TEST (nnstreamerFilterArmnn, getDimension2_n)
   const gchar *model_files[] = {
     model_file, NULL,
   };
-  GstTensorFilterProperties prop = {
-    .fwname = "armnn", .fw_opened = 0, .model_files = model_files, .num_models = 1,
-  };
+  _SetFilterProp (&prop, "armnn", model_files);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
   EXPECT_NE (sp, (void *)NULL);
@@ -232,7 +238,7 @@ TEST (nnstreamerFilterArmnn, invoke00)
   gchar *model_file;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   GstTensorMemory input, output;
-
+  GstTensorFilterProperties prop;
   ASSERT_NE (root_path, nullptr);
 
   /** armnn needs a directory with model file and metadata in that directory */
@@ -243,9 +249,8 @@ TEST (nnstreamerFilterArmnn, invoke00)
   const gchar *model_files[] = {
     model_file, NULL,
   };
-  GstTensorFilterProperties prop = {
-    .fwname = "armnn", .fw_opened = 0, .model_files = model_files, .num_models = 1,
-  };
+
+  _SetFilterProp (&prop, "armnn", model_files);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
   EXPECT_NE (sp, (void *)NULL);
@@ -285,7 +290,7 @@ TEST (nnstreamerFilterArmnn, invoke01_n)
   gchar *model_file;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   GstTensorMemory input, output;
-
+  GstTensorFilterProperties prop;
   ASSERT_NE (root_path, nullptr);
 
   /** armnn needs a directory with model file and metadata in that directory */
@@ -296,9 +301,8 @@ TEST (nnstreamerFilterArmnn, invoke01_n)
   const gchar *model_files[] = {
     model_file, NULL,
   };
-  GstTensorFilterProperties prop = {
-    .fwname = "armnn", .fw_opened = 0, .model_files = model_files, .num_models = 1,
-  };
+
+  _SetFilterProp (&prop, "armnn", model_files);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
   EXPECT_NE (sp, (void *)NULL);
@@ -325,7 +329,7 @@ TEST (nnstreamerFilterArmnn, invoke02_n)
   gchar *model_file;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   GstTensorMemory input, output;
-
+  GstTensorFilterProperties prop;
   ASSERT_NE (root_path, nullptr);
 
   /** armnn needs a directory with model file and metadata in that directory */
@@ -336,10 +340,8 @@ TEST (nnstreamerFilterArmnn, invoke02_n)
   const gchar *model_files[] = {
     model_file, NULL,
   };
-  GstTensorFilterProperties prop = {
-    .fwname = "armnn", .fw_opened = 0, .model_files = model_files, .num_models = 1,
-  };
 
+  _SetFilterProp (&prop, "armnn", model_files);
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
   EXPECT_NE (sp, (void *)NULL);
 
@@ -371,7 +373,7 @@ TEST (nnstreamerFilterArmnn, invoke03_n)
   gchar *model_file;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   GstTensorMemory output;
-
+  GstTensorFilterProperties prop;
   ASSERT_NE (root_path, nullptr);
 
   /** armnn needs a directory with model file and metadata in that directory */
@@ -382,9 +384,7 @@ TEST (nnstreamerFilterArmnn, invoke03_n)
   const gchar *model_files[] = {
     model_file, NULL,
   };
-  GstTensorFilterProperties prop = {
-    .fwname = "armnn", .fw_opened = 0, .model_files = model_files, .num_models = 1,
-  };
+  _SetFilterProp (&prop, "armnn", model_files);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
   EXPECT_NE (sp, (void *)NULL);
@@ -416,7 +416,7 @@ TEST (nnstreamerFilterArmnn, invoke04_n)
   gchar *model_file;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   GstTensorMemory input;
-
+  GstTensorFilterProperties prop;
   ASSERT_NE (root_path, nullptr);
 
   /** armnn needs a directory with model file and metadata in that directory */
@@ -427,9 +427,7 @@ TEST (nnstreamerFilterArmnn, invoke04_n)
   const gchar *model_files[] = {
     model_file, NULL,
   };
-  GstTensorFilterProperties prop = {
-    .fwname = "armnn", .fw_opened = 0, .model_files = model_files, .num_models = 1,
-  };
+  _SetFilterProp (&prop, "armnn", model_files);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
   EXPECT_NE (sp, (void *)NULL);
@@ -484,7 +482,7 @@ TEST (nnstreamerFilterArmnn, invokeAdvanced)
   ssize_t data_read;
   size_t max_idx;
   gboolean status;
-
+  GstTensorFilterProperties prop;
   ASSERT_NE (root_path, nullptr);
 
   /** armnn needs a directory with model file and metadata in that directory */
@@ -499,9 +497,7 @@ TEST (nnstreamerFilterArmnn, invokeAdvanced)
   const gchar *model_files[] = {
     model_file, NULL,
   };
-  GstTensorFilterProperties prop = {
-    .fwname = "armnn", .fw_opened = 0, .model_files = model_files, .num_models = 1,
-  };
+  _SetFilterProp (&prop, "armnn", model_files);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
   EXPECT_NE (sp, (void *)NULL);
@@ -592,7 +588,7 @@ TEST (nnstreamerFilterArmnn, invoke01)
   GstTensorMemory output, input;
   ssize_t max_idx;
   const unsigned int num_labels = 10;
-
+  GstTensorFilterProperties prop;
   ASSERT_NE (root_path, nullptr);
 
   /** armnn needs a directory with model file and metadata in that directory */
@@ -606,9 +602,7 @@ TEST (nnstreamerFilterArmnn, invoke01)
   const gchar *model_files[] = {
     model_file, NULL,
   };
-  GstTensorFilterProperties prop = {
-    .fwname = "armnn", .fw_opened = 0, .model_files = model_files, .num_models = 1,
-  };
+  _SetFilterProp (&prop, "armnn", model_files);
 
   /** Manually configure the input for test */
   gst_tensors_info_init (&prop.input_meta);

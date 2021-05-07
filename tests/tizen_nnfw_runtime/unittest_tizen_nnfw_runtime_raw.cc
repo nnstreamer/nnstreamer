@@ -13,6 +13,19 @@
 #include <nnstreamer_plugin_api_filter.h>
 
 /**
+ * @brief Set tensor filter properties
+ */
+static void
+_SetFilterProp (GstTensorFilterProperties *prop, const gchar * name, const gchar **models)
+{
+  memset (prop, 0, sizeof (GstTensorFilterProperties));
+  prop->fwname = name;
+  prop->fw_opened = 0;
+  prop->model_files = models;
+  prop->num_models = g_strv_length ((gchar**)models);
+}
+
+/**
  * @brief Get model file after validation checks
  * @returns model file path, NULL on error
  * @note caller has to be free the returned model file path
@@ -60,16 +73,14 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, getDimension)
   void *data = NULL;
   GstTensorsInfo info, res;
   gchar *model_file;
-
+  GstTensorFilterProperties prop;
   model_file = get_model_file ();
   ASSERT_TRUE (model_file != nullptr);
   const gchar *model_files[] = {
     model_file, NULL,
   };
-  GstTensorFilterProperties prop = {
-    .fwname = "nnfw", .fw_opened = 0, .model_files = model_files, .num_models = 1,
-  };
 
+  _SetFilterProp (&prop, "nnfw", model_files);
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("nnfw");
   EXPECT_NE (sp, (void *)NULL);
 
@@ -125,14 +136,11 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, setDimension)
   GstTensorMemory input, output;
   gchar *model_file;
   int tensor_size;
-
+  GstTensorFilterProperties prop;
   model_file = get_model_file ();
   ASSERT_TRUE (model_file != nullptr);
   const gchar *model_files[] = {
     model_file, NULL,
-  };
-  GstTensorFilterProperties prop = {
-    .fwname = "nnfw", .fw_opened = 0, .model_files = model_files, .num_models = 1,
   };
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("nnfw");
@@ -141,6 +149,7 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, setDimension)
   gst_tensors_info_init (&in_info);
   gst_tensors_info_init (&out_info);
   gst_tensors_info_init (&res);
+  _SetFilterProp (&prop, "nnfw", model_files);
 
   /** set input dimension without open */
   ret = sp->setInputDimension (&prop, &data, &in_info, &out_info);
@@ -229,14 +238,11 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, invoke)
   void *data = NULL;
   GstTensorMemory input, output;
   gchar *model_file;
-
+  GstTensorFilterProperties prop;
   model_file = get_model_file ();
   ASSERT_TRUE (model_file != nullptr);
   const gchar *model_files[] = {
     model_file, NULL,
-  };
-  GstTensorFilterProperties prop = {
-    .fwname = "nnfw", .fw_opened = 0, .model_files = model_files, .num_models = 1,
   };
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("nnfw");
@@ -246,6 +252,7 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, invoke)
 
   input.data = g_malloc (input.size);
   output.data = g_malloc (output.size);
+  _SetFilterProp (&prop, "nnfw", model_files);
 
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);
@@ -300,6 +307,7 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, invokeAdvanced)
   gsize data_read;
   size_t max_idx;
   gboolean status;
+  GstTensorFilterProperties prop;
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
@@ -326,9 +334,6 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, invokeAdvanced)
   const gchar *model_files[] = {
     model_file, NULL,
   };
-  GstTensorFilterProperties prop = {
-    .fwname = "nnfw", .fw_opened = 0, .model_files = model_files, .num_models = 1,
-  };
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("nnfw");
   EXPECT_NE (sp, (void *)NULL);
@@ -353,6 +358,7 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, invokeAdvanced)
   info.info[0].dimension[1] = 224;
   info.info[0].dimension[2] = 224;
   info.info[0].dimension[3] = 1;
+  _SetFilterProp (&prop, "nnfw", model_files);
 
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);
