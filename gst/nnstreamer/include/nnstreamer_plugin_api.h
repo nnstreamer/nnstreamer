@@ -393,6 +393,13 @@ gst_tensor_get_type_string (tensor_type type);
 extern GstCaps *
 gst_tensors_get_pad_caps (GstPad * pad, const GstTensorsConfig * config);
 
+
+/**
+ * @brief set alignment that default allocator would align to
+ * @param alignment bytes of alignment
+ */
+extern void gst_tensor_alloc_init (gsize alignment);
+
 /**
  * @brief Find the index value of the given key string array
  * @return Corresponding index
