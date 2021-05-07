@@ -16,6 +16,18 @@
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_filter.h>
 
+/**
+ * @brief Set tensor filter properties
+ */
+static void
+_SetFilterProp (GstTensorFilterProperties *prop, const gchar * name, const gchar **models)
+{
+  memset (prop, 0, sizeof (GstTensorFilterProperties));
+  prop->fwname = name;
+  prop->fw_opened = 0;
+  prop->model_files = models;
+  prop->num_models = g_strv_length ((gchar**)models);
+}
 
 /**
  * @brief Signal to validate new output data
@@ -49,16 +61,12 @@ TEST (nnstreamerFilterTvm, openClose00_n)
     "temp.so",
     NULL,
   };
+  GstTensorFilterProperties prop;
 
-  GstTensorFilterProperties prop = {
-    .fwname = "tvm",
-    .fw_opened = 0,
-    .model_files = model_files,
-    .num_models = 1,
-  };
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("tvm");
   EXPECT_NE (sp, nullptr);
 
+  _SetFilterProp (&prop, "tvm", model_files);
   ret = sp->open (&prop, &data);
   EXPECT_NE (ret, 0);
 }
@@ -72,7 +80,7 @@ TEST (nnstreamerFilterTvm, openClose00)
   void *data = NULL;
   gchar *model_file;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
-
+  GstTensorFilterProperties prop;
   model_file = g_build_filename (
       root_path, "tests", "test_models", "models", "tvm_add_one.so_", NULL);
   ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
@@ -81,15 +89,10 @@ TEST (nnstreamerFilterTvm, openClose00)
     model_file,
     NULL,
   };
-  GstTensorFilterProperties prop = {
-    .fwname = "tvm",
-    .fw_opened = 0,
-    .model_files = model_files,
-    .num_models = 1,
-  };
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("tvm");
   EXPECT_NE (sp, nullptr);
+  _SetFilterProp (&prop, "tvm", model_files);
 
   /* close before open */
   sp->close (&prop, &data);
@@ -112,7 +115,7 @@ TEST (nnstreamerFilterTvm, getModelInfo00)
   void *data = NULL;
   gchar *model_file;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
-
+  GstTensorFilterProperties prop;
   model_file = g_build_filename (
       root_path, "tests", "test_models", "models", "tvm_add_one.so_", NULL);
   ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
@@ -121,15 +124,10 @@ TEST (nnstreamerFilterTvm, getModelInfo00)
     model_file,
     NULL,
   };
-  GstTensorFilterProperties prop = {
-    .fwname = "tvm",
-    .fw_opened = 0,
-    .model_files = model_files,
-    .num_models = 1,
-  };
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("tvm");
   EXPECT_NE (sp, nullptr);
+  _SetFilterProp (&prop, "tvm", model_files);
 
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);
@@ -165,7 +163,7 @@ TEST (nnstreamerFilterTvm, getModelInfo00_n)
   void *data = NULL;
   gchar *model_file;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
-
+  GstTensorFilterProperties prop;
   model_file = g_build_filename (
       root_path, "tests", "test_models", "models", "tvm_add_one.so_", NULL);
   ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
@@ -173,12 +171,6 @@ TEST (nnstreamerFilterTvm, getModelInfo00_n)
   const gchar *model_files[] = {
     model_file,
     NULL,
-  };
-  GstTensorFilterProperties prop = {
-    .fwname = "tvm",
-    .fw_opened = 0,
-    .model_files = model_files,
-    .num_models = 1,
   };
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("tvm");
@@ -188,6 +180,7 @@ TEST (nnstreamerFilterTvm, getModelInfo00_n)
 
   ret = sp->getModelInfo (NULL, NULL, data, SET_INPUT_INFO, &in_info, &out_info);
   EXPECT_NE (ret, 0);
+  _SetFilterProp (&prop, "tvm", model_files);
 
   sp->close (&prop, &data);
   g_free (model_file);
@@ -202,7 +195,7 @@ TEST (nnstreamerFilterTvm, getModelInfo01_n)
   void *data = NULL;
   gchar *model_file;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
-
+  GstTensorFilterProperties prop;
   model_file = g_build_filename (
       root_path, "tests", "test_models", "models", "tvm_add_one.so_", NULL);
   ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
@@ -211,15 +204,10 @@ TEST (nnstreamerFilterTvm, getModelInfo01_n)
     model_file,
     NULL,
   };
-  GstTensorFilterProperties prop = {
-    .fwname = "tvm",
-    .fw_opened = 0,
-    .model_files = model_files,
-    .num_models = 1,
-  };
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("tvm");
   EXPECT_NE (sp, nullptr);
+  _SetFilterProp (&prop, "tvm", model_files);
 
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);
@@ -244,18 +232,12 @@ TEST (nnstreamerFilterTvm, invoke00_n)
   void *data = NULL;
   GstTensorMemory input, output;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
-
+  GstTensorFilterProperties prop;
   gchar *model_file = g_build_filename (
       root_path, "tests", "test_models", "models", "tvm_add_one.so_", NULL);
   const gchar *model_files[] = {
     model_file,
     NULL,
-  };
-  GstTensorFilterProperties prop = {
-    .fwname = "tvm",
-    .fw_opened = 0,
-    .model_files = model_files,
-    .num_models = 1,
   };
 
   output.size = input.size = sizeof (float) * 1;
@@ -265,6 +247,7 @@ TEST (nnstreamerFilterTvm, invoke00_n)
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("tvm");
   EXPECT_NE (sp, nullptr);
+  _SetFilterProp (&prop, "tvm", model_files);
 
   ret = sp->invoke (NULL, NULL, data, &input, &output);
   EXPECT_NE (ret, 0);
@@ -284,22 +267,17 @@ TEST (nnstreamerFilterTvm, invoke01_n)
   void *data = NULL;
   GstTensorMemory input, output;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
-
+  GstTensorFilterProperties prop;
   gchar *model_file = g_build_filename (
       root_path, "tests", "test_models", "models", "tvm_add_one.so_", NULL);
   const gchar *model_files[] = {
     model_file,
     NULL,
   };
-  GstTensorFilterProperties prop = {
-    .fwname = "tvm",
-    .fw_opened = 0,
-    .model_files = model_files,
-    .num_models = 1,
-  };
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("tvm");
   EXPECT_NE (sp, nullptr);
+  _SetFilterProp (&prop, "tvm", model_files);
 
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);
@@ -330,22 +308,17 @@ TEST (nnstreamerFilterTvm, invoke02_n)
   void *data = NULL;
   GstTensorMemory input, output;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
-
+  GstTensorFilterProperties prop;
   gchar *model_file = g_build_filename (
       root_path, "tests", "test_models", "models", "tvm_add_one.so_", NULL);
   const gchar *model_files[] = {
     model_file,
     NULL,
   };
-  GstTensorFilterProperties prop = {
-    .fwname = "tvm",
-    .fw_opened = 0,
-    .model_files = model_files,
-    .num_models = 1,
-  };
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("tvm");
   EXPECT_NE (sp, nullptr);
+  _SetFilterProp (&prop, "tvm", model_files);
 
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);
@@ -376,7 +349,7 @@ TEST (nnstreamerFilterTvm, invoke00)
   void *data = NULL;
   GstTensorMemory input, output;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
-
+  GstTensorFilterProperties prop;
   gchar *model_file = g_build_filename (
       root_path, "tests", "test_models", "models", "tvm_add_one.so_", NULL);
   ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
@@ -384,12 +357,6 @@ TEST (nnstreamerFilterTvm, invoke00)
   const gchar *model_files[] = {
     model_file,
     NULL,
-  };
-  GstTensorFilterProperties prop = {
-    .fwname = "tvm",
-    .fw_opened = 0,
-    .model_files = model_files,
-    .num_models = 1,
   };
 
   output.size = input.size = sizeof (float) * 3 * 640 * 480 * 1;
@@ -399,6 +366,7 @@ TEST (nnstreamerFilterTvm, invoke00)
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("tvm");
   EXPECT_NE (sp, nullptr);
+  _SetFilterProp (&prop, "tvm", model_files);
 
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);
