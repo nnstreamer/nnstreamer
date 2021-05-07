@@ -13,20 +13,19 @@
 #include <gst/gst.h>
 #include <unittest_util.h>
 
-#include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_filter.h>
 
 /**
  * @brief Set tensor filter properties
  */
 static void
-_SetFilterProp (GstTensorFilterProperties *prop, const gchar * name, const gchar **models)
+_SetFilterProp (GstTensorFilterProperties *prop, const gchar *name, const gchar **models)
 {
   memset (prop, 0, sizeof (GstTensorFilterProperties));
   prop->fwname = name;
   prop->fw_opened = 0;
   prop->model_files = models;
-  prop->num_models = g_strv_length ((gchar**)models);
+  prop->num_models = g_strv_length ((gchar **) models);
 }
 
 /**
@@ -360,8 +359,11 @@ TEST (nnstreamerFilterTvm, invoke00)
   };
 
   output.size = input.size = sizeof (float) * 3 * 640 * 480 * 1;
-  input.data = g_malloc (input.size);
-  output.data = g_malloc (output.size);
+
+  /* alloc input data without alignment */
+  input.data = malloc (input.size);
+  output.data = malloc (output.size);
+
   memset (input.data, 0, input.size);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("tvm");

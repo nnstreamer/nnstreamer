@@ -15,6 +15,7 @@
 #include <glib.h>
 #include <nnstreamer_cppplugin_api_filter.hh>
 #include <nnstreamer_log.h>
+#include <nnstreamer_plugin_api.h>
 #include <tensor_common.h>
 
 #include <dlpack/dlpack.h>
@@ -51,6 +52,7 @@ class tvm_subplugin final : public tensor_filter_subplugin
   tvm::runtime::Module gmod;
   std::vector<DLTensor> input_tensor_list;
   std::vector<DLTensor> output_tensor_list;
+  bool zero_copy_enabled;
 
   static const char *name;
   static const accl_hw hw_list[];
@@ -83,7 +85,8 @@ const accl_hw tvm_subplugin::hw_list[] = { ACCL_CPU, ACCL_GPU };
  */
 tvm_subplugin::tvm_subplugin ()
     : tensor_filter_subplugin (), empty_model (true), model_path (nullptr),
-      device (DLDevice{ kDLCPU, 0 }), mod_factory (nullptr), gmod (nullptr)
+      device (DLDevice{ kDLCPU, 0 }), mod_factory (nullptr), gmod (nullptr),
+      zero_copy_enabled (true)
 {
   gst_tensors_info_init (std::addressof (inputInfo));
   gst_tensors_info_init (std::addressof (outputInfo));
@@ -199,8 +202,8 @@ tvm_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   mod_factory = tvm::runtime::Module::LoadFromFile (model_path, "so");
   gmod = mod_factory.GetFunction ("default") (device);
 
-  inputInfo.num_tensors = (int)gmod.GetFunction ("get_num_inputs") ();
-  outputInfo.num_tensors = (int)gmod.GetFunction ("get_num_outputs") ();
+  inputInfo.num_tensors = (int) gmod.GetFunction ("get_num_inputs") ();
+  outputInfo.num_tensors = (int) gmod.GetFunction ("get_num_outputs") ();
 
   tvm::runtime::NDArray arr;
   const DLTensor *dt;
@@ -252,56 +255,56 @@ bool
 tvm_subplugin::convert_dtype (tensor_type &nns_type, const DLDataType &dtype)
 {
   switch (dtype.code) {
-  case kDLInt:
-    switch (dtype.bits) {
-    case 64:
-      nns_type = _NNS_INT64;
+    case kDLInt:
+      switch (dtype.bits) {
+        case 64:
+          nns_type = _NNS_INT64;
+          break;
+        case 32:
+          nns_type = _NNS_INT32;
+          break;
+        case 16:
+          nns_type = _NNS_INT16;
+          break;
+        case 8:
+          nns_type = _NNS_INT8;
+          break;
+        default:
+          return false;
+      }
       break;
-    case 32:
-      nns_type = _NNS_INT32;
+    case kDLUInt:
+      switch (dtype.bits) {
+        case 64:
+          nns_type = _NNS_UINT64;
+          break;
+        case 32:
+          nns_type = _NNS_UINT32;
+          break;
+        case 16:
+          nns_type = _NNS_UINT16;
+          break;
+        case 8:
+          nns_type = _NNS_UINT8;
+          break;
+        default:
+          return false;
+      }
       break;
-    case 16:
-      nns_type = _NNS_INT16;
-      break;
-    case 8:
-      nns_type = _NNS_INT8;
+    case kDLFloat:
+      switch (dtype.bits) {
+        case 64:
+          nns_type = _NNS_FLOAT64;
+          break;
+        case 32:
+          nns_type = _NNS_FLOAT32;
+          break;
+        default:
+          return false;
+      }
       break;
     default:
       return false;
-    }
-    break;
-  case kDLUInt:
-    switch (dtype.bits) {
-    case 64:
-      nns_type = _NNS_UINT64;
-      break;
-    case 32:
-      nns_type = _NNS_UINT32;
-      break;
-    case 16:
-      nns_type = _NNS_UINT16;
-      break;
-    case 8:
-      nns_type = _NNS_UINT8;
-      break;
-    default:
-      return false;
-    }
-    break;
-  case kDLFloat:
-    switch (dtype.bits) {
-    case 64:
-      nns_type = _NNS_FLOAT64;
-      break;
-    case 32:
-      nns_type = _NNS_FLOAT32;
-      break;
-    default:
-      return false;
-    }
-    break;
-  default:
-    return false;
   }
   return true;
 }
@@ -318,27 +321,44 @@ tvm_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 
   unsigned int i;
   tvm::runtime::NDArray tensor;
+  tvm::runtime::PackedFunc set_input, set_input_zero_copy, get_output, run;
 
-  /* read functions */
-  tvm::runtime::PackedFunc set_input = gmod.GetFunction ("set_input");
+  /* input data is aligned */
+  set_input_zero_copy = gmod.GetFunction ("set_input_zero_copy");
+  if (set_input_zero_copy == nullptr) {
+    cleanup ();
+    throw std::runtime_error ("Packed function `set_input_zero_copy` not defined in model");
+  }
+  set_input = gmod.GetFunction ("set_input");
   if (set_input == nullptr) {
     cleanup ();
     throw std::runtime_error ("Packed function `set_input` not defined in model");
   }
-  tvm::runtime::PackedFunc get_output = gmod.GetFunction ("get_output");
-  if (set_input == nullptr) {
+  get_output = gmod.GetFunction ("get_output");
+  if (get_output == nullptr) {
     cleanup ();
     throw std::runtime_error ("Packed function `get_output` not defined in model");
   }
-  tvm::runtime::PackedFunc run = gmod.GetFunction ("run");
-  if (set_input == nullptr) {
+  run = gmod.GetFunction ("run");
+  if (run == nullptr) {
     cleanup ();
     throw std::runtime_error ("Packed function `run` not defined in model");
   }
 
   for (i = 0; i < inputInfo.num_tensors; ++i) {
     input_tensor_list[i].data = input[i].data;
-    set_input (i, &input_tensor_list[i]);
+
+    if (zero_copy_enabled) {
+      try {
+        set_input_zero_copy (i, &input_tensor_list[i]);
+      } catch (const std::runtime_error &e) {
+        nns_logw ("Input data is not aligned, which results in memory copy.");
+        zero_copy_enabled = false;
+        set_input (i, &input_tensor_list[i]);
+      }
+    } else {
+      set_input (i, &input_tensor_list[i]);
+    }
   }
 
   run ();
@@ -394,6 +414,8 @@ tvm_subplugin *tvm_subplugin::registeredRepresentation = nullptr;
 void
 tvm_subplugin::init_filter_tvm (void)
 {
+  /* mem alignment */
+  gst_tensor_alloc_init (127);
   registeredRepresentation
       = tensor_filter_subplugin::register_subplugin<tvm_subplugin> ();
 }
