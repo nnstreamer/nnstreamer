@@ -16,6 +16,8 @@ test:
         - functionName:
             starts:
               - 'TEST'
+        - excludes :
+            - tensorFilterCustomEasy.inCodeFunc01
  
     negativeTestCase:
       - condition:
