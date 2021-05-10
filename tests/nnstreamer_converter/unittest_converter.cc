@@ -134,7 +134,7 @@ TEST (tensorConverterCustom, normal0)
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   g_usleep (1000000);
 
-  EXPECT_EQ (1, *received);
+  EXPECT_EQ (1U, *received);
   _wait_pipeline_save_files (tmp_tensor_raw, content1, len1, 230400, TEST_TIMEOUT_MS);
   _wait_pipeline_save_files (tmp_flex_to_tensor, content2, len2, 230400, TEST_TIMEOUT_MS);
   EXPECT_EQ (len1, len2);
