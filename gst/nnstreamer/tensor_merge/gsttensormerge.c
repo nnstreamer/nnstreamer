@@ -215,7 +215,7 @@ gst_tensor_merge_init (GstTensorMerge * tensor_merge)
   tensor_merge->sync.mode = SYNC_NOSYNC;
   tensor_merge->sync.option = NULL;
   gst_tensors_config_init (&tensor_merge->tensors_config);
-  tensor_merge->mode = GTT_END;
+  tensor_merge->mode = GTT_LINEAR;
   tensor_merge->loaded = FALSE;
   tensor_merge->current_time = 0;
   tensor_merge->need_set_time = TRUE;
