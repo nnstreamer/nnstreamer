@@ -48,6 +48,7 @@ NNSTREAMER_PLUGINS_SRCS := \
     $(NNSTREAMER_GST_HOME)/tensor_common_pipeline.c \
     $(NNSTREAMER_GST_HOME)/registerer/nnstreamer.c \
     $(NNSTREAMER_GST_HOME)/tensor_converter/tensor_converter.c \
+    $(NNSTREAMER_GST_HOME)/tensor_crop/tensor_crop.c \
     $(NNSTREAMER_GST_HOME)/tensor_aggregator/tensor_aggregator.c \
     $(NNSTREAMER_GST_HOME)/tensor_decoder/tensordec.c \
     $(NNSTREAMER_GST_HOME)/tensor_demux/gsttensordemux.c \
