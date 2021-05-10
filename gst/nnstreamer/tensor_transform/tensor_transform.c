@@ -391,10 +391,10 @@ gst_tensor_transform_get_stand_mode (const gchar * str)
   } while (0)
 
 #define orc_operator_div_loop(i,n,val,typename) do { \
-    gsize idx; \
+    gsize idx_div; \
     typename *data_in = (typename *) (i); \
-    for (idx = 0; idx < (n); ++idx) { \
-      data_in[idx] = data_in[idx] / (val); \
+    for (idx_div = 0; idx_div < (n); ++idx_div) { \
+      data_in[idx_div] = data_in[idx_div] / (val); \
     } \
   } while (0)
 
