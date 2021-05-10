@@ -45,6 +45,7 @@ endforeach
 nnst_plugins = [
   'tensor_aggregator',
   'tensor_converter',
+  'tensor_crop',
   'tensor_decoder',
   'tensor_demux',
   'tensor_merge',

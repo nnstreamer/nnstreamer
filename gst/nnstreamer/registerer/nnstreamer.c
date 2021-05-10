@@ -49,6 +49,7 @@
 
 #include <tensor_aggregator/tensor_aggregator.h>
 #include <tensor_converter/tensor_converter.h>
+#include <tensor_crop/tensor_crop.h>
 #include <tensor_decoder/tensordec.h>
 #include <tensor_demux/gsttensordemux.h>
 #include <tensor_filter/tensor_filter.h>
@@ -81,6 +82,7 @@ gst_nnstreamer_init (GstPlugin * plugin)
 {
   NNSTREAMER_INIT (plugin, aggregator, AGGREGATOR);
   NNSTREAMER_INIT (plugin, converter, CONVERTER);
+  NNSTREAMER_INIT (plugin, crop, CROP);
   NNSTREAMER_INIT (plugin, decoder, DECODER);
   NNSTREAMER_INIT (plugin, demux, DEMUX);
   NNSTREAMER_INIT (plugin, filter, FILTER);
