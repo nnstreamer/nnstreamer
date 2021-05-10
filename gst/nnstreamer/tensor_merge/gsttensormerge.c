@@ -149,23 +149,29 @@ gst_tensor_merge_class_init (GstTensorMergeClass * klass)
   gobject_class->set_property = gst_tensor_merge_set_property;
 
   g_object_class_install_property (gobject_class, PROP_SILENT,
-      g_param_spec_boolean ("silent", "Silent", "Produce verbose output ?",
+      g_param_spec_boolean ("silent", "Silent", "Produce verbose output",
           TRUE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_MODE,
-      g_param_spec_string ("mode", "Mode", "Tensor Merge mode ?",
-          "", G_PARAM_READWRITE));
+      g_param_spec_string ("mode", "Mode",
+          "Tensor Merge mode. Currently, `linear` is available only.",
+          GTT_LINEAR, G_PARAM_READWRITE));
   g_object_class_install_property (gobject_class, PROP_OPTION,
       g_param_spec_string ("option", "Option",
-          "Option for the tensor Merge mode ?", "", G_PARAM_READWRITE));
+          "Option for the tensor Merge mode.\n"
+          "\t\t\t  1) linear mode: it will become the index of the rank.\n"
+          "\t\t\t     (e.g. want to merge 3:640:480 & 3:640:480 to 3:1280:480, option=1)\n"
+          "\t\t\t  2) TBU", "", G_PARAM_READWRITE));
 
   g_object_class_install_property (gobject_class, PROP_SYNC_MODE,
       g_param_spec_string ("sync-mode", "Sync Mode",
-          "Time synchronization mode?", "", G_PARAM_READWRITE));
+          "Time synchronization mode\n"
+          "\t\t\tSee also: https://github.com/nnstreamer/nnstreamer/blob/main/Documentation/synchronization-policies-at-mux-merge.md",
+          "", G_PARAM_READWRITE));
 
   g_object_class_install_property (gobject_class, PROP_SYNC_OPTION,
       g_param_spec_string ("sync-option", "Sync Option",
-          "Option for the time synchronization mode ?", "", G_PARAM_READWRITE));
+          "Option for the time synchronization mode", "", G_PARAM_READWRITE));
 
   gstelement_class->request_new_pad =
       GST_DEBUG_FUNCPTR (gst_tensor_merge_request_new_pad);
