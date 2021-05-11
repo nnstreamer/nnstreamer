@@ -25,7 +25,7 @@
   (e) : NULL)
 #define __GST_ELEMENT_CAST(e) ((_Element *)(e))
 #define __GST_ELEMENT_NAME(e) (__GST_IS_ELEMENT(e) ?\
-  (e)->name : "__InvalidElement__")
+  (e)->name : "(inv)")
 
 #define __GST_STR_NULL(s) ((s) ? (s) : "(NULL)")
 

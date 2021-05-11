@@ -131,7 +131,31 @@ gboolean
 nnstparser_element_link_pads_filtered (_Element *src, const gchar *src_pad,
     _Element *dst, const gchar *dst_pad, gchar *filter)
 {
-  /* NYI */
+  g_debug (
+      "trying to link element %s:%s to element %s:%s, filter %s\n",
+      __GST_ELEMENT_NAME(src), src_pad ? src_pad : "(any)",
+      __GST_ELEMENT_NAME(dst), dst_pad ? dst_pad : "(any)",
+      filter);
+
+  /**
+   * It's impossible to decide link compatibility of each pad
+   * because we don't have any available pad info. of elements.
+   * Thus, let's just assume that users provide valid pipelines.
+   * TODO: reconsider this assumption later.
+   */
+  return TRUE;
+}
+
+/**
+ * @brief Internal function to compare element names
+ */
+static int
+nnstparser_bin_compare_name (gconstpointer a, gconstpointer b)
+{
+  const _Element *elem = (const _Element *) a;
+  const gchar *name = (const gchar *) b;
+
+  return g_strcmp0 (elem->name, name);
 }
 
 /**
@@ -140,7 +164,16 @@ nnstparser_element_link_pads_filtered (_Element *src, const gchar *src_pad,
 _Element *
 nnstparser_bin_get_by_name (_Element * bin, const gchar * name)
 {
-  /* NYI */
+  GSList *elem;
+
+  g_return_val_if_fail (__GST_IS_BIN (bin), NULL);
+  g_return_val_if_fail (name != NULL, NULL);
+
+  elem = g_slist_find_custom (bin->elements, name, nnstparser_bin_compare_name);
+  if (elem == NULL)
+    return NULL;
+
+  return nnstparser_element_ref (elem->data);
 }
 
 /**
@@ -149,16 +182,10 @@ nnstparser_bin_get_by_name (_Element * bin, const gchar * name)
 _Element *
 nnstparser_bin_get_by_name_recurse_up (_Element * bin, const gchar * name)
 {
-  _Element *result;
-
   g_return_val_if_fail (__GST_IS_BIN (bin), NULL);
   g_return_val_if_fail (name != NULL, NULL);
 
-  result = nnstparser_bin_get_by_name (bin, name);
-
-  if (!result) {
-    /* NYI: May need to analyze gst object parent structure */
-  }
+  return nnstparser_bin_get_by_name (bin, name);
 }
 
 /**
