@@ -120,7 +120,6 @@ static void gst_mqtt_src_set_opt_keep_alive_interval (GstMqttSrc * self,
     const gint num);
 
 static void cb_mqtt_on_connection_lost (void *context, char *cause);
-static void cb_mqtt_on_delivery_complete (void *context, MQTTAsync_token token);
 static int cb_mqtt_on_message_arrived (void *context, char *topic_name,
     int topic_len, MQTTAsync_message * message);
 static void cb_mqtt_on_connect (void *context,
@@ -495,8 +494,7 @@ gst_mqtt_src_start (GstBaseSrc * basesrc)
     return FALSE;
 
   MQTTAsync_setCallbacks (self->mqtt_client_handle, self,
-      cb_mqtt_on_connection_lost, cb_mqtt_on_message_arrived,
-      cb_mqtt_on_delivery_complete);
+      cb_mqtt_on_connection_lost, cb_mqtt_on_message_arrived, NULL);
 
   ret = MQTTAsync_connect (self->mqtt_client_handle, &self->mqtt_conn_opts);
   if (ret != MQTTASYNC_SUCCESS)
@@ -976,16 +974,6 @@ cb_mqtt_on_connection_lost (void *context, char *cause)
         g_strerror (EHOSTDOWN));
   }
   g_mutex_unlock (&self->mqtt_src_mutex);
-}
-
-/**
-  * @brief A callback to handle the post-processing of the delivered message
-  * @todo Fill the function body
-  */
-static void
-cb_mqtt_on_delivery_complete (void *context, MQTTAsync_token token)
-{
-
 }
 
 /**
