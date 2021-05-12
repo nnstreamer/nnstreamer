@@ -971,7 +971,8 @@ cb_mqtt_on_connection_lost (void *context, char *cause)
   g_cond_broadcast (&self->mqtt_src_gcond);
   if (!self->err) {
     self->err = g_error_new (self->gquark_err_tag, EHOSTDOWN,
-        "Connection to the host (broker) has been lost: %s",
+        "Connection to the host (broker) has been lost: %s \n"
+        "\t\tfor detail, please check the log message of the broker",
         g_strerror (EHOSTDOWN));
   }
   g_mutex_unlock (&self->mqtt_src_mutex);
