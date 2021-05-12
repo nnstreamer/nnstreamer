@@ -91,6 +91,19 @@ enum
   PROP_SILENT,
 };
 
+static const gchar *gst_tensor_merge_mode_string[] = {
+  [GTT_LINEAR] = "linear",
+  [GTT_END] = "error",
+};
+
+static const gchar *gst_tensor_merge_linear_string[] = {
+  [LINEAR_FIRST] = "0",
+  [LINEAR_SECOND] = "1",
+  [LINEAR_THIRD] = "2",
+  [LINEAR_FOURTH] = "3",
+  [LINEAR_END] = NULL,
+};
+
 /**
  * @brief the capabilities of the inputs and outputs.
  * describe the real formats here.
@@ -155,7 +168,7 @@ gst_tensor_merge_class_init (GstTensorMergeClass * klass)
   g_object_class_install_property (gobject_class, PROP_MODE,
       g_param_spec_string ("mode", "Mode",
           "Tensor Merge mode. Currently, `linear` is available only.",
-          GTT_LINEAR, G_PARAM_READWRITE));
+          gst_tensor_merge_mode_string[GTT_LINEAR], G_PARAM_READWRITE));
   g_object_class_install_property (gobject_class, PROP_OPTION,
       g_param_spec_string ("option", "Option",
           "Option for the tensor Merge mode.\n"
@@ -226,19 +239,6 @@ gst_tensor_merge_init (GstTensorMerge * tensor_merge)
   tensor_merge->current_time = 0;
   tensor_merge->need_set_time = TRUE;
 }
-
-static const gchar *gst_tensor_merge_mode_string[] = {
-  [GTT_LINEAR] = "linear",
-  [GTT_END] = "error",
-};
-
-static const gchar *gst_tensor_merge_linear_string[] = {
-  [LINEAR_FIRST] = "0",
-  [LINEAR_SECOND] = "1",
-  [LINEAR_THIRD] = "2",
-  [LINEAR_FOURTH] = "3",
-  [LINEAR_END] = NULL,
-};
 
 /**
  * @brief Get the corresponding mode from the string value
