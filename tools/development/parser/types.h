@@ -43,7 +43,7 @@ typedef enum {
 typedef struct _chain_t chain_t;
 
 /** @brief Simplified GST-Element */
-typedef struct {
+typedef struct _Element_t {
   objectTypeId id;
   elementSpecialType specialType;
 
@@ -54,11 +54,25 @@ typedef struct {
   union {
     GSList *elements; /**< _GstBin type uses this */
   };
+
+  GSList *src_pads;
+  GSList *sink_pads;
 } _Element;
+
+/** @brief Simplified GST-Pad */
+typedef struct _Pad_t {
+  gchar *name;
+  _Element *parent;
+  struct _Pad_t *peer;
+} _Pad;
 
 /** @brief Make simplified element */
 extern _Element *
 nnstparser_element_make (const gchar *element, const gchar *name);
+
+/** @brief Make simplified pad */
+extern _Pad *
+nnstparser_pad_make (_Element *parent, const gchar *name);
 
 /** @brief pipeline element/pad reference */
 typedef struct {

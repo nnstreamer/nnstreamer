@@ -38,6 +38,8 @@ _nnstparser_config_element (_Element * e, const gchar * element,
   e->name = g_strdup (name);
   e->refcount = 1;
   e->id = oTI_Element;
+  e->src_pads = NULL;
+  e->sink_pads = NULL;
 }
 
 /**
@@ -49,6 +51,30 @@ nnstparser_element_make (const gchar * element, const gchar * name)
   _Element *ret = g_new0 (_Element, 1);
   _nnstparser_config_element (ret, element, name);
   return ret;
+}
+
+/**
+ * @brief Make a pad owned by the parent
+ */
+_Pad *
+nnstparser_pad_make (_Element *parent, const gchar *name)
+{
+  _Pad *ret = g_new0 (_Pad, 1);
+  ret->name = g_strdup (name);
+  ret->parent = parent;
+  ret->peer = NULL;
+  return ret;
+}
+
+/**
+ * @brief Free the pad
+ */
+static void
+nnstparser_pad_unref (gpointer data)
+{
+  _Pad *pad = (_Pad *) data;
+  g_free (pad->name);
+  g_free (pad);
 }
 
 /**
@@ -79,6 +105,8 @@ nnstparser_element_unref (_Element * element)
 
   element->refcount--;
   if (element->refcount <= 0) {
+    g_slist_free_full (element->src_pads, nnstparser_pad_unref);
+    g_slist_free_full (element->sink_pads, nnstparser_pad_unref);
     g_free (element->element);
     g_free (element->name);
     g_free (element);
@@ -128,13 +156,16 @@ nnstparser_element_from_uri (_URIType type, const gchar * uri,
  * @brief Substitutes GST's gst_element_link_pads_filtered ()
  */
 gboolean
-nnstparser_element_link_pads_filtered (_Element *src, const gchar *src_pad,
-    _Element *dst, const gchar *dst_pad, gchar *filter)
+nnstparser_element_link_pads_filtered (_Element *src, const gchar *src_name,
+    _Element *dst, const gchar *dst_name, gchar *filter)
 {
+  _Pad *src_pad;
+  _Pad *dst_pad;
+
   g_debug (
       "trying to link element %s:%s to element %s:%s, filter %s\n",
-      __GST_ELEMENT_NAME(src), src_pad ? src_pad : "(any)",
-      __GST_ELEMENT_NAME(dst), dst_pad ? dst_pad : "(any)",
+      __GST_ELEMENT_NAME(src), src_name ? src_name : "(any)",
+      __GST_ELEMENT_NAME(dst), dst_name ? dst_name : "(any)",
       filter);
 
   /**
@@ -143,6 +174,16 @@ nnstparser_element_link_pads_filtered (_Element *src, const gchar *src_pad,
    * Thus, let's just assume that users provide valid pipelines.
    * TODO: reconsider this assumption later.
    */
+
+  src_pad = nnstparser_pad_make (src, src_name);
+  dst_pad = nnstparser_pad_make (dst, dst_name);
+
+  src_pad->peer = dst_pad;
+  dst_pad->peer = src_pad;
+
+  src->src_pads = g_slist_append (src->src_pads, src_pad);
+  dst->sink_pads = g_slist_append (dst->sink_pads, dst_pad);
+
   return TRUE;
 }
 

@@ -74,7 +74,8 @@ toplevel_srcs = [
   parser,
   grammar,
   'types.c',
-  'toplevel.c'
+  'toplevel.c',
+  'convert.c'
 ]
 toplevel_deps = [
   glib_dep,
