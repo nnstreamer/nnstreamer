@@ -142,8 +142,8 @@ edgetpu_subplugin::edgetpu_subplugin ()
       device_type (edgetpu_subplugin_device_type::DEFAULT),
       model_interpreter (nullptr), edgetpu_context (nullptr), model (nullptr)
 {
-  inputInfo.num_tensors = 0;
-  outputInfo.num_tensors = 0;
+  gst_tensors_info_init (std::addressof (inputInfo));
+  gst_tensors_info_init (std::addressof (outputInfo));
   /** Nothing to do. Just let it have an empty instance */
 }
 
@@ -170,10 +170,10 @@ edgetpu_subplugin::cleanup ()
 
   if (model_path)
     delete model_path;
+  gst_tensors_info_free (std::addressof (inputInfo));
+  gst_tensors_info_free (std::addressof (outputInfo));
 
   model_path = nullptr;
-  inputInfo.num_tensors = 0;
-  outputInfo.num_tensors = 0;
   empty_model = true;
 }
 

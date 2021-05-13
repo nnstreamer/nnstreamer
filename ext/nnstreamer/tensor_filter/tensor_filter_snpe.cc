@@ -120,8 +120,8 @@ snpe_subplugin::snpe_subplugin ()
       runtime_list (zdl::DlSystem::Runtime_t::CPU), use_cpu_fallback (false),
       container (nullptr), snpe (nullptr)
 {
-  inputInfo.num_tensors = 0;
-  outputInfo.num_tensors = 0;
+  gst_tensors_info_init (std::addressof (inputInfo));
+  gst_tensors_info_init (std::addressof (outputInfo));
   input_tensors.reserve (NNS_TENSOR_RANK_LIMIT);
 #if (DBG)
   invoke_time_total = total_frames = 0;
@@ -148,6 +148,8 @@ snpe_subplugin::cleanup ()
 
   if (model_path)
     delete model_path;
+  gst_tensors_info_free (std::addressof (inputInfo));
+  gst_tensors_info_free (std::addressof (outputInfo));
 
   runtime_list.clear ();
   input_tensors.clear ();
@@ -155,8 +157,6 @@ snpe_subplugin::cleanup ()
   output_tensor_map.clear ();
 
   model_path = nullptr;
-  inputInfo.num_tensors = 0;
-  outputInfo.num_tensors = 0;
   empty_model = true;
 }
 
