@@ -58,6 +58,7 @@ struct _GstMqttSrc {
   gboolean debug;
   gboolean is_live;
   guint64 num_dumped;
+  gint mqtt_qos;
 
   GAsyncQueue *aqueue;
   GMutex mqtt_src_mutex;
