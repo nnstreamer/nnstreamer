@@ -1,1 +1,2 @@
 usr/lib/nnstreamer/bin/nnstreamer-check usr/bin/nnstreamer-check
+usr/lib/nnstreamer/bin/nnstreamer-parser usr/bin/nnstreamer-parser

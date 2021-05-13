@@ -262,6 +262,10 @@ BuildRequires:	ssat >= 1.1.0
 # For ORC (Oil Runtime Compiler)
 BuildRequires:	pkgconfig(orc-0.4)
 
+# For nnstreamer-parser
+BuildRequires:	flex
+BuildRequires:	bison
+
 # Note that debug packages generate an additional build and storage cost.
 # If you do not need debug packages, run '$ gbs -c .TAOS-CI/.gbs.conf build ... --define "_skip_debug_rpm 1"'.
 
@@ -727,6 +731,7 @@ popd
 mkdir -p %{buildroot}%{_bindir}
 pushd %{buildroot}%{_bindir}
 ln -sf %{_prefix}/%{nnstbindir}/nnstreamer-check nnstreamer-check
+ln -sf %{_prefix}/%{nnstbindir}/nnstreamer-parser nnstreamer-parser
 popd
 
 %if 0%{?python3_support}
@@ -980,7 +985,9 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 
 %files util
 %{_bindir}/nnstreamer-check
+%{_bindir}/nnstreamer-parser
 %{_prefix}/%{nnstbindir}/nnstreamer-check
+%{_prefix}/%{nnstbindir}/nnstreamer-parser
 
 %files misc
 %{gstlibdir}/libgstjoin.so
