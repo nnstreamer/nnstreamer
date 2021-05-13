@@ -44,4 +44,4 @@ option('framework-priority-tflite', type: 'string', value: 'tensorflow-lite,nnfw
 
 # Utilities
 option('enable-nnstreamer-check', type: 'boolean', value: true)
-option('enable-pbtxt-converter', type: 'boolean', value: false) # WIP
+option('enable-pbtxt-converter', type: 'boolean', value: true)
