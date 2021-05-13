@@ -85,8 +85,8 @@ tvm_subplugin::tvm_subplugin ()
     : tensor_filter_subplugin (), empty_model (true), model_path (nullptr),
       device (DLDevice{ kDLCPU, 0 }), mod_factory (nullptr), gmod (nullptr)
 {
-  inputInfo.num_tensors = 0;
-  outputInfo.num_tensors = 0;
+  gst_tensors_info_init (std::addressof (inputInfo));
+  gst_tensors_info_init (std::addressof (outputInfo));
 }
 
 /**
@@ -101,10 +101,10 @@ tvm_subplugin::cleanup () noexcept
 
   input_tensor_list.clear ();
   output_tensor_list.clear ();
+  gst_tensors_info_free (std::addressof (inputInfo));
+  gst_tensors_info_free (std::addressof (outputInfo));
 
   model_path = nullptr;
-  inputInfo.num_tensors = 0;
-  outputInfo.num_tensors = 0;
   empty_model = true;
 }
 
