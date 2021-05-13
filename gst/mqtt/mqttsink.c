@@ -50,6 +50,7 @@ enum
   PROP_MQTT_OPT_KEEP_ALIVE_INTERVAL,
   PROP_NUM_BUFFERS,
   PROP_MAX_MSG_BUF_SIZE,
+  PROP_MQTT_QOS,
 
   PROP_LAST
 };
@@ -65,6 +66,7 @@ enum
   DEFAULT_MQTT_DISCONNECT_TIMEOUT = 3000,       /* 3 secs */
   DEFAULT_MQTT_PUB_WAIT_TIMEOUT = 1,    /* 1 secs */
   DEFAULT_MAX_MSG_BUF_SIZE = 0, /* Buffer size is not fixed */
+  DEFAULT_MQTT_QOS = 0,         /* fire and forget */
 };
 
 static guint8 sink_client_id = 0;
@@ -126,6 +128,8 @@ static void gst_mqtt_sink_set_max_msg_buf_size (GstMqttSink * self,
     const gsize size);
 static gint gst_mqtt_sink_get_num_buffers (GstMqttSink * self);
 static void gst_mqtt_sink_set_num_buffers (GstMqttSink * self, const gint num);
+static gint gst_mqtt_sink_get_mqtt_qos (GstMqttSink * self);
+static void gst_mqtt_sink_set_mqtt_qos (GstMqttSink * self, const gint qos);
 
 static void cb_mqtt_on_connect (void *context,
     MQTTAsync_successData * response);
@@ -187,6 +191,7 @@ gst_mqtt_sink_init (GstMqttSink * self)
   self->mqtt_pub_wait_timeout = DEFAULT_MQTT_PUB_WAIT_TIMEOUT;
   self->mqtt_conn_opts.cleansession = DEFAULT_MQTT_OPT_CLEANSESSION;
   self->mqtt_conn_opts.keepAliveInterval = DEFAULT_MQTT_OPT_KEEP_ALIVE_INTERVAL;
+  self->mqtt_qos = DEFAULT_MQTT_QOS;
 
   /** init basesink properties */
   gst_base_sink_set_qos_enabled (basesink, DEFAULT_QOS);
@@ -268,6 +273,15 @@ gst_mqtt_sink_class_init (GstMqttSinkClass * klass)
           -1, G_MAXINT32, DEFAULT_NUM_BUFFERS,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_MQTT_QOS,
+      g_param_spec_int ("mqtt-qos", "mqtt QoS level",
+          "The QoS level of MQTT.\n"
+          "\t\t\t  0: At most once\n"
+          "\t\t\t  1: At least once\n"
+          "\t\t\t  2: Exactly once\n"
+          "\t\t\tsee also: https://www.eclipse.org/paho/files/mqttdoc/MQTTAsync/html/qos.html",
+          0, 2, DEFAULT_MQTT_QOS, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
   gstelement_class->change_state = gst_mqtt_sink_change_state;
 
   gstbasesink_class->start = GST_DEBUG_FUNCPTR (gst_mqtt_sink_start);
@@ -327,6 +341,9 @@ gst_mqtt_sink_set_property (GObject * object, guint prop_id,
     case PROP_NUM_BUFFERS:
       gst_mqtt_sink_set_num_buffers (self, g_value_get_int (value));
       break;
+    case PROP_MQTT_QOS:
+      gst_mqtt_sink_set_mqtt_qos (self, g_value_get_int (value));
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -372,6 +389,9 @@ gst_mqtt_sink_get_property (GObject * object, guint prop_id,
       break;
     case PROP_NUM_BUFFERS:
       g_value_set_int (value, gst_mqtt_sink_get_num_buffers (self));
+      break;
+    case PROP_MQTT_QOS:
+      g_value_set_int (value, gst_mqtt_sink_get_mqtt_qos (self));
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -742,8 +762,8 @@ gst_mqtt_sink_render (GstBaseSink * basesink, GstBuffer * in_buf)
   memcpy (&msg_pub[sizeof (self->mqtt_msg_hdr)], in_buf_map.data,
       in_buf_map.size);
   mqtt_rc = MQTTAsync_send (self->mqtt_client_handle, self->mqtt_topic,
-      GST_MQTT_LEN_MSG_HDR + in_buf_map.size, self->mqtt_msg_buf, 0, 1,
-      &self->mqtt_respn_opts);
+      GST_MQTT_LEN_MSG_HDR + in_buf_map.size, self->mqtt_msg_buf,
+      self->mqtt_qos, 1, &self->mqtt_respn_opts);
   if (mqtt_rc != MQTTASYNC_SUCCESS) {
     ret = GST_FLOW_ERROR;
   }
@@ -1023,6 +1043,24 @@ gst_mqtt_sink_set_num_buffers (GstMqttSink * self, const gint num)
   self->num_buffers = num;
 }
 
+/**
+ * @brief Getter for the 'mqtt-qos' property.
+ */
+static gint
+gst_mqtt_sink_get_mqtt_qos (GstMqttSink * self)
+{
+  return self->mqtt_qos;
+}
+
+/**
+ * @brief Setter for the 'mqtt-qos' property
+ */
+static void
+gst_mqtt_sink_set_mqtt_qos (GstMqttSink * self, const gint qos)
+{
+  self->mqtt_qos = qos;
+}
+
 /** Callback function definitions */
 /**
  * @brief A callback function corresponding to MQTTAsync_connectOptions's
@@ -1091,11 +1129,16 @@ cb_mqtt_on_disconnect_failure (void *context, MQTTAsync_failureData * response)
 
 /**
  * @brief A callback function to be given to the MQTTAsync_setCallbacks funtion.
+ *        This callback is activated when `mqtt-qos` is higher then 0.
  */
 static void
 cb_mqtt_on_delivery_complete (void *context, MQTTAsync_token token)
 {
-  /** Currently, Nothing to do */
+  GstMqttSink *self = (GstMqttSink *) context;
+
+  GST_DEBUG_OBJECT (self,
+      "%s: the message with token(%d) has been delivered.", self->mqtt_topic,
+      token);
 }
 
 /**
