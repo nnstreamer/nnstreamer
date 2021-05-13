@@ -19,6 +19,7 @@
 #include <glib.h>
 
 #include "types.h"
+#include "convert.h"
 
 #define INPUT_MAXLEN (512)
 
@@ -88,6 +89,7 @@ main (int argc, char *argv[])
   GOptionContext *context;
   char input_str[INPUT_MAXLEN] = {'\x00'};
   GLogLevelFlags log_flags;
+  _Element *pipeline;
 
   context = g_option_context_new (
       "- Prototxt to/from GStreamer Pipeline Converver");
@@ -105,7 +107,7 @@ main (int argc, char *argv[])
   }
 
   if (!get_input_string (input_str)) {
-    g_printerr ("Unable to get input string\n");
+    g_printerr ("Unable to get an input string for GStreamer pipeline\n");
     return -1;
   }
 
@@ -116,7 +118,14 @@ main (int argc, char *argv[])
 
   g_log_set_handler (NULL, log_flags, log_handler, NULL);
 
-  priv_gst_parse_launch (input_str, NULL, NULL, __PARSE_FLAG_NONE);
+  pipeline = priv_gst_parse_launch (input_str, NULL, NULL, __PARSE_FLAG_NONE);
+  if (pipeline == NULL) {
+    g_printerr ("Unable to parse the given pipeline string");
+    return -1;
+  }
+
+  convert_to_pbtxt (pipeline);
+  nnstparser_element_unref (pipeline);
 
   return 0;
 }

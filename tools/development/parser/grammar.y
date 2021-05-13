@@ -261,7 +261,7 @@ gst_parse_perform_link (link_t *link, graph_t *graph)
   g_assert (__GST_IS_ELEMENT (src));
   g_assert (__GST_IS_ELEMENT (sink));
 
-  g_info ("linking " PRETTY_PAD_NAME_FMT " to " PRETTY_PAD_NAME_FMT " (%u/%u)\n",
+  g_debug ("linking " PRETTY_PAD_NAME_FMT " to " PRETTY_PAD_NAME_FMT " (%u/%u)\n",
       PRETTY_PAD_NAME_ARGS (src, link->src.name),
       PRETTY_PAD_NAME_ARGS (sink, link->sink.name),
       g_slist_length (srcs), g_slist_length (sinks));
@@ -719,7 +719,7 @@ priv_gst_parse_launch (const gchar *str, GError **error, _ParseContext *ctx,
   yydebug = 1;
 #endif
 
-  g_info ("The given string: %s\n", str);
+  g_debug ("The given string: %s\n", str);
 
   if (yyparse (scanner, &g) != 0) {
     SET_ERROR (error, GST2PBTXT_PARSE_ERROR_SYNTAX,
@@ -733,7 +733,7 @@ priv_gst_parse_launch (const gchar *str, GError **error, _ParseContext *ctx,
   priv_gst_parse_yylex_destroy (scanner);
   g_free (dstr);
 
-  g_info ("got %u elements and %u links\n",
+  g_debug ("got %u elements and %u links\n",
       g.chain ? g_slist_length (g.chain->elements) : 0,
       g_slist_length (g.links));
 
@@ -756,7 +756,7 @@ priv_gst_parse_launch (const gchar *str, GError **error, _ParseContext *ctx,
 
   /* put all elements in our bin if necessary */
   if (g.chain->elements->next) {
-    bin = __GST_BIN_CAST (nnstparser_gstbin_make ("bin", NULL));
+    bin = __GST_BIN_CAST (nnstparser_gstbin_make ("pipeline", NULL));
     g_assert (bin);
 
     for (walk = g.chain->elements; walk; walk = walk->next) {
