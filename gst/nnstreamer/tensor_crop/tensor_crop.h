@@ -14,6 +14,7 @@
 #define __GST_TENSOR_CROP_H__
 
 #include <gst/gst.h>
+#include <gst/base/gstcollectpads.h>
 #include <tensor_common.h>
 
 G_BEGIN_DECLS
@@ -33,18 +34,30 @@ typedef struct _GstTensorCrop GstTensorCrop;
 typedef struct _GstTensorCropClass GstTensorCropClass;
 
 /**
+ * @brief GstTensorCrop pad data.
+ */
+typedef struct
+{
+  GstCollectData data;
+
+  GstTensorsConfig config;
+} GstTensorCropPadData;
+
+/**
  * @brief GstTensorCrop data structure.
  */
 struct _GstTensorCrop
 {
   GstElement element; /**< parent object */
 
-  GstPad *sinkpad; /**< sink pad */
+  GstPad *sinkpad_raw; /**< sink pad (raw data) */
+  GstPad *sinkpad_info; /**< sink pad (crop info) */
   GstPad *srcpad; /**< src pad */
 
   /* <private> */
   gboolean silent; /**< true to print minimized log */
-  GstTensorsConfig in_config; /**< configuration for input tensor (raw data) */
+  gboolean send_stream_start; /**< flag to send STREAM_START event */
+  GstCollectPads *collect; /**< sink pads */
 };
 
 /**
