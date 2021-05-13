@@ -36,6 +36,13 @@
 #define NNS_TENSOR_SIZE_LIMIT_STR	"16"
 #define NNS_TENSOR_DIM_NULL ({0, 0, 0, 0})
 
+/**
+ * @brief The maximum rank in meta info (see GstTensorMetaInfo).
+ * This RANK is applied to meta info of other/tensors-flexible only and
+ * does not affect other/tensors(s)'s NNS_TENSOR_RANK_LIMIT.
+ */
+#define NNS_TENSOR_META_RANK_LIMIT	(16)
+
 #define NNS_MIMETYPE_TENSOR "other/tensor"
 #define NNS_MIMETYPE_TENSORS "other/tensors"
 #define NNS_MIMETYPE_TENSORS_FLEXIBLE "other/tensors-flexible"
@@ -231,5 +238,25 @@ typedef struct
   int rate_n; /**< framerate is in fraction, which is numerator/denominator */
   int rate_d; /**< framerate is in fraction, which is numerator/denominator */
 } GstTensorsConfig;
+
+/**
+ * @brief Data structure to describe a tensor data.
+ * This represents the basic information of a memory block for tensor stream.
+ *
+ * Internally NNStreamer handles a buffer with capability other/tensors-flexible using this information.
+ * - version: The version of tensor meta.
+ * - type: The type of each element in the tensor. This should be a value of enumeration tensor_type.
+ * - dimension: The dimension of tensor. This also denotes the rank of tensor. (e.g., [3:224:224:0] means rank 3.)
+ * - format: The data format in the tensor. This should be a value of enumeration tensor_format.
+ * - media_type: The media type of tensor. This should be a value of enumeration media_type.
+ */
+typedef struct
+{
+  uint32_t version;
+  uint32_t type;
+  uint32_t dimension[NNS_TENSOR_META_RANK_LIMIT];
+  uint32_t format;
+  uint32_t media_type;
+} GstTensorMetaInfo;
 
 #endif /*__GST_TENSOR_TYPEDEF_H__*/
