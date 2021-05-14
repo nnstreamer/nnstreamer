@@ -130,6 +130,10 @@ static void cb_mqtt_on_subscribe (void *context,
     MQTTAsync_successData * response);
 static void cb_mqtt_on_subscribe_failure (void *context,
     MQTTAsync_failureData * response);
+static void cb_mqtt_on_unsubscribe (void *context,
+    MQTTAsync_successData * response);
+static void cb_mqtt_on_unsubscribe_failure (void *context,
+    MQTTAsync_failureData * response);
 
 static void cb_memory_wrapped_destroy (void *p);
 
@@ -137,6 +141,8 @@ static GstMQTTMessageHdr *_extract_mqtt_msg_hdr_from (GstMemory * mem,
     GstMemory ** hdr_mem, GstMapInfo * hdr_map_info);
 static void _put_timestamp_on_gst_buf (GstMqttSrc * self,
     GstMQTTMessageHdr * hdr, GstBuffer * buf);
+static gboolean _subscribe (GstMqttSrc * self);
+static gboolean _unsubscribe (GstMqttSrc * self);
 
 /**
  * @brief A utility function to check whether the timestamp marked by _put_timestamp_on_gst_buf () is valid or not
@@ -181,8 +187,8 @@ gst_mqtt_src_init (GstMqttSrc * self)
   self->mqtt_conn_opts.onFailure = cb_mqtt_on_connect_failure;
   self->mqtt_conn_opts.context = self;
   self->mqtt_respn_opts = respn_opts;
-  self->mqtt_respn_opts.onSuccess = cb_mqtt_on_subscribe;
-  self->mqtt_respn_opts.onFailure = cb_mqtt_on_subscribe_failure;
+  self->mqtt_respn_opts.onSuccess = NULL;
+  self->mqtt_respn_opts.onFailure = NULL;
   self->mqtt_respn_opts.context = self;
 
   /** init private member variables */
@@ -427,6 +433,7 @@ gst_mqtt_src_change_state (GstElement * element, GstStateChange transition)
       no_preroll = TRUE;
       break;
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+      GST_INFO_OBJECT (self, "GST_STATE_CHANGE_PAUSED_TO_PLAYING");
       self->base_time_epoch = GST_CLOCK_TIME_NONE;
       elem_clock = gst_element_get_clock (element);
       if (!elem_clock)
@@ -437,7 +444,14 @@ gst_mqtt_src_change_state (GstElement * element, GstStateChange transition)
       diff = GST_CLOCK_DIFF (base_time, cur_time);
       self->base_time_epoch =
           g_get_real_time () * GST_US_TO_NS_MULTIPLIER - diff;
-      GST_INFO_OBJECT (self, "GST_STATE_CHANGE_PAUSED_TO_PLAYING");
+
+      /** This handles the case when the state is changed to PLAYING again */
+      if (self->is_connected && !_subscribe (self)) {
+        GST_ERROR_OBJECT (self, "Failed to re-subscribe to %s",
+            self->mqtt_topic);
+
+        return GST_STATE_CHANGE_FAILURE;
+      }
       break;
     default:
       break;
@@ -447,6 +461,9 @@ gst_mqtt_src_change_state (GstElement * element, GstStateChange transition)
 
   switch (transition) {
     case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
+      if (self->is_subscribed && !_unsubscribe (self)) {
+        GST_ERROR_OBJECT (self, "Cannot unsubscribe to %s", self->mqtt_topic);
+      }
       GST_INFO_OBJECT (self, "GST_STATE_CHANGE_PLAYING_TO_PAUSED");
       break;
     case GST_STATE_CHANGE_PAUSED_TO_READY:
@@ -1002,6 +1019,14 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
   guint i;
 
   self = GST_MQTT_SRC_CAST (context);
+  g_mutex_lock (&self->mqtt_src_mutex);
+  if (!self->is_subscribed) {
+    g_mutex_unlock (&self->mqtt_src_mutex);
+
+    return TRUE;
+  }
+  g_mutex_unlock (&self->mqtt_src_mutex);
+
   basesrc = GST_BASE_SRC (self);
   clock = gst_element_get_clock (GST_ELEMENT (self));
   recieved_mem = gst_memory_new_wrapped (0, data, size, 0, size, message,
@@ -1117,24 +1142,9 @@ cb_mqtt_on_connect (void *context, MQTTAsync_successData * response)
     return;
   }
 
-  self->mqtt_respn_opts.subscribeOptions.retainHandling = 1;
-  /** @todo Support QoS option */
-  ret = MQTTAsync_subscribe (self->mqtt_client_handle, self->mqtt_topic, 0,
-      &self->mqtt_respn_opts);
-  if (ret != MQTTASYNC_SUCCESS) {
-    if (!self->err) {
-      g_mutex_lock (&self->mqtt_src_mutex);
-      self->err = g_error_new (self->gquark_err_tag, ret,
-          "%s: Failed to start subscribe, return code %d\n", __func__, ret);
-      g_cond_broadcast (&self->mqtt_src_gcond);
-      g_mutex_unlock (&self->mqtt_src_mutex);
-    }
-    return;
+  if (!_subscribe (self)) {
+    GST_ERROR_OBJECT (self, "Failed to subscribe to %s", self->mqtt_topic);
   }
-
-  g_mutex_lock (&self->mqtt_src_mutex);
-  self->is_subscribed = TRUE;
-  g_mutex_unlock (&self->mqtt_src_mutex);
 }
 
 /**
@@ -1157,7 +1167,7 @@ cb_mqtt_on_connect_failure (void *context, MQTTAsync_failureData * response)
 }
 
 /**
- * @brief An implementation for the onSuccess callback of MQTTAsync_responseOptions
+ * @brief MQTTAsync_responseOptions's onSuccess callback for MQTTAsync_subscribe ()
  */
 static void
 cb_mqtt_on_subscribe (void *context, MQTTAsync_successData * response)
@@ -1171,7 +1181,7 @@ cb_mqtt_on_subscribe (void *context, MQTTAsync_successData * response)
 }
 
 /**
- * @brief An implementation for the onFailure callback of MQTTAsync_responseOptions
+ * @brief MQTTAsync_responseOptions's onFailure callback for MQTTAsync_subscribe ()
  */
 static void
 cb_mqtt_on_subscribe_failure (void *context, MQTTAsync_failureData * response)
@@ -1179,7 +1189,6 @@ cb_mqtt_on_subscribe_failure (void *context, MQTTAsync_failureData * response)
   GstMqttSrc *self = GST_MQTT_SRC (context);
 
   g_mutex_lock (&self->mqtt_src_mutex);
-  self->is_connected = FALSE;
   if (!self->err) {
     self->err = g_error_new (self->gquark_err_tag, response->code,
         "%s: failed to subscribe the given topic, %s: %s", __func__,
@@ -1187,6 +1196,78 @@ cb_mqtt_on_subscribe_failure (void *context, MQTTAsync_failureData * response)
   }
   g_cond_broadcast (&self->mqtt_src_gcond);
   g_mutex_unlock (&self->mqtt_src_mutex);
+}
+
+/**
+ * @brief MQTTAsync_responseOptions's onSuccess callback for MQTTAsync_unsubscribe ()
+ */
+static void
+cb_mqtt_on_unsubscribe (void *context, MQTTAsync_successData * response)
+{
+  GstMqttSrc *self = GST_MQTT_SRC (context);
+
+  g_mutex_lock (&self->mqtt_src_mutex);
+  self->is_subscribed = FALSE;
+  g_cond_broadcast (&self->mqtt_src_gcond);
+  g_mutex_unlock (&self->mqtt_src_mutex);
+}
+
+/**
+ * @brief MQTTAsync_responseOptions's onFailure callback for MQTTAsync_unsubscribe ()
+ */
+static void
+cb_mqtt_on_unsubscribe_failure (void *context, MQTTAsync_failureData * response)
+{
+  GstMqttSrc *self = GST_MQTT_SRC (context);
+
+  g_mutex_lock (&self->mqtt_src_mutex);
+  if (!self->err) {
+    self->err = g_error_new (self->gquark_err_tag, response->code,
+        "%s: failed to unsubscribe the given topic, %s: %s", __func__,
+        self->mqtt_topic, response->message);
+  }
+  g_cond_broadcast (&self->mqtt_src_gcond);
+  g_mutex_unlock (&self->mqtt_src_mutex);
+}
+
+/**
+ * @brief A helper function to properly invoke MQTTAsync_subscribe ()
+ */
+static gboolean
+_subscribe (GstMqttSrc * self)
+{
+  MQTTAsync_responseOptions opts = self->mqtt_respn_opts;
+  int mqttasync_ret;
+
+  opts.onSuccess = cb_mqtt_on_subscribe;
+  opts.onFailure = cb_mqtt_on_subscribe_failure;
+  opts.subscribeOptions.retainHandling = 1;
+
+  /** @todo Support QoS option */
+  mqttasync_ret = MQTTAsync_subscribe (self->mqtt_client_handle,
+      self->mqtt_topic, 0, &opts);
+  if (mqttasync_ret != MQTTASYNC_SUCCESS)
+    return FALSE;
+  return TRUE;
+}
+
+/**
+ * @brief A wrapper function that calls MQTTAsync_unsubscribe ()
+ */
+static gboolean
+_unsubscribe (GstMqttSrc * self)
+{
+  MQTTAsync_responseOptions opts = self->mqtt_respn_opts;
+  int mqttasync_ret;
+
+  opts.onSuccess = cb_mqtt_on_unsubscribe;
+  opts.onFailure = cb_mqtt_on_unsubscribe_failure;
+
+  mqttasync_ret = MQTTAsync_unsubscribe (self->mqtt_client_handle,
+      self->mqtt_topic, &opts);
+  if (mqttasync_ret != MQTTASYNC_SUCCESS)
+    return FALSE;
+  return TRUE;
 }
 
 /**
