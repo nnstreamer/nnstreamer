@@ -159,10 +159,12 @@ gst_mqtt_src_init (GstMqttSrc * self)
 {
   MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
   MQTTAsync_responseOptions respn_opts = MQTTAsync_responseOptions_initializer;
+  GstBaseSrc *basesrc = GST_BASE_SRC (self);
 
   self->gquark_err_tag = g_quark_from_string (TAG_ERR_MQTTSRC);
 
-  gst_base_src_set_format (GST_BASE_SRC (self), GST_FORMAT_TIME);
+  gst_base_src_set_format (basesrc, GST_FORMAT_TIME);
+  gst_base_src_set_async (basesrc, FALSE);
 
   /** init mqttsrc properties */
   self->debug = DEFAULT_DEBUG;
@@ -195,7 +197,7 @@ gst_mqtt_src_init (GstMqttSrc * self)
   self->latency = GST_CLOCK_TIME_NONE;
   self->num_dumped = 0;
 
-  gst_base_src_set_live (GST_BASE_SRC (self), self->is_live);
+  gst_base_src_set_live (basesrc, self->is_live);
 }
 
 /**
@@ -512,6 +514,9 @@ gst_mqtt_src_stop (GstBaseSrc * basesrc)
 
   /* todo */
   MQTTAsync_disconnect (self->mqtt_client_handle, NULL);
+  g_mutex_lock (&self->mqtt_src_mutex);
+  self->is_connected = FALSE;
+  g_mutex_unlock (&self->mqtt_src_mutex);
   MQTTAsync_destroy (&self->mqtt_client_handle);
 
   return TRUE;
@@ -1098,12 +1103,32 @@ cb_mqtt_on_connect (void *context, MQTTAsync_successData * response)
   g_cond_broadcast (&self->mqtt_src_gcond);
   g_mutex_unlock (&self->mqtt_src_mutex);
 
+  /** GstFlowReturn is an enum type. It is possible to use int here */
+  ret = gst_base_src_start_wait (GST_BASE_SRC (self));
+  if (ret != GST_FLOW_OK) {
+    if (!self->err) {
+      g_mutex_lock (&self->mqtt_src_mutex);
+      self->err = g_error_new (self->gquark_err_tag, ret,
+          "%s: the virtual method, start (), in the GstBaseSrc class fails with return code %d",
+          __func__, ret);
+      g_cond_broadcast (&self->mqtt_src_gcond);
+      g_mutex_unlock (&self->mqtt_src_mutex);
+    }
+    return;
+  }
+
   self->mqtt_respn_opts.subscribeOptions.retainHandling = 1;
   /** @todo Support QoS option */
   ret = MQTTAsync_subscribe (self->mqtt_client_handle, self->mqtt_topic, 0,
       &self->mqtt_respn_opts);
   if (ret != MQTTASYNC_SUCCESS) {
-    g_printerr ("Failed to start subscribe, return code %d\n", ret);
+    if (!self->err) {
+      g_mutex_lock (&self->mqtt_src_mutex);
+      self->err = g_error_new (self->gquark_err_tag, ret,
+          "%s: Failed to start subscribe, return code %d\n", __func__, ret);
+      g_cond_broadcast (&self->mqtt_src_gcond);
+      g_mutex_unlock (&self->mqtt_src_mutex);
+    }
     return;
   }
 
