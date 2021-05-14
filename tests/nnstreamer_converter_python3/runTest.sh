@@ -20,6 +20,14 @@ fi
 # This is compatible with SSAT (https://github.com/myungjoo/SSAT)
 testInit $1
 
+if python3 -c "from flatbuffers import flexbuffers" &> /dev/null; then
+    echo 'flexbuffers module exists.'
+else
+    echo 'flexbuffers module does not exist'
+    report
+    exit
+fi
+
 if [ "$SKIPGEN" == "YES" ]; then
     echo "Test Case Generation Skipped"
     sopath=$2
@@ -30,26 +38,6 @@ else
     sopath=$1
 fi
 convertBMP2PNG
-
-flat_version=$(dpkg-query --showformat='${Version}' --show libflatbuffers)
-if [ $flat_version ]; then
-  major=`echo $flat_version | cut -d. -f1`
-  minor=`echo $flat_version | cut -d. -f2`
-  echo "dpkg major: $major minor: $minor"
-else
-  flat_version=$(rpm -q flatbuffers)
-  parsed_version=`echo $flat_version | cut -d- -f2`
-  major=`echo $parsed_version | cut -d. -f1`
-  minor=`echo $parsed_version | cut -d. -f2`
-  echo "rpm major: $major minor: $minor"
-fi
-
-if [ $major -eq 1 ] && [ $minor -le 12 ]; then
-  echo "The Flexbuffers Python API is supported if the flatbuffers version is greater than 1.12."
-  echo "See: https://github.com/google/flatbuffers/issues/5306"
-  report
-  exit
-fi
 
 PATH_TO_PLUGIN="../../build"
 # Check python libraies are built
@@ -75,11 +63,10 @@ fi
 FRAMEWORK="python3"
 # This symlink is necessary only for testcases; when installed, symlinks will be made
 pushd ../../build/ext/nnstreamer/tensor_converter
-TEST_PYTHONPATH=${FRAMEWORK}_pymodule
+TEST_PYTHONPATH=$(pwd)/${FRAMEWORK}_pymodule
 mkdir -p ${TEST_PYTHONPATH}
 pushd ${TEST_PYTHONPATH}
-# Covert to an absolute path from the relative path
-export PYTHONPATH=$(pwd)
+export PYTHONPATH=$(pwd):${PYTHONPATH}
 if [[ ! -f ./nnstreamer_python.so ]]; then
   ln -s ../../extra/nnstreamer_${FRAMEWORK}.so nnstreamer_python.so
 fi
@@ -141,5 +128,8 @@ callCompareTest testsynch19_1.golden testsynch19_1.log 3-2 "Tensor mux Compare 3
 callCompareTest testsynch19_2.golden testsynch19_2.log 3-3 "Tensor mux Compare 3-3" 1 0
 callCompareTest testsynch19_3.golden testsynch19_3.log 3-4 "Tensor mux Compare 3-4" 1 0
 callCompareTest testsynch19_4.golden testsynch19_4.log 3-5 "Tensor mux Compare 3-5" 1 0
+
+rm *.golden *.log *.bmp *.png *.dat
+rm -r ${TEST_PYTHONPATH}
 
 report

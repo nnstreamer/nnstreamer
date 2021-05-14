@@ -323,13 +323,6 @@ PYConverterCore::loadScript ()
 tensor_type
 PYConverterCore::getTensorType (NPY_TYPES npyType)
 {
-  npyType = NPY_INT;
-  if (npyType == NPY_INT32)
-    g_critical ("NPY_INT32");
-  else if (npyType == NPY_INT)
-    g_critical ("NPY_INT");
-  else
-   g_critical ("what~?");
   switch (npyType) {
   case NPY_INT32:
     return _NNS_INT32;
