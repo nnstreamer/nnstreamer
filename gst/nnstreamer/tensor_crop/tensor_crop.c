@@ -388,6 +388,9 @@ gst_tensor_crop_negotiate (GstTensorCrop * self)
   if (!gst_pad_has_current_caps (self->srcpad)) {
     GstCaps *caps;
     GstSegment segment;
+    GstTensorsConfig config;
+    GstTensorCropPadData *cpad;
+    GSList *walk;
 
     if (self->send_stream_start) {
       gchar *sid;
@@ -400,10 +403,28 @@ gst_tensor_crop_negotiate (GstTensorCrop * self)
       self->send_stream_start = FALSE;
     }
 
-    /** @todo get config from collect-pads and set framerate */
-    caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
-    gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
+    /**
+     * Get config from collect-pads and set framerate.
+     * Output is always flexible tensor.
+     */
+    gst_tensors_config_init (&config);
+    config.info.info[0].format = _NNS_TENSOR_FORMAT_FLEXIBLE;
 
+    walk = self->collect->data;
+    while (walk) {
+      cpad = (GstTensorCropPadData *) walk->data;
+
+      if (config.rate_n < 0 ||
+          gst_util_fraction_compare (cpad->config.rate_n, cpad->config.rate_d,
+              config.rate_n, config.rate_d) < 0) {
+        config.rate_n = cpad->config.rate_n;
+        config.rate_d = cpad->config.rate_d;
+      }
+
+      walk = g_slist_next (walk);
+    }
+
+    caps = gst_tensors_caps_from_config (&config);
     gst_pad_set_caps (self->srcpad, caps);
     gst_caps_unref (caps);
 
