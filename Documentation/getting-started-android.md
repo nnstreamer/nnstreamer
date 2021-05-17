@@ -108,62 +108,6 @@ $ curl -O https://gstreamer.freedesktop.org/data/pkg/android/1.16.2/gstreamer-1.
 $ tar xJf gstreamer-1.0-android-universal-1.16.2.tar.xz
 ```
 
-Modify `gstreamer-1.0.mk` and `gstreamer_android-1.0.c.in` files for NDK build to prevent error case.
-Supported target ABIs are `arm64` and `armv7`.
-
-```
-$GSTREAMER_ROOT_ANDROID/{Target-ABI}/share/gst-android/ndk-build/gstreamer-1.0.mk
-$GSTREAMER_ROOT_ANDROID/{Target-ABI}/share/gst-android/ndk-build/gstreamer_android-1.0.c.in
-```
-
-- Add directory separator (gstreamer-1.0.mk)
-
-```diff
-@@ -127,2 +127,2 @@
-
-GSTREAMER_PLUGINS_CLASSES    := $(strip \
-            $(subst $(GSTREAMER_NDK_BUILD_PATH),, \
-            $(foreach plugin,$(GSTREAMER_PLUGINS), \
--           $(wildcard $(GSTREAMER_NDK_BUILD_PATH)$(plugin)/*.java))))
-+           $(wildcard $(GSTREAMER_NDK_BUILD_PATH)/$(plugin)/*.java))))
-
-GSTREAMER_PLUGINS_WITH_CLASSES := $(strip \
-            $(subst $(GSTREAMER_NDK_BUILD_PATH),, \
-            $(foreach plugin, $(GSTREAMER_PLUGINS), \
--           $(wildcard $(GSTREAMER_NDK_BUILD_PATH)$(plugin)))))
-+           $(wildcard $(GSTREAMER_NDK_BUILD_PATH)/$(plugin)))))
-
-@@ -257,1 +257,1 @@
-
-copyjavasource_$(TARGET_ARCH_ABI):
-  $(hide)$(call host-mkdir,$(GSTREAMER_JAVA_SRC_DIR)/org/freedesktop/gstreamer)
-    $(hide)$(foreach plugin,$(GSTREAMER_PLUGINS_WITH_CLASSES), \
-        $(call host-mkdir,$(GSTREAMER_JAVA_SRC_DIR)/org/freedesktop/gstreamer/$(plugin)) && ) echo Done mkdir
-    $(hide)$(foreach file,$(GSTREAMER_PLUGINS_CLASSES), \
--       $(call host-cp,$(GSTREAMER_NDK_BUILD_PATH)$(file),$(GSTREAMER_JAVA_SRC_DIR)/org/freedesktop/gstreamer/$(file)) && ) echo Done cp
-+       $(call host-cp,$(GSTREAMER_NDK_BUILD_PATH)/$(file),$(GSTREAMER_JAVA_SRC_DIR)/org/freedesktop/gstreamer/$(file)) && ) echo Done cp
-```
-
-- Clear exceptions for native developers (gstreamer_android-1.0.c.in)
-
-```diff
-@@ -592,9 +592,10 @@
-
-   if (!klass) {
-     __android_log_print (ANDROID_LOG_ERROR, "GStreamer",
-         "Could not retrieve class org.freedesktop.gstreamer.GStreamer");
--    return 0;
--  }
--  if ((*env)->RegisterNatives (env, klass, native_methods,
-+
-+    if ((*env)->ExceptionCheck (env))
-+      (*env)->ExceptionClear (env);
-+  } else if ((*env)->RegisterNatives (env, klass, native_methods,
-           G_N_ELEMENTS (native_methods))) {
-     __android_log_print (ANDROID_LOG_ERROR, "GStreamer",
-         "Could not register native methods for org.freedesktop.gstreamer.GStreamer");
-```
-
 ### Download NNStreamer source code and ML API source code
 
 ```bash
@@ -188,8 +132,10 @@ Run the build script in NNStreamer.
       - `--enable_snpe=yes` to build with SNPE (Qualcomm Snapdragon Neural Processing Engine).
       - `--enable_nnfw=yes` to build with NNFW (Samsung on-device neural network inference framework).
       - `--enable_snap=yes` to build with SNAP (Samsung Neural Acceleration Platform).
-  4. Run test: Default no. `--run_test=yes` to run the instrumentation test.
-  5. Other options
+  4. Enabling tracing: Default no.
+      - `--enable_tracing=yes` to build with tracing and Gst-Shark.
+  5. Run test: Default no. `--run_test=yes` to run the instrumentation test.
+  6. Other options
       - `--nnstreamer_dir=<path>` path to NNStreamer root directory. Default `NNSTREAMER_ROOT` is used if this is not set.
       - `--ml_api_dir=<path>` path to ML API root directory. `ML_API_ROOT` is used if this is not set.
       - `--result_dir=<path>` path to build result. Default path is `ML_API_ROOT/android_lib`.
