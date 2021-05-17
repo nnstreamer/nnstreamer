@@ -12,6 +12,7 @@ index.md
 			getting-started-tizen.md
 			getting-started-ubuntu-debuild.md
 			getting-started-ubuntu-ppa.md
+		profiling-android-pipeline.md
 		how-to-archive-large-data.md
 		how-to-run-examples.md
 			gst-launch-script-example.md
