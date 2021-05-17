@@ -22,6 +22,7 @@ $ sudo apt install nnstreamer
 * nnstreamer-dev : Required to build C function-filters and to build your own nnstreamer plugins.
 * nnstreamer-edgetpu : Allows to use edge-TPU in a pipeline.
 * nnstreamer-flatbuf : Allows to convert-from and decode-to flatbuf streams.
+* nnstreamer-misc: Provides additional gstreamer plugins for nnstreamer pipelines. Included plugins: join.
 * nnstreamer-openvino : Allows to use OpenVINO (Intel), enabling Movidius-X.
 * nnstreamer-protobuf : Allows to convert-from and decode-to protobuf streams.
 * nnstreamer-python2 : Allows to use python2 classes as filters of a pipeline.
@@ -30,6 +31,10 @@ $ sudo apt install nnstreamer
 * nnstreamer-tensorflow : Allows to use TensorFlow models in a pipeline. (From tensorflow 1.13.1 by default)
 * nnstreamer-tensorflow-lite : Allows to use TensorFlow-lite models in a pipeline. (From tensorflow 1.13.1 by default)
 
+For a full list of nnstreamer plugins run:
+```bash
+$ apt-cache search nnstreamer
+```
 
 ### If you want to use different versions of TensorFlow or PyTorch
 
