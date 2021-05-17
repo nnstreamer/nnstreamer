@@ -141,6 +141,8 @@ static void cb_mqtt_on_disconnect_failure (void *context,
     MQTTAsync_failureData * response);
 static void cb_mqtt_on_delivery_complete (void *context, MQTTAsync_token token);
 static void cb_mqtt_on_connection_lost (void *context, char *cause);
+static int cb_mqtt_on_message_arrived (void *context, char *topicName,
+    int topicLen, MQTTAsync_message * message);
 static void cb_mqtt_on_send_success (void *context,
     MQTTAsync_successData * response);
 static void cb_mqtt_on_send_failure (void *context,
@@ -523,7 +525,8 @@ gst_mqtt_sink_start (GstBaseSink * basesink)
     return FALSE;
 
   MQTTAsync_setCallbacks (self->mqtt_client_handle, self,
-      cb_mqtt_on_connection_lost, NULL, cb_mqtt_on_delivery_complete);
+      cb_mqtt_on_connection_lost, cb_mqtt_on_message_arrived,
+      cb_mqtt_on_delivery_complete);
 
   ret = MQTTAsync_connect (self->mqtt_client_handle, &self->mqtt_conn_opts);
   if (ret != MQTTASYNC_SUCCESS) {
@@ -1152,6 +1155,18 @@ cb_mqtt_on_connection_lost (void *context, char *cause)
   self->mqtt_sink_state = MQTT_CONNECTION_LOST;
   g_cond_broadcast (&self->mqtt_sink_gcond);
   g_mutex_unlock (&self->mqtt_sink_mutex);
+}
+
+/**
+ * @brief A callback function to be given to the MQTTAsync_setCallbacks funtion.
+ *        In the case of the publisher, this callback is not used.
+ */
+static int
+cb_mqtt_on_message_arrived (void *context, char *topicName, int topicLen,
+    MQTTAsync_message * message)
+{
+  /* nothing to do */
+  return 1;
 }
 
 /**
