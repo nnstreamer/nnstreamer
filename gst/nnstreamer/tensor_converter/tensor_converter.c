@@ -838,6 +838,41 @@ _gst_tensor_converter_chain_timestamp (GstTensorConverter * self,
   self->old_timestamp = GST_BUFFER_TIMESTAMP (inbuf);
 }
 
+/** @brief Chain function's private routine to process multi tensor */
+static GstBuffer *
+_gst_tensor_converter_chain_multi_tensor (GstTensorConverter * self,
+    GstBuffer * buf)
+{
+  GstBuffer *buffer = buf;
+
+  /* configure multi tensors */
+  if (self->tensors_info.num_tensors > 1) {
+    GstMemory *mem;
+    gsize offset, size;
+    guint i;
+
+    g_assert (self->frames_per_tensor == 1);
+
+    offset = 0;
+    buffer = gst_buffer_new ();
+    mem = gst_buffer_get_all_memory (buf);
+
+    for (i = 0; i < self->tensors_info.num_tensors; ++i) {
+      size = gst_tensors_info_get_size (&self->tensors_info, i);
+      gst_buffer_append_memory (buffer, gst_memory_share (mem, offset, size));
+      offset += size;
+    }
+
+    gst_memory_unref (mem);
+
+    /* copy timestamps */
+    gst_buffer_copy_into (buffer, buf, GST_BUFFER_COPY_METADATA, 0, -1);
+    gst_buffer_unref (buf);
+  }
+
+  return buffer;
+}
+
 /** @brief Chain function's private routine to push buffer into src pad */
 static GstFlowReturn
 _gst_tensor_converter_chain_push (GstTensorConverter * self, GstBuffer * buf)
@@ -846,38 +881,7 @@ _gst_tensor_converter_chain_push (GstTensorConverter * self, GstBuffer * buf)
 
   if (self->in_media_type == _NNS_OCTET) {
     /* configure multi tensors */
-    if (self->tensors_info.num_tensors > 1) {
-      GstMemory *mem;
-      GstMapInfo info;
-      gsize idx, size;
-      guint i;
-
-      g_assert (self->frames_per_tensor == 1);
-
-      mem = gst_buffer_get_all_memory (buf);
-      if (!gst_memory_map (mem, &info, GST_MAP_READ)) {
-        ml_logf ("Failed to map the input buffer for octet stream.");
-        gst_memory_unref (mem);
-        return GST_FLOW_ERROR;
-      }
-
-      idx = 0;
-      buffer = gst_buffer_new ();
-
-      for (i = 0; i < self->tensors_info.num_tensors; ++i) {
-        size = gst_tensors_info_get_size (&self->tensors_info, i);
-        gst_buffer_append_memory (buffer, gst_memory_share (mem, idx, size));
-        idx += size;
-      }
-
-      gst_memory_unmap (mem, &info);
-      gst_memory_unref (mem);
-
-      /* copy timestamps */
-      gst_buffer_copy_into (buffer, buf, GST_BUFFER_COPY_METADATA, 0, -1);
-
-      gst_buffer_unref (buf);
-    }
+    buffer = _gst_tensor_converter_chain_multi_tensor (self, buffer);
   }
 
   silent_debug_timestamp (buffer);
@@ -1544,10 +1548,13 @@ static gboolean
 gst_tensor_converter_parse_octet (GstTensorConverter * self,
     GstTensorsConfig * config, const GstStructure * structure)
 {
+  media_type mtype;
+
   g_return_val_if_fail (config != NULL, FALSE);
   g_return_val_if_fail (structure != NULL, FALSE);
 
   gst_tensors_config_init (config);
+  mtype = gst_structure_get_media_type (structure);
 
   /* update tensor info from properties */
   if (!gst_tensors_info_validate (&self->tensors_info)) {
@@ -1560,10 +1567,17 @@ gst_tensor_converter_parse_octet (GstTensorConverter * self,
     return FALSE;
   }
 
-  if (self->tensors_info.num_tensors > 1 && self->frames_per_tensor > 1) {
-    ml_loge
-        ("Cannot configure multiple tensors. Please set the property frames-per-tensor 1 to convert stream.");
-    return FALSE;
+  if (self->frames_per_tensor > 1) {
+    /**
+     * Failure case when
+     * 1. octet-stream has multi tensors and multi frames.
+     * 2. flex-tensor has multi frames.
+     */
+    if (self->tensors_info.num_tensors > 1 || mtype == _NNS_TENSOR) {
+      ml_loge
+          ("Cannot configure multiple tensors. Please set the property frames-per-tensor 1 to convert stream.");
+      return FALSE;
+    }
   }
 
   /**
