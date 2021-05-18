@@ -37,8 +37,8 @@ if caffe2_support_is_available
 endif
 
 if have_python3
-  extensions += [['python3', 'python3', nnstreamer_python3_deps, 'passthrough.py', 'python3-get']]
-  extensions += [['python3', 'python3', nnstreamer_python3_deps, 'scaler.py', 'python3-set']]
+  extensions += [['python3', 'python3', nnstreamer_python3_helper_dep, 'passthrough.py', 'python3-get']]
+  extensions += [['python3', 'python3', nnstreamer_python3_helper_dep, 'scaler.py', 'python3-set']]
 endif
 
 sed_command = find_program('sed', required: true)
@@ -93,7 +93,7 @@ foreach ext : extensions
     run_command('mkdir', '-p', py3_module_path, check : true)
     run_command('ln', '-sf',
         join_paths(meson.build_root(), 'ext/nnstreamer/extra/nnstreamer_python3.' + so_ext),
-        py3_module_path + '/nnstreamer_python.so', check : true)
+        py3_module_path + '/nnstreamer_python.' + so_ext, check : true)
     filter_ext_common_testenv.set('PYTHONPATH', py3_module_path)
   endif
 

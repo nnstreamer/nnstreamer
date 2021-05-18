@@ -44,25 +44,12 @@
 #pragma GCC diagnostic ignored "-Wformat"
 #endif
 
-#include <Python.h>
-#include <stdexcept>
-
-#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-#include <dlfcn.h>
-#include <numpy/arrayobject.h>
-#include <string.h>
-#include <structmember.h>
-
-#include <nnstreamer_log.h>
-#include <nnstreamer_plugin_api.h>
 #define NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
 #undef NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_conf.h>
-
 #include <map>
-#include <string>
-#include <vector>
+#include "nnstreamer_python3_helper.h"
 
 /**
  * @brief Macro for debug mode.
@@ -113,7 +100,6 @@ class PYCore
   int setInputTensorDim (const GstTensorsInfo *in_info, GstTensorsInfo *out_info);
   int run (const GstTensorMemory *input, GstTensorMemory *output);
 
-  int parseOutputTensors (PyObject *result, GstTensorsInfo *info);
   void freeOutputTensors (void *data);
 
   /** @brief Return callback type */
@@ -132,13 +118,8 @@ class PYCore
     g_mutex_unlock (&py_mutex);
   }
 
-  PyObject *PyTensorShape_New (const GstTensorInfo *info);
-
   int checkTensorType (int nns_type, int np_type);
   int checkTensorSize (GstTensorMemory *output, PyArrayObject *array);
-
-  tensor_type getTensorType (NPY_TYPES npyType);
-  NPY_TYPES getNumpyType (tensor_type tType);
 
   private:
   const std::string script_path; /**< from model_path property */
@@ -178,25 +159,8 @@ void fini_filter_py (void) __attribute__((destructor));
 PYCore::PYCore (const char *_script_path, const char *_custom)
     : script_path (_script_path), module_args (_custom != NULL ? _custom : "")
 {
-  /**
-   * To fix import error of python extension modules
-   * (e.g., multiarray.x86_64-linux-gnu.so: undefined symbol: PyExc_SystemError)
-   */
-  gchar libname[32] = { 0, };
-
-  g_snprintf (libname, sizeof (libname), "libpython%d.%d.%s",
-      PY_MAJOR_VERSION, PY_MINOR_VERSION, SO_EXT);
-
-  handle = dlopen (libname, RTLD_LAZY | RTLD_GLOBAL);
-  if (nullptr == handle) {
-    /* check the python was compiled with '--with-pymalloc' */
-    g_snprintf (libname, sizeof (libname), "libpython%d.%dm.%s",
-        PY_MAJOR_VERSION, PY_MINOR_VERSION, SO_EXT);
-
-    handle = dlopen (libname, RTLD_LAZY | RTLD_GLOBAL);
-    if (nullptr == handle)
-      throw std::runtime_error (dlerror ());
-  }
+  if (openPythonLib (&handle))
+    throw std::runtime_error (dlerror ());
 
   _import_array (); /** for numpy */
 
@@ -214,21 +178,7 @@ PYCore::PYCore (const char *_script_path, const char *_custom)
   if (ext_idx != std::string::npos)
     module_name.erase (ext_idx);
 
-  /** Add current/directory path to sys.path */
-  PyObject *sys_module = PyImport_ImportModule ("sys");
-  if (nullptr == sys_module)
-    throw std::runtime_error ("Cannot import python module 'sys'.");
-
-  PyObject *sys_path = PyObject_GetAttrString (sys_module, "path");
-  if (nullptr == sys_path)
-    throw std::runtime_error ("Cannot import python module 'path'.");
-
-  PyList_Append (sys_path, PyUnicode_FromString ("."));
-  PyList_Append (sys_path,
-      PyUnicode_FromString (script_path.substr (0, last_idx).c_str ()));
-
-  Py_XDECREF (sys_path);
-  Py_XDECREF (sys_module);
+  addToSysPath (script_path.substr (0, last_idx).c_str ());
 
   gst_tensors_info_init (&inputTensorMeta);
   gst_tensors_info_init (&outputTensorMeta);
@@ -272,14 +222,17 @@ PYCore::init (const GstTensorFilterProperties *prop)
   /** Find nnstreamer_api module */
   PyObject *api_module = PyImport_ImportModule ("nnstreamer_python");
   if (api_module == NULL) {
+    Py_ERRMSG ("Cannt find `nnstreamer_python` module");
     return -EINVAL;
   }
 
   shape_cls = PyObject_GetAttrString (api_module, "TensorShape");
   Py_XDECREF (api_module);
 
-  if (shape_cls == NULL)
+  if (shape_cls == NULL) {
+    Py_ERRMSG ("Failed to get `TensorShape` from `nnstreamer_python` module");
     return -EINVAL;
+  }
 
   gst_tensors_info_copy (&inputTensorMeta, &prop->input_meta);
   gst_tensors_info_copy (&outputTensorMeta, &prop->output_meta);
@@ -452,7 +405,7 @@ PYCore::getInputTensorDim (GstTensorsInfo *info)
 
   PyObject *result = PyObject_CallMethod (core_obj, (char *)"getInputDim", NULL);
   if (result) {
-    res = parseOutputTensors (result, info);
+    res = parseTensorsInfo (result, info);
     Py_XDECREF (result);
   } else {
     Py_ERRMSG ("Fail to call 'getInputDim'");
@@ -482,7 +435,7 @@ PYCore::getOutputTensorDim (GstTensorsInfo *info)
 
   PyObject *result = PyObject_CallMethod (core_obj, (char *)"getOutputDim", NULL);
   if (result) {
-    res = parseOutputTensors (result, info);
+    res = parseTensorsInfo (result, info);
     Py_XDECREF (result);
   } else {
     Py_ERRMSG ("Fail to call 'getOutputDim'");
@@ -517,7 +470,7 @@ PYCore::setInputTensorDim (const GstTensorsInfo *in_info, GstTensorsInfo *out_in
     throw std::runtime_error ("PyList_New(); has failed.");
 
   for (unsigned int i = 0; i < in_info->num_tensors; i++) {
-    PyObject *shape = PyTensorShape_New (&in_info->info[i]);
+    PyObject *shape = PyTensorShape_New (shape_cls, &in_info->info[i]);
     if (nullptr == shape)
       throw std::runtime_error ("PyTensorShape_New(); has failed.");
 
@@ -536,7 +489,7 @@ PYCore::setInputTensorDim (const GstTensorsInfo *in_info, GstTensorsInfo *out_in
 
   if (result) {
     gst_tensors_info_copy (&inputTensorMeta, in_info);
-    res = parseOutputTensors (result, out_info);
+    res = parseTensorsInfo (result, out_info);
     if (res == 0)
       gst_tensors_info_copy (&outputTensorMeta, out_info);
     Py_XDECREF (result);
@@ -548,73 +501,6 @@ PYCore::setInputTensorDim (const GstTensorsInfo *in_info, GstTensorsInfo *out_in
   Py_UNLOCK ();
 
   return res;
-}
-
-/**
- * @brief	allocate TensorShape object
- * @param info : the tensor info
- * @return created object
- */
-PyObject *
-PYCore::PyTensorShape_New (const GstTensorInfo *info)
-{
-  PyObject *args = PyTuple_New (2);
-  PyObject *dims = PyList_New (0);
-  PyObject *type = (PyObject *)PyArray_DescrFromType (getNumpyType (info->type));
-
-  if (nullptr == args || nullptr == dims || nullptr == type)
-    throw std::runtime_error ("PYCore::PyTensorShape_New() has failed (1).");
-
-  for (int i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
-    PyList_Append (dims, PyLong_FromLong ((uint64_t)info->dimension[i]));
-
-  PyTuple_SetItem (args, 0, dims);
-  PyTuple_SetItem (args, 1, type);
-
-  return PyObject_CallObject (shape_cls, args);
-  /* Its value is checked by setInputTensorDim */
-}
-
-/**
- * @brief parse the invoke result to feed output tensors
- * @param[result] Python object retunred by invoke
- * @param[info] info Structure for output tensor info
- * @return 0 if no error, otherwise negative errno
- */
-int
-PYCore::parseOutputTensors (PyObject *result, GstTensorsInfo *info)
-{
-  if (PyList_Size (result) < 0)
-    return -1;
-
-  info->num_tensors = PyList_Size (result);
-
-  for (unsigned int i = 0; i < info->num_tensors; i++) {
-    /** don't own the reference */
-    PyObject *tensor_shape = PyList_GetItem (result, (Py_ssize_t)i);
-    if (nullptr == tensor_shape)
-      throw std::runtime_error ("parseOutputTensors() has failed (1).");
-
-    PyObject *shape_dims = PyObject_CallMethod (tensor_shape, (char *)"getDims", NULL);
-    if (nullptr == shape_dims)
-      throw std::runtime_error ("parseOutputTensors() has failed (2).");
-
-    PyObject *shape_type = PyObject_CallMethod (tensor_shape, (char *)"getType", NULL);
-    if (nullptr == shape_type)
-      throw std::runtime_error ("parseOutputTensors() has failed (3).");
-
-    /** convert numpy type to tensor type */
-    info->info[i].type
-        = getTensorType ((NPY_TYPES) (((PyArray_Descr *)shape_type)->type_num));
-    for (int j = 0; j < PyList_Size (shape_dims); j++)
-      info->info[i].dimension[j]
-          = (uint32_t)PyLong_AsLong (PyList_GetItem (shape_dims, (Py_ssize_t)j));
-
-    Py_XDECREF (shape_dims);
-    Py_XDECREF (shape_type);
-  }
-
-  return 0;
 }
 
 /**
@@ -717,79 +603,6 @@ exit_decref:
 #endif
 
   return res;
-}
-
-/**
- * @brief	return the data type of the tensor
- * @param npyType	: the defined type of Python numpy
- * @return the enum of defined _NNS_TYPE
- */
-tensor_type
-PYCore::getTensorType (NPY_TYPES npyType)
-{
-  switch (npyType) {
-  case NPY_INT32:
-    return _NNS_INT32;
-  case NPY_UINT32:
-    return _NNS_UINT32;
-  case NPY_INT16:
-    return _NNS_INT16;
-  case NPY_UINT16:
-    return _NNS_UINT16;
-  case NPY_INT8:
-    return _NNS_INT8;
-  case NPY_UINT8:
-    return _NNS_UINT8;
-  case NPY_INT64:
-    return _NNS_INT64;
-  case NPY_UINT64:
-    return _NNS_UINT64;
-  case NPY_FLOAT32:
-    return _NNS_FLOAT32;
-  case NPY_FLOAT64:
-    return _NNS_FLOAT64;
-  default:
-    /** @todo Support other types */
-    break;
-  }
-
-  return _NNS_END;
-}
-
-/**
- * @brief	return the data type of the tensor for Python numpy
- * @param tType	: the defined type of NNStreamer
- * @return the enum of defined numpy datatypes
- */
-NPY_TYPES
-PYCore::getNumpyType (tensor_type tType)
-{
-  switch (tType) {
-  case _NNS_INT32:
-    return NPY_INT32;
-  case _NNS_UINT32:
-    return NPY_UINT32;
-  case _NNS_INT16:
-    return NPY_INT16;
-  case _NNS_UINT16:
-    return NPY_UINT16;
-  case _NNS_INT8:
-    return NPY_INT8;
-  case _NNS_UINT8:
-    return NPY_UINT8;
-  case _NNS_INT64:
-    return NPY_INT64;
-  case _NNS_UINT64:
-    return NPY_UINT64;
-  case _NNS_FLOAT32:
-    return NPY_FLOAT32;
-  case _NNS_FLOAT64:
-    return NPY_FLOAT64;
-  default:
-    /** @todo Support other types */
-    break;
-  }
-  return NPY_NOTYPE;
 }
 
 /**

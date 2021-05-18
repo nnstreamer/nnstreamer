@@ -13,14 +13,8 @@
  * @bug		No known bugs except for NYI items
  */
 
-#include <stdexcept>
-
-#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-#include <dlfcn.h>
-#include <numpy/arrayobject.h>
-#include <nnstreamer_log.h>
-#include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_converter.h>
+#include "nnstreamer_python3_helper.h"
 
 /**
  * @brief Macro for debug mode.
@@ -59,11 +53,8 @@ class PYConverterCore
   ~PYConverterCore ();
 
   int init ();
-  int loadScript ();
   const char *getScriptPath ();
   GstBuffer *convert (GstBuffer*in_buf, GstTensorsConfig *config);
-  int parseTensorsInfo (PyObject *result, GstTensorsInfo *info);
-  tensor_type getTensorType (NPY_TYPES npyType);
 
   /** @brief Lock python-related actions */
   void Py_LOCK ()
@@ -94,24 +85,8 @@ class PYConverterCore
 PYConverterCore::PYConverterCore (const char *_script_path)
     : script_path (_script_path)
 {
-  /**
-   * To fix import error of python extension modules
-   * (e.g., multiarray.x86_64-linux-gnu.so: undefined symbol: PyExc_SystemError)
-   */
-  gchar libname[32] = { 0, };
-
-  g_snprintf (libname, sizeof (libname), "libpython%d.%d.%s",
-      PY_MAJOR_VERSION, PY_MINOR_VERSION, SO_EXT);
-  handle = dlopen (libname, RTLD_LAZY | RTLD_GLOBAL);
-  if (nullptr == handle) {
-    /* check the python was compiled with '--with-pymalloc' */
-    g_snprintf (libname, sizeof (libname), "libpython%d.%dm.%s",
-        PY_MAJOR_VERSION, PY_MINOR_VERSION, SO_EXT);
-
-    handle = dlopen (libname, RTLD_LAZY | RTLD_GLOBAL);
-    if (nullptr == handle)
-      throw std::runtime_error (dlerror ());
-  }
+  if (openPythonLib (&handle))
+    throw std::runtime_error (dlerror ());
 
   _import_array (); /** for numpy */
 
@@ -120,7 +95,7 @@ PYConverterCore::PYConverterCore (const char *_script_path)
    * The module name should drop its extension (i.e., .py)
    */
   module_name = script_path;
-  const size_t last_idx = module_name.find_last_of ("/\\");
+  const size_t last_idx = module_name.find_last_of ("/");
 
   if (last_idx != std::string::npos)
     module_name.erase (0, last_idx + 1);
@@ -129,21 +104,7 @@ PYConverterCore::PYConverterCore (const char *_script_path)
   if (ext_idx != std::string::npos)
     module_name.erase (ext_idx);
 
-  /** Add current/directory path to sys.path */
-  PyObject *sys_module = PyImport_ImportModule ("sys");
-  if (nullptr == sys_module)
-    throw std::runtime_error ("Cannot import python module 'sys'.");
-
-  PyObject *sys_path = PyObject_GetAttrString (sys_module, "path");
-  if (nullptr == sys_path)
-    throw std::runtime_error ("Cannot import python module 'path'.");
-
-  PyList_Append (sys_path, PyUnicode_FromString ("."));
-  PyList_Append (sys_path,
-  PyUnicode_FromString (script_path.substr (0, last_idx).c_str ()));
-
-  Py_XDECREF (sys_path);
-  Py_XDECREF (sys_module);
+  addToSysPath (script_path.substr (0, last_idx).c_str ());
 
   core_obj = NULL;
   shape_cls = NULL;
@@ -165,49 +126,6 @@ PYConverterCore::~PYConverterCore ()
 
   dlclose (handle);
   g_mutex_clear (&py_mutex);
-}
-
-/**
- * @brief parse the converting result to feed output tensors
- * @param[result] Python object retunred by convert
- * @param[info] info Structure for output tensors info
- * @return 0 if no error, otherwise negative errno
- */
-int
-PYConverterCore::parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
-{
-  if (PyList_Size (result) < 0)
-    return -1;
-
-  info->num_tensors = PyList_Size (result);
-  for (unsigned int i = 0; i < info->num_tensors; i++) {
-    /** don't own the reference */
-    PyObject *tensor_shape = PyList_GetItem (result, (Py_ssize_t)i);
-    if (nullptr == tensor_shape)
-      throw std::runtime_error ("parseTensorsInfo() has failed (1).");
-
-    PyObject *shape_dims = PyObject_CallMethod (tensor_shape, (char *)"getDims", NULL);
-    if (nullptr == shape_dims)
-      throw std::runtime_error ("parseTensorsInfo() has failed (2).");
-
-
-    PyObject *shape_type = PyObject_CallMethod (tensor_shape, (char *)"getType", NULL);
-    if (nullptr == shape_type)
-      throw std::runtime_error ("parseOutputTensors() has failed (3).");
-
-    /** convert numpy type to tensor type */
-    info->info[i].type
-        = getTensorType ((NPY_TYPES) (((PyArray_Descr *)shape_type)->type_num));
-
-    for (int j = 0; j < PyList_Size (shape_dims); j++)
-      info->info[i].dimension[j]
-          = (uint32_t)PyLong_AsLong (PyList_GetItem (shape_dims, (Py_ssize_t)j));
-
-    info->info[i].name = g_strdup("");
-    Py_XDECREF (shape_dims);
-  }
-
-  return 0;
 }
 
 /**
@@ -290,69 +208,6 @@ done:
 }
 
 /**
- * @brief	load the python script
- */
-int
-PYConverterCore::loadScript ()
-{
-  PyObject *module = PyImport_ImportModule (module_name.c_str ());
-
-  if (module) {
-    PyObject *cls = PyObject_GetAttrString (module, "CustomConverter");
-    if (cls) {
-      core_obj = PyObject_CallObject (cls, NULL);
-      Py_XDECREF (cls);
-    } else {
-      Py_ERRMSG ("Cannot find 'CustomConverter' class in the script\n");
-      return -2;
-    }
-    Py_XDECREF (module);
-  } else {
-    Py_ERRMSG ("the script is not properly loaded\n");
-    return -1;
-  }
-
-  return 0;
-}
-
-/**
- * @brief	return the data type of the tensor
- * @param npyType	: the defined type of Python numpy
- * @return the enum of defined _NNS_TYPE
- */
-tensor_type
-PYConverterCore::getTensorType (NPY_TYPES npyType)
-{
-  switch (npyType) {
-  case NPY_INT32:
-    return _NNS_INT32;
-  case NPY_UINT32:
-    return _NNS_UINT32;
-  case NPY_INT16:
-    return _NNS_INT16;
-  case NPY_UINT16:
-    return _NNS_UINT16;
-  case NPY_INT8:
-    return _NNS_INT8;
-  case NPY_UINT8:
-    return _NNS_UINT8;
-  case NPY_INT64:
-    return _NNS_INT64;
-  case NPY_UINT64:
-    return _NNS_UINT64;
-  case NPY_FLOAT32:
-    return _NNS_FLOAT32;
-  case NPY_FLOAT64:
-    return _NNS_FLOAT64;
-  default:
-    /** @todo Support other types */
-    break;
-  }
-
-  return _NNS_END;
-}
-
-/**
  * @brief	initialize the object with python script
  * @return 0 if OK. non-zero if error.
  */
@@ -371,7 +226,7 @@ PYConverterCore::init ()
   if (shape_cls == NULL)
     return -EINVAL;
 
-  return loadScript ();
+  return loadScript (&core_obj, module_name.c_str(), "CustomConverter");
 }
 
 /**
