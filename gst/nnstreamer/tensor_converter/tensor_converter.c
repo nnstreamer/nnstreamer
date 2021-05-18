@@ -873,6 +873,48 @@ _gst_tensor_converter_chain_multi_tensor (GstTensorConverter * self,
   return buffer;
 }
 
+/** @brief Chain function's private routine to process flex tensor */
+static GstBuffer *
+_gst_tensor_converter_chain_flex_tensor (GstTensorConverter * self,
+    GstBuffer * buf)
+{
+  GstBuffer *buffer;
+  GstMemory *mem;
+  GstTensorsInfo *info;
+  GstTensorMetaInfo meta;
+  guint i;
+
+  info = &self->tensors_config.info;
+  buffer = gst_buffer_new ();
+
+  for (i = 0; i < info->num_tensors; i++) {
+    gst_tensor_info_convert_to_meta (&info->info[i], &meta);
+
+    /* set media type */
+    switch (self->in_media_type) {
+      case _NNS_VIDEO:
+      case _NNS_AUDIO:
+      case _NNS_TEXT:
+      case _NNS_OCTET:
+        meta.media_type = self->in_media_type;
+        break;
+      default:
+        /* default output type is tensor */
+        meta.media_type = _NNS_TENSOR;
+        break;
+    }
+
+    mem = gst_buffer_peek_memory (buf, i);
+    mem = gst_tensor_meta_info_append_header (&meta, mem);
+
+    gst_buffer_append_memory (buffer, mem);
+  }
+
+  gst_buffer_copy_into (buffer, buf, GST_BUFFER_COPY_METADATA, 0, -1);
+  gst_buffer_unref (buf);
+  return buffer;
+}
+
 /** @brief Chain function's private routine to push buffer into src pad */
 static GstFlowReturn
 _gst_tensor_converter_chain_push (GstTensorConverter * self, GstBuffer * buf)
@@ -882,6 +924,11 @@ _gst_tensor_converter_chain_push (GstTensorConverter * self, GstBuffer * buf)
   if (self->in_media_type == _NNS_OCTET) {
     /* configure multi tensors */
     buffer = _gst_tensor_converter_chain_multi_tensor (self, buffer);
+  }
+
+  /* if output is flexible, add header. */
+  if (gst_tensor_pad_caps_is_flexible (self->srcpad)) {
+    buffer = _gst_tensor_converter_chain_flex_tensor (self, buffer);
   }
 
   silent_debug_timestamp (buffer);
@@ -1088,8 +1135,9 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       break;
     case _NNS_TENSOR:
     {
+      GstTensorMetaInfo meta;
       GstMemory *mem;
-      gsize s1, s2;
+      gsize s1, s2, hsize;
       guint n;
 
       if (config->info.num_tensors != gst_buffer_n_memory (buf)) {
@@ -1098,10 +1146,18 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         goto error;
       }
 
-      /* compare data size */
+      /* compare data size and append memory */
+      inbuf = gst_buffer_new ();
+
       for (n = 0; n < config->info.num_tensors; n++) {
         mem = gst_buffer_peek_memory (buf, n);
         s1 = gst_memory_get_sizes (mem, NULL, NULL);
+
+        /* flex-tensor has header in each mem block */
+        gst_tensor_meta_info_parse_memory (&meta, mem);
+        hsize = gst_tensor_meta_info_get_header_size (&meta);
+        s1 -= hsize;
+
         s2 = gst_tensor_info_get_size (&config->info.info[n]);
 
         /**
@@ -1112,10 +1168,14 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
           nns_loge
               ("Incoming buffer has invalid data size %zd, expected size is %zd (%u/%u).",
               s1, s2, (n + 1), config->info.num_tensors);
+          gst_buffer_unref (inbuf);
           goto error;
         }
+
+        gst_buffer_append_memory (inbuf, gst_memory_share (mem, hsize, s1));
       }
 
+      gst_buffer_copy_into (inbuf, buf, GST_BUFFER_COPY_METADATA, 0, -1);
       break;
     }
     case _NNS_MEDIA_ANY:
