@@ -61,6 +61,24 @@ typedef struct {
   GstTensorsConfig *config;
 } grpc_config;
 
+/** @brief gRPC private data */
+typedef struct {
+  grpc_config config;
+  void * instance;
+} grpc_private;
+
+enum
+{
+  PROP_0,
+  PROP_SILENT,
+  PROP_SERVER,
+  PROP_BLOCKING,
+  PROP_IDL,
+  PROP_HOST,
+  PROP_PORT,
+  PROP_OUT,
+};
+
 /**
  * @brief C++ wrappers for gRPC per-IDL codes
  */
@@ -78,6 +96,9 @@ void grpc_stop (void * instance);
 
 gboolean grpc_send (void * instance, GstBuffer * buffer);
 int grpc_get_listening_port (void * instance);
+
+gboolean _check_hostname (gchar * str);
+void grpc_common_set_property (GObject * self, gboolean * silent, grpc_private * grpc, guint prop_id, const GValue * value, GParamSpec * pspec);
 
 #ifdef __cplusplus
 }

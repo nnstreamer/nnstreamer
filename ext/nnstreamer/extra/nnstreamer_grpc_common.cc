@@ -283,3 +283,85 @@ grpc_get_listening_port (void * instance)
 
   return self->getListeningPort ();
 }
+
+#define silent_debug(...) do { \
+    if (* silent) { \
+      GST_DEBUG_OBJECT (self, __VA_ARGS__); \
+    } \
+  } while (0)
+
+/**
+ * @brief check the validity of hostname string
+ */
+gboolean
+_check_hostname (gchar * str)
+{
+  if (g_strcmp0 (str, "localhost") == 0 ||
+      g_hostname_is_ip_address (str))
+    return TRUE;
+
+  return FALSE;
+}
+
+/**
+ * @brief set-prop common for both grpc elements
+ */
+void
+grpc_common_set_property (GObject * self, gboolean * silent,
+    grpc_private * grpc, guint prop_id, const GValue * value,
+    GParamSpec * pspec)
+{
+  switch (prop_id) {
+    case PROP_SILENT:
+      *silent = g_value_get_boolean (value);
+      silent_debug ("Set silent = %d", *silent);
+      break;
+    case PROP_SERVER:
+      grpc->config.is_server = g_value_get_boolean (value);
+      silent_debug ("Set server = %d", grpc->config.is_server);
+      break;
+    case PROP_BLOCKING:
+      grpc->config.is_blocking = g_value_get_boolean (value);
+      silent_debug ("Set blocking = %d", grpc->config.is_blocking);
+      break;
+    case PROP_IDL:
+    {
+      const gchar * idl_str = g_value_get_string (value);
+
+      if (idl_str) {
+        grpc_idl idl = grpc_get_idl (idl_str);
+        if (idl != GRPC_IDL_NONE) {
+          grpc->config.idl = idl;
+          silent_debug ("Set idl = %s", idl_str);
+        } else {
+          ml_loge ("Invalid IDL string provided: %s", idl_str);
+        }
+      }
+      break;
+    }
+    case PROP_HOST:
+    {
+      gchar * host;
+
+      if (!g_value_get_string (value))
+        break;
+
+      host = g_value_dup_string (value);
+      if (_check_hostname (host)) {
+        g_free (grpc->config.host);
+        grpc->config.host = host;
+        silent_debug ("Set host = %s", grpc->config.host);
+      } else {
+        g_free (host);
+      }
+      break;
+    }
+    case PROP_PORT:
+      grpc->config.port = g_value_get_int (value);
+      silent_debug ("Set port = %d", grpc->config.port);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (self, prop_id, pspec);
+      break;
+  }
+}
