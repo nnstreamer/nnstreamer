@@ -269,6 +269,36 @@ gst_tensor_info_copy (GstTensorInfo * dest, const GstTensorInfo * src)
 }
 
 /**
+ * @brief Convert GstTensorInfo structure to GstTensorMetaInfo.
+ * @param info[in] GstTensorInfo to be converted
+ * @param meta[out] tensor meta structure to be filled
+ * @return TRUE if successfully set the meta
+ */
+gboolean
+gst_tensor_info_convert_to_meta (GstTensorInfo * info, GstTensorMetaInfo * meta)
+{
+  guint i;
+
+  g_return_val_if_fail (gst_tensor_info_validate (info), FALSE);
+  g_return_val_if_fail (meta != NULL, FALSE);
+
+  gst_tensor_meta_info_init (meta);
+
+  meta->type = info->type;
+  meta->format = info->format;
+
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    /** @todo handle rank from info.dimension */
+    if (info->dimension[i] > 0)
+      meta->dimension[i] = info->dimension[i];
+    else
+      break;
+  }
+
+  return TRUE;
+}
+
+/**
  * @brief Get tensor rank
  * @param info tensor info structure
  * @return tensor rank (Minimum rank is 1 if given info is valid)
@@ -1417,6 +1447,302 @@ gst_tensor_get_type_string (tensor_type type)
   g_return_val_if_fail (type >= 0 && type <= _NNS_END, NULL);
 
   return tensor_element_typename[type];
+}
+
+/**
+ * @brief Macro to check the meta version.
+ */
+#define GST_TENSOR_META_VERSION_VALID(v) (((v) & 0xDE000000) == 0xDE000000)
+
+/**
+ * @brief Macro to get the version of tensor meta.
+ */
+#define GST_TENSOR_META_MAKE_VERSION(major,minor) ((major) << 12 | (minor) | 0xDE000000)
+
+/**
+ * @brief The version of tensor meta.
+ */
+#define GST_TENSOR_META_VERSION GST_TENSOR_META_MAKE_VERSION(1,0)
+
+/**
+ * @brief Macro to check the version of tensor meta.
+ */
+#define GST_TENSOR_META_IS_V1(v) (GST_TENSOR_META_VERSION_VALID(v) && (((v) & 0x00FFF000) & GST_TENSOR_META_MAKE_VERSION(1,0)))
+
+/**
+ * @brief Initialize the tensor meta info structure.
+ * @param[in,out] meta tensor meta structure to be initialized
+ */
+void
+gst_tensor_meta_info_init (GstTensorMetaInfo * meta)
+{
+  g_return_if_fail (meta != NULL);
+
+  /* zero-init */
+  memset (meta, 0, sizeof (GstTensorMetaInfo));
+
+  meta->version = GST_TENSOR_META_VERSION;
+  meta->type = _NNS_END;
+  meta->format = _NNS_TENSOR_FORMAT_STATIC;
+  meta->media_type = _NNS_TENSOR;
+}
+
+/**
+ * @brief Get the version of tensor meta.
+ * @param[in] meta tensor meta structure
+ * @param[out] major pointer to get the major version number
+ * @param[out] minor pointer to get the minor version number
+ */
+void
+gst_tensor_meta_info_get_version (GstTensorMetaInfo * meta,
+    guint * major, guint * minor)
+{
+  g_return_if_fail (meta != NULL);
+  g_return_if_fail (GST_TENSOR_META_VERSION_VALID (meta->version));
+
+  if (major)
+    *major = (meta->version & 0x00FFF000) >> 12;
+
+  if (minor)
+    *minor = (meta->version & 0x00000FFF);
+}
+
+/**
+ * @brief Check the meta info is valid.
+ * @param[in] meta tensor meta structure
+ * @return TRUE if given meta is valid
+ */
+gboolean
+gst_tensor_meta_info_validate (GstTensorMetaInfo * meta)
+{
+  guint i;
+
+  g_return_val_if_fail (meta != NULL, FALSE);
+  g_return_val_if_fail (GST_TENSOR_META_VERSION_VALID (meta->version), FALSE);
+
+  if (meta->type >= _NNS_END)
+    return FALSE;
+
+  for (i = 0; i < NNS_TENSOR_META_RANK_LIMIT; i++) {
+    if (meta->dimension[i] == 0) {
+      if (i == 0)
+        return FALSE;
+      break;
+    }
+  }
+
+  if (meta->format > _NNS_TENSOR_FORMAT_FLEXIBLE)
+    return FALSE;
+
+  if (meta->media_type > _NNS_TENSOR)
+    return FALSE;
+
+  return TRUE;
+}
+
+/**
+ * @brief Get the header size to handle a tensor meta.
+ * @param[in] meta tensor meta structure
+ * @return Header size for meta info (0 if meta is invalid)
+ */
+gsize
+gst_tensor_meta_info_get_header_size (GstTensorMetaInfo * meta)
+{
+  g_return_val_if_fail (meta != NULL, 0);
+  g_return_val_if_fail (GST_TENSOR_META_VERSION_VALID (meta->version), 0);
+
+  /* return fixed size for meta version */
+  if (GST_TENSOR_META_IS_V1 (meta->version)) {
+    return 128;
+  }
+
+  return 0;
+}
+
+/**
+ * @brief Get the data size calculated from tensor meta.
+ * @param[in] meta tensor meta structure
+ * @return The data size for meta info (0 if meta is invalid)
+ */
+gsize
+gst_tensor_meta_info_get_data_size (GstTensorMetaInfo * meta)
+{
+  guint i;
+  gsize dsize;
+
+  g_return_val_if_fail (meta != NULL, 0);
+  g_return_val_if_fail (GST_TENSOR_META_VERSION_VALID (meta->version), 0);
+
+  dsize = gst_tensor_get_element_size (meta->type);
+
+  for (i = 0; i < NNS_TENSOR_META_RANK_LIMIT; i++) {
+    if (meta->dimension[i] == 0)
+      break;
+
+    dsize *= meta->dimension[i];
+  }
+
+  return (i > 0) ? dsize : 0;
+}
+
+/**
+ * @brief Update header from tensor meta.
+ * @param[in] meta tensor meta structure
+ * @param[out] header pointer to header to be updated
+ * @return TRUE if successfully set the header
+ * @note User should allocate enough memory for header (see gst_tensor_meta_info_get_header_size()).
+ */
+gboolean
+gst_tensor_meta_info_update_header (GstTensorMetaInfo * meta, gpointer header)
+{
+  gsize hsize;
+
+  g_return_val_if_fail (header != NULL, FALSE);
+  g_return_val_if_fail (gst_tensor_meta_info_validate (meta), FALSE);
+
+  hsize = gst_tensor_meta_info_get_header_size (meta);
+
+  memset (header, 0, hsize);
+
+  memcpy (header, meta, sizeof (GstTensorMetaInfo));
+  return TRUE;
+}
+
+/**
+ * @brief Parse header and fill the tensor meta.
+ * @param[out] meta tensor meta structure to be filled
+ * @param[in] header pointer to header to be parsed
+ * @return TRUE if successfully set the meta
+ */
+gboolean
+gst_tensor_meta_info_parse_header (GstTensorMetaInfo * meta, gpointer header)
+{
+  uint32_t *val = (uint32_t *) header;
+
+  g_return_val_if_fail (header != NULL, FALSE);
+  g_return_val_if_fail (meta != NULL, FALSE);
+
+  gst_tensor_meta_info_init (meta);
+
+  meta->version = val[0];
+  meta->type = val[1];
+  memcpy (meta->dimension, &val[2],
+      sizeof (uint32_t) * NNS_TENSOR_META_RANK_LIMIT);
+  meta->format = val[18];
+  meta->media_type = val[19];
+
+  /* @todo update meta info for each version */
+  return gst_tensor_meta_info_validate (meta);
+}
+
+/**
+ * @brief Parse memory and fill the tensor meta.
+ * @param[out] meta tensor meta structure to be filled
+ * @param[in] mem pointer to GstMemory to be parsed
+ * @return TRUE if successfully set the meta
+ */
+gboolean
+gst_tensor_meta_info_parse_memory (GstTensorMetaInfo * meta, GstMemory * mem)
+{
+  GstMapInfo map;
+  gboolean ret;
+
+  g_return_val_if_fail (mem != NULL, FALSE);
+  g_return_val_if_fail (meta != NULL, FALSE);
+
+  gst_tensor_meta_info_init (meta);
+
+  if (!gst_memory_map (mem, &map, GST_MAP_READ)) {
+    nns_loge ("Failed to get the meta, cannot map the memory.");
+    return FALSE;
+  }
+
+  ret = gst_tensor_meta_info_parse_header (meta, map.data);
+
+  gst_memory_unmap (mem, &map);
+  return ret;
+}
+
+/**
+ * @brief Append header to memory.
+ * @param[in] meta tensor meta structure
+ * @param[in] mem pointer to GstMemory
+ * @return Newly allocated GstMemory (Caller should free returned memory using gst_memory_unref())
+ */
+GstMemory *
+gst_tensor_meta_info_append_header (GstTensorMetaInfo * meta, GstMemory * mem)
+{
+  GstMemory *new_mem = NULL;
+  gsize msize, hsize;
+  GstMapInfo old_map, new_map;
+
+  g_return_val_if_fail (mem != NULL, NULL);
+  g_return_val_if_fail (gst_tensor_meta_info_validate (meta), NULL);
+
+  if (!gst_memory_map (mem, &old_map, GST_MAP_READ)) {
+    nns_loge ("Failed to append header, cannot map the old memory.");
+    return NULL;
+  }
+
+  /* memory size (header + old memory) */
+  hsize = gst_tensor_meta_info_get_header_size (meta);
+  msize = hsize + old_map.size;
+
+  new_mem = gst_allocator_alloc (NULL, msize, NULL);
+  if (!gst_memory_map (new_mem, &new_map, GST_MAP_WRITE)) {
+    nns_loge ("Failed to append header, cannot map the new memory.");
+    gst_memory_unmap (mem, &old_map);
+    gst_memory_unref (new_mem);
+    return NULL;
+  }
+
+  /* set header and copy old data */
+  gst_tensor_meta_info_update_header (meta, new_map.data);
+  memcpy (new_map.data + hsize, old_map.data, old_map.size);
+
+  gst_memory_unmap (mem, &old_map);
+  gst_memory_unmap (new_mem, &new_map);
+  return new_mem;
+}
+
+/**
+ * @brief Convert GstTensorMetaInfo structure to GstTensorInfo.
+ * @param meta[in] tensor meta structure to be converted
+ * @param info[out] GstTensorInfo to be filled
+ * @return TRUE if successfully set the info
+ */
+gboolean
+gst_tensor_meta_info_convert (GstTensorMetaInfo * meta, GstTensorInfo * info)
+{
+  guint i;
+
+  g_return_val_if_fail (info != NULL, FALSE);
+  g_return_val_if_fail (gst_tensor_meta_info_validate (meta), FALSE);
+
+  gst_tensor_info_init (info);
+
+  info->type = meta->type;
+  info->format = meta->format;
+
+  for (i = 0; i < NNS_TENSOR_META_RANK_LIMIT; i++) {
+    if (i >= NNS_TENSOR_RANK_LIMIT) {
+      if (meta->dimension[i] > 0) {
+        nns_loge ("Given meta has invalid dimension (dimension[%u] %u).",
+            i, meta->dimension[i]);
+        nns_loge ("Failed to set info, max rank should be %u.",
+            NNS_TENSOR_RANK_LIMIT);
+        return FALSE;
+      }
+
+      /* tensor-info max rank is NNS_TENSOR_RANK_LIMIT */
+      break;
+    }
+
+    /** @todo handle rank from info.dimension */
+    info->dimension[i] = (meta->dimension[i] > 0) ? meta->dimension[i] : 1;
+  }
+
+  return TRUE;
 }
 
 /**
