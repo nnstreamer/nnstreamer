@@ -109,6 +109,15 @@ extern void
 gst_tensor_info_copy (GstTensorInfo * dest, const GstTensorInfo * src);
 
 /**
+ * @brief Convert GstTensorInfo structure to GstTensorMetaInfo.
+ * @param info[in] GstTensorInfo to be converted
+ * @param meta[out] tensor meta structure to be filled
+ * @return TRUE if successfully set the meta
+ */
+extern gboolean
+gst_tensor_info_convert_to_meta (GstTensorInfo * info, GstTensorMetaInfo * meta);
+
+/**
  * @brief Get tensor rank
  * @param info tensor info structure
  * @return tensor rank (Minimum rank is 1 if given info is valid)
@@ -411,6 +420,92 @@ find_key_strv (const gchar ** strv, const gchar * key);
  */
 extern gchar *
 replace_string (gchar * source, const gchar * what, const gchar * to, const gchar * delimiters, guint * count);
+
+/**
+ * @brief Initialize the tensor meta info structure.
+ * @param[in,out] meta tensor meta structure to be initialized
+ */
+extern void
+gst_tensor_meta_info_init (GstTensorMetaInfo * meta);
+
+/**
+ * @brief Get the version of tensor meta.
+ * @param[in] meta tensor meta structure
+ * @param[out] major pointer to get the major version number
+ * @param[out] minor pointer to get the minor version number
+ */
+extern void
+gst_tensor_meta_info_get_version (GstTensorMetaInfo * meta, guint * major, guint * minor);
+
+/**
+ * @brief Check the meta info is valid.
+ * @param[in] meta tensor meta structure
+ * @return TRUE if given meta is valid
+ */
+extern gboolean
+gst_tensor_meta_info_validate (GstTensorMetaInfo * meta);
+
+/**
+ * @brief Get the header size to handle a tensor meta.
+ * @param[in] meta tensor meta structure
+ * @return Header size for meta info (0 if meta is invalid)
+ */
+extern gsize
+gst_tensor_meta_info_get_header_size (GstTensorMetaInfo * meta);
+
+/**
+ * @brief Get the data size calculated from tensor meta.
+ * @param[in] meta tensor meta structure
+ * @return The data size for meta info (0 if meta is invalid)
+ */
+extern gsize
+gst_tensor_meta_info_get_data_size (GstTensorMetaInfo * meta);
+
+/**
+ * @brief Update header from tensor meta.
+ * @param[in] meta tensor meta structure
+ * @param[out] header pointer to header to be updated
+ * @return TRUE if successfully set the header
+ * @note User should allocate enough memory for header (see gst_tensor_meta_info_get_header_size()).
+ */
+extern gboolean
+gst_tensor_meta_info_update_header (GstTensorMetaInfo * meta, gpointer header);
+
+/**
+ * @brief Parse header and fill the tensor meta.
+ * @param[out] meta tensor meta structure to be filled
+ * @param[in] header pointer to header to be parsed
+ * @return TRUE if successfully set the meta
+ */
+extern gboolean
+gst_tensor_meta_info_parse_header (GstTensorMetaInfo * meta, gpointer header);
+
+/**
+ * @brief Parse memory and fill the tensor meta.
+ * @param[out] meta tensor meta structure to be filled
+ * @param[in] mem pointer to GstMemory to be parsed
+ * @return TRUE if successfully set the meta
+ */
+extern gboolean
+gst_tensor_meta_info_parse_memory (GstTensorMetaInfo * meta, GstMemory * mem);
+
+/**
+ * @brief Append header to memory.
+ * @param[in] meta tensor meta structure
+ * @param[in] mem pointer to GstMemory
+ * @return Newly allocated GstMemory (Caller should free returned memory using gst_memory_unref())
+ */
+extern GstMemory *
+gst_tensor_meta_info_append_header (GstTensorMetaInfo * meta, GstMemory * mem);
+
+/**
+ * @brief Convert GstTensorMetaInfo structure to GstTensorInfo.
+ * @param meta[in] tensor meta structure to be converted
+ * @param info[out] GstTensorInfo to be filled
+ * @return TRUE if successfully set the info
+ */
+gboolean
+gst_tensor_meta_info_convert (GstTensorMetaInfo * meta, GstTensorInfo * info);
 
 /**
  * @brief Get the version of NNStreamer.
