@@ -13,15 +13,9 @@
  * @bug         No known bugs except for NYI items
  */
 
-#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-#include <stdexcept>
-#include <dlfcn.h>
-#include <numpy/arrayobject.h>
-#include <glib.h>
-#include <nnstreamer_log.h>
-#include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_decoder.h>
 #include "tensordecutil.h"
+#include "nnstreamer_python3_helper.h"
 
 /**
  * @brief Macro for debug mode.
@@ -60,7 +54,6 @@ class PYDecoderCore
   ~PYDecoderCore ();
 
   int init ();
-  int loadScript ();
   const char *getScriptPath ();
   GstFlowReturn decode (const GstTensorsConfig *config,
     const GstTensorMemory *input, GstBuffer *outbuf);
@@ -76,8 +69,6 @@ class PYDecoderCore
   {
     g_mutex_unlock (&py_mutex);
   }
-  PyObject *PyTensorShape_New (const GstTensorInfo *info);
-  NPY_TYPES getNumpyType (tensor_type tType);
 
   private:
   std::string module_name;
@@ -97,24 +88,8 @@ class PYDecoderCore
 PYDecoderCore::PYDecoderCore (const char *_script_path)
     : script_path (_script_path)
 {
-  /**
-   * To fix import error of python extension modules
-   * (e.g., multiarray.x86_64-linux-gnu.so: undefined symbol: PyExc_SystemError)
-   */
-  gchar libname[32] = { 0, };
-
-  g_snprintf (libname, sizeof (libname), "libpython%d.%d.%s",
-      PY_MAJOR_VERSION, PY_MINOR_VERSION, SO_EXT);
-  handle = dlopen (libname, RTLD_LAZY | RTLD_GLOBAL);
-  if (nullptr == handle) {
-    /* check the python was compiled with '--with-pymalloc' */
-    g_snprintf (libname, sizeof (libname), "libpython%d.%dm.%s",
-        PY_MAJOR_VERSION, PY_MINOR_VERSION, SO_EXT);
-
-    handle = dlopen (libname, RTLD_LAZY | RTLD_GLOBAL);
-    if (nullptr == handle)
-      throw std::runtime_error (dlerror ());
-  }
+  if (openPythonLib (&handle))
+    throw std::runtime_error (dlerror ());
 
   _import_array (); /** for numpy */
 
@@ -132,21 +107,7 @@ PYDecoderCore::PYDecoderCore (const char *_script_path)
   if (ext_idx != std::string::npos)
     module_name.erase (ext_idx);
 
-  /** Add current/directory path to sys.path */
-  PyObject *sys_module = PyImport_ImportModule ("sys");
-  if (nullptr == sys_module)
-    throw std::runtime_error ("Cannot import python module 'sys'.");
-
-  PyObject *sys_path = PyObject_GetAttrString (sys_module, "path");
-  if (nullptr == sys_path)
-    throw std::runtime_error ("Cannot import python module 'path'.");
-
-  PyList_Append (sys_path, PyUnicode_FromString ("."));
-  PyList_Append (sys_path,
-  PyUnicode_FromString (script_path.substr (0, last_idx).c_str ()));
-
-  Py_XDECREF (sys_path);
-  Py_XDECREF (sys_module);
+  addToSysPath (script_path.substr (0, last_idx).c_str ());
 
   core_obj = NULL;
   shape_cls = NULL;
@@ -196,7 +157,7 @@ PYDecoderCore::decode (const GstTensorsConfig *config,
         1, input_dims, getNumpyType (nns_type), input[i].data);
     PyList_Append (raw_data, input_array);
 
-    PyObject *shape = PyTensorShape_New (&config->info.info[i]);
+    PyObject *shape = PyTensorShape_New (shape_cls, &config->info.info[i]);
     PyList_Append (in_info, shape);
   }
 
@@ -281,32 +242,6 @@ done:
 }
 
 /**
- * @brief	load the python script
- */
-int
-PYDecoderCore::loadScript ()
-{
-  PyObject *module = PyImport_ImportModule (module_name.c_str ());
-
-  if (module) {
-    PyObject *cls = PyObject_GetAttrString (module, "CustomDecoder");
-    if (cls) {
-      core_obj = PyObject_CallObject (cls, NULL);
-      Py_XDECREF (cls);
-    } else {
-      Py_ERRMSG ("Cannot find 'CustomDecoder' class in the script\n");
-      return -2;
-    }
-    Py_XDECREF (module);
-  } else {
-    Py_ERRMSG ("the script is not properly loaded\n");
-    return -1;
-  }
-
-  return 0;
-}
-
-/**
  * @brief	initialize the object with python script
  */
 int
@@ -324,7 +259,7 @@ PYDecoderCore::init ()
   if (shape_cls == NULL)
     return -EINVAL;
 
-  return loadScript ();
+  return loadScript (&core_obj, module_name.c_str(), "CustomDecoder");
 }
 
 /**
@@ -335,67 +270,6 @@ const char *
 PYDecoderCore::getScriptPath ()
 {
   return script_path.c_str ();
-}
-
-/**
- * @brief	allocate TensorShape object
- * @param info : the tensor info
- * @return created object
- */
-PyObject *
-PYDecoderCore::PyTensorShape_New (const GstTensorInfo *info)
-{
-  PyObject *args = PyTuple_New (2);
-  PyObject *dims = PyList_New (0);
-  PyObject *type = (PyObject *)PyArray_DescrFromType (getNumpyType (info->type));
-
-  if (nullptr == args || nullptr == dims || nullptr == type)
-    throw std::runtime_error ("PYCore::PyTensorShape_New() has failed (1).");
-
-  for (int i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
-    PyList_Append (dims, PyLong_FromLong ((uint64_t)info->dimension[i]));
-
-  PyTuple_SetItem (args, 0, dims);
-  PyTuple_SetItem (args, 1, type);
-
-  return PyObject_CallObject (shape_cls, args);
-  /* Its value is checked by setInputTensorDim */
-}
-
-/**
- * @brief	return the data type of the tensor for Python numpy
- * @param tType	: the defined type of NNStreamer
- * @return the enum of defined numpy datatypes
- */
-NPY_TYPES
-PYDecoderCore::getNumpyType (tensor_type tType)
-{
-  switch (tType) {
-  case _NNS_INT32:
-    return NPY_INT32;
-  case _NNS_UINT32:
-    return NPY_UINT32;
-  case _NNS_INT16:
-    return NPY_INT16;
-  case _NNS_UINT16:
-    return NPY_UINT16;
-  case _NNS_INT8:
-    return NPY_INT8;
-  case _NNS_UINT8:
-    return NPY_UINT8;
-  case _NNS_INT64:
-    return NPY_INT64;
-  case _NNS_UINT64:
-    return NPY_UINT64;
-  case _NNS_FLOAT32:
-    return NPY_FLOAT32;
-  case _NNS_FLOAT64:
-    return NPY_FLOAT64;
-  default:
-    /** @todo Support other types */
-    break;
-  }
-  return NPY_NOTYPE;
 }
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */

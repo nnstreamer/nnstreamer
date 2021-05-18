@@ -79,12 +79,24 @@ endif
 
 if have_python3
   nnstreamer_python3_deps = [python3_dep, libdl_dep, glib_dep, gst_dep, nnstreamer_dep]
+  nnstreamer_python3_src = ['nnstreamer_python3_helper.cc']
+  nnstreamer_python3_sources = []
 
-  shared_library('nnstreamer_python3',
-    'nnstreamer_python3_helper.c',
+  foreach s : nnstreamer_python3_src
+    nnstreamer_python3_sources += join_paths(meson.current_source_dir(), s)
+  endforeach
+
+  nnstreamer_python3_helper = shared_library('nnstreamer_python3',
+    sources: nnstreamer_python3_sources,
     name_prefix: '',
     dependencies: nnstreamer_python3_deps,
     install: true,
     install_dir: extra_install_dir
+  )
+
+  nnstreamer_python3_helper_dep = declare_dependency(
+    sources: nnstreamer_python3_sources,
+    dependencies: nnstreamer_python3_deps,
+    include_directories: include_directories('.')
   )
 endif

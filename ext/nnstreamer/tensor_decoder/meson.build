@@ -185,17 +185,17 @@ if have_python3
   foreach s : decoder_sub_python3_sources
     nnstreamer_decoder_python3_sources += join_paths(meson.current_source_dir(), s)
   endforeach
-  nnstreamer_decoder_python3_deps = [python3_dep, libdl_dep, glib_dep, gst_dep, nnstreamer_dep]
+
   shared_library('nnstreamer_decoder_python3',
     nnstreamer_decoder_python3_sources,
-    dependencies: nnstreamer_decoder_python3_deps,
+    dependencies: nnstreamer_python3_helper_dep,
     install: true,
     install_dir: decoder_subplugin_install_dir
   )
 
   static_library('nnstreamer_decoder_python3',
     nnstreamer_decoder_python3_sources,
-    dependencies: nnstreamer_decoder_python3_deps,
+    dependencies: nnstreamer_python3_helper_dep,
     install: true,
     install_dir: nnstreamer_libdir
   )
