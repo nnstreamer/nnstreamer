@@ -116,6 +116,17 @@ if gtest_dep.found()
 
     test('unittest_join', unittest_join, env: testenv)
 
+    # Run unittest_mqtt
+    if mqtt_support_is_available
+      unittest_mqtt = executable('unittest_mqtt',
+          join_paths('gstreamer_mqtt', 'unittest_mqtt.cc'),
+          dependencies: [nnstreamer_unittest_deps, unittest_util_dep],
+          install: get_option('install-test'),
+          install_dir: unittest_install_dir)
+
+      test('unittest_mqtt', unittest_mqtt, env: testenv)
+    endif
+
   # Run unittest_src_iio
     if build_platform != 'macos'
       unittest_src_iio = executable('unittest_src_iio',
