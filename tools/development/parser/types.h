@@ -15,12 +15,12 @@
 #include <glib-object.h>
 
 /** Define GST macro's substitutions */
-#define __GST_BIN(e) (((e)->id == oTI_GstBin && (e)->specialType == 0) ? \
+#define __GST_IS_BIN(e) ((e) && (e)->id == oTI_GstBin)
+#define __GST_BIN(e) ((__GST_IS_BIN(e) && (e)->specialType == 0) ? \
   (e) : NULL)
-#define __GST_IS_BIN(e) ((e)->id == oTI_GstBin)
 #define __GST_BIN_CAST(e) (e)
 
-#define __GST_IS_ELEMENT(e) ((e)->id == oTI_Element)
+#define __GST_IS_ELEMENT(e) ((e) && (e)->id == oTI_Element)
 #define __GST_ELEMENT(e) (__GST_IS_ELEMENT(e) ?\
   (e) : NULL)
 #define __GST_ELEMENT_CAST(e) ((_Element *)(e))
