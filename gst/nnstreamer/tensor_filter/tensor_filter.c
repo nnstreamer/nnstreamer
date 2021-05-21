@@ -518,6 +518,9 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   GstTensorFilter *self;
   GstTensorFilterPrivate *priv;
   GstTensorFilterProperties *prop;
+  GstTensorMetaInfo in_meta[NNS_TENSOR_SIZE_LIMIT];
+  GstTensorMetaInfo out_meta[NNS_TENSOR_SIZE_LIMIT];
+  GstMemory *mem;
   GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
   GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT];
   GstMemory *out_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
@@ -528,9 +531,9 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   GList *list;
   guint i, num_mems;
   gint ret;
-  gboolean allocate_in_invoke;
+  gboolean allocate_in_invoke, in_flexible, out_flexible;
   gboolean need_profiling;
-  gsize expected;
+  gsize expected, hsize;
 
   self = GST_TENSOR_FILTER_CAST (trans);
   priv = &self->priv;
@@ -559,6 +562,11 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
 
   allocate_in_invoke = gst_tensor_filter_allocate_in_invoke (priv);
 
+  in_flexible =
+      gst_tensor_pad_caps_is_flexible (GST_BASE_TRANSFORM_SINK_PAD (trans));
+  out_flexible =
+      gst_tensor_pad_caps_is_flexible (GST_BASE_TRANSFORM_SRC_PAD (trans));
+
   /* 1. Get all input tensors from inbuf. */
   /* Internal Logic Error or GST Bug (sinkcap changed!) */
   num_mems = gst_buffer_n_memory (inbuf);
@@ -570,8 +578,14 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
       goto mem_map_error;
     }
 
-    in_tensors[i].data = in_info[i].data;
-    in_tensors[i].size = in_info[i].size;
+    hsize = 0;
+    if (in_flexible) {
+      gst_tensor_meta_info_parse_header (&in_meta[i], in_info[i].data);
+      hsize = gst_tensor_meta_info_get_header_size (&in_meta[i]);
+    }
+
+    in_tensors[i].data = in_info[i].data + hsize;
+    in_tensors[i].size = in_info[i].size - hsize;
   }
 
   /* 1.1 Prepare tensors to invoke. */
@@ -624,15 +638,27 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     out_tensors[i].data = NULL;
     out_tensors[i].size = gst_tensor_filter_get_tensor_size (self, i, FALSE);
 
+    hsize = 0;
+    if (out_flexible) {
+      gst_tensor_info_convert_to_meta (&prop->output_meta.info[i],
+          &out_meta[i]);
+      hsize = gst_tensor_meta_info_get_header_size (&out_meta[i]);
+    }
+
     /* allocate memory if allocate_in_invoke is FALSE */
     if (!allocate_in_invoke) {
-      out_mem[i] = gst_allocator_alloc (NULL, out_tensors[i].size, NULL);
+      out_mem[i] =
+          gst_allocator_alloc (NULL, out_tensors[i].size + hsize, NULL);
       if (!gst_memory_map (out_mem[i], &out_info[i], GST_MAP_WRITE)) {
         ml_logf ("Cannot map output memory buffer(%d)\n", i);
         goto mem_map_error;
       }
 
-      out_tensors[i].data = out_info[i].data;
+      out_tensors[i].data = out_info[i].data + hsize;
+
+      /* append header */
+      if (out_flexible)
+        gst_tensor_meta_info_update_header (&out_meta[i], out_info[i].data);
     }
   }
 
@@ -671,8 +697,21 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   if (priv->combi.out_combi_i_defined) {
     for (list = priv->combi.out_combi_i; list != NULL; list = list->next) {
       i = GPOINTER_TO_UINT (list->data);
-      gst_memory_ref (in_mem[i]);
-      gst_buffer_append_memory (outbuf, in_mem[i]);
+
+      if (!in_flexible && out_flexible) {
+        /* append header */
+        gst_tensor_info_convert_to_meta (&priv->in_config.info.info[i],
+            &in_meta[i]);
+        mem = gst_tensor_meta_info_append_header (&in_meta[i], in_mem[i]);
+      } else if (in_flexible && !out_flexible) {
+        /* remove header */
+        hsize = gst_tensor_meta_info_get_header_size (&in_meta[i]);
+        mem = gst_memory_share (in_mem[i], hsize, -1);
+      } else {
+        mem = gst_memory_ref (in_mem[i]);
+      }
+
+      gst_buffer_append_memory (outbuf, mem);
     }
   }
 
@@ -700,8 +739,14 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
 
     if (allocate_in_invoke) {
       /* prepare memory block if successfully done */
-      out_mem[i] = gst_tensor_filter_get_wrapped_mem (self,
+      out_mem[i] = mem = gst_tensor_filter_get_wrapped_mem (self,
           out_tensors[i].data, out_tensors[i].size);
+
+      if (out_flexible) {
+        /* prepare new memory block with meta */
+        out_mem[i] = gst_tensor_meta_info_append_header (&out_meta[i], mem);
+        gst_memory_unref (mem);
+      }
     }
 
     /* append the memory block to outbuf */
