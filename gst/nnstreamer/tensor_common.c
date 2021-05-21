@@ -1015,14 +1015,10 @@ _peer_has_tensor_caps (GstPad * pad)
   peer_caps = gst_pad_peer_query_caps (pad, NULL);
   if (peer_caps) {
     GstCaps *caps = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT);
-    GstCaps *intersection =
-        gst_caps_intersect_full (caps, peer_caps, GST_CAPS_INTERSECT_FIRST);
 
-    if (!gst_caps_is_empty (intersection))
-      ret = TRUE;
+    ret = gst_caps_can_intersect (caps, peer_caps);
 
     gst_caps_unref (caps);
-    gst_caps_unref (intersection);
     gst_caps_unref (peer_caps);
   }
 
@@ -1049,20 +1045,26 @@ _peer_is_flexible_tensor_caps (GstPad * pad)
 }
 
 /**
- * @brief Get tensors caps from tensors config and caps of the peer connected to the pad
- * @param pad GstPad to check peer caps
+ * @brief Get pad caps from tensor config and caps of the peer connected to the pad.
+ * @param pad GstPad to get possible caps
  * @param config tensors config structure
- * @return caps for given config and pad. Caller is responsible for unreffing the returned caps.
+ * @return caps for given config. Caller is responsible for unreffing the returned caps.
+ * @note This function is included in nnstreamer internal header for native APIs.
+ *       When changing the declaration, you should update the internal header (nnstreamer_internal.h).
  */
 GstCaps *
-gst_tensors_get_pad_caps (GstPad * pad, const GstTensorsConfig * config)
+gst_tensor_pad_caps_from_config (GstPad * pad, const GstTensorsConfig * config)
 {
   GstCaps *caps = NULL;
+  GstCaps *templ;
   gboolean is_flexible;
 
   g_return_val_if_fail (GST_IS_PAD (pad), NULL);
   g_return_val_if_fail (config != NULL, NULL);
 
+  templ = gst_pad_get_pad_template_caps (pad);
+
+  /* other/tensors-flexible */
   is_flexible = gst_tensors_info_is_flexible (&config->info);
 
   /* check peer element is flexible */
@@ -1076,19 +1078,66 @@ gst_tensors_get_pad_caps (GstPad * pad, const GstTensorsConfig * config)
       gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION,
           config->rate_n, config->rate_d, NULL);
     }
-  } else if (config->info.num_tensors == 1 && _peer_has_tensor_caps (pad)) {
-    GstTensorConfig tensor_config;
 
-    gst_tensor_config_init (&tensor_config);
-    tensor_config.info = config->info.info[0];
-    tensor_config.rate_n = config->rate_n;
-    tensor_config.rate_d = config->rate_d;
-
-    caps = gst_tensor_caps_from_config (&tensor_config);
-  } else {
-    caps = gst_tensors_caps_from_config (config);
+    goto intersectable;
   }
+
+  /* other/tensor */
+  if (config->info.num_tensors == 1 && _peer_has_tensor_caps (pad)) {
+    GstTensorConfig c;
+
+    gst_tensor_config_init (&c);
+    c.info = config->info.info[0];
+    c.rate_n = config->rate_n;
+    c.rate_d = config->rate_d;
+
+    caps = gst_tensor_caps_from_config (&c);
+    if (gst_caps_can_intersect (caps, templ))
+      goto done;
+
+    gst_caps_unref (caps);
+  }
+
+  /* other/tensors */
+  caps = gst_tensors_caps_from_config (config);
+
+intersectable:
+  if (!gst_caps_can_intersect (caps, templ)) {
+    gst_caps_unref (caps);
+    caps = NULL;
+  }
+
+done:
+  gst_caps_unref (templ);
   return caps;
+}
+
+/**
+ * @brief Check current pad caps is flexible tensor.
+ * @param pad GstPad to check current caps
+ * @return TRUE if pad has flexible tensor caps.
+ * @note This function is included in nnstreamer internal header for native APIs.
+ *       When changing the declaration, you should update the internal header (nnstreamer_internal.h).
+ */
+gboolean
+gst_tensor_pad_caps_is_flexible (GstPad * pad)
+{
+  GstCaps *caps;
+  gboolean ret = FALSE;
+
+  g_return_val_if_fail (GST_IS_PAD (pad), FALSE);
+
+  caps = gst_pad_get_current_caps (pad);
+  if (caps) {
+    GstStructure *structure = gst_caps_get_structure (caps, 0);
+    const gchar *name = gst_structure_get_name (structure);
+
+    if (name)
+      ret = g_str_equal (name, NNS_MIMETYPE_TENSORS_FLEXIBLE);
+    gst_caps_unref (caps);
+  }
+
+  return ret;
 }
 
 /**
@@ -1277,6 +1326,8 @@ gst_tensor_get_element_count (const tensor_dim dim)
 gsize
 gst_tensor_get_element_size (tensor_type type)
 {
+  g_return_val_if_fail (type >= 0 && type <= _NNS_END, 0);
+
   return tensor_element_size[type];
 }
 
@@ -1363,6 +1414,8 @@ gst_tensor_get_type (const gchar * typestr)
 const gchar *
 gst_tensor_get_type_string (tensor_type type)
 {
+  g_return_val_if_fail (type >= 0 && type <= _NNS_END, NULL);
+
   return tensor_element_typename[type];
 }
 

@@ -732,7 +732,7 @@ gst_tensor_if_get_tensor_pad (GstTensorIf * tensor_if,
   gst_pad_set_active (pad, TRUE);
   gst_element_add_pad (GST_ELEMENT_CAST (tensor_if), pad);
 
-  caps = gst_tensors_get_pad_caps (pad, config);
+  caps = gst_tensor_pad_caps_from_config (pad, config);
 
   silent_debug_caps (caps, "out caps");
   gst_pad_set_caps (pad, caps);

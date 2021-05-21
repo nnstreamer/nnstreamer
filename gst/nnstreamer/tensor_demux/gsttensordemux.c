@@ -410,7 +410,7 @@ gst_tensor_demux_get_tensor_pad (GstTensorDemux * tensor_demux,
 
   /* configure nth pad caps */
   if (gst_tensor_demux_get_tensor_config (tensor_demux, &config, nth, total)) {
-    caps = gst_tensors_get_pad_caps (pad, &config);
+    caps = gst_tensor_pad_caps_from_config (pad, &config);
 
     gst_pad_set_caps (pad, caps);
     gst_caps_unref (caps);
