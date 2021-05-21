@@ -445,6 +445,40 @@ gst_tensor_mux_send_segment_event (GstTensorMux * tensor_mux,
 }
 
 /**
+ * @brief Process flex tensor.
+ */
+static GstBuffer *
+gst_tensor_mux_chain_flex_tensor (GstTensorMux * tensor_mux, GstBuffer * buf)
+{
+  GstBuffer *buffer;
+  GstMemory *mem;
+  GstTensorsInfo *info;
+  GstTensorMetaInfo meta;
+  guint i;
+
+  info = &tensor_mux->tensors_config.info;
+  buffer = gst_buffer_new ();
+
+  for (i = 0; i < info->num_tensors; i++) {
+    mem = gst_buffer_peek_memory (buf, i);
+
+    if (gst_tensor_info_is_flexible (&info->info[i])) {
+      mem = gst_memory_ref (mem);
+    } else {
+      /* append header */
+      gst_tensor_info_convert_to_meta (&info->info[i], &meta);
+      mem = gst_tensor_meta_info_append_header (&meta, mem);
+    }
+
+    gst_buffer_append_memory (buffer, mem);
+  }
+
+  gst_buffer_copy_into (buffer, buf, GST_BUFFER_COPY_METADATA, 0, -1);
+  gst_buffer_unref (buf);
+  return buffer;
+}
+
+/**
  * @brief Gst Collect Pads Function which is called once collect pads done.
  * @param pads GstCollectPads
  * @param tensor_mux Muxer
@@ -494,6 +528,10 @@ gst_tensor_mux_collected (GstCollectPads * pads, GstTensorMux * tensor_mux)
 
   gst_tensor_mux_send_segment_event (tensor_mux, GST_BUFFER_PTS (tensors_buf),
       GST_BUFFER_DTS (tensors_buf));
+
+  /* add header if output is flexible */
+  if (gst_tensor_pad_caps_is_flexible (tensor_mux->srcpad))
+    tensors_buf = gst_tensor_mux_chain_flex_tensor (tensor_mux, tensors_buf);
 
   ret = gst_pad_push (tensor_mux->srcpad, tensors_buf);
   tensor_mux->need_set_time = TRUE;
