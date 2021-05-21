@@ -401,7 +401,8 @@ gst_tensor_mux_set_src_caps (GstTensorMux * tensor_mux)
     GstCaps *caps;
 
     if (gst_tensors_config_validate (&tensor_mux->tensors_config)) {
-      caps = gst_tensors_caps_from_config (&tensor_mux->tensors_config);
+      caps = gst_tensor_pad_caps_from_config (tensor_mux->srcpad,
+          &tensor_mux->tensors_config);
 
       if (gst_pad_set_caps (tensor_mux->srcpad, caps)) {
         tensor_mux->negotiated = TRUE;

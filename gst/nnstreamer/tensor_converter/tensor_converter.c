@@ -1966,7 +1966,7 @@ gst_tensor_converter_update_caps (GstTensorConverter * self)
   GstCaps *curr_caps, *out_caps;
 
   config = &self->tensors_config;
-  out_caps = gst_tensors_get_pad_caps (self->srcpad, config);
+  out_caps = gst_tensor_pad_caps_from_config (self->srcpad, config);
 
   /* Update src pad caps if it is different. */
   curr_caps = gst_pad_get_current_caps (self->srcpad);

@@ -385,16 +385,6 @@ extern const gchar *
 gst_tensor_get_type_string (tensor_type type);
 
 /**
- * @brief Get tensors caps from tensors config and caps of the peer connected to the pad
- * @param pad GstPad to check peer caps
- * @param config tensors config structure
- * @return caps for given config and pad. Caller is responsible for unreffing the returned caps.
- */
-extern GstCaps *
-gst_tensors_get_pad_caps (GstPad * pad, const GstTensorsConfig * config);
-
-
-/**
  * @brief set alignment that default allocator would align to
  * @param alignment bytes of alignment
  */

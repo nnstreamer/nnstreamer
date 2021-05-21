@@ -77,5 +77,22 @@ gst_tensor_filter_detect_framework (const gchar * const *model_files, const guin
 extern gboolean
 gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw);
 
+/**
+ * @brief Get pad caps from tensor config and caps of the peer connected to the pad.
+ * @param pad GstPad to get possible caps
+ * @param config tensors config structure
+ * @return caps for given config. Caller is responsible for unreffing the returned caps.
+ */
+extern GstCaps *
+gst_tensor_pad_caps_from_config (GstPad * pad, const GstTensorsConfig * config);
+
+/**
+ * @brief Check current pad caps is flexible tensor.
+ * @param pad GstPad to check current caps
+ * @return TRUE if pad has flexible tensor caps.
+ */
+extern gboolean
+gst_tensor_pad_caps_is_flexible (GstPad * pad);
+
 G_END_DECLS
 #endif /* __NNSTREAMER_INTERNAL_H__ */
