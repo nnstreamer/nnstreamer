@@ -1184,6 +1184,349 @@ TEST (commonTensorsInfoString, names)
 }
 
 /**
+ * @brief Test for tensor meta info (default value after init).
+ */
+TEST (commonMetaInfo, initDefaultValue)
+{
+  GstTensorMetaInfo meta;
+  guint i, major, minor;
+
+  major = minor = 0;
+  gst_tensor_meta_info_init (&meta);
+
+  EXPECT_EQ (meta.type, _NNS_END);
+  EXPECT_EQ (meta.format, _NNS_TENSOR_FORMAT_STATIC);
+  EXPECT_EQ (meta.media_type, _NNS_TENSOR);
+  for (i = 0; i < NNS_TENSOR_META_RANK_LIMIT; i++)
+    EXPECT_EQ (meta.dimension[i], 0U);
+
+  /* current version after init */
+  gst_tensor_meta_info_get_version (&meta, &major, &minor);
+  EXPECT_TRUE (major > 0 || minor > 0);
+}
+
+/**
+ * @brief Test for tensor meta info (header size with invalid param).
+ */
+TEST (commonMetaInfo, headerSizeInvalidParam01_n)
+{
+  gsize hsize;
+
+  hsize = gst_tensor_meta_info_get_header_size (NULL);
+  EXPECT_EQ (hsize, 0U);
+}
+
+/**
+ * @brief Test for tensor meta info (header size with invalid meta).
+ */
+TEST (commonMetaInfo, headerSizeInvalidParam02_n)
+{
+  GstTensorMetaInfo meta = {0, };
+  gsize hsize;
+
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  EXPECT_EQ (hsize, 0U);
+}
+
+/**
+ * @brief Test for tensor meta info (data size with invalid param).
+ */
+TEST (commonMetaInfo, dataSizeInvalidParam01_n)
+{
+  gsize dsize;
+
+  dsize = gst_tensor_meta_info_get_data_size (NULL);
+  EXPECT_EQ (dsize, 0U);
+}
+
+/**
+ * @brief Test for tensor meta info (data size with invalid meta).
+ */
+TEST (commonMetaInfo, dataSizeInvalidParam02_n)
+{
+  GstTensorMetaInfo meta = {0, };
+  gsize dsize;
+
+  dsize = gst_tensor_meta_info_get_data_size (&meta);
+  EXPECT_EQ (dsize, 0U);
+}
+
+/**
+ * @brief Test for tensor meta info (validate meta with invalid param).
+ */
+TEST (commonMetaInfo, validateInvalidParam01_n)
+{
+  gboolean valid;
+
+  valid = gst_tensor_meta_info_validate (NULL);
+  EXPECT_FALSE (valid);
+}
+
+/**
+ * @brief Test for tensor meta info (validate meta with invalid meta).
+ */
+TEST (commonMetaInfo, validateInvalidParam02_n)
+{
+  GstTensorMetaInfo meta = { 0, };
+  gboolean valid;
+
+  /* invalid version */
+  valid = gst_tensor_meta_info_validate (&meta);
+  EXPECT_FALSE (valid);
+
+  /* set valid meta */
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_UINT8;
+  meta.dimension[0] = 10;
+  meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  meta.media_type = _NNS_VIDEO;
+  valid = gst_tensor_meta_info_validate (&meta);
+  EXPECT_TRUE (valid);
+
+  /* invalid type */
+  meta.type = _NNS_END;
+  valid = gst_tensor_meta_info_validate (&meta);
+  EXPECT_FALSE (valid);
+  meta.type = _NNS_UINT8;
+
+  /* invalid dimension */
+  meta.dimension[0] = 0;
+  valid = gst_tensor_meta_info_validate (&meta);
+  EXPECT_FALSE (valid);
+  meta.dimension[0] = 10;
+
+  /* invalid format */
+  meta.format = 100;
+  valid = gst_tensor_meta_info_validate (&meta);
+  EXPECT_FALSE (valid);
+  meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+  /* invalid media type */
+  meta.media_type = _NNS_MEDIA_ANY;
+  valid = gst_tensor_meta_info_validate (&meta);
+  EXPECT_FALSE (valid);
+}
+
+/**
+ * @brief Test for tensor meta info (update header with invalid param).
+ */
+TEST (commonMetaInfo, updateHeaderInvalidParam_n)
+{
+  GstTensorMetaInfo meta;
+  gpointer header;
+  gsize hsize;
+  gboolean ret;
+
+  gst_tensor_meta_info_init (&meta);
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  header = g_malloc0 (hsize);
+
+  ret = gst_tensor_meta_info_update_header (NULL, header);
+  EXPECT_FALSE (ret);
+
+  ret = gst_tensor_meta_info_update_header (&meta, NULL);
+  EXPECT_FALSE (ret);
+
+  g_free (header);
+}
+
+/**
+ * @brief Test for tensor meta info (parse header with invalid param).
+ */
+TEST (commonMetaInfo, parseHeaderInvalidParam_n)
+{
+  GstTensorMetaInfo meta;
+  gpointer header;
+  gsize hsize;
+  gboolean ret;
+
+  gst_tensor_meta_info_init (&meta);
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  header = g_malloc0 (hsize);
+
+  ret = gst_tensor_meta_info_parse_header (NULL, header);
+  EXPECT_FALSE (ret);
+
+  ret = gst_tensor_meta_info_parse_header (&meta, NULL);
+  EXPECT_FALSE (ret);
+
+  g_free (header);
+}
+
+/**
+ * @brief Test for tensor meta info (parse memory with invalid param).
+ */
+TEST (commonMetaInfo, parseMemInvalidParam_n)
+{
+  GstTensorMetaInfo meta;
+  GstMemory *mem;
+  gsize hsize;
+  gboolean ret;
+
+  gst_tensor_meta_info_init (&meta);
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  mem = gst_allocator_alloc (NULL, hsize, NULL);
+
+  ret = gst_tensor_meta_info_parse_memory (NULL, mem);
+  EXPECT_FALSE (ret);
+
+  ret = gst_tensor_meta_info_parse_memory (&meta, NULL);
+  EXPECT_FALSE (ret);
+
+  gst_memory_unref (mem);
+}
+
+/**
+ * @brief Test for tensor meta info (append header to memory).
+ */
+TEST (commonMetaInfo, appendHeader)
+{
+  GstTensorMetaInfo meta1, meta2;
+  GstMemory *result, *data;
+  gsize hsize, msize;
+  gboolean ret;
+
+  gst_tensor_meta_info_init (&meta1);
+  meta1.type = _NNS_INT16;
+  meta1.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  meta1.media_type = _NNS_OCTET;
+  meta1.dimension[0] = 300U;
+  meta1.dimension[1] = 1U;
+
+  hsize = gst_tensor_meta_info_get_header_size (&meta1);
+  data = gst_allocator_alloc (NULL, 300, NULL);
+
+  result = gst_tensor_meta_info_append_header (&meta1, data);
+  EXPECT_TRUE (result != NULL);
+
+  msize = gst_memory_get_sizes (result, NULL, NULL);
+  EXPECT_EQ (msize, hsize + 300U);
+
+  ret = gst_tensor_meta_info_parse_memory (&meta2, result);
+  EXPECT_TRUE (ret);
+
+  EXPECT_EQ (meta1.version, meta2.version);
+  EXPECT_EQ (meta2.type, _NNS_INT16);
+  EXPECT_EQ (meta2.format, _NNS_TENSOR_FORMAT_FLEXIBLE);
+  EXPECT_EQ (meta2.media_type, _NNS_OCTET);
+  EXPECT_EQ (meta2.dimension[0], 300U);
+  EXPECT_EQ (meta2.dimension[1], 1U);
+
+  gst_memory_unref (data);
+  gst_memory_unref (result);
+}
+
+/**
+ * @brief Test for tensor meta info (append header to memory with invalid param).
+ */
+TEST (commonMetaInfo, appendHeaderInvalidParam_n)
+{
+  GstTensorMetaInfo meta;
+  GstMemory *result, *data;
+
+  gst_tensor_meta_info_init (&meta);
+  data = gst_allocator_alloc (NULL, 300, NULL);
+
+  result = gst_tensor_meta_info_append_header (NULL, data);
+  EXPECT_FALSE (result != NULL);
+
+  result = gst_tensor_meta_info_append_header (&meta, NULL);
+  EXPECT_FALSE (result != NULL);
+
+  gst_memory_unref (data);
+}
+
+/**
+ * @brief Test for tensor meta info (convert meta).
+ */
+TEST (commonMetaInfo, convertMeta)
+{
+  GstTensorMetaInfo meta;
+  GstTensorInfo info1, info2;
+  gboolean ret;
+
+  gst_tensor_info_init (&info1);
+  info1.type = _NNS_INT16;
+  info1.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  gst_tensor_parse_dimension ("300:1", info1.dimension);
+
+  ret = gst_tensor_info_convert_to_meta (&info1, &meta);
+  EXPECT_TRUE (ret);
+
+  gst_tensor_info_init (&info2);
+  ret = gst_tensor_meta_info_convert (&meta, &info2);
+  EXPECT_TRUE (ret);
+
+  EXPECT_EQ (info2.type, _NNS_INT16);
+  EXPECT_EQ (info2.format, _NNS_TENSOR_FORMAT_FLEXIBLE);
+  EXPECT_EQ (info2.dimension[0], 300U);
+  EXPECT_EQ (info2.dimension[1], 1U);
+}
+
+/**
+ * @brief Test for tensor meta info (convert gst-info with invalid param).
+ */
+TEST (commonMetaInfo, convertMetaInvalidParam01_n)
+{
+  GstTensorMetaInfo meta;
+  GstTensorInfo info;
+  gboolean ret;
+
+  gst_tensor_info_init (&info);
+  info.type = _NNS_UINT16;
+  info.format = _NNS_TENSOR_FORMAT_STATIC;
+  gst_tensor_parse_dimension ("100:1", info.dimension);
+
+  ret = gst_tensor_info_convert_to_meta (NULL, &meta);
+  EXPECT_FALSE (ret);
+
+  ret = gst_tensor_info_convert_to_meta (&info, NULL);
+  EXPECT_FALSE (ret);
+}
+
+/**
+ * @brief Test for tensor meta info (convert meta with invalid param).
+ */
+TEST (commonMetaInfo, convertMetaInvalidParam02_n)
+{
+  GstTensorMetaInfo meta;
+  GstTensorInfo info;
+  gboolean ret;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_UINT16;
+  meta.format = _NNS_TENSOR_FORMAT_STATIC;
+  gst_tensor_parse_dimension ("100:1", meta.dimension);
+
+  ret = gst_tensor_meta_info_convert (NULL, &info);
+  EXPECT_FALSE (ret);
+
+  ret = gst_tensor_meta_info_convert (&meta, NULL);
+  EXPECT_FALSE (ret);
+}
+
+/**
+ * @brief Test for tensor meta info (dimension rank mismatched).
+ */
+TEST (commonMetaInfo, convertMetaInvalidParam03_n)
+{
+  GstTensorMetaInfo meta;
+  GstTensorInfo info;
+  guint i;
+  gboolean ret;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_UINT16;
+  meta.format = _NNS_TENSOR_FORMAT_STATIC;
+  /* rank > NNS_TENSOR_RANK_LIMIT */
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT + 3; i++)
+    meta.dimension[i] = 2;
+
+  ret = gst_tensor_meta_info_convert (&meta, &info);
+  EXPECT_FALSE (ret);
+}
+
+/**
  * @brief Test to replace string.
  */
 TEST (commonStringUtil, replaceStr01)
