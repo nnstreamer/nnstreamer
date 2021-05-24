@@ -296,6 +296,7 @@ pose_load_metadata_from_file (pose_data * pd, const gchar * file_path)
   }
 
   g_strfreev (lines);
+  g_free (contents);
 
   return TRUE;
 }
