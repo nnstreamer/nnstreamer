@@ -810,11 +810,9 @@ gst_tensor_if_get_comparison_result (GstTensorIf * tensor_if,
   svtc_1.data = tensor_if->sv->data[0];
   gst_tensor_data_typecast (&svtc_1, cv->type);
 
-  if (tensor_if->sv->num > 1) {
-    svtc_2.type = tensor_if->sv->type;
-    svtc_2.data = tensor_if->sv->data[1];
-    gst_tensor_data_typecast (&svtc_2, cv->type);
-  }
+  svtc_2.type = tensor_if->sv->type;
+  svtc_2.data = tensor_if->sv->data[1];
+  gst_tensor_data_typecast (&svtc_2, cv->type);
 
   switch (cv->type) {
     case _NNS_INT32:
