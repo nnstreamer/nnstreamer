@@ -659,6 +659,7 @@ TEST (commonTensorsInfo, validateInvalidParam_n)
 TEST (commonTensorInfo, equalInvalidParam0_n)
 {
   GstTensorInfo info;
+  gst_tensor_info_init (&info);
   EXPECT_FALSE (gst_tensor_info_is_equal (NULL, &info));
 }
 
@@ -668,6 +669,7 @@ TEST (commonTensorInfo, equalInvalidParam0_n)
 TEST (commonTensorInfo, equalInvalidParam1_n)
 {
   GstTensorInfo info;
+  gst_tensor_info_init (&info);
   EXPECT_FALSE (gst_tensor_info_is_equal (&info, NULL));
 }
 
@@ -677,6 +679,7 @@ TEST (commonTensorInfo, equalInvalidParam1_n)
 TEST (commonTensorsInfo, equalInvalidParam0_n)
 {
   GstTensorsInfo info;
+  gst_tensors_info_init (&info);
   EXPECT_FALSE (gst_tensors_info_is_equal (NULL, &info));
 }
 
@@ -686,6 +689,7 @@ TEST (commonTensorsInfo, equalInvalidParam0_n)
 TEST (commonTensorsInfo, equalInvalidParam1_n)
 {
   GstTensorsInfo info;
+  gst_tensors_info_init (&info);
   EXPECT_FALSE (gst_tensors_info_is_equal (&info, NULL));
 }
 
@@ -712,6 +716,7 @@ TEST (commonTensorsInfo, parsingDimInvalidParam0_n)
 TEST (commonTensorsInfo, parsingDimInvalidParam1_n)
 {
   GstTensorsInfo info;
+  gst_tensors_info_init (&info);
   EXPECT_EQ (0U, gst_tensors_info_parse_dimensions_string (&info, NULL));
 }
 
@@ -730,6 +735,7 @@ TEST (commonTensorsInfo, parsingTypeInvalidParam0_n)
 TEST (commonTensorsInfo, parsingTypeInvalidParam1_n)
 {
   GstTensorsInfo info;
+  gst_tensors_info_init (&info);
   EXPECT_EQ (0U, gst_tensors_info_parse_types_string (&info, NULL));
 }
 
@@ -748,6 +754,7 @@ TEST (commonTensorsInfo, parsingNameInvalidParam0_n)
 TEST (commonTensorsInfo, parsingNameInvalidParam1_n)
 {
   GstTensorsInfo info;
+  gst_tensors_info_init (&info);
   EXPECT_EQ (0U, gst_tensors_info_parse_names_string (&info, NULL));
 }
 
@@ -765,6 +772,7 @@ TEST (commonTensorsInfo, getDimInvalidParam0_n)
 TEST (commonTensorsInfo, getDimInvalidParam1_n)
 {
   GstTensorsInfo info;
+  gst_tensors_info_init (&info);
   info.num_tensors = 0;
   EXPECT_EQ (0U, gst_tensors_info_get_dimensions_string (&info));
 }
@@ -783,6 +791,7 @@ TEST (commonTensorsInfo, getTypeInvalidParam0_n)
 TEST (commonTensorsInfo, getTypeInvalidParam1_n)
 {
   GstTensorsInfo info;
+  gst_tensors_info_init (&info);
   info.num_tensors = 0;
   EXPECT_EQ (0U, gst_tensors_info_get_types_string (&info));
 }
@@ -801,6 +810,7 @@ TEST (commonTensorsInfo, getNameInvalidParam0_n)
 TEST (commonTensorsInfo, getNameInvalidParam1_n)
 {
   GstTensorsInfo info;
+  gst_tensors_info_init (&info);
   info.num_tensors = 0;
   EXPECT_EQ (0U, gst_tensors_info_get_names_string (&info));
 }
@@ -811,7 +821,7 @@ TEST (commonTensorsInfo, getNameInvalidParam1_n)
 TEST (commonTensorConfig, equal07_n)
 {
   GstTensorConfig conf;
-
+  gst_tensor_config_init (&conf);
   EXPECT_FALSE (gst_tensor_config_is_equal (NULL, &conf));
 }
 
@@ -821,7 +831,7 @@ TEST (commonTensorConfig, equal07_n)
 TEST (commonTensorConfig, equal08_n)
 {
   GstTensorConfig conf;
-
+  gst_tensor_config_init (&conf);
   EXPECT_FALSE (gst_tensor_config_is_equal (NULL, &conf));
 }
 
@@ -911,7 +921,7 @@ TEST (commonTensorsConfig, equal06_n)
 TEST (commonTensorsConfig, equal07_n)
 {
   GstTensorsConfig conf;
-
+  gst_tensors_config_init (&conf);
   EXPECT_FALSE (gst_tensors_config_is_equal (NULL, &conf));
 }
 
@@ -921,7 +931,7 @@ TEST (commonTensorsConfig, equal07_n)
 TEST (commonTensorsConfig, equal08_n)
 {
   GstTensorsConfig conf;
-
+  gst_tensors_config_init (&conf);
   EXPECT_FALSE (gst_tensors_config_is_equal (&conf, NULL));
 }
 
@@ -1003,7 +1013,7 @@ TEST (commonTensorConfig, fromStructreInvalidParam0_n)
 TEST (commonTensorConfig, fromStructreInvalidParam1_n)
 {
   GstTensorConfig conf;
-
+  gst_tensor_config_init (&conf);
   EXPECT_FALSE (gst_tensor_config_from_structure (&conf, NULL));
 }
 
@@ -1023,7 +1033,7 @@ TEST (commonTensorsConfig, fromStructreInvalidParam0_n)
 TEST (commonTensorsConfig, fromStructreInvalidParam1_n)
 {
   GstTensorsConfig conf;
-
+  gst_tensors_config_init (&conf);
   EXPECT_FALSE (gst_tensors_config_from_structure (&conf, NULL));
 }
 
