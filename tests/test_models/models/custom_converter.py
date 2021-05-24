@@ -59,12 +59,12 @@ class CustomConverter(object):
     for i in range(num_tensors):
       tensor_key = "tensor_{idx}".format(idx=i)
       tensor = tensors[tensor_key].AsVector
-      dtype = _to_numpy_type (tensor[1].AsInt)
+      ttype = _to_numpy_type (tensor[1].AsInt)
       tdim = tensor[2].AsTypedVector
       dim = []
       for j in range(4):
         dim.append(tdim[j].AsInt)
-      tensors_info.append(nns.TensorShape(dim, np.uint8))
+      tensors_info.append(nns.TensorShape(dim, ttype))
       raw_data.append(np.frombuffer(tensor[3].AsBlob, dtype=np.uint8))
 
     return (tensors_info, raw_data, rate_n, rate_d)
