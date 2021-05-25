@@ -54,6 +54,198 @@ TEST (testMqttSrc, src_pull_wrongurl_n)
 }
 
 /**
+ * @brief Test get/set properties of mqttsink
+ */
+TEST (testMqttSink, sink_get_set_properties)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  gchar *sprop = NULL;
+  gboolean bprop;
+  gint iprop;
+  guint64 uprop;
+
+  ASSERT_TRUE (h != NULL);
+
+  /** test the default */
+  g_object_get (h->element, "debug", &bprop, NULL);
+  EXPECT_FALSE (bprop);
+
+  g_object_set (h->element, "debug", true, NULL);
+  g_object_get (h->element, "debug", &bprop, NULL);
+  EXPECT_TRUE (bprop);
+
+  g_object_set (h->element, "client-id", "testclientid", NULL);
+  g_object_get (h->element, "client-id", &sprop, NULL);
+  EXPECT_STREQ (sprop, "testclientid");
+  g_free (sprop);
+
+  g_object_set (h->element, "host", "hosttest", NULL);
+  g_object_get (h->element, "host", &sprop, NULL);
+  EXPECT_STREQ (sprop, "hosttest");
+  g_free (sprop);
+
+  g_object_set (h->element, "port", "testport", NULL);
+  g_object_get (h->element, "port", &sprop, NULL);
+  EXPECT_STREQ (sprop, "testport");
+  g_free (sprop);
+
+  g_object_set (h->element, "pub-topic", "testtopic", NULL);
+  g_object_get (h->element, "pub-topic", &sprop, NULL);
+  EXPECT_STREQ (sprop, "testtopic");
+  g_free (sprop);
+  
+  g_object_set (h->element, "pub-wait-timeout", 9999, NULL);
+  g_object_get (h->element, "pub-wait-timeout", &uprop, NULL);
+  EXPECT_TRUE (uprop == 9999);
+
+  g_object_set (h->element, "cleansession", false, NULL);
+  g_object_get (h->element, "cleansession", &bprop, NULL);
+  EXPECT_FALSE (bprop);
+
+  g_object_set (h->element, "keep-alive-interval", 9999, NULL);
+  g_object_get (h->element, "keep-alive-interval", &iprop, NULL);
+  EXPECT_TRUE (iprop == 9999);
+
+  g_object_set (h->element, "max-buffer-size", 1024, NULL);
+  g_object_get (h->element, "max-buffer-size", &uprop, NULL);
+  EXPECT_TRUE (uprop == 1024);
+
+  g_object_set (h->element, "num-buffers", 10, NULL);
+  g_object_get (h->element, "num-buffers", &iprop, NULL);
+  EXPECT_TRUE (iprop == 10);
+
+  g_object_set (h->element, "mqtt-qos", 1, NULL);
+  g_object_get (h->element, "mqtt-qos", &iprop, NULL);
+  EXPECT_TRUE (iprop == 1);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test get/set properties of mqttsrc
+ */
+TEST (testMqttSrc, src_get_set_properties)
+{
+  GstHarness *h = gst_harness_new ("mqttsrc");
+  gchar *sprop = NULL;
+  gboolean bprop;
+  gint iprop;
+  gint64 lprop;
+
+  ASSERT_TRUE (h != NULL);
+
+  /** test the default */
+  g_object_get (h->element, "debug", &bprop, NULL);
+  EXPECT_FALSE (bprop);
+
+  g_object_set (h->element, "debug", true, NULL);
+  g_object_get (h->element, "debug", &bprop, NULL);
+  EXPECT_TRUE (bprop);
+
+  g_object_set (h->element, "is-live", false, NULL);
+  g_object_get (h->element, "is-live", &bprop, NULL);
+  EXPECT_FALSE (bprop);
+
+  g_object_set (h->element, "client-id", "testclientid", NULL);
+  g_object_get (h->element, "client-id", &sprop, NULL);
+  EXPECT_STREQ (sprop, "testclientid");
+  g_free (sprop);
+
+  g_object_set (h->element, "host", "hosttest", NULL);
+  g_object_get (h->element, "host", &sprop, NULL);
+  EXPECT_STREQ (sprop, "hosttest");
+  g_free (sprop);
+
+  g_object_set (h->element, "port", "testport", NULL);
+  g_object_get (h->element, "port", &sprop, NULL);
+  EXPECT_STREQ (sprop, "testport");
+  g_free (sprop);
+  
+  g_object_set (h->element, "sub-timeout", 99999999, NULL);
+  g_object_get (h->element, "sub-timeout", &lprop, NULL);
+  EXPECT_TRUE (lprop == 99999999);
+
+  g_object_set (h->element, "sub-topic", "testtopic", NULL);
+  g_object_get (h->element, "sub-topic", &sprop, NULL);
+  EXPECT_STREQ (sprop, "testtopic");
+  g_free (sprop);
+
+  g_object_set (h->element, "cleansession", false, NULL);
+  g_object_get (h->element, "cleansession", &bprop, NULL);
+  EXPECT_FALSE (bprop);
+
+  g_object_set (h->element, "keep-alive-interval", 9999, NULL);
+  g_object_get (h->element, "keep-alive-interval", &iprop, NULL);
+  EXPECT_TRUE (iprop == 9999);
+
+  g_object_set (h->element, "mqtt-qos", 1, NULL);
+  g_object_get (h->element, "mqtt-qos", &iprop, NULL);
+  EXPECT_TRUE (iprop == 1);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test get/set the invalid properties of mqttsink
+ */
+TEST (testMqttSink, sink_get_set_properties_n)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  gint iprop;
+  guint64 uprop;
+
+  ASSERT_TRUE (h != NULL);
+
+  g_object_set (h->element, "pub-wait-timeout", 0, NULL);
+  g_object_get (h->element, "pub-wait-timeout", &uprop, NULL);
+  EXPECT_FALSE (uprop == 0);
+
+  g_object_set (h->element, "keep-alive-interval", 0, NULL);
+  g_object_get (h->element, "keep-alive-interval", &iprop, NULL);
+  EXPECT_FALSE (iprop == 0);
+
+  g_object_set (h->element, "num-buffers", -10, NULL);
+  g_object_get (h->element, "num-buffers", &iprop, NULL);
+  EXPECT_FALSE (iprop == -10);
+
+  g_object_set (h->element, "mqtt-qos", -1, NULL);
+  g_object_get (h->element, "mqtt-qos", &iprop, NULL);
+  EXPECT_FALSE (iprop == -1);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test get/set the invalid properties of mqttsrc
+ */
+TEST (testMqttSrc, src_get_set_properties_n)
+{
+  GstHarness *h = gst_harness_new ("mqttsrc");
+  gint iprop;
+  gint64 lprop;
+
+  ASSERT_TRUE (h != NULL);
+
+  g_object_set (h->element, "sub-timeout", 0, NULL);
+  g_object_get (h->element, "sub-timeout", &lprop, NULL);
+  EXPECT_FALSE (lprop == 0);
+
+  g_object_set (h->element, "keep-alive-interval", 0, NULL);
+  g_object_get (h->element, "keep-alive-interval", &iprop, NULL);
+  EXPECT_FALSE (iprop == 0);
+
+  g_object_set (h->element, "num-buffers", -10, NULL);
+  g_object_get (h->element, "num-buffers", &iprop, NULL);
+  EXPECT_FALSE (iprop == -10);
+
+  g_object_set (h->element, "mqtt-qos", -1, NULL);
+  g_object_get (h->element, "mqtt-qos", &iprop, NULL);
+  EXPECT_FALSE (iprop == -1);
+
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Main GTest
  */
 int
