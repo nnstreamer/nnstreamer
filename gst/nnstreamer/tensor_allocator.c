@@ -47,13 +47,18 @@ _alloc (GstAllocator * allocator, gsize size, GstAllocationParams * params)
   GstAllocator *sysmem_alloc;
   GstAllocatorClass *sysmem_aclass;
   GstAllocationParams *_params;
+  GstMemory *mem;
 
   sysmem_alloc = gst_allocator_find (GST_ALLOCATOR_SYSMEM);
   sysmem_aclass = GST_ALLOCATOR_GET_CLASS (sysmem_alloc);
   _params = gst_allocation_params_copy (params);
   _params->align = gst_tensor_allocator_alignment;
 
-  return sysmem_aclass->alloc (allocator, size, _params);
+  mem = sysmem_aclass->alloc (allocator, size, _params);
+
+  gst_allocation_params_free (_params);
+  gst_object_unref (sysmem_alloc);
+  return mem;
 }
 
 /**
@@ -71,6 +76,8 @@ gst_tensor_allocator_class_init (GstTensorAllocatorClass * klass)
 
   allocator_class->alloc = _alloc;
   allocator_class->free = sysmem_aclass->free;
+
+  gst_object_unref (sysmem_alloc);
 }
 
 /**
@@ -90,6 +97,8 @@ gst_tensor_allocator_init (GstTensorAllocator * allocator)
   alloc->mem_copy = sysmem_alloc->mem_copy;
   alloc->mem_share = sysmem_alloc->mem_share;
   alloc->mem_is_span = sysmem_alloc->mem_is_span;
+
+  gst_object_unref (sysmem_alloc);
 }
 
 /**
@@ -113,7 +122,7 @@ gst_tensor_alloc_init (gsize alignment)
   /* allocator already set */
   if (allocator == NULL) {
     allocator = g_object_new (gst_tensor_allocator_get_type (), NULL);
-    gst_allocator_register (GST_TENSOR_ALLOCATOR, allocator);
+    gst_allocator_register (GST_TENSOR_ALLOCATOR, gst_object_ref (allocator));
   }
   gst_allocator_set_default (allocator);
 }
