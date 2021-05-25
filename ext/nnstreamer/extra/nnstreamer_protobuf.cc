@@ -149,7 +149,8 @@ gst_tensor_converter_protobuf (GstBuffer *in_buf, GstTensorsConfig *config, void
 
   for (guint i = 0; i < config->info.num_tensors; i++) {
     const nnstreamer::protobuf::Tensor *tensor = &tensors.tensor (i);
-    const gchar *name = tensor->name ().c_str ();
+    std::string _name = tensor->name ();
+    const gchar *name = _name.c_str ();
 
     config->info.info[i].name = (name && strlen (name) > 0) ? g_strdup (name) : NULL;
     config->info.info[i].type = (tensor_type)tensor->type ();
