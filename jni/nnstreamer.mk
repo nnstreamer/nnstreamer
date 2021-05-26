@@ -99,10 +99,12 @@ NNSTREAMER_FILTER_SNAP_SRCS := \
 
 # converter flatbuffers
 NNSTREAMER_CONVERTER_FLATBUF_SRCS := \
+    $(NNSTREAMER_EXT_HOME)/tensor_converter/tensor_converter_util.c \
     $(NNSTREAMER_EXT_HOME)/tensor_converter/tensor_converter_flatbuf.cc
 
 # converter flexbuffers
 NNSTREAMER_CONVERTER_FLEXBUF_SRCS := \
+    $(NNSTREAMER_EXT_HOME)/tensor_converter/tensor_converter_util.c \
     $(NNSTREAMER_EXT_HOME)/tensor_converter/tensor_converter_flexbuf.cc
 
 # decoder flatbuffers
