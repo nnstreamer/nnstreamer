@@ -35,6 +35,7 @@
 #include <typeinfo>
 #include "nnstreamer_plugin_api_converter.h"
 #include "nnstreamer_protobuf.h"
+#include "tensor_converter_util.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -52,37 +53,6 @@ pbc_query_caps (const GstTensorsConfig *config)
 }
 
 /** @brief tensor converter plugin's NNStreamerExternalConverter callback */
-static gboolean
-pbc_get_out_config (const GstCaps *in_cap, GstTensorsConfig *config)
-{
-  GstStructure *structure;
-
-  g_return_val_if_fail (config != NULL, FALSE);
-  gst_tensors_config_init (config);
-  g_return_val_if_fail (in_cap != NULL, FALSE);
-
-  structure = gst_caps_get_structure (in_cap, 0);
-  g_return_val_if_fail (structure != NULL, FALSE);
-
-  /* All tensor info should be updated later in chain function. */
-  config->info.info[0].type = _NNS_UINT8;
-  config->info.num_tensors = 1;
-  if (gst_tensor_parse_dimension ("1:1:1:1", config->info.info[0].dimension) == 0) {
-    ml_loge ("Failed to set initial dimension for subplugin");
-    return FALSE;
-  }
-
-  if (gst_structure_has_field (structure, "framerate")) {
-    gst_structure_get_fraction (structure, "framerate", &config->rate_n, &config->rate_d);
-  } else {
-    /* cannot get the framerate */
-    config->rate_n = 0;
-    config->rate_d = 1;
-  }
-  return TRUE;
-}
-
-/** @brief tensor converter plugin's NNStreamerExternalConverter callback */
 static GstBuffer *
 pbc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
 {
@@ -95,7 +65,7 @@ static gchar converter_subplugin_protobuf[] = "protobuf";
 static NNStreamerExternalConverter protobuf = {
   .name = converter_subplugin_protobuf,
   .convert = pbc_convert,
-  .get_out_config = pbc_get_out_config,
+  .get_out_config = tcu_get_out_config,
   .query_caps = pbc_query_caps
 };
 

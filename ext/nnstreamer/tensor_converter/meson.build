@@ -1,7 +1,8 @@
 # flatbuffer
 if flatbuf_support_is_available
   converter_sub_flatbuf_sources = [
-    'tensor_converter_flatbuf.cc'
+    'tensor_converter_flatbuf.cc',
+    'tensor_converter_util.c'
   ]
 
   nnstreamer_converter_flatbuf_sources = [fb_gen_src]
@@ -17,7 +18,8 @@ if flatbuf_support_is_available
   )
 
   converter_sub_flexbuf_sources = [
-    'tensor_converter_flexbuf.cc'
+    'tensor_converter_flexbuf.cc',
+    'tensor_converter_util.c'
   ]
 
   nnstreamer_converter_flexbuf_sources = []
@@ -36,7 +38,8 @@ endif
 # protocol buffer
 if protobuf_support_is_available
   converter_sub_protobuf_sources = [
-    'tensor_converter_protobuf.cc'
+    'tensor_converter_protobuf.cc',
+    'tensor_converter_util.c'
   ]
 
   nnstreamer_converter_protobuf_sources = []
