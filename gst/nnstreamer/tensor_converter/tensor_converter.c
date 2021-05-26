@@ -617,9 +617,12 @@ gst_tensor_converter_sink_event (GstPad * pad, GstObject * parent,
       silent_debug_caps (in_caps, "in-caps");
 
       if (gst_tensor_converter_parse_caps (self, in_caps)) {
-        gst_event_unref (event);
         gst_tensor_converter_update_caps (self);
+        gst_event_unref (event);
         return TRUE;
+      } else {
+        gst_event_unref (event);
+        return FALSE;
       }
       break;
     }
@@ -2052,6 +2055,7 @@ findExternalConverter (const char *media_type)
 
       if (g_strcmp0 (media_type, str_array[i]) == 0) {
         /* found matched media type */
+        g_strfreev (str_array);
         return ex;
       }
 

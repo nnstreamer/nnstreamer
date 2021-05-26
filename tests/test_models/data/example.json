@@ -1,0 +1,7 @@
+{
+    "json_string": "string_example",
+    "json_number": 100,
+    "json_array": [1, 2, 3, 4, 5],
+    "json_object": { "name":"John", "age":30},
+    "json_bool": true
+}
