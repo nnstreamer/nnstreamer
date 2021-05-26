@@ -19,9 +19,9 @@ export _PYTHONPATH=${PYTHONPATH}
 
 run_entry() {
   entry=$1
-  if [[ $entry == *"python3"* || $entry == *"python2"* ]]; then
-    PY=$(echo ${entry} | grep -oP "python[0-9]")
-    pushd ext/nnstreamer/tensor_filter
+  if [[ $entry == *"python3"* || $entry == *"unittest_converter"* ]]; then
+    PY="python3"
+    pushd ext/nnstreamer/extra
     TEST_PYTHONPATH=${PY}_module
     rm -rf ${TEST_PYTHONPATH}
     mkdir -p ${TEST_PYTHONPATH}
@@ -30,7 +30,7 @@ run_entry() {
     TEST_PYTHONPATH=$(pwd)
     export PYTHONPATH=${TEST_PYTHONPATH}
     if [[ ! -f ${TEST_PYTHONPATH}/nnstreamer_python.so ]]; then
-      ln -sf ../../extra/nnstreamer_${PY}.so nnstreamer_python.so
+      ln -sf ../nnstreamer_${PY}.so nnstreamer_python.so
     fi
     popd
     popd

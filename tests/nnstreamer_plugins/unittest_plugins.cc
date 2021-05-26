@@ -2551,7 +2551,7 @@ TEST (testTensorConverter, bytesToMultiInvalidDim01_n)
 
   /* push buffers */
   in_buf = gst_harness_create_buffer (h, data_size);
-  EXPECT_DEATH (gst_harness_push (h, in_buf), "");
+  EXPECT_EQ (GST_FLOW_NOT_NEGOTIATED, gst_harness_push (h, in_buf));
 
   EXPECT_EQ (gst_harness_buffers_received (h), 0U);
   gst_harness_teardown (h);
@@ -2591,7 +2591,7 @@ TEST (testTensorConverter, bytesToMultiInvalidDim02_n)
 
   /* push buffers */
   in_buf = gst_harness_create_buffer (h, data_size);
-  EXPECT_DEATH (gst_harness_push (h, in_buf), "");
+  EXPECT_EQ (GST_FLOW_NOT_NEGOTIATED, gst_harness_push (h, in_buf));
 
   EXPECT_EQ (gst_harness_buffers_received (h), 0U);
   gst_harness_teardown (h);
@@ -2630,7 +2630,7 @@ TEST (testTensorConverter, bytesToMultiInvalidType01_n)
 
   /* push buffers */
   in_buf = gst_harness_create_buffer (h, data_size);
-  EXPECT_DEATH (gst_harness_push (h, in_buf), "");
+  EXPECT_EQ (GST_FLOW_NOT_NEGOTIATED, gst_harness_push (h, in_buf));
 
   EXPECT_EQ (gst_harness_buffers_received (h), 0U);
   gst_harness_teardown (h);
@@ -2670,7 +2670,7 @@ TEST (testTensorConverter, bytesToMultiInvalidType02_n)
 
   /* push buffers */
   in_buf = gst_harness_create_buffer (h, data_size);
-  EXPECT_DEATH (gst_harness_push (h, in_buf), "");
+  EXPECT_EQ (GST_FLOW_NOT_NEGOTIATED, gst_harness_push (h, in_buf));
 
   EXPECT_EQ (gst_harness_buffers_received (h), 0U);
   gst_harness_teardown (h);
@@ -2792,7 +2792,7 @@ TEST (testTensorConverter, bytesToMultiInvalidFrames_n)
 
   /* push buffers */
   in_buf = gst_harness_create_buffer (h, data_size);
-  EXPECT_DEATH (gst_harness_push (h, in_buf), "");
+  EXPECT_EQ (GST_FLOW_NOT_NEGOTIATED, gst_harness_push (h, in_buf));
 
   EXPECT_EQ (gst_harness_buffers_received (h), 0U);
   gst_harness_teardown (h);

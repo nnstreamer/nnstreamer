@@ -143,7 +143,7 @@ if gtest_dep.found()
     if flatbuf_support_is_available
       unittest_converter = executable('unittest_converter',
         join_paths('nnstreamer_converter', 'unittest_converter.cc'),
-        dependencies: [nnstreamer_unittest_deps, unittest_util_dep, flatbuf_dep],
+        dependencies: [nnstreamer_unittest_deps, unittest_util_dep, flatbuf_dep, nnstreamer_python3_helper_dep],
         install: get_option('install-test'),
         install_dir: unittest_install_dir
       )
