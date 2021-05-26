@@ -122,7 +122,6 @@ class TFLiteInterpreter
 
   int invoke (const GstTensorMemory *input, GstTensorMemory *output);
   int loadModel (int num_threads, tflite_delegate_e delegate);
-  void moveInternals (TFLiteInterpreter &interp);
 
   int setInputTensorProp ();
   int setOutputTensorProp ();
@@ -204,6 +203,8 @@ class TFLiteInterpreter
 class TFLiteCore
 {
   public:
+  TFLiteCore ();
+  ~TFLiteCore ();
   int init (tflite_option_s *option);
   int loadModel ();
   gboolean compareModelPath (const char *model_path);
@@ -222,8 +223,8 @@ class TFLiteCore
   accl_hw accelerator;
   tflite_delegate_e delegate;
 
-  TFLiteInterpreter interpreter;
-  TFLiteInterpreter interpreter_sub;
+  TFLiteInterpreter *interpreter;
+  TFLiteInterpreter *interpreter_sub;
 
   void setAccelerator (const char *accelerators, tflite_delegate_e d);
 };
@@ -649,19 +650,6 @@ TFLiteInterpreter::setModelPath (const char *_model_path)
 }
 
 /**
- * @brief Move the ownership of interpreter internal members
- */
-void
-TFLiteInterpreter::moveInternals (TFLiteInterpreter &interp)
-{
-  interpreter = std::move (interp.interpreter);
-  model = std::move (interp.model);
-  inputTensorPtr = std::move (interp.inputTensorPtr);
-  outputTensorPtr = std::move (interp.outputTensorPtr);
-  setModelPath (interp.getModelPath ());
-}
-
-/**
  * @brief cache input and output tensor ptr before invoke
  * @return 0 on success. -errno on failure.
  */
@@ -704,6 +692,22 @@ fail_exit:
 }
 
 /**
+ * @brief	TFLiteCore constructor
+ */
+TFLiteCore::TFLiteCore ()
+{
+  interpreter = new TFLiteInterpreter ();
+}
+
+/**
+ * @brief	TFLiteCore destructor
+ */
+TFLiteCore::~TFLiteCore ()
+{
+  delete interpreter;
+}
+
+/**
  * @brief	Set the accelerator for the tf engine
  */
 void
@@ -742,7 +746,7 @@ TFLiteCore::setAccelerator (const char *accelerators, tflite_delegate_e d)
 int
 TFLiteCore::init (tflite_option_s *option)
 {
-  interpreter.setModelPath (option->model_file);
+  interpreter->setModelPath (option->model_file);
   num_threads = option->num_threads;
 
   setAccelerator (option->accelerators, option->delegate);
@@ -776,9 +780,9 @@ TFLiteCore::compareModelPath (const char *model_path)
 {
   gboolean is_same;
 
-  interpreter.lock ();
-  is_same = (g_strcmp0 (model_path, interpreter.getModelPath ()) == 0);
-  interpreter.unlock ();
+  interpreter->lock ();
+  is_same = (g_strcmp0 (model_path, interpreter->getModelPath ()) == 0);
+  interpreter->unlock ();
 
   return is_same;
 }
@@ -793,9 +797,9 @@ TFLiteCore::loadModel ()
 {
   int err;
 
-  interpreter.lock ();
-  err = interpreter.loadModel (num_threads, delegate);
-  interpreter.unlock ();
+  interpreter->lock ();
+  err = interpreter->loadModel (num_threads, delegate);
+  interpreter->unlock ();
 
   return err;
 }
@@ -809,9 +813,9 @@ TFLiteCore::setInputTensorProp ()
 {
   int err;
 
-  interpreter.lock ();
-  err = interpreter.setInputTensorProp ();
-  interpreter.unlock ();
+  interpreter->lock ();
+  err = interpreter->setInputTensorProp ();
+  interpreter->unlock ();
 
   return err;
 }
@@ -825,9 +829,9 @@ TFLiteCore::setOutputTensorProp ()
 {
   int err;
 
-  interpreter.lock ();
-  err = interpreter.setOutputTensorProp ();
-  interpreter.unlock ();
+  interpreter->lock ();
+  err = interpreter->setOutputTensorProp ();
+  interpreter->unlock ();
 
   return err;
 }
@@ -841,9 +845,9 @@ TFLiteCore::setOutputTensorProp ()
 int
 TFLiteCore::getInputTensorDim (GstTensorsInfo *info)
 {
-  interpreter.lock ();
-  gst_tensors_info_copy (info, interpreter.getInputTensorsInfo ());
-  interpreter.unlock ();
+  interpreter->lock ();
+  gst_tensors_info_copy (info, interpreter->getInputTensorsInfo ());
+  interpreter->unlock ();
 
   return 0;
 }
@@ -857,9 +861,9 @@ TFLiteCore::getInputTensorDim (GstTensorsInfo *info)
 int
 TFLiteCore::getOutputTensorDim (GstTensorsInfo *info)
 {
-  interpreter.lock ();
-  gst_tensors_info_copy (info, interpreter.getOutputTensorsInfo ());
-  interpreter.unlock ();
+  interpreter->lock ();
+  gst_tensors_info_copy (info, interpreter->getOutputTensorsInfo ());
+  interpreter->unlock ();
 
   return 0;
 }
@@ -875,9 +879,9 @@ TFLiteCore::setInputTensorDim (const GstTensorsInfo *info)
 {
   int err;
 
-  interpreter.lock ();
-  err = interpreter.setInputTensorsInfo (info);
-  interpreter.unlock ();
+  interpreter->lock ();
+  err = interpreter->setInputTensorsInfo (info);
+  interpreter->unlock ();
 
   return err;
 }
@@ -894,61 +898,54 @@ int
 TFLiteCore::reloadModel (const char *_model_path)
 {
   int err;
+  TFLiteInterpreter * interpreter_temp = interpreter;
 
   if (!g_file_test (_model_path, G_FILE_TEST_IS_REGULAR)) {
     ml_loge ("The path of model file(s), %s, to reload is invalid.", _model_path);
     return -EINVAL;
   }
-
-  interpreter_sub.lock ();
-  interpreter_sub.setModelPath (_model_path);
+  interpreter_sub = new TFLiteInterpreter ();
+  interpreter_sub->setModelPath (_model_path);
 
   /**
    * load a model into sub interpreter. This loading overhead is indenendent
    * with main one's activities.
    */
-  err = interpreter_sub.loadModel (num_threads, delegate);
+  err = interpreter_sub->loadModel (num_threads, delegate);
   if (err != 0) {
     ml_loge ("Failed to load model %s\n", _model_path);
-    goto out_unlock;
+    return err;
   }
-  err = interpreter_sub.setInputTensorProp ();
+  err = interpreter_sub->setInputTensorProp ();
   if (err != 0) {
     ml_loge ("Failed to initialize input tensor\n");
-    goto out_unlock;
+    return err;
   }
-  err = interpreter_sub.setOutputTensorProp ();
+  err = interpreter_sub->setOutputTensorProp ();
   if (err != 0) {
     ml_loge ("Failed to initialize output tensor\n");
-    goto out_unlock;
+    return err;
   }
-  err = interpreter_sub.cacheInOutTensorPtr ();
+  err = interpreter_sub->cacheInOutTensorPtr ();
   if (err != 0) {
     ml_loge ("Failed to cache input and output tensors storage\n");
-    goto out_unlock;
+    return err;
   }
 
   /* Also, we need to check input/output tensors have the same info */
-  if (!gst_tensors_info_is_equal (interpreter.getInputTensorsInfo (),
-          interpreter_sub.getInputTensorsInfo ())
-      || !gst_tensors_info_is_equal (interpreter.getOutputTensorsInfo (),
-             interpreter_sub.getOutputTensorsInfo ())) {
+  if (!gst_tensors_info_is_equal (interpreter->getInputTensorsInfo (),
+          interpreter_sub->getInputTensorsInfo ())
+      || !gst_tensors_info_is_equal (interpreter->getOutputTensorsInfo (),
+             interpreter_sub->getOutputTensorsInfo ())) {
     ml_loge ("The model has unmatched tensors info\n");
     err = -EINVAL;
-    goto out_unlock;
+    return err;
   }
 
-  /**
-   * Everything is ready. let's move the model in sub interpreter to main one.
-   * But, it needs to wait if main interpreter is busy (e.g., invoke()).
-   */
-  interpreter.lock ();
-  interpreter.moveInternals (interpreter_sub);
-  /* after this, all callbacks will handle operations for the reloaded model */
-  interpreter.unlock ();
-
-out_unlock:
-  interpreter_sub.unlock ();
+  interpreter_temp->lock ();
+  interpreter = interpreter_sub;
+  interpreter_temp->unlock ();
+  delete interpreter_temp;
 
   return err;
 }
@@ -964,9 +961,9 @@ TFLiteCore::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
   int err;
 
-  interpreter.lock ();
-  err = interpreter.invoke (input, output);
-  interpreter.unlock ();
+  interpreter->lock ();
+  err = interpreter->invoke (input, output);
+  interpreter->unlock ();
 
   return err;
 }
@@ -979,9 +976,9 @@ TFLiteCore::cacheInOutTensorPtr ()
 {
   int err;
 
-  interpreter.lock ();
-  err = interpreter.cacheInOutTensorPtr ();
-  interpreter.unlock ();
+  interpreter->lock ();
+  err = interpreter->cacheInOutTensorPtr ();
+  interpreter->unlock ();
 
   return err;
 }
