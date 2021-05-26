@@ -39,23 +39,40 @@
 #include <nnstreamer_conf.h>
 
 #if TFLITE_VERSION_MAJOR >= 2 || TFLITE_VERSION_MINOR >= 13
-#include <tensorflow/lite/kernels/register.h>
-#include <tensorflow/lite/model.h>
+#  if USE_TENSORFLOW2_HEADER_PATH
+#    include <tensorflow2/lite/kernels/register.h>
+#    include <tensorflow2/lite/model.h>
+#  else
+#    include <tensorflow/lite/kernels/register.h>
+#    include <tensorflow/lite/model.h>
+#  endif
 #else
-#include <tensorflow/contrib/lite/kernels/register.h>
-#include <tensorflow/contrib/lite/model.h>
+#  include <tensorflow/contrib/lite/kernels/register.h>
+#  include <tensorflow/contrib/lite/model.h>
 #endif
 
 #ifdef TFLITE_XNNPACK_DELEGATE_SUPPORTED
-#include <tensorflow/lite/delegates/xnnpack/xnnpack_delegate.h>
+#  if USE_TENSORFLOW2_HEADER_PATH
+#    include <tensorflow2/lite/delegates/xnnpack/xnnpack_delegate.h>
+#  else
+#    include <tensorflow/lite/delegates/xnnpack/xnnpack_delegate.h>
+#  endif
 #endif
 
 #ifdef TFLITE_NNAPI_DELEGATE_SUPPORTED
-#include <tensorflow/lite/delegates/nnapi/nnapi_delegate.h>
+#  if USE_TENSORFLOW2_HEADER_PATH
+#    include <tensorflow2/lite/delegates/nnapi/nnapi_delegate.h>
+#  else
+#    include <tensorflow/lite/delegates/nnapi/nnapi_delegate.h>
+#  endif
 #endif
 
 #ifdef TFLITE_GPU_DELEGATE_SUPPORTED
-#include <tensorflow/lite/delegates/gpu/delegate.h>
+#  if USE_TENSORFLOW2_HEADER_PATH
+#    include <tensorflow2/lite/delegates/gpu/delegate.h>
+#  else
+#    include <tensorflow/lite/delegates/gpu/delegate.h>
+#  endif
 #endif
 
 #if !defined(TFLITE_SUBPLUGIN_NAME)
