@@ -99,6 +99,7 @@ int grpc_get_listening_port (void * instance);
 
 gboolean _check_hostname (gchar * str);
 void grpc_common_set_property (GObject * self, gboolean * silent, grpc_private * grpc, guint prop_id, const GValue * value, GParamSpec * pspec);
+void grpc_common_get_property (GObject * self, gboolean silent, guint out, grpc_private * grpc, guint prop_id, GValue * value, GParamSpec * pspec);
 
 #ifdef __cplusplus
 }

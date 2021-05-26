@@ -365,3 +365,47 @@ grpc_common_set_property (GObject * self, gboolean * silent,
       break;
   }
 }
+
+/**
+ * @brief get-prop common for both grpc elements
+ */
+void
+grpc_common_get_property (GObject * self, gboolean silent, guint out,
+    grpc_private * grpc, guint prop_id, GValue * value, GParamSpec * pspec)
+{
+  switch (prop_id) {
+    case PROP_SILENT:
+      g_value_set_boolean (value, silent);
+      break;
+    case PROP_SERVER:
+      g_value_set_boolean (value, grpc->config.is_server);
+      break;
+    case PROP_BLOCKING:
+      g_value_set_boolean (value, grpc->config.is_blocking);
+      break;
+    case PROP_IDL:
+      switch (grpc->config.idl) {
+        case GRPC_IDL_PROTOBUF:
+          g_value_set_string (value, "protobuf");
+          break;
+        case GRPC_IDL_FLATBUF:
+          g_value_set_string (value, "flatbuf");
+          break;
+        default:
+          break;
+      }
+      break;
+    case PROP_HOST:
+      g_value_set_string (value, grpc->config.host);
+      break;
+    case PROP_PORT:
+      g_value_set_int (value, grpc->config.port);
+      break;
+    case PROP_OUT:
+      g_value_set_uint (value, out);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (self, prop_id, pspec);
+      break;
+  }
+}
