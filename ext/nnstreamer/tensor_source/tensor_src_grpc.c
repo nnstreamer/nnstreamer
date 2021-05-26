@@ -510,39 +510,6 @@ gst_tensor_src_grpc_get_property (GObject * object, guint prop_id,
   self = GST_TENSOR_SRC_GRPC (object);
   grpc = GET_GRPC_PRIVATE (self);
 
-  switch (prop_id) {
-    case PROP_SILENT:
-      g_value_set_boolean (value, self->silent);
-      break;
-    case PROP_SERVER:
-      g_value_set_boolean (value, grpc->config.is_server);
-      break;
-    case PROP_BLOCKING:
-      g_value_set_boolean (value, grpc->config.is_blocking);
-      break;
-    case PROP_IDL:
-      switch (grpc->config.idl) {
-        case GRPC_IDL_PROTOBUF:
-          g_value_set_string (value, "protobuf");
-          break;
-        case GRPC_IDL_FLATBUF:
-          g_value_set_string (value, "flatbuf");
-          break;
-        default:
-          break;
-      }
-      break;
-    case PROP_HOST:
-      g_value_set_string (value, grpc->config.host);
-      break;
-    case PROP_PORT:
-      g_value_set_int (value, grpc->config.port);
-      break;
-    case PROP_OUT:
-      g_value_set_uint (value, self->out);
-      break;
-    default:
-      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
-      break;
-  }
+  grpc_common_get_property (object, self->silent, self->out, grpc, prop_id,
+      value, pspec);
 }
