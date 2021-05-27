@@ -540,9 +540,14 @@ _gst_tensor_filter_transform_validate (GstBaseTransform * trans,
     return GST_BASE_TRANSFORM_FLOW_DROPPED;
 
   if (!outbuf) {
+    GST_ELEMENT_ERROR (self, RESOURCE, FAILED, ("outbuf is null."),
+        ("%s:%s:%d", __FILE__, __func__, __LINE__));
     return GST_FLOW_ERROR;
   }
   if (gst_buffer_get_size (outbuf) != 0) {
+    GST_ELEMENT_ERROR (self, RESOURCE, FAILED, ("outbuf size is not zero."),
+        ("%s:%s:%d. size = %zu", __FILE__, __func__, __LINE__,
+            gst_buffer_get_size (outbuf)));
     return GST_FLOW_ERROR;
   }
 
@@ -560,7 +565,8 @@ unknown_framework:
   g_error
       ("\nA nnstreamer extension is not installed or framework property of tensor_filter is incorrect: [%s] is not found.\n\n",
       prop->fwname);
-  GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL),
+  GST_ELEMENT_ERROR (self, LIBRARY, FAILED,
+      ("framework (filter subplugin) is not found or not configured"),
       ("framework not configured"));
   return GST_FLOW_ERROR;
 unknown_model:
