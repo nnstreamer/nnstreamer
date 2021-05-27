@@ -16,7 +16,7 @@
 #include "convert.h"
 #include <glib/gprintf.h>
 
-GData *datalist;
+static GData *datalist;
 
 #define GET_NODE_INDEX(elem)\
   g_slist_index (g_datalist_get_data (&datalist, elem->element), elem)
