@@ -509,35 +509,15 @@ gst_tensor_filter_check_throttling_delay (GstBaseTransform * trans,
 }
 
 /**
- * @brief non-ip transform. required vmethod of GstBaseTransform.
+ * @brief Check input paramters for gst_tensor_filter_transform ();
  */
 static GstFlowReturn
-gst_tensor_filter_transform (GstBaseTransform * trans,
+_gst_tensor_filter_transform_validate (GstBaseTransform * trans,
     GstBuffer * inbuf, GstBuffer * outbuf)
 {
-  GstTensorFilter *self;
-  GstTensorFilterPrivate *priv;
-  GstTensorFilterProperties *prop;
-  GstTensorMetaInfo in_meta[NNS_TENSOR_SIZE_LIMIT];
-  GstTensorMetaInfo out_meta[NNS_TENSOR_SIZE_LIMIT];
-  GstMemory *mem;
-  GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
-  GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT];
-  GstMemory *out_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
-  GstMapInfo out_info[NNS_TENSOR_SIZE_LIMIT];
-  GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT];
-  GstTensorMemory invoke_tensors[NNS_TENSOR_SIZE_LIMIT];
-  GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT];
-  GList *list;
-  guint i, num_mems;
-  gint ret;
-  gboolean allocate_in_invoke, in_flexible, out_flexible;
-  gboolean need_profiling;
-  gsize expected, hsize;
-
-  self = GST_TENSOR_FILTER_CAST (trans);
-  priv = &self->priv;
-  prop = &priv->prop;
+  GstTensorFilter *self = GST_TENSOR_FILTER_CAST (trans);
+  GstTensorFilterPrivate *priv = &self->priv;
+  GstTensorFilterProperties *prop = &priv->prop;
 
   if (G_UNLIKELY (!priv->configured))
     goto unknown_format;
@@ -552,13 +532,80 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   if (GST_TF_FW_V1 (priv->fw) && G_UNLIKELY (!priv->fw->invoke))
     goto unknown_invoke;
 
-  /* 0. Check all properties. */
   silent_debug ("Invoking %s with %s model\n", priv->fw->name,
       GST_STR_NULL (prop->model_files[0]));
 
   /* skip input data when throttling delay is set */
   if (gst_tensor_filter_check_throttling_delay (trans, inbuf))
     return GST_BASE_TRANSFORM_FLOW_DROPPED;
+
+  if (!outbuf) {
+    return GST_FLOW_ERROR;
+  }
+  if (gst_buffer_get_size (outbuf) != 0) {
+    return GST_FLOW_ERROR;
+  }
+
+  return GST_FLOW_OK;
+
+unknown_format:
+  GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL), ("unknown format"));
+  return GST_FLOW_NOT_NEGOTIATED;
+unknown_framework:
+  /**
+    * This is fatal; if framework is not configured until this stage,
+    * it means that an extension is missing or not configured.
+    * We need readable messages for non-developers
+    */
+  g_error
+      ("\nA nnstreamer extension is not installed or framework property of tensor_filter is incorrect: [%s] is not found.\n\n",
+      prop->fwname);
+  GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL),
+      ("framework not configured"));
+  return GST_FLOW_ERROR;
+unknown_model:
+  GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL),
+      ("model filepath not configured"));
+  return GST_FLOW_ERROR;
+unknown_invoke:
+  GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL),
+      ("invoke function is not defined"));
+  return GST_FLOW_ERROR;
+}
+
+/**
+ * @brief non-ip transform. required vmethod of GstBaseTransform.
+ */
+static GstFlowReturn
+gst_tensor_filter_transform (GstBaseTransform * trans,
+    GstBuffer * inbuf, GstBuffer * outbuf)
+{
+  GstTensorFilter *self = GST_TENSOR_FILTER_CAST (trans);
+  GstTensorFilterPrivate *priv = &self->priv;
+  GstTensorFilterProperties *prop = &priv->prop;
+  GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
+  GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT];
+  GstMemory *out_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
+  GstMapInfo out_info[NNS_TENSOR_SIZE_LIMIT];
+  GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT];
+  GstTensorMemory invoke_tensors[NNS_TENSOR_SIZE_LIMIT];
+  GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT];
+  GList *list;
+  guint i, num_mems;
+  gint ret;
+  gboolean allocate_in_invoke, in_flexible, out_flexible;
+  gboolean need_profiling;
+  gsize expected, hsize;
+
+  GstTensorMetaInfo in_meta[NNS_TENSOR_SIZE_LIMIT];
+  GstTensorMetaInfo out_meta[NNS_TENSOR_SIZE_LIMIT];
+  GstMemory *mem;
+
+  /* 0. Check all properties. */
+  GstFlowReturn retval = _gst_tensor_filter_transform_validate (trans, inbuf,
+      outbuf);
+  if (retval != GST_FLOW_OK)
+    return retval;
 
   allocate_in_invoke = gst_tensor_filter_allocate_in_invoke (priv);
 
@@ -631,9 +678,6 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   }
 
   /* 2. Prepare output tensors. */
-  g_assert (outbuf);
-  g_assert (gst_buffer_get_size (outbuf) == 0);
-
   for (i = 0; i < prop->output_meta.num_tensors; i++) {
     out_tensors[i].data = NULL;
     out_tensors[i].size = gst_tensor_filter_get_tensor_size (self, i, FALSE);
@@ -754,29 +798,6 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   }
 
   return GST_FLOW_OK;
-unknown_format:
-  GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL), ("unknown format"));
-  return GST_FLOW_NOT_NEGOTIATED;
-unknown_framework:
-  /**
-    * This is fatal; if framework is not configured until this stage,
-    * it means that an extension is missing or not configured.
-    * We need readable messages for non-developers
-    */
-  g_error
-      ("\nA nnstreamer extension is not installed or framework property of tensor_filter is incorrect: [%s] is not found.\n\n",
-      prop->fwname);
-  GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL),
-      ("framework not configured"));
-  return GST_FLOW_ERROR;
-unknown_model:
-  GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL),
-      ("model filepath not configured"));
-  return GST_FLOW_ERROR;
-unknown_invoke:
-  GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL),
-      ("invoke function is not defined"));
-  return GST_FLOW_ERROR;
 mem_map_error:
   num_mems = gst_buffer_n_memory (inbuf);
   for (i = 0; i < num_mems; i++) {
