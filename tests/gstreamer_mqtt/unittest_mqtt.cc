@@ -36,6 +36,43 @@ TEST (testMqttSink, sink_push_wrongurl_n)
 }
 
 /**
+ * @brief Test for mqttsink without broker
+ */
+TEST (testMqttSink, sink_push_no_broker_n)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  GstFlowReturn ret;
+
+  gst_harness_add_src_parse (h, "videotestsrc is-live=1 ! queue", TRUE);
+  ret = gst_harness_push_from_src (h);
+
+  EXPECT_EQ (ret, GST_FLOW_ERROR);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for mqttsink without broker (Push an EOS event)
+ */
+TEST (testMqttSink, sink_push_event)
+{
+  GstHarness *h = gst_harness_new ("mqttsink");
+  gboolean ret;
+  GstEvent *evt;
+
+  ASSERT_TRUE (h != NULL);
+
+  evt = gst_event_new_eos ();
+  ASSERT_TRUE (evt != NULL);
+
+  ret = gst_harness_push_event (h, evt);
+
+  EXPECT_EQ (ret, TRUE);
+
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Test for mqttsrc with wrong URL
  */
 TEST (testMqttSrc, src_pull_wrongurl_n)
@@ -93,7 +130,7 @@ TEST (testMqttSink, sink_get_set_properties)
   g_object_get (h->element, "pub-topic", &sprop, NULL);
   EXPECT_STREQ (sprop, "testtopic");
   g_free (sprop);
-  
+
   g_object_set (h->element, "pub-wait-timeout", 9999, NULL);
   g_object_get (h->element, "pub-wait-timeout", &uprop, NULL);
   EXPECT_TRUE (uprop == 9999);
@@ -160,7 +197,7 @@ TEST (testMqttSrc, src_get_set_properties)
   g_object_get (h->element, "port", &sprop, NULL);
   EXPECT_STREQ (sprop, "testport");
   g_free (sprop);
-  
+
   g_object_set (h->element, "sub-timeout", 99999999, NULL);
   g_object_get (h->element, "sub-timeout", &lprop, NULL);
   EXPECT_TRUE (lprop == 99999999);
