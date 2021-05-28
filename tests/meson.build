@@ -118,6 +118,14 @@ if gtest_dep.found()
 
     # Run unittest_mqtt
     if mqtt_support_is_available
+      unittest_mqtt_w_helper = executable('unittest_mqtt_w_helper',
+          join_paths('gstreamer_mqtt', 'unittest_mqtt_w_helper.cc'),
+          dependencies: [gstmqtt_dep, nnstreamer_unittest_deps, unittest_util_dep],
+          install: get_option('install-test'),
+          install_dir: unittest_install_dir)
+
+      test('unittest_mqtt_w_helper', unittest_mqtt_w_helper, env: testenv)
+
       unittest_mqtt = executable('unittest_mqtt',
           join_paths('gstreamer_mqtt', 'unittest_mqtt.cc'),
           dependencies: [nnstreamer_unittest_deps, unittest_util_dep],
