@@ -604,7 +604,7 @@ gst_mqtt_src_renegotiate (GstBaseSrc * basesrc)
   }
 
   peercaps = gst_pad_peer_query_caps (GST_BASE_SRC_PAD (basesrc), self->caps);
-  if (peercaps) {
+  if (peercaps && !gst_caps_is_empty (peercaps)) {
     caps = gst_caps_ref (peercaps);
     if (peercaps != self->caps)
       gst_caps_unref (peercaps);
@@ -617,7 +617,6 @@ gst_mqtt_src_renegotiate (GstBaseSrc * basesrc)
       result = TRUE;
     } else {
       fixed_caps = gst_caps_fixate (caps);
-
       if (fixed_caps && gst_caps_is_fixed (fixed_caps)) {
         result = gst_base_src_set_caps (basesrc, fixed_caps);
         if (peercaps == self->caps)
