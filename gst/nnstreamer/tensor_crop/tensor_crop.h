@@ -55,6 +55,7 @@ struct _GstTensorCrop
   GstPad *srcpad; /**< src pad */
 
   /* <private> */
+  gint lateness; /**< time-diff of raw and info buffer */
   gboolean silent; /**< true to print minimized log */
   gboolean send_stream_start; /**< flag to send STREAM_START event */
   GstCollectPads *collect; /**< sink pads */
