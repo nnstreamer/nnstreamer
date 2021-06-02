@@ -73,6 +73,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_crop_debug);
 enum
 {
   PROP_0,
+  PROP_LATENESS,
   PROP_SILENT
 };
 
@@ -80,6 +81,11 @@ enum
  * @brief Flag to print minimized log.
  */
 #define DEFAULT_SILENT TRUE
+
+/**
+ * @brief Default value to compare timestamp of raw and info buffer, in milliseconds (-1 means no synchronization).
+ */
+#define DEFAULT_LATENESS (-1)
 
 /**
  * @brief Template for sink pad (raw data).
@@ -140,6 +146,19 @@ gst_tensor_crop_class_init (GstTensorCropClass * klass)
   object_class->set_property = gst_tensor_crop_set_property;
   object_class->get_property = gst_tensor_crop_get_property;
   object_class->finalize = gst_tensor_crop_finalize;
+
+  /**
+   * GstTensorCrop::lateness:
+   *
+   * The time difference between raw and info buffer, in milliseconds (-1 means no synchronization).
+   * If raw and info buffers on the pads have different timestamp and time-diff is larger than 'lateness',
+   * tensor-crop will drop old buffer and wait for next buffers.
+   */
+  g_object_class_install_property (object_class, PROP_LATENESS,
+      g_param_spec_int ("lateness", "Lateness",
+          "The time difference between raw and info buffer in milliseconds",
+          -1, G_MAXINT, DEFAULT_LATENESS,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   /**
    * GstTensorCrop::silent:
@@ -232,6 +251,7 @@ gst_tensor_crop_init (GstTensorCrop * self)
   gst_element_add_pad (GST_ELEMENT (self), self->srcpad);
 
   /* init properties */
+  self->lateness = DEFAULT_LATENESS;
   self->silent = DEFAULT_SILENT;
   self->send_stream_start = TRUE;
 }
@@ -268,6 +288,9 @@ gst_tensor_crop_set_property (GObject * object, guint prop_id,
   self = GST_TENSOR_CROP (object);
 
   switch (prop_id) {
+    case PROP_LATENESS:
+      self->lateness = g_value_get_int (value);
+      break;
     case PROP_SILENT:
       self->silent = g_value_get_boolean (value);
       break;
@@ -289,6 +312,9 @@ gst_tensor_crop_get_property (GObject * object, guint prop_id,
   self = GST_TENSOR_CROP (object);
 
   switch (prop_id) {
+    case PROP_LATENESS:
+      g_value_set_int (value, self->lateness);
+      break;
     case PROP_SILENT:
       g_value_set_boolean (value, self->silent);
       break;
@@ -658,15 +684,52 @@ gst_tensor_crop_chain (GstTensorCrop * self,
   GstFlowReturn ret;
   GstBuffer *buf_raw, *buf_info, *result;
   tensor_crop_info_s cinfo;
+  gboolean drop_raw, drop_info;
 
   g_return_val_if_fail (data_raw && data_info, GST_FLOW_ERROR);
 
-  buf_raw = gst_collect_pads_pop (self->collect, data_raw);
-  buf_info = gst_collect_pads_pop (self->collect, data_info);
+  buf_raw = gst_collect_pads_peek (self->collect, data_raw);
+  buf_info = gst_collect_pads_peek (self->collect, data_info);
+  drop_raw = (buf_raw != NULL);
+  drop_info = (buf_info != NULL);
 
   if (!buf_raw || !buf_info) {
     ret = GST_FLOW_EOS;
     goto done;
+  }
+
+  /**
+   * The case when raw and info have different timestamp.
+   * Compare timestamp and if time diff is less than lateness, crop raw buffer.
+   */
+  if (self->lateness >= 0) {
+    GstClockTime ts_raw, ts_info, lateness;
+
+    ts_raw = GST_BUFFER_TIMESTAMP (buf_raw);
+    ts_info = GST_BUFFER_TIMESTAMP (buf_info);
+    lateness = self->lateness * GST_MSECOND;
+
+    if (GST_CLOCK_TIME_IS_VALID (ts_raw) && GST_CLOCK_TIME_IS_VALID (ts_info)) {
+      if (ABS (GST_CLOCK_DIFF (ts_raw, ts_info)) > lateness) {
+        GST_DEBUG_OBJECT (self, "Drop old buffer and wait for next.");
+        GST_DEBUG_OBJECT (self, "Raw buffer ts: %" GST_TIME_FORMAT,
+            GST_TIME_ARGS (ts_raw));
+        GST_DEBUG_OBJECT (self, "Info buffer ts: %" GST_TIME_FORMAT,
+            GST_TIME_ARGS (ts_info));
+
+        /* clear old buffer and return ok to get next buffer */
+        if (ts_raw > ts_info)
+          drop_raw = FALSE;
+        else
+          drop_info = FALSE;
+
+        ret = GST_FLOW_OK;
+        goto done;
+      }
+    } else {
+      GST_WARNING_OBJECT (self,
+          "Incoming buffer has invalid timestamp, continue cropping data.");
+    }
   }
 
   if (!gst_tensor_crop_get_crop_info (self, buf_info, &cinfo)) {
@@ -682,6 +745,12 @@ done:
     gst_buffer_unref (buf_raw);
   if (buf_info)
     gst_buffer_unref (buf_info);
+
+  /* clear buffer in collect pads */
+  if (drop_raw)
+    gst_buffer_unref (gst_collect_pads_pop (self->collect, data_raw));
+  if (drop_info)
+    gst_buffer_unref (gst_collect_pads_pop (self->collect, data_info));
 
   return ret;
 }
@@ -709,11 +778,6 @@ gst_tensor_crop_collected (GstCollectPads * pads, gpointer user_data)
 
     data = (GstCollectData *) walk->data;
 
-    /**
-     * @todo add timestampe policy (base on raw data buffer)
-     * The case when raw and info have different timestamp
-     * - one possible option: add property latency to allow diff (-1 means no sync, positive value to wait for other data)
-     */
     if (data->pad == self->sinkpad_raw) {
       data_raw = data;
     } else if (data->pad == self->sinkpad_info) {
