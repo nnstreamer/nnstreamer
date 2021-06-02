@@ -63,7 +63,7 @@ enum
   DEFAULT_SYNC = FALSE,
   DEFAULT_MQTT_OPT_CLEANSESSION = TRUE,
   DEFAULT_MQTT_OPT_KEEP_ALIVE_INTERVAL = 60,    /* 1 minute */
-  DEFAULT_MQTT_DISCONNECT_TIMEOUT = 3000,       /* 3 secs */
+  DEFAULT_MQTT_DISCONNECT_TIMEOUT = G_TIME_SPAN_SECOND * 3,     /* 3 secs */
   DEFAULT_MQTT_PUB_WAIT_TIMEOUT = 1,    /* 1 secs */
   DEFAULT_MAX_MSG_BUF_SIZE = 0, /* Buffer size is not fixed */
   DEFAULT_MQTT_QOS = 0,         /* fire and forget */
@@ -553,8 +553,7 @@ gst_mqtt_sink_stop (GstBaseSink * basesink)
 
   g_atomic_int_set (&self->mqtt_sink_state, SINK_RENDER_STOPPED);
   while (MQTTAsync_isConnected (self->mqtt_client_handle)) {
-    gint64 end_time = g_get_monotonic_time () +
-        DEFAULT_MQTT_DISCONNECT_TIMEOUT / 10;
+    gint64 end_time = g_get_monotonic_time () + DEFAULT_MQTT_DISCONNECT_TIMEOUT;
     mqtt_sink_state_t cur_state;
 
     MQTTAsync_disconnect (self->mqtt_client_handle, &disconn_opts);
