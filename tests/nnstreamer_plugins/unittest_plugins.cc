@@ -197,6 +197,24 @@
   } while (0)
 
 /**
+ * @brief wait for output buffer on GstHarness sinkpad.
+ */
+static guint
+_harness_wait_for_output_buffer (GstHarness * h, guint expected)
+{
+  guint received, count;
+
+  received = count = 0;
+  do {
+    g_usleep (100000);
+    received = gst_harness_buffers_received (h);
+    count++;
+  } while (received < expected && count < 30);
+
+  return received;
+}
+
+/**
  * @brief Test for setting/getting properties of tensor_transform
  */
 TEST (testTensorTransform, properties01)
@@ -5873,7 +5891,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, flexToFlex)
   gsize data_size;
   gchar *pipeline;
   gchar *test_model;
-  guint received, count;
+  guint received;
 
   GET_MODEL_PATH ("mobilenet_v1_1.0_224_quant.tflite");
 
@@ -5914,13 +5932,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, flexToFlex)
   EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
 
   /* wait for output buffer */
-  received = count = 0;
-  do {
-    g_usleep (100000);
-    received = gst_harness_buffers_received (h);
-    count++;
-  } while (received < 1 && count < 100);
-
+  received = _harness_wait_for_output_buffer (h, 1U);
   EXPECT_EQ (received, 1U);
 
   /* get output buffer (uint8, 1001:1) */
@@ -6334,6 +6346,530 @@ TEST (testConverterSubplugins, flexbufInvalidParam1_n)
   EXPECT_TRUE (NULL == conv_out_buf);
   gst_tensors_config_free (&config);
   gst_buffer_unref (in_buf);
+}
+
+/**
+ * @brief Data structure for tensor-crop test.
+ */
+typedef struct
+{
+  GstHarness *crop;
+  GstHarness *raw;
+  GstHarness *info;
+  GstHarness *raw_q;
+  GstHarness *info_q;
+
+  GstTensorConfig config;
+  guint received;
+  gpointer raw_data;
+  gsize raw_size;
+  GstClockTime ts_raw;
+  tensor_type info_type;
+  gpointer info_data;
+  gsize info_size;
+  GstClockTime ts_info;
+} crop_test_data_s;
+
+/**
+ * @brief Initialize tensor-crop test data.
+ * After calling this function, you should set raw-pad caps.
+ */
+static void
+_crop_test_init (crop_test_data_s * crop_test)
+{
+  GstPad *raw_sink, *info_sink, *raw_src, *info_src;
+
+  crop_test->crop = gst_harness_new_with_padnames ("tensor_crop", NULL, "src");
+  crop_test->raw = gst_harness_new_with_element (crop_test->crop->element, "raw", NULL);
+  crop_test->info = gst_harness_new_with_element (crop_test->crop->element, "info", NULL);
+  crop_test->raw_q = gst_harness_new ("queue");
+  crop_test->info_q = gst_harness_new ("queue");
+
+  raw_sink = GST_PAD_PEER (crop_test->raw->srcpad);
+  info_sink = GST_PAD_PEER (crop_test->info->srcpad);
+  raw_src = GST_PAD_PEER (crop_test->raw_q->sinkpad);
+  info_src = GST_PAD_PEER (crop_test->info_q->sinkpad);
+
+  gst_pad_unlink (crop_test->raw->srcpad, raw_sink);
+  gst_pad_unlink (crop_test->info->srcpad, info_sink);
+  gst_pad_unlink (raw_src, crop_test->raw_q->sinkpad);
+  gst_pad_unlink (info_src, crop_test->info_q->sinkpad);
+  gst_pad_link (raw_src, raw_sink);
+  gst_pad_link (info_src, info_sink);
+
+  /* caps for crop info (flex tensor) */
+  gst_harness_set_src_caps (crop_test->info_q,
+      gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT));
+
+  gst_tensor_config_init (&crop_test->config);
+  crop_test->config.rate_n = 0;
+  crop_test->config.rate_d = 1;
+
+  crop_test->received = 0;
+  crop_test->raw_data = NULL;
+  crop_test->raw_size = 0;
+  crop_test->ts_raw = GST_CLOCK_TIME_NONE;
+  crop_test->info_type = _NNS_END;
+  crop_test->info_data = NULL;
+  crop_test->info_size = 0;
+  crop_test->ts_info = GST_CLOCK_TIME_NONE;
+}
+
+/**
+ * @brief Free tensor-crop test data.
+ */
+static void
+_crop_test_free (crop_test_data_s * crop_test)
+{
+  gst_harness_teardown (crop_test->raw);
+  gst_harness_teardown (crop_test->info);
+  gst_harness_teardown (crop_test->raw_q);
+  gst_harness_teardown (crop_test->info_q);
+  gst_harness_teardown (crop_test->crop);
+
+  g_free (crop_test->raw_data);
+  g_free (crop_test->info_data);
+  gst_tensor_config_free (&crop_test->config);
+}
+
+/**
+ * @brief Macro to push raw buffer to tensor_crop.
+ */
+#define _crop_test_push_raw_buffer(ctd,ts) \
+  do { \
+    GstBuffer *rb = gst_buffer_new (); \
+    GstMemory *mem; \
+    mem = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY, \
+        (ctd)->raw_data, (ctd)->raw_size, 0, (ctd)->raw_size, NULL, NULL); \
+    if ((ctd)->config.info.format == _NNS_TENSOR_FORMAT_FLEXIBLE) { \
+      GstTensorMetaInfo meta; \
+      gst_tensor_info_convert_to_meta (&(ctd)->config.info, &meta); \
+      gst_buffer_append_memory (rb, gst_tensor_meta_info_append_header (&meta, mem)); \
+      gst_memory_unref (mem); \
+    } else  { \
+      gst_buffer_append_memory (rb, mem); \
+    } \
+    if ((ts) != GST_CLOCK_TIME_NONE) \
+      GST_BUFFER_TIMESTAMP (rb) = (ts); \
+    EXPECT_EQ (gst_harness_push ((ctd)->raw_q, rb), GST_FLOW_OK); \
+  } while (0)
+
+/**
+ * @brief Macro to push info buffer to tensor_crop.
+ */
+#define _crop_test_push_info_buffer(ctd,ts) \
+  do { \
+    GstBuffer *ib = gst_buffer_new (); \
+    GstMemory *mem; \
+    GstTensorMetaInfo meta; \
+    gst_tensor_meta_info_init (&meta); \
+    meta.type = (ctd)->info_type; \
+    meta.dimension[0] = 4U; \
+    meta.dimension[1] = (ctd)->info_size / (4U * gst_tensor_get_element_size ((ctd)->info_type)); \
+    meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE; \
+    mem = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY, \
+        (ctd)->info_data, (ctd)->info_size, 0, (ctd)->info_size, NULL, NULL); \
+    gst_buffer_append_memory (ib, gst_tensor_meta_info_append_header (&meta, mem)); \
+    gst_memory_unref (mem); \
+    if ((ts) != GST_CLOCK_TIME_NONE) \
+      GST_BUFFER_TIMESTAMP (ib) = (ts); \
+    EXPECT_EQ (gst_harness_push ((ctd)->info_q, ib), GST_FLOW_OK); \
+  } while (0)
+
+/**
+ * @brief Push raw and info buffer to tensor_crop.
+ */
+static void
+_crop_test_push_buffer (crop_test_data_s * crop_test)
+{
+  /* caps for raw data */
+  gst_harness_set_src_caps (crop_test->raw_q,
+      gst_tensor_caps_from_config (&crop_test->config));
+
+  /* push raw buffer */
+  _crop_test_push_raw_buffer (crop_test, crop_test->ts_raw);
+
+  /* push info buffer (default mode region [x, y, w, h] * num) */
+  _crop_test_push_info_buffer (crop_test, crop_test->ts_info);
+
+  /* wait for output buffer */
+  crop_test->received = _harness_wait_for_output_buffer (crop_test->crop, (crop_test->received + 1));
+}
+
+/**
+ * @brief Internal function to check cropped buffer.
+ * raw buffer uint32 [1, 2, ..., 40] dimension 1:10:4:1
+ * info buffer uint32 [3, 0, 3, 1] [2, 1, 7, 2]
+ */
+static void
+_crop_test_compare_res1 (crop_test_data_s * crop_test)
+{
+  GstBuffer *out_buf;
+  GstMemory *mem;
+  GstMapInfo map;
+  GstTensorMetaInfo meta;
+  gsize hsize;
+  guint i;
+  guint *cropped;
+
+  out_buf = gst_harness_pull (crop_test->crop);
+  ASSERT_EQ (gst_buffer_n_memory (out_buf), 2U);
+
+  /* 1st cropped data [3, 0, 3, 1] */
+  mem = gst_buffer_peek_memory (out_buf, 0);
+  ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_READ));
+
+  gst_tensor_meta_info_parse_header (&meta, map.data);
+  EXPECT_EQ (meta.type, _NNS_UINT32);
+  EXPECT_EQ (meta.dimension[0], 1U);
+  EXPECT_EQ (meta.dimension[1], 3U);
+  EXPECT_EQ (meta.dimension[2], 1U);
+
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  cropped = (guint *) (map.data + hsize);
+  /* expected [4, 5, 6] */
+  EXPECT_EQ (map.size - hsize, sizeof (guint) * 3U);
+  EXPECT_EQ (cropped[0], 4U);
+  EXPECT_EQ (cropped[1], 5U);
+  EXPECT_EQ (cropped[2], 6U);
+
+  gst_memory_unmap (mem, &map);
+
+  /* 2nd cropped data [2, 1, 7, 2] */
+  mem = gst_buffer_peek_memory (out_buf, 1);
+  ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_READ));
+
+  gst_tensor_meta_info_parse_header (&meta, map.data);
+  EXPECT_EQ (meta.dimension[0], 1U);
+  EXPECT_EQ (meta.dimension[1], 7U);
+  EXPECT_EQ (meta.dimension[2], 2U);
+
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  cropped = (guint *) (map.data + hsize);
+  /* expected [13, 14, ..., 19, 23, 24, ..., 29] */
+  EXPECT_EQ (map.size - hsize, sizeof (guint) * 14U);
+  for (i = 0; i < 2; i++) {
+    EXPECT_EQ (cropped[0 + 7 * i], 3U + (10U * (i + 1)));
+    EXPECT_EQ (cropped[1 + 7 * i], 4U + (10U * (i + 1)));
+    EXPECT_EQ (cropped[2 + 7 * i], 5U + (10U * (i + 1)));
+    EXPECT_EQ (cropped[3 + 7 * i], 6U + (10U * (i + 1)));
+    EXPECT_EQ (cropped[4 + 7 * i], 7U + (10U * (i + 1)));
+    EXPECT_EQ (cropped[5 + 7 * i], 8U + (10U * (i + 1)));
+    EXPECT_EQ (cropped[6 + 7 * i], 9U + (10U * (i + 1)));
+  }
+
+  gst_memory_unmap (mem, &map);
+  gst_buffer_unref (out_buf);
+}
+
+/**
+ * @brief Internal function to check cropped buffer.
+ * raw buffer uint32 [1, 2, ..., 40] dimension 2:5:4:1
+ * info buffer uint32 [2, 0, 3, 1] [1, 1, 5, 2]
+ */
+static void
+_crop_test_compare_res2 (crop_test_data_s * crop_test)
+{
+  GstBuffer *out_buf;
+  GstMemory *mem;
+  GstMapInfo map;
+  GstTensorMetaInfo meta;
+  gsize hsize;
+  guint i;
+  guint *cropped;
+
+  out_buf = gst_harness_pull (crop_test->crop);
+  ASSERT_EQ (gst_buffer_n_memory (out_buf), 2U);
+
+  /* 1st cropped data [2, 0, 3, 1] */
+  mem = gst_buffer_peek_memory (out_buf, 0);
+  ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_READ));
+
+  gst_tensor_meta_info_parse_header (&meta, map.data);
+  EXPECT_EQ (meta.type, _NNS_UINT32);
+  EXPECT_EQ (meta.dimension[0], 2U);
+  EXPECT_EQ (meta.dimension[1], 3U);
+  EXPECT_EQ (meta.dimension[2], 1U);
+
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  cropped = (guint *) (map.data + hsize);
+  /* expected [5, 6, 7, ..., 10] */
+  EXPECT_EQ (map.size - hsize, sizeof (guint) * 6U);
+  EXPECT_EQ (cropped[0], 5U);
+  EXPECT_EQ (cropped[1], 6U);
+  EXPECT_EQ (cropped[2], 7U);
+  EXPECT_EQ (cropped[3], 8U);
+  EXPECT_EQ (cropped[4], 9U);
+  EXPECT_EQ (cropped[5], 10U);
+
+  gst_memory_unmap (mem, &map);
+
+  /* 2nd cropped data [1, 1, 5, 2] -> [1, 1, 4, 2] */
+  mem = gst_buffer_peek_memory (out_buf, 1);
+  ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_READ));
+
+  gst_tensor_meta_info_parse_header (&meta, map.data);
+  EXPECT_EQ (meta.dimension[0], 2U);
+  EXPECT_EQ (meta.dimension[1], 4U);
+  EXPECT_EQ (meta.dimension[2], 2U);
+
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  cropped = (guint *) (map.data + hsize);
+  /* expected [13, 14, ..., 20, 23, 24, ..., 30] */
+  EXPECT_EQ (map.size - hsize, sizeof (guint) * 16U);
+  for (i = 0; i < 2; i++) {
+    EXPECT_EQ (cropped[0 + 8 * i], 3U + (10U * (i + 1)));
+    EXPECT_EQ (cropped[1 + 8 * i], 4U + (10U * (i + 1)));
+    EXPECT_EQ (cropped[2 + 8 * i], 5U + (10U * (i + 1)));
+    EXPECT_EQ (cropped[3 + 8 * i], 6U + (10U * (i + 1)));
+    EXPECT_EQ (cropped[4 + 8 * i], 7U + (10U * (i + 1)));
+    EXPECT_EQ (cropped[5 + 8 * i], 8U + (10U * (i + 1)));
+    EXPECT_EQ (cropped[6 + 8 * i], 9U + (10U * (i + 1)));
+    EXPECT_EQ (cropped[7 + 8 * i], 10U + (10U * (i + 1)));
+  }
+
+  gst_memory_unmap (mem, &map);
+  gst_buffer_unref (out_buf);
+}
+
+/**
+ * @brief Test for tensor_crop, cropping raw data with crop info.
+ */
+TEST (testTensorCrop, cropTensor)
+{
+  crop_test_data_s crop_test;
+  guint i;
+  guint *_data, *_info;
+
+  _crop_test_init (&crop_test);
+
+  /* prepare test data */
+  crop_test.config.info.type = _NNS_UINT32;
+
+  crop_test.raw_size = sizeof (guint) * 40U;
+  crop_test.raw_data = g_malloc0 (crop_test.raw_size);
+  _data = (guint *) crop_test.raw_data;
+
+  for (i = 0; i < 40; i++)
+    _data[i] = i + 1;
+
+  crop_test.info_type = _NNS_UINT32;
+  crop_test.info_size = sizeof (guint) * 8U;
+  crop_test.info_data = g_malloc0 (crop_test.info_size);
+  _info = (guint *) crop_test.info_data;
+
+  /* crop info (1 ch / [3, 0, 3, 1] [2, 1, 7, 2]) */
+  _info[0] = 3U;
+  _info[1] = 0U;
+  _info[2] = 3U;
+  _info[3] = 1U;
+  _info[4] = 2U;
+  _info[5] = 1U;
+  _info[6] = 7U;
+  _info[7] = 2U;
+
+  gst_tensor_parse_dimension ("1:10:4:1", crop_test.config.info.dimension);
+  _crop_test_push_buffer (&crop_test);
+  EXPECT_EQ (crop_test.received, 1U);
+
+  if (crop_test.received > 0)
+    _crop_test_compare_res1 (&crop_test);
+
+  /* crop info (2 ch / [2, 0, 3, 1] [1, 1, 5, 2]) */
+  _info[0] = 2U;
+  _info[1] = 0U;
+  _info[2] = 3U;
+  _info[3] = 1U;
+  _info[4] = 1U;
+  _info[5] = 1U;
+  _info[6] = 5U;
+  _info[7] = 2U;
+
+  gst_tensor_parse_dimension ("2:5:4:1", crop_test.config.info.dimension);
+  _crop_test_push_buffer (&crop_test);
+  EXPECT_EQ (crop_test.received, 2U);
+
+  if (crop_test.received > 1)
+    _crop_test_compare_res2 (&crop_test);
+
+  _crop_test_free (&crop_test);
+}
+
+/**
+ * @brief Test for tensor_crop, push invalid raw buffer.
+ */
+TEST (testTensorCrop, rawInvalidSize_n)
+{
+  crop_test_data_s crop_test;
+
+  _crop_test_init (&crop_test);
+
+  crop_test.config.info.type = _NNS_UINT32;
+  gst_tensor_parse_dimension ("20:1:1:1", crop_test.config.info.dimension);
+
+  crop_test.raw_size = sizeof (guint) * 10U;
+  crop_test.raw_data = g_malloc0 (crop_test.raw_size);
+
+  crop_test.info_type = _NNS_UINT16;
+  crop_test.info_size = gst_tensor_get_element_size (crop_test.info_type) * 8U;
+  crop_test.info_data = g_malloc0 (crop_test.info_size);
+
+  /* raw buffer has invalid size */
+  _crop_test_push_buffer (&crop_test);
+  EXPECT_EQ (crop_test.received, 0U);
+
+  _crop_test_free (&crop_test);
+}
+
+/**
+ * @brief Test for tensor_crop, push invalid info buffer.
+ */
+TEST (testTensorCrop, infoInvalidSize_n)
+{
+  crop_test_data_s crop_test;
+
+  _crop_test_init (&crop_test);
+
+  crop_test.config.info.type = _NNS_UINT32;
+  gst_tensor_parse_dimension ("10:1:1:1", crop_test.config.info.dimension);
+
+  crop_test.raw_size = sizeof (guint) * 10U;
+  crop_test.raw_data = g_malloc0 (crop_test.raw_size);
+
+  crop_test.info_type = _NNS_INT8;
+  crop_test.info_size = gst_tensor_get_element_size (crop_test.info_type) * 7U;
+  crop_test.info_data = g_malloc0 (crop_test.info_size);
+
+  /* info buffer has invalid size */
+  _crop_test_push_buffer (&crop_test);
+  EXPECT_EQ (crop_test.received, 0U);
+
+  _crop_test_free (&crop_test);
+}
+
+/**
+ * @brief Test for tensor_crop, push delayed raw buffer.
+ */
+TEST (testTensorCrop, rawDelayed_n)
+{
+  crop_test_data_s crop_test;
+  gint lateness;
+  guint i;
+  guint *_data;
+  guint8 *_info;
+
+  _crop_test_init (&crop_test);
+
+  /* set lateness 300ms */
+  g_object_set (crop_test.crop->element, "lateness", 300, NULL);
+  g_object_get (crop_test.crop->element, "lateness", &lateness, NULL);
+  EXPECT_EQ (lateness, 300);
+
+  crop_test.config.info.type = _NNS_UINT32;
+  gst_tensor_parse_dimension ("1:10:4:1", crop_test.config.info.dimension);
+
+  crop_test.raw_size = sizeof (guint) * 40U;
+  crop_test.raw_data = g_malloc0 (crop_test.raw_size);
+  _data = (guint *) crop_test.raw_data;
+
+  crop_test.info_type = _NNS_UINT8;
+  crop_test.info_size = gst_tensor_get_element_size (crop_test.info_type) * 8U;
+  crop_test.info_data = g_malloc0 (crop_test.info_size);
+  _info = (guint8 *) crop_test.info_data;
+
+  /* crop info (1 ch / [3, 0, 3, 1] [2, 1, 7, 2]) */
+  _info[0] = 3U;
+  _info[1] = 0U;
+  _info[2] = 3U;
+  _info[3] = 1U;
+  _info[4] = 2U;
+  _info[5] = 1U;
+  _info[6] = 7U;
+  _info[7] = 2U;
+
+  /* delayed raw buffer */
+  crop_test.ts_raw = 10U * GST_MSECOND;
+  crop_test.ts_info = 400U * GST_MSECOND;
+
+  /* raw buffer is dropped, no result buffer. */
+  _crop_test_push_buffer (&crop_test);
+  EXPECT_EQ (crop_test.received, 0U);
+
+  /* fill raw buffer and push valid buffer */
+  for (i = 0; i < 40; i++)
+    _data[i] = i + 1;
+
+  _crop_test_push_raw_buffer (&crop_test, 300U * GST_MSECOND);
+
+  crop_test.received = _harness_wait_for_output_buffer (crop_test.crop, 1U);
+  EXPECT_EQ (crop_test.received, 1U);
+
+  if (crop_test.received > 0)
+    _crop_test_compare_res1 (&crop_test);
+
+  _crop_test_free (&crop_test);
+}
+
+/**
+ * @brief Test for tensor_crop, push delayed info buffer.
+ */
+TEST (testTensorCrop, infoDelayed_n)
+{
+  crop_test_data_s crop_test;
+  gint lateness;
+  guint i;
+  guint *_data;
+  guint8 *_info;
+
+  _crop_test_init (&crop_test);
+
+  /* set lateness 100ms */
+  g_object_set (crop_test.crop->element, "lateness", 100, NULL);
+  g_object_get (crop_test.crop->element, "lateness", &lateness, NULL);
+  EXPECT_EQ (lateness, 100);
+
+  crop_test.config.info.type = _NNS_UINT32;
+  gst_tensor_parse_dimension ("2:5:4:1", crop_test.config.info.dimension);
+
+  crop_test.raw_size = sizeof (guint) * 40U;
+  crop_test.raw_data = g_malloc0 (crop_test.raw_size);
+  _data = (guint *) crop_test.raw_data;
+
+  for (i = 0; i < 40; i++)
+    _data[i] = i + 1;
+
+  crop_test.info_type = _NNS_UINT8;
+  crop_test.info_size = gst_tensor_get_element_size (crop_test.info_type) * 8U;
+  crop_test.info_data = g_malloc0 (crop_test.info_size);
+  _info = (guint8 *) crop_test.info_data;
+
+  /* delayed info buffer */
+  crop_test.ts_raw = 200U * GST_MSECOND;
+  crop_test.ts_info = 10U * GST_MSECOND;
+
+  /* info buffer is dropped, no result buffer. */
+  _crop_test_push_buffer (&crop_test);
+  EXPECT_EQ (crop_test.received, 0U);
+
+  /* crop info (2 ch / [2, 0, 3, 1] [1, 1, 5, 2]) */
+  _info[0] = 2U;
+  _info[1] = 0U;
+  _info[2] = 3U;
+  _info[3] = 1U;
+  _info[4] = 1U;
+  _info[5] = 1U;
+  _info[6] = 5U;
+  _info[7] = 2U;
+
+  _crop_test_push_info_buffer (&crop_test, 220U * GST_MSECOND);
+
+  crop_test.received = _harness_wait_for_output_buffer (crop_test.crop, 1U);
+  EXPECT_EQ (crop_test.received, 1U);
+
+  if (crop_test.received > 0)
+    _crop_test_compare_res2 (&crop_test);
+
+  _crop_test_free (&crop_test);
 }
 
 /**
