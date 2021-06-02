@@ -722,11 +722,7 @@ python tools/development/count_test_cases.py build tests/summary.txt
 %endif #if unit_test
 
 %install
-DESTDIR=%{buildroot} ninja -C build %{?_smp_mflags} install
-
-pushd %{buildroot}%{_libdir}
-ln -sf %{gstlibdir}/libnnstreamer.so libnnstreamer.so
-popd
+DESTDIR=%{buildroot} ninja -C build install
 
 mkdir -p %{buildroot}%{_bindir}
 pushd %{buildroot}%{_bindir}
