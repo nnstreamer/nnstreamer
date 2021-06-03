@@ -1,3 +1,54 @@
+1.7.1 -> 1.7.2
+	- NNStreamer for Edge-AI project started.
+		- Main features of 1.8.0 release and its immediate successors will be "Edge-AI", which allows distributed on-device AI inferences.
+
+		- The new stream type, "Flex-Tensor", is introduced. Dimensions and types of tensor stream may vary per frame without cap-renegotiations.
+			- Many nnstreamer's tensor-* elements support Flex-Tensor.
+			- You may use tensor-converter to convert between flex-tensor and (static) tensor.
+		- MQTT-SINK and MQTT-SRC elements are added for edge-AI systems with MQTT pub/sub streams.
+			- MQTT streams support "ANY" capabilities.
+			- Assuming that clocks of nodes are synchronized by NTP or other mechanisms, pipeline users may send timestamp related info via MQTT streams for multi-source synchronization.
+		- Tensor-crop, a new nnstreamer-gstreamer element.
+			- Basic feature only (cropping a tensor stream with information of another tensor stream)
+
+	- Major features
+		- GSTPipeline to PBTXT parser. You can use PBTXT-pipeline visualization tools with the parsed results.
+		- FlexBuffers support.
+		- TVM support
+
+		- Tensor-IF with custom (user code plugged at run-time) conditions
+		- Tensorflow-lite delegation designation is generalized.
+		- Tensorflow2-lite XNNPACK delegation
+		- NNTrainer-inference can be attached as a filter along with both API sets.
+		- CAPI: updated documentation, added new enums for recent nnstreamer features, ...
+		- API interface and implementation is separated to another git repository for better architecture.
+		- Tensor-converter and Tensor-decoder support custom ops.
+	- Minor features
+		- Filter subplugin priority with ini file configuration.
+		- Decoder/Bounding-Box improved: output tensor mapping, clamp bounding box locations, labeling issues, more options.
+		- Decoder/Pose-Estimation improved: proper labeling.
+		- Testcases added for gRPC, Android, Tensor-rate, ...
+		- Refactoring (reduce complexity, remove duplicity, build options, ...)
+		- Android build & release upgraded.
+		- Converter usability upgrade: property to list subplugins, subplugin naming/install rules.
+		- Pytorch: exception handling, Android build
+		- gRPC: per-IDL packaging, interface updates, common-code revise, async mode, ...
+		- Support Tensorflow 2.4 API (TF has broken backward compatibility again)
+		- Tensor-transform: may operate on chosen tensor or channel only.
+		- Tensor-transform: new option for normalization, "dc-average", is added.
+	- Fixes
+		- Android resource leak.
+		- CAPI timing, header issues, seg-faults, memory leaks, ...
+		- MacOS build errors.
+		- TensorRT dependency bugs
+		- Edge-TPU compatibility issues.
+		- Unit test fixes (memory leaks, resource leaks, skip disabled features, ...)
+		- Fixed reported issues (security, memory leaks, query-caps, ...)
+	- Extra
+		- Support for Python 2.x is dropped.
+		- Automated doc-page generation with Hotdoc.
+		- Android build now includes GST-Shark for performance profiling.
+
 1.7.0 -> 1.7.1
 	- Major features
 		- Tensor-IF, a new element. It allows to create conditional branches based on tensor values.
