@@ -466,11 +466,16 @@ gst_mqtt_src_change_state (GstElement * element, GstStateChange transition)
           g_get_real_time () * GST_US_TO_NS_MULTIPLIER - diff;
 
       /** This handles the case when the state is changed to PLAYING again */
-      if (self->is_connected && !_subscribe (self)) {
-        GST_ERROR_OBJECT (self, "Failed to re-subscribe to %s",
-            self->mqtt_topic);
+      if (GST_BASE_SRC_IS_STARTED (GST_BASE_SRC (self)) &&
+          (self->is_connected == FALSE)) {
+        int conn = MQTTAsync_reconnect (self->mqtt_client_handle);
 
-        return GST_STATE_CHANGE_FAILURE;
+        if (conn != MQTTASYNC_SUCCESS) {
+          GST_ERROR_OBJECT (self, "Failed to re-subscribe to %s",
+              self->mqtt_topic);
+
+          return GST_STATE_CHANGE_FAILURE;
+        }
       }
       break;
     default:
