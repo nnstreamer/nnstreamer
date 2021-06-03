@@ -23,5 +23,5 @@ sed -i "s|^  version: '$1\.$2\.$3',$|  version: '$4',|" meson.build
 echo $?
 sed -i "s|^NNSTREAMER_VERSION  := $1\.$2\.$3$|NNSTREAMER_VERSION  := $4|" jni/nnstreamer.mk
 echo $?
-sed -i "1s|^|nnstreamer ($4.0) unstable xenial bionic; urgency=medium\n\n  * $4 development starts\n\n -- $5  $DATE\n\n|" debian/changelog
+sed -i "1s|^|nnstreamer ($4.0) unstable xenial bionic focal; urgency=medium\n\n  * $4 development starts\n\n -- $5  $DATE\n\n|" debian/changelog
 echo $?

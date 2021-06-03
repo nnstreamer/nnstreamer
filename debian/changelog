@@ -1,3 +1,9 @@
+nnstreamer (1.7.2.0) unstable xenial bionic focal; urgency=medium
+
+  * 1.7.2 development starts (1.8.0.RC3)
+
+ -- MyungJoo Ham <myungjoo.ham@samsung.com>  Thu, 03 Jun 2021 11:05:04 +0900
+
 nnstreamer (1.7.1.0) unstable xenial bionic; urgency=medium
 
   * 1.7.1 development starts (1.8.0.RC2)
