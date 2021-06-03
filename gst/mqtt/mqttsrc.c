@@ -1158,6 +1158,7 @@ static void
 cb_mqtt_on_connect (void *context, MQTTAsync_successData * response)
 {
   GstMqttSrc *self = GST_MQTT_SRC (context);
+  GstBaseSrc *basesrc = GST_BASE_SRC (self);
   int ret;
 
   g_mutex_lock (&self->mqtt_src_mutex);
@@ -1166,16 +1167,14 @@ cb_mqtt_on_connect (void *context, MQTTAsync_successData * response)
   g_mutex_unlock (&self->mqtt_src_mutex);
 
   /** GstFlowReturn is an enum type. It is possible to use int here */
-  ret = gst_base_src_start_wait (GST_BASE_SRC (self));
-  if (ret != GST_FLOW_OK) {
-    if (!self->err) {
-      g_mutex_lock (&self->mqtt_src_mutex);
-      self->err = g_error_new (self->gquark_err_tag, ret,
-          "%s: the virtual method, start (), in the GstBaseSrc class fails with return code %d",
-          __func__, ret);
-      g_cond_broadcast (&self->mqtt_src_gcond);
-      g_mutex_unlock (&self->mqtt_src_mutex);
-    }
+  if (gst_base_src_is_async (basesrc) &&
+      (ret = gst_base_src_start_wait (basesrc)) != GST_FLOW_OK) {
+    g_mutex_lock (&self->mqtt_src_mutex);
+    self->err = g_error_new (self->gquark_err_tag, ret,
+        "%s: the virtual method, start (), in the GstBaseSrc class fails with return code %d",
+        __func__, ret);
+    g_cond_broadcast (&self->mqtt_src_gcond);
+    g_mutex_unlock (&self->mqtt_src_mutex);
     return;
   }
 
