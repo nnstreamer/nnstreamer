@@ -9,6 +9,7 @@
  * @brief       LUA script loading module for tensor_filter
  * @see         https://nnstreamer.github.io
  * @author      MyungJoo Ham <myungjoo.ham@samsung.com>
+ *              Yongjoo Ahn <yongjoo1.ahn@samsung.com>
  * @bug         NYI
  *
  * @detail
@@ -34,7 +35,10 @@
  *
  *   Then, users need to provide a global "nnstreamer_invoke" function,
  * "invokeNN", where the function type is:
- *   @todo TBD
+ *   @todo scale for num_tensors > 1
+ *         Support various tensor type
+ *         Support script given by raw string
+ *
  *   Both input/outputConf are required to have:
  * {
  *    // Array starts from 1, ends at num
@@ -55,6 +59,7 @@ extern "C" {
 #include <string>
 #include <nnstreamer_cppplugin_api_filter.hh>
 #include <nnstreamer_log.h>
+#include <tensor_common.h>
 
 
 namespace nnstreamer
@@ -70,16 +75,99 @@ void _fini_filter_lua (void) __attribute__((destructor));
 }
 #endif /* __cplusplus */
 
+/** @brief For getting value in Lua */
+static int
+tensor_index (lua_State *L)
+{
+  uint8_t** parray = (uint8_t **) luaL_checkudata (L, 1, "tensor");
+  int index = luaL_checkint (L, 2);
+  lua_pushnumber (L, (*parray)[index - 1]);
+
+  return 1;
+}
+
+/** @brief For assigning new value in Lua */
+static int
+tensor_newindex (lua_State* L)
+{
+  uint8_t** parray = (uint8_t **) luaL_checkudata(L, 1, "tensor");
+  int index = luaL_checkint(L, 2);
+  int value = luaL_checkint(L, 3);
+  (*parray)[index - 1] = value;
+
+  return 0;
+}
+
+/** @brief Get tensor value in Lua */
+static int
+expose_tensor (lua_State*L, uint8_t *array)
+{
+  uint8_t** parray = (uint8_t **) lua_newuserdata (L, sizeof (uint8_t **));
+  *parray = array;
+  luaL_getmetatable (L, "tensor");
+  lua_setmetatable (L, -2);
+
+  return 1;
+}
+
+/** @brief Get input tensor in Lua */
+static int
+getInputTensor (lua_State* L)
+{
+  lua_pushstring (L, "input_for_lua");
+  lua_gettable (L, LUA_REGISTRYINDEX);
+  const GstTensorMemory **res = (const GstTensorMemory **) lua_topointer (L, -1);
+  lua_remove (L, 1);
+
+  return expose_tensor (L, (uint8_t *) (*res)[0].data);
+}
+
+/** @brief Get output tensor in Lua */
+static int
+getOutputTensor (lua_State *L)
+{
+  lua_pushstring (L, "output_for_lua");
+  lua_gettable (L, LUA_REGISTRYINDEX);
+  GstTensorMemory **res = (GstTensorMemory **) lua_topointer (L, -1);
+  lua_remove (L, 1);
+
+  return expose_tensor (L, (uint8_t *) (*res)[0].data);
+}
+
+/** @brief Register metatable for tensor in Lua */
+static void
+create_tensor_type (lua_State *L)
+{
+  static const struct luaL_reg tensor[] = {
+    {"__index", tensor_index},
+    {"__newindex", tensor_newindex},
+    {NULL, NULL}
+  };
+
+  luaL_newmetatable (L, "tensor");
+  luaL_openlib (L, NULL, tensor, 0);
+  lua_register (L, "input_tensor", getInputTensor);
+  lua_register (L, "output_tensor", getOutputTensor);
+}
+
 /** @brief lua subplugin class */
 class lua_subplugin final : public tensor_filter_subplugin
 {
   private:
   static const char *name;
+  static lua_subplugin *registeredRepresentation;
+  GstTensorsInfo inputInfo;
+  GstTensorsInfo outputInfo;
+
+  /** @todo Support script given by raw string */
   const char *script;
   const char *loadScript (const GstTensorFilterProperties *prop);
   lua_State *L;
   static const accl_hw hw_list[];
   static const int num_hw = 1;
+
+  const GstTensorMemory *input_for_lua;
+  GstTensorMemory *output_for_lua;
 
   public:
   static void init_filter_lua ();
@@ -104,11 +192,18 @@ const accl_hw lua_subplugin::hw_list[] = { ACCL_CPU };
 lua_subplugin::lua_subplugin ()
     : tensor_filter_subplugin (), script (NULL), L (NULL)
 {
+  gst_tensors_info_init (std::addressof (inputInfo));
+  gst_tensors_info_init (std::addressof (outputInfo));
 }
 
 /** @brief Class destructor */
 lua_subplugin::~lua_subplugin ()
 {
+  gst_tensors_info_free (std::addressof (inputInfo));
+  gst_tensors_info_free (std::addressof (outputInfo));
+
+  if (L != NULL)
+    lua_close (L);
 }
 
 /** @brief tensor-filter subplugin mandatory method */
@@ -126,47 +221,121 @@ lua_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     lua_close (L);
   }
 
-  L = luaL_newstate();
+  /** @todo scale for num_tensors > 1 */
+  inputInfo.num_tensors = 1;
+  outputInfo.num_tensors = 1;
+
+  L = lua_open ();
   luaL_openlibs (L);
 
-  script = loadScript (prop);
-  int load_stat = luaL_loadbuffer (L, script, strlen (script), script);
-  if (load_stat != 0) {
-    /** @todo Error handling with load_stat */
+  /** @todo Support script given by raw string */
+  // script = loadScript (prop);
+  // int load_stat = luaL_loadbuffer (L, script, strlen (script), script);
+  // if (load_stat != 0) {
+  //   /** @todo Error handling with load_stat */
+  //  return;
+  // }
+
+  if (!g_file_test (prop->model_files[0], G_FILE_TEST_EXISTS)) {
+    nns_loge ("Given model file does not exist");
     return;
   }
 
-  lua_pcall(L, 0, 0, 0); /** execute "script" to load the "invoke" func. */
+  lua_pushstring (L, "input_for_lua");
+  lua_pushlightuserdata (L, (void *) &input_for_lua);
+  lua_settable (L, LUA_REGISTRYINDEX);
 
-  lua_getglobal (L, "nnstreamer_invoke");
-  if (lua_isfunction (L, -1)) {
-    /** "OK" */
-    /** @todo handle and return */
+  lua_pushstring (L, "output_for_lua");
+  lua_pushlightuserdata (L, (void *) &output_for_lua);
+  lua_settable (L, LUA_REGISTRYINDEX);
+
+  create_tensor_type (L);
+
+  if (luaL_dofile (L, prop->model_files[0]) == 0) {
+    nns_logi ("Lua script is loaded");
   } else {
-    /** @todo Error handling. */
+    std::string errormsg = lua_tostring (L, -1);
+    nns_loge ("Error occured while loading given lua script: %s", errormsg.c_str ());
   }
 
+  /** Parsing inputTensorInfo */
+  lua_getglobal (L, "inputTensorInfo");
+  if (lua_istable (L, -1)) {
+    lua_pushstring (L, "type");
+    lua_gettable (L, -2);
+
+    /** @todo Support various tensor type */
+    std::string lua_input_type = lua_tostring (L, -1);
+    inputInfo.info[0].type = _NNS_UINT8;
+    lua_pop (L, 1);
+
+    lua_pushstring (L, "dim");
+    lua_gettable (L, -2);
+    if (lua_istable (L, -1)) {
+      for (int i = 1; i <= 4; ++i) {
+        lua_pushinteger (L, i);
+        lua_gettable (L, -2);
+        inputInfo.info[0].dimension[i - 1] = lua_tointeger (L, -1);
+        lua_pop (L, 1);
+      }
+
+      lua_pop (L, 1);
+    }
+    lua_pop (L, 1);
+  } else {
+    nns_loge ("Failed to get inputTensorInfo from lua. Please check the script");
+  }
+
+  /** Parsing outputTensorInfo */
+  lua_getglobal (L, "outputTensorInfo");
+  if (lua_istable (L, -1)) {
+    lua_pushstring (L, "type");
+    lua_gettable (L, -2);
+
+    /** @todo Support various tensor type */
+    std::string lua_output_type = lua_tostring (L, -1);
+    outputInfo.info[0].type = _NNS_UINT8;
+    lua_pop (L, 1);
+
+    lua_pushstring (L, "dim");
+    lua_gettable (L, -2);
+    if (lua_istable (L, -1)) {
+      for (int i = 1; i <= 4; ++i) {
+        lua_pushinteger (L, i);
+        lua_gettable (L, -2);
+        outputInfo.info[0].dimension[i - 1] = lua_tointeger (L, -1);
+        lua_pop (L, 1);
+      }
+      lua_pop (L, 1);
+    }
+    lua_pop (L, 1);
+  } else {
+    nns_loge ("Failed to get OutputTensorInfo from lua. Please check the script");
+  }
+
+  lua_getglobal (L, "nnstreamer_invoke");
+  if (!lua_isfunction (L, -1)) {
+    nns_loge ("Error while loading function `nnstreamer_invoke` in lua script");
+  }
+
+  lua_settop (L, 0);
 }
 
 /** @brief tensor-filter subplugin mandatory method */
 void
 lua_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
-  /** @todo STEP 1. Prepare input buffer for LUA */
+  input_for_lua = input;
+  output_for_lua = output;
 
-  /** @todo STEP 2. Prepare output buffer for LUA */
-
-  /** STEP 3. Call LUA
-    * @todo NYI input/output handling.
-    * @todo NYI LUA APIs for tensor-filter
-    *
-    * Suggestion: set "standard global invoke function name to be called",
-    * , which is "nnstreamer_invoke". The next lua_pcall will call that
-    * function.
-    */
-  lua_pcall (L, 0, 0, 0); /** @todo NYI. replace 0 with correct variables */
-
-  /** @todo STEP 4. Anything else? */
+  lua_getglobal (L, "nnstreamer_invoke");
+  if (lua_isfunction(L, -1)) {
+      if (lua_pcall (L, 0, 0, 0) != 0) {
+        nns_logw ("error while pcall nnstreamer_invoke");
+      }
+  } else {
+    nns_loge ("Error while loading function `nnstreamer_invoke` in lua script");
+  }
 }
 
 /** @brief tensor-filter subplugin mandatory method */
@@ -187,7 +356,12 @@ int
 lua_subplugin::getModelInfo (
     model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info)
 {
-  /** @todo Need some connection with lua script? or let property handle? */
+  if (ops == GET_IN_OUT_INFO) {
+    gst_tensors_info_copy (std::addressof (in_info), std::addressof (inputInfo));
+    gst_tensors_info_copy (std::addressof (out_info), std::addressof (outputInfo));
+    return 0;
+  }
+
   return -ENOENT;
 }
 
@@ -218,6 +392,45 @@ lua_subplugin::loadScript (const GstTensorFilterProperties *prop)
   return NULL;
 }
 
+lua_subplugin *lua_subplugin::registeredRepresentation = nullptr;
+
+/**
+ * @brief Initialize the object for runtime register
+ */
+void
+lua_subplugin::init_filter_lua (void)
+{
+  registeredRepresentation
+      = tensor_filter_subplugin::register_subplugin<lua_subplugin> ();
+}
+
+/**
+ * @brief Destruct the subplugin
+ */
+void
+lua_subplugin::fini_filter_lua (void)
+{
+  assert (registeredRepresentation != nullptr);
+  tensor_filter_subplugin::unregister_subplugin (registeredRepresentation);
+}
+
+/**
+ * @brief initializer
+ */
+void
+_init_filter_lua ()
+{
+  lua_subplugin::init_filter_lua ();
+}
+
+/**
+ * @brief finalizer
+ */
+void
+_fini_filter_lua ()
+{
+  lua_subplugin::fini_filter_lua ();
+}
 
 } /* namespace nnstreamer::tensorfilter_lua */
 } /* namespace nnstreamer */

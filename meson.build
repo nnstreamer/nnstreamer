@@ -315,8 +315,10 @@ features = {
     'extra_deps': [ grpc_dep, gpr_dep, grpcpp_dep ]
   },
   'lua-support': {
+    # TODO: support various Lua versions
     'target': 'lua',
-    'project_args': { 'ENABLE_LUA' : 1}
+    'target_alt': 'lua5.1',
+    'project_args': { 'ENABLE_LUA': 1 }
   },
   'mqtt-support': {
     'extra_deps': [ pahomqttc_dep ]
