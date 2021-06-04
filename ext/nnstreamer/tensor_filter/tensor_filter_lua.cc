@@ -37,7 +37,6 @@
  * "invokeNN", where the function type is:
  *   @todo scale for num_tensors > 1
  *         Support various tensor type
- *         Support script given by raw string
  *
  *   Both input/outputConf are required to have:
  * {
@@ -159,9 +158,6 @@ class lua_subplugin final : public tensor_filter_subplugin
   GstTensorsInfo inputInfo;
   GstTensorsInfo outputInfo;
 
-  /** @todo Support script given by raw string */
-  const char *script;
-  const char *loadScript (const GstTensorFilterProperties *prop);
   lua_State *L;
   static const accl_hw hw_list[];
   static const int num_hw = 1;
@@ -190,7 +186,7 @@ const accl_hw lua_subplugin::hw_list[] = { ACCL_CPU };
 
 /** @brief Class constructor */
 lua_subplugin::lua_subplugin ()
-    : tensor_filter_subplugin (), script (NULL), L (NULL)
+    : tensor_filter_subplugin (), L (NULL)
 {
   gst_tensors_info_init (std::addressof (inputInfo));
   gst_tensors_info_init (std::addressof (outputInfo));
@@ -228,19 +224,6 @@ lua_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   L = lua_open ();
   luaL_openlibs (L);
 
-  /** @todo Support script given by raw string */
-  // script = loadScript (prop);
-  // int load_stat = luaL_loadbuffer (L, script, strlen (script), script);
-  // if (load_stat != 0) {
-  //   /** @todo Error handling with load_stat */
-  //  return;
-  // }
-
-  if (!g_file_test (prop->model_files[0], G_FILE_TEST_EXISTS)) {
-    nns_loge ("Given model file does not exist");
-    return;
-  }
-
   lua_pushstring (L, "input_for_lua");
   lua_pushlightuserdata (L, (void *) &input_for_lua);
   lua_settable (L, LUA_REGISTRYINDEX);
@@ -251,11 +234,23 @@ lua_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 
   create_tensor_type (L);
 
-  if (luaL_dofile (L, prop->model_files[0]) == 0) {
-    nns_logi ("Lua script is loaded");
+  if (!g_file_test (prop->model_files[0], G_FILE_TEST_EXISTS)) {
+    nns_logi ("Given model file does not exist. Do script mode.");
+    std::string script = g_strjoinv (",", (gchar **) prop->model_files);
+    if (luaL_dostring (L, script.c_str ()) != 0) {
+      nns_loge ("Error occured while loading given lua script: %s\nError message: %s",
+          script.c_str (), lua_tostring (L, -1));
+
+      return;
+    }
   } else {
-    std::string errormsg = lua_tostring (L, -1);
-    nns_loge ("Error occured while loading given lua script: %s", errormsg.c_str ());
+    /** Do File mode */
+    if (luaL_dofile (L, prop->model_files[0]) != 0) {
+      nns_loge ("Error occured while loading given lua script.\nError message: %s",
+          lua_tostring (L, -1));
+
+      return ;
+    }
   }
 
   /** Parsing inputTensorInfo */
@@ -371,25 +366,6 @@ lua_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &d
 {
   /** @todo Handle "reload" */
   return -ENOENT;
-}
-
-/** @brief Load lua script based on prop info */
-const char *
-lua_subplugin::loadScript (const GstTensorFilterProperties *prop)
-{
-  /** @todo NYI */
-
-  /** 1. from prop, determine if it's file mode or prop mode */
-
-  /** 2. get string of it's file mode */
-
-  /** 3. get input/output conf (if they are constants) */
-
-  /** 4. 3 failed, load up the conf functions */
-
-  /** 5. load up invoke function */
-
-  return NULL;
 }
 
 lua_subplugin *lua_subplugin::registeredRepresentation = nullptr;
