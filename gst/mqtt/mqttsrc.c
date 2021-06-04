@@ -694,7 +694,9 @@ gst_mqtt_src_create (GstBaseSrc * basesrc, guint64 offset, guint size,
 
   g_mutex_lock (&self->mqtt_src_mutex);
   while ((!self->is_connected) || (!self->is_subscribed)) {
-    g_cond_wait (&self->mqtt_src_gcond, &self->mqtt_src_mutex);
+    gint64 end_time = g_get_monotonic_time () + G_TIME_SPAN_SECOND;
+
+    g_cond_wait_until (&self->mqtt_src_gcond, &self->mqtt_src_mutex, end_time);
     if (self->err) {
       g_mutex_unlock (&self->mqtt_src_mutex);
       goto ret_flow_err;
