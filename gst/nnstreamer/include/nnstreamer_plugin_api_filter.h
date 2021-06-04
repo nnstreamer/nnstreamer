@@ -155,6 +155,7 @@ typedef struct _GstTensorFilterProperties
   accl_hw *hw_list; /**< accelerators supported by framework intersected with user provided accelerator preference, use in GstTensorFilterFramework V1 only */
   int num_hw;       /**< number of hardare accelerators in the hw_list supported by the framework */
   const char *accl_str; /**< accelerator configuration passed in as parameter, use in GstTensorFilterFramework V0 only */
+  char *shared_tensor_filter_key; /**< the shared instance key to use same model representation */
 
   int latency; /**< The average latency over the recent 10 inferences in microseconds */
   int throughput; /**< The average throughput in the number of outputs per second */

@@ -118,6 +118,7 @@ enum
   PROP_THROUGHPUT,
   PROP_INPUTCOMBINATION,
   PROP_OUTPUTCOMBINATION,
+  PROP_SHARED_TENSOR_FILTER_KEY,
 };
 
 /**
@@ -965,6 +966,15 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
       g_param_spec_string ("output-combination", "output tensor(s) combination",
           "Select the output tensor(s) from the input tensor(s) and/or model output",
           "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_SHARED_TENSOR_FILTER_KEY,
+      g_param_spec_string ("shared-tensor-filter-key",
+          "The key(name) of shared model representation",
+          "Multiple element instances of tensor-filter in a pipeline may share "
+          "a single resource instance if they share the same framework (subplugin) "
+          "and nerual network model. Designate \"shared-tensor-filter-key\" "
+          "to declare and share such instances. "
+          "If it is NULL, it means the model representations is not shared.",
+          NULL, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 }
 
 /**
@@ -991,6 +1001,7 @@ gst_tensor_filter_common_init_property (GstTensorFilterPrivate * priv)
   priv->combi.out_combi_o_defined = FALSE;
   gst_tensors_config_init (&priv->in_config);
   gst_tensors_config_init (&priv->out_config);
+  priv->prop.shared_tensor_filter_key = NULL;
 
   /* init qos properties */
   priv->prev_ts = GST_CLOCK_TIME_NONE;
@@ -1011,6 +1022,7 @@ gst_tensor_filter_common_free_property (GstTensorFilterPrivate * priv)
   g_free_const (prop->fwname);
   g_free_const (prop->accl_str);
   g_free (prop->hw_list);
+  g_free (prop->shared_tensor_filter_key);
 
   g_free_const (prop->custom_properties);
   g_strfreev_const (prop->model_files);
@@ -1830,6 +1842,17 @@ _gtfc_setprop_OUTPUTCOMBINATION (GstTensorFilterPrivate * priv,
   return ret;
 }
 
+/** @brief Handle "PROP_SHARED_TENSOR_FILTER_KEY" for set-property */
+static gint
+_gtfc_setprop_SHARED_TENSOR_FILTER_KEY (GstTensorFilterProperties * prop,
+    const GValue * value)
+{
+  g_free (prop->shared_tensor_filter_key);
+  prop->shared_tensor_filter_key = g_value_dup_string (value);
+
+  return 0;
+}
+
 /**
  * @brief Set the properties for tensor_filter
  * @param[in] priv Struct containing the properties of the object
@@ -1905,6 +1928,9 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
     case PROP_OUTPUTCOMBINATION:
       status = _gtfc_setprop_OUTPUTCOMBINATION (priv, &priv->combi.out_combi_i,
           &priv->combi.out_combi_o, value);
+      break;
+    case PROP_SHARED_TENSOR_FILTER_KEY:
+      status = _gtfc_setprop_SHARED_TENSOR_FILTER_KEY (prop, value);
       break;
     default:
       return FALSE;
@@ -2100,6 +2126,12 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
       break;
     case PROP_OUTPUTCOMBINATION:
       gst_tensor_filter_property_to_string (value, priv, prop_id);
+      break;
+    case PROP_SHARED_TENSOR_FILTER_KEY:
+      if (prop->shared_tensor_filter_key)
+        g_value_set_string (value, prop->shared_tensor_filter_key);
+      else
+        g_value_set_string (value, "");
       break;
     default:
       /* unknown property */
