@@ -165,6 +165,9 @@ BuildRequires:  pkgconfig(libpng)
 %if 0%{?flatbuf_support}
 # for flatbuffers
 BuildRequires: flatbuffers-devel
+%if 0%{?unit_test}
+BuildRequires: flatbuffers-python
+%endif
 %endif
 %if 0%{?tensorflow_lite_support}
 # for tensorflow-lite
@@ -374,6 +377,7 @@ NNStreamer's tensor_converter and decoder subplugin of Protobuf.
 Summary:	NNStreamer Flatbuf Support
 Requires:	nnstreamer = %{version}-%{release}
 Requires:	flatbuffers
+Recommends: flatbuffers-python
 %description flatbuf
 NNStreamer's tensor_converter and decoder subplugin of flatbuf.
 %endif

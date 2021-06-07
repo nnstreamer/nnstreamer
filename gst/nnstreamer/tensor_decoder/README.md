@@ -63,3 +63,51 @@ The following properties are suggested and planned.
 $ gst-launch somevideosrc_with_xraw ! tee name=t ! queue ! tensor_converter ! tensor_filter SOME_OPTION ! tensor_decoder output-type=image-label additional-file-1=/tmp/labels.txt ! txt. t. ! queue ! textoverlay name=txt ! autovideosink
 ```
 Note: not tested. not sure if the syntax is correct with ```txt. t. !```. Regard the above as pseudo code.
+
+## Custom decoder
+If you want to convert tensors to any media type, You can use custom mode of the tensor decoder.
+### code mode
+This is an example of a callback type custom mode.
+```
+// Define custom callback function
+int tensor_decoder_custom_cb (const GstTensorMemory *input,
+const GstTensorsConfig *config, void *data, GstBuffer *out_buf) {
+  // Write a code to convert tensors to any media type.
+}
+
+...
+// Register custom callback function
+nnstreamer_decoder_custom_register ("tdec", tensor_decoder_custom_cb, NULL);
+...
+// Use the custom tensor decoder in a pipeline.
+// E.g., Pipeline of " ... (tensors) ! tensor_decoder mode=custom-code option1=tdec ! (any media stream)... "
+...
+// After everything is done.
+nnstreamer_decoder_custom_unregister ("tdec");
+```
+
+### script mode
+* Note: Currently only Python is supported.
+  - If you want to use FlatBuffers Python in Tizen, install package `flatbuffers-python`. It also includes a Flexbuffers Python.
+  - If you want to use Flatbuffers Python in Ubuntu, install package using pip `pip install flatbuffers`. It also includes a Flexbuffers Python.
+
+This is an example of a python script.
+```
+# @file custom_decoder_example.py
+## @brief  User-defined custom decoder
+class CustomDecoder(object):
+## @breif  Python callback: getOutCaps
+  def getOutCaps (self):
+    # Write capability of the media type.
+    return bytes('@CAPS_STRING@', 'UTF-8')
+
+## @breif  Python callback: decode
+  def decode (self, raw_data, in_info, rate_n, rate_d):
+    # return decoded raw data as `bytes` type.
+    return data
+
+```
+Example pipeline
+```
+... (tensors) ! tensor_decoder mode=python3 option1=custom_decoder_example.py ! (any media stream) ...
+```

@@ -57,3 +57,44 @@ For each outgoing frame (on the source pad), there always is a **single** instan
 ```
 $ gst-launch videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! tensor_converter ! tensor_sink
 ```
+
+## Custom converter
+If you want to convert any media type to tensors, You can use custom mode of the tensor converter.
+### code mode
+This is an example of a callback type custom mode.
+```
+// Define custom callback function
+GstBuffer * tensor_converter_custom_cb (GstBuffer *in_buf, void *data, GstTensorsConfig *config) {
+  // Write a code to convert any media type to tensors.
+}
+...
+// Register custom callback function
+nnstreamer_converter_custom_register ("tconv", tensor_converter_custom_cb, NULL);
+...
+// Use the custom tensor converter in a pipeline.
+// E.g., Pipeline of " ... (any media stream) ! tensor_converter mode=custom-code:tconv ! (tensors)... "
+...
+// After everything is done.
+nnstreamer_converter_custom_unregister ("tconv");
+```
+
+### script mode
+* Note: Currently only Python is supported.
+  - If you want to use FlatBuffers Python in Tizen, install package `flatbuffers-python`. It also includes a Flexbuffers Python.
+  - If you want to use Flatbuffers Python in Ubuntu, install package using pip `pip install flatbuffers`. It also includes a Flexbuffers Python.
+
+This is an example of a python script.
+```
+# @file custom_converter_example.py
+import numpy as np
+import nnstreamer_python as nns
+## @brief  User-defined custom converter
+class CustomConverter(object):
+  def convert (self, input_array):
+    ## Write a code to convert any media type to tensors.
+    return (tensors_info, out_array, rate_n, rate_d)
+```
+Example pipeline
+```
+... (any media stream) ! tensor_converter mode=custom-script:custom_converter_example.py ! (tensors) ...
+```
