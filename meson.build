@@ -174,20 +174,6 @@ if not get_option('snpe-support').disabled()
   endif
 endif
 
-# tvm
-tvm_dep = dependency('', required: false)
-dlpack_dep = dependency('', required: false)
-if not get_option('tvm-support').disabled()
-  tvm_dep = dependency('tvm', required: false)
-  dlpack_dep = dependency('dlpack', required: false)
-  if not tvm_dep.found()
-    tvm_dep = cxx.find_library('tvm', required: get_option('tvm-support'))
-  endif
-  if not dlpack_dep.found()
-    dlpack_dep = cxx.find_library('dlpack', required: get_option('tvm-support'))
-  endif
-endif
-
 # tensorrt
 nvinfer_dep = dependency('', required: false)
 nvparsers_dep = dependency('', required: false)
@@ -324,7 +310,8 @@ features = {
     'extra_deps': [ pahomqttc_dep ]
   },
   'tvm-support': {
-    'extra_deps': [ tvm_dep, dlpack_dep ]
+    'target': 'tvm_runtime',
+    'project_args': { 'ENABLE_TVM' : 1 }
   }
 }
 
