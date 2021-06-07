@@ -730,8 +730,8 @@ gst_mqtt_sink_render (GstBaseSink * basesink, GstBuffer * in_buf)
     } else {
       if (self->max_msg_buf_size < in_buf_size) {
         g_printerr ("%s: The given size for a message buffer is too small: "
-            "given (%lu bytes) vs. incomming (%lu bytes)\n",
-            TAG_ERR_MQTTSINK, self->max_msg_buf_size, in_buf_size);
+            "given (%" G_GSIZE_FORMAT " bytes) vs. incomming (%" G_GSIZE_FORMAT
+            " bytes)\n", TAG_ERR_MQTTSINK, self->max_msg_buf_size, in_buf_size);
         ret = GST_FLOW_ERROR;
         goto ret_with;
       }
