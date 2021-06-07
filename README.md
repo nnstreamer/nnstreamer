@@ -28,15 +28,15 @@ neural network developers to manage neural network pipelines and their filters e
 
 ## Official Releases
 
-|     | [Tizen](http://download.tizen.org/snapshots/tizen/unified/latest/repos/standard/packages/) | [Ubuntu](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) | Android/NDK Build | Android/APK | Yocto | macOS |
-| :-- | :--: | :--: | :--: | :--: | :--: | :--: |
-|     | 5.5M2 and later | 16.04/18.04/20.04 | 9/P | 9/P | Zeus and later |   |
-| arm | [![armv7l badge](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/badge/armv7l_result_badge.svg)](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/build_result/) | Available  | Ready | Available| Ready | N/A |
-| arm64 |  [![aarch64 badge](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/badge/aarch64_result_badge.svg)](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/build_result/) | Available  | Ready | [![android badge](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/badge/android_result_badge.svg)](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/build_result/) | Planned | N/A |
-| x64 | [![x64 badge](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/badge/x86_64_result_badge.svg)](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/build_result/)  | [![ubuntu badge](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/badge/ubuntu_result_badge.svg)](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/build_result/)  | Ready  | Ready | Ready | Available |
-| x86 | [![x86 badge](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/badge/i586_result_badge.svg)](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/build_result/)  | N/A  | N/A  | N/A  | N/A | N/A |
-| Publish | [Tizen Repo](http://download.tizen.org/snapshots/tizen/unified/latest/repos/standard/packages/) | [PPA](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) |   | [JCenter](https://bintray.com/beta/#/nnsuite/nnstreamer/nnstreamer?tab=overview) |   | [Brew Tap](Documentation/getting-started-macos.md) |
-| API | C/C# (Official) | C |    | Java | C  | C  |
+|     | [Tizen](http://download.tizen.org/snapshots/tizen/unified/latest/repos/standard/packages/) | [Ubuntu](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) | Android | Yocto | macOS |
+| :-- | :--: | :--: | :--: | :--: | :--: |
+|     | 5.5M2 and later | 16.04/18.04/20.04 | 9/P | Zeus and later |   |
+| arm | [![armv7l badge](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/badge/armv7l_result_badge.svg)](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/build_result/) | Available  | Available| Ready | N/A |
+| arm64 |  [![aarch64 badge](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/badge/aarch64_result_badge.svg)](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/build_result/) | Available  | [![android badge](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/badge/android_result_badge.svg)](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/build_result/) | Planned | N/A |
+| x64 | [![x64 badge](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/badge/x86_64_result_badge.svg)](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/build_result/)  | [![ubuntu badge](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/badge/ubuntu_result_badge.svg)](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/build_result/latest/android/)  | Ready  | Ready | Available |
+| x86 | [![x86 badge](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/badge/i586_result_badge.svg)](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/build_result/)  | N/A  | N/A  | N/A | N/A |
+| Publish | [Tizen Repo](http://download.tizen.org/snapshots/tizen/unified/latest/repos/standard/packages/) | [PPA](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) | [Daily build](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/build_result/latest/android/) |   | [Brew Tap](Documentation/getting-started-macos.md) |
+| API | C/C# (Official) | C | Java | C  | C  |
 
 - Ready: CI system ensures build-ability and unit-testing. Users may easily build and execute. However, we do not have automated release & deployment system for this instance.
 - Available: binary packages are released and deployed automatically and periodically along with CI tests.
