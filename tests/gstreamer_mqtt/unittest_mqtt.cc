@@ -99,7 +99,7 @@ TEST (testMqttSink, sink_get_set_properties)
   gchar *sprop = NULL;
   gboolean bprop;
   gint iprop;
-  guint64 uprop;
+  gulong ulprop;
 
   ASSERT_TRUE (h != NULL);
 
@@ -131,9 +131,9 @@ TEST (testMqttSink, sink_get_set_properties)
   EXPECT_STREQ (sprop, "testtopic");
   g_free (sprop);
 
-  g_object_set (h->element, "pub-wait-timeout", 9999, NULL);
-  g_object_get (h->element, "pub-wait-timeout", &uprop, NULL);
-  EXPECT_TRUE (uprop == 9999);
+  g_object_set (h->element, "pub-wait-timeout", 9999UL, NULL);
+  g_object_get (h->element, "pub-wait-timeout", &ulprop, NULL);
+  EXPECT_EQ (ulprop, 9999UL);
 
   g_object_set (h->element, "cleansession", false, NULL);
   g_object_get (h->element, "cleansession", &bprop, NULL);
@@ -143,9 +143,9 @@ TEST (testMqttSink, sink_get_set_properties)
   g_object_get (h->element, "keep-alive-interval", &iprop, NULL);
   EXPECT_TRUE (iprop == 9999);
 
-  g_object_set (h->element, "max-buffer-size", 1024, NULL);
-  g_object_get (h->element, "max-buffer-size", &uprop, NULL);
-  EXPECT_TRUE (uprop == 1024);
+  g_object_set (h->element, "max-buffer-size", 1024UL, NULL);
+  g_object_get (h->element, "max-buffer-size", &ulprop, NULL);
+  EXPECT_EQ (ulprop, 1024UL);
 
   g_object_set (h->element, "num-buffers", 10, NULL);
   g_object_get (h->element, "num-buffers", &iprop, NULL);
@@ -198,9 +198,9 @@ TEST (testMqttSrc, src_get_set_properties)
   EXPECT_STREQ (sprop, "testport");
   g_free (sprop);
 
-  g_object_set (h->element, "sub-timeout", 99999999, NULL);
+  g_object_set (h->element, "sub-timeout", G_GINT64_CONSTANT (99999999), NULL);
   g_object_get (h->element, "sub-timeout", &lprop, NULL);
-  EXPECT_TRUE (lprop == 99999999);
+  EXPECT_TRUE (lprop == G_GINT64_CONSTANT (99999999));
 
   g_object_set (h->element, "sub-topic", "testtopic", NULL);
   g_object_get (h->element, "sub-topic", &sprop, NULL);
@@ -263,9 +263,9 @@ TEST (testMqttSrc, src_get_set_properties_n)
 
   ASSERT_TRUE (h != NULL);
 
-  g_object_set (h->element, "sub-timeout", 0, NULL);
+  g_object_set (h->element, "sub-timeout", G_GINT64_CONSTANT (0), NULL);
   g_object_get (h->element, "sub-timeout", &lprop, NULL);
-  EXPECT_FALSE (lprop == 0);
+  EXPECT_FALSE (lprop == G_GINT64_CONSTANT (0));
 
   g_object_set (h->element, "keep-alive-interval", 0, NULL);
   g_object_get (h->element, "keep-alive-interval", &iprop, NULL);
