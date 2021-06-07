@@ -12,7 +12,7 @@ Build-Depends: gcc-9 | gcc-8 | gcc-7 | gcc-6 | gcc-5 (>=5.4),
  tensorflow2-lite-dev,
  openvino-dev, openvino-cpu-mkldnn [amd64], libflatbuffers-dev, flatbuffers-compiler,
  protobuf-compiler (>=3.12), libprotobuf-dev [amd64 arm64 armhf],
- tensorflow-dev [amd64], python2.7-dev, flex, bison
+ tensorflow-dev [amd64], python2.7-dev, flex, bison, tvm-runtime-dev
 Standards-Version: 3.9.6
 Homepage: https://github.com/nnstreamer/nnstreamer
 
@@ -96,6 +96,13 @@ Multi-Arch: same
 Depends: nnstreamer, openvino, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer OpenVino support
  This package allows nnstreamer to support OpenVino.
+
+Package: nnstreamer-tvm
+Architecture: any
+Multi-Arch: same
+Depends: nnstreamer, tvm-runtime, ${shlibs:Depends}, ${misc:Depends}
+Description: NNStreamer TVM support
+ This package allows nnstreamer to support TVM
 
 Package: nnstreamer-protobuf
 Architecture: any
