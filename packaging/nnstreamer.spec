@@ -31,7 +31,7 @@
 %define		grpc_support 1
 %define		pytorch_support 0
 %define		caffe2_support 0
-%define		mqtt_support 0
+%define		mqtt_support 1
 %define		lua_support 1
 
 %define		check_test 1
@@ -98,6 +98,7 @@
 %define		caffe2_support 0
 %define		tensorflow_support 0
 %define		lua_support 0
+%define		mqtt_support 0
 %endif
 
 # DA requested to remove unnecessary module builds
@@ -107,6 +108,7 @@
 %define		openvino_support 0
 %define		edgetpu_support 0
 %define		lua_support 0
+%define		mqtt_support 0
 %endif
 
 # Release unit test suite as a subpackage only if check_test is enabled.
@@ -553,6 +555,10 @@ NNStreamer developer utilities include nnstreamer configuration checker.
 
 %package misc
 Summary:	NNStreamer extra packages
+%if 0%{?mqtt_support}
+BuildRequires:	pkgconfig(paho-mqtt-c)
+%endif
+
 %description misc
 Provides additional gstreamer plugins for nnstreamer pipelines
 
@@ -1032,6 +1038,9 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 
 %files misc
 %{gstlibdir}/libgstjoin.so
+%if 0%{?mqtt_support}
+%{gstlibdir}/libgstmqtt.so
+%endif
 
 %if 0%{?release_test}
 %files test-devel
