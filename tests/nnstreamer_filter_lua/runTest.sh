@@ -54,7 +54,7 @@ python3 ../nnstreamer_filter_python3/checkScaledTensor.py testcase2.direct.log 6
 testResult $? 2 "Golden test comparison" 0 1
 
 # Passthrough test with given string script
-PASSTHROUGH_SCRIPT="inputTensorInfo = {dim = {3, 299, 299, 1}, type = 'uint8_t' } outputTensorInfo = {dim = {3, 299, 299, 1}, type = 'uint8_t' } function nnstreamer_invoke() input = input_tensor() output = output_tensor() for i=1,3*299*299 do output[i] = input[i] end end"
+PASSTHROUGH_SCRIPT="inputTensorsInfo = {num = 1, dim = {{3, 299, 299, 1},}, type = {'uint8',} } outputTensorsInfo = {num = 1, dim = {{3, 299, 299, 1},}, type = {'uint8',} } function nnstreamer_invoke() input = input_tensor(1) output = output_tensor(1) for i=1,3*299*299 do output[i] = input[i] end end"
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=299,height=299,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=lua model=\"${PASSTHROUGH_SCRIPT}\" ! filesink location=\"testcase3.passthrough.log\" sync=true t. ! queue ! filesink location=\"testcase3.direct.log\" sync=true" 3 0 0 $PERFORMANCE
 callCompareTest testcase3.direct.log testcase3.passthrough.log 1 "Compare 2" 0 0

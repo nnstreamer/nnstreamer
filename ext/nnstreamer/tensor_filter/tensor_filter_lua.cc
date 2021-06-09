@@ -18,34 +18,52 @@
  *
  *   With file mode, a file path to the script file is
  * specified. To update its contents, the file path property
- * should be updated. (or send "reload" event. method: TBD)
+ * should be updated.
  *
  *   With script mode, the script is specified as a property
  * value, which can be updated in run-time.
  *
  *   The input and output dimensions may be * constant,
- * designated by global LUA variables, "inputConf"
- * and "outputConf".
+ * designated by global LUA variables, "inputTensorsInfo"
+ * and "outputTensorsInfo".
  *
- *   Or the dimensions may be provided by the following
- * global functions, which have LOWER priority than
- * the constants.
- * - getInputOutputConf ()
- * - getOutputConfFromInputConf ()
- *
- *   Then, users need to provide a global "nnstreamer_invoke" function,
- * "invokeNN", where the function type is:
- *   @todo scale for num_tensors > 1
- *         Support various tensor type
- *
- *   Both input/outputConf are required to have:
+ *   Both input/outputTensorsInfo are required to have:
  * {
  *    // Array starts from 1, ends at num
  *    num, // Number of tensors (1 .. 16)
- *    types = string[num], // TYPES (INT32, INT64, ...)
- *    dims = int[num][4], // Dimension { 1, 2, 3} == 1 : 2 : 3
- *    names = string[num], // The optional tensor names.
+ *    type = string[num], // TYPE (INT32, INT64, UINT8, FLOAT32, ...)
+ *    dim = int[num][4], // Dimension {1, 2, 3, 4} == 1 : 2 : 3 : 4
  * }
+ *   An Example:
+ * inputTensorsInfo = {
+ *  num = 1,
+ *  dim = {{3, 640, 480, 1}, },
+ *  type = {'uint8', }
+ * }
+ * outputTensorsInfo = {
+ *  num = 1,
+ *  dim = {{3, 640, 480, 1}, },
+ *  type = {'uint8', }
+ * }
+ *
+ *   Then, users need to provide a global "nnstreamer_invoke()" function,
+ * where the function can get value of input tensors and set value of
+ * output tensors. We offer two APIs for access those tensors:
+ * "input_tensor(tensor_idx)" and "output_tensor(tensor_idx)"
+ *
+ *   An Example:
+ * function nnstreamer_invoke()
+ *   oC = outputTensorsInfo["dim"][1][1]
+ *   oW = outputTensorsInfo["dim"][1][2]
+ *   oH = outputTensorsInfo["dim"][1][3]
+ *   oN = outputTensorsInfo["dim"][1][4]
+ *
+ *   input = input_tensor(1)   -- get first input tensor
+ *   output = output_tensor(1) -- get first output tensor
+ *   for i=1,oC*oW*oH*oN do
+ *     output[i] = input[i] -- copy input to output
+ *   end
+ * end
  */
 
 extern "C" {
@@ -74,13 +92,64 @@ void _fini_filter_lua (void) __attribute__((destructor));
 }
 #endif /* __cplusplus */
 
+/**
+ * @brief Data for lua tensor
+ */
+typedef struct lua_tensor {
+  tensor_type type;
+  void *data;
+  size_t size;
+} lua_tensor;
+
 /** @brief For getting value in Lua */
 static int
 tensor_index (lua_State *L)
 {
-  uint8_t** parray = (uint8_t **) luaL_checkudata (L, 1, "tensor");
-  int index = luaL_checkint (L, 2);
-  lua_pushnumber (L, (*parray)[index - 1]);
+  lua_tensor *lt = *((lua_tensor **) luaL_checkudata(L, 1, "lua_tensor"));
+  int tidx = luaL_checkint (L, 2) - 1;
+
+  uint element_size = gst_tensor_get_element_size (lt->type);
+  if (tidx < 0 || tidx * element_size >= lt->size)
+    throw std::runtime_error ("Invalid index for tensor");
+
+  double value = 0.0;
+  switch (lt->type) {
+    case _NNS_INT32:
+      value = (double) ((int32_t *) lt->data)[tidx];
+      break;
+    case _NNS_UINT32:
+      value = (double) ((uint32_t *) lt->data)[tidx];
+      break;
+    case _NNS_INT16:
+      value = (double) ((int16_t *) lt->data)[tidx];
+      break;
+    case _NNS_UINT16:
+      value = (double) ((uint16_t *) lt->data)[tidx];
+      break;
+    case _NNS_INT8:
+      value = (double) ((int8_t *) lt->data)[tidx];
+      break;
+    case _NNS_UINT8:
+      value = (double) ((uint8_t *) lt->data)[tidx];
+      break;
+    case _NNS_FLOAT64:
+      value = (double) ((double *) lt->data)[tidx];
+      break;
+    case _NNS_FLOAT32:
+      value = (double) ((float *) lt->data)[tidx];
+      break;
+    case _NNS_INT64:
+      value = (double) ((int64_t *) lt->data)[tidx];
+      break;
+    case _NNS_UINT64:
+      value = (double) ((uint64_t *) lt->data)[tidx];
+      break;
+    default:
+      throw std::runtime_error ("Error occured during get tensor value");
+      break;
+  }
+
+  lua_pushnumber (L, value);
 
   return 1;
 }
@@ -89,21 +158,72 @@ tensor_index (lua_State *L)
 static int
 tensor_newindex (lua_State* L)
 {
-  uint8_t** parray = (uint8_t **) luaL_checkudata(L, 1, "tensor");
-  int index = luaL_checkint(L, 2);
-  int value = luaL_checkint(L, 3);
-  (*parray)[index - 1] = value;
+  lua_tensor *lt = *((lua_tensor **) luaL_checkudata (L, 1, "lua_tensor"));
+  int tidx = luaL_checkint(L, 2) - 1;
+  double value = luaL_checknumber (L, 3);
+
+  uint element_size = gst_tensor_get_element_size (lt->type);
+  if (tidx < 0 || tidx * element_size >= lt->size)
+    throw std::runtime_error ("Invalid index for tensor");
+
+  switch (lt->type) {
+    case _NNS_INT32:
+      ((int32_t *) lt->data)[tidx] = (int32_t) value;
+      break;
+    case _NNS_UINT32:
+    {
+      int32_t temp = (int32_t) value;
+      ((uint32_t *) lt->data)[tidx] = (uint32_t) temp;
+      break;
+    }
+    case _NNS_INT16:
+      ((int16_t *) lt->data)[tidx] = (int16_t) value;
+      break;
+    case _NNS_UINT16:
+    {
+      int16_t temp = (int16_t) value;
+      ((uint16_t *) lt->data)[tidx] = (uint16_t) temp;
+      break;
+    }
+    case _NNS_INT8:
+      ((int8_t *) lt->data)[tidx] = (int8_t) value;
+      break;
+    case _NNS_UINT8:
+    {
+      int8_t temp = (int8_t) value;
+      ((uint8_t *) lt->data)[tidx] = (uint8_t) temp;
+      break;
+    }
+    case _NNS_FLOAT64:
+      ((double *) lt->data)[tidx] = (uint8_t) value;
+      break;
+    case _NNS_FLOAT32:
+      ((float *) lt->data)[tidx] = (float) value;
+      break;
+    case _NNS_INT64:
+      ((int64_t *) lt->data)[tidx] = (int64_t) value;
+      break;
+    case _NNS_UINT64:
+    {
+      int64_t temp = (int64_t) value;
+      ((uint64_t *) lt->data)[tidx] = (uint64_t) temp;
+      break;
+    }
+    default:
+      throw std::runtime_error ("Error occured during set tensor value");
+      break;
+  }
 
   return 0;
 }
 
-/** @brief Get tensor value in Lua */
+/** @brief Expose C array to Lua */
 static int
-expose_tensor (lua_State*L, uint8_t *array)
+expose_tensor (lua_State* L, lua_tensor *tensor)
 {
-  uint8_t** parray = (uint8_t **) lua_newuserdata (L, sizeof (uint8_t **));
-  *parray = array;
-  luaL_getmetatable (L, "tensor");
+  lua_tensor **ptensor = (lua_tensor **) lua_newuserdata (L, sizeof (lua_tensor **));
+  *ptensor = tensor;
+  luaL_getmetatable (L, "lua_tensor");
   lua_setmetatable (L, -2);
 
   return 1;
@@ -113,24 +233,32 @@ expose_tensor (lua_State*L, uint8_t *array)
 static int
 getInputTensor (lua_State* L)
 {
-  lua_pushstring (L, "input_for_lua");
-  lua_gettable (L, LUA_REGISTRYINDEX);
-  const GstTensorMemory **res = (const GstTensorMemory **) lua_topointer (L, -1);
-  lua_remove (L, 1);
+  int tidx = lua_tointeger (L, 1);
+  if (tidx <= 0 || tidx > NNS_TENSOR_SIZE_LIMIT) {
+    throw std::runtime_error ("Invalid idx for `input_tensor(idx)`");
+  }
 
-  return expose_tensor (L, (uint8_t *) (*res)[0].data);
+  lua_pushstring (L, "input_lua_tensors");
+  lua_gettable (L, LUA_REGISTRYINDEX);
+  lua_tensor *lt = (lua_tensor *) lua_topointer (L, -1);
+
+  return expose_tensor (L, &(lt[tidx - 1]));
 }
 
 /** @brief Get output tensor in Lua */
 static int
 getOutputTensor (lua_State *L)
 {
-  lua_pushstring (L, "output_for_lua");
-  lua_gettable (L, LUA_REGISTRYINDEX);
-  GstTensorMemory **res = (GstTensorMemory **) lua_topointer (L, -1);
-  lua_remove (L, 1);
+  int tidx = lua_tointeger (L, 1);
+  if (tidx <= 0 || tidx > NNS_TENSOR_SIZE_LIMIT) {
+    throw std::runtime_error ("Invalid idx for `output_tensor(idx)`");
+  }
 
-  return expose_tensor (L, (uint8_t *) (*res)[0].data);
+  lua_pushstring (L, "output_lua_tensors");
+  lua_gettable (L, LUA_REGISTRYINDEX);
+  lua_tensor *lt = (lua_tensor *) lua_topointer (L, -1);
+
+  return expose_tensor (L, &(lt[tidx - 1]));
 }
 
 /** @brief Register metatable for tensor in Lua */
@@ -143,7 +271,7 @@ create_tensor_type (lua_State *L)
     {NULL, NULL}
   };
 
-  luaL_newmetatable (L, "tensor");
+  luaL_newmetatable (L, "lua_tensor");
   luaL_openlib (L, NULL, tensor, 0);
   lua_register (L, "input_tensor", getInputTensor);
   lua_register (L, "output_tensor", getOutputTensor);
@@ -162,8 +290,10 @@ class lua_subplugin final : public tensor_filter_subplugin
   static const accl_hw hw_list[];
   static const int num_hw = 1;
 
-  const GstTensorMemory *input_for_lua;
-  GstTensorMemory *output_for_lua;
+  lua_tensor input_lua_tensors[NNS_TENSOR_SIZE_LIMIT];
+  lua_tensor output_lua_tensors[NNS_TENSOR_SIZE_LIMIT];
+
+  void setTensorsInfo (GstTensorsInfo &tensors_info);
 
   public:
   static void init_filter_lua ();
@@ -186,7 +316,7 @@ const accl_hw lua_subplugin::hw_list[] = { ACCL_CPU };
 
 /** @brief Class constructor */
 lua_subplugin::lua_subplugin ()
-    : tensor_filter_subplugin (), L (NULL)
+    : tensor_filter_subplugin (), L (NULL), input_lua_tensors {}, output_lua_tensors {}
 {
   gst_tensors_info_init (std::addressof (inputInfo));
   gst_tensors_info_init (std::addressof (outputInfo));
@@ -209,6 +339,72 @@ lua_subplugin::getEmptyInstance  ()
   return *(new lua_subplugin ());
 }
 
+/** @brief Parse TensorsInfo from the given Lua script */
+void
+lua_subplugin::setTensorsInfo (GstTensorsInfo &tensors_info)
+{
+
+  if (lua_istable (L, -1)) {
+    lua_pushstring (L, "num");
+    lua_gettable (L, -2);
+    if (lua_isnumber (L, -1)) {
+      int num_tensors = lua_tointeger (L, -1);
+      if (num_tensors <= 0 || num_tensors > NNS_TENSOR_SIZE_LIMIT)
+        throw std::invalid_argument (
+            "The number of tensors required by the given model exceeds the nnstreamer tensor limit (" NNS_TENSOR_SIZE_LIMIT_STR " by default).");
+      tensors_info.num_tensors = (uint) num_tensors;
+    } else {
+      throw std::invalid_argument ("Failed to parse `num`. Please check the script");
+    }
+    lua_pop (L, 1);
+
+    lua_pushstring (L, "type");
+    lua_gettable (L, -2);
+    if (lua_istable (L, -1)) {
+      for (uint j = 1; j <= tensors_info.num_tensors; ++j) {
+        lua_pushinteger (L, j);
+        lua_gettable (L, -2);
+        tensors_info.info[j - 1].type = gst_tensor_get_type (lua_tostring (L, -1));
+        if (tensors_info.info[j - 1].type == _NNS_END)
+          throw std::invalid_argument ("Failed to parse `type`. Possibile types are " GST_TENSOR_TYPE_ALL);
+        lua_pop (L, 1);
+      }
+    } else {
+      throw std::invalid_argument ("Failed to parse `type`. Please check the script");
+    }
+    lua_pop (L, 1);
+
+    lua_pushstring (L, "dim");
+    lua_gettable (L, -2);
+    if (lua_istable (L, -1)) {
+      for (uint j = 1; j <= tensors_info.num_tensors; ++j) {
+        lua_pushinteger (L, j);
+        lua_gettable (L, -2);
+        if (lua_istable (L, -1)) {
+          for (uint i = 1; i <= NNS_TENSOR_RANK_LIMIT; ++i) {
+            lua_pushinteger (L, i);
+            lua_gettable (L, -2);
+            if (lua_isnumber (L, -1)) {
+              tensors_info.info[j - 1].dimension[i - 1] = lua_tointeger (L, -1);
+            } else {
+              throw std::invalid_argument ("Failed to parse `dim`. Please check the script");
+            }
+            lua_pop (L, 1);
+          }
+        } else {
+          throw std::invalid_argument ("Failed to parse `dim`. Please check the script");
+        }
+        lua_pop (L, 1);
+      }
+    } else {
+      throw std::invalid_argument ("Failed to parse `dim`. Please check the script");
+    }
+    lua_pop (L, 1);
+  } else {
+    throw std::invalid_argument ("Failed to parse global variable `[input/output]TensorsInfo`. Please check the script");
+  }
+}
+
 /** @brief tensor-filter subplugin mandatory method */
 void
 lua_subplugin::configure_instance (const GstTensorFilterProperties *prop)
@@ -217,19 +413,15 @@ lua_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     lua_close (L);
   }
 
-  /** @todo scale for num_tensors > 1 */
-  inputInfo.num_tensors = 1;
-  outputInfo.num_tensors = 1;
-
   L = lua_open ();
   luaL_openlibs (L);
 
-  lua_pushstring (L, "input_for_lua");
-  lua_pushlightuserdata (L, (void *) &input_for_lua);
+  lua_pushstring (L, "input_lua_tensors");
+  lua_pushlightuserdata (L, (void *) input_lua_tensors);
   lua_settable (L, LUA_REGISTRYINDEX);
 
-  lua_pushstring (L, "output_for_lua");
-  lua_pushlightuserdata (L, (void *) &output_for_lua);
+  lua_pushstring (L, "output_lua_tensors");
+  lua_pushlightuserdata (L, (void *) output_lua_tensors);
   lua_settable (L, LUA_REGISTRYINDEX);
 
   create_tensor_type (L);
@@ -238,79 +430,25 @@ lua_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     nns_logi ("Given model file does not exist. Do script mode.");
     std::string script = g_strjoinv (",", (gchar **) prop->model_files);
     if (luaL_dostring (L, script.c_str ()) != 0) {
-      nns_loge ("Error occured while loading given lua script: %s\nError message: %s",
-          script.c_str (), lua_tostring (L, -1));
-
-      return;
+      throw std::invalid_argument (std::string ("Failed to run given Lua script. Error message: ") +
+          lua_tostring (L, -1));
     }
   } else {
     /** Do File mode */
     if (luaL_dofile (L, prop->model_files[0]) != 0) {
-      nns_loge ("Error occured while loading given lua script.\nError message: %s",
+      throw std::invalid_argument (std::string ("Failed to run given Lua script file. Error message: ") +
           lua_tostring (L, -1));
-
-      return ;
     }
   }
 
-  /** Parsing inputTensorInfo */
-  lua_getglobal (L, "inputTensorInfo");
-  if (lua_istable (L, -1)) {
-    lua_pushstring (L, "type");
-    lua_gettable (L, -2);
-
-    /** @todo Support various tensor type */
-    std::string lua_input_type = lua_tostring (L, -1);
-    inputInfo.info[0].type = _NNS_UINT8;
-    lua_pop (L, 1);
-
-    lua_pushstring (L, "dim");
-    lua_gettable (L, -2);
-    if (lua_istable (L, -1)) {
-      for (int i = 1; i <= 4; ++i) {
-        lua_pushinteger (L, i);
-        lua_gettable (L, -2);
-        inputInfo.info[0].dimension[i - 1] = lua_tointeger (L, -1);
-        lua_pop (L, 1);
-      }
-
-      lua_pop (L, 1);
-    }
-    lua_pop (L, 1);
-  } else {
-    nns_loge ("Failed to get inputTensorInfo from lua. Please check the script");
-  }
-
-  /** Parsing outputTensorInfo */
-  lua_getglobal (L, "outputTensorInfo");
-  if (lua_istable (L, -1)) {
-    lua_pushstring (L, "type");
-    lua_gettable (L, -2);
-
-    /** @todo Support various tensor type */
-    std::string lua_output_type = lua_tostring (L, -1);
-    outputInfo.info[0].type = _NNS_UINT8;
-    lua_pop (L, 1);
-
-    lua_pushstring (L, "dim");
-    lua_gettable (L, -2);
-    if (lua_istable (L, -1)) {
-      for (int i = 1; i <= 4; ++i) {
-        lua_pushinteger (L, i);
-        lua_gettable (L, -2);
-        outputInfo.info[0].dimension[i - 1] = lua_tointeger (L, -1);
-        lua_pop (L, 1);
-      }
-      lua_pop (L, 1);
-    }
-    lua_pop (L, 1);
-  } else {
-    nns_loge ("Failed to get OutputTensorInfo from lua. Please check the script");
-  }
+  lua_getglobal (L, "inputTensorsInfo");
+  setTensorsInfo (inputInfo);
+  lua_getglobal (L, "outputTensorsInfo");
+  setTensorsInfo (outputInfo);
 
   lua_getglobal (L, "nnstreamer_invoke");
   if (!lua_isfunction (L, -1)) {
-    nns_loge ("Error while loading function `nnstreamer_invoke` in lua script");
+    throw std::invalid_argument ("Error while loading function `nnstreamer_invoke` in lua script");
   }
 
   lua_settop (L, 0);
@@ -320,16 +458,25 @@ lua_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 void
 lua_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
-  input_for_lua = input;
-  output_for_lua = output;
+  for (uint i = 0; i < inputInfo.num_tensors; ++i) {
+    input_lua_tensors[i].type = inputInfo.info[i].type;
+    input_lua_tensors[i].data = input[i].data;
+    input_lua_tensors[i].size = input[i].size;
+  }
+
+  for (uint i = 0; i < outputInfo.num_tensors; ++i) {
+    output_lua_tensors[i].type = outputInfo.info[i].type;
+    output_lua_tensors[i].data = output[i].data;
+    output_lua_tensors[i].size = output[i].size;
+  }
 
   lua_getglobal (L, "nnstreamer_invoke");
   if (lua_isfunction(L, -1)) {
       if (lua_pcall (L, 0, 0, 0) != 0) {
-        nns_logw ("error while pcall nnstreamer_invoke");
+        throw std::runtime_error ("error while pcall nnstreamer_invoke");
       }
   } else {
-    nns_loge ("Error while loading function `nnstreamer_invoke` in lua script");
+    throw std::runtime_error ("Error while loading function `nnstreamer_invoke` in lua script");
   }
 }
 
@@ -364,7 +511,6 @@ lua_subplugin::getModelInfo (
 int
 lua_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data)
 {
-  /** @todo Handle "reload" */
   return -ENOENT;
 }
 
