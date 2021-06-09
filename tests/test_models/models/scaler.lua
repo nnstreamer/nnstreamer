@@ -1,28 +1,30 @@
 -- scaler.lua
 
-inputTensorInfo = {
-  dim = {3, 640, 480, 1},
-  type = "uint8_t",
+inputTensorsInfo = {
+  num = 1,
+  dim = {{3, 640, 480, 1},},
+  type = {"uint8", }
 }
 
-outputTensorInfo = {
-  dim = {3, 320, 240, 1},
-  type = "uint8_t",
+outputTensorsInfo = {
+  num = 1,
+  dim = {{3, 320, 240, 1},},
+  type = {"uint8", }
 }
 
-iC = inputTensorInfo["dim"][1]
-iW = inputTensorInfo["dim"][2]
-iH = inputTensorInfo["dim"][3]
-iN = inputTensorInfo["dim"][4]
+iC = inputTensorsInfo["dim"][1][1]
+iW = inputTensorsInfo["dim"][1][2]
+iH = inputTensorsInfo["dim"][1][3]
+iN = inputTensorsInfo["dim"][1][4]
 
-oC = outputTensorInfo["dim"][1]
-oW = outputTensorInfo["dim"][2]
-oH = outputTensorInfo["dim"][3]
-oN = outputTensorInfo["dim"][4]
+oC = outputTensorsInfo["dim"][1][1]
+oW = outputTensorsInfo["dim"][1][2]
+oH = outputTensorsInfo["dim"][1][3]
+oN = outputTensorsInfo["dim"][1][4]
 
 function nnstreamer_invoke()
-  input = input_tensor()
-  output = output_tensor()
+  input = input_tensor(1)
+  output = output_tensor(1)
 
   for n=1,oN do
     for h=1,oH do
