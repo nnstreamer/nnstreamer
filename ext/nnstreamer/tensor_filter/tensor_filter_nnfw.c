@@ -55,9 +55,10 @@ typedef struct
 } nnfw_tinfo_s;
 
 /** backends supported by nnfw */
+/** @todo remove 'cpu' in gpu/neon when ONE team implements cpu fallback */
 #define NNFW_CPU_BACKEND  "cpu;bcq"
-#define NNFW_GPU_BACKEND  "acl_cl"
-#define NNFW_NEON_BACKEND "acl_neon"
+#define NNFW_GPU_BACKEND  "acl_cl;cpu"
+#define NNFW_NEON_BACKEND "acl_neon;cpu"
 #define NNFW_SRCN_BACKEND  "srcn"
 #define NNFW_DEFAULT_BACKEND NNFW_CPU_BACKEND
 
