@@ -1443,7 +1443,7 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
     out_mem[i] = gst_allocator_alloc (NULL, buf_size, NULL);
     gst_buffer_append_memory (outbuf, out_mem[i]);
 
-    if (!gst_memory_map (out_mem[i], &out_info[i], GST_MAP_READ)) {
+    if (!gst_memory_map (out_mem[i], &out_info[i], GST_MAP_WRITE)) {
       ml_loge ("Cannot map output buffer to gst-buf at tensor-transform.\n");
       res = GST_FLOW_ERROR;
       goto done;
