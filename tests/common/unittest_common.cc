@@ -1196,7 +1196,7 @@ TEST (commonMetaInfo, initDefaultValue)
 
   EXPECT_EQ (meta.type, _NNS_END);
   EXPECT_EQ (meta.format, _NNS_TENSOR_FORMAT_STATIC);
-  EXPECT_EQ (meta.media_type, _NNS_TENSOR);
+  EXPECT_EQ ((media_type) meta.media_type, _NNS_TENSOR);
   for (i = 0; i < NNS_TENSOR_META_RANK_LIMIT; i++)
     EXPECT_EQ (meta.dimension[i], 0U);
 
@@ -1408,7 +1408,7 @@ TEST (commonMetaInfo, appendHeader)
   EXPECT_EQ (meta1.version, meta2.version);
   EXPECT_EQ (meta2.type, _NNS_INT16);
   EXPECT_EQ (meta2.format, _NNS_TENSOR_FORMAT_FLEXIBLE);
-  EXPECT_EQ (meta2.media_type, _NNS_OCTET);
+  EXPECT_EQ ((media_type) meta2.media_type, _NNS_OCTET);
   EXPECT_EQ (meta2.dimension[0], 300U);
   EXPECT_EQ (meta2.dimension[1], 1U);
 

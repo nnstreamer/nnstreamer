@@ -5934,7 +5934,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, flexToFlex)
     EXPECT_EQ (meta.type, _NNS_UINT8);
     EXPECT_EQ (meta.dimension[0], 1001U);
     EXPECT_EQ (meta.dimension[1], 1U);
-    EXPECT_EQ (meta.media_type, _NNS_TENSOR);
+    EXPECT_EQ ((media_type) meta.media_type, _NNS_TENSOR);
 
     data_size = gst_tensor_meta_info_get_header_size (&meta);
     data_size += gst_tensor_meta_info_get_data_size (&meta);
