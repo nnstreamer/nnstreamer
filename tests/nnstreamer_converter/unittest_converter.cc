@@ -68,8 +68,8 @@ tensor_converter_custom_cb (GstBuffer *in_buf,
     mem_size = tensor_data.size ();
     mem_data = g_memdup (tensor_data.data (), mem_size);
 
-    out_mem = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY, mem_data,
-        mem_size, 0, mem_size, mem_data, g_free);
+    out_mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, mem_data, mem_size,
+        0, mem_size, mem_data, g_free);
 
     gst_buffer_append_memory (out_buf, out_mem);
     g_free (tensor_key);

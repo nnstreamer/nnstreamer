@@ -121,8 +121,8 @@ ServiceImplFlatbuf::_get_buffer_from_tensors (Message<Tensors> &msg,
     gsize size = VectorLength (tensor->data ());
     gpointer new_data = g_memdup (data, size);
 
-    memory = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY,
-        new_data, size, 0, size, new_data, g_free);
+    memory = gst_memory_new_wrapped ((GstMemoryFlags) 0, new_data, size,
+        0, size, new_data, g_free);
     gst_buffer_append_memory (*buffer, memory);
   }
 }

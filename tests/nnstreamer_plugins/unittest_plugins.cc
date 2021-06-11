@@ -2835,8 +2835,8 @@ TEST (testTensorConverter, flexToStaticInvalidBuffer1_n)
   data = g_malloc0 (data_size);
   gst_tensor_meta_info_update_header (&meta, data);
 
-  mem = gst_memory_new_wrapped (
-      GST_MEMORY_FLAG_READONLY, data, data_size, 0, data_size, data, g_free);
+  mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, data, data_size,
+      0, data_size, data, g_free);
   gst_buffer_append_memory (in_buf, mem);
 
   EXPECT_NE (gst_harness_push (h, in_buf), GST_FLOW_OK);
@@ -2887,8 +2887,8 @@ TEST (testTensorConverter, flexToStaticInvalidBuffer2_n)
   data = g_malloc0 (data_size);
   gst_tensor_meta_info_update_header (&meta, data);
 
-  mem = gst_memory_new_wrapped (
-      GST_MEMORY_FLAG_READONLY, data, data_size, 0, data_size, data, g_free);
+  mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, data, data_size,
+      0, data_size, data, g_free);
   gst_buffer_append_memory (in_buf, mem);
 
   /* 2nd mem block (invalid size) */
@@ -2899,8 +2899,8 @@ TEST (testTensorConverter, flexToStaticInvalidBuffer2_n)
   data = g_malloc0 (data_size);
   gst_tensor_meta_info_update_header (&meta, data);
 
-  mem = gst_memory_new_wrapped (
-      GST_MEMORY_FLAG_READONLY, data, data_size, 0, data_size, data, g_free);
+  mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, data, data_size,
+      0, data_size, data, g_free);
   gst_buffer_append_memory (in_buf, mem);
 
   EXPECT_NE (gst_harness_push (h, in_buf), GST_FLOW_OK);
@@ -5784,8 +5784,8 @@ TEST_REQUIRE_TFLITE (testTensorFilter, flexInvalidBuffer1_n)
   data = g_malloc0 (data_size);
   gst_tensor_meta_info_update_header (&meta, data);
 
-  mem = gst_memory_new_wrapped (
-      GST_MEMORY_FLAG_READONLY, data, data_size, 0, data_size, data, g_free);
+  mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, data, data_size,
+      0, data_size, data, g_free);
   gst_buffer_append_memory (in_buf, mem);
 
   /* 2nd mem block (invalid, unnecessary block) */
@@ -5796,8 +5796,8 @@ TEST_REQUIRE_TFLITE (testTensorFilter, flexInvalidBuffer1_n)
   data = g_malloc0 (data_size);
   gst_tensor_meta_info_update_header (&meta, data);
 
-  mem = gst_memory_new_wrapped (
-      GST_MEMORY_FLAG_READONLY, data, data_size, 0, data_size, data, g_free);
+  mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, data, data_size,
+      0, data_size, data, g_free);
   gst_buffer_append_memory (in_buf, mem);
 
   EXPECT_NE (gst_harness_push (h, in_buf), GST_FLOW_OK);
@@ -5849,8 +5849,8 @@ TEST_REQUIRE_TFLITE (testTensorFilter, flexInvalidBuffer2_n)
   data = g_malloc0 (data_size);
   gst_tensor_meta_info_update_header (&meta, data);
 
-  mem = gst_memory_new_wrapped (
-      GST_MEMORY_FLAG_READONLY, data, data_size, 0, data_size, data, g_free);
+  mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, data, data_size,
+      0, data_size, data, g_free);
   gst_buffer_append_memory (in_buf, mem);
 
   EXPECT_NE (gst_harness_push (h, in_buf), GST_FLOW_OK);
@@ -5907,8 +5907,8 @@ TEST_REQUIRE_TFLITE (testTensorFilter, flexToFlex)
   data = g_malloc0 (data_size);
   gst_tensor_meta_info_update_header (&meta, data);
 
-  mem = gst_memory_new_wrapped (
-      GST_MEMORY_FLAG_READONLY, data, data_size, 0, data_size, data, g_free);
+  mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, data, data_size,
+      0, data_size, data, g_free);
   gst_buffer_append_memory (in_buf, mem);
 
   EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
