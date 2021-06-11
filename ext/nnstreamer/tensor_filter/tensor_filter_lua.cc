@@ -53,17 +53,22 @@
  *
  *   An Example:
  * function nnstreamer_invoke()
- *   oC = outputTensorsInfo["dim"][1][1]
- *   oW = outputTensorsInfo["dim"][1][2]
- *   oH = outputTensorsInfo["dim"][1][3]
- *   oN = outputTensorsInfo["dim"][1][4]
+ *   oC = outputTensorsInfo['dim'][1][1]
+ *   oW = outputTensorsInfo['dim'][1][2]
+ *   oH = outputTensorsInfo['dim'][1][3]
+ *   oN = outputTensorsInfo['dim'][1][4]
  *
- *   input = input_tensor(1)   -- get first input tensor
- *   output = output_tensor(1) -- get first output tensor
+ *   input = input_tensor(1)   --[[ get first input tensor --]]
+ *   output = output_tensor(1) --[[ get first output tensor --]]
  *   for i=1,oC*oW*oH*oN do
- *     output[i] = input[i] -- copy input to output
+ *     output[i] = input[i] --[[ copy input to output --]]
  *   end
  * end
+ *
+ *   In "script mode", not "file mode", the script should NOT have
+ * double quote ("), and double dashes ( -- COMMENT ) for comment.
+ * Use single quote and --[[ COMMENT --]] format instead.
+ *
  */
 
 extern "C" {
