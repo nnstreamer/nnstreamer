@@ -1555,13 +1555,13 @@ TEST (tensorStreamTest, muxFlexTensors)
   EXPECT_EQ (g_test_data.meta[0].dimension[0], 3U);
   EXPECT_EQ (g_test_data.meta[0].dimension[1], 160U);
   EXPECT_EQ (g_test_data.meta[0].dimension[2], 120U);
-  EXPECT_EQ (g_test_data.meta[0].media_type, _NNS_TENSOR);
+  EXPECT_EQ ((media_type) g_test_data.meta[0].media_type, _NNS_TENSOR);
 
   EXPECT_EQ (g_test_data.meta[1].type, _NNS_UINT8);
   EXPECT_EQ (g_test_data.meta[1].dimension[0], 3U);
   EXPECT_EQ (g_test_data.meta[1].dimension[1], 160U);
   EXPECT_EQ (g_test_data.meta[1].dimension[2], 120U);
-  EXPECT_EQ (g_test_data.meta[1].media_type, _NNS_VIDEO);
+  EXPECT_EQ ((media_type) g_test_data.meta[1].media_type, _NNS_VIDEO);
 
   EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data (option);
@@ -1609,7 +1609,7 @@ TEST (tensorStreamTest, demuxFlexTensors)
   EXPECT_EQ (g_test_data.meta[0].dimension[0], 3U);
   EXPECT_EQ (g_test_data.meta[0].dimension[1], 320U);
   EXPECT_EQ (g_test_data.meta[0].dimension[2], 240U);
-  EXPECT_EQ (g_test_data.meta[0].media_type, _NNS_VIDEO);
+  EXPECT_EQ ((media_type) g_test_data.meta[0].media_type, _NNS_VIDEO);
 
   EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data (option);
@@ -3339,7 +3339,7 @@ TEST (tensorStreamTest, flexOnSink)
   EXPECT_EQ (g_test_data.meta[0].type, _NNS_UINT8);
   EXPECT_EQ (g_test_data.meta[0].dimension[0], 10U);
   EXPECT_EQ (g_test_data.meta[0].format, _NNS_TENSOR_FORMAT_FLEXIBLE);
-  EXPECT_EQ (g_test_data.meta[0].media_type, _NNS_TENSOR);
+  EXPECT_EQ ((media_type) g_test_data.meta[0].media_type, _NNS_TENSOR);
 
   EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data (option);
@@ -3392,11 +3392,11 @@ TEST (tensorStreamTest, staticToFlex)
   /* check meta info */
   EXPECT_EQ (g_test_data.meta[0].type, _NNS_INT32);
   EXPECT_EQ (g_test_data.meta[0].dimension[0], 2U);
-  EXPECT_EQ (g_test_data.meta[0].media_type, _NNS_OCTET);
+  EXPECT_EQ ((media_type) g_test_data.meta[0].media_type, _NNS_OCTET);
 
   EXPECT_EQ (g_test_data.meta[1].type, _NNS_INT8);
   EXPECT_EQ (g_test_data.meta[1].dimension[0], 2U);
-  EXPECT_EQ (g_test_data.meta[1].media_type, _NNS_OCTET);
+  EXPECT_EQ ((media_type) g_test_data.meta[1].media_type, _NNS_OCTET);
 
   EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data (option);

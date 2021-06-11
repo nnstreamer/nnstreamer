@@ -136,17 +136,17 @@ TEST (nnstreamerFilterTvm, getModelInfo00)
   ret = sp->getModelInfo (NULL, NULL, data, GET_IN_OUT_INFO, &in_info, &out_info);
   EXPECT_EQ (ret, 0);
 
-  EXPECT_EQ (in_info.num_tensors, 1);
-  EXPECT_EQ (in_info.info[0].dimension[0], 3);
-  EXPECT_EQ (in_info.info[0].dimension[1], 640);
-  EXPECT_EQ (in_info.info[0].dimension[2], 480);
-  EXPECT_EQ (in_info.info[0].dimension[3], 1);
+  EXPECT_EQ (in_info.num_tensors, 1U);
+  EXPECT_EQ (in_info.info[0].dimension[0], 3U);
+  EXPECT_EQ (in_info.info[0].dimension[1], 640U);
+  EXPECT_EQ (in_info.info[0].dimension[2], 480U);
+  EXPECT_EQ (in_info.info[0].dimension[3], 1U);
   EXPECT_EQ (in_info.info[0].type, _NNS_FLOAT32);
-  EXPECT_EQ (out_info.num_tensors, 1);
-  EXPECT_EQ (out_info.info[0].dimension[0], 3);
-  EXPECT_EQ (out_info.info[0].dimension[1], 640);
-  EXPECT_EQ (out_info.info[0].dimension[2], 480);
-  EXPECT_EQ (out_info.info[0].dimension[3], 1);
+  EXPECT_EQ (out_info.num_tensors, 1U);
+  EXPECT_EQ (out_info.info[0].dimension[0], 3U);
+  EXPECT_EQ (out_info.info[0].dimension[1], 640U);
+  EXPECT_EQ (out_info.info[0].dimension[2], 480U);
+  EXPECT_EQ (out_info.info[0].dimension[3], 1U);
   EXPECT_EQ (out_info.info[0].type, _NNS_FLOAT32);
 
   sp->close (&prop, &data);

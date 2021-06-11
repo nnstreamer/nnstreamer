@@ -411,10 +411,10 @@ TEST (tensorConverterPython, dynamicDimension)
   EXPECT_NE (structure, nullptr);
   gst_tensor_config_from_structure (&config, structure);
 
-  EXPECT_EQ (24, config.info.dimension[0]);
-  EXPECT_EQ (1, config.info.dimension[1]);
-  EXPECT_EQ (1, config.info.dimension[2]);
-  EXPECT_EQ (1, config.info.dimension[3]);
+  EXPECT_EQ (24U, config.info.dimension[0]);
+  EXPECT_EQ (1U, config.info.dimension[1]);
+  EXPECT_EQ (1U, config.info.dimension[2]);
+  EXPECT_EQ (1U, config.info.dimension[3]);
 
   gst_caps_unref (caps);
 
@@ -427,10 +427,10 @@ TEST (tensorConverterPython, dynamicDimension)
   EXPECT_NE (structure, nullptr);
   gst_tensor_config_from_structure (&config, structure);
 
-  EXPECT_EQ (48, config.info.dimension[0]);
-  EXPECT_EQ (1, config.info.dimension[1]);
-  EXPECT_EQ (1, config.info.dimension[2]);
-  EXPECT_EQ (1, config.info.dimension[3]);
+  EXPECT_EQ (48U, config.info.dimension[0]);
+  EXPECT_EQ (1U, config.info.dimension[1]);
+  EXPECT_EQ (1U, config.info.dimension[2]);
+  EXPECT_EQ (1U, config.info.dimension[3]);
   gst_caps_unref (caps);
 
   EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc_handle), buf_2), GST_FLOW_OK);
@@ -444,16 +444,16 @@ TEST (tensorConverterPython, dynamicDimension)
   EXPECT_NE (structure, nullptr);
   gst_tensor_config_from_structure (&config, structure);
 
-  EXPECT_EQ (24, config.info.dimension[0]);
-  EXPECT_EQ (1, config.info.dimension[1]);
-  EXPECT_EQ (1, config.info.dimension[2]);
-  EXPECT_EQ (1, config.info.dimension[3]);
+  EXPECT_EQ (24U, config.info.dimension[0]);
+  EXPECT_EQ (1U, config.info.dimension[1]);
+  EXPECT_EQ (1U, config.info.dimension[2]);
+  EXPECT_EQ (1U, config.info.dimension[3]);
   gst_caps_unref (caps);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   g_usleep (100000);
 
-  EXPECT_EQ (3, *data_received);
+  EXPECT_EQ (3U, *data_received);
   g_free (data_received);
   gst_object_unref (sink_handle);
   gst_object_unref (appsrc_handle);
