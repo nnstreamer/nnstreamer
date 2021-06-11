@@ -48,17 +48,89 @@ PATH_TO_SCALER_MODEL="../test_models/models/scaler.lua"
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=lua model=\"${PATH_TO_PASSTHROUGH_MODEL}\" ! filesink location=\"testcase1.passthrough.log\" sync=true t. ! queue ! filesink location=\"testcase1.direct.log\" sync=true" 1 0 0 $PERFORMANCE
 callCompareTest testcase1.direct.log testcase1.passthrough.log 1 "Compare 1" 0 0
 
+# Negative test for wrong input. Input should be 3 : 640 : 480 : 1
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=643,height=482,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tensor_filter framework=lua model=\"${PATH_TO_PASSTHROUGH_MODEL}\" ! fakesink" 1_n 0 1 $PERFORMANCE
+
 # Passthrough -> Scaler test
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=640,height=480,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=lua model=\"${PATH_TO_PASSTHROUGH_MODEL}\" ! tensor_filter framework=lua model=\"${PATH_TO_SCALER_MODEL}\" ! filesink location=\"testcase2.scaled.log\" sync=true t. ! queue ! filesink location=\"testcase2.direct.log\" sync=true" 2 0 0 $PERFORMANCE
 python3 ../nnstreamer_filter_python3/checkScaledTensor.py testcase2.direct.log 640 480 testcase2.scaled.log 320 240 3
 testResult $? 2 "Golden test comparison" 0 1
 
 # Passthrough test with given string script
-PASSTHROUGH_SCRIPT="inputTensorsInfo = {num = 1, dim = {{3, 299, 299, 1},}, type = {'uint8',} } outputTensorsInfo = {num = 1, dim = {{3, 299, 299, 1},}, type = {'uint8',} } function nnstreamer_invoke() input = input_tensor(1) output = output_tensor(1) for i=1,3*299*299 do output[i] = input[i] end end"
+PASSTHROUGH_SCRIPT="
+inputTensorsInfo = {
+    num = 1,
+    dim = {{3, 299, 299, 1},},
+    type = {'uint8',} --[[ USE single quote to declare string --]]
+}
+
+outputTensorsInfo = {
+    num = 1,
+    dim = {{3, 299, 299, 1},},
+    type = {'uint8',} --[[ USE single quote to declare string --]]
+}
+
+function nnstreamer_invoke()
+    input = input_tensor(1)
+    output = output_tensor(1)
+    for i=1,3*299*299 do
+        output[i] = input[i] --[[ copy input into output --]]
+    end
+end
+"
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=299,height=299,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=lua model=\"${PASSTHROUGH_SCRIPT}\" ! filesink location=\"testcase3.passthrough.log\" sync=true t. ! queue ! filesink location=\"testcase3.direct.log\" sync=true" 3 0 0 $PERFORMANCE
 callCompareTest testcase3.direct.log testcase3.passthrough.log 1 "Compare 2" 0 0
 
+PASSTHROUGH_INVALID_SCRIPT_SINGLE_QUOTE="
+--[[ DO NOT USE double quote in Lua script --]]
+inputTensorsInfo = {
+    num = 1,
+    dim = {{3, 299, 299, 1},},
+    type = {\"uint8\",}
+}
+
+outputTensorsInfo = {
+    num = 1,
+    dim = {{3, 299, 299, 1},},
+    type = {\"uint8\",}
+}
+
+function nnstreamer_invoke()
+    input = input_tensor(1)
+    output = output_tensor(1)
+    for i=1,3*299*299 do
+        output[i] = input[i]
+    end
+end
+"
+# Negative test for wrong Lua script. Should use single quote for string
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=299,height=299,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tensor_filter framework=lua model=\"${PASSTHROUGH_INVALID_SCRIPT_SINGLE_QUOTE}\" ! fakesink" 3_n 0 1 $PERFORMANCE
+
+# In script mode do not use '--' to comment. use '--[[ ... --]]'
+PASSTHROUGH_INVALID_SCRIPT_COMMENT_FORMAT="
+inputTensorsInfo = {
+    num = 1,
+    dim = {{3, 299, 299, 1},},
+    type = {'uint8',}
+}
+
+outputTensorsInfo = {
+    num = 1,
+    dim = {{3, 299, 299, 1},},
+    type = {'uint8',}
+}
+
+function nnstreamer_invoke()
+    input = input_tensor(1)
+    output = output_tensor(1)
+    for i=1,3*299*299 do
+        output[i] = input[i] -- copy input into output. DO NOT use double dashes for commenting
+    end
+end
+"
+# Negative test for wrong Lua script. Should use --[[ COMMENT --]] for comment
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=299,height=299,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tensor_filter framework=lua model=\"${PASSTHROUGH_INVALID_SCRIPT_COMMENT_FORMAT}\" ! fakesink" 4_n 0 1 $PERFORMANCE
 
 rm *.log
 
