@@ -17,7 +17,7 @@
 #include <gst/app/gstappsrc.h>
 #include <nnstreamer_plugin_api_converter.h>
 
-#define TEST_TIMEOUT_MS (1000U)
+#define TEST_TIMEOUT_MS (10000U)
 
 /**
  * @brief custom callback function
@@ -113,10 +113,10 @@ TEST (tensorConverterCustom, normal0)
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   EXPECT_NE (pipeline, nullptr);
 
-  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, TEST_TIMEOUT_MS), 0);
   g_usleep (1000000);
 
-  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, TEST_TIMEOUT_MS), 0);
   g_usleep (100000);
 
   gst_object_unref (pipeline);
@@ -132,7 +132,7 @@ TEST (tensorConverterCustom, normal0)
   pipeline = gst_parse_launch (str_pipeline, NULL);
   EXPECT_NE (pipeline, nullptr);
 
-  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, TEST_TIMEOUT_MS), 0);
   g_usleep (1000000);
 
   EXPECT_EQ (1U, *received);
@@ -143,7 +143,7 @@ TEST (tensorConverterCustom, normal0)
   g_free (content1);
   g_free (content2);
 
-  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, TEST_TIMEOUT_MS), 0);
   g_usleep (100000);
 
   EXPECT_EQ (0, nnstreamer_converter_custom_unregister ("tconv"));
@@ -395,11 +395,11 @@ TEST (tensorConverterPython, dynamicDimension)
   data_received = (guint *) g_malloc0 (sizeof (guint));
   g_signal_connect (sink_handle, "new-data", (GCallback)new_data_cb, data_received);
 
-  buf_0 = gst_buffer_new_wrapped (g_memdup (_test_frames1, 24), 24);
-  buf_1 = gst_buffer_new_wrapped (g_memdup (_test_frames2, 48), 48);
+  buf_0 = gst_buffer_new_wrapped (g_memdup (_test_frames1, 96), 96);
+  buf_1 = gst_buffer_new_wrapped (g_memdup (_test_frames2, 192), 192);
   buf_2 = gst_buffer_copy (buf_0);
 
-  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, TEST_TIMEOUT_MS), 0);
   EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc_handle), buf_0), GST_FLOW_OK);
   EXPECT_TRUE (wait_pipeline_process_buffers (data_received, 1, TEST_TIMEOUT_MS));
 
@@ -450,7 +450,7 @@ TEST (tensorConverterPython, dynamicDimension)
   EXPECT_EQ (1U, config.info.dimension[3]);
   gst_caps_unref (caps);
 
-  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, TEST_TIMEOUT_MS), 0);
   g_usleep (100000);
 
   EXPECT_EQ (3U, *data_received);
@@ -517,10 +517,10 @@ TEST (tensorConverterPython, jsonParser)
   data_received = (guint *) g_malloc0 (sizeof (guint));
   g_signal_connect (sink_handle, "new-data", (GCallback)new_data_cb_json, data_received);
 
-  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, TEST_TIMEOUT_MS), 0);
   g_usleep (100000);
 
-  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, TEST_TIMEOUT_MS), 0);
   g_usleep (100000);
 
   EXPECT_EQ (1U, *data_received);
