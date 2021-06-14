@@ -424,7 +424,7 @@ gst_mqtt_sink_class_finalize (GObject * object)
 
   if (self->err)
     g_error_free (self->err);
-
+  g_mutex_clear (&self->mqtt_sink_mutex);
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 

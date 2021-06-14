@@ -421,6 +421,7 @@ gst_mqtt_src_class_finalize (GObject * object)
   }
   g_clear_pointer (&self->aqueue, g_async_queue_unref);
 
+  g_mutex_clear (&self->mqtt_src_mutex);
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
