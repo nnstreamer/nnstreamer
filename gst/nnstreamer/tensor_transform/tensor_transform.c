@@ -91,7 +91,7 @@
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_transform_debug);
 #define GST_CAT_DEFAULT gst_tensor_transform_debug
-#define CAPS_STRING GST_TENSOR_CAP_DEFAULT "; " GST_TENSORS_CAP_DEFAULT
+#define CAPS_STRING GST_TENSOR_CAP_DEFAULT ";" GST_TENSORS_CAP_DEFAULT ";" GST_TENSORS_FLEX_CAP_DEFAULT
 #define REGEX_DIMCHG_OPTION "^([0-3]):([0-3])$"
 #define REGEX_TYPECAST_OPTION "(^[u]?int(8|16|32|64)$|^float(32|64)$)"
 #define REGEX_TRANSPOSE_OPTION "^(?:([0-2]):(?!.*\\1)){3}3$"
@@ -1412,22 +1412,45 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
   GstMapInfo out_map[NNS_TENSOR_SIZE_LIMIT];
   uint8_t *inptr, *outptr;
   guint i, num_tensors;
-  gsize buf_size;
+  gsize buf_size, hsize;
+  GstTensorMetaInfo meta;
+  GstTensorInfo in_flex_info, out_flex_info;
+  gboolean in_flexible, out_flexible;
 
   filter = GST_TENSOR_TRANSFORM_CAST (trans);
 
   g_return_val_if_fail (filter->loaded, GST_FLOW_ERROR);
 
-  num_tensors = filter->in_config.info.num_tensors;
-  g_return_val_if_fail (gst_buffer_n_memory (inbuf) == num_tensors,
-      GST_FLOW_ERROR);
+  in_flexible =
+      gst_tensor_pad_caps_is_flexible (GST_BASE_TRANSFORM_SINK_PAD (trans));
+  out_flexible =
+      gst_tensor_pad_caps_is_flexible (GST_BASE_TRANSFORM_SRC_PAD (trans));
+
+  if (in_flexible) {
+    num_tensors = gst_buffer_n_memory (inbuf);
+    g_return_val_if_fail (out_flexible, GST_FLOW_ERROR);
+  } else {
+    num_tensors = filter->in_config.info.num_tensors;
+    g_return_val_if_fail (gst_buffer_n_memory (inbuf) == num_tensors,
+        GST_FLOW_ERROR);
+  }
 
   for (i = 0; i < num_tensors; i++) {
     in_info = &filter->in_config.info.info[i];
     out_info = &filter->out_config.info.info[i];
 
     if (filter->apply && !g_list_find (filter->apply, GINT_TO_POINTER (i))) {
-      gst_buffer_append_memory (outbuf, gst_buffer_get_memory (inbuf, i));
+      GstMemory *mem = gst_buffer_peek_memory (inbuf, i);
+
+      if (!in_flexible && out_flexible) {
+        /* append meta */
+        gst_tensor_info_convert_to_meta (out_info, &meta);
+        mem = gst_tensor_meta_info_append_header (&meta, mem);
+      } else {
+        mem = gst_memory_ref (mem);
+      }
+
+      gst_buffer_append_memory (outbuf, mem);
       continue;
     }
 
@@ -1440,8 +1463,32 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
     }
     inptr = in_map[i].data;
 
+    if (in_flexible) {
+      in_info = &in_flex_info;
+      out_info = &out_flex_info;
+
+      gst_tensor_meta_info_parse_header (&meta, inptr);
+      /** @todo max rank supported in tensor-transform is 4 */
+      if (!gst_tensor_meta_info_convert (&meta, in_info)) {
+        res = GST_FLOW_ERROR;
+        goto done;
+      }
+
+      gst_tensor_transform_convert_dimension (filter, GST_PAD_SINK,
+          i, in_info, out_info);
+
+      hsize = gst_tensor_meta_info_get_header_size (&meta);
+      inptr += hsize;
+    }
+
     /* prepare output buffer */
     buf_size = gst_tensor_info_get_size (out_info);
+    if (out_flexible) {
+      gst_tensor_info_convert_to_meta (out_info, &meta);
+      hsize = gst_tensor_meta_info_get_header_size (&meta);
+      buf_size += hsize;
+    }
+
     out_mem[i] = gst_allocator_alloc (NULL, buf_size, NULL);
     gst_buffer_append_memory (outbuf, out_mem[i]);
 
@@ -1451,6 +1498,11 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
       goto done;
     }
     outptr = out_map[i].data;
+
+    if (out_flexible) {
+      gst_tensor_meta_info_update_header (&meta, outptr);
+      outptr += hsize;
+    }
 
     switch (filter->mode) {
       case GTT_DIMCHG:
@@ -1676,10 +1728,16 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
 
     gst_tensors_config_from_structure (&in_config, structure);
 
-    for (j = 0; j < in_config.info.num_tensors; j++) {
-      gst_tensor_transform_convert_dimension (filter, direction,
-          j, &in_config.info.info[j], &out_config.info.info[j]);
+    if (gst_tensors_info_is_flexible (&in_config.info)) {
+      /* output caps is also flexible */
+      out_config.info.info[0].format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+    } else {
+      for (j = 0; j < in_config.info.num_tensors; j++) {
+        gst_tensor_transform_convert_dimension (filter, direction,
+            j, &in_config.info.info[j], &out_config.info.info[j]);
+      }
     }
+
     out_config.rate_d = in_config.rate_d;
     out_config.rate_n = in_config.rate_n;
     out_config.info.num_tensors = in_config.info.num_tensors;
@@ -1749,6 +1807,7 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
   GstTensorTransform *filter;
   GstTensorsConfig in_config, out_config;
   GstTensorsConfig config;
+  gboolean in_flexible, out_flexible;
   gboolean allowed = FALSE;
   guint i;
 
@@ -1770,13 +1829,18 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
     goto error;
   }
 
+  in_flexible = gst_tensors_info_is_flexible (&in_config.info);
+  out_flexible = gst_tensors_info_is_flexible (&out_config.info);
+
   /* compare type and dimension */
-  for (i = 0; i < in_config.info.num_tensors; i++) {
-    if (!gst_tensor_transform_convert_dimension (filter, GST_PAD_SINK,
-            i, &in_config.info.info[i], &config.info.info[i])) {
-      GST_ERROR_OBJECT (filter,
-          "Tensor info is not matched with given properties.");
-      goto error;
+  if (!in_flexible) {
+    for (i = 0; i < in_config.info.num_tensors; i++) {
+      if (!gst_tensor_transform_convert_dimension (filter, GST_PAD_SINK,
+              i, &in_config.info.info[i], &config.info.info[i])) {
+        GST_ERROR_OBJECT (filter,
+            "Tensor info is not matched with given properties.");
+        goto error;
+      }
     }
   }
 
@@ -1784,7 +1848,13 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
   config.rate_d = in_config.rate_d;
   config.info.num_tensors = in_config.info.num_tensors;
 
-  if (!gst_tensors_config_is_equal (&out_config, &config)) {
+  if (out_flexible) {
+    GST_INFO_OBJECT (filter, "Output tensor is flexible.");
+
+    /* set output configuration if input is static */
+    if (!in_flexible)
+      out_config = config;
+  } else if (!gst_tensors_config_is_equal (&out_config, &config)) {
     GST_ERROR_OBJECT (filter,
         "Tensor info is not matched with given properties.\n");
     goto error;
