@@ -18,7 +18,7 @@ class CustomConverter(object):
   def convert (self, input_array):
     rate_n = 10
     rate_d = 1
-    dim = [len (input_array[0]), 1, 1, 1]
+    dim = [len (input_array[0])/4, 1, 1, 1]
     ttype=np.int32
     tensors_info = [nns.TensorShape(dim, ttype)]
 
