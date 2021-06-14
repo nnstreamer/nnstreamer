@@ -176,6 +176,18 @@ if gtest_dep.found()
     test('unittest_filter_tvm', unittest_filter_tvm, env: testenv)
   endif
 
+  # Lua unittest
+  if lua_support_is_available
+    unittest_filter_lua = executable('unittest_filter_lua',
+      join_paths('nnstreamer_filter_lua', 'unittest_filter_lua.cc'),
+      dependencies: [unittest_util_dep, glib_dep, gst_dep, nnstreamer_dep, gtest_dep],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+
+    test('unittest_filter_lua', unittest_filter_lua, env: testenv)
+  endif
+
   # Run unittest_decoder
   if flatbuf_support_is_available
     unittest_decoder = executable('unittest_decoder',
