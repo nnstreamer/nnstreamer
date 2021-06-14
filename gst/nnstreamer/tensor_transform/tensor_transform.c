@@ -178,6 +178,10 @@ static gboolean gst_tensor_transform_transform_size (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, gsize size,
     GstCaps * othercaps, gsize * othersize);
 
+static gboolean gst_tensor_transform_convert_dimension (GstTensorTransform *
+    filter, GstPadDirection direction, guint idx, const GstTensorInfo * in_info,
+    GstTensorInfo * out_info);
+
 #define GST_TYPE_TENSOR_TRANSFORM_MODE (gst_tensor_transform_mode_get_type ())
 /**
  * @brief A private function to register GEnumValue array for the 'mode' property
@@ -936,30 +940,28 @@ gst_tensor_transform_finalize (GObject * object)
 /**
  * @brief subrouting for tensor-tranform, "dimchg" case.
  * @param[in/out] filter "this" pointer
- * @param[in] idx index of the input tensors
+ * @param[in] in_info input tensor info
+ * @param[in] out_info output tensor info
  * @param[in] inptr input tensor
  * @param[out] outptr output tensor
  * @return Gst flow status
  */
 static GstFlowReturn
 gst_tensor_transform_dimchg (GstTensorTransform * filter,
-    guint idx, const uint8_t * inptr, uint8_t * outptr)
+    GstTensorInfo * in_info, GstTensorInfo * out_info,
+    const uint8_t * inptr, uint8_t * outptr)
 {
-  uint32_t *fromDim = filter->in_config.info.info[idx].dimension;
-  uint32_t *toDim = filter->out_config.info.info[idx].dimension;
-  tensor_type in_tensor_type = filter->in_config.info.info[idx].type;
+  uint32_t *fromDim = in_info->dimension;
+  uint32_t *toDim = out_info->dimension;
   int from = filter->data_dimchg.from;
   int to = filter->data_dimchg.to;
   int i, j, k;
   unsigned int loopLimit = 1;
-  gsize loopBlockSize = gst_tensor_get_element_size (in_tensor_type);
-  gsize copyblocksize = gst_tensor_get_element_size (in_tensor_type);
-  gsize copyblocklimit = 1;
+  gsize loopBlockSize, copyblocksize, copyblocklimit;
 
   if (from == to) {
     /** Useless memcpy. Do not call this or @todo do "IP" operation */
-    nns_memcpy (outptr, inptr,
-        gst_tensor_info_get_size (&filter->in_config.info.info[idx]));
+    nns_memcpy (outptr, inptr, gst_tensor_info_get_size (in_info));
     GST_WARNING_OBJECT (filter,
         "Calling tensor_transform with high memcpy overhead WITHOUT any effects! Check your stream wheter you really need tensor_transform.\n");
     return GST_FLOW_OK;
@@ -968,6 +970,9 @@ gst_tensor_transform_dimchg (GstTensorTransform * filter,
   g_assert (from >= 0 && from < NNS_TENSOR_RANK_LIMIT);
   g_assert (to >= 0 && to < NNS_TENSOR_RANK_LIMIT);
   g_assert (fromDim[from] == toDim[to]);
+
+  loopBlockSize = copyblocksize = gst_tensor_get_element_size (in_info->type);
+  copyblocklimit = 1;
 
   if (from < to) {
     /**
@@ -1017,37 +1022,36 @@ gst_tensor_transform_dimchg (GstTensorTransform * filter,
 /**
  * @brief subrouting for tensor-tranform, "typecast" case.
  * @param[in/out] filter "this" pointer
- * @param[in] idx index of the input tensors
+ * @param[in] in_info input tensor info
+ * @param[in] out_info output tensor info
  * @param[in] inptr input tensor
  * @param[out] outptr output tensor
  * @return Gst flow status
  */
 static GstFlowReturn
 gst_tensor_transform_typecast (GstTensorTransform * filter,
-    guint idx, const uint8_t * inptr, uint8_t * outptr)
+    GstTensorInfo * in_info, GstTensorInfo * out_info,
+    const uint8_t * inptr, uint8_t * outptr)
 {
   gulong i, num;
-  tensor_type in_tensor_type = filter->in_config.info.info[idx].type;
-  tensor_type out_tensor_type = filter->out_config.info.info[idx].type;
   gsize in_element_size, out_element_size;
 
-  num =
-      gst_tensor_get_element_count (filter->in_config.info.info[idx].dimension);
+  num = gst_tensor_get_element_count (in_info->dimension);
 
 #ifdef HAVE_ORC
-  if (orc_supported (filter, in_tensor_type, out_tensor_type)) {
-    orc_typecast (inptr, outptr, num, in_tensor_type, out_tensor_type);
+  if (orc_supported (filter, in_info->type, out_info->type)) {
+    orc_typecast (inptr, outptr, num, in_info->type, out_info->type);
     return GST_FLOW_OK;
   }
 #endif
 
-  in_element_size = gst_tensor_get_element_size (in_tensor_type);
-  out_element_size = gst_tensor_get_element_size (out_tensor_type);
+  in_element_size = gst_tensor_get_element_size (in_info->type);
+  out_element_size = gst_tensor_get_element_size (out_info->type);
 
   for (i = 0; i < num; ++i) {
-    gst_tensor_data_raw_typecast ((gpointer) (inptr + in_element_size * i),
-        in_tensor_type, (gpointer) (outptr + out_element_size * i),
-        out_tensor_type);
+    gst_tensor_data_raw_typecast (
+        (gpointer) (inptr + in_element_size * i), in_info->type,
+        (gpointer) (outptr + out_element_size * i), out_info->type);
   }
 
   return GST_FLOW_OK;
@@ -1056,42 +1060,41 @@ gst_tensor_transform_typecast (GstTensorTransform * filter,
 /**
  * @brief subrouting for tensor-tranform, "arithmetic" case.
  * @param[in/out] filter "this" pointer
- * @param[in] idx index of the input tensors
+ * @param[in] in_info input tensor info
+ * @param[in] out_info output tensor info
  * @param[in] inptr input tensor
  * @param[out] outptr output tensor
  * @return Gst flow status
  */
 static GstFlowReturn
 gst_tensor_transform_arithmetic (GstTensorTransform * filter,
-    guint idx, const uint8_t * inptr, uint8_t * outptr)
+    GstTensorInfo * in_info, GstTensorInfo * out_info,
+    const uint8_t * inptr, uint8_t * outptr)
 {
   gulong i, num;
-  tensor_type in_tensor_type = filter->in_config.info.info[idx].type;
-  tensor_type out_tensor_type = filter->out_config.info.info[idx].type;
   guint in_element_size, out_element_size;
 
   GSList *walk;
   tensor_transform_operator_s *op_s;
   tensor_data_s value;
 
-  num =
-      gst_tensor_get_element_count (filter->in_config.info.info[idx].dimension);
+  num = gst_tensor_get_element_count (in_info->dimension);
 
 #ifdef HAVE_ORC
-  if (orc_supported (filter, in_tensor_type, out_tensor_type)) {
+  if (orc_supported (filter, in_info->type, out_info->type)) {
     walk = filter->operators;
 
     /**
      * Typecast should be called at the first.
      * Do the typecast. If in/out type is same, this will copy the input array to output.
      */
-    orc_typecast (inptr, outptr, num, in_tensor_type, out_tensor_type);
+    orc_typecast (inptr, outptr, num, in_info->type, out_info->type);
 
     while (walk) {
       op_s = (tensor_transform_operator_s *) walk->data;
 
       if (op_s->op != GTT_OP_TYPECAST) {
-        gst_tensor_data_typecast (&op_s->value, out_tensor_type);
+        gst_tensor_data_typecast (&op_s->value, out_info->type);
         orc_operator (outptr, num, &op_s->value, op_s->op);
       }
 
@@ -1102,12 +1105,12 @@ gst_tensor_transform_arithmetic (GstTensorTransform * filter,
   }
 #endif
 
-  in_element_size = gst_tensor_get_element_size (in_tensor_type);
-  out_element_size = gst_tensor_get_element_size (out_tensor_type);
+  in_element_size = gst_tensor_get_element_size (in_info->type);
+  out_element_size = gst_tensor_get_element_size (out_info->type);
 
   for (i = 0; i < num; ++i) {
     /* init value with input tensor type */
-    gst_tensor_data_set (&value, in_tensor_type,
+    gst_tensor_data_set (&value, in_info->type,
         (gpointer) (inptr + in_element_size * i));
 
     walk = filter->operators;
@@ -1137,7 +1140,7 @@ gst_tensor_transform_arithmetic (GstTensorTransform * filter,
     }
 
     /* set output value */
-    g_assert (out_tensor_type == value.type);
+    g_assert (out_info->type == value.type);
     gst_tensor_data_get (&value, outptr + out_element_size * i);
   }
 
@@ -1156,10 +1159,10 @@ gst_tensor_transform_arithmetic (GstTensorTransform * filter,
           for(ck=0;ck<sk;ck++){               \
             const uint8_t *_in; \
             uint8_t *_out; \
-            outidx = si*sj*sk*cl + sj*sk*ci + sk*cj+ck; \
+            outidx = si*sj*sk*cl + sj*sk*ci + sk*cj + ck; \
             inidx = SK*SJ*SI*l + SJ*SI*k + SI*j + i; \
             _in = inptr + inidx * typesize; \
-            _out = outptr + outidx *typesize; \
+            _out = outptr + outidx * typesize; \
             nns_memcpy(_out, _in, typesize); \
 	  }                                                      \
   } while(0);
@@ -1167,21 +1170,23 @@ gst_tensor_transform_arithmetic (GstTensorTransform * filter,
 /**
  * @brief subrouting for tensor-tranform, "transpose" case.
  * @param[in/out] filter "this" pointer
- * @param[in] idx index of the input tensors
+ * @param[in] in_info input tensor info
+ * @param[in] out_info output tensor info
  * @param[in] inptr input tensor
  * @param[out] outptr output tensor
  * @return Gst flow status
  */
 static GstFlowReturn
 gst_tensor_transform_transpose (GstTensorTransform * filter,
-    guint idx, const uint8_t * inptr, uint8_t * outptr)
+    GstTensorInfo * in_info, GstTensorInfo * out_info,
+    const uint8_t * inptr, uint8_t * outptr)
 {
   int i, from, to;
   gboolean checkdim = FALSE;
-  uint32_t *fromDim = filter->in_config.info.info[idx].dimension;
-  tensor_type in_tensor_type = filter->in_config.info.info[idx].type;
-  gsize type_size = gst_tensor_get_element_size (in_tensor_type);
+  uint32_t *fromDim = in_info->dimension;
+  gsize type_size = gst_tensor_get_element_size (in_info->type);
   gsize indexI, indexJ, SL, SI, SJ, SK;
+
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
     from = i;
     to = filter->data_transpose.trans_order[i];
@@ -1192,8 +1197,7 @@ gst_tensor_transform_transpose (GstTensorTransform * filter,
   }
 
   if (!checkdim) {
-    nns_memcpy (outptr, inptr,
-        gst_tensor_info_get_size (&filter->in_config.info.info[idx]));
+    nns_memcpy (outptr, inptr, gst_tensor_info_get_size (in_info));
     GST_WARNING_OBJECT (filter,
         "Calling tensor_transform with high memcpy overhead WITHOUT any effects!");
     return GST_FLOW_OK;
@@ -1234,29 +1238,24 @@ gst_tensor_transform_transpose (GstTensorTransform * filter,
  * @brief subrouting for tensor-tranform, "stand" case.
  *        : pixel = abs((pixel - average(tensor))/(std(tensor) + val))
  * @param[in/out] filter "this" pointer
- * @param[in] idx index of the input tensors
+ * @param[in] in_info input tensor info
+ * @param[in] out_info output tensor info
  * @param[in] inptr input tensor
  * @param[out] outptr output tensor
  * @return Gst flow status
  */
 static GstFlowReturn
 gst_tensor_transform_stand (GstTensorTransform * filter,
-    guint idx, const uint8_t * inptr, uint8_t * outptr)
+    GstTensorInfo * in_info, GstTensorInfo * out_info,
+    const uint8_t * inptr, uint8_t * outptr)
 {
   GstFlowReturn ret = GST_FLOW_OK;
-  GstTensorInfo *in_info, *out_info;
-  tensor_type in_tensor_type, out_tensor_type;
   gsize in_element_size, out_element_size, data_size, ch_size;
   gulong i, num, data_idx, ch;
   gdouble tmp, *average, *std;
 
-  in_info = &filter->in_config.info.info[idx];
-  out_info = &filter->out_config.info.info[idx];
-  in_tensor_type = in_info->type;
-  out_tensor_type = out_info->type;
-
-  in_element_size = gst_tensor_get_element_size (in_tensor_type);
-  out_element_size = gst_tensor_get_element_size (out_tensor_type);
+  in_element_size = gst_tensor_get_element_size (in_info->type);
+  out_element_size = gst_tensor_get_element_size (out_info->type);
   num = gst_tensor_get_element_count (in_info->dimension);
 
   data_size = gst_tensor_info_get_size (in_info);
@@ -1266,17 +1265,17 @@ gst_tensor_transform_stand (GstTensorTransform * filter,
   average = std = NULL;
   if (filter->data_stand.per_channel) {
     gst_tensor_data_raw_average_per_channel ((gpointer) inptr, data_size,
-        in_tensor_type, in_info->dimension, &average);
+        in_info->type, in_info->dimension, &average);
     /* calculate std only for default mode */
     if (filter->data_stand.mode == STAND_DEFAULT)
       gst_tensor_data_raw_std_per_channel ((gpointer) inptr, data_size,
-          in_tensor_type, in_info->dimension, average, &std);
+          in_info->type, in_info->dimension, average, &std);
   } else {
     gst_tensor_data_raw_average ((gpointer) inptr, data_size,
-        in_tensor_type, &average);
+        in_info->type, &average);
     /* calculate std only for default mode */
     if (filter->data_stand.mode == STAND_DEFAULT)
-      gst_tensor_data_raw_std ((gpointer) inptr, data_size, in_tensor_type,
+      gst_tensor_data_raw_std ((gpointer) inptr, data_size, in_info->type,
           average, &std);
   }
 
@@ -1287,26 +1286,26 @@ gst_tensor_transform_stand (GstTensorTransform * filter,
         for (i = 0; i < num; i++) {
           data_idx = in_element_size * i;
           gst_tensor_data_raw_typecast ((gpointer) (inptr + data_idx),
-              in_tensor_type, &tmp, _NNS_FLOAT64);
+              in_info->type, &tmp, _NNS_FLOAT64);
 
           tmp = fabs ((tmp - *average) / *std);
 
           data_idx = out_element_size * i;
           gst_tensor_data_raw_typecast (&tmp, _NNS_FLOAT64,
-              (gpointer) (outptr + data_idx), out_tensor_type);
+              (gpointer) (outptr + data_idx), out_info->type);
         }
       } else {
         for (ch = 0; ch < ch_size; ++ch) {
           for (i = 0; i < num / ch_size; i++) {
             data_idx = in_element_size * ((i * ch_size) + ch);
             gst_tensor_data_raw_typecast ((gpointer) (inptr + data_idx),
-                in_tensor_type, &tmp, _NNS_FLOAT64);
+                in_info->type, &tmp, _NNS_FLOAT64);
 
             tmp = fabs ((tmp - average[ch]) / std[ch]);
 
             data_idx = out_element_size * ((i * ch_size) + ch);
             gst_tensor_data_raw_typecast (&tmp, _NNS_FLOAT64,
-                (gpointer) (outptr + data_idx), out_tensor_type);
+                (gpointer) (outptr + data_idx), out_info->type);
           }
         }
       }
@@ -1318,26 +1317,26 @@ gst_tensor_transform_stand (GstTensorTransform * filter,
         for (i = 0; i < num; i++) {
           data_idx = in_element_size * i;
           gst_tensor_data_raw_typecast ((gpointer) (inptr + data_idx),
-              in_tensor_type, &tmp, _NNS_FLOAT64);
+              in_info->type, &tmp, _NNS_FLOAT64);
 
           tmp -= *average;
 
           data_idx = out_element_size * i;
           gst_tensor_data_raw_typecast (&tmp, _NNS_FLOAT64,
-              (gpointer) (outptr + data_idx), out_tensor_type);
+              (gpointer) (outptr + data_idx), out_info->type);
         }
       } else {
         for (ch = 0; ch < ch_size; ++ch) {
           for (i = 0; i < num / ch_size; i++) {
             data_idx = in_element_size * ((i * ch_size) + ch);
             gst_tensor_data_raw_typecast ((gpointer) (inptr + data_idx),
-                in_tensor_type, &tmp, _NNS_FLOAT64);
+                in_info->type, &tmp, _NNS_FLOAT64);
 
             tmp -= average[ch];
 
             data_idx = out_element_size * ((i * ch_size) + ch);
             gst_tensor_data_raw_typecast (&tmp, _NNS_FLOAT64,
-                (gpointer) (outptr + data_idx), out_tensor_type);
+                (gpointer) (outptr + data_idx), out_info->type);
           }
         }
       }
@@ -1359,37 +1358,35 @@ gst_tensor_transform_stand (GstTensorTransform * filter,
  *        : pixel = if (pixel > max) ? max :
  *                  if (pixel < min) ? min : pixel
  * @param[in/out] filter "this" pointer
- * @param[in] idx index of the input tensors
+ * @param[in] in_info input tensor info
+ * @param[in] out_info output tensor info
  * @param[in] inptr input tensor
  * @param[out] outptr output tensor
  * @return Gst flow status
  */
 static GstFlowReturn
 gst_tensor_transform_clamp (GstTensorTransform * filter,
-    guint idx, const uint8_t * inptr, uint8_t * outptr)
+    GstTensorInfo * in_info, GstTensorInfo * out_info,
+    const uint8_t * inptr, uint8_t * outptr)
 {
-  tensor_type in_tensor_type = filter->in_config.info.info[idx].type;
-  tensor_type out_tensor_type = filter->out_config.info.info[idx].type;
-
   gsize in_element_size, out_element_size;
   gulong i, num, data_idx;
   gdouble tmp;
 
-  in_element_size = gst_tensor_get_element_size (in_tensor_type);
-  out_element_size = gst_tensor_get_element_size (out_tensor_type);
-  num =
-      gst_tensor_get_element_count (filter->in_config.info.info[idx].dimension);
+  in_element_size = gst_tensor_get_element_size (in_info->type);
+  out_element_size = gst_tensor_get_element_size (out_info->type);
+  num = gst_tensor_get_element_count (in_info->dimension);
 
   for (i = 0; i < num; ++i) {
     data_idx = in_element_size * i;
-    gst_tensor_data_raw_typecast ((gpointer) (inptr + data_idx), in_tensor_type,
+    gst_tensor_data_raw_typecast ((gpointer) (inptr + data_idx), in_info->type,
         &tmp, _NNS_FLOAT64);
 
     tmp = CLAMP (tmp, filter->data_clamp.min, filter->data_clamp.max);
 
     data_idx = out_element_size * i;
     gst_tensor_data_raw_typecast (&tmp, _NNS_FLOAT64, outptr + data_idx,
-        out_tensor_type);
+        out_info->type);
   }
 
   return GST_FLOW_OK;
@@ -1406,14 +1403,16 @@ static GstFlowReturn
 gst_tensor_transform_transform (GstBaseTransform * trans,
     GstBuffer * inbuf, GstBuffer * outbuf)
 {
-  GstFlowReturn res = GST_FLOW_ERROR;
   GstTensorTransform *filter;
+  GstTensorInfo *in_info, *out_info;
+  GstFlowReturn res = GST_FLOW_ERROR;
   GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
   GstMemory *out_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
-  GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT];
-  GstMapInfo out_info[NNS_TENSOR_SIZE_LIMIT];
+  GstMapInfo in_map[NNS_TENSOR_SIZE_LIMIT];
+  GstMapInfo out_map[NNS_TENSOR_SIZE_LIMIT];
   uint8_t *inptr, *outptr;
   guint i, num_tensors;
+  gsize buf_size;
 
   filter = GST_TENSOR_TRANSFORM_CAST (trans);
 
@@ -1424,50 +1423,59 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
       GST_FLOW_ERROR);
 
   for (i = 0; i < num_tensors; i++) {
-    gsize buf_size = 0;
+    in_info = &filter->in_config.info.info[i];
+    out_info = &filter->out_config.info.info[i];
 
     if (filter->apply && !g_list_find (filter->apply, GINT_TO_POINTER (i))) {
       gst_buffer_append_memory (outbuf, gst_buffer_get_memory (inbuf, i));
       continue;
     }
 
+    /* parse input buffer */
     in_mem[i] = gst_buffer_peek_memory (inbuf, i);
-    if (!gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
+    if (!gst_memory_map (in_mem[i], &in_map[i], GST_MAP_READ)) {
       ml_loge ("Cannot map input buffer to gst-buf at tensor-transform.\n");
       res = GST_FLOW_ERROR;
       goto done;
     }
-    inptr = in_info[i].data;
+    inptr = in_map[i].data;
 
-    buf_size = gst_tensor_info_get_size (&filter->out_config.info.info[i]);
+    /* prepare output buffer */
+    buf_size = gst_tensor_info_get_size (out_info);
     out_mem[i] = gst_allocator_alloc (NULL, buf_size, NULL);
     gst_buffer_append_memory (outbuf, out_mem[i]);
 
-    if (!gst_memory_map (out_mem[i], &out_info[i], GST_MAP_WRITE)) {
+    if (!gst_memory_map (out_mem[i], &out_map[i], GST_MAP_WRITE)) {
       ml_loge ("Cannot map output buffer to gst-buf at tensor-transform.\n");
       res = GST_FLOW_ERROR;
       goto done;
     }
-    outptr = out_info[i].data;
+    outptr = out_map[i].data;
 
     switch (filter->mode) {
       case GTT_DIMCHG:
-        res = gst_tensor_transform_dimchg (filter, i, inptr, outptr);
+        res = gst_tensor_transform_dimchg (filter, in_info, out_info,
+            inptr, outptr);
         break;
       case GTT_TYPECAST:
-        res = gst_tensor_transform_typecast (filter, i, inptr, outptr);
+        res = gst_tensor_transform_typecast (filter, in_info, out_info,
+            inptr, outptr);
         break;
       case GTT_ARITHMETIC:
-        res = gst_tensor_transform_arithmetic (filter, i, inptr, outptr);
+        res = gst_tensor_transform_arithmetic (filter, in_info, out_info,
+            inptr, outptr);
         break;
       case GTT_TRANSPOSE:
-        res = gst_tensor_transform_transpose (filter, i, inptr, outptr);
+        res = gst_tensor_transform_transpose (filter, in_info, out_info,
+            inptr, outptr);
         break;
       case GTT_STAND:
-        res = gst_tensor_transform_stand (filter, i, inptr, outptr);
+        res = gst_tensor_transform_stand (filter, in_info, out_info,
+            inptr, outptr);
         break;
       case GTT_CLAMP:
-        res = gst_tensor_transform_clamp (filter, i, inptr, outptr);
+        res = gst_tensor_transform_clamp (filter, in_info, out_info,
+            inptr, outptr);
         break;
       default:
         ml_loge ("Not supported tensor transform mode");
@@ -1479,9 +1487,9 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
 done:
   for (i = 0; i < num_tensors; i++) {
     if (in_mem[i])
-      gst_memory_unmap (in_mem[i], &in_info[i]);
+      gst_memory_unmap (in_mem[i], &in_map[i]);
     if (out_mem[i])
-      gst_memory_unmap (out_mem[i], &out_info[i]);
+      gst_memory_unmap (out_mem[i], &out_map[i]);
   }
 
   return res;
@@ -1649,7 +1657,6 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
   GstTensorTransform *filter;
   GstCaps *result = NULL;
   GstStructure *structure;
-  const gchar *caps_name;
   guint i, j;
 
   filter = GST_TENSOR_TRANSFORM_CAST (trans);
@@ -1663,7 +1670,6 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
     GstTensorsConfig in_config, out_config;
 
     structure = gst_caps_get_structure (caps, i);
-    caps_name = gst_structure_get_name (structure);
 
     gst_tensors_config_init (&in_config);
     gst_tensors_config_init (&out_config);
@@ -1678,7 +1684,7 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
     out_config.rate_n = in_config.rate_n;
     out_config.info.num_tensors = in_config.info.num_tensors;
 
-    if (g_strcmp0 (caps_name, NNS_MIMETYPE_TENSOR) == 0) {
+    if (gst_structure_has_name (structure, NNS_MIMETYPE_TENSOR)) {
       GstTensorConfig tensor_config;
 
       gst_tensor_config_init (&tensor_config);
