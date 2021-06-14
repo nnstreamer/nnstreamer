@@ -91,12 +91,9 @@ tensor_filter_subplugin::cpp_open (const GstTensorFilterProperties *prop, void *
   } catch (const std::system_error &e) {
     _RETURN_ERR_WITH_MSG (e.code ().value () * -1, e.what ());
   } catch (const std::runtime_error &e) {
-    /** @todo return different error codes according to exceptions */
-    _RETURN_ERR_WITH_MSG (-1, e.what ());
+    _RETURN_ERR_WITH_MSG (-EINVAL, e.what ());
   } catch (const std::exception &e) {
-    /** @todo Write exception handlers. */
-    /** @todo return different error codes according to exceptions */
-    _RETURN_ERR_WITH_MSG (-1, e.what ());
+    _RETURN_ERR_WITH_MSG (-EINVAL, e.what ());
   }
 
   /** 3. Mark that this is not a representative (found by nnstreamer_filter_find)
@@ -160,12 +157,16 @@ tensor_filter_subplugin::cpp_invoke (const GstTensorFilterFramework *tf,
 
   try {
     obj->invoke (input, output);
+  } catch (const std::invalid_argument &e) {
+    _RETURN_ERR_WITH_MSG (-EINVAL, e.what ());
+  } catch (const std::system_error &e) {
+    _RETURN_ERR_WITH_MSG (e.code ().value () * -1, e.what ());
+  } catch (const std::runtime_error &e) {
+    _RETURN_ERR_WITH_MSG (-EINVAL, e.what ());
   } catch (const std::exception &e) {
-    /** @todo Write exception handlers. */
-
-    return -EINVAL;
-    /** @todo return different error codes according to exceptions */
+    _RETURN_ERR_WITH_MSG (-EINVAL, e.what ());
   }
+
   return 0;
 }
 
@@ -198,9 +199,7 @@ tensor_filter_subplugin::cpp_getFrameworkInfo (const GstTensorFilterFramework *t
     obj->getFrameworkInfo (*fw_info);
   } catch (const std::exception &e) {
     /** @todo Write exception handlers. */
-
-    return -EINVAL;
-    /** @todo return different error codes according to exceptions */
+    _RETURN_ERR_WITH_MSG (-EINVAL, e.what ());
   }
   return 0;
 }
