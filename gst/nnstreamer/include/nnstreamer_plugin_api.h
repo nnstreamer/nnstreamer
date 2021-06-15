@@ -242,6 +242,13 @@ extern void
 gst_tensor_config_init (GstTensorConfig * config);
 
 /**
+ * @brief Free allocated data in tensor config structure
+ * @param config tensor config structure
+ */
+extern void
+gst_tensor_config_free (GstTensorConfig * config);
+
+/**
  * @brief Check the tensor is all configured
  * @param config tensor config structure
  * @return TRUE if configured
@@ -295,6 +302,13 @@ gst_tensors_config_from_peer (GstPad * pad, GstTensorsConfig * config,
  */
 extern void
 gst_tensors_config_init (GstTensorsConfig * config);
+
+/**
+ * @brief Free allocated data in tensors config structure
+ * @param config tensors config structure
+ */
+extern void
+gst_tensors_config_free (GstTensorsConfig * config);
 
 /**
  * @brief Check the tensors are all configured (for other/tensors)
