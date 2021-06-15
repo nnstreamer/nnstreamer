@@ -138,14 +138,14 @@ TEST (nnstreamerFilterTvm, getModelInfo00)
 
   EXPECT_EQ (in_info.num_tensors, 1U);
   EXPECT_EQ (in_info.info[0].dimension[0], 3U);
-  EXPECT_EQ (in_info.info[0].dimension[1], 640U);
-  EXPECT_EQ (in_info.info[0].dimension[2], 480U);
+  EXPECT_EQ (in_info.info[0].dimension[1], 480U);
+  EXPECT_EQ (in_info.info[0].dimension[2], 640U);
   EXPECT_EQ (in_info.info[0].dimension[3], 1U);
   EXPECT_EQ (in_info.info[0].type, _NNS_FLOAT32);
   EXPECT_EQ (out_info.num_tensors, 1U);
   EXPECT_EQ (out_info.info[0].dimension[0], 3U);
-  EXPECT_EQ (out_info.info[0].dimension[1], 640U);
-  EXPECT_EQ (out_info.info[0].dimension[2], 480U);
+  EXPECT_EQ (out_info.info[0].dimension[1], 480U);
+  EXPECT_EQ (out_info.info[0].dimension[2], 640U);
   EXPECT_EQ (out_info.info[0].dimension[3], 1U);
   EXPECT_EQ (out_info.info[0].type, _NNS_FLOAT32);
 
@@ -398,7 +398,7 @@ TEST (nnstreamerFilterTvm, launch00)
       root_path, "tests", "test_models", "models", "tvm_add_one.so_", NULL);
 
   /* create a nnstreamer pipeline */
-  pipeline = g_strdup_printf ("videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=640,height=480 ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-255.0 ! tensor_filter framework=tvm model=\"%s\" ! tensor_sink name=sink",
+  pipeline = g_strdup_printf ("videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=480,height=640 ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-255.0 ! tensor_filter framework=tvm model=\"%s\" ! tensor_sink name=sink",
       model_file);
 
   gstpipe = gst_parse_launch (pipeline, &err);
@@ -430,7 +430,7 @@ TEST (nnstreamerFilterTvm, launch00_n)
   gchar *model_file = g_build_filename ("temp.so", NULL);
 
   /* create a nnstreamer pipeline */
-  pipeline = g_strdup_printf ("videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=640,height=480 ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-255.0 ! tensor_filter framework=tvm model=\"%s\" ! fakesink",
+  pipeline = g_strdup_printf ("videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=480,height=640 ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-255.0 ! tensor_filter framework=tvm model=\"%s\" ! fakesink",
       model_file);
 
   gstpipe = gst_parse_launch (pipeline, &err);

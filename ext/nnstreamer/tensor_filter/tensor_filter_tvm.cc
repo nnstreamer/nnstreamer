@@ -9,7 +9,7 @@
  *
  * This is the per-NN-framework plugin (TVM) for tensor_filter.
  *
- * @note    Only supports tvm.contrib.graph_executor model
+ * @note    Setting custom property `num_input_tensors` is recommended
  */
 
 #include <glib.h>
@@ -136,17 +136,16 @@ tvm_subplugin::getEmptyInstance ()
 bool
 tvm_subplugin::parse_custom_prop (const char *custom_prop)
 {
-  gchar **options;
-  bool invalid_option = false;
+  gchar **options = NULL;
+  guint len_opt = 0;
+  bool invalid_option = false, num_input_set = false;
 
-  if (custom_prop == nullptr) {
-    /* no custom properties */
-    return true;
+  if (custom_prop != nullptr) {
+    options = g_strsplit (custom_prop, ",", -1);
+    len_opt = g_strv_length (options);
   }
 
-  options = g_strsplit (custom_prop, ",", -1);
-
-  for (guint op = 0; op < g_strv_length (options); ++op) {
+  for (guint op = 0; op < len_opt; ++op) {
     gchar **option = g_strsplit (options[op], ":", -1);
 
     if (g_strv_length (option) > 1) {
@@ -162,6 +161,15 @@ tvm_subplugin::parse_custom_prop (const char *custom_prop)
           nns_loge ("Unknown device (%s).", option[1]);
           invalid_option = true;
         }
+      } else if (g_ascii_strcasecmp (option[0], "num_input_tensors") == 0) {
+        inputInfo.num_tensors
+            = MIN (g_ascii_strtoull (option[1], NULL, 10), NNS_TENSOR_SIZE_LIMIT);
+
+        if (inputInfo.num_tensors <= 0) {
+          nns_loge ("num_input_tensors must be greater than 0");
+          invalid_option = true;
+        } else
+          num_input_set = true;
       } else {
         nns_logw ("Unknown option (%s).", options[op]);
       }
@@ -172,7 +180,12 @@ tvm_subplugin::parse_custom_prop (const char *custom_prop)
     }
     g_strfreev (option);
   }
-  g_strfreev (options);
+  if (options)
+    g_strfreev (options);
+
+  if (!num_input_set)
+    nns_logw ("Custom property `num_input_tensors` not set, possibly causing undefined behavior.");
+
   return !invalid_option;
 }
 
@@ -182,6 +195,8 @@ tvm_subplugin::parse_custom_prop (const char *custom_prop)
 void
 tvm_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 {
+  unsigned int i;
+  int idx;
   if (!parse_custom_prop (prop->custom_properties)) {
     nns_loge ("Failed to parse custom property.");
     cleanup ();
@@ -201,9 +216,11 @@ tvm_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   model_path = g_strdup (prop->model_files[0]);
   mod_factory = tvm::runtime::Module::LoadFromFile (model_path, "so");
   gmod = mod_factory.GetFunction ("default") (device);
-
-  inputInfo.num_tensors = (int) gmod.GetFunction ("get_num_inputs") ();
-  outputInfo.num_tensors = (int) gmod.GetFunction ("get_num_outputs") ();
+  if (inputInfo.num_tensors == 0)
+    inputInfo.num_tensors
+        = MIN ((int) gmod.GetFunction ("get_num_inputs") (), NNS_TENSOR_SIZE_LIMIT);
+  outputInfo.num_tensors
+      = MIN ((int) gmod.GetFunction ("get_num_outputs") (), NNS_TENSOR_SIZE_LIMIT);
 
   tvm::runtime::NDArray arr;
   const DLTensor *dt;
@@ -220,7 +237,7 @@ tvm_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     throw std::invalid_argument ("Packed function `get_output` not defined in model");
   }
 
-  for (unsigned int i = 0; i < inputInfo.num_tensors; ++i) {
+  for (i = 0; i < inputInfo.num_tensors; ++i) {
     arr = getInput (i);
     dt = arr.operator-> ();
     input_tensor_list.push_back (*dt);
@@ -229,11 +246,15 @@ tvm_subplugin::configure_instance (const GstTensorFilterProperties *prop)
       cleanup ();
       throw std::invalid_argument ("Failed to convert DLPack data type");
     }
-    std::copy (dt->shape, dt->shape + dt->ndim, inputInfo.info[i].dimension);
+
+    for (idx = 0; idx < dt->ndim; ++idx)
+      inputInfo.info[i].dimension[idx] = dt->shape[dt->ndim - idx - 1];
+    for (; idx < NNS_TENSOR_RANK_LIMIT; ++idx)
+      inputInfo.info[i].dimension[idx] = 1;
     inputInfo.info[i].name = nullptr;
   }
 
-  for (unsigned int i = 0; i < outputInfo.num_tensors; ++i) {
+  for (i = 0; i < outputInfo.num_tensors; ++i) {
     arr = getOutput (i);
     dt = arr.operator-> ();
     output_tensor_list.push_back (*dt);
@@ -242,7 +263,11 @@ tvm_subplugin::configure_instance (const GstTensorFilterProperties *prop)
       cleanup ();
       throw std::invalid_argument ("Failed to convert DLPack data type");
     }
-    std::copy (dt->shape, dt->shape + dt->ndim, outputInfo.info[i].dimension);
+
+    for (idx = 0; idx < dt->ndim; ++idx)
+      outputInfo.info[i].dimension[idx] = dt->shape[dt->ndim - idx - 1];
+    for (; idx < NNS_TENSOR_RANK_LIMIT; ++idx)
+      outputInfo.info[i].dimension[idx] = 1;
     outputInfo.info[i].name = nullptr;
   }
   empty_model = false;
@@ -418,6 +443,9 @@ tvm_subplugin::init_filter_tvm (void)
   gst_tensor_alloc_init (127);
   registeredRepresentation
       = tensor_filter_subplugin::register_subplugin<tvm_subplugin> ();
+  nnstreamer_filter_set_custom_property_desc (name, "device",
+      "Device type for the model (`CPU`, `GPU`)", "num_input_tensors",
+      "Number of input tensors", NULL);
 }
 
 /**
