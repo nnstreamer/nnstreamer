@@ -725,6 +725,18 @@ gst_tensor_config_init (GstTensorConfig * config)
 }
 
 /**
+ * @brief Free allocated data in tensor config structure
+ * @param config tensor config structure
+ */
+void
+gst_tensor_config_free (GstTensorConfig * config)
+{
+  g_return_if_fail (config != NULL);
+
+  gst_tensor_info_free (&config->info);
+}
+
+/**
  * @brief Check the tensor is all configured
  * @param config tensor config structure
  * @return TRUE if configured
@@ -862,6 +874,18 @@ gst_tensors_config_init (GstTensorsConfig * config)
 
   config->rate_n = -1;
   config->rate_d = -1;
+}
+
+/**
+ * @brief Free allocated data in tensors config structure
+ * @param config tensors config structure
+ */
+void
+gst_tensors_config_free (GstTensorsConfig * config)
+{
+  g_return_if_fail (config != NULL);
+
+  gst_tensors_info_free (&config->info);
 }
 
 /**
@@ -1631,7 +1655,7 @@ gst_tensor_meta_info_parse_header (GstTensorMetaInfo * meta, gpointer header)
   meta->format = val[18];
   meta->media_type = val[19];
 
-  /* @todo update meta info for each version */
+  /** @todo update meta info for each version */
   return gst_tensor_meta_info_validate (meta);
 }
 
