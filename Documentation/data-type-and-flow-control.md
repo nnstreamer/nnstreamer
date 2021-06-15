@@ -75,6 +75,46 @@ Dimension = (string) [1-65535]:[1-65535]:[1-65535]:[1-65535]
 
 The buffer of ```other/tensors``` streams have multiple memory chunks. Each memory chunk represents one single tensor in the buffer format of ```other/tensor```. With default configurations of Gstreamer 1.0, the maximum allowed number of memory chunks in a buffer is **16**. Thus, with such configurations of Gstreamer 1.0, ```other/tensors``` may include up to **16** ```other/tensor```.
 
+## other/tensors-flexible
+
+```other/tensors-flexible``` handles non-static, flexible tensor stream without specifying the data type and shape of tensor in pad capability.
+This is useful when an element or a model requires non-determined, dynamic data shape to process the tensors. (e.g., cropping the raw data into multiple tensors)
+
+Unlike ```other/tensor``` and ```other/tensors```, flexible tensor does not contain the data structure in pad capability.
+Instead, flexible tensor has its own data structure - [GstTensorMetaInfo](https://github.com/nnstreamer/nnstreamer/blob/main/gst/nnstreamer/include/tensor_typedef.h) - in each tensor buffer, to prevent caps negotiation with fixed type of data stream.
+When processing a buffer with the capability ```other/tensors-flexible```, developer should append or parse the tensor information in buffer using various [utility functions](https://github.com/nnstreamer/nnstreamer/blob/main/gst/nnstreamer/include/nnstreamer_plugin_api.h).
+
+The buffer of ```other/tensors-flexible``` may have single memory or multiple memory chunks.
+NNStreamer element with ```other/tensors-flexible``` capability gets the number of memories in a buffer and handles each memory as a tensor.
+Note that, it also has a limit, the maximum allowed number of memory chunks in a buffer is **16**.
+
+```
+Memory chunks with tensor-meta in a buffer (e.g., 3 memories)
+ - Header size is fixed.
+ - Tensor data size depends on the meta (data type and dimension).
+
+       ---------------------------------------------
+   1st | Header (meta) | Tensor (raw data)         |
+       ---------------------------------------------
+   2nd | Header (meta) | Tensor (raw data)         |
+       ---------------------------------------------
+   3rd | Header (meta) | Tensor (raw data)         |
+       ---------------------------------------------
+
+Header (meta)
+offset |       0       |       1       |       2       |       3       |
+       -----------------------------------------------------------------
+   0   |    version    |  tensor type  | dimension[0]  | dimension[1]  |
+       -----------------------------------------------------------------
+   4   | dimension[2]  | dimension[3]  | dimension[4]  | dimension[5]  |
+       -----------------------------------------------------------------
+   ~
+       -----------------------------------------------------------------
+  16   | dimension[14] | dimension[15] | tensor format |   media type  |
+       -----------------------------------------------------------------
+  20 ~ | extra options                                                 |
+       -----------------------------------------------------------------
+```
 
 ## other/tensorsave (TBU)
 
