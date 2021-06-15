@@ -18,6 +18,13 @@ title: tensor_converter
   - The number of frames per tensor is supposed to be configured manually by stream pipeline developer with the property of ```frames-per-tensor```.
   - If ```frames-per-tensor``` is not configured, the default value is 1.
   - The size of a text frame should be configured by developer with the property ```input-dim```. Because the dimension of tensor is the key metadata of a tensor stream pipeline, we need to fix the value before actually looking at the actual stream data.
+- Octet stream: direct conversion of application/octet-stream with converter properties.
+  - You should set ```input-type``` and ```input-dim``` to describe tensor(s) information of outgoing buffer.
+    If setting multiple tensors, converter will divide incoming buffer and set multiple memory chunks in outgoing buffer.
+  - Only single frame. ```frames-per-tensor``` should be 1 (default value).
+- Flexible tensor: conversion to static tensor stream.
+  - You can convert mime type (flexible to static) if incoming tensor has fixed data format and size.
+  - With ```input-type``` and ```input-dim```, converter will set the output capability on src pad.
 
 ## Planned features
 
@@ -26,13 +33,16 @@ From higher priority
 
 ## Sink Pads
 
-One "Always" sink pad exists. The capability of sink pad is ```video/x-raw```, ```audio/x-raw```, ```text/x-raw``` and ```application/octet-stream```.
+One "Always" sink pad exists. The capability of sink pad is ```video/x-raw```, ```audio/x-raw```, ```text/x-raw```, ```application/octet-stream```, and ```other/tensors-flexible```.
+
+If you require another pad caps to convert media stream to tensor(s), you can implement new sub-plugin or register custom converter.
 
 ## Source Pads
 
-One "Always" source pad exists. The capability of source pad is ```other/tensor```. It does not support ```other/tensors``` because each frame (or a set of frames consisting a buffer) is supposed to be represented by a **single** tensor instance.
+One "Always" source pad exists. The capability of source pad is ```other/tensor```, ```other/tensors```, and ```other/tensors-flexible```.
 
-For each outgoing frame (on the source pad), there always is a **single** instance of ```other/tensor```. Not less and not more.
+Note that, only octet-stream in the default capabilities of sink pad supports configuring multiple tensors in outgoing buffer.
+When incoming media type is video, audio, or text, each frame (or a set of frames consisting a buffer) is supposed to be represented by a **single** tensor instance and it will have ```other/tensor``` capability.
 
 ## Performance Characteristics
 
@@ -59,8 +69,9 @@ $ gst-launch videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! tensor
 ```
 
 ## Custom converter
-If you want to convert any media type to tensors, You can use custom mode of the tensor converter.
-### code mode
+If you want to convert any media type to tensors, you can use custom mode of the tensor converter.
+
+### Code mode
 This is an example of a callback type custom mode.
 ```
 // Define custom callback function
@@ -78,7 +89,7 @@ nnstreamer_converter_custom_register ("tconv", tensor_converter_custom_cb, NULL)
 nnstreamer_converter_custom_unregister ("tconv");
 ```
 
-### script mode
+### Script mode
 * Note: Currently only Python is supported.
   - If you want to use FlatBuffers Python in Tizen, install package `flatbuffers-python`. It also includes a Flexbuffers Python.
   - If you want to use Flatbuffers Python in Ubuntu, install package using pip `pip install flatbuffers`. It also includes a Flexbuffers Python.
