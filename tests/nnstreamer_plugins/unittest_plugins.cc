@@ -6015,8 +6015,8 @@ TEST (testStreamBuffers, tensorsNormal)
       gst_memory_unmap (mem, &info);
     }
 
-    gst_tensors_info_free (&config.info);
-    gst_tensors_info_free (&check_config.info);
+    gst_tensors_config_free (&config);
+    gst_tensors_config_free (&check_config);
     gst_buffer_unref (dec_out_buf);
     gst_buffer_unref (conv_out_buf);
   }
@@ -6060,7 +6060,7 @@ TEST (testDecoderSubplugins, flatbufInvalidParam1_n)
   dec_out_buf = gst_buffer_new ();
   EXPECT_EQ (GST_FLOW_ERROR, fb_dec->decode (NULL, &config, NULL, dec_out_buf));
 
-  gst_tensors_info_free (&config.info);
+  gst_tensors_config_free (&config);
   gst_buffer_unref (dec_out_buf);
 }
 
@@ -6100,7 +6100,7 @@ TEST (testConverterSubplugins, flatbufInvalidParam0_n)
   conv_out_buf = fb_conv->convert (NULL, &config, NULL);
 
   EXPECT_TRUE (NULL == conv_out_buf);
-  gst_tensors_info_free (&config.info);
+  gst_tensors_config_free (&config);
 }
 
 /**
@@ -6123,7 +6123,7 @@ TEST (testConverterSubplugins, flatbufInvalidParam1_n)
   conv_out_buf = fb_conv->convert (in_buf, NULL, NULL);
 
   EXPECT_TRUE (NULL == conv_out_buf);
-  gst_tensors_info_free (&config.info);
+  gst_tensors_config_free (&config);
   gst_buffer_unref (in_buf);
 }
 
@@ -6165,7 +6165,7 @@ TEST (testDecoderSubplugins, protobufInvalidParam1_n)
   dec_out_buf = gst_buffer_new ();
   EXPECT_EQ (GST_FLOW_ERROR, pb_dec->decode (NULL, &config, NULL, dec_out_buf));
 
-  gst_tensors_info_free (&config.info);
+  gst_tensors_config_free (&config);
   gst_buffer_unref (dec_out_buf);
 }
 
@@ -6205,7 +6205,7 @@ TEST (testConverterSubplugins, protobufInvalidParam0_n)
   conv_out_buf = pb_conv->convert (NULL, &config, NULL);
 
   EXPECT_TRUE (NULL == conv_out_buf);
-  gst_tensors_info_free (&config.info);
+  gst_tensors_config_free (&config);
 }
 
 /**
@@ -6227,7 +6227,7 @@ TEST (testConverterSubplugins, protobufInvalidParam1_n)
   conv_out_buf = pb_conv->convert (in_buf, NULL, NULL);
 
   EXPECT_TRUE (NULL == conv_out_buf);
-  gst_tensors_info_free (&config.info);
+  gst_tensors_config_free (&config);
   gst_buffer_unref (in_buf);
 }
 
@@ -6270,7 +6270,7 @@ TEST (testDecoderSubplugins, flexbufInvalidParam1_n)
   dec_out_buf = gst_buffer_new ();
   EXPECT_EQ (GST_FLOW_ERROR, flx_dec->decode (NULL, &config, NULL, dec_out_buf));
 
-  gst_tensors_info_free (&config.info);
+  gst_tensors_config_free (&config);
   gst_buffer_unref (dec_out_buf);
 }
 
@@ -6310,7 +6310,7 @@ TEST (testConverterSubplugins, flexbufInvalidParam0_n)
   conv_out_buf = flx_conv->convert (NULL, &config, NULL);
 
   EXPECT_TRUE (NULL == conv_out_buf);
-  gst_tensors_info_free (&config.info);
+  gst_tensors_config_free (&config);
 }
 
 /**
@@ -6332,7 +6332,7 @@ TEST (testConverterSubplugins, flexbufInvalidParam1_n)
   conv_out_buf = flx_conv->convert (in_buf, NULL, NULL);
 
   EXPECT_TRUE (NULL == conv_out_buf);
-  gst_tensors_info_free (&config.info);
+  gst_tensors_config_free (&config);
   gst_buffer_unref (in_buf);
 }
 

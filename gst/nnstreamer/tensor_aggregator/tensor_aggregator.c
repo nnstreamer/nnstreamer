@@ -312,8 +312,8 @@ gst_tensor_aggregator_finalize (GObject * object)
 
   gst_tensor_aggregator_reset (self);
 
-  gst_tensor_info_free (&self->in_config.info);
-  gst_tensor_info_free (&self->out_config.info);
+  gst_tensor_config_free (&self->in_config);
+  gst_tensor_config_free (&self->out_config);
 
   if (self->adapter) {
     g_object_unref (self->adapter);

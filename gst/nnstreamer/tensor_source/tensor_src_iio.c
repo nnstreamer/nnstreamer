@@ -2034,7 +2034,7 @@ gst_tensor_src_iio_start (GstBaseSrc * src)
   return TRUE;
 
 error_config_free:
-  gst_tensors_info_free (&self->tensors_config->info);
+  gst_tensors_config_free (self->tensors_config);
   g_free (self->tensors_config);
 
   g_list_free_full (self->channels, gst_tensor_src_iio_channel_properties_free);
@@ -2122,7 +2122,7 @@ gst_tensor_src_iio_stop (GstBaseSrc * src)
   close (self->buffer_data_fp->fd);
   g_free (self->buffer_data_fp);
 
-  gst_tensors_info_free (&self->tensors_config->info);
+  gst_tensors_config_free (self->tensors_config);
   g_free (self->tensors_config);
 
   g_list_free_full (self->channels, gst_tensor_src_iio_channel_properties_free);
@@ -2216,7 +2216,7 @@ gst_tensor_src_iio_fixate (GstBaseSrc * src, GstCaps * caps)
     tensor_config.rate_n = self->tensors_config->rate_n;
     tensor_config.rate_d = self->tensors_config->rate_d;
     fixated_caps = gst_tensor_caps_from_config (&tensor_config);
-    gst_tensor_info_free (&tensor_config.info);
+    gst_tensor_config_free (&tensor_config);
   } else {
     fixated_caps = gst_tensors_caps_from_config (self->tensors_config);
   }
