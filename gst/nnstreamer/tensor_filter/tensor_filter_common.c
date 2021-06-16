@@ -1030,8 +1030,8 @@ gst_tensor_filter_common_free_property (GstTensorFilterPrivate * priv)
   gst_tensors_info_free (&prop->input_meta);
   gst_tensors_info_free (&prop->output_meta);
 
-  gst_tensors_info_free (&priv->in_config.info);
-  gst_tensors_info_free (&priv->out_config.info);
+  gst_tensors_config_free (&priv->in_config);
+  gst_tensors_config_free (&priv->out_config);
 
   g_list_free (priv->combi.in_combi);
   g_list_free (priv->combi.out_combi_i);

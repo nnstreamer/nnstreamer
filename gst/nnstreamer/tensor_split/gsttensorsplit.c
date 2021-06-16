@@ -188,6 +188,7 @@ gst_tensor_split_remove_src_pads (GstTensorSplit * split)
   split->srcpads = NULL;
   split->num_tensors = 0;
   split->num_srcpads = 0;
+  gst_tensor_config_free (&split->sink_tensor_conf);
 }
 
 /**

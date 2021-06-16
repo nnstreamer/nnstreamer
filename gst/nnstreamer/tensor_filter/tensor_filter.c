@@ -933,8 +933,8 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
   }
 
 done:
-  gst_tensors_info_free (&in_config.info);
-  gst_tensors_info_free (&out_config.info);
+  gst_tensors_config_free (&in_config);
+  gst_tensors_config_free (&out_config);
   gst_tensors_info_free (&in_info);
   gst_tensors_info_free (&out_info);
   return priv->configured;
@@ -1094,8 +1094,8 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
   }
 
   silent_debug_caps (result, "to");
-  gst_tensors_info_free (&in_config.info);
-  gst_tensors_info_free (&out_config.info);
+  gst_tensors_config_free (&in_config);
+  gst_tensors_config_free (&out_config);
   return result;
 }
 

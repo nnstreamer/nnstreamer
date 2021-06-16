@@ -1184,10 +1184,8 @@ gst_tensor_pad_caps_is_flexible (GstPad * pad)
   caps = gst_pad_get_current_caps (pad);
   if (caps) {
     GstStructure *structure = gst_caps_get_structure (caps, 0);
-    const gchar *name = gst_structure_get_name (structure);
 
-    if (name)
-      ret = g_str_equal (name, NNS_MIMETYPE_TENSORS_FLEXIBLE);
+    ret = gst_structure_has_name (structure, NNS_MIMETYPE_TENSORS_FLEXIBLE);
     gst_caps_unref (caps);
   }
 

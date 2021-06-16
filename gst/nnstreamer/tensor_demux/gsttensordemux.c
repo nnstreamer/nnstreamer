@@ -429,7 +429,7 @@ gst_tensor_demux_get_tensor_pad (GstTensorDemux * tensor_demux,
     }
   }
 
-  gst_tensors_info_free (&config.info);
+  gst_tensors_config_free (&config);
   return tensorpad;
 }
 

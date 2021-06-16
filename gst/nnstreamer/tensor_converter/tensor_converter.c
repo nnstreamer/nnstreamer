@@ -403,7 +403,7 @@ gst_tensor_converter_finalize (GObject * object)
 
   gst_tensor_converter_reset (self);
 
-  gst_tensors_info_free (&self->tensors_config.info);
+  gst_tensors_config_free (&self->tensors_config);
   gst_tensors_info_free (&self->tensors_info);
 
   if (self->adapter) {
@@ -1203,19 +1203,19 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
       if (inbuf == NULL) {
         nns_loge ("Failed to convert media to tensors.");
-        gst_tensors_info_free (&new_config.info);
+        gst_tensors_config_free (&new_config);
         goto error;
       }
       frames_in = 1;
       frame_size = gst_buffer_get_size (inbuf);
 
       if (!gst_tensors_config_is_equal (config, &new_config)) {
-        gst_tensors_info_free (&config->info);
+        gst_tensors_config_free (config);
         *config = new_config;
 
         gst_tensor_converter_update_caps (self);
       } else {
-        gst_tensors_info_free (&new_config.info);
+        gst_tensors_config_free (&new_config);
       }
 
       break;
