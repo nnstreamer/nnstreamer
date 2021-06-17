@@ -519,18 +519,37 @@ _gst_tensor_filter_transform_validate (GstBaseTransform * trans,
   GstTensorFilterPrivate *priv = &self->priv;
   GstTensorFilterProperties *prop = &priv->prop;
 
-  if (G_UNLIKELY (!priv->configured))
-    goto unknown_format;
-  if (G_UNLIKELY (!priv->fw))
-    goto unknown_framework;
+  if (G_UNLIKELY (!priv->configured)) {
+    GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL), ("unknown format"));
+    return GST_FLOW_NOT_NEGOTIATED;
+  }
+  if (G_UNLIKELY (!priv->fw)) {
+    /**
+      * This is fatal; if framework is not configured until this stage,
+      * it means that an extension is missing or not configured.
+      * We need readable messages for non-developers
+      */
+    g_error
+        ("\nA nnstreamer extension is not installed or framework property of tensor_filter is incorrect: [%s] is not found.\n\n",
+        prop->fwname);
+    GST_ELEMENT_ERROR (self, LIBRARY, FAILED,
+        ("framework (filter subplugin) is not found or not configured"),
+        ("framework not configured"));
+    return GST_FLOW_ERROR;
+  }
   if (G_UNLIKELY (!priv->fw->run_without_model) &&
       G_UNLIKELY (!(prop->model_files &&
-              prop->num_models > 0 && prop->model_files[0])))
-    goto unknown_model;
-  if (GST_TF_FW_V0 (priv->fw) && G_UNLIKELY (!priv->fw->invoke_NN))
-    goto unknown_invoke;
-  if (GST_TF_FW_V1 (priv->fw) && G_UNLIKELY (!priv->fw->invoke))
-    goto unknown_invoke;
+              prop->num_models > 0 && prop->model_files[0]))) {
+    GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL),
+        ("model filepath not configured"));
+    return GST_FLOW_ERROR;
+  }
+  if ((GST_TF_FW_V0 (priv->fw) && G_UNLIKELY (!priv->fw->invoke_NN)) ||
+      (GST_TF_FW_V1 (priv->fw) && G_UNLIKELY (!priv->fw->invoke))) {
+    GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL),
+        ("invoke function is not defined"));
+    return GST_FLOW_ERROR;
+  }
 
   silent_debug ("Invoking %s with %s model\n", priv->fw->name,
       GST_STR_NULL (prop->model_files[0]));
@@ -552,31 +571,6 @@ _gst_tensor_filter_transform_validate (GstBaseTransform * trans,
   }
 
   return GST_FLOW_OK;
-
-unknown_format:
-  GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL), ("unknown format"));
-  return GST_FLOW_NOT_NEGOTIATED;
-unknown_framework:
-  /**
-    * This is fatal; if framework is not configured until this stage,
-    * it means that an extension is missing or not configured.
-    * We need readable messages for non-developers
-    */
-  g_error
-      ("\nA nnstreamer extension is not installed or framework property of tensor_filter is incorrect: [%s] is not found.\n\n",
-      prop->fwname);
-  GST_ELEMENT_ERROR (self, LIBRARY, FAILED,
-      ("framework (filter subplugin) is not found or not configured"),
-      ("framework not configured"));
-  return GST_FLOW_ERROR;
-unknown_model:
-  GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL),
-      ("model filepath not configured"));
-  return GST_FLOW_ERROR;
-unknown_invoke:
-  GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL),
-      ("invoke function is not defined"));
-  return GST_FLOW_ERROR;
 }
 
 /**
