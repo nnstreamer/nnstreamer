@@ -93,7 +93,7 @@ enum
 static GstStaticPadTemplate raw_template = GST_STATIC_PAD_TEMPLATE ("raw",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT));
+    GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT ";" GST_TENSORS_FLEX_CAP_DEFAULT));
 
 /**
  * @brief Template for sink pad (crop info).
@@ -487,7 +487,7 @@ gst_tensor_crop_negotiate (GstTensorCrop * self)
  * @brief Internal function to prepare output meta info.
  */
 static gboolean
-gst_tensor_crop_prepare_out_meta (GstTensorCrop * self,
+gst_tensor_crop_prepare_out_meta (GstTensorCrop * self, gpointer buffer,
     GstTensorMetaInfo * meta, GstTensorInfo * info)
 {
   GstCaps *caps;
@@ -499,14 +499,23 @@ gst_tensor_crop_prepare_out_meta (GstTensorCrop * self,
   caps = gst_pad_get_current_caps (self->sinkpad_raw);
   structure = gst_caps_get_structure (caps, 0);
 
-  /* meta from caps */
-  if (gst_tensor_config_from_structure (&config, structure)) {
-    ret = gst_tensor_info_convert_to_meta (&config.info, meta);
-    gst_tensor_info_copy (info, &config.info);
-    info->format = _NNS_TENSOR_FORMAT_STATIC;
+  if (gst_structure_has_name (structure, NNS_MIMETYPE_TENSORS_FLEXIBLE)) {
+    /* meta from buffer */
+    if (gst_tensor_meta_info_parse_header (meta, buffer)) {
+      ret = gst_tensor_meta_info_convert (meta, info);
+      info->format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+    }
+  } else {
+    /* meta from caps */
+    if (gst_tensor_config_from_structure (&config, structure)) {
+      ret = gst_tensor_info_convert_to_meta (&config.info, meta);
+      gst_tensor_info_copy (info, &config.info);
+      info->format = _NNS_TENSOR_FORMAT_STATIC;
+    }
+
+    gst_tensor_config_free (&config);
   }
 
-  gst_tensor_config_free (&config);
   gst_caps_unref (caps);
 
   /* output is flex tensor */
@@ -600,6 +609,7 @@ gst_tensor_crop_do_cropping (GstTensorCrop * self, GstBuffer * raw,
   GstMapInfo map;
   GstTensorMetaInfo meta;
   GstTensorInfo info;
+  gboolean flexible;
   gsize hsize, esize, dsize;
   guint8 *cropped, *dpos, *desc, *src;
   guint i, j, ch, mw, mh, _x, _y, _w, _h;
@@ -617,14 +627,16 @@ gst_tensor_crop_do_cropping (GstTensorCrop * self, GstBuffer * raw,
     return NULL;
   }
 
-  if (!gst_tensor_crop_prepare_out_meta (self, &meta, &info)) {
+  if (!gst_tensor_crop_prepare_out_meta (self, map.data, &meta, &info)) {
     GST_ERROR_OBJECT (self, "Failed to get the output meta.");
     goto done;
   }
 
+  flexible = (info.format == _NNS_TENSOR_FORMAT_FLEXIBLE);
+  hsize = flexible ? gst_tensor_meta_info_get_header_size (&meta) : 0;
   dsize = gst_tensor_meta_info_get_data_size (&meta);
-  dpos = map.data;
-  if (dsize != map.size) {
+  dpos = map.data + hsize;
+  if ((hsize + dsize) != map.size) {
     GST_ERROR_OBJECT (self,
         "Raw buffer has invalid data size (received %zd, expected %zd).",
         map.size, dsize);

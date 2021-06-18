@@ -6766,6 +6766,7 @@ TEST (testTensorCrop, rawDelayed_n)
   EXPECT_EQ (lateness, 300);
 
   crop_test.config.info.type = _NNS_UINT32;
+  crop_test.config.info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
   gst_tensor_parse_dimension ("1:10:4:1", crop_test.config.info.dimension);
 
   crop_test.raw_size = sizeof (guint) * 40U;
