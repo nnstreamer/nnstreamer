@@ -1003,7 +1003,9 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %manifest nnstreamer.manifest
 %{_libdir}/libnnstreamer_unittest_util.so
 %{_libdir}/libcppfilter_test.so
+%if 0%{?mvncsdk2_support}
 %{_libdir}/libmvncsdk_test.so
+%endif
 %{_prefix}/lib/nnstreamer/customfilters/*.so
 %{_prefix}/%{nnstbindir}/unittest-nnstreamer
 %endif
