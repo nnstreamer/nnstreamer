@@ -1,3 +1,4 @@
 /usr/include/nnstreamer/nnstreamer_internal.h
 /usr/include/nnstreamer/nnstreamer_log.h
 /usr/include/nnstreamer/tensor_filter_single.h
+/usr/lib/*/pkgconfig/nnstreamer-internal.pc

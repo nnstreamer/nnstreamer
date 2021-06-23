@@ -929,6 +929,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_includedir}/nnstreamer/nnstreamer_internal.h
 %{_includedir}/nnstreamer/nnstreamer_log.h
 %{_includedir}/nnstreamer/tensor_filter_single.h
+%{_libdir}/pkgconfig/nnstreamer-internal.pc
 
 %files devel-static
 %{_libdir}/*.a

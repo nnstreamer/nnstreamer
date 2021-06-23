@@ -475,6 +475,10 @@ configure_file(input: 'nnstreamer.pc.in', output: 'nnstreamer.pc',
   install_dir: join_paths(nnstreamer_libdir, 'pkgconfig'),
   configuration: nnstreamer_install_conf
 )
+configure_file(input: 'nnstreamer-internal.pc.in', output: 'nnstreamer-internal.pc',
+  install_dir: join_paths(nnstreamer_libdir, 'pkgconfig'),
+  configuration: nnstreamer_install_conf
+)
 
 # Build nnstreamer (common, plugins)
 subdir('gst')
