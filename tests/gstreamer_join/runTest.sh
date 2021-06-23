@@ -19,6 +19,8 @@ fi
 testInit $1
 
 PATH_TO_PLUGIN="../../build"
+PERFORMANCE=0
+TIMEOUT_SEC=5
 
 # Generate golden test results
 gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc name=vsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=160,height=120 ! filesink location=smpte.golden
@@ -62,7 +64,7 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
         tensor_mux name=mux ! tensor_if name=tif compared-value=TENSOR_AVERAGE_VALUE compared-value-option=0 supplied-value=100 operator=LT then=TENSORPICK then-option=1 else=TENSORPICK else-option=2 \
             tif.src_0 ! queue ! join.sink_0 \
             tif.src_1 ! queue ! join.sink_1 \
-            join name=join ! fakesink sync=true" 3_n 0 1 $PERFORMANCE
+            join name=join ! fakesink sync=true" 3_n 0 1 $PERFORMANCE $TIMEOUT_SEC
 
 rm *.golden
 rm *.log
