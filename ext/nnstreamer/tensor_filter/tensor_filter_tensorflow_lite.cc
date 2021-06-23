@@ -713,6 +713,10 @@ fail_exit:
  */
 TFLiteCore::TFLiteCore ()
 {
+  num_threads = -1;
+  accelerator = ACCL_NONE;
+  delegate = TFLITE_DELEGATE_NONE;
+  interpreter_sub = nullptr;
   interpreter = new TFLiteInterpreter ();
 }
 
