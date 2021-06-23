@@ -425,7 +425,10 @@ Requires:	nnstreamer = %{version}-%{release}
 Requires:	glib2-devel
 Requires:	gstreamer-devel
 %description devel
-Development package for custom tensor operator developers (tensor_filter/custom).
+Development package for subplugin or custom filter developers.
+Developers may add support for new hardware accelerators or neural network
+frameworks, or introduce new data types and their converters for tensors.
+However, applications or service developers generally do not need this.
 This contains corresponding header files and .pc pkgconfig file.
 
 %package devel-internal
@@ -433,7 +436,7 @@ Summary:    Development package to access internal functions of NNStreamer
 Requires:   nnstreamer-devel = %{version}-%{release}
 %description devel-internal
 Development package to access internal functions of NNStreamer.
-This may be used by API packages.
+This may be used by API packages, which wrap nnstreamer features.
 In most cases, custom-filter or subplugin authors do not need this internal devel package; however, if they want to access more internal functions, they may need this.
 
 %package devel-static
