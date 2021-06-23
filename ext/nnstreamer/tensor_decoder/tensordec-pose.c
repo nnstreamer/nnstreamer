@@ -290,7 +290,7 @@ pose_load_metadata_from_file (pose_data * pd, const gchar * file_path)
     g_strlcpy (pd->metadata[i].label, tokens[0], POSE_MD_MAX_LABEL_SZ);
     pd->metadata[i].num_connections = len - 1;
     for (j = 1; j < len; j++)
-      pd->metadata[i].connections[j - 1] = atoi (tokens[j]);
+      pd->metadata[i].connections[j - 1] = (gint) g_ascii_strtoll  (tokens[j], NULL, 10);
 
     g_strfreev (tokens);
   }
