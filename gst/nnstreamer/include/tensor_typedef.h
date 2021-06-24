@@ -63,6 +63,11 @@
 #define GST_TENSOR_TYPE_ALL "{ float32, float64, int64, uint64, int32, uint32, int16, uint16, int8, uint8 }"
 
 /**
+ * @brief Possible tensor formats
+ */
+#define GST_TENSOR_FORMAT_ALL "{ static, flexible, sparse }"
+
+/**
  * @brief Default static capability for other/tensor
  */
 #define GST_TENSOR_CAP_DEFAULT \
@@ -74,6 +79,20 @@
      * dimension should be a formatted string with rank NNS_TENSOR_RANK_LIMIT
      * "dimension = (string) dim1:dim2:dim3:dim4"
      */
+
+/**
+ * @brief Caps string for the caps template of tensor stream.
+ * format should be a string that describes the data format, or possible formats of incoming tensor.
+ *
+ * If the data format is static, another tensor information should be described in caps.
+ * - num_tensors: The number of tensors in a GstBuffer.
+ * - types: The list of data type in the tensor. type should be one of types in GST_TENSOR_TYPE_ALL. (types=(string)"type1,type2,type3")
+ * - dimensions: The list of dimension in the tensor. dimension should be a formatted string with rank NNS_TENSOR_RANK_LIMIT. (dimensions=(string)"dim1:dim2:dim3:dim4,dim1:dim2:dim3:dim4")
+ */
+#define GST_TENSORS_CAP_MAKE(fmt) \
+    NNS_MIMETYPE_TENSORS ", " \
+    "format = (string) " fmt ", " \
+    "framerate = " GST_TENSOR_RATE_RANGE
 
 /**
  * @brief Caps string for the caps template (other/tensors, static tensor stream with fixed number of tensors).
