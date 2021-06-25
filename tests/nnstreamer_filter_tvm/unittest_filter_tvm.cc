@@ -6,6 +6,7 @@
  * @author  Junhwan Kim <jejudo.kim@samsung.com>
  * @see     http://github.com/nnstreamer/nnstreamer
  * @bug     No known bugs
+ * @notes   Currently the test model can be executed only on x86_64
  *
  */
 #include <gtest/gtest.h>
