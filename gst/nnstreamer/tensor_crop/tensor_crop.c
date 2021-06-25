@@ -492,34 +492,43 @@ gst_tensor_crop_prepare_out_meta (GstTensorCrop * self, gpointer buffer,
 {
   GstCaps *caps;
   GstStructure *structure;
-  GstTensorConfig config;
+  GstTensorsConfig config;
+  GstTensorInfo *_info;
   gboolean ret = FALSE;
 
-  /* default meta info from raw data */
+  gst_tensor_meta_info_init (meta);
+  gst_tensor_info_init (info);
+
   caps = gst_pad_get_current_caps (self->sinkpad_raw);
   structure = gst_caps_get_structure (caps, 0);
 
-  if (gst_structure_has_name (structure, NNS_MIMETYPE_TENSORS_FLEXIBLE)) {
+  if (!gst_tensors_config_from_structure (&config, structure)) {
+    GST_ERROR_OBJECT (self, "Failed to get the config from caps.");
+    goto done;
+  }
+
+  /**
+   * @note tensor-crop handles single tensor. Parse first one.
+   */
+  _info = &config.info.info[0];
+
+  if (gst_tensor_info_is_flexible (_info)) {
     /* meta from buffer */
     if (gst_tensor_meta_info_parse_header (meta, buffer)) {
       ret = gst_tensor_meta_info_convert (meta, info);
-      info->format = _NNS_TENSOR_FORMAT_FLEXIBLE;
     }
   } else {
     /* meta from caps */
-    if (gst_tensor_config_from_structure (&config, structure)) {
-      ret = gst_tensor_info_convert_to_meta (&config.info, meta);
-      gst_tensor_info_copy (info, &config.info);
-      info->format = _NNS_TENSOR_FORMAT_STATIC;
-    }
-
-    gst_tensor_config_free (&config);
+    ret = gst_tensor_info_convert_to_meta (_info, meta);
+    gst_tensor_info_copy (info, _info);
   }
-
-  gst_caps_unref (caps);
 
   /* output is flex tensor */
   meta->format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+done:
+  gst_caps_unref (caps);
+  gst_tensors_config_free (&config);
   return ret;
 }
 
