@@ -473,7 +473,7 @@ TEST (nnstreamerFilterLua, invoke01_n)
   EXPECT_EQ (ret, 0);
   EXPECT_NE (data, nullptr);
 
-  output.size = input.size = 1;
+  output.size = input.size = sizeof (float) * 1;
 
   input.data = g_malloc (input.size);
   output.data = g_malloc (output.size);
@@ -551,8 +551,8 @@ TEST (nnstreamerFilterLua, invoke03)
   output.size = input.size = sizeof (uint8_t) * 3 * 640 * 480 * 1;
 
   /* alloc input data without alignment */
-  input.data = malloc (input.size);
-  output.data = malloc (output.size);
+  input.data = g_malloc (input.size);
+  output.data = g_malloc (output.size);
 
   memset (input.data, 0, input.size);
 
@@ -612,8 +612,8 @@ end
   output.size = input.size = sizeof (uint8_t) * 3 * 100 * 100 * 1;
 
   /* alloc input data without alignment */
-  input.data = malloc (input.size);
-  output.data = malloc (output.size);
+  input.data = g_malloc (input.size);
+  output.data = g_malloc (output.size);
 
   memset (input.data, 0, input.size);
 
@@ -672,8 +672,8 @@ end
   output.size = input.size = sizeof (uint8_t) * 3 * 100 * 100 * 1;
 
   /* alloc input data without alignment */
-  input.data = malloc (input.size);
-  output.data = malloc (output.size);
+  input.data = g_malloc (input.size);
+  output.data = g_malloc (output.size);
 
   memset (input.data, 0, input.size);
 
@@ -725,8 +725,8 @@ TEST (nnstreamerFilterLua, reload00)
   output.size = input.size = sizeof (uint8_t) * 3 * 640 * 480 * 1;
 
   /* alloc input data without alignment */
-  input.data = malloc (input.size);
-  output.data = malloc (output.size);
+  input.data = g_malloc (input.size);
+  output.data = g_malloc (output.size);
 
   memset (input.data, 0, input.size);
 
@@ -856,8 +856,8 @@ end
   output.size = input.size = sizeof (uint8_t) * 3 * 100 * 100 * 1;
 
   /* alloc input data without alignment */
-  input.data = malloc (input.size);
-  output.data = malloc (output.size);
+  input.data = g_malloc (input.size);
+  output.data = g_malloc (output.size);
 
   memset (input.data, 0, input.size);
 

@@ -226,7 +226,7 @@ tensor_newindex (lua_State* L)
 static int
 expose_tensor (lua_State* L, lua_tensor *tensor)
 {
-  lua_tensor **ptensor = (lua_tensor **) lua_newuserdata (L, sizeof (lua_tensor **));
+  lua_tensor **ptensor = (lua_tensor **) lua_newuserdata (L, sizeof (lua_tensor *));
   *ptensor = tensor;
   luaL_getmetatable (L, "lua_tensor");
   lua_setmetatable (L, -2);
