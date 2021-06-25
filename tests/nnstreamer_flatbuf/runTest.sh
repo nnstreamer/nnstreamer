@@ -103,9 +103,10 @@ callCompareTest testsynch19_3.golden testsynch19_3.log 4-4 "Tensor mux Compare 4
 callCompareTest testsynch19_4.golden testsynch19_4.log 4-5 "Tensor mux Compare 4-5" 1 0
 
 # test other/tensors
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=tensors_mux sync-mode=basepad sync-option=1:50000000 ! tensor_decoder mode=flatbuf ! other/flatbuf-tensor ! tensor_converter ! multifilesink location=testsynch19_5_%1d.log \
-    tensor_mux name=tensor_mux0  sync-mode=slowest ! tensor_decoder mode=flatbuf ! other/flatbuf-tensor ! tensor_converter ! tensors_mux.sink_0 \
-    tensor_mux name=tensor_mux1  sync-mode=slowest ! tensor_decoder mode=flatbuf ! other/flatbuf-tensor ! tensor_converter ! tensors_mux.sink_1 \
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=tensors_mux sync-mode=basepad sync-option=1:50000000 ! \
+    tensor_decoder mode=flatbuf ! other/flatbuf-tensor ! tensor_converter ! multifilesink location=testsynch19_5_%1d.log \
+    tensor_mux name=tensor_mux0  sync-mode=slowest ! tensors_mux.sink_0 \
+    tensor_mux name=tensor_mux1  sync-mode=slowest ! tensors_mux.sink_1 \
     multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! tensor_converter ! tensor_mux0.sink_0 \
     multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! tensor_converter ! tensor_mux0.sink_1 \
     multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! tensor_mux1.sink_0 \
@@ -115,5 +116,14 @@ callCompareTest testsynch19_1.golden testsynch19_5_1.log 5-2 "Tensor mux Compare
 callCompareTest testsynch19_2.golden testsynch19_5_2.log 5-3 "Tensor mux Compare 5-3" 1 0
 callCompareTest testsynch19_3.golden testsynch19_5_3.log 5-4 "Tensor mux Compare 5-4" 1 0
 callCompareTest testsynch19_4.golden testsynch19_5_4.log 5-5 "Tensor mux Compare 5-5" 1 0
+
+# Consecutive converting test
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=1 samplesperbuffer=8000 ! audioconvert ! audio/x-raw,format=S16LE,rate=8000 ! \
+    tee name=t ! queue ! audioconvert ! tensor_converter frames-per-tensor=8000 ! \
+    tensor_decoder mode=flatbuf ! other/flatbuf-tensor ! tensor_converter ! \
+    tensor_decoder mode=flatbuf ! other/flatbuf-tensor ! tensor_converter ! \
+    tensor_decoder mode=flatbuf ! other/flatbuf-tensor ! tensor_converter ! filesink location=\"test.consecutive.log\" sync=true \
+    t. ! queue ! filesink location=\"test.audio8k.s16le.origin.log\" sync=true" 6 0 0 $PERFORMANCE
+callCompareTest test.audio8k.s16le.origin.log test.consecutive.log 6-1 "Consecutive converting test" 0 0
 
 report

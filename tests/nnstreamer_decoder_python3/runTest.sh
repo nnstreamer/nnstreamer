@@ -116,8 +116,8 @@ callCompareTest test.audio16k2c.u16le.origin.log test.audio16k2c.u16le.log 2-6 "
 
 # Test other/tensors
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=tensors_mux sync-mode=basepad sync-option=1:50000000 ! tensor_decoder mode=python3 option1=${PATH_TO_SCRIPT} ! other/flexbuf ! tensor_converter ! multifilesink location=testsynch19_%1d.log \
-    tensor_mux name=tensor_mux0  sync-mode=slowest ! queue ! tensor_decoder mode=flexbuf ! other/flexbuf ! tensor_converter ! tensors_mux.sink_0 \
-    tensor_mux name=tensor_mux1  sync-mode=slowest ! queue ! tensor_decoder mode=flexbuf ! other/flexbuf ! tensor_converter ! tensors_mux.sink_1 \
+    tensor_mux name=tensor_mux0  sync-mode=slowest ! tensors_mux.sink_0 \
+    tensor_mux name=tensor_mux1  sync-mode=slowest ! tensors_mux.sink_1 \
     multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! tensor_converter ! tensor_mux0.sink_0 \
     multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! tensor_converter ! tensor_mux0.sink_1 \
     multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! tensor_mux1.sink_0 \

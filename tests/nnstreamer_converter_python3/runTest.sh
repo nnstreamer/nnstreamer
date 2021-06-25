@@ -116,9 +116,10 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=1 samplesp
 callCompareTest test.audio16k2c.u16le.origin.log test.audio16k2c.u16le.log 2-6 "Audio16k2c-u16le Golden Test" 0 0
 
 # Test other/tensors
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=tensors_mux sync-mode=basepad sync-option=1:50000000 ! tensor_decoder mode=flexbuf ! other/flexbuf ! tensor_converter mode=custom-script:${PATH_TO_SCRIPT} ! multifilesink location=testsynch19_%1d.log \
-    tensor_mux name=tensor_mux0  sync-mode=slowest ! queue ! tensor_decoder mode=flexbuf ! other/flexbuf ! tensor_converter ! tensors_mux.sink_0 \
-    tensor_mux name=tensor_mux1  sync-mode=slowest ! queue ! tensor_decoder mode=flexbuf ! other/flexbuf ! tensor_converter ! tensors_mux.sink_1 \
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=tensors_mux sync-mode=basepad sync-option=1:50000000 ! \
+    tensor_decoder mode=flexbuf ! other/flexbuf ! tensor_converter mode=custom-script:${PATH_TO_SCRIPT} ! multifilesink location=testsynch19_%1d.log \
+    tensor_mux name=tensor_mux0  sync-mode=slowest ! tensors_mux.sink_0 \
+    tensor_mux name=tensor_mux1  sync-mode=slowest ! tensors_mux.sink_1 \
     multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! tensor_converter ! tensor_mux0.sink_0 \
     multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)20/1\" ! pngdec ! tensor_converter ! tensor_mux0.sink_1 \
     multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! tensor_mux1.sink_0 \
@@ -128,6 +129,15 @@ callCompareTest testsynch19_1.golden testsynch19_1.log 3-2 "Tensor mux Compare 3
 callCompareTest testsynch19_2.golden testsynch19_2.log 3-3 "Tensor mux Compare 3-3" 1 0
 callCompareTest testsynch19_3.golden testsynch19_3.log 3-4 "Tensor mux Compare 3-4" 1 0
 callCompareTest testsynch19_4.golden testsynch19_4.log 3-5 "Tensor mux Compare 3-5" 1 0
+
+# Consecutive converting test
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=1 samplesperbuffer=8000 ! audioconvert ! audio/x-raw,format=S16LE,rate=8000 ! \
+    tee name=t ! queue ! audioconvert ! tensor_converter frames-per-tensor=8000 ! \
+    tensor_decoder mode=flexbuf ! other/flexbuf ! tensor_converter mode=custom-script:${PATH_TO_SCRIPT} ! \
+    tensor_decoder mode=flexbuf ! other/flexbuf ! tensor_converter mode=custom-script:${PATH_TO_SCRIPT} ! \
+    tensor_decoder mode=flexbuf ! other/flexbuf ! tensor_converter mode=custom-script:${PATH_TO_SCRIPT} ! filesink location=\"test.consecutive.log\" sync=true \
+    t. ! queue ! filesink location=\"test.audio8k.s16le.origin.log\" sync=true" 4 0 0 $PERFORMANCE
+callCompareTest test.audio8k.s16le.origin.log test.consecutive.log 4-1 "Consecutive converting test" 0 0
 
 rm *.golden *.log *.bmp *.png *.dat
 rm -r ${TEST_PYTHONPATH}
