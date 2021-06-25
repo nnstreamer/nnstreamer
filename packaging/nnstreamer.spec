@@ -734,6 +734,9 @@ export NNSTREAMER_CONVERTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor
 %ifarch aarch64 x86_64
     LD_LIBRARY_PATH=${NNSTREAMER_BUILD_ROOT_PATH}/tests/nnstreamer_filter_edgetpu:. bash %{test_script} ./tests/nnstreamer_filter_edgetpu/unittest_edgetpu
 %endif #ifarch 64
+%ifarch x86_64
+    bash %{test_script} ./tests/nnstreamer_filter_tvm
+%endif
     pushd tests
 
     %ifarch aarch64
