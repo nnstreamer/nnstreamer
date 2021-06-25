@@ -88,7 +88,8 @@ nnstreamer_prefix = get_option('prefix')
 nnstreamer_libdir = join_paths(nnstreamer_prefix, get_option('libdir'))
 nnstreamer_bindir = join_paths(nnstreamer_prefix, get_option('bindir'))
 nnstreamer_includedir = join_paths(nnstreamer_prefix, get_option('includedir'))
-nnstreamer_inidir = get_option('sysconfdir')
+nnstreamer_inidir = join_paths(nnstreamer_prefix, get_option('sysconfdir'))
+# join_paths drops first arg if second arg is absolute path.
 
 # nnstreamer plugins path
 plugins_install_dir = join_paths(nnstreamer_libdir, 'gstreamer-' + gst_api_verision)
