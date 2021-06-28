@@ -4989,20 +4989,20 @@ TEST (tensorStreamTest, videoSplit)
   EXPECT_EQ (g_test_data.received_size, 160U * 120);
 
   /** check caps name */
-  EXPECT_STREQ (g_test_data.caps_name, "other/tensor");
+  EXPECT_STREQ (g_test_data.caps_name, "other/tensors");
 
   /** check timestamp */
   EXPECT_FALSE (g_test_data.invalid_timestamp);
 
   /** check tensor config for video */
-  EXPECT_TRUE (gst_tensor_config_validate (&g_test_data.tensor_config));
-  EXPECT_EQ (g_test_data.tensor_config.info.type, _NNS_UINT8);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[0], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[1], 160U);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[2], 120U);
-  EXPECT_EQ (g_test_data.tensor_config.info.dimension[3], 1U);
-  EXPECT_EQ (g_test_data.tensor_config.rate_n, (int)fps);
-  EXPECT_EQ (g_test_data.tensor_config.rate_d, 1);
+  EXPECT_TRUE (gst_tensors_config_validate (&g_test_data.tensors_config));
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 160U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 120U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_EQ (g_test_data.tensors_config.rate_n, (int)fps);
+  EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
   EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data (option);
