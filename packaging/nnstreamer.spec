@@ -724,26 +724,34 @@ export NNSTREAMER_CONVERTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor
 
 %define test_script $(pwd)/packaging/run_unittests_binaries.sh
 
+# if it's tizen && non-TV, run unittest even if "unit_test"==0 for build-time sanity checks.
 %if ( %{with tizen} && "%{?profile}" != "tv" )
+%if 0%{nnfw_support}
     bash %{test_script} ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw
+%endif
+%if 0%{tizen_sensor_support}
     bash %{test_script} ./tests/tizen_sensor/unittest_tizen_sensor
+%endif
 %endif #if tizen
 
+# If "unit_test"==0, don't run these for the sake of build speed.
 %if 0%{?unit_test}
     bash %{test_script} ./tests
     bash %{test_script} ./tests/cpp_methods
     bash %{test_script} ./tests/nnstreamer_filter_extensions_common
+%if 0%{mvncsdk2_support}
     LD_LIBRARY_PATH=${NNSTREAMER_BUILD_ROOT_PATH}/tests/nnstreamer_filter_mvncsdk2:. bash %{test_script} ./tests/nnstreamer_filter_mvncsdk2/unittest_filter_mvncsdk2
-%ifarch aarch64 x86_64
+%endif
+%if 0%{edgetpu_support}
     LD_LIBRARY_PATH=${NNSTREAMER_BUILD_ROOT_PATH}/tests/nnstreamer_filter_edgetpu:. bash %{test_script} ./tests/nnstreamer_filter_edgetpu/unittest_edgetpu
-%endif #ifarch 64
-%ifarch x86_64
+%endif
+%ifarch x86_64 ## @todo This is a workaround. Need to remove %ifarch/%endif some day.
     bash %{test_script} ./tests/nnstreamer_filter_tvm
 %endif
     pushd tests
 
     %ifarch aarch64
-    # A few testcases may use this var.
+    ## @todo Workaround for QEMU compatibility issue. Newer qemu may be ok with this.
     export SKIP_QEMU_ARM64_INCOMPATIBLE_TESTS=1
     %else
     export SKIP_QEMU_ARM64_INCOMPATIBLE_TESTS=0
