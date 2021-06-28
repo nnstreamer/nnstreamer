@@ -16,7 +16,7 @@
 /**
  * @brief Test for mqttsink with wrong URL
  */
-TEST (testMqttSink, sink_push_wrongurl_n)
+TEST (testMqttSink, sinkPushWrongurl_n)
 {
   const static gsize data_size = 1024;
   GstHarness *h = gst_harness_new ("mqttsink");
@@ -38,7 +38,7 @@ TEST (testMqttSink, sink_push_wrongurl_n)
 /**
  * @brief Test for mqttsink without broker
  */
-TEST (testMqttSink, sink_push_no_broker_n)
+TEST (testMqttSink, sinkPushNoBroker_n)
 {
   GstHarness *h = gst_harness_new ("mqttsink");
   GstFlowReturn ret;
@@ -54,7 +54,7 @@ TEST (testMqttSink, sink_push_no_broker_n)
 /**
  * @brief Test for mqttsink without broker (Push an EOS event)
  */
-TEST (testMqttSink, sink_push_event)
+TEST (testMqttSink, sinkPushEvent)
 {
   GstHarness *h = gst_harness_new ("mqttsink");
   gboolean ret;
@@ -75,7 +75,7 @@ TEST (testMqttSink, sink_push_event)
 /**
  * @brief Test for mqttsrc with wrong URL
  */
-TEST (testMqttSrc, src_pull_wrongurl_n)
+TEST (testMqttSrc, srcPullWrongurl_n)
 {
   GstHarness *h = gst_harness_new ("mqttsrc");
   GstBuffer *out_buffer;
@@ -93,7 +93,7 @@ TEST (testMqttSrc, src_pull_wrongurl_n)
 /**
  * @brief Test get/set properties of mqttsink
  */
-TEST (testMqttSink, sink_get_set_properties)
+TEST (testMqttSink, sinkGetSetProperties)
 {
   GstHarness *h = gst_harness_new ("mqttsink");
   gchar *sprop = NULL;
@@ -161,7 +161,7 @@ TEST (testMqttSink, sink_get_set_properties)
 /**
  * @brief Test get/set properties of mqttsrc
  */
-TEST (testMqttSrc, src_get_set_properties)
+TEST (testMqttSrc, srcGetSetProperties)
 {
   GstHarness *h = gst_harness_new ("mqttsrc");
   gchar *sprop = NULL;
@@ -225,7 +225,7 @@ TEST (testMqttSrc, src_get_set_properties)
 /**
  * @brief Test get/set the invalid properties of mqttsink
  */
-TEST (testMqttSink, sink_get_set_properties_n)
+TEST (testMqttSink, sinkGetSetProperties_n)
 {
   GstHarness *h = gst_harness_new ("mqttsink");
   gint iprop;
@@ -255,7 +255,7 @@ TEST (testMqttSink, sink_get_set_properties_n)
 /**
  * @brief Test get/set the invalid properties of mqttsrc
  */
-TEST (testMqttSrc, src_get_set_properties_n)
+TEST (testMqttSrc, srcGetSetProperties_n)
 {
   GstHarness *h = gst_harness_new ("mqttsrc");
   gint iprop;
