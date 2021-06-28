@@ -67,8 +67,8 @@ struct _GstTensorAggregator
   GstAdapter *adapter; /**< adapt incoming tensor */
 
   gboolean tensor_configured; /**< True if already successfully configured tensor metadata */
-  GstTensorConfig in_config; /**< input tensor info */
-  GstTensorConfig out_config; /**< output tensor info */
+  GstTensorsConfig in_config; /**< input tensor info */
+  GstTensorsConfig out_config; /**< output tensor info */
 };
 
 /**

@@ -64,8 +64,8 @@
   if (DBG) { \
     if (c) { \
       gchar *dim_str; \
-      dim_str = gst_tensor_get_dimension_string ((c)->info.dimension); \
-      GST_DEBUG_OBJECT (self, msg " type=%d dim=%s rate=%d/%d", (c)->info.type, dim_str, (c)->rate_n, (c)->rate_d); \
+      dim_str = gst_tensor_get_dimension_string ((c)->info.info[0].dimension); \
+      GST_DEBUG_OBJECT (self, msg " type=%d dim=%s rate=%d/%d", (c)->info.info[0].type, dim_str, (c)->rate_n, (c)->rate_d); \
       g_free (dim_str); \
     } \
   } \
@@ -119,12 +119,17 @@ enum
 #define DEFAULT_CONCAT TRUE
 
 /**
+ * @brief Template caps string for pads.
+ */
+#define CAPS_STRING GST_TENSOR_CAP_DEFAULT ";" GST_TENSORS_CAP_WITH_NUM ("1")
+
+/**
  * @brief Template for sink pad.
  */
 static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT));
+    GST_STATIC_CAPS (CAPS_STRING));
 
 /**
  * @brief Template for src pad.
@@ -132,7 +137,7 @@ static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
 static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT));
+    GST_STATIC_CAPS (CAPS_STRING));
 
 #define gst_tensor_aggregator_parent_class parent_class
 G_DEFINE_TYPE (GstTensorAggregator, gst_tensor_aggregator, GST_TYPE_ELEMENT);
@@ -293,8 +298,8 @@ gst_tensor_aggregator_init (GstTensorAggregator * self)
   self->concat = DEFAULT_CONCAT;
 
   self->tensor_configured = FALSE;
-  gst_tensor_config_init (&self->in_config);
-  gst_tensor_config_init (&self->out_config);
+  gst_tensors_config_init (&self->in_config);
+  gst_tensors_config_init (&self->out_config);
 
   self->adapter = gst_adapter_new ();
   gst_tensor_aggregator_reset (self);
@@ -312,8 +317,8 @@ gst_tensor_aggregator_finalize (GObject * object)
 
   gst_tensor_aggregator_reset (self);
 
-  gst_tensor_config_free (&self->in_config);
-  gst_tensor_config_free (&self->out_config);
+  gst_tensors_config_free (&self->in_config);
+  gst_tensors_config_free (&self->out_config);
 
   if (self->adapter) {
     g_object_unref (self->adapter);
@@ -421,7 +426,7 @@ gst_tensor_aggregator_sink_event (GstPad * pad, GstObject * parent,
       if (gst_tensor_aggregator_parse_caps (self, in_caps)) {
         gboolean ret = FALSE;
 
-        out_caps = gst_tensor_caps_from_config (&self->out_config);
+        out_caps = gst_tensors_caps_from_config (&self->out_config);
         silent_debug_caps (out_caps, "out-caps");
 
         ret = gst_pad_set_caps (self->srcpad, out_caps);
@@ -808,7 +813,7 @@ gst_tensor_aggregator_push (GstTensorAggregator * self, GstBuffer * outbuf,
   GstTensorInfo info;
 
   /** tensor info for one frame */
-  info = self->out_config.info;
+  info = self->out_config.info.info[0];
   g_assert (self->frames_dim < NNS_TENSOR_RANK_LIMIT);
   info.dimension[self->frames_dim] /= self->frames_out;
 
@@ -992,7 +997,7 @@ gst_tensor_aggregator_query_caps (GstTensorAggregator * self, GstPad * pad,
     GstCaps * filter)
 {
   GstCaps *caps;
-  GstTensorConfig *config;
+  GstTensorsConfig *config;
 
   /* tensor config info for given pad */
   if (pad == self->sinkpad) {
@@ -1002,7 +1007,7 @@ gst_tensor_aggregator_query_caps (GstTensorAggregator * self, GstPad * pad,
   }
 
   /* caps from tensor config info */
-  caps = gst_tensor_caps_from_config (config);
+  caps = gst_tensors_caps_from_config (config);
 
   silent_debug_caps (caps, "caps");
   silent_debug_caps (filter, "filter");
@@ -1028,7 +1033,7 @@ gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
     const GstCaps * caps)
 {
   GstStructure *structure;
-  GstTensorConfig config;
+  GstTensorsConfig config;
   uint32_t per_frame;
   guint count;
 
@@ -1036,13 +1041,9 @@ gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
   g_return_val_if_fail (gst_caps_is_fixed (caps), FALSE);
 
   structure = gst_caps_get_structure (caps, 0);
-  if (!gst_structure_has_name (structure, NNS_MIMETYPE_TENSOR)) {
-    GST_ERROR_OBJECT (self, "Invalid caps");
-    return FALSE;
-  }
 
-  if (!gst_tensor_config_from_structure (&config, structure) ||
-      !gst_tensor_config_validate (&config)) {
+  if (!gst_tensors_config_from_structure (&config, structure) ||
+      !gst_tensors_config_validate (&config)) {
     GST_ERROR_OBJECT (self, "Cannot configure tensor info");
     return FALSE;
   }
@@ -1053,7 +1054,10 @@ gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
    * Assertion when in=5 out=10 flush=20 or in=10 out=5 flush=20
    */
   count = (self->frames_out + self->frames_in - 1) / self->frames_in;
-  g_assert (self->frames_in * count >= self->frames_flush);
+  if (self->frames_in * count < self->frames_flush) {
+    GST_ERROR_OBJECT (self, "Cannot flush frames");
+    return FALSE;
+  }
 
   self->in_config = config;
 
@@ -1063,12 +1067,16 @@ gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
    * if frames_out=10 and frames_dim=3, then out-dimension is 2:200:200:10.
    * if frames_out=10 and frames_dim=2, then out-dimension is 2:200:2000:1.
    */
-  g_assert (self->frames_dim < NNS_TENSOR_RANK_LIMIT);
-  g_assert ((config.info.dimension[self->frames_dim] % self->frames_in) == 0);
-  per_frame = config.info.dimension[self->frames_dim] / self->frames_in;
+  if (self->frames_dim >= NNS_TENSOR_RANK_LIMIT ||
+      (config.info.info[0].dimension[self->frames_dim] % self->frames_in) !=
+      0) {
+    GST_ERROR_OBJECT (self, "Cannot update dimension in output tensor");
+    return FALSE;
+  }
+  per_frame = config.info.info[0].dimension[self->frames_dim] / self->frames_in;
 
-  config.info.dimension[self->frames_dim] = per_frame * self->frames_out;
-
+  config.info.info[0].dimension[self->frames_dim] =
+      per_frame * self->frames_out;
   self->out_config = config;
   self->tensor_configured = TRUE;
 
