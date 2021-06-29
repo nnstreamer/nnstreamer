@@ -30,6 +30,7 @@
 #define ACCL_NPU_EDGE_TPU_STR  "npu.edgetpu"
 #define ACCL_NPU_VIVANTE_STR  "npu.vivante"
 #define ACCL_NPU_SRCN_STR  "npu.srcn" /** srcn hardware supported by nnfw */
+#define ACCL_NPU_SLSI_STR  "npu.slsi"
 #define ACCL_NPU_SR_STR  "npu.sr"
 
 #define GST_TENSOR_FILTER_FRAMEWORK_BASE (0xDEAFDEAD00000000ULL)
@@ -96,6 +97,7 @@ typedef enum
   ACCL_NPU_EDGE_TPU = 0x4002,     /**< specify device as edge tpu, if possible */
   ACCL_NPU_VIVANTE  = 0x4003,     /**< specify device as vivante, if possible */
   ACCL_NPU_SRCN     = 0x4004,     /**< specify device as srcn, if possible */
+  ACCL_NPU_SLSI     = 0x4005,     /**< specify device as S.LSI, if possible */
   ACCL_NPU_SR       = 0x4100,     /**< specify device as any SR npu, if possible */
 } accl_hw;
 
