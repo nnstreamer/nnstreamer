@@ -51,3 +51,14 @@ override_dh_auto_install:
 override_dh_install:
 	dh_install --sourcedir=debian/tmp --list-missing
 # Add --fail-missing option after adding *.install files for all subpackages.
+
+
+override_dh_clean:
+	dh_clean $@
+	cp debian/control.ubuntu.ppa debian/control
+# Prepare SUBSTVARS for Linux distro differences
+ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes), yes)
+	cp debian/control.ubuntu.ppa debian/control
+else
+	echo NOT READY.
+endif
