@@ -130,7 +130,7 @@ Summary:	gstreamer plugins for neural networks
 # 4. Meson  : ./meson.build
 Version:	1.7.2
 Release:	0
-Group:		Applications/Multimedia
+Group:		Machine Learning/ML Framework
 Packager:	MyungJoo Ham <myungjoo.ham@samsung.com>
 License:	LGPL-2.1
 Source0:	nnstreamer-%{version}.tar
@@ -475,7 +475,7 @@ NNStreamer's tensor_filter subplugin of Tizen-NNFW Runtime. (5.5 M2 +)
 %if 0%{?mvncsdk2_support}
 %package	ncsdk2
 Summary:	NNStreamer Intel Movidius NCSDK2 support
-Group:		Multimedia/Framework
+Group:		Machine Learning/ML Framework
 %description	ncsdk2
 NNStreamer's tensor_fliter subplugin of Intel Movidius Neural Compute stick SDK2.
 %endif # mvncsdk2_support
@@ -485,7 +485,7 @@ NNStreamer's tensor_fliter subplugin of Intel Movidius Neural Compute stick SDK2
 Summary:	NNStreamer OpenVino support
 Requires:	nnstreamer = %{version}-%{release}
 Requires:	openvino
-Group:		Multimedia/Framework
+Group:		Machine Learning/ML Framework
 %description	openvino
 NNStreamer's tensor_fliter subplugin for OpenVino support.
 %endif # openvino_support
