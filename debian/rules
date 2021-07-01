@@ -60,5 +60,5 @@ override_dh_clean:
 ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes), yes)
 	cp debian/control.ubuntu.ppa debian/control
 else
-	echo NOT READY.
+	cp debian/control.debian debian/control
 endif
