@@ -31,7 +31,7 @@
 %define		grpc_support 1
 %define		pytorch_support 0
 %define		caffe2_support 0
-%define		mqtt_support 1
+%define		mqtt_support 0
 %define		lua_support 1
 
 %define		check_test 1
