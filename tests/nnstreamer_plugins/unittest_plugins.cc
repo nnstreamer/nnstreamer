@@ -64,7 +64,7 @@
                                                                                \
     GstHarness *h;                                                             \
     GstBuffer *in_buf, *out_buf;                                               \
-    GstTensorConfig config;                                                    \
+    GstTensorsConfig config;                                                   \
     GstMemory *mem;                                                            \
     GstMapInfo info;                                                           \
     guint i, b;                                                                \
@@ -75,17 +75,18 @@
     g_object_set (h->element, "mode", GTT_TYPECAST, "option", str_to_t, NULL); \
     g_object_set (h->element, "acceleration", (gboolean)accel, NULL);          \
     /** input tensor info */                                                   \
-    gst_tensor_config_init (&config);                                          \
-    config.info.type = from_nns_t;                                             \
-    gst_tensor_parse_dimension (str (size), config.info.dimension);            \
+    gst_tensors_config_init (&config);                                         \
+    config.info.num_tensors = 1;                                               \
+    config.info.info[0].type = from_nns_t;                                     \
+    gst_tensor_parse_dimension (str (size), config.info.info[0].dimension);    \
     config.rate_n = 0;                                                         \
     config.rate_d = 1;                                                         \
                                                                                \
-    gst_harness_set_src_caps (h, gst_tensor_caps_from_config (&config));       \
-    data_in_size = gst_tensor_info_get_size (&config.info);                    \
+    gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));      \
+    data_in_size = gst_tensors_info_get_size (&config.info, 0);                \
                                                                                \
-    config.info.type = to_nns_t;                                               \
-    data_out_size = gst_tensor_info_get_size (&config.info);                   \
+    config.info.info[0].type = to_nns_t;                                       \
+    data_out_size = gst_tensors_info_get_size (&config.info, 0);               \
                                                                                \
     /** push buffers */                                                        \
     for (b = 0; b < num_buffers; b++) {                                        \
@@ -1103,7 +1104,7 @@ TEST (testTensorTransform, arithmetic1)
 
   GstHarness *h;
   GstBuffer *in_buf, *out_buf;
-  GstTensorConfig config;
+  GstTensorsConfig config;
   GstMemory *mem;
   GstMapInfo info;
   guint i, b;
@@ -1115,14 +1116,15 @@ TEST (testTensorTransform, arithmetic1)
   g_object_set (h->element, "acceleration", (gboolean)FALSE, NULL);
 
   /* input tensor info */
-  gst_tensor_config_init (&config);
-  config.info.type = _NNS_FLOAT32;
-  gst_tensor_parse_dimension ("5", config.info.dimension);
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1;
+  config.info.info[0].type = _NNS_FLOAT32;
+  gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
-  gst_harness_set_src_caps (h, gst_tensor_caps_from_config (&config));
-  data_size = gst_tensor_info_get_size (&config.info);
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  data_size = gst_tensors_info_get_size (&config.info, 0);
 
   /* push buffers */
   for (b = 0; b < num_buffers; b++) {
@@ -1174,7 +1176,7 @@ TEST (testTensorTransform, arithmetic1Accel)
 
   GstHarness *h;
   GstBuffer *in_buf, *out_buf;
-  GstTensorConfig config;
+  GstTensorsConfig config;
   GstMemory *mem;
   GstMapInfo info;
   guint i, b;
@@ -1186,14 +1188,15 @@ TEST (testTensorTransform, arithmetic1Accel)
   g_object_set (h->element, "acceleration", (gboolean)TRUE, NULL);
 
   /* input tensor info */
-  gst_tensor_config_init (&config);
-  config.info.type = _NNS_FLOAT32;
-  gst_tensor_parse_dimension ("5", config.info.dimension);
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1;
+  config.info.info[0].type = _NNS_FLOAT32;
+  gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
-  gst_harness_set_src_caps (h, gst_tensor_caps_from_config (&config));
-  data_size = gst_tensor_info_get_size (&config.info);
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  data_size = gst_tensors_info_get_size (&config.info, 0);
 
   /* push buffers */
   for (b = 0; b < num_buffers; b++) {
@@ -1245,7 +1248,7 @@ TEST (testTensorTransform, arithmetic2)
 
   GstHarness *h;
   GstBuffer *in_buf, *out_buf;
-  GstTensorConfig config;
+  GstTensorsConfig config;
   GstMemory *mem;
   GstMapInfo info;
   guint i, b;
@@ -1257,14 +1260,15 @@ TEST (testTensorTransform, arithmetic2)
   g_object_set (h->element, "acceleration", (gboolean)FALSE, NULL);
 
   /* input tensor info */
-  gst_tensor_config_init (&config);
-  config.info.type = _NNS_FLOAT64;
-  gst_tensor_parse_dimension ("5", config.info.dimension);
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1;
+  config.info.info[0].type = _NNS_FLOAT64;
+  gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
-  gst_harness_set_src_caps (h, gst_tensor_caps_from_config (&config));
-  data_size = gst_tensor_info_get_size (&config.info);
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  data_size = gst_tensors_info_get_size (&config.info, 0);
 
   /* push buffers */
   for (b = 0; b < num_buffers; b++) {
@@ -1316,7 +1320,7 @@ TEST (testTensorTransform, arithmetic2Accel)
 
   GstHarness *h;
   GstBuffer *in_buf, *out_buf;
-  GstTensorConfig config;
+  GstTensorsConfig config;
   GstMemory *mem;
   GstMapInfo info;
   guint i, b;
@@ -1328,14 +1332,15 @@ TEST (testTensorTransform, arithmetic2Accel)
   g_object_set (h->element, "acceleration", (gboolean)TRUE, NULL);
 
   /* input tensor info */
-  gst_tensor_config_init (&config);
-  config.info.type = _NNS_FLOAT64;
-  gst_tensor_parse_dimension ("5", config.info.dimension);
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1;
+  config.info.info[0].type = _NNS_FLOAT64;
+  gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
-  gst_harness_set_src_caps (h, gst_tensor_caps_from_config (&config));
-  data_size = gst_tensor_info_get_size (&config.info);
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  data_size = gst_tensors_info_get_size (&config.info, 0);
 
   /* push buffers */
   for (b = 0; b < num_buffers; b++) {
@@ -1387,7 +1392,7 @@ TEST (testTensorTransform, arithmetic3)
 
   GstHarness *h;
   GstBuffer *in_buf, *out_buf;
-  GstTensorConfig config;
+  GstTensorsConfig config;
   GstMemory *mem;
   GstMapInfo info;
   guint i, b;
@@ -1400,17 +1405,18 @@ TEST (testTensorTransform, arithmetic3)
   g_object_set (h->element, "acceleration", (gboolean)FALSE, NULL);
 
   /* input tensor info */
-  gst_tensor_config_init (&config);
-  config.info.type = _NNS_UINT8;
-  gst_tensor_parse_dimension ("5", config.info.dimension);
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1;
+  config.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
-  gst_harness_set_src_caps (h, gst_tensor_caps_from_config (&config));
-  data_in_size = gst_tensor_info_get_size (&config.info);
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  data_in_size = gst_tensors_info_get_size (&config.info, 0);
 
-  config.info.type = _NNS_FLOAT32;
-  data_out_size = gst_tensor_info_get_size (&config.info);
+  config.info.info[0].type = _NNS_FLOAT32;
+  data_out_size = gst_tensors_info_get_size (&config.info, 0);
 
   /* push buffers */
   for (b = 0; b < num_buffers; b++) {
@@ -1462,7 +1468,7 @@ TEST (testTensorTransform, arithmetic3Accel)
 
   GstHarness *h;
   GstBuffer *in_buf, *out_buf;
-  GstTensorConfig config;
+  GstTensorsConfig config;
   GstMemory *mem;
   GstMapInfo info;
   guint i, b;
@@ -1475,17 +1481,18 @@ TEST (testTensorTransform, arithmetic3Accel)
   g_object_set (h->element, "acceleration", (gboolean)TRUE, NULL);
 
   /* input tensor info */
-  gst_tensor_config_init (&config);
-  config.info.type = _NNS_UINT8;
-  gst_tensor_parse_dimension ("5", config.info.dimension);
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1;
+  config.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
-  gst_harness_set_src_caps (h, gst_tensor_caps_from_config (&config));
-  data_in_size = gst_tensor_info_get_size (&config.info);
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  data_in_size = gst_tensors_info_get_size (&config.info, 0);
 
-  config.info.type = _NNS_FLOAT32;
-  data_out_size = gst_tensor_info_get_size (&config.info);
+  config.info.info[0].type = _NNS_FLOAT32;
+  data_out_size = gst_tensors_info_get_size (&config.info, 0);
 
   /* push buffers */
   for (b = 0; b < num_buffers; b++) {
@@ -1537,7 +1544,7 @@ TEST (testTensorTransform, arithmetic4)
 
   GstHarness *h;
   GstBuffer *in_buf, *out_buf;
-  GstTensorConfig config;
+  GstTensorsConfig config;
   GstMemory *mem;
   GstMapInfo info;
   guint i, b;
@@ -1550,17 +1557,18 @@ TEST (testTensorTransform, arithmetic4)
   g_object_set (h->element, "acceleration", (gboolean)FALSE, NULL);
 
   /* input tensor info */
-  gst_tensor_config_init (&config);
-  config.info.type = _NNS_UINT8;
-  gst_tensor_parse_dimension ("5", config.info.dimension);
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1;
+  config.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
-  gst_harness_set_src_caps (h, gst_tensor_caps_from_config (&config));
-  data_in_size = gst_tensor_info_get_size (&config.info);
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  data_in_size = gst_tensors_info_get_size (&config.info, 0);
 
-  config.info.type = _NNS_FLOAT64;
-  data_out_size = gst_tensor_info_get_size (&config.info);
+  config.info.info[0].type = _NNS_FLOAT64;
+  data_out_size = gst_tensors_info_get_size (&config.info, 0);
 
   /* push buffers */
   for (b = 0; b < num_buffers; b++) {
@@ -1614,7 +1622,7 @@ TEST (testTensorTransform, arithmetic4Accel)
 
   GstHarness *h;
   GstBuffer *in_buf, *out_buf;
-  GstTensorConfig config;
+  GstTensorsConfig config;
   GstMemory *mem;
   GstMapInfo info;
   guint i, b;
@@ -1627,17 +1635,18 @@ TEST (testTensorTransform, arithmetic4Accel)
   g_object_set (h->element, "acceleration", (gboolean)TRUE, NULL);
 
   /* input tensor info */
-  gst_tensor_config_init (&config);
-  config.info.type = _NNS_UINT8;
-  gst_tensor_parse_dimension ("5", config.info.dimension);
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1;
+  config.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
-  gst_harness_set_src_caps (h, gst_tensor_caps_from_config (&config));
-  data_in_size = gst_tensor_info_get_size (&config.info);
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  data_in_size = gst_tensors_info_get_size (&config.info, 0);
 
-  config.info.type = _NNS_FLOAT64;
-  data_out_size = gst_tensor_info_get_size (&config.info);
+  config.info.info[0].type = _NNS_FLOAT64;
+  data_out_size = gst_tensors_info_get_size (&config.info, 0);
 
   /* push buffers */
   for (b = 0; b < num_buffers; b++) {
@@ -1689,7 +1698,7 @@ TEST (testTensorTransform, arithmetic5)
 
   GstHarness *h;
   GstBuffer *in_buf, *out_buf;
-  GstTensorConfig config;
+  GstTensorsConfig config;
   GstMemory *mem;
   GstMapInfo info;
   guint i, b;
@@ -1702,17 +1711,18 @@ TEST (testTensorTransform, arithmetic5)
   g_object_set (h->element, "acceleration", (gboolean)FALSE, NULL);
 
   /* input tensor info */
-  gst_tensor_config_init (&config);
-  config.info.type = _NNS_UINT8;
-  gst_tensor_parse_dimension ("5", config.info.dimension);
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1;
+  config.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
-  gst_harness_set_src_caps (h, gst_tensor_caps_from_config (&config));
-  data_in_size = gst_tensor_info_get_size (&config.info);
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  data_in_size = gst_tensors_info_get_size (&config.info, 0);
 
-  config.info.type = _NNS_INT32;
-  data_out_size = gst_tensor_info_get_size (&config.info);
+  config.info.info[0].type = _NNS_INT32;
+  data_out_size = gst_tensors_info_get_size (&config.info, 0);
 
   /* push buffers */
   for (b = 0; b < num_buffers; b++) {
@@ -1764,7 +1774,7 @@ TEST (testTensorTransform, arithmetic5Accel)
 
   GstHarness *h;
   GstBuffer *in_buf, *out_buf;
-  GstTensorConfig config;
+  GstTensorsConfig config;
   GstMemory *mem;
   GstMapInfo info;
   guint i, b;
@@ -1777,17 +1787,18 @@ TEST (testTensorTransform, arithmetic5Accel)
   g_object_set (h->element, "acceleration", (gboolean)TRUE, NULL);
 
   /* input tensor info */
-  gst_tensor_config_init (&config);
-  config.info.type = _NNS_UINT8;
-  gst_tensor_parse_dimension ("5", config.info.dimension);
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1;
+  config.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
-  gst_harness_set_src_caps (h, gst_tensor_caps_from_config (&config));
-  data_in_size = gst_tensor_info_get_size (&config.info);
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  data_in_size = gst_tensors_info_get_size (&config.info, 0);
 
-  config.info.type = _NNS_INT32;
-  data_out_size = gst_tensor_info_get_size (&config.info);
+  config.info.info[0].type = _NNS_INT32;
+  data_out_size = gst_tensors_info_get_size (&config.info, 0);
 
   /* push buffers */
   for (b = 0; b < num_buffers; b++) {
@@ -1837,7 +1848,7 @@ TEST (testTensorTransform, arithmeticChangeOptionString)
   const guint array_size = 5;
   GstHarness *h;
   GstBuffer *in_buf, *out_buf;
-  GstTensorConfig config;
+  GstTensorsConfig config;
   GstMemory *mem;
   GstMapInfo info;
   guint i;
@@ -1849,14 +1860,15 @@ TEST (testTensorTransform, arithmeticChangeOptionString)
   g_object_set (h->element, "acceleration", (gboolean)FALSE, NULL);
 
   /* input tensor info */
-  gst_tensor_config_init (&config);
-  config.info.type = _NNS_FLOAT32;
-  gst_tensor_parse_dimension ("5", config.info.dimension);
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1;
+  config.info.info[0].type = _NNS_FLOAT32;
+  gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
-  gst_harness_set_src_caps (h, gst_tensor_caps_from_config (&config));
-  data_size = gst_tensor_info_get_size (&config.info);
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  data_size = gst_tensors_info_get_size (&config.info, 0);
   in_buf = gst_harness_create_buffer (h, data_size);
 
   mem = gst_buffer_peek_memory (in_buf, 0);
