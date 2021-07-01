@@ -373,28 +373,28 @@ gst_tensor_merge_sink_event (GstCollectPads * pads, GstCollectData * data,
 }
 
 /**
- * @brief Generate TensorConfig with TensorsConfig
+ * @brief Generate out TensorsConfig with in TensorsConfig
  * @param tensor_merge tensor merger
- * @param configs Tensors Config Data
- * @param config Tensor Config Data
+ * @param in_config in tensors config data (multi tensors)
+ * @param out_config out tensors config data (single tensor)
  * @return true / false
  */
 static gboolean
 gst_tensor_merge_get_merged_config (GstTensorMerge * tensor_merge,
-    const GstTensorsConfig * configs, GstTensorConfig * config)
+    const GstTensorsConfig * in_config, GstTensorsConfig * out_config)
 {
   gboolean ret = FALSE;
   int i, j;
   tensor_dim dim;
   tensor_type type;
 
-  gst_tensor_config_init (config);
+  gst_tensors_config_init (out_config);
 
-  type = configs->info.info[0].type;
-  memcpy (&dim, &configs->info.info[0].dimension, sizeof (tensor_dim));
+  type = in_config->info.info[0].type;
+  memcpy (&dim, &in_config->info.info[0].dimension, sizeof (tensor_dim));
 
-  for (i = 1; i < configs->info.num_tensors; i++) {
-    if (type != configs->info.info[i].type)
+  for (i = 1; i < in_config->info.num_tensors; i++) {
+    if (type != in_config->info.info[i].type)
       GST_ELEMENT_ERROR (tensor_merge, CORE, NEGOTIATION, (NULL), (NULL));
   }
 
@@ -402,21 +402,22 @@ gst_tensor_merge_get_merged_config (GstTensorMerge * tensor_merge,
     case GTT_LINEAR:
     {
       int targetIdx = tensor_merge->data_linear.direction;
-      for (i = 1; i < configs->info.num_tensors; i++) {
+      for (i = 1; i < in_config->info.num_tensors; i++) {
         for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
           if (j == targetIdx) {
-            dim[j] += configs->info.info[i].dimension[j];
+            dim[j] += in_config->info.info[i].dimension[j];
           } else {
-            if (dim[j] != configs->info.info[i].dimension[j])
+            if (dim[j] != in_config->info.info[i].dimension[j])
               GST_ELEMENT_ERROR (tensor_merge, CORE, NEGOTIATION, (NULL),
                   (NULL));
           }
         }
       }
-      config->info.type = type;
-      memcpy (&config->info.dimension, &dim, sizeof (tensor_dim));
-      config->rate_d = configs->rate_d;
-      config->rate_n = configs->rate_n;
+      out_config->info.num_tensors = 1;
+      out_config->info.info[0].type = type;
+      memcpy (&out_config->info.info[0].dimension, &dim, sizeof (tensor_dim));
+      out_config->rate_d = in_config->rate_d;
+      out_config->rate_n = in_config->rate_n;
       ret = TRUE;
     }
       break;
@@ -608,7 +609,7 @@ gst_tensor_merge_set_src_caps (GstTensorMerge * tensor_merge)
 {
   if (!tensor_merge->negotiated) {
     GstCaps *newcaps;
-    GstTensorConfig config;
+    GstTensorsConfig config;
 
     if (!gst_tensor_merge_get_merged_config (tensor_merge,
             &tensor_merge->tensors_config, &config)) {
@@ -616,8 +617,8 @@ gst_tensor_merge_set_src_caps (GstTensorMerge * tensor_merge)
     }
 
     /** Internal Logic Error? */
-    g_assert (gst_tensor_config_validate (&config));
-    newcaps = gst_tensor_caps_from_config (&config);
+    g_assert (gst_tensors_config_validate (&config));
+    newcaps = gst_tensors_caps_from_config (&config);
 
     if (gst_pad_set_caps (tensor_merge->srcpad, newcaps)) {
       tensor_merge->negotiated = TRUE;
