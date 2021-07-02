@@ -412,6 +412,9 @@ record_statistics (GstTensorFilterPrivate * priv)
       priv->prop.latency = (gint) avg_latency;
     else
       priv->prop.latency = -1;
+
+    ml_logi ("[%s] Invoke took %.3f ms", priv->prop.model_files[0],
+        (*latency) / 1000.0);
   }
 
   if (priv->throughput_mode > 0) {
@@ -429,6 +432,9 @@ record_statistics (GstTensorFilterPrivate * priv)
 
     /* note that it's a 1000x larger value than actual throughput */
     priv->prop.throughput = throughput_int;
+
+    ml_logi ("[%s] Throughput: %.2f FPS", priv->prop.model_files[0],
+        throughput_int / 1000.0);
   }
 
   /**
