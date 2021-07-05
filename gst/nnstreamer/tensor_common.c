@@ -72,6 +72,91 @@ static const gchar *tensor_format_name[] = {
 };
 
 /**
+ * @brief Internal function to get caps for single tensor from config.
+ */
+static GstCaps *
+_get_tensor_caps (const GstTensorsConfig * config)
+{
+  GstCaps *caps;
+  const GstTensorInfo *_info = &config->info.info[0];
+
+  if (config->info.num_tensors > 1)
+    return NULL;
+
+  caps = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT);
+
+  if (gst_tensor_dimension_is_valid (_info->dimension)) {
+    gchar *dim_str = gst_tensor_get_dimension_string (_info->dimension);
+
+    gst_caps_set_simple (caps, "dimension", G_TYPE_STRING, dim_str, NULL);
+    g_free (dim_str);
+  }
+
+  if (_info->type != _NNS_END) {
+    gst_caps_set_simple (caps, "type", G_TYPE_STRING,
+        gst_tensor_get_type_string (_info->type), NULL);
+  }
+
+  if (config->rate_n >= 0 && config->rate_d > 0) {
+    gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION,
+        config->rate_n, config->rate_d, NULL);
+  }
+
+  return caps;
+}
+
+/**
+ * @brief Internal function to get caps for multi tensors from config.
+ */
+static GstCaps *
+_get_tensors_caps (const GstTensorsConfig * config)
+{
+  GstCaps *caps;
+
+  caps = gst_caps_from_string (GST_TENSORS_CAP_DEFAULT);
+
+  if (config->info.num_tensors > 0) {
+    gchar *dim_str, *type_str;
+
+    dim_str = gst_tensors_info_get_dimensions_string (&config->info);
+    type_str = gst_tensors_info_get_types_string (&config->info);
+
+    gst_caps_set_simple (caps, "num_tensors", G_TYPE_INT,
+        config->info.num_tensors, NULL);
+    gst_caps_set_simple (caps, "dimensions", G_TYPE_STRING, dim_str, NULL);
+    gst_caps_set_simple (caps, "types", G_TYPE_STRING, type_str, NULL);
+
+    g_free (dim_str);
+    g_free (type_str);
+  }
+
+  if (config->rate_n >= 0 && config->rate_d > 0) {
+    gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION,
+        config->rate_n, config->rate_d, NULL);
+  }
+
+  return caps;
+}
+
+/**
+ * @brief Internal function to get caps for flexible tensor from config.
+ */
+static GstCaps *
+_get_flexible_caps (const GstTensorsConfig * config)
+{
+  GstCaps *caps;
+
+  caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+
+  if (config->rate_n >= 0 && config->rate_d > 0) {
+    gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION,
+        config->rate_n, config->rate_d, NULL);
+  }
+
+  return caps;
+}
+
+/**
  * @brief Check given mimetype is tensor stream.
  * @param structure structure to be interpreted
  * @return TRUE if mimetype is tensor stream
@@ -839,6 +924,7 @@ gst_tensor_config_from_structure (GstTensorConfig * config,
  * @brief Get tensor caps from tensor config
  * @param config tensor config info
  * @return caps for given config
+ * @todo replace GstTensorConfig to GstTensorsConfig, remove GstTensorConfig and related functions.
  */
 GstCaps *
 gst_tensor_caps_from_config (const GstTensorConfig * config)
@@ -1110,7 +1196,7 @@ _peer_is_flexible_tensor_caps (GstPad * pad)
 }
 
 /**
- * @brief Get pad caps from tensor config and caps of the peer connected to the pad.
+ * @brief Get pad caps from tensors config and caps of the peer connected to the pad.
  * @param pad GstPad to get possible caps
  * @param config tensors config structure
  * @return caps for given config. Caller is responsible for unreffing the returned caps.
@@ -1137,26 +1223,13 @@ gst_tensor_pad_caps_from_config (GstPad * pad, const GstTensorsConfig * config)
     is_flexible = _peer_is_flexible_tensor_caps (pad);
 
   if (is_flexible) {
-    caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
-
-    if (config->rate_n >= 0 && config->rate_d > 0) {
-      gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION,
-          config->rate_n, config->rate_d, NULL);
-    }
-
+    caps = _get_flexible_caps (config);
     goto intersectable;
   }
 
   /* other/tensor */
   if (config->info.num_tensors == 1 && _peer_has_tensor_caps (pad)) {
-    GstTensorConfig c;
-
-    gst_tensor_config_init (&c);
-    c.info = config->info.info[0];
-    c.rate_n = config->rate_n;
-    c.rate_d = config->rate_d;
-
-    caps = gst_tensor_caps_from_config (&c);
+    caps = _get_tensor_caps (config);
     if (gst_caps_can_intersect (caps, templ))
       goto done;
 
@@ -1164,7 +1237,7 @@ gst_tensor_pad_caps_from_config (GstPad * pad, const GstTensorsConfig * config)
   }
 
   /* other/tensors (static) */
-  caps = gst_tensors_caps_from_config (config);
+  caps = _get_tensors_caps (config);
 
 intersectable:
   if (!gst_caps_can_intersect (caps, templ)) {
@@ -1173,6 +1246,64 @@ intersectable:
   }
 
 done:
+  gst_caps_unref (templ);
+  return caps;
+}
+
+/**
+ * @brief Get all possible caps from tensors config. Unlike gst_tensor_pad_caps_from_config(), this function does not check peer caps.
+ * @param pad GstPad to get possible caps
+ * @param config tensors config structure
+ * @return caps for given config. Caller is responsible for unreffing the returned caps.
+ * @note This function is included in nnstreamer internal header for native APIs.
+ *       When changing the declaration, you should update the internal header (nnstreamer_internal.h).
+ */
+GstCaps *
+gst_tensor_pad_possible_caps_from_config (GstPad * pad,
+    const GstTensorsConfig * config)
+{
+  GstCaps *caps, *tmp;
+  GstCaps *templ;
+
+  g_return_val_if_fail (GST_IS_PAD (pad), NULL);
+  g_return_val_if_fail (config != NULL, NULL);
+
+  caps = gst_caps_new_empty ();
+  templ = gst_pad_get_pad_template_caps (pad);
+
+  /* append caps for static tensor */
+  if (!gst_tensors_info_is_flexible (&config->info)) {
+    /* other/tensor */
+    if ((tmp = _get_tensor_caps (config)) != NULL) {
+      if (gst_caps_can_intersect (tmp, templ))
+        gst_caps_append (caps, tmp);
+      else
+        gst_caps_unref (tmp);
+    }
+
+    /* other/tensors */
+    if ((tmp = _get_tensors_caps (config)) != NULL) {
+      if (gst_caps_can_intersect (tmp, templ))
+        gst_caps_append (caps, tmp);
+      else
+        gst_caps_unref (tmp);
+    }
+  }
+
+  /* caps for flexible tensor */
+  if ((tmp = _get_flexible_caps (config)) != NULL) {
+    if (gst_caps_can_intersect (tmp, templ))
+      gst_caps_append (caps, tmp);
+    else
+      gst_caps_unref (tmp);
+  }
+
+  /* if no possible caps for given config, return null. */
+  if (gst_caps_is_empty (caps)) {
+    gst_caps_unref (caps);
+    caps = NULL;
+  }
+
   gst_caps_unref (templ);
   return caps;
 }
@@ -1221,32 +1352,12 @@ gst_tensors_caps_from_config (const GstTensorsConfig * config)
   g_return_val_if_fail (config != NULL, NULL);
 
   if (gst_tensors_info_is_flexible (&config->info)) {
-    caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+    caps = _get_flexible_caps (config);
   } else {
-    caps = gst_caps_from_string (GST_TENSORS_CAP_DEFAULT);
-
-    if (config->info.num_tensors > 0) {
-      gchar *dim_str, *type_str;
-
-      dim_str = gst_tensors_info_get_dimensions_string (&config->info);
-      type_str = gst_tensors_info_get_types_string (&config->info);
-
-      gst_caps_set_simple (caps, "num_tensors", G_TYPE_INT,
-          config->info.num_tensors, NULL);
-      gst_caps_set_simple (caps, "dimensions", G_TYPE_STRING, dim_str, NULL);
-      gst_caps_set_simple (caps, "types", G_TYPE_STRING, type_str, NULL);
-
-      g_free (dim_str);
-      g_free (type_str);
-    }
+    caps = _get_tensors_caps (config);
   }
 
-  if (config->rate_n >= 0 && config->rate_d > 0) {
-    gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION,
-        config->rate_n, config->rate_d, NULL);
-  }
-
-  return gst_caps_simplify (caps);
+  return caps;
 }
 
 /**
