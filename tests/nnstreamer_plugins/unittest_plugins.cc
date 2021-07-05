@@ -1950,6 +1950,7 @@ TEST (testTensorTransform, arithmeticFlexTensor)
   GstHarness *h;
   GstBuffer *in_buf, *out_buf;
   GstTensorInfo in_info, out_info;
+  GstCaps *caps;
   GstMemory *mem;
   GstMapInfo map;
   guint i, b;
@@ -1965,6 +1966,7 @@ TEST (testTensorTransform, arithmeticFlexTensor)
 
   /* in/out tensor info */
   gst_tensor_info_init (&in_info);
+  in_info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
   in_info.type = _NNS_UINT8;
   gst_tensor_parse_dimension ("5", in_info.dimension);
   data_in_size = gst_tensor_info_get_size (&in_info);
@@ -1974,11 +1976,11 @@ TEST (testTensorTransform, arithmeticFlexTensor)
   data_out_size = gst_tensor_info_get_size (&out_info);
 
   /* set caps (flex-tensor) */
-  gst_harness_set_src_caps (h,
-      gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT));
+  caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+  gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
 
-  gst_harness_set_sink_caps (h,
-      gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT));
+  gst_harness_set_src_caps (h, gst_caps_copy (caps));
+  gst_harness_set_sink_caps (h, caps);
 
   /* push buffers */
   for (b = 0; b < num_buffers; b++) {
@@ -2948,9 +2950,11 @@ TEST (testTensorConverter, flexToStaticInvalidBuffer1_n)
 
   /* in/out caps and tensors info */
   caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+  gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
   gst_harness_set_src_caps (h, caps);
 
   gst_tensor_info_init (&info);
+  info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
   info.type = _NNS_INT32;
   gst_tensor_parse_dimension ("3:4:2:2", info.dimension);
 
@@ -2995,6 +2999,7 @@ TEST (testTensorConverter, flexToStaticInvalidBuffer2_n)
 
   /* in/out caps and tensors info */
   caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+  gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
   gst_harness_set_src_caps (h, caps);
 
   gst_tensors_info_init (&info);
@@ -5875,6 +5880,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, flexInvalidBuffer1_n)
   GstMemory *mem;
   GstTensorMetaInfo meta;
   GstTensorsInfo info;
+  GstCaps *caps;
   gpointer data;
   gsize data_size;
   gchar *pipeline;
@@ -5891,8 +5897,9 @@ TEST_REQUIRE_TFLITE (testTensorFilter, flexInvalidBuffer1_n)
   g_free (pipeline);
 
   /* set caps (flex-tensor) */
-  gst_harness_set_src_caps (h,
-      gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT));
+  caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+  gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
+  gst_harness_set_src_caps (h, caps);
 
   gst_tensors_info_init (&info);
   info.num_tensors = 2;
@@ -5945,6 +5952,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, flexInvalidBuffer2_n)
   GstMemory *mem;
   GstTensorMetaInfo meta;
   GstTensorInfo info;
+  GstCaps *caps;
   gpointer data;
   gsize data_size;
   gchar *pipeline;
@@ -5961,8 +5969,9 @@ TEST_REQUIRE_TFLITE (testTensorFilter, flexInvalidBuffer2_n)
   g_free (pipeline);
 
   /* set caps (flex-tensor) */
-  gst_harness_set_src_caps (h,
-      gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT));
+  caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+  gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
+  gst_harness_set_src_caps (h, caps);
 
   gst_tensor_info_init (&info);
   info.type = _NNS_UINT8;
@@ -5998,6 +6007,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, flexToFlex)
   GstMemory *mem;
   GstTensorMetaInfo meta;
   GstTensorInfo info;
+  GstCaps *caps;
   gpointer data;
   gsize data_size;
   gchar *pipeline;
@@ -6015,11 +6025,11 @@ TEST_REQUIRE_TFLITE (testTensorFilter, flexToFlex)
   g_free (pipeline);
 
   /* set caps (flex-tensor) */
-  gst_harness_set_src_caps (h,
-      gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT));
+  caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+  gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
 
-  gst_harness_set_sink_caps (h,
-      gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT));
+  gst_harness_set_src_caps (h, gst_caps_copy (caps));
+  gst_harness_set_sink_caps (h, caps);
 
   gst_tensor_info_init (&info);
   info.type = _NNS_UINT8;
@@ -6473,7 +6483,7 @@ typedef struct
   GstHarness *raw_q;
   GstHarness *info_q;
 
-  GstTensorConfig config;
+  GstTensorInfo raw_info;
   guint received;
   gpointer raw_data;
   gsize raw_size;
@@ -6492,6 +6502,7 @@ static void
 _crop_test_init (crop_test_data_s * crop_test)
 {
   GstPad *raw_sink, *info_sink, *raw_src, *info_src;
+  GstCaps *caps;
 
   crop_test->crop = gst_harness_new_with_padnames ("tensor_crop", NULL, "src");
   crop_test->raw = gst_harness_new_with_element (crop_test->crop->element, "raw", NULL);
@@ -6512,13 +6523,11 @@ _crop_test_init (crop_test_data_s * crop_test)
   gst_pad_link (info_src, info_sink);
 
   /* caps for crop info (flex tensor) */
-  gst_harness_set_src_caps (crop_test->info_q,
-      gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT));
+  caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+  gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
+  gst_harness_set_src_caps (crop_test->info_q, caps);
 
-  gst_tensor_config_init (&crop_test->config);
-  crop_test->config.rate_n = 0;
-  crop_test->config.rate_d = 1;
-
+  gst_tensor_info_init (&crop_test->raw_info);
   crop_test->received = 0;
   crop_test->raw_data = NULL;
   crop_test->raw_size = 0;
@@ -6543,7 +6552,7 @@ _crop_test_free (crop_test_data_s * crop_test)
 
   g_free (crop_test->raw_data);
   g_free (crop_test->info_data);
-  gst_tensor_config_free (&crop_test->config);
+  gst_tensor_info_free (&crop_test->raw_info);
 }
 
 /**
@@ -6555,9 +6564,9 @@ _crop_test_free (crop_test_data_s * crop_test)
     GstMemory *mem; \
     mem = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY, \
         (ctd)->raw_data, (ctd)->raw_size, 0, (ctd)->raw_size, NULL, NULL); \
-    if ((ctd)->config.info.format == _NNS_TENSOR_FORMAT_FLEXIBLE) { \
+    if ((ctd)->raw_info.format == _NNS_TENSOR_FORMAT_FLEXIBLE) { \
       GstTensorMetaInfo meta; \
-      gst_tensor_info_convert_to_meta (&(ctd)->config.info, &meta); \
+      gst_tensor_info_convert_to_meta (&(ctd)->raw_info, &meta); \
       gst_buffer_append_memory (rb, gst_tensor_meta_info_append_header (&meta, mem)); \
       gst_memory_unref (mem); \
     } else  { \
@@ -6596,9 +6605,17 @@ _crop_test_free (crop_test_data_s * crop_test)
 static void
 _crop_test_push_buffer (crop_test_data_s * crop_test)
 {
+  GstTensorsConfig config;
+
   /* caps for raw data */
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1;
+  config.info.info[0] = crop_test->raw_info;
+  config.rate_n = 0;
+  config.rate_d = 1;
+
   gst_harness_set_src_caps (crop_test->raw_q,
-      gst_tensor_caps_from_config (&crop_test->config));
+      gst_tensors_caps_from_config (&config));
 
   /* push raw buffer */
   _crop_test_push_raw_buffer (crop_test, crop_test->ts_raw);
@@ -6758,7 +6775,7 @@ TEST (testTensorCrop, cropTensor)
   _crop_test_init (&crop_test);
 
   /* prepare test data */
-  crop_test.config.info.type = _NNS_UINT32;
+  crop_test.raw_info.type = _NNS_UINT32;
 
   crop_test.raw_size = sizeof (guint) * 40U;
   crop_test.raw_data = g_malloc0 (crop_test.raw_size);
@@ -6782,7 +6799,7 @@ TEST (testTensorCrop, cropTensor)
   _info[6] = 7U;
   _info[7] = 2U;
 
-  gst_tensor_parse_dimension ("1:10:4:1", crop_test.config.info.dimension);
+  gst_tensor_parse_dimension ("1:10:4:1", crop_test.raw_info.dimension);
   _crop_test_push_buffer (&crop_test);
   EXPECT_EQ (crop_test.received, 1U);
 
@@ -6799,7 +6816,7 @@ TEST (testTensorCrop, cropTensor)
   _info[6] = 5U;
   _info[7] = 2U;
 
-  gst_tensor_parse_dimension ("2:5:4:1", crop_test.config.info.dimension);
+  gst_tensor_parse_dimension ("2:5:4:1", crop_test.raw_info.dimension);
   _crop_test_push_buffer (&crop_test);
   EXPECT_EQ (crop_test.received, 2U);
 
@@ -6818,8 +6835,8 @@ TEST (testTensorCrop, rawInvalidSize_n)
 
   _crop_test_init (&crop_test);
 
-  crop_test.config.info.type = _NNS_UINT32;
-  gst_tensor_parse_dimension ("20:1:1:1", crop_test.config.info.dimension);
+  crop_test.raw_info.type = _NNS_UINT32;
+  gst_tensor_parse_dimension ("20:1:1:1", crop_test.raw_info.dimension);
 
   crop_test.raw_size = sizeof (guint) * 10U;
   crop_test.raw_data = g_malloc0 (crop_test.raw_size);
@@ -6844,8 +6861,8 @@ TEST (testTensorCrop, infoInvalidSize_n)
 
   _crop_test_init (&crop_test);
 
-  crop_test.config.info.type = _NNS_UINT32;
-  gst_tensor_parse_dimension ("10:1:1:1", crop_test.config.info.dimension);
+  crop_test.raw_info.type = _NNS_UINT32;
+  gst_tensor_parse_dimension ("10:1:1:1", crop_test.raw_info.dimension);
 
   crop_test.raw_size = sizeof (guint) * 10U;
   crop_test.raw_data = g_malloc0 (crop_test.raw_size);
@@ -6879,9 +6896,9 @@ TEST (testTensorCrop, rawDelayed_n)
   g_object_get (crop_test.crop->element, "lateness", &lateness, NULL);
   EXPECT_EQ (lateness, 300);
 
-  crop_test.config.info.type = _NNS_UINT32;
-  crop_test.config.info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
-  gst_tensor_parse_dimension ("1:10:4:1", crop_test.config.info.dimension);
+  crop_test.raw_info.type = _NNS_UINT32;
+  crop_test.raw_info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  gst_tensor_parse_dimension ("1:10:4:1", crop_test.raw_info.dimension);
 
   crop_test.raw_size = sizeof (guint) * 40U;
   crop_test.raw_data = g_malloc0 (crop_test.raw_size);
@@ -6943,8 +6960,8 @@ TEST (testTensorCrop, infoDelayed_n)
   g_object_get (crop_test.crop->element, "lateness", &lateness, NULL);
   EXPECT_EQ (lateness, 100);
 
-  crop_test.config.info.type = _NNS_UINT32;
-  gst_tensor_parse_dimension ("2:5:4:1", crop_test.config.info.dimension);
+  crop_test.raw_info.type = _NNS_UINT32;
+  gst_tensor_parse_dimension ("2:5:4:1", crop_test.raw_info.dimension);
 
   crop_test.raw_size = sizeof (guint) * 40U;
   crop_test.raw_data = g_malloc0 (crop_test.raw_size);
