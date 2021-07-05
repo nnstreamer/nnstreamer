@@ -119,7 +119,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_filter_debug);
 /**
  * @brief Default caps string for both sink and source pad.
  */
-#define CAPS_STRING GST_TENSOR_CAP_DEFAULT ";" GST_TENSORS_CAP_DEFAULT ";" GST_TENSORS_FLEX_CAP_DEFAULT
+#define CAPS_STRING GST_TENSOR_CAP_DEFAULT ";" GST_TENSORS_CAP_MAKE ("{ static, flexible }")
 
 /**
  * @brief The capabilities of the inputs

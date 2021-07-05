@@ -293,7 +293,7 @@ gst_tensor_converter_class_init (GstTensorConverterClass * klass)
   /* set src pad template */
   pad_caps =
       gst_caps_from_string (GST_TENSOR_CAP_DEFAULT ";"
-      GST_TENSORS_CAP_DEFAULT ";" GST_TENSORS_FLEX_CAP_DEFAULT);
+      GST_TENSORS_CAP_MAKE ("{ static, flexible }"));
 
   pad_template = gst_pad_template_new ("src", GST_PAD_SRC, GST_PAD_ALWAYS,
       pad_caps);
