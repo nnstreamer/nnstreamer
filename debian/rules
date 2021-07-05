@@ -43,7 +43,11 @@ override_dh_auto_build:
 
 override_dh_auto_test:
 	./packaging/run_unittests_binaries.sh ./tests
+ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes), yes)
 	cd tests && ssat -n -p=1 && cd ..
+else
+	echo "Skipping SSAT test because it's not in Debian."
+endif
 
 override_dh_auto_install:
 	DESTDIR=$(CURDIR)/debian/tmp ninja -C ${BUILDDIR} install
