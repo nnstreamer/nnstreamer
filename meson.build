@@ -144,9 +144,12 @@ protobuf_dep = dependency('protobuf', version: '>= 3.6.1', required: false)
 # Flatbuffers compiler and libraries
 flatc = find_program('flatc', required : get_option('flatbuf-support'))
 flatbuf_dep = disabler()
+flatbuf_version_check_dep = disabler()
 if flatc.found()
   flatc_ver = run_command(flatc, '--version').stdout().split()[2]
   flatbuf_dep = dependency('flatbuffers', version: flatc_ver,
+      required : get_option('flatbuf-support'))
+  flatbuf_version_check_dep = dependency('flatbuffers', version: '>=2.0.0',
       required : get_option('flatbuf-support'))
 endif
 
@@ -292,11 +295,12 @@ features = {
     'extra_args': { 'SNPE_ROOT': SNPE_ROOT }
   },
   'flatbuf-support': {
-    'extra_deps': [ flatc, flatbuf_dep ],
+    'extra_deps': [ flatc, flatbuf_dep, flatbuf_version_check_dep ],
     'project_args': { 'ENABLE_FLATBUF': 1 }
   },
   'protobuf-support': {
-    'extra_deps': [ pb_comp, protobuf_dep ]
+    'extra_deps': [ pb_comp, protobuf_dep ],
+    'project_args': { 'ENABLE_PROTOBUF': 1 }
   },
   'tensorrt-support': {
     'extra_deps': [ nvinfer_dep, nvparsers_dep, cuda_dep, cudart_dep ]
