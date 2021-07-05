@@ -968,50 +968,6 @@ done:
 }
 
 /**
- * @brief Get possible caps for given config.
- * @param self "this" pointer
- * @param config tensor config info
- * @param is_output flag to check the config info is for src pad.
- */
-static GstCaps *
-gst_tensor_filter_caps_from_config (GstTensorFilter * self,
-    const GstTensorsConfig * config, const gboolean is_output)
-{
-  GstCaps *caps;
-
-  g_return_val_if_fail (config != NULL, NULL);
-
-  caps = gst_caps_new_empty ();
-
-  /* other/tensor if the number of tensor is 1 */
-  if (config->info.num_tensors == 1) {
-    GstTensorConfig c;
-
-    gst_tensor_config_init (&c);
-    c.info = config->info.info[0];
-    c.rate_n = config->rate_n;
-    c.rate_d = config->rate_d;
-
-    gst_caps_append (caps, gst_tensor_caps_from_config (&c));
-  }
-
-  /* other/tensors */
-  gst_caps_append (caps, gst_tensors_caps_from_config (config));
-
-  /* other/tensors-flexible */
-  if (!gst_tensors_info_is_flexible (&config->info)) {
-    GstTensorsConfig c;
-
-    c = *config;
-    c.info.info[0].format = _NNS_TENSOR_FORMAT_FLEXIBLE;
-
-    gst_caps_append (caps, gst_tensors_caps_from_config (&c));
-  }
-
-  return gst_caps_simplify (caps);
-}
-
-/**
  * @brief configure tensor-srcpad cap from "proposed" cap.
  *
  * @trans ("this" pointer)
@@ -1029,6 +985,7 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
   GstTensorFilterPrivate *priv;
   GstTensorFilterProperties *prop;
   GstTensorsConfig in_config, out_config;
+  GstPad *pad;
   GstCaps *result;
   GstStructure *structure;
   gboolean configured = FALSE;
@@ -1046,6 +1003,11 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
 
   silent_debug_caps (caps, "from");
   silent_debug_caps (filter, "filter");
+
+  if (direction == GST_PAD_SINK)
+    pad = GST_BASE_TRANSFORM_SRC_PAD (trans);
+  else
+    pad = GST_BASE_TRANSFORM_SINK_PAD (trans);
 
   /**
    * GstTensorFilter has to parse the tensor dimension and type from NN model.
@@ -1097,8 +1059,7 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
 
   if (configured) {
     /* output info may be configured */
-    result = gst_tensor_filter_caps_from_config (self, &out_config,
-        (direction == GST_PAD_SINK));
+    result = gst_tensor_pad_possible_caps_from_config (pad, &out_config);
   } else {
     /* we don't know the exact tensor info yet */
     result = gst_caps_from_string (CAPS_STRING);

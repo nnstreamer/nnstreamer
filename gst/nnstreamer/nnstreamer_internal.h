@@ -78,13 +78,22 @@ extern gboolean
 gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw);
 
 /**
- * @brief Get pad caps from tensor config and caps of the peer connected to the pad.
+ * @brief Get pad caps from tensors config and caps of the peer connected to the pad.
  * @param pad GstPad to get possible caps
  * @param config tensors config structure
  * @return caps for given config. Caller is responsible for unreffing the returned caps.
  */
 extern GstCaps *
 gst_tensor_pad_caps_from_config (GstPad * pad, const GstTensorsConfig * config);
+
+/**
+ * @brief Get all possible caps from tensors config. Unlike gst_tensor_pad_caps_from_config(), this function does not check peer caps.
+ * @param pad GstPad to get possible caps
+ * @param config tensors config structure
+ * @return caps for given config. Caller is responsible for unreffing the returned caps.
+ */
+extern GstCaps *
+gst_tensor_pad_possible_caps_from_config (GstPad * pad, const GstTensorsConfig * config);
 
 /**
  * @brief Check current pad caps is flexible tensor.

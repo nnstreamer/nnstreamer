@@ -1008,7 +1008,7 @@ gst_tensor_aggregator_query_caps (GstTensorAggregator * self, GstPad * pad,
   }
 
   /* caps from tensor config info */
-  caps = gst_tensors_caps_from_config (config);
+  caps = gst_tensor_pad_possible_caps_from_config (pad, config);
 
   silent_debug_caps (caps, "caps");
   silent_debug_caps (filter, "filter");
