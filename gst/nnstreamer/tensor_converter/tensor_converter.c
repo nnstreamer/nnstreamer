@@ -1184,6 +1184,9 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     case _NNS_MEDIA_ANY:
     {
       GstTensorsConfig new_config;
+
+      gst_tensors_config_init (&new_config);
+
       if (self->mode == _CONVERTER_MODE_CUSTOM_CODE) {
         if (self->custom.func == NULL) {
           nns_loge

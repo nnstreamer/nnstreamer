@@ -71,28 +71,22 @@
     /**
      * type should be one of types in GST_TENSOR_TYPE_ALL
      * "type = (string) uint8"
-     * dimension shoule be a formatted string with rank NNS_TENSOR_RANK_LIMIT
+     * dimension should be a formatted string with rank NNS_TENSOR_RANK_LIMIT
      * "dimension = (string) dim1:dim2:dim3:dim4"
      */
 
 /**
- * @brief Caps string for the caps template (other/tensors).
+ * @brief Caps string for the caps template (other/tensors, static tensor stream with fixed number of tensors).
  * num should be a string format that describes the number of tensors, or the range of incoming tensors.
+ * The types and dimensions of tensors should be described for caps negotiation.
  */
 #define GST_TENSORS_CAP_WITH_NUM(num) \
     NNS_MIMETYPE_TENSORS ", " \
     "num_tensors = " num ", " \
     "framerate = " GST_TENSOR_RATE_RANGE
-    /**
-     * type should be one of types in GST_TENSOR_TYPE_ALL
-     * "types = (string) uint8, uint8, uint8"
-     * Dimensions of Tensors for negotiation. It's comment out here,
-     * but when we call gst_structure_get_string, it actually is working well.
-     * "dimensions = (string) dim1:dim2:dim3:dim4, dim1:dim2:dim3:dim4"
-     */
 
 /**
- * @brief Default static capability for other/tensors
+ * @brief Caps string for the caps template of static tensor stream.
  */
 #define GST_TENSORS_CAP_DEFAULT \
     GST_TENSORS_CAP_WITH_NUM(GST_TENSOR_NUM_TENSORS_RANGE)
@@ -104,6 +98,14 @@
  */
 #define GST_TENSORS_FLEX_CAP_DEFAULT \
     NNS_MIMETYPE_TENSORS_FLEXIBLE
+
+/**
+ * @brief Default static capability for Protocol Buffers
+ * protobuf converter will convert this capability to other/tensor(s)
+ */
+#define GST_PROTOBUF_TENSOR_CAP_DEFAULT \
+    "other/protobuf-tensor, " \
+    "framerate = " GST_TENSOR_RATE_RANGE
 
 /**
  * @brief Default static capability for flatbuffers
