@@ -1090,13 +1090,12 @@ static gboolean
 _peer_is_flexible_tensor_caps (GstPad * pad)
 {
   GstTensorsConfig config;
-  gboolean fixed, flexible;
+  gboolean flexible = FALSE;
 
-  fixed = flexible = FALSE;
+  if (gst_tensors_config_from_peer (pad, &config, NULL))
+    flexible = gst_tensors_info_is_flexible (&config.info);
 
-  if (gst_tensors_config_from_peer (pad, &config, &fixed))
-    flexible = (fixed && gst_tensors_info_is_flexible (&config.info));
-
+  gst_tensors_config_free (&config);
   return flexible;
 }
 
@@ -1120,7 +1119,7 @@ gst_tensor_pad_caps_from_config (GstPad * pad, const GstTensorsConfig * config)
 
   templ = gst_pad_get_pad_template_caps (pad);
 
-  /* other/tensors-flexible */
+  /* other/tensors (flexible) */
   is_flexible = gst_tensors_info_is_flexible (&config->info);
 
   /* check peer element is flexible */
@@ -1154,7 +1153,7 @@ gst_tensor_pad_caps_from_config (GstPad * pad, const GstTensorsConfig * config)
     gst_caps_unref (caps);
   }
 
-  /* other/tensors */
+  /* other/tensors (static) */
   caps = gst_tensors_caps_from_config (config);
 
 intersectable:
@@ -1185,10 +1184,15 @@ gst_tensor_pad_caps_is_flexible (GstPad * pad)
 
   caps = gst_pad_get_current_caps (pad);
   if (caps) {
-    GstStructure *structure = gst_caps_get_structure (caps, 0);
+    GstStructure *structure;
+    GstTensorsConfig config;
 
-    ret = gst_structure_has_name (structure, NNS_MIMETYPE_TENSORS_FLEXIBLE);
+    structure = gst_caps_get_structure (caps, 0);
+    if (gst_tensors_config_from_structure (&config, structure))
+      ret = gst_tensors_info_is_flexible (&config.info);
+
     gst_caps_unref (caps);
+    gst_tensors_config_free (&config);
   }
 
   return ret;

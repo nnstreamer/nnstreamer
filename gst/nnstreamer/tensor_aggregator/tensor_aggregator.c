@@ -1034,6 +1034,7 @@ gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
 {
   GstStructure *structure;
   GstTensorsConfig config;
+  GstTensorInfo *_info;
   uint32_t per_frame;
   guint count;
 
@@ -1060,6 +1061,8 @@ gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
   }
 
   self->in_config = config;
+  /* tensor-aggregator now handles single tensor. */
+  _info = &config.info.info[0];
 
   /**
    * update dimension in output tensor.
@@ -1068,15 +1071,13 @@ gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
    * if frames_out=10 and frames_dim=2, then out-dimension is 2:200:2000:1.
    */
   if (self->frames_dim >= NNS_TENSOR_RANK_LIMIT ||
-      (config.info.info[0].dimension[self->frames_dim] % self->frames_in) !=
-      0) {
+      (_info->dimension[self->frames_dim] % self->frames_in) != 0) {
     GST_ERROR_OBJECT (self, "Cannot update dimension in output tensor");
     return FALSE;
   }
-  per_frame = config.info.info[0].dimension[self->frames_dim] / self->frames_in;
+  per_frame = _info->dimension[self->frames_dim] / self->frames_in;
 
-  config.info.info[0].dimension[self->frames_dim] =
-      per_frame * self->frames_out;
+  _info->dimension[self->frames_dim] = per_frame * self->frames_out;
   self->out_config = config;
   self->tensor_configured = TRUE;
 

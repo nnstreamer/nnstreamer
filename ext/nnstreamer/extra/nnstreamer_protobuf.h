@@ -20,14 +20,6 @@
 #include <nnstreamer_plugin_api.h>
 
 /**
- * @brief Default static capability for Protocol Buffers
- * protobuf converter will convert this capability to other/tensor(s)
- */
-#define GST_PROTOBUF_TENSOR_CAP_DEFAULT \
-    "other/protobuf-tensor, " \
-    "framerate = " GST_TENSOR_RATE_RANGE
-
-/**
  * @brief tensordec-plugin's GstTensorDecoderDef callback
  * @param[in] config The structure of input tensor info.
  * @param[in] input The array of input tensor data. The maximum array size of input data is NNS_TENSOR_SIZE_LIMIT.
