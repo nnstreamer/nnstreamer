@@ -18,7 +18,7 @@ option('flatbuf-support', type: 'feature', value: 'auto')
 option('tensorrt-support', type: 'feature', value: 'auto')
 option('grpc-support', type: 'feature', value: 'auto')
 option('lua-support', type: 'feature', value: 'auto')
-option('mqtt-support', type: 'feature', value: 'disabled')
+option('mqtt-support', type: 'feature', value: 'auto')
 option('tvm-support', type: 'feature', value: 'auto')
 
 # booleans & other options
