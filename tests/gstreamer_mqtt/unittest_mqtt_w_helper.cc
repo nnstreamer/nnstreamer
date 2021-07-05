@@ -209,7 +209,7 @@ void _set_ts_gst_mqtt_message_hdr (GstElement *elm, GstMQTTMessageHdr *hdr,
 /**
  * @brief Test for mqttsink with GstMqttTestHelper (push a GstBuffer)
  */
-TEST (testMqttSink, sinkPush0)
+TEST (testMqttSinkWithHelper, sinkPush0)
 {
   GstHarness *h = gst_harness_new ("mqttsink");
   GstFlowReturn ret;
@@ -227,7 +227,7 @@ TEST (testMqttSink, sinkPush0)
 /**
  * @brief Test for mqttsink with GstMqttTestHelper (Push multiple GstBuffers with num-buffers)
  */
-TEST (testMqttSink, sinkPush1)
+TEST (testMqttSinkWithHelper, sinkPush1)
 {
   GstHarness *h = gst_harness_new ("mqttsink");
   GstFlowReturn ret;
@@ -250,7 +250,7 @@ TEST (testMqttSink, sinkPush1)
 /**
  * @brief Test for mqttsink with GstMqttTestHelper (MQTTAsync_send failure case)
  */
-TEST (testMqttSink, sinkPush0_n)
+TEST (testMqttSinkWithHelper, sinkPush0_n)
 {
   const static gsize data_size = 1024;
   GstHarness *h = gst_harness_new ("mqttsink");
@@ -275,7 +275,7 @@ TEST (testMqttSink, sinkPush0_n)
 /**
  * @brief Test for mqttsink with GstMqttTestHelper (MQTTAsync_disconnect failure case)
  */
-TEST (testMqttSink, sinkPush1_n)
+TEST (testMqttSinkWithHelper, sinkPush1_n)
 {
   const static gsize data_size = 1024;
   GstHarness *h = gst_harness_new ("mqttsink");
@@ -300,7 +300,7 @@ TEST (testMqttSink, sinkPush1_n)
 /**
  * @brief Test for mqttsink with GstMqttTestHelper (Push an empty buffer)
  */
-TEST (testMqttSink, sinkPush2_n)
+TEST (testMqttSinkWithHelper, sinkPush2_n)
 {
   GstHarness *h;
   GstBuffer *in_buf;
@@ -323,7 +323,7 @@ TEST (testMqttSink, sinkPush2_n)
 /**
  * @brief Test for mqttsink with GstMqttTestHelper (Push GstBuffers more then num-buffers)
  */
-TEST (testMqttSink, sinkPush3_n)
+TEST (testMqttSinkWithHelper, sinkPush3_n)
 {
   GstHarness *h = gst_harness_new ("mqttsink");
   GstFlowReturn ret;
@@ -378,7 +378,7 @@ static void _gen_dummy_mqtt_msg (MQTTAsync_message *msg, GstMQTTMessageHdr *hdr,
 /**
  * @brief Test mqttsrc using a proper pipeline description #1
  */
-TEST (testMqttSrc, srcNormalLaunch0)
+TEST (testMqttSrcWithHelper, srcNormalLaunch0)
 {
   const gsize len_buf = 1024;
   gchar *caps_str = g_strdup ("video/x-raw,width=640,height=320,format=RGB");
@@ -451,7 +451,7 @@ TEST (testMqttSrc, srcNormalLaunch0)
 /**
  * @brief Test mqttsrc using a proper pipeline description #2 (dynamically re-negotiating GstCaps)
  */
-TEST (testMqttSrc, srcNormalLaunch1)
+TEST (testMqttSrcWithHelper, srcNormalLaunch1)
 {
   const gsize len_buf = 1024;
   gchar *caps_str = g_strdup ("video/x-raw,width=640,height=320,format=RGB");
@@ -538,7 +538,7 @@ TEST (testMqttSrc, srcNormalLaunch1)
 /**
  * @brief Fail test case for mqttsrc #0 (MQTTAsync_subscribe failure case)
  */
-TEST (testMqttSrc, srcNormalLaunch0_n)
+TEST (testMqttSrcWithHelper, srcNormalLaunch0_n)
 {
   const gsize len_buf = 1024;
   gchar *caps_str = g_strdup ("video/x-raw,width=640,height=320,format=RGB");
@@ -613,7 +613,7 @@ TEST (testMqttSrc, srcNormalLaunch0_n)
 /**
  * @brief Fail test case for mqttsrc #1 (MQTTAsync_disconnect failure case)
  */
-TEST (testMqttSrc, srcNormalLaunch1_n)
+TEST (testMqttSrcWithHelper, srcNormalLaunch1_n)
 {
   const gsize len_buf = 1024;
   gchar *caps_str = g_strdup ("video/x-raw,width=640,height=320,format=RGB");
@@ -689,7 +689,7 @@ TEST (testMqttSrc, srcNormalLaunch1_n)
 /**
  * @brief Fail test case for mqttsrc #2 (MQTTAsync_unsubscribe failure case)
  */
-TEST (testMqttSrc, srcNormalLaunch2)
+TEST (testMqttSrcWithHelper, srcNormalLaunch2)
 {
   const gsize len_buf = 1024;
   gchar *caps_str = g_strdup ("video/x-raw,width=640,height=320,format=RGB");
