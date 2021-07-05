@@ -30,9 +30,18 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <memory>
+#include <map>
+#include <vector>
+
 #include <armnn/ArmNN.hpp>
+
+#if ENABLE_ARMNN_CAFFE
 #include <armnnCaffeParser/ICaffeParser.hpp>
+#endif
+#if ENABLE_ARMNN_TFLITE
 #include <armnnTfLiteParser/ITfLiteParser.hpp>
+#endif
 
 #include <nnstreamer_log.h>
 #define NO_ANONYMOUS_NESTED_STRUCT
@@ -168,6 +177,7 @@ ArmNNCore::getModelPath ()
   return model_path;
 }
 
+#if ENABLE_ARMNN_CAFFE
 /**
  * @brief make network with caffe parser
  * @param[in] input_map input data map
@@ -205,6 +215,19 @@ ArmNNCore::makeCaffeNetwork (std::map<std::string, armnn::TensorShape> &input_ma
 
   return 0;
 }
+#else /* ENABLE_ARMNN_CAFFE */
+/**
+ * @brief A dummy Caffe parser used when Caffe was not enabled at build time.
+ * @retval -EPERM this returns permission error always.
+ */
+int
+ArmNNCore::makeCaffeNetwork (std::map<std::string, armnn::TensorShape> &input_map,
+    std::vector<std::string> &output_vec)
+{
+  g_printerr ("ARMNN-CAFFE was not enabled at build-time. tensor-filter::armnn cannot handle caffe networks.");
+  return -EPERM;
+}
+#endif
 
 /**
  * @brief make network with tensorflow parser
@@ -220,6 +243,7 @@ ArmNNCore::makeTfNetwork (std::map<std::string, armnn::TensorShape> &input_map,
   return -EPERM;
 }
 
+#if ENABLE_ARMNN_TFLITE
 /**
  * @brief make network with tensorflow-lite parser
  * @return 0 on success, -errno on error
@@ -250,6 +274,19 @@ ArmNNCore::makeTfLiteNetwork ()
   }
   return 0;
 }
+#else /* ENABLE_ARMNN_TFLITE */
+/**
+ * @brief A dummy function used when tensorflow-lite is not enabled at build-time.
+ * @param[in] input_map input data map
+ * @param[in] output_vec output data vector
+ * @retval -EPERM this returns error always.
+ */
+int
+ArmNNCore::makeTfLiteNetwork ()
+{
+  return -EPERM;
+}
+#endif
 
 /**
  * @brief make network based on the model file received
