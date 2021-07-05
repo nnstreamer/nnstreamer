@@ -112,8 +112,15 @@ static GstCaps *
 _get_tensors_caps (const GstTensorsConfig * config)
 {
   GstCaps *caps;
+  tensor_format format = _NNS_TENSOR_FORMAT_STATIC;
 
   caps = gst_caps_from_string (GST_TENSORS_CAP_DEFAULT);
+
+  if (gst_tensors_info_is_flexible (&config->info))
+    format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+  gst_caps_set_simple (caps, "format", G_TYPE_STRING,
+      gst_tensor_get_format_string (format), NULL);
 
   if (config->info.num_tensors > 0) {
     gchar *dim_str, *type_str;
@@ -170,8 +177,7 @@ gst_structure_is_tensor_stream (const GstStructure * structure)
   g_return_val_if_fail (name != NULL, FALSE);
 
   return (g_str_equal (name, NNS_MIMETYPE_TENSOR) ||
-      g_str_equal (name, NNS_MIMETYPE_TENSORS) ||
-      g_str_equal (name, NNS_MIMETYPE_TENSORS_FLEXIBLE));
+      g_str_equal (name, NNS_MIMETYPE_TENSORS));
 }
 
 /**
@@ -225,6 +231,7 @@ gst_tensor_info_init (GstTensorInfo * info)
 
   info->name = NULL;
   info->type = _NNS_END;
+  /** @note default format is static */
   info->format = _NNS_TENSOR_FORMAT_STATIC;
 
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
@@ -890,31 +897,28 @@ gst_tensor_config_from_structure (GstTensorConfig * config,
 
   g_return_val_if_fail (structure != NULL, FALSE);
 
-  if (gst_structure_has_name (structure, NNS_MIMETYPE_TENSORS_FLEXIBLE)) {
-    info->format = _NNS_TENSOR_FORMAT_FLEXIBLE;
-  } else if (gst_structure_has_name (structure, NNS_MIMETYPE_TENSOR)) {
-    if (gst_structure_has_field (structure, "dimension")) {
-      const gchar *dim_str = gst_structure_get_string (structure, "dimension");
-      gst_tensor_parse_dimension (dim_str, info->dimension);
-    }
-
-    if (gst_structure_has_field (structure, "type")) {
-      const gchar *type_str = gst_structure_get_string (structure, "type");
-      info->type = gst_tensor_get_type (type_str);
-    }
-  } else {
+  if (!gst_structure_has_name (structure, NNS_MIMETYPE_TENSOR)) {
     const gchar *name = gst_structure_get_name (structure);
     GST_WARNING ("caps is not tensor [%s]\n", name ? name : "Unknown");
     return FALSE;
   }
 
+  /* other/tensor is always static */
+  config->info.format = _NNS_TENSOR_FORMAT_STATIC;
+
+  if (gst_structure_has_field (structure, "dimension")) {
+    const gchar *dim_str = gst_structure_get_string (structure, "dimension");
+    gst_tensor_parse_dimension (dim_str, info->dimension);
+  }
+
+  if (gst_structure_has_field (structure, "type")) {
+    const gchar *type_str = gst_structure_get_string (structure, "type");
+    info->type = gst_tensor_get_type (type_str);
+  }
+
   if (gst_structure_has_field (structure, "framerate")) {
     gst_structure_get_fraction (structure, "framerate", &config->rate_n,
         &config->rate_d);
-  } else {
-    /* set default value */
-    config->rate_n = 0;
-    config->rate_d = 1;
   }
 
   return TRUE;
@@ -933,22 +937,18 @@ gst_tensor_caps_from_config (const GstTensorConfig * config)
 
   g_return_val_if_fail (config != NULL, NULL);
 
-  if (gst_tensor_info_is_flexible (&config->info)) {
-    caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
-  } else {
-    caps = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT);
+  caps = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT);
 
-    if (gst_tensor_dimension_is_valid (config->info.dimension)) {
-      gchar *dim_str = gst_tensor_get_dimension_string (config->info.dimension);
+  if (gst_tensor_dimension_is_valid (config->info.dimension)) {
+    gchar *dim_str = gst_tensor_get_dimension_string (config->info.dimension);
 
-      gst_caps_set_simple (caps, "dimension", G_TYPE_STRING, dim_str, NULL);
-      g_free (dim_str);
-    }
+    gst_caps_set_simple (caps, "dimension", G_TYPE_STRING, dim_str, NULL);
+    g_free (dim_str);
+  }
 
-    if (config->info.type != _NNS_END) {
-      gst_caps_set_simple (caps, "type", G_TYPE_STRING,
-          gst_tensor_get_type_string (config->info.type), NULL);
-    }
+  if (config->info.type != _NNS_END) {
+    gst_caps_set_simple (caps, "type", G_TYPE_STRING,
+        gst_tensor_get_type_string (config->info.type), NULL);
   }
 
   if (config->rate_n >= 0 && config->rate_d > 0) {
@@ -1052,6 +1052,7 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
     const GstStructure * structure)
 {
   const gchar *name;
+  tensor_format format = _NNS_TENSOR_FORMAT_STATIC;
   guint i;
 
   g_return_val_if_fail (config != NULL, FALSE);
@@ -1070,13 +1071,29 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
     config->info.info[0] = c.info;
     config->rate_d = c.rate_d;
     config->rate_n = c.rate_n;
-  } else if (g_str_equal (name, NNS_MIMETYPE_TENSORS) ||
-      g_str_equal (name, NNS_MIMETYPE_TENSORS_FLEXIBLE)) {
-    if (g_str_equal (name, NNS_MIMETYPE_TENSORS_FLEXIBLE)) {
-      /* set flexible format */
-      for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++)
-        config->info.info[i].format = _NNS_TENSOR_FORMAT_FLEXIBLE;
-    } else {
+  } else if (g_str_equal (name, NNS_MIMETYPE_TENSORS)) {
+    if (gst_structure_has_field (structure, "format")) {
+      const gchar *format_str;
+
+      format_str = gst_structure_get_string (structure, "format");
+      format = gst_tensor_get_format (format_str);
+
+      if (format == _NNS_TENSOR_FORMAT_END) {
+        GST_WARNING ("Invalid format %s, it should be one of %s.",
+            format_str, GST_TENSOR_FORMAT_ALL);
+      } else {
+        /**
+         * @note set format in tensors-info
+         * tensor_mux collects buffers from multiple pads.
+         * If one of sink pads in tensor_mux is flexible, output src pad will have flex tensor.
+         * Remove below when the format in tensors-info is unnecessary.
+         */
+        for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++)
+          config->info.info[i].format = format;
+      }
+    }
+
+    if (format == _NNS_TENSOR_FORMAT_STATIC) {
       gst_structure_get_int (structure, "num_tensors",
           (gint *) (&config->info.num_tensors));
 
@@ -1119,10 +1136,6 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
     if (gst_structure_has_field (structure, "framerate")) {
       gst_structure_get_fraction (structure, "framerate", &config->rate_n,
           &config->rate_d);
-    } else {
-      /* set default value */
-      config->rate_n = 0;
-      config->rate_d = 1;
     }
   } else {
     GST_WARNING ("Unsupported type = %s\n", name ? name : "Unknown");
@@ -1723,7 +1736,7 @@ gst_tensor_meta_info_validate (GstTensorMetaInfo * meta)
     }
   }
 
-  if (meta->format > _NNS_TENSOR_FORMAT_FLEXIBLE)
+  if (meta->format >= _NNS_TENSOR_FORMAT_END)
     return FALSE;
 
   if (meta->media_type > _NNS_TENSOR)
