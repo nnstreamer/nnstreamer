@@ -408,6 +408,20 @@ extern const gchar *
 gst_tensor_get_type_string (tensor_type type);
 
 /**
+ * @brief Get tensor format from string input.
+ * @param format_str The string format name, supposed to be one of tensor_format_name[].
+ * @return Corresponding tensor_format. _NNS_TENSOR_FORMAT_END if unrecognized value is there.
+ */
+extern tensor_format
+gst_tensor_get_format (const gchar * format_str);
+
+/**
+ * @brief Get tensor format string.
+ */
+extern const gchar *
+gst_tensor_get_format_string (tensor_format format);
+
+/**
  * @brief set alignment that default allocator would align to
  * @param alignment bytes of alignment
  */

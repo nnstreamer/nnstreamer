@@ -185,7 +185,10 @@ typedef enum _nns_media_type
 typedef enum _tensor_format
 {
   _NNS_TENSOR_FORMAT_STATIC = 0,
-  _NNS_TENSOR_FORMAT_FLEXIBLE
+  _NNS_TENSOR_FORMAT_FLEXIBLE,
+  _NNS_TENSOR_FORMAT_SPARSE,
+
+  _NNS_TENSOR_FORMAT_END
 } tensor_format;
 
 /**

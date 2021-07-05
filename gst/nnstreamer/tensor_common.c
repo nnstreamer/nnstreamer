@@ -62,6 +62,16 @@ static const guint tensor_element_size[] = {
 };
 
 /**
+ * @brief String representations for tensor format.
+ */
+static const gchar *tensor_format_name[] = {
+  [_NNS_TENSOR_FORMAT_STATIC] = "static",
+  [_NNS_TENSOR_FORMAT_FLEXIBLE] = "flexible",
+  [_NNS_TENSOR_FORMAT_SPARSE] = "sparse",
+  [_NNS_TENSOR_FORMAT_END] = NULL
+};
+
+/**
  * @brief Check given mimetype is tensor stream.
  * @param structure structure to be interpreted
  * @return TRUE if mimetype is tensor stream
@@ -1475,6 +1485,35 @@ gst_tensor_get_type_string (tensor_type type)
   g_return_val_if_fail (type >= 0 && type <= _NNS_END, NULL);
 
   return tensor_element_typename[type];
+}
+
+/**
+ * @brief Get tensor format from string input.
+ * @param format_str The string format name, supposed to be one of tensor_format_name[].
+ * @return Corresponding tensor_format. _NNS_TENSOR_FORMAT_END if unrecognized value is there.
+ */
+tensor_format
+gst_tensor_get_format (const gchar * format_str)
+{
+  gint idx;
+  tensor_format format = _NNS_TENSOR_FORMAT_END;
+
+  idx = find_key_strv (tensor_format_name, format_str);
+  if (idx >= 0)
+    format = (tensor_format) idx;
+
+  return format;
+}
+
+/**
+ * @brief Get tensor format string.
+ */
+const gchar *
+gst_tensor_get_format_string (tensor_format format)
+{
+  g_return_val_if_fail (format >= 0 && format <= _NNS_TENSOR_FORMAT_END, NULL);
+
+  return tensor_format_name[format];
 }
 
 /**
