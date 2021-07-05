@@ -385,7 +385,7 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch0)
   gchar *topic_name = g_strdup ("test_topic");
   gchar *str_pipeline = g_strdup_printf (
       "mqttsrc sub-topic=%s debug=true is-live=true num-buffers=%d ! "
-      "capsfilter caps=%s ! videoconvert ! videoscale ! fakevideosink",
+      "capsfilter caps=%s ! videoconvert ! videoscale ! fakesink",
       topic_name, 1, caps_str);
   GError *err = NULL;
   GstElement *pipeline;
@@ -458,7 +458,7 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch1)
   gchar *topic_name = g_strdup ("test_topic");
   gchar *str_pipeline = g_strdup_printf (
       "mqttsrc sub-topic=%s debug=true is-live=true num-buffers=%d ! "
-      "capsfilter caps=%s ! videoconvert ! videoscale ! fakevideosink",
+      "capsfilter caps=%s ! videoconvert ! videoscale ! fakesink",
       topic_name, 2, caps_str);
   GError *err = NULL;
   GstElement *pipeline;
@@ -545,7 +545,7 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch0_n)
   gchar *topic_name = g_strdup ("test_topic");
   gchar *str_pipeline = g_strdup_printf (
       "mqttsrc sub-topic=%s debug=true is-live=true num-buffers=%d ! "
-      "capsfilter caps=%s ! videoconvert ! videoscale ! fakevideosink",
+      "capsfilter caps=%s ! videoconvert ! videoscale ! fakesink",
       topic_name, 1, caps_str);
   GError *err = NULL;
   GstElement *pipeline;
@@ -620,7 +620,7 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch1_n)
   gchar *topic_name = g_strdup ("test_topic");
   gchar *str_pipeline = g_strdup_printf (
       "mqttsrc sub-topic=%s debug=true is-live=true num-buffers=%d ! "
-      "capsfilter caps=%s ! videoconvert ! videoscale ! fakevideosink",
+      "capsfilter caps=%s ! videoconvert ! videoscale ! fakesink",
       topic_name, 1, caps_str);
   GError *err = NULL;
   GstElement *pipeline;
@@ -696,7 +696,7 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch2)
   gchar *topic_name = g_strdup ("test_topic");
   gchar *str_pipeline = g_strdup_printf (
       "mqttsrc sub-topic=%s debug=true is-live=true num-buffers=%d ! "
-      "capsfilter caps=%s ! videoconvert ! videoscale ! fakevideosink",
+      "capsfilter caps=%s ! videoconvert ! videoscale ! fakesink",
       topic_name, 1, caps_str);
   GError *err = NULL;
   GstElement *pipeline;
