@@ -1,5 +1,5 @@
 ---
-title: [Android] Profiling NNStreamer Pipeline with GstShark
+title: Profiling Android NNStreamer Pipeline with GstShark
 ...
 
 # [Android] Profiling NNStreamer Pipeline with GstShark
