@@ -33,6 +33,7 @@
 %define		caffe2_support 0
 %define		mqtt_support 0
 %define		lua_support 1
+%define		tvm_support 1
 
 %define		check_test 1
 %define		release_test 1
@@ -99,6 +100,7 @@
 %define		tensorflow_support 0
 %define		lua_support 0
 %define		mqtt_support 0
+%define		tvm_support 0
 %endif
 
 # DA requested to remove unnecessary module builds
@@ -109,6 +111,7 @@
 %define		edgetpu_support 0
 %define		lua_support 0
 %define		mqtt_support 0
+%define		tvm_support 0
 %endif
 
 # Release unit test suite as a subpackage only if check_test is enabled.
@@ -266,6 +269,10 @@ BuildRequires:	pytorch-devel
 BuildRequires:	lua-devel
 %endif
 
+%if 0%{?tvm_support}
+BuildRequires:	tvm-runtime-devel
+%endif
+
 # Unit Testing Uses SSAT (hhtps://github.com/myungjoo/SSAT.git)
 %if 0%{?unit_test}
 BuildRequires:	ssat >= 1.1.0
@@ -419,6 +426,15 @@ Requires:	nnstreamer = %{version}-%{release}
 Requires:	lua
 %description lua
 NNStreamer's tensor_fliter subplugin of lua
+%endif
+
+%if 0%{?tvm_support}
+%package tvm
+Summary:	NNStreamer TVM support
+Requires:	nnstreamer = %{version}-%{release}
+Requires:	tvm
+%description tvm
+NNStreamer's tensor_filter subplugin of tvm
 %endif
 
 %package devel
@@ -687,6 +703,13 @@ Provides additional gstreamer plugins for nnstreamer pipelines
 %define enable_lua -Dlua-support=disabled
 %endif
 
+# Support tvm
+%if 0%{?tvm_support}
+%define enable_tvm -Dtvm-support=enabled
+%else
+%define enable_tvm -Dtvm-support=disabled
+%endif
+
 %prep
 rm -rf ./build
 %setup -q
@@ -715,7 +738,7 @@ meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir
 	%{enable_tizen} %{element_restriction} -Denable-env-var=false -Denable-symbolic-link=false \
 	%{enable_tf_lite} %{enable_tf2_lite} %{enable_tf} %{enable_pytorch} %{enable_caffe2} %{enable_python3} \
 	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_openvino} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} %{enable_flatbuf} \
-	%{enable_tizen_sensor} %{enable_mqtt} %{enable_lua} %{enable_test} %{enable_test_coverage} %{install_test} \
+	%{enable_tizen_sensor} %{enable_mqtt} %{enable_lua} %{enable_tvm} %{enable_test} %{enable_test_coverage} %{install_test} \
 	build
 
 ninja -C build %{?_smp_mflags}
@@ -920,6 +943,14 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_lua.so
+%endif
+
+# for tvm
+%if 0%{?tvm_support}
+%files tvm
+%manifest nnstreamer.manifest
+%defattr(-,root,root,-)
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_tvm.so
 %endif
 
 %files devel
