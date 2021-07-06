@@ -277,8 +277,6 @@ ArmNNCore::makeTfLiteNetwork ()
 #else /* ENABLE_ARMNN_TFLITE */
 /**
  * @brief A dummy function used when tensorflow-lite is not enabled at build-time.
- * @param[in] input_map input data map
- * @param[in] output_vec output data vector
  * @retval -EPERM this returns error always.
  */
 int
@@ -454,13 +452,13 @@ ArmNNCore::getGstTensorType (armnn::DataType armType)
   case armnn::DataType::Float16:
     ml_logw ("Unsupported armnn datatype Float16.");
     break;
-  case armnn::DataType::QuantisedAsymm8:
+  case armnn::DataType::QAsymmU8:
     /** Supported with tflite */
     return _NNS_UINT8;
   case armnn::DataType::Boolean:
     ml_logw ("Unsupported armnn datatype Boolean.");
     break;
-  case armnn::DataType::QuantisedSymm16:
+  case armnn::DataType::QSymmS16:
     ml_logw ("Unsupported armnn datatype QuantisedSym16.");
     break;
   default:
