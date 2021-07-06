@@ -150,19 +150,20 @@ ArmNNCore::~ArmNNCore ()
 int
 ArmNNCore::init (const GstTensorFilterProperties *prop)
 {
-  if (loadModel (prop)) {
+  int err;
+  if ((err = loadModel (prop))) {
     ml_loge ("Failed to load model\n");
-    return -1;
+    return err;
   }
 
-  if (setInputTensorProp ()) {
+  if ((err = setInputTensorProp ())) {
     ml_loge ("Failed to initialize input tensor\n");
-    return -2;
+    return err;
   }
 
-  if (setOutputTensorProp ()) {
+  if ((err = setOutputTensorProp ())) {
     ml_loge ("Failed to initialize output tensor\n");
-    return -3;
+    return err;
   }
   return 0;
 }
@@ -377,7 +378,7 @@ ArmNNCore::loadModel (const GstTensorFilterProperties *prop)
 #endif
   std::vector<std::string> output_vec;
   std::map<std::string, armnn::TensorShape> input_map;
-  int err;
+  int err = 0;
   armnn::Status status;
 
   if (!g_file_test (model_path, G_FILE_TEST_IS_REGULAR)) {
@@ -417,6 +418,8 @@ ArmNNCore::loadModel (const GstTensorFilterProperties *prop)
       throw;
     } catch (const std::runtime_error &re) {
       ml_loge ("Runtime error while loading the network: %s", re.what ());
+      if (err != 0)
+        return err;
       return -EINVAL;
     } catch (const std::exception &ex) {
       ml_loge ("Exception while loading the network : %s", ex.what ());
@@ -650,6 +653,7 @@ armnn_open (const GstTensorFilterProperties *prop, void **private_data)
 {
   ArmNNCore *core;
   accl_hw hw;
+  int err;
 
   core = static_cast<ArmNNCore *> (*private_data);
 
@@ -669,12 +673,12 @@ armnn_open (const GstTensorFilterProperties *prop, void **private_data)
     core = new ArmNNCore (prop->model_files[0], hw);
   } catch (const std::bad_alloc &ex) {
     g_printerr ("Failed to allocate memory for filter subplugin.");
-    return -1;
+    return -ENOMEM;
   }
 
-  if (core->init (prop) != 0) {
+  if ((err = core->init (prop)) != 0) {
     g_printerr ("failed to initialize the object for armnn");
-    return -2;
+    return err;
   }
 
   *private_data = core;
@@ -695,6 +699,7 @@ armnn_invoke (const GstTensorFilterProperties *prop, void **private_data,
 {
   ArmNNCore *core;
 
+  g_return_val_if_fail (private_data != NULL, -EINVAL);
   g_return_val_if_fail (*private_data != NULL, -EINVAL);
   g_return_val_if_fail (input != NULL, -EINVAL);
   g_return_val_if_fail (output != NULL, -EINVAL);

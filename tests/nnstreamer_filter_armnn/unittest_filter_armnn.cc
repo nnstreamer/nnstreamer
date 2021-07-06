@@ -510,6 +510,10 @@ TEST (nnstreamerFilterArmnn, invokeAdvanced)
   info.info[0].dimension[3] = 1;
 
   ret = sp->open (&prop, &data);
+  if (ret == -EPERM) { /** TFLite Parser is not included in this instance */
+    g_free (model_file);
+    return;
+  }
   EXPECT_EQ (ret, 0);
 
   /** get input/output dimension successfully */
@@ -631,6 +635,16 @@ TEST (nnstreamerFilterArmnn, invoke01)
   output.data = g_malloc (output.size);
 
   ret = sp->open (&prop, &data);
+  if (ret == -EPERM) { /** Caffe Parser Not Included in This System */
+    g_free (data_file);
+    g_free (input.data);
+    g_free (input_uint8_data);
+    g_free (output.data);
+    g_free (prop.output_meta.info[0].name);
+    g_free (prop.input_meta.info[0].name);
+    g_free (model_file);
+    return;
+  }
   EXPECT_EQ (ret, 0);
 
   /** invoke successful */
