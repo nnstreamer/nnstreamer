@@ -222,8 +222,6 @@ ArmNNCore::makeTfNetwork (std::map<std::string, armnn::TensorShape> &input_map,
 
 /**
  * @brief make network with tensorflow-lite parser
- * @param[in] input_map input data map
- * @param[in] output_vec output data vector
  * @return 0 on success, -errno on error
  */
 int
