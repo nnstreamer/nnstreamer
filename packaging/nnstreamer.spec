@@ -23,7 +23,7 @@
 %define		tensorflow_lite_support	1
 %define		tensorflow2_lite_support 1
 %define		tensorflow2_gpu_delegate_support 1
-%define		armnn_support 0
+%define		armnn_support 1
 %define		vivante_support 0
 %define		flatbuf_support 1
 %define		protobuf_support 1
@@ -109,6 +109,7 @@
 %define		edgetpu_support 0
 %define		openvino_support 0
 %define		edgetpu_support 0
+%define		armnn_support 0
 %define		lua_support 0
 %define		mqtt_support 0
 %define		tvm_support 0
