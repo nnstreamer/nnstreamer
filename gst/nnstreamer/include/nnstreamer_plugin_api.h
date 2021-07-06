@@ -110,8 +110,8 @@ gst_tensor_info_copy (GstTensorInfo * dest, const GstTensorInfo * src);
 
 /**
  * @brief Convert GstTensorInfo structure to GstTensorMetaInfo.
- * @param info[in] GstTensorInfo to be converted
- * @param meta[out] tensor meta structure to be filled
+ * @param[in] info GstTensorInfo to be converted
+ * @param[out] meta tensor meta structure to be filled
  * @return TRUE if successfully set the meta
  */
 extern gboolean
@@ -514,8 +514,8 @@ gst_tensor_meta_info_append_header (GstTensorMetaInfo * meta, GstMemory * mem);
 
 /**
  * @brief Convert GstTensorMetaInfo structure to GstTensorInfo.
- * @param meta[in] tensor meta structure to be converted
- * @param info[out] GstTensorInfo to be filled
+ * @param[in] meta tensor meta structure to be converted
+ * @param[out] info GstTensorInfo to be filled
  * @return TRUE if successfully set the info
  */
 gboolean
