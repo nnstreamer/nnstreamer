@@ -384,9 +384,10 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch0)
   gchar *caps_str = g_strdup ("video/x-raw,width=640,height=320,format=RGB");
   gchar *topic_name = g_strdup ("test_topic");
   gchar *str_pipeline = g_strdup_printf (
-      "mqttsrc sub-topic=%s debug=true is-live=true num-buffers=%d ! "
+      "mqttsrc sub-topic=%s debug=true is-live=true num-buffers=%d "
+      "sub-timeout=%" G_GINT64_FORMAT " ! "
       "capsfilter caps=%s ! videoconvert ! videoscale ! fakesink",
-      topic_name, 1, caps_str);
+      topic_name, 1, G_TIME_SPAN_MINUTE, caps_str);
   GError *err = NULL;
   GstElement *pipeline;
   GstStateChangeReturn ret;
@@ -457,9 +458,10 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch1)
   gchar *caps_str = g_strdup ("video/x-raw,width=640,height=320,format=RGB");
   gchar *topic_name = g_strdup ("test_topic");
   gchar *str_pipeline = g_strdup_printf (
-      "mqttsrc sub-topic=%s debug=true is-live=true num-buffers=%d ! "
+      "mqttsrc sub-topic=%s debug=true is-live=true num-buffers=%d "
+      "sub-timeout=%" G_GINT64_FORMAT " ! "
       "capsfilter caps=%s ! videoconvert ! videoscale ! fakesink",
-      topic_name, 2, caps_str);
+      topic_name, 2, G_TIME_SPAN_MINUTE, caps_str);
   GError *err = NULL;
   GstElement *pipeline;
   GstStateChangeReturn ret;
@@ -544,9 +546,10 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch0_n)
   gchar *caps_str = g_strdup ("video/x-raw,width=640,height=320,format=RGB");
   gchar *topic_name = g_strdup ("test_topic");
   gchar *str_pipeline = g_strdup_printf (
-      "mqttsrc sub-topic=%s debug=true is-live=true num-buffers=%d ! "
+      "mqttsrc sub-topic=%s debug=true is-live=true num-buffers=%d "
+      "sub-timeout=%" G_GINT64_FORMAT " ! "
       "capsfilter caps=%s ! videoconvert ! videoscale ! fakesink",
-      topic_name, 1, caps_str);
+      topic_name, 1, G_TIME_SPAN_MINUTE, caps_str);
   GError *err = NULL;
   GstElement *pipeline;
   GstStateChangeReturn ret;
@@ -619,9 +622,10 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch1_n)
   gchar *caps_str = g_strdup ("video/x-raw,width=640,height=320,format=RGB");
   gchar *topic_name = g_strdup ("test_topic");
   gchar *str_pipeline = g_strdup_printf (
-      "mqttsrc sub-topic=%s debug=true is-live=true num-buffers=%d ! "
+      "mqttsrc sub-topic=%s debug=true is-live=true num-buffers=%d "
+      "sub-timeout=%" G_GINT64_FORMAT " ! "
       "capsfilter caps=%s ! videoconvert ! videoscale ! fakesink",
-      topic_name, 1, caps_str);
+      topic_name, 1, G_TIME_SPAN_MINUTE, caps_str);
   GError *err = NULL;
   GstElement *pipeline;
   GstStateChangeReturn ret;
@@ -695,9 +699,10 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch2)
   gchar *caps_str = g_strdup ("video/x-raw,width=640,height=320,format=RGB");
   gchar *topic_name = g_strdup ("test_topic");
   gchar *str_pipeline = g_strdup_printf (
-      "mqttsrc sub-topic=%s debug=true is-live=true num-buffers=%d ! "
+      "mqttsrc sub-topic=%s debug=true is-live=true num-buffers=%d "
+      "sub-timeout=%" G_GINT64_FORMAT " ! "
       "capsfilter caps=%s ! videoconvert ! videoscale ! fakesink",
-      topic_name, 1, caps_str);
+      topic_name, 1, G_TIME_SPAN_MINUTE, caps_str);
   GError *err = NULL;
   GstElement *pipeline;
   GstStateChangeReturn ret;
