@@ -47,7 +47,7 @@ class tvm_subplugin final : public tensor_filter_subplugin
   GstTensorsInfo inputInfo;
   GstTensorsInfo outputInfo;
 
-  DLDevice device;
+  DLContext device;
   tvm::runtime::Module mod_factory;
   tvm::runtime::Module gmod;
   std::vector<DLTensor> input_tensor_list;
@@ -85,7 +85,7 @@ const accl_hw tvm_subplugin::hw_list[] = { ACCL_CPU, ACCL_GPU };
  */
 tvm_subplugin::tvm_subplugin ()
     : tensor_filter_subplugin (), empty_model (true), model_path (nullptr),
-      device (DLDevice{ kDLCPU, 0 }), mod_factory (nullptr), gmod (nullptr),
+      device (DLContext{ kDLCPU, 0 }), mod_factory (nullptr), gmod (nullptr),
       zero_copy_enabled (true)
 {
   gst_tensors_info_init (std::addressof (inputInfo));
@@ -154,9 +154,9 @@ tvm_subplugin::parse_custom_prop (const char *custom_prop)
 
       if (g_ascii_strcasecmp (option[0], "device") == 0) {
         if (g_ascii_strcasecmp (option[1], "CPU") == 0) {
-          device = DLDevice{ kDLCPU, 0 };
+          device = DLContext{ kDLCPU, 0 };
         } else if (g_ascii_strcasecmp (option[1], "GPU") == 0) {
-          device = DLDevice{ kDLGPU, 0 };
+          device = DLContext{ kDLGPU, 0 };
         } else {
           nns_loge ("Unknown device (%s).", option[1]);
           invalid_option = true;
