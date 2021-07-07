@@ -67,20 +67,23 @@ enum
 };
 
 /**
+ * @brief Template caps string.
+ */
+#define CAPS_STRING GST_TENSOR_CAP_DEFAULT ";" GST_TENSORS_CAP_WITH_NUM ("1")
+
+/**
  * @brief the capabilities of the inputs and outputs.
  * describe the real formats here.
  */
 static GstStaticPadTemplate src_templ = GST_STATIC_PAD_TEMPLATE ("src_%u",
     GST_PAD_SRC,
     GST_PAD_SOMETIMES,
-    GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT)
-    );
+    GST_STATIC_CAPS (CAPS_STRING));
 
 static GstStaticPadTemplate sink_templ = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT)
-    );
+    GST_STATIC_CAPS (CAPS_STRING));
 
 static GstFlowReturn gst_tensor_split_chain (GstPad * pad, GstObject * parent,
     GstBuffer * buf);
@@ -349,7 +352,7 @@ gst_tensor_split_get_tensor_pad (GstTensorSplit * split, GstBuffer * inbuf,
   pad_config.rate_n = split->sink_tensor_conf.rate_n;
   pad_config.rate_d = split->sink_tensor_conf.rate_d;
 
-  caps = gst_tensors_caps_from_config (&pad_config);
+  caps = gst_tensor_pad_caps_from_config (pad, &pad_config);
 
   gst_pad_set_caps (pad, caps);
   gst_element_add_pad (GST_ELEMENT_CAST (split), pad);
