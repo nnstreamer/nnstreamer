@@ -243,16 +243,6 @@ typedef struct
 } GstTensorsInfo;
 
 /**
- * @brief Internal data structure for configured tensor info (for other/tensor).
- */
-typedef struct
-{
-  GstTensorInfo info; /**< tensor info*/
-  int rate_n; /**< framerate is in fraction, which is numerator/denominator */
-  int rate_d; /**< framerate is in fraction, which is numerator/denominator */
-} GstTensorConfig;
-
-/**
  * @brief Internal data structure for configured tensors info (for other/tensors).
  */
 typedef struct

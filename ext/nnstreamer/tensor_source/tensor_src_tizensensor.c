@@ -969,27 +969,18 @@ _ts_get_gstcaps_from_conf (GstTensorSrcTIZENSENSOR * self)
   spec = self->src_spec;
 
   if (!self->configured || SENSOR_ALL == self->type || NULL == spec) {
-    retval = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT "; "
-      GST_TENSORS_CAP_WITH_NUM ("1"));
+    retval = gst_pad_get_pad_template_caps (GST_BASE_SRC_PAD (self));
   } else {
-    GstTensorConfig tensor_config;
     GstTensorsConfig tensors_config;
-
-    gst_tensor_config_init (&tensor_config);
 
     gst_tensors_config_init (&tensors_config);
     tensors_config.info.num_tensors = 1;
-
-    gst_tensor_info_copy (&tensor_config.info, spec);
-    tensor_config.rate_n = self->freq_n;
-    tensor_config.rate_d = self->freq_d;
-
-    retval = gst_tensor_caps_from_config (&tensor_config);
 
     gst_tensor_info_copy (&tensors_config.info.info[0], spec);
     tensors_config.rate_n = self->freq_n;
     tensors_config.rate_d = self->freq_d;
 
+    retval = gst_tensor_caps_from_config (&tensors_config);
     gst_caps_append (retval, gst_tensors_caps_from_config (&tensors_config));
   }
 

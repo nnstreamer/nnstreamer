@@ -812,151 +812,16 @@ gst_tensors_info_get_names_string (const GstTensorsInfo * info)
 }
 
 /**
- * @brief Initialize the tensor config info structure
- * @param config tensor config structure to be initialized
- */
-void
-gst_tensor_config_init (GstTensorConfig * config)
-{
-  g_return_if_fail (config != NULL);
-
-  gst_tensor_info_init (&config->info);
-
-  config->rate_n = -1;
-  config->rate_d = -1;
-}
-
-/**
- * @brief Free allocated data in tensor config structure
- * @param config tensor config structure
- */
-void
-gst_tensor_config_free (GstTensorConfig * config)
-{
-  g_return_if_fail (config != NULL);
-
-  gst_tensor_info_free (&config->info);
-}
-
-/**
- * @brief Check the tensor is all configured
- * @param config tensor config structure
- * @return TRUE if configured
- */
-gboolean
-gst_tensor_config_validate (const GstTensorConfig * config)
-{
-  g_return_val_if_fail (config != NULL, FALSE);
-
-  /* framerate (numerator >= 0 and denominator > 0) */
-  if (config->rate_n < 0 || config->rate_d <= 0) {
-    return FALSE;
-  }
-
-  return gst_tensor_info_validate (&config->info);
-}
-
-/**
- * @brief Compare tensor config info
- * @param TRUE if equal
- */
-gboolean
-gst_tensor_config_is_equal (const GstTensorConfig * c1,
-    const GstTensorConfig * c2)
-{
-  g_return_val_if_fail (c1 != NULL, FALSE);
-  g_return_val_if_fail (c2 != NULL, FALSE);
-
-  if (c1->rate_d == 0 || c2->rate_d == 0) {
-    return FALSE;
-  }
-
-  if (gst_util_fraction_compare (c1->rate_n, c1->rate_d, c2->rate_n,
-          c2->rate_d) != 0) {
-    return FALSE;
-  }
-
-  return gst_tensor_info_is_equal (&c1->info, &c2->info);
-}
-
-/**
- * @brief Parse structure and set tensor config info
- * @param config tensor config structure to be filled
- * @param structure structure to be interpreted
- * @return TRUE if ok
- */
-gboolean
-gst_tensor_config_from_structure (GstTensorConfig * config,
-    const GstStructure * structure)
-{
-  GstTensorInfo *info;
-
-  g_return_val_if_fail (config != NULL, FALSE);
-  gst_tensor_config_init (config);
-  info = &config->info;
-
-  g_return_val_if_fail (structure != NULL, FALSE);
-
-  if (!gst_structure_has_name (structure, NNS_MIMETYPE_TENSOR)) {
-    const gchar *name = gst_structure_get_name (structure);
-    GST_WARNING ("caps is not tensor [%s]\n", name ? name : "Unknown");
-    return FALSE;
-  }
-
-  /* other/tensor is always static */
-  config->info.format = _NNS_TENSOR_FORMAT_STATIC;
-
-  if (gst_structure_has_field (structure, "dimension")) {
-    const gchar *dim_str = gst_structure_get_string (structure, "dimension");
-    gst_tensor_parse_dimension (dim_str, info->dimension);
-  }
-
-  if (gst_structure_has_field (structure, "type")) {
-    const gchar *type_str = gst_structure_get_string (structure, "type");
-    info->type = gst_tensor_get_type (type_str);
-  }
-
-  if (gst_structure_has_field (structure, "framerate")) {
-    gst_structure_get_fraction (structure, "framerate", &config->rate_n,
-        &config->rate_d);
-  }
-
-  return TRUE;
-}
-
-/**
- * @brief Get tensor caps from tensor config
- * @param config tensor config info
+ * @brief Get tensor caps from tensors config
+ * @param config tensors config info
  * @return caps for given config
- * @todo replace GstTensorConfig to GstTensorsConfig, remove GstTensorConfig and related functions.
  */
 GstCaps *
-gst_tensor_caps_from_config (const GstTensorConfig * config)
+gst_tensor_caps_from_config (const GstTensorsConfig * config)
 {
-  GstCaps *caps;
-
   g_return_val_if_fail (config != NULL, NULL);
 
-  caps = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT);
-
-  if (gst_tensor_dimension_is_valid (config->info.dimension)) {
-    gchar *dim_str = gst_tensor_get_dimension_string (config->info.dimension);
-
-    gst_caps_set_simple (caps, "dimension", G_TYPE_STRING, dim_str, NULL);
-    g_free (dim_str);
-  }
-
-  if (config->info.type != _NNS_END) {
-    gst_caps_set_simple (caps, "type", G_TYPE_STRING,
-        gst_tensor_get_type_string (config->info.type), NULL);
-  }
-
-  if (config->rate_n >= 0 && config->rate_d > 0) {
-    gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION,
-        config->rate_n, config->rate_d, NULL);
-  }
-
-  return gst_caps_simplify (caps);
+  return _get_tensor_caps (config);
 }
 
 /**
@@ -1063,14 +928,19 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
   name = gst_structure_get_name (structure);
 
   if (g_str_equal (name, NNS_MIMETYPE_TENSOR)) {
-    GstTensorConfig c;
-
-    gst_tensor_config_from_structure (&c, structure);
-
+    /* other/tensor is always static */
     config->info.num_tensors = 1;
-    config->info.info[0] = c.info;
-    config->rate_d = c.rate_d;
-    config->rate_n = c.rate_n;
+    config->info.info[0].format = _NNS_TENSOR_FORMAT_STATIC;
+
+    if (gst_structure_has_field (structure, "dimension")) {
+      const gchar *dim_str = gst_structure_get_string (structure, "dimension");
+      gst_tensor_parse_dimension (dim_str, config->info.info[0].dimension);
+    }
+
+    if (gst_structure_has_field (structure, "type")) {
+      const gchar *type_str = gst_structure_get_string (structure, "type");
+      config->info.info[0].type = gst_tensor_get_type (type_str);
+    }
   } else if (g_str_equal (name, NNS_MIMETYPE_TENSORS)) {
     if (gst_structure_has_field (structure, "format")) {
       const gchar *format_str;
@@ -1132,14 +1002,14 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
         }
       }
     }
-
-    if (gst_structure_has_field (structure, "framerate")) {
-      gst_structure_get_fraction (structure, "framerate", &config->rate_n,
-          &config->rate_d);
-    }
   } else {
     GST_WARNING ("Unsupported type = %s\n", name ? name : "Unknown");
     return FALSE;
+  }
+
+  if (gst_structure_has_field (structure, "framerate")) {
+    gst_structure_get_fraction (structure, "framerate", &config->rate_n,
+        &config->rate_d);
   }
 
   return TRUE;
