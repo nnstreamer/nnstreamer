@@ -105,20 +105,23 @@ static const gchar *gst_tensor_merge_linear_string[] = {
 };
 
 /**
+ * @brief Template caps string.
+ */
+#define CAPS_STRING GST_TENSOR_CAP_DEFAULT ";" GST_TENSORS_CAP_WITH_NUM ("1")
+
+/**
  * @brief the capabilities of the inputs and outputs.
  * describe the real formats here.
  */
 static GstStaticPadTemplate src_templ = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT)
-    );
+    GST_STATIC_CAPS (CAPS_STRING));
 
 static GstStaticPadTemplate sink_templ = GST_STATIC_PAD_TEMPLATE ("sink_%u",
     GST_PAD_SINK,
     GST_PAD_REQUEST,
-    GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT)
-    );
+    GST_STATIC_CAPS (CAPS_STRING));
 
 static gboolean gst_tensor_merge_src_event (GstPad * pad, GstObject * parent,
     GstEvent * event);
@@ -618,7 +621,7 @@ gst_tensor_merge_set_src_caps (GstTensorMerge * tensor_merge)
 
     /** Internal Logic Error? */
     g_assert (gst_tensors_config_validate (&config));
-    newcaps = gst_tensors_caps_from_config (&config);
+    newcaps = gst_tensor_pad_caps_from_config (tensor_merge->srcpad, &config);
 
     if (gst_pad_set_caps (tensor_merge->srcpad, newcaps)) {
       tensor_merge->negotiated = TRUE;

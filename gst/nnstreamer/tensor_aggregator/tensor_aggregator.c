@@ -426,7 +426,8 @@ gst_tensor_aggregator_sink_event (GstPad * pad, GstObject * parent,
       if (gst_tensor_aggregator_parse_caps (self, in_caps)) {
         gboolean ret = FALSE;
 
-        out_caps = gst_tensors_caps_from_config (&self->out_config);
+        out_caps =
+            gst_tensor_pad_caps_from_config (self->srcpad, &self->out_config);
         silent_debug_caps (out_caps, "out-caps");
 
         ret = gst_pad_set_caps (self->srcpad, out_caps);
