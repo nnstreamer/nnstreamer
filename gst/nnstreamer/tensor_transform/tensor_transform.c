@@ -1743,14 +1743,7 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
     out_config.info.num_tensors = in_config.info.num_tensors;
 
     if (gst_structure_has_name (structure, NNS_MIMETYPE_TENSOR)) {
-      GstTensorConfig tensor_config;
-
-      gst_tensor_config_init (&tensor_config);
-      tensor_config.info = out_config.info.info[0];
-      tensor_config.rate_n = out_config.rate_n;
-      tensor_config.rate_d = out_config.rate_d;
-
-      gst_caps_append (result, gst_tensor_caps_from_config (&tensor_config));
+      gst_caps_append (result, gst_tensor_caps_from_config (&out_config));
     } else {
       gst_caps_append (result, gst_tensors_caps_from_config (&out_config));
     }

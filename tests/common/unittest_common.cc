@@ -816,26 +816,6 @@ TEST (commonTensorsInfo, getNameInvalidParam1_n)
 }
 
 /**
- * @brief Test for same tensor config.
- */
-TEST (commonTensorConfig, equal07_n)
-{
-  GstTensorConfig conf;
-  gst_tensor_config_init (&conf);
-  EXPECT_FALSE (gst_tensor_config_is_equal (NULL, &conf));
-}
-
-/**
- * @brief Test for same tensor config.
- */
-TEST (commonTensorConfig, equal08_n)
-{
-  GstTensorConfig conf;
-  gst_tensor_config_init (&conf);
-  EXPECT_FALSE (gst_tensor_config_is_equal (NULL, &conf));
-}
-
-/**
  * @brief Test for same tensors config.
  */
 TEST (commonTensorsConfig, equal01_p)
@@ -936,37 +916,6 @@ TEST (commonTensorsConfig, equal08_n)
 }
 
 /**
- * @brief Test for validating of the tensor config with invalid param.
- */
-TEST (commonTensorConfig, validateInvalidParam0_n)
-{
-  EXPECT_FALSE (gst_tensor_config_validate (NULL));
-}
-
-/**
- * @brief Test for validating of the tensor config with invalid param.
- */
-TEST (commonTensorConfig, validateInvalidParam1_n)
-{
-  GstTensorConfig conf;
-  gst_tensor_config_init (&conf);
-  conf.rate_n = 1;
-
-  EXPECT_FALSE (gst_tensor_config_validate (NULL));
-}
-
-/**
- * @brief Test for validating of the tensor config with invalid param.
- */
-TEST (commonTensorConfig, validateInvalidParam2_n)
-{
-  GstTensorConfig conf;
-  gst_tensor_config_init (&conf);
-  conf.rate_d = 1;
-  EXPECT_FALSE (gst_tensor_config_validate (NULL));
-}
-
-/**
  * @brief Test for validating of the tensors config with invalid param.
  */
 TEST (commonTensorsConfig, validateInvalidParam0_n)
@@ -995,26 +944,6 @@ TEST (commonTensorsConfig, validateInvalidParam2_n)
   gst_tensors_config_init (&conf);
   conf.rate_d = 1;
   EXPECT_FALSE (gst_tensors_config_validate (NULL));
-}
-
-/**
- * @brief Test for getting config from strucrure with invalid param.
- */
-TEST (commonTensorConfig, fromStructreInvalidParam0_n)
-{
-  GstStructure structure;
-
-  EXPECT_FALSE (gst_tensor_config_from_structure (NULL, &structure));
-}
-
-/**
- * @brief Test for getting config from strucrure with invalid param.
- */
-TEST (commonTensorConfig, fromStructreInvalidParam1_n)
-{
-  GstTensorConfig conf;
-  gst_tensor_config_init (&conf);
-  EXPECT_FALSE (gst_tensor_config_from_structure (&conf, NULL));
 }
 
 /**

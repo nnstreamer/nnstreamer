@@ -76,7 +76,7 @@
     g_object_set (h->element, "acceleration", (gboolean)accel, NULL);          \
     /** input tensor info */                                                   \
     gst_tensors_config_init (&config);                                         \
-    config.info.num_tensors = 1;                                               \
+    config.info.num_tensors = 1U;                                              \
     config.info.info[0].type = from_nns_t;                                     \
     gst_tensor_parse_dimension (str (size), config.info.info[0].dimension);    \
     config.rate_n = 0;                                                         \
@@ -1117,7 +1117,7 @@ TEST (testTensorTransform, arithmetic1)
 
   /* input tensor info */
   gst_tensors_config_init (&config);
-  config.info.num_tensors = 1;
+  config.info.num_tensors = 1U;
   config.info.info[0].type = _NNS_FLOAT32;
   gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
   config.rate_n = 0;
@@ -1189,7 +1189,7 @@ TEST (testTensorTransform, arithmetic1Accel)
 
   /* input tensor info */
   gst_tensors_config_init (&config);
-  config.info.num_tensors = 1;
+  config.info.num_tensors = 1U;
   config.info.info[0].type = _NNS_FLOAT32;
   gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
   config.rate_n = 0;
@@ -1261,7 +1261,7 @@ TEST (testTensorTransform, arithmetic2)
 
   /* input tensor info */
   gst_tensors_config_init (&config);
-  config.info.num_tensors = 1;
+  config.info.num_tensors = 1U;
   config.info.info[0].type = _NNS_FLOAT64;
   gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
   config.rate_n = 0;
@@ -1333,7 +1333,7 @@ TEST (testTensorTransform, arithmetic2Accel)
 
   /* input tensor info */
   gst_tensors_config_init (&config);
-  config.info.num_tensors = 1;
+  config.info.num_tensors = 1U;
   config.info.info[0].type = _NNS_FLOAT64;
   gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
   config.rate_n = 0;
@@ -1406,7 +1406,7 @@ TEST (testTensorTransform, arithmetic3)
 
   /* input tensor info */
   gst_tensors_config_init (&config);
-  config.info.num_tensors = 1;
+  config.info.num_tensors = 1U;
   config.info.info[0].type = _NNS_UINT8;
   gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
   config.rate_n = 0;
@@ -1482,7 +1482,7 @@ TEST (testTensorTransform, arithmetic3Accel)
 
   /* input tensor info */
   gst_tensors_config_init (&config);
-  config.info.num_tensors = 1;
+  config.info.num_tensors = 1U;
   config.info.info[0].type = _NNS_UINT8;
   gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
   config.rate_n = 0;
@@ -1558,7 +1558,7 @@ TEST (testTensorTransform, arithmetic4)
 
   /* input tensor info */
   gst_tensors_config_init (&config);
-  config.info.num_tensors = 1;
+  config.info.num_tensors = 1U;
   config.info.info[0].type = _NNS_UINT8;
   gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
   config.rate_n = 0;
@@ -1636,7 +1636,7 @@ TEST (testTensorTransform, arithmetic4Accel)
 
   /* input tensor info */
   gst_tensors_config_init (&config);
-  config.info.num_tensors = 1;
+  config.info.num_tensors = 1U;
   config.info.info[0].type = _NNS_UINT8;
   gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
   config.rate_n = 0;
@@ -1712,7 +1712,7 @@ TEST (testTensorTransform, arithmetic5)
 
   /* input tensor info */
   gst_tensors_config_init (&config);
-  config.info.num_tensors = 1;
+  config.info.num_tensors = 1U;
   config.info.info[0].type = _NNS_UINT8;
   gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
   config.rate_n = 0;
@@ -1788,7 +1788,7 @@ TEST (testTensorTransform, arithmetic5Accel)
 
   /* input tensor info */
   gst_tensors_config_init (&config);
-  config.info.num_tensors = 1;
+  config.info.num_tensors = 1U;
   config.info.info[0].type = _NNS_UINT8;
   gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
   config.rate_n = 0;
@@ -1861,7 +1861,7 @@ TEST (testTensorTransform, arithmeticChangeOptionString)
 
   /* input tensor info */
   gst_tensors_config_init (&config);
-  config.info.num_tensors = 1;
+  config.info.num_tensors = 1U;
   config.info.info[0].type = _NNS_FLOAT32;
   gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
   config.rate_n = 0;
@@ -4506,7 +4506,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, reopenTFlite01)
   GstHarness *h;
   GstBuffer *in_buf, *out_buf;
   gsize in_size, out_size;
-  GstTensorConfig config;
+  GstTensorsConfig config;
   gchar *str_launch_line, *prop_string;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
@@ -4529,13 +4529,14 @@ TEST_REQUIRE_TFLITE (testTensorFilter, reopenTFlite01)
   g_free (str_launch_line);
 
   /* input tensor info */
-  gst_tensor_config_init (&config);
-  config.info.type = _NNS_UINT8;
-  gst_tensor_parse_dimension ("3:224:224:1", config.info.dimension);
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1U;
+  config.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("3:224:224:1", config.info.info[0].dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
-  gst_harness_set_src_caps (h, gst_tensor_caps_from_config (&config));
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
 
   /* playing state */
   wait_for_element_state (h->element, GST_STATE_PLAYING);
@@ -4634,7 +4635,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, reloadTFliteSetProperty)
   GstHarness *h;
   GstBuffer *in_buf, *out_buf;
   gsize in_size, out_size;
-  GstTensorConfig config;
+  GstTensorsConfig config;
   gboolean prop_updatable;
   gchar *str_launch_line, *prop_string;
 
@@ -4663,13 +4664,14 @@ TEST_REQUIRE_TFLITE (testTensorFilter, reloadTFliteSetProperty)
   g_free (str_launch_line);
 
   /* input tensor info */
-  gst_tensor_config_init (&config);
-  config.info.type = _NNS_UINT8;
-  gst_tensor_parse_dimension ("3:224:224:1", config.info.dimension);
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1U;
+  config.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("3:224:224:1", config.info.info[0].dimension);
   config.rate_n = 0;
   config.rate_d = 1;
 
-  gst_harness_set_src_caps (h, gst_tensor_caps_from_config (&config));
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
 
   /* playing state */
   wait_for_element_state (h->element, GST_STATE_PLAYING);
