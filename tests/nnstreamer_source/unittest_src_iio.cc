@@ -1249,7 +1249,7 @@ TEST (testTensorSrcIio, dataVerifyTrigger)
   GstCaps *caps;
   GstPad *src_pad;
   GstStructure *structure;
-  GstTensorConfig config;
+  GstTensorsConfig config;
   gint num_scan_elements;
   /** Make device */
   dev0 = make_full_device (data_value, data_bits);
@@ -1281,14 +1281,15 @@ TEST (testTensorSrcIio, dataVerifyTrigger)
 
   /** Default has merge channels enabled */
   EXPECT_STREQ (gst_structure_get_name (structure), "other/tensor");
-  EXPECT_EQ (gst_tensor_config_from_structure (&config, structure), TRUE);
+  EXPECT_EQ (gst_tensors_config_from_structure (&config, structure), TRUE);
   EXPECT_EQ (config.rate_n, samp_freq);
   EXPECT_EQ (config.rate_d, 1);
-  EXPECT_EQ (config.info.type, _NNS_FLOAT32);
-  EXPECT_EQ (config.info.dimension[0], (guint)num_scan_elements);
-  EXPECT_EQ (config.info.dimension[1], 1U);
-  EXPECT_EQ (config.info.dimension[2], 1U);
-  EXPECT_EQ (config.info.dimension[3], 1U);
+  EXPECT_EQ (config.info.num_tensors, 1U);
+  EXPECT_EQ (config.info.info[0].type, _NNS_FLOAT32);
+  EXPECT_EQ (config.info.info[0].dimension[0], (guint)num_scan_elements);
+  EXPECT_EQ (config.info.info[0].dimension[1], 1U);
+  EXPECT_EQ (config.info.info[0].dimension[2], 1U);
+  EXPECT_EQ (config.info.info[0].dimension[3], 1U);
 
   gst_object_unref (src_iio);
   gst_object_unref (src_pad);
@@ -1331,7 +1332,7 @@ TEST (testTensorSrcIio, dataVerifyCustomChannels)
   GstCaps *caps;
   GstPad *src_pad;
   GstStructure *structure;
-  GstTensorConfig config;
+  GstTensorsConfig config;
   data_value = DATA;
   data_bits = 16;
   /** Make device */
@@ -1363,14 +1364,15 @@ TEST (testTensorSrcIio, dataVerifyCustomChannels)
 
   /** Default has merge channels enabled */
   EXPECT_STREQ (gst_structure_get_name (structure), "other/tensor");
-  EXPECT_EQ (gst_tensor_config_from_structure (&config, structure), TRUE);
+  EXPECT_EQ (gst_tensors_config_from_structure (&config, structure), TRUE);
   EXPECT_EQ (config.rate_n, samp_freq);
   EXPECT_EQ (config.rate_d, 1);
-  EXPECT_EQ (config.info.type, _NNS_FLOAT32);
-  EXPECT_EQ (config.info.dimension[0], 2U);
-  EXPECT_EQ (config.info.dimension[1], 1U);
-  EXPECT_EQ (config.info.dimension[2], 1U);
-  EXPECT_EQ (config.info.dimension[3], 1U);
+  EXPECT_EQ (config.info.num_tensors, 1U);
+  EXPECT_EQ (config.info.info[0].type, _NNS_FLOAT32);
+  EXPECT_EQ (config.info.info[0].dimension[0], 2U);
+  EXPECT_EQ (config.info.info[0].dimension[1], 1U);
+  EXPECT_EQ (config.info.info[0].dimension[2], 1U);
+  EXPECT_EQ (config.info.info[0].dimension[3], 1U);
 
   gst_object_unref (src_iio);
   gst_object_unref (src_pad);
