@@ -203,6 +203,9 @@ void _set_ts_gst_mqtt_message_hdr (GstElement *elm, GstMQTTMessageHdr *hdr,
   diff = GST_CLOCK_DIFF (base_time, cur_time);
   hdr->base_time_epoch = g_get_real_time () * GST_US_TO_NS_MULTIPLIER - diff;
   hdr->sent_time_epoch = hdr->base_time_epoch + diff_sent;
+
+  hdr->pts = 0;
+  hdr->dts = 0;
   hdr->duration = duration;
 }
 
