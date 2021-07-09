@@ -65,6 +65,9 @@
 #include <tensor_transform/tensor_transform.h>
 #include <tensor_if/gsttensorif.h>
 #include <tensor_rate/gsttensorrate.h>
+#include <tensor_query/tensor_query_serversrc.h>
+#include <tensor_query/tensor_query_serversink.h>
+#include <tensor_query/tensor_query_client.h>
 
 #define NNSTREAMER_INIT(plugin,name,type) \
   do { \
@@ -95,6 +98,9 @@ gst_nnstreamer_init (GstPlugin * plugin)
   NNSTREAMER_INIT (plugin, transform, TRANSFORM);
   NNSTREAMER_INIT (plugin, if, IF);
   NNSTREAMER_INIT (plugin, rate, RATE);
+  NNSTREAMER_INIT (plugin, query_serversrc, QUERY_SERVERSRC);
+  NNSTREAMER_INIT (plugin, query_serversink, QUERY_SERVERSINK);
+  NNSTREAMER_INIT (plugin, query_client, QUERY_CLIENT);
 #if defined(__gnu_linux__) && !defined(__ANDROID__)
   /* IIO requires Linux / non-Android */
 #if (GST_VERSION_MAJOR == 1) && (GST_VERSION_MINOR >= 8)
