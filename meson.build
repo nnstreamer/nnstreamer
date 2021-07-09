@@ -231,6 +231,14 @@ endif
 pahomqttc_dep = dependency('', required: false)
 if not get_option('mqtt-support').disabled()
   pahomqttc_dep = dependency('paho-mqtt-c', required: false)
+  if (not pahomqttc_dep.found() and get_option('mqtt-support').enabled())
+    message('mqtt-support is enabled while its pkgconfig is not found. Hardcoded build configuration is used.')
+    pahomqttc_lib1 = cxx.find_library('paho-mqtt3a', required: true)
+    pahomqttc_lib2 = cxx.find_library('paho-mqtt3c', required: true)
+    pahomqttc_lib3 = cxx.find_library('paho-mqtt3as', required: true)
+    pahomqttc_lib4 = cxx.find_library('paho-mqtt3cs', required: true)
+    pahomqttc_dep = declare_dependency(dependencies: [pahomqttc_lib1, pahomqttc_lib2, pahomqttc_lib3, pahomqttc_lib4])
+  endif
 endif
 
 # armnn
