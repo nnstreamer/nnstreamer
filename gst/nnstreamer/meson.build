@@ -7,6 +7,7 @@ nnstreamer_base_deps = [
   glib_dep,
   gmodule_dep,
   gst_dep,
+  gio_dep,
   gst_base_dep,
   gst_controller_dep,
   gst_video_dep,
@@ -59,6 +60,7 @@ nnst_plugins = [
   'tensor_repo',
   'tensor_if',
   'tensor_rate',
+  'tensor_query'
 ]
 
 foreach p : nnst_plugins
