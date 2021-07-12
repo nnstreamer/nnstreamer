@@ -14,7 +14,7 @@ We assume that you already have experienced Android application developments wit
    * OS: Ubuntu 16.04 / 18.04 x86_64 LTS
    * Android Studio: Ubuntu version
    * Android SDK: Min version 28 (Pie)
-   * Android NDK: Use default ndk-bundle in Android Studio
+   * Android NDK: Use default ndk-bundle in Android Studio **( < 22.0 )**
    * GStreamer: gstreamer-1.0-android-universal-1.16.2
 
 ## Build library
@@ -48,13 +48,13 @@ export ANDROID_SDK_ROOT=$ANDROID_SDK
 export ANDROID_NDK_ROOT=$ANDROID_NDK
 export GSTREAMER_ROOT_ANDROID=$ANDROID_DEV_ROOT/gstreamer-1.0
 export NNSTREAMER_ROOT=$ANDROID_DEV_ROOT/workspace/nnstreamer
-export ML_API_ROT=$ANDROID_DEV_ROOT/workspace/api
+export ML_API_ROOT=$ANDROID_DEV_ROOT/workspace/api
 ```
 
 ### Install required packages
 Some required packages should be installed as below.
 ```bash
-$ sudo apt install subversion curl pkg-config
+$ sudo apt install subversion curl pkg-config gradle
 ```
 
 ### Download Android Studio
@@ -145,7 +145,7 @@ Run the build script in NNStreamer.
 
 ```bash
 $ cd $ML_API_ROOT
-$ bash ./java/android/build-nnstreamer-android-lib.sh
+$ bash ./java/build-nnstreamer-android.sh
 ```
 
 After building the Android API, you can find the library(.aar) in `$ML_API_ROOT/android_lib`.
