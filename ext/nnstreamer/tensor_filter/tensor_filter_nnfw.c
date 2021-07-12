@@ -156,6 +156,10 @@ nnfw_parse_custom_option (const GstTensorFilterProperties * prop,
         g_strstrip (option[0]);
         g_strstrip (option[1]);
 
+        /**
+         * @note custom property description
+         * Update description in init_filter_nnfw() when adding new custom option for nnfw.
+         */
         if (g_ascii_strcasecmp (option[0], "Runtime") == 0) {
           pdata->accelerator = g_strdup (option[1]);
         } else {
@@ -807,6 +811,9 @@ void
 init_filter_nnfw (void)
 {
   nnstreamer_filter_probe (&NNS_support_nnfw);
+
+  nnstreamer_filter_set_custom_property_desc (filter_subplugin_nnfw,
+      "Runtime", "Backends on which NNFW uses", NULL);
 }
 
 /** @brief Destruct the subplugin */
