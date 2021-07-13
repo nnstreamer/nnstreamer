@@ -165,6 +165,7 @@ typedef struct
 #define MOBILENET_SSD_PARAMS_IOU_THRESHOLD_IDX 5
 #define MOBILENET_SSD_PARAMS_MAX 6
   gfloat params[MOBILENET_SSD_PARAMS_MAX]; /** Post Processing parameters */
+  gfloat sigmoid_threshold; /** Inverse value of valid detection threshold in sigmoid domain */
 } properties_MOBILENET_SSD;
 
 /**
@@ -244,6 +245,18 @@ _get_mobilenet_ssd_pp_threshold (bounding_boxes * bdata)
   return bdata->mobilenet_ssd_pp.threshold;
 }
 
+/** @brief Mathematic inverse of sigmoid function, aka logit */
+static float logit(float x)
+{
+  if (x <= 0.0f)
+    return -INFINITY;
+
+  if (x >= 1.0f)
+    return INFINITY;
+
+  return log(x / (1.0 - x));
+}
+
 /** @brief Initialize bounding_boxes per mode */
 static int
 _init_modes (bounding_boxes * bdata)
@@ -263,6 +276,7 @@ _init_modes (bounding_boxes * bdata)
     data->params[MOBILENET_SSD_PARAMS_H_SCALE_IDX] = H_SCALE;
     data->params[MOBILENET_SSD_PARAMS_W_SCALE_IDX] = W_SCALE;
     data->params[MOBILENET_SSD_PARAMS_IOU_THRESHOLD_IDX] = THRESHOLD_IOU;
+    data->sigmoid_threshold = logit(DETECTION_THRESHOLD);
 
     return TRUE;
   } else if (_check_mode_is_mobilenet_ssd_pp (bdata->mode)) {
@@ -450,6 +464,9 @@ _setOption_mode (bounding_boxes * bdata, const char *param)
         continue;
       mobilenet_ssd->params[idx - 1] = strtod (options[idx], NULL);
     }
+
+    mobilenet_ssd->sigmoid_threshold = logit(
+        mobilenet_ssd->params[MOBILENET_SSD_PARAMS_THRESHOLD_IDX]);
 
   exit_mobilenet_ssd:
     g_strfreev (options);
@@ -812,14 +829,14 @@ typedef struct
   do { \
     int c; \
     properties_MOBILENET_SSD *data = &bb->mobilenet_ssd; \
-    float threshold = data->params[MOBILENET_SSD_PARAMS_THRESHOLD_IDX]; \
+    float sigmoid_threshold = data->sigmoid_threshold; \
     float y_scale = data->params[MOBILENET_SSD_PARAMS_Y_SCALE_IDX]; \
     float x_scale = data->params[MOBILENET_SSD_PARAMS_X_SCALE_IDX]; \
     float h_scale = data->params[MOBILENET_SSD_PARAMS_H_SCALE_IDX]; \
     float w_scale = data->params[MOBILENET_SSD_PARAMS_W_SCALE_IDX]; \
     for (c = 1; c < total_labels; c++) { \
-      gfloat score = _expit (detinputptr[c]); \
-      if (score >= threshold) { \
+      if (detinputptr[c] >= sigmoid_threshold) { \
+        gfloat score = _expit (detinputptr[c]); \
         float ycenter = boxinputptr[0] / y_scale * boxprior[2][index] + boxprior[0][index]; \
         float xcenter = boxinputptr[1] / x_scale * boxprior[3][index] + boxprior[1][index]; \
         float h = (float) expf (boxinputptr[2] / h_scale) * boxprior[2][index]; \
