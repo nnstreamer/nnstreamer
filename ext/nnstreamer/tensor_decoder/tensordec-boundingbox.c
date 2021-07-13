@@ -35,8 +35,27 @@
  *                     tflite-ssd (deprecated, recommend to use mobilenet-ssd)
  * option2: Location of label file
  *          This is independent from option1
- * option3: Location of box prior file (ssd) or any option1-dependent values
+ * option3: Any option1-dependent values
  *          !!This depends on option1 values!!
+ *          for mobilenet-ssd mode:
+ *            The option3 definition scheme is, in order, the following:
+ *                - box priors location file (mandatory)
+ *                - Detection threshold (optional, default set to 0.5)
+ *                - Y box scale (optional, default set to 10.0)
+ *                - X box scale (optional, default set to 10.0)
+ *                - h box scale (optional, default set to 5.0)
+ *                - w box scale (optional, default set to 5.0)
+ *                - IOU box valid threshold (optional, default set to 0.5)
+ *            The default parameters value could be set in the following ways:
+ *            option3=box-priors.txt:0.5:10.0:10.0:5.0:5.0:0.5
+ *            option3=box-priors.txt
+ *            option3=box-priors.txt::::::
+ *
+ *            It's possible to set only few values, using the default values for
+ *            those not specified through the command line.
+ *            You could specify respectively the detection and IOU thresholds to 0.65
+ *            and 0.6 with the option3 parameter as follow:
+ *            option3=box-priors.txt:0.65:::::0.6
  * option4: Video Output Dimension (WIDTH:HEIGHT)
  *          This is independent from option1
  * option5: Input Dimension (WIDTH:HEIGHT)
@@ -138,6 +157,14 @@ typedef struct
   /* From option3, box prior data */
   char *box_prior_path; /**< Box Prior file path */
   gfloat box_priors[BOX_SIZE][MOBILENET_SSD_DETECTION_MAX + 1]; /** loaded box prior */
+#define MOBILENET_SSD_PARAMS_THRESHOLD_IDX 0
+#define MOBILENET_SSD_PARAMS_Y_SCALE_IDX 1
+#define MOBILENET_SSD_PARAMS_X_SCALE_IDX 2
+#define MOBILENET_SSD_PARAMS_H_SCALE_IDX 3
+#define MOBILENET_SSD_PARAMS_W_SCALE_IDX 4
+#define MOBILENET_SSD_PARAMS_IOU_THRESHOLD_IDX 5
+#define MOBILENET_SSD_PARAMS_MAX 6
+  gfloat params[MOBILENET_SSD_PARAMS_MAX]; /** Post Processing parameters */
 } properties_MOBILENET_SSD;
 
 /**
@@ -222,7 +249,21 @@ static int
 _init_modes (bounding_boxes * bdata)
 {
   if (_check_mode_is_mobilenet_ssd (bdata->mode)) {
-    /* properties_MOBILENET_SSD *data = &bdata->mobilenet_ssd-ssd; */
+    properties_MOBILENET_SSD *data = &bdata->mobilenet_ssd;
+#define DETECTION_THRESHOLD (.5f)
+#define THRESHOLD_IOU (.5f)
+#define Y_SCALE (10.0f)
+#define X_SCALE (10.0f)
+#define H_SCALE (5.0f)
+#define W_SCALE (5.0f)
+
+    data->params[MOBILENET_SSD_PARAMS_THRESHOLD_IDX] = DETECTION_THRESHOLD;
+    data->params[MOBILENET_SSD_PARAMS_Y_SCALE_IDX] = Y_SCALE;
+    data->params[MOBILENET_SSD_PARAMS_X_SCALE_IDX] = X_SCALE;
+    data->params[MOBILENET_SSD_PARAMS_H_SCALE_IDX] = H_SCALE;
+    data->params[MOBILENET_SSD_PARAMS_W_SCALE_IDX] = W_SCALE;
+    data->params[MOBILENET_SSD_PARAMS_IOU_THRESHOLD_IDX] = THRESHOLD_IOU;
+
     return TRUE;
   } else if (_check_mode_is_mobilenet_ssd_pp (bdata->mode)) {
     properties_MOBILENET_SSD_PP *data = &bdata->mobilenet_ssd_pp;
@@ -383,13 +424,36 @@ _setOption_mode (bounding_boxes * bdata, const char *param)
   if (_check_mode_is_mobilenet_ssd (bdata->mode)) {
     /* Load prior boxes with the path from option3 */
     properties_MOBILENET_SSD *mobilenet_ssd = &bdata->mobilenet_ssd;
+    gchar **options;
+    int noptions, idx;
+    int ret = 1;
+
+    options = g_strsplit (param, ":", -1);
+    noptions = g_strv_length (options);
+
+    if (noptions > (MOBILENET_SSD_PARAMS_MAX + 1))
+      noptions = MOBILENET_SSD_PARAMS_MAX + 1;
 
     if (mobilenet_ssd->box_prior_path)
       g_free (mobilenet_ssd->box_prior_path);
-    mobilenet_ssd->box_prior_path = g_strdup (param);
 
-    if (NULL != mobilenet_ssd->box_prior_path)
-      return _mobilenet_ssd_loadBoxPrior (bdata);
+    mobilenet_ssd->box_prior_path = g_strdup (options[0]);
+
+    if (NULL != mobilenet_ssd->box_prior_path) {
+      ret = _mobilenet_ssd_loadBoxPrior (bdata);
+      if (ret == 0)
+        goto exit_mobilenet_ssd;
+    }
+
+    for (idx = 1; idx < noptions; idx++) {
+      if (strlen (options[idx]) == 0)
+        continue;
+      mobilenet_ssd->params[idx - 1] = strtod (options[idx], NULL);
+    }
+
+  exit_mobilenet_ssd:
+    g_strfreev (options);
+    return ret;
 
   } else if (_check_mode_is_mobilenet_ssd_pp (bdata->mode)) {
     properties_MOBILENET_SSD_PP *mobilenet_ssd_pp = &bdata->mobilenet_ssd_pp;
@@ -729,11 +793,6 @@ typedef struct
   gfloat prob;
 } detectedObject;
 
-#define DETECTION_THRESHOLD (.5f)
-#define Y_SCALE (10.0f)
-#define X_SCALE (10.0f)
-#define H_SCALE (5.0f)
-#define W_SCALE (5.0f)
 
 #define _expit(x) \
     (1.f / (1.f + expf (- ((float)x))))
@@ -752,13 +811,19 @@ typedef struct
 #define _get_object_i_mobilenet_ssd(bb, index, total_labels, boxprior, boxinputptr, detinputptr, result) \
   do { \
     int c; \
+    properties_MOBILENET_SSD *data = &bb->mobilenet_ssd; \
+    float threshold = data->params[MOBILENET_SSD_PARAMS_THRESHOLD_IDX]; \
+    float y_scale = data->params[MOBILENET_SSD_PARAMS_Y_SCALE_IDX]; \
+    float x_scale = data->params[MOBILENET_SSD_PARAMS_X_SCALE_IDX]; \
+    float h_scale = data->params[MOBILENET_SSD_PARAMS_H_SCALE_IDX]; \
+    float w_scale = data->params[MOBILENET_SSD_PARAMS_W_SCALE_IDX]; \
     for (c = 1; c < total_labels; c++) { \
       gfloat score = _expit (detinputptr[c]); \
-      if (score >= DETECTION_THRESHOLD) { \
-        float ycenter = boxinputptr[0] / Y_SCALE * boxprior[2][index] + boxprior[0][index]; \
-        float xcenter = boxinputptr[1] / X_SCALE * boxprior[3][index] + boxprior[1][index]; \
-        float h = (float) expf (boxinputptr[2] / H_SCALE) * boxprior[2][index]; \
-        float w = (float) expf (boxinputptr[3] / W_SCALE) * boxprior[3][index]; \
+      if (score >= threshold) { \
+        float ycenter = boxinputptr[0] / y_scale * boxprior[2][index] + boxprior[0][index]; \
+        float xcenter = boxinputptr[1] / x_scale * boxprior[3][index] + boxprior[1][index]; \
+        float h = (float) expf (boxinputptr[2] / h_scale) * boxprior[2][index]; \
+        float w = (float) expf (boxinputptr[3] / w_scale) * boxprior[3][index]; \
         float ymin = ycenter - h / 2.f; \
         float xmin = xcenter - w / 2.f; \
         int x = xmin * bb->i_width; \
@@ -843,13 +908,12 @@ iou (detectedObject * a, detectedObject * b)
   return (o >= 0) ? o : 0;
 }
 
-#define THRESHOLD_IOU (.5f)
 /**
  * @brief Apply NMS to the given results (obejcts[MOBILENET_SSD_DETECTION_MAX])
  * @param[in/out] results The results to be filtered with nms
  */
 static void
-nms (GArray * results)
+nms (GArray * results, gfloat threshold)
 {
   guint boxes_size;
   guint i, j;
@@ -863,7 +927,7 @@ nms (GArray * results)
       for (j = i + 1; j < boxes_size; j++) {
         detectedObject *b = &g_array_index (results, detectedObject, j);
         if (b->valid == TRUE) {
-          if (iou (a, b) > THRESHOLD_IOU) {
+          if (iou (a, b) > threshold) {
             b->valid = FALSE;
           }
         }
@@ -1103,6 +1167,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
 
   if (_check_mode_is_mobilenet_ssd (bdata->mode)) {
     const GstTensorMemory *boxes, *detections = NULL;
+    properties_MOBILENET_SSD *data = &bdata->mobilenet_ssd;
     /**
      * @todo 100 is a heuristic number of objects in a picture frame
      *       We may have better "heuristics" than this.
@@ -1131,7 +1196,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
       default:
         g_assert (0);
     }
-    nms (results);
+    nms (results, data->params[MOBILENET_SSD_PARAMS_IOU_THRESHOLD_IDX]);
   } else if (_check_mode_is_mobilenet_ssd_pp (bdata->mode)) {
     const GstTensorMemory *mem_num, *mem_classes, *mem_scores, *mem_boxes;
     int locations_idx, classes_idx, scores_idx, num_idx;
