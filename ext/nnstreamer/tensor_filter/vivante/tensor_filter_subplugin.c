@@ -104,8 +104,8 @@
     pdata->name (__VA_ARGS__) : \
     err)
 
-void init_filter_vivante (void) __attribute__((constructor));
-void fini_filter_vivante (void) __attribute__((destructor));
+void init_filter_vivante (void) __attribute__ ((constructor));
+void fini_filter_vivante (void) __attribute__ ((destructor));
 
 /**
  * @brief If you need to store session or model data,
@@ -119,30 +119,32 @@ typedef struct
   GstTensorsInfo output_tensor; /**< The description of output tensor */
 
   vsi_nn_graph_t *graph; /**< Graph data structure for handling Vivant neural network */
-  void* handle; /**< Variables for handling the dlopen library call. */
-  vsi_status (*result_vsi_nn_CopyDataToTensor)(vsi_nn_graph_t *, vsi_nn_tensor_t *, uint8_t *);
-  void (*result_vnn_ReleaseNeuralNetwork)(vsi_nn_graph_t *);
-  vsi_nn_graph_t * (*result_vnn_CreateNeuralNetwork)(const char *);
-  vsi_status (*result_vsi_nn_RunGraph)(vsi_nn_graph_t *);
+  void *handle; /**< Variables for handling the dlopen library call. */
+    vsi_status (*result_vsi_nn_CopyDataToTensor) (vsi_nn_graph_t *,
+      vsi_nn_tensor_t *, uint8_t *);
+  void (*result_vnn_ReleaseNeuralNetwork) (vsi_nn_graph_t *);
+  vsi_nn_graph_t *(*result_vnn_CreateNeuralNetwork) (const char *);
+    vsi_status (*result_vsi_nn_RunGraph) (vsi_nn_graph_t *);
 
   int postProcess;
-  vsi_status (*postProcessFunc)(vsi_nn_graph_t *graph);
+    vsi_status (*postProcessFunc) (vsi_nn_graph_t * graph);
 
 #if EVAL_MODE
-  vsi_status (*result_vnn_PostProcessNeuralNetwork)(vsi_nn_graph_t *);
+    vsi_status (*result_vnn_PostProcessNeuralNetwork) (vsi_nn_graph_t *);
 #endif
 #if DEBUG_MODE
-  vsi_status (*result_vsi_nn_VerifyGraph)(vsi_nn_graph_t *);
-  void (*result_nn_DumpGraphNodeOutputs)(vsi_nn_graph_t *, const char *, uint32_t *, uint32_t, vsi_bool, vsi_nn_dim_fmt_e);
+    vsi_status (*result_vsi_nn_VerifyGraph) (vsi_nn_graph_t *);
+  void (*result_nn_DumpGraphNodeOutputs) (vsi_nn_graph_t *, const char *,
+      uint32_t *, uint32_t, vsi_bool, vsi_nn_dim_fmt_e);
 #endif
 } vivante_pdata;
 
 /** @brief Parse a custom property and check if post-process is enabled */
 static int
-parseCustomProperty (const char *value, int * postProcess)
+parseCustomProperty (const char *value, int *postProcess)
 {
   int i = 0;
-  gchar ** strv;
+  gchar **strv;
 
   /* default value */
   *postProcess = 0;
@@ -169,7 +171,7 @@ parseCustomProperty (const char *value, int * postProcess)
  * @details We assume that post-process does NOT alter output dimensions.
  */
 static int
-doPostProcess (vivante_pdata *pdata)
+doPostProcess (vivante_pdata * pdata)
 {
   vsi_status status;
 
@@ -182,12 +184,10 @@ doPostProcess (vivante_pdata *pdata)
   return -EINVAL;
 }
 
-unsigned int
-convert_tensortype (unsigned tensor_type);
+unsigned int convert_tensortype (unsigned tensor_type);
 
 static void
-vivante_close (const GstTensorFilterProperties * prop,
-    void **private_data);
+vivante_close (const GstTensorFilterProperties * prop, void **private_data);
 
 /**
  *  * @brief Configure private_data
@@ -199,30 +199,29 @@ allocateData (const GstTensorFilterProperties * prop, void **private_data)
 
   if (*private_data != NULL) {
     /* Already opened */
-    pdata = (vivante_pdata *) *private_data;
+    pdata = (vivante_pdata *) * private_data;
 
     if (!prop->model_files[0] || prop->model_files[0][0] == '\0') {
-      printf("Model path (.nb) is not given.");
+      printf ("Model path (.nb) is not given.");
       return -1;
     }
     if (!prop->model_files[1] || prop->model_files[1][0] == '\0') {
-      printf("Shared library path (.so) is not given.");
+      printf ("Shared library path (.so) is not given.");
       return -1;
     }
     if (pdata->model_path && g_strcmp0 (prop->model_files[0],
-          pdata->model_path) == 0) {
-      return 0; /* Already opened with same model file. Skip ops */
+            pdata->model_path) == 0) {
+      return 0;                 /* Already opened with same model file. Skip ops */
     }
-    if (pdata->so_path && g_strcmp0 (prop->model_files[1],
-          pdata->so_path) == 0) {
-      return 0; /* Already opened with same so file. Skip ops */
+    if (pdata->so_path && g_strcmp0 (prop->model_files[1], pdata->so_path) == 0) {
+      return 0;                 /* Already opened with same so file. Skip ops */
     }
     vivante_close (prop, private_data); /* Close before opening one. */
   }
 
   *private_data = pdata = g_new0 (vivante_pdata, 1);
   if (pdata == NULL) {
-      printf("Failed to allocate memory for vivante tensor_filer.");
+    printf ("Failed to allocate memory for vivante tensor_filer.");
     return -1;
   }
 
@@ -237,24 +236,24 @@ unsigned int
 convert_tensortype (unsigned tensor_type)
 {
   switch (tensor_type) {
-  case VSI_NN_TYPE_INT8:
-    return _NNS_INT8;
-  case VSI_NN_TYPE_UINT8:
-    return _NNS_UINT8;
-  case VSI_NN_TYPE_INT16:
-    return _NNS_INT16;
-  case VSI_NN_TYPE_UINT16:
-    return _NNS_UINT16;
+    case VSI_NN_TYPE_INT8:
+      return _NNS_INT8;
+    case VSI_NN_TYPE_UINT8:
+      return _NNS_UINT8;
+    case VSI_NN_TYPE_INT16:
+      return _NNS_INT16;
+    case VSI_NN_TYPE_UINT16:
+      return _NNS_UINT16;
   /** Note that the current nnstreamer (tensor_typedef.h) does not support FLOAT16.
    *  Let's use UINT16 as a workaround.
    */
-  case VSI_NN_TYPE_FLOAT16:
-    return _NNS_UINT16;
-  case VSI_NN_TYPE_FLOAT32:
-    return _NNS_FLOAT32;
-  default:
+    case VSI_NN_TYPE_FLOAT16:
+      return _NNS_UINT16;
+    case VSI_NN_TYPE_FLOAT32:
+      return _NNS_FLOAT32;
+    default:
     /** @todo Support other types */
-    break;
+      break;
   }
   return _NNS_END;
 }
@@ -268,8 +267,8 @@ static int
 vivante_open (const GstTensorFilterProperties * prop, void **private_data)
 {
   int ret = allocateData (prop, private_data);
-  unsigned int i,j,k;
-  vivante_pdata *pdata = (vivante_pdata *) *private_data;
+  unsigned int i, j, k;
+  vivante_pdata *pdata = (vivante_pdata *) * private_data;
 
   if (ret < 0)
     return ret;
@@ -278,7 +277,7 @@ vivante_open (const GstTensorFilterProperties * prop, void **private_data)
     return -ENOMEM;
 
   pdata->model_path = g_strdup (prop->model_files[0]);
-  pdata->so_path    = g_strdup (prop->model_files[1]);
+  pdata->so_path = g_strdup (prop->model_files[1]);
 
   ret = parseCustomProperty (prop->custom_properties, &pdata->postProcess);
   if (ret < 0) {
@@ -289,7 +288,7 @@ vivante_open (const GstTensorFilterProperties * prop, void **private_data)
   }
 
   /** Create the neural network with .nb (a network binary of Vivante) */
-  pdata->handle = dlopen(pdata->so_path, RTLD_NOW);
+  pdata->handle = dlopen (pdata->so_path, RTLD_NOW);
   if (!pdata->handle) {
     printf ("vivante_open: dlopen cannot load the shared library (.so).\n");
     g_free (pdata->model_path);
@@ -312,8 +311,7 @@ vivante_open (const GstTensorFilterProperties * prop, void **private_data)
 
   vivante_api_fetch_dlsym (pdata, result_vnn_CreateNeuralNetwork,
       "vnn_CreateNeuralNetwork", error_dlsym);
-  pdata->graph = call (result_vnn_CreateNeuralNetwork, NULL,
-      pdata->model_path);
+  pdata->graph = call (result_vnn_CreateNeuralNetwork, NULL, pdata->model_path);
 
 #if EVAL_MODE
   vivante_api_fetch_dlsym (pdata, result_vnn_PostProcessNeuralNetwork,
@@ -346,7 +344,7 @@ vivante_open (const GstTensorFilterProperties * prop, void **private_data)
 
   /** Get the meta data from the input tensor. */
   for (i = 0; i < pdata->graph->input.num; i++) {
-    vsi_nn_tensor_t *i_tensor = vsi_nn_GetTensor(pdata->graph,
+    vsi_nn_tensor_t *i_tensor = vsi_nn_GetTensor (pdata->graph,
         pdata->graph->input.tensors[i]);
     if (i_tensor == NULL)
       return -1;
@@ -364,16 +362,16 @@ vivante_open (const GstTensorFilterProperties * prop, void **private_data)
 
     /** Get an input data type: VSI_NN_TYPE_UINT8 (u8) in case of inceptionv3 */
     pdata->input_tensor.info[i].type =
-        convert_tensortype(i_tensor->attr.dtype.vx_type);
-    asprintf (&pdata->input_tensor.info[i].name, "%i",
-        pdata->graph->input.tensors[i]); /** dummy name */
+        convert_tensortype (i_tensor->attr.dtype.vx_type);
+    asprintf (&pdata->input_tensor.info[i].name, "%i", pdata->graph->input.tensors[i]);
+                                         /** dummy name */
     pdata->input_tensor.num_tensors = pdata->graph->input.num; /** number of tensors */
   }
 
   /** Get the meta data from the output tensor. */
   for (i = 0; i < pdata->graph->output.num; i++) {
     vsi_nn_tensor_t *o_tensor = NULL;
-    o_tensor = vsi_nn_GetTensor(pdata->graph, pdata->graph->output.tensors[i]);
+    o_tensor = vsi_nn_GetTensor (pdata->graph, pdata->graph->output.tensors[i]);
     if (o_tensor == NULL)
       return -1;
 
@@ -390,9 +388,9 @@ vivante_open (const GstTensorFilterProperties * prop, void **private_data)
 
     /** Get an output data type: VSI_NN_TYPE_FLOAT16 (f16) in case of inceptionv3 */
     pdata->output_tensor.info[i].type =
-        convert_tensortype(o_tensor->attr.dtype.vx_type);
-    asprintf (&pdata->output_tensor.info[i].name, "%i",
-        pdata->graph->output.tensors[i]); /** dummy name */
+        convert_tensortype (o_tensor->attr.dtype.vx_type);
+    asprintf (&pdata->output_tensor.info[i].name, "%i", pdata->graph->output.tensors[i]);
+                                          /** dummy name */
     pdata->output_tensor.num_tensors = pdata->graph->output.num; /** number of tensors */
   }
 
@@ -414,9 +412,9 @@ vivante_close (const GstTensorFilterProperties * prop, void **private_data)
 {
   vivante_pdata *pdata = *private_data;
 
-  call(result_vnn_ReleaseNeuralNetwork, NULL, pdata->graph);
+  call (result_vnn_ReleaseNeuralNetwork, NULL, pdata->graph);
 
-  dlclose(pdata->handle);
+  dlclose (pdata->handle);
 
   g_free (pdata->model_path);
   pdata->model_path = NULL;
@@ -457,10 +455,10 @@ vivante_invoke (const GstTensorFilterProperties * prop,
    */
   for (i = 0; i < pdata->graph->input.num; i++) {
     vsi_nn_tensor_t *tensor = NULL;
-    tensor = vsi_nn_GetTensor(pdata->graph, pdata->graph->input.tensors[i]);
+    tensor = vsi_nn_GetTensor (pdata->graph, pdata->graph->input.tensors[i]);
 
    /** Copy an input buffer to an input tensor */
-    status = call(result_vsi_nn_CopyDataToTensor, VSI_FAILURE, pdata->graph,
+    status = call (result_vsi_nn_CopyDataToTensor, VSI_FAILURE, pdata->graph,
         tensor, input[i].data);
   }
 #endif
@@ -482,18 +480,18 @@ vivante_invoke (const GstTensorFilterProperties * prop,
 
 #if DEBUG_MODE
   /** Dump all node outputs */
-  g_print("Saving debug file (e.g., ./network_dump)\n");
+  g_print ("Saving debug file (e.g., ./network_dump)\n");
 
-  call (result_nn_DumpGraphNodeOutputs, NULL, pdata->graph, "./network_dump", NULL, 0, TRUE, 0);
+  call (result_nn_DumpGraphNodeOutputs, NULL, pdata->graph, "./network_dump",
+      NULL, 0, TRUE, 0);
 #endif
 
   if (pdata->postProcess)
     ret = doPostProcess (pdata);
   if (ret < 0) {
-    g_printerr("PostProcess Failure\n");
+    g_printerr ("PostProcess Failure\n");
     return ret;
   }
-
 #if EVAL_MODE
   /** In case of Inceptionv3, the major goal of of the post-process is as follows.
    *  a. Show the Top5 result
@@ -503,23 +501,25 @@ vivante_invoke (const GstTensorFilterProperties * prop,
       pdata->graph);
 #endif
 
-  #define _DUMP_FILE_LENGTH 1028
-  #define _DUMP_SHAPE_LENGTH 128
+#define _DUMP_FILE_LENGTH 1028
+#define _DUMP_SHAPE_LENGTH 128
 
   for (i = 0; i < pdata->graph->output.num; i++) {
-    vsi_nn_tensor_t *out_tensor = vsi_nn_GetTensor(pdata->graph, pdata->graph->output.tensors[i]);
+    vsi_nn_tensor_t *out_tensor =
+        vsi_nn_GetTensor (pdata->graph, pdata->graph->output.tensors[i]);
 
 #if DEBUG_MODE
-    char filename[_DUMP_FILE_LENGTH] = {0};
-    char shape[_DUMP_SHAPE_LENGTH] = {0};
-    vsi_nn_ShapeToString(out_tensor->attr.size, out_tensor->attr.dim_num,
-        shape, _DUMP_SHAPE_LENGTH, FALSE );
-    snprintf(filename, _DUMP_FILE_LENGTH, "nnstreamer_output%u_%s.dat", i, shape);
-    vsi_nn_SaveTensorToBinary(pdata->graph, out_tensor, filename);
+    char filename[_DUMP_FILE_LENGTH] = { 0 };
+    char shape[_DUMP_SHAPE_LENGTH] = { 0 };
+    vsi_nn_ShapeToString (out_tensor->attr.size, out_tensor->attr.dim_num,
+        shape, _DUMP_SHAPE_LENGTH, FALSE);
+    snprintf (filename, _DUMP_FILE_LENGTH, "nnstreamer_output%u_%s.dat", i,
+        shape);
+    vsi_nn_SaveTensorToBinary (pdata->graph, out_tensor, filename);
 #endif
 
     /** Copy an output tensor to an output buffer */
-    vsi_nn_CopyTensorToBuffer(pdata->graph, out_tensor, output[i].data);
+    vsi_nn_CopyTensorToBuffer (pdata->graph, out_tensor, output[i].data);
   }
   if (status == VSI_FAILURE)
     return -EINVAL;
@@ -538,7 +538,7 @@ static int
 vivante_getInputDim (const GstTensorFilterProperties * prop,
     void **private_data, GstTensorsInfo * info)
 {
-  vivante_pdata *pdata = (vivante_pdata *) *private_data;
+  vivante_pdata *pdata = (vivante_pdata *) * private_data;
 
   if (!pdata)
     return -1;
@@ -561,7 +561,7 @@ static int
 vivante_getOutputDim (const GstTensorFilterProperties * prop,
     void **private_data, GstTensorsInfo * info)
 {
-  vivante_pdata *pdata = (vivante_pdata *) *private_data;
+  vivante_pdata *pdata = (vivante_pdata *) * private_data;
 
   if (!pdata)
     return -1;
@@ -584,23 +584,23 @@ static GstTensorFilterFramework NNS_support_vivante = {
   .open = vivante_open,
   .close = vivante_close,
   {
-    .v0 = {
-      .name = filter_subplugin_vivante,
-      .allow_in_place = FALSE,
-      .allocate_in_invoke = FALSE,
-      .run_without_model = FALSE,
-      .verify_model_path = FALSE,
-      .statistics = NULL,
-      .invoke_NN = vivante_invoke,
-      .getInputDimension = vivante_getInputDim,
-      .getOutputDimension = vivante_getOutputDim,
-      .setInputDimension = NULL,
-      .destroyNotify = NULL,
-      .reloadModel = NULL,
-      .checkAvailability = NULL,
-      .allocateInInvoke = NULL,
-    }
-  }
+        .v0 = {
+              .name = filter_subplugin_vivante,
+              .allow_in_place = FALSE,
+              .allocate_in_invoke = FALSE,
+              .run_without_model = FALSE,
+              .verify_model_path = FALSE,
+              .statistics = NULL,
+              .invoke_NN = vivante_invoke,
+              .getInputDimension = vivante_getInputDim,
+              .getOutputDimension = vivante_getOutputDim,
+              .setInputDimension = NULL,
+              .destroyNotify = NULL,
+              .reloadModel = NULL,
+              .checkAvailability = NULL,
+              .allocateInInvoke = NULL,
+            }
+      }
 };
 
 /**@brief Initialize this object for tensor_filter subplugin runtime register */
@@ -612,8 +612,7 @@ init_filter_vivante (void)
       "postprocess", "If this option is specified, a post process function"
       " defined as 'vnn_PostProcessNeuralNetwork()' is dlopened from the"
       " model file and invoked as a post processor.",
-      "pp", "Abbreviation of postprocess",
-      NULL);
+      "pp", "Abbreviation of postprocess", NULL);
 }
 
 /** @brief Destruct the subplugin */
