@@ -548,6 +548,9 @@ edgetpu_subplugin::init_filter_edgetpu (void)
 {
   registeredRepresentation
       = tensor_filter_subplugin::register_subplugin<edgetpu_subplugin> ();
+  nnstreamer_filter_set_custom_property_desc (name, "device_type",
+      "Device type of the Edge-TPU instance {'usb' (default), 'pci', 'dummy'}",
+      NULL);
 }
 
 /** @brief initializer */

@@ -508,6 +508,14 @@ snpe_subplugin::init_filter_snpe (void)
 {
   registeredRepresentation
       = tensor_filter_subplugin::register_subplugin<snpe_subplugin> ();
+  nnstreamer_filter_set_custom_property_desc (name,
+      "Runtime",
+      "Designate hardware resource {'CPU' (default), 'GPU', 'DSP', 'NPU'}",
+      "CPUFallback",
+      "Set true to enable CPU fallback {'true' (default), 'false'}",
+      "OutputLayer",
+      "Layer names for the output, separated by ';'. E.g., 'layer0;layer1;layer2'",
+      NULL);
 }
 
 /** @brief Destruct the subplugin */

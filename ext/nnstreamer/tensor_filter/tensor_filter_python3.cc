@@ -830,6 +830,10 @@ init_filter_py (void)
   nnstreamer_filter_probe (&NNS_support_python);
   /** Python should be initialized and finalized only once */
   Py_Initialize ();
+  nnstreamer_filter_set_custom_property_desc (filter_subplugin_python,
+      "${GENERAL_STRING}",
+      "There is no key-value pair defined by python3 subplugin. "
+      "Provide arguments for the given python3 script.", NULL);
 }
 
 /** @brief Destruct the subplugin */
