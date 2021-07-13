@@ -608,6 +608,12 @@ void
 init_filter_vivante (void)
 {
   nnstreamer_filter_probe (&NNS_support_vivante);
+  nnstreamer_filter_set_custom_property_desc (NNS_support_vivante.v0.name,
+      "postprocess", "If this option is specified, a post process function"
+      " defined as 'vnn_PostProcessNeuralNetwork()' is dlopened from the"
+      " model file and invoked as a post processor.",
+      "pp", "Abbreviation of postprocess",
+      NULL);
 }
 
 /** @brief Destruct the subplugin */

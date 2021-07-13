@@ -242,6 +242,20 @@ tensor_filter_snap::register_snap ()
   if (instance_ == nullptr) {
     instance_ = tensor_filter_subplugin::register_subplugin<tensor_filter_snap> ();
   }
+  nnstreamer_filter_set_custom_property_desc ("snap", "ModelFWType",
+      "Framework type for the given model: {'TENSORFLOW', 'CAFFE'}",
+      "ModelEncrypted",
+      "Use encrypted model: {'true': if encrypted. otherwise, not encrypted.",
+      "ExecutionDataType",
+      "Designate data type for the execution: {'FLOAT32' (default), "
+      "'FLOAT16', 'QASYMM16', 'QASYMM16'}",
+      "InputFormat", "Designate input data format: {'NHWC', 'NCHW'}",
+      "OutputFormat", "Designate output data format: {'NHWC', 'NCHW'}",
+      "ComputingUnit",
+      "Desingate hardware resources: {'CPU' (default), 'GPU', 'NPU', 'DSP'}",
+      "CpuThreadCount", "The number of CPU threads",
+      "GpuCacheSource", "The directory path to the GPU cache source.",
+      NULL);
 }
 
 /**

@@ -1340,6 +1340,12 @@ void
 init_filter_tflite (void)
 {
   nnstreamer_filter_probe (&NNS_support_tensorflow_lite);
+  nnstreamer_filter_set_custom_property_desc (
+      NNS_support_tensorflow_lite.v0.name,
+      "NumThreads", "Number of threads. Set 0 for default behaviors.",
+      "Delegate", "TF-Lite delegation options: {'NNAPI', 'GPU', 'XNNPACK'}."
+      " Do not specify to disable delegation.",
+      NULL);
 }
 
 /** @brief Destruct the subplugin */
