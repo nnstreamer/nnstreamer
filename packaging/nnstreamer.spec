@@ -782,11 +782,11 @@ export NNSTREAMER_CONVERTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor
 %endif
     pushd tests
 
-    %ifarch aarch64
+    %ifarch %arm aarch64
     ## @todo Workaround for QEMU compatibility issue. Newer qemu may be ok with this.
-    export SKIP_QEMU_ARM64_INCOMPATIBLE_TESTS=1
+    export SKIP_QEMU_ARM_INCOMPATIBLE_TESTS=1
     %else
-    export SKIP_QEMU_ARM64_INCOMPATIBLE_TESTS=0
+    export SKIP_QEMU_ARM_INCOMPATIBLE_TESTS=0
     %endif
 
     ssat -n -p=1 --summary summary.txt -cn _n
