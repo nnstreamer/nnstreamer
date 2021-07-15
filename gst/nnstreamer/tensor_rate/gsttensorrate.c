@@ -59,29 +59,6 @@
 #define ABSDIFF(a, b) (((a) > (b)) ? (a) - (b) : (b) - (a))
 #endif
 
-#define silent_debug(...) do { \
-    if (DBG) { \
-      GST_DEBUG_OBJECT (self, __VA_ARGS__); \
-    } \
-  } while (0)
-
-#define silent_debug_caps(caps,msg) do {\
-  if (DBG) { \
-    if (caps) { \
-      GstStructure *caps_s; \
-      gchar *caps_s_string; \
-      guint caps_size, caps_idx; \
-      caps_size = gst_caps_get_size (caps);\
-      for (caps_idx = 0; caps_idx < caps_size; caps_idx++) { \
-        caps_s = gst_caps_get_structure (caps, caps_idx); \
-        caps_s_string = gst_structure_to_string (caps_s); \
-        GST_DEBUG_OBJECT (self, msg " = %s\n", caps_s_string); \
-        g_free (caps_s_string); \
-      } \
-    } \
-  } \
-} while (0)
-
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_rate_debug);
 #define GST_CAT_DEFAULT gst_tensor_rate_debug
 
@@ -265,7 +242,7 @@ gst_tensor_rate_push_buffer (GstTensorRate * self, GstBuffer * outbuf,
   /* adapt for looping, bring back to time in current segment. */
   GST_BUFFER_TIMESTAMP (outbuf) = push_ts - self->segment.base;
 
-  silent_debug ("old is best, dup, pushing buffer outgoing ts %"
+  silent_debug (self, "old is best, dup, pushing buffer outgoing ts %"
       GST_TIME_FORMAT, GST_TIME_ARGS (push_ts));
 
   res = gst_pad_push (GST_BASE_TRANSFORM_SRC_PAD (self), outbuf);
@@ -301,7 +278,7 @@ static void
 gst_tensor_rate_swap_prev (GstTensorRate * self, GstBuffer * buffer,
     gint64 time)
 {
-  silent_debug ("swap_prev: storing buffer %p in prev", buffer);
+  silent_debug (self, "swap_prev: storing buffer %p in prev", buffer);
 
   if (self->prevbuf)
     gst_buffer_unref (self->prevbuf);
@@ -485,7 +462,7 @@ gst_tensor_rate_send_qos_throttle (GstTensorRate * self, GstClockTime timestamp)
   event = gst_event_new_qos (GST_QOS_TYPE_THROTTLE,
       0.9 /** unused */ , delay, timestamp);
 
-  silent_debug ("Send throttling event with delay: %" GST_TIME_FORMAT,
+  silent_debug (self, "Send throttling event with delay: %" GST_TIME_FORMAT,
       GST_TIME_ARGS (delay));
 
   gst_pad_push_event (sinkpad, event);
@@ -531,7 +508,7 @@ gst_tensor_rate_transform_ip (GstBaseTransform * trans, GstBuffer * buffer)
   if (GST_CLOCK_TIME_IS_VALID (in_dur))
     self->last_ts += in_dur;
 
-  silent_debug ("got buffer with timestamp %" GST_TIME_FORMAT,
+  silent_debug (self, "got buffer with timestamp %" GST_TIME_FORMAT,
       GST_TIME_ARGS (in_ts));
 
   intime = in_ts + self->segment.base;
@@ -562,14 +539,14 @@ gst_tensor_rate_transform_ip (GstBaseTransform * trans, GstBuffer * buffer)
 
     prevtime = self->prev_ts;
 
-    silent_debug ("BEGINNING prev buf %" GST_TIME_FORMAT " new buf %"
+    silent_debug (self, "BEGINNING prev buf %" GST_TIME_FORMAT " new buf %"
         GST_TIME_FORMAT " outgoing ts %" GST_TIME_FORMAT,
         GST_TIME_ARGS (prevtime), GST_TIME_ARGS (intime),
         GST_TIME_ARGS (self->next_ts));
 
     /* drop new buffer if it's before previous one */
     if (intime < prevtime) {
-      silent_debug ("The new buffer (%" GST_TIME_FORMAT ") is before "
+      silent_debug (self, "The new buffer (%" GST_TIME_FORMAT ") is before "
           "the previous buffer (%" GST_TIME_FORMAT
           "). Dropping new buffer.", GST_TIME_ARGS (intime),
           GST_TIME_ARGS (prevtime));
@@ -595,7 +572,7 @@ gst_tensor_rate_transform_ip (GstBaseTransform * trans, GstBuffer * buffer)
       diff1 = ABSDIFF (prevtime, next_ts);
       diff2 = ABSDIFF (intime, next_ts);
 
-      silent_debug ("diff with prev %" GST_TIME_FORMAT
+      silent_debug (self, "diff with prev %" GST_TIME_FORMAT
           " diff with new %" GST_TIME_FORMAT " outgoing ts %"
           GST_TIME_FORMAT, GST_TIME_ARGS (diff1),
           GST_TIME_ARGS (diff2), GST_TIME_ARGS (next_ts));
@@ -659,9 +636,9 @@ gst_tensor_rate_transform_caps (GstBaseTransform * trans,
   GstCaps *result = gst_caps_new_empty ();
   gint i;
 
-  silent_debug ("Direction = %d\n", direction);
-  silent_debug_caps (caps, "from");
-  silent_debug_caps (filter, "filter");
+  silent_debug (self, "Direction = %d\n", direction);
+  silent_debug_caps (self, caps, "from");
+  silent_debug_caps (self, filter, "filter");
 
   for (i = 0; i < gst_caps_get_size (caps); i++) {
     GstStructure *s, *const_s = gst_caps_get_structure (caps, i);
@@ -689,7 +666,7 @@ gst_tensor_rate_transform_caps (GstBaseTransform * trans,
     result = intersection;
   }
 
-  silent_debug_caps (result, "to");
+  silent_debug_caps (self, result, "to");
 
   return result;
 }
@@ -728,8 +705,9 @@ gst_tensor_rate_set_caps (GstBaseTransform * trans,
   GstStructure *structure;
   gint rate_numerator, rate_denominator;
 
-  silent_debug ("setcaps called in: %" GST_PTR_FORMAT " out: %" GST_PTR_FORMAT,
-      in_caps, out_caps);
+  silent_debug (self,
+      "setcaps called in: %" GST_PTR_FORMAT " out: %" GST_PTR_FORMAT, in_caps,
+      out_caps);
 
   structure = gst_caps_get_structure (in_caps, 0);
 
@@ -757,14 +735,14 @@ gst_tensor_rate_set_caps (GstBaseTransform * trans,
    * After a setcaps, our caps may have changed. In that case, we can't use
    * the old buffer, if there was one (it might have different dimensions)
    */
-  silent_debug ("swapping old buffers");
+  silent_debug (self, "swapping old buffers");
   gst_tensor_rate_swap_prev (self, NULL, GST_CLOCK_TIME_NONE);
   self->last_ts = GST_CLOCK_TIME_NONE;
 
   return TRUE;
 
 no_framerate:
-  silent_debug ("no framerate specified");
+  silent_debug (self, "no framerate specified");
   return FALSE;
 }
 
@@ -806,7 +784,8 @@ gst_tensor_rate_sink_event (GstBaseTransform * trans, GstEvent * event)
       GstSegment segment;
       gint seqnum;
 
-      silent_debug ("Got %s", gst_event_type_get_name (GST_EVENT_TYPE (event)));
+      silent_debug (self, "Got %s",
+          gst_event_type_get_name (GST_EVENT_TYPE (event)));
 
       gst_event_copy_segment (event, &segment);
       if (segment.format != GST_FORMAT_TIME) {
@@ -849,7 +828,8 @@ gst_tensor_rate_sink_event (GstBaseTransform * trans, GstEvent * event)
 
       gst_segment_copy_into (&segment, &self->segment);
 
-      silent_debug ("updated segment: %" GST_SEGMENT_FORMAT, &self->segment);
+      silent_debug (self, "updated segment: %" GST_SEGMENT_FORMAT,
+          &self->segment);
 
       seqnum = gst_event_get_seqnum (event);
       gst_event_unref (event);
@@ -864,7 +844,8 @@ gst_tensor_rate_sink_event (GstBaseTransform * trans, GstEvent * event)
       gint count = 0;
       GstFlowReturn res = GST_FLOW_OK;
 
-      silent_debug ("Got %s", gst_event_type_get_name (GST_EVENT_TYPE (event)));
+      silent_debug (self, "Got %s",
+          gst_event_type_get_name (GST_EVENT_TYPE (event)));
 
       /* If the segment has a stop position, fill the segment */
       if (GST_CLOCK_TIME_IS_VALID (self->segment.stop)) {
@@ -916,12 +897,14 @@ gst_tensor_rate_sink_event (GstBaseTransform * trans, GstEvent * event)
     }
     case GST_EVENT_FLUSH_STOP:
       /* also resets the segment */
-      silent_debug ("Got %s", gst_event_type_get_name (GST_EVENT_TYPE (event)));
+      silent_debug (self, "Got %s",
+          gst_event_type_get_name (GST_EVENT_TYPE (event)));
       gst_tensor_rate_reset (self);
       break;
     case GST_EVENT_GAP:
       /* no gaps after tensor rate, ignore the event */
-      silent_debug ("Got %s", gst_event_type_get_name (GST_EVENT_TYPE (event)));
+      silent_debug (self, "Got %s",
+          gst_event_type_get_name (GST_EVENT_TYPE (event)));
       gst_event_unref (event);
       return TRUE;
     default:

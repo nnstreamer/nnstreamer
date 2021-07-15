@@ -40,27 +40,7 @@
 #define DBG (!self->silent)
 #endif
 
-/**
- * @brief Macro for debug message.
- */
-#define silent_debug_caps(caps,msg) do { \
-  if (DBG) { \
-    if (caps) { \
-      GstStructure *caps_s; \
-      gchar *caps_s_string; \
-      guint caps_size, caps_idx; \
-      caps_size = gst_caps_get_size (caps);\
-      for (caps_idx = 0; caps_idx < caps_size; caps_idx++) { \
-        caps_s = gst_caps_get_structure (caps, caps_idx); \
-        caps_s_string = gst_structure_to_string (caps_s); \
-        GST_DEBUG_OBJECT (self, msg " = %s", caps_s_string); \
-        g_free (caps_s_string); \
-      } \
-    } \
-  } \
-} while (0)
-
-#define silent_debug_config(c,msg) do { \
+#define silent_debug_config(self,c,msg) do { \
   if (DBG) { \
     if (c) { \
       gchar *dim_str; \
@@ -421,14 +401,14 @@ gst_tensor_aggregator_sink_event (GstPad * pad, GstObject * parent,
       GstCaps *out_caps;
 
       gst_event_parse_caps (event, &in_caps);
-      silent_debug_caps (in_caps, "in-caps");
+      silent_debug_caps (self, in_caps, "in-caps");
 
       if (gst_tensor_aggregator_parse_caps (self, in_caps)) {
         gboolean ret = FALSE;
 
         out_caps =
             gst_tensor_pad_caps_from_config (self->srcpad, &self->out_config);
-        silent_debug_caps (out_caps, "out-caps");
+        silent_debug_caps (self, out_caps, "out-caps");
 
         ret = gst_pad_set_caps (self->srcpad, out_caps);
 
@@ -483,7 +463,7 @@ gst_tensor_aggregator_sink_query (GstPad * pad, GstObject * parent,
       gboolean res = FALSE;
 
       gst_query_parse_accept_caps (query, &caps);
-      silent_debug_caps (caps, "accept-caps");
+      silent_debug_caps (self, caps, "accept-caps");
 
       if (gst_caps_is_fixed (caps)) {
         template_caps = gst_pad_get_pad_template_caps (pad);
@@ -1010,8 +990,8 @@ gst_tensor_aggregator_query_caps (GstTensorAggregator * self, GstPad * pad,
   /* caps from tensor config info */
   caps = gst_tensor_pad_possible_caps_from_config (pad, config);
 
-  silent_debug_caps (caps, "caps");
-  silent_debug_caps (filter, "filter");
+  silent_debug_caps (self, caps, "caps");
+  silent_debug_caps (self, filter, "filter");
 
   if (caps && filter) {
     GstCaps *intersection;
@@ -1082,7 +1062,7 @@ gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
   self->out_config = config;
   self->tensor_configured = TRUE;
 
-  silent_debug_config (&self->in_config, "in-tensor");
-  silent_debug_config (&self->out_config, "out-tensor");
+  silent_debug_config (self, &self->in_config, "in-tensor");
+  silent_debug_config (self, &self->out_config, "out-tensor");
   return TRUE;
 }

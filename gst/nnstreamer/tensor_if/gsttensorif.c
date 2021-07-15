@@ -81,23 +81,6 @@
 #define DBG (!tensor_if->silent)
 #endif
 
-#define silent_debug_caps(caps,msg) do { \
-  if (DBG) { \
-    if (caps) { \
-      GstStructure *caps_s; \
-      gchar *caps_s_string; \
-      guint caps_size, caps_idx; \
-      caps_size = gst_caps_get_size (caps);\
-      for (caps_idx = 0; caps_idx < caps_size; caps_idx++) { \
-        caps_s = gst_caps_get_structure (caps, caps_idx); \
-        caps_s_string = gst_structure_to_string (caps_s); \
-        GST_DEBUG_OBJECT (tensor_if, msg " = %s\n", caps_s_string); \
-        g_free (caps_s_string); \
-      } \
-    } \
-  } \
-} while (0)
-
 /**
  * @brief tensor_if properties
  */
@@ -734,7 +717,7 @@ gst_tensor_if_get_tensor_pad (GstTensorIf * tensor_if,
 
   caps = gst_tensor_pad_caps_from_config (pad, config);
 
-  silent_debug_caps (caps, "out caps");
+  silent_debug_caps (tensor_if, caps, "out caps");
   gst_pad_set_caps (pad, caps);
 
   gst_caps_unref (caps);
