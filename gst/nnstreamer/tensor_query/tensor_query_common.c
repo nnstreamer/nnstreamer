@@ -96,6 +96,11 @@ gst_tensor_query_socket_receive (GSocket * socket, GCancellable * cancellable,
   GstMemory *out_mem;
   gboolean need_alloc;
 
+  if (!outbuf) {
+    ml_loge ("NULL parameter is passed to gst_tensor_query_socket_receive");
+    return GST_FLOW_ERROR;
+  }
+
   /* read the buffer header */
   avail = g_socket_get_available_bytes (socket);
   if (avail < 0) {
@@ -139,8 +144,8 @@ gst_tensor_query_socket_receive (GSocket * socket, GCancellable * cancellable,
 
     if (need_alloc) {
       out_mem = gst_allocator_alloc (NULL, read, NULL);
-      nns_logi ("allocated buffer size: %lu",
-          gst_memory_get_sizes (out_mem, NULL, NULL));
+      nns_logi ("allocated buffer size: %u",
+          (guint) gst_memory_get_sizes (out_mem, NULL, NULL));
     } else {
       if (gst_buffer_get_size (outbuf) < read) {
         gst_buffer_set_size (outbuf, read);
