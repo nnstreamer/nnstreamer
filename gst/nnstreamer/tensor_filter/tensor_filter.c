@@ -74,45 +74,6 @@
 /** @todo rename & move this to better location */
 #define EVENT_NAME_UPDATE_MODEL "evt_update_model"
 
-/**
- * @brief Macro for debug message.
- */
-#define silent_debug(...) do { \
-    if (DBG) { \
-      GST_DEBUG_OBJECT (self, __VA_ARGS__); \
-    } \
-  } while (0)
-
-#define silent_debug_caps(caps,msg) do { \
-  if (DBG) { \
-    if (caps) { \
-      GstStructure *caps_s; \
-      gchar *caps_s_string; \
-      guint caps_size, caps_idx; \
-      caps_size = gst_caps_get_size (caps);\
-      for (caps_idx = 0; caps_idx < caps_size; caps_idx++) { \
-        caps_s = gst_caps_get_structure (caps, caps_idx); \
-        caps_s_string = gst_structure_to_string (caps_s); \
-        GST_DEBUG_OBJECT (self, msg " = %s\n", caps_s_string); \
-        g_free (caps_s_string); \
-      } \
-    } \
-  } \
-} while (0)
-
-#define silent_debug_info(i,msg) do { \
-  if (DBG) { \
-    guint info_idx; \
-    gchar *dim_str; \
-    GST_DEBUG_OBJECT (self, msg " total %d", (i)->num_tensors); \
-    for (info_idx = 0; info_idx < (i)->num_tensors; info_idx++) { \
-      dim_str = gst_tensor_get_dimension_string ((i)->info[info_idx].dimension); \
-      GST_DEBUG_OBJECT (self, "[%d] type=%d dim=%s", info_idx, (i)->info[info_idx].type, dim_str); \
-      g_free (dim_str); \
-    } \
-  } \
-} while (0)
-
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_filter_debug);
 #define GST_CAT_DEFAULT gst_tensor_filter_debug
 
@@ -297,7 +258,7 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
   self = GST_TENSOR_FILTER (object);
   priv = &self->priv;
 
-  silent_debug ("Setting property for prop %d.\n", prop_id);
+  silent_debug (self, "Setting property for prop %d.\n", prop_id);
 
   if (!gst_tensor_filter_common_set_property (priv, prop_id, value, pspec))
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -316,7 +277,7 @@ gst_tensor_filter_get_property (GObject * object, guint prop_id,
   self = GST_TENSOR_FILTER (object);
   priv = &self->priv;
 
-  silent_debug ("Getting property for prop %d.\n", prop_id);
+  silent_debug (self, "Getting property for prop %d.\n", prop_id);
 
   if (!gst_tensor_filter_common_get_property (priv, prop_id, value, pspec))
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -557,7 +518,7 @@ _gst_tensor_filter_transform_validate (GstBaseTransform * trans,
     return GST_FLOW_ERROR;
   }
 
-  silent_debug ("Invoking %s with %s model\n", priv->fw->name,
+  silent_debug (self, "Invoking %s with %s model\n", priv->fw->name,
       GST_STR_NULL (prop->model_files[0]));
 
   /* skip input data when throttling delay is set */
@@ -996,8 +957,8 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
   gst_tensors_config_init (&in_config);
   gst_tensors_config_init (&out_config);
 
-  silent_debug_caps (caps, "from");
-  silent_debug_caps (filter, "filter");
+  silent_debug_caps (self, caps, "from");
+  silent_debug_caps (self, filter, "filter");
 
   if (direction == GST_PAD_SINK)
     pad = GST_BASE_TRANSFORM_SRC_PAD (trans);
@@ -1076,7 +1037,7 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
     result = intersection;
   }
 
-  silent_debug_caps (result, "to");
+  silent_debug_caps (self, result, "to");
   gst_tensors_config_free (&in_config);
   gst_tensors_config_free (&out_config);
   return result;
@@ -1095,9 +1056,9 @@ gst_tensor_filter_fixate_caps (GstBaseTransform * trans,
   self = GST_TENSOR_FILTER_CAST (trans);
   priv = &self->priv;
 
-  silent_debug ("fixate_caps, direction = %d\n", direction);
-  silent_debug_caps (caps, "caps");
-  silent_debug_caps (othercaps, "othercaps");
+  silent_debug (self, "fixate_caps, direction = %d\n", direction);
+  silent_debug_caps (self, caps, "caps");
+  silent_debug_caps (self, othercaps, "othercaps");
 
   /** Removes no-used-variable warning for priv in when DBG is set */
   if (priv->fw == NULL) {
@@ -1114,7 +1075,7 @@ gst_tensor_filter_fixate_caps (GstBaseTransform * trans,
   result = gst_caps_make_writable (result);
   result = gst_caps_fixate (result);
 
-  silent_debug_caps (result, "result");
+  silent_debug_caps (self, result, "result");
   return result;
 }
 
@@ -1133,8 +1094,8 @@ gst_tensor_filter_set_caps (GstBaseTransform * trans,
   self = GST_TENSOR_FILTER_CAST (trans);
   priv = &self->priv;
 
-  silent_debug_caps (incaps, "incaps");
-  silent_debug_caps (outcaps, "outcaps");
+  silent_debug_caps (self, incaps, "incaps");
+  silent_debug_caps (self, outcaps, "outcaps");
 
   if (!gst_tensor_filter_configure_tensor (self, incaps)) {
     GST_ERROR_OBJECT (self, "Failed to configure tensor.");

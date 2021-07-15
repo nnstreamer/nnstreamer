@@ -74,15 +74,6 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_mux_debug);
 #define DBG (!tensor_mux->silent)
 #endif
 
-/**
- * @brief Macro for debug message.
- */
-#define silent_debug(...) do { \
-    if (DBG) { \
-      GST_DEBUG_OBJECT (tensor_mux, __VA_ARGS__); \
-    } \
-  } while (0)
-
 enum
 {
   PROP_0,
@@ -382,7 +373,7 @@ gst_tensor_mux_collect_buffer (GstTensorMux * tensor_mux,
     }
 
     tensor_mux->need_set_time = FALSE;
-    silent_debug ("Current Time : %" GST_TIME_FORMAT,
+    silent_debug (tensor_mux, "Current Time : %" GST_TIME_FORMAT,
         GST_TIME_ARGS (tensor_mux->current_time));
   }
 
@@ -619,13 +610,13 @@ gst_tensor_mux_set_property (GObject * object, guint prop_id,
       if (tensor_mux->sync.mode == SYNC_END) {
         tensor_mux->sync.mode = SYNC_SLOWEST;
       }
-      silent_debug ("Mode = %d(%s)\n", tensor_mux->sync.mode,
+      silent_debug (tensor_mux, "Mode = %d(%s)\n", tensor_mux->sync.mode,
           gst_tensor_time_sync_get_mode_string (tensor_mux->sync.mode));
       gst_tensor_time_sync_set_option_data (&tensor_mux->sync);
       break;
     case PROP_SYNC_OPTION:
       tensor_mux->sync.option = g_value_dup_string (value);
-      silent_debug ("Option = %s\n", tensor_mux->sync.option);
+      silent_debug (tensor_mux, "Option = %s\n", tensor_mux->sync.option);
       gst_tensor_time_sync_set_option_data (&tensor_mux->sync);
       break;
     default:
