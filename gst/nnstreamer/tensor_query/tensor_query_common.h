@@ -42,7 +42,7 @@ typedef enum
  */
 extern GSocket *
 gst_tensor_query_socket_new (const gchar * hostname, guint16 port,
-    GCancellable * cancellable);
+    GCancellable * cancellable, GSocketAddress ** saddr);
 /**
  * @brief Receive data from a socket.
  * @param[in] socket the socket.

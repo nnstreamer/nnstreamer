@@ -26,17 +26,17 @@
  * @param[in] hostname the hostname.
  * @param[in] port a port number.
  * @param[in] cancellable (nullable) GCancellable
+ * @param[out] saddr Socket address
  * @return Newly created socket or NULL on error.
  * @note Caller is responsible for unreferring the returned object with g_object_unref().
  */
 GSocket *
 gst_tensor_query_socket_new (const gchar * hostname, guint16 port,
-    GCancellable * cancellable)
+    GCancellable * cancellable, GSocketAddress ** saddr)
 {
   GSocket *socket;
   GError *err = NULL;
   GInetAddress *addr;
-  GSocketAddress *saddr;
 
   /* look up name if we need to */
   addr = g_inet_address_new_from_string (hostname);
@@ -64,13 +64,13 @@ gst_tensor_query_socket_new (const gchar * hostname, guint16 port,
     g_object_unref (resolver);
   }
 
-  saddr = g_inet_socket_address_new (addr, port);
+  *saddr = g_inet_socket_address_new (addr, port);
   g_object_unref (addr);
 
   /* create sending client socket */
   /** @todo Support UDP protocol */
   socket =
-      g_socket_new (g_socket_address_get_family (saddr), G_SOCKET_TYPE_STREAM,
+      g_socket_new (g_socket_address_get_family (*saddr), G_SOCKET_TYPE_STREAM,
       G_SOCKET_PROTOCOL_TCP, &err);
 
   return socket;
@@ -93,6 +93,8 @@ gst_tensor_query_socket_receive (GSocket * socket, GCancellable * cancellable,
   gsize read;
   GError *err = NULL;
   GstMapInfo map;
+  GstMemory *out_mem;
+  gboolean need_alloc;
 
   /* read the buffer header */
   avail = g_socket_get_available_bytes (socket);
@@ -131,11 +133,30 @@ gst_tensor_query_socket_receive (GSocket * socket, GCancellable * cancellable,
   }
 
   if (avail > 0) {
+    nns_logi ("available data: %d", (gint) avail);
     read = MIN (avail, MAX_READ_SIZE);
-    outbuf = gst_buffer_new_and_alloc (read);
-    gst_buffer_map (outbuf, &map, GST_MAP_READWRITE);
+    need_alloc = (gst_buffer_get_size (outbuf) == 0);
+
+    if (need_alloc) {
+      out_mem = gst_allocator_alloc (NULL, read, NULL);
+      nns_logi ("allocated buffer size: %lu",
+          gst_memory_get_sizes (out_mem, NULL, NULL));
+    } else {
+      if (gst_buffer_get_size (outbuf) < read) {
+        gst_buffer_set_size (outbuf, read);
+      }
+      out_mem = gst_buffer_get_all_memory (outbuf);
+    }
+
+    gst_memory_map (out_mem, &map, GST_MAP_READWRITE);
     rret =
         g_socket_receive (socket, (gchar *) map.data, read, cancellable, &err);
+    gst_memory_unmap (out_mem, &map);
+
+    if (need_alloc)
+      gst_buffer_append_memory (outbuf, out_mem);
+    else
+      gst_memory_unref (out_mem);
   } else {
     /* Connection closed */
     rret = 0;
@@ -147,7 +168,6 @@ gst_tensor_query_socket_receive (GSocket * socket, GCancellable * cancellable,
     nns_logd ("Connection closed");
     ret = GST_FLOW_EOS;
     if (outbuf) {
-      gst_buffer_unmap (outbuf, &map);
       gst_buffer_unref (outbuf);
     }
     outbuf = NULL;
@@ -159,13 +179,10 @@ gst_tensor_query_socket_receive (GSocket * socket, GCancellable * cancellable,
       ret = GST_FLOW_ERROR;
       nns_loge ("Failed to read from socket: %s", err->message);
     }
-    gst_buffer_unmap (outbuf, &map);
     gst_buffer_unref (outbuf);
     outbuf = NULL;
   } else {
     ret = GST_FLOW_OK;
-    gst_buffer_unmap (outbuf, &map);
-    gst_buffer_resize (outbuf, 0, rret);
     *bytes_received += read;
   }
   g_clear_error (&err);
