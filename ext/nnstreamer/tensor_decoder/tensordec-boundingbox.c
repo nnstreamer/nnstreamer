@@ -56,6 +56,14 @@
  *            You could specify respectively the detection and IOU thresholds to 0.65
  *            and 0.6 with the option3 parameter as follow:
  *            option3=box-priors.txt:0.65:::::0.6
+ *          for mobilenet-ssd-postprocess mode:
+ *            The option3 is required to have 5 integer numbers, which tell
+ *            the tensor-dec how to interpret the given tensor inputs.
+ *            The first 4 numbers separated by colon, ':', designate which
+ *            are location:class:score:number of the tensors.
+ *            The last number separted by comma, ',' from the first 4 numbers
+ *            designate the threshold in percent.
+ *            In other words, "option3=%i:%i:%i:%i,%i".
  * option4: Video Output Dimension (WIDTH:HEIGHT)
  *          This is independent from option1
  * option5: Input Dimension (WIDTH:HEIGHT)
