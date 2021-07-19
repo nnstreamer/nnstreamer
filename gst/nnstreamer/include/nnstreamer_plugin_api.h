@@ -327,6 +327,12 @@ gst_tensors_config_is_equal (const GstTensorsConfig * c1,
     const GstTensorsConfig * c2);
 
 /**
+ * @brief Copy tensors config
+ */
+extern void
+gst_tensors_config_copy (GstTensorsConfig * dest, const GstTensorsConfig * src);
+
+/**
  * @brief Get tensor caps from tensor config (for other/tensor)
  * @param config tensor config info
  * @return caps for given config

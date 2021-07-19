@@ -1028,6 +1028,20 @@ gst_tensors_config_is_equal (const GstTensorsConfig * c1,
 }
 
 /**
+ * @brief Copy tensors config
+ */
+void
+gst_tensors_config_copy (GstTensorsConfig * dest, const GstTensorsConfig * src)
+{
+  g_return_if_fail (dest != NULL);
+  g_return_if_fail (src != NULL);
+
+  gst_tensors_info_copy (&dest->info, &src->info);
+  dest->rate_n = src->rate_n;
+  dest->rate_d = src->rate_d;
+}
+
+/**
  * @brief Parse structure and set tensors config (for other/tensors)
  * @param config tensors config structure to be filled
  * @param structure structure to be interpreted
