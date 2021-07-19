@@ -948,13 +948,8 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
     g_assert (gst_tensors_config_is_equal (&priv->in_config, &in_config));
     g_assert (gst_tensors_config_is_equal (&priv->out_config, &out_config));
   } else {
-    gst_tensors_info_copy (&priv->in_config.info, &in_config.info);
-    priv->in_config.rate_n = in_config.rate_n;
-    priv->in_config.rate_d = in_config.rate_d;
-
-    gst_tensors_info_copy (&priv->out_config.info, &out_config.info);
-    priv->out_config.rate_n = out_config.rate_n;
-    priv->out_config.rate_d = out_config.rate_d;
+    gst_tensors_config_copy (&priv->in_config, &in_config);
+    gst_tensors_config_copy (&priv->out_config, &out_config);
 
     priv->configured = TRUE;
   }
