@@ -115,6 +115,8 @@ nnstreamer_conf.set('SUBPLUGIN_INSTALL_PREFIX', subplugin_install_prefix)
 
 # Set framework priority about model file extension when automatically selecting framework for tensor filter.
 nnstreamer_conf.set('FRAMEWORK_PRIORITY_TFLITE', get_option('framework-priority-tflite'))
+nnstreamer_conf.set('FRAMEWORK_PRIORITY_NB', get_option('framework-priority-nb'))
+nnstreamer_conf.set('FRAMEWORK_PRIORITY_BIN', get_option('framework-priority-bin'))
 
 # Define default conf file
 add_project_arguments('-DNNSTREAMER_CONF_FILE="' + join_paths(nnstreamer_inidir, 'nnstreamer.ini') + '"', language: 'c')
