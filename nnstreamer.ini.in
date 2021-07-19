@@ -9,8 +9,10 @@ filters=@SUBPLUGIN_INSTALL_PREFIX@/filters/
 customfilters=@SUBPLUGIN_INSTALL_PREFIX@/customfilters/
 
 # Set framework priority about model file extension when automatically selecting framework for tensor filter.
-# A comma separated prioritized list of neural network frameworks to open .tflite file
+# A comma separated prioritized list of neural network frameworks to open model file
 framework_priority_tflite=@FRAMEWORK_PRIORITY_TFLITE@
+framework_priority_nb=@FRAMEWORK_PRIORITY_NB@
+framework_priority_bin=@FRAMEWORK_PRIORITY_BIN@
 
 [decoder]
 decoders=@SUBPLUGIN_INSTALL_PREFIX@/decoders/
