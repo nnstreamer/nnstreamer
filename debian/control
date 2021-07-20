@@ -15,6 +15,7 @@ Build-Depends: gcc-9 | gcc-8 | gcc-7 | gcc-6 | gcc-5 (>=5.4),
  tensorflow-dev [amd64],
  pytorch, libedgetpu1-std (>=12), libedgetpu-dev (>=12),
  openvino-dev, openvino-cpu-mkldnn [amd64],
+ nnfw-dev [amd64],
  tvm-runtime-dev
 Standards-Version: 3.9.6
 Homepage: https://github.com/nnstreamer/nnstreamer
@@ -99,6 +100,13 @@ Multi-Arch: same
 Depends: nnstreamer, openvino, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer OpenVino support
  This package allows nnstreamer to support OpenVino.
+
+Package: nnstreamer-nnfw
+Architecture: amd64
+Multi-Arch: same
+Depends: nnstreamer, nnfw, ${shlibs:Depends}, ${misc:Depends}
+Description: NNStreamer NNFW (ONE) support
+ This package allows nnstreamer to support NNFW (ONE, On-Device Neural Engine).
 
 Package: nnstreamer-tvm
 Architecture: any
