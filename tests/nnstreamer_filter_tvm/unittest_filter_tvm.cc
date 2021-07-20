@@ -283,7 +283,7 @@ TEST (nnstreamerFilterTvm, invoke01_n)
   EXPECT_EQ (ret, 0);
   EXPECT_NE (data, nullptr);
 
-  output.size = input.size = 1;
+  output.size = input.size = sizeof (float);
 
   input.data = g_malloc (input.size);
   output.data = g_malloc (output.size);
@@ -362,9 +362,8 @@ TEST (nnstreamerFilterTvm, invoke00)
   output.size = input.size = sizeof (float) * 3 * 640 * 480 * 1;
 
   /* alloc input data without alignment */
-  input.data = malloc (input.size);
-  output.data = malloc (output.size);
-
+  input.data = g_malloc (input.size);
+  output.data = g_malloc (output.size);
   memset (input.data, 0, input.size);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("tvm");

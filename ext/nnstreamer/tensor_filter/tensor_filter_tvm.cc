@@ -346,25 +346,24 @@ tvm_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 
   unsigned int i;
   tvm::runtime::NDArray tensor;
-  tvm::runtime::PackedFunc set_input, set_input_zero_copy, get_output, run;
 
   /* input data is aligned */
-  set_input_zero_copy = gmod.GetFunction ("set_input_zero_copy");
+  const tvm::runtime::PackedFunc &set_input_zero_copy = gmod.GetFunction ("set_input_zero_copy");
   if (set_input_zero_copy == nullptr) {
     cleanup ();
     throw std::runtime_error ("Packed function `set_input_zero_copy` not defined in model");
   }
-  set_input = gmod.GetFunction ("set_input");
+  const tvm::runtime::PackedFunc &set_input = gmod.GetFunction ("set_input");
   if (set_input == nullptr) {
     cleanup ();
     throw std::runtime_error ("Packed function `set_input` not defined in model");
   }
-  get_output = gmod.GetFunction ("get_output");
+  const tvm::runtime::PackedFunc &get_output = gmod.GetFunction ("get_output");
   if (get_output == nullptr) {
     cleanup ();
     throw std::runtime_error ("Packed function `get_output` not defined in model");
   }
-  run = gmod.GetFunction ("run");
+  const tvm::runtime::PackedFunc &run = gmod.GetFunction ("run");
   if (run == nullptr) {
     cleanup ();
     throw std::runtime_error ("Packed function `run` not defined in model");
