@@ -229,7 +229,6 @@ typedef struct
                    and some (tensorflow-lite) do not need this. */
   tensor_type type; /**< Type of each element in the tensor. User must designate this. */
   tensor_dim dimension; /**< Dimension. We support up to 4th ranks.  */
-  tensor_format format; /**< Tensor format */
 } GstTensorInfo;
 
 /**
@@ -248,6 +247,7 @@ typedef struct
 typedef struct
 {
   GstTensorsInfo info; /**< tensor info*/
+  tensor_format format; /**< tensor stream type */
   int rate_n; /**< framerate is in fraction, which is numerator/denominator */
   int rate_d; /**< framerate is in fraction, which is numerator/denominator */
 } GstTensorsConfig;

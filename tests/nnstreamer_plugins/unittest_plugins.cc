@@ -1966,7 +1966,6 @@ TEST (testTensorTransform, arithmeticFlexTensor)
 
   /* in/out tensor info */
   gst_tensor_info_init (&in_info);
-  in_info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
   in_info.type = _NNS_UINT8;
   gst_tensor_parse_dimension ("5", in_info.dimension);
   data_in_size = gst_tensor_info_get_size (&in_info);
@@ -2954,7 +2953,6 @@ TEST (testTensorConverter, flexToStaticInvalidBuffer1_n)
   gst_harness_set_src_caps (h, caps);
 
   gst_tensor_info_init (&info);
-  info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
   info.type = _NNS_INT32;
   gst_tensor_parse_dimension ("3:4:2:2", info.dimension);
 
@@ -6035,7 +6033,6 @@ TEST_REQUIRE_TFLITE (testTensorFilter, flexToFlex)
 
   gst_tensor_info_init (&info);
   info.type = _NNS_UINT8;
-  info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
   gst_tensor_parse_dimension ("3:224:224:1", info.dimension);
 
   /* push buffer (uint8, 3:224:224:1) */
@@ -6486,6 +6483,7 @@ typedef struct
   GstHarness *info_q;
 
   GstTensorInfo raw_info;
+  tensor_format raw_format;
   guint received;
   gpointer raw_data;
   gsize raw_size;
@@ -6530,6 +6528,7 @@ _crop_test_init (crop_test_data_s * crop_test)
   gst_harness_set_src_caps (crop_test->info_q, caps);
 
   gst_tensor_info_init (&crop_test->raw_info);
+  crop_test->raw_format = _NNS_TENSOR_FORMAT_STATIC;
   crop_test->received = 0;
   crop_test->raw_data = NULL;
   crop_test->raw_size = 0;
@@ -6566,7 +6565,7 @@ _crop_test_free (crop_test_data_s * crop_test)
     GstMemory *mem; \
     mem = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY, \
         (ctd)->raw_data, (ctd)->raw_size, 0, (ctd)->raw_size, NULL, NULL); \
-    if ((ctd)->raw_info.format == _NNS_TENSOR_FORMAT_FLEXIBLE) { \
+    if ((ctd)->raw_format == _NNS_TENSOR_FORMAT_FLEXIBLE) { \
       GstTensorMetaInfo meta; \
       gst_tensor_info_convert_to_meta (&(ctd)->raw_info, &meta); \
       gst_buffer_append_memory (rb, gst_tensor_meta_info_append_header (&meta, mem)); \
@@ -6613,6 +6612,7 @@ _crop_test_push_buffer (crop_test_data_s * crop_test)
   gst_tensors_config_init (&config);
   config.info.num_tensors = 1;
   config.info.info[0] = crop_test->raw_info;
+  config.format = crop_test->raw_format;
   config.rate_n = 0;
   config.rate_d = 1;
 
@@ -6898,8 +6898,8 @@ TEST (testTensorCrop, rawDelayed_n)
   g_object_get (crop_test.crop->element, "lateness", &lateness, NULL);
   EXPECT_EQ (lateness, 300);
 
+  crop_test.raw_format = _NNS_TENSOR_FORMAT_FLEXIBLE;
   crop_test.raw_info.type = _NNS_UINT32;
-  crop_test.raw_info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
   gst_tensor_parse_dimension ("1:10:4:1", crop_test.raw_info.dimension);
 
   crop_test.raw_size = sizeof (guint) * 40U;
