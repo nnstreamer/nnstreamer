@@ -112,15 +112,8 @@ static GstCaps *
 _get_tensors_caps (const GstTensorsConfig * config)
 {
   GstCaps *caps;
-  tensor_format format = _NNS_TENSOR_FORMAT_STATIC;
 
   caps = gst_caps_from_string (GST_TENSORS_CAP_DEFAULT);
-
-  if (gst_tensors_info_is_flexible (&config->info))
-    format = _NNS_TENSOR_FORMAT_FLEXIBLE;
-
-  gst_caps_set_simple (caps, "format", G_TYPE_STRING,
-      gst_tensor_get_format_string (format), NULL);
 
   if (config->info.num_tensors > 0) {
     gchar *dim_str, *type_str;
@@ -231,8 +224,6 @@ gst_tensor_info_init (GstTensorInfo * info)
 
   info->name = NULL;
   info->type = _NNS_END;
-  /** @note default format is static */
-  info->format = _NNS_TENSOR_FORMAT_STATIC;
 
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
     info->dimension[i] = 0;
@@ -282,11 +273,6 @@ gst_tensor_info_validate (const GstTensorInfo * info)
 {
   g_return_val_if_fail (info != NULL, FALSE);
 
-  if (gst_tensor_info_is_flexible (info)) {
-    /* true if given info is flexible format */
-    return TRUE;
-  }
-
   if (info->type == _NNS_END) {
     return FALSE;
   }
@@ -308,10 +294,6 @@ gst_tensor_info_is_equal (const GstTensorInfo * i1, const GstTensorInfo * i2)
     return FALSE;
   }
 
-  if (i1->format != i2->format) {
-    return FALSE;
-  }
-
   if (i1->type != i2->type) {
     return FALSE;
   }
@@ -324,18 +306,6 @@ gst_tensor_info_is_equal (const GstTensorInfo * i1, const GstTensorInfo * i2)
 
   /* matched all */
   return TRUE;
-}
-
-/**
- * @brief Check given info is flexible tensor.
- * @return TRUE if it is flexible.
- */
-gboolean
-gst_tensor_info_is_flexible (const GstTensorInfo * info)
-{
-  g_return_val_if_fail (info != NULL, FALSE);
-
-  return (info->format == _NNS_TENSOR_FORMAT_FLEXIBLE);
 }
 
 /**
@@ -353,7 +323,6 @@ gst_tensor_info_copy_n (GstTensorInfo * dest, const GstTensorInfo * src,
 
   dest->name = g_strdup (src->name);
   dest->type = src->type;
-  dest->format = src->format;
 
   for (i = 0; i < n; i++) {
     dest->dimension[i] = src->dimension[i];
@@ -387,7 +356,6 @@ gst_tensor_info_convert_to_meta (GstTensorInfo * info, GstTensorMetaInfo * meta)
   gst_tensor_meta_info_init (meta);
 
   meta->type = info->type;
-  meta->format = info->format;
 
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
     /** @todo handle rank from info.dimension */
@@ -492,11 +460,6 @@ gst_tensors_info_validate (const GstTensorsInfo * info)
 
   g_return_val_if_fail (info != NULL, FALSE);
 
-  if (gst_tensors_info_is_flexible (info)) {
-    /* true if given info is flexible format */
-    return TRUE;
-  }
-
   if (info->num_tensors < 1) {
     return FALSE;
   }
@@ -518,19 +481,11 @@ gboolean
 gst_tensors_info_is_equal (const GstTensorsInfo * i1, const GstTensorsInfo * i2)
 {
   guint i;
-  gboolean compatible, flexible;
 
   g_return_val_if_fail (i1 != NULL, FALSE);
   g_return_val_if_fail (i2 != NULL, FALSE);
 
-  flexible = gst_tensors_info_is_flexible (i1);
-  if (flexible != gst_tensors_info_is_flexible (i2)) {
-    return FALSE;
-  }
-
-  compatible = (i1->num_tensors > 0 && i2->num_tensors > 0) || flexible;
-
-  if (i1->num_tensors != i2->num_tensors || !compatible) {
+  if (i1->num_tensors != i2->num_tensors || i1->num_tensors == 0) {
     return FALSE;
   }
 
@@ -545,29 +500,6 @@ gst_tensors_info_is_equal (const GstTensorsInfo * i1, const GstTensorsInfo * i2)
 }
 
 /**
- * @brief Check given info contains flexible tensor.
- * @return TRUE if it is flexible.
- */
-gboolean
-gst_tensors_info_is_flexible (const GstTensorsInfo * info)
-{
-  guint i, num;
-
-  g_return_val_if_fail (info != NULL, FALSE);
-
-  /* flex-tensor may not have the number of tensors in info struct. */
-  num = MAX (info->num_tensors, 1);
-
-  for (i = 0; i < num; i++) {
-    if (gst_tensor_info_is_flexible (&info->info[i])) {
-      return TRUE;
-    }
-  }
-
-  return FALSE;
-}
-
-/**
  * @brief Copy tensor info
  * @note Copied info should be freed with gst_tensors_info_free()
  */
@@ -579,11 +511,8 @@ gst_tensors_info_copy (GstTensorsInfo * dest, const GstTensorsInfo * src)
   g_return_if_fail (dest != NULL);
   g_return_if_fail (src != NULL);
 
+  gst_tensors_info_init (dest);
   num = dest->num_tensors = src->num_tensors;
-
-  /* If given info is flexible, set max size. */
-  if (gst_tensors_info_is_flexible (src))
-    num = NNS_TENSOR_SIZE_LIMIT;
 
   for (i = 0; i < num; i++) {
     gst_tensor_info_copy (&dest->info[i], &src->info[i]);
@@ -835,6 +764,8 @@ gst_tensors_config_init (GstTensorsConfig * config)
 
   gst_tensors_info_init (&config->info);
 
+  /** @note default format is static */
+  config->format = _NNS_TENSOR_FORMAT_STATIC;
   config->rate_n = -1;
   config->rate_d = -1;
 }
@@ -866,6 +797,16 @@ gst_tensors_config_validate (const GstTensorsConfig * config)
     return FALSE;
   }
 
+  /* tensor stream format */
+  if (config->format >= _NNS_TENSOR_FORMAT_END) {
+    return FALSE;
+  }
+
+  /* cannot check tensor info when tensor is flexible */
+  if (gst_tensors_config_is_flexible (config)) {
+    return TRUE;
+  }
+
   return gst_tensors_info_validate (&config->info);
 }
 
@@ -889,6 +830,15 @@ gst_tensors_config_is_equal (const GstTensorsConfig * c1,
     return FALSE;
   }
 
+  if (c1->format != c2->format || c1->format == _NNS_TENSOR_FORMAT_END) {
+    return FALSE;
+  }
+
+  /* cannot compare tensor info when tensor is flexible */
+  if (gst_tensors_config_is_flexible (c1)) {
+    return TRUE;
+  }
+
   return gst_tensors_info_is_equal (&c1->info, &c2->info);
 }
 
@@ -902,6 +852,7 @@ gst_tensors_config_copy (GstTensorsConfig * dest, const GstTensorsConfig * src)
   g_return_if_fail (src != NULL);
 
   gst_tensors_info_copy (&dest->info, &src->info);
+  dest->format = src->format;
   dest->rate_n = src->rate_n;
   dest->rate_d = src->rate_d;
 }
@@ -918,7 +869,6 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
 {
   const gchar *name;
   tensor_format format = _NNS_TENSOR_FORMAT_STATIC;
-  guint i;
 
   g_return_val_if_fail (config != NULL, FALSE);
   gst_tensors_config_init (config);
@@ -930,7 +880,6 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
   if (g_str_equal (name, NNS_MIMETYPE_TENSOR)) {
     /* other/tensor is always static */
     config->info.num_tensors = 1;
-    config->info.info[0].format = _NNS_TENSOR_FORMAT_STATIC;
 
     if (gst_structure_has_field (structure, "dimension")) {
       const gchar *dim_str = gst_structure_get_string (structure, "dimension");
@@ -952,14 +901,7 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
         GST_WARNING ("Invalid format %s, it should be one of %s.",
             format_str, GST_TENSOR_FORMAT_ALL);
       } else {
-        /**
-         * @note set format in tensors-info
-         * tensor_mux collects buffers from multiple pads.
-         * If one of sink pads in tensor_mux is flexible, output src pad will have flex tensor.
-         * Remove below when the format in tensors-info is unnecessary.
-         */
-        for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++)
-          config->info.info[i].format = format;
+        config->format = format;
       }
     }
 
@@ -1086,7 +1028,7 @@ _peer_is_flexible_tensor_caps (GstPad * pad)
   gboolean flexible = FALSE;
 
   if (gst_tensors_config_from_peer (pad, &config, NULL))
-    flexible = gst_tensors_info_is_flexible (&config.info);
+    flexible = gst_tensors_config_is_flexible (&config);
 
   gst_tensors_config_free (&config);
   return flexible;
@@ -1113,7 +1055,7 @@ gst_tensor_pad_caps_from_config (GstPad * pad, const GstTensorsConfig * config)
   templ = gst_pad_get_pad_template_caps (pad);
 
   /* other/tensors (flexible) */
-  is_flexible = gst_tensors_info_is_flexible (&config->info);
+  is_flexible = gst_tensors_config_is_flexible (config);
 
   /* check peer element is flexible */
   if (!is_flexible)
@@ -1169,7 +1111,7 @@ gst_tensor_pad_possible_caps_from_config (GstPad * pad,
   templ = gst_pad_get_pad_template_caps (pad);
 
   /* append caps for static tensor */
-  if (!gst_tensors_info_is_flexible (&config->info)) {
+  if (gst_tensors_config_is_static (config)) {
     /* other/tensor */
     if ((tmp = _get_tensor_caps (config)) != NULL) {
       if (gst_caps_can_intersect (tmp, templ))
@@ -1227,7 +1169,7 @@ gst_tensor_pad_caps_is_flexible (GstPad * pad)
 
     structure = gst_caps_get_structure (caps, 0);
     if (gst_tensors_config_from_structure (&config, structure))
-      ret = gst_tensors_info_is_flexible (&config.info);
+      ret = gst_tensors_config_is_flexible (&config);
 
     gst_caps_unref (caps);
     gst_tensors_config_free (&config);
@@ -1248,7 +1190,7 @@ gst_tensors_caps_from_config (const GstTensorsConfig * config)
 
   g_return_val_if_fail (config != NULL, NULL);
 
-  if (gst_tensors_info_is_flexible (&config->info)) {
+  if (gst_tensors_config_is_flexible (config)) {
     caps = _get_flexible_caps (config);
   } else {
     caps = _get_tensors_caps (config);
@@ -1797,7 +1739,6 @@ gst_tensor_meta_info_convert (GstTensorMetaInfo * meta, GstTensorInfo * info)
   gst_tensor_info_init (info);
 
   info->type = meta->type;
-  info->format = meta->format;
 
   for (i = 0; i < NNS_TENSOR_META_RANK_LIMIT; i++) {
     if (i >= NNS_TENSOR_RANK_LIMIT) {
