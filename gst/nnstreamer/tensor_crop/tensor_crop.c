@@ -457,7 +457,7 @@ gst_tensor_crop_negotiate (GstTensorCrop * self)
      * Output is always flexible tensor.
      */
     gst_tensors_config_init (&config);
-    config.info.info[0].format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+    config.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
 
     walk = self->collect->data;
     while (walk) {
@@ -489,7 +489,7 @@ gst_tensor_crop_negotiate (GstTensorCrop * self)
  */
 static gboolean
 gst_tensor_crop_prepare_out_meta (GstTensorCrop * self, gpointer buffer,
-    GstTensorMetaInfo * meta, GstTensorInfo * info)
+    GstTensorMetaInfo * meta, GstTensorInfo * info, gboolean * is_flexible)
 {
   GstCaps *caps;
   GstStructure *structure;
@@ -512,8 +512,9 @@ gst_tensor_crop_prepare_out_meta (GstTensorCrop * self, gpointer buffer,
    * @note tensor-crop handles single tensor. Parse first one.
    */
   _info = &config.info.info[0];
+  *is_flexible = gst_tensors_config_is_flexible (&config);
 
-  if (gst_tensor_info_is_flexible (_info)) {
+  if (*is_flexible) {
     /* meta from buffer */
     if (gst_tensor_meta_info_parse_header (meta, buffer)) {
       ret = gst_tensor_meta_info_convert (meta, info);
@@ -637,12 +638,12 @@ gst_tensor_crop_do_cropping (GstTensorCrop * self, GstBuffer * raw,
     return NULL;
   }
 
-  if (!gst_tensor_crop_prepare_out_meta (self, map.data, &meta, &info)) {
+  if (!gst_tensor_crop_prepare_out_meta (self, map.data, &meta,
+          &info, &flexible)) {
     GST_ERROR_OBJECT (self, "Failed to get the output meta.");
     goto done;
   }
 
-  flexible = (info.format == _NNS_TENSOR_FORMAT_FLEXIBLE);
   hsize = flexible ? gst_tensor_meta_info_get_header_size (&meta) : 0;
   dsize = gst_tensor_meta_info_get_data_size (&meta);
   dpos = map.data + hsize;

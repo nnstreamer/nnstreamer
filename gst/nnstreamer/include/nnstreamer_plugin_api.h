@@ -87,13 +87,6 @@ extern gboolean
 gst_tensor_info_is_equal (const GstTensorInfo * i1, const GstTensorInfo * i2);
 
 /**
- * @brief Check given info is flexible tensor.
- * @return TRUE if it is flexible.
- */
-extern gboolean
-gst_tensor_info_is_flexible (const GstTensorInfo * info);
-
-/**
  * @brief Copy tensor info up to n elements
  * @note Copied info should be freed with gst_tensor_info_free()
  */
@@ -221,13 +214,6 @@ extern gboolean
 gst_tensors_info_is_equal (const GstTensorsInfo * i1, const GstTensorsInfo * i2);
 
 /**
- * @brief Check given info contains flexible tensor.
- * @return TRUE if it is flexible.
- */
-extern gboolean
-gst_tensors_info_is_flexible (const GstTensorsInfo * info);
-
-/**
  * @brief Copy tensor info
  * @note Copied info should be freed with gst_tensors_info_free()
  */
@@ -290,6 +276,16 @@ gst_tensors_config_is_equal (const GstTensorsConfig * c1,
  */
 extern void
 gst_tensors_config_copy (GstTensorsConfig * dest, const GstTensorsConfig * src);
+
+/**
+ * @brief Macro to check stream format (static tensors for caps negotiation)
+ */
+#define gst_tensors_config_is_static(c) ((c)->format == _NNS_TENSOR_FORMAT_STATIC)
+
+/**
+ * @brief Macro to check stream format (flexible tensors for caps negotiation)
+ */
+#define gst_tensors_config_is_flexible(c) ((c)->format == _NNS_TENSOR_FORMAT_FLEXIBLE)
 
 /**
  * @brief Get tensor caps from tensors config (for other/tensor)

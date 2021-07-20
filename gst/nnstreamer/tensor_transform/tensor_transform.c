@@ -1569,7 +1569,7 @@ gst_tensor_transform_read_caps (GstTensorTransform * filter,
     return FALSE;
   }
 
-  return gst_tensors_info_validate (&config->info);
+  return gst_tensors_config_validate (config);
 }
 
 /**
@@ -1728,9 +1728,9 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
 
     gst_tensors_config_from_structure (&in_config, structure);
 
-    if (gst_tensors_info_is_flexible (&in_config.info)) {
+    if (gst_tensors_config_is_flexible (&in_config)) {
       /* output caps is also flexible */
-      out_config.info.info[0].format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+      out_config.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
     } else {
       for (j = 0; j < in_config.info.num_tensors; j++) {
         gst_tensor_transform_convert_dimension (filter, direction,
@@ -1810,23 +1810,23 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
   silent_debug_caps (incaps, "incaps");
   silent_debug_caps (outcaps, "outcaps");
 
-  if (!gst_tensor_transform_read_caps (filter, incaps, &in_config) ||
-      !gst_tensors_config_validate (&in_config)) {
+  if (!gst_tensor_transform_read_caps (filter, incaps, &in_config)) {
     GST_ERROR_OBJECT (filter, "Cannot read cap of incaps\n");
     goto error;
   }
 
-  if (!gst_tensor_transform_read_caps (filter, outcaps, &out_config) ||
-      !gst_tensors_config_validate (&out_config)) {
+  if (!gst_tensor_transform_read_caps (filter, outcaps, &out_config)) {
     GST_ERROR_OBJECT (filter, "Cannot read cap of outcaps\n");
     goto error;
   }
 
-  in_flexible = gst_tensors_info_is_flexible (&in_config.info);
-  out_flexible = gst_tensors_info_is_flexible (&out_config.info);
+  in_flexible = gst_tensors_config_is_flexible (&in_config);
+  out_flexible = gst_tensors_config_is_flexible (&out_config);
 
   /* compare type and dimension */
   gst_tensors_config_init (&config);
+  config.format = out_config.format;
+
   config.rate_n = in_config.rate_n;
   config.rate_d = in_config.rate_d;
   config.info.num_tensors = in_config.info.num_tensors;

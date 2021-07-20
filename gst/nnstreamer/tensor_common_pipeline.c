@@ -270,6 +270,9 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
   guint counting, empty_pad;
   GstTensorsConfig in_configs;
   GstClockTime base_time = 0;
+  guint i, n_mem;
+  GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT];
+  tensor_format in_formats[NNS_TENSOR_SIZE_LIMIT];
 
   g_return_val_if_fail (collect != NULL, FALSE);
   g_return_val_if_fail (sync != NULL, FALSE);
@@ -373,20 +376,22 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
     }
 
     if (GST_IS_BUFFER (buf)) {
-      guint i, n_mem;
-
       n_mem = gst_buffer_n_memory (buf);
 
       /** These are internal logic error. If given inputs are incorrect,
           the negotiation should have been failed before this stage. */
-      if (!gst_tensors_info_is_flexible (&in_configs.info))
+      if (gst_tensors_config_is_static (&in_configs))
         g_assert (n_mem == in_configs.info.num_tensors);
       g_assert ((counting + n_mem) < NNS_TENSOR_SIZE_LIMIT);
 
+      if (gst_tensors_config_is_flexible (&in_configs))
+        configs->format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
       for (i = 0; i < n_mem; ++i) {
-        mem = gst_buffer_get_memory (buf, i);
-        gst_buffer_append_memory (tensors_buf, mem);
+        in_mem[counting] = gst_buffer_get_memory (buf, i);
+
         configs->info.info[counting] = in_configs.info.info[i];
+        in_formats[counting] = in_configs.format;
         counting++;
       }
 
@@ -394,6 +399,23 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
     }
     if (is_empty)
       empty_pad++;
+  }
+
+  /* append memories to output buffer */
+  for (i = 0; i < counting; i++) {
+    GstTensorMetaInfo meta;
+    mem = in_mem[i];
+
+    if (gst_tensors_config_is_flexible (configs)) {
+      if (in_formats[i] != _NNS_TENSOR_FORMAT_FLEXIBLE) {
+        /* append header */
+        gst_tensor_info_convert_to_meta (&configs->info.info[i], &meta);
+        mem = gst_tensor_meta_info_append_header (&meta, in_mem[i]);
+        gst_memory_unref (in_mem[i]);
+      }
+    }
+
+    gst_buffer_append_memory (tensors_buf, mem);
   }
 
   configs->info.num_tensors = counting;

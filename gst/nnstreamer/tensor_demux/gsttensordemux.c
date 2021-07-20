@@ -323,6 +323,7 @@ gst_tensor_demux_get_tensor_config (GstTensorDemux * tensor_demux,
         &tensor_demux->tensors_config.info.info[nth]);
   }
 
+  config->format = tensor_demux->tensors_config.format;
   config->rate_n = tensor_demux->tensors_config.rate_n;
   config->rate_d = tensor_demux->tensors_config.rate_d;
   return TRUE;
@@ -472,7 +473,7 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   GList *list = NULL;
   tensor_demux = GST_TENSOR_DEMUX (parent);
 
-  if (gst_tensors_info_is_flexible (&tensor_demux->tensors_config.info)) {
+  if (gst_tensors_config_is_flexible (&tensor_demux->tensors_config)) {
     /* cannot get exact number of tensors from config */
     num_tensors = gst_buffer_n_memory (buf);
   } else {

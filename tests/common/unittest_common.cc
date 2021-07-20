@@ -578,58 +578,6 @@ TEST (commonTensorInfo, equal05_n)
 }
 
 /**
- * @brief Test for same tensors info.
- */
-TEST (commonTensorInfo, equal06_p)
-{
-  GstTensorsInfo info1, info2;
-
-  fill_tensors_info_for_test (&info1, &info2);
-
-  /* compare flexible tensor */
-  info1.info[1].format = info2.info[1].format = _NNS_TENSOR_FORMAT_FLEXIBLE;
-  EXPECT_TRUE (gst_tensors_info_is_equal (&info1, &info2));
-
-  /* compare flexible tensor (size 0) */
-  gst_tensors_info_init (&info1);
-  gst_tensors_info_init (&info2);
-
-  info1.info[0].format = info2.info[0].format = _NNS_TENSOR_FORMAT_FLEXIBLE;
-  EXPECT_TRUE (gst_tensors_info_is_equal (&info1, &info2));
-}
-
-/**
- * @brief Test for same tensors info.
- */
-TEST (commonTensorInfo, equal07_n)
-{
-  GstTensorsInfo info1, info2;
-
-  fill_tensors_info_for_test (&info1, &info2);
-
-  /* change format, this should not be compatible */
-  info2.info[1].format = _NNS_TENSOR_FORMAT_FLEXIBLE;
-
-  EXPECT_FALSE (gst_tensors_info_is_equal (&info1, &info2));
-}
-
-/**
- * @brief Test for same tensors info.
- */
-TEST (commonTensorInfo, equal08_n)
-{
-  GstTensorsInfo info1, info2;
-
-  fill_tensors_info_for_test (&info1, &info2);
-
-  /* change format, this should not be compatible */
-  info1.info[0].format = _NNS_TENSOR_FORMAT_FLEXIBLE;
-  info2.info[1].format = _NNS_TENSOR_FORMAT_FLEXIBLE;
-
-  EXPECT_FALSE (gst_tensors_info_is_equal (&info1, &info2));
-}
-
-/**
  * @brief Test for getting size of the tensor info with invalid param.
  */
 TEST (commonTensorInfo, sizeInvalidParam_n)
@@ -913,6 +861,36 @@ TEST (commonTensorsConfig, equal08_n)
   GstTensorsConfig conf;
   gst_tensors_config_init (&conf);
   EXPECT_FALSE (gst_tensors_config_is_equal (&conf, NULL));
+}
+
+/**
+ * @brief Test for same tensors config.
+ */
+TEST (commonTensorsConfig, equal09_p)
+{
+  GstTensorsConfig conf1, conf2;
+
+  fill_tensors_config_for_test (&conf1, &conf2);
+
+  /* compare flexible tensor */
+  conf1.format = conf2.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+  EXPECT_TRUE (gst_tensors_config_is_equal (&conf1, &conf2));
+}
+
+/**
+ * @brief Test for same tensors config.
+ */
+TEST (commonTensorsConfig, equal10_n)
+{
+  GstTensorsConfig conf1, conf2;
+
+  fill_tensors_config_for_test (&conf1, &conf2);
+
+  /* change format, this should not be compatible */
+  conf2.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+  EXPECT_FALSE (gst_tensors_config_is_equal (&conf1, &conf2));
 }
 
 /**
@@ -1376,7 +1354,6 @@ TEST (commonMetaInfo, convertMeta)
 
   gst_tensor_info_init (&info1);
   info1.type = _NNS_INT16;
-  info1.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
   gst_tensor_parse_dimension ("300:1", info1.dimension);
 
   ret = gst_tensor_info_convert_to_meta (&info1, &meta);
@@ -1387,7 +1364,6 @@ TEST (commonMetaInfo, convertMeta)
   EXPECT_TRUE (ret);
 
   EXPECT_EQ (info2.type, _NNS_INT16);
-  EXPECT_EQ (info2.format, _NNS_TENSOR_FORMAT_FLEXIBLE);
   EXPECT_EQ (info2.dimension[0], 300U);
   EXPECT_EQ (info2.dimension[1], 1U);
 }
@@ -1403,7 +1379,6 @@ TEST (commonMetaInfo, convertMetaInvalidParam01_n)
 
   gst_tensor_info_init (&info);
   info.type = _NNS_UINT16;
-  info.format = _NNS_TENSOR_FORMAT_STATIC;
   gst_tensor_parse_dimension ("100:1", info.dimension);
 
   ret = gst_tensor_info_convert_to_meta (NULL, &meta);
