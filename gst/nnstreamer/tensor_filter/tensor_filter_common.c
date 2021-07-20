@@ -528,25 +528,19 @@ verify_model_path (const GstTensorFilterPrivate * priv)
 static void
 gst_tensor_filter_properties_init (GstTensorFilterProperties * prop)
 {
-  prop->fwname = g_strdup ("auto");
-  prop->fw_opened = FALSE;
-  prop->model_files = NULL;
-  prop->num_models = 0;
+  /* init null */
+  memset (prop, 0, sizeof (GstTensorFilterProperties));
 
-  prop->input_configured = FALSE;
+  /* set default value */
+  prop->fwname = g_strdup ("auto");
+
   gst_tensors_info_init (&prop->input_meta);
   gst_tensors_layout_init (prop->input_layout);
   gst_tensors_rank_init (prop->input_ranks);
 
-  prop->output_configured = FALSE;
   gst_tensors_info_init (&prop->output_meta);
   gst_tensors_layout_init (prop->output_layout);
   gst_tensors_rank_init (prop->output_ranks);
-
-  prop->custom_properties = NULL;
-  prop->accl_str = NULL;
-  prop->hw_list = NULL;
-  prop->num_hw = 0;
 }
 
 /**
@@ -983,25 +977,18 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
 void
 gst_tensor_filter_common_init_property (GstTensorFilterPrivate * priv)
 {
+  /* init null */
+  memset (priv, 0, sizeof (GstTensorFilterPrivate));
+
   /* init NNFW properties */
   gst_tensor_filter_properties_init (&priv->prop);
   gst_tensor_filter_framework_info_init (&priv->info);
   gst_tensor_filter_statistics_init (&priv->stat);
 
   /* init internal properties */
-  priv->fw = NULL;
-  priv->privateData = NULL;
   priv->silent = TRUE;
-  priv->configured = FALSE;
-  priv->combi.in_combi = NULL;
-  priv->combi.out_combi_i = NULL;
-  priv->combi.out_combi_o = NULL;
-  priv->combi.in_combi_defined = FALSE;
-  priv->combi.out_combi_i_defined = FALSE;
-  priv->combi.out_combi_o_defined = FALSE;
   gst_tensors_config_init (&priv->in_config);
   gst_tensors_config_init (&priv->out_config);
-  priv->prop.shared_tensor_filter_key = NULL;
 
   /* init qos properties */
   priv->prev_ts = GST_CLOCK_TIME_NONE;
