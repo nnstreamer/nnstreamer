@@ -492,6 +492,7 @@ TEST (nnstreamerFilterArmnn, invokeAdvanced)
   if (!status) {
     g_free (model_file);
     ASSERT_EQ (status, TRUE);
+    return;
   }
 
   const gchar *model_files[] = {
