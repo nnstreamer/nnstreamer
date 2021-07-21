@@ -199,13 +199,15 @@ gst_mqtt_src_init (GstMqttSrc * self)
   /** init private member variables */
   self->err = NULL;
   self->aqueue = g_async_queue_new ();
-  self->is_connected = FALSE;
-  self->is_subscribed = FALSE;
   g_cond_init (&self->mqtt_src_gcond);
   g_mutex_init (&self->mqtt_src_mutex);
+  g_mutex_lock (&self->mqtt_src_mutex);
+  self->is_connected = FALSE;
+  self->is_subscribed = FALSE;
+  self->latency = GST_CLOCK_TIME_NONE;
+  g_mutex_unlock (&self->mqtt_src_mutex);
   self->base_time_epoch = GST_CLOCK_TIME_NONE;
   self->caps = NULL;
-  self->latency = GST_CLOCK_TIME_NONE;
   self->num_dumped = 0;
 
   gst_base_src_set_live (basesrc, self->is_live);
@@ -755,9 +757,9 @@ gst_mqtt_src_create (GstBaseSrc * basesrc, guint64 offset, guint size,
         gst_object_unref (clock);
       }
 
-      GST_OBJECT_LOCK (self);
+      g_mutex_lock (&self->mqtt_src_mutex);
       self->latency = ulatency;
-      GST_OBJECT_UNLOCK (self);
+      g_mutex_unlock (&self->mqtt_src_mutex);
       /**
        * @todo If the difference between new latency and old latency,
        *      gst_element_post_message (GST_ELEMENT_CAST (self),
@@ -808,9 +810,11 @@ gst_mqtt_src_query (GstBaseSrc * basesrc, GstQuery * query)
       GstClockTime min_latency = 0;
       GstClockTime max_latency = GST_CLOCK_TIME_NONE;
 
+      g_mutex_lock (&self->mqtt_src_mutex);
       if (self->latency != GST_CLOCK_TIME_NONE) {
         min_latency = self->latency;
       }
+      g_mutex_unlock (&self->mqtt_src_mutex);
 
       if (self->debug) {
         GST_DEBUG_OBJECT (self,
