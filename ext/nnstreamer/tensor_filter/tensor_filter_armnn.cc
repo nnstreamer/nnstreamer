@@ -129,6 +129,7 @@ ArmNNCore::ArmNNCore (const char *_model_path, accl_hw hw)
 
   gst_tensors_info_init (&inputTensorMeta);
   gst_tensors_info_init (&outputTensorMeta);
+  networkIdentifier = 0;
 }
 
 /**
@@ -678,6 +679,7 @@ armnn_open (const GstTensorFilterProperties *prop, void **private_data)
 
   if ((err = core->init (prop)) != 0) {
     g_printerr ("failed to initialize the object for armnn");
+    delete core;
     return err;
   }
 
