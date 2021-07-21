@@ -164,7 +164,11 @@ private:
   /**
    * @brief Default Constructor
    */
-  GstMqttTestHelper () {};
+  GstMqttTestHelper ():
+      context (nullptr), cl (nullptr), ma (nullptr), dc (nullptr),
+      fail_send (false), fail_disconnect (false), fail_subscribe (false),
+      fail_unsubscribe (false), is_connected (false) {};
+
   GstMqttTestHelper (const GstMqttTestHelper &) = delete;
   GstMqttTestHelper &operator=(const GstMqttTestHelper &) = delete;
 
