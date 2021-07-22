@@ -739,17 +739,17 @@ gst_mqtt_sink_render (GstBaseSink * basesink, GstBuffer * in_buf)
       is_static_sized_buf = TRUE;
     }
 
-    self->mqtt_msg_buf = g_malloc0 (self->mqtt_msg_buf_size);
-    if (!self->mqtt_msg_buf) {
-      self->mqtt_msg_buf_size = 0;
-      ret = GST_FLOW_ERROR;
-      goto ret_with;
-    }
+    self->mqtt_msg_buf = g_try_malloc0 (self->mqtt_msg_buf_size);
+  }
+
+  if (!_mqtt_set_msg_buf_hdr (in_buf, &self->mqtt_msg_hdr)) {
+    ret = GST_FLOW_ERROR;
+    goto ret_with;
   }
 
   msg_pub = self->mqtt_msg_buf;
-
-  if (!_mqtt_set_msg_buf_hdr (in_buf, &self->mqtt_msg_hdr)) {
+  if (!msg_pub) {
+    self->mqtt_msg_buf_size = 0;
     ret = GST_FLOW_ERROR;
     goto ret_with;
   }
