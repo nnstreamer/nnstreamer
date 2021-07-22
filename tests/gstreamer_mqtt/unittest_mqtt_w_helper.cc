@@ -398,15 +398,24 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch0)
   GstMQTTMessageHdr hdr;
   MQTTAsync_message *msg;
   std::future<int> ma_ret;
+  std::string err_msg;
+  bool err_flag = false;
 
   pipeline = gst_parse_launch (str_pipeline, &err);
-  ASSERT_FALSE (pipeline == NULL);
-  ASSERT_TRUE (err == NULL);
-
+  g_free (str_pipeline);
+  if ((!pipeline) || (err)) {
+    err_flag = true;
+    err_msg = std::string ("Failed to launch the given pipeline");
+    goto free_strs;
+  }
   GstMqttTestHelper::getInstance ().initFailFlags ();
 
   msg = (MQTTAsync_message *) g_try_malloc0 (sizeof(*msg));
-  ASSERT_FALSE (msg == NULL);
+  if (!msg) {
+    err_flag = true;
+    err_msg = std::string ("Failed to allocate a MQTTAsync_message");
+    goto free_strs;
+  }
 
   _set_ts_gst_mqtt_message_hdr (pipeline, &hdr, GST_SECOND, 500 * GST_MSECOND);
   ret = gst_element_set_state (pipeline, GST_STATE_PAUSED);
@@ -424,7 +433,12 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch0)
 
   msg->payloadlen = GST_MQTT_LEN_MSG_HDR + len_buf;
   msg->payload = (MQTTAsync_message *) g_try_malloc0 (msg->payloadlen);
-  ASSERT_FALSE (msg->payload == NULL);
+  if (!msg->payload) {
+    err_flag = true;
+    err_msg = std::string (
+        "Failed to allocate buffer for MQTT message payload");
+    goto free_msg_buf;
+  }
 
   ret = gst_element_set_state (pipeline, GST_STATE_PLAYING);
   EXPECT_NE (ret, GST_STATE_CHANGE_FAILURE);
@@ -447,9 +461,15 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch0)
   EXPECT_EQ (ret, GST_STATE_CHANGE_SUCCESS);
   gst_object_unref (pipeline);
 
-  g_free (topic_name);
-  g_free (str_pipeline);
+  g_free (msg->payload);
+free_msg_buf:
+  g_free (msg);
+free_strs:
   g_free (caps_str);
+  g_free (topic_name);
+
+  if (err_flag)
+    FAIL () << err_msg;
 }
 
 /**
@@ -472,15 +492,23 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch1)
   GstMQTTMessageHdr hdr;
   MQTTAsync_message *msg;
   std::future<int> ma_ret;
+  std::string err_msg;
+  bool err_flag = false;
 
   pipeline = gst_parse_launch (str_pipeline, &err);
-  ASSERT_FALSE (pipeline == NULL);
-  ASSERT_TRUE (err == NULL);
-
+  g_free (str_pipeline);
+  if ((!pipeline) || (err)) {
+    err_flag = true;
+    err_msg = std::string ("Failed to launch the given pipeline");
+    goto free_strs;
+  }
   GstMqttTestHelper::getInstance ().initFailFlags ();
 
   msg = (MQTTAsync_message *) g_try_malloc0 (sizeof(*msg));
-  ASSERT_FALSE (msg == NULL);
+  if (!msg) {
+    err_msg = std::string ("Failed to allocate a MQTTAsync_message");
+    goto free_strs;
+  }
 
   _set_ts_gst_mqtt_message_hdr (pipeline, &hdr, GST_SECOND, 500 * GST_MSECOND);
   ret = gst_element_set_state (pipeline, GST_STATE_PAUSED);
@@ -498,7 +526,12 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch1)
 
   msg->payloadlen = GST_MQTT_LEN_MSG_HDR + len_buf;
   msg->payload = g_try_malloc0 (msg->payloadlen);
-  ASSERT_FALSE (msg->payload == NULL);
+  if (!msg->payload) {
+    err_msg = std::string (
+        "Failed to allocate buffer for MQTT message payload");
+    err_flag = true;
+    goto free_msg_buf;
+  }
 
   ret = gst_element_set_state (pipeline, GST_STATE_PLAYING);
   EXPECT_NE (ret, GST_STATE_CHANGE_FAILURE);
@@ -513,8 +546,6 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch1)
   ret = gst_element_get_state (pipeline, &cur_state, NULL, GST_CLOCK_TIME_NONE);
   EXPECT_EQ (ret, GST_STATE_CHANGE_SUCCESS);
   EXPECT_EQ (cur_state, GST_STATE_PLAYING);
-
-  g_free (caps_str);
 
   /** Changing caps while the pipeline is in the GST_STATE_PLAYING state */
   caps_str = g_strdup ("video/x-raw,width=320,height=160,format=YUY2");
@@ -535,9 +566,15 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch1)
   EXPECT_EQ (ret, GST_STATE_CHANGE_SUCCESS);
   gst_object_unref (pipeline);
 
-  g_free (topic_name);
-  g_free (str_pipeline);
+  g_free (msg->payload);
+free_msg_buf:
+  g_free (msg);
+free_strs:
   g_free (caps_str);
+  g_free (topic_name);
+
+  if (err_flag)
+    FAIL () << err_msg;
 }
 
 /**
@@ -560,16 +597,25 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch0_n)
   GstMQTTMessageHdr hdr;
   MQTTAsync_message *msg;
   std::future<int> ma_ret;
+  std::string err_msg;
+  bool err_flag = false;
 
   pipeline = gst_parse_launch (str_pipeline, &err);
-  ASSERT_FALSE (pipeline == NULL);
-  ASSERT_TRUE (err == NULL);
+  g_free (str_pipeline);
+  if ((!pipeline) || (err)) {
+    err_flag = true;
+    err_msg = std::string ("Failed to launch the given pipeline");
+    goto free_strs;
+  }
 
   GstMqttTestHelper::getInstance ().initFailFlags ();
   GstMqttTestHelper::getInstance ().setFailSubscribe (TRUE);
 
   msg = (MQTTAsync_message *) g_try_malloc0 (sizeof(*msg));
-  ASSERT_FALSE (msg == NULL);
+  if (!msg) {
+    err_msg = std::string ("Failed to allocate a MQTTAsync_message");
+    goto free_strs;
+  }
 
   _set_ts_gst_mqtt_message_hdr (pipeline, &hdr, GST_SECOND, 500 * GST_MSECOND);
   ret = gst_element_set_state (pipeline, GST_STATE_PAUSED);
@@ -587,7 +633,12 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch0_n)
 
   msg->payloadlen = GST_MQTT_LEN_MSG_HDR + len_buf;
   msg->payload = (MQTTAsync_message *) g_try_malloc0 (msg->payloadlen);
-  ASSERT_FALSE (msg->payload == NULL);
+  if (!msg->payload) {
+    err_msg = std::string (
+        "Failed to allocate buffer for MQTT message payload");
+    err_flag = true;
+    goto free_msg_buf;
+  }
 
   ret = gst_element_set_state (pipeline, GST_STATE_PLAYING);
   EXPECT_NE (ret, GST_STATE_CHANGE_FAILURE);
@@ -611,9 +662,15 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch0_n)
   GstMqttTestHelper::getInstance ().setFailSubscribe (FALSE);
   gst_object_unref (pipeline);
 
-  g_free (topic_name);
-  g_free (str_pipeline);
+  g_free (msg->payload);
+free_msg_buf:
+  g_free (msg);
+free_strs:
   g_free (caps_str);
+  g_free (topic_name);
+
+  if (err_flag)
+    FAIL () << err_msg;
 }
 
 /**
@@ -636,16 +693,25 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch1_n)
   GstMQTTMessageHdr hdr;
   MQTTAsync_message *msg;
   std::future<int> ma_ret;
+  std::string err_msg;
+  bool err_flag = false;
 
   pipeline = gst_parse_launch (str_pipeline, &err);
-  ASSERT_FALSE (pipeline == NULL);
-  ASSERT_TRUE (err == NULL);
+  g_free (str_pipeline);
+  if ((!pipeline) || (err)) {
+    err_flag = true;
+    err_msg = std::string ("Failed to launch the given pipeline");
+    goto free_strs;
+  }
 
   GstMqttTestHelper::getInstance ().initFailFlags ();
   GstMqttTestHelper::getInstance ().setFailDisconnect (TRUE);
 
   msg = (MQTTAsync_message *) g_try_malloc0 (sizeof(*msg));
-  ASSERT_FALSE (msg == NULL);
+  if (!msg) {
+    err_msg = std::string ("Failed to allocate a MQTTAsync_message");
+    goto free_strs;
+  }
 
   _set_ts_gst_mqtt_message_hdr (pipeline, &hdr, GST_SECOND, 500 * GST_MSECOND);
   ret = gst_element_set_state (pipeline, GST_STATE_PAUSED);
@@ -663,7 +729,12 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch1_n)
 
   msg->payloadlen = GST_MQTT_LEN_MSG_HDR + len_buf;
   msg->payload = (MQTTAsync_message *) g_try_malloc0 (msg->payloadlen);
-  ASSERT_FALSE (msg->payload == NULL);
+  if (!msg->payload) {
+    err_msg = std::string (
+        "Failed to allocate buffer for MQTT message payload");
+    err_flag = true;
+    goto free_msg_buf;
+  }
 
   ret = gst_element_set_state (pipeline, GST_STATE_PLAYING);
   EXPECT_NE (ret, GST_STATE_CHANGE_FAILURE);
@@ -688,9 +759,15 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch1_n)
   EXPECT_EQ (ret, GST_STATE_CHANGE_SUCCESS);
   gst_object_unref (pipeline);
 
-  g_free (topic_name);
-  g_free (str_pipeline);
+  g_free (msg->payload);
+free_msg_buf:
+  g_free (msg);
+free_strs:
   g_free (caps_str);
+  g_free (topic_name);
+
+  if (err_flag)
+    FAIL () << err_msg;
 }
 
 /**
@@ -713,16 +790,25 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch2)
   GstMQTTMessageHdr hdr;
   MQTTAsync_message *msg;
   std::future<int> ma_ret;
+  std::string err_msg;
+  bool err_flag = false;
 
   pipeline = gst_parse_launch (str_pipeline, &err);
-  ASSERT_FALSE (pipeline == NULL);
-  ASSERT_TRUE (err == NULL);
+  g_free (str_pipeline);
+  if ((!pipeline) || (err)) {
+    err_flag = true;
+    err_msg = std::string ("Failed to launch the given pipeline");
+    goto free_strs;
+  }
 
   GstMqttTestHelper::getInstance ().initFailFlags ();
   GstMqttTestHelper::getInstance ().setFailUnsubscribe (TRUE);
 
   msg = (MQTTAsync_message *) g_try_malloc0 (sizeof(*msg));
-  ASSERT_FALSE (msg == NULL);
+  if (!msg) {
+    err_msg = std::string ("Failed to allocate a MQTTAsync_message");
+    goto free_strs;
+  }
 
   _set_ts_gst_mqtt_message_hdr (pipeline, &hdr, GST_SECOND, 500 * GST_MSECOND);
   ret = gst_element_set_state (pipeline, GST_STATE_PAUSED);
@@ -740,7 +826,12 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch2)
 
   msg->payloadlen = GST_MQTT_LEN_MSG_HDR + len_buf;
   msg->payload = (MQTTAsync_message *) g_try_malloc0 (msg->payloadlen);
-  ASSERT_FALSE (msg->payload == NULL);
+  if (!msg->payload) {
+    err_msg = std::string (
+        "Failed to allocate buffer for MQTT message payload");
+    err_flag = true;
+    goto free_msg_buf;
+  }
 
   ret = gst_element_set_state (pipeline, GST_STATE_PLAYING);
   EXPECT_NE (ret, GST_STATE_CHANGE_FAILURE);
@@ -765,9 +856,15 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch2)
   EXPECT_EQ (ret, GST_STATE_CHANGE_SUCCESS);
   gst_object_unref (pipeline);
 
-  g_free (topic_name);
-  g_free (str_pipeline);
+  g_free (msg->payload);
+free_msg_buf:
+  g_free (msg);
+free_strs:
   g_free (caps_str);
+  g_free (topic_name);
+
+  if (err_flag)
+    FAIL () << err_msg;
 }
 
 /**
