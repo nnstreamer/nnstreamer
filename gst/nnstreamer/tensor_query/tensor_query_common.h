@@ -8,52 +8,101 @@
  * @see    https://github.com/nnstreamer/nnstreamer
  * @author Gichan Jang <gichan2.jang@samsung.com>
  * @bug    No known bugs except for NYI items
- * @see    gsttcpserversink, gsttcpserversrc
  */
 
-#ifndef __GST_TENSOR_QUERY_COMMON_H__
-#define __GST_TENSOR_QUERY_COMMON_H__
+#ifndef __TENSOR_QUERY_COMMON_H__
+#define __TENSOR_QUERY_COMMON_H__
 
-#include <glib.h>
-#include <gst/gst.h>
-#include <gio/gio.h>
-#include <gio/gsocket.h>
+#include "tensor_typedef.h"
 
-G_BEGIN_DECLS
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
- * @brief protocol options for tensor query
+ * @brief protocol options for tensor query.
  */
 typedef enum
 {
-  QUERY_PROTOCOL_TCP = 0,
-  QUERY_PROTOCOL_UDP = 1,
-  QUERY_PROTOCOL_MQTT = 2,
-  QUERY_PROTOCOL_END,
-} tensor_query_protocol;
+  _TENSOR_QUERY_PROTOCOL_TCP = 0,
+  _TENSOR_QUERY_PROTOCOL_UDP = 1,
+  _TENSOR_QUERY_PROTOCOL_MQTT = 2,
+  _TENSOR_QUERY_PROTOCOL_END
+} TensorQueryProtocol;
 
 /**
- * @brief Create requested socket.
- * @param[in] hostname the hostname
- * @param[in] port a port number
- * @param[in] cancellable (nullable) GCancellable
- * @return Newly created socket or NULL on error.
- * @note Caller is responsible for unreffiring the returned object with g_object_unref().
+ * @brief Structures for tensor query commands.
  */
-extern GSocket *
-gst_tensor_query_socket_new (const gchar * hostname, guint16 port,
-    GCancellable * cancellable);
-/**
- * @brief Receive data from a socket.
- * @param[in] socket the socket.
- * @param[in] cancellable (nullable) GCancellable
- * @param[in/out] bytes_received Add the number of received bytes to bytes_received.
- * @param[out] outbuf output buffer filled by reveived data.
- * @return GST_FLOW_OK if there is no error.
- */
-extern GstFlowReturn
-gst_tensor_query_socket_receive (GSocket * socket, GCancellable * cancellable,
-    gsize * bytes_received, GstBuffer * outbuf);
+typedef enum
+{
+  _TENSOR_QUERY_CMD_TRANSFER_START = 0,
+  _TENSOR_QUERY_CMD_TRANSFER_DATA = 1,
+  _TENSOR_QUERY_CMD_TRANSFER_END = 2,
+  _TENSOR_QUERY_CMD_END
+} TensorQueryCommand;
 
-G_END_DECLS
-#endif /* __GST_TENSOR_QUERY_COMMON_H__ */
+/**
+ * @brief Structures for tensor query data info.
+ */
+typedef struct
+{
+  GstTensorsConfig config;
+  int64_t base_time;
+  int64_t sent_time;
+  uint64_t duration;
+  uint64_t dts;
+  uint64_t pts;
+} TensorQueryDataInfo;
+
+typedef struct
+{
+  uint8_t *data;
+  size_t size;
+} TensorQueryData;
+
+/**
+ * @brief Structures for tensor query command buffers.
+ */
+typedef struct
+{
+  TensorQueryCommand cmd;
+  TensorQueryProtocol protocol;
+  union
+  {
+    TensorQueryDataInfo data_info; /** _TENSOR_QUERY_CMD_TRANSFER_START */
+    TensorQueryData data;          /** _TENSOR_QUERY_CMD_TRANSFER_DATA */
+  };
+} TensorQueryCommandData;
+
+/**
+ * @brief generate unique id.
+ * @return unique id if OK, 0 if error
+ */
+extern uint64_t
+nnstreamer_query_request_id (const char *ip, uint32_t port, int is_client);
+
+/**
+ * @brief connect to the specified address.
+ * @return 0 if OK, negative value if error
+ */
+extern int
+nnstreamer_query_connect (uint64_t id, const char *ip, uint32_t port, uint32_t timeout_ms);
+
+/**
+ * @brief send command to connected device.
+ * @return 0 if OK, negative value if error
+ */
+extern int
+nnstreamer_query_send (uint64_t id, TensorQueryCommandData *data, uint32_t timeout_ms);
+
+/**
+ * @brief receive command from connected device.
+ * @return 0 if OK, negative value if error
+ */
+extern int
+nnstreamer_query_receive (uint64_t id, TensorQueryCommandData *data, uint32_t timeout_ms);
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+#endif /* __TENSOR_QUERY_COMMON_H__ */
