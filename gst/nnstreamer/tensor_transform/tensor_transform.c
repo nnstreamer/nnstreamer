@@ -63,32 +63,6 @@
 #define DBG (!filter->silent)
 #endif
 
-/**
- * @brief Macro for debug message.
- */
-#define silent_debug(...) do { \
-    if (DBG) { \
-      GST_DEBUG_OBJECT (filter, __VA_ARGS__); \
-    } \
-  } while (0)
-
-#define silent_debug_caps(caps,msg) do { \
-  if (DBG) { \
-    if (caps) { \
-      GstStructure *caps_s; \
-      gchar *caps_s_string; \
-      guint caps_size, caps_idx; \
-      caps_size = gst_caps_get_size (caps);\
-      for (caps_idx = 0; caps_idx < caps_size; caps_idx++) { \
-        caps_s = gst_caps_get_structure (caps, caps_idx); \
-        caps_s_string = gst_structure_to_string (caps_s); \
-        GST_DEBUG_OBJECT (filter, msg " = %s\n", caps_s_string); \
-        g_free (caps_s_string); \
-      } \
-    } \
-  } \
-} while (0)
-
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_transform_debug);
 #define GST_CAT_DEFAULT gst_tensor_transform_debug
 #define CAPS_STRING GST_TENSOR_CAP_DEFAULT ";" GST_TENSORS_CAP_DEFAULT ";" GST_TENSORS_FLEX_CAP_DEFAULT
@@ -812,7 +786,8 @@ gst_tensor_transform_set_property (GObject * object, guint prop_id,
       gchar *backup_option = filter->option;
       filter->option = g_value_dup_string (value);
       if (gst_tensor_transform_set_option_data (filter)) {
-        silent_debug ("Option = %s --> %s\n", backup_option, filter->option);
+        silent_debug (filter, "Option = %s --> %s\n", backup_option,
+            filter->option);
         g_free (backup_option);
       } else {
         /* ERROR! Revert the change! */
@@ -825,7 +800,7 @@ gst_tensor_transform_set_property (GObject * object, guint prop_id,
     case PROP_ACCELERATION:
 #ifdef HAVE_ORC
       filter->acceleration = g_value_get_boolean (value);
-      silent_debug ("acceleration = %d\n", filter->acceleration);
+      silent_debug (filter, "acceleration = %d\n", filter->acceleration);
 #else
       GST_WARNING_OBJECT (filter, "Orc acceleration is not supported");
       filter->acceleration = FALSE;
@@ -1713,9 +1688,9 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
 
   filter = GST_TENSOR_TRANSFORM_CAST (trans);
 
-  silent_debug ("Calling TransformCaps, direction = %d\n", direction);
-  silent_debug_caps (caps, "from");
-  silent_debug_caps (filtercap, "filter");
+  silent_debug (filter, "Calling TransformCaps, direction = %d\n", direction);
+  silent_debug_caps (filter, caps, "from");
+  silent_debug_caps (filter, filtercap, "filter");
 
   result = gst_caps_new_empty ();
   for (i = 0; i < gst_caps_get_size (caps); i++) {
@@ -1766,7 +1741,7 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
     result = intersection;
   }
 
-  silent_debug_caps (result, "to");
+  silent_debug_caps (filter, result, "to");
   return result;
 }
 
@@ -1782,9 +1757,9 @@ gst_tensor_transform_fixate_caps (GstBaseTransform * trans,
 
   filter = GST_TENSOR_TRANSFORM_CAST (trans);
 
-  silent_debug ("Calling FixateCaps, direction = %d\n", direction);
-  silent_debug_caps (caps, "caps");
-  silent_debug_caps (othercaps, "othercaps");
+  silent_debug (filter, "Calling FixateCaps, direction = %d\n", direction);
+  silent_debug_caps (filter, caps, "caps");
+  silent_debug_caps (filter, othercaps, "othercaps");
 
   result =
       gst_tensor_transform_transform_caps (trans, direction, caps, othercaps);
@@ -1793,7 +1768,7 @@ gst_tensor_transform_fixate_caps (GstBaseTransform * trans,
   result = gst_caps_make_writable (result);
   result = gst_caps_fixate (result);
 
-  silent_debug_caps (result, "result");
+  silent_debug_caps (filter, result, "result");
   return result;
 }
 
@@ -1813,9 +1788,9 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
 
   filter = GST_TENSOR_TRANSFORM_CAST (trans);
 
-  silent_debug ("Calling SetCaps\n");
-  silent_debug_caps (incaps, "incaps");
-  silent_debug_caps (outcaps, "outcaps");
+  silent_debug (filter, "Calling SetCaps\n");
+  silent_debug_caps (filter, incaps, "incaps");
+  silent_debug_caps (filter, outcaps, "outcaps");
 
   if (!gst_tensor_transform_read_caps (filter, incaps, &in_config) ||
       !gst_tensors_config_validate (&in_config)) {

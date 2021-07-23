@@ -72,15 +72,6 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_merge_debug);
 #define DBG (!tensor_merge->silent)
 #endif
 
-/**
- * @brief Macro for debug message.
- */
-#define silent_debug(...) do { \
-    if (DBG) { \
-      GST_DEBUG_OBJECT (tensor_merge, __VA_ARGS__); \
-    } \
-  } while (0)
-
 enum
 {
   PROP_0,
@@ -839,13 +830,13 @@ gst_tensor_merge_set_property (GObject * object, guint prop_id,
       if (tensor_merge->sync.mode == SYNC_END) {
         tensor_merge->sync.mode = SYNC_NOSYNC;
       }
-      silent_debug ("Mode = %d(%s)\n", tensor_merge->sync.mode,
+      silent_debug (tensor_merge, "Mode = %d(%s)\n", tensor_merge->sync.mode,
           gst_tensor_time_sync_get_mode_string (tensor_merge->sync.mode));
       gst_tensor_time_sync_set_option_data (&tensor_merge->sync);
       break;
     case PROP_SYNC_OPTION:
       tensor_merge->sync.option = g_value_dup_string (value);
-      silent_debug ("Option = %s\n", tensor_merge->sync.option);
+      silent_debug (tensor_merge, "Option = %s\n", tensor_merge->sync.option);
       gst_tensor_time_sync_set_option_data (&tensor_merge->sync);
       break;
     default:

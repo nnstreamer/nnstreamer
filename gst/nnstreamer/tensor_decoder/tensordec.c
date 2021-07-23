@@ -54,29 +54,6 @@
 #define DBG (!self->silent)
 #endif
 
-#define silent_debug(...) do { \
-    if (DBG) { \
-      GST_DEBUG_OBJECT (self, __VA_ARGS__); \
-    } \
-  } while (0)
-
-#define silent_debug_caps(caps,msg) do {\
-  if (DBG) { \
-    if (caps) { \
-      GstStructure *caps_s; \
-      gchar *caps_s_string; \
-      guint caps_size, caps_idx; \
-      caps_size = gst_caps_get_size (caps);\
-      for (caps_idx = 0; caps_idx < caps_size; caps_idx++) { \
-        caps_s = gst_caps_get_structure (caps, caps_idx); \
-        caps_s_string = gst_structure_to_string (caps_s); \
-        GST_DEBUG_OBJECT (self, msg " = %s\n", caps_s_string); \
-        g_free (caps_s_string); \
-      } \
-    } \
-  } \
-} while (0)
-
 GST_DEBUG_CATEGORY_STATIC (gst_tensordec_debug);
 #define GST_CAT_DEFAULT gst_tensordec_debug
 
@@ -497,7 +474,7 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
 
       /* See if we are using "plugin" */
       if (nnstreamer_decoder_validate (decoder)) {
-        silent_debug ("tensor_decoder plugin mode (%s)\n", mode_string);
+        silent_debug (self, "tensor_decoder plugin mode (%s)\n", mode_string);
 
         if (decoder == self->decoder) {
           /* Already configured??? */
@@ -794,9 +771,9 @@ gst_tensordec_transform_caps (GstBaseTransform * trans,
     self->custom.data = ptr->data;
   }
 
-  silent_debug ("Direction = %d\n", direction);
-  silent_debug_caps (caps, "from");
-  silent_debug_caps (filter, "filter");
+  silent_debug (self, "Direction = %d\n", direction);
+  silent_debug_caps (self, caps, "from");
+  silent_debug_caps (self, filter, "filter");
 
   if (direction == GST_PAD_SINK) {
     /** caps = sinkpad (other/tensor) return = srcpad (media) */
@@ -821,7 +798,7 @@ gst_tensordec_transform_caps (GstBaseTransform * trans,
     result = intersection;
   }
 
-  silent_debug_caps (result, "to");
+  silent_debug_caps (self, result, "to");
 
   GST_DEBUG_OBJECT (self, "Direction[%d] transformed %" GST_PTR_FORMAT
       " into %" GST_PTR_FORMAT, direction, caps, result);
@@ -841,8 +818,8 @@ gst_tensordec_fixate_caps (GstBaseTransform * trans,
 
   self = GST_TENSOR_DECODER_CAST (trans);
 
-  silent_debug_caps (caps, "from caps");
-  silent_debug_caps (othercaps, "from othercaps");
+  silent_debug_caps (self, caps, "from caps");
+  silent_debug_caps (self, othercaps, "from othercaps");
 
   GST_DEBUG_OBJECT (self, "trying to fixate othercaps %" GST_PTR_FORMAT
       " based on caps %" GST_PTR_FORMAT, othercaps, caps);
@@ -898,8 +875,8 @@ gst_tensordec_set_caps (GstBaseTransform * trans,
 {
   GstTensorDec *self = GST_TENSOR_DECODER_CAST (trans);
 
-  silent_debug_caps (incaps, "from incaps");
-  silent_debug_caps (outcaps, "from outcaps");
+  silent_debug_caps (self, incaps, "from incaps");
+  silent_debug_caps (self, outcaps, "from outcaps");
 
   if (gst_tensordec_configure (self, incaps, outcaps)) {
     GstCaps *supposed = gst_tensordec_media_caps_from_tensor (self,

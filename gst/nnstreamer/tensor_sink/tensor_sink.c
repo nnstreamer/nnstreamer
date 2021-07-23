@@ -41,16 +41,7 @@
 #define DBG (!self->silent)
 #endif
 
-/**
- * @brief Macro for debug message.
- */
-#define silent_debug(...) do { \
-    if (DBG) { \
-      GST_DEBUG_OBJECT (self, __VA_ARGS__); \
-    } \
-  } while (0)
-
-#define silent_debug_timestamp(buf) do { \
+#define silent_debug_timestamp(self, buf) do { \
   if (DBG) { \
     GST_DEBUG_OBJECT (self, "pts = %" GST_TIME_FORMAT, GST_TIME_ARGS (GST_BUFFER_PTS (buf))); \
     GST_DEBUG_OBJECT (self, "dts = %" GST_TIME_FORMAT, GST_TIME_ARGS (GST_BUFFER_DTS (buf))); \
@@ -385,7 +376,7 @@ gst_tensor_sink_event (GstBaseSink * sink, GstEvent * event)
   switch (type) {
     case GST_EVENT_STREAM_START:
       if (gst_tensor_sink_get_emit_signal (self)) {
-        silent_debug ("Emit signal for stream start");
+        silent_debug (self, "Emit signal for stream start");
 
         g_signal_emit (self, _tensor_sink_signals[SIGNAL_STREAM_START], 0);
       }
@@ -393,7 +384,7 @@ gst_tensor_sink_event (GstBaseSink * sink, GstEvent * event)
 
     case GST_EVENT_EOS:
       if (gst_tensor_sink_get_emit_signal (self)) {
-        silent_debug ("Emit signal for eos");
+        silent_debug (self, "Emit signal for eos");
 
         g_signal_emit (self, _tensor_sink_signals[SIGNAL_EOS], 0);
       }
@@ -526,14 +517,15 @@ gst_tensor_sink_render_buffer (GstTensorSink * self, GstBuffer * buffer)
     gst_tensor_sink_set_last_render_time (self, now);
 
     if (gst_tensor_sink_get_emit_signal (self)) {
-      silent_debug ("Emit signal for new data [%" GST_TIME_FORMAT "] rate [%d]",
+      silent_debug (self,
+          "Emit signal for new data [%" GST_TIME_FORMAT "] rate [%d]",
           GST_TIME_ARGS (now), signal_rate);
 
       g_signal_emit (self, _tensor_sink_signals[SIGNAL_NEW_DATA], 0, buffer);
     }
   }
 
-  silent_debug_timestamp (buffer);
+  silent_debug_timestamp (self, buffer);
 }
 
 /**

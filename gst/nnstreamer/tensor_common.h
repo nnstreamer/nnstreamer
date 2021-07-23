@@ -195,5 +195,38 @@ gst_tensor_pad_possible_caps_from_config (GstPad * pad, const GstTensorsConfig *
 extern gboolean
 gst_tensor_pad_caps_is_flexible (GstPad * pad);
 
+/******************************************************
+ ************ Commonly used debugging macros **********
+ ******************************************************
+ */
+/**
+ * @brief Macro for debug message.
+ */
+#define silent_debug(self, ...) do { \
+    if (DBG) { \
+      GST_DEBUG_OBJECT (self, __VA_ARGS__); \
+    } \
+  } while (0)
+
+/**
+ * @brief Macro for capability debug message.
+ */
+#define silent_debug_caps(self, caps, msg) do { \
+  if (DBG) { \
+    if (caps) { \
+      GstStructure *caps_s; \
+      gchar *caps_s_string; \
+      guint caps_size, caps_idx; \
+      caps_size = gst_caps_get_size (caps);\
+      for (caps_idx = 0; caps_idx < caps_size; caps_idx++) { \
+        caps_s = gst_caps_get_structure (caps, caps_idx); \
+        caps_s_string = gst_structure_to_string (caps_s); \
+        GST_DEBUG_OBJECT (self, msg " = %s\n", caps_s_string); \
+        g_free (caps_s_string); \
+      } \
+    } \
+  } \
+} while (0)
+
 G_END_DECLS
 #endif /* __GST_TENSOR_COMMON_H__ */

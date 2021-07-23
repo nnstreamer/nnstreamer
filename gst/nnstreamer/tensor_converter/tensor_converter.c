@@ -90,33 +90,7 @@
 #define DBG (!self->silent)
 #endif
 
-/**
- * @brief Macro for debug message.
- */
-#define silent_debug(...) do { \
-    if (DBG) { \
-      GST_DEBUG_OBJECT (self, __VA_ARGS__); \
-    } \
-  } while (0)
-
-#define silent_debug_caps(caps,msg) do { \
-  if (DBG) { \
-    if (caps) { \
-      GstStructure *caps_s; \
-      gchar *caps_s_string; \
-      guint caps_size, caps_idx; \
-      caps_size = gst_caps_get_size (caps);\
-      for (caps_idx = 0; caps_idx < caps_size; caps_idx++) { \
-        caps_s = gst_caps_get_structure (caps, caps_idx); \
-        caps_s_string = gst_structure_to_string (caps_s); \
-        GST_DEBUG_OBJECT (self, msg " = %s\n", caps_s_string); \
-        g_free (caps_s_string); \
-      } \
-    } \
-  } \
-} while (0)
-
-#define silent_debug_timestamp(buf) do { \
+#define silent_debug_timestamp(self, buf) do { \
   if (DBG) { \
     GST_DEBUG_OBJECT (self, "pts = %" GST_TIME_FORMAT, GST_TIME_ARGS (GST_BUFFER_PTS (buf))); \
     GST_DEBUG_OBJECT (self, "dts = %" GST_TIME_FORMAT, GST_TIME_ARGS (GST_BUFFER_DTS (buf))); \
@@ -473,15 +447,15 @@ gst_tensor_converter_set_property (GObject * object, guint prop_id,
       break;
     case PROP_FRAMES_PER_TENSOR:
       self->frames_per_tensor = g_value_get_uint (value);
-      silent_debug ("Set frames in output = %d", self->frames_per_tensor);
+      silent_debug (self, "Set frames in output = %d", self->frames_per_tensor);
       break;
     case PROP_SET_TIMESTAMP:
       self->set_timestamp = g_value_get_boolean (value);
-      silent_debug ("Set timestamp = %d", self->set_timestamp);
+      silent_debug (self, "Set timestamp = %d", self->set_timestamp);
       break;
     case PROP_SILENT:
       self->silent = g_value_get_boolean (value);
-      silent_debug ("Set silent = %d", self->silent);
+      silent_debug (self, "Set silent = %d", self->silent);
       break;
     case PROP_MODE:
     {
@@ -614,7 +588,7 @@ gst_tensor_converter_sink_event (GstPad * pad, GstObject * parent,
       GstCaps *in_caps;
 
       gst_event_parse_caps (event, &in_caps);
-      silent_debug_caps (in_caps, "in-caps");
+      silent_debug_caps (self, in_caps, "in-caps");
 
       if (gst_tensor_converter_parse_caps (self, in_caps)) {
         gst_tensor_converter_update_caps (self);
@@ -634,7 +608,7 @@ gst_tensor_converter_sink_event (GstPad * pad, GstObject * parent,
       GstSegment seg;
 
       gst_event_copy_segment (event, &seg);
-      silent_debug ("received seg %s", gst_format_get_name (seg.format));
+      silent_debug (self, "received seg %s", gst_format_get_name (seg.format));
 
       self->segment = seg;
       self->have_segment = TRUE;
@@ -695,7 +669,7 @@ gst_tensor_converter_sink_query (GstPad * pad, GstObject * parent,
       gboolean res = FALSE;
 
       gst_query_parse_accept_caps (query, &caps);
-      silent_debug_caps (caps, "accept-caps");
+      silent_debug_caps (self, caps, "accept-caps");
 
       if (gst_caps_is_fixed (caps)) {
         template_caps = gst_pad_get_pad_template_caps (pad);
@@ -934,7 +908,7 @@ _gst_tensor_converter_chain_push (GstTensorConverter * self, GstBuffer * buf)
     buffer = _gst_tensor_converter_chain_flex_tensor (self, buffer);
   }
 
-  silent_debug_timestamp (buffer);
+  silent_debug_timestamp (self, buffer);
   return gst_pad_push (self->srcpad, buffer);
 }
 
@@ -1437,7 +1411,7 @@ gst_tensor_converter_parse_video (GstTensorConverter * self,
    */
   if (gst_tensor_converter_video_stride (format, width)) {
     self->remove_padding = TRUE;
-    silent_debug ("Set flag to remove padding, width = %d", width);
+    silent_debug (self, "Set flag to remove padding, width = %d", width);
 
     GST_WARNING_OBJECT (self,
         "\nYOUR STREAM CONFIGURATION INCURS PERFORMANCE DETERIORATION!\n"
@@ -1901,8 +1875,8 @@ gst_tensor_converter_query_caps (GstTensorConverter * self, GstPad * pad,
     }
   }
 
-  silent_debug_caps (caps, "caps");
-  silent_debug_caps (filter, "filter");
+  silent_debug_caps (self, caps, "caps");
+  silent_debug_caps (self, filter, "filter");
 
   if (filter) {
     GstCaps *intersection;
@@ -1914,7 +1888,7 @@ gst_tensor_converter_query_caps (GstTensorConverter * self, GstPad * pad,
     caps = intersection;
   }
 
-  silent_debug_caps (caps, "result");
+  silent_debug_caps (self, caps, "result");
   return caps;
 }
 
@@ -2037,7 +2011,7 @@ gst_tensor_converter_update_caps (GstTensorConverter * self)
   /* Update src pad caps if it is different. */
   curr_caps = gst_pad_get_current_caps (self->srcpad);
   if (curr_caps == NULL || !gst_caps_is_equal (curr_caps, out_caps)) {
-    silent_debug_caps (out_caps, "set out-caps");
+    silent_debug_caps (self, out_caps, "set out-caps");
     gst_pad_set_caps (self->srcpad, out_caps);
   }
 

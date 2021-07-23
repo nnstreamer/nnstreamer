@@ -96,15 +96,6 @@
 #define DBG (!self->silent)
 #endif
 
-/**
- * @brief Macro for debug message.
- */
-#define silent_debug(...) do { \
-    if (DBG) { \
-      GST_DEBUG_OBJECT (self, __VA_ARGS__); \
-    } \
-  } while (0)
-
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_src_iio_debug);
 #define GST_CAT_DEFAULT gst_tensor_src_iio_debug
 
@@ -920,7 +911,7 @@ gst_tensor_src_iio_get_all_channel_info (GstTensorSrcIIO * self,
           g_build_filename (dir_name, channel_prop->name, NULL);
       channel_prop->generic_name =
           gst_tensor_src_iio_get_generic_name (channel_prop->name);
-      silent_debug ("Generic name = %s", channel_prop->generic_name);
+      silent_debug (self, "Generic name = %s", channel_prop->generic_name);
 
       /** find and set the current state */
       filename = g_strdup_printf ("%s%s", channel_prop->base_file, EN_SUFFIX);
@@ -2225,7 +2216,8 @@ gst_tensor_src_iio_fixate (GstBaseSrc * src, GstCaps * caps)
     GST_ERROR_OBJECT (self, "Error creating fixated caps from config.");
     return NULL;
   }
-  silent_debug ("Fixated caps from device = %" GST_PTR_FORMAT, fixated_caps);
+  silent_debug (self, "Fixated caps from device = %" GST_PTR_FORMAT,
+      fixated_caps);
 
   if (gst_caps_can_intersect (caps, fixated_caps)) {
     updated_caps = gst_caps_intersect (caps, fixated_caps);
