@@ -93,7 +93,8 @@ enum
 static GstStaticPadTemplate raw_template = GST_STATIC_PAD_TEMPLATE ("raw",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT ";" GST_TENSORS_FLEX_CAP_DEFAULT));
+    GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT ";"
+        GST_TENSORS_CAP_MAKE ("{ static, flexible }")));
 
 /**
  * @brief Template for sink pad (crop info).
