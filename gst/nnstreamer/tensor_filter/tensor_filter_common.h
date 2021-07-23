@@ -100,6 +100,14 @@ typedef struct _GstTensorFilterCombination
 } GstTensorFilterCombination;
 
 /**
+ * @brief Data Structure to store shared table
+ */
+typedef struct {
+  void *shared_interpreter; /**< the model representation for each sub-plugins */
+  GList *referred_list; /**< the referred list about the instances sharing the same key */
+} GstTensorFilterSharedModelRepresenatation;
+
+/**
  * @brief Structure definition for common tensor-filter properties.
  */
 typedef struct _GstTensorFilterPrivate
