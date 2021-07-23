@@ -119,7 +119,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_filter_debug);
 /**
  * @brief Default caps string for both sink and source pad.
  */
-#define CAPS_STRING GST_TENSOR_CAP_DEFAULT ";" GST_TENSORS_CAP_DEFAULT ";" GST_TENSORS_FLEX_CAP_DEFAULT
+#define CAPS_STRING GST_TENSOR_CAP_DEFAULT ";" GST_TENSORS_CAP_MAKE ("{ static, flexible }")
 
 /**
  * @brief The capabilities of the inputs
@@ -875,7 +875,7 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
   }
 
   /* flexible tensor case, we cannot get the exact info from caps. */
-  flexible = gst_tensors_info_is_flexible (&in_info);
+  flexible = gst_tensors_config_is_flexible (&in_config);
 
   /** if set-property called and already has info, verify it! */
   if (prop->input_meta.num_tensors > 0) {
@@ -1155,7 +1155,7 @@ gst_tensor_filter_set_caps (GstBaseTransform * trans,
   structure = gst_caps_get_structure (outcaps, 0);
   gst_tensors_config_from_structure (&config, structure);
 
-  if (gst_tensors_info_is_flexible (&config.info)) {
+  if (gst_tensors_config_is_flexible (&config)) {
     GST_INFO_OBJECT (self, "Output tensor is flexible.");
   } else if (!gst_tensors_config_is_equal (&priv->out_config, &config)) {
     GST_ERROR_OBJECT (self, "Invalid outcaps.");

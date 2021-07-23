@@ -45,7 +45,6 @@
 
 #define NNS_MIMETYPE_TENSOR "other/tensor"
 #define NNS_MIMETYPE_TENSORS "other/tensors"
-#define NNS_MIMETYPE_TENSORS_FLEXIBLE "other/tensors-flexible"
 
 /**
  * @brief This value, 16, can be checked with gst_buffer_get_max_memory(),
@@ -101,7 +100,7 @@
  */
 #define GST_TENSORS_CAP_WITH_NUM(num) \
     NNS_MIMETYPE_TENSORS ", " \
-    "num_tensors = " num ", " \
+    "format = (string) static, num_tensors = " num ", " \
     "framerate = " GST_TENSOR_RATE_RANGE
 
 /**
@@ -116,7 +115,7 @@
  * The maximum number of tensors in a buffer is 16 (NNS_TENSOR_SIZE_LIMIT).
  */
 #define GST_TENSORS_FLEX_CAP_DEFAULT \
-    NNS_MIMETYPE_TENSORS_FLEXIBLE
+    GST_TENSORS_CAP_MAKE ("flexible")
 
 /**
  * @brief Default static capability for Protocol Buffers
@@ -230,7 +229,6 @@ typedef struct
                    and some (tensorflow-lite) do not need this. */
   tensor_type type; /**< Type of each element in the tensor. User must designate this. */
   tensor_dim dimension; /**< Dimension. We support up to 4th ranks.  */
-  tensor_format format; /**< Tensor format */
 } GstTensorInfo;
 
 /**
@@ -244,21 +242,12 @@ typedef struct
 } GstTensorsInfo;
 
 /**
- * @brief Internal data structure for configured tensor info (for other/tensor).
- */
-typedef struct
-{
-  GstTensorInfo info; /**< tensor info*/
-  int rate_n; /**< framerate is in fraction, which is numerator/denominator */
-  int rate_d; /**< framerate is in fraction, which is numerator/denominator */
-} GstTensorConfig;
-
-/**
  * @brief Internal data structure for configured tensors info (for other/tensors).
  */
 typedef struct
 {
   GstTensorsInfo info; /**< tensor info*/
+  tensor_format format; /**< tensor stream type */
   int rate_n; /**< framerate is in fraction, which is numerator/denominator */
   int rate_d; /**< framerate is in fraction, which is numerator/denominator */
 } GstTensorsConfig;
