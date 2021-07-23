@@ -792,7 +792,7 @@ export NNSTREAMER_CONVERTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor
 %if 0%{edgetpu_support}
     LD_LIBRARY_PATH=${NNSTREAMER_BUILD_ROOT_PATH}/tests/nnstreamer_filter_edgetpu:. bash %{test_script} ./tests/nnstreamer_filter_edgetpu/unittest_edgetpu
 %endif
-%ifarch x86_64 ## @todo This is a workaround. Need to remove %ifarch/%endif some day.
+%ifarch %arm x86_64 aarch64 ## @todo This is a workaround. Need to remove %ifarch/%endif some day.
     bash %{test_script} ./tests/nnstreamer_filter_tvm
 %endif
     pushd tests
