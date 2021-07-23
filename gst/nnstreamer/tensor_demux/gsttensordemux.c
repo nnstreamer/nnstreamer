@@ -74,12 +74,12 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_demux_debug);
 /**
  * @brief Default caps string for sink pad.
  */
-#define CAPS_STRING_SINK GST_TENSORS_CAP_DEFAULT ";" GST_TENSORS_FLEX_CAP_DEFAULT
+#define CAPS_STRING_SINK GST_TENSORS_CAP_MAKE ("{ static, flexible }")
 
 /**
  * @brief Default caps string for src pad.
  */
-#define CAPS_STRING_SRC GST_TENSOR_CAP_DEFAULT ";" GST_TENSORS_CAP_DEFAULT ";" GST_TENSORS_FLEX_CAP_DEFAULT
+#define CAPS_STRING_SRC GST_TENSOR_CAP_DEFAULT ";" GST_TENSORS_CAP_MAKE ("{ static, flexible }")
 
 enum
 {

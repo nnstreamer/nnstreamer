@@ -235,47 +235,6 @@ extern void
 gst_tensors_info_copy (GstTensorsInfo * dest, const GstTensorsInfo * src);
 
 /**
- * @brief Initialize the tensor config info structure
- * @param config tensor config structure to be initialized
- */
-extern void
-gst_tensor_config_init (GstTensorConfig * config);
-
-/**
- * @brief Free allocated data in tensor config structure
- * @param config tensor config structure
- */
-extern void
-gst_tensor_config_free (GstTensorConfig * config);
-
-/**
- * @brief Check the tensor is all configured
- * @param config tensor config structure
- * @return TRUE if configured
- */
-extern gboolean
-gst_tensor_config_validate (const GstTensorConfig * config);
-
-/**
- * @brief Compare tensor config info
- * @param TRUE if equal
- */
-extern gboolean
-gst_tensor_config_is_equal (const GstTensorConfig * c1,
-    const GstTensorConfig * c2);
-
-/**
- * @brief Parse structure and set tensor config info (for other/tensor)
- * @param config tensor config structure to be filled
- * @param structure structure to be interpreted
- * @note Change dimention if tensor contains N frames.
- * @return TRUE if no error
- */
-extern gboolean
-gst_tensor_config_from_structure (GstTensorConfig *config,
-    const GstStructure *structure);
-
-/**
  * @brief Parse structure and set tensors config (for other/tensors)
  * @param config tensors config structure to be filled
  * @param structure structure to be interpreted
@@ -333,12 +292,12 @@ extern void
 gst_tensors_config_copy (GstTensorsConfig * dest, const GstTensorsConfig * src);
 
 /**
- * @brief Get tensor caps from tensor config (for other/tensor)
- * @param config tensor config info
+ * @brief Get tensor caps from tensors config (for other/tensor)
+ * @param config tensors config info
  * @return caps for given config
  */
 extern GstCaps *
-gst_tensor_caps_from_config (const GstTensorConfig * config);
+gst_tensor_caps_from_config (const GstTensorsConfig * config);
 
 /**
  * @brief Get caps from tensors config (for other/tensors)
