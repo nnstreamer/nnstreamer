@@ -51,6 +51,9 @@ override_dh_auto_build:
 override_dh_auto_test:
 	./packaging/run_unittests_binaries.sh ./tests
 ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes), yes)
+ifeq ($(DEB_HOST_ARCH), amd64)
+	./packaging/run_unittests_binaries.sh ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw
+endif
 	cd tests && ssat -n -p=1 && cd ..
 else
 	echo "Skipping SSAT test because it's not in Debian."
