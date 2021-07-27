@@ -31,6 +31,7 @@
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
+#include <nnstreamer_util.h>
 
 #include "tensor_repo.h"
 #include "tensor_reposink.h"
@@ -254,6 +255,7 @@ gst_tensor_reposink_dispose (GObject * object)
 static gboolean
 gst_tensor_reposink_start (GstBaseSink * sink)
 {
+  UNUSED (sink);
   return TRUE;
 }
 
@@ -263,6 +265,7 @@ gst_tensor_reposink_start (GstBaseSink * sink)
 static gboolean
 gst_tensor_reposink_stop (GstBaseSink * sink)
 {
+  UNUSED (sink);
   return TRUE;
 }
 
@@ -357,8 +360,7 @@ gst_tensor_reposink_render_buffer (GstTensorRepoSink * self, GstBuffer * buffer)
   if (notify) {
     self->last_render_time = now;
 
-    if (!gst_tensor_repo_set_buffer (self->myid, self->o_myid, buffer,
-            self->in_caps)) {
+    if (!gst_tensor_repo_set_buffer (self->myid, buffer, self->in_caps)) {
       GST_ELEMENT_ERROR (self, RESOURCE, WRITE,
           ("Cannot Set buffer into repo [key: %d]", self->myid), NULL);
       return FALSE;

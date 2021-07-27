@@ -14,6 +14,7 @@
  */
 
 #include <nnstreamer_plugin_api_decoder.h>
+#include <nnstreamer_util.h>
 #include "tensordecutil.h"
 #include "nnstreamer_python3_helper.h"
 
@@ -218,6 +219,7 @@ PYDecoderCore::getOutCaps (const GstTensorsConfig *config)
 {
   PyObject *result = NULL;
   GstCaps *caps = NULL;
+  UNUSED (config);
 
   Py_LOCK ();
   if (!PyObject_HasAttrString (core_obj, (char *)"getOutCaps")) {
@@ -276,6 +278,7 @@ PYDecoderCore::getScriptPath ()
 static int
 decoder_py_init (void **pdata)
 {
+  UNUSED (pdata);
   return TRUE;
 }
 
@@ -371,7 +374,8 @@ static GstTensorDecoderDef Python = { .modename = decoder_subplugin_python3,
   .exit = decoder_py_exit,
   .setOption = decoder_py_setOption,
   .getOutCaps = decoder_py_getOutCaps,
-  .decode = decoder_py_decode };
+  .decode = decoder_py_decode,
+  .getTransformSize = NULL };
 
 #ifdef __cplusplus
 extern "C" {

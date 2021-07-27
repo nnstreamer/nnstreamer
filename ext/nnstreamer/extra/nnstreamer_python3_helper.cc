@@ -20,6 +20,7 @@
 #pragma GCC diagnostic ignored "-Wformat"
 #endif
 
+#include <nnstreamer_util.h>
 #include "nnstreamer_python3_helper.h"
 
 /** @brief object structure for custom Python type: TensorShape */
@@ -74,6 +75,7 @@ TensorShape_setDims (TensorShapeObject * self, PyObject * args)
 static PyObject *
 TensorShape_getDims (TensorShapeObject * self, PyObject * args)
 {
+  UNUSED (args);
   return Py_BuildValue ("O", self->dims);
 }
 
@@ -85,6 +87,7 @@ TensorShape_getDims (TensorShapeObject * self, PyObject * args)
 static PyObject *
 TensorShape_getType (TensorShapeObject * self, PyObject * args)
 {
+  UNUSED (args);
   return Py_BuildValue ("O", self->type);
 }
 
@@ -98,6 +101,8 @@ static PyObject *
 TensorShape_new (PyTypeObject * type, PyObject * args, PyObject * kw)
 {
   TensorShapeObject *self = (TensorShapeObject *) type->tp_alloc (type, 0);
+  UNUSED (args);
+  UNUSED (kw);
 
   g_assert (self);
 
@@ -177,9 +182,12 @@ static PyMethodDef TensorShape_methods[] = {
 
 /** @brief Structure for custom type object */
 static PyTypeObject TensorShapeType = []{
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
   PyTypeObject ret = {
     PyVarObject_HEAD_INIT (NULL, 0)
   };
+#pragma GCC diagnostic pop
   ret.tp_name = "nnstreamer_python.TensorShape";
   ret.tp_basicsize = sizeof (TensorShapeObject);
   ret.tp_itemsize = 0;
@@ -193,9 +201,12 @@ static PyTypeObject TensorShapeType = []{
   return ret;
 }();
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 static PyModuleDef nnstreamer_python_module = {
   PyModuleDef_HEAD_INIT, "nnstreamer_python", NULL, -1, NULL
 };
+#pragma GCC diagnostic pop
 
 /** @brief module initialization (python 3.x) */
 PyMODINIT_FUNC

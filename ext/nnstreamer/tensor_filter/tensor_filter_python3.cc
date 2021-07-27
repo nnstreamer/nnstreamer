@@ -48,6 +48,7 @@
 #include <nnstreamer_plugin_api_filter.h>
 #undef NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_conf.h>
+#include <nnstreamer_util.h>
 #include <map>
 #include "nnstreamer_python3_helper.h"
 
@@ -617,6 +618,7 @@ py_run (const GstTensorFilterProperties *prop, void **private_data,
     const GstTensorMemory *input, GstTensorMemory *output)
 {
   PYCore *core = static_cast<PYCore *> (*private_data);
+  UNUSED (prop);
 
   g_return_val_if_fail (core, -EINVAL);
   g_return_val_if_fail (input, -EINVAL);
@@ -652,6 +654,7 @@ py_setInputDim (const GstTensorFilterProperties *prop, void **private_data,
     const GstTensorsInfo *in_info, GstTensorsInfo *out_info)
 {
   PYCore *core = static_cast<PYCore *> (*private_data);
+  UNUSED (prop);
   g_return_val_if_fail (core && in_info && out_info, -EINVAL);
 
   if (core->getCbType () != CB_SETDIM) {
@@ -671,6 +674,7 @@ static int
 py_getInputDim (const GstTensorFilterProperties *prop, void **private_data, GstTensorsInfo *info)
 {
   PYCore *core = static_cast<PYCore *> (*private_data);
+  UNUSED (prop);
   g_return_val_if_fail (core && info, -EINVAL);
 
   if (core->getCbType () != CB_GETDIM) {
@@ -691,6 +695,7 @@ py_getOutputDim (const GstTensorFilterProperties *prop, void **private_data,
     GstTensorsInfo *info)
 {
   PYCore *core = static_cast<PYCore *> (*private_data);
+  UNUSED (prop);
   g_return_val_if_fail (core && info, -EINVAL);
 
   if (core->getCbType () != CB_GETDIM) {
@@ -707,6 +712,7 @@ static void
 py_close (const GstTensorFilterProperties *prop, void **private_data)
 {
   PYCore *core = static_cast<PYCore *> (*private_data);
+  UNUSED (prop);
 
   g_return_if_fail (core != NULL);
   delete core;

@@ -45,6 +45,7 @@
 #endif
 
 #include <nnstreamer_log.h>
+#include <nnstreamer_util.h>
 
 #include "gsttensorrate.h"
 
@@ -203,6 +204,7 @@ gst_tensor_rate_push_buffer (GstTensorRate * self, GstBuffer * outbuf,
 {
   GstFlowReturn res;
   GstClockTime push_ts;
+  UNUSED (next_intime);
 
   GST_BUFFER_OFFSET (outbuf) = self->out;
   GST_BUFFER_OFFSET_END (outbuf) = self->out + 1;
@@ -634,7 +636,7 @@ gst_tensor_rate_transform_caps (GstBaseTransform * trans,
 {
   GstTensorRate *self = GST_TENSOR_RATE (trans);
   GstCaps *result = gst_caps_new_empty ();
-  gint i;
+  guint i;
 
   silent_debug (self, "Direction = %d\n", direction);
   silent_debug_caps (self, caps, "from");
@@ -675,11 +677,13 @@ gst_tensor_rate_transform_caps (GstBaseTransform * trans,
  * @brief fixate caps. required vmethod of GstBaseTransform.
  */
 static GstCaps *
-gst_tensor_rate_fixate_caps (GstBaseTransform * trans,
-    GstPadDirection direction, GstCaps * caps, GstCaps * othercaps)
+gst_tensor_rate_fixate_caps (GstBaseTransform * trans, GstPadDirection direction,
+    GstCaps * caps, GstCaps * othercaps)
 {
   GstStructure *s;
   gint num, denom;
+  UNUSED (trans);
+  UNUSED (direction);
 
   s = gst_caps_get_structure (caps, 0);
   if (G_UNLIKELY (!gst_structure_get_fraction (s, "framerate", &num, &denom)))

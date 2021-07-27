@@ -24,6 +24,7 @@
  */
 
 #include "tensor_repo.h"
+#include <nnstreamer_util.h>
 
 #ifndef DBG
 #define DBG FALSE
@@ -70,6 +71,8 @@ static gboolean
 gst_meta_repo_init (GstMeta * meta, gpointer params, GstBuffer * buffer)
 {
   GstMetaRepo *emeta = (GstMetaRepo *) meta;
+  UNUSED (params);
+  UNUSED (buffer);
   emeta->caps = NULL;
   return TRUE;
 }
@@ -83,6 +86,9 @@ gst_meta_repo_transform (GstBuffer * transbuf, GstMeta * meta,
 {
   GstMetaRepo *dest_meta = GST_META_REPO_ADD (transbuf);
   GstMetaRepo *src_meta = (GstMetaRepo *) meta;
+  UNUSED (buffer);
+  UNUSED (type);
+  UNUSED (data);
   dest_meta->caps = src_meta->caps;
   return TRUE;
 }
@@ -94,6 +100,7 @@ static void
 gst_meta_repo_free (GstMeta * meta, GstBuffer * buffer)
 {
   GstMetaRepo *emeta = (GstMetaRepo *) meta;
+  UNUSED (buffer);
   emeta->caps = NULL;
 }
 
@@ -249,8 +256,7 @@ gst_tensor_repo_add_repodata (guint nth, gboolean is_sink)
  * @brief Push GstBuffer into repo.
  */
 gboolean
-gst_tensor_repo_set_buffer (guint nth, guint o_nth, GstBuffer * buffer,
-    GstCaps * caps)
+gst_tensor_repo_set_buffer (guint nth, GstBuffer * buffer, GstCaps * caps)
 {
   GstTensorRepoData *data;
   GstMetaRepo *meta;
@@ -366,8 +372,7 @@ gst_tensor_repo_set_eos (guint nth)
  * @brief Get GstTensorRepoData from repo.
  */
 GstBuffer *
-gst_tensor_repo_get_buffer (guint nth, guint o_nth, gboolean * eos,
-    guint * newid)
+gst_tensor_repo_get_buffer (guint nth, gboolean * eos, guint * newid)
 {
   GstTensorRepoData *data;
   GstBuffer *buf = NULL;

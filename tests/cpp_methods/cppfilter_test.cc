@@ -7,6 +7,7 @@
  * @bug         No known bugs
  */
 #include "cppfilter_test.hh"
+#include <nnstreamer_util.h>
 
 /** @brief API method */
 filter_basic::filter_basic (const char *str) : tensor_filter_cpp (str)
@@ -48,6 +49,8 @@ filter_basic::getOutputDim (GstTensorsInfo *info)
 int
 filter_basic::setInputDim (const GstTensorsInfo *in, GstTensorsInfo *out)
 {
+  UNUSED (in);
+  UNUSED (out);
   return -EINVAL;
 }
 
@@ -180,6 +183,8 @@ filter_basic2::getOutputDim (GstTensorsInfo *info)
 int
 filter_basic2::setInputDim (const GstTensorsInfo *in, GstTensorsInfo *out)
 {
+  UNUSED (in);
+  UNUSED (out);
   return -EINVAL;
 }
 

@@ -181,6 +181,7 @@ static void nnstparser_element_set_property (_Element *element, gchar *key, gcha
 static void nnstparser_element_set (gchar *value, _Element *element, graph_t *graph)
 {
   gchar *pos = value;
+  (void) graph;
 
   /* do nothing if assignment is for missing element */
   if (element == NULL)
@@ -212,13 +213,19 @@ out:
   return;
 }
 
+static void g_free_GFunc (void *ptr, void *user_data)
+{
+  (void) user_data;
+  g_free (ptr);
+}
+
 static void gst_parse_free_reference (reference_t *rr)
 {
   /** Rephrased for nnst parser */
   if (rr->element)
     rr->element = nnstparser_element_unref (rr->element);
   g_free (rr->name);
-  g_slist_foreach (rr->pads, (GFunc) g_free, NULL);
+  g_slist_foreach (rr->pads, (GFunc) g_free_GFunc, NULL);
   g_slist_free (rr->pads);
 }
 
@@ -258,6 +265,8 @@ gst_parse_perform_link (link_t *link, graph_t *graph)
   _Element *sink = link->sink.element;
   GSList *srcs = link->src.pads;
   GSList *sinks = link->sink.pads;
+  (void) graph;
+
   g_assert (__GST_IS_ELEMENT (src));
   g_assert (__GST_IS_ELEMENT (sink));
 
@@ -444,7 +453,7 @@ chain:	openchain			      { $$=$1;
 						if($$->last.pads){
 							SET_ERROR (graph->error, GST2PBTXT_PARSE_ERROR_SYNTAX,
 							"unexpected pad-reference \"%s\" - ignoring", (gchar*)$$->last.pads->data);
-							g_slist_foreach ($$->last.pads, (GFunc) g_free, NULL);
+							g_slist_foreach ($$->last.pads, (GFunc) g_free_GFunc, NULL);
 							g_slist_free ($$->last.pads);
 							$$->last.pads=NULL;
 						}
@@ -640,7 +649,7 @@ bin:	binopener assignments chainlist ')'   {
 						  SET_ERROR (graph->error, GST2PBTXT_PARSE_ERROR_NO_SUCH_ELEMENT,
 						    "no bin \"%s\", unpacking elements", $1);
 						  /* clear property-list */
-						  g_slist_foreach ($2, (GFunc) g_free, NULL);
+						  g_slist_foreach ($2, (GFunc) g_free_GFunc, NULL);
 						  g_slist_free ($2);
 						  $2 = NULL;
 						} else {
@@ -685,11 +694,18 @@ graph:	chainlist			      { $$ = graph;
 static int
 yyerror (void *scanner, graph_t *graph, const char *s)
 {
+  (void) scanner;
+  (void) graph;
   /* FIXME: This should go into the GError somehow, but how? */
   g_warning ("Error during parsing: %s", s);
   return -1;
 }
 
+static void gst_parse_free_link_GFunc (void *ptr, void *user_data)
+{
+  (void) user_data;
+  gst_parse_free_link (ptr);
+}
 
 _Element *
 priv_gst_parse_launch (const gchar *str, GError **error, _ParseContext *ctx,
@@ -820,7 +836,7 @@ error1:
     g.chain=NULL;
   }
 
-  g_slist_foreach (g.links, (GFunc)gst_parse_free_link, NULL);
+  g_slist_foreach (g.links, (GFunc)gst_parse_free_link_GFunc, NULL);
   g_slist_free (g.links);
 
   if (error)

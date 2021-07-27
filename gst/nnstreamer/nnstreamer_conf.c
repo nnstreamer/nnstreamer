@@ -157,6 +157,8 @@ _validate_file (nnsconf_type_path type, const gchar * fullpath)
   /* ignore symbol link file */
   if (!conf.enable_symlink && g_file_test (fullpath, G_FILE_TEST_IS_SYMLINK))
     return FALSE;
+  if (type < 0 || type >= NNSCONF_PATH_END)
+    return FALSE;
   /** @todo how to validate with nnsconf type. */
   return TRUE;
 }

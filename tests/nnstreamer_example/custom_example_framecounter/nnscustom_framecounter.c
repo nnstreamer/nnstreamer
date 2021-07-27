@@ -38,6 +38,7 @@
 #include <glib.h>
 #include <string.h>
 #include <stdlib.h>
+#include <nnstreamer_util.h>
 
 static uint32_t maxid = 0;
 
@@ -115,6 +116,7 @@ static void
 pt_exit (void *_data, const GstTensorFilterProperties * prop)
 {
   pt_data *data = _data;
+  UNUSED (prop);
   assert (data);
   if (data->outf)
     fprintf (data->outf, "[%u] %u\n", data->id, data->counter); /* The last counter value */
@@ -165,6 +167,7 @@ invoke (void *_data, const GstTensorFilterProperties * prop,
 {
   pt_data *data = _data;
   uint32_t *counter = (uint32_t *) output[0].data;
+  UNUSED (prop);
 
   if (data->copy == 1) {
     uint32_t *incoming;

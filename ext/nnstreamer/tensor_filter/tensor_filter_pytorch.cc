@@ -33,6 +33,7 @@
 #undef NO_ANONYMOUS_NESTED_STRUCT
 
 #include <nnstreamer_conf.h>
+#include <nnstreamer_util.h>
 
 #include <torch/script.h>
 
@@ -126,7 +127,7 @@ void
 TorchCore::setAccelerator (const char *accelerators)
 {
   use_gpu = TRUE;
-  accelerator = parse_accl_hw (accelerators, torch_accl_support);
+  accelerator = parse_accl_hw (accelerators, torch_accl_support, NULL, NULL);
   if (accelerator == ACCL_NONE)
     goto use_gpu_ini;
   if ((accelerator & (ACCL_CPU)) != 0)
@@ -535,6 +536,7 @@ static void
 torch_close (const GstTensorFilterProperties *prop, void **private_data)
 {
   TorchCore *core = static_cast<TorchCore *> (*private_data);
+  UNUSED (prop);
 
   if (!core)
     return;
@@ -617,6 +619,7 @@ torch_invoke (const GstTensorFilterProperties *prop, void **private_data,
 {
   TorchCore *core = static_cast<TorchCore *> (*private_data);
   g_return_val_if_fail (core && input && output, -EINVAL);
+  UNUSED (prop);
 
   return core->invoke (input, output);
 }
@@ -633,6 +636,7 @@ torch_getInputDim (const GstTensorFilterProperties *prop, void **private_data,
 {
   TorchCore *core = static_cast<TorchCore *> (*private_data);
   g_return_val_if_fail (core && info, -EINVAL);
+  UNUSED (prop);
 
   return core->getInputTensorDim (info);
 }
@@ -649,6 +653,7 @@ torch_getOutputDim (const GstTensorFilterProperties *prop, void **private_data,
 {
   TorchCore *core = static_cast<TorchCore *> (*private_data);
   g_return_val_if_fail (core && info, -EINVAL);
+  UNUSED (prop);
 
   return core->getOutputTensorDim (info);
 }

@@ -34,6 +34,7 @@
 #include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_log.h>
+#include <nnstreamer_util.h>
 #include "tensordecutil.h"
 
 void init_il (void) __attribute__((constructor));
@@ -110,6 +111,7 @@ il_getOutCaps (void **pdata, const GstTensorsConfig * config)
   const uint32_t *dim;
   GstCaps *caps;
   int i;
+  UNUSED (pdata);
 
   g_return_val_if_fail (config != NULL, NULL);
   g_return_val_if_fail (config->info.num_tensors >= 1, NULL);
@@ -131,6 +133,13 @@ static size_t
 il_getTransformSize (void **pdata, const GstTensorsConfig * config,
     GstCaps * caps, size_t size, GstCaps * othercaps, GstPadDirection direction)
 {
+  UNUSED (pdata);
+  UNUSED (config);
+  UNUSED (caps);
+  UNUSED (size);
+  UNUSED (othercaps);
+  UNUSED (direction);
+
   return 0;
   /** @todo Use max_word_length if that's appropriate */
 }
@@ -138,12 +147,12 @@ il_getTransformSize (void **pdata, const GstTensorsConfig * config,
 /** @brief Search for max. Macro for tensor_element union */
 #define search_max(type, i, max_index, max_val, bpe, data, num_data) \
 do {\
-  int i;\
-  type *cursor = (type *) data;\
+  unsigned int i;\
+  type *cursor = (type *) (data);\
   max_val = cursor[0];\
   max_index = 0;\
-  for (i = 1; i < num_data; i++) {\
-    if (cursor[i] > max_val) {\
+  for (i = 1; i < (num_data); i++) {\
+    if (cursor[i] > (max_val)) {\
       max_val = cursor[i];\
       max_index = i;\
     }\

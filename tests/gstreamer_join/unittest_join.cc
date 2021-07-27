@@ -40,6 +40,7 @@ new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
   gboolean mapped;
   gint *output, i;
   gint index = *(gint *)user_data;
+  (void) element;
 
   data_received++;
   /* Index 100 means a callback that is not allowed. */

@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <gst/gst.h>
 #include <tensor_common.h>
+#include <nnstreamer_util.h>
 
 static GMainLoop *loop = NULL;
 
@@ -40,6 +41,8 @@ static GMainLoop *loop = NULL;
 static gboolean
 my_bus_callback (GstBus * bus, GstMessage * message, gpointer data)
 {
+  UNUSED (bus);
+  UNUSED (data);
   _print_log ("Got %s message\n", GST_MESSAGE_TYPE_NAME (message));
 
   switch (GST_MESSAGE_TYPE (message)) {

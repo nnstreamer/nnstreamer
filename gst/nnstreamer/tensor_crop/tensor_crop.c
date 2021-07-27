@@ -40,6 +40,7 @@
 #endif
 
 #include <string.h>
+#include <nnstreamer_util.h>
 #include "tensor_crop.h"
 #include "tensor_data.h"
 
@@ -388,6 +389,7 @@ gst_tensor_crop_sink_event (GstCollectPads * pads, GstCollectData * data,
     GstEvent * event, gpointer user_data)
 {
   GstTensorCropPadData *cpad;
+  UNUSED (user_data);
 
   g_return_val_if_fail (event != NULL, FALSE);
 
@@ -732,7 +734,7 @@ gst_tensor_crop_chain (GstTensorCrop * self,
     lateness = self->lateness * GST_MSECOND;
 
     if (GST_CLOCK_TIME_IS_VALID (ts_raw) && GST_CLOCK_TIME_IS_VALID (ts_info)) {
-      if (ABS (GST_CLOCK_DIFF (ts_raw, ts_info)) > lateness) {
+      if (((GstClockTime) ABS (GST_CLOCK_DIFF (ts_raw, ts_info))) > lateness) {
         GST_DEBUG_OBJECT (self, "Drop old buffer and wait for next.");
         GST_DEBUG_OBJECT (self, "Raw buffer ts: %" GST_TIME_FORMAT,
             GST_TIME_ARGS (ts_raw));

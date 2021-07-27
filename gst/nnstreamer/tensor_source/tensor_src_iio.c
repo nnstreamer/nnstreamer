@@ -87,6 +87,7 @@
 #include <unistd.h>
 #include <errno.h>
 
+#include <nnstreamer_util.h>
 #include "tensor_src_iio.h"
 
 /**
@@ -497,7 +498,8 @@ static gint
 gst_tensor_src_merge_tensor_by_type (GstTensorInfo * info, guint size,
     guint dir)
 {
-  gint info_idx, base_idx, dim_idx;
+  guint info_idx, base_idx;
+  gint dim_idx;
   gboolean mismatch = FALSE, dim_avail = FALSE;
   gint merge_dim = -1;
 
@@ -1391,7 +1393,7 @@ gst_tensor_write_sysfs_string (GstTensorSrcIIO * self, const gchar * file,
 {
   gchar *filename = NULL;
   gboolean ret = FALSE;
-  gint bytes_printed = 0;
+  guint bytes_printed = 0;
   FILE *fd = NULL;
   GError *error = NULL;
 
@@ -1597,7 +1599,7 @@ gst_tensor_src_iio_create_config (GstTensorSrcIIO * tensor_src_iio)
     goto error_ret;
   }
   gst_tensors_config_init (config);
-  for (info_idx = 0; info_idx < tensor_info_merged_size; info_idx++) {
+  for (info_idx = 0; info_idx < (guint) tensor_info_merged_size; info_idx++) {
     gst_tensor_info_copy (&config->info.info[info_idx], &info[info_idx]);
   }
 
@@ -1845,7 +1847,7 @@ gst_tensor_src_iio_setup_scan_channels (GstTensorSrcIIO * self)
     goto error_return;
   }
 
-  if ((num_channels_enabled != g_list_length (self->channels)) &&
+  if ((num_channels_enabled != (gint) g_list_length (self->channels)) &&
       (num_channels_enabled == 0
           || self->channels_enabled == CHANNELS_ENABLED_ALL)) {
     if (!gst_tensor_set_all_channels (self, 1)) {
@@ -2291,6 +2293,7 @@ gst_tensor_src_iio_change_state (GstElement * element,
 static gboolean
 gst_tensor_src_iio_is_seekable (GstBaseSrc * src)
 {
+  UNUSED (src);
   /** iio sensors are live source without any support for seeking */
   return FALSE;
 }
@@ -2304,6 +2307,7 @@ gst_tensor_src_iio_get_times (GstBaseSrc * basesrc, GstBuffer * buffer,
 {
   GstClockTime timestamp;
   GstClockTime duration;
+  UNUSED (basesrc);
 
   timestamp = GST_BUFFER_DTS (buffer);
   duration = GST_BUFFER_DURATION (buffer);
@@ -2332,7 +2336,8 @@ gst_tensor_src_iio_create (GstBaseSrc * src, guint64 offset,
   GstBuffer *buf;
   GstMemory *mem;
   guint buffer_size;
-  gint idx = 0;
+  guint idx = 0;
+  UNUSED (size);
 
   self = GST_TENSOR_SRC_IIO_CAST (src);
   buf = gst_buffer_new ();
@@ -2460,8 +2465,8 @@ gst_tensor_src_iio_process_scanned_data (GstTensorSrcIIOChannelProperties *
  * @note buffer timestamp is already handled by gstreamer with gst clock
  */
 static GstFlowReturn
-gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset,
-    guint size, GstBuffer * buffer)
+gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset, guint size,
+    GstBuffer * buffer)
 {
   GstTensorSrcIIO *self;
   gint status, bytes_to_read;
@@ -2473,6 +2478,8 @@ gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset,
   guint64 time_to_end, cur_time;
   guint64 safe_multiply;
   GList *channels;
+  UNUSED (offset);
+  UNUSED (size);
 
   self = GST_TENSOR_SRC_IIO (src);
 

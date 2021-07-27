@@ -32,6 +32,7 @@
 #define NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
 #undef NO_ANONYMOUS_NESTED_STRUCT
+#include <nnstreamer_util.h>
 
 #include <algorithm>
 #include <fstream>
@@ -204,6 +205,7 @@ TFCore::getModelPath ()
 void
 TFCore::releaseBuffer (void *data, size_t t)
 {
+  UNUSED (t);
   std::free (data);
 }
 
@@ -458,6 +460,7 @@ static void
 DeallocateInputTensor (void *data, size_t len, void *arg)
 {
   tf_tensor_info_s *info_s = (tf_tensor_info_s *)arg;
+  UNUSED (len);
 
   if (info_s && info_s->type == TF_STRING) {
     /* free encoded string */
@@ -597,6 +600,7 @@ static void
 tf_close (const GstTensorFilterProperties *prop, void **private_data)
 {
   TFCore *core = static_cast<TFCore *> (*private_data);
+  UNUSED (prop);
 
   if (!core)
     return;
@@ -676,6 +680,7 @@ tf_run (const GstTensorFilterProperties *prop, void **private_data,
     const GstTensorMemory *input, GstTensorMemory *output)
 {
   TFCore *core = static_cast<TFCore *> (*private_data);
+  UNUSED (prop);
   g_return_val_if_fail (core && input && output, -EINVAL);
 
   return core->run (input, output);
@@ -691,6 +696,7 @@ static int
 tf_getInputDim (const GstTensorFilterProperties *prop, void **private_data, GstTensorsInfo *info)
 {
   TFCore *core = static_cast<TFCore *> (*private_data);
+  UNUSED (prop);
   g_return_val_if_fail (core && info, -EINVAL);
 
   return core->getInputTensorDim (info);
@@ -707,6 +713,7 @@ tf_getOutputDim (const GstTensorFilterProperties *prop, void **private_data,
     GstTensorsInfo *info)
 {
   TFCore *core = static_cast<TFCore *> (*private_data);
+  UNUSED (prop);
   g_return_val_if_fail (core && info, -EINVAL);
 
   return core->getOutputTensorDim (info);

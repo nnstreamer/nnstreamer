@@ -337,7 +337,7 @@ gst_tensor_reposrc_create (GstPushSrc * src, GstBuffer ** buffer)
     self->ini = TRUE;
   } else {
     while (!buf && !eos) {
-      buf = gst_tensor_repo_get_buffer (self->myid, self->o_myid, &eos, &newid);
+      buf = gst_tensor_repo_get_buffer (self->myid, &eos, &newid);
     }
 
     if (eos)

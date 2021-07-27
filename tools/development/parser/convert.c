@@ -46,6 +46,7 @@ pbtxt_print_node_input_stream (gpointer data, gpointer user_data)
 {
   _Pad *pad = (_Pad *) data;
   gchar *pad_name;
+  (void) user_data;
 
   g_return_if_fail (pad != NULL);
 
@@ -71,6 +72,7 @@ pbtxt_print_node_output_stream (gpointer data, gpointer user_data)
 {
   _Pad *pad = (_Pad *) data;
   gchar *pad_name;
+  (void) user_data;
 
   g_return_if_fail (pad != NULL);
 
@@ -93,6 +95,7 @@ static void
 pbtxt_print_node (gpointer data, gpointer user_data)
 {
   _Element *elem = (_Element *) data;
+  (void) user_data;
 
   g_return_if_fail (elem != NULL);
 
@@ -116,6 +119,7 @@ pbtxt_prepare (gpointer data, gpointer user_data)
 {
   _Element *elem = (_Element *) data;
   GSList *list;
+  (void) user_data;
 
   g_return_if_fail (elem != NULL);
 

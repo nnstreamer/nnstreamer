@@ -34,6 +34,8 @@ endif
 # gtest
 gtest_dep = dependency('gtest', required: false)
 if gtest_dep.found()
+  lesser_code_quality_accepted_for_unittest_code = declare_dependency(compile_args: ['-Wno-unused-parameter', '-Wno-missing-field-initializers'])
+
   nnstreamer_unittest_deps = [
     nnstreamer_dep,
     nnstreamer_internal_deps,
@@ -41,7 +43,8 @@ if gtest_dep.found()
     gst_dep,
     gst_app_dep,
     gst_check_dep,
-    gtest_dep
+    gtest_dep,
+    lesser_code_quality_accepted_for_unittest_code
   ]
 
   # Shared library of internal APIs for nnstreamer-gtest

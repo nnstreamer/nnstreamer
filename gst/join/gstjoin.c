@@ -763,12 +763,14 @@ gst_join_get_active_sinkpad (GstJoin * sel)
  * @brief request new sink pad
  */
 static GstPad *
-gst_join_request_new_pad (GstElement * element,
-    GstPadTemplate * templ, const gchar * unused, const GstCaps * caps)
+gst_join_request_new_pad (GstElement * element, GstPadTemplate * templ,
+    const gchar * unused, const GstCaps * caps)
 {
   GstJoin *sel;
   gchar *name = NULL;
   GstPad *sinkpad = NULL;
+  (void) unused;
+  (void) caps;
 
   g_return_val_if_fail (templ->direction == GST_PAD_SINK, NULL);
 

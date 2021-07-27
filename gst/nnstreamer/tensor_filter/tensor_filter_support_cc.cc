@@ -41,6 +41,8 @@
 #undef NO_ANONYMOUS_NESTED_STRUCT
 
 #include <nnstreamer_cppplugin_api_filter.hh>
+#include <nnstreamer_util.h>
+#include <tensor_common.h>
 
 namespace nnstreamer
 {
@@ -131,6 +133,7 @@ void
 tensor_filter_subplugin::cpp_close (const GstTensorFilterProperties *prop, void **private_data)
 {
   tensor_filter_subplugin *obj;
+  UNUSED (prop);
 
   try {
     obj = get_tfsp_with_checks (private_data);
@@ -154,6 +157,8 @@ tensor_filter_subplugin::cpp_invoke (const GstTensorFilterFramework *tf,
   tensor_filter_subplugin *obj;
 
   GET_TFSP_WITH_CHECKS (obj, private_data);
+  UNUSED (tf);
+  UNUSED (prop);
 
   try {
     obj->invoke (input, output);
@@ -215,6 +220,9 @@ tensor_filter_subplugin::cpp_getModelInfo (const GstTensorFilterFramework *tf,
   tensor_filter_subplugin *obj;
 
   GET_TFSP_WITH_CHECKS (obj, private_data);
+  UNUSED (tf);
+  UNUSED (prop);
+
   return obj->getModelInfo (ops, *in_info, *out_info);
 }
 
@@ -229,6 +237,9 @@ tensor_filter_subplugin::cpp_eventHandler (const GstTensorFilterFramework *tf,
   tensor_filter_subplugin *obj;
 
   GET_TFSP_WITH_CHECKS (obj, private_data);
+  UNUSED (tf);
+  UNUSED (prop);
+
   return obj->eventHandler (ops, *data);
 }
 
@@ -269,6 +280,8 @@ tensor_filter_subplugin::~tensor_filter_subplugin ()
 int
 tensor_filter_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data)
 {
+  UNUSED (ops);
+  UNUSED (data);
   return -ENOENT;
 }
 

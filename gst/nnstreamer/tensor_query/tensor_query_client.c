@@ -87,6 +87,10 @@ gst_tensor_query_client_class_init (GstTensorQueryClientClass * klass)
       0, "Tensor Query Client");
 }
 
+/** @todo Remove when the dummy functions are implemented. */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+
 /**
  * @brief initialize the new element
  */
@@ -124,3 +128,5 @@ gst_tensor_query_client_get_property (GObject * object, guint prop_id,
 {
   return;
 }
+
+#pragma GCC diagnostic pop

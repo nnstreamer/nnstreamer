@@ -32,6 +32,7 @@
 
 #include <string.h>
 #include "tensor_aggregator.h"
+#include <nnstreamer_util.h>
 
 /**
  * @brief Macro for debug mode.
@@ -826,6 +827,7 @@ gst_tensor_aggregator_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   gsize avail, buf_size, frame_size, out_size;
   guint frames_in, frames_out, frames_flush;
   GstClockTime duration;
+  UNUSED (pad);
 
   self = GST_TENSOR_AGGREGATOR (parent);
   g_assert (self->tensor_configured);

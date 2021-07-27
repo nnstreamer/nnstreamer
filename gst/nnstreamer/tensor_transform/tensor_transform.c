@@ -50,6 +50,7 @@
 #include <string.h>
 #include <math.h>
 #include <nnstreamer_log.h>
+#include <nnstreamer_util.h>
 #include "tensor_transform.h"
 
 #ifdef HAVE_ORC
@@ -928,9 +929,9 @@ gst_tensor_transform_dimchg (GstTensorTransform * filter,
 {
   uint32_t *fromDim = in_info->dimension;
   uint32_t *toDim = out_info->dimension;
-  int from = filter->data_dimchg.from;
-  int to = filter->data_dimchg.to;
-  int i, j, k;
+  unsigned int from = filter->data_dimchg.from;
+  unsigned int to = filter->data_dimchg.to;
+  unsigned int i, j, k;
   unsigned int loopLimit = 1;
   gsize loopBlockSize, copyblocksize, copyblocklimit;
 
@@ -942,8 +943,8 @@ gst_tensor_transform_dimchg (GstTensorTransform * filter,
     return GST_FLOW_OK;
   }
 
-  g_assert (from >= 0 && from < NNS_TENSOR_RANK_LIMIT);
-  g_assert (to >= 0 && to < NNS_TENSOR_RANK_LIMIT);
+  g_assert (from < NNS_TENSOR_RANK_LIMIT);
+  g_assert (to < NNS_TENSOR_RANK_LIMIT);
   g_assert (fromDim[from] == toDim[to]);
 
   loopBlockSize = copyblocksize = gst_tensor_get_element_size (in_info->type);
@@ -1161,6 +1162,7 @@ gst_tensor_transform_transpose (GstTensorTransform * filter,
   uint32_t *fromDim = in_info->dimension;
   gsize type_size = gst_tensor_get_element_size (in_info->type);
   gsize indexI, indexJ, SL, SI, SJ, SK;
+  UNUSED (out_info);
 
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
     from = i;
@@ -1572,8 +1574,8 @@ gst_tensor_transform_convert_dimension (GstTensorTransform * filter,
   switch (filter->mode) {
     case GTT_DIMCHG:
     {
-      int from = filter->data_dimchg.from;
-      int to = filter->data_dimchg.to;
+      unsigned int from = filter->data_dimchg.from;
+      unsigned int to = filter->data_dimchg.to;
 
       if (direction == GST_PAD_SINK) {
         for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
@@ -1845,10 +1847,15 @@ error:
  * @brief Tell the framework the required size of buffer based on the info of the other side pad. Note that this is always the same with the input. optional vmethod of BaseTransform
  */
 static gboolean
-gst_tensor_transform_transform_size (GstBaseTransform * trans,
-    GstPadDirection direction, GstCaps * caps, gsize size,
-    GstCaps * othercaps, gsize * othersize)
+gst_tensor_transform_transform_size ( GstBaseTransform * trans,
+    GstPadDirection direction, GstCaps * caps, gsize size, GstCaps * othercaps,
+    gsize * othersize)
 {
+  UNUSED (trans);
+  UNUSED (direction);
+  UNUSED (caps);
+  UNUSED (size);
+  UNUSED (othercaps);
   /**
    * Consider multi-tensors.
    * Set each memory block in transform()
