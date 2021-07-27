@@ -60,6 +60,9 @@ NNSTREAMER_PLUGINS_SRCS := \
     $(NNSTREAMER_GST_HOME)/tensor_repo/tensor_reposink.c \
     $(NNSTREAMER_GST_HOME)/tensor_repo/tensor_reposrc.c \
     $(NNSTREAMER_GST_HOME)/tensor_sink/tensor_sink.c \
+    $(NNSTREAMER_GST_HOME)/tensor_sparse/tensor_sparse_util.c \
+    $(NNSTREAMER_GST_HOME)/tensor_sparse/tensor_sparse_enc.c \
+    $(NNSTREAMER_GST_HOME)/tensor_sparse/tensor_sparse_dec.c \
     $(NNSTREAMER_GST_HOME)/tensor_split/gsttensorsplit.c \
     $(NNSTREAMER_GST_HOME)/tensor_transform/tensor_transform.c \
     $(NNSTREAMER_GST_HOME)/tensor_if/gsttensorif.c \
