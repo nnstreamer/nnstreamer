@@ -802,8 +802,8 @@ gst_tensors_config_validate (const GstTensorsConfig * config)
     return FALSE;
   }
 
-  /* cannot check tensor info when tensor is flexible */
-  if (gst_tensors_config_is_flexible (config)) {
+  /* cannot check tensor info when tensor is not static */
+  if (!gst_tensors_config_is_static (config)) {
     return TRUE;
   }
 
@@ -834,8 +834,8 @@ gst_tensors_config_is_equal (const GstTensorsConfig * c1,
     return FALSE;
   }
 
-  /* cannot compare tensor info when tensor is flexible */
-  if (gst_tensors_config_is_flexible (c1)) {
+  /* cannot compare tensor info when tensor is not static */
+  if (!gst_tensors_config_is_static (c1)) {
     return TRUE;
   }
 
@@ -1592,6 +1592,10 @@ gst_tensor_meta_info_get_data_size (GstTensorMetaInfo * meta)
 
   dsize = gst_tensor_get_element_size (meta->type);
 
+  if (meta->format == _NNS_TENSOR_FORMAT_SPARSE) {
+    return meta->sparse_info.nnz * (dsize + sizeof (guint));
+  }
+
   for (i = 0; i < NNS_TENSOR_META_RANK_LIMIT; i++) {
     if (meta->dimension[i] == 0)
       break;
@@ -1647,6 +1651,15 @@ gst_tensor_meta_info_parse_header (GstTensorMetaInfo * meta, gpointer header)
       sizeof (uint32_t) * NNS_TENSOR_META_RANK_LIMIT);
   meta->format = val[18];
   meta->media_type = val[19];
+
+  switch ((tensor_format) meta->format) {
+    case _NNS_TENSOR_FORMAT_SPARSE:
+      meta->sparse_info.nnz = val[20];
+      break;
+    default:
+      break;
+  }
+
 
   /** @todo update meta info for each version */
   return gst_tensor_meta_info_validate (meta);

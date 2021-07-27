@@ -118,6 +118,14 @@
     GST_TENSORS_CAP_MAKE ("flexible")
 
 /**
+ * @brief Caps string for the caps template of sparse tensors.
+ * This mimetype handles non-static, sparse tensor stream without specifying the data type and shape of the tensor.
+ * The maximum number of tensors in a buffer is 16 (NNS_TENSOR_SIZE_LIMIT).
+ */
+#define GST_TENSORS_SPARSE_CAP_DEFAULT \
+    GST_TENSORS_CAP_MAKE ("sparse")
+
+/**
  * @brief Default static capability for Protocol Buffers
  * protobuf converter will convert this capability to other/tensor(s)
  */

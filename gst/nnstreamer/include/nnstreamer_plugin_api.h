@@ -288,6 +288,11 @@ gst_tensors_config_copy (GstTensorsConfig * dest, const GstTensorsConfig * src);
 #define gst_tensors_config_is_flexible(c) ((c)->format == _NNS_TENSOR_FORMAT_FLEXIBLE)
 
 /**
+ * @brief Macro to check stream format (sparse tensors for caps negotiation)
+ */
+#define gst_tensors_config_is_sparse(c) ((c)->format == _NNS_TENSOR_FORMAT_SPARSE)
+
+/**
  * @brief Get tensor caps from tensors config (for other/tensor)
  * @param config tensors config info
  * @return caps for given config
