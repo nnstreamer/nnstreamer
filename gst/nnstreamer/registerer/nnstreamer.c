@@ -61,6 +61,8 @@
 #if defined(__gnu_linux__) && !defined(__ANDROID__)
 #include <tensor_source/tensor_src_iio.h>
 #endif /* __gnu_linux__ && !__ANDROID__ */
+#include <tensor_sparse/tensor_sparse_enc.h>
+#include <tensor_sparse/tensor_sparse_dec.h>
 #include <tensor_split/gsttensorsplit.h>
 #include <tensor_transform/tensor_transform.h>
 #include <tensor_if/gsttensorif.h>
@@ -94,6 +96,8 @@ gst_nnstreamer_init (GstPlugin * plugin)
   NNSTREAMER_INIT (plugin, reposink, REPOSINK);
   NNSTREAMER_INIT (plugin, reposrc, REPOSRC);
   NNSTREAMER_INIT (plugin, sink, SINK);
+  NNSTREAMER_INIT (plugin, sparse_enc, SPARSE_ENC);
+  NNSTREAMER_INIT (plugin, sparse_dec, SPARSE_DEC);
   NNSTREAMER_INIT (plugin, split, SPLIT);
   NNSTREAMER_INIT (plugin, transform, TRANSFORM);
   NNSTREAMER_INIT (plugin, if, IF);
