@@ -68,6 +68,7 @@
 #endif
 
 #include <string.h>
+#include <nnstreamer_util.h>
 
 #include "tensor_filter.h"
 
@@ -1134,11 +1135,15 @@ gst_tensor_filter_set_caps (GstBaseTransform * trans,
  */
 static gboolean
 gst_tensor_filter_transform_size (GstBaseTransform * trans,
-    GstPadDirection direction, GstCaps * caps, gsize size,
-    GstCaps * othercaps, gsize * othersize)
+    GstPadDirection direction, GstCaps * caps, gsize size, GstCaps * othercaps,
+    gsize * othersize)
 {
   GstTensorFilter *self;
   GstTensorFilterPrivate *priv;
+  UNUSED (direction);
+  UNUSED (caps);
+  UNUSED (size);
+  UNUSED (othercaps);
 
   self = GST_TENSOR_FILTER_CAST (trans);
   priv = &self->priv;

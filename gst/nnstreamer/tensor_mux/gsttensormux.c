@@ -61,6 +61,7 @@
 #include <string.h>
 #include <gst/gst.h>
 #include <glib.h>
+#include <nnstreamer_util.h>
 
 #include "gsttensormux.h"
 
@@ -254,6 +255,8 @@ gst_tensor_mux_request_new_pad (GstElement * element, GstPadTemplate * templ,
   GSList *walk = NULL;
   GstTensorMux *tensor_mux;
   gchar *name;
+  UNUSED (req_name);
+  UNUSED (caps);
 
   g_return_val_if_fail (templ != NULL, NULL);
   g_return_val_if_fail (GST_IS_TENSOR_MUX (element), NULL);
@@ -482,6 +485,7 @@ gst_tensor_mux_collected (GstCollectPads * pads, GstTensorMux * tensor_mux)
   GstBuffer *tensors_buf;
   gboolean isEOS = FALSE;
   gboolean buf_collected = FALSE;
+  UNUSED (pads);
 
   GST_DEBUG_OBJECT (tensor_mux, " all pads are collected ");
 
@@ -542,6 +546,8 @@ static GstFlowReturn
 gst_tensor_mux_do_clip (GstCollectPads * pads, GstCollectData * data,
     GstBuffer * buffer, GstBuffer ** out, GstTensorMux * tensor_mux)
 {
+  UNUSED (pads);
+  UNUSED (data);
   gst_tensor_mux_set_waiting (tensor_mux, FALSE);
   *out = buffer;
   return GST_FLOW_OK;

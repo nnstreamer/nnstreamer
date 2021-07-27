@@ -204,7 +204,7 @@ main (int argc, char *argv[])
   char header[26];              /** gen24bBMP.py gives you 24B headered bmp file */
   int ret;
   char *pngfilename;
-  int strn;
+  unsigned int strn;
 
   /** Read the .bmp file (argv[1]) */
   if (argc < 2 || argc > 3) {

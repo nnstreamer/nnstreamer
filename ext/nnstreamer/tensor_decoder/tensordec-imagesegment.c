@@ -81,6 +81,7 @@
 #include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_log.h>
+#include <nnstreamer_util.h>
 #include "tensordecutil.h"
 
 #if defined(__aarch64__)
@@ -98,7 +99,7 @@
 void init_is (void) __attribute__((constructor));
 void fini_is (void) __attribute__((destructor));
 
-const static float DETECTION_THRESHOLD = 0.5f;
+static const float DETECTION_THRESHOLD = 0.5f;
 
 /**
  * @brief There can be different schemes for image segmentation
@@ -311,6 +312,13 @@ static size_t
 is_getTransformSize (void **pdata, const GstTensorsConfig * config,
     GstCaps * caps, size_t size, GstCaps * othercaps, GstPadDirection direction)
 {
+  UNUSED (pdata);
+  UNUSED (config);
+  UNUSED (caps);
+  UNUSED (size);
+  UNUSED (othercaps);
+  UNUSED (direction);
+
   return 0;
   /** @todo Use appropriate values */
 }
@@ -504,7 +512,7 @@ static void
 set_label_index (image_segments * idata, void *data)
 {
   float *prob_map = (float *) data;
-  int idx, i, j;
+  guint idx, i, j;
   int max_idx;
   float max_prob;
   guint total_labels = idata->max_labels + 1;

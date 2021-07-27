@@ -38,6 +38,7 @@
 #define NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
 #undef NO_ANONYMOUS_NESTED_STRUCT
+#include <nnstreamer_util.h>
 
 #include "tensor_filter_cpp.hh"
 
@@ -162,6 +163,7 @@ tensor_filter_cpp::getInputDim (const GstTensorFilterProperties *prop,
     void **private_data, GstTensorsInfo *info)
 {
   loadClass (cpp, private_data);
+  UNUSED (prop);
   return cpp->getInputDim (info);
 }
 
@@ -173,6 +175,7 @@ tensor_filter_cpp::getOutputDim (const GstTensorFilterProperties *prop,
     void **private_data, GstTensorsInfo *info)
 {
   loadClass (cpp, private_data);
+  UNUSED (prop);
   return cpp->getOutputDim (info);
 }
 
@@ -184,6 +187,7 @@ tensor_filter_cpp::setInputDim (const GstTensorFilterProperties *prop,
     void **private_data, const GstTensorsInfo *in, GstTensorsInfo *out)
 {
   loadClass (cpp, private_data);
+  UNUSED (prop);
   return cpp->setInputDim (in, out);
 }
 
@@ -195,6 +199,7 @@ tensor_filter_cpp::invoke (const GstTensorFilterProperties *prop,
     void **private_data, const GstTensorMemory *input, GstTensorMemory *output)
 {
   loadClass (cpp, private_data);
+  UNUSED (prop);
   return cpp->invoke (input, output);
 }
 
@@ -279,6 +284,7 @@ void
 tensor_filter_cpp::close (const GstTensorFilterProperties *prop, void **private_data)
 {
   loadClass (cpp, private_data);
+  UNUSED (prop);
 
   g_assert (cpp->ref_count > 0);
   /** The class is deallocated from unordered_map if ref_count hits 0 */

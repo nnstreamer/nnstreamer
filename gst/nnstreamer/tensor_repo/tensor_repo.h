@@ -117,7 +117,7 @@ gst_tensor_repo_add_repodata (guint myid, gboolean is_sink);
  * @brief Push GstBuffer into repo.
  */
 gboolean
-gst_tensor_repo_set_buffer (guint nth, guint o_nth, GstBuffer * buffer, GstCaps * caps);
+gst_tensor_repo_set_buffer (guint nth, GstBuffer * buffer, GstCaps * caps);
 
 /**
  * @brief Check EOS (End-of-Stream) of slot.
@@ -141,7 +141,7 @@ gst_tensor_repo_set_changed (guint o_nth, guint nth, gboolean is_sink);
  * @brief Get GstTensorRepoData from repo.
  */
 GstBuffer *
-gst_tensor_repo_get_buffer (guint nth, guint o_nth, gboolean *eos, guint *newid);
+gst_tensor_repo_get_buffer (guint nth, gboolean *eos, guint *newid);
 
 /**
  * @brief Check repo data is changed.

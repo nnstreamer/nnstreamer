@@ -59,6 +59,7 @@
 #include <string.h>
 #include <gst/gst.h>
 #include <glib.h>
+#include <nnstreamer_util.h>
 
 #include "gsttensormerge.h"
 
@@ -291,6 +292,8 @@ gst_tensor_merge_request_new_pad (GstElement * element, GstPadTemplate * templ,
   GSList *walk;
   guint length;
   gchar *name;
+  UNUSED (req_name);
+  UNUSED (caps);
 
   g_return_val_if_fail (templ != NULL, NULL);
   g_return_val_if_fail (GST_IS_TENSOR_MERGE (element), NULL);
@@ -378,7 +381,8 @@ gst_tensor_merge_get_merged_config (GstTensorMerge * tensor_merge,
     const GstTensorsConfig * in_config, GstTensorsConfig * out_config)
 {
   gboolean ret = FALSE;
-  int i, j;
+  guint i;
+  gint j;
   tensor_dim dim;
   tensor_type type;
 
@@ -466,8 +470,8 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
   GstMapInfo outInfo;
   GstMemory *outMem;
   uint8_t *inptr, *outptr;
-  int num_mem = tensor_merge->tensors_config.info.num_tensors;
-  int i, j, k, l;
+  guint num_mem = tensor_merge->tensors_config.info.num_tensors;
+  guint i, j, k, l;
   size_t c, s;
   gsize outSize = 0;
   gsize element_size;
@@ -660,12 +664,12 @@ gst_tensor_merge_send_segment_event (GstTensorMerge * tensor_merge,
  * @return GstFlowReturn
  */
 static GstFlowReturn
-gst_tensor_merge_collected (GstCollectPads * pads,
-    GstTensorMerge * tensor_merge)
+gst_tensor_merge_collected (GstCollectPads * pads, GstTensorMerge * tensor_merge)
 {
   GstFlowReturn ret = GST_FLOW_OK;
   GstBuffer *tensors_buf, *tensor_buf;
   gboolean isEOS = FALSE;
+  UNUSED (pads);
 
   GST_DEBUG_OBJECT (tensor_merge, " all pads are collected ");
 

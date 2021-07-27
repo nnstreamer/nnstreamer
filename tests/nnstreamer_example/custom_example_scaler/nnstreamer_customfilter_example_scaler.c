@@ -25,6 +25,7 @@
 #include <glib.h>
 #include <tensor_filter_custom.h>
 #include <nnstreamer_plugin_api.h>
+#include <nnstreamer_util.h>
 
 /**
  * @brief Custom filter's private data.
@@ -44,6 +45,7 @@ static void *
 pt_init (const GstTensorFilterProperties * prop)
 {
   pt_data *data = (pt_data *) malloc (sizeof (pt_data));
+  UNUSED (prop);
   assert (data);
 
   if (prop->custom_properties && strlen (prop->custom_properties) > 0)
@@ -81,6 +83,7 @@ static void
 pt_exit (void *private_data, const GstTensorFilterProperties * prop)
 {
   pt_data *data = private_data;
+  UNUSED (prop);
   assert (data);
   if (data->property)
     free (data->property);
@@ -96,6 +99,7 @@ set_inputDim (void *private_data, const GstTensorFilterProperties * prop,
 {
   int i;
   pt_data *data = private_data;
+  UNUSED (prop);
 
   assert (data);
   assert (in_info);
@@ -128,6 +132,7 @@ pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
   uint32_t oidx0, oidx1, oidx2;
   uint32_t iidx0, iidx1, iidx2;
   size_t elementsize;
+  UNUSED (prop);
 
   assert (data);
   assert (input);
@@ -160,7 +165,7 @@ pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
       for (x = 0; x < ox; x++) {
         unsigned int c;
         for (c = 0; c < prop->input_meta.info[0].dimension[0]; c++) {
-          int sz;
+          unsigned int sz;
           /* Output[y'][x'] = Input[ y' * y / new-y ][ x' * x / new-x ]. Yeah This is Way too Simple. But this is just an example :D */
           unsigned int ix, iy;
 

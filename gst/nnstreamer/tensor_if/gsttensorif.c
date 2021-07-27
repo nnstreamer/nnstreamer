@@ -72,6 +72,7 @@
 #include <string.h>
 
 #include <nnstreamer_subplugin.h>
+#include <nnstreamer_util.h>
 #include "gsttensorif.h"
 
 /**
@@ -495,7 +496,7 @@ gst_tensor_if_property_to_string (GValue * value, GList * prop_list,
 static void
 gst_tensor_if_get_property_supplied_value (GValue * value, tensor_if_sv_s * sv)
 {
-  gint i;
+  guint i;
   gchar *p;
   GPtrArray *arr;
   gchar **strings;
@@ -674,7 +675,7 @@ gst_tensor_if_event (GstPad * pad, GstObject * parent, GstEvent * event)
  */
 static GstTensorPad *
 gst_tensor_if_get_tensor_pad (GstTensorIf * tensor_if,
-    GstTensorsConfig * config, gboolean * created, gint nth)
+    GstTensorsConfig * config, gboolean * created, guint nth)
 {
   GSList *walk;
   GstPad *pad;
@@ -1056,9 +1057,10 @@ gst_tensor_if_check_condition (GstTensorIf * tensor_if, GstBuffer * buf,
  * @brief chain function for sink (gst element vmethod)
  */
 static GstFlowReturn
-gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
+gst_tensor_if_chain (GstPad * pad, GstObject * parent,
+    GstBuffer * buf)
 {
-  gint num_tensors, i;
+  guint num_tensors, i;
   GstFlowReturn res = GST_FLOW_OK;
   GstTensorIf *tensor_if = GST_TENSOR_IF (parent);
   gboolean condition_result = FALSE;
@@ -1071,9 +1073,10 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   GstMemory *mem = NULL;
   gboolean created;
   GstClockTime ts;
+  UNUSED (pad);
 
   num_tensors = tensor_if->in_config.info.num_tensors;
-  GST_DEBUG_OBJECT (tensor_if, " Number of Tensors: %d", num_tensors);
+  GST_DEBUG_OBJECT (tensor_if, " Number of Tensors: %u", num_tensors);
   /* supposed n memory blocks in buffer */
   g_assert (gst_buffer_n_memory (buf) == num_tensors);
 

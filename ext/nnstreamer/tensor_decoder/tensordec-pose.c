@@ -106,6 +106,7 @@
 #include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_log.h>
+#include <nnstreamer_util.h>
 #include "tensordecutil.h"
 
 void init_pose (void) __attribute__((constructor));
@@ -430,7 +431,7 @@ pose_setOption (void **pdata, int opNum, const char *param)
 static int
 _check_tensors (const GstTensorsConfig * config)
 {
-  int i;
+  unsigned int i;
   g_return_val_if_fail (config != NULL, FALSE);
 
   for (i = 1; i < config->info.num_tensors; ++i) {
@@ -493,6 +494,12 @@ static size_t
 pose_getTransformSize (void **pdata, const GstTensorsConfig * config,
     GstCaps * caps, size_t size, GstCaps * othercaps, GstPadDirection direction)
 {
+  UNUSED (pdata);
+  UNUSED (config);
+  UNUSED (caps);
+  UNUSED (size);
+  UNUSED (othercaps);
+  UNUSED (direction);
   return 0;
 }
 
@@ -517,11 +524,11 @@ setpixel (uint32_t * frame, pose_data * data, int x, int y)
   uint32_t *pos = &frame[y * data->width + x];
   *pos = PIXEL_VALUE;
 
-  if (x + 1 < data->width) {
+  if (x + 1 < (int) data->width) {
     pos = &frame[y * data->width + x + 1];
     *pos = PIXEL_VALUE;
   }
-  if (y + 1 < data->height) {
+  if (y + 1 < (int) data->height) {
     pos = &frame[(y + 1) * data->width + x];
     *pos = PIXEL_VALUE;
   }
@@ -564,13 +571,13 @@ draw_line_with_dot (uint32_t * frame, pose_data * data, int x1, int y1, int x2,
 
 
   for (i = 0; i < 40; i++) {
-    if ((ys + yy[i] >= 0) && (ys + yy[i] < data->height) && (xs + xx[i] >= 0)
-        && (xs + xx[i] < data->width)) {
+    if ((ys + yy[i] >= 0) && (ys + yy[i] < (int) data->height) &&
+        (xs + xx[i] >= 0) && (xs + xx[i] < (int) data->width)) {
       pos = &frame[(ys + yy[i]) * data->width + xs + xx[i]];
       *pos = PIXEL_VALUE;
     }
-    if ((ye + yy[i] >= 0) && (ye + yy[i] < data->height) && (xe + xx[i] >= 0)
-        && (xe + xx[i] < data->width)) {
+    if ((ye + yy[i] >= 0) && (ye + yy[i] < (int) data->height) &&
+        (xe + xx[i] >= 0) && (xe + xx[i] < (int) data->width)) {
       pos = &frame[(ye + yy[i]) * data->width + xe + xx[i]];
       *pos = PIXEL_VALUE;
     }
@@ -605,10 +612,10 @@ draw_line_with_dot (uint32_t * frame, pose_data * data, int x1, int y1, int x2,
 static void
 draw_label (uint32_t * frame, pose_data * data, pose * xydata)
 {
-  int i, j, x1, y1, x2, y2;
-  int label_len;
+  int x1, y1, x2, y2;
   uint32_t *pos1, *pos2;
 
+  guint i, j, label_len;
   guint pose_size = data->total_labels;
   char *label;
   for (i = 0; i < pose_size; i++) {
@@ -624,7 +631,7 @@ draw_label (uint32_t * frame, pose_data * data, pose * xydata)
       pos1 = &frame[y1 * data->width + x1];
       for (j = 0; j < label_len; j++) {
         unsigned int char_index = label[j];
-        if ((x1 + 8) > data->width)
+        if ((x1 + 8) > (int) data->width)
           break;
         pos2 = pos1;
         for (y2 = 0; y2 < 13; y2++) {
@@ -649,7 +656,8 @@ draw_label (uint32_t * frame, pose_data * data, pose * xydata)
 static void
 draw (GstMapInfo * out_info, pose_data * data, GArray * results)
 {
-  int i, j;
+  guint i;
+  gint j;
   uint32_t *frame = (uint32_t *) out_info->data;        /* Let's draw per pixel (4bytes) */
   guint pose_size = data->total_labels;
 
@@ -674,7 +682,7 @@ draw (GstMapInfo * out_info, pose_data * data, GArray * results)
     if (smd == NULL)
       continue;
     for (j = 0; j < smd->num_connections; j++) {
-      gint k = smd->connections[j];
+      guint k = smd->connections[j];
       /* Have we already drawn the connection ? */
       if ((k > data->total_labels) || (k < i))
         continue;
@@ -703,9 +711,9 @@ pose_decode (void **pdata, const GstTensorsConfig * config,
   GArray *results = NULL;
   const GstTensorMemory *detections = NULL;
   float *arr;
-  int index, i, j;
+  int i, j;
   int grid_xsize, grid_ysize;
-  guint pose_size;
+  guint pose_size, index;
 
   g_assert (outbuf); /** GST Internal Bug */
   /* Ensure we have outbuf properly allocated */

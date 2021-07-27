@@ -89,6 +89,7 @@
 #include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_log.h>
+#include <nnstreamer_util.h>
 #include "tensordecutil.h"
 
 void init_bb (void) __attribute__((constructor));
@@ -616,9 +617,9 @@ bb_setOption (void **pdata, int opNum, const char *param)
  * @brief check the num_tensors is valid
 */
 static int
-_check_tensors (const GstTensorsConfig * config, const int limit)
+_check_tensors (const GstTensorsConfig * config, const unsigned int limit)
 {
-  int i;
+  unsigned int i;
   g_return_val_if_fail (config != NULL, FALSE);
   g_return_val_if_fail (config->info.num_tensors >= limit, FALSE);
   if (config->info.num_tensors > limit) {
@@ -652,7 +653,7 @@ _check_label_props (bounding_boxes * data)
 */
 static int
 _set_max_detection (bounding_boxes * data, const guint max_detection,
-    const int limit)
+    const unsigned int limit)
 {
   /* Check consistency with max_detection */
   if (data->max_detection == 0)
@@ -802,6 +803,13 @@ static size_t
 bb_getTransformSize (void **pdata, const GstTensorsConfig * config,
     GstCaps * caps, size_t size, GstCaps * othercaps, GstPadDirection direction)
 {
+  UNUSED (pdata);
+  UNUSED (config);
+  UNUSED (caps);
+  UNUSED (size);
+  UNUSED (othercaps);
+  UNUSED (direction);
+
   return 0;
   /** @todo Use appropriate values */
 }
@@ -835,7 +843,7 @@ typedef struct
  */
 #define _get_object_i_mobilenet_ssd(bb, index, total_labels, boxprior, boxinputptr, detinputptr, result) \
   do { \
-    int c; \
+    unsigned int c; \
     properties_MOBILENET_SSD *data = &bb->mobilenet_ssd; \
     float sigmoid_threshold = data->sigmoid_threshold; \
     float y_scale = data->params[MOBILENET_SSD_PARAMS_Y_SCALE_IDX]; \
@@ -1079,7 +1087,7 @@ static void
 draw (GstMapInfo * out_info, bounding_boxes * bdata, GArray * results)
 {
   uint32_t *frame = (uint32_t *) out_info->data;        /* Let's draw per pixel (4bytes) */
-  int i;
+  unsigned int i;
 
   for (i = 0; i < results->len; i++) {
     int x1, x2, y1, y2;         /* Box positions on the output surface */
@@ -1091,7 +1099,8 @@ draw (GstMapInfo * out_info, bounding_boxes * bdata, GArray * results)
 
 
     if ((bdata->flag_use_label) &&
-        ((a->class_id < 0 || a->class_id >= bdata->labeldata.total_labels))) {
+        ((a->class_id < 0 ||
+            a->class_id >= (int) bdata->labeldata.total_labels))) {
       /** @todo make it "logw_once" after we get logw_once API. */
       ml_logw ("Invalid class found with tensordec-boundingbox.c.\n");
       continue;
@@ -1134,7 +1143,7 @@ draw (GstMapInfo * out_info, bounding_boxes * bdata, GArray * results)
       pos1 = &frame[y1 * bdata->width + x1];
       for (j = 0; j < label_len; j++) {
         unsigned int char_index = label[j];
-        if ((x1 + 8) > bdata->width)
+        if ((x1 + 8) > (int) bdata->width)
           break;                /* Stop drawing if it may overfill */
         pos2 = pos1;
         for (y2 = 0; y2 < 13; y2++) {

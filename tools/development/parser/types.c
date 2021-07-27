@@ -142,6 +142,7 @@ nnstparser_element_from_uri (_URIType type, const gchar * uri,
     const gchar * elementname, void **error)
 {
   _Element *ret = g_new0 (_Element, 1);
+  (void) error;
 
   g_assert (type == GST_URI_SINK || type == GST_URI_SRC);
 

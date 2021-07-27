@@ -19,6 +19,7 @@
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_decoder.h>
+#include <nnstreamer_util.h>
 #include <tensor_typedef.h>
 #include "nnstreamer_protobuf.h"
 #include "tensordecutil.h"
@@ -48,6 +49,7 @@ pb_init (void **pdata)
 static void
 pb_exit (void **pdata)
 {
+  UNUSED (pdata);
   return;
 }
 
@@ -57,6 +59,9 @@ pb_exit (void **pdata)
 static int
 pb_setOption (void **pdata, int opNum, const char *param)
 {
+  UNUSED (pdata);
+  UNUSED (opNum);
+  UNUSED (param);
   return TRUE;
 }
 
@@ -67,6 +72,7 @@ static GstCaps *
 pb_getOutCaps (void **pdata, const GstTensorsConfig *config)
 {
   GstCaps *caps;
+  UNUSED (pdata);
   caps = gst_caps_from_string (GST_PROTOBUF_TENSOR_CAP_DEFAULT);
   setFramerateFromConfig (caps, config);
   return caps;
@@ -77,6 +83,7 @@ static GstFlowReturn
 pb_decode (void **pdata, const GstTensorsConfig *config,
     const GstTensorMemory *input, GstBuffer *outbuf)
 {
+  UNUSED (pdata);
   return gst_tensor_decoder_protobuf (config, input, outbuf);
 }
 
@@ -90,7 +97,8 @@ static GstTensorDecoderDef protobuf = {.modename = decoder_subplugin_protobuf,
   .exit = pb_exit,
   .setOption = pb_setOption,
   .getOutCaps = pb_getOutCaps,
-  .decode = pb_decode };
+  .decode = pb_decode,
+  .getTransformSize = NULL };
 
 /**
  * @brief Initialize this object for tensordec-plugin

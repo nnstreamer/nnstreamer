@@ -14,6 +14,7 @@
  */
 
 #include <nnstreamer_plugin_api_converter.h>
+#include <nnstreamer_util.h>
 #include "nnstreamer_python3_helper.h"
 
 /**
@@ -299,6 +300,7 @@ py_open (const gchar *path, void **priv_data)
 static GstCaps *
 python_query_caps (const GstTensorsConfig *config)
 {
+  UNUSED (config);
   return gst_caps_from_string ("application/octet-stream");
 }
 

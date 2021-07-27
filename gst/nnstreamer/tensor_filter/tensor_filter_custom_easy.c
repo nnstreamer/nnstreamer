@@ -28,9 +28,10 @@
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_subplugin.h>
+#include <nnstreamer_util.h>
 
-void init_filter_custom_easy (void) __attribute__((constructor));
-void fini_filter_custom_easy (void) __attribute__((destructor));
+void init_filter_custom_easy (void) __attribute__ ((constructor));
+void fini_filter_custom_easy (void) __attribute__ ((destructor));
 
 /**
  * @brief internal_data
@@ -186,10 +187,11 @@ custom_invoke (const GstTensorFilterProperties * prop,
  * @brief Callback required by tensor_filter subplugin
  */
 static int
-custom_getInputDim (const GstTensorFilterProperties * prop,
-    void **private_data, GstTensorsInfo * info)
+custom_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
+    GstTensorsInfo * info)
 {
   runtime_data *rd = *private_data;
+  UNUSED (prop);
   /* Internal Logic Error */
   g_assert (rd && rd->model);
   gst_tensors_info_copy (info, &rd->model->in_info);
@@ -204,6 +206,7 @@ custom_getOutputDim (const GstTensorFilterProperties * prop,
     void **private_data, GstTensorsInfo * info)
 {
   runtime_data *rd = *private_data;
+  UNUSED (prop);
   /* Internal Logic Error */
   g_assert (rd && rd->model);
   gst_tensors_info_copy (info, &rd->model->out_info);
@@ -217,6 +220,7 @@ static void
 custom_close (const GstTensorFilterProperties * prop, void **private_data)
 {
   runtime_data *rd = *private_data;
+  UNUSED (prop);
   g_free (rd);
   *private_data = NULL;
 }

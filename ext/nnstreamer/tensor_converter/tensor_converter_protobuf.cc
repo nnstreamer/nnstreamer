@@ -33,7 +33,8 @@
 #include <nnstreamer_plugin_api.h>
 #include <string>
 #include <typeinfo>
-#include "nnstreamer_plugin_api_converter.h"
+#include <nnstreamer_plugin_api_converter.h>
+#include <nnstreamer_util.h>
 #include "nnstreamer_protobuf.h"
 #include "tensor_converter_util.h"
 
@@ -49,6 +50,7 @@ void fini_pbc (void) __attribute__((destructor));
 static GstCaps *
 pbc_query_caps (const GstTensorsConfig *config)
 {
+  UNUSED (config);
   return gst_caps_from_string (GST_PROTOBUF_TENSOR_CAP_DEFAULT);
 }
 
@@ -56,6 +58,7 @@ pbc_query_caps (const GstTensorsConfig *config)
 static GstBuffer *
 pbc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
 {
+  UNUSED (priv_data);
   return gst_tensor_converter_protobuf (in_buf, config, NULL);
 }
 
@@ -66,7 +69,9 @@ static NNStreamerExternalConverter protobuf = {
   .name = converter_subplugin_protobuf,
   .convert = pbc_convert,
   .get_out_config = tcu_get_out_config,
-  .query_caps = pbc_query_caps
+  .query_caps = pbc_query_caps,
+  .open = NULL,
+  .close = NULL
 };
 
 /** @brief Initialize this object for tensor converter sub-plugin */

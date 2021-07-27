@@ -17,6 +17,7 @@
 #include <gio/gio.h>
 #include <gio/gsocket.h>
 #include <stdint.h>
+#include <nnstreamer_util.h>
 #include "tensor_query_common.h"
 
 /**
@@ -72,6 +73,12 @@ int
 nnstreamer_query_connect (uint64_t id, const char *ip, uint32_t port,
     uint32_t timeout_ms)
 {
+  /** @todo remove "UNUSED" when you implement the full features */
+  UNUSED (id);
+  UNUSED (ip);
+  UNUSED (port);
+  UNUSED (timeout_ms);
+
   /** NYI: To avoid `defined but not used` */
   if (NULL == table) {
     G_LOCK (splock);

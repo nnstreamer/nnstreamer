@@ -71,6 +71,10 @@ gst_tensor_query_serversink_class_init (GstTensorQueryServerSinkClass * klass)
       "tensor_query_serversink", 0, "Tensor Query Server Sink");
 }
 
+/** @todo Remove when the dummy functions are implemented. */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+
 /**
  * @brief initialize the new element
  */
@@ -108,3 +112,5 @@ gst_tensor_query_serversink_get_property (GObject * object, guint prop_id,
 {
   return;
 }
+
+#pragma GCC diagnostic pop

@@ -37,6 +37,7 @@
 #include <nnstreamer_plugin_api_filter.h>
 #undef NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_conf.h>
+#include <nnstreamer_util.h>
 
 #if TFLITE_VERSION_MAJOR >= 2 || TFLITE_VERSION_MINOR >= 13
 #  if USE_TENSORFLOW2_HEADER_PATH
@@ -1064,6 +1065,7 @@ static void
 tflite_close (const GstTensorFilterProperties *prop, void **private_data)
 {
   TFLiteCore *core = static_cast<TFLiteCore *> (*private_data);
+  UNUSED (prop);
 
   if (!core)
     return;
@@ -1084,9 +1086,7 @@ static int
 tflite_loadModelFile (const GstTensorFilterProperties *prop, void **private_data)
 {
   TFLiteCore *core;
-  tflite_option_s option = {
-    0,
-  };
+  tflite_option_s option = {};
 
   if (tflite_parseCustomOption (prop, &option) != 0) {
     g_printerr ("Failed to parse options to initialize tensorflow-lite model.");
@@ -1148,6 +1148,7 @@ tflite_invoke (const GstTensorFilterProperties *prop, void **private_data,
 {
   TFLiteCore *core = static_cast<TFLiteCore *> (*private_data);
   g_return_val_if_fail (core && input && output, -EINVAL);
+  UNUSED (prop);
 
   return core->invoke (input, output);
 }
@@ -1164,6 +1165,7 @@ tflite_getInputDim (const GstTensorFilterProperties *prop, void **private_data,
 {
   TFLiteCore *core = static_cast<TFLiteCore *> (*private_data);
   g_return_val_if_fail (core && info, -EINVAL);
+  UNUSED (prop);
 
   return core->getInputTensorDim (info);
 }
@@ -1180,6 +1182,7 @@ tflite_getOutputDim (const GstTensorFilterProperties *prop, void **private_data,
 {
   TFLiteCore *core = static_cast<TFLiteCore *> (*private_data);
   g_return_val_if_fail (core && info, -EINVAL);
+  UNUSED (prop);
 
   return core->getOutputTensorDim (info);
 }
@@ -1232,6 +1235,7 @@ tflite_setInputDim (const GstTensorFilterProperties *prop, void **private_data,
   TFLiteCore *core = static_cast<TFLiteCore *> (*private_data);
   GstTensorsInfo cur_in_info;
   int status;
+  UNUSED (prop);
 
   g_return_val_if_fail (core, -EINVAL);
   g_return_val_if_fail (in_info, -EINVAL);

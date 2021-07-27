@@ -32,6 +32,7 @@
 #include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_log.h>
+#include <nnstreamer_util.h>
 #include "tensordecutil.h"
 
 void init_dv (void) __attribute__((constructor));
@@ -279,6 +280,10 @@ dv_getTransformSize (void **pdata, const GstTensorsConfig * config,
 {
   /* Direct video uses the first tensor only even if it's multi-tensor */
   const uint32_t *dim = &(config->info.info[0].dimension[0]);
+  UNUSED (pdata);
+  UNUSED (caps);
+  UNUSED (size);
+  UNUSED (othercaps);
 
   if (direction == GST_PAD_SINK)
     return _get_video_xraw_bufsize (dim);
@@ -296,6 +301,7 @@ dv_decode (void **pdata, const GstTensorsConfig * config,
   /* Direct video uses the first tensor only even if it's multi-tensor */
   const uint32_t *dim = &(config->info.info[0].dimension[0]);
   size_t size = _get_video_xraw_bufsize (dim);
+  UNUSED (pdata);
 
   g_assert (outbuf);
   if (gst_buffer_get_size (outbuf) > 0 && gst_buffer_get_size (outbuf) != size) {
@@ -320,7 +326,7 @@ dv_decode (void **pdata, const GstTensorsConfig * config,
     memcpy (out_info.data, input->data, input->size);
   } else {
     /* Do Padding */
-    int h;
+    unsigned int h;
     uint8_t *ptr, *inp;
 
     ptr = (uint8_t *) out_info.data;

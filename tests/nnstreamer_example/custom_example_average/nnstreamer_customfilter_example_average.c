@@ -34,6 +34,7 @@ static void *
 pt_init (const GstTensorFilterProperties * prop)
 {
   pt_data *data = (pt_data *) malloc (sizeof (pt_data));
+  (void) prop;
   assert (data);
   data->id = 0;
   return data;
@@ -46,6 +47,7 @@ static void
 pt_exit (void *private_data, const GstTensorFilterProperties * prop)
 {
   pt_data *data = private_data;
+  (void) prop;
   assert (data);
   free (data);
 }
@@ -58,6 +60,7 @@ set_inputDim (void *private_data, const GstTensorFilterProperties * prop,
     const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
 {
   int i;
+  (void) prop;
 
   assert (private_data);
   assert (in_info);
@@ -122,6 +125,7 @@ pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
   uint32_t xy =
       prop->input_meta.info[0].dimension[1] *
       prop->input_meta.info[0].dimension[2];
+  (void) prop;
 
   assert (private_data);
   assert (input);

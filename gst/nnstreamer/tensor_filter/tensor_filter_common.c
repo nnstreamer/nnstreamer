@@ -27,6 +27,7 @@
 
 #include <hw_accel.h>
 #include <nnstreamer_log.h>
+#include <nnstreamer_util.h>
 #include <tensor_common.h>
 
 #include "tensor_filter_common.h"
@@ -1719,6 +1720,7 @@ _gtfc_setprop_LATENCY (GstTensorFilterPrivate * priv,
     GstTensorFilterProperties * prop, const GValue * value)
 {
   gint latency_mode;
+  UNUSED (prop);
 
   if (!value)
     return 0;
@@ -1740,6 +1742,7 @@ _gtfc_setprop_THROUGHPUT (GstTensorFilterPrivate * priv,
     GstTensorFilterProperties * prop, const GValue * value)
 {
   gint throughput_mode;
+  UNUSED (prop);
 
   if (!value)
     return 0;
@@ -1854,6 +1857,7 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
 {
   gint status = 0;
   GstTensorFilterProperties *prop;
+  UNUSED (pspec);
 
   prop = &priv->prop;
 
@@ -1979,6 +1983,7 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
 {
   GstTensorFilterProperties *prop;
   gchar *strval;
+  UNUSED (pspec);
 
   prop = &priv->prop;
 

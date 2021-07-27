@@ -16,6 +16,7 @@
 #include <assert.h>
 #include <string.h>
 #include <tensor_filter_custom.h>
+#include <nnstreamer_util.h>
 
 /**
  * @brief nnstreamer custom filter private data
@@ -33,6 +34,7 @@ static void *
 pt_init (const GstTensorFilterProperties * prop)
 {
   pt_data *data = (pt_data *) malloc (sizeof (pt_data));
+  UNUSED (prop);
 
   assert (data);
   data->count = 0;
@@ -48,6 +50,7 @@ static void
 pt_exit (void *_data, const GstTensorFilterProperties * prop)
 {
   pt_data *data = _data;
+  UNUSED (prop);
 
   assert (data);
   free (data);
@@ -61,7 +64,9 @@ static int
 set_inputDim (void *_data, const GstTensorFilterProperties * prop,
     const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
 {
-  int i, t;
+  unsigned int i, t;
+  UNUSED (prop);
+  UNUSED (_data);
 
   assert (in_info);
   assert (out_info);
@@ -90,7 +95,8 @@ invoke (void *_data, const GstTensorFilterProperties * prop,
     const GstTensorMemory * input, GstTensorMemory * output)
 {
   pt_data *data = _data;
-  int t;
+  unsigned int t;
+  UNUSED (prop);
 
   assert (data);
 

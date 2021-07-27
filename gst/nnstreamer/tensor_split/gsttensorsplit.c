@@ -54,6 +54,7 @@
 
 #include "gsttensorsplit.h"
 #include <tensor_common.h>
+#include <nnstreamer_util.h>
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_split_debug);
 #define GST_CAT_DEFAULT gst_tensor_split_debug
@@ -273,7 +274,7 @@ gst_tensor_split_event (GstPad * pad, GstObject * parent, GstEvent * event)
  */
 static GstTensorPad *
 gst_tensor_split_get_tensor_pad (GstTensorSplit * split, GstBuffer * inbuf,
-    gboolean * created, gint nth)
+    gboolean * created, guint nth)
 {
   GSList *walk;
   GstPad *pad;
@@ -285,6 +286,7 @@ gst_tensor_split_get_tensor_pad (GstTensorSplit * split, GstBuffer * inbuf,
   GstTensorsConfig pad_config;
   tensor_dim *dim;
   guint i;
+  UNUSED (inbuf);
 
   walk = split->srcpads;
   while (walk) {
@@ -454,8 +456,9 @@ static GstFlowReturn
 gst_tensor_split_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 {
   GstTensorSplit *split;
-  gint num_tensors, i;
+  guint num_tensors, i;
   GstFlowReturn res = GST_FLOW_OK;
+  UNUSED (pad);
 
   split = GST_TENSOR_SPLIT (parent);
 
@@ -478,7 +481,7 @@ gst_tensor_split_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       gboolean found = FALSE;
       GList *list;
       for (list = split->tensorpick; list != NULL; list = list->next) {
-        if (i == GPOINTER_TO_INT (list->data)) {
+        if (i == GPOINTER_TO_UINT (list->data)) {
           found = TRUE;
           break;
         }
@@ -588,7 +591,7 @@ gst_tensor_split_set_property (GObject * object, guint prop_id,
     }
     case PROP_TENSORSEG:
     {
-      gint i;
+      guint i;
       const gchar *param = g_value_get_string (value);
       gchar **strv = g_strsplit_set (param, ",.;/", -1);
       split->num_tensors = g_strv_length (strv);
@@ -659,7 +662,7 @@ gst_tensor_split_get_property (GObject * object, guint prop_id,
       if ((split->tensorseg) && (split->tensorseg->len > 0)) {
         tensor_dim *dim = NULL;
         gchar *strv = NULL;
-        int i, j;
+        guint i, j;
 
 
         for (i = 0; i < split->tensorseg->len; i++) {

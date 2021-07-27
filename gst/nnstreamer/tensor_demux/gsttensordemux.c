@@ -65,6 +65,7 @@
 #include <string.h>
 #include <gst/gst.h>
 #include <glib.h>
+#include <nnstreamer_util.h>
 
 #include "gsttensordemux.h"
 
@@ -470,6 +471,7 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   GstFlowReturn res = GST_FLOW_OK;
   GstTensorDemux *tensor_demux;
   GList *list = NULL;
+  UNUSED (pad);
   tensor_demux = GST_TENSOR_DEMUX (parent);
 
   if (gst_tensors_info_is_flexible (&tensor_demux->tensors_config.info)) {
@@ -594,7 +596,7 @@ gst_tensor_demux_set_property (GObject * object, guint prop_id,
       break;
     case PROP_TENSORPICK:
     {
-      gint i;
+      guint i;
       const gchar *param = g_value_get_string (value);
       gchar **strv = g_strsplit_set (param, ",.;/", -1);
       guint num = g_strv_length (strv);

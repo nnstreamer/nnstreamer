@@ -20,6 +20,7 @@
 #include <errno.h>
 #include <math.h>
 #include <tensor_filter_custom.h>
+#include <nnstreamer_util.h>
 #include <glib.h>
 
 #define TSIZE   (4)
@@ -42,6 +43,7 @@ pt_init (const GstTensorFilterProperties * prop)
 {
   pt_data *data = (pt_data *) malloc (sizeof (pt_data));
   int i;
+  UNUSED (prop);
 
   assert (data);
   memset (data, 0, sizeof (pt_data));
@@ -67,6 +69,7 @@ static void
 pt_exit (void *private_data, const GstTensorFilterProperties * prop)
 {
   pt_data *data = private_data;
+  UNUSED (prop);
   assert (data);
 
   g_free (data->info[0].name);
@@ -98,6 +101,7 @@ get_inputDim (void *private_data, const GstTensorFilterProperties * prop,
     GstTensorsInfo * info)
 {
   pt_data *data = private_data;
+  UNUSED (prop);
 
   assert (data);
   assert (NNS_TENSOR_RANK_LIMIT >= 3);
@@ -115,6 +119,7 @@ get_outputDim (void *private_data, const GstTensorFilterProperties * prop,
     GstTensorsInfo * info)
 {
   pt_data *data = private_data;
+  UNUSED (prop);
 
   assert (data);
   assert (NNS_TENSOR_RANK_LIMIT >= 3);
@@ -144,6 +149,7 @@ pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
   uint32_t c, w, h;
   float *in0, *in1, *in2, *out0, *out1;
   float in2_tmp0, in2_tmp1;
+  UNUSED (prop);
 
   if (!data || !input || !output)
     return -EINVAL;

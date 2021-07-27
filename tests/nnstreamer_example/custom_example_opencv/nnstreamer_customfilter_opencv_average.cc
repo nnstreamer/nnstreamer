@@ -20,6 +20,7 @@
 
 #include <glib.h>
 #include <nnstreamer_plugin_api.h>
+#include <nnstreamer_util.h>
 #include <tensor_filter_custom.h>
 
 /**
@@ -38,6 +39,7 @@ static void *
 pt_init (const GstTensorFilterProperties *prop)
 {
   pt_data *pdata = g_new0 (pt_data, 1);
+  UNUSED (prop);
   g_assert (pdata != NULL);
 
   return pdata;
@@ -50,6 +52,7 @@ static void
 pt_exit (void *private_data, const GstTensorFilterProperties *prop)
 {
   pt_data *pdata = static_cast<pt_data *> (private_data);
+  UNUSED (prop);
   g_assert (pdata);
   g_free (pdata);
 }
@@ -63,6 +66,7 @@ set_inputDim (void *private_data, const GstTensorFilterProperties *prop,
 {
   int i;
   pt_data *pdata = static_cast<pt_data *> (private_data);
+  UNUSED (prop);
 
   g_assert (pdata);
   g_assert (in_info);
@@ -138,6 +142,7 @@ static NNStreamer_custom_class NNStreamer_custom_body = {
   .setInputDim = set_inputDim,
   .invoke = pt_invoke,
   .allocate_invoke = NULL,
+  .destroy_notify = NULL,
 };
 
 /* The dyn-loaded object */

@@ -32,12 +32,11 @@ TEST (nnstreamer@EXT_ABBRV@BasicFunctions, openClose00_n)
   const gchar *model_files[] = {
     "null.@EXT_ABBRV@", NULL,
   };
-  GstTensorFilterProperties prop = {
-    .fwname = "@EXT_NAME@",
-    .fw_opened = 0,
-    .model_files = model_files,
-    .num_models = 1,
-  };
+  GstTensorFilterProperties prop = {};
+  prop.fwname = "@EXT_NAME@";
+  prop.fw_opened = 0;
+  prop.model_files = model_files;
+  prop.num_models = 1;
   void *data = NULL;
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("@EXT_NAME@");
@@ -115,12 +114,11 @@ TEST (nnstreamer@EXT_ABBRV@BasicFunctions, openClose01_n)
   model_files = get_model_files ();
   ASSERT_TRUE (model_files != nullptr);
 
-  GstTensorFilterProperties prop = {
-    .fwname = "@EXT_NAME@",
-    .fw_opened = 0,
-    .model_files = const_cast < const char **>(model_files),
-    .num_models = (int) g_strv_length (model_files),
-  };
+  GstTensorFilterProperties prop = {};
+  prop.fwname = "@EXT_NAME@";
+  prop.fw_opened = 0;
+  prop.model_files = const_cast < const char **>(model_files);
+  prop.num_models = (int) g_strv_length (model_files);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("@EXT_NAME@");
   EXPECT_NE (sp, (void *) NULL);
@@ -151,12 +149,11 @@ TEST (nnstreamer@EXT_ABBRV@BasicFunctions, getDimensionFail_n)
   model_files = get_model_files ();
   ASSERT_TRUE (model_files != nullptr);
 
-  GstTensorFilterProperties prop = {
-    .fwname = "@EXT_NAME@",
-    .fw_opened = 0,
-    .model_files = const_cast < const char **>(model_files),
-    .num_models = (int) g_strv_length (model_files),
-  };
+  GstTensorFilterProperties prop = {};
+  prop.fwname = "@EXT_NAME@";
+  prop.fw_opened = 0;
+  prop.model_files = const_cast < const char **>(model_files);
+  prop.num_models = (int) g_strv_length (model_files);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("@EXT_NAME@");
   EXPECT_NE (sp, (void *) NULL);
@@ -197,12 +194,11 @@ TEST (nnstreamer@EXT_ABBRV@BasicFunctions, getDimension)
   model_files = get_model_files ();
   ASSERT_TRUE (model_files != nullptr);
 
-  GstTensorFilterProperties prop = {
-    .fwname = "@EXT_NAME@",
-    .fw_opened = 0,
-    .model_files = const_cast < const char **>(model_files),
-    .num_models = (int) g_strv_length (model_files),
-  };
+  GstTensorFilterProperties prop = {};
+  prop.fwname = "@EXT_NAME@";
+  prop.fw_opened = 0;
+  prop.model_files = const_cast < const char **>(model_files);
+  prop.num_models = (int) g_strv_length (model_files);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("@EXT_NAME@");
   EXPECT_NE (sp, (void *) NULL);
@@ -241,13 +237,11 @@ TEST (nnstreamer@EXT_ABBRV@BasicFunctions, setDimensionFail_n)
   model_files = get_model_files ();
   ASSERT_TRUE (model_files != nullptr);
 
-  GstTensorFilterProperties prop = {
-    .fwname = "@EXT_NAME@",
-    .fw_opened = 0,
-    .model_files = const_cast<const char **>(model_files),
-    .num_models = (int) g_strv_length (model_files),
-
-  };
+  GstTensorFilterProperties prop = {};
+  prop.fwname = "@EXT_NAME@";
+  prop.fw_opened = 0;
+  prop.model_files = const_cast<const char **>(model_files);
+  prop.num_models = (int) g_strv_length (model_files);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("@EXT_NAME@");
   EXPECT_NE (sp, (void *) NULL);
@@ -290,13 +284,11 @@ TEST (nnstreamer@EXT_ABBRV@BasicFunctions, setDimension)
   model_files = get_model_files ();
   ASSERT_TRUE (model_files != nullptr);
 
-  GstTensorFilterProperties prop = {
-    .fwname = "@EXT_NAME@",
-    .fw_opened = 0,
-    .model_files = const_cast<const char **>(model_files),
-    .num_models = (int) g_strv_length (model_files),
-
-  };
+  GstTensorFilterProperties prop = {};
+  prop.fwname = "@EXT_NAME@";
+  prop.fw_opened = 0;
+  prop.model_files = const_cast<const char **>(model_files);
+  prop.num_models = (int) g_strv_length (model_files);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("@EXT_NAME@");
   EXPECT_NE (sp, (void *) NULL);
@@ -370,19 +362,18 @@ TEST (nnstreamer@EXT_ABBRV@BasicFunctions, invokeFail_n)
 {
   int ret;
   void *data = NULL;
-  GstTensorMemory input[NNS_TENSOR_SIZE_LIMIT] = { {0}, };
-  GstTensorMemory output[NNS_TENSOR_SIZE_LIMIT] = { {0}, };
+  GstTensorMemory input[NNS_TENSOR_SIZE_LIMIT] = { {}, };
+  GstTensorMemory output[NNS_TENSOR_SIZE_LIMIT] = { {}, };
   gchar **model_files;
 
   model_files = get_model_files ();
   ASSERT_TRUE (model_files != nullptr);
 
-  GstTensorFilterProperties prop = {
-    .fwname = "@EXT_NAME@",
-    .fw_opened = 0,
-    .model_files = const_cast < const char **>(model_files),
-    .num_models = (int) g_strv_length (model_files),
-  };
+  GstTensorFilterProperties prop = {};
+  prop.fwname = "@EXT_NAME@";
+  prop.fw_opened = 0;
+  prop.model_files = const_cast < const char **>(model_files);
+  prop.num_models = (int) g_strv_length (model_files);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("@EXT_NAME@");
   EXPECT_NE (sp, (void *) NULL);
@@ -421,8 +412,8 @@ TEST (nnstreamer@EXT_ABBRV@BasicFunctions, invoke)
   int ret;
   int ret_get_in, ret_get_out, ret_set_in;
   void *data = NULL;
-  GstTensorMemory input[NNS_TENSOR_SIZE_LIMIT] = { {0}, };
-  GstTensorMemory output[NNS_TENSOR_SIZE_LIMIT] = { {0}, };
+  GstTensorMemory input[NNS_TENSOR_SIZE_LIMIT] = { {}, };
+  GstTensorMemory output[NNS_TENSOR_SIZE_LIMIT] = { {}, };
   gchar **model_files;
   GstTensorsInfo input_info, output_info;
   guint i;
@@ -430,12 +421,11 @@ TEST (nnstreamer@EXT_ABBRV@BasicFunctions, invoke)
   model_files = get_model_files ();
   ASSERT_TRUE (model_files != nullptr);
 
-  GstTensorFilterProperties prop = {
-    .fwname = "@EXT_NAME@",
-    .fw_opened = 0,
-    .model_files = const_cast < const char **>(model_files),
-    .num_models = (int) g_strv_length (model_files),
-  };
+  GstTensorFilterProperties prop = {};
+  prop.fwname = "@EXT_NAME@";
+  prop.fw_opened = 0;
+  prop.model_files = const_cast < const char **>(model_files);
+  prop.num_models = (int) g_strv_length (model_files);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("@EXT_NAME@");
   EXPECT_NE (sp, (void *) NULL);
@@ -534,12 +524,11 @@ TEST (nnstreamer@EXT_ABBRV@BasicFunctions, reloadModel)
   model_files = get_model_files ();
   ASSERT_TRUE (model_files != nullptr);
 
-  GstTensorFilterProperties prop = {
-    .fwname = "@EXT_NAME@",
-    .fw_opened = 0,
-    .model_files = const_cast<const char **>(model_files),
-    .num_models = (int) g_strv_length (model_files),
-  };
+  GstTensorFilterProperties prop = {};
+  prop.fwname = "@EXT_NAME@";
+  prop.fw_opened = 0;
+  prop.model_files = const_cast<const char **>(model_files);
+  prop.num_models = (int) g_strv_length (model_files);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("@EXT_NAME@");
   EXPECT_NE (sp, (void *) NULL);
@@ -597,12 +586,11 @@ TEST (nnstreamer@EXT_ABBRV@BasicFunctions, destroyNotify_n)
   model_files = get_model_files ();
   ASSERT_TRUE (model_files != nullptr);
 
-  GstTensorFilterProperties prop = {
-    .fwname = "@EXT_NAME@",
-    .fw_opened = 0,
-    .model_files = const_cast<const char **>(model_files),
-    .num_models = (int) g_strv_length (model_files),
-  };
+  GstTensorFilterProperties prop = {};
+  prop.fwname = "@EXT_NAME@";
+  prop.fw_opened = 0;
+  prop.model_files = const_cast<const char **>(model_files);
+  prop.num_models = (int) g_strv_length (model_files);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("@EXT_NAME@");
   EXPECT_NE (sp, (void *) NULL);
@@ -635,12 +623,11 @@ TEST (nnstreamer@EXT_ABBRV@BasicFunctions, allocateInInvoke_n)
   model_files = get_model_files ();
   ASSERT_TRUE (model_files != nullptr);
 
-  GstTensorFilterProperties prop = {
-    .fwname = "@EXT_NAME@",
-    .fw_opened = 0,
-    .model_files = const_cast<const char **>(model_files),
-    .num_models = (int) g_strv_length (model_files),
-  };
+  GstTensorFilterProperties prop = {};
+  prop.fwname = "@EXT_NAME@";
+  prop.fw_opened = 0;
+  prop.model_files = const_cast<const char **>(model_files);
+  prop.num_models = (int) g_strv_length (model_files);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("@EXT_NAME@");
   EXPECT_NE (sp, (void *) NULL);

@@ -234,7 +234,8 @@ _gst_tensor_time_sync_buffer_update (GstBuffer ** buf,
             (ABS (GST_CLOCK_DIFF (current, GST_BUFFER_PTS (pad->buffer))) <
                 ABS (GST_CLOCK_DIFF (current, GST_BUFFER_PTS (*buf))))) ||
         (sync->mode == SYNC_BASEPAD && pad->buffer != NULL &&
-            (ABS (GST_CLOCK_DIFF (current, GST_BUFFER_PTS (*buf))) > base))) {
+            (((GstClockTime) ABS (GST_CLOCK_DIFF (current,
+                            GST_BUFFER_PTS (*buf)))) > base))) {
       /* keep last buffer */
     } else {
       /* update last buffer */
@@ -294,7 +295,7 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
     if (buf != NULL) {
       if (pad->buffer != NULL)
         base_time =
-            MIN (sync->data_basepad.duration,
+            MIN ((GstClockTimeDiff) sync->data_basepad.duration,
             ABS (GST_CLOCK_DIFF (GST_BUFFER_PTS (buf),
                     GST_BUFFER_PTS (pad->buffer))) - 1);
       gst_buffer_unref (buf);

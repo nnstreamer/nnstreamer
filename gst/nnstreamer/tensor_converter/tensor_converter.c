@@ -60,6 +60,7 @@
 #endif
 #include <nnstreamer_log.h>
 #include <nnstreamer_subplugin.h>
+#include <nnstreamer_util.h>
 
 /**
  * @brief Caps string for text input
@@ -990,6 +991,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   GstBuffer *inbuf;
   gsize buf_size, frame_size;
   guint frames_in, frames_out;
+  UNUSED (pad);
 
   buf_size = gst_buffer_get_size (buf);
   g_return_val_if_fail (buf_size > 0, GST_FLOW_ERROR);
@@ -1029,7 +1031,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
       if (self->remove_padding) {
         GstMapInfo src_info, dest_info;
-        int d0, d1;
+        guint d0, d1;
         unsigned int src_idx = 0, dest_idx = 0;
         size_t size, offset;
 
@@ -1699,7 +1701,8 @@ gst_tensor_converter_parse_custom (GstTensorConverter * self,
 
     self->externalConverter = ex;
     if (self->mode == _CONVERTER_MODE_CUSTOM_SCRIPT) {
-      if (self->externalConverter->open (self->mode_option,
+      if (self->externalConverter->open &&
+          self->externalConverter->open (self->mode_option,
               &self->priv_data) < 0) {
         ml_loge ("Failed to open tensor converter custom subplugin.\n");
         self->externalConverter = NULL;

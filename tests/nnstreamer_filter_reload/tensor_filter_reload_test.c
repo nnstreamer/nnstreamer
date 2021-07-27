@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <gst/gst.h>
 #include <tensor_common.h>
+#include <nnstreamer_util.h>
 
 #define _print_log(...) if (!silent) g_message (__VA_ARGS__)
 #define make_gst_element(element) do{\
@@ -42,6 +43,8 @@ static gint return_val = 0;
 static gboolean
 bus_callback (GstBus * bus, GstMessage * message, gpointer data)
 {
+  UNUSED (bus);
+  UNUSED (data);
   _print_log ("Got %s message\n", GST_MESSAGE_TYPE_NAME (message));
 
   switch (GST_MESSAGE_TYPE (message)) {
@@ -73,7 +76,7 @@ bus_callback (GstBus * bus, GstMessage * message, gpointer data)
 static gint
 get_maximum_index (guint8 *data, gsize size)
 {
-  gint idx, max_idx = 0;
+  gsize idx, max_idx = 0;
   guint8 maximum = 0;
 
   for (idx = 0; idx < size; ++idx) {

@@ -34,6 +34,7 @@
 #define NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
 #undef NO_ANONYMOUS_NESTED_STRUCT
+#include <nnstreamer_util.h>
 
 #include <caffe2/core/init.h>
 #include <caffe2/core/workspace.h>
@@ -431,6 +432,7 @@ static void
 caffe2_close (const GstTensorFilterProperties *prop, void **private_data)
 {
   Caffe2Core *core = static_cast<Caffe2Core *> (*private_data);
+  UNUSED (prop);
 
   if (!core)
     return;
@@ -527,6 +529,7 @@ caffe2_run (const GstTensorFilterProperties *prop, void **private_data,
 {
   Caffe2Core *core = static_cast<Caffe2Core *> (*private_data);
   g_return_val_if_fail (core && input && output, -EINVAL);
+  UNUSED (prop);
 
   return core->run (input, output);
 }
@@ -543,6 +546,7 @@ caffe2_getInputDim (const GstTensorFilterProperties *prop, void **private_data,
 {
   Caffe2Core *core = static_cast<Caffe2Core *> (*private_data);
   g_return_val_if_fail (core && info, -EINVAL);
+  UNUSED (prop);
 
   return core->getInputTensorDim (info);
 }
@@ -559,6 +563,7 @@ caffe2_getOutputDim (const GstTensorFilterProperties *prop, void **private_data,
 {
   Caffe2Core *core = static_cast<Caffe2Core *> (*private_data);
   g_return_val_if_fail (core && info, -EINVAL);
+  UNUSED (prop);
 
   return core->getOutputTensorDim (info);
 }
@@ -571,6 +576,8 @@ caffe2_getOutputDim (const GstTensorFilterProperties *prop, void **private_data,
 static void
 caffe2_destroyNotify (void **private_data, void *data)
 {
+  UNUSED (private_data);
+  UNUSED (data);
   /* do nothing */
 }
 

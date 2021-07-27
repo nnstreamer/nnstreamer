@@ -78,6 +78,9 @@ static void
 log_handler (const gchar *log_domain, GLogLevelFlags log_level,
     const gchar *message, gpointer user_data)
 {
+  (void) log_domain;
+  (void) log_level;
+  (void) user_data;
   g_printerr ("%s", message);
 }
 

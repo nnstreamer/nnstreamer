@@ -22,7 +22,7 @@ setPipelineStateSync (GstElement * pipeline, GstState state,
 {
   GstState cur_state = GST_STATE_VOID_PENDING;
   GstStateChangeReturn ret;
-  gint counter = 0;
+  guint counter = 0;
   ret = gst_element_set_state (pipeline, state);
 
   if (ret == GST_STATE_CHANGE_FAILURE)

@@ -25,6 +25,7 @@
 #include <glib.h>
 #include <tensor_filter_custom.h>
 #include <nnstreamer_plugin_api.h>
+#include <nnstreamer_util.h>
 
 /**
  * @brief Private data structure
@@ -81,6 +82,7 @@ static void
 pt_exit (void *private_data, const GstTensorFilterProperties * prop)
 {
   pt_data *data = private_data;
+  UNUSED (prop);
   assert (data);
   if (data->property)
     free (data->property);
@@ -96,6 +98,7 @@ set_inputDim (void *private_data, const GstTensorFilterProperties * prop,
 {
   int i;
   pt_data *data = private_data;
+  UNUSED (prop);
 
   assert (data);
   assert (in_info);
