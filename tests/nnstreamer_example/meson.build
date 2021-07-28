@@ -102,4 +102,3 @@ if tensorrt_support_is_available
     install_dir: customfilter_install_dir
   )
 endif
-

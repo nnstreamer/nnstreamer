@@ -1,3 +1,6 @@
+# Build nnstreamer subplugins and apps for test cases
+subdir('nnstreamer_example')
+
 # Set unittest install dir
 unittest_install_dir = join_paths(unittest_base_dir, 'tests')
 

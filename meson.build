@@ -521,9 +521,6 @@ subdir('tools/development')
 
 # Build unittests
 if get_option('enable-test')
-  # Build nnstreamer examples
-  subdir('nnstreamer_example')
-
   # ini file generator template for the plugins from other repository
   configure_file(input: 'nnstreamer.ini.in', output: 'nnstreamer-test.ini.in',
     install: get_option('install-test'),
