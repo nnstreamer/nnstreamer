@@ -453,8 +453,8 @@ TEST (nnstreamerRate, throttling)
   if (root_path == NULL)
     root_path = "..";
 
-  gchar *model_file = g_build_filename (root_path, "build", "nnstreamer_example",
-      "libnnstreamer_customfilter_passthrough.so", NULL);
+  gchar *model_file = g_build_filename (root_path, "build", "tests",
+      "nnstreamer_example", "libnnstreamer_customfilter_passthrough.so", NULL);
   ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
 
   option.framework = g_strdup ("custom");
