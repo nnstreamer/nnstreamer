@@ -75,6 +75,13 @@ struct _GstMqttSink {
   mqtt_sink_state_t mqtt_sink_state;
   gboolean debug;
   gint mqtt_qos;
+  gboolean mqtt_ntp_sync;
+  guint mqtt_ntp_num_srvs;
+  gchar *mqtt_ntp_srvs;
+  gchar **mqtt_ntp_hnames;
+  guint16 *mqtt_ntp_ports;
+
+  mqtt_get_unix_epoch get_epoch_func;
 
   GstMQTTMessageHdr mqtt_msg_hdr;
   gpointer mqtt_msg_buf;
