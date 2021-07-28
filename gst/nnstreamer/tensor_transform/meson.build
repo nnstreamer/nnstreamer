@@ -10,10 +10,17 @@ if orcc_support_is_available
     input: orcsrc + '.orc',
     output: orcsrc + '.h',
     command: orcc_support_orcc_args + ['--header', '-o', '@OUTPUT@', '@INPUT@'])
-  orc_c = custom_target(orcsrc + '.c',
+  orc_c_org = custom_target(orcsrc + '.c.in',
     input: orcsrc + '.orc',
-    output: orcsrc + '.c',
+    output: orcsrc + '.c.in',
     command: orcc_support_orcc_args + ['--implementation', '-o', '@OUTPUT@', '@INPUT@'])
+
+## ORC generated codes incur a few warnings. Ignore warnings of generated files.
+  script = find_program('ignore_warning.sh')
+  orc_c = custom_target(orcsrc + '.c',
+    input: orc_c_org,
+    output: orcsrc + '.c',
+    command: [ script, '@INPUT@', '@OUTPUT@' ])
 
   nnstreamer_sources += [orc_c, orc_h]
   nnstreamer_internal_deps += declare_dependency(sources: orc_h)
