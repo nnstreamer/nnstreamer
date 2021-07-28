@@ -37,8 +37,8 @@
 #include <nnstreamer_util.h>
 #include "tensordecutil.h"
 
-void init_il (void) __attribute__((constructor));
-void fini_il (void) __attribute__((destructor));
+void init_il (void) __attribute__ ((constructor));
+void fini_il (void) __attribute__ ((destructor));
 
 #define DECODER_IL_TEXT_CAPS_STR \
     "text/x-raw, format = (string) utf8"

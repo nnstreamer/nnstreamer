@@ -1847,7 +1847,7 @@ error:
  * @brief Tell the framework the required size of buffer based on the info of the other side pad. Note that this is always the same with the input. optional vmethod of BaseTransform
  */
 static gboolean
-gst_tensor_transform_transform_size ( GstBaseTransform * trans,
+gst_tensor_transform_transform_size (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, gsize size, GstCaps * othercaps,
     gsize * othersize)
 {

@@ -79,7 +79,7 @@ configure (const GstTensorFilterProperties * prop, pt_data * data)
       } else if (0 == strncmp (parsed, "delay-", 6)) {
         parsed = parsed + 6;
         if (*parsed)
-          data->delay = (uint32_t) g_ascii_strtoll  (parsed, NULL, 10);
+          data->delay = (uint32_t) g_ascii_strtoll (parsed, NULL, 10);
       }
 
       counter++;

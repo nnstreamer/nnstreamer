@@ -664,7 +664,8 @@ gst_tensor_merge_send_segment_event (GstTensorMerge * tensor_merge,
  * @return GstFlowReturn
  */
 static GstFlowReturn
-gst_tensor_merge_collected (GstCollectPads * pads, GstTensorMerge * tensor_merge)
+gst_tensor_merge_collected (GstCollectPads * pads,
+    GstTensorMerge * tensor_merge)
 {
   GstFlowReturn ret = GST_FLOW_OK;
   GstBuffer *tensors_buf, *tensor_buf;
