@@ -13,6 +13,11 @@
 
 #ifndef __GST_MQTT_COMMON_H__
 #define __GST_MQTT_COMMON_H__
+#include <stdint.h>
+
+#ifndef UNUSED
+#define UNUSED(expr) do { (void)(expr); } while (0)
+#endif /* UNUSED */
 
 #ifndef GST_MQTT_PACKAGE
 #define GST_MQTT_PACKAGE "GStreamer MQTT Plugins"
@@ -54,5 +59,20 @@ typedef struct _GstMQTTMessageHdr {
     guint8 _reserved_hdr[GST_MQTT_LEN_MSG_HDR];
   };
 } GstMQTTMessageHdr;
+
+typedef int64_t (*mqtt_get_unix_epoch)(uint32_t, char **, uint16_t *);
+
+/**
+ * @brief A wrapper function of g_get_real_time () to assign it to the function
+ * pointer, mqtt_get_unix_epoch
+ */
+static inline int64_t default_mqtt_get_unix_epoch (uint32_t hnum, char **hnames,
+    uint16_t *hports)
+{
+  UNUSED (hnum);
+  UNUSED (hnames);
+  UNUSED (hports);
+  return g_get_real_time ();
+}
 
 #endif /* !__GST_MQTT_COMMON_H__ */
