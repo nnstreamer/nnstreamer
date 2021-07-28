@@ -677,8 +677,8 @@ gst_tensor_rate_transform_caps (GstBaseTransform * trans,
  * @brief fixate caps. required vmethod of GstBaseTransform.
  */
 static GstCaps *
-gst_tensor_rate_fixate_caps (GstBaseTransform * trans, GstPadDirection direction,
-    GstCaps * caps, GstCaps * othercaps)
+gst_tensor_rate_fixate_caps (GstBaseTransform * trans,
+    GstPadDirection direction, GstCaps * caps, GstCaps * othercaps)
 {
   GstStructure *s;
   gint num, denom;

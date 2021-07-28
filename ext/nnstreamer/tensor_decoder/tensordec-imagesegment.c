@@ -96,8 +96,8 @@
 #define RGBA_CHANNEL    (4)
 #define MAX_RGB         (255)
 
-void init_is (void) __attribute__((constructor));
-void fini_is (void) __attribute__((destructor));
+void init_is (void) __attribute__ ((constructor));
+void fini_is (void) __attribute__ ((destructor));
 
 static const float DETECTION_THRESHOLD = 0.5f;
 
@@ -195,20 +195,20 @@ _fill_color_map (image_segments * idata)
 {
   guint i;
 
-  idata->color_map[0] = 0; /* background */
+  idata->color_map[0] = 0;      /* background */
 
 #if defined (NEON64_ENABLED)
   idata->rgb_modifier = 0xFFFFFF / (idata->max_labels + 1);
   for (i = 1; i <= idata->max_labels; i++) {
     /* colors should be the same with neon calculations */
     idata->color_map[i] = idata->rgb_modifier * i;
-    ((guint8 *)&idata->color_map[i])[3] = '\xff'; /* alpha */
+    ((guint8 *) & idata->color_map[i])[3] = '\xff';     /* alpha */
   }
 #else
   for (i = 1; i <= idata->max_labels; i++) {
     /* any color value would be acceptable */
     idata->color_map[i] = g_rand_int_range (idata->rand, 0x101010, 0xFFFFFF);
-    ((guint8 *)&idata->color_map[i])[3] = '\xff'; /* alpha */
+    ((guint8 *) & idata->color_map[i])[3] = '\xff';     /* alpha */
   }
 #endif
 }
@@ -426,7 +426,7 @@ find_max_grayscale (image_segments * idata)
   idx -= num_lanes;
 #endif
   for (; idx < num_pixels; idx++)
-    gray_max = MAX (gray_max, input [idx]);
+    gray_max = MAX (gray_max, input[idx]);
 
   return gray_max;
 }
@@ -523,11 +523,10 @@ set_label_index (image_segments * idata, void *data)
   for (i = 0; i < idata->height; i++) {
     for (j = 0; j < idata->width; j++) {
       max_idx = 0;
-      max_prob = prob_map[i * idata->width * total_labels
-        + j * total_labels];
+      max_prob = prob_map[i * idata->width * total_labels + j * total_labels];
       for (idx = 1; idx < total_labels; idx++) {
         float prob = prob_map[i * idata->width * total_labels
-          + j * total_labels + idx];
+            + j * total_labels + idx];
         if (prob > max_prob) {
           max_prob = prob;
           max_idx = idx;
@@ -535,7 +534,7 @@ set_label_index (image_segments * idata, void *data)
       }
       if (max_prob > DETECTION_THRESHOLD) {
         idata->segment_map[i * idata->width + j] = (float) max_idx;
-      } /* otherwise, regarded as background */
+      }                         /* otherwise, regarded as background */
     }
   }
 }
@@ -568,12 +567,12 @@ check_sanity (image_segments * idata, const GstTensorsConfig * config)
 {
   if (idata->mode == MODE_TFLITE_DEEPLAB) {
     return (config->info.info[0].type == _NNS_FLOAT32) &&
-           (config->info.info[0].dimension[0] == idata->max_labels + 1);
+        (config->info.info[0].dimension[0] == idata->max_labels + 1);
   } else if (idata->mode == MODE_SNPE_DEEPLAB) {
     return (config->info.info[0].type == _NNS_FLOAT32);
   } else if (idata->mode == MODE_SNPE_DEPTH) {
     return (config->info.info[0].type == _NNS_FLOAT32) &&
-           (config->info.info[0].dimension[0] == 1);
+        (config->info.info[0].dimension[0] == 1);
   }
 
   return FALSE;

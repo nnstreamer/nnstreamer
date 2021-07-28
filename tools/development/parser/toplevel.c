@@ -26,11 +26,12 @@
 static gboolean from_pbtxt = FALSE;
 static gboolean verbose = FALSE;
 
-static GOptionEntry entries[] =
-{
-  { "from-pbtxt", 'p', 0, G_OPTION_ARG_NONE, &from_pbtxt, "From pbtxt to gst pipeline", NULL },
-  { "verbose", 'v', 0, G_OPTION_ARG_NONE, &verbose, "Enable verbose messages", NULL },
-  { NULL }
+static GOptionEntry entries[] = {
+  {"from-pbtxt", 'p', 0, G_OPTION_ARG_NONE, &from_pbtxt,
+        "From pbtxt to gst pipeline", NULL},
+  {"verbose", 'v', 0, G_OPTION_ARG_NONE, &verbose, "Enable verbose messages",
+        NULL},
+  {NULL}
 };
 
 /** @brief Get input string for parsing */
@@ -45,14 +46,14 @@ get_input_string (char *str)
 
   status = g_io_channel_set_encoding (channel, "UTF-8", &error);
   if (status == G_IO_STATUS_ERROR) {
-    g_printerr ("Error detected while setting encoding: %s\n",
-        error->message);
+    g_printerr ("Error detected while setting encoding: %s\n", error->message);
     g_error_free (error);
     ret = FALSE;
     goto out;
   }
 
-  status = g_io_channel_read_chars (channel, str, INPUT_MAXLEN, &length, &error);
+  status =
+      g_io_channel_read_chars (channel, str, INPUT_MAXLEN, &length, &error);
   if (status == G_IO_STATUS_ERROR) {
     g_printerr ("Error detected while reading an input string: %s\n",
         error->message);
@@ -75,8 +76,8 @@ out:
 
 /** @brief Log handler */
 static void
-log_handler (const gchar *log_domain, GLogLevelFlags log_level,
-    const gchar *message, gpointer user_data)
+log_handler (const gchar * log_domain, GLogLevelFlags log_level,
+    const gchar * message, gpointer user_data)
 {
   (void) log_domain;
   (void) log_level;
@@ -90,12 +91,12 @@ main (int argc, char *argv[])
 {
   GError *error = NULL;
   GOptionContext *context;
-  char input_str[INPUT_MAXLEN] = {'\x00'};
+  char input_str[INPUT_MAXLEN] = { '\x00' };
   GLogLevelFlags log_flags;
   _Element *pipeline;
 
-  context = g_option_context_new (
-      "- Prototxt to/from GStreamer Pipeline Converver");
+  context =
+      g_option_context_new ("- Prototxt to/from GStreamer Pipeline Converver");
   g_option_context_add_main_entries (context, entries, NULL);
   if (!g_option_context_parse (context, &argc, &argv, &error)) {
     g_printerr ("Option parsing failed: %s\n", error->message);

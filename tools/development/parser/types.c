@@ -57,7 +57,7 @@ nnstparser_element_make (const gchar * element, const gchar * name)
  * @brief Make a pad owned by the parent
  */
 _Pad *
-nnstparser_pad_make (_Element *parent, const gchar *name)
+nnstparser_pad_make (_Element * parent, const gchar * name)
 {
   _Pad *ret = g_new0 (_Pad, 1);
   ret->name = g_strdup (name);
@@ -157,17 +157,15 @@ nnstparser_element_from_uri (_URIType type, const gchar * uri,
  * @brief Substitutes GST's gst_element_link_pads_filtered ()
  */
 gboolean
-nnstparser_element_link_pads_filtered (_Element *src, const gchar *src_name,
-    _Element *dst, const gchar *dst_name, gchar *filter)
+nnstparser_element_link_pads_filtered (_Element * src, const gchar * src_name,
+    _Element * dst, const gchar * dst_name, gchar * filter)
 {
   _Pad *src_pad;
   _Pad *dst_pad;
 
-  g_debug (
-      "trying to link element %s:%s to element %s:%s, filter %s\n",
-      __GST_ELEMENT_NAME(src), src_name ? src_name : "(any)",
-      __GST_ELEMENT_NAME(dst), dst_name ? dst_name : "(any)",
-      filter);
+  g_debug ("trying to link element %s:%s to element %s:%s, filter %s\n",
+      __GST_ELEMENT_NAME (src), src_name ? src_name : "(any)",
+      __GST_ELEMENT_NAME (dst), dst_name ? dst_name : "(any)", filter);
 
   /**
    * It's impossible to decide link compatibility of each pad

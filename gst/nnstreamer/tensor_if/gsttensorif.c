@@ -1057,8 +1057,7 @@ gst_tensor_if_check_condition (GstTensorIf * tensor_if, GstBuffer * buf,
  * @brief chain function for sink (gst element vmethod)
  */
 static GstFlowReturn
-gst_tensor_if_chain (GstPad * pad, GstObject * parent,
-    GstBuffer * buf)
+gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 {
   guint num_tensors, i;
   GstFlowReturn res = GST_FLOW_OK;

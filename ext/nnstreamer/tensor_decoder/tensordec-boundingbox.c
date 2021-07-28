@@ -92,8 +92,8 @@
 #include <nnstreamer_util.h>
 #include "tensordecutil.h"
 
-void init_bb (void) __attribute__((constructor));
-void fini_bb (void) __attribute__((destructor));
+void init_bb (void) __attribute__ ((constructor));
+void fini_bb (void) __attribute__ ((destructor));
 
 /* font.c */
 extern uint8_t rasters[][13];
@@ -183,7 +183,7 @@ typedef struct
 typedef struct
 {
   /* From option3, output tensor mapping */
-  gint tensor_mapping[MOBILENET_SSD_PP_MAX_TENSORS];      /* Output tensor index mapping */
+  gint tensor_mapping[MOBILENET_SSD_PP_MAX_TENSORS];    /* Output tensor index mapping */
   gfloat threshold;             /* Detection threshold */
 } properties_MOBILENET_SSD_PP;
 
@@ -242,7 +242,8 @@ _check_mode_is_mobilenet_ssd_pp (bounding_box_modes mode)
 
 /** @brief Helper to retrieve tensor index by feature */
 static inline int
-_get_mobilenet_ssd_pp_tensor_idx (bounding_boxes * bdata, mobilenet_ssd_pp_bbox_idx_t idx)
+_get_mobilenet_ssd_pp_tensor_idx (bounding_boxes * bdata,
+    mobilenet_ssd_pp_bbox_idx_t idx)
 {
   return bdata->mobilenet_ssd_pp.tensor_mapping[idx];
 }
@@ -255,7 +256,8 @@ _get_mobilenet_ssd_pp_threshold (bounding_boxes * bdata)
 }
 
 /** @brief Mathematic inverse of sigmoid function, aka logit */
-static float logit(float x)
+static float
+logit (float x)
 {
   if (x <= 0.0f)
     return -INFINITY;
@@ -263,7 +265,7 @@ static float logit(float x)
   if (x >= 1.0f)
     return INFINITY;
 
-  return log(x / (1.0 - x));
+  return log (x / (1.0 - x));
 }
 
 /** @brief Initialize bounding_boxes per mode */
@@ -285,7 +287,7 @@ _init_modes (bounding_boxes * bdata)
     data->params[MOBILENET_SSD_PARAMS_H_SCALE_IDX] = H_SCALE;
     data->params[MOBILENET_SSD_PARAMS_W_SCALE_IDX] = W_SCALE;
     data->params[MOBILENET_SSD_PARAMS_IOU_THRESHOLD_IDX] = THRESHOLD_IOU;
-    data->sigmoid_threshold = logit(DETECTION_THRESHOLD);
+    data->sigmoid_threshold = logit (DETECTION_THRESHOLD);
 
     return TRUE;
   } else if (_check_mode_is_mobilenet_ssd_pp (bdata->mode)) {
@@ -382,7 +384,8 @@ _mobilenet_ssd_loadBoxPrior (bounding_boxes * bdata)
   gint prev_reg = -1;
 
   /* Read file contents */
-  if (!g_file_get_contents (mobilenet_ssd->box_prior_path, &contents, NULL, &err)) {
+  if (!g_file_get_contents (mobilenet_ssd->box_prior_path, &contents, NULL,
+          &err)) {
     GST_ERROR ("Decoder/Bound-Box/SSD's box prior file %s cannot be read: %s",
         mobilenet_ssd->box_prior_path, err->message);
     g_clear_error (&err);
@@ -474,8 +477,8 @@ _setOption_mode (bounding_boxes * bdata, const char *param)
       mobilenet_ssd->params[idx - 1] = strtod (options[idx], NULL);
     }
 
-    mobilenet_ssd->sigmoid_threshold = logit(
-        mobilenet_ssd->params[MOBILENET_SSD_PARAMS_THRESHOLD_IDX]);
+    mobilenet_ssd->sigmoid_threshold =
+        logit (mobilenet_ssd->params[MOBILENET_SSD_PARAMS_THRESHOLD_IDX]);
 
   exit_mobilenet_ssd:
     g_strfreev (options);
@@ -514,7 +517,8 @@ _setOption_mode (bounding_boxes * bdata, const char *param)
       mobilenet_ssd_pp->threshold = threshold_percent / 100.0;
     }
 
-    GST_INFO ("MOBILENET SSD POST PROCESS object detection threshold: %.2f", mobilenet_ssd_pp->threshold);
+    GST_INFO ("MOBILENET SSD POST PROCESS object detection threshold: %.2f",
+        mobilenet_ssd_pp->threshold);
   }
 
   return TRUE;
@@ -738,10 +742,17 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
     if (!_check_tensors (config, MOBILENET_SSD_PP_MAX_TENSORS))
       return NULL;
 
-    locations_idx = _get_mobilenet_ssd_pp_tensor_idx (data, MOBILENET_SSD_PP_BBOX_IDX_LOCATIONS);
-    classes_idx = _get_mobilenet_ssd_pp_tensor_idx (data, MOBILENET_SSD_PP_BBOX_IDX_CLASSES);
-    scores_idx = _get_mobilenet_ssd_pp_tensor_idx (data, MOBILENET_SSD_PP_BBOX_IDX_SCORES);
-    num_idx = _get_mobilenet_ssd_pp_tensor_idx (data, MOBILENET_SSD_PP_BBOX_IDX_NUM);
+    locations_idx =
+        _get_mobilenet_ssd_pp_tensor_idx (data,
+        MOBILENET_SSD_PP_BBOX_IDX_LOCATIONS);
+    classes_idx =
+        _get_mobilenet_ssd_pp_tensor_idx (data,
+        MOBILENET_SSD_PP_BBOX_IDX_CLASSES);
+    scores_idx =
+        _get_mobilenet_ssd_pp_tensor_idx (data,
+        MOBILENET_SSD_PP_BBOX_IDX_SCORES);
+    num_idx =
+        _get_mobilenet_ssd_pp_tensor_idx (data, MOBILENET_SSD_PP_BBOX_IDX_NUM);
 
     /* Check if the number of detections tensor is compatible */
     dim1 = config->info.info[num_idx].dimension;
@@ -767,7 +778,8 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
       g_return_val_if_fail (dim4[i] == 1, NULL);
 
     /* Check consistency with max_detection */
-    if (!_set_max_detection (data, max_detection, MOBILENET_SSD_PP_DETECTION_MAX)) {
+    if (!_set_max_detection (data, max_detection,
+            MOBILENET_SSD_PP_DETECTION_MAX)) {
       return NULL;
     }
   } else if ((data->mode == OV_PERSON_DETECTION_BOUNDING_BOX) ||
@@ -1100,7 +1112,7 @@ draw (GstMapInfo * out_info, bounding_boxes * bdata, GArray * results)
 
     if ((bdata->flag_use_label) &&
         ((a->class_id < 0 ||
-            a->class_id >= (int) bdata->labeldata.total_labels))) {
+                a->class_id >= (int) bdata->labeldata.total_labels))) {
       /** @todo make it "logw_once" after we get logw_once API. */
       ml_logw ("Invalid class found with tensordec-boundingbox.c.\n");
       continue;
@@ -1238,10 +1250,17 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
     /* Already checked with getOutCaps. Thus, this is an internal bug */
     g_assert (num_tensors >= MOBILENET_SSD_PP_MAX_TENSORS);
 
-    locations_idx = _get_mobilenet_ssd_pp_tensor_idx (bdata, MOBILENET_SSD_PP_BBOX_IDX_LOCATIONS);
-    classes_idx = _get_mobilenet_ssd_pp_tensor_idx (bdata, MOBILENET_SSD_PP_BBOX_IDX_CLASSES);
-    scores_idx = _get_mobilenet_ssd_pp_tensor_idx (bdata, MOBILENET_SSD_PP_BBOX_IDX_SCORES);
-    num_idx = _get_mobilenet_ssd_pp_tensor_idx (bdata, MOBILENET_SSD_PP_BBOX_IDX_NUM);
+    locations_idx =
+        _get_mobilenet_ssd_pp_tensor_idx (bdata,
+        MOBILENET_SSD_PP_BBOX_IDX_LOCATIONS);
+    classes_idx =
+        _get_mobilenet_ssd_pp_tensor_idx (bdata,
+        MOBILENET_SSD_PP_BBOX_IDX_CLASSES);
+    scores_idx =
+        _get_mobilenet_ssd_pp_tensor_idx (bdata,
+        MOBILENET_SSD_PP_BBOX_IDX_SCORES);
+    num_idx =
+        _get_mobilenet_ssd_pp_tensor_idx (bdata, MOBILENET_SSD_PP_BBOX_IDX_NUM);
 
     mem_num = &input[num_idx];
     mem_classes = &input[classes_idx];

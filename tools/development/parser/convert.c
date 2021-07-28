@@ -25,7 +25,7 @@ static GData *datalist;
  * @brief Get a node name (ignore index 0)
  */
 static gchar *
-pbtxt_get_node_name (_Element *elem)
+pbtxt_get_node_name (_Element * elem)
 {
   gint index = GET_NODE_INDEX (elem);
 
@@ -141,7 +141,8 @@ pbtxt_prepare (gpointer data, gpointer user_data)
 }
 
 /** @brief Convert gst pipeline to pbtxt */
-void convert_to_pbtxt (_Element *pipeline)
+void
+convert_to_pbtxt (_Element * pipeline)
 {
   g_return_if_fail (pipeline != NULL);
 

@@ -74,7 +74,7 @@ bus_callback (GstBus * bus, GstMessage * message, gpointer data)
  * @brief Find the index with a maximum value
  */
 static gint
-get_maximum_index (guint8 *data, gsize size)
+get_maximum_index (guint8 * data, gsize size)
 {
   gsize idx, max_idx = 0;
   guint8 maximum = 0;
@@ -93,7 +93,7 @@ get_maximum_index (guint8 *data, gsize size)
  * @brief Signal to handle new output data
  */
 static GstFlowReturn
-check_output (GstElement *sink, void *data __attribute__((unused)))
+check_output (GstElement * sink, void *data __attribute__ ((unused)))
 {
   static gint prev_index = -1;
 
@@ -135,7 +135,7 @@ check_output (GstElement *sink, void *data __attribute__((unused)))
  * @brief Reload a tensor filter's model (v1 <-> v2)
  */
 static gboolean
-reload_model (GstElement *tensor_filter)
+reload_model (GstElement * tensor_filter)
 {
   static gboolean is_first = TRUE;
   const gchar *model_path;
@@ -151,7 +151,7 @@ reload_model (GstElement *tensor_filter)
 
   is_first = !is_first;
 
-  /* repeat if it's playing*/
+  /* repeat if it's playing */
   return (GST_STATE (GST_ELEMENT (tensor_filter)) == GST_STATE_PLAYING);
 }
 
@@ -159,7 +159,7 @@ reload_model (GstElement *tensor_filter)
  * @brief Stop the main loop callback
  */
 static gboolean
-stop_loop (GMainLoop *loop)
+stop_loop (GMainLoop * loop)
 {
   if (!loop)
     return FALSE;
@@ -191,16 +191,18 @@ main (int argc, char *argv[])
   GOptionContext *opt_context;
   const GOptionEntry opt_entries[] = {
     {"input_img", 'i', G_OPTION_FLAG_NONE, G_OPTION_ARG_STRING, &input_img_path,
-      "The path of input image file",
-      "e.g., data/orange.png"},
-    {"first_model", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_STRING, &first_model_path,
-      "The path of first model file",
-      "e.g., models/mobilenet_v1_1.0_224_quant.tflite"},
-    {"second_model", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_STRING, &second_model_path,
-      "The path of second model file",
-      "e.g., models/mobilenet_v2_1.0_224_quant.tflite"},
+          "The path of input image file",
+        "e.g., data/orange.png"},
+    {"first_model", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_STRING,
+          &first_model_path,
+          "The path of first model file",
+        "e.g., models/mobilenet_v1_1.0_224_quant.tflite"},
+    {"second_model", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_STRING,
+          &second_model_path,
+          "The path of second model file",
+        "e.g., models/mobilenet_v2_1.0_224_quant.tflite"},
     {"silent", 's', G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &silent,
-      "Hide debug message", "TRUE (default)"},
+        "Hide debug message", "TRUE (default)"},
     {NULL}
   };
 
@@ -229,21 +231,19 @@ main (int argc, char *argv[])
   make_gst_element (filesrc);
   make_gst_element (pngdec);
   make_gst_element (videoscale);
-  make_gst_element (imagefreeze); /* feed the same input image */
+  make_gst_element (imagefreeze);       /* feed the same input image */
   make_gst_element (videoconvert);
   make_gst_element (capsfilter);
   make_gst_element (tensor_converter);
   make_gst_element (tensor_filter);
-  make_gst_element (appsink); /* output is verified in appsink callback */
+  make_gst_element (appsink);   /* output is verified in appsink callback */
 
   /* set arguments of each element */
   g_object_set (G_OBJECT (filesrc), "location", input_img_path, NULL);
 
-  caps = gst_caps_new_simple (
-      "video/x-raw",
+  caps = gst_caps_new_simple ("video/x-raw",
       "format", G_TYPE_STRING, "RGB",
-      "framerate", GST_TYPE_FRACTION, IMAGE_FPS, 1,
-      NULL);
+      "framerate", GST_TYPE_FRACTION, IMAGE_FPS, 1, NULL);
   g_object_set (G_OBJECT (capsfilter), "caps", caps, NULL);
   gst_caps_unref (caps);
 
