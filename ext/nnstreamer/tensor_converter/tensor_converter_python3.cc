@@ -152,7 +152,7 @@ PYConverterCore::convert (GstBuffer *in_buf, GstTensorsConfig *config)
     return NULL;
   }
 
-  npy_intp input_dims[] = { (npy_intp) (gst_buffer_get_size (in_buf)) };
+  npy_intp input_dims[] = { (npy_intp) (in_info.size) };
 
   PyObject *param = PyList_New (0);
   PyObject *input_array = PyArray_SimpleNewFromData (
