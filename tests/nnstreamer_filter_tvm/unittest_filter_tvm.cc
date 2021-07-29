@@ -45,14 +45,14 @@ _set_filter_prop (GstTensorFilterProperties *prop, const gchar *name, const gcha
 static void
 _get_model_file (gchar ** model_file)
 {
-  const gchar * root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
-  if (!root_path) {
-    root_path = g_get_current_dir();
-  }
-  gchar * model_name = g_strdup_printf("tvm_add_one_%s.so_", ARCH);
+  const gchar *src_root = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  gchar *root_path = src_root ? g_strdup (src_root) : g_get_current_dir ();
+  gchar *model_name = g_strdup_printf ("tvm_add_one_%s.so_", ARCH);
+
   *model_file = g_build_filename (
       root_path, "tests", "test_models", "models", model_name, NULL);
   g_free (model_name);
+  g_free (root_path);
 }
 
 /**
@@ -66,7 +66,7 @@ _check_output (GstElement *element, GstBuffer *buffer, gpointer user_data)
   gboolean mapped;
   gfloat *output;
 
-  mem_res = gst_buffer_get_memory (buffer, 0);
+  mem_res = gst_buffer_peek_memory (buffer, 0);
   mapped = gst_memory_map (mem_res, &info_res, GST_MAP_READ);
   ASSERT_TRUE (mapped);
   output = (gfloat *) info_res.data;
@@ -74,6 +74,8 @@ _check_output (GstElement *element, GstBuffer *buffer, gpointer user_data)
   for (guint i = 0; i < 10; i++) {
     EXPECT_EQ (1, output[i]);
   }
+
+  gst_memory_unmap (mem_res, &info_res);
 }
 
 /**
