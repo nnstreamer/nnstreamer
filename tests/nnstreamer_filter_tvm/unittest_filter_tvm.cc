@@ -15,6 +15,7 @@
 #include <unittest_util.h>
 
 #include <nnstreamer_plugin_api_filter.h>
+#include <nnstreamer_util.h>
 
 #if defined(__aarch64__)
 #define ARCH "aarch64"
@@ -65,6 +66,8 @@ _check_output (GstElement *element, GstBuffer *buffer, gpointer user_data)
   GstMapInfo info_res;
   gboolean mapped;
   gfloat *output;
+  UNUSED (element);
+  UNUSED (user_data);
 
   mem_res = gst_buffer_peek_memory (buffer, 0);
   mapped = gst_memory_map (mem_res, &info_res, GST_MAP_READ);

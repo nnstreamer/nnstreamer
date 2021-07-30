@@ -36,6 +36,7 @@
 #define NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
 #undef NO_ANONYMOUS_NESTED_STRUCT
+#include <nnstreamer_util.h>
 #include <nnfw.h>
 
 /**
@@ -118,6 +119,7 @@ nnfw_get_accelerator (nnfw_pdata * pdata, const char *accelerators)
 {
   accl_hw accel = parse_accl_hw (accelerators, nnfw_accl_support,
       nnfw_accl_auto, nnfw_accl_default);
+  UNUSED (pdata);
 
   switch (accel) {
     case ACCL_NPU:
@@ -280,6 +282,7 @@ static void
 nnfw_close (const GstTensorFilterProperties * prop, void **private_data)
 {
   nnfw_pdata *pdata;
+  UNUSED (prop);
 
   if (private_data == NULL || *private_data == NULL)
     return;
@@ -513,6 +516,7 @@ nnfw_getInputDim (const GstTensorFilterProperties * prop,
     void **private_data, GstTensorsInfo * info)
 {
   nnfw_pdata *pdata;
+  UNUSED (prop);
 
   g_return_val_if_fail (private_data != NULL, -EINVAL);
   pdata = (nnfw_pdata *) * private_data;
@@ -531,6 +535,7 @@ nnfw_getOutputDim (const GstTensorFilterProperties * prop,
     void **private_data, GstTensorsInfo * info)
 {
   nnfw_pdata *pdata;
+  UNUSED (prop);
 
   g_return_val_if_fail (private_data != NULL, -EINVAL);
   pdata = (nnfw_pdata *) * private_data;
@@ -611,9 +616,11 @@ nnfw_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
     const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
 {
   nnfw_pdata *pdata;
-  int err, idx;
+  int err;
+  guint idx;
   nnfw_tinfo_s nnfw_in_info, nnfw_out_info;
   GstTensorsInfo gst_in_info;
+  UNUSED (prop);
 
   g_return_val_if_fail (private_data != NULL, -EINVAL);
   g_return_val_if_fail (in_info != NULL, -EINVAL);
@@ -754,11 +761,11 @@ nnfw_invoke_internal (const nnfw_pdata * pdata,
  * @brief The standard tensor_filter callback
  */
 static int
-nnfw_invoke (const GstTensorFilterProperties * prop,
-    void **private_data, const GstTensorMemory * input,
-    GstTensorMemory * output)
+nnfw_invoke (const GstTensorFilterProperties * prop, void **private_data,
+    const GstTensorMemory * input, GstTensorMemory * output)
 {
   nnfw_pdata *pdata;
+  UNUSED (prop);
 
   g_return_val_if_fail (G_UNLIKELY (private_data != NULL), -EINVAL);
   pdata = (nnfw_pdata *) (*private_data);

@@ -22,6 +22,7 @@
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_decoder.h>
+#include <nnstreamer_util.h>
 #include <typeinfo>
 #include "tensordecutil.h"
 
@@ -51,6 +52,7 @@ fbd_init (void **pdata)
 static void
 fbd_exit (void **pdata)
 {
+  UNUSED (pdata);
   return;
 }
 
@@ -58,6 +60,9 @@ fbd_exit (void **pdata)
 static int
 fbd_setOption (void **pdata, int opNum, const char *param)
 {
+  UNUSED (pdata);
+  UNUSED (opNum);
+  UNUSED (param);
   return TRUE;
 }
 
@@ -66,6 +71,8 @@ static GstCaps *
 fbd_getOutCaps (void **pdata, const GstTensorsConfig *config)
 {
   GstCaps *caps;
+  UNUSED (pdata);
+
   caps = gst_caps_from_string (GST_FLATBUF_TENSOR_CAP_DEFAULT);
   setFramerateFromConfig (caps, config);
   return caps;
@@ -90,6 +97,7 @@ fbd_decode (void **pdata, const GstTensorsConfig *config,
   flatbuffers::Offset<Tensor> tensor;
   flatbuffers::Offset<Tensors> tensors;
   frame_rate fr;
+  UNUSED (pdata);
 
   if (!config || !input || !outbuf) {
     ml_loge ("NULL parameter is passed to tensor_decoder::flatbuf");
@@ -162,7 +170,8 @@ static GstTensorDecoderDef flatBuf = { .modename = decoder_subplugin_flatbuf,
   .exit = fbd_exit,
   .setOption = fbd_setOption,
   .getOutCaps = fbd_getOutCaps,
-  .decode = fbd_decode };
+  .decode = fbd_decode,
+  .getTransformSize = NULL };
 
 #ifdef __cplusplus
 extern "C" {

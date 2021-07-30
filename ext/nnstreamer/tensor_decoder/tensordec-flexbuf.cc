@@ -61,6 +61,7 @@
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_decoder.h>
+#include <nnstreamer_util.h>
 #include "tensordecutil.h"
 
 #ifdef __cplusplus
@@ -84,6 +85,7 @@ flxd_init (void **pdata)
 static void
 flxd_exit (void **pdata)
 {
+  UNUSED (pdata);
   return;
 }
 
@@ -91,6 +93,9 @@ flxd_exit (void **pdata)
 static int
 flxd_setOption (void **pdata, int opNum, const char *param)
 {
+  UNUSED (pdata);
+  UNUSED (opNum);
+  UNUSED (param);
   return TRUE;
 }
 
@@ -99,6 +104,8 @@ static GstCaps *
 flxd_getOutCaps (void **pdata, const GstTensorsConfig *config)
 {
   GstCaps *caps;
+  UNUSED (pdata);
+
   caps = gst_caps_from_string (GST_FLEXBUF_CAP_DEFAULT);
   setFramerateFromConfig (caps, config);
   return caps;
@@ -115,6 +122,7 @@ flxd_decode (void **pdata, const GstTensorsConfig *config,
   gboolean need_alloc;
   size_t flex_size;
   flexbuffers::Builder fbb;
+  UNUSED (pdata);
 
   if (!config || !input || !outbuf) {
     ml_loge ("NULL parameter is passed to tensor_decoder::flexbuf");
@@ -187,7 +195,8 @@ static GstTensorDecoderDef flexBuf = { .modename = decoder_subplugin_flexbuf,
   .exit = flxd_exit,
   .setOption = flxd_setOption,
   .getOutCaps = flxd_getOutCaps,
-  .decode = flxd_decode };
+  .decode = flxd_decode,
+  .getTransformSize = NULL };
 
 #ifdef __cplusplus
 extern "C" {
