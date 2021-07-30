@@ -29,6 +29,7 @@
 #include "nnstreamer_log.h"
 #include "nnstreamer_subplugin.h"
 #include "nnstreamer_conf.h"
+#include <nnstreamer_util.h>
 
 /** @brief Array of dynamic loaded handles */
 static GPtrArray *handles = NULL;
@@ -303,6 +304,7 @@ _close_handle (gpointer data)
  * Note that Tizen 5.5 / GLIBC 2.24 has the same bug!
  */
 #if defined(__GLIBC__) && (__GLIBC__ == 2) && (__GLIBC_MINOR__ <= 24)
+  UNUSED (data);
   return;                       /* Do not call close and return */
 #else
   g_module_close ((GModule *) data);

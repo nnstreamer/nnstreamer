@@ -16,6 +16,7 @@
 #include <nnstreamer_cppplugin_api_filter.hh>
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api.h>
+#include <nnstreamer_util.h>
 #include <tensor_common.h>
 
 #include <dlpack/dlpack.h>
@@ -427,6 +428,8 @@ tvm_subplugin::getModelInfo (model_info_ops ops, GstTensorsInfo &in_info, GstTen
 int
 tvm_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data)
 {
+  UNUSED (ops);
+  UNUSED (data);
   return -ENOENT;
 }
 

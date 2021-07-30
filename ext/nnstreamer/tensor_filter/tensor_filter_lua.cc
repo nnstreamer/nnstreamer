@@ -81,6 +81,7 @@ extern "C" {
 #include <string>
 #include <nnstreamer_cppplugin_api_filter.hh>
 #include <nnstreamer_log.h>
+#include <nnstreamer_util.h>
 #include <tensor_common.h>
 
 
@@ -516,6 +517,8 @@ lua_subplugin::getModelInfo (
 int
 lua_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data)
 {
+  UNUSED (ops);
+  UNUSED (data);
   return -ENOENT;
 }
 

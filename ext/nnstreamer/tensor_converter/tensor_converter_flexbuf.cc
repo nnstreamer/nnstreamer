@@ -60,6 +60,7 @@
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_converter.h>
+#include <nnstreamer_util.h>
 #include <flatbuffers/flexbuffers.h>
 #include "tensor_converter_util.h"
 
@@ -76,6 +77,7 @@ void fini_flxc (void) __attribute__((destructor));
 static GstCaps *
 flxc_query_caps (const GstTensorsConfig *config)
 {
+  UNUSED (config);
   return gst_caps_from_string (GST_FLEXBUF_CAP_DEFAULT);
 }
 
@@ -88,6 +90,7 @@ flxc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
   GstMemory *in_mem, *out_mem;
   GstMapInfo in_info;
   gsize mem_size;
+  UNUSED (priv_data);
 
   if (!in_buf || !config) {
     ml_loge ("NULL parameter is passed to tensor_converter::flexbuf");
@@ -152,7 +155,9 @@ static NNStreamerExternalConverter flexBuf = {
   .name = converter_subplugin_flexbuf,
   .convert = flxc_convert,
   .get_out_config = tcu_get_out_config,
-  .query_caps = flxc_query_caps
+  .query_caps = flxc_query_caps,
+  .open = NULL,
+  .close = NULL
 };
 
 #ifdef __cplusplus
