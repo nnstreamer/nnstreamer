@@ -145,24 +145,26 @@ PYDecoderCore::decode (const GstTensorsConfig *config,
   size_t mem_size;
   int rate_n = 0, rate_d = 1;
   PyObject *output = NULL;
-  PyObject *raw_data = PyList_New (0);
-  PyObject *in_info = PyList_New (0);
+  PyObject *raw_data, *in_info;
   GstFlowReturn ret = GST_FLOW_OK;
 
+  Py_LOCK ();
+  raw_data = PyList_New (config->info.num_tensors);
+  in_info = PyList_New (config->info.num_tensors);
   rate_n = config->rate_n;
   rate_d = config->rate_d;
+
   for (unsigned int i = 0; i < config->info.num_tensors; i++) {
     tensor_type nns_type = config->info.info[i].type;
     npy_intp input_dims[] = { (npy_intp) (input[i].size / gst_tensor_get_element_size (nns_type)) };
     PyObject *input_array = PyArray_SimpleNewFromData (
         1, input_dims, getNumpyType (nns_type), input[i].data);
-    PyList_Append (raw_data, input_array);
+    PyList_SetItem (raw_data, i, input_array);
 
     PyObject *shape = PyTensorShape_New (shape_cls, &config->info.info[i]);
-    PyList_Append (in_info, shape);
+    PyList_SetItem (in_info, i, shape);
   }
 
-  Py_LOCK ();
   if (!PyObject_HasAttrString (core_obj, (char *)"decode")) {
     Py_ERRMSG ("Cannot find 'decode'");
     ret = GST_FLOW_ERROR;

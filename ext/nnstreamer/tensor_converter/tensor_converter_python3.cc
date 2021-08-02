@@ -135,31 +135,37 @@ PYConverterCore::~PYConverterCore ()
 GstBuffer *
 PYConverterCore::convert (GstBuffer *in_buf, GstTensorsConfig *config)
 {
-  GstMemory *in_mem, *out_mem;
-  GstMapInfo in_info;
+  GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT], *out_mem;
+  GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT];
   GstBuffer *out_buf = NULL;
   PyObject *tensors_info = NULL, *output = NULL, *pyValue = NULL;
   gint rate_n, rate_d;
-  guint mem_size;
+  guint i, num, mem_size;
   gpointer mem_data;
+
   if (nullptr == in_buf)
     throw std::invalid_argument ("Null pointers are given to PYConverterCore::convert().\n");
-
-  in_mem = gst_buffer_peek_memory (in_buf, 0);
-
-  if (!gst_memory_map (in_mem, &in_info, GST_MAP_READ)) {
-    Py_ERRMSG ("Cannot map input memory / tensor_converter::custom-script");
-    return NULL;
-  }
-
-  npy_intp input_dims[] = { (npy_intp) (in_info.size) };
-
-  PyObject *param = PyList_New (0);
-  PyObject *input_array = PyArray_SimpleNewFromData (
-      1, input_dims, NPY_UINT8, in_info.data);
-  PyList_Append (param, input_array);
+  num = gst_buffer_n_memory (in_buf);
 
   Py_LOCK ();
+  PyObject *param = PyList_New (num);
+
+  for (i = 0; i < num; i++) {
+    in_mem[i] = gst_buffer_peek_memory (in_buf, i);
+
+    if (!gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
+      Py_ERRMSG ("Cannot map input memory / tensor_converter::custom-script");
+      num = i;
+      goto done;
+    }
+
+    npy_intp input_dims[] = { (npy_intp) (in_info[i].size) };
+    PyObject *input_array = PyArray_SimpleNewFromData (
+        1, input_dims, NPY_UINT8, in_info[i].data);
+
+    PyList_SetItem (param, i, input_array);
+  }
+
   if (!PyObject_HasAttrString (core_obj, (char *)"convert")) {
     Py_ERRMSG ("Cannot find 'convert'");
     goto done;
@@ -203,8 +209,10 @@ PYConverterCore::convert (GstBuffer *in_buf, GstTensorsConfig *config)
   }
 
 done:
+  for (i = 0; i < num; i++)
+    gst_memory_unmap (in_mem[i], &in_info[i]);
+
   Py_UNLOCK ();
-  gst_memory_unmap (in_mem, &in_info);
   return out_buf;
 }
 
