@@ -8,12 +8,12 @@
  * @author	Jaeyun Jung <jy1210.jung@samsung.com>
  * @bug		No known bugs
  *
- * SNAP (Samsung Neural Acceleration Platform) version 2.0, run only on Samsung devices.
+ * SNAP (Samsung Neural Acceleration Platform) version 3.0, run only on Samsung devices.
  * Developer should download Samsung Neural SDK (https://developer.samsung.com/neural/overview.html).
  *
  * To construct a pipeline with SNAP, you should set the custom option string to specify the neural network and data format.
  * Custom options:
- *  - ModelFWType: the type of model (TensorFlow/Caffe)
+ *  - ModelFWType: the type of model (TensorFlow Lite/TensorFlow/Caffe)
  *  - ExecutionDataType: the execution data type for SNAP (default float32)
  *  - ComputingUnit: the computing unit to execute the model (default CPU)
  *  - CpuThreadCount: the number of CPU threads to be executed (optional, default 4 if ComputingUnit is CPU)
@@ -243,7 +243,7 @@ tensor_filter_snap::register_snap ()
     instance_ = tensor_filter_subplugin::register_subplugin<tensor_filter_snap> ();
   }
   nnstreamer_filter_set_custom_property_desc ("snap", "ModelFWType",
-      "Framework type for the given model: {'TENSORFLOW', 'CAFFE'}",
+      "Framework type for the given model: {'TENSORFLOWLITE', 'TENSORFLOW', 'CAFFE'}",
       "ModelEncrypted",
       "Use encrypted model: {'true': if encrypted. otherwise, not encrypted.",
       "ExecutionDataType",
@@ -340,7 +340,7 @@ tensor_filter_snap::open (const GstTensorFilterProperties *prop, snap_option_s &
     goto done;
   }
 
-  /** @note snap v2.0 only supports caffe model to set encrypted */
+  /** @note snap v3.0 only supports caffe model to set encrypted */
   if (snap_option.fw_type == snap_sdk::ModelFWType::CAFFE) {
     status = model.SetEncrypted (snap_option.model_encrypted);
     if (status != snap_sdk::ErrCode::OK) {
@@ -540,6 +540,7 @@ tensor_filter_snap::parse_custom_prop (const char *custom_prop, snap_option_s &s
     return false;
   }
 
+  std::string snap_version_code = snap_sdk::GetSnapSDKVersionCode ();
   options = g_strsplit (custom_prop, ",", -1);
 
   for (op = 0; op < g_strv_length (options); ++op) {
@@ -550,7 +551,17 @@ tensor_filter_snap::parse_custom_prop (const char *custom_prop, snap_option_s &s
       g_strstrip (option[1]);
 
       if (g_ascii_strcasecmp (option[0], "ModelFWType") == 0) {
-        if (g_ascii_strcasecmp (option[1], "TENSORFLOW") == 0) {
+        if (g_ascii_strcasecmp (option[1], "TENSORFLOWLITE") == 0) {
+          /* tensorflow lite is available since v3.0 */
+          if (snap_version_code.compare ("3.0") >= 0) {
+            /* the enum value of snap_sdk::ModelFWType::TENSORFLOWLITE is 3 */
+            snap_option.fw_type = (snap_sdk::ModelFWType) 3;
+          } else {
+            snap_loge ("TensorFlow Lite model is available since version 3.0. Current version: %s.",
+                snap_version_code.c_str ());
+            invalid_option = true;
+          }
+        } else if (g_ascii_strcasecmp (option[1], "TENSORFLOW") == 0) {
           snap_option.fw_type = snap_sdk::ModelFWType::TENSORFLOW;
         } else if (g_ascii_strcasecmp (option[1], "CAFFE") == 0) {
           snap_option.fw_type = snap_sdk::ModelFWType::CAFFE;
@@ -559,7 +570,7 @@ tensor_filter_snap::parse_custom_prop (const char *custom_prop, snap_option_s &s
           invalid_option = true;
         }
       } else if (g_ascii_strcasecmp (option[0], "ModelEncrypted") == 0) {
-        /** @note snap v2.0 only supports caffe model to set encrypted */
+        /** @note snap v3.0 only supports caffe model to set encrypted */
         if (g_ascii_strcasecmp (option[1], "true") == 0) {
           snap_option.model_encrypted = true;
         }
@@ -776,7 +787,7 @@ tensor_filter_snap::configure_input_meta (
 bool
 tensor_filter_snap::get_nns_type (snap_sdk::DataType snap_type, tensor_type &nns_type)
 {
-  /** @todo snap v2.0 only supports float32 type */
+  /** @todo snap v3.0 only supports float32 type */
   if (snap_type == snap_sdk::DataType::FLOAT32) {
     nns_type = _NNS_FLOAT32;
     return true;
@@ -792,7 +803,7 @@ tensor_filter_snap::get_nns_type (snap_sdk::DataType snap_type, tensor_type &nns
 bool
 tensor_filter_snap::convert_nns_type (tensor_type nns_type, snap_sdk::DataType &snap_type)
 {
-  /** @todo snap v2.0 only supports float32 type */
+  /** @todo snap v3.0 only supports float32 type */
   if (nns_type == _NNS_FLOAT32) {
     snap_type = snap_sdk::DataType::FLOAT32;
     return true;
