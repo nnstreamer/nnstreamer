@@ -446,14 +446,14 @@ PyTensorShape_New (PyObject * shape_cls, const GstTensorInfo *info)
   _import_array (); /** for numpy */
 
   PyObject *args = PyTuple_New (2);
-  PyObject *dims = PyList_New (0);
+  PyObject *dims = PyList_New (NNS_TENSOR_RANK_LIMIT);
   PyObject *type = (PyObject *)PyArray_DescrFromType (getNumpyType (info->type));
 
   if (nullptr == args || nullptr == dims || nullptr == type)
     Py_ERRMSG ("PYCore::PyTensorShape_New() has failed (1).");
 
   for (int i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
-    PyList_Append (dims, PyLong_FromLong ((uint64_t)info->dimension[i]));
+    PyList_SetItem (dims, i, PyLong_FromLong ((uint64_t)info->dimension[i]));
 
   PyTuple_SetItem (args, 0, dims);
   PyTuple_SetItem (args, 1, type);

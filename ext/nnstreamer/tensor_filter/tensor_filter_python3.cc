@@ -466,7 +466,7 @@ PYCore::setInputTensorDim (const GstTensorsInfo *in_info, GstTensorsInfo *out_in
   Py_LOCK ();
 
   /** to Python list object */
-  PyObject *param = PyList_New (0);
+  PyObject *param = PyList_New (in_info->num_tensors);
   if (nullptr == param)
     throw std::runtime_error ("PyList_New(); has failed.");
 
@@ -475,17 +475,12 @@ PYCore::setInputTensorDim (const GstTensorsInfo *in_info, GstTensorsInfo *out_in
     if (nullptr == shape)
       throw std::runtime_error ("PyTensorShape_New(); has failed.");
 
-    PyList_Append (param, shape);
+    PyList_SetItem (param, i, shape);
   }
 
   PyObject *result
       = PyObject_CallMethod (core_obj, (char *)"setInputDim", (char *)"(O)", param);
 
-  /** dereference input param */
-  for (unsigned int i = 0; i < in_info->num_tensors; i++) {
-    PyObject *shape = PyList_GetItem (param, (Py_ssize_t)i);
-    Py_XDECREF (shape);
-  }
   Py_XDECREF (param);
 
   if (result) {
@@ -544,7 +539,7 @@ PYCore::run (const GstTensorMemory *input, GstTensorMemory *output)
 
   Py_LOCK ();
 
-  PyObject *param = PyList_New (0);
+  PyObject *param = PyList_New (inputTensorMeta.num_tensors);
   for (unsigned int i = 0; i < inputTensorMeta.num_tensors; i++) {
     /** create a Numpy array wrapper (1-D) for NNS tensor data */
     tensor_type nns_type = inputTensorMeta.info[i].type;
@@ -552,7 +547,7 @@ PYCore::run (const GstTensorMemory *input, GstTensorMemory *output)
         = { (npy_intp) (input[i].size / gst_tensor_get_element_size (nns_type)) };
     PyObject *input_array = PyArray_SimpleNewFromData (
         1, input_dims, getNumpyType (nns_type), input[i].data);
-    PyList_Append (param, input_array);
+    PyList_SetItem (param, i, input_array);
   }
 
   PyObject *result
@@ -589,13 +584,7 @@ PYCore::run (const GstTensorMemory *input, GstTensorMemory *output)
   }
 
 exit_decref:
-  /** dereference input param */
-  for (unsigned int i = 0; i < inputTensorMeta.num_tensors; i++) {
-    PyObject *input_array = PyList_GetItem (param, (Py_ssize_t)i);
-    Py_XDECREF (input_array);
-  }
   Py_XDECREF (param);
-
   Py_UNLOCK ();
 
 #if (DBG)
