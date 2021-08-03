@@ -6,36 +6,36 @@ title: tensor_decoder
 
 ## Supported features
 
-- Direct conversion of other/tensor with video/x-raw semantics back to video/x-raw stream.
+With given properties from users or pipeline developers, support the following conversions. The list is not exclusive and we may need to implement more features later.
 
-## Planned features
-
-- With given properties from users or pipeline developers, support the following conversions. The list is not exclusive and we may need to implement more features later.
-
-
-| Main property (input tensor semantics) | Additional & mandatory property | Output |
-| -------------------------------------- | ------------------- | ------ |
-| Bounding boxes (other/tensor)          | N/A                 | video/x-raw |
-| Image label (other/tensor)             | File path to labels | text/x-raw |
-| Bounding boxes + labels (other/tensors)| File path to labels | video/x-raw (textoverlay processed?) |
-| ... more features coming ... | | |
+| Mode | Main property (input tensor semantics) | Additional & mandatory property | Output |
+| -| - | - | - |
+| directvideo | other/tensors | N/A | video/x-raw |
+| bounding_boxes | Bounding boxes (other/tensor) | File path to labels, decoding schems, out dim, in dim | video/x-raw |
+| image_labeling | Image label (other/tensor) | File path to labels | text/x-raw |
+| image_segment | segmentaion info | expected model | video/x-raw |
+| pose_estimation | pose info | out dim, in dim,  File path to labels, mode | video/x-raw |
+| flatbuf | other/tensors | N/A | flatbuffers |
+| protobuf | other/tensors | N/A | protocol buffers |
+| flexbuf | other/tensors | N/A | flexbuffers |
+| | ... more features coming ... | | |
 
 
 ## Sink Pads
 
 One always sink pad.
 
-- other/tensor (current)
-- Either other/tensor or other/tensors (future, planned)
+- other/tensors (current)
 
 ## Source Pads
 
 One always source pad.
 
-- video/x-raw (current)
-- Either video/x-raw or text/x-raw (future, planned)
-
-TBD: we may need to support multiple source pads (bounding boxes + labels?)
+- video/x-raw
+- text/x-raw
+- flatbuffers
+- protocol buffers
+- flexbuffers
 
 ## Performance Characteristics
 
@@ -63,6 +63,21 @@ The following properties are suggested and planned.
 $ gst-launch somevideosrc_with_xraw ! tee name=t ! queue ! tensor_converter ! tensor_filter SOME_OPTION ! tensor_decoder output-type=image-label additional-file-1=/tmp/labels.txt ! txt. t. ! queue ! textoverlay name=txt ! autovideosink
 ```
 Note: not tested. not sure if the syntax is correct with ```txt. t. !```. Regard the above as pseudo code.
+
+### tensor stream to flatbuffers
+```
+$ gst-launch videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! tensor_converter ! tensor_decoder mode=flatbuf ! fakesink
+```
+
+### tensor stream to protocol buffers
+```
+$ gst-launch videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! tensor_converter ! tensor_decoder mode=protobuf ! fakesink
+```
+
+### tensor stream to flexbuffers
+```
+$ gst-launch videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! tensor_converter ! tensor_decoder mode=flexbuf ! fakesink
+```
 
 ## Custom decoder
 If you want to convert tensors to any media type, You can use custom mode of the tensor decoder.
