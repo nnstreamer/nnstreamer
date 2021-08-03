@@ -25,6 +25,10 @@ title: tensor_converter
 - Flexible tensor: conversion to static tensor stream.
   - You can convert mime type (flexible to static) if incoming tensor has fixed data format and size.
   - With ```input-type``` and ```input-dim```, converter will set the output capability on src pad.
+- Serialized data: conversion to static tensor stream.
+  - Supported serialization format: Protocol Buffers, Flatbuffers and Flexbuffers.
+  - The converter gets input capability from the peer pad of the sink pad, or you can specify the capability.
+  - You don't need to specify the option because the sub-plugin is registered using the capability.
 
 ## Planned features
 
@@ -66,6 +70,24 @@ When incoming media type is video, audio, or text, each frame (or a set of frame
 
 ```
 $ gst-launch videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! tensor_converter ! tensor_sink
+```
+
+### flatbuffers to tensors stream
+Convert to flatbuffers using tensor decoder and then convert back to tensors stream.
+```
+$ gst-launch videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! tensor_converter ! tensor_decoder mode=flatbuf ! tensor_converter ! tensor_sink
+```
+
+### protocol buffers to tensors stream
+Convert to protocol buffers using tensor decoder and then convert back to tensors stream.
+```
+$ gst-launch videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! tensor_converter ! tensor_decoder mode=protobuf ! tensor_converter ! tensor_sink
+```
+
+### flexbuffers to tensors stream
+Convert to flexbuffers using tensor decoder and then convert back to tensors stream.
+```
+$ gst-launch videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! tensor_converter ! tensor_decoder mode=flexbuf ! tensor_converter ! tensor_sink
 ```
 
 ## Custom converter
