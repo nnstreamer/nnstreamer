@@ -131,7 +131,7 @@ if tflite_support_is_available
   )
   message('TensorFlow-lite version: ' + tflite_ver)
 
-  if not flatbuf_support_is_available
+  if not get_option('skip-tflite-flatbuf-check') and not flatbuf_support_is_available
     flatbuf_dep = dependency('flatbuffers', required : true, \
         not_found_message : 'flatbuf devel package should be install to build the tensorflow lite subplugin.')
   endif
