@@ -43,6 +43,7 @@ option('enable-vivante', type: 'boolean', value: false)
 option('framework-priority-tflite', type: 'string', value: 'tensorflow-lite,nnfw,armnn,edgetpu', description: 'A comma separated prioritized list of neural network frameworks to open a .tflite file')
 option('framework-priority-nb', type: 'string', value: '', description: 'A comma separated prioritized list of neural network frameworks to open a .nb file')
 option('framework-priority-bin', type: 'string', value: '', description: 'A comma separated prioritized list of neural network frameworks to open a .bin file')
+option('skip-tflite-flatbuf-check', type: 'boolean', value: false, description: 'Do not check the availability of flatbuf for tensorflow-lite build. In some systems, flatbuffers\' dependency cannot be found with meson.')
 
 # Utilities
 option('enable-nnstreamer-check', type: 'boolean', value: true)
