@@ -33,44 +33,6 @@
 G_BEGIN_DECLS
 
 /**
- * @brief GstTensorRepo meta structure.
- */
-typedef struct
-{
-  GstMeta meta;
-  GstCaps *caps;
-} GstMetaRepo;
-
-/**
- * @brief Define tensor_repo meta data type to register.
- */
-GType gst_meta_repo_api_get_type (void);
-#define GST_META_REPO_API_TYPE (gst_meta_repo_api_get_type())
-
-/**
- * @brief Get tensor_repo meta data info.
- */
-const GstMetaInfo *gst_meta_repo_get_info (void);
-#define GST_META_REPO_INFO ((GstMetaInfo*) gst_meta_repo_get_info())
-
-/**
- * @brief Macro of get_tensor_repo meta data.
- */
-#define gst_buffer_get_meta_repo(b) \
-  ((GstMetaRepo*) gst_buffer_get_meta((b), GST_META_REPO_API_TYPE))
-
-/**
- * @brief Add get_tensor_repo meta data in buffer.
- */
-GstMetaRepo *gst_buffer_add_meta_repo (GstBuffer * buffer);
-
-/**
- * @brief Macro of get & add meta
- */
-#define GST_META_REPO_GET(buf) ((GstMetaRepo*) gst_buffer_get_meta_repo(buf))
-#define GST_META_REPO_ADD(buf) ((GstMetaRepo*) gst_buffer_add_meta_repo(buf))
-
-/**
  * @brief GstTensorRepo internal data structure.
  *
  * GstTensorRepo has GSlist of GstTensorRepoData.
@@ -78,6 +40,7 @@ GstMetaRepo *gst_buffer_add_meta_repo (GstBuffer * buffer);
 typedef struct
 {
   GstBuffer *buffer;
+  GstCaps *caps;
   GCond cond_push;
   GCond cond_pull;
   GMutex lock;
@@ -141,13 +104,13 @@ gst_tensor_repo_set_changed (guint o_nth, guint nth, gboolean is_sink);
  * @brief Get GstTensorRepoData from repo.
  */
 GstBuffer *
-gst_tensor_repo_get_buffer (guint nth, gboolean *eos, guint *newid);
+gst_tensor_repo_get_buffer (guint nth, gboolean * eos, guint * newid, GstCaps ** caps);
 
 /**
  * @brief Check repo data is changed.
  */
 gboolean
-gst_tensor_repo_check_changed (guint nth, guint *newid, gboolean is_sink);
+gst_tensor_repo_check_changed (guint nth, guint * newid, gboolean is_sink);
 
 /**
  * @brief Remove nth GstTensorRepoData from GstTensorRepo.
