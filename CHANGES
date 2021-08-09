@@ -1,3 +1,32 @@
+1.7.2 -> 2.0.0
+	- NNStreamer for Edge-AI
+		- MQTT Pub/Sub streams can be synchronized with timestamp values
+		- MQTT-Hybrid Pub/Sub protocol (send high-bandwidth data streams with HLS) is not included in 2.0. This feature will be enabled with 2.1+ releases.
+		- Query (workload offloading) with TCP is included as an experimental feature. Query will be updated to use MQTT-Hybrid in future 2.1+ releases.
+
+	- Stream data type redefined (backward compatible)
+		- Flex-tensor and Sparse-tensor as a format of "other/tensors".
+		- "other/tensor" is obsoleted (but will be kept supported for a while). Use "other/tensors,num_tensors=1" for single tensor stream.
+		- The conventional tensor stream is "Static-tensor", which is the default format of "other/tensors".
+		- Many elements of nnstreamer (including tensor-transform) support "Flex-tensor" as well as "Static-tensor".
+		- The MIME type is "other/tensors,format={static, flexible, sparse}". If not specified, format is static.
+
+	- Major features
+		- Flexbuf supported as subplugins of converter and decoder.
+		- LUA scripts supports as custom filters. (tensor-filter)
+		- Debian pdebuild support (tested with Sid).
+
+	- Minor features
+		- Decoder/Bounding-boxes: more options for more diverse neural net settings.
+		- SNAP+TF-Lite support.
+
+	- Fixes
+		- Tensor-filter: Python test fail, TVM bugs, code complexity, error messages, C++ exception handling
+		- Tensor-crop: region setting, timestamp handling
+		- Tizen/Family-Hub support.
+		- Yocto, MacOS build errors.
+		- ARMNN version updates.
+
 1.7.1 -> 1.7.2
 	- NNStreamer for Edge-AI project started.
 		- Main features of 1.8.0 release and its immediate successors will be "Edge-AI", which allows distributed on-device AI inferences.
