@@ -24,6 +24,7 @@
 
 #include <gst/base/gstbasesrc.h>
 #include <MQTTAsync.h>
+#include <nnstreamer_util.h>
 
 #include "mqttsrc.h"
 
@@ -576,6 +577,7 @@ gst_mqtt_src_get_caps (GstBaseSrc * basesrc, GstCaps * filter)
   GstPad *pad = GST_BASE_SRC_PAD (basesrc);
   GstCaps *cur_caps = gst_pad_get_current_caps (pad);
   GstCaps *caps = gst_caps_new_any ();
+  UNUSED (filter);
 
   if (cur_caps) {
     GstCaps *intersection =
@@ -660,6 +662,7 @@ gst_mqtt_src_get_times (GstBaseSrc * basesrc, GstBuffer * buffer,
 {
   GstClockTime sync_ts;
   GstClockTime duration;
+  UNUSED (basesrc);
 
   sync_ts = GST_BUFFER_DTS (buffer);
   duration = GST_BUFFER_DURATION (buffer);
@@ -682,6 +685,7 @@ gst_mqtt_src_get_times (GstBaseSrc * basesrc, GstBuffer * buffer,
 static gboolean
 gst_mqtt_src_is_seekable (GstBaseSrc * basesrc)
 {
+  UNUSED (basesrc);
   return FALSE;
 }
 
@@ -694,6 +698,8 @@ gst_mqtt_src_create (GstBaseSrc * basesrc, guint64 offset, guint size,
 {
   GstMqttSrc *self = GST_MQTT_SRC (basesrc);
   gint64 elapsed = self->mqtt_sub_timeout;
+  UNUSED (offset);
+  UNUSED (size);
 
   g_mutex_lock (&self->mqtt_src_mutex);
   while ((!self->is_connected) || (!self->is_subscribed)) {
@@ -1033,6 +1039,7 @@ static void
 cb_mqtt_on_connection_lost (void *context, char *cause)
 {
   GstMqttSrc *self = GST_MQTT_SRC_CAST (context);
+  UNUSED (cause);
 
   g_mutex_lock (&self->mqtt_src_mutex);
   self->is_connected = FALSE;
@@ -1066,6 +1073,8 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
   GstClock *clock;
   gsize offset;
   guint i;
+  UNUSED (topic_name);
+  UNUSED (topic_len);
 
   self = GST_MQTT_SRC_CAST (context);
   g_mutex_lock (&self->mqtt_src_mutex);
@@ -1172,6 +1181,7 @@ cb_mqtt_on_connect (void *context, MQTTAsync_successData * response)
   GstMqttSrc *self = GST_MQTT_SRC (context);
   GstBaseSrc *basesrc = GST_BASE_SRC (self);
   int ret;
+  UNUSED (response);
 
   g_mutex_lock (&self->mqtt_src_mutex);
   self->is_connected = TRUE;
@@ -1221,6 +1231,7 @@ static void
 cb_mqtt_on_subscribe (void *context, MQTTAsync_successData * response)
 {
   GstMqttSrc *self = GST_MQTT_SRC (context);
+  UNUSED (response);
 
   g_mutex_lock (&self->mqtt_src_mutex);
   self->is_subscribed = TRUE;
@@ -1253,6 +1264,7 @@ static void
 cb_mqtt_on_unsubscribe (void *context, MQTTAsync_successData * response)
 {
   GstMqttSrc *self = GST_MQTT_SRC (context);
+  UNUSED (response);
 
   g_mutex_lock (&self->mqtt_src_mutex);
   self->is_subscribed = FALSE;

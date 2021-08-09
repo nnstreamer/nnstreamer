@@ -24,6 +24,7 @@
 
 #include <gst/base/gstbasesink.h>
 #include <MQTTAsync.h>
+#include <nnstreamer_util.h>
 
 #include "mqttsink.h"
 
@@ -1076,6 +1077,7 @@ static void
 cb_mqtt_on_connect (void *context, MQTTAsync_successData * response)
 {
   GstMqttSink *self = (GstMqttSink *) context;
+  UNUSED (response);
 
   g_atomic_int_set (&self->mqtt_sink_state, MQTT_CONNECTED);
   g_mutex_lock (&self->mqtt_sink_mutex);
@@ -1092,6 +1094,7 @@ static void
 cb_mqtt_on_connect_failure (void *context, MQTTAsync_failureData * response)
 {
   GstMqttSink *self = (GstMqttSink *) context;
+  UNUSED (response);
 
   g_atomic_int_set (&self->mqtt_sink_state, MQTT_CONNECT_FAILURE);
   g_mutex_lock (&self->mqtt_sink_mutex);
@@ -1108,6 +1111,7 @@ static void
 cb_mqtt_on_disconnect (void *context, MQTTAsync_successData * response)
 {
   GstMqttSink *self = (GstMqttSink *) context;
+  UNUSED (response);
 
   g_atomic_int_set (&self->mqtt_sink_state, MQTT_DISCONNECTED);
   g_mutex_lock (&self->mqtt_sink_mutex);
@@ -1124,6 +1128,7 @@ static void
 cb_mqtt_on_disconnect_failure (void *context, MQTTAsync_failureData * response)
 {
   GstMqttSink *self = (GstMqttSink *) context;
+  UNUSED (response);
 
   g_atomic_int_set (&self->mqtt_sink_state, MQTT_DISCONNECT_FAILED);
   g_mutex_lock (&self->mqtt_sink_mutex);
@@ -1154,6 +1159,7 @@ static void
 cb_mqtt_on_connection_lost (void *context, char *cause)
 {
   GstMqttSink *self = (GstMqttSink *) context;
+  UNUSED (cause);
 
   g_atomic_int_set (&self->mqtt_sink_state, MQTT_CONNECTION_LOST);
   g_mutex_lock (&self->mqtt_sink_mutex);
@@ -1169,6 +1175,10 @@ static int
 cb_mqtt_on_message_arrived (void *context, char *topicName, int topicLen,
     MQTTAsync_message * message)
 {
+  UNUSED (context);
+  UNUSED (topicName);
+  UNUSED (topicLen);
+  UNUSED (message);
   /* nothing to do */
   return 1;
 }
@@ -1182,6 +1192,7 @@ cb_mqtt_on_send_success (void *context, MQTTAsync_successData * response)
 {
   GstMqttSink *self = (GstMqttSink *) context;
   mqtt_sink_state_t state = g_atomic_int_get (&self->mqtt_sink_state);
+  UNUSED (response);
 
   if (state == SINK_RENDER_STOPPED) {
     g_atomic_int_set (&self->mqtt_sink_state, SINK_RENDER_EOS);
@@ -1201,6 +1212,7 @@ cb_mqtt_on_send_failure (void *context, MQTTAsync_failureData * response)
 {
   GstMqttSink *self = (GstMqttSink *) context;
   mqtt_sink_state_t state = g_atomic_int_get (&self->mqtt_sink_state);
+  UNUSED (response);
 
   if (state == SINK_RENDER_STOPPED) {
     g_atomic_int_set (&self->mqtt_sink_state, SINK_RENDER_ERROR);
