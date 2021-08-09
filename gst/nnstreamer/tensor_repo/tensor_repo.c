@@ -44,100 +44,6 @@ static GstTensorRepo _repo = {.num_data = 0,.initialized = FALSE };
 #define GST_REPO_BROADCAST() (g_cond_broadcast (&_repo.repo_cond))
 
 /**
- * @brief Define tensor_repo meta data type to register.
- */
-GType
-gst_meta_repo_api_get_type (void)
-{
-  static volatile GType type;
-  static const gchar *tags[] = { "tensor", "tensors", NULL };
-  if (g_once_init_enter (&type)) {
-    GType _type;
-    const GstMetaInfo *meta_info = gst_meta_get_info ("GstMetaRepo");
-    if (meta_info) {
-      _type = meta_info->api;
-    } else {
-      _type = gst_meta_api_type_register ("GstMetaRepoAPI", tags);
-    }
-    g_once_init_leave (&type, _type);
-  }
-  return type;
-}
-
-/**
- * @brief tensor_repo meta data init
- */
-static gboolean
-gst_meta_repo_init (GstMeta * meta, gpointer params, GstBuffer * buffer)
-{
-  GstMetaRepo *emeta = (GstMetaRepo *) meta;
-  UNUSED (params);
-  UNUSED (buffer);
-  emeta->caps = NULL;
-  return TRUE;
-}
-
-/**
- * @brief tensor_repo meta data transform (source to dest)
- */
-static gboolean
-gst_meta_repo_transform (GstBuffer * transbuf, GstMeta * meta,
-    GstBuffer * buffer, GQuark type, gpointer data)
-{
-  GstMetaRepo *dest_meta = GST_META_REPO_ADD (transbuf);
-  GstMetaRepo *src_meta = (GstMetaRepo *) meta;
-  UNUSED (buffer);
-  UNUSED (type);
-  UNUSED (data);
-  dest_meta->caps = src_meta->caps;
-  return TRUE;
-}
-
-/**
- * @brief tensor_repo meta data free
- */
-static void
-gst_meta_repo_free (GstMeta * meta, GstBuffer * buffer)
-{
-  GstMetaRepo *emeta = (GstMetaRepo *) meta;
-  UNUSED (buffer);
-  emeta->caps = NULL;
-}
-
-/**
- * @brief Get tensor_repo meta data info.
- * @return GstMetaInfo
- */
-const GstMetaInfo *
-gst_meta_repo_get_info (void)
-{
-  static const GstMetaInfo *meta_info = NULL;
-  if (g_once_init_enter (&meta_info)) {
-    const GstMetaInfo *mi = gst_meta_register (GST_META_REPO_API_TYPE,
-        "GstMetaRepo",
-        sizeof (GstMetaRepo),
-        (GstMetaInitFunction) gst_meta_repo_init,
-        (GstMetaFreeFunction) gst_meta_repo_free,
-        (GstMetaTransformFunction) gst_meta_repo_transform);
-    g_once_init_leave (&meta_info, mi);
-  }
-  return meta_info;
-}
-
-/**
- * @brief Add get_tensor_repo meta data in buffer.
- * @return GstMetaRepo
- */
-GstMetaRepo *
-gst_buffer_add_meta_repo (GstBuffer * buffer)
-{
-  GstMetaRepo *meta;
-  g_return_val_if_fail (GST_IS_BUFFER (buffer), NULL);
-  meta = (GstMetaRepo *) gst_buffer_add_meta (buffer, GST_META_REPO_INFO, NULL);
-  return meta;
-}
-
-/**
  * @brief Getter to get nth GstTensorRepoData.
  */
 GstTensorRepoData *
@@ -231,6 +137,7 @@ gst_tensor_repo_add_repodata (guint nth, gboolean is_sink)
   g_mutex_lock (&data->lock);
   data->eos = FALSE;
   data->buffer = NULL;
+  data->caps = NULL;
   data->sink_changed = FALSE;
   data->src_changed = FALSE;
   data->pushed = FALSE;
@@ -259,7 +166,6 @@ gboolean
 gst_tensor_repo_set_buffer (guint nth, GstBuffer * buffer, GstCaps * caps)
 {
   GstTensorRepoData *data;
-  GstMetaRepo *meta;
 
   data = gst_tensor_repo_get_repodata (nth);
 
@@ -277,11 +183,12 @@ gst_tensor_repo_set_buffer (guint nth, GstBuffer * buffer, GstCaps * caps)
     return FALSE;
   }
 
-  data->buffer = gst_buffer_copy (buffer);
-
-  meta = GST_META_REPO_ADD (data->buffer);
-
-  gst_caps_replace (&meta->caps, caps);
+  data->buffer = gst_buffer_copy_deep (buffer);
+  if (!data->caps || !gst_caps_is_equal (data->caps, caps)) {
+    if (data->caps)
+      gst_caps_unref (data->caps);
+    data->caps = gst_caps_copy (caps);
+  }
 
   if (DBG) {
     unsigned long size = gst_buffer_get_size (data->buffer);
@@ -372,7 +279,8 @@ gst_tensor_repo_set_eos (guint nth)
  * @brief Get GstTensorRepoData from repo.
  */
 GstBuffer *
-gst_tensor_repo_get_buffer (guint nth, gboolean * eos, guint * newid)
+gst_tensor_repo_get_buffer (guint nth, gboolean * eos, guint * newid,
+    GstCaps ** caps)
 {
   GstTensorRepoData *data;
   GstBuffer *buf = NULL;
@@ -399,8 +307,9 @@ gst_tensor_repo_get_buffer (guint nth, gboolean * eos, guint * newid)
     g_cond_wait (&data->cond_push, &data->lock);
   }
 
-  buf = gst_buffer_copy_deep (data->buffer);
-  gst_buffer_unref (data->buffer);
+  /* Current buffer will be wasted. */
+  buf = data->buffer;
+  *caps = gst_caps_ref (data->caps);
   if (DBG) {
     unsigned long size = gst_buffer_get_size (buf);
     GST_DEBUG ("Popped [ %d ] (size: %lu)\n", nth, size);
@@ -429,6 +338,13 @@ gst_tensor_repo_remove_repodata (guint nth)
   data = gst_tensor_repo_get_repodata (nth);
 
   if (data) {
+    g_mutex_lock (&data->lock);
+    if (data->buffer)
+      gst_buffer_unref (data->buffer);
+    if (data->caps)
+      gst_caps_unref (data->caps);
+    g_mutex_unlock (&data->lock);
+
     g_mutex_clear (&data->lock);
     g_cond_clear (&data->cond_pull);
     g_cond_clear (&data->cond_push);
