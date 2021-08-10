@@ -91,6 +91,18 @@ extern query_connection_handle
 nnstreamer_query_connect (TensorQueryProtocol protocol, const char *ip, uint32_t port, uint32_t timeout_ms);
 
 /**
+ * @brief get host from query connection handle
+ */
+char *
+nnstreamer_query_connection_get_host (query_connection_handle connection);
+
+/**
+ * @brief get port from query connection handle
+ */
+uint32_t
+nnstreamer_query_connection_get_port (query_connection_handle connection);
+
+/**
  * @brief send command to connected device.
  * @return 0 if OK, negative value if error
  */
@@ -113,33 +125,32 @@ nnstreamer_query_close (query_connection_handle connection);
 
 /* server */
 /**
- * @brief accept client connection
- * @param server_data TensorQueryServerData
- * @return void* casted type of TensorQueryConnection*
+ * @brief accept connection from remote
+ * @return query_connection_handle including connection data
  */
 extern query_connection_handle
 nnstreamer_query_server_accept (query_server_handle server_data);
 
 /**
- * @brief return initialized server_data
- * @param src_info tensors info shared with serversrc element
+ * @brief return initialized server handle
+ * @return query_server_handle, NULL if error
  */
 extern query_server_handle
 nnstreamer_query_server_data_new (void);
 
 /**
- * @brief free server_data
+ * @brief free server handle
  */
 extern void
 nnstreamer_query_server_data_free (query_server_handle server_data);
 
 /**
- * @brief set server_data params and setup server
+ * @brief set server handle params and setup server
  * @return 0 if OK, negative value if error 
  */
 extern int
-nnstreamer_query_server_data_setup (query_server_handle server_data, TensorQueryProtocol protocol, const char * host, uint32_t port);
-
+nnstreamer_query_server_init (query_server_handle server_data,
+    TensorQueryProtocol protocol, const char *host, uint32_t port);
 
 #ifdef __cplusplus
 }
