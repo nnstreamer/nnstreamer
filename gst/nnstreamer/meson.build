@@ -36,7 +36,8 @@ nnst_common_sources = [
   'tensor_common.c',
   'tensor_common_pipeline.c',
   'tensor_data.c',
-  'tensor_allocator.c'
+  'tensor_allocator.c',
+  'tensor_meta.c'
 ]
 
 foreach s : nnst_common_sources

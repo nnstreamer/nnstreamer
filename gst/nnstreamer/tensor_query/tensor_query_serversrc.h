@@ -13,9 +13,11 @@
 #ifndef __GST_TENSOR_QUERY_SERVERSRC_H__
 #define __GST_TENSOR_QUERY_SERVERSRC_H__
 
-#include <gst/gst.h>
+#include <gst/base/gstbasesrc.h>
 #include <gst/base/gstpushsrc.h>
-#include <tensor_common.h>
+#include "tensor_query_common.h"
+#include <nnstreamer_util.h>
+#include <tensor_meta.h>
 
 G_BEGIN_DECLS
 
@@ -39,7 +41,15 @@ typedef struct _GstTensorQueryServerSrcClass GstTensorQueryServerSrcClass;
  */
 struct _GstTensorQueryServerSrc
 {
-  GstPushSrc element; /**< parent object */
+  GstPushSrc element;        /* parent object */
+
+  guint32 port;
+  gchar *host;
+  TensorQueryProtocol protocol;
+  guint timeout;
+
+  GstTensorsConfig src_config;
+  query_server_handle server_data; /* server data passed to common functions */
 };
 
 /**
