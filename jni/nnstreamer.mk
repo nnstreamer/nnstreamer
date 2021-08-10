@@ -45,6 +45,7 @@ NNSTREAMER_COMMON_SRCS := \
 # nnstreamer plugins. Not used for SINGLE-only build.
 NNSTREAMER_PLUGINS_SRCS := \
     $(NNSTREAMER_GST_HOME)/tensor_data.c \
+    $(NNSTREAMER_GST_HOME)/tensor_meta.c \
     $(NNSTREAMER_GST_HOME)/tensor_common_pipeline.c \
     $(NNSTREAMER_GST_HOME)/registerer/nnstreamer.c \
     $(NNSTREAMER_GST_HOME)/tensor_converter/tensor_converter.c \
@@ -66,7 +67,8 @@ NNSTREAMER_PLUGINS_SRCS := \
     $(NNSTREAMER_GST_HOME)/tensor_query/tensor_query_common.c \
     $(NNSTREAMER_GST_HOME)/tensor_query/tensor_query_client.c \
     $(NNSTREAMER_GST_HOME)/tensor_query/tensor_query_serversink.c \
-    $(NNSTREAMER_GST_HOME)/tensor_query/tensor_query_serversrc.c
+    $(NNSTREAMER_GST_HOME)/tensor_query/tensor_query_serversrc.c \
+    $(NNSTREAMER_GST_HOME)/tensor_query/tensor_query_server.c
 
 # source AMC (Android MediaCodec)
 NNSTREAMER_SOURCE_AMC_SRCS := \

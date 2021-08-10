@@ -16,6 +16,9 @@
 #include <gst/gst.h>
 #include <gst/base/gstbasesink.h>
 #include <tensor_common.h>
+#include <tensor_meta.h>
+#include "tensor_query_common.h"
+#include "tensor_query_server.h"
 
 G_BEGIN_DECLS
 
@@ -40,6 +43,12 @@ typedef struct _GstTensorQueryServerSinkClass GstTensorQueryServerSinkClass;
 struct _GstTensorQueryServerSink
 {
   GstBaseSink element; /**< parent object */
+  guint32 port;
+  gchar *host;
+  TensorQueryProtocol protocol;
+  guint timeout;
+  GAsyncQueue *conn_queue;
+  query_server_handle server_data;
 };
 
 /**
