@@ -14,8 +14,9 @@
 #define __GST_TENSOR_QUERY_CLIENT_H__
 
 #include <gst/gst.h>
-#include <gst/base/gstbasetransform.h>
+#include <gio/gio.h>
 #include <tensor_common.h>
+#include "tensor_query_common.h"
 
 G_BEGIN_DECLS
 
@@ -34,12 +35,31 @@ G_BEGIN_DECLS
 typedef struct _GstTensorQueryClient GstTensorQueryClient;
 typedef struct _GstTensorQueryClientClass GstTensorQueryClientClass;
 
+#define DEFAULT_TIMEOUT_MS 100000
+
 /**
  * @brief GstTensorQueryClient data structure.
  */
 struct _GstTensorQueryClient
 {
-  GstBaseTransform element; /**< parent object */
+  GstElement element; /**< parent object */
+  GstPad *sinkpad; /**< sink pad */
+  GstPad *srcpad; /**< src pad */
+
+  gboolean silent;	/**< True if logging is minimized */
+  GstTensorsConfig in_config;
+  GstTensorsConfig out_config;
+
+  TensorQueryProtocol protocol;
+  /* src information (Connect to query server source) */
+  query_connection_handle src_conn;
+  gchar *src_host;
+  int src_port;
+
+  /* sink socket and information (Connect to query server sink)*/
+  query_connection_handle sink_conn;
+  gchar *sink_host;
+  int sink_port;
 };
 
 /**
@@ -47,7 +67,7 @@ struct _GstTensorQueryClient
  */
 struct _GstTensorQueryClientClass
 {
-  GstBaseTransformClass parent_class; /**< parent class */
+  GstElementClass parent_class; /**< parent class */
 };
 
 GType gst_tensor_query_client_get_type (void);
