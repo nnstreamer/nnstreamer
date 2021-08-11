@@ -118,6 +118,9 @@ nnstreamer_conf.set('FRAMEWORK_PRIORITY_TFLITE', get_option('framework-priority-
 nnstreamer_conf.set('FRAMEWORK_PRIORITY_NB', get_option('framework-priority-nb'))
 nnstreamer_conf.set('FRAMEWORK_PRIORITY_BIN', get_option('framework-priority-bin'))
 
+# Set the alias for backward compatibility
+nnstreamer_conf.set('TRIX_ENGINE_ALIAS', get_option('trix-engine-alias'))
+
 # Define default conf file
 add_project_arguments('-DNNSTREAMER_CONF_FILE="' + join_paths(nnstreamer_inidir, 'nnstreamer.ini') + '"', language: 'c')
 
