@@ -27,4 +27,7 @@ enable_use_gpu=@TORCH_USE_GPU@
 [tensorflow-lite]
 subplugin_priority=@TFLITE_SUBPLUGIN_PRIORITY@
 
+[filter-aliases]
+trix-engine = @TRIX_ENGINE_ALIAS@
+
 @ELEMENT_RESTRICTION_CONFIG@

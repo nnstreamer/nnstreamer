@@ -44,6 +44,7 @@ option('framework-priority-tflite', type: 'string', value: 'tensorflow-lite,nnfw
 option('framework-priority-nb', type: 'string', value: '', description: 'A comma separated prioritized list of neural network frameworks to open a .nb file')
 option('framework-priority-bin', type: 'string', value: '', description: 'A comma separated prioritized list of neural network frameworks to open a .bin file')
 option('skip-tflite-flatbuf-check', type: 'boolean', value: false, description: 'Do not check the availability of flatbuf for tensorflow-lite build. In some systems, flatbuffers\' dependency cannot be found with meson.')
+option('trix-engine-alias', type: 'string', value: 'srnpu', description: 'The alias name list of trix-engine sub-plugin. This option provides backward compatibility of the previous framework name.')
 
 # Utilities
 option('enable-nnstreamer-check', type: 'boolean', value: true)
