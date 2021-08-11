@@ -678,6 +678,36 @@ nnstreamer_filter_set_custom_property_desc (const char *name, const char *prop,
 }
 
 /**
+ * @brief Find sub-plugin filter given the name list
+ * @param[in] names comma, whitespace separated list of the sub-plugin name
+ * @return the best-fit sub-plugin object or NULL if not found.
+ */
+static const GstTensorFilterFramework *
+nnstreamer_filter_find_best_fit (const char *names)
+{
+  const GstTensorFilterFramework *fw = NULL;
+  gchar **subplugins;
+  guint i, len;
+
+  subplugins = g_strsplit_set (names, " ,;", -1);
+  len = g_strv_length (subplugins);
+
+  for (i = 0; i < len; i++) {
+    if (strlen (g_strstrip (subplugins[i])) == 0)
+      continue;
+
+    fw = get_subplugin (NNS_SUBPLUGIN_FILTER, subplugins[i]);
+    if (fw) {
+      nns_logi ("Found %s", subplugins[i]);
+      break;
+    }
+  }
+  g_strfreev (subplugins);
+
+  return fw;
+}
+
+/**
  * @brief Find filter sub-plugin with the name.
  * @param[in] name The name of filter sub-plugin.
  * @return NULL if not found or the sub-plugin object has an error.
@@ -686,6 +716,7 @@ const GstTensorFilterFramework *
 nnstreamer_filter_find (const char *name)
 {
   const GstTensorFilterFramework *fw;
+  gchar *_str;
 
   g_return_val_if_fail (name != NULL, NULL);
 
@@ -693,32 +724,17 @@ nnstreamer_filter_find (const char *name)
 
   if (fw == NULL) {
     /* get sub-plugin priority from ini file and find sub-plugin */
-    gchar *_str;
-
     _str = nnsconf_get_custom_value_string (name, "subplugin_priority");
-    if (_str) {
-      gchar **subplugins;
-      guint i, len;
-
-      subplugins = g_strsplit_set (_str, " ,;", -1);
-      len = g_strv_length (subplugins);
-
-      for (i = 0; i < len; i++) {
-        if (strlen (g_strstrip (subplugins[i])) == 0)
-          continue;
-
-        fw = get_subplugin (NNS_SUBPLUGIN_FILTER, subplugins[i]);
-        if (fw) {
-          nns_logi ("Found %s for %s.", subplugins[i], name);
-          break;
-        }
-      }
-
-      g_strfreev (subplugins);
-      g_free (_str);
-    }
+    fw = nnstreamer_filter_find_best_fit (_str);
+    g_free (_str);
   }
 
+  if (fw == NULL) {
+    /* Check the filter-alias from ini file */
+    _str = nnsconf_get_custom_value_string ("filter-aliases", name);
+    fw = nnstreamer_filter_find_best_fit (_str);
+    g_free (_str);
+  }
   return fw;
 }
 
