@@ -567,53 +567,39 @@ extern accl_hw parse_accl_hw_fill (parse_accl_args accl_args);
  */
 #define parse_accl_hw(...) parse_accl_hw_fill((parse_accl_args){__VA_ARGS__})
 
-/* extern functions for shared model representation table */
-/**
- * @brief Insert the new shared model representation at the table.
- * @param[in] key The new key to store at hash table.
- * @param[in] value The new value to store at hash table.
- * @param[in] instance The instance that is sharing the model representation. It will be registered at the referred list.
- * @return 0 if the new key and value are inserted. Others are failed to insert it.
- */
-extern int
-nnstreamer_filter_shared_table_insert (char *key, void *value, void *instance);
-
-/* extern functions for shared model representation table */
-/**
- * @brief Remove the shared model representation at the table.
- * @param[in] key The key to remove the matched value of hash table.
- * @return TRUE if the new key and value are removed. FALSE if failed to remove it.
- */
-extern int
-nnstreamer_filter_shared_table_remove (const char *key);
-
-/* extern functions for shared model representation table */
-/**
- * @brief Remove the instance registered at the referred list of shared model table.
- * @param[in] key The key to find the matched list of hash table.
- * @param[in] instance The instance that should be removed from the referred list.
- * @return TRUE if the new key and value are removed. FALSE if failed to remove it.
- */
-extern int
-nnstreamer_filter_shared_table_remove_this (const char *key, const void *instance);
-
-/* extern functions for shared model representation table */
-/**
- * @brief Get the length of the referred list.
- * @param[in] key The key to find the matched list of hash table.
- * @return The length of the list. If it is NULL, it returns -1
- */
-extern int
-nnstreamer_filter_referred_list_length (const char *key);
-
-/* extern functions for shared model representation table */
+/* extern functions for shared model representation */
 /**
  * @brief Get the shared model representation that is already shared and has the same key.
+ * @param[in] instance The instance that is sharing the model representation. It will be registered at the referred list.
  * @param[in] key The key to find the matched shared representation.
- * @return The model representation. NULL if it is failed.
+ * @return The model interpreter. NULL if it does not exist.
+ */
+void *
+nnstreamer_filter_shared_model_get (void *instance, const char *key);
+
+/* extern functions for shared model representation */
+/**
+ * @brief Insert the new shared model representation and get the value.
+ * @param[in] instance The instance that is sharing the model representation. It will be registered at the referred list.
+ * @param[in] key The key for shared model.
+ * @param[in] interpreter The interpreter to be shared.
+ * @return The model interpreter inserted. NULL if it is already inserted.
  */
 extern void *
-nnstreamer_filter_get_shared_model_representation (const char *key);
+nnstreamer_filter_shared_model_insert_and_get (void *instance, char *key, void *interpreter);
+
+/* extern functions for shared model representation */
+/**
+ * @brief Remove the instance registered at the referred list of shared model table.
+ *        If referred list is empty, `free_callback` is executed.
+ * @param[in] instance The instance that should be removed from the referred list.
+ * @param[in] key The key to find the shared model.
+ * @param[in] free_callback The callback function to destroy the interpreter, which takes the interpreter as arg.
+ * @return TRUE if the new key and value are removed. FALSE if failed to remove it.
+ */
+extern int
+nnstreamer_filter_shared_model_remove (void *instance, const char *key,
+    void (*free_callback) (void *));
 
 #ifdef __cplusplus
 }
