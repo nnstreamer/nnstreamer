@@ -28,7 +28,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_query_serversrc_debug);
 #define DEFAULT_PROTOCOL _TENSOR_QUERY_PROTOCOL_TCP
 #define DEFAULT_TIMEOUT 10
 
-#define CAPS_STRING GST_TENSORS_CAP_DEFAULT
+#define CAPS_STRING GST_TENSORS_CAP_DEFAULT ";" GST_TENSORS_FLEX_CAP_DEFAULT
 
 /**
  * @brief the capabilities of the outputs
@@ -285,24 +285,26 @@ gst_tensor_query_serversrc_create (GstPushSrc * psrc, GstBuffer ** outbuf)
 
     switch (cmd_data.cmd) {
       case _TENSOR_QUERY_CMD_REQUEST_INFO:
-        if (gst_tensors_info_is_equal (&cmd_data.data_info.config.info,
-                &src->src_config.info)) {
+      {
+        GstTensorsConfig *config = &cmd_data.data_info.config;
+        if ((gst_tensors_config_is_flexible (config) &&
+                gst_tensors_config_is_flexible (&src->src_config)) ||
+            gst_tensors_info_is_equal (&config->info, &src->src_config.info)) {
           cmd_data.cmd = _TENSOR_QUERY_CMD_RESPOND_APPROVE;
           /* respond sink config */
-          gst_tensor_query_server_get_sink_config (&cmd_data.data_info.config);
+          gst_tensor_query_server_get_sink_config (config);
         } else {
           /* respond deny with src config */
           nns_logw ("tensor info is not equal");
           cmd_data.cmd = _TENSOR_QUERY_CMD_RESPOND_DENY;
-          gst_tensors_config_copy (&cmd_data.data_info.config,
-              &src->src_config);
+          gst_tensors_config_copy (config, &src->src_config);
         }
         if (nnstreamer_query_send (conn, &cmd_data, src->timeout) != 0) {
           nns_logi ("Failed to send respond");
           continue;
         }
         break;
-
+      }
       case _TENSOR_QUERY_CMD_TRANSFER_START:
         data_info = cmd_data.data_info;
         *outbuf = gst_buffer_new ();

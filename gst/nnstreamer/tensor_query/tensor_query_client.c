@@ -367,7 +367,7 @@ gst_tensor_query_client_sink_event (GstPad * pad,
         }
 
         if (cmd_buf.cmd == _TENSOR_QUERY_CMD_RESPOND_APPROVE) {
-          if (gst_tensors_info_validate (&cmd_buf.data_info.config.info)) {
+          if (gst_tensors_config_validate (&cmd_buf.data_info.config)) {
             gst_tensors_info_copy (&self->out_config.info,
                 &cmd_buf.data_info.config.info);
             /** The server's framerate is 0/1, set it the same as the input. */
@@ -518,6 +518,7 @@ gst_tensor_query_client_chain (GstPad * pad,
   GstMapInfo out_info;
   GstFlowReturn res = GST_FLOW_OK;
   gint ecode;
+  gboolean is_flexible = gst_tensors_config_is_flexible (&self->out_config);
 
   /** Send start command buffer */
   cmd_buf.protocol = self->protocol;
@@ -554,14 +555,14 @@ gst_tensor_query_client_chain (GstPad * pad,
   if (cmd_buf.cmd == _TENSOR_QUERY_CMD_TRANSFER_START) {
     num_tensors = cmd_buf.data_info.num_mems;
 
-    if (num_tensors != self->out_config.info.num_tensors) {
+    if (!is_flexible && num_tensors != self->out_config.info.num_tensors) {
       nns_loge
           ("The number of tensors to receive does not match with out config.");
       return GST_FLOW_ERROR;
     }
     for (i = 0; i < num_tensors; i++) {
       mem_sizes[i] = cmd_buf.data_info.mem_sizes[i];
-      if (mem_sizes[i] !=
+      if (!is_flexible && mem_sizes[i] !=
           gst_tensor_info_get_size (&self->out_config.info.info[i])) {
         nns_loge
             ("Size of the tensor to receive does not match with out config.");
