@@ -25,7 +25,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_query_serversink_debug);
 #define DEFAULT_PROTOCOL _TENSOR_QUERY_PROTOCOL_TCP
 #define DEFAULT_TIMEOUT 10
 
-#define CAPS_STRING GST_TENSORS_CAP_DEFAULT
+#define CAPS_STRING GST_TENSORS_CAP_DEFAULT ";" GST_TENSORS_FLEX_CAP_DEFAULT
 /**
  * @brief the capabilities of the inputs.
  */
