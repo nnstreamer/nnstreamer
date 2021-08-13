@@ -42,7 +42,7 @@ typedef struct
       GAsyncQueue *conn_queue;
     };
     /* check the size of struct is less */
-    guint8 _dummy[TENSOR_QUERY_SERVER_DATA_LEN];
+    uint8_t _dummy[TENSOR_QUERY_SERVER_DATA_LEN];
   };
 } TensorQueryServerData;
 
@@ -68,8 +68,8 @@ typedef struct
 typedef struct
 {
   TensorQueryProtocol protocol;
-  gchar *host;
-  guint32 port;
+  char *host;
+  uint16_t port;
   /* network info */
   union
   {
@@ -111,31 +111,29 @@ nnstreamer_query_connection_get_port (query_connection_handle connection)
   return conn->port;
 }
 
+
 /**
- * @brief Create requested socket.
+ * @brief Get socket address
  */
 static gboolean
-gst_tensor_query_socket_new (query_connection_handle conn_h,
-    GSocketAddress ** saddr)
+gst_tensor_query_get_saddr (const char *host, uint16_t port,
+    GCancellable * cancellable, GSocketAddress ** saddr)
 {
   GError *err = NULL;
   GInetAddress *addr;
-  TensorQueryConnection *conn = (TensorQueryConnection *) conn_h;
 
   /* look up name if we need to */
-  addr = g_inet_address_new_from_string (conn->host);
+  addr = g_inet_address_new_from_string (host);
   if (!addr) {
     GList *results;
     GResolver *resolver;
     resolver = g_resolver_get_default ();
-    results =
-        g_resolver_lookup_by_name (resolver, conn->host, conn->cancellable,
-        &err);
+    results = g_resolver_lookup_by_name (resolver, host, cancellable, &err);
     if (!results) {
       if (g_error_matches (err, G_IO_ERROR, G_IO_ERROR_CANCELLED)) {
         nns_logd ("gst_tensor_query_socket_new: Cancelled name resolval");
       } else {
-        nns_loge ("Failed to resolve host '%s': %s", conn->host, err->message);
+        nns_loge ("Failed to resolve host '%s': %s", host, err->message);
       }
       g_clear_error (&err);
       g_object_unref (resolver);
@@ -147,19 +145,56 @@ gst_tensor_query_socket_new (query_connection_handle conn_h,
     g_object_unref (resolver);
   }
 
-  *saddr = g_inet_socket_address_new (addr, conn->port);
+  *saddr = g_inet_socket_address_new (addr, port);
   g_object_unref (addr);
+
+  return TRUE;
+}
+
+/**
+ * @brief Create and connect to requested socket.
+ */
+static gboolean
+gst_tensor_query_connect (query_connection_handle conn_h)
+{
+  GError *err = NULL;
+  GSocketAddress *saddr = NULL;
+  TensorQueryConnection *conn = (TensorQueryConnection *) conn_h;
+  gboolean ret = FALSE;
+
+  if (!gst_tensor_query_get_saddr (conn->host, conn->port, conn->cancellable,
+          &saddr)) {
+    nns_loge ("Failed to get socket address");
+    return ret;
+  }
 
   /* create sending client socket */
   /** @todo Support UDP protocol */
   conn->socket =
-      g_socket_new (g_socket_address_get_family (*saddr), G_SOCKET_TYPE_STREAM,
+      g_socket_new (g_socket_address_get_family (saddr), G_SOCKET_TYPE_STREAM,
       G_SOCKET_PROTOCOL_TCP, &err);
+
   if (!conn->socket) {
     nns_loge ("Failed to create new socket");
-    return FALSE;
+    goto done;
   }
-  return TRUE;
+
+  if (!g_socket_connect (conn->socket, saddr, conn->cancellable, &err)) {
+    if (g_error_matches (err, G_IO_ERROR, G_IO_ERROR_CANCELLED)) {
+      nns_logd ("Cancelled connecting");
+    } else {
+      nns_loge ("Failed to connect to host");
+    }
+    g_clear_error (&err);
+    goto done;
+  }
+
+  /* now connected to the requested socket */
+  ret = TRUE;
+
+done:
+  g_object_unref (saddr);
+  return ret;
 }
 
 /**
@@ -167,7 +202,7 @@ gst_tensor_query_socket_new (query_connection_handle conn_h,
  */
 query_connection_handle
 nnstreamer_query_connect (TensorQueryProtocol protocol, const char *ip,
-    uint32_t port, uint32_t timeout_ms)
+    uint16_t port, uint32_t timeout_ms)
 {
   /** @todo remove "UNUSED" when you implement the full features */
   TensorQueryConnection *conn = g_new0 (TensorQueryConnection, 1);
@@ -179,30 +214,13 @@ nnstreamer_query_connect (TensorQueryProtocol protocol, const char *ip,
   switch (protocol) {
     case _TENSOR_QUERY_PROTOCOL_TCP:
     {
-      GError *err = NULL;
-      GSocketAddress *saddr = NULL;
-
       conn->cancellable = g_cancellable_new ();
-      if (!gst_tensor_query_socket_new (conn, &saddr)) {
+      if (!gst_tensor_query_connect (conn)) {
         nns_loge ("Failed to create new socket");
-        goto tcp_fail;
+        nnstreamer_query_close (conn);
+        return NULL;
       }
-
-      if (!g_socket_connect (conn->socket, saddr, conn->cancellable, &err)) {
-        if (g_error_matches (err, G_IO_ERROR, G_IO_ERROR_CANCELLED)) {
-          nns_logd ("Cancelled connecting");
-        } else {
-          nns_loge ("Failed to connect to host");
-        }
-        goto tcp_fail;
-      }
-      g_object_unref (saddr);
       break;
-    tcp_fail:
-      nnstreamer_query_close (conn);
-      g_object_unref (saddr);
-      g_error_free (err);
-      return NULL;
     }
     default:
       nns_loge ("Unsupported protocol.");
@@ -405,7 +423,7 @@ nnstreamer_query_server_data_free (query_server_handle server_data)
  */
 int
 nnstreamer_query_server_init (query_server_handle server_data,
-    TensorQueryProtocol protocol, const char *host, uint32_t port)
+    TensorQueryProtocol protocol, const char *host, uint16_t port)
 {
   TensorQueryServerData *sdata = (TensorQueryServerData *) server_data;
   if (!sdata)
@@ -417,7 +435,13 @@ nnstreamer_query_server_init (query_server_handle server_data,
     {
       GSocketAddress *saddr;
       GError *err = NULL;
-      saddr = g_inet_socket_address_new_from_string (host, port);
+
+      sdata->cancellable = g_cancellable_new ();
+      if (!gst_tensor_query_get_saddr (host, port, sdata->cancellable, &saddr)) {
+        nns_loge ("Failed to get socket address");
+        return -EADDRNOTAVAIL;
+      }
+
       sdata->socket_listener = g_socket_listener_new ();
       if (!g_socket_listener_add_address (sdata->socket_listener, saddr,
               G_SOCKET_TYPE_STREAM, G_SOCKET_PROTOCOL_TCP, NULL, NULL, &err)) {
@@ -426,7 +450,6 @@ nnstreamer_query_server_init (query_server_handle server_data,
         return -EADDRNOTAVAIL;
       }
       g_socket_listener_set_backlog (sdata->socket_listener, N_BACKLOG);
-      sdata->cancellable = g_cancellable_new ();
       sdata->conn_queue = g_async_queue_new ();
       g_object_unref (saddr);
 
@@ -458,7 +481,7 @@ nnstreamer_query_server_accept (query_server_handle server_data)
   switch (sdata->protocol) {
     case _TENSOR_QUERY_PROTOCOL_TCP:
     {
-      gsize size;
+      size_t size;
       GIOCondition condition;
 
       while (TRUE) {
@@ -492,11 +515,11 @@ static gboolean
 query_tcp_receive (GSocket * socket, uint8_t * data, size_t size,
     GCancellable * cancellable)
 {
-  gsize bytes_received = 0;
-  gssize rret;
+  size_t bytes_received = 0;
+  ssize_t rret;
   GError *err = NULL;
   while (bytes_received < size) {
-    rret = g_socket_receive (socket, (gchar *) data + bytes_received,
+    rret = g_socket_receive (socket, (char *) data + bytes_received,
         size - bytes_received, cancellable, &err);
     if (rret == 0) {
       nns_logi ("Connection closed");
@@ -519,11 +542,11 @@ static gboolean
 query_tcp_send (GSocket * socket, uint8_t * data, size_t size,
     GCancellable * cancellable)
 {
-  gsize bytes_sent = 0;
-  gssize rret;
+  size_t bytes_sent = 0;
+  ssize_t rret;
   GError *err = NULL;
   while (bytes_sent < size) {
-    rret = g_socket_send (socket, (gchar *) data + bytes_sent,
+    rret = g_socket_send (socket, (char *) data + bytes_sent,
         size - bytes_sent, cancellable, &err);
     if (rret == 0) {
       nns_logi ("Connection closed");
