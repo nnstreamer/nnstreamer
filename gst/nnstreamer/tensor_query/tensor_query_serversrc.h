@@ -41,7 +41,7 @@ typedef struct _GstTensorQueryServerSrcClass GstTensorQueryServerSrcClass;
  */
 struct _GstTensorQueryServerSrc
 {
-  GstPushSrc element;        /* parent object */
+  GstPushSrc element; /* parent object */
 
   guint16 port;
   gchar *host;
@@ -63,5 +63,4 @@ struct _GstTensorQueryServerSrcClass
 GType gst_tensor_query_serversrc_get_type (void);
 
 G_END_DECLS
-
 #endif /* __GST_TENSOR_QUERY_SERVERSRC_H__ */

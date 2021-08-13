@@ -521,11 +521,11 @@ static GstAdapter *
 gst_tensor_aggregator_get_adapter (GstTensorAggregator * self, GstBuffer * buf)
 {
   GstMetaQuery *meta;
-  const gchar *key = NULL;
+  guint32 key = 0;
 
   meta = gst_buffer_get_meta_query (buf);
   if (meta)
-    key = meta->host;
+    key = meta->client_id;
 
   return gst_tensor_aggregation_get_adapter (self->adapter_table, key);
 }

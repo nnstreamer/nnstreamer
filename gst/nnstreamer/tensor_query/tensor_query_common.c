@@ -26,6 +26,7 @@
 
 #define TENSOR_QUERY_SERVER_DATA_LEN 128
 #define N_BACKLOG 10
+#define CLIENT_ID_LEN 4
 
 /**
  * @brief Query server dependent network data
@@ -33,6 +34,7 @@
 typedef struct
 {
   TensorQueryProtocol protocol;
+  int8_t is_src;
   union
   {
     struct
@@ -70,6 +72,7 @@ typedef struct
   TensorQueryProtocol protocol;
   char *host;
   uint16_t port;
+  uint32_t client_id;
   /* network info */
   union
   {
@@ -92,13 +95,13 @@ accept_socket_async_cb (GObject * source, GAsyncResult * result,
     gpointer user_data);
 
 /**
- * @brief get host from query connection handle
+ * @brief get client id from query connection handle
  */
-char *
-nnstreamer_query_connection_get_host (query_connection_handle connection)
+uint32_t
+nnstreamer_query_connection_get_client_id (query_connection_handle connection)
 {
   TensorQueryConnection *conn = (TensorQueryConnection *) connection;
-  return conn->host;
+  return conn->client_id;
 }
 
 /**
@@ -271,6 +274,13 @@ nnstreamer_query_receive (query_connection_handle connection,
           return -EREMOTEIO;
         }
         return 0;
+      } else if (data->cmd == _TENSOR_QUERY_CMD_CLIENT_ID) {
+        /* receive client id */
+        if (!query_tcp_receive (conn->socket, (uint8_t *) & data->client_id,
+                CLIENT_ID_LEN, conn->cancellable)) {
+          nns_logd ("Failed to receive client id from socket");
+          return -EREMOTEIO;
+        }
       } else {
         /* receive data_info */
         if (!query_tcp_receive (conn->socket, (uint8_t *) & data->data_info,
@@ -325,6 +335,13 @@ nnstreamer_query_send (query_connection_handle connection,
         if (!query_tcp_send (conn->socket, (uint8_t *) data->data.data,
                 data->data.size, conn->cancellable)) {
           nns_logd ("Failed to send data to socket");
+          return -EREMOTEIO;
+        }
+      } else if (data->cmd == _TENSOR_QUERY_CMD_CLIENT_ID) {
+        /* send client id */
+        if (!query_tcp_send (conn->socket, (uint8_t *) & data->client_id,
+                CLIENT_ID_LEN, conn->cancellable)) {
+          nns_logd ("Failed to send client id to socket");
           return -EREMOTEIO;
         }
       } else {
@@ -431,12 +448,14 @@ nnstreamer_query_server_data_free (query_server_handle server_data)
  */
 int
 nnstreamer_query_server_init (query_server_handle server_data,
-    TensorQueryProtocol protocol, const char *host, uint16_t port)
+    TensorQueryProtocol protocol, const char *host, uint16_t port,
+    int8_t is_src)
 {
   TensorQueryServerData *sdata = (TensorQueryServerData *) server_data;
   if (!sdata)
     return -EINVAL;
   sdata->protocol = protocol;
+  sdata->is_src = is_src;
 
   switch (protocol) {
     case _TENSOR_QUERY_PROTOCOL_TCP:
@@ -571,6 +590,28 @@ query_tcp_send (GSocket * socket, uint8_t * data, size_t size,
 }
 
 /**
+ * @brief Generate unique id.
+ */
+static uint32_t
+get_unique_id (GAsyncQueue * queue)
+{
+  TensorQueryConnection *conn;
+  int32_t len = g_async_queue_length (queue), cnt = 0;
+  uint32_t client_id = g_random_int ();
+
+  while (cnt < len && (conn = g_async_queue_try_pop (queue))) {
+    cnt++;
+    if (conn->client_id == client_id) {
+      cnt = 0;
+      client_id = g_random_int ();
+    }
+    g_async_queue_push (queue, conn);
+  }
+
+  return client_id;
+}
+
+/**
  * @brief [TCP] Callback for socket listener that pushes socket to the queue
  */
 static void
@@ -583,6 +624,7 @@ accept_socket_async_cb (GObject * source, GAsyncResult * result,
   GError *err = NULL;
   TensorQueryServerData *sdata = user_data;
   TensorQueryConnection *conn;
+  TensorQueryCommandData cmd_data;
 
   socket =
       g_socket_listener_accept_socket_finish (socket_listener, result, NULL,
@@ -615,6 +657,30 @@ accept_socket_async_cb (GObject * source, GAsyncResult * result,
   conn->socket = socket;
   conn->cancellable = g_cancellable_new ();
   nns_logd ("connected from %s:%u", conn->host, conn->port);
+
+  /** Generate and send client_id to client */
+  if (sdata->is_src) {
+    cmd_data.cmd = _TENSOR_QUERY_CMD_CLIENT_ID;
+    cmd_data.client_id = get_unique_id (sdata->conn_queue);
+
+    if (0 != nnstreamer_query_send (conn, &cmd_data, DEFAULT_TIMEOUT_MS)) {
+      nns_loge ("Failed to send client id to client");
+      nnstreamer_query_close (conn);
+      return;
+    }
+    conn->client_id = cmd_data.client_id;
+  } else {
+    if (0 != nnstreamer_query_receive (conn, &cmd_data, -1)) {
+      nns_loge ("Failed to receive command.");
+      nnstreamer_query_close (conn);
+      return;
+    }
+    if (cmd_data.cmd == _TENSOR_QUERY_CMD_CLIENT_ID) {
+      conn->client_id = cmd_data.client_id;
+      nns_logd ("Connected client id: %u", conn->client_id);
+    }
+  }
+
   g_async_queue_push (sdata->conn_queue, conn);
 
   g_socket_listener_accept_socket_async (socket_listener,

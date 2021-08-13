@@ -50,7 +50,7 @@ gst_meta_query_init (GstMeta * meta, gpointer params, GstBuffer * buffer)
   GstMetaQuery *emeta = (GstMetaQuery *) meta;
   UNUSED (params);
   UNUSED (buffer);
-  emeta->host = NULL;
+  emeta->client_id = 0;
   return TRUE;
 }
 
@@ -60,9 +60,8 @@ gst_meta_query_init (GstMeta * meta, gpointer params, GstBuffer * buffer)
 static void
 gst_meta_query_free (GstMeta * meta, GstBuffer * buffer)
 {
-  GstMetaQuery *emeta = (GstMetaQuery *) meta;
+  UNUSED (meta);
   UNUSED (buffer);
-  g_free (emeta->host);
 }
 
 /**
@@ -77,7 +76,7 @@ gst_meta_query_transform (GstBuffer * transbuf, GstMeta * meta,
   UNUSED (buffer);
   UNUSED (type);
   UNUSED (data);
-  dest_meta->host = g_strdup (src_meta->host);
+  dest_meta->client_id = src_meta->client_id;
   return TRUE;
 }
 

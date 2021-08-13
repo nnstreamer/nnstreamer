@@ -21,6 +21,7 @@ extern "C" {
 
 typedef void * query_connection_handle;
 typedef void * query_server_handle;
+#define DEFAULT_TIMEOUT_MS 100000
 
 /**
  * @brief protocol options for tensor query.
@@ -44,6 +45,7 @@ typedef enum
   _TENSOR_QUERY_CMD_TRANSFER_START = 3,
   _TENSOR_QUERY_CMD_TRANSFER_DATA = 4,
   _TENSOR_QUERY_CMD_TRANSFER_END = 5,
+  _TENSOR_QUERY_CMD_CLIENT_ID = 6,
   _TENSOR_QUERY_CMD_END
 } TensorQueryCommand;
 
@@ -76,6 +78,7 @@ typedef struct
 {
   TensorQueryCommand cmd;
   TensorQueryProtocol protocol;
+  uint32_t client_id;
   union
   {
     TensorQueryDataInfo data_info; /** _TENSOR_QUERY_CMD_TRANSFER_START */
@@ -91,10 +94,10 @@ extern query_connection_handle
 nnstreamer_query_connect (TensorQueryProtocol protocol, const char *ip, uint16_t port, uint32_t timeout_ms);
 
 /**
- * @brief get host from query connection handle
+ * @brief get client id from query connection handle
  */
-char *
-nnstreamer_query_connection_get_host (query_connection_handle connection);
+uint32_t
+nnstreamer_query_connection_get_client_id (query_connection_handle connection);
 
 /**
  * @brief get port from query connection handle
@@ -150,7 +153,7 @@ nnstreamer_query_server_data_free (query_server_handle server_data);
  */
 extern int
 nnstreamer_query_server_init (query_server_handle server_data,
-    TensorQueryProtocol protocol, const char *host, uint16_t port);
+    TensorQueryProtocol protocol, const char *host, uint16_t port, int8_t is_src);
 
 #ifdef __cplusplus
 }

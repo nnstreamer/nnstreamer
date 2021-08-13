@@ -121,7 +121,6 @@ gst_tensor_query_serversink_init (GstTensorQueryServerSink * sink)
   sink->protocol = DEFAULT_PROTOCOL;
   sink->timeout = DEFAULT_TIMEOUT;
   sink->server_data = nnstreamer_query_server_data_new ();
-  sink->conn_queue = g_async_queue_new ();
 }
 
 /**
@@ -223,7 +222,7 @@ gst_tensor_query_serversink_start (GstBaseSink * bsink)
   }
 
   if (nnstreamer_query_server_init (sink->server_data, sink->protocol,
-          sink->host, sink->port) != 0) {
+          sink->host, sink->port, FALSE) != 0) {
     nns_loge ("Failed to setup server");
     return FALSE;
   }
@@ -254,7 +253,7 @@ gst_tensor_query_serversink_render (GstBaseSink * bsink, GstBuffer * buf)
   query_connection_handle conn;
   GstMemory *mem;
   GstMapInfo map;
-  gchar *host;
+  uint32_t client_id;
   guint32 i, num_mems;
   int ecode;
 
@@ -265,8 +264,8 @@ gst_tensor_query_serversink_render (GstBaseSink * bsink, GstBuffer * buf)
   }
   while (TRUE) {
     conn = nnstreamer_query_server_accept (sink->server_data);
-    host = nnstreamer_query_connection_get_host (conn);
-    if (g_str_equal (host, meta_query->host)) {
+    client_id = nnstreamer_query_connection_get_client_id (conn);
+    if (client_id == meta_query->client_id) {
       /* handle buffer */
       memset (&cmd_data, 0, sizeof (cmd_data));
       cmd_data.cmd = _TENSOR_QUERY_CMD_TRANSFER_START;
@@ -305,10 +304,7 @@ gst_tensor_query_serversink_render (GstBaseSink * bsink, GstBuffer * buf)
         nns_logi ("Failed to send data");
         return GST_FLOW_EOS;
       }
-      g_async_queue_push (sink->conn_queue, conn);
       return GST_FLOW_OK;
-    } else {
-      g_async_queue_push (sink->conn_queue, conn);
     }
   }
 

@@ -17,6 +17,7 @@
 #include "tensor_query_client.h"
 #include <gio/gio.h>
 #include <gio/gsocket.h>
+#include <glib.h>
 
 /**
  * @brief Macro for debug mode.
@@ -323,6 +324,7 @@ gst_tensor_query_client_sink_event (GstPad * pad,
     GstObject * parent, GstEvent * event)
 {
   GstTensorQueryClient *self = GST_TENSOR_QUERY_CLIENT (parent);
+  gboolean ret = FALSE;
 
   GST_DEBUG_OBJECT (self, "Received %s event: %" GST_PTR_FORMAT,
       GST_EVENT_TYPE_NAME (event), event);
@@ -332,6 +334,7 @@ gst_tensor_query_client_sink_event (GstPad * pad,
     {
       GstCaps *caps;
       GstStructure *structure;
+      TensorQueryCommandData cmd_buf;
 
       gst_event_parse_caps (event, &caps);
       structure = gst_caps_get_structure (caps, 0);
@@ -340,14 +343,19 @@ gst_tensor_query_client_sink_event (GstPad * pad,
 
       if (gst_tensors_config_validate (&self->in_config)) {
         /** Request out config to server_src. */
-        TensorQueryCommandData cmd_buf;
 
         self->src_conn =
             nnstreamer_query_connect (self->protocol, self->src_host,
             self->src_port, DEFAULT_TIMEOUT_MS);
         if (!self->src_conn) {
           nns_loge ("Failed to connect server source ");
-          return FALSE;
+          return ret;
+        }
+
+        /** Receive client ID from server src */
+        if (0 != nnstreamer_query_receive (self->src_conn, &cmd_buf, -1)) {
+          nns_loge ("Failed to receive client ID.");
+          goto done;
         }
 
         cmd_buf.cmd = _TENSOR_QUERY_CMD_REQUEST_INFO;
@@ -357,13 +365,13 @@ gst_tensor_query_client_sink_event (GstPad * pad,
         if (0 != nnstreamer_query_send (self->src_conn, &cmd_buf,
                 DEFAULT_TIMEOUT_MS)) {
           nns_loge ("Failed to send request info cmd buf");
-          return FALSE;
+          goto done;
         }
 
         if (0 != nnstreamer_query_receive (self->src_conn, &cmd_buf,
                 DEFAULT_TIMEOUT_MS)) {
           nns_loge ("Failed to receive response from the query server.");
-          return FALSE;
+          goto done;
         }
 
         if (cmd_buf.cmd == _TENSOR_QUERY_CMD_RESPOND_APPROVE) {
@@ -379,7 +387,7 @@ gst_tensor_query_client_sink_event (GstPad * pad,
         } else {
           /** @todo Retry for info */
           nns_loge ("Failed to receive approve command.");
-          return FALSE;
+          goto done;
         }
       }
 
@@ -388,10 +396,17 @@ gst_tensor_query_client_sink_event (GstPad * pad,
           self->sink_port, DEFAULT_TIMEOUT_MS);
       if (!self->sink_conn) {
         nns_loge ("Failed to connect server sink ");
-        return FALSE;
+        goto done;
       }
-
-      return TRUE;
+      cmd_buf.cmd = _TENSOR_QUERY_CMD_CLIENT_ID;
+      if (0 != nnstreamer_query_send (self->sink_conn, &cmd_buf,
+              DEFAULT_TIMEOUT_MS)) {
+        nns_loge ("Failed to send client ID to server sink");
+        goto done;
+      }
+      ret = TRUE;
+    done:
+      return ret;
     }
     default:
       break;

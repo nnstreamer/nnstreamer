@@ -230,7 +230,7 @@ gst_tensor_query_serversrc_start (GstBaseSrc * bsrc)
   }
 
   if (nnstreamer_query_server_init (src->server_data, src->protocol,
-          src->host, src->port) != 0) {
+          src->host, src->port, TRUE) != 0) {
     nns_loge ("Failed to setup server");
     return FALSE;
   }
@@ -338,8 +338,8 @@ gst_tensor_query_serversrc_create (GstPushSrc * psrc, GstBuffer ** outbuf)
 
         meta_query = gst_buffer_add_meta_query (*outbuf);
         if (meta_query) {
-          meta_query->host =
-              g_strdup (nnstreamer_query_connection_get_host (conn));
+          meta_query->client_id =
+              nnstreamer_query_connection_get_client_id (conn);
         }
         return GST_FLOW_OK;
 

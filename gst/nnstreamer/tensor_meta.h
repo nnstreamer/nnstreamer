@@ -25,7 +25,7 @@ typedef struct
 {
   GstMeta meta;
 
-  gchar *host;
+  uint32_t client_id;
 } GstMetaQuery;
 
 /**
