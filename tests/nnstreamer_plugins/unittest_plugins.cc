@@ -2497,7 +2497,7 @@ TEST (testTensorAggregator, multiClients)
   memcpy (map.data, data1, data_size);
   gst_memory_unmap (mem, &map);
   meta = gst_buffer_add_meta_query (input1);
-  meta->host = g_strdup ("test-client1");
+  meta->client_id = 0xBADC0FEEU;
 
   input2 = gst_harness_create_buffer (h, data_size);
   mem = gst_buffer_peek_memory (input2, 0);
@@ -2505,7 +2505,7 @@ TEST (testTensorAggregator, multiClients)
   memcpy (map.data, data2, data_size);
   gst_memory_unmap (mem, &map);
   meta = gst_buffer_add_meta_query (input2);
-  meta->host = g_strdup ("test-client2");
+  meta->client_id = 0xBADF00DU;
 
   /* push buffers (1 > 2 > 1) */
   EXPECT_EQ (gst_harness_push (h, gst_buffer_copy_deep (input1)), GST_FLOW_OK);
@@ -2523,7 +2523,7 @@ TEST (testTensorAggregator, multiClients)
   if (received == 1U) {
     output = gst_harness_pull (h);
     meta = gst_buffer_get_meta_query (output);
-    EXPECT_TRUE (meta && g_str_equal (meta->host, "test-client1"));
+    EXPECT_TRUE (meta && (meta->client_id == 0xBADC0FEEU));
 
     mem = gst_buffer_peek_memory (output, 0);
     ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_READ));
@@ -2548,7 +2548,7 @@ TEST (testTensorAggregator, multiClients)
   if (received == 2U) {
     output = gst_harness_pull (h);
     meta = gst_buffer_get_meta_query (output);
-    EXPECT_TRUE (meta && g_str_equal (meta->host, "test-client2"));
+    EXPECT_TRUE (meta && (meta->client_id == 0xBADF00DU));
 
     mem = gst_buffer_peek_memory (output, 0);
     ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_READ));

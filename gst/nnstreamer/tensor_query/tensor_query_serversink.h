@@ -47,7 +47,6 @@ struct _GstTensorQueryServerSink
   gchar *host;
   TensorQueryProtocol protocol;
   guint timeout;
-  GAsyncQueue *conn_queue;
   query_server_handle server_data;
 };
 

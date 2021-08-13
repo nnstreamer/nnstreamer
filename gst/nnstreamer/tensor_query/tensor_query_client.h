@@ -35,8 +35,6 @@ G_BEGIN_DECLS
 typedef struct _GstTensorQueryClient GstTensorQueryClient;
 typedef struct _GstTensorQueryClientClass GstTensorQueryClientClass;
 
-#define DEFAULT_TIMEOUT_MS 100000
-
 /**
  * @brief GstTensorQueryClient data structure.
  */

@@ -453,8 +453,7 @@ typedef struct
   GstAdapter *adapter;
 } gst_tensor_aggregation_data_s;
 
-#define AGGREGATION_DEFAULT_KEY "aggr-default"
-#define AGGREGATION_KEY_IS_EMPTY(k) (k == NULL || k[0] == '\0')
+#define AGGREGATION_DEFAULT_KEY 0xC0FFEEU
 
 /**
  * @brief Internal function to free aggregation data.
@@ -477,22 +476,20 @@ gst_tensor_aggregation_free_data (gpointer data)
  * @brief Internal function to add new aggregation data.
  */
 static gst_tensor_aggregation_data_s *
-gst_tensor_aggregation_add_data (GHashTable * table, const gchar * key)
+gst_tensor_aggregation_add_data (GHashTable * table, const guint32 key)
 {
   gst_tensor_aggregation_data_s *aggr;
-  gchar *hashkey;
+  guint32 hashkey;
 
   g_return_val_if_fail (table != NULL, NULL);
-
-  if (AGGREGATION_KEY_IS_EMPTY (key))
-    hashkey = g_strdup (AGGREGATION_DEFAULT_KEY);
+  if (key == 0)
+    hashkey = AGGREGATION_DEFAULT_KEY;
   else
-    hashkey = g_strdup (key);
-
+    hashkey = key;
   aggr = g_new0 (gst_tensor_aggregation_data_s, 1);
   aggr->adapter = gst_adapter_new ();
 
-  g_hash_table_insert (table, hashkey, aggr);
+  g_hash_table_insert (table, GINT_TO_POINTER (hashkey), aggr);
   return aggr;
 }
 
@@ -500,12 +497,12 @@ gst_tensor_aggregation_add_data (GHashTable * table, const gchar * key)
  * @brief Internal function to get aggregation data.
  */
 static gst_tensor_aggregation_data_s *
-gst_tensor_aggregation_get_data (GHashTable * table, const gchar * key)
+gst_tensor_aggregation_get_data (GHashTable * table, const guint32 key)
 {
   g_return_val_if_fail (table != NULL, NULL);
 
   return (gst_tensor_aggregation_data_s *) g_hash_table_lookup (table,
-      AGGREGATION_KEY_IS_EMPTY (key) ? AGGREGATION_DEFAULT_KEY : key);
+      GINT_TO_POINTER (key == 0 ? AGGREGATION_DEFAULT_KEY : key));
 }
 
 /**
@@ -535,7 +532,7 @@ gst_tensor_aggregation_init (void)
 {
   GHashTable *table;
 
-  table = g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
+  table = g_hash_table_new_full (g_direct_hash, g_direct_equal, NULL,
       gst_tensor_aggregation_free_data);
 
   /**
@@ -557,7 +554,7 @@ gst_tensor_aggregation_init (void)
  * @param key the key to look up (set null to get default adapter)
  */
 void
-gst_tensor_aggregation_clear (GHashTable * table, const gchar * key)
+gst_tensor_aggregation_clear (GHashTable * table, const guint32 key)
 {
   gst_tensor_aggregation_data_s *aggr;
 
@@ -584,7 +581,7 @@ gst_tensor_aggregation_clear_all (GHashTable * table)
  * @return gst-adapter instance. DO NOT release this instance.
  */
 GstAdapter *
-gst_tensor_aggregation_get_adapter (GHashTable * table, const gchar * key)
+gst_tensor_aggregation_get_adapter (GHashTable * table, const guint32 key)
 {
   gst_tensor_aggregation_data_s *aggr;
 

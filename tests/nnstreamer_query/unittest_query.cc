@@ -259,7 +259,7 @@ TEST (tensorQueryCommon, serverInit0)
   server_data = nnstreamer_query_server_data_new ();
   EXPECT_NE ((void *) NULL, server_data);
 
-  EXPECT_EQ (0, nnstreamer_query_server_init (server_data, _TENSOR_QUERY_PROTOCOL_TCP, "localhost", 3001));
+  EXPECT_EQ (0, nnstreamer_query_server_init (server_data, _TENSOR_QUERY_PROTOCOL_TCP, "localhost", 3001, TRUE));
   nnstreamer_query_server_data_free (server_data);
 }
 
@@ -268,7 +268,7 @@ TEST (tensorQueryCommon, serverInit0)
  */
 TEST (tensorQueryCommon, serverInit1_n)
 {
-  EXPECT_NE (0, nnstreamer_query_server_init (NULL, _TENSOR_QUERY_PROTOCOL_TCP, "localhost", 3001));
+  EXPECT_NE (0, nnstreamer_query_server_init (NULL, _TENSOR_QUERY_PROTOCOL_TCP, "localhost", 3001, TRUE));
 }
 
 /**
@@ -280,7 +280,7 @@ TEST (tensorQueryCommon, serverInit2_n)
   server_data = nnstreamer_query_server_data_new ();
   EXPECT_NE ((void *) NULL, server_data);
 
-  EXPECT_NE (0, nnstreamer_query_server_init (server_data, _TENSOR_QUERY_PROTOCOL_END, "localhost", 3001));
+  EXPECT_NE (0, nnstreamer_query_server_init (server_data, _TENSOR_QUERY_PROTOCOL_END, "localhost", 3001, TRUE));
 
   nnstreamer_query_server_data_free (server_data);
 }
