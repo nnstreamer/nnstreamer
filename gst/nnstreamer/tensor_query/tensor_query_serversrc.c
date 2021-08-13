@@ -23,7 +23,7 @@
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_query_serversrc_debug);
 #define GST_CAT_DEFAULT gst_tensor_query_serversrc_debug
 
-#define DEFAULT_HOST "127.0.0.1"
+#define DEFAULT_HOST "localhost"
 #define DEFAULT_PORT_SRC 3001
 #define DEFAULT_PROTOCOL _TENSOR_QUERY_PROTOCOL_TCP
 #define DEFAULT_TIMEOUT 10
