@@ -14,6 +14,7 @@
 #include <config.h>
 #endif
 
+#include <string.h>
 #include "tensor_query_serversink.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_query_serversink_debug);
@@ -241,7 +242,7 @@ gst_tensor_query_serversink_stop (GstBaseSink * bsink)
 }
 
 /**
- * @brief render buffer, send buffer to client 
+ * @brief render buffer, send buffer to client
  */
 static GstFlowReturn
 gst_tensor_query_serversink_render (GstBaseSink * bsink, GstBuffer * buf)

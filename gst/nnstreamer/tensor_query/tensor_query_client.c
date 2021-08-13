@@ -386,7 +386,7 @@ gst_tensor_query_client_sink_event (GstPad * pad,
       self->sink_conn =
           nnstreamer_query_connect (self->protocol, self->sink_host,
           self->sink_port, DEFAULT_TIMEOUT_MS);
-      if (!self->src_conn) {
+      if (!self->sink_conn) {
         nns_loge ("Failed to connect server sink ");
         return FALSE;
       }
@@ -517,6 +517,7 @@ gst_tensor_query_client_chain (GstPad * pad,
   GstMemory *out_mem;
   GstMapInfo out_info;
   GstFlowReturn res = GST_FLOW_OK;
+  gint ecode;
 
   /** Send start command buffer */
   cmd_buf.protocol = self->protocol;
@@ -574,20 +575,22 @@ gst_tensor_query_client_chain (GstPad * pad,
   /** Receive data command buffer */
   for (i = 0; i < num_tensors; i++) {
     out_mem = gst_allocator_alloc (NULL, mem_sizes[i], NULL);
+    gst_buffer_append_memory (out_buf, out_mem);
 
     if (!gst_memory_map (out_mem, &out_info, GST_MAP_WRITE)) {
-      nns_loge ("Cannot map gst memory (tensor decoder custom)\n");
-      gst_memory_unref (out_mem);
+      nns_loge ("Cannot map gst memory (query-client buffer)");
       goto error;
     }
     cmd_buf.data.data = out_info.data;
-    if (0 != nnstreamer_query_receive (self->sink_conn, &cmd_buf,
-            DEFAULT_TIMEOUT_MS)) {
+
+    ecode = nnstreamer_query_receive (self->sink_conn, &cmd_buf,
+        DEFAULT_TIMEOUT_MS);
+    gst_memory_unmap (out_mem, &out_info);
+
+    if (ecode != 0) {
       nns_loge ("Failed to receive %u th data command buffer", i);
       goto error;
     }
-    gst_memory_unmap (out_mem, &out_info);
-    gst_buffer_append_memory (out_buf, out_mem);
   }
 
   /** Receive end command buffer */
