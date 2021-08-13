@@ -262,6 +262,7 @@ gst_tensor_query_serversrc_create (GstPushSrc * psrc, GstBuffer ** outbuf)
   TensorQueryDataInfo data_info;
   query_connection_handle conn;
   guint i;
+  gint ecode;
 
   if (!src->server_data) {
     nns_loge ("Server data is NULL");
@@ -305,18 +306,23 @@ gst_tensor_query_serversrc_create (GstPushSrc * psrc, GstBuffer ** outbuf)
         *outbuf = gst_buffer_new ();
         for (i = 0; i < data_info.num_mems; i++) {
           mem = gst_allocator_alloc (NULL, data_info.mem_sizes[i], NULL);
-          gst_memory_map (mem, &map, G_PARAM_READWRITE);
-          cmd_data.data.data = map.data;
-          cmd_data.data.size = map.size;
-          if (nnstreamer_query_receive (conn, &cmd_data, src->timeout) != 0) {
-            nns_logi ("Failed to receive data");
-            gst_memory_unmap (mem, &map);
-            gst_memory_unref (mem);
+          gst_buffer_append_memory (*outbuf, mem);
+
+          if (!gst_memory_map (mem, &map, GST_MAP_READWRITE)) {
+            nns_loge ("Failed to map the memory to receive data.");
             goto reset_buffer;
           }
 
+          cmd_data.data.data = map.data;
+          cmd_data.data.size = map.size;
+
+          ecode = nnstreamer_query_receive (conn, &cmd_data, src->timeout);
           gst_memory_unmap (mem, &map);
-          gst_buffer_append_memory (*outbuf, mem);
+
+          if (ecode != 0) {
+            nns_logi ("Failed to receive data");
+            goto reset_buffer;
+          }
         }
 
         /* receive end */

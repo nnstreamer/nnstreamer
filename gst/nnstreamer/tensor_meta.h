@@ -1,21 +1,20 @@
 /* SPDX-License-Identifier: LGPL-2.1-only */
 /**
  * Copyright (C) 2021 Samsung Electronics Co., Ltd.
- * 
+ *
  * @file    tensor_meta.h
  * @date    09 Aug 2021
  * @brief   Internal tensor meta header for nnstreamer
  * @author  Junhwan Kim <jejudo.kim@samsung.com>
  * @see     http://github.com/nnstreamer/nnstreamer
  * @bug     No known bugs
- * 
+ *
  */
 #ifndef __GST_TENSOR_META_H__
 #define __GST_TENSOR_META_H__
 
 #include <gst/gst.h>
 #include <tensor_typedef.h>
-#include <nnstreamer_util.h>
 
 G_BEGIN_DECLS
 

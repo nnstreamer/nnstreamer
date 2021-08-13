@@ -1,21 +1,21 @@
 /* SPDX-License-Identifier: LGPL-2.1-only */
 /**
  * Copyright (C) 2021 Junhwan Kim <jejudo.kim@samsung.com>
- * 
+ *
  * @file    tensor_meta.c
  * @date    09 Aug 2021
  * @brief   Internal tensor meta implementation for nnstreamer
  * @author  Junhwan Kim <jejudo.kim@samsung.com>
  * @see     http://github.com/nnstreamer/nnstreamer
  * @bug     No known bugs
- * 
+ *
  */
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
+#include <nnstreamer_util.h>
 #include "tensor_meta.h"
-
 
 /**
  * @brief Define meta_query type to register

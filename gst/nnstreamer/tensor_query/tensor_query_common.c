@@ -18,6 +18,7 @@
 #include <gio/gio.h>
 #include <gio/gsocket.h>
 #include <stdint.h>
+#include <string.h>
 #include <errno.h>
 #include <nnstreamer_util.h>
 #include <nnstreamer_log.h>
@@ -40,7 +41,7 @@ typedef struct
       GCancellable *cancellable;
       GAsyncQueue *conn_queue;
     };
-    // check the size of struct is less
+    /* check the size of struct is less */
     guint8 _dummy[TENSOR_QUERY_SERVER_DATA_LEN];
   };
 } TensorQueryServerData;
@@ -353,6 +354,7 @@ nnstreamer_query_close (query_connection_handle connection)
       return -EPROTONOSUPPORT;
   }
   g_free (conn->host);
+  g_free (conn);
   return 0;
 }
 
@@ -398,7 +400,7 @@ nnstreamer_query_server_data_free (query_server_handle server_data)
 
 /**
  * @brief set server handle params and setup server
- * @return 0 if OK, negative value if error 
+ * @return 0 if OK, negative value if error
  */
 int
 nnstreamer_query_server_init (query_server_handle server_data,
