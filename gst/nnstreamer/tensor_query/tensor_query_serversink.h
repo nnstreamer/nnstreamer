@@ -43,7 +43,7 @@ typedef struct _GstTensorQueryServerSinkClass GstTensorQueryServerSinkClass;
 struct _GstTensorQueryServerSink
 {
   GstBaseSink element; /**< parent object */
-  guint32 port;
+  guint16 port;
   gchar *host;
   TensorQueryProtocol protocol;
   guint timeout;

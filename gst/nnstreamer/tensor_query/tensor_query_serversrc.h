@@ -43,7 +43,7 @@ struct _GstTensorQueryServerSrc
 {
   GstPushSrc element;        /* parent object */
 
-  guint32 port;
+  guint16 port;
   gchar *host;
   TensorQueryProtocol protocol;
   guint timeout;
