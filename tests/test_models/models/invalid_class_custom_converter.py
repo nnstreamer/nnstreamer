@@ -11,15 +11,16 @@ import numpy as np
 import nnstreamer_python as nns
 
 
-## @brief  User-defined custom converter
+##
+# @brief  User-defined custom converter
 class InvalidClass(object):
+    ##
+    # @brief  Python callback: convert
+    def convert(self, input_array):
+        rate_n = 10
+        rate_d = 1
+        dim = [len(input_array[0]), 1, 1, 1]
+        ttype = np.int32
+        tensors_info = [nns.TensorShape(dim, ttype)]
 
-## @breif  Python callback: convert
-  def convert (self, input_array):
-    rate_n = 10
-    rate_d = 1
-    dim = [len (input_array[0]), 1, 1, 1]
-    ttype=np.int32
-    tensors_info = [nns.TensorShape(dim, ttype)]
-
-    return (tensors_info, input_array, rate_n, rate_d)
+        return tensors_info, input_array, rate_n, rate_d

@@ -13,17 +13,20 @@ import sys
 import os
 import struct
 import string
+
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 from gen24bBMP import convert_to_bytes
 
+
 # Read the bytes from the file
-def readbyte (filename):
+def read_bytes(filename):
     with open(filename, 'rb') as f:
-      readbyte = f.read()
-    return readbyte
+        b = f.read()
+    return b
+
 
 # Verify that the output of test case verifies the filename of the input
-onehot = readbyte(sys.argv[1])
+onehot = read_bytes(sys.argv[1])
 onehot = [convert_to_bytes(x) for x in onehot]
 idx = onehot.index(max(onehot))
 

@@ -6,50 +6,52 @@
 # Copyright (C) 2018 Samsung Electronics
 #
 # @file checkResult.py
-# @brief Check if the tranform results are correct
+# @brief Check if the transform results are correct
 # @author MyungJoo Ham <myungjoo.ham@samsung.com>
 # @date 11 Jul 2018
 # @bug No known bugs
 
 import sys
 
+
 ##
 # @brief Check dimchg mode with option 0:b, b>0.
 #
-def testDimchgFirstDimGoHigher(dataA, dataB, dim1, repeatblocksize, elementsize):
-  if (len(dataA) != len(dataB)):
-    return 1
-  loop = len(dataA) // repeatblocksize
-  if ((loop * repeatblocksize) != len(dataA)):
-    return 2
-  ncpy = repeatblocksize // dim1 // elementsize
-  if ((ncpy * dim1 * elementsize) != repeatblocksize):
-    return 3
-  for x in range(0, loop):
-    for y in range(0, dim1):
-      for z in range(0, ncpy):
-        b = x * repeatblocksize + y * ncpy * elementsize + z * elementsize
-        a = x * repeatblocksize + z * dim1 * elementsize + y
-        if dataA[a:a+elementsize] != dataB[b:b+elementsize]:
-          return 4
+def test_dimchg(dataa, datab, dim, repeatblocksize, elementsize):
+    if len(dataa) != len(datab):
+        return 1
+    loop = len(dataa) // repeatblocksize
+    if (loop * repeatblocksize) != len(dataa):
+        return 2
+    ncpy = repeatblocksize // dim // elementsize
+    if (ncpy * dim * elementsize) != repeatblocksize:
+        return 3
+    for x in range(0, loop):
+        for y in range(0, dim):
+            for z in range(0, ncpy):
+                b = x * repeatblocksize + y * ncpy * elementsize + z * elementsize
+                a = x * repeatblocksize + z * dim * elementsize + y
+                if dataa[a:a + elementsize] != datab[b:b + elementsize]:
+                    return 4
 
-def readfile (filename):
-  F = open(filename, 'rb')
-  readfile = F.read()
-  F.close
-  return readfile
+
+def read_file(filename):
+    with open(filename, 'rb') as file:
+        b = file.read()
+    return b
+
 
 if len(sys.argv) < 2:
-  exit(5)
-
-if (sys.argv[1] == 'dimchg0:b'):
-  if len(sys.argv) < 7:
     exit(5)
-  fna = readfile(sys.argv[2])
-  fnb = readfile(sys.argv[3])
-  dim1 = int(sys.argv[4])
-  rbs = int(sys.argv[5])
-  es = int(sys.argv[6])
-  exit(testDimchgFirstDimGoHigher(fna, fnb, dim1, rbs, es))
+
+if sys.argv[1] == 'dimchg0:b':
+    if len(sys.argv) < 7:
+        exit(5)
+    fna = read_file(sys.argv[2])
+    fnb = read_file(sys.argv[3])
+    dim1 = int(sys.argv[4])
+    rbs = int(sys.argv[5])
+    es = int(sys.argv[6])
+    exit(test_dimchg(fna, fnb, dim1, rbs, es))
 
 exit(5)

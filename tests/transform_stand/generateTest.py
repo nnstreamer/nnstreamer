@@ -11,46 +11,41 @@
 
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
-from struct import pack
 import random
-
 import numpy as np
+from struct import pack
 
-def saveTestData(filename, width, height, dc_average=False):
+
+def save_test_data(filename, width, height, dc_average=False):
     data = []
 
-    for w in range(0,width):
-        for h in range(0,height):
-            n = random.uniform(0.0, 10.0)
-            data.append(n)
+    for w in range(0, width):
+        for h in range(0, height):
+            data.append(random.uniform(0.0, 10.0))
 
     string = pack('%df' % (len(data)), *data)
-    with open(filename,'wb') as file:
+    with open(filename, 'wb') as file:
         file.write(string)
 
-    file.close()
-
-    a=np.array(data)
+    a = np.array(data)
     mean = np.mean(a)
     standard = np.std(a)
     if dc_average:
-        result=a-np.mean(a)
+        result = a - mean
     else:
-        result=abs((a-np.mean(a)) / (np.std(a)+1e-10))
+        result = abs((a - mean) / (standard + 1e-10))
 
     data = []
-    for w in range(0,width):
-        for h in range(0,height):
-            data.append(result[w*height + h])
+    for w in range(0, width):
+        for h in range(0, height):
+            data.append(result[w * height + h])
 
     string = pack('%df' % (len(data)), *data)
-    with open(filename+".golden",'wb') as file1:
+    with open(filename + '.golden', 'wb') as file1:
         file1.write(string)
 
-    return result, mean, standard
 
-def saveTestPerChannelData(filename, num_channel, num_sample, dc_average=False):
+def save_test_per_channel_data(filename, num_channel, num_sample, dc_average=False):
     arr = np.random.randn(num_sample, num_channel)
     with open(filename, 'wb') as f:
         f.write(arr.astype('f').tobytes())
@@ -58,14 +53,15 @@ def saveTestPerChannelData(filename, num_channel, num_sample, dc_average=False):
     means = np.mean(arr, axis=0)
     result = arr - means
 
-    if dc_average == False:
+    if not dc_average:
         std = np.std(arr, axis=0)
         result = abs(result / (std + 1e-10))
 
-    with open(filename+".golden", 'wb') as f:
+    with open(filename + '.golden', 'wb') as f:
         f.write(result.astype('f').tobytes())
 
-buf = saveTestData("test_00.dat", 100, 50, False)
-buf = saveTestPerChannelData("test_01.dat", 50, 100, False)
-buf = saveTestData("test_02.dat", 100, 50, True)
-buf = saveTestPerChannelData("test_03.dat", 50, 100, True)
+
+save_test_data('test_00.dat', 100, 50, False)
+save_test_per_channel_data('test_01.dat', 50, 100, False)
+save_test_data('test_02.dat', 100, 50, True)
+save_test_per_channel_data('test_03.dat', 50, 100, True)
