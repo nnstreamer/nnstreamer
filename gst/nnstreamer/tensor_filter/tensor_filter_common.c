@@ -689,6 +689,9 @@ nnstreamer_filter_find_best_fit (const char *names)
   gchar **subplugins;
   guint i, len;
 
+  if (names == NULL || names[0] == '\0')
+    return NULL;
+
   subplugins = g_strsplit_set (names, " ,;", -1);
   len = g_strv_length (subplugins);
 
