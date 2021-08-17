@@ -22,6 +22,7 @@
 #include <nnstreamer_plugin_api.h>
 #include <string.h>
 #include <tensor_filter_custom.h>
+#include <nnstreamer_util.h>
 
 #include <iostream>
 #include <memory>
@@ -399,6 +400,8 @@ pt_exit (void *private_data, const GstTensorFilterProperties *prop)
   CustomTensorRT *trt = static_cast<CustomTensorRT *> (private_data);
   g_assert (trt);
 
+  UNUSED (prop);
+
   delete trt;
 }
 
@@ -411,6 +414,8 @@ set_inputDim (void *private_data, const GstTensorFilterProperties *prop,
 {
   CustomTensorRT *trt = static_cast<CustomTensorRT *> (private_data);
   g_assert (trt);
+
+  UNUSED (prop);
 
   if (!trt->setInputMeta (in_info))
     return -1;
@@ -428,6 +433,8 @@ pt_invoke (void *private_data, const GstTensorFilterProperties *prop,
     const GstTensorMemory *input, GstTensorMemory *output)
 {
   CustomTensorRT *trt = static_cast<CustomTensorRT *> (private_data);
+
+  UNUSED (prop);
 
   if (!trt->infer (input, output))
     return -1;

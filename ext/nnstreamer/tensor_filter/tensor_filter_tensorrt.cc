@@ -22,6 +22,7 @@
 
 #include <nnstreamer_cppplugin_api_filter.hh>
 #include <tensor_common.h>
+#include <nnstreamer_util.h>
 
 #include <NvInfer.h>
 #include <NvUffParser.h>
@@ -293,6 +294,8 @@ tensorrt_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventDa
 int
 tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
 {
+  UNUSED (prop);
+
   if (checkUnifiedMemory () != 0) {
     ml_loge ("Failed to enable unified memory");
     return -1;
