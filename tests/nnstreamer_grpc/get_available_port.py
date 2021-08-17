@@ -9,11 +9,11 @@
 import socket
 
 if __name__ == "__main__":
-  s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-  # Bind to any available port
-  s.bind(('', 0))
-  addr = s.getsockname()
-  s.close()
+    # Bind to any available port
+    s.bind(('', 0))
+    addr = s.getsockname()
+    s.close()
 
-  print (addr[1])
+    print(addr[1])

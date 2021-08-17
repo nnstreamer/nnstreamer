@@ -17,44 +17,45 @@ import sys
 import re
 import os
 
-## @brief read results of GTest's result xml file
-def readGtestXml(filename):
+
+##
+# @brief read results of GTest's result xml file
+def read_gtest_xml(filename):
     neg = 0
-    try:
-        with open(filename, "r") as f:
-            r = f.readlines()
-            for line in r:
-                res = re.match(r'\s*<testcase name="([^"]+_n)"', line)
-                if res:
-                    neg = neg + 1
-            f.seek(0)
+    with open(filename, 'r') as fd:
+        lines = fd.readlines()
+        for line in lines:
+            res = re.match(r'\s*<testcase name="([^"]+_n)"', line)
+            if res:
+                neg = neg + 1
+        fd.seek(0)
 
-            r = f.readlines()
-            for line in r:
-                res = re.match(r'<testsuites tests="(\d+)" failures="(\d+)" disabled="(\d+)"', line)
-                if res:
-                    return (int(res.group(1)), int(res.group(1)) - int(res.group(2)) - int(res.group(3)), int(res.group(2)), int(res.group(3)), neg)
-    except:
-        print("No gtest results.")
+        lines = fd.readlines()
+        for line in lines:
+            res = re.match(r'<testsuites tests="(\d+)" failures="(\d+)" disabled="(\d+)"', line)
+            if res:
+                return (int(res.group(1)), int(res.group(1)) - int(res.group(2)) - int(res.group(3)),
+                        int(res.group(2)), int(res.group(3)), neg)
     return (0, 0, 0, 0, 0)
 
-## @brief read results of SSAT summary file
-def readSSAT(filename):
-    try:
-        with open(filename, "r") as f:
-            r = f.readlines()
-            for line in r:
-                res = re.match(r'passed=(\d+), failed=(\d+), ignored=(\d+), negative=(\d+)', line)
-                if res:
-                    return (int(res.group(1)) + int(res.group(2)) + int(res.group(3)), int(res.group(1)), int(res.group(2)), int(res.group(3)), int(res.group(4)))
-    except:
-        print("No SSAT results.")
+
+##
+# @brief read results of SSAT summary file
+def read_ssat(filename):
+    with open(filename, 'r') as fd:
+        lines = fd.readlines()
+        for line in lines:
+            res = re.match(r'passed=(\d+), failed=(\d+), ignored=(\d+), negative=(\d+)', line)
+            if res:
+                return (int(res.group(1)) + int(res.group(2)) + int(res.group(3)), int(res.group(1)),
+                        int(res.group(2)), int(res.group(3)), int(res.group(4)))
     return (0, 0, 0, 0, 0)
+
 
 if __name__ == '__main__':
     if len(sys.argv) != 3:
         print("Usage:")
-        print(" $ "+sys.argv[0]+" <gtest xml path> <ssat summary path>")
+        print(" $ " + sys.argv[0] + " <gtest xml path> <ssat summary path>")
         print("")
         sys.exit(1)
 
@@ -68,7 +69,7 @@ if __name__ == '__main__':
     for r, d, f in os.walk(sys.argv[1]):
         for file in f:
             if os.path.splitext(file)[1] == '.xml':
-                (t, p, f, i, n) = readGtestXml(os.path.join(r, file))
+                (t, p, f, i, n) = read_gtest_xml(os.path.join(r, file))
                 tg = tg + t
                 pg = pg + p
                 fg = fg + f
@@ -76,13 +77,14 @@ if __name__ == '__main__':
                 ng = ng + n
     posg = pg + fg + ig - ng
 
-    (t, p, f, i, n) = readSSAT(sys.argv[2])
+    (t, p, f, i, n) = read_ssat(sys.argv[2])
 
     print("GTest (total " + str(tg) + " cases)")
-    print("  Passed: " + str(pg) + " / Failed: " + str(fg) + " / Ignored: " + str(ig) + " | Positive: " + str(posg) + " / Negative: " + str(ng))
+    print("  Passed: " + str(pg) + " / Failed: " + str(fg) + " / Ignored: " + str(ig) +
+          " | Positive: " + str(posg) + " / Negative: " + str(ng))
     print("SSAT (total " + str(t) + " cases)")
-    print("  Passed: " + str(p) + " / Failed: " + str(f) + " / Ignored: " + str(i) + " | Positive: " + str(t - n) + " / Negative: " + str(n))
+    print("  Passed: " + str(p) + " / Failed: " + str(f) + " / Ignored: " + str(i) +
+          " | Positive: " + str(t - n) + " / Negative: " + str(n))
     print("Grand Total: " + str(pg + t) + " cases (negatives : " + str(ng + n) + ")")
-    print("  Passed: " + str(pg+p) + " / Failed: " + str(fg + f) + " / Ignored: " + str(ig + i))
+    print("  Passed: " + str(pg + p) + " / Failed: " + str(fg + f) + " / Ignored: " + str(ig + i))
     sys.exit(0)
-

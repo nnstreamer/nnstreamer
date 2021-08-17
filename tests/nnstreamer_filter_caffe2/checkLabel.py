@@ -13,20 +13,18 @@ import sys
 import os
 import struct
 import string
+
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
-from gen24bBMP  import convert_to_bytes
-
-if sys.version_info < (3,):
-    range = xrange
-
-def readbyte (filename):
-    F = open(filename, 'rb')
-    readbyte = F.read()
-    F.close()
-    return readbyte
+from gen24bBMP import convert_to_bytes
 
 
-bytearr = readbyte(sys.argv[1])
+def read_bytes(filename):
+    with open(filename, 'rb') as file:
+        b = file.read()
+    return b
+
+
+bytearr = read_bytes(sys.argv[1])
 softmax = []
 for i in range(10):
     byte = b''

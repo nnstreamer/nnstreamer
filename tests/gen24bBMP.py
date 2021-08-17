@@ -15,24 +15,18 @@ from struct import pack
 import random
 import sys
 
+
 ##
 # @brief Convert given data to bytes
 # @param[in] data The data to be converted to bytes array
 # @return bytes converted from the data
-
+#
 def convert_to_bytes(data):
-    """
-    Convert given data to bytes
-
-    @param  data: The data to be converted to bytes
-    @rtype      : bytes
-    @return     : bytes converted from the data
-    """
-
     if isinstance(data, bytes):
         return data
     else:
         return pack("<B", data)
+
 
 ##
 # @brief Save bitmap "data" to "filename"
@@ -48,9 +42,9 @@ def saveBMP(filename, data, colorspace, width, height):
     bytes_per_px = 3
 
     if colorspace == 'RGB':
-        assert(size == (width * height * bytes_per_px))
+        assert (size == (width * height * bytes_per_px))
         # BMP is stored bottom to top. Reverse the order
-        for h in range(height-1, -1, -1):
+        for h in range(height - 1, -1, -1):
             for w in range(0, width):
                 pos = 3 * (w + width * h)
                 pixel_list.append(data[pos + 2])
@@ -60,9 +54,9 @@ def saveBMP(filename, data, colorspace, width, height):
                 pixel_list.append(0)
     elif colorspace == 'BGRx':
         bytes_per_px = 4
-        assert(size == (width * height * bytes_per_px))
+        assert (size == (width * height * bytes_per_px))
         # BMP is stored bottom to top. Reverse the order
-        for h in range(height-1, -1, -1):
+        for h in range(height - 1, -1, -1):
             for w in range(0, width):
                 pos = bytes_per_px * (w + width * h)
                 pixel_list.append(data[pos + 0])
@@ -72,9 +66,9 @@ def saveBMP(filename, data, colorspace, width, height):
                 pixel_list.append(0)
     elif colorspace == 'GRAY8':
         bytes_per_px = 1
-        assert(size == (width * height * bytes_per_px))
+        assert (size == (width * height * bytes_per_px))
         # BMP is stored bottom to top. Reverse the order
-        for h in range(height-1, -1, -1):
+        for h in range(height - 1, -1, -1):
             for w in range(0, width):
                 pos = bytes_per_px * (w + width * h)
                 pixel_list.append(data[pos])
@@ -328,6 +322,7 @@ def gen_GRAY8():
     string = pack('%dB' % (len(pixels)), *pixels)
     return string, string_size, expected_size
 
+
 ##
 # @brief Generate Golden Test Case, a randomly generated BMP image
 # @return (string, string_size, expected_size)
@@ -355,7 +350,7 @@ def gen_BMP_random(color_type, width, height, filename_prefix):
             pixel_list, color_type, width, height)
 
     string_size = len(pixel_list)
-    string = pack('%dB' % (string_size), *pixel_list)
+    string = pack('%dB' % string_size, *pixel_list)
 
     return string, string_size, expected_size
 
@@ -376,13 +371,13 @@ def gen_BMP_stream(filename_prefix, golden_filename, num_sink):
         for x in range(0, size_x):
             # black. Frame 0
             pixels[0] += [0, 0, 0]
-                # white. Frame 1
+            # white. Frame 1
             pixels[1] += [255, 255, 255]
-                # green, Frame 2
+            # green, Frame 2
             pixels[2] += [0, 255, 0]
-                # red, Frame 3
+            # red, Frame 3
             pixels[3] += [255, 0, 0]
-                # blue, Frame 4
+            # blue, Frame 4
             pixels[4] += [0, 0, 255]
             # white-black checker, Frame 5
             if (((x / 4) % 2) + ((y / 4) % 2)) == 1:
@@ -410,10 +405,11 @@ def gen_BMP_stream(filename_prefix, golden_filename, num_sink):
             else:
                 pixels[9] += [0, 0, 0]
 
+    string = []
     with open(golden_filename, 'wb') as file:
         for i in range(0, 10):
             saveBMP(filename_prefix + '_' + str(i) + '.bmp', pixels[i], 'RGB', 16, 16)
-            string = [ pack('%dB' % (len(v)), *v) for v in pixels ]
+            string = [pack('%dB' % (len(v)), *v) for v in pixels]
             for j in range(0, num_sink):
                 file.write(string[i])
     return string

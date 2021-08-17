@@ -1,20 +1,11 @@
 #!/usr/bin/env python
 
 ##
+# SPDX-License-Identifier: LGPL-2.1-only
+#
 # NNStreamer Custom Filter Code Generator
 # Copyright (c) 2019 Samsung Electronics
 #
-# This library is free software; you can redistribute it and/or
-# modify it under the terms of the GNU Library General Public
-# License as published by the Free Software Foundation;
-# version 2.1 of the License.
-#
-# This library is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# Library General Public License for more details.
-
-##
 # @file   nnstreamerCodeGenCustomFilter.py
 # @brief  A code generator for nnstreamer custom filters.
 # @author MyungJoo Ham <myungjoo.ham@samsung.com>
@@ -26,19 +17,19 @@ import sys
 import string
 import re
 
-def getinput(text):
-  if sys.version_info[0] < 3:
-    return raw_input(text).strip()
-  return input(text).strip()
+
+def get_input(text):
+    return input(text).strip()
+
 
 ##
+# The code fragments for codegen
+#
 # Common variables for codegen strings
 # {name}
 # {fname}
 # {sname}
 # {today}
-
-# The code fragments for codegen
 common_head = """/**
 * NNStreamer Custom Filter, {name}, created by codegen
 * Copyright (C) 2019 Samsung Electronics
@@ -111,7 +102,8 @@ dim_fixed = """
  * @warning Do not fix any internal values based on this function call.
  *          NNStreamer may call this function multiple times before fixing input/output dimensions
  *
- * @param[in/out] _data The private data for this custom filter. As noted, I recommend not to update this based on this function call unless you are aware of the pad-cap negotiation phases of GstBaseFilter class.
+ * @param[in/out] _data The private data for this custom filter. As noted, I recommend not to update this
+ *                      unless you are aware of the pad-cap negotiation phases of GstBaseFilter class.
  * @param[in] prop The tensor filter properties (refer to tensor_typedef.h)
  * @param[out] in_info The input tensors metadata (number, type, and dimensions)
  * @return 0 if success. Non-zero if failed
@@ -148,7 +140,8 @@ cg_getInputDim (void * _data, const GstTensorFilterProperties * prop,
  * @warning Do not fix any internal values based on this function call.
  *          NNStreamer may call this function multiple times before fixing input/output dimensions
  *
- * @param[in/out] _data The private data for this custom filter. As noted, I recommend not to update this based on this function call unless you are aware of the pad-cap negotiation phases of GstBaseFilter class.
+ * @param[in/out] _data The private data for this custom filter. As noted, I recommend not to update this
+ *                      unless you are aware of the pad-cap negotiation phases of GstBaseFilter class.
  * @param[in] prop The tensor filter properties (refer to tensor_typedef.h)
  * @param[out] out_info The output tensors metadata (number, type, and dimensions)
  * @return 0 if success. Non-zero if failed
@@ -195,7 +188,8 @@ dim_variable = """
  * @warning Do not fix any internal values based on this function call.
  *          NNStreamer may call this function multiple times before fixing input/output dimensions
  *
- * @param[in/out] _data The private data for this custom filter. As noted, I recommend not to update this based on this function call unless you are aware of the pad-cap negotiation phases of GstBaseFilter class.
+ * @param[in/out] _data The private data for this custom filter. As noted, I recommend not to update this
+ *                      unless you are aware of the pad-cap negotiation phases of GstBaseFilter class.
  * @param[in] prop The tensor filter properties (refer to tensor_typedef.h)
  * @param[in] in_info The given input tensors (number, type, and dimensions)
  * @param[out] out_info The corresponding output tensors (number, type, and dimensions). Allocated by invoker.
@@ -410,58 +404,57 @@ shared_library('{fname}',
 # )
 """
 
-
 if __name__ == '__main__':
-  ## This is for debugging. To be removed.
-  today = date.today()
+    # This is for debugging. To be removed.
+    today = date.today()
 
-  ## 1. Ask for name.
-  name = getinput('Please enter the name of the nnstreamer custom filter: ')
-  sname = ''.join(re.findall(r"([a-zA-Z0-9_]+)", name))
-  def_fname = ''.join(re.findall(r"([a-zA-Z0-9_]+)", name))
-  ## @todo @warning We may require prefix for all custom filter in later versions.
-  ## 2. Ask/Check for fname (file & official custom filter name)
-  print('Please enter the custom filter name registered to tensor_filter.')
-  fname = getinput('Or press enter without name if ['+def_fname+'] is ok: ')
-  fname = ''.join(re.findall(r"([a-zA-Z0-9_]+)", fname))
-  if len(fname) < 1:
-    fname = def_fname
+    # 1. Ask for name.
+    name = get_input('Please enter the name of the nnstreamer custom filter: ')
+    sname = ''.join(re.findall(r"([a-zA-Z0-9_]+)", name))
+    def_fname = ''.join(re.findall(r"([a-zA-Z0-9_]+)", name))
+    # @todo @warning We may require prefix for all custom filter in later versions.
+    # 2. Ask/Check for fname (file & official custom filter name)
+    print('Please enter the custom filter name registered to tensor_filter.')
+    fname = get_input('Or press enter without name if [' + def_fname + '] is ok: ')
+    fname = ''.join(re.findall(r"([a-zA-Z0-9_]+)", fname))
+    if len(fname) < 1:
+        fname = def_fname
 
-  result = common_head
+    result = common_head
 
-  ## 3. Ask for options (dimension configuration modes)
-  while 1:
-    option = getinput('Are dimensions of input/output tensors fixed? (yes/no):')
-    option = option.lower()
-    if option == 'y' or option == 'yes':
-      result += dim_fixed
-      break
-    if option == 'n' or option == 'no':
-      result += dim_variable
-      break
-    print("Please enter yes/y or no/n")
+    # 3. Ask for options (dimension configuration modes)
+    while 1:
+        option = get_input('Are dimensions of input/output tensors fixed? (yes/no):')
+        option = option.lower()
+        if option == 'y' or option == 'yes':
+            result += dim_fixed
+            break
+        if option == 'n' or option == 'no':
+            result += dim_variable
+            break
+        print("Please enter yes/y or no/n")
 
-  ## 4. Ask for options (memory allocation modes)
-  while 1:
-    option = getinput('Are you going to allocate output buffer in your code? (yes/no):')
-    option = option.lower()
-    if option == 'y' or option == 'yes':
-      result += invoke_allocate
-      break
-    if option == 'n' or option == 'no':
-      result += invoke_no_allocate
-      break
-    print("Please enter yes/y or no/n")
+    # 4. Ask for options (memory allocation modes)
+    while 1:
+        option = get_input('Are you going to allocate output buffer in your code? (yes/no):')
+        option = option.lower()
+        if option == 'y' or option == 'yes':
+            result += invoke_allocate
+            break
+        if option == 'n' or option == 'no':
+            result += invoke_no_allocate
+            break
+        print("Please enter yes/y or no/n")
 
-  ## 5. Generate .C file
-  result += common_tail
-  ccode = result.format(fname=fname, name=name, sname=sname, today=today)
-  cfile = open(fname+".c", "w")
-  cfile.write(ccode)
-  cfile.close()
+    # 5. Generate .C file
+    result += common_tail
+    ccode = result.format(fname=fname, name=name, sname=sname, today=today)
+    cfile = open(fname + ".c", "w")
+    cfile.write(ccode)
+    cfile.close()
 
-  ## 6. Generate .meson file
-  mesoncode = meson_script.format(fname=fname, name=name, sname=sname, today=today)
-  mesonfile = open("meson.build", "w")
-  mesonfile.write(mesoncode)
-  mesonfile.close()
+    # 6. Generate .meson file
+    mesoncode = meson_script.format(fname=fname, name=name, sname=sname, today=today)
+    mesonfile = open("meson.build", "w")
+    mesonfile.write(mesoncode)
+    mesonfile.close()

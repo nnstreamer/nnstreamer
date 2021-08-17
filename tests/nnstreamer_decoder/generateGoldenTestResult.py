@@ -14,9 +14,9 @@ from __future__ import print_function
 
 import sys
 import os
+
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 import gen24bBMP as bmp
-
 
 bmp.gen_BMP_random('RGB', 640, 480, 'testcase01')
 bmp.gen_BMP_random('BGRx', 640, 480, 'testcase01')
