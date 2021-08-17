@@ -88,7 +88,7 @@ typedef struct
  * @return 0 if OK, negative value if error
  */
 extern query_connection_handle
-nnstreamer_query_connect (TensorQueryProtocol protocol, const char *ip, uint32_t port, uint32_t timeout_ms);
+nnstreamer_query_connect (TensorQueryProtocol protocol, const char *ip, uint16_t port, uint32_t timeout_ms);
 
 /**
  * @brief get host from query connection handle
@@ -150,7 +150,7 @@ nnstreamer_query_server_data_free (query_server_handle server_data);
  */
 extern int
 nnstreamer_query_server_init (query_server_handle server_data,
-    TensorQueryProtocol protocol, const char *host, uint32_t port);
+    TensorQueryProtocol protocol, const char *host, uint16_t port);
 
 #ifdef __cplusplus
 }
