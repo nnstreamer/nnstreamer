@@ -143,6 +143,7 @@ gst_tensor_query_serversrc_finalize (GObject * object)
   g_free (src->host);
   gst_tensors_config_free (&src->src_config);
   nnstreamer_query_server_data_free (src->server_data);
+  src->server_data = NULL;
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
@@ -245,6 +246,7 @@ gst_tensor_query_serversrc_stop (GstBaseSrc * bsrc)
 {
   GstTensorQueryServerSrc *src = GST_TENSOR_QUERY_SERVERSRC (bsrc);
   nnstreamer_query_server_data_free (src->server_data);
+  src->server_data = NULL;
   return TRUE;
 }
 

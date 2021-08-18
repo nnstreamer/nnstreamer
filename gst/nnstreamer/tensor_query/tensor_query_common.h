@@ -146,7 +146,7 @@ nnstreamer_query_server_data_free (query_server_handle server_data);
 
 /**
  * @brief set server handle params and setup server
- * @return 0 if OK, negative value if error 
+ * @return 0 if OK, negative value if error
  */
 extern int
 nnstreamer_query_server_init (query_server_handle server_data,

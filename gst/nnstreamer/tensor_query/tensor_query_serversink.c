@@ -133,6 +133,7 @@ gst_tensor_query_serversink_finalize (GObject * object)
   GstTensorQueryServerSink *sink = GST_TENSOR_QUERY_SERVERSINK (object);
   g_free (sink->host);
   nnstreamer_query_server_data_free (sink->server_data);
+  sink->server_data = NULL;
   g_async_queue_unref (sink->conn_queue);
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -238,6 +239,7 @@ gst_tensor_query_serversink_stop (GstBaseSink * bsink)
 {
   GstTensorQueryServerSink *sink = GST_TENSOR_QUERY_SERVERSINK (bsink);
   nnstreamer_query_server_data_free (sink->server_data);
+  sink->server_data = NULL;
   return TRUE;
 }
 

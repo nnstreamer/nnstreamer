@@ -19,7 +19,7 @@
 G_BEGIN_DECLS
 
 /**
- * @brief set sink config 
+ * @brief set sink config
  */
 void gst_tensor_query_server_set_sink_config (GstTensorsConfig *config);
 
