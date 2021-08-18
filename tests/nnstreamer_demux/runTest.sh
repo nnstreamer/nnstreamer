@@ -112,4 +112,6 @@ callCompareTest TestResult_14_2.golden demux14_1_2.log 14_1_2 "Golden Test 14-2"
 callCompareTest TestResult_14_2.golden demux14_2_2.log 14_2_2 "Golden Test 14-3" 1 0
 callCompareTest TestResult_14_0.golden demux14_2_0.log 14_2_0 "Golden Test 14-4" 1 0
 
+rm *.log *.bmp *.png *.golden
+
 report

@@ -119,4 +119,6 @@ callCompareTest testcase_apply.direct.log testcase_apply_1.typecast.log 11-2 "ap
 python3 checkResult.py typecast testcase_apply.direct.log testcase_apply_2.typecast.log uint8 1 B float32 4 f
 testResult $? 10 "apply test comparison 11-2" 0 1
 
+rm *.log *.bmp *.png *.golden *.raw *.dat
+
 report

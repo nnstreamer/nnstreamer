@@ -201,6 +201,6 @@ cat info | grep "accl = gpu$"
 testResult $? 2-18 "accelerator set test" 0 1
 
 # Cleanup
-rm info
+rm info *.log *.golden
 
 report

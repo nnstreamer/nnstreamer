@@ -67,4 +67,6 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  multifilesrc location=\"testsequen
 callCompareTest testcase_stream_2_0.golden split07_0.log 7_0 "Compare 7-0" 1 0
 callCompareTest testcase_stream_2_1.golden split07_1.log 7_1 "Compare 7-1" 1 0
 
+rm *.log *.bmp *.png *.golden *.raw *.dat
+
 report

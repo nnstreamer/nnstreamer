@@ -52,4 +52,6 @@ callCompareTest testsequence_8.golden tensorsequence01_8.log 1-8 "Compare 1-8" 1
 callCompareTest testsequence_9.golden tensorsequence01_9.log 1-9 "Compare 1-9" 1 0
 callCompareTest testsequence_10.golden tensorsequence01_10.log 1-10 "Compare 1-10" 1 0
 
+rm *.log *.bmp *.png *.golden *.raw *.dat
+
 report

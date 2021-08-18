@@ -57,4 +57,6 @@ python3 checkResult.py standardization test_03.dat.golden result_03.log 4 4 f f 
 
 testResult $? 1 "Golden test comparison 4" 0 1
 
+rm *.log *.bmp *.png *.golden *.raw *.dat
+
 report

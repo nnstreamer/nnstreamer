@@ -94,4 +94,6 @@ for result in tensordecoder.orange.*.log; do
     let i++
 done
 
+rm *.log
+
 report

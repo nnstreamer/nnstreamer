@@ -94,6 +94,6 @@ else
     callCompareTest test_06_raw_2.log test_06_decoded_2.log 6-3 "Compare for case 6-3" 1 0
 fi
 
-rm *.log
+rm *.log *.bmp *.png *.golden *.raw
 
 report
