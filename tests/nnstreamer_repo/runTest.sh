@@ -113,4 +113,6 @@ callCompareTest testsequence_8.golden testsequence03_2_8.log 3-28 "Compare 3-28"
 callCompareTest testsequence_9.golden testsequence03_2_9.log 3-29 "Compare 3-29" 1 0
 callCompareTest testsequence_10.golden testsequence03_2_10.log 3-30 "Compare 3-30" 1 0
 
+rm *.log *.bmp *.png *.golden *.raw *.dat
+
 report

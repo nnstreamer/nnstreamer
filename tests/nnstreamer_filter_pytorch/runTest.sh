@@ -98,6 +98,6 @@ cat info | grep "gpu = 0, accl = cpu"
 testResult $? 2-3 "GPU activation test" 0 1
 
 # Cleanup
-rm info
+rm info *.log *.golden
 
 report

@@ -126,4 +126,6 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=1 samplesp
     t. ! queue ! filesink location=\"test.audio8k.s16le.origin.log\" sync=true" 6 0 0 $PERFORMANCE
 callCompareTest test.audio8k.s16le.origin.log test.consecutive.log 6-1 "Consecutive converting test" 0 0
 
+rm *.log *.bmp *.png *.golden *.raw *.dat
+
 report

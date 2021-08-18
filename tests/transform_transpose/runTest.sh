@@ -60,4 +60,6 @@ callCompareTest test03_00.dat.golden result04_0_00.log 3 "Compare 3" 1 0
 callCompareTest test03_00.dat.golden result04_1_00.log 3 "Compare 3" 1 0
 callCompareTest test03_00.dat.golden result04_2_00.log 3 "Compare 3" 1 0
 
+rm *.log *.bmp *.png *.golden *.raw *.dat
+
 report

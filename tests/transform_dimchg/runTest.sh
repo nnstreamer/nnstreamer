@@ -66,4 +66,6 @@ testResult $? 2 "Golden test comparison 3-1" 0 1
 python3 checkResult.py dimchg0:b testcase03.direct.log testcase03_2.dimchg02.log 4 1024 1
 testResult $? 2 "Golden test comparison 3-2" 0 1
 
+rm *.log *.bmp *.png *.golden *.raw *.dat
+
 report

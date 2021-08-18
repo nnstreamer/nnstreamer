@@ -55,4 +55,6 @@ callCompareTest result_03_0.dat test_02.dat.golden 3 "Golden test comparison 4-0
 callCompareTest result_03_1.dat test_02.dat.golden 3 "Golden test comparison 4-0" 1 0
 callCompareTest result_03_2.dat test_02.dat.golden 3 "Golden test comparison 4-0" 1 0
 
+rm *.log *.bmp *.png *.golden *.raw *.dat
+
 report

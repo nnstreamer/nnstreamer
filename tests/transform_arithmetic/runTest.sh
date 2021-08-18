@@ -133,4 +133,6 @@ testResult $? 7-8 "Golden test comparison" 0 1
 # Fail Test for the option string is wrong
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tensor_transform mode=arithmetic option=casttype:uint64,mul:65535 acceleration=false ! fakesink sync=true " 8F_n 0 1 $PERFORMANCE
 
+rm *.log *.bmp *.png *.golden *.raw *.dat
+
 report

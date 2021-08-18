@@ -66,4 +66,6 @@ tensor_demux name=demux \
 
 callCompareTest lstm.golden out_9.log 1-1 "Compare 1-1" 1 0
 
+rm *.log *.xraw *.golden
+
 report

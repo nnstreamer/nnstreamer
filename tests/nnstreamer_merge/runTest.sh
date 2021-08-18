@@ -164,4 +164,6 @@ callCompareTest testsynch08_1.golden testsynch08_1.log 19-2 "Compare 19-2" 1 0
 callCompareTest testsynch08_2.golden testsynch08_2.log 19-3 "Compare 19-3" 1 0
 callCompareTest testsynch08_3.golden testsynch08_3.log 19-4 "Compare 19-4" 1 0
 
+rm *.log *.bmp *.png *.golden *.raw *.dat
+
 report

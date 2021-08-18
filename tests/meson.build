@@ -92,7 +92,7 @@ if gtest_dep.found()
 
     test('unittest_plugins', unittest_plugins, env: testenv)
 
-  # Run unittest_if
+    # Run unittest_if
     unittest_if = executable('unittest_if',
       join_paths('nnstreamer_if', 'unittest_if.cc'),
       dependencies: [nnstreamer_unittest_deps, unittest_util_dep],
@@ -102,7 +102,7 @@ if gtest_dep.found()
 
     test('unittest_if', unittest_if, env: testenv)
 
-  # Run unittest_rate
+    # Run unittest_rate
     unittest_rate = executable('unittest_rate',
       join_paths('nnstreamer_rate', 'unittest_rate.cc'),
       dependencies: [nnstreamer_unittest_deps, unittest_util_dep],
@@ -112,7 +112,7 @@ if gtest_dep.found()
 
     test('unittest_rate', unittest_rate, env: testenv)
 
-  # Run unittest_join
+    # Run unittest_join
     unittest_join = executable('unittest_join',
       join_paths('gstreamer_join', 'unittest_join.cc'),
       dependencies: [nnstreamer_unittest_deps, unittest_util_dep, join_dep],
@@ -141,7 +141,7 @@ if gtest_dep.found()
       test('unittest_mqtt', unittest_mqtt, env: testenv)
     endif
 
-  # Run unittest_src_iio
+    # Run unittest_src_iio
     if build_platform != 'macos'
       unittest_src_iio = executable('unittest_src_iio',
         join_paths('nnstreamer_source', 'unittest_src_iio.cc'),
@@ -153,7 +153,7 @@ if gtest_dep.found()
       test('unittest_src_iio', unittest_src_iio, timeout: 120, env: testenv)
     endif
 
-  # Run unittest_converter
+    # Run unittest_converter
     if flatbuf_support_is_available
       unittest_converter = executable('unittest_converter',
         join_paths('nnstreamer_converter', 'unittest_converter.cc'),
@@ -265,17 +265,24 @@ if get_option('install-test')
   install_subdir('nnstreamer_converter', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_merge', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_decoder', install_dir: unittest_install_dir)
+  install_subdir('nnstreamer_decoder_boundingbox', install_dir: unittest_install_dir)
+  install_subdir('nnstreamer_decoder_pose', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_demux', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_filter_custom', install_dir: unittest_install_dir)
   if tflite_support_is_available
     install_subdir('nnstreamer_filter_tensorflow_lite', install_dir: unittest_install_dir)
     install_subdir('nnstreamer_decoder_image_labeling', install_dir: unittest_install_dir)
+    install_subdir('nnstreamer_decoder_image_segment', install_dir: unittest_install_dir)
     install_subdir('nnstreamer_filter_reload', install_dir: unittest_install_dir)
   endif
   if tflite2_support_is_available
     install_subdir('nnstreamer_filter_tensorflow2_lite', install_dir: unittest_install_dir)
   endif
   if have_python3
+    if flatbuf_support_is_available
+      install_subdir('nnstreamer_converter_python3', install_dir: unittest_install_dir)
+      install_subdir('nnstreamer_decoder_python3', install_dir: unittest_install_dir)
+    endif
     install_subdir('nnstreamer_filter_python3', install_dir: unittest_install_dir)
   endif
   if tf_support_is_available
@@ -287,6 +294,13 @@ if get_option('install-test')
   if caffe2_support_is_available
     install_subdir('nnstreamer_filter_caffe2', install_dir: unittest_install_dir)
   endif
+  if flatbuf_support_is_available
+    install_subdir('nnstreamer_flatbuf', install_dir: unittest_install_dir)
+    install_subdir('nnstreamer_flexbuf', install_dir: unittest_install_dir)
+  endif
+  if protobuf_support_is_available
+    install_subdir('nnstreamer_protobuf', install_dir: unittest_install_dir)
+  endif
   install_subdir('nnstreamer_mux', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_rate', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_repo', install_dir: unittest_install_dir)
@@ -295,6 +309,7 @@ if get_option('install-test')
   install_subdir('nnstreamer_repo_rnn', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_split', install_dir: unittest_install_dir)
   install_subdir('transform_arithmetic', install_dir: unittest_install_dir)
+  install_subdir('transform_clamp', install_dir: unittest_install_dir)
   install_subdir('transform_dimchg', install_dir: unittest_install_dir)
   install_subdir('transform_stand', install_dir: unittest_install_dir)
   install_subdir('transform_transpose', install_dir: unittest_install_dir)

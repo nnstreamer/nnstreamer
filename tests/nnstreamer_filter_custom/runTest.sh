@@ -195,6 +195,6 @@ if [ "$TEST_TENSORRT" == "YES" ]; then
   fi
 fi
 
-rm *.log
+rm *.log *.bmp *.png *.golden
 
 report

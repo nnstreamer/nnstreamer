@@ -190,6 +190,6 @@ cat info | grep "accl = ${auto_accl}$"
 testResult $? 2-17 "accelerator set test" 0 1
 
 # Cleanup
-rm info
+rm info *.log
 
 report

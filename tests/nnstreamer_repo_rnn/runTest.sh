@@ -41,4 +41,6 @@ gstTest "--gst-plugin-path=../../build tensor_mux name=mux sync-mode=nosync ! te
 
 callCompareTest rnn.golden out_9.log 1-1 "Compare 1-1" 1 0
 
+rm *.log *.xraw *.golden
+
 report
