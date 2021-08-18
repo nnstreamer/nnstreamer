@@ -254,6 +254,8 @@ class TFLiteCore
   int cacheInOutTensorPtr ();
   /** @brief callback method to delete interpreter for shared model */
   friend void free_interpreter (void *instance);
+  /** @brief callback method to replace interpreter for shared model */
+  friend void replace_interpreter (void *instance, void *interperter);
 
   private:
   int num_threads;
@@ -265,6 +267,7 @@ class TFLiteCore
 
   gchar *shared_tensor_filter_key;
   gboolean checkSharedInterpreter (const GstTensorFilterProperties *prop);
+  int reloadInterpreter (TFLiteInterpreter * new_interpreter);
   void setAccelerator (const char *accelerators, tflite_delegate_e d);
 };
 
@@ -1102,6 +1105,41 @@ TFLiteCore::setInputTensorDim (const GstTensorsInfo *info)
 }
 
 /**
+ * @brief Replace the interpreter, called by reloadModel
+ *        Check input/output tensors have the same info
+ * @param new_interpreter new interpreter to replace with
+ * @return int 0 if ok, non-zero if error
+ */
+int
+TFLiteCore::reloadInterpreter (TFLiteInterpreter * new_interpreter)
+{
+  TFLiteInterpreter * interpreter_temp = interpreter;
+  if (!gst_tensors_info_is_equal (interpreter->getInputTensorsInfo (),
+          new_interpreter->getInputTensorsInfo ())
+      || !gst_tensors_info_is_equal (interpreter->getOutputTensorsInfo (),
+             new_interpreter->getOutputTensorsInfo ())) {
+    ml_loge ("The model has unmatched tensors info\n");
+    return -EINVAL;
+  }
+
+  interpreter_temp->lock ();
+  interpreter = new_interpreter;
+  interpreter_temp->unlock ();
+
+  return 0;
+}
+
+/**
+ * @brief callback method to replace interpreter for shared model
+ */
+void replace_interpreter (void * instance, void * interperter) {
+  TFLiteCore * core = reinterpret_cast <TFLiteCore *> (instance);
+  TFLiteInterpreter * interpreter_new = reinterpret_cast <TFLiteInterpreter *> (interperter);
+  if (core->reloadInterpreter (interpreter_new) != 0)
+    nns_loge ("Failed to replace interpreter");
+}
+
+/**
  * @brief	reload a model
  * @param	tflite	: the class object
  * @param[in] model_path : the path of model file
@@ -1112,16 +1150,9 @@ TFLiteCore::setInputTensorDim (const GstTensorsInfo *info)
 int
 TFLiteCore::reloadModel (const char *_model_path)
 {
-  int err;
   TFLiteInterpreter * interpreter_temp = interpreter;
   const char *_ext_delegate_path;
   GHashTable *_ext_delegate_kv;
-
-  if (shared_tensor_filter_key) {
-    /** @todo process should be added if the interpreter is shared */
-    ml_loge ("The reload is not supported with sharing model representation!");
-    return -EROFS;
-  }
 
   if (!g_file_test (_model_path, G_FILE_TEST_IS_REGULAR)) {
     ml_loge ("The path of model file(s), %s, to reload is invalid.", _model_path);
@@ -1133,46 +1164,40 @@ TFLiteCore::reloadModel (const char *_model_path)
   interpreter_sub->setExtDelegate(_ext_delegate_path, _ext_delegate_kv);
 
   /**
-   * load a model into sub interpreter. This loading overhead is indenendent
+   * load a model into sub interpreter. This loading overhead is independent
    * with main one's activities.
    */
-  err = interpreter_sub->loadModel (num_threads, delegate);
-  if (err != 0) {
+  if (interpreter_sub->loadModel (num_threads, delegate) != 0) {
     ml_loge ("Failed to load model %s\n", _model_path);
-    return err;
+    return -EINVAL;
   }
-  err = interpreter_sub->setInputTensorProp ();
-  if (err != 0) {
+  if (interpreter_sub->setInputTensorProp () != 0) {
     ml_loge ("Failed to initialize input tensor\n");
-    return err;
+    return -EINVAL;
   }
-  err = interpreter_sub->setOutputTensorProp ();
-  if (err != 0) {
+  if (interpreter_sub->setOutputTensorProp () != 0) {
     ml_loge ("Failed to initialize output tensor\n");
-    return err;
+    return -EINVAL;
   }
-  err = interpreter_sub->cacheInOutTensorPtr ();
-  if (err != 0) {
+  if (interpreter_sub->cacheInOutTensorPtr () != 0) {
     ml_loge ("Failed to cache input and output tensors storage\n");
-    return err;
+    return -EINVAL;
   }
 
-  /* Also, we need to check input/output tensors have the same info */
-  if (!gst_tensors_info_is_equal (interpreter->getInputTensorsInfo (),
-          interpreter_sub->getInputTensorsInfo ())
-      || !gst_tensors_info_is_equal (interpreter->getOutputTensorsInfo (),
-             interpreter_sub->getOutputTensorsInfo ())) {
-    ml_loge ("The model has unmatched tensors info\n");
-    err = -EINVAL;
-    return err;
+  if (shared_tensor_filter_key) {
+    /* update cores with new interpreter that has shared key */
+    nnstreamer_filter_shared_model_replace (this, shared_tensor_filter_key,
+        interpreter_sub, replace_interpreter, free_interpreter);
+  }
+  else {
+    if (reloadInterpreter (interpreter_sub) != 0) {
+      ml_loge ("Failed replace interpreter\n");
+      return -EINVAL;
+    }
+    delete interpreter_temp;
   }
 
-  interpreter_temp->lock ();
-  interpreter = interpreter_sub;
-  interpreter_temp->unlock ();
-  delete interpreter_temp;
-
-  return err;
+  return 0;
 }
 
 /**
