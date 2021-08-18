@@ -206,6 +206,7 @@ nnstreamer_query_connect (TensorQueryProtocol protocol, const char *ip,
     }
     default:
       nns_loge ("Unsupported protocol.");
+      nnstreamer_query_close (conn);
       return NULL;
   }
   return conn;
@@ -503,6 +504,7 @@ query_tcp_receive (GSocket * socket, uint8_t * data, size_t size,
     }
     if (rret < 0) {
       nns_loge ("Failed to read from socket: %s", err->message);
+      g_clear_error (&err);
       return FALSE;
     }
     bytes_received += rret;
@@ -529,6 +531,7 @@ query_tcp_send (GSocket * socket, uint8_t * data, size_t size,
     }
     if (rret < 0) {
       nns_loge ("Error while sending data %s", err->message);
+      g_clear_error (&err);
       return FALSE;
     }
     bytes_sent += rret;
@@ -555,6 +558,7 @@ accept_socket_async_cb (GObject * source, GAsyncResult * result,
       &err);
   if (!socket) {
     nns_loge ("Failed to get socket: %s", err->message);
+    g_clear_error (&err);
     return;
   }
 
@@ -567,6 +571,8 @@ accept_socket_async_cb (GObject * source, GAsyncResult * result,
   saddr = g_socket_get_remote_address (socket, &err);
   if (!saddr) {
     nns_loge ("Failed to get socket address: %s", err->message);
+    g_clear_error (&err);
+    g_free (conn);
     return;
   }
   conn->protocol = (g_socket_get_protocol (socket) == G_SOCKET_PROTOCOL_TCP) ?
@@ -574,6 +580,7 @@ accept_socket_async_cb (GObject * source, GAsyncResult * result,
   conn->host = g_inet_address_to_string (g_inet_socket_address_get_address (
           (GInetSocketAddress *) saddr));
   conn->port = g_inet_socket_address_get_port ((GInetSocketAddress *) saddr);
+  g_object_unref (saddr);
   conn->socket = socket;
   conn->cancellable = g_cancellable_new ();
   nns_logd ("connected from %s:%u", conn->host, conn->port);
