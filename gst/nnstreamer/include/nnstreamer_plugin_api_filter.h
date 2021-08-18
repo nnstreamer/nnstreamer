@@ -601,6 +601,20 @@ extern int
 nnstreamer_filter_shared_model_remove (void *instance, const char *key,
     void (*free_callback) (void *));
 
+/* extern functions for shared model representation */
+/**
+ * @brief Helper to reload interpreter for instances that has shared key.
+ *        `replace_callback` is called iterating instances in referred list.
+ * @param[in] instance The instance that is sharing the model representation.
+ * @param[in] key The key to find the shared model.
+ * @param[in] interpreter The new interpreter to replace.
+ * @param[in] replace_callback The callback function to replace with new interpreter.
+ * @param[in] free_callback The callback function to destroy the old interpreter.
+ */
+extern void
+nnstreamer_filter_shared_model_replace (void *instance, const char *key,
+    void *new_interpreter, void (*replace_callback) (void *, void *), void (*free_callback) (void*));
+
 #ifdef __cplusplus
 }
 #endif

@@ -2997,3 +2997,45 @@ done:
   G_UNLOCK (shared_model_table);
   return ret;
 }
+
+/* extern functions for shared model representation */
+/**
+ * @brief Helper to reload interpreter for instances that has shared key.
+ *        `replace_callback` is called iterating instances in referred list.
+ * @param[in] instance The instance that is sharing the model representation.
+ * @param[in] key The key to find the shared model.
+ * @param[in] interpreter The new interpreter to replace.
+ * @param[in] replace_callback The callback function to replace with new interpreter.
+ * @param[in] free_callback The callback function to destroy the old interpreter.
+ */
+void
+nnstreamer_filter_shared_model_replace (void *instance, const char *key,
+    void *new_interpreter, void (*replace_callback) (void *, void *),
+    void (*free_callback) (void *))
+{
+  GstTensorFilterSharedModelRepresenatation *model_rep;
+  GList *itr;
+  UNUSED (instance);
+
+  if (!shared_model_table) {
+    ml_loge ("The shared model representation is not supported properly!");
+    return;
+  }
+  if (!key) {
+    ml_loge ("The key should NOT be NULL!");
+    return;
+  }
+
+  G_LOCK (shared_model_table);
+  model_rep = g_hash_table_lookup (shared_model_table, key);
+  if (model_rep) {
+    itr = model_rep->referred_list;
+    while (itr) {
+      replace_callback (itr->data, new_interpreter);
+      itr = itr->next;
+    }
+  }
+  free_callback (model_rep->shared_interpreter);
+  model_rep->shared_interpreter = new_interpreter;
+  G_UNLOCK (shared_model_table);
+}
