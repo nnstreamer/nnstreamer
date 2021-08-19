@@ -75,6 +75,7 @@
 #define NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
 #undef NO_ANONYMOUS_NESTED_STRUCT
+#include <nnstreamer_util.h>
 
 #include <dlfcn.h>
 
@@ -412,6 +413,7 @@ vivante_close (const GstTensorFilterProperties * prop, void **private_data)
 {
   vivante_pdata *pdata = *private_data;
 
+  UNUSED (prop);
   call (result_vnn_ReleaseNeuralNetwork, NULL, pdata->graph);
 
   dlclose (pdata->handle);
@@ -440,10 +442,11 @@ vivante_invoke (const GstTensorFilterProperties * prop,
     GstTensorMemory * output)
 {
   int ret = 0;
-  int i;
+  unsigned i;
   vivante_pdata *pdata = *private_data;
   vsi_status status = VSI_FAILURE;
 
+  UNUSED (prop);
   g_assert (*private_data);
 
 #if 1
@@ -540,6 +543,7 @@ vivante_getInputDim (const GstTensorFilterProperties * prop,
 {
   vivante_pdata *pdata = (vivante_pdata *) * private_data;
 
+  UNUSED (prop);
   if (!pdata)
     return -1;
 
@@ -563,6 +567,7 @@ vivante_getOutputDim (const GstTensorFilterProperties * prop,
 {
   vivante_pdata *pdata = (vivante_pdata *) * private_data;
 
+  UNUSED (prop);
   if (!pdata)
     return -1;
 
