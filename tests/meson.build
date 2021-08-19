@@ -292,6 +292,17 @@ if gtest_dep.found()
   if get_option('enable-openvino')
     subdir('nnstreamer_filter_openvino')
   endif
+
+  if tflite_support_is_available
+    unittest_filter_shared_model = executable('unittest_filter_shared_model',
+      join_paths('nnstreamer_filter_shared_model', 'unittest_filter_shared_model.cc'),
+      dependencies: [nnstreamer_unittest_deps, unittest_util_dep],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+
+    test('unittest_filter_shared_model', unittest_filter_shared_model, timeout: 30, env: testenv)
+  endif
 endif # gtest_dep.found()
 
 tensor_filter_ext_enabled = tflite_support_is_available or \
