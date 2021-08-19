@@ -127,6 +127,7 @@ save_png_to_file (bitmap_t * bitmap, const char *path)
   /** Set up error handling. */
 
   if (setjmp (png_jmpbuf (png_ptr))) {
+    status = -1;
     goto png_failure;
   }
 
