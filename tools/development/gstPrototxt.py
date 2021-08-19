@@ -69,7 +69,7 @@ class Pipeline:
     ##
     # @brief Get filter with the given name
     def __getFilterByName(self, name):
-        return filters.get(name, None)
+        return self.filters.get(name, None)
 
     ##
     # @brief get "name.padname"
@@ -83,13 +83,13 @@ class Pipeline:
 
     ##
     # @brief Verify filter and return object if filter is given with name
-    def __verifyfilter(self, f):
-        _a = f
+    def __verifyFilter(self, f):
+        if type(f) is str:
+            _a = self.__getFilterByName(f)
+        else:
+            _a = f
 
-        if type(_a) is str:
-            _a = self.__getFilterByName(a)
-
-        if type(_a) is not Filter or not X:
+        if _a is None or type(_a) is not Filter:
             raise RuntimeError("It is supposed to be a filter (element) or name of a filter.")
 
         if _a.name is not str or len(_a.name) < 1:
@@ -104,8 +104,8 @@ class Pipeline:
     # @param[in] a string(name) or Filter instance of src
     # @param[in] a string(name) or Filter instance of sink
     def connectFilters(self, a, a_padname, b, b_padname):
-        _a = self.__verifyfilter(a)
-        _b = self.__verifyfilter(b)
+        _a = self.__verifyFilter(a)
+        _b = self.__verifyFilter(b)
 
         _a.sink.append((_b, _b.name, b_padname))
         _b.src.append((_a, _a.name, a_padname))
