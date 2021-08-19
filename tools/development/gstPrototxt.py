@@ -12,9 +12,6 @@
 # @todo   WIP
 # @todo   Get python pbtxt parser
 # @todo   property link up tensor-repo-*
-declaredNames = []  # list of names declared by user.
-generatedNameCounter = 0
-GENERATEDNAMEPREFIX = '__id'
 
 
 ##
@@ -27,22 +24,29 @@ class Filter:
     src = []  # list of (Filter, string(name of src), string(src-padname. maybe None))
     sink = []  # list of (Filter, string(name of sink), string(sink-padname. maybe None))
 
-    def __init__(self, elementname, _name):
-        global generatedNameCounter
-        global GENERATEDNAMEPREFIX
-        global declaredNames
+    _generated = 0  # Internal, total number of generated names.
+    _declared_names = []  # Internal, list of names declared by user.
 
-        self.element = elementname
+    def __init__(self, _element, _name=None):
         if _name is not None and len(_name) > 0:
-            if _name in declaredNames:
+            if _name in Filter._declared_names:
                 raise RuntimeError("Duplicated name in elements: " + str(_name))
-            declaredNames.append(str(_name))
-            self.name = _name
+            n = _name
         else:
-            while (GENERATEDNAMEPREFIX + str(generatedNameCounter)) not in declaredNames:
-                generatedNameCounter = generatedNameCounter + 1
-            self.name = GENERATEDNAMEPREFIX + str(generatedNameCounter)
-            self.nameGenerated = True
+            n = Filter.generate_element_name()
+
+        self.element = str(_element)
+        self.name = str(n)
+        Filter._declared_names.append(str(n))
+
+    @staticmethod
+    def generate_element_name():
+        def _gen_name(idx):
+            return '__id' + str(idx)
+
+        while _gen_name(Filter._generated) in Filter._declared_names:
+            Filter._generated = Filter._generated + 1
+        return _gen_name(Filter._generated)
 
 
 ##
