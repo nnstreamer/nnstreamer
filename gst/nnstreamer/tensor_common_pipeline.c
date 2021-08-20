@@ -274,6 +274,7 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
   guint i, n_mem;
   GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT];
   tensor_format in_formats[NNS_TENSOR_SIZE_LIMIT];
+  gboolean meta_copied = FALSE;
 
   g_return_val_if_fail (collect != NULL, FALSE);
   g_return_val_if_fail (sync != NULL, FALSE);
@@ -396,6 +397,18 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
         counting++;
       }
 
+      /**
+       * This is temporal GstMeta policy of the collect pad for tensor query server.
+       * Copy GstMeta of the first buffer to out buffers.
+       * MetaCopy policy should be updated for multiple query clients
+       * to prevent the multiple clients from mixing buffers.
+       * @todo Update the policies based on synchronization polices of mux and merge.
+       */
+      if (!meta_copied) {
+        gst_buffer_copy_into (tensors_buf, buf, GST_BUFFER_COPY_METADATA, 0,
+            -1);
+        meta_copied = TRUE;
+      }
       gst_buffer_unref (buf);
     }
     if (is_empty)

@@ -259,6 +259,10 @@ gst_tensor_query_serversink_render (GstBaseSink * bsink, GstBuffer * buf)
   guint32 i, num_mems;
 
   meta_query = gst_buffer_get_meta_query (buf);
+  if (!meta_query) {
+    nns_logw ("Cannot get tensor query meta. Drop buffers!");
+    return GST_FLOW_OK;
+  }
   while (TRUE) {
     conn = nnstreamer_query_server_accept (sink->server_data);
     host = nnstreamer_query_connection_get_host (conn);
