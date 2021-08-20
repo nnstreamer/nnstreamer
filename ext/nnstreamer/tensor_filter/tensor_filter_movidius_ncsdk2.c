@@ -453,6 +453,7 @@ static GstTensorFilterFramework NNS_support_movidius_ncsdk2 = {
       .setInputDimension = NULL,
       .destroyNotify = NULL,
       .reloadModel = NULL,
+      .handleEvent = NULL,
       .checkAvailability = _mvncsdk2_checkAvailability,
       .allocateInInvoke = NULL,
     }

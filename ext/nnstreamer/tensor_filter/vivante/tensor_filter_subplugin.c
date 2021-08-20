@@ -602,6 +602,7 @@ static GstTensorFilterFramework NNS_support_vivante = {
               .setInputDimension = NULL,
               .destroyNotify = NULL,
               .reloadModel = NULL,
+              .handleEvent = NULL,
               .checkAvailability = NULL,
               .allocateInInvoke = NULL,
             }

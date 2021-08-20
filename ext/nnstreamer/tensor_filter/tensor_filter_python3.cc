@@ -814,6 +814,7 @@ static GstTensorFilterFramework NNS_support_python = {.version = GST_TENSOR_FILT
        .setInputDimension = py_setInputDim,
        .destroyNotify = py_destroyNotify,
        .reloadModel = nullptr,
+       .handleEvent = nullptr,
        .checkAvailability = py_checkAvailability,
        .allocateInInvoke = nullptr,
    } } };

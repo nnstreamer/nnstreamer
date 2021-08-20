@@ -625,6 +625,7 @@ static GstTensorFilterFramework NNS_support_openvino = {.version = GST_TENSOR_FI
        .setInputDimension = nullptr,
        .destroyNotify = nullptr,
        .reloadModel = nullptr,
+       .handleEvent = nullptr,
        .checkAvailability = ov_checkAvailability,
        .allocateInInvoke = nullptr,
    } } };

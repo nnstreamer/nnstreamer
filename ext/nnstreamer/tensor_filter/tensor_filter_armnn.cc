@@ -782,6 +782,7 @@ static GstTensorFilterFramework NNS_support_armnn = {.version = GST_TENSOR_FILTE
        .setInputDimension = nullptr,
        .destroyNotify = nullptr,
        .reloadModel = nullptr,
+       .handleEvent = nullptr,
        .checkAvailability = armnn_checkAvailability,
        .allocateInInvoke = nullptr,
    } } };

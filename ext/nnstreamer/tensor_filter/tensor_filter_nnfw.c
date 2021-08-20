@@ -807,6 +807,7 @@ static GstTensorFilterFramework NNS_support_nnfw = {
       .setInputDimension = nnfw_setInputDim,
       .destroyNotify = NULL,
       .reloadModel = NULL,
+      .handleEvent = NULL,
       .checkAvailability = nnfw_checkAvailability,
       .allocateInInvoke = NULL,
     }
