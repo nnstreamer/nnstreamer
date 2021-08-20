@@ -11,8 +11,12 @@
 # @date 20 Jul 2018
 # @bug No known bugs
 
+import os
 import sys
 import struct
+
+sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
+from test_utils import read_file
 
 
 ##
@@ -35,12 +39,6 @@ def test_standardization(fna, fnb, typeasize, typebsize, typeapack, typebpack):
         if diff > 0.00001 or diff < -0.00001:
             return 20
     return 0
-
-
-def read_file(filename):
-    with open(filename, 'rb') as file:
-        b = file.read()
-    return b
 
 
 if len(sys.argv) < 2:

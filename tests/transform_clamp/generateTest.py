@@ -12,7 +12,6 @@
 import sys
 import os
 import numpy as np
-from struct import pack
 
 
 def save_test_data(filename, dtype, cmin, cmax):

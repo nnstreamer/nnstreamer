@@ -11,26 +11,14 @@
 
 import sys
 import os
-import struct
 import string
 
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 from gen24bBMP import convert_to_bytes
+from test_utils import read_file, read_label
 
 
-def read_bytes(filename):
-    with open(filename, 'rb') as file:
-        b = file.read()
-    return b
-
-
-def read_label(filename):
-    with open(filename, 'r') as file:
-        b = file.readlines()
-    return b
-
-
-onehot = read_bytes(sys.argv[1])
+onehot = read_file(sys.argv[1])
 onehot = [convert_to_bytes(x) for x in onehot]
 idx = onehot.index(max(onehot))
 
