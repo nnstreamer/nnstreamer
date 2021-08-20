@@ -13,15 +13,14 @@ import sys
 import os
 import random
 import numpy as np
+from itertools import product
 from struct import pack
 
 
 def save_test_data(filename, width, height, dc_average=False):
     data = []
-
-    for w in range(0, width):
-        for h in range(0, height):
-            data.append(random.uniform(0.0, 10.0))
+    for w, h in product(range(0, width), range(0, height)):
+        data.append(random.uniform(0.0, 10.0))
 
     string = pack('%df' % (len(data)), *data)
     with open(filename, 'wb') as file:
@@ -36,9 +35,8 @@ def save_test_data(filename, width, height, dc_average=False):
         result = abs((a - mean) / (standard + 1e-10))
 
     data = []
-    for w in range(0, width):
-        for h in range(0, height):
-            data.append(result[w * height + h])
+    for w, h in product(range(0, width), range(0, height)):
+        data.append(result[w * height + h])
 
     string = pack('%df' % (len(data)), *data)
     with open(filename + '.golden', 'wb') as file1:

@@ -13,6 +13,7 @@
 
 import os
 import sys
+from itertools import product
 
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 from test_utils import read_file
@@ -30,13 +31,11 @@ def test_dimchg(dataa, datab, dim, repeatblocksize, elementsize):
     ncpy = repeatblocksize // dim // elementsize
     if (ncpy * dim * elementsize) != repeatblocksize:
         return 3
-    for x in range(0, loop):
-        for y in range(0, dim):
-            for z in range(0, ncpy):
-                b = x * repeatblocksize + y * ncpy * elementsize + z * elementsize
-                a = x * repeatblocksize + z * dim * elementsize + y
-                if dataa[a:a + elementsize] != datab[b:b + elementsize]:
-                    return 4
+    for x, y, z in product(range(0, loop), range(0, dim), range(0, ncpy)):
+        b = x * repeatblocksize + y * ncpy * elementsize + z * elementsize
+        a = x * repeatblocksize + z * dim * elementsize + y
+        if dataa[a:a + elementsize] != datab[b:b + elementsize]:
+            return 4
 
 
 if len(sys.argv) < 2:

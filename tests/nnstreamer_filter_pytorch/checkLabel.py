@@ -14,8 +14,7 @@ import os
 import string
 
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
-from gen24bBMP import convert_to_bytes
-from test_utils import read_file
+from test_utils import convert_to_bytes, read_file
 
 
 # Verify that the output of test case verifies the filename of the input

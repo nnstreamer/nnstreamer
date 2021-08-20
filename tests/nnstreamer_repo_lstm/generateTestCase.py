@@ -13,8 +13,6 @@
 
 from __future__ import print_function
 
-import sys
-import os
 import array as arr
 import numpy as np
 

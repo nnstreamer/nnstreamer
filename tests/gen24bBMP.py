@@ -17,18 +17,6 @@ import sys
 
 
 ##
-# @brief Convert given data to bytes
-# @param[in] data The data to be converted to bytes array
-# @return bytes converted from the data
-#
-def convert_to_bytes(data):
-    if isinstance(data, bytes):
-        return data
-    else:
-        return pack("<B", data)
-
-
-##
 # @brief Save bitmap "data" to "filename"
 # @param[in] filename The filename to be saves as a .bmp file.
 # @param[in] data list of numbers that would be saved as BMP format

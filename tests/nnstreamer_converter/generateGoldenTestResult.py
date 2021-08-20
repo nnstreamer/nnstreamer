@@ -15,6 +15,7 @@ import sys
 import os
 
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
+from test_utils import convert_to_bytes
 import gen24bBMP as bmp
 
 # Allow to create specific cases only if proper argument is given
@@ -144,21 +145,21 @@ if target == -1 or target == 11:
     s = b''
     for y in range(0, 100):
         for x in range(0, 100):
-            s += bmp.convert_to_bytes(buf[y * 100 + x])
+            s += convert_to_bytes(buf[y * 100 + x])
     bmp.write('testcase_1_0.golden', s)
 
     s = b''
     for i in range(1, 3):
         for y in range(0, 100):
             for x in range(0, 100):
-                s += bmp.convert_to_bytes(buf[y * 100 + x + i * 100 * 100])
+                s += convert_to_bytes(buf[y * 100 + x + i * 100 * 100])
     bmp.write('testcase_1_1.golden', s)
 
     for i in range(0, 3):
         s = b''
         for y in range(0, 100):
             for x in range(0, 100):
-                s += bmp.convert_to_bytes(buf[y * 100 + x + i * 100 * 100])
+                s += convert_to_bytes(buf[y * 100 + x + i * 100 * 100])
         bmp.write('testcase_2_' + str(i) + '.golden', s)
 
     string = bmp.gen_BMP_stream('testsequence', 'testcase_stream.golden', 1)
@@ -167,7 +168,7 @@ if target == -1 or target == 11:
     for i in range(0, 10):
         for y in range(0, 16):
             for x in range(0, 16):
-                s += bmp.convert_to_bytes(string[i][y * 16 + x])
+                s += convert_to_bytes(string[i][y * 16 + x])
     bmp.write('testcase_stream_1_0.golden', s)
 
     s = b''
@@ -175,7 +176,7 @@ if target == -1 or target == 11:
         for j in range(1, 3):
             for y in range(0, 16):
                 for x in range(0, 16):
-                    s += bmp.convert_to_bytes(string[i][j * 16 * 16 + y * 16 + x])
+                    s += convert_to_bytes(string[i][j * 16 * 16 + y * 16 + x])
     bmp.write('testcase_stream_1_1.golden', s)
 
     for j in range(0, 3):
@@ -183,7 +184,7 @@ if target == -1 or target == 11:
         for i in range(0, 10):
             for y in range(0, 16):
                 for x in range(0, 16):
-                    s += bmp.convert_to_bytes(string[i][j * 16 * 16 + y * 16 + x])
+                    s += convert_to_bytes(string[i][j * 16 * 16 + y * 16 + x])
         bmp.write('testcase_stream_2_' + str(j) + '.golden', s)
 
 if target == -1 or target == 12:

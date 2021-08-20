@@ -19,10 +19,26 @@ sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 from test_utils import read_file
 
 
+def compare_float(a, b):
+    diff = float(a) - float(b)
+    return not (diff > 0.01 or diff < -0.01)
+
+
+def compare_int(a, b, maskb):
+    vala = int(a) & maskb
+    valb = int(b)
+    # Remove the signedness characteristics!
+    diff = (vala ^ valb) & maskb
+    return not (diff != 0)
+
+
 ##
 # @brief Check typecast from typea to typeb with file fna/fnb
 #
-def test_typecast(fna, fnb, typea, typeasize, typeapack, typeb, typebsize, typebpack):
+def test_typecast(d1, d2):
+    # data should be tuple (data, type, type-size, type-pack)
+    fna, typea, typeasize, typeapack = d1
+    fnb, typeb, typebsize, typebpack = d2
     lena = len(fna)
     lenb = len(fnb)
 
@@ -38,18 +54,10 @@ def test_typecast(fna, fnb, typea, typeasize, typeapack, typeb, typebsize, typeb
         vala = struct.unpack(typeapack, fna[x * typeasize: x * typeasize + typeasize])[0]
         valb = struct.unpack(typebpack, fnb[x * typebsize: x * typebsize + typebsize])[0]
         if typeb[0:5] == 'float':
-            diff = float(vala) - valb
-            if diff > 0.01 or diff < -0.01:
+            if not compare_float(vala, valb):
                 return 20
         elif typeb[0:4] == 'uint' or typeb[0:3] == 'int':
-            vala = int(vala)
-            vala = vala & maskb
-            valb = int(valb)
-
-            # Remove the signedness characteristics!
-            diff = (vala ^ valb) & maskb
-            if diff != 0:
-                print('WTH?? ' + str(vala) + '->' + str(valb) + '\n')
+            if not compare_int(vala, valb, maskb):
                 return 20
         else:
             return 21
@@ -62,14 +70,11 @@ if len(sys.argv) < 2:
 if sys.argv[1] == 'typecast':
     if len(sys.argv) < 10:
         exit(5)
-    fna = read_file(sys.argv[2])
-    fnb = read_file(sys.argv[3])
-    typea = sys.argv[4]
-    typeasize = int(sys.argv[5])
-    typeapack = sys.argv[6]
-    typeb = sys.argv[7]
-    typebsize = int(sys.argv[8])
-    typebpack = sys.argv[9]
-    exit(test_typecast(fna, fnb, typea, typeasize, typeapack, typeb, typebsize, typebpack))
+
+    # (data, type, type-size, type-pack)
+    data1 = (read_file(sys.argv[2]), sys.argv[4], int(sys.argv[5]), sys.argv[6])
+    data2 = (read_file(sys.argv[3]), sys.argv[7], int(sys.argv[8]), sys.argv[9])
+
+    exit(test_typecast(data1, data2))
 
 exit(5)
