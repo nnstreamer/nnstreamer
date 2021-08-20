@@ -206,6 +206,7 @@ typedef enum
   SET_INPUT_PROP,   /**< Update input tensor info and layout */
   SET_OUTPUT_PROP,  /**< Update output tensor info and layout */
   SET_ACCELERATOR,  /**< Update accelerator of the subplugin to be used as backend */
+  CHECK_HW_AVAILABILITY, /**< Check the hw availability with custom option */
 } event_ops;
 
 /**
@@ -250,6 +251,12 @@ typedef struct _GstTensorFilterFrameworkEventData
     struct {
       accl_hw *hw_list;   /**< accelerators supported by framework intersected with the new user provided accelerator preference */
       int num_hw;         /**< number of hardare accelerators in the hw_list supported by the framework */
+    };
+
+    /** for CHECK_HW_AVAILABILITY */
+    struct {
+      accl_hw hw; /**< accelerator to check availability */
+      const char *custom; /**< custom option for hardware detection */
     };
   };
 } GstTensorFilterFrameworkEventData;
@@ -375,6 +382,16 @@ struct _GstTensorFilterFramework
        * @return 0 if ok. < 0 if error.
        */
 
+      int (*handleEvent) (event_ops ops, GstTensorFilterFrameworkEventData * data);
+      /**< Optional. Runs the event corresponding to the passed operation.
+       * If ops == CHECK_HW_AVAILABILITY: tensor_filter will call to check the hw availability with custom option.
+       * List of operations to be supported are optional.
+       *
+       * @param[in] ops operation to be performed
+       * @param[in/out] data event data for the supported handlers (can be NULL)
+       * @return 0 if OK. non-zero if error. -ENOENT if operation is not supported. -EINVAL if operation is supported but provided arguments are invalid.
+       */
+
       int (*checkAvailability) (accl_hw hw);
       /**< Optional. Check if the provided hardware accelerator is supported. This check is static or dynamic based on framework support. Positive response of this check does not guarantee successful running of model with this accelerator. The static check can be performed without opening the framework.
        *
@@ -463,9 +480,9 @@ struct _GstTensorFilterFramework
        * Note: In these operations, the argument 'prop' will not contain the updated information, but will be updated after the corresponding operation is succeeded.
        *
        * @param[in] prop read-only property values
-       * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer.
+       * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer. (can be NULL)
        * @param[in] ops operation to be performed
-       * @param[in/out] data user sata for the supported handlers (can be NULL)
+       * @param[in/out] data event data for the supported handlers (can be NULL)
        * @return 0 if OK. non-zero if error. -ENOENT if operation is not supported. -EINVAL if operation is supported but provided arguments are invalid.
        */
       void *subplugin_data; /**< This is used by tensor_filter infrastructure. Subplugin authors should NEVER update this. Only the files in /gst/nnstreamer/tensor_filter/ are allowed to access this. */

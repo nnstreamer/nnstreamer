@@ -239,10 +239,11 @@ gst_tensor_filter_detect_framework (const gchar * const *model_files, const guin
  * @brief Check if the given hw is supported by the framework.
  * @param[in] name The name of filter sub-plugin.
  * @param[in] hw Backend accelerator hardware.
+ * @param[in] custom User-defined string to handle detailed hardware option.
  * @return TRUE if given hw is available.
  */
 extern gboolean
-gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw);
+gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw, const char *custom);
 
 /**
  * @brief Free the data allocated for tensor filter output

@@ -2771,7 +2771,8 @@ accl_hw_get_type (void)
  *       When changing the declaration, you should update the internal header (nnstreamer_internal.h).
  */
 gboolean
-gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw)
+gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw,
+    const char *custom)
 {
   gint idx = 0;
   gboolean available = FALSE;
@@ -2784,6 +2785,9 @@ gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw)
     return FALSE;
   }
 
+  if (GST_TF_FW_V1 (fw))
+    gst_tensor_filter_properties_init (&prop);
+
   /** Only check for specific HW, DEFAULT/AUTO are always supported */
   if (hw == ACCL_AUTO || hw == ACCL_DEFAULT) {
     available = TRUE;
@@ -2791,8 +2795,6 @@ gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw)
     if (fw->checkAvailability && fw->checkAvailability (hw) == 0)
       available = TRUE;
   } else if (GST_TF_FW_V1 (fw)) {
-    gst_tensor_filter_properties_init (&prop);
-
     if (fw->getFrameworkInfo (fw, &prop, NULL, &info) == 0) {
       for (idx = 0; idx < info.num_hw; idx++) {
         if (info.hw_list[idx] == hw) {
@@ -2801,6 +2803,27 @@ gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw)
         }
       }
     }
+  }
+
+  /* handle custom option */
+  if (available && custom) {
+    event_ops evt = CHECK_HW_AVAILABILITY;
+    GstTensorFilterFrameworkEventData edata;
+    int ret = 0;
+
+    edata.hw = hw;
+    edata.custom = custom;
+
+    if (GST_TF_FW_V0 (fw)) {
+      if (fw->handleEvent)
+        ret = fw->handleEvent (evt, &edata);
+    } else if (GST_TF_FW_V1 (fw)) {
+      if (fw->eventHandler)
+        ret = fw->eventHandler (fw, &prop, NULL, evt, &edata);
+    }
+
+    if (ret != 0 && ret != -ENOENT)
+      available = FALSE;
   }
 
   return available;

@@ -1335,6 +1335,7 @@ static GstTensorFilterFramework NNS_support_tensorflow_lite
               .setInputDimension = tflite_setInputDim,
               .destroyNotify = nullptr,
               .reloadModel = tflite_reloadModel,
+              .handleEvent = nullptr,
               .checkAvailability = tflite_checkAvailability,
               .allocateInInvoke = nullptr,
           } } };

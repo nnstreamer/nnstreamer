@@ -613,6 +613,7 @@ static GstTensorFilterFramework NNS_support_caffe2 = {.version = GST_TENSOR_FILT
        .setInputDimension = nullptr,
        .destroyNotify = caffe2_destroyNotify,
        .reloadModel = nullptr,
+       .handleEvent = nullptr,
        .checkAvailability = caffe2_checkAvailability,
        .allocateInInvoke = nullptr,
    } } };

@@ -65,6 +65,7 @@ static GstTensorFilterFramework NNS_support_cpp = {.version = GST_TENSOR_FILTER_
        .setInputDimension = tensor_filter_cpp::setInputDim,
        .destroyNotify = nullptr,
        .reloadModel = nullptr,
+       .handleEvent = nullptr,
        .checkAvailability = nullptr,
        .allocateInInvoke = nullptr,
    } } };

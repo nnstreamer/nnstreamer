@@ -690,6 +690,7 @@ static GstTensorFilterFramework NNS_support_pytorch = {.version = GST_TENSOR_FIL
        .setInputDimension = nullptr,
        .destroyNotify = nullptr,
        .reloadModel = nullptr,
+       .handleEvent = nullptr,
        .checkAvailability = torch_checkAvailability,
        .allocateInInvoke = nullptr,
    } } };

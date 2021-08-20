@@ -312,7 +312,7 @@ static GstTensorFilterFramework NNS_support_custom = {
   .allocate_in_invoke = TRUE,   /* GstTensorFilter allocates output buffers */
   .run_without_model = FALSE,   /* custom needs a so file */
   .invoke_NN = custom_invoke,
-
+  .handleEvent = NULL,          /* do not set event function for custom filter */
   .getInputDimension = custom_getInputDim,
   .getOutputDimension = custom_getOutputDim,
   .setInputDimension = custom_setInputDim,

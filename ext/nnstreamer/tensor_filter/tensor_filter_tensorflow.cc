@@ -765,6 +765,7 @@ static GstTensorFilterFramework NNS_support_tensorflow = {.version = GST_TENSOR_
        .setInputDimension = nullptr,
        .destroyNotify = tf_destroyNotify,
        .reloadModel = nullptr,
+       .handleEvent = nullptr,
        .checkAvailability = tf_checkAvailability,
        .allocateInInvoke = nullptr, // TODO: what, it's allocate_in_invoke
    } } };
