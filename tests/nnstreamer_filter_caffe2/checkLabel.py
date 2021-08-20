@@ -16,15 +16,10 @@ import string
 
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 from gen24bBMP import convert_to_bytes
+from test_utils import read_file
 
 
-def read_bytes(filename):
-    with open(filename, 'rb') as file:
-        b = file.read()
-    return b
-
-
-bytearr = read_bytes(sys.argv[1])
+bytearr = read_file(sys.argv[1])
 softmax = []
 for i in range(10):
     byte = b''

@@ -11,8 +11,12 @@
 # @date 20 Jul 2018
 # @bug No known bugs
 
+import os
 import sys
 import struct
+
+sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
+from test_utils import read_file
 
 
 ##
@@ -50,12 +54,6 @@ def test_typecast(fna, fnb, typea, typeasize, typeapack, typeb, typebsize, typeb
         else:
             return 21
     return 0
-
-
-def read_file(filename):
-    with open(filename, 'rb') as file:
-        b = file.read()
-    return b
 
 
 if len(sys.argv) < 2:

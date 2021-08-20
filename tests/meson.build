@@ -262,6 +262,7 @@ endif
 # Install Unittest
 if get_option('install-test')
   install_data('gen24bBMP.py', install_dir: unittest_install_dir)
+  install_data('test_utils.py', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_converter', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_merge', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_decoder', install_dir: unittest_install_dir)

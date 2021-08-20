@@ -10,7 +10,11 @@
 #         This script is imported from tests/nnstreamer_filter_custom/
 # @author MyungJoo Ham <myungjoo.ham@samsung.com>
 
+import os
 import sys
+
+sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
+from test_utils import read_file
 
 
 ##
@@ -48,14 +52,6 @@ def compare(data1, width1, height1, data2, width2, height2, innerdim):
     if count2 > len(data2):
         return 7
     return 0
-
-
-##
-# @brief Read file and return its content
-def read_file(filename):
-    with open(filename, 'rb') as file:
-        b = file.read()
-    return b
 
 
 if len(sys.argv) != 8:

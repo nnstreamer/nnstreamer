@@ -11,7 +11,11 @@
 # @date 11 Jul 2018
 # @bug No known bugs
 
+import os
 import sys
+
+sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
+from test_utils import read_file
 
 
 ##
@@ -33,12 +37,6 @@ def test_dimchg(dataa, datab, dim, repeatblocksize, elementsize):
                 a = x * repeatblocksize + z * dim * elementsize + y
                 if dataa[a:a + elementsize] != datab[b:b + elementsize]:
                     return 4
-
-
-def read_file(filename):
-    with open(filename, 'rb') as file:
-        b = file.read()
-    return b
 
 
 if len(sys.argv) < 2:
