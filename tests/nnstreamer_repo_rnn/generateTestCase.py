@@ -16,14 +16,7 @@
 
 from __future__ import print_function
 
-import sys
-import os
 import array as arr
-import struct
-import string
-
-sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
-from gen24bBMP import convert_to_bytes
 
 
 def location(c, w, h):

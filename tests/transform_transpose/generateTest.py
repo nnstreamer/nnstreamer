@@ -13,18 +13,14 @@ import sys
 import os
 import numpy as np
 import random
+from itertools import product
 from struct import pack
 
 
 def save_test_data(filename, channel, height, width, batch, idx_i, idx_j, idx_k, idx_l):
     data = []
-
-    for b in range(0, batch):
-        for c in range(0, channel):
-            for h in range(0, height):
-                for w in range(0, width):
-                    n = random.uniform(0.0, 10.0)
-                    data.append(n)
+    for b, c, h, w in product(range(0, batch), range(0, channel), range(0, height), range(0, width)):
+        data.append(random.uniform(0.0, 10.0))
 
     string = pack('%df' % (len(data)), *data)
     with open(filename, 'wb') as file:
@@ -32,11 +28,8 @@ def save_test_data(filename, channel, height, width, batch, idx_i, idx_j, idx_k,
 
     a = np.ndarray((batch, channel, height, width), np.float32)
 
-    for b in range(0, batch):
-        for c in range(0, channel):
-            for h in range(0, height):
-                for w in range(0, width):
-                    a[b][c][h][w] = data[b * channel * height * width + c * height * width + h * width + w]
+    for b, c, h, w in product(range(0, batch), range(0, channel), range(0, height), range(0, width)):
+        a[b][c][h][w] = data[b * channel * height * width + c * height * width + h * width + w]
 
     a = np.transpose(a, (idx_i, idx_j, idx_k, idx_l))
     a = a.copy(order='C')

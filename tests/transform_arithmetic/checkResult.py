@@ -35,7 +35,11 @@ def get_value(val, unpack_format):
 ##
 # @brief Check typecast from typea to typeb with file fna/fnb
 #
-def test_arithmetic(fna, fnb, typeasize, typebsize, typeapack, typebpack, mode, value1, value2):
+def test_arithmetic(d1, d2, mode, v1, v2):
+    # data should be tuple (data, type-size, type-pack)
+    # value should be tuple (value, type-pack)
+    fna, typeasize, typeapack = d1
+    fnb, typebsize, typebpack = d2
     lena = len(fna)
     lenb = len(fnb)
 
@@ -44,8 +48,8 @@ def test_arithmetic(fna, fnb, typeasize, typebsize, typeapack, typebpack, mode, 
     num = lena // typeasize
     if num != (lenb // typebsize):
         return 11
-    val1 = get_value(value1, typeapack)
-    val2 = get_value(value2, typebpack)
+    val1 = get_value(v1[0], v1[1])
+    val2 = get_value(v2[0], v2[1])
     if val1 is None or val2 is None:
         return 12
 
@@ -54,22 +58,17 @@ def test_arithmetic(fna, fnb, typeasize, typebsize, typeapack, typebpack, mode, 
         valb = struct.unpack(typebpack, fnb[x * typebsize: x * typebsize + typebsize])[0]
         if mode == 'add':
             diff = vala + val1 - valb
-            if diff > 0.01 or diff < -0.01:
-                return 20
         elif mode == 'mul':
             diff = vala * val1 - valb
-            if diff > 0.01 or diff < -0.01:
-                return 20
         elif mode == 'add-mul':
             diff = (vala + val1) * val2 - valb
-            if diff > 0.01 or diff < -0.01:
-                return 20
         elif mode == 'mul-add':
             diff = (vala * val1) + val2 - valb
-            if diff > 0.01 or diff < -0.01:
-                return 20
         else:
             return 21
+
+        if diff > 0.01 or diff < -0.01:
+            return 20
     return 0
 
 
@@ -79,16 +78,18 @@ if len(sys.argv) < 2:
 if sys.argv[1] == 'arithmetic':
     if len(sys.argv) < 11:
         exit(5)
-    fna = read_file(sys.argv[2])
-    fnb = read_file(sys.argv[3])
-    typeasize = int(sys.argv[4])
-    typebsize = int(sys.argv[5])
-    typeapack = (sys.argv[6])
-    typebpack = (sys.argv[7])
-    mode = sys.argv[8]
-    value1 = sys.argv[9]
-    value2 = sys.argv[10]
 
-    exit(test_arithmetic(fna, fnb, typeasize, typebsize, typeapack, typebpack, mode, value1, value2))
+    packa = (sys.argv[6])
+    packb = (sys.argv[7])
+    arith_mode = sys.argv[8]
+
+    # (data, type-size, type-pack)
+    data1 = (read_file(sys.argv[2]), int(sys.argv[4]), packa)
+    data2 = (read_file(sys.argv[3]), int(sys.argv[5]), packb)
+    # (value, type-pack)
+    value1 = (sys.argv[9], packa)
+    value2 = (sys.argv[10], packb)
+
+    exit(test_arithmetic(data1, data2, arith_mode, value1, value2))
 
 exit(5)

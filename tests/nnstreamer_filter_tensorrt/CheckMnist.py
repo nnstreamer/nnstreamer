@@ -14,7 +14,7 @@ import sys
 import os
 
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
-from gen24bBMP import convert_to_bytes
+from test_utils import convert_to_bytes
 
 
 def get_label(fname):
