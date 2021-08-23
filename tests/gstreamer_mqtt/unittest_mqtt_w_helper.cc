@@ -425,9 +425,9 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch0)
   EXPECT_EQ (ret, GST_STATE_CHANGE_NO_PREROLL);
   EXPECT_EQ (cur_state, GST_STATE_PAUSED);
 
-  memset (hdr.gst_caps_str, '\0', GST_MQTT_MAX_LEN_GST_CPAS_STR);
+  memset (hdr.gst_caps_str, '\0', GST_MQTT_MAX_LEN_GST_CAPS_STR);
   memcpy (hdr.gst_caps_str, caps_str,
-      MIN (strlen (caps_str), GST_MQTT_MAX_LEN_GST_CPAS_STR - 1));
+      MIN (strlen (caps_str), GST_MQTT_MAX_LEN_GST_CAPS_STR - 1));
   hdr.num_mems = 1;
   hdr.size_mems[0] = len_buf;
 
@@ -518,9 +518,9 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch1)
   EXPECT_EQ (ret, GST_STATE_CHANGE_NO_PREROLL);
   EXPECT_EQ (cur_state, GST_STATE_PAUSED);
 
-  memset (hdr.gst_caps_str, '\0', GST_MQTT_MAX_LEN_GST_CPAS_STR);
+  memset (hdr.gst_caps_str, '\0', GST_MQTT_MAX_LEN_GST_CAPS_STR);
   memcpy (hdr.gst_caps_str, caps_str,
-      MIN (strlen (caps_str), GST_MQTT_MAX_LEN_GST_CPAS_STR - 1));
+      MIN (strlen (caps_str), GST_MQTT_MAX_LEN_GST_CAPS_STR - 1));
   hdr.num_mems = 1;
   hdr.size_mems[0] = len_buf;
 
@@ -549,9 +549,9 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch1)
 
   /** Changing caps while the pipeline is in the GST_STATE_PLAYING state */
   caps_str = g_strdup ("video/x-raw,width=320,height=160,format=YUY2");
-  memset (hdr.gst_caps_str, '\0', GST_MQTT_MAX_LEN_GST_CPAS_STR);
+  memset (hdr.gst_caps_str, '\0', GST_MQTT_MAX_LEN_GST_CAPS_STR);
   memcpy (hdr.gst_caps_str, caps_str,
-      MIN (strlen (caps_str), GST_MQTT_MAX_LEN_GST_CPAS_STR - 1));
+      MIN (strlen (caps_str), GST_MQTT_MAX_LEN_GST_CAPS_STR - 1));
   memcpy (msg->payload, &hdr, GST_MQTT_LEN_MSG_HDR);
 
   ma_ret = std::async (std::launch::async,
@@ -625,9 +625,9 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch0_n)
   EXPECT_EQ (ret, GST_STATE_CHANGE_NO_PREROLL);
   EXPECT_EQ (cur_state, GST_STATE_PAUSED);
 
-  memset (hdr.gst_caps_str, '\0', GST_MQTT_MAX_LEN_GST_CPAS_STR);
+  memset (hdr.gst_caps_str, '\0', GST_MQTT_MAX_LEN_GST_CAPS_STR);
   memcpy (hdr.gst_caps_str, caps_str,
-      MIN (strlen (caps_str), GST_MQTT_MAX_LEN_GST_CPAS_STR - 1));
+      MIN (strlen (caps_str), GST_MQTT_MAX_LEN_GST_CAPS_STR - 1));
   hdr.num_mems = 1;
   hdr.size_mems[0] = len_buf;
 
@@ -721,9 +721,9 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch1_n)
   EXPECT_EQ (ret, GST_STATE_CHANGE_NO_PREROLL);
   EXPECT_EQ (cur_state, GST_STATE_PAUSED);
 
-  memset (hdr.gst_caps_str, '\0', GST_MQTT_MAX_LEN_GST_CPAS_STR);
+  memset (hdr.gst_caps_str, '\0', GST_MQTT_MAX_LEN_GST_CAPS_STR);
   memcpy (hdr.gst_caps_str, caps_str,
-      MIN (strlen (caps_str), GST_MQTT_MAX_LEN_GST_CPAS_STR - 1));
+      MIN (strlen (caps_str), GST_MQTT_MAX_LEN_GST_CAPS_STR - 1));
   hdr.num_mems = 1;
   hdr.size_mems[0] = len_buf;
 
@@ -818,9 +818,9 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch2)
   EXPECT_EQ (ret, GST_STATE_CHANGE_NO_PREROLL);
   EXPECT_EQ (cur_state, GST_STATE_PAUSED);
 
-  memset (hdr.gst_caps_str, '\0', GST_MQTT_MAX_LEN_GST_CPAS_STR);
+  memset (hdr.gst_caps_str, '\0', GST_MQTT_MAX_LEN_GST_CAPS_STR);
   memcpy (hdr.gst_caps_str, caps_str,
-      MIN (strlen (caps_str), GST_MQTT_MAX_LEN_GST_CPAS_STR - 1));
+      MIN (strlen (caps_str), GST_MQTT_MAX_LEN_GST_CAPS_STR - 1));
   hdr.num_mems = 1;
   hdr.size_mems[0] = len_buf;
 

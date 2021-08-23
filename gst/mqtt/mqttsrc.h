@@ -41,7 +41,7 @@ typedef struct _GstMqttSrcClass GstMqttSrcClass;
 /**
  * @brief GstMqttSrc data structure.
  *
- * GstMqttSec inherits GstBaseSrc.
+ * GstMqttSrc inherits GstBaseSrc.
  */
 struct _GstMqttSrc {
   GstBaseSrc parent;

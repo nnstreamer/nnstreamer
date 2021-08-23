@@ -1065,7 +1065,7 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
   guint8 *data = message->payload;
   GstMQTTMessageHdr *mqtt_msg_hdr;
   GstMapInfo hdr_map_info;
-  GstMemory *recieved_mem;
+  GstMemory *received_mem;
   GstMemory *hdr_mem;
   GstBuffer *buffer;
   GstBaseSrc *basesrc;
@@ -1087,26 +1087,26 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
 
   basesrc = GST_BASE_SRC (self);
   clock = gst_element_get_clock (GST_ELEMENT (self));
-  recieved_mem = gst_memory_new_wrapped (0, data, size, 0, size, message,
+  received_mem = gst_memory_new_wrapped (0, data, size, 0, size, message,
       (GDestroyNotify) cb_memory_wrapped_destroy);
-  if (!recieved_mem) {
+  if (!received_mem) {
     if (!self->err) {
       self->err = g_error_new (self->gquark_err_tag, ENODATA,
-          "%s: failed to wrap the raw data of recieved message in GstMemory: %s",
+          "%s: failed to wrap the raw data of received message in GstMemory: %s",
           __func__, g_strerror (ENODATA));
     }
     return TRUE;
   }
 
-  mqtt_msg_hdr = _extract_mqtt_msg_hdr_from (recieved_mem, &hdr_mem,
+  mqtt_msg_hdr = _extract_mqtt_msg_hdr_from (received_mem, &hdr_mem,
       &hdr_map_info);
   if (!mqtt_msg_hdr) {
     if (!self->err) {
       self->err = g_error_new (self->gquark_err_tag, ENODATA,
-          "%s: failed to extract header information from recieved message: %s",
+          "%s: failed to extract header information from received message: %s",
           __func__, g_strerror (ENODATA));
     }
-    goto ret_unref_recieved_mem;
+    goto ret_unref_received_mem;
   }
 
   if (!self->caps) {
@@ -1130,7 +1130,7 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
     int each_size;
 
     each_size = mqtt_msg_hdr->size_mems[i];
-    each_memory = gst_memory_share (recieved_mem, offset, each_size);
+    each_memory = gst_memory_share (received_mem, offset, each_size);
     gst_buffer_append_memory (buffer, each_memory);
     offset += each_size;
   }
@@ -1155,8 +1155,8 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
   gst_memory_unmap (hdr_mem, &hdr_map_info);
   gst_memory_unref (hdr_mem);
 
-ret_unref_recieved_mem:
-  gst_memory_unref (recieved_mem);
+ret_unref_received_mem:
+  gst_memory_unref (received_mem);
 
   return TRUE;
 }
