@@ -731,7 +731,7 @@ gst_mqtt_sink_render (GstBaseSink * basesink, GstBuffer * in_buf)
     } else {
       if (self->max_msg_buf_size < in_buf_size) {
         g_printerr ("%s: The given size for a message buffer is too small: "
-            "given (%" G_GSIZE_FORMAT " bytes) vs. incomming (%" G_GSIZE_FORMAT
+            "given (%" G_GSIZE_FORMAT " bytes) vs. incoming (%" G_GSIZE_FORMAT
             " bytes)\n", TAG_ERR_MQTTSINK, self->max_msg_buf_size, in_buf_size);
         ret = GST_FLOW_ERROR;
         goto ret_with;
@@ -851,7 +851,7 @@ gst_mqtt_sink_set_caps (GstBaseSink * basesink, GstCaps * caps)
     char *caps_str = gst_caps_to_string (caps);
 
     strncpy (self->mqtt_msg_hdr.gst_caps_str, caps_str,
-        MIN (strlen (caps_str), GST_MQTT_MAX_LEN_GST_CPAS_STR - 1));
+        MIN (strlen (caps_str), GST_MQTT_MAX_LEN_GST_CAPS_STR - 1));
     g_free (caps_str);
   }
 
@@ -1137,7 +1137,7 @@ cb_mqtt_on_disconnect_failure (void *context, MQTTAsync_failureData * response)
 }
 
 /**
- * @brief A callback function to be given to the MQTTAsync_setCallbacks funtion.
+ * @brief A callback function to be given to the MQTTAsync_setCallbacks function.
  *        This callback is activated when `mqtt-qos` is higher then 0.
  */
 static void
@@ -1151,7 +1151,7 @@ cb_mqtt_on_delivery_complete (void *context, MQTTAsync_token token)
 }
 
 /**
- * @brief A callback function to be given to the MQTTAsync_setCallbacks funtion.
+ * @brief A callback function to be given to the MQTTAsync_setCallbacks function.
  *        When the connection between this element and the broker is broken,
  *        this callback will be invoked.
  */
@@ -1168,7 +1168,7 @@ cb_mqtt_on_connection_lost (void *context, char *cause)
 }
 
 /**
- * @brief A callback function to be given to the MQTTAsync_setCallbacks funtion.
+ * @brief A callback function to be given to the MQTTAsync_setCallbacks function.
  *        In the case of the publisher, this callback is not used.
  */
 static int
