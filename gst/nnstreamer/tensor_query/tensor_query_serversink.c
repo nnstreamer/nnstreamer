@@ -285,8 +285,6 @@ gst_tensor_query_serversink_render (GstBaseSink * bsink, GstBuffer * buf)
         mem = gst_buffer_peek_memory (buf, i);
         if (!gst_memory_map (mem, &map, GST_MAP_READ)) {
           nns_loge ("Failed to map memory");
-          gst_memory_unref (mem);
-          gst_buffer_unref (buf);
           return GST_FLOW_ERROR;
         }
         cmd_data.cmd = _TENSOR_QUERY_CMD_TRANSFER_DATA;
