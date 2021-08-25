@@ -110,7 +110,7 @@ gst_tensor_query_client_class_init (GstTensorQueryClientClass * klass)
           "A tenor query sink host to send the packets to/from",
           TCP_DEFAULT_HOST, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_SINK_PORT,
-      g_param_spec_int ("sink-port", "Port",
+      g_param_spec_uint ("sink-port", "Port",
           "The port of tensor query sink to send the packets to/from", 0,
           TCP_HIGHEST_PORT, TCP_DEFAULT_SINK_PORT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
@@ -119,7 +119,7 @@ gst_tensor_query_client_class_init (GstTensorQueryClientClass * klass)
           "A tenor query src host to send the packets to/from",
           TCP_DEFAULT_HOST, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_SRC_PORT,
-      g_param_spec_int ("src-port", "Port",
+      g_param_spec_uint ("src-port", "Port",
           "The port of tensor query src to send the packets to/from", 0,
           TCP_HIGHEST_PORT, TCP_DEFAULT_SRC_PORT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
@@ -224,7 +224,7 @@ gst_tensor_query_client_set_property (GObject * object, guint prop_id,
       self->sink_host = g_value_dup_string (value);
       break;
     case PROP_SINK_PORT:
-      self->sink_port = g_value_get_int (value);
+      self->sink_port = g_value_get_uint (value);
       break;
     case PROP_SRC_HOST:
       if (!g_value_get_string (value)) {
@@ -235,7 +235,7 @@ gst_tensor_query_client_set_property (GObject * object, guint prop_id,
       self->src_host = g_value_dup_string (value);
       break;
     case PROP_SRC_PORT:
-      self->src_port = g_value_get_int (value);
+      self->src_port = g_value_get_uint (value);
       break;
     case PROP_PROTOCOL:
       if (g_ascii_strcasecmp (g_value_get_string (value), "tcp") == 0)
@@ -264,13 +264,13 @@ gst_tensor_query_client_get_property (GObject * object, guint prop_id,
       g_value_set_string (value, self->sink_host);
       break;
     case PROP_SINK_PORT:
-      g_value_set_int (value, self->sink_port);
+      g_value_set_uint (value, self->sink_port);
       break;
     case PROP_SRC_HOST:
       g_value_set_string (value, self->src_host);
       break;
     case PROP_SRC_PORT:
-      g_value_set_int (value, self->src_port);
+      g_value_set_uint (value, self->src_port);
       break;
     case PROP_PROTOCOL:
       switch (self->protocol) {

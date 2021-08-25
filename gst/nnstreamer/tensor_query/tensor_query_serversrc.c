@@ -89,7 +89,7 @@ gst_tensor_query_serversrc_class_init (GstTensorQueryServerSrcClass * klass)
       g_param_spec_string ("host", "Host", "The hostname to listen as",
           DEFAULT_HOST, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_PORT,
-      g_param_spec_int ("port", "Port",
+      g_param_spec_uint ("port", "Port",
           "The port to listen to (0=random available port)", 0,
           65535, DEFAULT_PORT_SRC, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_PROTOCOL,
@@ -98,7 +98,7 @@ gst_tensor_query_serversrc_class_init (GstTensorQueryServerSrcClass * klass)
           _TENSOR_QUERY_PROTOCOL_END, DEFAULT_PROTOCOL,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_TIMEOUT,
-      g_param_spec_int ("timeout", "Timeout",
+      g_param_spec_uint ("timeout", "Timeout",
           "The timeout as seconds to maintain connection", 0,
           3600, DEFAULT_TIMEOUT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
@@ -172,7 +172,7 @@ gst_tensor_query_serversrc_set_property (GObject * object, guint prop_id,
       serversrc->protocol = g_value_get_int (value);
       break;
     case PROP_TIMEOUT:
-      serversrc->timeout = g_value_get_int (value);
+      serversrc->timeout = g_value_get_uint (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -194,13 +194,13 @@ gst_tensor_query_serversrc_get_property (GObject * object, guint prop_id,
       g_value_set_string (value, serversrc->host);
       break;
     case PROP_PORT:
-      g_value_set_int (value, serversrc->port);
+      g_value_set_uint (value, serversrc->port);
       break;
     case PROP_PROTOCOL:
       g_value_set_int (value, serversrc->protocol);
       break;
     case PROP_TIMEOUT:
-      g_value_set_int (value, serversrc->timeout);
+      g_value_set_uint (value, serversrc->timeout);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);

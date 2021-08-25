@@ -54,12 +54,12 @@ struct _GstTensorQueryClient
   /* src information (Connect to query server source) */
   query_connection_handle src_conn;
   gchar *src_host;
-  int src_port;
+  guint16 src_port;
 
   /* sink socket and information (Connect to query server sink)*/
   query_connection_handle sink_conn;
   gchar *sink_host;
-  int sink_port;
+  guint16 sink_port;
 };
 
 /**
