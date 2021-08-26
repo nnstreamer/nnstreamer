@@ -257,6 +257,7 @@ gst_tensor_query_serversink_render (GstBaseSink * bsink, GstBuffer * buf)
   GstMapInfo map;
   gchar *host;
   guint32 i, num_mems;
+  int ecode;
 
   meta_query = gst_buffer_get_meta_query (buf);
   if (!meta_query) {
@@ -290,11 +291,14 @@ gst_tensor_query_serversink_render (GstBaseSink * bsink, GstBuffer * buf)
         cmd_data.cmd = _TENSOR_QUERY_CMD_TRANSFER_DATA;
         cmd_data.data.size = map.size;
         cmd_data.data.data = map.data;
-        if (nnstreamer_query_send (conn, &cmd_data, sink->timeout) != 0) {
+
+        ecode = nnstreamer_query_send (conn, &cmd_data, sink->timeout);
+        gst_memory_unmap (mem, &map);
+
+        if (ecode != 0) {
           nns_logi ("Failed to send data");
           return GST_FLOW_EOS;
         }
-        gst_memory_unmap (mem, &map);
       }
 
       cmd_data.cmd = _TENSOR_QUERY_CMD_TRANSFER_END;
