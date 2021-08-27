@@ -29,7 +29,6 @@
 
 #include <gst/gst.h>
 #include <tensor_common.h>
-#include <gst/base/gstadapter.h>
 
 G_BEGIN_DECLS
 
@@ -64,7 +63,7 @@ struct _GstTensorAggregator
   guint frames_flush; /**< number of frames to flush */
   guint frames_dim; /**< index of frames in tensor dimension */
 
-  GstAdapter *adapter; /**< adapt incoming tensor */
+  GHashTable *adapter_table; /**< adapt incoming tensor */
 
   gboolean tensor_configured; /**< True if already successfully configured tensor metadata */
   GstTensorsConfig in_config; /**< input tensor info */

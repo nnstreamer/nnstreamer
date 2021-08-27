@@ -13,8 +13,9 @@
  *
  */
 
-#include <tensor_common.h>
+#include <nnstreamer_util.h>
 #include <string.h>
+#include <tensor_common.h>
 
 static const gchar *gst_tensor_time_sync_mode_string[] = {
   [SYNC_NOSYNC] = "nosync",
@@ -442,4 +443,158 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
   /* check eos */
   *is_eos = _gst_tensor_time_sync_is_eos (collect, sync, empty_pad);
   return !(*is_eos);
+}
+
+/**
+ * @brief Internal struct to handle aggregation data in hash table.
+ */
+typedef struct
+{
+  GstAdapter *adapter;
+} gst_tensor_aggregation_data_s;
+
+#define AGGREGATION_DEFAULT_KEY "aggr-default"
+#define AGGREGATION_KEY_IS_EMPTY(k) (k == NULL || k[0] == '\0')
+
+/**
+ * @brief Internal function to free aggregation data.
+ */
+static void
+gst_tensor_aggregation_free_data (gpointer data)
+{
+  gst_tensor_aggregation_data_s *aggr;
+
+  aggr = (gst_tensor_aggregation_data_s *) data;
+  if (aggr) {
+    gst_adapter_clear (aggr->adapter);
+    g_object_unref (aggr->adapter);
+
+    g_free (aggr);
+  }
+}
+
+/**
+ * @brief Internal function to add new aggregation data.
+ */
+static gst_tensor_aggregation_data_s *
+gst_tensor_aggregation_add_data (GHashTable * table, const gchar * key)
+{
+  gst_tensor_aggregation_data_s *aggr;
+  gchar *hashkey;
+
+  g_return_val_if_fail (table != NULL, NULL);
+
+  if (AGGREGATION_KEY_IS_EMPTY (key))
+    hashkey = g_strdup (AGGREGATION_DEFAULT_KEY);
+  else
+    hashkey = g_strdup (key);
+
+  aggr = g_new0 (gst_tensor_aggregation_data_s, 1);
+  aggr->adapter = gst_adapter_new ();
+
+  g_hash_table_insert (table, hashkey, aggr);
+  return aggr;
+}
+
+/**
+ * @brief Internal function to get aggregation data.
+ */
+static gst_tensor_aggregation_data_s *
+gst_tensor_aggregation_get_data (GHashTable * table, const gchar * key)
+{
+  g_return_val_if_fail (table != NULL, NULL);
+
+  return (gst_tensor_aggregation_data_s *) g_hash_table_lookup (table,
+      AGGREGATION_KEY_IS_EMPTY (key) ? AGGREGATION_DEFAULT_KEY : key);
+}
+
+/**
+ * @brief Internal function to remove all buffers from aggregation data.
+ */
+static void
+gst_tensor_aggregation_clear_internal (gpointer key, gpointer value,
+    gpointer user_data)
+{
+  gst_tensor_aggregation_data_s *aggr;
+
+  UNUSED (key);
+  UNUSED (user_data);
+
+  aggr = (gst_tensor_aggregation_data_s *) value;
+  if (aggr) {
+    gst_adapter_clear (aggr->adapter);
+  }
+}
+
+/**
+ * @brief Gets new hash table for tensor aggregation.
+ * @return Newly allocated hash table, caller should release this using g_hash_table_destroy().
+ */
+GHashTable *
+gst_tensor_aggregation_init (void)
+{
+  GHashTable *table;
+
+  table = g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
+      gst_tensor_aggregation_free_data);
+
+  /**
+   * Add default adapter (for the case if buffer has no specific id).
+   * If gst-buffer has tensor-meta which includes client-id,
+   * e.g., aggregation frames from multiple clients on query-server pipeline,
+   * nnstreamer element should parse meta and request adapter with this id.
+   * However, on normal pipeline, gst-buffer does not contain tensor-meta,
+   * then the element may request adapter with null key string.
+   */
+  gst_tensor_aggregation_add_data (table, AGGREGATION_DEFAULT_KEY);
+
+  return table;
+}
+
+/**
+ * @brief Clears buffers from adapter.
+ * @param table a hash table instance initialized with gst_tensor_aggregation_init()
+ * @param key the key to look up (set null to get default adapter)
+ */
+void
+gst_tensor_aggregation_clear (GHashTable * table, const gchar * key)
+{
+  gst_tensor_aggregation_data_s *aggr;
+
+  g_return_if_fail (table != NULL);
+
+  aggr = gst_tensor_aggregation_get_data (table, key);
+  gst_tensor_aggregation_clear_internal (NULL, aggr, NULL);
+}
+
+/**
+ * @brief Clears buffers from all adapters in hash table.
+ * @param table a hash table instance initialized with gst_tensor_aggregation_init()
+ */
+void
+gst_tensor_aggregation_clear_all (GHashTable * table)
+{
+  g_hash_table_foreach (table, gst_tensor_aggregation_clear_internal, NULL);
+}
+
+/**
+ * @brief Gets adapter from hash table.
+ * @param table a hash table instance initialized with gst_tensor_aggregation_init()
+ * @param key the key to look up (set null to get default adapter)
+ * @return gst-adapter instance. DO NOT release this instance.
+ */
+GstAdapter *
+gst_tensor_aggregation_get_adapter (GHashTable * table, const gchar * key)
+{
+  gst_tensor_aggregation_data_s *aggr;
+
+  g_return_val_if_fail (table != NULL, NULL);
+
+  aggr = gst_tensor_aggregation_get_data (table, key);
+  if (!aggr) {
+    /*append new data */
+    aggr = gst_tensor_aggregation_add_data (table, key);
+  }
+
+  return aggr->adapter;
 }

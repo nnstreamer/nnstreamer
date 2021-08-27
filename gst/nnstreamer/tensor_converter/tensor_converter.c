@@ -46,6 +46,7 @@
 
 #include <string.h>
 #include "tensor_converter.h"
+#include "tensor_meta.h"
 
 #ifdef NO_VIDEO
 #include "converter-media-info-no-video.h"
@@ -362,7 +363,7 @@ gst_tensor_converter_init (GstTensorConverter * self)
   gst_tensors_config_init (&self->tensors_config);
   self->tensors_configured = FALSE;
 
-  self->adapter = gst_adapter_new ();
+  self->adapter_table = gst_tensor_aggregation_init ();
   gst_tensor_converter_reset (self);
 }
 
@@ -380,11 +381,7 @@ gst_tensor_converter_finalize (GObject * object)
 
   gst_tensors_config_free (&self->tensors_config);
   gst_tensors_info_free (&self->tensors_info);
-
-  if (self->adapter) {
-    g_object_unref (self->adapter);
-    self->adapter = NULL;
-  }
+  g_hash_table_destroy (self->adapter_table);
 
   g_free (self->mode_option);
   g_free (self->ext_fw);
@@ -690,6 +687,22 @@ gst_tensor_converter_sink_query (GstPad * pad, GstObject * parent,
 }
 
 /**
+ * @brief Internal function to get adapter.
+ */
+static GstAdapter *
+gst_tensor_converter_get_adapter (GstTensorConverter * self, GstBuffer * buf)
+{
+  GstMetaQuery *meta;
+  const gchar *key = NULL;
+
+  meta = gst_buffer_get_meta_query (buf);
+  if (meta)
+    key = meta->host;
+
+  return gst_tensor_aggregation_get_adapter (self->adapter_table, key);
+}
+
+/**
  * @brief This function handles src pad query.
  */
 static gboolean
@@ -926,7 +939,7 @@ _gst_tensor_converter_chain_chunk (GstTensorConverter * self,
   gboolean have_framerate;
 
   config = &self->tensors_config;
-  adapter = self->adapter;
+  adapter = gst_tensor_converter_get_adapter (self, inbuf);
   g_assert (adapter != NULL);
 
   have_framerate = (config->rate_n > 0 && config->rate_d > 0);
@@ -1268,9 +1281,7 @@ static void
 gst_tensor_converter_reset (GstTensorConverter * self)
 {
   /* remove all buffers from adapter */
-  if (self->adapter) {
-    gst_adapter_clear (self->adapter);
-  }
+  gst_tensor_aggregation_clear_all (self->adapter_table);
 
   self->have_segment = FALSE;
   self->need_segment = FALSE;

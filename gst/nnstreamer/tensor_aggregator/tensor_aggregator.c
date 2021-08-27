@@ -32,6 +32,7 @@
 
 #include <string.h>
 #include "tensor_aggregator.h"
+#include "tensor_meta.h"
 #include <nnstreamer_util.h>
 
 /**
@@ -282,7 +283,7 @@ gst_tensor_aggregator_init (GstTensorAggregator * self)
   gst_tensors_config_init (&self->in_config);
   gst_tensors_config_init (&self->out_config);
 
-  self->adapter = gst_adapter_new ();
+  self->adapter_table = gst_tensor_aggregation_init ();
   gst_tensor_aggregator_reset (self);
 }
 
@@ -300,11 +301,7 @@ gst_tensor_aggregator_finalize (GObject * object)
 
   gst_tensors_config_free (&self->in_config);
   gst_tensors_config_free (&self->out_config);
-
-  if (self->adapter) {
-    g_object_unref (self->adapter);
-    self->adapter = NULL;
-  }
+  g_hash_table_destroy (self->adapter_table);
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -515,6 +512,22 @@ gst_tensor_aggregator_src_query (GstPad * pad, GstObject * parent,
   }
 
   return gst_pad_query_default (pad, parent, query);
+}
+
+/**
+ * @brief Internal function to get adapter.
+ */
+static GstAdapter *
+gst_tensor_aggregator_get_adapter (GstTensorAggregator * self, GstBuffer * buf)
+{
+  GstMetaQuery *meta;
+  const gchar *key = NULL;
+
+  meta = gst_buffer_get_meta_query (buf);
+  if (meta)
+    key = meta->host;
+
+  return gst_tensor_aggregation_get_adapter (self->adapter_table, key);
 }
 
 /**
@@ -845,7 +858,7 @@ gst_tensor_aggregator_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     return gst_tensor_aggregator_push (self, buf, frame_size);
   }
 
-  adapter = self->adapter;
+  adapter = gst_tensor_aggregator_get_adapter (self, buf);
   g_assert (adapter != NULL);
 
   duration = GST_BUFFER_DURATION (buf);
@@ -967,9 +980,7 @@ static void
 gst_tensor_aggregator_reset (GstTensorAggregator * self)
 {
   /* remove all buffers from adapter */
-  if (self->adapter) {
-    gst_adapter_clear (self->adapter);
-  }
+  gst_tensor_aggregation_clear_all (self->adapter_table);
 }
 
 /**

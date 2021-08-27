@@ -35,7 +35,6 @@
 #define __GST_TENSOR_CONVERTER_H__
 
 #include <gst/gst.h>
-#include <gst/base/gstadapter.h>
 #include <tensor_common.h>
 #include "nnstreamer_plugin_api_converter.h"
 #include "tensor_converter_custom.h"
@@ -85,7 +84,7 @@ struct _GstTensorConverter
   guint frames_per_tensor; /**< number of frames in output tensor */
   GstTensorsInfo tensors_info; /**< data structure to get/set tensor info */
 
-  GstAdapter *adapter; /**< adapt incoming media stream */
+  GHashTable *adapter_table; /**< adapt incoming media stream */
 
   media_type in_media_type; /**< incoming media type */
   /** ExternalConverter is used if in_media_type == _NNS_MEDIA_PLUGINS */
