@@ -32,6 +32,7 @@
 #include <glib.h>
 #include <stdint.h>
 #include <gst/gst.h>
+#include <gst/base/gstadapter.h>
 #include <gst/base/gstcollectpads.h>
 
 #include "tensor_typedef.h"
@@ -194,6 +195,37 @@ gst_tensor_pad_possible_caps_from_config (GstPad * pad, const GstTensorsConfig *
  */
 extern gboolean
 gst_tensor_pad_caps_is_flexible (GstPad * pad);
+
+/**
+ * @brief Gets new hash table for tensor aggregation.
+ * @return Newly allocated hash table, caller should release this using g_hash_table_destroy().
+ */
+extern GHashTable *
+gst_tensor_aggregation_init (void);
+
+/**
+ * @brief Clears buffers from adapter.
+ * @param table a hash table instance initialized with gst_tensor_aggregation_init()
+ * @param key the key to look up (set null to get default adapter)
+ */
+extern void
+gst_tensor_aggregation_clear (GHashTable * table, const gchar * key);
+
+/**
+ * @brief Clears buffers from all adapters in hash table.
+ * @param table a hash table instance initialized with gst_tensor_aggregation_init()
+ */
+extern void
+gst_tensor_aggregation_clear_all (GHashTable * table);
+
+/**
+ * @brief Gets adapter from hash table.
+ * @param table a hash table instance initialized with gst_tensor_aggregation_init()
+ * @param key the key to look up (set null to get default adapter)
+ * @return gst-adapter instance. DO NOT release this instance.
+ */
+extern GstAdapter *
+gst_tensor_aggregation_get_adapter (GHashTable * table, const gchar * key);
 
 /******************************************************
  ************ Commonly used debugging macros **********
