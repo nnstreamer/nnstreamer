@@ -185,7 +185,6 @@ gst_tensor_query_connect (query_connection_handle conn_h)
     } else {
       nns_loge ("Failed to connect to host");
     }
-    g_clear_error (&err);
     goto done;
   }
 
@@ -194,6 +193,7 @@ gst_tensor_query_connect (query_connection_handle conn_h)
 
 done:
   g_object_unref (saddr);
+  g_clear_error (&err);
   return ret;
 }
 
@@ -406,9 +406,18 @@ nnstreamer_query_server_data_free (query_server_handle server_data)
 
   switch (sdata->protocol) {
     case _TENSOR_QUERY_PROTOCOL_TCP:
+    {
+      TensorQueryConnection *conn_remained;
+      while ((conn_remained = g_async_queue_try_pop (sdata->conn_queue))) {
+        nnstreamer_query_close (conn_remained);
+      }
+
+      g_async_queue_unref (sdata->conn_queue);
       g_socket_listener_close (sdata->socket_listener);
+      g_object_unref (sdata->socket_listener);
       g_object_unref (sdata->cancellable);
       break;
+    }
     default:
       /* NYI */
       nns_loge ("Invalid protocol");
