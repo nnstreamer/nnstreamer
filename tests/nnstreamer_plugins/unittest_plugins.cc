@@ -19,6 +19,7 @@
 #include <nnstreamer_subplugin.h>
 #include <string.h>
 #include <tensor_common.h>
+#include <tensor_meta.h>
 #include <unistd.h>
 
 #include "../gst/nnstreamer/tensor_transform/tensor_transform.h"
@@ -2453,6 +2454,116 @@ TEST (testTensorAggregator, aggregate5)
   }
 
   EXPECT_EQ (gst_harness_buffers_received (h), 2U);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_aggregator (supposed multi clients using tensor-meta)
+ */
+TEST (testTensorAggregator, multiClients)
+{
+  GstHarness *h;
+  GstBuffer *input1, *input2, *output;
+  GstMetaQuery *meta;
+  GstTensorsConfig config;
+  GstMemory *mem;
+  GstMapInfo map;
+  guint i, received;
+  gsize data_size;
+  const gint data1[4] = { 1, 1, 1, 1 };
+  const gint data2[4] = { 2, 2, 2, 2 };
+
+  h = gst_harness_new ("tensor_aggregator");
+
+  /* input 4 frames / output 5 frames */
+  g_object_set (h->element, "frames-in", 4, "frames-out", 5, "frames-dim", 0, NULL);
+
+  /* set input tensor info and pad caps */
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1;
+  config.info.info[0].type = _NNS_INT32;
+  gst_tensor_parse_dimension ("4", config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  data_size = gst_tensors_info_get_size (&config.info, 0);
+
+  /* create buffers */
+  input1 = gst_harness_create_buffer (h, data_size);
+  mem = gst_buffer_peek_memory (input1, 0);
+  ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_WRITE));
+  memcpy (map.data, data1, data_size);
+  gst_memory_unmap (mem, &map);
+  meta = gst_buffer_add_meta_query (input1);
+  meta->host = g_strdup ("test-client1");
+
+  input2 = gst_harness_create_buffer (h, data_size);
+  mem = gst_buffer_peek_memory (input2, 0);
+  ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_WRITE));
+  memcpy (map.data, data2, data_size);
+  gst_memory_unmap (mem, &map);
+  meta = gst_buffer_add_meta_query (input2);
+  meta->host = g_strdup ("test-client2");
+
+  /* push buffers (1 > 2 > 1) */
+  EXPECT_EQ (gst_harness_push (h, gst_buffer_copy_deep (input1)), GST_FLOW_OK);
+  g_usleep (10000);
+  EXPECT_EQ (gst_harness_push (h, gst_buffer_copy_deep (input2)), GST_FLOW_OK);
+  g_usleep (10000);
+  EXPECT_EQ (gst_harness_push (h, gst_buffer_copy_deep (input1)), GST_FLOW_OK);
+  g_usleep (10000);
+
+  /* total 12 frames (different client-id) are sent, 1 output buffer should be in harness pad. */
+  received = _harness_wait_for_output_buffer (h, 1U);
+  EXPECT_EQ (received, 1U);
+
+  /* check 1st output buffer. */
+  if (received == 1U) {
+    output = gst_harness_pull (h);
+    meta = gst_buffer_get_meta_query (output);
+    EXPECT_TRUE (meta && g_str_equal (meta->host, "test-client1"));
+
+    mem = gst_buffer_peek_memory (output, 0);
+    ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_READ));
+    ASSERT_TRUE (map.size == sizeof (gint) * 5);
+
+    for (i = 0; i < 5; i++) {
+      EXPECT_EQ (((gint *) map.data)[i], 1);
+    }
+
+    gst_memory_unmap (mem, &map);
+    gst_buffer_unref (output);
+  }
+
+  /* push buffer (client2) again, now 2nd output buffer is in harness pad. */
+  EXPECT_EQ (gst_harness_push (h, gst_buffer_copy_deep (input2)), GST_FLOW_OK);
+  g_usleep (10000);
+
+  received = _harness_wait_for_output_buffer (h, 2U);
+  EXPECT_EQ (received, 2U);
+
+  /* check 2nd output buffer. */
+  if (received == 2U) {
+    output = gst_harness_pull (h);
+    meta = gst_buffer_get_meta_query (output);
+    EXPECT_TRUE (meta && g_str_equal (meta->host, "test-client2"));
+
+    mem = gst_buffer_peek_memory (output, 0);
+    ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_READ));
+    ASSERT_TRUE (map.size == sizeof (gint) * 5);
+
+    for (i = 0; i < 5; i++) {
+      EXPECT_EQ (((gint *) map.data)[i], 2);
+    }
+
+    gst_memory_unmap (mem, &map);
+    gst_buffer_unref (output);
+  }
+
+  gst_buffer_unref (input1);
+  gst_buffer_unref (input2);
+
   gst_harness_teardown (h);
 }
 
