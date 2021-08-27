@@ -29,6 +29,8 @@
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_filter.h>
 
+G_BEGIN_DECLS
+
 /**
  * @brief Macro for debug mode.
  */
@@ -251,4 +253,5 @@ gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw, c
 extern void
 gst_tensor_filter_destroy_notify_util (GstTensorFilterPrivate *priv, void *data);
 
+G_END_DECLS
 #endif /* __G_TENSOR_FILTER_COMMON_H__ */
