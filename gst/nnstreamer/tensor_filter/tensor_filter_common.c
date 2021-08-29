@@ -2914,8 +2914,10 @@ nnstreamer_filter_shared_model_insert_and_get (void *instance, char *key,
   }
 
   g_mutex_lock (&mutex);
-  if (g_hash_table_lookup (shared_model_table, key))
+  if (g_hash_table_lookup (shared_model_table, key)) {
+    g_mutex_unlock (&mutex);
     return NULL;
+  }
   model_rep = (GstTensorFilterSharedModelRepresenatation *)
       g_malloc0 (sizeof (GstTensorFilterSharedModelRepresenatation));
   model_rep->shared_interpreter = interpreter;
