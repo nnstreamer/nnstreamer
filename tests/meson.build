@@ -112,6 +112,16 @@ if gtest_dep.found()
 
     test('unittest_rate', unittest_rate, env: testenv)
 
+    # Run unittest_filter_single
+    unittest_filter_single = executable('unittest_filter_single',
+      join_paths('nnstreamer_filter_single', 'unittest_filter_single.cc'),
+      dependencies: [nnstreamer_unittest_deps, unittest_util_dep],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+
+    test('unittest_filter_single', unittest_filter_single, env: testenv)
+
     # Run unittest_join
     unittest_join = executable('unittest_join',
       join_paths('gstreamer_join', 'unittest_join.cc'),
