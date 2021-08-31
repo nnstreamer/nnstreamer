@@ -18,6 +18,8 @@
 #include <gst/gst.h>
 #include <tensor_typedef.h>
 
+G_BEGIN_DECLS
+
 /**
  * @brief Make dense tensor with input sparse tensor.
  * @param[in,out] meta tensor meta structure to be updated
@@ -36,4 +38,5 @@ gst_tensor_sparse_to_dense (GstTensorMetaInfo * meta, gpointer in);
 extern GstMemory *
 gst_tensor_sparse_from_dense (GstTensorMetaInfo * meta, gpointer in);
 
+G_END_DECLS
 #endif /* __GST_TENSOR_SPARSE_UTIL_H__ */

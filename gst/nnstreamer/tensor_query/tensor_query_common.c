@@ -384,13 +384,12 @@ nnstreamer_query_close (query_connection_handle connection)
 query_server_handle
 nnstreamer_query_server_data_new (void)
 {
-  TensorQueryServerData *sdata = g_try_new (TensorQueryServerData, 1);
+  TensorQueryServerData *sdata = g_try_new0 (TensorQueryServerData, 1);
   if (!sdata) {
     nns_loge ("Failed to allocate server data");
     return NULL;
   }
-  /* init union */
-  memset (sdata->_dummy, 0, sizeof (sdata->_dummy));
+
   return (query_server_handle) sdata;
 }
 
@@ -595,7 +594,7 @@ accept_socket_async_cb (GObject * source, GAsyncResult * result,
   }
 
   /* create socket with connection */
-  conn = g_try_new (TensorQueryConnection, 1);
+  conn = g_try_new0 (TensorQueryConnection, 1);
   if (!conn) {
     nns_loge ("Failed to allocate connection");
     return;

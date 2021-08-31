@@ -1,5 +1,5 @@
 /**
- * @file        unittest_edgetpu.cpp
+ * @file        unittest_edgetpu.cc
  * @date        16 Dec 2019
  * @brief       Unit test for tensor_filter::edgetpu.
  * @see         https://github.com/nnstreamer/nnstreamer

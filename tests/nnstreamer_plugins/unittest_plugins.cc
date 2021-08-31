@@ -2115,12 +2115,36 @@ TEST (testTensorAggregator, properties)
 }
 
 /**
+ * @brief Internal function for tensor-aggregator test, push buffer to harness pad.
+ */
+static GstFlowReturn
+_aggregator_test_push_buffer (GstHarness * h, guint index, gsize data_size)
+{
+  GstBuffer *buf;
+  GstMemory *mem;
+  GstMapInfo map;
+
+  buf = gst_harness_create_buffer (h, data_size);
+
+  mem = gst_buffer_peek_memory (buf, 0);
+  if (!gst_memory_map (mem, &map, GST_MAP_WRITE)) {
+    gst_buffer_unref (buf);
+    return GST_FLOW_ERROR;
+  }
+
+  memcpy (map.data, aggr_test_frames[index], data_size);
+  gst_memory_unmap (mem, &map);
+
+  return gst_harness_push (h, buf);
+}
+
+/**
  * @brief Test for tensor_aggregator (concatenate 2 frames with frames-dim 3, out-dimension 3:4:2:4)
  */
 TEST (testTensorAggregator, aggregate1)
 {
   GstHarness *h;
-  GstBuffer *in_buf, *out_buf;
+  GstBuffer *out_buf;
   GstTensorsConfig config;
   GstMemory *mem;
   GstMapInfo info;
@@ -2147,17 +2171,7 @@ TEST (testTensorAggregator, aggregate1)
 
   /* push buffers */
   for (i = 0; i < 2; i++) {
-    /* set input buffer */
-    in_buf = gst_harness_create_buffer (h, data_in_size);
-
-    mem = gst_buffer_peek_memory (in_buf, 0);
-    ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_WRITE));
-
-    memcpy (info.data, aggr_test_frames[i], data_in_size);
-
-    gst_memory_unmap (mem, &info);
-
-    EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+    EXPECT_EQ (_aggregator_test_push_buffer (h, i, data_in_size), GST_FLOW_OK);
   }
 
   /* get output buffer */
@@ -2196,7 +2210,7 @@ TEST (testTensorAggregator, aggregate1)
 TEST (testTensorAggregator, aggregate2)
 {
   GstHarness *h;
-  GstBuffer *in_buf, *out_buf;
+  GstBuffer *out_buf;
   GstTensorsConfig config;
   GstMemory *mem;
   GstMapInfo info;
@@ -2223,17 +2237,7 @@ TEST (testTensorAggregator, aggregate2)
 
   /* push buffers */
   for (i = 0; i < 2; i++) {
-    /* set input buffer */
-    in_buf = gst_harness_create_buffer (h, data_in_size);
-
-    mem = gst_buffer_peek_memory (in_buf, 0);
-    ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_WRITE));
-
-    memcpy (info.data, aggr_test_frames[i], data_in_size);
-
-    gst_memory_unmap (mem, &info);
-
-    EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+    EXPECT_EQ (_aggregator_test_push_buffer (h, i, data_in_size), GST_FLOW_OK);
   }
 
   /* get output buffer */
@@ -2272,7 +2276,7 @@ TEST (testTensorAggregator, aggregate2)
 TEST (testTensorAggregator, aggregate3)
 {
   GstHarness *h;
-  GstBuffer *in_buf, *out_buf;
+  GstBuffer *out_buf;
   GstTensorsConfig config;
   GstMemory *mem;
   GstMapInfo info;
@@ -2299,17 +2303,7 @@ TEST (testTensorAggregator, aggregate3)
 
   /* push buffers */
   for (i = 0; i < 2; i++) {
-    /* set input buffer */
-    in_buf = gst_harness_create_buffer (h, data_in_size);
-
-    mem = gst_buffer_peek_memory (in_buf, 0);
-    ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_WRITE));
-
-    memcpy (info.data, aggr_test_frames[i], data_in_size);
-
-    gst_memory_unmap (mem, &info);
-
-    EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+    EXPECT_EQ (_aggregator_test_push_buffer (h, i, data_in_size), GST_FLOW_OK);
   }
 
   /* get output buffer */
@@ -2348,7 +2342,7 @@ TEST (testTensorAggregator, aggregate3)
 TEST (testTensorAggregator, aggregate4)
 {
   GstHarness *h;
-  GstBuffer *in_buf, *out_buf;
+  GstBuffer *out_buf;
   GstTensorsConfig config;
   GstMemory *mem;
   GstMapInfo info;
@@ -2375,17 +2369,7 @@ TEST (testTensorAggregator, aggregate4)
 
   /* push buffers */
   for (i = 0; i < 2; i++) {
-    /* set input buffer */
-    in_buf = gst_harness_create_buffer (h, data_in_size);
-
-    mem = gst_buffer_peek_memory (in_buf, 0);
-    ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_WRITE));
-
-    memcpy (info.data, aggr_test_frames[i], data_in_size);
-
-    gst_memory_unmap (mem, &info);
-
-    EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+    EXPECT_EQ (_aggregator_test_push_buffer (h, i, data_in_size), GST_FLOW_OK);
   }
 
   /* get output buffer */
@@ -2424,7 +2408,7 @@ TEST (testTensorAggregator, aggregate4)
 TEST (testTensorAggregator, aggregate5)
 {
   GstHarness *h;
-  GstBuffer *in_buf, *out_buf;
+  GstBuffer *out_buf;
   GstTensorsConfig config;
   GstMemory *mem;
   GstMapInfo info;
@@ -2448,17 +2432,7 @@ TEST (testTensorAggregator, aggregate5)
 
   /* push buffers */
   for (i = 0; i < 2; i++) {
-    /* set input buffer */
-    in_buf = gst_harness_create_buffer (h, data_size);
-
-    mem = gst_buffer_peek_memory (in_buf, 0);
-    ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_WRITE));
-
-    memcpy (info.data, aggr_test_frames[i], data_size);
-
-    gst_memory_unmap (mem, &info);
-
-    EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+    EXPECT_EQ (_aggregator_test_push_buffer (h, i, data_size), GST_FLOW_OK);
 
     /* get output buffer */
     out_buf = gst_harness_pull (h);
@@ -6829,6 +6803,45 @@ TEST (testTensorCrop, cropTensor)
 }
 
 /**
+ * @brief Test for tensor_crop, invalid property name.
+ */
+TEST (testTensorCrop, invalidProperty_n)
+{
+  crop_test_data_s crop_test;
+  gboolean value_bool, res_bool;
+  gchar *value_str = NULL;
+
+  _crop_test_init (&crop_test);
+
+  g_object_get (crop_test.crop->element, "silent", &value_bool, NULL);
+  g_object_set (crop_test.crop->element, "silent", !value_bool, NULL);
+  g_object_get (crop_test.crop->element, "silent", &res_bool, NULL);
+  EXPECT_EQ (res_bool, !value_bool);
+
+  g_object_set (crop_test.crop->element, "invalid-prop", &value_str, NULL);
+  EXPECT_FALSE (value_str != NULL);
+
+  _crop_test_free (&crop_test);
+}
+
+/**
+ * @brief Test for tensor_crop, seek event is not available.
+ */
+TEST (testTensorCrop, eventSeek_n)
+{
+  crop_test_data_s crop_test;
+  GstEvent *event;
+
+  _crop_test_init (&crop_test);
+
+  event = gst_event_new_seek (1, GST_FORMAT_TIME, GST_SEEK_FLAG_FLUSH,
+      GST_SEEK_TYPE_SET, 0, GST_SEEK_TYPE_SET, 2 * GST_SECOND);
+  EXPECT_FALSE (gst_harness_push_upstream_event (crop_test.crop, event));
+
+  _crop_test_free (&crop_test);
+}
+
+/**
  * @brief Test for tensor_crop, push invalid raw buffer.
  */
 TEST (testTensorCrop, rawInvalidSize_n)
@@ -7004,6 +7017,50 @@ TEST (testTensorCrop, infoDelayed_n)
     _crop_test_compare_res2 (&crop_test);
 
   _crop_test_free (&crop_test);
+}
+
+/**
+ * @brief Test for tensor_sparse_enc, invalid property name.
+ */
+TEST (testTensorSparse, encInvalidProperty_n)
+{
+  GstHarness *h;
+  gboolean value_bool, res_bool;
+  gchar *value_str = NULL;
+
+  h = gst_harness_new ("tensor_sparse_enc");
+
+  g_object_get (h->element, "silent", &value_bool, NULL);
+  g_object_set (h->element, "silent", !value_bool, NULL);
+  g_object_get (h->element, "silent", &res_bool, NULL);
+  EXPECT_EQ (res_bool, !value_bool);
+
+  g_object_set (h->element, "invalid-prop", &value_str, NULL);
+  EXPECT_FALSE (value_str != NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_sparse_dec, invalid property name.
+ */
+TEST (testTensorSparse, decInvalidProperty_n)
+{
+  GstHarness *h;
+  gboolean value_bool, res_bool;
+  gchar *value_str = NULL;
+
+  h = gst_harness_new ("tensor_sparse_dec");
+
+  g_object_get (h->element, "silent", &value_bool, NULL);
+  g_object_set (h->element, "silent", !value_bool, NULL);
+  g_object_get (h->element, "silent", &res_bool, NULL);
+  EXPECT_EQ (res_bool, !value_bool);
+
+  g_object_set (h->element, "invalid-prop", &value_str, NULL);
+  EXPECT_FALSE (value_str != NULL);
+
+  gst_harness_teardown (h);
 }
 
 /**
