@@ -12,6 +12,7 @@
  * @bug		No known bugs except for NYI items
  */
 
+#include <string.h>
 #include <tensor_common.h>
 #include <tensor_data.h>
 #include "tensor_sparse_util.h"

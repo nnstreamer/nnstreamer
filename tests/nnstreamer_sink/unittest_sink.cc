@@ -19,6 +19,8 @@
 #include "nnstreamer_plugin_api_filter.h"
 #include "tensor_common.h"
 
+#include "../gst/nnstreamer/tensor_filter/tensor_filter_common.h"
+
 /**
  * @brief Macro for debug mode.
  */
@@ -3984,6 +3986,37 @@ test_custom_v0_setdim (const GstTensorFilterProperties *prop,
 }
 
 /**
+ * @brief The optional callback for GstTensorFilterFramework.
+ */
+static int
+test_custom_v0_checkAvailability (accl_hw hw)
+{
+  if (hw & ACCL_CPU)
+    return 0;
+
+  return -EINVAL;
+}
+
+/**
+ * @brief The optional callback for GstTensorFilterFramework.
+ */
+static int
+test_custom_v0_handleEvent (event_ops ops, GstTensorFilterFrameworkEventData * data)
+{
+  if (ops == CHECK_HW_AVAILABILITY) {
+    /* for test, available on cpu and option string. */
+    if (data && (data->hw & ACCL_CPU)) {
+      if (data->custom && g_str_equal ("avail-hw", data->custom))
+        return 0;
+    }
+
+    return -EINVAL;
+  }
+
+  return -ENOENT;
+}
+
+/**
  * @brief The mandatory callback for GstTensorFilterFramework (v1).
  */
 static int
@@ -4143,6 +4176,35 @@ TEST (tensorStreamTest, subpluginV0Run)
   EXPECT_TRUE (nnstreamer_filter_probe (fw));
 
   test_custom_run_pipeline ();
+
+  /* unregister custom filter */
+  nnstreamer_filter_exit (test_fw_custom_name);
+  g_free (fw);
+}
+
+/**
+ * @brief Test for hw availability with invalid custom string.
+ */
+TEST (tensorStreamTest, subpluginV0CheckFW_n)
+{
+  GstTensorFilterFramework *fw = g_new0 (GstTensorFilterFramework, 1);
+
+  ASSERT_TRUE (fw != NULL);
+  fw->version = GST_TENSOR_FILTER_FRAMEWORK_V0;
+  fw->name = (char *) test_fw_custom_name;
+  fw->run_without_model = TRUE;
+  fw->invoke_NN = test_custom_v0_invoke;
+  fw->setInputDimension = test_custom_v0_setdim;
+  fw->handleEvent = test_custom_v0_handleEvent;
+  fw->checkAvailability = test_custom_v0_checkAvailability;
+
+  /* register custom filter */
+  EXPECT_TRUE (nnstreamer_filter_probe (fw));
+
+  /* check fw availability (cpu only, invalid custom string) */
+  EXPECT_FALSE (gst_tensor_filter_check_hw_availability (test_fw_custom_name, ACCL_CPU, "invalid-hw"));
+  EXPECT_FALSE (gst_tensor_filter_check_hw_availability (test_fw_custom_name, ACCL_GPU, "avail-hw"));
+  EXPECT_TRUE (gst_tensor_filter_check_hw_availability (test_fw_custom_name, ACCL_CPU, "avail-hw"));
 
   /* unregister custom filter */
   nnstreamer_filter_exit (test_fw_custom_name);
