@@ -39,6 +39,7 @@ index.md
 		gst/nnstreamer/tensor_if/README.md
 		gst/nnstreamer/tensor_source/README.md
 		gst/nnstreamer/tensor_transform/README.md
+		gst/nnstreamer/tensor_query/README.md
 		ext/nnstreamer/android_source/README.md
 	Documentation/nnst-exam/nnst_exam.json
 	API-reference.md
