@@ -13,6 +13,7 @@
 #include <gst/gst.h>
 #include <unittest_util.h>
 
+#include <tensor_common.h>
 #include <nnstreamer_plugin_api_filter.h>
 #include <nnstreamer_util.h>
 
@@ -885,6 +886,93 @@ end
 
   EXPECT_EQ (ret, 0);
   EXPECT_EQ (static_cast<uint8_t *> (output.data)[0], 77U);
+
+  g_free (input.data);
+  g_free (output.data);
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief Negative case with lua script with invalid data type
+ */
+TEST (nnstreamerFilterLua, dataType00_n)
+{
+  /**
+   * Invalid data type `uint128`. Type should be one of
+   * { float32, float64, int64, uint64, int32, uint32, int16, uint16, int8, uint8 }
+   */
+  const char *invalid_data_type = "uint128";
+  int ret;
+  void *data = NULL;
+  gchar *model;
+  GstTensorFilterProperties prop;
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("lua");
+  EXPECT_NE (sp, nullptr);
+
+  model = g_strdup_printf ("\
+  inputTensorsInfo={num=1,dim={{1,2,2,1},},type={'%s',}} \
+  outputTensorsInfo={num=1,dim={{1,2,2,1},},type={'%s',}} \
+  function nnstreamer_invoke() \
+  for i=1,1*2*2*1 do output_tensor(1)[i] = input_tensor(1)[i] end \
+  end", invalid_data_type, invalid_data_type);
+
+  const gchar *model_files[] = {
+    model,
+    NULL,
+  };
+
+  _SetFilterProp (&prop, "lua", model_files);
+  ret = sp->open (&prop, &data);
+  EXPECT_NE (ret, 0);
+
+  g_free (model);
+}
+
+/**
+ * @brief Positive case with lua script for all data types
+ */
+TEST (nnstreamerFilterLua, dataType01)
+{
+  int ret;
+  gchar *model;
+  void *data = NULL;
+  GstTensorMemory input, output;
+  GstTensorFilterProperties prop;
+
+  output.size = input.size = sizeof (int64_t) * 1 * 2 * 2 * 1;
+
+  /* alloc input data without alignment */
+  input.data = g_malloc0 (input.size);
+  output.data = g_malloc0 (output.size);
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("lua");
+  EXPECT_NE (sp, nullptr);
+
+  for (int i = 0; i < _NNS_END; ++i) {
+    tensor_type ttype = (tensor_type) i;
+    model = g_strdup_printf ("\
+    inputTensorsInfo={num=1,dim={{1,2,2,1},},type={'%s',}} \
+    outputTensorsInfo={num=1,dim={{1,2,2,1},},type={'%s',}} \
+    function nnstreamer_invoke() \
+    for i=1,1*2*2*1 do output_tensor(1)[i] = input_tensor(1)[i] end \
+    end", gst_tensor_get_type_string (ttype), gst_tensor_get_type_string (ttype));
+
+    const gchar *model_files[] = {
+      model,
+      NULL,
+    };
+
+    _SetFilterProp (&prop, "lua", model_files);
+    ret = sp->open (&prop, &data);
+    EXPECT_EQ (ret, 0);
+    EXPECT_NE (data, (void *) NULL);
+
+    ret = sp->invoke (NULL, NULL, data, &input, &output);
+    EXPECT_EQ (ret, 0);
+
+    g_free (model);
+  }
 
   g_free (input.data);
   g_free (output.data);
