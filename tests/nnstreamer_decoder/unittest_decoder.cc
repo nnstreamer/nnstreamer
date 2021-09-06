@@ -12,6 +12,7 @@
 #include <glib.h>
 #include <gst/gst.h>
 #include <nnstreamer_plugin_api_decoder.h>
+#include <nnstreamer_subplugin.h>
 #include <tensor_common.h>
 #include <unittest_util.h>
 #include <tensor_decoder_custom.h>
@@ -317,6 +318,29 @@ TEST (tensorDecoder, probeSubplugInvalidParam5_n)
 TEST (tensorDecoder, subplugFindInvalidParam_n)
 {
   EXPECT_EQ (NULL, nnstreamer_decoder_find (NULL));
+}
+
+/**
+ * @brief Test for plugin description (set null description)
+ */
+TEST (tensorDecoder, subpluginNullDesc_n)
+{
+  GData *data;
+  GstTensorDecoderDef *sub = get_default_decoder ("mode");
+
+  EXPECT_TRUE (nnstreamer_decoder_probe (sub));
+
+  nnstreamer_decoder_set_custom_property_desc ("mode", "Desc1", NULL);
+  data = subplugin_get_custom_property_desc (NNS_SUBPLUGIN_DECODER, "mode");
+  EXPECT_FALSE (data != NULL);
+
+  nnstreamer_decoder_set_custom_property_desc ("mode",
+      "Desc2", "decoder subplugin for test", NULL);
+  data = subplugin_get_custom_property_desc (NNS_SUBPLUGIN_DECODER, "mode");
+  EXPECT_TRUE (data != NULL);
+
+  nnstreamer_decoder_exit ("mode");
+  free_default_decoder (sub);
 }
 
 /**

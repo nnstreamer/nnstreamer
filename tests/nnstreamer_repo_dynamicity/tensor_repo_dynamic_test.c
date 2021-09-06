@@ -99,9 +99,14 @@ main (int argc, char *argv[])
   GstElement *pipeline, *multifilesrc, *pngdec, *tensor_converter;
   GstElement *tensor_reposrc, *tensor_reposink, *multifilesink, *queue;
   GstBus *bus;
-  GstCaps *msrc_cap, *reposrc_cap;
+  GstCaps *msrc_cap, *reposrc_cap, *tmp;
+  gboolean src_silent, sink_silent;
+  guint src_slot, sink_slot, sink_rate;
 
   gst_init (&argc, &argv);
+  msrc_cap = reposrc_cap = tmp = NULL;
+  src_silent = sink_silent = TRUE;
+  src_slot = sink_slot = sink_rate = G_MAXUINT;
 
   loop = g_main_loop_new (NULL, FALSE);
 
@@ -126,6 +131,7 @@ main (int argc, char *argv[])
       gst_element_factory_make ("tensor_reposink", "tensor_reposink");
   g_object_set (G_OBJECT (tensor_reposink), "silent", FALSE, NULL);
   g_object_set (G_OBJECT (tensor_reposink), "slot-index", 0, NULL);
+  g_object_set (G_OBJECT (tensor_reposink), "signal-rate", 0, NULL);
 
   tensor_reposrc =
       gst_element_factory_make ("tensor_reposrc", "tensor_reposrc");
@@ -138,7 +144,17 @@ main (int argc, char *argv[])
       "framerate", GST_TYPE_FRACTION, 30, 1, NULL);
 
   g_object_set (G_OBJECT (tensor_reposrc), "caps", reposrc_cap, NULL);
-  gst_caps_unref (reposrc_cap);
+
+  /* check tensor-repo properties */
+  g_object_get (G_OBJECT (tensor_reposink), "silent", &sink_silent,
+      "slot-index", &sink_slot, "signal-rate", &sink_rate, NULL);
+  if (sink_silent || sink_slot || sink_rate)
+    goto error;
+
+  g_object_get (G_OBJECT (tensor_reposrc), "silent", &src_silent,
+      "slot-index", &src_slot, "caps", &tmp, NULL);
+  if (src_silent || src_slot || !gst_caps_is_equal (reposrc_cap, tmp))
+    goto error;
 
   multifilesink = gst_element_factory_make ("multifilesink", "multifilesink");
   g_object_set (G_OBJECT (multifilesink), "location",
@@ -173,7 +189,9 @@ main (int argc, char *argv[])
 
   gst_element_set_state (GST_ELEMENT (pipeline), GST_STATE_READY);
 
+error:
   gst_object_unref (GST_OBJECT (pipeline));
-
+  gst_caps_unref (reposrc_cap);
+  gst_caps_unref (tmp);
   exit (0);
 }

@@ -476,6 +476,7 @@ nnsconf_validate_file (nnsconf_type_path type, const gchar * fullpath)
 const gchar *
 nnsconf_get_subplugin_name_prefix (nnsconf_type_path type)
 {
+  g_return_val_if_fail (type >= 0 && type <= NNSCONF_PATH_END, NULL);
   return subplugin_prefixes[type];
 }
 

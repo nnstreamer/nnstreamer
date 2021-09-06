@@ -100,6 +100,7 @@ typedef enum {
   TEST_TYPE_TENSORS_MUX_1, /**< pipeline for tensors with tensor_mux (static tensor stream) */
   TEST_TYPE_TENSORS_MUX_2, /**< pipeline for tensors with tensor_mux (static and flex tensor stream combined) */
   TEST_TYPE_TENSORS_MUX_3, /**< pipeline for tensors with tensor_mux, tensor_demux (static and flex tensor stream combined) */
+  TEST_TYPE_TENSORS_MUX_4, /**< pipeline for tensors with tensor_mux (static tensor stream, refresh mode) */
   TEST_TYPE_TENSORS_FLEX_NEGO_FAILED_1, /**< pipeline for nego failure case (mux, cannot link flex and static pad) */
   TEST_TYPE_TENSORS_FLEX_NEGO_FAILED_2, /**< pipeline for nego failure case (demux, cannot link flex and static pad) */
   TEST_TYPE_TENSORS_MIX_1, /**< pipeline for tensors with tensor_mux, tensor_demux */
@@ -794,6 +795,13 @@ _setup_pipeline (TestOption &option)
         "demux.src_1 ! queue ! tensor_sink name=test_sink",
         option.num_buffers, option.num_buffers);
     break;
+  case TEST_TYPE_TENSORS_MUX_4:
+    /** other/tensors with tensor_mux (refresh mode) */
+    str_pipeline = g_strdup_printf (
+        "tensor_mux name=mux sync-mode=refresh ! tensor_sink name=test_sink "
+        "appsrc name=appsrc ! other/tensor,type=(string)uint8,dimension=(string)10:1:1:1,framerate=(fraction)0/1 ! mux.sink_0 "
+        "videotestsrc ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_1");
+    break;
   case TEST_TYPE_TENSORS_FLEX_NEGO_FAILED_1:
     /** tensor_mux nego failure case */
     str_pipeline = g_strdup_printf (
@@ -964,22 +972,22 @@ _setup_pipeline (TestOption &option)
     /** video stream with tensor_aggregator */
     str_pipeline = g_strdup_printf (
         "videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)%lu/1 ! "
-        "tensor_converter ! tensor_aggregator frames-out=10 frames-flush=5 frames-dim=1 ! tensor_sink name=test_sink",
+        "tensor_converter ! other/tensor ! tensor_aggregator frames-out=10 frames-flush=5 frames-dim=1 ! other/tensor ! tensor_sink name=test_sink",
         option.num_buffers, fps);
     break;
   case TEST_TYPE_VIDEO_RGB_AGGR_3:
     /** video stream with tensor_aggregator */
     str_pipeline = g_strdup_printf (
         "videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=64,height=48,format=RGB,framerate=(fraction)%lu/1 ! "
-        "tensor_converter ! tensor_aggregator frames-out=10 frames-dim=1 concat=false ! "
-        "tensor_aggregator frames-in=10 frames-out=8 frames-flush=10 frames-dim=1 ! tensor_sink name=test_sink",
+        "tensor_converter ! other/tensors ! tensor_aggregator frames-out=10 frames-dim=1 concat=false ! other/tensor ! "
+        "tensor_aggregator frames-in=10 frames-out=8 frames-flush=10 frames-dim=1 ! other/tensors ! tensor_sink name=test_sink",
         option.num_buffers, fps);
     break;
   case TEST_TYPE_AUDIO_S16_AGGR:
     /** audio stream with tensor_aggregator, 4 buffers with 2000 frames */
     str_pipeline = g_strdup_printf (
         "audiotestsrc num-buffers=%d samplesperbuffer=500 ! audioconvert ! audio/x-raw,format=S16LE,rate=16000,channels=1 ! "
-        "tensor_converter frames-per-tensor=500 ! tensor_aggregator frames-in=500 frames-out=2000 frames-dim=1 ! tensor_sink name=test_sink",
+        "tensor_converter frames-per-tensor=500 ! other/tensor ! tensor_aggregator frames-in=500 frames-out=2000 frames-dim=1 ! other/tensors ! tensor_sink name=test_sink",
         option.num_buffers);
     break;
   case TEST_TYPE_AUDIO_U16_AGGR:
@@ -987,7 +995,7 @@ _setup_pipeline (TestOption &option)
      * frames */
     str_pipeline = g_strdup_printf (
         "audiotestsrc num-buffers=%d samplesperbuffer=500 ! audioconvert ! audio/x-raw,format=U16LE,rate=16000,channels=1 ! "
-        "tensor_converter frames-per-tensor=500 ! tensor_aggregator frames-in=500 frames-out=100 frames-dim=1 ! tensor_sink name=test_sink",
+        "tensor_converter frames-per-tensor=500 ! other/tensors ! tensor_aggregator frames-in=500 frames-out=100 frames-dim=1 ! other/tensors ! tensor_sink name=test_sink",
         option.num_buffers);
     break;
   case TEST_TYPE_TRANSFORM_CAPS_NEGO_1:
@@ -1576,6 +1584,59 @@ TEST (tensorStreamTest, demuxFlexTensors)
 
   EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data (option);
+}
+
+/**
+ * @brief Test for other/tensors with tensor_mux (refresh mode).
+ */
+TEST (tensorStreamTest, muxRefreshMode)
+{
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_TENSORS_MUX_4 };
+  guint timeout_id;
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+
+  g_timeout_add (100, _test_src_push_timer_cb, GINT_TO_POINTER (TRUE));
+
+  timeout_id = g_timeout_add (3000, _test_src_eos_timer_cb, g_test_data.loop);
+  g_main_loop_run (g_test_data.loop);
+  g_source_remove (timeout_id);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_TRUE (g_test_data.received > num_buffers);
+  EXPECT_EQ (g_test_data.mem_blocks, 2U);
+  EXPECT_EQ (g_test_data.received_size, 3U * 160 * 120 + 10U);
+
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  /** check tensors config */
+  EXPECT_TRUE (gst_tensors_config_validate (&g_test_data.tensors_config));
+  EXPECT_EQ (g_test_data.tensors_config.info.num_tensors, 2U);
+
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 10U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 1U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+
+  EXPECT_EQ (g_test_data.tensors_config.info.info[1].type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[1].dimension[0], 3U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[1].dimension[1], 160U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[1].dimension[2], 120U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[1].dimension[3], 1U);
+
+  EXPECT_EQ (g_test_data.tensors_config.rate_n, 0);
+  EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 }
 
 /**
@@ -4209,6 +4270,42 @@ TEST (tensorStreamTest, subpluginV0CheckFW_n)
   /* unregister custom filter */
   nnstreamer_filter_exit (test_fw_custom_name);
   g_free (fw);
+}
+
+/**
+ * @brief Test for hw availability on various filter subplugins.
+ */
+TEST (tensorStreamTest, subpluginFilterCheckFW_n)
+{
+  if (nnstreamer_filter_find ("custom")) {
+    EXPECT_FALSE (gst_tensor_filter_check_hw_availability ("custom", ACCL_NPU_VIVANTE, NULL));
+  }
+  if (nnstreamer_filter_find ("armnn")) {
+    EXPECT_FALSE (gst_tensor_filter_check_hw_availability ("armnn", ACCL_NPU_VIVANTE, NULL));
+  }
+  if (nnstreamer_filter_find ("caffe2")) {
+    EXPECT_FALSE (gst_tensor_filter_check_hw_availability ("caffe2", ACCL_NPU_VIVANTE, NULL));
+  }
+  if (nnstreamer_filter_find ("movidius-ncsdk2")) {
+    EXPECT_FALSE (gst_tensor_filter_check_hw_availability ("movidius-ncsdk2", ACCL_NPU_VIVANTE, NULL));
+    EXPECT_TRUE (gst_tensor_filter_check_hw_availability ("movidius-ncsdk2", ACCL_NPU_MOVIDIUS, NULL));
+  }
+  if (nnstreamer_filter_find ("nnfw")) {
+    EXPECT_FALSE (gst_tensor_filter_check_hw_availability ("nnfw", ACCL_NPU_VIVANTE, NULL));
+  }
+  if (nnstreamer_filter_find ("openvino")) {
+    EXPECT_FALSE (gst_tensor_filter_check_hw_availability ("openvino", ACCL_NPU_VIVANTE, NULL));
+  }
+  if (nnstreamer_filter_find ("python3")) {
+    EXPECT_FALSE (gst_tensor_filter_check_hw_availability ("python3", ACCL_NPU_VIVANTE, NULL));
+  }
+  if (nnstreamer_filter_find ("pytorch")) {
+    EXPECT_FALSE (gst_tensor_filter_check_hw_availability ("pytorch", ACCL_NPU_VIVANTE, NULL));
+  }
+  if (nnstreamer_filter_find ("tensorflow-lite")) {
+    EXPECT_FALSE (gst_tensor_filter_check_hw_availability ("tensorflow-lite", ACCL_NPU_VIVANTE, NULL));
+    EXPECT_TRUE (gst_tensor_filter_check_hw_availability ("tensorflow-lite", ACCL_CPU, NULL));
+  }
 }
 
 /**

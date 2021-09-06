@@ -232,6 +232,25 @@ TEST (commonGetTensorType, uint64_n)
 }
 
 /**
+ * @brief Test for tensor format (invalid param).
+ */
+TEST (commonGetTensorFormat, invalidParam01_n)
+{
+  EXPECT_EQ (gst_tensor_get_format (""), _NNS_TENSOR_FORMAT_END);
+  EXPECT_EQ (gst_tensor_get_format (NULL), _NNS_TENSOR_FORMAT_END);
+  EXPECT_EQ (gst_tensor_get_format ("invalid-fmt"), _NNS_TENSOR_FORMAT_END);
+}
+
+/**
+ * @brief Test for tensor format string (invalid param).
+ */
+TEST (commonGetTensorFormat, invalidParam02_n)
+{
+  EXPECT_STREQ (gst_tensor_get_format_string (_NNS_TENSOR_FORMAT_END), NULL);
+  EXPECT_STREQ (gst_tensor_get_format_string ((tensor_format) -1), NULL);
+}
+
+/**
  * @brief Test to find index of the key.
  */
 TEST (commonFindKeyStrv, keyIndex)
@@ -1489,6 +1508,50 @@ TEST (commonStringUtil, replaceStr02)
 }
 
 /**
+ * @brief Test for aggregation utils (clear data).
+ */
+TEST (commonAggregationUtil, clearData)
+{
+  const guint32 key1 = 0U;
+  const guint32 key2 = 100U;
+  GHashTable *table;
+
+  table = gst_tensor_aggregation_init ();
+
+  EXPECT_TRUE (gst_tensor_aggregation_get_adapter (table, key1) != NULL);
+  EXPECT_TRUE (gst_tensor_aggregation_get_adapter (table, key2) != NULL);
+
+  gst_adapter_push (gst_tensor_aggregation_get_adapter (table, key1), gst_buffer_new_allocate (NULL, 1024U, 0));
+  gst_adapter_push (gst_tensor_aggregation_get_adapter (table, key2), gst_buffer_new_allocate (NULL, 512U, 0));
+  gst_adapter_push (gst_tensor_aggregation_get_adapter (table, key1), gst_buffer_new_allocate (NULL, 100U, 0));
+
+  EXPECT_EQ (gst_adapter_available (gst_tensor_aggregation_get_adapter (table, key1)), 1124U);
+  EXPECT_EQ (gst_adapter_available (gst_tensor_aggregation_get_adapter (table, key2)), 512U);
+
+  gst_tensor_aggregation_clear (table, key2);
+  EXPECT_EQ (gst_adapter_available (gst_tensor_aggregation_get_adapter (table, key2)), 0U);
+  gst_adapter_push (gst_tensor_aggregation_get_adapter (table, key2), gst_buffer_new_allocate (NULL, 200U, 0));
+  EXPECT_EQ (gst_adapter_available (gst_tensor_aggregation_get_adapter (table, key2)), 200U);
+
+  gst_tensor_aggregation_clear_all (table);
+  EXPECT_EQ (gst_adapter_available (gst_tensor_aggregation_get_adapter (table, key1)), 0U);
+  EXPECT_EQ (gst_adapter_available (gst_tensor_aggregation_get_adapter (table, key2)), 0U);
+
+  g_hash_table_destroy (table);
+}
+
+/**
+ * @brief Test for aggregation utils (null param).
+ */
+TEST (commonAggregationUtil, nullParam_n)
+{
+  GstAdapter *adapter;
+
+  adapter = gst_tensor_aggregation_get_adapter (NULL, 0U);
+  EXPECT_FALSE (adapter != NULL);
+}
+
+/**
  * @brief Create null files
  */
 static gchar *
@@ -1657,6 +1720,15 @@ TEST (confCustom, envStr01)
   } else {
     g_unsetenv ("NNSTREAMER_CONF");
   }
+}
+
+/**
+ * @brief Test nnstreamer conf util (name prefix with invalid param).
+ */
+TEST (confCustom, subpluginPrefix_n)
+{
+  EXPECT_STREQ (nnsconf_get_subplugin_name_prefix (NNSCONF_PATH_END), NULL);
+  EXPECT_STREQ (nnsconf_get_subplugin_name_prefix ((nnsconf_type_path) -1), NULL);
 }
 
 /**

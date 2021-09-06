@@ -1790,7 +1790,7 @@ find_key_strv (const gchar ** strv, const gchar * key)
         ("find_key_strv is called with a null pointer. Possible internal logic errors.\n");
     return -1;
   }
-  while (strv[cursor]) {
+  while (strv[cursor] && key) {
     if (g_ascii_strcasecmp (strv[cursor], key) == 0)
       return cursor;
     cursor++;
