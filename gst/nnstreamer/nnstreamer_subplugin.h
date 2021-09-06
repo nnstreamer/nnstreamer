@@ -35,6 +35,8 @@
 #include <stdint.h>
 #include "nnstreamer_conf.h"
 
+G_BEGIN_DECLS
+
 typedef enum {
   NNS_SUBPLUGIN_FILTER = NNSCONF_PATH_FILTERS,
   NNS_SUBPLUGIN_DECODER = NNSCONF_PATH_DECODERS,
@@ -95,4 +97,5 @@ subplugin_set_custom_property_desc (subpluginType type, const char *name,
 extern GData *
 subplugin_get_custom_property_desc (subpluginType type, const char *name);
 
+G_END_DECLS
 #endif /* __GST_NNSTREAMER_SUBPLUGIN_H__ */
