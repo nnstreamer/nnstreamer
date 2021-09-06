@@ -22,6 +22,7 @@
 #include <tensor_meta.h>
 #include <unistd.h>
 
+#include "../gst/nnstreamer/tensor_sparse/tensor_sparse_util.h"
 #include "../gst/nnstreamer/tensor_transform/tensor_transform.h"
 
 #ifdef ENABLE_TENSORFLOW_LITE
@@ -7128,6 +7129,87 @@ TEST (testTensorCrop, infoDelayed_n)
     _crop_test_compare_res2 (&crop_test);
 
   _crop_test_free (&crop_test);
+}
+
+/**
+ * @brief Macro to test sparse tensor conversion for each data type.
+ */
+#define RUN_SPARSE_CONVERT_TEST(ttype,dtype) do {\
+    const gint sparse_test_data[40] = {\
+      0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,\
+      0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,\
+    };\
+    GstMemory *sparse, *dense, *origin;\
+    GstMapInfo map;\
+    GstTensorInfo info;\
+    GstTensorMetaInfo meta;\
+    guint i;\
+    gpointer data;\
+    gsize data_size;\
+    gst_tensor_info_init (&info);\
+    info.type = ttype;\
+    gst_tensor_parse_dimension ("40", info.dimension);\
+    gst_tensor_info_convert_to_meta (&info, &meta);\
+    data_size = gst_tensor_info_get_size (&info);\
+    data = g_malloc0 (data_size);\
+    for (i = 0; i < 40U; i++)\
+      ((dtype *) data)[i] = (dtype) sparse_test_data[i];\
+    origin = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY,\
+        data, data_size, 0, data_size, data, g_free);\
+    sparse = gst_tensor_sparse_from_dense (&meta, origin);\
+    EXPECT_TRUE (sparse != NULL);\
+    dense = gst_tensor_sparse_to_dense (&meta, sparse);\
+    EXPECT_TRUE (dense != NULL);\
+    ASSERT_TRUE (gst_memory_map (dense, &map, GST_MAP_READ));\
+    for (i = 0; i < 40U; i++)\
+      EXPECT_TRUE (((dtype *) data)[i] == ((dtype *) map.data)[i]);\
+    gst_memory_unmap (dense, &map);\
+    gst_tensor_info_free (&info);\
+    gst_memory_unref (sparse);\
+    gst_memory_unref (dense);\
+    gst_memory_unref (origin);\
+  } while (0)
+
+/**
+ * @brief Test for tensor_sparse util, sparse tensor for various data type.
+ */
+TEST (testTensorSparse, utilConvert)
+{
+  RUN_SPARSE_CONVERT_TEST (_NNS_INT32, int32_t);
+  RUN_SPARSE_CONVERT_TEST (_NNS_UINT32, uint32_t);
+  RUN_SPARSE_CONVERT_TEST (_NNS_INT16, int16_t);
+  RUN_SPARSE_CONVERT_TEST (_NNS_UINT16, uint16_t);
+  RUN_SPARSE_CONVERT_TEST (_NNS_INT8, int8_t);
+  RUN_SPARSE_CONVERT_TEST (_NNS_UINT8, uint8_t);
+  RUN_SPARSE_CONVERT_TEST (_NNS_INT64, int64_t);
+  RUN_SPARSE_CONVERT_TEST (_NNS_UINT64, uint64_t);
+  RUN_SPARSE_CONVERT_TEST (_NNS_FLOAT64, double);
+  RUN_SPARSE_CONVERT_TEST (_NNS_FLOAT32, float);
+}
+
+/**
+ * @brief Test for tensor_sparse util, invalid tensor-meta.
+ */
+TEST (testTensorSparse, utilInvalidMeta_n)
+{
+  GstTensorMetaInfo meta;
+  GstMemory *in, *out;
+  guint *data;
+  gsize data_size = 20000U;
+
+  /* temporal data, unspecified tensor info. */
+  gst_tensor_meta_info_init (&meta);
+  data = (guint *) g_malloc0 (data_size);
+  in = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY,
+      data, data_size, 0, data_size, data, g_free);
+
+  out = gst_tensor_sparse_from_dense (&meta, in);
+  EXPECT_FALSE (out != NULL);
+
+  out = gst_tensor_sparse_to_dense (&meta, in);
+  EXPECT_FALSE (out != NULL);
+
+  gst_memory_unref (in);
 }
 
 /**
