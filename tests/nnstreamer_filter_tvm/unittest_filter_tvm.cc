@@ -415,7 +415,7 @@ TEST (nnstreamerFilterTvm, launch00)
   _get_model_file (&model_file);
 
   /* create a nnstreamer pipeline */
-  pipeline = g_strdup_printf ("videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=480,height=640 ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-255.0 ! tensor_filter framework=tvm model=\"%s\" ! tensor_sink name=sink",
+  pipeline = g_strdup_printf ("videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=480,height=640 ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-255.0 ! tensor_filter framework=tvm model=\"%s\" custom=device:CPU,num_input_tensors:1 ! tensor_sink name=sink",
       model_file);
 
   gstpipe = gst_parse_launch (pipeline, &err);
@@ -474,6 +474,58 @@ TEST (nnstreamerFilterTvm, launch01_n)
 
   /* dimension does not match with the model */
   pipeline = g_strdup_printf ("videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=320,height=480 ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-255.0 ! tensor_filter framework=tvm model=\"%s\" ! fakesink",
+      model_file);
+
+  gstpipe = gst_parse_launch (pipeline, &err);
+  EXPECT_NE (gstpipe, nullptr);
+
+  EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+  g_free (model_file);
+}
+
+/**
+ * @brief Negative case with invalid custom property (num_input_tensors)
+ */
+TEST (nnstreamerFilterTvm, launchInvalidInputNum_n)
+{
+  gchar *pipeline;
+  GstElement *gstpipe;
+  GError *err = NULL;
+  gchar *model_file;
+  _get_model_file (&model_file);
+
+  /* invalid custom property num_input_tensors should be bigger than 0 */
+  pipeline = g_strdup_printf ("videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=480,height=640 ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-255.0 ! tensor_filter framework=tvm model=\"%s\" custom=num_input_tensors:0 ! fakesink",
+      model_file);
+
+  gstpipe = gst_parse_launch (pipeline, &err);
+  EXPECT_NE (gstpipe, nullptr);
+
+  EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+  g_free (model_file);
+}
+
+/**
+ * @brief Negative case with invalid custom property (device)
+ */
+TEST (nnstreamerFilterTvm, launchInvalidDevice_n)
+{
+  gchar *pipeline;
+  GstElement *gstpipe;
+  GError *err = NULL;
+  gchar *model_file;
+  _get_model_file (&model_file);
+
+  /* invalid custom property: invalid device */
+  pipeline = g_strdup_printf ("videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=480,height=640 ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-255.0 ! tensor_filter framework=tvm model=\"%s\" custom=device:INVALID_DEVICE ! fakesink",
       model_file);
 
   gstpipe = gst_parse_launch (pipeline, &err);
