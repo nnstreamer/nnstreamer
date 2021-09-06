@@ -20,16 +20,28 @@
 /**
  * @brief Make dense tensor with input sparse tensor.
  * @param[in,out] meta tensor meta structure to be updated
- * @param[in] in pointer of input sparse tensor data
+ * @param[in] mem gst-memory of sparse tensor data
  * @return pointer of GstMemory with dense tensor data or NULL on error. Caller should handle this newly allocated memory.
  */
 GstMemory *
-gst_tensor_sparse_to_dense (GstTensorMetaInfo * meta, gpointer in)
+gst_tensor_sparse_to_dense (GstTensorMetaInfo * meta, GstMemory * mem)
 {
+  GstMemory *dense = NULL;
+  GstMapInfo map;
   guint i, nnz;
   guint8 *output, *input;
   guint *indices;
   gsize output_size, element_size;
+
+  if (!gst_memory_map (mem, &map, GST_MAP_READ)) {
+    nns_loge ("Failed to map given memory");
+    return NULL;
+  }
+
+  if (!gst_tensor_meta_info_parse_header (meta, map.data)) {
+    nns_loge ("Failed to parse meta info from given memory");
+    goto done;
+  }
 
   meta->format = _NNS_TENSOR_FORMAT_STATIC;
 
@@ -38,14 +50,14 @@ gst_tensor_sparse_to_dense (GstTensorMetaInfo * meta, gpointer in)
 
   if (element_size == 0 || output_size == 0) {
     nns_loge ("Got invalid meta info");
-    return NULL;
+    goto done;
   }
 
   output = (guint8 *) g_malloc0 (output_size);
 
   nnz = meta->sparse_info.nnz;
-  input = (guint8 *) in + gst_tensor_meta_info_get_header_size (meta);
-  indices = ((guint *) ((guint8 *) input + element_size * nnz));
+  input = map.data + gst_tensor_meta_info_get_header_size (meta);
+  indices = (guint *) (input + element_size * nnz);
 
   for (i = 0; i < nnz; ++i) {
     switch (meta->type) {
@@ -82,37 +94,49 @@ gst_tensor_sparse_to_dense (GstTensorMetaInfo * meta, gpointer in)
       default:
         nns_loge ("Error occured during get tensor value");
         g_free (output);
-
-        return NULL;
+        goto done;
     }
   }
 
-  return gst_memory_new_wrapped (0, output, output_size, 0,
-      output_size, output, g_free);
+  dense = gst_memory_new_wrapped (0, output, output_size, 0, output_size,
+      output, g_free);
+
+done:
+  gst_memory_unmap (mem, &map);
+  return dense;
 }
 
 /**
  * @brief Make sparse tensor with input dense tensor.
  * @param[in,out] meta tensor meta structure to be updated
- * @param[in] in pointer of input dense tensor data
+ * @param[in] mem gst-memory of dense tensor data
  * @return pointer of GstMemory with sparse tensor data or NULL on error. Caller should handle this newly allocated memory.
  */
 GstMemory *
-gst_tensor_sparse_from_dense (GstTensorMetaInfo * meta, gpointer in)
+gst_tensor_sparse_from_dense (GstTensorMetaInfo * meta, GstMemory * mem)
 {
+  GstMemory *sparse = NULL;
+  GstMapInfo map;
   guint i, nnz = 0;
   guint8 *output;
   tensor_type data_type;
   void *values;
   guint *indices;
-  gsize output_size;
-  gsize header_size = gst_tensor_meta_info_get_header_size (meta);
-  gsize element_size = gst_tensor_get_element_size (meta->type);
-  gulong element_count = gst_tensor_get_element_count (meta->dimension);
+  gsize output_size, header_size, element_size;
+  gulong element_count;
+
+  if (!gst_memory_map (mem, &map, GST_MAP_READ)) {
+    nns_loge ("Failed to map given memory");
+    return NULL;
+  }
+
+  header_size = gst_tensor_meta_info_get_header_size (meta);
+  element_size = gst_tensor_get_element_size (meta->type);
+  element_count = gst_tensor_get_element_count (meta->dimension);
 
   if (element_size == 0 || element_count == 0) {
     nns_loge ("Got invalid meta info");
-    return NULL;
+    goto done;
   }
 
   /** alloc maximum possible size of memory */
@@ -125,71 +149,71 @@ gst_tensor_sparse_from_dense (GstTensorMetaInfo * meta, gpointer in)
   for (i = 0; i < element_count; ++i) {
     switch (data_type) {
       case _NNS_INT32:
-        if (((int32_t *) in)[i] != 0) {
-          ((int32_t *) values)[nnz] = ((int32_t *) in)[i];
+        if (((int32_t *) map.data)[i] != 0) {
+          ((int32_t *) values)[nnz] = ((int32_t *) map.data)[i];
           indices[nnz] = i;
           nnz += 1;
         }
         break;
       case _NNS_UINT32:
-        if (((uint32_t *) in)[i] != 0) {
-          ((uint32_t *) values)[nnz] = ((uint32_t *) in)[i];
+        if (((uint32_t *) map.data)[i] != 0) {
+          ((uint32_t *) values)[nnz] = ((uint32_t *) map.data)[i];
           indices[nnz] = i;
           nnz += 1;
         }
         break;
       case _NNS_INT16:
-        if (((int16_t *) in)[i] != 0) {
-          ((int16_t *) values)[nnz] = ((int16_t *) in)[i];
+        if (((int16_t *) map.data)[i] != 0) {
+          ((int16_t *) values)[nnz] = ((int16_t *) map.data)[i];
           indices[nnz] = i;
           nnz += 1;
         }
         break;
       case _NNS_UINT16:
-        if (((uint16_t *) in)[i] != 0) {
-          ((uint16_t *) values)[nnz] = ((uint16_t *) in)[i];
+        if (((uint16_t *) map.data)[i] != 0) {
+          ((uint16_t *) values)[nnz] = ((uint16_t *) map.data)[i];
           indices[nnz] = i;
           nnz += 1;
         }
         break;
       case _NNS_INT8:
-        if (((int8_t *) in)[i] != 0) {
-          ((int8_t *) values)[nnz] = ((int8_t *) in)[i];
+        if (((int8_t *) map.data)[i] != 0) {
+          ((int8_t *) values)[nnz] = ((int8_t *) map.data)[i];
           indices[nnz] = i;
           nnz += 1;
         }
         break;
       case _NNS_UINT8:
-        if (((uint8_t *) in)[i] != 0) {
-          ((uint8_t *) values)[nnz] = ((uint8_t *) in)[i];
+        if (((uint8_t *) map.data)[i] != 0) {
+          ((uint8_t *) values)[nnz] = ((uint8_t *) map.data)[i];
           indices[nnz] = i;
           nnz += 1;
         }
         break;
       case _NNS_FLOAT64:
-        if (((double *) in)[i] != 0) {
-          ((double *) values)[nnz] = ((double *) in)[i];
+        if (((double *) map.data)[i] != 0) {
+          ((double *) values)[nnz] = ((double *) map.data)[i];
           indices[nnz] = i;
           nnz += 1;
         }
         break;
       case _NNS_FLOAT32:
-        if (((float *) in)[i] != 0) {
-          ((float *) values)[nnz] = ((float *) in)[i];
+        if (((float *) map.data)[i] != 0) {
+          ((float *) values)[nnz] = ((float *) map.data)[i];
           indices[nnz] = i;
           nnz += 1;
         }
         break;
       case _NNS_INT64:
-        if (((int64_t *) in)[i] != 0) {
-          ((int64_t *) values)[nnz] = ((int64_t *) in)[i];
+        if (((int64_t *) map.data)[i] != 0) {
+          ((int64_t *) values)[nnz] = ((int64_t *) map.data)[i];
           indices[nnz] = i;
           nnz += 1;
         }
         break;
       case _NNS_UINT64:
-        if (((uint64_t *) in)[i] != 0) {
-          ((uint64_t *) values)[nnz] = ((uint64_t *) in)[i];
+        if (((uint64_t *) map.data)[i] != 0) {
+          ((uint64_t *) values)[nnz] = ((uint64_t *) map.data)[i];
           indices[nnz] = i;
           nnz += 1;
         }
@@ -198,12 +222,12 @@ gst_tensor_sparse_from_dense (GstTensorMetaInfo * meta, gpointer in)
         nns_loge ("Error occured during get tensor value");
         g_free (values);
         g_free (indices);
-
-        return NULL;
+        goto done;
     }
   }
 
   /** update meta nnz info */
+  meta->format = _NNS_TENSOR_FORMAT_SPARSE;
   meta->sparse_info.nnz = nnz;
 
   /** write to output buffer */
@@ -222,6 +246,10 @@ gst_tensor_sparse_from_dense (GstTensorMetaInfo * meta, gpointer in)
   g_free (values);
   g_free (indices);
 
-  return gst_memory_new_wrapped (0, output, output_size, 0,
-      output_size, output, g_free);
+  sparse = gst_memory_new_wrapped (0, output, output_size, 0, output_size,
+      output, g_free);
+
+done:
+  gst_memory_unmap (mem, &map);
+  return sparse;
 }

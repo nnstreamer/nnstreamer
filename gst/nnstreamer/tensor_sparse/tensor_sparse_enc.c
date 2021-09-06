@@ -370,8 +370,7 @@ gst_tensor_sparse_enc_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 {
   GstFlowReturn ret = GST_FLOW_OK;
   GstTensorSparseEnc *self = GST_TENSOR_SPARSE_ENC (parent);
-  GstMemory *mem, *out_mem;
-  GstMapInfo map;
+  GstMemory *mem;
   GstBuffer *outbuf;
   GstTensorsInfo *info;
   guint i;
@@ -391,22 +390,14 @@ gst_tensor_sparse_enc_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
     /* do real encoding here */
     mem = gst_buffer_peek_memory (buf, i);
-    if (!gst_memory_map (mem, &map, GST_MAP_READ)) {
-      ml_loge ("Cannot map input buffer to gst-buffer at sparse_enc.");
-      ret = GST_FLOW_ERROR;
-      goto done;
-    }
-
-    out_mem = gst_tensor_sparse_from_dense (&meta, map.data);
-    gst_memory_unmap (mem, &map);
-
-    if (!out_mem) {
+    mem = gst_tensor_sparse_from_dense (&meta, mem);
+    if (!mem) {
       nns_loge ("failed to convert to sparse tensor");
       ret = GST_FLOW_ERROR;
       goto done;
     }
 
-    gst_buffer_append_memory (outbuf, out_mem);
+    gst_buffer_append_memory (outbuf, mem);
   }
 
   ret = gst_pad_push (self->srcpad, outbuf);

@@ -360,8 +360,7 @@ gst_tensor_sparse_dec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   GstFlowReturn ret = GST_FLOW_ERROR;
   GstTensorSparseDec *self = GST_TENSOR_SPARSE_DEC (parent);
   GstTensorMetaInfo meta;
-  GstMemory *mem, *out_mem;
-  GstMapInfo map;
+  GstMemory *mem;
   GstBuffer *outbuf;
   GstTensorsInfo info;
   guint i;
@@ -374,27 +373,13 @@ gst_tensor_sparse_dec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
   for (i = 0; i < info.num_tensors; ++i) {
     mem = gst_buffer_peek_memory (buf, i);
-
-    if (!gst_memory_map (mem, &map, GST_MAP_READ)) {
-      nns_loge ("failed to map given buffer");
-      goto done;
-    }
-
-    if (!gst_tensor_meta_info_parse_header (&meta, map.data)) {
-      nns_loge ("failed to parse meta info from given buffer");
-      gst_memory_unmap (mem, &map);
-      goto done;
-    }
-
-    out_mem = gst_tensor_sparse_to_dense (&meta, map.data);
-    gst_memory_unmap (mem, &map);
-
-    if (!out_mem) {
+    mem = gst_tensor_sparse_to_dense (&meta, mem);
+    if (!mem) {
       nns_loge ("failed to convert to dense tensor");
       goto done;
     }
 
-    gst_buffer_append_memory (outbuf, out_mem);
+    gst_buffer_append_memory (outbuf, mem);
     gst_tensor_meta_info_convert (&meta, &info.info[i]);
   }
 

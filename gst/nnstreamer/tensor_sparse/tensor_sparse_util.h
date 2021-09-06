@@ -23,20 +23,20 @@ G_BEGIN_DECLS
 /**
  * @brief Make dense tensor with input sparse tensor.
  * @param[in,out] meta tensor meta structure to be updated
- * @param[in] in pointer of input sparse tensor data
+ * @param[in] mem gst-memory of sparse tensor data
  * @return pointer of GstMemory with dense tensor data or NULL on error. Caller should handle this newly allocated memory.
  */
 extern GstMemory *
-gst_tensor_sparse_to_dense (GstTensorMetaInfo * meta, gpointer in);
+gst_tensor_sparse_to_dense (GstTensorMetaInfo * meta, GstMemory * mem);
 
 /**
  * @brief Make sparse tensor with input dense tensor.
  * @param[in,out] meta tensor meta structure to be updated
- * @param[in] in pointer of input dense tensor data
+ * @param[in] mem gst-memory of dense tensor data
  * @return pointer of GstMemory with sparse tensor data or NULL on error. Caller should handle this newly allocated memory.
  */
 extern GstMemory *
-gst_tensor_sparse_from_dense (GstTensorMetaInfo * meta, gpointer in);
+gst_tensor_sparse_from_dense (GstTensorMetaInfo * meta, GstMemory * mem);
 
 G_END_DECLS
 #endif /* __GST_TENSOR_SPARSE_UTIL_H__ */
