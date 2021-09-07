@@ -55,7 +55,6 @@ def compare_scaled_tensor(d1, d2, innerdim):
     # data should be tuple (data, width, height)
     data1, width1, height1 = d1
     data2, width2, height2 = d2
-    count1 = count2 = 0
     len1 = len(data1)
     len2 = len(data2)
 
@@ -63,28 +62,15 @@ def compare_scaled_tensor(d1, d2, innerdim):
         print(str(len1 * width2 * height2) + ' / ' + str(len2 * width1 * height1))
         return 1
 
-    while count1 < len1:
-        # Terminated incorrectly
-        if (count1 + (innerdim * width1 * height1)) > len1:
-            return 2
-        if (count2 + (innerdim * width2 * height2)) > len2:
-            return 3
-        if count2 >= len2:
-            return 4
+    if (len1 != width1 * height1 * innerdim) or (len2 != width2 * height2 * innerdim):
+        return 2
 
-        for y, x, c in product(range(0, height2), range(0, width2), range(0, innerdim)):
-            ix = x * width1 // width2
-            iy = y * height1 // height2
-            if data1[count1 + c + ix * innerdim + iy * width1 * innerdim] != \
-                    data2[count2 + c + x * innerdim + y * width2 * innerdim]:
-                print('At ' + str(x) + ',' + str(y))
-                return 5
+    for y, x, c in product(range(0, height2), range(0, width2), range(0, innerdim)):
+        ix = x * width1 // width2
+        iy = y * height1 // height2
+        if data1[c + ix * innerdim + iy * width1 * innerdim] != \
+                data2[c + x * innerdim + y * width2 * innerdim]:
+            print('At ' + str(x) + ',' + str(y))
+            return 5
 
-        count1 = count1 + innerdim * width1 * height1
-        count2 = count2 + innerdim * width2 * height2
-
-    if count1 > len1:
-        return 6
-    if count2 > len2:
-        return 7
     return 0

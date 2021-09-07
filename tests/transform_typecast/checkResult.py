@@ -33,6 +33,33 @@ def compare_int(a, b, maskb):
 
 
 ##
+# @brief Auxiliary function to check args of test_typecast
+#
+def _check_args(lena, typeasize, lenb, typebsize):
+    if (0 < (lena % typeasize)) or (0 < (lenb % typebsize)):
+        return False
+    if (lena // typeasize) != (lenb // typebsize):
+        return False
+    return True
+
+
+##
+# @brief Auxiliary function to compare values
+#
+def _compare(vala, valb, typeb, maskb):
+    if typeb[0:5] == 'float':
+        if not compare_float(vala, valb):
+            return False
+    elif typeb[0:4] == 'uint' or typeb[0:3] == 'int':
+        if not compare_int(vala, valb, maskb):
+            return False
+    else:
+        return False
+
+    return True
+
+
+##
 # @brief Check typecast from typea to typeb with file fna/fnb
 #
 def test_typecast(d1, d2):
@@ -42,24 +69,19 @@ def test_typecast(d1, d2):
     lena = len(fna)
     lenb = len(fnb)
 
-    if (0 < (lena % typeasize)) or (0 < (lenb % typebsize)):
+    if not _check_args(lena, typeasize, lenb, typebsize):
         return 10
+
     num = lena // typeasize
-    if num != (lenb // typebsize):
-        return 11
     limitb = 2 ** (8 * typebsize)
     maskb = limitb - 1
 
     for x in range(0, num):
-        vala = struct.unpack(typeapack, fna[x * typeasize: x * typeasize + typeasize])[0]
-        valb = struct.unpack(typebpack, fnb[x * typebsize: x * typebsize + typebsize])[0]
-        if typeb[0:5] == 'float':
-            if not compare_float(vala, valb):
-                return 20
-        elif typeb[0:4] == 'uint' or typeb[0:3] == 'int':
-            if not compare_int(vala, valb, maskb):
-                return 20
-        else:
+        astart = x * typeasize
+        bstart = x * typebsize
+        vala = struct.unpack(typeapack, fna[astart: astart + typeasize])[0]
+        valb = struct.unpack(typebpack, fnb[bstart: bstart + typebsize])[0]
+        if not _compare(vala, valb, typeb, maskb):
             return 21
     return 0
 

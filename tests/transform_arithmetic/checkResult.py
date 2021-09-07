@@ -31,6 +31,38 @@ def get_value(val, unpack_format):
     else:
         return None
 
+##
+# @brief Auxiliary function to check args of test_arithmetic
+#
+def _check_args(lena, typeasize, lenb, typebsize):
+    if (0 < (lena % typeasize)) or (0 < (lenb % typebsize)):
+        return False
+    if (lena // typeasize) != (lenb // typebsize):
+        return False
+    return True
+
+
+##
+# @brief Auxiliary function to check difference
+#
+def _check_diff(mode, va, vb, val1, val2):
+    if mode == 'add':
+        ret = va + val1
+    elif mode == 'mul':
+        ret = va * val1
+    elif mode == 'add-mul':
+        ret = (va + val1) * val2
+    elif mode == 'mul-add':
+        ret = (va * val1) + val2
+    else:
+        return False
+
+    diff = ret - vb
+    if abs(diff) > 0.01:
+        return False
+    else:
+        return True
+
 
 ##
 # @brief Check typecast from typea to typeb with file fna/fnb
@@ -43,31 +75,21 @@ def test_arithmetic(d1, d2, mode, v1, v2):
     lena = len(fna)
     lenb = len(fnb)
 
-    if (0 < (lena % typeasize)) or (0 < (lenb % typebsize)):
+    if not _check_args(lena, typeasize, lenb, typebsize):
         return 10
+
     num = lena // typeasize
-    if num != (lenb // typebsize):
-        return 11
     val1 = get_value(v1[0], v1[1])
     val2 = get_value(v2[0], v2[1])
     if val1 is None or val2 is None:
         return 12
 
     for x in range(0, num):
-        vala = struct.unpack(typeapack, fna[x * typeasize: x * typeasize + typeasize])[0]
-        valb = struct.unpack(typebpack, fnb[x * typebsize: x * typebsize + typebsize])[0]
-        if mode == 'add':
-            diff = vala + val1 - valb
-        elif mode == 'mul':
-            diff = vala * val1 - valb
-        elif mode == 'add-mul':
-            diff = (vala + val1) * val2 - valb
-        elif mode == 'mul-add':
-            diff = (vala * val1) + val2 - valb
-        else:
-            return 21
-
-        if diff > 0.01 or diff < -0.01:
+        astart = x * typeasize
+        bstart = x * typebsize
+        vala = struct.unpack(typeapack, fna[astart: astart + typeasize])[0]
+        valb = struct.unpack(typebpack, fnb[bstart: bstart + typebsize])[0]
+        if not _check_diff(mode, vala, valb, val1, val2):
             return 20
     return 0
 
