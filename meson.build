@@ -328,10 +328,12 @@ features = {
     'project_args': { 'ENABLE_PROTOBUF': 1 }
   },
   'tensorrt-support': {
-    'extra_deps': [ nvinfer_dep, nvparsers_dep, cuda_dep, cudart_dep ]
+    'extra_deps': [ nvinfer_dep, nvparsers_dep, cuda_dep, cudart_dep ],
+    'project_args': { 'ENABLE_TENSORRT': 1 }
   },
   'grpc-support': {
-    'extra_deps': [ grpc_dep, gpr_dep, grpcpp_dep ]
+    'extra_deps': [ grpc_dep, gpr_dep, grpcpp_dep ],
+    'project_args': { 'ENABLE_GRPC': 1 }
   },
   'lua-support': {
     # TODO: support various Lua versions
@@ -340,7 +342,8 @@ features = {
     'project_args': { 'ENABLE_LUA': 1 }
   },
   'mqtt-support': {
-    'extra_deps': [ pahomqttc_dep ]
+    'extra_deps': [ pahomqttc_dep ],
+    'project_args': { 'ENABLE_MQTT': 1 }
   },
   'tvm-support': {
     'target': 'tvm_runtime',
