@@ -27,44 +27,29 @@ def saveBMP(filename, data, colorspace, width, height):
     size = len(data)
     pixel_list = []
     # Default value of bytes per pixel value for RGB
-    bytes_per_px = 3
 
     if colorspace == 'RGB':
-        assert (size == (width * height * bytes_per_px))
-        # BMP is stored bottom to top. Reverse the order
-        for h in range(height - 1, -1, -1):
-            for w in range(0, width):
-                pos = 3 * (w + width * h)
-                pixel_list.append(data[pos + 2])
-                pixel_list.append(data[pos + 1])
-                pixel_list.append(data[pos + 0])
-            for x in range(0, (width * 3) % 4):
-                pixel_list.append(0)
+        bytes_per_px = 3
+        poss = [2, 1, 0]
     elif colorspace == 'BGRx':
         bytes_per_px = 4
-        assert (size == (width * height * bytes_per_px))
-        # BMP is stored bottom to top. Reverse the order
-        for h in range(height - 1, -1, -1):
-            for w in range(0, width):
-                pos = bytes_per_px * (w + width * h)
-                pixel_list.append(data[pos + 0])
-                pixel_list.append(data[pos + 1])
-                pixel_list.append(data[pos + 2])
-            for x in range(0, (width * 3) % 4):
-                pixel_list.append(0)
+        poss = [0, 1, 2]
     elif colorspace == 'GRAY8':
         bytes_per_px = 1
-        assert (size == (width * height * bytes_per_px))
-        # BMP is stored bottom to top. Reverse the order
-        for h in range(height - 1, -1, -1):
-            for w in range(0, width):
-                pos = bytes_per_px * (w + width * h)
-                pixel_list.append(data[pos])
-            for x in range(0, (width * 3) % 4):
-                pixel_list.append(0)
+        poss = [0]
     else:
         print('Unrecognized colorspace %', colorspace)
         sys.exit(1)
+
+    assert (size == (width * height * bytes_per_px))
+    # BMP is stored bottom to top. Reverse the order
+    for h in range(height - 1, -1, -1):
+        for w in range(0, width):
+            pos = bytes_per_px * (w + width * h)
+            for pp in poss:
+                pixel_list.append(data[pos + pp])
+        for x in range(0, (width * 3) % 4):
+            pixel_list.append(0)
 
     graphics = pack('%dB' % (len(pixel_list)), *pixel_list)
     # BMP file header
