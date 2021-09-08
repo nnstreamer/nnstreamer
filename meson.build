@@ -174,13 +174,32 @@ endif
 
 # snpe
 snpe_dep = dependency('', required: false)
-SNPE_ROOT = ''
 if not get_option('snpe-support').disabled()
-  # Check $SNPE_ROOT (where SNPE SDK is located)
-  cmd = run_command('sh', '-c', 'echo $SNPE_ROOT')
-  SNPE_ROOT = cmd.stdout().strip()
-  if SNPE_ROOT != ''
-    snpe_dep = declare_dependency()
+  # Check whether the platform supports snpe
+  snpe_dep = dependency('snpe', required: false)
+  if (not snpe_dep.found())
+    # Check whether $SNPE_ROOT (where SNPE SDK is located) is set.
+    cmd = run_command('sh', '-c', 'echo $SNPE_ROOT')
+    SNPE_ROOT = cmd.stdout().strip()
+    if SNPE_ROOT != ''
+      message('Got $SNPE_ROOT: @0@'.format(SNPE_ROOT))
+      snpe_dir_not_exist = run_command('[', '-d', SNPE_ROOT, ']').returncode()
+      if snpe_dir_not_exist != 0
+        error('@0@ does not exists'.format(SNPE_ROOT))
+      endif
+
+      snpe_lib = cxx.find_library('libSNPE',
+        dirs: join_paths(SNPE_ROOT, 'lib/x86_64-linux-clang'),
+        required: true
+      )
+
+      snpe_incdir = include_directories(join_paths(SNPE_ROOT, 'include/zdl'))
+
+      snpe_dep = declare_dependency(
+        dependencies: snpe_lib,
+        include_directories: snpe_incdir
+      )
+    endif
   endif
 endif
 
@@ -317,7 +336,6 @@ features = {
   'snpe-support': {
     'extra_deps': [ snpe_dep ],
     'project_args': { 'ENABLE_SNPE' : 1 },
-    'extra_args': { 'SNPE_ROOT': SNPE_ROOT }
   },
   'flatbuf-support': {
     'extra_deps': [ flatc, flatbuf_dep, flatbuf_version_check_dep ],
