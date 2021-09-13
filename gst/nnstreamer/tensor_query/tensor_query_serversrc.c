@@ -278,7 +278,11 @@ gst_tensor_query_serversrc_create (GstPushSrc * psrc, GstBuffer ** outbuf)
       goto error;
     }
 
-    if (nnstreamer_query_receive (conn, &cmd_data, src->timeout) != 0) {
+    /**
+     * Set non-blocking mode to receive the command data.
+     * If data is not available in the socket, check the next socket.
+     */
+    if (0 != nnstreamer_query_receive (conn, &cmd_data, 0)) {
       nns_logi ("Failed to receive cmd");
       continue;
     }
@@ -320,7 +324,7 @@ gst_tensor_query_serversrc_create (GstPushSrc * psrc, GstBuffer ** outbuf)
           cmd_data.data.data = map.data;
           cmd_data.data.size = map.size;
 
-          ecode = nnstreamer_query_receive (conn, &cmd_data, src->timeout);
+          ecode = nnstreamer_query_receive (conn, &cmd_data, 1);
           gst_memory_unmap (mem, &map);
 
           if (ecode != 0) {
@@ -330,7 +334,7 @@ gst_tensor_query_serversrc_create (GstPushSrc * psrc, GstBuffer ** outbuf)
         }
 
         /* receive end */
-        if (nnstreamer_query_receive (conn, &cmd_data, src->timeout) != 0 ||
+        if (0 != nnstreamer_query_receive (conn, &cmd_data, 1) ||
             cmd_data.cmd != _TENSOR_QUERY_CMD_TRANSFER_END) {
           nns_logi ("Failed to receive end command");
           goto reset_buffer;
