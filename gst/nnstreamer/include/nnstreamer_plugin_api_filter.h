@@ -595,7 +595,7 @@ nnstreamer_filter_shared_model_insert_and_get (void *instance, char *key, void *
  * @param[in] instance The instance that should be removed from the referred list.
  * @param[in] key The key to find the shared model.
  * @param[in] free_callback The callback function to destroy the interpreter, which takes the interpreter as arg.
- * @return TRUE if the new key and value are removed. FALSE if failed to remove it.
+ * @return TRUE if the instance is removed. FALSE if failed to remove it.
  */
 extern int
 nnstreamer_filter_shared_model_remove (void *instance, const char *key,

@@ -92,8 +92,11 @@ static gint _gtfc_setprop_IS_UPDATABLE (GstTensorFilterPrivate * priv,
 static gint _gtfc_setprop_ACCELERATOR (GstTensorFilterPrivate * priv,
     GstTensorFilterProperties * prop, const GValue * value);
 
+/**
+ * @brief mutex for shared model table.
+ */
+G_LOCK_DEFINE_STATIC (shared_model_table);
 static GHashTable *shared_model_table = NULL;
-static GMutex mutex;            /* mutex for shared model table */
 
 /**
  * @brief GstTensorFilter properties.
@@ -1055,17 +1058,21 @@ gst_tensor_filter_common_free_property (GstTensorFilterPrivate * priv)
     g_queue_free (queue);
   }
 
+  G_LOCK (shared_model_table);
   if (shared_model_table) {
+    GstTensorFilterSharedModelRepresenatation *rep;
     GList *value = g_hash_table_get_values (shared_model_table);
+
     while (value) {
-      GstTensorFilterSharedModelRepresenatation *rep =
-          (GstTensorFilterSharedModelRepresenatation *) value;
+      rep = (GstTensorFilterSharedModelRepresenatation *) value->data;
       g_list_free (rep->referred_list);
+      value = g_list_next (value);
     }
+
     g_hash_table_destroy (shared_model_table);
     shared_model_table = NULL;
-    g_mutex_clear (&mutex);
   }
+  G_UNLOCK (shared_model_table);
 }
 
 /**
@@ -1874,11 +1881,12 @@ _gtfc_setprop_SHARED_TENSOR_FILTER_KEY (GstTensorFilterProperties * prop,
   g_free (prop->shared_tensor_filter_key);
   prop->shared_tensor_filter_key = g_value_dup_string (value);
 
+  G_LOCK (shared_model_table);
   if (!shared_model_table) {
     shared_model_table =
         g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
-    g_mutex_init (&mutex);
   }
+  G_UNLOCK (shared_model_table);
 
   return 0;
 }
@@ -2860,25 +2868,26 @@ gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw,
 void *
 nnstreamer_filter_shared_model_get (void *instance, const char *key)
 {
-  GstTensorFilterSharedModelRepresenatation *model_rep;
+  GstTensorFilterSharedModelRepresenatation *model_rep = NULL;
 
+  G_LOCK (shared_model_table);
   if (!shared_model_table) {
     ml_loge ("The shared model representation is not supported properly!");
-    return NULL;
+    goto done;
   }
-  g_mutex_lock (&mutex);
+
   model_rep = g_hash_table_lookup (shared_model_table, key);
   if (!model_rep) {
     ml_logi ("There is no value of the key: %s", key);
-    g_mutex_unlock (&mutex);
-    return NULL;
+    goto done;
   }
   if (!g_list_find (model_rep->referred_list, instance))
     model_rep->referred_list =
         g_list_append (model_rep->referred_list, instance);
-  g_mutex_unlock (&mutex);
 
-  return model_rep->shared_interpreter;
+done:
+  G_UNLOCK (shared_model_table);
+  return model_rep ? model_rep->shared_interpreter : NULL;
 }
 
 /* extern functions for shared model representation */
@@ -2896,10 +2905,6 @@ nnstreamer_filter_shared_model_insert_and_get (void *instance, char *key,
   GstTensorFilterSharedModelRepresenatation *model_rep;
 
   /* validate arguments */
-  if (!shared_model_table) {
-    ml_loge ("The shared model representation is not supported properly!");
-    return NULL;
-  }
   if (!instance) {
     ml_loge ("The instance should NOT be NULL!");
     return NULL;
@@ -2913,10 +2918,19 @@ nnstreamer_filter_shared_model_insert_and_get (void *instance, char *key,
     return NULL;
   }
 
-  g_mutex_lock (&mutex);
+  G_LOCK (shared_model_table);
+  if (!shared_model_table) {
+    ml_loge ("The shared model representation is not supported properly!");
+    goto done;
+  }
+
   if (g_hash_table_lookup (shared_model_table, key)) {
-    g_mutex_unlock (&mutex);
-    return NULL;
+    /**
+     * Internal error case.
+     * The interpreter already exists in shared table, do not insert and return null.
+     */
+    interpreter = NULL;
+    goto done;
   }
   model_rep = (GstTensorFilterSharedModelRepresenatation *)
       g_malloc0 (sizeof (GstTensorFilterSharedModelRepresenatation));
@@ -2924,7 +2938,9 @@ nnstreamer_filter_shared_model_insert_and_get (void *instance, char *key,
   model_rep->referred_list = g_list_append (model_rep->referred_list, instance);
   g_hash_table_insert (shared_model_table, g_strdup (key),
       (gpointer) model_rep);
-  g_mutex_unlock (&mutex);
+
+done:
+  G_UNLOCK (shared_model_table);
   return interpreter;
 }
 
@@ -2935,40 +2951,41 @@ nnstreamer_filter_shared_model_insert_and_get (void *instance, char *key,
  * @param[in] instance The instance that should be removed from the referred list.
  * @param[in] key The key to find the shared model.
  * @param[in] free_callback The callback function to destroy the interpreter, which takes the interpreter as arg.
- * @return TRUE if the new key and value are removed. FALSE if failed to remove it.
+ * @return TRUE if the instance is removed. FALSE if failed to remove it.
  */
 int
 nnstreamer_filter_shared_model_remove (void *instance, const char *key,
     void (*free_callback) (void *))
 {
   GstTensorFilterSharedModelRepresenatation *model_rep;
-  int ret = TRUE;
+  int ret = FALSE;
 
   /* search the table with key */
+  G_LOCK (shared_model_table);
   if (!shared_model_table) {
     ml_loge ("The shared model representation is not supported properly!");
-    return FALSE;
+    goto done;
   }
 
-  g_mutex_lock (&mutex);
   model_rep = g_hash_table_lookup (shared_model_table, key);
   if (!model_rep) {
     ml_loge ("There is no value of the key: %s", key);
-    g_mutex_unlock (&mutex);
-    return FALSE;
+    goto done;
   }
 
   /* remove instance from the list */
   model_rep->referred_list = g_list_remove (model_rep->referred_list, instance);
   ml_logd ("The referred instance of sharing key: %s has been removed!", key);
+  ret = TRUE;
 
   /* remove key from table if list is empty */
   if (g_list_length (model_rep->referred_list) == 0) {
     if (free_callback)
       free_callback (model_rep->shared_interpreter);
-    ret = g_hash_table_remove (shared_model_table, key);
+    g_hash_table_remove (shared_model_table, key);
   }
-  g_mutex_unlock (&mutex);
 
+done:
+  G_UNLOCK (shared_model_table);
   return ret;
 }
