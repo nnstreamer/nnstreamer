@@ -368,6 +368,8 @@ int
 nnstreamer_query_close (query_connection_handle connection)
 {
   TensorQueryConnection *conn = (TensorQueryConnection *) connection;
+  int ret = 0;
+
   if (!conn) {
     nns_loge ("Invalid connection data");
     return -EINVAL;
@@ -379,19 +381,20 @@ nnstreamer_query_close (query_connection_handle connection)
       if (!g_socket_close (conn->socket, &err)) {
         nns_loge ("Failed to close socket: %s", err->message);
         g_error_free (err);
-        return -EREMOTEIO;
       }
       g_object_unref (conn->socket);
       g_object_unref (conn->cancellable);
-    }
       break;
+    }
     default:
       /* NYI */
-      return -EPROTONOSUPPORT;
+      ret = -EPROTONOSUPPORT;
+      break;
   }
+
   g_free (conn->host);
   g_free (conn);
-  return 0;
+  return ret;
 }
 
 /**
