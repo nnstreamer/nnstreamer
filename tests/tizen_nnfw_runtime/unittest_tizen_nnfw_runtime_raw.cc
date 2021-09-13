@@ -295,7 +295,7 @@ get_argmax (guint8 *array, size_t size)
  */
 TEST (nnstreamerNnfwRuntimeRawFunctions, invokeAdvanced)
 {
-  int ret;
+  int ret = -1;
   void *data = NULL;
   gchar *model_file, *manifest_file, *data_file;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
@@ -306,8 +306,9 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, invokeAdvanced)
   char *replace_command;
   gsize data_read;
   size_t max_idx;
-  gboolean status;
   GstTensorFilterProperties prop;
+
+  model_file = manifest_file = data_file = NULL;
 
   /* supposed to run test in build directory */
   if (root_path == NULL)
@@ -316,20 +317,10 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, invokeAdvanced)
   /** nnfw needs a directory with model file and metadata in that directory */
   model_file = g_build_filename (root_path, "tests", "test_models", "models",
       "mobilenet_v1_1.0_224_quant.tflite", NULL);
-  status = g_file_test (model_file, G_FILE_TEST_EXISTS);
-  if (!status) {
-    g_free (model_file);
-    ASSERT_EQ (status, TRUE);
-  }
-
   manifest_file = g_build_filename (
       root_path, "tests", "test_models", "models", "metadata", "MANIFEST", NULL);
-  status = g_file_test (manifest_file, G_FILE_TEST_EXISTS);
-  if (!status) {
-    g_free (model_file);
-    g_free (manifest_file);
-    ASSERT_EQ (status, TRUE);
-  }
+  data_file = g_build_filename (
+      root_path, "tests", "test_models", "data", "orange.raw", NULL);
 
   const gchar *model_files[] = {
     model_file, NULL,
@@ -338,15 +329,19 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, invokeAdvanced)
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("nnfw");
   EXPECT_NE (sp, (void *)NULL);
 
+  if (!g_file_test (model_file, G_FILE_TEST_EXISTS) ||
+      !g_file_test (manifest_file, G_FILE_TEST_EXISTS) ||
+      !g_file_test (data_file, G_FILE_TEST_EXISTS)) {
+    goto failed;
+  }
+
   replace_command = g_strdup_printf ("sed -i '/%s/c\\\"models\" : [ \"%s\" ],' %s",
       orig_model, new_model, manifest_file);
   ret = system (replace_command);
   g_free (replace_command);
 
   if (ret != 0) {
-    g_free (model_file);
-    g_free (manifest_file);
-    ASSERT_EQ (ret, 0);
+    goto failed;
   }
 
   gst_tensors_info_init (&info);
@@ -398,9 +393,7 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, invokeAdvanced)
   input.data = NULL;
   output.data = g_malloc (output.size);
 
-  data_file = g_build_filename (
-      root_path, "tests", "test_models", "data", "orange.raw", NULL);
-  status = g_file_get_contents (data_file, (gchar **)&input.data, &data_read, NULL);
+  EXPECT_TRUE (g_file_get_contents (data_file, (gchar **)&input.data, &data_read, NULL));
   EXPECT_EQ (data_read, input.size);
 
   ret = sp->invoke_NN (&prop, &data, &input, &output);
@@ -412,19 +405,21 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, invokeAdvanced)
   max_idx = get_argmax ((guint8 *)output.data, output.size);
   EXPECT_EQ (max_idx, 951U);
 
-  g_free (data_file);
   g_free (output.data);
   g_free (input.data);
-  g_free (model_file);
   sp->close (&prop, &data);
 
   replace_command = g_strdup_printf ("sed -i '/%s/c\\\"models\" : [ \"%s\" ],' %s",
       new_model, orig_model, manifest_file);
   ret = system (replace_command);
   g_free (replace_command);
-  g_free (manifest_file);
   gst_tensors_info_free (&info);
   gst_tensors_info_free (&res);
+
+failed:
+  g_free (model_file);
+  g_free (manifest_file);
+  g_free (data_file);
   ASSERT_EQ (ret, 0);
 }
 
