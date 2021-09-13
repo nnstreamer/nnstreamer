@@ -353,7 +353,7 @@ gst_tensor_query_client_sink_event (GstPad * pad,
         }
 
         /** Receive client ID from server src */
-        if (0 != nnstreamer_query_receive (self->src_conn, &cmd_buf, -1)) {
+        if (0 != nnstreamer_query_receive (self->src_conn, &cmd_buf, 1)) {
           nns_loge ("Failed to receive client ID.");
           goto done;
         }
@@ -368,8 +368,7 @@ gst_tensor_query_client_sink_event (GstPad * pad,
           goto done;
         }
 
-        if (0 != nnstreamer_query_receive (self->src_conn, &cmd_buf,
-                DEFAULT_TIMEOUT_MS)) {
+        if (0 != nnstreamer_query_receive (self->src_conn, &cmd_buf, 1)) {
           nns_loge ("Failed to receive response from the query server.");
           goto done;
         }
@@ -561,8 +560,7 @@ gst_tensor_query_client_chain (GstPad * pad,
     return GST_FLOW_ERROR;
   }
   /** Receive start command buffer */
-  if (0 != nnstreamer_query_receive (self->sink_conn, &cmd_buf,
-          DEFAULT_TIMEOUT_MS)) {
+  if (0 != nnstreamer_query_receive (self->sink_conn, &cmd_buf, 1)) {
     nns_loge ("Failed to receive start command buffer");
     return GST_FLOW_ERROR;
   }
@@ -599,8 +597,7 @@ gst_tensor_query_client_chain (GstPad * pad,
     }
     cmd_buf.data.data = out_info.data;
 
-    ecode = nnstreamer_query_receive (self->sink_conn, &cmd_buf,
-        DEFAULT_TIMEOUT_MS);
+    ecode = nnstreamer_query_receive (self->sink_conn, &cmd_buf, 1);
     gst_memory_unmap (out_mem, &out_info);
 
     if (ecode != 0) {
@@ -610,8 +607,7 @@ gst_tensor_query_client_chain (GstPad * pad,
   }
 
   /** Receive end command buffer */
-  if (0 != nnstreamer_query_receive (self->sink_conn, &cmd_buf,
-          DEFAULT_TIMEOUT_MS)) {
+  if (0 != nnstreamer_query_receive (self->sink_conn, &cmd_buf, 1)) {
     nns_loge ("Failed to receive end command buffer");
     goto error;
   }
