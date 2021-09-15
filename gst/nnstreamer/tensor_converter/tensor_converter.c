@@ -788,8 +788,8 @@ _gst_tensor_converter_chain_timestamp (GstTensorConverter * self,
     if (!GST_CLOCK_TIME_IS_VALID (duration)) {
       if (have_framerate) {
         duration =
-            gst_util_uint64_scale_int (frames_in * config->rate_d, GST_SECOND,
-            config->rate_n);
+            gst_util_uint64_scale_int ((guint64) frames_in * config->rate_d,
+            GST_SECOND, config->rate_n);
 
         GST_BUFFER_DURATION (inbuf) = duration;
       }
@@ -1037,7 +1037,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       type = gst_tensor_get_element_size (config->info.info[0].type);
 
       /** colorspace * width * height * type */
-      frame_size = color * width * height * type;
+      frame_size = (gsize) (color * width * height * type);
 
       /** supposed 1 frame in buffer */
       g_assert ((buf_size / self->frame_size) == 1);
@@ -1065,7 +1065,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         /**
          * Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html
          */
-        size = offset = color * width * type;
+        size = offset = (size_t) (color * width * type);
 
         g_assert (offset % 4); /** Internal logic error! */
         if (offset % 4) {

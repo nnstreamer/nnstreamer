@@ -13,8 +13,6 @@
 # @bug    No known bugs
 
 from datetime import date
-import sys
-import string
 import re
 
 

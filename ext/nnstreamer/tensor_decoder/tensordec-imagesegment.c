@@ -584,7 +584,7 @@ is_decode (void **pdata, const GstTensorsConfig * config,
     const GstTensorMemory * input, GstBuffer * outbuf)
 {
   image_segments *idata = *pdata;
-  const size_t size = idata->width * idata->height * RGBA_CHANNEL;
+  const size_t size = (size_t) idata->width * idata->height * RGBA_CHANNEL;
   gboolean need_output_alloc;
   GstMapInfo out_info;
   GstMemory *out_mem;

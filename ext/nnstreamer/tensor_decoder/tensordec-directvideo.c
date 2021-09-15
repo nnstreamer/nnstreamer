@@ -270,7 +270,7 @@ static size_t
 _get_video_xraw_bufsize (const tensor_dim dim)
 {
   /* dim[0] is bpp and there is zeropadding only when dim[0]%4 > 0 */
-  return ((dim[0] * dim[1] - 1) / 4 + 1) * 4 * dim[2];
+  return (size_t)((dim[0] * dim[1] - 1) / 4 + 1) * 4 * dim[2];
 }
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
@@ -332,7 +332,7 @@ dv_decode (void **pdata, const GstTensorsConfig * config,
     ptr = (uint8_t *) out_info.data;
     inp = (uint8_t *) input->data;
     for (h = 0; h < dim[2]; h++) {
-      memcpy (ptr, inp, dim[0] * dim[1]);
+      memcpy (ptr, inp, (size_t) dim[0] * dim[1]);
       inp += (dim[0] * dim[1]);
       ptr += ((dim[0] * dim[1] - 1) / 4 + 1) * 4;
     }
