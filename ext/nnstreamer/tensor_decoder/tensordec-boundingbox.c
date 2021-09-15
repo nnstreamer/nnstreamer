@@ -347,6 +347,7 @@ _exit_modes (bounding_boxes * bdata)
   if (_check_mode_is_mobilenet_ssd (bdata->mode)) {
     /* properties_MOBILENET_SSD *data = &bdata->mobilenet_ssd; */
   } else if (_check_mode_is_mobilenet_ssd_pp (bdata->mode)) {
+    /* post processing */
   }
 }
 
@@ -1179,7 +1180,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
     const GstTensorMemory * input, GstBuffer * outbuf)
 {
   bounding_boxes *bdata = *pdata;
-  const size_t size = bdata->width * bdata->height * 4; /* RGBA */
+  const size_t size = (size_t) bdata->width * bdata->height * 4; /* RGBA */
   GstMapInfo out_info;
   GstMemory *out_mem;
   GArray *results = NULL;

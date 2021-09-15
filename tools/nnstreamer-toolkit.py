@@ -14,7 +14,6 @@
 # @note   TODO/NYI: Interconnect a front-end GUI application and back-end tools.
 
 import gtk
-import pango
 
 
 ##

@@ -706,7 +706,7 @@ pose_decode (void **pdata, const GstTensorsConfig * config,
     const GstTensorMemory * input, GstBuffer * outbuf)
 {
   pose_data *data = *pdata;
-  const size_t size = data->width * data->height * 4;   /* RGBA */
+  const size_t size = (size_t) data->width * data->height * 4;   /* RGBA */
   GstMapInfo out_info;
   GstMemory *out_mem;
   GArray *results = NULL;
