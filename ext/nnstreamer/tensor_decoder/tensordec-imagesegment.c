@@ -518,7 +518,7 @@ set_label_index (image_segments * idata, void *data)
   guint total_labels = idata->max_labels + 1;
 
   memset (idata->segment_map, '\x00',
-      idata->width * idata->height * sizeof (float));
+      (size_t) idata->width * idata->height * sizeof (float));
 
   for (i = 0; i < idata->height; i++) {
     for (j = 0; j < idata->width; j++) {

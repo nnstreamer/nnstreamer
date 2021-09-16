@@ -1753,7 +1753,7 @@ gst_tensor_meta_info_convert (GstTensorMetaInfo * meta, GstTensorInfo * info)
 
   info->type = meta->type;
 
-  for (i = 0; i < NNS_TENSOR_META_RANK_LIMIT; i++) {
+  for (i = 0; i < NNS_TENSOR_META_RANK_LIMIT; i++) {    /* lgtm[cpp/constant-comparison] */
     if (i >= NNS_TENSOR_RANK_LIMIT) {
       if (meta->dimension[i] > 0) {
         nns_loge ("Given meta has invalid dimension (dimension[%u] %u).",

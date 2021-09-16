@@ -1036,8 +1036,8 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       height = config->info.info[0].dimension[2];
       type = gst_tensor_get_element_size (config->info.info[0].type);
 
-      /** colorspace * width * height * type */
-      frame_size = (gsize) (color * width * height * type);
+      /** type * colorspace * width * height */
+      frame_size = type * color * width * height;
 
       /** supposed 1 frame in buffer */
       g_assert ((buf_size / self->frame_size) == 1);
@@ -1065,7 +1065,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         /**
          * Refer: https://gstreamer.freedesktop.org/documentation/design/mediatype-video-raw.html
          */
-        size = offset = (size_t) (color * width * type);
+        size = offset = type * color * width;
 
         g_assert (offset % 4); /** Internal logic error! */
         if (offset % 4) {

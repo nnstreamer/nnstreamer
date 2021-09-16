@@ -1226,7 +1226,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
     results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), 100);
 
     boxes = &input[0];
-    if (num_tensors >= MOBILENET_SSD_MAX_TENSORS)
+    if (num_tensors >= MOBILENET_SSD_MAX_TENSORS) /* lgtm[cpp/constant-comparison] */
       detections = &input[1];
 
     switch (config->info.info[0].type) {
