@@ -178,6 +178,10 @@ if not get_option('snpe-support').disabled()
   # Check whether the platform supports snpe
   snpe_dep = dependency('snpe', required: false)
   if (not snpe_dep.found())
+    # TODO: support various arch.
+    if host_machine.system() != 'linux' or host_machine.cpu_family() != 'x86_64'
+      error('Not Supported System & Architecture. Linux x86_64 is required for snpe sub-plugin')
+    endif
     # Check whether $SNPE_ROOT (where SNPE SDK is located) is set.
     cmd = run_command('sh', '-c', 'echo $SNPE_ROOT')
     SNPE_ROOT = cmd.stdout().strip()
@@ -189,11 +193,11 @@ if not get_option('snpe-support').disabled()
       endif
 
       snpe_lib = cxx.find_library('libSNPE',
-        dirs: join_paths(SNPE_ROOT, 'lib/x86_64-linux-clang'),
+        dirs: join_paths(SNPE_ROOT, 'lib', 'x86_64-linux-clang'),
         required: true
       )
 
-      snpe_incdir = include_directories(join_paths(SNPE_ROOT, 'include/zdl'))
+      snpe_incdir = include_directories(join_paths(SNPE_ROOT, 'include', 'zdl'))
 
       snpe_dep = declare_dependency(
         dependencies: snpe_lib,
