@@ -669,7 +669,7 @@ armnn_open (const GstTensorFilterProperties *prop, void **private_data)
   if (prop->model_files[0] == NULL)
     return -EINVAL;
 
-  hw = parse_accl_hw (prop->accl_str, armnn_accl_support);
+  hw = parse_accl_hw (prop->accl_str, armnn_accl_support, NULL, NULL);
   try {
     core = new ArmNNCore (prop->model_files[0], hw);
   } catch (const std::bad_alloc &ex) {
