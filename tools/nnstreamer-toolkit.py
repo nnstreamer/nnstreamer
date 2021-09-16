@@ -142,7 +142,7 @@ class PyApp(gtk.Window):
     def on_color(self, widget):
         # Color Chooser Dialog usage code
         dlg = gtk.ColorSelectionDialog("Select color")
-        col = dlg.run()
+        dlg.run()
         sel = dlg.colorsel.get_current_color()
         self.text.modify_fg(gtk.STATE_NORMAL, sel)
 

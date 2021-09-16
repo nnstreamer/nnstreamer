@@ -452,7 +452,7 @@ if __name__ == '__main__':
     cfile.close()
 
     # 6. Generate .meson file
-    mesoncode = meson_script.format(fname=fname, name=name, sname=sname, today=today)
+    mesoncode = meson_script.format(fname=fname)
     mesonfile = open("meson.build", "w")
     mesonfile.write(mesoncode)
     mesonfile.close()
