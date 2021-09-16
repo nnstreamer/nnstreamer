@@ -49,6 +49,7 @@
 #undef NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_conf.h>
 #include <nnstreamer_plugin_api.h>
+#include <nnstreamer_util.h>
 
 static const gchar *armnn_accl_support[]
     = { ACCL_CPU_NEON_STR, /** ACCL for default and auto config */
@@ -241,6 +242,9 @@ int
 ArmNNCore::makeTfNetwork (std::map<std::string, armnn::TensorShape> &input_map,
     std::vector<std::string> &output_vec)
 {
+  UNUSED (input_map);
+  UNUSED (output_vec);
+
   /** @todo fill this */
   return -EPERM;
 }
@@ -635,6 +639,7 @@ static void
 armnn_close (const GstTensorFilterProperties *prop, void **private_data)
 {
   ArmNNCore *core;
+  UNUSED (prop);
 
   core = static_cast<ArmNNCore *> (*private_data);
   if (core == NULL)
@@ -700,6 +705,7 @@ armnn_invoke (const GstTensorFilterProperties *prop, void **private_data,
     const GstTensorMemory *input, GstTensorMemory *output)
 {
   ArmNNCore *core;
+  UNUSED (prop);
 
   g_return_val_if_fail (private_data != NULL, -EINVAL);
   g_return_val_if_fail (*private_data != NULL, -EINVAL);
@@ -722,6 +728,7 @@ armnn_getInputDim (const GstTensorFilterProperties *prop, void **private_data,
     GstTensorsInfo *info)
 {
   ArmNNCore *core;
+  UNUSED (prop);
 
   g_return_val_if_fail (*private_data != NULL, -EINVAL);
   g_return_val_if_fail (info != NULL, -EINVAL);
@@ -742,6 +749,7 @@ armnn_getOutputDim (const GstTensorFilterProperties *prop, void **private_data,
     GstTensorsInfo *info)
 {
   ArmNNCore *core;
+  UNUSED (prop);
 
   g_return_val_if_fail (*private_data != NULL, -EINVAL);
   g_return_val_if_fail (info != NULL, -EINVAL);
