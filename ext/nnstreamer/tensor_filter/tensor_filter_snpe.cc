@@ -93,8 +93,11 @@ class snpe_subplugin final : public tensor_filter_subplugin
   bool configure_option (const GstTensorFilterProperties *prop);
   bool parse_custom_prop (const char *custom_prop);
   bool set_output_layer_names (const GstTensorsInfo *info);
-  static void setTensorProp (GstTensorsInfo &tensor_meta, zdl::DlSystem::TensorMap &tensor_map);
+  static void setTensorProp (GstTensorsInfo &tensor_meta, zdl::DlSystem::TensorMap &tensor_map, tensor_type data_type);
   static const char *runtimeToString (zdl::DlSystem::Runtime_t runtime);
+
+  tensor_type input_data_type;
+  tensor_type output_data_type;
 
   public:
   static void init_filter_snpe ();
@@ -119,7 +122,8 @@ const char *snpe_subplugin::name = "snpe";
 snpe_subplugin::snpe_subplugin ()
     : tensor_filter_subplugin (), empty_model (true), model_path (nullptr),
       runtime_list (zdl::DlSystem::Runtime_t::CPU), use_cpu_fallback (false),
-      container (nullptr), snpe (nullptr)
+      container (nullptr), snpe (nullptr), input_data_type (_NNS_FLOAT32),
+      output_data_type (_NNS_FLOAT32)
 {
   gst_tensors_info_init (std::addressof (inputInfo));
   gst_tensors_info_init (std::addressof (outputInfo));
@@ -292,6 +296,22 @@ snpe_subplugin::parse_custom_prop (const char *custom_prop)
           output_layer_names.emplace_back (std::string (names[i]));
         }
         g_strfreev (names);
+      } else if (g_ascii_strcasecmp (option[0], "InputType") == 0) {
+        if (g_ascii_strcasecmp (option[1], "uint8") == 0) {
+          input_data_type = _NNS_UINT8;
+          nns_logi ("Set input data type as uint8");
+        } else {
+          input_data_type = _NNS_FLOAT32;
+          nns_logi ("Set input data type as default (float32)");
+        }
+      } else if (g_ascii_strcasecmp (option[0], "OutputType") == 0) {
+        if (g_ascii_strcasecmp (option[1], "uint8") == 0) {
+          output_data_type = _NNS_UINT8;
+          nns_logi ("Set output data type as uint8");
+        } else {
+          output_data_type = _NNS_FLOAT32;
+          nns_logi ("Set output data type as default (float32)");
+        }
       } else {
         nns_logw ("Unknown option (%s).", options[op]);
       }
@@ -341,7 +361,7 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   }
 
   if (!empty_model) {
-    /* Already opend */
+    /* Already opened */
 
     if (!prop->model_files[0] || prop->model_files[0][0] == '\0') {
       std::cerr << "Model path is not given." << std::endl;
@@ -394,8 +414,8 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   /* do execution for get info of output tensors */
   snpe->execute (input_tensor_map, output_tensor_map);
 
-  setTensorProp (inputInfo, input_tensor_map);
-  setTensorProp (outputInfo, output_tensor_map);
+  setTensorProp (inputInfo, input_tensor_map, input_data_type);
+  setTensorProp (outputInfo, output_tensor_map, output_data_type);
 
   output_tensor_map.clear ();
 
@@ -417,9 +437,23 @@ snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 
   /* Configure inputs */
   for (unsigned int i = 0; i < inputInfo.num_tensors; ++i) {
-    float *finput = (float *)input[i].data;
     size_t fsize = input_tensors[i].get ()->getSize ();
-    std::copy (finput, finput + fsize, input_tensors[i].get ()->begin ());
+
+    switch (input_data_type) {
+      case _NNS_FLOAT32: {
+        float *inbuf = (float *) input[i].data;
+        std::copy (inbuf, inbuf + fsize, input_tensors[i].get ()->begin ());
+        break;
+      }
+      case _NNS_UINT8: {
+        uint8_t *inbuf = (uint8_t *) input[i].data;
+        std::copy (inbuf, inbuf + fsize, input_tensors[i].get ()->begin ());
+        break;
+      }
+      default:
+        throw std::runtime_error ("Got invalid input data type");
+        break;
+    }
   }
 
   output_tensor_map.clear ();
@@ -428,8 +462,22 @@ snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
   for (unsigned int i = 0; i < outputInfo.num_tensors; ++i) {
     zdl::DlSystem::ITensor *output_tensor
         = output_tensor_map.getTensor (output_tensor_map.getTensorNames ().at (i));
-    float *foutput = (float *)output[i].data;
-    std::copy (output_tensor->cbegin (), output_tensor->cend (), foutput);
+
+    switch (output_data_type) {
+      case _NNS_FLOAT32: {
+        float *outbuf = (float *) output[i].data;
+        std::copy (output_tensor->cbegin (), output_tensor->cend (), outbuf);
+        break;
+      }
+      case _NNS_UINT8: {
+        uint8_t *outbuf = (uint8_t *) output[i].data;
+        std::copy (output_tensor->cbegin (), output_tensor->cend (), outbuf);
+        break;
+      }
+      default:
+        throw std::runtime_error ("Got invalid output data type");
+        break;
+    }
   }
 
 #if (DBG)
@@ -484,12 +532,12 @@ snpe_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &
  * @brief Method to set tensor properties.
  */
 void
-snpe_subplugin::setTensorProp (GstTensorsInfo &tensor_meta, zdl::DlSystem::TensorMap &tensor_map)
+snpe_subplugin::setTensorProp (GstTensorsInfo &tensor_meta, zdl::DlSystem::TensorMap &tensor_map, tensor_type data_type)
 {
   tensor_meta.num_tensors = tensor_map.size ();
   for (unsigned int i = 0; i < tensor_map.size (); ++i) {
     tensor_meta.info[i].name = g_strdup (tensor_map.getTensorNames ().at (i));
-    tensor_meta.info[i].type = _NNS_FLOAT32;
+    tensor_meta.info[i].type = data_type;
 
     unsigned int rank
         = tensor_map.getTensor (tensor_meta.info[i].name)->getShape ().rank ();
@@ -518,6 +566,10 @@ snpe_subplugin::init_filter_snpe (void)
       "Set true to enable CPU fallback {'true' (default), 'false'}",
       "OutputLayer",
       "Layer names for the output, separated by ';'. E.g., 'layer0;layer1;layer2'",
+      "InputType",
+      "Set the data type of the input {'float32 (default)', 'uint8'}",
+      "OutputType",
+      "Set the data type of the output {'float32 (default)', 'uint8'}",
       NULL);
 }
 
