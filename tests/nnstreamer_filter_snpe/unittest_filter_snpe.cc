@@ -21,14 +21,14 @@
  * @brief internal function to get model filename
  */
 static gboolean
-_GetModelFilePath (gchar ** model_file)
+_GetModelFilePath (gchar ** model_file, gboolean is_float_model)
 {
   const gchar *src_root = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *root_path = src_root ? g_strdup (src_root) : g_get_current_dir ();
-  const gchar model_name[] = "add2_float.dlc";
+  std::string model_name = is_float_model ? "add2_float.dlc" : "add2_uint8.dlc";
 
   *model_file = g_build_filename (
-      root_path, "tests", "test_models", "models", model_name, NULL);
+      root_path, "tests", "test_models", "models", model_name.c_str (), NULL);
 
   g_free (root_path);
 
@@ -39,13 +39,15 @@ _GetModelFilePath (gchar ** model_file)
  * @brief Set tensor filter properties
  */
 static void
-_SetFilterProp (GstTensorFilterProperties *prop, const gchar *name, const gchar **models)
+_SetFilterProp (GstTensorFilterProperties *prop, const gchar *name, const gchar **models, gboolean is_float_model)
 {
   memset (prop, 0, sizeof (GstTensorFilterProperties));
   prop->fwname = name;
   prop->fw_opened = 0;
   prop->model_files = models;
   prop->num_models = g_strv_length ((gchar **) models);
+  if (!is_float_model)
+    prop->custom_properties = "InputType:uint8,OutputType:uint8";
 }
 
 /**
@@ -57,7 +59,7 @@ TEST (nnstreamerFilterSnpe, getModelInfo00)
   void *data = NULL;
   gchar *model_file;
   GstTensorFilterProperties prop;
-  ASSERT_TRUE (_GetModelFilePath (&model_file));
+  ASSERT_TRUE (_GetModelFilePath (&model_file, TRUE));
 
   const gchar *model_files[] = {
     model_file,
@@ -66,7 +68,7 @@ TEST (nnstreamerFilterSnpe, getModelInfo00)
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("snpe");
   ASSERT_TRUE (sp != nullptr);
-  _SetFilterProp (&prop, "snpe", model_files);
+  _SetFilterProp (&prop, "snpe", model_files, TRUE);
 
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);
@@ -103,7 +105,7 @@ TEST (nnstreamerFilterSnpe, getModelInfo01_n)
   void *data = NULL;
   gchar *model_file;
   GstTensorFilterProperties prop;
-  ASSERT_TRUE (_GetModelFilePath (&model_file));
+  ASSERT_TRUE (_GetModelFilePath (&model_file, TRUE));
 
   const gchar *model_files[] = {
     model_file,
@@ -117,7 +119,7 @@ TEST (nnstreamerFilterSnpe, getModelInfo01_n)
 
   ret = sp->getModelInfo (NULL, NULL, data, SET_INPUT_INFO, &in_info, &out_info);
   EXPECT_NE (ret, 0);
-  _SetFilterProp (&prop, "snpe", model_files);
+  _SetFilterProp (&prop, "snpe", model_files, TRUE);
 
   sp->close (&prop, &data);
   g_free (model_file);
@@ -132,7 +134,7 @@ TEST (nnstreamerFilterSnpe, getModelInfo02_n)
   void *data = NULL;
   gchar *model_file;
   GstTensorFilterProperties prop;
-  ASSERT_TRUE (_GetModelFilePath (&model_file));
+  ASSERT_TRUE (_GetModelFilePath (&model_file, TRUE));
 
   const gchar *model_files[] = {
     model_file,
@@ -141,7 +143,7 @@ TEST (nnstreamerFilterSnpe, getModelInfo02_n)
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("snpe");
   ASSERT_TRUE (sp != nullptr);
-  _SetFilterProp (&prop, "snpe", model_files);
+  _SetFilterProp (&prop, "snpe", model_files, TRUE);
 
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);
@@ -158,7 +160,7 @@ TEST (nnstreamerFilterSnpe, getModelInfo02_n)
 }
 
 /**
- * @brief Test snpe subplugin with successful invoke for sample dlc model
+ * @brief Test snpe subplugin with successful invoke for sample dlc model (input data type: float)
  */
 TEST (nnstreamerFilterSnpe, invoke00)
 {
@@ -168,7 +170,7 @@ TEST (nnstreamerFilterSnpe, invoke00)
   gchar *model_file;
   GstTensorFilterProperties prop;
 
-  ASSERT_TRUE (_GetModelFilePath (&model_file));
+  ASSERT_TRUE (_GetModelFilePath (&model_file, TRUE));
   const gchar *model_files[] = {
     model_file,
     NULL,
@@ -176,7 +178,7 @@ TEST (nnstreamerFilterSnpe, invoke00)
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("snpe");
   ASSERT_TRUE (sp != nullptr);
-  _SetFilterProp (&prop, "snpe", model_files);
+  _SetFilterProp (&prop, "snpe", model_files, TRUE);
 
   output.size = input.size = sizeof (float) * 1;
   input.data = g_malloc0 (input.size);
@@ -207,6 +209,55 @@ TEST (nnstreamerFilterSnpe, invoke00)
 }
 
 /**
+ * @brief Test snpe subplugin with successful invoke for sample dlc model (input data type: uint8)
+ */
+TEST (nnstreamerFilterSnpe, invoke01)
+{
+  int ret;
+  void *data = NULL;
+  GstTensorMemory input, output;
+  gchar *model_file;
+  GstTensorFilterProperties prop;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, FALSE));
+  const gchar *model_files[] = {
+    model_file,
+    NULL,
+  };
+
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("snpe");
+  ASSERT_TRUE (sp != nullptr);
+  _SetFilterProp (&prop, "snpe", model_files, FALSE);
+
+  output.size = input.size = sizeof (uint8_t) * 1;
+  input.data = g_malloc0 (input.size);
+  output.data = g_malloc0 (output.size);
+
+  ret = sp->open (&prop, &data);
+  ASSERT_EQ (ret, 0);
+
+  /** invoke successful */
+  ret = sp->invoke (NULL, NULL, data, &input, &output);
+  EXPECT_EQ (ret, 0);
+  EXPECT_EQ (static_cast<uint8_t *> (output.data)[0], 2);
+
+  static_cast<uint8_t *> (input.data)[0] = 10;
+  ret = sp->invoke (NULL, NULL, data, &input, &output);
+  EXPECT_EQ (ret, 0);
+  EXPECT_EQ (static_cast<uint8_t *> (output.data)[0], 12);
+
+  static_cast<uint8_t *> (input.data)[0] = 1;
+  ret = sp->invoke (NULL, NULL, data, &input, &output);
+  EXPECT_EQ (ret, 0);
+  EXPECT_EQ (static_cast<uint8_t *> (output.data)[0], 3);
+
+  g_free (input.data);
+  g_free (output.data);
+  sp->close (&prop, &data);
+  g_free (model_file);
+}
+
+/**
  * @brief Negative case with invalid input/output
  */
 TEST (nnstreamerFilterSnpe, invoke01_n)
@@ -217,7 +268,7 @@ TEST (nnstreamerFilterSnpe, invoke01_n)
   gchar *model_file;
   GstTensorFilterProperties prop;
 
-  ASSERT_TRUE (_GetModelFilePath (&model_file));
+  ASSERT_TRUE (_GetModelFilePath (&model_file, TRUE));
   const gchar *model_files[] = {
     model_file,
     NULL,
@@ -225,7 +276,7 @@ TEST (nnstreamerFilterSnpe, invoke01_n)
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("snpe");
   ASSERT_TRUE (sp != nullptr);
-  _SetFilterProp (&prop, "snpe", model_files);
+  _SetFilterProp (&prop, "snpe", model_files, TRUE);
 
   output.size = input.size = sizeof (float) * 1;
   input.data = g_malloc0 (input.size);
@@ -255,7 +306,7 @@ TEST (nnstreamerFilterSnpe, invoke02_n)
   gchar *model_file;
   GstTensorFilterProperties prop;
 
-  ASSERT_TRUE (_GetModelFilePath (&model_file));
+  ASSERT_TRUE (_GetModelFilePath (&model_file, TRUE));
   const gchar *model_files[] = {
     model_file,
     NULL,
@@ -263,7 +314,7 @@ TEST (nnstreamerFilterSnpe, invoke02_n)
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("snpe");
   ASSERT_TRUE (sp != nullptr);
-  _SetFilterProp (&prop, "snpe", model_files);
+  _SetFilterProp (&prop, "snpe", model_files, TRUE);
 
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);
@@ -292,7 +343,7 @@ TEST (nnstreamerFilterSnpe, launch00)
   GstElement *gstpipe;
   GError *err = NULL;
   gchar *model_file;
-  ASSERT_TRUE (_GetModelFilePath (&model_file));
+  ASSERT_TRUE (_GetModelFilePath (&model_file, TRUE));
 
   /* create a nnstreamer pipeline */
   pipeline = g_strdup_printf ("videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw,format=GRAY8,width=1,height=1 ! tensor_converter ! tensor_transform mode=typecast option=float32 ! tensor_filter framework=snpe model=\"%s\" ! tensor_sink name=sink",
@@ -318,7 +369,7 @@ TEST (nnstreamerFilterSnpe, launch01_n)
   GstElement *gstpipe;
   GError *err = NULL;
   gchar *model_file;
-  ASSERT_TRUE (_GetModelFilePath (&model_file));
+  ASSERT_TRUE (_GetModelFilePath (&model_file, TRUE));
 
   /* create a nnstreamer pipeline */
   pipeline = g_strdup_printf ("videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=3,height=3 ! tensor_converter ! tensor_transform mode=typecast option=float32 ! tensor_filter framework=snpe model=\"%s\" ! tensor_sink name=sink",
