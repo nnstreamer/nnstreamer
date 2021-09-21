@@ -513,7 +513,7 @@ ov_open (const GstTensorFilterProperties *prop, void **private_data)
   TensorFilterOpenvino *tfOv;
   accl_hw accelerator;
 
-  accelerator = parse_accl_hw (prop->accl_str, openvino_accl_support);
+  accelerator = parse_accl_hw (prop->accl_str, openvino_accl_support, NULL, NULL);
 #ifndef __OPENVINO_CPU_EXT__
   if (accelerator == ACCL_CPU) {
     ml_loge ("Accelerating via CPU is not supported on the current platform");
