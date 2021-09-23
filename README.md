@@ -1,16 +1,14 @@
 # NNStreamer
 
-[![Gitter][gitter-image]][gitter-url] 
-[![Code Coverage](http://nnstreamer.mooo.com/nnstreamer/ci/badge/codecoverage.svg)](http://nnstreamer.mooo.com/nnstreamer/ci/gcov_html/index.html) 
-<a href="https://scan.coverity.com/projects/nnstreamer-nnstreamer">
-<img alt="Coverity Scan Defect Status" src="https://scan.coverity.com/projects/22501/badge.svg"/>
-</a> 
+[![Gitter][gitter-image]][gitter-url]
 [![DailyBuild](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/badge/daily_build_badge.svg)](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/build_result/)
-![GitHub repo size](https://img.shields.io/github/repo-size/nnstreamer/nnstreamer)
-![GitHub issues](https://img.shields.io/github/issues/nnstreamer/nnstreamer)
-![GitHub pull requests](https://img.shields.io/github/issues-pr/nnstreamer/nnstreamer)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4401/badge)](https://bestpractices.coreinfrastructure.org/projects/4401)
 [![Total alerts](https://img.shields.io/lgtm/alerts/g/nnstreamer/nnstreamer.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/nnstreamer/nnstreamer/alerts/)
+[![Code Coverage](http://nnstreamer.mooo.com/nnstreamer/ci/badge/codecoverage.svg)](http://nnstreamer.mooo.com/nnstreamer/ci/gcov_html/index.html)
+<a href="https://scan.coverity.com/projects/nnstreamer-nnstreamer">
+<img alt="Coverity Scan Defect Status" src="https://scan.coverity.com/projects/22501/badge.svg"/>
+</a>
+![GitHub repo size](https://img.shields.io/github/repo-size/nnstreamer/nnstreamer)
 
 Neural Network Support as Gstreamer Plugins.
 
