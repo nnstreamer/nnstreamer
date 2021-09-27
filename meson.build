@@ -180,29 +180,30 @@ if not get_option('snpe-support').disabled()
   if (not snpe_dep.found())
     # TODO: support various arch.
     if host_machine.system() != 'linux' or host_machine.cpu_family() != 'x86_64'
-      error('Not Supported System & Architecture. Linux x86_64 is required for snpe sub-plugin')
-    endif
-    # Check whether $SNPE_ROOT (where SNPE SDK is located) is set.
-    cmd = run_command('sh', '-c', 'echo $SNPE_ROOT')
-    SNPE_ROOT = cmd.stdout().strip()
-    if SNPE_ROOT != ''
-      message('Got $SNPE_ROOT: @0@'.format(SNPE_ROOT))
-      snpe_dir_not_exist = run_command('[', '-d', SNPE_ROOT, ']').returncode()
-      if snpe_dir_not_exist != 0
-        error('@0@ does not exists'.format(SNPE_ROOT))
+      message('Not Supported System & Architecture. Linux x86_64 is required for snpe sub-plugin')
+    else
+      # Check whether $SNPE_ROOT (where SNPE SDK is located) is set.
+      cmd = run_command('sh', '-c', 'echo $SNPE_ROOT')
+      SNPE_ROOT = cmd.stdout().strip()
+      if SNPE_ROOT != ''
+        message('Got $SNPE_ROOT: @0@'.format(SNPE_ROOT))
+        snpe_dir_not_exist = run_command('[', '-d', SNPE_ROOT, ']').returncode()
+        if snpe_dir_not_exist != 0
+          error('@0@ does not exists'.format(SNPE_ROOT))
+        endif
+
+        snpe_lib = cxx.find_library('libSNPE',
+          dirs: join_paths(SNPE_ROOT, 'lib', 'x86_64-linux-clang'),
+          required: true
+        )
+
+        snpe_incdir = include_directories(join_paths(SNPE_ROOT, 'include', 'zdl'))
+
+        snpe_dep = declare_dependency(
+          dependencies: snpe_lib,
+          include_directories: snpe_incdir
+        )
       endif
-
-      snpe_lib = cxx.find_library('libSNPE',
-        dirs: join_paths(SNPE_ROOT, 'lib', 'x86_64-linux-clang'),
-        required: true
-      )
-
-      snpe_incdir = include_directories(join_paths(SNPE_ROOT, 'include', 'zdl'))
-
-      snpe_dep = declare_dependency(
-        dependencies: snpe_lib,
-        include_directories: snpe_incdir
-      )
     endif
   endif
 endif
