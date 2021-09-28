@@ -1,3 +1,9 @@
+nnstreamer (2.1.0.0) unstable xenial bionic focal sid; urgency=medium
+
+  * 2.1.0 development starts (2.2.0.RC1)
+
+ -- MyungJoo Ham <myungjoo.ham@samsung.com>  Tue, 28 Sep 2021 16:50:41 +0900
+
 nnstreamer (2.0.0.0) unstable xenial bionic focal sid; urgency=medium
 
   * 2.0.0 Release (LTS for Tizen 6.5 M2 release)
