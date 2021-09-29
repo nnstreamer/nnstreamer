@@ -17,6 +17,7 @@
 #include <gio/gio.h>
 #include <tensor_common.h>
 #include "tensor_query_common.h"
+#include "nnsquery.h"
 
 G_BEGIN_DECLS
 
@@ -49,6 +50,11 @@ struct _GstTensorQueryClient
   GstTensorsConfig out_config;
 
   TensorQueryProtocol protocol;
+  gchar *operation; /** Main Operation such as 'object_detection' or 'image_segmentation' */
+  query_h query_handle;
+  GAsyncQueue *srv_info_queue;
+  gchar *mqtt_host;
+  gchar *mqtt_port;
   /* src information (Connect to query server source) */
   query_connection_handle src_conn;
   gchar *src_host;

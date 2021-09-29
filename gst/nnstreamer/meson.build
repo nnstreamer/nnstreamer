@@ -13,7 +13,8 @@ nnstreamer_base_deps = [
   gst_video_dep,
   gst_audio_dep,
   libm_dep,
-  thread_dep
+  thread_dep,
+  nns_query_dep
 ]
 
 if orcc_support_is_available

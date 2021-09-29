@@ -23,9 +23,11 @@
  * @brief sink config is shared for src
  */
 static GstTensorsConfig sink_config;
+static gchar *sink_host;
+static guint16 sink_port;
 
 /**
- * @brief set sink config 
+ * @brief set sink config
  */
 void
 gst_tensor_query_server_set_sink_config (GstTensorsConfig * config)
@@ -40,4 +42,50 @@ void
 gst_tensor_query_server_get_sink_config (GstTensorsConfig * config)
 {
   gst_tensors_config_copy (config, &sink_config);
+}
+
+/**
+ * @brief set sink host
+ */
+void
+gst_tensor_query_server_set_sink_host (gchar * host)
+{
+  sink_host = g_strdup (host);
+}
+
+/**
+ * @brief get sink host
+ */
+gchar *
+gst_tensor_query_server_get_sink_host (void)
+{
+  return g_strdup (sink_host);
+}
+
+/**
+ * @brief free sink host
+ */
+void
+gst_tensor_query_server_free_sink_host (void)
+{
+  g_free (sink_host);
+  sink_host = NULL;
+}
+
+/**
+ * @brief set sink port
+ */
+void
+gst_tensor_query_server_set_sink_port (guint16 port)
+{
+  sink_port = port;
+}
+
+/**
+ * @brief get sink port
+ */
+guint16
+gst_tensor_query_server_get_sink_port (void)
+{
+  return sink_port;
 }
