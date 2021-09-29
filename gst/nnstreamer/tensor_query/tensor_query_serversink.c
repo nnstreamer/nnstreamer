@@ -153,9 +153,11 @@ gst_tensor_query_serversink_set_property (GObject * object, guint prop_id,
       }
       g_free (serversink->host);
       serversink->host = g_value_dup_string (value);
+      gst_tensor_query_server_set_sink_host (serversink->host);
       break;
     case PROP_PORT:
       serversink->port = g_value_get_uint (value);
+      gst_tensor_query_server_set_sink_port (serversink->port);
       break;
     case PROP_PROTOCOL:
       serversink->protocol = g_value_get_int (value);
@@ -236,6 +238,7 @@ static gboolean
 gst_tensor_query_serversink_stop (GstBaseSink * bsink)
 {
   GstTensorQueryServerSink *sink = GST_TENSOR_QUERY_SERVERSINK (bsink);
+  gst_tensor_query_server_free_sink_host ();
   nnstreamer_query_server_data_free (sink->server_data);
   sink->server_data = NULL;
   return TRUE;

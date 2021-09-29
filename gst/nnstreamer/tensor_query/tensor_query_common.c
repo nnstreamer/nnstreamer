@@ -273,7 +273,7 @@ nnstreamer_query_receive (query_connection_handle connection,
         /* receive data */
         if (query_tcp_receive (conn->socket, (uint8_t *) data->data.data,
                 data->data.size, conn->cancellable, 1) < 0) {
-          nns_logd ("Failed to receive data from socket");
+          nns_loge ("Failed to receive data from socket");
           return -EREMOTEIO;
         }
         return 0;
@@ -667,7 +667,7 @@ accept_socket_async_cb (GObject * source, GAsyncResult * result,
   g_object_unref (saddr);
   conn->socket = socket;
   conn->cancellable = g_cancellable_new ();
-  nns_logd ("connected from %s:%u", conn->host, conn->port);
+  g_message ("New client connected from %s:%u", conn->host, conn->port);
 
   /** Generate and send client_id to client */
   if (sdata->is_src) {

@@ -18,6 +18,7 @@
 #include "tensor_query_common.h"
 #include <nnstreamer_util.h>
 #include <tensor_meta.h>
+#include "nnsquery.h"
 
 G_BEGIN_DECLS
 
@@ -47,6 +48,13 @@ struct _GstTensorQueryServerSrc
   gchar *host;
   TensorQueryProtocol protocol;
   guint timeout;
+
+  gchar *operation; /** Main Operation such as 'object_detection' or 'image_segmentation' */
+  query_h query_handle;
+  query_mqtt_state_t mqtt_state;
+  gchar *mqtt_topic;
+  gchar *mqtt_host;
+  gchar *mqtt_port;
 
   GstTensorsConfig src_config;
   query_server_handle server_data; /* server data passed to common functions */
