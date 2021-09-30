@@ -55,6 +55,8 @@ struct _GstTensorQueryClient
   GAsyncQueue *srv_info_queue;
   gchar *mqtt_host;
   gchar *mqtt_port;
+  query_mqtt_state_t mqtt_state;
+
   /* src information (Connect to query server source) */
   query_connection_handle src_conn;
   gchar *src_host;
