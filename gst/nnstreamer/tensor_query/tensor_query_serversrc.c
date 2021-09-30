@@ -151,6 +151,7 @@ gst_tensor_query_serversrc_init (GstTensorQueryServerSrc * src)
   src->mqtt_topic = NULL;
   src->mqtt_host = g_strdup (DEFAULT_MQTT_HOST_ADDRESS);
   src->mqtt_port = g_strdup (DEFAULT_MQTT_HOST_PORT);
+  src->mqtt_state = MQTT_INITIALIZING;
   gst_tensors_config_init (&src->src_config);
   src->server_data = nnstreamer_query_server_data_new ();
 }
@@ -273,6 +274,17 @@ gst_tensor_query_serversrc_get_property (GObject * object, guint prop_id,
 }
 
 /**
+ * @brief MQTT State change callback
+ */
+static void
+_state_change_cb (void *user_data, query_mqtt_state_t state)
+{
+  GstTensorQueryServerSrc *src = (GstTensorQueryServerSrc *) (user_data);
+  src->mqtt_state = state;
+  nns_logd ("MQTT stated changed to %d", src->mqtt_state);
+}
+
+/**
  * @brief start processing of query_serversrc, setting up the server
  */
 static gboolean
@@ -333,13 +345,18 @@ gst_tensor_query_serversrc_start (GstBaseSrc * bsrc)
 
     err =
         query_open_connection (&src->query_handle, src->mqtt_host,
-        src->mqtt_port, NULL, NULL);
+        src->mqtt_port, _state_change_cb, src);
     if (err != 0) {
       nns_loge ("[MQTT] Failed to connect mqtt broker. err: %d\n", err);
       ret = FALSE;
       goto done;
     }
-    g_usleep (1000000);
+
+    /** Wait until connection is established. */
+    while (MQTT_CONNECTED != src->mqtt_state) {
+      g_usleep (10000);
+    }
+
     err =
         query_publish_raw_data (src->query_handle, src->mqtt_topic, msg,
         strlen (msg), TRUE);
