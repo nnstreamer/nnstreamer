@@ -136,7 +136,6 @@ gst_video_dep = dependency('gstreamer-video-' + gst_api_verision)
 gst_audio_dep = dependency('gstreamer-audio-' + gst_api_verision)
 gst_app_dep = dependency('gstreamer-app-' + gst_api_verision)
 gst_check_dep = dependency('gstreamer-check-' + gst_api_verision)
-nns_query_dep = dependency('nnsquery')
 
 libm_dep = cc.find_library('m') # cmath library
 libdl_dep = cc.find_library('dl') # DL library
@@ -372,6 +371,10 @@ features = {
   'tvm-support': {
     'target': 'tvm_runtime',
     'project_args': { 'ENABLE_TVM' : 1 }
+  },
+  'nnsquery-support': {
+    'target': 'nnsquery',
+    'project_args': { 'ENABLE_NNS_QUERY' : 1 }
   }
 }
 
