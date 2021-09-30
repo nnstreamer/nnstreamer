@@ -13,8 +13,7 @@ nnstreamer_base_deps = [
   gst_video_dep,
   gst_audio_dep,
   libm_dep,
-  thread_dep,
-  nns_query_dep
+  thread_dep
 ]
 
 if orcc_support_is_available
@@ -62,13 +61,17 @@ nnst_plugins = [
   'tensor_filter',
   'tensor_repo',
   'tensor_if',
-  'tensor_rate',
-  'tensor_query'
+  'tensor_rate'
 ]
 
 foreach p : nnst_plugins
   subdir(p)
 endforeach
+
+if nnsquery_support_is_available
+  nnstreamer_base_deps += nnsquery_support_deps
+  subdir('tensor_query')
+endif
 
 subdir('include')
 
