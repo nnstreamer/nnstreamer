@@ -18,6 +18,8 @@ neural network developers to manage neural network pipelines and their filters e
 
 [Architectural Description](https://github.com/nnstreamer/nnstreamer/wiki/Architectural-Description) (WIP)<br /> <br />
 
+[Toward Among-Device AI from On-Device AI with Stream Pipelines](https://conf.researchr.org/home/icse-2022), Submitted. Under Review<br />
+[NNStreamer: Efficient and Agile Development of On-Device AI Systems](https://ieeexplore.ieee.org/document/9402062), IEEE/ACM ICSE 2021 SEIP [[media](https://youtu.be/HtNXFReF2GY)]<br />
 [NNStreamer: Stream Processing Paradigm for Neural Networks ...](https://arxiv.org/abs/1901.04985) [[pdf/tech report](https://arxiv.org/pdf/1901.04985)]<br />
 [GStreamer Conference 2018, NNStreamer](https://gstreamer.freedesktop.org/conference/2018/talks-and-speakers.html#nnstreamer-neural-networks-as-filters) [[media](https://github.com/nnstreamer/nnstreamer/wiki/Gstreamer-Conference-2018-Presentation-Video)] [[pdf/slides](https://github.com/nnstreamer/nnstreamer/wiki/slides/2018_GSTCON_Ham_181026.pdf)]<br />
 [Naver Tech Talk (Korean), 2018](https://www.facebook.com/naverengineering/posts/2255360384531425) [[media](https://youtu.be/XvXxcnbRjgU)] [[pdf/slides](https://www.slideshare.net/NaverEngineering/nnstreamer-stream-pipeline-for-arbitrary-neural-networks)]<br />
