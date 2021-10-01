@@ -36,22 +36,6 @@ TEST (testMqttSink, sinkPushWrongurl_n)
 }
 
 /**
- * @brief Test for mqttsink without broker
- */
-TEST (testMqttSink, sinkPushNoBroker_n)
-{
-  GstHarness *h = gst_harness_new ("mqttsink");
-  GstFlowReturn ret;
-
-  gst_harness_add_src_parse (h, "videotestsrc is-live=1 ! queue", TRUE);
-  ret = gst_harness_push_from_src (h);
-
-  EXPECT_EQ (ret, GST_FLOW_ERROR);
-
-  gst_harness_teardown (h);
-}
-
-/**
  * @brief Test for mqttsink without broker (Push an EOS event)
  */
 TEST (testMqttSink, sinkPushEvent)
