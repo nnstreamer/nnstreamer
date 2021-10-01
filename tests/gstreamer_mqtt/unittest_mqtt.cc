@@ -19,14 +19,12 @@
 TEST (testMqttSink, sinkPushWrongurl_n)
 {
   const static gsize data_size = 1024;
-  GstHarness *h = gst_harness_new ("mqttsink");
+  GstHarness *h = gst_harness_new_parse ("mqttsink host=invalid_host");
   GstBuffer *in_buf;
   GstFlowReturn ret;
 
   ASSERT_TRUE (h != NULL);
 
-  g_object_set (h->element, "host", "tcp:://0.0.0.0", "port", "0",
-      "enable-last-sample", (gboolean) FALSE, NULL);
   in_buf = gst_harness_create_buffer (h, data_size);
   ret = gst_harness_push (h, in_buf);
 
@@ -36,7 +34,27 @@ TEST (testMqttSink, sinkPushWrongurl_n)
 }
 
 /**
- * @brief Test for mqttsink without broker (Push an EOS event)
+ * @brief Test for mqttsink with invalid port
+ */
+TEST (testMqttSink, sinkPushWrongPort_n)
+{
+  const static gsize data_size = 1024;
+  GstHarness *h = gst_harness_new_parse ("mqttsink port=-1");
+  GstBuffer *in_buf;
+  GstFlowReturn ret;
+
+  ASSERT_TRUE (h != NULL);
+
+  in_buf = gst_harness_create_buffer (h, data_size);
+  ret = gst_harness_push (h, in_buf);
+
+  EXPECT_EQ (ret, GST_FLOW_ERROR);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test pushing EOS event to mqttsink
  */
 TEST (testMqttSink, sinkPushEvent)
 {
