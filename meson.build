@@ -44,6 +44,8 @@ endif
 
 # Define warning flags for c and cpp
 warning_flags = [
+  '-Wmissing-braces',
+  '-Wmaybe-uninitialized',
   '-Wwrite-strings',
   '-Wformat',
   '-Wformat-nonliteral',
