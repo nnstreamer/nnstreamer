@@ -555,8 +555,8 @@ nnfw_invoke_dummy (const nnfw_pdata * pdata, const nnfw_tinfo_s * in_info,
     const nnfw_tinfo_s * out_info)
 {
   GstTensorsInfo gst_in_info, gst_out_info;
-  GstTensorMemory input[NNS_TENSOR_SIZE_LIMIT] = { 0, };
-  GstTensorMemory output[NNS_TENSOR_SIZE_LIMIT] = { 0, };
+  GstTensorMemory input[NNS_TENSOR_SIZE_LIMIT] = { {0} };
+  GstTensorMemory output[NNS_TENSOR_SIZE_LIMIT] = { {0} };
   gboolean failed = FALSE;
   guint i, retry;
   int err;

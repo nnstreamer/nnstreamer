@@ -64,12 +64,11 @@ G_BEGIN_DECLS
     } while (0)
 
 #define GST_TF_FW_INVOKE_COMPAT(priv,ret,in,out) do { \
+      ret = -1; \
       if (GST_TF_FW_V0 ((priv)->fw)) { \
         ret = (priv)->fw->invoke_NN (&(priv)->prop, &(priv)->privateData, (in), (out)); \
       } else if (GST_TF_FW_V1 ((priv)->fw)) { \
         ret = (priv)->fw->invoke ((priv)->fw, &(priv)->prop, (priv)->privateData, (in), (out)); \
-      } else { \
-        g_assert(FALSE); \
       } \
     } while (0)
 

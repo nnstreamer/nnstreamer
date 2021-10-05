@@ -323,7 +323,7 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
   GTensorFilterSinglePrivate *spriv;
   GstTensorFilterPrivate *priv;
   GstTensorMemory *_out;
-  GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT] = { 0, };
+  GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT] = { {0} };
   guint i;
   gint status;
 
