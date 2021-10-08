@@ -20,9 +20,14 @@ if orcc_support_is_available
   nnstreamer_base_deps += orc_dep
 endif
 
+# TODO: Define proper variable for android in entire project
+liblog_dep = []
 if build_platform == 'tizen'
-  nnstreamer_base_deps += dependency('dlog')
+  liblog_dep += dependency('dlog')
+elif cc.has_header_symbol('android/log.h', '__android_log_print')
+  liblog_dep += cc.find_library('log', required : true)
 endif
+nnstreamer_base_deps += liblog_dep
 
 # Internal dependencies
 nnstreamer_internal_deps = []
