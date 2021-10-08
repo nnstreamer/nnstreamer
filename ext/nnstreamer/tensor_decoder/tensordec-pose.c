@@ -780,8 +780,8 @@ pose_decode (void **pdata, const GstTensorsConfig * config,
       p.y = (maxY * data->height) / data->i_height;;
     }
     /* Some keypoints can be estimated slightly out of image range */
-    p.x = MIN (data->width, MAX (0, p.x));
-    p.y = MIN (data->height, MAX (0, p.y));
+    p.x = MIN (data->width, (guint) (MAX (0, p.x)));
+    p.y = MIN (data->height, (guint) (MAX (0, p.y)));
 
     g_array_append_val (results, p);
   }
