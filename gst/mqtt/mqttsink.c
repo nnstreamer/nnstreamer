@@ -211,6 +211,7 @@ gst_mqtt_sink_init (GstMqttSink * self)
   self->mqtt_ntp_ports = NULL;
   self->mqtt_ntp_num_srvs = 0;
   self->get_epoch_func = default_mqtt_get_unix_epoch;
+  self->is_connected = FALSE;
 
   /** init basesink properties */
   gst_base_sink_set_qos_enabled (basesink, DEFAULT_QOS);
@@ -551,6 +552,7 @@ gst_mqtt_sink_start (GstBaseSink * basesink)
   gchar *haddr = g_strdup_printf ("%s:%s", self->mqtt_host_address,
       self->mqtt_host_port);
   int ret;
+  gint64 end_time;
 
   if (!g_strcmp0 (DEFAULT_MQTT_CLIENT_ID, self->mqtt_client_id)) {
     g_free (self->mqtt_client_id);
@@ -583,10 +585,29 @@ gst_mqtt_sink_start (GstBaseSink * basesink)
 
   ret = MQTTAsync_connect (self->mqtt_client_handle, &self->mqtt_conn_opts);
   if (ret != MQTTASYNC_SUCCESS) {
-    return FALSE;
+    goto error;
   }
 
+  /* Waiting for the connection */
+  end_time = g_get_monotonic_time () +
+      DEFAULT_MQTT_CONN_TIMEOUT_SEC * G_TIME_SPAN_SECOND;
+  g_mutex_lock (&self->mqtt_sink_mutex);
+  while (!self->is_connected) {
+    if (!g_cond_wait_until (&self->mqtt_sink_gcond, &self->mqtt_sink_mutex,
+            end_time)) {
+      g_mutex_unlock (&self->mqtt_sink_mutex);
+      g_critical ("Failed to connect to MQTT broker from mqttsink."
+          "Please check broker is running status or broker host address.");
+      goto error;
+    }
+  }
+  g_mutex_unlock (&self->mqtt_sink_mutex);
+
   return TRUE;
+
+error:
+  MQTTAsync_destroy (&self->mqtt_client_handle);
+  return FALSE;
 }
 
 /**
@@ -611,6 +632,7 @@ gst_mqtt_sink_stop (GstBaseSink * basesink)
 
     MQTTAsync_disconnect (self->mqtt_client_handle, &disconn_opts);
     g_mutex_lock (&self->mqtt_sink_mutex);
+    self->is_connected = FALSE;
     g_cond_wait_until (&self->mqtt_sink_gcond, &self->mqtt_sink_mutex,
         end_time);
     g_mutex_unlock (&self->mqtt_sink_mutex);
@@ -1232,6 +1254,7 @@ cb_mqtt_on_connect (void *context, MQTTAsync_successData * response)
 
   g_atomic_int_set (&self->mqtt_sink_state, MQTT_CONNECTED);
   g_mutex_lock (&self->mqtt_sink_mutex);
+  self->is_connected = TRUE;
   g_cond_broadcast (&self->mqtt_sink_gcond);
   g_mutex_unlock (&self->mqtt_sink_mutex);
 }
@@ -1249,6 +1272,7 @@ cb_mqtt_on_connect_failure (void *context, MQTTAsync_failureData * response)
 
   g_atomic_int_set (&self->mqtt_sink_state, MQTT_CONNECT_FAILURE);
   g_mutex_lock (&self->mqtt_sink_mutex);
+  self->is_connected = FALSE;
   g_cond_broadcast (&self->mqtt_sink_gcond);
   g_mutex_unlock (&self->mqtt_sink_mutex);
 }
@@ -1314,6 +1338,7 @@ cb_mqtt_on_connection_lost (void *context, char *cause)
 
   g_atomic_int_set (&self->mqtt_sink_state, MQTT_CONNECTION_LOST);
   g_mutex_lock (&self->mqtt_sink_mutex);
+  self->is_connected = FALSE;
   g_cond_broadcast (&self->mqtt_sink_gcond);
   g_mutex_unlock (&self->mqtt_sink_mutex);
 }

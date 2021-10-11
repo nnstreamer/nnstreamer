@@ -520,6 +520,7 @@ gst_mqtt_src_start (GstBaseSrc * basesrc)
   gchar *haddr = g_strdup_printf ("%s:%s", self->mqtt_host_address,
       self->mqtt_host_port);
   int ret;
+  gint64 end_time;
 
   if (!g_strcmp0 (DEFAULT_MQTT_CLIENT_ID, self->mqtt_client_id)) {
     g_free (self->mqtt_client_id);
@@ -546,8 +547,27 @@ gst_mqtt_src_start (GstBaseSrc * basesrc)
 
   ret = MQTTAsync_connect (self->mqtt_client_handle, &self->mqtt_conn_opts);
   if (ret != MQTTASYNC_SUCCESS)
-    return FALSE;
+    goto error;
+
+  /* Waiting for the connection */
+  end_time = g_get_monotonic_time () +
+      DEFAULT_MQTT_CONN_TIMEOUT_SEC * G_TIME_SPAN_SECOND;
+  g_mutex_lock (&self->mqtt_src_mutex);
+  while (!self->is_connected) {
+    if (!g_cond_wait_until (&self->mqtt_src_gcond, &self->mqtt_src_mutex,
+            end_time)) {
+      g_mutex_unlock (&self->mqtt_src_mutex);
+      g_critical ("Failed to connect to MQTT broker from mqttsrc."
+          "Please check broker is running status or broker host address.");
+      goto error;
+    }
+  }
+  g_mutex_unlock (&self->mqtt_src_mutex);
   return TRUE;
+
+error:
+  MQTTAsync_destroy (&self->mqtt_client_handle);
+  return FALSE;
 }
 
 /**
