@@ -37,6 +37,8 @@
 
 #define GST_US_TO_NS_MULTIPLIER 1000
 
+#define DEFAULT_MQTT_CONN_TIMEOUT_SEC 5
+
 /**
  * @brief Defined a custom data type, GstMQTTMessageHdr
  *

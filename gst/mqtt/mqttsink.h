@@ -80,6 +80,7 @@ struct _GstMqttSink {
   gchar *mqtt_ntp_srvs;
   gchar **mqtt_ntp_hnames;
   guint16 *mqtt_ntp_ports;
+  gboolean is_connected;
 
   mqtt_get_unix_epoch get_epoch_func;
 

@@ -12,25 +12,26 @@
 #include <gst/check/gstharness.h>
 #include <gst/gst.h>
 #include <gtest/gtest.h>
+#include <unittest_util.h>
 
 /**
  * @brief Test for mqttsink with wrong URL
  */
 TEST (testMqttSink, sinkPushWrongurl_n)
 {
-  const static gsize data_size = 1024;
-  GstHarness *h = gst_harness_new_parse ("mqttsink host=invalid_host");
-  GstBuffer *in_buf;
-  GstFlowReturn ret;
+  gchar *pipeline;
+  GstElement *gstpipe;
 
-  ASSERT_TRUE (h != NULL);
+  /* Create a nnstreamer pipeline */
+  pipeline = g_strdup_printf (
+      "videotestsrc is-live=true ! video/x-raw,format=RGB,width=640,height=480,framerate=5/1 ! mqttsink host=invalid_host pub-topic=test/videotestsrc");
+  gstpipe = gst_parse_launch (pipeline, NULL);
+  EXPECT_NE (pipeline, nullptr);
 
-  in_buf = gst_harness_create_buffer (h, data_size);
-  ret = gst_harness_push (h, in_buf);
+  EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
-  EXPECT_EQ (ret, GST_FLOW_ERROR);
-
-  gst_harness_teardown (h);
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
 }
 
 /**
@@ -38,19 +39,19 @@ TEST (testMqttSink, sinkPushWrongurl_n)
  */
 TEST (testMqttSink, sinkPushWrongPort_n)
 {
-  const static gsize data_size = 1024;
-  GstHarness *h = gst_harness_new_parse ("mqttsink port=-1");
-  GstBuffer *in_buf;
-  GstFlowReturn ret;
+  gchar *pipeline;
+  GstElement *gstpipe;
 
-  ASSERT_TRUE (h != NULL);
+  /* Create a nnstreamer pipeline */
+  pipeline = g_strdup_printf (
+      "videotestsrc is-live=true ! video/x-raw,format=RGB,width=640,height=480,framerate=5/1 ! mqttsink port=-1 pub-topic=test/videotestsrc");
+  gstpipe = gst_parse_launch (pipeline, NULL);
+  EXPECT_NE (pipeline, nullptr);
 
-  in_buf = gst_harness_create_buffer (h, data_size);
-  ret = gst_harness_push (h, in_buf);
+  EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
-  EXPECT_EQ (ret, GST_FLOW_ERROR);
-
-  gst_harness_teardown (h);
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
 }
 
 /**
