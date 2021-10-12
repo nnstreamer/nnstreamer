@@ -18,7 +18,7 @@ Therefore, there is no need for cloud server by running AI on a local network.
 - Receive requests and data from clients.
 - The capability of source and sink pad is ```other/tensors```.
 
-### tensor_query_serversrc
+### tensor_query_serversink
 - Used for heavyweight device.
 - Send the results processed by the server to the clients.
 - The capability of source and sink pad is ```other/tensors```.
@@ -26,7 +26,7 @@ Therefore, there is no need for cloud server by running AI on a local network.
 ## Usage Example
 ### echo server
 As the simplest example, the server sends the data received from the client back to the client.
- * If you dodn't install nnstreamer, see [here](/Documentation/how-to-run-examples.md).
+ * If you didn't install nnstreamer, see [here](/Documentation/how-to-run-examples.md).
 #### server
 ```bash
 $ gst-launch-1.0 tensor_query_serversrc ! other/tensors,num_tensors=1,dimensions=3:300:300:1,types=uint8,framerate=30/1 ! tensor_query_serversink
