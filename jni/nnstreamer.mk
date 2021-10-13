@@ -66,12 +66,9 @@ NNSTREAMER_PLUGINS_SRCS := \
     $(NNSTREAMER_GST_HOME)/tensor_split/gsttensorsplit.c \
     $(NNSTREAMER_GST_HOME)/tensor_transform/tensor_transform.c \
     $(NNSTREAMER_GST_HOME)/tensor_if/gsttensorif.c \
-    $(NNSTREAMER_GST_HOME)/tensor_rate/gsttensorrate.c
-
-# Exclude tensor_query until MQTT-hybrid is separated.
-# Please revert this commit after separation works.
-NNSTREAMER_PLUGINS_QUERY_SRCS := \
+    $(NNSTREAMER_GST_HOME)/tensor_rate/gsttensorrate.c \
     $(NNSTREAMER_GST_HOME)/tensor_query/tensor_query_common.c \
+    $(NNSTREAMER_GST_HOME)/tensor_query/tensor_query_hybrid.c \
     $(NNSTREAMER_GST_HOME)/tensor_query/tensor_query_client.c \
     $(NNSTREAMER_GST_HOME)/tensor_query/tensor_query_serversink.c \
     $(NNSTREAMER_GST_HOME)/tensor_query/tensor_query_serversrc.c \

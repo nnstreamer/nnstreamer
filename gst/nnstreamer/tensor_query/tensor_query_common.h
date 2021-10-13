@@ -96,13 +96,13 @@ nnstreamer_query_connect (TensorQueryProtocol protocol, const char *ip, uint16_t
 /**
  * @brief get client id from query connection handle
  */
-uint32_t
+extern uint32_t
 nnstreamer_query_connection_get_client_id (query_connection_handle connection);
 
 /**
  * @brief get port from query connection handle
  */
-uint32_t
+extern uint16_t
 nnstreamer_query_connection_get_port (query_connection_handle connection);
 
 /**
@@ -117,7 +117,7 @@ nnstreamer_query_send (query_connection_handle connection, TensorQueryCommandDat
  * @return 0 if OK, negative value if error
  */
 extern int
-nnstreamer_query_receive (query_connection_handle connection, TensorQueryCommandData *data, int8_t blocking);
+nnstreamer_query_receive (query_connection_handle connection, TensorQueryCommandData *data, int32_t blocking);
 
 /**
  * @brief close connection with corresponding id.

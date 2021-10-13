@@ -10,7 +10,7 @@ mqtt_plugin_srcs = [
 
 gstmqtt_shared = shared_library('gstmqtt',
   mqtt_plugin_srcs,
-  dependencies: [glib_dep, gst_dep, gst_base_dep, pahomqttc_dep],
+  dependencies: [glib_dep, gst_dep, gst_base_dep, thread_dep, pahomqttc_dep],
   install: true,
   include_directories: nns_util_inc,
   install_dir: plugins_install_dir

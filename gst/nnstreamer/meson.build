@@ -20,14 +20,13 @@ if orcc_support_is_available
   nnstreamer_base_deps += orc_dep
 endif
 
+# log utils
 # TODO: Define proper variable for android in entire project
-liblog_dep = []
 if build_platform == 'tizen'
-  liblog_dep += dependency('dlog')
+  nnstreamer_base_deps += dependency('dlog')
 elif cc.has_header_symbol('android/log.h', '__android_log_print')
-  liblog_dep += cc.find_library('log', required : true)
+  nnstreamer_base_deps += cc.find_library('log')
 endif
-nnstreamer_base_deps += liblog_dep
 
 # Internal dependencies
 nnstreamer_internal_deps = []
@@ -66,16 +65,16 @@ nnst_plugins = [
   'tensor_filter',
   'tensor_repo',
   'tensor_if',
-  'tensor_rate'
+  'tensor_rate',
+  'tensor_query'
 ]
 
 foreach p : nnst_plugins
   subdir(p)
 endforeach
 
-if nnsquery_support_is_available
-  nnstreamer_base_deps += nnsquery_support_deps
-  subdir('tensor_query')
+if query_hybrid_support_is_available
+  nnstreamer_base_deps += query_hybrid_support_deps
 endif
 
 subdir('include')

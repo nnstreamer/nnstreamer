@@ -374,9 +374,9 @@ features = {
     'target': 'tvm_runtime',
     'project_args': { 'ENABLE_TVM' : 1 }
   },
-  'nnsquery-support': {
+  'query-hybrid-support': {
     'target': 'nnsquery',
-    'project_args': { 'ENABLE_NNS_QUERY' : 1 }
+    'project_args': { 'ENABLE_QUERY_HYBRID': 1 }
   }
 }
 
