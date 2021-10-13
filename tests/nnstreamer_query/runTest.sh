@@ -54,18 +54,25 @@ callCompareTest raw3_0.log result3_0.log 3-3 "Compare 3-3" 1 0
 callCompareTest raw3_1.log result3_1.log 3-4 "Compare 3-4" 1 0
 callCompareTest raw3_2.log result3_2.log 3-5 "Compare 3-5" 1 0
 
+# TODO enable query-hybrid test
+# Now nnsquery library is not available.
+# After publishing the nnsquery pkg, enable below testcases.
+rm *.log
+report
+exit
+
 # Check whether mqtt broker is running or not
 pid=`ps aux | grep mosquitto | grep -v grep | awk '{print $2}'`
 if [ $pid > 0 ]; then
     echo "mosquitto broker is running"
 else
-    echo "Warning! mosquitto is not running so skip MQTT-hybrid test."
+    echo "Warning! mosquitto is not running so skip Query-hybrid test."
     rm *.log
     report
     exit
 fi
 
-# Test MQTT-hybrid. Get server info using MQTT-hybrid
+# Test Query-hybrid. Get server info from broker.
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc num-buffers=3 operation=passthrough ! other/tensors,format=flexible ! tee name = t t. ! queue ! multifilesink location=server1_%1d.log t. ! queue ! tensor_query_serversink" 4-1 0 0 $PERFORMANCE $TIMEOUT_SEC &
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc num-buffers=3 operation=passthrough port=5000 ! other/tensors,format=flexible ! tee name = t t. ! queue ! multifilesink location=server2_%1d.log t. ! queue ! tensor_query_serversink port=5001" 4-2 0 0 $PERFORMANCE $TIMEOUT_SEC &
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=7 ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! other/tensors,format=flexible ! tee name = t t. ! queue ! multifilesink location= raw4_%1d.log t. ! queue ! tensor_query_client operation=passthrough ! multifilesink location=result4_%1d.log" 4-3 0 0 $PERFORMANCE

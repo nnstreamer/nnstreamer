@@ -16,7 +16,6 @@
 #endif
 
 #include <gio/gio.h>
-#include <gio/gsocket.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <stdint.h>
@@ -89,7 +88,7 @@ typedef struct
 
 static int
 query_tcp_receive (GSocket * socket, uint8_t * data, size_t size,
-    GCancellable * cancellable, int8_t blocking);
+    GCancellable * cancellable, int32_t blocking);
 static gboolean query_tcp_send (GSocket * socket, uint8_t * data, size_t size,
     GCancellable * cancellable);
 static void
@@ -109,7 +108,7 @@ nnstreamer_query_connection_get_client_id (query_connection_handle connection)
 /**
  * @brief get port from query connection handle
  */
-uint32_t
+uint16_t
 nnstreamer_query_connection_get_port (query_connection_handle connection)
 {
   TensorQueryConnection *conn = (TensorQueryConnection *) connection;
@@ -250,7 +249,7 @@ nnstreamer_query_connect (TensorQueryProtocol protocol, const char *ip,
  */
 int
 nnstreamer_query_receive (query_connection_handle connection,
-    TensorQueryCommandData * data, int8_t blocking)
+    TensorQueryCommandData * data, int32_t blocking)
 {
   TensorQueryConnection *conn = (TensorQueryConnection *) connection;
 
@@ -379,6 +378,7 @@ int
 nnstreamer_query_close (query_connection_handle connection)
 {
   TensorQueryConnection *conn = (TensorQueryConnection *) connection;
+  GError *err = NULL;
   int ret = 0;
 
   if (!conn) {
@@ -388,13 +388,19 @@ nnstreamer_query_close (query_connection_handle connection)
   switch (conn->protocol) {
     case _TENSOR_QUERY_PROTOCOL_TCP:
     {
-      GError *err = NULL;
-      if (!g_socket_close (conn->socket, &err)) {
-        nns_loge ("Failed to close socket: %s", err->message);
-        g_error_free (err);
+      if (conn->socket) {
+        if (!g_socket_close (conn->socket, &err)) {
+          nns_loge ("Failed to close socket: %s", err->message);
+          g_clear_error (&err);
+        }
+        g_object_unref (conn->socket);
+        conn->socket = NULL;
       }
-      g_object_unref (conn->socket);
-      g_object_unref (conn->cancellable);
+
+      if (conn->cancellable) {
+        g_object_unref (conn->cancellable);
+        conn->cancellable = NULL;
+      }
       break;
     }
     default:
@@ -404,6 +410,7 @@ nnstreamer_query_close (query_connection_handle connection)
   }
 
   g_free (conn->host);
+  conn->host = NULL;
   g_free (conn);
   return ret;
 }
@@ -555,7 +562,7 @@ nnstreamer_query_server_accept (query_server_handle server_data)
  */
 static int
 query_tcp_receive (GSocket * socket, uint8_t * data, size_t size,
-    GCancellable * cancellable, int8_t blocking)
+    GCancellable * cancellable, int32_t blocking)
 {
   size_t bytes_received = 0;
   ssize_t rret;
@@ -638,12 +645,13 @@ accept_socket_async_cb (GObject * source, GAsyncResult * result,
     gpointer user_data)
 {
   GSocketListener *socket_listener = G_SOCKET_LISTENER (source);
-  GSocket *socket;
-  GSocketAddress *saddr;
+  GSocket *socket = NULL;
+  GSocketAddress *saddr = NULL;
   GError *err = NULL;
   TensorQueryServerData *sdata = user_data;
-  TensorQueryConnection *conn;
+  TensorQueryConnection *conn = NULL;
   TensorQueryCommandData cmd_data;
+  gboolean done = FALSE;
 
   socket =
       g_socket_listener_accept_socket_finish (socket_listener, result, NULL,
@@ -651,28 +659,31 @@ accept_socket_async_cb (GObject * source, GAsyncResult * result,
   if (!socket) {
     nns_loge ("Failed to get socket: %s", err->message);
     g_clear_error (&err);
-    return;
-  }
-
-  /* setting TCP_NODELAY to TRUE in order to avoid packet batching as known as Nagle's algorithm */
-  if (!g_socket_set_option (socket, IPPROTO_TCP, TCP_NODELAY, TRUE, &err)) {
-    nns_loge ("Failed to set socket TCP_NODELAY option: %s", err->message);
-    g_clear_error (&err);
-    return;
+    goto error;
   }
 
   /* create socket with connection */
   conn = g_try_new0 (TensorQueryConnection, 1);
   if (!conn) {
     nns_loge ("Failed to allocate connection");
-    return;
+    goto error;
   }
+
+  conn->socket = socket;
+  conn->cancellable = g_cancellable_new ();
+
+  /* setting TCP_NODELAY to TRUE in order to avoid packet batching as known as Nagle's algorithm */
+  if (!g_socket_set_option (socket, IPPROTO_TCP, TCP_NODELAY, TRUE, &err)) {
+    nns_loge ("Failed to set socket TCP_NODELAY option: %s", err->message);
+    g_clear_error (&err);
+    goto error;
+  }
+
   saddr = g_socket_get_remote_address (socket, &err);
   if (!saddr) {
     nns_loge ("Failed to get socket address: %s", err->message);
     g_clear_error (&err);
-    g_free (conn);
-    return;
+    goto error;
   }
   conn->protocol = (g_socket_get_protocol (socket) == G_SOCKET_PROTOCOL_TCP) ?
       _TENSOR_QUERY_PROTOCOL_TCP : _TENSOR_QUERY_PROTOCOL_END;
@@ -680,9 +691,7 @@ accept_socket_async_cb (GObject * source, GAsyncResult * result,
           (GInetSocketAddress *) saddr));
   conn->port = g_inet_socket_address_get_port ((GInetSocketAddress *) saddr);
   g_object_unref (saddr);
-  conn->socket = socket;
-  conn->cancellable = g_cancellable_new ();
-  g_message ("New client connected from %s:%u", conn->host, conn->port);
+  nns_logi ("New client connected from %s:%u", conn->host, conn->port);
 
   /** Generate and send client_id to client */
   if (sdata->is_src) {
@@ -691,15 +700,13 @@ accept_socket_async_cb (GObject * source, GAsyncResult * result,
 
     if (0 != nnstreamer_query_send (conn, &cmd_data, DEFAULT_TIMEOUT_MS)) {
       nns_loge ("Failed to send client id to client");
-      nnstreamer_query_close (conn);
-      return;
+      goto error;
     }
     conn->client_id = cmd_data.client_id;
   } else {
     if (0 != nnstreamer_query_receive (conn, &cmd_data, 1)) {
       nns_loge ("Failed to receive command.");
-      nnstreamer_query_close (conn);
-      return;
+      goto error;
     }
     if (cmd_data.cmd == _TENSOR_QUERY_CMD_CLIENT_ID) {
       conn->client_id = cmd_data.client_id;
@@ -707,7 +714,13 @@ accept_socket_async_cb (GObject * source, GAsyncResult * result,
     }
   }
 
+  done = TRUE;
   g_async_queue_push (sdata->conn_queue, conn);
+
+error:
+  if (!done) {
+    nnstreamer_query_close (conn);
+  }
 
   g_socket_listener_accept_socket_async (socket_listener,
       sdata->cancellable, (GAsyncReadyCallback) accept_socket_async_cb, sdata);

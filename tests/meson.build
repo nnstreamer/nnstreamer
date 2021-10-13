@@ -133,16 +133,14 @@ if gtest_dep.found()
     test('unittest_join', unittest_join, env: testenv)
 
     # Run unittest_query
-    if nnsquery_support_is_available
-      unittest_query = executable('unittest_query',
-        join_paths('nnstreamer_query', 'unittest_query.cc'),
-        dependencies: [nnstreamer_unittest_deps, unittest_util_dep],
-        install: get_option('install-test'),
-        install_dir: unittest_install_dir
-      )
+    unittest_query = executable('unittest_query',
+      join_paths('nnstreamer_query', 'unittest_query.cc'),
+      dependencies: [nnstreamer_unittest_deps, unittest_util_dep],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
 
-      test('unittest_query', unittest_query, env: testenv)
-    endif
+    test('unittest_query', unittest_query, env: testenv)
 
     # Run unittest_mqtt
     if mqtt_support_is_available

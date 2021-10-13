@@ -20,7 +20,7 @@ option('grpc-support', type: 'feature', value: 'auto')
 option('lua-support', type: 'feature', value: 'auto')
 option('mqtt-support', type: 'feature', value: 'auto')
 option('tvm-support', type: 'feature', value: 'auto')
-option('nnsquery-support', type: 'feature', value: 'auto')
+option('query-hybrid-support', type: 'feature', value: 'auto')
 
 # booleans & other options
 option('enable-test', type: 'boolean', value: true)

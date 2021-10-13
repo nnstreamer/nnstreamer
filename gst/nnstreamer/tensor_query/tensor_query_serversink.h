@@ -61,5 +61,4 @@ struct _GstTensorQueryServerSinkClass
 GType gst_tensor_query_serversink_get_type (void);
 
 G_END_DECLS
-
 #endif /* __GST_TENSOR_QUERY_SERVERSINK_H__ */

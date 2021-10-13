@@ -15,6 +15,9 @@
 #include <config.h>
 #endif
 
+#include <stdlib.h>
+#include <string.h>
+
 #ifdef G_OS_WIN32
 #include <process.h>
 #else
