@@ -17,6 +17,8 @@
 
 #include <gio/gio.h>
 #include <gio/gsocket.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <stdint.h>
 #include <string.h>
 #include <errno.h>
@@ -179,6 +181,12 @@ gst_tensor_query_connect (query_connection_handle conn_h)
 
   if (!conn->socket) {
     nns_loge ("Failed to create new socket");
+    goto done;
+  }
+
+  /* setting TCP_NODELAY to TRUE in order to avoid packet batching as known as Nagle's algorithm */
+  if (!g_socket_set_option (conn->socket, IPPROTO_TCP, TCP_NODELAY, TRUE, &err)) {
+    nns_loge ("Failed to set socket TCP_NODELAY option: %s", err->message);
     goto done;
   }
 
@@ -642,6 +650,13 @@ accept_socket_async_cb (GObject * source, GAsyncResult * result,
       &err);
   if (!socket) {
     nns_loge ("Failed to get socket: %s", err->message);
+    g_clear_error (&err);
+    return;
+  }
+
+  /* setting TCP_NODELAY to TRUE in order to avoid packet batching as known as Nagle's algorithm */
+  if (!g_socket_set_option (socket, IPPROTO_TCP, TCP_NODELAY, TRUE, &err)) {
+    nns_loge ("Failed to set socket TCP_NODELAY option: %s", err->message);
     g_clear_error (&err);
     return;
   }
