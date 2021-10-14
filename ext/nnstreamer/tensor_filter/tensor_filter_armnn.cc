@@ -227,6 +227,9 @@ int
 ArmNNCore::makeCaffeNetwork (std::map<std::string, armnn::TensorShape> &input_map,
     std::vector<std::string> &output_vec)
 {
+  UNUSED (input_map);
+  UNUSED (output_vec);
+
   g_printerr ("ARMNN-CAFFE was not enabled at build-time. tensor-filter::armnn cannot handle caffe networks.");
   return -EPERM;
 }
