@@ -51,6 +51,7 @@ enum
   PROP_OPERATION,
   PROP_BROKER_HOST,
   PROP_BROKER_PORT,
+  PROP_ID,
 };
 
 #define gst_tensor_query_serversrc_parent_class parent_class
@@ -117,6 +118,11 @@ gst_tensor_query_serversrc_class_init (GstTensorQueryServerSrcClass * klass)
       g_param_spec_uint ("broker-port", "Broker Port",
           "Broker port to connect.", 0, 65535,
           DEFAULT_BROKER_PORT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_ID,
+      g_param_spec_uint ("id", "ID",
+          "ID for distinguishing query servers.", 0,
+          G_MAXUINT, DEFAULT_SERVER_ID,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&srctemplate));
@@ -147,6 +153,7 @@ gst_tensor_query_serversrc_init (GstTensorQueryServerSrc * src)
   src->operation = NULL;
   src->broker_host = g_strdup (DEFAULT_BROKER_HOST);
   src->broker_port = DEFAULT_BROKER_PORT;
+  src->src_id = DEFAULT_SERVER_ID;
   tensor_query_hybrid_init (&src->hybrid_info, NULL, 0, TRUE);
   gst_tensors_config_init (&src->src_config);
   src->server_data = nnstreamer_query_server_data_new ();
@@ -219,6 +226,9 @@ gst_tensor_query_serversrc_set_property (GObject * object, guint prop_id,
     case PROP_BROKER_PORT:
       serversrc->broker_port = g_value_get_uint (value);
       break;
+    case PROP_ID:
+      serversrc->src_id = g_value_get_uint (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -256,6 +266,9 @@ gst_tensor_query_serversrc_get_property (GObject * object, guint prop_id,
     case PROP_BROKER_PORT:
       g_value_set_uint (value, serversrc->broker_port);
       break;
+    case PROP_ID:
+      g_value_set_uint (value, serversrc->src_id);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -288,9 +301,16 @@ gst_tensor_query_serversrc_start (GstBaseSrc * bsrc)
     nns_loge ("Failed to setup server");
     return FALSE;
   }
+
   /** Publish query sever connection info */
   if (src->operation) {
-    tensor_query_hybrid_set_node (&src->hybrid_info, src->host, src->port);
+    src->server_info_h = gst_tensor_query_server_add_data (src->src_id);
+    if (!gst_tensor_query_server_wait_sink (src->server_info_h)) {
+      nns_loge ("Query server sink info is not configured.");
+      return FALSE;
+    }
+    tensor_query_hybrid_set_node (&src->hybrid_info, src->host, src->port,
+        src->server_info_h);
     tensor_query_hybrid_set_broker (&src->hybrid_info,
         src->broker_host, src->broker_port);
 
@@ -366,7 +386,7 @@ gst_tensor_query_serversrc_create (GstPushSrc * psrc, GstBuffer ** outbuf)
             gst_tensors_info_is_equal (&config->info, &src->src_config.info)) {
           cmd_data.cmd = _TENSOR_QUERY_CMD_RESPOND_APPROVE;
           /* respond sink config */
-          gst_tensor_query_server_get_sink_config (config);
+          gst_tensor_query_server_get_sink_config (src->server_info_h, config);
         } else {
           /* respond deny with src config */
           nns_logw ("tensor info is not equal");

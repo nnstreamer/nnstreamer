@@ -16,7 +16,6 @@
 
 #include <string.h>
 #include "tensor_query_hybrid.h"
-#include "tensor_query_server.h"
 #include "nnstreamer_log.h"
 
 #if defined(ENABLE_QUERY_HYBRID)
@@ -207,14 +206,15 @@ tensor_query_hybrid_close (query_hybrid_info_s * info)
  * @brief Set current node info.
  */
 void
-tensor_query_hybrid_set_node (query_hybrid_info_s * info,
-    const gchar * host, const guint16 port)
+tensor_query_hybrid_set_node (query_hybrid_info_s * info, const gchar * host,
+    const guint16 port, query_server_info_handle server_info_h)
 {
   g_return_if_fail (info != NULL);
 
   _free_node_info (&info->node);
   info->node.host = g_strdup (host);
   info->node.port = port;
+  info->node.server_info_h = server_info_h;
 }
 
 /**
@@ -306,13 +306,13 @@ tensor_query_hybrid_publish (query_hybrid_info_s * info,
   nns_logd ("[Query-hybrid] Query server topic: %s", topic);
   g_free (device);
 
-  sink_host = gst_tensor_query_server_get_sink_host ();
+  sink_host = gst_tensor_query_server_get_sink_host (info->node.server_info_h);
   if (!sink_host) {
     nns_logw
         ("[Query-hybrid] Sink host is not given. Use default host (localhost).");
     sink_host = g_strdup ("localhost");
   }
-  sink_port = gst_tensor_query_server_get_sink_port ();
+  sink_port = gst_tensor_query_server_get_sink_port (info->node.server_info_h);
   if (0 == sink_port) {
     nns_logw
         ("[Query-hybrid] Sink port is not given. Use default port (3000).");
