@@ -54,6 +54,29 @@ callCompareTest raw3_0.log result3_0.log 3-3 "Compare 3-3" 1 0
 callCompareTest raw3_1.log result3_1.log 3-4 "Compare 3-4" 1 0
 callCompareTest raw3_2.log result3_2.log 3-5 "Compare 3-5" 1 0
 
+# Test multiple query server src and sink.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
+    tensor_query_serversrc id=0 num-buffers=3 ! other/tensors,format=flexible ! tensor_query_serversink id=0 async=false \
+    tensor_query_serversrc id=1 port=5000 num-buffers=3 ! other/tensors,format=flexible ! tensor_query_serversink id=1 port=5001  async=false" 5-1 0 0 $PERFORMANCE $TIMEOUT_SEC &
+# Client pipeline 5-2 is connected to server ID 0.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
+    videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,width=640,height=480,format=RGB ! \
+    tensor_converter ! other/tensors,format=flexible ! tee name=t \
+        t. ! queue ! multifilesink location= raw5_2_%1d.log \
+        t. ! queue ! tensor_query_client ! multifilesink location=result5_2_%1d.log" 5-2 0 0 $PERFORMANCE &
+# Client pipeline 5-2 is connected to server ID 1.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
+    videotestsrc pattern=13 num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! \
+    tensor_converter ! other/tensors,format=flexible ! tee name=t \
+        t. ! queue ! multifilesink location= raw5_3_%1d.log \
+        t. ! queue ! tensor_query_client src-port=5000 sink-port=5001 ! multifilesink location=result5_3_%1d.log" 5-3 0 0 $PERFORMANCE
+callCompareTest raw5_2_0.log result5_2_0.log 5-4 "Compare 5-4" 1 0
+callCompareTest raw5_2_1.log result5_2_1.log 5-5 "Compare 5-5" 1 0
+callCompareTest raw5_2_2.log result5_2_2.log 5-6 "Compare 5-6" 1 0
+callCompareTest raw5_3_0.log result5_3_0.log 5-7 "Compare 5-7" 1 0
+callCompareTest raw5_3_1.log result5_3_1.log 5-8 "Compare 5-8" 1 0
+callCompareTest raw5_3_2.log result5_3_2.log 5-9 "Compare 5-9" 1 0
+
 # TODO enable query-hybrid test
 # Now nnsquery library is not available.
 # After publishing the nnsquery pkg, enable below testcases.
