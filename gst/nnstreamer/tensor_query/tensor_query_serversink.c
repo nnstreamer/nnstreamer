@@ -40,6 +40,7 @@ enum
   PROP_HOST,
   PROP_PORT,
   PROP_PROTOCOL,
+  PROP_ID,
   PROP_TIMEOUT
 };
 
@@ -93,6 +94,11 @@ gst_tensor_query_serversink_class_init (GstTensorQueryServerSinkClass * klass)
       g_param_spec_uint ("timeout", "Timeout",
           "The timeout as seconds to maintain connection", 0,
           3600, DEFAULT_TIMEOUT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_ID,
+      g_param_spec_uint ("id", "ID",
+          "ID for distinguishing query servers.", 0,
+          G_MAXUINT, DEFAULT_SERVER_ID,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&sinktemplate));
@@ -120,6 +126,7 @@ gst_tensor_query_serversink_init (GstTensorQueryServerSink * sink)
   sink->port = DEFAULT_PORT_SINK;
   sink->protocol = DEFAULT_PROTOCOL;
   sink->timeout = DEFAULT_TIMEOUT;
+  sink->sink_id = DEFAULT_SERVER_ID;
   sink->server_data = nnstreamer_query_server_data_new ();
 }
 
@@ -133,6 +140,8 @@ gst_tensor_query_serversink_finalize (GObject * object)
   g_free (sink->host);
   nnstreamer_query_server_data_free (sink->server_data);
   sink->server_data = NULL;
+  gst_tensor_query_server_remove_data (sink->server_info_h);
+  sink->server_info_h = NULL;
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
@@ -153,17 +162,18 @@ gst_tensor_query_serversink_set_property (GObject * object, guint prop_id,
       }
       g_free (serversink->host);
       serversink->host = g_value_dup_string (value);
-      gst_tensor_query_server_set_sink_host (serversink->host);
       break;
     case PROP_PORT:
       serversink->port = g_value_get_uint (value);
-      gst_tensor_query_server_set_sink_port (serversink->port);
       break;
     case PROP_PROTOCOL:
       serversink->protocol = g_value_get_int (value);
       break;
     case PROP_TIMEOUT:
       serversink->timeout = g_value_get_uint (value);
+      break;
+    case PROP_ID:
+      serversink->sink_id = g_value_get_uint (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -193,6 +203,9 @@ gst_tensor_query_serversink_get_property (GObject * object, guint prop_id,
     case PROP_TIMEOUT:
       g_value_set_uint (value, serversink->timeout);
       break;
+    case PROP_ID:
+      g_value_set_uint (value, serversink->sink_id);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -215,7 +228,12 @@ gst_tensor_query_serversink_start (GstBaseSink * bsink)
     nns_loge ("Invalid tensors config from peer");
     return FALSE;
   }
-  gst_tensor_query_server_set_sink_config (&config);
+
+  /** Set server sink information */
+  sink->server_info_h = gst_tensor_query_server_add_data (sink->sink_id);
+  gst_tensor_query_server_set_sink_host (sink->server_info_h, sink->host,
+      sink->port);
+  gst_tensor_query_server_set_sink_config (sink->server_info_h, &config);
   gst_tensors_config_free (&config);
 
   if (!sink->server_data) {
@@ -238,7 +256,6 @@ static gboolean
 gst_tensor_query_serversink_stop (GstBaseSink * bsink)
 {
   GstTensorQueryServerSink *sink = GST_TENSOR_QUERY_SERVERSINK (bsink);
-  gst_tensor_query_server_free_sink_host ();
   nnstreamer_query_server_data_free (sink->server_data);
   sink->server_data = NULL;
   return TRUE;

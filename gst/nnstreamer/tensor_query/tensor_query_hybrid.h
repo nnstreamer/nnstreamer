@@ -14,6 +14,7 @@
 #define __TENSOR_QUERY_HYBRID_H__
 
 #include <glib.h>
+#include "tensor_query_server.h"
 
 #define DEFAULT_BROKER_HOST "tcp://localhost"
 #define DEFAULT_BROKER_PORT 1883
@@ -27,6 +28,7 @@ typedef struct
 {
   gchar *host;
   guint16 port;
+  query_server_info_handle server_info_h;
 } query_node_info_s;
 
 /**
@@ -69,7 +71,7 @@ tensor_query_hybrid_close (query_hybrid_info_s * info);
  * @brief Set current node info.
  */
 extern void
-tensor_query_hybrid_set_node (query_hybrid_info_s * info, const gchar * host, const guint16 port);
+tensor_query_hybrid_set_node (query_hybrid_info_s * info, const gchar * host, const guint16 port, query_server_info_handle server_info_h);
 
 /**
  * @brief Set broker info.
