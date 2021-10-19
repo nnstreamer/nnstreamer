@@ -282,6 +282,7 @@ static gboolean
 gst_tensor_query_serversrc_start (GstBaseSrc * bsrc)
 {
   GstTensorQueryServerSrc *src = GST_TENSOR_QUERY_SERVERSRC (bsrc);
+  GstTensorsConfig sink_config;
 
   gst_tensors_config_from_peer (bsrc->srcpad, &src->src_config, NULL);
   src->src_config.rate_n = 0;
@@ -302,13 +303,17 @@ gst_tensor_query_serversrc_start (GstBaseSrc * bsrc)
     return FALSE;
   }
 
+  src->server_info_h = gst_tensor_query_server_add_data (src->src_id);
+  if (!gst_tensor_query_server_wait_sink (src->server_info_h)) {
+    nns_loge ("Failed to get server information from query server.");
+    return FALSE;
+  }
+  gst_tensor_query_server_get_sink_config (src->server_info_h, &sink_config);
+  nnstreamer_query_server_data_set_config (src->server_data, &src->src_config,
+      &sink_config);
+
   /** Publish query sever connection info */
   if (src->operation) {
-    src->server_info_h = gst_tensor_query_server_add_data (src->src_id);
-    if (!gst_tensor_query_server_wait_sink (src->server_info_h)) {
-      nns_loge ("Query server sink info is not configured.");
-      return FALSE;
-    }
     tensor_query_hybrid_set_node (&src->hybrid_info, src->host, src->port,
         src->server_info_h);
     tensor_query_hybrid_set_broker (&src->hybrid_info,
@@ -347,106 +352,13 @@ static GstFlowReturn
 gst_tensor_query_serversrc_create (GstPushSrc * psrc, GstBuffer ** outbuf)
 {
   GstTensorQueryServerSrc *src = GST_TENSOR_QUERY_SERVERSRC (psrc);
-  GstMemory *mem = NULL;
-  GstMapInfo map;
-  GstMetaQuery *meta_query;
-  TensorQueryCommandData cmd_data;
-  TensorQueryDataInfo data_info;
-  query_connection_handle conn;
-  guint i;
-  gint ecode;
 
   if (!src->server_data) {
     nns_loge ("Server data is NULL");
     return GST_FLOW_ERROR;
   }
 
-  while (TRUE) {
-    conn = nnstreamer_query_server_accept (src->server_data);
-    if (!conn) {
-      nns_loge ("Failed to accept connection");
-      goto error;
-    }
+  *outbuf = nnstreamer_query_server_get_buffer (src->server_data);
 
-    /**
-     * Set non-blocking mode to receive the command data.
-     * If data is not available in the socket, check the next socket.
-     */
-    if (0 != nnstreamer_query_receive (conn, &cmd_data, 0)) {
-      nns_logi ("Failed to receive cmd");
-      continue;
-    }
-
-    switch (cmd_data.cmd) {
-      case _TENSOR_QUERY_CMD_REQUEST_INFO:
-      {
-        GstTensorsConfig *config = &cmd_data.data_info.config;
-        if ((gst_tensors_config_is_flexible (config) &&
-                gst_tensors_config_is_flexible (&src->src_config)) ||
-            gst_tensors_info_is_equal (&config->info, &src->src_config.info)) {
-          cmd_data.cmd = _TENSOR_QUERY_CMD_RESPOND_APPROVE;
-          /* respond sink config */
-          gst_tensor_query_server_get_sink_config (src->server_info_h, config);
-        } else {
-          /* respond deny with src config */
-          nns_logw ("tensor info is not equal");
-          cmd_data.cmd = _TENSOR_QUERY_CMD_RESPOND_DENY;
-          gst_tensors_config_copy (config, &src->src_config);
-        }
-        if (nnstreamer_query_send (conn, &cmd_data, src->timeout) != 0) {
-          nns_logi ("Failed to send respond");
-          continue;
-        }
-        break;
-      }
-      case _TENSOR_QUERY_CMD_TRANSFER_START:
-        data_info = cmd_data.data_info;
-        *outbuf = gst_buffer_new ();
-        for (i = 0; i < data_info.num_mems; i++) {
-          mem = gst_allocator_alloc (NULL, data_info.mem_sizes[i], NULL);
-          gst_buffer_append_memory (*outbuf, mem);
-
-          if (!gst_memory_map (mem, &map, GST_MAP_READWRITE)) {
-            nns_loge ("Failed to map the memory to receive data.");
-            goto reset_buffer;
-          }
-
-          cmd_data.data.data = map.data;
-          cmd_data.data.size = map.size;
-
-          ecode = nnstreamer_query_receive (conn, &cmd_data, 1);
-          gst_memory_unmap (mem, &map);
-
-          if (ecode != 0) {
-            nns_logi ("Failed to receive data");
-            goto reset_buffer;
-          }
-        }
-
-        /* receive end */
-        if (0 != nnstreamer_query_receive (conn, &cmd_data, 1) ||
-            cmd_data.cmd != _TENSOR_QUERY_CMD_TRANSFER_END) {
-          nns_logi ("Failed to receive end command");
-          goto reset_buffer;
-        }
-
-        meta_query = gst_buffer_add_meta_query (*outbuf);
-        if (meta_query) {
-          meta_query->client_id =
-              nnstreamer_query_connection_get_client_id (conn);
-        }
-        return GST_FLOW_OK;
-
-      default:
-        nns_loge ("Invalid cmd type %d", cmd_data.cmd);
-        break;
-    }
-    continue;
-  reset_buffer:
-    gst_buffer_unref (*outbuf);
-  }
-
-error:
-  gst_buffer_unref (*outbuf);
-  return GST_FLOW_ERROR;
+  return GST_FLOW_OK;
 }

@@ -14,6 +14,8 @@
 #define __TENSOR_QUERY_COMMON_H__
 
 #include "tensor_typedef.h"
+#include "tensor_common.h"
+#include "tensor_meta.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -78,7 +80,7 @@ typedef struct
 {
   TensorQueryCommand cmd;
   TensorQueryProtocol protocol;
-  uint32_t client_id;
+  query_client_id_t client_id;
   union
   {
     TensorQueryDataInfo data_info; /** _TENSOR_QUERY_CMD_TRANSFER_START */
@@ -96,7 +98,7 @@ nnstreamer_query_connect (TensorQueryProtocol protocol, const char *ip, uint16_t
 /**
  * @brief get client id from query connection handle
  */
-extern uint32_t
+extern query_client_id_t
 nnstreamer_query_connection_get_client_id (query_connection_handle connection);
 
 /**
@@ -154,6 +156,19 @@ nnstreamer_query_server_data_free (query_server_handle server_data);
 extern int
 nnstreamer_query_server_init (query_server_handle server_data,
     TensorQueryProtocol protocol, const char *host, uint16_t port, int8_t is_src);
+
+/**
+ * @brief set server source and sink tensors config.
+ */
+extern void
+nnstreamer_query_server_data_set_config (query_server_handle server_data,
+    GstTensorsConfig *src_config, GstTensorsConfig *sink_config);
+
+/**
+ * @brief Get buffer from message queue.
+ */
+extern GstBuffer *
+nnstreamer_query_server_get_buffer (query_server_handle server_data);
 
 #ifdef __cplusplus
 }

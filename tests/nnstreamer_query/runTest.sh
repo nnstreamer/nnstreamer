@@ -36,6 +36,9 @@ callCompareTest raw1_0.log result1_0.log 1-3 "Compare 1-3" 1 0
 callCompareTest raw1_1.log result1_1.log 1-4 "Compare 1-4" 1 0
 callCompareTest raw1_2.log result1_2.log 1-5 "Compare 1-5" 1 0
 
+# Since the server operates in the background, wait for the server to stop before starting the next test.
+sleep 2
+
 # Run tensor query server as echo server with given address option. (multi clients)
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc host=127.0.0.1 port=5001 num-buffers=6 ! other/tensors,num_tensors=1,dimensions=3:300:300:1,types=uint8 ! tensor_query_serversink host=127.0.0.1 port=5002" 2-1 0 0 $PERFORMANCE $TIMEOUT_SEC &
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! tee name = t t. ! queue ! multifilesink location= raw2_%1d.log t. ! queue ! tensor_query_client src-host=127.0.0.1 src-port=5001 sink-host=127.0.0.1 sink-port=5002 ! multifilesink location=result2_%1d.log" 2-2 0 0 $PERFORMANCE &
@@ -47,12 +50,16 @@ callCompareTest raw2_2_0.log result2_2_0.log 2-7 "Compare 2-7" 1 0
 callCompareTest raw2_2_1.log result2_2_1.log 2-8 "Compare 2-8" 1 0
 callCompareTest raw2_2_2.log result2_2_2.log 2-9 "Compare 2-9" 1 0
 
+sleep 2
+
 # Test flexible tensors
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc num-buffers=3 ! other/tensors,format=flexible ! tensor_query_serversink" 3-1 0 0 $PERFORMANCE $TIMEOUT_SEC &
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! other/tensors,format=flexible ! tee name = t t. ! queue ! multifilesink location= raw3_%1d.log t. ! queue ! tensor_query_client ! multifilesink location=result3_%1d.log" 3-2 0 0 $PERFORMANCE
 callCompareTest raw3_0.log result3_0.log 3-3 "Compare 3-3" 1 0
 callCompareTest raw3_1.log result3_1.log 3-4 "Compare 3-4" 1 0
 callCompareTest raw3_2.log result3_2.log 3-5 "Compare 3-5" 1 0
+
+sleep 2
 
 # Test multiple query server src and sink.
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
@@ -77,6 +84,7 @@ callCompareTest raw5_3_0.log result5_3_0.log 5-7 "Compare 5-7" 1 0
 callCompareTest raw5_3_1.log result5_3_1.log 5-8 "Compare 5-8" 1 0
 callCompareTest raw5_3_2.log result5_3_2.log 5-9 "Compare 5-9" 1 0
 
+sleep 2
 # TODO enable query-hybrid test
 # Now nnsquery library is not available.
 # After publishing the nnsquery pkg, enable below testcases.

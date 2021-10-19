@@ -24,10 +24,12 @@
 #include <nnstreamer_util.h>
 #include <nnstreamer_log.h>
 #include "tensor_query_common.h"
+#include <pthread.h>
 
 #define TENSOR_QUERY_SERVER_DATA_LEN 128
 #define N_BACKLOG 10
-#define CLIENT_ID_LEN 4
+#define CLIENT_ID_LEN sizeof(query_client_id_t)
+#define QUERY_TIMEOUT_SEC 1
 
 #ifndef EREMOTEIO
 #define EREMOTEIO 121           /* This is Linux-specific. Define this for non-Linux systems */
@@ -40,6 +42,9 @@ typedef struct
 {
   TensorQueryProtocol protocol;
   int8_t is_src;
+  GstTensorsConfig src_config;
+  GstTensorsConfig sink_config;
+  GAsyncQueue *msg_queue;
   union
   {
     struct
@@ -77,7 +82,10 @@ typedef struct
   TensorQueryProtocol protocol;
   char *host;
   uint16_t port;
-  uint32_t client_id;
+  query_client_id_t client_id;
+  pthread_t msg_thread;
+  int8_t running;
+
   /* network info */
   union
   {
@@ -89,6 +97,15 @@ typedef struct
     };
   };
 } TensorQueryConnection;
+
+/**
+ * @brief Structures for tensor query message handling thread data.
+ */
+typedef struct
+{
+  TensorQueryServerData *sdata;
+  TensorQueryConnection *conn;
+} TensorQueryMsgThreadData;
 
 static int
 query_tcp_receive (GSocket * socket, uint8_t * data, size_t size,
@@ -102,7 +119,7 @@ accept_socket_async_cb (GObject * source, GAsyncResult * result,
 /**
  * @brief get client id from query connection handle
  */
-uint32_t
+query_client_id_t
 nnstreamer_query_connection_get_client_id (query_connection_handle connection)
 {
   TensorQueryConnection *conn = (TensorQueryConnection *) connection;
@@ -449,11 +466,22 @@ nnstreamer_query_server_data_free (query_server_handle server_data)
     case _TENSOR_QUERY_PROTOCOL_TCP:
     {
       TensorQueryConnection *conn_remained;
+      GstBuffer *buf_remained;
+
       while ((conn_remained = g_async_queue_try_pop (sdata->conn_queue))) {
+        conn_remained->running = 0;
+        pthread_join (conn_remained->msg_thread, NULL);
         nnstreamer_query_close (conn_remained);
       }
-
       g_async_queue_unref (sdata->conn_queue);
+
+      if (sdata->is_src) {
+        while ((buf_remained = g_async_queue_try_pop (sdata->msg_queue))) {
+          gst_buffer_unref (buf_remained);
+        }
+        g_async_queue_unref (sdata->msg_queue);
+      }
+
       g_socket_listener_close (sdata->socket_listener);
       g_object_unref (sdata->socket_listener);
       g_object_unref (sdata->cancellable);
@@ -503,6 +531,8 @@ nnstreamer_query_server_init (query_server_handle server_data,
       }
       g_socket_listener_set_backlog (sdata->socket_listener, N_BACKLOG);
       sdata->conn_queue = g_async_queue_new ();
+      if (sdata->is_src)
+        sdata->msg_queue = g_async_queue_new ();
       g_object_unref (saddr);
 
       g_socket_listener_accept_socket_async (sdata->socket_listener,
@@ -551,6 +581,7 @@ nnstreamer_query_server_accept (query_server_handle server_data)
         break;
       }
       g_async_queue_push (sdata->conn_queue, conn);
+
       return (query_connection_handle) conn;
     }
     default:
@@ -620,25 +651,126 @@ query_tcp_send (GSocket * socket, uint8_t * data, size_t size,
 }
 
 /**
- * @brief Generate unique id.
+ * @brief [TCP] Receive buffer from the client
+ * @param[in] conn connection info
  */
-static uint32_t
-get_unique_id (GAsyncQueue * queue)
+static void *
+_message_handler (void *thread_data)
 {
-  TensorQueryConnection *conn;
-  int32_t len = g_async_queue_length (queue), cnt = 0;
-  uint32_t client_id = g_random_int ();
+  TensorQueryMsgThreadData *_thread_data =
+      (TensorQueryMsgThreadData *) thread_data;
+  TensorQueryConnection *_conn = _thread_data->conn;
+  TensorQueryServerData *_sdata = _thread_data->sdata;
+  TensorQueryCommandData cmd_data;
+  TensorQueryDataInfo data_info;
+  size_t size;
+  GIOCondition condition;
+  GstBuffer *outbuf = NULL;
+  GstMemory *mem = NULL;
+  GstMapInfo map;
+  GstMetaQuery *meta_query;
+  uint32_t i;
+  int32_t ecode;
 
-  while (cnt < len && (conn = g_async_queue_try_pop (queue))) {
-    cnt++;
-    if (conn->client_id == client_id) {
-      cnt = 0;
-      client_id = g_random_int ();
-    }
-    g_async_queue_push (queue, conn);
+  cmd_data.cmd = _TENSOR_QUERY_CMD_CLIENT_ID;
+  cmd_data.client_id = g_get_monotonic_time ();
+
+  if (0 != nnstreamer_query_send (_conn, &cmd_data, DEFAULT_TIMEOUT_MS)) {
+    nns_loge ("Failed to send client id to client");
+    goto done;
+  }
+  _conn->client_id = cmd_data.client_id;
+  if (0 != nnstreamer_query_receive (_conn, &cmd_data, 1)) {
+    nns_logi ("Failed to receive cmd");
+    goto done;
   }
 
-  return client_id;
+  if (cmd_data.cmd == _TENSOR_QUERY_CMD_REQUEST_INFO) {
+    GstTensorsConfig *config = &cmd_data.data_info.config;
+    if ((gst_tensors_config_is_flexible (config) &&
+            gst_tensors_config_is_flexible (&_sdata->src_config)) ||
+        gst_tensors_info_is_equal (&config->info, &_sdata->src_config.info)) {
+      cmd_data.cmd = _TENSOR_QUERY_CMD_RESPOND_APPROVE;
+      /* respond sink config */
+      gst_tensors_config_copy (config, &_sdata->sink_config);
+    } else {
+      /* respond deny with src config */
+      nns_logw ("tensor info is not equal");
+      cmd_data.cmd = _TENSOR_QUERY_CMD_RESPOND_DENY;
+      gst_tensors_config_copy (config, &_sdata->src_config);
+    }
+    if (nnstreamer_query_send (_conn, &cmd_data, DEFAULT_TIMEOUT_MS) != 0) {
+      nns_logi ("Failed to send respond");
+      goto done;
+    }
+  }
+
+  while (_conn->running) {
+    condition = g_socket_condition_check (_conn->socket,
+        G_IO_IN | G_IO_PRI | G_IO_ERR | G_IO_HUP);
+
+    size = g_socket_get_available_bytes (_conn->socket);
+
+    if (condition && size <= 0) {
+      nns_loge ("socket not available, possibly EOS");
+      break;
+    }
+
+    if (0 != nnstreamer_query_receive (_conn, &cmd_data, 1)) {
+      nns_loge ("Failed to receive cmd");
+      break;
+    }
+
+    if (cmd_data.cmd == _TENSOR_QUERY_CMD_TRANSFER_START) {
+      data_info = cmd_data.data_info;
+      outbuf = gst_buffer_new ();
+      for (i = 0; i < data_info.num_mems; i++) {
+        mem = gst_allocator_alloc (NULL, data_info.mem_sizes[i], NULL);
+        gst_buffer_append_memory (outbuf, mem);
+
+        if (!gst_memory_map (mem, &map, GST_MAP_READWRITE)) {
+          nns_loge ("Failed to map the memory to receive data.");
+          goto reset_buffer;
+        }
+
+        cmd_data.data.data = map.data;
+        cmd_data.data.size = map.size;
+
+        ecode = nnstreamer_query_receive (_conn, &cmd_data, 1);
+        gst_memory_unmap (mem, &map);
+
+        if (ecode != 0) {
+          nns_logi ("Failed to receive data");
+          goto reset_buffer;
+        }
+      }
+
+      /* receive end */
+      if (0 != nnstreamer_query_receive (_conn, &cmd_data, 1) ||
+          cmd_data.cmd != _TENSOR_QUERY_CMD_TRANSFER_END) {
+        nns_logi ("Failed to receive end command");
+        goto reset_buffer;
+      }
+
+      meta_query = gst_buffer_add_meta_query (outbuf);
+      if (meta_query) {
+        meta_query->client_id =
+            nnstreamer_query_connection_get_client_id (_conn);
+      }
+    } else {
+      nns_logi ("Failed to receive start command.");
+      break;
+    }
+    g_async_queue_push (_sdata->msg_queue, outbuf);
+    continue;
+  reset_buffer:
+    gst_buffer_unref (outbuf);
+  }
+
+done:
+  g_free (thread_data);
+
+  return NULL;
 }
 
 /**
@@ -665,7 +797,7 @@ accept_socket_async_cb (GObject * source, GAsyncResult * result,
     g_clear_error (&err);
     goto error;
   }
-
+  g_socket_set_timeout (socket, QUERY_TIMEOUT_SEC);
   /* create socket with connection */
   conn = g_try_new0 (TensorQueryConnection, 1);
   if (!conn) {
@@ -699,22 +831,32 @@ accept_socket_async_cb (GObject * source, GAsyncResult * result,
 
   /** Generate and send client_id to client */
   if (sdata->is_src) {
-    cmd_data.cmd = _TENSOR_QUERY_CMD_CLIENT_ID;
-    cmd_data.client_id = get_unique_id (sdata->conn_queue);
+    TensorQueryMsgThreadData *thread_data = NULL;
 
-    if (0 != nnstreamer_query_send (conn, &cmd_data, DEFAULT_TIMEOUT_MS)) {
-      nns_loge ("Failed to send client id to client");
+    thread_data = g_try_new0 (TensorQueryMsgThreadData, 1);
+    if (!thread_data) {
+      nns_loge ("Failed to allocate query thread data.");
       goto error;
     }
-    conn->client_id = cmd_data.client_id;
-  } else {
+    conn->running = 1;
+    thread_data->sdata = sdata;
+    thread_data->conn = conn;
+
+    if (pthread_create (&conn->msg_thread, NULL, _message_handler,
+            thread_data) < 0) {
+      nns_loge ("Failed to create message handler thread.");
+      nnstreamer_query_close (conn);
+      g_free (thread_data);
+      return;
+    }
+  } else { /** server sink */
     if (0 != nnstreamer_query_receive (conn, &cmd_data, 1)) {
       nns_loge ("Failed to receive command.");
       goto error;
     }
     if (cmd_data.cmd == _TENSOR_QUERY_CMD_CLIENT_ID) {
       conn->client_id = cmd_data.client_id;
-      nns_logd ("Connected client id: %u", conn->client_id);
+      nns_logd ("Connected client id: %ld", (long) conn->client_id);
     }
   }
 
@@ -728,4 +870,28 @@ error:
 
   g_socket_listener_accept_socket_async (socket_listener,
       sdata->cancellable, (GAsyncReadyCallback) accept_socket_async_cb, sdata);
+}
+
+/**
+ * @brief set server source and sink tensors config.
+ */
+void
+nnstreamer_query_server_data_set_config (query_server_handle server_data,
+    GstTensorsConfig * src_config, GstTensorsConfig * sink_config)
+{
+  TensorQueryServerData *sdata = (TensorQueryServerData *) server_data;
+
+  gst_tensors_config_copy (&sdata->src_config, src_config);
+  gst_tensors_config_copy (&sdata->sink_config, sink_config);
+}
+
+/**
+ * @brief Get buffer from message queue.
+ */
+GstBuffer *
+nnstreamer_query_server_get_buffer (query_server_handle server_data)
+{
+  TensorQueryServerData *sdata = (TensorQueryServerData *) server_data;
+
+  return GST_BUFFER (g_async_queue_pop (sdata->msg_queue));
 }

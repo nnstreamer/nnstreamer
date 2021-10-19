@@ -273,7 +273,7 @@ gst_tensor_query_serversink_render (GstBaseSink * bsink, GstBuffer * buf)
   query_connection_handle conn;
   GstMemory *mem;
   GstMapInfo map;
-  uint32_t client_id;
+  query_client_id_t client_id;
   guint32 i, num_mems;
   int ecode;
 
