@@ -1176,13 +1176,12 @@ gst_mqtt_sink_set_mqtt_ntp_srvs (GstMqttSink * self, const gchar * pairs)
     goto err_free_pair_arrs;
 
   g_free (self->mqtt_ntp_hnames);
-  self->mqtt_ntp_hnames =
-      g_try_malloc0 (hnum * sizeof (*self->mqtt_ntp_hnames));
+  self->mqtt_ntp_hnames = g_try_malloc0 ((hnum + 1) * sizeof (gchar *));
   if (!self->mqtt_ntp_hnames)
     goto err_free_pair_arrs;
 
   g_free (self->mqtt_ntp_ports);
-  self->mqtt_ntp_ports = g_try_malloc0 (hnum * sizeof (self->mqtt_ntp_ports));
+  self->mqtt_ntp_ports = g_try_malloc0 (hnum * sizeof (guint16));
   if (!self->mqtt_ntp_ports)
     goto err_free_mqtt_ntp_hnames;
 
