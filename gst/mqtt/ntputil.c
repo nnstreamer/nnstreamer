@@ -209,10 +209,6 @@ ntputil_get_epoch (uint32_t hnums, char **hnames, uint16_t * ports)
      * be converted to the host's endianness.
      */
     recv_sec = ntohl (packet.xmit_ts.sec);
-    if (recv_sec == 0) {
-      ret = -1;
-      goto ret_close_sockfd;
-    }
     recv_frac = ntohl (packet.xmit_ts.frac);
 
     /**
@@ -220,6 +216,11 @@ ntputil_get_epoch (uint32_t hnums, char **hnames, uint16_t * ports)
      * the number of seconds that have elapsed since January 1, 1970. For this
      * reason, we subtract 70 years worth of seconds from the seconds since 1900
      */
+    if (recv_sec <= NTPUTIL_TIMESTAMP_DELTA) {
+      ret = -1;
+      goto ret_close_sockfd;
+    }
+
     ret = (int64_t) (recv_sec - NTPUTIL_TIMESTAMP_DELTA);
     ret *= NTPUTIL_SEC_TO_USEC_MULTIPLIER;
     frac = ((double) recv_frac) / NTPUTIL_MAX_FRAC_DOUBLE;
