@@ -531,7 +531,7 @@ gst_tensor_query_client_sink_event (GstPad * pad,
               ("Specify operation to subscribe to the available broker (e.g., operation=object_detection).");
         }
 
-        if (!_connect_to_server (self)) {
+        if (!_connect_to_server (self) && self->operation) {
           ret = _client_retry_connection (self);
         }
 
@@ -762,7 +762,7 @@ gst_tensor_query_client_chain (GstPad * pad,
 error:
   gst_buffer_unref (out_buf);
 retry:
-  if (!_client_retry_connection (self)) {
+  if (!self->operation || !_client_retry_connection (self)) {
     nns_loge ("Failed to retry connection");
     res = GST_FLOW_ERROR;
   }

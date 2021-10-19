@@ -18,6 +18,8 @@
 
 G_BEGIN_DECLS
 
+typedef int64_t query_client_id_t;
+
 /**
  * @brief GstMetaQuery meta structure
  */
@@ -25,7 +27,7 @@ typedef struct
 {
   GstMeta meta;
 
-  uint32_t client_id;
+  query_client_id_t client_id;
 } GstMetaQuery;
 
 /**
