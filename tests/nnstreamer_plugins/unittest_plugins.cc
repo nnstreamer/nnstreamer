@@ -2984,6 +2984,246 @@ TEST (testTensorConverter, bytesToMultiInvalidFrames_n)
 }
 
 /**
+ * @brief Test for tensor_converter (bytes (multi memories) to static tensor, no properties)
+ */
+TEST (testTensorConverter, bytesToStatic)
+{
+  GstHarness *h;
+  GstCaps *caps;
+  GstBuffer *in_buf, *out_buf;
+  GstTensorsConfig config;
+  GstMemory *mem;
+  GstMapInfo map;
+  gint *input;
+  guint i, received;
+  gsize data_size;
+
+  h = gst_harness_new ("tensor_converter");
+
+  /* in/out caps */
+  gst_tensors_config_init (&config);
+  config.rate_n = 0;
+  config.rate_d = 1;
+  config.info.num_tensors = 1;
+
+  config.info.info[0].type = _NNS_INT32;
+  gst_tensor_parse_dimension ("3:4:2:2", config.info.info[0].dimension);
+
+  caps = gst_tensors_caps_from_config (&config);
+  gst_harness_set_sink_caps (h, caps);
+
+  caps = gst_caps_from_string ("application/octet-stream");
+  gst_harness_set_src_caps (h, caps);
+
+  data_size = gst_tensors_info_get_size (&config.info, -1);
+
+  /* 1st memory */
+  in_buf = gst_harness_create_buffer (h, data_size / 2);
+  ASSERT_TRUE (gst_buffer_map (in_buf, &map, GST_MAP_WRITE));
+  input = (gint *) map.data;
+  for (i = 0; i < 24; i++)
+    input[i] = aggr_test_frames[0][i];
+  gst_buffer_unmap (in_buf, &map);
+
+  /* 2nd memory */
+  input = (gint *) g_malloc0 (data_size / 2);
+  for (i = 0; i < 24; i++)
+    input[i] = aggr_test_frames[0][i + 24];
+  mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, input, data_size / 2,
+      0, data_size / 2, input, g_free);
+  gst_buffer_append_memory (in_buf, mem);
+
+  /* push buffer and compare result */
+  EXPECT_EQ (GST_FLOW_OK, gst_harness_push (h, in_buf));
+  received = _harness_wait_for_output_buffer (h, i);
+  EXPECT_EQ (received, 1U);
+
+  out_buf = gst_harness_pull (h);
+  EXPECT_EQ (gst_buffer_n_memory (out_buf), 1U);
+  mem = gst_buffer_peek_memory (out_buf, 0);
+  ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_WRITE));
+  for (i = 0; i < 48; i++)
+    EXPECT_EQ (((gint *) map.data)[i], aggr_test_frames[0][i]);
+  gst_memory_unmap (mem, &map);
+
+  gst_buffer_unref (out_buf);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_converter (bytes to flex tensor)
+ */
+TEST (testTensorConverter, bytesToFlex)
+{
+  GstHarness *h;
+  GstCaps *caps;
+  GstBuffer *in_buf, *out_buf;
+  GstMemory *mem;
+  GstTensorMetaInfo meta;
+  guint i, received;
+  gsize data_size;
+
+  h = gst_harness_new ("tensor_converter");
+
+  /* in/out caps */
+  caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+  gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
+  gst_harness_set_sink_caps (h, caps);
+
+  caps = gst_caps_from_string ("application/octet-stream");
+  gst_harness_set_src_caps (h, caps);
+
+  /* push buffers */
+  for (i = 1; i <= 3; i++) {
+    data_size = i * 10U;
+
+    in_buf = gst_harness_create_buffer (h, data_size);
+    EXPECT_EQ (GST_FLOW_OK, gst_harness_push (h, in_buf));
+
+    received = _harness_wait_for_output_buffer (h, i);
+    EXPECT_EQ (received, i);
+
+    out_buf = gst_harness_pull (h);
+    EXPECT_EQ (gst_buffer_n_memory (out_buf), 1U);
+    mem = gst_buffer_peek_memory (out_buf, 0);
+    gst_tensor_meta_info_parse_memory (&meta, mem);
+
+    EXPECT_EQ (meta.type, _NNS_UINT8);
+    EXPECT_EQ (meta.dimension[0], data_size);
+    EXPECT_EQ (meta.dimension[1], 1U);
+    EXPECT_EQ ((media_type) meta.media_type, _NNS_OCTET);
+
+    data_size = gst_tensor_meta_info_get_header_size (&meta);
+    data_size += gst_tensor_meta_info_get_data_size (&meta);
+
+    EXPECT_EQ (gst_buffer_get_size (out_buf), data_size);
+    gst_buffer_unref (out_buf);
+  }
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_converter (bytes to flex tensor with invalid condition)
+ */
+TEST (testTensorConverter, bytesToFlexInvalidFrames_n)
+{
+  GstHarness *h;
+  GstCaps *caps;
+  GstBuffer *in_buf;
+
+  h = gst_harness_new ("tensor_converter");
+
+  /* cannot configure multi tensors if output is flex tensor. */
+  g_object_set (h->element, "frames-per-tensor", "2", NULL);
+
+  /* in/out caps */
+  caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+  gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
+  gst_harness_set_sink_caps (h, caps);
+
+  caps = gst_caps_from_string ("application/octet-stream");
+  gst_harness_set_src_caps (h, caps);
+
+  /* push buffers */
+  in_buf = gst_harness_create_buffer (h, 100U);
+  EXPECT_EQ (GST_FLOW_NOT_NEGOTIATED, gst_harness_push (h, in_buf));
+
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_converter (flexible to static tensor)
+ */
+TEST (testTensorConverter, flexToStaticTensor)
+{
+  GstHarness *h;
+  GstBuffer *in_buf, *out_buf;
+  GstMemory *mem;
+  GstMapInfo map;
+  GstTensorMetaInfo meta;
+  GstTensorsInfo info;
+  GstCaps *caps;
+  guint8 *data;
+  guint i, j, received, *value;
+  gsize data_size, hsize;
+
+  h = gst_harness_new ("tensor_converter");
+
+  /* in/out caps and tensors info */
+  caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+  gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
+  gst_harness_set_src_caps (h, caps);
+
+  gst_tensors_info_init (&info);
+  info.num_tensors = 2;
+
+  info.info[0].type = _NNS_UINT32;
+  gst_tensor_parse_dimension ("10:1:1:1", info.info[0].dimension);
+  info.info[1].type = _NNS_UINT32;
+  gst_tensor_parse_dimension ("20:1:1:1", info.info[1].dimension);
+
+  /* input buffer */
+  in_buf = gst_buffer_new ();
+
+  /* 1st mem block */
+  gst_tensor_info_convert_to_meta (&info.info[0], &meta);
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  data_size = hsize + gst_tensor_meta_info_get_data_size (&meta);
+
+  data = (guint8 *) g_malloc0 (data_size);
+  gst_tensor_meta_info_update_header (&meta, data);
+  value = (guint *) (data + hsize);
+  for (i = 0; i < 10; i++)
+    value[i] = i * 10;
+
+  mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, data, data_size,
+      0, data_size, data, g_free);
+  gst_buffer_append_memory (in_buf, mem);
+
+  /* 2nd mem block */
+  gst_tensor_info_convert_to_meta (&info.info[1], &meta);
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  data_size = hsize + gst_tensor_meta_info_get_data_size (&meta);
+
+  data = (guint8 *) g_malloc0 (data_size);
+  gst_tensor_meta_info_update_header (&meta, data);
+  value = (guint *) (data + hsize);
+  for (i = 0; i < 20; i++)
+    value[i] = i * 20;
+
+  mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, data, data_size,
+      0, data_size, data, g_free);
+  gst_buffer_append_memory (in_buf, mem);
+
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+  /* wait for output buffer */
+  received = _harness_wait_for_output_buffer (h, 1U);
+  ASSERT_EQ (received, 1U);
+
+  /* get output buffer */
+  out_buf = gst_harness_pull (h);
+  EXPECT_EQ (gst_buffer_n_memory (out_buf), 2U);
+
+  for (i = 0; i < gst_buffer_n_memory (out_buf); i++) {
+    mem = gst_buffer_peek_memory (out_buf, i);
+    ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_READ));
+    EXPECT_EQ (map.size, gst_tensors_info_get_size (&info, i));
+    value = (guint *) map.data;
+
+    for (j = 0; j < (i + 1) * 10; j++)
+      EXPECT_EQ (value[j], j * (i + 1) * 10);
+
+    gst_memory_unmap (mem, &map);
+  }
+
+  gst_buffer_unref (out_buf);
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Test for tensor_converter (flexible to static tensor)
  */
 TEST (testTensorConverter, flexToStaticInvalidBuffer1_n)
