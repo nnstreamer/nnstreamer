@@ -829,15 +829,16 @@ _gst_tensor_converter_chain_timestamp (GstTensorConverter * self,
   self->old_timestamp = GST_BUFFER_TIMESTAMP (inbuf);
 }
 
-/** @brief Chain function's private routine to process multi tensor */
+/** @brief Chain function's private routine to process octet stream */
 static GstBuffer *
-_gst_tensor_converter_chain_multi_tensor (GstTensorConverter * self,
-    GstBuffer * buf)
+_gst_tensor_converter_chain_octet (GstTensorConverter * self, GstBuffer * buf)
 {
   GstBuffer *buffer = buf;
+  GstTensorsInfo *_info = &self->tensors_config.info;
+  gboolean multi = (_info->num_tensors > 1);
 
   /* configure multi tensors */
-  if (self->tensors_info.num_tensors > 1) {
+  if (multi || gst_buffer_n_memory (buf) > 1) {
     GstMemory *mem;
     gsize offset, size;
     guint i;
@@ -848,13 +849,17 @@ _gst_tensor_converter_chain_multi_tensor (GstTensorConverter * self,
     buffer = gst_buffer_new ();
     mem = gst_buffer_get_all_memory (buf);
 
-    for (i = 0; i < self->tensors_info.num_tensors; ++i) {
-      size = gst_tensors_info_get_size (&self->tensors_info, i);
-      gst_buffer_append_memory (buffer, gst_memory_share (mem, offset, size));
-      offset += size;
-    }
+    if (multi) {
+      for (i = 0; i < _info->num_tensors; ++i) {
+        size = gst_tensors_info_get_size (_info, i);
+        gst_buffer_append_memory (buffer, gst_memory_share (mem, offset, size));
+        offset += size;
+      }
 
-    gst_memory_unref (mem);
+      gst_memory_unref (mem);
+    } else {
+      gst_buffer_append_memory (buffer, mem);
+    }
 
     /* copy timestamps */
     gst_buffer_copy_into (buffer, buf, GST_BUFFER_COPY_METADATA, 0, -1);
@@ -914,7 +919,7 @@ _gst_tensor_converter_chain_push (GstTensorConverter * self, GstBuffer * buf)
 
   if (self->in_media_type == _NNS_OCTET) {
     /* configure multi tensors */
-    buffer = _gst_tensor_converter_chain_multi_tensor (self, buffer);
+    buffer = _gst_tensor_converter_chain_octet (self, buffer);
   }
 
   /* if output is flexible, add header. */
@@ -1121,36 +1126,49 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       }
       break;
     case _NNS_OCTET:
-      /** get frame size from the properties */
-      g_assert ((buf_size % frame_size) == 0);
-      frames_in = buf_size / frame_size;
+      if (gst_tensors_config_is_flexible (config)) {
+        /* update dimension with buffer size */
+        config->info.info[0].dimension[0] = buf_size;
+        frame_size = buf_size;
+      } else {
+        /* get frame size from the properties */
+        g_assert ((buf_size % frame_size) == 0);
+        frames_in = buf_size / frame_size;
+      }
       break;
     case _NNS_TENSOR:
     {
       GstTensorMetaInfo meta;
+      GstTensorsConfig tmp;
       GstMemory *mem;
       gsize s1, s2, hsize;
       guint n;
 
-      if (config->info.num_tensors != gst_buffer_n_memory (buf)) {
-        nns_loge ("Incoming buffer does not contain %u memories.",
-            config->info.num_tensors);
-        goto error;
-      }
+      gst_tensors_config_init (&tmp);
+      tmp.rate_n = config->rate_n;
+      tmp.rate_d = config->rate_d;
+
+      tmp.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+      buf = gst_tensor_buffer_from_config (buf, &tmp);
+
+      /* type and dimension from buffer */
+      tmp.format = _NNS_TENSOR_FORMAT_STATIC;
+      tmp.info.num_tensors = gst_buffer_n_memory (buf);
 
       /* compare data size and append memory */
       inbuf = gst_buffer_new ();
 
-      for (n = 0; n < config->info.num_tensors; n++) {
+      for (n = 0; n < tmp.info.num_tensors; n++) {
         mem = gst_buffer_peek_memory (buf, n);
         s1 = gst_memory_get_sizes (mem, NULL, NULL);
 
         /* flex-tensor has header in each mem block */
         gst_tensor_meta_info_parse_memory (&meta, mem);
+        gst_tensor_meta_info_convert (&meta, &tmp.info.info[n]);
         hsize = gst_tensor_meta_info_get_header_size (&meta);
         s1 -= hsize;
 
-        s2 = gst_tensor_info_get_size (&config->info.info[n]);
+        s2 = gst_tensor_info_get_size (&tmp.info.info[n]);
 
         /**
          * @todo expand mem if given property is larger than mem size.
@@ -1159,7 +1177,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         if (s1 != s2) {
           nns_loge
               ("Incoming buffer has invalid data size %zd, expected size is %zd (%u/%u).",
-              s1, s2, (n + 1), config->info.num_tensors);
+              s1, s2, (n + 1), tmp.info.num_tensors);
           gst_buffer_unref (inbuf);
           goto error;
         }
@@ -1168,6 +1186,18 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       }
 
       gst_buffer_copy_into (inbuf, buf, GST_BUFFER_COPY_METADATA, 0, -1);
+
+      if (!gst_tensors_config_is_equal (config, &tmp)) {
+        if (gst_tensors_info_validate (&self->tensors_info)) {
+          nns_loge ("Incoming buffer does not match with given tensors info.");
+          gst_buffer_unref (inbuf);
+          goto error;
+        }
+
+        /* update caps with new configuration */
+        *config = tmp;
+        gst_tensor_converter_update_caps (self);
+      }
       break;
     }
     case _NNS_MEDIA_ANY:
@@ -1601,44 +1631,48 @@ static gboolean
 gst_tensor_converter_parse_octet (GstTensorConverter * self,
     GstTensorsConfig * config, const GstStructure * structure)
 {
-  media_type mtype;
+  GstTensorsInfo *_info = &self->tensors_info;
+  GstTensorsConfig peer;
+  gboolean flexible, configured;
+  guint i;
 
   g_return_val_if_fail (config != NULL, FALSE);
   g_return_val_if_fail (structure != NULL, FALSE);
 
   gst_tensors_config_init (config);
-  mtype = gst_structure_get_media_type (structure);
+  flexible = configured = FALSE;
 
-  /* update tensor info from properties */
-  if (!gst_tensors_info_validate (&self->tensors_info)) {
-    GST_ERROR_OBJECT (self,
-        "Failed to get tensor info, need to update dimension and type.");
+  /* get possible tensors info from peer if no property is given */
+  if (!gst_tensors_info_validate (_info)) {
+    if (gst_tensors_config_from_peer (self->srcpad, &peer, NULL)) {
+      flexible = gst_tensors_config_is_flexible (&peer);
+      configured = gst_tensors_info_validate (&peer.info);
 
-    ml_loge
-        ("Please set the properties input-dim and input-type to convert stream.\n"
-        "For example, input-dim=30 input-type=unit8 to handle 30 bytes of bin data.");
-    return FALSE;
+      if (configured)
+        _info = &peer.info;
+    }
+
+    if (!flexible && !configured) {
+      GST_ERROR_OBJECT (self,
+          "Failed to get tensor info, need to update dimension and type.");
+
+      ml_loge
+          ("Please set the properties input-dim and input-type to convert stream.\n"
+          "For example, input-dim=30 input-type=uint8 to handle 30 bytes of bin data.");
+      return FALSE;
+    }
   }
 
   if (self->frames_per_tensor > 1) {
     /**
-     * Failure case when
-     * 1. octet-stream has multi tensors and multi frames.
-     * 2. flex-tensor has multi frames.
+     * Failure case when octet-stream has multi tensors and multi frames.
      */
-    if (self->tensors_info.num_tensors > 1 || mtype == _NNS_TENSOR) {
+    if (_info->num_tensors > 1 || flexible) {
       ml_loge
           ("Cannot configure multiple tensors. Please set the property frames-per-tensor 1 to convert stream.");
       return FALSE;
     }
   }
-
-  /**
-   * Raw byte-stream (application/octet-stream)
-   * We cannot get the exact tensors info from caps.
-   * All tensors info should be updated.
-   */
-  gst_tensors_info_copy (&config->info, &self->tensors_info);
 
   if (gst_structure_has_field (structure, "framerate")) {
     gst_structure_get_fraction (structure, "framerate", &config->rate_n,
@@ -1649,7 +1683,77 @@ gst_tensor_converter_parse_octet (GstTensorConverter * self,
     config->rate_d = 1;
   }
 
-  self->frame_size = gst_tensors_info_get_size (&config->info, -1);
+  /**
+   * Raw byte-stream (application/octet-stream)
+   * We cannot get the exact tensors info from caps.
+   * All tensors info should be updated.
+   * If output is flexible, dimension should be updated in chain function with buffer size.
+   */
+  if (flexible) {
+    config->format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+    config->info.num_tensors = 1;
+    config->info.info[0].type = _NNS_UINT8;
+    for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
+      config->info.info[0].dimension[i] = 1;
+  } else {
+    gst_tensors_info_copy (&config->info, _info);
+    self->frame_size = gst_tensors_info_get_size (&config->info, -1);
+  }
+
+  return TRUE;
+}
+
+/**
+ * @brief Set the tensors configs structure from fliex tensor stream (internal static function)
+ * @param self this pointer to GstTensorConverter
+ * @param config tensors config structure to be filled
+ * @param structure caps structure
+ * @note Change tensors dimension and type.
+ * @return TRUE if supported type
+ */
+static gboolean
+gst_tensor_converter_parse_tensor (GstTensorConverter * self,
+    GstTensorsConfig * config, const GstStructure * structure)
+{
+  GstTensorsInfo *_info = &self->tensors_info;
+  guint i;
+
+  g_return_val_if_fail (config != NULL, FALSE);
+  g_return_val_if_fail (structure != NULL, FALSE);
+
+  gst_tensors_config_init (config);
+
+  if (self->frames_per_tensor > 1) {
+    ml_loge
+        ("Cannot configure multiple tensors. Please set the property frames-per-tensor 1 to convert stream.");
+    return FALSE;
+  }
+
+  /* update tensor info from properties */
+  if (gst_tensors_info_validate (_info)) {
+    gst_tensors_info_copy (&config->info, _info);
+    self->frame_size = gst_tensors_info_get_size (&config->info, -1);
+  } else {
+    /**
+     * We cannot get the exact tensors info from caps.
+     * All tensors info should be updated in chain function.
+     */
+    config->info.num_tensors = 1;
+    config->info.info[0].type = _NNS_UINT8;
+    for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
+      config->info.info[0].dimension[i] = 1;
+  }
+
+  if (gst_structure_has_field (structure, "framerate")) {
+    gst_structure_get_fraction (structure, "framerate", &config->rate_n,
+        &config->rate_d);
+  } else {
+    /* cannot get the framerate */
+    config->rate_n = 0;
+    config->rate_d = 1;
+  }
+
   return TRUE;
 }
 
@@ -1968,10 +2072,15 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
       frames_dim = 1;
       break;
     case _NNS_OCTET:
-    case _NNS_TENSOR:
-      /* byte array or flexible tensor to static tensor stream */
       if (!gst_tensor_converter_parse_octet (self, &config, structure)) {
         GST_ERROR_OBJECT (self, "Failed to configure tensors from octet info.");
+        return FALSE;
+      }
+      break;
+    case _NNS_TENSOR:
+      /* flexible tensor to static tensor stream */
+      if (!gst_tensor_converter_parse_tensor (self, &config, structure)) {
+        GST_ERROR_OBJECT (self, "Failed to configure flexible tensor.");
         return FALSE;
       }
       break;

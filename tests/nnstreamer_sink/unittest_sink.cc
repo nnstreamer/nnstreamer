@@ -767,7 +767,7 @@ _setup_pipeline (TestOption &option)
   case TEST_TYPE_FLEX_TENSOR_3:
     str_pipeline = g_strdup_printf (
         "appsrc name=appsrc caps=other/tensors,format=flexible,framerate=(fraction)10/1 ! "
-        "tensor_converter name=convert input-dim=10 input-type=int8 ! tensor_sink name=test_sink");
+        "tensor_converter name=convert input-dim=10 input-type=uint8 ! tensor_sink name=test_sink");
     break;
   case TEST_TYPE_TENSORS_MUX_1:
     /** other/tensors with tensor_mux */
@@ -3360,7 +3360,7 @@ TEST (tensorStreamTest, flexToStatic)
 
   /** check tensor config */
   EXPECT_TRUE (gst_tensors_config_validate (&g_test_data.tensors_config));
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_INT8);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT8);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 10U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
