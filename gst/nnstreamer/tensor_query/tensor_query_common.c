@@ -28,6 +28,10 @@
 #define N_BACKLOG 10
 #define CLIENT_ID_LEN 4
 
+#ifndef EREMOTEIO
+#define EREMOTEIO 121           /* This is Linux-specific. Define this for non-Linux systems */
+#endif
+
 /**
  * @brief Query server dependent network data
  */
@@ -172,10 +176,10 @@ gst_tensor_query_connect (query_connection_handle conn_h)
   }
 
   /* create sending client socket */
-  /** @todo Support UDP protocol */
   conn->socket =
       g_socket_new (g_socket_address_get_family (saddr), G_SOCKET_TYPE_STREAM,
       G_SOCKET_PROTOCOL_TCP, &err);
+  /** @todo Support UDP protocol */
 
   if (!conn->socket) {
     nns_loge ("Failed to create new socket");
