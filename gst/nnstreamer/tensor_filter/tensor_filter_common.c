@@ -2762,9 +2762,9 @@ parse_accl_hw_fill (parse_accl_args accl_args)
 static GType
 accl_hw_get_type (void)
 {
-  static volatile gsize g_accl_hw_type_id__volatile = 0;
+  static gsize g_accl_hw_type_id_store = 0;
 
-  if (g_once_init_enter (&g_accl_hw_type_id__volatile)) {
+  if (g_once_init_enter (&g_accl_hw_type_id_store)) {
     static const GEnumValue values[] = {
       {ACCL_NONE, ACCL_NONE_STR, ACCL_NONE_STR},
       {ACCL_DEFAULT, ACCL_DEFAULT_STR, ACCL_DEFAULT_STR},
@@ -2788,10 +2788,10 @@ accl_hw_get_type (void)
 
     GType g_accl_hw_type_id =
         g_enum_register_static (g_intern_static_string ("accl_hw"), values);
-    g_once_init_leave (&g_accl_hw_type_id__volatile, g_accl_hw_type_id);
+    g_once_init_leave (&g_accl_hw_type_id_store, g_accl_hw_type_id);
   }
 
-  return g_accl_hw_type_id__volatile;
+  return g_accl_hw_type_id_store;
 }
 
 /**
