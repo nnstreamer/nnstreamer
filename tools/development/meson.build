@@ -6,5 +6,9 @@ endif
 # Gst/NNS string pipeline desciption <--> pbtxt pipeline description
 # for pbtxt pipeline WYSIWYG tools.
 if get_option('enable-pbtxt-converter')
-  subdir('parser')
+  if (build_platform == 'macos')
+    message ('pbtxt converter / parser is not yet compatible with macos. Disabling it')
+  else
+    subdir('parser')
+  endif
 endif
