@@ -623,6 +623,13 @@ if tensorrt_support_is_available
 endif
 
 if lua_support_is_available
+  if lua_support_deps[0].version() >= '5.3'
+    message ('tensor-filter::lua does not support Lua >= 5.3, yet. Fix #3531 first.')
+    lua_support_is_available = disabler()
+  endif
+endif
+
+if lua_support_is_available
   filter_sub_lua_sources = ['tensor_filter_lua.cc']
 
   nnstreamer_filter_lua_sources = []
