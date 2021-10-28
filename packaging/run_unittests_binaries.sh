@@ -6,7 +6,37 @@
 ## @author Parichay Kapoor <pk.kapoor@gmail.com>
 ## @date Dec 20 2019
 ## @brief Runs all the unittests binaries in the specified folder or file
-input=$1
+
+skip_tests=""
+this_script="$(basename -- $0)"
+while (( "$#" )); do
+  case "$1" in
+    -k|--skip)
+      if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
+        tmp=$2
+        shift 2
+        readarray -td, skip_tests <<<"$tmp,"; unset 'skip_tests[-1]'; declare skip_tests; >&2
+      else
+        echo "$this_script: $1: option requires an argument" >&2
+        exit 1
+      fi
+      ;;
+    -h|--help)
+      echo "$this_script: usage: $this_script [options] target" >&2
+      echo "    -k | --skip  BINARY_NAME[,*]" >&2
+      echo "        Skip the test cases whose names are...(valid only if target is a directory)" >&2
+      exit 0
+      ;;
+    -*|--*)
+      echo "$1: invalid option" >&2
+      exit 1
+      ;;
+    *)
+      input=$1
+      shift 1
+      ;;
+  esac
+done
 
 export NNSTREAMER_SOURCE_ROOT_PATH=$(pwd)
 pushd build
@@ -48,7 +78,7 @@ if [ -f "${input}" ]; then
   run_entry $input
   ret=$?
 elif [ -d "${input}" ]; then
-  filelist=(`find "${input}" -mindepth 1 -maxdepth 1 -type f -executable -name "unittest_*"`)
+  filelist=(`find "${input}" -mindepth 1 -maxdepth 1 -type f -executable $(for stest in "${skip_tests[@]}"; do [[ ! -z ${stest} ]] && echo -n "! -name ${stest} "; done) -name "unittest_*"`)
   for entry in "${filelist[@]}"
   do
     run_entry $entry
