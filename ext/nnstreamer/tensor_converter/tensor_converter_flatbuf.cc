@@ -90,6 +90,8 @@ fbc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
   g_assert (tensors);
 
   config->info.num_tensors = tensors->num_tensor ();
+  config->format = (tensor_format) tensors->format ();
+
   if (tensors->num_tensor () > NNS_TENSOR_SIZE_LIMIT) {
     nns_loge ("The number of tensors is limited to %d", NNS_TENSOR_SIZE_LIMIT);
     goto done;

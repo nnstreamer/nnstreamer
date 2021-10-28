@@ -104,6 +104,7 @@ struct _GstTensorConverter
   gchar *mode_option; /**< tensor converter mode option */
   gchar *ext_fw; /**< tensor converter custom mode framework */
   converter_custom_cb_s custom;
+  gboolean do_not_append_header;
 
   void *priv_data; /**< plugin's private data */
 };
