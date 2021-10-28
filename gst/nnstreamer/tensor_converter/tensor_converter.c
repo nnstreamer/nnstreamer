@@ -358,7 +358,7 @@ gst_tensor_converter_init (GstTensorConverter * self)
   self->mode_option = NULL;
   self->custom.func = NULL;
   self->custom.data = NULL;
-
+  self->do_not_append_header = FALSE;
   gst_tensors_info_init (&self->tensors_info);
   gst_tensors_config_init (&self->tensors_config);
   self->tensors_configured = FALSE;
@@ -918,7 +918,8 @@ _gst_tensor_converter_chain_push (GstTensorConverter * self, GstBuffer * buf)
   }
 
   /* if output is flexible, add header. */
-  if (gst_tensor_pad_caps_is_flexible (self->srcpad)) {
+  if (!self->do_not_append_header
+      && gst_tensor_pad_caps_is_flexible (self->srcpad)) {
     buffer = _gst_tensor_converter_chain_flex_tensor (self, buffer);
   }
 
@@ -1192,6 +1193,8 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
             self->in_media_type);
         goto error;
       }
+      self->do_not_append_header =
+          (new_config.format == _NNS_TENSOR_FORMAT_FLEXIBLE);
 
       if (inbuf == NULL) {
         nns_loge ("Failed to convert media to tensors.");
