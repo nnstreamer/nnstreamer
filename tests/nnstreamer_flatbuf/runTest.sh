@@ -126,6 +126,25 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=1 samplesp
     t. ! queue ! filesink location=\"test.audio8k.s16le.origin.log\" sync=true" 6 0 0 $PERFORMANCE
 callCompareTest test.audio8k.s16le.origin.log test.consecutive.log 6-1 "Consecutive converting test" 0 0
 
+# Test flexible tensors (single frame)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 pattern=13 ! video/x-raw,format=RGB,width=640,height=480,framerate=5/1 ! \
+tensor_converter ! other/tensors,format=flexible ! tee name=t ! queue ! multifilesink location=\"flex_raw_7_%1d.log\" \
+t. ! queue ! tensor_decoder mode=flatbuf ! other/flatbuf-tensor ! tensor_converter ! multifilesink location=\"flex_flatb_7_%1d.log\" sync=true" 7 0 0 $PERFORMANCE
+callCompareTest flex_raw_7_0.log flex_flatb_7_0.log "7-1" "Flatbuf flex tensors conversion test 7-1" 1 0
+callCompareTest flex_raw_7_1.log flex_flatb_7_1.log "7-2" "Flatbuf flex tensors conversion test 7-2" 1 0
+callCompareTest flex_raw_7_2.log flex_flatb_7_2.log "7-3" "Flatbuf flex tensors conversion test 7-3" 1 0
+
+
+# Test flexible tensors (multi frames, static + flexible = flexible -> flatbuf)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
+    videotestsrc num-buffers=3 pattern=13 ! video/x-raw,format=RGB,width=640,height=480,framerate=5/1 ! tensor_converter ! mux.sink_0 \
+    videotestsrc num-buffers=3 pattern=18 ! video/x-raw,format=RGB,width=640,height=480,framerate=5/1 ! tensor_converter ! other/tensors,format=flexible ! mux.sink_1 \
+    tensor_mux name=mux ! tee name=t t. ! queue ! multifilesink location=\"flex_mux_raw_8_%1d.log\" sync=true \
+    t. ! queue ! tensor_decoder mode=flatbuf ! other/flatbuf-tensor ! tensor_converter ! multifilesink location=\"flex_mux_flatb_8_%1d.log\" sync=true" 8 0 0 $PERFORMANCE
+callCompareTest flex_mux_raw_8_0.log flex_mux_flatb_8_0.log "8-1" "Flatbuf flex tensors conversion test 8-1" 1 0
+callCompareTest flex_mux_raw_8_1.log flex_mux_flatb_8_1.log "8-2" "Flatbuf flex tensors conversion test 8-2" 1 0
+callCompareTest flex_mux_raw_8_2.log flex_mux_flatb_8_2.log "8-3" "Flatbuf flex tensors conversion test 8-3" 1 0
+
 rm *.log *.bmp *.png *.golden *.raw *.dat
 
 report
