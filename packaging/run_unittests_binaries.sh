@@ -7,6 +7,7 @@
 ## @date Dec 20 2019
 ## @brief Runs all the unittests binaries in the specified folder or file
 
+input=""
 skip_tests=""
 this_script="$(basename -- $0)"
 while (( "$#" )); do
@@ -38,6 +39,7 @@ while (( "$#" )); do
   esac
 done
 
+[[ -z "$input" ]] && echo "$this_script: target should be given" && exit 1
 export NNSTREAMER_SOURCE_ROOT_PATH=$(pwd)
 pushd build
 export NNSTREAMER_BUILD_ROOT_PATH=$(pwd)
