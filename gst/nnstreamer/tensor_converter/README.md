@@ -18,9 +18,26 @@ title: tensor_converter
   - The number of frames per tensor is supposed to be configured manually by stream pipeline developer with the property of ```frames-per-tensor```.
   - If ```frames-per-tensor``` is not configured, the default value is 1.
   - The size of a text frame should be configured by developer with the property ```input-dim```. Because the dimension of tensor is the key metadata of a tensor stream pipeline, we need to fix the value before actually looking at the actual stream data.
-- Octet stream: direct conversion of application/octet-stream with converter properties.
-  - You should set ```input-type``` and ```input-dim``` to describe tensor(s) information of outgoing buffer.
+- Octet stream: direct conversion of application/octet-stream.
+  - Octet stream to static tensor: You should set ```input-type``` and ```input-dim``` to describe tensor(s) information of outgoing buffer.
     If setting multiple tensors, converter will divide incoming buffer and set multiple memory chunks in outgoing buffer.
+
+    e.g, converting 10 bytes of octet stream to 2 static tensors:
+
+    ```... ! application/octet-stream ! tensor_converter input-dim=2:1:1:1,2:1:1:1 input-type=int32,int8 ! ...```
+  - Octet stream to flexible tensor: With a caps filter (```other/tensors,format=flexible```), tensor-converter generates flexible tensor.
+    In this case, you don't need to denote ```input-type``` and ```input-dim``` in pipeline description.
+    Converter sets the dimension with buffer size (size:1:1:1) and type uint8, and appends this information (tensor-meta) in the memory of outgoing buffer.
+
+    e.g, converting octet stream to flexible tensor:
+
+    ```... ! application/octet-stream ! tensor_converter ! other/tensors,format=flexible ! ...```
+  - Media to octet stream: If you need to convert media to octet stream, use [capssetter](https://gstreamer.freedesktop.org/data/doc/gstreamer/head/gst-plugins-good/html/gst-plugins-good-plugins-capssetter.html).
+    This element can update the caps of incoming buffer using it's properties. After updating the mimetye of media stream, it can be converted to tensor stream with tensor_converter.
+
+    e.g., converting jpeg to flexible tensor:
+
+    ```... ! jpegenc ! capssetter caps="application/octet-stream" replace=true join=false ! tensor_converter ! other/tensors,format=flexible ! ...```
   - Only single frame. ```frames-per-tensor``` should be 1 (default value).
 - Flexible tensor: conversion to static tensor stream.
   - You can convert mime type (flexible to static) if incoming tensor has fixed data format and size.
