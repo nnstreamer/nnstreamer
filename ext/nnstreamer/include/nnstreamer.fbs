@@ -24,6 +24,14 @@ enum Tensor_type : int {
   NNS_END
   }
 
+enum Tensor_format : int {
+  NNS_TENSOR_FORAMT_STATIC = 0,
+  NNS_TENSOR_FORMAT_FLEXIBLE,
+  NNS_TENSOR_FORMAT_SPARSE,
+
+  NNS_TENSOR_FORMAT_END
+  }
+
 struct frame_rate {
   rate_n : int;
   rate_d : int;
@@ -40,6 +48,7 @@ table Tensors {
   num_tensor : int;
   fr : frame_rate;
   tensor : [Tensor]; // tensor size is limited to 16
+  format : Tensor_format = NNS_TENSOR_FORAMT_STATIC;
 }
 
 root_type Tensors;

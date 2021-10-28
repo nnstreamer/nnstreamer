@@ -85,7 +85,7 @@ enum
 /**
  * @brief Support multi-tensor along with single-tensor as the input
  */
-#define CAPS_STRING GST_TENSOR_CAP_DEFAULT "; " GST_TENSORS_CAP_DEFAULT
+#define CAPS_STRING GST_TENSOR_CAP_DEFAULT ";" GST_TENSORS_CAP_DEFAULT ";" GST_TENSORS_FLEX_CAP_DEFAULT
 
 /**
  * @brief The capabilities of the inputs
@@ -681,6 +681,9 @@ gst_tensordec_transform (GstBaseTransform * trans,
     GstTensorMemory input[NNS_TENSOR_SIZE_LIMIT];
     guint i, num_tensors;
 
+    if (gst_tensors_config_is_flexible (&self->tensor_config)) {
+      self->tensor_config.info.num_tensors = gst_buffer_n_memory (inbuf);
+    }
     num_tensors = self->tensor_config.info.num_tensors;
     /** Internal logic error. Negotation process should prevent this! */
     g_assert (gst_buffer_n_memory (inbuf) == num_tensors);

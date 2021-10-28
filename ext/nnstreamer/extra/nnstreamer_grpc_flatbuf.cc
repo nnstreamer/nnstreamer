@@ -28,6 +28,7 @@
 #include <gst/base/gstdataqueue.h>
 
 using nnstreamer::flatbuf::Tensor_type;
+using nnstreamer::flatbuf::Tensor_format;
 using nnstreamer::flatbuf::frame_rate;
 
 using flatbuffers::grpc::MessageBuilder;
@@ -141,7 +142,7 @@ ServiceImplFlatbuf::_get_tensors_from_buffer (GstBuffer *buffer,
   flatbuffers::Offset<Tensors> tensors;
   std::vector<flatbuffers::Offset<Tensor>> tensor_vector;
   Tensor_type tensor_type;
-
+  Tensor_format format = (Tensor_format) config_->format;
   unsigned int num_tensors = config_->info.num_tensors;
   frame_rate fr = frame_rate (config_->rate_n, config_->rate_d);
 
@@ -173,7 +174,7 @@ ServiceImplFlatbuf::_get_tensors_from_buffer (GstBuffer *buffer,
     tensor_vector.push_back (tensor);
   }
 
-  tensors = CreateTensors (builder, num_tensors, &fr, builder.CreateVector (tensor_vector));
+  tensors = CreateTensors (builder, num_tensors, &fr, builder.CreateVector (tensor_vector), format);
 
   builder.Finish (tensors);
   msg = builder.ReleaseMessage<Tensors>();
