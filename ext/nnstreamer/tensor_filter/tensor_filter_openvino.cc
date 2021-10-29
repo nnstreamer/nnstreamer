@@ -37,6 +37,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <nnstreamer_util.h>
 #include "tensor_filter_openvino.hh"
 
 #ifdef __cplusplus
@@ -461,6 +462,7 @@ ov_invoke (const GstTensorFilterProperties *prop, void **private_data,
 static int
 ov_getInputDim (const GstTensorFilterProperties *prop, void **private_data, GstTensorsInfo *info)
 {
+  UNUSED (prop);
   TensorFilterOpenvino *tfOv = static_cast<TensorFilterOpenvino *> (*private_data);
 
   g_return_val_if_fail (tfOv != nullptr, TensorFilterOpenvino::RetEInval);
@@ -479,6 +481,7 @@ static int
 ov_getOutputDim (const GstTensorFilterProperties *prop, void **private_data,
     GstTensorsInfo *info)
 {
+  UNUSED (prop);
   TensorFilterOpenvino *tfOv = static_cast<TensorFilterOpenvino *> (*private_data);
 
   g_return_val_if_fail (tfOv != nullptr, TensorFilterOpenvino::RetEInval);
@@ -492,6 +495,7 @@ ov_getOutputDim (const GstTensorFilterProperties *prop, void **private_data,
 static void
 ov_close (const GstTensorFilterProperties *prop, void **private_data)
 {
+  UNUSED (prop);
   TensorFilterOpenvino *tfOv = static_cast<TensorFilterOpenvino *> (*private_data);
 
   delete tfOv;
