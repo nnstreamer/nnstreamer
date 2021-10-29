@@ -259,7 +259,7 @@ if gtest_dep.found()
     subdir('tizen_nnfw_runtime')
   endif
 
-  if tflite_support_is_available and get_option('enable-edgetpu')
+  if (tflite_support_is_available or tflite2_support_is_available) and get_option('enable-edgetpu')
     subdir('nnstreamer_filter_edgetpu')
   endif
 
