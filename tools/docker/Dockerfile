@@ -57,3 +57,33 @@ WORKDIR /home/${NNS_USERNAME}/nnstreamer
 # A workaround for the failure issue of unittest_mqtt
 RUN sed -i "s|run_unittests_binaries.sh|run_unittests_binaries.sh -k unittest_mqtt|g" ./debian/rules && \
     debuild -us -uc
+
+FROM ubuntu:${UBUNTU_VER} AS run_env
+ARG DEBCONF_NOWARNINGS="yes"
+ARG DEBCONF_TERSE="yes"
+ARG LANG="C.UTF-8"
+ARG BUILDDIR=build
+ARG USERNAME=nns
+
+ENV DEBIAN_FRONTEND noninteractive
+RUN set -x && \
+    echo "debconf debconf/frontend select ${DEBIAN_FRONTEND}" | debconf-set-selections && \
+    echo 'APT::Install-Recommends "false";' | tee /etc/apt/apt.conf.d/99install-recommends && \
+    echo 'APT::Get::Assume-Yes "true";' | tee /etc/apt/apt.conf.d/99assume-yes && \
+    sed -Ei 's|^(DPkg::Pre-Install-Pkgs .*)|#\1|g' /etc/apt/apt.conf.d/70debconf && \
+    apt-get update && \
+    apt-get install software-properties-common && \
+    add-apt-repository ppa:nnstreamer/ppa -u && \
+    add-apt-repository ppa:one-runtime/ppa -u && \
+    apt-get install \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-tools && \
+    useradd -ms /bin/bash ${USERNAME}
+
+SHELL ["/bin/bash", "-c"]
+WORKDIR /root
+COPY --from=debuilder /home/${USERNAME}/*.deb /root/
+RUN apt-get -f install ./*.deb && \
+    rm -rf /var/lib/apt/lists/* /root/*.deb
+USER ${USERNAME}
+WORKDIR /home/${USERNAME}
