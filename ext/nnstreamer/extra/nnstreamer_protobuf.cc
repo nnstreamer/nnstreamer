@@ -41,13 +41,18 @@ gst_tensor_decoder_protobuf (const GstTensorsConfig *config,
   nnstreamer::protobuf::Tensors tensors;
   nnstreamer::protobuf::Tensors::frame_rate *fr = NULL;
   guint num_tensors;
+  gboolean is_flexible;
+  GstTensorMetaInfo meta;
+  GstTensorsConfig pbd_config;
 
   if (!config || !input || !outbuf) {
     ml_loge ("NULL parameter is passed to tensor_decoder::protobuf");
     return GST_FLOW_ERROR;
   }
+  gst_tensors_config_copy (&pbd_config, config);
+  is_flexible = gst_tensors_config_is_flexible (&pbd_config);
 
-  num_tensors = config->info.num_tensors;
+  num_tensors = pbd_config.info.num_tensors;
   if (num_tensors <= 0 || num_tensors > NNS_TENSOR_SIZE_LIMIT) {
     ml_loge ("The number of input tenosrs "
              "exceeds more than NNS_TENSOR_SIZE_LIMIT, %s",
@@ -62,14 +67,22 @@ gst_tensor_decoder_protobuf (const GstTensorsConfig *config,
     return GST_FLOW_ERROR;
   }
 
-  fr->set_rate_n (config->rate_n);
-  fr->set_rate_d (config->rate_d);
+  fr->set_rate_n (pbd_config.rate_n);
+  fr->set_rate_d (pbd_config.rate_d);
+
+  tensors.set_format (
+      (nnstreamer::protobuf::Tensors::Tensor_format) pbd_config.format);
 
   for (unsigned int i = 0; i < num_tensors; ++i) {
     nnstreamer::protobuf::Tensor *tensor = tensors.add_tensor ();
     gchar *name = NULL;
 
-    name = config->info.info[i].name;
+    if (is_flexible) {
+      gst_tensor_meta_info_parse_header (&meta, input[i].data);
+      gst_tensor_meta_info_convert (&meta, &pbd_config.info.info[i]);
+    }
+    name = pbd_config.info.info[i].name;
+
     if (name == NULL) {
       tensor->set_name ("");
     } else {
@@ -77,10 +90,10 @@ gst_tensor_decoder_protobuf (const GstTensorsConfig *config,
     }
 
     tensor->set_type (
-        (nnstreamer::protobuf::Tensor::Tensor_type)config->info.info[i].type);
+        (nnstreamer::protobuf::Tensor::Tensor_type) pbd_config.info.info[i].type);
 
     for (int j = 0; j < NNS_TENSOR_RANK_LIMIT; ++j) {
-      tensor->add_dimension (config->info.info[i].dimension[j]);
+      tensor->add_dimension (pbd_config.info.info[i].dimension[j]);
     }
 
     tensor->set_data (input[i].data, (int)input[i].size);
@@ -144,6 +157,7 @@ gst_tensor_converter_protobuf (GstBuffer *in_buf, GstTensorsConfig *config, void
   tensors.ParseFromArray (in_info.data, in_info.size);
 
   config->info.num_tensors = tensors.num_tensor ();
+  config->format = (tensor_format) tensors.format ();
   fr = tensors.mutable_fr ();
   config->rate_n = fr->rate_n ();
   config->rate_d = fr->rate_d ();
