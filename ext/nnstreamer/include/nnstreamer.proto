@@ -32,6 +32,12 @@ message Tensors {
   }
   frame_rate fr = 2;
   repeated Tensor tensor = 3;
+  enum Tensor_format {
+    NNS_TENSOR_FORAMT_STATIC = 0;
+    NNS_TENSOR_FORMAT_FLEXIBLE = 1;
+    NNS_TENSOR_FORMAT_SPARSE = 2;
+  }
+  Tensor_format format = 4;
 }
 
 // clients should initiate RPC calls first but can keep the streaming
