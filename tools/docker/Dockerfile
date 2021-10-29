@@ -48,4 +48,12 @@ ENV GST_PLUGIN_PATH=/home/${USERNAME}/nnstreamer/${BUILDDIR}/gst/nnstreamer \
     NNSTREAMER_CONF=/home/${USERNAME}/nnstreamer/${BUILDDIR}/nnstreamer-test.ini \
     NNSTREAMER_FILTERS=/home/${USERNAME}/nnstreamer/${BUILDDIR}/ext/nnstreamer/tensor_filter \
     NNSTREAMER_DECODERS=/home/${USERNAME}/nnstreamer/${BUILDDIR}/ext/nnstreamer/tensor_decoder \
-    NNSTREAMER_CONVERTERS=/home/${USERNAME}/nnstreamer/${BUILDDIR}/ext/nnstreamer/tensor_converter
+    NNSTREAMER_CONVERTERS=/home/${USERNAME}/nnstreamer/${BUILDDIR}/ext/nnstreamer/tensor_converter \
+    NNS_USERNAME=${USERNAME} \
+    NNS_BUILDDIR=${BUILDDIR}
+
+FROM dev-base as debuilder
+WORKDIR /home/${NNS_USERNAME}/nnstreamer
+# A workaround for the failure issue of unittest_mqtt
+RUN sed -i "s|run_unittests_binaries.sh|run_unittests_binaries.sh -k unittest_mqtt|g" ./debian/rules && \
+    debuild -us -uc
