@@ -28,6 +28,7 @@
 #include <glib.h>
 #include <nnstreamer_cppplugin_api_filter.hh>
 #include <nnstreamer_log.h>
+#include <nnstreamer_util.h>
 #include <tensor_common.h>
 
 #include <edgetpu.h>
@@ -433,6 +434,9 @@ edgetpu_subplugin::getModelInfo (
 int
 edgetpu_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data)
 {
+  UNUSED (ops);
+  UNUSED (data);
+
   return -ENOENT;
 }
 
