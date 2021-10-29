@@ -34,7 +34,7 @@
 %define		mqtt_support 1
 %define		lua_support 1
 %define		tvm_support 1
-%define		snpe_support 0
+%define		snpe_support 1
 
 %define		check_test 1
 %define		release_test 1
@@ -102,6 +102,7 @@
 %define		lua_support 0
 %define		mqtt_support 0
 %define		tvm_support 0
+%define		snpe_support 0
 %endif
 
 # DA requested to remove unnecessary module builds
@@ -114,18 +115,17 @@
 %define		lua_support 0
 %define		mqtt_support 0
 %define		tvm_support 0
-%endif
-
-# TODO: The variable `_with_qc_snpe` is temporary. Make proper one.
-%if 0%{?_with_qc_snpe}
-%ifarch aarch64
-%define		snpe_support 1
-%endif
+%define		snpe_support 0
 %endif
 
 # Release unit test suite as a subpackage only if check_test is enabled.
 %if !0%{?check_test}
 %define		release_test 0
+%endif
+
+# Current Tizen Robot profile only supports aarch64.
+%ifnarch aarch64
+%define		snpe_support 0
 %endif
 
 # If it is tizen, we can export Tizen API packages.
@@ -740,13 +740,6 @@ Provides additional gstreamer plugins for nnstreamer pipelines
 %define enable_tvm -Dtvm-support=disabled
 %endif
 
-# Support snpe
-%if 0%{?snpe_support}
-%define enable_snpe -Dsnpe-support=enabled
-%else
-%define enable_snpe -Dsnpe-support=disabled
-%endif
-
 # Framework priority for each file extension
 %define fw_priority_bin ''
 %define fw_priority_nb ''
@@ -790,7 +783,7 @@ meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir
 	%{enable_tizen} %{element_restriction} %{fw_priority} -Denable-env-var=false -Denable-symbolic-link=false \
 	%{enable_tf_lite} %{enable_tf2_lite} %{enable_tf} %{enable_pytorch} %{enable_caffe2} %{enable_python3} \
 	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_openvino} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} %{enable_flatbuf} \
-	%{enable_tizen_sensor} %{enable_mqtt} %{enable_lua} %{enable_tvm} %{enable_snpe} %{enable_test} %{enable_test_coverage} %{install_test} \
+	%{enable_tizen_sensor} %{enable_mqtt} %{enable_lua} %{enable_tvm} %{enable_test} %{enable_test_coverage} %{install_test} \
 	build
 
 ninja -C build %{?_smp_mflags}
@@ -1007,10 +1000,11 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 
 # for snpe
 %if 0%{?snpe_support}
-%files snpe
+# Workaround: Conditionally enable nnstreamer-snpe rpm package
+# when existing actual snpe library (snpe.pc)
+%files snpe -f ext/nnstreamer/tensor_filter/filter_snpe_list
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
-%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_snpe.so
 %endif
 
 %files devel
