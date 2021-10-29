@@ -113,6 +113,7 @@ flxc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
   }
   config->rate_n = tensors["rate_n"].AsInt32 ();
   config->rate_d = tensors["rate_d"].AsInt32 ();
+  config->format = (tensor_format) tensors["format"].AsInt32 ();
   out_buf = gst_buffer_new ();
 
   for (guint i = 0; i < config->info.num_tensors; i++) {
@@ -131,6 +132,12 @@ flxc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
     }
     flexbuffers::Blob tensor_data = tensor[3].AsBlob ();
     mem_size = gst_tensor_info_get_size (&config->info.info[i]);
+    if (gst_tensors_config_is_flexible (config)) {
+      GstTensorMetaInfo meta;
+      gst_tensor_meta_info_parse_header (&meta,  (gpointer) tensor_data.data ());
+      mem_size += gst_tensor_meta_info_get_header_size (&meta);
+    }
+
     offset = tensor_data.data () - in_info.data;
 
     out_mem = gst_memory_share (in_mem, offset, mem_size);

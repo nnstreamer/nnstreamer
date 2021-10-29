@@ -97,6 +97,25 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=1 samplesp
     t. ! queue ! filesink location=\"test.audio8k.s16le.origin.log\" sync=true" 4 0 0 $PERFORMANCE
 callCompareTest test.audio8k.s16le.origin.log test.consecutive.log 4-1 "Consecutive converting test" 0 0
 
-rm *.log *.bmp *.png *.golden *.raw *.dat
+# Test flexible tensors (single frame)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 pattern=13 ! video/x-raw,format=RGB,width=640,height=480,framerate=5/1 ! \
+tensor_converter ! other/tensors,format=flexible ! tee name=t ! queue ! multifilesink location=\"flex_raw_5_%1d.log\" \
+t. ! queue ! tensor_decoder mode=flexbuf ! other/flexbuf ! tensor_converter ! multifilesink location=\"flex_flxb_5_%1d.log\" sync=true" 5 0 0 $PERFORMANCE
+callCompareTest flex_raw_5_0.log flex_flxb_5_0.log "5-0" "Flexbuf flex tensors conversion test 5-0" 1 0
+callCompareTest flex_raw_5_1.log flex_flxb_5_1.log "5-1" "Flexbuf flex tensors conversion test 5-1" 1 0
+callCompareTest flex_raw_5_2.log flex_flxb_5_2.log "5-2" "Flexbuf flex tensors conversion test 5-2" 1 0
+
+
+# Test flexible tensors (multi frames, static + flexible = flexible -> flexbuf)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
+    videotestsrc num-buffers=3 pattern=13 ! video/x-raw,format=RGB,width=640,height=480,framerate=5/1 ! tensor_converter ! mux.sink_0 \
+    videotestsrc num-buffers=3 pattern=18 ! video/x-raw,format=RGB,width=640,height=480,framerate=5/1 ! tensor_converter ! other/tensors,format=flexible ! mux.sink_1 \
+    tensor_mux name=mux ! tee name=t t. ! queue ! multifilesink location=\"flex_mux_raw_6_%1d.log\" sync=true \
+    t. ! queue ! tensor_decoder mode=flexbuf ! other/flexbuf ! tensor_converter ! multifilesink location=\"flex_mux_flxb_6_%1d.log\" sync=true" 6 0 0 $PERFORMANCE
+callCompareTest flex_mux_raw_6_0.log flex_mux_flxb_6_0.log "6-0" "Flexbuf flex tensors conversion test 6-0" 1 0
+callCompareTest flex_mux_raw_6_1.log flex_mux_flxb_6_1.log "6-1" "Flexbuf flex tensors conversion test 6-1" 1 0
+callCompareTest flex_mux_raw_6_2.log flex_mux_flxb_6_2.log "6-2" "Flexbuf flex tensors conversion test 6-2" 1 0
+
+rm *.log *.bmp *.png *.golden *.dat
 
 report
