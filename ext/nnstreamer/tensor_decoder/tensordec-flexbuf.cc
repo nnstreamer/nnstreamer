@@ -122,33 +122,43 @@ flxd_decode (void **pdata, const GstTensorsConfig *config,
   gboolean need_alloc;
   size_t flex_size;
   flexbuffers::Builder fbb;
+  gboolean is_flexible;
+  GstTensorMetaInfo meta;
+  GstTensorsConfig flxd_config;
   UNUSED (pdata);
 
   if (!config || !input || !outbuf) {
     ml_loge ("NULL parameter is passed to tensor_decoder::flexbuf");
     return GST_FLOW_ERROR;
   }
+  gst_tensors_config_copy (&flxd_config, config);
+  is_flexible = gst_tensors_config_is_flexible (&flxd_config);
 
-  num_tensors = config->info.num_tensors;
+  num_tensors = flxd_config.info.num_tensors;
   fbb.Map ([&]() {
     fbb.UInt ("num_tensors", num_tensors);
-    fbb.Int ("rate_n", config->rate_n);
-    fbb.Int ("rate_d", config->rate_d);
+    fbb.Int ("rate_n", flxd_config.rate_n);
+    fbb.Int ("rate_d", flxd_config.rate_d);
+    fbb.Int ("format", flxd_config.format);
     for (i = 0; i < num_tensors; i++) {
       gchar *tensor_key = g_strdup_printf ("tensor_%d", i);
       gchar *tensor_name = NULL;
-
-      if (config->info.info[i].name == NULL) {
+      if (is_flexible) {
+        gst_tensor_meta_info_parse_header (&meta, input[i].data);
+        gst_tensor_meta_info_convert (&meta, &flxd_config.info.info[i]);
+      }
+      tensor_name = flxd_config.info.info[i].name;
+      if (flxd_config.info.info[i].name == NULL) {
         tensor_name = g_strdup ("");
       } else {
-        tensor_name = g_strdup (config->info.info[i].name);
+        tensor_name = g_strdup (flxd_config.info.info[i].name);
       }
-      tensor_type type = config->info.info[i].type;
+      tensor_type type = flxd_config.info.info[i].type;
 
       fbb.Vector (tensor_key, [&]() {
         fbb += tensor_name;
         fbb += type;
-        fbb.Vector (config->info.info[i].dimension, NNS_TENSOR_RANK_LIMIT);
+        fbb.Vector (flxd_config.info.info[i].dimension, NNS_TENSOR_RANK_LIMIT);
         fbb.Blob (input[i].data, input[i].size);
       });
       g_free (tensor_key);

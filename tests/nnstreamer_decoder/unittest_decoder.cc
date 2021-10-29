@@ -40,6 +40,7 @@ tensor_decoder_custom_cb (const GstTensorMemory *input,
     fbb.UInt ("num_tensors", num_tensors);
     fbb.Int ("rate_n", config->rate_n);
     fbb.Int ("rate_d", config->rate_d);
+    fbb.Int ("format", config->format);
     for (i = 0; i < num_tensors; i++) {
       gchar *tensor_key = g_strdup_printf ("tensor_%d", i);
       gchar *tensor_name = NULL;
