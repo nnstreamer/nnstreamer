@@ -76,6 +76,14 @@
 #  endif
 #endif
 
+#ifdef TFLITE_EXTERNAL_DELEGATE_SUPPORTED
+#  if USE_TENSORFLOW2_HEADER_PATH
+#    include <tensorflow2/lite/delegates/external/external_delegate.h>
+#  else
+#    include <tensorflow/lite/delegates/external/external_delegate.h>
+#  endif
+#endif
+
 #if !defined(TFLITE_SUBPLUGIN_NAME)
 #warning "The sub-plugin name for tensorflow-lite is not defined."
 #define TFLITE_SUBPLUGIN_NAME "tensorflow-lite"
@@ -96,6 +104,7 @@ typedef enum {
   TFLITE_DELEGATE_GPU,
   TFLITE_DELEGATE_NNAPI,
   TFLITE_DELEGATE_XNNPACK,
+  TFLITE_DELEGATE_EXTERNAL,
 
   TFLITE_DELEGATE_MAX
 } tflite_delegate_e;
@@ -108,6 +117,8 @@ typedef struct {
   const gchar *accelerators; /**< accelerators set for this subplugin */
   tflite_delegate_e delegate; /**< tensorflow-lite delegate */
   gint num_threads; /**< the number of threads */
+  const gchar *ext_delegate_path; /**< path to external delegate lib */
+  GHashTable *ext_delegate_kv_table; /**< external delegate key values options */
 } tflite_option_s;
 
 /**
@@ -146,6 +157,8 @@ class TFLiteInterpreter
   int setInputTensorsInfo (const GstTensorsInfo *info);
 
   void setModelPath (const char *model_path);
+  void setExtDelegate (const char *lib_path, GHashTable *key_val);
+  void getExtDelegate (const char **lib_path, GHashTable **key_val);
   /** @brief get current model path */
   const char *getModelPath ()
   {
@@ -187,6 +200,8 @@ class TFLiteInterpreter
   char *model_path;
   bool is_cached_after_first_invoke; /**< To cache again after first invoke */
   bool is_xnnpack_delegated; /**< To check if XNNPACK delegate is used */
+  char *ext_delegate_path; /**< path to external delegate lib */
+  GHashTable *ext_delegate_kv_table; /**< external delegate key values options */
 
   std::unique_ptr<tflite::Interpreter> interpreter;
   std::unique_ptr<tflite::FlatBufferModel> model;
@@ -212,6 +227,10 @@ class TFLiteInterpreter
 
 #ifdef TFLITE_XNNPACK_DELEGATE_SUPPORTED
   std::unique_ptr<TfLiteDelegate> xnnpack_delegate; /**< The pointer of XNNPACK delegate */
+#endif
+
+#ifdef TFLITE_EXTERNAL_DELEGATE_SUPPORTED
+  std::unique_ptr<TfLiteDelegate> external_delegate; /**< The pointer of external delegate */
 #endif
 };
 
@@ -266,6 +285,8 @@ TFLiteInterpreter::TFLiteInterpreter ()
   interpreter = nullptr;
   model = nullptr;
   model_path = nullptr;
+  ext_delegate_path = nullptr;
+  ext_delegate_kv_table = nullptr;
 
   g_mutex_init (&mutex);
 
@@ -283,6 +304,9 @@ TFLiteInterpreter::~TFLiteInterpreter ()
 {
   g_mutex_clear (&mutex);
   g_free (model_path);
+  g_free (ext_delegate_path);
+  if (ext_delegate_kv_table)
+    g_hash_table_unref(ext_delegate_kv_table);
 
   gst_tensors_info_free (&inputTensorMeta);
   gst_tensors_info_free (&outputTensorMeta);
@@ -452,6 +476,31 @@ TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate)
       setDelegate (stateful_nnapi_delegate.get ());
 #else
       ml_logw ("NNAPI delegate support is available only in Android with tflite v1.14.0 or higher");
+#endif
+      break;
+    }
+    case TFLITE_DELEGATE_EXTERNAL:
+    {
+#ifdef TFLITE_EXTERNAL_DELEGATE_SUPPORTED
+      TfLiteExternalDelegateOptions options;
+
+      options = TfLiteExternalDelegateOptionsDefault (ext_delegate_path);
+
+      /* Add optional key values to delegate configuration */
+      if (ext_delegate_kv_table) {
+        GHashTable *table = ext_delegate_kv_table;
+        GHashTableIter iter;
+        gchar *key, *value;
+
+        g_hash_table_iter_init (&iter, table);
+        while (g_hash_table_iter_next (&iter, (gpointer *) &key, (gpointer *) &value))
+           options.insert (&options, key, value);
+      }
+
+      external_delegate.reset (TfLiteExternalDelegateCreate (&options));
+      setDelegate (external_delegate.get ());
+#else
+      ml_logw ("External delegate support is available with tflite v2.4.0 or higher");
 #endif
       break;
     }
@@ -674,6 +723,38 @@ TFLiteInterpreter::setModelPath (const char *_model_path)
 }
 
 /**
+ * @brief update external delegate library path and options
+ */
+void
+TFLiteInterpreter::setExtDelegate (const char *lib_path, GHashTable *key_val)
+{
+  g_free (ext_delegate_path);
+  if (lib_path)
+    ext_delegate_path = g_strdup (lib_path);
+  else
+    ext_delegate_path = nullptr;
+
+  if (ext_delegate_kv_table)
+    g_hash_table_unref (ext_delegate_kv_table);
+
+  if (key_val) {
+    g_hash_table_ref (key_val);
+    ext_delegate_kv_table = key_val;
+  } else
+    ext_delegate_kv_table = nullptr;
+}
+
+/**
+ * @brief get external delegate library path and options
+ */
+void
+TFLiteInterpreter::getExtDelegate (const char **lib_path, GHashTable **key_val)
+{
+  *lib_path = ext_delegate_path;
+  *key_val = ext_delegate_kv_table;
+}
+
+/**
  * @brief cache input and output tensor ptr before invoke
  * @return 0 on success. -errno on failure.
  */
@@ -843,6 +924,7 @@ int
 TFLiteCore::init (tflite_option_s *option)
 {
   interpreter->setModelPath (option->model_file);
+  interpreter->setExtDelegate (option->ext_delegate_path, option->ext_delegate_kv_table);
   num_threads = option->num_threads;
 
   setAccelerator (option->accelerators, option->delegate);
@@ -995,6 +1077,8 @@ TFLiteCore::reloadModel (const char *_model_path)
 {
   int err;
   TFLiteInterpreter * interpreter_temp = interpreter;
+  const char *_ext_delegate_path;
+  GHashTable *_ext_delegate_kv;
 
   if (shared_tensor_filter_key) {
     /** @todo process should be added if the interpreter is shared */
@@ -1008,6 +1092,8 @@ TFLiteCore::reloadModel (const char *_model_path)
   }
   interpreter_sub = new TFLiteInterpreter ();
   interpreter_sub->setModelPath (_model_path);
+  interpreter->getExtDelegate(&_ext_delegate_path, &_ext_delegate_kv);
+  interpreter_sub->setExtDelegate(_ext_delegate_path, _ext_delegate_kv);
 
   /**
    * load a model into sub interpreter. This loading overhead is indenendent
@@ -1098,6 +1184,8 @@ tflite_parseCustomOption (const GstTensorFilterProperties *prop, tflite_option_s
   option->accelerators = prop->accl_str;
   option->delegate = TFLITE_DELEGATE_NONE;
   option->num_threads = -1;
+  option->ext_delegate_path = nullptr;
+  option->ext_delegate_kv_table = nullptr;
 
   if (prop->custom_properties) {
     gchar **strv;
@@ -1122,8 +1210,35 @@ tflite_parseCustomOption (const GstTensorFilterProperties *prop, tflite_option_s
             option->delegate = TFLITE_DELEGATE_GPU;
           else if (g_ascii_strcasecmp (pair[1], "XNNPACK") == 0)
             option->delegate = TFLITE_DELEGATE_XNNPACK;
+          else if (g_ascii_strcasecmp (pair[1], "External") == 0)
+            option->delegate = TFLITE_DELEGATE_EXTERNAL;
           else
             ml_logw ("Unknown option to set tensorflow-lite delegate (%s).", pair[1]);
+        } else if (g_ascii_strcasecmp (pair[0], "ExtDelegateLib") == 0) {
+          option->ext_delegate_path = g_strdup (pair[1]);
+        } else if (g_ascii_strcasecmp (pair[0], "ExtDelegateKeyVal") == 0) {
+          gchar **kvpairs;
+          guint j, kvnum;
+          GHashTable *table = option->ext_delegate_kv_table;
+
+          kvpairs = g_strsplit (pair[1], ";", -1);
+          kvnum = g_strv_length (kvpairs);
+
+          for (j = 0; j < kvnum; j++) {
+            gchar **kv = g_strsplit (kvpairs[j], "#", -1);
+
+            if (g_strv_length (kv) > 1) {
+              g_strstrip (kv[0]);
+              g_strstrip (kv[1]);
+              if (!table) {
+                table = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
+                option->ext_delegate_kv_table = table;
+              }
+              g_hash_table_insert (table, g_strdup (kv[0]), g_strdup (kv[1]));
+            }
+            g_strfreev (kv);
+          }
+          g_strfreev (kvpairs);
         } else {
           g_warning ("Unknown option (%s).", strv[i]);
         }
@@ -1133,6 +1248,12 @@ tflite_parseCustomOption (const GstTensorFilterProperties *prop, tflite_option_s
     }
 
     g_strfreev (strv);
+  }
+
+  if (option->delegate == TFLITE_DELEGATE_EXTERNAL
+      && option->ext_delegate_path == NULL) {
+    g_warning ("No shared lib for external delegate.");
+    option->delegate = TFLITE_DELEGATE_NONE;
   }
 
   return 0;
@@ -1165,19 +1286,23 @@ tflite_close (const GstTensorFilterProperties *prop, void **private_data)
 static int
 tflite_loadModelFile (const GstTensorFilterProperties *prop, void **private_data)
 {
+  int ret = 0;
   TFLiteCore *core;
   tflite_option_s option = {};
 
   if (tflite_parseCustomOption (prop, &option) != 0) {
     g_printerr ("Failed to parse options to initialize tensorflow-lite model.");
-    return -1;
+    ret = -1;
+    goto done;
   }
 
   core = static_cast<TFLiteCore *> (*private_data);
 
   if (core != NULL) {
-    if (core->compareModelPath (option.model_file))
-      return 1; /* skipped */
+    if (core->compareModelPath (option.model_file)) {
+      ret = 1; /* skipped */
+      goto done;
+    }
 
     tflite_close (prop, private_data);
   }
@@ -1185,7 +1310,8 @@ tflite_loadModelFile (const GstTensorFilterProperties *prop, void **private_data
   core = new TFLiteCore (prop);
   if (core == NULL) {
     g_printerr ("Failed to allocate memory for filter subplugin.");
-    return -1;
+    ret = -1;
+    goto done;
   }
 
   if (core->init (&option) != 0) {
@@ -1193,12 +1319,21 @@ tflite_loadModelFile (const GstTensorFilterProperties *prop, void **private_data
     delete core;
 
     g_printerr ("failed to initialize the object: Tensorflow-lite");
-    return -2;
+    ret = -2;
+    goto done;
   }
 
   *private_data = core;
 
-  return 0;
+done:
+  g_free ((gpointer) option.ext_delegate_path);
+  option.ext_delegate_path = nullptr;
+
+  if (option.ext_delegate_kv_table)
+    g_hash_table_unref (option.ext_delegate_kv_table);
+  option.ext_delegate_kv_table = nullptr;
+
+  return ret;
 }
 
 /**
@@ -1428,8 +1563,11 @@ init_filter_tflite (void)
   nnstreamer_filter_set_custom_property_desc (
       NNS_support_tensorflow_lite.v0.name,
       "NumThreads", "Number of threads. Set 0 for default behaviors.",
-      "Delegate", "TF-Lite delegation options: {'NNAPI', 'GPU', 'XNNPACK'}."
+      "Delegate", "TF-Lite delegation options: {'NNAPI', 'GPU', 'XNNPACK', 'External'}."
       " Do not specify to disable delegation.",
+      "ExtDelegateLib", "Path to external delegate shared library",
+      "ExtDelegateKeyVal", "key/values pairs optional parameters for delegate."
+      " Format ExtDelegateKeyVal=key1#value1;key2#value2...",
       NULL);
 }
 
