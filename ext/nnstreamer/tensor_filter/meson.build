@@ -234,6 +234,10 @@ if tflite2_support_is_available
     tflite2_compile_args += '-DTFLITE_NNAPI_DELEGATE_SUPPORTED'
   endif
 
+  if get_option('tflite2-external-delegate-support')
+    tflite2_compile_args += '-DTFLITE_EXTERNAL_DELEGATE_SUPPORTED'
+  endif
+
   tflite2_extra_dep = declare_dependency(
     compile_args : tflite2_compile_args
   )
