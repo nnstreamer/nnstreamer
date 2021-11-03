@@ -165,6 +165,18 @@ extern gboolean
 gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect, tensor_time_sync_data * sync, GstClockTime current_time, GstBuffer * tensors_buf, GstTensorsConfig * configs, gboolean * is_eos);
 
 /**
+ * @brief Configure gst-buffer with tensors information.
+ * NNStreamer handles single memory chunk as single tensor.
+ * If incoming buffer has invalid memories, separate it and generate new gst-buffer using tensors information.
+ * Note that this function always takes the ownership of input buffer.
+ * @param in input buffer
+ * @param config tensors config structure
+ * @return Newly allocated buffer. Null if failed. Caller should unref the buffer using gst_buffer_unref().
+ */
+extern GstBuffer *
+gst_tensor_buffer_from_config (GstBuffer * in, GstTensorsConfig * config);
+
+/**
  * @brief Get pad caps from tensors config and caps of the peer connected to the pad.
  * @param pad GstPad to get possible caps
  * @param config tensors config structure
