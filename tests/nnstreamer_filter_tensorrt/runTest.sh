@@ -48,9 +48,9 @@ else
         fi
 
         if [[ -d ${value} ]]; then
-            check=$(ls ${value} | grep tensorflow2-lite.so)
+            check=$(ls ${value} | grep tensorrt.so)
             if [[ ! $check ]]; then
-                echo "Cannot find tensorflow2-lite shared lib"
+                echo "Cannot find TensorRT shared lib"
                 report
                 exit
             fi
