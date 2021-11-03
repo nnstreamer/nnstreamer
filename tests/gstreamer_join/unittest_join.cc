@@ -12,6 +12,7 @@
 #include <glib/gstdio.h>
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
+#include <nnstreamer_util.h>
 #include <unittest_util.h>
 
 static int data_received;
@@ -92,10 +93,10 @@ TEST (join, normal0)
 
   g_signal_connect (sink_handle, "new-data", (GCallback)new_data_cb, (gpointer)&idx);
 
-  buf_0 = gst_buffer_new_wrapped (g_memdup (test_frames[0], 192), 192);
+  buf_0 = gst_buffer_new_wrapped (_g_memdup (test_frames[0], 192), 192);
   buf_3 = gst_buffer_copy (buf_0);
 
-  buf_1 = gst_buffer_new_wrapped (g_memdup (test_frames[1], 192), 192);
+  buf_1 = gst_buffer_new_wrapped (_g_memdup (test_frames[1], 192), 192);
   buf_4 = gst_buffer_copy (buf_1);
 
   data_received = 0;

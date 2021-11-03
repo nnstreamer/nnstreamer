@@ -16,6 +16,7 @@
 
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api.h>
+#include <nnstreamer_util.h>
 
 #include <thread>
 
@@ -119,7 +120,7 @@ ServiceImplFlatbuf::_get_buffer_from_tensors (Message<Tensors> &msg,
     const Tensor * tensor = tensors->tensor ()->Get (i);
     const void * data = tensor->data ()->data ();
     gsize size = VectorLength (tensor->data ());
-    gpointer new_data = g_memdup (data, size);
+    gpointer new_data = _g_memdup (data, size);
 
     memory = gst_memory_new_wrapped ((GstMemoryFlags) 0, new_data, size,
         0, size, new_data, g_free);
