@@ -140,7 +140,8 @@ PYConverterCore::convert (GstBuffer *in_buf, GstTensorsConfig *config)
   GstBuffer *out_buf = NULL;
   PyObject *tensors_info = NULL, *output = NULL, *pyValue = NULL;
   gint rate_n, rate_d;
-  guint i, num, mem_size;
+  guint i, num;
+  gsize mem_size;
   gpointer mem_data;
 
   if (nullptr == in_buf)
@@ -196,7 +197,7 @@ PYConverterCore::convert (GstBuffer *in_buf, GstTensorsConfig *config)
           = (PyArrayObject *)PyList_GetItem (output, (Py_ssize_t)i);
 
       mem_size = PyArray_SIZE (output_array);
-      mem_data = g_memdup ((guint8 *) PyArray_DATA (output_array), mem_size);
+      mem_data = _g_memdup ((guint8 *) PyArray_DATA (output_array), mem_size);
 
       out_mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, mem_data, mem_size,
           0, mem_size, mem_data, g_free);
