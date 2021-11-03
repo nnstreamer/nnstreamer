@@ -6785,6 +6785,7 @@ typedef struct
   GstClockTime ts_raw;
   tensor_type info_type;
   gpointer info_data;
+  guint info_num;
   gsize info_size;
   GstClockTime ts_info;
 } crop_test_data_s;
@@ -6830,6 +6831,7 @@ _crop_test_init (crop_test_data_s * crop_test)
   crop_test->ts_raw = GST_CLOCK_TIME_NONE;
   crop_test->info_type = _NNS_END;
   crop_test->info_data = NULL;
+  crop_test->info_num = 0;
   crop_test->info_size = 0;
   crop_test->ts_info = GST_CLOCK_TIME_NONE;
 }
@@ -6884,7 +6886,7 @@ _crop_test_free (crop_test_data_s * crop_test)
     gst_tensor_meta_info_init (&meta); \
     meta.type = (ctd)->info_type; \
     meta.dimension[0] = 4U; \
-    meta.dimension[1] = (ctd)->info_size / (4U * gst_tensor_get_element_size ((ctd)->info_type)); \
+    meta.dimension[1] = (ctd)->info_num; \
     meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE; \
     mem = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY, \
         (ctd)->info_data, (ctd)->info_size, 0, (ctd)->info_size, NULL, NULL); \
@@ -7083,6 +7085,7 @@ TEST (testTensorCrop, cropTensor)
 
   crop_test.info_type = _NNS_UINT32;
   crop_test.info_size = sizeof (guint) * 8U;
+  crop_test.info_num = 2U;
   crop_test.info_data = g_malloc0 (crop_test.info_size);
   _info = (guint *) crop_test.info_data;
 
@@ -7179,6 +7182,7 @@ TEST (testTensorCrop, rawInvalidSize_n)
 
   crop_test.info_type = _NNS_UINT16;
   crop_test.info_size = gst_tensor_get_element_size (crop_test.info_type) * 8U;
+  crop_test.info_num = 2U;
   crop_test.info_data = g_malloc0 (crop_test.info_size);
 
   /* raw buffer has invalid size */
@@ -7205,6 +7209,7 @@ TEST (testTensorCrop, infoInvalidSize_n)
 
   crop_test.info_type = _NNS_INT8;
   crop_test.info_size = gst_tensor_get_element_size (crop_test.info_type) * 7U;
+  crop_test.info_num = 2U;
   crop_test.info_data = g_malloc0 (crop_test.info_size);
 
   /* info buffer has invalid size */
@@ -7242,6 +7247,7 @@ TEST (testTensorCrop, rawDelayed_n)
 
   crop_test.info_type = _NNS_UINT8;
   crop_test.info_size = gst_tensor_get_element_size (crop_test.info_type) * 8U;
+  crop_test.info_num = 2U;
   crop_test.info_data = g_malloc0 (crop_test.info_size);
   _info = (guint8 *) crop_test.info_data;
 
@@ -7308,6 +7314,7 @@ TEST (testTensorCrop, infoDelayed_n)
 
   crop_test.info_type = _NNS_UINT8;
   crop_test.info_size = gst_tensor_get_element_size (crop_test.info_type) * 8U;
+  crop_test.info_num = 2U;
   crop_test.info_data = g_malloc0 (crop_test.info_size);
   _info = (guint8 *) crop_test.info_data;
 

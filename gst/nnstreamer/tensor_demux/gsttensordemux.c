@@ -475,6 +475,8 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   UNUSED (pad);
   tensor_demux = GST_TENSOR_DEMUX (parent);
 
+  buf = gst_tensor_buffer_from_config (buf, &tensor_demux->tensors_config);
+
   if (gst_tensors_config_is_flexible (&tensor_demux->tensors_config)) {
     /* cannot get exact number of tensors from config */
     num_tensors = gst_buffer_n_memory (buf);

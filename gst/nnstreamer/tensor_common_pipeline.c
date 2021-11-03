@@ -379,6 +379,7 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
     }
 
     if (GST_IS_BUFFER (buf)) {
+      buf = gst_tensor_buffer_from_config (buf, &in_configs);
       n_mem = gst_buffer_n_memory (buf);
 
       /** These are internal logic error. If given inputs are incorrect,
