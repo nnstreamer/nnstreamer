@@ -446,6 +446,121 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
 }
 
 /**
+ * @brief Configure gst-buffer with tensors information.
+ * NNStreamer handles single memory chunk as single tensor.
+ * If incoming buffer has invalid memories, separate it and generate new gst-buffer using tensors information.
+ * Note that this function always takes the ownership of input buffer.
+ * @param in input buffer
+ * @param config tensors config structure
+ * @return Newly allocated buffer. Null if failed. Caller should unref the buffer using gst_buffer_unref().
+ */
+GstBuffer *
+gst_tensor_buffer_from_config (GstBuffer * in, GstTensorsConfig * config)
+{
+  GstBuffer *out = NULL;
+  GstMemory *all = NULL;
+  GstMapInfo map;
+  guint i, num;
+  gsize total, offset;
+  gsize mem_size[NNS_TENSOR_SIZE_LIMIT];
+  gboolean configured = FALSE;
+
+  if (!GST_IS_BUFFER (in)) {
+    nns_loge ("Failed to get tensor buffer, invalid input buffer.");
+    return NULL;
+  }
+
+  if (!gst_tensors_config_validate (config)) {
+    nns_loge ("Failed to get tensor buffer, invalid tensor configuration.");
+    goto error;
+  }
+
+  num = gst_buffer_n_memory (in);
+  total = gst_buffer_get_size (in);
+
+  /* get memory size */
+  if (gst_tensors_config_is_static (config)) {
+    if (num == config->info.num_tensors) {
+      /* Do nothing, pass input buffer. */
+      out = gst_buffer_ref (in);
+      goto done;
+    }
+
+    num = config->info.num_tensors;
+    for (i = 0; i < num; i++)
+      mem_size[i] = gst_tensors_info_get_size (&config->info, i);
+  } else {
+    if (num > 1) {
+      /* Suppose it is already configured. */
+      out = gst_buffer_ref (in);
+      goto done;
+    }
+
+    if (!gst_buffer_map (in, &map, GST_MAP_READ)) {
+      nns_loge ("Failed to get tensor buffer, cannot get the memory info.");
+      goto error;
+    }
+
+    num = 0;
+    offset = 0;
+    while (offset < total) {
+      GstTensorMetaInfo meta;
+      gpointer h = map.data + offset;
+
+      gst_tensor_meta_info_parse_header (&meta, h);
+      mem_size[num] = gst_tensor_meta_info_get_header_size (&meta);
+      mem_size[num] += gst_tensor_meta_info_get_data_size (&meta);
+
+      offset += mem_size[num];
+      num++;
+    }
+
+    gst_buffer_unmap (in, &map);
+
+    if (num == 1) {
+      /* Do nothing, pass input buffer. */
+      out = gst_buffer_ref (in);
+      goto done;
+    }
+  }
+
+  /* configure output buffer */
+  out = gst_buffer_new ();
+  all = gst_buffer_get_all_memory (in);
+  offset = 0;
+
+  for (i = 0; i < num; i++) {
+    /* invalid memory size */
+    if (offset + mem_size[i] > total) {
+      nns_loge ("Failed to get tensor buffer, data size is mismatched.");
+      goto error;
+    }
+
+    gst_buffer_append_memory (out, gst_memory_share (all, offset, mem_size[i]));
+    offset += mem_size[i];
+  }
+
+  gst_buffer_copy_into (out, in, GST_BUFFER_COPY_METADATA, 0, -1);
+
+done:
+  configured = TRUE;
+error:
+  gst_buffer_unref (in);
+
+  if (all)
+    gst_memory_unref (all);
+
+  if (!configured) {
+    if (out) {
+      gst_buffer_unref (out);
+      out = NULL;
+    }
+  }
+
+  return out;
+}
+
+/**
  * @brief Internal struct to handle aggregation data in hash table.
  */
 typedef struct
