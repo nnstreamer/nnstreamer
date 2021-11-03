@@ -17,7 +17,8 @@ fi
 mkdir -p tmp_doc
 cp *.md tmp_doc
 cp Documentation/*.md .
-cp Documentation/hotdoc/doc-index.md .
+cp -r Documentation/tutorials .
+cp Documentation/hotdoc/*.md .
 
 sed -i 's+](\.\./+](+g; s+](Documentation/+](+g' *.md
 sed -i '\+img src\=\"+s+\./media+Documentation/media+g' *.md
@@ -37,6 +38,7 @@ if [[ $? -ne 0 ]]; then
 fi
 
 rm *.md
+rm -r tutorials
 cp tmp_doc/*.md .
 rm -r tmp_doc
 rm -rf Documentation/nnst-exam
