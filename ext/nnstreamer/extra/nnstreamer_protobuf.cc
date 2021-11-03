@@ -125,7 +125,7 @@ gst_tensor_converter_protobuf (GstBuffer *in_buf, GstTensorsConfig *config, void
   GstMemory *in_mem, *out_mem;
   GstMapInfo in_info;
   GstBuffer *out_buf;
-  guint mem_size;
+  gsize mem_size;
   gpointer mem_data;
   UNUSED (priv_data);
 
@@ -160,7 +160,7 @@ gst_tensor_converter_protobuf (GstBuffer *in_buf, GstTensorsConfig *config, void
       config->info.info[i].dimension[j] = tensor->dimension (j);
     }
     mem_size = tensor->data ().length ();
-    mem_data = g_memdup (tensor->data ().c_str (), mem_size);
+    mem_data = _g_memdup (tensor->data ().c_str (), mem_size);
 
     out_mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, mem_data, mem_size,
         0, mem_size, NULL, NULL);
