@@ -948,7 +948,7 @@ TEST (commonTensorsConfig, validateInvalidParam2_n)
  */
 TEST (commonTensorsConfig, fromStructreInvalidParam0_n)
 {
-  GstStructure structure;
+  GstStructure structure = { 0 };
 
   EXPECT_FALSE (gst_tensors_config_from_structure (NULL, &structure));
 }
