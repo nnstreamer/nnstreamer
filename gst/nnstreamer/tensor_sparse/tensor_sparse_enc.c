@@ -247,6 +247,9 @@ gst_tensor_sparse_enc_parse_caps (GstTensorSparseEnc * self,
   return TRUE;
 }
 
+/**
+ * @brief This function handles sink pad event.
+ */
 static gboolean
 gst_tensor_sparse_enc_sink_event (GstPad * pad, GstObject * parent,
     GstEvent * event)
@@ -378,7 +381,7 @@ gst_tensor_sparse_enc_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   UNUSED (pad);
 
   info = &self->in_config.info;
-
+  buf = gst_tensor_buffer_from_config (buf, &self->in_config);
   outbuf = gst_buffer_new ();
 
   for (i = 0; i < info->num_tensors; ++i) {

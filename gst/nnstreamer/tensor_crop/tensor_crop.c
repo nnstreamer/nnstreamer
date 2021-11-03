@@ -708,6 +708,7 @@ gst_tensor_crop_chain (GstTensorCrop * self,
 {
   GstFlowReturn ret;
   GstBuffer *buf_raw, *buf_info, *result;
+  GstTensorCropPadData *cpad;
   tensor_crop_info_s cinfo;
   gboolean drop_raw, drop_info;
 
@@ -722,6 +723,11 @@ gst_tensor_crop_chain (GstTensorCrop * self,
     ret = GST_FLOW_EOS;
     goto done;
   }
+
+  cpad = (GstTensorCropPadData *) data_raw;
+  buf_raw = gst_tensor_buffer_from_config (buf_raw, &cpad->config);
+  cpad = (GstTensorCropPadData *) data_info;
+  buf_info = gst_tensor_buffer_from_config (buf_info, &cpad->config);
 
   /**
    * The case when raw and info have different timestamp.

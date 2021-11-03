@@ -161,6 +161,7 @@ gst_tensor_sparse_dec_init (GstTensorSparseDec * self)
 
   /* init properties */
   self->silent = DEFAULT_SILENT;
+  gst_tensors_config_init (&self->in_config);
   gst_tensors_config_init (&self->out_config);
 }
 
@@ -173,6 +174,7 @@ gst_tensor_sparse_dec_finalize (GObject * object)
   GstTensorSparseDec *self;
   self = GST_TENSOR_SPARSE_DEC (object);
 
+  gst_tensors_config_free (&self->in_config);
   gst_tensors_config_free (&self->out_config);
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
@@ -304,6 +306,9 @@ gst_tensor_sparse_dec_sink_query (GstPad * pad, GstObject * parent,
   return gst_pad_query_default (pad, parent, query);
 }
 
+/**
+ * @brief This function handles sink pad event.
+ */
 static gboolean
 gst_tensor_sparse_dec_sink_event (GstPad * pad, GstObject * parent,
     GstEvent * event)
@@ -321,25 +326,21 @@ gst_tensor_sparse_dec_sink_event (GstPad * pad, GstObject * parent,
       gst_event_parse_caps (event, &caps);
       silent_debug_caps (self, caps, "caps");
 
+      /* set in_config */
+      structure = gst_caps_get_structure (caps, 0);
+      gst_tensors_config_from_structure (&self->in_config, structure);
+
       /* set out_config as srcpad's peer */
       gst_tensors_config_from_peer (self->srcpad, &self->out_config, NULL);
-
-      /* set framerate */
-      structure = gst_caps_get_structure (caps, 0);
-      if (gst_structure_has_field (structure, "framerate")) {
-        gst_structure_get_fraction (structure, "framerate",
-            &self->out_config.rate_n, &self->out_config.rate_d);
-      } else {
-        /* cannot get the framerate */
-        self->out_config.rate_n = 0;
-        self->out_config.rate_d = 1;
-      }
+      self->out_config.rate_n = self->in_config.rate_n;
+      self->out_config.rate_d = self->in_config.rate_d;
 
       out_caps = gst_tensor_pad_caps_from_config (self->srcpad,
           &self->out_config);
 
       silent_debug_caps (self, out_caps, "out_caps");
       gst_pad_set_caps (self->srcpad, out_caps);
+      gst_caps_unref (out_caps);
 
       gst_event_unref (event);
       return TRUE;
@@ -366,6 +367,8 @@ gst_tensor_sparse_dec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   guint i;
 
   UNUSED (pad);
+
+  buf = gst_tensor_buffer_from_config (buf, &self->in_config);
   outbuf = gst_buffer_new ();
 
   gst_tensors_info_init (&info);

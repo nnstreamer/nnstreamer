@@ -43,6 +43,7 @@ struct _GstTensorSparseDec
   GstPad *srcpad; /**< src pad */
 
   /* <private> */
+  GstTensorsConfig in_config; /**< input tensors config */
   GstTensorsConfig out_config; /**< output tensors config */
   gboolean silent; /**< true to print minimized log */
 };

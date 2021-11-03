@@ -1397,6 +1397,7 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
   filter = GST_TENSOR_TRANSFORM_CAST (trans);
 
   g_return_val_if_fail (filter->loaded, GST_FLOW_ERROR);
+  inbuf = gst_tensor_buffer_from_config (inbuf, &filter->in_config);
 
   in_flexible =
       gst_tensor_pad_caps_is_flexible (GST_BASE_TRANSFORM_SINK_PAD (trans));
