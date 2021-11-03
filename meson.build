@@ -126,6 +126,9 @@ add_project_arguments('-DNNSTREAMER_CONF_FILE="' + join_paths(nnstreamer_inidir,
 
 # Dependencies
 glib_dep = dependency('glib-2.0')
+if glib_dep.version().version_compare('>= 2.68.0')
+  add_project_arguments('-DGLIB_USE_G_MEMDUP2', language: ['c', 'cpp'])
+endif
 gobject_dep = dependency('gobject-2.0')
 gmodule_dep = dependency('gmodule-2.0')
 gio_dep = dependency('gio-2.0')
