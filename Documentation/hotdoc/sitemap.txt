@@ -1,17 +1,24 @@
 index.md
-	doc-index.md
-		coding-convention.md
-		component-description.md
-		doxygen-documentation.md
-		edge-ai.md
-		features-per-distro.md
-		getting-started.md
+	getting-started.md
+		installing-nnstreamer.md
 			getting-started-android.md
 			getting-started-macos.md
 			getting-started-meson-build.md
 			getting-started-tizen.md
 			getting-started-ubuntu-debuild.md
 			getting-started-ubuntu-ppa.md
+		tutorials.md
+			tutorials/tutorial1_playing_video.md
+			tutorials/tutorial2_object_detection.md
+			tutorials/tutorial3_pubsub_mqtt.md
+			tutorials/tutorial4_query.md
+			tutorials/tutorial5_gstreamer_api.md
+	doc-index.md
+		coding-convention.md
+		component-description.md
+		doxygen-documentation.md
+		edge-ai.md
+		features-per-distro.md
 		profiling-android-pipeline.md
 		how-to-archive-large-data.md
 		how-to-run-examples.md
