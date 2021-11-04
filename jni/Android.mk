@@ -218,4 +218,20 @@ LOCAL_C_INCLUDES += $(GST_HEADERS_COMMON)
 
 include $(BUILD_SHARED_LIBRARY)
 
+include $(CLEAR_VARS)
+LOCAL_MODULE := nnstreamer_decoder_octet_stream
+LOCAL_SRC_FILES := $(NNSTREAMER_DECODER_OS_SRCS)
+LOCAL_C_INCLUDES    := $(NNSTREAMER_INCLUDES)
+
+LOCAL_SHARED_LIBRARIES := $(GST_BUILDING_BLOCK_LIST) nnstreamer
+
+LOCAL_ARM_NEON      := true
+LOCAL_CFLAGS        += -O0 -DVERSION=\"$(NNSTREAMER_VERSION)\"
+LOCAL_CXXFLAGS      += -std=c++11 -DVERSION=\"$(NNSTREAMER_VERSION)\"
+LOCAL_CFLAGS        += -pthread -fopenmp
+
+LOCAL_C_INCLUDES += $(GST_HEADERS_COMMON)
+
+include $(BUILD_SHARED_LIBRARY)
+
 $(call import-module, android/cpufeatures)

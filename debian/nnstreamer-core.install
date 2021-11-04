@@ -3,6 +3,7 @@
 /usr/lib/nnstreamer/decoders/libnnstreamer_decoder_image_segment.so
 /usr/lib/nnstreamer/decoders/libnnstreamer_decoder_image_labeling.so
 /usr/lib/nnstreamer/decoders/libnnstreamer_decoder_direct_video.so
+/usr/lib/nnstreamer/decoders/libnnstreamer_decoder_octet_stream.so
 /usr/lib/nnstreamer/filters/libnnstreamer_filter_cpp.so
 /usr/lib/*/libnnstreamer.so
 /usr/lib/*/gstreamer-1.0/libnnstreamer.so

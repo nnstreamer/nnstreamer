@@ -906,6 +906,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_image_segment.so
 %{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_image_labeling.so
 %{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_direct_video.so
+%{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_octet_stream.so
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_cpp.so
 %{gstlibdir}/libnnstreamer.so
 %{_libdir}/libnnstreamer.so
