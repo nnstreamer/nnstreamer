@@ -20,6 +20,11 @@ if tflite_support_is_available
   extensions += [['tensorflow-lite', 'tflite', nnstreamer_filter_tflite_deps, 'add.tflite', 'tensorflow_lite-set']]
 endif
 
+if tflite2_support_is_available
+  extensions += [['tensorflow2-lite', 'tflite', nnstreamer_filter_tflite2_deps, 'mobilenet_v1_1.0_224_quant.tflite', 'tensorflow2_lite']]
+  extensions += [['tensorflow2-lite', 'tflite', nnstreamer_filter_tflite2_deps, 'add.tflite', 'tensorflow2_lite-set']]
+endif
+
 if tf_support_is_available
   extensions += [['tensorflow', 'tf', nnstreamer_filter_tf_deps, 'mnist.pb', 'tensorflow']]
 endif
