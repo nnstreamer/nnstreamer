@@ -97,7 +97,7 @@ nnstreamer_inidir = join_paths(nnstreamer_prefix, get_option('sysconfdir'))
 plugins_install_dir = join_paths(nnstreamer_libdir, 'gstreamer-' + gst_api_verision)
 
 # nnstreamer sub-plugins path
-subplugin_install_prefix = join_paths(nnstreamer_prefix, 'lib', 'nnstreamer')
+subplugin_install_prefix = join_paths(nnstreamer_prefix, get_option('libdir'), 'nnstreamer')
 filter_subplugin_install_dir = join_paths(subplugin_install_prefix, 'filters')
 decoder_subplugin_install_dir = join_paths(subplugin_install_prefix, 'decoders')
 customfilter_install_dir = join_paths(subplugin_install_prefix, 'customfilters')
