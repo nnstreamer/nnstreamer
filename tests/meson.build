@@ -222,6 +222,18 @@ if gtest_dep.found()
     test('unittest_filter_snpe', unittest_filter_snpe, env: testenv)
   endif
 
+  # tensorflow2-lite unittest
+  if tflite2_support_is_available
+    unittest_filter_tensorflow2_lite = executable('unittest_filter_tensorflow2_lite',
+      join_paths('nnstreamer_filter_tensorflow2_lite', 'unittest_filter_tensorflow2_lite.cc'),
+      dependencies: [unittest_util_dep, glib_dep, gst_dep, nnstreamer_dep, gtest_dep],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+
+    test('unittest_filter_tensorflow2_lite', unittest_filter_tensorflow2_lite, env: testenv)
+  endif
+
   # Run unittest_decoder
   if flatbuf_support_is_available
     unittest_decoder = executable('unittest_decoder',
