@@ -548,6 +548,12 @@ configure_file(input: 'nnstreamer-internal.pc.in', output: 'nnstreamer-internal.
   configuration: nnstreamer_install_conf
 )
 
+# Check whether mqtt broker is running or not.
+check_mosquitto = run_command ('bash', './tests/check_broker.sh').stdout()
+if check_mosquitto != ''
+  add_project_arguments('-D__MQTT_BROKER_ENABLED__=1', language: ['c', 'cpp'])
+endif
+
 # Build nnstreamer (common, plugins)
 subdir('gst')
 
