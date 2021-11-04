@@ -200,3 +200,27 @@ if have_python3
     install_dir: nnstreamer_libdir
   )
 endif
+
+# octet stream
+decoder_sub_octet_stream_sources = [
+  'tensordec-octetstream.c',
+  'tensordecutil.c'
+]
+
+nnstreamer_decoder_octet_stream_sources = []
+foreach s : decoder_sub_octet_stream_sources
+  nnstreamer_decoder_octet_stream_sources += join_paths(meson.current_source_dir(), s)
+endforeach
+
+shared_library('nnstreamer_decoder_octet_stream',
+  nnstreamer_decoder_octet_stream_sources,
+  dependencies: [nnstreamer_dep, glib_dep, gst_dep],
+  install: true,
+  install_dir: decoder_subplugin_install_dir
+)
+static_library('nnstreamer_decoder_octet_stream',
+  nnstreamer_decoder_octet_stream_sources,
+  dependencies: [nnstreamer_dep, glib_dep, gst_dep],
+  install: true,
+  install_dir: nnstreamer_libdir
+)
