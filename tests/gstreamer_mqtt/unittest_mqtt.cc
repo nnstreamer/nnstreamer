@@ -54,6 +54,7 @@ TEST (testMqttSink, sinkPushWrongPort_n)
   g_free (pipeline);
 }
 
+#ifdef __MQTT_BROKER_ENABLED__
 /**
  * @brief Test pushing EOS event to mqttsink
  */
@@ -284,6 +285,8 @@ TEST (testMqttSrc, srcGetSetProperties_n)
 
   gst_harness_teardown (h);
 }
+
+#endif /* #ifdef __MQTT_BROKER_ENABLED__ */
 
 /**
  * @brief Main GTest
