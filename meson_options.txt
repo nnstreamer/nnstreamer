@@ -52,3 +52,6 @@ option('trix-engine-alias', type: 'string', value: 'srnpu', description: 'The al
 # Utilities
 option('enable-nnstreamer-check', type: 'boolean', value: true)
 option('enable-pbtxt-converter', type: 'boolean', value: true)
+
+# Install Paths
+option('subplugindir', type: 'string', value: '')
