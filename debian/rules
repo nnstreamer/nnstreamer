@@ -37,12 +37,12 @@ override_dh_auto_configure:
 ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes), yes)
 	meson --buildtype=plain --prefix=/usr --sysconfdir=/etc --libdir=lib/$(DEB_HOST_MULTIARCH) --bindir=lib/nnstreamer/bin --includedir=include \
 	-Denable-edgetpu=true -Denable-openvino=true -Dgrpc-support=disabled \
-	-Denable-tizen=false -Denable-test=true -Dinstall-test=true ${BUILDDIR}
+	-Denable-tizen=false -Denable-test=true -Dinstall-test=true -Dsubplugindir=/usr/lib/nnstreamer ${BUILDDIR}
 else
 	# Debian has less packages ready.
 	meson --buildtype=plain --prefix=/usr --sysconfdir=/etc --libdir=lib/$(DEB_HOST_MULTIARCH) --bindir=lib/nnstreamer/bin --includedir=include \
 	-Denable-edgetpu=false -Denable-openvino=false -Dgrpc-support=disabled -Dmqtt-support=enabled \
-	-Denable-tizen=false -Denable-test=true -Dinstall-test=true ${BUILDDIR}
+	-Denable-tizen=false -Denable-test=true -Dinstall-test=true -Dsubplugindir=/usr/lib/nnstreamer ${BUILDDIR}
 endif
 
 override_dh_auto_build:
