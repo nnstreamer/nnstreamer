@@ -226,6 +226,47 @@ TEST (nnstreamerFilterTensorFlow2Lite, floatModelResult)
 
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
+  gst_object_unref (sink_handle);
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+  g_free (model_file);
+  g_free (input_file);
+  g_free (is_float);
+}
+
+/**
+ * @brief Positive case to launch gst pipeline
+ */
+TEST (nnstreamerFilterTensorFlow2Lite, floatModelXNNPACKResult)
+{
+  gchar *pipeline;
+  GstElement *gstpipe;
+  GError *err = NULL;
+  gchar *model_file, *input_file;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 1));
+  ASSERT_TRUE (_GetOrangePngFilePath (&input_file));
+
+  /* create a nnstreamer pipeline */
+  pipeline = g_strdup_printf ("filesrc location=\"%s\" ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=224,height=224,framerate=20/1 ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-127.5,div:127.5 ! tensor_filter framework=tensorflow2-lite model=\"%s\" custom=Delegate:XNNPACK,NumThreads:4 ! tensor_sink name=sink",
+     input_file, model_file);
+
+  gstpipe = gst_parse_launch (pipeline, &err);
+  ASSERT_TRUE (gstpipe != nullptr);
+
+  GstElement *sink_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "sink");
+  ASSERT_TRUE (sink_handle != nullptr);
+
+  guint8 *is_float = (guint8 *) g_malloc0 (1);
+  *is_float = 1;
+  g_signal_connect (sink_handle, "new-data", (GCallback) check_output, is_float);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT * 10), 0);
+  g_usleep (1000 * 1000 * 5); // wait for 5 seconds to check all output is valid
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  gst_object_unref (sink_handle);
   gst_object_unref (gstpipe);
   g_free (pipeline);
   g_free (model_file);
