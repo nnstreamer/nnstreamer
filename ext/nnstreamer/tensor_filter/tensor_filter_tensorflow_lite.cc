@@ -52,27 +52,15 @@
 #  include <tensorflow/contrib/lite/model.h>
 #endif
 
-#ifdef TFLITE_XNNPACK_DELEGATE_SUPPORTED
+#if TFLITE_VERSION_MAJOR >= 2
 #  if USE_TENSORFLOW2_HEADER_PATH
 #    include <tensorflow2/lite/delegates/xnnpack/xnnpack_delegate.h>
-#  else
-#    include <tensorflow/lite/delegates/xnnpack/xnnpack_delegate.h>
-#  endif
-#endif
-
-#ifdef TFLITE_NNAPI_DELEGATE_SUPPORTED
-#  if USE_TENSORFLOW2_HEADER_PATH
+#    include <tensorflow2/lite/delegates/gpu/delegate.h>
 #    include <tensorflow2/lite/delegates/nnapi/nnapi_delegate.h>
 #  else
-#    include <tensorflow/lite/delegates/nnapi/nnapi_delegate.h>
-#  endif
-#endif
-
-#ifdef TFLITE_GPU_DELEGATE_SUPPORTED
-#  if USE_TENSORFLOW2_HEADER_PATH
-#    include <tensorflow2/lite/delegates/gpu/delegate.h>
-#  else
+#    include <tensorflow/lite/delegates/xnnpack/xnnpack_delegate.h>
 #    include <tensorflow/lite/delegates/gpu/delegate.h>
+#    include <tensorflow/lite/delegates/nnapi/nnapi_delegate.h>
 #  endif
 #endif
 
@@ -95,7 +83,6 @@
 #if TFLITE_VERSION_MAJOR >= 2 && TFLITE_VERSION_MINOR >= 4
 #define TFLITE_RESOLVER_WITHOUT_DEFAULT_DELEGATES
 #endif
-
 
 /**
  * @brief Macro for debug mode.
@@ -441,14 +428,14 @@ TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate_e)
   switch (delegate_e) {
     case TFLITE_DELEGATE_XNNPACK:
     {
-#ifdef TFLITE_XNNPACK_DELEGATE_SUPPORTED
+#if TFLITE_VERSION_MAJOR >= 2
       /* set xnnpack delegate */
       TfLiteXNNPackDelegateOptions xnnpack_options =
           TfLiteXNNPackDelegateOptionsDefault();
       xnnpack_options.num_threads = (num_threads > 1) ? num_threads : 0;
 
       is_xnnpack_delegated = true;
-      ml_logw ("Input/output tensors should be memcpy-ed rather than explictly assigning its ptr when XNNPACK Delegate is used.");
+      ml_logw ("Input/output tensors should be memcpy-ed rather than explicitly assigning its ptr when XNNPACK Delegate is used.");
       ml_logw ("This could cause performance degradation if sizes of input/output tensors are large");
 
       delegate = TfLiteXNNPackDelegateCreate (&xnnpack_options);
@@ -459,13 +446,13 @@ TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate_e)
 
       setDelegate (delegate, deleter);
 #else
-      ml_logw ("XNNPACK delegate support is available only in Android with tflite v2.3.0 or higher and XNNPACK support should be enabled for tf-lite subplugin build.");
+      ml_logw ("NNStreamer was built without XNNPACK delegate. Given delegate option XNNPACK is ignored.");
 #endif
       break;
     }
     case TFLITE_DELEGATE_GPU:
     {
-#ifdef TFLITE_GPU_DELEGATE_SUPPORTED
+#if TFLITE_VERSION_MAJOR >= 2
       /* set gpu delegate when accelerator set to GPU */
       TfLiteGpuDelegateOptionsV2 options = TfLiteGpuDelegateOptionsV2Default ();
       options.experimental_flags = TFLITE_GPU_EXPERIMENTAL_FLAGS_NONE;
@@ -489,13 +476,13 @@ TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate_e)
 
       setDelegate (delegate, deleter);
 #else
-      ml_logw ("GPU delegate support is available with tflite v2.3.0 or higher");
+      ml_logw ("NNStreamer was built without GPU delegate. Given delegate option GPU is ignored.");
 #endif
       break;
     }
     case TFLITE_DELEGATE_NNAPI:
     {
-#ifdef TFLITE_NNAPI_DELEGATE_SUPPORTED
+#if TFLITE_VERSION_MAJOR >= 2
       /* set nnapi delegate when accelerator set to auto (cpu.neon in Android) or NPU */
       delegate = new tflite::StatefulNnApiDelegate ();
       void (* deleter) (TfLiteDelegate *) =
@@ -505,7 +492,7 @@ TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate_e)
 
       setDelegate (delegate, deleter);
 #else
-      ml_logw ("NNAPI delegate support is available only in Android with tflite v1.14.0 or higher");
+      ml_logw ("NNStreamer was built without NNAPI delegate. Given delegate option NNAPI is ignored.");
 #endif
       break;
     }
@@ -535,7 +522,7 @@ TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate_e)
 
       setDelegate (delegate, deleter);
 #else
-      ml_logw ("External delegate support is available with tflite v2.4.0 or higher");
+      ml_logw ("NNStreamer was built without external delegate. Given delegate option external is ignored.");
 #endif
       break;
     }

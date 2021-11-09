@@ -22,7 +22,6 @@
 %define		tensorflow_support 0
 %define		tensorflow_lite_support	1
 %define		tensorflow2_lite_support 1
-%define		tensorflow2_gpu_delegate_support 1
 %define		armnn_support 1
 %define		vivante_support 0
 %define		flatbuf_support 1
@@ -196,9 +195,6 @@ BuildRequires: tensorflow-lite-devel
 %if 0%{?tensorflow2_lite_support}
 # for tensorflow2-lite
 BuildRequires: tensorflow2-lite-devel
-%if 0%{?tensorflow2_gpu_delegate_support}
-BuildRequires: pkgconfig(gles20)
-%endif
 %endif
 # custom_example_opencv filter requires opencv-devel
 BuildRequires: opencv-devel
@@ -685,11 +681,7 @@ Provides additional gstreamer plugins for nnstreamer pipelines
 
 # Support tensorflow2-lite
 %if 0%{?tensorflow2_lite_support}
-%if 0%{?tensorflow2_gpu_delegate_support}
-%define enable_tf2_lite -Dtflite2-support=enabled -Dtflite2-gpu-delegate-support=true
-%else
-%define enable_tf2_lite -Dtflite2-support=enabled -Dtflite2-gpu-delegate-support=false
-%endif
+%define enable_tf2_lite -Dtflite2-support=enabled
 %else
 %define enable_tf2_lite -Dtflite2-support=disabled
 %endif
