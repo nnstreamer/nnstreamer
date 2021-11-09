@@ -295,6 +295,7 @@ if gtest_dep.found()
 endif # gtest_dep.found()
 
 tensor_filter_ext_enabled = tflite_support_is_available or \
+    tflite2_support_is_available or \
     tf_support_is_available or \
     have_python3 or \
     pytorch_support_is_available or caffe2_support_is_available or \
