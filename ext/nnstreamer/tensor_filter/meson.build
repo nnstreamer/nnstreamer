@@ -223,23 +223,10 @@ if tflite2_support_is_available
     tflite2_compile_args += '-DUSE_TENSORFLOW2_HEADER_PATH=1'
   endif
 
-  if get_option('tflite2-gpu-delegate-support')
-    # GLES dependency for tflite GPU delegate
-    gles_dep = dependency('gles20', required: true)
-    nnstreamer_filter_tflite2_deps += gles_dep
-    tflite2_compile_args += '-DTFLITE_GPU_DELEGATE_SUPPORTED'
-  endif
-
-  if get_option('tflite2-nnapi-delegate-support')
-    tflite2_compile_args += '-DTFLITE_NNAPI_DELEGATE_SUPPORTED'
-  endif
-
+  # TODO: tflite v2.8.0+ supports build option for external delegate
+  # remove below option after that.
   if get_option('tflite2-external-delegate-support')
     tflite2_compile_args += '-DTFLITE_EXTERNAL_DELEGATE_SUPPORTED'
-  endif
-
-  if get_option('tflite2-xnnpack-delegate-support')
-    tflite2_compile_args += '-DTFLITE_XNNPACK_DELEGATE_SUPPORTED'
   endif
 
   tflite2_extra_dep = declare_dependency(
