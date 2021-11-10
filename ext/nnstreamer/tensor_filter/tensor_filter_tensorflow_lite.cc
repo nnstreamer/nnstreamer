@@ -90,6 +90,14 @@
 #endif
 
 /**
+ * @brief prevent usage by TFLite of default delegates that may not be supported
+ */
+#if TFLITE_VERSION_MAJOR >= 2 && TFLITE_VERSION_MINOR >= 4
+#define TFLITE_RESOLVER_WITHOUT_DEFAULT_DELEGATES
+#endif
+
+
+/**
  * @brief Macro for debug mode.
  */
 #ifndef DBG
@@ -408,7 +416,11 @@ TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate)
 
   interpreter = nullptr;
 
+#ifdef TFLITE_RESOLVER_WITHOUT_DEFAULT_DELEGATES
+  tflite::ops::builtin::BuiltinOpResolverWithoutDefaultDelegates resolver;
+#else
   tflite::ops::builtin::BuiltinOpResolver resolver;
+#endif
   tflite::InterpreterBuilder (*model, resolver) (&interpreter);
   if (!interpreter) {
     ml_loge ("Failed to construct interpreter\n");
