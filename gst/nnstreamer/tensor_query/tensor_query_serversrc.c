@@ -28,15 +28,13 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_query_serversrc_debug);
 #define DEFAULT_PROTOCOL _TENSOR_QUERY_PROTOCOL_TCP
 #define DEFAULT_TIMEOUT 10
 
-#define CAPS_STRING GST_TENSORS_CAP_DEFAULT ";" GST_TENSORS_FLEX_CAP_DEFAULT
-
 /**
  * @brief the capabilities of the outputs
  */
 static GstStaticPadTemplate srctemplate = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (CAPS_STRING));
+    GST_STATIC_CAPS_ANY);
 
 /**
  * @brief query_serversrc properties
@@ -155,8 +153,8 @@ gst_tensor_query_serversrc_init (GstTensorQueryServerSrc * src)
   src->broker_port = DEFAULT_BROKER_PORT;
   src->src_id = DEFAULT_SERVER_ID;
   tensor_query_hybrid_init (&src->hybrid_info, NULL, 0, TRUE);
-  gst_tensors_config_init (&src->src_config);
   src->server_data = nnstreamer_query_server_data_new ();
+  src->configured = FALSE;
 }
 
 /**
@@ -173,7 +171,6 @@ gst_tensor_query_serversrc_finalize (GObject * object)
   src->operation = NULL;
   g_free (src->broker_host);
   src->broker_host = NULL;
-  gst_tensors_config_free (&src->src_config);
   if (src->server_data) {
     nnstreamer_query_server_data_free (src->server_data);
     src->server_data = NULL;
@@ -284,15 +281,6 @@ static gboolean
 gst_tensor_query_serversrc_start (GstBaseSrc * bsrc)
 {
   GstTensorQueryServerSrc *src = GST_TENSOR_QUERY_SERVERSRC (bsrc);
-  GstTensorsConfig sink_config;
-
-  gst_tensors_config_from_peer (bsrc->srcpad, &src->src_config, NULL);
-  src->src_config.rate_n = 0;
-  src->src_config.rate_d = 1;
-  if (!gst_tensors_config_validate (&src->src_config)) {
-    nns_loge ("Invalid tensors config from peer");
-    return FALSE;
-  }
 
   if (!src->server_data) {
     nns_loge ("Server_data is NULL");
@@ -310,9 +298,6 @@ gst_tensor_query_serversrc_start (GstBaseSrc * bsrc)
     nns_loge ("Failed to get server information from query server.");
     return FALSE;
   }
-  gst_tensor_query_server_get_sink_config (src->server_info_h, &sink_config);
-  nnstreamer_query_server_data_set_config (src->server_data, &src->src_config,
-      &sink_config);
 
   /** Publish query sever connection info */
   if (src->operation) {
@@ -354,10 +339,32 @@ static GstFlowReturn
 gst_tensor_query_serversrc_create (GstPushSrc * psrc, GstBuffer ** outbuf)
 {
   GstTensorQueryServerSrc *src = GST_TENSOR_QUERY_SERVERSRC (psrc);
+  GstBaseSrc *bsrc = GST_BASE_SRC (psrc);
 
   if (!src->server_data) {
     nns_loge ("Server data is NULL");
     return GST_FLOW_ERROR;
+  }
+
+  if (!src->configured) {
+    gchar *sink_caps_str, *src_caps_str;
+
+    GstCaps *caps = gst_pad_peer_query_caps (GST_BASE_SRC_PAD (bsrc), NULL);
+    if (gst_caps_is_fixed (caps)) {
+      gst_base_src_set_caps (bsrc, caps);
+    }
+
+    src->server_info_h = gst_tensor_query_server_get_data (src->src_id);
+    sink_caps_str =
+        gst_tensor_query_server_get_sink_caps_str (src->server_info_h);
+    src_caps_str = gst_caps_to_string (caps);
+    nnstreamer_query_server_data_set_caps_str (src->server_data, src_caps_str,
+        sink_caps_str);
+
+    g_free (sink_caps_str);
+    g_free (src_caps_str);
+    gst_caps_unref (caps);
+    src->configured = TRUE;
   }
 
   *outbuf = nnstreamer_query_server_get_buffer (src->server_data);

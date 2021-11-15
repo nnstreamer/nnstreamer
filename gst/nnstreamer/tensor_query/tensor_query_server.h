@@ -28,13 +28,19 @@ typedef void * query_server_info_handle;
 typedef struct
 {
   gint64 id;
-  GstTensorsConfig sink_config;
+  gchar *sink_caps_str;
   gchar *sink_host;
   guint16 sink_port;
   gboolean configured;
   GMutex lock;
   GCond cond;
 } GstTensorQueryServerInfo;
+
+/**
+ * @brief Get GstTensorQueryServerInfo.
+ */
+query_server_info_handle
+gst_tensor_query_server_get_data (guint id);
 
 /**
  * @brief Add GstTensorQueryServerInfo.
@@ -55,14 +61,15 @@ gboolean
 gst_tensor_query_server_wait_sink (query_server_info_handle server_info_h);
 
 /**
- * @brief set sink config
+ * @brief set sink caps string.
  */
-void gst_tensor_query_server_set_sink_config (query_server_info_handle server_info_h, GstTensorsConfig *config);
+void gst_tensor_query_server_set_sink_caps_str (query_server_info_handle server_info_h, const gchar * caps_str);
 
 /**
- * @brief get sink config
+ * @brief get sink caps string.
  */
-void gst_tensor_query_server_get_sink_config (query_server_info_handle server_info_h, GstTensorsConfig *config);
+gchar *
+gst_tensor_query_server_get_sink_caps_str (query_server_info_handle server_info_h);
 
 /**
  * @brief set sink host address and port

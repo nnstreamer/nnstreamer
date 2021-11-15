@@ -43,6 +43,7 @@ typedef struct _GstTensorQueryServerSinkClass GstTensorQueryServerSinkClass;
 struct _GstTensorQueryServerSink
 {
   GstBaseSink element; /**< parent object */
+  GstCaps *caps;
   guint sink_id;
 
   guint16 port;

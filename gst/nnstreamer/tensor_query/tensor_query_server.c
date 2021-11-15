@@ -35,7 +35,7 @@ static void fini_queryserver (void) __attribute__((destructor));
 /**
  * @brief Getter to get nth GstTensorQueryServerInfo.
  */
-static GstTensorQueryServerInfo *
+query_server_info_handle
 gst_tensor_query_server_get_data (guint id)
 {
   gpointer p;
@@ -44,7 +44,7 @@ gst_tensor_query_server_get_data (guint id)
   p = g_hash_table_lookup (_qs_table, GUINT_TO_POINTER (id));
   G_UNLOCK (query_server_table);
 
-  return (GstTensorQueryServerInfo *) p;
+  return p;
 }
 
 /**
@@ -55,7 +55,7 @@ gst_tensor_query_server_add_data (guint id)
 {
   GstTensorQueryServerInfo *data = NULL;
 
-  data = gst_tensor_query_server_get_data (id);
+  data = (GstTensorQueryServerInfo *) gst_tensor_query_server_get_data (id);
 
   if (NULL != data) {
     return data;
@@ -73,7 +73,7 @@ gst_tensor_query_server_add_data (guint id)
   data->sink_host = NULL;
   data->sink_port = 0;
   data->configured = FALSE;
-  gst_tensors_config_init (&data->sink_config);
+  data->sink_caps_str = NULL;
 
   G_LOCK (query_server_table);
   g_hash_table_insert (_qs_table, GUINT_TO_POINTER (id), data);
@@ -99,7 +99,8 @@ gst_tensor_query_server_remove_data (query_server_info_handle server_info_h)
   G_UNLOCK (query_server_table);
   g_free (data->sink_host);
   data->sink_host = NULL;
-  gst_tensors_config_free (&data->sink_config);
+  g_free (data->sink_caps_str);
+  data->sink_caps_str = NULL;
   g_cond_clear (&data->cond);
   g_mutex_clear (&data->lock);
   g_free (data);
@@ -134,41 +135,46 @@ gst_tensor_query_server_wait_sink (query_server_info_handle server_info_h)
 }
 
 /**
- * @brief set sink config
+ * @brief set sink caps string.
  */
 void
-gst_tensor_query_server_set_sink_config (query_server_info_handle server_info_h,
-    GstTensorsConfig * config)
+gst_tensor_query_server_set_sink_caps_str (query_server_info_handle
+    server_info_h, const gchar * caps_str)
 {
   GstTensorQueryServerInfo *data = (GstTensorQueryServerInfo *) server_info_h;
 
   if (NULL == data) {
     return;
   }
-
   g_mutex_lock (&data->lock);
-  gst_tensors_config_copy (&data->sink_config, config);
+  if (caps_str) {
+    g_free (data->sink_caps_str);
+    data->sink_caps_str = g_strdup (caps_str);
+  }
   data->configured = TRUE;
   g_cond_broadcast (&data->cond);
   g_mutex_unlock (&data->lock);
 }
 
 /**
- * @brief get sink config
+ * @brief get sink caps string.
  */
-void
-gst_tensor_query_server_get_sink_config (query_server_info_handle server_info_h,
-    GstTensorsConfig * config)
+gchar *
+gst_tensor_query_server_get_sink_caps_str (query_server_info_handle
+    server_info_h)
 {
   GstTensorQueryServerInfo *data = (GstTensorQueryServerInfo *) server_info_h;
+  gchar *caps_str = NULL;
 
   if (NULL == data) {
-    return;
+    return caps_str;
   }
 
   g_mutex_lock (&data->lock);
-  gst_tensors_config_copy (config, &data->sink_config);
+  caps_str = g_strdup (data->sink_caps_str);
   g_mutex_unlock (&data->lock);
+
+  return caps_str;
 }
 
 /**

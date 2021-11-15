@@ -25,14 +25,13 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_query_serversink_debug);
 #define DEFAULT_PROTOCOL _TENSOR_QUERY_PROTOCOL_TCP
 #define DEFAULT_TIMEOUT 10
 
-#define CAPS_STRING GST_TENSORS_CAP_DEFAULT ";" GST_TENSORS_FLEX_CAP_DEFAULT
 /**
  * @brief the capabilities of the inputs.
  */
 static GstStaticPadTemplate sinktemplate = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (CAPS_STRING));
+    GST_STATIC_CAPS_ANY);
 
 enum
 {
@@ -58,6 +57,8 @@ static gboolean gst_tensor_query_serversink_start (GstBaseSink * bsink);
 static gboolean gst_tensor_query_serversink_stop (GstBaseSink * bsink);
 static GstFlowReturn gst_tensor_query_serversink_render (GstBaseSink * bsink,
     GstBuffer * buf);
+static gboolean gst_tensor_query_serversink_set_caps (GstBaseSink * basesink,
+    GstCaps * caps);
 
 /**
  * @brief initialize the class
@@ -110,6 +111,7 @@ gst_tensor_query_serversink_class_init (GstTensorQueryServerSinkClass * klass)
 
   gstbasesink_class->start = gst_tensor_query_serversink_start;
   gstbasesink_class->stop = gst_tensor_query_serversink_stop;
+  gstbasesink_class->set_caps = gst_tensor_query_serversink_set_caps;
   gstbasesink_class->render = gst_tensor_query_serversink_render;
 
   GST_DEBUG_CATEGORY_INIT (gst_tensor_query_serversink_debug,
@@ -223,22 +225,8 @@ static gboolean
 gst_tensor_query_serversink_start (GstBaseSink * bsink)
 {
   GstTensorQueryServerSink *sink = GST_TENSOR_QUERY_SERVERSINK (bsink);
-  GstTensorsConfig config;
-
-  gst_tensors_config_from_peer (bsink->sinkpad, &config, NULL);
-  config.rate_n = 0;
-  config.rate_d = 1;
-  if (!gst_tensors_config_validate (&config)) {
-    nns_loge ("Invalid tensors config from peer");
-    return FALSE;
-  }
-
-  /** Set server sink information */
-  sink->server_info_h = gst_tensor_query_server_add_data (sink->sink_id);
-  gst_tensor_query_server_set_sink_host (sink->server_info_h, sink->host,
-      sink->port);
-  gst_tensor_query_server_set_sink_config (sink->server_info_h, &config);
-  gst_tensors_config_free (&config);
+  GstCaps *caps;
+  gchar *caps_str = NULL;
 
   if (!sink->server_data) {
     nns_loge ("Server_data is NULL");
@@ -250,6 +238,26 @@ gst_tensor_query_serversink_start (GstBaseSink * bsink)
     nns_loge ("Failed to setup server");
     return FALSE;
   }
+
+  /** Set server sink information */
+  sink->server_info_h = gst_tensor_query_server_add_data (sink->sink_id);
+  gst_tensor_query_server_set_sink_host (sink->server_info_h, sink->host,
+      sink->port);
+
+  caps = gst_pad_get_current_caps (GST_BASE_SINK_PAD (bsink));
+  if (!caps) {
+    caps = gst_pad_peer_query_caps (GST_BASE_SINK_PAD (bsink), NULL);
+  }
+
+  if (caps) {
+    gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
+    caps_str = gst_caps_to_string (caps);
+  }
+  gst_tensor_query_server_set_sink_caps_str (sink->server_info_h, caps_str);
+
+  gst_caps_unref (caps);
+  g_free (caps_str);
+
   return TRUE;
 }
 
@@ -262,6 +270,23 @@ gst_tensor_query_serversink_stop (GstBaseSink * bsink)
   GstTensorQueryServerSink *sink = GST_TENSOR_QUERY_SERVERSINK (bsink);
   nnstreamer_query_server_data_free (sink->server_data);
   sink->server_data = NULL;
+  return TRUE;
+}
+
+/**
+ * @brief An implementation of the set_caps vmethod in GstBaseSinkClass
+ */
+static gboolean
+gst_tensor_query_serversink_set_caps (GstBaseSink * bsink, GstCaps * caps)
+{
+  GstTensorQueryServerSink *sink = GST_TENSOR_QUERY_SERVERSINK (bsink);
+  gchar *caps_str;
+
+  caps_str = gst_caps_to_string (caps);
+  gst_tensor_query_server_set_sink_caps_str (sink->server_info_h, caps_str);
+
+  g_free (caps_str);
+
   return TRUE;
 }
 

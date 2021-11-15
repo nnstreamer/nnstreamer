@@ -54,17 +54,12 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_query_client_debug);
 #define GST_CAT_DEFAULT gst_tensor_query_client_debug
 
 /**
- * @brief Default caps string for pads.
- */
-#define CAPS_STRING GST_TENSOR_CAP_DEFAULT ";" GST_TENSORS_CAP_DEFAULT ";" GST_TENSORS_FLEX_CAP_DEFAULT
-
-/**
  * @brief the capabilities of the inputs.
  */
 static GstStaticPadTemplate sinktemplate = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (CAPS_STRING));
+    GST_STATIC_CAPS_ANY);
 
 /**
  * @brief the capabilities of the outputs.
@@ -72,7 +67,7 @@ static GstStaticPadTemplate sinktemplate = GST_STATIC_PAD_TEMPLATE ("sink",
 static GstStaticPadTemplate srctemplate = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (CAPS_STRING));
+    GST_STATIC_CAPS_ANY);
 
 #define gst_tensor_query_client_parent_class parent_class
 G_DEFINE_TYPE (GstTensorQueryClient, gst_tensor_query_client, GST_TYPE_ELEMENT);
@@ -193,10 +188,9 @@ gst_tensor_query_client_init (GstTensorQueryClient * self)
   self->operation = NULL;
   self->broker_host = g_strdup (DEFAULT_BROKER_HOST);
   self->broker_port = DEFAULT_BROKER_PORT;
+  self->in_caps_str = NULL;
 
   tensor_query_hybrid_init (&self->hybrid_info, NULL, 0, FALSE);
-  gst_tensors_config_init (&self->in_config);
-  gst_tensors_config_init (&self->out_config);
 }
 
 /**
@@ -215,7 +209,8 @@ gst_tensor_query_client_finalize (GObject * object)
   self->operation = NULL;
   g_free (self->broker_host);
   self->broker_host = NULL;
-
+  g_free (self->in_caps_str);
+  self->in_caps_str = NULL;
   tensor_query_hybrid_close (&self->hybrid_info);
   if (self->sink_conn) {
     nnstreamer_query_close (self->sink_conn);
@@ -225,9 +220,6 @@ gst_tensor_query_client_finalize (GObject * object)
     nnstreamer_query_close (self->src_conn);
     self->src_conn = NULL;
   }
-
-  gst_tensors_config_free (&self->in_config);
-  gst_tensors_config_free (&self->out_config);
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -350,13 +342,12 @@ gst_tensor_query_client_get_property (GObject * object, guint prop_id,
  * @brief Update src pad caps from tensors config.
  */
 static void
-gst_tensor_query_client_update_caps (GstTensorQueryClient * self)
+gst_tensor_query_client_update_caps (GstTensorQueryClient * self,
+    const gchar * caps_str)
 {
-  GstTensorsConfig *config;
   GstCaps *curr_caps, *out_caps;
 
-  config = &self->out_config;
-  out_caps = gst_tensor_pad_caps_from_config (self->srcpad, config);
+  out_caps = gst_caps_from_string (caps_str);
 
   /* Update src pad caps if it is different. */
   curr_caps = gst_pad_get_current_caps (self->srcpad);
@@ -395,7 +386,8 @@ _connect_to_server (GstTensorQueryClient * self)
 
   cmd_buf.cmd = _TENSOR_QUERY_CMD_REQUEST_INFO;
   cmd_buf.protocol = self->protocol;
-  gst_tensors_config_copy (&cmd_buf.data_info.config, &self->in_config);
+  cmd_buf.data.data = (uint8_t *) self->in_caps_str;
+  cmd_buf.data.size = (size_t) strlen (self->in_caps_str);
 
   if (0 != nnstreamer_query_send (self->src_conn, &cmd_buf, DEFAULT_TIMEOUT_MS)) {
     nns_loge ("Failed to send request info cmd buf");
@@ -408,15 +400,7 @@ _connect_to_server (GstTensorQueryClient * self)
   }
 
   if (cmd_buf.cmd == _TENSOR_QUERY_CMD_RESPOND_APPROVE) {
-    if (gst_tensors_config_validate (&cmd_buf.data_info.config)) {
-      gst_tensors_info_copy (&self->out_config.info,
-          &cmd_buf.data_info.config.info);
-      /** The server's framerate is 0/1, set it the same as the input. */
-      self->out_config.format = cmd_buf.data_info.config.format;
-      self->out_config.rate_n = self->in_config.rate_n;
-      self->out_config.rate_d = self->in_config.rate_d;
-      gst_tensor_query_client_update_caps (self);
-    }
+    gst_tensor_query_client_update_caps (self, (char *) cmd_buf.data.data);
   } else {
     /** @todo Retry for info */
     nns_loge ("Failed to receive approve command.");
@@ -503,44 +487,42 @@ gst_tensor_query_client_sink_event (GstPad * pad,
     case GST_EVENT_CAPS:
     {
       GstCaps *caps;
-      GstStructure *structure;
-
       gst_event_parse_caps (event, &caps);
-      structure = gst_caps_get_structure (caps, 0);
-      gst_tensors_config_from_structure (&self->in_config, structure);
-      gst_event_unref (event);
 
-      if (gst_tensors_config_validate (&self->in_config)) {
-        /** Subscribe server info from broker */
-        if (self->operation) {
-          query_server_info_s *server;
+      /** Subscribe server info from broker */
+      if (self->operation) {
+        query_server_info_s *server;
 
-          tensor_query_hybrid_set_broker (&self->hybrid_info,
-              self->broker_host, self->broker_port);
+        tensor_query_hybrid_set_broker (&self->hybrid_info,
+            self->broker_host, self->broker_port);
 
-          if (!tensor_query_hybrid_subscribe (&self->hybrid_info,
-                  self->operation)) {
-            nns_loge ("Failed to subscribe a topic.");
-            return FALSE;
-          }
-
-          server = tensor_query_hybrid_get_server_info (&self->hybrid_info);
-          if (server) {
-            _copy_srv_info (self, server);
-            tensor_query_hybrid_free_server_info (server);
-          }
-        } else {
-          nns_logi ("Query-hybrid feature is disabled.");
-          nns_logi
-              ("Specify operation to subscribe to the available broker (e.g., operation=object_detection).");
+        if (!tensor_query_hybrid_subscribe (&self->hybrid_info,
+                self->operation)) {
+          nns_loge ("Failed to subscribe a topic.");
+          gst_event_unref (event);
+          return FALSE;
         }
 
-        if (!_connect_to_server (self) && self->operation) {
-          ret = _client_retry_connection (self);
+        server = tensor_query_hybrid_get_server_info (&self->hybrid_info);
+        if (server) {
+          _copy_srv_info (self, server);
+          tensor_query_hybrid_free_server_info (server);
         }
-
-        return ret;
+      } else {
+        nns_logi ("Query-hybrid feature is disabled.");
+        nns_logi
+            ("Specify operation to subscribe to the available broker (e.g., operation=object_detection).");
       }
+
+      g_free (self->in_caps_str);
+      self->in_caps_str = gst_caps_to_string (caps);
+
+      if (!_connect_to_server (self)) {
+        ret = _client_retry_connection (self);
+      }
+
+      gst_event_unref (event);
+      return ret;
     }
     default:
       break;
@@ -667,7 +649,6 @@ gst_tensor_query_client_chain (GstPad * pad,
   GstMapInfo out_info;
   GstFlowReturn res = GST_FLOW_OK;
   gint ecode;
-  gboolean is_flexible = gst_tensors_config_is_flexible (&self->out_config);
 
   UNUSED (pad);
 
@@ -705,19 +686,8 @@ gst_tensor_query_client_chain (GstPad * pad,
   if (cmd_buf.cmd == _TENSOR_QUERY_CMD_TRANSFER_START) {
     num_tensors = cmd_buf.data_info.num_mems;
 
-    if (!is_flexible && num_tensors != self->out_config.info.num_tensors) {
-      nns_loge
-          ("The number of tensors to receive does not match with out config.");
-      goto retry;
-    }
     for (i = 0; i < num_tensors; i++) {
       mem_sizes[i] = cmd_buf.data_info.mem_sizes[i];
-      if (!is_flexible && mem_sizes[i] !=
-          gst_tensor_info_get_size (&self->out_config.info.info[i])) {
-        nns_loge
-            ("Size of the tensor to receive does not match with out config.");
-        goto retry;
-      }
     }
   }
 

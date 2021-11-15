@@ -85,6 +85,34 @@ callCompareTest raw5_3_1.log result5_3_1.log 5-8 "Compare 5-8" 1 0
 callCompareTest raw5_3_2.log result5_3_2.log 5-9 "Compare 5-9" 1 0
 
 sleep 2
+
+# Sever src cap: Video, Server sink cap: Viedo test
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc num-buffers=3 ! video/x-raw,width=300,height=300,format=RGB,framerate=0/1 ! tensor_query_serversink" 6-1 0 0 $PERFORMANCE $TIMEOUT_SEC &
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tee name = t t. ! queue ! multifilesink location= raw6_%1d.log t. ! queue ! tensor_query_client ! multifilesink location=result6_%1d.log" 6-2 0 0 $PERFORMANCE
+callCompareTest raw6_0.log result6_0.log 6-3 "Compare 6-3" 1 0
+callCompareTest raw6_1.log result6_1.log 6-4 "Compare 6-4" 1 0
+callCompareTest raw6_2.log result6_2.log 6-5 "Compare 6-5" 1 0
+
+sleep 2
+
+# Sever src cap: Video, Server sink cap: Tensor test
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc num-buffers=3 ! video/x-raw,width=300,height=300,format=RGB,framerate=0/1 ! tensor_converter ! tensor_query_serversink" 7-1 0 0 $PERFORMANCE $TIMEOUT_SEC &
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tee name = t t. ! queue ! multifilesink location= raw7_%1d.log t. ! queue ! tensor_query_client ! multifilesink location=result7_%1d.log" 7-2 0 0 $PERFORMANCE
+callCompareTest raw7_0.log result7_0.log 7-3 "Compare 7-3" 1 0
+callCompareTest raw7_1.log result7_1.log 7-4 "Compare 7-4" 1 0
+callCompareTest raw7_2.log result7_2.log 7-5 "Compare 7-5" 1 0
+
+sleep 2
+
+# Sever src cap: Tensor, Server sink cap: Video test
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc num-buffers=3 ! other/tensors,num_tensors=1,dimensions=3:300:300:1,types=uint8,format=static,framerate=0/1 ! tensor_decoder mode=direct_video ! videoconvert ! tensor_query_serversink" 8-1 0 0 $PERFORMANCE $TIMEOUT_SEC &
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! tee name = t t. ! queue ! multifilesink location= raw8_%1d.log t. ! queue ! tensor_query_client ! multifilesink location=result8_%1d.log" 8-2 0 0 $PERFORMANCE
+callCompareTest raw8_0.log result8_0.log 8-3 "Compare 8-3" 1 0
+callCompareTest raw8_1.log result8_1.log 8-4 "Compare 8-4" 1 0
+callCompareTest raw8_2.log result8_2.log 8-5 "Compare 8-5" 1 0
+
+sleep 2
+
 # TODO enable query-hybrid test
 # Now nnsquery library is not available.
 # After publishing the nnsquery pkg, enable below testcases.
@@ -123,6 +151,7 @@ callCompareTest server2_0.log result4_3.log 4-13 "Compare 4-13" 1 0
 callCompareTest server2_1.log result4_4.log 4-14 "Compare 4-14" 1 0
 callCompareTest server2_2.log result4_5.log 4-15 "Compare 4-15" 1 0
 
+sleep 2
 rm *.log
 
 report

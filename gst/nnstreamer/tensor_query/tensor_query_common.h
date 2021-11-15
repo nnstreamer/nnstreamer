@@ -57,7 +57,6 @@ typedef enum
  */
 typedef struct
 {
-  GstTensorsConfig config;
   int64_t base_time;
   int64_t sent_time;
   uint64_t duration;
@@ -161,8 +160,8 @@ nnstreamer_query_server_init (query_server_handle server_data,
  * @brief set server source and sink tensors config.
  */
 extern void
-nnstreamer_query_server_data_set_config (query_server_handle server_data,
-    GstTensorsConfig *src_config, GstTensorsConfig *sink_config);
+nnstreamer_query_server_data_set_caps_str (query_server_handle server_data,
+    const char * src_caps_str, const char * sink_caps_str);
 
 /**
  * @brief Get buffer from message queue.
