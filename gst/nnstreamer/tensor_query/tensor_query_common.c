@@ -468,23 +468,34 @@ nnstreamer_query_server_data_free (query_server_handle server_data)
       TensorQueryConnection *conn_remained;
       GstBuffer *buf_remained;
 
-      while ((conn_remained = g_async_queue_try_pop (sdata->conn_queue))) {
-        conn_remained->running = 0;
-        pthread_join (conn_remained->msg_thread, NULL);
-        nnstreamer_query_close (conn_remained);
+      if (sdata->conn_queue) {
+        while ((conn_remained = g_async_queue_try_pop (sdata->conn_queue))) {
+          conn_remained->running = 0;
+          pthread_join (conn_remained->msg_thread, NULL);
+          nnstreamer_query_close (conn_remained);
+        }
+        g_async_queue_unref (sdata->conn_queue);
+        sdata->conn_queue = NULL;
       }
-      g_async_queue_unref (sdata->conn_queue);
 
-      if (sdata->is_src) {
+      if (sdata->is_src && sdata->msg_queue) {
         while ((buf_remained = g_async_queue_try_pop (sdata->msg_queue))) {
           gst_buffer_unref (buf_remained);
         }
         g_async_queue_unref (sdata->msg_queue);
+        sdata->msg_queue = NULL;
       }
 
-      g_socket_listener_close (sdata->socket_listener);
-      g_object_unref (sdata->socket_listener);
-      g_object_unref (sdata->cancellable);
+      if (sdata->socket_listener) {
+        g_socket_listener_close (sdata->socket_listener);
+        g_object_unref (sdata->socket_listener);
+        sdata->socket_listener = NULL;
+      }
+
+      if (sdata->cancellable) {
+        g_object_unref (sdata->cancellable);
+        sdata->cancellable = NULL;
+      }
       break;
     }
     default:

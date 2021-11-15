@@ -217,10 +217,14 @@ gst_tensor_query_client_finalize (GObject * object)
   self->broker_host = NULL;
 
   tensor_query_hybrid_close (&self->hybrid_info);
-  nnstreamer_query_close (self->sink_conn);
-  nnstreamer_query_close (self->src_conn);
-  self->sink_conn = NULL;
-  self->src_conn = NULL;
+  if (self->sink_conn) {
+    nnstreamer_query_close (self->sink_conn);
+    self->sink_conn = NULL;
+  }
+  if (self->src_conn) {
+    nnstreamer_query_close (self->src_conn);
+    self->src_conn = NULL;
+  }
 
   gst_tensors_config_free (&self->in_config);
   gst_tensors_config_free (&self->out_config);
@@ -537,9 +541,9 @@ gst_tensor_query_client_sink_event (GstPad * pad,
 
         return ret;
       }
+    }
     default:
       break;
-    }
   }
 
   return gst_pad_event_default (pad, parent, event);

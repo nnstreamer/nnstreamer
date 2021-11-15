@@ -138,10 +138,14 @@ gst_tensor_query_serversink_finalize (GObject * object)
 {
   GstTensorQueryServerSink *sink = GST_TENSOR_QUERY_SERVERSINK (object);
   g_free (sink->host);
-  nnstreamer_query_server_data_free (sink->server_data);
-  sink->server_data = NULL;
-  gst_tensor_query_server_remove_data (sink->server_info_h);
-  sink->server_info_h = NULL;
+  if (sink->server_data) {
+    nnstreamer_query_server_data_free (sink->server_data);
+    sink->server_data = NULL;
+  }
+  if (sink->server_info_h) {
+    gst_tensor_query_server_remove_data (sink->server_info_h);
+    sink->server_info_h = NULL;
+  }
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
