@@ -537,7 +537,7 @@ gst_mqtt_src_start (GstBaseSrc * basesrc)
    *                                 mechanism
    */
   ret = MQTTAsync_create (&self->mqtt_client_handle, haddr,
-      self->mqtt_client_id, MQTTCLIENT_PERSISTENCE_DEFAULT, NULL);
+      self->mqtt_client_id, MQTTCLIENT_PERSISTENCE_NONE, NULL);
   g_free (haddr);
   if (ret != MQTTASYNC_SUCCESS)
     return FALSE;
