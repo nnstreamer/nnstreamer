@@ -824,14 +824,14 @@ ret_flow_err:
 static gboolean
 gst_mqtt_src_query (GstBaseSrc * basesrc, GstQuery * query)
 {
-  GstEventType type = GST_QUERY_TYPE (query);
+  GstQueryType type = GST_QUERY_TYPE (query);
   GstMqttSrc *self = GST_MQTT_SRC (basesrc);
   gboolean res = FALSE;
 
   if (self->debug)
     GST_DEBUG_OBJECT (self, "Got %s event", gst_query_type_get_name (type));
 
-  switch (GST_QUERY_TYPE (query)) {
+  switch (type) {
     case GST_QUERY_LATENCY:{
       GstClockTime min_latency = 0;
       GstClockTime max_latency = GST_CLOCK_TIME_NONE;
