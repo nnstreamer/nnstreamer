@@ -174,8 +174,10 @@ gst_tensor_query_serversrc_finalize (GObject * object)
   g_free (src->broker_host);
   src->broker_host = NULL;
   gst_tensors_config_free (&src->src_config);
-  nnstreamer_query_server_data_free (src->server_data);
-  src->server_data = NULL;
+  if (src->server_data) {
+    nnstreamer_query_server_data_free (src->server_data);
+    src->server_data = NULL;
+  }
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
