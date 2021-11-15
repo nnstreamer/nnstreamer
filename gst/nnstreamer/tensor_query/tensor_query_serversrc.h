@@ -44,6 +44,7 @@ struct _GstTensorQueryServerSrc
 {
   GstPushSrc element; /* parent object */
   guint src_id;
+  gboolean configured;
 
   guint16 port;
   gchar *host;
@@ -56,7 +57,6 @@ struct _GstTensorQueryServerSrc
   gchar *broker_host;
   guint16 broker_port;
 
-  GstTensorsConfig src_config;
   query_server_handle server_data; /* server data passed to common functions */
   query_server_info_handle server_info_h;
 };

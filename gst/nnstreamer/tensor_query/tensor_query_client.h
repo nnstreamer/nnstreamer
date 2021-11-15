@@ -46,8 +46,7 @@ struct _GstTensorQueryClient
   GstPad *srcpad; /**< src pad */
 
   gboolean silent; /**< True if logging is minimized */
-  GstTensorsConfig in_config;
-  GstTensorsConfig out_config;
+  gchar *in_caps_str;
 
   TensorQueryProtocol protocol;
 
