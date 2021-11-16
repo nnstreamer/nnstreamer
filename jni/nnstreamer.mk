@@ -158,6 +158,13 @@ NNSTREAMER_DECODER_IS_SRCS := \
 NNSTREAMER_JOIN_SRCS := \
     $(NNSTREAMER_ROOT)/gst/join/gstjoin.c
 
+# gstreamer mqtt element
+NNSTREAMER_MQTT_SRCS := \
+    $(NNSTREAMER_ROOT)/gst/mqtt/mqttelements.c \
+    $(NNSTREAMER_ROOT)/gst/mqtt/mqttsink.c \
+    $(NNSTREAMER_ROOT)/gst/mqtt/mqttsrc.c \
+    $(NNSTREAMER_ROOT)/gst/mqtt/ntputil.c
+
 # common features
 NO_AUDIO := false
 
