@@ -780,7 +780,7 @@ _message_handler (void *thread_data)
 
 done:
   g_free (thread_data);
-
+  _conn->running = 0;
   return NULL;
 }
 
@@ -843,6 +843,8 @@ accept_socket_async_cb (GObject * source, GAsyncResult * result,
   /** Generate and send client_id to client */
   if (sdata->is_src) {
     TensorQueryMsgThreadData *thread_data = NULL;
+    pthread_attr_t attr;
+    int tid;
 
     thread_data = g_try_new0 (TensorQueryMsgThreadData, 1);
     if (!thread_data) {
@@ -853,8 +855,13 @@ accept_socket_async_cb (GObject * source, GAsyncResult * result,
     thread_data->sdata = sdata;
     thread_data->conn = conn;
 
-    if (pthread_create (&conn->msg_thread, NULL, _message_handler,
-            thread_data) < 0) {
+    pthread_attr_init (&attr);
+    pthread_attr_setdetachstate (&attr, PTHREAD_CREATE_DETACHED);
+    tid = pthread_create (&conn->msg_thread, &attr, _message_handler,
+        thread_data);
+    pthread_attr_destroy (&attr);
+
+    if (tid < 0) {
       nns_loge ("Failed to create message handler thread.");
       nnstreamer_query_close (conn);
       g_free (thread_data);
