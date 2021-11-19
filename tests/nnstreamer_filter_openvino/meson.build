@@ -1,8 +1,7 @@
 if get_option('enable-openvino')
   unittest_openvino_deps = [
-    nnstreamer_dep,
+    nnstreamer_unittest_deps,
     nnstreamer_filter_openvino_dep,
-    gtest_dep,
     openvino_deps,
   ]
 

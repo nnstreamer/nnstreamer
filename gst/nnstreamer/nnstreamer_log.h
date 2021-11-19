@@ -29,7 +29,14 @@
 #define TAG_NAME "nnstreamer"
 
 #if defined(__TIZEN__)
+
+/** Check if unittest_util.h's fake dlog is enabled */
+#ifndef FAKEDLOG
 #include <dlog.h>
+#else
+/** A unit test code is referring me. */
+#include "../../tests/unittest_util.h"
+#endif
 
 #define ml_logi(...) \
     dlog_print (DLOG_INFO, TAG_NAME, __VA_ARGS__)

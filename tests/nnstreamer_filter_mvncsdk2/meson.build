@@ -10,11 +10,8 @@ unittest_mvncsdk_helper_dep = declare_dependency(
 )
 
 unittest_mvncsdk_deps = [
-  gtest_dep,
-  glib_dep,
-  gst_dep,
+  nnstreamer_unittest_deps,
   gst_base_dep,
-  nnstreamer_dep, # need to modify this to get the dummy loaded
   unittest_mvncsdk_helper_dep,
 ]
 
