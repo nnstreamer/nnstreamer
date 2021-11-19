@@ -10,6 +10,7 @@
  */
 #include <gst/gst.h>
 #include <glib/gstdio.h>
+#include <nnstreamer_log.h>
 #include "unittest_util.h"
 
 /**
@@ -92,3 +93,41 @@ wait_pipeline_process_buffers (const guint * data_received,
   }
   return TRUE;
 }
+
+#ifdef FAKEDLOG
+/**
+ * @brief Hijack dlog Tizen infra for unit testing to force printing out.
+ * @bug The original dlog_print returns the number of bytes printed.
+ *      This returns 0.
+ */
+int
+dlog_print (log_priority prio, const char *tag, const char *fmt, ...)
+{
+  va_list arg_ptr;
+  GLogLevelFlags level;
+  switch (prio) {
+    case DLOG_FATAL:
+      level = G_LOG_LEVEL_ERROR;
+      break;
+    case DLOG_ERROR:
+      level = G_LOG_LEVEL_CRITICAL;
+      break;
+    case DLOG_WARN:
+      level = G_LOG_LEVEL_WARNING;
+      break;
+    case DLOG_INFO:
+      level = G_LOG_LEVEL_INFO;
+      break;
+    case DLOG_DEBUG:
+      level = G_LOG_LEVEL_DEBUG;
+      break;
+    default:
+      level = G_LOG_LEVEL_DEBUG;
+  }
+  va_start (arg_ptr, fmt);
+  g_logv (tag, level, fmt, arg_ptr);
+  va_end (arg_ptr);
+
+  return 0;
+}
+#endif

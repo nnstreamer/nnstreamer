@@ -3,6 +3,7 @@ if not gtest_dep.found()
 endif
 
 tizen_apptest_deps = [
+  unittest_util_dep,
   gtest_dep,
   glib_dep
 ]

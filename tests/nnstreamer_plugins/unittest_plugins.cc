@@ -22,6 +22,7 @@
 #include <tensor_meta.h>
 #include <unistd.h>
 
+#include "../unittest_util.h"
 #include "../gst/nnstreamer/tensor_sparse/tensor_sparse_util.h"
 #include "../gst/nnstreamer/tensor_transform/tensor_transform.h"
 
@@ -32,13 +33,6 @@
 #endif
 
 /**
- * @brief Macro for debug mode.
- */
-#ifndef DBG
-#define DBG FALSE
-#endif
-
-/**
  * @brief Macro for default value of the transform's 'acceleration' property
  */
 #ifdef HAVE_ORC
@@ -46,15 +40,6 @@
 #else
 #define DEFAULT_VAL_PROP_ACCELERATION FALSE
 #endif
-
-/**
- * @brief Macro for debug message.
- */
-#define _print_log(...)        \
-  do {                         \
-    if (DBG)                   \
-      g_message (__VA_ARGS__); \
-  } while (0)
 
 #define str(s) #s
 #define TEST_TRANSFORM_TYPECAST(                                               \

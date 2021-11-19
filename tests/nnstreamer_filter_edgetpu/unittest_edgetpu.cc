@@ -147,6 +147,9 @@ main (int argc, char **argv)
 
   gst_init (&argc, &argv);
 
+  /* Force the binary to use dlog_print of untitest-util by calling it directly */
+  ml_logd ("Edge TPU test starts w/ dummy backend.");
+
   try {
     result = RUN_ALL_TESTS ();
   } catch (...) {

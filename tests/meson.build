@@ -36,17 +36,6 @@ gtest_dep = dependency('gtest', required: false)
 if gtest_dep.found()
   lesser_code_quality_accepted_for_unittest_code = declare_dependency(compile_args: ['-Wno-unused-parameter', '-Wno-missing-field-initializers'])
 
-  nnstreamer_unittest_deps = [
-    nnstreamer_dep,
-    nnstreamer_internal_deps,
-    glib_dep,
-    gst_dep,
-    gst_app_dep,
-    gst_check_dep,
-    gtest_dep,
-    lesser_code_quality_accepted_for_unittest_code
-  ]
-
   # Shared library of internal APIs for nnstreamer-gtest
   unittest_util_shared = shared_library('nnstreamer_unittest_util',
     join_paths(meson.current_source_dir(), 'unittest_util.c'),
@@ -57,13 +46,26 @@ if gtest_dep.found()
   )
   unittest_util_dep = declare_dependency(link_with: unittest_util_shared,
     dependencies: nnstreamer_base_deps,
+    compile_args: ['-DFAKEDLOG=1'],
     include_directories: include_directories('.')
   )
+
+  nnstreamer_unittest_deps = [
+    unittest_util_dep,
+    nnstreamer_dep,
+    nnstreamer_internal_deps,
+    glib_dep,
+    gst_dep,
+    gst_app_dep,
+    gst_check_dep,
+    gtest_dep,
+    lesser_code_quality_accepted_for_unittest_code
+  ]
 
   # Run unittest_common
   unittest_common = executable('unittest_common',
     join_paths('common', 'unittest_common.cc'),
-    dependencies: [nnstreamer_unittest_deps, unittest_util_dep],
+    dependencies: [nnstreamer_unittest_deps],
     install: get_option('install-test'),
     install_dir: unittest_install_dir
   )
@@ -75,7 +77,7 @@ if gtest_dep.found()
   if gst18_dep.found()
     unittest_sink = executable('unittest_sink',
       join_paths('nnstreamer_sink', 'unittest_sink.cc'),
-      dependencies: [nnstreamer_unittest_deps, unittest_util_dep],
+      dependencies: [nnstreamer_unittest_deps],
       install: get_option('install-test'),
       install_dir: unittest_install_dir
     )
@@ -95,7 +97,7 @@ if gtest_dep.found()
     # Run unittest_if
     unittest_if = executable('unittest_if',
       join_paths('nnstreamer_if', 'unittest_if.cc'),
-      dependencies: [nnstreamer_unittest_deps, unittest_util_dep],
+      dependencies: [nnstreamer_unittest_deps],
       install: get_option('install-test'),
       install_dir: unittest_install_dir
     )
@@ -105,7 +107,7 @@ if gtest_dep.found()
     # Run unittest_rate
     unittest_rate = executable('unittest_rate',
       join_paths('nnstreamer_rate', 'unittest_rate.cc'),
-      dependencies: [nnstreamer_unittest_deps, unittest_util_dep],
+      dependencies: [nnstreamer_unittest_deps],
       install: get_option('install-test'),
       install_dir: unittest_install_dir
     )
@@ -115,7 +117,7 @@ if gtest_dep.found()
     # Run unittest_filter_single
     unittest_filter_single = executable('unittest_filter_single',
       join_paths('nnstreamer_filter_single', 'unittest_filter_single.cc'),
-      dependencies: [nnstreamer_unittest_deps, unittest_util_dep],
+      dependencies: [nnstreamer_unittest_deps],
       install: get_option('install-test'),
       install_dir: unittest_install_dir
     )
@@ -125,7 +127,7 @@ if gtest_dep.found()
     # Run unittest_join
     unittest_join = executable('unittest_join',
       join_paths('gstreamer_join', 'unittest_join.cc'),
-      dependencies: [nnstreamer_unittest_deps, unittest_util_dep, join_dep],
+      dependencies: [nnstreamer_unittest_deps, join_dep],
       install: get_option('install-test'),
       install_dir: unittest_install_dir
     )
@@ -135,7 +137,7 @@ if gtest_dep.found()
     # Run unittest_query
     unittest_query = executable('unittest_query',
       join_paths('nnstreamer_query', 'unittest_query.cc'),
-      dependencies: [nnstreamer_unittest_deps, unittest_util_dep],
+      dependencies: [nnstreamer_unittest_deps],
       install: get_option('install-test'),
       install_dir: unittest_install_dir
     )
@@ -146,7 +148,7 @@ if gtest_dep.found()
     if mqtt_support_is_available
       unittest_mqtt_w_helper = executable('unittest_mqtt_w_helper',
           join_paths('gstreamer_mqtt', 'unittest_mqtt_w_helper.cc'),
-          dependencies: [gstmqtt_mocking_dep, nnstreamer_unittest_deps, unittest_util_dep],
+          dependencies: [gstmqtt_mocking_dep, nnstreamer_unittest_deps],
           install: get_option('install-test'),
           install_dir: unittest_install_dir)
 
@@ -154,7 +156,7 @@ if gtest_dep.found()
 
       unittest_mqtt = executable('unittest_mqtt',
           join_paths('gstreamer_mqtt', 'unittest_mqtt.cc'),
-          dependencies: [nnstreamer_unittest_deps, unittest_util_dep],
+          dependencies: [nnstreamer_unittest_deps],
           install: get_option('install-test'),
           install_dir: unittest_install_dir)
 
@@ -165,7 +167,7 @@ if gtest_dep.found()
     if build_platform != 'macos'
       unittest_src_iio = executable('unittest_src_iio',
         join_paths('nnstreamer_source', 'unittest_src_iio.cc'),
-        dependencies: [nnstreamer_unittest_deps, unittest_util_dep],
+        dependencies: [nnstreamer_unittest_deps],
         install: get_option('install-test'),
         install_dir: unittest_install_dir
       )
@@ -177,7 +179,7 @@ if gtest_dep.found()
     if flatbuf_support_is_available
       unittest_converter = executable('unittest_converter',
         join_paths('nnstreamer_converter', 'unittest_converter.cc'),
-        dependencies: [nnstreamer_unittest_deps, unittest_util_dep, flatbuf_dep, nnstreamer_python3_helper_dep],
+        dependencies: [nnstreamer_unittest_deps, flatbuf_dep, nnstreamer_python3_helper_dep],
         install: get_option('install-test'),
         install_dir: unittest_install_dir
       )
@@ -190,7 +192,7 @@ if gtest_dep.found()
   if armnn_support_is_available
     unittest_filter_armnn = executable('unittest_filter_armnn',
       join_paths('nnstreamer_filter_armnn', 'unittest_filter_armnn.cc'),
-      dependencies: [glib_dep, gst_dep, nnstreamer_dep, gtest_dep, armnn_plugin_dep],
+      dependencies: [nnstreamer_unittest_deps, armnn_plugin_dep],
       install: get_option('install-test'),
       install_dir: unittest_install_dir
     )
@@ -202,7 +204,7 @@ if gtest_dep.found()
   if lua_support_is_available
     unittest_filter_lua = executable('unittest_filter_lua',
       join_paths('nnstreamer_filter_lua', 'unittest_filter_lua.cc'),
-      dependencies: [unittest_util_dep, glib_dep, gst_dep, nnstreamer_dep, gtest_dep],
+      dependencies: [nnstreamer_unittest_deps],
       install: get_option('install-test'),
       install_dir: unittest_install_dir
     )
@@ -214,7 +216,7 @@ if gtest_dep.found()
   if snpe_support_is_available
     unittest_filter_snpe = executable('unittest_filter_snpe',
       join_paths('nnstreamer_filter_snpe', 'unittest_filter_snpe.cc'),
-      dependencies: [unittest_util_dep, glib_dep, gst_dep, nnstreamer_dep, gtest_dep],
+      dependencies: [nnstreamer_unittest_deps],
       install: get_option('install-test'),
       install_dir: unittest_install_dir
     )
@@ -226,7 +228,7 @@ if gtest_dep.found()
   if tflite2_support_is_available
     unittest_filter_tensorflow2_lite = executable('unittest_filter_tensorflow2_lite',
       join_paths('nnstreamer_filter_tensorflow2_lite', 'unittest_filter_tensorflow2_lite.cc'),
-      dependencies: [unittest_util_dep, glib_dep, gst_dep, nnstreamer_dep, gtest_dep],
+      dependencies: [nnstreamer_unittest_deps],
       install: get_option('install-test'),
       install_dir: unittest_install_dir
     )
@@ -238,7 +240,7 @@ if gtest_dep.found()
   if flatbuf_support_is_available
     unittest_decoder = executable('unittest_decoder',
       join_paths('nnstreamer_decoder', 'unittest_decoder.cc'),
-      dependencies: [nnstreamer_unittest_deps, unittest_util_dep, flatbuf_dep],
+      dependencies: [nnstreamer_unittest_deps, flatbuf_dep],
       install: get_option('install-test'),
       install_dir: unittest_install_dir
     )

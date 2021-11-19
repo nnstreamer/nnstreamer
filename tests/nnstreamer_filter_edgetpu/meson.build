@@ -1,10 +1,7 @@
 if get_option('enable-edgetpu')
   unittest_edgetpu_deps = [
-    gtest_dep,
-    glib_dep,
-    gst_dep,
+    nnstreamer_unittest_deps,
     gst_base_dep,
-    nnstreamer_dep, # need to modify this to get the dummy loaded
   ]
   unittest_edgetpu = executable('unittest_edgetpu',
     ['unittest_edgetpu.cc'],

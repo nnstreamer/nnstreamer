@@ -1,4 +1,4 @@
-test_nnfw_deps = [glib_dep, gst_dep, nnstreamer_dep, gtest_dep, nnfw_plugin_dep, unittest_util_dep]
+test_nnfw_deps = [nnstreamer_unittest_deps, nnfw_plugin_dep]
 
 unittest_nnfw_runtime_raw = executable('unittest_nnfw_runtime_raw',
   'unittest_tizen_nnfw_runtime_raw.cc',

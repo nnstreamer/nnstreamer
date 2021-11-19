@@ -22,7 +22,7 @@ extern "C" {
 #ifndef DBG
 #define DBG FALSE
 #endif
-#define _print_log(...) if (DBG) g_message (__VA_ARGS__)
+#define _print_log(...) do { if (DBG) g_message (__VA_ARGS__); } while (0)
 
 #define UNITTEST_STATECHANGE_TIMEOUT (2000U)
 #define TEST_DEFAULT_SLEEP_TIME (10000U)
@@ -70,6 +70,34 @@ extern gboolean wait_pipeline_process_buffers (const guint * data_received, guin
       }                                                                    \
     } while (len < exp_len);                                               \
   } while (0)
+
+
+#ifdef FAKEDLOG
+/**
+ * @brief enum definition copied from Tizen dlog (MIT License)
+ * @detail If real dlog is included, this will generate errors.
+ *         Do not include real dlog.
+ */
+typedef enum {
+        DLOG_UNKNOWN = 0, /**< Keep this always at the start */
+        DLOG_DEFAULT, /**< Default */
+        DLOG_VERBOSE, /**< Verbose */
+        DLOG_DEBUG, /**< Debug */
+        DLOG_INFO, /**< Info */
+        DLOG_WARN, /**< Warning */
+        DLOG_ERROR, /**< Error */
+        DLOG_FATAL, /**< Fatal */
+        DLOG_SILENT, /**< Silent */
+        DLOG_PRIO_MAX /**< Keep this always at the end. */
+} log_priority;
+
+/**
+ * @brief Hijack dlog Tizen infra for unit testing to force printing out.
+ * @bug The original dlog_print returns the number of bytes printed.
+ *      This returns 0.
+ */
+extern int dlog_print (log_priority prio, const char *tag, const char *fmt, ...);
+#endif
 
 #ifdef __cplusplus
 }
