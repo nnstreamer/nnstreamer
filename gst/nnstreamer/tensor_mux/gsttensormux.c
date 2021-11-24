@@ -369,7 +369,7 @@ gst_tensor_mux_collect_buffer (GstTensorMux * tensor_mux,
 {
   if (tensor_mux->need_set_time) {
     if (gst_tensor_time_sync_get_current_time (tensor_mux->collect,
-            &tensor_mux->sync, &tensor_mux->current_time)) {
+            &tensor_mux->sync, &tensor_mux->current_time, tensors_buf)) {
       /* end-of-stream */
       *is_eos = TRUE;
       return FALSE;

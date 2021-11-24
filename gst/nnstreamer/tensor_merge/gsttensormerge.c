@@ -439,7 +439,7 @@ gst_tensor_merge_collect_buffer (GstTensorMerge * tensor_merge,
 {
   if (tensor_merge->need_set_time) {
     if (gst_tensor_time_sync_get_current_time (tensor_merge->collect,
-            &tensor_merge->sync, &tensor_merge->current_time)) {
+            &tensor_merge->sync, &tensor_merge->current_time, tensors_buf)) {
       /* end-of-stream */
       *is_eos = TRUE;
       return FALSE;

@@ -132,10 +132,12 @@ _gst_tensor_time_sync_is_eos (GstCollectPads * collect,
 /**
  * @brief A function call to decide current timestamp among collected pads based on PTS.
  * It will decide current timestamp according to sync option.
+ * GstMeta is also copied with same sync mode.
  */
 gboolean
 gst_tensor_time_sync_get_current_time (GstCollectPads * collect,
-    tensor_time_sync_data * sync, GstClockTime * current_time)
+    tensor_time_sync_data * sync, GstClockTime * current_time,
+    GstBuffer * tensors_buf)
 {
   GSList *walk = NULL;
   guint count, empty_pad;
@@ -150,6 +152,7 @@ gst_tensor_time_sync_get_current_time (GstCollectPads * collect,
   while (walk) {
     GstCollectData *data;
     GstBuffer *buf;
+    gboolean need_update = FALSE;
 
     data = (GstCollectData *) walk->data;
     buf = gst_collect_pads_peek (collect, data);
@@ -162,16 +165,20 @@ gst_tensor_time_sync_get_current_time (GstCollectPads * collect,
         case SYNC_SLOWEST:
         case SYNC_REFRESH:
           if (*current_time < GST_BUFFER_PTS (buf))
-            *current_time = GST_BUFFER_PTS (buf);
+            need_update = TRUE;
           break;
         case SYNC_BASEPAD:
           if (count == sync->data_basepad.sink_id)
-            *current_time = GST_BUFFER_PTS (buf);
+            need_update = TRUE;
           break;
         default:
           break;
       }
-
+      if (need_update) {
+        *current_time = GST_BUFFER_PTS (buf);
+        gst_buffer_copy_into (tensors_buf, buf, GST_BUFFER_COPY_METADATA,
+            0, -1);
+      }
       gst_buffer_unref (buf);
     } else {
       empty_pad++;
@@ -275,7 +282,6 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
   guint i, n_mem;
   GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT];
   tensor_format in_formats[NNS_TENSOR_SIZE_LIMIT];
-  gboolean meta_copied = FALSE;
 
   g_return_val_if_fail (collect != NULL, FALSE);
   g_return_val_if_fail (sync != NULL, FALSE);
@@ -399,18 +405,6 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
         counting++;
       }
 
-      /**
-       * This is temporal GstMeta policy of the collect pad for tensor query server.
-       * Copy GstMeta of the first buffer to out buffers.
-       * MetaCopy policy should be updated for multiple query clients
-       * to prevent the multiple clients from mixing buffers.
-       * @todo Update the policies based on synchronization polices of mux and merge.
-       */
-      if (!meta_copied) {
-        gst_buffer_copy_into (tensors_buf, buf, GST_BUFFER_COPY_METADATA, 0,
-            -1);
-        meta_copied = TRUE;
-      }
       gst_buffer_unref (buf);
     }
     if (is_empty)
