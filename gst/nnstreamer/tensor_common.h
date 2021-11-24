@@ -134,13 +134,15 @@ gst_tensor_time_sync_set_option_data (tensor_time_sync_data * sync);
 /**
  * @brief A function call to decide current timestamp among collected pads based on PTS.
  * It will decide current timestamp according to sync option.
+ * GstMeta is also copied with same sync mode.
  * @return True / False. If EOS, it return TRUE.
  * @param collect Collect pad.
  * @param sync Synchronization Option (NOSYNC, SLOWEST, BASEPAD, END)
  * @param current_time Current time
+ * @param tensors_buf Generated GstBuffer for Collected Buffer
  */
 extern gboolean
-gst_tensor_time_sync_get_current_time (GstCollectPads * collect, tensor_time_sync_data * sync, GstClockTime * current_time);
+gst_tensor_time_sync_get_current_time (GstCollectPads * collect, tensor_time_sync_data * sync, GstClockTime * current_time, GstBuffer * tensors_buf);
 
 /**
  * @brief A function to be called while processing a flushing event.
