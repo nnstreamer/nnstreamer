@@ -29,6 +29,7 @@ option('enable-pytorch-use-gpu', type: 'boolean', value: false) # default value,
 option('tflite2-gpu-delegate-support', type: 'boolean', value: 'false')
 option('tflite2-nnapi-delegate-support', type: 'boolean', value: 'false')
 option('tflite2-external-delegate-support', type: 'boolean', value: 'false')
+option('tflite2-xnnpack-delegate-support', type: 'boolean', value: 'false')
 option('enable-mediapipe', type: 'boolean', value: false)
 option('enable-env-var', type: 'boolean', value: true)
 option('enable-symbolic-link', type: 'boolean', value: true)
