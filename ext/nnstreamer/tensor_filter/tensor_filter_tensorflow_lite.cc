@@ -333,20 +333,28 @@ TFLiteInterpreter::invoke (const GstTensorMemory *input, GstTensorMemory *output
   start_time = g_get_monotonic_time ();
 
   /**
-   * When XNNPACK Delegate is used, we should not assign other buffer as ptr of output tensor data.
-   * The output data should be memcpy-ed from interpreter's output tensors.
+   * XNNPACK Delegate uses fixed buffer address for input/output tensors.
+   * Therefore tensor data is to be manually copied from/to input/output GStreamer
+   * buffers memory whose address changes at every round.
    */
-  if (!is_xnnpack_delegated) {
+  if (is_xnnpack_delegated) {
+    for (unsigned int i = 0; i < inputTensorMeta.num_tensors; ++i) {
+      tensor_ptr = inputTensorPtr[i];
+      g_assert(tensor_ptr->bytes == input[i].size);
+      memcpy (tensor_ptr->data.raw, input[i].data, input[i].size);
+    }
+  } else {
+    for (unsigned int i = 0; i < inputTensorMeta.num_tensors; ++i) {
+      tensor_ptr = inputTensorPtr[i];
+      tensor_ptr->data.raw = (char *) input[i].data;
+    }
+
     for (unsigned int i = 0; i < outputTensorMeta.num_tensors; ++i) {
       tensor_ptr = outputTensorPtr[i];
       tensor_ptr->data.raw = (char *) output[i].data;
     }
   }
 
-  for (unsigned int i = 0; i < inputTensorMeta.num_tensors; ++i) {
-    tensor_ptr = inputTensorPtr[i];
-    tensor_ptr->data.raw = (char *) input[i].data;
-  }
   stop_time = g_get_monotonic_time ();
 
   tflite_internal_stats.total_overhead_latency += stop_time - start_time;
@@ -356,7 +364,9 @@ TFLiteInterpreter::invoke (const GstTensorMemory *input, GstTensorMemory *output
 
   if (is_xnnpack_delegated) {
     for (unsigned int i = 0; i < outputTensorMeta.num_tensors; ++i) {
-      memcpy (output[i].data, outputTensorPtr[i]->data.raw, output[i].size);
+      tensor_ptr = outputTensorPtr[i];
+      g_assert(tensor_ptr->bytes == output[i].size);
+      memcpy (output[i].data, tensor_ptr->data.raw, output[i].size);
     }
   }
 
@@ -448,8 +458,8 @@ TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate)
       xnnpack_delegate.reset (TfLiteXNNPackDelegateCreate (&xnnpack_options));
       setDelegate (xnnpack_delegate.get ());
       is_xnnpack_delegated = true;
-      ml_logw ("Output tensors should be memcpy-ed rather than explictly assigning its ptr when XNNPACK Delegate is used.");
-      ml_logw ("This could cause performance degradation if sizes of output tensors are large");
+      ml_logw ("Input/output tensors should be memcpy-ed rather than explictly assigning its ptr when XNNPACK Delegate is used.");
+      ml_logw ("This could cause performance degradation if sizes of input/output tensors are large");
 #else
       ml_logw ("XNNPACK delegate support is available only in Android with tflite v2.3.0 or higher and XNNPACK support should be enabled for tf-lite subplugin build.");
 #endif
