@@ -86,6 +86,7 @@ endforeach
 gst_api_verision = '1.0'
 
 # Set install path
+nnstreamer_prefix = get_option('prefix')
 nnstreamer_libdir = join_paths(nnstreamer_prefix, get_option('libdir'))
 nnstreamer_bindir = join_paths(nnstreamer_prefix, get_option('bindir'))
 nnstreamer_includedir = join_paths(nnstreamer_prefix, get_option('includedir'))
@@ -96,7 +97,6 @@ nnstreamer_inidir = join_paths(nnstreamer_prefix, get_option('sysconfdir'))
 plugins_install_dir = join_paths(nnstreamer_libdir, 'gstreamer-' + gst_api_verision)
 
 # nnstreamer sub-plugins path
-nnstreamer_prefix = get_option('prefix')
 if get_option('subplugindir') == ''
   subplugin_install_prefix = join_paths(nnstreamer_prefix, get_option('libdir'), 'nnstreamer')
 else

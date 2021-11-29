@@ -774,7 +774,7 @@ CXXFLAGS=`echo $CXXFLAGS | sed -e "s|-Wp,-D_FORTIFY_SOURCE=[1-9]||g"`
 mkdir -p build
 
 meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_lib} \
-	--bindir=%{nnstbindir} --includedir=include -Dsubplugindir=%{prefix}/%{_lib}/nnstreamer \
+	--bindir=%{nnstbindir} --includedir=include -Dsubplugindir=%{_prefix}/lib/nnstreamer \
 	%{enable_tizen} %{element_restriction} %{fw_priority} -Denable-env-var=false -Denable-symbolic-link=false \
 	%{enable_tf_lite} %{enable_tf2_lite} %{enable_tf} %{enable_pytorch} %{enable_caffe2} %{enable_python3} \
 	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_openvino} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} %{enable_flatbuf} \
