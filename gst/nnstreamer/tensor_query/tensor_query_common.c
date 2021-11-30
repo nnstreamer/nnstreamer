@@ -534,13 +534,15 @@ nnstreamer_query_server_init (query_server_handle server_data,
       }
 
       sdata->socket_listener = g_socket_listener_new ();
+      g_socket_listener_set_backlog (sdata->socket_listener, N_BACKLOG);
+
       if (!g_socket_listener_add_address (sdata->socket_listener, saddr,
               G_SOCKET_TYPE_STREAM, G_SOCKET_PROTOCOL_TCP, NULL, NULL, &err)) {
         nns_loge ("Failed to add address: %s", err->message);
         g_clear_error (&err);
         return -EADDRNOTAVAIL;
       }
-      g_socket_listener_set_backlog (sdata->socket_listener, N_BACKLOG);
+
       sdata->conn_queue = g_async_queue_new ();
       if (sdata->is_src)
         sdata->msg_queue = g_async_queue_new ();
