@@ -273,13 +273,8 @@ gst_tensor_query_serversink_render (GstBaseSink * bsink, GstBuffer * buf)
 {
   GstTensorQueryServerSink *sink = GST_TENSOR_QUERY_SERVERSINK (bsink);
   GstMetaQuery *meta_query;
-  TensorQueryCommandData cmd_data;
   query_connection_handle conn;
-  GstMemory *mem;
-  GstMapInfo map;
   query_client_id_t client_id;
-  guint32 i, num_mems;
-  int ecode;
 
   meta_query = gst_buffer_get_meta_query (buf);
   if (!meta_query) {
@@ -290,44 +285,11 @@ gst_tensor_query_serversink_render (GstBaseSink * bsink, GstBuffer * buf)
     conn = nnstreamer_query_server_accept (sink->server_data);
     client_id = nnstreamer_query_connection_get_client_id (conn);
     if (client_id == meta_query->client_id) {
-      /* handle buffer */
-      memset (&cmd_data, 0, sizeof (cmd_data));
-      cmd_data.cmd = _TENSOR_QUERY_CMD_TRANSFER_START;
-      num_mems = gst_buffer_n_memory (buf);
-      cmd_data.data_info.num_mems = num_mems;
-      for (i = 0; i < num_mems; i++) {
-        mem = gst_buffer_peek_memory (buf, i);
-        cmd_data.data_info.mem_sizes[i] = mem->size;
-      }
-      if (nnstreamer_query_send (conn, &cmd_data, sink->timeout) != 0) {
-        nns_logi ("Failed to send start command");
-        return GST_FLOW_EOS;
+      if (!tensor_query_send_buffer (conn, GST_ELEMENT (sink), buf,
+              sink->timeout)) {
+        nns_logw ("Failed to send buffer to client, drop current buffer.");
       }
 
-      for (i = 0; i < num_mems; i++) {
-        mem = gst_buffer_peek_memory (buf, i);
-        if (!gst_memory_map (mem, &map, GST_MAP_READ)) {
-          nns_loge ("Failed to map memory");
-          return GST_FLOW_ERROR;
-        }
-        cmd_data.cmd = _TENSOR_QUERY_CMD_TRANSFER_DATA;
-        cmd_data.data.size = map.size;
-        cmd_data.data.data = map.data;
-
-        ecode = nnstreamer_query_send (conn, &cmd_data, sink->timeout);
-        gst_memory_unmap (mem, &map);
-
-        if (ecode != 0) {
-          nns_logi ("Failed to send data");
-          return GST_FLOW_EOS;
-        }
-      }
-
-      cmd_data.cmd = _TENSOR_QUERY_CMD_TRANSFER_END;
-      if (nnstreamer_query_send (conn, &cmd_data, sink->timeout) != 0) {
-        nns_logi ("Failed to send data");
-        return GST_FLOW_EOS;
-      }
       return GST_FLOW_OK;
     }
   }

@@ -913,3 +913,73 @@ nnstreamer_query_server_get_buffer (query_server_handle server_data)
 
   return GST_BUFFER (g_async_queue_pop (sdata->msg_queue));
 }
+
+/**
+ * @brief Send gst-buffer to destination node.
+ * @return True if all data in gst-buffer is successfully sent. False if failed to transfer data.
+ * @todo This function should be used in nnstreamer element. Update function name rule and params later.
+ */
+gboolean
+tensor_query_send_buffer (query_connection_handle connection,
+    GstElement * element, GstBuffer * buffer, guint timeout)
+{
+  TensorQueryCommandData cmd_data = { 0 };
+  GstMemory *mem[NNS_TENSOR_SIZE_LIMIT];
+  GstMapInfo map[NNS_TENSOR_SIZE_LIMIT];
+  gboolean done = FALSE;
+  guint i, num_mems;
+
+  num_mems = gst_buffer_n_memory (buffer);
+
+  /* start */
+  cmd_data.cmd = _TENSOR_QUERY_CMD_TRANSFER_START;
+  cmd_data.data_info.base_time = gst_element_get_base_time (element);
+  cmd_data.data_info.duration = GST_BUFFER_DURATION (buffer);
+  cmd_data.data_info.dts = GST_BUFFER_DTS (buffer);
+  cmd_data.data_info.pts = GST_BUFFER_PTS (buffer);
+  cmd_data.data_info.num_mems = num_mems;
+
+  /* memory chunks in gst-buffer */
+  for (i = 0; i < num_mems; i++) {
+    mem[i] = gst_buffer_peek_memory (buffer, i);
+    if (!gst_memory_map (mem[i], &map[i], GST_MAP_READ)) {
+      ml_loge ("Cannot map the %uth memory in gst-buffer.", i);
+      num_mems = i;
+      goto error;
+    }
+
+    cmd_data.data_info.mem_sizes[i] = map[i].size;
+  }
+
+  if (nnstreamer_query_send (connection, &cmd_data, timeout) != 0) {
+    nns_loge ("Failed to send start command.");
+    goto error;
+  }
+
+  /* transfer data */
+  cmd_data.cmd = _TENSOR_QUERY_CMD_TRANSFER_DATA;
+  for (i = 0; i < num_mems; i++) {
+    cmd_data.data.size = map[i].size;
+    cmd_data.data.data = map[i].data;
+
+    if (nnstreamer_query_send (connection, &cmd_data, timeout) != 0) {
+      nns_loge ("Failed to send %uth data buffer", i);
+      goto error;
+    }
+  }
+
+  /* done */
+  cmd_data.cmd = _TENSOR_QUERY_CMD_TRANSFER_END;
+  if (nnstreamer_query_send (connection, &cmd_data, timeout) != 0) {
+    nns_loge ("Failed to send end command.");
+    goto error;
+  }
+
+  done = TRUE;
+
+error:
+  for (i = 0; i < num_mems; i++)
+    gst_memory_unmap (mem[i], &map[i]);
+
+  return done;
+}
