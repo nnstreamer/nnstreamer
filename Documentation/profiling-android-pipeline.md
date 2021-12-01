@@ -6,7 +6,7 @@ title: Profiling Android NNStreamer Pipeline with GstShark
 
 ## Prerequisite
 
-1. You need to build NNStreamer API library with tracing. Please refer [getting-started-android.md](./getting-started-android.md).
+1. You need to build NNStreamer API library with tracing. Please refer [getting-started-android.md](getting-started-android.md).
 2. Run Your Android Application with "tracing enabled" NNStreamer API library
 3. Install [GStreamer](https://gstreamer.freedesktop.org/documentation/installing/on-linux.html).
 4. Install [GstShark](https://github.com/RidgeRun/gst-shark). Please refer [this link](https://developer.ridgerun.com/wiki/index.php?title=GstShark_-_Getting_Started).

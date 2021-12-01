@@ -8,11 +8,11 @@ index.md
 			getting-started-ubuntu-debuild.md
 			getting-started-ubuntu-ppa.md
 		tutorials.md
-			tutorials/tutorial1_playing_video.md
-			tutorials/tutorial2_object_detection.md
-			tutorials/tutorial3_pubsub_mqtt.md
-			tutorials/tutorial4_query.md
-			tutorials/tutorial5_gstreamer_api.md
+			tutorial1_playing_video.md
+			tutorial2_object_detection.md
+			tutorial3_pubsub_mqtt.md
+			tutorial4_query.md
+			tutorial5_gstreamer_api.md
 	doc-index.md
 		coding-convention.md
 		component-description.md

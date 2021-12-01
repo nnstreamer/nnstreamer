@@ -40,4 +40,4 @@ The result of the tensor stream (bounding box) is combined with the video stream
 
 Tutorial 2 is the most basic operation of the NNStreamer.  
 #### See [here](https://nnstreamer.github.io/nnstreamer-example) for more examples.  
-Tutorials 3 and 4 show how to connect between multiple devices. If you only use one device, you may skip next tutorial. If you want to know how to connect between multiple devices, let's go [next](tutorials/tutorial3_pubsub_mqtt.md).
+Tutorials 3 and 4 show how to connect between multiple devices. If you only use one device, you may skip next tutorial. If you want to know how to connect between multiple devices, let's go [next](tutorial3_pubsub_mqtt.md).

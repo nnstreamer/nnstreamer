@@ -21,7 +21,7 @@ $ gst-launch-1.0 videotestsrc ! videoconvert ! videoscale ! video/x-raw, width=6
 
 That's all!  
 Change the width, height, and frame rate of the video.  
-Now that we're close to GStreamer, let's move on to [nnstreamer](tutorials/tutorial2_object_detection.md) tutorials.  
+Now that we're close to GStreamer, let's move on to [nnstreamer](tutorial2_object_detection.md) tutorials.
 
 ## Additional description for used elements.
 Use the `gst-inspect-1.0` tool for more information of the element.
