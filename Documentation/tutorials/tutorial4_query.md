@@ -24,6 +24,7 @@ If you succeeded in streaming the video using query, let's run the object detect
 ## Run pipeline. (Object detection)
 ### Server pipeline.
 ```
+$ cd /usr/lib/nnstreamer/bin
 $ gst-launch-1.0 \
     tensor_query_serversrc ! tensor_filter framework=tensorflow-lite model=tflite_model/ssd_mobilenet_v2_coco.tflite ! \
     tensor_decoder mode=bounding_boxes option1=mobilenet-ssd option2=tflite_model/coco_labels_list.txt option3=tflite_model/box_priors.txt option4=640:480 option5=300:300 ! \

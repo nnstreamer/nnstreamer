@@ -6,7 +6,7 @@ title: T5. GStreamer API
 The `gst-launch` tool is convenient, but it is recommended to use it simply to test pipeline description.  
 In this tutorial, let's learn how to create an application. (Full example source code can be found [here](https://github.com/nnstreamer/nnstreamer-example/blob/main/native/example_object_detection_tensorflow_lite/nnstreamer_example_object_detection_tflite.cc)).  
 Creating a pipeline application is simple. You can use `gst_parse_launch ()` which is GStreamer API instead of `gst-launch` tool.  
-Refer to [here]((Documentation/how-to-run-examples.md)) for building nnstreamer-example.
+Refer to [here](../how-to-run-examples.md) for building nnstreamer-example.
 
 This is a part of the code explanation. The code lines below are essential for operating a pipeline application. The omitted codes are error handling and additional.  
 
