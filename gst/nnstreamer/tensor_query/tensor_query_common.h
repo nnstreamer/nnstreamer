@@ -119,7 +119,7 @@ nnstreamer_query_send (query_connection_handle connection, TensorQueryCommandDat
  * @return 0 if OK, negative value if error
  */
 extern int
-nnstreamer_query_receive (query_connection_handle connection, TensorQueryCommandData *data, int32_t blocking);
+nnstreamer_query_receive (query_connection_handle connection, TensorQueryCommandData *data);
 
 /**
  * @brief close connection with corresponding id.

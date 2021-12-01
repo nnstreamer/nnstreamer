@@ -109,7 +109,7 @@ typedef struct
 
 static int
 query_tcp_receive (GSocket * socket, uint8_t * data, size_t size,
-    GCancellable * cancellable, int32_t blocking);
+    GCancellable * cancellable);
 static gboolean query_tcp_send (GSocket * socket, uint8_t * data, size_t size,
     GCancellable * cancellable);
 static void
@@ -264,13 +264,12 @@ nnstreamer_query_connect (TensorQueryProtocol protocol, const char *ip,
 /**
  * @brief receive command from connected device.
  * @return 0 if OK, negative value if error
- * @param blocking Socket operation mode. 0 for non-blocking mode, other for blocking mode.
  * @note The socket operates in two modes: blocking and non-blocking.
  *       In non-blocking mode, if there is no data available, it is immediately returned.
  */
 int
 nnstreamer_query_receive (query_connection_handle connection,
-    TensorQueryCommandData * data, int32_t blocking)
+    TensorQueryCommandData * data)
 {
   TensorQueryConnection *conn = (TensorQueryConnection *) connection;
 
@@ -285,7 +284,7 @@ nnstreamer_query_receive (query_connection_handle connection,
       TensorQueryCommand cmd;
 
       if (query_tcp_receive (conn->socket, (uint8_t *) & cmd, sizeof (cmd),
-              conn->cancellable, blocking) < 0) {
+              conn->cancellable) < 0) {
         nns_logd ("Failed to receive from socket");
         return -EREMOTEIO;
       }
@@ -294,13 +293,13 @@ nnstreamer_query_receive (query_connection_handle connection,
       if (cmd == _TENSOR_QUERY_CMD_TRANSFER_DATA) {
         /* receive size */
         if (query_tcp_receive (conn->socket, (uint8_t *) & data->data.size,
-                sizeof (data->data.size), conn->cancellable, 1) < 0) {
+                sizeof (data->data.size), conn->cancellable) < 0) {
           nns_logd ("Failed to receive size from socket");
           return -EREMOTEIO;
         }
         /* receive data */
         if (query_tcp_receive (conn->socket, (uint8_t *) data->data.data,
-                data->data.size, conn->cancellable, 1) < 0) {
+                data->data.size, conn->cancellable) < 0) {
           nns_loge ("Failed to receive data from socket");
           return -EREMOTEIO;
         }
@@ -308,14 +307,14 @@ nnstreamer_query_receive (query_connection_handle connection,
       } else if (data->cmd == _TENSOR_QUERY_CMD_CLIENT_ID) {
         /* receive client id */
         if (query_tcp_receive (conn->socket, (uint8_t *) & data->client_id,
-                CLIENT_ID_LEN, conn->cancellable, 1) < 0) {
+                CLIENT_ID_LEN, conn->cancellable) < 0) {
           nns_logd ("Failed to receive client id from socket");
           return -EREMOTEIO;
         }
       } else {
         /* receive data_info */
         if (query_tcp_receive (conn->socket, (uint8_t *) & data->data_info,
-                sizeof (TensorQueryDataInfo), conn->cancellable, 1) < 0) {
+                sizeof (TensorQueryDataInfo), conn->cancellable) < 0) {
           nns_logd ("Failed to receive data info from socket");
           return -EREMOTEIO;
         }
@@ -610,16 +609,15 @@ nnstreamer_query_server_accept (query_server_handle server_data)
  */
 static int
 query_tcp_receive (GSocket * socket, uint8_t * data, size_t size,
-    GCancellable * cancellable, int32_t blocking)
+    GCancellable * cancellable)
 {
   size_t bytes_received = 0;
   ssize_t rret;
   GError *err = NULL;
 
   while (bytes_received < size) {
-    rret =
-        g_socket_receive_with_blocking (socket, (char *) data + bytes_received,
-        size - bytes_received, blocking, cancellable, &err);
+    rret = g_socket_receive (socket, (char *) data + bytes_received,
+        size - bytes_received, cancellable, &err);
 
     if (rret == 0) {
       nns_logi ("Connection closed");
@@ -693,7 +691,7 @@ _message_handler (void *thread_data)
     goto done;
   }
   _conn->client_id = cmd_data.client_id;
-  if (0 != nnstreamer_query_receive (_conn, &cmd_data, 1)) {
+  if (0 != nnstreamer_query_receive (_conn, &cmd_data)) {
     nns_logi ("Failed to receive cmd");
     goto done;
   }
@@ -729,7 +727,7 @@ _message_handler (void *thread_data)
       break;
     }
 
-    if (0 != nnstreamer_query_receive (_conn, &cmd_data, 1)) {
+    if (0 != nnstreamer_query_receive (_conn, &cmd_data)) {
       nns_loge ("Failed to receive cmd");
       break;
     }
@@ -749,7 +747,7 @@ _message_handler (void *thread_data)
         cmd_data.data.data = map.data;
         cmd_data.data.size = map.size;
 
-        ecode = nnstreamer_query_receive (_conn, &cmd_data, 1);
+        ecode = nnstreamer_query_receive (_conn, &cmd_data);
         gst_memory_unmap (mem, &map);
 
         if (ecode != 0) {
@@ -759,7 +757,7 @@ _message_handler (void *thread_data)
       }
 
       /* receive end */
-      if (0 != nnstreamer_query_receive (_conn, &cmd_data, 1) ||
+      if (0 != nnstreamer_query_receive (_conn, &cmd_data) ||
           cmd_data.cmd != _TENSOR_QUERY_CMD_TRANSFER_END) {
         nns_logi ("Failed to receive end command");
         goto reset_buffer;
@@ -870,7 +868,7 @@ accept_socket_async_cb (GObject * source, GAsyncResult * result,
       return;
     }
   } else { /** server sink */
-    if (0 != nnstreamer_query_receive (conn, &cmd_data, 1)) {
+    if (0 != nnstreamer_query_receive (conn, &cmd_data)) {
       nns_loge ("Failed to receive command.");
       goto error;
     }
