@@ -29,8 +29,9 @@ if [[ ! $check_query ]]; then
     exit
 fi
 
-# Run tensor query server as echo server with default adress option.
+# Run tensor query server as echo server with default address option.
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc num-buffers=3 ! other/tensors,num_tensors=1,dimensions=3:300:300:1,types=uint8 ! tensor_query_serversink" 1-1 0 0 $PERFORMANCE $TIMEOUT_SEC &
+sleep 1
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! tee name = t t. ! queue ! multifilesink location= raw1_%1d.log t. ! queue ! tensor_query_client ! multifilesink location=result1_%1d.log" 1-2 0 0 $PERFORMANCE
 callCompareTest raw1_0.log result1_0.log 1-3 "Compare 1-3" 1 0
 callCompareTest raw1_1.log result1_1.log 1-4 "Compare 1-4" 1 0
@@ -41,6 +42,7 @@ sleep 2
 
 # Run tensor query server as echo server with given address option. (multi clients)
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc host=127.0.0.1 port=5001 num-buffers=6 ! other/tensors,num_tensors=1,dimensions=3:300:300:1,types=uint8 ! tensor_query_serversink host=127.0.0.1 port=5002" 2-1 0 0 $PERFORMANCE $TIMEOUT_SEC &
+sleep 1
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! tee name = t t. ! queue ! multifilesink location= raw2_%1d.log t. ! queue ! tensor_query_client src-host=127.0.0.1 src-port=5001 sink-host=127.0.0.1 sink-port=5002 ! multifilesink location=result2_%1d.log" 2-2 0 0 $PERFORMANCE &
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! tee name = t t. ! queue ! multifilesink location= raw2_2_%1d.log t. ! queue ! tensor_query_client src-host=127.0.0.1 src-port=5001 sink-host=127.0.0.1 sink-port=5002 ! multifilesink location=result2_2_%1d.log" 2-3 0 0 $PERFORMANCE
 callCompareTest raw2_0.log result2_0.log 2-4 "Compare 2-4" 1 0
@@ -65,6 +67,7 @@ sleep 2
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
     tensor_query_serversrc id=0 num-buffers=3 ! other/tensors,format=flexible ! tensor_query_serversink id=0 async=false \
     tensor_query_serversrc id=1 port=5000 num-buffers=3 ! other/tensors,format=flexible ! tensor_query_serversink id=1 port=5001  async=false" 5-1 0 0 $PERFORMANCE $TIMEOUT_SEC &
+sleep 1
 # Client pipeline 5-2 is connected to server ID 0.
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
     videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,width=640,height=480,format=RGB ! \
@@ -88,6 +91,7 @@ sleep 2
 
 # Sever src cap: Video, Server sink cap: Viedo test
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc num-buffers=3 ! video/x-raw,width=300,height=300,format=RGB,framerate=0/1 ! tensor_query_serversink" 6-1 0 0 $PERFORMANCE $TIMEOUT_SEC &
+sleep 1
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tee name = t t. ! queue ! multifilesink location= raw6_%1d.log t. ! queue ! tensor_query_client ! multifilesink location=result6_%1d.log" 6-2 0 0 $PERFORMANCE
 callCompareTest raw6_0.log result6_0.log 6-3 "Compare 6-3" 1 0
 callCompareTest raw6_1.log result6_1.log 6-4 "Compare 6-4" 1 0
@@ -97,6 +101,7 @@ sleep 2
 
 # Sever src cap: Video, Server sink cap: Tensor test
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc num-buffers=3 ! video/x-raw,width=300,height=300,format=RGB,framerate=0/1 ! tensor_converter ! tensor_query_serversink" 7-1 0 0 $PERFORMANCE $TIMEOUT_SEC &
+sleep 1
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tee name = t t. ! queue ! multifilesink location= raw7_%1d.log t. ! queue ! tensor_query_client ! multifilesink location=result7_%1d.log" 7-2 0 0 $PERFORMANCE
 callCompareTest raw7_0.log result7_0.log 7-3 "Compare 7-3" 1 0
 callCompareTest raw7_1.log result7_1.log 7-4 "Compare 7-4" 1 0
@@ -106,6 +111,7 @@ sleep 2
 
 # Sever src cap: Tensor, Server sink cap: Video test
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc num-buffers=3 ! other/tensors,num_tensors=1,dimensions=3:300:300:1,types=uint8,format=static,framerate=0/1 ! tensor_decoder mode=direct_video ! videoconvert ! tensor_query_serversink" 8-1 0 0 $PERFORMANCE $TIMEOUT_SEC &
+sleep 1
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! tee name = t t. ! queue ! multifilesink location= raw8_%1d.log t. ! queue ! tensor_query_client ! multifilesink location=result8_%1d.log" 8-2 0 0 $PERFORMANCE
 callCompareTest raw8_0.log result8_0.log 8-3 "Compare 8-3" 1 0
 callCompareTest raw8_1.log result8_1.log 8-4 "Compare 8-4" 1 0
@@ -134,6 +140,7 @@ fi
 # Test Query-hybrid. Get server info from broker.
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc num-buffers=3 operation=passthrough ! other/tensors,format=flexible ! tee name = t t. ! queue ! multifilesink location=server1_%1d.log t. ! queue ! tensor_query_serversink" 4-1 0 0 $PERFORMANCE $TIMEOUT_SEC &
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc num-buffers=3 operation=passthrough port=5000 ! other/tensors,format=flexible ! tee name = t t. ! queue ! multifilesink location=server2_%1d.log t. ! queue ! tensor_query_serversink port=5001" 4-2 0 0 $PERFORMANCE $TIMEOUT_SEC &
+sleep 1
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=7 ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! other/tensors,format=flexible ! tee name = t t. ! queue ! multifilesink location= raw4_%1d.log t. ! queue ! tensor_query_client operation=passthrough ! multifilesink location=result4_%1d.log" 4-3 0 0 $PERFORMANCE
 callCompareTest raw4_0.log result4_0.log 4-4 "Compare 4-4" 1 0
 callCompareTest raw4_1.log result4_1.log 4-5 "Compare 4-5" 1 0
