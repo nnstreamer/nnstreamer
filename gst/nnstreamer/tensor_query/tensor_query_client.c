@@ -590,14 +590,8 @@ gst_tensor_query_client_chain (GstPad * pad,
     GstObject * parent, GstBuffer * buf)
 {
   GstTensorQueryClient *self = GST_TENSOR_QUERY_CLIENT (parent);
-  TensorQueryCommandData cmd_buf;
-  guint i, num_tensors = 0;
-  guint mem_sizes[NNS_TENSOR_SIZE_LIMIT];
   GstBuffer *out_buf = NULL;
-  GstMemory *out_mem;
-  GstMapInfo out_info;
   GstFlowReturn res = GST_FLOW_OK;
-  gint ecode;
 
   UNUSED (pad);
 
@@ -607,64 +601,17 @@ gst_tensor_query_client_chain (GstPad * pad,
     goto retry;
   }
 
-  /** Receive start command buffer */
-  if (0 != nnstreamer_query_receive (self->sink_conn, &cmd_buf)) {
-    nns_loge ("Failed to receive start command buffer");
-    goto retry;
+  out_buf = tensor_query_receive_buffer (self->sink_conn);
+  if (out_buf) {
+    /* metadata from incoming buffer */
+    gst_buffer_copy_into (out_buf, buf, GST_BUFFER_COPY_METADATA, 0, -1);
+
+    res = gst_pad_push (self->srcpad, out_buf);
+    goto done;
   }
 
-  if (cmd_buf.cmd == _TENSOR_QUERY_CMD_TRANSFER_START) {
-    num_tensors = cmd_buf.data_info.num_mems;
+  nns_logw ("Failed to receive result from server node, retry connection.");
 
-    for (i = 0; i < num_tensors; i++) {
-      mem_sizes[i] = cmd_buf.data_info.mem_sizes[i];
-    }
-  }
-
-  out_buf = gst_buffer_new ();
-
-  /** Receive data command buffer */
-  for (i = 0; i < num_tensors; i++) {
-    out_mem = gst_allocator_alloc (NULL, mem_sizes[i], NULL);
-    gst_buffer_append_memory (out_buf, out_mem);
-
-    if (!gst_memory_map (out_mem, &out_info, GST_MAP_WRITE)) {
-      nns_loge ("Cannot map gst memory (query-client buffer)");
-      goto error;
-    }
-    cmd_buf.data.data = out_info.data;
-
-    ecode = nnstreamer_query_receive (self->sink_conn, &cmd_buf);
-    gst_memory_unmap (out_mem, &out_info);
-
-    if (ecode != 0) {
-      nns_loge ("Failed to receive %u th data command buffer", i);
-      goto error;
-    }
-  }
-
-  /** Receive end command buffer */
-  if (0 != nnstreamer_query_receive (self->sink_conn, &cmd_buf)) {
-    nns_loge ("Failed to receive end command buffer");
-    goto error;
-  }
-  if (cmd_buf.cmd != _TENSOR_QUERY_CMD_TRANSFER_END) {
-    nns_loge ("Expected _TENSOR_QUERY_CMD_TRANSFER_END, but received %d.",
-        cmd_buf.cmd);
-    goto error;
-  }
-
-  out_buf = gst_buffer_make_writable (out_buf);
-
-  /* metadata from incoming buffer */
-  gst_buffer_copy_into (out_buf, buf, GST_BUFFER_COPY_METADATA, 0, -1);
-
-  res = gst_pad_push (self->srcpad, out_buf);
-
-  goto done;
-
-error:
-  gst_buffer_unref (out_buf);
 retry:
   if (!self->operation || !_client_retry_connection (self)) {
     nns_loge ("Failed to retry connection");
