@@ -178,6 +178,14 @@ extern gboolean
 tensor_query_send_buffer (query_connection_handle connection,
     GstElement * element, GstBuffer * buffer, guint timeout);
 
+/**
+ * @brief Receive data and generate gst-buffer. Caller should handle metadata of returned buffer.
+ * @return Newly generated gst-buffer. Null if failed to receive data.
+ * @todo This function should be used in nnstreamer element. Update function name rule and params later.
+ */
+extern GstBuffer *
+tensor_query_receive_buffer (query_connection_handle connection);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
