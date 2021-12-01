@@ -601,57 +601,6 @@ gst_tensor_query_client_sink_query (GstPad * pad,
 }
 
 /**
- * @brief Get start command buffer
- */
-static gboolean
-gst_tensor_query_client_handle_cmd_buf (GstTensorQueryClient * self,
-    GstBuffer * buf, TensorQueryCommandData * cmd_buf)
-{
-  GstMemory *in_mem;
-  GstMapInfo in_info;
-  guint i, num_tensors;
-
-  num_tensors = gst_buffer_n_memory (buf);
-
-  if (cmd_buf->cmd == _TENSOR_QUERY_CMD_TRANSFER_START) {
-    cmd_buf->data_info.base_time =
-        gst_element_get_base_time (GST_ELEMENT (self));
-    cmd_buf->data_info.duration = GST_BUFFER_DURATION (buf);
-    cmd_buf->data_info.dts = GST_BUFFER_DTS (buf);
-    cmd_buf->data_info.pts = GST_BUFFER_PTS (buf);
-    cmd_buf->data_info.num_mems = num_tensors;
-  }
-
-  for (i = 0; i < num_tensors; i++) {
-    in_mem = gst_buffer_peek_memory (buf, i);
-    if (!gst_memory_map (in_mem, &in_info, GST_MAP_READ)) {
-      nns_loge ("Cannot map input memory / tensor query client.");
-      return FALSE;
-    }
-
-    if (cmd_buf->cmd == _TENSOR_QUERY_CMD_TRANSFER_START) {
-      cmd_buf->data_info.mem_sizes[i] = in_info.size;
-    } else if (cmd_buf->cmd == _TENSOR_QUERY_CMD_TRANSFER_DATA) {
-      cmd_buf->data.data = in_info.data;
-      cmd_buf->data.size = in_info.size;
-      if (0 != nnstreamer_query_send (self->src_conn, cmd_buf,
-              DEFAULT_TIMEOUT_MS)) {
-        gst_memory_unmap (in_mem, &in_info);
-        nns_loge ("Failed to send %uth data command buffer", i);
-        return FALSE;
-      }
-    } else {
-      gst_memory_unmap (in_mem, &in_info);
-      nns_loge ("Undefiend behavior with this command: %d", cmd_buf->cmd);
-      return FALSE;
-    }
-    gst_memory_unmap (in_mem, &in_info);
-  }
-
-  return TRUE;
-}
-
-/**
  * @brief Chain function, this function does the actual processing.
  */
 static GstFlowReturn
@@ -671,31 +620,12 @@ gst_tensor_query_client_chain (GstPad * pad,
 
   UNUSED (pad);
 
-  /** Send start command buffer */
-  cmd_buf.protocol = self->protocol;
-  cmd_buf.cmd = _TENSOR_QUERY_CMD_TRANSFER_START;
-  if (!gst_tensor_query_client_handle_cmd_buf (self, buf, &cmd_buf)) {
-    nns_loge ("Failed to hanlde %d command buffers.", cmd_buf.cmd);
-    goto retry;
-  }
-  if (0 != nnstreamer_query_send (self->src_conn, &cmd_buf, DEFAULT_TIMEOUT_MS)) {
-    nns_loge ("Failed to send start command buffer");
+  if (!tensor_query_send_buffer (self->src_conn, GST_ELEMENT (self), buf,
+          DEFAULT_TIMEOUT_MS)) {
+    nns_logw ("Failed to send buffer to server node, retry connection.");
     goto retry;
   }
 
-  /** Send data command buffer */
-  cmd_buf.cmd = _TENSOR_QUERY_CMD_TRANSFER_DATA;
-  if (!gst_tensor_query_client_handle_cmd_buf (self, buf, &cmd_buf)) {
-    nns_loge ("Failed to hanlde %d command buffers.", cmd_buf.cmd);
-    goto retry;
-  }
-
-  /** Send end command buffer */
-  cmd_buf.cmd = _TENSOR_QUERY_CMD_TRANSFER_END;
-  if (0 != nnstreamer_query_send (self->src_conn, &cmd_buf, DEFAULT_TIMEOUT_MS)) {
-    nns_loge ("Failed to send end command buffer");
-    goto retry;
-  }
   /** Receive start command buffer */
   if (0 != nnstreamer_query_receive (self->sink_conn, &cmd_buf)) {
     nns_loge ("Failed to receive start command buffer");

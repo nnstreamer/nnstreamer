@@ -170,6 +170,15 @@ nnstreamer_query_server_data_set_config (query_server_handle server_data,
 extern GstBuffer *
 nnstreamer_query_server_get_buffer (query_server_handle server_data);
 
+/**
+ * @brief Send gst-buffer to destination node.
+ * @return True if all data in gst-buffer is successfully sent. False if failed to transfer data.
+ * @todo This function should be used in nnstreamer element. Update function name rule and params later.
+ */
+extern gboolean
+tensor_query_send_buffer (query_connection_handle connection,
+    GstElement * element, GstBuffer * buffer, guint timeout);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
