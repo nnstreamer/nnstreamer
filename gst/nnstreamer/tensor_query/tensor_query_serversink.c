@@ -23,7 +23,6 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_query_serversink_debug);
 #define DEFAULT_HOST "localhost"
 #define DEFAULT_PORT_SINK 3000
 #define DEFAULT_PROTOCOL _TENSOR_QUERY_PROTOCOL_TCP
-#define DEFAULT_TIMEOUT 10
 
 /**
  * @brief the capabilities of the inputs.
@@ -94,7 +93,8 @@ gst_tensor_query_serversink_class_init (GstTensorQueryServerSinkClass * klass)
   g_object_class_install_property (gobject_class, PROP_TIMEOUT,
       g_param_spec_uint ("timeout", "Timeout",
           "The timeout as seconds to maintain connection", 0,
-          3600, DEFAULT_TIMEOUT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          3600, QUERY_DEFAULT_TIMEOUT_SEC,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_ID,
       g_param_spec_uint ("id", "ID",
           "ID for distinguishing query servers.", 0,
@@ -127,7 +127,7 @@ gst_tensor_query_serversink_init (GstTensorQueryServerSink * sink)
   sink->host = g_strdup (DEFAULT_HOST);
   sink->port = DEFAULT_PORT_SINK;
   sink->protocol = DEFAULT_PROTOCOL;
-  sink->timeout = DEFAULT_TIMEOUT;
+  sink->timeout = QUERY_DEFAULT_TIMEOUT_SEC;
   sink->sink_id = DEFAULT_SERVER_ID;
   sink->server_data = nnstreamer_query_server_data_new ();
 }
@@ -309,8 +309,7 @@ gst_tensor_query_serversink_render (GstBaseSink * bsink, GstBuffer * buf)
   conn = nnstreamer_query_server_accept (sink->server_data,
       meta_query->client_id);
   if (conn) {
-    if (!tensor_query_send_buffer (conn, GST_ELEMENT (sink), buf,
-            sink->timeout)) {
+    if (!tensor_query_send_buffer (conn, GST_ELEMENT (sink), buf)) {
       nns_logw ("Failed to send buffer to client, drop current buffer.");
     }
   } else {

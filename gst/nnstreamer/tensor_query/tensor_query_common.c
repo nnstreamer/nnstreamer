@@ -30,7 +30,6 @@
 #define TENSOR_QUERY_SERVER_DATA_LEN 128
 #define N_BACKLOG 10
 #define CLIENT_ID_LEN sizeof(query_client_id_t)
-#define QUERY_TIMEOUT_SEC 1
 
 #ifndef EREMOTEIO
 #define EREMOTEIO 121           /* This is Linux-specific. Define this for non-Linux systems */
@@ -83,6 +82,7 @@ typedef struct
   TensorQueryProtocol protocol;
   char *host;
   uint16_t port;
+  uint32_t timeout;
   query_client_id_t client_id;
   pthread_t msg_thread;
   int8_t running;
@@ -243,19 +243,43 @@ done:
 }
 
 /**
+ * @brief Set timeout.
+ */
+void
+nnstreamer_query_set_timeout (query_connection_handle connection,
+    uint32_t timeout)
+{
+  TensorQueryConnection *conn = (TensorQueryConnection *) connection;
+
+  if (conn->timeout != timeout) {
+    conn->timeout = timeout;
+
+    switch (conn->protocol) {
+      case _TENSOR_QUERY_PROTOCOL_TCP:
+        g_socket_set_timeout (conn->socket, timeout);
+        break;
+      default:
+        /* NYI */
+        nns_loge ("Invalid protocol");
+        break;
+    }
+  }
+}
+
+/**
  * @brief Connect to the specified address.
  */
 query_connection_handle
 nnstreamer_query_connect (TensorQueryProtocol protocol, const char *ip,
-    uint16_t port, uint32_t timeout_ms)
+    uint16_t port, uint32_t timeout)
 {
-  /** @todo remove "UNUSED" when you implement the full features */
   TensorQueryConnection *conn = g_new0 (TensorQueryConnection, 1);
-  UNUSED (timeout_ms);
 
   conn->protocol = protocol;
   conn->host = g_strdup (ip);
   conn->port = port;
+  conn->timeout = timeout;
+
   switch (protocol) {
     case _TENSOR_QUERY_PROTOCOL_TCP:
     {
@@ -272,6 +296,8 @@ nnstreamer_query_connect (TensorQueryProtocol protocol, const char *ip,
       nnstreamer_query_close (conn);
       return NULL;
   }
+
+  nnstreamer_query_set_timeout (conn, timeout);
   return conn;
 }
 
@@ -354,10 +380,10 @@ nnstreamer_query_receive (query_connection_handle connection,
  */
 int
 nnstreamer_query_send (query_connection_handle connection,
-    TensorQueryCommandData * data, uint32_t timeout_ms)
+    TensorQueryCommandData * data)
 {
   TensorQueryConnection *conn = (TensorQueryConnection *) connection;
-  UNUSED (timeout_ms);
+
   if (!data) {
     nns_loge ("Sending data is NULL");
     return -EINVAL;
@@ -705,7 +731,7 @@ _message_handler (void *thread_data)
   cmd_data.cmd = _TENSOR_QUERY_CMD_CLIENT_ID;
   cmd_data.client_id = g_get_monotonic_time ();
 
-  if (0 != nnstreamer_query_send (_conn, &cmd_data, DEFAULT_TIMEOUT_MS)) {
+  if (0 != nnstreamer_query_send (_conn, &cmd_data)) {
     nns_loge ("Failed to send client id to client");
     goto done;
   }
@@ -761,7 +787,7 @@ _message_handler (void *thread_data)
     gst_caps_unref (sdata_caps);
     gst_caps_unref (cmd_caps);
 
-    if (nnstreamer_query_send (_conn, &cmd_data, DEFAULT_TIMEOUT_MS) != 0) {
+    if (nnstreamer_query_send (_conn, &cmd_data) != 0) {
       nns_logi ("Failed to send respond");
       goto done;
     }
@@ -812,7 +838,7 @@ accept_socket_async_cb (GObject * source, GAsyncResult * result,
     g_clear_error (&err);
     goto error;
   }
-  g_socket_set_timeout (socket, QUERY_TIMEOUT_SEC);
+  g_socket_set_timeout (socket, QUERY_DEFAULT_TIMEOUT_SEC);
   /* create socket with connection */
   conn = g_try_new0 (TensorQueryConnection, 1);
   if (!conn) {
@@ -926,7 +952,7 @@ nnstreamer_query_server_get_buffer (query_server_handle server_data)
  */
 gboolean
 tensor_query_send_buffer (query_connection_handle connection,
-    GstElement * element, GstBuffer * buffer, guint timeout)
+    GstElement * element, GstBuffer * buffer)
 {
   TensorQueryCommandData cmd_data = { 0 };
   GstMemory *mem[NNS_TENSOR_SIZE_LIMIT];
@@ -956,7 +982,7 @@ tensor_query_send_buffer (query_connection_handle connection,
     cmd_data.data_info.mem_sizes[i] = map[i].size;
   }
 
-  if (nnstreamer_query_send (connection, &cmd_data, timeout) != 0) {
+  if (nnstreamer_query_send (connection, &cmd_data) != 0) {
     nns_loge ("Failed to send start command.");
     goto error;
   }
@@ -967,7 +993,7 @@ tensor_query_send_buffer (query_connection_handle connection,
     cmd_data.data.size = map[i].size;
     cmd_data.data.data = map[i].data;
 
-    if (nnstreamer_query_send (connection, &cmd_data, timeout) != 0) {
+    if (nnstreamer_query_send (connection, &cmd_data) != 0) {
       nns_loge ("Failed to send %uth data buffer", i);
       goto error;
     }
@@ -975,7 +1001,7 @@ tensor_query_send_buffer (query_connection_handle connection,
 
   /* done */
   cmd_data.cmd = _TENSOR_QUERY_CMD_TRANSFER_END;
-  if (nnstreamer_query_send (connection, &cmd_data, timeout) != 0) {
+  if (nnstreamer_query_send (connection, &cmd_data) != 0) {
     nns_loge ("Failed to send end command.");
     goto error;
   }

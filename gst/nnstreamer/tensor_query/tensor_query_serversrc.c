@@ -26,7 +26,6 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_query_serversrc_debug);
 #define DEFAULT_HOST "localhost"
 #define DEFAULT_PORT_SRC 3001
 #define DEFAULT_PROTOCOL _TENSOR_QUERY_PROTOCOL_TCP
-#define DEFAULT_TIMEOUT 10
 
 /**
  * @brief the capabilities of the outputs
@@ -102,7 +101,8 @@ gst_tensor_query_serversrc_class_init (GstTensorQueryServerSrcClass * klass)
   g_object_class_install_property (gobject_class, PROP_TIMEOUT,
       g_param_spec_uint ("timeout", "Timeout",
           "The timeout as seconds to maintain connection", 0,
-          3600, DEFAULT_TIMEOUT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          3600, QUERY_DEFAULT_TIMEOUT_SEC,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_OPERATION,
       g_param_spec_string ("operation", "Operation",
           "The main operation of the host and option if necessary. "
@@ -147,7 +147,7 @@ gst_tensor_query_serversrc_init (GstTensorQueryServerSrc * src)
   src->host = g_strdup (DEFAULT_HOST);
   src->port = DEFAULT_PORT_SRC;
   src->protocol = DEFAULT_PROTOCOL;
-  src->timeout = DEFAULT_TIMEOUT;
+  src->timeout = QUERY_DEFAULT_TIMEOUT_SEC;
   src->operation = NULL;
   src->broker_host = g_strdup (DEFAULT_BROKER_HOST);
   src->broker_port = DEFAULT_BROKER_PORT;
