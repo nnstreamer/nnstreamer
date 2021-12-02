@@ -19,6 +19,7 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 #include <nnstreamer_util.h>
@@ -117,25 +118,38 @@ accept_socket_async_cb (GObject * source, GAsyncResult * result,
     gpointer user_data);
 
 /**
- * @brief get client id from query connection handle
+ * @brief Internal function to check connection.
  */
-query_client_id_t
-nnstreamer_query_connection_get_client_id (query_connection_handle connection)
+static gboolean
+_query_check_connection (query_connection_handle connection)
+{
+  TensorQueryConnection *conn;
+  size_t size;
+  GIOCondition condition;
+
+  conn = (TensorQueryConnection *) connection;
+
+  condition = g_socket_condition_check (conn->socket,
+      G_IO_IN | G_IO_PRI | G_IO_ERR | G_IO_HUP);
+  size = g_socket_get_available_bytes (conn->socket);
+
+  if (condition && size <= 0) {
+    nns_logw ("Socket is not available, possibly EOS.");
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+/**
+ * @brief Internal function to get client id.
+ */
+static query_client_id_t
+_query_get_client_id (query_connection_handle connection)
 {
   TensorQueryConnection *conn = (TensorQueryConnection *) connection;
   return conn->client_id;
 }
-
-/**
- * @brief get port from query connection handle
- */
-uint16_t
-nnstreamer_query_connection_get_port (query_connection_handle connection)
-{
-  TensorQueryConnection *conn = (TensorQueryConnection *) connection;
-  return conn->port;
-}
-
 
 /**
  * @brief Get socket address
@@ -574,42 +588,45 @@ nnstreamer_query_server_init (query_server_handle server_data,
  * @return query_connection_handle including connection data
  */
 query_connection_handle
-nnstreamer_query_server_accept (query_server_handle server_data)
+nnstreamer_query_server_accept (query_server_handle server_data,
+    query_client_id_t client_id)
 {
   TensorQueryServerData *sdata = (TensorQueryServerData *) server_data;
   TensorQueryConnection *conn;
+  gint total, checked;
+
   if (!sdata)
     return NULL;
 
   switch (sdata->protocol) {
     case _TENSOR_QUERY_PROTOCOL_TCP:
     {
-      size_t size;
-      GIOCondition condition;
+      total = g_async_queue_length (sdata->conn_queue);
+      checked = 0;
 
-      while (TRUE) {
+      while (checked < total) {
         conn = g_async_queue_pop (sdata->conn_queue);
+        checked++;
 
-        condition = g_socket_condition_check (conn->socket,
-            G_IO_IN | G_IO_PRI | G_IO_ERR | G_IO_HUP);
-        size = g_socket_get_available_bytes (conn->socket);
-
-        if (condition && size <= 0) {
-          nns_logi ("socket not available, possibly EOS");
+        if (!_query_check_connection (conn)) {
           nnstreamer_query_close (conn);
           continue;
         }
-        break;
-      }
-      g_async_queue_push (sdata->conn_queue, conn);
 
-      return (query_connection_handle) conn;
+        g_async_queue_push (sdata->conn_queue, conn);
+
+        if (client_id == _query_get_client_id (conn))
+          return conn;
+      }
+      break;
     }
     default:
       /* NYI */
       nns_loge ("Invalid protocol");
-      return NULL;
+      break;
   }
+
+  return NULL;
 }
 
 /**
@@ -682,8 +699,6 @@ _message_handler (void *thread_data)
   TensorQueryConnection *_conn = _thread_data->conn;
   TensorQueryServerData *_sdata = _thread_data->sdata;
   TensorQueryCommandData cmd_data;
-  size_t size;
-  GIOCondition condition;
   GstBuffer *outbuf = NULL;
   GstMetaQuery *meta_query;
 
@@ -753,22 +768,14 @@ _message_handler (void *thread_data)
   }
 
   while (_conn->running) {
-    condition = g_socket_condition_check (_conn->socket,
-        G_IO_IN | G_IO_PRI | G_IO_ERR | G_IO_HUP);
-
-    size = g_socket_get_available_bytes (_conn->socket);
-
-    if (condition && size <= 0) {
-      nns_loge ("socket not available, possibly EOS");
+    if (!_query_check_connection (_conn))
       break;
-    }
 
     outbuf = tensor_query_receive_buffer (_conn);
     if (outbuf) {
       meta_query = gst_buffer_add_meta_query (outbuf);
       if (meta_query) {
-        meta_query->client_id =
-            nnstreamer_query_connection_get_client_id (_conn);
+        meta_query->client_id = _query_get_client_id (_conn);
       }
 
       g_async_queue_push (_sdata->msg_queue, outbuf);

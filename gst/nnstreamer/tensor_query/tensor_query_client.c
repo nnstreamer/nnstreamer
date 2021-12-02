@@ -18,6 +18,7 @@
 #include "tensor_query_client.h"
 #include <gio/gio.h>
 #include <glib.h>
+#include <string.h>
 
 /**
  * @brief Macro for debug mode.
