@@ -23,7 +23,11 @@ extern "C" {
 
 typedef void * query_connection_handle;
 typedef void * query_server_handle;
-#define DEFAULT_TIMEOUT_MS 100000
+
+/**
+ * @brief Default timeout, in seconds.
+ */
+#define QUERY_DEFAULT_TIMEOUT_SEC 10
 
 /**
  * @brief protocol options for tensor query.
@@ -92,14 +96,21 @@ typedef struct
  * @return 0 if OK, negative value if error
  */
 extern query_connection_handle
-nnstreamer_query_connect (TensorQueryProtocol protocol, const char *ip, uint16_t port, uint32_t timeout_ms);
+nnstreamer_query_connect (TensorQueryProtocol protocol, const char *ip, uint16_t port, uint32_t timeout);
+
+/**
+ * @brief Set timeout.
+ * @param timeout the timeout value, in seconds. 0 for none.
+ */
+extern void
+nnstreamer_query_set_timeout (query_connection_handle connection, uint32_t timeout);
 
 /**
  * @brief send command to connected device.
  * @return 0 if OK, negative value if error
  */
 extern int
-nnstreamer_query_send (query_connection_handle connection, TensorQueryCommandData *data, uint32_t timeout_ms);
+nnstreamer_query_send (query_connection_handle connection, TensorQueryCommandData *data);
 
 /**
  * @brief receive command from connected device.
@@ -164,7 +175,7 @@ nnstreamer_query_server_get_buffer (query_server_handle server_data);
  */
 extern gboolean
 tensor_query_send_buffer (query_connection_handle connection,
-    GstElement * element, GstBuffer * buffer, guint timeout);
+    GstElement * element, GstBuffer * buffer);
 
 /**
  * @brief Receive data and generate gst-buffer. Caller should handle metadata of returned buffer.

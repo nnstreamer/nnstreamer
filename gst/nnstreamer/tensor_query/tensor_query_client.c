@@ -373,7 +373,7 @@ _connect_to_server (GstTensorQueryClient * self)
 
   nns_logd ("Server src info: %s:%u", self->src_host, self->src_port);
   self->src_conn = nnstreamer_query_connect (self->protocol, self->src_host,
-      self->src_port, DEFAULT_TIMEOUT_MS);
+      self->src_port, QUERY_DEFAULT_TIMEOUT_SEC);
   if (!self->src_conn) {
     nns_loge ("Failed to connect server source ");
     return FALSE;
@@ -390,7 +390,7 @@ _connect_to_server (GstTensorQueryClient * self)
   cmd_buf.data.data = (uint8_t *) self->in_caps_str;
   cmd_buf.data.size = (size_t) strlen (self->in_caps_str);
 
-  if (0 != nnstreamer_query_send (self->src_conn, &cmd_buf, DEFAULT_TIMEOUT_MS)) {
+  if (0 != nnstreamer_query_send (self->src_conn, &cmd_buf)) {
     nns_loge ("Failed to send request info cmd buf");
     return FALSE;
   }
@@ -411,14 +411,13 @@ _connect_to_server (GstTensorQueryClient * self)
   nns_logd ("Server sink info: %s:%u", self->sink_host, self->sink_port);
   self->sink_conn =
       nnstreamer_query_connect (self->protocol, self->sink_host,
-      self->sink_port, DEFAULT_TIMEOUT_MS);
+      self->sink_port, QUERY_DEFAULT_TIMEOUT_SEC);
   if (!self->sink_conn) {
     nns_loge ("Failed to connect server sink ");
     return FALSE;
   }
   cmd_buf.cmd = _TENSOR_QUERY_CMD_CLIENT_ID;
-  if (0 != nnstreamer_query_send (self->sink_conn, &cmd_buf,
-          DEFAULT_TIMEOUT_MS)) {
+  if (0 != nnstreamer_query_send (self->sink_conn, &cmd_buf)) {
     nns_loge ("Failed to send client ID to server sink");
     return FALSE;
   }
@@ -596,8 +595,7 @@ gst_tensor_query_client_chain (GstPad * pad,
 
   UNUSED (pad);
 
-  if (!tensor_query_send_buffer (self->src_conn, GST_ELEMENT (self), buf,
-          DEFAULT_TIMEOUT_MS)) {
+  if (!tensor_query_send_buffer (self->src_conn, GST_ELEMENT (self), buf)) {
     nns_logw ("Failed to send buffer to server node, retry connection.");
     goto retry;
   }
