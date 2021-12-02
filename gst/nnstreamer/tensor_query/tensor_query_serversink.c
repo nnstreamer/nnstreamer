@@ -299,25 +299,23 @@ gst_tensor_query_serversink_render (GstBaseSink * bsink, GstBuffer * buf)
   GstTensorQueryServerSink *sink = GST_TENSOR_QUERY_SERVERSINK (bsink);
   GstMetaQuery *meta_query;
   query_connection_handle conn;
-  query_client_id_t client_id;
 
   meta_query = gst_buffer_get_meta_query (buf);
   if (!meta_query) {
     nns_logw ("Cannot get tensor query meta. Drop buffers!");
     return GST_FLOW_OK;
   }
-  while (TRUE) {
-    conn = nnstreamer_query_server_accept (sink->server_data);
-    client_id = nnstreamer_query_connection_get_client_id (conn);
-    if (client_id == meta_query->client_id) {
-      if (!tensor_query_send_buffer (conn, GST_ELEMENT (sink), buf,
-              sink->timeout)) {
-        nns_logw ("Failed to send buffer to client, drop current buffer.");
-      }
 
-      return GST_FLOW_OK;
+  conn = nnstreamer_query_server_accept (sink->server_data,
+      meta_query->client_id);
+  if (conn) {
+    if (!tensor_query_send_buffer (conn, GST_ELEMENT (sink), buf,
+            sink->timeout)) {
+      nns_logw ("Failed to send buffer to client, drop current buffer.");
     }
+  } else {
+    nns_logw ("Cannot get the client connection, drop current buffer.");
   }
 
-  return GST_FLOW_ERROR;
+  return GST_FLOW_OK;
 }
