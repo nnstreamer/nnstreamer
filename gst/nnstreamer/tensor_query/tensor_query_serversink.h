@@ -51,6 +51,8 @@ struct _GstTensorQueryServerSink
   guint timeout;
   query_server_handle server_data;
   query_server_info_handle server_info_h;
+  gint metaless_frame_limit;
+  gint metaless_frame_count;
 };
 
 /**

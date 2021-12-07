@@ -119,3 +119,9 @@ $ cd nnstreamer/tests/nnstreamer_query
 $ ssat # or $ bash runTest.sh
 ```
  * For more detailed installation methods, see [here](/Documentation/how-to-run-examples.md).
+
+
+## Appendix
+### Available elements on query server.
+Multiple `tensor_query_client` can connect to the query server. The `query_serversrc` add a unique client ID (given by the query server) to the meta of the GstBuffer to distinguish clients. If there is an element that does not copy meta information, the `tensor_query_serversink` cannot send it to the client because it does not know which client receive the buffer.  
+Please check list [here](https://github.com/nnstreamer/nnstreamer/wiki/Available-elements-on-query-server)

@@ -23,6 +23,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_query_serversink_debug);
 #define DEFAULT_HOST "localhost"
 #define DEFAULT_PORT_SINK 3000
 #define DEFAULT_PROTOCOL _TENSOR_QUERY_PROTOCOL_TCP
+#define DEFAULT_METALESS_FRAME_LIMIT 1
 
 /**
  * @brief the capabilities of the inputs.
@@ -39,7 +40,8 @@ enum
   PROP_PORT,
   PROP_PROTOCOL,
   PROP_ID,
-  PROP_TIMEOUT
+  PROP_TIMEOUT,
+  PROP_METALESS_FRAME_LIMIT
 };
 
 #define gst_tensor_query_serversink_parent_class parent_class
@@ -100,6 +102,12 @@ gst_tensor_query_serversink_class_init (GstTensorQueryServerSinkClass * klass)
           "ID for distinguishing query servers.", 0,
           G_MAXUINT, DEFAULT_SERVER_ID,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_METALESS_FRAME_LIMIT,
+      g_param_spec_int ("limit", "Limit",
+          "Limits of the number of the buffers that the server cannot handle. "
+          "e.g., If the received buffer does not have a GstMetaQuery, the server cannot handle the buffer.",
+          0, 65535, DEFAULT_METALESS_FRAME_LIMIT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&sinktemplate));
@@ -130,6 +138,7 @@ gst_tensor_query_serversink_init (GstTensorQueryServerSink * sink)
   sink->timeout = QUERY_DEFAULT_TIMEOUT_SEC;
   sink->sink_id = DEFAULT_SERVER_ID;
   sink->server_data = nnstreamer_query_server_data_new ();
+  sink->metaless_frame_count = 0;
 }
 
 /**
@@ -181,6 +190,9 @@ gst_tensor_query_serversink_set_property (GObject * object, guint prop_id,
     case PROP_ID:
       serversink->sink_id = g_value_get_uint (value);
       break;
+    case PROP_METALESS_FRAME_LIMIT:
+      serversink->metaless_frame_limit = g_value_get_int (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -211,6 +223,9 @@ gst_tensor_query_serversink_get_property (GObject * object, guint prop_id,
       break;
     case PROP_ID:
       g_value_set_uint (value, serversink->sink_id);
+      break;
+    case PROP_METALESS_FRAME_LIMIT:
+      g_value_set_int (value, serversink->metaless_frame_limit);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -301,19 +316,28 @@ gst_tensor_query_serversink_render (GstBaseSink * bsink, GstBuffer * buf)
   query_connection_handle conn;
 
   meta_query = gst_buffer_get_meta_query (buf);
-  if (!meta_query) {
-    nns_logw ("Cannot get tensor query meta. Drop buffers!");
-    return GST_FLOW_OK;
-  }
-
-  conn = nnstreamer_query_server_accept (sink->server_data,
-      meta_query->client_id);
-  if (conn) {
-    if (!tensor_query_send_buffer (conn, GST_ELEMENT (sink), buf)) {
-      nns_logw ("Failed to send buffer to client, drop current buffer.");
+  if (meta_query) {
+    sink->metaless_frame_count = 0;
+    conn = nnstreamer_query_server_accept (sink->server_data,
+        meta_query->client_id);
+    if (conn) {
+      if (!tensor_query_send_buffer (conn, GST_ELEMENT (sink), buf)) {
+        nns_logw ("Failed to send buffer to client, drop current buffer.");
+      }
+    } else {
+      nns_logw ("Cannot get the client connection, drop current buffer.");
     }
   } else {
-    nns_logw ("Cannot get the client connection, drop current buffer.");
+    nns_logw ("Cannot get tensor query meta. Drop buffers!\n");
+    sink->metaless_frame_count++;
+
+    if (sink->metaless_frame_count >= sink->metaless_frame_limit) {
+      nns_logw ("Cannot get tensor query meta. Stop the query server!\n"
+          "There are elements that are not available on the query server.\n"
+          "Please check available elements on the server."
+          "See: https://github.com/nnstreamer/nnstreamer/wiki/Available-elements-on-query-server");
+      return GST_FLOW_ERROR;
+    }
   }
 
   return GST_FLOW_OK;
