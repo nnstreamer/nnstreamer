@@ -77,9 +77,24 @@ For example, in order to install as general Linux system libraries you may confi
 ```bash
 $ meson build ${whateveroptionyouwant....} --prefix=/ --sysconfdir=/etc --libdir=/usr/lib --bindir=/usr/bin --includedir=/usr/include
 ```
+Or You can set your own path to install libraries and header files.
+```bash
+# Configure and build example.
+$ sudo vi ~/.bashrc
 
-Documentation for possible meson options: WIP
+export NNST_ROOT=$HOME/nnstreamer
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$NNST_ROOT/lib
+export GST_PLUGIN_PATH=$GST_PLUGIN_PATH:$NNST_ROOT/lib/gstreamer-1.0
+# Include NNStreamer headers and libraries
+export C_INCLUDE_PATH=$C_INCLUDE_PATH:$NNST_ROOT/include
+export CPLUS_INCLUDE_PATH=$CPLUS_INCLUDE_PATH:$NNST_ROOT/include
+export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:$NNST_ROOT/lib/pkgconfig
 
+$ source ~/.bashrc
+
+$ meson --prefix=${NNST_ROOT} --sysconfdir=${NNST_ROOT} --libdir=lib --bindir=bin --includedir=include build
+$ ninja -C build install
+```
 
 ***4. Build***
 
