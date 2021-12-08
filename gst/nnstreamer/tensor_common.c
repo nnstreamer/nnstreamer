@@ -898,8 +898,9 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
       format = gst_tensor_get_format (format_str);
 
       if (format == _NNS_TENSOR_FORMAT_END) {
-        GST_WARNING ("Invalid format %s, it should be one of %s.",
-            format_str, GST_TENSOR_FORMAT_ALL);
+        GST_INFO
+            ("Invalid format %s, it should be one of %s. Suppose tensor format is static.",
+            GST_STR_NULL (format_str), GST_TENSOR_FORMAT_ALL);
       } else {
         config->format = format;
       }
