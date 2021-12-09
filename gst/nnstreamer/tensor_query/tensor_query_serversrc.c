@@ -26,7 +26,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_query_serversrc_debug);
 #define DEFAULT_HOST "localhost"
 #define DEFAULT_PORT_SRC 3001
 #define DEFAULT_PROTOCOL _TENSOR_QUERY_PROTOCOL_TCP
-
+#define DEFAULT_IS_LIVE TRUE
 /**
  * @brief the capabilities of the outputs
  */
@@ -49,6 +49,7 @@ enum
   PROP_BROKER_HOST,
   PROP_BROKER_PORT,
   PROP_ID,
+  PROP_IS_LIVE
 };
 
 #define gst_tensor_query_serversrc_parent_class parent_class
@@ -121,6 +122,10 @@ gst_tensor_query_serversrc_class_init (GstTensorQueryServerSrcClass * klass)
           "ID for distinguishing query servers.", 0,
           G_MAXUINT, DEFAULT_SERVER_ID,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_IS_LIVE,
+      g_param_spec_boolean ("is-live", "Is Live",
+          "Synchronize the incoming buffers' timestamp with the current running time",
+          DEFAULT_IS_LIVE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&srctemplate));
@@ -155,6 +160,11 @@ gst_tensor_query_serversrc_init (GstTensorQueryServerSrc * src)
   tensor_query_hybrid_init (&src->hybrid_info, NULL, 0, TRUE);
   src->server_data = nnstreamer_query_server_data_new ();
   src->configured = FALSE;
+  gst_base_src_set_format (GST_BASE_SRC (src), GST_FORMAT_TIME);
+  /** set the timestamps on each buffer */
+  gst_base_src_set_do_timestamp (GST_BASE_SRC (src), TRUE);
+  /** set the source to be live */
+  gst_base_src_set_live (GST_BASE_SRC (src), DEFAULT_IS_LIVE);
 }
 
 /**
@@ -228,6 +238,10 @@ gst_tensor_query_serversrc_set_property (GObject * object, guint prop_id,
     case PROP_ID:
       serversrc->src_id = g_value_get_uint (value);
       break;
+    case PROP_IS_LIVE:
+      gst_base_src_set_live (GST_BASE_SRC (serversrc),
+          g_value_get_boolean (value));
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -267,6 +281,10 @@ gst_tensor_query_serversrc_get_property (GObject * object, guint prop_id,
       break;
     case PROP_ID:
       g_value_set_uint (value, serversrc->src_id);
+      break;
+    case PROP_IS_LIVE:
+      g_value_set_boolean (value,
+          gst_base_src_is_live (GST_BASE_SRC (serversrc)));
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
