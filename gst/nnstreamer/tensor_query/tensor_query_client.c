@@ -380,7 +380,8 @@ _connect_to_server (GstTensorQueryClient * self)
   }
 
   /** Receive client ID from server src */
-  if (0 != nnstreamer_query_receive (self->src_conn, &cmd_buf)) {
+  if (0 != nnstreamer_query_receive (self->src_conn, &cmd_buf) ||
+      cmd_buf.cmd != _TENSOR_QUERY_CMD_CLIENT_ID) {
     nns_loge ("Failed to receive client ID.");
     return FALSE;
   }
@@ -388,7 +389,7 @@ _connect_to_server (GstTensorQueryClient * self)
   cmd_buf.cmd = _TENSOR_QUERY_CMD_REQUEST_INFO;
   cmd_buf.protocol = self->protocol;
   cmd_buf.data.data = (uint8_t *) self->in_caps_str;
-  cmd_buf.data.size = (size_t) strlen (self->in_caps_str);
+  cmd_buf.data.size = (size_t) strlen (self->in_caps_str) + 1;
 
   if (0 != nnstreamer_query_send (self->src_conn, &cmd_buf)) {
     nns_loge ("Failed to send request info cmd buf");
