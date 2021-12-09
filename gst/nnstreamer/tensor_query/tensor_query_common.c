@@ -325,9 +325,11 @@ nnstreamer_query_receive (query_connection_handle connection,
 
       if (query_tcp_receive (conn->socket, (uint8_t *) & cmd, sizeof (cmd),
               conn->cancellable) < 0) {
-        nns_logd ("Failed to receive from socket");
+        nns_loge ("Failed to receive command from socket");
         return -EREMOTEIO;
       }
+
+      nns_logd ("Received command: %d", cmd);
       data->cmd = cmd;
 
       if (cmd == _TENSOR_QUERY_CMD_TRANSFER_DATA ||
@@ -335,7 +337,7 @@ nnstreamer_query_receive (query_connection_handle connection,
         /* receive size */
         if (query_tcp_receive (conn->socket, (uint8_t *) & data->data.size,
                 sizeof (data->data.size), conn->cancellable) < 0) {
-          nns_logd ("Failed to receive size from socket");
+          nns_loge ("Failed to receive data size from socket");
           return -EREMOTEIO;
         }
 
@@ -742,38 +744,36 @@ _message_handler (void *thread_data)
   }
 
   if (cmd_data.cmd == _TENSOR_QUERY_CMD_REQUEST_INFO) {
-    GstCaps *sdata_caps, *cmd_caps;
-    GstStructure *structure;
+    GstCaps *server_caps, *client_caps;
+    GstStructure *server_st, *client_st;
     gboolean result = FALSE;
 
-    sdata_caps = gst_caps_from_string (_sdata->src_caps_str);
-    cmd_caps = gst_caps_from_string ((char *) cmd_data.data.data);
+    server_caps = gst_caps_from_string (_sdata->src_caps_str);
+    client_caps = gst_caps_from_string ((char *) cmd_data.data.data);
     /** Server framerate may vary. Let's skip comparing the framerate. */
-    gst_caps_set_simple (cmd_caps, "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
-    gst_caps_set_simple (sdata_caps, "framerate", GST_TYPE_FRACTION, 0, 1,
+    gst_caps_set_simple (server_caps, "framerate", GST_TYPE_FRACTION, 0, 1,
+        NULL);
+    gst_caps_set_simple (client_caps, "framerate", GST_TYPE_FRACTION, 0, 1,
         NULL);
 
-    structure = gst_caps_get_structure (sdata_caps, 0);
+    server_st = gst_caps_get_structure (server_caps, 0);
+    client_st = gst_caps_get_structure (client_caps, 0);
 
     free (cmd_data.data.data);
 
-    if (gst_structure_is_tensor_stream (structure)) {
-      GstTensorsConfig sdata_config, cmd_config;
-      GstStructure *cmd_structure;
+    if (gst_structure_is_tensor_stream (server_st)) {
+      GstTensorsConfig server_config, client_config;
 
-      gst_tensors_config_init (&cmd_config);
-      gst_tensors_config_init (&sdata_config);
-      cmd_structure = gst_caps_get_structure (cmd_caps, 0);
+      gst_tensors_config_from_structure (&server_config, server_st);
+      gst_tensors_config_from_structure (&client_config, client_st);
 
-      gst_tensors_config_from_structure (&sdata_config, structure);
-      gst_tensors_config_from_structure (&cmd_config, cmd_structure);
-
-      result = gst_tensors_config_is_equal (&sdata_config, &cmd_config);
+      result = gst_tensors_config_is_equal (&server_config, &client_config);
     }
 
-    if (result || gst_caps_can_intersect (cmd_caps, sdata_caps)) {
+    if (result || gst_caps_can_intersect (client_caps, server_caps)) {
       cmd_data.cmd = _TENSOR_QUERY_CMD_RESPOND_APPROVE;
       cmd_data.data.data = (uint8_t *) _sdata->sink_caps_str;
+      cmd_data.data.size = (size_t) strlen (_sdata->sink_caps_str) + 1;
     } else {
       /* respond deny with src caps string */
       nns_loge ("Query caps is not acceptable!");
@@ -781,11 +781,11 @@ _message_handler (void *thread_data)
       nns_loge ("Query server src caps: %s", _sdata->src_caps_str);
       cmd_data.cmd = _TENSOR_QUERY_CMD_RESPOND_DENY;
       cmd_data.data.data = (uint8_t *) _sdata->src_caps_str;
+      cmd_data.data.size = (size_t) strlen (_sdata->src_caps_str) + 1;
     }
-    cmd_data.data.size = (size_t) strlen ((char *) _sdata->src_caps_str);
 
-    gst_caps_unref (sdata_caps);
-    gst_caps_unref (cmd_caps);
+    gst_caps_unref (server_caps);
+    gst_caps_unref (client_caps);
 
     if (nnstreamer_query_send (_conn, &cmd_data) != 0) {
       nns_logi ("Failed to send respond");
