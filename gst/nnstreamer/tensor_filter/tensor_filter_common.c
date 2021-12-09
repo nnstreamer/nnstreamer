@@ -2396,6 +2396,8 @@ gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv)
   int run_without_model = 0;
 
   if (!priv->prop.fw_opened && priv->fw) {
+    gint64 start_time, end_time;
+    start_time = g_get_monotonic_time ();
     if (priv->fw->open) {
       /* at least one model should be configured before opening fw */
       if (GST_TF_FW_V0 (priv->fw)) {
@@ -2424,6 +2426,14 @@ gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv)
       }
     } else {
       priv->prop.fw_opened = TRUE;
+    }
+
+    end_time = g_get_monotonic_time ();
+    if (priv->prop.fw_opened == TRUE &&
+        priv->prop.fwname && priv->prop.model_files) {
+      ml_logi ("Filter %s with model file %s is opened. It took %"
+          G_GINT64_FORMAT " us", priv->prop.fwname, priv->prop.model_files[0],
+          end_time - start_time);
     }
   }
 }
