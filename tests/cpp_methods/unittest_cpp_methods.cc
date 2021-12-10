@@ -76,8 +76,8 @@ TEST (cppFilterOnDemand, pipeline01)
   gchar *str_pipeline = g_strdup_printf (
       "videotestsrc num-buffers=5 ! videoconvert ! videoscale ! "
       "video/x-raw,width=4,height=4,format=RGB ! tensor_converter ! tee name=t "
-      "t. ! queue name=q1 ! tensor_filter framework=cpp model=pl01 ! filesink location=%s "
-      "t. ! queue name=q2 ! filesink location=%s ",
+      "t. ! queue name=q1 ! tensor_filter framework=cpp model=pl01 ! filesink location=%s buffer-mode=unbuffered sync=false async=false "
+      "t. ! queue name=q2 ! filesink location=%s buffer-mode=unbuffered sync=false async=false",
       tmp1, tmp2);
 
   GError *err = NULL;
@@ -159,9 +159,9 @@ TEST (cppFilterObj, base01_n)
   gchar *str_pipeline = g_strdup_printf (
       "videotestsrc num-buffers=5 ! videoconvert ! videoscale ! "
       "video/x-raw,width=4,height=4,format=RGB ! tensor_converter ! tee name=t "
-      "t. ! queue name=q1 ! tensor_filter framework=cpp model=basic_so_01,%slibcppfilter_test.so ! filesink location=%s "
-      "t. ! queue name=q2 ! filesink location=%s "
-      "t. ! queue ! tensor_filter framework=cpp model=basic_so_03,%slibcppfilter_test.so ! filesink location=%s",
+      "t. ! queue name=q1 ! tensor_filter framework=cpp model=basic_so_01,%slibcppfilter_test.so ! filesink location=%s buffer-mode=unbuffered sync=false async=false "
+      "t. ! queue name=q2 ! filesink location=%s buffer-mode=unbuffered sync=false async=false "
+      "t. ! queue ! tensor_filter framework=cpp model=basic_so_03,%slibcppfilter_test.so ! filesink location=%s buffer-mode=unbuffered sync=false async=false",
       path_to_lib, tmp1, tmp2, path_to_lib, tmp3);
 
   GError *err = NULL;
@@ -202,9 +202,9 @@ TEST (cppFilterObj, base02_n)
   gchar *str_pipeline = g_strdup_printf (
       "videotestsrc num-buffers=5 ! videoconvert ! videoscale ! "
       "video/x-raw,width=4,height=4,format=RGB ! tensor_converter ! tee name=t "
-      "t. ! queue name=q1 ! tensor_filter framework=cpp model=basic_so_01,%slibcppfilter_test.so ! filesink location=%s "
-      "t. ! queue name=q2 ! filesink location=%s "
-      "t. ! queue ! tensor_filter framework=cpp model=basic_so_03,%slibcppfilter_test.so ! filesink location=%s",
+      "t. ! queue name=q1 ! tensor_filter framework=cpp model=basic_so_01,%slibcppfilter_test.so ! filesink location=%s buffer-mode=unbuffered sync=false async=false "
+      "t. ! queue name=q2 ! filesink location=%s buffer-mode=unbuffered sync=false async=false "
+      "t. ! queue ! tensor_filter framework=cpp model=basic_so_03,%slibcppfilter_test.so ! filesink location=%s buffer-mode=unbuffered sync=false async=false",
       path_to_lib, tmp1, tmp2, path_to_lib, tmp3);
 
   GError *err = NULL;
@@ -249,13 +249,13 @@ TEST (cppFilterObj, base03)
   gchar *str_pipeline = g_strdup_printf (
       "videotestsrc num-buffers=5 ! videoconvert ! videoscale ! "
       "video/x-raw,width=4,height=4,format=RGB ! tensor_converter ! tee name=t "
-      "t. ! queue ! tensor_filter framework=cpp model=basic_so_01,%slibcppfilter_test.so ! filesink location=%s sync=true "
-      "t. ! queue ! filesink location=%s sync=true "
-      "t. ! queue ! tensor_filter framework=cpp model=basic_so_02,%slibcppfilter_test.so ! filesink location=%s sync=true "
+      "t. ! queue ! tensor_filter framework=cpp model=basic_so_01,%slibcppfilter_test.so ! filesink location=%s buffer-mode=unbuffered sync=false async=false "
+      "t. ! queue ! filesink location=%s buffer-mode=unbuffered sync=false async=false "
+      "t. ! queue ! tensor_filter framework=cpp model=basic_so_02,%slibcppfilter_test.so ! filesink location=%s buffer-mode=unbuffered sync=false async=false "
       "videotestsrc num-buffers=5 ! videoconvert ! videoscale ! "
       "video/x-raw,width=16,height=16,format=RGB ! tensor_converter ! tee name=t2 "
-      "t2. ! queue ! tensor_filter framework=cpp model=basic_so2,%slibcppfilter_test.so ! filesink location=%s sync=true "
-      "t2. ! queue ! filesink location=%s sync=true ",
+      "t2. ! queue ! tensor_filter framework=cpp model=basic_so2,%slibcppfilter_test.so ! filesink location=%s buffer-mode=unbuffered sync=false async=false "
+      "t2. ! queue ! filesink location=%s buffer-mode=unbuffered sync=false async=false ",
       path_to_lib, tmp1, tmp2, path_to_lib, tmp3, path_to_lib, tmp4, tmp5);
 
   GError *err = NULL;
