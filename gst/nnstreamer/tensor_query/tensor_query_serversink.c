@@ -265,7 +265,6 @@ gst_tensor_query_serversink_start (GstBaseSink * bsink)
   }
 
   if (caps) {
-    gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
     caps_str = gst_caps_to_string (caps);
   }
   gst_tensor_query_server_set_sink_caps_str (sink->server_info_h, caps_str);
