@@ -342,25 +342,32 @@ gst_tensor_query_client_get_property (GObject * object, guint prop_id,
 /**
  * @brief Update src pad caps from tensors config.
  */
-static void
+static gboolean
 gst_tensor_query_client_update_caps (GstTensorQueryClient * self,
     const gchar * caps_str)
 {
   GstCaps *curr_caps, *out_caps;
-
+  gboolean ret = FALSE;
   out_caps = gst_caps_from_string (caps_str);
+  silent_debug_caps (self, out_caps, "set out-caps");
 
   /* Update src pad caps if it is different. */
   curr_caps = gst_pad_get_current_caps (self->srcpad);
   if (curr_caps == NULL || !gst_caps_is_equal (curr_caps, out_caps)) {
-    silent_debug_caps (self, out_caps, "set out-caps");
-    gst_pad_set_caps (self->srcpad, out_caps);
+    if (gst_caps_is_fixed (out_caps)) {
+      ret = gst_pad_set_caps (self->srcpad, out_caps);
+    } else {
+      nns_loge ("out-caps from tensor_query_serversink is not fixed. "
+          "Failed to update client src caps, out-caps: %s", caps_str);
+    }
   }
 
   if (curr_caps)
     gst_caps_unref (curr_caps);
 
   gst_caps_unref (out_caps);
+
+  return ret;
 }
 
 /**
@@ -405,7 +412,10 @@ _connect_to_server (GstTensorQueryClient * self)
   }
 
   if (cmd_buf.cmd == _TENSOR_QUERY_CMD_RESPOND_APPROVE) {
-    gst_tensor_query_client_update_caps (self, (char *) cmd_buf.data.data);
+    if (!gst_tensor_query_client_update_caps (self, (char *) cmd_buf.data.data)) {
+      nns_loge ("Failed to update client source caps.");
+      return FALSE;
+    }
   } else {
     /** @todo Retry for info */
     nns_loge ("Failed to receive approve command.");
