@@ -267,6 +267,17 @@ nnstreamer_query_set_timeout (query_connection_handle connection,
 }
 
 /**
+ * @brief Set client ID.
+ */
+void
+nnstreamer_query_set_client_id (query_connection_handle connection,
+    query_client_id_t id)
+{
+  TensorQueryConnection *conn = (TensorQueryConnection *) connection;
+  conn->client_id = id;
+}
+
+/**
  * @brief Connect to the specified address.
  */
 query_connection_handle
@@ -317,7 +328,7 @@ nnstreamer_query_receive (query_connection_handle connection,
     nns_loge ("Invalid connection data");
     return -EINVAL;
   }
-  data->protocol = conn->protocol;
+
   switch (conn->protocol) {
     case _TENSOR_QUERY_PROTOCOL_TCP:
     {
@@ -737,7 +748,8 @@ _message_handler (void *thread_data)
     nns_loge ("Failed to send client id to client");
     goto done;
   }
-  _conn->client_id = cmd_data.client_id;
+  nnstreamer_query_set_client_id (_conn, cmd_data.client_id);
+
   if (0 != nnstreamer_query_receive (_conn, &cmd_data)) {
     nns_logi ("Failed to receive cmd");
     goto done;
@@ -903,8 +915,8 @@ accept_socket_async_cb (GObject * source, GAsyncResult * result,
       goto error;
     }
     if (cmd_data.cmd == _TENSOR_QUERY_CMD_CLIENT_ID) {
-      conn->client_id = cmd_data.client_id;
-      nns_logd ("Connected client id: %ld", (long) conn->client_id);
+      nns_logd ("Connected client id: %ld", (long) cmd_data.client_id);
+      nnstreamer_query_set_client_id (conn, cmd_data.client_id);
     }
   }
 

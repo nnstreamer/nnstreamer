@@ -370,6 +370,7 @@ static gboolean
 _connect_to_server (GstTensorQueryClient * self)
 {
   TensorQueryCommandData cmd_buf;
+  query_client_id_t client_id;
 
   nns_logd ("Server src info: %s:%u", self->src_host, self->src_port);
   self->src_conn = nnstreamer_query_connect (self->protocol, self->src_host,
@@ -386,8 +387,10 @@ _connect_to_server (GstTensorQueryClient * self)
     return FALSE;
   }
 
+  client_id = cmd_buf.client_id;
+  nnstreamer_query_set_client_id (self->src_conn, client_id);
+
   cmd_buf.cmd = _TENSOR_QUERY_CMD_REQUEST_INFO;
-  cmd_buf.protocol = self->protocol;
   cmd_buf.data.data = (uint8_t *) self->in_caps_str;
   cmd_buf.data.size = (size_t) strlen (self->in_caps_str) + 1;
 
@@ -417,7 +420,10 @@ _connect_to_server (GstTensorQueryClient * self)
     nns_loge ("Failed to connect server sink ");
     return FALSE;
   }
+
+  nnstreamer_query_set_client_id (self->sink_conn, client_id);
   cmd_buf.cmd = _TENSOR_QUERY_CMD_CLIENT_ID;
+  cmd_buf.client_id = client_id;
   if (0 != nnstreamer_query_send (self->sink_conn, &cmd_buf)) {
     nns_loge ("Failed to send client ID to server sink");
     return FALSE;

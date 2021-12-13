@@ -82,12 +82,11 @@ typedef struct
 typedef struct
 {
   TensorQueryCommand cmd;
-  TensorQueryProtocol protocol;
-  query_client_id_t client_id;
   union
   {
-    TensorQueryDataInfo data_info; /** _TENSOR_QUERY_CMD_TRANSFER_START */
+    TensorQueryDataInfo data_info; /** _TENSOR_QUERY_CMD_REQUEST_INFO */
     TensorQueryData data;          /** _TENSOR_QUERY_CMD_TRANSFER_DATA */
+    query_client_id_t client_id;   /** _TENSOR_QUERY_CMD_CLIENT_ID */
   };
 } TensorQueryCommandData;
 
@@ -104,6 +103,12 @@ nnstreamer_query_connect (TensorQueryProtocol protocol, const char *ip, uint16_t
  */
 extern void
 nnstreamer_query_set_timeout (query_connection_handle connection, uint32_t timeout);
+
+/**
+ * @brief Set client ID.
+ */
+extern void
+nnstreamer_query_set_client_id (query_connection_handle connection, query_client_id_t id);
 
 /**
  * @brief send command to connected device.
