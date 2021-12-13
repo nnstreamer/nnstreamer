@@ -948,12 +948,13 @@ TFLiteCore::init (tflite_option_s *option)
   interpreter->setModelPath (option->model_file);
   interpreter->setExtDelegate (option->ext_delegate_path, option->ext_delegate_kv_table);
   num_threads = option->num_threads;
+  int err;
 
   setAccelerator (option->accelerators, option->delegate);
   g_message ("accl = %s", get_accl_hw_str (accelerator));
 
-  if (loadModel ()) {
-    ml_loge ("Failed to load model\n");
+  if ((err = loadModel ())) {
+    ml_loge ("Failed to load model (TensorFlow-lite interpreter->loadModel() has returned %d. Please check if the model, '%s', is accessible and compatible with the given TensorFlow-lite instance. For example, this TensorFlow-lite's version might not support the given model.\n", err, option->model_file);
     return -1;
   }
   if (setInputTensorProp ()) {
