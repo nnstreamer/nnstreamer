@@ -33,7 +33,7 @@ TEST (tensorQuery, serverProperties0)
       "other/tensors,num_tensors=1,dimensions=3:300:300:1,types=uint8 ! "
       "tensor_query_serversink host=127.0.0.1 name=serversink");
   gstpipe = gst_parse_launch (pipeline, NULL);
-  EXPECT_NE (pipeline, nullptr);
+  EXPECT_NE (gstpipe, nullptr);
 
   /* Get properties of query server source */
   srv_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "serversrc");
@@ -127,7 +127,7 @@ TEST (tensorQuery, serverProperties1_n)
       "other/tensors,num_tensors=1,dimensions=3:300:300:1,types=uint8 ! "
       "tensor_query_serversink port=3000 sync=false async=false");
   gstpipe = gst_parse_launch (pipeline, NULL);
-  EXPECT_NE (pipeline, nullptr);
+  EXPECT_NE (gstpipe, nullptr);
 
   EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
@@ -149,7 +149,7 @@ TEST (tensorQuery, serverProperties2_n)
       "other/tensors,num_tensors=1,dimensions=3:300:300:1,types=uint8 ! "
       "tensor_query_serversink sync=false async=false");
   gstpipe = gst_parse_launch (pipeline, NULL);
-  EXPECT_NE (pipeline, nullptr);
+  EXPECT_NE (gstpipe, nullptr);
 
   EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
