@@ -96,6 +96,7 @@ typedef struct
   gboolean enable_symlink;    /**< TRUE to allow symbolic link file */
 
   gchar *conffile;            /**< Location of conf file. */
+  gchar *extra_conffile;      /**< Location of extra configuration file. */
 
   subplugin_conf conf[NNSCONF_PATH_END];
 } confdata;
@@ -330,6 +331,8 @@ nnsconf_loadconf (gboolean force_reload)
     /* Do Clean Up */
     g_free (conf.conffile);
     conf.conffile = NULL;
+    g_free (conf.extra_conffile);
+    conf.extra_conffile = NULL;
 
     for (t = 0; t < NNSCONF_PATH_END; t++) {
 
@@ -399,6 +402,8 @@ nnsconf_loadconf (gboolean force_reload)
       conf.enable_symlink = _parse_bool_string (value, FALSE);
       g_free (value);
 
+      conf.extra_conffile =
+          g_key_file_get_string (key_file, "common", "extra_config_path", NULL);
       conf.conf[NNSCONF_PATH_FILTERS].path[CONF_SOURCE_INI] =
           g_key_file_get_string (key_file, "filter", "filters", NULL);
       conf.conf[NNSCONF_PATH_DECODERS].path[CONF_SOURCE_INI] =
