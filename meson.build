@@ -545,6 +545,13 @@ endif
 nnstreamer_install_conf.set('ELEMENT_RESTRICTION_CONFIG', restriction_config)
 nnstreamer_install_conf.set('TEST_TEMPLATE_DIR', unittest_base_dir) # TEST_TEMPLATE_DIR will be empty if `install-test` is false
 
+# Extra configuration
+extra_config_path = ''
+if get_option('extra_config_path') != ''
+  extra_config_path = 'extra_config_path=' + get_option('extra_config_path')
+endif
+nnstreamer_install_conf.set('EXTRA_CONFIG_PATH', extra_config_path)
+
 # Install .ini
 configure_file(input: 'nnstreamer.ini.in', output: 'nnstreamer.ini',
   install_dir: nnstreamer_inidir,
@@ -592,6 +599,7 @@ if get_option('enable-test')
   nnstreamer_test_conf.set('ENABLE_ENV_VAR', true)
   nnstreamer_test_conf.set('ENABLE_SYMBOLIC_LINK', false)
   nnstreamer_test_conf.set('TORCH_USE_GPU', false)
+  nnstreamer_test_conf.set('EXTRA_CONFIG_PATH', '')
   nnstreamer_test_conf.set('ELEMENT_RESTRICTION_CONFIG', '')
 
   configure_file(input: 'nnstreamer.ini.in', output: 'nnstreamer-test.ini',

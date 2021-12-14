@@ -56,3 +56,6 @@ option('enable-pbtxt-converter', type: 'boolean', value: true)
 
 # Install Paths
 option('subplugindir', type: 'string', value: '')
+
+# Extra configuration
+option('extra_config_path', type: 'string', value: '')

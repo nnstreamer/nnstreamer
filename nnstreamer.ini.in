@@ -3,6 +3,7 @@
 [common]
 enable_envvar=@ENABLE_ENV_VAR@
 enable_symlink=@ENABLE_SYMBOLIC_LINK@
+@EXTRA_CONFIG_PATH@
 
 [filter]
 filters=@SUBPLUGIN_INSTALL_PREFIX@/filters/
