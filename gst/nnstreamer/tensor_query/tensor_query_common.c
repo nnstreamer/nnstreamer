@@ -577,21 +577,23 @@ nnstreamer_query_server_init (query_server_handle server_data,
     int8_t is_src)
 {
   TensorQueryServerData *sdata = (TensorQueryServerData *) server_data;
+  GSocketAddress *saddr = NULL;
+  GError *err = NULL;
+  int ret = 0;
+
   if (!sdata)
     return -EINVAL;
+
   sdata->protocol = protocol;
   sdata->is_src = is_src;
 
   switch (protocol) {
     case _TENSOR_QUERY_PROTOCOL_TCP:
-    {
-      GSocketAddress *saddr;
-      GError *err = NULL;
-
       sdata->cancellable = g_cancellable_new ();
       if (!gst_tensor_query_get_saddr (host, port, sdata->cancellable, &saddr)) {
         nns_loge ("Failed to get socket address");
-        return -EADDRNOTAVAIL;
+        ret = -EADDRNOTAVAIL;
+        goto error;
       }
 
       sdata->socket_listener = g_socket_listener_new ();
@@ -601,25 +603,30 @@ nnstreamer_query_server_init (query_server_handle server_data,
               G_SOCKET_TYPE_STREAM, G_SOCKET_PROTOCOL_TCP, NULL, NULL, &err)) {
         nns_loge ("Failed to add address: %s", err->message);
         g_clear_error (&err);
-        return -EADDRNOTAVAIL;
+        ret = -EADDRNOTAVAIL;
+        goto error;
       }
 
       sdata->conn_queue = g_async_queue_new ();
       if (sdata->is_src)
         sdata->msg_queue = g_async_queue_new ();
-      g_object_unref (saddr);
 
       g_socket_listener_accept_socket_async (sdata->socket_listener,
           sdata->cancellable, (GAsyncReadyCallback) accept_socket_async_cb,
           sdata);
-    }
       break;
     default:
       /* NYI */
       nns_loge ("Invalid protocol");
-      return -EPROTONOSUPPORT;
+      ret = -EPROTONOSUPPORT;
+      break;
   }
-  return 0;
+
+error:
+  if (saddr)
+    g_object_unref (saddr);
+
+  return ret;
 }
 
 /**
