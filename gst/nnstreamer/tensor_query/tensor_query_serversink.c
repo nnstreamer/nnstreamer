@@ -234,7 +234,7 @@ gst_tensor_query_serversink_get_property (GObject * object, guint prop_id,
 }
 
 /**
- * @brief start rocessing of query_serversrc
+ * @brief start processing of query_serversink
  */
 static gboolean
 gst_tensor_query_serversink_start (GstBaseSink * bsink)
@@ -277,7 +277,7 @@ gst_tensor_query_serversink_start (GstBaseSink * bsink)
 }
 
 /**
- * @brief stop processing of query_serversrc
+ * @brief stop processing of query_serversink
  */
 static gboolean
 gst_tensor_query_serversink_stop (GstBaseSink * bsink)
