@@ -198,9 +198,15 @@ class TFLiteInterpreter
   int cacheInOutTensorPtr ();
 
   /** @brief set delegate for the tflite interpreter */
-  void setDelegate (TfLiteDelegate *delegate)
+  void setDelegate (TfLiteDelegate *delegate, void (*deleter) (TfLiteDelegate *))
   {
-    delegate_ = delegate;
+    delegate_ptr = tflite::Interpreter::TfLiteDelegatePtr (delegate, deleter);
+  }
+
+  /** @brief get delegate for the tflite interpreter */
+  TfLiteDelegate *getDelegate ()
+  {
+    return delegate_ptr.get ();
   }
 
   private:
@@ -223,23 +229,7 @@ class TFLiteInterpreter
   int getTensorDim (int tensor_idx, tensor_dim dim);
   int setTensorProp (const std::vector<int> &tensor_idx_list, GstTensorsInfo *tensorMeta);
 
-  TfLiteDelegate *delegate_ = nullptr; /**< The delegate for tflite interpreter */
-
-#ifdef TFLITE_NNAPI_DELEGATE_SUPPORTED
-  std::unique_ptr<tflite::StatefulNnApiDelegate> stateful_nnapi_delegate; /**< The pointer of NNAPI delegate */
-#endif
-
-#ifdef TFLITE_GPU_DELEGATE_SUPPORTED
-  std::unique_ptr<TfLiteDelegate> gpu_delegate; /**< The pointer of GPU delegate */
-#endif
-
-#ifdef TFLITE_XNNPACK_DELEGATE_SUPPORTED
-  std::unique_ptr<TfLiteDelegate> xnnpack_delegate; /**< The pointer of XNNPACK delegate */
-#endif
-
-#ifdef TFLITE_EXTERNAL_DELEGATE_SUPPORTED
-  std::unique_ptr<TfLiteDelegate> external_delegate; /**< The pointer of external delegate */
-#endif
+  tflite::Interpreter::TfLiteDelegatePtr delegate_ptr; /**< single delegate supported */
 };
 
 /**
@@ -289,6 +279,7 @@ G_LOCK_DEFINE_STATIC (slock);
  * @brief TFLiteInterpreter constructor
  */
 TFLiteInterpreter::TFLiteInterpreter ()
+: delegate_ptr (nullptr, [] (TfLiteDelegate *) {})
 {
   interpreter = nullptr;
   model = nullptr;
@@ -406,8 +397,9 @@ TFLiteInterpreter::invoke (const GstTensorMemory *input, GstTensorMemory *output
  * @return 0 if OK. non-zero if error.
  */
 int
-TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate)
+TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate_e)
 {
+  TfLiteDelegate *delegate;
 #if (DBG)
   gint64 start_time, stop_time;
   start_time = g_get_monotonic_time ();
@@ -446,7 +438,7 @@ TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate)
   }
 
   /** set delegate after the accelerator prop */
-  switch (delegate) {
+  switch (delegate_e) {
     case TFLITE_DELEGATE_XNNPACK:
     {
 #ifdef TFLITE_XNNPACK_DELEGATE_SUPPORTED
@@ -455,11 +447,17 @@ TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate)
           TfLiteXNNPackDelegateOptionsDefault();
       xnnpack_options.num_threads = (num_threads > 1) ? num_threads : 0;
 
-      xnnpack_delegate.reset (TfLiteXNNPackDelegateCreate (&xnnpack_options));
-      setDelegate (xnnpack_delegate.get ());
       is_xnnpack_delegated = true;
       ml_logw ("Input/output tensors should be memcpy-ed rather than explictly assigning its ptr when XNNPACK Delegate is used.");
       ml_logw ("This could cause performance degradation if sizes of input/output tensors are large");
+
+      delegate = TfLiteXNNPackDelegateCreate (&xnnpack_options);
+      void (* deleter) (TfLiteDelegate *) =
+              [] (TfLiteDelegate *delegate_) {
+                  TfLiteXNNPackDelegateDelete (delegate_);
+              };
+
+      setDelegate (delegate, deleter);
 #else
       ml_logw ("XNNPACK delegate support is available only in Android with tflite v2.3.0 or higher and XNNPACK support should be enabled for tf-lite subplugin build.");
 #endif
@@ -483,8 +481,13 @@ TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate)
       options.inference_priority2 = TFLITE_GPU_INFERENCE_PRIORITY_MIN_MEMORY_USAGE;
       options.inference_priority3 = TFLITE_GPU_INFERENCE_PRIORITY_MAX_PRECISION;
 
-      gpu_delegate.reset (TfLiteGpuDelegateV2Create (&options));
-      setDelegate (gpu_delegate.get ());
+      delegate = TfLiteGpuDelegateV2Create (&options);
+      void (* deleter) (TfLiteDelegate *) =
+              [] (TfLiteDelegate *delegate_) {
+                  TfLiteGpuDelegateV2Delete (delegate_);
+              };
+
+      setDelegate (delegate, deleter);
 #else
       ml_logw ("GPU delegate support is available with tflite v2.3.0 or higher");
 #endif
@@ -494,8 +497,13 @@ TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate)
     {
 #ifdef TFLITE_NNAPI_DELEGATE_SUPPORTED
       /* set nnapi delegate when accelerator set to auto (cpu.neon in Android) or NPU */
-      stateful_nnapi_delegate.reset (new tflite::StatefulNnApiDelegate ());
-      setDelegate (stateful_nnapi_delegate.get ());
+      delegate = new tflite::StatefulNnApiDelegate ();
+      void (* deleter) (TfLiteDelegate *) =
+              [] (TfLiteDelegate *delegate_) {
+                  delete reinterpret_cast<tflite::StatefulNnApiDelegate *> (delegate_);
+              };
+
+      setDelegate (delegate, deleter);
 #else
       ml_logw ("NNAPI delegate support is available only in Android with tflite v1.14.0 or higher");
 #endif
@@ -519,8 +527,13 @@ TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate)
            options.insert (&options, key, value);
       }
 
-      external_delegate.reset (TfLiteExternalDelegateCreate (&options));
-      setDelegate (external_delegate.get ());
+      delegate = TfLiteExternalDelegateCreate (&options);
+      void (* deleter) (TfLiteDelegate *) =
+              [] (TfLiteDelegate *delegate_) {
+                  TfLiteExternalDelegateDelete (delegate_);
+              };
+
+      setDelegate (delegate, deleter);
 #else
       ml_logw ("External delegate support is available with tflite v2.4.0 or higher");
 #endif
@@ -530,8 +543,9 @@ TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate)
       break;
   }
 
-  if (delegate_ != nullptr) {
-    if (interpreter->ModifyGraphWithDelegate (delegate_) != kTfLiteOk) {
+  delegate = getDelegate ();
+  if (delegate != nullptr) {
+    if (interpreter->ModifyGraphWithDelegate (delegate) != kTfLiteOk) {
       ml_loge ("Failed to allocate tensors with delegate\n");
       return -2;
     }
