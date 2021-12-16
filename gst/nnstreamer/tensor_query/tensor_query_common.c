@@ -353,7 +353,7 @@ nnstreamer_query_receive (query_connection_handle connection,
         }
 
         if (cmd <= _TENSOR_QUERY_CMD_RESPOND_DENY) {
-          data->data.data = (uint8_t *) malloc (data->data.size);
+          data->data.data = (uint8_t *) g_malloc0 (data->data.size);
         }
 
         /* receive data */
@@ -744,31 +744,32 @@ _message_handler (void *thread_data)
       (TensorQueryMsgThreadData *) thread_data;
   TensorQueryConnection *_conn = _thread_data->conn;
   TensorQueryServerData *_sdata = _thread_data->sdata;
-  TensorQueryCommandData cmd_data;
+  TensorQueryCommandData cmd_data_receive;
+  TensorQueryCommandData cmd_data_send;
   GstBuffer *outbuf = NULL;
   GstMetaQuery *meta_query;
 
-  cmd_data.cmd = _TENSOR_QUERY_CMD_CLIENT_ID;
-  cmd_data.client_id = g_get_monotonic_time ();
+  cmd_data_send.cmd = _TENSOR_QUERY_CMD_CLIENT_ID;
+  cmd_data_send.client_id = g_get_monotonic_time ();
 
-  if (0 != nnstreamer_query_send (_conn, &cmd_data)) {
+  if (0 != nnstreamer_query_send (_conn, &cmd_data_send)) {
     nns_loge ("Failed to send client id to client");
     goto done;
   }
-  nnstreamer_query_set_client_id (_conn, cmd_data.client_id);
+  nnstreamer_query_set_client_id (_conn, cmd_data_send.client_id);
 
-  if (0 != nnstreamer_query_receive (_conn, &cmd_data)) {
+  if (0 != nnstreamer_query_receive (_conn, &cmd_data_receive)) {
     nns_logi ("Failed to receive cmd");
     goto done;
   }
 
-  if (cmd_data.cmd == _TENSOR_QUERY_CMD_REQUEST_INFO) {
+  if (cmd_data_receive.cmd == _TENSOR_QUERY_CMD_REQUEST_INFO) {
     GstCaps *server_caps, *client_caps;
     GstStructure *server_st, *client_st;
     gboolean result = FALSE;
 
     server_caps = gst_caps_from_string (_sdata->src_caps_str);
-    client_caps = gst_caps_from_string ((char *) cmd_data.data.data);
+    client_caps = gst_caps_from_string ((char *) cmd_data_receive.data.data);
     /** Server framerate may vary. Let's skip comparing the framerate. */
     gst_caps_set_simple (server_caps, "framerate", GST_TYPE_FRACTION, 0, 1,
         NULL);
@@ -777,8 +778,6 @@ _message_handler (void *thread_data)
 
     server_st = gst_caps_get_structure (server_caps, 0);
     client_st = gst_caps_get_structure (client_caps, 0);
-
-    free (cmd_data.data.data);
 
     if (gst_structure_is_tensor_stream (server_st)) {
       GstTensorsConfig server_config, client_config;
@@ -790,23 +789,27 @@ _message_handler (void *thread_data)
     }
 
     if (result || gst_caps_can_intersect (client_caps, server_caps)) {
-      cmd_data.cmd = _TENSOR_QUERY_CMD_RESPOND_APPROVE;
-      cmd_data.data.data = (uint8_t *) _sdata->sink_caps_str;
-      cmd_data.data.size = (size_t) strlen (_sdata->sink_caps_str) + 1;
+      cmd_data_send.cmd = _TENSOR_QUERY_CMD_RESPOND_APPROVE;
+      cmd_data_send.data.data = (uint8_t *) _sdata->sink_caps_str;
+      cmd_data_send.data.size = (size_t) strlen (_sdata->sink_caps_str) + 1;
     } else {
       /* respond deny with src caps string */
       nns_loge ("Query caps is not acceptable!");
-      nns_loge ("Query client sink caps: %s", (char *) cmd_data.data.data);
+      nns_loge ("Query client sink caps: %s", cmd_data_receive.data.data);
       nns_loge ("Query server src caps: %s", _sdata->src_caps_str);
-      cmd_data.cmd = _TENSOR_QUERY_CMD_RESPOND_DENY;
-      cmd_data.data.data = (uint8_t *) _sdata->src_caps_str;
-      cmd_data.data.size = (size_t) strlen (_sdata->src_caps_str) + 1;
+
+      cmd_data_send.cmd = _TENSOR_QUERY_CMD_RESPOND_DENY;
+      cmd_data_send.data.data = (uint8_t *) _sdata->src_caps_str;
+      cmd_data_send.data.size = (size_t) strlen (_sdata->src_caps_str) + 1;
     }
+
+    g_free (cmd_data_receive.data.data);
+    cmd_data_receive.data.data = NULL;
 
     gst_caps_unref (server_caps);
     gst_caps_unref (client_caps);
 
-    if (nnstreamer_query_send (_conn, &cmd_data) != 0) {
+    if (nnstreamer_query_send (_conn, &cmd_data_send) != 0) {
       nns_logi ("Failed to send respond");
       goto done;
     }
