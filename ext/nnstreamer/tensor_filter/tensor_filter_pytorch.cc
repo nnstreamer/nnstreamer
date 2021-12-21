@@ -72,7 +72,7 @@ class TorchCore
 
   GstTensorsInfo inputTensorMeta; /**< The tensor info of input tensors */
   GstTensorsInfo outputTensorMeta; /**< The tensor info of output tensors */
-  bool configured;
+  unsigned int configured;
   bool first_run; /**< must be reset after setting input info */
 
   std::shared_ptr<torch::jit::script::Module> model;
@@ -80,9 +80,9 @@ class TorchCore
   void setAccelerator (const char *accelerators);
   tensor_type getTensorTypeFromTorch (torch::Dtype torchType);
   bool getTensorTypeToTorch (tensor_type tensorType, torch::Dtype *torchType);
-  int validateOutputTensor (at::Tensor output);
+  int validateOutputTensor (at::Tensor output, unsigned int idx);
   int fillTensorDim (torch::autograd::Variable tensor_meta, tensor_dim dim);
-  int processIValue (torch::jit::IValue value, GstTensorMemory *output);
+  int processIValue (torch::jit::IValue value, GstTensorMemory *output, unsigned int idx);
 };
 
 extern "C" { /* accessed by android api */
@@ -100,7 +100,7 @@ TorchCore::TorchCore (const char *_model_path)
 {
   g_assert (_model_path != NULL);
   model_path = g_strdup (_model_path);
-  configured = false;
+  configured = 0;
   use_gpu = false;
   first_run = true;
   accelerator = ACCL_NONE;
@@ -295,59 +295,50 @@ TorchCore::getTensorTypeToTorch (tensor_type tensorType, torch::Dtype *torchType
 }
 
 /**
- * @brief	check the inserted information about output tensor with model
+ * @brief	check the inserted information about idx-th output tensor with model
  * @return 0 if OK. non-zero if error.
  *        -1 if the number of output tensors is not matched.
  *        -2 if the type of output tensors is not matched.
  *        -3 if the dimension of output tensors is not matched.
  */
 int
-TorchCore::validateOutputTensor (const at::Tensor output)
+TorchCore::validateOutputTensor (const at::Tensor output, unsigned int idx)
 {
   auto tensor_shape = output.sizes ();
+  tensor_type otype;
+  gsize num_gst_tensor, num_torch_tensor;
+  at::Tensor sliced_output = output.slice (0);
+  c10::IntArrayRef sliced_output_sizes = sliced_output.sizes ();
 
-  if (tensor_shape[0] != 0 && outputTensorMeta.num_tensors != tensor_shape[0]) {
-    ml_loge ("Invalid output meta: different size");
-    return -1;
-  }
-
+  /** when output is a scalar */
   if (tensor_shape[0] == 0) {
-    tensor_type otype = getTensorTypeFromTorch (output.scalar_type ());
-    if (outputTensorMeta.info[0].type != otype) {
+    otype = getTensorTypeFromTorch (output.scalar_type ());
+    if (outputTensorMeta.info[idx].type != otype) {
       ml_loge ("Invalid output meta: different type");
       return -2;
     }
     goto done;
   }
 
-  for (uint i = 0; i < outputTensorMeta.num_tensors; ++i) {
-    tensor_type otype;
-    gsize num_gst_tensor, num_torch_tensor;
-    at::Tensor sliced_output = output.slice (0);
-    c10::IntArrayRef sliced_output_sizes;
+  otype = getTensorTypeFromTorch (sliced_output.scalar_type ());
+  if (outputTensorMeta.info[idx].type != otype) {
+    ml_loge ("Invalid output meta: different type");
+    return -2;
+  }
 
-    otype = getTensorTypeFromTorch (sliced_output.scalar_type ());
-    num_gst_tensor = gst_tensor_get_element_count (outputTensorMeta.info[i].dimension);
+  num_gst_tensor = gst_tensor_get_element_count (outputTensorMeta.info[idx].dimension);
+  num_torch_tensor = 1;
+  for (int j = 0; j < sliced_output.ndimension (); j++) {
+    num_torch_tensor *= sliced_output_sizes[j];
+  }
 
-    num_torch_tensor = 1;
-    sliced_output_sizes = sliced_output.sizes ();
-    for (int j = 0; j < sliced_output.ndimension (); j++) {
-      num_torch_tensor *= sliced_output_sizes[j];
-    }
-
-    if (outputTensorMeta.info[i].type != otype) {
-      ml_loge ("Invalid output meta: different type");
-      return -2;
-    }
-
-    if (num_gst_tensor != num_torch_tensor) {
-      ml_loge ("Invalid output meta: different element size");
-      return -3;
-    }
+  if (num_gst_tensor != num_torch_tensor) {
+    ml_loge ("Invalid output meta: different element size");
+    return -3;
   }
 
 done:
-  configured = true;
+  configured++;
   return 0;
 }
 
@@ -378,12 +369,13 @@ TorchCore::getOutputTensorDim (GstTensorsInfo *info)
 /**
  * @brief	process the IValue after forward and extract data from ivalue.
  * @param[in] value IValue containing the output in tensor form
- * @param[out]  output Output tensor memory
+ * @param[out] output Output tensor memory
+ * @param[in] idx index of output
  * @return 0 if OK. non-zero if error.
  *         -1 if output tensor validation fails.
  */
 int
-TorchCore::processIValue (torch::jit::IValue value, GstTensorMemory *output)
+TorchCore::processIValue (torch::jit::IValue value, GstTensorMemory *output, unsigned int idx)
 {
   g_assert (value.isTensor ());
   at::Tensor output_tensor = value.toTensor ();
@@ -396,7 +388,7 @@ TorchCore::processIValue (torch::jit::IValue value, GstTensorMemory *output)
   output_tensor = output_tensor.contiguous ();
 
   /* validate output tensor once */
-  if (!configured && validateOutputTensor (output_tensor)) {
+  if (configured < outputTensorMeta.num_tensors && validateOutputTensor (output_tensor, idx)) {
     ml_loge ("Output Tensor Information is not valid");
     return -1;
   }
@@ -428,6 +420,7 @@ TorchCore::invoke (const GstTensorMemory *input, GstTensorMemory *output)
   torch::Dtype type;
   at::Tensor tensor;
 
+  /** @todo Support other input types other than at::Tensor */
   for (uint i = 0; i < inputTensorMeta.num_tensors; ++i) {
     std::vector<int64_t> input_shape;
     input_shape.assign (&inputTensorMeta.info[i].dimension[0],
@@ -473,9 +466,16 @@ TorchCore::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 
   if (output_value.isTensor ()) {
     g_assert (outputTensorMeta.num_tensors == 1);
-    if (processIValue (output_value, &output[0])) {
+    if (processIValue (output_value, &output[0], 0U)) {
       ml_loge ("Output Tensor Information is not valid");
       return -2;
+    }
+  } else if (output_value.isTuple ()) {
+    for (unsigned int idx = 0; idx < output_value.toTuple ()->elements ().size (); ++idx) {
+      if (processIValue (output_value.toTuple ()->elements ()[idx].toTensor (), &output[idx], idx)) {
+        ml_loge ("Output Tensor Information is not valid");
+        return -2;
+      }
     }
 #ifdef PYTORCH_VER_ATLEAST_1_2_0
   } else if (output_value.isList ()) {
@@ -487,12 +487,13 @@ TorchCore::invoke (const GstTensorMemory *input, GstTensorMemory *output)
     c10::ArrayRef<torch::jit::IValue> output_list = output_value.toGenericListRef ();
 #endif
     g_assert (outputTensorMeta.num_tensors == output_list.size ());
-    int idx = 0;
+    unsigned int idx = 0;
     for (auto &ivalue_element : output_list) {
-      if (processIValue (ivalue_element, &output[idx++])) {
+      if (processIValue (ivalue_element, &output[idx], idx)) {
         ml_loge ("Output Tensor Information is not valid");
         return -2;
       }
+      ++idx;
     }
   } else {
     ml_loge ("Output is not a tensor.");
