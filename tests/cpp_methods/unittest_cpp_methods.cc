@@ -106,6 +106,8 @@ TEST (cppFilterOnDemand, pipeline01)
   }
   g_free (str_pipeline);
 
+  g_remove (tmp1);
+  g_remove (tmp2);
   g_free (tmp1);
   g_free (tmp2);
   EXPECT_EQ (basic._unregister (), 0);
@@ -183,6 +185,9 @@ TEST (cppFilterObj, base01_n)
   }
   g_free (str_pipeline);
 
+  g_remove (tmp1);
+  g_remove (tmp2);
+  g_remove (tmp3);
   g_free (tmp1);
   g_free (tmp2);
   g_free (tmp3);
@@ -226,6 +231,9 @@ TEST (cppFilterObj, base02_n)
   }
   g_free (str_pipeline);
 
+  g_remove (tmp1);
+  g_remove (tmp2);
+  g_remove (tmp3);
   g_free (tmp1);
   g_free (tmp2);
   g_free (tmp3);
@@ -286,6 +294,11 @@ TEST (cppFilterObj, base03)
   }
   g_free (str_pipeline);
 
+  g_remove (tmp1);
+  g_remove (tmp2);
+  g_remove (tmp3);
+  g_remove (tmp4);
+  g_remove (tmp5);
   g_free (tmp1);
   g_free (tmp2);
   g_free (tmp3);

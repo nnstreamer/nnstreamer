@@ -347,7 +347,7 @@ TEST_F (tensor_if_run, action_0)
   gst_object_unref (pipeline);
 
   g_free (str_pipeline);
-
+  g_remove (tmp);
   g_free (tmp);
 }
 
@@ -409,6 +409,8 @@ TEST_F (tensor_if_run, action_1)
 
   g_free (str_pipeline);
 
+  g_remove (tmp_true);
+  g_remove (tmp_false);
   g_free (tmp_true);
   g_free (tmp_false);
 }
@@ -475,6 +477,8 @@ TEST_F (tensor_if_run, action_2)
   gst_object_unref (pipeline);
   g_free (str_pipeline);
 
+  g_remove (tmp1);
+  g_remove (tmp2);
   g_free (tmp1);
   g_free (tmp2);
 }
