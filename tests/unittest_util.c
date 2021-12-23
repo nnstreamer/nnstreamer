@@ -42,7 +42,7 @@ setPipelineStateSync (GstElement * pipeline, GstState state,
 
 /**
  * @brief Get temp file name.
- * @return file name (should free string with g_free)
+ * @return file name (should finalize it with g_remove() and g_free() after use)
  */
 gchar *
 getTempFilename (void)
@@ -66,9 +66,6 @@ getTempFilename (void)
   }
 
   g_close (fd, NULL);
-  if (g_remove (tmp_fn) != 0) {
-    _print_log ("failed to remove temp file %s", tmp_fn);
-  }
 
   return tmp_fn;
 }

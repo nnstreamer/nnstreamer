@@ -14,6 +14,7 @@
 #include <glib.h>
 #include <stdint.h>
 #include <errno.h>
+#include <glib/gstdio.h>
 
 #ifdef __cplusplus
 extern "C" {
