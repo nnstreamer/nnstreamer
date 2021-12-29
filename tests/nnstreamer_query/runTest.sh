@@ -56,6 +56,7 @@ sleep 2
 
 # Test flexible tensors
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc num-buffers=3 ! other/tensors,format=flexible ! tensor_query_serversink" 3-1 0 0 $PERFORMANCE $TIMEOUT_SEC &
+sleep 1
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! other/tensors,format=flexible ! tee name = t t. ! queue ! multifilesink location= raw3_%1d.log t. ! queue ! tensor_query_client ! multifilesink location=result3_%1d.log" 3-2 0 0 $PERFORMANCE
 callCompareTest raw3_0.log result3_0.log 3-3 "Compare 3-3" 1 0
 callCompareTest raw3_1.log result3_1.log 3-4 "Compare 3-4" 1 0
@@ -74,7 +75,7 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
     tensor_converter ! other/tensors,format=flexible ! tee name=t \
         t. ! queue ! multifilesink location= raw5_2_%1d.log \
         t. ! queue ! tensor_query_client ! multifilesink location=result5_2_%1d.log" 5-2 0 0 $PERFORMANCE &
-# Client pipeline 5-2 is connected to server ID 1.
+# Client pipeline 5-3 is connected to server ID 1.
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
     videotestsrc pattern=13 num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! \
     tensor_converter ! other/tensors,format=flexible ! tee name=t \
