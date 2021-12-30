@@ -61,7 +61,7 @@
  *            the tensor-dec how to interpret the given tensor inputs.
  *            The first 4 numbers separated by colon, ':', designate which
  *            are location:class:score:number of the tensors.
- *            The last number separted by comma, ',' from the first 4 numbers
+ *            The last number separated by comma, ',' from the first 4 numbers
  *            designate the threshold in percent.
  *            In other words, "option3=%i:%i:%i:%i,%i".
  * option4: Video Output Dimension (WIDTH:HEIGHT)
@@ -188,7 +188,7 @@ typedef struct
 } properties_MOBILENET_SSD_PP;
 
 /**
- * @brief Data structure for boundig box info.
+ * @brief Data structure for bounding box info.
  */
 typedef struct
 {
@@ -955,7 +955,7 @@ iou (detectedObject * a, detectedObject * b)
 }
 
 /**
- * @brief Apply NMS to the given results (obejcts[MOBILENET_SSD_DETECTION_MAX])
+ * @brief Apply NMS to the given results (objects[MOBILENET_SSD_DETECTION_MAX])
  * @param[in/out] results The results to be filtered with nms
  */
 static void
@@ -1091,9 +1091,9 @@ nms (GArray * results, gfloat threshold)
   break
 
 /**
- * @brief Draw with the given results (obejcts[MOBILENET_SSD_DETECTION_MAX]) to the output buffer
+ * @brief Draw with the given results (objects[MOBILENET_SSD_DETECTION_MAX]) to the output buffer
  * @param[out] out_info The output buffer (RGBA plain)
- * @param[in] bdata The bouding-box internal data.
+ * @param[in] bdata The bounding-box internal data.
  * @param[in] results The final results to be drawn.
  */
 static void
