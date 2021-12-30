@@ -74,3 +74,38 @@ def compare_scaled_tensor(d1, d2, innerdim):
             return 5
 
     return 0
+
+
+##
+# @brief Compare raw video frame
+def compare_video_frame(file1, file2, colorspace, width, height):
+    data1 = read_file(file1)
+    data2 = read_file(file2)
+
+    len1 = len(data1)
+    len2 = len(data2)
+
+    if colorspace == "RGB":
+        channel = 3
+    elif colorspace == "BGRx":
+        channel = 4
+    else:
+        print("Please check format. Your format: " + colorspace)
+        return 2
+
+    if len1 != len2:
+        print("Failed to compare file size, file1 len: " + str(len1) + " file2 len:" + str(len2))
+        return 3
+
+    padded = (4 - (channel * width) % 4) % 4
+    ptr = 0
+    for h in range(0, height):
+        for w in range(0, width):
+            for c in range(0, channel):
+                if data1[ptr] != data2[ptr]:
+                    print("Failed to compare data!")
+                    return 4
+                ptr += 1
+        ptr += padded
+
+    return 0
