@@ -1,4 +1,8 @@
 ARG UBUNTU_VER=18.04
+# If the value assigned to MIN_RUN_ENV is non-zero length,
+# only nnstreamer, nnstreamer-core, and nnstreamer-configuration packages are installed
+# in the container.
+ARG MIN_RUN_ENV=""
 FROM ubuntu:${UBUNTU_VER} AS dev-base
 
 ARG DEBCONF_NOWARNINGS="yes"
@@ -64,6 +68,7 @@ ARG DEBCONF_TERSE="yes"
 ARG LANG="C.UTF-8"
 ARG BUILDDIR=build
 ARG USERNAME=nns
+ARG MIN_RUN_ENV
 
 ENV DEBIAN_FRONTEND noninteractive
 RUN set -x && \
@@ -83,7 +88,11 @@ RUN set -x && \
 SHELL ["/bin/bash", "-c"]
 WORKDIR /root
 COPY --from=debuilder /home/${USERNAME}/*.deb /root/
-RUN apt-get -f install ./*.deb && \
+RUN if [ ! -n "${MIN_RUN_ENV}" ]; then \
+        apt-get -f install ./*.deb; \
+    else \
+        apt-get -f install ./nnstreamer_*.deb ./nnstreamer-core_*.deb ./nnstreamer-configuration_*.deb; \
+    fi && \
     rm -rf /var/lib/apt/lists/* /root/*.deb
 USER ${USERNAME}
 WORKDIR /home/${USERNAME}
