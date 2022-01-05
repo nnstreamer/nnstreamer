@@ -538,9 +538,6 @@ gst_tensor_filter_properties_init (GstTensorFilterProperties * prop)
   /* init null */
   memset (prop, 0, sizeof (GstTensorFilterProperties));
 
-  /* set default value */
-  prop->fwname = g_strdup ("auto");
-
   gst_tensors_info_init (&prop->input_meta);
   gst_tensors_layout_init (prop->input_layout);
   gst_tensors_rank_init (prop->input_ranks);
@@ -1010,6 +1007,9 @@ gst_tensor_filter_common_init_property (GstTensorFilterPrivate * priv)
   gst_tensor_filter_properties_init (&priv->prop);
   gst_tensor_filter_framework_info_init (&priv->info);
   gst_tensor_filter_statistics_init (&priv->stat);
+
+  /* set default framework 'auto' */
+  priv->prop.fwname = g_strdup ("auto");
 
   /* init internal properties */
   priv->silent = TRUE;
