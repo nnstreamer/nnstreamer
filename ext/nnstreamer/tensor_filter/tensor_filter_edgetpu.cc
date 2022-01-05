@@ -169,11 +169,10 @@ edgetpu_subplugin::cleanup ()
     model = nullptr; /* delete unique_ptr */
   }
 
-  if (model_path)
-    delete model_path;
   gst_tensors_info_free (std::addressof (inputInfo));
   gst_tensors_info_free (std::addressof (outputInfo));
 
+  g_free (model_path);
   model_path = nullptr;
   empty_model = true;
 }

@@ -151,8 +151,6 @@ snpe_subplugin::cleanup ()
     snpe = nullptr;
   }
 
-  if (model_path)
-    delete model_path;
   gst_tensors_info_free (std::addressof (inputInfo));
   gst_tensors_info_free (std::addressof (outputInfo));
 
@@ -161,6 +159,7 @@ snpe_subplugin::cleanup ()
   input_tensor_map.clear ();
   output_tensor_map.clear ();
 
+  g_free (model_path);
   model_path = nullptr;
   empty_model = true;
 }
