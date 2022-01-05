@@ -48,6 +48,19 @@ extern gchar * getTempFilename (void);
 extern gboolean wait_pipeline_process_buffers (const guint * data_received, guint expected_num_buffers, guint timeout_ms);
 
 /**
+ * @brief Replaces string.
+ * This function deallocates the input source string.
+ * @param[in] source The input string. This will be freed when returning the replaced string.
+ * @param[in] what The string to search for.
+ * @param[in] to The string to be replaced.
+ * @param[in] delimiters The characters which specify the place to split the string. Set NULL to replace all matched string.
+ * @param[out] count The count of replaced. Set NULL if it is unnecessary.
+ * @return Newly allocated string. The returned string should be freed with g_free().
+ */
+extern gchar *
+replace_string (gchar * source, const gchar * what, const gchar * to, const gchar * delimiters, guint * count);
+
+/**
  * @brief Wait until the pipeline saving the file
  * @return TRUE on success, FALSE when a time-out occurs
  */
