@@ -530,7 +530,7 @@ restriction_config = ''
 if get_option('enable-element-restriction')
   restriction_config = '''[element-restriction]
 enable_element_restriction=True
-restricted_elements=''' + get_option('restricted-elements')
+allowed_elements=''' + get_option('allowed-elements')
 endif
 
 nnstreamer_install_conf.set('ELEMENT_RESTRICTION_CONFIG', restriction_config)

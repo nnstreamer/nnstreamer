@@ -639,17 +639,17 @@ Provides additional gstreamer plugins for nnstreamer pipelines
 
 %if %{with tizen}
 %define enable_tizen -Denable-tizen=true -Dtizen-version-major=0%{tizen_version_major}
-# Element restriction in Tizen
-%define restricted_element_base     'capsfilter input-selector output-selector queue tee valve appsink appsrc audioconvert audiorate audioresample audiomixer videoconvert videocrop videorate videoscale videoflip videomixer compositor fakesrc fakesink filesrc filesink audiotestsrc videotestsrc jpegparse jpegenc jpegdec pngenc pngdec tcpclientsink tcpclientsrc tcpserversink tcpserversrc xvimagesink ximagesink evasimagesink evaspixmapsink glimagesink theoraenc lame vorbisenc wavenc volume oggmux avimux matroskamux v4l2src avsysvideosrc camerasrc tvcamerasrc pulsesrc fimcconvert tizenwlsink gdppay gdpdepay join '
-%define restricted_element_edgeai   'rtpdec rtspsrc rtspclientsink zmqsrc zmqsink mqttsrc mqttsink udpsrc udpsink multiudpsink '
-%define restricted_element_audio    'audioamplify audiochebband audiocheblimit audiodynamic audioecho audiofirfilter audioiirfilter audioinvert audiokaraoke audiopanorama audiowsincband audiowsinclimit scaletempo stereo '
+# Element allowance in Tizen
+%define allowed_element_base     'capsfilter input-selector output-selector queue tee valve appsink appsrc audioconvert audiorate audioresample audiomixer videoconvert videocrop videorate videoscale videoflip videomixer compositor fakesrc fakesink filesrc filesink audiotestsrc videotestsrc jpegparse jpegenc jpegdec pngenc pngdec tcpclientsink tcpclientsrc tcpserversink tcpserversrc xvimagesink ximagesink evasimagesink evaspixmapsink glimagesink theoraenc lame vorbisenc wavenc volume oggmux avimux matroskamux v4l2src avsysvideosrc camerasrc tvcamerasrc pulsesrc fimcconvert tizenwlsink gdppay gdpdepay join '
+%define allowed_element_edgeai   'rtpdec rtspsrc rtspclientsink zmqsrc zmqsink mqttsrc mqttsink udpsrc udpsink multiudpsink '
+%define allowed_element_audio    'audioamplify audiochebband audiocheblimit audiodynamic audioecho audiofirfilter audioiirfilter audioinvert audiokaraoke audiopanorama audiowsincband audiowsinclimit scaletempo stereo '
 %if "%{?profile}" == "tv"
-%define restricted_element_vd       'tvdpbsrc '
-%define restricted_element          %{restricted_element_base}%{restricted_element_audio}%{restricted_element_edgeai}%{restricted_element_vd}
+%define allowed_element_vd       'tvdpbsrc '
+%define allowed_element          %{allowed_element_base}%{allowed_element_audio}%{allowed_element_edgeai}%{allowed_element_vd}
 %else
-%define restricted_element          %{restricted_element_base}%{restricted_element_audio}%{restricted_element_edgeai}
+%define allowed_element          %{allowed_element_base}%{allowed_element_audio}%{allowed_element_edgeai}
 %endif
-%define element_restriction -Denable-element-restriction=true -Drestricted-elements=%{restricted_element}
+%define element_restriction -Denable-element-restriction=true -Dallowed-elements=%{allowed_element}
 %endif #if tizen
 
 # Support tensorflow
