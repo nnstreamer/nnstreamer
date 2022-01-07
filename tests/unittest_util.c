@@ -11,6 +11,7 @@
 #include <gst/gst.h>
 #include <glib/gstdio.h>
 #include <nnstreamer_log.h>
+#include <string.h>
 #include "unittest_util.h"
 
 /**
