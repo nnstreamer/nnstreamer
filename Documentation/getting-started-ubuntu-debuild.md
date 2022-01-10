@@ -7,8 +7,7 @@ title: Ubuntu Debuild/Pdebuild
 In order to control how pdebuild/debuild build, you need to edit files in ```${nnstreamer-source}/debian/```.
 
 
-### Pdebuild, a sandboxed build environment. (Ubuntu 16.04, 18.04)
-
+### Pdebuild, a sandboxed build environment. (Ubuntu 18.04, 20.04)
 
 This guide uses the nnstreamer PPA to resolve additional build-dependencies (e.g., tensorflow/tensorflow-lite 1.13).
 
@@ -17,15 +16,16 @@ Install build tools for pdebuild:
 $ sudo apt install pbuilder debootstrap devscripts
 ```
 
-The following example configuration is for Ubuntu 16.04:
+The following example configuration is for Ubuntu 18.04:
 ```bash
 $ cat ~/.pbuilderrc
-DISTRIBUTION=xenial
+DISTRIBUTION=bionic
 COMPONENTS="main restricted universe multiverse"
-OTHERMIRROR="deb http://archive.ubuntu.com/ubuntu xenial main restricted universe multiverse |\
-  deb http://archive.ubuntu.com/ubuntu xenial-security main restricted universe multiverse |\
-  deb http://archive.ubuntu.com/ubuntu xenial-updates main restricted universe multiverse |\
-  deb [trusted=yes] http://ppa.launchpad.net/nnstreamer/ppa/ubuntu xenial main"
+OTHERMIRROR="deb http://archive.ubuntu.com/ubuntu bionic main restricted universe multiverse |\
+  deb http://archive.ubuntu.com/ubuntu bionic-security main restricted universe multiverse |\
+  deb http://archive.ubuntu.com/ubuntu bionic-updates main restricted universe multiverse |\
+  deb [trusted=yes] http://ppa.launchpad.net/nnstreamer/ppa/ubuntu bionic main |\
+  deb [trusted=yes] http://ppa.launchpad.net/one-runtime/ppa/ubuntu bionic main"
 $ sudo ln -s  ~/.pbuilderrc /root/.pbuilderrc
 $ sudo pbuilder create
 ```
@@ -49,8 +49,9 @@ After installing all the required packages to your system, you may run ```debuil
 
 In Ubuntu, you may prepare your system easily with the following commands, which installs prebuilt binaries from nnstreamer's PPA repository.
 ```bash
-$ sudo apt-add-repository ppa:nnstreamer
-$ sudo apt install ssat tensorflow-dev tensorflow-lite-dev libprotobuf-dev # you may add pytorch and other libraries, too
+$ sudo apt-add-repository ppa:nnstreamer/ppa
+$ sudo add-apt-repository ppa:one-runtime/ppa
+$ sudo apt install ssat tensorflow-dev tensorflow-lite-dev libprotobuf-dev nnfw-dev # you may add pytorch and other libraries, too
 ```
 
 Note that ssat is required for unit testing. You may download it at [Github SSAT](https://github.com/myungjoo/SSAT).
