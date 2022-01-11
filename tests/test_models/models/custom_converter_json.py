@@ -32,7 +32,7 @@ class CustomConverter(object):
     # tensor 1 : {"name":"John", "age":30}
     def convert(self, input_array):
         json_data = json.loads(input_array[0].tobytes())
-        json_string = json_data["json_string"].encode()
+        json_string = (json_data["json_string"] + '\0').encode()
         json_object = json.dumps(json_data["json_object"]).encode()
 
         output_array1 = np.frombuffer(json_string, dtype=np.uint8)
