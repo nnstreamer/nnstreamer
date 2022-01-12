@@ -687,5 +687,29 @@ if tvm_support_is_available
     install: true,
     install_dir: nnstreamer_libdir
   )
+endif
 
+if trix_engine_support_is_available
+  nnstreamer_filter_trix_engine_deps = trix_engine_support_deps + [glib_dep, gst_dep, nnstreamer_dep]
+
+  filter_sub_trix_engine_sources = ['tensor_filter_trix_engine.cc']
+
+  nnstreamer_filter_trix_engine_sources = []
+  foreach s : filter_sub_trix_engine_sources
+    nnstreamer_filter_trix_engine_sources += join_paths(meson.current_source_dir(), s)
+  endforeach
+
+  shared_library('nnstreamer_filter_trix-engine',
+    nnstreamer_filter_trix_engine_sources,
+    dependencies: nnstreamer_filter_trix_engine_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_trix-engine',
+    nnstreamer_filter_trix_engine_sources,
+    dependencies: nnstreamer_filter_trix_engine_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
 endif

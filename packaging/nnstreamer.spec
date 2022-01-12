@@ -35,6 +35,7 @@
 %define		lua_support 1
 %define		tvm_support 1
 %define		snpe_support 1
+%define		trix_engine_support 1
 
 %define		check_test 1
 %define		release_test 1
@@ -66,6 +67,7 @@
 %if ( 0%{?tizen_version_major} == 6 && 0%{?tizen_version_minor} < 5 ) || 0%{?tizen_version_major} < 6
 %define		grpc_support 0
 %define		tensorflow2_lite_support 0
+%define		trix_engine_support 0
 %endif
 
 # Disable e-TPU if it's not 64bit system
@@ -115,6 +117,7 @@
 %define		lua_support 0
 %define		mqtt_support 0
 %define		tvm_support 0
+%define		trix_engine_support 0
 %endif
 
 # Release unit test suite as a subpackage only if check_test is enabled.
@@ -283,6 +286,10 @@ BuildRequires:	tvm-runtime-devel
 
 %if 0%{?snpe_support}
 BuildRequires:	snpe-devel
+%endif
+
+%if 0%{?trix_engine_support}
+BuildRequires:	npu-engine-devel
 %endif
 
 # Unit Testing Uses SSAT (hhtps://github.com/myungjoo/SSAT.git)
@@ -457,6 +464,16 @@ Requires:	nnstreamer = %{version}-%{release}
 Requires:	snpe
 %description snpe
 NNStreamer's tensor_fliter subplugin of snpe
+%endif
+
+# for trix-engone
+%if 0%{?trix_engine_support}
+%package trix-engine
+Summary:	NNStreamer TRIx-Engine support
+Requires:	nnstreamer = %{version}-%{release}
+Requires:	trix-engine
+%description trix-engine
+NNStreamer's tensor_filter subplugin of trix-engine
 %endif
 
 %package devel
@@ -739,6 +756,13 @@ Provides additional gstreamer plugins for nnstreamer pipelines
 %define enable_tvm -Dtvm-support=disabled
 %endif
 
+# Support trix-engine
+%if 0%{?trix_engine_support}
+%define enable_trix_engine -Dtrix-engine-support=enabled
+%else
+%define enable_trix_engine -Dtrix-engine-support=disabled
+%endif
+
 # Framework priority for each file extension
 %define fw_priority_bin ''
 %define fw_priority_nb ''
@@ -781,7 +805,8 @@ meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir
 	--bindir=%{nnstbindir} --includedir=include -Dsubplugindir=%{_prefix}/lib/nnstreamer \
 	%{enable_tizen} %{element_restriction} %{fw_priority} -Denable-env-var=false -Denable-symbolic-link=false \
 	%{enable_tf_lite} %{enable_tf2_lite} %{enable_tf} %{enable_pytorch} %{enable_caffe2} %{enable_python3} \
-	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_openvino} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} %{enable_flatbuf} \
+	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_openvino} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} \
+	%{enable_flatbuf} %{enable_trix_engine} \
 	%{enable_tizen_sensor} %{enable_mqtt} %{enable_lua} %{enable_tvm} %{enable_test} %{enable_test_coverage} %{install_test} \
 	build
 
@@ -1005,6 +1030,14 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %files snpe -f ext/nnstreamer/tensor_filter/filter_snpe_list
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
+%endif
+
+# for trix-engine
+%if 0%{?trix_engine_support}
+%files trix-engine
+%manifest nnstreamer.manifest
+%defattr(-,root,root,-)
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_trix-engine.so
 %endif
 
 %files devel
