@@ -360,6 +360,9 @@ gst_tensor_query_client_update_caps (GstTensorQueryClient * self,
       nns_loge ("out-caps from tensor_query_serversink is not fixed. "
           "Failed to update client src caps, out-caps: %s", caps_str);
     }
+  } else {
+    /** Don't need to update when the capability is the same. */
+    ret = TRUE;
   }
 
   if (curr_caps)
