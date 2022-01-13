@@ -115,7 +115,6 @@
 %define		lua_support 0
 %define		mqtt_support 0
 %define		tvm_support 0
-%define		snpe_support 0
 %endif
 
 # Release unit test suite as a subpackage only if check_test is enabled.
