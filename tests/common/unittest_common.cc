@@ -1665,6 +1665,39 @@ TEST (confCustom, envStr01)
 }
 
 /**
+ * @brief Test for extra configuration path
+ */
+TEST (confCustom, checkExtraConfPath_p)
+{
+  gchar *fullpath = g_build_path ("/", g_get_tmp_dir (), "nns-tizen-XXXXXX", NULL);
+  gchar *dir = g_mkdtemp (fullpath);
+  gchar *filename = g_build_path ("/", dir, "nnstreamer.ini", NULL);
+  const gchar *extra_conf = "/opt/usr/vd/product.ini";
+  gchar *confenv = g_strdup (g_getenv ("NNSTREAMER_CONF"));;
+
+  FILE *fp = g_fopen (filename, "w");
+  ASSERT_TRUE (fp != NULL);
+  g_fprintf (fp, "[common]\n");
+  g_fprintf (fp, "extra_config_path=%s\n", extra_conf);
+  fclose (fp);
+
+  EXPECT_TRUE (g_setenv ("NNSTREAMER_CONF", filename, TRUE));
+  EXPECT_TRUE (nnsconf_loadconf (TRUE));
+
+  EXPECT_TRUE (check_custom_conf ("common", "extra_config_path", extra_conf));
+  g_remove (filename);
+  g_free (fullpath);
+  g_free (filename);
+
+  if (confenv) {
+    EXPECT_TRUE (g_setenv ("NNSTREAMER_CONF", confenv, TRUE));
+    g_free (confenv);
+  } else {
+    g_unsetenv ("NNSTREAMER_CONF");
+  }
+}
+
+/**
  * @brief Test nnstreamer conf util (name prefix with invalid param).
  */
 TEST (confCustom, subpluginPrefix_n)
