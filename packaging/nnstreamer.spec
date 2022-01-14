@@ -369,6 +369,7 @@ NNStreamer's tensor_filter subplugin of Python3.
 %if 0%{?armnn_support}
 %package armnn
 Summary:	NNStreamer Arm NN support
+Requires:	nnstreamer = %{version}-%{release}
 Requires:	armnn
 %description armnn
 NNStreamer's tensor_filter subplugin of Arm NN Inference Engine.
@@ -379,9 +380,6 @@ NNStreamer's tensor_filter subplugin of Arm NN Inference Engine.
 %package vivante
 Summary:    NNStreamer subplugin for Verisilion's Vivante
 Requires:   nnstreamer = %{version}-%{release}
-Requires:   gst-plugins-good
-Requires:   gst-plugins-good-extra
-Requires:   gst-libav
 %description vivante
 NNStreamer filter subplugin for Verisicon Vivante.
 %define enable_vivante -Denable-vivante=true
@@ -507,6 +505,7 @@ HTML pages of lcov results of NNStreamer generated during rpmbuild
 %if 0%{?nnfw_support}
 %package nnfw
 Summary:	NNStreamer Tizen-nnfw runtime support
+Requires:	nnstreamer = %{version}-%{release}
 Requires:	nnfw
 %description nnfw
 NNStreamer's tensor_filter subplugin of Tizen-NNFW Runtime. (5.5 M2 +)
@@ -515,6 +514,7 @@ NNStreamer's tensor_filter subplugin of Tizen-NNFW Runtime. (5.5 M2 +)
 %if 0%{?mvncsdk2_support}
 %package	ncsdk2
 Summary:	NNStreamer Intel Movidius NCSDK2 support
+Requires:	nnstreamer = %{version}-%{release}
 Group:		Machine Learning/ML Framework
 %description	ncsdk2
 NNStreamer's tensor_fliter subplugin of Intel Movidius Neural Compute stick SDK2.
