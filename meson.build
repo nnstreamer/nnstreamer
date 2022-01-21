@@ -295,11 +295,6 @@ if not get_option('armnn-support').disabled()
   endif
 endif
 
-trix_engine_dep = dependency('', required: false)
-if not get_option('trix-engine-support').disabled()
-  trix_engine_dep = dependency('npu-engine', required: false)
-endif
-
 # features registration to be controlled
 #
 # register feature as follows
@@ -391,7 +386,7 @@ features = {
     'project_args': { 'ENABLE_QUERY_HYBRID': 1 }
   },
   'trix-engine-support': {
-    'extra_deps': [ trix_engine_dep ],
+    'target': 'npu-engine',
     'project_args': { 'ENABLE_TRIX_ENGINE' : 1 }
   }
 }
