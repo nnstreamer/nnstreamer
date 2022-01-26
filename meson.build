@@ -554,11 +554,19 @@ configure_file(input: 'nnstreamer.ini.in', output: 'nnstreamer.ini',
 )
 
 # Install .pc
+configure_file(input: 'nnstreamer-single.pc.in', output: 'nnstreamer-single.pc',
+  install_dir: join_paths(nnstreamer_libdir, 'pkgconfig'),
+  configuration: nnstreamer_install_conf
+)
 configure_file(input: 'nnstreamer.pc.in', output: 'nnstreamer.pc',
   install_dir: join_paths(nnstreamer_libdir, 'pkgconfig'),
   configuration: nnstreamer_install_conf
 )
 configure_file(input: 'nnstreamer-internal.pc.in', output: 'nnstreamer-internal.pc',
+  install_dir: join_paths(nnstreamer_libdir, 'pkgconfig'),
+  configuration: nnstreamer_install_conf
+)
+configure_file(input: 'nnstreamer-single-internal.pc.in', output: 'nnstreamer-single-internal.pc',
   install_dir: join_paths(nnstreamer_libdir, 'pkgconfig'),
   configuration: nnstreamer_install_conf
 )

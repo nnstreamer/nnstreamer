@@ -63,6 +63,10 @@ struct _GstTensorFilter
   GstBaseTransform element;     /**< This is the parent object */
 
   GstTensorFilterPrivate priv; /**< Internal properties for tensor-filter */
+
+  GstClockTime prev_ts;  /**< previous timestamp */
+  GstClockTimeDiff throttling_delay;  /**< throttling delay from tensor rate */
+  GstClockTimeDiff throttling_accum;  /**< accumulated frame durations for throttling */
 };
 
 /**

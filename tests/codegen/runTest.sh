@@ -30,12 +30,23 @@ testInit $1
 
 PATH_TO_PLUGIN="../../build"
 pwd=$(pwd)
+rm -f nnstreamer-single.pc
 rm -f nnstreamer.pc
+
+cat <<EOF >nnstreamer-single.pc
+Name: nnstreamer-single
+Version: 2.1.0
+Description: temporary nnstreamer-single pkgconfig for unittesting during build
+Requires:
+Libs: -L${pwd}/../../build/gst/nnstreamer -lnnstreamer-single
+Cflags: -I${pwd}/../../gst/nnstreamer -I${pwd}/../../gst/nnstreamer/include -I${pwd}/${PATH_TO_PLUGIN}/gst/nnstreamer/include
+EOF
+
 cat <<EOF >nnstreamer.pc
 Name: nnstreamer
 Description: temporary nnstreamer pkgconfig for unittesting during build
 Version: 0.1.2
-Requires:
+Requires: nnstreamer-single
 Libs: -L${pwd}/../../build/gst/nnstreamer -lnnstreamer
 Cflags: -I${pwd}/../../gst/nnstreamer -I${pwd}/../../gst/nnstreamer/include -I${pwd}/${PATH_TO_PLUGIN}/gst/nnstreamer/include
 EOF

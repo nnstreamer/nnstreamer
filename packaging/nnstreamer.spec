@@ -153,6 +153,7 @@ Source1001:	nnstreamer.manifest
 ## Define requirements ##
 Requires: nnstreamer-core = %{version}-%{release}
 Requires: nnstreamer-configuration = %{version}-%{release}
+Requires: nnstreamer-single = %{version}-%{release}
 Recommends: nnstreamer-default-configuration = %{version}-%{release}
 
 ## Define build requirements ##
@@ -322,6 +323,11 @@ Summary: NNStreamer core package
 NNStreamer is a set of gstreamer plugins to support general neural networks
 and their plugins in a gstreamer stream, this package is core package without configuration
 
+%package single
+Summary: NNStreamer singe-shot package
+%description single
+Element to use general neural network framework directly without gstreamer pipeline.
+
 %package default-configuration
 Summary: NNStreamer global configuration
 Provides: nnstreamer-configuration = %{version}-%{release}
@@ -476,6 +482,7 @@ NNStreamer's tensor_filter subplugin of trix-engine
 %package devel
 Summary:	Development package for custom tensor operator developers (tensor_filter/custom)
 Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	glib2-devel
 Requires:	gstreamer-devel
 %description devel
@@ -488,6 +495,7 @@ This contains corresponding header files and .pc pkgconfig file.
 %package devel-internal
 Summary:    Development package to access internal functions of NNStreamer
 Requires:   nnstreamer-devel = %{version}-%{release}
+Requires:   nnstreamer-single-devel-internal = %{version}-%{release}
 %description devel-internal
 Development package to access internal functions of NNStreamer.
 This may be used by API packages, which wrap nnstreamer features.
@@ -499,9 +507,30 @@ Requires:   nnstreamer-devel = %{version}-%{release}
 %description devel-static
 Static library package of nnstreamer-devel.
 
+%package single-devel
+Summary:    Development package for NNStreamer single-shot
+Requires:   nnstreamer-single = %{version}-%{release}
+%description single-devel
+Development package for NNStreamer single-shot.
+
+%package single-devel-internal
+Summary:    Development package to access internal functions of NNStreamer single-shot
+Requires:   nnstreamer-single-devel = %{version}-%{release}
+%description single-devel-internal
+Development package to access internal functions of NNStreamer single-shot.
+This may be used by API packages, which wrap nnstreamer features.
+In most cases, custom-filter or subplugin authors do not need this internal devel package; however, if they want to access more internal functions, they may need this.
+
+%package single-devel-static
+Summary:    Static library for nnstreamer-single-devel package
+Requires:   nnstreamer-single-devel = %{version}-%{release}
+%description single-devel-static
+Static library package of nnstreamer-single-devel.
+
 %package test-devel
 Summary: Development package to provide testable environment of a subplugin (tensor_filter/custom)
 Requires: nnstreamer-devel = %{version}-%{release}
+Requires: nnstreamer-single-devel = %{version}-%{release}
 Provides: nnstreamer-configuration = %{version}-%{release}
 Conflicts: nnstreamer-default-configuration
 %description test-devel
@@ -928,6 +957,12 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{gstlibdir}/libnnstreamer.so
 %{_libdir}/libnnstreamer.so
 
+%files single
+%manifest nnstreamer.manifest
+%defattr(-,root,root,-)
+%license LICENSE
+%{_libdir}/libnnstreamer-single.so
+
 %files default-configuration
 %config %{_sysconfdir}/nnstreamer.ini
 
@@ -1035,16 +1070,13 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 
 %files devel
 %{_includedir}/nnstreamer/tensor_if.h
-%{_includedir}/nnstreamer/tensor_typedef.h
 %{_includedir}/nnstreamer/tensor_filter_custom.h
 %{_includedir}/nnstreamer/tensor_filter_custom_easy.h
 %{_includedir}/nnstreamer/tensor_converter_custom.h
 %{_includedir}/nnstreamer/tensor_decoder_custom.h
-%{_includedir}/nnstreamer/nnstreamer_plugin_api_filter.h
 %{_includedir}/nnstreamer/nnstreamer_plugin_api_decoder.h
 %{_includedir}/nnstreamer/nnstreamer_plugin_api_converter.h
 %{_includedir}/nnstreamer/nnstreamer_plugin_api.h
-%{_includedir}/nnstreamer/nnstreamer_version.h
 %{_includedir}/nnstreamer/nnstreamer_util.h
 %{_includedir}/nnstreamer/tensor_filter_cpp.hh
 %{_includedir}/nnstreamer/nnstreamer_cppplugin_api_filter.hh
@@ -1053,12 +1085,27 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 
 %files devel-internal
 %{_includedir}/nnstreamer/nnstreamer_internal.h
-%{_includedir}/nnstreamer/nnstreamer_log.h
-%{_includedir}/nnstreamer/tensor_filter_single.h
 %{_libdir}/pkgconfig/nnstreamer-internal.pc
 
 %files devel-static
 %{_libdir}/*.a
+%exclude %{_libdir}/libnnstreamer-single.a
+
+%files single-devel
+%{_includedir}/nnstreamer/tensor_typedef.h
+%{_includedir}/nnstreamer/nnstreamer_plugin_api_filter.h
+%{_includedir}/nnstreamer/nnstreamer_plugin_api_single.h
+%{_includedir}/nnstreamer/nnstreamer_version.h
+%{_libdir}/pkgconfig/nnstreamer-single.pc
+
+%files single-devel-internal
+%{_includedir}/nnstreamer/nnstreamer_internal_single.h
+%{_includedir}/nnstreamer/nnstreamer_log.h
+%{_includedir}/nnstreamer/tensor_filter_single.h
+%{_libdir}/pkgconfig/nnstreamer-single-internal.pc
+
+%files single-devel-static
+%{_libdir}/libnnstreamer-single.a
 
 %if 0%{?testcoverage}
 %files unittest-coverage

@@ -1,0 +1,6 @@
+/usr/include/nnstreamer/nnstreamer_version.h
+/usr/include/nnstreamer/tensor_typedef.h
+/usr/include/nnstreamer/nnstreamer_plugin_api_filter.h
+/usr/include/nnstreamer/nnstreamer_plugin_api_single.h
+/usr/lib/*/pkgconfig/nnstreamer-single.pc
+/usr/lib/*/libnnstreamer-single.a
