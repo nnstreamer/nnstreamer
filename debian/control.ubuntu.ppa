@@ -20,7 +20,7 @@ Homepage: https://github.com/nnstreamer/nnstreamer
 Package: nnstreamer
 Architecture: any
 Multi-Arch: same
-Depends: nnstreamer-core, nnstreamer-configuration, ${shlibs:Depends}, ${misc:Depends}
+Depends: nnstreamer-core, nnstreamer-configuration, nnstreamer-single, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer plugins for Gstreamer
  Gstreamer plugins, "NNStreamer", provides access to neural network frameworks for media streams.
  This package is meta package of nnstreamer-core and nnstreamer-configuration.
@@ -41,6 +41,12 @@ Description: NNStreamer plugins for Gstreamer
  Gstreamer plugins, "NNStreamer", provides access to neural network frameworks for media streams.
  This package contains nnstreamer configuration.
 
+Package: nnstreamer-single
+Architecture: any
+Multi-Arch: same
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: NNStreamer Single-shot
+ Element to use general neural network framework directly without gstreamer pipeline.
 
 Package: nnstreamer-tensorflow
 Architecture: amd64
@@ -129,7 +135,7 @@ Description: NNStreamer Flatbuf converter/decoder support
 Package: nnstreamer-dev
 Architecture: any
 Multi-Arch: same
-Depends: nnstreamer, ${shlibs:Depends}, ${misc:Depends}
+Depends: nnstreamer, nnstreamer-single-dev, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer development package
  Gstreamer plugins, "NNStreamer", provides access to neural network frameworks for media streams.
  This is development package for nnstreamer.
@@ -137,8 +143,23 @@ Description: NNStreamer development package
 Package: nnstreamer-dev-internal
 Architecture: any
 Multi-Arch: same
-Depends: nnstreamer-dev, ${shlibs:Depends}, ${misc:Depends}
+Depends: nnstreamer-dev, nnstreamer-single-dev-internal, ${shlibs:Depends}, ${misc:Depends}
 Description: Development package to access internal functions of NNStreamer.
+ This may be used by API packages.
+ In most cases, custom-filter or subplugin authors do not need this internal devel package; however, if they want to access more internal functions, they may need this.
+
+Package: nnstreamer-single-dev
+Architecture: any
+Multi-Arch: same
+Depends: nnstreamer-single, ${shlibs:Depends}, ${misc:Depends}
+Description: NNStreamer single-shot development package
+ Element to use general neural network framework directly without gstreamer pipeline.
+
+Package: nnstreamer-single-dev-internal
+Architecture: any
+Multi-Arch: same
+Depends: nnstreamer-single-dev, ${shlibs:Depends}, ${misc:Depends}
+Description: Development package to access internal functions of NNStreamer single-shot.
  This may be used by API packages.
  In most cases, custom-filter or subplugin authors do not need this internal devel package; however, if they want to access more internal functions, they may need this.
 

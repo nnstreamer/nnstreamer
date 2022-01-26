@@ -1,17 +1,7 @@
+/* SPDX-License-Identifier: LGPL-2.1-only */
 /**
- * NNStreamer Common Header's Contents
+ * NNStreamer Common Header's Contents (pipeline extension)
  * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public
- * License as published by the Free Software Foundation;
- * version 2.1 of the License.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
- *
  */
 /**
  * @file	tensor_common.c
@@ -23,53 +13,698 @@
  *
  */
 
-#include <tensor_common.h>
+#include <nnstreamer_util.h>
 #include <string.h>
+#include <tensor_common.h>
 
-/**
- * @brief String representations for each tensor element type.
- */
-static const gchar *tensor_element_typename[] = {
-  [_NNS_INT32] = "int32",
-  [_NNS_UINT32] = "uint32",
-  [_NNS_INT16] = "int16",
-  [_NNS_UINT16] = "uint16",
-  [_NNS_INT8] = "int8",
-  [_NNS_UINT8] = "uint8",
-  [_NNS_FLOAT64] = "float64",
-  [_NNS_FLOAT32] = "float32",
-  [_NNS_INT64] = "int64",
-  [_NNS_UINT64] = "uint64",
-  [_NNS_END] = NULL,
+static const gchar *gst_tensor_time_sync_mode_string[] = {
+  [SYNC_NOSYNC] = "nosync",
+  [SYNC_SLOWEST] = "slowest",
+  [SYNC_BASEPAD] = "basepad",
+  [SYNC_REFRESH] = "refresh",
+  [SYNC_END] = NULL
 };
 
 /**
- * @brief Byte-per-element of each tensor element type.
+ * @brief Get the corresponding mode from the string value.
+ * @param[in] str The string value for the mode.
+ * @return Corresponding mode for the string. SYNC_END for errors.
  */
-static const guint tensor_element_size[] = {
-  [_NNS_INT32] = 4,
-  [_NNS_UINT32] = 4,
-  [_NNS_INT16] = 2,
-  [_NNS_UINT16] = 2,
-  [_NNS_INT8] = 1,
-  [_NNS_UINT8] = 1,
-  [_NNS_FLOAT64] = 8,
-  [_NNS_FLOAT32] = 4,
-  [_NNS_INT64] = 8,
-  [_NNS_UINT64] = 8,
+tensor_time_sync_mode
+gst_tensor_time_sync_get_mode (const gchar * str)
+{
+  gint index;
 
-  [_NNS_END] = 0,
-};
+  index = find_key_strv (gst_tensor_time_sync_mode_string, str);
+
+  return (index < 0) ? SYNC_END : index;
+}
 
 /**
- * @brief String representations for tensor format.
+ * @brief Get the time-sync mode string.
+ * @return Corresponding mode string.
  */
-static const gchar *tensor_format_name[] = {
-  [_NNS_TENSOR_FORMAT_STATIC] = "static",
-  [_NNS_TENSOR_FORMAT_FLEXIBLE] = "flexible",
-  [_NNS_TENSOR_FORMAT_SPARSE] = "sparse",
-  [_NNS_TENSOR_FORMAT_END] = NULL
-};
+const gchar *
+gst_tensor_time_sync_get_mode_string (tensor_time_sync_mode mode)
+{
+  return gst_tensor_time_sync_mode_string[mode];
+}
+
+/**
+ * @brief Setup time sync option.
+ * @param[in/out] filter "this" pointer. Sync mode & option MUST BE set already.
+ * @return True if successfully set the option.
+ */
+gboolean
+gst_tensor_time_sync_set_option_data (tensor_time_sync_data * sync)
+{
+  g_return_val_if_fail (sync != NULL, FALSE);
+
+  if (sync->mode == SYNC_END || sync->option == NULL)
+    return FALSE;
+
+  switch (sync->mode) {
+    case SYNC_NOSYNC:
+      break;
+    case SYNC_SLOWEST:
+      break;
+    case SYNC_BASEPAD:
+    {
+      guint sink_id;
+      guint duration;
+      gchar **strv;
+
+      strv = g_strsplit (sync->option, ":", 2);
+      if (strv[0] != NULL)
+        sink_id = (guint) g_ascii_strtoull (strv[0], NULL, 10);
+      else
+        sink_id = 0;
+
+      if (strv[1] != NULL)
+        duration = (guint) g_ascii_strtoull (strv[1], NULL, 10);
+      else
+        duration = G_MAXINT;
+
+      sync->data_basepad.sink_id = sink_id;
+      sync->data_basepad.duration = duration;
+      g_strfreev (strv);
+      break;
+    }
+    default:
+      /* unknown mode */
+      GST_WARNING ("Unknown mode = %d", sync->mode);
+      return FALSE;
+  }
+
+  return TRUE;
+}
+
+/**
+ * @brief Internal function to detect EOS using the number of empty pads.
+ * @param[in] collect Collect pad.
+ * @param[in] sync Synchronization option.
+ * @param[in] empty The number of empty pads (pad has no buffer).
+ * @return True if EOS.
+ */
+static gboolean
+_gst_tensor_time_sync_is_eos (GstCollectPads * collect,
+    tensor_time_sync_data * sync, guint empty)
+{
+  guint total;
+  gboolean is_eos = FALSE;
+
+  total = g_slist_length (collect->data);
+
+  switch (sync->mode) {
+    case SYNC_REFRESH:
+      if (empty == total)
+        is_eos = TRUE;
+      break;
+    default:
+      if (empty > 0)
+        is_eos = TRUE;
+      break;
+  }
+
+  return is_eos;
+}
+
+/**
+ * @brief A function call to decide current timestamp among collected pads based on PTS.
+ * It will decide current timestamp according to sync option.
+ * GstMeta is also copied with same sync mode.
+ */
+gboolean
+gst_tensor_time_sync_get_current_time (GstCollectPads * collect,
+    tensor_time_sync_data * sync, GstClockTime * current_time,
+    GstBuffer * tensors_buf)
+{
+  GSList *walk = NULL;
+  guint count, empty_pad;
+
+  g_return_val_if_fail (collect != NULL, FALSE);
+  g_return_val_if_fail (sync != NULL, FALSE);
+  g_return_val_if_fail (current_time != NULL, FALSE);
+
+  walk = collect->data;
+  count = empty_pad = 0;
+
+  while (walk) {
+    GstCollectData *data;
+    GstBuffer *buf;
+    gboolean need_update = FALSE;
+
+    data = (GstCollectData *) walk->data;
+    buf = gst_collect_pads_peek (collect, data);
+    walk = g_slist_next (walk);
+
+    if (buf) {
+      switch (sync->mode) {
+        case SYNC_NOSYNC:
+          /* fall-through */
+        case SYNC_SLOWEST:
+        case SYNC_REFRESH:
+          if (*current_time < GST_BUFFER_PTS (buf))
+            need_update = TRUE;
+          break;
+        case SYNC_BASEPAD:
+          if (count == sync->data_basepad.sink_id)
+            need_update = TRUE;
+          break;
+        default:
+          break;
+      }
+      if (need_update) {
+        *current_time = GST_BUFFER_PTS (buf);
+        gst_buffer_copy_into (tensors_buf, buf, GST_BUFFER_COPY_METADATA,
+            0, -1);
+      }
+      gst_buffer_unref (buf);
+    } else {
+      empty_pad++;
+    }
+
+    count++;
+  }
+
+  return _gst_tensor_time_sync_is_eos (collect, sync, empty_pad);
+}
+
+/**
+ * @brief A function to be called while processing a flushing event.
+ * It should clear old buffer and reset pad data.
+ */
+void
+gst_tensor_time_sync_flush (GstCollectPads * collect)
+{
+  GSList *walk;
+  GstTensorCollectPadData *pad;
+
+  g_return_if_fail (collect != NULL);
+
+  walk = collect->data;
+  while (walk) {
+    pad = (GstTensorCollectPadData *) walk->data;
+
+    if (pad->buffer) {
+      gst_buffer_unref (pad->buffer);
+      pad->buffer = NULL;
+    }
+
+    walk = g_slist_next (walk);
+  }
+}
+
+/**
+ * @brief Common code for both
+ *        gst_tensor_time_sync_buffer_from_collectpad_SYNC_*
+ */
+static gboolean
+_gst_tensor_time_sync_buffer_update (GstBuffer ** buf,
+    GstCollectPads * collect, GstCollectData * data,
+    GstClockTime current, GstClockTime base, tensor_time_sync_data * sync)
+{
+  GstTensorCollectPadData *pad;
+
+  pad = (GstTensorCollectPadData *) data;
+
+  *buf = gst_collect_pads_peek (collect, data);
+  if (*buf != NULL) {
+    if (GST_BUFFER_PTS (*buf) < current) {
+      gst_buffer_unref (*buf);
+      if (pad->buffer != NULL)
+        gst_buffer_unref (pad->buffer);
+      pad->buffer = gst_collect_pads_pop (collect, data);
+      return FALSE;
+    }
+
+    if ((sync->mode == SYNC_SLOWEST && pad->buffer != NULL &&
+            (ABS (GST_CLOCK_DIFF (current, GST_BUFFER_PTS (pad->buffer))) <
+                ABS (GST_CLOCK_DIFF (current, GST_BUFFER_PTS (*buf))))) ||
+        (sync->mode == SYNC_BASEPAD && pad->buffer != NULL &&
+            (((GstClockTime) ABS (GST_CLOCK_DIFF (current,
+                            GST_BUFFER_PTS (*buf)))) > base))) {
+      /* keep last buffer */
+    } else {
+      /* update last buffer */
+      if (pad->buffer != NULL)
+        gst_buffer_unref (pad->buffer);
+      pad->buffer = gst_collect_pads_pop (collect, data);
+    }
+
+    gst_buffer_unref (*buf);
+  }
+
+  *buf = gst_buffer_ref (pad->buffer);
+  return TRUE;
+}
+
+/**
+ * @brief A function call to make tensors from collected pads.
+ * It decide which buffer is going to be used according to sync option.
+ * @return True to push buffer.
+ */
+gboolean
+gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
+    tensor_time_sync_data * sync, GstClockTime current_time,
+    GstBuffer * tensors_buf, GstTensorsConfig * configs, gboolean * is_eos)
+{
+  GSList *walk = NULL;
+  GstCollectData *data;
+  GstTensorCollectPadData *pad;
+  GstBuffer *buf = NULL;
+  GstMemory *mem;
+  gint old_numerator = G_MAXINT;
+  gint old_denominator = G_MAXINT;
+  guint counting, empty_pad;
+  GstTensorsConfig in_configs;
+  GstClockTime base_time = 0;
+  guint i, n_mem;
+  GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT];
+  tensor_format in_formats[NNS_TENSOR_SIZE_LIMIT];
+
+  g_return_val_if_fail (collect != NULL, FALSE);
+  g_return_val_if_fail (sync != NULL, FALSE);
+  g_return_val_if_fail (tensors_buf != NULL, FALSE);
+  g_return_val_if_fail (configs != NULL, FALSE);
+  g_return_val_if_fail (is_eos != NULL, FALSE);
+
+  walk = collect->data;
+  counting = empty_pad = 0;
+
+  if (sync->mode == SYNC_BASEPAD) {
+    walk = g_slist_nth (walk, sync->data_basepad.sink_id);
+    if (walk == NULL) {
+      GST_ERROR_OBJECT (collect, "Cannot get GstCollectData from GSList");
+      return FALSE;
+    }
+
+    data = (GstCollectData *) walk->data;
+    pad = (GstTensorCollectPadData *) data;
+
+    buf = gst_collect_pads_peek (collect, data);
+    if (buf != NULL) {
+      if (pad->buffer != NULL)
+        base_time =
+            MIN ((GstClockTimeDiff) sync->data_basepad.duration,
+            ABS (GST_CLOCK_DIFF (GST_BUFFER_PTS (buf),
+                    GST_BUFFER_PTS (pad->buffer))) - 1);
+      gst_buffer_unref (buf);
+    }
+  }
+
+  walk = collect->data;
+
+  while (walk) {
+    gboolean configured = FALSE;
+    gboolean is_empty = FALSE;
+
+    data = (GstCollectData *) walk->data;
+    pad = (GstTensorCollectPadData *) data;
+
+    if (gst_pad_has_current_caps (pad->pad)) {
+      GstCaps *caps = gst_pad_get_current_caps (pad->pad);
+      GstStructure *s = gst_caps_get_structure (caps, 0);
+
+      gst_tensors_config_from_structure (&in_configs, s);
+      gst_caps_unref (caps);
+
+      configured = gst_tensors_config_validate (&in_configs);
+    }
+
+    /**
+     * This would be an internal logic error.
+     * in_configs should be already confirmed valid at the negotiation phase
+     * and this function should be called in a running pipeline.
+     * If new sync mode is enabled (e.g., handle output when a pad gets new buffer),
+     * this may cause unexpected exception.
+     */
+    if (!configured) {
+      return FALSE;
+    }
+
+    if (in_configs.rate_d < old_denominator)
+      old_denominator = in_configs.rate_d;
+    if (in_configs.rate_n < old_numerator)
+      old_numerator = in_configs.rate_n;
+
+    walk = g_slist_next (walk);
+
+    switch (sync->mode) {
+      case SYNC_SLOWEST:
+        /* fall-through */
+      case SYNC_BASEPAD:
+        if (!_gst_tensor_time_sync_buffer_update (&buf, collect, data,
+                current_time, base_time, sync))
+          return FALSE;
+        is_empty = (buf == NULL);
+        break;
+      case SYNC_NOSYNC:
+        buf = gst_collect_pads_pop (collect, data);
+        is_empty = (buf == NULL);
+        break;
+      case SYNC_REFRESH:
+        buf = gst_collect_pads_pop (collect, data);
+        if (buf != NULL) {
+          if (pad->buffer != NULL) {
+            gst_buffer_unref (pad->buffer);
+          }
+          pad->buffer = gst_buffer_ref (buf);
+        } else {
+          if (pad->buffer == NULL) {
+            *is_eos = FALSE;
+            ml_logd ("Not the all buffers are arrived yet.");
+            return FALSE;
+          }
+          is_empty = TRUE;
+          buf = gst_buffer_ref (pad->buffer);
+        }
+        break;
+      default:
+        break;
+    }
+
+    if (GST_IS_BUFFER (buf)) {
+      buf = gst_tensor_buffer_from_config (buf, &in_configs);
+      n_mem = gst_buffer_n_memory (buf);
+
+      /** These are internal logic error. If given inputs are incorrect,
+          the negotiation should have been failed before this stage. */
+      if (gst_tensors_config_is_static (&in_configs))
+        g_assert (n_mem == in_configs.info.num_tensors);
+      g_assert ((counting + n_mem) < NNS_TENSOR_SIZE_LIMIT);
+
+      if (gst_tensors_config_is_flexible (&in_configs))
+        configs->format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+      for (i = 0; i < n_mem; ++i) {
+        in_mem[counting] = gst_buffer_get_memory (buf, i);
+
+        configs->info.info[counting] = in_configs.info.info[i];
+        in_formats[counting] = in_configs.format;
+        counting++;
+      }
+
+      gst_buffer_unref (buf);
+    }
+    if (is_empty)
+      empty_pad++;
+  }
+
+  /* append memories to output buffer */
+  for (i = 0; i < counting; i++) {
+    mem = in_mem[i];
+
+    if (gst_tensors_config_is_flexible (configs)) {
+      /* append header if input tensor is not flexible */
+      if (in_formats[i] != _NNS_TENSOR_FORMAT_FLEXIBLE) {
+        GstTensorMetaInfo meta;
+
+        gst_tensor_info_convert_to_meta (&configs->info.info[i], &meta);
+        mem = gst_tensor_meta_info_append_header (&meta, in_mem[i]);
+        gst_memory_unref (in_mem[i]);
+      }
+    }
+
+    gst_buffer_append_memory (tensors_buf, mem);
+  }
+
+  configs->info.num_tensors = counting;
+  configs->rate_d = old_denominator;
+  configs->rate_n = old_numerator;
+
+  GST_BUFFER_PTS (tensors_buf) = current_time;
+
+  /* check eos */
+  *is_eos = _gst_tensor_time_sync_is_eos (collect, sync, empty_pad);
+  return !(*is_eos);
+}
+
+/**
+ * @brief Configure gst-buffer with tensors information.
+ * NNStreamer handles single memory chunk as single tensor.
+ * If incoming buffer has invalid memories, separate it and generate new gst-buffer using tensors information.
+ * Note that this function always takes the ownership of input buffer.
+ * @param in input buffer
+ * @param config tensors config structure
+ * @return Newly allocated buffer. Null if failed. Caller should unref the buffer using gst_buffer_unref().
+ */
+GstBuffer *
+gst_tensor_buffer_from_config (GstBuffer * in, GstTensorsConfig * config)
+{
+  GstBuffer *out = NULL;
+  GstMemory *all = NULL;
+  GstMapInfo map;
+  guint i, num;
+  gsize total, offset;
+  gsize mem_size[NNS_TENSOR_SIZE_LIMIT];
+  gboolean configured = FALSE;
+
+  if (!GST_IS_BUFFER (in)) {
+    nns_loge ("Failed to get tensor buffer, invalid input buffer.");
+    return NULL;
+  }
+
+  if (!gst_tensors_config_validate (config)) {
+    nns_loge ("Failed to get tensor buffer, invalid tensor configuration.");
+    goto error;
+  }
+
+  num = gst_buffer_n_memory (in);
+  total = gst_buffer_get_size (in);
+
+  /* get memory size */
+  if (gst_tensors_config_is_static (config)) {
+    if (num == config->info.num_tensors) {
+      /* Do nothing, pass input buffer. */
+      out = gst_buffer_ref (in);
+      goto done;
+    }
+
+    num = config->info.num_tensors;
+    for (i = 0; i < num; i++)
+      mem_size[i] = gst_tensors_info_get_size (&config->info, i);
+  } else {
+    if (num > 1) {
+      /* Suppose it is already configured. */
+      out = gst_buffer_ref (in);
+      goto done;
+    }
+
+    if (!gst_buffer_map (in, &map, GST_MAP_READ)) {
+      nns_loge ("Failed to get tensor buffer, cannot get the memory info.");
+      goto error;
+    }
+
+    num = 0;
+    offset = 0;
+    while (offset < total) {
+      GstTensorMetaInfo meta;
+      gpointer h = map.data + offset;
+
+      gst_tensor_meta_info_parse_header (&meta, h);
+      mem_size[num] = gst_tensor_meta_info_get_header_size (&meta);
+      mem_size[num] += gst_tensor_meta_info_get_data_size (&meta);
+
+      offset += mem_size[num];
+      num++;
+    }
+
+    gst_buffer_unmap (in, &map);
+
+    if (num == 1) {
+      /* Do nothing, pass input buffer. */
+      out = gst_buffer_ref (in);
+      goto done;
+    }
+  }
+
+  /* configure output buffer */
+  out = gst_buffer_new ();
+  all = gst_buffer_get_all_memory (in);
+  offset = 0;
+
+  for (i = 0; i < num; i++) {
+    /* invalid memory size */
+    if (offset + mem_size[i] > total) {
+      nns_loge ("Failed to get tensor buffer, data size is mismatched.");
+      goto error;
+    }
+
+    gst_buffer_append_memory (out, gst_memory_share (all, offset, mem_size[i]));
+    offset += mem_size[i];
+  }
+
+  gst_buffer_copy_into (out, in, GST_BUFFER_COPY_METADATA, 0, -1);
+
+done:
+  configured = TRUE;
+error:
+  gst_buffer_unref (in);
+
+  if (all)
+    gst_memory_unref (all);
+
+  if (!configured) {
+    if (out) {
+      gst_buffer_unref (out);
+      out = NULL;
+    }
+  }
+
+  return out;
+}
+
+/**
+ * @brief Internal struct to handle aggregation data in hash table.
+ */
+typedef struct
+{
+  GstAdapter *adapter;
+} gst_tensor_aggregation_data_s;
+
+#define AGGREGATION_DEFAULT_KEY 0xC0FFEEU
+
+/**
+ * @brief Internal function to free aggregation data.
+ */
+static void
+gst_tensor_aggregation_free_data (gpointer data)
+{
+  gst_tensor_aggregation_data_s *aggr;
+
+  aggr = (gst_tensor_aggregation_data_s *) data;
+  if (aggr) {
+    gst_adapter_clear (aggr->adapter);
+    g_object_unref (aggr->adapter);
+
+    g_free (aggr);
+  }
+}
+
+/**
+ * @brief Internal function to add new aggregation data.
+ */
+static gst_tensor_aggregation_data_s *
+gst_tensor_aggregation_add_data (GHashTable * table, const guint32 key)
+{
+  gst_tensor_aggregation_data_s *aggr;
+  guint32 hashkey;
+
+  g_return_val_if_fail (table != NULL, NULL);
+  if (key == 0)
+    hashkey = AGGREGATION_DEFAULT_KEY;
+  else
+    hashkey = key;
+  aggr = g_new0 (gst_tensor_aggregation_data_s, 1);
+  aggr->adapter = gst_adapter_new ();
+
+  g_hash_table_insert (table, GINT_TO_POINTER (hashkey), aggr);
+  return aggr;
+}
+
+/**
+ * @brief Internal function to get aggregation data.
+ */
+static gst_tensor_aggregation_data_s *
+gst_tensor_aggregation_get_data (GHashTable * table, const guint32 key)
+{
+  g_return_val_if_fail (table != NULL, NULL);
+
+  return (gst_tensor_aggregation_data_s *) g_hash_table_lookup (table,
+      GINT_TO_POINTER (key == 0 ? AGGREGATION_DEFAULT_KEY : key));
+}
+
+/**
+ * @brief Internal function to remove all buffers from aggregation data.
+ */
+static void
+gst_tensor_aggregation_clear_internal (gpointer key, gpointer value,
+    gpointer user_data)
+{
+  gst_tensor_aggregation_data_s *aggr;
+
+  UNUSED (key);
+  UNUSED (user_data);
+
+  aggr = (gst_tensor_aggregation_data_s *) value;
+  if (aggr) {
+    gst_adapter_clear (aggr->adapter);
+  }
+}
+
+/**
+ * @brief Gets new hash table for tensor aggregation.
+ * @return Newly allocated hash table, caller should release this using g_hash_table_destroy().
+ */
+GHashTable *
+gst_tensor_aggregation_init (void)
+{
+  GHashTable *table;
+
+  table = g_hash_table_new_full (g_direct_hash, g_direct_equal, NULL,
+      gst_tensor_aggregation_free_data);
+
+  /**
+   * Add default adapter (for the case if buffer has no specific id).
+   * If gst-buffer has tensor-meta which includes client-id,
+   * e.g., aggregation frames from multiple clients on query-server pipeline,
+   * nnstreamer element should parse meta and request adapter with this id.
+   * However, on normal pipeline, gst-buffer does not contain tensor-meta,
+   * then the element may request adapter with null key string.
+   */
+  gst_tensor_aggregation_add_data (table, AGGREGATION_DEFAULT_KEY);
+
+  return table;
+}
+
+/**
+ * @brief Clears buffers from adapter.
+ * @param table a hash table instance initialized with gst_tensor_aggregation_init()
+ * @param key the key to look up (set null to get default adapter)
+ */
+void
+gst_tensor_aggregation_clear (GHashTable * table, const guint32 key)
+{
+  gst_tensor_aggregation_data_s *aggr;
+
+  g_return_if_fail (table != NULL);
+
+  aggr = gst_tensor_aggregation_get_data (table, key);
+  gst_tensor_aggregation_clear_internal (NULL, aggr, NULL);
+}
+
+/**
+ * @brief Clears buffers from all adapters in hash table.
+ * @param table a hash table instance initialized with gst_tensor_aggregation_init()
+ */
+void
+gst_tensor_aggregation_clear_all (GHashTable * table)
+{
+  g_hash_table_foreach (table, gst_tensor_aggregation_clear_internal, NULL);
+}
+
+/**
+ * @brief Gets adapter from hash table.
+ * @param table a hash table instance initialized with gst_tensor_aggregation_init()
+ * @param key the key to look up (set null to get default adapter)
+ * @return gst-adapter instance. DO NOT release this instance.
+ */
+GstAdapter *
+gst_tensor_aggregation_get_adapter (GHashTable * table, const guint32 key)
+{
+  gst_tensor_aggregation_data_s *aggr;
+
+  g_return_val_if_fail (table != NULL, NULL);
+
+  aggr = gst_tensor_aggregation_get_data (table, key);
+  if (!aggr) {
+    /*append new data */
+    aggr = gst_tensor_aggregation_add_data (table, key);
+  }
+
+  return aggr->adapter;
+}
 
 /**
  * @brief Internal function to get caps for single tensor from config.
@@ -212,632 +847,6 @@ gst_structure_get_media_type (const GstStructure * structure)
 }
 
 /**
- * @brief Initialize the tensor info structure
- * @param info tensor info structure to be initialized
- */
-void
-gst_tensor_info_init (GstTensorInfo * info)
-{
-  guint i;
-
-  g_return_if_fail (info != NULL);
-
-  info->name = NULL;
-  info->type = _NNS_END;
-
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-    info->dimension[i] = 0;
-  }
-}
-
-/**
- * @brief Free allocated data in tensor info structure
- * @param info tensor info structure
- */
-void
-gst_tensor_info_free (GstTensorInfo * info)
-{
-  g_return_if_fail (info != NULL);
-
-  if (info->name) {
-    g_free (info->name);
-    info->name = NULL;
-  }
-}
-
-/**
- * @brief Get data size of single tensor
- * @param info tensor info structure
- * @return data size
- */
-gsize
-gst_tensor_info_get_size (const GstTensorInfo * info)
-{
-  gsize data_size;
-
-  g_return_val_if_fail (info != NULL, 0);
-
-  data_size = gst_tensor_get_element_count (info->dimension) *
-      gst_tensor_get_element_size (info->type);
-
-  return data_size;
-}
-
-/**
- * @brief Check the tensor info is valid
- * @param info tensor info structure
- * @return TRUE if info is valid
- */
-gboolean
-gst_tensor_info_validate (const GstTensorInfo * info)
-{
-  g_return_val_if_fail (info != NULL, FALSE);
-
-  if (info->type == _NNS_END) {
-    nns_logd ("Failed to validate tensor info. type: %s. "
-        "Please specify tensor type. e.g., type=uint8 ",
-        GST_STR_NULL (gst_tensor_get_type_string (info->type)));
-    return FALSE;
-  }
-
-  /* validate tensor dimension */
-  return gst_tensor_dimension_is_valid (info->dimension);
-}
-
-/**
- * @brief Compare tensor info
- * @return TRUE if equal, FALSE if given tensor infos are invalid or not equal.
- */
-gboolean
-gst_tensor_info_is_equal (const GstTensorInfo * i1, const GstTensorInfo * i2)
-{
-  guint i;
-
-  if (!gst_tensor_info_validate (i1) || !gst_tensor_info_validate (i2)) {
-    return FALSE;
-  }
-
-  if (i1->type != i2->type) {
-    nns_logd ("Tensor info is not equal. Given tensor types %s vs %s",
-        GST_STR_NULL (gst_tensor_get_type_string (i1->type)),
-        GST_STR_NULL (gst_tensor_get_type_string (i2->type)));
-    return FALSE;
-  }
-
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-    if (i1->dimension[i] != i2->dimension[i]) {
-      gchar *dim_str1 = gst_tensor_get_dimension_string (i1->dimension);
-      gchar *dim_str2 = gst_tensor_get_dimension_string (i2->dimension);
-      nns_logd ("Tensor info is not equal. Given tensor dimensions %s vs %s",
-          dim_str1, dim_str2);
-      g_free (dim_str1);
-      g_free (dim_str2);
-      return FALSE;
-    }
-  }
-
-  /* matched all */
-  return TRUE;
-}
-
-/**
- * @brief Copy tensor info up to n elements
- * @note Copied info should be freed with gst_tensor_info_free()
- */
-void
-gst_tensor_info_copy_n (GstTensorInfo * dest, const GstTensorInfo * src,
-    const guint n)
-{
-  guint i;
-
-  g_return_if_fail (dest != NULL);
-  g_return_if_fail (src != NULL);
-
-  dest->name = g_strdup (src->name);
-  dest->type = src->type;
-
-  for (i = 0; i < n; i++) {
-    dest->dimension[i] = src->dimension[i];
-  }
-}
-
-/**
- * @brief Copy tensor info
- * @note Copied info should be freed with gst_tensor_info_free()
- */
-void
-gst_tensor_info_copy (GstTensorInfo * dest, const GstTensorInfo * src)
-{
-  gst_tensor_info_copy_n (dest, src, NNS_TENSOR_RANK_LIMIT);
-}
-
-/**
- * @brief Convert GstTensorInfo structure to GstTensorMetaInfo.
- * @param[in] info GstTensorInfo to be converted
- * @param[out] meta tensor meta structure to be filled
- * @return TRUE if successfully set the meta
- */
-gboolean
-gst_tensor_info_convert_to_meta (GstTensorInfo * info, GstTensorMetaInfo * meta)
-{
-  guint i;
-
-  g_return_val_if_fail (gst_tensor_info_validate (info), FALSE);
-  g_return_val_if_fail (meta != NULL, FALSE);
-
-  gst_tensor_meta_info_init (meta);
-
-  meta->type = info->type;
-
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-    /** @todo handle rank from info.dimension */
-    if (info->dimension[i] > 0)
-      meta->dimension[i] = info->dimension[i];
-    else
-      break;
-  }
-
-  return TRUE;
-}
-
-/**
- * @brief Get tensor rank
- * @param info tensor info structure
- * @return tensor rank (Minimum rank is 1 if given info is valid)
- */
-gint
-gst_tensor_info_get_rank (const GstTensorInfo * info)
-{
-  gint idx;
-
-  g_return_val_if_fail (info != NULL, 0);
-
-  /** rank is at least 1 */
-  for (idx = NNS_TENSOR_RANK_LIMIT - 1; idx > 0; idx--) {
-    if (info->dimension[idx] != 1)
-      break;
-  }
-
-  return idx + 1;
-}
-
-/**
- * @brief Initialize the tensors info structure
- * @param info tensors info structure to be initialized
- */
-void
-gst_tensors_info_init (GstTensorsInfo * info)
-{
-  guint i;
-
-  g_return_if_fail (info != NULL);
-
-  info->num_tensors = 0;
-
-  for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
-    gst_tensor_info_init (&info->info[i]);
-  }
-}
-
-/**
- * @brief Free allocated data in tensors info structure
- * @param info tensors info structure
- */
-void
-gst_tensors_info_free (GstTensorsInfo * info)
-{
-  guint i;
-
-  g_return_if_fail (info != NULL);
-
-  for (i = 0; i < info->num_tensors; i++) {
-    gst_tensor_info_free (&info->info[i]);
-  }
-}
-
-/**
- * @brief Get data size of single tensor
- * @param info tensors info structure
- * @param index the index of tensor (-1 to get total size of tensors)
- * @return data size
- */
-gsize
-gst_tensors_info_get_size (const GstTensorsInfo * info, gint index)
-{
-  gsize data_size = 0;
-  guint i;
-
-  g_return_val_if_fail (info != NULL, 0);
-  g_return_val_if_fail (index < (gint) info->num_tensors, 0);
-
-  if (index < 0) {
-    for (i = 0; i < info->num_tensors; ++i)
-      data_size += gst_tensor_info_get_size (&info->info[i]);
-  } else {
-    data_size = gst_tensor_info_get_size (&info->info[index]);
-  }
-
-  return data_size;
-}
-
-/**
- * @brief Check the tensors info is valid
- * @param info tensors info structure
- * @return TRUE if info is valid
- */
-gboolean
-gst_tensors_info_validate (const GstTensorsInfo * info)
-{
-  guint i;
-
-  g_return_val_if_fail (info != NULL, FALSE);
-
-  if (info->num_tensors < 1) {
-    nns_logd ("Failed to validate tensors info. the number of tensors: %d. "
-        "the number of tensors should be greater than 0.", info->num_tensors);
-    return FALSE;
-  }
-
-  for (i = 0; i < info->num_tensors; i++) {
-    if (!gst_tensor_info_validate (&info->info[i])) {
-      return FALSE;
-    }
-  }
-
-  return TRUE;
-}
-
-/**
- * @brief Compare tensors info
- * @return TRUE if equal, FALSE if given tensor infos are invalid or not equal.
- */
-gboolean
-gst_tensors_info_is_equal (const GstTensorsInfo * i1, const GstTensorsInfo * i2)
-{
-  guint i;
-
-  g_return_val_if_fail (i1 != NULL, FALSE);
-  g_return_val_if_fail (i2 != NULL, FALSE);
-
-  if (!gst_tensors_info_validate (i1) || !gst_tensors_info_validate (i2)) {
-    return FALSE;
-  }
-
-  if (i1->num_tensors != i2->num_tensors) {
-    nns_logd ("Tensors info is not equal. the number of tensors: %d vs %d. ",
-        i1->num_tensors, i2->num_tensors);
-    return FALSE;
-  }
-
-  for (i = 0; i < i1->num_tensors; i++) {
-    if (!gst_tensor_info_is_equal (&i1->info[i], &i2->info[i])) {
-      return FALSE;
-    }
-  }
-
-  /* matched all */
-  return TRUE;
-}
-
-/**
- * @brief Copy tensor info
- * @note Copied info should be freed with gst_tensors_info_free()
- */
-void
-gst_tensors_info_copy (GstTensorsInfo * dest, const GstTensorsInfo * src)
-{
-  guint i, num;
-
-  g_return_if_fail (dest != NULL);
-  g_return_if_fail (src != NULL);
-
-  gst_tensors_info_init (dest);
-  num = dest->num_tensors = src->num_tensors;
-
-  for (i = 0; i < num; i++) {
-    gst_tensor_info_copy (&dest->info[i], &src->info[i]);
-  }
-}
-
-/**
- * @brief Parse the string of dimensions
- * @param info tensors info structure
- * @param dim_string string of dimensions
- * @return number of parsed dimensions
- */
-guint
-gst_tensors_info_parse_dimensions_string (GstTensorsInfo * info,
-    const gchar * dim_string)
-{
-  guint num_dims = 0;
-
-  g_return_val_if_fail (info != NULL, 0);
-
-  if (dim_string) {
-    guint i;
-    gchar **str_dims;
-
-    str_dims = g_strsplit_set (dim_string, ",.", -1);
-    num_dims = g_strv_length (str_dims);
-
-    if (num_dims > NNS_TENSOR_SIZE_LIMIT) {
-      GST_WARNING ("Invalid param, dimensions (%d) max (%d)\n",
-          num_dims, NNS_TENSOR_SIZE_LIMIT);
-
-      num_dims = NNS_TENSOR_SIZE_LIMIT;
-    }
-
-    for (i = 0; i < num_dims; i++) {
-      gst_tensor_parse_dimension (str_dims[i], info->info[i].dimension);
-    }
-
-    g_strfreev (str_dims);
-  }
-
-  return num_dims;
-}
-
-/**
- * @brief Parse the string of types
- * @param info tensors info structure
- * @param type_string string of types
- * @return number of parsed types
- */
-guint
-gst_tensors_info_parse_types_string (GstTensorsInfo * info,
-    const gchar * type_string)
-{
-  guint num_types = 0;
-
-  g_return_val_if_fail (info != NULL, 0);
-
-  if (type_string) {
-    guint i;
-    gchar **str_types;
-
-    str_types = g_strsplit_set (type_string, ",.", -1);
-    num_types = g_strv_length (str_types);
-
-    if (num_types > NNS_TENSOR_SIZE_LIMIT) {
-      GST_WARNING ("Invalid param, types (%d) max (%d)\n",
-          num_types, NNS_TENSOR_SIZE_LIMIT);
-
-      num_types = NNS_TENSOR_SIZE_LIMIT;
-    }
-
-    for (i = 0; i < num_types; i++) {
-      info->info[i].type = gst_tensor_get_type (str_types[i]);
-    }
-
-    g_strfreev (str_types);
-  }
-
-  return num_types;
-}
-
-/**
- * @brief Parse the string of names
- * @param info tensors info structure
- * @param name_string string of names
- * @return number of parsed names
- */
-guint
-gst_tensors_info_parse_names_string (GstTensorsInfo * info,
-    const gchar * name_string)
-{
-  guint num_names = 0;
-
-  g_return_val_if_fail (info != NULL, 0);
-
-  if (name_string) {
-    guint i;
-    gchar **str_names;
-
-    str_names = g_strsplit (name_string, ",", -1);
-    num_names = g_strv_length (str_names);
-
-    if (num_names > NNS_TENSOR_SIZE_LIMIT) {
-      GST_WARNING ("Invalid param, names (%d) max (%d)\n",
-          num_names, NNS_TENSOR_SIZE_LIMIT);
-
-      num_names = NNS_TENSOR_SIZE_LIMIT;
-    }
-
-    for (i = 0; i < num_names; i++) {
-      gchar *str_name = g_strdup (str_names[i]);
-
-      g_free (info->info[i].name);
-      info->info[i].name = NULL;
-
-      if (str_name && strlen (g_strstrip (str_name)))
-        info->info[i].name = str_name;
-      else
-        g_free (str_name);
-    }
-
-    g_strfreev (str_names);
-  }
-
-  return num_names;
-}
-
-/**
- * @brief Get the string of dimensions in tensors info
- * @param info tensors info structure
- * @return string of dimensions in tensors info (NULL if the number of tensors is 0)
- * @note The returned value should be freed with g_free()
- */
-gchar *
-gst_tensors_info_get_dimensions_string (const GstTensorsInfo * info)
-{
-  gchar *dim_str = NULL;
-
-  g_return_val_if_fail (info != NULL, NULL);
-
-  if (info->num_tensors > 0) {
-    guint i;
-    GString *dimensions = g_string_new (NULL);
-
-    for (i = 0; i < info->num_tensors; i++) {
-      dim_str = gst_tensor_get_dimension_string (info->info[i].dimension);
-
-      g_string_append (dimensions, dim_str);
-
-      if (i < info->num_tensors - 1) {
-        g_string_append (dimensions, ",");
-      }
-
-      g_free (dim_str);
-    }
-
-    dim_str = g_string_free (dimensions, FALSE);
-  }
-
-  return dim_str;
-}
-
-/**
- * @brief Get the string of types in tensors info
- * @param info tensors info structure
- * @return string of types in tensors info (NULL if the number of tensors is 0)
- * @note The returned value should be freed with g_free()
- */
-gchar *
-gst_tensors_info_get_types_string (const GstTensorsInfo * info)
-{
-  gchar *type_str = NULL;
-
-  g_return_val_if_fail (info != NULL, NULL);
-
-  if (info->num_tensors > 0) {
-    guint i;
-    GString *types = g_string_new (NULL);
-
-    for (i = 0; i < info->num_tensors; i++) {
-      g_string_append (types, gst_tensor_get_type_string (info->info[i].type));
-
-      if (i < info->num_tensors - 1) {
-        g_string_append (types, ",");
-      }
-    }
-
-    type_str = g_string_free (types, FALSE);
-  }
-
-  return type_str;
-}
-
-/**
- * @brief Get the string of tensor names in tensors info
- * @param info tensors info structure
- * @return string of names in tensors info (NULL if the number of tensors is 0)
- * @note The returned value should be freed with g_free()
- */
-gchar *
-gst_tensors_info_get_names_string (const GstTensorsInfo * info)
-{
-  gchar *name_str = NULL;
-
-  g_return_val_if_fail (info != NULL, NULL);
-
-  if (info->num_tensors > 0) {
-    guint i;
-    GString *names = g_string_new (NULL);
-
-    for (i = 0; i < info->num_tensors; i++) {
-      if (info->info[i].name) {
-        g_string_append (names, info->info[i].name);
-      }
-
-      if (i < info->num_tensors - 1) {
-        g_string_append (names, ",");
-      }
-    }
-
-    name_str = g_string_free (names, FALSE);
-  }
-
-  return name_str;
-}
-
-/**
- * @brief Get tensor caps from tensors config
- * @param config tensors config info
- * @return caps for given config
- */
-GstCaps *
-gst_tensor_caps_from_config (const GstTensorsConfig * config)
-{
-  g_return_val_if_fail (config != NULL, NULL);
-
-  return _get_tensor_caps (config);
-}
-
-/**
- * @brief Initialize the tensors config info structure (for other/tensors)
- * @param config tensors config structure to be initialized
- */
-void
-gst_tensors_config_init (GstTensorsConfig * config)
-{
-  g_return_if_fail (config != NULL);
-
-  gst_tensors_info_init (&config->info);
-
-  /** @note default format is static */
-  config->format = _NNS_TENSOR_FORMAT_STATIC;
-  config->rate_n = -1;
-  config->rate_d = -1;
-}
-
-/**
- * @brief Free allocated data in tensors config structure
- * @param config tensors config structure
- */
-void
-gst_tensors_config_free (GstTensorsConfig * config)
-{
-  g_return_if_fail (config != NULL);
-
-  gst_tensors_info_free (&config->info);
-}
-
-/**
- * @brief Check the tensors are all configured
- * @param config tensor config structure
- * @return TRUE if configured
- */
-gboolean
-gst_tensors_config_validate (const GstTensorsConfig * config)
-{
-  g_return_val_if_fail (config != NULL, FALSE);
-
-  /* framerate (numerator >= 0 and denominator > 0) */
-  if (config->rate_n < 0 || config->rate_d <= 0) {
-    nns_logd ("Failed to validate tensors config. framerate: %d/%d. "
-        "framerate should be numerator >= 0 and denominator > 0.",
-        config->rate_n, config->rate_d);
-    return FALSE;
-  }
-
-  /* tensor stream format */
-  if (config->format >= _NNS_TENSOR_FORMAT_END) {
-    nns_logd ("Failed to validate tensors config. format: %s. "
-        "format should be one of %s.",
-        GST_STR_NULL (gst_tensor_get_format_string (config->format)),
-        GST_TENSOR_FORMAT_ALL);
-    return FALSE;
-  }
-
-  /* cannot check tensor info when tensor is not static */
-  if (!gst_tensors_config_is_static (config)) {
-    return TRUE;
-  }
-
-  return gst_tensors_info_validate (&config->info);
-}
-
-/**
  * @brief Compare tensor config info
  * @param TRUE if equal
  */
@@ -853,7 +862,7 @@ gst_tensors_config_is_equal (const GstTensorsConfig * c1,
   }
 
   if (gst_util_fraction_compare (c1->rate_n, c1->rate_d, c2->rate_n,
-          c2->rate_d) != 0) {
+          c2->rate_d)) {
     nns_logd ("Tensors config is not equal. framerate: %d/%d vs %d/%d.",
         c1->rate_n, c1->rate_d, c2->rate_n, c2->rate_d);
     return FALSE;
@@ -861,8 +870,8 @@ gst_tensors_config_is_equal (const GstTensorsConfig * c1,
 
   if (c1->format != c2->format || c1->format == _NNS_TENSOR_FORMAT_END) {
     nns_logd ("Tensors config is not equal. format: %s vs %s ",
-        GST_STR_NULL (gst_tensor_get_format_string (c1->format)),
-        GST_STR_NULL (gst_tensor_get_format_string (c2->format)));
+        _STR_NULL (gst_tensor_get_format_string (c1->format)),
+        _STR_NULL (gst_tensor_get_format_string (c2->format)));
     return FALSE;
   }
 
@@ -872,122 +881,6 @@ gst_tensors_config_is_equal (const GstTensorsConfig * c1,
   }
 
   return gst_tensors_info_is_equal (&c1->info, &c2->info);
-}
-
-/**
- * @brief Copy tensors config
- */
-void
-gst_tensors_config_copy (GstTensorsConfig * dest, const GstTensorsConfig * src)
-{
-  g_return_if_fail (dest != NULL);
-  g_return_if_fail (src != NULL);
-
-  gst_tensors_info_copy (&dest->info, &src->info);
-  dest->format = src->format;
-  dest->rate_n = src->rate_n;
-  dest->rate_d = src->rate_d;
-}
-
-/**
- * @brief Parse structure and set tensors config (for other/tensors)
- * @param config tensors config structure to be filled
- * @param structure structure to be interpreted
- * @return TRUE if no error
- */
-gboolean
-gst_tensors_config_from_structure (GstTensorsConfig * config,
-    const GstStructure * structure)
-{
-  const gchar *name;
-  tensor_format format = _NNS_TENSOR_FORMAT_STATIC;
-
-  g_return_val_if_fail (config != NULL, FALSE);
-  gst_tensors_config_init (config);
-
-  g_return_val_if_fail (structure != NULL, FALSE);
-
-  name = gst_structure_get_name (structure);
-
-  if (g_str_equal (name, NNS_MIMETYPE_TENSOR)) {
-    /* other/tensor is always static */
-    config->info.num_tensors = 1;
-
-    if (gst_structure_has_field (structure, "dimension")) {
-      const gchar *dim_str = gst_structure_get_string (structure, "dimension");
-      gst_tensor_parse_dimension (dim_str, config->info.info[0].dimension);
-    }
-
-    if (gst_structure_has_field (structure, "type")) {
-      const gchar *type_str = gst_structure_get_string (structure, "type");
-      config->info.info[0].type = gst_tensor_get_type (type_str);
-    }
-  } else if (g_str_equal (name, NNS_MIMETYPE_TENSORS)) {
-    if (gst_structure_has_field (structure, "format")) {
-      const gchar *format_str;
-
-      format_str = gst_structure_get_string (structure, "format");
-      format = gst_tensor_get_format (format_str);
-
-      if (format == _NNS_TENSOR_FORMAT_END) {
-        GST_INFO
-            ("Invalid format %s, it should be one of %s. Suppose tensor format is static.",
-            GST_STR_NULL (format_str), GST_TENSOR_FORMAT_ALL);
-      } else {
-        config->format = format;
-      }
-    }
-
-    if (config->format == _NNS_TENSOR_FORMAT_STATIC) {
-      gst_structure_get_int (structure, "num_tensors",
-          (gint *) (&config->info.num_tensors));
-
-      if (config->info.num_tensors > NNS_TENSOR_SIZE_LIMIT) {
-        GST_WARNING ("Invalid param, max size is %d", NNS_TENSOR_SIZE_LIMIT);
-        config->info.num_tensors = NNS_TENSOR_SIZE_LIMIT;
-      }
-
-      /* parse dimensions */
-      if (gst_structure_has_field (structure, "dimensions")) {
-        const gchar *dims_str;
-        guint num_dims;
-
-        dims_str = gst_structure_get_string (structure, "dimensions");
-        num_dims =
-            gst_tensors_info_parse_dimensions_string (&config->info, dims_str);
-
-        if (config->info.num_tensors != num_dims) {
-          GST_WARNING ("Invalid param, dimensions (%d) tensors (%d)\n",
-              num_dims, config->info.num_tensors);
-        }
-      }
-
-      /* parse types */
-      if (gst_structure_has_field (structure, "types")) {
-        const gchar *types_str;
-        guint num_types;
-
-        types_str = gst_structure_get_string (structure, "types");
-        num_types =
-            gst_tensors_info_parse_types_string (&config->info, types_str);
-
-        if (config->info.num_tensors != num_types) {
-          GST_WARNING ("Invalid param, types (%d) tensors (%d)\n",
-              num_types, config->info.num_tensors);
-        }
-      }
-    }
-  } else {
-    GST_WARNING ("Unsupported type = %s\n", name ? name : "Unknown");
-    return FALSE;
-  }
-
-  if (gst_structure_has_field (structure, "framerate")) {
-    gst_structure_get_fraction (structure, "framerate", &config->rate_n,
-        &config->rate_d);
-  }
-
-  return TRUE;
 }
 
 /**
@@ -1232,489 +1125,119 @@ gst_tensors_caps_from_config (const GstTensorsConfig * config)
   return caps;
 }
 
+
 /**
- * @brief Check the tensor dimension is valid
- * @param dim tensor dimension
- * @return TRUE if dimension is valid
+ * @brief Get tensor caps from tensors config
+ * @param config tensors config info
+ * @return caps for given config
+ */
+GstCaps *
+gst_tensor_caps_from_config (const GstTensorsConfig * config)
+{
+  g_return_val_if_fail (config != NULL, NULL);
+
+  return _get_tensor_caps (config);
+}
+
+/**
+ * @brief Parse structure and set tensors config (for other/tensors)
+ * @param config tensors config structure to be filled
+ * @param structure structure to be interpreted
+ * @return TRUE if no error
  */
 gboolean
-gst_tensor_dimension_is_valid (const tensor_dim dim)
+gst_tensors_config_from_structure (GstTensorsConfig * config,
+    const GstStructure * structure)
 {
-  guint i;
+  const gchar *name;
+  tensor_format format = _NNS_TENSOR_FORMAT_STATIC;
 
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; ++i) {
-    if (dim[i] == 0) {
-      gchar *dim_str = gst_tensor_get_dimension_string (dim);
-      nns_logd ("Failed to validate tensor dimension. Given dimension: %s"
-          "The dimension string should be in the form of d1:d2:d3:d4, "
-          "d1:d2:d3, d1:d2, or d1. Here, dN is a positive integer.", dim_str);
-      g_free (dim_str);
-      return FALSE;
+  g_return_val_if_fail (config != NULL, FALSE);
+  gst_tensors_config_init (config);
+
+  g_return_val_if_fail (structure != NULL, FALSE);
+
+  name = gst_structure_get_name (structure);
+
+  if (g_str_equal (name, NNS_MIMETYPE_TENSOR)) {
+    /* other/tensor is always static */
+    config->info.num_tensors = 1;
+
+    if (gst_structure_has_field (structure, "dimension")) {
+      const gchar *dim_str = gst_structure_get_string (structure, "dimension");
+      gst_tensor_parse_dimension (dim_str, config->info.info[0].dimension);
     }
-  }
 
-  return TRUE;
-}
-
-/**
- * @brief Parse tensor dimension parameter string
- * @return The Rank. 0 if error.
- * @param dimstr The dimension string in the format of d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1, where dN is a positive integer and d1 is the innermost dimension; i.e., dim[d4][d3][d2][d1];
- * @param dim dimension to be filled.
- */
-guint
-gst_tensor_parse_dimension (const gchar * dimstr, tensor_dim dim)
-{
-  guint rank = 0;
-  guint64 val;
-  gchar **strv;
-  gchar *dim_string;
-  guint i, num_dims;
-
-  if (dimstr == NULL)
-    return 0;
-
-  /* remove spaces */
-  dim_string = g_strdup (dimstr);
-  g_strstrip (dim_string);
-
-  strv = g_strsplit (dim_string, ":", NNS_TENSOR_RANK_LIMIT);
-  num_dims = g_strv_length (strv);
-
-  for (i = 0; i < num_dims; i++) {
-    g_strstrip (strv[i]);
-    if (strv[i] == NULL || strlen (strv[i]) == 0)
-      break;
-
-    val = g_ascii_strtoull (strv[i], NULL, 10);
-    dim[i] = (uint32_t) val;
-    rank = i + 1;
-  }
-
-  for (; i < NNS_TENSOR_RANK_LIMIT; i++)
-    dim[i] = 1;
-
-  g_strfreev (strv);
-  g_free (dim_string);
-  return rank;
-}
-
-/**
- * @brief Get dimension string from given tensor dimension.
- * @param dim tensor dimension
- * @return Formatted string of given dimension (d1:d2:d3:d4).
- * @note The returned value should be freed with g_free()
- */
-gchar *
-gst_tensor_get_dimension_string (const tensor_dim dim)
-{
-  guint i;
-  GString *dim_str;
-
-  dim_str = g_string_new (NULL);
-
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-    g_string_append_printf (dim_str, "%d", dim[i]);
-
-    if (i < NNS_TENSOR_RANK_LIMIT - 1) {
-      g_string_append (dim_str, ":");
+    if (gst_structure_has_field (structure, "type")) {
+      const gchar *type_str = gst_structure_get_string (structure, "type");
+      config->info.info[0].type = gst_tensor_get_type (type_str);
     }
-  }
+  } else if (g_str_equal (name, NNS_MIMETYPE_TENSORS)) {
+    if (gst_structure_has_field (structure, "format")) {
+      const gchar *format_str;
 
-  return g_string_free (dim_str, FALSE);
-}
+      format_str = gst_structure_get_string (structure, "format");
+      format = gst_tensor_get_format (format_str);
 
-/**
- * @brief Get dimension string from given tensor dimension and rank count.
- * @param dim tensor dimension
- * @param rank rank count of given tensor dimension
- * @return Formatted string of given dimension
- * @note If rank count is 3, then returned string is 'd1:d2:d3`.
- * The returned value should be freed with g_free().
- */
-gchar *
-gst_tensor_get_rank_dimension_string (const tensor_dim dim,
-    const unsigned int rank)
-{
-  guint i;
-  GString *dim_str;
-  guint actual_rank;
-
-  dim_str = g_string_new (NULL);
-
-  if (rank == 0 || rank > NNS_TENSOR_RANK_LIMIT)
-    actual_rank = NNS_TENSOR_RANK_LIMIT;
-  else
-    actual_rank = rank;
-
-  for (i = 0; i < actual_rank; i++) {
-    g_string_append_printf (dim_str, "%d", dim[i]);
-
-    if (i < actual_rank - 1) {
-      g_string_append (dim_str, ":");
-    }
-  }
-
-  return g_string_free (dim_str, FALSE);
-}
-
-/**
- * @brief Count the number of elements of a tensor
- * @return The number of elements. 0 if error.
- * @param dim The tensor dimension
- */
-gulong
-gst_tensor_get_element_count (const tensor_dim dim)
-{
-  gulong count = 1;
-  guint i;
-
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-    count *= dim[i];
-  }
-
-  return count;
-}
-
-/**
- * @brief Get element size of tensor type (byte per element)
- */
-gsize
-gst_tensor_get_element_size (tensor_type type)
-{
-  g_return_val_if_fail (type >= 0 && type <= _NNS_END, 0);
-
-  return tensor_element_size[type];
-}
-
-/**
- * @brief Get tensor type from string input.
- * @return Corresponding tensor_type. _NNS_END if unrecognized value is there.
- * @param typestr The string type name, supposed to be one of tensor_element_typename[]
- */
-tensor_type
-gst_tensor_get_type (const gchar * typestr)
-{
-  gsize size, len;
-  gchar *type_string;
-  tensor_type type = _NNS_END;
-
-  if (typestr == NULL)
-    return _NNS_END;
-
-  /* remove spaces */
-  type_string = g_strdup (typestr);
-  g_strstrip (type_string);
-
-  len = strlen (type_string);
-
-  if (len == 0) {
-    g_free (type_string);
-    return _NNS_END;
-  }
-
-  if (g_regex_match_simple ("^uint(8|16|32|64)$",
-          type_string, G_REGEX_CASELESS, 0)) {
-    size = (gsize) g_ascii_strtoull (&type_string[4], NULL, 10);
-
-    switch (size) {
-      case 8:
-        type = _NNS_UINT8;
-        break;
-      case 16:
-        type = _NNS_UINT16;
-        break;
-      case 32:
-        type = _NNS_UINT32;
-        break;
-      case 64:
-        type = _NNS_UINT64;
-    }
-  } else if (g_regex_match_simple ("^int(8|16|32|64)$",
-          type_string, G_REGEX_CASELESS, 0)) {
-    size = (gsize) g_ascii_strtoull (&type_string[3], NULL, 10);
-
-    switch (size) {
-      case 8:
-        type = _NNS_INT8;
-        break;
-      case 16:
-        type = _NNS_INT16;
-        break;
-      case 32:
-        type = _NNS_INT32;
-        break;
-      case 64:
-        type = _NNS_INT64;
-    }
-  } else if (g_regex_match_simple ("^float(32|64)$",
-          type_string, G_REGEX_CASELESS, 0)) {
-    size = (gsize) g_ascii_strtoull (&type_string[5], NULL, 10);
-
-    switch (size) {
-      case 32:
-        type = _NNS_FLOAT32;
-        break;
-      case 64:
-        type = _NNS_FLOAT64;
-    }
-  }
-
-  g_free (type_string);
-  return type;
-}
-
-/**
- * @brief Get type string of tensor type.
- */
-const gchar *
-gst_tensor_get_type_string (tensor_type type)
-{
-  g_return_val_if_fail (type >= 0 && type <= _NNS_END, NULL);
-
-  return tensor_element_typename[type];
-}
-
-/**
- * @brief Get tensor format from string input.
- * @param format_str The string format name, supposed to be one of tensor_format_name[].
- * @return Corresponding tensor_format. _NNS_TENSOR_FORMAT_END if unrecognized value is there.
- */
-tensor_format
-gst_tensor_get_format (const gchar * format_str)
-{
-  gint idx;
-  tensor_format format = _NNS_TENSOR_FORMAT_END;
-
-  idx = find_key_strv (tensor_format_name, format_str);
-  if (idx >= 0)
-    format = (tensor_format) idx;
-
-  return format;
-}
-
-/**
- * @brief Get tensor format string.
- */
-const gchar *
-gst_tensor_get_format_string (tensor_format format)
-{
-  g_return_val_if_fail (format >= 0 && format <= _NNS_TENSOR_FORMAT_END, NULL);
-
-  return tensor_format_name[format];
-}
-
-/**
- * @brief Macro to check the meta version.
- */
-#define GST_TENSOR_META_VERSION_VALID(v) (((v) & 0xDE000000) == 0xDE000000)
-
-/**
- * @brief Macro to get the version of tensor meta.
- */
-#define GST_TENSOR_META_MAKE_VERSION(major,minor) ((major) << 12 | (minor) | 0xDE000000)
-
-/**
- * @brief The version of tensor meta.
- */
-#define GST_TENSOR_META_VERSION GST_TENSOR_META_MAKE_VERSION(1,0)
-
-/**
- * @brief Macro to check the version of tensor meta.
- */
-#define GST_TENSOR_META_IS_V1(v) (GST_TENSOR_META_VERSION_VALID(v) && (((v) & 0x00FFF000) & GST_TENSOR_META_MAKE_VERSION(1,0)))
-
-/**
- * @brief Initialize the tensor meta info structure.
- * @param[in,out] meta tensor meta structure to be initialized
- */
-void
-gst_tensor_meta_info_init (GstTensorMetaInfo * meta)
-{
-  g_return_if_fail (meta != NULL);
-
-  /* zero-init */
-  memset (meta, 0, sizeof (GstTensorMetaInfo));
-
-  meta->version = GST_TENSOR_META_VERSION;
-  meta->type = _NNS_END;
-  meta->format = _NNS_TENSOR_FORMAT_STATIC;
-  meta->media_type = _NNS_TENSOR;
-}
-
-/**
- * @brief Get the version of tensor meta.
- * @param[in] meta tensor meta structure
- * @param[out] major pointer to get the major version number
- * @param[out] minor pointer to get the minor version number
- */
-void
-gst_tensor_meta_info_get_version (GstTensorMetaInfo * meta,
-    guint * major, guint * minor)
-{
-  g_return_if_fail (meta != NULL);
-  g_return_if_fail (GST_TENSOR_META_VERSION_VALID (meta->version));
-
-  if (major)
-    *major = (meta->version & 0x00FFF000) >> 12;
-
-  if (minor)
-    *minor = (meta->version & 0x00000FFF);
-}
-
-/**
- * @brief Check the meta info is valid.
- * @param[in] meta tensor meta structure
- * @return TRUE if given meta is valid
- */
-gboolean
-gst_tensor_meta_info_validate (GstTensorMetaInfo * meta)
-{
-  guint i;
-
-  g_return_val_if_fail (meta != NULL, FALSE);
-  g_return_val_if_fail (GST_TENSOR_META_VERSION_VALID (meta->version), FALSE);
-
-  if (meta->type >= _NNS_END) {
-    nns_logd ("Failed to validate tensor meta info. type: %s. ",
-        GST_STR_NULL (gst_tensor_get_type_string (meta->type)));
-    return FALSE;
-  }
-
-  for (i = 0; i < NNS_TENSOR_META_RANK_LIMIT; i++) {
-    if (meta->dimension[i] == 0) {
-      if (i == 0) {
-        gchar *dim_str = gst_tensor_get_dimension_string (meta->dimension);
-        nns_logd ("Failed to validate tensor meta info. Given dimension: %s",
-            dim_str);
-        g_free (dim_str);
-        return FALSE;
+      if (format == _NNS_TENSOR_FORMAT_END) {
+        GST_INFO
+            ("Invalid format %s, it should be one of %s. Suppose tensor format is static.",
+            _STR_NULL (format_str), GST_TENSOR_FORMAT_ALL);
+      } else {
+        config->format = format;
       }
-      break;
     }
-  }
 
-  if (meta->format >= _NNS_TENSOR_FORMAT_END) {
-    nns_logd ("Failed to validate tensors meta info. format: %s. ",
-        GST_STR_NULL (gst_tensor_get_format_string (meta->format)));
+    if (config->format == _NNS_TENSOR_FORMAT_STATIC) {
+      gst_structure_get_int (structure, "num_tensors",
+          (gint *) (&config->info.num_tensors));
+
+      if (config->info.num_tensors > NNS_TENSOR_SIZE_LIMIT) {
+        nns_logw ("Invalid param, max size is %d", NNS_TENSOR_SIZE_LIMIT);
+        config->info.num_tensors = NNS_TENSOR_SIZE_LIMIT;
+      }
+
+      /* parse dimensions */
+      if (gst_structure_has_field (structure, "dimensions")) {
+        const gchar *dims_str;
+        guint num_dims;
+
+        dims_str = gst_structure_get_string (structure, "dimensions");
+        num_dims =
+            gst_tensors_info_parse_dimensions_string (&config->info, dims_str);
+
+        if (config->info.num_tensors != num_dims) {
+          nns_logw ("Invalid param, dimensions (%d) tensors (%d)\n",
+              num_dims, config->info.num_tensors);
+        }
+      }
+
+      /* parse types */
+      if (gst_structure_has_field (structure, "types")) {
+        const gchar *types_str;
+        guint num_types;
+
+        types_str = gst_structure_get_string (structure, "types");
+        num_types =
+            gst_tensors_info_parse_types_string (&config->info, types_str);
+
+        if (config->info.num_tensors != num_types) {
+          nns_logw ("Invalid param, types (%d) tensors (%d)\n",
+              num_types, config->info.num_tensors);
+        }
+      }
+    }
+  } else {
+    nns_logw ("Unsupported type = %s\n", name ? name : "Unknown");
     return FALSE;
   }
 
-  if (meta->media_type > _NNS_TENSOR) {
-    nns_logd ("Failed to validate tensor meta info. invalid media type: %d.",
-        meta->media_type);
-    return FALSE;
+  if (gst_structure_has_field (structure, "framerate")) {
+    gst_structure_get_fraction (structure, "framerate", &config->rate_n,
+        &config->rate_d);
   }
 
   return TRUE;
-}
-
-/**
- * @brief Get the header size to handle a tensor meta.
- * @param[in] meta tensor meta structure
- * @return Header size for meta info (0 if meta is invalid)
- */
-gsize
-gst_tensor_meta_info_get_header_size (GstTensorMetaInfo * meta)
-{
-  g_return_val_if_fail (meta != NULL, 0);
-  g_return_val_if_fail (GST_TENSOR_META_VERSION_VALID (meta->version), 0);
-
-  /* return fixed size for meta version */
-  if (GST_TENSOR_META_IS_V1 (meta->version)) {
-    return 128;
-  }
-
-  return 0;
-}
-
-/**
- * @brief Get the data size calculated from tensor meta.
- * @param[in] meta tensor meta structure
- * @return The data size for meta info (0 if meta is invalid)
- */
-gsize
-gst_tensor_meta_info_get_data_size (GstTensorMetaInfo * meta)
-{
-  guint i;
-  gsize dsize;
-
-  g_return_val_if_fail (meta != NULL, 0);
-  g_return_val_if_fail (GST_TENSOR_META_VERSION_VALID (meta->version), 0);
-
-  dsize = gst_tensor_get_element_size (meta->type);
-
-  if (meta->format == _NNS_TENSOR_FORMAT_SPARSE) {
-    return meta->sparse_info.nnz * (dsize + sizeof (guint));
-  }
-
-  for (i = 0; i < NNS_TENSOR_META_RANK_LIMIT; i++) {
-    if (meta->dimension[i] == 0)
-      break;
-
-    dsize *= meta->dimension[i];
-  }
-
-  return (i > 0) ? dsize : 0;
-}
-
-/**
- * @brief Update header from tensor meta.
- * @param[in] meta tensor meta structure
- * @param[out] header pointer to header to be updated
- * @return TRUE if successfully set the header
- * @note User should allocate enough memory for header (see gst_tensor_meta_info_get_header_size()).
- */
-gboolean
-gst_tensor_meta_info_update_header (GstTensorMetaInfo * meta, gpointer header)
-{
-  gsize hsize;
-
-  g_return_val_if_fail (header != NULL, FALSE);
-  g_return_val_if_fail (gst_tensor_meta_info_validate (meta), FALSE);
-
-  hsize = gst_tensor_meta_info_get_header_size (meta);
-
-  memset (header, 0, hsize);
-
-  memcpy (header, meta, sizeof (GstTensorMetaInfo));
-  return TRUE;
-}
-
-/**
- * @brief Parse header and fill the tensor meta.
- * @param[out] meta tensor meta structure to be filled
- * @param[in] header pointer to header to be parsed
- * @return TRUE if successfully set the meta
- */
-gboolean
-gst_tensor_meta_info_parse_header (GstTensorMetaInfo * meta, gpointer header)
-{
-  uint32_t *val = (uint32_t *) header;
-
-  g_return_val_if_fail (header != NULL, FALSE);
-  g_return_val_if_fail (meta != NULL, FALSE);
-
-  gst_tensor_meta_info_init (meta);
-
-  meta->version = val[0];
-  meta->type = val[1];
-  memcpy (meta->dimension, &val[2],
-      sizeof (uint32_t) * NNS_TENSOR_META_RANK_LIMIT);
-  meta->format = val[18];
-  meta->media_type = val[19];
-
-  switch ((tensor_format) meta->format) {
-    case _NNS_TENSOR_FORMAT_SPARSE:
-      meta->sparse_info.nnz = val[20];
-      break;
-    default:
-      break;
-  }
-
-
-  /** @todo update meta info for each version */
-  return gst_tensor_meta_info_validate (meta);
 }
 
 /**
@@ -1785,98 +1308,4 @@ gst_tensor_meta_info_append_header (GstTensorMetaInfo * meta, GstMemory * mem)
   gst_memory_unmap (mem, &old_map);
   gst_memory_unmap (new_mem, &new_map);
   return new_mem;
-}
-
-/**
- * @brief Convert GstTensorMetaInfo structure to GstTensorInfo.
- * @param[in] meta tensor meta structure to be converted
- * @param[out] info GstTensorInfo to be filled
- * @return TRUE if successfully set the info
- */
-gboolean
-gst_tensor_meta_info_convert (GstTensorMetaInfo * meta, GstTensorInfo * info)
-{
-  guint i;
-
-  g_return_val_if_fail (info != NULL, FALSE);
-  g_return_val_if_fail (gst_tensor_meta_info_validate (meta), FALSE);
-
-  gst_tensor_info_init (info);
-
-  info->type = meta->type;
-
-  for (i = 0; i < NNS_TENSOR_META_RANK_LIMIT; i++) {    /* lgtm[cpp/constant-comparison] */
-    if (i >= NNS_TENSOR_RANK_LIMIT) {
-      if (meta->dimension[i] > 0) {
-        nns_loge ("Given meta has invalid dimension (dimension[%u] %u).",
-            i, meta->dimension[i]);
-        nns_loge ("Failed to set info, max rank should be %u.",
-            NNS_TENSOR_RANK_LIMIT);
-        return FALSE;
-      }
-
-      /* tensor-info max rank is NNS_TENSOR_RANK_LIMIT */
-      break;
-    }
-
-    /** @todo handle rank from info.dimension */
-    info->dimension[i] = (meta->dimension[i] > 0) ? meta->dimension[i] : 1;
-  }
-
-  return TRUE;
-}
-
-/**
- * @brief Find the index value of the given key string array
- * @return Corresponding index. Returns -1 if not found.
- * @param strv Null terminated array of gchar *
- * @param key The key string value
- */
-gint
-find_key_strv (const gchar ** strv, const gchar * key)
-{
-  gint cursor = 0;
-
-  if (strv == NULL) {
-    ml_logf_stacktrace
-        ("find_key_strv is called with a null pointer. Possible internal logic errors.\n");
-    return -1;
-  }
-  while (strv[cursor] && key) {
-    if (g_ascii_strcasecmp (strv[cursor], key) == 0)
-      return cursor;
-    cursor++;
-  }
-
-  return -1;                    /* Not Found */
-}
-
-/**
- * @brief Get the version of NNStreamer (string).
- * @return Newly allocated string. The returned string should be freed with g_free().
- */
-gchar *
-nnstreamer_version_string (void)
-{
-  gchar *version;
-
-  version = g_strdup_printf ("NNStreamer %s", VERSION);
-  return version;
-}
-
-/**
- * @brief Get the version of NNStreamer (int, divided).
- * @param[out] major MAJOR.minor.micro, won't set if it's null.
- * @param[out] minor major.MINOR.micro, won't set if it's null.
- * @param[out] micro major.minor.MICRO, won't set if it's null.
- */
-void
-nnstreamer_version_fetch (guint * major, guint * minor, guint * micro)
-{
-  if (major)
-    *major = (NNSTREAMER_VERSION_MAJOR);
-  if (minor)
-    *minor = (NNSTREAMER_VERSION_MINOR);
-  if (micro)
-    *micro = (NNSTREAMER_VERSION_MICRO);
 }

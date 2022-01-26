@@ -26,7 +26,7 @@
 #include <glib.h>
 #include <tensor_filter_custom_easy.h>
 #include <nnstreamer_log.h>
-#include <nnstreamer_plugin_api.h>
+#include <nnstreamer_plugin_api_single.h>
 #include <nnstreamer_subplugin.h>
 #include <nnstreamer_util.h>
 

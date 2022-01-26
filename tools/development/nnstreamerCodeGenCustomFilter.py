@@ -375,6 +375,7 @@ customfilter_install_dir = join_paths(subplugin_install_prefix, 'customfilters')
 glib_dep = dependency('glib-2.0')
 gst_dep = dependency('gstreamer-1.0')
 nnstreamer_dep = dependency('nnstreamer')
+nnstreamer_single_dep = dependency('nnstreamer-single')
 
 {fname}_srcfiles = [
   '{fname}.c'
@@ -387,7 +388,7 @@ endforeach
 
 shared_library('{fname}',
   {fname}_srcfiles_fullpath,
-  dependencies: [glib_dep, gst_dep, nnstreamer_dep],
+  dependencies: [glib_dep, gst_dep, nnstreamer_dep, nnstreamer_single_dep],
   install: true,
   install_dir: customfilter_install_dir
 )
@@ -396,7 +397,7 @@ shared_library('{fname}',
 # This will be supported after fixing #1182.
 # static_library('{fname}',
 #   {fname}_srcfiles_fullpath,
-#   dependencies: [glib_dep, gst_dep, nnstreamer_dep],
+#   dependencies: [glib_dep, gst_dep, nnstreamer_dep, nnstreamer_single_dep],
 #   install: true,
 #   install_dir: {fname}_libdir,
 # )

@@ -28,7 +28,6 @@
 #include <hw_accel.h>
 #include <nnstreamer_log.h>
 #include <nnstreamer_util.h>
-#include <tensor_common.h>
 
 #include "tensor_filter_common.h"
 
@@ -181,7 +180,7 @@ gst_tensor_parse_layout_string (const gchar * layoutstr)
   } else if (g_ascii_strcasecmp (layoutstr, "ANY") == 0) {
     layout = _NNS_LAYOUT_ANY;
   } else {
-    GST_WARNING ("Invalid layout, defaulting to none layout.");
+    nns_logw ("Invalid layout, defaulting to none layout.");
     layout = _NNS_LAYOUT_NONE;
   }
 
@@ -212,7 +211,7 @@ gst_tensors_parse_layouts_string (tensors_layout layout,
     num_layouts = g_strv_length (str_layouts);
 
     if (num_layouts > NNS_TENSOR_SIZE_LIMIT) {
-      GST_WARNING ("Invalid param, layouts (%d) max (%d)\n",
+      nns_logw ("Invalid param, layouts (%d) max (%d)\n",
           num_layouts, NNS_TENSOR_SIZE_LIMIT);
 
       num_layouts = NNS_TENSOR_SIZE_LIMIT;
@@ -1015,11 +1014,6 @@ gst_tensor_filter_common_init_property (GstTensorFilterPrivate * priv)
   priv->silent = TRUE;
   gst_tensors_config_init (&priv->in_config);
   gst_tensors_config_init (&priv->out_config);
-
-  /* init qos properties */
-  priv->prev_ts = GST_CLOCK_TIME_NONE;
-  priv->throttling_delay = 0;
-  priv->throttling_accum = 0;
 }
 
 /**
@@ -1481,7 +1475,7 @@ _gtfc_setprop_DIMENSION (GstTensorFilterPrivate * priv,
     num_dims = g_strv_length (str_dims);
 
     if (num_dims > NNS_TENSOR_SIZE_LIMIT) {
-      GST_WARNING ("Invalid param, dimensions (%d) max (%d)\n",
+      nns_logw ("Invalid param, dimensions (%d) max (%d)\n",
           num_dims, NNS_TENSOR_SIZE_LIMIT);
 
       num_dims = NNS_TENSOR_SIZE_LIMIT;
@@ -2819,8 +2813,12 @@ gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw,
   GstTensorFilterProperties prop;
   const GstTensorFilterFramework *fw;
 
+  if (!name) {
+    nns_logw ("Cannot check hw availability, given framwork name is NULL.");
+
+  }
   if ((fw = nnstreamer_filter_find (name)) == NULL) {
-    nns_logw ("Cannot find sub-plugin for %s.", GST_STR_NULL (name));
+    nns_logw ("Cannot find sub-plugin for %s.", name);
     return FALSE;
   }
 

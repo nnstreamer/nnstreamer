@@ -34,7 +34,7 @@ NNSTREAMER_COMMON_SRCS := \
     $(NNSTREAMER_GST_HOME)/hw_accel.c \
     $(NNSTREAMER_GST_HOME)/nnstreamer_conf.c \
     $(NNSTREAMER_GST_HOME)/nnstreamer_subplugin.c \
-    $(NNSTREAMER_GST_HOME)/tensor_common.c \
+    $(NNSTREAMER_GST_HOME)/tensor_common_single.c \
     $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_common.c \
     $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_custom.c \
     $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter_custom_easy.c \
@@ -46,7 +46,7 @@ NNSTREAMER_COMMON_SRCS := \
 NNSTREAMER_PLUGINS_SRCS := \
     $(NNSTREAMER_GST_HOME)/tensor_data.c \
     $(NNSTREAMER_GST_HOME)/tensor_meta.c \
-    $(NNSTREAMER_GST_HOME)/tensor_common_pipeline.c \
+    $(NNSTREAMER_GST_HOME)/tensor_common.c \
     $(NNSTREAMER_GST_HOME)/registerer/nnstreamer.c \
     $(NNSTREAMER_GST_HOME)/tensor_converter/tensor_converter.c \
     $(NNSTREAMER_GST_HOME)/tensor_crop/tensor_crop.c \

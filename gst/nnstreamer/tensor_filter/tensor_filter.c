@@ -196,11 +196,13 @@ gst_tensor_filter_class_init (GstTensorFilterClass * klass)
 static void
 gst_tensor_filter_init (GstTensorFilter * self)
 {
-  GstTensorFilterPrivate *priv;
-
-  priv = &self->priv;
+  GstTensorFilterPrivate *priv = &self->priv;
 
   gst_tensor_filter_common_init_property (priv);
+  /* init qos properties */
+  self->prev_ts = GST_CLOCK_TIME_NONE;
+  self->throttling_delay = 0;
+  self->throttling_accum = 0;
 }
 
 /**
@@ -434,22 +436,22 @@ gst_tensor_filter_check_throttling_delay (GstBaseTransform * trans,
 
   GST_OBJECT_LOCK (trans);
 
-  if (priv->throttling_delay != 0) {
+  if (self->throttling_delay != 0) {
     GstClockTime curr_ts = GST_BUFFER_PTS (inbuf);
-    GstClockTime prev_ts = priv->prev_ts;
+    GstClockTime prev_ts = self->prev_ts;
 
-    priv->prev_ts = curr_ts;
+    self->prev_ts = curr_ts;
 
     if (GST_CLOCK_TIME_IS_VALID (prev_ts)) {
       GstClockTimeDiff diff = curr_ts - prev_ts;
       GstClockTimeDiff delay;
 
-      priv->throttling_accum += diff;
+      self->throttling_accum += diff;
 
       /* check whether the average latency is longer than throttling delay */
-      delay = MAX (priv->prop.latency * 1000, priv->throttling_delay);
+      delay = MAX (priv->prop.latency * 1000, self->throttling_delay);
 
-      if (priv->throttling_accum < delay) {
+      if (self->throttling_accum < delay) {
         GstClockTimeDiff duration = GST_BUFFER_DURATION (inbuf);        /* original */
         gdouble avg_rate = gst_guint64_to_gdouble (duration) /
             gst_guint64_to_gdouble (delay);
@@ -460,7 +462,7 @@ gst_tensor_filter_check_throttling_delay (GstBaseTransform * trans,
          */
         GstPad *sinkpad = GST_BASE_TRANSFORM_SINK_PAD (&self->element);
         GstEvent *event = gst_event_new_qos (GST_QOS_TYPE_OVERFLOW,
-            avg_rate, (priv->throttling_accum - delay), curr_ts);
+            avg_rate, (self->throttling_accum - delay), curr_ts);
 
         gst_pad_push_event (sinkpad, event);
 
@@ -468,7 +470,7 @@ gst_tensor_filter_check_throttling_delay (GstBaseTransform * trans,
         return TRUE;
       }
 
-      priv->throttling_accum = 0;
+      self->throttling_accum = 0;
     }
   }
 
@@ -1215,11 +1217,7 @@ gst_tensor_filter_sink_event (GstBaseTransform * trans, GstEvent * event)
 static gboolean
 gst_tensor_filter_src_event (GstBaseTransform * trans, GstEvent * event)
 {
-  GstTensorFilter *self;
-  GstTensorFilterPrivate *priv;
-
-  self = GST_TENSOR_FILTER_CAST (trans);
-  priv = &self->priv;
+  GstTensorFilter *self = GST_TENSOR_FILTER_CAST (trans);
 
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_QOS:
@@ -1232,11 +1230,11 @@ gst_tensor_filter_src_event (GstBaseTransform * trans, GstEvent * event)
       if (type == GST_QOS_TYPE_THROTTLE && diff > 0) {
         GST_OBJECT_LOCK (trans);
 
-        if (priv->throttling_delay != 0)
+        if (self->throttling_delay != 0)
           /* set to more tight framerate */
-          priv->throttling_delay = MIN (priv->throttling_delay, diff);
+          self->throttling_delay = MIN (self->throttling_delay, diff);
         else
-          priv->throttling_delay = diff;
+          self->throttling_delay = diff;
 
         GST_OBJECT_UNLOCK (trans);
 

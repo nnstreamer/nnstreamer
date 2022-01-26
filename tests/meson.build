@@ -39,20 +39,19 @@ if gtest_dep.found()
   # Shared library of internal APIs for nnstreamer-gtest
   unittest_util_shared = shared_library('nnstreamer_unittest_util',
     join_paths(meson.current_source_dir(), 'unittest_util.c'),
-    dependencies: nnstreamer_base_deps,
+    dependencies: nnstreamer_dep,
     include_directories: nnstreamer_inc,
     install: get_option('install-test'),
     install_dir: nnstreamer_libdir
   )
   unittest_util_dep = declare_dependency(link_with: unittest_util_shared,
-    dependencies: nnstreamer_base_deps,
+    dependencies: nnstreamer_dep,
     compile_args: ['-DFAKEDLOG=1'],
     include_directories: include_directories('.')
   )
 
   nnstreamer_unittest_deps = [
     unittest_util_dep,
-    nnstreamer_dep,
     nnstreamer_internal_deps,
     glib_dep,
     gst_dep,
