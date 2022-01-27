@@ -382,7 +382,7 @@ TorchCore::processIValue (torch::jit::IValue value, GstTensorMemory *output, uns
 
   /** bring from gpu to cpu */
   if (use_gpu) {
-    output_tensor.to (at::kCPU);
+    output_tensor = output_tensor.to (at::kCPU);
   }
   /** make the memory contiguous for direct access */
   output_tensor = output_tensor.contiguous ();
@@ -436,7 +436,7 @@ TorchCore::invoke (const GstTensorMemory *input, GstTensorMemory *output)
     tensor = torch::from_blob (input[i].data, input_shape, options);
 
     if (use_gpu) {
-      tensor.to (at::kCUDA);
+      tensor = tensor.to (at::kCUDA);
     }
 
     input_feeds.emplace_back (tensor);
