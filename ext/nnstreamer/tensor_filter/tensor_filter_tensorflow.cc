@@ -28,7 +28,7 @@
  */
 
 #include <nnstreamer_log.h>
-#include <nnstreamer_plugin_api.h>
+#include <nnstreamer_plugin_api_single.h>
 #define NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
 #undef NO_ANONYMOUS_NESTED_STRUCT

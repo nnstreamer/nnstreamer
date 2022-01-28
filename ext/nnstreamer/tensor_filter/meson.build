@@ -6,7 +6,7 @@ if nnfw_runtime_support_is_available
     nnstreamer_filter_nnfw_sources += join_paths(meson.current_source_dir(), s)
   endforeach
 
-  nnstreamer_filter_nnfw_deps = nnfw_runtime_support_deps + [glib_dep, gst_dep, nnstreamer_dep]
+  nnstreamer_filter_nnfw_deps = nnfw_runtime_support_deps + [nnstreamer_single_dep]
 
   # Check old function (@todo remove this definition later, nnfw ver >= 1.6.0)
   if not cc.has_header_symbol('nnfw/nnfw.h', 'nnfw_set_input_tensorinfo', dependencies: nnfw_dep)
@@ -96,7 +96,7 @@ if tf_support_is_available
     nnstreamer_filter_tf_sources += join_paths(meson.current_source_dir(), s)
   endforeach
 
-  nnstreamer_filter_tf_deps = tf_support_deps + [glib_dep, gst_dep, nnstreamer_dep]
+  nnstreamer_filter_tf_deps = tf_support_deps + [nnstreamer_single_dep]
   nnstreamer_filter_tf_deps += tf_ver_dep
 
   shared_library('nnstreamer_filter_tensorflow',
@@ -143,7 +143,7 @@ if tflite_support_is_available
     nnstreamer_filter_tflite_sources += join_paths(meson.current_source_dir(), s)
   endforeach
 
-  nnstreamer_filter_tflite_deps = tflite_support_deps + [thread_dep, libdl_dep, glib_dep, gst_dep, nnstreamer_dep]
+  nnstreamer_filter_tflite_deps = tflite_support_deps + [thread_dep, libdl_dep, glib_dep, nnstreamer_single_dep]
 
   # Since tf-1.13, tflite has moved from contrib to core
   tflite_h_prefix='#include <tensorflow/lite/model.h>'
@@ -211,7 +211,7 @@ if tflite2_support_is_available
     nnstreamer_filter_tflite2_sources += join_paths(meson.current_source_dir(), s)
   endforeach
 
-  nnstreamer_filter_tflite2_deps = tflite2_support_deps + [thread_dep, libdl_dep, glib_dep, gst_dep, nnstreamer_dep]
+  nnstreamer_filter_tflite2_deps = tflite2_support_deps + [thread_dep, libdl_dep, nnstreamer_single_dep]
 
   tflite2_compile_args = ['-DTFLITE_SUBPLUGIN_NAME="tensorflow2-lite"']
   tflite2_compile_args += '-DTFLITE_INT8=1'
@@ -259,7 +259,7 @@ if pytorch_support_is_available
     nnstreamer_filter_torch_sources += join_paths(meson.current_source_dir(), s)
   endforeach
 
-  nnstreamer_filter_torch_deps = pytorch_support_deps + [glib_dep, gst_dep, nnstreamer_dep]
+  nnstreamer_filter_torch_deps = pytorch_support_deps + [nnstreamer_single_dep]
 
   # pytorch version
   if pytorch_support_deps[0].version().version_compare('>=1.2.0')
@@ -289,7 +289,7 @@ if caffe2_support_is_available
     nnstreamer_filter_caffe2_sources += join_paths(meson.current_source_dir(), s)
   endforeach
 
-  nnstreamer_filter_caffe2_deps = caffe2_support_deps + [protobuf_dep, glib_dep, gst_dep, nnstreamer_dep]
+  nnstreamer_filter_caffe2_deps = caffe2_support_deps + [protobuf_dep, glib_dep, nnstreamer_single_dep]
 
   shared_library('nnstreamer_filter_caffe2',
     nnstreamer_filter_caffe2_sources,
@@ -366,7 +366,7 @@ if get_option('enable-cppfilter')
 
   nnstreamer_cpp_lib = shared_library('nnstreamer_filter_cpp',
     nnstreamer_filter_cpp_sources,
-    dependencies: [glib_dep, gst_dep, nnstreamer_dep],
+    dependencies: nnstreamer_single_dep,
     install: true,
     install_dir: filter_subplugin_install_dir
   )
@@ -378,7 +378,7 @@ if get_option('enable-cppfilter')
     configuration: nnstreamer_install_conf
   )
   nnstreamer_cpp_dep = declare_dependency(link_with: nnstreamer_cpp_lib,
-    dependencies: [glib_dep, gst_dep, nnstreamer_dep],
+    dependencies: nnstreamer_single_dep,
     include_directories: include_directories('.')
   )
 endif

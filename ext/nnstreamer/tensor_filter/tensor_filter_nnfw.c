@@ -32,7 +32,8 @@
 #include <glib-object.h>
 
 #include <nnstreamer_log.h>
-#include <tensor_common.h>
+#include <errno.h>
+#include <nnstreamer_plugin_api_single.h>
 #define NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
 #undef NO_ANONYMOUS_NESTED_STRUCT
