@@ -9,7 +9,7 @@
 
 #include <gtest/gtest.h>
 #include <glib.h>
-#include <nnstreamer_plugin_api.h>
+#include <nnstreamer_plugin_api_single.h>
 
 #include "../gst/nnstreamer/tensor_filter/tensor_filter_single.h"
 

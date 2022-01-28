@@ -116,7 +116,7 @@ if gtest_dep.found()
     # Run unittest_filter_single
     unittest_filter_single = executable('unittest_filter_single',
       join_paths('nnstreamer_filter_single', 'unittest_filter_single.cc'),
-      dependencies: [nnstreamer_unittest_deps],
+      dependencies: [nnstreamer_single_dep, gtest_dep, lesser_code_quality_accepted_for_unittest_code],
       install: get_option('install-test'),
       install_dir: unittest_install_dir
     )
