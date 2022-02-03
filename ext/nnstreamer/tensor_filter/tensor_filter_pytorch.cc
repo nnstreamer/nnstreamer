@@ -82,7 +82,10 @@ class TorchCore
   bool getTensorTypeToTorch (tensor_type tensorType, torch::Dtype *torchType);
   int validateOutputTensor (at::Tensor output, unsigned int idx);
   int fillTensorDim (torch::autograd::Variable tensor_meta, tensor_dim dim);
-  int processIValue (torch::jit::IValue value, GstTensorMemory *output, unsigned int idx);
+  int processIValue (const torch::jit::IValue &value, GstTensorMemory *output,
+      unsigned int idx);
+  int serializeOutput (const torch::jit::IValue &value, GstTensorMemory *output,
+      unsigned int *idx);
 };
 
 extern "C" { /* accessed by android api */
@@ -310,11 +313,19 @@ TorchCore::validateOutputTensor (const at::Tensor output, unsigned int idx)
   at::Tensor sliced_output = output.slice (0);
   c10::IntArrayRef sliced_output_sizes = sliced_output.sizes ();
 
+  /** if idx is in bounds */
+  if (outputTensorMeta.num_tensors <= idx) {
+    ml_loge ("Invalid output meta: trying to access index %d with total %d tensors. Update the number of outputs to >=%d in the model description",
+        idx, outputTensorMeta.num_tensors, idx + 1);
+    return -1;
+  }
+
   /** when output is a scalar */
   if (tensor_shape[0] == 0) {
     otype = getTensorTypeFromTorch (output.scalar_type ());
     if (outputTensorMeta.info[idx].type != otype) {
-      ml_loge ("Invalid output meta: different type");
+      ml_loge ("Invalid output meta: different type at index %d. Update the type of tensor at index %d to %d tensor_type",
+          idx, idx, otype);
       return -2;
     }
     goto done;
@@ -322,7 +333,8 @@ TorchCore::validateOutputTensor (const at::Tensor output, unsigned int idx)
 
   otype = getTensorTypeFromTorch (sliced_output.scalar_type ());
   if (outputTensorMeta.info[idx].type != otype) {
-    ml_loge ("Invalid output meta: different type");
+    ml_loge ("Invalid output meta: different type at index %d. Update the type of tensor at index %d to %d tensor_type",
+        idx, idx, otype);
     return -2;
   }
 
@@ -333,7 +345,8 @@ TorchCore::validateOutputTensor (const at::Tensor output, unsigned int idx)
   }
 
   if (num_gst_tensor != num_torch_tensor) {
-    ml_loge ("Invalid output meta: different element size");
+    ml_loge ("Invalid output meta: different element size at index %d. Found size %ld while expecting size %ld. Update the tensor shape/size to resolve the error.",
+        idx, num_torch_tensor, num_gst_tensor);
     return -3;
   }
 
@@ -375,7 +388,8 @@ TorchCore::getOutputTensorDim (GstTensorsInfo *info)
  *         -1 if output tensor validation fails.
  */
 int
-TorchCore::processIValue (torch::jit::IValue value, GstTensorMemory *output, unsigned int idx)
+TorchCore::processIValue (
+    const torch::jit::IValue &value, GstTensorMemory *output, unsigned int idx)
 {
   g_assert (value.isTensor ());
   at::Tensor output_tensor = value.toTensor ();
@@ -388,13 +402,68 @@ TorchCore::processIValue (torch::jit::IValue value, GstTensorMemory *output, uns
   output_tensor = output_tensor.contiguous ();
 
   /* validate output tensor once */
-  if (configured < outputTensorMeta.num_tensors && validateOutputTensor (output_tensor, idx)) {
-    ml_loge ("Output Tensor Information is not valid");
+  if (configured < outputTensorMeta.num_tensors
+      && validateOutputTensor (output_tensor, idx)) {
+    ml_loge ("Output Tensor Information at index %d is not valid", idx);
     return -1;
   }
 
   /** @todo avoid this memcpy */
-  std::memcpy (output->data, output_tensor.data_ptr (), output_tensor.nbytes ());
+  std::memcpy (output[idx].data, output_tensor.data_ptr (), output_tensor.nbytes ());
+  return 0;
+}
+
+/**
+ * @brief	serialize and process the output from the invoke
+ * @param[in] value IValue containing the output in tensor form
+ * @param[out] output Output tensor memory
+ * @param[inout] idx index of output
+ * @return 0 if OK. non-zero if error.
+ *         -2 if output tensor validation fails.
+ *         -3 if output is of unsupported format.
+ */
+int
+TorchCore::serializeOutput (
+    const torch::jit::IValue &value, GstTensorMemory *output, unsigned int *idx)
+{
+  /** serialize the output based on its type */
+  if (value.isTensor ()) {
+    if (processIValue (value, output, *idx)) {
+      ml_loge ("Failed to process a tensor. Output Tensor Information is not valid at index %d",
+          *idx);
+      return -2;
+    }
+    (*idx)++;
+  } else if (value.isTuple ()) {
+    auto output_elements = value.toTuple ()->elements ();
+    for (auto element : output_elements) {
+      if (serializeOutput (element, output, idx)) {
+        ml_loge ("Failed to process a tensor tuple. Output Tensor Information is not valid at index %d",
+            *idx);
+        return -2;
+      }
+    }
+#ifdef PYTORCH_VER_ATLEAST_1_2_0
+  } else if (value.isList ()) {
+    c10::ArrayRef<torch::jit::IValue> output_ref_list = value.toListRef ();
+    std::vector<torch::jit::IValue> output_list (
+        output_ref_list.begin (), output_ref_list.end ());
+#else
+  } else if (value.isGenericList ()) {
+    c10::ArrayRef<torch::jit::IValue> output_list = value.toGenericListRef ();
+#endif
+    for (auto &element : output_list) {
+      if (serializeOutput (element, output, idx)) {
+        ml_loge ("Failed to process a tensor list. Output Tensor Information is not valid at index %d",
+            *idx);
+        return -2;
+      }
+    }
+  } else {
+    ml_loge ("IValue type is not identified (only tensor/tuple/list supported). Update the model output IValue type.");
+    return -3;
+  }
+
   return 0;
 }
 
@@ -464,40 +533,12 @@ TorchCore::invoke (const GstTensorMemory *input, GstTensorMemory *output)
     output_value = model->forward (input_feeds);
   }
 
-  if (output_value.isTensor ()) {
-    g_assert (outputTensorMeta.num_tensors == 1);
-    if (processIValue (output_value, &output[0], 0U)) {
-      ml_loge ("Output Tensor Information is not valid");
-      return -2;
-    }
-  } else if (output_value.isTuple ()) {
-    for (unsigned int idx = 0; idx < output_value.toTuple ()->elements ().size (); ++idx) {
-      if (processIValue (output_value.toTuple ()->elements ()[idx].toTensor (), &output[idx], idx)) {
-        ml_loge ("Output Tensor Information is not valid");
-        return -2;
-      }
-    }
-#ifdef PYTORCH_VER_ATLEAST_1_2_0
-  } else if (output_value.isList ()) {
-    c10::ArrayRef<torch::jit::IValue> output_ref_list = output_value.toListRef ();
-    std::vector<torch::jit::IValue> output_list (
-        output_ref_list.begin (), output_ref_list.end ());
-#else
-  } else if (output_value.isGenericList ()) {
-    c10::ArrayRef<torch::jit::IValue> output_list = output_value.toGenericListRef ();
-#endif
-    g_assert (outputTensorMeta.num_tensors == output_list.size ());
-    unsigned int idx = 0;
-    for (auto &ivalue_element : output_list) {
-      if (processIValue (ivalue_element, &output[idx], idx)) {
-        ml_loge ("Output Tensor Information is not valid");
-        return -2;
-      }
-      ++idx;
-    }
-  } else {
-    ml_loge ("Output is not a tensor.");
-    return -3;
+  unsigned int idx = 0;
+  int retval = serializeOutput (output_value, output, &idx);
+  if (retval) {
+    ml_loge ("Error %d: failed to serialize the output of the model at index %d.",
+        retval, idx);
+    return retval;
   }
 
 #if (DBG)
