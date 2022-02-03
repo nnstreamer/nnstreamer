@@ -185,9 +185,9 @@ gst_mqtt_src_init (GstMqttSrc * self)
   self->mqtt_host_port = g_strdup (DEFAULT_MQTT_HOST_PORT);
   self->mqtt_topic = NULL;
   self->mqtt_sub_timeout = (gint64) DEFAULT_MQTT_SUB_TIMEOUT;
+  self->mqtt_conn_opts = conn_opts;
   self->mqtt_conn_opts.cleansession = DEFAULT_MQTT_OPT_CLEANSESSION;
   self->mqtt_conn_opts.keepAliveInterval = DEFAULT_MQTT_OPT_KEEP_ALIVE_INTERVAL;
-  self->mqtt_conn_opts = conn_opts;
   self->mqtt_conn_opts.onSuccess = cb_mqtt_on_connect;
   self->mqtt_conn_opts.onFailure = cb_mqtt_on_connect_failure;
   self->mqtt_conn_opts.context = self;
