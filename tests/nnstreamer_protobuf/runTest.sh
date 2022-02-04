@@ -32,6 +32,24 @@ convertBMP2PNG
 
 PATH_TO_PLUGIN="../../build"
 
+if [[ -d $PATH_TO_PLUGIN ]]; then
+    ini_path="${PATH_TO_PLUGIN}/ext/nnstreamer/extra"
+    if [[ -d ${ini_path} ]]; then
+        check=$(ls ${ini_path} | grep protobuf.so)
+        if [[ ! $check ]]; then
+            echo "Cannot find protobuf shared lib"
+            report
+            exit
+        fi
+    else
+        echo "Cannot find ${ini_path}"
+    fi
+else
+    echo "No build directory"
+    report
+    exit
+fi
+
 ##
 ## @brief Execute gstreamer pipeline and compare the output of the pipeline
 ## @param $1 Colorspace
