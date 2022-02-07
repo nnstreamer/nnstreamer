@@ -566,10 +566,6 @@ configure_file(input: 'nnstreamer-internal.pc.in', output: 'nnstreamer-internal.
   install_dir: join_paths(nnstreamer_libdir, 'pkgconfig'),
   configuration: nnstreamer_install_conf
 )
-configure_file(input: 'nnstreamer-single-internal.pc.in', output: 'nnstreamer-single-internal.pc',
-  install_dir: join_paths(nnstreamer_libdir, 'pkgconfig'),
-  configuration: nnstreamer_install_conf
-)
 
 # Check whether mqtt broker is running or not.
 check_mosquitto = run_command ('bash', './tests/check_broker.sh').stdout()

@@ -28,7 +28,7 @@
 #include <glib-object.h>
 #include <errno.h>
 #include <nnstreamer_subplugin.h>
-#include <nnstreamer_plugin_api_single.h>
+#include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_plugin_api_filter.h>
 
 G_BEGIN_DECLS
