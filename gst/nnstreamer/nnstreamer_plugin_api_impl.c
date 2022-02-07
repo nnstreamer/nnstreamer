@@ -1,11 +1,11 @@
 /* SPDX-License-Identifier: LGPL-2.1-only */
 /**
  * NNStreamer Common Header's Contents (pipeline extension)
- * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
+ * Copyright (C) 2020 MyungJoo Ham <myungjoo.ham@samsung.com>
  */
 /**
- * @file	tensor_common.c
- * @date	29 May 2018
+ * @file	nnstreamer_plugin_api_impl.c
+ * @date	14 Apr 2020
  * @brief	Common data for NNStreamer, the GStreamer plugin for neural networks
  * @see		https://github.com/nnstreamer/nnstreamer
  * @author	MyungJoo Ham <myungjoo.ham@samsung.com>

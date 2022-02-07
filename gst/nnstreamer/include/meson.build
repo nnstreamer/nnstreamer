@@ -9,7 +9,7 @@ nnst_common_headers = [
   'nnstreamer_plugin_api_filter.h',
   'nnstreamer_plugin_api_decoder.h',
   'nnstreamer_plugin_api_converter.h',
-  'nnstreamer_plugin_api_single.h',
+  'nnstreamer_plugin_api_util.h',
   'nnstreamer_plugin_api.h',
   'nnstreamer_util.h'
 ]

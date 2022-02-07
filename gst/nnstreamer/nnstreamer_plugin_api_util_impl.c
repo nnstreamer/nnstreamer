@@ -2,7 +2,7 @@
 /**
  * Copyright (c) 2022 Samsung Electronics Co., Ltd. All Rights Reserved.
  *
- * @file tensor_common_single.c
+ * @file nnstreamer_plugin_api_util_impl.c
  * @date 28 Jan 2022
  * @brief Tensor common util fucntions for NNStreamer. (No gst dependency)
  * @see	https://github.com/nnstreamer/nnstreamer
@@ -10,7 +10,7 @@
  * @bug No known bugs except for NYI items
  */
 
-#include "nnstreamer_plugin_api_single.h"
+#include "nnstreamer_plugin_api_util.h"
 #include "nnstreamer_log.h"
 
 /**

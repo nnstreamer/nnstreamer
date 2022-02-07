@@ -17,7 +17,7 @@
 /**
  * @file  nnstreamer_plugin_api.h
  * @date  24 Jan 2019
- * @brief Optional/Addtional NNStreamer APIs for sub-plugin writers. (Need Glib)
+ * @brief Optional/Addtional NNStreamer APIs for sub-plugin writers. (Need Gst devel)
  * @see https://github.com/nnstreamer/nnstreamer
  * @author  MyungJoo Ham <myungjoo.ham@samsung.com> and Wook Song <wook16.song@samsung.com>
  * @bug No known bugs except for NYI items
@@ -30,7 +30,7 @@
 #include <gst/gst.h>
 #include <tensor_typedef.h>
 #include <nnstreamer_version.h>
-#include "nnstreamer_plugin_api_single.h"
+#include "nnstreamer_plugin_api_util.h"
 
 G_BEGIN_DECLS
 

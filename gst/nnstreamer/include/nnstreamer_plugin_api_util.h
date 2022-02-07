@@ -1,18 +1,18 @@
 /* SPDX-License-Identifier: LGPL-2.1-only */
 /**
- * NNStreamer API for Tensor_Filter Sub-Plugins
- * Copyright (C) 2021 Gichan Jang <gichan2.jang@samsung.com>
+ * NNStreamer Common API Header for Plug-Ins
+ * Copyright (C) 2022 Gichan Jang <gichan2.jang@samsung.com>
  */
 /**
- * @file  nnstreamer_plugin_api_single.h
+ * @file  nnstreamer_plugin_api_util.h
  * @date  28 Jan 2022
- * @brief Optional/Addtional NNStreamer Single-shot APIs for sub-plugin writers. (Need Gst Devel)
+ * @brief Optional/Addtional NNStreamer APIs for sub-plugin writers. (No Gst dep)
  * @see https://github.com/nnstreamer/nnstreamer
  * @author Gichan Jang <myungjoo.ham@samsung.com>
  * @bug No known bugs except for NYI items
  */
-#ifndef __NNS_PLUGIN_API_SINGLE_H__
-#define __NNS_PLUGIN_API_SINGLE_H__
+#ifndef __NNS_PLUGIN_API_UTIL_H__
+#define __NNS_PLUGIN_API_UTIL_H__
 
 #include <glib.h>
 #include <tensor_typedef.h>
@@ -413,4 +413,4 @@ extern void
 nnstreamer_version_fetch (guint * major, guint * minor, guint * micro);
 
 G_END_DECLS
-#endif /* __NNS_PLUGIN_API_SINGLE_H__ */
+#endif /* __NNS_PLUGIN_API_UTIL_H__ */
