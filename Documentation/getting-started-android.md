@@ -15,7 +15,7 @@ We assume that you already have experienced Android application developments wit
    * Android Studio: Ubuntu version
    * Android SDK: Min version 28 (Pie)
    * Android NDK: Use default ndk-bundle in Android Studio **( < 22.0 )**
-   * GStreamer: gstreamer-1.0-android-universal-1.16.2
+   * GStreamer: gstreamer-1.0-android-universal-1.20.0
 
 ## Build library
 
@@ -104,8 +104,8 @@ You can get the prebuilt GStreamer binaries from [here](https://gstreamer.freede
 For example,
 ```bash
 $ cd $ANDROID_DEV_ROOT/gstreamer-1.0
-$ curl -O https://gstreamer.freedesktop.org/data/pkg/android/1.16.2/gstreamer-1.0-android-universal-1.16.2.tar.xz
-$ tar xJf gstreamer-1.0-android-universal-1.16.2.tar.xz
+$ curl -O https://gstreamer.freedesktop.org/data/pkg/android/1.20.0/gstreamer-1.0-android-universal-1.20.0.tar.xz
+$ tar xJf gstreamer-1.0-android-universal-1.20.0.tar.xz
 ```
 
 ### Download NNStreamer source code and ML API source code
