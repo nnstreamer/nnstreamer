@@ -110,8 +110,8 @@ _mvncsdk2_open (const GstTensorFilterProperties * prop, void **private_data)
   struct ncGraphHandle_t *handle_graph = NULL;
   struct ncTensorDescriptor_t tensor_desc_input;
   struct ncTensorDescriptor_t tensor_desc_output;
-  struct ncFifoHandle_t *handle_fifo_input;
-  struct ncFifoHandle_t *handle_fifo_output;
+  struct ncFifoHandle_t *handle_fifo_input = NULL;
+  struct ncFifoHandle_t *handle_fifo_output = NULL;
   ncStatus_t ret_code;
   /* Normal variables */
   GMappedFile *file_model = NULL;

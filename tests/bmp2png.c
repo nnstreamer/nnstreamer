@@ -255,6 +255,7 @@ main (int argc, char *argv[])
   bmp.height = height;
 
   bmp.pixels = calloc (bmp.width * bmp.height, sizeof (pixel_t));
+  g_assert (bmp.pixels != NULL);
 
   for (y = (int) height - 1; y >= 0; y--) {
     for (x = 0; x < (int) width; x++) {
