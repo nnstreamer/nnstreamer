@@ -178,6 +178,7 @@ gst_mqtt_src_init (GstMqttSrc * self)
   gst_base_src_set_async (basesrc, FALSE);
 
   /** init mqttsrc properties */
+  self->mqtt_client_handle = NULL;
   self->debug = DEFAULT_DEBUG;
   self->is_live = DEFAULT_IS_LIVE;
   self->mqtt_client_id = g_strdup (DEFAULT_MQTT_CLIENT_ID);
@@ -409,7 +410,11 @@ gst_mqtt_src_class_finalize (GObject * object)
   GstMqttSrc *self = GST_MQTT_SRC (object);
   GstBuffer *remained;
 
-  g_free (self->mqtt_client_handle);
+  if (self->mqtt_client_handle) {
+    MQTTAsync_destroy (&self->mqtt_client_handle);
+    self->mqtt_client_handle = NULL;
+  }
+
   g_free (self->mqtt_client_id);
   g_free (self->mqtt_host_address);
   g_free (self->mqtt_host_port);
@@ -567,6 +572,7 @@ gst_mqtt_src_start (GstBaseSrc * basesrc)
 
 error:
   MQTTAsync_destroy (&self->mqtt_client_handle);
+  self->mqtt_client_handle = NULL;
   return FALSE;
 }
 
@@ -584,7 +590,7 @@ gst_mqtt_src_stop (GstBaseSrc * basesrc)
   self->is_connected = FALSE;
   g_mutex_unlock (&self->mqtt_src_mutex);
   MQTTAsync_destroy (&self->mqtt_client_handle);
-
+  self->mqtt_client_handle = NULL;
   return TRUE;
 }
 

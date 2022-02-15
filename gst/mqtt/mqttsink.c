@@ -175,6 +175,7 @@ gst_mqtt_sink_init (GstMqttSink * self)
   MQTTAsync_responseOptions respn_opts = MQTTAsync_responseOptions_initializer;
 
   /** init MQTT related variables */
+  self->mqtt_client_handle = NULL;
   self->mqtt_conn_opts = conn_opts;
   self->mqtt_conn_opts.onSuccess = cb_mqtt_on_connect;
   self->mqtt_conn_opts.onFailure = cb_mqtt_on_connect_failure;
@@ -458,8 +459,10 @@ gst_mqtt_sink_class_finalize (GObject * object)
   self->mqtt_host_address = NULL;
   g_free (self->mqtt_host_port);
   self->mqtt_host_port = NULL;
-  g_free (self->mqtt_client_handle);
-  self->mqtt_client_handle = NULL;
+  if (self->mqtt_client_handle) {
+    MQTTAsync_destroy (&self->mqtt_client_handle);
+    self->mqtt_client_handle = NULL;
+  }
   g_free (self->mqtt_client_id);
   self->mqtt_client_id = NULL;
   g_free (self->mqtt_msg_buf);
@@ -610,6 +613,7 @@ gst_mqtt_sink_start (GstBaseSink * basesink)
 
 error:
   MQTTAsync_destroy (&self->mqtt_client_handle);
+  self->mqtt_client_handle = NULL;
   return FALSE;
 }
 
@@ -647,7 +651,7 @@ gst_mqtt_sink_stop (GstBaseSink * basesink)
       break;
   }
   MQTTAsync_destroy (&self->mqtt_client_handle);
-
+  self->mqtt_client_handle = NULL;
   return TRUE;
 }
 
