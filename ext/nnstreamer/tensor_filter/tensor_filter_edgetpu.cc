@@ -271,6 +271,13 @@ edgetpu_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 
   assert (model_path == nullptr);
 
+  if (!g_file_test (prop->model_files[0], G_FILE_TEST_IS_REGULAR)) {
+    const std::string err_msg = "Given file " + (std::string) prop->model_files[0] + " is not valid";
+    std::cerr << err_msg << std::endl;
+    cleanup ();
+    throw std::invalid_argument (err_msg);
+  }
+
   model_path = g_strdup (prop->model_files[0]);
 
   /** Read a model */
