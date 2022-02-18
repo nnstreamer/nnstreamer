@@ -14,6 +14,7 @@
 #include <gst/gst.h>
 #include <unittest_util.h>
 
+#include <tensor_common.h>
 #include <nnstreamer_plugin_api_filter.h>
 #include <nnstreamer_util.h>
 
@@ -178,6 +179,8 @@ TEST (nnstreamerFilterTvm, getModelInfo00)
   EXPECT_EQ (out_info.info[0].type, _NNS_FLOAT32);
 
   sp->close (&prop, &data);
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
   g_free (model_file);
 }
 
