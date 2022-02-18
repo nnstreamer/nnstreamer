@@ -93,6 +93,8 @@ TEST (nnstreamerFilterSnpe, getModelInfo00)
   EXPECT_EQ (out_info.info[0].type, _NNS_FLOAT32);
 
   sp->close (&prop, &data);
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
   g_free (model_file);
 }
 

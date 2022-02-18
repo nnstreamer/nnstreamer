@@ -347,6 +347,8 @@ TEST (nnstreamerFilterLua, getModelInfo00)
   EXPECT_EQ (out_info.info[0].type, _NNS_UINT8);
 
   sp->close (&prop, &data);
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
   g_free (model_file);
 }
 
@@ -523,7 +525,7 @@ TEST (nnstreamerFilterLua, invoke02_n)
   output.data = g_malloc (output.size);
   ((float *) input.data)[0] = 10.0;
 
-  /* unsucessful invoke with NULL priv_data */
+  /* unsuccessful invoke with NULL priv_data */
   ret = sp->invoke (NULL, NULL, NULL, &input, &output);
   EXPECT_NE (ret, 0);
 
@@ -719,7 +721,7 @@ TEST (nnstreamerFilterLua, reload00)
 
   gchar *model_file2 = g_build_filename (
       root_path, "tests", "test_models", "models", "scaler.lua", NULL);
-  ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
+  ASSERT_TRUE (g_file_test (model_file2, G_FILE_TEST_EXISTS));
 
   const gchar *model_files2[] = {
     model_file2,
@@ -790,6 +792,7 @@ TEST (nnstreamerFilterLua, reload00)
 
 
   g_free (model_file);
+  g_free (model_file2);
   g_free (input.data);
   g_free (output.data);
   sp->close (&prop, &data);
