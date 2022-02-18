@@ -79,6 +79,7 @@ extern "C" {
 
 #include <glib.h>
 #include <string>
+#include <memory>
 #include <nnstreamer_cppplugin_api_filter.hh>
 #include <nnstreamer_log.h>
 #include <nnstreamer_util.h>
@@ -151,7 +152,7 @@ tensor_index (lua_State *L)
       value = (double) ((uint64_t *) lt->data)[tidx];
       break;
     default:
-      throw std::runtime_error ("Error occured during get tensor value");
+      throw std::runtime_error ("Error occurred during get tensor value");
       break;
   }
 
@@ -216,7 +217,7 @@ tensor_newindex (lua_State* L)
       break;
     }
     default:
-      throw std::runtime_error ("Error occured during set tensor value");
+      throw std::runtime_error ("Error occurred during set tensor value");
       break;
   }
 
@@ -372,7 +373,7 @@ lua_subplugin::setTensorsInfo (GstTensorsInfo &tensors_info)
         lua_gettable (L, -2);
         tensors_info.info[j - 1].type = gst_tensor_get_type (lua_tostring (L, -1));
         if (tensors_info.info[j - 1].type == _NNS_END)
-          throw std::invalid_argument ("Failed to parse `type`. Possibile types are " GST_TENSOR_TYPE_ALL);
+          throw std::invalid_argument ("Failed to parse `type`. Possible types are " GST_TENSOR_TYPE_ALL);
         lua_pop (L, 1);
       }
     } else {
@@ -434,8 +435,10 @@ lua_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 
   if (!g_file_test (prop->model_files[0], G_FILE_TEST_EXISTS)) {
     nns_logi ("Given model file does not exist. Do script mode.");
-    std::string script = g_strjoinv (",", (gchar **) prop->model_files);
-    if (luaL_dostring (L, script.c_str ()) != 0) {
+    gchar *script = g_strjoinv (",", (gchar **) prop->model_files);
+    std::unique_ptr<gchar, decltype (&g_free)> script_ptr (
+        std::move (script), g_free);
+    if (luaL_dostring (L, script_ptr.get ()) != 0) {
       throw std::invalid_argument (std::string ("Failed to run given Lua script. Error message: ") +
           lua_tostring (L, -1));
     }
