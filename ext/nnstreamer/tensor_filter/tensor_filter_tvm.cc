@@ -213,6 +213,13 @@ tvm_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     cleanup ();
   }
 
+  if (!g_file_test (prop->model_files[0], G_FILE_TEST_IS_REGULAR)) {
+    const std::string err_msg = "Given file " + (std::string) prop->model_files[0] + " is not valid";
+    std::cerr << err_msg << std::endl;
+    cleanup ();
+    throw std::invalid_argument (err_msg);
+  }
+
   /* read model */
   model_path = g_strdup (prop->model_files[0]);
   mod_factory = tvm::runtime::Module::LoadFromFile (model_path, "so");
