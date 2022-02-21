@@ -83,6 +83,7 @@
 #include <tensor_typedef.h>
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_log.h>
+#include <nnstreamer_util.h>
 
 #include "tensor_src_tizensensor.h"
 
@@ -469,15 +470,15 @@ gst_tensor_src_tizensensor_init (GstTensorSrcTIZENSENSOR * self)
   gst_base_src_set_dynamic_size (GST_BASE_SRC (self), FALSE);
 
   if (NULL == tizensensors) {
-    int i;
+    int i, sensor_dim;
     tizensensors = g_hash_table_new (g_direct_hash, g_direct_equal);
 
     for (i = 0; tizensensorspecs[i].type != SENSOR_LAST; i++) {
       g_assert (g_hash_table_insert (tizensensors,
               GINT_TO_POINTER (tizensensorspecs[i].type),
               &tizensensorspecs[i].tinfo));
-      g_assert (tizensensorspecs[i].value_count ==
-          tizensensorspecs[i].tinfo.dimension[0]);
+      sensor_dim = tizensensorspecs[i].tinfo.dimension[0];
+      g_assert (tizensensorspecs[i].value_count == sensor_dim);
     }
   }
 }
@@ -1065,6 +1066,7 @@ gst_tensor_src_tizensensor_fixate (GstBaseSrc * src, GstCaps * caps)
 static gboolean
 gst_tensor_src_tizensensor_is_seekable (GstBaseSrc * src)
 {
+  UNUSED (src);
   nns_logd ("tensor_src_tizensensor is not seekable");
   return FALSE;
 }
@@ -1130,7 +1132,7 @@ gst_tensor_src_tizensensor_create (GstBaseSrc * src, guint64 offset,
   GstMemory *mem;
   guint buffer_size;
   GstFlowReturn retval = GST_FLOW_OK;
-
+  UNUSED (size);
   _LOCK (self);
 
   if (!self->configured) {
@@ -1219,7 +1221,8 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
   GstFlowReturn retval = GST_FLOW_OK;
   GstMemory *mem;
   GstMapInfo map;
-
+  int src_dim;
+  UNUSED (offset);
   _LOCK (self);
 
   if (!self->configured) {
@@ -1262,10 +1265,11 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
     }
 
     event = &events[count - 1];
-    if (event->value_count != self->src_spec->dimension[0]) {
+    src_dim = self->src_spec->dimension[0];
+    if (event->value_count != src_dim) {
       GST_ERROR_OBJECT (self,
           "The number of values (%d) mismatches the metadata (%d)",
-          event->value_count, self->src_spec->dimension[0]);
+          event->value_count, src_dim);
       retval = GST_FLOW_ERROR;
       goto exit_unmap;
     }

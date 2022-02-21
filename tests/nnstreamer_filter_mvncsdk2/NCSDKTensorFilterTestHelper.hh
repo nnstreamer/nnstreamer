@@ -69,10 +69,15 @@ typedef enum _fail_stage_t {
 
 typedef uint32_t ncsdk_ver_t[NC_VERSION_MAX_SIZE];
 
+/**
+ * @brief A helper class for testing the NCSDK tensor filter.
+ */
 class NCSDKTensorFilterTestHelper
 {
 public:
-  /* Make this class as a singletone */
+  /**
+   * @brief Make this class as a singletone
+   */
   static NCSDKTensorFilterTestHelper &getInstance () {
     call_once (NCSDKTensorFilterTestHelper::mOnceFlag, []() {
       mInstance.reset(new NCSDKTensorFilterTestHelper);
@@ -84,7 +89,7 @@ public:
   void release ();
   /* Set/Get fail-stage */
   void setFailStage (const fail_stage_t stage);
-  const fail_stage_t getFailStage ();
+  fail_stage_t getFailStage ();
 
   /* Mock methods that simulate NCSDK2 APIs */
   /* Mock Global APIs */

@@ -11,6 +11,7 @@
  */
 
 #include "NCSDKTensorFilterTestHelper.hh"
+#include <nnstreamer_util.h>
 
 /* Static member variables for instance management */
 std::unique_ptr<NCSDKTensorFilterTestHelper> NCSDKTensorFilterTestHelper::mInstance;
@@ -143,7 +144,7 @@ NCSDKTensorFilterTestHelper::setFailStage (const fail_stage_t stage)
 /**
  * @brief Get the stage where the NCSDK fails
  */
-const fail_stage_t
+fail_stage_t
 NCSDKTensorFilterTestHelper::getFailStage ()
 {
   return this->mFailStage;
@@ -307,6 +308,7 @@ ncStatus_t
 NCSDKTensorFilterTestHelper::ncGraphGetOption (struct ncGraphHandle_t *graphHandle,
     int option, void *data, unsigned int *dataLength)
 {
+  UNUSED (graphHandle);
   switch (option) {
   case NC_RO_GRAPH_INPUT_TENSOR_DESCRIPTORS:
     if (this->mFailStage == fail_stage_t::FAIL_GRAPH_GET_INPUT_TENSOR_DESC) {
@@ -343,6 +345,11 @@ NCSDKTensorFilterTestHelper::ncGraphQueueInference (struct ncGraphHandle_t *grap
     struct ncFifoHandle_t **fifoIn, unsigned int inFifoCount,
     struct ncFifoHandle_t **fifoOut, unsigned int outFifoCount)
 {
+  UNUSED (graphHandle);
+  UNUSED (fifoIn);
+  UNUSED (inFifoCount);
+  UNUSED (fifoOut);
+  UNUSED (outFifoCount);
   if (this->mFailStage == fail_stage_t::FAIL_GRAPH_Q_INFER) {
     return NC_ERROR;
   }
@@ -381,6 +388,8 @@ ncStatus_t
 NCSDKTensorFilterTestHelper::ncFifoCreate (
     const char *name, ncFifoType_t type, struct ncFifoHandle_t **fifoHandle)
 {
+  UNUSED (type);
+  UNUSED (fifoHandle);
   if ((this->mFailStage == fail_stage_t::FAIL_FIFO_CREATE_INPUT)
       && !g_strcmp0 (name, NNS_MVNCSDK2_NAME_INPUT_FIFO)) {
     return NC_ERROR;
@@ -400,6 +409,9 @@ NCSDKTensorFilterTestHelper::ncFifoAllocate (struct ncFifoHandle_t *fifoHandle,
     struct ncDeviceHandle_t *device, struct ncTensorDescriptor_t *tensorDesc,
     unsigned int numElem)
 {
+  UNUSED (fifoHandle);
+  UNUSED (device);
+  UNUSED (numElem);
   if ((this->mFailStage == fail_stage_t::FAIL_FIFO_ALLOC_INPUT)
       && (compareTensorDesc (*tensorDesc, *(this->mTensorDescInput)))) {
     return NC_ERROR;
@@ -418,6 +430,10 @@ ncStatus_t
 NCSDKTensorFilterTestHelper::ncFifoSetOption (struct ncFifoHandle_t *fifoHandle,
     int option, const void *data, unsigned int dataLength)
 {
+  UNUSED (fifoHandle);
+  UNUSED (option);
+  UNUSED (data);
+  UNUSED (dataLength);
   return NC_OK;
 }
 
@@ -428,6 +444,10 @@ ncStatus_t
 NCSDKTensorFilterTestHelper::ncFifoGetOption (struct ncFifoHandle_t *fifoHandle,
     int option, void *data, unsigned int *dataLength)
 {
+  UNUSED (fifoHandle);
+  UNUSED (option);
+  UNUSED (data);
+  UNUSED (dataLength);
   return NC_OK;
 }
 
@@ -437,6 +457,7 @@ NCSDKTensorFilterTestHelper::ncFifoGetOption (struct ncFifoHandle_t *fifoHandle,
 ncStatus_t
 NCSDKTensorFilterTestHelper::ncFifoDestroy (struct ncFifoHandle_t **fifoHandle)
 {
+  UNUSED (fifoHandle);
   return NC_OK;
 }
 
@@ -447,6 +468,10 @@ ncStatus_t
 NCSDKTensorFilterTestHelper::ncFifoWriteElem (struct ncFifoHandle_t *fifoHandle,
     const void *inputTensor, unsigned int *inputTensorLength, void *userParam)
 {
+  UNUSED (fifoHandle);
+  UNUSED (inputTensor);
+  UNUSED (inputTensorLength);
+  UNUSED (userParam);
   if (this->mFailStage == fail_stage_t::FAIL_FIFO_WRT_ELEM) {
     return NC_ERROR;
   }
@@ -461,6 +486,10 @@ ncStatus_t
 NCSDKTensorFilterTestHelper::ncFifoReadElem (struct ncFifoHandle_t *fifoHandle,
     void *outputData, unsigned int *outputDataLen, void **userParam)
 {
+  UNUSED (fifoHandle);
+  UNUSED (outputData);
+  UNUSED (outputDataLen);
+  UNUSED (userParam);
   if (this->mFailStage == fail_stage_t::FAIL_FIFO_RD_ELEM) {
     return NC_ERROR;
   }
@@ -474,6 +503,7 @@ NCSDKTensorFilterTestHelper::ncFifoReadElem (struct ncFifoHandle_t *fifoHandle,
 ncStatus_t
 NCSDKTensorFilterTestHelper::ncFifoRemoveElem (struct ncFifoHandle_t *fifoHandle)
 {
+  UNUSED (fifoHandle);
   if (this->mFailStage == fail_stage_t::FAIL_FIFO_RM_ELEM) {
     return NC_ERROR;
   }
