@@ -1,6 +1,6 @@
 unittest_mvncsdk_helper = shared_library('mvncsdk_test',
   ['NCSDKTensorFilterTestHelper.cc'],
-  dependencies : [glib_dep, gst_base_dep, gst_dep],
+  dependencies : [glib_dep, gst_base_dep, gst_dep, nnstreamer_unittest_deps],
   install: get_option('install-test'),
   install_dir: nnstreamer_libdir
 )
