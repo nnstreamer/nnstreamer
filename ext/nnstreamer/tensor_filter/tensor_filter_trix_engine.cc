@@ -246,8 +246,8 @@ TensorFilterTRIxEngine::invoke (const GstTensorMemory *input, GstTensorMemory *o
     return;
   }
 
-  input_buffers input_buf = {0};
-  output_buffers output_buf = {0};
+  input_buffers input_buf;
+  output_buffers output_buf;
   /* feed input data to npu-engine */
   feed_input_data (input, &input_buf);
 

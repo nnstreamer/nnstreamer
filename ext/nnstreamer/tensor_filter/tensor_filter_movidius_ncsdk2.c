@@ -32,6 +32,7 @@
 #include <gst/gst.h>
 #include <mvnc2/mvnc.h>
 #include <nnstreamer_log.h>
+#include <nnstreamer_util.h>
 #define NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
 #undef NO_ANONYMOUS_NESTED_STRUCT
@@ -84,6 +85,7 @@ static void
 _mvncsdk2_close (const GstTensorFilterProperties * prop, void **private_data)
 {
   mvncsdk2_data *pdata = *private_data;
+  UNUSED (prop);
 
   if (pdata != NULL) {
     ncGraphDestroy (&(pdata->handle_graph));
@@ -367,6 +369,7 @@ _mvncsdk2_getInputDim (const GstTensorFilterProperties * prop,
   mvncsdk2_data *pdata = *private_data;
   struct ncTensorDescriptor_t *nc_input_desc = &(pdata->tensor_desc_input);
   GstTensorInfo *nns_input_tensor_info;
+  UNUSED (prop);
 
   /** MVNCSDK only supports one tensor at a time */
   info->num_tensors = NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED;
@@ -400,6 +403,7 @@ _mvncsdk2_getOutputDim (const GstTensorFilterProperties * prop,
   mvncsdk2_data *pdata = *private_data;
   struct ncTensorDescriptor_t *nc_output_desc = &(pdata->tensor_desc_output);
   GstTensorInfo *nns_output_info;
+  UNUSED (prop);
 
   /** MVNCSDK only supports one tensor at a time */
   info->num_tensors = NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED;
