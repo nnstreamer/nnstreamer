@@ -105,6 +105,7 @@
 %define		mqtt_support 0
 %define		tvm_support 0
 %define		snpe_support 0
+%define		trix_engine_support 0
 %endif
 
 # DA requested to remove unnecessary module builds
