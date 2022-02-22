@@ -614,7 +614,10 @@ gst_tensors_info_get_types_string (const GstTensorsInfo * info)
     GString *types = g_string_new (NULL);
 
     for (i = 0; i < info->num_tensors; i++) {
-      g_string_append (types, gst_tensor_get_type_string (info->info[i].type));
+      if (info->info[i].type != _NNS_END) {
+        g_string_append (types,
+            gst_tensor_get_type_string (info->info[i].type));
+      }
 
       if (i < info->num_tensors - 1) {
         g_string_append (types, ",");
