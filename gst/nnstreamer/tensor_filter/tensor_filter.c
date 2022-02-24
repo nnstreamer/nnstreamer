@@ -1001,7 +1001,7 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
           &in_config.info, &out_info);
     }
 
-    /* If output combibation option is given, reconfigure tensor info */
+    /* If output combination option is given, reconfigure tensor info */
     if (configured)
       configured = gst_tensor_filter_common_get_combined_out_info (priv,
           &in_config.info, &out_info, &out_config.info);
@@ -1034,7 +1034,7 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
      */
 
     intersection =
-        gst_caps_intersect_full (filter, result, GST_CAPS_INTERSECT_FIRST);
+        gst_caps_intersect_full (result, filter, GST_CAPS_INTERSECT_FIRST);
 
     gst_caps_unref (result);
     result = intersection;
