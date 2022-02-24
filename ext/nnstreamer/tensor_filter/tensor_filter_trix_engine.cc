@@ -34,7 +34,9 @@ TensorFilterTRIxEngine::TensorFilterTRIxEngine ()
       dev_ (nullptr),
       model_path_ (nullptr),
       model_meta_ (nullptr),
-      model_id_ (0) {
+      model_id_ (0),
+      trix_in_info_ (),
+      trix_out_info_ () {
   gst_tensors_info_init (addressof (nns_in_info_));
   gst_tensors_info_init (addressof (nns_out_info_));
 }
@@ -119,7 +121,7 @@ TensorFilterTRIxEngine::configure_instance (const GstTensorFilterProperties *pro
   }
 
   /* check user-provided output tensor info */
-  if (prop->input_meta.num_tensors == 0) {
+  if (prop->output_meta.num_tensors == 0) {
     nns_out_info_.num_tensors = model_meta_->output_seg_num;
     for (uint32_t i = 0; i < nns_out_info_.num_tensors; i++) {
       nns_out_info_.info[i].type = _NNS_UINT8;
