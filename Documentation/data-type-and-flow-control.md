@@ -4,14 +4,21 @@ title: Data type and flow control
 
 [Rank counting with other/tensor types](rank-counting-with-other-tensor.md)
 
+# Updates with 2.0
+
+The GStreamer pad capabilities of NNStreamer has been updated with NNStreamer 2.0.0.
+The major changes since 1.x include:
+
+- ```other/tensor``` (single tensor) is obsoleted. It will be supported for a while, but it is not recommended to use ```other/tensor```. Use ```other/tensors,num_tensors=1``` instead.
+- ```format = { static, flexible, sparse }``` is added for ```other/tensors```. The conventional ```other/tensors``` corresponds to ```other/tensors,format=static```.
+- ```format = static``` is the default. If the format is not specified and cannot be automatically negotiated and fixed, static is applied.
+
 # GStreamer data types (pad capabilities)
 
-All NNStreamer's GStreamer data types as pad capabilities (```other/tensor*```) have the following common rules
+1. In each buffer, there is only ONE frame. There cannot be a sequence of tensors in each buffer; however, a buffer may have multiple memory chunks with different tensors (multi-tensors, one tensor in each chunk) that are grouped as a set of tensors.
+2. Tensors and their data types do not hold data semantics. Filters should NOT try to determine data semantics (e.g., is it a video?) based solely on the dimensions, framerates, or element types of the data types. However, if a filter has additional information available including property values from pipeline developers or users, a filter may determine data semantics. For example, ```tensor_decoder``` transforms ```other/tensor``` stream into ```video/x-raw``` or ```text/x-raw``` depending on the property values. Such data semantics should be determined (and annotated or defined) by pipeline writers.
 
-1. In each buffer, there is only ONE frame. That is for each buffer, with the type of ```other/tensor```, there is only one instance of tensor for each buffer at any time. There cannot be multiple tensors in each buffer.
-2. The data types do not hold data semantics. Filters should NOT try to determine data semantics (e.g., is it a video?) dynamically based solely on the dimensions, framerates, or element types of the data types. However, if a filter has additional information available including property values from pipeline developers or users, a filter may determine data semantics. For example, ```tensor_decoder``` transforms ```other/tensor``` stream into ```video/x-raw``` or ```text/x-raw``` depending on the property values.
-
-## other/tensor
+# other/tensor (obsolete)
 
 The GStreamer pad capability has the following structure:
 ```
@@ -50,9 +57,9 @@ dim1:dim2
 
 Be careful! Colon-separated tensor dimension expression has the opposite order to the C-array type expression.
 
-## other/tensors
+# other/tensors
 
-```other/tensors``` is defined to have multiple instances of ```other/tensor``` in a buffer of a single stream path. Compared to having multiple streams (thus multiple pads) with ```other/tensor``` that goes to or comes from a single element, having a single stream with ```other/tensors``` has the following advantages:
+```other/tensors,format=static``` is defined to have multiple instances of tensors in a buffer of a single stream path. Compared to having multiple streams (thus multiple pads) with a tensor per stream (e.g., ```other/tensor```) that goes to or comes from a single element, having a single stream with ```other/tensors``` has the following advantages:
 
 - ```tensor_filter```, which is the main engine to communicate deep neural network frameworks and models, becomes simple and robust. With neural network models requiring multiple input tensors, if the input tensor streams are not fully synchronized, we need to somehow synchronize them and provide all input tensors at the same time to the model. Hereby, being fully synchronized means that the streams should provide new data simultaneously, which requires to have the exactly same framerate and timing, which is mostly impossible. With ```other/tensors``` and single input and output streams for ```tensor_filter```, we can delegate the responsibilities of synchronization to GStreamer and its basic plugins, who are extremely good at such tasks.
 - During transmissions on a stream pipeline, passing through various stream filters, we can guarantee that the same set of input tensors are being processed without the worries of synchronizations after the point of merging or muxing.
@@ -60,10 +67,11 @@ Be careful! Colon-separated tensor dimension expression has the opposite order t
 The GStreamer pad capability of ```other/tensors``` is as follows:
 ```
 other/tensors
+    format = {static, flexible, sparse}
     num_tensors = (int) [1, 16]  # GST_MAX_MEMCHUNK_PER_BUFFER
     framerate = (fraction) [0/1, 2147483647/1]
-    types = (string) Typestrings
-    dimensions = (string) Dimensions
+    types = (string) Typestrings # Ignored with flexible and sparse
+    dimensions = (string) Dimensions # Ignored with flexible and sparse
 
 Typestrings = (string) Typestring
             | (string) TypeString, TypeStrings
@@ -73,19 +81,35 @@ Dimensions = (string) Dimension
 Dimension = (string) [1-65535]:[1-65535]:[1-65535]:[1-65535]
 ```
 
+Note that dimension related values are only effective with static or sparse formats.
+With ```format=flexible```, types and dimensions are not effective.
+
 The buffer of ```other/tensors``` streams have multiple memory chunks. Each memory chunk represents one single tensor in the buffer format of ```other/tensor```. With default configurations of Gstreamer 1.0, the maximum allowed number of memory chunks in a buffer is **16**. Thus, with such configurations of Gstreamer 1.0, ```other/tensors``` may include up to **16** ```other/tensor```.
 
-## other/tensors-flexible
+```other/tensors``` is defined to have multiple instances of tensors in a buffer of a single stream path.
+Compared to having multiple streams (thus, multiple pads) with a single tensor that goes or
 
-```other/tensors-flexible``` handles non-static, flexible tensor stream without specifying the data type and shape of tensor in pad capability.
+
+## other/tensors,format=static (default)
+
+```other/tensors,format=static``` is the default mode for ```other/tensors```.
+With static, the properties of ```types``` and ```dimensions``` are effective and the corresponding pads are supposed to have the fixed size of frames.
+To update dimensions and types of a pad, the pipeline needs to re-negotiate the capability, which is usually not trivial.
+
+
+Note that static is supposed to be most efficient and fast format and if you do not have clear needs for the flexibility, it is recommended to use static.
+
+## other/tensors,format=flexible
+
+```other/tensors,format=flexible``` handles non-static, flexible tensor stream without specifying the data type and shape of tensor in pad capability.
 This is useful when an element or a model requires non-determined, dynamic data shape to process the tensors. (e.g., cropping the raw data into multiple tensors)
 
-Unlike ```other/tensor``` and ```other/tensors```, flexible tensor does not contain the data structure in pad capability.
-Instead, flexible tensor has its own data structure - [GstTensorMetaInfo](https://github.com/nnstreamer/nnstreamer/blob/main/gst/nnstreamer/include/tensor_typedef.h) - in each tensor buffer, to prevent caps negotiation with fixed type of data stream.
-When processing a buffer with the capability ```other/tensors-flexible```, developer should append or parse the tensor information in buffer using various [utility functions](https://github.com/nnstreamer/nnstreamer/blob/main/gst/nnstreamer/include/nnstreamer_plugin_api.h).
+Unlike ```other/tensors,format=static```, flexible tensor does not contain the data structure in pad capability; thus, the properties of dimensions and types are ignored.
+An ```other/tensors,format=flexible``` tensor has its meta data - [GstTensorMetaInfo](https://github.com/nnstreamer/nnstreamer/blob/main/gst/nnstreamer/include/tensor_typedef.h) - in each tensor buffer, to prevent caps negotiation with fixed type of data stream.
+When processing a buffer with the capability ```other/tensors,format=flexible```, NNStreamer engine developer (not pipeline or application developers) should append or parse the tensor information in buffer using various [utility functions](https://github.com/nnstreamer/nnstreamer/blob/main/gst/nnstreamer/include/nnstreamer_plugin_api_util.h). Note that there are a few [other functions defined in another header](https://github.com/nnstreamer/nnstreamer/blob/main/gst/nnstreamer/include/nnstreamer_plugin_api.h): appending and parsing headers of GstMemory objects.
 
-The buffer of ```other/tensors-flexible``` may have single memory or multiple memory chunks.
-NNStreamer element with ```other/tensors-flexible``` capability gets the number of memories in a buffer and handles each memory as a tensor.
+The buffer of ```other/tensors,format=flexible``` may have single memory or multiple memory chunks.
+NNStreamer element with ```other/tensors,format=flexible``` capability gets the number of memories in a buffer and handles each memory as a tensor.
 Note that, it also has a limit, the maximum allowed number of memory chunks in a buffer is **16**.
 
 ```
@@ -116,13 +140,13 @@ offset |       0       |       1       |       2       |       3       |
        -----------------------------------------------------------------
 ```
 
-## other/tensorsave (TBU)
+## other/tensors,format=sparse
 
-```other/tensorsave```, along with its ```typefind``` definition, is defined to enable to save ```other/tensors``` streams as files and load such files are ```other/tensors``` stream. With the definitions of headers defined with ```other/tensorsave```, GStreamer can decode the given file and determine that the file belongs to ```other/tensorsave```.
+```other/tensors,format=sparse``` allows to express sparse tensors (tensors with a lot of zeros) efficiently (in terms of memory size) by extending ```other/tensors,format=flexible```.
+In general, nnstreamer elements (tensors-*) do not support sparse tensors unlike static and flexible, although a few tensor-filter subplugins support sparse tensors.
+Sparse tensors exist for efficient transmission and data storing.
 
-The detailed description of the file format is at [Design External Save Format for other/tensor and other/tensors Stream for TypeFind](https://github.com/nnstreamer/nnstreamer/wiki/Design-External-Save-Format-for-other-tensor-and-other-tensors-Stream-for-TypeFind)
-
-
+If your source data streams or sink data streams are to be in sparse tensors, you may apply tensor\_sparse\_[enc|dec] to convert them from/to static tensors.
 
 # Flow control
 
