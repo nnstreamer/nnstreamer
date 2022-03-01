@@ -37,23 +37,31 @@ if [[ -d $PATH_TO_PLUGIN ]]; then
     fi
 else
     echo "No build directory"
-    report
-    exit
+    # Check if module is installed.
+    if python3 -c "import nnstreamer_python" &> /dev/null; then
+        echo 'nnstreamer_python module exists'
+    else
+        echo 'nnstreamer_python module does not exist'
+        report
+        exit
+    fi
 fi
 
 FRAMEWORK="python3"
-# This symlink is necessary only for testcases; when installed, symlinks will be made
-pushd ../../build/ext/nnstreamer/tensor_filter
-TEST_PYTHONPATH=${FRAMEWORK}_pymodule
-mkdir -p ${TEST_PYTHONPATH}
-pushd ${TEST_PYTHONPATH}
-# Covert to an absolute path from the relative path
-export PYTHONPATH=$(pwd)
-if [[ ! -f ./nnstreamer_python.so ]]; then
-  ln -s ../../extra/nnstreamer_${FRAMEWORK}.so nnstreamer_python.so
+if [[ -d ../../build ]]; then
+    # This symlink is necessary only for testcases; when installed, symlinks will be made
+    pushd ../../build/ext/nnstreamer/tensor_filter
+    TEST_PYTHONPATH=${FRAMEWORK}_pymodule
+    mkdir -p ${TEST_PYTHONPATH}
+    pushd ${TEST_PYTHONPATH}
+    # Covert to an absolute path from the relative path
+    export PYTHONPATH=$(pwd)
+    if [[ ! -f ./nnstreamer_python.so ]]; then
+        ln -s ../../extra/nnstreamer_${FRAMEWORK}.so nnstreamer_python.so
+    fi
+    popd
+    popd
 fi
-popd
-popd
 
 # Passthrough test
 PATH_TO_SCRIPT="../test_models/models/passthrough.py"
