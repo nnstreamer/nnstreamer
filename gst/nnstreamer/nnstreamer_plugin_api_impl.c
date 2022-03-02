@@ -216,22 +216,22 @@ gst_tensor_time_sync_flush (GstCollectPads * collect)
 }
 
 /**
- * @brief Common code for both
- *        gst_tensor_time_sync_buffer_from_collectpad_SYNC_*
+ * @brief Internal function to update buffer in pad data based on the sync mode.
  */
 static gboolean
-_gst_tensor_time_sync_buffer_update (GstBuffer ** buf,
-    GstCollectPads * collect, GstCollectData * data,
-    GstClockTime current, GstClockTime base, tensor_time_sync_data * sync)
+_gst_tensor_time_sync_buffer_update (GstCollectPads * collect,
+    GstCollectData * data, GstClockTime current, GstClockTime base,
+    tensor_time_sync_data * sync)
 {
   GstTensorCollectPadData *pad;
+  GstBuffer *buf;
 
   pad = (GstTensorCollectPadData *) data;
 
-  *buf = gst_collect_pads_peek (collect, data);
-  if (*buf != NULL) {
-    if (GST_BUFFER_PTS (*buf) < current) {
-      gst_buffer_unref (*buf);
+  buf = gst_collect_pads_peek (collect, data);
+  if (buf != NULL) {
+    if (GST_BUFFER_PTS (buf) < current) {
+      gst_buffer_unref (buf);
       if (pad->buffer != NULL)
         gst_buffer_unref (pad->buffer);
       pad->buffer = gst_collect_pads_pop (collect, data);
@@ -240,10 +240,10 @@ _gst_tensor_time_sync_buffer_update (GstBuffer ** buf,
 
     if ((sync->mode == SYNC_SLOWEST && pad->buffer != NULL &&
             (ABS (GST_CLOCK_DIFF (current, GST_BUFFER_PTS (pad->buffer))) <
-                ABS (GST_CLOCK_DIFF (current, GST_BUFFER_PTS (*buf))))) ||
+                ABS (GST_CLOCK_DIFF (current, GST_BUFFER_PTS (buf))))) ||
         (sync->mode == SYNC_BASEPAD && pad->buffer != NULL &&
             (((GstClockTime) ABS (GST_CLOCK_DIFF (current,
-                            GST_BUFFER_PTS (*buf)))) > base))) {
+                            GST_BUFFER_PTS (buf)))) > base))) {
       /* keep last buffer */
     } else {
       /* update last buffer */
@@ -252,10 +252,9 @@ _gst_tensor_time_sync_buffer_update (GstBuffer ** buf,
       pad->buffer = gst_collect_pads_pop (collect, data);
     }
 
-    gst_buffer_unref (*buf);
+    gst_buffer_unref (buf);
   }
 
-  *buf = gst_buffer_ref (pad->buffer);
   return TRUE;
 }
 
@@ -354,9 +353,10 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
       case SYNC_SLOWEST:
         /* fall-through */
       case SYNC_BASEPAD:
-        if (!_gst_tensor_time_sync_buffer_update (&buf, collect, data,
+        if (!_gst_tensor_time_sync_buffer_update (collect, data,
                 current_time, base_time, sync))
           return FALSE;
+        buf = gst_buffer_ref (pad->buffer);
         is_empty = (buf == NULL);
         break;
       case SYNC_NOSYNC:
@@ -928,8 +928,6 @@ _peer_is_flexible_tensor_caps (GstPad * pad)
  * @param pad GstPad to get possible caps
  * @param config tensors config structure
  * @return caps for given config. Caller is responsible for unreffing the returned caps.
- * @note This function is included in nnstreamer internal header for native APIs.
- *       When changing the declaration, you should update the internal header (nnstreamer_internal.h).
  */
 GstCaps *
 gst_tensor_pad_caps_from_config (GstPad * pad, const GstTensorsConfig * config)
@@ -983,8 +981,6 @@ done:
  * @param pad GstPad to get possible caps
  * @param config tensors config structure
  * @return caps for given config. Caller is responsible for unreffing the returned caps.
- * @note This function is included in nnstreamer internal header for native APIs.
- *       When changing the declaration, you should update the internal header (nnstreamer_internal.h).
  */
 GstCaps *
 gst_tensor_pad_possible_caps_from_config (GstPad * pad,
@@ -1040,8 +1036,6 @@ gst_tensor_pad_possible_caps_from_config (GstPad * pad,
  * @brief Check current pad caps is flexible tensor.
  * @param pad GstPad to check current caps
  * @return TRUE if pad has flexible tensor caps.
- * @note This function is included in nnstreamer internal header for native APIs.
- *       When changing the declaration, you should update the internal header (nnstreamer_internal.h).
  */
 gboolean
 gst_tensor_pad_caps_is_flexible (GstPad * pad)

@@ -1,27 +1,16 @@
+/* SPDX-License-Identifier: LGPL-2.1-only */
 /**
  * NNStreamer Common API Header for Plug-Ins
  * Copyright (C) 2019 MyungJoo Ham <myungjoo.ham@samsung.com>
  * Copyright (C) 2019 Wook Song <wook16.song@samsung.com>
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public
- * License as published by the Free Software Foundation;
- * version 2.1 of the License.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
- *
  */
 /**
  * @file  nnstreamer_plugin_api.h
  * @date  24 Jan 2019
- * @brief Optional/Addtional NNStreamer APIs for sub-plugin writers. (Need Gst devel)
+ * @brief Optional/Additional NNStreamer APIs for sub-plugin writers. (Need Gst devel)
  * @see https://github.com/nnstreamer/nnstreamer
  * @author  MyungJoo Ham <myungjoo.ham@samsung.com> and Wook Song <wook16.song@samsung.com>
  * @bug No known bugs except for NYI items
- *
  */
 #ifndef __NNS_PLUGIN_API_H__
 #define __NNS_PLUGIN_API_H__
@@ -30,7 +19,7 @@
 #include <gst/gst.h>
 #include <tensor_typedef.h>
 #include <nnstreamer_version.h>
-#include "nnstreamer_plugin_api_util.h"
+#include <nnstreamer_plugin_api_util.h>
 
 G_BEGIN_DECLS
 
