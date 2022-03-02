@@ -51,14 +51,6 @@ extern media_type
 gst_structure_get_media_type (const GstStructure * structure);
 
 /**
- * @brief Compare tensor config info (for other/tensors)
- * @param TRUE if equal
- */
-extern gboolean
-gst_tensors_config_is_equal (const GstTensorsConfig * c1,
-    const GstTensorsConfig * c2);
-
-/**
  * @brief Parse structure and set tensors config (for other/tensors)
  * @param config tensors config structure to be filled
  * @param structure structure to be interpreted

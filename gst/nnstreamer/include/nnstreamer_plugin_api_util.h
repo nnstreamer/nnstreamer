@@ -220,6 +220,14 @@ extern gboolean
 gst_tensors_config_validate (const GstTensorsConfig * config);
 
 /**
+ * @brief Compare tensor config info (for other/tensors)
+ * @param TRUE if equal
+ */
+extern gboolean
+gst_tensors_config_is_equal (const GstTensorsConfig * c1,
+    const GstTensorsConfig * c2);
+
+/**
  * @brief Copy tensors config
  */
 extern void

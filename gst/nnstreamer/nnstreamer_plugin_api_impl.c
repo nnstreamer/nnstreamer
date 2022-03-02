@@ -847,43 +847,6 @@ gst_structure_get_media_type (const GstStructure * structure)
 }
 
 /**
- * @brief Compare tensor config info
- * @param TRUE if equal
- */
-gboolean
-gst_tensors_config_is_equal (const GstTensorsConfig * c1,
-    const GstTensorsConfig * c2)
-{
-  g_return_val_if_fail (c1 != NULL, FALSE);
-  g_return_val_if_fail (c2 != NULL, FALSE);
-
-  if (!gst_tensors_config_validate (c1) || !gst_tensors_config_validate (c2)) {
-    return FALSE;
-  }
-
-  if (gst_util_fraction_compare (c1->rate_n, c1->rate_d, c2->rate_n,
-          c2->rate_d)) {
-    nns_logd ("Tensors config is not equal. framerate: %d/%d vs %d/%d.",
-        c1->rate_n, c1->rate_d, c2->rate_n, c2->rate_d);
-    return FALSE;
-  }
-
-  if (c1->format != c2->format || c1->format == _NNS_TENSOR_FORMAT_END) {
-    nns_logd ("Tensors config is not equal. format: %s vs %s ",
-        _STR_NULL (gst_tensor_get_format_string (c1->format)),
-        _STR_NULL (gst_tensor_get_format_string (c2->format)));
-    return FALSE;
-  }
-
-  /* cannot compare tensor info when tensor is not static */
-  if (!gst_tensors_config_is_static (c1)) {
-    return TRUE;
-  }
-
-  return gst_tensors_info_is_equal (&c1->info, &c2->info);
-}
-
-/**
  * @brief Parse caps from peer pad and set tensors config.
  * @param pad GstPad to get the capabilities
  * @param config tensors config structure to be filled

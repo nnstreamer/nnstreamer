@@ -2815,7 +2815,7 @@ gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw,
 
   if (!name) {
     nns_logw ("Cannot check hw availability, given framwork name is NULL.");
-
+    return FALSE;
   }
   if ((fw = nnstreamer_filter_find (name)) == NULL) {
     nns_logw ("Cannot find sub-plugin for %s.", name);
