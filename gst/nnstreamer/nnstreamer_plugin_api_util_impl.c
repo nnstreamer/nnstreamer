@@ -59,6 +59,59 @@ static const gchar *tensor_format_name[] = {
 };
 
 /**
+ * @brief Internal function, copied from gst_util_greatest_common_divisor() to remove dependency of gstreamer.
+ */
+static gint
+_gcd (gint a, gint b)
+{
+  while (b != 0) {
+    int temp = a;
+
+    a = b;
+    b = temp % b;
+  }
+
+  return ABS (a);
+}
+
+/**
+ * @brief Internal function, copied from gst_util_fraction_compare() to remove dependency of gstreamer.
+ */
+static gint
+_compare_rate (gint a_n, gint a_d, gint b_n, gint b_d)
+{
+  gint64 new_num_1;
+  gint64 new_num_2;
+  gint gcd;
+
+  g_return_val_if_fail (a_d != 0 && b_d != 0, 0);
+
+  /* Simplify */
+  gcd = _gcd (a_n, a_d);
+  a_n /= gcd;
+  a_d /= gcd;
+
+  gcd = _gcd (b_n, b_d);
+  b_n /= gcd;
+  b_d /= gcd;
+
+  /* fractions are reduced when set, so we can quickly see if they're equal */
+  if (a_n == b_n && a_d == b_d)
+    return 0;
+
+  /* extend to 64 bits */
+  new_num_1 = ((gint64) a_n) * b_d;
+  new_num_2 = ((gint64) b_n) * a_d;
+  if (new_num_1 < new_num_2)
+    return -1;
+  if (new_num_1 > new_num_2)
+    return 1;
+
+  /* Should not happen because a_d and b_d are not 0 */
+  g_return_val_if_reached (0);
+}
+
+/**
  * @brief Initialize the tensor info structure
  * @param info tensor info structure to be initialized
  */
@@ -669,6 +722,42 @@ gst_tensors_config_validate (const GstTensorsConfig * config)
   }
 
   return gst_tensors_info_validate (&config->info);
+}
+
+/**
+ * @brief Compare tensor config info
+ * @param TRUE if equal
+ */
+gboolean
+gst_tensors_config_is_equal (const GstTensorsConfig * c1,
+    const GstTensorsConfig * c2)
+{
+  g_return_val_if_fail (c1 != NULL, FALSE);
+  g_return_val_if_fail (c2 != NULL, FALSE);
+
+  if (!gst_tensors_config_validate (c1) || !gst_tensors_config_validate (c2)) {
+    return FALSE;
+  }
+
+  if (_compare_rate (c1->rate_n, c1->rate_d, c2->rate_n, c2->rate_d)) {
+    nns_logd ("Tensors config is not equal. framerate: %d/%d vs %d/%d.",
+        c1->rate_n, c1->rate_d, c2->rate_n, c2->rate_d);
+    return FALSE;
+  }
+
+  if (c1->format != c2->format || c1->format == _NNS_TENSOR_FORMAT_END) {
+    nns_logd ("Tensors config is not equal. format: %s vs %s ",
+        _STR_NULL (gst_tensor_get_format_string (c1->format)),
+        _STR_NULL (gst_tensor_get_format_string (c2->format)));
+    return FALSE;
+  }
+
+  /* cannot compare tensor info when tensor is not static */
+  if (!gst_tensors_config_is_static (c1)) {
+    return TRUE;
+  }
+
+  return gst_tensors_info_is_equal (&c1->info, &c2->info);
 }
 
 /**
