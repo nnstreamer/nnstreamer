@@ -183,8 +183,6 @@ gst_tensor_buffer_from_config (GstBuffer * in, GstTensorsConfig * config);
  * @param pad GstPad to get possible caps
  * @param config tensors config structure
  * @return caps for given config. Caller is responsible for unreffing the returned caps.
- * @note This function is included in nnstreamer internal header for native APIs.
- *       When changing the declaration, you should update the internal header (nnstreamer_internal.h).
  */
 extern GstCaps *
 gst_tensor_pad_caps_from_config (GstPad * pad, const GstTensorsConfig * config);
@@ -194,8 +192,6 @@ gst_tensor_pad_caps_from_config (GstPad * pad, const GstTensorsConfig * config);
  * @param pad GstPad to get possible caps
  * @param config tensors config structure
  * @return caps for given config. Caller is responsible for unreffing the returned caps.
- * @note This function is included in nnstreamer internal header for native APIs.
- *       When changing the declaration, you should update the internal header (nnstreamer_internal.h).
  */
 extern GstCaps *
 gst_tensor_pad_possible_caps_from_config (GstPad * pad, const GstTensorsConfig * config);
@@ -204,8 +200,6 @@ gst_tensor_pad_possible_caps_from_config (GstPad * pad, const GstTensorsConfig *
  * @brief Check current pad caps is flexible tensor.
  * @param pad GstPad to check current caps
  * @return TRUE if pad has flexible tensor caps.
- * @note This function is included in nnstreamer internal header for native APIs.
- *       When changing the declaration, you should update the internal header (nnstreamer_internal.h).
  */
 extern gboolean
 gst_tensor_pad_caps_is_flexible (GstPad * pad);

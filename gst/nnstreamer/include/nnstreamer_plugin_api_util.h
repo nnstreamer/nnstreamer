@@ -6,7 +6,7 @@
 /**
  * @file  nnstreamer_plugin_api_util.h
  * @date  28 Jan 2022
- * @brief Optional/Addtional NNStreamer APIs for sub-plugin writers. (No Gst dep)
+ * @brief Optional/Additional NNStreamer APIs for sub-plugin writers. (No Gst dep)
  * @see https://github.com/nnstreamer/nnstreamer
  * @author Gichan Jang <myungjoo.ham@samsung.com>
  * @bug No known bugs except for NYI items

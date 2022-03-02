@@ -1,15 +1,16 @@
-/* SPDX-License-Identifier: Apache-2.0 */
+/* SPDX-License-Identifier: LGPL-2.1-only */
 /**
  * Copyright (c) 2022 Samsung Electronics Co., Ltd. All Rights Reserved.
  *
  * @file nnstreamer_plugin_api_util_impl.c
  * @date 28 Jan 2022
- * @brief Tensor common util fucntions for NNStreamer. (No gst dependency)
+ * @brief Tensor common util functions for NNStreamer. (No gst dependency)
  * @see	https://github.com/nnstreamer/nnstreamer
  * @author Gichan Jang <gichan2.jang@samsung.com>
  * @bug No known bugs except for NYI items
  */
 
+#include <string.h>
 #include "nnstreamer_plugin_api_util.h"
 #include "nnstreamer_log.h"
 
