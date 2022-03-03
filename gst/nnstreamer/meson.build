@@ -92,7 +92,6 @@ endif
 subdir('include')
 
 # Private header for sub-plugins and native APIs
-nnstreamer_headers += join_paths(meson.current_source_dir(), 'nnstreamer_log.h')
 nnstreamer_headers += join_paths(meson.current_source_dir(), 'nnstreamer_internal.h')
 
 nnstreamer_single_shared = shared_library('nnstreamer-single',
