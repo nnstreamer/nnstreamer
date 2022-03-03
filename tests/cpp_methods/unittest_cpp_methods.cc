@@ -62,6 +62,19 @@ TEST (cppFilterOnDemand, basic04_n)
   EXPECT_NE (filter_basic::__unregister ("basic_xx"), 0);
 }
 
+/** @brief Wait until the pipeline saving the file */
+void
+_wait_save_files (const gchar* file, gsize expected_len)
+{
+  gchar *content = NULL;
+  gsize len;
+
+  _wait_pipeline_save_files (file, content, len, expected_len, 1000U);
+
+  g_free (content);
+  content = NULL;
+}
+
 /** @brief Actual GST Pipeline with cpp on demand */
 TEST (cppFilterOnDemand, pipeline01)
 {
@@ -95,7 +108,8 @@ TEST (cppFilterOnDemand, pipeline01)
     EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT),
         0);
 
-    g_usleep (100000);
+    _wait_save_files (tmp1, 480);
+    _wait_save_files (tmp2, 240);
 
     EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
     g_usleep (100000);
@@ -280,9 +294,11 @@ TEST (cppFilterObj, base03)
   if (pipeline) {
     EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT),
         0);
-
-    g_usleep (300000);
-
+    _wait_save_files (tmp1, 480);
+    _wait_save_files (tmp2, 240);
+    _wait_save_files (tmp3, 480);
+    _wait_save_files (tmp4, 7680);
+    _wait_save_files (tmp5, 3840);
     EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
     gst_object_unref (pipeline);
