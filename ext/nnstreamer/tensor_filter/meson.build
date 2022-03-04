@@ -223,9 +223,40 @@ if tflite2_support_is_available
     tflite2_compile_args += '-DUSE_TENSORFLOW2_HEADER_PATH=1'
   endif
 
-  # TODO: tflite v2.8.0+ supports build option for external delegate
-  # remove below option after that.
-  if get_option('tflite2-external-delegate-support')
+  # Check each delegate linking with given tflite library
+  ## xnnpack delegate
+  if cxx.links('''
+        #include "tensorflow/lite/delegates/xnnpack/xnnpack_delegate.h"
+        TfLiteXNNPackDelegateOptions xnnpack_options = TfLiteXNNPackDelegateOptionsDefault ();
+        int main() {return 0;}
+      ''', dependencies : [tflite2_support_deps, thread_dep], name : 'xnnpack delegate')
+    tflite2_compile_args += '-DTFLITE_XNNPACK_DELEGATE_SUPPORTED'
+  endif
+
+  ## gpu delegate
+  if cxx.links('''
+        #include "tensorflow/lite/delegates/gpu/delegate.h"
+        TfLiteGpuDelegateOptionsV2 gpu_options = TfLiteGpuDelegateOptionsV2Default ();
+        int main() {return 0;}
+      ''', dependencies : [tflite2_support_deps, libdl_dep], name : 'gpu delegate')
+    tflite2_compile_args += '-DTFLITE_GPU_DELEGATE_SUPPORTED'
+  endif
+
+  ## nnapi delegate
+  if cxx.links('''
+        #include "tensorflow/lite/delegates/nnapi/nnapi_delegate.h"
+        tflite::StatefulNnApiDelegate::StatefulNnApiDelegate ();
+        int main() {return 0;}
+      ''', dependencies : [tflite2_support_deps], name : 'nnapi delegate')
+    tflite2_compile_args += '-DTFLITE_NNAPI_DELEGATE_SUPPORTED'
+  endif
+
+  ## external delegate
+  if cxx.links('''
+      #include "tensorflow/lite/delegates/external/external_delegate.h"
+      TfLiteExternalDelegateOptions external_options = TfLiteExternalDelegateOptionsDefault ("");
+      int main() {return 0;}
+    ''', dependencies : [tflite2_support_deps, libdl_dep], name : 'external delegate')
     tflite2_compile_args += '-DTFLITE_EXTERNAL_DELEGATE_SUPPORTED'
   endif
 
