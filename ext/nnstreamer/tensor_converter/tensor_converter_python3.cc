@@ -17,21 +17,6 @@
 #include <nnstreamer_util.h>
 #include "nnstreamer_python3_helper.h"
 
-/**
- * @brief Macro for debug mode.
- */
-#ifndef DBG
-#define DBG FALSE
-#endif
-
-#define SO_EXT "so.1.0"
-
-#define Py_ERRMSG(...)     \
-  do {                     \
-    PyErr_Print ();        \
-    ml_loge (__VA_ARGS__); \
-  } while (0);
-
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
@@ -119,10 +104,8 @@ PYConverterCore::PYConverterCore (const char *_script_path)
  */
 PYConverterCore::~PYConverterCore ()
 {
-  if (core_obj)
-    Py_XDECREF (core_obj);
-  if (shape_cls)
-    Py_XDECREF (shape_cls);
+  Py_SAFEDECREF (core_obj);
+  Py_SAFEDECREF (shape_cls);
   PyErr_Clear ();
 
   dlclose (handle);
@@ -138,7 +121,7 @@ PYConverterCore::convert (GstBuffer *in_buf, GstTensorsConfig *config)
   GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT], *out_mem;
   GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT];
   GstBuffer *out_buf = NULL;
-  PyObject *tensors_info = NULL, *output = NULL, *pyValue = NULL;
+  PyObject *tensors_info, *output, *pyValue, *param;
   gint rate_n, rate_d;
   guint i, num;
   gsize mem_size;
@@ -147,9 +130,10 @@ PYConverterCore::convert (GstBuffer *in_buf, GstTensorsConfig *config)
   if (nullptr == in_buf)
     throw std::invalid_argument ("Null pointers are given to PYConverterCore::convert().\n");
   num = gst_buffer_n_memory (in_buf);
+  tensors_info = output = pyValue = param = nullptr;
 
   Py_LOCK ();
-  PyObject *param = PyList_New (num);
+  param = PyList_New (num);
 
   for (i = 0; i < num; i++) {
     in_mem[i] = gst_buffer_peek_memory (in_buf, i);
@@ -186,7 +170,6 @@ PYConverterCore::convert (GstBuffer *in_buf, GstTensorsConfig *config)
   }
   config->rate_n = rate_n;
   config->rate_d = rate_d;
-  Py_XDECREF (tensors_info);
 
   if (output) {
     unsigned int num_tensors = PyList_Size (output);
@@ -202,9 +185,7 @@ PYConverterCore::convert (GstBuffer *in_buf, GstTensorsConfig *config)
       out_mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, mem_data, mem_size,
           0, mem_size, mem_data, g_free);
       gst_buffer_append_memory (out_buf, out_mem);
-
     }
-    Py_XDECREF (output);
   } else {
     Py_ERRMSG ("Fail to get output from 'convert'");
   }
@@ -212,6 +193,9 @@ PYConverterCore::convert (GstBuffer *in_buf, GstTensorsConfig *config)
 done:
   for (i = 0; i < num; i++)
     gst_memory_unmap (in_mem[i], &in_info[i]);
+
+  Py_SAFEDECREF (param);
+  Py_SAFEDECREF (pyValue);
 
   Py_UNLOCK ();
   return out_buf;
@@ -231,7 +215,7 @@ PYConverterCore::init ()
   }
 
   shape_cls = PyObject_GetAttrString (api_module, "TensorShape");
-  Py_XDECREF (api_module);
+  Py_SAFEDECREF (api_module);
 
   if (shape_cls == NULL)
     return -EINVAL;

@@ -41,16 +41,17 @@ PyMODINIT_FUNC PyInit_nnstreamer_python (void);
 static PyObject *
 TensorShape_setDims (TensorShapeObject * self, PyObject * args)
 {
-  PyObject *dims = args;
+  PyObject *dims;
   PyObject *new_dims;
+  unsigned int i, len;
 
   /** PyArg_ParseTuple() returns borrowed references */
   if (!PyArg_ParseTuple (args, "O", &dims))
     Py_RETURN_NONE;
 
-  if (PyList_Size (dims) < NNS_TENSOR_RANK_LIMIT) {
-    int i;
-    for (i = 0; i < NNS_TENSOR_RANK_LIMIT - PyList_Size (dims); i++)
+  len = PyList_Size (dims);
+  if (len < NNS_TENSOR_RANK_LIMIT) {
+    for (i = 0; i < NNS_TENSOR_RANK_LIMIT - len; i++)
       /** fill '1's in remaining slots */
       PyList_Append (dims, PyLong_FromLong (1));
     new_dims = dims;
@@ -61,7 +62,7 @@ TensorShape_setDims (TensorShapeObject * self, PyObject * args)
   }
 
   /** swap 'self->dims' */
-  Py_XDECREF (self->dims);
+  Py_SAFEDECREF (self->dims);
   self->dims = new_dims;
 
   Py_RETURN_NONE;
@@ -134,16 +135,16 @@ TensorShape_init (TensorShapeObject * self, PyObject * args, PyObject * kw)
     PyObject *none =
         PyObject_CallMethod ((PyObject *) self, (char *) "setDims",
         (char *) "O", dims);
-    Py_XDECREF (none);
+    Py_SAFEDECREF (none);
   }
 
   if (type) {
     PyArray_Descr *dtype;
     if (PyArray_DescrConverter (type, &dtype) != NPY_FAIL) {
       /** swap 'self->type' */
-      Py_XDECREF (self->type);
+      Py_SAFEDECREF (self->type);
       self->type = dtype;
-      Py_XINCREF (dtype);
+      Py_XINCREF (self->type);
     } else
       ml_loge ("Wrong data type");
   }
@@ -158,8 +159,8 @@ TensorShape_init (TensorShapeObject * self, PyObject * args, PyObject * kw)
 static void
 TensorShape_dealloc (TensorShapeObject * self)
 {
-  Py_XDECREF (self->dims);
-  Py_XDECREF (self->type);
+  Py_SAFEDECREF (self->dims);
+  Py_SAFEDECREF (self->type);
   Py_TYPE (self)->tp_free ((PyObject *) self);
 }
 
@@ -315,14 +316,15 @@ loadScript (PyObject **core_obj, const gchar *module_name, const gchar *class_na
 
   if (module) {
     PyObject *cls = PyObject_GetAttrString (module, class_name);
+    Py_SAFEDECREF (module);
+
     if (cls) {
       *core_obj = PyObject_CallObject (cls, NULL);
-      Py_XDECREF (cls);
+      Py_SAFEDECREF (cls);
     } else {
       Py_ERRMSG ("Cannot find '%s' class in the script\n", class_name);
       return -2;
     }
-    Py_XDECREF (module);
   } else {
     Py_ERRMSG ("the script is not properly loaded\n");
     return -1;
@@ -373,14 +375,15 @@ int addToSysPath (const gchar *path)
   PyObject *sys_path = PyObject_GetAttrString (sys_module, "path");
   if (nullptr == sys_path) {
     Py_ERRMSG ("Cannot import python module 'path'.");
+    Py_SAFEDECREF (sys_module);
     return -1;
   }
 
   PyList_Append (sys_path, PyUnicode_FromString ("."));
   PyList_Append (sys_path, PyUnicode_FromString (path));
 
-  Py_XDECREF (sys_path);
-  Py_XDECREF (sys_module);
+  Py_SAFEDECREF (sys_path);
+  Py_SAFEDECREF (sys_module);
 
   return 0;
 }
@@ -412,10 +415,10 @@ parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
       return -1;
     }
 
-
     PyObject *shape_type = PyObject_CallMethod (tensor_shape, (char *)"getType", NULL);
     if (nullptr == shape_type) {
       Py_ERRMSG ("parseTensorsInfo() has failed (3).");
+      Py_SAFEDECREF (shape_dims);
       return -1;
     }
 
@@ -428,8 +431,8 @@ parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
           = (guint)PyLong_AsLong (PyList_GetItem (shape_dims, (Py_ssize_t)j));
 
     info->info[i].name = g_strdup("");
-    Py_XDECREF (shape_dims);
-    Py_XDECREF (shape_type);
+    Py_SAFEDECREF (shape_dims);
+    Py_SAFEDECREF (shape_type);
   }
 
   return 0;
@@ -449,8 +452,14 @@ PyTensorShape_New (PyObject * shape_cls, const GstTensorInfo *info)
   PyObject *dims = PyList_New (NNS_TENSOR_RANK_LIMIT);
   PyObject *type = (PyObject *)PyArray_DescrFromType (getNumpyType (info->type));
 
-  if (nullptr == args || nullptr == dims || nullptr == type)
+  if (nullptr == args || nullptr == dims || nullptr == type) {
     Py_ERRMSG ("PYCore::PyTensorShape_New() has failed (1).");
+    PyErr_Clear ();
+    Py_SAFEDECREF (args);
+    Py_SAFEDECREF (dims);
+    Py_SAFEDECREF (type);
+    return nullptr;
+  }
 
   for (int i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
     PyList_SetItem (dims, i, PyLong_FromLong ((uint64_t)info->dimension[i]));

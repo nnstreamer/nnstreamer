@@ -25,13 +25,25 @@
 #include <stdexcept>
 #include <string>
 
+#ifdef __MACOS__
+#define SO_EXT "dylib"
+#else
 #define SO_EXT "so.1.0"
+#endif
 
 #define Py_ERRMSG(...)     \
   do {                     \
     PyErr_Print ();        \
     ml_loge (__VA_ARGS__); \
   } while (0);
+
+#define Py_SAFEDECREF(o)   \
+  do {                     \
+    if (o) {               \
+      Py_XDECREF (o);      \
+      (o) = NULL;          \
+    }                      \
+  } while (0)
 
 extern tensor_type getTensorType (NPY_TYPES npyType);
 extern NPY_TYPES getNumpyType (tensor_type tType);
