@@ -59,18 +59,6 @@
 #define DBG FALSE
 #endif
 
-#ifdef __MACOS__
-#define SO_EXT "dylib"
-#else
-#define SO_EXT "so.1.0"
-#endif
-
-#define Py_ERRMSG(...)     \
-  do {                     \
-    PyErr_Print ();        \
-    ml_loge (__VA_ARGS__); \
-  } while (0);
-
 static const gchar *python_accl_support[] = { NULL };
 
 /** @brief Callback type for custom filter */
@@ -202,10 +190,8 @@ PYCore::~PYCore ()
   gst_tensors_info_free (&inputTensorMeta);
   gst_tensors_info_free (&outputTensorMeta);
 
-  if (core_obj)
-    Py_XDECREF (core_obj);
-  if (shape_cls)
-    Py_XDECREF (shape_cls);
+  Py_SAFEDECREF (core_obj);
+  Py_SAFEDECREF (shape_cls);
 
   PyErr_Clear ();
 
@@ -228,7 +214,7 @@ PYCore::init (const GstTensorFilterProperties *prop)
   }
 
   shape_cls = PyObject_GetAttrString (api_module, "TensorShape");
-  Py_XDECREF (api_module);
+  Py_SAFEDECREF (api_module);
 
   if (shape_cls == NULL) {
     Py_ERRMSG ("Failed to get `TensorShape` from `nnstreamer_python` module");
@@ -291,7 +277,7 @@ PYCore::loadScript ()
 
         core_obj = PyObject_CallObject (cls, py_args);
 
-        Py_XDECREF (py_args);
+        Py_SAFEDECREF (py_args);
         g_strfreev (g_args);
       } else
         core_obj = PyObject_CallObject (cls, NULL);
@@ -311,13 +297,13 @@ PYCore::loadScript ()
         return -3;
       }
 
-      Py_XDECREF (cls);
+      Py_SAFEDECREF (cls);
     } else {
       Py_ERRMSG ("Cannot find 'CustomFilter' class in the script\n");
       return -2;
     }
 
-    Py_XDECREF (module);
+    Py_SAFEDECREF (module);
   } else {
     Py_ERRMSG ("the script is not properly loaded\n");
     return -1;
@@ -407,7 +393,7 @@ PYCore::getInputTensorDim (GstTensorsInfo *info)
   PyObject *result = PyObject_CallMethod (core_obj, (char *)"getInputDim", NULL);
   if (result) {
     res = parseTensorsInfo (result, info);
-    Py_XDECREF (result);
+    Py_SAFEDECREF (result);
   } else {
     Py_ERRMSG ("Fail to call 'getInputDim'");
     res = -1;
@@ -437,7 +423,7 @@ PYCore::getOutputTensorDim (GstTensorsInfo *info)
   PyObject *result = PyObject_CallMethod (core_obj, (char *)"getOutputDim", NULL);
   if (result) {
     res = parseTensorsInfo (result, info);
-    Py_XDECREF (result);
+    Py_SAFEDECREF (result);
   } else {
     Py_ERRMSG ("Fail to call 'getOutputDim'");
     res = -1;
@@ -481,14 +467,14 @@ PYCore::setInputTensorDim (const GstTensorsInfo *in_info, GstTensorsInfo *out_in
   PyObject *result
       = PyObject_CallMethod (core_obj, (char *)"setInputDim", (char *)"(O)", param);
 
-  Py_XDECREF (param);
+  Py_SAFEDECREF (param);
 
   if (result) {
     gst_tensors_info_copy (&inputTensorMeta, in_info);
     res = parseTensorsInfo (result, out_info);
     if (res == 0)
       gst_tensors_info_copy (&outputTensorMeta, out_info);
-    Py_XDECREF (result);
+    Py_SAFEDECREF (result);
   } else {
     Py_ERRMSG ("Fail to call 'setInputDim'");
     res = -1;
@@ -510,7 +496,7 @@ PYCore::freeOutputTensors (void *data)
 
   it = outputArrayMap.find (data);
   if (it != outputArrayMap.end ()) {
-    Py_XDECREF (it->second);
+    Py_SAFEDECREF (it->second);
     outputArrayMap.erase (it);
   } else {
     ml_loge ("Cannot find output data: 0x%lx", (unsigned long)data);
@@ -556,7 +542,7 @@ PYCore::run (const GstTensorMemory *input, GstTensorMemory *output)
     if ((unsigned int)PyList_Size (result) != outputTensorMeta.num_tensors) {
       res = -EINVAL;
       ml_logf ("The Python allocated size mismatched. Cannot proceed.\n");
-      Py_XDECREF (result);
+      Py_SAFEDECREF (result);
       goto exit_decref;
     }
 
@@ -577,14 +563,14 @@ PYCore::run (const GstTensorMemory *input, GstTensorMemory *output)
       }
     }
 
-    Py_XDECREF (result);
+    Py_SAFEDECREF (result);
   } else {
     Py_ERRMSG ("Fail to call 'invoke'");
     res = -1;
   }
 
 exit_decref:
-  Py_XDECREF (param);
+  Py_SAFEDECREF (param);
   Py_UNLOCK ();
 
 #if (DBG)
@@ -823,9 +809,11 @@ static GstTensorFilterFramework NNS_support_python = {.version = GST_TENSOR_FILT
 void
 init_filter_py (void)
 {
-  nnstreamer_filter_probe (&NNS_support_python);
   /** Python should be initialized and finalized only once */
-  Py_Initialize ();
+  if (!Py_IsInitialized ())
+    Py_Initialize ();
+
+  nnstreamer_filter_probe (&NNS_support_python);
   nnstreamer_filter_set_custom_property_desc (filter_subplugin_python,
       "${GENERAL_STRING}",
       "There is no key-value pair defined by python3 subplugin. "
@@ -836,7 +824,9 @@ init_filter_py (void)
 void
 fini_filter_py (void)
 {
-  /** Python should be initialized and finalized only once */
-  Py_Finalize ();
   nnstreamer_filter_exit (NNS_support_python.v0.name);
+
+  /** Python should be initialized and finalized only once */
+  if (Py_IsInitialized ())
+    Py_Finalize ();
 }

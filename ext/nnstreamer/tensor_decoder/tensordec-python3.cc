@@ -18,21 +18,6 @@
 #include "tensordecutil.h"
 #include "nnstreamer_python3_helper.h"
 
-/**
- * @brief Macro for debug mode.
- */
-#ifndef DBG
-#define DBG FALSE
-#endif
-
-#define SO_EXT "so.1.0"
-
-#define Py_ERRMSG(...)     \
-  do {                     \
-    PyErr_Print ();        \
-    ml_loge (__VA_ARGS__); \
-  } while (0);
-
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
@@ -122,10 +107,8 @@ PYDecoderCore::PYDecoderCore (const char *_script_path)
  */
 PYDecoderCore::~PYDecoderCore ()
 {
-  if (core_obj)
-    Py_XDECREF (core_obj);
-  if (shape_cls)
-    Py_XDECREF (shape_cls);
+  Py_SAFEDECREF (core_obj);
+  Py_SAFEDECREF (shape_cls);
   PyErr_Clear ();
 
   dlclose (handle);
@@ -202,7 +185,7 @@ PYDecoderCore::decode (const GstTensorsConfig *config,
     else
       gst_memory_unref (out_mem);
 
-    Py_XDECREF (output);
+    Py_SAFEDECREF (output);
   } else {
     Py_ERRMSG ("Fail to get output from 'convert'");
     ret = GST_FLOW_ERROR;
@@ -235,7 +218,7 @@ PYDecoderCore::getOutCaps (const GstTensorsConfig *config)
   if (result) {
     gchar * caps_str = PyBytes_AsString (result);
     caps = gst_caps_from_string (caps_str);
-    Py_XDECREF (result);
+    Py_SAFEDECREF (result);
   } else {
     caps = gst_caps_from_string ("application/octet-stream");
   }
@@ -258,7 +241,7 @@ PYDecoderCore::init ()
   }
 
   shape_cls = PyObject_GetAttrString (api_module, "TensorShape");
-  Py_XDECREF (api_module);
+  Py_SAFEDECREF (api_module);
 
   if (shape_cls == NULL)
     return -EINVAL;
@@ -387,18 +370,22 @@ extern "C" {
 void
 init_decoder_py (void)
 {
-  nnstreamer_decoder_probe (&Python);
   /** Python should be initialized and finalized only once */
-  Py_Initialize ();
+  if (!Py_IsInitialized ())
+    Py_Initialize ();
+
+  nnstreamer_decoder_probe (&Python);
 }
 
 /** @brief Destruct this object for tensordec-plugin */
 void
 fini_decoder_py (void)
 {
-  /** Python should be initialized and finalized only once */
-  Py_Finalize ();
   nnstreamer_decoder_exit (Python.modename);
+
+  /** Python should be initialized and finalized only once */
+  if (Py_IsInitialized ())
+    Py_Finalize ();
 }
 #ifdef __cplusplus
 }
