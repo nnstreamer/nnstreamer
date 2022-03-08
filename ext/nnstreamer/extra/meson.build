@@ -96,7 +96,7 @@ if have_python3
   )
 
   nnstreamer_python3_helper_dep = declare_dependency(
-    sources: nnstreamer_python3_sources,
+    link_with: nnstreamer_python3_helper,
     dependencies: nnstreamer_python3_deps,
     include_directories: include_directories('.')
   )
