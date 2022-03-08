@@ -103,6 +103,13 @@
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_converter_debug);
 #define GST_CAT_DEFAULT gst_tensor_converter_debug
 
+#define STRING_CUSTOM_MODE(self) \
+    (((self)->mode == _CONVERTER_MODE_CUSTOM_CODE) ? \
+        "custom_code (function)" : \
+        (((self)->mode == _CONVERTER_MODE_CUSTOM_SCRIPT) ? \
+            "custom_script (py)" : \
+            "unknown custom mode (internal error!)"))
+
 /**
  * @brief tensor_converter properties
  * @todo For flatbuffers, support other/tensors.
@@ -263,8 +270,8 @@ gst_tensor_converter_class_init (GstTensorConverterClass * klass)
    */
   g_object_class_install_property (object_class, PROP_MODE,
       g_param_spec_string ("mode", "Mode",
-          "Converter mode. e.g., mode=custom:<registered callback name>", "",
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          "Converter mode. e.g., mode=custom-code:<registered callback name>. For detail, refer to https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_converter#custom-converter",
+          "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   /* set src pad template */
   pad_caps =
@@ -310,7 +317,7 @@ gst_tensor_converter_class_init (GstTensorConverterClass * klass)
   gst_element_class_set_static_metadata (element_class,
       "TensorConverter",
       "Converter/Tensor",
-      "Converts audio or video stream to tensor stream of C-Array for neural network framework filters",
+      "Converts an audio, video, text, or arbitrary stream to a tensor stream of C-Array for neural network framework filters",
       "MyungJoo Ham <myungjoo.ham@samsung.com>");
 
   /* GstElementClass vmethods */
@@ -463,8 +470,8 @@ gst_tensor_converter_set_property (GObject * object, guint prop_id,
       self->custom.func = NULL;
 
       if (g_strv_length (strv) < 2) {
-        nns_logw ("Tensor converter mode option is incorrect."
-            "Please specify mode option as <MODE>:<MODE_OPTION>");
+        nns_logw
+            ("Tensor converter mode option is incorrect. Please specify mode option as <MODE>:<MODE_OPTION>. Refer to https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_converter#custom-converter for detail.");
         g_strfreev (strv);
         break;
       }
@@ -474,7 +481,9 @@ gst_tensor_converter_set_property (GObject * object, guint prop_id,
         self->mode = _CONVERTER_MODE_CUSTOM_CODE;
         ptr = get_subplugin (NNS_CUSTOM_CONVERTER, self->mode_option);
         if (!ptr) {
-          nns_logw ("Failed to find custom subplugin of the tensor_converter");
+          nns_logw
+              ("Failed to find custom subplugin of the tensor_converter. The custom-code for tensor_converter, \"%s\" is not registered by nnstreamer_converter_custom_register() function. Refer to https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_converter#custom-converter for detail.",
+              strv[1]);
           return;
         }
         self->custom.func = ptr->func;
@@ -1055,14 +1064,16 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         size_t size, offset;
 
         if (!gst_buffer_map (buf, &src_info, GST_MAP_READ)) {
-          ml_logf ("Cannot map src buffer at tensor_converter/video.\n");
+          ml_logf
+              ("tensor_converter: Cannot map src buffer at tensor_converter/video. The incoming buffer (GstBuffer) for the sinkpad of tensor_converter cannot be mapped for reading.\n");
           goto error;
         }
 
         inbuf = gst_buffer_new_and_alloc (frame_size);
         gst_buffer_memset (inbuf, 0, 0, frame_size);
         if (!gst_buffer_map (inbuf, &dest_info, GST_MAP_WRITE)) {
-          ml_logf ("Cannot map dest buffer at tensor_converter/video.\n");
+          ml_logf
+              ("tensor_converter: Cannot map dest buffer at tensor_converter/video. The outgoing buffer (GstBuffer) for the srcpad of tensor_converter cannot be mapped for writing.\n");
           gst_buffer_unmap (buf, &src_info);
           gst_buffer_unref (inbuf);     /* the new buffer is wasted. */
           goto error;
@@ -1104,14 +1115,16 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         gsize block_size = MIN (buf_size, frame_size);
 
         if (!gst_buffer_map (buf, &src_info, GST_MAP_READ)) {
-          ml_logf ("Cannot map src buffer at tensor_converter/text.\n");
+          ml_logf
+              ("tensor_converter: Cannot map src buffer at tensor_converter/text. The incoming buffer (GstBuffer) for the sinkpad of tensor_converter cannot be mapped for reading.\n");
           goto error;
         }
 
         inbuf = gst_buffer_new_and_alloc (frame_size);
         gst_buffer_memset (inbuf, 0, 0, frame_size);
         if (!gst_buffer_map (inbuf, &dest_info, GST_MAP_WRITE)) {
-          ml_logf ("Cannot map dest buffer at tensor_converter/text.\n");
+          ml_logf
+              ("tensor_converter: Cannot map dest buffer at tensor_converter/text. The outgoing buffer (GstBuffer) for the srcpad of tensor_converter cannot be mapped for writing.\n");
           gst_buffer_unmap (buf, &src_info);
           gst_buffer_unref (inbuf);     /* the new buffer is wasted. */
           goto error;
@@ -1133,7 +1146,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         frame_size = buf_size;
       } else {
         /* get frame size from the properties */
-        g_assert ((buf_size % frame_size) == 0);
+        g_assert ((buf_size % frame_size) == 0); /** @todo need rewrite. do not use assert */
         frames_in = buf_size / frame_size;
       }
       break;
@@ -1177,7 +1190,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
          */
         if (s1 != s2) {
           nns_loge
-              ("Incoming buffer has invalid data size %zd, expected size is %zd (%u/%u).",
+              ("Cannot process an incoming buffer frame for tensor_converter (chain function). It appears that it is trying to convert other/tensors,format=flexible to other/tensors,format=static. Incoming buffer has invalid data size %zd, expected size is %zd (%u/%u).",
               s1, s2, (n + 1), tmp.info.num_tensors);
           gst_buffer_unref (inbuf);
           goto error;
@@ -1190,7 +1203,8 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
       if (!gst_tensors_config_is_equal (config, &tmp)) {
         if (gst_tensors_info_validate (&self->tensors_info)) {
-          nns_loge ("Incoming buffer does not match with given tensors info.");
+          nns_loge
+              ("Incoming buffer does not match with given tensors info. It appears that it is trying to convert other/tensors,format=flexible to other/tensors,format=static. The converted output appears not compatible with the given configuration.");
           gst_buffer_unref (inbuf);
           goto error;
         }
@@ -1204,30 +1218,61 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     case _NNS_MEDIA_ANY:
     {
       GstTensorsConfig new_config;
+      int mode = 0;
 
       gst_tensors_config_init (&new_config);
 
       if (self->mode == _CONVERTER_MODE_CUSTOM_CODE) {
+        mode = 1;
         if (self->custom.func == NULL) {
           nns_loge
-              ("custom condition of the tensor_converter is not configured.");
+              ("Tensor converter is in custom/code mode (mode=custom-code:${funcname}), where a user code as a callback function is required. However, the required information to configure the tensor converter is not given or incorrectly given. For detail, please refer to https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_converter#custom-converter . The given ${funcname} is \"%s\", which is an invalid/unregistered name.",
+              self->mode_option);
           goto error;
         }
         inbuf = self->custom.func (buf, self->custom.data, &new_config);
       } else if (self->externalConverter && self->externalConverter->convert) {
+        mode = 2;
         inbuf =
             self->externalConverter->convert (buf, &new_config,
             self->priv_data);
+      } else if (self->mode == _CONVERTER_MODE_CUSTOM_SCRIPT) {
+        mode = 3;
+        /* self->externalConverter->converter should've been available! */
+        GST_ERROR_OBJECT (self,
+            "Tensor converter is in custom/script mode (mode=custom-script:${scriptpath}), where a path to a script file is required. However, it is not properly configured. The given ${scriptpath} is \"%s\".",
+            self->mode_option);
+        goto error;
       } else {
-        GST_ERROR_OBJECT (self, "Undefined behavior with type %d\n",
-            self->in_media_type);
+        /** @todo identify and printout the given input stream caps. */
+        GST_ERROR_OBJECT (self,
+            "Tensor converter has an undefined behavior with type _NNS_MEDIA_ANY. It should've been custom-code or custom-script mode or a corrsponding external converter should've been registered (tensor_converter subplugin). However, nothing is available for the given input stream.");
         goto error;
       }
       self->do_not_append_header =
           (new_config.format == _NNS_TENSOR_FORMAT_FLEXIBLE);
 
       if (inbuf == NULL) {
-        nns_loge ("Failed to convert media to tensors.");
+        switch (mode) {
+          case 1:
+            nns_loge
+                ("Failed to convert input streams to tensors: the converted result of the incoming buffer is NULL. The converter is custom-func with %s function, which is available and loaded, but has returned NULL buffer after the conversion.",
+                self->mode_option);
+            break;
+          case 2:
+            nns_loge
+                ("Failed to convert input streams to tensors: the converted result of the incoming buffer is NULL. The converter is using external tensor_converter subplugin (%s), which is available and loaded, but has returned NULL buffer after the conversion.",
+                self->externalConverter->name);
+            break;
+          case 3:
+            nns_loge
+                ("Failed to convert input streams to tensors: the converted result of the incoming buffer is NULL. The converter is custom-script with %s, which is available and loaded, but has returned NULL buffer after the conversion.",
+                self->mode_option);
+            break;
+          default:
+            nns_loge
+                ("Failed to convert input streams to tensors: internal unknown error. Please report the case to https://github.com/nnstreamer/issues with the pipeline description reproducing the error.");
+        }
         gst_tensors_config_free (&new_config);
         goto error;
       }
@@ -1245,8 +1290,15 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
       break;
     }
+    case _NNS_MEDIA_INVALID:
+      GST_ERROR_OBJECT (self,
+          "The incoming tensor to be converted has no type defined (INVALID). This is an internal unknown error. Please report the case to https://github.com/nnstreamer/issues with the pipeline description reproducing the error.");
+      goto error;
+      break;
     default:
-      GST_ERROR_OBJECT (self, "Unsupported type %d\n", self->in_media_type);
+      GST_ERROR_OBJECT (self,
+          "The incoming tensor to be converted has unknown type (type value not recognized: %d). This is an internal unknown error. Please report the case to https://github.com/nnstreamer/issues with the pipeline description reproducing the error.",
+          self->in_media_type);
       goto error;
   }
 
@@ -1401,7 +1453,11 @@ gst_tensor_converter_parse_video (GstTensorConverter * self,
 
   gst_video_info_init (&vinfo);
   if (!gst_video_info_from_caps (&vinfo, caps)) {
-    GST_ERROR_OBJECT (self, "Failed to get video info from caps.");
+    char *capstr = gst_caps_to_string (caps);
+    GST_ERROR_OBJECT (self,
+        "Failed to get video info from caps; gst_video_info_from_caps (&info, \"%s\") has returned FALSE, which means the given caps cannot be parsed as a video.",
+        capstr);
+    g_free (capstr);
     return FALSE;
   }
 
@@ -1434,8 +1490,8 @@ gst_tensor_converter_parse_video (GstTensorConverter * self,
       config->info.info[0].dimension[0] = 4;
       break;
     default:
-      /* unsupported format */
-      GST_WARNING_OBJECT (self, "Unsupported format = %s\n",
+      GST_WARNING_OBJECT (self,
+          "The given video caps with format \"%s\" is not supported. Please use GRAY8, RGB, BGR, RGBx, BGRx, xRGB, xBGR, RGBA, BGRA, ARGB, or ABGR.\n",
           GST_STR_NULL (gst_video_format_to_string (format)));
       break;
   }
@@ -1459,9 +1515,11 @@ gst_tensor_converter_parse_video (GstTensorConverter * self,
     self->remove_padding = TRUE;
     silent_debug (self, "Set flag to remove padding, width = %d", width);
 
+    /** @todo need rewrite. */
     GST_WARNING_OBJECT (self,
         "\nYOUR STREAM CONFIGURATION INCURS PERFORMANCE DETERIORATION!\n"
-        "Please use 4 x n as image width for inputs.\n");
+        "Please use 4 x n as image width for inputs; the width of your input is %d.\n",
+        width);
   }
 
   self->frame_size = GST_VIDEO_INFO_SIZE (&vinfo);
@@ -1496,7 +1554,11 @@ gst_tensor_converter_parse_audio (GstTensorConverter * self,
 
   gst_audio_info_init (&ainfo);
   if (!gst_audio_info_from_caps (&ainfo, caps)) {
-    GST_ERROR_OBJECT (self, "Failed to get audio info from caps.\n");
+    char *capstr = gst_caps_to_string (caps);
+    GST_ERROR_OBJECT (self,
+        "Failed to get audio info from caps; gst_audio_info_from_caps(&info, \"%s\") has returned FALSE.\n",
+        capstr);
+    g_free (capstr);
     return FALSE;
   }
 
@@ -1532,8 +1594,8 @@ gst_tensor_converter_parse_audio (GstTensorConverter * self,
       config->info.info[0].type = _NNS_FLOAT64;
       break;
     default:
-      /* unsupported format */
-      GST_WARNING_OBJECT (self, "Unsupported format = %s\n",
+      GST_WARNING_OBJECT (self,
+          "Audio format \"%s\" is not supported. Please use S8, U8, S16, U16, S32, U32, F32, or F64.\n",
           GST_STR_NULL (gst_audio_format_to_string (format)));
       break;
   }
@@ -1582,8 +1644,8 @@ gst_tensor_converter_parse_text (GstTensorConverter * self,
     GST_ERROR_OBJECT (self,
         "Failed to get tensor info, need to update string size.");
 
-    ml_loge ("Please set the property input-dim to convert stream.\n"
-        "For example, input-dim=30 to handle up to 30 bytes of string per frame.");
+    ml_loge
+        ("tensor_converter: Please set the property input-dim to convert stream manually for text streams unlike video streams. For example, input-dim=30 to handle up to 30 bytes of string per frame.");
     return FALSE;
   }
 
@@ -1592,8 +1654,9 @@ gst_tensor_converter_parse_text (GstTensorConverter * self,
     if (g_ascii_strcasecmp (format_string, "utf8") == 0) {
       config->info.info[0].type = _NNS_UINT8;
     } else {
-      /* unsupported format */
-      GST_WARNING_OBJECT (self, "Unsupported format = %s\n", format_string);
+      GST_WARNING_OBJECT (self,
+          "For text streams, only utf8 streams are supported; format = \"%s\" is not supported.\n",
+          format_string);
       return FALSE;
     }
   }
@@ -1660,8 +1723,7 @@ gst_tensor_converter_parse_octet (GstTensorConverter * self,
           "Failed to get tensor info, need to update dimension and type.");
 
       ml_loge
-          ("Please set the properties input-dim and input-type to convert stream.\n"
-          "For example, input-dim=30 input-type=uint8 to handle 30 bytes of bin data.");
+          ("tensor_converter: Please set the properties input-dim and input-type to convert application/stream to non-flexible other/tensors. Use other/tensors,format=flexible if you want flexible dimensions. For static (non-flexible) tensors, you may, for example, use input-dim=30,input-type=uint8 to handle 30 bytes of bin data as a single frame.");
       return FALSE;
     }
   }
@@ -1670,9 +1732,16 @@ gst_tensor_converter_parse_octet (GstTensorConverter * self,
     /**
      * Failure case when octet-stream has multi tensors and multi frames.
      */
-    if (_info->num_tensors > 1 || flexible) {
+    if (_info->num_tensors > 1) {
       ml_loge
-          ("Cannot configure multiple tensors. Please set the property frames-per-tensor 1 to convert stream.");
+          ("tensor_converter: Cannot configure multiple tensors (num_tensors = %u) from an application/octet stream with frames_per_tensor (= %u)> 1. Please set the property frames-per-tensor 1 to convert stream to multiple-tensors (num_tensors > 1).",
+          _info->num_tensors, self->frames_per_tensor);
+      return FALSE;
+    }
+    if (flexible) {
+      ml_loge
+          ("tensor_converter: Cannot configure flexible tensors from an application/octet stream with frames_per_tensor (%u) > 1. Please set the property frames-per-tensor 1 to convert stream to flexible tensors.",
+          self->frames_per_tensor);
       return FALSE;
     }
   }
@@ -1729,7 +1798,8 @@ gst_tensor_converter_parse_tensor (GstTensorConverter * self,
 
   if (self->frames_per_tensor > 1) {
     ml_loge
-        ("Cannot configure multiple tensors. Please set the property frames-per-tensor 1 to convert stream.");
+        ("tensor_converter: Cannot configure multiple tensors. Please set the property frames-per-tensor (%u != 1) 1 to convert stream into tensor stream with num_tensor > 1.",
+        self->frames_per_tensor);
     return FALSE;
   }
 
@@ -1806,23 +1876,38 @@ gst_tensor_converter_parse_custom (GstTensorConverter * self,
       mimetype = self->ext_fw;
     }
     if (!(ex = findExternalConverter (mimetype))) {
-      ml_loge ("Failed to get external converter for %s.", mimetype);
+      ml_loge
+          ("tensor_converter: Failed to get external converter for %s. Cannot find a corresponding external converter for the given type. The custom converter mode is %s with \"%s\"",
+          mimetype, STRING_CUSTOM_MODE (self), self->mode_option);
       return FALSE;
     }
 
     if (!is_fixed) {
-      if (!ex->get_out_config || !ex->get_out_config (caps, config)) {
-        ml_loge ("Failed to get tensors info from %s.", mimetype);
+      if (!ex->get_out_config) {
+        ml_loge
+            ("tensor_converter: Failed to get tensors info from %s (%s:%s). Its corresponding external converter is found. but its mandatory callback, get_out_config is not available.",
+            mimetype, STRING_CUSTOM_MODE (self), self->mode_option);
+        return FALSE;
+      }
+      if (!ex->get_out_config (caps, config)) {
+        char *capstr = gst_caps_to_string (caps);
+        ml_loge
+            ("tensor_converter: Failed to get tensors info from %s (%s:%s). Its corresponding external converter is found. but its mandatory callback, get_out_config(\"%s\", config) has returned FALSE (cannot get config from the caps).",
+            mimetype, STRING_CUSTOM_MODE (self), self->mode_option, capstr);
+        g_free (capstr);
         return FALSE;
       }
     }
 
     self->externalConverter = ex;
     if (self->mode == _CONVERTER_MODE_CUSTOM_SCRIPT) {
+      int ret = 0;
       if (self->externalConverter->open &&
-          self->externalConverter->open (self->mode_option,
-              &self->priv_data) < 0) {
-        ml_loge ("Failed to open tensor converter custom subplugin.\n");
+          (ret = self->externalConverter->open (self->mode_option,
+                  &self->priv_data)) < 0) {
+        ml_loge
+            ("tensor_converter: Failed to open tensor converter custom subplugin: custom-script mode with \"%s\" for \"%s\" (%s) has 'open' callback; however, it has returned %d error.\n",
+            self->mode_option, mimetype, self->externalConverter->name, ret);
         self->externalConverter = NULL;
         return FALSE;
       }
@@ -2039,36 +2124,46 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
     case _NNS_VIDEO:
       if (is_video_supported (self)) {
         if (!gst_tensor_converter_parse_video (self, caps, &config)) {
+          char *capstr = gst_caps_to_string (caps);
           GST_ERROR_OBJECT (self,
-              "Failed to configure tensor from video info.");
+              "Failed to configure tensor from gst cap \"%s\" for video streams.",
+              capstr);
+          g_free (capstr);
           return FALSE;
         }
 
         frames_dim = 3;
       } else {
         ml_loge
-            ("\n This binary does not support video type. Please build NNStreamer with disable-video-support : false\n");
+            ("tensor_converter: This binary does not support video type. Please build NNStreamer with -Dvideo-support=enabled (default). You have configured -Dvideo-support=disabled when you build this binary.\n");
         return FALSE;
       }
       break;
     case _NNS_AUDIO:
       if (is_audio_supported (self)) {
         if (!gst_tensor_converter_parse_audio (self, caps, &config)) {
+          char *capstr = gst_caps_to_string (caps);
           GST_ERROR_OBJECT (self,
-              "Failed to configure tensor from audio info.");
+              "Failed to configure tensor from gst cap \"%s\" for audio streams.",
+              capstr);
+          g_free (capstr);
           return FALSE;
         }
 
         frames_dim = 1;
       } else {
         ml_loge
-            ("\n This binary does not support audio type. Please build NNStreamer with disable-audio-support : false\n");
+            ("tensor_converter: This binary does not support audio type. Please build NNStreamer with -Daudio-support=enabled (default). You have configured -Daudio-support=disabled when you build this binary.\n");
         return FALSE;
       }
       break;
     case _NNS_TEXT:
       if (!gst_tensor_converter_parse_text (self, &config, structure)) {
-        GST_ERROR_OBJECT (self, "Failed to configure tensor from text info.");
+        char *capstr = gst_caps_to_string (caps);
+        GST_ERROR_OBJECT (self,
+            "Failed to configure tensor from gst cap \"%s\" for text streams.",
+            capstr);
+        g_free (capstr);
         return FALSE;
       }
 
@@ -2076,20 +2171,32 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
       break;
     case _NNS_OCTET:
       if (!gst_tensor_converter_parse_octet (self, &config, structure)) {
-        GST_ERROR_OBJECT (self, "Failed to configure tensors from octet info.");
+        char *capstr = gst_caps_to_string (caps);
+        GST_ERROR_OBJECT (self,
+            "Failed to configure tensors from gst cap \"%s\" for octet streams.",
+            capstr);
+        g_free (capstr);
         return FALSE;
       }
       break;
     case _NNS_TENSOR:
       /* flexible tensor to static tensor stream */
       if (!gst_tensor_converter_parse_tensor (self, &config, structure)) {
-        GST_ERROR_OBJECT (self, "Failed to configure flexible tensor.");
+        char *capstr = gst_caps_to_string (caps);
+        GST_ERROR_OBJECT (self,
+            "Failed to configure tensor from flexible tensor (%s); trying to convert to static tensor.",
+            capstr);
+        g_free (capstr);
         return FALSE;
       }
       break;
     default:
       if (!gst_tensor_converter_parse_custom (self, &config, caps)) {
-        GST_ERROR_OBJECT (self, "Failed to configure tensors for custom mode.");
+        char *capstr = gst_caps_to_string (caps);
+        GST_ERROR_OBJECT (self,
+            "Failed to configure tensors with custom mode from streams of gst cap (%s) with custom converter subplugins.",
+            capstr);
+        g_free (capstr);
         return FALSE;
       }
       in_type = _NNS_MEDIA_ANY;
@@ -2102,15 +2209,27 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
   }
 
   if (!gst_tensors_config_validate (&config)) {
-    /** not fully configured */
-    GST_ERROR_OBJECT (self, "Failed to configure tensors info.\n");
+    /** not fully configured. the resulting config is weird. */
+    char *capstr = gst_caps_to_string (caps);
+    char *cfgstr = gst_tensors_config_to_string (&config);
+    GST_ERROR_OBJECT (self,
+        "Failed to configure tensors info with gst cap (%s). Cannot validate tensor configuration acquired from the given gst cap. The resulting invalid tensor config is: %s\n",
+        capstr, cfgstr);
+    g_free (capstr);
+    g_free (cfgstr);
     return FALSE;
   }
 
   if (gst_tensors_info_validate (&self->tensors_info)) {
     /** compare tensor info */
     if (!gst_tensors_info_is_equal (&self->tensors_info, &config.info)) {
-      GST_ERROR_OBJECT (self, "Failed, mismatched tensor info.\n");
+      gchar *str1 = gst_tensors_info_to_string (&self->tensors_info);
+      gchar *str2 = gst_tensors_info_to_string (&config.info);
+      GST_ERROR_OBJECT (self,
+          "Failed, mismatched tensor info. The two tensor configuration should match: \"configured by properties and tensor output\": %s and \"configured by input stream\": %s\n",
+          str1, str2);
+      g_free (str1);
+      g_free (str2);
       return FALSE;
     }
   }
@@ -2274,9 +2393,7 @@ nnstreamer_converter_custom_register (const gchar * name,
   g_return_val_if_fail (name && strlen (name), -EINVAL);
   g_return_val_if_fail (func, -EINVAL);
 
-  if (!(ptr = g_try_new0 (converter_custom_cb_s, 1)))
-    return -ENOMEM;
-
+  ptr = g_new0 (converter_custom_cb_s, 1);
   ptr->func = func;
   ptr->data = data;
 
@@ -2284,6 +2401,9 @@ nnstreamer_converter_custom_register (const gchar * name,
     return 0;
 
   g_free (ptr);
+  ml_loge
+      ("tensor_converter: cannot register a converter subplugin, \"%s\" function. register_subplugin () has failed to register \"%s\".",
+      name, name);
   return -EINVAL;
 }
 
@@ -2298,7 +2418,8 @@ nnstreamer_converter_custom_unregister (const gchar * name)
 
   ptr = (converter_custom_cb_s *) get_subplugin (NNS_CUSTOM_CONVERTER, name);
   if (!unregister_subplugin (NNS_CUSTOM_CONVERTER, name)) {
-    ml_loge ("Failed to unregister custom callback %s.", name);
+    ml_loge ("tensor_converter: Failed to unregister custom callback %s.",
+        name);
     return -EINVAL;
   }
   g_free (ptr);
