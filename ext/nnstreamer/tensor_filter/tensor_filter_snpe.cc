@@ -32,6 +32,7 @@
 #include <DlSystem/ITensorFactory.hpp>
 #include <DlSystem/RuntimeList.hpp>
 #include <DlSystem/TensorMap.hpp>
+#include <DlSystem/IUserBufferFactory.hpp>
 #include <SNPE/SNPE.hpp>
 #include <SNPE/SNPEBuilder.hpp>
 #include <SNPE/SNPEFactory.hpp>
@@ -93,11 +94,19 @@ class snpe_subplugin final : public tensor_filter_subplugin
   bool configure_option (const GstTensorFilterProperties *prop);
   bool parse_custom_prop (const char *custom_prop);
   bool set_output_layer_names (const GstTensorsInfo *info);
+  void configureUserBuffer (zdl::DlSystem::UserBufferMap &buffer_map, const zdl::DlSystem::StringList strList);
+  void setTensorProp (GstTensorsInfo &tensor_meta, zdl::DlSystem::UserBufferMap &buffer_map);
   static void setTensorProp (GstTensorsInfo &tensor_meta, zdl::DlSystem::TensorMap &tensor_map, tensor_type data_type);
   static const char *runtimeToString (zdl::DlSystem::Runtime_t runtime);
 
   tensor_type input_data_type;
   tensor_type output_data_type;
+
+  bool use_user_buffer;
+  zdl::DlSystem::UserBufferMap input_buffer_map;
+  zdl::DlSystem::UserBufferMap output_buffer_map;
+  std::vector<std::unique_ptr<zdl::DlSystem::IUserBuffer>> user_input_buffers;
+  std::vector<std::unique_ptr<zdl::DlSystem::IUserBuffer>> user_output_buffers;
 
   public:
   static void init_filter_snpe ();
@@ -123,7 +132,7 @@ snpe_subplugin::snpe_subplugin ()
     : tensor_filter_subplugin (), empty_model (true), model_path (nullptr),
       runtime_list (zdl::DlSystem::Runtime_t::CPU), use_cpu_fallback (false),
       container (nullptr), snpe (nullptr), input_data_type (_NNS_FLOAT32),
-      output_data_type (_NNS_FLOAT32)
+      output_data_type (_NNS_FLOAT32), use_user_buffer (false)
 {
   gst_tensors_info_init (std::addressof (inputInfo));
   gst_tensors_info_init (std::addressof (outputInfo));
@@ -311,6 +320,14 @@ snpe_subplugin::parse_custom_prop (const char *custom_prop)
           output_data_type = _NNS_FLOAT32;
           nns_logi ("Set output data type as default (float32)");
         }
+      } else if (g_ascii_strcasecmp (option[0], "UserBuffer") == 0) {
+        if (g_ascii_strcasecmp (option[1], "true") == 0) {
+          use_user_buffer = true;
+          nns_logi ("Use user supplied buffer for input/output");
+        } else {
+          use_user_buffer = false;
+          nns_logi ("Use ITENSOR for input/output (default option)");
+        }
       } else {
         nns_logw ("Unknown option (%s).", options[op]);
       }
@@ -390,40 +407,55 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 
   zdl::SNPE::SNPEBuilder snpe_builder (container.get());
   snpe_builder.setOutputLayers (_output_layer_names);
-  snpe_builder.setUseUserSuppliedBuffers (false);
+  snpe_builder.setUseUserSuppliedBuffers (use_user_buffer);
   snpe_builder.setInitCacheMode (false);
   snpe_builder.setRuntimeProcessorOrder (runtime_list);
   snpe_builder.setCPUFallbackMode (use_cpu_fallback);
 
   snpe = snpe_builder.build ();
   if (snpe == nullptr) {
-    nns_loge ("fail to build snpe");
+    throw std::runtime_error ("fail to build snpe");
   }
 
-  const zdl::DlSystem::Optional<zdl::DlSystem::StringList> &strList_opt
-      = snpe->getInputTensorNames ();
+  /** user buffer mode */
+  if (use_user_buffer) {
+    if (input_data_type != _NNS_FLOAT32 || output_data_type != _NNS_FLOAT32) {
+      throw std::invalid_argument ("user buffer mode only support float32 type");
+    }
 
-  assert (strList_opt);
+    /* Configure input and output */
+    configureUserBuffer (input_buffer_map, snpe->getInputTensorNames ());
+    configureUserBuffer (output_buffer_map, snpe->getOutputTensorNames ());
 
-  const zdl::DlSystem::StringList &strList = *strList_opt;
+    setTensorProp (inputInfo, input_buffer_map);
+    setTensorProp (outputInfo, output_buffer_map);
 
-  for (size_t i = 0; i < strList.size (); ++i) {
-    const zdl::DlSystem::Optional<zdl::DlSystem::TensorShape> &inputDims_opt
-        = snpe->getInputDimensions (strList.at (i));
-    const zdl::DlSystem::TensorShape &input_shape = *inputDims_opt;
+  } else {
+    const zdl::DlSystem::Optional<zdl::DlSystem::StringList> &strList_opt
+        = snpe->getInputTensorNames ();
 
-    input_tensors.emplace_back (
-        zdl::SNPE::SNPEFactory::getTensorFactory ().createTensor (input_shape));
-    input_tensor_map.add (strList.at (i), input_tensors[i].get ());
+    assert (strList_opt);
+
+    const zdl::DlSystem::StringList &strList = *strList_opt;
+
+    for (size_t i = 0; i < strList.size (); ++i) {
+      const zdl::DlSystem::Optional<zdl::DlSystem::TensorShape> &inputDims_opt
+          = snpe->getInputDimensions (strList.at (i));
+      const zdl::DlSystem::TensorShape &input_shape = *inputDims_opt;
+
+      input_tensors.emplace_back (
+          zdl::SNPE::SNPEFactory::getTensorFactory ().createTensor (input_shape));
+      input_tensor_map.add (strList.at (i), input_tensors[i].get ());
+    }
+
+    /* do execution for get info of output tensors */
+    snpe->execute (input_tensor_map, output_tensor_map);
+
+    setTensorProp (inputInfo, input_tensor_map, input_data_type);
+    setTensorProp (outputInfo, output_tensor_map, output_data_type);
+
+    output_tensor_map.clear ();
   }
-
-  /* do execution for get info of output tensors */
-  snpe->execute (input_tensor_map, output_tensor_map);
-
-  setTensorProp (inputInfo, input_tensor_map, input_data_type);
-  setTensorProp (outputInfo, output_tensor_map, output_data_type);
-
-  output_tensor_map.clear ();
 
   empty_model = false;
 }
@@ -441,48 +473,58 @@ snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
   gint64 start_time = g_get_real_time ();
 #endif
 
-  /* Configure inputs */
-  for (unsigned int i = 0; i < inputInfo.num_tensors; ++i) {
-    size_t fsize = input_tensors[i].get ()->getSize ();
-
-    switch (input_data_type) {
-      case _NNS_FLOAT32: {
-        float *inbuf = (float *) input[i].data;
-        std::copy (inbuf, inbuf + fsize, input_tensors[i].get ()->begin ());
-        break;
-      }
-      case _NNS_UINT8: {
-        uint8_t *inbuf = (uint8_t *) input[i].data;
-        std::copy (inbuf, inbuf + fsize, input_tensors[i].get ()->begin ());
-        break;
-      }
-      default:
-        throw std::runtime_error ("Got invalid input data type");
-        break;
+  if (use_user_buffer) {
+    for (unsigned int i = 0; i < inputInfo.num_tensors; ++i) {
+      input_buffer_map.getUserBuffer (inputInfo.info[i].name)->setBufferAddress (input[i].data);
     }
-  }
 
-  output_tensor_map.clear ();
-  snpe->execute (input_tensor_map, output_tensor_map);
+    for (unsigned int i = 0; i < outputInfo.num_tensors; ++i) {
+      output_buffer_map.getUserBuffer (outputInfo.info[i].name)->setBufferAddress (output[i].data);
+    }
 
-  for (unsigned int i = 0; i < outputInfo.num_tensors; ++i) {
-    zdl::DlSystem::ITensor *output_tensor
-        = output_tensor_map.getTensor (output_tensor_map.getTensorNames ().at (i));
+    snpe->execute (input_buffer_map, output_buffer_map);
+  } else {
+    /* Configure inputs */
+    for (unsigned int i = 0; i < inputInfo.num_tensors; ++i) {
+      size_t fsize = input_tensors[i].get ()->getSize ();
 
-    switch (output_data_type) {
-      case _NNS_FLOAT32: {
-        float *outbuf = (float *) output[i].data;
-        std::copy (output_tensor->cbegin (), output_tensor->cend (), outbuf);
-        break;
+      switch (input_data_type) {
+        case _NNS_FLOAT32: {
+          float *inbuf = (float *) input[i].data;
+          std::copy (inbuf, inbuf + fsize, input_tensors[i].get ()->begin ());
+          break;
+        }
+        case _NNS_UINT8: {
+          uint8_t *inbuf = (uint8_t *) input[i].data;
+          std::copy (inbuf, inbuf + fsize, input_tensors[i].get ()->begin ());
+          break;
+        }
+        default:
+          throw std::runtime_error ("Got invalid input data type");
       }
-      case _NNS_UINT8: {
-        uint8_t *outbuf = (uint8_t *) output[i].data;
-        std::copy (output_tensor->cbegin (), output_tensor->cend (), outbuf);
-        break;
+    }
+
+    output_tensor_map.clear ();
+    snpe->execute (input_tensor_map, output_tensor_map);
+
+    for (unsigned int i = 0; i < outputInfo.num_tensors; ++i) {
+      zdl::DlSystem::ITensor *output_tensor
+          = output_tensor_map.getTensor (output_tensor_map.getTensorNames ().at (i));
+
+      switch (output_data_type) {
+        case _NNS_FLOAT32: {
+          float *outbuf = (float *) output[i].data;
+          std::copy (output_tensor->cbegin (), output_tensor->cend (), outbuf);
+          break;
+        }
+        case _NNS_UINT8: {
+          uint8_t *outbuf = (uint8_t *) output[i].data;
+          std::copy (output_tensor->cbegin (), output_tensor->cend (), outbuf);
+          break;
+        }
+        default:
+          throw std::runtime_error ("Got invalid output data type");
       }
-      default:
-        throw std::runtime_error ("Got invalid output data type");
-        break;
     }
   }
 
@@ -535,6 +577,63 @@ snpe_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &
 }
 
 /**
+ * @brief Method to configure user_buffer_map with given strList of tensor names
+ */
+void
+snpe_subplugin::configureUserBuffer (zdl::DlSystem::UserBufferMap &buffer_map, const zdl::DlSystem::StringList strList)
+{
+  zdl::DlSystem::IUserBufferFactory& ubFactory = zdl::SNPE::SNPEFactory::getUserBufferFactory ();
+  for (const char *name : strList) {
+    auto bufferAttributesOpt = snpe->getInputOutputBufferAttributes (name);
+    const zdl::DlSystem::TensorShape& bufferShape = (*bufferAttributesOpt)->getDims ();
+    std::vector<size_t> strides (bufferShape.rank ());
+    strides[strides.size () - 1] = sizeof (float);
+    for (size_t i = strides.size () - 1; i > 0; --i) {
+      strides[i - 1] = strides[i] * bufferShape[i];
+    }
+
+    size_t bufSize = sizeof (float);
+    for (size_t i = 0; i < bufferShape.rank (); ++i) {
+      bufSize *= bufferShape[i];
+    }
+
+    std::unique_ptr<zdl::DlSystem::UserBufferEncoding> userBufferEncoding;
+    userBufferEncoding = std::unique_ptr<zdl::DlSystem::UserBufferEncodingFloat>(new zdl::DlSystem::UserBufferEncodingFloat ());
+
+    user_input_buffers.push_back (ubFactory.createUserBuffer (NULL, bufSize, strides, userBufferEncoding.get ()));
+
+    if (user_input_buffers.back () == nullptr) {
+      throw std::runtime_error ("Error while creating user buffer.");
+    }
+
+    buffer_map.add (name, user_input_buffers.back ().get ());
+  }
+}
+
+/**
+ * @brief Method to set tensor properties with user_buffer.
+ */
+void
+snpe_subplugin::setTensorProp (GstTensorsInfo &tensor_meta, zdl::DlSystem::UserBufferMap &buffer_map)
+{
+  unsigned int idx = 0;
+  tensor_meta.num_tensors = buffer_map.size ();
+  for (const char *name : buffer_map.getUserBufferNames ()) {
+    tensor_meta.info[idx].type = _NNS_FLOAT32;
+    tensor_meta.info[idx].name = g_strdup (name);
+    auto bufferAttributesOpt = snpe->getInputOutputBufferAttributes (name);
+    const zdl::DlSystem::TensorShape& bufferShape = (*bufferAttributesOpt)->getDims ();
+    for (size_t j = 0; j < bufferShape.rank (); ++j) {
+      tensor_meta.info[idx].dimension[j] = bufferShape[bufferShape.rank () - j - 1];
+    }
+    for (size_t j = bufferShape.rank (); j < NNS_TENSOR_RANK_LIMIT; ++j) {
+      tensor_meta.info[idx].dimension[j] = 1;
+    }
+    idx++;
+  }
+}
+
+/**
  * @brief Method to set tensor properties.
  */
 void
@@ -576,6 +675,8 @@ snpe_subplugin::init_filter_snpe (void)
       "Set the data type of the input {'float32 (default)', 'uint8'}",
       "OutputType",
       "Set the data type of the output {'float32 (default)', 'uint8'}",
+      "UserBuffer",
+      "Use user supplied buffers for input/output tensors {'false (default)', 'true'}",
       NULL);
 }
 
