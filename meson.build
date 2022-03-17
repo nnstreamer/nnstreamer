@@ -456,7 +456,7 @@ foreach name, value: project_args
 endforeach
 
 # Add redundant declaration flag when caffe2 and pytorch both are disabled
-if not (pytorch_support_is_available and caffe2_support_is_available)
+if not (pytorch_support_is_available or caffe2_support_is_available)
   redundant_decls_flag = '-Wredundant-decls'
   if cc.has_argument (redundant_decls_flag)
     add_project_arguments([redundant_decls_flag], language: 'c')
