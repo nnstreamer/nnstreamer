@@ -388,6 +388,57 @@ TEST (nnstreamerFilterSnpe, launch01_n)
 }
 
 /**
+ * @brief Positive case to launch gst pipeline with user buffer
+ */
+TEST (nnstreamerFilterSnpe, launch03)
+{
+  gchar *pipeline;
+  GstElement *gstpipe;
+  GError *err = NULL;
+  gchar *model_file;
+  ASSERT_TRUE (_GetModelFilePath (&model_file, TRUE));
+
+  /* create a nnstreamer pipeline */
+  pipeline = g_strdup_printf ("videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw,format=GRAY8,width=1,height=1 ! tensor_converter ! tensor_transform mode=typecast option=float32 ! tensor_filter framework=snpe model=\"%s\" custom=UserBuffer:true ! tensor_sink name=sink",
+      model_file);
+
+  gstpipe = gst_parse_launch (pipeline, &err);
+  ASSERT_TRUE (gstpipe != nullptr);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+  g_free (model_file);
+}
+
+/**
+ * @brief Negative case to launch gst pipeline: only float type is supported by user buffer
+ */
+TEST (nnstreamerFilterSnpe, launch04_n)
+{
+  gchar *pipeline;
+  GstElement *gstpipe;
+  GError *err = NULL;
+  gchar *model_file;
+  ASSERT_TRUE (_GetModelFilePath (&model_file, TRUE));
+
+  /* create a nnstreamer pipeline */
+  pipeline = g_strdup_printf ("videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw,format=GRAY8,width=1,height=1 ! tensor_converter ! tensor_filter framework=snpe model=\"%s\" custom=UserBuffer:true,InputType:uint8,OutputType:uint8 ! tensor_sink name=sink",
+      model_file);
+
+  gstpipe = gst_parse_launch (pipeline, &err);
+  ASSERT_TRUE (gstpipe != nullptr);
+
+  EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+  g_free (model_file);
+}
+
+/**
  * @brief Main gtest
  */
 int
