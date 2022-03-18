@@ -10,7 +10,7 @@
 *         which converts to tensors using python.
  * @see		https://github.com/nnstreamer/nnstreamer
  * @author	Gichan Jang <gichan2.jang@samsung.com>
- * @bug		No known bugs except for NYI items
+ * @bug		python converter with Python3.9.10 is stucked during Py_Finalize().
  */
 
 #include <nnstreamer_plugin_api_converter.h>
@@ -372,16 +372,16 @@ void
 fini_converter_py (void)
 {
   unregisterExternalConverter (Python.name);
+/**
+ * @todo Remove below lines after this issue is addressed.
+ * Tizen issues: After python version has been upgraded from 3.9.1 to 3.9.10, python converter is stopped at Py_Finalize.
+ * Since Py_Initialize is not called twice from this object, Py_Finalize is temporarily removed.
+ */
+#if 0
   /** Python should be initialized and finalized only once */
-  if (Py_IsInitialized()) {
-    /**
-     * @todo: There is a crash problem between Python C-API and numpy.
-     *        If this problem is solved, let's remove the sleep time.
-     * related issue: https://github.com/numpy/numpy/issues/8097
-     */
-    g_usleep (100000);
+  if (Py_IsInitialized())
     Py_Finalize ();
-  }
+#endif
 }
 #ifdef __cplusplus
 }
