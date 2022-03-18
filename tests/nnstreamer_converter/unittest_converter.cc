@@ -365,7 +365,7 @@ new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
 /**
  * @brief Test for dynamic dimension of the custom converter
  */
-TEST (tensorConverterPython, DISABLED_dynamicDimension)
+TEST (tensorConverterPython, dynamicDimension)
 {
   GstBuffer *buf_0, *buf_1, *buf_2;
   GstElement *appsrc_handle, *sink_handle;
@@ -495,7 +495,7 @@ new_data_cb_json (GstElement *element, GstBuffer *buffer, gpointer user_data)
 /**
  * @brief Test for python json parser of the custom converter
  */
-TEST (tensorConverterPython, DISABLED_jsonParser)
+TEST (tensorConverterPython, jsonParser)
 {
   GstElement *sink_handle;
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
@@ -540,7 +540,7 @@ TEST (tensorConverterPython, DISABLED_jsonParser)
 /**
  * @brief Test for python custom converter with invalid param
  */
-TEST (tensorConverterPython, DISABLED_openTwice)
+TEST (tensorConverterPython, openTwice)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const NNStreamerExternalConverter *ex;
@@ -573,7 +573,7 @@ TEST (tensorConverterPython, DISABLED_openTwice)
 /**
  * @brief Test for python custom converter with invalid param
  */
-TEST (tensorConverterPython, DISABLED_invalidParam_n)
+TEST (tensorConverterPython, invalidParam_n)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *test_model, *data_file;
@@ -607,7 +607,7 @@ TEST (tensorConverterPython, DISABLED_invalidParam_n)
 /**
  * @brief Test for python custom converter with invalid param
  */
-TEST (tensorConverterPython, DISABLED_invalidParam2_n)
+TEST (tensorConverterPython, invalidParam2_n)
 {
   const NNStreamerExternalConverter *ex;
   GstTensorsConfig config;
@@ -622,7 +622,7 @@ TEST (tensorConverterPython, DISABLED_invalidParam2_n)
 /**
  * @brief Test for python custom converter with invalid param
  */
-TEST (tensorConverterPython, DISABLED_invalidParam3_n)
+TEST (tensorConverterPython, invalidParam3_n)
 {
   const NNStreamerExternalConverter *ex;
   GstCaps *caps;
@@ -639,7 +639,7 @@ TEST (tensorConverterPython, DISABLED_invalidParam3_n)
 /**
  * @brief Test for python custom converter with invalid param
  */
-TEST (tensorConverterPython, DISABLED_invalidParam4_n)
+TEST (tensorConverterPython, invalidParam4_n)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const NNStreamerExternalConverter *ex;
@@ -668,7 +668,7 @@ TEST (tensorConverterPython, DISABLED_invalidParam4_n)
 /**
  * @brief Test for python custom converter with invalid param
  */
-TEST (tensorConverterPython, DISABLED_invalidParam5_n)
+TEST (tensorConverterPython, invalidParam5_n)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const NNStreamerExternalConverter *ex;
@@ -697,7 +697,7 @@ TEST (tensorConverterPython, DISABLED_invalidParam5_n)
 /**
  * @brief Test for python custom converter with invalid param
  */
-TEST (tensorConverterPython, DISABLED_invalidParam6_n)
+TEST (tensorConverterPython, invalidParam6_n)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const NNStreamerExternalConverter *ex;
