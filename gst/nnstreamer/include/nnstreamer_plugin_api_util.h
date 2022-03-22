@@ -198,6 +198,14 @@ extern void
 gst_tensors_info_copy (GstTensorsInfo * dest, const GstTensorsInfo * src);
 
 /**
+ * @brief GstTensorsInfo represented as a string. Caller should free it.
+ * @param info GstTensorsInfo structure
+ * @return The newly allocated string representing the tensorsinfo. Free after use.
+ */
+extern gchar *
+gst_tensors_info_to_string (const GstTensorsInfo * info);
+
+/**
  * @brief Initialize the tensors config info structure (for other/tensors)
  * @param config tensors config structure to be initialized
  */
@@ -232,6 +240,14 @@ gst_tensors_config_is_equal (const GstTensorsConfig * c1,
  */
 extern void
 gst_tensors_config_copy (GstTensorsConfig * dest, const GstTensorsConfig * src);
+
+/**
+ * @brief Tensor config represented as a string. Caller should free it.
+ * @param config tensor config structure
+ * @return The newly allocated string representing the config. Free after use.
+ */
+extern gchar *
+gst_tensors_config_to_string (const GstTensorsConfig * config);
 
 /**
  * @brief Macro to check stream format (static tensors for caps negotiation)
