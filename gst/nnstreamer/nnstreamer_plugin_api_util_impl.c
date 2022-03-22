@@ -665,6 +665,38 @@ gst_tensors_info_get_names_string (const GstTensorsInfo * info)
 }
 
 /**
+ * @brief GstTensorsInfo represented as a string. Caller should free it.
+ * @param info GstTensorsInfo structure
+ * @return The newly allocated string representing the tensorsinfo. Free after use.
+ */
+gchar *
+gst_tensors_info_to_string (const GstTensorsInfo * info)
+{
+  GString *gstr = g_string_new (NULL);
+  unsigned int i;
+  unsigned int limit = info->num_tensors;
+
+  g_string_append_printf (gstr, "Num_Tensors = %u, Tensors = [",
+      info->num_tensors);
+  if (limit > NNS_TENSOR_SIZE_LIMIT) {
+    limit = NNS_TENSOR_SIZE_LIMIT;
+    g_string_append_printf (gstr,
+        "(Num_Tensors out of bound. Showing %d only)", limit);
+  }
+  for (i = 0; i < limit; i++) {
+    const char *name = info->info[i].name;
+    const gchar *type = gst_tensor_get_type_string (info->info[i].type);
+    gchar *dim = gst_tensor_get_dimension_string (info->info[i].dimension);
+
+    g_string_append_printf (gstr, "{\"%s\", %s, %s}%s",
+        name, type, dim, (i == info->num_tensors - 1) ? "]" : ", ");
+
+    g_free (dim);
+  }
+  return g_string_free (gstr, FALSE);
+}
+
+/**
  * @brief Initialize the tensors config info structure (for other/tensors)
  * @param config tensors config structure to be initialized
  */
@@ -777,6 +809,26 @@ gst_tensors_config_copy (GstTensorsConfig * dest, const GstTensorsConfig * src)
   dest->format = src->format;
   dest->rate_n = src->rate_n;
   dest->rate_d = src->rate_d;
+}
+
+/**
+ * @brief Tensor config represented as a string. Caller should free it.
+ * @param config tensor config structure
+ * @return The newly allocated string representing the config. Free after use.
+ */
+gchar *
+gst_tensors_config_to_string (const GstTensorsConfig * config)
+{
+  GString *gstr = g_string_new (NULL);
+  const gchar *fmt = gst_tensor_get_format_string (config->format);
+  g_string_append_printf (gstr, "Format = %s, Framerate = %d/%d",
+      fmt, config->rate_n, config->rate_d);
+  if (config->format == _NNS_TENSOR_FORMAT_STATIC) {
+    gchar *infostr = gst_tensors_info_to_string (&config->info);
+    g_string_append_printf (gstr, ", %s", infostr);
+    g_free (infostr);
+  }
+  return g_string_free (gstr, FALSE);
 }
 
 /**
