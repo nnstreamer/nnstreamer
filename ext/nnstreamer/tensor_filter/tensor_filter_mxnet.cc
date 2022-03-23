@@ -101,9 +101,11 @@ namespace tensorfilter_mxnet
 {
 
 const static std::string kFileLocation = "/ext/nnstreamer/tensor_filter/tensor_filter_mxnet.cc";
-const static std::string kFileUrl = "https://github.com/nnstreamer/nnstreamer/tree/main" + kFileLocation;
+const static std::string kFileUrl
+    = "https://github.com/nnstreamer/nnstreamer/tree/main" + kFileLocation;
 
-void init_filter_mxnet (void) __attribute__ ((constructor)); /**< Dynamic library contstructor */
+void init_filter_mxnet (void)
+    __attribute__ ((constructor)); /**< Dynamic library contstructor */
 void fini_filter_mxnet (void) __attribute__ ((destructor)); /**< Dynamic library desctructor */
 
 class TensorFilterMXNet final : public tensor_filter_subplugin
@@ -190,7 +192,8 @@ const GstTensorFilterFrameworkInfo TensorFilterMXNet::info_ = { .name = "mxnet",
   .statistics = nullptr };
 
 TensorFilterMXNet::TensorFilterMXNet ()
-    : tensor_filter_subplugin (), empty_model_ (true), ctx_ (Context::cpu ()), enable_tensorrt_ (false)
+    : tensor_filter_subplugin (), empty_model_ (true), ctx_ (Context::cpu ()),
+      enable_tensorrt_ (false)
 {
   /** Nothing to do. Just let it have an empty instance */
 }
@@ -299,7 +302,8 @@ TensorFilterMXNet::configure_instance (const GstTensorFilterProperties *prop)
     net_.InferExecutorArrays (ctx_, &arg_arrays, &grad_arrays, &grad_reqs,
         &aux_arrays, args_map_, std::map<std::string, NDArray> (),
         std::map<std::string, OpReqType> (), aux_map_);
-    for (auto& i : grad_reqs) i = OpReqType::kNullOp;
+    for (auto &i : grad_reqs)
+      i = OpReqType::kNullOp;
 
     // Create a symbolic execution engine after binding the model to input parameters.
     executor_ = std::make_unique<Executor> (
@@ -324,7 +328,7 @@ TensorFilterMXNet::invoke (const GstTensorMemory *input, GstTensorMemory *output
 
     assert ((input_ndarray.Size () * sizeof (mx_float)) == input[i].size);
     input_ndarray.SyncCopyFromCPU (
-        (const mx_float *)input[i].data, input_ndarray.Size ());
+        (const mx_float *) input[i].data, input_ndarray.Size ());
     NDArray::WaitAll ();
   }
 
@@ -343,7 +347,7 @@ TensorFilterMXNet::invoke (const GstTensorMemory *input, GstTensorMemory *output
     NDArray::WaitAll ();
 
     assert ((result.Size () * sizeof (mx_float)) == output[i].size);
-    result.SyncCopyToCPU ((mx_float *)output[i].data, result.Size ());
+    result.SyncCopyToCPU ((mx_float *) output[i].data, result.Size ());
     NDArray::WaitAll ();
   }
 }
@@ -359,13 +363,13 @@ TensorFilterMXNet::getModelInfo (
     model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info)
 {
   switch (ops) {
-  case GET_IN_OUT_INFO:
-    gst_tensors_info_copy (std::addressof (in_info), std::addressof (inputs_info_));
-    gst_tensors_info_copy (std::addressof (out_info), std::addressof (outputs_info_));
-    break;
-  case SET_INPUT_INFO:
-  default:
-    return -ENOENT;
+    case GET_IN_OUT_INFO:
+      gst_tensors_info_copy (std::addressof (in_info), std::addressof (inputs_info_));
+      gst_tensors_info_copy (std::addressof (out_info), std::addressof (outputs_info_));
+      break;
+    case SET_INPUT_INFO:
+    default:
+      return -ENOENT;
   }
   return 0;
 }
@@ -392,28 +396,28 @@ TensorFilterMXNet::TypeFlag
 TensorFilterMXNet::tensorTypeToMXNet (tensor_type type)
 {
   switch (type) {
-  case _NNS_INT32:
-    return kInt32;
-  case _NNS_UINT32:
-    return kUint32;
-  case _NNS_INT16:
-    return kInt16;
-  case _NNS_UINT16:
-    return kUint16;
-  case _NNS_INT8:
-    return kInt8;
-  case _NNS_UINT8:
-    return kUint8;
-  case _NNS_FLOAT64:
-    return kFloat64;
-  case _NNS_FLOAT32:
-    return kFloat32;
-  case _NNS_INT64:
-    return kInt64;
-  case _NNS_UINT64:
-    return kUint64;
-  default:
-    throw std::invalid_argument ("Unsupported data type.");
+    case _NNS_INT32:
+      return kInt32;
+    case _NNS_UINT32:
+      return kUint32;
+    case _NNS_INT16:
+      return kInt16;
+    case _NNS_UINT16:
+      return kUint16;
+    case _NNS_INT8:
+      return kInt8;
+    case _NNS_UINT8:
+      return kUint8;
+    case _NNS_FLOAT64:
+      return kFloat64;
+    case _NNS_FLOAT32:
+      return kFloat32;
+    case _NNS_INT64:
+      return kInt64;
+    case _NNS_UINT64:
+      return kUint64;
+    default:
+      throw std::invalid_argument ("Unsupported data type.");
   }
 }
 
