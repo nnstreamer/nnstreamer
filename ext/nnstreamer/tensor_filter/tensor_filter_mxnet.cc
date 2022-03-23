@@ -81,6 +81,7 @@
  *                custom=input_rank=4:1
  */
 #include <nnstreamer_cppplugin_api_filter.hh>
+#include <nnstreamer_util.h>
 #include <stdexcept>
 #include <tensor_common.h>
 
@@ -377,6 +378,8 @@ TensorFilterMXNet::getModelInfo (
 int
 TensorFilterMXNet::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data)
 {
+  UNUSED (ops);
+  UNUSED (data);
   return -ENOENT;
 }
 
