@@ -315,7 +315,7 @@ TorchCore::validateOutputTensor (const at::Tensor output, unsigned int idx)
 
   /** if idx is in bounds */
   if (outputTensorMeta.num_tensors <= idx) {
-    ml_loge ("Invalid output meta: trying to access index %d with total %d tensors. Update the number of outputs to >=%d in the model description",
+    ml_loge ("Invalid output meta: trying to access index %u with total %u tensors. Update the number of outputs to >=%u in the model description",
         idx, outputTensorMeta.num_tensors, idx + 1);
     return -1;
   }
@@ -324,7 +324,7 @@ TorchCore::validateOutputTensor (const at::Tensor output, unsigned int idx)
   if (tensor_shape[0] == 0) {
     otype = getTensorTypeFromTorch (output.scalar_type ());
     if (outputTensorMeta.info[idx].type != otype) {
-      ml_loge ("Invalid output meta: different type at index %d. Update the type of tensor at index %d to %d tensor_type",
+      ml_loge ("Invalid output meta: different type at index %u. Update the type of tensor at index %u to %d tensor_type",
           idx, idx, otype);
       return -2;
     }
@@ -333,7 +333,7 @@ TorchCore::validateOutputTensor (const at::Tensor output, unsigned int idx)
 
   otype = getTensorTypeFromTorch (sliced_output.scalar_type ());
   if (outputTensorMeta.info[idx].type != otype) {
-    ml_loge ("Invalid output meta: different type at index %d. Update the type of tensor at index %d to %d tensor_type",
+    ml_loge ("Invalid output meta: different type at index %u. Update the type of tensor at index %u to %d tensor_type",
         idx, idx, otype);
     return -2;
   }
@@ -345,7 +345,7 @@ TorchCore::validateOutputTensor (const at::Tensor output, unsigned int idx)
   }
 
   if (num_gst_tensor != num_torch_tensor) {
-    ml_loge ("Invalid output meta: different element size at index %d. Found size %ld while expecting size %ld. Update the tensor shape/size to resolve the error.",
+    ml_loge ("Invalid output meta: different element size at index %u. Found size %lu while expecting size %lu. Update the tensor shape/size to resolve the error.",
         idx, num_torch_tensor, num_gst_tensor);
     return -3;
   }
