@@ -1,3 +1,10 @@
+2.0.0 -> 2.0.1
+	- Add fixes to lts 2.0.0
+		- Fix critical bugs in destructor of cpp class sup-plugin
+		- Add "user buffer" mode in snpe filter, which removes memcpy and resolves segfault issues in some models.
+		- Fix MQTT related test failure issues.
+		- Fix other build issues.
+
 1.7.2 -> 2.0.0
 	- NNStreamer for Edge-AI
 		- MQTT Pub/Sub streams can be synchronized with timestamp values
