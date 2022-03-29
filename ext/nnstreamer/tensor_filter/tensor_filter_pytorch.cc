@@ -345,7 +345,9 @@ TorchCore::validateOutputTensor (const at::Tensor output, unsigned int idx)
   }
 
   if (num_gst_tensor != num_torch_tensor) {
-    ml_loge ("Invalid output meta: different element size at index %u. Found size %lu while expecting size %lu. Update the tensor shape/size to resolve the error.",
+    ml_loge ("Invalid output meta: different element size at index %u. Found size %"
+        G_GSIZE_FORMAT " while expecting size %" G_GSIZE_FORMAT
+        ". Update the tensor shape/size to resolve the error.",
         idx, num_torch_tensor, num_gst_tensor);
     return -3;
   }
