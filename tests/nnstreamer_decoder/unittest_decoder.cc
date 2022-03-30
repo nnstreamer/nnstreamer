@@ -17,7 +17,7 @@
 #include <unittest_util.h>
 #include <tensor_decoder_custom.h>
 
-#define TEST_TIMEOUT_MS (1000U)
+#define TEST_TIMEOUT_MS (5000U)
 
 static int data_received;
 

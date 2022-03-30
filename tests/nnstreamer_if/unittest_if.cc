@@ -16,7 +16,7 @@
 #include <unittest_util.h>
 #include "../gst/nnstreamer/tensor_if/gsttensorif.h"
 
-#define TEST_TIMEOUT_MS (5000U)
+#define TEST_TIMEOUT_MS (20000U)
 
 static int data_received;
 
