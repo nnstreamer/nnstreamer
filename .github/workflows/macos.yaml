@@ -1,0 +1,26 @@
+name: macos
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-python@v1
+    - name: homebrew
+      run: brew install cask && brew update
+    - name: install minimal requirements
+      run: brew install meson ninja pkg-config cmake libffi glib gstreamer gst-plugins-base gst-plugins-good numpy
+    - uses: BSFishy/meson-build@v1.0.3
+      with:
+        action: build
+
+# TODO: add more subplugins to be built
+# TODO: add unit testing
+# TODO: add valgrind testing
