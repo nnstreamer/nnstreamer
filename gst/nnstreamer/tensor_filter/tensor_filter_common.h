@@ -135,13 +135,22 @@ typedef struct _GstTensorFilterPrivate
 } GstTensorFilterPrivate;
 
 /**
+ * @brief Printout the comparison results of two tensors as a string.
+ * @param[in] info1 The tensors to be shown on the left hand side
+ * @param[in] info2 The tensors to be shown on the right hand side
+ * @return The printout string allocated. Caller should free the value.
+ */
+extern gchar *
+gst_tensorsinfo_compare_to_string (const GstTensorsInfo * info,
+    const GstTensorsInfo * info2);
+/**
  * @brief Printout the comparison results of two tensors.
  * @param[in] info1 The tensors to be shown on the left hand side
  * @param[in] info2 The tensors to be shown on the right hand side
  * @todo If this is going to be used by other elements, move this to nnstreamer/tensor_common.
  */
 extern void
-gst_tensor_filter_compare_tensors (const GstTensorsInfo * info1,
+gst_tensorsinfo_compare_print (const GstTensorsInfo * info1,
     const GstTensorsInfo * info2);
 
 /**

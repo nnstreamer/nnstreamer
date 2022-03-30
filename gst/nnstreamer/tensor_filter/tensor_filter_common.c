@@ -817,19 +817,20 @@ gst_tensor_filter_destroy_notify_util (GstTensorFilterPrivate * priv,
 }
 
 /**
- * @brief Printout the comparison results of two tensors.
+ * @brief Printout the comparison results of two tensors as a string.
  * @param[in] info1 The tensors to be shown on the left hand side
  * @param[in] info2 The tensors to be shown on the right hand side
+ * @return The printout string allocated. Caller should free the value.
  */
-void
-gst_tensor_filter_compare_tensors (const GstTensorsInfo * info1,
+gchar *
+gst_tensorsinfo_compare_to_string (const GstTensorsInfo * info1,
     const GstTensorsInfo * info2)
 {
   gchar *result = NULL;
   gchar *line, *tmp, *left, *right;
   guint i;
 
-  g_return_if_fail (info1 != NULL && info2 != NULL);
+  g_return_val_if_fail (info1 != NULL && info2 != NULL, NULL);
 
   for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
     if (info1->num_tensors <= i && info2->num_tensors <= i)
@@ -870,10 +871,22 @@ gst_tensor_filter_compare_tensors (const GstTensorsInfo * info1,
     }
   }
 
-  if (result) {
-    nns_logi ("Tensor info :\n%s", result);
-    g_free (result);
-  }
+  return result;
+}
+
+/**
+ * @brief Printout the comparison results of two tensors.
+ * @param[in] info1 The tensors to be shown on the left hand side
+ * @param[in] info2 The tensors to be shown on the right hand side
+ */
+void
+gst_tensorsinfo_compare_print (const GstTensorsInfo * info1,
+    const GstTensorsInfo * info2)
+{
+  gchar *result = gst_tensorsinfo_compare_to_string (info1, info2);
+  nns_logi ("%s\n", (result == NULL) ?
+      "cannot compare NULL metadata(GstTensorsInfo) with others" : result);
+  g_free (result);
 }
 
 /**
@@ -2343,8 +2356,12 @@ gst_tensor_filter_load_tensor_info (GstTensorFilterPrivate * priv)
     /** if set-property called and already has info, verify it! */
     if (prop->input_meta.num_tensors > 0) {
       if (!gst_tensors_info_is_equal (&in_info, &prop->input_meta)) {
-        g_critical ("The input tensor is not compatible.");
-        gst_tensor_filter_compare_tensors (&in_info, &prop->input_meta);
+        gchar *cmpstr =
+            gst_tensorsinfo_compare_to_string (&in_info, &prop->input_meta);
+        ml_loge
+            ("The input tensor is not compatible with the configuration of the model or tensor-filter property. The two tensor meta (GstTensorsInfo) are not compatible: %s\n",
+            cmpstr);
+        g_free (cmpstr);
         goto done;
       }
     } else {
@@ -2362,8 +2379,12 @@ gst_tensor_filter_load_tensor_info (GstTensorFilterPrivate * priv)
     /** if set-property called and already has info, verify it! */
     if (prop->output_meta.num_tensors > 0) {
       if (!gst_tensors_info_is_equal (&out_info, &prop->output_meta)) {
-        g_critical ("The output tensor is not compatible.");
-        gst_tensor_filter_compare_tensors (&out_info, &prop->output_meta);
+        gchar *cmpstr =
+            gst_tensorsinfo_compare_to_string (&out_info, &prop->output_meta);
+        g_critical
+            ("The output tensor is not compatible with the configuration of the model or tensor-filter property. The two tensor meta (GstTensorsInfo) are not compatible: %s\n",
+            cmpstr);
+        g_free (cmpstr);
         goto done;
       }
     } else {
