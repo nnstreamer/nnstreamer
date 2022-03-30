@@ -19,7 +19,7 @@
 #include <nnstreamer_util.h>
 
 
-#define TEST_TIMEOUT_MS (10000U)
+#define TEST_TIMEOUT_MS (30000U)
 
 /**
  * @brief custom callback function
