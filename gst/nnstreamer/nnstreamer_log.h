@@ -19,13 +19,12 @@
  * @see		http://github.com/nnstreamer/nnstreamer
  * @author	Jaeyun Jung <jy1210.jung@samsung.com>
  * @bug		No known bugs except for NYI items
- *
- * @todo	Provide print-stack internal API as an extension to ml_logf.
  */
 
 #ifndef __NNSTREAMER_LOG_H__
 #define __NNSTREAMER_LOG_H__
 
+#include <stdlib.h>
 #define TAG_NAME "nnstreamer"
 
 #if defined(__TIZEN__)
@@ -81,15 +80,65 @@
 #define ml_logf g_error
 #endif
 
-#define ml_logf_stacktrace(...) do { \
-      ml_logf (__VA_ARGS__); \
-      /** @todo NYI: Do the stack trace */ \
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/**
+ * @brief stack trace as a string for error messages
+ * @return a string of stacktrace result. caller should free it.
+ */
+extern char *
+_backtrace_to_string (void);
+
+#define GST_ELEMENT_ERROR_BTRACE(s, errtype, errcode, mesg) do { \
+      char *btrace = _backtrace_to_string (); \
+      GST_ELEMENT_ERROR (s, errtype, errcode, mesg, ("%s", btrace)); \
+      free (btrace); \
     } while (0)
+
+#define ml_logf_stacktrace(...) do { \
+      char *btrace = _backtrace_to_string (); \
+      ml_loge ("%s\n", btrace);  \
+      free (btrace); \
+      ml_logf (__VA_ARGS__); \
+    } while (0)
+
+#define ml_log_stacktrace(logfunc, ...) do { \
+      char *btrace = _backtrace_to_string (); \
+      logfunc ("%s\n", btrace);  \
+      free (btrace); \
+      logfunc (__VA_ARGS__); \
+    } while (0)
+#define ml_loge_stacktrace(...) ml_log_stacktrace(ml_loge, __VA_ARGS__)
+
+/**
+ * @brief return the last internal error string and clean it.
+ * @return a string of error. Do not free the returned string.
+ */
+extern const char *
+_nnstreamer_error (void);
+
+/**
+ * @brief overwrites the error message buffer with the new message.
+ */
+extern void
+_nnstreamer_error_write (const char *fmt, ...);
+
+/**
+ * @brief cleans up the error message buffer.
+ */
+extern void
+_nnstreamer_error_clean (void);
 
 #define nns_logi ml_logi
 #define nns_logw ml_logw
 #define nns_loge ml_loge
 #define nns_logd ml_logd
 #define nns_logf ml_logf
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __NNSTREAMER_LOG_H__ */

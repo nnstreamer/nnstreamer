@@ -39,6 +39,7 @@ nnstreamer_internal_deps = []
 nnst_single_sources = [
   'hw_accel.c',
   'nnstreamer_conf.c',
+  'nnstreamer_log.c',
   'nnstreamer_subplugin.c',
   'nnstreamer_plugin_api_util_impl.c',
 ]
