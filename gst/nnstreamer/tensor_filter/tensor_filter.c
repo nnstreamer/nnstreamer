@@ -78,6 +78,9 @@
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_filter_debug);
 #define GST_CAT_DEFAULT gst_tensor_filter_debug
 
+#define TF_MODELNAME(prop) \
+    ((prop)->model_files ? ((prop)->model_files[0]) : "[No Model File]")
+
 /**
  * @brief Default caps string for both sink and source pad.
  */
@@ -242,8 +245,13 @@ gst_tensor_filter_get_tensor_size (GstTensorFilter * self, guint index,
   else
     info = &priv->prop.output_meta;
 
-  /* Internal Logic Error */
-  g_assert (index < info->num_tensors);
+  /* Internal Logic Error: out of bound */
+  if (index >= info->num_tensors) {
+    GST_ELEMENT_ERROR_BTRACE (self, STREAM, FAILED,
+        ("tensor_filter's core has inconsistent data. Please report to https://github.com/nnstreamer/nnstreamer/issues . The index argeument (%u) of tensors is greater-than or equal-to the number of tensors (%u)",
+            index, info->num_tensors));
+    return 0;
+  }
 
   return gst_tensor_info_get_size (&info->info[index]);
 }
@@ -377,7 +385,7 @@ record_statistics (GstTensorFilterPrivate * priv)
     else
       priv->prop.latency = -1;
 
-    ml_logi ("[%s] Invoke took %.3f ms", priv->prop.model_files[0],
+    ml_logi ("[%s] Invoke took %.3f ms", TF_MODELNAME (&(priv->prop)),
         (*latency) / 1000.0);
   }
 
@@ -397,7 +405,7 @@ record_statistics (GstTensorFilterPrivate * priv)
     /* note that it's a 1000x larger value than actual throughput */
     priv->prop.throughput = throughput_int;
 
-    ml_logi ("[%s] Throughput: %.2f FPS", priv->prop.model_files[0],
+    ml_logi ("[%s] Throughput: %.2f FPS", TF_MODELNAME (&(priv->prop)),
         throughput_int / 1000.0);
   }
 
@@ -490,7 +498,13 @@ _gst_tensor_filter_transform_validate (GstBaseTransform * trans,
   GstTensorFilterProperties *prop = &priv->prop;
 
   if (G_UNLIKELY (!priv->configured)) {
-    GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL), ("unknown format"));
+    GST_ELEMENT_ERROR_BTRACE (self, STREAM, TYPE_NOT_FOUND,
+        ("The tensor_filter instance is not configured (pad caps not negotiated). Property info (framework = '%s', framework_opened = %d, model[0] = '%s', num-models = %d, custom_properties = '%s'.",
+            prop ? prop->fwname : "property info is NULL.",
+            prop ? prop->fw_opened : -1,
+            prop ? TF_MODELNAME (prop) : "property info is NULL.",
+            prop ? prop->num_models : -1,
+            prop ? prop->custom_properties : "property info is NULL."));
     return GST_FLOW_NOT_NEGOTIATED;
   }
   if (G_UNLIKELY (!priv->fw)) {
@@ -499,25 +513,27 @@ _gst_tensor_filter_transform_validate (GstBaseTransform * trans,
       * it means that an extension is missing or not configured.
       * We need readable messages for non-developers
       */
-    g_error
-        ("\nA nnstreamer extension is not installed or framework property of tensor_filter is incorrect: [%s] is not found.\n\n",
+    GST_ELEMENT_ERROR_BTRACE (self, STREAM, FAILED,
+        ("Framework (filter subplugin) is not found or not configured: 'framework=%s'. Please check if the given framework name is correct and the given model path is consistent with the intended framework especially if 'framework=auto' is given. Please refer to the warning messages created when the framework property is set.",
+            priv->prop.fwname));
+    ml_logf
+        ("\nA corresponding nnstreamer extension (tensor_filter subplugin) is not installed or the framework property of tensor_filter is incorrect: [%s] is not found.\n\n",
         prop->fwname);
-    GST_ELEMENT_ERROR (self, LIBRARY, FAILED,
-        ("framework (filter subplugin) is not found or not configured"),
-        ("framework not configured"));
     return GST_FLOW_ERROR;
   }
   if (G_UNLIKELY (!priv->fw->run_without_model) &&
       G_UNLIKELY (!(prop->model_files &&
               prop->num_models > 0 && prop->model_files[0]))) {
-    GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL),
-        ("model filepath not configured"));
+    GST_ELEMENT_ERROR_BTRACE (self, STREAM, FAILED,
+        ("For the framework='%s', its model filepath is not provided and this framework requires a model file. Thus, we cannot proceed with tensor_filter for inferences. Please provide a valid model file path.",
+            prop->fwname));
     return GST_FLOW_ERROR;
   }
   if ((GST_TF_FW_V0 (priv->fw) && G_UNLIKELY (!priv->fw->invoke_NN)) ||
       (GST_TF_FW_V1 (priv->fw) && G_UNLIKELY (!priv->fw->invoke))) {
-    GST_ELEMENT_ERROR (self, CORE, NOT_IMPLEMENTED, (NULL),
-        ("invoke function is not defined"));
+    GST_ELEMENT_ERROR_BTRACE (self, STREAM, FAILED,
+        ("The tensor-filter subplugin for the framework='%s' does not have its mandatory methods (or callback functions). It appears that your subplugin implementation of '%s' is not completed. There is no 'invoke_NN (v1)' or 'invoke (v2)' methods available.",
+            prop->fwname, prop->fwname));
     return GST_FLOW_ERROR;
   }
 
@@ -529,14 +545,15 @@ _gst_tensor_filter_transform_validate (GstBaseTransform * trans,
     return GST_BASE_TRANSFORM_FLOW_DROPPED;
 
   if (!outbuf) {
-    GST_ELEMENT_ERROR (self, RESOURCE, FAILED, ("outbuf is null."),
-        ("%s:%s:%d", __FILE__, __func__, __LINE__));
+    GST_ELEMENT_ERROR_BTRACE (self, STREAM, FAILED,
+        ("The output buffer for the instance of tensor-filter subplugin (%s / %s) is null. Cannot proceed.",
+            prop->fwname, TF_MODELNAME (prop)));
     return GST_FLOW_ERROR;
   }
   if (gst_buffer_get_size (outbuf) != 0) {
-    GST_ELEMENT_ERROR (self, RESOURCE, FAILED, ("outbuf size is not zero."),
-        ("%s:%s:%d. size = %zu", __FILE__, __func__, __LINE__,
-            gst_buffer_get_size (outbuf)));
+    GST_ELEMENT_ERROR_BTRACE (self, STREAM, FAILED,
+        ("The output buffer for the isntance of tensor-filter subplugin (%s / %s) already has a content (buffer size = %zu). It should be 0.",
+            prop->fwname, TF_MODELNAME (prop), gst_buffer_get_size (outbuf)));
     return GST_FLOW_ERROR;
   }
 
@@ -591,7 +608,9 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   for (i = 0; i < num_mems; i++) {
     in_mem[i] = gst_buffer_peek_memory (inbuf, i);
     if (!gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
-      ml_logf ("Cannot map input memory buffer(%d)\n", i);
+      ml_logf_stacktrace
+          ("gst_tensor_filter_transform: For the given input buffer, tensor-filter (%s : %s) cannot map input memory from the buffer for reading. The %u-th memory chunk (%u-th tensor) has failed for memory map.\n",
+          prop->fwname, TF_MODELNAME (prop), i, i);
       goto mem_map_error;
     }
 
@@ -613,16 +632,17 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
       i = GPOINTER_TO_UINT (list->data);
 
       if (i >= num_mems) {
-        ml_loge
-            ("Invalid combination index %u, incoming buffer has total %u memories.",
-            i, num_mems);
+        ml_loge_stacktrace
+            ("gst_tensor_filter_transform: Invalid input combination ('input-combination' property) for the tensor-filter (%s:%s). The %u'th combination's index is %u, which is out of bound (>= %u = the number of memory chunks (tensors) of incoming buffer). Because of buffer index inconsistency, it cannot continue (cannot map the memory for the input buffer).\n",
+            prop->fwname, TF_MODELNAME (prop), info_idx, i, num_mems);
         goto mem_map_error;
       }
 
       expected = gst_tensor_filter_get_tensor_size (self, info_idx, TRUE);
       if (expected != in_tensors[i].size) {
-        ml_loge ("Incoming buffer size ([%u] %zd) is invalid, expected %zd.",
-            i, in_tensors[i].size, expected);
+        ml_loge_stacktrace
+            ("gst_tensor_filter_transform: With the given input combination ('input-combination' property) of the tensor-filter, the incoming buffer size of combination index %u (%u'th combination) is %zd, which is invalid and is expected to be %zd. Because of buffer size inconsistency, it cannot continue (cannot map the memory for the input buffer).\n",
+            i, info_idx, in_tensors[i].size, expected);
         goto mem_map_error;
       }
 
@@ -630,7 +650,8 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     }
   } else {
     if (num_mems != prop->input_meta.num_tensors) {
-      ml_loge ("Incoming buffer has invalid memory blocks (%u), expected %u.",
+      ml_loge_stacktrace
+          ("gst_tensor_filter_transform: Input buffer has invalid number of memory blocks (%u), which is expected to be %u (the number of tensors). Maybe, the pad capability is not consistent with the actual input stream.\n",
           num_mems, prop->input_meta.num_tensors);
       goto mem_map_error;
     }
@@ -638,7 +659,8 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     for (i = 0; i < prop->input_meta.num_tensors; i++) {
       expected = gst_tensor_filter_get_tensor_size (self, i, TRUE);
       if (expected != in_tensors[i].size) {
-        ml_loge ("Incoming buffer size ([%u] %zd) is invalid, expected %zd.",
+        ml_loge_stacktrace
+            ("gst_tensor_filter_transform: Input buffer size (%u'th memory chunk: %zd) is invalid, which is expected to be %zd, which is the frame size of the corresponding tensor. Maybe, the pad capability is not consistent with the actual input stream; if the size is supposed to change dynamically and the given neural network, framework, and the subpluigins can handle it, please consider using format=flexible.\n",
             i, in_tensors[i].size, expected);
         goto mem_map_error;
       }
@@ -663,16 +685,31 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     if (!allocate_in_invoke) {
       out_mem[i] =
           gst_allocator_alloc (NULL, out_tensors[i].size + hsize, NULL);
+      if (!out_mem[i]) {
+        ml_loge_stacktrace
+            ("gst_tensor_filter_transform: cannot allocate memory for the output buffer (%u'th memory chunk for %u'th tensor), which requires %zd bytes. gst_allocate_alloc has returned Null. Out of memory?",
+            i, i, out_tensors[i].size + hsize);
+        goto mem_map_error;
+      }
       if (!gst_memory_map (out_mem[i], &out_info[i], GST_MAP_WRITE)) {
-        ml_logf ("Cannot map output memory buffer(%d)\n", i);
+        ml_loge_stacktrace
+            ("gst_tensor_filter_transform: For the given output buffer, allocated by gst_tensor_filter_transform, it cannot map output memory buffer for the %u'th memory chunk (%u'th output tensor) for write.\n",
+            i, i);
         goto mem_map_error;
       }
 
       out_tensors[i].data = out_info[i].data + hsize;
 
       /* append header */
-      if (out_flexible)
-        gst_tensor_meta_info_update_header (&out_meta[i], out_info[i].data);
+      if (out_flexible) {
+        if (FALSE == gst_tensor_meta_info_update_header
+            (&out_meta[i], out_info[i].data)) {
+          ml_loge_stacktrace
+              ("gst_tensor_meta_info_update_header() has failed to update header for flexible format: invalid metadata or buffer for header is not available. This looks like an internal error of nnstreamer/tensor_filter. Please report to github.com/nnstreamer/nnstreamer/issues. %u'th output buffer has failed to update its header.\n",
+              i);
+          goto mem_map_error;
+        }
+      }
     }
   }
 
@@ -699,7 +736,9 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
 
   /** @todo define enum to indicate status code */
   if (ret < 0) {
-    ml_loge ("Tensor-filter invoke failed (error code = %d).\n", ret);
+    ml_loge_stacktrace
+        ("Calling invoke function (inference instance) of the tensor-filter subplugin (%s for %s) has failed with error code (%d).\n",
+        prop->fwname, TF_MODELNAME (prop), ret);
     return GST_FLOW_ERROR;
   } else if (ret > 0) {
     /* drop this buffer */
@@ -821,20 +860,47 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
   gst_tensor_filter_load_tensor_info (&self->priv);
 
   structure = gst_caps_get_structure (incaps, 0);
-  gst_tensors_config_from_structure (&in_config, structure);
+  if (G_UNLIKELY (!structure)) {
+    gchar *capstr = gst_caps_to_string (incaps);
+    GST_ELEMENT_ERROR_BTRACE (self, STREAM, WRONG_TYPE,
+        ("%s:%u The input stream padcap is not appropriate. Cannot get structured information from the given padcap: '%s' (gst_caps_get_structure() has returned NULL.). Please check if the caps you've given is correct especially if you have applied caps-filter in front of tensor-filter (%s:%s).",
+            __func__, __LINE__, capstr, GST_STR_NULL (prop->fwname),
+            TF_MODELNAME (prop)));
+    g_free (capstr);
+    goto done;
+  }
+  if (G_UNLIKELY (!gst_tensors_config_from_structure (&in_config, structure))) {
+    gchar *capstr = gst_caps_to_string (incaps);
+    GST_ELEMENT_ERROR_BTRACE (self, STREAM, WRONG_TYPE,
+        ("%s:%u The input stream padcap is not appropriate. It is not a valid tensor stream (other/tensors) or a tensor stream with a few required entries missing. For example, dimesion and type are missing for a static tensor (format=static or other/tensor (single tensor)). The given padcap is '%s' for tensor-filter (%s:%s).",
+            __func__, __LINE__, capstr, GST_STR_NULL (prop->fwname),
+            TF_MODELNAME (prop)));
+    g_free (capstr);
+    goto done;
+  }
 
   /**
    * Check configuration from caps.
    * If true, fully configured tensor info from caps.
    */
   if (!gst_tensors_config_validate (&in_config)) {
-    GST_ERROR_OBJECT (self, "Invalid caps, failed to configure input info.");
+    gchar *capstr = gst_caps_to_string (incaps);
+    GST_ELEMENT_ERROR_BTRACE (self, STREAM, WRONG_TYPE,
+        ("%s:%u The input stream padcaps cannot be validated. It is not a valid tensor stream for tensor_filter element. Input stream type for tensor_filter (%s:%s) is %s. tensor-filter could get config from the input padcap; however, it cannot be validated: framerate or format is not valid. Try a static tensor stream with a valid (0/1 is also valid!) framerate.",
+            __func__, __LINE__, GST_STR_NULL (prop->fwname),
+            TF_MODELNAME (prop), capstr));
+    g_free (capstr);
     goto done;
   }
 
   if (!gst_tensor_filter_common_get_combined_in_info (priv, &in_config.info,
           &in_info)) {
-    GST_ERROR_OBJECT (self, "Failed to configure combined input info.");
+    gchar *capstr = gst_caps_to_string (incaps);
+    GST_ELEMENT_ERROR_BTRACE (self, STREAM, WRONG_TYPE,
+        ("%s:%u Failed to configure combined input info for tensor-filter (%s:%s). The given padcap is '%s'. User has specified input combination (refer to the previous error log), which shuffles the order of tensors, which is not compatible with the given model. Please check the padcap, input combination, and tensor/dimension requirement of your neural network model.",
+            __func__, __LINE__, GST_STR_NULL (prop->fwname),
+            TF_MODELNAME (prop), capstr));
+    g_free (capstr);
     goto done;
   }
 
@@ -850,15 +916,32 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
        */
       GST_INFO_OBJECT (self, "The input tensor is flexible.");
     } else if (!gst_tensors_info_is_equal (&in_info, &prop->input_meta)) {
-      GST_ERROR_OBJECT (self, "The input tensor is not compatible.");
-      gst_tensor_filter_compare_tensors (&in_info, &prop->input_meta);
+      gchar *capstr = gst_caps_to_string (incaps);
+      gchar *compare =
+          gst_tensorsinfo_compare_to_string (&in_info, &prop->input_meta);
+      GST_ELEMENT_ERROR_BTRACE (self, STREAM, WRONG_TYPE,
+          ("%s:%u The input tensor of tensor_filter (%s:%s) is not compatible with the configured input information. Please check tensor-filter properties if you have given input dimensions explicitly; or the model properties if you have not given them. Check the input stream caps and related caps-filters, too. The given gstcap is %s, which is not compatible: %s",
+              __func__, __LINE__, GST_STR_NULL (prop->fwname),
+              TF_MODELNAME (prop), capstr, compare));
+      g_free (compare);
+      g_free (capstr);
       goto done;
     }
   } else {
     if (flexible) {
-      /* cannot update meta from caps */
-      GST_ERROR_OBJECT (self,
-          "The input tensor is flexible, cannot configure input info.");
+      gchar *capstr = gst_caps_to_string (incaps);
+      /** @todo
+       * We do not support this (flexible tensor for flexible input model).
+       * Cap-negotiation of the current tensor-filter requires either side of
+       * "model / set-property" or "incoming gstcaps" to be static/explicit.
+       * Ideally, this should support flexible tensor for flexible input model,
+       * leaving the negotiation to other elements, but we didn't implement it yet.
+       */
+      GST_ELEMENT_ERROR_BTRACE (self, STREAM, WRONG_TYPE,
+          ("%s:%u The input tensor of tensor_filter (%s:%s) is flexible (gstcap: '%s'), which requires either explicit type/dimension tensor-filter property values or static input dimension models. The current version of tensor-filter does not support flexible tensors for dynamic-input models without explicit input dimension declaration. Declare type/dimension/tensors with tensor-filter properties, or apply caps-filter in front of tensor-filter, or use static tensor streams.",
+              __func__, __LINE__, GST_STR_NULL (prop->fwname),
+              TF_MODELNAME (prop), capstr));
+      g_free (capstr);
       goto done;
     } else {
       gst_tensors_info_copy (&prop->input_meta, &in_info);
@@ -874,8 +957,12 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
       /** if set-property called and already has info, verify it! */
       if (prop->output_meta.num_tensors > 0) {
         if (!gst_tensors_info_is_equal (&out_info, &prop->output_meta)) {
-          GST_ERROR_OBJECT (self, "The output tensor is not compatible.");
-          gst_tensor_filter_compare_tensors (&out_info, &prop->output_meta);
+          gchar *cmpstr = gst_tensorsinfo_compare_to_string (&out_info,
+              &prop->output_meta);
+          GST_ELEMENT_ERROR_BTRACE (self, STREAM, WRONG_TYPE,
+              ("%s:%u The output tensor is not compatible with the configured tensor information. The configuration is usually set by tensor-filter properties declared by users or the given neural network itself. The following two tensor metadata are not compatible: %s.\n",
+                  __func__, __LINE__, cmpstr));
+          g_free (cmpstr);
           gst_tensors_info_free (&out_info);
           goto done;
         }
@@ -887,7 +974,9 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
     }
 
     if (!prop->output_configured) {
-      GST_ERROR_OBJECT (self, "Failed to get output tensor info.\n");
+      GST_ELEMENT_ERROR_BTRACE (self, STREAM, WRONG_TYPE,
+          ("%s:%u Failed to get output tensor info: not enough related information to configure output.\n",
+              __func__, __LINE__));
       goto done;
     }
   }
@@ -903,7 +992,9 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
 
   if (!gst_tensor_filter_common_get_combined_out_info (priv, &in_config.info,
           &prop->output_meta, &out_config.info)) {
-    GST_ERROR_OBJECT (self, "Failed to configure combined output info.");
+    GST_ELEMENT_ERROR_BTRACE (self, STREAM, WRONG_TYPE,
+        ("%s:%u Failed to configure combined output info: please refer to the error message of gst_tensor_filter_common_get_combined_out_info(). ",
+            __func__, __LINE__));
     goto done;
   }
 
@@ -1101,28 +1192,38 @@ gst_tensor_filter_set_caps (GstBaseTransform * trans,
   silent_debug_caps (self, outcaps, "outcaps");
 
   if (!gst_tensor_filter_configure_tensor (self, incaps)) {
-    GST_ERROR_OBJECT (self, "Failed to configure tensor.");
+    GST_ELEMENT_ERROR_BTRACE (self, STREAM, WRONG_TYPE,
+        ("Failed to configure tensor. Please refer to the error log of gst_tensor_filter_configure_tensor ()."));
     return FALSE;
   }
 
   if (!gst_tensors_config_validate (&priv->in_config)) {
-    GST_ERROR_OBJECT (self, "Failed to validate input tensor.");
+    GST_ELEMENT_ERROR_BTRACE (self, STREAM, WRONG_TYPE,
+        ("Failed to validate input tensor configuration. Please refer to the error log of gst_tensors_config_validate(): %s",
+            GST_STR_NULL (_nnstreamer_error ())));
     return FALSE;
   }
 
   if (!gst_tensors_config_validate (&priv->out_config)) {
-    GST_ERROR_OBJECT (self, "Failed to validate output tensor.");
+    GST_ELEMENT_ERROR_BTRACE (self, STREAM, WRONG_TYPE,
+        ("Failed to validate output tensor configuration. Please refer to the error log of gst_tensors_config_validate(): %s",
+            GST_STR_NULL (_nnstreamer_error ())));
     return FALSE;
   }
 
   /** compare output tensor */
   structure = gst_caps_get_structure (outcaps, 0);
   gst_tensors_config_from_structure (&config, structure);
-
   if (gst_tensors_config_is_flexible (&config)) {
     GST_INFO_OBJECT (self, "Output tensor is flexible.");
   } else if (!gst_tensors_config_is_equal (&priv->out_config, &config)) {
-    GST_ERROR_OBJECT (self, "Invalid outcaps.");
+    GstTensorFilterProperties *prop = &priv->prop;
+    gchar *compare = gst_tensorsinfo_compare_to_string (&priv->out_config.info,
+        &config.info);
+    GST_ELEMENT_ERROR_BTRACE (self, STREAM, WRONG_TYPE,
+        ("Set-caps failed. Invalid output config (padcaps) for tensor-filter (%s:%s): its format is static, but not equal to the internal configuration: %s\nThis might be an internal error. Please report to https://github.com/nnstreamer/nnstreamer/issues .",
+            GST_STR_NULL (prop->fwname), TF_MODELNAME (prop), compare));
+    g_free (compare);
     return FALSE;
   }
 
@@ -1137,8 +1238,8 @@ gst_tensor_filter_set_caps (GstBaseTransform * trans,
  */
 static gboolean
 gst_tensor_filter_transform_size (GstBaseTransform * trans,
-    GstPadDirection direction, GstCaps * caps, gsize size, GstCaps * othercaps,
-    gsize * othersize)
+    GstPadDirection direction, GstCaps * caps, gsize size,
+    GstCaps * othercaps, gsize * othersize)
 {
   GstTensorFilter *self;
   GstTensorFilterPrivate *priv;
@@ -1146,13 +1247,10 @@ gst_tensor_filter_transform_size (GstBaseTransform * trans,
   UNUSED (caps);
   UNUSED (size);
   UNUSED (othercaps);
-
   self = GST_TENSOR_FILTER_CAST (trans);
   priv = &self->priv;
-
   /** Internal Logic Error. Cannot proceed without configured pipeline */
   g_assert (priv->configured);
-
   /**
    * Consider multi-tensors.
    * Set each memory block in transform()
@@ -1172,24 +1270,19 @@ gst_tensor_filter_sink_event (GstBaseTransform * trans, GstEvent * event)
 {
   GstTensorFilter *self;
   GstTensorFilterPrivate *priv;
-
   self = GST_TENSOR_FILTER_CAST (trans);
   priv = &self->priv;
-
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_CUSTOM_DOWNSTREAM:
     {
       const GstStructure *structure = gst_event_get_structure (event);
       int ret = -1;
-
       if (structure == NULL ||
           !gst_structure_has_name (structure, EVENT_NAME_UPDATE_MODEL))
         break;
-
       if (priv->is_updatable) {
         const GValue *value =
             gst_structure_get_value (structure, "model_files");
-
         if (value != NULL) {
           g_object_set (self, "model", value, NULL);
           ret = 0;
@@ -1197,7 +1290,6 @@ gst_tensor_filter_sink_event (GstBaseTransform * trans, GstEvent * event)
       }
 
       gst_event_unref (event);
-
       return (ret == 0);
     }
     default:
@@ -1218,28 +1310,21 @@ static gboolean
 gst_tensor_filter_src_event (GstBaseTransform * trans, GstEvent * event)
 {
   GstTensorFilter *self = GST_TENSOR_FILTER_CAST (trans);
-
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_QOS:
     {
       GstQOSType type;
       GstClockTimeDiff diff;
-
       gst_event_parse_qos (event, &type, NULL, &diff, NULL);
-
       if (type == GST_QOS_TYPE_THROTTLE && diff > 0) {
         GST_OBJECT_LOCK (trans);
-
         if (self->throttling_delay != 0)
           /* set to more tight framerate */
           self->throttling_delay = MIN (self->throttling_delay, diff);
         else
           self->throttling_delay = diff;
-
         GST_OBJECT_UNLOCK (trans);
-
         gst_event_unref (event);
-
         /* enable the average latency profiling */
         g_object_set (self, "latency", 1, NULL);
         return TRUE;
@@ -1264,14 +1349,11 @@ gst_tensor_filter_start (GstBaseTransform * trans)
 {
   GstTensorFilter *self;
   GstTensorFilterPrivate *priv;
-
   self = GST_TENSOR_FILTER_CAST (trans);
   priv = &self->priv;
-
   /* If it is not configured properly, don't allow to start! */
   if (priv->fw == NULL)
     return FALSE;
-
   gst_tensor_filter_common_open_fw (priv);
   return priv->prop.fw_opened;
 }
@@ -1286,10 +1368,8 @@ gst_tensor_filter_stop (GstBaseTransform * trans)
 {
   GstTensorFilter *self;
   GstTensorFilterPrivate *priv;
-
   self = GST_TENSOR_FILTER_CAST (trans);
   priv = &self->priv;
-
   gst_tensor_filter_common_close_fw (priv);
   return TRUE;
 }
