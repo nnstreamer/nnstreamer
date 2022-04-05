@@ -18,9 +18,7 @@ jobs:
       run: sudo apt-get update && sudo apt-get install -y libglib2.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
     - uses: BSFishy/meson-build@v1.0.3
       with:
-        action: build
-      with:
-        action: install
+        action: test
 
 # TODO: add more subplugins to be built
 # TODO: add unit testing
