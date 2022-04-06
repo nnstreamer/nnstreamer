@@ -9,11 +9,10 @@
 
 #include <gtest/gtest.h>
 #include <glib.h>
+#include <unittest_util.h>
 
 #include <nnstreamer_plugin_api_filter.h>
 #include <nnstreamer_plugin_api.h>
-
-#include <unittest_util.h>
 
 #define NNS_TENSOR_RATE_NAME "tensor_rate"
 
@@ -35,146 +34,188 @@ TEST (nnstreamerRate, checkExistence)
 TEST (nnstreamerRate, checkExistence_n)
 {
   GstElementFactory *factory;
-  gchar *name;
+  g_autofree gchar *name = nullptr;
 
   name = g_strconcat (NNS_TENSOR_RATE_NAME, "_dummy", NULL);
   factory = gst_element_factory_find (name);
   EXPECT_TRUE (factory == NULL);
-  g_free (name);
 }
 
 /**
- * @brief Test modes.
+ * @brief Test Fixture class for a tensor_rate element
  */
-typedef enum {
-  TENSOR_RATE_MODE_PASSTHROUGH = 0,
-  TENSOR_RATE_MODE_NO_THROTTLE,
-  TENSOR_RATE_MODE_THROTTLE,
-} TestMode;
-
-/**
- * @brief Test options.
- */
-typedef struct
+class NNSRateTest : public testing::Test
 {
-  guint64 in, out, dup, drop;
-  gboolean silent, throttle;
+protected:
+  /**
+   * @brief Test Mode enumerator
+   */
+  enum TestMode {
+    TENSOR_RATE_MODE_PASSTHROUGH = 0,
+    TENSOR_RATE_MODE_NO_THROTTLE,
+    TENSOR_RATE_MODE_THROTTLE,
+  };
+
   guint source_num_buffers;
-  gchar * source_framerate;
-  gchar * target_framerate;
-  gchar * framework;
-  gchar * model_file;
+  gchar *target_framerate;
+  gchar *framework;
+  gchar *modelpath;
+  GstElement *pipeline;
+  gboolean silent, throttle;
+  gchar *source_framerate;
+  GstElement *rate;
   TestMode mode;
-} TestOption;
 
-/**
- * @brief Data structure for test.
- */
-typedef struct
-{
-  GMainLoop *loop;  /**< main event loop */
-  GstElement *pipeline; /**< gst pipeline for test */
-} TestData;
+  const gboolean DEFAULT_SILENT = TRUE;
+  const gboolean DEFAULT_THROTTLE = FALSE;
+  const guint DEFAULT_SOURCE_NUM_BUFFERS = 300;
+  const std::string DEFAULT_SOURCE_FRAMERATE = "30/1";
+  const std::string DEFAULT_TARGET_FRAMERATE = "0/1";
+  const guint64 DEFAULT_IN = 0;
+  const guint64 DEFAULT_OUT = 0;
+  const guint64 DEFAULT_DUP = 0;
+  const guint64 DEFAULT_DROP = 0;
 
-/**
- * @brief Data for pipeline and test result.
- */
-static TestData test_data;
+  /**
+   * @brief Construct a new NNSRateTest object
+   */
+  NNSRateTest() :
+    source_num_buffers (0), target_framerate (nullptr), framework (nullptr),
+    modelpath (nullptr), pipeline (nullptr), silent (FALSE), throttle (FALSE),
+    source_framerate (nullptr), rate (nullptr), mode (TENSOR_RATE_MODE_PASSTHROUGH) {}
 
-static gboolean DEFAULT_SILENT = TRUE;
-static gboolean DEFAULT_THROTTLE = FALSE;
-static guint DEFAULT_SOURCE_NUM_BUFFERS = 300;
-static gchar DEFAULT_SOURCE_FRAMERATE[] = "30/1";
-static gchar DEFAULT_TARGET_FRAMERATE[] = "0/1";
+  /**
+   * @brief Wait until the EOS message is received or the timeout is expired.
+   * @param pipeline target pipeline element to watch.
+   * @return @c TRUE if EOS message is received in the timeout period. Otherwise FALSE.
+   */
+  static gboolean
+  wait_pipeline_eos (GstElement *pipeline) {
+    GstBus *bus = gst_element_get_bus (pipeline);
+    gboolean got_eos_message = FALSE;
 
-static guint64 DEFAULT_IN = 0;
-static guint64 DEFAULT_OUT = 0;
-static guint64 DEFAULT_DUP = 0;
-static guint64 DEFAULT_DROP = 0;
+    if (GST_IS_BUS (bus)) {
+      const gulong timeout = G_USEC_PER_SEC * 10;
+      const gulong timeout_slice = G_USEC_PER_SEC / 10;
+      gulong timeout_accum = 0;
+      GstMessage *msg;
 
-/**
- * @brief Prepare test pipeline
- */
-static gboolean
-_setup_pipeline (TestOption &option)
-{
-  gchar *str_pipeline;
+      while (!got_eos_message && timeout_accum < timeout) {
+        g_usleep (timeout_slice);
+        timeout_accum += timeout_slice;
 
-  switch (option.mode) {
-    case TENSOR_RATE_MODE_PASSTHROUGH:
-      str_pipeline = g_strdup_printf (
-        "videotestsrc num-buffers=%u ! video/x-raw,framerate=%s ! tensor_converter ! "
-        "tensor_rate name=rate framerate=%s throttle=FALSE silent=%s ! fakesink",
-        option.source_num_buffers,
-        option.source_framerate,
-        option.source_framerate,
-        option.silent ? "TRUE" : "FALSE"
-        );
-      break;
-    case TENSOR_RATE_MODE_NO_THROTTLE:
-      str_pipeline = g_strdup_printf (
-        "videotestsrc num-buffers=%u ! video/x-raw,framerate=%s ! tensor_converter ! "
-        "tensor_rate name=rate framerate=%s throttle=FALSE silent=%s ! fakesink",
-        option.source_num_buffers,
-        option.source_framerate,
-        option.target_framerate,
-        option.silent ? "TRUE" : "FALSE"
-        );
-      break;
-    case TENSOR_RATE_MODE_THROTTLE:
-      str_pipeline = g_strdup_printf (
-        "videotestsrc num-buffers=%u ! video/x-raw,framerate=%s ! tensor_converter ! "
-        "tensor_filter framework=%s model=%s ! "
-        "tensor_rate name=rate framerate=%s throttle=TRUE silent=%s ! fakesink",
-        option.source_num_buffers,
-        option.source_framerate,
-        option.framework,
-        option.model_file,
-        option.target_framerate,
-        option.silent ? "TRUE" : "FALSE"
-        );
-      break;
-    default:
-      return FALSE;
+        while ((msg = gst_bus_pop (bus)) != NULL) {
+          gst_bus_async_signal_func(bus, msg, NULL);
+
+          switch (GST_MESSAGE_TYPE (msg)) {
+            case GST_MESSAGE_EOS:
+              got_eos_message = TRUE;
+              break;
+            default:
+              break;
+          }
+          gst_message_unref(msg);
+        }
+      }
+      gst_object_unref(bus);
+    }
+
+    return got_eos_message;
   }
 
-  test_data.pipeline = gst_parse_launch (str_pipeline, NULL);
-  g_free (str_pipeline);
+  /**
+   * @brief SetUp method for each test case
+   */
+  void SetUp() override {
+    silent = DEFAULT_SILENT;
+    throttle = DEFAULT_THROTTLE;
+    source_num_buffers = DEFAULT_SOURCE_NUM_BUFFERS;
+    source_framerate = const_cast<char *>(DEFAULT_SOURCE_FRAMERATE.c_str());
+    target_framerate = const_cast<char *>(DEFAULT_TARGET_FRAMERATE.c_str());
+    mode = TENSOR_RATE_MODE_PASSTHROUGH;
+  }
 
-  return test_data.pipeline != NULL ? TRUE : FALSE;
-}
+  /**
+   * @brief TearDown method for each test case
+   */
+  void TearDown() override {
+    gst_object_unref (rate);
+    gst_object_unref (pipeline);
+  }
 
-/**
- * @brief set default option
- */
-static void
-_set_default_option (TestOption &option)
-{
-  option.silent = DEFAULT_SILENT;
-  option.throttle = DEFAULT_THROTTLE;
-  option.source_num_buffers = DEFAULT_SOURCE_NUM_BUFFERS;
-  option.source_framerate = DEFAULT_SOURCE_FRAMERATE;
-  option.target_framerate = DEFAULT_TARGET_FRAMERATE;
-  option.mode = TENSOR_RATE_MODE_PASSTHROUGH;
-}
+  /**
+   * @brief Get the rate element in the pipeline.
+   * @return GstElement* the rate element
+   */
+  GstElement* getRateElem() {
+    if (!rate)
+      rate = gst_bin_get_by_name (GST_BIN (pipeline), "rate");
+
+    return rate;
+  }
+
+  /**
+   * @brief Make the pipeline description for each mode and construct the pipeline element.
+   * @return @c TRUE if success. Otherwise FALSE.
+   */
+  gboolean setupPipeline() {
+    g_autofree gchar *str_pipeline = nullptr;
+
+    switch (mode) {
+      case TENSOR_RATE_MODE_PASSTHROUGH:
+        str_pipeline = g_strdup_printf (
+          "videotestsrc num-buffers=%u ! video/x-raw,framerate=%s ! tensor_converter ! "
+          "tensor_rate name=rate framerate=%s throttle=FALSE silent=%s ! fakesink",
+          source_num_buffers,
+          source_framerate,
+          source_framerate,
+          silent ? "TRUE" : "FALSE");
+        break;
+      
+      case TENSOR_RATE_MODE_NO_THROTTLE:
+        str_pipeline = g_strdup_printf (
+          "videotestsrc num-buffers=%u ! video/x-raw,framerate=%s ! tensor_converter ! "
+          "tensor_rate name=rate framerate=%s throttle=FALSE silent=%s ! fakesink",
+          source_num_buffers,
+          source_framerate,
+          target_framerate,
+          silent ? "TRUE" : "FALSE");
+        break;
+
+      case TENSOR_RATE_MODE_THROTTLE:
+        str_pipeline = g_strdup_printf (
+          "videotestsrc num-buffers=%u ! video/x-raw,framerate=%s ! tensor_converter ! "
+          "tensor_filter framework=%s model=%s ! "
+          "tensor_rate name=rate framerate=%s throttle=TRUE silent=%s ! fakesink",
+          source_num_buffers,
+          source_framerate,
+          framework,
+          modelpath,
+          target_framerate,
+          silent ? "TRUE" : "FALSE");
+        break;
+
+      default:
+        return FALSE;
+    }
+    this->pipeline = gst_parse_launch (str_pipeline, NULL);
+  
+    return pipeline != NULL ? TRUE : FALSE;
+  }
+};
 
 /**
  * @brief Test tensor_rate get default property
  */
-TEST (nnstreamerRate, getPropertyDefault)
+TEST_F (NNSRateTest, getPropertyDefault)
 {
-  TestOption option;
-  GstElement *rate;
   gboolean silent, throttle;
   guint64 in, out, dup, drop;
-  gchar *framerate;
+  g_autofree gchar *framerate = nullptr;
 
-  _set_default_option (option);
-  option.mode = TENSOR_RATE_MODE_PASSTHROUGH;
+  ASSERT_TRUE (setupPipeline());
 
-  ASSERT_TRUE (_setup_pipeline (option));
-
-  rate = gst_bin_get_by_name (GST_BIN (test_data.pipeline), "rate");
+  GstElement *rate = getRateElem();
   ASSERT_TRUE (rate != NULL);
 
   g_object_get (rate, "silent", &silent, NULL);
@@ -184,8 +225,7 @@ TEST (nnstreamerRate, getPropertyDefault)
   EXPECT_FALSE (throttle);
 
   g_object_get (rate, "framerate", &framerate, NULL);
-  EXPECT_STREQ (framerate, DEFAULT_SOURCE_FRAMERATE);
-  g_free (framerate);
+  EXPECT_STREQ (framerate, DEFAULT_SOURCE_FRAMERATE.c_str());
 
   g_object_get (rate, "in", &in, NULL);
   EXPECT_EQ (in, DEFAULT_IN);
@@ -198,27 +238,19 @@ TEST (nnstreamerRate, getPropertyDefault)
 
   g_object_get (rate, "drop", &drop, NULL);
   EXPECT_EQ (drop, DEFAULT_DROP);
-
-  gst_object_unref (rate);
-  gst_object_unref (test_data.pipeline);
 }
 
 /**
  * @brief Test tensor_rate set property
  */
-TEST (nnstreamerRate, setProperty)
+TEST_F (NNSRateTest, setProperty)
 {
-  TestOption option;
-  GstElement *rate;
   gboolean silent, throttle;
-  gchar *framerate;
+  g_autofree gchar *framerate = nullptr;
 
-  _set_default_option (option);
-  option.mode = TENSOR_RATE_MODE_PASSTHROUGH;
+  ASSERT_TRUE (setupPipeline());
 
-  ASSERT_TRUE (_setup_pipeline (option));
-
-  rate = gst_bin_get_by_name (GST_BIN (test_data.pipeline), "rate");
+  GstElement *rate = getRateElem();
   ASSERT_TRUE (rate != NULL);
 
   g_object_set (rate, "silent", (gboolean) FALSE, NULL);
@@ -231,28 +263,19 @@ TEST (nnstreamerRate, setProperty)
 
   g_object_set (rate, "framerate", "15/1", NULL);
   g_object_get (rate, "framerate", &framerate, NULL);
-  EXPECT_STREQ (framerate, "15/1");
-  g_free (framerate);
-
-  gst_object_unref (rate);
-  gst_object_unref (test_data.pipeline);
+  EXPECT_STREQ ("15/1", framerate);
 }
 
 /**
  * @brief Test tensor_rate set property stats (negative)
  */
-TEST (nnstreamerRate, setProperyStats_n)
+TEST_F (NNSRateTest, setProperyStats_n)
 {
-  TestOption option;
-  GstElement *rate;
   guint64 in, out, dup, drop;
 
-  _set_default_option (option);
-  option.mode = TENSOR_RATE_MODE_PASSTHROUGH;
+  ASSERT_TRUE (setupPipeline());
 
-  ASSERT_TRUE (_setup_pipeline (option));
-
-  rate = gst_bin_get_by_name (GST_BIN (test_data.pipeline), "rate");
+  GstElement *rate = getRateElem();
   ASSERT_TRUE (rate != NULL);
 
   g_object_set (rate, "in", 10, NULL);
@@ -270,184 +293,108 @@ TEST (nnstreamerRate, setProperyStats_n)
   g_object_set (rate, "drop", 10, NULL);
   g_object_get (rate, "drop", &drop, NULL);
   EXPECT_EQ (drop, DEFAULT_DROP);
-
-  gst_object_unref (rate);
-  gst_object_unref (test_data.pipeline);
 }
 
 /**
  * @brief Test tensor_rate set invalide framerate (negative)
  */
-TEST (nnstreamerRate, setProperyInvalidFramerate_n)
+TEST_F (NNSRateTest, setProperyInvalidFramerate_n)
 {
-  TestOption option;
-  GstElement *rate;
   gchar *framerate;
 
-  _set_default_option (option);
-  option.mode = TENSOR_RATE_MODE_PASSTHROUGH;
+  ASSERT_TRUE (setupPipeline());
 
-  ASSERT_TRUE (_setup_pipeline (option));
-
-  rate = gst_bin_get_by_name (GST_BIN (test_data.pipeline), "rate");
+  GstElement *rate = getRateElem();
   ASSERT_TRUE (rate != NULL);
 
   g_object_set (rate, "framerate", "ASDF", NULL);
   g_object_get (rate, "framerate", &framerate, NULL);
-  EXPECT_STREQ (framerate, DEFAULT_SOURCE_FRAMERATE);
+  EXPECT_STREQ (framerate, DEFAULT_SOURCE_FRAMERATE.c_str());
   g_free (framerate);
 
   g_object_set (rate, "framerate", "10/0", NULL);
   g_object_get (rate, "framerate", &framerate, NULL);
-  EXPECT_STREQ (framerate, DEFAULT_SOURCE_FRAMERATE);
+  EXPECT_STREQ (framerate, DEFAULT_SOURCE_FRAMERATE.c_str());
   g_free (framerate);
-
-  gst_object_unref (rate);
-  gst_object_unref (test_data.pipeline);
-}
-
-/**
- * @brief wait until the pipeline gets the eos message.
- */
-static gboolean wait_pipeline_eos (GstElement *pipeline)
-{
-  GstBus *bus = gst_element_get_bus (pipeline);
-  gboolean got_eos_message = FALSE;
-
-  if (GST_IS_BUS (bus)) {
-    const gulong timeout = G_USEC_PER_SEC * 10;
-    const gulong timeout_slice = G_USEC_PER_SEC / 10;
-    gulong timeout_accum = 0;
-    GstMessage *msg;
-
-    while (!got_eos_message && timeout_accum < timeout) {
-      g_usleep (timeout_slice);
-      timeout_accum += timeout_slice;
-
-      while ((msg = gst_bus_pop (bus)) != NULL) {
-        gst_bus_async_signal_func(bus, msg, NULL);
-
-        switch (GST_MESSAGE_TYPE (msg)) {
-          case GST_MESSAGE_EOS:
-            got_eos_message = TRUE;
-            break;
-          default:
-            break;
-        }
-
-        gst_message_unref(msg);
-      }
-    }
-
-    gst_object_unref(bus);
-  }
-
-  return got_eos_message;
 }
 
 /**
  * @brief Test tensor_rate with passthrough mode
  */
-TEST (nnstreamerRate, passthrough)
+TEST_F (NNSRateTest, passthrough)
 {
-  TestOption option;
-  GstElement *rate;
   guint64 in, out, dup, drop;
 
-  _set_default_option (option);
-  option.mode = TENSOR_RATE_MODE_PASSTHROUGH;
+  ASSERT_TRUE (setupPipeline());
 
-  ASSERT_TRUE (_setup_pipeline (option));
-
-  rate = gst_bin_get_by_name (GST_BIN (test_data.pipeline), "rate");
+  GstElement *rate = getRateElem();
   ASSERT_TRUE (rate != NULL);
 
-  EXPECT_EQ (setPipelineStateSync (test_data.pipeline, GST_STATE_PLAYING,
-        UNITTEST_STATECHANGE_TIMEOUT), 0);
-
-  EXPECT_TRUE (wait_pipeline_eos (test_data.pipeline));
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING,
+    UNITTEST_STATECHANGE_TIMEOUT), 0);
+  
+  EXPECT_TRUE (NNSRateTest::wait_pipeline_eos (pipeline));
 
   g_object_get (rate, "in", &in, NULL);
   g_object_get (rate, "out", &out, NULL);
   g_object_get (rate, "duplicate", &dup, NULL);
   g_object_get (rate, "drop", &drop, NULL);
 
-  EXPECT_EQ (in, option.source_num_buffers);
-  EXPECT_EQ (out, option.source_num_buffers);
-  EXPECT_EQ (dup, 0U);
-  EXPECT_EQ (drop, 0U);
+  EXPECT_EQ (in, source_num_buffers);
+  EXPECT_EQ (out, source_num_buffers);
+  EXPECT_EQ (0U, dup);
+  EXPECT_EQ (0U, drop);
 
-  EXPECT_EQ (setPipelineStateSync (test_data.pipeline, GST_STATE_NULL,
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL,
         UNITTEST_STATECHANGE_TIMEOUT), 0);
-
-  gst_object_unref (rate);
-  gst_object_unref (test_data.pipeline);
 }
 
 /**
  * @brief Test tensor_rate with no-throttling mode
  */
-TEST (nnstreamerRate, noThrottling)
+TEST_F (NNSRateTest, noThrottling)
 {
-  TestOption option;
-  GstElement *rate = NULL;
   guint64 in, out, dup, drop;
-  gboolean ret = true;
 
-  _set_default_option (option);
-  option.mode = TENSOR_RATE_MODE_NO_THROTTLE;
-  option.target_framerate = g_strdup ("15/1");
+  mode = NNSRateTest::TENSOR_RATE_MODE_NO_THROTTLE;
+  target_framerate = g_strdup ("15/1");
+  ASSERT_TRUE (setupPipeline());
 
-  ret = _setup_pipeline (option);
-  if (!ret) goto error;
+  GstElement *rate = getRateElem();
+  ASSERT_TRUE (rate != NULL);
 
-  rate = gst_bin_get_by_name (GST_BIN (test_data.pipeline), "rate");
-  ret = rate != NULL;
-  if (!ret) goto error;
-
-  EXPECT_EQ (setPipelineStateSync (test_data.pipeline, GST_STATE_PLAYING,
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING,
         UNITTEST_STATECHANGE_TIMEOUT), 0);
 
-  EXPECT_TRUE (wait_pipeline_eos (test_data.pipeline));
+  EXPECT_TRUE (NNSRateTest::wait_pipeline_eos (pipeline));
 
   g_object_get (rate, "in", &in, NULL);
   g_object_get (rate, "out", &out, NULL);
   g_object_get (rate, "duplicate", &dup, NULL);
   g_object_get (rate, "drop", &drop, NULL);
 
-  EXPECT_EQ (in, option.source_num_buffers);
-  EXPECT_EQ (dup, 0U);
+  EXPECT_EQ (in, source_num_buffers);
+  EXPECT_EQ (0U, dup);
 
   /** we don't expect the exact values */
-  EXPECT_GE (out, (guint64) (((float) option.source_num_buffers / 2.0) * 0.95));
-  EXPECT_LE (out, (guint64) (((float) option.source_num_buffers / 2.0) * 1.05));
+  EXPECT_GE (out, (guint64) (((float) source_num_buffers / 2.0) * 0.95));
+  EXPECT_LE (out, (guint64) (((float) source_num_buffers / 2.0) * 1.05));
 
-  EXPECT_GE (drop, (guint64) (((float) option.source_num_buffers / 2.0) * 0.95));
-  EXPECT_LE (drop, (guint64) (((float) option.source_num_buffers / 2.0) * 1.05));
+  EXPECT_GE (drop, (guint64) (((float) source_num_buffers / 2.0) * 0.95));
+  EXPECT_LE (drop, (guint64) (((float) source_num_buffers / 2.0) * 1.05));
 
-  EXPECT_EQ (setPipelineStateSync (test_data.pipeline, GST_STATE_NULL,
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL,
         UNITTEST_STATECHANGE_TIMEOUT), 0);
 
-error:
-  g_free (option.target_framerate);
-
-  if (rate)
-    gst_object_unref (rate);
-  if (test_data.pipeline)
-    gst_object_unref (test_data.pipeline);
-
-  ASSERT_TRUE (ret);
+  g_free (target_framerate);
 }
 
 /**
  * @brief Test tensor_rate with throttling mode
  */
-TEST (nnstreamerRate, throttling)
+TEST_F (NNSRateTest, throttling)
 {
-  TestOption option;
-  GstElement *rate = NULL;
   guint64 in, out, dup, drop;
-  gboolean ret = true;
 
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   if (root_path == NULL)
@@ -457,24 +404,18 @@ TEST (nnstreamerRate, throttling)
       "nnstreamer_example", "libnnstreamer_customfilter_passthrough.so", NULL);
   ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
 
-  option.framework = g_strdup ("custom");
-  option.model_file = model_file;
+  framework = g_strdup ("custom");
+  modelpath = model_file;
+  mode = NNSRateTest::TENSOR_RATE_MODE_THROTTLE;
+  target_framerate = g_strdup ("15/1");
+  ASSERT_TRUE (setupPipeline());
 
-  _set_default_option (option);
-  option.mode = TENSOR_RATE_MODE_THROTTLE;
-  option.target_framerate = g_strdup ("15/1");
+  GstElement *rate = getRateElem();
+  ASSERT_TRUE (rate != NULL);
 
-  ret = _setup_pipeline (option);
-  if (!ret) goto error;
-
-  rate = gst_bin_get_by_name (GST_BIN (test_data.pipeline), "rate");
-  ret = rate != NULL;
-  if (!ret) goto error;
-
-  EXPECT_EQ (setPipelineStateSync (test_data.pipeline, GST_STATE_PLAYING,
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING,
         UNITTEST_STATECHANGE_TIMEOUT), 0);
-
-  EXPECT_TRUE (wait_pipeline_eos (test_data.pipeline));
+  EXPECT_TRUE (NNSRateTest::wait_pipeline_eos (pipeline));
 
   g_object_get (rate, "in", &in, NULL);
   g_object_get (rate, "out", &out, NULL);
@@ -482,28 +423,17 @@ TEST (nnstreamerRate, throttling)
   g_object_get (rate, "drop", &drop, NULL);
 
   /** we don't expect the exact values */
-  EXPECT_GE (in, (guint64) (((float) option.source_num_buffers / 2.0) * 0.95));
-  EXPECT_LE (in, (guint64) (((float) option.source_num_buffers / 2.0) * 1.05));
+  EXPECT_GE (in, (guint64) (((float) source_num_buffers / 2.0) * 0.95));
+  EXPECT_LE (in, (guint64) (((float) source_num_buffers / 2.0) * 1.05));
+  EXPECT_GE (out, (guint64) (((float) source_num_buffers / 2.0) * 0.95));
+  EXPECT_LE (out, (guint64) (((float) source_num_buffers / 2.0) * 1.05));
 
-  EXPECT_GE (out, (guint64) (((float) option.source_num_buffers / 2.0) * 0.95));
-  EXPECT_LE (out, (guint64) (((float) option.source_num_buffers / 2.0) * 1.05));
-
-  EXPECT_EQ (setPipelineStateSync (test_data.pipeline, GST_STATE_NULL,
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL,
         UNITTEST_STATECHANGE_TIMEOUT), 0);
 
-error:
-  g_free (option.target_framerate);
-  g_free (option.model_file);
-  g_free (option.framework);
-
-  if (rate)
-    gst_object_unref (rate);
-  if (test_data.pipeline)
-    gst_object_unref (test_data.pipeline);
-
-  ASSERT_TRUE (ret);
+  g_free (target_framerate);
+  g_free (framework);
 }
-
 
 /**
  * @brief gtest main
