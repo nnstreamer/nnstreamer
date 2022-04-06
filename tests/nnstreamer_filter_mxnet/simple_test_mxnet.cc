@@ -1,10 +1,13 @@
-#include "Predictor.hh"
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
 #include <mxnet-cpp/io.h>
-#include <stdexcept>
+#include <nnstreamer_util.h>
 #include <string.h>
+
+#include <stdexcept>
 #include <thread>
+
+#include "Predictor.hh"
 
 #define NUM_INFERENCE_BATCHES (500)
 
@@ -84,7 +87,7 @@ push_data (AppData *data)
   /* Move batch (image) data to the buffer object */
   gst_buffer_map (buffer, &map, GST_MAP_WRITE);
   auto data_batch = data->data_iter->GetDataBatch ();
-  data_batch.data.SyncCopyToCPU ((mx_float *)map.data, len);
+  data_batch.data.SyncCopyToCPU ((mx_float *) map.data, len);
   NDArray::WaitAll ();
   gst_buffer_unmap (buffer, &map);
 
@@ -105,8 +108,10 @@ push_data (AppData *data)
 static void
 start_feed (GstElement *source, guint size, AppData *data)
 {
+  UNUSED (source);
+  UNUSED (size);
   if (data->sourceid == 0) {
-    data->sourceid = g_idle_add ((GSourceFunc)push_data, data);
+    data->sourceid = g_idle_add ((GSourceFunc) push_data, data);
   }
 }
 
@@ -115,6 +120,7 @@ start_feed (GstElement *source, guint size, AppData *data)
 static void
 stop_feed (GstElement *source, AppData *data)
 {
+  UNUSED (source);
   if (data->sourceid != 0) {
     g_source_remove (data->sourceid);
     data->sourceid = 0;
@@ -135,7 +141,7 @@ new_sample (GstElement *sink, AppData *data)
     gst_buffer_map (buffer, &map, GST_MAP_READ);
 
     /* Log result */
-    mx_float *pred_data = (mx_float *)map.data;
+    mx_float *pred_data = (mx_float *) map.data;
     data->log->push_back (pred_data[0]);
 
     /* Free the buffer */
@@ -151,29 +157,32 @@ new_sample (GstElement *sink, AppData *data)
 static gboolean
 on_pipeline_message (GstBus *bus, GstMessage *message, AppData *data)
 {
+  UNUSED (bus);
   switch (GST_MESSAGE_TYPE (message)) {
-  case GST_MESSAGE_EOS:
-    g_main_loop_quit (data->main_loop);
-    break;
-  case GST_MESSAGE_ERROR: {
-    g_print ("Received error\n");
+    case GST_MESSAGE_EOS:
+      g_main_loop_quit (data->main_loop);
+      break;
+    case GST_MESSAGE_ERROR:
+      {
+        g_print ("Received error\n");
 
-    GError *err = NULL;
-    gchar *dbg_info = NULL;
+        GError *err = NULL;
+        gchar *dbg_info = NULL;
 
-    gst_message_parse_error (message, &err, &dbg_info);
-    g_printerr ("ERROR from element %s: %s\n", GST_OBJECT_NAME (message->src), err->message);
-    g_printerr ("Debugging info: %s\n", (dbg_info) ? dbg_info : "none");
-    g_error_free (err);
-    g_free (dbg_info);
-  }
+        gst_message_parse_error (message, &err, &dbg_info);
+        g_printerr ("ERROR from element %s: %s\n",
+            GST_OBJECT_NAME (message->src), err->message);
+        g_printerr ("Debugging info: %s\n", (dbg_info) ? dbg_info : "none");
+        g_error_free (err);
+        g_free (dbg_info);
+      }
 
-    g_main_loop_quit (data->main_loop);
-    break;
-  case GST_MESSAGE_STATE_CHANGED:
-    break;
-  default:
-    break;
+      g_main_loop_quit (data->main_loop);
+      break;
+    case GST_MESSAGE_STATE_CHANGED:
+      break;
+    default:
+      break;
   }
   return TRUE;
 }
@@ -196,7 +205,6 @@ main (int argc, char *argv[])
   {
     AppData data;
     GstBus *bus;
-    memset (&data, 0, sizeof (data));
 
     /* Initialize dataset iterator */
     data.data_iter = get_dataset ();
@@ -227,7 +235,7 @@ main (int argc, char *argv[])
         NULL);
 
     bus = gst_element_get_bus (data.pipeline);
-    gst_bus_add_watch (bus, (GstBusFunc)on_pipeline_message, &data);
+    gst_bus_add_watch (bus, (GstBusFunc) on_pipeline_message, &data);
     gst_object_unref (bus);
 
     data.app_source = gst_bin_get_by_name (GST_BIN (data.pipeline), "recordio_src");
