@@ -67,12 +67,17 @@ replace_string (gchar * source, const gchar * what, const gchar * to, const gcha
 #define _wait_pipeline_save_files(file, content, len, exp_len, timeout_ms) \
   do {                                                                     \
     guint timer = 0;                                                       \
+    guint load_failed = 0;                                                 \
     guint tick = TEST_DEFAULT_SLEEP_TIME / 1000U;                          \
     if (tick == 0)                                                         \
       tick = 1;                                                            \
     do {                                                                   \
       g_usleep (TEST_DEFAULT_SLEEP_TIME);                                  \
-      g_file_get_contents (file, &content, &len, NULL);                    \
+      if (!g_file_get_contents (file, &content, &len, NULL)) {             \
+        if (load_failed)                                                   \
+          break;                                                           \
+        load_failed++;                                                     \
+      }                                                                    \
       timer += tick;                                                       \
       if (timer > timeout_ms) {                                            \
         EXPECT_GE (timeout_ms, timer);                                     \
