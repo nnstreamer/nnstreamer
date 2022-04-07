@@ -3034,8 +3034,9 @@ nnstreamer_filter_shared_model_replace (void *instance, const char *key,
       replace_callback (itr->data, new_interpreter);
       itr = itr->next;
     }
+
+    free_callback (model_rep->shared_interpreter);
+    model_rep->shared_interpreter = new_interpreter;
   }
-  free_callback (model_rep->shared_interpreter);
-  model_rep->shared_interpreter = new_interpreter;
   G_UNLOCK (shared_model_table);
 }
