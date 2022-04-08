@@ -1016,6 +1016,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 {
   GstTensorConverter *self;
   GstTensorsConfig *config;
+  GstTensorsConfig new_config;
   GstBuffer *inbuf;
   gsize buf_size, frame_size;
   guint frames_in, frames_out;
@@ -1029,6 +1030,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   /** This is an internal logic error. */
   g_assert (self->tensors_configured);
   config = &self->tensors_config;
+  gst_tensors_config_init (&new_config);
 
   frames_out = self->frames_per_tensor;
   inbuf = buf;
@@ -1217,13 +1219,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     }
     case _NNS_MEDIA_ANY:
     {
-      GstTensorsConfig new_config;
-      int mode = 0;
-
-      gst_tensors_config_init (&new_config);
-
       if (self->mode == _CONVERTER_MODE_CUSTOM_CODE) {
-        mode = 1;
         if (self->custom.func == NULL) {
           nns_loge
               ("Tensor converter is in custom/code mode (mode=custom-code:${funcname}), where a user code as a callback function is required. However, the required information to configure the tensor converter is not given or incorrectly given. For detail, please refer to https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_converter#custom-converter . The given ${funcname} is \"%s\", which is an invalid/unregistered name.",
@@ -1231,13 +1227,25 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
           goto error;
         }
         inbuf = self->custom.func (buf, self->custom.data, &new_config);
+
+        if (inbuf == NULL) {
+          nns_loge
+              ("Failed to convert input streams to tensors: the converted result of the incoming buffer is NULL. The converter is custom-func with %s function, which is available and loaded, but has returned NULL buffer after the conversion.",
+              self->mode_option);
+          goto error;
+        }
       } else if (self->externalConverter && self->externalConverter->convert) {
-        mode = 2;
         inbuf =
             self->externalConverter->convert (buf, &new_config,
             self->priv_data);
+
+        if (inbuf == NULL) {
+          nns_loge
+              ("Failed to convert input streams to tensors: the converted result of the incoming buffer is NULL. The converter is using external tensor_converter subplugin (%s), which is available and loaded, but has returned NULL buffer after the conversion.",
+              self->externalConverter->name);
+          goto error;
+        }
       } else if (self->mode == _CONVERTER_MODE_CUSTOM_SCRIPT) {
-        mode = 3;
         /* self->externalConverter->converter should've been available! */
         GST_ERROR_OBJECT (self,
             "Tensor converter is in custom/script mode (mode=custom-script:${scriptpath}), where a path to a script file is required. However, it is not properly configured. The given ${scriptpath} is \"%s\".",
@@ -1252,30 +1260,6 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       self->do_not_append_header =
           (new_config.format == _NNS_TENSOR_FORMAT_FLEXIBLE);
 
-      if (inbuf == NULL) {
-        switch (mode) {
-          case 1:
-            nns_loge
-                ("Failed to convert input streams to tensors: the converted result of the incoming buffer is NULL. The converter is custom-func with %s function, which is available and loaded, but has returned NULL buffer after the conversion.",
-                self->mode_option);
-            break;
-          case 2:
-            nns_loge
-                ("Failed to convert input streams to tensors: the converted result of the incoming buffer is NULL. The converter is using external tensor_converter subplugin (%s), which is available and loaded, but has returned NULL buffer after the conversion.",
-                self->externalConverter->name);
-            break;
-          case 3:
-            nns_loge
-                ("Failed to convert input streams to tensors: the converted result of the incoming buffer is NULL. The converter is custom-script with %s, which is available and loaded, but has returned NULL buffer after the conversion.",
-                self->mode_option);
-            break;
-          default:
-            nns_loge
-                ("Failed to convert input streams to tensors: internal unknown error. Please report the case to https://github.com/nnstreamer/issues with the pipeline description reproducing the error.");
-        }
-        gst_tensors_config_free (&new_config);
-        goto error;
-      }
       frames_in = 1;
       frame_size = gst_buffer_get_size (inbuf);
 
@@ -1323,6 +1307,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
 error:
   gst_buffer_unref (buf);
+  gst_tensors_config_free (&new_config);
   return GST_FLOW_ERROR;
 }
 

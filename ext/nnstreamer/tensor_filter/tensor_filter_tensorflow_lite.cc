@@ -1113,20 +1113,29 @@ TFLiteCore::setInputTensorDim (const GstTensorsInfo *info)
 int
 TFLiteCore::reloadInterpreter (TFLiteInterpreter * new_interpreter)
 {
-  TFLiteInterpreter * interpreter_temp = interpreter;
-  if (!gst_tensors_info_is_equal (interpreter->getInputTensorsInfo (),
-          new_interpreter->getInputTensorsInfo ())
-      || !gst_tensors_info_is_equal (interpreter->getOutputTensorsInfo (),
-             new_interpreter->getOutputTensorsInfo ())) {
+  TFLiteInterpreter *old_interpreter = interpreter;
+  gboolean in_matched, out_matched;
+  int ret = 0;
+
+  old_interpreter->lock ();
+  new_interpreter->lock ();
+
+  in_matched = gst_tensors_info_is_equal (old_interpreter->getInputTensorsInfo (),
+      new_interpreter->getInputTensorsInfo ());
+  out_matched = gst_tensors_info_is_equal (old_interpreter->getOutputTensorsInfo (),
+      new_interpreter->getOutputTensorsInfo ());
+
+  if (!in_matched || !out_matched) {
     ml_loge ("The model has unmatched tensors info\n");
-    return -EINVAL;
+    ret = -EINVAL;
+  } else {
+    interpreter = new_interpreter;
   }
 
-  interpreter_temp->lock ();
-  interpreter = new_interpreter;
-  interpreter_temp->unlock ();
+  new_interpreter->unlock ();
+  old_interpreter->unlock ();
 
-  return 0;
+  return ret;
 }
 
 /**

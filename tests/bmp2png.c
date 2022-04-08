@@ -215,6 +215,7 @@ main (int argc, char *argv[])
   if (strn < 5 || argv[1][strn - 4] != '.' || argv[1][strn - 3] != 'b' ||
       argv[1][strn - 2] != 'm' || argv[1][strn - 1] != 'p') {
     printf ("The BMPfilename must be ending with \".bmp\"\n\n");
+    return 1;
   }
   /** Check the option, --GRAY8 */
   strn = strlen (option_gray);
