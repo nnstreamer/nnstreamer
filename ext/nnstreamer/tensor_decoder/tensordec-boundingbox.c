@@ -65,6 +65,20 @@
  *            The last number separated by comma, ',' from the first 4 numbers
  *            designate the threshold in percent.
  *            In other words, "option3=%i:%i:%i:%i,%i".
+ *          for mp-palm-detection mode:
+ *            The option3 is required to have 5 float numbers, as following
+ *                - box score threshold (mandatory)
+ *                - number of layers for anchor generation (optional, default set to 4)
+ *                - minimum scale factor for anchor generation (optional, default set to 1.0)
+ *                - maximum scale factor for anchor generation (optional, default set to 1.0)
+ *                - X offset (optional, default set to 0.5)
+ *                - Y offset (optional, default set to 0.5)
+ *                - strides for each layer for anchor generation (optional, default set to 8:16:16:16)
+ *            The default parameter value could be set in the following ways:
+ *            option3=0.5
+ *            option3=0.5:4:0.2:0.8
+ *            option3=0.5:4:1.0:1.0:0.5:0.5:8:16:16:16
+ *
  * option4: Video Output Dimension (WIDTH:HEIGHT)
  *          This is independent from option1
  * option5: Input Dimension (WIDTH:HEIGHT)
@@ -112,6 +126,9 @@ extern uint8_t rasters[][13];
 #define YOLOV5_DETECTION_CONF_THRESHOLD         (0.3)
 #define YOLOV5_DETECTION_IOU_THRESHOLD          (0.6)
 #define PIXEL_VALUE                             (0xFF0000FF)    /* RED 100% in RGBA */
+#define MP_PALM_DETECTION_INFO_SIZE             (18)
+#define MP_PALM_DETECTION_MAX_TENSORS           (2U)
+#define MP_PALM_DETECTION_DETECTION_MAX         (2016)
 
 /**
  * @todo Fill in the value at build time or hardcode this. It's const value
@@ -135,6 +152,8 @@ typedef enum
   OLDNAME_MOBILENET_SSD_PP_BOUNDING_BOX = 5,
 
   YOLOV5_BOUNDING_BOX = 6,
+
+  MP_PALM_DETECTION_BOUNDING_BOX = 7,
 
   BOUNDING_BOX_UNKNOWN,
 } bounding_box_modes;
@@ -162,6 +181,7 @@ static const char *bb_modes[] = {
   [OLDNAME_MOBILENET_SSD_BOUNDING_BOX] = "tflite-ssd",
   [OLDNAME_MOBILENET_SSD_PP_BOUNDING_BOX] = "tf-ssd",
   [YOLOV5_BOUNDING_BOX] = "yolov5",
+  [MP_PALM_DETECTION_BOUNDING_BOX] = "mp-palm-detection",
   NULL,
 };
 
@@ -195,6 +215,37 @@ typedef struct
 } properties_MOBILENET_SSD_PP;
 
 /**
+ * @brief anchor data
+ */
+typedef struct {
+  float x_center;
+  float y_center;
+  float w;
+  float h;
+} anchor;
+
+/**
+ * @brief Data structure for bounding box info for mediapipe palm detection model.
+ */
+typedef struct
+{
+  /* From option3, anchor data */
+#define MP_PALM_DETECTION_PARAMS_STRIDE_SIZE 8
+#define MP_PALM_DETECTION_PARAMS_MAX 13
+
+  gint num_layers; /** Number of stride layers */
+  gfloat min_scale; /** Minimum scale */
+  gfloat max_scale; /** Maximum scale */
+  gfloat offset_x; /** anchor X offset */
+  gfloat offset_y; /** anchor Y offset */
+  gint strides[MP_PALM_DETECTION_PARAMS_STRIDE_SIZE]; /** Stride data for each layers */
+  gfloat min_score_threshold; /** minimum threshold of score */
+
+  GArray *anchors;
+
+} properties_MP_PALM_DETECTION;
+
+/**
  * @brief Data structure for bounding box info.
  */
 typedef struct
@@ -206,6 +257,8 @@ typedef struct
     properties_MOBILENET_SSD mobilenet_ssd; /**< Properties for mobilenet_ssd configured by option 1 + 3 */
     properties_MOBILENET_SSD_PP mobilenet_ssd_pp; /**< mobilenet_ssd_pp mode properties configuration settings */
   };
+
+  properties_MP_PALM_DETECTION mp_palm_detection; /**< mp_palm_detection mode properties configuration settings */
 
   /* From option2 */
   imglabel_t labeldata;
@@ -242,6 +295,17 @@ _check_mode_is_mobilenet_ssd_pp (bounding_box_modes mode)
   gboolean ret = FALSE;
   if (mode == MOBILENET_SSD_PP_BOUNDING_BOX
       || mode == OLDNAME_MOBILENET_SSD_PP_BOUNDING_BOX) {
+    ret = TRUE;
+  }
+  return ret;
+}
+
+/** @brief check the mode is mp-palm-detection */
+static inline gboolean
+_check_mode_is_mp_palm_detection (bounding_box_modes mode)
+{
+  gboolean ret = FALSE;
+  if (mode == MP_PALM_DETECTION_BOUNDING_BOX) {
     ret = TRUE;
   }
   return ret;
@@ -315,6 +379,33 @@ _init_modes (bounding_boxes * bdata)
     data->tensor_mapping[MOBILENET_SSD_PP_BBOX_IDX_NUM] =
         MOBILENET_SSD_PP_BBOX_IDX_NUM_DEFAULT;
     data->threshold = MOBILENET_SSD_PP_BBOX_THRESHOLD_DEFAULT;
+
+    return TRUE;
+  } else if (_check_mode_is_mp_palm_detection (bdata->mode)) {
+    properties_MP_PALM_DETECTION *data = &bdata->mp_palm_detection;
+
+#define MP_PALM_DETECTION_NUM_LAYERS_DEFAULT (4)
+#define MP_PALM_DETECTION_MIN_SCALE_DEFAULT (1.0)
+#define MP_PALM_DETECTION_MAX_SCALE_DEFAULT (1.0)
+#define MP_PALM_DETECTION_OFFSET_X_DEFAULT (0.5)
+#define MP_PALM_DETECTION_OFFSET_Y_DEFAULT (0.5)
+#define MP_PALM_DETECTION_STRIDE_0_DEFAULT (8)
+#define MP_PALM_DETECTION_STRIDE_1_DEFAULT (16)
+#define MP_PALM_DETECTION_STRIDE_2_DEFAULT (16)
+#define MP_PALM_DETECTION_STRIDE_3_DEFAULT (16)
+#define MP_PALM_DETECTION_MIN_SCORE_THRESHOLD_DEFAULT (0.5)
+
+    data->num_layers = MP_PALM_DETECTION_NUM_LAYERS_DEFAULT;
+    data->min_scale = MP_PALM_DETECTION_MIN_SCALE_DEFAULT;
+    data->max_scale = MP_PALM_DETECTION_MAX_SCALE_DEFAULT;
+    data->offset_x = MP_PALM_DETECTION_OFFSET_X_DEFAULT;
+    data->offset_y = MP_PALM_DETECTION_OFFSET_Y_DEFAULT;
+    data->strides[0] = MP_PALM_DETECTION_STRIDE_0_DEFAULT;
+    data->strides[1] = MP_PALM_DETECTION_STRIDE_1_DEFAULT;
+    data->strides[2] = MP_PALM_DETECTION_STRIDE_2_DEFAULT;
+    data->strides[3] = MP_PALM_DETECTION_STRIDE_3_DEFAULT;
+    data->min_score_threshold = MP_PALM_DETECTION_MIN_SCORE_THRESHOLD_DEFAULT;
+    data->anchors = g_array_new(FALSE, TRUE, sizeof(anchor));
 
     return TRUE;
   }
@@ -451,6 +542,104 @@ error:
   return !failed;
 }
 
+
+/**
+ * @brief Calculate anchor scale
+ */
+static gfloat
+_calculate_scale (float min_scale, float max_scale, int stride_index, int num_strides)
+{
+  if (num_strides == 1) {
+    return (min_scale + max_scale) * 0.5f;
+  } else {
+    return min_scale + (max_scale - min_scale) * 1.0 * stride_index / (num_strides - 1.0f);
+  }
+}
+
+/**
+ * @brief Generate anchor information
+ */
+static void
+_mp_palm_detection_generate_anchors (properties_MP_PALM_DETECTION *palm_detection)
+{
+  int layer_id = 0;
+  int strides[MP_PALM_DETECTION_PARAMS_STRIDE_SIZE];
+  int idx;
+  guint i;
+
+  gint num_layers = palm_detection->num_layers;
+  gfloat offset_x = palm_detection->offset_x;
+  gfloat offset_y = palm_detection->offset_y;
+
+  for (idx = 0; idx < num_layers; idx++) {
+    strides[idx] = palm_detection->strides[idx];
+  }
+
+  while (layer_id < num_layers) {
+    GArray *aspect_ratios = g_array_new(FALSE, TRUE, sizeof(gfloat));
+    GArray *scales = g_array_new(FALSE, TRUE, sizeof(gfloat));
+    GArray *anchor_height = g_array_new(FALSE, TRUE, sizeof(gfloat));
+    GArray *anchor_width = g_array_new(FALSE, TRUE, sizeof(gfloat));
+
+    int last_same_stride_layer = layer_id;
+
+    while (last_same_stride_layer < num_layers
+           && strides[last_same_stride_layer] == strides[layer_id]) {
+      gfloat scale;
+      gfloat ratio = 1.0f;
+      g_array_append_val(aspect_ratios, ratio);
+      g_array_append_val(aspect_ratios, ratio);
+      scale = _calculate_scale(palm_detection->min_scale, palm_detection->max_scale,
+                                     last_same_stride_layer, num_layers);
+      g_array_append_val(scales, scale);
+      scale = _calculate_scale(palm_detection->min_scale, palm_detection->max_scale,
+                                     last_same_stride_layer + 1, num_layers);
+      g_array_append_val(scales, scale);
+      last_same_stride_layer++;
+    }
+
+    for (i = 0; i < aspect_ratios->len; ++i) {
+      const float ratio_sqrts = sqrt(g_array_index (aspect_ratios, gfloat, i));
+      const gfloat sc = g_array_index (scales, gfloat, i);
+      gfloat anchor_height_ = sc / ratio_sqrts;
+      gfloat anchor_width_ = sc * ratio_sqrts;
+      g_array_append_val(anchor_height, anchor_height_);
+      g_array_append_val(anchor_width, anchor_width_);
+    }
+
+    {
+      int feature_map_height = 0;
+      int feature_map_width = 0;
+      int x, y;
+      int anchor_id;
+
+      const int stride = strides[layer_id];
+      feature_map_height = ceil(1.0f * 192 / stride);
+      feature_map_width = ceil(1.0f * 192 / stride);
+
+      for (y = 0; y < feature_map_height; ++y) {
+        for (x = 0; x < feature_map_width; ++x) {
+          for (anchor_id = 0; anchor_id < (int)aspect_ratios->len; ++anchor_id) {
+            const float x_center = (x + offset_x) * 1.0f / feature_map_width;
+            const float y_center = (y + offset_y) * 1.0f / feature_map_height;
+
+            const anchor a = {.x_center = x_center, .y_center = y_center,
+              .w = g_array_index (anchor_width, gfloat, anchor_id), .h = g_array_index (anchor_height, gfloat, anchor_id)};
+            g_array_append_val(palm_detection->anchors, a);
+          }
+        }
+      }
+      layer_id = last_same_stride_layer;
+    }
+
+    g_array_free(aspect_ratios, FALSE);
+  }
+}
+
+#define mp_palm_detection_option(option, type, idx) \
+    if (noptions > idx) option = (type)g_strtod (options[idx], NULL)
+
+
 /** @brief configure per-mode option (option3) */
 static int
 _setOption_mode (bounding_boxes * bdata, const char *param)
@@ -527,6 +716,39 @@ _setOption_mode (bounding_boxes * bdata, const char *param)
 
     GST_INFO ("MOBILENET SSD POST PROCESS object detection threshold: %.2f",
         mobilenet_ssd_pp->threshold);
+  } else if (_check_mode_is_mp_palm_detection (bdata->mode)) {
+    /* Load palm detection info from option3 */
+    properties_MP_PALM_DETECTION *palm_detection = &bdata->mp_palm_detection;
+    gchar **options;
+    int noptions, idx;
+    int ret = TRUE;
+
+    options = g_strsplit (param, ":", -1);
+    noptions = g_strv_length (options);
+
+    if (noptions > MP_PALM_DETECTION_PARAMS_MAX) {
+      GST_ERROR
+          ("Invalid MP PALM DETECTION PARAM length: %d", noptions);
+      ret = FALSE;
+      goto exit_mp_palm_detection;
+    }
+
+    mp_palm_detection_option (palm_detection->min_score_threshold, gfloat, 0);
+    mp_palm_detection_option (palm_detection->num_layers, gint, 1);
+    mp_palm_detection_option (palm_detection->min_scale, gfloat, 2);
+    mp_palm_detection_option (palm_detection->max_scale, gfloat, 3);
+    mp_palm_detection_option (palm_detection->offset_x, gfloat, 4);
+    mp_palm_detection_option (palm_detection->offset_y, gfloat, 5);
+
+    for (idx = 6; idx < palm_detection->num_layers + 6; idx++) {
+      mp_palm_detection_option (palm_detection->strides[idx - 6], gint, idx);
+    }
+
+    _mp_palm_detection_generate_anchors(palm_detection);
+
+  exit_mp_palm_detection:
+    g_strfreev (options);
+    return ret;
   }
 
   return TRUE;
@@ -554,6 +776,12 @@ bb_setOption (void **pdata, int opNum, const char *param)
 
   } else if (opNum == 1) {
     /* option2 = label text file location */
+
+    if (bdata->mode == MP_PALM_DETECTION_BOUNDING_BOX) {
+      /* palm detection does not need label information */
+      return TRUE;
+    }
+
     if (NULL != bdata->label_path)
       g_free (bdata->label_path);
     bdata->label_path = g_strdup (param);
@@ -822,6 +1050,32 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
     g_return_val_if_fail (dim[1] == data->max_detection, NULL);
     for (i = 2; i < NNS_TENSOR_RANK_LIMIT; ++i)
       g_return_val_if_fail (dim[i] == 1, NULL);
+  } else if (data->mode == MP_PALM_DETECTION_BOUNDING_BOX) {
+    const uint32_t *dim1, *dim2;
+    if (!_check_tensors (config, MP_PALM_DETECTION_MAX_TENSORS))
+      return NULL;
+
+    /* Check if the first tensor is compatible */
+    dim1 = config->info.info[0].dimension;
+
+    g_return_val_if_fail (dim1[0] == MP_PALM_DETECTION_INFO_SIZE, NULL);
+    max_detection = dim1[1];
+    g_return_val_if_fail (max_detection > 0, NULL);
+    g_return_val_if_fail (dim1[2] == 1, NULL);
+    for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
+      g_return_val_if_fail (dim1[i] == 1, NULL);
+
+    /* Check if the second tensor is compatible */
+    dim2 = config->info.info[1].dimension;
+    g_return_val_if_fail (dim2[0] == 1, NULL);
+    g_return_val_if_fail (max_detection == dim2[1], NULL);
+    for (i = 2; i < NNS_TENSOR_RANK_LIMIT; i++)
+      g_return_val_if_fail (dim2[i] == 1, NULL);
+
+    /* Check consistency with max_detection */
+    if (!_set_max_detection (data, max_detection, MP_PALM_DETECTION_DETECTION_MAX)) {
+      return NULL;
+    }
   }
 
   str = g_strdup_printf ("video/x-raw, format = RGBA, " /* Use alpha channel to make the background transparent */
@@ -1112,6 +1366,68 @@ nms (GArray * results, gfloat threshold)
   } \
   break
 
+
+/**
+ * @brief C++-Template-like box location calculation for Tensorflow model
+ * @param[in] bb The configuration, "bounding_boxes"
+ * @param[in] data palm detection configuration, "properties_MP_PALM_DETECTION"
+ * @param[in] type The tensor type of inputptr
+ * @param[in] typename nnstreamer enum corresponding to the type
+ * @param[in] scoreinput Input Tensor Data (Detection scores)
+ * @param[in] boxesinput Input Tensor Data (Boxes)
+ * @param[in] config Tensor configs of the input tensors
+ * @param[out] results The object returned. (GArray with detectedObject)
+ */
+#define _get_objects_mp_palm_detection(bb, data, _type, typename, scoreinput, boxesinput, config, results) \
+  case typename: \
+  { \
+    int d_; \
+    _type * scores_ = (_type *) scoreinput; \
+    _type * boxes_ = (_type *) boxesinput; \
+    guint i_width_ = bb->i_width; \
+    guint i_height_ = bb->i_height; \
+    int num_ = bb->max_detection; \
+    size_t boxbpi_ = config->info.info[0].dimension[0]; \
+    results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), num_); \
+    for (d_ = 0; d_ < num_; d_++) { \
+      _type y_center, x_center, h, w; \
+      _type ymin, xmin; \
+      int y, x, width, height; \
+      detectedObject object; \
+      gfloat score = (gfloat)scores_[d_]; \
+      _type * box = boxes_ + boxbpi_ * d_; \
+      anchor * a = &g_array_index (data->anchors, anchor, d_); \
+      score = MAX(score, -100.0f); \
+      score = MIN(score, 100.0f); \
+      score = 1.0f / (1.0f + exp (-score)); \
+      if (score < data->min_score_threshold) \
+        continue; \
+      y_center = box[0] / i_height_ * a->h + a->y_center; \
+      x_center = box[1] / i_width_ * a->w + a->x_center; \
+      h = box[2] / i_height_ * a->h; \
+      w = box[3] / i_width_ * a->w; \
+      ymin = y_center - h / 2.f; \
+      xmin = x_center - w / 2.f; \
+      y = ymin * i_height_; \
+      x = xmin * i_width_; \
+      width = w * i_width_; \
+      height = h * i_height_; \
+      object.class_id = 0; \
+      object.x = MAX (0, x); \
+      object.y = MAX (0, y); \
+      object.width = width; \
+      object.height = height; \
+      object.prob = score; \
+      object.valid = TRUE; \
+      g_array_append_val (results, object); \
+    } \
+  } \
+  break
+
+/** @brief Macro to simplify calling _get_objects_mp_palm_detection */
+#define _get_objects_mp_palm_detection_(type, typename) \
+  _get_objects_mp_palm_detection (bdata, data, type, typename, (detections->data), (boxes->data), config, results)
+
 /**
  * @brief Draw with the given results (objects[MOBILENET_SSD_DETECTION_MAX]) to the output buffer
  * @param[out] out_info The output buffer (RGBA plain)
@@ -1373,7 +1689,34 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
     }
 
     nms (results, YOLOV5_DETECTION_IOU_THRESHOLD);
+  } else if (bdata->mode == MP_PALM_DETECTION_BOUNDING_BOX) {
+    const GstTensorMemory *boxes = NULL;
+    const GstTensorMemory *detections = NULL;
+    properties_MP_PALM_DETECTION *data = &bdata->mp_palm_detection;
 
+    /* Already checked with getOutCaps. Thus, this is an internal bug */
+    g_assert (num_tensors >= MP_PALM_DETECTION_MAX_TENSORS);
+    results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), 100);
+
+    boxes = &input[0];
+    detections = &input[1];
+
+    switch (config->info.info[0].type) {
+      _get_objects_mp_palm_detection_ (uint8_t, _NNS_UINT8);
+      _get_objects_mp_palm_detection_ (int8_t, _NNS_INT8);
+      _get_objects_mp_palm_detection_ (uint16_t, _NNS_UINT16);
+      _get_objects_mp_palm_detection_ (int16_t, _NNS_INT16);
+      _get_objects_mp_palm_detection_ (uint32_t, _NNS_UINT32);
+      _get_objects_mp_palm_detection_ (int32_t, _NNS_INT32);
+      _get_objects_mp_palm_detection_ (uint64_t, _NNS_UINT64);
+      _get_objects_mp_palm_detection_ (int64_t, _NNS_INT64);
+      _get_objects_mp_palm_detection_ (float, _NNS_FLOAT32);
+      _get_objects_mp_palm_detection_ (double, _NNS_FLOAT64);
+
+      default:
+        g_assert (0);
+    }
+    nms (results, 0.05f);
   } else {
     GST_ERROR ("Failed to get output buffer, unknown mode %d.", bdata->mode);
     goto error_unmap;
