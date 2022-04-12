@@ -589,6 +589,10 @@ snpe_subplugin::configureUserBuffer (zdl::DlSystem::UserBufferMap &buffer_map, c
     std::vector<size_t> strides (bufferShape.rank ());
     strides[strides.size () - 1] = sizeof (float);
     for (size_t i = strides.size () - 1; i > 0; --i) {
+      /* Some model has "0" dim, replacing 0 with 1 */
+      if (bufferShape[i] == 0) {
+        bufferShape[i] = 1;
+      }
       strides[i - 1] = strides[i] * bufferShape[i];
     }
 
@@ -625,6 +629,9 @@ snpe_subplugin::setTensorProp (GstTensorsInfo &tensor_meta, zdl::DlSystem::UserB
     const zdl::DlSystem::TensorShape& bufferShape = (*bufferAttributesOpt)->getDims ();
     for (size_t j = 0; j < bufferShape.rank (); ++j) {
       tensor_meta.info[idx].dimension[j] = bufferShape[bufferShape.rank () - j - 1];
+      /* handle "0" dim */
+      if (tensor_meta.info[idx].dimension[j] == 0)
+        tensor_meta.info[idx].dimension[j] = 1;
     }
     for (size_t j = bufferShape.rank (); j < NNS_TENSOR_RANK_LIMIT; ++j) {
       tensor_meta.info[idx].dimension[j] = 1;
