@@ -104,6 +104,7 @@ typedef struct _tensor_transform_typecast {
 typedef struct
 {
   tensor_transform_operator op;
+  int applying_ch;
   tensor_data_s value;
 } tensor_transform_operator_s;
 
@@ -112,6 +113,8 @@ typedef struct
  */
 typedef struct _tensor_transform_arithmetic {
   tensor_type out_type;
+  gboolean per_channel_arith;
+  guint ch_dim;
 } tensor_transform_arithmetic;
 
 /**

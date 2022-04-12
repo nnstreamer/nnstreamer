@@ -51,7 +51,7 @@ title: tensor_transform
 
     - (2): arithmetic
       - A mode for arithmetic operations with tensor
-      - An option should be provided as option=[typecast:TYPE,]add|mul|div:NUMBER..., ...
+      - An option should be provided as option=[typecast:TYPE,][per-channel:(false|true@DIM),]add|mul|div:NUMBER[@CH_IDX]..., ...
       - Example 1: Element-wise add 25 and multiply 4
 
         ```bash
@@ -62,6 +62,13 @@ title: tensor_transform
 
         ```bash
         ... ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-25 ! ...
+        ```
+
+      - For "per-channel", DIM means the dimension which should be viewed as channel and CH_IDX means the idx of channel the given operation should be applied to. When CH_IDX is not given, the operation is applied to all channels.
+      - Example 3: Add 255 only for 1-th channel when 0-th dim is channel (for RGB image, add 255 for G channel)
+
+        ```bash
+        ... ! video/x-raw,format=RGB ! tensor_converter ! tensor_transform mode=arithmetic option=per-channel:true@0,add:255@1 ! ...
         ```
 
     - (3): transpose
