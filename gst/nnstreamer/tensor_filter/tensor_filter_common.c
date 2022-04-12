@@ -1081,42 +1081,37 @@ gst_tensor_filter_parse_accelerator (GstTensorFilterPrivate * priv,
     GstTensorFilterProperties * prop, const char *accelerators)
 {
   gint status, idx;
-  GstTensorFilterFrameworkInfo *info;
+  GstTensorFilterFrameworkInfo info;
   const gchar **accl_support;
   GList *match_accl, *iter;
-
-  info = &priv->info;
-  gst_tensor_filter_framework_info_init (info);
 
   prop->num_hw = 0;
   g_free (prop->hw_list);
   prop->hw_list = NULL;
 
-  /** Get h/w accelerators supported by framework */
-  if (info->name == NULL) {
-    status = priv->fw->getFrameworkInfo (priv->fw, prop, priv->privateData,
-        info);
-    if (status != 0 || info->hw_list == NULL) {
-      ml_logw ("Unable to fetch accelerators supported by the framework.");
-      return;
-    }
-  }
-
-  if (info->num_hw == 0)
+  /** Get h/w accelerators supported by framework (V1 only) */
+  if (!priv->fw || !GST_TF_FW_V1 (priv->fw))
     return;
+
+  gst_tensor_filter_framework_info_init (&info);
+  status = priv->fw->getFrameworkInfo (priv->fw, prop, NULL, &info);
+  if (status != 0 || info.hw_list == NULL || info.num_hw <= 0) {
+    ml_logw ("Unable to fetch accelerators supported by the framework.");
+    return;
+  }
 
   /**
    * Convert the list to string format
    * Extra 2 entries for basic accelerators : auto and default
    */
-  accl_support = g_malloc (sizeof (gchar *) * (info->num_hw + 2 + 1));
+  accl_support = g_malloc (sizeof (gchar *) * (info.num_hw + 2 + 1));
 
-  for (idx = 0; idx < info->num_hw; idx++) {
-    accl_support[idx] = get_accl_hw_str (info->hw_list[idx]);
+  for (idx = 0; idx < info.num_hw; idx++) {
+    accl_support[idx] = get_accl_hw_str (info.hw_list[idx]);
   }
-  accl_support[info->num_hw] = ACCL_AUTO_STR;
-  accl_support[info->num_hw + 1] = ACCL_DEFAULT_STR;
-  accl_support[info->num_hw + 2] = NULL;
+  accl_support[info.num_hw] = ACCL_AUTO_STR;
+  accl_support[info.num_hw + 1] = ACCL_DEFAULT_STR;
+  accl_support[info.num_hw + 2] = NULL;
 
   /** Parse the user given h/w accelerators intersected with supported h/w */
   match_accl = parse_accl_hw_all (accelerators, accl_support);
@@ -1128,13 +1123,13 @@ gst_tensor_filter_parse_accelerator (GstTensorFilterPrivate * priv,
   for (iter = match_accl, idx = 0; iter != NULL; iter = iter->next, idx++) {
     prop->hw_list[idx] = GPOINTER_TO_INT (iter->data);
     if (prop->hw_list[idx] == ACCL_AUTO) {
-      prop->hw_list[idx] = info->accl_auto;
-      if (info->accl_auto < ACCL_NONE)
-        prop->hw_list[idx] = info->hw_list[0];
+      prop->hw_list[idx] = info.accl_auto;
+      if (info.accl_auto < ACCL_NONE)
+        prop->hw_list[idx] = info.hw_list[0];
     } else if (prop->hw_list[idx] == ACCL_DEFAULT) {
-      prop->hw_list[idx] = info->accl_default;
-      if (info->accl_default < ACCL_NONE)
-        prop->hw_list[idx] = info->hw_list[0];
+      prop->hw_list[idx] = info.accl_default;
+      if (info.accl_default < ACCL_NONE)
+        prop->hw_list[idx] = info.hw_list[0];
     }
   }
   g_list_free (match_accl);
@@ -1314,12 +1309,15 @@ gst_tensor_filter_get_available_framework (GstTensorFilterPrivate * priv,
 
   if (fw) {
     /** Get framework info for v1 */
-    gst_tensor_filter_framework_info_init (&priv->info);
-    if (GST_TF_FW_V1 (fw) && fw->getFrameworkInfo (fw, prop, NULL, &priv->info)
-        < 0) {
-      nns_logw ("Cannot get the given framework info, %s\n", fw_name);
-      g_free (detected_fw);
-      return;
+    if (GST_TF_FW_V1 (fw)) {
+      GstTensorFilterFrameworkInfo info;
+
+      gst_tensor_filter_framework_info_init (&info);
+      if (fw->getFrameworkInfo (fw, prop, NULL, &info) < 0) {
+        nns_logw ("Cannot get the given framework info, %s\n", fw_name);
+        g_free (detected_fw);
+        return;
+      }
     }
     priv->fw = fw;
     prop->fwname = detected_fw;
@@ -1651,7 +1649,7 @@ _gtfc_setprop_ACCELERATOR (GstTensorFilterPrivate * priv,
       g_free_const (prop->accl_str);
       prop->accl_str = g_strdup (accelerators);
     } else if (GST_TF_FW_V1 (priv->fw)) {
-      gst_tensor_filter_parse_accelerator (priv, &priv->prop, accelerators);
+      gst_tensor_filter_parse_accelerator (priv, prop, accelerators);
     }
   } else {
     g_free_const (prop->accl_str);
@@ -2407,19 +2405,21 @@ gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv)
       }
       /* 0 if successfully loaded. 1 if skipped (already loaded). */
       if (verify_model_path (priv)) {
-        if (priv->fw->open (&priv->prop, &priv->privateData) >= 0) {
-          /* Update the framework info once it has been opened */
-          if (GST_TF_FW_V1 (priv->fw) &&
-              priv->fw->getFrameworkInfo (priv->fw, &priv->prop,
-                  priv->privateData, &priv->info) != 0) {
-            priv->fw->close (&priv->prop, &priv->privateData);
-          } else {
-            priv->prop.fw_opened = TRUE;
-          }
-        }
+        if (priv->fw->open (&priv->prop, &priv->privateData) >= 0)
+          priv->prop.fw_opened = TRUE;
       }
     } else {
       priv->prop.fw_opened = TRUE;
+    }
+
+    if (priv->prop.fw_opened) {
+      /* Update the framework info once it has been opened */
+      if (GST_TF_FW_V1 (priv->fw) &&
+          priv->fw->getFrameworkInfo (priv->fw, &priv->prop, priv->privateData,
+              &priv->info) != 0) {
+        priv->fw->close (&priv->prop, &priv->privateData);
+        priv->prop.fw_opened = FALSE;
+      }
     }
 
     end_time = g_get_monotonic_time ();
