@@ -74,7 +74,9 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_transform_debug);
 #define REGEX_CLAMP_OPTION "^((([-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?))):"\
     "((([-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?)))$"
 #define REGEX_ARITH_OPTION "^(typecast:([u]?int(8|16|32|64)|float(32|64)),)?"\
-    "(((add|mul|div)(:([-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?))+)(,|))+$"
+    "(per-channel:(false|true@[0-9]+),)?"\
+    "(((add|mul|div)(:([-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?))+(@[0-9]+)?)(,|))+$"
+
 #define REGEX_ARITH_OPTION_TYPECAST "(typecast:([u]?int(8|16|32|64)|float(32|64)))"
 
 /**
@@ -176,7 +178,7 @@ gst_tensor_transform_mode_get_type (void)
       {GTT_TYPECAST, "Mode for casting type of tensor, "
             "option=" REGEX_TYPECAST_OPTION, "typecast"},
       {GTT_ARITHMETIC, "Mode for arithmetic operations with tensor, "
-            "option=[typecast:TYPE,]add|mul|div:NUMBER..., ...",
+            "option=[typecast:TYPE,][per-channel:(false|true@DIM),]add|mul|div:NUMBER[@CH_IDX], ...",
           "arithmetic"},
       {GTT_TRANSPOSE, "Mode for transposing shape of tensor, "
             "option=D1\':D2\':D3\':D4 (fixed to 3)",
@@ -539,6 +541,7 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
       GRegex *regex_option_tc;
 
       filter->data_arithmetic.out_type = _NNS_END;
+      filter->data_arithmetic.per_channel_arith = FALSE;
 
       if (filter->operators) {
         GST_WARNING_OBJECT (filter,
@@ -574,7 +577,7 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
       if (!g_regex_match_simple (REGEX_ARITH_OPTION, str_option,
               G_REGEX_CASELESS, 0)) {
         ml_loge
-            ("%s: arithmetic: \'%s\' is not valid option string: it should be in the form of [typecast:TYPE,]add|mul|div:NUMBER..., ...\n",
+            ("%s: arithmetic: \'%s\' is not valid option string: it should be in the form of [typecast:TYPE,][per-channel:(false|true@DIM),]add|mul|div:NUMBER[@CH_IDX]..., ...\n",
             filter_name, str_option);
         g_free (str_option);
         break;
@@ -587,15 +590,34 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
         num_op = g_strv_length (str_op);
 
         if (str_op[0]) {
+          gchar **values = g_strsplit (str_op[1], "@", -1);
+          guint num_values = g_strv_length (values);
+
+          /* check whether per-channel */
+          if (g_ascii_strcasecmp (str_op[0], "per-channel") == 0) {
+            if (num_values > 1 && g_ascii_strcasecmp (values[0], "true") == 0) {
+              ml_logi
+                  ("Set per-channel for arithmetic and assume that %s-th dim is the channel",
+                  values[1]);
+              filter->data_arithmetic.per_channel_arith = TRUE;
+              filter->data_arithmetic.ch_dim =
+                  g_ascii_strtoull (values[1], NULL, 10);
+            }
+
+            g_strfreev (values);
+            g_strfreev (str_op);
+            continue;
+          }
+
           op_s = g_new0 (tensor_transform_operator_s, 1);
           g_assert (op_s);
 
           op_s->op = gst_tensor_transform_get_operator (str_op[0]);
-
+          op_s->applying_ch = -1;       /* -1 means applying to all channels */
           switch (op_s->op) {
             case GTT_OP_TYPECAST:
               if (num_op > 1 && str_op[1]) {
-                op_s->value.type = gst_tensor_get_type (str_op[1]);
+                op_s->value.type = gst_tensor_get_type (values[0]);
                 filter->data_arithmetic.out_type = op_s->value.type;
               } else {
                 GST_WARNING_OBJECT (filter, "Invalid option for typecast %s",
@@ -608,21 +630,26 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
             case GTT_OP_DIV:
               if (num_op > 1 && str_op[1]) {
                 /* get operand */
-                if (strchr (str_op[1], '.') || strchr (str_op[1], 'e') ||
-                    strchr (str_op[1], 'E')) {
+                if (strchr (values[0], '.') || strchr (values[0], 'e') ||
+                    strchr (values[0], 'E')) {
                   double val;
 
-                  val = g_ascii_strtod (str_op[1], NULL);
+                  val = g_ascii_strtod (values[0], NULL);
                   gst_tensor_data_set (&op_s->value, _NNS_FLOAT64, &val);
                 } else {
                   int64_t val;
 
-                  val = g_ascii_strtoll (str_op[1], NULL, 10);
+                  val = g_ascii_strtoll (values[0], NULL, 10);
                   gst_tensor_data_set (&op_s->value, _NNS_INT64, &val);
                 }
+
+                if (filter->data_arithmetic.per_channel_arith && num_values > 1) {
+                  op_s->applying_ch = g_ascii_strtoll (values[1], NULL, 10);
+                }
+
               } else {
-                GST_WARNING_OBJECT (filter, "Invalid option for arithmetic %s",
-                    str_operators[i]);
+                GST_WARNING_OBJECT (filter,
+                    "Invalid option for arithmetic %s", str_operators[i]);
                 op_s->op = GTT_OP_UNKNOWN;
               }
               break;
@@ -637,6 +664,8 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
           } else {
             g_free (op_s);
           }
+
+          g_strfreev (values);
         } else {
           GST_WARNING_OBJECT (filter, "Invalid option %s", str_operators[i]);
         }
@@ -657,7 +686,7 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
       if (!g_regex_match_simple (REGEX_TRANSPOSE_OPTION, filter->option,
               G_REGEX_CASELESS, 0)) {
         ml_loge
-            ("%s: transpose: \'%s\' is not valid option string: it should be in the form of NEW_IDX_DIM0:NEW_IDX_DIM1:NEW_IDX_DIM2:3 (note that the index of the last dim is alwayes fixed to 3)\n",
+            ("%s: transpose: \'%s\' is not valid option string: it should be in the form of NEW_IDX_DIM0:NEW_IDX_DIM1:NEW_IDX_DIM2:3 (note that the index of the last dim is always fixed to 3)\n",
             filter_name, filter->option);
         break;
       }
@@ -939,7 +968,7 @@ gst_tensor_transform_dimchg (GstTensorTransform * filter,
     /** Useless memcpy. Do not call this or @todo do "IP" operation */
     nns_memcpy (outptr, inptr, gst_tensor_info_get_size (in_info));
     GST_WARNING_OBJECT (filter,
-        "Calling tensor_transform with high memcpy overhead WITHOUT any effects! Check your stream wheter you really need tensor_transform.\n");
+        "Calling tensor_transform with high memcpy overhead WITHOUT any effects! Check your stream whether you really need tensor_transform.\n");
     return GST_FLOW_OK;
   }
 
@@ -1047,8 +1076,8 @@ gst_tensor_transform_arithmetic (GstTensorTransform * filter,
     GstTensorInfo * in_info, GstTensorInfo * out_info,
     const uint8_t * inptr, uint8_t * outptr)
 {
-  gulong i, num;
-  guint in_element_size, out_element_size;
+  gulong i, num, j, ch;
+  gsize in_element_size, out_element_size;
 
   GSList *walk;
   tensor_transform_operator_s *op_s;
@@ -1057,7 +1086,9 @@ gst_tensor_transform_arithmetic (GstTensorTransform * filter,
   num = gst_tensor_get_element_count (in_info->dimension);
 
 #ifdef HAVE_ORC
-  if (orc_supported (filter, in_info->type, out_info->type)) {
+  /** per-channel is not supported by orc */
+  if (!filter->data_arithmetic.per_channel_arith
+      && orc_supported (filter, in_info->type, out_info->type)) {
     walk = filter->operators;
 
     /**
@@ -1083,6 +1114,66 @@ gst_tensor_transform_arithmetic (GstTensorTransform * filter,
 
   in_element_size = gst_tensor_get_element_size (in_info->type);
   out_element_size = gst_tensor_get_element_size (out_info->type);
+
+  /* per-channel */
+  if (filter->data_arithmetic.per_channel_arith) {
+    guint ch_dim = filter->data_arithmetic.ch_dim;
+    gsize ch_offset, ch_size = 1;
+    for (i = 0; i < ch_dim; ++i) {
+      ch_size *= in_info->dimension[i];
+    }
+    ch_offset = ch_size * in_info->dimension[ch_dim];
+
+    /** In case of 3:4:4:1,
+     * ch_dim:0 -> #ch: 3, ch_size: 1, ch_offset: 3
+     * ch_dim:1 -> #ch: 4, ch_size: 3, ch_offset: 12
+     * ch_dim:2 -> #ch: 4, ch_size: 12, ch_offset: 48
+     * ch_dim:3 -> #ch: 1, ch_size: 48, ch_offset: 48 * 4
+     */
+
+    for (i = 0; i < num / ch_offset; ++i) {
+      for (ch = 0; ch < in_info->dimension[ch_dim]; ++ch) {
+        for (j = 0; j < ch_size; ++j) {
+          gulong data_idx = (i * ch_offset) + (ch * ch_size) + j;
+          gst_tensor_data_set (&value, in_info->type,
+              (gpointer) (inptr + in_element_size * data_idx));
+
+          walk = filter->operators;
+          while (walk) {
+            op_s = (tensor_transform_operator_s *) walk->data;
+            switch (op_s->op) {
+              case GTT_OP_TYPECAST:
+                gst_tensor_data_typecast (&value, op_s->value.type);
+                break;
+              case GTT_OP_ADD:
+              case GTT_OP_MUL:
+              case GTT_OP_DIV:
+              {
+                gst_tensor_data_typecast (&op_s->value, value.type);
+
+                if (op_s->applying_ch == (int) ch || op_s->applying_ch == -1) {
+                  gst_tensor_transform_do_operator (filter, &value,
+                      &op_s->value, op_s->op);
+                }
+                break;
+              }
+              default:
+                g_assert (0);
+                return GST_FLOW_ERROR;
+            }
+
+            walk = g_slist_next (walk);
+          }
+
+          /* set output value */
+          g_assert (out_info->type == value.type);
+          gst_tensor_data_get (&value, outptr + out_element_size * data_idx);
+        }
+      }
+    }
+
+    return GST_FLOW_OK;
+  }
 
   for (i = 0; i < num; ++i) {
     /* init value with input tensor type */
