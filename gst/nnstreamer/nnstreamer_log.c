@@ -87,9 +87,12 @@ _nnstreamer_error (void)
 /**
  * @brief overwrites the error message buffer with the new message.
  */
-void
-_nnstreamer_error_write (const char *fmt, ...)
+__attribute__((__format__ (__printf__, 1, 2)))
+     void _nnstreamer_error_write (const char *fmt, ...)
 {
+  /** The attribute is for clang workaround in macos:
+      https://stackoverflow.com/questions/20167124/vsprintf-and-vsnprintf-wformat-nonliteral-warning-on-clang-5-0
+   */
   va_list arg_ptr;
   G_LOCK (errlock);
 
