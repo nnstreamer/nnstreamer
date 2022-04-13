@@ -1,3 +1,43 @@
+2.1.0 -> 2.1.1
+        - Tizen 7.0 M1 RCx preparation and NNStreamer Mini Summit 2022-04 release.
+
+        - NNStreamer-Edge refactoring (module for Among-Device AI (a.k.a. Edge-AI))
+                - Ongoing effort of nnstreamer-edge separation from nnstreamer.
+                - In the future, nnstreamer-edge will provide among-device AI functions and nnstreamer will provide gstreamer plugins for such functions. Non-gstreamer systems may connect to nnstreamer-edge based pipelines without gstreamer as clients.
+                - NNStreamer-Edge will be using AITT as its default backend, leaving protocol issues to AITT.
+                - In the future, nnstreamer-edge will be compatible with non-Linux ultra-lightweight systems (e.g., Tizen-RT)
+
+        - ML-Service API preparation is going on at api.git.
+
+        - Major features
+                - MQTT timestamping w/ NTP. (later will be migrated to nnstreamer-edge & aitt)
+                - Query (later will be migrated to nnstreamer-edge & aitt): robustness support, mqtt-hybrid protocol, performance fixes for multi-clients.
+                - More coverage for SNPE support: quantized model support, SNPE dimension bug workaround, fixes from/for production team.
+                - Flexible tensor support w/ decoder, converter, flatbuffer.
+
+        - Minor features
+                - MQTT unittest basis, generic stream support, android support, timeout handling, ... (and many!)
+                - Utility functions exported for plugin writers.
+                - Tensorflow-lite delegation refactored for generality: may use XNNPACK more easily.
+                - Tensorflow-lite multi-lib support.
+                - PyTorch: support complex output tensor formats.
+                - NNStreamer multi-lib support.
+                - Decoder: boundingbox-yolov5
+                - Filter: TRIx-Engine support. (NPUs of Samsung 2022 TV)
+                - Docker support refactored and cleaned up.
+
+        - Fixes
+                - ARMNN build errors.
+                - Android errors
+                - Build errors with recent compiler updates. (gcc 11)
+                - Fixes upstreamed from productions
+                - Errors w/ library updates: Lua >= 5.3, GLib >= 2.68
+                - Regression fixes: openvino, edgetpu, tensorrt
+                - Memory leaks in C++ subplugin infra.
+
+        - Known issues: PPA/Launchpad build broken!
+
+
 2.0.0 -> 2.1.0
 	- 2.1.0 is a devel version for 2.2.0 release, which is planned to be the LTS release of 2022.
 

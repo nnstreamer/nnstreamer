@@ -1,3 +1,9 @@
+nnstreamer (2.1.1.0) unstable xenial bionic focal; urgency=medium
+
+  * 2.1.1 development starts for Tizen 7.0 M1 RC releases.
+
+ -- MyungJoo Ham <myungjoo.ham@samsung.com>  Wed, 13 Apr 2022 17:20:28 +0900
+
 nnstreamer (2.1.0.0) unstable xenial bionic focal sid; urgency=medium
 
   * 2.1.0 development starts (2.2.0.RC1)
