@@ -282,6 +282,46 @@ if tflite2_support_is_available
   )
 endif
 
+if tflite2_custom_support_is_available
+  message('TensorFlow(1/2)-lite custom binary support enabled.')
+
+  filter_sub_tflite2_custom_sources = ['tensor_filter_tensorflow_lite_custom.cc']
+
+  nnstreamer_filter_tflite2_custom_sources = []
+  foreach s : filter_sub_tflite2_custom_sources
+    nnstreamer_filter_tflite2_custom_sources += join_paths(meson.current_source_dir(), s)
+  endforeach
+
+  # Ignore deps identified by 'target' at nnstreamer.git/meson.build. We will use ldopen.
+  nnstreamer_filter_tflite2_custom_deps = [libdl_dep, nnstreamer_dep]
+
+  tflite2_custom_compile_args = ['-DTFLITE_SUBPLUGIN_NAME="tensorflow2-lite-custom"']
+
+  if cc.has_header('tensorflow2/lite/model.h')
+    tflite2_custom_compile_args += '-DUSE_TENSORFLOW2_HEADER_PATH=1'
+  endif
+
+  tflite2_custom_extra_dep = declare_dependency(
+    compile_args : tflite2_custom_compile_args
+  )
+
+  nnstreamer_filter_tflite2_custom_deps += tflite2_custom_extra_dep
+
+  shared_library('nnstreamer_filter_tensorflow2-lite-custom',
+    nnstreamer_filter_tflite2_custom_sources,
+    dependencies: nnstreamer_filter_tflite2_custom_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_tensorflow2-lite-custom',
+    nnstreamer_filter_tflite2_custom_sources,
+    dependencies: nnstreamer_filter_tflite2_custom_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+endif
+
 if pytorch_support_is_available
   filter_sub_torch_sources = ['tensor_filter_pytorch.cc']
 
