@@ -175,8 +175,11 @@ gst_tensor_info_validate (const GstTensorInfo * info)
   g_return_val_if_fail (info != NULL, FALSE);
 
   if (info->type == _NNS_END) {
-    nns_logd ("Failed to validate tensor info. type: %s. "
-        "Please specify tensor type. e.g., type=uint8 ",
+    nns_logd
+        ("Failed to validate tensor info. type: %s. Please specify tensor type. e.g., type=uint8 ",
+        _STR_NULL (gst_tensor_get_type_string (info->type)));
+    _nnstreamer_error_write
+        ("Failed to validate tensor info. type: %s. Please specify tensor type. e.g., type=uint8 ",
         _STR_NULL (gst_tensor_get_type_string (info->type)));
     return FALSE;
   }
@@ -374,8 +377,12 @@ gst_tensors_info_validate (const GstTensorsInfo * info)
   g_return_val_if_fail (info != NULL, FALSE);
 
   if (info->num_tensors < 1) {
-    nns_logd ("Failed to validate tensors info. the number of tensors: %d. "
-        "the number of tensors should be greater than 0.", info->num_tensors);
+    nns_logd
+        ("Failed to validate tensors info. the number of tensors: %d. the number of tensors should be greater than 0.",
+        info->num_tensors);
+    _nnstreamer_error_write
+        ("Failed to validate tensors info. the number of tensors: %d. the number of tensors should be greater than 0.",
+        info->num_tensors);
     return FALSE;
   }
 
@@ -737,16 +744,23 @@ gst_tensors_config_validate (const GstTensorsConfig * config)
 
   /* framerate (numerator >= 0 and denominator > 0) */
   if (config->rate_n < 0 || config->rate_d <= 0) {
-    nns_logd ("Failed to validate tensors config. framerate: %d/%d. "
-        "framerate should be numerator >= 0 and denominator > 0.",
+    nns_logd
+        ("Failed to validate tensors config. framerate: %d/%d. framerate should be numerator >= 0 and denominator > 0.",
+        config->rate_n, config->rate_d);
+    _nnstreamer_error_write
+        ("Failed to validate tensors config. framerate: %d/%d. framerate should be numerator >= 0 and denominator > 0.",
         config->rate_n, config->rate_d);
     return FALSE;
   }
 
   /* tensor stream format */
   if (config->format >= _NNS_TENSOR_FORMAT_END) {
-    nns_logd ("Failed to validate tensors config. format: %s. "
-        "format should be one of %s.",
+    nns_logd
+        ("Failed to validate tensors config. format: %s. format should be one of %s.",
+        _STR_NULL (gst_tensor_get_format_string (config->format)),
+        GST_TENSOR_FORMAT_ALL);
+    _nnstreamer_error_write
+        ("Failed to validate tensors config. format: %s. format should be one of %s.",
         _STR_NULL (gst_tensor_get_format_string (config->format)),
         GST_TENSOR_FORMAT_ALL);
     return FALSE;
@@ -844,9 +858,12 @@ gst_tensor_dimension_is_valid (const tensor_dim dim)
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; ++i) {
     if (dim[i] == 0) {
       gchar *dim_str = gst_tensor_get_dimension_string (dim);
-      nns_logd ("Failed to validate tensor dimension. Given dimension: %s"
-          "The dimension string should be in the form of d1:d2:d3:d4, "
-          "d1:d2:d3, d1:d2, or d1. Here, dN is a positive integer.", dim_str);
+      nns_logd
+          ("Failed to validate tensor dimension. Given dimension: %s. The dimension string should be in the form of d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1. Here, dN is a positive integer.",
+          dim_str);
+      _nnstreamer_error_write
+          ("Failed to validate tensor dimension. Given dimension: %s. The dimension string should be in the form of d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1. Here, dN is a positive integer.",
+          dim_str);
       g_free (dim_str);
       return FALSE;
     }
