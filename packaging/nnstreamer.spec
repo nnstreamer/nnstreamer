@@ -701,9 +701,9 @@ Provides additional gstreamer plugins for nnstreamer pipelines
 
 # Support tensorflow2-lite
 %if 0%{?tensorflow2_lite_support}
-%define enable_tf2_lite -Dtflite2-support=enabled
+%define enable_tf2_lite -Dtflite2-support=enabled -Dtflite2-custom-support=enabled
 %else
-%define enable_tf2_lite -Dtflite2-support=disabled
+%define enable_tf2_lite -Dtflite2-support=disabled -Dtflite2-custom-support=disabled
 %endif
 
 # Support pytorch
@@ -980,6 +980,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_tensorflow2-lite.so
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_tensorflow2-lite-custom.so
 %endif
 
 %if 0%{?python3_support}
