@@ -595,6 +595,42 @@ TEST (testTensorTransform, arithmeticProperties11_n)
 /**
  * @brief Test for invalid properties of tensor_transform
  */
+TEST (testTensorTransform, arithmeticProperties12_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "per-channel:false", NULL);
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
+TEST (testTensorTransform, arithmeticProperties13_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "per-channel:invalid,add:1@2", NULL);
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for invalid properties of tensor_transform
+ */
 TEST (testTensorTransform, transposeProperties0_n)
 {
   GstHarness *h;
@@ -1816,6 +1852,88 @@ TEST (testTensorTransform, arithmetic5Accel)
 
     for (i = 0; i < array_size; i++) {
       int32_t expected = (i + 1) * (b + 1) - 1;
+      EXPECT_EQ (((int32_t *)info.data)[i], expected);
+    }
+
+    gst_memory_unmap (mem, &info);
+    gst_buffer_unref (out_buf);
+  }
+
+  EXPECT_EQ (gst_harness_buffers_received (h), num_buffers);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_transform arithmetic, per-channel
+ */
+TEST (testTensorTransform, arithmeticPerChannel)
+{
+  const guint num_buffers = 3;
+  const guint array_size = 5; /* channel size : 5 */
+
+  GstHarness *h;
+  GstBuffer *in_buf, *out_buf;
+  GstTensorsConfig config;
+  GstMemory *mem;
+  GstMapInfo info;
+  guint i, b;
+  gsize data_in_size, data_out_size;
+
+  h = gst_harness_new ("tensor_transform");
+
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option",
+      "typecast:int32,per-channel:true@0,mul:1@0,mul:2@1,mul:3@2,mul:4@3,mul:5@4,add:-1@0,add:-2@1,add:-3@2,add:-4@3,add:-5@4", NULL);
+  g_object_set (h->element, "acceleration", (gboolean) FALSE, NULL);
+
+  /**
+   * 1  2  3  4  5 -> 0  2  6 12 20
+   * 2  4  6  8 10 -> 1  6 15 28 45
+   * 3  6  9 12 15 -> 2 10 24 44 70
+   */
+
+  /* input tensor info */
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1U;
+  config.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  data_in_size = gst_tensors_info_get_size (&config.info, 0);
+
+  config.info.info[0].type = _NNS_INT32;
+  data_out_size = gst_tensors_info_get_size (&config.info, 0);
+
+  /* push buffers */
+  for (b = 0; b < num_buffers; b++) {
+    /* set input buffer */
+    in_buf = gst_harness_create_buffer (h, data_in_size);
+
+    mem = gst_buffer_peek_memory (in_buf, 0);
+    ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_WRITE));
+
+    for (i = 0; i < array_size; i++) {
+      uint8_t value = (i + 1) * (b + 1);
+      ((uint8_t *)info.data)[i] = value;
+    }
+
+    gst_memory_unmap (mem, &info);
+
+    EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+    /* get output buffer */
+    out_buf = gst_harness_pull (h);
+
+    ASSERT_TRUE (out_buf != NULL);
+    ASSERT_EQ (gst_buffer_n_memory (out_buf), 1U);
+    ASSERT_EQ (gst_buffer_get_size (out_buf), data_out_size);
+
+    mem = gst_buffer_peek_memory (out_buf, 0);
+    ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_READ));
+
+    for (i = 0; i < array_size; i++) {
+      int32_t expected = ((i + 1) * (b + 1)) * (i + 1) - (i + 1);
       EXPECT_EQ (((int32_t *)info.data)[i], expected);
     }
 

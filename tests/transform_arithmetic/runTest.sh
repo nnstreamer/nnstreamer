@@ -133,6 +133,15 @@ testResult $? 7-8 "Golden test comparison" 0 1
 # Fail Test for the option string is wrong
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tensor_transform mode=arithmetic option=casttype:uint64,mul:65535 acceleration=false ! fakesink sync=true " 8F_n 0 1 $PERFORMANCE
 
+# Test for per-channel (black (videotestsrc pattern=2) RGB image with tensor_transform vs. red (pattern=4) RGB image)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc pattern=2 num-buffers=1 ! videoscale ! \
+videoconvert ! video/x-raw,format=RGB,width=8,height=4 ! tensor_converter ! \
+tensor_transform mode=arithmetic option=per-channel:true@0,add:255@0 ! filesink location=\"red.log\" buffer-mode=unbuffered sync=true \
+videotestsrc pattern=4 num-buffers=1 ! videoscale ! videoconvert ! \
+video/x-raw,format=RGB,width=8,height=4 ! filesink location=\"black_channel_op.log\" buffer-mode=unbuffered sync=true
+" 9 0 0 $PERFORMANCE
+callCompareTest black_channel_op.log red.log 9-1 "Compare red RGB value" 1 0
+
 rm *.log *.bmp *.png *.golden *.raw *.dat
 
 report
