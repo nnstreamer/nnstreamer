@@ -112,7 +112,7 @@ _search_subplugin (subpluginType type, const gchar * name, const gchar * path)
   g_return_val_if_fail (name != NULL, NULL);
   g_return_val_if_fail (path != NULL, NULL);
 
-  module = g_module_open (path, 0);
+  module = g_module_open (path, G_MODULE_BIND_LOCAL);
   /* If this is a correct subplugin, it will register itself */
   if (module == NULL) {
     ml_loge ("Cannot open %s(%s) with error %s.", name, path,
