@@ -161,6 +161,9 @@ typedef struct _GstTensorFilterProperties
 
   int latency; /**< The average latency over the recent 10 inferences in microseconds */
   int throughput; /**< The average throughput in the number of outputs per second */
+
+  /* NNStreamer >= 2.1.1 */
+  char *additional_library_path; /**< A directory path to additional shared libraries for the subplugin */
 } GstTensorFilterProperties;
 
 /**
@@ -191,6 +194,9 @@ typedef struct _GstTensorFilterFrameworkInfo
   accl_hw accl_auto;  /**< accelerator to be used in auto mode (acceleration to be used but accelerator is not specified for the filter) - default -1 implies use first entry from hw_list */
   accl_hw accl_default;   /**< accelerator to be used by default (valid user input is not provided) - default -1 implies use first entry from hw_list*/
   const GstTensorFilterFrameworkStatistics *statistics;  /**< usage statistics by the framework. This is shared across all opened instances of this framework */
+
+  /* Introduced with NNStreamer 2.1.1 */
+  const char *additional_library; /**< The name of shared library required by the framework, which is supposed to be provided by the pipeline constructor (application / nnstreamer-user). For example, tensorflow2-lite-custom users are supposed supply libtensorflow2-lite-custom.so. If this is not null and has at least one character, a tensor-filter property, additional-library-path, becomes effective. */
 } GstTensorFilterFrameworkInfo;
 
 /**

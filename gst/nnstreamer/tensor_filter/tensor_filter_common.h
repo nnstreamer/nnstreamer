@@ -132,6 +132,7 @@ typedef struct _GstTensorFilterPrivate
   gint throughput_mode;  /**< throughput profiling mode (0: off, 1: on, ...) */
 
   GstTensorFilterCombination combi;
+
 } GstTensorFilterPrivate;
 
 /**

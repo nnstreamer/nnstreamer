@@ -125,6 +125,7 @@ enum
   PROP_INPUTCOMBINATION,
   PROP_OUTPUTCOMBINATION,
   PROP_SHARED_TENSOR_FILTER_KEY,
+  PROP_ADDITIONAL_LIBRARY_PATH,
 };
 
 /**
@@ -1004,6 +1005,11 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
           "to declare and share such instances. "
           "If it is NULL, it means the model representations is not shared.",
           NULL, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_ADDITIONAL_LIBRARY_PATH,
+      g_param_spec_string ("addtional-library-path",
+         "The directory path of additional shared libraries",
+         "The directory path of additional shared libraries required by the given tensor-filter subplugin. For example, if you are using a custom tensorflow2-lite binary, built for a specific application, you may designate the location of such a binary so that the tensorflow2-lite-custom subplugin may find where the 'libtensorflow2-lite-custom.so' is located. If not specified, it will search for the libraries in the default shared library directories and the 'current' directory.",
+         NULL, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 }
 
 /**
@@ -1896,6 +1902,26 @@ _gtfc_setprop_SHARED_TENSOR_FILTER_KEY (GstTensorFilterProperties * prop,
   return 0;
 }
 
+/** @brief Handle "PROP_ADDITIONAL_LIBRARY_PATH" for set-property */
+static gint
+_gtfc_setprop_ADDITIONAL_LIBRARY_PATH (GstTensorFilterProperties * prop,
+    const GValue * value)
+{
+  /** @todo
+   * undo
+   */
+
+  g_free (prop->additional_library_path);
+  prop->additional_library_path = g_value_dup_string (value);
+
+  /** @todo
+   * 1. parse and store the data.
+   * 2. do register.
+   */
+
+  return 0;
+}
+
 /**
  * @brief Set the properties for tensor_filter
  * @param[in] priv Struct containing the properties of the object
@@ -1975,6 +2001,9 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
       break;
     case PROP_SHARED_TENSOR_FILTER_KEY:
       status = _gtfc_setprop_SHARED_TENSOR_FILTER_KEY (prop, value);
+      break;
+    case PROP_ADDITIONAL_LIBRARY_PATH:
+      status = _gtfc_setprop_ADDITIONAL_LIBRARY_PATH (prop, value);
       break;
     default:
       return FALSE;
@@ -2175,6 +2204,12 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
     case PROP_SHARED_TENSOR_FILTER_KEY:
       if (prop->shared_tensor_filter_key)
         g_value_set_string (value, prop->shared_tensor_filter_key);
+      else
+        g_value_set_string (value, "");
+      break;
+    case PROP_ADDITIONAL_LIBRARY_PATH:
+      if (prop->additional_library_path)
+        g_value_set_string (value, prop->additional_library_path);
       else
         g_value_set_string (value, "");
       break;
