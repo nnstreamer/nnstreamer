@@ -78,3 +78,6 @@ ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes), yes)
 else
 	cp debian/control.debian debian/control
 endif
+
+override_dh_shlibdeps:
+	dh_shlibdeps --exclude=libtensorflow2-lite-custom.so
