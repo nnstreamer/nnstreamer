@@ -14,7 +14,7 @@
 
 #include <errno.h>
 #include <netdb.h>
-#include <netinet/ip.h>
+#include <arpa/inet.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -120,6 +120,15 @@ const char NTPUTIL_DEFAULT_HNAME[] = "pool.ntp.org";
 const uint16_t NTPUTIL_DEFAULT_PORT = 123;
 
 /**
+ * @brief Wrapper function of ntohl.
+ */
+uint32_t
+_convert_to_host_byte_order (uint32_t in)
+{
+  return ntohl (in);
+}
+
+/**
  * @brief Get NTP timestamps from the given or public NTP servers
  * @param[in] hnums A number of hostname and port pairs. If 0 is given,
  *                  the NTP server pool will be used.
@@ -208,8 +217,8 @@ ntputil_get_epoch (uint32_t hnums, char **hnames, uint16_t * ports)
      * such as microsceonds. Note that the bit/byte order of those data should
      * be converted to the host's endianness.
      */
-    recv_sec = ntohl (packet.xmit_ts.sec);
-    recv_frac = ntohl (packet.xmit_ts.frac);
+    recv_sec = _convert_to_host_byte_order (packet.xmit_ts.sec);
+    recv_frac = _convert_to_host_byte_order (packet.xmit_ts.frac);
 
     /**
      * @note NTP uses an epoch of January 1, 1900 while the Unix epoch is
