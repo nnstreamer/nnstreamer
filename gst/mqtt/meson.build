@@ -16,8 +16,5 @@ gstmqtt_shared = shared_library('gstmqtt',
   install_dir: plugins_install_dir
 )
 
-# gstmqtt_shared is a GStreamer plugin so that providing runtime dependency is not necessary.
-# This dependency is needed to let the class that mocks the MQTT library use the internal header files.
-gstmqtt_mocking_dep = declare_dependency(
-  include_directories: '.',
-)
+gstmqtt_dep = declare_dependency(link_with: gstmqtt_shared,
+    include_directories: include_directories('.'))

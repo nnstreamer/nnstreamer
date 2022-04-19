@@ -10,10 +10,14 @@
  * @author  Wook Song <wook16.song@samsung.com>
  * @bug     No known bugs except for NYI items
  */
+#ifndef __NNS_NTP_UTIL_H__
+#define __NNS_NTP_UTIL_H__
 
 #include <stdint.h>
 #include <time.h>
-
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 /**
  * @brief Get NTP timestamps from the given or public NTP servers
  * @param[in] hnums A number of hostname and port pairs. If 0 is given,
@@ -25,3 +29,15 @@
  */
 int64_t
 ntputil_get_epoch (uint32_t hnums, char **hnames, uint16_t * ports);
+
+/**
+ * @brief Converting network byte order to host byte order.
+ * @note There is a problem in mocking ntohl in GMock, so the wrapper function is temporarily used.
+ * */
+uint32_t
+_convert_to_host_byte_order (uint32_t in);
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+#endif /* __NNS_NTP_UTIL_H__ */

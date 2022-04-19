@@ -147,7 +147,7 @@ if gtest_dep.found()
     if mqtt_support_is_available
       unittest_mqtt_w_helper = executable('unittest_mqtt_w_helper',
           join_paths('gstreamer_mqtt', 'unittest_mqtt_w_helper.cc'),
-          dependencies: [gstmqtt_mocking_dep, nnstreamer_unittest_deps],
+          dependencies: [gstmqtt_dep, nnstreamer_unittest_deps],
           install: get_option('install-test'),
           install_dir: unittest_install_dir)
 
@@ -160,6 +160,18 @@ if gtest_dep.found()
           install_dir: unittest_install_dir)
 
       test('unittest_mqtt', unittest_mqtt, env: testenv)
+
+      # ntp util test
+      gmock_dep = dependency('gmock', required: false)
+      if get_option('enable-tizen') and gmock_dep.found()
+        gstreamer_ntp_util_mock = executable('unittest_ntp_util',
+            join_paths('gstreamer_mqtt', 'unittest_ntp_util_mock.cc'),
+            dependencies: [nnstreamer_unittest_deps, gmock_dep, gstmqtt_dep],
+            install: get_option('install-test'),
+            install_dir: unittest_install_dir)
+
+        test('gstreamer_ntp_util_mock', gstreamer_ntp_util_mock, env: testenv)
+      endif
     endif
 
     # Run unittest_src_iio
