@@ -78,7 +78,7 @@ class snpe_subplugin final : public tensor_filter_subplugin
   /* options for snpe builder */
   zdl::DlSystem::RuntimeList runtime_list;
   bool use_cpu_fallback;
-  std::vector<std::string> output_layer_names;
+  zdl::DlSystem::StringList output_tensor_names_list, input_tensor_names_list;
 
   std::unique_ptr<zdl::DlContainer::IDlContainer> container;
   std::unique_ptr<zdl::SNPE::SNPE> snpe;
@@ -93,10 +93,9 @@ class snpe_subplugin final : public tensor_filter_subplugin
   void cleanup ();
   bool configure_option (const GstTensorFilterProperties *prop);
   bool parse_custom_prop (const char *custom_prop);
-  bool set_output_layer_names (const GstTensorsInfo *info);
+  bool set_output_tensor_names (const GstTensorsInfo *info);
   void configureUserBuffer (zdl::DlSystem::UserBufferMap &buffer_map, const zdl::DlSystem::StringList strList);
-  void setTensorProp (GstTensorsInfo &tensor_meta, zdl::DlSystem::UserBufferMap &buffer_map);
-  static void setTensorProp (GstTensorsInfo &tensor_meta, zdl::DlSystem::TensorMap &tensor_map, tensor_type data_type);
+  void setTensorProp (GstTensorsInfo &tensor_meta, const zdl::DlSystem::StringList strList, tensor_type data_type);
   static const char *runtimeToString (zdl::DlSystem::Runtime_t runtime);
 
   tensor_type input_data_type;
@@ -131,6 +130,7 @@ const char *snpe_subplugin::name = "snpe";
 snpe_subplugin::snpe_subplugin ()
     : tensor_filter_subplugin (), empty_model (true), model_path (nullptr),
       runtime_list (zdl::DlSystem::Runtime_t::CPU), use_cpu_fallback (false),
+      output_tensor_names_list (), input_tensor_names_list (),
       container (nullptr), snpe (nullptr), input_data_type (_NNS_FLOAT32),
       output_data_type (_NNS_FLOAT32), use_user_buffer (false)
 {
@@ -148,6 +148,11 @@ snpe_subplugin::snpe_subplugin ()
 void
 snpe_subplugin::cleanup ()
 {
+  if (model_path) {
+    g_free (model_path);
+    model_path = nullptr;
+  }
+
   if (empty_model)
     return;
 
@@ -167,9 +172,9 @@ snpe_subplugin::cleanup ()
   input_tensors.clear ();
   input_tensor_map.clear ();
   output_tensor_map.clear ();
+  output_tensor_names_list = zdl::DlSystem::StringList ();
+  input_tensor_names_list = zdl::DlSystem::StringList ();
 
-  g_free (model_path);
-  model_path = nullptr;
   empty_model = true;
 }
 
@@ -221,17 +226,18 @@ snpe_subplugin::runtimeToString (zdl::DlSystem::Runtime_t runtime)
  * @brief Internal method to get names of output layers from tensors information.
  */
 bool
-snpe_subplugin::set_output_layer_names (const GstTensorsInfo *info)
+snpe_subplugin::set_output_tensor_names (const GstTensorsInfo *info)
 {
+  if (output_tensor_names_list.size () > 0) {
+    output_tensor_names_list = zdl::DlSystem::StringList ();
+  }
   for (unsigned int i = 0; i < info->num_tensors; ++i) {
-    if (info->info[i].name == nullptr) {
+    if (info->info[i].name == nullptr || info->info[i].name[0] == '\0') {
       /* failed */
-      nns_loge ("Given layer name with index %u is invalid.", i);
-      output_layer_names.clear ();
+      nns_loge ("Given output tensor name with index %u is invalid, it is null.", i);
       return false;
     }
-    nns_logd ("Add output layer name of %s", info->info[i].name);
-    output_layer_names.emplace_back (std::string (info->info[i].name));
+    output_tensor_names_list.append (info->info[i].name);
   }
   return true;
 }
@@ -290,19 +296,21 @@ snpe_subplugin::parse_custom_prop (const char *custom_prop)
           nns_loge ("Unknown cpu_fallback option");
           invalid_option = true;
         }
-      } else if (g_ascii_strcasecmp (option[0], "OutputLayer") == 0) {
-        gchar **names = g_strsplit (option[1], ";", -1);
+      } else if (g_ascii_strcasecmp (option[0], "OutputTensor") == 0) {
+        /* the tensor name may contain ':' */
+        gchar *_ot_str = g_strjoinv (":", &option[1]);
+        gchar **names = g_strsplit (_ot_str, ";", -1);
         guint num_names = g_strv_length (names);
         for (guint i = 0; i < num_names; ++i) {
           if (g_strcmp0 (names[i], "") == 0) {
-            nns_loge ("Given layer name with index %u is invalid.", i);
-            output_layer_names.clear ();
+            nns_loge ("Given tensor name with index %u is invalid.", i);
             invalid_option = true;
             break;
           }
-          nns_logd ("Add output layer name of %s", names[i]);
-          output_layer_names.emplace_back (std::string (names[i]));
+          nns_logd ("Add output tensor name of %s", names[i]);
+          output_tensor_names_list.append (names[i]);
         }
+        g_free (_ot_str);
         g_strfreev (names);
       } else if (g_ascii_strcasecmp (option[0], "InputType") == 0) {
         if (g_ascii_strcasecmp (option[1], "uint8") == 0) {
@@ -366,12 +374,14 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   nns_logi ("SNPE Version: %s",
       zdl::SNPE::SNPEFactory::getLibraryVersion ().asString ().c_str ());
 
-  if (!set_output_layer_names (&prop->output_meta)) {
+  if (!set_output_tensor_names (&prop->output_meta)) {
     nns_loge ("Failed to set output layer names");
+    cleanup ();
     return;
   }
 
   if (!configure_option (prop)) {
+    cleanup ();
     throw std::invalid_argument ("Failed to configure SNPE option.");
     return;
   }
@@ -400,13 +410,11 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 
   container = zdl::DlContainer::IDlContainer::open (model_path);
 
-  zdl::DlSystem::StringList _output_layer_names;
-  for (size_t i = 0; i < output_layer_names.size (); ++i) {
-    _output_layer_names.append (output_layer_names.at(i).c_str ());
-  }
-
   zdl::SNPE::SNPEBuilder snpe_builder (container.get());
-  snpe_builder.setOutputLayers (_output_layer_names);
+  if (output_tensor_names_list.size () > 0) {
+    nns_logd ("Use user given output tensor names");
+    snpe_builder.setOutputTensors (output_tensor_names_list);
+  }
   snpe_builder.setUseUserSuppliedBuffers (use_user_buffer);
   snpe_builder.setInitCacheMode (false);
   snpe_builder.setRuntimeProcessorOrder (runtime_list);
@@ -414,48 +422,44 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 
   snpe = snpe_builder.build ();
   if (snpe == nullptr) {
+    cleanup ();
     throw std::runtime_error ("fail to build snpe");
   }
+
+  /** configure input and output tensor names */
+  if (output_tensor_names_list.size () == 0) {
+    /** when no output tensor names are given -> use default output tensors */
+    nns_logd ("No options are given for output tensors, use default output tensors of the model");
+    output_tensor_names_list = snpe->getOutputTensorNames ();
+  }
+
+  input_tensor_names_list = snpe->getInputTensorNames ();
 
   /** user buffer mode */
   if (use_user_buffer) {
     if (input_data_type != _NNS_FLOAT32 || output_data_type != _NNS_FLOAT32) {
+      cleanup ();
       throw std::invalid_argument ("user buffer mode only support float32 type");
     }
 
     /* Configure input and output */
-    configureUserBuffer (input_buffer_map, snpe->getInputTensorNames ());
-    configureUserBuffer (output_buffer_map, snpe->getOutputTensorNames ());
+    configureUserBuffer (input_buffer_map, input_tensor_names_list);
+    configureUserBuffer (output_buffer_map, output_tensor_names_list);
 
-    setTensorProp (inputInfo, input_buffer_map);
-    setTensorProp (outputInfo, output_buffer_map);
-
-  } else {
-    const zdl::DlSystem::Optional<zdl::DlSystem::StringList> &strList_opt
-        = snpe->getInputTensorNames ();
-
-    assert (strList_opt);
-
-    const zdl::DlSystem::StringList &strList = *strList_opt;
-
-    for (size_t i = 0; i < strList.size (); ++i) {
+  } else {  /** ITENSOR mode */
+    for (size_t i = 0; i < input_tensor_names_list.size (); ++i) {
       const zdl::DlSystem::Optional<zdl::DlSystem::TensorShape> &inputDims_opt
-          = snpe->getInputDimensions (strList.at (i));
+          = snpe->getInputDimensions (input_tensor_names_list.at (i));
       const zdl::DlSystem::TensorShape &input_shape = *inputDims_opt;
 
       input_tensors.emplace_back (
           zdl::SNPE::SNPEFactory::getTensorFactory ().createTensor (input_shape));
-      input_tensor_map.add (strList.at (i), input_tensors[i].get ());
+      input_tensor_map.add (input_tensor_names_list.at (i), input_tensors[i].get ());
     }
-
-    /* do execution for get info of output tensors */
-    snpe->execute (input_tensor_map, output_tensor_map);
-
-    setTensorProp (inputInfo, input_tensor_map, input_data_type);
-    setTensorProp (outputInfo, output_tensor_map, output_data_type);
-
-    output_tensor_map.clear ();
   }
+
+  setTensorProp (inputInfo, input_tensor_names_list, input_data_type);
+  setTensorProp (outputInfo, output_tensor_names_list, output_data_type);
 
   empty_model = false;
 }
@@ -508,9 +512,7 @@ snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
     snpe->execute (input_tensor_map, output_tensor_map);
 
     for (unsigned int i = 0; i < outputInfo.num_tensors; ++i) {
-      zdl::DlSystem::ITensor *output_tensor
-          = output_tensor_map.getTensor (output_tensor_map.getTensorNames ().at (i));
-
+      zdl::DlSystem::ITensor *output_tensor = output_tensor_map.getTensor (output_tensor_names_list.at (i));
       switch (output_data_type) {
         case _NNS_FLOAT32: {
           float *outbuf = (float *) output[i].data;
@@ -614,12 +616,13 @@ snpe_subplugin::configureUserBuffer (zdl::DlSystem::UserBufferMap &buffer_map, c
  * @brief Method to set tensor properties with user_buffer.
  */
 void
-snpe_subplugin::setTensorProp (GstTensorsInfo &tensor_meta, zdl::DlSystem::UserBufferMap &buffer_map)
+snpe_subplugin::setTensorProp (GstTensorsInfo &tensor_meta, const zdl::DlSystem::StringList strList, tensor_type data_type)
 {
   unsigned int idx = 0;
-  tensor_meta.num_tensors = buffer_map.size ();
-  for (const char *name : buffer_map.getUserBufferNames ()) {
-    tensor_meta.info[idx].type = _NNS_FLOAT32;
+  tensor_meta.num_tensors = strList.size ();
+
+  for (const char *name : strList) {
+    tensor_meta.info[idx].type = data_type;
     tensor_meta.info[idx].name = g_strdup (name);
     auto bufferAttributesOpt = snpe->getInputOutputBufferAttributes (name);
     const zdl::DlSystem::TensorShape& bufferShape = (*bufferAttributesOpt)->getDims ();
@@ -630,29 +633,6 @@ snpe_subplugin::setTensorProp (GstTensorsInfo &tensor_meta, zdl::DlSystem::UserB
       tensor_meta.info[idx].dimension[j] = 1;
     }
     idx++;
-  }
-}
-
-/**
- * @brief Method to set tensor properties.
- */
-void
-snpe_subplugin::setTensorProp (GstTensorsInfo &tensor_meta, zdl::DlSystem::TensorMap &tensor_map, tensor_type data_type)
-{
-  tensor_meta.num_tensors = tensor_map.size ();
-  for (unsigned int i = 0; i < tensor_map.size (); ++i) {
-    tensor_meta.info[i].name = g_strdup (tensor_map.getTensorNames ().at (i));
-    tensor_meta.info[i].type = data_type;
-
-    unsigned int rank
-        = tensor_map.getTensor (tensor_meta.info[i].name)->getShape ().rank ();
-    for (unsigned int j = 0; j < rank; ++j) {
-      tensor_meta.info[i].dimension[j]
-          = tensor_map.getTensor (tensor_meta.info[i].name)->getShape ()[rank - j - 1];
-    }
-    for (unsigned int j = rank; j < NNS_TENSOR_RANK_LIMIT; ++j) {
-      tensor_meta.info[i].dimension[j] = 1;
-    }
   }
 }
 
