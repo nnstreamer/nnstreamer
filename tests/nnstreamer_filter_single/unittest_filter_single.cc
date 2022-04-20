@@ -33,8 +33,8 @@ public:
   NNSFilterSingleTest ()
     : single (nullptr), klass (nullptr), loaded (FALSE)
   {
-    input.data = nullptr;
-    output.data = nullptr;
+    input.data = output.data = nullptr;
+    input.size = output.size = 0;
   }
 
   /**
