@@ -115,7 +115,7 @@ $ gst-launch-1.0 \
  - Install mosquitto broker: `$ sudo apt install mosquitto mosquitto-clients`
 
 ## tensor query test
-### To check the results without running the test: [Daily build result](http://nnstreamer.mooo.com/nnstreamer/ci/daily-build/build_result/latest/log/).
+### To check the results without running the test: [Daily build result](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/build_result/latest/log/).
  - GTest results
  ```
  [  173s] ~/rpmbuild/BUILD/nnstreamer-1.7.2
