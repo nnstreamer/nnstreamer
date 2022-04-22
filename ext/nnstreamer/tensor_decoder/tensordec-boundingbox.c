@@ -1390,8 +1390,8 @@ nms (GArray * results, gfloat threshold)
     size_t boxbpi_ = config->info.info[0].dimension[0]; \
     results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), num_); \
     for (d_ = 0; d_ < num_; d_++) { \
-      _type y_center, x_center, h, w; \
-      _type ymin, xmin; \
+      gfloat y_center, x_center, h, w; \
+      gfloat ymin, xmin; \
       int y, x, width, height; \
       detectedObject object; \
       gfloat score = (gfloat)scores_[d_]; \
@@ -1402,10 +1402,10 @@ nms (GArray * results, gfloat threshold)
       score = 1.0f / (1.0f + exp (-score)); \
       if (score < data->min_score_threshold) \
         continue; \
-      y_center = box[0] / i_height_ * a->h + a->y_center; \
-      x_center = box[1] / i_width_ * a->w + a->x_center; \
-      h = box[2] / i_height_ * a->h; \
-      w = box[3] / i_width_ * a->w; \
+      y_center = (box[0] * 1.f) / i_height_ * a->h + a->y_center; \
+      x_center = (box[1] * 1.f) / i_width_ * a->w + a->x_center; \
+      h = (box[2] * 1.f) / i_height_ * a->h; \
+      w = (box[3] * 1.f) / i_width_ * a->w; \
       ymin = y_center - h / 2.f; \
       xmin = x_center - w / 2.f; \
       y = ymin * i_height_; \
