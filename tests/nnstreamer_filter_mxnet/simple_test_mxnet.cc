@@ -210,6 +210,7 @@ main (int argc, char *argv[])
     data.data_iter = get_dataset ();
     data.data_iter->Reset ();
     data.num_batch = 0;
+    data.sourceid = 0;
     nnstreamer_result.reserve (NUM_INFERENCE_BATCHES);
     data.log = &nnstreamer_result;
 
