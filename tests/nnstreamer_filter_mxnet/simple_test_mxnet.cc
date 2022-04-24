@@ -11,7 +11,9 @@
 
 #define NUM_INFERENCE_BATCHES (500)
 
-/* GStreamer app data struct */
+/**
+ * @brief GStreamer app data struct
+ */
 typedef struct {
   GstElement *pipeline, *app_source, *app_sink;
   guint sourceid; /* To control the GSource */
@@ -23,8 +25,9 @@ typedef struct {
   std::vector<float> *log;
 } AppData;
 
-/* Get MXNet Predictor using default parameters
- * The code is from main() in MXNet Predictor example:
+/**
+ * @brief Get MXNet Predictor using default parameters
+ * @note The code is from main() in MXNet Predictor example:
  *  https://github.com/apache/incubator-mxnet/blob/1.7.0/cpp-package/example/inference/imagenet_inference.cpp
  */
 std::unique_ptr<Predictor>
@@ -41,8 +44,9 @@ get_predictor (MXDataIter *data_iter)
       input_data_shape, data_layer_type, use_gpu, enable_tensorrt, data_iter));
 }
 
-/* Get MXNet RecordIO dataset iterator using default parameters
- * The code is from main() in MXNet Predictor example:
+/**
+ * @brief Get MXNet RecordIO dataset iterator using default parameters
+ * @note The code is from main() in MXNet Predictor example:
  *  https://github.com/apache/incubator-mxnet/blob/1.7.0/cpp-package/example/inference/imagenet_inference.cpp
  */
 std::unique_ptr<MXDataIter>
@@ -63,7 +67,9 @@ get_dataset ()
           rgb_mean, rgb_std, shuffle_chunk_seed, seed, data_nthreads, use_gpu));
 }
 
-/* Push a dataset batch (one preprocessed image) to the pipeline */
+/**
+ * @brief Push a dataset batch (one preprocessed image) to the pipeline
+ */
 static gboolean
 push_data (AppData *data)
 {
@@ -103,8 +109,10 @@ push_data (AppData *data)
   return TRUE;
 }
 
-/* This signal callback triggers when appsrc needs data. Here, we add an idle
- * handler to the mainloop to start pushing data into the appsrc */
+/**
+ * @brief This signal callback triggers when appsrc needs data.
+ * Here, we add an idle handler to the mainloop to start pushing data into the appsrc
+ */
 static void
 start_feed (GstElement *source, guint size, AppData *data)
 {
@@ -115,8 +123,11 @@ start_feed (GstElement *source, guint size, AppData *data)
   }
 }
 
-/* This callback triggers when appsrc has enough data and we can stop sending.
- * We remove the idle handler from the mainloop */
+/**
+ * @brief This callback triggers when appsrc has enough data and we can stop
+ * sending. We remove the idle handler from the mainloop
+ *
+ */
 static void
 stop_feed (GstElement *source, AppData *data)
 {
@@ -127,7 +138,9 @@ stop_feed (GstElement *source, AppData *data)
   }
 }
 
-/* Log the result when a new sample (result) is received */
+/**
+ * @brief Log the result when a new sample (result) is received
+ */
 static GstFlowReturn
 new_sample (GstElement *sink, AppData *data)
 {
@@ -153,7 +166,9 @@ new_sample (GstElement *sink, AppData *data)
   return GST_FLOW_ERROR;
 }
 
-/* When the pipeline get EOS, we exit the mainloop. */
+/**
+ * @brief When the pipeline get EOS, we exit the mainloop.
+ */
 static gboolean
 on_pipeline_message (GstBus *bus, GstMessage *message, AppData *data)
 {
@@ -187,6 +202,9 @@ on_pipeline_message (GstBus *bus, GstMessage *message, AppData *data)
   return TRUE;
 }
 
+/**
+ * @brief Main function: compute result of same task by MXNet and NNStreamer
+ */
 int
 main (int argc, char *argv[])
 {
