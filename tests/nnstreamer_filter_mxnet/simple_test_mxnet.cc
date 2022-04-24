@@ -1,3 +1,12 @@
+/**
+ * @file    simple_test_mxnet.cc
+ * @date    Apr 24 2022
+ * @brief   Unit test for mxnet tensor filter sub-plugin
+ * @author  Bumsik Kim <k.bumsik@gmail.com>
+ * @see     http://github.com/nnstreamer/nnstreamer
+ * @bug     No known bugs
+ *
+ */
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
 #include <mxnet-cpp/io.h>
