@@ -84,6 +84,7 @@
 #include <nnstreamer_util.h>
 #include <stdexcept>
 #include <tensor_common.h>
+#include <unistd.h>
 
 #include <fcntl.h>
 #include <glib.h>
