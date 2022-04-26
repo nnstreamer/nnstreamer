@@ -105,9 +105,10 @@ const static std::string kFileLocation = "/ext/nnstreamer/tensor_filter/tensor_f
 const static std::string kFileUrl
     = "https://github.com/nnstreamer/nnstreamer/tree/main" + kFileLocation;
 
-void init_filter_mxnet (void)
-    __attribute__ ((constructor)); /**< Dynamic library contstructor */
+extern "C" {
+void init_filter_mxnet (void) __attribute__ ((constructor)); /**< Dynamic library contstructor */
 void fini_filter_mxnet (void) __attribute__ ((destructor)); /**< Dynamic library desctructor */
+}
 
 class TensorFilterMXNet final : public tensor_filter_subplugin
 {
