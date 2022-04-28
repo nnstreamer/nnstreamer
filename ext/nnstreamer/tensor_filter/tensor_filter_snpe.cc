@@ -79,6 +79,7 @@ class snpe_subplugin final : public tensor_filter_subplugin
   zdl::DlSystem::RuntimeList runtime_list;
   bool use_cpu_fallback;
   zdl::DlSystem::StringList output_tensor_names_list, input_tensor_names_list;
+  size_t max_resizable_dim;
 
   std::unique_ptr<zdl::DlContainer::IDlContainer> container;
   std::unique_ptr<zdl::SNPE::SNPE> snpe;
@@ -130,7 +131,7 @@ const char *snpe_subplugin::name = "snpe";
 snpe_subplugin::snpe_subplugin ()
     : tensor_filter_subplugin (), empty_model (true), model_path (nullptr),
       runtime_list (zdl::DlSystem::Runtime_t::CPU), use_cpu_fallback (false),
-      output_tensor_names_list (), input_tensor_names_list (),
+      output_tensor_names_list (), input_tensor_names_list (), max_resizable_dim (0U),
       container (nullptr), snpe (nullptr), input_data_type (_NNS_FLOAT32),
       output_data_type (_NNS_FLOAT32), use_user_buffer (false)
 {
@@ -335,6 +336,13 @@ snpe_subplugin::parse_custom_prop (const char *custom_prop)
         } else {
           use_user_buffer = false;
           nns_logi ("Use ITENSOR for input/output (default option)");
+        }
+      } else if (g_ascii_strcasecmp (option[0], "MaxResizableDim") == 0) {
+        max_resizable_dim = (size_t) g_ascii_strtoll (option[1], NULL, 10);
+        nns_logi ("Set %zu for max number of resizable dim", max_resizable_dim);
+        if (max_resizable_dim == 0) {
+          nns_loge ("max_resizable_dim should be greater than 0");
+          invalid_option = true;
         }
       } else {
         nns_logw ("Unknown option (%s).", options[op]);
@@ -591,6 +599,14 @@ snpe_subplugin::configureUserBuffer (zdl::DlSystem::UserBufferMap &buffer_map, c
     std::vector<size_t> strides (bufferShape.rank ());
     strides[strides.size () - 1] = sizeof (float);
     for (size_t i = strides.size () - 1; i > 0; --i) {
+      if (bufferShape[i] == 0) {
+        if (max_resizable_dim == 0) {
+          throw std::runtime_error (std::string ("zero dim is detected in tensor ") + name + std::string (". User should provide MaxResizableDim with custom option"));
+        }
+        nns_logi ("zero dim (resizable dim) is detected in %zu-th dim of tensor %s. Set it as user given max number: %zu",
+            i, name, max_resizable_dim);
+        bufferShape[i] = max_resizable_dim;
+      }
       strides[i - 1] = strides[i] * bufferShape[i];
     }
 
@@ -627,6 +643,12 @@ snpe_subplugin::setTensorProp (GstTensorsInfo &tensor_meta, const zdl::DlSystem:
     auto bufferAttributesOpt = snpe->getInputOutputBufferAttributes (name);
     const zdl::DlSystem::TensorShape& bufferShape = (*bufferAttributesOpt)->getDims ();
     for (size_t j = 0; j < bufferShape.rank (); ++j) {
+      if (bufferShape[bufferShape.rank () - j - 1] == 0) {
+        if (max_resizable_dim == 0) {
+          throw std::runtime_error (std::string ("zero dim is detected in tensor ") + name + std::string (". User should provide MaxResizableDim with custom option"));
+        }
+        bufferShape[bufferShape.rank () - j - 1] = max_resizable_dim;
+      }
       tensor_meta.info[idx].dimension[j] = bufferShape[bufferShape.rank () - j - 1];
     }
     for (size_t j = bufferShape.rank (); j < NNS_TENSOR_RANK_LIMIT; ++j) {
@@ -657,6 +679,8 @@ snpe_subplugin::init_filter_snpe (void)
       "Set the data type of the output {'float32 (default)', 'uint8'}",
       "UserBuffer",
       "Use user supplied buffers for input/output tensors {'false (default)', 'true'}",
+      "MaxResizableDim",
+      "Max number for resizable dim (should be greater than 0)",
       NULL);
 }
 
