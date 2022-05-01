@@ -93,9 +93,11 @@
 #include <sys/types.h>
 
 #include <mxnet-cpp/MxNetCpp.h>
+#include <mxnet/lib_api.h>
 
 using nnstreamer::tensor_filter_subplugin;
 using namespace mxnet::cpp;
+using namespace mxnet::ext;
 
 namespace nnstreamer
 {
@@ -131,26 +133,9 @@ class TensorFilterMXNet final : public tensor_filter_subplugin
   static const std::string ext_symbol; /**< extension of model symbol (.json) */
   static const std::string ext_params; /**< extension of model parameters (.params) */
 
-  /**< Data type for MXNet NDArray from <mshadow/base.h> which causes errors when included */
-  enum TypeFlag : int {
-    kFloat32 = 0,
-    kFloat64 = 1,
-    kFloat16 = 2,
-    kUint8 = 3,
-    kInt32 = 4,
-    kInt8 = 5,
-    kInt64 = 6,
-    kBool = 7,
-    kInt16 = 8,
-    kUint16 = 9,
-    kUint32 = 10,
-    kUint64 = 11,
-    kBfloat16 = 12
-  };
-
   private:
   Shape tensorInfoToShape (GstTensorInfo &tensorinfo, int rank);
-  TypeFlag tensorTypeToMXNet (tensor_type type);
+  MXDType tensorTypeToMXNet (tensor_type type);
   void parseCustomProperties (const GstTensorFilterProperties *prop);
   void splitParamMap (const std::map<std::string, NDArray> &paramMap,
       std::map<std::string, NDArray> *argParamInTargetContext,
@@ -398,18 +383,12 @@ TensorFilterMXNet::tensorInfoToShape (GstTensorInfo &tensorinfo, int rank)
 /**
  * @brief Convert tensor_type to MXNet TypeFlag
  */
-TensorFilterMXNet::TypeFlag
+mxnet::ext::MXDType
 TensorFilterMXNet::tensorTypeToMXNet (tensor_type type)
 {
   switch (type) {
     case _NNS_INT32:
       return kInt32;
-    case _NNS_UINT32:
-      return kUint32;
-    case _NNS_INT16:
-      return kInt16;
-    case _NNS_UINT16:
-      return kUint16;
     case _NNS_INT8:
       return kInt8;
     case _NNS_UINT8:
@@ -420,8 +399,6 @@ TensorFilterMXNet::tensorTypeToMXNet (tensor_type type)
       return kFloat32;
     case _NNS_INT64:
       return kInt64;
-    case _NNS_UINT64:
-      return kUint64;
     default:
       throw std::invalid_argument ("Unsupported data type.");
   }
