@@ -106,7 +106,8 @@ const static std::string kFileLocation
     = "<nnstreamer_repo_home>/ext/nnstreamer/tensor_filter/tensor_filter_mxnet.cc";
 
 extern "C" {
-void init_filter_mxnet (void) __attribute__ ((constructor)); /**< Dynamic library contstructor */
+void init_filter_mxnet (void)
+    __attribute__ ((constructor)); /**< Dynamic library contstructor */
 void fini_filter_mxnet (void) __attribute__ ((destructor)); /**< Dynamic library desctructor */
 }
 
