@@ -14,6 +14,6 @@ if mxnet_support_is_available
   )
 
   configure_file(input : 'download_and_run.sh', output : 'download_and_run.sh',
-    configuration : configuration_data()
+    copy: true
   )
 endif
