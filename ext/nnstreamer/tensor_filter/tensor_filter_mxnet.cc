@@ -54,7 +54,7 @@
  *   custom:
  *     Each entries are separated by ','
  *     Each entries have property_key=value format.
- *     There must be no speces.
+ *     There must be no spaces.
  *
  *     Supported props:
  *       input_rank: (mandatory)
