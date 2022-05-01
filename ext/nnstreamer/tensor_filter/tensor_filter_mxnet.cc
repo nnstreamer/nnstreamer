@@ -102,9 +102,8 @@ namespace nnstreamer
 namespace tensorfilter_mxnet
 {
 
-const static std::string kFileLocation = "/ext/nnstreamer/tensor_filter/tensor_filter_mxnet.cc";
-const static std::string kFileUrl
-    = "https://github.com/nnstreamer/nnstreamer/tree/main" + kFileLocation;
+const static std::string kFileLocation
+    = "<nnstreamer_repo_home>/ext/nnstreamer/tensor_filter/tensor_filter_mxnet.cc";
 
 extern "C" {
 void init_filter_mxnet (void) __attribute__ ((constructor)); /**< Dynamic library contstructor */
@@ -227,8 +226,9 @@ TensorFilterMXNet::configure_instance (const GstTensorFilterProperties *prop)
   try {
     parseCustomProperties (prop);
   } catch (const std::invalid_argument &e) {
-    throw std::invalid_argument ("Failed to parse \"custom\" prop:"
-                                 + std::string (e.what ()) + "\n\tReference: " + kFileUrl);
+    throw std::invalid_argument (
+        "Failed to parse \"custom\" prop:" + std::string (e.what ())
+        + "\n\tReference: " + kFileLocation);
   }
 
   // Validate model file paths and then assign
