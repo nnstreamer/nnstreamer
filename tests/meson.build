@@ -366,7 +366,7 @@ if get_option('install-test')
     install_subdir('nnstreamer_protobuf', install_dir: unittest_install_dir)
   endif
   if mxnet_support_is_available
-    install_subdir('unittest_filter_mxnet', install_dir: unittest_tests_install_dir)
+    install_subdir('unittest_filter_mxnet', install_dir: unittest_install_dir)
   endif
   install_subdir('nnstreamer_mux', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_rate', install_dir: unittest_install_dir)
