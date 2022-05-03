@@ -48,7 +48,7 @@ if [ -z ${SO_EXT} ]; then
 fi
 
 # Generate video_4x4xBGRx.xraw & golden
-python3 generateTestCase.py
+python3 generateTestCase.py || echo "Failed to run test preparation script (generateTest.py). Test not available." && report && exit
 
 gstTest "--gst-plugin-path=../../build \
 tensor_mux name=mux sync-mode=nosync ! \
