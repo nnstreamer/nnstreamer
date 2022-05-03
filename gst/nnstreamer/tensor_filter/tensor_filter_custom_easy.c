@@ -110,7 +110,8 @@ NNS_custom_easy_unregister (const char *modelname)
   internal_data *ptr;
 
   /* get internal data before unregistering the custom filter */
-  ptr = (internal_data *) get_subplugin (NNS_EASY_CUSTOM_FILTER, modelname);
+  ptr =
+      (internal_data *) get_subplugin (NNS_EASY_CUSTOM_FILTER, modelname, NULL);
 
   if (!unregister_subplugin (NNS_EASY_CUSTOM_FILTER, modelname)) {
     ml_loge ("Failed to unregister custom filter %s.", modelname);
@@ -133,7 +134,8 @@ custom_open (const GstTensorFilterProperties * prop, void **private_data)
   rd = g_new (runtime_data, 1);
   if (!rd)
     return -ENOMEM;
-  rd->model = get_subplugin (NNS_EASY_CUSTOM_FILTER, prop->model_files[0]);
+  rd->model =
+      get_subplugin (NNS_EASY_CUSTOM_FILTER, prop->model_files[0], NULL);
 
   if (NULL == rd->model) {
     ml_loge

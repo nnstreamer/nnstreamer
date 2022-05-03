@@ -390,7 +390,8 @@ gst_tensor_if_configure_custom_prop (GstTensorIf * self)
     return;
 
   if (self->cv == TIFCV_CUSTOM) {
-    const custom_cb_s *ptr = get_subplugin (NNS_IF_CUSTOM, self->custom.name);
+    const custom_cb_s *ptr =
+        get_subplugin (NNS_IF_CUSTOM, self->custom.name, NULL);
     if (!ptr) {
       nns_logw ("Failed to find custom subplugin of the tensor_if");
       return;
@@ -986,7 +987,7 @@ nnstreamer_if_custom_unregister (const gchar * name)
 {
   custom_cb_s *ptr;
 
-  ptr = (custom_cb_s *) get_subplugin (NNS_IF_CUSTOM, name);
+  ptr = (custom_cb_s *) get_subplugin (NNS_IF_CUSTOM, name, NULL);
   if (!unregister_subplugin (NNS_IF_CUSTOM, name)) {
     ml_loge ("Failed to unregister custom callback %s.", name);
     return -EINVAL;

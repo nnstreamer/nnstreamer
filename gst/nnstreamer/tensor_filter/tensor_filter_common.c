@@ -702,7 +702,8 @@ nnstreamer_filter_find_best_fit (const char *names)
     if (strlen (g_strstrip (subplugins[i])) == 0)
       continue;
 
-    fw = get_subplugin (NNS_SUBPLUGIN_FILTER, subplugins[i]);
+    /** @todo add additional path if it's set */
+    fw = get_subplugin (NNS_SUBPLUGIN_FILTER, subplugins[i], NULL);
     if (fw) {
       nns_logi ("Found %s", subplugins[i]);
       break;
@@ -726,7 +727,8 @@ nnstreamer_filter_find (const char *name)
 
   g_return_val_if_fail (name != NULL, NULL);
 
-  fw = get_subplugin (NNS_SUBPLUGIN_FILTER, name);
+  /** @todo add additional path if it's set */
+  fw = get_subplugin (NNS_SUBPLUGIN_FILTER, name, NULL);
 
   if (fw == NULL) {
     /* get sub-plugin priority from ini file and find sub-plugin */
@@ -1007,9 +1009,9 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
           NULL, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_ADDITIONAL_LIBRARY_PATH,
       g_param_spec_string ("addtional-library-path",
-         "The directory path of additional shared libraries",
-         "The directory path of additional shared libraries required by the given tensor-filter subplugin. For example, if you are using a custom tensorflow2-lite binary, built for a specific application, you may designate the location of such a binary so that the tensorflow2-lite-custom subplugin may find where the 'libtensorflow2-lite-custom.so' is located. If not specified, it will search for the libraries in the default shared library directories and the 'current' directory.",
-         NULL, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          "The directory path of additional shared libraries",
+          "The directory path of additional shared libraries required by the given tensor-filter subplugin. For example, if you are using a custom tensorflow2-lite binary, built for a specific application, you may designate the location of such a binary so that the tensorflow2-lite-custom subplugin may find where the 'libtensorflow2-lite-custom.so' is located. If not specified, it will search for the libraries in the default shared library directories and the 'current' directory.",
+          NULL, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 }
 
 /**

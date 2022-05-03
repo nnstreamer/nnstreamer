@@ -55,10 +55,11 @@ typedef enum {
  * @brief Retrieve the registered data with the subplugin name.
  * @param[in] type Subplugin Type
  * @param[in] name Subplugin Name. The filename should be libnnstreamer_${type}_${name}.so
+ * @param[in] additional_paths If the corresponding element (e.g., tensor-filter) has custom paths for this instance, specify the list here, terminated by NULL. Otherwise, set NULL.
  * @return The registered data
  */
 extern const void *
-get_subplugin (subpluginType type, const char *name);
+get_subplugin (subpluginType type, const char *name, const char * additional_paths[]);
 
 /**
  * @brief Get the list of registered subplugins.
