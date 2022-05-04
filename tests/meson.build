@@ -187,7 +187,7 @@ if gtest_dep.found()
     endif
 
     # Run unittest_converter
-    if flatbuf_support_is_available
+    if flatbuf_support_is_available and have_python3
       unittest_converter = executable('unittest_converter',
         join_paths('nnstreamer_converter', 'unittest_converter.cc'),
         dependencies: [nnstreamer_unittest_deps, flatbuf_dep, nnstreamer_python3_helper_dep],
