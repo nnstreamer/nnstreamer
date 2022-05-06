@@ -93,21 +93,27 @@ _backtrace_to_string (void);
 
 #define GST_ELEMENT_ERROR_BTRACE(s, errtype, errcode, mesg) do { \
       char *btrace = _backtrace_to_string (); \
-      GST_ELEMENT_ERROR (s, errtype, errcode, mesg, ("%s", btrace)); \
-      free (btrace); \
+      if (btrace) { \
+        GST_ELEMENT_ERROR (s, errtype, errcode, mesg, ("%s", btrace)); \
+        free (btrace); \
+      } \
     } while (0)
 
 #define ml_logf_stacktrace(...) do { \
       char *btrace = _backtrace_to_string (); \
-      ml_loge ("%s\n", btrace);  \
-      free (btrace); \
+      if (btrace) { \
+        ml_loge ("%s\n", btrace);  \
+        free (btrace); \
+      } \
       ml_logf (__VA_ARGS__); \
     } while (0)
 
 #define ml_log_stacktrace(logfunc, ...) do { \
       char *btrace = _backtrace_to_string (); \
-      logfunc ("%s\n", btrace);  \
-      free (btrace); \
+      if (btrace) { \
+        logfunc ("%s\n", btrace);  \
+        free (btrace); \
+      } \
       logfunc (__VA_ARGS__); \
     } while (0)
 #define ml_loge_stacktrace(...) ml_log_stacktrace(ml_loge, __VA_ARGS__)

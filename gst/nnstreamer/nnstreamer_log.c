@@ -33,7 +33,7 @@ _backtrace_to_string (void)
 /* Android does not have execinfo.h. It has unwind.h instead. */
   void *array[20];
   char **strings;
-  int size, i;
+  int size, i, len;
   int strsize = 0, strcursor = 0;
 
   size = backtrace (array, 20);
@@ -43,15 +43,18 @@ _backtrace_to_string (void)
       strsize += strlen (strings[i]);
 
     retstr = malloc (sizeof (char) * (strsize + 1));
-    for (i = 0; i < size; i++) {
-      int len = strlen (strings[i]);
-      memcpy (retstr + strcursor, strings[i], len);
-      strcursor += len;
-    }
-    retstr[strsize] = '\0';
-  }
+    if (retstr) {
+      for (i = 0; i < size; i++) {
+        len = strlen (strings[i]);
+        memcpy (retstr + strcursor, strings[i], len);
+        strcursor += len;
+      }
 
-  free (strings);
+      retstr[strsize] = '\0';
+    }
+
+    free (strings);
+  }
 #else
   retstr = strdup ("Android-nnstreamer does not support backtrace.\n");
 #endif
