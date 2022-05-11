@@ -11,21 +11,7 @@
  */
 
 #include "nnstreamer_edge_common.h"
-
-/**
- * @brief Data structure for edge handle.
- */
-typedef struct
-{
-  unsigned int magic;
-  char *id;
-  char *topic;
-  nns_edge_protocol_e protocol;
-  char *ip;
-  int port;
-  nns_edge_event_cb event_cb;
-  void *user_data;
-} nns_edge_handle_s;
+#include "nnstreamer_edge_internal.h"
 
 /**
  * @brief Check network connection.

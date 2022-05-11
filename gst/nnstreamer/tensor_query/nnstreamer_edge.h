@@ -41,7 +41,7 @@ typedef void *nns_edge_data_h;
 
 /**
  * @brief Enumeration for the error codes of nnstreamer-edge.
- * @todo define detailed error code later (linux standard error code)
+ * @todo define detailed error code later (linux standard error, sync with tizen error code)
  */
 typedef enum {
   NNS_EDGE_ERROR_NONE = 0,
@@ -49,7 +49,8 @@ typedef enum {
   NNS_EDGE_ERROR_OUT_OF_MEMORY = -ENOMEM,
   NNS_EDGE_ERROR_IO = -EIO,
   NNS_EDGE_ERROR_CONNECTION_FAILURE = -ECONNREFUSED,
-  NNS_EDGE_ERROR_UNKNOWN = -(INT_MIN / 2),
+  NNS_EDGE_ERROR_UNKNOWN = (-1073741824LL),
+  NNS_EDGE_ERROR_NOT_SUPPORTED = (NNS_EDGE_ERROR_UNKNOWN + 2),
 } nns_edge_error_e;
 
 typedef enum {
