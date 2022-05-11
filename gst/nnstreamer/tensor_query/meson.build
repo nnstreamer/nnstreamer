@@ -31,6 +31,10 @@ if aitt_support_is_available
   nnstreamer_edge_deps += aitt_support_deps
 else
   nnstreamer_edge_sources += join_paths(meson.current_source_dir(), 'nnstreamer_edge_internal.c')
+  if mqtt_support_is_available
+    nnstreamer_edge_sources += join_paths(meson.current_source_dir(), 'nnstreamer_edge_mqtt.c')
+    nnstreamer_edge_deps += [pahomqttc_dep, thread_dep]
+  endif
 endif
 
 nns_edge_lib = shared_library('nnstreamer-edge',
