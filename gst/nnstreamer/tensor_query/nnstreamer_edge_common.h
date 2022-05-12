@@ -62,6 +62,16 @@ typedef struct {
 } nns_edge_data_s;
 
 /**
+ * @brief Internal data structure for edge event.
+ * @todo Implement mutex lock.
+ */
+typedef struct {
+  unsigned int magic;
+  nns_edge_event_e event;
+  nns_edge_raw_data_s data;
+} nns_edge_event_s;
+
+/**
  * @todo add log util for nnstreamer-edge.
  * 1. define tag (e.g., "nnstreamer-edge").
  * 2. consider macros to print function and line.
@@ -87,6 +97,26 @@ bool nns_edge_is_connected (nns_edge_h edge_h);
  * @brief Validate data handle.
  */
 bool nns_edge_data_is_valid (nns_edge_data_h data_h);
+
+/**
+ * @brief Create nnstreamer edge event.
+ */
+int nns_edge_event_create (nns_edge_event_e event, nns_edge_event_h * event_h);
+
+/**
+ * @brief Destroy nnstreamer edge event.
+ */
+int nns_edge_event_destroy (nns_edge_event_h event_h);
+
+/**
+ * @brief Set event data.
+ */
+int nns_edge_event_set_data (nns_edge_event_h event_h, void *data, size_t data_len, nns_edge_data_destroy_cb destroy_cb);
+
+/**
+ * @brief Get the nnstreamer edge event type.
+ */
+int nns_edge_event_get_type (nns_edge_event_h event_h, nns_edge_event_e * event);
 
 #ifdef __cplusplus
 }

@@ -53,9 +53,9 @@ typedef enum {
 } nns_edge_error_e;
 
 typedef enum {
-  NNS_EDGE_EVENT_TEMP = 0,
+  NNS_EDGE_EVENT_UNKNOWN = 0,
 
-  NNS_EDGE_EVENT_MAX
+  NNS_EDGE_EVENT_CUSTOM = 0x01000000
 } nns_edge_event_e;
 
 typedef enum {
