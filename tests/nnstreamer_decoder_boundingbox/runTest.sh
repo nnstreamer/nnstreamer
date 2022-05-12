@@ -52,4 +52,13 @@ callCompareTest mobilenetssd_postprocess_golden.0 tfssd_postprocess_output.0 0-1
 callCompareTest mobilenetssd_postprocess_golden.1 tfssd_postprocess_output.1 0-2 "tf-ssd(deprecated) Decode 2" 0
 rm tfssd_postprocess_output.*
 
+# palm detection decoder test
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=mux ! tensor_decoder mode=bounding_boxes option1=mp-palm-detection option3=0.5:4:1.0:1.0:0.5:0.5:8:16:16:16 option4=160:120 option5=300:300 ! videoconvert !  video/x-raw,format=RGBA ! multifilesink location=palm_detection_result_%1d.log \
+    multifilesrc location=palm_detection_input_0.%1d start-index=$CASESTART stop-index=$CASEEND caps=application/octet-stream ! tensor_converter input-dim=18:2016:1:1 input-type=float32 ! mux.sink_0 \
+    multifilesrc location=palm_detection_input_1.%1d start-index=$CASESTART stop-index=$CASEEND caps=application/octet-stream ! tensor_converter input-dim=1:2016:1:1 input-type=float32 ! mux.sink_1" 5 0 0 $PERFORMANCE
+
+callCompareTest palm_detection_result_golden.0 palm_detection_result_0.log 5-0 "palm detection Decode 0" 0
+callCompareTest palm_detection_result_golden.1 palm_detection_result_1.log 5-1 "palm detection Decode 1" 0
+rm palm_detection_result_*.log
+
 report
