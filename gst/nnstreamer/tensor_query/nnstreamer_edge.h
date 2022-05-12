@@ -23,6 +23,7 @@
 #include <limits.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include <string.h>
 
 #ifdef __cplusplus
@@ -86,80 +87,67 @@ typedef void (*nns_edge_data_destroy_cb) (void *data);
 /**
  * @brief Get registered handle. If not registered, create new handle and register it.
  */
-int
-nns_edge_get_handle (const char *id, const char *topic, nns_edge_h *edge_h);
+int nns_edge_get_handle (const char *id, const char *topic, nns_edge_h *edge_h);
 
 /**
  * @brief Release the given handle.
  */
-int
-nns_edge_release_handle (nns_edge_h edge_h);
+int nns_edge_release_handle (nns_edge_h edge_h);
 
 /**
  * @brief Set the event callback.
  */
-int
-nns_edge_set_event_callback (nns_edge_h edge_h, nns_edge_event_cb cb, void *user_data);
+int nns_edge_set_event_callback (nns_edge_h edge_h, nns_edge_event_cb cb, void *user_data);
 
 /**
  * @brief Connect to the destination node.
  */
-int
-nns_edge_connect (nns_edge_h edge_h, nns_edge_protocol_e protocol, const char *ip, int port);
+int nns_edge_connect (nns_edge_h edge_h, nns_edge_protocol_e protocol, const char *ip, int port);
 
 /**
  * @brief Disconnect from the destination node.
  */
-int
-nns_edge_disconnect (nns_edge_h edge_h);
+int nns_edge_disconnect (nns_edge_h edge_h);
 
 /**
  * @brief Publish a message to a given topic.
  */
-int
-nns_edge_publish (nns_edge_h edge_h, nns_edge_data_h data_h);
+int nns_edge_publish (nns_edge_h edge_h, nns_edge_data_h data_h);
 
 /**
  * @brief Request result to the server.
  */
-int
-nns_edge_request (nns_edge_h edge_h, nns_edge_data_h data_h, void *user_data);
+int nns_edge_request (nns_edge_h edge_h, nns_edge_data_h data_h, void *user_data);
 
 /**
  * @brief Subscribe a message to a given topic.
  */
-int
-nns_edge_subscribe (nns_edge_h edge_h, nns_edge_data_h data_h, void *user_data);
+int nns_edge_subscribe (nns_edge_h edge_h, nns_edge_data_h data_h, void *user_data);
 
 /**
  * @brief Unsubscribe a message to a given topic.
  */
-int
-nns_edge_unsubscribe (nns_edge_h edge_h);
+int nns_edge_unsubscribe (nns_edge_h edge_h);
 
 /**
  * @brief Get the topic of edge handle. Caller should release returned string using free().
  */
-int
-nns_edge_get_topic (nns_edge_h edge_h, char **topic);
+int nns_edge_get_topic (nns_edge_h edge_h, char **topic);
 
 /**
  * @brief Create nnstreamer edge data.
  */
-int
-nns_edge_data_create (nns_edge_data_type_e dtype, nns_edge_data_h *data_h);
+int nns_edge_data_create (nns_edge_data_type_e dtype, nns_edge_data_h *data_h);
 
 /**
  * @brief Destroy nnstreamer edge data.
  */
-int
-nns_edge_data_destroy (nns_edge_data_h data_h);
+int nns_edge_data_destroy (nns_edge_data_h data_h);
 
 /**
  * @brief Add raw data into nnstreamer edge data.
  */
-int
-nns_edge_data_add (nns_edge_data_h data_h, void *data, size_t data_len, nns_edge_data_destroy_cb destroy_cb);
+int nns_edge_data_add (nns_edge_data_h data_h, void *data, size_t data_len, nns_edge_data_destroy_cb destroy_cb);
 
 #ifdef __cplusplus
 }

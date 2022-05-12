@@ -41,12 +41,19 @@ extern "C" {
 #define NNS_EDGE_MAGIC_DEAD 0xdeaddead
 #define NNS_EDGE_MAGIC_IS_VALID(h) ((h) && (h)->magic == NNS_EDGE_MAGIC)
 
+/**
+ * @brief Internal data structure for raw data.
+ */
 typedef struct {
   void *data;
   size_t data_len;
   nns_edge_data_destroy_cb destroy_cb;
 } nns_edge_raw_data_s;
 
+/**
+ * @brief Internal data structure for edge data.
+ * @todo Implement mutex lock.
+ */
 typedef struct {
   unsigned int magic;
   nns_edge_data_type_e dtype;
@@ -69,20 +76,17 @@ typedef struct {
 /**
  * @brief Validate edge handle.
  */
-bool
-nns_edge_handle_is_valid (nns_edge_h edge_h);
+bool nns_edge_handle_is_valid (nns_edge_h edge_h);
 
 /**
  * @brief Check network connection.
  */
-bool
-nns_edge_is_connected (nns_edge_h edge_h);
+bool nns_edge_is_connected (nns_edge_h edge_h);
 
 /**
  * @brief Validate data handle.
  */
-bool
-nns_edge_data_is_valid (nns_edge_data_h data_h);
+bool nns_edge_data_is_valid (nns_edge_data_h data_h);
 
 #ifdef __cplusplus
 }

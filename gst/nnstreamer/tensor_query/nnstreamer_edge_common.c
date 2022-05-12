@@ -46,7 +46,7 @@ nns_edge_data_create (nns_edge_data_type_e dtype, nns_edge_data_h * data_h)
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
-  ed = g_try_new (nns_edge_data_s, 1);
+  ed = (nns_edge_data_s *) malloc (sizeof (nns_edge_data_s));
   if (!ed) {
     nns_edge_loge ("Failed to allocate memory for edge data.");
     return NNS_EDGE_ERROR_OUT_OF_MEMORY;
@@ -106,6 +106,11 @@ nns_edge_data_add (nns_edge_data_h data_h, void *data, size_t data_len,
   if (ed->num >= NNS_EDGE_DATA_LIMIT) {
     nns_edge_loge ("Cannot add data, the maximum number of edge data is %d.",
         NNS_EDGE_DATA_LIMIT);
+    return NNS_EDGE_ERROR_INVALID_PARAMETER;
+  }
+
+  if (!data || data_len <= 0) {
+    nns_edge_loge ("Invalid param, data should not be null.");
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
