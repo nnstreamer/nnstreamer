@@ -86,7 +86,7 @@ nns_edge_get_handle (const char *id, const char *topic, nns_edge_h * edge_h)
    * 1. consider adding hash table or list to manage edge handles.
    * 2. compare topic and return error if existing topic in handle is different.
    */
-  eh = g_try_new (nns_edge_handle_s, 1);
+  eh = (nns_edge_handle_s *) malloc (sizeof (nns_edge_handle_s));
   if (!eh) {
     nns_edge_loge ("Failed to allocate memory for edge handle.");
     return NNS_EDGE_ERROR_OUT_OF_MEMORY;
