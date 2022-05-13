@@ -7454,6 +7454,7 @@ TEST (testTensorCrop, infoDelayed_n)
  * @brief Macro to test sparse tensor conversion for each data type.
  */
 #define RUN_SPARSE_CONVERT_TEST(ttype,dtype) do {\
+    failed = false;\
     const gint sparse_test_data[40] = {\
       0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,\
       0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,\
@@ -7481,7 +7482,7 @@ TEST (testTensorCrop, infoDelayed_n)
     EXPECT_TRUE (dense != NULL);\
     ASSERT_TRUE (gst_memory_map (dense, &map, GST_MAP_READ));\
     for (i = 0; i < 40U; i++)\
-      EXPECT_TRUE (((dtype *) data)[i] == ((dtype *) map.data)[i]);\
+      if (((dtype *) data)[i] != ((dtype *) map.data)[i]) failed = true;\
     gst_memory_unmap (dense, &map);\
     gst_tensor_info_free (&info);\
     gst_memory_unref (sparse);\
@@ -7494,55 +7495,27 @@ TEST (testTensorCrop, infoDelayed_n)
  */
 TEST (testTensorSparse, utilConvert)
 {
-  /**
-   * Unwinding the macro to avoid NO_ASSERTION test error.
-   * Same with RUN_SPARSE_CONVERT_TEST (_NNS_INT32, int32_t);
-   */
-  {
-    const gint sparse_test_data[40] = {
-      0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,
-      0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
-    };
-    GstMemory *sparse, *dense, *origin;
-    GstMapInfo map;
-    GstTensorInfo info;
-    GstTensorMetaInfo meta;
-    guint i;
-    gpointer data;
-    gsize data_size;
-    gst_tensor_info_init (&info);
-    info.type = _NNS_INT32;
-    gst_tensor_parse_dimension ("40", info.dimension);
-    gst_tensor_info_convert_to_meta (&info, &meta);
-    data_size = gst_tensor_info_get_size (&info);
-    data = g_malloc0 (data_size);
-    for (i = 0; i < 40U; i++)
-      ((int32_t *) data)[i] = (int32_t) sparse_test_data[i];
-    origin = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY,
-        data, data_size, 0, data_size, data, g_free);
-    sparse = gst_tensor_sparse_from_dense (&meta, origin);
-    EXPECT_TRUE (sparse != NULL);
-    dense = gst_tensor_sparse_to_dense (&meta, sparse);
-    EXPECT_TRUE (dense != NULL);
-    ASSERT_TRUE (gst_memory_map (dense, &map, GST_MAP_READ));
-    for (i = 0; i < 40U; i++)
-      EXPECT_TRUE (((int32_t *) data)[i] == ((int32_t *) map.data)[i]);
-    gst_memory_unmap (dense, &map);
-    gst_tensor_info_free (&info);
-    gst_memory_unref (sparse);
-    gst_memory_unref (dense);
-    gst_memory_unref (origin);
-  }
-
+  gboolean failed;
+  RUN_SPARSE_CONVERT_TEST (_NNS_INT32, int32_t);
+  EXPECT_FALSE (failed);
   RUN_SPARSE_CONVERT_TEST (_NNS_UINT32, uint32_t);
+  EXPECT_FALSE (failed);
   RUN_SPARSE_CONVERT_TEST (_NNS_INT16, int16_t);
+  EXPECT_FALSE (failed);
   RUN_SPARSE_CONVERT_TEST (_NNS_UINT16, uint16_t);
+  EXPECT_FALSE (failed);
   RUN_SPARSE_CONVERT_TEST (_NNS_INT8, int8_t);
+  EXPECT_FALSE (failed);
   RUN_SPARSE_CONVERT_TEST (_NNS_UINT8, uint8_t);
+  EXPECT_FALSE (failed);
   RUN_SPARSE_CONVERT_TEST (_NNS_INT64, int64_t);
+  EXPECT_FALSE (failed);
   RUN_SPARSE_CONVERT_TEST (_NNS_UINT64, uint64_t);
+  EXPECT_FALSE (failed);
   RUN_SPARSE_CONVERT_TEST (_NNS_FLOAT64, double);
+  EXPECT_FALSE (failed);
   RUN_SPARSE_CONVERT_TEST (_NNS_FLOAT32, float);
+  EXPECT_FALSE (failed);
 }
 
 /**
