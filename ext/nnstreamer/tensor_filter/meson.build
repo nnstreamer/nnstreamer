@@ -337,6 +337,31 @@ if caffe2_support_is_available
   )
 endif
 
+if deepview_rt_support_is_available
+  nnstreamer_filter_deepview_rt_deps = deepview_rt_support_deps + [glib_dep, gst_dep, nnstreamer_dep]
+
+  filter_sub_deepview_rt_sources = ['tensor_filter_deepview_rt.cc']
+
+  nnstreamer_filter_deepview_rt_sources = []
+  foreach s : filter_sub_deepview_rt_sources
+    nnstreamer_filter_deepview_rt_sources += join_paths(meson.current_source_dir(), s)
+  endforeach
+
+  shared_library('nnstreamer_filter_deepview-rt',
+    nnstreamer_filter_deepview_rt_sources,
+    dependencies: nnstreamer_filter_deepview_rt_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_deepview-rt',
+    nnstreamer_filter_deepview_rt_sources,
+    dependencies: nnstreamer_filter_deepview_rt_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+endif
+
 if have_python3
   filter_sub_python3_sources = ['tensor_filter_python3.cc']
 
