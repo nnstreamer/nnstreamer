@@ -92,7 +92,7 @@ if have_python3
     name_prefix: '',
     dependencies: nnstreamer_python3_deps,
     install: true,
-    install_dir: extra_install_dir
+    install_dir: nnstreamer_libdir
   )
 
   nnstreamer_python3_helper_dep = declare_dependency(
