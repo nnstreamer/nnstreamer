@@ -71,7 +71,8 @@ typedef enum
   CONF_SOURCE_ENVVAR = 0,
   CONF_SOURCE_INI = 1,
   CONF_SOURCE_HARDCODE = 2,
-  CONF_SOURCE_END,
+  CONF_SOURCE_EXTRA_CONF = 3, /**< path from extra config file */
+  CONF_SOURCE_END
 } conf_sources;
 
 typedef struct
@@ -316,6 +317,20 @@ _fill_in_vstr (gchar *** fullpath_vstr, gchar *** name_vstr,
   g_slist_free (lstN);
 }
 
+/** @brief Private function to fill subplugin path */
+static void
+_fill_subplugin_path (confdata * conf, GKeyFile * key_file, conf_sources src)
+{
+  conf->conf[NNSCONF_PATH_FILTERS].path[src] =
+      g_key_file_get_string (key_file, "filter", "filters", NULL);
+  conf->conf[NNSCONF_PATH_DECODERS].path[src] =
+      g_key_file_get_string (key_file, "decoder", "decoders", NULL);
+  conf->conf[NNSCONF_PATH_CUSTOM_FILTERS].path[src] =
+      g_key_file_get_string (key_file, "filter", "customfilters", NULL);
+  conf->conf[NNSCONF_PATH_CONVERTERS].path[src] =
+      g_key_file_get_string (key_file, "converter", "converters", NULL);
+}
+
 /** @brief Public function defined in the header */
 gboolean
 nnsconf_loadconf (gboolean force_reload)
@@ -404,17 +419,30 @@ nnsconf_loadconf (gboolean force_reload)
 
       conf.extra_conffile =
           g_key_file_get_string (key_file, "common", "extra_config_path", NULL);
-      conf.conf[NNSCONF_PATH_FILTERS].path[CONF_SOURCE_INI] =
-          g_key_file_get_string (key_file, "filter", "filters", NULL);
-      conf.conf[NNSCONF_PATH_DECODERS].path[CONF_SOURCE_INI] =
-          g_key_file_get_string (key_file, "decoder", "decoders", NULL);
-      conf.conf[NNSCONF_PATH_CUSTOM_FILTERS].path[CONF_SOURCE_INI] =
-          g_key_file_get_string (key_file, "filter", "customfilters", NULL);
-      conf.conf[NNSCONF_PATH_CONVERTERS].path[CONF_SOURCE_INI] =
-          g_key_file_get_string (key_file, "converter", "converters", NULL);
+
+      _fill_subplugin_path (&conf, key_file, CONF_SOURCE_INI);
     }
 
     g_key_file_free (key_file);
+
+    /* load from extra config file */
+    if (conf.extra_conffile) {
+      if (g_file_test (conf.extra_conffile, G_FILE_TEST_IS_REGULAR)) {
+        key_file = g_key_file_new ();
+        g_assert (key_file != NULL); /** Internal lib error? out-of-memory? */
+
+        if (g_key_file_load_from_file (key_file, conf.extra_conffile,
+                G_KEY_FILE_NONE, NULL)) {
+          _fill_subplugin_path (&conf, key_file, CONF_SOURCE_EXTRA_CONF);
+        }
+
+        g_key_file_free (key_file);
+      } else {
+        ml_logw
+            ("Cannot find config file '%s'. You should set a valid path to load extra configuration.",
+            conf.extra_conffile);
+      }
+    }
   } else {
     /**
      * Failed to get the configuration.
