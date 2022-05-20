@@ -319,15 +319,15 @@ _fill_in_vstr (gchar *** fullpath_vstr, gchar *** name_vstr,
 
 /** @brief Private function to fill subplugin path */
 static void
-_fill_subplugin_path (confdata * conf, GKeyFile * key_file, conf_sources src)
+_fill_subplugin_path (confdata * cdata, GKeyFile * key_file, conf_sources src)
 {
-  conf->conf[NNSCONF_PATH_FILTERS].path[src] =
+  cdata->conf[NNSCONF_PATH_FILTERS].path[src] =
       g_key_file_get_string (key_file, "filter", "filters", NULL);
-  conf->conf[NNSCONF_PATH_DECODERS].path[src] =
+  cdata->conf[NNSCONF_PATH_DECODERS].path[src] =
       g_key_file_get_string (key_file, "decoder", "decoders", NULL);
-  conf->conf[NNSCONF_PATH_CUSTOM_FILTERS].path[src] =
+  cdata->conf[NNSCONF_PATH_CUSTOM_FILTERS].path[src] =
       g_key_file_get_string (key_file, "filter", "customfilters", NULL);
-  conf->conf[NNSCONF_PATH_CONVERTERS].path[src] =
+  cdata->conf[NNSCONF_PATH_CONVERTERS].path[src] =
       g_key_file_get_string (key_file, "converter", "converters", NULL);
 }
 
