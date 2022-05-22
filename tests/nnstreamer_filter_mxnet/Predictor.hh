@@ -1,6 +1,19 @@
 /* SPDX-License-Identifier: LGPL-2.1-only */
+/**
+ * @file    Predictor.hh
+ * @date    Apr 24 2022
+ * @brief   Unit test for mxnet tensor filter sub-plugin
+ * @author  Bumsik Kim <k.bumsik@gmail.com>
+ * @see     http://github.com/nnstreamer/nnstreamer
+ * @bug     No known bugs
+ * @details
+ * This file is almost copied from
+ * https://github.com/apache/incubator-mxnet/blob/1.7.0/cpp-package/example/inference/imagenet_inference.cpp
+ * for testing purposes.
+ *
+ */
 
-/*
+/**
  * This example demonstrates image classification workflow with pre-trained
  * models using MXNet C++ API. The example performs following tasks.
  * 1. Load the pre-trained model.
@@ -29,6 +42,8 @@
 
 using namespace mxnet::cpp;
 
+
+/** @brief return current time in milliseconds */
 double
 ms_now ()
 {
@@ -44,6 +59,7 @@ ms_now ()
   return ret;
 }
 
+/** @brief check given file exists */
 inline bool
 file_exists (const std::string &name)
 {
@@ -51,7 +67,7 @@ file_exists (const std::string &name)
   return fhandle.good ();
 }
 
-// define the data type for NDArray, aliged with the definition in mshadow/base.h
+/** @brief define the data type for NDArray, aliged with the definition in mshadow/base.h */
 enum TypeFlag {
   kFloat32 = 0,
   kFloat64 = 1,
@@ -62,15 +78,13 @@ enum TypeFlag {
   kInt64 = 6,
 };
 
-/*
- * class Predictor
- *
- * This class encapsulates the functionality to load the model, prepare dataset and run the forward pass.
+/**
+ * @brief This class encapsulates the functionality to load the model, prepare dataset and run the forward pass.
  */
-
 class Predictor
 {
   public:
+  /** @brief default constructor */
   Predictor ()
   {
   }
@@ -110,7 +124,9 @@ class Predictor
   std::string data_layer_type_;
 };
 
-/*
+/**
+ * @brief construct new Predictor from given model and parameter file
+ * @details
  * The constructor takes following parameters as input:
  *  1. model_json_file:  The model in json formatted file.
  *  2. model_params_file: File containing model parameters
@@ -163,8 +179,8 @@ Predictor::Predictor (const std::string &model_json_file, const std::string &mod
   executor_ = new Executor (net_, global_ctx_, arg_arrays, grad_arrays, grad_reqs, aux_arrays);
 }
 
-/*
- * The following function is used to get the data layer type for input data
+/**
+ * @brief this function is used to get the data layer type for input data
  */
 int
 Predictor::GetDataLayerType ()
@@ -183,8 +199,9 @@ Predictor::GetDataLayerType ()
   return ret_type;
 }
 
-/*
- * create a new ImageRecordIter according to the given parameters:
+/**
+ * @brief create a new ImageRecordIter according to the given parameters
+ * @details
  *  1. dataset: data file (.rec) to be used for inference
  *  2. input_shape: Shape of input data to the model. Since this class will be
  * running one inference at a time, the input shape is required to be in format
@@ -248,8 +265,8 @@ Predictor::CreateImageRecordIter (const std::string &dataset,
   return val_iter;
 }
 
-/*
- * The following function loads the model from json file.
+/**
+ * @brief loads the model from json file.
  */
 void
 Predictor::LoadModel (const std::string &model_json_file)
@@ -265,8 +282,8 @@ Predictor::LoadModel (const std::string &model_json_file)
   }
 }
 
-/*
- * The following function loads the model parameters.
+/**
+ * @brief loads the model parameters.
  */
 void
 Predictor::LoadParameters (const std::string &model_parameters_file)
@@ -293,9 +310,8 @@ Predictor::LoadParameters (const std::string &model_parameters_file)
   NDArray::WaitAll ();
 }
 
-/*
- * The following function split loaded param map into arg parm
- *   and aux param with target context
+/**
+ * @brief split loaded param map into arg parm and aux param with target context
  */
 void
 Predictor::SplitParamMap (const std::map<std::string, NDArray> &paramMap,
@@ -313,8 +329,8 @@ Predictor::SplitParamMap (const std::map<std::string, NDArray> &paramMap,
   }
 }
 
-/*
- * The following function copy the param map into the target context
+/**
+ * @brief copy the param map into the target context
  */
 void
 Predictor::ConvertParamMapToTargetContext (const std::map<std::string, NDArray> &paramMap,
@@ -325,9 +341,8 @@ Predictor::ConvertParamMapToTargetContext (const std::map<std::string, NDArray> 
   }
 }
 
-/*
- * The following function runs the forward pass on the model
- * and use real data for testing accuracy and performance.
+/**
+ * @brief runs the forward pass on the model and use real data for testing accuracy and performance.
  */
 void
 Predictor::LogInferenceResult (std::vector<mx_float> &log_vector, int num_inference_batches)
@@ -377,6 +392,9 @@ Predictor::LogInferenceResult (std::vector<mx_float> &log_vector, int num_infere
      << "Throughput: " << (1000.0 * nBatch * input_shape_[0] / ms) << " images per second";
 }
 
+/**
+ * @brief Destroy the Predictor::Predictor object
+ */
 Predictor::~Predictor ()
 {
   if (executor_) {
