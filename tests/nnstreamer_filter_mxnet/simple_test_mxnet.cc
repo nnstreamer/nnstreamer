@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: LGPL-2.1-only */
 /**
  * @file    simple_test_mxnet.cc
  * @date    Apr 24 2022
