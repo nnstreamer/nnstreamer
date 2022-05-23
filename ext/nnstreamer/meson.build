@@ -21,7 +21,7 @@ if grpc_support_is_available
   if protobuf_support_is_available
     # gRPC/Protobuf
     prog_which = find_program('which')
-    grpc_cpp_plugin_path = run_command(prog_which, 'grpc_cpp_plugin').stdout().strip()
+    grpc_cpp_plugin_path = run_command(prog_which, 'grpc_cpp_plugin', check : true).stdout().strip()
     if grpc_cpp_plugin_path == ''
       error('cannot find the path of grpc_cpp_plugin.')
     endif

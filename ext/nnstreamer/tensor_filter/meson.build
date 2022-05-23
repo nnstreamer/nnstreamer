@@ -526,17 +526,19 @@ if get_option('enable-mediapipe')
     error('Not Supported System & Architecture. Linux x86_64 is required')
   endif
 
-  cmd = run_command('sh', '-c', 'echo $MEDIAPIPE_HOME')
+  cmd = run_command('sh', '-c', 'echo $MEDIAPIPE_HOME', check : true)
   MEDIAPIPE_HOME = cmd.stdout().strip()
-
-  mediapipe_env_exist = run_command('[', '-z', MEDIAPIPE_HOME, ']').returncode()
-  mediapipe_dir_exist = run_command('[', '-d', MEDIAPIPE_HOME, ']').returncode()
-
-  if mediapipe_env_exist != 1 and mediapipe_dir_exist != 0
+  if MEDIAPIPE_HOME == ''
+    error('MEDIAPIPE_HOME is not set')
+  endif
+  message('MEDIAPIPE_HOME: ' + MEDIAPIPE_HOME)
+  # TODO: This is not a portable way to check if a directory exists
+  # After bumping up to 0.53.0, the following line can be replaced with one that uses FS module
+  mediapipe_dir_exist = run_command('[', '-d', MEDIAPIPE_HOME, ']', check : false).returncode()
+  if mediapipe_dir_exist != 0
     error('Cannot find MEDIAPIPE_HOME: ' + MEDIAPIPE_HOME)
   endif
 
-  message('MEDIAPIPE_HOME: ' + MEDIAPIPE_HOME)
   mediapipe_incdir = include_directories(
     MEDIAPIPE_HOME,
     join_paths(MEDIAPIPE_HOME, 'bazel-bin'),
@@ -544,10 +546,7 @@ if get_option('enable-mediapipe')
     join_paths(MEDIAPIPE_HOME, 'bazel-mediapipe/external/com_google_absl'),
   )
 
-  cmd = run_command('sh', '-c', meson.source_root() + '/tools/development/gen_mediapipe_libs.sh ' + nnstreamer_libdir)
-  if cmd.returncode() != 0
-    error(cmd.stderr().strip())
-  endif
+  run_command('sh', '-c', meson.source_root() + '/tools/development/gen_mediapipe_libs.sh ' + nnstreamer_libdir, check : true)
 
   mediapipe_internal_dep = cxx.find_library('mediapipe_internal', dirs: nnstreamer_libdir)
   mediapipe_external_dep = cxx.find_library('mediapipe_external', dirs: nnstreamer_libdir)
@@ -593,7 +592,7 @@ if get_option('enable-mediapipe')
   )
 endif
 
-run_command('sh', '-c', 'touch filter_snpe_list')
+run_command('sh', '-c', 'touch filter_snpe_list', check : true)
 if snpe_support_is_available
   filter_sub_snpe_sources = ['tensor_filter_snpe.cc']
 
@@ -622,7 +621,7 @@ if snpe_support_is_available
     install: true,
     install_dir: nnstreamer_libdir
   )
-  run_command('sh', '-c', 'echo "%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_snpe.so" >> filter_snpe_list')
+  run_command('sh', '-c', 'echo "%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_snpe.so" >> filter_snpe_list', check : true)
 endif
 
 if tensorrt_support_is_available

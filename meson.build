@@ -157,7 +157,9 @@ flatc = find_program('flatc', required : get_option('flatbuf-support'))
 flatbuf_dep = disabler()
 flatbuf_version_check_dep = disabler()
 if flatc.found()
-  flatc_ver = run_command(flatc, '--version').stdout().split()[2]
+  # TODO: After bumping up meson version to 0.62.0, we can use flatc.version()
+  # Please refer https://mesonbuild.com/Reference-manual_returned_external_program.html#external_programversion
+  flatc_ver = run_command(flatc, '--version', check : true).stdout().split()[2]
   flatbuf_dep = dependency('flatbuffers', version: flatc_ver,
       required : get_option('flatbuf-support'))
   flatbuf_version_check_dep = dependency('flatbuffers', version: '>=2.0.0',
@@ -191,11 +193,13 @@ if not get_option('snpe-support').disabled()
       message('Not Supported System & Architecture. Linux x86_64 is required for snpe sub-plugin')
     else
       # Check whether $SNPE_ROOT (where SNPE SDK is located) is set.
-      cmd = run_command('sh', '-c', 'echo $SNPE_ROOT')
+      cmd = run_command('sh', '-c', 'echo $SNPE_ROOT', check : true)
       SNPE_ROOT = cmd.stdout().strip()
       if SNPE_ROOT != ''
         message('Got $SNPE_ROOT: @0@'.format(SNPE_ROOT))
-        snpe_dir_not_exist = run_command('[', '-d', SNPE_ROOT, ']').returncode()
+        # TODO: This is not a portable way to check if a directory exists
+        # After bumping up to 0.53.0, the following line can be replaced with one that uses FS module
+        snpe_dir_not_exist = run_command('[', '-d', SNPE_ROOT, ']', check : false).returncode()
         if snpe_dir_not_exist != 0
           error('@0@ does not exists'.format(SNPE_ROOT))
         endif
@@ -496,9 +500,9 @@ if not get_option('python3-support').disabled()
     pg_pkgconfig = find_program('pkg-config')
 
     python3_inc_args = []
-    python3_inc_args += run_command(pg_pkgconfig, ['python3', '--cflags']).stdout().strip().split()
-    python3_inc_args += run_command('python3', ['-c', 'import site\nfor i in site.getsitepackages(): print("-I" + i + "/numpy/core/include")']).stdout().strip().split()
-    python3_inc_args += '-I' + run_command('python3', ['-m', 'site', '--user-site']).stdout().strip() + '/numpy/core/include'
+    python3_inc_args += run_command(pg_pkgconfig, ['python3', '--cflags'], check : true).stdout().strip().split()
+    python3_inc_args += run_command('python3', ['-c', 'import site\nfor i in site.getsitepackages(): print("-I" + i + "/numpy/core/include")'], check : true).stdout().strip().split()
+    python3_inc_args += '-I' + run_command('python3', ['-m', 'site', '--user-site'], check : true).stdout().strip() + '/numpy/core/include'
     python3_inc_valid_args = []
 
     foreach python3_inc_arg : python3_inc_args
@@ -584,7 +588,7 @@ configure_file(input: 'nnstreamer-internal.pc.in', output: 'nnstreamer-internal.
 )
 
 # Check whether mqtt broker is running or not.
-check_mosquitto = run_command ('bash', './tests/check_broker.sh').stdout()
+check_mosquitto = run_command ('bash', './tests/check_broker.sh', check : true).stdout()
 if check_mosquitto != ''
   add_project_arguments('-D__MQTT_BROKER_ENABLED__=1', language: ['c', 'cpp'])
 endif
