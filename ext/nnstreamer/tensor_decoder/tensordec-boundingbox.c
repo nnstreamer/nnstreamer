@@ -1139,6 +1139,7 @@ typedef struct
     float x_scale = data->params[MOBILENET_SSD_PARAMS_X_SCALE_IDX]; \
     float h_scale = data->params[MOBILENET_SSD_PARAMS_H_SCALE_IDX]; \
     float w_scale = data->params[MOBILENET_SSD_PARAMS_W_SCALE_IDX]; \
+    result->valid = FALSE; \
     for (c = 1; c < total_labels; c++) { \
       if (detinputptr[c] >= sigmoid_threshold) { \
         gfloat score = _expit (detinputptr[c]); \
