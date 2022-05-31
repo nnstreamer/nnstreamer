@@ -37,7 +37,7 @@ $ brew update
 This is the most simple way to install NNStreamer into your macOS system.
 
 ```bash
-$ brew tap nnsuite/neural-network
+$ brew tap nnstreamer/neural-network
 $ brew install nnstreamer
 ```
 
