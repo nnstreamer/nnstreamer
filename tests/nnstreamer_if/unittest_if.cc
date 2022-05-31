@@ -62,7 +62,7 @@ class tensor_if_run : public ::testing::Test
   /**
    * @brief tear down the base fixture
    */
-  void TearDown ()
+  void TearDown () override
   {
     g_remove ("smpte.golden");
     g_remove ("gamut.golden");
