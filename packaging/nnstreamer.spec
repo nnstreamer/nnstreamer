@@ -173,7 +173,7 @@ BuildRequires:	gst-plugins-base
 BuildRequires:	gtest-devel
 # a few test cases uses python
 %if 0%{?check_test}
-BuildRequires:	python
+BuildRequires:	python3
 %endif
 %if 0%{?python3_support}
 # for python3 custom filters
@@ -871,7 +871,7 @@ export NNSTREAMER_CONVERTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor
     ssat -n -p=1 --summary summary.txt -cn _n
     popd
 
-python tools/development/count_test_cases.py build tests/summary.txt
+python3 tools/development/count_test_cases.py build tests/summary.txt
 %endif #if unit_test
 
 %install
