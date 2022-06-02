@@ -7,7 +7,7 @@ cppfilter_test_lib = library('cppfilter_test',
 
 unittest_cppfilter = executable('unittest_cppfilter',
   join_paths(meson.current_source_dir(), 'unittest_cpp_methods.cc'),
-  dependencies: [gtest_dep, unittest_util_dep, nnstreamer_cpp_dep],
+  dependencies: [nnstreamer_unittest_deps, nnstreamer_cpp_dep],
   link_with: cppfilter_test_lib,
   install: get_option('install-test'),
   install_dir: unittest_install_dir

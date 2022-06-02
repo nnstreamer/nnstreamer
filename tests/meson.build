@@ -34,7 +34,7 @@ endif
 # gtest
 gtest_dep = dependency('gtest', required: false)
 if gtest_dep.found()
-  lesser_code_quality_accepted_for_unittest_code = declare_dependency(compile_args: ['-Wno-unused-parameter', '-Wno-missing-field-initializers'])
+  lesser_code_quality_accepted_for_unittest_code = declare_dependency(compile_args: ['-Wno-unused-parameter', '-Wno-missing-field-initializers', '-Wno-maybe-uninitialized'])
 
   # Shared library of internal APIs for nnstreamer-gtest
   unittest_util_shared = shared_library('nnstreamer_unittest_util',
@@ -52,7 +52,6 @@ if gtest_dep.found()
 
   nnstreamer_unittest_deps = [
     unittest_util_dep,
-    nnstreamer_internal_deps,
     glib_dep,
     gst_dep,
     gst_app_dep,
@@ -86,7 +85,7 @@ if gtest_dep.found()
     # Run unittest_plugins
     unittest_plugins = executable('unittest_plugins',
       join_paths('nnstreamer_plugins', 'unittest_plugins.cc'),
-      dependencies: [nnstreamer_unittest_deps],
+      dependencies: [nnstreamer_unittest_deps, nnstreamer_internal_deps],
       install: get_option('install-test'),
       install_dir: unittest_install_dir
     )
