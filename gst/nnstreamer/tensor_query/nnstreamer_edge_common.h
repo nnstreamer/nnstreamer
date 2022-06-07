@@ -15,6 +15,7 @@
 #define __NNSTREAMER_EDGE_COMMON_H__
 
 #include <glib.h> /** @todo remove glib */
+#include <pthread.h>
 #include "nnstreamer_edge.h"
 
 #ifdef __cplusplus
@@ -58,6 +59,7 @@ typedef struct {
   unsigned int magic;
   nns_edge_data_type_e dtype;
   unsigned int num;
+  int64_t client_id;
   nns_edge_raw_data_s data[NNS_EDGE_DATA_LIMIT];
 } nns_edge_data_s;
 

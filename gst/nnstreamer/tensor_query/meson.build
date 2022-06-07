@@ -23,7 +23,7 @@ nnstreamer_edge_sources = [
 ]
 
 nnstreamer_edge_deps = [
-  glib_dep
+  glib_dep, gio_dep, thread_dep
 ]
 
 if aitt_support_is_available

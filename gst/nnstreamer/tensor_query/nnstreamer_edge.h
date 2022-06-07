@@ -55,6 +55,9 @@ typedef enum {
 
 typedef enum {
   NNS_EDGE_EVENT_UNKNOWN = 0,
+  NNS_EDGE_EVENT_ACCEPTABLE = 1,
+  NNS_EDGE_EVENT_SET_CAPS = 2,
+  NNS_EDGE_EVENT_NEW_DATA_RECEIVED = 3,
 
   NNS_EDGE_EVENT_CUSTOM = 0x01000000
 } nns_edge_event_e;
@@ -88,7 +91,12 @@ typedef void (*nns_edge_data_destroy_cb) (void *data);
 /**
  * @brief Get registered handle. If not registered, create new handle and register it.
  */
-int nns_edge_get_handle (const char *id, const char *topic, nns_edge_h *edge_h);
+int nns_edge_create_handle (const char *id, const char *topic, nns_edge_h *edge_h);
+
+/**
+ * @brief Start the nnstreamer edge.
+ */
+int nns_edge_start (nns_edge_h edge_h, bool is_server);
 
 /**
  * @brief Release the given handle.
@@ -121,6 +129,11 @@ int nns_edge_publish (nns_edge_h edge_h, nns_edge_data_h data_h);
 int nns_edge_request (nns_edge_h edge_h, nns_edge_data_h data_h, void *user_data);
 
 /**
+ * @brief Respond to a request.
+ */
+int nns_edge_respond (nns_edge_h edge_h, nns_edge_data_h data_h);
+
+/**
  * @brief Subscribe a message to a given topic.
  */
 int nns_edge_subscribe (nns_edge_h edge_h, nns_edge_data_h data_h, void *user_data);
@@ -134,6 +147,11 @@ int nns_edge_unsubscribe (nns_edge_h edge_h);
  * @brief Get the topic of edge handle. Caller should release returned string using free().
  */
 int nns_edge_get_topic (nns_edge_h edge_h, char **topic);
+
+/**
+ * @brief Set nnstreamer edge info.
+ */
+int nns_edge_set_info (nns_edge_h edge_h, const char *key, const char *value);
 
 /**
  * @brief Create nnstreamer edge data.
