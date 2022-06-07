@@ -19,10 +19,12 @@ extern "C" {
 #endif /* __cplusplus */
 
 #include "nnstreamer_edge.h"
+#include <gio/gio.h>
+#include <netinet/tcp.h>
+#include <netinet/in.h>
 
 /**
  * @brief Data structure for edge handle.
- * @todo Implement mutex lock.
  */
 typedef struct {
   unsigned int magic;
@@ -33,6 +35,15 @@ typedef struct {
   int port;
   nns_edge_event_cb event_cb;
   void *user_data;
+
+  bool is_server;
+  int64_t client_id;
+  gchar *caps_str;
+  gchar *recv_ip;
+  int recv_port;
+
+  GSocketListener *listener;
+  GCancellable *cancellable;
 
   /* MQTT */
   void *mqtt_handle;
