@@ -735,6 +735,7 @@ nns_edge_release_handle (nns_edge_h edge_h)
   g_free (eh->topic);
   g_free (eh->ip);
   g_free (eh->recv_ip);
+  g_free (eh->caps_str);
   g_hash_table_destroy (eh->conn_table);
 
   nns_edge_unlock (eh);

@@ -26,6 +26,8 @@ nnstreamer_edge_deps = [
   glib_dep, gio_dep, thread_dep
 ]
 
+nnstreamer_headers += join_paths(meson.current_source_dir(), 'nnstreamer-edge.h')
+
 if aitt_support_is_available
   nnstreamer_edge_sources += join_paths(meson.current_source_dir(), 'nnstreamer_edge_aitt.c')
   nnstreamer_edge_deps += aitt_support_deps

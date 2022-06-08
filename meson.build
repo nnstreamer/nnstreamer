@@ -425,6 +425,10 @@ features = {
     'target': 'aitt',
     'project_args': { 'ENABLE_AITT' : 1 }
   },
+  'nnstreamer-edge-support': {
+    'target': 'nnstreamer-edge',
+    'project_args': { 'ENABLE_NNSTREAMER_EDGE': 1 }
+  },
   'mxnet-support': {
     'extra_deps': [ mxnet_dep ]
   }

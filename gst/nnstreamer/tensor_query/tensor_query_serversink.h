@@ -17,9 +17,8 @@
 #include <gst/base/gstbasesink.h>
 #include <tensor_common.h>
 #include <tensor_meta.h>
-#include "tensor_query_common.h"
 #include "tensor_query_server.h"
-
+#include "tensor_query_common.h"
 G_BEGIN_DECLS
 
 #define GST_TYPE_TENSOR_QUERY_SERVERSINK \
@@ -45,14 +44,14 @@ struct _GstTensorQueryServerSink
   GstBaseSink element; /**< parent object */
   guint sink_id;
 
-  guint16 port;
-  gchar *host;
-  TensorQueryProtocol protocol;
   guint timeout;
-  query_server_handle server_data;
   query_server_info_handle server_info_h;
   gint metaless_frame_limit;
   gint metaless_frame_count;
+
+  nns_edge_protocol_e protocol;
+  edge_server_handle server_h;
+  nns_edge_h edge_h;
 };
 
 /**

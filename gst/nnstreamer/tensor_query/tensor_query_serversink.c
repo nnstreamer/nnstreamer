@@ -16,6 +16,7 @@
 
 #include <string.h>
 #include "tensor_query_serversink.h"
+#include "nnstreamer_util.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_query_serversink_debug);
 #define GST_CAT_DEFAULT gst_tensor_query_serversink_debug
@@ -34,8 +35,6 @@ static GstStaticPadTemplate sinktemplate = GST_STATIC_PAD_TEMPLATE ("sink",
 enum
 {
   PROP_0,
-  PROP_HOST,
-  PROP_PORT,
   PROP_PROTOCOL,
   PROP_ID,
   PROP_TIMEOUT,
@@ -53,7 +52,6 @@ static void gst_tensor_query_serversink_get_property (GObject * object,
 static void gst_tensor_query_serversink_finalize (GObject * object);
 
 static gboolean gst_tensor_query_serversink_start (GstBaseSink * bsink);
-static gboolean gst_tensor_query_serversink_stop (GstBaseSink * bsink);
 static GstFlowReturn gst_tensor_query_serversink_render (GstBaseSink * bsink,
     GstBuffer * buf);
 static gboolean gst_tensor_query_serversink_set_caps (GstBaseSink * basesink,
@@ -77,14 +75,6 @@ gst_tensor_query_serversink_class_init (GstTensorQueryServerSinkClass * klass)
   gobject_class->get_property = gst_tensor_query_serversink_get_property;
   gobject_class->finalize = gst_tensor_query_serversink_finalize;
 
-  g_object_class_install_property (gobject_class, PROP_HOST,
-      g_param_spec_string ("host", "Host", "The hostname to listen as",
-          DEFAULT_HOST, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-  g_object_class_install_property (gobject_class, PROP_PORT,
-      g_param_spec_uint ("port", "Port",
-          "The port to listen to (0=random available port)", 0,
-          65535, DEFAULT_PORT_SINK,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_PROTOCOL,
       g_param_spec_enum ("protocol", "Protocol",
           "The network protocol to establish connection",
@@ -116,7 +106,6 @@ gst_tensor_query_serversink_class_init (GstTensorQueryServerSinkClass * klass)
       "Samsung Electronics Co., Ltd.");
 
   gstbasesink_class->start = gst_tensor_query_serversink_start;
-  gstbasesink_class->stop = gst_tensor_query_serversink_stop;
   gstbasesink_class->set_caps = gst_tensor_query_serversink_set_caps;
   gstbasesink_class->render = gst_tensor_query_serversink_render;
 
@@ -130,12 +119,9 @@ gst_tensor_query_serversink_class_init (GstTensorQueryServerSinkClass * klass)
 static void
 gst_tensor_query_serversink_init (GstTensorQueryServerSink * sink)
 {
-  sink->host = g_strdup (DEFAULT_HOST);
-  sink->port = DEFAULT_PORT_SINK;
   sink->protocol = DEFAULT_PROTOCOL;
   sink->timeout = QUERY_DEFAULT_TIMEOUT_SEC;
   sink->sink_id = DEFAULT_SERVER_ID;
-  sink->server_data = nnstreamer_query_server_data_new ();
   sink->metaless_frame_count = 0;
 }
 
@@ -146,15 +132,7 @@ static void
 gst_tensor_query_serversink_finalize (GObject * object)
 {
   GstTensorQueryServerSink *sink = GST_TENSOR_QUERY_SERVERSINK (object);
-  g_free (sink->host);
-  if (sink->server_data) {
-    nnstreamer_query_server_data_free (sink->server_data);
-    sink->server_data = NULL;
-  }
-  if (sink->server_info_h) {
-    gst_tensor_query_server_remove_data (sink->server_info_h);
-    sink->server_info_h = NULL;
-  }
+  gst_tensor_query_server_remove_data (sink->server_h);
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
@@ -168,17 +146,6 @@ gst_tensor_query_serversink_set_property (GObject * object, guint prop_id,
   GstTensorQueryServerSink *serversink = GST_TENSOR_QUERY_SERVERSINK (object);
 
   switch (prop_id) {
-    case PROP_HOST:
-      if (!g_value_get_string (value)) {
-        nns_logw ("host property cannot be NULL");
-        break;
-      }
-      g_free (serversink->host);
-      serversink->host = g_value_dup_string (value);
-      break;
-    case PROP_PORT:
-      serversink->port = g_value_get_uint (value);
-      break;
     case PROP_PROTOCOL:
       serversink->protocol = g_value_get_enum (value);
       break;
@@ -207,12 +174,6 @@ gst_tensor_query_serversink_get_property (GObject * object, guint prop_id,
   GstTensorQueryServerSink *serversink = GST_TENSOR_QUERY_SERVERSINK (object);
 
   switch (prop_id) {
-    case PROP_HOST:
-      g_value_set_string (value, serversink->host);
-      break;
-    case PROP_PORT:
-      g_value_set_uint (value, serversink->port);
-      break;
     case PROP_PROTOCOL:
       g_value_set_enum (value, serversink->protocol);
       break;
@@ -240,22 +201,11 @@ gst_tensor_query_serversink_start (GstBaseSink * bsink)
   GstTensorQueryServerSink *sink = GST_TENSOR_QUERY_SERVERSINK (bsink);
   GstCaps *caps;
   gchar *caps_str = NULL;
+  gchar *id_str = NULL;
 
-  if (!sink->server_data) {
-    nns_loge ("Server_data is NULL");
-    return FALSE;
-  }
-
-  if (nnstreamer_query_server_init (sink->server_data, sink->protocol,
-          sink->host, sink->port, FALSE) != 0) {
-    nns_loge ("Failed to setup server");
-    return FALSE;
-  }
-
-  /** Set server sink information */
-  sink->server_info_h = gst_tensor_query_server_add_data (sink->sink_id);
-  gst_tensor_query_server_set_sink_host (sink->server_info_h, sink->host,
-      sink->port);
+  id_str = g_strdup_printf ("%u", sink->sink_id);
+  sink->server_h = gst_tensor_query_server_add_data (id_str);
+  g_free (id_str);
 
   caps = gst_pad_get_current_caps (GST_BASE_SINK_PAD (bsink));
   if (!caps) {
@@ -265,23 +215,12 @@ gst_tensor_query_serversink_start (GstBaseSink * bsink)
   if (caps) {
     caps_str = gst_caps_to_string (caps);
   }
-  gst_tensor_query_server_set_sink_caps_str (sink->server_info_h, caps_str);
 
+  sink->edge_h = gst_tensor_query_server_get_edge_handle (sink->server_h);
+  gst_tensor_query_server_set_configured (sink->server_h);
   gst_caps_unref (caps);
   g_free (caps_str);
 
-  return TRUE;
-}
-
-/**
- * @brief stop processing of query_serversink
- */
-static gboolean
-gst_tensor_query_serversink_stop (GstBaseSink * bsink)
-{
-  GstTensorQueryServerSink *sink = GST_TENSOR_QUERY_SERVERSINK (bsink);
-  nnstreamer_query_server_data_free (sink->server_data);
-  sink->server_data = NULL;
   return TRUE;
 }
 
@@ -295,7 +234,8 @@ gst_tensor_query_serversink_set_caps (GstBaseSink * bsink, GstCaps * caps)
   gchar *caps_str;
 
   caps_str = gst_caps_to_string (caps);
-  gst_tensor_query_server_set_sink_caps_str (sink->server_info_h, caps_str);
+  nns_edge_set_info (sink->edge_h, "CAPS", "@query_server_sink_caps@");
+  nns_edge_set_info (sink->edge_h, "CAPS", caps_str);
 
   g_free (caps_str);
 
@@ -310,20 +250,41 @@ gst_tensor_query_serversink_render (GstBaseSink * bsink, GstBuffer * buf)
 {
   GstTensorQueryServerSink *sink = GST_TENSOR_QUERY_SERVERSINK (bsink);
   GstMetaQuery *meta_query;
-  query_connection_handle conn;
+  nns_edge_data_h data_h = NULL;
+  guint i, num_mems = 0;
+  gint ret;
+  GstMemory *mem[NNS_TENSOR_SIZE_LIMIT];
+  GstMapInfo map[NNS_TENSOR_SIZE_LIMIT];
+  char *val;
 
   meta_query = gst_buffer_get_meta_query (buf);
   if (meta_query) {
     sink->metaless_frame_count = 0;
-    conn = nnstreamer_query_server_accept (sink->server_data,
-        meta_query->client_id);
-    if (conn) {
-      if (!tensor_query_send_buffer (conn, GST_ELEMENT (sink), buf)) {
-        nns_logw ("Failed to send buffer to client, drop current buffer.");
-      }
-    } else {
-      nns_logw ("Cannot get the client connection, drop current buffer.");
+
+    ret = nns_edge_data_create (&data_h);
+    if (ret != NNS_EDGE_ERROR_NONE) {
+      nns_loge ("Failed to create data handle in server sink.");
+      return GST_FLOW_ERROR;
     }
+
+    num_mems = gst_buffer_n_memory (buf);
+    for (i = 0; i < num_mems; i++) {
+      mem[i] = gst_buffer_peek_memory (buf, i);
+      if (!gst_memory_map (mem[i], &map[i], GST_MAP_READ)) {
+        ml_loge ("Cannot map the %uth memory in gst-buffer.", i);
+        num_mems = i;
+        goto done;
+      }
+      nns_edge_data_add (data_h, map[i].data, map[i].size, NULL);
+    }
+
+    val = g_strdup_printf ("%ld", (long int) meta_query->client_id);
+    nns_edge_data_set_info (data_h, "client_id", val);
+    g_free (val);
+
+    nns_edge_respond (sink->edge_h, data_h);
+    nns_edge_data_destroy (data_h);
+    data_h = NULL;
   } else {
     nns_logw ("Cannot get tensor query meta. Drop buffers!\n");
     sink->metaless_frame_count++;
@@ -336,6 +297,9 @@ gst_tensor_query_serversink_render (GstBaseSink * bsink, GstBuffer * buf)
       return GST_FLOW_ERROR;
     }
   }
+done:
+  for (i = 0; i < num_mems; i++)
+    gst_memory_unmap (mem[i], &map[i]);
 
   return GST_FLOW_OK;
 }

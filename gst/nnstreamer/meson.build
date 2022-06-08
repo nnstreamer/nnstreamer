@@ -112,7 +112,7 @@ nnstreamer_deps += nnstreamer_single_dep
 # Build libraries ("both_libraries" are supported from 0.46.)
 nnstreamer_shared = shared_library('nnstreamer',
   nnstreamer_sources,
-  dependencies: nnstreamer_deps,
+  dependencies: [nnstreamer_deps, nns_edge_dep],
   include_directories: nnstreamer_inc,
   install: true,
   install_dir: plugins_install_dir
@@ -132,7 +132,7 @@ meson.add_install_script(
 
 nnstreamer_static = static_library('nnstreamer',
   nnstreamer_sources,
-  dependencies: nnstreamer_deps,
+  dependencies: [nnstreamer_deps, nns_edge_dep],
   include_directories: nnstreamer_inc,
   install: true,
   install_dir: nnstreamer_libdir
