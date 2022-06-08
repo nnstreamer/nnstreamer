@@ -24,7 +24,7 @@ if [ "$SKIPGEN" == "YES" ]; then
     sopath=$2
 else
     echo "Test Case Generation Started"
-    python ../nnstreamer_converter/generateGoldenTestResult.py 9
+    python3 ../nnstreamer_converter/generateGoldenTestResult.py 9
     python3 ../nnstreamer_merge/generateTest.py
     sopath=$1
 fi
