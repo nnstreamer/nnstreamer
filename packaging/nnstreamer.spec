@@ -155,6 +155,7 @@ Requires: nnstreamer-core = %{version}-%{release}
 Requires: nnstreamer-configuration = %{version}-%{release}
 Requires: nnstreamer-single = %{version}-%{release}
 Recommends: nnstreamer-default-configuration = %{version}-%{release}
+BuildRequires: nnstreamer-edge-devel
 
 ## Define build requirements ##
 BuildRequires:	gstreamer-devel

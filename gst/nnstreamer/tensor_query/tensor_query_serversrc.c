@@ -16,9 +16,10 @@
 
 #include <tensor_typedef.h>
 #include <tensor_common.h>
-#include "tensor_query_common.h"
 #include "tensor_query_serversrc.h"
 #include "tensor_query_server.h"
+#include "tensor_query_common.h"
+#include "nnstreamer_util.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_query_serversrc_debug);
 #define GST_CAT_DEFAULT gst_tensor_query_serversrc_debug
@@ -44,8 +45,6 @@ enum
   PROP_PROTOCOL,
   PROP_TIMEOUT,
   PROP_OPERATION,
-  PROP_BROKER_HOST,
-  PROP_BROKER_PORT,
   PROP_ID,
   PROP_IS_LIVE
 };
@@ -61,7 +60,6 @@ static void gst_tensor_query_serversrc_get_property (GObject * object,
 static void gst_tensor_query_serversrc_finalize (GObject * object);
 
 static gboolean gst_tensor_query_serversrc_start (GstBaseSrc * bsrc);
-static gboolean gst_tensor_query_serversrc_stop (GstBaseSrc * bsrc);
 static GstFlowReturn gst_tensor_query_serversrc_create (GstPushSrc * psrc,
     GstBuffer ** buf);
 
@@ -103,18 +101,10 @@ gst_tensor_query_serversrc_class_init (GstTensorQueryServerSrcClass * klass)
           3600, QUERY_DEFAULT_TIMEOUT_SEC,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_OPERATION,
-      g_param_spec_string ("operation", "Operation",
-          "The main operation of the host and option if necessary. "
-          "(operation)/(optional topic for main operation).",
+      g_param_spec_string ("topic", "Topic",
+          "The main topic of the host and option if necessary. "
+          "(topic)/(optional topic for main topic).",
           "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-  g_object_class_install_property (gobject_class, PROP_BROKER_HOST,
-      g_param_spec_string ("broker-host", "Broker Host",
-          "Broker host address to connect.", DEFAULT_BROKER_HOST,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-  g_object_class_install_property (gobject_class, PROP_BROKER_PORT,
-      g_param_spec_uint ("broker-port", "Broker Port",
-          "Broker port to connect.", 0, 65535,
-          DEFAULT_BROKER_PORT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_ID,
       g_param_spec_uint ("id", "ID",
           "ID for distinguishing query servers.", 0,
@@ -134,7 +124,6 @@ gst_tensor_query_serversrc_class_init (GstTensorQueryServerSrcClass * klass)
       "Samsung Electronics Co., Ltd.");
 
   gstbasesrc_class->start = gst_tensor_query_serversrc_start;
-  gstbasesrc_class->stop = gst_tensor_query_serversrc_stop;
   gstpushsrc_class->create = gst_tensor_query_serversrc_create;
 
   GST_DEBUG_CATEGORY_INIT (gst_tensor_query_serversrc_debug,
@@ -151,13 +140,14 @@ gst_tensor_query_serversrc_init (GstTensorQueryServerSrc * src)
   src->port = DEFAULT_PORT_SRC;
   src->protocol = DEFAULT_PROTOCOL;
   src->timeout = QUERY_DEFAULT_TIMEOUT_SEC;
-  src->operation = NULL;
-  src->broker_host = g_strdup (DEFAULT_BROKER_HOST);
-  src->broker_port = DEFAULT_BROKER_PORT;
+  src->topic = NULL;
+  src->srv_host = g_strdup (DEFAULT_HOST);
+  src->srv_port = DEFAULT_PORT_SRC;
   src->src_id = DEFAULT_SERVER_ID;
   tensor_query_hybrid_init (&src->hybrid_info, NULL, 0, TRUE);
-  src->server_data = nnstreamer_query_server_data_new ();
   src->configured = FALSE;
+  src->msg_queue = g_async_queue_new ();
+
   gst_base_src_set_format (GST_BASE_SRC (src), GST_FORMAT_TIME);
   /** set the timestamps on each buffer */
   gst_base_src_set_do_timestamp (GST_BASE_SRC (src), TRUE);
@@ -172,17 +162,20 @@ static void
 gst_tensor_query_serversrc_finalize (GObject * object)
 {
   GstTensorQueryServerSrc *src = GST_TENSOR_QUERY_SERVERSRC (object);
+  nns_edge_data_h data_h;
 
   g_free (src->host);
   src->host = NULL;
-  g_free (src->operation);
-  src->operation = NULL;
-  g_free (src->broker_host);
-  src->broker_host = NULL;
-  if (src->server_data) {
-    nnstreamer_query_server_data_free (src->server_data);
-    src->server_data = NULL;
+  g_free (src->topic);
+  src->topic = NULL;
+  g_free (src->srv_host);
+  src->srv_host = NULL;
+
+  while ((data_h = g_async_queue_try_pop (src->msg_queue))) {
+    nns_edge_data_destroy (data_h);
   }
+  g_async_queue_unref (src->msg_queue);
+
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
@@ -215,23 +208,11 @@ gst_tensor_query_serversrc_set_property (GObject * object, guint prop_id,
       break;
     case PROP_OPERATION:
       if (!g_value_get_string (value)) {
-        nns_logw
-            ("operation property cannot be NULL. Query-hybrid is disabled.");
+        nns_logw ("topic property cannot be NULL. Query-hybrid is disabled.");
         break;
       }
-      g_free (serversrc->operation);
-      serversrc->operation = g_value_dup_string (value);
-      break;
-    case PROP_BROKER_HOST:
-      if (!g_value_get_string (value)) {
-        nns_logw ("Broker host property cannot be NULL");
-        break;
-      }
-      g_free (serversrc->broker_host);
-      serversrc->broker_host = g_value_dup_string (value);
-      break;
-    case PROP_BROKER_PORT:
-      serversrc->broker_port = g_value_get_uint (value);
+      g_free (serversrc->topic);
+      serversrc->topic = g_value_dup_string (value);
       break;
     case PROP_ID:
       serversrc->src_id = g_value_get_uint (value);
@@ -269,13 +250,7 @@ gst_tensor_query_serversrc_get_property (GObject * object, guint prop_id,
       g_value_set_uint (value, serversrc->timeout);
       break;
     case PROP_OPERATION:
-      g_value_set_string (value, serversrc->operation);
-      break;
-    case PROP_BROKER_HOST:
-      g_value_set_string (value, serversrc->broker_host);
-      break;
-    case PROP_BROKER_PORT:
-      g_value_set_uint (value, serversrc->broker_port);
+      g_value_set_string (value, serversrc->topic);
       break;
     case PROP_ID:
       g_value_set_uint (value, serversrc->src_id);
@@ -291,61 +266,147 @@ gst_tensor_query_serversrc_get_property (GObject * object, guint prop_id,
 }
 
 /**
+ * @brief nnstreamer-edge event callback.
+ */
+static int
+_nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
+{
+  nns_edge_event_e event_type;
+  int ret = NNS_EDGE_ERROR_NONE;
+
+  GstTensorQueryServerSrc *src = (GstTensorQueryServerSrc *) user_data;
+  if (0 != nns_edge_event_get_type (event_h, &event_type)) {
+    nns_loge ("Failed to get event type!");
+    return NNS_EDGE_ERROR_UNKNOWN;
+  }
+
+  switch (event_type) {
+    case NNS_EDGE_EVENT_NEW_DATA_RECEIVED:
+    {
+      nns_edge_data_h data;
+
+      nns_edge_event_parse_new_data (event_h, &data);
+      g_async_queue_push (src->msg_queue, data);
+      break;
+    }
+    default:
+      break;
+  }
+
+  return ret;
+}
+
+/**
  * @brief start processing of query_serversrc, setting up the server
  */
 static gboolean
 gst_tensor_query_serversrc_start (GstBaseSrc * bsrc)
 {
   GstTensorQueryServerSrc *src = GST_TENSOR_QUERY_SERVERSRC (bsrc);
+  char *id_str = NULL;
+  char *port = NULL;
 
-  if (!src->server_data) {
-    nns_loge ("Server_data is NULL");
-    return FALSE;
-  }
+  id_str = g_strdup_printf ("%d", src->src_id);
+  src->server_h = gst_tensor_query_server_add_data (id_str);
+  g_free (id_str);
 
-  if (nnstreamer_query_server_init (src->server_data, src->protocol,
-          src->host, src->port, TRUE) != 0) {
-    nns_loge ("Failed to setup server");
-    return FALSE;
-  }
-
-  src->server_info_h = gst_tensor_query_server_add_data (src->src_id);
-  if (!gst_tensor_query_server_wait_sink (src->server_info_h)) {
-    nns_loge ("Failed to get server information from query server.");
-    return FALSE;
-  }
+  src->edge_h = gst_tensor_query_server_get_edge_handle (src->server_h);
+  nns_edge_set_info (src->edge_h, "IP", src->host);
+  port = g_strdup_printf ("%d", src->port);
+  nns_edge_set_info (src->edge_h, "PORT", port);
+  g_free (port);
 
   /** Publish query sever connection info */
-  if (src->operation) {
-    tensor_query_hybrid_set_node (&src->hybrid_info, src->host, src->port,
-        src->server_info_h);
-    tensor_query_hybrid_set_broker (&src->hybrid_info,
-        src->broker_host, src->broker_port);
+  if (src->topic) {
+    nns_edge_set_info (src->edge_h, "TOPIC", src->topic);
+    tensor_query_hybrid_set_node (&src->hybrid_info, src->srv_host,
+        src->srv_port, src->server_info_h);
+    tensor_query_hybrid_set_broker (&src->hybrid_info, src->host, src->port);
 
-    if (!tensor_query_hybrid_publish (&src->hybrid_info, src->operation)) {
+    if (!tensor_query_hybrid_publish (&src->hybrid_info, src->topic)) {
       nns_loge ("Failed to publish a topic.");
       return FALSE;
     }
   } else {
+    g_free (src->srv_host);
+    src->srv_host = g_strdup (src->host);
+    src->srv_port = src->port;
     nns_logi ("Query-hybrid feature is disabled.");
     nns_logi
-        ("Specify operation to register server to broker (e.g., operation=object_detection/mobilev3).");
+        ("Specify topic to register server to broker (e.g., topic=object_detection/mobilev3).");
   }
+  nns_edge_set_event_callback (src->edge_h, _nns_edge_event_cb, src);
+
+  if (0 != nns_edge_start (src->edge_h, true)) {
+    nns_loge
+        ("Failed to start NNStreamer-edge. Please check server IP and port");
+    return FALSE;
+  }
+
+  if (!gst_tensor_query_server_wait_sink (src->server_h)) {
+    nns_loge ("Failed to get server information from query server.");
+    return FALSE;
+  }
+
   return TRUE;
 }
 
 /**
- * @brief stop processing of query_serversrc
+ * @brief Get buffer from message queue.
  */
-static gboolean
-gst_tensor_query_serversrc_stop (GstBaseSrc * bsrc)
+static GstBuffer *
+_gst_tensor_query_serversrc_get_buffer (GstTensorQueryServerSrc * src)
 {
-  GstTensorQueryServerSrc *src = GST_TENSOR_QUERY_SERVERSRC (bsrc);
+  nns_edge_data_h data_h;
+  GstBuffer *buffer = NULL;
+  guint i, num_data;
+  GstMetaQuery *meta_query;
 
-  tensor_query_hybrid_close (&src->hybrid_info);
-  nnstreamer_query_server_data_free (src->server_data);
-  src->server_data = NULL;
-  return TRUE;
+  data_h = g_async_queue_pop (src->msg_queue);
+
+  if (!data_h) {
+    nns_loge ("Failed to get message from the server message queue");
+    return NULL;
+  }
+  buffer = gst_buffer_new ();
+
+  if (NNS_EDGE_ERROR_NONE != nns_edge_data_get_count (data_h, &num_data)) {
+    nns_loge ("Failed to get the number of memories of the edge data.");
+    gst_buffer_unref (buffer);
+    return NULL;
+  }
+  for (i = 0; i < num_data; i++) {
+    void *data = NULL;
+    size_t data_len = 0;
+    gpointer new_data;
+
+    nns_edge_data_get (data_h, i, &data, &data_len);
+    new_data = _g_memdup (data, data_len);
+
+    gst_buffer_append_memory (buffer,
+        gst_memory_new_wrapped (0, new_data, data_len, 0, data_len, new_data,
+            g_free));
+  }
+
+  if (buffer) {
+    meta_query = gst_buffer_add_meta_query (buffer);
+    if (meta_query) {
+      char *val;
+      int ret;
+
+      ret = nns_edge_data_get_info (data_h, "client_id", &val);
+      if (NNS_EDGE_ERROR_NONE != ret) {
+        gst_buffer_unref (buffer);
+        buffer = NULL;
+      } else {
+        meta_query->client_id = g_ascii_strtoll (val, NULL, 10);
+        g_free (val);
+      }
+    }
+  }
+  nns_edge_data_destroy (data_h);
+
+  return buffer;
 }
 
 /**
@@ -357,33 +418,27 @@ gst_tensor_query_serversrc_create (GstPushSrc * psrc, GstBuffer ** outbuf)
   GstTensorQueryServerSrc *src = GST_TENSOR_QUERY_SERVERSRC (psrc);
   GstBaseSrc *bsrc = GST_BASE_SRC (psrc);
 
-  if (!src->server_data) {
-    nns_loge ("Server data is NULL");
-    return GST_FLOW_ERROR;
-  }
-
   if (!src->configured) {
-    gchar *sink_caps_str, *src_caps_str;
+    gchar *src_caps_str;
 
     GstCaps *caps = gst_pad_peer_query_caps (GST_BASE_SRC_PAD (bsrc), NULL);
     if (gst_caps_is_fixed (caps)) {
       gst_base_src_set_caps (bsrc, caps);
     }
 
-    src->server_info_h = gst_tensor_query_server_get_data (src->src_id);
-    sink_caps_str =
-        gst_tensor_query_server_get_sink_caps_str (src->server_info_h);
     src_caps_str = gst_caps_to_string (caps);
-    nnstreamer_query_server_data_set_caps_str (src->server_data, src_caps_str,
-        sink_caps_str);
-
-    g_free (sink_caps_str);
+    nns_edge_set_info (src->edge_h, "CAPS", "@query_server_src_caps@");
+    nns_edge_set_info (src->edge_h, "CAPS", src_caps_str);
     g_free (src_caps_str);
     gst_caps_unref (caps);
     src->configured = TRUE;
   }
 
-  *outbuf = nnstreamer_query_server_get_buffer (src->server_data);
+  *outbuf = _gst_tensor_query_serversrc_get_buffer (src);
+  if (!outbuf) {
+    nns_loge ("Failed to get buffer to push to the tensor query serversrc.");
+    return GST_FLOW_ERROR;
+  }
 
   return GST_FLOW_OK;
 }

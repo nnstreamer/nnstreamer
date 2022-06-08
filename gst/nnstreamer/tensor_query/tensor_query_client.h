@@ -16,7 +16,6 @@
 #include <gst/gst.h>
 #include <gio/gio.h>
 #include <tensor_common.h>
-#include "tensor_query_common.h"
 #include "tensor_query_hybrid.h"
 
 G_BEGIN_DECLS
@@ -48,23 +47,18 @@ struct _GstTensorQueryClient
   gboolean silent; /**< True if logging is minimized */
   gchar *in_caps_str;
 
-  TensorQueryProtocol protocol;
-
   /* Query-hybrid feature */
   gchar *operation; /**< Main operation such as 'object_detection' or 'image_segmentation' */
   query_hybrid_info_s hybrid_info;
-  gchar *broker_host;
-  guint16 broker_port;
+  gchar *host;
+  guint16 port;
 
-  /* src information (Connect to query server source) */
-  query_connection_handle src_conn;
-  gchar *src_host;
-  guint16 src_port;
+  gchar *srv_host;
+  guint16 srv_port;
 
-  /* sink socket and information (Connect to query server sink) */
-  query_connection_handle sink_conn;
-  gchar *sink_host;
-  guint16 sink_port;
+  nns_edge_protocol_e protocol;
+  nns_edge_h edge_h;
+  GAsyncQueue *msg_queue;
 };
 
 /**
