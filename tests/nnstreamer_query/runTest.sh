@@ -57,8 +57,6 @@ function waitformarker {
   exit
 }
 WAIT4MARKER=" videotestsrc num-buffers=1 ! video/x-raw,format=RGB,height=4,width=4 ! filesink location=marker.log "
-PORT1=$(expr $RANDOM % 1000 \* 2 + 5000)
-PORT2=$(expr $PORT1 + 1)
 
 # Run tensor query server as echo server with default address option.
 rm -f marker.log
@@ -76,6 +74,8 @@ wait $pid
 
 # Run tensor query server as echo server with given address option. (multi clients)
 rm marker.log
+PORT1=`python3 ../get_available_port.py`
+PORT2=`python3 ../get_available_port.py`
 gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc host=127.0.0.1 port=${PORT1} num-buffers=6 ! other/tensors,num_tensors=1,dimensions=3:300:300:1,types=uint8 ! tensor_query_serversink async=false host=127.0.0.1 port=${PORT2} ${WAIT4MARKER} &
 pid=$!
 waitformarker 2-1-T "query-server launching"
@@ -105,6 +105,8 @@ wait $pid
 
 # Test multiple query server src and sink.
 rm marker.log
+PORT1=`python3 ../get_available_port.py`
+PORT2=`python3 ../get_available_port.py`
 gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} \
     tensor_query_serversrc id=0 num-buffers=3 ! other/tensors,format=flexible ! tensor_query_serversink id=0 async=false \
     tensor_query_serversrc id=1 port=${PORT1} num-buffers=3 ! other/tensors,format=flexible ! tensor_query_serversink id=1 port=${PORT2} async=false ${WAIT4MARKER} &
