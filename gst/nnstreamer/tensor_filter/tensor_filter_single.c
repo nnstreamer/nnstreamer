@@ -43,6 +43,7 @@
 #include <glib.h>
 #include <string.h>
 
+#include "nnstreamer_log.h"
 #include "tensor_filter_common.h"
 #include "tensor_filter_single.h"
 
@@ -164,7 +165,7 @@ g_tensor_filter_single_set_property (GObject * object, guint prop_id,
   spriv = G_TENSOR_FILTER_SINGLE_PRIV (self);
   priv = &spriv->filter_priv;
 
-  g_debug ("Setting property for prop %d.\n", prop_id);
+  ml_logd ("Setting property for prop %d.\n", prop_id);
 
   if (!gst_tensor_filter_common_set_property (priv, prop_id, value, pspec))
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -185,7 +186,7 @@ g_tensor_filter_single_get_property (GObject * object, guint prop_id,
   spriv = G_TENSOR_FILTER_SINGLE_PRIV (self);
   priv = &spriv->filter_priv;
 
-  g_debug ("Getting property for prop %d.\n", prop_id);
+  ml_logd ("Getting property for prop %d.\n", prop_id);
 
   if (!gst_tensor_filter_common_get_property (priv, prop_id, value, pspec))
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -357,7 +358,7 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
       for (i = 0; i < priv->prop.output_meta.num_tensors; i++) {
         output[i].data = g_try_malloc (output[i].size);
         if (!output[i].data) {
-          g_critical ("Failed to allocate the output tensor.");
+          ml_loge ("Failed to allocate the output tensor.");
           goto error;
         }
       }

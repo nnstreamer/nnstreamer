@@ -125,7 +125,7 @@ gst_tensor_query_server_wait_sink (query_server_info_handle server_info_h)
   while (!data->configured) {
     if (!g_cond_wait_until (&data->cond, &data->lock, end_time)) {
       g_mutex_unlock (&data->lock);
-      g_critical ("Failed to get server sink info.");
+      ml_loge ("Failed to get server sink info.");
       return FALSE;
     }
   }
