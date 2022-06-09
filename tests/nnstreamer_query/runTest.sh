@@ -79,7 +79,10 @@ PORT2=`python3 ../get_available_port.py`
 gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc host=127.0.0.1 port=${PORT1} num-buffers=6 ! other/tensors,num_tensors=1,dimensions=3:300:300:1,types=uint8 ! tensor_query_serversink async=false host=127.0.0.1 port=${PORT2} ${WAIT4MARKER} &
 pid=$!
 waitformarker 2-1-T "query-server launching"
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! tee name = t t. ! queue ! multifilesink location= raw2_%1d.log t. ! queue ! tensor_query_client src-host=127.0.0.1 src-port=${PORT1} sink-host=127.0.0.1 sink-port=${PORT2} ! multifilesink location=result2_%1d.log" 2-2 0 0 $PERFORMANCE &
+rm marker.log
+gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! tee name = t t. ! queue ! multifilesink location= raw2_%1d.log t. ! queue ! tensor_query_client src-host=127.0.0.1 src-port=${PORT1} sink-host=127.0.0.1 sink-port=${PORT2} ! multifilesink location=result2_%1d.log ${WAIT4MARKER} &
+pid2=$!
+waitformarker 2-2-T "query-client 1 launching"
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! tee name = t t. ! queue ! multifilesink location= raw2_2_%1d.log t. ! queue ! tensor_query_client src-host=127.0.0.1 src-port=${PORT1} sink-host=127.0.0.1 sink-port=${PORT2} ! multifilesink location=result2_2_%1d.log" 2-3 0 0 $PERFORMANCE
 callCompareTest raw2_0.log result2_0.log 2-4 "Compare 2-4" 1 0
 callCompareTest raw2_1.log result2_1.log 2-5 "Compare 2-5" 1 0
@@ -88,7 +91,9 @@ callCompareTest raw2_2_0.log result2_2_0.log 2-7 "Compare 2-7" 1 0
 callCompareTest raw2_2_1.log result2_2_1.log 2-8 "Compare 2-8" 1 0
 callCompareTest raw2_2_2.log result2_2_2.log 2-9 "Compare 2-9" 1 0
 kill -9 $pid &> /dev/null
+kill -9 $pid2 &> /dev/null
 wait $pid
+wait $pid2
 
 
 # Test flexible tensors
@@ -113,11 +118,14 @@ gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} \
 pid=$!
 waitformarker 5-1-T "query-server launching"
 # Client pipeline 5-2 is connected to server ID 0.
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
+rm marker.log
+gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} \
     videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,width=640,height=480,format=RGB ! \
     tensor_converter ! other/tensors,format=flexible ! tee name=t \
         t. ! queue ! multifilesink location= raw5_2_%1d.log \
-        t. ! queue ! tensor_query_client ! multifilesink location=result5_2_%1d.log" 5-2 0 0 $PERFORMANCE &
+        t. ! queue ! tensor_query_client ! multifilesink location=result5_2_%1d.log ${WAIT4MARKER} &
+pid2=$!
+waitformarker 5-2-T "query-client 1 launching"
 # Client pipeline 5-3 is connected to server ID 1.
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
     videotestsrc pattern=13 num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! \
@@ -131,7 +139,9 @@ callCompareTest raw5_3_0.log result5_3_0.log 5-7 "Compare 5-7" 1 0
 callCompareTest raw5_3_1.log result5_3_1.log 5-8 "Compare 5-8" 1 0
 callCompareTest raw5_3_2.log result5_3_2.log 5-9 "Compare 5-9" 1 0
 kill -9 $pid &> /dev/null
+kill -9 $pid2 &> /dev/null
 wait $pid
+wait $pid2
 
 
 # Sever src cap: Video, Server sink cap: Viedo test
