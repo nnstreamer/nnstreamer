@@ -23,9 +23,7 @@
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_query_serversrc_debug);
 #define GST_CAT_DEFAULT gst_tensor_query_serversrc_debug
 
-#define DEFAULT_HOST "localhost"
 #define DEFAULT_PORT_SRC 3001
-#define DEFAULT_PROTOCOL _TENSOR_QUERY_PROTOCOL_TCP
 #define DEFAULT_IS_LIVE TRUE
 /**
  * @brief the capabilities of the outputs
@@ -95,9 +93,9 @@ gst_tensor_query_serversrc_class_init (GstTensorQueryServerSrcClass * klass)
           "The port to listen to (0=random available port)", 0,
           65535, DEFAULT_PORT_SRC, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_PROTOCOL,
-      g_param_spec_int ("protocol", "Protocol",
-          "The network protocol to establish connection", 0,
-          _TENSOR_QUERY_PROTOCOL_END, DEFAULT_PROTOCOL,
+      g_param_spec_enum ("protocol", "Protocol",
+          "The network protocol to establish connections between client and server.",
+          GST_TYPE_QUERY_PROTOCOL, DEFAULT_PROTOCOL,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_TIMEOUT,
       g_param_spec_uint ("timeout", "Timeout",
@@ -210,7 +208,7 @@ gst_tensor_query_serversrc_set_property (GObject * object, guint prop_id,
       serversrc->port = g_value_get_uint (value);
       break;
     case PROP_PROTOCOL:
-      serversrc->protocol = g_value_get_int (value);
+      serversrc->protocol = g_value_get_enum (value);
       break;
     case PROP_TIMEOUT:
       serversrc->timeout = g_value_get_uint (value);
@@ -265,7 +263,7 @@ gst_tensor_query_serversrc_get_property (GObject * object, guint prop_id,
       g_value_set_uint (value, serversrc->port);
       break;
     case PROP_PROTOCOL:
-      g_value_set_int (value, serversrc->protocol);
+      g_value_set_enum (value, serversrc->protocol);
       break;
     case PROP_TIMEOUT:
       g_value_set_uint (value, serversrc->timeout);

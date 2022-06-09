@@ -20,9 +20,7 @@
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_query_serversink_debug);
 #define GST_CAT_DEFAULT gst_tensor_query_serversink_debug
 
-#define DEFAULT_HOST "localhost"
 #define DEFAULT_PORT_SINK 3000
-#define DEFAULT_PROTOCOL _TENSOR_QUERY_PROTOCOL_TCP
 #define DEFAULT_METALESS_FRAME_LIMIT 1
 
 /**
@@ -88,9 +86,9 @@ gst_tensor_query_serversink_class_init (GstTensorQueryServerSinkClass * klass)
           65535, DEFAULT_PORT_SINK,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_PROTOCOL,
-      g_param_spec_int ("protocol", "Protocol",
-          "The network protocol to establish connection", 0,
-          _TENSOR_QUERY_PROTOCOL_END, DEFAULT_PROTOCOL,
+      g_param_spec_enum ("protocol", "Protocol",
+          "The network protocol to establish connection",
+          GST_TYPE_QUERY_PROTOCOL, DEFAULT_PROTOCOL,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_TIMEOUT,
       g_param_spec_uint ("timeout", "Timeout",
@@ -182,7 +180,7 @@ gst_tensor_query_serversink_set_property (GObject * object, guint prop_id,
       serversink->port = g_value_get_uint (value);
       break;
     case PROP_PROTOCOL:
-      serversink->protocol = g_value_get_int (value);
+      serversink->protocol = g_value_get_enum (value);
       break;
     case PROP_TIMEOUT:
       serversink->timeout = g_value_get_uint (value);
@@ -216,7 +214,7 @@ gst_tensor_query_serversink_get_property (GObject * object, guint prop_id,
       g_value_set_uint (value, serversink->port);
       break;
     case PROP_PROTOCOL:
-      g_value_set_int (value, serversink->protocol);
+      g_value_set_enum (value, serversink->protocol);
       break;
     case PROP_TIMEOUT:
       g_value_set_uint (value, serversink->timeout);

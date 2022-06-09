@@ -1105,3 +1105,25 @@ error:
 
   return buffer;
 }
+
+/**
+ * @brief register GEnumValue array for query protocol property handling
+ */
+GType
+gst_tensor_query_protocol_get_type (void)
+{
+  static GType protocol = 0;
+  if (protocol == 0) {
+    static GEnumValue protocols[] = {
+      {_TENSOR_QUERY_PROTOCOL_TCP, "TCP",
+          "Raw TCP protocol. Directly sending stream frames via TCP connections."},
+      {_TENSOR_QUERY_PROTOCOL_UDP, "UDP",
+          "Raw UDP protocol. Directly sending stream frames via UDP connections."},
+      {_TENSOR_QUERY_PROTOCOL_MQTT, "MQTT", "Connect with MQTT brokers."},
+      {0, NULL, NULL},
+    };
+    protocol = g_enum_register_static ("tensor_query_protocol", protocols);
+  }
+
+  return protocol;
+}

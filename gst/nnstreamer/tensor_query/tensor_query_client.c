@@ -49,7 +49,6 @@ enum
 #define TCP_DEFAULT_SINK_PORT        3000
 #define TCP_DEFAULT_SRC_PORT        3001
 #define DEFAULT_SILENT TRUE
-#define DEFAULT_PROTOCOL        "tcp"
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_query_client_debug);
 #define GST_CAT_DEFAULT gst_tensor_query_client_debug
@@ -127,9 +126,10 @@ gst_tensor_query_client_class_init (GstTensorQueryClientClass * klass)
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output",
           DEFAULT_SILENT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_PROTOCOL,
-      g_param_spec_string ("protocol", "Protocol",
-          "A protocol option for tensor query.",
-          DEFAULT_PROTOCOL, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+      g_param_spec_enum ("protocol", "Protocol",
+          "The network protocol to establish connections between client and server.",
+          GST_TYPE_QUERY_PROTOCOL, DEFAULT_PROTOCOL,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_OPERATION,
       g_param_spec_string ("operation", "Operation",
           "The main operation of the host.",
@@ -179,7 +179,7 @@ gst_tensor_query_client_init (GstTensorQueryClient * self)
 
   /* init properties */
   self->silent = DEFAULT_SILENT;
-  self->protocol = _TENSOR_QUERY_PROTOCOL_TCP;
+  self->protocol = DEFAULT_PROTOCOL;
   self->sink_conn = NULL;
   self->sink_host = g_strdup (TCP_DEFAULT_HOST);
   self->sink_port = TCP_DEFAULT_SINK_PORT;
@@ -258,8 +258,12 @@ gst_tensor_query_client_set_property (GObject * object, guint prop_id,
       self->src_port = g_value_get_uint (value);
       break;
     case PROP_PROTOCOL:
-      if (g_ascii_strcasecmp (g_value_get_string (value), "tcp") == 0)
-        self->protocol = _TENSOR_QUERY_PROTOCOL_TCP;
+    {
+        /** @todo expand when other protocols are ready */
+      TensorQueryProtocol protocol = g_value_get_enum (value);
+      if (protocol == _TENSOR_QUERY_PROTOCOL_TCP)
+        self->protocol = protocol;
+    }
       break;
     case PROP_OPERATION:
       if (!g_value_get_string (value)) {
@@ -313,13 +317,7 @@ gst_tensor_query_client_get_property (GObject * object, guint prop_id,
       g_value_set_uint (value, self->src_port);
       break;
     case PROP_PROTOCOL:
-      switch (self->protocol) {
-        case _TENSOR_QUERY_PROTOCOL_TCP:
-          g_value_set_string (value, "tcp");
-          break;
-        default:
-          break;
-      }
+      g_value_set_enum (value, self->protocol);
       break;
     case PROP_OPERATION:
       g_value_set_string (value, self->operation);
