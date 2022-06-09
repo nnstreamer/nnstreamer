@@ -165,6 +165,7 @@ TEST (tensorQuery, clientProperties0)
   gchar *pipeline;
   GstElement *gstpipe;
   GstElement *client_handle;
+  TensorQueryProtocol protocol;
   guint uint_val;
   gchar *str_val;
   gboolean bool_val;
@@ -172,7 +173,7 @@ TEST (tensorQuery, clientProperties0)
   /* Create a query client pipeline */
   pipeline = g_strdup_printf (
       "videotestsrc ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB !"
-      "tensor_converter ! tensor_query_client name=client protocol=tcp src-host=127.0.0.1 sink-host=127.0.0.1 ! tensor_sink");
+      "tensor_converter ! tensor_query_client name=client protocol=TCP src-host=127.0.0.1 sink-host=127.0.0.1 ! tensor_sink");
   gstpipe = gst_parse_launch (pipeline, NULL);
   EXPECT_NE (gstpipe, nullptr);
 
@@ -194,9 +195,8 @@ TEST (tensorQuery, clientProperties0)
   g_object_get (client_handle, "sink-port", &uint_val, NULL);
   EXPECT_EQ (3000U, uint_val);
 
-  g_object_get (client_handle, "protocol", &str_val, NULL);
-  EXPECT_STREQ ("tcp", str_val);
-  g_free (str_val);
+  g_object_get (client_handle, "protocol", &protocol, NULL);
+  EXPECT_EQ (protocol, _TENSOR_QUERY_PROTOCOL_TCP);
 
   g_object_get (client_handle, "silent", &bool_val, NULL);
   EXPECT_EQ (TRUE, bool_val);
