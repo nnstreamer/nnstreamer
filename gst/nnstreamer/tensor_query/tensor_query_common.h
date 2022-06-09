@@ -40,6 +40,15 @@ typedef enum
   _TENSOR_QUERY_PROTOCOL_END
 } TensorQueryProtocol;
 
+#define DEFAULT_HOST "localhost"
+#define DEFAULT_PROTOCOL (_TENSOR_QUERY_PROTOCOL_TCP)
+#define GST_TYPE_QUERY_PROTOCOL (gst_tensor_query_protocol_get_type ())
+/**
+ * @brief register GEnumValue array for query protocol property handling
+ */
+GType
+gst_tensor_query_protocol_get_type (void);
+
 /**
  * @brief Structures for tensor query commands.
  */
