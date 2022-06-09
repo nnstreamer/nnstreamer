@@ -86,7 +86,7 @@ fi
 ## Test gRPC multi-pipelines with different IDL and blocking modes.
 for IDL in "${IDL_LIST[@]}"; do
 for BLOCKING in "${BLOCKING_LIST[@]}"; do
-  PORT=`python3 get_available_port.py`
+  PORT=`python3 ../get_available_port.py`
   BLOCKING_STR="Blocking"
   if [[ $BLOCKING == "FALSE" ]]; then
     BLOCKING_STR="Non-blocking"
@@ -105,7 +105,7 @@ for BLOCKING in "${BLOCKING_LIST[@]}"; do
   INDEX=$((INDEX + 1))
   rm result_*.log
 
-  PORT=`python3 get_available_port.py`
+  PORT=`python3 ../get_available_port.py`
   # tensor_sink (server) --> tensor_src (client), other/tensor
   gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=${NUM_BUFFERS} ! video/x-raw,width=640,height=480,framerate=5/1 ! tensor_converter ! tensor_sink_grpc port=${PORT} server=true idl=${IDL} blocking=${BLOCKING}" ${INDEX}-1 0 0 $PERFORMANCE &
   sleep 1
@@ -119,7 +119,7 @@ for BLOCKING in "${BLOCKING_LIST[@]}"; do
   INDEX=$((INDEX + 1))
   rm result_*.log
 
-  PORT=`python3 get_available_port.py`
+  PORT=`python3 ../get_available_port.py`
   # tensor_sink (client) --> tensor_src (server), other/tensors
   gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_src_grpc port=${PORT} num-buffers=$((NUM_BUFFERS/2)) idl=${IDL} blocking=${BLOCKING} ! 'other/tensors,num_tensors=2,dimensions=(string)3:640:480.3:640:480,types=(string)uint8.uint8,framerate=(fraction)5/1' ! multifilesink location=result_%1d.log" ${INDEX}-1 0 0 $PERFORMANCE &
   sleep 1
@@ -133,7 +133,7 @@ for BLOCKING in "${BLOCKING_LIST[@]}"; do
   INDEX=$((INDEX + 1))
   rm result_*.log
 
-  PORT=`python3 get_available_port.py`
+  PORT=`python3 ../get_available_port.py`
   # tensor_sink (server) --> tensor_src (client), other/tensors
   gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=${NUM_BUFFERS} ! video/x-raw,width=640,height=480,framerate=5/1 ! tensor_converter frames-per-tensor=2 ! tensor_sink_grpc port=${PORT} server=true idl=${IDL} blocking=${BLOCKING}" ${INDEX}-1 0 0 $PERFORMANCE &
   sleep 1
