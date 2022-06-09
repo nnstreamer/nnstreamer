@@ -35,10 +35,10 @@
   if (DBG) { \
     guint info_idx; \
     gchar *dim_str; \
-    g_debug (msg " total %d", (i)->num_tensors); \
+    ml_logd (msg " total %d", (i)->num_tensors); \
     for (info_idx = 0; info_idx < (i)->num_tensors; info_idx++) { \
       dim_str = gst_tensor_get_dimension_string ((i)->info[info_idx].dimension); \
-      g_debug ("[%d] type=%d dim=%s", info_idx, (i)->info[info_idx].type, dim_str); \
+      ml_logd ("[%d] type=%d dim=%s", info_idx, (i)->info[info_idx].type, dim_str); \
       g_free (dim_str); \
     } \
   } \
@@ -1374,7 +1374,7 @@ _gtfc_setprop_FRAMEWORK (GstTensorFilterPrivate * priv,
   status = _gtfc_setprop_IS_UPDATABLE (priv, prop, &val);
   g_value_unset (&val);
   if (status != 0) {
-    g_warning ("Set propery is-updatable failed with error: %d", status);
+    ml_logw ("Set propery is-updatable failed with error: %d", status);
     return status;
   }
 
@@ -1385,7 +1385,7 @@ _gtfc_setprop_FRAMEWORK (GstTensorFilterPrivate * priv,
     status = _gtfc_setprop_ACCELERATOR (priv, prop, &val);
     g_value_unset (&val);
     if (status != 0) {
-      g_warning ("Set propery accelerator failed with error: %d", status);
+      ml_logw ("Set propery accelerator failed with error: %d", status);
       return status;
     }
   }
@@ -2381,7 +2381,7 @@ gst_tensor_filter_load_tensor_info (GstTensorFilterPrivate * priv)
       if (!gst_tensors_info_is_equal (&out_info, &prop->output_meta)) {
         gchar *cmpstr =
             gst_tensorsinfo_compare_to_string (&out_info, &prop->output_meta);
-        g_critical
+        ml_logw
             ("The output tensor is not compatible with the configuration of the model or tensor-filter property. The two tensor meta (GstTensorsInfo) are not compatible: %s\n",
             cmpstr);
         g_free (cmpstr);
@@ -2644,7 +2644,7 @@ filter_supported_accelerators (const gchar ** supported_accelerators)
   while (supported_accelerators[idx] != NULL) {
     if (g_ascii_strncasecmp (supported_accelerators[idx], ACCL_CPU_NEON_STR,
             strlen (ACCL_CPU_NEON_STR)) == 0 && neon_available != 0) {
-      g_critical ("Neon instructions are not available on this device.");
+      ml_logw ("Neon instructions are not available on this device.");
     } else {
       accl_support[num_hw] = supported_accelerators[idx];
       num_hw += 1;

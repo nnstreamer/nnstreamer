@@ -1311,7 +1311,7 @@ tflite_parseCustomOption (const GstTensorFilterProperties *prop, tflite_option_s
           }
           g_strfreev (kvpairs);
         } else {
-          g_warning ("Unknown option (%s).", strv[i]);
+          ml_logw ("Unknown option (%s).", strv[i]);
         }
       }
 
@@ -1323,7 +1323,7 @@ tflite_parseCustomOption (const GstTensorFilterProperties *prop, tflite_option_s
 
   if (option->delegate == TFLITE_DELEGATE_EXTERNAL
       && option->ext_delegate_path == NULL) {
-    g_warning ("No shared lib for external delegate.");
+    ml_logw ("No shared lib for external delegate.");
     option->delegate = TFLITE_DELEGATE_NONE;
   }
 
