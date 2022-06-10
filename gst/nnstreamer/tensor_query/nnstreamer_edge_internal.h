@@ -28,6 +28,7 @@ extern "C" {
  */
 typedef struct {
   unsigned int magic;
+  pthread_mutex_t lock;
   char *id;
   char *topic;
   nns_edge_protocol_e protocol;
@@ -52,21 +53,25 @@ typedef struct {
 #if defined(ENABLE_MQTT)
 /**
  * @brief Connect to MQTT.
+ * @note This is internal function for MQTT broker. You should call this with edge-handle lock.
  */
 int nns_edge_mqtt_connect (nns_edge_h edge_h);
 
 /**
  * @brief Close the connection to MQTT.
+ * @note This is internal function for MQTT broker. You should call this with edge-handle lock.
  */
 int nns_edge_mqtt_close (nns_edge_h edge_h);
 
 /**
  * @brief Publish raw data.
+ * @note This is internal function for MQTT broker. You should call this with edge-handle lock.
  */
 int nns_edge_mqtt_publish (nns_edge_h edge_h, const void *data, const int length);
 
 /**
  * @brief Subscribe a topic.
+ * @note This is internal function for MQTT broker. You should call this with edge-handle lock.
  */
 int nns_edge_mqtt_subscribe (nns_edge_h edge_h);
 #else
