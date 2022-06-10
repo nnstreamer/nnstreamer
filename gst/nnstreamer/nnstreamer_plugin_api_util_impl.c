@@ -28,6 +28,7 @@ static const gchar *tensor_element_typename[] = {
   [_NNS_FLOAT32] = "float32",
   [_NNS_INT64] = "int64",
   [_NNS_UINT64] = "uint64",
+  [_NNS_FLOAT16] = "float16",
   [_NNS_END] = NULL,
 };
 
@@ -45,7 +46,7 @@ static const guint tensor_element_size[] = {
   [_NNS_FLOAT32] = 4,
   [_NNS_INT64] = 8,
   [_NNS_UINT64] = 8,
-
+  [_NNS_FLOAT16] = 2,
   [_NNS_END] = 0,
 };
 
@@ -1063,11 +1064,14 @@ gst_tensor_get_type (const gchar * typestr)
       case 64:
         type = _NNS_INT64;
     }
-  } else if (g_regex_match_simple ("^float(32|64)$",
+  } else if (g_regex_match_simple ("^float(16|32|64)$",
           type_string, G_REGEX_CASELESS, 0)) {
     size = (gsize) g_ascii_strtoull (&type_string[5], NULL, 10);
 
     switch (size) {
+      case 16:
+        type = _NNS_FLOAT16;
+        break;
       case 32:
         type = _NNS_FLOAT32;
         break;
