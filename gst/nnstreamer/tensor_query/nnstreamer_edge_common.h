@@ -42,6 +42,11 @@ extern "C" {
 #define NNS_EDGE_MAGIC_DEAD 0xdeaddead
 #define NNS_EDGE_MAGIC_IS_VALID(h) ((h) && (h)->magic == NNS_EDGE_MAGIC)
 
+#define nns_edge_lock_init(h) do { pthread_mutex_init (&(h)->lock, NULL); } while (0)
+#define nns_edge_lock_destroy(h) do { pthread_mutex_destroy (&(h)->lock); } while (0)
+#define nns_edge_lock(h) do { pthread_mutex_lock (&(h)->lock); } while (0)
+#define nns_edge_unlock(h) do { pthread_mutex_unlock (&(h)->lock); } while (0)
+
 /**
  * @brief Internal data structure for raw data.
  */
@@ -53,7 +58,6 @@ typedef struct {
 
 /**
  * @brief Internal data structure for edge data.
- * @todo Implement mutex lock.
  */
 typedef struct {
   unsigned int magic;
@@ -65,7 +69,6 @@ typedef struct {
 
 /**
  * @brief Internal data structure for edge event.
- * @todo Implement mutex lock.
  */
 typedef struct {
   unsigned int magic;
