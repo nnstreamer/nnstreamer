@@ -125,22 +125,6 @@ nns_edge_event_get_type (nns_edge_event_h event_h, nns_edge_event_e * event)
 }
 
 /**
- * @brief Validate data handle.
- */
-bool
-nns_edge_data_is_valid (nns_edge_data_h data_h)
-{
-  nns_edge_data_s *ed;
-
-  ed = (nns_edge_data_s *) data_h;
-
-  if (!NNS_EDGE_MAGIC_IS_VALID (ed))
-    return false;
-
-  return true;
-}
-
-/**
  * @brief Create nnstreamer edge data.
  */
 int
@@ -183,7 +167,7 @@ nns_edge_data_destroy (nns_edge_data_h data_h)
 
   ed = (nns_edge_data_s *) data_h;
 
-  if (!nns_edge_data_is_valid (data_h)) {
+  if (!NNS_EDGE_MAGIC_IS_VALID (ed)) {
     nns_edge_loge ("Invalid param, given edge data is invalid.");
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
@@ -210,7 +194,7 @@ nns_edge_data_add (nns_edge_data_h data_h, void *data, size_t data_len,
 
   ed = (nns_edge_data_s *) data_h;
 
-  if (!nns_edge_data_is_valid (data_h)) {
+  if (!NNS_EDGE_MAGIC_IS_VALID (ed)) {
     nns_edge_loge ("Invalid param, given edge data is invalid.");
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }

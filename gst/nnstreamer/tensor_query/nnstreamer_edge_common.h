@@ -84,19 +84,9 @@ typedef struct {
 #define nns_edge_logf g_error
 
 /**
- * @brief Validate edge handle.
- */
-bool nns_edge_handle_is_valid (nns_edge_h edge_h);
-
-/**
  * @brief Check network connection.
  */
 bool nns_edge_is_connected (nns_edge_h edge_h);
-
-/**
- * @brief Validate data handle.
- */
-bool nns_edge_data_is_valid (nns_edge_data_h data_h);
 
 /**
  * @brief Create nnstreamer edge event.
