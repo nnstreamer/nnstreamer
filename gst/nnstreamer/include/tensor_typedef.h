@@ -59,7 +59,7 @@
 /**
  * @brief Possible tensor element types
  */
-#define GST_TENSOR_TYPE_ALL "{ float32, float64, int64, uint64, int32, uint32, int16, uint16, int8, uint8 }"
+#define GST_TENSOR_TYPE_ALL "{ float16, float32, float64, int64, uint64, int32, uint32, int16, uint16, int8, uint8 }"
 
 /**
  * @brief Possible tensor formats
@@ -162,9 +162,25 @@ typedef enum _nns_tensor_type
   _NNS_FLOAT32,
   _NNS_INT64,
   _NNS_UINT64,
+  _NNS_FLOAT16, /**< added with nnstreamer 2.1.1-devel. If you add any operators (e.g., tensor_transform) to float16, it will either be not supported or be too inefficient. */
 
   _NNS_END,
 } tensor_type;
+
+/**
+ * @brief Float16 compiler extension support
+ */
+#if defined(FLOAT16_SUPPORT)
+#if defined(__aarch64__) || defined(__arm__)
+/** arm (32b) requires "-mfp16-format=ieee */
+typedef __fp16 float16;
+#elif defined(__x86_64) || defined(__i686__)
+/** recommends "-mavx512fp16" for hardware acceleration (gcc>=12 x64)*/
+typedef _Float16 float16;
+#else
+#error "Float 16 supported only with aarch64, arm, x86/64. In arm, you need -mfp16-format=ieee"
+#endif /* x86/64, arm64/arm32 */
+#endif /* FLOAT16_SUPPORT */
 
 /**
  * @brief Possible input stream types for other/tensor.
@@ -212,6 +228,9 @@ typedef union {
   float _float;
   int64_t _int64_t;
   uint64_t _uint64_t;
+#ifdef FLOAT16_SUPPORT
+  float16 _float16;
+#endif
 } tensor_element;
 
 typedef uint32_t tensor_dim[NNS_TENSOR_RANK_LIMIT];

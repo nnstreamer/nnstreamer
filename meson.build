@@ -615,6 +615,32 @@ if check_mosquitto != ''
   add_project_arguments('-D__MQTT_BROKER_ENABLED__=1', language: ['c', 'cpp'])
 endif
 
+# Float16 Support
+if get_option('enable-float16')
+  arch = target_machine.cpu_family()
+  add_project_arguments('-DFLOAT16_SUPPORT', language: ['c', 'cpp'])
+
+  if arch == 'aarch64'
+    message ('Float16 for aarch64 enabled. Modern gcc-aarch64 generally supports float16 with __fp16. It uses IEEE 754-2008 format.')
+  elif arch == 'arm'
+    add_project_arguments('-mfp16-format=ieee', language: ['c', 'cpp'])
+    message ('Float16 for arm (32b) enabled. Modern gcc-arm generally supports float16 with __fp16 by -mfp16-format=ieee for IEEE 754-2008 format.')
+  elif arch == 'x86_64' or arch == 'x86'
+    # GCC 12+ has fp16 avx512 support.
+    has_avx512fp16 = cc.has_argument('-mavx512fp16')
+
+    if (has_avx512fp16)
+      add_project_arguments(['-mavx512fp16'], language: ['c', 'cpp'])
+      message ('Float16 for x86_64 enabled. Modern gcc-x64 genrally supports float16 with _Float16. -mavx512fp16 added for hardware acceleration')
+    else
+      warning ('Float16 for x86_64 enabled. However, software emulation is applied for fp16, making it slower and inconsistent. Use GCC 12+ for AVX512 FP16 support. This build will probably fail unless you bring a compiler that supports fp16 for x64.')
+    endif
+  else
+    error ('Float16 is supported only in aarch64, arm, and x86_64. If you believe the compiler for this architecture supports float16, you will need to update the build script (meson.build).')
+  endif
+
+endif
+
 # Build nnstreamer (common, plugins)
 subdir('gst')
 

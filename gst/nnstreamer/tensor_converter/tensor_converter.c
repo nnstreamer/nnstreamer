@@ -2001,6 +2001,11 @@ gst_tensor_converter_get_possible_media_caps (GstTensorConverter * self)
               case _NNS_UINT32:
                 aformat = GST_AUDIO_FORMAT_U32;
                 break;
+              case _NNS_FLOAT16:
+                aformat = GST_AUDIO_FORMAT_UNKNOWN;
+                ml_loge
+                    ("tensor_converter: Audio stream cannot be converted to float16 stream directly because GStreamer's standard audio streams do not support float16. Try Float32 or Float64 instead and 'transform' it to Float16 later.\n");
+                break;
               case _NNS_FLOAT32:
                 aformat = GST_AUDIO_FORMAT_F32;
                 break;
