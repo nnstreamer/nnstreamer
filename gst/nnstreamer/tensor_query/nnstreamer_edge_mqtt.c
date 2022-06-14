@@ -130,6 +130,7 @@ mqtt_cb_disconnection_failure (void *context, MQTTAsync_failureData * response)
 
 /**
  * @brief Callback function to be called when a message is arrived.
+ * @return Return TRUE to prevent delivering the message again.
  */
 static int
 mqtt_cb_message_arrived (void *context, char *topic, int topic_len,
@@ -144,7 +145,7 @@ mqtt_cb_message_arrived (void *context, char *topic, int topic_len,
 
   if (!NNS_EDGE_MAGIC_IS_VALID (eh)) {
     nns_edge_loge ("Invalid param, given edge handle is invalid.");
-    return NNS_EDGE_ERROR_INVALID_PARAMETER;
+    return TRUE;
   }
 
   nns_edge_logd ("MQTT message is arrived (ID:%s, Topic:%s).",
