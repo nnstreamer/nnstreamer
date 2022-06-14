@@ -84,11 +84,6 @@ typedef struct {
 #define nns_edge_logf g_error
 
 /**
- * @brief Check network connection.
- */
-bool nns_edge_is_connected (nns_edge_h edge_h);
-
-/**
  * @brief Create nnstreamer edge event.
  */
 int nns_edge_event_create (nns_edge_event_e event, nns_edge_event_h * event_h);

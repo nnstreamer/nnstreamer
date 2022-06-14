@@ -14,25 +14,6 @@
 #include "nnstreamer_edge_internal.h"
 
 /**
- * @brief Check network connection.
- */
-bool
-nns_edge_is_connected (nns_edge_h edge_h)
-{
-  nns_edge_handle_s *eh;
-
-  eh = (nns_edge_handle_s *) edge_h;
-
-  if (!NNS_EDGE_MAGIC_IS_VALID (eh)) {
-    nns_edge_loge ("Invalid param, given edge handle is invalid.");
-    return false;
-  }
-
-  /** @todo check connection status */
-  return true;
-}
-
-/**
  * @brief Get registered handle. If not registered, create new handle and register it.
  */
 int
@@ -93,10 +74,11 @@ nns_edge_release_handle (nns_edge_h edge_h)
 
   if (eh->event_cb) {
     /** @todo send new event (release handle) */
-    eh->event_cb = NULL;
   }
 
   eh->magic = NNS_EDGE_MAGIC_DEAD;
+  eh->event_cb = NULL;
+  eh->user_data = NULL;
   g_free (eh->id);
   g_free (eh->topic);
   g_free (eh->ip);
@@ -152,11 +134,6 @@ nns_edge_connect (nns_edge_h edge_h, nns_edge_protocol_e protocol,
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
-  if (nns_edge_is_connected (edge_h)) {
-    nns_edge_loge ("Already connected to %s:%d.", eh->ip, eh->port);
-    return NNS_EDGE_ERROR_CONNECTION_FAILURE;
-  }
-
   eh->protocol = protocol;
   eh->ip = g_strdup (ip);
   eh->port = port;
@@ -180,10 +157,7 @@ nns_edge_disconnect (nns_edge_h edge_h)
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
-  if (nns_edge_is_connected (edge_h)) {
-    /** @todo update code for disconnection */
-  }
-
+  /** @todo update code for disconnection */
   return NNS_EDGE_ERROR_NONE;
 }
 
@@ -207,11 +181,6 @@ nns_edge_publish (nns_edge_h edge_h, nns_edge_data_h data_h)
   if (!NNS_EDGE_MAGIC_IS_VALID (ed)) {
     nns_edge_loge ("Invalid param, given edge data is invalid.");
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
-  }
-
-  if (!nns_edge_is_connected (edge_h)) {
-    nns_edge_loge ("Connection failure.");
-    return NNS_EDGE_ERROR_CONNECTION_FAILURE;
   }
 
   /** @todo update code (publish data) */
@@ -241,11 +210,6 @@ nns_edge_request (nns_edge_h edge_h, nns_edge_data_h data_h, void *user_data)
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
-  if (!nns_edge_is_connected (edge_h)) {
-    nns_edge_loge ("Connection failure.");
-    return NNS_EDGE_ERROR_CONNECTION_FAILURE;
-  }
-
   /** @todo update code (request - send, wait for response) */
   return NNS_EDGE_ERROR_NONE;
 }
@@ -267,11 +231,6 @@ nns_edge_subscribe (nns_edge_h edge_h, nns_edge_data_h data_h, void *user_data)
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
-  if (!nns_edge_is_connected (edge_h)) {
-    nns_edge_loge ("Connection failure.");
-    return NNS_EDGE_ERROR_CONNECTION_FAILURE;
-  }
-
   /** @todo update code (subscribe) */
   return NNS_EDGE_ERROR_NONE;
 }
@@ -289,11 +248,6 @@ nns_edge_unsubscribe (nns_edge_h edge_h)
   if (!NNS_EDGE_MAGIC_IS_VALID (eh)) {
     nns_edge_loge ("Invalid param, given edge handle is invalid.");
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
-  }
-
-  if (!nns_edge_is_connected (edge_h)) {
-    nns_edge_loge ("Connection failure.");
-    return NNS_EDGE_ERROR_CONNECTION_FAILURE;
   }
 
   /** @todo update code (unsubscribe) */
