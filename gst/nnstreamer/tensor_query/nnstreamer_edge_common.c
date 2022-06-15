@@ -125,6 +125,67 @@ nns_edge_event_get_type (nns_edge_event_h event_h, nns_edge_event_e * event)
 }
 
 /**
+ * @brief Parse edge event (NNS_EDGE_EVENT_NEW_DATA_RECEIVED) and get received data.
+ * @note Caller should release returned edge data using nns_edge_data_destroy().
+ */
+int
+nns_edge_event_parse_new_data (nns_edge_event_h event_h,
+    nns_edge_data_h * data_h)
+{
+  nns_edge_event_s *ee;
+
+  ee = (nns_edge_event_s *) event_h;
+
+  if (!NNS_EDGE_MAGIC_IS_VALID (ee)) {
+    nns_edge_loge ("Invalid param, given edge event is invalid.");
+    return NNS_EDGE_ERROR_INVALID_PARAMETER;
+  }
+
+  if (!data_h) {
+    nns_edge_loge ("Invalid param, data_h should not be null.");
+    return NNS_EDGE_ERROR_INVALID_PARAMETER;
+  }
+
+  if (ee->event != NNS_EDGE_EVENT_NEW_DATA_RECEIVED) {
+    nns_edge_loge ("The edge event has invalid event type.");
+    return NNS_EDGE_ERROR_INVALID_PARAMETER;
+  }
+
+  return nns_edge_data_copy ((nns_edge_data_h) ee->data.data, data_h);
+}
+
+/**
+ * @brief Parse edge event (NNS_EDGE_EVENT_CAPABILITY) and get capability string.
+ * @note Caller should release returned string using free().
+ */
+int
+nns_edge_event_parse_capability (nns_edge_event_h event_h, char **capability)
+{
+  nns_edge_event_s *ee;
+
+  ee = (nns_edge_event_s *) event_h;
+
+  if (!NNS_EDGE_MAGIC_IS_VALID (ee)) {
+    nns_edge_loge ("Invalid param, given edge event is invalid.");
+    return NNS_EDGE_ERROR_INVALID_PARAMETER;
+  }
+
+  if (!capability) {
+    nns_edge_loge ("Invalid param, capability should not be null.");
+    return NNS_EDGE_ERROR_INVALID_PARAMETER;
+  }
+
+  if (ee->event != NNS_EDGE_EVENT_CAPABILITY) {
+    nns_edge_loge ("The edge event has invalid event type.");
+    return NNS_EDGE_ERROR_INVALID_PARAMETER;
+  }
+
+  *capability = g_strdup (ee->data.data);
+
+  return NNS_EDGE_ERROR_NONE;
+}
+
+/**
  * @brief Create nnstreamer edge data.
  */
 int
