@@ -39,7 +39,7 @@ typedef enum
   _NNS_EDGE_CMD_CLIENT_ID,
   _NNS_EDGE_CMD_SRC_IP,
   _NNS_EDGE_CMD_SRC_PORT,
-  _NNS_EDGE_CMD_ACCEPTABLE,
+  _NNS_EDGE_CMD_CAPABILITY,
   _NNS_EDGE_CMD_END
 } nns_edge_cmd_e;
 
@@ -98,6 +98,52 @@ static int _nns_edge_receive (nns_edge_conn_s * conn,
 static int _nns_edge_create_message_thread (nns_edge_handle_s * eh,
     nns_edge_conn_s * conn, int64_t client_id);
 static int _nns_edge_tcp_connect (nns_edge_h edge_h, const char *ip, int port);
+
+/**
+ * @brief Internal function to invoke event callback.
+ * @note This function should be called with handle lock.
+ */
+static int
+_nns_edge_invoke_event_cb (nns_edge_handle_s * eh, nns_edge_event_e event,
+    void *data, size_t data_len, nns_edge_data_destroy_cb destroy_cb)
+{
+  nns_edge_event_h event_h;
+  int ret;
+
+  if (!eh) {
+    nns_edge_loge ("Invalid param, given edge handle is null.");
+    return NNS_EDGE_ERROR_INVALID_PARAMETER;
+  }
+
+  /* If event callback is null, return ok. */
+  if (!eh->event_cb) {
+    nns_edge_logw ("The event callback is null, do nothing!");
+    return NNS_EDGE_ERROR_NONE;
+  }
+
+  ret = nns_edge_event_create (event, &event_h);
+  if (ret != NNS_EDGE_ERROR_NONE) {
+    nns_edge_loge ("Failed to create new edge event.");
+    return ret;
+  }
+
+  if (data) {
+    ret = nns_edge_event_set_data (event_h, data, data_len, destroy_cb);
+    if (ret != NNS_EDGE_ERROR_NONE) {
+      nns_edge_loge ("Failed to handle edge event due to invalid event data.");
+      goto error;
+    }
+  }
+
+  ret = eh->event_cb (event_h, eh->user_data);
+  if (ret != NNS_EDGE_ERROR_NONE) {
+    nns_edge_loge ("The event callback returns error.");
+  }
+
+error:
+  nns_edge_event_destroy (event_h);
+  return ret;
+}
 
 /**
  * @brief Get nnstreamer-edge connection data.
@@ -354,7 +400,7 @@ accept_socket_async_cb (GObject * source, GAsyncResult * result,
   }
 
   /** Send caps string to check compatibility. */
-  cmd_buf.cmd = _NNS_EDGE_CMD_ACCEPTABLE;
+  cmd_buf.cmd = _NNS_EDGE_CMD_CAPABILITY;
   cmd_buf.data.num = 1;
   cmd_buf.data.data[0].data = eh->caps_str;
   cmd_buf.data.data[0].data_len = strlen (eh->caps_str) + 1;
@@ -523,10 +569,6 @@ nns_edge_release_handle (nns_edge_h edge_h)
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
-  if (eh->event_cb) {
-    /** @todo send new event (release handle) */
-  }
-
   _close_all_connection_in_handle (eh);
 
   eh->magic = NNS_EDGE_MAGIC_DEAD;
@@ -552,6 +594,7 @@ nns_edge_set_event_callback (nns_edge_h edge_h, nns_edge_event_cb cb,
     void *user_data)
 {
   nns_edge_handle_s *eh;
+  int ret;
 
   eh = (nns_edge_handle_s *) edge_h;
   if (!eh) {
@@ -567,8 +610,12 @@ nns_edge_set_event_callback (nns_edge_h edge_h, nns_edge_event_cb cb,
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
-  if (eh->event_cb) {
-    /** @todo send new event (release callback) */
+  ret = _nns_edge_invoke_event_cb (eh, NNS_EDGE_EVENT_CALLBACK_RELEASED,
+      NULL, 0, NULL);
+  if (ret != NNS_EDGE_ERROR_NONE) {
+    nns_edge_loge ("Failed to set new event callback.");
+    nns_edge_unlock (eh);
+    return ret;
   }
 
   eh->event_cb = cb;
@@ -669,7 +716,7 @@ _nns_edge_send (nns_edge_conn_s * conn, nns_edge_cmd_buf_s * cmd_buf)
   }
 
   if (cmd_buf->cmd == _NNS_EDGE_CMD_TRANSFER_DATA ||
-      cmd_buf->cmd == _NNS_EDGE_CMD_ACCEPTABLE ||
+      cmd_buf->cmd == _NNS_EDGE_CMD_CAPABILITY ||
       cmd_buf->cmd == _NNS_EDGE_CMD_SRC_IP) {
     /** Send the number of memory. */
     if (!_send_data (conn->socket, (uint8_t *) & cmd_buf->data.num,
@@ -762,7 +809,7 @@ _nns_edge_receive (nns_edge_conn_s * conn, nns_edge_cmd_buf_s * cmd_buf)
   nns_edge_logd ("Received command: %d", cmd_buf->cmd);
 
   if (cmd_buf->cmd == _NNS_EDGE_CMD_TRANSFER_DATA ||
-      cmd_buf->cmd == _NNS_EDGE_CMD_ACCEPTABLE ||
+      cmd_buf->cmd == _NNS_EDGE_CMD_CAPABILITY ||
       cmd_buf->cmd == _NNS_EDGE_CMD_SRC_IP) {
     unsigned int n;
 
@@ -826,7 +873,6 @@ _message_handler (void *thread_data)
   nns_edge_cmd_buf_s cmd_buf;
   char *val;
   int ret;
-  nns_edge_event_h event_h = NULL;
 
   if (!_tdata) {
     nns_edge_loge ("Internal error, thread data is null.");
@@ -837,11 +883,6 @@ _message_handler (void *thread_data)
   conn = _tdata->conn;
   client_id = _tdata->client_id;
   g_free (_tdata);
-
-  if (!eh->event_cb) {
-    nns_edge_loge ("NNStreamer-edge event callback is not registered.");
-    goto done;
-  }
 
   while (conn->running) {
     nns_edge_data_h data_h;
@@ -887,25 +928,16 @@ _message_handler (void *thread_data)
           cmd_buf.data.data[i].data_len, g_free);
     }
 
-    if (0 != nns_edge_event_create (NNS_EDGE_EVENT_NEW_DATA_RECEIVED, &event_h)) {
-      nns_edge_loge ("Failed to create nns edge event.");
-      goto done;
+    ret = _nns_edge_invoke_event_cb (eh, NNS_EDGE_EVENT_NEW_DATA_RECEIVED,
+        data_h, sizeof (data_h), NULL);
+    if (ret != NNS_EDGE_ERROR_NONE) {
+      /* Try to get next request if server does not accept data from client. */
+      nns_edge_logw ("The server does not accept data from client.");
     }
-
-    nns_edge_event_set_data (event_h, data_h, sizeof (data_h), NULL);
-
-    if (0 != eh->event_cb (event_h, eh->user_data)) {
-      nns_edge_loge ("The server is not accepted.");
-      nns_edge_event_destroy (event_h);
-      goto done;
-    }
-
-    nns_edge_event_destroy (event_h);
 
     nns_edge_data_destroy (data_h);
   }
 
-done:
   conn->running = 0;
   return NULL;
 }
@@ -959,10 +991,10 @@ _nns_edge_tcp_connect (nns_edge_h edge_h, const char *ip, int port)
   nns_edge_handle_s *eh;
   nns_edge_cmd_buf_s cmd_buf;
   nns_edge_conn_s *conn = NULL;
-  nns_edge_event_h event_h = NULL;
   int64_t client_id;
   nns_edge_conn_data_s *conn_data;
   bool done = false;
+  int ret;
 
   eh = (nns_edge_handle_s *) edge_h;
 
@@ -983,27 +1015,18 @@ _nns_edge_tcp_connect (nns_edge_h edge_h, const char *ip, int port)
 
   /* Get server caps string */
   if (NNS_EDGE_ERROR_NONE != _nns_edge_receive (conn, &cmd_buf) ||
-      _NNS_EDGE_CMD_ACCEPTABLE != cmd_buf.cmd) {
+      _NNS_EDGE_CMD_CAPABILITY != cmd_buf.cmd) {
     nns_edge_loge ("Failed to get server src caps.");
     goto error;
   }
 
   /** Send server src and sink capability */
-  if (0 != nns_edge_event_create (NNS_EDGE_EVENT_ACCEPTABLE, &event_h)) {
-    nns_edge_loge ("Failed to create nns edge event.");
-    goto error;
-  }
-
-  nns_edge_event_set_data (event_h, cmd_buf.data.data[0].data,
-      cmd_buf.data.data[0].data_len, NULL);
-
-  if (0 != eh->event_cb (event_h, eh->user_data)) {
+  ret = _nns_edge_invoke_event_cb (eh, NNS_EDGE_EVENT_CAPABILITY,
+      cmd_buf.data.data[0].data, cmd_buf.data.data[0].data_len, g_free);
+  if (ret != NNS_EDGE_ERROR_NONE) {
     nns_edge_loge ("The server is not accepted.");
     goto error;
   }
-
-  nns_edge_event_destroy (event_h);
-  g_free (cmd_buf.data.data[0].data);
 
   /** Get client ID from the server */
   if (NNS_EDGE_ERROR_NONE != _nns_edge_receive (conn, &cmd_buf) ||

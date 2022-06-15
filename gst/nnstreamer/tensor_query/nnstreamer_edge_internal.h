@@ -34,6 +34,8 @@ typedef struct {
   nns_edge_protocol_e protocol;
   char *ip;
   int port;
+
+  /* Edge event callback and user data */
   nns_edge_event_cb event_cb;
   void *user_data;
 

@@ -55,9 +55,9 @@ typedef enum {
 
 typedef enum {
   NNS_EDGE_EVENT_UNKNOWN = 0,
-  NNS_EDGE_EVENT_ACCEPTABLE = 1,
-  NNS_EDGE_EVENT_SET_CAPS = 2,
-  NNS_EDGE_EVENT_NEW_DATA_RECEIVED = 3,
+  NNS_EDGE_EVENT_CAPABILITY,
+  NNS_EDGE_EVENT_NEW_DATA_RECEIVED,
+  NNS_EDGE_EVENT_CALLBACK_RELEASED,
 
   NNS_EDGE_EVENT_CUSTOM = 0x01000000
 } nns_edge_event_e;
@@ -73,6 +73,8 @@ typedef enum {
 
 /**
  * @brief Callback for the nnstreamer edge event.
+ * @note This callback will suspend data stream. Do not spend too much time in the callback.
+ * @return User should return NNS_EDGE_ERROR_NONE if an event is successfully handled.
  */
 typedef int (*nns_edge_event_cb) (nns_edge_event_h event_h, void *user_data);
 
@@ -145,6 +147,23 @@ int nns_edge_get_topic (nns_edge_h edge_h, char **topic);
  * @brief Set nnstreamer edge info.
  */
 int nns_edge_set_info (nns_edge_h edge_h, const char *key, const char *value);
+
+/**
+ * @brief Get the nnstreamer edge event type.
+ */
+int nns_edge_event_get_type (nns_edge_event_h event_h, nns_edge_event_e *event);
+
+/**
+ * @brief Parse edge event (NNS_EDGE_EVENT_NEW_DATA_RECEIVED) and get received data.
+ * @note Caller should release returned edge data using nns_edge_data_destroy().
+ */
+int nns_edge_event_parse_new_data (nns_edge_event_h event_h, nns_edge_data_h *data_h);
+
+/**
+ * @brief Parse edge event (NNS_EDGE_EVENT_CAPABILITY) and get capability string.
+ * @note Caller should release returned string using free().
+ */
+int nns_edge_event_parse_capability (nns_edge_event_h event_h, char **capability);
 
 /**
  * @brief Create nnstreamer edge data.
