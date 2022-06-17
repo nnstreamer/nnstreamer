@@ -306,6 +306,14 @@ TFCore::getTensorTypeFromTF (TF_DataType tfType)
     return _NNS_FLOAT32;
   case TF_DOUBLE:
     return _NNS_FLOAT64;
+  case TF_HALF:
+#ifdef FLOAT16_SUPPORT
+    return _NNS_FLOAT16;
+#else
+    ml_loge
+        ("NNStreamer requires -DFLOAT16_SUPPORT as a build option to enable float16 type. This binary does not have float16 feature enabled; thus, float16 type is not supported in this instance.\n");
+    break;
+#endif
   default:
     /** @todo Support other types */
     break;
@@ -339,6 +347,14 @@ TFCore::getTensorTypeToTF (tensor_type tType)
     return TF_INT64;
   case _NNS_UINT64:
     return TF_UINT64;
+  case _NNS_FLOAT16:
+#ifdef FLOAT16_SUPPORT
+    return TF_HALF;
+#else
+    ml_loge
+        ("NNStreamer requires -DFLOAT16_SUPPORT as a build option to enable float16 type. This binary does not have float16 feature enabled; thus, float16 type is not supported in this instance.\n");
+    break;
+#endif
   case _NNS_FLOAT32:
     return TF_FLOAT;
   case _NNS_FLOAT64:

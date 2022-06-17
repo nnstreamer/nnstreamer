@@ -268,6 +268,10 @@ dvrt_subplugin::getTensorType (gsize index, tensor_type *type)
     res = _NNS_FLOAT64;
     break;
   case NNTensorType_F16:
+#ifdef FLOAT16_SUPPORT
+    res = _NNS_FLOAT16;
+    break;
+#endif
   default:
     nns_logw ("Tensor type not supported: %d", (gint)_type);
     return -EINVAL;

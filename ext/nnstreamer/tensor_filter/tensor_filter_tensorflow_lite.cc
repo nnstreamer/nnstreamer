@@ -592,12 +592,19 @@ TFLiteInterpreter::getTensorType (TfLiteType tfType)
 #endif
   case kTfLiteInt64:
     return _NNS_INT64;
+#ifdef TFLITE_FLOAT16
+  case kTfLiteFloat16:
+#ifdef FLOAT16_SUPPORT
+    return _NNS_FLOAT16;
+#else
+    ml_loge
+        ("NNStreamer requires -DFLOAT16_SUPPORT as a build option to enable float16 type. This binary does not have float16 feature enabled; thus, float16 type is not supported in this instance.\n");
+    break;
+#endif
+#endif
   case kTfLiteString:
 #ifdef TFLITE_COMPLEX64
   case kTfLiteComplex64:
-#endif
-#ifdef TFLITE_FLOAT16
-  case kTfLiteFloat16:
 #endif
   default:
     ml_loge ("Not supported Tensorflow Data Type: [%d].", tfType);

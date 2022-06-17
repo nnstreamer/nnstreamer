@@ -253,6 +253,13 @@ TorchCore::getTensorTypeFromTorch (torch::Dtype torchType)
   case torch::kF64:
     return _NNS_FLOAT64;
   case torch::kF16:
+#ifdef FLOAT16_SUPPORT
+    return _NNS_FLOAT16;
+#else
+    ml_loge
+        ("NNStreamer requires -DFLOAT16_SUPPORT as a build option to enable float16 type. This binary does not have float16 feature enabled; thus, float16 type is not supported in this instance.\n");
+    break;
+#endif
   default:
     break;
   }
@@ -283,6 +290,14 @@ TorchCore::getTensorTypeToTorch (tensor_type tensorType, torch::Dtype *torchType
     break;
   case _NNS_INT64:
     *torchType = torch::kI64;
+    break;
+  case _NNS_FLOAT16:
+#ifdef FLOAT16_SUPPORT
+    *torchType = torch::kF16;
+#else
+    ml_loge
+        ("NNStreamer requires -DFLOAT16_SUPPORT as a build option to enable float16 type. This binary does not have float16 feature enabled; thus, float16 type is not supported in this instance.\n");
+#endif
     break;
   case _NNS_FLOAT32:
     *torchType = torch::kF32;

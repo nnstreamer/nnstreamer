@@ -954,6 +954,10 @@ TEST (nnstreamerFilterLua, dataType01)
 
   for (int i = 0; i < _NNS_END; ++i) {
     tensor_type ttype = (tensor_type) i;
+#ifndef FLOAT16_SUPPORT
+    if (i == _NNS_FLOAT16)
+      continue;
+#endif
     model = g_strdup_printf ("\
     inputTensorsInfo={num=1,dim={{1,2,2,1},},type={'%s',}} \
     outputTensorsInfo={num=1,dim={{1,2,2,1},},type={'%s',}} \

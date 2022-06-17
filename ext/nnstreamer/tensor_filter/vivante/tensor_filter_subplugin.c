@@ -245,11 +245,15 @@ convert_tensortype (unsigned tensor_type)
       return _NNS_INT16;
     case VSI_NN_TYPE_UINT16:
       return _NNS_UINT16;
-  /** Note that the current nnstreamer (tensor_typedef.h) does not support FLOAT16.
-   *  Let's use UINT16 as a workaround.
-   */
     case VSI_NN_TYPE_FLOAT16:
+#ifdef FLOAT16_SUPPORT
+      return _NNS_FLOAT16;
+#else
+      /**
+       *  Let's use UINT16 as a workaround if FLOAT16 is not supported.
+       */
       return _NNS_UINT16;
+#endif
     case VSI_NN_TYPE_FLOAT32:
       return _NNS_FLOAT32;
     default:
@@ -364,7 +368,8 @@ vivante_open (const GstTensorFilterProperties * prop, void **private_data)
     /** Get an input data type: VSI_NN_TYPE_UINT8 (u8) in case of inceptionv3 */
     pdata->input_tensor.info[i].type =
         convert_tensortype (i_tensor->attr.dtype.vx_type);
-    asprintf (&pdata->input_tensor.info[i].name, "%i", pdata->graph->input.tensors[i]);
+    asprintf (&pdata->input_tensor.info[i].name, "%i",
+        pdata->graph->input.tensors[i]);
                                          /** dummy name */
     pdata->input_tensor.num_tensors = pdata->graph->input.num; /** number of tensors */
   }
@@ -390,7 +395,8 @@ vivante_open (const GstTensorFilterProperties * prop, void **private_data)
     /** Get an output data type: VSI_NN_TYPE_FLOAT16 (f16) in case of inceptionv3 */
     pdata->output_tensor.info[i].type =
         convert_tensortype (o_tensor->attr.dtype.vx_type);
-    asprintf (&pdata->output_tensor.info[i].name, "%i", pdata->graph->output.tensors[i]);
+    asprintf (&pdata->output_tensor.info[i].name, "%i",
+        pdata->graph->output.tensors[i]);
                                           /** dummy name */
     pdata->output_tensor.num_tensors = pdata->graph->output.num; /** number of tensors */
   }
