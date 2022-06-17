@@ -461,7 +461,11 @@ ArmNNCore::getGstTensorType (armnn::DataType armType)
     /** Supported with tf, tflite and caffe */
     return _NNS_FLOAT32;
   case armnn::DataType::Float16:
-    ml_logw ("Unsupported armnn datatype Float16.");
+#ifdef FLOAT16_SUPPORT
+    return _NNS_FLOAT16;
+#else
+    ml_logw ("Unsupported armnn datatype Float16. Recompile with -DSUPPORT_FLOAT16 option.");
+#endif
     break;
   case armnn::DataType::QAsymmU8:
     /** Supported with tflite */

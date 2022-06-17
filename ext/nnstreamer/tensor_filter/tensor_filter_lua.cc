@@ -145,6 +145,15 @@ tensor_index (lua_State *L)
     case _NNS_FLOAT32:
       value = (double) ((float *) lt->data)[tidx];
       break;
+    case _NNS_FLOAT16:
+#ifdef FLOAT16_SUPPORT
+      value = (double) ((float16 *) lt->data)[tidx];
+#else
+      nns_loge
+          ("NNStreamer requires -DFLOAT16_SUPPORT as a build option to enable float16 type. This binary does not have float16 feature enabled; thus, float16 type is not supported in this instance.\n");
+      throw std::runtime_error ("Float16 not supported. Recompile with -DFLOAT16_SUPPORT.");
+#endif
+      break;
     case _NNS_INT64:
       value = (double) ((int64_t *) lt->data)[tidx];
       break;
@@ -206,6 +215,15 @@ tensor_newindex (lua_State* L)
       break;
     case _NNS_FLOAT32:
       ((float *) lt->data)[tidx] = (float) value;
+      break;
+    case _NNS_FLOAT16:
+#ifdef FLOAT16_SUPPORT
+      ((float16 *) lt->data)[tidx] = (float16) value;
+#else
+      nns_loge
+          ("NNStreamer requires -DFLOAT16_SUPPORT as a build option to enable float16 type. This binary does not have float16 feature enabled; thus, float16 type is not supported in this instance.\n");
+      throw std::runtime_error ("Float16 not supported. Recompile with -DFLOAT16_SUPPORT.");
+#endif
       break;
     case _NNS_INT64:
       ((int64_t *) lt->data)[tidx] = (int64_t) value;
