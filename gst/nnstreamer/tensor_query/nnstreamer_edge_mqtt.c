@@ -202,6 +202,7 @@ nns_edge_mqtt_connect (nns_edge_h edge_h)
 
   if (MQTTAsync_connect (handle, &options) != MQTTASYNC_SUCCESS) {
     nns_edge_loge ("Failed to connect MQTT.");
+    MQTTAsync_destroy (&handle);
     ret = NNS_EDGE_ERROR_CONNECTION_FAILURE;
     goto error;
   }
