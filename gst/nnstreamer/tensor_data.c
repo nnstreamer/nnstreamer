@@ -208,7 +208,8 @@ gst_tensor_data_typecast (tensor_data_s * td, tensor_type type)
 
   /* do nothing when transform to same type */
   if (td->type != type) {
-    is_float = (td->type == _NNS_FLOAT32 || td->type == _NNS_FLOAT64 || td->type == _NNS_FLOAT16);
+    is_float = (td->type == _NNS_FLOAT32 || td->type == _NNS_FLOAT64
+        || td->type == _NNS_FLOAT16);
 
     switch (type) {
       case _NNS_INT32:
@@ -251,7 +252,8 @@ gst_tensor_data_typecast (tensor_data_s * td, tensor_type type)
 #ifdef FLOAT16_SUPPORT
         td_typecast (td, float16);
 #else
-        nns_loge ("NNStreamer requires -DFLOAT16_SUPPORT as a build option to enable float16 type. This binary does not have float16 feature enabled; thus, float16 type is not supported in this instance.\n");
+        nns_loge
+            ("NNStreamer requires -DFLOAT16_SUPPORT as a build option to enable float16 type. This binary does not have float16 feature enabled; thus, float16 type is not supported in this instance.\n");
         return FALSE;
 #endif
         break;
