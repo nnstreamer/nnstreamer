@@ -71,13 +71,6 @@ typedef enum {
   NNS_EDGE_PROTOCOL_MAX
 } nns_edge_protocol_e;
 
-typedef enum {
-  NNS_EDGE_DATA_TYPE_INFO = 0,
-  NNS_EDGE_DATA_TYPE_RAW_DATA,
-
-  NNS_EDGE_DATA_TYPE_MAX
-} nns_edge_data_type_e;
-
 /**
  * @brief Callback for the nnstreamer edge event.
  */
@@ -156,7 +149,7 @@ int nns_edge_set_info (nns_edge_h edge_h, const char *key, const char *value);
 /**
  * @brief Create nnstreamer edge data.
  */
-int nns_edge_data_create (nns_edge_data_type_e dtype, nns_edge_data_h *data_h);
+int nns_edge_data_create (nns_edge_data_h *data_h);
 
 /**
  * @brief Destroy nnstreamer edge data.
@@ -164,9 +157,40 @@ int nns_edge_data_create (nns_edge_data_type_e dtype, nns_edge_data_h *data_h);
 int nns_edge_data_destroy (nns_edge_data_h data_h);
 
 /**
+ * @brief Validate edge data handle.
+ */
+int nns_edge_data_is_valid (nns_edge_data_h data_h);
+
+/**
+ * @brief Copy edge data and return new handle.
+ */
+int nns_edge_data_copy (nns_edge_data_h data_h, nns_edge_data_h *new_data_h);
+
+/**
  * @brief Add raw data into nnstreamer edge data.
  */
 int nns_edge_data_add (nns_edge_data_h data_h, void *data, size_t data_len, nns_edge_data_destroy_cb destroy_cb);
+
+/**
+ * @brief Get the nnstreamer edge data.
+ * @note DO NOT release returned data. You should copy the data to another buffer if the returned data is necessary.
+ */
+int nns_edge_data_get (nns_edge_data_h data_h, unsigned int index, void **data, size_t *data_len);
+
+/**
+ * @brief Get the number of nnstreamer edge data.
+ */
+int nns_edge_data_get_count (nns_edge_data_h data_h, unsigned int *count);
+
+/**
+ * @brief Set the information of edge data.
+ */
+int nns_edge_data_set_info (nns_edge_data_h data_h, const char *key, const char *value);
+
+/**
+ * @brief Get the information of edge data. Caller should release the returned value using free().
+ */
+int nns_edge_data_get_info (nns_edge_data_h data_h, const char *key, char **value);
 
 #ifdef __cplusplus
 }

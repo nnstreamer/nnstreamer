@@ -824,6 +824,8 @@ _message_handler (void *thread_data)
   nns_edge_conn_s *conn;
   int64_t client_id;
   nns_edge_cmd_buf_s cmd_buf;
+  char *val;
+  int ret;
   nns_edge_event_h event_h = NULL;
 
   if (!_tdata) {
@@ -842,14 +844,8 @@ _message_handler (void *thread_data)
   }
 
   while (conn->running) {
-    guint i;
-    nns_edge_data_s *data =
-        (nns_edge_data_s *) malloc (sizeof (nns_edge_data_s));
-
-    if (!data) {
-      nns_edge_loge ("Failed to allocate edge data.");
-      break;
-    }
+    nns_edge_data_h data_h;
+    unsigned int i;
 
     /* Validate edge handle */
     if (!NNS_EDGE_MAGIC_IS_VALID (eh)) {
@@ -875,11 +871,20 @@ _message_handler (void *thread_data)
       continue;
     }
 
-    data->num = cmd_buf.data.num;
-    data->client_id = client_id;
-    for (i = 0; i < data->num; i++) {
-      data->data[i].data = cmd_buf.data.data[i].data;
-      data->data[i].data_len = cmd_buf.data.data[i].data_len;
+    ret = nns_edge_data_create (&data_h);
+    if (ret != NNS_EDGE_ERROR_NONE) {
+      nns_edge_loge ("Failed to create data handle in msg thread.");
+      continue;
+    }
+
+    /* Set client ID in edge data */
+    val = g_strdup_printf ("%ld", (long int) client_id);
+    nns_edge_data_set_info (data_h, "client_id", val);
+    g_free (val);
+
+    for (i = 0; i < cmd_buf.data.num; i++) {
+      nns_edge_data_add (data_h, cmd_buf.data.data[i].data,
+          cmd_buf.data.data[i].data_len, g_free);
     }
 
     if (0 != nns_edge_event_create (NNS_EDGE_EVENT_NEW_DATA_RECEIVED, &event_h)) {
@@ -887,7 +892,7 @@ _message_handler (void *thread_data)
       goto done;
     }
 
-    nns_edge_event_set_data (event_h, data, sizeof (data), NULL);
+    nns_edge_event_set_data (event_h, data_h, sizeof (data_h), NULL);
 
     if (0 != eh->event_cb (event_h, eh->user_data)) {
       nns_edge_loge ("The server is not accepted.");
@@ -896,6 +901,8 @@ _message_handler (void *thread_data)
     }
 
     nns_edge_event_destroy (event_h);
+
+    nns_edge_data_destroy (data_h);
   }
 
 done:
@@ -1149,13 +1156,15 @@ int
 nns_edge_publish (nns_edge_h edge_h, nns_edge_data_h data_h)
 {
   nns_edge_handle_s *eh;
-  nns_edge_data_s *ed;
 
   eh = (nns_edge_handle_s *) edge_h;
-  ed = (nns_edge_data_s *) data_h;
-
   if (!eh) {
     nns_edge_loge ("Invalid param, given edge handle is null.");
+    return NNS_EDGE_ERROR_INVALID_PARAMETER;
+  }
+
+  if (nns_edge_data_is_valid (data_h) != NNS_EDGE_ERROR_NONE) {
+    nns_edge_loge ("Invalid param, given edge data is invalid.");
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
@@ -1163,12 +1172,6 @@ nns_edge_publish (nns_edge_h edge_h, nns_edge_data_h data_h)
 
   if (!NNS_EDGE_MAGIC_IS_VALID (eh)) {
     nns_edge_loge ("Invalid param, given edge handle is invalid.");
-    nns_edge_unlock (eh);
-    return NNS_EDGE_ERROR_INVALID_PARAMETER;
-  }
-
-  if (!NNS_EDGE_MAGIC_IS_VALID (ed)) {
-    nns_edge_loge ("Invalid param, given edge data is invalid.");
     nns_edge_unlock (eh);
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
@@ -1186,7 +1189,6 @@ int
 nns_edge_request (nns_edge_h edge_h, nns_edge_data_h data_h, void *user_data)
 {
   nns_edge_handle_s *eh;
-  nns_edge_data_s *ed;
   nns_edge_cmd_buf_s cmd_buf;
   nns_edge_conn_data_s *conn_data;
   int ret;
@@ -1194,10 +1196,13 @@ nns_edge_request (nns_edge_h edge_h, nns_edge_data_h data_h, void *user_data)
 
   UNUSED (user_data);
   eh = (nns_edge_handle_s *) edge_h;
-  ed = (nns_edge_data_s *) data_h;
-
   if (!eh) {
     nns_edge_loge ("Invalid param, given edge handle is null.");
+    return NNS_EDGE_ERROR_INVALID_PARAMETER;
+  }
+
+  if (nns_edge_data_is_valid (data_h) != NNS_EDGE_ERROR_NONE) {
+    nns_edge_loge ("Invalid param, given edge data is invalid.");
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
@@ -1205,12 +1210,6 @@ nns_edge_request (nns_edge_h edge_h, nns_edge_data_h data_h, void *user_data)
 
   if (!NNS_EDGE_MAGIC_IS_VALID (eh)) {
     nns_edge_loge ("Invalid param, given edge handle is invalid.");
-    nns_edge_unlock (eh);
-    return NNS_EDGE_ERROR_INVALID_PARAMETER;
-  }
-
-  if (!NNS_EDGE_MAGIC_IS_VALID (ed)) {
-    nns_edge_loge ("Invalid param, given edge data is invalid.");
     nns_edge_unlock (eh);
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
@@ -1223,10 +1222,11 @@ nns_edge_request (nns_edge_h edge_h, nns_edge_data_h data_h, void *user_data)
   }
 
   cmd_buf.cmd = _NNS_EDGE_CMD_TRANSFER_DATA;
-  cmd_buf.data.num = ed->num;
-  for (i = 0; i < ed->num; i++) {
-    cmd_buf.data.data[i].data = ed->data[i].data;
-    cmd_buf.data.data[i].data_len = ed->data[i].data_len;
+
+  nns_edge_data_get_count (data_h, &cmd_buf.data.num);
+  for (i = 0; i < cmd_buf.data.num; i++) {
+    nns_edge_data_get (data_h, i, &cmd_buf.data.data[i].data,
+        &cmd_buf.data.data[i].data_len);
   }
 
   ret = _nns_edge_send (conn_data->sink_conn, &cmd_buf);
@@ -1242,14 +1242,16 @@ int
 nns_edge_subscribe (nns_edge_h edge_h, nns_edge_data_h data_h, void *user_data)
 {
   nns_edge_handle_s *eh;
-  nns_edge_data_s *ed;
 
   UNUSED (user_data);
   eh = (nns_edge_handle_s *) edge_h;
-  ed = (nns_edge_data_s *) data_h;
-
   if (!eh) {
     nns_edge_loge ("Invalid param, given edge handle is null.");
+    return NNS_EDGE_ERROR_INVALID_PARAMETER;
+  }
+
+  if (nns_edge_data_is_valid (data_h) != NNS_EDGE_ERROR_NONE) {
+    nns_edge_loge ("Invalid param, given edge data is invalid.");
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
@@ -1257,12 +1259,6 @@ nns_edge_subscribe (nns_edge_h edge_h, nns_edge_data_h data_h, void *user_data)
 
   if (!NNS_EDGE_MAGIC_IS_VALID (eh)) {
     nns_edge_loge ("Invalid param, given edge handle is invalid.");
-    nns_edge_unlock (eh);
-    return NNS_EDGE_ERROR_INVALID_PARAMETER;
-  }
-
-  if (!NNS_EDGE_MAGIC_IS_VALID (ed)) {
-    nns_edge_loge ("Invalid param, given edge data is invalid.");
     nns_edge_unlock (eh);
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
@@ -1389,15 +1385,20 @@ int
 nns_edge_respond (nns_edge_h edge_h, nns_edge_data_h data_h)
 {
   nns_edge_handle_s *eh;
-  nns_edge_data_s *ed;
   nns_edge_conn_data_s *conn_data;
   nns_edge_cmd_buf_s cmd_buf;
+  char *val;
   int ret;
   unsigned int i;
 
   eh = (nns_edge_handle_s *) edge_h;
   if (!eh) {
     nns_edge_loge ("Invalid param, given edge handle is null.");
+    return NNS_EDGE_ERROR_INVALID_PARAMETER;
+  }
+
+  if (nns_edge_data_is_valid (data_h) != NNS_EDGE_ERROR_NONE) {
+    nns_edge_loge ("Invalid param, given edge data is invalid.");
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
@@ -1409,20 +1410,28 @@ nns_edge_respond (nns_edge_h edge_h, nns_edge_data_h data_h)
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
-  if (!data_h) {
-    nns_edge_loge ("Invalid param, data handle (data_h) should not be null.");
+  ret = nns_edge_data_get_info (data_h, "client_id", &val);
+  if (ret != NNS_EDGE_ERROR_NONE) {
+    nns_edge_loge ("Cannot find client ID in edge data.");
     nns_edge_unlock (eh);
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
-  ed = (nns_edge_data_s *) data_h;
+  conn_data = _nns_edge_get_conn (g_ascii_strtoll (val, NULL, 10));
+  g_free (val);
 
-  conn_data = _nns_edge_get_conn (ed->client_id);
+  if (!conn_data) {
+    nns_edge_loge ("Cannot find connection, invalid client ID.");
+    nns_edge_unlock (eh);
+    return NNS_EDGE_ERROR_INVALID_PARAMETER;
+  }
+
   cmd_buf.cmd = _NNS_EDGE_CMD_TRANSFER_DATA;
-  cmd_buf.data.num = ed->num;
-  for (i = 0; i < ed->num; i++) {
-    cmd_buf.data.data[i].data = ed->data[i].data;
-    cmd_buf.data.data[i].data_len = ed->data[i].data_len;
+
+  nns_edge_data_get_count (data_h, &cmd_buf.data.num);
+  for (i = 0; i < cmd_buf.data.num; i++) {
+    nns_edge_data_get (data_h, i, &cmd_buf.data.data[i].data,
+        &cmd_buf.data.data[i].data_len);
   }
 
   ret = _nns_edge_send (conn_data->sink_conn, &cmd_buf);
