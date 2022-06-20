@@ -293,7 +293,7 @@ BuildRequires:	snpe-devel
 BuildRequires:	npu-engine-devel
 %endif
 
-# Unit Testing Uses SSAT (hhtps://github.com/myungjoo/SSAT.git)
+# Unit Testing Uses SSAT (https://github.com/myungjoo/SSAT.git)
 %if 0%{?unit_test}
 BuildRequires:	ssat >= 1.1.0
 %endif
@@ -345,7 +345,7 @@ Summary:	NNStreamer TensorFlow Support
 Requires:	nnstreamer = %{version}-%{release}
 Requires:	tensorflow
 %description tensorflow
-NNStreamer's tensor_fliter subplugin of TensorFlow.
+NNStreamer's tensor_filter subplugin of TensorFlow.
 It uses C-API of tensorflow, which is not yet stable as of 1.1x.
 Thus, the user needs to check the version of Tensorflow with the
 Tensorflow used for building this package.
@@ -358,7 +358,7 @@ Summary:	NNStreamer TensorFlow Lite Support
 Requires:	nnstreamer = %{version}-%{release}
 # tensorflow-lite provides .a file and it's embedded into the subplugin. No dep to tflite.
 %description tensorflow-lite
-NNStreamer's tensor_fliter subplugin of TensorFlow Lite.
+NNStreamer's tensor_filter subplugin of TensorFlow Lite.
 %endif
 
 # for tensorflow2-lite
@@ -368,7 +368,7 @@ Summary:	NNStreamer TensorFlow2 Lite Support
 Requires:	nnstreamer = %{version}-%{release}
 # tensorflow2-lite provides .a file and it's embedded into the subplugin. No dep to tflite.
 %description tensorflow2-lite
-NNStreamer's tensor_fliter subplugin of TensorFlow2 Lite.
+NNStreamer's tensor_filter subplugin of TensorFlow2 Lite.
 %endif
 
 %if 0%{?python3_support}
@@ -391,10 +391,10 @@ NNStreamer's tensor_filter subplugin of Arm NN Inference Engine.
 # Support vivante subplugin
 %if 0%{?vivante_support}
 %package vivante
-Summary:    NNStreamer subplugin for Verisilion's Vivante
+Summary:    NNStreamer subplugin for Verisilicon's Vivante
 Requires:   nnstreamer = %{version}-%{release}
 %description vivante
-NNStreamer filter subplugin for Verisicon Vivante.
+NNStreamer filter subplugin for Verisilicon Vivante.
 %define enable_vivante -Denable-vivante=true
 %else
 %define enable_vivante -Denable-vivante=false
@@ -430,7 +430,7 @@ Summary:	NNStreamer PyTorch Support
 Requires:	nnstreamer = %{version}-%{release}
 Requires:	pytorch
 %description pytorch
-NNStreamer's tensor_fliter subplugin of pytorch
+NNStreamer's tensor_filter subplugin of pytorch
 %endif
 
 # for caffe2
@@ -440,7 +440,7 @@ Summary:	NNStreamer caffe2 Support
 Requires:	nnstreamer = %{version}-%{release}
 Requires:	pytorch
 %description caffe2
-NNStreamer's tensor_fliter subplugin of caffe2
+NNStreamer's tensor_filter subplugin of caffe2
 %endif
 
 # for lua
@@ -450,7 +450,7 @@ Summary:	NNStreamer lua Support
 Requires:	nnstreamer = %{version}-%{release}
 Requires:	lua
 %description lua
-NNStreamer's tensor_fliter subplugin of lua
+NNStreamer's tensor_filter subplugin of lua
 %endif
 
 %if 0%{?tvm_support}
@@ -469,7 +469,7 @@ Summary:	NNStreamer snpe Support
 Requires:	nnstreamer = %{version}-%{release}
 Requires:	snpe
 %description snpe
-NNStreamer's tensor_fliter subplugin of snpe
+NNStreamer's tensor_filter subplugin of snpe
 %endif
 
 # for trix-engone
@@ -554,7 +554,7 @@ Summary:	NNStreamer Intel Movidius NCSDK2 support
 Requires:	nnstreamer = %{version}-%{release}
 Group:		Machine Learning/ML Framework
 %description	ncsdk2
-NNStreamer's tensor_fliter subplugin of Intel Movidius Neural Compute stick SDK2.
+NNStreamer's tensor_filter subplugin of Intel Movidius Neural Compute stick SDK2.
 %endif # mvncsdk2_support
 
 %if 0%{openvino_support}
@@ -564,7 +564,7 @@ Requires:	nnstreamer = %{version}-%{release}
 Requires:	openvino
 Group:		Machine Learning/ML Framework
 %description	openvino
-NNStreamer's tensor_fliter subplugin for OpenVino support.
+NNStreamer's tensor_filter subplugin for OpenVino support.
 %endif # openvino_support
 
 # Add Tizen's sensor framework API integration
