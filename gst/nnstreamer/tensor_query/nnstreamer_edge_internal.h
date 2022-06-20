@@ -39,8 +39,8 @@ typedef struct {
 
   bool is_server;
   int64_t client_id;
-  gchar *caps_str;
-  gchar *recv_ip;
+  char *caps_str;
+  char *recv_ip;
   int recv_port;
 
   GSocketListener *listener;
