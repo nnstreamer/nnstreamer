@@ -792,6 +792,19 @@ Provides additional gstreamer plugins for nnstreamer pipelines
 %endif
 %endif
 
+%define fp16_enabled 0
+%ifarch %arm aarch64
+%define fp16_enabled 1
+# x64/x86 requires GCC >= 12 for fp16 support.
+%endif
+
+## Float16 support
+%if 0%{?fp16_enabled}
+%define fp16_support -Denable-float16=true
+%else
+%define fp16_support -Denable-float16=false
+%endif
+
 %define fw_priority -Dframework-priority-nb=%{fw_priority_nb} -Dframework-priority-bin=%{fw_priority_bin}
 
 %prep
@@ -824,6 +837,7 @@ meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir
 	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_openvino} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} \
 	%{enable_flatbuf} %{enable_trix_engine} \
 	%{enable_tizen_sensor} %{enable_mqtt} %{enable_lua} %{enable_tvm} %{enable_test} %{enable_test_coverage} %{install_test} \
+        %{fp16_support} \
 	build
 
 ninja -C build %{?_smp_mflags}
@@ -871,6 +885,10 @@ export NNSTREAMER_CONVERTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor
     export SKIP_QEMU_ARM_INCOMPATIBLE_TESTS=0
     %endif
 
+%if 0%{?fp16_enabled}
+    ## If fp16 tests fail, stop the build!
+    export FLOAT16_SUPPORTED=1
+%endif
     ssat -n -p=1 --summary summary.txt -cn _n
     popd
 
