@@ -114,10 +114,39 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequenc
         demux.src_1 ! queue ! filesink location=\"testcase_apply_1.typecast.log\" buffer-mode=unbuffered sync=false async=false \
         demux.src_2 ! queue ! filesink location=\"testcase_apply_2.typecast.log\" buffer-mode=unbuffered sync=false async=false" 11 0 0 $PERFORMANCE
 python3 checkResult.py typecast testcase_apply.direct.log testcase_apply_0.typecast.log uint8 1 B float32 4 f
-testResult $? 10 "apply test comparison 11-1" 0 1
+testResult $? 11-1 "apply test comparison 11-1" 0 1
 callCompareTest testcase_apply.direct.log testcase_apply_1.typecast.log 11-2 "apply test comparison 1-1" 1 0
 python3 checkResult.py typecast testcase_apply.direct.log testcase_apply_2.typecast.log uint8 1 B float32 4 f
-testResult $? 10 "apply test comparison 11-2" 0 1
+testResult $? 11-2 "apply test comparison 11-2" 0 1
+
+
+F16MAYFAIL=1
+if [ '${FLOAT16_SUPPORTED}' == '1' ]; then F16MAYFAIL=0; fi
+
+## Float16 tests : Test with small stream (12, 13)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tensor_transform mode=arithmetic option=div:8 ! tensor_transform mode=typecast option=float16 ! tee name=t ! queue ! filesink location=\"testcase12.noop.log\" sync=true t. ! queue ! tensor_transform mode=arithmetic option=mul:1.0,add:1.0,add:-1.0 ! filesink location=\"testcase12.ops.log\" sync=true t. ! queue ! tensor_transform mode=arithmetic option=add:0.0001 ! filesink location=\"testcase13.ops.log\" sync=true t. ! queue ! tensor_transform mode=arithmetic option=add:0.1 ! filesink location=\"testcase14.ops.log\" sync=true" 12 $F16MAYFAIL 0 $PERFORMANCE
+
+## need python >= 3.6
+python3 checkResult.py typecast testcase12.noop.log testcase12.ops.log float16 2 e float16 2 e
+testResult $? 12 "float16 values * 1.0 + 1.0 - 1.0 == original test" $F16MAYFAIL 1
+
+python3 checkResult.py typecast testcase12.noop.log testcase13.ops.log float16 2 e float16 2 e
+testResult $? 13 "float16 values + 0.0001 < original + 0.001 test" $F16MAYFAIL 1
+
+python3 checkResult.py typecast testcase12.noop.log testcase14.ops.log float16 2 e float16 2 e
+val=$?
+if [ $val -gt 0 ]; then val=1; fi
+testResult $val 14 "float16 values + 0.1 >= original + 0.01 test" $F16MAYFAIL 0
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! video/x-raw,format=RGB,width=4,height=4 ! tensor_converter ! other/tensors,num_tensors=1,types=float16 ! fakesink" 15_n 0 1 $PERFORMANCE
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! video/x-raw,format=RGB,width=4,height=4 ! tensor_converter ! tensor_transform mode=typecast option=float32 ! other/tensors,num_tensors=1,types=float16 ! fakesink" 16_n 0 1 $PERFORMANCE
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! video/x-raw,format=RGB,width=4,height=4 ! tensor_converter ! tensor_transform mode=typecast option=float64 ! other/tensors,num_tensors=1,types=float16 ! fakesink" 17_n 0 1 $PERFORMANCE
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! video/x-raw,format=RGB,width=4,height=4 ! tensor_converter ! tensor_transform mode=typecast option=float16 !  other/tensors,num_tensors=1,types=float32 ! fakesink" 18_n 0 1 $PERFORMANCE
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! video/x-raw,format=RGB,width=4,height=4 ! tensor_converter ! tensor_transform mode=typecast option=float16 ! other/tensors,num_tensors=1,types=uint8 ! fakesink" 19_n 0 1 $PERFORMANCE
 
 rm *.log *.bmp *.png *.golden *.raw *.dat
 
