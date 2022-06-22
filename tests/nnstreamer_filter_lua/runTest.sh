@@ -132,6 +132,61 @@ end
 # Negative test for wrong Lua script. Should use --[[ COMMENT --]] for comment
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=299,height=299,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tensor_filter framework=lua model=\"${PASSTHROUGH_INVALID_SCRIPT_COMMENT_FORMAT}\" ! fakesink" 4_n 0 1 $PERFORMANCE
 
+PASSTHROUGH_SCRIPT_F16="
+inputTensorsInfo = {
+    num = 1,
+    dim = {{3, 299, 299, 1},},
+    type = {'float16',} --[[ USE single quote to declare string --]]
+}
+
+outputTensorsInfo = {
+    num = 1,
+    dim = {{3, 299, 299, 1},},
+    type = {'float16',} --[[ USE single quote to declare string --]]
+}
+
+function nnstreamer_invoke()
+    input = input_tensor(1)
+    output = output_tensor(1)
+    for i=1,3*299*299 do
+        output[i] = input[i] --[[ copy input into output --]]
+    end
+end
+"
+PASSTHROUGH_SCRIPT_F32="
+inputTensorsInfo = {
+    num = 1,
+    dim = {{3, 299, 299, 1},},
+    type = {'float32',} --[[ USE single quote to declare string --]]
+}
+
+outputTensorsInfo = {
+    num = 1,
+    dim = {{3, 299, 299, 1},},
+    type = {'float32',} --[[ USE single quote to declare string --]]
+}
+
+function nnstreamer_invoke()
+    input = input_tensor(1)
+    output = output_tensor(1)
+    for i=1,3*299*299 do
+        output[i] = input[i] --[[ copy input into output --]]
+    end
+end
+"
+
+# LUA-Float16
+F16MAYFAIL=1
+if [ '${FLOAT16_SUPPORTED}' == '1' ]; then F16MAYFAIL=0; fi
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=299,height=299,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tensor_transform mode=typecast option=float16 ! tensor_filter framework=lua model=\"${PASSTHROUGH_SCRIPT_F16}\" ! fakesink" 5 $F16MAYFAIL 0 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=299,height=299,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tensor_transform mode=typecast option=float32 ! tensor_filter framework=lua model=\"${PASSTHROUGH_SCRIPT_F32}\" ! fakesink" 6 0 0 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=299,height=299,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tensor_transform mode=typecast option=float16 ! tensor_filter framework=lua model=\"${PASSTHROUGH_SCRIPT_F32}\" ! fakesink" 7_n 0 1 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=299,height=299,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tensor_transform mode=typecast option=float32 ! tensor_filter framework=lua model=\"${PASSTHROUGH_SCRIPT_F16}\" ! fakesink" 8_n 0 1 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=299,height=299,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tensor_transform mode=typecast option=float16 ! tensor_filter framework=lua model=\"${PASSTHROUGH_SCRIPT}\" ! fakesink" 9_n 0 1 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=299,height=299,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tensor_transform mode=typecast option=float32 ! tensor_filter framework=lua model=\"${PASSTHROUGH_SCRIPT_F16}\" ! fakesink" 10_n 0 1 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=299,height=299,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tensor_transform mode=typecast option=float64 ! tensor_filter framework=lua model=\"${PASSTHROUGH_SCRIPT_F16}\" ! fakesink" 11_n 0 1 $PERFORMANCE
+
 rm *.log
 
 report
