@@ -18,19 +18,6 @@
 #define _STR_NULL(str) ((str) ? (str) : "(NULL)")
 
 /**
- * @brief mutex for tensor-query server table.
- */
-G_LOCK_DEFINE_STATIC (_TABLE_LOCK);
-
-/**
- * @brief Table for manage handle.
- */
-static GHashTable *_table = NULL;
-
-static void init_edge_internal (void) __attribute__((constructor));
-static void fini_edge_internal (void) __attribute__((destructor));
-
-/**
  * @brief enum for nnstreamer edge query commands.
  */
 typedef enum
@@ -147,28 +134,34 @@ error:
 
 /**
  * @brief Get nnstreamer-edge connection data.
+ * @note This function should be called with handle lock.
  */
 static nns_edge_conn_data_s *
-_nns_edge_get_conn (int64_t client_id)
+_nns_edge_get_conn (nns_edge_handle_s * eh, int64_t client_id)
 {
-  nns_edge_conn_data_s *data = NULL;
+  if (!NNS_EDGE_MAGIC_IS_VALID (eh)) {
+    nns_edge_loge ("Invalid param, given edge handle is invalid.");
+    return NULL;
+  }
 
-  G_LOCK (_TABLE_LOCK);
-  data = g_hash_table_lookup (_table, GUINT_TO_POINTER (client_id));
-  G_UNLOCK (_TABLE_LOCK);
-
-  return data;
+  return g_hash_table_lookup (eh->conn_table, GUINT_TO_POINTER (client_id));
 }
 
 /**
  * @brief Get nnstreamer-edge connection data.
+ * @note This function should be called with handle lock.
  */
 static nns_edge_conn_data_s *
-_nns_edge_add_conn (int64_t client_id)
+_nns_edge_add_conn (nns_edge_handle_s * eh, int64_t client_id)
 {
   nns_edge_conn_data_s *data = NULL;
 
-  data = _nns_edge_get_conn (client_id);
+  if (!NNS_EDGE_MAGIC_IS_VALID (eh)) {
+    nns_edge_loge ("Invalid param, given edge handle is invalid.");
+    return NULL;
+  }
+
+  data = g_hash_table_lookup (eh->conn_table, GUINT_TO_POINTER (client_id));
 
   if (NULL == data) {
     data = (nns_edge_conn_data_s *) malloc (sizeof (nns_edge_conn_data_s));
@@ -177,66 +170,29 @@ _nns_edge_add_conn (int64_t client_id)
       return NULL;
     }
 
+    memset (data, 0, sizeof (nns_edge_conn_data_s));
     data->id = client_id;
 
-    G_LOCK (_TABLE_LOCK);
-    g_hash_table_insert (_table, GUINT_TO_POINTER (client_id), data);
-    G_UNLOCK (_TABLE_LOCK);
+    g_hash_table_insert (eh->conn_table, GUINT_TO_POINTER (client_id), data);
   }
 
   return data;
 }
 
 /**
- * @brief Remove nnstreamer-edge connection data.
+ * @brief Remove nnstreamer-edge connection data. This will be called when removing connection data from hash table.
  */
 static void
-_nns_edge_remove_conn (int64_t client_id)
+_nns_edge_remove_conn (gpointer data)
 {
-  nns_edge_conn_data_s *data = _nns_edge_get_conn (client_id);
-  if (NULL == data) {
-    return;
+  nns_edge_conn_data_s *cdata = (nns_edge_conn_data_s *) data;
+
+  if (cdata) {
+    _nns_edge_close_connection (cdata->src_conn);
+    _nns_edge_close_connection (cdata->sink_conn);
+
+    g_free (cdata);
   }
-
-  G_LOCK (_TABLE_LOCK);
-  g_hash_table_remove (_table, GUINT_TO_POINTER (data->id));
-  G_UNLOCK (_TABLE_LOCK);
-
-  g_free (data);
-}
-
-/**
- * @brief Disconnect all connections in edge handle.
- * @note This function should be called with handle lock.
- */
-static void
-_close_all_connection_in_handle (nns_edge_handle_s * eh)
-{
-  nns_edge_conn_data_s *conn_data;
-  GList *conn_list, *l;
-
-  if (!eh) {
-    nns_edge_loge ("Invalid param, given edge handle is null.");
-    return;
-  }
-
-  /* Remove client IDs from global table. */
-  G_LOCK (_TABLE_LOCK);
-  /** @todo Do not remove all connections in global table later. */
-  conn_list = g_hash_table_get_keys (_table);
-  G_UNLOCK (_TABLE_LOCK);
-
-  for (l = conn_list; l != NULL; l = g_list_next (l)) {
-    intptr_t client_id = (intptr_t) l->data;
-
-    conn_data = _nns_edge_get_conn (client_id);
-    _nns_edge_close_connection (conn_data->sink_conn);
-    _nns_edge_close_connection (conn_data->src_conn);
-
-    _nns_edge_remove_conn (client_id);
-  }
-
-  g_list_free (conn_list);
 }
 
 /**
@@ -347,6 +303,10 @@ nns_edge_create_handle (const char *id, const char *topic, nns_edge_h * edge_h)
   eh->recv_port = 0;
   eh->caps_str = NULL;
 
+  /* Connection data for each client ID. */
+  eh->conn_table = g_hash_table_new_full (g_direct_hash, g_direct_equal, NULL,
+      _nns_edge_remove_conn);
+
   *edge_h = eh;
   return NNS_EDGE_ERROR_NONE;
 }
@@ -441,8 +401,10 @@ accept_socket_async_cb (GObject * source, GAsyncResult * result,
     goto error;
   }
 
-  conn_data = _nns_edge_add_conn (client_id);
+  conn_data = _nns_edge_add_conn (eh, client_id);
   if (conn_data) {
+    /* Close old connection and set new one. */
+    _nns_edge_close_connection (conn_data->src_conn);
     conn_data->src_conn = conn;
     done = true;
   }
@@ -569,8 +531,6 @@ nns_edge_release_handle (nns_edge_h edge_h)
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
-  _close_all_connection_in_handle (eh);
-
   eh->magic = NNS_EDGE_MAGIC_DEAD;
   eh->event_cb = NULL;
   eh->user_data = NULL;
@@ -578,6 +538,7 @@ nns_edge_release_handle (nns_edge_h edge_h)
   g_free (eh->topic);
   g_free (eh->ip);
   g_free (eh->recv_ip);
+  g_hash_table_destroy (eh->conn_table);
 
   nns_edge_unlock (eh);
   nns_edge_lock_destroy (eh);
@@ -1052,8 +1013,10 @@ _nns_edge_tcp_connect (nns_edge_h edge_h, const char *ip, int port)
     goto error;
   }
 
-  conn_data = _nns_edge_add_conn (client_id);
+  conn_data = _nns_edge_add_conn (eh, client_id);
   if (conn_data) {
+    /* Close old connection and set new one. */
+    _nns_edge_close_connection (conn_data->sink_conn);
     conn_data->sink_conn = conn;
     done = true;
   }
@@ -1126,6 +1089,11 @@ _nns_edge_close_connection (nns_edge_conn_s * conn)
   if (!conn)
     return false;
 
+  if (conn->running) {
+    conn->running = 0;
+    pthread_join (conn->msg_thread, NULL);
+  }
+
   if (conn->socket) {
     if (!g_socket_close (conn->socket, &err)) {
       nns_edge_loge ("Failed to close socket: %s", err->message);
@@ -1141,6 +1109,8 @@ _nns_edge_close_connection (nns_edge_conn_s * conn)
     conn->cancellable = NULL;
   }
 
+  g_free (conn->ip);
+  g_free (conn);
   return true;
 }
 
@@ -1166,7 +1136,7 @@ nns_edge_disconnect (nns_edge_h edge_h)
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
-  _close_all_connection_in_handle (eh);
+  g_hash_table_remove_all (eh->conn_table);
 
   nns_edge_unlock (eh);
   return NNS_EDGE_ERROR_NONE;
@@ -1237,7 +1207,7 @@ nns_edge_request (nns_edge_h edge_h, nns_edge_data_h data_h, void *user_data)
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
-  conn_data = _nns_edge_get_conn (eh->client_id);
+  conn_data = _nns_edge_get_conn (eh, eh->client_id);
   if (!_nns_edge_check_connection (conn_data->sink_conn)) {
     nns_edge_loge ("Failed to request, connection failure.");
     nns_edge_unlock (eh);
@@ -1440,7 +1410,7 @@ nns_edge_respond (nns_edge_h edge_h, nns_edge_data_h data_h)
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
-  conn_data = _nns_edge_get_conn (g_ascii_strtoll (val, NULL, 10));
+  conn_data = _nns_edge_get_conn (eh, g_ascii_strtoll (val, NULL, 10));
   g_free (val);
 
   if (!conn_data) {
@@ -1461,29 +1431,4 @@ nns_edge_respond (nns_edge_h edge_h, nns_edge_data_h data_h)
 
   nns_edge_unlock (eh);
   return ret;
-}
-
-/**
- * @brief Initialize the nnstreamer-edge internal.
- */
-static void
-init_edge_internal (void)
-{
-  G_LOCK (_TABLE_LOCK);
-  g_assert (NULL == _table);
-  _table = g_hash_table_new (g_direct_hash, g_direct_equal);
-  G_UNLOCK (_TABLE_LOCK);
-}
-
-/**
- * @brief Destruct the nnstreamer-edge internal.
- */
-static void
-fini_edge_internal (void)
-{
-  G_LOCK (_TABLE_LOCK);
-  g_assert (_table);
-  g_hash_table_destroy (_table);
-  _table = NULL;
-  G_UNLOCK (_TABLE_LOCK);
 }

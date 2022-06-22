@@ -44,6 +44,7 @@ typedef struct {
   char *caps_str;
   char *recv_ip;
   int recv_port;
+  GHashTable *conn_table;
 
   GSocketListener *listener;
   GCancellable *cancellable;
