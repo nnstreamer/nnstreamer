@@ -207,6 +207,8 @@ nns_edge_data_copy (nns_edge_data_h data_h, nns_edge_data_h * new_data_h)
 {
   nns_edge_data_s *ed;
   nns_edge_data_s *copied;
+  GHashTableIter iter;
+  gpointer key, value;
   unsigned int i;
   int ret;
 
@@ -237,7 +239,10 @@ nns_edge_data_copy (nns_edge_data_h data_h, nns_edge_data_h * new_data_h)
     copied->data[i].destroy_cb = g_free;
   }
 
-  copied->info_table = g_hash_table_ref (ed->info_table);
+  g_hash_table_iter_init (&iter, ed->info_table);
+  while (g_hash_table_iter_next (&iter, &key, &value)) {
+    g_hash_table_insert (copied->info_table, g_strdup (key), g_strdup (value));
+  }
 
   return NNS_EDGE_ERROR_NONE;
 }
