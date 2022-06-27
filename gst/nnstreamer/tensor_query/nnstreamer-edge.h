@@ -2,7 +2,7 @@
 /**
  * Copyright (C) 2022 Gichan Jang <gichan2.jang@samsung.com>
  *
- * @file   nnstreamer_edge.h
+ * @file   nnstreamer-edge.h
  * @date   25 Mar 2022
  * @brief  Common library to support communication among devices.
  * @see    https://github.com/nnstreamer/nnstreamer

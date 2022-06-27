@@ -16,7 +16,7 @@
 
 #include <glib.h> /** @todo remove glib */
 #include <pthread.h>
-#include "nnstreamer_edge.h"
+#include "nnstreamer-edge.h"
 
 #ifdef __cplusplus
 extern "C" {

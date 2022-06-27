@@ -18,7 +18,7 @@
 extern "C" {
 #endif /* __cplusplus */
 
-#include "nnstreamer_edge.h"
+#include "nnstreamer-edge.h"
 #include <gio/gio.h>
 #include <netinet/tcp.h>
 #include <netinet/in.h>
