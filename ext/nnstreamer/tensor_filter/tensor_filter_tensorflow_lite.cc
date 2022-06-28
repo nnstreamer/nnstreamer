@@ -549,14 +549,14 @@ TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate_e)
   delegate = getDelegate ();
   if (delegate != nullptr) {
     if (interpreter->ModifyGraphWithDelegate (delegate) != kTfLiteOk) {
-      ml_loge ("Failed to allocate tensors with delegate\n");
+      ml_loge ("Failed to apply delegate\n");
       return -2;
     }
-  } else {
-    if (interpreter->AllocateTensors () != kTfLiteOk) {
-      ml_loge ("Failed to allocate tensors\n");
-      return -2;
-    }
+  }
+
+  if (interpreter->AllocateTensors () != kTfLiteOk) {
+    ml_loge ("Failed to allocate tensors\n");
+    return -2;
   }
 
 #if (DBG)
