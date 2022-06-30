@@ -20,17 +20,14 @@ endif
 if grpc_support_is_available
   if protobuf_support_is_available
     # gRPC/Protobuf
-    prog_which = find_program('which')
-    grpc_cpp_plugin_path = run_command(prog_which, 'grpc_cpp_plugin', check : true).stdout().strip()
-    if grpc_cpp_plugin_path == ''
-      error('cannot find the path of grpc_cpp_plugin.')
-    endif
-
+    prog_grpc_cpp_plugin = find_program('grpc_cpp_plugin', required : true)
     grpc_pb_gen = generator(pb_comp,
         output: ['@BASENAME@.grpc.pb.h', '@BASENAME@.grpc.pb.cc'],
         arguments : [
           '--proto_path=@CURRENT_SOURCE_DIR@/include',
-          '--plugin=protoc-gen-grpc=' + grpc_cpp_plugin_path,
+          #FIXME: external_program.path() will be deprecated in 0.55.0
+          #      use external_program.full_path() instead.
+          '--plugin=protoc-gen-grpc=' + prog_grpc_cpp_plugin.path(),
           '--grpc_out=@BUILD_DIR@',
           '@INPUT@'
         ]
