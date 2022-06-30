@@ -27,6 +27,10 @@ fi
 
 # Check gRPC availability
 PATH_TO_PLUGIN=${NNSTREAMER_BUILD_ROOT_PATH}
+if [[ -z $PATH_TO_PLUGIN ]]; then
+  PATH_TO_PLUGIN="../../build"
+fi
+
 if [[ -d $PATH_TO_PLUGIN ]]; then
     ini_path="${PATH_TO_PLUGIN}/ext/nnstreamer"
     if [[ -d ${ini_path} ]]; then
