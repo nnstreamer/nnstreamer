@@ -12,6 +12,7 @@
  * @bug     No known bugs except for NYI items
  */
 
+#include "nnstreamer_conf.h"
 #include "nnstreamer_grpc_common.h"
 
 #include <gmodule.h>
@@ -21,9 +22,9 @@
 
 #include <grpcpp/health_check_service_interface.h>
 
-#define NNS_GRPC_PROTOBUF_NAME   "libnnstreamer_grpc_protobuf.so"
-#define NNS_GRPC_FLATBUF_NAME    "libnnstreamer_grpc_flatbuf.so"
-#define NNS_GRPC_CREATE_INSTANCE "create_instance"
+static constexpr const char *NNS_GRPC_PROTOBUF_NAME = "libnnstreamer_grpc_protobuf";
+static constexpr const char *NNS_GRPC_FLATBUF_NAME = "libnnstreamer_grpc_flatbuf";
+static constexpr const char *NNS_GRPC_CREATE_INSTANCE = "create_instance";
 
 using namespace grpc;
 
@@ -31,21 +32,24 @@ using namespace grpc;
 NNStreamerRPC *
 NNStreamerRPC::createInstance (const grpc_config * config)
 {
-  const gchar * name = NULL;
+ gchar * name = NULL;
 
   if (config->idl == GRPC_IDL_PROTOBUF)
-    name = NNS_GRPC_PROTOBUF_NAME;
+    name = g_strdup_printf ("%s%s", NNS_GRPC_PROTOBUF_NAME,
+        NNSTREAMER_SO_FILE_EXTENSION);
   else if (config->idl == GRPC_IDL_FLATBUF)
-    name = NNS_GRPC_FLATBUF_NAME;
+    name = g_strdup_printf ("%s%s", NNS_GRPC_FLATBUF_NAME,
+        NNSTREAMER_SO_FILE_EXTENSION);
 
   if (name == NULL) {
     ml_loge ("Unsupported IDL detected: %d\n", config->idl);
     return NULL;
   }
 
-  GModule * module = g_module_open (name, G_MODULE_BIND_LAZY);
+  GModule *module = g_module_open (name, G_MODULE_BIND_LAZY);
   if (!module) {
     ml_loge ("Error opening %s\n", name);
+    g_free (name);
     return NULL;
   }
 
@@ -55,6 +59,7 @@ NNStreamerRPC::createInstance (const grpc_config * config)
   if (!g_module_symbol (module, NNS_GRPC_CREATE_INSTANCE,
         (gpointer *) &create_instance)) {
     ml_loge ("Error loading create_instance: %s\n", g_module_error ());
+    g_free (name);
     g_module_close (module);
     return NULL;
   }
@@ -62,10 +67,12 @@ NNStreamerRPC::createInstance (const grpc_config * config)
   NNStreamerRPC * instance = (NNStreamerRPC *) create_instance (config);
   if (!instance) {
     ml_loge ("Error creating an instance\n");
+    g_free (name);
     g_module_close (module);
     return NULL;
   }
 
+  g_free (name);
   instance->setModuleHandle (module);
   return instance;
 }
