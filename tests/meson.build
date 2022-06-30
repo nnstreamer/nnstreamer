@@ -18,8 +18,10 @@ if libpng_dep.found()
   custom_target('copy-bmp2png',
     input: b2p,
     output: 'b2p',
-    command: [copy, '@INPUT@', meson.current_source_dir()],
-    build_by_default: true
+    depends: b2p,
+    command: [copy, '@INPUT@', '@CURRENT_SOURCE_DIR@'],
+    build_by_default: true,
+    build_always_stale: true,
   )
 endif
 
