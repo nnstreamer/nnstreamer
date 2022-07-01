@@ -20,11 +20,13 @@ testInit $1
 
 # Skip query test temporarily because of ppa build failure.
 # Related issue: https://github.com/nnstreamer/nnstreamer/issues/3657
-ID=$(grep -oP '(?<=^ID=).+' /etc/os-release | tr -d '"')
-if [ "$ID" = "ubuntu" ]; then
-    echo "Skip query test for ppa build"
-    report
-    exit
+if [ -f /etc/os-release ]; then
+    ID=$(cat /etc/os-release | grep ^ID= | cut -d '=' -f 2)
+    if [ "$ID" = "ubuntu" ]; then
+      echo "Skip query test for ppa build"
+      report
+      exit
+    fi
 fi
 
 PATH_TO_PLUGIN="../../build"
@@ -45,7 +47,7 @@ function waitformarker {
   for i in $(seq 1 ${TIMEOUT_SEC})
   do
     if [ -f 'marker.log' ]; then
-      markersize=$(stat -c%s marker.log)
+      markersize=$(${StatCmd_GetSize} marker.log)
       if [ $markersize -ge 48 ]; then
         testResult 1 $1 "$2" 0 0
         return 0
