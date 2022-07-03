@@ -23,8 +23,8 @@
 #include <unistd.h>
 
 #include "../unittest_util.h"
-#include "../gst/nnstreamer/tensor_sparse/tensor_sparse_util.h"
-#include "../gst/nnstreamer/tensor_transform/tensor_transform.h"
+#include "../gst/nnstreamer/elements/gsttensor_sparseutil.h"
+#include "../gst/nnstreamer/elements/gsttensor_transform.h"
 
 #ifdef ENABLE_TENSORFLOW_LITE
 #define TEST_REQUIRE_TFLITE(Case, Name) TEST (Case, Name)
@@ -3440,7 +3440,7 @@ TEST (testTensorConverter, flexToStaticInvalidBuffer2_n)
 }
 
 #ifdef HAVE_ORC
-#include "transform-orc.h"
+#include "nnstreamer-orc.h"
 
 /**
  * @brief Test for tensor_transform orc functions (add constant value)

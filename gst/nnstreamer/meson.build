@@ -64,23 +64,9 @@ endforeach
 
 # Add plugins
 nnst_plugins = [
-  'tensor_aggregator',
-  'tensor_converter',
-  'tensor_crop',
-  'tensor_decoder',
-  'tensor_demux',
-  'tensor_merge',
-  'tensor_mux',
-  'tensor_sink',
-  'tensor_source',
-  'tensor_sparse',
-  'tensor_split',
-  'tensor_transform',
   'tensor_filter',
-  'tensor_repo',
-  'tensor_if',
-  'tensor_rate',
-  'tensor_query'
+  'tensor_query',
+  'elements'
 ]
 
 foreach p : nnst_plugins

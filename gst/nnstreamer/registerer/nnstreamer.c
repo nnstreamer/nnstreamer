@@ -47,26 +47,28 @@
 
 #include <gst/gst.h>
 
-#include <tensor_aggregator/tensor_aggregator.h>
-#include <tensor_converter/tensor_converter.h>
-#include <tensor_crop/tensor_crop.h>
-#include <tensor_decoder/tensordec.h>
-#include <tensor_demux/gsttensordemux.h>
-#include <tensor_filter/tensor_filter.h>
-#include <tensor_merge/gsttensormerge.h>
-#include <tensor_mux/gsttensormux.h>
-#include <tensor_repo/tensor_reposink.h>
-#include <tensor_repo/tensor_reposrc.h>
-#include <tensor_sink/tensor_sink.h>
+#include <elements/gsttensor_aggregator.h>
+#include <elements/gsttensor_converter.h>
+#include <elements/gsttensor_crop.h>
+#include <elements/gsttensor_decoder.h>
+#include <elements/gsttensor_demux.h>
+#include <elements/gsttensor_if.h>
+#include <elements/gsttensor_merge.h>
+#include <elements/gsttensor_mux.h>
+#include <elements/gsttensor_rate.h>
+#include <elements/gsttensor_reposink.h>
+#include <elements/gsttensor_reposrc.h>
+#include <elements/gsttensor_sink.h>
+#include <elements/gsttensor_sparsedec.h>
+#include <elements/gsttensor_sparseenc.h>
+#include <elements/gsttensor_split.h>
+#include <elements/gsttensor_transform.h>
+
 #if defined(__gnu_linux__) && !defined(__ANDROID__)
-#include <tensor_source/tensor_src_iio.h>
+#include <elements/gsttensor_srciio.h>
 #endif /* __gnu_linux__ && !__ANDROID__ */
-#include <tensor_sparse/tensor_sparse_enc.h>
-#include <tensor_sparse/tensor_sparse_dec.h>
-#include <tensor_split/gsttensorsplit.h>
-#include <tensor_transform/tensor_transform.h>
-#include <tensor_if/gsttensorif.h>
-#include <tensor_rate/gsttensorrate.h>
+
+#include <tensor_filter/tensor_filter.h>
 #include <tensor_query/tensor_query_serversrc.h>
 #include <tensor_query/tensor_query_serversink.h>
 #include <tensor_query/tensor_query_client.h>

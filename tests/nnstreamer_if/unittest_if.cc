@@ -14,7 +14,7 @@
 #include <gst/gst.h>
 #include <tensor_common.h>
 #include <unittest_util.h>
-#include "../gst/nnstreamer/tensor_if/gsttensorif.h"
+#include "../gst/nnstreamer/elements/gsttensor_if.h"
 
 #define TEST_TIMEOUT_MS (20000U)
 
