@@ -417,10 +417,6 @@ features = {
     'target': 'npu-engine',
     'project_args': { 'ENABLE_TRIX_ENGINE' : 1 }
   },
-  'aitt-support': {
-    'target': 'aitt',
-    'project_args': { 'ENABLE_AITT' : 1 }
-  },
   'nnstreamer-edge-support': {
     'target': 'nnstreamer-edge',
     'project_args': { 'ENABLE_NNSTREAMER_EDGE': 1 }
