@@ -712,7 +712,6 @@ TFLiteInterpreter::setInputTensorsInfo (const GstTensorsInfo *info)
   for (unsigned int tensor_idx = 0; tensor_idx < info->num_tensors; ++tensor_idx) {
     tensor_type tf_type;
     const GstTensorInfo *tensor_info;
-    int input_rank;
 
     tensor_info = &info->info[tensor_idx];
 
@@ -723,35 +722,30 @@ TFLiteInterpreter::setInputTensorsInfo (const GstTensorsInfo *info)
 
     /**
      * Given that the rank intended by the user cannot be exactly determined,
-     * iterate over all possible ranks starting from MAX rank to the actual rank
+     * iterate over all possible ranks starting from MIN rank to the actual rank
      * of the dimension array. In case of none of these ranks work, return error
      */
-    input_rank = gst_tensor_info_get_rank (tensor_info);
-    for (int rank = NNS_TENSOR_RANK_LIMIT; rank >= input_rank; rank--) {
-      std::vector<int> dims (rank);
+    for (int rank = 0 ; rank < NNS_TENSOR_RANK_LIMIT ; rank++) {
+      std::vector<int> dims (rank+1);
       /* the order of dimension is reversed at CAPS negotiation */
-      for (int idx = 0; idx < rank; ++idx) {
+      for (int idx = rank ; idx >= 0; idx--) {
         /** check overflow when storing uint32_t in int container */
-        if (tensor_info->dimension[rank - idx - 1] > INT_MAX)
+        if (tensor_info->dimension[idx] > INT_MAX)
           return -ERANGE;
-        dims[idx] = tensor_info->dimension[rank - idx - 1];
+        dims[rank-idx] = tensor_info->dimension[idx];
       }
-
       status = interpreter->ResizeInputTensor (input_idx_list[tensor_idx], dims);
-      if (status != kTfLiteOk)
-        continue;
-
-      break;
+      if (status == kTfLiteOk){
+        status = interpreter->AllocateTensors ();
+        if(status == kTfLiteOk)
+          break;
+      }
     }
 
     /** return error when none of the ranks worked */
     if (status != kTfLiteOk)
       return -EPERM;
   }
-
-  status = interpreter->AllocateTensors ();
-  if (status != kTfLiteOk)
-    return -EPERM;
 
   return 0;
 }
