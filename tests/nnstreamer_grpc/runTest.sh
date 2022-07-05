@@ -77,7 +77,7 @@ function waitformarker {
   for i in $(seq 1 ${TIMEOUT_SEC})
   do
     if [ -f 'marker.log' ]; then
-      markersize=$(stat -c%s marker.log)
+      markersize=$(${StatCmd_GetSize} marker.log)
       if [ $markersize -ge 48 ]; then
         testResult 1 $1 "$2" 0 0
         return 0
