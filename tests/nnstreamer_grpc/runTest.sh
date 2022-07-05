@@ -34,7 +34,7 @@ fi
 if [[ -d $PATH_TO_PLUGIN ]]; then
     ini_path="${PATH_TO_PLUGIN}/ext/nnstreamer"
     if [[ -d ${ini_path} ]]; then
-        check=$(ls ${ini_path} | grep nnstreamer-grpc.so)
+        check=$(ls ${ini_path} | grep nnstreamer-grpc.${SO_EXT})
         if [[ ! $check ]]; then
             echo "Cannot find nnstreamer-grpc shared lib"
             report
@@ -52,12 +52,12 @@ TEST_FLATBUF=1
 if [[ -d $PATH_TO_PLUGIN_EXTRA ]]; then
   ini_path="${PATH_TO_PLUGIN_EXTRA}"
   if [[ -d ${ini_path} ]]; then
-    check=$(ls ${ini_path} | grep nnstreamer_grpc_protobuf.so)
+    check=$(ls ${ini_path} | grep nnstreamer_grpc_protobuf.${SO_EXT})
     if [[ ! $check ]]; then
       echo "Cannot find nnstreamer_grpc_protobuf shared lib"
       TEST_PROTOBUF=0
     fi
-    check=$(ls ${ini_path} | grep nnstreamer_grpc_flatbuf.so)
+    check=$(ls ${ini_path} | grep nnstreamer_grpc_flatbuf.${SO_EXT})
     if [[ ! $check ]]; then
       echo "Cannot find nnstreamer_grpc_flatbuf shared lib"
       TEST_FLATBUF=0
