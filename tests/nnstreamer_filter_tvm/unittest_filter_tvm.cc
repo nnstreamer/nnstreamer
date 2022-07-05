@@ -12,6 +12,7 @@
 #include <gtest/gtest.h>
 #include <glib.h>
 #include <gst/gst.h>
+#include <nnstreamer_conf.h>
 #include <unittest_util.h>
 
 #include <tensor_common.h>
@@ -29,76 +30,127 @@
 #endif
 
 /**
- * @brief Set tensor filter properties
+ * @brief Test Fixture class for a tensor-filter TVM functionality
  */
-static void
-_set_filter_prop (GstTensorFilterProperties *prop, const gchar *name, const gchar **models)
+class NNStreamerFilterTVMTest : public ::testing::Test
 {
-  memset (prop, 0, sizeof (GstTensorFilterProperties));
-  prop->fwname = name;
-  prop->fw_opened = 0;
-  prop->model_files = models;
-  prop->num_models = g_strv_length ((gchar **) models);
-}
+protected:
+  const GstTensorFilterFramework *sp;
+  const gchar *wrong_model_files[2];
+  const gchar *proper_model_files[2];
+  gchar *model_file;
+  gchar *pipeline;
+  GstElement *gstpipe;
+  GstElement *sink_handle;
+  GstTensorMemory input;
+  GstTensorMemory output;
 
-/**
- * @brief internal function to get model filename
- */
-static void
-_get_model_file (gchar ** model_file)
-{
-  const gchar *src_root = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
-  gchar *root_path = src_root ? g_strdup (src_root) : g_get_current_dir ();
-  gchar *model_name = g_strdup_printf ("tvm_add_one_%s.so_", ARCH);
+  /**
+   * @brief Set the model file for testing
+   */
+  gchar *SetModelFile ()
+  {
+    const gchar *src_root = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+    g_autofree gchar *root_path = src_root ? g_strdup (src_root) : g_get_current_dir ();
+    g_autofree gchar *model_name = g_strdup_printf ("tvm_add_one_%s%s_", ARCH, NNSTREAMER_SO_FILE_EXTENSION);
 
-  *model_file = g_build_filename (
-      root_path, "tests", "test_models", "models", model_name, NULL);
-  g_free (model_name);
-  g_free (root_path);
-}
-
-/**
- * @brief Signal to validate new output data
- */
-static void
-_check_output (GstElement *element, GstBuffer *buffer, gpointer user_data)
-{
-  GstMemory *mem_res;
-  GstMapInfo info_res;
-  gboolean mapped;
-  gfloat *output;
-  UNUSED (element);
-  UNUSED (user_data);
-
-  mem_res = gst_buffer_peek_memory (buffer, 0);
-  mapped = gst_memory_map (mem_res, &info_res, GST_MAP_READ);
-  ASSERT_TRUE (mapped);
-  output = (gfloat *) info_res.data;
-
-  for (guint i = 0; i < 10; i++) {
-    EXPECT_EQ (1, output[i]);
+    return g_build_filename (root_path, "tests", "test_models", "models", model_name, NULL);
   }
 
-  gst_memory_unmap (mem_res, &info_res);
-}
+public:
+  /**
+   * @brief Construct a new NNStreamerFilterTVMTest object
+   */
+  NNStreamerFilterTVMTest ()
+    : sp(nullptr), model_file(nullptr), pipeline(nullptr), gstpipe(nullptr), sink_handle(nullptr)
+  {
+  }
+
+  /**
+   * @brief Set tensor filter properties
+   */
+  void SetFilterProperty (GstTensorFilterProperties *prop, const gchar **models)
+  {
+    memset (prop, 0, sizeof (GstTensorFilterProperties));
+    prop->fwname = "tvm";
+    prop->fw_opened = 0;
+    prop->model_files = models;
+    prop->num_models = g_strv_length ((gchar **) models);
+  }
+
+  /**
+   * @brief SetUp method for each test case
+   */
+  void SetUp () override
+  {
+    wrong_model_files[0] = "temp.so";
+    wrong_model_files[1] = NULL;
+
+    model_file = SetModelFile();
+    proper_model_files[0] = model_file;
+    proper_model_files[1] = NULL;
+
+    input.size = output.size = 0;
+    input.data = nullptr;
+    output.data = nullptr;
+
+    sp = nnstreamer_filter_find ("tvm");
+  }
+
+  /**
+   * @brief TearDown method for each test case
+   */
+  void TearDown () override
+  {
+    g_free (model_file);
+    g_free (pipeline);
+
+    g_clear_object (&gstpipe);
+    g_clear_object (&sink_handle);
+
+    g_free (input.data);
+    g_free (output.data);
+  }
+
+  /**
+   * @brief Signal handler to validate new output data
+   */
+  static void
+  CheckOutput (GstElement *element, GstBuffer *buffer, gpointer user_data)
+  {
+    GstMemory *mem_res;
+    GstMapInfo info_res;
+    gboolean mapped;
+    gfloat *output;
+    UNUSED (element);
+    UNUSED (user_data);
+
+    mem_res = gst_buffer_peek_memory (buffer, 0);
+    mapped = gst_memory_map (mem_res, &info_res, GST_MAP_READ);
+    ASSERT_TRUE (mapped);
+    output = (gfloat *) info_res.data;
+
+    for (guint i = 0; i < 10; i++) {
+      EXPECT_EQ (1, output[i]);
+    }
+
+    gst_memory_unmap (mem_res, &info_res);
+  }
+};
 
 /**
  * @brief Negative test case with wrong model file
  */
-TEST (nnstreamerFilterTvm, openClose00_n)
+TEST_F (NNStreamerFilterTVMTest, openClose00_n)
 {
   int ret;
   void *data = NULL;
-  const gchar *model_files[] = {
-    "temp.so",
-    NULL,
-  };
   GstTensorFilterProperties prop;
 
-  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("tvm");
   EXPECT_NE (sp, nullptr);
 
-  _set_filter_prop (&prop, "tvm", model_files);
+  /* Test */
+  SetFilterProperty (&prop, wrong_model_files);
   ret = sp->open (&prop, &data);
   EXPECT_NE (ret, 0);
 }
@@ -106,23 +158,17 @@ TEST (nnstreamerFilterTvm, openClose00_n)
 /**
  * @brief Positive case with open/close
  */
-TEST (nnstreamerFilterTvm, openClose00)
+TEST_F (NNStreamerFilterTVMTest, openClose00)
 {
   int ret;
   void *data = NULL;
-  gchar *model_file;
   GstTensorFilterProperties prop;
-  _get_model_file (&model_file);
+
   ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
-
-  const gchar *model_files[] = {
-    model_file,
-    NULL,
-  };
-
-  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("tvm");
   EXPECT_NE (sp, nullptr);
-  _set_filter_prop (&prop, "tvm", model_files);
+
+  /* Test */
+  SetFilterProperty (&prop, proper_model_files);
 
   /* close before open */
   sp->close (&prop, &data);
@@ -133,35 +179,26 @@ TEST (nnstreamerFilterTvm, openClose00)
 
   /* double close */
   sp->close (&prop, &data);
-  g_free (model_file);
 }
 
 /**
  * @brief Positive case with successful getModelInfo
  */
-TEST (nnstreamerFilterTvm, getModelInfo00)
+TEST_F (NNStreamerFilterTVMTest, getModelInfo00)
 {
   int ret;
   void *data = NULL;
-  gchar *model_file;
   GstTensorFilterProperties prop;
-  _get_model_file (&model_file);
+
   ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
-
-  const gchar *model_files[] = {
-    model_file,
-    NULL,
-  };
-
-  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("tvm");
   EXPECT_NE (sp, nullptr);
-  _set_filter_prop (&prop, "tvm", model_files);
+  SetFilterProperty (&prop, proper_model_files);
 
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);
 
+  /* Test */
   GstTensorsInfo in_info, out_info;
-
   ret = sp->getModelInfo (NULL, NULL, data, GET_IN_OUT_INFO, &in_info, &out_info);
   EXPECT_EQ (ret, 0);
 
@@ -181,134 +218,97 @@ TEST (nnstreamerFilterTvm, getModelInfo00)
   sp->close (&prop, &data);
   gst_tensors_info_free (&in_info);
   gst_tensors_info_free (&out_info);
-  g_free (model_file);
 }
 
 /**
  * @brief Negative case calling getModelInfo before open
  */
-TEST (nnstreamerFilterTvm, getModelInfo00_n)
+TEST_F (NNStreamerFilterTVMTest, getModelInfo00_n)
 {
   int ret;
   void *data = NULL;
-  gchar *model_file;
   GstTensorFilterProperties prop;
-  _get_model_file (&model_file);
-  ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
-
-  const gchar *model_files[] = {
-    model_file,
-    NULL,
-  };
-
-  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("tvm");
-  EXPECT_NE (sp, nullptr);
-
   GstTensorsInfo in_info, out_info;
 
+  ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
+  EXPECT_NE (sp, nullptr);
+
+  /* Test */
   ret = sp->getModelInfo (NULL, NULL, data, SET_INPUT_INFO, &in_info, &out_info);
   EXPECT_NE (ret, 0);
-  _set_filter_prop (&prop, "tvm", model_files);
+  SetFilterProperty (&prop, proper_model_files);
 
   sp->close (&prop, &data);
-  g_free (model_file);
 }
 
 /**
  * @brief Negative case with invalid argument
  */
-TEST (nnstreamerFilterTvm, getModelInfo01_n)
+TEST_F (NNStreamerFilterTVMTest, getModelInfo01_n)
 {
   int ret;
   void *data = NULL;
-  gchar *model_file;
   GstTensorFilterProperties prop;
-  _get_model_file (&model_file);
+  GstTensorsInfo in_info, out_info;
+
   ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
-
-  const gchar *model_files[] = {
-    model_file,
-    NULL,
-  };
-
-  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("tvm");
   EXPECT_NE (sp, nullptr);
-  _set_filter_prop (&prop, "tvm", model_files);
+  SetFilterProperty (&prop, proper_model_files);
 
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);
   sp->close (&prop, &data);
 
-  GstTensorsInfo in_info, out_info;
-
-  /* not supported */
+  /* Test: not supported */
   ret = sp->getModelInfo (NULL, NULL, data, SET_INPUT_INFO, &in_info, &out_info);
   EXPECT_NE (ret, 0);
 
   sp->close (&prop, &data);
-  g_free (model_file);
 }
 
 /**
  * @brief Negative test case with invoke before open
  */
-TEST (nnstreamerFilterTvm, invoke00_n)
+TEST_F (NNStreamerFilterTVMTest, invoke00_n)
 {
   int ret;
   void *data = NULL;
-  GstTensorMemory input, output;
-  gchar *model_file;
   GstTensorFilterProperties prop;
-  _get_model_file (&model_file);
-  const gchar *model_files[] = {
-    model_file,
-    NULL,
-  };
 
   output.size = input.size = sizeof (float) * 1;
-
   input.data = g_malloc (input.size);
   output.data = g_malloc (output.size);
 
-  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("tvm");
+  ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
   EXPECT_NE (sp, nullptr);
-  _set_filter_prop (&prop, "tvm", model_files);
+  SetFilterProperty (&prop, proper_model_files);
 
+  /* Test */
   ret = sp->invoke (NULL, NULL, data, &input, &output);
   EXPECT_NE (ret, 0);
 
-  g_free (model_file);
-  g_free (input.data);
-  g_free (output.data);
   sp->close (&prop, &data);
 }
 
 /**
  * @brief Negative case with invalid input/output
  */
-TEST (nnstreamerFilterTvm, invoke01_n)
+TEST_F (NNStreamerFilterTVMTest, invoke01_n)
 {
   int ret;
   void *data = NULL;
-  GstTensorMemory input, output;
-  gchar *model_file;
   GstTensorFilterProperties prop;
-  _get_model_file (&model_file);
-  const gchar *model_files[] = {
-    model_file,
-    NULL,
-  };
 
-  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("tvm");
+  ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
   EXPECT_NE (sp, nullptr);
-  _set_filter_prop (&prop, "tvm", model_files);
+  SetFilterProperty (&prop, proper_model_files);
 
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);
   EXPECT_NE (data, nullptr);
 
+  /* Test */
   output.size = input.size = sizeof (float);
-
   input.data = g_malloc (input.size);
   output.data = g_malloc (output.size);
   ((float *) input.data)[0] = 10.0;
@@ -317,31 +317,21 @@ TEST (nnstreamerFilterTvm, invoke01_n)
   EXPECT_DEATH (sp->invoke (NULL, NULL, data, NULL, &output), "");
   EXPECT_DEATH (sp->invoke (NULL, NULL, data, &input, NULL), "");
 
-  g_free (model_file);
-  g_free (input.data);
-  g_free (output.data);
   sp->close (&prop, &data);
 }
 
 /**
  * @brief Negative test case with invalid private_data
  */
-TEST (nnstreamerFilterTvm, invoke02_n)
+TEST_F (NNStreamerFilterTVMTest, invoke02_n)
 {
   int ret;
   void *data = NULL;
-  GstTensorMemory input, output;
-  gchar *model_file;
   GstTensorFilterProperties prop;
-  _get_model_file (&model_file);
-  const gchar *model_files[] = {
-    model_file,
-    NULL,
-  };
 
-  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("tvm");
+  ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
   EXPECT_NE (sp, nullptr);
-  _set_filter_prop (&prop, "tvm", model_files);
+  SetFilterProperty (&prop, proper_model_files);
 
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);
@@ -349,37 +339,21 @@ TEST (nnstreamerFilterTvm, invoke02_n)
 
   output.size = input.size = sizeof (float) * 1;
 
-  input.data = g_malloc (input.size);
-  output.data = g_malloc (output.size);
-  ((float *) input.data)[0] = 10.0;
-
-  /* unsucessful invoke */
+  /* Test: unsucessful invoke */
   ret = sp->invoke (NULL, NULL, NULL, &input, &output);
   EXPECT_NE (ret, 0);
 
-  g_free (model_file);
-  g_free (input.data);
-  g_free (output.data);
   sp->close (&prop, &data);
 }
 
 /**
  * @brief Positive case with invoke for tvm model
  */
-TEST (nnstreamerFilterTvm, invoke00)
+TEST_F (NNStreamerFilterTVMTest, invoke00)
 {
   int ret;
   void *data = NULL;
-  GstTensorMemory input, output;
-  gchar *model_file;
   GstTensorFilterProperties prop;
-  _get_model_file (&model_file);
-  ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
-
-  const gchar *model_files[] = {
-    model_file,
-    NULL,
-  };
 
   output.size = input.size = sizeof (float) * 3 * 640 * 480 * 1;
 
@@ -388,9 +362,9 @@ TEST (nnstreamerFilterTvm, invoke00)
   output.data = g_malloc (output.size);
   memset (input.data, 0, input.size);
 
-  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("tvm");
+  ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
   EXPECT_NE (sp, nullptr);
-  _set_filter_prop (&prop, "tvm", model_files);
+  SetFilterProperty (&prop, proper_model_files);
 
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);
@@ -400,146 +374,92 @@ TEST (nnstreamerFilterTvm, invoke00)
   EXPECT_EQ (ret, 0);
   EXPECT_EQ (static_cast<float *> (output.data)[0], (float) (1.0));
 
-  g_free (model_file);
-  g_free (input.data);
-  g_free (output.data);
   sp->close (&prop, &data);
 }
 
 /**
  * @brief Positive case to launch gst pipeline
  */
-TEST (nnstreamerFilterTvm, launch00)
+TEST_F (NNStreamerFilterTVMTest, launch00)
 {
-  gchar *pipeline;
-  GstElement *gstpipe;
-  GError *err = NULL;
-  gchar *model_file;
-  _get_model_file (&model_file);
-
   /* create a nnstreamer pipeline */
   pipeline = g_strdup_printf ("videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=480,height=640 ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-255.0 ! tensor_filter framework=tvm model=\"%s\" custom=device:CPU,num_input_tensors:1 ! tensor_sink name=sink",
       model_file);
 
-  gstpipe = gst_parse_launch (pipeline, &err);
+  gstpipe = gst_parse_launch (pipeline, nullptr);
   EXPECT_NE (gstpipe, nullptr);
 
-  GstElement *sink_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "sink");
+  sink_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "sink");
   EXPECT_NE (sink_handle, nullptr);
-  g_signal_connect (sink_handle, "new-data", (GCallback) _check_output, NULL);
+  g_signal_connect (sink_handle, "new-data", (GCallback) NNStreamerFilterTVMTest::CheckOutput, NULL);
 
+  /* Test */
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
-
-  gst_object_unref (sink_handle);
-  gst_object_unref (gstpipe);
-  g_free (pipeline);
-  g_free (model_file);
 }
 
 /**
  * @brief Negative case with invalid model path
  */
-TEST (nnstreamerFilterTvm, launch00_n)
+TEST_F (NNStreamerFilterTVMTest, launch00_n)
 {
-  gchar *pipeline;
-  GstElement *gstpipe;
-  GError *err = NULL;
-
   /* model file does not exist */
-  gchar *model_file = g_build_filename ("temp.so", NULL);
-
-  /* create a nnstreamer pipeline */
   pipeline = g_strdup_printf ("videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=480,height=640 ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-255.0 ! tensor_filter framework=tvm model=\"%s\" ! fakesink",
-      model_file);
+      "temp.so");
 
-  gstpipe = gst_parse_launch (pipeline, &err);
+  gstpipe = gst_parse_launch (pipeline, nullptr);
   EXPECT_NE (gstpipe, nullptr);
 
   EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
-
-  gst_object_unref (gstpipe);
-  g_free (pipeline);
-  g_free (model_file);
 }
 
 /**
  * @brief Negative case with incorrect tensor meta
  */
-TEST (nnstreamerFilterTvm, launch01_n)
+TEST_F (NNStreamerFilterTVMTest, launch01_n)
 {
-  gchar *pipeline;
-  GstElement *gstpipe;
-  GError *err = NULL;
-  gchar *model_file;
-  _get_model_file (&model_file);
-
-  /* dimension does not match with the model */
+  /* Test: dimension does not match with the model */
   pipeline = g_strdup_printf ("videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=320,height=480 ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-255.0 ! tensor_filter framework=tvm model=\"%s\" ! fakesink",
       model_file);
 
-  gstpipe = gst_parse_launch (pipeline, &err);
+  gstpipe = gst_parse_launch (pipeline, nullptr);
   EXPECT_NE (gstpipe, nullptr);
 
   EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
-
-  gst_object_unref (gstpipe);
-  g_free (pipeline);
-  g_free (model_file);
 }
 
 /**
  * @brief Negative case with invalid custom property (num_input_tensors)
  */
-TEST (nnstreamerFilterTvm, launchInvalidInputNum_n)
+TEST_F (NNStreamerFilterTVMTest, launchInvalidInputNum_n)
 {
-  gchar *pipeline;
-  GstElement *gstpipe;
-  GError *err = NULL;
-  gchar *model_file;
-  _get_model_file (&model_file);
-
-  /* invalid custom property num_input_tensors should be bigger than 0 */
+  /* Test: invalid custom property num_input_tensors should be bigger than 0 */
   pipeline = g_strdup_printf ("videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=480,height=640 ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-255.0 ! tensor_filter framework=tvm model=\"%s\" custom=num_input_tensors:0 ! fakesink",
       model_file);
 
-  gstpipe = gst_parse_launch (pipeline, &err);
+  gstpipe = gst_parse_launch (pipeline, nullptr);
   EXPECT_NE (gstpipe, nullptr);
 
   EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
-
-  gst_object_unref (gstpipe);
-  g_free (pipeline);
-  g_free (model_file);
 }
 
 /**
  * @brief Negative case with invalid custom property (device)
  */
-TEST (nnstreamerFilterTvm, launchInvalidDevice_n)
+TEST_F (NNStreamerFilterTVMTest, launchInvalidDevice_n)
 {
-  gchar *pipeline;
-  GstElement *gstpipe;
-  GError *err = NULL;
-  gchar *model_file;
-  _get_model_file (&model_file);
-
-  /* invalid custom property: invalid device */
+  /* Test: invalid custom property: invalid device */
   pipeline = g_strdup_printf ("videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=480,height=640 ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-255.0 ! tensor_filter framework=tvm model=\"%s\" custom=device:INVALID_DEVICE ! fakesink",
       model_file);
 
-  gstpipe = gst_parse_launch (pipeline, &err);
+  gstpipe = gst_parse_launch (pipeline, nullptr);
   EXPECT_NE (gstpipe, nullptr);
 
   EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
-
-  gst_object_unref (gstpipe);
-  g_free (pipeline);
-  g_free (model_file);
 }
 
 /**
