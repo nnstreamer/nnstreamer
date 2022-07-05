@@ -63,7 +63,7 @@ class TorchCore
   const char *getModelPath ();
   int getInputTensorDim (GstTensorsInfo *info);
   int getOutputTensorDim (GstTensorsInfo *info);
-  int invoke (const GstTensorMemory *input, GstTensorMemory *output);
+  int invoke (const GstTensorFilterProperties *prop, const GstTensorMemory *input, GstTensorMemory *output);
 
   private:
   char *model_path;
@@ -495,7 +495,7 @@ TorchCore::serializeOutput (
  *         -4 if running the model failed.
  */
 int
-TorchCore::invoke (const GstTensorMemory *input, GstTensorMemory *output)
+TorchCore::invoke (const GstTensorFilterProperties *prop, const GstTensorMemory *input, GstTensorMemory *output)
 {
 #if (DBG)
   gint64 start_time = g_get_real_time ();
@@ -517,7 +517,7 @@ TorchCore::invoke (const GstTensorMemory *input, GstTensorMemory *output)
       return -1;
     }
     at::TensorOptions options = torch::TensorOptions ().dtype (type);
-
+    input_shape.resize(prop->input_ranks[i]);
     std::reverse (input_shape.begin (), input_shape.end ());
     tensor = torch::from_blob (input[i].data, input_shape, options);
 
@@ -678,9 +678,8 @@ torch_invoke (const GstTensorFilterProperties *prop, void **private_data,
 {
   TorchCore *core = static_cast<TorchCore *> (*private_data);
   g_return_val_if_fail (core && input && output, -EINVAL);
-  UNUSED (prop);
 
-  return core->invoke (input, output);
+  return core->invoke (prop, input, output);
 }
 
 /**

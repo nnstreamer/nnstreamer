@@ -890,7 +890,7 @@ gst_tensor_if_calculate_cv (GstTensorIf * tensor_if, GstBuffer * buf,
       const uint32_t *in_dim;
       tensor_type in_type;
 
-      if (g_list_length (tensor_if->cv_option) != 5) {
+      if (g_list_length (tensor_if->cv_option) != NNS_TENSOR_RANK_LIMIT + 1) {
         GST_ERROR_OBJECT (tensor_if,
             "Please specify a proper 'compared-value-option' property, e.g., 0:1:2:3,0");
         return FALSE;
