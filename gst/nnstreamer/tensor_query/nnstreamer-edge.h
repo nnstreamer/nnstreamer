@@ -121,7 +121,7 @@ int nns_edge_publish (nns_edge_h edge_h, nns_edge_data_h data_h);
 /**
  * @brief Request result to the server.
  */
-int nns_edge_request (nns_edge_h edge_h, nns_edge_data_h data_h, void *user_data);
+int nns_edge_request (nns_edge_h edge_h, nns_edge_data_h data_h);
 
 /**
  * @brief Respond to a request.
@@ -131,7 +131,7 @@ int nns_edge_respond (nns_edge_h edge_h, nns_edge_data_h data_h);
 /**
  * @brief Subscribe a message to a given topic.
  */
-int nns_edge_subscribe (nns_edge_h edge_h, nns_edge_data_h data_h, void *user_data);
+int nns_edge_subscribe (nns_edge_h edge_h, nns_edge_data_h data_h);
 
 /**
  * @brief Unsubscribe a message to a given topic.
