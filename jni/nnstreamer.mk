@@ -49,25 +49,25 @@ NNSTREAMER_PLUGINS_SRCS := \
     $(NNSTREAMER_GST_HOME)/tensor_meta.c \
     $(NNSTREAMER_GST_HOME)/nnstreamer_plugin_api_impl.c \
     $(NNSTREAMER_GST_HOME)/registerer/nnstreamer.c \
-    $(NNSTREAMER_GST_HOME)/tensor_converter/tensor_converter.c \
-    $(NNSTREAMER_GST_HOME)/tensor_crop/tensor_crop.c \
-    $(NNSTREAMER_GST_HOME)/tensor_aggregator/tensor_aggregator.c \
-    $(NNSTREAMER_GST_HOME)/tensor_decoder/tensordec.c \
-    $(NNSTREAMER_GST_HOME)/tensor_demux/gsttensordemux.c \
+    $(NNSTREAMER_GST_HOME)/elements/gsttensor_aggregator.c \
+    $(NNSTREAMER_GST_HOME)/elements/gsttensor_converter.c \
+    $(NNSTREAMER_GST_HOME)/elements/gsttensor_crop.c \
+    $(NNSTREAMER_GST_HOME)/elements/gsttensor_decoder.c \
+    $(NNSTREAMER_GST_HOME)/elements/gsttensor_demux.c \
+    $(NNSTREAMER_GST_HOME)/elements/gsttensor_if.c \
+    $(NNSTREAMER_GST_HOME)/elements/gsttensor_merge.c \
+    $(NNSTREAMER_GST_HOME)/elements/gsttensor_mux.c \
+    $(NNSTREAMER_GST_HOME)/elements/gsttensor_rate.c \
+    $(NNSTREAMER_GST_HOME)/elements/gsttensor_repo.c \
+    $(NNSTREAMER_GST_HOME)/elements/gsttensor_reposink.c \
+    $(NNSTREAMER_GST_HOME)/elements/gsttensor_reposrc.c \
+    $(NNSTREAMER_GST_HOME)/elements/gsttensor_sink.c \
+    $(NNSTREAMER_GST_HOME)/elements/gsttensor_sparsedec.c \
+    $(NNSTREAMER_GST_HOME)/elements/gsttensor_sparseenc.c \
+    $(NNSTREAMER_GST_HOME)/elements/gsttensor_sparseutil.c \
+    $(NNSTREAMER_GST_HOME)/elements/gsttensor_split.c \
+    $(NNSTREAMER_GST_HOME)/elements/gsttensor_transform.c \
     $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter.c \
-    $(NNSTREAMER_GST_HOME)/tensor_merge/gsttensormerge.c \
-    $(NNSTREAMER_GST_HOME)/tensor_mux/gsttensormux.c \
-    $(NNSTREAMER_GST_HOME)/tensor_repo/tensor_repo.c \
-    $(NNSTREAMER_GST_HOME)/tensor_repo/tensor_reposink.c \
-    $(NNSTREAMER_GST_HOME)/tensor_repo/tensor_reposrc.c \
-    $(NNSTREAMER_GST_HOME)/tensor_sink/tensor_sink.c \
-    $(NNSTREAMER_GST_HOME)/tensor_sparse/tensor_sparse_util.c \
-    $(NNSTREAMER_GST_HOME)/tensor_sparse/tensor_sparse_enc.c \
-    $(NNSTREAMER_GST_HOME)/tensor_sparse/tensor_sparse_dec.c \
-    $(NNSTREAMER_GST_HOME)/tensor_split/gsttensorsplit.c \
-    $(NNSTREAMER_GST_HOME)/tensor_transform/tensor_transform.c \
-    $(NNSTREAMER_GST_HOME)/tensor_if/gsttensorif.c \
-    $(NNSTREAMER_GST_HOME)/tensor_rate/gsttensorrate.c \
     $(NNSTREAMER_GST_HOME)/tensor_query/tensor_query_common.c \
     $(NNSTREAMER_GST_HOME)/tensor_query/tensor_query_hybrid.c \
     $(NNSTREAMER_GST_HOME)/tensor_query/tensor_query_client.c \
