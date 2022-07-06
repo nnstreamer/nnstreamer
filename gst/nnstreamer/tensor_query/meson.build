@@ -37,14 +37,14 @@ else
   endif
 endif
 
-nns_edge_lib = shared_library('nnstreamer-edge',
+nns_edge_lib = shared_library('nnstreamer-edge-temp',
   nnstreamer_edge_sources,
   dependencies: nnstreamer_edge_deps,
   install: true,
   install_dir: nnstreamer_libdir
 )
 
-static_library('nnstreamer-edge',
+static_library('nnstreamer-edge-temp',
   nnstreamer_edge_sources,
   dependencies: nnstreamer_edge_deps,
   install: true,

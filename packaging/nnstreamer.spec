@@ -968,7 +968,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_cpp.so
 %{gstlibdir}/libnnstreamer.so
 # TODO migrate nnstreamer-edge and remove below library
-%{_libdir}/libnnstreamer-edge.so
+%{_libdir}/libnnstreamer-edge-temp.so
 %{_libdir}/libnnstreamer.so
 
 %files single

@@ -1189,7 +1189,7 @@ nns_edge_publish (nns_edge_h edge_h, nns_edge_data_h data_h)
  * @brief Request result to the server.
  */
 int
-nns_edge_request (nns_edge_h edge_h, nns_edge_data_h data_h, void *user_data)
+nns_edge_request (nns_edge_h edge_h, nns_edge_data_h data_h)
 {
   nns_edge_handle_s *eh;
   nns_edge_conn_data_s *conn_data;
@@ -1197,7 +1197,6 @@ nns_edge_request (nns_edge_h edge_h, nns_edge_data_h data_h, void *user_data)
   int ret;
   unsigned int i;
 
-  UNUSED (user_data);
   eh = (nns_edge_handle_s *) edge_h;
   if (!eh) {
     nns_edge_loge ("Invalid param, given edge handle is null.");
@@ -1241,11 +1240,10 @@ nns_edge_request (nns_edge_h edge_h, nns_edge_data_h data_h, void *user_data)
  * @brief Subscribe a message to a given topic.
  */
 int
-nns_edge_subscribe (nns_edge_h edge_h, nns_edge_data_h data_h, void *user_data)
+nns_edge_subscribe (nns_edge_h edge_h, nns_edge_data_h data_h)
 {
   nns_edge_handle_s *eh;
 
-  UNUSED (user_data);
   eh = (nns_edge_handle_s *) edge_h;
   if (!eh) {
     nns_edge_loge ("Invalid param, given edge handle is null.");
