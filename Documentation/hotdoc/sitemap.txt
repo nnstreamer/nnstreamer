@@ -38,14 +38,15 @@ index.md
 		CONTRIBUTING.md
 		MAINTAINERS.md
 	gst/nnstreamer/README.md
-		gst/nnstreamer/tensor_sink/README.md
-		gst/nnstreamer/tensor_aggregator/README.md
-		gst/nnstreamer/tensor_converter/README.md
-		gst/nnstreamer/tensor_decoder/README.md
+		gst/nnstreamer/elements/README.md
+		gst/nnstreamer/elements/gsttensor_sink.md
+		gst/nnstreamer/elements/gsttensor_aggregator.md
+		gst/nnstreamer/elements/gsttensor_converter.md
+		gst/nnstreamer/elements/gsttensor_decoder.md
 		gst/nnstreamer/tensor_filter/README.md
-		gst/nnstreamer/tensor_if/README.md
-		gst/nnstreamer/tensor_source/README.md
-		gst/nnstreamer/tensor_transform/README.md
+		gst/nnstreamer/elements/gsttensor_if.md
+		gst/nnstreamer/elements/gsttensor_src.md
+		gst/nnstreamer/elements/gsttensor_transform.md
 		gst/nnstreamer/tensor_query/README.md
 		ext/nnstreamer/android_source/README.md
 	Documentation/nnst-exam/nnst_exam.json
