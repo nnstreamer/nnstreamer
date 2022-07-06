@@ -1,0 +1,24 @@
+name: GBS Tizen build for x64 from Ubuntu
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-20.04
+
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-python@v1
+    - name: prepare deb sources for GBS
+      run: echo "deb [trusted=yes] http://download.tizen.org/tools/latest-release/Ubuntu_20.04/ /" | sudo tee /etc/apt/sources.list.d/tizen.list
+    - name: install GBS
+      run: sudo apt-get update && sudo apt-get install -y gbs
+    - name: configure GBS
+      run: cp .github/workflows/tizen.gbs.conf ~/.gbs.conf
+    - name: run GBS
+      run: gbs build
