@@ -17,6 +17,7 @@
 
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #include <Python.h>
+#include <patchlevel.h>
 #include <dlfcn.h>
 #include <numpy/arrayobject.h>
 #include <structmember.h>
@@ -44,6 +45,13 @@
       (o) = NULL;          \
     }                      \
   } while (0)
+
+#if (PY_MAJOR_VERSION > 3) || ((PY_MAJOR_VERSION == 3) && (PY_MINOR_VERSION >= 7))
+/* Since 3.7, PyEval_InitThreads does nothing and deprecated */
+#define PyEval_InitThreads_IfGood()     do { } while (0)
+#else
+#define PyEval_InitThreads_IfGood()     do { PyEval_InitThreads(); } while (0)
+#endif
 
 extern tensor_type getTensorType (NPY_TYPES npyType);
 extern NPY_TYPES getNumpyType (tensor_type tType);
