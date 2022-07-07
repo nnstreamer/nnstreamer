@@ -11,8 +11,7 @@ if [[ "$SSATAPILOADED" != "1" ]]; then
     INDEPENDENT=1
     search="ssat-api.sh"
     source $search
-    printf "${Blue}Independent Mode${NC}
-"
+    printf "${Blue}Independent Mode${NC}"
 fi
 
 # This is compatible with SSAT (https://github.com/myungjoo/SSAT)

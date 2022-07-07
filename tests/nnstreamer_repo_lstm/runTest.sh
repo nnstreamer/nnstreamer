@@ -28,8 +28,7 @@ if [[ "$SSATAPILOADED" != "1" ]]; then
     INDEPENDENT=1
     search="ssat-api.sh"
     source $search
-    printf "${Blue}Independent Mode${NC}
-"
+    printf "${Blue}Independent Mode${NC}"
 fi
 testInit $1 # You may replace this with Test Group Name
 
