@@ -17,6 +17,10 @@ MachineLearning.Inference.Single allows using subplugins of ```tensor_filter``` 
 MachineLearning.Inference.Pipeline allows describing and executing GStreamer pipelines including NNStreamer elements.
 Note that MachineLearning.Training and MachineLearning.Service are implemented by other packages in this organization.
 
+This API's main target is Tizen, but it supports other OS as well.
+
+- [Implementation](https://github.com/nnstreamer/api/tree/main/c) (stable, since Tizen 5.5 M2)
+
 If you are writing Tizen applications in C/C++ along with neural network inferences, you are supposed to use Tizen Machine-Learning.Inference Native APIs.
 
 ### [Tizen Machine-Learning .NET API reference](https://docs.tizen.org/application/dotnet/guides/machine-learning/overview/)
@@ -24,12 +28,30 @@ If you are writing Tizen applications in C/C++ along with neural network inferen
 If you are writing Tizen applications in .NET along with neural network inferences, you are supposed to use Tizen Machine-Learning.Inference.Singleshot/Pipeline .NET APIs.
 The subdomains have the same roles as in Native APIs.
 
+This API's main target is Tizen, but it supports other OS as well.
+
+- [Implementation](https://github.com/Samsung/TizenFX/tree/master/src/Tizen.MachineLearning.Inference)
+    - Single API: Tizen 5.5 M2
+    - Pipeline API: Tizen 6.0 M1
+
 ### [Tizen Machine-Learning Web API reference](https://docs.tizen.org/application/web/guides/machine-learning/overview/)
 
 If you are writing Tizen web applications along with neural network inferences, you are supposed to use Tizen Machine-Learning.Inference.Single/Pipeline Web APIs.
 The subdomains have the same roles as in Native APIs.
 
+- Web API (HTML5) (stable, since Tizen 6.5 M2)
+    - [Implementation](https://git.tizen.org/cgit/platform/core/api/webapi-plugins/tree/src/ml?h=tizen) Tizen Web API
+
 ### [Android Java API reference](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/build_result/latest/java_html/index.html)
 
 We provide Java APIs for Android applications.
 Note that this supports SingleShot/Pipeline subdomains and do not include training or ML-service capabilities.
+
+
+- [Android sample app](https://github.com/nnstreamer/nnstreamer-example/tree/master/android/example_app/api-sample) uses JAVA APIs to implement Android-NNStreamer apps.
+    - Note that the Android Sample Applications published via Google Play Store, [Source Code](https://github.com/nnstreamer/nnstreamer-example/tree/main/android/example_app), are developed before NNStreamer Java API. They use GStreamer functions.
+- [Implementation](https://github.com/nnstreamer/api/tree/main/java) (stable)
+- [Available at JCenter](https://bintray.com/beta/#/nnsuite/nnstreamer?tab=packages)
+
+
+### Python API is planned
