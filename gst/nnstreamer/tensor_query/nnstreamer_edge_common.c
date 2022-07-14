@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: LGPL-2.1-only */
+/* SPDX-License-Identifier: Apache-2.0 */
 /**
  * Copyright (C) 2022 Samsung Electronics Co., Ltd. All Rights Reserved.
  *
- * @file   nnstreamer_edge_internal.c
+ * @file   nnstreamer-edge-common.c
  * @date   6 April 2022
  * @brief  Common util functions for nnstreamer edge.
  * @see    https://github.com/nnstreamer/nnstreamer
@@ -10,7 +10,87 @@
  * @bug    No known bugs except for NYI items
  */
 
-#include "nnstreamer_edge_common.h"
+#define _GNU_SOURCE
+#include <stdio.h>
+
+#include "nnstreamer-edge-common.h"
+
+/**
+ * @brief Free allocated memory.
+ */
+void
+nns_edge_free (void *data)
+{
+  if (data)
+    free (data);
+}
+
+/**
+ * @brief Allocate new memory and copy bytes.
+ * @note Caller should release newly allocated memory using nns_edge_free().
+ */
+void *
+nns_edge_memdup (const void *data, size_t size)
+{
+  void *mem = NULL;
+
+  if (data && size > 0) {
+    mem = malloc (size);
+
+    if (mem) {
+      memcpy (mem, data, size);
+    } else {
+      nns_edge_loge ("Failed to allocate memory (%zd).", size);
+    }
+  }
+
+  return mem;
+}
+
+/**
+ * @brief Allocate new memory and copy string.
+ * @note Caller should release newly allocated string using nns_edge_free().
+ */
+char *
+nns_edge_strdup (const char *str)
+{
+  char *new_str = NULL;
+  size_t len;
+
+  if (str) {
+    len = strlen (str);
+
+    new_str = (char *) malloc (len + 1);
+    if (new_str) {
+      memcpy (new_str, str, len);
+      new_str[len] = '\0';
+    } else {
+      nns_edge_loge ("Failed to allocate memory (%zd).", len + 1);
+    }
+  }
+
+  return new_str;
+}
+
+/**
+ * @brief Allocate new memory and print formatted string.
+ * @note Caller should release newly allocated string using nns_edge_free().
+ */
+char *
+nns_edge_strdup_printf (const char *format, ...)
+{
+  char *new_str = NULL;
+  va_list args;
+  int len;
+
+  va_start (args, format);
+  len = vasprintf (&new_str, format, args);
+  if (len < 0)
+    new_str = NULL;
+  va_end (args);
+
+  return new_str;
+}
 
 /**
  * @brief Create nnstreamer edge event.
@@ -64,7 +144,7 @@ nns_edge_event_destroy (nns_edge_event_h event_h)
   if (ee->data.destroy_cb)
     ee->data.destroy_cb (ee->data.data);
 
-  g_free (ee);
+  SAFE_FREE (ee);
   return NNS_EDGE_ERROR_NONE;
 }
 
@@ -180,7 +260,7 @@ nns_edge_event_parse_capability (nns_edge_event_h event_h, char **capability)
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
-  *capability = g_strdup (ee->data.data);
+  *capability = nns_edge_strdup (ee->data.data);
 
   return NNS_EDGE_ERROR_NONE;
 }
@@ -206,8 +286,8 @@ nns_edge_data_create (nns_edge_data_h * data_h)
 
   memset (ed, 0, sizeof (nns_edge_data_s));
   ed->magic = NNS_EDGE_MAGIC;
-  ed->info_table =
-      g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
+  ed->info_table = g_hash_table_new_full (g_str_hash, g_str_equal,
+      nns_edge_free, nns_edge_free);
 
   *data_h = ed;
   return NNS_EDGE_ERROR_NONE;
@@ -238,7 +318,7 @@ nns_edge_data_destroy (nns_edge_data_h data_h)
 
   g_hash_table_destroy (ed->info_table);
 
-  g_free (ed);
+  SAFE_FREE (ed);
   return NNS_EDGE_ERROR_NONE;
 }
 
@@ -295,14 +375,16 @@ nns_edge_data_copy (nns_edge_data_h data_h, nns_edge_data_h * new_data_h)
 
   copied->num = ed->num;
   for (i = 0; i < ed->num; i++) {
-    copied->data[i].data = _g_memdup (ed->data[i].data, ed->data[i].data_len);
+    copied->data[i].data = nns_edge_memdup (ed->data[i].data,
+        ed->data[i].data_len);
     copied->data[i].data_len = ed->data[i].data_len;
-    copied->data[i].destroy_cb = g_free;
+    copied->data[i].destroy_cb = nns_edge_free;
   }
 
   g_hash_table_iter_init (&iter, ed->info_table);
   while (g_hash_table_iter_next (&iter, &key, &value)) {
-    g_hash_table_insert (copied->info_table, g_strdup (key), g_strdup (value));
+    g_hash_table_insert (copied->info_table, nns_edge_strdup (key),
+        nns_edge_strdup (value));
   }
 
   return NNS_EDGE_ERROR_NONE;
@@ -419,17 +501,18 @@ nns_edge_data_set_info (nns_edge_data_h data_h, const char *key,
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
-  if (!key || *key == '\0') {
+  if (!STR_IS_VALID (key)) {
     nns_edge_loge ("Invalid param, given key is invalid.");
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
-  if (!value || *value == '\0') {
+  if (!STR_IS_VALID (value)) {
     nns_edge_loge ("Invalid param, given value is invalid.");
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
-  g_hash_table_insert (ed->info_table, g_strdup (key), g_strdup (value));
+  g_hash_table_insert (ed->info_table, nns_edge_strdup (key),
+      nns_edge_strdup (value));
 
   return NNS_EDGE_ERROR_NONE;
 }
@@ -450,7 +533,7 @@ nns_edge_data_get_info (nns_edge_data_h data_h, const char *key, char **value)
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
-  if (!key || *key == '\0') {
+  if (!STR_IS_VALID (key)) {
     nns_edge_loge ("Invalid param, given key is invalid.");
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
@@ -466,7 +549,7 @@ nns_edge_data_get_info (nns_edge_data_h data_h, const char *key, char **value)
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
-  *value = g_strdup (val);
+  *value = nns_edge_strdup (val);
 
   return NNS_EDGE_ERROR_NONE;
 }

@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: LGPL-2.1-only */
+/* SPDX-License-Identifier: Apache-2.0 */
 /**
  * Copyright (C) 2022 Samsung Electronics Co., Ltd. All Rights Reserved.
  *
- * @file   nnstreamer_edge_common.h
+ * @file   nnstreamer-edge-common.h
  * @date   6 April 2022
  * @brief  Common util functions for nnstreamer edge.
  * @see    https://github.com/nnstreamer/nnstreamer
@@ -29,14 +29,8 @@ extern "C" {
 #define UNUSED(expr) do { (void)(expr); } while (0)
 #endif
 
-/**
- * @brief g_memdup() function replaced by g_memdup2() in glib version >= 2.68
- */
-#if GLIB_USE_G_MEMDUP2
-#define _g_memdup g_memdup2
-#else
-#define _g_memdup g_memdup
-#endif
+#define STR_IS_VALID(s) ((s) && (s)[0] != '\0')
+#define SAFE_FREE(p) do { if (p) { free (p); (p) = NULL; } } while (0)
 
 #define NNS_EDGE_MAGIC 0xfeedfeed
 #define NNS_EDGE_MAGIC_DEAD 0xdeaddead
@@ -86,6 +80,29 @@ typedef struct {
 #define nns_edge_loge g_critical
 #define nns_edge_logd g_debug
 #define nns_edge_logf g_error
+
+/**
+ * @brief Free allocated memory.
+ */
+void nns_edge_free (void *data);
+
+/**
+ * @brief Allocate new memory and copy bytes.
+ * @note Caller should release newly allocated memory using nns_edge_free().
+ */
+void *nns_edge_memdup (const void *data, size_t size);
+
+/**
+ * @brief Allocate new memory and copy string.
+ * @note Caller should release newly allocated string using nns_edge_free().
+ */
+char *nns_edge_strdup (const char *str);
+
+/**
+ * @brief Allocate new memory and print formatted string.
+ * @note Caller should release newly allocated string using nns_edge_free().
+ */
+char *nns_edge_strdup_printf (const char *format, ...);
 
 /**
  * @brief Create nnstreamer edge event.
