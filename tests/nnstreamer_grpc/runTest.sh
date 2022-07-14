@@ -117,7 +117,7 @@ for BLOCKING in "${BLOCKING_LIST[@]}"; do
 
   # tensor_sink (client) --> tensor_src (server), other/tensor
   rm -f marker.log
-  timeout -k 11s 11s gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} tensor_src_grpc port=${PORT} num-buffers=${NUM_BUFFERS} idl=${IDL} blocking=${BLOCKING} ! 'other/tensor,dimension=(string)3:640:480,type=(string)uint8,framerate=(fraction)5/1' ! multifilesink async=false location=result_%1d.log ${WAIT4MARKER} &
+  gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} tensor_src_grpc port=${PORT} num-buffers=${NUM_BUFFERS} idl=${IDL} blocking=${BLOCKING} ! 'other/tensor,dimension=(string)3:640:480,type=(string)uint8,framerate=(fraction)5/1' ! multifilesink async=false location=result_%1d.log ${WAIT4MARKER} &
   pid=$!
   waitformarker ${INDEX}-1 "tensor_src_grpc ${INDEX}-1 launching in parallel"
   gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=${NUM_BUFFERS} ! video/x-raw,width=640,height=480,framerate=5/1 ! tensor_converter ! tensor_sink_grpc port=${PORT} idl=${IDL} blocking=${BLOCKING}" ${INDEX}-2 0 0 $PERFORMANCE
@@ -135,7 +135,7 @@ for BLOCKING in "${BLOCKING_LIST[@]}"; do
   PORT=`python3 ../get_available_port.py`
   # tensor_sink (server) --> tensor_src (client), other/tensor
   rm -f marker.log
-  timeout -k 11s 11s gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=${NUM_BUFFERS} ! video/x-raw,width=640,height=480,framerate=5/1 ! tensor_converter ! tensor_sink_grpc port=${PORT} server=true idl=${IDL} blocking=${BLOCKING} async=false ${WAIT4MARKER} &
+  gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=${NUM_BUFFERS} ! video/x-raw,width=640,height=480,framerate=5/1 ! tensor_converter ! tensor_sink_grpc port=${PORT} server=true idl=${IDL} blocking=${BLOCKING} async=false ${WAIT4MARKER} &
   pid=$!
   waitformarker ${INDEX}-1 "tensor-sink_grpc ${INDEX}-1 launching in parallel"
   gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_src_grpc port=${PORT} num-buffers=${NUM_BUFFERS} server=false idl=${IDL} blocking=${BLOCKING} ! 'other/tensor,dimension=(string)3:640:480,type=(string)uint8,framerate=(fraction)5/1' ! multifilesink location=result_%1d.log" ${INDEX}-2 0 0 $PERFORMANCE
@@ -153,7 +153,7 @@ for BLOCKING in "${BLOCKING_LIST[@]}"; do
   PORT=`python3 ../get_available_port.py`
   # tensor_sink (client) --> tensor_src (server), other/tensors
   rm -f marker.log
-  timeout -k 11s 11s gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} tensor_src_grpc port=${PORT} num-buffers=$((NUM_BUFFERS/2)) idl=${IDL} blocking=${BLOCKING} ! 'other/tensors,num_tensors=2,dimensions=(string)3:640:480.3:640:480,types=(string)uint8.uint8,framerate=(fraction)5/1' ! multifilesink async=false location=result_%1d.log ${WAIT4MARKER} &
+  gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} tensor_src_grpc port=${PORT} num-buffers=$((NUM_BUFFERS/2)) idl=${IDL} blocking=${BLOCKING} ! 'other/tensors,num_tensors=2,dimensions=(string)3:640:480.3:640:480,types=(string)uint8.uint8,framerate=(fraction)5/1' ! multifilesink async=false location=result_%1d.log ${WAIT4MARKER} &
   pid=$!
   waitformarker ${INDEX}-1 "tensor-src-grpc ${INDEX}-1 launching in parallel"
   gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=${NUM_BUFFERS} ! video/x-raw,width=640,height=480,framerate=5/1 ! tensor_converter frames-per-tensor=2 ! tensor_sink_grpc port=${PORT} idl=${IDL} blocking=${BLOCKING}" ${INDEX}-2 0 0 $PERFORMANCE
@@ -171,7 +171,7 @@ for BLOCKING in "${BLOCKING_LIST[@]}"; do
   PORT=`python3 ../get_available_port.py`
   # tensor_sink (server) --> tensor_src (client), other/tensors
   rm -f marker.log
-  timeout -k 11s 11s gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=${NUM_BUFFERS} ! video/x-raw,width=640,height=480,framerate=5/1 ! tensor_converter frames-per-tensor=2 ! tensor_sink_grpc port=${PORT} server=true idl=${IDL} blocking=${BLOCKING} async=false ${WAIT4MARKER} &
+  gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=${NUM_BUFFERS} ! video/x-raw,width=640,height=480,framerate=5/1 ! tensor_converter frames-per-tensor=2 ! tensor_sink_grpc port=${PORT} server=true idl=${IDL} blocking=${BLOCKING} async=false ${WAIT4MARKER} &
   pid=$!
   waitformarker ${INDEX}-1 "tensor-sink-grpc ${INDEX}-1 launching in parallel"
   gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_src_grpc port=${PORT} num-buffers=$((NUM_BUFFERS/2)) server=false idl=${IDL} blocking=${BLOCKING} ! 'other/tensors,num_tensors=2,dimensions=(string)3:640:480.3:640:480,types=(string)uint8.uint8,framerate=(fraction)5/1' ! multifilesink location=result_%1d.log" ${INDEX}-2 0 0 $PERFORMANCE
