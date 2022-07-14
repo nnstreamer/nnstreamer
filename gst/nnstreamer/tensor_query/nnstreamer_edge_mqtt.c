@@ -16,8 +16,8 @@
 
 #include <unistd.h>
 #include <MQTTAsync.h>
-#include "nnstreamer_edge_common.h"
-#include "nnstreamer_edge_internal.h"
+#include "nnstreamer-edge-common.h"
+#include "nnstreamer-edge-internal.h"
 
 /**
  * @brief Callback function to be called when the connection is lost.
