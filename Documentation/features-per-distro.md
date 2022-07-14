@@ -1,39 +1,46 @@
-## Feature lists of each official release
+## Feature lists of official releases
 
 This document lists features enabled in official releases of each OS or Linux distro.
 
 Note that users may adjust features freely with build options if they decide to build nnstreamer; any Linux developers should be able to do it with ease.
 
-This document reflects the status of 2021-02-24 ebafe31 (1.7.1 devel)
+This document reflects the status of 2022-07-14 (2.1.1 devel)
 
 
 ## Tizen
 
 - Main GStreamer Elements
     - All main tensor-\* elements are enabled including IIO support.
-    - ROS extensions are **not** released. With ROS packages, you may build and deploy.
+    - ROS extensions are **not** released. You may build and deploy ROS extensions after building ROS packages.
 - Extra Elements and Subplugins
     - Enabled
         - tensorflow-lite (1.13)
-        - tensorflow2-lite (2.3) w/ gpu delegation
-        - nnfw runtime (a.k.a. ONERT)
-        - python filter
+        - tensorflow2-lite (2.3, 2.7.0, 2.8.1) w/ delegation supports (GPU, XNNPACK, NNAPI, ...) since 2.7.0
+        - nnfw runtime (a.k.a. ONE-RT)
+        - Trinity NPU (Samsung TV 2022+)
+        - python3 filter
+        - LUA filter
         - mvncsdk2
         - openvino
         - edgeTPU
+        - ARMNN
+        - TVM
+        - SNPE
+        - grpc
+        - MQTT
+        - flexbuf (converter/decoder)
         - flatbuf (converter/decoder)
         - protobuf (converter/decoder)
         - Tizen sensor source
         - all trivial filter/converter/decoder subplugins.
     - Disabled
         - tensorflow (we do not use Bazel in Tizen)
-        - tensorflow2
-        - armnn (ready, but no one requested)
-        - verisilicon/vivante (ready, a few vivante libraries are not ported to Tizen public distro)
+        - tensorflow2 (we do not use Bazel in Tizen)
+        - verisilicon/vivante (tested & productized. ready, a few vivante libraries are not ported to Tizen public distro for license issues)
         - pytorch (ready)
         - caffe2 (ready)
         - snap (not supported in Tizen)
-        - snpe (not supported in Tizen)
+        - AITT (in progress)
 
 
 ## Android
@@ -47,8 +54,7 @@ This list shows a release corresponding to "full".
     - ROS extensions are **not** released.
 - Extra Elements and Subplugins
     - Enabled
-        - tensorflow-lite (1.13)
-        - tensorflow2-lite (2.3) w/ gpu delegation
+        - tensorflow2-lite (2.3, 2.7.0, 2.8.1) w/ delegation support (GPU, XNNPACK, NNAPI, ...) since 2.7.0
         - nnfw runtime (a.k.a. ONERT)
         - (depending on options) snap / snpe (you cannot install both simultaneously)
         - all trivial filter/converter/decoder subplugins.
@@ -63,7 +69,6 @@ This list shows a release corresponding to "full".
         - mvncsdk2
         - openvino
         - edgeTPU
-        - and others.
 
 ## Ubuntu
 
@@ -76,19 +81,20 @@ We limit the number of extra subplugins in Ubuntu PPA. However, users can easily
     - Enabled
         - tensorflow
         - tensorflow-lite
+        - tensorflow2-lite
         - protobuf
         - flatbuf
         - caffe2
         - edgetpu
         - openvino
-        - python
+        - python3
         - pytorch
+        - armnn
+        - tvm
+        - grpc
+        - nnfw runtime (OneRT)
     - Disabled
         - verisilicon/vivante
-        - armnn
         - tensorflow2
-        - tensorflow2-lite
-        - nnfw runtime
         - snap
         - snpe
-        - and others
