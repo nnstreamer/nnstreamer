@@ -84,7 +84,10 @@ nns_edge_strdup_printf (const char *format, ...)
   int len;
 
   va_start (args, format);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
   len = vasprintf (&new_str, format, args);
+#pragma GCC diagnostic pop
   if (len < 0)
     new_str = NULL;
   va_end (args);
