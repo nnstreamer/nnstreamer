@@ -14,6 +14,32 @@
 #include <tensor_common.h>
 #include <unittest_util.h>
 #include "../gst/nnstreamer/tensor_query/tensor_query_common.h"
+#include <gio/gio.h>
+#include <netinet/tcp.h>
+#include <netinet/in.h>
+/**
+ * @brief Get available port number.
+ */
+static guint
+_get_available_port (void)
+{
+  struct sockaddr_in sin;
+  guint port = 0;
+  gint sock;
+  socklen_t len = sizeof (struct sockaddr);
+
+  sin.sin_family = AF_INET;
+  sin.sin_addr.s_addr = INADDR_ANY;
+  sock = socket (AF_INET, SOCK_STREAM, 0);
+  sin.sin_port = htons(0);
+  if (bind (sock, (struct sockaddr *) &sin, sizeof (struct sockaddr)) == 0) {
+    getsockname (sock, (struct sockaddr *) &sin, &len);
+    port = ntohs (sin.sin_port);
+  }
+  close (sock);
+
+  return port;
+}
 
 /**
  * @brief Test for tensor_query_server get and set properties
@@ -26,12 +52,16 @@ TEST (tensorQuery, serverProperties0)
   gint int_val;
   guint uint_val;
   gchar *str_val;
+  guint src_port, sink_port;
+
+  src_port = _get_available_port ();
+  sink_port = _get_available_port ();
 
   /* Create a nnstreamer pipeline */
   pipeline = g_strdup_printf (
-      "tensor_query_serversrc host=127.0.0.1 name=serversrc ! "
+      "tensor_query_serversrc host=127.0.0.1 name=serversrc port=%u ! "
       "other/tensors,num_tensors=1,dimensions=3:300:300:1,types=uint8 ! "
-      "tensor_query_serversink host=127.0.0.1 name=serversink");
+      "tensor_query_serversink host=127.0.0.1 name=serversink port=%u", src_port, sink_port);
   gstpipe = gst_parse_launch (pipeline, NULL);
   EXPECT_NE (gstpipe, nullptr);
 
@@ -44,7 +74,7 @@ TEST (tensorQuery, serverProperties0)
   g_free (str_val);
 
   g_object_get (srv_handle, "port", &uint_val, NULL);
-  EXPECT_EQ (3001U, uint_val);
+  EXPECT_EQ (src_port, uint_val);
 
   g_object_get (srv_handle, "protocol", &int_val, NULL);
   EXPECT_EQ (0, int_val);
@@ -81,7 +111,7 @@ TEST (tensorQuery, serverProperties0)
   g_free (str_val);
 
   g_object_get (srv_handle, "port", &uint_val, NULL);
-  EXPECT_EQ (3000U, uint_val);
+  EXPECT_EQ (sink_port, uint_val);
 
   g_object_get (srv_handle, "protocol", &int_val, NULL);
   EXPECT_EQ (0, int_val);
@@ -120,12 +150,15 @@ TEST (tensorQuery, serverProperties1_n)
 {
   gchar *pipeline;
   GstElement *gstpipe;
+  guint port;
+
+  port = _get_available_port ();
 
   /* Create a nnstreamer pipeline */
   pipeline = g_strdup_printf (
-      "tensor_query_serversrc name=serversrc port=3000 ! "
+      "tensor_query_serversrc name=serversrc port=%u ! "
       "other/tensors,num_tensors=1,dimensions=3:300:300:1,types=uint8 ! "
-      "tensor_query_serversink port=3000 sync=false async=false");
+      "tensor_query_serversink port=%u sync=false async=false", port, port);
   gstpipe = gst_parse_launch (pipeline, NULL);
   EXPECT_NE (gstpipe, nullptr);
 
@@ -142,12 +175,16 @@ TEST (tensorQuery, serverProperties2_n)
 {
   gchar *pipeline;
   GstElement *gstpipe;
+  guint src_port, sink_port;
+
+  src_port = _get_available_port ();
+  sink_port = _get_available_port ();
 
   /* Create a nnstreamer pipeline */
   pipeline = g_strdup_printf (
-      "tensor_query_serversrc name=serversrc host=f.a.i.l ! "
+      "tensor_query_serversrc name=serversrc host=f.a.i.l port=%u ! "
       "other/tensors,num_tensors=1,dimensions=3:300:300:1,types=uint8 ! "
-      "tensor_query_serversink sync=false async=false");
+      "tensor_query_serversink port=%u sync=false async=false", src_port, sink_port);
   gstpipe = gst_parse_launch (pipeline, NULL);
   EXPECT_NE (gstpipe, nullptr);
 
@@ -256,10 +293,14 @@ TEST (tensorQuery, clientAlone_n)
 TEST (tensorQueryCommon, serverInit0)
 {
   query_server_handle server_data = NULL;
+  guint port;
+
+  port = _get_available_port ();
+
   server_data = nnstreamer_query_server_data_new ();
   EXPECT_NE ((void *) NULL, server_data);
 
-  EXPECT_EQ (0, nnstreamer_query_server_init (server_data, _TENSOR_QUERY_PROTOCOL_TCP, "localhost", 3001, TRUE));
+  EXPECT_EQ (0, nnstreamer_query_server_init (server_data, _TENSOR_QUERY_PROTOCOL_TCP, "localhost", port, TRUE));
   nnstreamer_query_server_data_free (server_data);
 }
 
@@ -268,7 +309,11 @@ TEST (tensorQueryCommon, serverInit0)
  */
 TEST (tensorQueryCommon, serverInit1_n)
 {
-  EXPECT_NE (0, nnstreamer_query_server_init (NULL, _TENSOR_QUERY_PROTOCOL_TCP, "localhost", 3001, TRUE));
+  guint port;
+
+  port = _get_available_port ();
+
+  EXPECT_NE (0, nnstreamer_query_server_init (NULL, _TENSOR_QUERY_PROTOCOL_TCP, "localhost", port, TRUE));
 }
 
 /**
@@ -277,10 +322,14 @@ TEST (tensorQueryCommon, serverInit1_n)
 TEST (tensorQueryCommon, serverInit2_n)
 {
   query_server_handle server_data = NULL;
+  guint port;
+
+  port = _get_available_port ();
+
   server_data = nnstreamer_query_server_data_new ();
   EXPECT_NE ((void *) NULL, server_data);
 
-  EXPECT_NE (0, nnstreamer_query_server_init (server_data, _TENSOR_QUERY_PROTOCOL_END, "localhost", 3001, TRUE));
+  EXPECT_NE (0, nnstreamer_query_server_init (server_data, _TENSOR_QUERY_PROTOCOL_END, "localhost", port, TRUE));
 
   nnstreamer_query_server_data_free (server_data);
 }
