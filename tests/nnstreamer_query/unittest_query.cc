@@ -30,14 +30,21 @@ _get_available_port (void)
 
   sin.sin_family = AF_INET;
   sin.sin_addr.s_addr = INADDR_ANY;
-  sock = socket (AF_INET, SOCK_STREAM, 0);
   sin.sin_port = htons(0);
+
+  sock = socket (AF_INET, SOCK_STREAM, 0);
+  EXPECT_TRUE (sock > 0);
+  if (sock < 0)
+    return 0;
+
   if (bind (sock, (struct sockaddr *) &sin, sizeof (struct sockaddr)) == 0) {
-    getsockname (sock, (struct sockaddr *) &sin, &len);
-    port = ntohs (sin.sin_port);
+    if (getsockname (sock, (struct sockaddr *) &sin, &len) == 0) {
+      port = ntohs (sin.sin_port);
+    }
   }
   close (sock);
 
+  EXPECT_TRUE (port > 0);
   return port;
 }
 

@@ -256,6 +256,11 @@ _nns_edge_cmd_receive (nns_edge_conn_s * conn, nns_edge_cmd_s * cmd)
   }
 
   nns_edge_logd ("Received command:%d (num:%u)", cmd->info.cmd, cmd->info.num);
+  if (cmd->info.num >= NNS_EDGE_DATA_LIMIT) {
+    nns_edge_loge ("Invalid request, the max memories for data transfer is %d.",
+        NNS_EDGE_DATA_LIMIT);
+    return NNS_EDGE_ERROR_IO;
+  }
 
   for (n = 0; n < cmd->info.num; n++) {
     cmd->mem[n] = malloc (cmd->info.mem_size[n]);
