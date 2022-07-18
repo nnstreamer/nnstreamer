@@ -31,6 +31,7 @@
 
 /**
  * @brief Test Fixture class for a tensor-filter TVM functionality
+ * @note To prevent svace warning, initialize member variables in constructor.
  */
 class NNStreamerFilterTVMTest : public ::testing::Test
 {
@@ -64,6 +65,10 @@ public:
   NNStreamerFilterTVMTest ()
     : sp(nullptr), model_file(nullptr), pipeline(nullptr), gstpipe(nullptr), sink_handle(nullptr)
   {
+    input.data = output.data = nullptr;
+    input.size = output.size = 0;
+    wrong_model_files[0] = wrong_model_files[1] = nullptr;
+    proper_model_files[0] = proper_model_files[1] = nullptr;
   }
 
   /**
