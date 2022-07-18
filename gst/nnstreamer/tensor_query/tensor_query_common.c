@@ -465,6 +465,15 @@ nnstreamer_query_close (query_connection_handle connection)
     nns_loge ("Invalid connection data");
     return -EINVAL;
   }
+
+  if (conn->msg_thread) {
+    g_cancellable_cancel (conn->cancellable);
+    pthread_join (conn->msg_thread, NULL);
+    conn->msg_thread = 0;
+  } else {
+    nns_loge
+        ("Cannot wait for msg_thread for the data being freed. conn_remained->msg_thread is null.");
+  }
   switch (conn->protocol) {
     case _TENSOR_QUERY_PROTOCOL_TCP:
     {
@@ -530,7 +539,6 @@ nnstreamer_query_server_data_free (query_server_handle server_data)
       if (sdata->conn_queue) {
         while ((conn_remained = g_async_queue_try_pop (sdata->conn_queue))) {
           conn_remained->running = 0;
-          pthread_join (conn_remained->msg_thread, NULL);
           nnstreamer_query_close (conn_remained);
         }
         g_async_queue_unref (sdata->conn_queue);
