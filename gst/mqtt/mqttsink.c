@@ -470,7 +470,6 @@ gst_mqtt_sink_class_finalize (GObject * object)
   g_free (self->mqtt_topic);
   self->mqtt_topic = NULL;
   gst_caps_replace (&self->in_caps, NULL);
-  g_free (self->mqtt_msg_buf);
   g_free (self->mqtt_ntp_srvs);
   self->mqtt_ntp_srvs = NULL;
   self->mqtt_ntp_num_srvs = 0;
