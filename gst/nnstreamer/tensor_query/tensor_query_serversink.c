@@ -231,12 +231,16 @@ static gboolean
 gst_tensor_query_serversink_set_caps (GstBaseSink * bsink, GstCaps * caps)
 {
   GstTensorQueryServerSink *sink = GST_TENSOR_QUERY_SERVERSINK (bsink);
-  gchar *caps_str;
+  gchar *caps_str, *prev_caps_str, *new_caps_str;
 
   caps_str = gst_caps_to_string (caps);
-  nns_edge_set_info (sink->edge_h, "CAPS", "@query_server_sink_caps@");
-  nns_edge_set_info (sink->edge_h, "CAPS", caps_str);
 
+  nns_edge_get_info (sink->edge_h, "CAPS", &prev_caps_str);
+  new_caps_str = g_strdup_printf ("%s@query_server_sink_caps@%s",
+      prev_caps_str, caps_str);
+  nns_edge_set_info (sink->edge_h, "CAPS", new_caps_str);
+  g_free (prev_caps_str);
+  g_free (new_caps_str);
   g_free (caps_str);
 
   return TRUE;
