@@ -419,17 +419,23 @@ gst_tensor_query_serversrc_create (GstPushSrc * psrc, GstBuffer ** outbuf)
   GstBaseSrc *bsrc = GST_BASE_SRC (psrc);
 
   if (!src->configured) {
-    gchar *src_caps_str;
+    gchar *caps_str, *prev_caps_str, *new_caps_str;
 
     GstCaps *caps = gst_pad_peer_query_caps (GST_BASE_SRC_PAD (bsrc), NULL);
     if (gst_caps_is_fixed (caps)) {
       gst_base_src_set_caps (bsrc, caps);
     }
 
-    src_caps_str = gst_caps_to_string (caps);
-    nns_edge_set_info (src->edge_h, "CAPS", "@query_server_src_caps@");
-    nns_edge_set_info (src->edge_h, "CAPS", src_caps_str);
-    g_free (src_caps_str);
+    caps_str = gst_caps_to_string (caps);
+
+    nns_edge_get_info (src->edge_h, "CAPS", &prev_caps_str);
+    new_caps_str = g_strdup_printf ("%s@query_server_src_caps@%s",
+        prev_caps_str, caps_str);
+    nns_edge_set_info (src->edge_h, "CAPS", new_caps_str);
+    g_free (prev_caps_str);
+    g_free (new_caps_str);
+    g_free (caps_str);
+
     gst_caps_unref (caps);
     src->configured = TRUE;
   }

@@ -150,6 +150,11 @@ int nns_edge_get_topic (nns_edge_h edge_h, char **topic);
 int nns_edge_set_info (nns_edge_h edge_h, const char *key, const char *value);
 
 /**
+ * @brief Get nnstreamer edge info.
+ */
+int nns_edge_get_info (nns_edge_h edge_h, const char *key, char **value);
+
+/**
  * @brief Get the nnstreamer edge event type.
  */
 int nns_edge_event_get_type (nns_edge_event_h event_h, nns_edge_event_e *event);

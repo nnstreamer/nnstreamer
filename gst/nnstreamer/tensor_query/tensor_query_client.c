@@ -519,7 +519,7 @@ gst_tensor_query_client_sink_event (GstPad * pad,
 {
   GstTensorQueryClient *self = GST_TENSOR_QUERY_CLIENT (parent);
   gboolean ret = TRUE;
-  gchar *ip;
+  gchar *ip, *prev_caps_str, *new_caps_str;
 
   GST_DEBUG_OBJECT (self, "Received %s event: %" GST_PTR_FORMAT,
       GST_EVENT_TYPE_NAME (event), event);
@@ -560,7 +560,12 @@ gst_tensor_query_client_sink_event (GstPad * pad,
 
       g_free (self->in_caps_str);
       self->in_caps_str = gst_caps_to_string (caps);
-      nns_edge_set_info (self->edge_h, "CAPS", self->in_caps_str);
+      nns_edge_get_info (self->edge_h, "CAPS", &prev_caps_str);
+      new_caps_str = g_strconcat (prev_caps_str, self->in_caps_str, NULL);
+      nns_edge_set_info (self->edge_h, "CAPS", new_caps_str);
+      g_free (prev_caps_str);
+      g_free (new_caps_str);
+
       nns_edge_set_event_callback (self->edge_h, _nns_edge_event_cb, self);
 
       ip = _get_ip_address ();
