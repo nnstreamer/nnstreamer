@@ -11,11 +11,11 @@ Build-Depends: gcc-9 | gcc-8 | gcc-7 | gcc-6 | gcc-5 (>=5.4),
  libflatbuffers-dev, flatbuffers-compiler,
  protobuf-compiler (>=3.12), libprotobuf-dev [amd64 arm64 armhf],
  libpaho-mqtt-dev,
- tensorflow2-lite-dev, tensorflow-lite-dev,
- tensorflow-dev [amd64],
+ tensorflow2-lite-dev, tensorflow-lite-dev | gcc,
+ tensorflow-dev [amd64] | gcc,
  pytorch, libedgetpu1-std (>=12), libedgetpu-dev (>=12),
  openvino-dev, openvino-cpu-mkldnn [amd64],
- nnfw-dev [amd64],
+ nnfw-dev [amd64] | gcc,
  tvm-runtime-dev
 Standards-Version: 3.9.6
 Homepage: https://github.com/nnstreamer/nnstreamer
