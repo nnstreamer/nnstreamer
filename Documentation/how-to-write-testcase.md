@@ -7,27 +7,38 @@ title: How to write Test Cases
 1. If you don't have a corresponding testcase group, yet (subdirectory in nnstreamer.git/tests/)
 
   - Create subdirectory in nnstreamer.git/tests/  
-  ```  
+  ```bash
   $ cd tests
   $ mkdir new_test_group
   ```
   - Create the shell script for the group. It should be named as ```runTest.sh```. 
-  - Use the test API scripts located at ```tests/testAPI.sh```.
+  - Use the test API scripts located at ```ssat-api.sh```.
   - The following is a template:
-  ```
+  ```bash
   #!/usr/bin/env bash
-  source ../testAPI.sh
-  
-  CASENUMBER1=1
-  CASENUMBER2=2
+  ##
+  ## SPDX-License-Identifier: LGPL-2.1-only
+  ##
+  ## @file runTest.sh
+  ## @author Your Name <your.email@example.com>
+  ## @date dd MMM yyyy
+  ## @brief SSAT Test Cases for NNStreamer
+  ##
+  if [[ "$SSATAPILOADED" != "1" ]]; then
+      SILENT=0
+      INDEPENDENT=1
+      search="ssat-api.sh"
+      source $search
+      printf "${Blue}Independent Mode${NC}"
+  fi
+
+  # This is compatible with SSAT (https://github.com/myungjoo/SSAT)
+  testInit $1
+
+  # NNStreamer and plugins path for test
+  PATH_TO_PLUGIN="../../build"
     
-  gstTest "your gstreamer pipeline" $CASENUMBER1
-  # generating "$CASE1GOLDEN" and "$CASE1RESULT"
-  gstTest "your another pipeline" $CASENUMBER2
-  # generating "$CASE2GOLDEN" and "$CASE2RESULT"
-  
-  compareAll $CASE1GOLDEN $CASE1RESULT $CASENUMBER1
-  compareAll $CASE2GOLDEN $CASE2RESULT $CASENUMBER2
+  gstTest "your gst-launch-1.0 Arguments" "test case ID" "set 1 if this is not critical" "set 1 if this passes if gstLaunch fails" "set 1 to enable PERFORMANCE test" "set a positive value (seconds) to enable timeout mode"
   
   report
   ```
