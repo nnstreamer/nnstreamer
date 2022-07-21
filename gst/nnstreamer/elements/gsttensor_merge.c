@@ -783,10 +783,14 @@ gst_tensor_merge_set_option_data (GstTensorMerge * tensor_merge)
   switch (tensor_merge->mode) {
     case GTT_LINEAR:
     {
-      tensor_merge->data_linear.direction =
+      gint idx;
+
+      idx =
           find_key_strv (gst_tensor_merge_linear_string, tensor_merge->option);
-      if (tensor_merge->data_linear.direction < 0)
+      if (idx < 0)
         return FALSE;
+
+      tensor_merge->data_linear.direction = (tensor_merge_linear_mode) idx;
       tensor_merge->loaded = TRUE;
     }
       break;

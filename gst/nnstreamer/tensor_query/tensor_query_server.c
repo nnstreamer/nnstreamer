@@ -54,6 +54,7 @@ edge_server_handle
 gst_tensor_query_server_add_data (char *id)
 {
   GstTensorQueryServer *data = NULL;
+  int ret;
 
   data = gst_tensor_query_server_get_handle (id);
 
@@ -72,7 +73,8 @@ gst_tensor_query_server_add_data (char *id)
   data->id = id;
   data->configured = FALSE;
 
-  if (0 != nns_edge_create_handle (id, "TEMP_SERVER_TOPIC", &data->edge_h)) {
+  ret = nns_edge_create_handle (id, "TEMP_SERVER_TOPIC", &data->edge_h);
+  if (ret != NNS_EDGE_ERROR_NONE) {
     GST_ERROR ("Failed to get nnstreamer edge handle.");
     gst_tensor_query_server_remove_data (data);
     return NULL;
