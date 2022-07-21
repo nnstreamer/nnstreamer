@@ -361,6 +361,7 @@ _gst_tensor_query_serversrc_get_buffer (GstTensorQueryServerSrc * src)
   GstBuffer *buffer = NULL;
   guint i, num_data;
   GstMetaQuery *meta_query;
+  int ret;
 
   data_h = g_async_queue_pop (src->msg_queue);
 
@@ -368,13 +369,14 @@ _gst_tensor_query_serversrc_get_buffer (GstTensorQueryServerSrc * src)
     nns_loge ("Failed to get message from the server message queue");
     return NULL;
   }
-  buffer = gst_buffer_new ();
 
-  if (NNS_EDGE_ERROR_NONE != nns_edge_data_get_count (data_h, &num_data)) {
+  ret = nns_edge_data_get_count (data_h, &num_data);
+  if (ret != NNS_EDGE_ERROR_NONE || num_data == 0) {
     nns_loge ("Failed to get the number of memories of the edge data.");
-    gst_buffer_unref (buffer);
-    return NULL;
+    goto done;
   }
+
+  buffer = gst_buffer_new ();
   for (i = 0; i < num_data; i++) {
     void *data = NULL;
     size_t data_len = 0;
@@ -388,24 +390,22 @@ _gst_tensor_query_serversrc_get_buffer (GstTensorQueryServerSrc * src)
             g_free));
   }
 
-  if (buffer) {
-    meta_query = gst_buffer_add_meta_query (buffer);
-    if (meta_query) {
-      char *val;
-      int ret;
+  meta_query = gst_buffer_add_meta_query (buffer);
+  if (meta_query) {
+    char *val;
 
-      ret = nns_edge_data_get_info (data_h, "client_id", &val);
-      if (NNS_EDGE_ERROR_NONE != ret) {
-        gst_buffer_unref (buffer);
-        buffer = NULL;
-      } else {
-        meta_query->client_id = g_ascii_strtoll (val, NULL, 10);
-        g_free (val);
-      }
+    ret = nns_edge_data_get_info (data_h, "client_id", &val);
+    if (NNS_EDGE_ERROR_NONE != ret) {
+      gst_buffer_unref (buffer);
+      buffer = NULL;
+    } else {
+      meta_query->client_id = g_ascii_strtoll (val, NULL, 10);
+      g_free (val);
     }
   }
-  nns_edge_data_destroy (data_h);
 
+done:
+  nns_edge_data_destroy (data_h);
   return buffer;
 }
 
@@ -429,6 +429,8 @@ gst_tensor_query_serversrc_create (GstPushSrc * psrc, GstBuffer ** outbuf)
     caps_str = gst_caps_to_string (caps);
 
     nns_edge_get_info (src->edge_h, "CAPS", &prev_caps_str);
+    if (!prev_caps_str)
+      prev_caps_str = g_strdup ("");
     new_caps_str = g_strdup_printf ("%s@query_server_src_caps@%s",
         prev_caps_str, caps_str);
     nns_edge_set_info (src->edge_h, "CAPS", new_caps_str);
@@ -441,7 +443,7 @@ gst_tensor_query_serversrc_create (GstPushSrc * psrc, GstBuffer ** outbuf)
   }
 
   *outbuf = _gst_tensor_query_serversrc_get_buffer (src);
-  if (!outbuf) {
+  if (*outbuf == NULL) {
     nns_loge ("Failed to get buffer to push to the tensor query serversrc.");
     return GST_FLOW_ERROR;
   }

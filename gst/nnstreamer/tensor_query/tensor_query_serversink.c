@@ -16,7 +16,6 @@
 
 #include <string.h>
 #include "tensor_query_serversink.h"
-#include "nnstreamer_util.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_query_serversink_debug);
 #define GST_CAT_DEFAULT gst_tensor_query_serversink_debug
@@ -236,6 +235,8 @@ gst_tensor_query_serversink_set_caps (GstBaseSink * bsink, GstCaps * caps)
   caps_str = gst_caps_to_string (caps);
 
   nns_edge_get_info (sink->edge_h, "CAPS", &prev_caps_str);
+  if (!prev_caps_str)
+    prev_caps_str = g_strdup ("");
   new_caps_str = g_strdup_printf ("%s@query_server_sink_caps@%s",
       prev_caps_str, caps_str);
   nns_edge_set_info (sink->edge_h, "CAPS", new_caps_str);
@@ -254,7 +255,7 @@ gst_tensor_query_serversink_render (GstBaseSink * bsink, GstBuffer * buf)
 {
   GstTensorQueryServerSink *sink = GST_TENSOR_QUERY_SERVERSINK (bsink);
   GstMetaQuery *meta_query;
-  nns_edge_data_h data_h = NULL;
+  nns_edge_data_h data_h;
   guint i, num_mems = 0;
   gint ret;
   GstMemory *mem[NNS_TENSOR_SIZE_LIMIT];
@@ -277,6 +278,7 @@ gst_tensor_query_serversink_render (GstBaseSink * bsink, GstBuffer * buf)
       if (!gst_memory_map (mem[i], &map[i], GST_MAP_READ)) {
         ml_loge ("Cannot map the %uth memory in gst-buffer.", i);
         num_mems = i;
+        nns_edge_data_destroy (data_h);
         goto done;
       }
       nns_edge_data_add (data_h, map[i].data, map[i].size, NULL);
@@ -288,7 +290,6 @@ gst_tensor_query_serversink_render (GstBaseSink * bsink, GstBuffer * buf)
 
     nns_edge_respond (sink->edge_h, data_h);
     nns_edge_data_destroy (data_h);
-    data_h = NULL;
   } else {
     nns_logw ("Cannot get tensor query meta. Drop buffers!\n");
     sink->metaless_frame_count++;

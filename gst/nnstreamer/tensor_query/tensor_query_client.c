@@ -561,6 +561,8 @@ gst_tensor_query_client_sink_event (GstPad * pad,
       g_free (self->in_caps_str);
       self->in_caps_str = gst_caps_to_string (caps);
       nns_edge_get_info (self->edge_h, "CAPS", &prev_caps_str);
+      if (!prev_caps_str)
+        prev_caps_str = g_strdup ("");
       new_caps_str = g_strconcat (prev_caps_str, self->in_caps_str, NULL);
       nns_edge_set_info (self->edge_h, "CAPS", new_caps_str);
       g_free (prev_caps_str);
@@ -688,12 +690,14 @@ gst_tensor_query_client_chain (GstPad * pad,
 
   data_h = g_async_queue_try_pop (self->msg_queue);
   if (data_h) {
-    out_buf = gst_buffer_new ();
-    if (NNS_EDGE_ERROR_NONE != nns_edge_data_get_count (data_h, &num_data)) {
+    ret = nns_edge_data_get_count (data_h, &num_data);
+    if (ret != NNS_EDGE_ERROR_NONE || num_data == 0) {
       nns_loge ("Failed to get the number of memories of the edge data.");
       res = GST_FLOW_ERROR;
       goto done;
     }
+
+    out_buf = gst_buffer_new ();
     for (i = 0; i < num_data; i++) {
       void *data = NULL;
       size_t data_len;
