@@ -17,7 +17,6 @@
 #include <tensor_typedef.h>
 #include <tensor_common.h>
 #include "tensor_query_serversrc.h"
-#include "tensor_query_server.h"
 #include "tensor_query_common.h"
 #include "nnstreamer_util.h"
 
@@ -44,7 +43,7 @@ enum
   PROP_PORT,
   PROP_PROTOCOL,
   PROP_TIMEOUT,
-  PROP_OPERATION,
+  PROP_TOPIC,
   PROP_ID,
   PROP_IS_LIVE
 };
@@ -100,7 +99,7 @@ gst_tensor_query_serversrc_class_init (GstTensorQueryServerSrcClass * klass)
           "The timeout as seconds to maintain connection", 0,
           3600, QUERY_DEFAULT_TIMEOUT_SEC,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-  g_object_class_install_property (gobject_class, PROP_OPERATION,
+  g_object_class_install_property (gobject_class, PROP_TOPIC,
       g_param_spec_string ("topic", "Topic",
           "The main topic of the host and option if necessary. "
           "(topic)/(optional topic for main topic).",
@@ -141,10 +140,7 @@ gst_tensor_query_serversrc_init (GstTensorQueryServerSrc * src)
   src->protocol = DEFAULT_PROTOCOL;
   src->timeout = QUERY_DEFAULT_TIMEOUT_SEC;
   src->topic = NULL;
-  src->srv_host = g_strdup (DEFAULT_HOST);
-  src->srv_port = DEFAULT_PORT_SRC;
   src->src_id = DEFAULT_SERVER_ID;
-  tensor_query_hybrid_init (&src->hybrid_info, NULL, 0, TRUE);
   src->configured = FALSE;
   src->msg_queue = g_async_queue_new ();
 
@@ -168,8 +164,6 @@ gst_tensor_query_serversrc_finalize (GObject * object)
   src->host = NULL;
   g_free (src->topic);
   src->topic = NULL;
-  g_free (src->srv_host);
-  src->srv_host = NULL;
 
   while ((data_h = g_async_queue_try_pop (src->msg_queue))) {
     nns_edge_data_destroy (data_h);
@@ -206,13 +200,15 @@ gst_tensor_query_serversrc_set_property (GObject * object, guint prop_id,
     case PROP_TIMEOUT:
       serversrc->timeout = g_value_get_uint (value);
       break;
-    case PROP_OPERATION:
+    case PROP_TOPIC:
       if (!g_value_get_string (value)) {
         nns_logw ("topic property cannot be NULL. Query-hybrid is disabled.");
         break;
       }
       g_free (serversrc->topic);
       serversrc->topic = g_value_dup_string (value);
+      if (NNS_EDGE_PROTOCOL_TCP == serversrc->protocol)
+        serversrc->protocol = NNS_EDGE_PROTOCOL_MQTT;
       break;
     case PROP_ID:
       serversrc->src_id = g_value_get_uint (value);
@@ -249,7 +245,7 @@ gst_tensor_query_serversrc_get_property (GObject * object, guint prop_id,
     case PROP_TIMEOUT:
       g_value_set_uint (value, serversrc->timeout);
       break;
-    case PROP_OPERATION:
+    case PROP_TOPIC:
       g_value_set_string (value, serversrc->topic);
       break;
     case PROP_ID:
@@ -303,11 +299,10 @@ static gboolean
 gst_tensor_query_serversrc_start (GstBaseSrc * bsrc)
 {
   GstTensorQueryServerSrc *src = GST_TENSOR_QUERY_SERVERSRC (bsrc);
-  char *id_str = NULL;
-  char *port = NULL;
+  char *id_str = NULL, *port = NULL, *protocol_str = NULL;
 
   id_str = g_strdup_printf ("%d", src->src_id);
-  src->server_h = gst_tensor_query_server_add_data (id_str);
+  src->server_h = gst_tensor_query_server_add_data (id_str, src->topic);
   g_free (id_str);
 
   src->edge_h = gst_tensor_query_server_get_edge_handle (src->server_h);
@@ -317,24 +312,13 @@ gst_tensor_query_serversrc_start (GstBaseSrc * bsrc)
   g_free (port);
 
   /** Publish query sever connection info */
-  if (src->topic) {
+  if (src->topic)
     nns_edge_set_info (src->edge_h, "TOPIC", src->topic);
-    tensor_query_hybrid_set_node (&src->hybrid_info, src->srv_host,
-        src->srv_port, src->server_info_h);
-    tensor_query_hybrid_set_broker (&src->hybrid_info, src->host, src->port);
 
-    if (!tensor_query_hybrid_publish (&src->hybrid_info, src->topic)) {
-      nns_loge ("Failed to publish a topic.");
-      return FALSE;
-    }
-  } else {
-    g_free (src->srv_host);
-    src->srv_host = g_strdup (src->host);
-    src->srv_port = src->port;
-    nns_logi ("Query-hybrid feature is disabled.");
-    nns_logi
-        ("Specify topic to register server to broker (e.g., topic=object_detection/mobilev3).");
-  }
+  protocol_str = g_strdup_printf ("%d", src->protocol);
+  nns_edge_set_info (src->edge_h, "PROTOCOL", protocol_str);
+  g_free (protocol_str);
+
   nns_edge_set_event_callback (src->edge_h, _nns_edge_event_cb, src);
 
   if (0 != nns_edge_start (src->edge_h, true)) {

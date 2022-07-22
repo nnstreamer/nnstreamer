@@ -16,7 +16,7 @@
 #include <gst/gst.h>
 #include <gio/gio.h>
 #include <tensor_common.h>
-#include "tensor_query_hybrid.h"
+#include "nnstreamer-edge.h"
 
 G_BEGIN_DECLS
 
@@ -48,8 +48,7 @@ struct _GstTensorQueryClient
   gchar *in_caps_str;
 
   /* Query-hybrid feature */
-  gchar *operation; /**< Main operation such as 'object_detection' or 'image_segmentation' */
-  query_hybrid_info_s hybrid_info;
+  gchar *topic; /**< Main operation such as 'object_detection' or 'image_segmentation' */
   gchar *host;
   guint16 port;
 

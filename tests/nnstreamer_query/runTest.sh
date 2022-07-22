@@ -132,13 +132,6 @@ _callCompareTest raw8_2.log result8_2.log 8-5 "Compare 8-5" 1 0
 kill -9 $pid &> /dev/null
 wait $pid
 
-# TODO enable query-hybrid test
-# Now nnsquery library is not available.
-# After publishing the nnsquery pkg, enable below testcases.
-# rm *.log
-report
-exit
-
 # Check whether mqtt broker is running or not
 pid=`ps aux | grep mosquitto | grep -v grep | awk '{print $2}'`
 if [ $pid > 0 ]; then
@@ -151,27 +144,18 @@ else
 fi
 
 # Test Query-hybrid. Get server info from broker.
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc num-buffers=3 operation=passthrough ! other/tensors,format=flexible ! tee name = t t. ! queue ! multifilesink location=server1_%1d.log t. ! queue ! tensor_query_serversink" 4-1 0 0 $PERFORMANCE $TIMEOUT_SEC &
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc num-buffers=3 operation=passthrough port=5000 ! other/tensors,format=flexible ! tee name = t t. ! queue ! multifilesink location=server2_%1d.log t. ! queue ! tensor_query_serversink port=5001" 4-2 0 0 $PERFORMANCE $TIMEOUT_SEC &
-sleep $SLEEPTIME_SEC
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc is-live=true num-buffers=7 ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! other/tensors,format=flexible ! tee name = t t. ! queue ! multifilesink location= raw4_%1d.log t. ! queue ! tensor_query_client operation=passthrough ! multifilesink location=result4_%1d.log" 4-3 0 0 $PERFORMANCE
-_callCompareTest raw4_0.log result4_0.log 4-4 "Compare 4-4" 1 0
-_callCompareTest raw4_1.log result4_1.log 4-5 "Compare 4-5" 1 0
-_callCompareTest raw4_2.log result4_2.log 4-6 "Compare 4-6" 1 0
-# Server 1 is stopped and lost the fourth buffer.
-_callCompareTest raw4_4.log result4_3.log 4-7 "Compare 4-7" 1 0
-_callCompareTest raw4_5.log result4_4.log 4-8 "Compare 4-8" 1 0
-_callCompareTest raw4_6.log result4_5.log 4-9 "Compare 4-9" 1 0
+gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc id=12345 host=tcp://localhost port=1883 topic=passthrough ! other/tensors,format=flexible,framerate=0/1 ! tee name = t t. ! queue ! multifilesink location=server1_%1d.log t. ! queue ! tensor_query_serversink id=12345 async=false" 4-1 0 0 5
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=50 is-live=true ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! other/tensors,format=flexible ! tee name = t t. ! queue ! multifilesink location= raw4_%1d.log t. ! queue ! tensor_query_client  host=tcp://localhost port=1883 topic=passthrough ! multifilesink location=result4_%1d.log" 4-3 0 0 $PERFORMANCE
+_callCompareTest raw4_0.log result4_0.log 4-4 "Compare the raw file and client received file 4-4" 1 0
+_callCompareTest raw4_1.log result4_1.log 4-5 "Compare the raw file and client received file 4-5" 1 0
+_callCompareTest raw4_2.log result4_2.log 4-6 "Compare the raw file and client received file 4-6" 1 0
+_callCompareTest server1_0.log result4_0.log 4-7 "Compare the server 1 received file and client received file 4-7" 1 0
+_callCompareTest server1_1.log result4_1.log 4-8 "Compare the server 1 received file and client received file 4-8" 1 0
+_callCompareTest server1_2.log result4_2.log 4-9 "Compare the server 1 received file and client received file 4-9" 1 0
 
-# Compare the results of the server and the client.
-_callCompareTest server1_0.log result4_0.log 4-10 "Compare 4-10" 1 0
-_callCompareTest server1_1.log result4_1.log 4-11 "Compare 4-11" 1 0
-_callCompareTest server1_2.log result4_2.log 4-12 "Compare 4-12" 1 0
-_callCompareTest server2_0.log result4_3.log 4-13 "Compare 4-13" 1 0
-_callCompareTest server2_1.log result4_4.log 4-14 "Compare 4-14" 1 0
-_callCompareTest server2_2.log result4_5.log 4-15 "Compare 4-15" 1 0
+kill -9 $pid &> /dev/null
+wait $pid
 
-sleep $SLEEPTIME_SEC
 rm *.log
 
 report

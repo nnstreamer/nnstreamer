@@ -72,7 +72,6 @@ NNSTREAMER_PLUGINS_SRCS := \
 # tensor-query element with nnstreamer-edge
 NNSTREAMER_QUERY_SRCS := \
     $(NNSTREAMER_GST_HOME)/tensor_query/tensor_query_common.c \
-    $(NNSTREAMER_GST_HOME)/tensor_query/tensor_query_hybrid.c \
     $(NNSTREAMER_GST_HOME)/tensor_query/tensor_query_client.c \
     $(NNSTREAMER_GST_HOME)/tensor_query/tensor_query_serversink.c \
     $(NNSTREAMER_GST_HOME)/tensor_query/tensor_query_serversrc.c \

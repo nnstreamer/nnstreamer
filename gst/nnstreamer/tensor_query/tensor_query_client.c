@@ -19,14 +19,11 @@
 #include <gio/gio.h>
 #include <glib.h>
 #include <string.h>
-#include "nnstreamer-edge.h"
 #include "tensor_query_common.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <arpa/inet.h>
-#include <ifaddrs.h>
 
 /**
  * @brief Macro for debug mode.
@@ -44,7 +41,7 @@ enum
   PROP_HOST,
   PROP_PORT,
   PROP_PROTOCOL,
-  PROP_OPERATION,
+  PROP_TOPIC,
   PROP_SILENT,
 };
 
@@ -124,9 +121,9 @@ gst_tensor_query_client_class_init (GstTensorQueryClientClass * klass)
           "The network protocol to establish connections between client and server.",
           GST_TYPE_QUERY_PROTOCOL, DEFAULT_PROTOCOL,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-  g_object_class_install_property (gobject_class, PROP_OPERATION,
-      g_param_spec_string ("operation", "Operation",
-          "The main operation of the host.",
+  g_object_class_install_property (gobject_class, PROP_TOPIC,
+      g_param_spec_string ("topic", "Topic",
+          "The main topic of the host.",
           "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_add_pad_template (gstelement_class,
@@ -141,40 +138,6 @@ gst_tensor_query_client_class_init (GstTensorQueryClientClass * klass)
 
   GST_DEBUG_CATEGORY_INIT (gst_tensor_query_client_debug, "tensor_query_client",
       0, "Tensor Query Client");
-}
-
-/**
- * @brief Get IP address
- */
-static gchar *
-_get_ip_address (void)
-{
-  struct ifaddrs *addrs, *run;
-  gchar *ret = NULL;
-
-  if (0 != getifaddrs (&addrs))
-    goto done;
-  run = addrs;
-
-  while (run) {
-    if (run->ifa_addr && run->ifa_addr->sa_family == AF_INET) {
-      struct sockaddr_in *pAddr = (struct sockaddr_in *) run->ifa_addr;
-
-      if (NULL != strstr (run->ifa_name, "en") ||
-          NULL != strstr (run->ifa_name, "et")) {
-        g_free (ret);
-        ret = g_strdup (inet_ntoa (pAddr->sin_addr));
-      }
-    }
-    run = run->ifa_next;
-  }
-  freeifaddrs (addrs);
-
-done:
-  if (NULL == ret)
-    ret = g_strdup ("localhost");
-
-  return ret;
 }
 
 /**
@@ -202,14 +165,9 @@ gst_tensor_query_client_init (GstTensorQueryClient * self)
   self->protocol = DEFAULT_PROTOCOL;
   self->host = g_strdup (TCP_DEFAULT_HOST);
   self->port = TCP_DEFAULT_SRC_PORT;
-  self->srv_host = g_strdup (TCP_DEFAULT_HOST);
-  self->srv_port = TCP_DEFAULT_SRC_PORT;
-  self->operation = NULL;
+  self->topic = NULL;
   self->in_caps_str = NULL;
   self->msg_queue = g_async_queue_new ();
-
-  tensor_query_hybrid_init (&self->hybrid_info, NULL, 0, FALSE);
-  nns_edge_create_handle ("TEMP_ID", "TEMP_CLIENT_TOPIC", &self->edge_h);
 }
 
 /**
@@ -223,19 +181,20 @@ gst_tensor_query_client_finalize (GObject * object)
 
   g_free (self->host);
   self->host = NULL;
-  g_free (self->srv_host);
-  self->srv_host = NULL;
-  g_free (self->operation);
-  self->operation = NULL;
+  g_free (self->topic);
+  self->topic = NULL;
   g_free (self->in_caps_str);
   self->in_caps_str = NULL;
 
   while ((data_h = g_async_queue_try_pop (self->msg_queue))) {
     nns_edge_data_destroy (data_h);
   }
-  g_async_queue_unref (self->msg_queue);
 
-  tensor_query_hybrid_close (&self->hybrid_info);
+  if (self->msg_queue) {
+    g_async_queue_unref (self->msg_queue);
+    self->msg_queue = NULL;
+  }
+
   if (self->edge_h) {
     nns_edge_release_handle (self->edge_h);
     self->edge_h = NULL;
@@ -266,21 +225,17 @@ gst_tensor_query_client_set_property (GObject * object, guint prop_id,
       self->port = g_value_get_uint (value);
       break;
     case PROP_PROTOCOL:
-    {
-        /** @todo expand when other protocols are ready */
-      nns_edge_protocol_e protocol = g_value_get_enum (value);
-      if (protocol == NNS_EDGE_PROTOCOL_TCP)
-        self->protocol = protocol;
-    }
+      self->protocol = g_value_get_enum (value);
       break;
-    case PROP_OPERATION:
+    case PROP_TOPIC:
       if (!g_value_get_string (value)) {
-        nns_logw
-            ("Operation property cannot be NULL. Query-hybrid is disabled.");
+        nns_logw ("Topic property cannot be NULL. Query-hybrid is disabled.");
         break;
       }
-      g_free (self->operation);
-      self->operation = g_value_dup_string (value);
+      g_free (self->topic);
+      self->topic = g_value_dup_string (value);
+      if (NNS_EDGE_PROTOCOL_TCP == self->protocol)
+        self->protocol = NNS_EDGE_PROTOCOL_MQTT;
       break;
     case PROP_SILENT:
       self->silent = g_value_get_boolean (value);
@@ -310,9 +265,8 @@ gst_tensor_query_client_get_property (GObject * object, guint prop_id,
     case PROP_PROTOCOL:
       g_value_set_enum (value, self->protocol);
       break;
-    case PROP_OPERATION:
-      g_value_set_string (value, self->operation);
-      break;
+    case PROP_TOPIC:
+      g_value_set_string (value, self->topic);
       break;
     case PROP_SILENT:
       g_value_set_boolean (value, self->silent);
@@ -358,44 +312,23 @@ gst_tensor_query_client_update_caps (GstTensorQueryClient * self,
 }
 
 /**
- * @brief Copy server info.
- */
-static void
-_copy_srv_info (GstTensorQueryClient * self, query_server_info_s * server)
-{
-  g_free (self->srv_host);
-  self->srv_host = g_strdup (server->src.host);
-  self->srv_port = server->src.port;
-}
-
-/**
  * @brief Retry to connect to available server.
  */
 static gboolean
 _client_retry_connection (GstTensorQueryClient * self)
 {
-  gboolean ret = FALSE;
-  query_server_info_s *server = NULL;
-
-  g_return_val_if_fail (self->operation, FALSE);
-  nns_logd ("Retry to connect to available server.");
-
-  while ((server = tensor_query_hybrid_get_server_info (&self->hybrid_info))) {
-    nns_edge_disconnect (self->edge_h);
-
-    _copy_srv_info (self, server);
-    tensor_query_hybrid_free_server_info (server);
-
-    if (nns_edge_connect (self->edge_h, NNS_EDGE_PROTOCOL_TCP, self->srv_host,
-            self->srv_port)) {
-      nns_logi ("Connected to new server: %s:%u.", self->srv_host,
-          self->srv_port);
-      ret = TRUE;
-      break;
-    }
+  if (NNS_EDGE_ERROR_NONE != nns_edge_disconnect (self->edge_h)) {
+    nns_loge ("Failed to retry connection, disconnection failure");
+    return FALSE;
   }
 
-  return ret;
+  if (NNS_EDGE_ERROR_NONE != nns_edge_connect (self->edge_h,
+          self->protocol, self->host, self->port)) {
+    nns_loge ("Failed to retry connection, connection failure");
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 /**
@@ -404,10 +337,16 @@ _client_retry_connection (GstTensorQueryClient * self)
 static gchar *
 _nns_edge_parse_caps (gchar * caps_str, gboolean is_src)
 {
-  gchar **strv = g_strsplit (caps_str, "@", -1);
-  gint num = g_strv_length (strv), i;
+  gchar **strv;
+  gint num, i;
   gchar *find_key = NULL;
   gchar *ret_str = NULL;
+
+  if (!caps_str)
+    return NULL;
+
+  strv = g_strsplit (caps_str, "@", -1);
+  num = g_strv_length (strv);
 
   find_key =
       is_src ==
@@ -519,7 +458,7 @@ gst_tensor_query_client_sink_event (GstPad * pad,
 {
   GstTensorQueryClient *self = GST_TENSOR_QUERY_CLIENT (parent);
   gboolean ret = TRUE;
-  gchar *ip, *prev_caps_str, *new_caps_str;
+  gchar *prev_caps_str, *new_caps_str;
 
   GST_DEBUG_OBJECT (self, "Received %s event: %" GST_PTR_FORMAT,
       GST_EVENT_TYPE_NAME (event), event);
@@ -528,36 +467,17 @@ gst_tensor_query_client_sink_event (GstPad * pad,
     case GST_EVENT_CAPS:
     {
       GstCaps *caps;
+      gchar *_topic = NULL, *protocol_str = NULL;
+
+      if (self->topic)
+        _topic = g_strdup (self->topic);
+      else
+        _topic = g_strdup ("TCP_DIRECT");
+
+      nns_edge_create_handle ("TEMP_ID", _topic, &self->edge_h);
+      g_free (_topic);
+
       gst_event_parse_caps (event, &caps);
-
-      /** Subscribe server info from broker */
-      if (self->operation) {
-        query_server_info_s *server;
-
-        tensor_query_hybrid_set_broker (&self->hybrid_info,
-            self->host, self->port);
-
-        if (!tensor_query_hybrid_subscribe (&self->hybrid_info,
-                self->operation)) {
-          nns_loge ("Failed to subscribe a topic.");
-          gst_event_unref (event);
-          return FALSE;
-        }
-
-        server = tensor_query_hybrid_get_server_info (&self->hybrid_info);
-        if (server) {
-          _copy_srv_info (self, server);
-          tensor_query_hybrid_free_server_info (server);
-        }
-      } else {
-        nns_logi ("Query-hybrid feature is disabled.");
-        nns_logi
-            ("Specify operation to subscribe to the available broker (e.g., operation=object_detection).");
-        g_free (self->srv_host);
-        self->srv_host = g_strdup (self->host);
-        self->srv_port = self->port;
-      }
-
       g_free (self->in_caps_str);
       self->in_caps_str = gst_caps_to_string (caps);
       nns_edge_get_info (self->edge_h, "CAPS", &prev_caps_str);
@@ -567,13 +487,12 @@ gst_tensor_query_client_sink_event (GstPad * pad,
       nns_edge_set_info (self->edge_h, "CAPS", new_caps_str);
       g_free (prev_caps_str);
       g_free (new_caps_str);
+      protocol_str = g_strdup_printf ("%d", self->protocol);
+      nns_edge_set_info (self->edge_h, "PROTOCOL", protocol_str);
+      g_free (protocol_str);
+
 
       nns_edge_set_event_callback (self->edge_h, _nns_edge_event_cb, self);
-
-      ip = _get_ip_address ();
-      nns_edge_set_info (self->edge_h, "IP", ip);
-      nns_edge_set_info (self->edge_h, "PORT", "0");
-      g_free (ip);
 
       if (0 != nns_edge_start (self->edge_h, false)) {
         nns_loge
@@ -581,8 +500,8 @@ gst_tensor_query_client_sink_event (GstPad * pad,
         return FALSE;
       }
 
-      if (0 != nns_edge_connect (self->edge_h, NNS_EDGE_PROTOCOL_TCP,
-              self->srv_host, self->srv_port)) {
+      if (0 != nns_edge_connect (self->edge_h, self->protocol,
+              self->host, self->port)) {
         nns_loge ("Failed to connect to edge server!");
         return FALSE;
       }
@@ -717,7 +636,7 @@ gst_tensor_query_client_chain (GstPad * pad,
   goto done;
 
 retry:
-  if (!self->operation || !_client_retry_connection (self)) {
+  if (!self->topic || !_client_retry_connection (self)) {
     nns_loge ("Failed to retry connection");
     res = GST_FLOW_ERROR;
   }

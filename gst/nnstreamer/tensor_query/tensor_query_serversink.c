@@ -203,7 +203,7 @@ gst_tensor_query_serversink_start (GstBaseSink * bsink)
   gchar *id_str = NULL;
 
   id_str = g_strdup_printf ("%u", sink->sink_id);
-  sink->server_h = gst_tensor_query_server_add_data (id_str);
+  sink->server_h = gst_tensor_query_server_add_data (id_str, NULL);
   g_free (id_str);
 
   caps = gst_pad_get_current_caps (GST_BASE_SINK_PAD (bsink));

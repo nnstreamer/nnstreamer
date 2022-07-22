@@ -45,7 +45,6 @@ struct _GstTensorQueryServerSink
   guint sink_id;
 
   guint timeout;
-  query_server_info_handle server_info_h;
   gint metaless_frame_limit;
   gint metaless_frame_count;
 
