@@ -12,6 +12,8 @@
 
 #include "nnstreamer-edge-common.h"
 #include "nnstreamer-edge-internal.h"
+#include <arpa/inet.h>
+#include <ifaddrs.h>
 
 #define N_BACKLOG 10
 #define DEFAULT_TIMEOUT_SEC 10
@@ -360,7 +362,7 @@ _nns_edge_invoke_event_cb (nns_edge_handle_s * eh, nns_edge_event_e event,
 
   /* If event callback is null, return ok. */
   if (!eh->event_cb) {
-    nns_edge_logw ("The event callback is null, do nothing!");
+    nns_edge_logi ("The event callback is null, do nothing!");
     return NNS_EDGE_ERROR_NONE;
   }
 
@@ -633,7 +635,7 @@ _nns_edge_connect_to (nns_edge_handle_s * eh, int64_t client_id,
       /* Send ip and port to destination. */
       _nns_edge_cmd_init (&cmd, _NNS_EDGE_CMD_HOST_INFO, client_id);
 
-      _get_host_str (eh->ip, eh->port, &host);
+      _get_host_str (eh->listener_ip, eh->listener_port, &host);
       cmd.info.num = 1;
       cmd.info.mem_size[0] = strlen (host) + 1;
       cmd.mem[0] = host;
@@ -700,7 +702,7 @@ _nns_edge_message_handler (void *thread_data)
       break;
     }
 
-    /** Receive data from the client */
+    /* Receive data from the client */
     _nns_edge_cmd_init (&cmd, _NNS_EDGE_CMD_ERROR, client_id);
     ret = _nns_edge_cmd_receive (conn, &cmd);
     if (ret != NNS_EDGE_ERROR_NONE) {
@@ -767,7 +769,7 @@ _nns_edge_create_message_thread (nns_edge_handle_s * eh, nns_edge_conn_s * conn,
     return NNS_EDGE_ERROR_OUT_OF_MEMORY;
   }
 
-   /** Create message receving thread */
+  /* Create message receving thread */
   pthread_attr_init (&attr);
   pthread_attr_setdetachstate (&attr, PTHREAD_CREATE_JOINABLE);
 
@@ -932,7 +934,7 @@ nns_edge_create_handle (const char *id, const char *topic, nns_edge_h * edge_h)
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
-  /**
+                                    /**
    * @todo manage edge handles
    * 1. consider adding hash table or list to manage edge handles.
    * 2. compare topic and return error if existing topic in handle is different.
@@ -953,6 +955,7 @@ nns_edge_create_handle (const char *id, const char *topic, nns_edge_h * edge_h)
   eh->ip = nns_edge_strdup ("localhost");
   eh->port = 0;
   eh->caps_str = NULL;
+  eh->broker_h = NULL;
 
   /* Connection data for each client ID. */
   eh->conn_table = g_hash_table_new_full (g_direct_hash, g_direct_equal, NULL,
@@ -960,6 +963,39 @@ nns_edge_create_handle (const char *id, const char *topic, nns_edge_h * edge_h)
 
   *edge_h = eh;
   return NNS_EDGE_ERROR_NONE;
+}
+
+/**
+ * @brief Get IP address
+ */
+static gchar *
+_get_ip_address (void)
+{
+  struct ifaddrs *addrs;
+  gchar *ret = NULL;
+
+  getifaddrs (&addrs);
+  while (addrs) {
+    if (addrs->ifa_addr && addrs->ifa_addr->sa_family == AF_INET) {
+      struct sockaddr_in *pAddr = (struct sockaddr_in *) addrs->ifa_addr;
+
+      if (NULL != strstr (addrs->ifa_name, "en") ||
+          NULL != strstr (addrs->ifa_name, "et")) {
+        g_free (ret);
+        ret = g_strdup (inet_ntoa (pAddr->sin_addr));
+        break;
+      }
+    }
+    addrs = addrs->ifa_next;
+  }
+  while ((addrs = addrs->ifa_next));
+
+  freeifaddrs (addrs);
+
+  if (NULL == ret)
+    ret = g_strdup ("localhost");
+
+  return ret;
 }
 
 /**
@@ -987,21 +1023,53 @@ nns_edge_start (nns_edge_h edge_h, bool is_server)
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
+  eh->listener_ip = _get_ip_address ();
+  eh->listener_port = nns_edge_get_available_port ();
+
   eh->is_server = is_server;
-  if (!is_server && 0 == eh->port) {
-    eh->port = nns_edge_get_available_port ();
-    if (eh->port <= 0) {
-      nns_edge_loge ("Failed to start edge. Cannot get available port.");
-      nns_edge_unlock (eh);
-      return NNS_EDGE_ERROR_CONNECTION_FAILURE;
+  if (eh->is_server) {
+    if (NNS_EDGE_PROTOCOL_MQTT == eh->protocol) {
+      gchar *device, *topic, *msg;
+
+      if (NNS_EDGE_ERROR_NONE != nns_edge_mqtt_connect (eh)) {
+        nns_edge_loge
+            ("Failed to start nnstreamer-edge. Connection failure to broker.");
+        ret = NNS_EDGE_ERROR_CONNECTION_FAILURE;
+        goto error;
+      }
+
+      /* @todo Set unique device name.
+       * Device name should be unique. Consider using MAC address later.
+       * Now, use ID received from the user.
+       */
+      device = g_strdup_printf ("device-%s", eh->id);
+      topic = g_strdup_printf ("edge/inference/%s/%s/", device, eh->topic);
+
+      g_free (device);
+      g_free (eh->topic);
+      eh->topic = topic;
+      msg = g_strdup_printf ("%s:%d", eh->listener_ip, eh->listener_port);
+
+      if (NNS_EDGE_ERROR_NONE != nns_edge_mqtt_publish (eh, msg,
+              strlen (msg) + 1)) {
+        nns_edge_loge ("Failed to publish the meesage: %s", msg);
+        ret = NNS_EDGE_ERROR_IO;
+        g_free (msg);
+        goto error;
+      }
+      g_free (msg);
+    } else { /** case for NNS_EDGE_PROTOCOL_TCP == eh->protocol */
+      g_free (eh->listener_ip);
+      eh->listener_ip = g_strdup (eh->ip);
+      eh->listener_port = eh->port;
     }
   }
 
-  /** Initialize server src data. */
+  /* Initialize server src data. */
   eh->listener = g_socket_listener_new ();
   g_socket_listener_set_backlog (eh->listener, N_BACKLOG);
 
-  if (!_nns_edge_get_saddr (eh->ip, eh->port, &saddr)) {
+  if (!_nns_edge_get_saddr (eh->listener_ip, eh->listener_port, &saddr)) {
     nns_edge_loge ("Failed to get socket address");
     ret = NNS_EDGE_ERROR_CONNECTION_FAILURE;
     goto error;
@@ -1047,6 +1115,12 @@ nns_edge_release_handle (nns_edge_h edge_h)
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
+  if (nns_edge_mqtt_is_connected (eh)) {
+    if (NNS_EDGE_ERROR_NONE != nns_edge_mqtt_close (eh)) {
+      nns_edge_logw ("Failed to close mqtt connection.");
+    }
+  }
+
   eh->magic = NNS_EDGE_MAGIC_DEAD;
   eh->event_cb = NULL;
   eh->user_data = NULL;
@@ -1061,6 +1135,7 @@ nns_edge_release_handle (nns_edge_h edge_h)
   SAFE_FREE (eh->topic);
   SAFE_FREE (eh->ip);
   SAFE_FREE (eh->caps_str);
+  SAFE_FREE (eh->listener_ip);
 
   nns_edge_unlock (eh);
   nns_edge_lock_destroy (eh);
@@ -1117,6 +1192,8 @@ nns_edge_connect (nns_edge_h edge_h, nns_edge_protocol_e protocol,
 {
   nns_edge_handle_s *eh;
   int ret;
+  char *server_ip = NULL;
+  int server_port;
 
   eh = (nns_edge_handle_s *) edge_h;
   if (!eh) {
@@ -1144,11 +1221,53 @@ nns_edge_connect (nns_edge_h edge_h, nns_edge_protocol_e protocol,
   }
 
   eh->protocol = protocol;
+  if (0 != g_ascii_strcasecmp (eh->topic, "TCP_DIRECT")) {
+    gchar *topic, *msg = NULL;
+
+    g_free (eh->ip);
+    eh->ip = g_strdup (ip);
+    eh->port = port;
+    if (!nns_edge_mqtt_is_connected (eh)) {
+      if (NNS_EDGE_ERROR_NONE != nns_edge_mqtt_connect (eh)) {
+        nns_edge_loge ("Connection failure to broker.");
+        nns_edge_unlock (eh);
+        return NNS_EDGE_ERROR_CONNECTION_FAILURE;
+      }
+      topic = g_strdup_printf ("edge/inference/+/%s/#", eh->topic);
+      g_free (eh->topic);
+      eh->topic = topic;
+
+      if (NNS_EDGE_ERROR_NONE != nns_edge_mqtt_subscribe (eh)) {
+        nns_edge_loge ("Failed to subscribe to topic: %s.", eh->topic);
+        nns_edge_unlock (eh);
+        return NNS_EDGE_ERROR_CONNECTION_FAILURE;
+      }
+    }
+
+    if (NNS_EDGE_ERROR_NONE == nns_edge_mqtt_get_message (eh, &msg)) {
+      gchar **splits;
+      splits = g_strsplit (msg, ":", -1);
+      server_ip = g_strdup (splits[0]);
+      server_port = g_ascii_strtoull (splits[1], NULL, 10);
+      nns_edge_logd ("[DEBUG] Parsed server info: Server [%s:%d] ", server_ip,
+          server_port);
+
+      g_strfreev (splits);
+      g_free (msg);
+    } else {
+      nns_edge_loge ("Failed to get server IP addr within timeout.");
+      nns_edge_unlock (eh);
+      return NNS_EDGE_ERROR_CONNECTION_FAILURE;
+    }
+  } else { /** case for NNS_EDGE_PROTOCOL_TCP == eh->protocol */
+    server_ip = g_strdup (ip);
+    server_port = port;
+  }
 
   /** Connect to info channel. */
-  ret = _nns_edge_connect_to (eh, eh->client_id, ip, port);
+  ret = _nns_edge_connect_to (eh, eh->client_id, server_ip, server_port);
   if (ret != NNS_EDGE_ERROR_NONE) {
-    nns_edge_loge ("Failed to connect to %s:%d", ip, port);
+    nns_edge_loge ("Failed to connect to %s:%d", server_ip, server_port);
   }
 
   nns_edge_unlock (eh);
@@ -1210,7 +1329,7 @@ nns_edge_publish (nns_edge_h edge_h, nns_edge_data_h data_h)
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
-  /** @todo update code (publish data) */
+  /* @todo update code (publish data) */
 
   nns_edge_unlock (eh);
   return NNS_EDGE_ERROR_NONE;
@@ -1296,7 +1415,7 @@ nns_edge_subscribe (nns_edge_h edge_h, nns_edge_data_h data_h)
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
-  /** @todo update code (subscribe) */
+                                    /** @todo update code (subscribe) */
 
   nns_edge_unlock (eh);
   return NNS_EDGE_ERROR_NONE;
@@ -1324,7 +1443,7 @@ nns_edge_unsubscribe (nns_edge_h edge_h)
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
-  /** @todo update code (unsubscribe) */
+                                    /** @todo update code (unsubscribe) */
 
   nns_edge_unlock (eh);
   return NNS_EDGE_ERROR_NONE;
@@ -1396,7 +1515,7 @@ nns_edge_set_info (nns_edge_h edge_h, const char *key, const char *value)
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
-  /**
+  /*
    * @todo User handles (replace or append) the capability of edge handle.
    * @todo Change key-value set as json or hash table.
    */
@@ -1411,6 +1530,8 @@ nns_edge_set_info (nns_edge_h edge_h, const char *key, const char *value)
   } else if (0 == strcasecmp (key, "TOPIC")) {
     SAFE_FREE (eh->topic);
     eh->topic = nns_edge_strdup (value);
+  } else if (0 == strcasecmp (key, "PROTOCOL")) {
+    eh->protocol = g_ascii_strtoll (value, NULL, 10);
   } else {
     nns_edge_logw ("Failed to set edge info. Unknown key: %s", key);
   }
@@ -1451,7 +1572,7 @@ nns_edge_get_info (nns_edge_h edge_h, const char *key, char **value)
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
-  /**
+  /*
    * @todo User handles (replace or append) the capability of edge handle.
    * @todo Change key-value set as json or hash table.
    */

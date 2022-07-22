@@ -22,6 +22,8 @@
 #include <unistd.h>
 #include "nnstreamer-edge.h"
 
+typedef void *nns_edge_broker_h;
+
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
