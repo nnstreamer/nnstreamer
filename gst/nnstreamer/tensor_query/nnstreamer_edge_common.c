@@ -16,6 +16,39 @@
 #include "nnstreamer-edge-common.h"
 
 /**
+ * @brief Internal util function to get available port number.
+ */
+int
+nns_edge_get_available_port (void)
+{
+  struct sockaddr_in sin;
+  int port = 0, sock;
+  socklen_t len = sizeof (struct sockaddr);
+
+  sin.sin_family = AF_INET;
+  sin.sin_addr.s_addr = INADDR_ANY;
+  sin.sin_port = 0;
+
+  sock = socket (AF_INET, SOCK_STREAM, 0);
+  if (sock < 0) {
+    nns_edge_loge ("Failed to get available port, socket creation failure.");
+    return 0;
+  }
+
+  if (bind (sock, (struct sockaddr *) &sin, sizeof (struct sockaddr)) == 0) {
+    if (getsockname (sock, (struct sockaddr *) &sin, &len) == 0) {
+      port = ntohs (sin.sin_port);
+      nns_edge_logi ("Available port number: %d", port);
+    } else {
+      nns_edge_logw ("Failed to read local socket info.");
+    }
+  }
+  close (sock);
+
+  return port;
+}
+
+/**
  * @brief Free allocated memory.
  */
 void

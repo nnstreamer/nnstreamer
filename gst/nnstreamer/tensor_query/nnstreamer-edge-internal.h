@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: LGPL-2.1-only */
+/* SPDX-License-Identifier: Apache-2.0 */
 /**
  * Copyright (C) 2022 Samsung Electronics Co., Ltd. All Rights Reserved.
  *
- * @file   nnstreamer_edge_internal.h
+ * @file   nnstreamer-edge-internal.h
  * @date   11 May 2022
  * @brief  Internal functions to support communication among devices.
  * @see    https://github.com/nnstreamer/nnstreamer
@@ -19,9 +19,8 @@ extern "C" {
 #endif /* __cplusplus */
 
 #include "nnstreamer-edge.h"
+#include "nnstreamer-edge-common.h"
 #include <gio/gio.h>
-#include <netinet/tcp.h>
-#include <netinet/in.h>
 
 /**
  * @brief Data structure for edge handle.
@@ -32,8 +31,8 @@ typedef struct {
   char *id;
   char *topic;
   nns_edge_protocol_e protocol;
-  char *ip;
-  int port;
+  char *ip; /**< host IP */
+  int port; /**< host port */
 
   /* Edge event callback and user data */
   nns_edge_event_cb event_cb;
@@ -42,8 +41,7 @@ typedef struct {
   bool is_server;
   int64_t client_id;
   char *caps_str;
-  char *recv_ip;
-  int recv_port;
+
   GHashTable *conn_table;
   GSocketListener *listener;
 
