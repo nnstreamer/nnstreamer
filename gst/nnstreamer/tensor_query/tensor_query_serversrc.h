@@ -16,7 +16,7 @@
 #include <gst/base/gstbasesrc.h>
 #include <gst/base/gstpushsrc.h>
 #include <tensor_meta.h>
-#include "tensor_query_hybrid.h"
+#include "tensor_query_server.h"
 
 G_BEGIN_DECLS
 
@@ -46,15 +46,10 @@ struct _GstTensorQueryServerSrc
 
   guint16 port;
   gchar *host;
-  guint16 srv_port;
-  gchar *srv_host;
   guint timeout;
 
   /* Query-hybrid feature */
   gchar *topic; /**< Main operation such as 'object_detection' or 'image_segmentation' */
-  query_hybrid_info_s hybrid_info;
-
-  query_server_info_handle server_info_h;
 
   nns_edge_protocol_e protocol;
   edge_server_handle server_h;

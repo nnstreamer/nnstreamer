@@ -413,10 +413,6 @@ features = {
     'target': 'tvm_runtime',
     'project_args': { 'ENABLE_TVM' : 1 }
   },
-  'query-hybrid-support': {
-    'target': 'nnsquery',
-    'project_args': { 'ENABLE_QUERY_HYBRID': 1 }
-  },
   'trix-engine-support': {
     'target': 'npu-engine',
     'project_args': { 'ENABLE_TRIX_ENGINE' : 1 }

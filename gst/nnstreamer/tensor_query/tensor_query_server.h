@@ -22,7 +22,6 @@ G_BEGIN_DECLS
 
 #define DEFAULT_SERVER_ID 0
 #define DEFAULT_QUERY_INFO_TIMEOUT 5
-typedef void * query_server_info_handle;
 typedef void * edge_server_handle;
 
 /**
@@ -48,7 +47,7 @@ gst_tensor_query_server_get_handle (char *id);
  * @brief Add GstTensorQueryServer.
  */
 edge_server_handle
-gst_tensor_query_server_add_data (char *id);
+gst_tensor_query_server_add_data (char *id, const gchar *topic);
 
 /**
  * @brief Remove GstTensorQueryServer.

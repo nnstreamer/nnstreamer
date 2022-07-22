@@ -17,7 +17,6 @@
 #include "tensor_query_server.h"
 #include <tensor_typedef.h>
 #include <tensor_common.h>
-#include "nnstreamer-edge.h"
 
 /**
  * @brief mutex for tensor-query server table.
@@ -51,10 +50,11 @@ gst_tensor_query_server_get_handle (char *id)
  * @brief Add nnstreamer edge server handle into hash table.
  */
 edge_server_handle
-gst_tensor_query_server_add_data (char *id)
+gst_tensor_query_server_add_data (char *id, const gchar * topic)
 {
   GstTensorQueryServer *data = NULL;
   int ret;
+  gchar *_topic = NULL;
 
   data = gst_tensor_query_server_get_handle (id);
 
@@ -73,8 +73,13 @@ gst_tensor_query_server_add_data (char *id)
   data->id = id;
   data->configured = FALSE;
 
-  ret = nns_edge_create_handle (id, "TEMP_SERVER_TOPIC", &data->edge_h);
-  if (ret != NNS_EDGE_ERROR_NONE) {
+  if (topic)
+    _topic = g_strdup (topic);
+  else
+    _topic = g_strdup ("TCP_DIRECT");
+
+  ret = nns_edge_create_handle (id, _topic, &data->edge_h);
+  if (NNS_EDGE_ERROR_NONE != ret) {
     GST_ERROR ("Failed to get nnstreamer edge handle.");
     gst_tensor_query_server_remove_data (data);
     return NULL;
@@ -84,6 +89,7 @@ gst_tensor_query_server_add_data (char *id)
   g_hash_table_insert (_qs_table, g_strdup (id), data);
   G_UNLOCK (query_server_table);
 
+  g_free (_topic);
   return data;
 }
 

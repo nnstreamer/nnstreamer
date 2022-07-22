@@ -73,10 +73,6 @@ foreach p : nnst_plugins
   subdir(p)
 endforeach
 
-if query_hybrid_support_is_available
-  nnstreamer_deps += query_hybrid_support_deps
-endif
-
 subdir('include')
 
 # Private header for sub-plugins and native APIs
