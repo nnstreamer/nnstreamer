@@ -15,7 +15,11 @@
 #define __NNSTREAMER_EDGE_COMMON_H__
 
 #include <glib.h> /** @todo remove glib */
+#include <fcntl.h>
+#include <netinet/tcp.h>
+#include <netinet/in.h>
 #include <pthread.h>
+#include <unistd.h>
 #include "nnstreamer-edge.h"
 
 #ifdef __cplusplus
@@ -80,6 +84,11 @@ typedef struct {
 #define nns_edge_loge g_critical
 #define nns_edge_logd g_debug
 #define nns_edge_logf g_error
+
+/**
+ * @brief Internal util function to get available port number.
+ */
+int nns_edge_get_available_port (void);
 
 /**
  * @brief Free allocated memory.
