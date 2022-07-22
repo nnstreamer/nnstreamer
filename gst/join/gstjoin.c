@@ -40,7 +40,6 @@ GST_DEBUG_CATEGORY_STATIC (join_debug);
 #define GST_JOIN_UNLOCK(sel) (g_mutex_unlock (GST_JOIN_GET_LOCK(sel)))
 #define GST_JOIN_WAIT(sel) (g_cond_wait (GST_JOIN_GET_COND(sel), \
 			GST_JOIN_GET_LOCK(sel)))
-#define GST_JOIN_BROADCAST(sel) (g_cond_broadcast (GST_JOIN_GET_COND(sel)))
 
 /**
  * @brief The capabilities of the inputs
@@ -98,8 +97,6 @@ struct _GstJoinPad
   gboolean pushed;              /* when buffer was pushed downstream since activation */
   guint group_id;               /* Group ID from the last stream-start */
   gboolean group_done;          /* when Stream Group Done has been received */
-  gboolean eos;                 /* when EOS has been received */
-  gboolean eos_sent;            /* when EOS was sent downstream */
   gboolean discont;             /* after switching we create a discont */
 
   GstSegment segment;           /* the current segment on the pad */
@@ -171,8 +168,6 @@ gst_join_pad_reset (GstJoinPad * pad)
   GST_OBJECT_LOCK (pad);
   pad->pushed = FALSE;
   pad->group_done = FALSE;
-  pad->eos = FALSE;
-  pad->eos_sent = FALSE;
   pad->events_pending = FALSE;
   pad->discont = FALSE;
   gst_segment_init (&pad->segment, GST_FORMAT_UNDEFINED);
@@ -241,60 +236,6 @@ forward_sticky_events (GstPad * sinkpad, GstEvent ** event, gpointer user_data)
 }
 
 /**
- * @brief Wait until get the eos
- */
-static void
-gst_join_eos_wait (GstJoin * self, GstJoinPad * pad, GstEvent * eos_event)
-{
-  while (!self->eos) {
-    GstPad *active_sinkpad;
-    active_sinkpad = gst_join_get_active_sinkpad (self);
-    if (pad == GST_JOIN_PAD_CAST (active_sinkpad) && pad->eos && !pad->eos_sent) {
-      GST_DEBUG_OBJECT (pad, "send EOS event");
-      GST_JOIN_UNLOCK (self);
-      /* if we have a pending events, push them now */
-      if (pad->events_pending) {
-        gst_pad_sticky_events_foreach (GST_PAD_CAST (pad),
-            forward_sticky_events, self);
-        pad->events_pending = FALSE;
-      }
-
-      gst_pad_push_event (self->srcpad, gst_event_ref (eos_event));
-      GST_JOIN_LOCK (self);
-      /**
-       *  Wake up other pads so they can continue when syncing to
-       * running time, as this pad just switched to EOS and
-       * may enable others to progress
-       */
-      GST_JOIN_BROADCAST (self);
-      pad->eos_sent = TRUE;
-    } else {
-      GST_JOIN_WAIT (self);
-    }
-  }
-}
-
-/**
- * @brief Check if all pads received eos
- */
-static gboolean
-gst_join_all_eos (GstJoin * sel)
-{
-  GList *walk;
-
-  for (walk = GST_ELEMENT_CAST (sel)->sinkpads; walk; walk = walk->next) {
-    GstJoinPad *selpad;
-
-    selpad = GST_JOIN_PAD_CAST (walk->data);
-    if (!selpad->eos) {
-      return FALSE;
-    }
-  }
-
-  return TRUE;
-}
-
-/**
  * @brief event function for sink pad
  */
 static gboolean
@@ -352,18 +293,6 @@ gst_join_pad_event (GstPad * pad, GstObject * parent, GstEvent * event)
           &selpad->segment);
       break;
     }
-    case GST_EVENT_EOS:
-      selpad->eos = TRUE;
-      GST_DEBUG_OBJECT (pad, "received EOS");
-      if (gst_join_all_eos (sel)) {
-        GST_DEBUG_OBJECT (pad, "All sink pad received EOS");
-        sel->eos = TRUE;
-        GST_JOIN_BROADCAST (sel);
-      } else {
-        gst_join_eos_wait (sel, selpad, event);
-        forward = FALSE;
-      }
-      break;
     default:
       break;
   }
@@ -590,7 +519,6 @@ gst_join_init (GstJoin * sel)
 
   g_mutex_init (&sel->lock);
   g_cond_init (&sel->cond);
-  sel->eos = FALSE;
 }
 
 /**
@@ -669,11 +597,6 @@ gst_join_set_active_pad (GstJoin * self, GstPad * pad)
 
   GST_DEBUG_OBJECT (self, "New active pad is %" GST_PTR_FORMAT,
       self->active_sinkpad);
-
-  if (old != new && new && new->eos) {
-    new->eos_sent = FALSE;
-    GST_JOIN_BROADCAST (self);
-  }
 
   return TRUE;
 }
