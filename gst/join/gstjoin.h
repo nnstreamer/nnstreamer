@@ -30,14 +30,6 @@ G_BEGIN_DECLS
 typedef struct _GstJoin GstJoin;
 typedef struct _GstJoinClass GstJoinClass;
 
-#define GST_JOIN_GET_LOCK(sel) (&((GstJoin*)(sel))->lock)
-#define GST_JOIN_GET_COND(sel) (&((GstJoin*)(sel))->cond)
-#define GST_JOIN_LOCK(sel) (g_mutex_lock (GST_JOIN_GET_LOCK(sel)))
-#define GST_JOIN_UNLOCK(sel) (g_mutex_unlock (GST_JOIN_GET_LOCK(sel)))
-#define GST_JOIN_WAIT(sel) (g_cond_wait (GST_JOIN_GET_COND(sel), \
-			GST_JOIN_GET_LOCK(sel)))
-#define GST_JOIN_BROADCAST(sel) (g_cond_broadcast (GST_JOIN_GET_COND(sel)))
-
 /**
  * @brief Internal data structure for join instances.
  */
@@ -55,8 +47,6 @@ struct _GstJoin
 
   GMutex lock;
   GCond cond;
-  gboolean eos;
-  gboolean eos_sent;
 };
 
 /**
