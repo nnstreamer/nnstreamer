@@ -17,17 +17,6 @@ fi
 # This is compatible with SSAT (https://github.com/myungjoo/SSAT)
 testInit $1
 
-# Skip query test temporarily because of ppa build failure.
-# Related issue: https://github.com/nnstreamer/nnstreamer/issues/3657
-if [ -f /etc/os-release ]; then
-    ID=$(cat /etc/os-release | grep ^ID= | cut -d '=' -f 2)
-    if [ "$ID" = "ubuntu" ]; then
-      echo "Skip query test for ppa build"
-      report
-      exit
-    fi
-fi
-
 PATH_TO_PLUGIN="../../build"
 PERFORMANCE=0
 # The client has to wait enough time for the server to be ready.
