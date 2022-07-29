@@ -51,11 +51,10 @@ struct _GstTensorQueryClient
   gchar *topic; /**< Main operation such as 'object_detection' or 'image_segmentation' */
   gchar *host;
   guint16 port;
+  gchar *dest_host;
+  guint16 dest_port;
 
-  gchar *srv_host;
-  guint16 srv_port;
-
-  nns_edge_protocol_e protocol;
+  nns_edge_connect_type_e connect_type;
   nns_edge_h edge_h;
   GAsyncQueue *msg_queue;
 };

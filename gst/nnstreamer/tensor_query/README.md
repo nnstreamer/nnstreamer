@@ -37,9 +37,9 @@ $ gst-launch-1.0 tensor_query_serversrc ! video/x-raw,width=300,height=300,forma
 ```bash
 $ gst-launch-1.0 v4l2src ! videoconvert ! videoscale !  video/x-raw,width=300,height=300,format=RGB,framerate=30/1 ! tensor_query_client ! videoconvert ! ximagesink
 ```
-#### client 2 (Optional, To test multiple clients)
+#### client 2 (Optional, To test multiple clients, port 0 means any available port number)
 ```bash
-$ gst-launch-1.0 videotestsrc ! videoconvert ! videoscale !  video/x-raw,width=300,height=300,format=RGB,framerate=30/1 ! tensor_query_client ! videoconvert ! ximagesink
+$ gst-launch-1.0 videotestsrc ! videoconvert ! videoscale !  video/x-raw,width=300,height=300,format=RGB,framerate=30/1 ! tensor_query_client port=0 ! videoconvert ! ximagesink
 ```
 
 ### Object-detection
@@ -81,23 +81,23 @@ Above two examples, `echo sever` and `Object-detection`, use TCP direct connecti
 If server 1 is stopped, the client will connect to server 2. Run server 2 and stop server 1 during operation.
 ```bash
 $ gst-launch-1.0 \
-    tensor_query_serversrc operation=passthrough port=3001 ! video/x-raw,width=640,height=480,format=RGB,framerate=0/1 ! \
+    tensor_query_serversrc id=1 port=0 topic=passthrough connect-type=HYBRID ! video/x-raw,width=640,height=480,format=RGB,framerate=0/1 ! \
         videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! \
         tensor_transform mode=arithmetic option=typecast:float32,add:-127.5,div:127.5 ! \
         tensor_filter framework=tensorflow-lite model=tflite_model/ssd_mobilenet_v2_coco.tflite ! \
         tensor_decoder mode=bounding_boxes option1=mobilenet-ssd option2=tflite_model/coco_labels_list.txt option3=tflite_model/box_priors.txt option4=640:480 option5=300:300 ! \
-        videoconvert ! tensor_query_serversink port=3000
+        videoconvert ! tensor_query_serversink async=false connect-type=HYBRID id=1
 ```
 
 #### server 2
 ```bash
 $ gst-launch-1.0 \
-    tensor_query_serversrc operation=passthrough port=3003 ! video/x-raw,width=640,height=480,format=RGB,framerate=0/1 ! \
+    tensor_query_serversrc id=2 port=0 topic=passthrough connect-type=HYBRID ! video/x-raw,width=640,height=480,format=RGB,framerate=0/1 ! \
         videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! \
         tensor_transform mode=arithmetic option=typecast:float32,add:-127.5,div:127.5 ! \
         tensor_filter framework=tensorflow-lite model=tflite_model/ssd_mobilenet_v2_coco.tflite ! \
         tensor_decoder mode=bounding_boxes option1=mobilenet-ssd option2=tflite_model/coco_labels_list.txt option3=tflite_model/box_priors.txt option4=640:480 option5=300:300 ! \
-        videoconvert ! tensor_query_serversink port=3002
+        videoconvert ! tensor_query_serversink async=false connect-type=HYBRID id=2
 ```
 
 #### client
@@ -105,7 +105,7 @@ $ gst-launch-1.0 \
 $ gst-launch-1.0 \
     compositor name=mix sink_0::zorder=2 sink_1::zorder=1 ! videoconvert ! ximagesink \
         v4l2src ! videoconvert ! videoscale ! video/x-raw,width=640,height=480,format=RGB,framerate=10/1 ! tee name=t \
-            t. ! queue ! tensor_query_client operation=passthrough ! videoconvert ! mix.sink_0 \
+            t. ! queue ! tensor_query_client port=0 connect-type=HYBRID dest-host=tcp://localhost dest-port=1883 topic=passthrough ! videoconvert ! mix.sink_0 \
             t. ! queue ! mix.sink_1
 ```
 

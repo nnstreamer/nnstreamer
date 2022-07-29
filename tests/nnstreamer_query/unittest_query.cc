@@ -82,7 +82,7 @@ TEST (tensorQuery, serverProperties0)
   g_object_get (srv_handle, "port", &uint_val, NULL);
   EXPECT_EQ (src_port, uint_val);
 
-  g_object_get (srv_handle, "protocol", &int_val, NULL);
+  g_object_get (srv_handle, "connect-type", &int_val, NULL);
   EXPECT_EQ (0, int_val);
 
   g_object_get (srv_handle, "timeout", &uint_val, NULL);
@@ -98,8 +98,8 @@ TEST (tensorQuery, serverProperties0)
   g_object_get (srv_handle, "port", &uint_val, NULL);
   EXPECT_EQ (5001U, uint_val);
 
-  g_object_set (srv_handle, "protocol", 1, NULL);
-  g_object_get (srv_handle, "protocol", &int_val, NULL);
+  g_object_set (srv_handle, "connect-type", 1, NULL);
+  g_object_get (srv_handle, "connect-type", &int_val, NULL);
   EXPECT_EQ (1, int_val);
 
 
@@ -113,14 +113,14 @@ TEST (tensorQuery, serverProperties0)
   srv_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "serversink");
   EXPECT_NE (srv_handle, nullptr);
 
-  g_object_get (srv_handle, "protocol", &int_val, NULL);
+  g_object_get (srv_handle, "connect-type", &int_val, NULL);
   EXPECT_EQ (0, int_val);
 
   g_object_get (srv_handle, "timeout", &uint_val, NULL);
   EXPECT_EQ (10U, uint_val);
 
-  g_object_set (srv_handle, "protocol", 1, NULL);
-  g_object_get (srv_handle, "protocol", &int_val, NULL);
+  g_object_set (srv_handle, "connect-type", 1, NULL);
+  g_object_get (srv_handle, "connect-type", &int_val, NULL);
   EXPECT_EQ (1, int_val);
 
 
@@ -166,7 +166,7 @@ TEST (tensorQuery, clientProperties0)
   gchar *pipeline;
   GstElement *gstpipe;
   GstElement *client_handle;
-  nns_edge_protocol_e protocol;
+  nns_edge_connect_type_e connect_type;
   guint uint_val;
   gchar *str_val;
   gboolean bool_val;
@@ -174,7 +174,7 @@ TEST (tensorQuery, clientProperties0)
   /* Create a query client pipeline */
   pipeline = g_strdup_printf (
       "videotestsrc ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB !"
-      "tensor_converter ! tensor_query_client name=client protocol=TCP ! tensor_sink");
+      "tensor_converter ! tensor_query_client name=client connect_type=TCP ! tensor_sink");
   gstpipe = gst_parse_launch (pipeline, NULL);
   EXPECT_NE (gstpipe, nullptr);
 
@@ -189,8 +189,8 @@ TEST (tensorQuery, clientProperties0)
   g_object_get (client_handle, "port", &uint_val, NULL);
   EXPECT_EQ (3001U, uint_val);
 
-  g_object_get (client_handle, "protocol", &protocol, NULL);
-  EXPECT_EQ (protocol, NNS_EDGE_PROTOCOL_TCP);
+  g_object_get (client_handle, "connect_type", &connect_type, NULL);
+  EXPECT_EQ (connect_type, NNS_EDGE_CONNECT_TYPE_TCP);
 
   g_object_get (client_handle, "silent", &bool_val, NULL);
   EXPECT_EQ (TRUE, bool_val);

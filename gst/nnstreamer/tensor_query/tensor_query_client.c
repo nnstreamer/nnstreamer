@@ -40,14 +40,17 @@ enum
   PROP_0,
   PROP_HOST,
   PROP_PORT,
-  PROP_PROTOCOL,
+  PROP_DEST_HOST,
+  PROP_DEST_PORT,
+  PROP_CONNECT_TYPE,
   PROP_TOPIC,
   PROP_SILENT,
 };
 
 #define TCP_HIGHEST_PORT        65535
 #define TCP_DEFAULT_HOST        "localhost"
-#define TCP_DEFAULT_SRC_PORT        3001
+#define TCP_DEFAULT_SRV_SRC_PORT 3000
+#define TCP_DEFAULT_CLIENT_SRC_PORT 3001
 #define DEFAULT_SILENT TRUE
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_query_client_debug);
@@ -106,20 +109,29 @@ gst_tensor_query_client_class_init (GstTensorQueryClientClass * klass)
   /** install property goes here */
   g_object_class_install_property (gobject_class, PROP_HOST,
       g_param_spec_string ("host", "Host",
-          "A tenor query server host to send the packets to/from",
+          "A host address to receive the packets from query server",
           TCP_DEFAULT_HOST, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_PORT,
       g_param_spec_uint ("port", "Port",
-          "The port of tensor query server to send the packets to/from", 0,
-          TCP_HIGHEST_PORT, TCP_DEFAULT_SRC_PORT,
+          "A port number to receive the packets from query server", 0,
+          TCP_HIGHEST_PORT, TCP_DEFAULT_SRV_SRC_PORT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_DEST_HOST,
+      g_param_spec_string ("dest-host", "Destination Host",
+          "A tenor query server host to send the packets",
+          TCP_DEFAULT_HOST, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_DEST_PORT,
+      g_param_spec_uint ("dest-port", "Destination Port",
+          "The port of tensor query server to send the packets ", 0,
+          TCP_HIGHEST_PORT, TCP_DEFAULT_CLIENT_SRC_PORT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_SILENT,
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output",
           DEFAULT_SILENT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-  g_object_class_install_property (gobject_class, PROP_PROTOCOL,
-      g_param_spec_enum ("protocol", "Protocol",
-          "The network protocol to establish connections between client and server.",
-          GST_TYPE_QUERY_PROTOCOL, DEFAULT_PROTOCOL,
+  g_object_class_install_property (gobject_class, PROP_CONNECT_TYPE,
+      g_param_spec_enum ("connect-type", "Connect Type",
+          "The connections type between client and server.",
+          GST_TYPE_QUERY_CONNECT_TYPE, DEFAULT_CONNECT_TYPE,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_TOPIC,
       g_param_spec_string ("topic", "Topic",
@@ -162,9 +174,11 @@ gst_tensor_query_client_init (GstTensorQueryClient * self)
 
   /* init properties */
   self->silent = DEFAULT_SILENT;
-  self->protocol = DEFAULT_PROTOCOL;
+  self->connect_type = DEFAULT_CONNECT_TYPE;
   self->host = g_strdup (TCP_DEFAULT_HOST);
-  self->port = TCP_DEFAULT_SRC_PORT;
+  self->port = TCP_DEFAULT_CLIENT_SRC_PORT;
+  self->dest_host = g_strdup (TCP_DEFAULT_HOST);
+  self->dest_port = TCP_DEFAULT_SRV_SRC_PORT;
   self->topic = NULL;
   self->in_caps_str = NULL;
   self->msg_queue = g_async_queue_new ();
@@ -224,8 +238,19 @@ gst_tensor_query_client_set_property (GObject * object, guint prop_id,
     case PROP_PORT:
       self->port = g_value_get_uint (value);
       break;
-    case PROP_PROTOCOL:
-      self->protocol = g_value_get_enum (value);
+    case PROP_DEST_HOST:
+      if (!g_value_get_string (value)) {
+        nns_logw ("Sink host property cannot be NULL");
+        break;
+      }
+      g_free (self->dest_host);
+      self->dest_host = g_value_dup_string (value);
+      break;
+    case PROP_DEST_PORT:
+      self->dest_port = g_value_get_uint (value);
+      break;
+    case PROP_CONNECT_TYPE:
+      self->connect_type = g_value_get_enum (value);
       break;
     case PROP_TOPIC:
       if (!g_value_get_string (value)) {
@@ -234,8 +259,6 @@ gst_tensor_query_client_set_property (GObject * object, guint prop_id,
       }
       g_free (self->topic);
       self->topic = g_value_dup_string (value);
-      if (NNS_EDGE_PROTOCOL_TCP == self->protocol)
-        self->protocol = NNS_EDGE_PROTOCOL_MQTT;
       break;
     case PROP_SILENT:
       self->silent = g_value_get_boolean (value);
@@ -262,8 +285,14 @@ gst_tensor_query_client_get_property (GObject * object, guint prop_id,
     case PROP_PORT:
       g_value_set_uint (value, self->port);
       break;
-    case PROP_PROTOCOL:
-      g_value_set_enum (value, self->protocol);
+    case PROP_DEST_HOST:
+      g_value_set_string (value, self->dest_host);
+      break;
+    case PROP_DEST_PORT:
+      g_value_set_uint (value, self->dest_port);
+      break;
+    case PROP_CONNECT_TYPE:
+      g_value_set_enum (value, self->connect_type);
       break;
     case PROP_TOPIC:
       g_value_set_string (value, self->topic);
@@ -323,7 +352,7 @@ _client_retry_connection (GstTensorQueryClient * self)
   }
 
   if (NNS_EDGE_ERROR_NONE != nns_edge_connect (self->edge_h,
-          self->protocol, self->host, self->port)) {
+          self->dest_host, self->dest_port)) {
     nns_loge ("Failed to retry connection, connection failure");
     return FALSE;
   }
@@ -458,7 +487,7 @@ gst_tensor_query_client_sink_event (GstPad * pad,
 {
   GstTensorQueryClient *self = GST_TENSOR_QUERY_CLIENT (parent);
   gboolean ret = TRUE;
-  gchar *prev_caps_str, *new_caps_str;
+  gchar *prev_caps_str, *new_caps_str, *port;
 
   GST_DEBUG_OBJECT (self, "Received %s event: %" GST_PTR_FORMAT,
       GST_EVENT_TYPE_NAME (event), event);
@@ -467,15 +496,9 @@ gst_tensor_query_client_sink_event (GstPad * pad,
     case GST_EVENT_CAPS:
     {
       GstCaps *caps;
-      gchar *_topic = NULL, *protocol_str = NULL;
 
-      if (self->topic)
-        _topic = g_strdup (self->topic);
-      else
-        _topic = g_strdup ("TCP_DIRECT");
-
-      nns_edge_create_handle ("TEMP_ID", _topic, &self->edge_h);
-      g_free (_topic);
+      nns_edge_create_handle ("TEMP_ID", self->connect_type,
+          NNS_EDGE_FLAG_RECV | NNS_EDGE_FLAG_SEND, &self->edge_h);
 
       gst_event_parse_caps (event, &caps);
       g_free (self->in_caps_str);
@@ -487,21 +510,22 @@ gst_tensor_query_client_sink_event (GstPad * pad,
       nns_edge_set_info (self->edge_h, "CAPS", new_caps_str);
       g_free (prev_caps_str);
       g_free (new_caps_str);
-      protocol_str = g_strdup_printf ("%d", self->protocol);
-      nns_edge_set_info (self->edge_h, "PROTOCOL", protocol_str);
-      g_free (protocol_str);
-
+      nns_edge_set_info (self->edge_h, "HOST", self->host);
+      port = g_strdup_printf ("%u", self->port);
+      nns_edge_set_info (self->edge_h, "PORT", port);
+      g_free (port);
+      nns_edge_set_info (self->edge_h, "TOPIC", self->topic);
 
       nns_edge_set_event_callback (self->edge_h, _nns_edge_event_cb, self);
 
-      if (0 != nns_edge_start (self->edge_h, false)) {
+      if (0 != nns_edge_start (self->edge_h)) {
         nns_loge
             ("Failed to start NNStreamer-edge. Please check server IP and port");
         return FALSE;
       }
 
-      if (0 != nns_edge_connect (self->edge_h, self->protocol,
-              self->host, self->port)) {
+      if (0 != nns_edge_connect (self->edge_h,
+              self->dest_host, self->dest_port)) {
         nns_loge ("Failed to connect to edge server!");
         return FALSE;
       }
@@ -582,6 +606,7 @@ gst_tensor_query_client_chain (GstPad * pad,
   int ret;
   GstMemory *mem[NNS_TENSOR_SIZE_LIMIT];
   GstMapInfo map[NNS_TENSOR_SIZE_LIMIT];
+  gchar *val;
   UNUSED (pad);
 
   ret = nns_edge_data_create (&data_h);
@@ -600,8 +625,12 @@ gst_tensor_query_client_chain (GstPad * pad,
     }
     nns_edge_data_add (data_h, map[i].data, map[i].size, NULL);
   }
-  if (0 != nns_edge_request (self->edge_h, data_h)) {
-    nns_logw ("Failed to request to server node, retry connection.");
+
+  nns_edge_get_info (self->edge_h, "client_id", &val);
+  nns_edge_data_set_info (data_h, "client_id", val);
+  g_free (val);
+  if (0 != nns_edge_publish (self->edge_h, data_h)) {
+    nns_logw ("Failed to publish to server node, retry connection.");
     goto retry;
   }
 
