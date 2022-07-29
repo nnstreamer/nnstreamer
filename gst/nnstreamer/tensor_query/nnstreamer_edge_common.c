@@ -12,7 +12,8 @@
 
 #define _GNU_SOURCE
 #include <stdio.h>
-
+#include <arpa/inet.h>
+#include <ifaddrs.h>
 #include "nnstreamer-edge-common.h"
 
 /**
@@ -588,4 +589,37 @@ nns_edge_data_get_info (nns_edge_data_h data_h, const char *key, char **value)
   *value = nns_edge_strdup (val);
 
   return NNS_EDGE_ERROR_NONE;
+}
+
+/**
+ * @brief Get IP address
+ */
+gchar *
+nns_edge_get_ip_address (void)
+{
+  struct ifaddrs *addrs, *run;
+  gchar *ret = NULL;
+
+  getifaddrs (&addrs);
+  run = addrs;
+  while (run) {
+    if (run->ifa_addr && run->ifa_addr->sa_family == AF_INET) {
+      struct sockaddr_in *pAddr = (struct sockaddr_in *) run->ifa_addr;
+
+      if (NULL != strstr (run->ifa_name, "en") ||
+          NULL != strstr (run->ifa_name, "et")) {
+        g_free (ret);
+        ret = g_strdup (inet_ntoa (pAddr->sin_addr));
+        break;
+      }
+    }
+    run = run->ifa_next;
+  }
+
+  freeifaddrs (addrs);
+
+  if (NULL == ret)
+    ret = g_strdup ("localhost");
+
+  return ret;
 }
