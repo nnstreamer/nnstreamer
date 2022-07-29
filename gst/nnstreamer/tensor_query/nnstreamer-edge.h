@@ -63,14 +63,22 @@ typedef enum {
 } nns_edge_event_e;
 
 typedef enum {
-  NNS_EDGE_PROTOCOL_TCP = 0,
-  NNS_EDGE_PROTOCOL_UDP,
-  NNS_EDGE_PROTOCOL_MQTT,
-  NNS_EDGE_PROTOCOL_AITT,
-  NNS_EDGE_PROTOCOL_AITT_TCP,
+  NNS_EDGE_CONNECT_TYPE_TCP = 0,
+  NNS_EDGE_CONNECT_TYPE_UDP,
+  NNS_EDGE_CONNECT_TYPE_MQTT,
+  NNS_EDGE_CONNECT_TYPE_HYBRID,
 
-  NNS_EDGE_PROTOCOL_MAX
-} nns_edge_protocol_e;
+  NNS_EDGE_CONNECT_TYPE_UNKNOWN
+} nns_edge_connect_type_e;
+
+typedef enum {
+  NNS_EDGE_FLAG_NONE = 0,
+  NNS_EDGE_FLAG_RECV = (1 << 0),
+  NNS_EDGE_FLAG_SEND = (1 << 1),
+  NNS_EDGE_FLAG_SERVER = (1 << 2),
+
+  NNS_EDGE_FLAG_ALL = (NNS_EDGE_FLAG_RECV | NNS_EDGE_FLAG_SEND | NNS_EDGE_FLAG_SERVER)
+} nns_edge_flag_e;
 
 /**
  * @brief Callback for the nnstreamer edge event.
@@ -85,14 +93,14 @@ typedef int (*nns_edge_event_cb) (nns_edge_event_h event_h, void *user_data);
 typedef void (*nns_edge_data_destroy_cb) (void *data);
 
 /**
- * @brief Get registered handle. If not registered, create new handle and register it.
+ * @brief Create edge handle.
  */
-int nns_edge_create_handle (const char *id, const char *topic, nns_edge_h *edge_h);
+int nns_edge_create_handle (const char *id, nns_edge_connect_type_e connect_type, int flags, nns_edge_h *edge_h);
 
 /**
  * @brief Start the nnstreamer edge.
  */
-int nns_edge_start (nns_edge_h edge_h, bool is_server);
+int nns_edge_start (nns_edge_h edge_h);
 
 /**
  * @brief Release the given handle.
@@ -107,7 +115,7 @@ int nns_edge_set_event_callback (nns_edge_h edge_h, nns_edge_event_cb cb, void *
 /**
  * @brief Connect to the destination node.
  */
-int nns_edge_connect (nns_edge_h edge_h, nns_edge_protocol_e protocol, const char *ip, int port);
+int nns_edge_connect (nns_edge_h edge_h, const char *dest_ip, int dest_port);
 
 /**
  * @brief Disconnect from the destination node.
@@ -115,34 +123,19 @@ int nns_edge_connect (nns_edge_h edge_h, nns_edge_protocol_e protocol, const cha
 int nns_edge_disconnect (nns_edge_h edge_h);
 
 /**
- * @brief Publish a message to a given topic.
+ * @brief Publish a message to desination (broker or connected node).
  */
 int nns_edge_publish (nns_edge_h edge_h, nns_edge_data_h data_h);
 
 /**
- * @brief Request result to the server.
- */
-int nns_edge_request (nns_edge_h edge_h, nns_edge_data_h data_h);
-
-/**
- * @brief Respond to a request.
- */
-int nns_edge_respond (nns_edge_h edge_h, nns_edge_data_h data_h);
-
-/**
  * @brief Subscribe a message to a given topic.
  */
-int nns_edge_subscribe (nns_edge_h edge_h, nns_edge_data_h data_h);
+int nns_edge_subscribe (nns_edge_h edge_h);
 
 /**
- * @brief Unsubscribe a message to a given topic.
+ * @brief Unsubscribe a message.
  */
 int nns_edge_unsubscribe (nns_edge_h edge_h);
-
-/**
- * @brief Get the topic of edge handle. Caller should release returned string using free().
- */
-int nns_edge_get_topic (nns_edge_h edge_h, char **topic);
 
 /**
  * @brief Set nnstreamer edge info.

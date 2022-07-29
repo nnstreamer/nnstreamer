@@ -30,17 +30,17 @@ typedef struct {
   pthread_mutex_t lock;
   char *id;
   char *topic;
-  nns_edge_protocol_e protocol;
-  char *ip; /**< host IP */
-  int port; /**< host port */
-  char *listener_ip;
-  int listener_port;
+  nns_edge_connect_type_e connect_type;
+  char *ip;
+  int port;
+  char *dest_ip;  /**< destination port */
+  int dest_port;  /**< destination port */
+  int flags;
 
   /* Edge event callback and user data */
   nns_edge_event_cb event_cb;
   void *user_data;
 
-  bool is_server;
   int64_t client_id;
   char *caps_str;
 

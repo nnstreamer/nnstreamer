@@ -243,10 +243,8 @@ nns_edge_mqtt_connect (nns_edge_h edge_h)
     return NNS_EDGE_ERROR_OUT_OF_MEMORY;
   }
 
-  memset (bh, 0, sizeof (nns_edge_broker_s));
-
-  url = g_strdup_printf ("%s:%d", eh->ip, eh->port);
-  client_id = g_strdup_printf ("nns_edge_%s_%u", eh->id, getpid ());
+  url = nns_edge_strdup_printf ("%s:%d", eh->dest_ip, eh->dest_port);
+  client_id = nns_edge_strdup_printf ("nns_edge_%s_%u", eh->id, getpid ());
 
   ret = MQTTAsync_create (&handle, url, client_id,
       MQTTCLIENT_PERSISTENCE_NONE, NULL);
@@ -272,7 +270,7 @@ nns_edge_mqtt_connect (nns_edge_h edge_h)
   handle = bh->mqtt_h;
 
   nns_edge_logi ("Trying to connect MQTT (ID:%s, URL:%s:%d).",
-      eh->id, eh->ip, eh->port);
+      eh->id, eh->dest_ip, eh->dest_port);
 
   MQTTAsync_setCallbacks (handle, edge_h,
       mqtt_cb_connection_lost, mqtt_cb_message_arrived, NULL);
@@ -337,7 +335,7 @@ nns_edge_mqtt_close (nns_edge_h edge_h)
   handle = bh->mqtt_h;
 
   nns_edge_logi ("Trying to disconnect MQTT (ID:%s, URL:%s:%d).",
-      eh->id, eh->ip, eh->port);
+      eh->id, eh->dest_ip, eh->dest_port);
 
   options.onSuccess = mqtt_cb_disconnection_success;
   options.onFailure = mqtt_cb_disconnection_failure;
