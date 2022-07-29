@@ -23,8 +23,11 @@
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_query_serversrc_debug);
 #define GST_CAT_DEFAULT gst_tensor_query_serversrc_debug
 
-#define DEFAULT_PORT_SRC 3001
+#define DEFAULT_PORT_SRC 3000
 #define DEFAULT_IS_LIVE TRUE
+#define DEFAULT_MQTT_HOST "tcp://localhost"
+#define DEFAULT_MQTT_PORT 1883
+
 /**
  * @brief the capabilities of the outputs
  */
@@ -41,7 +44,9 @@ enum
   PROP_0,
   PROP_HOST,
   PROP_PORT,
-  PROP_PROTOCOL,
+  PROP_DEST_HOST,
+  PROP_DEST_PORT,
+  PROP_CONNECT_TYPE,
   PROP_TIMEOUT,
   PROP_TOPIC,
   PROP_ID,
@@ -89,24 +94,31 @@ gst_tensor_query_serversrc_class_init (GstTensorQueryServerSrcClass * klass)
       g_param_spec_uint ("port", "Port",
           "The port to listen to (0=random available port)", 0,
           65535, DEFAULT_PORT_SRC, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-  g_object_class_install_property (gobject_class, PROP_PROTOCOL,
-      g_param_spec_enum ("protocol", "Protocol",
-          "The network protocol to establish connections between client and server.",
-          GST_TYPE_QUERY_PROTOCOL, DEFAULT_PROTOCOL,
+  g_object_class_install_property (gobject_class, PROP_DEST_HOST,
+      g_param_spec_string ("dest-host", "Destination Host",
+          "The destination hostname to connect", DEFAULT_MQTT_HOST,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_DEST_PORT,
+      g_param_spec_uint ("dest-port", "Destination Port",
+          "The destination port to connect to (0=random available port)", 0,
+          65535, DEFAULT_MQTT_PORT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_CONNECT_TYPE,
+      g_param_spec_enum ("connect-type", "Connect Type", "The connection type.",
+          GST_TYPE_QUERY_CONNECT_TYPE, DEFAULT_CONNECT_TYPE,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_TIMEOUT,
       g_param_spec_uint ("timeout", "Timeout",
-          "The timeout as seconds to maintain connection", 0,
-          3600, QUERY_DEFAULT_TIMEOUT_SEC,
+          "The timeout as seconds to maintain connection", 0, 3600,
+          QUERY_DEFAULT_TIMEOUT_SEC,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_TOPIC,
       g_param_spec_string ("topic", "Topic",
           "The main topic of the host and option if necessary. "
-          "(topic)/(optional topic for main topic).",
-          "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          "(topic)/(optional topic for main topic).", "",
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_ID,
-      g_param_spec_uint ("id", "ID",
-          "ID for distinguishing query servers.", 0,
+      g_param_spec_uint ("id", "ID", "ID for distinguishing query servers.", 0,
           G_MAXUINT, DEFAULT_SERVER_ID,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_IS_LIVE,
@@ -137,7 +149,9 @@ gst_tensor_query_serversrc_init (GstTensorQueryServerSrc * src)
 {
   src->host = g_strdup (DEFAULT_HOST);
   src->port = DEFAULT_PORT_SRC;
-  src->protocol = DEFAULT_PROTOCOL;
+  src->dest_host = g_strdup (DEFAULT_MQTT_HOST);
+  src->dest_port = DEFAULT_MQTT_PORT;
+  src->connect_type = DEFAULT_CONNECT_TYPE;
   src->timeout = QUERY_DEFAULT_TIMEOUT_SEC;
   src->topic = NULL;
   src->src_id = DEFAULT_SERVER_ID;
@@ -194,8 +208,19 @@ gst_tensor_query_serversrc_set_property (GObject * object, guint prop_id,
     case PROP_PORT:
       serversrc->port = g_value_get_uint (value);
       break;
-    case PROP_PROTOCOL:
-      serversrc->protocol = g_value_get_enum (value);
+    case PROP_DEST_HOST:
+      if (!g_value_get_string (value)) {
+        nns_logw ("host property cannot be NULL");
+        break;
+      }
+      g_free (serversrc->host);
+      serversrc->dest_host = g_value_dup_string (value);
+      break;
+    case PROP_DEST_PORT:
+      serversrc->dest_port = g_value_get_uint (value);
+      break;
+    case PROP_CONNECT_TYPE:
+      serversrc->connect_type = g_value_get_enum (value);
       break;
     case PROP_TIMEOUT:
       serversrc->timeout = g_value_get_uint (value);
@@ -207,8 +232,8 @@ gst_tensor_query_serversrc_set_property (GObject * object, guint prop_id,
       }
       g_free (serversrc->topic);
       serversrc->topic = g_value_dup_string (value);
-      if (NNS_EDGE_PROTOCOL_TCP == serversrc->protocol)
-        serversrc->protocol = NNS_EDGE_PROTOCOL_MQTT;
+      if (NNS_EDGE_CONNECT_TYPE_TCP == serversrc->connect_type)
+        serversrc->connect_type = NNS_EDGE_CONNECT_TYPE_HYBRID;
       break;
     case PROP_ID:
       serversrc->src_id = g_value_get_uint (value);
@@ -239,8 +264,14 @@ gst_tensor_query_serversrc_get_property (GObject * object, guint prop_id,
     case PROP_PORT:
       g_value_set_uint (value, serversrc->port);
       break;
-    case PROP_PROTOCOL:
-      g_value_set_enum (value, serversrc->protocol);
+    case PROP_DEST_HOST:
+      g_value_set_string (value, serversrc->dest_host);
+      break;
+    case PROP_DEST_PORT:
+      g_value_set_uint (value, serversrc->dest_port);
+      break;
+    case PROP_CONNECT_TYPE:
+      g_value_set_enum (value, serversrc->connect_type);
       break;
     case PROP_TIMEOUT:
       g_value_set_uint (value, serversrc->timeout);
@@ -299,29 +330,29 @@ static gboolean
 gst_tensor_query_serversrc_start (GstBaseSrc * bsrc)
 {
   GstTensorQueryServerSrc *src = GST_TENSOR_QUERY_SERVERSRC (bsrc);
-  char *id_str = NULL, *port = NULL, *protocol_str = NULL;
+  char *id_str = NULL, *port = NULL;
 
   id_str = g_strdup_printf ("%d", src->src_id);
-  src->server_h = gst_tensor_query_server_add_data (id_str, src->topic);
+  src->server_h = gst_tensor_query_server_add_data (id_str, src->connect_type);
   g_free (id_str);
 
   src->edge_h = gst_tensor_query_server_get_edge_handle (src->server_h);
-  nns_edge_set_info (src->edge_h, "IP", src->host);
+  nns_edge_set_info (src->edge_h, "HOST", src->host);
   port = g_strdup_printf ("%d", src->port);
   nns_edge_set_info (src->edge_h, "PORT", port);
+  g_free (port);
+  nns_edge_set_info (src->edge_h, "DEST_HOST", src->dest_host);
+  port = g_strdup_printf ("%d", src->dest_port);
+  nns_edge_set_info (src->edge_h, "DEST_PORT", port);
   g_free (port);
 
   /** Publish query sever connection info */
   if (src->topic)
     nns_edge_set_info (src->edge_h, "TOPIC", src->topic);
 
-  protocol_str = g_strdup_printf ("%d", src->protocol);
-  nns_edge_set_info (src->edge_h, "PROTOCOL", protocol_str);
-  g_free (protocol_str);
-
   nns_edge_set_event_callback (src->edge_h, _nns_edge_event_cb, src);
 
-  if (0 != nns_edge_start (src->edge_h, true)) {
+  if (0 != nns_edge_start (src->edge_h)) {
     nns_loge
         ("Failed to start NNStreamer-edge. Please check server IP and port");
     return FALSE;

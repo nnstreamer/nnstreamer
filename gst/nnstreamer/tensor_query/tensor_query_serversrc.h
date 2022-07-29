@@ -44,14 +44,16 @@ struct _GstTensorQueryServerSrc
   guint src_id;
   gboolean configured;
 
-  guint16 port;
   gchar *host;
+  guint16 port;
+  gchar *dest_host;
+  guint16 dest_port;
   guint timeout;
 
   /* Query-hybrid feature */
   gchar *topic; /**< Main operation such as 'object_detection' or 'image_segmentation' */
 
-  nns_edge_protocol_e protocol;
+  nns_edge_connect_type_e connect_type;
   edge_server_handle server_h;
   nns_edge_h edge_h;
   GAsyncQueue *msg_queue;

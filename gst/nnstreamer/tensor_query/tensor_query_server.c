@@ -50,11 +50,11 @@ gst_tensor_query_server_get_handle (char *id)
  * @brief Add nnstreamer edge server handle into hash table.
  */
 edge_server_handle
-gst_tensor_query_server_add_data (char *id, const gchar * topic)
+gst_tensor_query_server_add_data (char *id,
+    nns_edge_connect_type_e connect_type)
 {
   GstTensorQueryServer *data = NULL;
   int ret;
-  gchar *_topic = NULL;
 
   data = gst_tensor_query_server_get_handle (id);
 
@@ -73,12 +73,9 @@ gst_tensor_query_server_add_data (char *id, const gchar * topic)
   data->id = id;
   data->configured = FALSE;
 
-  if (topic)
-    _topic = g_strdup (topic);
-  else
-    _topic = g_strdup ("TCP_DIRECT");
-
-  ret = nns_edge_create_handle (id, _topic, &data->edge_h);
+  ret = nns_edge_create_handle (id, connect_type,
+      NNS_EDGE_FLAG_RECV | NNS_EDGE_FLAG_SEND | NNS_EDGE_FLAG_SERVER,
+      &data->edge_h);
   if (NNS_EDGE_ERROR_NONE != ret) {
     GST_ERROR ("Failed to get nnstreamer edge handle.");
     gst_tensor_query_server_remove_data (data);
@@ -89,7 +86,6 @@ gst_tensor_query_server_add_data (char *id, const gchar * topic)
   g_hash_table_insert (_qs_table, g_strdup (id), data);
   G_UNLOCK (query_server_table);
 
-  g_free (_topic);
   return data;
 }
 

@@ -32,14 +32,14 @@ extern "C" {
  */
 
 #define DEFAULT_HOST "localhost"
-#define DEFAULT_PROTOCOL (NNS_EDGE_PROTOCOL_TCP)
-#define GST_TYPE_QUERY_PROTOCOL (gst_tensor_query_protocol_get_type ())
+#define DEFAULT_CONNECT_TYPE (NNS_EDGE_CONNECT_TYPE_TCP)
+#define GST_TYPE_QUERY_CONNECT_TYPE (gst_tensor_query_get_connect_type ())
 
 /**
  * @brief register GEnumValue array for query protocol property handling
  */
 GType
-gst_tensor_query_protocol_get_type (void);
+gst_tensor_query_get_connect_type (void);
 
 #ifdef __cplusplus
 }

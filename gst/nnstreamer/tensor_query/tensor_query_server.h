@@ -47,7 +47,7 @@ gst_tensor_query_server_get_handle (char *id);
  * @brief Add GstTensorQueryServer.
  */
 edge_server_handle
-gst_tensor_query_server_add_data (char *id, const gchar *topic);
+gst_tensor_query_server_add_data (char *id, nns_edge_connect_type_e connect_type);
 
 /**
  * @brief Remove GstTensorQueryServer.

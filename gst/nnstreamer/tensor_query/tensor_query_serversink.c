@@ -20,7 +20,6 @@
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_query_serversink_debug);
 #define GST_CAT_DEFAULT gst_tensor_query_serversink_debug
 
-#define DEFAULT_PORT_SINK 3000
 #define DEFAULT_METALESS_FRAME_LIMIT 1
 
 /**
@@ -34,7 +33,7 @@ static GstStaticPadTemplate sinktemplate = GST_STATIC_PAD_TEMPLATE ("sink",
 enum
 {
   PROP_0,
-  PROP_PROTOCOL,
+  PROP_CONNECT_TYPE,
   PROP_ID,
   PROP_TIMEOUT,
   PROP_METALESS_FRAME_LIMIT
@@ -74,10 +73,10 @@ gst_tensor_query_serversink_class_init (GstTensorQueryServerSinkClass * klass)
   gobject_class->get_property = gst_tensor_query_serversink_get_property;
   gobject_class->finalize = gst_tensor_query_serversink_finalize;
 
-  g_object_class_install_property (gobject_class, PROP_PROTOCOL,
-      g_param_spec_enum ("protocol", "Protocol",
-          "The network protocol to establish connection",
-          GST_TYPE_QUERY_PROTOCOL, DEFAULT_PROTOCOL,
+  g_object_class_install_property (gobject_class, PROP_CONNECT_TYPE,
+      g_param_spec_enum ("connect-type", "Connect Type",
+          "The connection type",
+          GST_TYPE_QUERY_CONNECT_TYPE, DEFAULT_CONNECT_TYPE,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_TIMEOUT,
       g_param_spec_uint ("timeout", "Timeout",
@@ -118,7 +117,7 @@ gst_tensor_query_serversink_class_init (GstTensorQueryServerSinkClass * klass)
 static void
 gst_tensor_query_serversink_init (GstTensorQueryServerSink * sink)
 {
-  sink->protocol = DEFAULT_PROTOCOL;
+  sink->connect_type = DEFAULT_CONNECT_TYPE;
   sink->timeout = QUERY_DEFAULT_TIMEOUT_SEC;
   sink->sink_id = DEFAULT_SERVER_ID;
   sink->metaless_frame_count = 0;
@@ -145,8 +144,8 @@ gst_tensor_query_serversink_set_property (GObject * object, guint prop_id,
   GstTensorQueryServerSink *serversink = GST_TENSOR_QUERY_SERVERSINK (object);
 
   switch (prop_id) {
-    case PROP_PROTOCOL:
-      serversink->protocol = g_value_get_enum (value);
+    case PROP_CONNECT_TYPE:
+      serversink->connect_type = g_value_get_enum (value);
       break;
     case PROP_TIMEOUT:
       serversink->timeout = g_value_get_uint (value);
@@ -173,8 +172,8 @@ gst_tensor_query_serversink_get_property (GObject * object, guint prop_id,
   GstTensorQueryServerSink *serversink = GST_TENSOR_QUERY_SERVERSINK (object);
 
   switch (prop_id) {
-    case PROP_PROTOCOL:
-      g_value_set_enum (value, serversink->protocol);
+    case PROP_CONNECT_TYPE:
+      g_value_set_enum (value, serversink->connect_type);
       break;
     case PROP_TIMEOUT:
       g_value_set_uint (value, serversink->timeout);
@@ -203,7 +202,8 @@ gst_tensor_query_serversink_start (GstBaseSink * bsink)
   gchar *id_str = NULL;
 
   id_str = g_strdup_printf ("%u", sink->sink_id);
-  sink->server_h = gst_tensor_query_server_add_data (id_str, NULL);
+  sink->server_h =
+      gst_tensor_query_server_add_data (id_str, sink->connect_type);
   g_free (id_str);
 
   caps = gst_pad_get_current_caps (GST_BASE_SINK_PAD (bsink));
@@ -288,7 +288,7 @@ gst_tensor_query_serversink_render (GstBaseSink * bsink, GstBuffer * buf)
     nns_edge_data_set_info (data_h, "client_id", val);
     g_free (val);
 
-    nns_edge_respond (sink->edge_h, data_h);
+    nns_edge_publish (sink->edge_h, data_h);
     nns_edge_data_destroy (data_h);
   } else {
     nns_logw ("Cannot get tensor query meta. Drop buffers!\n");

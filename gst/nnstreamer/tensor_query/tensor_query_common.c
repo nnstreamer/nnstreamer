@@ -27,16 +27,19 @@
  * @brief register GEnumValue array for query protocol property handling
  */
 GType
-gst_tensor_query_protocol_get_type (void)
+gst_tensor_query_get_connect_type (void)
 {
   static GType protocol = 0;
   if (protocol == 0) {
     static GEnumValue protocols[] = {
-      {NNS_EDGE_PROTOCOL_TCP, "TCP",
-          "Raw TCP protocol. Directly sending stream frames via TCP connections."},
-      {NNS_EDGE_PROTOCOL_UDP, "UDP",
-          "Raw UDP protocol. Directly sending stream frames via UDP connections."},
-      {NNS_EDGE_PROTOCOL_MQTT, "MQTT", "Connect with MQTT brokers."},
+      {NNS_EDGE_CONNECT_TYPE_TCP, "TCP",
+          "Directly sending stream frames via TCP connections."},
+      {NNS_EDGE_CONNECT_TYPE_UDP, "UDP",
+          "Directly sending stream frames via UDP connections."},
+      {NNS_EDGE_CONNECT_TYPE_MQTT, "MQTT",
+          "Connect and send stream frames with MQTT brokers."},
+      {NNS_EDGE_CONNECT_TYPE_HYBRID, "HYBRID",
+          "Connect with MQTT brokers and directly sending stream frames via TCP connections."},
       {0, NULL, NULL},
     };
     protocol = g_enum_register_static ("tensor_query_protocol", protocols);
