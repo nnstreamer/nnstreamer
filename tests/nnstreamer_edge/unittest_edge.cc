@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: LGPL-2.1-only */
 /**
  * @file        unittest_edge.cc
  * @date        21 Jul 2022
@@ -11,6 +12,7 @@
 #include <glib.h>
 #include <gst/gst.h>
 
+/** @todo Add edgesrc and edgesink unit test */
 /**
  * @brief Test for edgesrc get and set properties
  */
