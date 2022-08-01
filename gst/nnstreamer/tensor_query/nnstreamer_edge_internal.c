@@ -1040,7 +1040,7 @@ nns_edge_start (nns_edge_h edge_h, bool is_server)
         goto error;
       }
 
-      /* @todo Set unique device name.
+      /** @todo Set unique device name.
        * Device name should be unique. Consider using MAC address later.
        * Now, use ID received from the user.
        */
@@ -1331,7 +1331,7 @@ nns_edge_publish (nns_edge_h edge_h, nns_edge_data_h data_h)
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
-  /* @todo update code (publish data) */
+  /** @todo update code (publish data) */
 
   nns_edge_unlock (eh);
   return NNS_EDGE_ERROR_NONE;
@@ -1517,7 +1517,7 @@ nns_edge_set_info (nns_edge_h edge_h, const char *key, const char *value)
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
-  /*
+  /**
    * @todo User handles (replace or append) the capability of edge handle.
    * @todo Change key-value set as json or hash table.
    */
@@ -1574,7 +1574,7 @@ nns_edge_get_info (nns_edge_h edge_h, const char *key, char **value)
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
-  /*
+  /**
    * @todo User handles (replace or append) the capability of edge handle.
    * @todo Change key-value set as json or hash table.
    */
