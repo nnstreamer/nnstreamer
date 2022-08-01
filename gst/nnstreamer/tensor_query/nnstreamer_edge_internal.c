@@ -988,7 +988,9 @@ _get_ip_address (void)
     }
     addrs = addrs->ifa_next;
   }
-  while ((addrs = addrs->ifa_next));
+
+  if (addrs)
+    while ((addrs = addrs->ifa_next));
 
   freeifaddrs (addrs);
 
