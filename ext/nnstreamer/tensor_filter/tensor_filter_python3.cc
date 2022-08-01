@@ -825,7 +825,7 @@ static GstTensorFilterFramework NNS_support_python = {.version = GST_TENSOR_FILT
        .allocateInInvoke = nullptr,
    } } };
 
-static PyThreadState* st;
+static PyThreadState *st;
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void
 init_filter_py (void)

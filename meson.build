@@ -426,7 +426,8 @@ features = {
     'project_args': { 'ENABLE_NNSTREAMER_EDGE': 1 }
   },
   'mxnet-support': {
-    'extra_deps': [ mxnet_dep ]
+    'extra_deps': [ mxnet_dep ],
+    'project_args': { 'ENABLE_MXNET' : 1 }
   }
 }
 

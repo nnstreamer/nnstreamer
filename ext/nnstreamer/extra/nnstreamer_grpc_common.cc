@@ -32,7 +32,7 @@ using namespace grpc;
 NNStreamerRPC *
 NNStreamerRPC::createInstance (const grpc_config * config)
 {
- gchar * name = NULL;
+  gchar *name = NULL;
 
   if (config->idl == GRPC_IDL_PROTOBUF)
     name = g_strdup_printf ("%s%s", NNS_GRPC_PROTOBUF_NAME,
@@ -64,7 +64,7 @@ NNStreamerRPC::createInstance (const grpc_config * config)
     return NULL;
   }
 
-  NNStreamerRPC * instance = (NNStreamerRPC *) create_instance (config);
+  NNStreamerRPC *instance = (NNStreamerRPC *) create_instance (config);
   if (!instance) {
     ml_loge ("Error creating an instance\n");
     g_free (name);
