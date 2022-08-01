@@ -145,15 +145,17 @@ if gtest_dep.found()
     test('unittest_query', unittest_query, env: testenv)
 
     # Run unittest_edge
-    unittest_edge = executable('unittest_edge',
-      join_paths('nnstreamer_edge', 'unittest_edge.cc'),
-      dependencies: [nnstreamer_unittest_deps],
-      install: get_option('install-test'),
-      install_dir: unittest_install_dir
-    )
+    if nnstreamer_edge_support_is_available
+      unittest_edge = executable('unittest_edge',
+        join_paths('nnstreamer_edge', 'unittest_edge.cc'),
+        dependencies: [nnstreamer_unittest_deps],
+        install: get_option('install-test'),
+        install_dir: unittest_install_dir
+      )
 
-    test('unittest_edge', unittest_edge, env: testenv)
-
+      test('unittest_edge', unittest_edge, env: testenv)
+    endif
+    
     # Run unittest_mqtt
     if mqtt_support_is_available
       unittest_mqtt_w_helper = executable('unittest_mqtt_w_helper',
