@@ -931,7 +931,7 @@ gst_tensor_get_dimension_string (const tensor_dim dim)
   dim_str = g_string_new (NULL);
 
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-    g_string_append_printf (dim_str, "%d", dim[i]);
+    g_string_append_printf (dim_str, "%u", dim[i]);
 
     if (i < NNS_TENSOR_RANK_LIMIT - 1) {
       g_string_append (dim_str, ":");
@@ -965,7 +965,7 @@ gst_tensor_get_rank_dimension_string (const tensor_dim dim,
     actual_rank = rank;
 
   for (i = 0; i < actual_rank; i++) {
-    g_string_append_printf (dim_str, "%d", dim[i]);
+    g_string_append_printf (dim_str, "%u", dim[i]);
 
     if (i < actual_rank - 1) {
       g_string_append (dim_str, ":");

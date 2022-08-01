@@ -26,7 +26,8 @@
 /** @brief object structure for custom Python type: TensorShape */
 typedef struct
 {
-  PyObject_HEAD PyObject * dims;
+  PyObject_HEAD
+  PyObject *dims;
   PyArray_Descr *type;
 } TensorShapeObject;
 
@@ -322,11 +323,11 @@ loadScript (PyObject **core_obj, const gchar *module_name, const gchar *class_na
       *core_obj = PyObject_CallObject (cls, NULL);
       Py_SAFEDECREF (cls);
     } else {
-      Py_ERRMSG ("Cannot find '%s' class in the script\n", class_name);
+      Py_ERRMSG ("Cannot find '%s' class in the script.\n", class_name);
       return -2;
     }
   } else {
-    Py_ERRMSG ("the script is not properly loaded\n");
+    Py_ERRMSG ("The script (%s) is not properly loaded.\n", module_name);
     return -1;
   }
 
@@ -397,72 +398,101 @@ int addToSysPath (const gchar *path)
 int
 parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
 {
-  int ret = 0;
+  guint i, j, rank;
+
   if (PyList_Size (result) < 0)
     return -1;
 
   info->num_tensors = PyList_Size (result);
-  for (guint i = 0; i < info->num_tensors; i++) {
+  for (i = 0; i < info->num_tensors; i++) {
     /** don't own the reference */
     PyObject *tensor_shape = PyList_GetItem (result, (Py_ssize_t)i);
     if (nullptr == tensor_shape) {
-      Py_ERRMSG ("parseTensorsInfo() has failed (1).");
-      return -1;
-    }
-
-    PyObject *shape_dims = PyObject_CallMethod (tensor_shape, (char *)"getDims", NULL);
-    if (nullptr == shape_dims) {
-      Py_ERRMSG ("parseTensorsInfo() has failed (2).");
+      Py_ERRMSG ("The function %s has failed, cannot get TensorShape object.", __FUNCTION__);
       return -1;
     }
 
     PyObject *shape_type = PyObject_CallMethod (tensor_shape, (char *)"getType", NULL);
     if (nullptr == shape_type) {
-      Py_ERRMSG ("parseTensorsInfo() has failed (3).");
-      Py_SAFEDECREF (shape_dims);
+      Py_ERRMSG ("The function %s has failed, cannot get the tensor type.", __FUNCTION__);
       return -1;
     }
 
     /** convert numpy type to tensor type */
     info->info[i].type
         = getTensorType ((NPY_TYPES) (((PyArray_Descr *)shape_type)->type_num));
+    Py_SAFEDECREF (shape_type);
 
-    for (gint j = 0; j < PyList_Size (shape_dims); j++) {
+    PyObject *shape_dims = PyObject_CallMethod (tensor_shape, (char *)"getDims", NULL);
+    if (nullptr == shape_dims) {
+      Py_ERRMSG ("The function %s has failed, cannot get the tensor dimension.", __FUNCTION__);
+      return -1;
+    }
+
+    if (!PyList_CheckExact (shape_dims)) {
+      Py_ERRMSG ("The function %s has failed, dimension should be a list.", __FUNCTION__);
+      Py_SAFEDECREF (shape_dims);
+      return -EINVAL;
+    }
+
+    rank = (guint) PyList_Size (shape_dims);
+    if (rank > NNS_TENSOR_RANK_LIMIT) {
+      Py_ERRMSG ("The function %s has failed, max rank of tensor dimension is %d.", __FUNCTION__, NNS_TENSOR_RANK_LIMIT);
+      Py_SAFEDECREF (shape_dims);
+      return -EINVAL;
+    }
+
+    for (j = 0; j < rank; j++) {
       PyErr_Clear();
       PyObject *item = PyList_GetItem (shape_dims, (Py_ssize_t)j);
+      int val = -1;
+
       if (PyErr_Occurred()) {
         PyErr_Print();
+        PyErr_Clear();
         info->info[i].dimension[j] = 0;
         ml_loge
           ("Python nnstreamer plugin has returned dimensions of the %u'th tensor not in an array. Python code should return int-type array for dimensions. Indexes are counted from 0.\n",
-          i);
-        ret = -EINVAL;
+          i + 1);
+        Py_SAFEDECREF (shape_dims);
+        return -EINVAL;
       }
-      PyErr_Clear();
 
       if (PyLong_Check (item)) {
-        info->info[i].dimension[j] = (guint)PyLong_AsUnsignedLong (item);
+        val = (int) PyLong_AsLong (item);
       } else if (PyFloat_Check (item)) {
         /** Regard this as a warning. Don't return -EINVAL with this */
-        info->info[i].dimension[j] = (guint)PyFloat_AsDouble (item);
+        val = (int) PyFloat_AsDouble (item);
         ml_loge
-          ("Python nnstreamer plugin has returned the %d'th dimension value of the %u'th tensor in floating-point type (%f), which is casted as unsigned-int. Python code should return int-type for dimension values. Indexes are counted from 0.\n",
-          j, i, PyFloat_AsDouble (item));
+          ("Python nnstreamer plugin has returned the %u'th dimension value of the %u'th tensor in floating-point type (%f), which is casted as unsigned-int. Python code should return int-type for dimension values. Indexes are counted from 0.\n",
+          j + 1, i + 1, PyFloat_AsDouble (item));
       } else {
         info->info[i].dimension[j] = 0;
         ml_loge
-          ("Python nnstreamer plugin has returned the %d'th dimension value of the %u'th tensor neither in integer or floating-pointer. Python code should return int-type for dimension values. Indexes are counted from 0.\n",
-          j, i);
-        ret = -EINVAL;
+          ("Python nnstreamer plugin has returned the %u'th dimension value of the %u'th tensor neither in integer or floating-pointer. Python code should return int-type for dimension values. Indexes are counted from 0.\n",
+          j + 1, i + 1);
+        Py_SAFEDECREF (shape_dims);
+        return -EINVAL;
       }
+
+      if (val <= 0) {
+        Py_ERRMSG ("The %u'th dimension value of the %u'th tensor is invalid (%d).", j + 1, i + 1, val);
+        Py_SAFEDECREF (shape_dims);
+        return -EINVAL;
+      }
+
+      info->info[i].dimension[j] = (uint32_t) val;
     }
 
-    info->info[i].name = g_strdup("");
+    /* Fill remained dims */
+    for (; j < NNS_TENSOR_RANK_LIMIT; j++)
+      info->info[i].dimension[j] = 1U;
+
+    info->info[i].name = NULL;
     Py_SAFEDECREF (shape_dims);
-    Py_SAFEDECREF (shape_type);
   }
 
-  return ret;
+  return 0;
 }
 
 /**
@@ -480,7 +510,7 @@ PyTensorShape_New (PyObject * shape_cls, const GstTensorInfo *info)
   PyObject *type = (PyObject *)PyArray_DescrFromType (getNumpyType (info->type));
 
   if (nullptr == args || nullptr == dims || nullptr == type) {
-    Py_ERRMSG ("PYCore::PyTensorShape_New() has failed (1).");
+    Py_ERRMSG ("The function %s has failed, cannot create args.", __FUNCTION__);
     PyErr_Clear ();
     Py_SAFEDECREF (args);
     Py_SAFEDECREF (dims);
