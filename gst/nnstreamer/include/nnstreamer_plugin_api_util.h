@@ -23,7 +23,6 @@ G_BEGIN_DECLS
 /**
  * @brief If the given string is NULL, print "(NULL)". Copied from `GST_STR_NULL`
  */
-
 #define _STR_NULL(str) ((str) ? (str) : "(NULL)")
 
 /**

@@ -16,7 +16,7 @@
  *
  */
 /**
- * @file	gsttensorsr_ciio.c
+ * @file	gsttensor_srciio.c
  * @date	27 Feb 2019
  * @brief	GStreamer plugin to capture sensor data as tensor(s)
  * @see		http://github.com/nnstreamer/nnstreamer
