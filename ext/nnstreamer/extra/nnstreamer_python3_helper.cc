@@ -397,6 +397,7 @@ int addToSysPath (const gchar *path)
 int
 parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
 {
+  int ret = 0;
   if (PyList_Size (result) < 0)
     return -1;
 
@@ -426,16 +427,42 @@ parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
     info->info[i].type
         = getTensorType ((NPY_TYPES) (((PyArray_Descr *)shape_type)->type_num));
 
-    for (gint j = 0; j < PyList_Size (shape_dims); j++)
-      info->info[i].dimension[j]
-          = (guint)PyLong_AsLong (PyList_GetItem (shape_dims, (Py_ssize_t)j));
+    for (gint j = 0; j < PyList_Size (shape_dims); j++) {
+      PyErr_Clear();
+      PyObject *item = PyList_GetItem (shape_dims, (Py_ssize_t)j);
+      if (PyErr_Occurred()) {
+        PyErr_Print();
+        info->info[i].dimension[j] = 0;
+        ml_loge
+          ("Python nnstreamer plugin has returned dimensions of the %u'th tensor not in an array. Python code should return int-type array for dimensions. Indexes are counted from 0.\n",
+          i);
+        ret = -EINVAL;
+      }
+      PyErr_Clear();
+
+      if (PyLong_Check (item)) {
+        info->info[i].dimension[j] = (guint)PyLong_AsUnsignedLong (item);
+      } else if (PyFloat_Check (item)) {
+        /** Regard this as a warning. Don't return -EINVAL with this */
+        info->info[i].dimension[j] = (guint)PyFloat_AsDouble (item);
+        ml_loge
+          ("Python nnstreamer plugin has returned the %d'th dimension value of the %u'th tensor in floating-point type (%f), which is casted as unsigned-int. Python code should return int-type for dimension values. Indexes are counted from 0.\n",
+          j, i, PyFloat_AsDouble (item));
+      } else {
+        info->info[i].dimension[j] = 0;
+        ml_loge
+          ("Python nnstreamer plugin has returned the %d'th dimension value of the %u'th tensor neither in integer or floating-pointer. Python code should return int-type for dimension values. Indexes are counted from 0.\n",
+          j, i);
+        ret = -EINVAL;
+      }
+    }
 
     info->info[i].name = g_strdup("");
     Py_SAFEDECREF (shape_dims);
     Py_SAFEDECREF (shape_type);
   }
 
-  return 0;
+  return ret;
 }
 
 /**
