@@ -80,6 +80,12 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_transform_debug);
 #define REGEX_ARITH_OPTION_TYPECAST "(typecast:([u]?int(8|16|32|64)|float(16|32|64)))"
 
 /**
+ * @brief The transpose rank is fixed to 4.
+ * This RANK does not affect other/tensors(s)'s NNS_TENSOR_RANK_LIMIT.
+ */
+#define NNS_TENSOR_TRANSPOSE_RANK_LIMIT (4)
+
+/**
  * @brief tensor_transform properties
  */
 enum
@@ -89,7 +95,8 @@ enum
   PROP_MODE,
   PROP_OPTION,
   PROP_ACCELERATION,
-  PROP_APPLY
+  PROP_APPLY,
+  PROP_TRANSPOSE_RANK_LIMIT
 };
 
 /**
@@ -238,6 +245,11 @@ gst_tensor_transform_class_init (GstTensorTransformClass * klass)
       g_param_spec_string ("apply", "Apply", "Select tensors to apply, "
           "separated with ',' in case of multiple tensors. Default to apply all tensors.",
           "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_TRANSPOSE_RANK_LIMIT,
+      g_param_spec_uint ("transpose-rank-limit", "Transpose rank limit",
+          "The rank limit of transpose, which varies per version of nnstreamer and may be lower than the global rank limit if it is over 4.",
+          0, NNS_TENSOR_RANK_LIMIT, NNS_TENSOR_TRANSPOSE_RANK_LIMIT,
+          G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_set_details_simple (gstelement_class,
       "TensorTransform",
@@ -820,13 +832,13 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
       if (!g_regex_match_simple (REGEX_TRANSPOSE_OPTION, filter->option,
               G_REGEX_CASELESS, 0)) {
         ml_loge
-            ("%s: transpose: \'%s\' is not valid option string: it should be in the form of NEW_IDX_DIM0:NEW_IDX_DIM1:NEW_IDX_DIM2:3 (note that the index of the last dim is always fixed to 3)\n",
+            ("%s: transpose: \'%s\' is not valid option string: it should be in the form of NEW_IDX_DIM0:NEW_IDX_DIM1:NEW_IDX_DIM2:3 (Now transpose mode's rank is fixed to 3. Note that the index of the last dim is always fixed to 3)\n",
             filter_name, filter->option);
         break;
       }
 
-      strv = g_strsplit (filter->option, ":", NNS_TENSOR_RANK_LIMIT);
-      for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+      strv = g_strsplit (filter->option, ":", NNS_TENSOR_TRANSPOSE_RANK_LIMIT);
+      for (i = 0; i < NNS_TENSOR_TRANSPOSE_RANK_LIMIT; i++) {
         filter->data_transpose.trans_order[i] =
             (uint8_t) g_ascii_strtoull (strv[i], NULL, 10);
       }
@@ -1042,6 +1054,9 @@ gst_tensor_transform_get_property (GObject * object, guint prop_id,
       g_value_take_string (value, p);
       break;
     }
+    case PROP_TRANSPOSE_RANK_LIMIT:
+      g_value_set_uint (value, NNS_TENSOR_TRANSPOSE_RANK_LIMIT);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -1389,7 +1404,7 @@ gst_tensor_transform_transpose (GstTensorTransform * filter,
   gsize indexI, indexJ, SL, SI, SJ, SK;
   UNUSED (out_info);
 
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+  for (i = 0; i < NNS_TENSOR_TRANSPOSE_RANK_LIMIT; i++) {
     from = i;
     to = filter->data_transpose.trans_order[i];
     if (from != to) {
@@ -1859,12 +1874,12 @@ gst_tensor_transform_convert_dimension (GstTensorTransform * filter,
 
     case GTT_TRANSPOSE:
       if (direction == GST_PAD_SINK) {
-        for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+        for (i = 0; i < NNS_TENSOR_TRANSPOSE_RANK_LIMIT; i++) {
           out_info->dimension[i] =
               in_info->dimension[filter->data_transpose.trans_order[i]];
         }
       } else {
-        for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+        for (i = 0; i < NNS_TENSOR_TRANSPOSE_RANK_LIMIT; i++) {
           g_assert (filter->data_transpose.trans_order[i] <
               NNS_TENSOR_RANK_LIMIT);
           out_info->dimension[filter->data_transpose.trans_order[i]] =
