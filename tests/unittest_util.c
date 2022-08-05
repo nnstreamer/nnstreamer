@@ -15,7 +15,7 @@
 
 /**
  * @brief Set pipeline state, wait until it's done.
- * @return 0 success, -EPIPE if failed, -ETIME if timeout happens.
+ * @return 0 success, -ESTRPIPE if failed, -ETIME if timeout happens.
  */
 int
 setPipelineStateSync (GstElement * pipeline, GstState state,
@@ -27,12 +27,12 @@ setPipelineStateSync (GstElement * pipeline, GstState state,
   ret = gst_element_set_state (pipeline, state);
 
   if (ret == GST_STATE_CHANGE_FAILURE)
-    return -EPIPE;
+    return -ESTRPIPE;
 
   do {
     ret = gst_element_get_state (pipeline, &cur_state, NULL, 10 * GST_MSECOND);
     if (ret == GST_STATE_CHANGE_FAILURE)
-      return -EPIPE;
+      return -ESTRPIPE;
     if (cur_state == state)
       return 0;
     g_usleep (10000);

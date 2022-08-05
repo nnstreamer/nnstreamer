@@ -31,7 +31,7 @@ extern "C" {
 
 /**
  * @brief Set pipeline state, wait until it's done.
- * @return 0 success, -EPIPE if failed, -ETIME if timeout happens.
+ * @return 0 success, -ESTRPIPE if failed, -ETIME if timeout happens.
  */
 extern int setPipelineStateSync (GstElement *pipeline, GstState state, uint32_t timeout_ms);
 
