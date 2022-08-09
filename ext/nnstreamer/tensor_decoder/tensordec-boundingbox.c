@@ -114,7 +114,7 @@ void fini_bb (void) __attribute__ ((destructor));
 extern uint8_t rasters[][13];
 
 #define BOX_SIZE                                (4)
-#define MOBILENET_SSD_DETECTION_MAX             (1917)
+#define MOBILENET_SSD_DETECTION_MAX             (2034) /* add ssd_mobilenet v3 support */
 #define MOBILENET_SSD_MAX_TENSORS               (2U)
 #define MOBILENET_SSD_PP_DETECTION_MAX          (100)
 #define MOBILENET_SSD_PP_MAX_TENSORS            (4U)
