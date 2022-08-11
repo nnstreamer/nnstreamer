@@ -25,6 +25,7 @@
 #include <nnstreamer_util.h>
 #include <typeinfo>
 #include "tensordecutil.h"
+#include "../extra/nnstreamer_flatbuf.h"
 
 namespace nnstreamer
 {
