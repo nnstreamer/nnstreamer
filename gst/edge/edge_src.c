@@ -32,13 +32,15 @@ enum
 {
   PROP_0,
 
-  /** @todo define props */
+  PROP_DEST_HOST,
+  PROP_DEST_PORT,
+  PROP_CONNECT_TYPE,
 
   PROP_LAST
-}
+};
 
 #define gst_edgesrc_parent_class parent_class
-G_DEFINE_TYPE (GstEdgeSrc, gst_edgesrc, GST_TYPE_PUSH_SRC);
+G_DEFINE_TYPE (GstEdgeSrc, gst_edgesrc, GST_TYPE_BASE_SRC);
 
 static void gst_edgesrc_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -46,18 +48,21 @@ static void gst_edgesrc_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
 static void gst_edgesrc_class_finalize (GObject * object);
 
-static GstStateChangeReturn gst_edgesrc_change_state (GstElement * element,
-    GstStateChange transition);
-
 static gboolean gst_edgesrc_start (GstBaseSrc * basesrc);
-static gboolean gst_edgesrc_stop (GstBaseSrc * basesrc);
-static GstCaps *gst_edgesrc_get_caps (GstBaseSrc * basesrc, GstCaps * filter);
-static void gst_edgesrc_get_times (GstBaseSrc * basesrc, GstBuffer * buffer,
-    GstClockTime * start, GstClockTime * end);
-static gboolean gst_edgesrc_is_seekable (GstBaseSrc * basesrc);
 static GstFlowReturn gst_edgesrc_create (GstBaseSrc * basesrc, guint64 offset,
-    guint size, GstBuffer ** buf);
-static gboolean gst_edgesrc_query (GstBaseSrc * basesrc, GstQuery * query);
+    guint size, GstBuffer ** out_buf);
+
+static gchar *gst_edgesrc_get_dest_host (GstEdgeSrc * self);
+static void gst_edgesrc_set_dest_host (GstEdgeSrc * self,
+    const gchar * dest_host);
+
+static guint16 gst_edgesrc_get_dest_port (GstEdgeSrc * self);
+static void gst_edgesrc_set_dest_port (GstEdgeSrc * self,
+    const guint16 dest_port);
+
+static nns_edge_connect_type_e gst_edgesrc_get_connect_type (GstEdgeSrc * self);
+static void gst_edgesrc_set_connect_type (GstEdgeSrc * self,
+    const nns_edge_connect_type_e connect_type);
 
 /**
  * @brief initialize the class
@@ -73,24 +78,29 @@ gst_edgesrc_class_init (GstEdgeSrcClass * klass)
   gobject_class->get_property = gst_edgesrc_get_property;
   gobject_class->finalize = gst_edgesrc_class_finalize;
 
-  /** @todo set props */
+  g_object_class_install_property (gobject_class, PROP_DEST_HOST,
+      g_param_spec_string ("dest-host", "Destination Host",
+          "A host address of edgesink to receive the packets from edgesink",
+          DEFAULT_HOST, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_DEST_PORT,
+      g_param_spec_uint ("dest-port", "Destination Port",
+          "A port of edgesink to receive the packets from edgesink",
+          0, 65535, DEFAULT_PORT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_CONNECT_TYPE,
+      g_param_spec_enum ("connect-type", "Connect Type",
+          "The connections type between edgesink and edgesrc.",
+          GST_TYPE_EDGE_CONNECT_TYPE, DEFAULT_CONNECT_TYPE,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&srctemplate));
 
-  gst_element_class_set_static_metadata (gelement_class,
+  gst_element_class_set_static_metadata (gstelement_class,
       "EdgeSrc", "Source/Edge",
       "Subscribe and push incoming streams", "Samsung Electronics Co., Ltd.");
 
-  gstelement_class->change_state = gst_edgesrc_change_state;
-
   gstbasesrc_class->start = gst_edgesrc_start;
-  gstbasesrc_class->stop = gst_edgesrc_stop;
-  gstbasesrc_class->get_caps = gst_edgesrc_get_caps;
-  gstbasesrc_class->get_times = gst_edgesrc_get_times;
-  gstbasesrc_class->is_seekable = gst_edgesrc_is_seekable;
   gstbasesrc_class->create = gst_edgesrc_create;
-  gstbasesrc_class->query = gst_edgesrc_query;
 
   GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT,
       GST_EDGE_ELEM_NAME_SRC, 0, "Edge src");
@@ -107,7 +117,10 @@ gst_edgesrc_init (GstEdgeSrc * self)
   gst_base_src_set_format (basesrc, GST_FORMAT_TIME);
   gst_base_src_set_async (basesrc, FALSE);
 
-  /** @todo set default value of props */
+  self->dest_host = g_strdup (DEFAULT_HOST);
+  self->dest_port = DEFAULT_PORT;
+  self->msg_queue = g_async_queue_new ();
+  self->connect_type = DEFAULT_CONNECT_TYPE;
 }
 
 /**
@@ -119,8 +132,17 @@ gst_edgesrc_set_property (GObject * object, guint prop_id, const GValue * value,
 {
   GstEdgeSrc *self = GST_EDGESRC (object);
 
-  switch (prod_id) {
-      /** @todo set prop */
+  switch (prop_id) {
+    case PROP_DEST_HOST:
+      gst_edgesrc_set_dest_host (self, g_value_get_string (value));
+      break;
+    case PROP_DEST_PORT:
+      gst_edgesrc_set_dest_port (self, g_value_get_uint (value));
+      break;
+    case PROP_CONNECT_TYPE:
+      gst_edgesrc_set_connect_type (self, g_value_get_enum (value));
+      break;
+
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -137,7 +159,16 @@ gst_edgesrc_get_property (GObject * object, guint prop_id, GValue * value,
   GstEdgeSrc *self = GST_EDGESRC (object);
 
   switch (prop_id) {
-      /** @todo props */
+    case PROP_DEST_HOST:
+      g_value_set_string (value, gst_edgesrc_get_dest_host (self));
+      break;
+    case PROP_DEST_PORT:
+      g_value_set_uint (value, gst_edgesrc_get_dest_port (self));
+      break;
+    case PROP_CONNECT_TYPE:
+      g_value_set_enum (value, gst_edgesrc_get_connect_type (self));
+      break;
+
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -151,25 +182,55 @@ static void
 gst_edgesrc_class_finalize (GObject * object)
 {
   GstEdgeSrc *self = GST_EDGESRC (object);
-  /** @todo finalize - free all pointer in element */
+  nns_edge_data_h data_h;
+
+  if (self->dest_host) {
+    g_free (self->dest_host);
+    self->dest_host = NULL;
+  }
+
+  if (self->msg_queue) {
+    while ((data_h = g_async_queue_try_pop (self->msg_queue))) {
+      nns_edge_data_destroy (data_h);
+    }
+    g_async_queue_unref (self->msg_queue);
+    self->msg_queue = NULL;
+  }
+
+  if (self->edge_h) {
+    nns_edge_release_handle (self->edge_h);
+    self->edge_h = NULL;
+  }
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
 /**
- * @brief handle edgesrc's state change
+ * @brief nnstreamer-edge event callback.
  */
-static GstStateChangeReturn
-gst_edgesrc_change_state (GstElement * element, GstStateChange transition)
+static int
+_nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
 {
-  GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
+  nns_edge_event_e event_type;
+  int ret = NNS_EDGE_ERROR_NONE;
 
-  GstEdgeSrc *self = GST_EDGESRC (element);
+  GstEdgeSrc *self = GST_EDGESRC (user_data);
+  if (0 != nns_edge_event_get_type (event_h, &event_type)) {
+    nns_loge ("Failed to get event type!");
+    return NNS_EDGE_ERROR_UNKNOWN;
+  }
 
-  /** @todo handle transition  */
+  switch (event_type) {
+    case NNS_EDGE_EVENT_NEW_DATA_RECEIVED:
+    {
+      nns_edge_data_h data;
 
-  ret = GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
-
-  /** @todo handle transition */
+      nns_edge_event_parse_new_data (event_h, &data);
+      g_async_queue_push (self->msg_queue, data);
+      break;
+    }
+    default:
+      break;
+  }
 
   return ret;
 }
@@ -182,46 +243,43 @@ gst_edgesrc_start (GstBaseSrc * basesrc)
 {
   GstEdgeSrc *self = GST_EDGESRC (basesrc);
 
-  /** @todo start */
-}
+  int ret;
+  char *port = NULL;
 
-/**
- * @brief stop edgesrc, called when state changed ready to null
- */
-static gboolean
-gst_edgesrc_stop (GstBaseSrc * basesrc)
-{
-  GstEdgeSrc *self = GST_EDGESRC (basesrc);
+  ret =
+      nns_edge_create_handle ("TEMP_ID", self->connect_type,
+      NNS_EDGE_NODE_TYPE_SUB, &self->edge_h);
 
-  /** @todo stop */
-}
+  if (NNS_EDGE_ERROR_NONE != ret) {
+    nns_loge ("Failed to get nnstreamer edge handle.");
 
-/**
- * @brief Get caps of subclass
- */
-static GstCaps *
-gst_edgesrc_get_caps (GstBaseSrc * basesrc, GstCaps * filter)
-{
-  /** @todo get caps */
-}
+    if (self->edge_h) {
+      nns_edge_release_handle (self->edge_h);
+      self->edge_h = NULL;
+    }
 
-/**
- * @brief Return the time information of the given buffer
- */
-static void
-gst_edgesrc_get_times (GstBaseSrc * basesrc, GstBuffer * buffer,
-    GstClockTime * start, GstClockTime * end)
-{
-  /** @todo get times */
-}
+    return FALSE;
+  }
 
-/**
- * @brief Check if source supports seeking
- */
-static gboolean
-gst_edgesrc_is_seekable (GstBaseSrc * basesrc)
-{
-  /** @todo is seekable */
+  nns_edge_set_info (self->edge_h, "DEST_HOST", self->dest_host);
+  port = g_strdup_printf ("%d", self->dest_port);
+  nns_edge_set_info (self->edge_h, "DEST_PORT", port);
+  g_free (port);
+
+  nns_edge_set_event_callback (self->edge_h, _nns_edge_event_cb, self);
+
+  if (0 != nns_edge_start (self->edge_h)) {
+    nns_loge
+        ("Failed to start NNStreamer-edge. Please check server IP and port");
+    return FALSE;
+  }
+
+  if (0 != nns_edge_connect (self->edge_h, self->dest_host, self->dest_port)) {
+    nns_loge ("Failed to connect to edge server!");
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 /**
@@ -229,18 +287,111 @@ gst_edgesrc_is_seekable (GstBaseSrc * basesrc)
  */
 static GstFlowReturn
 gst_edgesrc_create (GstBaseSrc * basesrc, guint64 offset, guint size,
-    GstBuffer ** buf)
+    GstBuffer ** out_buf)
 {
   GstEdgeSrc *self = GST_EDGESRC (basesrc);
 
-  /** @todo create */
+  nns_edge_data_h data_h;
+  GstBuffer *buffer = NULL;
+  guint i, num_data;
+  int ret;
+
+  UNUSED (offset);
+  UNUSED (size);
+
+  data_h = g_async_queue_pop (self->msg_queue);
+
+  if (!data_h) {
+    nns_loge ("Failed to get message from the edgesrc message queue.");
+    goto done;
+  }
+
+  ret = nns_edge_data_get_count (data_h, &num_data);
+  if (ret != NNS_EDGE_ERROR_NONE || num_data == 0) {
+    nns_loge ("Failed to get the number of memories of the edge data.");
+    goto done;
+  }
+
+  buffer = gst_buffer_new ();
+  for (i = 0; i < num_data; i++) {
+    void *data = NULL;
+    size_t data_len = 0;
+    gpointer new_data;
+
+    nns_edge_data_get (data_h, i, &data, &data_len);
+    new_data = _g_memdup (data, data_len);
+
+    gst_buffer_append_memory (buffer,
+        gst_memory_new_wrapped (0, new_data, data_len, 0, data_len, new_data,
+            g_free));
+  }
+
+done:
+  if (data_h)
+    nns_edge_data_destroy (data_h);
+
+  if (buffer == NULL) {
+    nns_loge ("Failed to get buffer to push to the edgesrc.");
+    return GST_FLOW_ERROR;
+  }
+
+  *out_buf = buffer;
+
+  return GST_FLOW_OK;
 }
 
 /**
- * @brief An implementation of the GstBaseSrc vmethod that handles queries
+ * @brief getter for the 'host' property.
  */
-static gboolean
-gst_edgesrc_query (GstBaseSrc * basesrc, GstQuery * query)
+static gchar *
+gst_edgesrc_get_dest_host (GstEdgeSrc * self)
 {
-  /** @todo query */
+  return self->dest_host;
+}
+
+/**
+ * @brief setter for the 'host' property.
+ */
+static void
+gst_edgesrc_set_dest_host (GstEdgeSrc * self, const gchar * dest_host)
+{
+  g_free (self->dest_host);
+  self->dest_host = g_strdup (dest_host);
+}
+
+/**
+ * @brief getter for the 'port' property.
+ */
+static guint16
+gst_edgesrc_get_dest_port (GstEdgeSrc * self)
+{
+  return self->dest_port;
+}
+
+/**
+ * @brief setter for the 'port' property.
+ */
+static void
+gst_edgesrc_set_dest_port (GstEdgeSrc * self, const guint16 dest_port)
+{
+  self->dest_port = dest_port;
+}
+
+/**
+ * @brief getter for the 'connect_type' property.
+ */
+static nns_edge_connect_type_e
+gst_edgesrc_get_connect_type (GstEdgeSrc * self)
+{
+  return self->connect_type;
+}
+
+/**
+ * @brief setter for the 'connect_type' property.
+ */
+static void
+gst_edgesrc_set_connect_type (GstEdgeSrc * self,
+    const nns_edge_connect_type_e connect_type)
+{
+  self->connect_type = connect_type;
 }

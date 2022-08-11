@@ -7,10 +7,17 @@ edge_files = [
 
 edge_srcs = []
 edge_dep = [
-    glib_dep, 
+    glib_dep,
     gst_base_dep,
     gst_dep,
+    nnstreamer_edge_support_deps
 ]
+
+if build_platform == 'tizen'
+  edge_dep += dlog_dep
+elif cc.has_header_symbol('android/log.h', '__android_log_print')
+  edge_dep += cc.find_library('log')
+endif
 
 foreach s : edge_files
     edge_srcs += join_paths(meson.current_source_dir(), s)

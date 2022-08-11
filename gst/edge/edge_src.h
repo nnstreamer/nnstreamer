@@ -13,7 +13,12 @@
 #ifndef __GST_EDGE_SRC_H__
 #define __GST_EDGE_SRC_H__
 
+#include <gst/gst.h>
 #include <gst/base/gstbasesrc.h>
+#include "edge_common.h"
+#include "nnstreamer-edge.h"
+#include "nnstreamer_util.h"
+#include "../nnstreamer/nnstreamer_log.h"
 
 G_BEGIN_DECLS
 #define GST_TYPE_EDGESRC \
@@ -28,7 +33,7 @@ G_BEGIN_DECLS
     (G_TYPE_CHECK_CLASS_TYPE((klass), GST_TYPE_EDGESRC))
 #define GST_EDGESRC_CAST(obj) ((GstEdgeSrc *) (obj))
 typedef struct _GstEdgeSrc GstEdgeSrc;
-typedef struct _GstEdgeSrcClass GstEdgeSinkClass;
+typedef struct _GstEdgeSrcClass GstEdgeSrcClass;
 
 /**
  * @brief GstEdgeSrc data structure.
@@ -36,7 +41,14 @@ typedef struct _GstEdgeSrcClass GstEdgeSinkClass;
 struct _GstEdgeSrc
 {
   GstBaseSrc element;
-}
+
+  gchar *dest_host;
+  guint16 dest_port;
+
+  nns_edge_connect_type_e connect_type;
+  nns_edge_h edge_h;
+  GAsyncQueue *msg_queue;
+};
 
 /**
  * @brief GstEdgeSrcClass data structure.
@@ -44,7 +56,7 @@ struct _GstEdgeSrc
 struct _GstEdgeSrcClass
 {
   GstBaseSrcClass parent_class;
-}
+};
 
 GType gst_edgesrc_get_type (void);
 

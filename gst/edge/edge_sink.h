@@ -15,6 +15,10 @@
 
 #include <gst/gst.h>
 #include <gst/base/gstbasesink.h>
+#include "edge_common.h"
+#include "nnstreamer-edge.h"
+#include "../nnstreamer/nnstreamer_log.h"
+#include "tensor_typedef.h"
 
 G_BEGIN_DECLS
 #define GST_TYPE_EDGESINK \
@@ -38,6 +42,11 @@ struct _GstEdgeSink
 {
   GstBaseSink element;
 
+  gchar *host;
+  guint16 port;
+
+  nns_edge_connect_type_e connect_type;
+  nns_edge_h edge_h;
 };
 
 /**
