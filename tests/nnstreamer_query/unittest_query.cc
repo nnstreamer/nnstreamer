@@ -174,7 +174,7 @@ TEST (tensorQuery, clientProperties0)
   /* Create a query client pipeline */
   pipeline = g_strdup_printf (
       "videotestsrc ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB !"
-      "tensor_converter ! tensor_query_client name=client connect_type=TCP ! tensor_sink");
+      "tensor_converter ! tensor_query_client name=client connect-type=TCP ! tensor_sink");
   gstpipe = gst_parse_launch (pipeline, NULL);
   EXPECT_NE (gstpipe, nullptr);
 
@@ -189,7 +189,7 @@ TEST (tensorQuery, clientProperties0)
   g_object_get (client_handle, "port", &uint_val, NULL);
   EXPECT_EQ (3001U, uint_val);
 
-  g_object_get (client_handle, "connect_type", &connect_type, NULL);
+  g_object_get (client_handle, "connect-type", &connect_type, NULL);
   EXPECT_EQ (connect_type, NNS_EDGE_CONNECT_TYPE_TCP);
 
   g_object_get (client_handle, "silent", &bool_val, NULL);
