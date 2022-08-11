@@ -62,6 +62,7 @@
 #include <nnstreamer_plugin_api_converter.h>
 #include <nnstreamer_util.h>
 #include <flatbuffers/flexbuffers.h>
+#include "../extra/nnstreamer_flatbuf.h"
 #include "tensor_converter_util.h"
 
 #ifdef __cplusplus

@@ -62,6 +62,7 @@
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_util.h>
+#include "../extra/nnstreamer_flatbuf.h"
 #include "tensordecutil.h"
 
 #ifdef __cplusplus
