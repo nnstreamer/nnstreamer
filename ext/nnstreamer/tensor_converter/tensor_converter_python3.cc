@@ -42,24 +42,12 @@ class PYConverterCore
   const char *getScriptPath ();
   GstBuffer *convert (GstBuffer *in_buf, GstTensorsConfig *config);
 
-  /** @brief Lock python-related actions */
-  void Py_LOCK ()
-  {
-    g_mutex_lock (&py_mutex);
-  }
-  /** @brief Unlock python-related actions */
-  void Py_UNLOCK ()
-  {
-    g_mutex_unlock (&py_mutex);
-  }
-
   private:
   std::string module_name;
   const std::string script_path;
   PyObject *shape_cls;
   PyObject *core_obj;
   void *handle; /**< returned handle by dlopen() */
-  GMutex py_mutex;
 };
 
 /**
@@ -94,8 +82,6 @@ PYConverterCore::PYConverterCore (const char *_script_path)
 
   core_obj = NULL;
   shape_cls = NULL;
-
-  g_mutex_init (&py_mutex);
 }
 
 /**
@@ -104,12 +90,13 @@ PYConverterCore::PYConverterCore (const char *_script_path)
  */
 PYConverterCore::~PYConverterCore ()
 {
+  PyGILState_STATE gstate = Py_LOCK ();
   Py_SAFEDECREF (core_obj);
   Py_SAFEDECREF (shape_cls);
   PyErr_Clear ();
+  Py_UNLOCK (gstate);
 
   dlclose (handle);
-  g_mutex_clear (&py_mutex);
 }
 
 /**
@@ -132,7 +119,7 @@ PYConverterCore::convert (GstBuffer *in_buf, GstTensorsConfig *config)
   num = gst_tensor_buffer_get_count (in_buf);
   tensors_info = output = pyValue = param = nullptr;
 
-  Py_LOCK ();
+  PyGILState_STATE gstate = Py_LOCK ();
   param = PyList_New (num);
 
   for (i = 0; i < num; i++) {
@@ -201,7 +188,7 @@ done:
   Py_SAFEDECREF (param);
   Py_SAFEDECREF (pyValue);
 
-  Py_UNLOCK ();
+  Py_UNLOCK (gstate);
   return out_buf;
 }
 
@@ -212,6 +199,7 @@ done:
 int
 PYConverterCore::init ()
 {
+  int ret = 0;
   /** Find nnstreamer_api module */
   PyObject *api_module = PyImport_ImportModule ("nnstreamer_python");
   if (api_module == NULL) {
@@ -219,12 +207,17 @@ PYConverterCore::init ()
   }
 
   shape_cls = PyObject_GetAttrString (api_module, "TensorShape");
-  Py_SAFEDECREF (api_module);
+
+  PyGILState_STATE gstate = Py_LOCK ();
 
   if (shape_cls == NULL)
-    return -EINVAL;
+    ret = -EINVAL;
+  else
+    ret = loadScript (&core_obj, module_name.c_str (), "CustomConverter");
 
-  return loadScript (&core_obj, module_name.c_str (), "CustomConverter");
+  Py_SAFEDECREF (api_module);
+  Py_UNLOCK (gstate);
+  return ret;
 }
 
 /**
@@ -277,19 +270,23 @@ py_open (const gchar *path, void **priv_data)
   /* init null */
   *priv_data = NULL;
 
+  PyGILState_STATE gstate = Py_LOCK ();
   core = new PYConverterCore (path);
   if (core == NULL) {
     Py_ERRMSG ("Failed to allocate memory for converter subplugin: Python\n");
+    Py_UNLOCK (gstate);
     return -1;
   }
 
   if (core->init () != 0) {
     delete core;
     Py_ERRMSG ("failed to initailize the object: Python\n");
+    Py_UNLOCK (gstate);
     return -2;
   }
   *priv_data = core;
 
+  Py_UNLOCK (gstate);
   return 0;
 }
 
@@ -360,6 +357,8 @@ static NNStreamerExternalConverter Python = {
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
+
+static PyThreadState* st;
 /** @brief Initialize this object for tensor converter sub-plugin */
 void
 init_converter_py (void)
@@ -368,6 +367,12 @@ init_converter_py (void)
   if (!Py_IsInitialized ()) {
     Py_Initialize ();
   }
+  PyEval_InitThreads_IfGood ();
+
+  PyGILState_STATE gstate = Py_LOCK ();
+  st = PyEval_SaveThread ();
+  Py_UNLOCK (gstate);
+
   registerExternalConverter (&Python);
 }
 
@@ -375,6 +380,10 @@ init_converter_py (void)
 void
 fini_converter_py (void)
 {
+  PyGILState_STATE gstate = Py_LOCK ();
+  PyEval_RestoreThread (st);
+  Py_UNLOCK (gstate);
+
   unregisterExternalConverter (Python.name);
 /**
  * @todo Remove below lines after this issue is addressed.

@@ -70,9 +70,6 @@ typedef enum _cb_type {
   CB_END,
 } cb_type;
 
-#define Py_LOCK() PyGILState_Ensure ()
-#define Py_UNLOCK(gstate) PyGILState_Release (gstate)
-
 /**
  * @brief	Python embedding core structure
  */
@@ -752,18 +749,18 @@ py_loadScriptFile (const GstTensorFilterProperties *prop, void **private_data)
   /* init null */
   *private_data = NULL;
 
-  PyGILState_STATE gstate = PyGILState_Ensure ();
+  PyGILState_STATE gstate = Py_LOCK ();
   core = new PYCore (script_path, prop->custom_properties);
   if (core == NULL) {
     g_printerr ("Failed to allocate memory for filter subplugin: Python\n");
-    PyGILState_Release (gstate);
+    Py_UNLOCK (gstate);
     return -1;
   }
 
   if (core->init (prop) != 0) {
     delete core;
     g_printerr ("failed to initailize the object: Python\n");
-    PyGILState_Release (gstate);
+    Py_UNLOCK (gstate);
     return -2;
   }
 
@@ -771,10 +768,10 @@ py_loadScriptFile (const GstTensorFilterProperties *prop, void **private_data)
   if (core->getCbType () != CB_SETDIM && core->getCbType () != CB_GETDIM) {
     delete core;
     g_printerr ("Wrong callback type\n");
-    PyGILState_Release (gstate);
+    Py_UNLOCK (gstate);
     return -2;
   }
-  PyGILState_Release (gstate);
+  Py_UNLOCK (gstate);
 
   *private_data = core;
 
@@ -842,7 +839,10 @@ init_filter_py (void)
   if (!Py_IsInitialized ())
     Py_Initialize ();
   PyEval_InitThreads_IfGood ();
+
+  PyGILState_STATE gstate = Py_LOCK ();
   st = PyEval_SaveThread ();
+  Py_UNLOCK (gstate);
 
   nnstreamer_filter_probe (&NNS_support_python);
   nnstreamer_filter_set_custom_property_desc (filter_subplugin_python, "${GENERAL_STRING}",
@@ -855,7 +855,10 @@ init_filter_py (void)
 void
 fini_filter_py (void)
 {
+  PyGILState_STATE gstate = Py_LOCK ();
   PyEval_RestoreThread (st);
+  Py_UNLOCK (gstate);
+
   nnstreamer_filter_exit (NNS_support_python.v0.name);
 
   /** Python should be initialized and finalized only once */

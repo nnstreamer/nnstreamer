@@ -58,6 +58,8 @@ extern "C" {
 #else
 #define PyEval_InitThreads_IfGood()     do { PyEval_InitThreads(); } while (0)
 #endif
+#define Py_LOCK() PyGILState_Ensure()
+#define Py_UNLOCK(gstate) PyGILState_Release(gstate)
 
 extern tensor_type getTensorType (NPY_TYPES npyType);
 extern NPY_TYPES getNumpyType (tensor_type tType);
@@ -66,6 +68,9 @@ extern int openPythonLib (void **handle);
 extern int addToSysPath (const gchar *path);
 extern int parseTensorsInfo (PyObject *result, GstTensorsInfo *info);
 extern PyObject * PyTensorShape_New (PyObject * shape_cls, const GstTensorInfo *info);
+
+extern void _refcnt_py_initalize();
+extern void _refcnt_py_finalize();
 
 #ifdef __cplusplus
 } /* extern "C" */

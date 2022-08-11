@@ -40,6 +40,7 @@ PyMODINIT_FUNC PyInit_nnstreamer_python (void);
  * @brief method impl. for setDims
  * @param self : Python type object
  * @param args : arguments for the method
+ * @detail Hold GIL before calling
  */
 static PyObject *
 TensorShape_setDims (TensorShapeObject *self, PyObject *args)
@@ -47,6 +48,8 @@ TensorShape_setDims (TensorShapeObject *self, PyObject *args)
   PyObject *dims;
   PyObject *new_dims;
   unsigned int i, len;
+
+  assert(PyGILState_Check() == 1);
 
   /** PyArg_ParseTuple() returns borrowed references */
   if (!PyArg_ParseTuple (args, "O", &dims))
@@ -74,11 +77,13 @@ TensorShape_setDims (TensorShapeObject *self, PyObject *args)
  * @brief method impl. for getDims
  * @param self : Python type object
  * @param args : arguments for the method
+ * @detail Hold GIL before calling
  */
 static PyObject *
 TensorShape_getDims (TensorShapeObject *self, PyObject *args)
 {
   UNUSED (args);
+  assert(PyGILState_Check() == 1);
   return Py_BuildValue ("O", self->dims);
 }
 
@@ -86,11 +91,13 @@ TensorShape_getDims (TensorShapeObject *self, PyObject *args)
  * @brief method impl. for getType
  * @param self : Python type object
  * @param args : arguments for the method
+ * @detail Hold GIL before calling
  */
 static PyObject *
 TensorShape_getType (TensorShapeObject *self, PyObject *args)
 {
   UNUSED (args);
+  assert(PyGILState_Check() == 1);
   return Py_BuildValue ("O", self->type);
 }
 
@@ -99,6 +106,7 @@ TensorShape_getType (TensorShapeObject *self, PyObject *args)
  * @param self : Python type object
  * @param args : arguments for the method
  * @param kw : keywords for the arguments
+ * @detail Hold GIL before calling
  */
 static PyObject *
 TensorShape_new (PyTypeObject *type, PyObject *args, PyObject *kw)
@@ -107,6 +115,7 @@ TensorShape_new (PyTypeObject *type, PyObject *args, PyObject *kw)
   UNUSED (args);
   UNUSED (kw);
 
+  assert(PyGILState_Check() == 1);
   g_assert (self);
 
   /** Assign default values */
@@ -122,6 +131,7 @@ TensorShape_new (PyTypeObject *type, PyObject *args, PyObject *kw)
  * @param self : Python type object
  * @param args : arguments for the method
  * @param kw : keywords for the arguments
+ * @detail Hold GIL before calling
  */
 static int
 TensorShape_init (TensorShapeObject *self, PyObject *args, PyObject *kw)
@@ -130,6 +140,7 @@ TensorShape_init (TensorShapeObject *self, PyObject *args, PyObject *kw)
   PyObject *dims = NULL;
   PyObject *type = NULL;
 
+  assert(PyGILState_Check() == 1);
   if (!PyArg_ParseTupleAndKeywords (args, kw, "|OO", keywords, &dims, &type))
     return -1;
 
@@ -156,10 +167,12 @@ TensorShape_init (TensorShapeObject *self, PyObject *args, PyObject *kw)
 /**
  * @brief dealloc callback for custom type object
  * @param self : Python type object
+ * @detail Hold GIL before calling
  */
 static void
 TensorShape_dealloc (TensorShapeObject *self)
 {
+  assert(PyGILState_Check() == 1);
   Py_SAFEDECREF (self->dims);
   Py_SAFEDECREF (self->type);
   Py_TYPE (self)->tp_free ((PyObject *) self);
@@ -527,6 +540,30 @@ PyTensorShape_New (PyObject *shape_cls, const GstTensorInfo *info)
 
   return PyObject_CallObject (shape_cls, args);
   /* Its value is checked by setInputTensorDim */
+}
+
+static int ref_counter = 0;
+
+/**
+ * @brief Do Py_Initialize w/ reference count for different python subplugins
+ * @todo Thread safety
+ */
+void _refcnt_py_initalize()
+{
+  if (!ref_counter)
+    Py_Initialize();
+  ref_counter++;
+}
+
+/**
+ * @brief Do Py_Finalize w/ reference count for different python subplugins
+ * @todo Thread safety
+ */
+void _refcnt_py_finalize()
+{
+  if (ref_counter == 1)
+    Py_Finalize();
+  ref_counter--;
 }
 
 #ifdef __cplusplus

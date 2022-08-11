@@ -45,24 +45,12 @@ class PYDecoderCore
       const GstTensorMemory *input, GstBuffer *outbuf);
   GstCaps *getOutCaps (const GstTensorsConfig *config);
 
-  /** @brief Lock python-related actions */
-  void Py_LOCK ()
-  {
-    g_mutex_lock (&py_mutex);
-  }
-  /** @brief Unlock python-related actions */
-  void Py_UNLOCK ()
-  {
-    g_mutex_unlock (&py_mutex);
-  }
-
   private:
   std::string module_name;
   const std::string script_path;
   PyObject *shape_cls;
   PyObject *core_obj;
   void *handle; /**< returned handle by dlopen() */
-  GMutex py_mutex;
 };
 
 /**
@@ -97,8 +85,6 @@ PYDecoderCore::PYDecoderCore (const char *_script_path)
 
   core_obj = NULL;
   shape_cls = NULL;
-
-  g_mutex_init (&py_mutex);
 }
 
 /**
@@ -107,12 +93,13 @@ PYDecoderCore::PYDecoderCore (const char *_script_path)
  */
 PYDecoderCore::~PYDecoderCore ()
 {
+  PyGILState_STATE gstate = Py_LOCK ();
   Py_SAFEDECREF (core_obj);
   Py_SAFEDECREF (shape_cls);
   PyErr_Clear ();
+  Py_UNLOCK (gstate);
 
   dlclose (handle);
-  g_mutex_clear (&py_mutex);
 }
 
 /**
@@ -131,7 +118,7 @@ PYDecoderCore::decode (const GstTensorsConfig *config,
   PyObject *raw_data, *in_info;
   GstFlowReturn ret = GST_FLOW_OK;
 
-  Py_LOCK ();
+  PyGILState_STATE gstate = Py_LOCK ();
   raw_data = PyList_New (config->info.num_tensors);
   in_info = PyList_New (config->info.num_tensors);
   rate_n = config->rate_n;
@@ -193,7 +180,7 @@ PYDecoderCore::decode (const GstTensorsConfig *config,
   }
 
 done:
-  Py_UNLOCK ();
+  Py_UNLOCK (gstate);
   return ret;
 }
 
@@ -207,7 +194,7 @@ PYDecoderCore::getOutCaps (const GstTensorsConfig *config)
   GstCaps *caps = NULL;
   UNUSED (config);
 
-  Py_LOCK ();
+  PyGILState_STATE gstate = Py_LOCK ();
   if (!PyObject_HasAttrString (core_obj, (char *) "getOutCaps")) {
     ml_loge ("Cannot find 'getOutCaps'");
     ml_loge ("defualt caps is `application/octet-stream`");
@@ -225,7 +212,7 @@ PYDecoderCore::getOutCaps (const GstTensorsConfig *config)
   }
 
 done:
-  Py_UNLOCK ();
+  Py_UNLOCK (gstate);
   return caps;
 }
 
@@ -235,19 +222,26 @@ done:
 int
 PYDecoderCore::init ()
 {
+  int ret;
+  PyGILState_STATE gstate = Py_LOCK ();
   /** Find nnstreamer_api module */
   PyObject *api_module = PyImport_ImportModule ("nnstreamer_python");
   if (api_module == NULL) {
+    Py_UNLOCK (gstate);
     return -EINVAL;
   }
 
   shape_cls = PyObject_GetAttrString (api_module, "TensorShape");
-  Py_SAFEDECREF (api_module);
 
   if (shape_cls == NULL)
-    return -EINVAL;
+    ret = -EINVAL;
+  else
+    ret = loadScript (&core_obj, module_name.c_str (), "CustomDecoder");
 
-  return loadScript (&core_obj, module_name.c_str (), "CustomDecoder");
+  Py_SAFEDECREF (api_module);
+  Py_UNLOCK (gstate);
+
+  return ret;
 }
 
 /**
@@ -367,6 +361,7 @@ static GstTensorDecoderDef Python = { .modename = decoder_subplugin_python3,
 extern "C" {
 #endif /* __cplusplus */
 
+static PyThreadState* st;
 /** @brief Initialize this object for tensordec-plugin */
 void
 init_decoder_py (void)
@@ -374,6 +369,11 @@ init_decoder_py (void)
   /** Python should be initialized and finalized only once */
   if (!Py_IsInitialized ())
     Py_Initialize ();
+  PyEval_InitThreads_IfGood();
+
+  PyGILState_STATE gstate = Py_LOCK ();
+  st = PyEval_SaveThread ();
+  Py_UNLOCK (gstate);
 
   nnstreamer_decoder_probe (&Python);
 }
@@ -382,6 +382,10 @@ init_decoder_py (void)
 void
 fini_decoder_py (void)
 {
+  PyGILState_STATE gstate = Py_LOCK ();
+  PyEval_RestoreThread (st);
+  Py_UNLOCK (gstate);
+
   nnstreamer_decoder_exit (Python.modename);
 
   /** Python should be initialized and finalized only once */
