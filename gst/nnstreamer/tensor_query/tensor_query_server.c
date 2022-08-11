@@ -32,10 +32,32 @@ static void init_queryserver (void) __attribute__((constructor));
 static void fini_queryserver (void) __attribute__((destructor));
 
 /**
+ * @brief Internal function to release query server data.
+ */
+static void
+_release_server_data (gpointer data)
+{
+  GstTensorQueryServer *_data = (GstTensorQueryServer *) data;
+
+  if (!_data)
+    return;
+
+  if (_data->edge_h) {
+    nns_edge_release_handle (_data->edge_h);
+    _data->edge_h = NULL;
+  }
+
+  g_mutex_clear (&_data->lock);
+  g_cond_clear (&_data->cond);
+  g_free (_data->id);
+  g_free (_data);
+}
+
+/**
  * @brief Get nnstreamer edge server handle.
  */
 edge_server_handle
-gst_tensor_query_server_get_handle (char *id)
+gst_tensor_query_server_get_handle (const char *id)
 {
   edge_server_handle p;
 
@@ -50,7 +72,7 @@ gst_tensor_query_server_get_handle (char *id)
  * @brief Add nnstreamer edge server handle into hash table.
  */
 edge_server_handle
-gst_tensor_query_server_add_data (char *id,
+gst_tensor_query_server_add_data (const char *id,
     nns_edge_connect_type_e connect_type)
 {
   GstTensorQueryServer *data = NULL;
@@ -70,7 +92,7 @@ gst_tensor_query_server_add_data (char *id,
 
   g_mutex_init (&data->lock);
   g_cond_init (&data->cond);
-  data->id = id;
+  data->id = g_strdup (id);
   data->configured = FALSE;
 
   ret = nns_edge_create_handle (id, connect_type,
@@ -78,7 +100,7 @@ gst_tensor_query_server_add_data (char *id,
       &data->edge_h);
   if (NNS_EDGE_ERROR_NONE != ret) {
     GST_ERROR ("Failed to get nnstreamer edge handle.");
-    gst_tensor_query_server_remove_data (data);
+    _release_server_data (data);
     return NULL;
   }
 
@@ -98,7 +120,7 @@ gst_tensor_query_server_get_edge_handle (edge_server_handle server_h)
 {
   GstTensorQueryServer *data = (GstTensorQueryServer *) server_h;
 
-  return data->edge_h;
+  return data ? data->edge_h : NULL;
 }
 
 /**
@@ -114,19 +136,9 @@ gst_tensor_query_server_remove_data (edge_server_handle server_h)
   }
 
   G_LOCK (query_server_table);
-  if (!g_hash_table_lookup (_qs_table, data->id))
+  if (g_hash_table_lookup (_qs_table, data->id))
     g_hash_table_remove (_qs_table, data->id);
   G_UNLOCK (query_server_table);
-
-  if (data->edge_h) {
-    nns_edge_release_handle (data->edge_h);
-    data->edge_h = NULL;
-  }
-
-  g_cond_clear (&data->cond);
-  g_mutex_clear (&data->lock);
-  g_free (data);
-  data = NULL;
 }
 
 /**
@@ -181,7 +193,8 @@ init_queryserver (void)
 {
   G_LOCK (query_server_table);
   g_assert (NULL == _qs_table); /** Internal error (duplicated init call?) */
-  _qs_table = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
+  _qs_table = g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
+      _release_server_data);
   G_UNLOCK (query_server_table);
 }
 

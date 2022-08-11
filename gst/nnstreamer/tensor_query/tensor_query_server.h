@@ -41,13 +41,13 @@ typedef struct
  * @brief Get nnstreamer edge server handle.
  */
 edge_server_handle
-gst_tensor_query_server_get_handle (char *id);
+gst_tensor_query_server_get_handle (const char *id);
 
 /**
  * @brief Add GstTensorQueryServer.
  */
 edge_server_handle
-gst_tensor_query_server_add_data (char *id, nns_edge_connect_type_e connect_type);
+gst_tensor_query_server_add_data (const char *id, nns_edge_connect_type_e connect_type);
 
 /**
  * @brief Remove GstTensorQueryServer.

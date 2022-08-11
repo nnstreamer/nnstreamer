@@ -176,6 +176,8 @@ gst_tensor_query_serversrc_finalize (GObject * object)
 
   g_free (src->host);
   src->host = NULL;
+  g_free (src->dest_host);
+  src->dest_host = NULL;
   g_free (src->topic);
   src->topic = NULL;
 
@@ -232,8 +234,6 @@ gst_tensor_query_serversrc_set_property (GObject * object, guint prop_id,
       }
       g_free (serversrc->topic);
       serversrc->topic = g_value_dup_string (value);
-      if (NNS_EDGE_CONNECT_TYPE_TCP == serversrc->connect_type)
-        serversrc->connect_type = NNS_EDGE_CONNECT_TYPE_HYBRID;
       break;
     case PROP_ID:
       serversrc->src_id = g_value_get_uint (value);
@@ -337,24 +337,28 @@ gst_tensor_query_serversrc_start (GstBaseSrc * bsrc)
   g_free (id_str);
 
   src->edge_h = gst_tensor_query_server_get_edge_handle (src->server_h);
-  nns_edge_set_info (src->edge_h, "HOST", src->host);
-  port = g_strdup_printf ("%d", src->port);
-  nns_edge_set_info (src->edge_h, "PORT", port);
-  g_free (port);
-  nns_edge_set_info (src->edge_h, "DEST_HOST", src->dest_host);
-  port = g_strdup_printf ("%d", src->dest_port);
-  nns_edge_set_info (src->edge_h, "DEST_PORT", port);
-  g_free (port);
-
-  /** Publish query sever connection info */
+  if (src->host)
+    nns_edge_set_info (src->edge_h, "HOST", src->host);
+  if (src->port > 0) {
+    port = g_strdup_printf ("%u", src->port);
+    nns_edge_set_info (src->edge_h, "PORT", port);
+    g_free (port);
+  }
+  if (src->dest_host)
+    nns_edge_set_info (src->edge_h, "DEST_HOST", src->dest_host);
+  if (src->dest_port > 0) {
+    port = g_strdup_printf ("%u", src->dest_port);
+    nns_edge_set_info (src->edge_h, "DEST_PORT", port);
+    g_free (port);
+  }
   if (src->topic)
     nns_edge_set_info (src->edge_h, "TOPIC", src->topic);
 
   nns_edge_set_event_callback (src->edge_h, _nns_edge_event_cb, src);
 
-  if (0 != nns_edge_start (src->edge_h)) {
+  if (NNS_EDGE_ERROR_NONE != nns_edge_start (src->edge_h)) {
     nns_loge
-        ("Failed to start NNStreamer-edge. Please check server IP and port");
+        ("Failed to start NNStreamer-edge. Please check server IP and port.");
     return FALSE;
   }
 

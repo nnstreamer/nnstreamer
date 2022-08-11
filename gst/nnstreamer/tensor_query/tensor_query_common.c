@@ -24,7 +24,7 @@
 #endif
 
 /**
- * @brief register GEnumValue array for query protocol property handling
+ * @brief Register GEnumValue array for query connect-type property.
  */
 GType
 gst_tensor_query_get_connect_type (void)
