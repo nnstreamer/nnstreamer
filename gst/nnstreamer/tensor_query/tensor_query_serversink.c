@@ -197,8 +197,6 @@ static gboolean
 gst_tensor_query_serversink_start (GstBaseSink * bsink)
 {
   GstTensorQueryServerSink *sink = GST_TENSOR_QUERY_SERVERSINK (bsink);
-  GstCaps *caps;
-  gchar *caps_str = NULL;
   gchar *id_str = NULL;
 
   id_str = g_strdup_printf ("%u", sink->sink_id);
@@ -206,19 +204,8 @@ gst_tensor_query_serversink_start (GstBaseSink * bsink)
       gst_tensor_query_server_add_data (id_str, sink->connect_type);
   g_free (id_str);
 
-  caps = gst_pad_get_current_caps (GST_BASE_SINK_PAD (bsink));
-  if (!caps) {
-    caps = gst_pad_peer_query_caps (GST_BASE_SINK_PAD (bsink), NULL);
-  }
-
-  if (caps) {
-    caps_str = gst_caps_to_string (caps);
-  }
-
   sink->edge_h = gst_tensor_query_server_get_edge_handle (sink->server_h);
   gst_tensor_query_server_set_configured (sink->server_h);
-  gst_caps_unref (caps);
-  g_free (caps_str);
 
   return TRUE;
 }
