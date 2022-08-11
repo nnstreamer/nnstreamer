@@ -13,14 +13,25 @@
 #ifndef __GST_EDGE_H__
 #define __GST_EDGE_H__
 
-G_BEGIN_DECLS
-#ifndef UNUSED
-#define UNUSED(expr) do { (void)(sizeof(x), 0); } while (0)
-#endif /* UNUSED */
+#include <glib.h>
+#include <gst/gst.h>
+#include "nnstreamer-edge.h"
+
 #ifndef GST_EDGE_PACKAGE
 #define GST_EDGE_PACKAGE "GStreamer Edge Plugins"
 #endif /* GST_EDGE_PACKAGE */
 #define GST_EDGE_ELEM_NAME_SINK "edgesink"
 #define GST_EDGE_ELEM_NAME_SRC "edgesrc"
-    G_END_DECLS
+#define DEFAULT_HOST "localhost"
+#define DEFAULT_PORT 3000
+#define DEFAULT_CONNECT_TYPE (NNS_EDGE_CONNECT_TYPE_TCP)
+#define GST_TYPE_EDGE_CONNECT_TYPE (gst_edge_get_connect_type ())
+
+G_BEGIN_DECLS
+/**
+ * @brief register GEnumValue array for edge protocol property handling
+ */
+    GType gst_edge_get_connect_type (void);
+
+G_END_DECLS
 #endif /* __GST_EDGE_H__ */

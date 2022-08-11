@@ -31,6 +31,7 @@ if get_option('enable-tizen')
 
   tizenVmajor = get_option('tizen-version-major')
   add_project_arguments('-DTIZENVERSION='+tizenVmajor.to_string(), language: ['c', 'cpp'])
+  dlog_dep = dependency('dlog')
 elif not meson.is_cross_build()
   if cc.get_id() == 'clang' and cxx.get_id() == 'clang'
     if build_machine.system() == 'darwin'

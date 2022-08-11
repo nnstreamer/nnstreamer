@@ -2,7 +2,7 @@
 /**
  * Copyright (C) 2022 Samsung Electronics Co., Ltd.
  *
- * @file    edge_sink.h
+ * @file    edge_elements.c
  * @date    02 Aug 2022
  * @brief   Register edge plugins
  * @author  Yechan Choi <yechan9.choi@samsung.com>
@@ -12,7 +12,6 @@
  */
 #include <gst/gst.h>
 
-#include "edge_common.h"
 #include "edge_sink.h"
 #include "edge_src.h"
 
