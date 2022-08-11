@@ -403,7 +403,6 @@ _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
 {
   nns_edge_event_e event_type;
   int ret = NNS_EDGE_ERROR_NONE;
-  gchar *caps_str = NULL;
   GstTensorQueryClient *self = (GstTensorQueryClient *) user_data;
 
   if (NNS_EDGE_ERROR_NONE != nns_edge_event_get_type (event_h, &event_type)) {
@@ -417,10 +416,11 @@ _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
       GstCaps *server_caps, *client_caps;
       GstStructure *server_st, *client_st;
       gboolean result = FALSE;
-      gchar *ret_str;
+      gchar *ret_str, *caps_str;
 
       nns_edge_event_parse_capability (event_h, &caps_str);
       ret_str = _nns_edge_parse_caps (caps_str, TRUE);
+      nns_logd ("Received server-src caps: %s", GST_STR_NULL (ret_str));
       client_caps = gst_caps_from_string ((gchar *) self->in_caps_str);
       server_caps = gst_caps_from_string (ret_str);
       g_free (ret_str);
@@ -446,6 +446,7 @@ _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
       if (result || gst_caps_can_intersect (client_caps, server_caps)) {
         /** Update client src caps */
         ret_str = _nns_edge_parse_caps (caps_str, FALSE);
+        nns_logd ("Received server-sink caps: %s", GST_STR_NULL (ret_str));
         if (!gst_tensor_query_client_update_caps (self, ret_str)) {
           nns_loge ("Failed to update client source caps.");
           ret = NNS_EDGE_ERROR_UNKNOWN;
@@ -459,7 +460,7 @@ _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
 
       gst_caps_unref (server_caps);
       gst_caps_unref (client_caps);
-
+      g_free (caps_str);
       break;
     }
     case NNS_EDGE_EVENT_NEW_DATA_RECEIVED:
@@ -474,7 +475,6 @@ _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
       break;
   }
 
-  g_free (caps_str);
   return ret;
 }
 
