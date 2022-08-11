@@ -13,7 +13,7 @@ nnstreamer_single_deps = [
 # log utils
 # TODO: Define proper variable for android in entire project
 if build_platform == 'tizen'
-  nnstreamer_single_deps += dependency('dlog')
+  nnstreamer_single_deps += dlog_dep
 elif cc.has_header_symbol('android/log.h', '__android_log_print')
   nnstreamer_single_deps += cc.find_library('log')
 endif
