@@ -30,13 +30,12 @@ extern "C" {
 /**
  * @brief protocol options for tensor query.
  */
-
 #define DEFAULT_HOST "localhost"
 #define DEFAULT_CONNECT_TYPE (NNS_EDGE_CONNECT_TYPE_TCP)
 #define GST_TYPE_QUERY_CONNECT_TYPE (gst_tensor_query_get_connect_type ())
 
 /**
- * @brief register GEnumValue array for query protocol property handling
+ * @brief Register GEnumValue array for query connect-type property.
  */
 GType
 gst_tensor_query_get_connect_type (void);

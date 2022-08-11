@@ -181,6 +181,7 @@ gst_tensor_query_client_init (GstTensorQueryClient * self)
   self->dest_port = TCP_DEFAULT_SRV_SRC_PORT;
   self->topic = NULL;
   self->in_caps_str = NULL;
+  self->edge_h = NULL;
   self->msg_queue = g_async_queue_new ();
 }
 
@@ -195,6 +196,8 @@ gst_tensor_query_client_finalize (GObject * object)
 
   g_free (self->host);
   self->host = NULL;
+  g_free (self->dest_host);
+  self->dest_host = NULL;
   g_free (self->topic);
   self->topic = NULL;
   g_free (self->in_caps_str);
@@ -226,6 +229,7 @@ gst_tensor_query_client_set_property (GObject * object, guint prop_id,
 {
   GstTensorQueryClient *self = GST_TENSOR_QUERY_CLIENT (object);
 
+  /** @todo DO NOT update properties (host, port, ..) while pipeline is running. */
   switch (prop_id) {
     case PROP_HOST:
       if (!g_value_get_string (value)) {
@@ -479,6 +483,72 @@ _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
 }
 
 /**
+ * @brief Internal function to create edge handle.
+ */
+static gboolean
+gst_tensor_query_client_create_edge_handle (GstTensorQueryClient * self)
+{
+  gboolean started = FALSE;
+  gchar *prev_caps = NULL;
+  int ret;
+
+  /* Already created, compare caps string. */
+  if (self->edge_h) {
+    ret = nns_edge_get_info (self->edge_h, "CAPS", &prev_caps);
+
+    if (ret != NNS_EDGE_ERROR_NONE || !prev_caps ||
+        !g_str_equal (prev_caps, self->in_caps_str)) {
+      /* Capability is changed, close old handle. */
+      nns_edge_release_handle (self->edge_h);
+      self->edge_h = NULL;
+    } else {
+      return TRUE;
+    }
+  }
+
+  ret = nns_edge_create_handle ("TEMP_ID", self->connect_type,
+      NNS_EDGE_FLAG_RECV | NNS_EDGE_FLAG_SEND, &self->edge_h);
+  if (ret != NNS_EDGE_ERROR_NONE)
+    return FALSE;
+
+  nns_edge_set_event_callback (self->edge_h, _nns_edge_event_cb, self);
+
+  if (self->topic)
+    nns_edge_set_info (self->edge_h, "TOPIC", self->topic);
+  if (self->host)
+    nns_edge_set_info (self->edge_h, "HOST", self->host);
+  if (self->port > 0) {
+    gchar *port = g_strdup_printf ("%u", self->port);
+    nns_edge_set_info (self->edge_h, "PORT", port);
+    g_free (port);
+  }
+  nns_edge_set_info (self->edge_h, "CAPS", self->in_caps_str);
+
+  ret = nns_edge_start (self->edge_h);
+  if (ret != NNS_EDGE_ERROR_NONE) {
+    nns_loge
+        ("Failed to start NNStreamer-edge. Please check server IP and port.");
+    goto done;
+  }
+
+  ret = nns_edge_connect (self->edge_h, self->dest_host, self->dest_port);
+  if (ret != NNS_EDGE_ERROR_NONE) {
+    nns_loge ("Failed to connect to edge server!");
+    goto done;
+  }
+
+  started = TRUE;
+
+done:
+  if (!started) {
+    nns_edge_release_handle (self->edge_h);
+    self->edge_h = NULL;
+  }
+
+  return started;
+}
+
+/**
  * @brief This function handles sink event.
  */
 static gboolean
@@ -486,8 +556,6 @@ gst_tensor_query_client_sink_event (GstPad * pad,
     GstObject * parent, GstEvent * event)
 {
   GstTensorQueryClient *self = GST_TENSOR_QUERY_CLIENT (parent);
-  gboolean ret = TRUE;
-  gchar *prev_caps_str, *new_caps_str, *port;
 
   GST_DEBUG_OBJECT (self, "Received %s event: %" GST_PTR_FORMAT,
       GST_EVENT_TYPE_NAME (event), event);
@@ -496,39 +564,15 @@ gst_tensor_query_client_sink_event (GstPad * pad,
     case GST_EVENT_CAPS:
     {
       GstCaps *caps;
-
-      nns_edge_create_handle ("TEMP_ID", self->connect_type,
-          NNS_EDGE_FLAG_RECV | NNS_EDGE_FLAG_SEND, &self->edge_h);
+      gboolean ret;
 
       gst_event_parse_caps (event, &caps);
       g_free (self->in_caps_str);
       self->in_caps_str = gst_caps_to_string (caps);
-      nns_edge_get_info (self->edge_h, "CAPS", &prev_caps_str);
-      if (!prev_caps_str)
-        prev_caps_str = g_strdup ("");
-      new_caps_str = g_strconcat (prev_caps_str, self->in_caps_str, NULL);
-      nns_edge_set_info (self->edge_h, "CAPS", new_caps_str);
-      g_free (prev_caps_str);
-      g_free (new_caps_str);
-      nns_edge_set_info (self->edge_h, "HOST", self->host);
-      port = g_strdup_printf ("%u", self->port);
-      nns_edge_set_info (self->edge_h, "PORT", port);
-      g_free (port);
-      nns_edge_set_info (self->edge_h, "TOPIC", self->topic);
 
-      nns_edge_set_event_callback (self->edge_h, _nns_edge_event_cb, self);
-
-      if (0 != nns_edge_start (self->edge_h)) {
-        nns_loge
-            ("Failed to start NNStreamer-edge. Please check server IP and port");
-        return FALSE;
-      }
-
-      if (0 != nns_edge_connect (self->edge_h,
-              self->dest_host, self->dest_port)) {
-        nns_loge ("Failed to connect to edge server!");
-        return FALSE;
-      }
+      ret = gst_tensor_query_client_create_edge_handle (self);
+      if (!ret)
+        nns_loge ("Failed to create edge handle, cannot start query client.");
 
       gst_event_unref (event);
       return ret;
@@ -629,7 +673,8 @@ gst_tensor_query_client_chain (GstPad * pad,
   nns_edge_get_info (self->edge_h, "client_id", &val);
   nns_edge_data_set_info (data_h, "client_id", val);
   g_free (val);
-  if (0 != nns_edge_publish (self->edge_h, data_h)) {
+
+  if (NNS_EDGE_ERROR_NONE != nns_edge_publish (self->edge_h, data_h)) {
     nns_logw ("Failed to publish to server node, retry connection.");
     goto retry;
   }
