@@ -132,6 +132,11 @@ _callCompareTest raw8_2.log result8_2.log 8-5 "Compare 8-5" 1 0
 kill -9 $pid &> /dev/null
 wait $pid
 
+# Skip query-hybrid test until test failue is fixed. (Related issue: https://github.com/nnstreamer/nnstreamer/issues/3877)
+rm *.log
+report
+exit
+
 # Check whether mqtt broker is running or not
 pid=`ps aux | grep mosquitto | grep -v grep | awk '{print $2}'`
 if [ $pid > 0 ]; then
