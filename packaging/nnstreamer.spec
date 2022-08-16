@@ -35,6 +35,8 @@
 %define		tvm_support 1
 %define		snpe_support 1
 %define		trix_engine_support 1
+# Support AI offloading (tensor_query) using nnstreamer-edge interface
+%define		nnstreamer_edge_support 1
 
 %define		check_test 1
 %define		release_test 1
@@ -155,7 +157,9 @@ Requires: nnstreamer-core = %{version}-%{release}
 Requires: nnstreamer-configuration = %{version}-%{release}
 Requires: nnstreamer-single = %{version}-%{release}
 Recommends: nnstreamer-default-configuration = %{version}-%{release}
+%if 0%{?nnstreamer_edge_support}
 BuildRequires: nnstreamer-edge-devel
+%endif
 
 ## Define build requirements ##
 BuildRequires:	gstreamer-devel
