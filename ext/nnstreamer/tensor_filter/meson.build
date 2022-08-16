@@ -370,33 +370,37 @@ else # no tflite2
 endif
 
 if pytorch_support_is_available
-  filter_sub_torch_sources = ['tensor_filter_pytorch.cc']
+  if cxx.get_id() == 'gcc'
+    filter_sub_torch_sources = ['tensor_filter_pytorch.cc']
 
-  nnstreamer_filter_torch_sources = []
-  foreach s : filter_sub_torch_sources
-    nnstreamer_filter_torch_sources += join_paths(meson.current_source_dir(), s)
-  endforeach
+    nnstreamer_filter_torch_sources = []
+    foreach s : filter_sub_torch_sources
+      nnstreamer_filter_torch_sources += join_paths(meson.current_source_dir(), s)
+    endforeach
 
-  nnstreamer_filter_torch_deps = pytorch_support_deps + [nnstreamer_single_dep]
+    nnstreamer_filter_torch_deps = pytorch_support_deps + [nnstreamer_single_dep]
 
-  # pytorch version
-  if pytorch_support_deps[0].version().version_compare('>=1.2.0')
-    nnstreamer_filter_torch_deps += declare_dependency(compile_args: ['-DPYTORCH_VER_ATLEAST_1_2_0=1'])
+    # pytorch version
+    if pytorch_support_deps[0].version().version_compare('>=1.2.0')
+      nnstreamer_filter_torch_deps += declare_dependency(compile_args: ['-DPYTORCH_VER_ATLEAST_1_2_0=1'])
+    endif
+
+    shared_library('nnstreamer_filter_pytorch',
+      nnstreamer_filter_torch_sources,
+      dependencies: nnstreamer_filter_torch_deps,
+      install: true,
+      install_dir: filter_subplugin_install_dir
+    )
+
+    static_library('nnstreamer_filter_pytorch',
+      nnstreamer_filter_torch_sources,
+      dependencies: nnstreamer_filter_torch_deps,
+      install: true,
+      install_dir: nnstreamer_libdir
+    )
+  else # Compilers is not gcc
+    warning('There are a few headers (Array.h and reverse_iterator.h) that require gcc for license issues. Disabling pytorch subplugin build')
   endif
-
-  shared_library('nnstreamer_filter_pytorch',
-    nnstreamer_filter_torch_sources,
-    dependencies: nnstreamer_filter_torch_deps,
-    install: true,
-    install_dir: filter_subplugin_install_dir
-  )
-
-  static_library('nnstreamer_filter_pytorch',
-    nnstreamer_filter_torch_sources,
-    dependencies: nnstreamer_filter_torch_deps,
-    install: true,
-    install_dir: nnstreamer_libdir
-  )
 endif
 
 if caffe2_support_is_available
