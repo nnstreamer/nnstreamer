@@ -95,6 +95,7 @@ NNSTREAMER_FILTER_NNFW_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_nnfw.c
 
 # filter pytorch
+## NOTE: ndk does not support PYTORCH; it requires gcc.
 NNSTREAMER_FILTER_PYTORCH_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_pytorch.cc
 

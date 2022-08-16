@@ -36,6 +36,13 @@
 #include <nnstreamer_util.h>
 
 #include <torch/script.h>
+/**
+  * Array.h and reverse_iterator.h of PyTorch is GPL-3.0 w/ GCC runtime
+  * exception. Make sure that this is being compiled by GCC
+  */
+#ifndef __GNUC__
+#error There are PyTorch C++ headers (Array.h and reverser_iterator.h) having GPL3 with GCC runtime exception. To comply with its GCC runtime exception, we allow GCC only.
+#endif
 
 /**
  * @brief Macro for debug mode.
