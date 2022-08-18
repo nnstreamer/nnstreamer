@@ -141,35 +141,41 @@ _callCompareTest raw8_2.log result8_2.log 8-5 "Compare 8-5" 1 0
 kill -9 $pid &> /dev/null
 wait $pid
 
-# Skip query-hybrid test until test failue is fixed. (Related issue: https://github.com/nnstreamer/nnstreamer/issues/3877)
-rm *.log
-report
-exit
-
-# Check whether mqtt broker is running or not
-pid=`ps aux | grep mosquitto | grep -v grep | awk '{print $2}'`
-if [ $pid > 0 ]; then
-    echo "mosquitto broker is running"
+if [ -f /usr/sbin/mosquitto ]
+then
+  testResult 1 9-0 "mosquitto mqtt broker search" 1
 else
-    echo "Warning! mosquitto is not running so skip Query-hybrid test."
-    rm *.log
-    report
-    exit
+  testResult 0 9-0 "mosquitto mqtt broker search" 1
+  rm *.log
+  report
+  exit
 fi
 
+# 1. Launch mosquitto
+PORT=`python3 ../../get_available_port.py`
+/usr/sbin/mosquitto -p ${PORT}&
+mospid=$!
+
+# 2. Tests that require mosquitto
+
 # Test Query-hybrid. Get server info from broker.
-gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc id=12345 port=0 topic=passthrough connect-type=HYBRID ! other/tensors,format=flexible,framerate=0/1 ! tee name = t t. ! queue ! multifilesink location=server1_%1d.log t. ! queue ! tensor_query_serversink id=12345 connect-type=HYBRID async=false" 4-1 0 0 5
+gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc id=12345 port=0 dest-port=${PORT} topic=passthrough connect-type=HYBRID ! other/tensors,format=flexible,framerate=0/1 ! tee name = t t. ! queue ! multifilesink location=server1_%1d.log t. ! queue ! tensor_query_serversink id=12345 connect-type=HYBRID async=false" 9-1 0 0 5
 pid=$!
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=50 is-live=true ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! other/tensors,format=flexible ! tee name = t t. ! queue ! multifilesink location= raw4_%1d.log t. ! queue ! tensor_query_client connect-type=HYBRID dest-host=tcp://localhost dest-port=1883 topic=passthrough ! multifilesink location=result4_%1d.log" 4-3 0 0 $PERFORMANCE
-_callCompareTest raw4_0.log result4_0.log 4-4 "Compare the raw file and client received file 4-4" 1 0
-_callCompareTest raw4_1.log result4_1.log 4-5 "Compare the raw file and client received file 4-5" 1 0
-_callCompareTest raw4_2.log result4_2.log 4-6 "Compare the raw file and client received file 4-6" 1 0
-_callCompareTest server1_0.log result4_0.log 4-7 "Compare the server 1 received file and client received file 4-7" 1 0
-_callCompareTest server1_1.log result4_1.log 4-8 "Compare the server 1 received file and client received file 4-8" 1 0
-_callCompareTest server1_2.log result4_2.log 4-9 "Compare the server 1 received file and client received file 4-9" 1 0
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=50 is-live=true ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! other/tensors,format=flexible ! tee name = t t. ! queue ! multifilesink location= raw4_%1d.log t. ! queue ! tensor_query_client connect-type=HYBRID dest-host=tcp://localhost dest-port=${PORT} topic=passthrough ! multifilesink location=result4_%1d.log" 9-3 0 0 $PERFORMANCE
+_callCompareTest raw4_0.log result4_0.log 9-4 "Compare the raw file and client received file 9-4" 1 0
+_callCompareTest raw4_1.log result4_1.log 9-5 "Compare the raw file and client received file 9-5" 1 0
+_callCompareTest raw4_2.log result4_2.log 9-6 "Compare the raw file and client received file 9-6" 1 0
+_callCompareTest server1_0.log result4_0.log 9-7 "Compare the server 1 received file and client received file 9-7" 1 0
+_callCompareTest server1_1.log result4_1.log 9-8 "Compare the server 1 received file and client received file 9-8" 1 0
+_callCompareTest server1_2.log result4_2.log 9-9 "Compare the server 1 received file and client received file 9-9" 1 0
 
 kill -9 $pid &> /dev/null
 wait $pid
+
+
+# 3. Terminate mosquitto
+
+kill -9 $mospid &> /dev/null
 
 rm *.log
 
