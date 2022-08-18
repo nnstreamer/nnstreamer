@@ -123,6 +123,8 @@ PYDecoderCore::decode (const GstTensorsConfig *config,
   GstFlowReturn ret = GST_FLOW_OK;
 
   PyGILState_STATE gstate = Py_LOCK ();
+  //PyThreadState *st;
+
   raw_data = PyList_New (config->info.num_tensors);
   in_info = PyList_New (config->info.num_tensors);
   rate_n = config->rate_n;
@@ -146,7 +148,9 @@ PYDecoderCore::decode (const GstTensorsConfig *config,
     goto done;
   }
 
+  //st = PyEval_SaveThread ();
   output = PyObject_CallMethod (core_obj, "decode", "OOii", raw_data, in_info, rate_n, rate_d);
+  //PyEval_RestoreThread (st);
 
   if (output) {
     need_alloc = (gst_buffer_get_size (outbuf) == 0);
@@ -199,6 +203,8 @@ PYDecoderCore::getOutCaps (const GstTensorsConfig *config)
   UNUSED (config);
 
   PyGILState_STATE gstate = Py_LOCK ();
+  //PyThreadState *st;
+
   if (!PyObject_HasAttrString (core_obj, (char *) "getOutCaps")) {
     ml_loge ("Cannot find 'getOutCaps'");
     ml_loge ("defualt caps is `application/octet-stream`");
@@ -206,7 +212,10 @@ PYDecoderCore::getOutCaps (const GstTensorsConfig *config)
     goto done;
   }
 
+  //st = PyEval_SaveThread ();
   result = PyObject_CallMethod (core_obj, (char *) "getOutCaps", NULL);
+  //PyEval_RestoreThread (st);
+
   if (result) {
     gchar *caps_str = PyBytes_AsString (result);
     caps = gst_caps_from_string (caps_str);
@@ -371,8 +380,6 @@ init_decoder_py (void)
 {
   /** Python should be initialized and finalized only once */
   _refcnt_py_initalize ();
-
-  PyEval_InitThreads_IfGood();
 
   nnstreamer_decoder_probe (&Python);
 }

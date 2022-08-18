@@ -562,6 +562,7 @@ void _refcnt_py_initalize()
   if (!ref_counter) {
     fprintf(stderr, "\n\nPY INIT\n\n\n");
     Py_Initialize();
+    PyEval_InitThreads_IfGood ();
   }
   ref_counter++;
 }

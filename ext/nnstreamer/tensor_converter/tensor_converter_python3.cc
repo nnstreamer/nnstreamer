@@ -117,11 +117,14 @@ PYConverterCore::convert (GstBuffer *in_buf, GstTensorsConfig *config)
   guint i, num;
   gsize mem_size;
   gpointer mem_data;
+  //PyThreadState *st;
 
   if (nullptr == in_buf)
     throw std::invalid_argument ("Null pointers are given to PYConverterCore::convert().\n");
   num = gst_tensor_buffer_get_count (in_buf);
   tensors_info = output = pyValue = param = nullptr;
+
+  fprintf(stderr, "%s:%d\n", __FILE__, __LINE__);
 
   PyGILState_STATE gstate = Py_LOCK ();
   param = PyList_New (num);
@@ -147,7 +150,9 @@ PYConverterCore::convert (GstBuffer *in_buf, GstTensorsConfig *config)
     goto done;
   }
 
+  //st = PyEval_SaveThread ();
   pyValue = PyObject_CallMethod (core_obj, "convert", "(O)", param);
+  //PyEval_RestoreThread (st);
 
   if (!PyArg_ParseTuple (pyValue, "OOii", &tensors_info, &output, &rate_n, &rate_d)) {
     Py_ERRMSG ("Failed to parse converting result");
@@ -368,8 +373,6 @@ init_converter_py (void)
 {
   /** Python should be initialized and finalized only once */
   _refcnt_py_initalize ();
-
-  PyEval_InitThreads_IfGood();
 
   registerExternalConverter (&Python);
 }

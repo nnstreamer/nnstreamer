@@ -398,7 +398,9 @@ PYCore::getInputTensorDim (GstTensorsInfo *info)
 
   PyGILState_STATE gstate = Py_LOCK ();
 
+  //PyThreadState *st = PyEval_SaveThread ();
   PyObject *result = PyObject_CallMethod (core_obj, (char *) "getInputDim", NULL);
+  //PyEval_RestoreThread (st);
   if (result) {
     res = parseTensorsInfo (result, info);
     Py_SAFEDECREF (result);
@@ -428,7 +430,9 @@ PYCore::getOutputTensorDim (GstTensorsInfo *info)
 
   PyGILState_STATE gstate = Py_LOCK ();
 
+  //PyThreadState *st = PyEval_SaveThread ();
   PyObject *result = PyObject_CallMethod (core_obj, (char *) "getOutputDim", NULL);
+  //PyEval_RestoreThread (st);
   if (result) {
     res = parseTensorsInfo (result, info);
     Py_SAFEDECREF (result);
@@ -476,8 +480,10 @@ PYCore::setInputTensorDim (const GstTensorsInfo *in_info, GstTensorsInfo *out_in
     PyList_SetItem (param, i, shape);
   }
 
+  //PyThreadState *st = PyEval_SaveThread ();
   PyObject *result
       = PyObject_CallMethod (core_obj, (char *) "setInputDim", (char *) "(O)", param);
+  //PyEval_RestoreThread (st);
 
   Py_SAFEDECREF (param);
 
@@ -555,8 +561,9 @@ PYCore::run (const GstTensorMemory *input, GstTensorMemory *output)
     PyList_SetItem (param, i, input_array);
   }
 
-
+  //PyThreadState *st = PyEval_SaveThread ();
   result = PyObject_CallMethod (core_obj, (char *) "invoke", (char *) "(O)", param);
+  //PyEval_RestoreThread (st);
 
   if (result) {
     if ((unsigned int) PyList_Size (result) != outputTensorMeta.num_tensors) {
@@ -839,8 +846,6 @@ init_filter_py (void)
 {
   /** Python should be initialized and finalized only once */
   _refcnt_py_initalize ();
-
-  PyEval_InitThreads_IfGood ();
 
   nnstreamer_filter_probe (&NNS_support_python);
   nnstreamer_filter_set_custom_property_desc (filter_subplugin_python, "${GENERAL_STRING}",
