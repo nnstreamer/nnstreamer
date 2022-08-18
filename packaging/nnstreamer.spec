@@ -107,6 +107,7 @@
 %define		tvm_support 0
 %define		snpe_support 0
 %define		trix_engine_support 0
+%define		nnstreamer_edge_support 0
 %endif
 
 # DA requested to remove unnecessary module builds
