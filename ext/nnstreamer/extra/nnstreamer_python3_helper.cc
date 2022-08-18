@@ -314,11 +314,13 @@ getNumpyType (tensor_type tType)
 
 /**
  * @brief	load the python script
+ * @detail Hold GIL before calling
  */
 int
 loadScript (PyObject **core_obj, const gchar *module_name, const gchar *class_name)
 {
   PyObject *module = PyImport_ImportModule (module_name);
+  assert(PyGILState_Check() == 1);
 
   if (module) {
     PyObject *cls = PyObject_GetAttrString (module, class_name);
@@ -371,6 +373,7 @@ openPythonLib (void **handle)
 
 /**
  * @brief	Add custom python module to system path
+ * @detail Hold GIL before calling
  */
 int
 addToSysPath (const gchar *path)
@@ -381,6 +384,8 @@ addToSysPath (const gchar *path)
     Py_ERRMSG ("Cannot import python module 'sys'.");
     return -1;
   }
+
+  assert(PyGILState_Check() == 1);
 
   PyObject *sys_path = PyObject_GetAttrString (sys_module, "path");
   if (nullptr == sys_path) {
@@ -403,6 +408,7 @@ addToSysPath (const gchar *path)
  * @param[result] Python object retunred by convert
  * @param[info] info Structure for output tensors info
  * @return 0 if no error, otherwise negative errno
+ * @detail Hold GIL before calling
  */
 int
 parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
@@ -412,6 +418,7 @@ parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
   if (PyList_Size (result) < 0)
     return -1;
 
+  assert(PyGILState_Check() == 1);
   gst_tensors_info_init (info);
   info->num_tensors = PyList_Size (result);
   for (i = 0; i < info->num_tensors; i++) {
@@ -513,11 +520,13 @@ parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
  * @brief	allocate TensorShape object
  * @param info : the tensor info
  * @return created object
+ * @detail Hold GIL before calling
  */
 PyObject *
 PyTensorShape_New (PyObject *shape_cls, const GstTensorInfo *info)
 {
   _import_array (); /** for numpy */
+  assert(PyGILState_Check() == 1);
 
   PyObject *args = PyTuple_New (2);
   PyObject *dims = PyList_New (NNS_TENSOR_RANK_LIMIT);
@@ -550,8 +559,10 @@ static int ref_counter = 0;
  */
 void _refcnt_py_initalize()
 {
-  if (!ref_counter)
+  if (!ref_counter) {
+    fprintf(stderr, "\n\nPY INIT\n\n\n");
     Py_Initialize();
+  }
   ref_counter++;
 }
 
@@ -561,8 +572,11 @@ void _refcnt_py_initalize()
  */
 void _refcnt_py_finalize()
 {
-  if (ref_counter == 1)
+  assert (ref_counter > 0);
+  if (ref_counter == 1) {
+    fprintf(stderr, "\n\nPY EXIT\n\n\n");
     Py_Finalize();
+  }
   ref_counter--;
 }
 

@@ -141,6 +141,8 @@ PYCore::PYCore (const char *_script_path, const char *_custom)
   if (openPythonLib (&handle))
     throw std::runtime_error (dlerror ());
 
+  PyGILState_STATE gstate = Py_LOCK ();
+
   _import_array (); /** for numpy */
 
   /**
@@ -166,6 +168,7 @@ PYCore::PYCore (const char *_script_path, const char *_custom)
   core_obj = NULL;
   configured = false;
   shape_cls = NULL;
+  Py_UNLOCK (gstate);
 }
 
 /**
@@ -830,19 +833,14 @@ static GstTensorFilterFramework NNS_support_python = { .version = GST_TENSOR_FIL
         .allocateInInvoke = nullptr,
     } } };
 
-static PyThreadState *st;
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void
 init_filter_py (void)
 {
   /** Python should be initialized and finalized only once */
-  if (!Py_IsInitialized ())
-    Py_Initialize ();
-  PyEval_InitThreads_IfGood ();
+  _refcnt_py_initalize ();
 
-  PyGILState_STATE gstate = Py_LOCK ();
-  st = PyEval_SaveThread ();
-  Py_UNLOCK (gstate);
+  PyEval_InitThreads_IfGood ();
 
   nnstreamer_filter_probe (&NNS_support_python);
   nnstreamer_filter_set_custom_property_desc (filter_subplugin_python, "${GENERAL_STRING}",
@@ -855,13 +853,8 @@ init_filter_py (void)
 void
 fini_filter_py (void)
 {
-  PyGILState_STATE gstate = Py_LOCK ();
-  PyEval_RestoreThread (st);
-  Py_UNLOCK (gstate);
-
   nnstreamer_filter_exit (NNS_support_python.v0.name);
 
   /** Python should be initialized and finalized only once */
-  if (Py_IsInitialized ())
-    Py_Finalize ();
+  _refcnt_py_finalize ();
 }

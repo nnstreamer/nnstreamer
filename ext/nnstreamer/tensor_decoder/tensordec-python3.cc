@@ -65,6 +65,8 @@ PYDecoderCore::PYDecoderCore (const char *_script_path)
   if (openPythonLib (&handle))
     throw std::runtime_error (dlerror ());
 
+  PyGILState_STATE gstate = Py_LOCK ();
+
   _import_array (); /** for numpy */
 
   /**
@@ -85,6 +87,8 @@ PYDecoderCore::PYDecoderCore (const char *_script_path)
 
   core_obj = NULL;
   shape_cls = NULL;
+
+  Py_UNLOCK (gstate);
 }
 
 /**
@@ -361,19 +365,14 @@ static GstTensorDecoderDef Python = { .modename = decoder_subplugin_python3,
 extern "C" {
 #endif /* __cplusplus */
 
-static PyThreadState* st;
 /** @brief Initialize this object for tensordec-plugin */
 void
 init_decoder_py (void)
 {
   /** Python should be initialized and finalized only once */
-  if (!Py_IsInitialized ())
-    Py_Initialize ();
-  PyEval_InitThreads_IfGood();
+  _refcnt_py_initalize ();
 
-  PyGILState_STATE gstate = Py_LOCK ();
-  st = PyEval_SaveThread ();
-  Py_UNLOCK (gstate);
+  PyEval_InitThreads_IfGood();
 
   nnstreamer_decoder_probe (&Python);
 }
@@ -382,15 +381,10 @@ init_decoder_py (void)
 void
 fini_decoder_py (void)
 {
-  PyGILState_STATE gstate = Py_LOCK ();
-  PyEval_RestoreThread (st);
-  Py_UNLOCK (gstate);
-
   nnstreamer_decoder_exit (Python.modename);
 
   /** Python should be initialized and finalized only once */
-  if (Py_IsInitialized ())
-    Py_Finalize ();
+  _refcnt_py_finalize ();
 }
 #ifdef __cplusplus
 }

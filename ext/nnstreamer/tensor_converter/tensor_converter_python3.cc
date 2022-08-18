@@ -62,6 +62,8 @@ PYConverterCore::PYConverterCore (const char *_script_path)
   if (openPythonLib (&handle))
     throw std::runtime_error (dlerror ());
 
+  PyGILState_STATE gstate = Py_LOCK ();
+
   _import_array (); /** for numpy */
 
   /**
@@ -82,6 +84,8 @@ PYConverterCore::PYConverterCore (const char *_script_path)
 
   core_obj = NULL;
   shape_cls = NULL;
+
+  Py_UNLOCK (gstate);
 }
 
 /**
@@ -200,15 +204,15 @@ int
 PYConverterCore::init ()
 {
   int ret = 0;
+  PyGILState_STATE gstate = Py_LOCK ();
   /** Find nnstreamer_api module */
   PyObject *api_module = PyImport_ImportModule ("nnstreamer_python");
   if (api_module == NULL) {
+    Py_UNLOCK (gstate);
     return -EINVAL;
   }
 
   shape_cls = PyObject_GetAttrString (api_module, "TensorShape");
-
-  PyGILState_STATE gstate = Py_LOCK ();
 
   if (shape_cls == NULL)
     ret = -EINVAL;
@@ -358,20 +362,14 @@ static NNStreamerExternalConverter Python = {
 extern "C" {
 #endif /* __cplusplus */
 
-static PyThreadState* st;
 /** @brief Initialize this object for tensor converter sub-plugin */
 void
 init_converter_py (void)
 {
   /** Python should be initialized and finalized only once */
-  if (!Py_IsInitialized ()) {
-    Py_Initialize ();
-  }
-  PyEval_InitThreads_IfGood ();
+  _refcnt_py_initalize ();
 
-  PyGILState_STATE gstate = Py_LOCK ();
-  st = PyEval_SaveThread ();
-  Py_UNLOCK (gstate);
+  PyEval_InitThreads_IfGood();
 
   registerExternalConverter (&Python);
 }
@@ -380,22 +378,9 @@ init_converter_py (void)
 void
 fini_converter_py (void)
 {
-  PyGILState_STATE gstate = Py_LOCK ();
-  PyEval_RestoreThread (st);
-  Py_UNLOCK (gstate);
-
   unregisterExternalConverter (Python.name);
-/**
- * @todo Remove below lines after this issue is addressed.
- * Tizen issues: After python version has been upgraded from 3.9.1 to 3.9.10,
- * python converter is stopped at Py_Finalize. Since Py_Initialize is not called
- * twice from this object, Py_Finalize is temporarily removed.
- */
-#if 0
-  /** Python should be initialized and finalized only once */
-  if (Py_IsInitialized())
-    Py_Finalize ();
-#endif
+
+  _refcnt_py_finalize ();
 }
 #ifdef __cplusplus
 }
