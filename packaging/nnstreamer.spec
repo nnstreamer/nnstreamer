@@ -311,6 +311,9 @@ BuildRequires:	pkgconfig(orc-0.4)
 BuildRequires:	flex
 BuildRequires:	bison
 
+# Mosquitto MQTT broker for unit testing
+BuildRequires:  mosquitto
+
 # Note that debug packages generate an additional build and storage cost.
 # If you do not need debug packages, run '$ gbs -c .TAOS-CI/.gbs.conf build ... --define "_skip_debug_rpm 1"'.
 
