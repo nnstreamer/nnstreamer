@@ -302,6 +302,8 @@ BuildRequires:	npu-engine-devel
 # Unit Testing Uses SSAT (https://github.com/myungjoo/SSAT.git)
 %if 0%{?unit_test} || 0%{?edge_test}
 BuildRequires:	ssat >= 1.1.0
+# Mosquitto MQTT broker for unit testing
+BuildRequires:  mosquitto
 %endif
 
 # For ORC (Oil Runtime Compiler)
@@ -310,9 +312,6 @@ BuildRequires:	pkgconfig(orc-0.4)
 # For nnstreamer-parser
 BuildRequires:	flex
 BuildRequires:	bison
-
-# Mosquitto MQTT broker for unit testing
-BuildRequires:  mosquitto
 
 # Note that debug packages generate an additional build and storage cost.
 # If you do not need debug packages, run '$ gbs -c .TAOS-CI/.gbs.conf build ... --define "_skip_debug_rpm 1"'.
