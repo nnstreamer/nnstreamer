@@ -81,6 +81,19 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/
 python3 checkScaledTensor.py testcase3.direct.log 640 480 testcase3.scaled.log 1280 960 3
 testResult $? 3 "Golden test comparison" 0 1
 
+# Passthrough with CV (multithreaded)
+python3 cv2_availability.py
+CV2=$?
+IGNORE=0
+if [ "$CV2" == "0" ]; then
+  IGNORE=0
+else
+  IGNORE=1
+fi
+PATH_TO_SCRIPT="../test_models/models/passThrough_CV.py"
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=280,height=40,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=\"${FRAMEWORK}\" model=\"${PATH_TO_SCRIPT}\" input=\"3:280:40:1\" inputtype=\"uint8\" output=\"3:280:40:1\" outputtype=\"uint8\" ! filesink location=\"testcase4.passthrough.log\" sync=true t. ! queue ! filesink location=\"testcase4.direct.log\" sync=true" 4-1 $IGNORE 0 $PERFORMANCE
+callCompareTest testcase4.direct.log testcase4.passthrough.log 4-2 "Multithreaded python script as a filter (CV2)" 0 $IGNORE
+
 rm *.log
 
 report
