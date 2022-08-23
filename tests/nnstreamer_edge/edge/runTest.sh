@@ -45,7 +45,7 @@ function callCompareTestIfExist() {
 }
 
 # Run edge sink server as echo server with default address option. 
-PORT=`python3 ../get_available_port.py`
+PORT=`python3 ../../get_available_port.py`
 gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} \
     videotestsrc is-live=true ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tee name=t \
         t. ! queue ! multifilesink location=raw1_%1d.log \
@@ -66,7 +66,7 @@ kill -9 $pid &> /dev/null
 wait $pid
 
 # Run edge sink server as echo server with default address option. (multi clients)
-PORT=`python3 ../get_available_port.py`
+PORT=`python3 ../../get_available_port.py`
 gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} \
     videotestsrc is-live=true ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tee name=t \
         t. ! queue ! multifilesink location=raw2_%1d.log \
@@ -85,7 +85,7 @@ kill -9 $pid &> /dev/null
 wait $pid
 
 # Cap: Flexible Tensor
-PORT=`python3 ../get_available_port.py`
+PORT=`python3 ../../get_available_port.py`
 gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} \
     videotestsrc is-live=true ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! other/tensors,format=flexible ! tee name=t \
         t. ! queue ! multifilesink location=raw3_%1d.log \
@@ -99,7 +99,7 @@ kill -9 $pid &> /dev/null
 wait $pid
 
 # Cap: Tensor
-PORT=`python3 ../get_available_port.py`
+PORT=`python3 ../../get_available_port.py`
 gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} \
     videotestsrc is-live=true ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! other/tensors,num_tensors=1,dimensions=3:300:300:1,types=uint8,format=static ! tee name=t \
         t. ! queue ! multifilesink location=raw4_%1d.log \
@@ -113,7 +113,7 @@ kill -9 $pid &> /dev/null
 wait $pid
 
 # Cap: Audio
-PORT=`python3 ../get_available_port.py`
+PORT=`python3 ../../get_available_port.py`
 gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} \
     audiotestsrc ! audioconvert ! tee name=t \
         t. ! queue ! multifilesink location=raw5_%1d.log \
@@ -127,7 +127,7 @@ kill -9 $pid &> /dev/null
 wait $pid
 
 # Cap: Text
-PORT=`python3 ../get_available_port.py`
+PORT=`python3 ../../get_available_port.py`
 RANDOM_TEXT="test.txt"
 python3 generate_random_text.py "--file_name ${RANDOM_TEXT}"
 gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} \
