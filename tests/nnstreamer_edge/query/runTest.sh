@@ -42,7 +42,7 @@ function _callCompareTest() {
 }
 
 # Run tensor query server as echo server with default address option.
-PORT=`python3 ../get_available_port.py`
+PORT=`python3 ../../get_available_port.py`
 gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc port=${PORT} ! other/tensors,format=static,num_tensors=1,dimensions=(string)3:300:300:1,types=(string)uint8 ! tensor_query_serversink async=false" 1-1 0 0 30
 pid=$!
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc is-live=true num-buffers=10 ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! tee name = t t. ! queue ! multifilesink location= raw1_%1d.log t. ! queue ! tensor_query_client dest-port=${PORT} ! multifilesink location=result1_%1d.log sync=true " 1-2 0 0 $PERFORMANCE
@@ -54,7 +54,7 @@ kill -9 $pid &> /dev/null
 wait $pid
 
 # Run tensor query server as echo server with given address option. (multi clients)
-PORT1=`python3 ../get_available_port.py`
+PORT1=`python3 ../../get_available_port.py`
 gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc host=127.0.0.1 port=${PORT1} ! other/tensors,format=static,num_tensors=1,dimensions=(string)3:300:300:1,types=(string)uint8 ! tensor_query_serversink async=false" 2-1 0 0 30
 pid=$!
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc is-live=true num-buffers=10  ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! tee name = t t. ! queue ! multifilesink location= raw2_%1d.log t. ! queue ! tensor_query_client host=127.0.0.1 port=0 dest-host=127.0.0.1 dest-port=${PORT1} ! multifilesink location=result2_%1d.log" 2-2 0 0 $PERFORMANCE
@@ -69,7 +69,7 @@ kill -9 $pid &> /dev/null
 wait $pid
 
 # Test flexible tensors
-PORT=`python3 ../get_available_port.py`
+PORT=`python3 ../../get_available_port.py`
 gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc port=${PORT} ! other/tensors,format=flexible ! tensor_query_serversink async=false" 3-1 0 0 30
 pid=$!
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc is-live=true num-buffers=10  ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! other/tensors,format=flexible ! tee name = t t. ! queue ! multifilesink location= raw3_%1d.log t. ! queue ! tensor_query_client dest-port=${PORT} ! multifilesink location=result3_%1d.log" 3-2 0 0 $PERFORMANCE
@@ -80,10 +80,10 @@ kill -9 $pid &> /dev/null
 wait $pid
 
 # Test multiple query server src and sink.
-PORT1=`python3 ../get_available_port.py`
-PORT2=`python3 ../get_available_port.py`
-PORT3=`python3 ../get_available_port.py`
-PORT4=`python3 ../get_available_port.py`
+PORT1=`python3 ../../get_available_port.py`
+PORT2=`python3 ../../get_available_port.py`
+PORT3=`python3 ../../get_available_port.py`
+PORT4=`python3 ../../get_available_port.py`
 gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc id=0 port=${PORT1} ! other/tensors,format=flexible ! tensor_query_serversink id=0 async=false \
     tensor_query_serversrc id=1 port=${PORT2} ! other/tensors,format=flexible ! tensor_query_serversink id=1 async=false" 5-1 0 0 30
 pid=$!
@@ -109,7 +109,7 @@ kill -9 $pid &> /dev/null
 wait $pid
 
 # Sever src cap: Video, Server sink cap: Viedo test
-PORT=`python3 ../get_available_port.py`
+PORT=`python3 ../../get_available_port.py`
 gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc port=${PORT} ! video/x-raw,width=300,height=300,format=RGB,framerate=0/1 ! tensor_query_serversink async=false" 6-1 0 0 30
 pid=$!
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc is-live=true num-buffers=10  ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tee name = t t. ! queue ! multifilesink location= raw6_%1d.log t. ! queue ! tensor_query_client dest-port=${PORT} ! multifilesink location=result6_%1d.log" 6-2 0 0 $PERFORMANCE
@@ -120,7 +120,7 @@ kill -9 $pid &> /dev/null
 wait $pid
 
 # Sever src cap: Video, Server sink cap: Tensor test
-PORT=`python3 ../get_available_port.py`
+PORT=`python3 ../../get_available_port.py`
 gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc port=${PORT} ! video/x-raw,width=300,height=300,format=RGB,framerate=0/1 ! tensor_converter ! tensor_query_serversink async=false" 7-1 0 0 30
 pid=$!
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc is-live=true num-buffers=10  ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tee name = t t. ! queue ! multifilesink location= raw7_%1d.log t. ! queue ! tensor_query_client dest-port=${PORT} ! multifilesink location=result7_%1d.log" 7-2 0 0 $PERFORMANCE
@@ -131,7 +131,7 @@ kill -9 $pid &> /dev/null
 wait $pid
 
 # Sever src cap: Tensor, Server sink cap: Video test
-PORT=`python3 ../get_available_port.py`
+PORT=`python3 ../../get_available_port.py`
 gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc port=${PORT} ! other/tensors,format=static,num_tensors=1,dimensions=(string)3:300:300:1,types=(string)uint8,framerate=0/1 ! tensor_decoder mode=direct_video ! videoconvert ! tensor_query_serversink async=false" 8-1 0 0 30
 pid=$!
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc is-live=true num-buffers=10  ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! tee name = t t. ! queue ! multifilesink location= raw8_%1d.log t. ! queue ! tensor_query_client dest-port=${PORT} ! multifilesink location=result8_%1d.log" 8-2 0 0 $PERFORMANCE

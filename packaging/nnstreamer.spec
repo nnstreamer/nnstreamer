@@ -300,7 +300,7 @@ BuildRequires:	npu-engine-devel
 %endif
 
 # Unit Testing Uses SSAT (https://github.com/myungjoo/SSAT.git)
-%if 0%{?unit_test}
+%if 0%{?unit_test} || 0%{?edge_test}
 BuildRequires:	ssat >= 1.1.0
 %endif
 
@@ -873,6 +873,7 @@ export NNSTREAMER_CONVERTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor
     bash %{test_script} ./tests
     bash %{test_script} ./tests/cpp_methods
     bash %{test_script} ./tests/nnstreamer_filter_extensions_common
+    bash %{test_script} ./tests/nnstreamer_edge
 %if 0%{mvncsdk2_support}
     LD_LIBRARY_PATH=${NNSTREAMER_BUILD_ROOT_PATH}/tests/nnstreamer_filter_mvncsdk2:. bash %{test_script} ./tests/nnstreamer_filter_mvncsdk2/unittest_filter_mvncsdk2
 %endif
@@ -899,7 +900,15 @@ export NNSTREAMER_CONVERTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor
     popd
 
 python3 tools/development/count_test_cases.py build tests/summary.txt
-%endif #if unit_test
+%else
+%if 0%{?edge_test}
+    bash %{test_script} tests/nnstreamer_edge
+    pushd tests/nnstreamer_edge
+    ssat -n -p=1 --summary summary.txt -cn _n
+    popd
+    python3 tools/development/count_test_cases.py build tests/nnstreamer_edge/summary.txt
+%endif
+%endif
 
 %install
 DESTDIR=%{buildroot} ninja -C build install
