@@ -130,7 +130,7 @@ python3 checkResult.py typecast testcase12.noop.log testcase12.ops.log float16 2
 testResult $? 12 "float16 values * 1.0 + 1.0 - 1.0 == original test" $F16MAYFAIL 1
 
 python3 checkResult.py typecast testcase12.noop.log testcase13.ops.log float16 2 e float16 2 e
-testResult $? 13 "float16 values + 0.0001 < original + 0.001 test" $F16MAYFAIL 1
+testResult $? 13 "float16 values + 0.0001 is less than original + 0.001 test" $F16MAYFAIL 1
 
 python3 checkResult.py typecast testcase12.noop.log testcase14.ops.log float16 2 e float16 2 e
 val=$?
