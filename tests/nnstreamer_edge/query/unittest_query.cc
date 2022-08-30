@@ -98,6 +98,15 @@ TEST (tensorQuery, serverProperties0)
   g_object_get (srv_handle, "port", &uint_val, NULL);
   EXPECT_EQ (5001U, uint_val);
 
+  g_object_set (srv_handle, "dest-host", "127.0.0.2", NULL);
+  g_object_get (srv_handle, "dest-host", &str_val, NULL);
+  EXPECT_STREQ ("127.0.0.2", str_val);
+  g_free (str_val);
+
+  g_object_set (srv_handle, "dest-port", 5001U, NULL);
+  g_object_get (srv_handle, "dest-port", &uint_val, NULL);
+  EXPECT_EQ (5001U, uint_val);
+
   g_object_set (srv_handle, "connect-type", 1, NULL);
   g_object_get (srv_handle, "connect-type", &int_val, NULL);
   EXPECT_EQ (1, int_val);
@@ -106,6 +115,15 @@ TEST (tensorQuery, serverProperties0)
   g_object_set (srv_handle, "timeout", 20U, NULL);
   g_object_get (srv_handle, "timeout", &uint_val, NULL);
   EXPECT_EQ (20U, uint_val);
+
+  g_object_set (srv_handle, "topic", "TEMP_TEST_TOPIC", NULL);
+  g_object_get (srv_handle, "topic", &str_val, NULL);
+  EXPECT_STREQ ("TEMP_TEST_TOPIC", str_val);
+  g_free (str_val);
+
+  g_object_set (srv_handle, "id", 12345U, NULL);
+  g_object_get (srv_handle, "id", &uint_val, NULL);
+  EXPECT_EQ (12345U, uint_val);
 
   gst_object_unref (srv_handle);
 
@@ -123,10 +141,17 @@ TEST (tensorQuery, serverProperties0)
   g_object_get (srv_handle, "connect-type", &int_val, NULL);
   EXPECT_EQ (1, int_val);
 
-
   g_object_set (srv_handle, "timeout", 20U, NULL);
   g_object_get (srv_handle, "timeout", &uint_val, NULL);
   EXPECT_EQ (20U, uint_val);
+
+  g_object_set (srv_handle, "id", 12345U, NULL);
+  g_object_get (srv_handle, "id", &uint_val, NULL);
+  EXPECT_EQ (12345U, uint_val);
+
+  g_object_set (srv_handle, "limit", 10, NULL);
+  g_object_get (srv_handle, "limit", &int_val, NULL);
+  EXPECT_EQ (10, int_val);
 
   gst_object_unref (srv_handle);
   gst_object_unref (gstpipe);
@@ -210,6 +235,35 @@ TEST (tensorQuery, clientProperties0)
   EXPECT_EQ (FALSE, bool_val);
 
   gst_object_unref (client_handle);
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+}
+
+/**
+ * @brief Test for tensor_query_server run.
+ */
+TEST (tensorQuery, serverRun)
+{
+  gchar *pipeline;
+  GstElement *gstpipe;
+  guint src_port;
+
+  src_port = _get_available_port ();
+
+  /* Create a nnstreamer pipeline */
+  pipeline = g_strdup_printf (
+      "tensor_query_serversrc name=serversrc host=127.0.0.1 port=%u ! "
+      "other/tensors,num_tensors=1,dimensions=3:300:300:1,types=uint8 ! "
+      "tensor_query_serversink sync=false async=false", src_port);
+  gstpipe = gst_parse_launch (pipeline, NULL);
+  EXPECT_NE (gstpipe, nullptr);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (100000);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PAUSED, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (100000);
+
   gst_object_unref (gstpipe);
   g_free (pipeline);
 }
