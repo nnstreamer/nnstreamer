@@ -215,7 +215,7 @@ gst_tensor_query_serversrc_set_property (GObject * object, guint prop_id,
         nns_logw ("host property cannot be NULL");
         break;
       }
-      g_free (serversrc->host);
+      g_free (serversrc->dest_host);
       serversrc->dest_host = g_value_dup_string (value);
       break;
     case PROP_DEST_PORT:
