@@ -17,7 +17,7 @@ Note that "stable" does not mean that it is complete. It means that it has enoug
 
 In this page, we focus on the status of each elements. For requirements and designs of each element, please refer to the README.md of the element. Refer to the papers, [ICSE2021](https://arxiv.org/pdf/2101.06371) and [ICSE2022](https://arxiv.org/abs/2201.06026) for alternative descriptions on these elements along with some figures.
 
-- [tensor\_converter](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_converter)
+- [tensor\_converter](https://github.com/nnstreamer/nnstreamer/blob/main/gst/nnstreamer/elements/gsttensor_converter.md)
   - Video (stable)
     - '''video/x-raw'''. Colorspaces of RGB, BGRx, Gray8 are supported.
     - Caution: if width is not divisible by 4, RGB/Gray8 video incurs memcpy.
@@ -72,7 +72,7 @@ In this page, we focus on the status of each elements. For requirements and desi
   - WIP: NCNN
   - [Guide on writing a filter subplugin](writing-subplugin-tensor-filter.md)
   - [Codegen and code template for tensor\_filter subplugin](https://github.com/nnstreamer/nnstreamer-example/tree/main/templates)
-- [tensor\_transform](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_transform) (stable)
+- [tensor\_transform](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_transform.md) (stable)
   - Supported features
     - Type Cast (typecast) (stable, orc supported with the property ```acceleration```)
     - Dimension Change (dimchg) (stable with limited sub features)
@@ -80,7 +80,7 @@ In this page, we focus on the status of each elements. For requirements and desi
     - Transpose (transpose) (stable with limited sub features)
     - Standardization/Normalization (stand) (stable with limited sub features)
     - More features coming soon!
-- [tensor\_decoder](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_decoder) (stable, but with NYI WIP items)
+- [tensor\_decoder](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_decoder.md) (stable, but with NYI WIP items)
   - Supported features
     - Direct video conversion (video/x-raw) (stable)
     - Image classification labeling (text/x-raw) (stable)
@@ -93,36 +93,36 @@ In this page, we focus on the status of each elements. For requirements and desi
     - Protobuf (stable)
     - binary/octet-stream (stable)
   - Users can add plugins in run-time.
-- [tensor\_sink](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_sink) (stable)
+- [tensor\_sink](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_sink.md) (stable)
   - ```appsink```-like element, which is specialized for ```other/tensors```. You may use appsink with capsfilter instead.
-- [tensor\_merge](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_merge) (stable)
+- [tensor\_merge](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_merge.c) (stable)
   - This combines muiltiple single-tensored (```other/tensors,num_tensors=1```) streams into a single-tensored stream by merging dimensions of incoming tensor streams. For example, it may merge two ```dimensions=640:480``` streams into ```dimensons=1280:480```, ```dimensions=640:960```, or ```dimensions=640:480:2```, according to a given configuration.
   - Users can adjust sync-mode and sync-option to change its behaviors of when to create output tensors and how to choose input tensors.
   - Users can adjust how dimensions are merged (the rank merged, the order of merged streams).
-- [tensor\_split](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_split) (stable)
+- [tensor\_split](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_split.c) (stable)
   - This is the opposite of ```tensor_merge```. This splits a single-tensored (```other/tensors,num_tensors=1```) stream into multiple single-tensored streams. For example, a stream of ```dimensions=1920:1080``` may split into ```dimensions=1080:1080``` and ```dimensions=840:1080```.
   - Users can adjust how dimensions are split
 - [tensor\_mux](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_mux) (stable)
   - This combines multiple ```other/tensor(s)``` streams into a single ```other/tensors``` stream while keeping the input stream dimensions. Thus, the number of tensors (```num_tensors```) increase accordingly without changing dimensions of incoming tensors. For example, merging the two tensor streams, ```num_tensors=1,dimensions=3:2``` and ```num_tensors=1,dimensions=4:4:4``` becomes ```num_tensors=2,dimensions=3:2,4:4:4```, combining frames from the two streams, enforcing synchronization.
   - Both merge and mux combine multiple streams into a stream; however, merge combines multiple tensors into a tensor, updating the dimensions while mux keep the tensors and combine them into a single container.
   - Users can adjust sync-mode and sync-option to change its behaviors of when to create output tensors and how to choose input tensors..
-- [tensor\_demux](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_demux) (stable)
+- [tensor\_demux](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_demux.c) (stable)
   - This decomposes multi-tensor (```num_tensors > 1```) tensor streams into multiple tensor streams without touching their dimensions. For example, we may split a tensor stream of ```num_tensors=3,dimensions=5,4,3``` into ```num_tensors=2,dimensions=5,4``` and ```num_tensors=1,dimensions=3```. Users may configure how the tensors split into (e.g., from ```num_tensors=6```, into 3:2:1, 4:2, 1:1:1:1:1:1, or so on, reordering as well).
-- [tensor\_aggregator](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_aggregator) (stable)
+- [tensor\_aggregator](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_aggregator.md) (stable)
   - This combines multiple frames of tensors into a frame in a single tensor stream. For example, it may aggregate two frames into a frame and reduce the framerate into half: ```dimensions=300:300,framerate=30/1``` --> ```dimensions=300:300:2,framerate=15/1```.
   - Users can adjust how frames are aggregated including how many frames are aggregated, how many frames are skipped after each aggregation, which frames are aggregated, which dimension is merged, and so on.
-- [tensor\_repo\_sink](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_repo) (stable)
+- [tensor\_repo\_sink](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_reposink.c) (stable)
   - This allows to create circular tensor streams by pairing up with ```tensor_repo_src```. Although gstreamer does not allow circular streams, with a pair of ```tensor_repo_sink/src``` we can transmit tensor data without actually connecting gstreamer src/sink pads. It is called ```tensor_repo_*``` because the src/sink pair shares a tensor repository.
   - In the pair, ```tensor_repo_sink``` is the entering point of the tensor frames. When you create a circular stream, sending back tensors from "behind" to the "front", this element is supposed to be located at the "behind".
-- [tensor\_repo\_src](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_repo) (stable)
+- [tensor\_repo\_src](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_reposrc.c) (stable)
   - This allows to create circular tensor streams by pairing up with ```tensor_repo_sink```. Although gstreamer does not allow circular streams, with a pair of ```tensor_repo_sink/src``` we can transmit tensor data without actually connecting gstreamer src/sink pads. It is called ```tensor_repo_*``` because the src/sink pair shares a tensor repository.
   - In the pair, ```tensor_repo_src``` is the exit point of the tensor frames. When you create a circular stream, sending back tensors from "behind" to the "front", this element is supposed to be located at the "front".
-- [tensor\_if](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_if) (stable)
+- [tensor\_if](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_if.md) (stable)
   - This element controls the flow or tensor data based on the given decision condition and the input tensor data. Unlike other similar gstreamer elements, including ```valve```, ```input-selector```, or ```output-selector```, which decides based on the property value given by threads out of the pipeline, this element, ```tensor_if```, decides based on the stream data in the pipeline. Thus, pipelines can switch between their sub-pipelines (e.g., input nodes, output nodes, and processing nodes) precisely (without losing a frame or two) if they should decide based on an inference result or sensor data.
   - This element allows a lot of varying configurations and users can even provide a C function callback for conditions; please refer to its documentation.
-- [tensor\_sparse\_enc](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_sparse) (stable)
+- [tensor\_sparse\_enc](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_sparseenc.c) (stable)
   - This transforms ```other/tensors,format=static``` to ```other/tensors,format=sparse```, encoding tensor data frames that may compress data size of sparse tensors.
-- [tensor\_sparse\_dec](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_sparse) (stable)
+- [tensor\_sparse\_dec](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_sparsedec.c) (stable)
   - This transforms ```other/tensors,format=sparse``` to ```other/tensors,format=static```.
 - [tensor\_query\_client](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_query) (stable)
   - This element sends queries to and receives answers from ```tensor_query_server{sink, src}``` elements. This works as if this is a ```tensor_filter``` with a remote processing element. This is a basic among-device AI capability that is supposed to offload inference workloads to different devices.
@@ -134,11 +134,11 @@ In this page, we focus on the status of each elements. For requirements and desi
 - [tensor\_query\_serversink](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_query) (stable)
   - This element sends back answers of given queries to remote (out of its pipeline) ```tensor_query_client```, which is connected to the paired ```tensor_query_serversrc```. The server elements are supposed to be paired-up so that the query-sending client gets the corresponding answers.
   - Users constructing a "server" pipeline are supposed to use this element as an exit point (output node).
-- [tensor\_crop](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_crop) (stable)
+- [tensor\_crop](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_crop.c) (stable)
   - This element crops a tensor stream based on the values of another tensor stream. Unlike the conventional gstreamer crop elements, which crop data frames based on the property values given outside from the pipeline, this element crop data frames based on the streamed values in the pipeline. Thus, users can crop tensors with the inference results or sensor data directly without involving external threads; e.g., cropping out detected objects from a video stream, to create a video stream focussing on a specific object. This element uses flexible tensors because the crop-size varies dynamically.
-- [tensor\_rate](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_rate) (stable)
+- [tensor\_rate](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_rate.c) (stable)
   - This element controls a frame rate of tensors streams. Users can also control QoS with throttle property.
-- [tensor\_src\_iio](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_source) (stable)
+- [tensor\_src\_iio](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_src.md) (stable)
   - Requires GStreamer 1.8 or above.
   - Creates tensor streams from Linux iio (sensors) device nodes.
 - [tensor\_src\_tizensensor](https://github.com/nnstreamer/nnstreamer/tree/main/ext/nnstreamer/tensor_source) (stable)
