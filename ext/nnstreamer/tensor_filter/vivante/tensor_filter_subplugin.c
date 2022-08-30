@@ -37,7 +37,7 @@
  * vnn_ReleaseNeuralNetwork() to release the neural network
  * 1.2. Optional APIs:
  * vnn_PreProcessNeuralNetwork() to do a pre-process input data (e.g., image)
- * - Refer to https://github.com/nnsuite/nnstreamer/tree/master/gst/nnstreamer/tensor_transform
+ * - Refer to https://github.com/nnstreamer/nnstreamer/blob/main/gst/nnstreamer/elements/gsttensor_transform.md
  * vnn_PostProcessNeuralNetwork() to display Top5 and save output tensor data
  * - The inceptionv3 model does not execute post-process tasks.
  * vsi_nn_DumpGraphNodeOutputs() to dump the graph for a debugging

@@ -270,7 +270,7 @@ gst_tensor_converter_class_init (GstTensorConverterClass * klass)
    */
   g_object_class_install_property (object_class, PROP_MODE,
       g_param_spec_string ("mode", "Mode",
-          "Converter mode. e.g., mode=custom-code:<registered callback name>. For detail, refer to https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_converter#custom-converter",
+          "Converter mode. e.g., mode=custom-code:<registered callback name>. For detail, refer to https://github.com/nnstreamer/nnstreamer/blob/main/gst/nnstreamer/elements/gsttensor_converter.md#custom-converter",
           "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   /* set src pad template */
@@ -471,7 +471,7 @@ gst_tensor_converter_set_property (GObject * object, guint prop_id,
 
       if (g_strv_length (strv) < 2) {
         nns_logw
-            ("Tensor converter mode option is incorrect. Please specify mode option as <MODE>:<MODE_OPTION>. Refer to https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_converter#custom-converter for detail.");
+            ("Tensor converter mode option is incorrect. Please specify mode option as <MODE>:<MODE_OPTION>. Refer to https://github.com/nnstreamer/nnstreamer/blob/main/gst/nnstreamer/elements/gsttensor_converter.md#custom-converter for detail.");
         g_strfreev (strv);
         break;
       }
@@ -482,7 +482,7 @@ gst_tensor_converter_set_property (GObject * object, guint prop_id,
         ptr = get_subplugin (NNS_CUSTOM_CONVERTER, self->mode_option);
         if (!ptr) {
           nns_logw
-              ("Failed to find custom subplugin of the tensor_converter. The custom-code for tensor_converter, \"%s\" is not registered by nnstreamer_converter_custom_register() function. Refer to https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_converter#custom-converter for detail.",
+              ("Failed to find custom subplugin of the tensor_converter. The custom-code for tensor_converter, \"%s\" is not registered by nnstreamer_converter_custom_register() function. Refer to https://github.com/nnstreamer/nnstreamer/blob/main/gst/nnstreamer/elements/gsttensor_converter.md#custom-converter for detail.",
               strv[1]);
           return;
         }
@@ -1222,7 +1222,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       if (self->mode == _CONVERTER_MODE_CUSTOM_CODE) {
         if (self->custom.func == NULL) {
           nns_loge
-              ("Tensor converter is in custom/code mode (mode=custom-code:${funcname}), where a user code as a callback function is required. However, the required information to configure the tensor converter is not given or incorrectly given. For detail, please refer to https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_converter#custom-converter . The given ${funcname} is \"%s\", which is an invalid/unregistered name.",
+              ("Tensor converter is in custom/code mode (mode=custom-code:${funcname}), where a user code as a callback function is required. However, the required information to configure the tensor converter is not given or incorrectly given. For detail, please refer to https://github.com/nnstreamer/nnstreamer/blob/main/gst/nnstreamer/elements/gsttensor_converter.md#custom-converter. The given ${funcname} is \"%s\", which is an invalid/unregistered name.",
               self->mode_option);
           goto error;
         }
