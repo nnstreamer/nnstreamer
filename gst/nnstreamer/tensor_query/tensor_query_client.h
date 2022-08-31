@@ -47,6 +47,8 @@ struct _GstTensorQueryClient
   gboolean silent; /**< True if logging is minimized */
   gchar *in_caps_str;
 
+  guint timeout; /**< timeout value (in ms) to wait message from server */
+
   /* Query-hybrid feature */
   gchar *topic; /**< Main operation such as 'object_detection' or 'image_segmentation' */
   gchar *host;

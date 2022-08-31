@@ -44,6 +44,7 @@ enum
   PROP_DEST_PORT,
   PROP_CONNECT_TYPE,
   PROP_TOPIC,
+  PROP_TIMEOUT,
   PROP_SILENT,
 };
 
@@ -51,6 +52,7 @@ enum
 #define TCP_DEFAULT_HOST        "localhost"
 #define TCP_DEFAULT_SRV_SRC_PORT 3000
 #define TCP_DEFAULT_CLIENT_SRC_PORT 3001
+#define DEFAULT_CLIENT_TIMEOUT  0
 #define DEFAULT_SILENT TRUE
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_query_client_debug);
@@ -122,7 +124,7 @@ gst_tensor_query_client_class_init (GstTensorQueryClientClass * klass)
           TCP_DEFAULT_HOST, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_DEST_PORT,
       g_param_spec_uint ("dest-port", "Destination Port",
-          "The port of tensor query server to send the packets ", 0,
+          "The port of tensor query server to send the packets", 0,
           TCP_HIGHEST_PORT, TCP_DEFAULT_CLIENT_SRC_PORT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_SILENT,
@@ -137,6 +139,12 @@ gst_tensor_query_client_class_init (GstTensorQueryClientClass * klass)
       g_param_spec_string ("topic", "Topic",
           "The main topic of the host.",
           "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_TIMEOUT,
+      g_param_spec_uint ("timeout", "timeout value",
+          "A timeout value (in ms) to wait message from query server after sending buffer to server. 0 means no wait.",
+          0, G_MAXUINT, DEFAULT_CLIENT_TIMEOUT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&sinktemplate));
@@ -181,6 +189,7 @@ gst_tensor_query_client_init (GstTensorQueryClient * self)
   self->dest_port = TCP_DEFAULT_SRV_SRC_PORT;
   self->topic = NULL;
   self->in_caps_str = NULL;
+  self->timeout = DEFAULT_CLIENT_TIMEOUT;
   self->edge_h = NULL;
   self->msg_queue = g_async_queue_new ();
 }
@@ -264,6 +273,9 @@ gst_tensor_query_client_set_property (GObject * object, guint prop_id,
       g_free (self->topic);
       self->topic = g_value_dup_string (value);
       break;
+    case PROP_TIMEOUT:
+      self->timeout = g_value_get_uint (value);
+      break;
     case PROP_SILENT:
       self->silent = g_value_get_boolean (value);
       break;
@@ -300,6 +312,9 @@ gst_tensor_query_client_get_property (GObject * object, guint prop_id,
       break;
     case PROP_TOPIC:
       g_value_set_string (value, self->topic);
+      break;
+    case PROP_TIMEOUT:
+      g_value_set_uint (value, self->timeout);
       break;
     case PROP_SILENT:
       g_value_set_boolean (value, self->silent);
@@ -681,7 +696,8 @@ gst_tensor_query_client_chain (GstPad * pad,
 
   nns_edge_data_destroy (data_h);
 
-  data_h = g_async_queue_try_pop (self->msg_queue);
+  data_h = g_async_queue_timeout_pop (self->msg_queue,
+      self->timeout * G_TIME_SPAN_MILLISECOND);
   if (data_h) {
     ret = nns_edge_data_get_count (data_h, &num_data);
     if (ret != NNS_EDGE_ERROR_NONE || num_data == 0) {
