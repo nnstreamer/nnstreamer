@@ -369,7 +369,7 @@ static int yyerror (void *scanner, graph_t *graph, const char *s);
 %lex-param { void *scanner }
 %parse-param { void *scanner }
 %parse-param { graph_t *graph }
-%pure-parser
+%define api.pure full
 
 %start graph
 %%
