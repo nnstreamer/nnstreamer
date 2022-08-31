@@ -230,6 +230,10 @@ TEST (tensorQuery, clientProperties0)
   g_object_get (client_handle, "port", &uint_val, NULL);
   EXPECT_EQ (5001U, uint_val);
 
+  g_object_set (client_handle, "timeout", 1000U, NULL);
+  g_object_get (client_handle, "timeout", &uint_val, NULL);
+  EXPECT_EQ (1000U, uint_val);
+
   g_object_set (client_handle, "silent", FALSE, NULL);
   g_object_get (client_handle, "silent", &bool_val, NULL);
   EXPECT_EQ (FALSE, bool_val);
