@@ -344,7 +344,10 @@ float16_not_supported (void)
 #endif
 
 #ifdef FLOAT16_SUPPORT
-/** @todo Remove this after applying SIMD or ORC */
+/**
+ * @brief Refrain from heavy operations on float16
+ * @todo Remove this after applying SIMD or ORC
+ * */
 static void
 refrain_from_heavy_op_on_float16 (gulong n)
 {
