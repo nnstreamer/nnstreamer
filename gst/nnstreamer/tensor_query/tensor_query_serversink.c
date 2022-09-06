@@ -275,7 +275,7 @@ gst_tensor_query_serversink_render (GstBaseSink * bsink, GstBuffer * buf)
     nns_edge_data_set_info (data_h, "client_id", val);
     g_free (val);
 
-    nns_edge_publish (sink->edge_h, data_h);
+    nns_edge_send (sink->edge_h, data_h);
     nns_edge_data_destroy (data_h);
   } else {
     nns_logw ("Cannot get tensor query meta. Drop buffers!\n");

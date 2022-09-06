@@ -689,7 +689,7 @@ gst_tensor_query_client_chain (GstPad * pad,
   nns_edge_data_set_info (data_h, "client_id", val);
   g_free (val);
 
-  if (NNS_EDGE_ERROR_NONE != nns_edge_publish (self->edge_h, data_h)) {
+  if (NNS_EDGE_ERROR_NONE != nns_edge_send (self->edge_h, data_h)) {
     nns_logw ("Failed to publish to server node, retry connection.");
     goto retry;
   }
