@@ -96,8 +96,7 @@ gst_tensor_query_server_add_data (const char *id,
   data->configured = FALSE;
 
   ret = nns_edge_create_handle (id, connect_type,
-      NNS_EDGE_FLAG_RECV | NNS_EDGE_FLAG_SEND | NNS_EDGE_FLAG_SERVER,
-      &data->edge_h);
+      NNS_EDGE_NODE_TYPE_QUERY_SERVER, &data->edge_h);
   if (NNS_EDGE_ERROR_NONE != ret) {
     GST_ERROR ("Failed to get nnstreamer edge handle.");
     _release_server_data (data);

@@ -522,7 +522,7 @@ gst_tensor_query_client_create_edge_handle (GstTensorQueryClient * self)
   }
 
   ret = nns_edge_create_handle ("TEMP_ID", self->connect_type,
-      NNS_EDGE_FLAG_RECV | NNS_EDGE_FLAG_SEND, &self->edge_h);
+      NNS_EDGE_NODE_TYPE_QUERY_CLIENT, &self->edge_h);
   if (ret != NNS_EDGE_ERROR_NONE)
     return FALSE;
 
