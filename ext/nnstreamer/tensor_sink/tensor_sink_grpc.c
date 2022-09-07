@@ -41,7 +41,6 @@
 
 #include <tensor_typedef.h>
 #include <nnstreamer_plugin_api.h>
-#include <nnstreamer_log.h>
 
 #include "tensor_sink_grpc.h"
 #include "nnstreamer_grpc.h"

@@ -35,7 +35,6 @@
 
 #include <gst/gst.h>
 #include <glib.h>
-#include <gmodule.h>
 
 #include <tensor_typedef.h>
 #include <nnstreamer_plugin_api.h>

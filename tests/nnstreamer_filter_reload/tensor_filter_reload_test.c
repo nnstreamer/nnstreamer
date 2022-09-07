@@ -12,7 +12,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <gst/gst.h>
-#include <tensor_common.h>
 #include <nnstreamer_util.h>
 
 #define _print_log(...) if (!silent) g_message (__VA_ARGS__)

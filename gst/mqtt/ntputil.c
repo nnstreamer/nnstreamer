@@ -14,7 +14,6 @@
 
 #include <errno.h>
 #include <netdb.h>
-#include <arpa/inet.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
