@@ -24,7 +24,6 @@
  */
 
 #include "gsttensor_repo.h"
-#include <nnstreamer_util.h>
 
 #ifndef DBG
 #define DBG FALSE

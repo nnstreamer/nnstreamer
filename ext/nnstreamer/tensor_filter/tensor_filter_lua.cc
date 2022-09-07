@@ -454,8 +454,8 @@ lua_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   if (!g_file_test (prop->model_files[0], G_FILE_TEST_EXISTS)) {
     nns_logi ("Given model file does not exist. Do script mode.");
     gchar *script = g_strjoinv (",", (gchar **) prop->model_files);
-    std::unique_ptr<gchar, decltype (&g_free)> script_ptr (
-        std::move (script), g_free);
+    std::unique_ptr<gchar, decltype (&g_free)> script_ptr (script, g_free);
+
     if (luaL_dostring (L, script_ptr.get ()) != 0) {
       throw std::invalid_argument (std::string ("Failed to run given Lua script. Error message: ") +
           lua_tostring (L, -1));
