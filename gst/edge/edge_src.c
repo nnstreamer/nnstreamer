@@ -31,10 +31,12 @@ static GstStaticPadTemplate srctemplate = GST_STATIC_PAD_TEMPLATE ("src",
 enum
 {
   PROP_0,
-
+  PROP_HOST,
+  PROP_PORT,
   PROP_DEST_HOST,
   PROP_DEST_PORT,
   PROP_CONNECT_TYPE,
+  PROP_TOPIC,
 
   PROP_LAST
 };
@@ -78,6 +80,14 @@ gst_edgesrc_class_init (GstEdgeSrcClass * klass)
   gobject_class->get_property = gst_edgesrc_get_property;
   gobject_class->finalize = gst_edgesrc_class_finalize;
 
+  g_object_class_install_property (gobject_class, PROP_HOST,
+      g_param_spec_string ("host", "Host",
+          "A self host address", DEFAULT_HOST,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_PORT,
+      g_param_spec_uint ("port", "Port",
+          "A self port number.",
+          0, 65535, DEFAULT_PORT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_DEST_HOST,
       g_param_spec_string ("dest-host", "Destination Host",
           "A host address of edgesink to receive the packets from edgesink",
@@ -90,6 +100,11 @@ gst_edgesrc_class_init (GstEdgeSrcClass * klass)
       g_param_spec_enum ("connect-type", "Connect Type",
           "The connections type between edgesink and edgesrc.",
           GST_TYPE_EDGE_CONNECT_TYPE, DEFAULT_CONNECT_TYPE,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_TOPIC,
+      g_param_spec_string ("topic", "Topic",
+          "The main topic of the host and option if necessary. "
+          "(topic)/(optional topic for main topic).", "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_add_pad_template (gstelement_class,
@@ -117,8 +132,11 @@ gst_edgesrc_init (GstEdgeSrc * self)
   gst_base_src_set_format (basesrc, GST_FORMAT_TIME);
   gst_base_src_set_async (basesrc, FALSE);
 
+  self->host = g_strdup (DEFAULT_HOST);
+  self->port = DEFAULT_PORT;
   self->dest_host = g_strdup (DEFAULT_HOST);
   self->dest_port = DEFAULT_PORT;
+  self->topic = NULL;
   self->msg_queue = g_async_queue_new ();
   self->connect_type = DEFAULT_CONNECT_TYPE;
 }
@@ -133,6 +151,17 @@ gst_edgesrc_set_property (GObject * object, guint prop_id, const GValue * value,
   GstEdgeSrc *self = GST_EDGESRC (object);
 
   switch (prop_id) {
+    case PROP_HOST:
+      if (!g_value_get_string (value)) {
+        nns_logw ("host property cannot be NULL");
+        break;
+      }
+      g_free (self->host);
+      self->host = g_value_dup_string (value);
+      break;
+    case PROP_PORT:
+      self->port = g_value_get_uint (value);
+      break;
     case PROP_DEST_HOST:
       gst_edgesrc_set_dest_host (self, g_value_get_string (value));
       break;
@@ -142,7 +171,14 @@ gst_edgesrc_set_property (GObject * object, guint prop_id, const GValue * value,
     case PROP_CONNECT_TYPE:
       gst_edgesrc_set_connect_type (self, g_value_get_enum (value));
       break;
-
+    case PROP_TOPIC:
+      if (!g_value_get_string (value)) {
+        nns_logw ("topic property cannot be NULL. Query-hybrid is disabled.");
+        break;
+      }
+      g_free (self->topic);
+      self->topic = g_value_dup_string (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -159,6 +195,12 @@ gst_edgesrc_get_property (GObject * object, guint prop_id, GValue * value,
   GstEdgeSrc *self = GST_EDGESRC (object);
 
   switch (prop_id) {
+    case PROP_HOST:
+      g_value_set_string (value, self->host);
+      break;
+    case PROP_PORT:
+      g_value_set_uint (value, self->port);
+      break;
     case PROP_DEST_HOST:
       g_value_set_string (value, gst_edgesrc_get_dest_host (self));
       break;
@@ -168,7 +210,9 @@ gst_edgesrc_get_property (GObject * object, guint prop_id, GValue * value,
     case PROP_CONNECT_TYPE:
       g_value_set_enum (value, gst_edgesrc_get_connect_type (self));
       break;
-
+    case PROP_TOPIC:
+      g_value_set_string (value, self->topic);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -247,7 +291,7 @@ gst_edgesrc_start (GstBaseSrc * basesrc)
   char *port = NULL;
 
   ret =
-      nns_edge_create_handle ("TEMP_ID", self->connect_type,
+      nns_edge_create_handle ("TEMP_ID_EDGE_SRC", self->connect_type,
       NNS_EDGE_NODE_TYPE_SUB, &self->edge_h);
 
   if (NNS_EDGE_ERROR_NONE != ret) {
@@ -261,10 +305,22 @@ gst_edgesrc_start (GstBaseSrc * basesrc)
     return FALSE;
   }
 
-  nns_edge_set_info (self->edge_h, "DEST_HOST", self->dest_host);
-  port = g_strdup_printf ("%d", self->dest_port);
-  nns_edge_set_info (self->edge_h, "DEST_PORT", port);
-  g_free (port);
+  if (self->host)
+    nns_edge_set_info (self->edge_h, "HOST", self->host);
+  if (self->port > 0) {
+    port = g_strdup_printf ("%u", self->port);
+    nns_edge_set_info (self->edge_h, "PORT", port);
+    g_free (port);
+  }
+  if (self->dest_host)
+    nns_edge_set_info (self->edge_h, "DEST_HOST", self->dest_host);
+  if (self->dest_port > 0) {
+    port = g_strdup_printf ("%u", self->dest_port);
+    nns_edge_set_info (self->edge_h, "DEST_PORT", port);
+    g_free (port);
+  }
+  if (self->topic)
+    nns_edge_set_info (self->edge_h, "TOPIC", self->topic);
 
   nns_edge_set_event_callback (self->edge_h, _nns_edge_event_cb, self);
 

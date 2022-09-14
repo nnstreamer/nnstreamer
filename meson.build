@@ -425,6 +425,10 @@ features = {
   'mxnet-support': {
     'extra_deps': [ mxnet_dep ],
     'project_args': { 'ENABLE_MXNET' : 1 }
+  },
+  'aitt-support': {
+    'target': 'aitt',
+    'project_args': { 'ENABLE_AITT' : 1 }
   }
 }
 

@@ -15,6 +15,9 @@
 #include <stdint.h>
 #include <errno.h>
 #include <glib/gstdio.h>
+#include <netinet/tcp.h>
+#include <netinet/in.h>
+#include <gio/gio.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -59,6 +62,12 @@ extern gboolean wait_pipeline_process_buffers (const guint * data_received, guin
  */
 extern gchar *
 replace_string (gchar * source, const gchar * what, const gchar * to, const gchar * delimiters, guint * count);
+
+/**
+ * @brief Get available port number.
+ */
+extern guint
+get_available_port (void);
 
 /**
  * @brief Wait until the pipeline saving the file

@@ -27,7 +27,8 @@ gst_edge_get_connect_type (void)
     static GEnumValue protocols[] = {
       {NNS_EDGE_CONNECT_TYPE_TCP, "TCP",
           "Directly sending stream frames via TCP connections."},
-          /** @todo support UDP, MQTT and HYBRID */
+      {NNS_EDGE_CONNECT_TYPE_AITT, "AITT",
+          "Sending stream frames via AITT connections."},
       {0, NULL, NULL},
     };
     protocol = g_enum_register_static ("edge_protocol", protocols);

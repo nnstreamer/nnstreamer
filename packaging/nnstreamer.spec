@@ -35,6 +35,7 @@
 %define		tvm_support 1
 %define		snpe_support 1
 %define		trix_engine_support 1
+%define		aitt_support 1
 # Support AI offloading (tensor_query) using nnstreamer-edge interface
 %define		nnstreamer_edge_support 1
 
@@ -108,6 +109,7 @@
 %define		snpe_support 0
 %define		trix_engine_support 0
 %define		nnstreamer_edge_support 0
+%define		aitt_support 0
 %endif
 
 # DA requested to remove unnecessary module builds
@@ -121,6 +123,7 @@
 %define		mqtt_support 0
 %define		tvm_support 0
 %define		trix_engine_support 0
+%define		aitt_support 0
 %endif
 
 # Release unit test suite as a subpackage only if check_test is enabled.
@@ -228,6 +231,9 @@ BuildConflicts: libarmcl-release
 
 %if 0%{?edgetpu_support}
 BuildRequires:	pkgconfig(edgetpu)
+%endif
+%if 0%{?aitt_support}
+BuildRequires:  aitt-devel
 %endif
 
 %if 0%{?testcoverage}
