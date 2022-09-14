@@ -185,33 +185,64 @@ callCompareTestIfExist raw5_$((num+2)).log result5_2.log 5-5 "Compare 5-5" 1 0
 kill -9 $pid &> /dev/null
 wait $pid
 
+if [ -f /usr/sbin/mosquitto ]
+then
+  testResult 1 9-0 "mosquitto mqtt broker search" 1
+else
+  testResult 0 9-0 "mosquitto mqtt broker search" 1
+  rm *.log
+  report
+  exit
+fi
+
+# Launch mosquitto
+PORT=`python3 ../../get_available_port.py`
+/usr/sbin/mosquitto -p ${PORT}&
+mospid=$!
+
+gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} \
+    videotestsrc is-live=true ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tee name=t \
+        t. ! queue ! multifilesink location=raw_%1d.log \
+        t. ! queue ! edgesink port=0 connect-type=HYBRID dest-host=127.0.0.1 dest-port=${PORT} topic=tempTopic async=false" 6-1 0 0 30
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
+    edgesrc port=0 connect-type=HYBRID dest-host=127.0.0.1 dest-port=${PORT} topic=tempTopic num-buffers=10 ! multifilesink location=result6_0_%1d.log" 6-2 0 0 $PERFORMANCE
+findFirstMatchedFileNumber "raw6_" ".log" "result6_0_0.log" 6-4
+callCompareTestIfExist raw6_$((num+0)).log result6_0_0.log 6-4 "Compare 6-4" 1 0
+callCompareTestIfExist raw6_$((num+1)).log result6_0_1.log 6-5 "Compare 6-5" 1 0
+callCompareTestIfExist raw6_$((num+2)).log result6_0_2.log 6-6 "Compare 6-6" 1 0
+kill -9 $pid &> /dev/null
+wait $pid
+
 # Check AITT lib is exist or not.
 /sbin/ldconfig -p | grep libaitt.so >/dev/null 2>&1
 if [[ "$?" != 0 ]]; then
     echo "AITT lib is not installed. Skip AITT test."
     rm *.log
     report
+    kill -9 $mospid &> /dev/null
     exit
 fi
 
 gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} \
     videotestsrc is-live=true ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tee name=t \
-        t. ! queue ! multifilesink location=raw6_%1d.log \
-        t. ! queue ! edgesink port=0 connect-type=AITT dest-host=127.0.0.1 dest-port=1883 topic=tempTopic async=false" 6-1 0 0 30
+        t. ! queue ! multifilesink location=raw7_%1d.log \
+        t. ! queue ! edgesink port=0 connect-type=AITT dest-host=127.0.0.1 dest-port=${PORT} topic=tempTopic async=false" 7-1 0 0 30
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
-    edgesrc port=0 connect-type=AITT dest-host=127.0.0.1 dest-port=1883 topic=tempTopic num-buffers=10 ! multifilesink location=result6_0_%1d.log" 6-2 0 0 $PERFORMANCE
+    edgesrc port=0 connect-type=AITT dest-host=127.0.0.1 dest-port=${PORT} topic=tempTopic num-buffers=10 ! multifilesink location=result7_0_%1d.log" 7-2 0 0 $PERFORMANCE
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
-    edgesrc port=0 connect-type=AITT dest-host=127.0.0.1 dest-port=1883 topic=tempTopic num-buffers=10 ! multifilesink location=result6_1_%1d.log" 6-3 0 0 $PERFORMANCE
-findFirstMatchedFileNumber "raw6_" ".log" "result6_0_0.log" 6-4
-callCompareTestIfExist raw6_$((num+0)).log result6_0_0.log 2-4 "Compare 6-4" 1 0
-callCompareTestIfExist raw6_$((num+1)).log result6_0_1.log 2-5 "Compare 6-5" 1 0
-callCompareTestIfExist raw6_$((num+2)).log result6_0_2.log 2-6 "Compare 6-6" 1 0
-findFirstMatchedFileNumber "raw6_" ".log" "result6_1_0.log" 6-7
-callCompareTestIfExist raw6_$((num+0)).log result6_1_0.log 2-7 "Compare 6-7" 1 0
-callCompareTestIfExist raw6_$((num+1)).log result6_1_1.log 2-8 "Compare 6-8" 1 0
-callCompareTestIfExist raw6_$((num+2)).log result6_1_2.log 2-9 "Compare 6-9" 1 0
+    edgesrc port=0 connect-type=AITT dest-host=127.0.0.1 dest-port=${PORT} topic=tempTopic num-buffers=10 ! multifilesink location=result7_1_%1d.log" 7-3 0 0 $PERFORMANCE
+findFirstMatchedFileNumber "raw7_" ".log" "result7_0_0.log" 7-4
+callCompareTestIfExist raw7_$((num+0)).log result7_0_0.log 7-4 "Compare 7-4" 1 0
+callCompareTestIfExist raw7_$((num+1)).log result7_0_1.log 7-5 "Compare 7-5" 1 0
+callCompareTestIfExist raw7_$((num+2)).log result7_0_2.log 7-6 "Compare 7-6" 1 0
+findFirstMatchedFileNumber "raw7_" ".log" "result7_1_0.log" 7-7
+callCompareTestIfExist raw7_$((num+0)).log result7_1_0.log 7-7 "Compare 7-7" 1 0
+callCompareTestIfExist raw7_$((num+1)).log result7_1_1.log 7-8 "Compare 7-8" 1 0
+callCompareTestIfExist raw7_$((num+2)).log result7_1_2.log 7-9 "Compare 7-9" 1 0
 kill -9 $pid &> /dev/null
 wait $pid
+
+kill -9 $mospid &> /dev/null
 
 rm *.log
 report
