@@ -27,6 +27,8 @@ gst_edge_get_connect_type (void)
     static GEnumValue protocols[] = {
       {NNS_EDGE_CONNECT_TYPE_TCP, "TCP",
           "Directly sending stream frames via TCP connections."},
+      {NNS_EDGE_CONNECT_TYPE_HYBRID, "HYBRID",
+          "Connect with MQTT brokers and directly sending stream frames via TCP connections."},
       {NNS_EDGE_CONNECT_TYPE_AITT, "AITT",
           "Sending stream frames via AITT connections."},
       {0, NULL, NULL},

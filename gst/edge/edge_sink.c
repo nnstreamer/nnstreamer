@@ -258,7 +258,7 @@ gst_edgesink_start (GstBaseSink * basesink)
   char *port = NULL;
 
   ret =
-      nns_edge_create_handle ("TEMP_ID_EDGE_SINK", self->connect_type,
+      nns_edge_create_handle (NULL, self->connect_type,
       NNS_EDGE_NODE_TYPE_PUB, &self->edge_h);
 
   if (NNS_EDGE_ERROR_NONE != ret) {

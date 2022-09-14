@@ -272,6 +272,17 @@ _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
       g_async_queue_push (self->msg_queue, data);
       break;
     }
+    case NNS_EDGE_EVENT_CONNECTION_CLOSED:
+    {
+      nns_edge_disconnect (self->edge_h);
+      ret = nns_edge_connect (self->edge_h, self->dest_host, self->dest_port);
+      if (NNS_EDGE_ERROR_NONE != ret) {
+        nns_edge_data_h data_h;
+        nns_edge_data_create (&data_h);
+        g_async_queue_push (self->msg_queue, data_h);
+      }
+      break;
+    }
     default:
       break;
   }
@@ -291,7 +302,7 @@ gst_edgesrc_start (GstBaseSrc * basesrc)
   char *port = NULL;
 
   ret =
-      nns_edge_create_handle ("TEMP_ID_EDGE_SRC", self->connect_type,
+      nns_edge_create_handle (NULL, self->connect_type,
       NNS_EDGE_NODE_TYPE_SUB, &self->edge_h);
 
   if (NNS_EDGE_ERROR_NONE != ret) {
