@@ -170,6 +170,35 @@ replace_string (gchar * source, const gchar * what, const gchar * to,
   return result;
 }
 
+/**
+ * @brief Get available port number.
+ */
+guint
+get_available_port (void)
+{
+  struct sockaddr_in sin;
+  guint port = 0;
+  gint sock;
+  socklen_t len = sizeof (struct sockaddr);
+
+  sin.sin_family = AF_INET;
+  sin.sin_addr.s_addr = INADDR_ANY;
+  sin.sin_port = htons(0);
+
+  sock = socket (AF_INET, SOCK_STREAM, 0);
+  if (sock < 0)
+    return 0;
+
+  if (bind (sock, (struct sockaddr *) &sin, sizeof (struct sockaddr)) == 0) {
+    if (getsockname (sock, (struct sockaddr *) &sin, &len) == 0) {
+      port = ntohs (sin.sin_port);
+    }
+  }
+  close (sock);
+
+  return port;
+}
+
 #ifdef FAKEDLOG
 /**
  * @brief Hijack dlog Tizen infra for unit testing to force printing out.

@@ -44,6 +44,9 @@ struct _GstEdgeSink
 
   gchar *host;
   guint16 port;
+  gchar *dest_host;
+  guint16 dest_port;
+  gchar *topic;
 
   nns_edge_connect_type_e connect_type;
   nns_edge_h edge_h;

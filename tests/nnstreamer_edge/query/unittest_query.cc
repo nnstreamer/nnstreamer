@@ -14,39 +14,6 @@
 #include <tensor_common.h>
 #include <unittest_util.h>
 #include "../gst/nnstreamer/tensor_query/tensor_query_common.h"
-#include <gio/gio.h>
-#include <netinet/tcp.h>
-#include <netinet/in.h>
-/**
- * @brief Get available port number.
- */
-static guint
-_get_available_port (void)
-{
-  struct sockaddr_in sin;
-  guint port = 0;
-  gint sock;
-  socklen_t len = sizeof (struct sockaddr);
-
-  sin.sin_family = AF_INET;
-  sin.sin_addr.s_addr = INADDR_ANY;
-  sin.sin_port = htons(0);
-
-  sock = socket (AF_INET, SOCK_STREAM, 0);
-  EXPECT_TRUE (sock > 0);
-  if (sock < 0)
-    return 0;
-
-  if (bind (sock, (struct sockaddr *) &sin, sizeof (struct sockaddr)) == 0) {
-    if (getsockname (sock, (struct sockaddr *) &sin, &len) == 0) {
-      port = ntohs (sin.sin_port);
-    }
-  }
-  close (sock);
-
-  EXPECT_TRUE (port > 0);
-  return port;
-}
 
 /**
  * @brief Test for tensor_query_server get and set properties
@@ -61,7 +28,7 @@ TEST (tensorQuery, serverProperties0)
   gchar *str_val;
   guint src_port;
 
-  src_port = _get_available_port ();
+  src_port = get_available_port ();
 
   /* Create a nnstreamer pipeline */
   pipeline = g_strdup_printf (
@@ -167,7 +134,7 @@ TEST (tensorQuery, serverProperties2_n)
   GstElement *gstpipe;
   guint src_port;
 
-  src_port = _get_available_port ();
+  src_port = get_available_port ();
 
   /* Create a nnstreamer pipeline */
   pipeline = g_strdup_printf (
@@ -252,7 +219,7 @@ TEST (tensorQuery, serverRun)
   GstElement *gstpipe;
   guint src_port;
 
-  src_port = _get_available_port ();
+  src_port = get_available_port ();
 
   /* Create a nnstreamer pipeline */
   pipeline = g_strdup_printf (

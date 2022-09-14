@@ -36,10 +36,15 @@ enum
 
   PROP_HOST,
   PROP_PORT,
+  PROP_DEST_HOST,
+  PROP_DEST_PORT,
   PROP_CONNECT_TYPE,
+  PROP_TOPIC,
 
   PROP_LAST
 };
+#define DEFAULT_MQTT_HOST "tcp://localhost"
+#define DEFAULT_MQTT_PORT 1883
 
 #define gst_edgesink_parent_class parent_class
 G_DEFINE_TYPE (GstEdgeSink, gst_edgesink, GST_TYPE_BASE_SINK);
@@ -99,6 +104,20 @@ gst_edgesink_class_init (GstEdgeSinkClass * klass)
           "The connections type between edgesink and edgesrc.",
           GST_TYPE_EDGE_CONNECT_TYPE, DEFAULT_CONNECT_TYPE,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_DEST_HOST,
+      g_param_spec_string ("dest-host", "Destination Host",
+          "The destination hostname of the broker", DEFAULT_MQTT_HOST,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_DEST_PORT,
+      g_param_spec_uint ("dest-port", "Destination Port",
+          "The destination port of the broker", 0,
+          65535, DEFAULT_MQTT_PORT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_TOPIC,
+      g_param_spec_string ("topic", "Topic",
+          "The main topic of the host and option if necessary. "
+          "(topic)/(optional topic for main topic).", "",
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&sinktemplate));
@@ -123,6 +142,9 @@ gst_edgesink_init (GstEdgeSink * self)
 {
   self->host = g_strdup (DEFAULT_HOST);
   self->port = DEFAULT_PORT;
+  self->dest_host = g_strdup (DEFAULT_HOST);
+  self->dest_port = DEFAULT_PORT;
+  self->topic = NULL;
   self->connect_type = DEFAULT_CONNECT_TYPE;
 }
 
@@ -142,10 +164,28 @@ gst_edgesink_set_property (GObject * object, guint prop_id,
     case PROP_PORT:
       gst_edgesink_set_port (self, g_value_get_uint (value));
       break;
+    case PROP_DEST_HOST:
+      if (!g_value_get_string (value)) {
+        nns_logw ("dest host property cannot be NULL");
+        break;
+      }
+      g_free (self->dest_host);
+      self->dest_host = g_value_dup_string (value);
+      break;
+    case PROP_DEST_PORT:
+      self->dest_port = g_value_get_uint (value);
+      break;
     case PROP_CONNECT_TYPE:
       gst_edgesink_set_connect_type (self, g_value_get_enum (value));
       break;
-
+    case PROP_TOPIC:
+      if (!g_value_get_string (value)) {
+        nns_logw ("topic property cannot be NULL. Query-hybrid is disabled.");
+        break;
+      }
+      g_free (self->topic);
+      self->topic = g_value_dup_string (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -168,10 +208,18 @@ gst_edgesink_get_property (GObject * object, guint prop_id, GValue * value,
     case PROP_PORT:
       g_value_set_uint (value, gst_edgesink_get_port (self));
       break;
+    case PROP_DEST_HOST:
+      g_value_set_string (value, self->dest_host);
+      break;
+    case PROP_DEST_PORT:
+      g_value_set_uint (value, self->dest_port);
+      break;
     case PROP_CONNECT_TYPE:
       g_value_set_enum (value, gst_edgesink_get_connect_type (self));
       break;
-
+    case PROP_TOPIC:
+      g_value_set_string (value, self->topic);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -210,7 +258,7 @@ gst_edgesink_start (GstBaseSink * basesink)
   char *port = NULL;
 
   ret =
-      nns_edge_create_handle ("TEMP_ID", self->connect_type,
+      nns_edge_create_handle ("TEMP_ID_EDGE_SINK", self->connect_type,
       NNS_EDGE_NODE_TYPE_PUB, &self->edge_h);
 
   if (NNS_EDGE_ERROR_NONE != ret) {
@@ -224,10 +272,22 @@ gst_edgesink_start (GstBaseSink * basesink)
     return FALSE;
   }
 
-  nns_edge_set_info (self->edge_h, "HOST", self->host);
-  port = g_strdup_printf ("%d", self->port);
-  nns_edge_set_info (self->edge_h, "PORT", port);
-  g_free (port);
+  if (self->host)
+    nns_edge_set_info (self->edge_h, "HOST", self->host);
+  if (self->port > 0) {
+    port = g_strdup_printf ("%u", self->port);
+    nns_edge_set_info (self->edge_h, "PORT", port);
+    g_free (port);
+  }
+  if (self->dest_host)
+    nns_edge_set_info (self->edge_h, "DEST_HOST", self->dest_host);
+  if (self->dest_port > 0) {
+    port = g_strdup_printf ("%u", self->dest_port);
+    nns_edge_set_info (self->edge_h, "DEST_PORT", port);
+    g_free (port);
+  }
+  if (self->topic)
+    nns_edge_set_info (self->edge_h, "TOPIC", self->topic);
 
   if (0 != nns_edge_start (self->edge_h)) {
     nns_loge
