@@ -271,7 +271,7 @@ gst_tensor_query_serversink_render (GstBaseSink * bsink, GstBuffer * buf)
       nns_edge_data_add (data_h, map[i].data, map[i].size, NULL);
     }
 
-    val = g_strdup_printf ("%ld", (long int) meta_query->client_id);
+    val = g_strdup_printf ("%lld", (long long) meta_query->client_id);
     nns_edge_data_set_info (data_h, "client_id", val);
     g_free (val);
 
