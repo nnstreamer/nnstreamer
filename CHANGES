@@ -1,3 +1,47 @@
+2.1.1 -> 2.2.0
+        - This is NNStreamer 2.2.0 Tizen 7.0 M2 release.
+
+        - NNStreamer-Edge.
+                - Edge-AI (Among-Device AI) implementation is moved to nnstreamer-edge so that non-nnstreamer/gstreamer systems can connect to nnstreamer pipelines.
+                - NNStreamer-Edge provides inter-pipeline stream connections with various protocols transparently.
+                - NNStreamer-Edge does not depend on gstreamer/nnstreamer; thus, non-gstreamer systems may connect to nnstreamer/gstreamer pipelines via nnstreamer-edge.
+                - The "MQTT-Hybrid" protocol for high bandwidth communication w/ mqtt features included.
+
+        - ML-Service API phase 2 is completed and released via api.git
+
+        - New Subplugins
+                - tensor_filter / DeepViewRT (NXP)
+                - tensor_filter / MXNet
+                - tensor_filter / tensorflow2-lite-custom (allow to designate user-supplied tf2-lite binaries)
+
+        - Major features
+                - tensor-query-client, tensor-query-serversrc/sink use nnstreamer-edge. Protocols are handled at nnstreamer-edge and it now support aitt as one of its backends.
+                - Float16 (FP16) tensor stream support.
+                - Rank limit of tensor stream increased: 4 --> 8 (experimental. with known issues)
+                - Error messages, exception handling, and documentations are improved for application / pipeline writers.
+
+        - Minor features
+                - Added several workarounds for glitches of Qualcomm-SNPE's libraries.
+                - Support additional .ini file for subplugin configuration. Required by clients who want to separate permissions for controlling user-installable subplugins and system-installable core files.
+                - Ability to run multiple instances of unit tests in a single machine.
+                - Add gcc >= 11 support
+                - Fixed multithreading error in tensor_filter::python
+                - Python2 dropped. Only Python3 is supported.
+                - Refactored to increase SAM score (architecture quality assessment).
+                - Query, GRPC: added minor features requested by users.
+                - A lot of test cases and fixes introduced.
+                - Ubuntu 22.04 published.
+                - Python >= 3.10 support.
+                - Tensor-decoder::bounding-box. ssd-mobilenet v3 support
+
+        - Experimental features
+                - edgesrc, edgesink. stream pub/sub elements based on nnstreamer-edge
+
+        - Known issues
+                - Multithreading errors in tensor_decoder::python and tensor_converter::python
+                - FP16 in x64/x86 is not tested. (tested in armv7l/aarch64 only)
+                - Rank > 4 support is not activated by default. Dimension properties of GSTCAP is not fully backward compatible (to be fixed).
+
 2.1.0 -> 2.1.1
         - Tizen 7.0 M1 RCx preparation and NNStreamer Mini Summit 2022-04 release.
 
