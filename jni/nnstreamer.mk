@@ -52,6 +52,7 @@ NNSTREAMER_PLUGINS_SRCS := \
     $(NNSTREAMER_GST_HOME)/elements/gsttensor_aggregator.c \
     $(NNSTREAMER_GST_HOME)/elements/gsttensor_converter.c \
     $(NNSTREAMER_GST_HOME)/elements/gsttensor_crop.c \
+    $(NNSTREAMER_GST_HOME)/elements/gsttensor_debug.c \
     $(NNSTREAMER_GST_HOME)/elements/gsttensor_decoder.c \
     $(NNSTREAMER_GST_HOME)/elements/gsttensor_demux.c \
     $(NNSTREAMER_GST_HOME)/elements/gsttensor_if.c \

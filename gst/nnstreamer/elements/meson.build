@@ -2,6 +2,7 @@ tensor_element_sources = [
   'gsttensor_aggregator.c',
   'gsttensor_converter.c',
   'gsttensor_crop.c',
+  'gsttensor_debug.c',
   'gsttensor_decoder.c',
   'gsttensor_demux.c',
   'gsttensor_if.c',
