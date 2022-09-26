@@ -881,7 +881,9 @@ export NNSTREAMER_CONVERTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor
     bash %{test_script} ./tests
     bash %{test_script} ./tests/cpp_methods
     bash %{test_script} ./tests/nnstreamer_filter_extensions_common
+%if 0%{?nnstreamer_edge_support}
     bash %{test_script} ./tests/nnstreamer_edge
+%endif
 %if 0%{mvncsdk2_support}
     LD_LIBRARY_PATH=${NNSTREAMER_BUILD_ROOT_PATH}/tests/nnstreamer_filter_mvncsdk2:. bash %{test_script} ./tests/nnstreamer_filter_mvncsdk2/unittest_filter_mvncsdk2
 %endif
@@ -909,7 +911,7 @@ export NNSTREAMER_CONVERTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor
 
 python3 tools/development/count_test_cases.py build tests/summary.txt
 %else
-%if 0%{?edge_test}
+%if 0%{?edge_test} && 0%{?nnstreamer_edge_support}
     bash %{test_script} tests/nnstreamer_edge
     pushd tests/nnstreamer_edge
     ssat -n -p=1 --summary summary.txt -cn _n
@@ -990,7 +992,9 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_octet_stream.so
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_cpp.so
 %{gstlibdir}/libnnstreamer.so
+%if 0%{?nnstreamer_edge_support}
 %{gstlibdir}/libgstedge.so
+%endif
 %{_libdir}/libnnstreamer.so
 
 %files single
