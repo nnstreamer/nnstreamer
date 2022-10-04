@@ -464,7 +464,7 @@ ArmNNCore::getGstTensorType (armnn::DataType armType)
 #ifdef FLOAT16_SUPPORT
     return _NNS_FLOAT16;
 #else
-    ml_logw ("Unsupported armnn datatype Float16. Recompile with -DSUPPORT_FLOAT16 option.");
+    ml_logw ("Unsupported armnn datatype Float16. Recompile with -DFLOAT16_SUPPORT option.");
 #endif
     break;
   case armnn::DataType::QAsymmU8:
