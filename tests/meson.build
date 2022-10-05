@@ -303,7 +303,7 @@ if gtest_dep.found()
     subdir('nnstreamer_edge')
   endif
 
-  if tflite_support_is_available
+  if tflite_support_is_available or tflite2_support_is_available
     unittest_filter_shared_model = executable('unittest_filter_shared_model',
       join_paths('nnstreamer_filter_shared_model', 'unittest_filter_shared_model.cc'),
       dependencies: [nnstreamer_unittest_deps, unittest_util_dep],
