@@ -335,6 +335,9 @@ nnstreamer-core and nnstreamer-configuration
 
 %package core
 Requires: gstreamer >= 1.8.0
+%if 0%{?nnstreamer_edge_support}
+Requires: nnstreamer-edge
+%endif
 Summary: NNStreamer core package
 %description core
 NNStreamer is a set of gstreamer plugins to support general neural networks
