@@ -31,7 +31,7 @@ Description: NNStreamer plugins for Gstreamer
 Package: nnstreamer-core
 Architecture: any
 Multi-Arch: same
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: nnstreamer-edge, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer plugins for Gstreamer
  Gstreamer plugins, "NNStreamer", provides access to neural network frameworks for media streams.
  This package is core package without configuration.
