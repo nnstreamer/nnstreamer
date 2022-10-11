@@ -70,7 +70,8 @@ endforeach
 nnst_plugins = [
   'tensor_filter',
   'tensor_query',
-  'elements'
+  'elements',
+  'tensor_train'
 ]
 
 foreach p : nnst_plugins
