@@ -32,6 +32,7 @@
 
 #include <gst/gst.h>
 #include <gst/base/gstbasesink.h>
+#include <tensor_typedef.h>
 
 G_BEGIN_DECLS
 #define GST_TYPE_TENSOR_TRAINSINK \

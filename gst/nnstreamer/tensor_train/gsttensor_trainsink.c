@@ -28,7 +28,9 @@
  * 
  * ## Example launch line
  * |[
- * gst-launch-1.0 fakesrc ! tensor_trainsink
+ * gst-launch-1.0 gst-launch-1.0 videotestsrc !
+ *    video/x-raw, format=RGB, width=640, height=480 !
+ *    tensor_converter ! tensor_trainsink
  * ]|
  *
  */
@@ -39,10 +41,15 @@
 
 #include "gsttensor_trainsink.h"
 
+/**
+ * @brief Default caps string for sink pad.
+ */
+#define CAPS_STRING GST_TENSORS_CAP_MAKE ("{ static, flexible }")
+
 static GstStaticPadTemplate sinktemplate = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS_ANY);
+    GST_STATIC_CAPS (CAPS_STRING));
 
 /**
  * @brief Default dump property value.
