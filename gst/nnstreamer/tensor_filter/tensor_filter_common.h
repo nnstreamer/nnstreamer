@@ -87,6 +87,7 @@ typedef struct _GstTensorFilterStatistics
   gint64 old_total_invoke_latency;  /**< cached value. accumulated invoke latency (usec) */
   gint64 latest_invoke_time;    /**< the latest invoke time (usec) */
   void *recent_latencies;       /**< data structure (e.g., queue) to hold recent latencies */
+  guint latency_ignore_count;   /* number of initial latency measurements to ignore in averaging */
 } GstTensorFilterStatistics;
 
 /**
@@ -130,6 +131,8 @@ typedef struct _GstTensorFilterPrivate
 
   gint latency_mode;     /**< latency profiling mode (0: off, 1: on, ...) */
   gint throughput_mode;  /**< throughput profiling mode (0: off, 1: on, ...) */
+  gboolean latency_reporting; /**< reporting of estimated filter latency is enabled */
+  guint64 latency_reported; /**< latency value reported (ns) in last LATENCY query */
 
   GstTensorFilterCombination combi;
 } GstTensorFilterPrivate;
