@@ -105,6 +105,20 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
 #define gst_tensor_filter_parent_class parent_class
 G_DEFINE_TYPE (GstTensorFilter, gst_tensor_filter, GST_TYPE_BASE_TRANSFORM);
 
+/**
+ * @brief Headroom (extra duration) added to actual latency estimate reported
+ *        to LATENCY query, to limit number of updates when tracking the
+ *        maximum value - arbitrarily set to 5%.
+ */
+#define LATENCY_REPORT_HEADROOM 0.05
+
+/**
+ * @brief Threshold deciding when tracking latency estimate that current
+ *        value is sufficiently lower than reported value so that a
+ *        notification update is necessary - arbitrarily set to 25%.
+ */
+#define LATENCY_REPORT_THRESHOLD 0.25
+
 /* GObject vmethod implementations */
 static void gst_tensor_filter_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -121,6 +135,8 @@ static GstCaps *gst_tensor_filter_fixate_caps (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, GstCaps * othercaps);
 static gboolean gst_tensor_filter_set_caps (GstBaseTransform * trans,
     GstCaps * incaps, GstCaps * outcaps);
+static gboolean gst_tensor_filter_query (GstBaseTransform * trans,
+    GstPadDirection direction, GstQuery * query);
 static gboolean gst_tensor_filter_transform_size (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, gsize size,
     GstCaps * othercaps, gsize * othersize);
@@ -188,6 +204,9 @@ gst_tensor_filter_class_init (GstTensorFilterClass * klass)
   /* start/stop to call open/close */
   trans_class->start = GST_DEBUG_FUNCPTR (gst_tensor_filter_start);
   trans_class->stop = GST_DEBUG_FUNCPTR (gst_tensor_filter_stop);
+
+  /* Queries */
+  trans_class->query = GST_DEBUG_FUNCPTR (gst_tensor_filter_query);
 }
 
 /**
@@ -362,6 +381,12 @@ record_statistics (GstTensorFilterPrivate * priv)
   gint64 *latency = g_new (gint64, 1);
   GQueue *recent_latencies = priv->stat.recent_latencies;
 
+  /* ignore first measurements that may be off */
+  if (priv->stat.latency_ignore_count) {
+    priv->stat.latency_ignore_count--;
+    return;
+  }
+
   *latency = end_time - priv->stat.latest_invoke_time;
   priv->stat.total_invoke_latency += *latency;
   priv->stat.total_invoke_num += 1;
@@ -373,7 +398,7 @@ record_statistics (GstTensorFilterPrivate * priv)
   /* the queue should have at least one element */
   g_assert (g_queue_get_length (recent_latencies) != 0);
 
-  if (priv->latency_mode > 0) {
+  if (priv->latency_mode > 0 || priv->latency_reporting) {
     gint64 avg_latency = 0;
 
     g_queue_foreach (recent_latencies, accumulate_latency, &avg_latency);
@@ -425,6 +450,45 @@ record_statistics (GstTensorFilterPrivate * priv)
     if (priv->stat.old_total_invoke_num == 0) {
       priv->stat.old_total_invoke_latency = priv->stat.total_invoke_latency;
       priv->stat.old_total_invoke_num = priv->stat.total_invoke_num;
+    }
+  }
+}
+
+
+/**
+ * @brief Track estimated latency and notify pipeline when it changes.
+ *        Latency estimates may be a bit jittery. On the principle we want to
+ *        inform pipeline with the latency from longest inference.
+ *        However, first inference may take much longer, or model filter
+ *        configuration may change. Therefore any change of more than 10%
+ *        (arbitrary value) to a lower latency is also reported to pipeline.
+ *        Notification is done sending LATENCY message to bus. Upon receipt,
+ *        application will initiate a pipeline latency probe via LATENCY query.
+ */
+static void
+track_latency (GstTensorFilter * self)
+{
+  GstTensorFilterPrivate *priv = &self->priv;
+  gdouble estimated, reported, deviation;
+
+  GST_OBJECT_LOCK (self);
+  estimated = priv->prop.latency * GST_USECOND;
+  reported = priv->latency_reported;
+  GST_OBJECT_UNLOCK (self);
+
+  if ((priv->latency_reporting) && (estimated > 0)) {
+    if (reported > 0)
+      deviation = ABS (estimated - reported) / reported;
+    else
+      deviation = 0;
+
+    if ((estimated > reported) || (deviation > LATENCY_REPORT_THRESHOLD)) {
+
+      ml_logd ("[%s] latency reported:%.0f estimated:%.0f deviation:%.4f",
+          TF_MODELNAME (&(priv->prop)), reported, estimated, deviation);
+
+      gst_element_post_message (GST_ELEMENT_CAST (self),
+          gst_message_new_latency (GST_OBJECT_CAST (self)));
     }
   }
 }
@@ -713,14 +777,17 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     }
   }
 
-  need_profiling = (priv->latency_mode > 0 || priv->throughput_mode > 0);
+  need_profiling = (priv->latency_mode > 0 || priv->throughput_mode > 0 ||
+      priv->latency_reporting);
   if (need_profiling)
     prepare_statistics (priv);
 
   /* 3. Call the filter-subplugin callback, "invoke" */
   GST_TF_FW_INVOKE_COMPAT (priv, ret, invoke_tensors, out_tensors);
-  if (need_profiling)
+  if (need_profiling) {
     record_statistics (priv);
+    track_latency (self);
+  }
 
   /* 4. Free map info and handle error case */
   for (i = 0; i < num_mems; i++)
@@ -1228,6 +1295,74 @@ gst_tensor_filter_set_caps (GstBaseTransform * trans,
   }
 
   return TRUE;
+}
+
+/**
+ * @brief query handling, optional vmethod of GstBaseTransform.
+ */
+static gboolean
+gst_tensor_filter_query (GstBaseTransform * trans,
+    GstPadDirection direction, GstQuery * query)
+{
+  GstTensorFilter *self;
+  GstTensorFilterPrivate *priv;
+  gboolean res = FALSE;
+
+  UNUSED (direction);
+  self = GST_TENSOR_FILTER_CAST (trans);
+  priv = &self->priv;
+
+  switch (GST_QUERY_TYPE (query)) {
+    case GST_QUERY_LATENCY:
+    {
+      GstClockTime min, max;
+      gboolean live;
+      gint estimated;
+      gdouble latency;
+
+      GST_OBJECT_LOCK (self);
+      estimated = (gint) priv->prop.latency;
+      GST_OBJECT_UNLOCK (self);
+
+      if ((priv->latency_reporting) && (estimated > 0)) {
+        if ((res = gst_pad_peer_query (GST_BASE_TRANSFORM (self)->sinkpad,
+                    query))) {
+          gst_query_parse_latency (query, &live, &min, &max);
+
+          GST_DEBUG_OBJECT (self, "Peer latency: min %"
+              GST_TIME_FORMAT " max %" GST_TIME_FORMAT,
+              GST_TIME_ARGS (min), GST_TIME_ARGS (max));
+
+          latency = (gdouble) estimated *GST_USECOND *
+              (1 + LATENCY_REPORT_HEADROOM);
+          priv->latency_reported = (gint64) latency;
+
+          min += (gint64) latency;
+          if (max != GST_CLOCK_TIME_NONE)
+            max += (gint64) latency;
+
+          GST_DEBUG_OBJECT (self, "Calculated total latency : min %"
+              GST_TIME_FORMAT " max %" GST_TIME_FORMAT,
+              GST_TIME_ARGS (min), GST_TIME_ARGS (max));
+
+          gst_query_set_latency (query, live, min, max);
+        }
+      }
+      if (!res) {
+        res =
+            GST_BASE_TRANSFORM_CLASS (parent_class)->query (trans, direction,
+            query);
+      }
+      break;
+    }
+    default:
+      res =
+          GST_BASE_TRANSFORM_CLASS (parent_class)->query (trans, direction,
+          query);
+      break;
+  }
+
+  return res;
 }
 
 /**
