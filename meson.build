@@ -315,6 +315,7 @@ if not get_option('armnn-support').disabled()
 endif
 
 # mxnet
+mxnet_dep = dependency('', required: false)
 if not get_option('mxnet-support').disabled()
   mxnet_dep = cxx.find_library('mxnet', required: false)
   if not mxnet_dep.found()
