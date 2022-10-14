@@ -25,7 +25,6 @@ option('tvm-support', type: 'feature', value: 'auto')
 option('trix-engine-support', type: 'feature', value: 'auto')
 option('nnstreamer-edge-support', type: 'feature', value: 'auto')
 option('mxnet-support', type: 'feature', value: 'auto')
-option('aitt-support', type: 'feature', value: 'auto')
 
 # booleans & other options
 option('enable-test', type: 'boolean', value: true)
