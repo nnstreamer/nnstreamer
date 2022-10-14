@@ -224,7 +224,7 @@ snpe_subplugin::runtimeToString (zdl::DlSystem::Runtime_t runtime)
 }
 
 /**
- * @brief Internal method to get names of output layers from tensors information.
+ * @brief Internal method to set names of output tensors from tensors information.
  */
 bool
 snpe_subplugin::set_output_tensor_names (const GstTensorsInfo *info)
@@ -383,7 +383,7 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
       zdl::SNPE::SNPEFactory::getLibraryVersion ().asString ().c_str ());
 
   if (!set_output_tensor_names (&prop->output_meta)) {
-    nns_loge ("Failed to set output layer names");
+    nns_loge ("Failed to set output tensor names");
     cleanup ();
     return;
   }
@@ -671,8 +671,8 @@ snpe_subplugin::init_filter_snpe (void)
       "Designate hardware resource {'CPU' (default), 'GPU', 'DSP', 'NPU'}",
       "CPUFallback",
       "Set true to enable CPU fallback {'true' (default), 'false'}",
-      "OutputLayer",
-      "Layer names for the output, separated by ';'. E.g., 'layer0;layer1;layer2'",
+      "OutputTensor",
+      "Tensor names for the output, separated by ';'. E.g., 'concat:0;concat_1:0'",
       "InputType",
       "Set the data type of the input {'float32 (default)', 'uint8'}",
       "OutputType",
