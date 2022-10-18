@@ -19,7 +19,7 @@
  */
 
 /**
- * @file	gsttensor_trainsink.h
+ * @file	gsttensor_trainsink.c
  * @date	11 October 2022
  * @brief	GStreamer plugin to train tensor data using NN Frameworks
  * @see		https://github.com/nnstreamer/nnstreamer
@@ -28,7 +28,7 @@
  * 
  * ## Example launch line
  * |[
- * gst-launch-1.0 gst-launch-1.0 videotestsrc !
+ * gst-launch-1.0 videotestsrc !
  *    video/x-raw, format=RGB, width=640, height=480 !
  *    tensor_converter ! tensor_trainsink
  * ]|
@@ -40,6 +40,7 @@
 #endif
 
 #include "gsttensor_trainsink.h"
+#include "tensor_train.h"
 
 /**
  * @brief Default caps string for sink pad.
@@ -57,16 +58,23 @@ static GstStaticPadTemplate sinktemplate = GST_STATIC_PAD_TEMPLATE ("sink",
 #define DEFAULT_DUMP FALSE
 
 /**
+ * @brief Default dump property value.
+ */
+#define DEFAULT_FRAMEWORK "nntrainer"
+
+/**
  * @brief tensor_trainsink properties.
  */
 enum
 {
   PROP_0,
   PROP_DUMP,
+  PROP_FRAMEWORK
 };
 
-GST_DEBUG_CATEGORY_STATIC (gst_tensor_trainsink_debug);
+GST_DEBUG_CATEGORY (gst_tensor_trainsink_debug);
 #define GST_CAT_DEFAULT gst_tensor_trainsink_debug
+
 #define gst_tensor_trainsink_parent_class parent_class
 G_DEFINE_TYPE (GstTensorTrainSink, gst_tensor_trainsink, GST_TYPE_BASE_SINK);
 
@@ -116,6 +124,11 @@ gst_tensor_trainsink_class_init (GstTensorTrainSinkClass * klass)
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_PLAYING |
           G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_FRAMEWORK,
+      g_param_spec_string ("framework", "Framework",
+          "Neural network framework", DEFAULT_FRAMEWORK,
+          G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
+          G_PARAM_STATIC_STRINGS));
 
   gst_element_class_set_static_metadata (gstelement_class,
       "TensorTrain Sink",
@@ -143,6 +156,9 @@ static void
 gst_tensor_trainsink_init (GstTensorTrainSink * sink)
 {
   sink->dump = DEFAULT_DUMP;
+  sink->fw_name = g_strdup (DEFAULT_FRAMEWORK);
+  sink->fw = NULL;
+  sink->fw_opened = 0;
 }
 
 /**
@@ -151,7 +167,45 @@ gst_tensor_trainsink_init (GstTensorTrainSink * sink)
 static void
 gst_tensor_trainsink_finalize (GObject * object)
 {
+  GstTensorTrainSink *sink = GST_TENSOR_TRAINSINK (object);
+
+  g_free (sink->fw_name);
+
   G_OBJECT_CLASS (parent_class)->finalize (object);
+}
+
+/** @brief Handle "PROP_FRAMEWORK" for set-property */
+static gboolean
+gst_tensor_trainsink_set_framework (GstTensorTrainSink * sink,
+    const gchar * fw_name, GError ** err)
+{
+  GstState state;
+
+  GST_OBJECT_LOCK (sink);
+  state = GST_STATE (sink);
+  if (state != GST_STATE_READY && state != GST_STATE_NULL)
+    goto wrong_state;
+  GST_OBJECT_UNLOCK (sink);
+
+  g_free (sink->fw_name);
+  sink->fw_name = g_strdup (fw_name);
+  GST_INFO_OBJECT (sink, "framework : %s", sink->fw_name);
+
+  /** @todo Check valid framework */
+
+  return TRUE;
+
+wrong_state:
+  {
+    g_warning
+        ("`framework' property can be changed when the tensor_trainsink is"
+        " in the READY or lower state");
+    if (err)
+      g_set_error (err,
+          g_quark_from_static_string ("Tensor_trainsink::set_framework"), 0,
+          "Failed to set framework[%s] on wrong state", fw_name);
+    return FALSE;
+  }
 }
 
 /**
@@ -166,6 +220,11 @@ gst_tensor_trainsink_set_property (GObject * object, guint prop_id,
   switch (prop_id) {
     case PROP_DUMP:
       sink->dump = g_value_get_boolean (value);
+      break;
+
+    case PROP_FRAMEWORK:
+      gst_tensor_trainsink_set_framework (sink, g_value_get_string (value),
+          NULL);
       break;
 
     default:
@@ -190,6 +249,10 @@ gst_tensor_trainsink_get_property (GObject * object, guint prop_id,
       g_value_set_boolean (value, sink->dump);
       break;
 
+    case PROP_FRAMEWORK:
+      g_value_set_string (value, sink->fw_name);
+      break;
+
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -200,22 +263,133 @@ gst_tensor_trainsink_get_property (GObject * object, guint prop_id,
  * @brief Called when a buffer should be presented or ouput.
  */
 static GstFlowReturn
-gst_tensor_trainsink_render (GstBaseSink * bsink, GstBuffer * buf)
+gst_tensor_trainsink_render (GstBaseSink * bsink, GstBuffer * gstbuf)
 {
   GstTensorTrainSink *sink = GST_TENSOR_TRAINSINK_CAST (bsink);
-  GstMapInfo info;
+
+  gint ret = -1;
+  guint mem_blocks, i;
+  gsize header_size;
+  GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
+  GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT];
+  GstMemory *out_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
+  GstMapInfo out_info[NNS_TENSOR_SIZE_LIMIT];
+
+  GstTensorMetaInfo in_meta[NNS_TENSOR_SIZE_LIMIT];
+  GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT];
+  GstTensorMemory invoke_tensors[NNS_TENSOR_SIZE_LIMIT];
+  GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT];
 
   GST_OBJECT_LOCK (sink);
 
-  gst_buffer_map (buf, &info, GST_MAP_READ);
-  if (sink->dump) {
-    gst_util_dump_mem (info.data, info.size);
+  /* Get all input tensors from gstbuf */
+  mem_blocks = gst_buffer_n_memory (gstbuf);
+
+  for (i = 0; i < mem_blocks; i++) {
+    in_mem[i] = gst_buffer_peek_memory (gstbuf, i);
+    if (!gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
+      GST_ERROR_OBJECT (sink, "Could not map in_mem[%d] GstMemory", i);
+      goto error;
+    }
+
+    /* get header size */
+    if (gst_tensor_pad_caps_is_flexible (GST_BASE_SINK_PAD (bsink))) {
+      gst_tensor_meta_info_parse_header (&in_meta[i], &in_info[i].data);
+      header_size = gst_tensor_meta_info_get_header_size (&in_meta[i]);
+      GST_INFO ("flexible header size:%zd", header_size);
+    } else {
+      header_size = 0;
+      GST_INFO ("not flexible header size:%zd", header_size);
+    }
+
+    /* Prepare input tensors */
+    in_tensors[i].data = in_info[i].data + header_size;
+    in_tensors[i].size = in_info[i].size - header_size;
   }
 
-  gst_buffer_unmap (buf, &info);
+#if 0
+  /* need to set input_meta at caps negotiation with input property */
+
+  /* Check number of input tensors */
+  if (mem_blocks ! = sink->input_meta.num_tensors) {
+    GST_ERROR_OBJECT (sink, "Invalid memory blocks(%d),"
+        "number of input tensors may be (%d)", mem_blocks,
+        sink->input_meta.num_tensors);
+    goto error;
+  }
+#endif
+
+  /* Prepare tensor to invoke */
+  /* Check size of input tensors */
+  for (i = 0; i < mem_blocks /*sink->input_meta.num_tensors */ ; i++) {
+#if 0
+    expected = gst_tensor_trainsink_get_tensor_size (sink, i, TRUE);
+    if (expected != in_tensors[i].size) {
+      GST_ERROR_OBJECT (sink, "Invalid tensor size (%u'th memory chunk: %zd)"
+          ", expected size (%zd)", i, in_tensors[i].size, expected);
+      goto error;
+    }
+#endif
+    /* copy to data pointer */
+    invoke_tensors[i] = in_tensors[i];
+  }
+
+  /* Prepare output tensors */
+  for (i = 0; i < mem_blocks /*sink->output_meta.num_tensors */ ; i++) {
+    out_tensors[i].data = NULL;
+    //   out_tensors[i].size = gst_tensor_trainsink_get_tensor_size (sink, i, FALSE);
+
+    header_size = 0;
+    /* need to get header size from sink->out_meta */
+    out_mem[i] =
+        gst_allocator_alloc (NULL, out_tensors[i].size + header_size, NULL);
+    if (!out_mem[i]) {
+      GST_ERROR_OBJECT (sink, "Failed to allocate memory");
+      goto error;
+    }
+
+    if (!gst_memory_map (out_mem[i], &out_info[i], GST_MAP_WRITE)) {
+      GST_ERROR_OBJECT (sink, "Could not map in_mem[%d] GstMemory", i);
+      goto error;
+    }
+
+    out_tensors[i].data = out_info[i].data + header_size;
+  }
+
+  /* Call Invoke */
+  ret =
+      sink->fw->invoke_NN (&sink->prop, &sink->privateData, invoke_tensors,
+      out_tensors);
+
+  /* Free map info */
+  for (i = 0; i < mem_blocks; i++)
+    gst_memory_unmap (in_mem[i], &in_info[i]);
+
+
+  for (i = 0; i < mem_blocks; i++) {
+    gst_memory_unmap (out_mem[i], &out_info[i]);
+    if (ret != 0)
+      gst_allocator_free (out_mem[i]->allocator, out_mem[i]);
+  }
+
+  if (ret < 0)
+    GST_ERROR_OBJECT (sink, "Invoke error");
+
   GST_OBJECT_UNLOCK (sink);
 
   return GST_FLOW_OK;
+
+error:
+  mem_blocks = gst_buffer_n_memory (gstbuf);
+  for (i = 0; i < mem_blocks; i++) {
+    if (in_mem[i])
+      gst_memory_unmap (in_mem[i], &in_info[i]);
+  }
+
+  GST_OBJECT_UNLOCK (sink);
+
+  return GST_FLOW_ERROR;
+
 }
 
 /**
@@ -278,6 +452,14 @@ gst_tensor_trainsink_change_state (GstElement * element,
 
     case GST_STATE_CHANGE_READY_TO_PAUSED:
       GST_INFO_OBJECT (sink, "READY_TO_PAUSED");
+      //temp for test
+      if (sink->fw_name)
+        gst_tensor_trainsink_find_framework (sink, sink->fw_name);
+      if (sink->fw) {
+        /* create fw */
+        gst_tensor_trainsink_create_framework (sink);
+      }
+
       break;
 
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:

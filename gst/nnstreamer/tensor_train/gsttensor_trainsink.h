@@ -33,6 +33,11 @@
 #include <gst/gst.h>
 #include <gst/base/gstbasesink.h>
 #include <tensor_typedef.h>
+#include <tensor_common.h>
+
+/* temp for test */
+#include <nnstreamer_plugin_api_util.h>
+#include <nnstreamer_plugin_api_filter.h>
 
 G_BEGIN_DECLS
 #define GST_TYPE_TENSOR_TRAINSINK \
@@ -58,6 +63,20 @@ struct _GstTensorTrainSink
 {
   GstBaseSink element;
   int dump;
+
+  gchar *fw_name;
+  GstTensorsInfo input_meta;
+  GstTensorsInfo output_meta;
+
+
+  int fw_opened;
+  int fw_compiled;
+  int fw_fitted;
+  int fw_created;
+
+  void *privateData; /**< NNFW plugin's private data is stored here */
+  const GstTensorFilterFramework *fw;   /* for test, need to make */
+  GstTensorFilterProperties prop; /**< NNFW plugin's properties */
 };
 
 /**
