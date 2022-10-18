@@ -94,15 +94,11 @@ struct _GstJoinPad
 {
   GstPad parent;
 
-  gboolean pushed;              /* when buffer was pushed downstream since activation */
   guint group_id;               /* Group ID from the last stream-start */
-  gboolean group_done;          /* when Stream Group Done has been received */
   gboolean discont;             /* after switching we create a discont */
 
   GstSegment segment;           /* the current segment on the pad */
   guint32 segment_seqnum;       /* sequence number of the current segment */
-
-  gboolean events_pending;      /* TRUE if sticky events need to be updated */
 };
 
 /**
@@ -166,9 +162,6 @@ static void
 gst_join_pad_reset (GstJoinPad * pad)
 {
   GST_OBJECT_LOCK (pad);
-  pad->pushed = FALSE;
-  pad->group_done = FALSE;
-  pad->events_pending = FALSE;
   pad->discont = FALSE;
   gst_segment_init (&pad->segment, GST_FORMAT_UNDEFINED);
   GST_OBJECT_UNLOCK (pad);
@@ -302,15 +295,6 @@ gst_join_pad_event (GstPad * pad, GstObject * parent, GstEvent * event)
     GST_DEBUG_OBJECT (pad, "forwarding event");
     res = gst_pad_push_event (sel->srcpad, event);
   } else {
-    /**
-     * If we aren't forwarding the event because the pad is not the
-     * active_sinkpad, then set the flag on the pad
-     * that says a segment needs sending if/when that pad is activated.
-     * For all other cases, we send the event immediately, which makes
-     * sparse streams and other segment updates work correctly downstream.
-     */
-    if (GST_EVENT_IS_STICKY (event))
-      selpad->events_pending = TRUE;
     gst_event_unref (event);
   }
 
@@ -416,11 +400,9 @@ gst_join_pad_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   GST_JOIN_UNLOCK (sel);
 
   /* if we have a pending events, push them now */
-  if (G_UNLIKELY (prev_active_sinkpad != active_sinkpad
-          || selpad->events_pending)) {
+  if (G_UNLIKELY (prev_active_sinkpad != active_sinkpad)) {
     gst_pad_sticky_events_foreach (GST_PAD_CAST (selpad), forward_sticky_events,
         sel);
-    selpad->events_pending = FALSE;
   }
 
   if (selpad->discont) {
@@ -437,12 +419,6 @@ gst_join_pad_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
   res = gst_pad_push (sel->srcpad, buf);
   GST_LOG_OBJECT (pad, "Buffer %p forwarded result=%d", buf, res);
-
-  GST_JOIN_LOCK (sel);
-
-  selpad->pushed = TRUE;
-
-  GST_JOIN_UNLOCK (sel);
 
   if (prev_active_sinkpad)
     gst_object_unref (prev_active_sinkpad);
@@ -577,15 +553,6 @@ gst_join_set_active_pad (GstJoin * self, GstPad * pad)
 
   GST_DEBUG_OBJECT (self, "setting active pad to %s:%s",
       GST_DEBUG_PAD_NAME (new));
-
-  if (old)
-    old->pushed = FALSE;
-  if (new)
-    new->pushed = FALSE;
-
-  /* Send a new SEGMENT event on the new pad next */
-  if (old != new && new)
-    new->events_pending = TRUE;
 
   active_pad_p = &self->active_sinkpad;
   gst_object_replace ((GstObject **) active_pad_p, GST_OBJECT_CAST (pad));
