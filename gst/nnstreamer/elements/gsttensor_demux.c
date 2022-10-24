@@ -324,7 +324,7 @@ gst_tensor_demux_get_tensor_config (GstTensorDemux * tensor_demux,
         &tensor_demux->tensors_config.info.info[nth]);
   }
 
-  config->format = tensor_demux->tensors_config.format;
+  config->info.format = tensor_demux->tensors_config.info.format;
   config->rate_n = tensor_demux->tensors_config.rate_n;
   config->rate_d = tensor_demux->tensors_config.rate_d;
   return TRUE;

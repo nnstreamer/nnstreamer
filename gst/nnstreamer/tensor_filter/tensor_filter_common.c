@@ -2275,6 +2275,7 @@ gst_tensor_filter_common_get_combined_out_info (GstTensorFilterPrivate * priv,
     }
 
     combined->num_tensors = idx;
+    combined->format = out->format;
   } else {
     gst_tensors_info_copy (combined, out);
   }

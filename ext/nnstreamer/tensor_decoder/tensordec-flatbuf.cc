@@ -115,7 +115,7 @@ fbd_decode (void **pdata, const GstTensorsConfig *config,
 
   num_tensors = fbd_config.info.num_tensors;
   fr = frame_rate (fbd_config.rate_n, fbd_config.rate_d);
-  format = (Tensor_format) fbd_config.format;
+  format = (Tensor_format) fbd_config.info.format;
   /* Fill the info in tensor and puth to tensor vector */
   for (i = 0; i < num_tensors; i++) {
     unsigned char *tmp_buf;

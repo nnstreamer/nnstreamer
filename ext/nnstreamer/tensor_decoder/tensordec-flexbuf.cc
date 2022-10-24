@@ -140,7 +140,7 @@ flxd_decode (void **pdata, const GstTensorsConfig *config,
     fbb.UInt ("num_tensors", num_tensors);
     fbb.Int ("rate_n", flxd_config.rate_n);
     fbb.Int ("rate_d", flxd_config.rate_d);
-    fbb.Int ("format", flxd_config.format);
+    fbb.Int ("format", flxd_config.info.format);
     for (i = 0; i < num_tensors; i++) {
       gchar *tensor_key = g_strdup_printf ("tensor_%d", i);
       gchar *tensor_name = NULL;

@@ -1164,11 +1164,11 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       tmp.rate_n = config->rate_n;
       tmp.rate_d = config->rate_d;
 
-      tmp.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+      tmp.info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
       buf = gst_tensor_buffer_from_config (buf, &tmp);
 
       /* type and dimension from buffer */
-      tmp.format = _NNS_TENSOR_FORMAT_STATIC;
+      tmp.info.format = _NNS_TENSOR_FORMAT_STATIC;
       tmp.info.num_tensors = gst_buffer_n_memory (buf);
 
       /* compare data size and append memory */
@@ -1258,7 +1258,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         goto error;
       }
       self->do_not_append_header =
-          (new_config.format == _NNS_TENSOR_FORMAT_FLEXIBLE);
+          (new_config.info.format == _NNS_TENSOR_FORMAT_FLEXIBLE);
 
       frames_in = 1;
       frame_size = gst_buffer_get_size (inbuf);
@@ -1747,7 +1747,7 @@ gst_tensor_converter_parse_octet (GstTensorConverter * self,
    * If output is flexible, dimension should be updated in chain function with buffer size.
    */
   if (flexible) {
-    config->format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+    config->info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
 
     config->info.num_tensors = 1;
     config->info.info[0].type = _NNS_UINT8;

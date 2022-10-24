@@ -318,6 +318,8 @@ gst_tensors_info_init (GstTensorsInfo * info)
   g_return_if_fail (info != NULL);
 
   info->num_tensors = 0;
+  /** @note default format is static */
+  info->format = _NNS_TENSOR_FORMAT_STATIC;
 
   for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
     gst_tensor_info_init (&info->info[i]);
@@ -377,6 +379,24 @@ gst_tensors_info_validate (const GstTensorsInfo * info)
 
   g_return_val_if_fail (info != NULL, FALSE);
 
+  /* tensor stream format */
+  if (info->format >= _NNS_TENSOR_FORMAT_END) {
+    nns_logd
+        ("Failed to validate tensors info, format: %s. format should be one of %s.",
+        _STR_NULL (gst_tensor_get_format_string (info->format)),
+        GST_TENSOR_FORMAT_ALL);
+    _nnstreamer_error_write
+        ("Failed to validate tensors info, format: %s. format should be one of %s.",
+        _STR_NULL (gst_tensor_get_format_string (info->format)),
+        GST_TENSOR_FORMAT_ALL);
+    return FALSE;
+  }
+
+  /* cannot check tensor info when tensor is not static */
+  if (info->format != _NNS_TENSOR_FORMAT_STATIC) {
+    return TRUE;
+  }
+
   if (info->num_tensors < 1) {
     nns_logd
         ("Failed to validate tensors info. the number of tensors: %d. the number of tensors should be greater than 0.",
@@ -407,6 +427,18 @@ gst_tensors_info_is_equal (const GstTensorsInfo * i1, const GstTensorsInfo * i2)
 
   g_return_val_if_fail (i1 != NULL, FALSE);
   g_return_val_if_fail (i2 != NULL, FALSE);
+
+  if (i1->format != i2->format || i1->format == _NNS_TENSOR_FORMAT_END) {
+    nns_logd ("Tensors info is not equal. format: %s vs %s ",
+        _STR_NULL (gst_tensor_get_format_string (i1->format)),
+        _STR_NULL (gst_tensor_get_format_string (i2->format)));
+    return FALSE;
+  }
+
+  /* cannot compare tensor info when tensor is not static */
+  if (i1->format != _NNS_TENSOR_FORMAT_STATIC) {
+    return TRUE;
+  }
 
   if (!gst_tensors_info_validate (i1) || !gst_tensors_info_validate (i2)) {
     return FALSE;
@@ -442,6 +474,7 @@ gst_tensors_info_copy (GstTensorsInfo * dest, const GstTensorsInfo * src)
 
   gst_tensors_info_init (dest);
   num = dest->num_tensors = src->num_tensors;
+  dest->format = src->format;
 
   for (i = 0; i < num; i++) {
     gst_tensor_info_copy (&dest->info[i], &src->info[i]);
@@ -715,8 +748,6 @@ gst_tensors_config_init (GstTensorsConfig * config)
 
   gst_tensors_info_init (&config->info);
 
-  /** @note default format is static */
-  config->format = _NNS_TENSOR_FORMAT_STATIC;
   config->rate_n = -1;
   config->rate_d = -1;
 }
@@ -754,24 +785,6 @@ gst_tensors_config_validate (const GstTensorsConfig * config)
     return FALSE;
   }
 
-  /* tensor stream format */
-  if (config->format >= _NNS_TENSOR_FORMAT_END) {
-    nns_logd
-        ("Failed to validate tensors config. format: %s. format should be one of %s.",
-        _STR_NULL (gst_tensor_get_format_string (config->format)),
-        GST_TENSOR_FORMAT_ALL);
-    _nnstreamer_error_write
-        ("Failed to validate tensors config. format: %s. format should be one of %s.",
-        _STR_NULL (gst_tensor_get_format_string (config->format)),
-        GST_TENSOR_FORMAT_ALL);
-    return FALSE;
-  }
-
-  /* cannot check tensor info when tensor is not static */
-  if (!gst_tensors_config_is_static (config)) {
-    return TRUE;
-  }
-
   return gst_tensors_info_validate (&config->info);
 }
 
@@ -796,18 +809,6 @@ gst_tensors_config_is_equal (const GstTensorsConfig * c1,
     return FALSE;
   }
 
-  if (c1->format != c2->format || c1->format == _NNS_TENSOR_FORMAT_END) {
-    nns_logd ("Tensors config is not equal. format: %s vs %s ",
-        _STR_NULL (gst_tensor_get_format_string (c1->format)),
-        _STR_NULL (gst_tensor_get_format_string (c2->format)));
-    return FALSE;
-  }
-
-  /* cannot compare tensor info when tensor is not static */
-  if (!gst_tensors_config_is_static (c1)) {
-    return TRUE;
-  }
-
   return gst_tensors_info_is_equal (&c1->info, &c2->info);
 }
 
@@ -821,7 +822,6 @@ gst_tensors_config_copy (GstTensorsConfig * dest, const GstTensorsConfig * src)
   g_return_if_fail (src != NULL);
 
   gst_tensors_info_copy (&dest->info, &src->info);
-  dest->format = src->format;
   dest->rate_n = src->rate_n;
   dest->rate_d = src->rate_d;
 }
@@ -835,10 +835,10 @@ gchar *
 gst_tensors_config_to_string (const GstTensorsConfig * config)
 {
   GString *gstr = g_string_new (NULL);
-  const gchar *fmt = gst_tensor_get_format_string (config->format);
+  const gchar *fmt = gst_tensor_get_format_string (config->info.format);
   g_string_append_printf (gstr, "Format = %s, Framerate = %d/%d",
       fmt, config->rate_n, config->rate_d);
-  if (config->format == _NNS_TENSOR_FORMAT_STATIC) {
+  if (config->info.format == _NNS_TENSOR_FORMAT_STATIC) {
     gchar *infostr = gst_tensors_info_to_string (&config->info);
     g_string_append_printf (gstr, ", %s", infostr);
     g_free (infostr);
