@@ -202,7 +202,7 @@ mospid=$!
 
 gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} \
     videotestsrc is-live=true ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tee name=t \
-        t. ! queue ! multifilesink location=raw_%1d.log \
+        t. ! queue ! multifilesink location=raw6_%1d.log \
         t. ! queue ! edgesink port=0 connect-type=HYBRID dest-host=127.0.0.1 dest-port=${PORT} topic=tempTopic async=false" 6-1 0 0 30
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
     edgesrc port=0 connect-type=HYBRID dest-host=127.0.0.1 dest-port=${PORT} topic=tempTopic num-buffers=10 ! multifilesink location=result6_0_%1d.log" 6-2 0 0 $PERFORMANCE
