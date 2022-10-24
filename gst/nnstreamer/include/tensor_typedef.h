@@ -244,6 +244,7 @@ typedef struct
 {
   unsigned int num_tensors; /**< The number of tensors */
   GstTensorInfo info[NNS_TENSOR_SIZE_LIMIT]; /**< The list of tensor info */
+  tensor_format format; /**< tensor stream type */
 } GstTensorsInfo;
 
 /**
@@ -252,7 +253,6 @@ typedef struct
 typedef struct
 {
   GstTensorsInfo info; /**< tensor info*/
-  tensor_format format; /**< tensor stream type */
   int rate_n; /**< framerate is in fraction, which is numerator/denominator */
   int rate_d; /**< framerate is in fraction, which is numerator/denominator */
 } GstTensorsConfig;

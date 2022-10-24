@@ -395,13 +395,13 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
       g_assert ((counting + n_mem) < NNS_TENSOR_SIZE_LIMIT);
 
       if (gst_tensors_config_is_flexible (&in_configs))
-        configs->format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+        configs->info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
 
       for (i = 0; i < n_mem; ++i) {
         in_mem[counting] = gst_buffer_get_memory (buf, i);
 
         configs->info.info[counting] = in_configs.info.info[i];
-        in_formats[counting] = in_configs.format;
+        in_formats[counting] = in_configs.info.format;
         counting++;
       }
 
@@ -1141,11 +1141,11 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
             ("Invalid format %s, it should be one of %s. Suppose tensor format is static.",
             _STR_NULL (format_str), GST_TENSOR_FORMAT_ALL);
       } else {
-        config->format = format;
+        config->info.format = format;
       }
     }
 
-    if (config->format == _NNS_TENSOR_FORMAT_STATIC) {
+    if (config->info.format == _NNS_TENSOR_FORMAT_STATIC) {
       gst_structure_get_int (structure, "num_tensors",
           (gint *) (&config->info.num_tensors));
 

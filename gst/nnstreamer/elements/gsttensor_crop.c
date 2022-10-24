@@ -459,7 +459,7 @@ gst_tensor_crop_negotiate (GstTensorCrop * self)
      * Output is always flexible tensor.
      */
     gst_tensors_config_init (&config);
-    config.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+    config.info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
 
     walk = self->collect->data;
     while (walk) {

@@ -143,7 +143,7 @@ ServiceImplFlatbuf::_get_tensors_from_buffer (GstBuffer *buffer,
   flatbuffers::Offset<Tensors> tensors;
   std::vector<flatbuffers::Offset<Tensor>> tensor_vector;
   Tensor_type tensor_type;
-  Tensor_format format = (Tensor_format) config_->format;
+  Tensor_format format = (Tensor_format) config_->info.format;
   unsigned int num_tensors = config_->info.num_tensors;
   frame_rate fr = frame_rate (config_->rate_n, config_->rate_d);
 

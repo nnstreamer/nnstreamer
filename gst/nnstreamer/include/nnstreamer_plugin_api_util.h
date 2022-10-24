@@ -251,17 +251,17 @@ gst_tensors_config_to_string (const GstTensorsConfig * config);
 /**
  * @brief Macro to check stream format (static tensors for caps negotiation)
  */
-#define gst_tensors_config_is_static(c) ((c)->format == _NNS_TENSOR_FORMAT_STATIC)
+#define gst_tensors_config_is_static(c) ((c)->info.format == _NNS_TENSOR_FORMAT_STATIC)
 
 /**
  * @brief Macro to check stream format (flexible tensors for caps negotiation)
  */
-#define gst_tensors_config_is_flexible(c) ((c)->format == _NNS_TENSOR_FORMAT_FLEXIBLE)
+#define gst_tensors_config_is_flexible(c) ((c)->info.format == _NNS_TENSOR_FORMAT_FLEXIBLE)
 
 /**
  * @brief Macro to check stream format (sparse tensors for caps negotiation)
  */
-#define gst_tensors_config_is_sparse(c) ((c)->format == _NNS_TENSOR_FORMAT_SPARSE)
+#define gst_tensors_config_is_sparse(c) ((c)->info.format == _NNS_TENSOR_FORMAT_SPARSE)
 
 /**
  * @brief Check the tensor dimension is valid

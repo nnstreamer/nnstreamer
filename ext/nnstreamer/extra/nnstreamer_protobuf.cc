@@ -71,7 +71,7 @@ gst_tensor_decoder_protobuf (const GstTensorsConfig *config,
   fr->set_rate_d (pbd_config.rate_d);
 
   tensors.set_format (
-      (nnstreamer::protobuf::Tensors::Tensor_format) pbd_config.format);
+      (nnstreamer::protobuf::Tensors::Tensor_format) pbd_config.info.format);
 
   for (unsigned int i = 0; i < num_tensors; ++i) {
     nnstreamer::protobuf::Tensor *tensor = tensors.add_tensor ();
@@ -157,7 +157,7 @@ gst_tensor_converter_protobuf (GstBuffer *in_buf, GstTensorsConfig *config, void
   tensors.ParseFromArray (in_info.data, in_info.size);
 
   config->info.num_tensors = tensors.num_tensor ();
-  config->format = (tensor_format) tensors.format ();
+  config->info.format = (tensor_format) tensors.format ();
   fr = tensors.mutable_fr ();
   config->rate_n = fr->rate_n ();
   config->rate_d = fr->rate_d ();

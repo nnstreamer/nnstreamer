@@ -1953,7 +1953,7 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
 
     if (gst_tensors_config_is_flexible (&in_config)) {
       /* output caps is also flexible */
-      out_config.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+      out_config.info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
     } else {
       for (j = 0; j < in_config.info.num_tensors; j++) {
         gst_tensor_transform_convert_dimension (filter, direction,
@@ -2063,7 +2063,7 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
 
   /* compare type and dimension */
   gst_tensors_config_init (&config);
-  config.format = out_config.format;
+  config.info.format = out_config.info.format;
 
   config.rate_n = in_config.rate_n;
   config.rate_d = in_config.rate_d;

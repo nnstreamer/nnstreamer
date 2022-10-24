@@ -7012,7 +7012,7 @@ _crop_test_push_buffer (crop_test_data_s * crop_test)
   gst_tensors_config_init (&config);
   config.info.num_tensors = 1;
   config.info.info[0] = crop_test->raw_info;
-  config.format = crop_test->raw_format;
+  config.info.format = crop_test->raw_format;
   config.rate_n = 0;
   config.rate_d = 1;
 

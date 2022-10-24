@@ -114,7 +114,7 @@ flxc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
   }
   config->rate_n = tensors["rate_n"].AsInt32 ();
   config->rate_d = tensors["rate_d"].AsInt32 ();
-  config->format = (tensor_format) tensors["format"].AsInt32 ();
+  config->info.format = (tensor_format) tensors["format"].AsInt32 ();
   out_buf = gst_buffer_new ();
 
   for (guint i = 0; i < config->info.num_tensors; i++) {

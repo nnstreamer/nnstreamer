@@ -892,7 +892,7 @@ TEST (commonTensorsConfig, equal09_p)
   fill_tensors_config_for_test (&conf1, &conf2);
 
   /* compare flexible tensor */
-  conf1.format = conf2.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  conf1.info.format = conf2.info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
 
   EXPECT_TRUE (gst_tensors_config_is_equal (&conf1, &conf2));
 }
@@ -907,7 +907,7 @@ TEST (commonTensorsConfig, equal10_n)
   fill_tensors_config_for_test (&conf1, &conf2);
 
   /* change format, this should not be compatible */
-  conf2.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  conf2.info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
 
   EXPECT_FALSE (gst_tensors_config_is_equal (&conf1, &conf2));
 }
@@ -1746,7 +1746,7 @@ TEST (commonUtil, createStaticTensorBuffer)
   gsize data_size;
 
   gst_tensors_config_init (&config);
-  config.format = _NNS_TENSOR_FORMAT_STATIC;
+  config.info.format = _NNS_TENSOR_FORMAT_STATIC;
   config.rate_n = config.rate_d = 1;
   config.info.num_tensors = 3U;
   gst_tensors_info_parse_dimensions_string (&config.info, "20,40,50");
@@ -1797,7 +1797,7 @@ TEST (commonUtil, createFlexTensorBuffer)
   gsize data_size, offset, hsize[3], dsize[3];
 
   gst_tensors_config_init (&config);
-  config.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  config.info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
   config.rate_n = config.rate_d = 1;
   config.info.num_tensors = 3U;
   gst_tensors_info_parse_dimensions_string (&config.info, "20,30,40");
@@ -1871,7 +1871,7 @@ TEST (commonUtil, createTensorBufferNullParam_n)
   gsize data_size;
 
   gst_tensors_config_init (&config);
-  config.format = _NNS_TENSOR_FORMAT_STATIC;
+  config.info.format = _NNS_TENSOR_FORMAT_STATIC;
   config.rate_n = config.rate_d = 1;
   config.info.num_tensors = 3U;
   gst_tensors_info_parse_dimensions_string (&config.info, "20,40,50");
@@ -1898,7 +1898,7 @@ TEST (commonUtil, createTensorBufferInvalidSize_n)
   gsize data_size;
 
   gst_tensors_config_init (&config);
-  config.format = _NNS_TENSOR_FORMAT_STATIC;
+  config.info.format = _NNS_TENSOR_FORMAT_STATIC;
   config.rate_n = config.rate_d = 1;
   config.info.num_tensors = 3U;
   gst_tensors_info_parse_dimensions_string (&config.info, "20,40,50");
