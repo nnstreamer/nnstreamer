@@ -709,7 +709,7 @@ gst_tensor_query_client_chain (GstPad * pad,
     out_buf = gst_buffer_new ();
     for (i = 0; i < num_data; i++) {
       void *data = NULL;
-      size_t data_len;
+      nns_size_t data_len;
       gpointer new_data;
 
       nns_edge_data_get (data_h, i, &data, &data_len);
