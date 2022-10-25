@@ -19,7 +19,7 @@ The specifics will evolve as the corresponding developers' understangins of MQTT
 ## Usage Example
 
 Before using the GstMQTT elements, make sure that the MQTT broker runs on the local/remote machine.
-In the following example, the broker's URL is ```tcp://localhost:1883```, the GstMQTT elements' default value.
+In the following example, the broker's URL is ```127.0.0.1:1883```, the GstMQTT elements' default value.
 To specify it according to your environment, use ```host``` and ```port``` properties.
 
 ```bash

@@ -25,7 +25,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_query_serversrc_debug);
 
 #define DEFAULT_PORT_SRC 3000
 #define DEFAULT_IS_LIVE TRUE
-#define DEFAULT_MQTT_HOST "tcp://localhost"
+#define DEFAULT_MQTT_HOST "127.0.0.1"
 #define DEFAULT_MQTT_PORT 1883
 
 /**

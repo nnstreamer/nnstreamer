@@ -43,7 +43,7 @@ enum
 
   PROP_LAST
 };
-#define DEFAULT_MQTT_HOST "tcp://localhost"
+#define DEFAULT_MQTT_HOST "127.0.0.1"
 #define DEFAULT_MQTT_PORT 1883
 
 #define gst_edgesink_parent_class parent_class

@@ -67,7 +67,7 @@ enum
 };
 
 static guint8 src_client_id = 0;
-static const gchar DEFAULT_MQTT_HOST_ADDRESS[] = "tcp://localhost";
+static const gchar DEFAULT_MQTT_HOST_ADDRESS[] = "127.0.0.1";
 static const gchar DEFAULT_MQTT_HOST_PORT[] = "1883";
 static const gchar TAG_ERR_MQTTSRC[] = "ERROR: MQTTSrc";
 static const gchar DEFAULT_MQTT_CLIENT_ID[] =
