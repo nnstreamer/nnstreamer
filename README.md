@@ -31,7 +31,7 @@ neural network developers to manage neural network pipelines and their filters e
 
 |     | [Tizen](http://download.tizen.org/snapshots/tizen/unified/latest/repos/standard/packages/) | [Ubuntu](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) | Android | [Yocto](https://github.com/nnstreamer/meta-neural-network) | macOS |
 | :-- | :--: | :--: | :--: | :--: | :--: |
-|     | 5.5M2 and later | 16.04/18.04/20.04 | 9/P | Zeus and later |   |
+|     | 5.5M2 and later | ~~16.04~~/18.04/20.04/22.04 | 9/P | Kirkstone |   |
 | arm | [![armv7l badge](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/badge/armv7l_result_badge.svg)](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/build_result/latest/log/) | Available  | Available| Ready | N/A |
 | arm64 |  [![aarch64 badge](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/badge/aarch64_result_badge.svg)](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/build_result/latest/log/) | Available  | [![android badge](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/badge/android_result_badge.svg)](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/build_result/latest/log/) | Ready | N/A |
 | x64 | [![x64 badge](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/badge/x86_64_result_badge.svg)](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/build_result/latest/log/)  | [![ubuntu badge](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/badge/ubuntu_result_badge.svg)](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/build_result/latest/log/)  | Ready  | [![yocto badge](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/badge/yocto_result_badge.svg)](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/build_result/latest/log/) | Available |

@@ -18,6 +18,7 @@ This document reflects the status of 2022-07-14 (2.1.1 devel)
         - tensorflow2-lite (2.3, 2.7.0, 2.8.1) w/ delegation supports (GPU, XNNPACK, NNAPI, ...) since 2.7.0
         - nnfw runtime (a.k.a. ONE-RT)
         - Trinity NPU (Samsung TV 2022+)
+        - nntrainer (inference)
         - python3 filter
         - LUA filter
         - mvncsdk2
@@ -28,6 +29,7 @@ This document reflects the status of 2022-07-14 (2.1.1 devel)
         - SNPE
         - grpc
         - MQTT
+        - AITT (Since Tizen 7.0 M2)
         - flexbuf (converter/decoder)
         - flatbuf (converter/decoder)
         - protobuf (converter/decoder)
@@ -40,7 +42,6 @@ This document reflects the status of 2022-07-14 (2.1.1 devel)
         - pytorch (ready)
         - caffe2 (ready)
         - snap (not supported in Tizen)
-        - AITT (in progress)
 
 
 ## Android
