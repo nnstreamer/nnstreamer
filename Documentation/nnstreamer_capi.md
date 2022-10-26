@@ -2,6 +2,9 @@
 title: NNStreamer C-API
 ...
 
+
+** NOTICE: ML-API implementation is migrated to [api.git](https://github.com/nnstreamer/api).**
+
 # Machine Learning Inference
 
 
