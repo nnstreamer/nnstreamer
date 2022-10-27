@@ -88,21 +88,33 @@ For more details, please access the following manuals.
 
 ## Applications
 
-<table border=0 width=100% cellpadding=0 cellspacing=0>
-  <tbody>
-    <tr>
-      <td rowspan=1>
-        <a href="https://github.com/nnstreamer/nnstreamer-example/blob/master/native/example_pose_estimation_tflite">
-          <img src="https://raw.githubusercontent.com/nnstreamer/nnstreamer-example/master/native/example_pose_estimation_tflite/yongjoo2.webp" height=240>
-        </a><a href="https://github.com/nnstreamer/nnstreamer-example/blob/master/native/example_image_classification_tflite">
-          <img src="https://raw.githubusercontent.com/nnstreamer/nnstreamer-example/master/native/example_image_classification_tflite/image_classification_tflite_demo.webp" height=240>
-        </a><a href="https://github.com/nnstreamer/nnstreamer-example/blob/master/native/example_object_detection_tensorflow_lite">
-          <img src="https://raw.githubusercontent.com/nnstreamer/nnstreamer-example/master/native/example_object_detection_tensorflow_lite/object_detection_tflite_demo.webp" height=240>
-        </a>
-      </td>
-    </tr>
-  </tbody>
-</table>
+
+<a href="https://github.com/nnstreamer/nnstreamer-example/blob/master/native/example_pose_estimation_tflite">
+  <img src="https://raw.githubusercontent.com/nnstreamer/nnstreamer-example/master/native/example_pose_estimation_tflite/yongjoo2.webp" height=180>
+</a><a href="https://github.com/nnstreamer/nnstreamer-example/blob/master/native/example_image_classification_tflite">
+  <img src="https://raw.githubusercontent.com/nnstreamer/nnstreamer-example/master/native/example_image_classification_tflite/image_classification_tflite_demo.webp" height=180>
+</a><a href="https://github.com/nnstreamer/nnstreamer-example/blob/master/native/example_object_detection_tensorflow_lite">
+  <img src="https://raw.githubusercontent.com/nnstreamer/nnstreamer-example/master/native/example_object_detection_tensorflow_lite/object_detection_tflite_demo.webp" height=180>
+</a>
+<a href="https://fainders.ai">
+  <img src="Documentation/media/FaindersAI_Store.webp" height=180>
+</a>
+<a href="https://klleon.io">
+  <img src="Documentation/media/Klleon_Speech.webp" height=180>
+</a>
+<a href="https://openncc.com">
+  <img src="Documentation/media/OpenNCC_Mask.webp" height=180>
+</a>
+<a href="https://printnanny.ai">
+  <img src="Documentation/media/PrintNanny.webp" height=180>
+</a>
+<a href="https://github.com/NXPmicro/nxp-nnstreamer-examples">
+  <img src="https://github.com/NXPmicro/nxp-nnstreamer-examples/raw/main/segmentation/segmentation_demo.webp" height=180>
+</a>
+<a href="https://github.com/NXPmicro/nxp-nnstreamer-examples">
+  <img src="https://github.com/NXPmicro/nxp-nnstreamer-examples/raw/main/pose/pose_demo.webp" height=180>
+</a>
+
 
 - [Edge-AI Examples](Documentation/edge-ai.md)
 - [Products with NNStreamer](Documentation/products.md)

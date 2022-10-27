@@ -20,10 +20,14 @@
 
 Reports and tips welcomed!
 
-- Fainders.ai: unmanned retail system.
-- KLleon: video processing.
-- NXP Semiconductors: edge-AI developing tool.
-- OpenNCC: edge-AI developing tool.
+| Company |  |  |
+| :---: | :---: | --- |
+| [fainders.ai](https://fainders.ai) | ![fainders.ai.demo.store](media/FaindersAI_Store.webp) | Unmanned retail store |
+| [klleon](https://klleon.io) | ![klleon.demo.speech](media/Klleon_Speech.webp) | Generate speech video from pictures and texts. |
+| [OpenNCC](https://openncc.com) | ![openncc.demo.facemask](media/OpenNCC_Mask.webp) | Edge-AI cameras and real-time AI service framework |
+| [PrintNanny](https://printnanny.ai) | ![printnanny.demo.printer](media/PrintNanny.webp) | 3D printer monitoring service |
+| [NXP](https://nxp.com) | ![nxp.example.pose](https://github.com/NXPmicro/nxp-nnstreamer-examples/raw/main/pose/pose_demo.webp)<br />[NXP nnstreamer example](https://github.com/NXPmicro/nxp-nnstreamer-examples)<br />[i.MX Machine Learning User's Guide](https://www.nxp.com/docs/en/user-guide/IMX-MACHINE-LEARNING-UG.pdf) | Vision pipeline with NNStreamer |
+
 - (TBU): AR games.
 
 
