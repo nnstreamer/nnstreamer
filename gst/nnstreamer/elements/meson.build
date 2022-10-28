@@ -18,6 +18,7 @@ nnstreamer_sources += files(
   'gsttensor_sparseutil.c',
   'gsttensor_split.c',
   'gsttensor_transform.c'
+  'gsttensor_trainer.c'
 )
 
 # gsttensorsrc
