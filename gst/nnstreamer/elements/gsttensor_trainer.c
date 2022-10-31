@@ -70,6 +70,7 @@ enum
 {
   PROP_0,
   PROP_FRAMEWORK,
+  PROP_MODEL_CONFIG,
   PROP_INPUT,
   PROP_OUTPUT,
   PROP_INPUTTYPE,
@@ -102,7 +103,10 @@ static gboolean gst_tensor_trainer_transform_size (GstBaseTransform * trans,
     gsize * othersize);
 
 static void
-gst_tensor_trainer_set_prop_framework (GstTensorTrainer * trainer, const gchar * fw_name);
+gst_tensor_trainer_set_prop_framework (GstTensorTrainer * trainer,
+    const GValue * value);
+static void gst_tensor_trainer_set_prop_model_config_file_path (GstTensorTrainer
+    * trainer, const GValue * value);
 static void gst_tensor_trainer_set_prop_dimension (GstTensorTrainer * trainer,
     const GValue * value, const gboolean is_input);
 static void gst_tensor_trainer_set_prop_type (GstTensorTrainer * trainer,
@@ -171,27 +175,38 @@ gst_tensor_trainer_class_init (GstTensorTrainerClass * klass)
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_MODEL_CONFIG,
+      g_param_spec_string ("model-config", "Model configuration file path",
+          "Configuration file path for creating model",
+          DEFAULT_STR_PROP_VALUE,
+          G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
+          G_PARAM_STATIC_STRINGS));
+
   g_object_class_install_property (gobject_class, PROP_INPUT,
       g_param_spec_string ("input", "Input dimension",
-          "Input tensors dimension from inner array, up to 4 dimensions ?", "",
+          "Input tensors dimension from inner array, up to 4 dimensions ?",
+          DEFAULT_STR_PROP_VALUE,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_OUTPUT,
       g_param_spec_string ("output", "Output dimension",
-          "Output tensors dimension from inner array, up to 4 dimensions ?", "",
+          "Output tensors dimension from inner array, up to 4 dimensions ?",
+          DEFAULT_STR_PROP_VALUE,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_INPUTTYPE,
       g_param_spec_string ("inputtype", "Input tensor element type",
-          "Type of each element of the input tensor ?", "",
+          "Type of each element of the input tensor ?",
+          DEFAULT_STR_PROP_VALUE,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_OUTPUTTYPE,
       g_param_spec_string ("outputtype", "Output tensor element type",
-          "Type of each element of the input tensor ?", "",
+          "Type of each element of the input tensor ?",
+          DEFAULT_STR_PROP_VALUE,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
@@ -214,13 +229,14 @@ gst_tensor_trainer_init (GstTensorTrainer * trainer)
 {
   GST_DEBUG ("<ENTER>");
   trainer->fw_name = g_strdup (DEFAULT_FRAMEWORK);
+  trainer->model_config = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->input_dimensions = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->output_dimensions = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->input_type = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->output_type = g_strdup (DEFAULT_STR_PROP_VALUE);
 
   trainer->fw = NULL;
-  trainer->fw_opened = 0; /* for test */
+  trainer->fw_opened = 0;       /* for test */
   trainer->configured = 0;
   trainer->input_configured = 0;
   trainer->output_configured = 0;
@@ -239,6 +255,7 @@ gst_tensor_trainer_finalize (GObject * object)
   trainer = GST_TENSOR_TRAINER (object);
 
   g_free (trainer->fw_name);
+  g_free (trainer->model_config);
   g_free (trainer->input_dimensions);
   g_free (trainer->output_dimensions);
   g_free (trainer->input_type);
@@ -261,7 +278,10 @@ gst_tensor_trainer_set_property (GObject * object, guint prop_id,
   switch (prop_id) {
 
     case PROP_FRAMEWORK:
-      gst_tensor_trainer_set_prop_framework (trainer, g_value_get_string (value));
+      gst_tensor_trainer_set_prop_framework (trainer, value);
+      break;
+    case PROP_MODEL_CONFIG:
+      gst_tensor_trainer_set_prop_model_config_file_path (trainer, value);
       break;
     case PROP_INPUT:
       gst_tensor_trainer_set_prop_dimension (trainer, value, TRUE);
@@ -295,6 +315,9 @@ gst_tensor_trainer_get_property (GObject * object, guint prop_id,
   switch (prop_id) {
     case PROP_FRAMEWORK:
       g_value_set_string (value, trainer->fw_name);
+      break;
+    case PROP_MODEL_CONFIG:
+      g_value_set_string (value, trainer->model_config);
       break;
     case PROP_INPUT:
       g_value_set_string (value, trainer->input_dimensions);
@@ -678,7 +701,8 @@ gst_tensor_trainer_transform_caps (GstBaseTransform * trans,
   else
     result = gst_caps_from_string (CAPS_STRING);
 
-  GST_DEBUG_OBJECT (trans, "caps intersect without filter %" GST_PTR_FORMAT, result);
+  GST_DEBUG_OBJECT (trans, "caps intersect without filter %" GST_PTR_FORMAT,
+      result);
 
   if (filter) {
     GstCaps *intersection;
@@ -747,13 +771,27 @@ gst_tensor_trainer_set_caps (GstBaseTransform * trans, GstCaps * incaps,
  * @brief Handle "PROP_FRAMEWORK" for set-property
  */
 static void
-gst_tensor_trainer_set_prop_framework (GstTensorTrainer * trainer, const gchar * fw_name)
+gst_tensor_trainer_set_prop_framework (GstTensorTrainer * trainer,
+    const GValue * value)
 {
   g_free (trainer->fw_name);
-  trainer->fw_name = g_strdup (fw_name);
+  trainer->fw_name = g_value_dup_string (value);
   GST_INFO_OBJECT (trainer, "framework: %s", trainer->fw_name);
 
   /** @todo Check valid framework */
+}
+
+/**
+ * @brief Handle "PROP_MODEL_CONFIG" for set-property
+ */
+static void
+gst_tensor_trainer_set_prop_model_config_file_path (GstTensorTrainer * trainer,
+    const GValue * value)
+{
+  g_free (trainer->model_config);
+  trainer->model_config = g_value_dup_string (value);
+  GST_INFO_OBJECT (trainer, "model configuration file path: %s",
+      trainer->model_config);
 }
 
 /**
@@ -913,7 +951,7 @@ gst_tensor_trainer_create_framework (GstTensorTrainer * trainer)
 static const GstTensorFilterFramework *
 gst_tensor_trainer_find_best_framework (const char *names)
 {
-  const GstTensorFilterFramework *fw = NULL; /* need to change to GstTensorTrainerFramework */
+  const GstTensorFilterFramework *fw = NULL;    /* need to change to GstTensorTrainerFramework */
   gchar **subplugins;
   guint i, len;
 
@@ -928,7 +966,7 @@ gst_tensor_trainer_find_best_framework (const char *names)
     if (strlen (g_strstrip (subplugins[i])) == 0)
       continue;
 
-    fw = get_subplugin (NNS_SUBPLUGIN_FILTER, subplugins[i]); /* need to add trainer type to subpluginType */
+    fw = get_subplugin (NNS_SUBPLUGIN_FILTER, subplugins[i]);   /* need to add trainer type to subpluginType */
     if (fw) {
       GST_INFO ("i = %d found %s", i, subplugins[i]);
       break;
