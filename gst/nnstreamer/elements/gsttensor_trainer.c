@@ -13,7 +13,8 @@
  * |[
  * gst-launch-1.0 videotestsrc !
  *    video/x-raw, format=RGB, width=640, height=480 ! tensor_converter ! 
- *    tensor_trainer input=3:640:480 inputtype=uint8 output=1:1:1:1 outputtype=uint8 !
+ *    tensor_trainer framework=nntrainer model-config=/opt/usr/model.ini \ 
+ *    push-output=true input=3:640:480 inputtype=uint8 output=1:1:1:1 outputtype=uint8 !
  *    tensor_sink
  * ]|
  *
@@ -56,7 +57,7 @@ G_DEFINE_TYPE (GstTensorTrainer, gst_tensor_trainer, GST_TYPE_BASE_TRANSFORM);
 /**
  * @brief Default framework property value
  */
-#define DEFAULT_FRAMEWORK "nntrainer"
+#define DEFAULT_PROP_FRAMEWORK "nntrainer"
 
 /**
  * @brief Default string property value 
@@ -74,7 +75,8 @@ enum
   PROP_INPUT,
   PROP_OUTPUT,
   PROP_INPUTTYPE,
-  PROP_OUTPUTTYPE
+  PROP_OUTPUTTYPE,
+  PROP_PUSH_OUTPUT,
 };
 
 static void gst_tensor_trainer_set_property (GObject * object, guint prop_id,
@@ -112,7 +114,7 @@ static void gst_tensor_trainer_set_prop_dimension (GstTensorTrainer * trainer,
 static void gst_tensor_trainer_set_prop_type (GstTensorTrainer * trainer,
     const GValue * value, const gboolean is_input);
 static const GstTensorFilterFramework
-    *gst_tensor_trainer_find_best_framework (const char *names);
+    * gst_tensor_trainer_find_best_framework (const char *names);
 static void gst_tensor_trainer_find_framework (GstTensorTrainer * trainer,
     const char *name);
 static void gst_tensor_trainer_create_framework (GstTensorTrainer * trainer);
@@ -171,7 +173,7 @@ gst_tensor_trainer_class_init (GstTensorTrainerClass * klass)
   /* Install properties for tensor_trainer */
   g_object_class_install_property (gobject_class, PROP_FRAMEWORK,
       g_param_spec_string ("framework", "Framework", "Neural network framework",
-          DEFAULT_FRAMEWORK,
+          DEFAULT_PROP_FRAMEWORK,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
@@ -210,6 +212,12 @@ gst_tensor_trainer_class_init (GstTensorTrainerClass * klass)
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_PUSH_OUTPUT,
+      g_param_spec_boolean ("push-output", "Push output tensor",
+          "Add output tensors to output GstBuffer", FALSE,
+          G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
+          G_PARAM_STATIC_STRINGS));
+
   gst_element_class_set_details_simple (gstelement_class, "TensorTrainer",
       "Trainer/Tensor", "Train tensor data using NN Frameworks",
       "Samsung Electronics Co., Ltd.");
@@ -228,12 +236,13 @@ static void
 gst_tensor_trainer_init (GstTensorTrainer * trainer)
 {
   GST_DEBUG ("<ENTER>");
-  trainer->fw_name = g_strdup (DEFAULT_FRAMEWORK);
+  trainer->fw_name = g_strdup (DEFAULT_PROP_FRAMEWORK);
   trainer->model_config = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->input_dimensions = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->output_dimensions = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->input_type = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->output_type = g_strdup (DEFAULT_STR_PROP_VALUE);
+  trainer->push_output = FALSE;
 
   trainer->fw = NULL;
   trainer->fw_opened = 0;       /* for test */
@@ -295,6 +304,10 @@ gst_tensor_trainer_set_property (GObject * object, guint prop_id,
     case PROP_OUTPUTTYPE:
       gst_tensor_trainer_set_prop_type (trainer, value, FALSE);
       break;
+    case PROP_PUSH_OUTPUT:
+      trainer->push_output = g_value_get_boolean (value);
+      GST_INFO_OBJECT (trainer, "push output: %d", trainer->push_output);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -330,6 +343,9 @@ gst_tensor_trainer_get_property (GObject * object, guint prop_id,
       break;
     case PROP_OUTPUTTYPE:
       g_value_set_string (value, trainer->output_type);
+      break;
+    case PROP_PUSH_OUTPUT:
+      g_value_set_boolean (value, trainer->push_output);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -554,62 +570,70 @@ gst_tensor_trainer_transform (GstBaseTransform * trans, GstBuffer * inbuf,
   }
 
   /* Prepare output tensor */
-  for (i = 0; i < trainer->output_meta.num_tensors; i++) {
-    out_tensors[i].data = NULL;
-    out_tensors[i].size =
-        gst_tensor_trainer_get_tensor_size (trainer, i, FALSE);
+  if (trainer->push_output) {
+    for (i = 0; i < trainer->output_meta.num_tensors; i++) {
+      out_tensors[i].data = NULL;
+      out_tensors[i].size =
+          gst_tensor_trainer_get_tensor_size (trainer, i, FALSE);
 
-    /* Get header size */
-    header_size = 0;
-    out_flexible =
-        gst_tensor_pad_caps_is_flexible (GST_BASE_TRANSFORM_SRC_PAD (trans));
-    if (out_flexible) {
-      gst_tensor_info_convert_to_meta (&trainer->output_meta.info[i],
-          &out_meta[i]);
-      header_size = gst_tensor_meta_info_get_header_size (&out_meta[i]);
-      GST_INFO ("flexible header size:%zd", header_size);
-    } else {
-      GST_INFO ("not flexible header size:%zd", header_size);
-    }
+      /* Get header size */
+      header_size = 0;
+      out_flexible =
+          gst_tensor_pad_caps_is_flexible (GST_BASE_TRANSFORM_SRC_PAD (trans));
+      if (out_flexible) {
+        gst_tensor_info_convert_to_meta (&trainer->output_meta.info[i],
+            &out_meta[i]);
+        header_size = gst_tensor_meta_info_get_header_size (&out_meta[i]);
+        GST_INFO ("flexible header size:%zd", header_size);
+      } else {
+        GST_INFO ("not flexible header size:%zd", header_size);
+      }
 
-    out_mem[i] =
-        gst_allocator_alloc (NULL, out_tensors[i].size + header_size, NULL);
-    if (!out_mem[i]) {
-      GST_ERROR_OBJECT (trainer, "Failed to allocate memory");
-      goto error;
-    }
-
-    if (!gst_memory_map (out_mem[i], &out_info[i], GST_MAP_WRITE)) {
-      GST_ERROR_OBJECT (trainer, "Could not map in_mem[%d] GstMemory", i);
-      goto error;
-    }
-
-    out_tensors[i].data = out_info[i].data + header_size;
-
-    /* Append header */
-    if (out_flexible) {
-      if (!gst_tensor_meta_info_update_header (&out_meta[i], out_info[i].data)) {
-        GST_ERROR_OBJECT (trainer, "Failed to update header ");
+      out_mem[i] =
+          gst_allocator_alloc (NULL, out_tensors[i].size + header_size, NULL);
+      if (!out_mem[i]) {
+        GST_ERROR_OBJECT (trainer, "Failed to allocate memory");
         goto error;
       }
+
+      if (!gst_memory_map (out_mem[i], &out_info[i], GST_MAP_WRITE)) {
+        GST_ERROR_OBJECT (trainer, "Could not map in_mem[%d] GstMemory", i);
+        goto error;
+      }
+
+      out_tensors[i].data = out_info[i].data + header_size;
+
+      /* Append header */
+      if (out_flexible) {
+        if (!gst_tensor_meta_info_update_header (&out_meta[i],
+                out_info[i].data)) {
+          GST_ERROR_OBJECT (trainer, "Failed to update header ");
+          goto error;
+        }
+      }
     }
+    /* Call the trainer-subplugin callback, invoke */
+    ret =
+        trainer->fw->invoke_NN (&trainer->prop, &trainer->privateData,
+        invoke_tensors, out_tensors);
+
+    /* Free out info */
+    for (i = 0; i < trainer->output_meta.num_tensors; i++) {
+      if (out_mem[i])
+        gst_memory_unmap (out_mem[i], &out_info[i]);
+      //if (ret != 0) {
+      //  gst_allocator_free (out_mem[i]->allocator, out_mem[i]);
+      //}
+    }
+  } else {
+    ret =
+        trainer->fw->invoke_NN (&trainer->prop, &trainer->privateData,
+        invoke_tensors, NULL);
   }
 
-  /* Call the trainer-subplugin callback, invoke */
-  ret =
-      trainer->fw->invoke_NN (&trainer->prop, &trainer->privateData,
-      invoke_tensors, out_tensors);
-
-  /* Free map info and handle */
+  /* Free in info */
   for (i = 0; i < mem_blocks; i++)
     gst_memory_unmap (in_mem[i], &in_info[i]);
-
-  for (i = 0; i < trainer->output_meta.num_tensors; i++) {
-    gst_memory_unmap (out_mem[i], &out_info[i]);
-    //if (ret != 0) {
-    //  gst_allocator_free (out_mem[i]->allocator, out_mem[i]);
-    //}
-  }
 
   if (ret < 0) {
     GST_ERROR_OBJECT (trainer, "Invoke error");
@@ -619,13 +643,15 @@ gst_tensor_trainer_transform (GstBaseTransform * trans, GstBuffer * inbuf,
     // return GST_BASE_TRANSFORM_FLOW_DROPPED;
   }
 
-  GST_INFO ("out buffer size : %zd", gst_buffer_get_size (outbuf));
   /*Update result */
-  for (i = 0; i < trainer->output_meta.num_tensors; i++) {
-    /* append the memory block to outbuf */
-    gst_buffer_append_memory (outbuf, out_mem[i]);
+  GST_INFO ("out buffer size : %zd", gst_buffer_get_size (outbuf));
+  if (trainer->push_output) {
+    for (i = 0; i < trainer->output_meta.num_tensors; i++) {
+      /* append the memory block to outbuf */
+      gst_buffer_append_memory (outbuf, out_mem[i]);
+    }
+    GST_INFO ("after out buffer size : %zd", gst_buffer_get_size (outbuf));
   }
-  GST_INFO ("after out buffer size : %zd", gst_buffer_get_size (outbuf));
 
   return GST_FLOW_OK;
 
