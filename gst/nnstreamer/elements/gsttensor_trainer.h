@@ -46,10 +46,17 @@ struct _GstTensorTrainer
   GstBaseTransform element;
 
   gchar *fw_name;
+  gchar *model_config;
   gchar *input_dimensions;
   gchar *output_dimensions;
   gchar *input_type;
   gchar *output_type;
+  gboolean push_output;
+  unsigned int num_inputs;
+  unsigned int num_labels;
+  unsigned int num_training_samples;
+  unsigned int num_validation_samples;
+
   GstTensorsInfo input_meta;
   GstTensorsInfo output_meta;
 
@@ -61,6 +68,9 @@ struct _GstTensorTrainer
   int outputtype_configured;
   unsigned int input_ranks[NNS_TENSOR_SIZE_LIMIT];
   unsigned int output_ranks[NNS_TENSOR_SIZE_LIMIT];
+
+  tensor_type tensors_inputtype[NNS_TENSOR_SIZE_LIMIT];
+  unsigned int tensors_inputsize[NNS_TENSOR_SIZE_LIMIT];
 
   /* draft */
   int fw_opened;
