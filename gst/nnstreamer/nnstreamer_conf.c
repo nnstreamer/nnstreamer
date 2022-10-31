@@ -718,7 +718,7 @@ nnsconf_subplugin_dump (gchar * str, gulong size)
       subpluginType stype = (subpluginType) dump_list_type[i];
       gchar *sname = info.names[j];
 
-      if (!get_subplugin (stype, sname))
+      if (!get_subplugin (stype, sname, NULL))
         break;
 
       buf.pos += g_snprintf (buf.base + buf.pos, buf.size - buf.pos,

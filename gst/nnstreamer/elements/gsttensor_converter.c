@@ -479,7 +479,7 @@ gst_tensor_converter_set_property (GObject * object, guint prop_id,
       self->mode_option = g_strdup (strv[1]);
       if (g_ascii_strcasecmp (strv[0], "custom-code") == 0) {
         self->mode = _CONVERTER_MODE_CUSTOM_CODE;
-        ptr = get_subplugin (NNS_CUSTOM_CONVERTER, self->mode_option);
+        ptr = get_subplugin (NNS_CUSTOM_CONVERTER, self->mode_option, NULL);
         if (!ptr) {
           nns_logw
               ("Failed to find custom subplugin of the tensor_converter. The custom-code for tensor_converter, \"%s\" is not registered by nnstreamer_converter_custom_register() function. Refer to https://github.com/nnstreamer/nnstreamer/blob/main/gst/nnstreamer/elements/gsttensor_converter.md#custom-converter for detail.",
@@ -2264,7 +2264,7 @@ gst_tensor_converter_update_caps (GstTensorConverter * self)
 const NNStreamerExternalConverter *
 nnstreamer_converter_find (const char *name)
 {
-  return get_subplugin (NNS_SUBPLUGIN_CONVERTER, name);
+  return get_subplugin (NNS_SUBPLUGIN_CONVERTER, name, NULL);
 }
 
 /**
@@ -2406,7 +2406,9 @@ nnstreamer_converter_custom_unregister (const gchar * name)
 {
   converter_custom_cb_s *ptr;
 
-  ptr = (converter_custom_cb_s *) get_subplugin (NNS_CUSTOM_CONVERTER, name);
+  ptr =
+      (converter_custom_cb_s *) get_subplugin (NNS_CUSTOM_CONVERTER, name,
+      NULL);
   if (!unregister_subplugin (NNS_CUSTOM_CONVERTER, name)) {
     ml_loge ("tensor_converter: Failed to unregister custom callback %s.",
         name);

@@ -175,7 +175,7 @@ nnstreamer_decoder_exit (const char *name)
 const GstTensorDecoderDef *
 nnstreamer_decoder_find (const char *name)
 {
-  return get_subplugin (NNS_SUBPLUGIN_DECODER, name);
+  return get_subplugin (NNS_SUBPLUGIN_DECODER, name, NULL);
 }
 
 /**
@@ -766,7 +766,7 @@ gst_tensordec_transform_caps (GstBaseTransform * trans,
       return NULL;
     }
     self->custom.func = NULL;
-    ptr = get_subplugin (NNS_CUSTOM_DECODER, self->option[0]);
+    ptr = get_subplugin (NNS_CUSTOM_DECODER, self->option[0], NULL);
     if (!ptr) {
       nns_logw ("Failed to find custom subplugin of the tensor_decoder");
       return NULL;
@@ -963,7 +963,7 @@ nnstreamer_decoder_custom_unregister (const gchar * name)
 {
   decoder_custom_cb_s *ptr;
 
-  ptr = (decoder_custom_cb_s *) get_subplugin (NNS_CUSTOM_DECODER, name);
+  ptr = (decoder_custom_cb_s *) get_subplugin (NNS_CUSTOM_DECODER, name, NULL);
   if (!unregister_subplugin (NNS_CUSTOM_DECODER, name)) {
     ml_loge ("Failed to unregister custom callback %s.", name);
     return -EINVAL;

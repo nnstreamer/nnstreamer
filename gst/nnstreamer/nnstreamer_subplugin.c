@@ -112,6 +112,8 @@ _search_subplugin (subpluginType type, const gchar * name, const gchar * path)
   g_return_val_if_fail (name != NULL, NULL);
   g_return_val_if_fail (path != NULL, NULL);
 
+  /* If additional library path is available, register them (dladdr) */
+
   module = g_module_open (path, G_MODULE_BIND_LOCAL);
   /* If this is a correct subplugin, it will register itself */
   if (module == NULL) {
@@ -124,9 +126,11 @@ _search_subplugin (subpluginType type, const gchar * name, const gchar * path)
   if (spdata) {
     g_ptr_array_add (handles, (gpointer) module);
   } else {
+    gchar *cwd = g_get_current_dir ();
     ml_loge
-        ("nnstreamer_subplugin of %s(%s) is broken. It does not call register_subplugin with its init function.",
-        name, path);
+        ("nnstreamer_subplugin of %s(%s) is broken. It does not call register_subplugin with its init function. If you have an additional shared library for the given subplugin, e.g., custom-built libtensorflow2-lite.so for tensorflow2-lite-custom subplugin, place it where the loader sees including the 'current directory': %s",
+        name, path, cwd);
+    g_free (cwd);
     g_module_close (module);
   }
 
@@ -135,7 +139,8 @@ _search_subplugin (subpluginType type, const gchar * name, const gchar * path)
 
 /** @brief Public function defined in the header */
 const void *
-get_subplugin (subpluginType type, const char *name)
+get_subplugin (subpluginType type, const char *name,
+    const char *additional_paths[])
 {
   subpluginData *spdata = NULL;
 
