@@ -344,7 +344,7 @@ gst_tensor_reposrc_create (GstPushSrc * src, GstBuffer ** buffer)
       goto handle_eos;
 
     if (!self->negotiation && buf != NULL) {
-      if (!gst_caps_can_intersect (self->caps, caps)) {
+      if (!gst_tensor_caps_can_intersect (self->caps, caps)) {
         GST_ELEMENT_ERROR (GST_ELEMENT (self), CORE, NEGOTIATION,
             ("Negotiation Failed! : repo_sink & repos_src"), (NULL));
 

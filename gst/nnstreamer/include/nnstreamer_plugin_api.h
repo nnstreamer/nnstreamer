@@ -100,5 +100,22 @@ gst_tensor_meta_info_parse_memory (GstTensorMetaInfo * meta, GstMemory * mem);
 extern GstMemory *
 gst_tensor_meta_info_append_header (GstTensorMetaInfo * meta, GstMemory * mem);
 
+/**
+ * @brief Update caps dimension for negotiation
+ * @param caps caps to compare and update
+ * @param peer_caps caps to compare
+ */
+extern void
+gst_tensor_caps_update_dimension (GstCaps *caps, GstCaps *peer_caps);
+
+/**
+ * @brief  Try intersecting @caps1 and @caps2 for tensor stream
+ * @param caps1 a GstCaps to intersect
+ * @param caps2 a GstCaps to intersect
+ * @return TRUE if intersection would be not empty.
+ */
+extern gboolean
+gst_tensor_caps_can_intersect (GstCaps *caps1, GstCaps *caps2);
+
 G_END_DECLS
 #endif /* __NNS_PLUGIN_API_H__ */

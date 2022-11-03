@@ -1989,12 +1989,26 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
 
   if (filtercap && gst_caps_get_size (filtercap) > 0) {
     GstCaps *intersection;
+    GstPad *pad;
+    GstCaps *peer_caps;
+
+    gst_tensor_caps_update_dimension (result, filtercap);
 
     intersection =
         gst_caps_intersect_full (result, filtercap, GST_CAPS_INTERSECT_FIRST);
 
     gst_caps_unref (result);
     result = intersection;
+
+    if (direction == GST_PAD_SINK)
+      pad = GST_BASE_TRANSFORM_SRC_PAD (filter);
+    else
+      pad = GST_BASE_TRANSFORM_SINK_PAD (filter);
+
+    if ((peer_caps = gst_pad_peer_query_caps (pad, NULL))) {
+      gst_tensor_caps_update_dimension (result, peer_caps);
+      gst_caps_unref (peer_caps);
+    }
   }
 
   silent_debug_caps (filter, result, "to");
