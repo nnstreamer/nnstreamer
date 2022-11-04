@@ -147,6 +147,11 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! video/
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! video/x-raw,format=RGB,width=4,height=4 ! tensor_converter ! tensor_transform mode=typecast option=float16 ! other/tensors,num_tensors=1,types=uint8 ! fakesink" 19_n 0 1 $PERFORMANCE
 
+# Dimension declaration test case
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! video/x-raw,format=RGB,width=4,height=4 ! tensor_converter ! tensor_transform mode=typecast option=float32 ! other/tensors,num_tensors=1,types=float32,dimensions=3:4:4 ! fakesink" 20-1 0 0 $PERFORMANCE
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! video/x-raw,format=RGB,width=4,height=4 ! tensor_converter ! tensor_transform mode=typecast option=float32 ! other/tensor,types=float32,dimensions=3:4:4 ! fakesink" 20-2 0 0 $PERFORMANCE
+
 rm *.log *.bmp *.png *.golden *.raw *.dat
 
 report

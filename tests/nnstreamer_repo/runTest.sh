@@ -112,6 +112,20 @@ callCompareTest testsequence_8.golden testsequence03_2_8.log 3-28 "Compare 3-28"
 callCompareTest testsequence_9.golden testsequence03_2_9.log 3-29 "Compare 3-29" 1 0
 callCompareTest testsequence_10.golden testsequence03_2_10.log 3-30 "Compare 3-30" 1 0
 
+# Dimension declaration test case
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=testsequence_%1d.png index=0 caps=\"image/png,framerate=(fraction)3/1\" ! pngdec ! tensor_converter ! queue ! tensor_reposink silent=false slot-index=0 tensor_reposrc silent=false slot-index=0 caps=\"other/tensor,dimension=(string)3:16:16,type=(string)uint8,framerate=(fraction)3/1\" ! multifilesink location=testsequence04_%1d.log" 4 0 0 $PERFORMANCE
+
+callCompareTest testsequence_1.golden testsequence04_1.log 4-1 "Compare 4-1" 1 0
+callCompareTest testsequence_2.golden testsequence04_2.log 4-2 "Compare 4-2" 1 0
+callCompareTest testsequence_3.golden testsequence04_3.log 4-3 "Compare 4-3" 1 0
+callCompareTest testsequence_4.golden testsequence04_4.log 4-4 "Compare 4-4" 1 0
+callCompareTest testsequence_5.golden testsequence04_5.log 4-5 "Compare 4-5" 1 0
+callCompareTest testsequence_6.golden testsequence04_6.log 4-6 "Compare 4-6" 1 0
+callCompareTest testsequence_7.golden testsequence04_7.log 4-7 "Compare 4-7" 1 0
+callCompareTest testsequence_8.golden testsequence04_8.log 4-8 "Compare 4-8" 1 0
+callCompareTest testsequence_9.golden testsequence04_9.log 4-9 "Compare 4-9" 1 0
+callCompareTest testsequence_10.golden testsequence04_10.log 4-10 "Compare 4-10" 1 0
+
 rm *.log *.bmp *.png *.golden *.raw *.dat
 
 report

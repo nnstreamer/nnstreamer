@@ -83,6 +83,10 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=1 samplesp
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png,framerate=\(fraction\)30/1\" ! pngdec ! videoconvert ! tensor_converter ! filesink location=\"testcase08.log\"" 6-1 0 0 $PERFORMANCE
 callCompareTest testcase08.golden testcase08.log 6-2 "PNG Stream Test" 0 0
 
+# Dimension declaration test cases
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! videoscale ! videoconvert ! video/x-raw,format=RGB,framerate=30/1,height=300,width=300 ! tensor_converter ! other/tensor,dimension=3:300:300,types=uint8,framerate=30/1,format=static ! fakesink" 7-1 0 0 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! videoscale ! videoconvert ! video/x-raw,format=RGB,framerate=30/1,height=300,width=300 ! tensor_converter ! other/tensors,num_tensors=1,dimension=3:300:300,types=uint8,framerate=30/1,format=static ! fakesink" 7-2 0 0 $PERFORMANCE
+
 rm *.log *.bmp *.png *.golden
 
 report

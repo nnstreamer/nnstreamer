@@ -199,6 +199,19 @@ gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IM
 cat info | grep "accl = gpu$"
 testResult $? 2-18 "accelerator set test" 0 1
 
+# Dimension declaration test cases
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter framework=tensorflow1-lite model=${PATH_TO_MODEL} !  \"other/tensors,num_tensors=1,dimensions=1001:1:1\" ! filesink location=tensorfilter.out.log" 3 0 0 $PERFORMANCE
+python3 checkLabel.py tensorfilter.out.log ${PATH_TO_LABEL} orange
+testResult $? 3 "Golden test comparison" 0 1
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter framework=tensorflow1-lite model=${PATH_TO_MODEL} !  \"other/tensors,num_tensors=1,dimensions=(string)1001:1\" ! filesink location=tensorfilter.out.log" 4 0 0 $PERFORMANCE
+python3 checkLabel.py tensorfilter.out.log ${PATH_TO_LABEL} orange
+testResult $? 4 "Golden test comparison" 0 1
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter framework=tensorflow1-lite model=${PATH_TO_MODEL} ! \"other/tensors,num_tensors=1,dimensions=(string)1001\" ! filesink location=tensorfilter.out.log" 5 0 0 $PERFORMANCE
+python3 checkLabel.py tensorfilter.out.log ${PATH_TO_LABEL} orange
+testResult $? 5 "Golden test comparison" 0 1
+
 # Cleanup
 rm info *.log *.golden
 
