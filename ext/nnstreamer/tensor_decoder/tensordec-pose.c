@@ -514,6 +514,25 @@ typedef struct
 } pose;
 
 /**
+ * @brief Check if a value is within lower and upper bounds
+ * @param value the value to check
+ * @param lower_b the lower bound (inclusive)
+ * @param upper_b the uppoer bound (exlcusive)
+ * @return TRUE if the value is within the bounds, otherwise FALSE
+ */
+static gboolean
+is_value_within(int value, int lower_b, int upper_b)
+{
+    if (value < lower_b) {
+        return FALSE;
+    } else if (value >= upper_b) {
+        return FALSE;
+    } else {
+        return TRUE;
+    }
+}
+
+/**
  * @brief Fill in pixel with PIXEL_VALUE at x,y position. Make thicker (x+1, y+1)
  * @param[out] out_info The output buffer (RGBA plain)
  * @param[in] bdata The bouding-box internal data.
@@ -522,17 +541,19 @@ typedef struct
 static void
 setpixel (uint32_t * frame, pose_data * data, int x, int y)
 {
-  uint32_t *pos = &frame[y * data->width + x];
-  *pos = PIXEL_VALUE;
+    if (is_value_within(x, 0, data->width) && is_value_within(y, 0, data->height)) {
+        uint32_t *pos = &frame[y * data->width + x];
+        *pos = PIXEL_VALUE;
 
-  if (x + 1 < (int) data->width) {
-    pos = &frame[y * data->width + x + 1];
-    *pos = PIXEL_VALUE;
-  }
-  if (y + 1 < (int) data->height) {
-    pos = &frame[(y + 1) * data->width + x];
-    *pos = PIXEL_VALUE;
-  }
+        if (x + 1 < (int) data->width) {
+            pos = &frame[y * data->width + x + 1];
+            *pos = PIXEL_VALUE;
+        }
+        if (y + 1 < (int) data->height) {
+            pos = &frame[(y + 1) * data->width + x];
+            *pos = PIXEL_VALUE;
+        }
+    }
 }
 
 /**
