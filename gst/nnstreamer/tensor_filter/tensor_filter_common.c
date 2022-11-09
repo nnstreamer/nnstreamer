@@ -125,6 +125,7 @@ enum
   PROP_INPUTCOMBINATION,
   PROP_OUTPUTCOMBINATION,
   PROP_SHARED_TENSOR_FILTER_KEY,
+  PROP_LATENCY_REPORT,
 };
 
 /**
@@ -575,6 +576,7 @@ gst_tensor_filter_statistics_init (GstTensorFilterStatistics * stat)
   stat->old_total_invoke_latency = 0;
   stat->latest_invoke_time = 0;
   stat->recent_latencies = g_queue_new ();
+  stat->latency_ignore_count = 1;
 }
 
 /**
@@ -1004,6 +1006,10 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
           "to declare and share such instances. "
           "If it is NULL, it means the model representations is not shared.",
           NULL, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_LATENCY_REPORT,
+      g_param_spec_boolean ("latency-report", "Latency report",
+          "Report to the pipeline the estimated tensor-filter element latency.",
+          FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 }
 
 /**
@@ -1976,6 +1982,9 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
     case PROP_SHARED_TENSOR_FILTER_KEY:
       status = _gtfc_setprop_SHARED_TENSOR_FILTER_KEY (prop, value);
       break;
+    case PROP_LATENCY_REPORT:
+      priv->latency_reporting = g_value_get_boolean (value);
+      break;
     default:
       return FALSE;
   }
@@ -2177,6 +2186,9 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
         g_value_set_string (value, prop->shared_tensor_filter_key);
       else
         g_value_set_string (value, "");
+      break;
+    case PROP_LATENCY_REPORT:
+      g_value_set_boolean (value, priv->latency_reporting);
       break;
     default:
       /* unknown property */
