@@ -372,6 +372,9 @@ endif
 if pytorch_support_is_available
   if cxx.get_id() == 'gcc'
     filter_sub_torch_sources = ['tensor_filter_pytorch.cc']
+    # pytorch sources contain unused parameters
+    ignore_unused_params = declare_dependency(compile_args: ['-Wno-unused-parameter'])
+    pytorch_support_deps += ignore_unused_params
 
     nnstreamer_filter_torch_sources = []
     foreach s : filter_sub_torch_sources
