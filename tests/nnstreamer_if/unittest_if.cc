@@ -484,6 +484,61 @@ TEST_F (tensor_if_run, action_2)
 }
 
 /**
+ * @brief Test Tensor_if compared-value-option with undefined dimension properties
+ */
+TEST_F (tensor_if_run, action_3)
+{
+  gchar *content1 = NULL;
+  gchar *content2 = NULL;
+  gsize len1, len2;
+  char *tmp = getTempFilename ();
+  GstElement *tif_handle;
+
+  EXPECT_NE (tmp, nullptr);
+
+  gchar *str_pipeline = g_strdup_printf (
+      "videotestsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! "
+      "video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! "
+      "tensor_if name=tif silent=false compared-value=A_VALUE compared-value-option=0:0,0 supplied-value=100 "
+      "operator=GT then=PASSTHROUGH else=SKIP ! "
+      "filesink location=%s buffer-mode=unbuffered",
+      tmp);
+
+  GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
+  EXPECT_NE (pipeline, nullptr);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  EXPECT_TRUE (g_file_get_contents ("./smpte.golden", &content1, &len1, NULL));
+  _wait_pipeline_save_files (tmp, content2, len2, len1, TEST_TIMEOUT_MS);
+  EXPECT_EQ (len1, len2);
+  EXPECT_EQ (memcmp (content1, content2, len1), 0);
+  g_free (content1);
+  g_free (content2);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (100000);
+
+  tif_handle = gst_bin_get_by_name (GST_BIN (pipeline), "tif");
+  EXPECT_NE (tif_handle, nullptr);
+  g_object_set (tif_handle, "operator", TIFOP_LT, NULL);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  g_usleep (100000);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (100000);
+
+  gst_object_unref (tif_handle);
+  gst_object_unref (pipeline);
+
+  g_free (str_pipeline);
+  g_remove (tmp);
+  g_free (tmp);
+}
+
+/**
  * @brief Test data for tensor_if (2 frames with dimension 3:4:2:2)
  */
 const gint test_frames[2][48]
