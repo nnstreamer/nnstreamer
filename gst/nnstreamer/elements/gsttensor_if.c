@@ -346,6 +346,51 @@ gst_tensor_if_set_property_glist (const GValue * value, GList ** prop_list,
 }
 
 /**
+ * @brief Convert GValue to GList for cv option
+ */
+static void
+gst_tensor_if_set_property_cv_option (const GValue * value, GList ** prop_list)
+{
+  gint64 val;
+  gint length, i;
+  const gchar *param = g_value_get_string (value);
+  gchar **strv = g_strsplit_set (param, ",", -1);
+  GValue tmp = G_VALUE_INIT;
+
+  length = g_strv_length (strv);
+
+  if (length > 2) {
+    ml_loge
+        ("Invalid compared value option. It should be in the form of 'IDX_DIM0: ... :INDEX_DIM_LAST,nth-tensor'(A_VALUE) or 'nth-tensor' (TENSOR_AVERAGE_VALUE)");
+    g_strfreev (strv);
+    return;
+  }
+
+  g_value_init (&tmp, G_TYPE_STRING);
+  g_value_set_string (&tmp, strv[0]);
+
+  gst_tensor_if_set_property_glist (&tmp, prop_list, ":");
+
+  /* A_VALUE */
+  if (length == 2) {
+    length = g_list_length (*prop_list);
+
+    /* append zero value for undefined dimensions */
+    for (i = length; i < NNS_TENSOR_RANK_LIMIT; i++) {
+      *prop_list = g_list_append (*prop_list, GINT_TO_POINTER (0));
+    }
+
+    val = g_ascii_strtoll (strv[1], NULL, 10);
+    if (errno == ERANGE) {
+      ml_loge ("Overflow occured during converting %s to a gint64 value",
+          strv[i]);
+    }
+    *prop_list = g_list_append (*prop_list, GINT_TO_POINTER (val));
+  }
+  g_strfreev (strv);
+}
+
+/**
  * @brief Convert GValue to GList according to delimiters
  */
 static void
@@ -381,7 +426,7 @@ gst_tensor_if_set_property_supplied_value (const GValue * value,
 }
 
 /**
- * @brief Set cusotm comapred value property
+ * @brief Set custom compared value property
  */
 static void
 gst_tensor_if_configure_custom_prop (GstTensorIf * self)
@@ -419,7 +464,7 @@ gst_tensor_if_set_property (GObject * object, guint prop_id,
       g_free (self->custom.name);
       self->custom.name = g_value_dup_string (value);
       gst_tensor_if_configure_custom_prop (self);
-      gst_tensor_if_set_property_glist (value, &self->cv_option, ":,");
+      gst_tensor_if_set_property_cv_option (value, &self->cv_option);
       break;
     case PROP_OP:
       self->op = g_value_get_enum (value);
@@ -471,14 +516,20 @@ gst_tensor_if_property_to_string (GValue * value, GList * prop_list,
     g_ptr_array_add (arr, g_strdup_printf ("%i", GPOINTER_TO_INT (list->data)));
   }
   g_ptr_array_add (arr, NULL);
-  strings = (gchar **) g_ptr_array_free (arr, FALSE);
-  len = g_strv_length (strings);
-  if (prop_id == PROP_CV_OPTION && len % 5 == 0) {
-    gchar *dim =
-        g_strjoin (":", strings[0], strings[1], strings[2], strings[3], NULL);
-    p = g_strjoin (",", dim, strings[4], NULL);
+
+  len = arr->len;
+
+  if (prop_id == PROP_CV_OPTION && len % (NNS_TENSOR_RANK_LIMIT + 2) == 0) {
+    gchar *dim;
+    gchar *tensor = (gchar *) g_ptr_array_index (arr, len - 2);
+    g_ptr_array_remove_index (arr, len - 2);
+    strings = (gchar **) g_ptr_array_free (arr, FALSE);
+    dim = g_strjoinv (":", strings);
+    p = g_strjoin (",", dim, tensor, NULL);
     g_free (dim);
+    g_free (tensor);
   } else {
+    strings = (gchar **) g_ptr_array_free (arr, FALSE);
     p = g_strjoinv (",", strings);
   }
 
