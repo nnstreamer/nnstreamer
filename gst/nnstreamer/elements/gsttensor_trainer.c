@@ -79,6 +79,8 @@ enum
   PROP_PUSH_OUTPUT,
 };
 
+#define NNS_TENSOR_TYPES 11
+
 static void gst_tensor_trainer_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
 static void gst_tensor_trainer_get_property (GObject * object, guint prop_id,
@@ -120,6 +122,8 @@ static void gst_tensor_trainer_find_framework (GstTensorTrainer * trainer,
 static void gst_tensor_trainer_create_framework (GstTensorTrainer * trainer);
 static gsize gst_tensor_trainer_get_tensor_size (GstTensorTrainer * trainer,
     guint index, gboolean is_input);
+static void gst_tensor_trainer_calc_input_tensors_size (GstTensorTrainer *
+    trainer);
 
 /**
  * @brief initialize the tensor_trainer's class
@@ -479,6 +483,8 @@ gst_tensor_trainer_start (GstBaseTransform * trans)
   if (trainer->fw_name)
     gst_tensor_trainer_find_framework (trainer, trainer->fw_name);
   if (trainer->fw) {
+    /* calc input tensors size */
+    gst_tensor_trainer_calc_input_tensors_size (trainer);
     /* create, compile */
     gst_tensor_trainer_create_framework (trainer);
   }
@@ -546,6 +552,7 @@ gst_tensor_trainer_transform (GstBaseTransform * trans, GstBuffer * inbuf,
 
     in_tensors[i].data = in_info[i].data + header_size;
     in_tensors[i].size = in_info[i].size - header_size;
+    GST_INFO ("tensor size: %zd", in_tensors[i].size);
   }
 
   /* Prepare tensor to invoke */
@@ -567,6 +574,7 @@ gst_tensor_trainer_transform (GstBaseTransform * trans, GstBuffer * inbuf,
     }
     /* Copy to data pointer */
     invoke_tensors[i] = in_tensors[i];
+    GST_INFO ("invoke_tensors size: %zd", invoke_tensors[i].size);
   }
 
   /* Prepare output tensor */
@@ -883,6 +891,7 @@ gst_tensor_trainer_set_prop_type (GstTensorTrainer * trainer,
 {
   GstTensorsInfo *info;
   guint num_types;
+  guint i;
 
   if ((is_input && trainer->inputtype_configured) || (!is_input
           && trainer->outputtype_configured)) {
@@ -908,6 +917,9 @@ gst_tensor_trainer_set_prop_type (GstTensorTrainer * trainer,
 
   num_types =
       gst_tensors_info_parse_types_string (info, g_value_get_string (value));
+  for (i = 0; i < num_types; i++) {
+    trainer->tensors_inputtype[i] = info->info[i].type;
+  }
 
   info->num_tensors = num_types;
 }
@@ -921,6 +933,7 @@ gst_tensor_trainer_find_framework (GstTensorTrainer * trainer, const char *name)
   const GstTensorFilterFramework *fw = NULL;
   gchar *str;
   g_return_if_fail (name != NULL);
+  g_return_if_fail (trainer != NULL);
 
   GST_INFO ("find framework: %s", name);
 
@@ -967,8 +980,10 @@ gst_tensor_trainer_create_framework (GstTensorTrainer * trainer)
     return;
   }
   /* Test code, need to create with load ini file */
+  GST_ERROR ("%p", trainer->privateData);
   if (trainer->fw->open (&trainer->prop, &trainer->privateData) >= 0)
     trainer->fw_created = TRUE;
+  GST_ERROR ("%p", trainer->privateData);
 }
 
 /**
@@ -1050,4 +1065,43 @@ gst_tensor_trainer_transform_size (GstBaseTransform * trans,
   *othersize = 0;
 
   return TRUE;
+}
+
+/**
+ * @brief Calculate the size of input tensors
+ */
+static void
+gst_tensor_trainer_calc_input_tensors_size (GstTensorTrainer * trainer)
+{
+  GstTensorsInfo *info;
+  guint i, j, idx, size[NNS_TENSOR_SIZE_LIMIT] = { 1, };
+
+  const guint get_tensor_size[] = {
+    [_NNS_INT32] = 4,
+    [_NNS_UINT32] = 4,
+    [_NNS_INT16] = 2,
+    [_NNS_UINT16] = 2,
+    [_NNS_INT8] = 1,
+    [_NNS_UINT8] = 1,
+    [_NNS_FLOAT64] = 8,
+    [_NNS_FLOAT32] = 4,
+    [_NNS_INT64] = 8,
+    [_NNS_UINT64] = 8,
+    [_NNS_FLOAT16] = 2,
+  };
+
+  g_return_if_fail (trainer != NULL);
+
+  info = &trainer->input_meta;
+  idx = 0;
+  for (i = 0; i < info->num_tensors; i++) {
+    for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
+      size[idx] *= info->info[i].dimension[j];
+    }
+    trainer->tensors_inputsize[idx] =
+        size[idx] * get_tensor_size[trainer->tensors_inputtype[idx]];
+    GST_DEBUG_OBJECT (trainer, "trainer->tensors_inputsize[%d]= %d", idx,
+        trainer->tensors_inputsize[idx]);
+    idx++;
+  }
 }

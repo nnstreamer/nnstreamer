@@ -64,6 +64,9 @@ struct _GstTensorTrainer
   unsigned int input_ranks[NNS_TENSOR_SIZE_LIMIT];
   unsigned int output_ranks[NNS_TENSOR_SIZE_LIMIT];
 
+  tensor_type tensors_inputtype[NNS_TENSOR_SIZE_LIMIT];
+  unsigned int tensors_inputsize[NNS_TENSOR_SIZE_LIMIT];
+
   /* draft */
   int fw_opened;
   int fw_compiled;
