@@ -353,6 +353,7 @@ features = {
   },
   'pytorch-support': {
     'target': 'pytorch',
+    'target_alt': 'Torch',
     'project_args': { 'ENABLE_PYTORCH': 1 }
   },
   'caffe2-support': {
