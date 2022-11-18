@@ -378,7 +378,7 @@ static void
 record_statistics (GstTensorFilterPrivate * priv)
 {
   gint64 end_time = g_get_real_time ();
-  gint64 *latency = g_new (gint64, 1);
+  gint64 *latency;
   GQueue *recent_latencies = priv->stat.recent_latencies;
 
   /* ignore first measurements that may be off */
@@ -387,6 +387,7 @@ record_statistics (GstTensorFilterPrivate * priv)
     return;
   }
 
+  latency = g_new (gint64, 1);
   *latency = end_time - priv->stat.latest_invoke_time;
   priv->stat.total_invoke_latency += *latency;
   priv->stat.total_invoke_num += 1;
