@@ -95,7 +95,6 @@ struct _GstJoinPad
   GstPad parent;
 
   guint group_id;               /* Group ID from the last stream-start */
-  gboolean discont;             /* after switching we create a discont */
 
   GstSegment segment;           /* the current segment on the pad */
   guint32 segment_seqnum;       /* sequence number of the current segment */
@@ -162,7 +161,6 @@ static void
 gst_join_pad_reset (GstJoinPad * pad)
 {
   GST_OBJECT_LOCK (pad);
-  pad->discont = FALSE;
   gst_segment_init (&pad->segment, GST_FORMAT_UNDEFINED);
   GST_OBJECT_UNLOCK (pad);
 }
@@ -403,14 +401,6 @@ gst_join_pad_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   if (G_UNLIKELY (prev_active_sinkpad != active_sinkpad)) {
     gst_pad_sticky_events_foreach (GST_PAD_CAST (selpad), forward_sticky_events,
         sel);
-  }
-
-  if (selpad->discont) {
-    buf = gst_buffer_make_writable (buf);
-
-    GST_DEBUG_OBJECT (pad, "Marking discont buffer %p", buf);
-    GST_BUFFER_FLAG_SET (buf, GST_BUFFER_FLAG_DISCONT);
-    selpad->discont = FALSE;
   }
 
   /* forward */
