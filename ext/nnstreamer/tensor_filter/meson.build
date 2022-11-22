@@ -285,7 +285,7 @@ if tflite2_support_is_available
   )
 
 
-  if get_option('tflite2-custom-support').enabled() or get_option('tflite2-custom-support').auto()
+  if (get_option('tflite2-custom-support').enabled() or get_option('tflite2-custom-support').auto()) and not meson.is_cross_build()
     ## Create libtensorflow2-lite-custom.so support.
 
     ## @todo This assumes the same tflite version with the above.
