@@ -641,6 +641,11 @@ if get_option('enable-float16')
 
 endif
 
+# A few distros do not have execinfo.h
+if not cc.has_header('execinfo.h')
+  add_project_arguments('-D_NO_EXECINFO_', language: ['c', 'cpp'])
+endif
+
 # See if src-iio can be built or not
 gst18_dep = dependency('gstreamer-' + gst_api_verision, version : '>=1.8', required : false)
 tensor_src_iio_build = false
