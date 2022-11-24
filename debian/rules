@@ -56,8 +56,6 @@ override_dh_auto_build:
 	ninja -C ${BUILDDIR}
 	# A few modules are not avaiable in Ubuntu 22.04. Don't try to create them if not available.
 	if [ -f './build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_nnfw.so' ]; then echo "NNFW exists" ; else rm debian/nnstreamer-nnfw.install; fi
-	if [ -f './build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_tensorflow.so' ]; then echo "Tensorflow exists" ; else rm debian/nnstreamer-tensorflow.install; fi
-	if [ -f './build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_tensorflow1-lite.so' ]; then echo "Tensorflow1-lite exists" ; else rm debian/nnstreamer-tensorflow-lite.install; fi
 
 override_dh_auto_test:
 	./packaging/run_unittests_binaries.sh ./tests

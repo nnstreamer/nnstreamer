@@ -11,8 +11,7 @@ Build-Depends: gcc-9 | gcc-8 | gcc-7 | gcc-6 | gcc-5 (>=5.4),
  libflatbuffers-dev, flatbuffers-compiler,
  protobuf-compiler (>=3.12), libprotobuf-dev [amd64 arm64 armhf],
  libpaho-mqtt-dev,
- tensorflow2-lite-dev, tensorflow-lite-dev | gcc,
- tensorflow-dev [amd64] | gcc,
+ tensorflow2-lite-dev,
  pytorch, libedgetpu1-std (>=12), libedgetpu-dev (>=12),
  openvino-dev, openvino-cpu-mkldnn [amd64],
  nnfw-dev [amd64] | gcc,
@@ -50,20 +49,6 @@ Multi-Arch: same
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer Single-shot
  Element to use general neural network framework directly without gstreamer pipeline.
-
-Package: nnstreamer-tensorflow
-Architecture: amd64
-Multi-Arch: same
-Depends: nnstreamer, tensorflow | tensorflow-dev, ${shlibs:Depends}, ${misc:Depends}
-Description: NNStreamer TensorFlow 1.x Support
- This package allows nnstreamer to support tensorflow. Note that users must make sure that they have installed Tensorflow with compatible C-API (recommended to use the same version). However, having different options (e.g., GPU mode) should not affect the compatibility. When we have stable C-API from Tensorflow, we will release corresponding subplugin as well.
-
-Package: nnstreamer-tensorflow-lite
-Architecture: any
-Multi-Arch: same
-Depends: nnstreamer, ${shlibs:Depends}, ${misc:Depends}
-Description: NNStreamer TensorFlow Lite 1.x Support
- This package allows nnstreamer to support tensorflow-lite.
 
 Package: nnstreamer-tensorflow2-lite
 Architecture: any
