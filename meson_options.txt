@@ -25,6 +25,7 @@ option('tvm-support', type: 'feature', value: 'auto')
 option('trix-engine-support', type: 'feature', value: 'auto')
 option('nnstreamer-edge-support', type: 'feature', value: 'auto')
 option('mxnet-support', type: 'feature', value: 'auto')
+option('parser-support', type: 'feature', value: 'auto') # gstreamer pipeline description <--> pbtxt pipeline
 
 # booleans & other options
 option('enable-test', type: 'boolean', value: true)
