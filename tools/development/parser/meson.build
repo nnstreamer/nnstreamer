@@ -1,6 +1,12 @@
 # Find flex, configure lex generator
 flex_min_version='2.5.31'
-flex = find_program('flex', 'win_flex', version: '>=' + flex_min_version)
+flex = find_program('flex', 'win_flex', version: '>=' + flex_min_version, required : false)
+if not flex.found()
+  if get_option('parser-support').enabled()
+    error('flex is required if parser-support is enabled')
+  endif
+  subdir_done()
+endif
 flex_cdata = configuration_data()
 flex_cdata.set('FLEX', flex.path())
 if cc.get_id() == 'msvc'
@@ -15,7 +21,13 @@ gen_lex = configure_file(input : 'gen_lex.py.in',
 
 # Find bison, configure grammar generator
 bison_min_version='2.4'
-bison = find_program('bison', 'win_bison', version: '>=' + bison_min_version)
+bison = find_program('bison', 'win_bison', version: '>=' + bison_min_version, required : false)
+if not bison.found()
+  if get_option('parser-support').enabled()
+    error('bison is required if parser-support is enabled')
+  endif
+  subdir_done()
+endif
 bison_cdata = configuration_data()
 bison_cdata.set('BISON', bison.path())
 bison_cdata.set('BISON_ARGS', '')
