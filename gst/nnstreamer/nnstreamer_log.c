@@ -8,7 +8,13 @@
  * @bug		No known bugs except for NYI items
  */
 
-#ifndef __ANDROID__
+#ifdef __ANDROID__
+#ifndef _NO_EXECINFO_
+#define _NO_EXECINFO_
+#endif
+#endif
+
+#ifndef _NO_EXECINFO_
 /* Android does not have execinfo.h. It has unwind.h instead. */
 #include <execinfo.h>
 #endif
@@ -29,7 +35,7 @@ char *
 _backtrace_to_string (void)
 {
   char *retstr = NULL;
-#ifndef __ANDROID__
+#ifndef _NO_EXECINFO_
 /* Android does not have execinfo.h. It has unwind.h instead. */
   void *array[20];
   char **strings;
