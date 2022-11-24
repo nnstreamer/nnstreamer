@@ -1,0 +1,28 @@
+name: Run on architecture (RISCV64 Alpine)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build_job:
+    runs-on: ubuntu-18.04
+    name: Build on alpine RISC-V
+    steps:
+      - uses: actions/checkout@v2.1.0
+      - uses: ProtoByter/run-on-arch-action@master
+        name: Run commands
+        id: Build
+        with:
+          arch: riscv64
+          distro: alpine_latest
+          githubToken: ${{ github.token }}
+          run: |
+            uname -a
+            echo ::set-output name=uname::$(uname -a)
+            apk update
+            apk add meson ninja glib-dev gstreamer-dev gst-plugins-base-dev gcc g++ bash python3 lua-dev
+            meson build
+            ninja -C build test
