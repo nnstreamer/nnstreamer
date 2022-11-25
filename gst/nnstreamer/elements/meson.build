@@ -19,19 +19,9 @@ tensor_element_sources = [
 ]
 
 # gsttensorsrc
-tensor_src_sources = []
-gst18_dep = dependency('gstreamer-' + gst_api_verision, version : '>=1.8', required : false)
-if gst18_dep.found()
-  tensor_src_sources += 'gsttensor_srciio.c'
-else
-  message('tensor_src_iio requires GStreamer >= 1.8. Skipping it')
+if tensor_src_iio_build
+  nnstreamer_sources += join_paths(meson.current_source_dir(), 'gsttensor_srciio.c')
 endif
-
-foreach s : tensor_src_sources
-  if build_platform != 'macos'
-    nnstreamer_sources += join_paths(meson.current_source_dir(), s)
-  endif
-endforeach
 
 # gsttensortransform
 if orcc_support_is_available
