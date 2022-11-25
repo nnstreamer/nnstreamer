@@ -11,11 +11,11 @@
  *
  * ## Example launch line
  * |[
- * gst-launch-1.0 videotestsrc !
- *    video/x-raw, format=RGB, width=640, height=480 ! tensor_converter ! 
- *    tensor_trainer framework=nntrainer model-config=/opt/usr/model.ini \ 
- *    push-output=true input=3:640:480 inputtype=uint8 output=1:1:1:1 outputtype=uint8 !
- *    tensor_sink
+ * gst-launch-1.0 videotestsrc ! video/x-raw, format=RGB, width=640, height=480 !
+ * tensor_converter ! tensor_transform mode=typecast option=float32 !
+ * tensor_trainer framework=nntrainer model-config=/usr/bin/model.ini
+ * push-output=false input=3:640:480:1 inputtype=float32
+ * output=1:1:1:1 outputtype=float32 ! tensor_sink
  * ]|
  *
  */
@@ -27,6 +27,8 @@
 #include <nnstreamer_subplugin.h>
 #include <nnstreamer_util.h>
 #include "gsttensor_trainer.h"
+#include <unistd.h>
+#include <sys/syscall.h>
 
 /**
  * @brief Default caps string for both sink and source pad.
@@ -77,6 +79,10 @@ enum
   PROP_INPUTTYPE,
   PROP_OUTPUTTYPE,
   PROP_PUSH_OUTPUT,
+  PROP_INPUT_LIST,              /* number of input list */
+  PROP_LABEL_LIST,              /* number of label list */
+  PROP_TRAIN_SAMPLES,           /*number of train data */
+  PROP_VALID_SAMPLES,           /*number of vaild data */
 };
 
 #define NNS_TENSOR_TYPES 11
@@ -222,6 +228,30 @@ gst_tensor_trainer_class_init (GstTensorTrainerClass * klass)
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_INPUT_LIST,
+      g_param_spec_uint ("input-list", "Number of input list",
+          "Number of input list", 0, NNS_TENSOR_SIZE_LIMIT, 1,
+          G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
+          G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_LABEL_LIST,
+      g_param_spec_uint ("label-list", "Number of label list",
+          "Number of label list", 0, NNS_TENSOR_SIZE_LIMIT, 1,
+          G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
+          G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_TRAIN_SAMPLES,
+      g_param_spec_uint ("train-samples", "Number of train samples",
+          "Number of train samples", 0, G_MAXUINT, 1,
+          G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
+          G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_TRAIN_SAMPLES,
+      g_param_spec_uint ("valid-samples", "Number of valid samples",
+          "Number of valid samples", 0, G_MAXUINT, 1,
+          G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
+          G_PARAM_STATIC_STRINGS));
+
   gst_element_class_set_details_simple (gstelement_class, "TensorTrainer",
       "Trainer/Tensor", "Train tensor data using NN Frameworks",
       "Samsung Electronics Co., Ltd.");
@@ -274,6 +304,12 @@ gst_tensor_trainer_finalize (GObject * object)
   g_free (trainer->input_type);
   g_free (trainer->output_type);
 
+  GST_DEBUG ("trainer->fw_created=%d", trainer->fw_created);
+  if (trainer->fw_created) {
+    trainer->fw->close (&trainer->prop, &trainer->privateData);
+  }
+  /* need to free prop data */
+
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
@@ -311,6 +347,18 @@ gst_tensor_trainer_set_property (GObject * object, guint prop_id,
     case PROP_PUSH_OUTPUT:
       trainer->push_output = g_value_get_boolean (value);
       GST_INFO_OBJECT (trainer, "push output: %d", trainer->push_output);
+      break;
+    case PROP_INPUT_LIST:
+      trainer->num_inputs = g_value_get_uint (value);
+      break;
+    case PROP_LABEL_LIST:
+      trainer->num_labels = g_value_get_uint (value);
+      break;
+    case PROP_TRAIN_SAMPLES:
+      trainer->train_samples = g_value_get_uint (value);
+      break;
+    case PROP_VALID_SAMPLES:
+      trainer->valid_samples = g_value_get_uint (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -350,6 +398,18 @@ gst_tensor_trainer_get_property (GObject * object, guint prop_id,
       break;
     case PROP_PUSH_OUTPUT:
       g_value_set_boolean (value, trainer->push_output);
+      break;
+    case PROP_INPUT_LIST:
+      g_value_set_uint (value, trainer->num_inputs);
+      break;
+    case PROP_LABEL_LIST:
+      g_value_set_uint (value, trainer->num_labels);
+      break;
+    case PROP_TRAIN_SAMPLES:
+      g_value_set_uint (value, trainer->train_samples);
+      break;
+    case PROP_VALID_SAMPLES:
+      g_value_set_uint (value, trainer->valid_samples);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -528,7 +588,10 @@ gst_tensor_trainer_transform (GstBaseTransform * trans, GstBuffer * inbuf,
   GstTensorMetaInfo in_meta[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMetaInfo out_meta[NNS_TENSOR_SIZE_LIMIT];
 
+  pid_t pid = getpid ();
+  pid_t tid = syscall (SYS_gettid);
   trainer = GST_TENSOR_TRAINER_CAST (trans);
+  GST_ERROR_OBJECT (trainer, "pid: %d, tid: %d", pid, tid);
 
   /* Get all input tensors from inbuf */
   mem_blocks = gst_buffer_n_memory (inbuf);
@@ -574,7 +637,10 @@ gst_tensor_trainer_transform (GstBaseTransform * trans, GstBuffer * inbuf,
     }
     /* Copy to data pointer */
     invoke_tensors[i] = in_tensors[i];
-    GST_INFO ("invoke_tensors size: %zd", invoke_tensors[i].size);
+    GST_INFO ("in_tensors[%d].size= %zd", i, in_tensors[i].size);
+    GST_INFO ("in_tensors[%d].data: %p", i, in_tensors[i].data);
+    GST_INFO ("invoke_tensors[%d].size= %zd", i, invoke_tensors[i].size);
+    GST_INFO ("invoke_tensors[%d].data: %p", i, invoke_tensors[i].data);
   }
 
   /* Prepare output tensor */

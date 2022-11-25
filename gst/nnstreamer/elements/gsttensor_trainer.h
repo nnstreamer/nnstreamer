@@ -52,6 +52,11 @@ struct _GstTensorTrainer
   gchar *input_type;
   gchar *output_type;
   gboolean push_output;
+  unsigned int num_inputs;
+  unsigned int num_labels;
+  unsigned int train_samples;
+  unsigned int valid_samples;
+
   GstTensorsInfo input_meta;
   GstTensorsInfo output_meta;
 
