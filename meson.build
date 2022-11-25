@@ -641,6 +641,17 @@ if get_option('enable-float16')
 
 endif
 
+# See if src-iio can be built or not
+gst18_dep = dependency('gstreamer-' + gst_api_verision, version : '>=1.8', required : false)
+tensor_src_iio_build = false
+if gst18_dep.found() and build_platform != 'macos'
+  add_project_arguments('-D_ENABLE_SRC_IIO', language: ['c', 'cpp'])
+  message('tensor_src_iio enabled')
+  tensor_src_iio_build = true
+else
+  message('tensor_src_iio disabled: it requires GStreamer >= 1.8 and Linux')
+endif
+
 # Build nnstreamer (common, plugins)
 subdir('gst')
 

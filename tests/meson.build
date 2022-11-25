@@ -176,7 +176,7 @@ if gtest_dep.found()
     endif
 
     # Run unittest_src_iio
-    if build_platform != 'macos'
+    if tensor_src_iio_build
       unittest_src_iio = executable('unittest_src_iio',
         join_paths('nnstreamer_source', 'unittest_src_iio.cc'),
         dependencies: [nnstreamer_unittest_deps],
