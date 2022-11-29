@@ -882,48 +882,6 @@ gst_tensors_config_from_peer (GstPad * pad, GstTensorsConfig * config,
 }
 
 /**
- * @brief Check whether the peer connected to the pad supports other/tensor or not
- * @param pad GstPad to check peer caps
- * @return TRUE if other/tensor, FALSE if not.
- */
-static gboolean
-_peer_has_tensor_caps (GstPad * pad)
-{
-  GstCaps *peer_caps;
-  gboolean ret = FALSE;
-
-  peer_caps = gst_pad_peer_query_caps (pad, NULL);
-  if (peer_caps) {
-    GstCaps *caps = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT);
-
-    ret = gst_caps_can_intersect (caps, peer_caps);
-
-    gst_caps_unref (caps);
-    gst_caps_unref (peer_caps);
-  }
-
-  return ret;
-}
-
-/**
- * @brief Check whether the peer connected to the pad is flexible tensor
- * @param pad GstPad to check peer caps
- * @return TRUE if other/tensor, FALSE if not
- */
-static gboolean
-_peer_is_flexible_tensor_caps (GstPad * pad)
-{
-  GstTensorsConfig config;
-  gboolean flexible = FALSE;
-
-  if (gst_tensors_config_from_peer (pad, &config, NULL))
-    flexible = gst_tensors_config_is_flexible (&config);
-
-  gst_tensors_config_free (&config);
-  return flexible;
-}
-
-/**
  * @brief Check whether the tensor dimensions are same
  */
 static gboolean
@@ -1011,17 +969,19 @@ gst_tensor_caps_update_dimension (GstCaps * caps, GstCaps * peer_caps)
   g_return_if_fail (peer_caps != NULL);
 
   for (i = 0; i < gst_caps_get_size (caps); i++) {
+    structure = gst_caps_get_structure (caps, i);
+
     for (j = 0; j < gst_caps_get_size (peer_caps); j++) {
-      structure = gst_caps_get_structure (caps, i);
       structure_peer = gst_caps_get_structure (peer_caps, j);
 
       /* other/tensor */
       if (gst_structure_has_field (structure, "dimension")
           && gst_structure_has_field (structure_peer, "dimension")) {
         /* update dimensions for negotiation */
-        if (_is_structure_dimension_same (structure, structure_peer))
-          gst_caps_set_simple (caps, "dimension", G_TYPE_STRING,
+        if (_is_structure_dimension_same (structure, structure_peer)) {
+          gst_structure_set (structure, "dimension", G_TYPE_STRING,
               gst_structure_get_string (structure_peer, "dimension"), NULL);
+        }
       }
       /* other/tensors */
       else if (gst_structure_has_field (structure, "dimensions")
@@ -1113,7 +1073,7 @@ gst_tensor_pad_caps_from_config (GstPad * pad, const GstTensorsConfig * config)
 {
   GstCaps *caps = NULL;
   GstCaps *templ;
-  gboolean is_flexible;
+  gboolean is_flexible, peer_is_flexible, peer_has_tensor_caps;
   GstCaps *peer_caps;
 
   g_return_val_if_fail (GST_IS_PAD (pad), NULL);
@@ -1121,25 +1081,39 @@ gst_tensor_pad_caps_from_config (GstPad * pad, const GstTensorsConfig * config)
 
   templ = gst_pad_get_pad_template_caps (pad);
 
+  /* check peer caps */
+  peer_is_flexible = peer_has_tensor_caps = FALSE;
+
+  peer_caps = gst_pad_peer_query_caps (pad, NULL);
+  if (peer_caps && gst_caps_get_size (peer_caps) > 0) {
+    GstCaps *tmp;
+    GstStructure *st;
+    GstTensorsConfig peer_config;
+
+    tmp = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT);
+    peer_has_tensor_caps = gst_caps_can_intersect (tmp, peer_caps);
+    gst_caps_unref (tmp);
+
+    st = gst_caps_get_structure (peer_caps, 0);
+    if (gst_tensors_config_from_structure (&peer_config, st))
+      peer_is_flexible = gst_tensors_config_is_flexible (&peer_config);
+    gst_tensors_config_free (&peer_config);
+  }
+
   /* other/tensors (flexible) */
   is_flexible = gst_tensors_config_is_flexible (config);
 
-  /* check peer element is flexible */
-  if (!is_flexible)
-    is_flexible = _peer_is_flexible_tensor_caps (pad);
-
-  if (is_flexible) {
+  if (is_flexible || peer_is_flexible) {
     caps = _get_flexible_caps (config);
     goto intersectable;
   }
 
   /* other/tensor */
-  if (config->info.num_tensors == 1 && _peer_has_tensor_caps (pad)) {
+  if (config->info.num_tensors == 1 && peer_has_tensor_caps) {
     caps = _get_tensor_caps (config);
-    if ((peer_caps = gst_pad_peer_query_caps (pad, NULL))) {
+    if (peer_caps)
       gst_tensor_caps_update_dimension (caps, peer_caps);
-      gst_caps_unref (peer_caps);
-    }
+
     if (gst_caps_can_intersect (caps, templ))
       goto done;
 
@@ -1148,10 +1122,8 @@ gst_tensor_pad_caps_from_config (GstPad * pad, const GstTensorsConfig * config)
 
   /* other/tensors (static) */
   caps = _get_tensors_caps (config);
-  if ((peer_caps = gst_pad_peer_query_caps (pad, NULL))) {
+  if (peer_caps)
     gst_tensor_caps_update_dimension (caps, peer_caps);
-    gst_caps_unref (peer_caps);
-  }
 
 intersectable:
   if (!gst_caps_can_intersect (caps, templ)) {
@@ -1161,6 +1133,8 @@ intersectable:
 
 done:
   gst_caps_unref (templ);
+  if (peer_caps)
+    gst_caps_unref (peer_caps);
   return caps;
 }
 
