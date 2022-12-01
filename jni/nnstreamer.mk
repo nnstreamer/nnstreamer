@@ -67,6 +67,7 @@ NNSTREAMER_PLUGINS_SRCS := \
     $(NNSTREAMER_GST_HOME)/elements/gsttensor_sparseenc.c \
     $(NNSTREAMER_GST_HOME)/elements/gsttensor_sparseutil.c \
     $(NNSTREAMER_GST_HOME)/elements/gsttensor_split.c \
+    $(NNSTREAMER_GST_HOME)/elements/gsttensor_trainer.c \
     $(NNSTREAMER_GST_HOME)/elements/gsttensor_transform.c \
     $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter.c
 
