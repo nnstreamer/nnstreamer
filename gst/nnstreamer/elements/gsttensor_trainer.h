@@ -20,7 +20,7 @@
 #include <tensor_common.h>
 
 #include <nnstreamer_plugin_api_util.h>
-#include <nnstreamer_plugin_api_filter.h>
+#include <nnstreamer_plugin_api_trainer.h>
 
 G_BEGIN_DECLS
 #define GST_TYPE_TENSOR_TRAINER \
@@ -37,7 +37,6 @@ G_BEGIN_DECLS
 typedef struct _GstTensorTrainer GstTensorTrainer;
 typedef struct _GstTensorTrainerClass GstTensorTrainerClass;
 
-
 /**
  * @brief GstTensorTrainer data structure
  */
@@ -52,37 +51,23 @@ struct _GstTensorTrainer
   gchar *input_type;
   gchar *output_type;
   gboolean push_output;
-  unsigned int num_inputs;
-  unsigned int num_labels;
-  unsigned int train_samples;
-  unsigned int valid_samples;
-
-  GstTensorsInfo input_meta;
-  GstTensorsInfo output_meta;
 
   gboolean configured;
-
   int input_configured;
   int output_configured;
   int inputtype_configured;
   int outputtype_configured;
   unsigned int input_ranks[NNS_TENSOR_SIZE_LIMIT];
   unsigned int output_ranks[NNS_TENSOR_SIZE_LIMIT];
-
-  tensor_type tensors_inputtype[NNS_TENSOR_SIZE_LIMIT];
-  unsigned int tensors_inputsize[NNS_TENSOR_SIZE_LIMIT];
+  GstTensorsInfo output_meta;
 
   /* draft */
-  int fw_opened;
-  int fw_compiled;
-  int fw_fitted;
   int fw_created;
   int fw_stop;
-  int fw_paused;
 
   void *privateData; /**< NNFW plugin's private data is stored here */
-  const GstTensorFilterFramework *fw;   /* for test, need to make */
-  GstTensorFilterProperties prop; /**< NNFW plugin's properties */
+  const GstTensorTrainerFramework *fw;  /* for test, need to make */
+  GstTensorTrainerProperties prop; /**< NNFW plugin's properties */
 };
 
 /**
