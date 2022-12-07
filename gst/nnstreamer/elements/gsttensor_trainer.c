@@ -74,6 +74,7 @@ enum
   PROP_0,
   PROP_FRAMEWORK,
   PROP_MODEL_CONFIG,
+  PROP_MODEL_SAVE_PATH,
   PROP_INPUT,
   PROP_OUTPUT,
   PROP_INPUTTYPE,
@@ -111,11 +112,12 @@ static gboolean gst_tensor_trainer_transform_size (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps, gsize size, GstCaps * othercaps,
     gsize * othersize);
 
-static void
-gst_tensor_trainer_set_prop_framework (GstTensorTrainer * trainer,
+static void gst_tensor_trainer_set_prop_framework (GstTensorTrainer * trainer,
     const GValue * value);
 static void gst_tensor_trainer_set_prop_model_config_file_path (GstTensorTrainer
     * trainer, const GValue * value);
+static void gst_tensor_trainer_set_model_save_path (GstTensorTrainer * trainer,
+    const GValue * value);
 static void gst_tensor_trainer_set_prop_dimension (GstTensorTrainer * trainer,
     const GValue * value, const gboolean is_input);
 static void gst_tensor_trainer_set_prop_type (GstTensorTrainer * trainer,
@@ -186,6 +188,12 @@ gst_tensor_trainer_class_init (GstTensorTrainerClass * klass)
       g_param_spec_string ("model-config", "Model configuration file path",
           "Configuration file path for creating model",
           DEFAULT_STR_PROP_VALUE,
+          G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
+          G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_MODEL_SAVE_PATH,
+      g_param_spec_string ("model-save-path", "Model save path",
+          "File path to save the model", DEFAULT_STR_PROP_VALUE,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
@@ -267,6 +275,7 @@ gst_tensor_trainer_init (GstTensorTrainer * trainer)
   GST_DEBUG ("<ENTER>");
   trainer->fw_name = g_strdup (DEFAULT_PROP_FRAMEWORK);
   trainer->model_config = g_strdup (DEFAULT_STR_PROP_VALUE);
+  trainer->model_save_path = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->input_dimensions = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->output_dimensions = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->input_type = g_strdup (DEFAULT_STR_PROP_VALUE);
@@ -294,6 +303,7 @@ gst_tensor_trainer_finalize (GObject * object)
 
   g_free (trainer->fw_name);
   g_free (trainer->model_config);
+  g_free (trainer->model_save_path);
   g_free (trainer->input_dimensions);
   g_free (trainer->output_dimensions);
   g_free (trainer->input_type);
@@ -325,6 +335,9 @@ gst_tensor_trainer_set_property (GObject * object, guint prop_id,
       break;
     case PROP_MODEL_CONFIG:
       gst_tensor_trainer_set_prop_model_config_file_path (trainer, value);
+      break;
+    case PROP_MODEL_SAVE_PATH:
+      gst_tensor_trainer_set_model_save_path (trainer, value);
       break;
     case PROP_INPUT:
       gst_tensor_trainer_set_prop_dimension (trainer, value, TRUE);
@@ -377,6 +390,9 @@ gst_tensor_trainer_get_property (GObject * object, guint prop_id,
       break;
     case PROP_MODEL_CONFIG:
       g_value_set_string (value, trainer->model_config);
+      break;
+    case PROP_MODEL_SAVE_PATH:
+      g_value_set_string (value, trainer->model_save_path);
       break;
     case PROP_INPUT:
       g_value_set_string (value, trainer->input_dimensions);
@@ -872,6 +888,20 @@ gst_tensor_trainer_set_prop_model_config_file_path (GstTensorTrainer * trainer,
   trainer->prop.model_config = trainer->model_config;
   GST_INFO_OBJECT (trainer, "model configuration file path: %s",
       trainer->prop.model_config);
+}
+
+/**
+ * @brief Handle "PROP_MODEL_SAVE_PATH" for set-property
+ */
+static void
+gst_tensor_trainer_set_model_save_path (GstTensorTrainer * trainer,
+    const GValue * value)
+{
+  g_free (trainer->model_save_path);
+  trainer->model_save_path = g_value_dup_string (value);
+  trainer->prop.model_save_path = trainer->model_save_path;
+  GST_INFO_OBJECT (trainer, "file path to save the model: %s",
+      trainer->prop.model_save_path);
 }
 
 /**

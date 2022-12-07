@@ -46,6 +46,7 @@ struct _GstTensorTrainer
 
   gchar *fw_name;
   gchar *model_config;
+  gchar *model_save_path;
   gchar *input_dimensions;
   gchar *output_dimensions;
   gchar *input_type;
