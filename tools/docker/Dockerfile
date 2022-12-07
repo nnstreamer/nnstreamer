@@ -53,6 +53,7 @@ ENV GST_PLUGIN_PATH=/home/${USERNAME}/nnstreamer/${BUILDDIR}/gst/nnstreamer \
     NNSTREAMER_FILTERS=/home/${USERNAME}/nnstreamer/${BUILDDIR}/ext/nnstreamer/tensor_filter \
     NNSTREAMER_DECODERS=/home/${USERNAME}/nnstreamer/${BUILDDIR}/ext/nnstreamer/tensor_decoder \
     NNSTREAMER_CONVERTERS=/home/${USERNAME}/nnstreamer/${BUILDDIR}/ext/nnstreamer/tensor_converter \
+    NNSTREAMER_TRAINERS=/home/${USERNAME}/nnstreamer/${BUILDDIR}/ext/nnstreamer/tensor_trainer \
     NNS_USERNAME=${USERNAME} \
     NNS_BUILDDIR=${BUILDDIR}
 

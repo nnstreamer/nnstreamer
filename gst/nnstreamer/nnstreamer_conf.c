@@ -40,6 +40,7 @@
 #define NNSTREAMER_PREFIX_FILTER	"libnnstreamer_filter_"
 #define NNSTREAMER_PREFIX_CUSTOMFILTERS	""
 #define NNSTREAMER_PREFIX_CONVERTER	"libnnstreamer_converter_"
+#define NNSTREAMER_PREFIX_TRAINER	"libnnstreamer_trainer_"
 /* Custom filter does not have prefix */
 
 /* Env-var names */
@@ -47,7 +48,8 @@ static const gchar *NNSTREAMER_ENVVAR[NNSCONF_PATH_END] = {
   [NNSCONF_PATH_FILTERS] = "NNSTREAMER_FILTERS",
   [NNSCONF_PATH_DECODERS] = "NNSTREAMER_DECODERS",
   [NNSCONF_PATH_CUSTOM_FILTERS] = "NNSTREAMER_CUSTOMFILTERS",
-  [NNSCONF_PATH_CONVERTERS] = "NNSTREAMER_CONVERTERS"
+  [NNSCONF_PATH_CONVERTERS] = "NNSTREAMER_CONVERTERS",
+  [NNSCONF_PATH_TRAINERS] = "NNSTREAMER_TRAINERS"
 };
 
 static const gchar *NNSTREAMER_PATH[NNSCONF_PATH_END] = {
@@ -55,6 +57,7 @@ static const gchar *NNSTREAMER_PATH[NNSCONF_PATH_END] = {
   [NNSCONF_PATH_DECODERS] = "/usr/lib/nnstreamer/decoders/",
   [NNSCONF_PATH_CUSTOM_FILTERS] = "/usr/lib/nnstreamer/customfilters/",
   [NNSCONF_PATH_CONVERTERS] = "/usr/lib/nnstreamer/converters/",
+  [NNSCONF_PATH_TRAINERS] = "/usr/lib/nnstreamer/trainers/"
 };
 
 static const gchar *subplugin_prefixes[] = {
@@ -63,6 +66,7 @@ static const gchar *subplugin_prefixes[] = {
   [NNSCONF_PATH_CUSTOM_FILTERS] = NNSTREAMER_PREFIX_CUSTOMFILTERS,
   [NNSCONF_PATH_EASY_CUSTOM_FILTERS] = NNSTREAMER_PREFIX_CUSTOMFILTERS, /**< Same as Custom Filters */
   [NNSCONF_PATH_CONVERTERS] = NNSTREAMER_PREFIX_CONVERTER,
+  [NNSCONF_PATH_TRAINERS] = NNSTREAMER_PREFIX_TRAINER,
   [NNSCONF_PATH_END] = NULL
 };
 
@@ -329,6 +333,8 @@ _fill_subplugin_path (confdata * cdata, GKeyFile * key_file, conf_sources src)
       g_key_file_get_string (key_file, "filter", "customfilters", NULL);
   cdata->conf[NNSCONF_PATH_CONVERTERS].path[src] =
       g_key_file_get_string (key_file, "converter", "converters", NULL);
+  cdata->conf[NNSCONF_PATH_TRAINERS].path[src] =
+      g_key_file_get_string (key_file, "trainer", "trainer", NULL);
 }
 
 /** @brief Public function defined in the header */
@@ -689,7 +695,8 @@ void
 nnsconf_subplugin_dump (gchar * str, gulong size)
 {
   static const nnsconf_type_path dump_list_type[] = {
-    NNSCONF_PATH_FILTERS, NNSCONF_PATH_DECODERS, NNSCONF_PATH_CONVERTERS
+    NNSCONF_PATH_FILTERS, NNSCONF_PATH_DECODERS, NNSCONF_PATH_CONVERTERS,
+    NNSCONF_PATH_TRAINERS
   };
   static const char *dump_list_str[] = {
     "Filter", "Decoder", "Conterver"
