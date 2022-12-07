@@ -21,6 +21,9 @@ decoders=@SUBPLUGIN_INSTALL_PREFIX@/decoders/
 [converter]
 converters=@SUBPLUGIN_INSTALL_PREFIX@/converters/
 
+[trainer]
+trainers=@SUBPLUGIN_INSTALL_PREFIX@/trainers/
+
 # Set 1 or True if you want to use GPU with pytorch for computation.
 [pytorch]
 enable_use_gpu=@TORCH_USE_GPU@
