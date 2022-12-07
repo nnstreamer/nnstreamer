@@ -120,8 +120,6 @@ static void gst_tensor_trainer_set_prop_dimension (GstTensorTrainer * trainer,
     const GValue * value, const gboolean is_input);
 static void gst_tensor_trainer_set_prop_type (GstTensorTrainer * trainer,
     const GValue * value, const gboolean is_input);
-static const GstTensorTrainerFramework
-    * gst_tensor_trainer_find_best_framework (const char *names);
 static void gst_tensor_trainer_find_framework (GstTensorTrainer * trainer,
     const char *name);
 static void gst_tensor_trainer_create_framework (GstTensorTrainer * trainer);
@@ -975,29 +973,13 @@ static void
 gst_tensor_trainer_find_framework (GstTensorTrainer * trainer, const char *name)
 {
   const GstTensorTrainerFramework *fw = NULL;
-  gchar *str;
+
   g_return_if_fail (name != NULL);
   g_return_if_fail (trainer != NULL);
 
   GST_INFO ("find framework: %s", name);
 
-  /* Need to add trainer type to subpluginType *///see new 13
-  fw = get_subplugin (NNS_SUBPLUGIN_FILTER, name);
-
-  if (fw == NULL) {
-    /*Get sub-plugin priority from ini file and find sub-plugin */
-    str = nnsconf_get_custom_value_string (name, "subplugin_priority");
-    fw = gst_tensor_trainer_find_best_framework (str);
-    g_free (str);
-  }
-
-  if (fw == NULL) {
-    /* Check the filter-alias from ini file */
-    str = nnsconf_get_custom_value_string ("filter-aliases", name);
-    fw = gst_tensor_trainer_find_best_framework (str);
-    g_free (str);
-  }
-
+  fw = get_subplugin (NNS_SUBPLUGIN_TRAINER, name);
   if (fw) {
     GST_INFO_OBJECT (trainer, "find framework %s:%p", trainer->fw_name, fw);
     trainer->fw = fw;
@@ -1030,38 +1012,6 @@ gst_tensor_trainer_create_framework (GstTensorTrainer * trainer)
   if (trainer->fw->create (&trainer->prop, &trainer->privateData) >= 0)
     trainer->fw_created = TRUE;
   GST_ERROR ("%p", trainer->privateData);
-}
-
-/**
- * @brief Find sub-plugin trainer given the name list
- */
-static const GstTensorTrainerFramework *
-gst_tensor_trainer_find_best_framework (const char *names)
-{
-  const GstTensorTrainerFramework *fw = NULL;   /* need to change to GstTensorTrainerFramework */
-  gchar **subplugins;
-  guint i, len;
-
-  if (names == NULL || names[0] == '\0')
-    return NULL;
-
-  subplugins = g_strsplit_set (names, " ,;", -1);
-
-  len = g_strv_length (subplugins);
-
-  for (i = 0; i < len; i++) {
-    if (strlen (g_strstrip (subplugins[i])) == 0)
-      continue;
-
-    fw = get_subplugin (NNS_SUBPLUGIN_FILTER, subplugins[i]);   /* need to add trainer type to subpluginType */
-    if (fw) {
-      GST_INFO ("i = %d found %s", i, subplugins[i]);
-      break;
-    }
-  }
-  g_strfreev (subplugins);
-
-  return fw;
 }
 
 /**
@@ -1160,7 +1110,7 @@ nnstreamer_trainer_probe (GstTensorTrainerFramework * ttsp)
   g_return_val_if_fail (ttsp != NULL, 0);
 
   name = ttsp->name;
-  return register_subplugin (NNS_SUBPLUGIN_FILTER, name, ttsp);
+  return register_subplugin (NNS_SUBPLUGIN_TRAINER, name, ttsp);
 }
 
 /**
@@ -1170,5 +1120,5 @@ nnstreamer_trainer_probe (GstTensorTrainerFramework * ttsp)
 void
 nnstreamer_trainer_exit (const char *name)
 {
-  unregister_subplugin (NNS_SUBPLUGIN_FILTER, name);
+  unregister_subplugin (NNS_SUBPLUGIN_TRAINER, name);
 }
