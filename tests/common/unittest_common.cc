@@ -282,7 +282,7 @@ TEST (commonGetTensorDimension, case1)
   EXPECT_EQ (dim[3], 177U);
 
   dim_str = gst_tensor_get_dimension_string (dim);
-  EXPECT_STREQ (dim_str, "345:123:433:177");
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal (dim_str, "345:123:433:177"));
   g_free (dim_str);
 }
 
@@ -303,7 +303,7 @@ TEST (commonGetTensorDimension, case2)
   EXPECT_EQ (dim[3], 1U);
 
   dim_str = gst_tensor_get_dimension_string (dim);
-  EXPECT_STREQ (dim_str, "345:123:433:1");
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal (dim_str, "345:123:433:1"));
   g_free (dim_str);
 }
 
@@ -324,7 +324,7 @@ TEST (commonGetTensorDimension, case3)
   EXPECT_EQ (dim[3], 1U);
 
   dim_str = gst_tensor_get_dimension_string (dim);
-  EXPECT_STREQ (dim_str, "345:123:1:1");
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal (dim_str, "345:123:1:1"));
   g_free (dim_str);
 }
 
@@ -345,7 +345,7 @@ TEST (commonGetTensorDimension, case4)
   EXPECT_EQ (dim[3], 1U);
 
   dim_str = gst_tensor_get_dimension_string (dim);
-  EXPECT_STREQ (dim_str, "345:1:1:1");
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal (dim_str, "345:1:1:1"));
   g_free (dim_str);
 }
 
@@ -997,7 +997,7 @@ TEST (commonTensorsInfoString, dimensions)
   info.num_tensors = num_dims;
 
   str_dims = gst_tensors_info_get_dimensions_string (&info);
-  EXPECT_STREQ (str_dims, "1:2:3:4");
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal (str_dims, "1:2:3:4"));
   g_free (str_dims);
 
   /* 4 tensors info */
@@ -1007,7 +1007,7 @@ TEST (commonTensorsInfoString, dimensions)
   info.num_tensors = num_dims;
 
   str_dims = gst_tensors_info_get_dimensions_string (&info);
-  EXPECT_STREQ (str_dims, "1:1:1:1,2:2:1:1,3:3:3:1,4:4:4:4");
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal (str_dims, "1:1:1:1,2:2:1:1,3:3:3:1,4:4:4:4"));
   g_free (str_dims);
 
   /* max */

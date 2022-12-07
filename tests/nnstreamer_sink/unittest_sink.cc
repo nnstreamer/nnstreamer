@@ -2771,7 +2771,7 @@ TEST (tensorStreamTest, textUtf83f)
   ASSERT_TRUE (convert != NULL);
 
   g_object_get (convert, "input-dim", &prop_str, NULL);
-  EXPECT_STREQ (prop_str, "30:1:1:1");
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal (prop_str, "30:1:1:1"));
   g_free (prop_str);
 
   g_object_get (convert, "input-type", &prop_str, NULL);
@@ -2939,7 +2939,7 @@ TEST (tensorStreamTest, octetValidTs)
   ASSERT_TRUE (convert != NULL);
 
   g_object_get (convert, "input-dim", &prop_str, NULL);
-  EXPECT_STREQ (prop_str, "1:10:1:1");
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal (prop_str, "1:10:1:1"));
   g_free (prop_str);
 
   g_object_get (convert, "input-type", &prop_str, NULL);
@@ -3013,7 +3013,7 @@ TEST (tensorStreamTest, octetInvalidTs)
   ASSERT_TRUE (convert != NULL);
 
   g_object_get (convert, "input-dim", &prop_str, NULL);
-  EXPECT_STREQ (prop_str, "1:10:1:1");
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal (prop_str, "1:10:1:1"));
   g_free (prop_str);
 
   g_object_get (convert, "input-type", &prop_str, NULL);
@@ -3087,7 +3087,7 @@ TEST (tensorStreamTest, octet2f)
   ASSERT_TRUE (convert != NULL);
 
   g_object_get (convert, "input-dim", &prop_str, NULL);
-  EXPECT_STREQ (prop_str, "1:5:1:1");
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal (prop_str, "1:5:1:1"));
   g_free (prop_str);
 
   g_object_get (convert, "input-type", &prop_str, NULL);
@@ -3160,7 +3160,7 @@ TEST (tensorStreamTest, octetMultiTensors)
   ASSERT_TRUE (convert != NULL);
 
   g_object_get (convert, "input-dim", &prop_str, NULL);
-  EXPECT_STREQ (prop_str, "2:1:1:1,2:1:1:1");
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal (prop_str, "2:1:1:1,2:1:1:1"));
   g_free (prop_str);
 
   g_object_get (convert, "input-type", &prop_str, NULL);
@@ -3633,7 +3633,7 @@ TEST (tensorStreamTest, filterProperties1)
 
   /* input */
   g_object_get (filter, "input", &str, NULL);
-  EXPECT_STREQ (str, "3:160:120:1");
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal (str, "3:160:120:1"));
   g_free (str);
 
   /* inputtype */
@@ -3648,7 +3648,7 @@ TEST (tensorStreamTest, filterProperties1)
 
   /* output */
   g_object_get (filter, "output", &str, NULL);
-  EXPECT_STREQ (str, "3:160:120:1");
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal (str, "3:160:120:1"));
   g_free (str);
 
   /* outputtype */
@@ -3765,7 +3765,7 @@ TEST (tensorStreamTest, filterProperties2)
 
   /* input */
   g_object_get (filter, "input", &str, NULL);
-  EXPECT_STREQ (str, "3:160:120:1,3:120:80:1,3:64:48:1");
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal (str, "3:160:120:1,3:120:80:1,3:64:48:1"));
   g_free (str);
 
   /* inputtype */
@@ -3780,7 +3780,7 @@ TEST (tensorStreamTest, filterProperties2)
 
   /* output */
   g_object_get (filter, "output", &str, NULL);
-  EXPECT_STREQ (str, "3:160:120:1,3:120:80:1,3:64:48:1");
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal (str, "3:160:120:1,3:120:80:1,3:64:48:1"));
   g_free (str);
 
   /* outputtype */
@@ -4949,7 +4949,7 @@ TEST (tensorStreamTest, videoSplit)
   g_free (str);
 
   g_object_get (split, "tensorseg", &str, NULL);
-  EXPECT_STREQ (str, "1:160:120:1,1:160:120:1,1:160:120:1");
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal (str, "1:160:120:1,1:160:120:1,1:160:120:1"));
   g_free (str);
 
   g_object_get (split, "silent", &silent, NULL);

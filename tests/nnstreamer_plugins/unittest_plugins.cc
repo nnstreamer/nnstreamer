@@ -6190,7 +6190,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, propertyRank02)
 
   gchar *input_dim;
   g_object_get (filter, "input", &input_dim, NULL);
-  EXPECT_STREQ (input_dim, "3:224:224:1");
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal (input_dim, "3:224:224:1"));
   g_free (input_dim);
 
   /* Rank should be 3 since input dimension string is not given. */
@@ -6201,7 +6201,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, propertyRank02)
 
   gchar *output_dim;
   g_object_get (filter, "output", &output_dim, NULL);
-  EXPECT_STREQ (output_dim, "1001:1:1:1");
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal (output_dim, "1001:1:1:1"));
   g_free (output_dim);
 
   /* Rank should be 1 since output dimension string is not given. */
