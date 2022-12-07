@@ -976,6 +976,53 @@ gst_tensor_get_rank_dimension_string (const tensor_dim dim,
 }
 
 /**
+ * @brief Compare dimension strings
+ * @return TRUE if equal, FALSE if given dimension strings are invalid or not equal.
+ */
+gboolean
+gst_tensor_dimension_string_is_equal (const gchar * dimstr1,
+    const gchar * dimstr2)
+{
+  tensor_dim dim1, dim2;
+  int rank1, rank2, i, j, num_tensors1, num_tensors2;
+  gchar **strv1;
+  gchar **strv2;
+  gboolean res = TRUE;
+
+  strv1 = g_strsplit_set (dimstr1, ",.", -1);
+  strv2 = g_strsplit_set (dimstr2, ",.", -1);
+
+  num_tensors1 = g_strv_length (strv1);
+  num_tensors2 = g_strv_length (strv2);
+
+  if (num_tensors1 != num_tensors2) {
+    res = FALSE;
+  } else {
+    for (i = 0; i < num_tensors1 && res; i++) {
+      rank1 = gst_tensor_parse_dimension (strv1[i], dim1);
+      rank2 = gst_tensor_parse_dimension (strv2[i], dim2);
+
+      if (!rank1 || !rank2) {
+        res = FALSE;
+        break;
+      }
+
+      for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
+        if (dim1[j] != dim2[j]) {
+          res = FALSE;
+          break;
+        }
+      }
+    }
+  }
+
+  g_strfreev (strv1);
+  g_strfreev (strv2);
+
+  return res;
+}
+
+/**
  * @brief Count the number of elements of a tensor
  * @return The number of elements. 0 if error.
  * @param dim The tensor dimension

@@ -301,6 +301,13 @@ extern gchar *
 gst_tensor_get_rank_dimension_string (const tensor_dim dim, const unsigned int rank);
 
 /**
+ * @brief Compare dimension strings
+ * @return TRUE if equal, FALSE if given dimension strings are invalid or not equal.
+ */
+extern gboolean
+gst_tensor_dimension_string_is_equal (const gchar * dimstr1, const gchar * dimstr2);
+
+/**
  * @brief Count the number of elements of a tensor
  * @return The number of elements. 0 if error.
  * @param dim The tensor dimension
