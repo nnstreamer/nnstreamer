@@ -36,8 +36,6 @@ gst_tensor_query_get_connect_type (void)
           "Directly sending stream frames via TCP connections."},
       {NNS_EDGE_CONNECT_TYPE_UDP, "UDP",
           "Directly sending stream frames via UDP connections."},
-      {NNS_EDGE_CONNECT_TYPE_MQTT, "MQTT",
-          "Connect and send stream frames with MQTT brokers."},
       {NNS_EDGE_CONNECT_TYPE_HYBRID, "HYBRID",
           "Connect with MQTT brokers and directly sending stream frames via TCP connections."},
       {0, NULL, NULL},
