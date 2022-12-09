@@ -309,8 +309,8 @@ gst_tensor_trainer_finalize (GObject * object)
   g_free (trainer->input_type);
   g_free (trainer->output_type);
 
-  if (trainer->fw_created) {
-    trainer->fw->destroy (&trainer->prop, &trainer->privateData);
+  if (trainer->fw_created && trainer->fw) {
+    trainer->fw->destroy (trainer->fw, &trainer->prop, &trainer->privateData);
   }
   /* need to free prop data */
 
@@ -679,7 +679,7 @@ gst_tensor_trainer_transform (GstBaseTransform * trans, GstBuffer * inbuf,
     }
     /* Call the trainer-subplugin callback, invoke */
     ret =
-        trainer->fw->invoke_NN (&trainer->prop, trainer->privateData,
+        trainer->fw->invoke (trainer->fw, &trainer->prop, trainer->privateData,
         invoke_tensors, out_tensors);
 
     /* Free out info */
@@ -692,7 +692,7 @@ gst_tensor_trainer_transform (GstBaseTransform * trans, GstBuffer * inbuf,
     }
   } else {
     ret =
-        trainer->fw->invoke_NN (&trainer->prop, trainer->privateData,
+        trainer->fw->invoke (trainer->fw, &trainer->prop, trainer->privateData,
         invoke_tensors, NULL);
   }
 
@@ -1039,7 +1039,8 @@ gst_tensor_trainer_create_framework (GstTensorTrainer * trainer)
   }
   /* Test code, need to create with load ini file */
   GST_ERROR ("%p", trainer->privateData);
-  if (trainer->fw->create (&trainer->prop, &trainer->privateData) >= 0)
+  if (trainer->fw->create (trainer->fw, &trainer->prop,
+          &trainer->privateData) >= 0)
     trainer->fw_created = TRUE;
   GST_ERROR ("%p", trainer->privateData);
 }
@@ -1122,7 +1123,7 @@ gst_tensor_trainer_train_model (GstTensorTrainer * trainer)
   g_return_if_fail (trainer->fw->train != NULL);
 
   GST_DEBUG_OBJECT (trainer, "called");
-  ret = trainer->fw->train (&trainer->prop, trainer->privateData);
+  ret = trainer->fw->train (trainer->fw, &trainer->prop, trainer->privateData);
   if (ret != 0) {
     GST_ERROR_OBJECT (trainer, "model train is failed");
   }
@@ -1130,25 +1131,54 @@ gst_tensor_trainer_train_model (GstTensorTrainer * trainer)
 
 /**
  * @brief Trainer's sub-plugin should call this function to register itself.
- * @param[in] sub_plugin tensor_trainer sub-plugin to be registered.
+ * @param[in] ttsp tensor_trainer sub-plugin to be registered.
  * @return TRUE if registered. FALSE is failed or duplicated.
  */
 int
 nnstreamer_trainer_probe (GstTensorTrainerFramework * ttsp)
 {
+  GstTensorTrainerFrameworkInfo info;
+  GstTensorTrainerProperties prop;
   const char *name = NULL;
+  int ret = 0;
+
   g_return_val_if_fail (ttsp != NULL, 0);
 
-  name = ttsp->name;
+  memset (&prop, 0, sizeof (GstTensorTrainerProperties));
+  gst_tensors_info_init (&prop.input_meta);
+
+  if (ret != ttsp->getFrameworkInfo (ttsp, &prop, NULL, &info)) {
+    GST_ERROR ("getFrameworkInfo() failed");
+    return FALSE;
+  }
+  name = info.name;
+
   return register_subplugin (NNS_SUBPLUGIN_TRAINER, name, ttsp);
 }
 
 /**
  * @brief Trainer's sub-plugin may call this to unregister itself.
- * @param[in] name The name of trainer sub-plugin.
+ * @param[in] ttsp tensor_trainer sub-plugin to be unregistered.
+ * @return TRUE if unregistered. FALSE is failed.
  */
-void
-nnstreamer_trainer_exit (const char *name)
+int
+nnstreamer_trainer_exit (GstTensorTrainerFramework * ttsp)
 {
-  unregister_subplugin (NNS_SUBPLUGIN_TRAINER, name);
+  GstTensorTrainerFrameworkInfo info;
+  GstTensorTrainerProperties prop;
+  const char *name = NULL;
+  int ret = 0;
+
+  g_return_val_if_fail (ttsp != NULL, 0);
+
+  memset (&prop, 0, sizeof (GstTensorTrainerProperties));
+  gst_tensors_info_init (&prop.input_meta);
+
+  if (ret != ttsp->getFrameworkInfo (ttsp, &prop, NULL, &info)) {
+    GST_ERROR ("getFrameworkInfo() failed");
+    return FALSE;
+  }
+  name = info.name;
+
+  return unregister_subplugin (NNS_SUBPLUGIN_TRAINER, name);
 }
