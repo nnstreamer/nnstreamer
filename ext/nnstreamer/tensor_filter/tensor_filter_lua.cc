@@ -406,7 +406,8 @@ lua_subplugin::setTensorsInfo (GstTensorsInfo &tensors_info)
         lua_pushinteger (L, j);
         lua_gettable (L, -2);
         if (lua_istable (L, -1)) {
-          for (uint i = 1; i <= NNS_TENSOR_RANK_LIMIT; ++i) {
+          uint len = lua_objlen (L, -1);
+          for (uint i = 1; i <= len; ++i) {
             lua_pushinteger (L, i);
             lua_gettable (L, -2);
             if (lua_isnumber (L, -1)) {
@@ -415,6 +416,9 @@ lua_subplugin::setTensorsInfo (GstTensorsInfo &tensors_info)
               throw std::invalid_argument ("Failed to parse `dim`. Please check the script");
             }
             lua_pop (L, 1);
+          }
+          for (uint i = len + 1; i <= NNS_TENSOR_RANK_LIMIT; i++) {
+            tensors_info.info[j - 1].dimension[i - 1] = 1;
           }
         } else {
           throw std::invalid_argument ("Failed to parse `dim`. Please check the script");
