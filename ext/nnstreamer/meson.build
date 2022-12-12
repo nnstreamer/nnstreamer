@@ -54,21 +54,16 @@ subdir('tensor_sink')
 
 if get_option('enable-tizen-sensor')
   tizensensor_registerer_source_files = ['registerer/tizensensor.c']
-  tizensensor_registerer_sources = []
-
-  foreach s : tizensensor_registerer_source_files
-    tizensensor_registerer_sources += join_paths(meson.current_source_dir(), s)
-  endforeach
 
   tizensensor_lib = shared_library('nnstreamer-tizen-sensor',
-    tizensensor_registerer_sources,
+    tizensensor_registerer_source_files,
     dependencies: tensor_src_tizensensor_dep,
     install: true,
     install_dir: plugins_install_dir
   )
 
   tizensensor_static = static_library('nnstreamer-tizen-sensor',
-    tizensensor_registerer_sources,
+    tizensensor_registerer_source_files,
     dependencies: tensor_src_tizensensor_dep,
     install: true,
     install_dir: nnstreamer_libdir
@@ -77,14 +72,9 @@ endif
 
 if grpc_support_is_available
   grpc_registerer_source_files = ['registerer/grpc.c']
-  grpc_registerer_sources = []
-
-  foreach s : grpc_registerer_source_files
-    grpc_registerer_sources += join_paths(meson.current_source_dir(), s)
-  endforeach
 
   grpc_lib = shared_library('nnstreamer-grpc',
-    grpc_registerer_sources,
+    grpc_registerer_source_files,
     dependencies: [tensor_src_grpc_dep, tensor_sink_grpc_dep],
     install: true,
     install_dir: plugins_install_dir

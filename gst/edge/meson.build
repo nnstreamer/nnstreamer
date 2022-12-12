@@ -1,11 +1,10 @@
-edge_files = [
+edge_srcs = [
     'edge_common.c',
     'edge_elements.c',
     'edge_sink.c',
     'edge_src.c',
 ]
 
-edge_srcs = []
 edge_dep = [
     glib_dep,
     gst_base_dep,
@@ -19,10 +18,6 @@ elif cc.has_header_symbol('android/log.h', '__android_log_print')
   edge_dep += cc.find_library('log')
 endif
 
-foreach s : edge_files
-    edge_srcs += join_paths(meson.current_source_dir(), s)
-endforeach
-
 gstedge_shared = shared_library('gstedge',
   edge_srcs,
   dependencies: edge_dep,
@@ -32,7 +27,7 @@ gstedge_shared = shared_library('gstedge',
 )
 
 gstedge_dep = declare_dependency(
-    link_with: gstedge_shared, 
+    link_with: gstedge_shared,
     dependencies: edge_dep,
     include_directories: include_directories('.')
 )

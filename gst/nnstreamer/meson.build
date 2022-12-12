@@ -1,6 +1,4 @@
 nnstreamer_inc = include_directories('.', './include/')
-nnstreamer_single_sources = []
-nnstreamer_sources = []
 nnstreamer_headers = []
 
 # Dependencies
@@ -41,30 +39,22 @@ endif
 nnstreamer_internal_deps = []
 
 # Add nnstreamer single sources
-nnst_single_sources = [
+nnstreamer_single_sources = [
   'hw_accel.c',
   'nnstreamer_conf.c',
   'nnstreamer_log.c',
   'nnstreamer_subplugin.c',
-  'nnstreamer_plugin_api_util_impl.c',
+  'nnstreamer_plugin_api_util_impl.c'
 ]
 
 # Add nnstreamer registerer and common sources
-nnst_sources = [
+nnstreamer_sources = [
   'registerer/nnstreamer.c',
   'nnstreamer_plugin_api_impl.c',
   'tensor_allocator.c',
   'tensor_data.c',
   'tensor_meta.c'
 ]
-
-foreach s : nnst_single_sources
-  nnstreamer_single_sources += join_paths(meson.current_source_dir(), s)
-endforeach
-
-foreach s : nnst_sources
-  nnstreamer_sources += join_paths(meson.current_source_dir(), s)
-endforeach
 
 # Add plugins
 nnst_plugins = [
@@ -80,7 +70,7 @@ endforeach
 subdir('include')
 
 # Private header for sub-plugins and native APIs
-nnstreamer_headers += join_paths(meson.current_source_dir(), 'nnstreamer_internal.h')
+nnstreamer_headers += files('nnstreamer_internal.h')
 
 nnstreamer_single_shared = shared_library('nnstreamer-single',
   nnstreamer_single_sources,

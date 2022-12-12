@@ -1,4 +1,4 @@
-tensor_element_sources = [
+nnstreamer_sources += files(
   'gsttensor_aggregator.c',
   'gsttensor_converter.c',
   'gsttensor_crop.c',
@@ -17,11 +17,12 @@ tensor_element_sources = [
   'gsttensor_sparseenc.c',
   'gsttensor_sparseutil.c',
   'gsttensor_split.c',
-]
+  'gsttensor_transform.c'
+)
 
 # gsttensorsrc
 if tensor_src_iio_build
-  nnstreamer_sources += join_paths(meson.current_source_dir(), 'gsttensor_srciio.c')
+  nnstreamer_sources += files('gsttensor_srciio.c')
 endif
 
 # gsttensortransform
@@ -48,8 +49,3 @@ if orcc_support_is_available
   nnstreamer_sources += [orc_c, orc_h]
   nnstreamer_internal_deps += declare_dependency(sources: orc_h)
 endif
-tensor_element_sources += 'gsttensor_transform.c'
-
-foreach s : tensor_element_sources
-  nnstreamer_sources += join_paths(meson.current_source_dir(), s)
-endforeach

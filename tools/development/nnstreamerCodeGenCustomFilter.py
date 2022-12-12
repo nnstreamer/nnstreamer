@@ -381,13 +381,8 @@ nnstreamer_single_dep = dependency('nnstreamer-single')
   '{fname}.c'
 ]
 
-{fname}_srcfiles_fullpath = []
-foreach s : {fname}_srcfiles
-  {fname}_srcfiles_fullpath += join_paths(meson.current_source_dir(), s)
-endforeach
-
 shared_library('{fname}',
-  {fname}_srcfiles_fullpath,
+  {fname}_srcfiles,
   dependencies: [glib_dep, gst_dep, nnstreamer_dep, nnstreamer_single_dep],
   install: true,
   install_dir: customfilter_install_dir
@@ -396,7 +391,7 @@ shared_library('{fname}',
 # @warning NYI. Static library mode of custom filter is not supported yet.
 # This will be supported after fixing #1182.
 # static_library('{fname}',
-#   {fname}_srcfiles_fullpath,
+#   {fname}_srcfiles,
 #   dependencies: [glib_dep, gst_dep, nnstreamer_dep, nnstreamer_single_dep],
 #   install: true,
 #   install_dir: {fname}_libdir,
