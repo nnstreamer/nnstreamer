@@ -186,6 +186,34 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=299,height=299,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tensor_transform mode=typecast option=float32 ! tensor_filter framework=lua model=\"${PASSTHROUGH_SCRIPT_F16}\" ! fakesink" 10_n 0 1 $PERFORMANCE
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=299,height=299,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tensor_transform mode=typecast option=float64 ! tensor_filter framework=lua model=\"${PASSTHROUGH_SCRIPT_F16}\" ! fakesink" 11_n 0 1 $PERFORMANCE
 
+# Passthrough test with given string script
+# Not declaring full dimension
+PASSTHROUGH_SCRIPT="
+inputTensorsInfo = {
+    num = 1,
+    dim = {{3, 299, 299},},
+    type = {'uint8',} --[[ USE single quote to declare string --]]
+}
+
+outputTensorsInfo = {
+    num = 1,
+    dim = {{3, 299, 299},},
+    type = {'uint8',} --[[ USE single quote to declare string --]]
+}
+
+function nnstreamer_invoke()
+    input = input_tensor(1)
+    output = output_tensor(1)
+    for i=1,3*299*299 do
+        output[i] = input[i] --[[ copy input into output --]]
+    end
+end
+"
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=299,height=299,framerate=0/1 ! videoconvert ! video/x-raw, format=RGB ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=lua model=\"${PASSTHROUGH_SCRIPT}\" ! filesink location=\"testcase12.passthrough.log\" sync=true t. ! queue ! filesink location=\"testcase12.direct.log\" sync=true" 12 0 0 $PERFORMANCE
+callCompareTest testcase12.direct.log testcase12.passthrough.log 12 "Compare 3" 0 0
+
+
 rm *.log
 
 report
