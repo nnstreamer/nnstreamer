@@ -1,12 +1,7 @@
 # To resolve compiler warning. Remove this include after removing unused parameters.
 nns_util_inc = include_directories('../nnstreamer/include')
 
-mqtt_plugin_srcs = [
-  join_paths(meson.current_source_dir(), 'mqttsink.c'),
-  join_paths(meson.current_source_dir(), 'mqttsrc.c'),
-  join_paths(meson.current_source_dir(), 'mqttelements.c'),
-  join_paths(meson.current_source_dir(), 'ntputil.c'),
-]
+mqtt_plugin_srcs = ['mqttsink.c', 'mqttsrc.c', 'mqttelements.c', 'ntputil.c']
 
 gstmqtt_shared = shared_library('gstmqtt',
   mqtt_plugin_srcs,

@@ -1,5 +1,5 @@
 # Common headers to be installed
-nnst_common_headers = [
+nnstreamer_headers += files(
   'tensor_if.h',
   'tensor_typedef.h',
   'tensor_filter_custom.h',
@@ -12,14 +12,10 @@ nnst_common_headers = [
   'nnstreamer_plugin_api_util.h',
   'nnstreamer_plugin_api.h',
   'nnstreamer_util.h'
-]
-
-foreach h : nnst_common_headers
-  nnstreamer_headers += join_paths(meson.current_source_dir(), h)
-endforeach
+)
 
 if get_option('enable-filter-cpp-class')
-  nnstreamer_headers += join_paths(meson.current_source_dir(), 'nnstreamer_cppplugin_api_filter.hh')
+  nnstreamer_headers += files('nnstreamer_cppplugin_api_filter.hh')
 endif
 
 version_conf = configuration_data()

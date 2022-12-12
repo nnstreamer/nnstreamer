@@ -1,11 +1,6 @@
 if nnfw_runtime_support_is_available
   filter_sub_nnfw_sources = ['tensor_filter_nnfw.c']
 
-  nnstreamer_filter_nnfw_sources = []
-  foreach s : filter_sub_nnfw_sources
-    nnstreamer_filter_nnfw_sources += join_paths(meson.current_source_dir(), s)
-  endforeach
-
   nnstreamer_filter_nnfw_deps = nnfw_runtime_support_deps + [nnstreamer_single_dep]
 
   # Check old function (@todo remove this definition later, nnfw ver >= 1.6.0)
@@ -14,13 +9,13 @@ if nnfw_runtime_support_is_available
   endif
 
   nnfw_plugin_lib = shared_library('nnstreamer_filter_nnfw',
-    nnstreamer_filter_nnfw_sources,
+    filter_sub_nnfw_sources,
     dependencies: nnstreamer_filter_nnfw_deps,
     install: true,
     install_dir: filter_subplugin_install_dir
   )
   static_library('nnstreamer_filter_nnfw',
-    nnstreamer_filter_nnfw_sources,
+    filter_sub_nnfw_sources,
     dependencies: nnstreamer_filter_nnfw_deps,
     install: true,
     install_dir: nnstreamer_libdir
@@ -34,11 +29,6 @@ if armnn_support_is_available
   filter_sub_armnn_sources = [
     'tensor_filter_armnn.cc'
   ]
-
-  nnstreamer_filter_armnn_sources = []
-  foreach s : filter_sub_armnn_sources
-    nnstreamer_filter_armnn_sources += join_paths(meson.current_source_dir(), s)
-  endforeach
 
   if cxx.has_header('armnnCaffeParser/ICaffeParser.hpp')
     armnn_caffeparserlib = cxx.find_library('armnnCaffeParser', required: true)
@@ -56,13 +46,13 @@ if armnn_support_is_available
   nnstreamer_filter_armnn_deps = armnn_support_deps + [glib_dep, gst_dep, nnstreamer_dep ]
 
   armnn_plugin_lib = shared_library('nnstreamer_filter_armnn',
-    nnstreamer_filter_armnn_sources,
+    filter_sub_armnn_sources,
     dependencies: nnstreamer_filter_armnn_deps,
     install: true,
     install_dir: filter_subplugin_install_dir
   )
   static_library('nnstreamer_filter_armnn',
-    nnstreamer_filter_armnn_sources,
+    filter_sub_armnn_sources,
     dependencies: nnstreamer_filter_armnn_deps,
     install: true,
     install_dir: nnstreamer_libdir
@@ -91,23 +81,18 @@ if tf_support_is_available
 
   filter_sub_tf_sources = ['tensor_filter_tensorflow.cc']
 
-  nnstreamer_filter_tf_sources = []
-  foreach s : filter_sub_tf_sources
-    nnstreamer_filter_tf_sources += join_paths(meson.current_source_dir(), s)
-  endforeach
-
   nnstreamer_filter_tf_deps = tf_support_deps + [nnstreamer_single_dep]
   nnstreamer_filter_tf_deps += tf_ver_dep
 
   shared_library('nnstreamer_filter_tensorflow',
-    nnstreamer_filter_tf_sources,
+    filter_sub_tf_sources,
     dependencies: nnstreamer_filter_tf_deps,
     install: true,
     install_dir: filter_subplugin_install_dir
   )
 
   static_library('nnstreamer_filter_tensorflow',
-    nnstreamer_filter_tf_sources,
+    filter_sub_tf_sources,
     dependencies: nnstreamer_filter_tf_deps,
     install: true,
     install_dir: nnstreamer_libdir
@@ -137,11 +122,6 @@ if tflite_support_is_available
   endif
 
   filter_sub_tflite_sources = ['tensor_filter_tensorflow_lite.cc']
-
-  nnstreamer_filter_tflite_sources = []
-  foreach s : filter_sub_tflite_sources
-    nnstreamer_filter_tflite_sources += join_paths(meson.current_source_dir(), s)
-  endforeach
 
   nnstreamer_filter_tflite_deps = tflite_support_deps + [thread_dep, libdl_dep, glib_dep, nnstreamer_single_dep]
 
@@ -173,14 +153,14 @@ if tflite_support_is_available
   nnstreamer_filter_tflite_deps += tflite_ver_dep
 
   shared_library('nnstreamer_filter_tensorflow1-lite',
-    nnstreamer_filter_tflite_sources,
+    filter_sub_tflite_sources,
     dependencies: nnstreamer_filter_tflite_deps,
     install: true,
     install_dir: filter_subplugin_install_dir
   )
 
   static_library('nnstreamer_filter_tensorflow1-lite',
-    nnstreamer_filter_tflite_sources,
+    filter_sub_tflite_sources,
     dependencies: nnstreamer_filter_tflite_deps,
     install: true,
     install_dir: nnstreamer_libdir
@@ -205,11 +185,6 @@ if tflite2_support_is_available
   message('TensorFlow2-lite version: ' + tflite2_ver)
 
   filter_sub_tflite2_sources = ['tensor_filter_tensorflow_lite.cc']
-
-  nnstreamer_filter_tflite2_sources = []
-  foreach s : filter_sub_tflite2_sources
-    nnstreamer_filter_tflite2_sources += join_paths(meson.current_source_dir(), s)
-  endforeach
 
   nnstreamer_filter_tflite2_deps = tflite2_support_deps + [thread_dep, libdl_dep, nnstreamer_single_dep]
 
@@ -271,14 +246,14 @@ if tflite2_support_is_available
   nnstreamer_filter_tflite2_deps += tflite2_ver_dep
 
   shared_library('nnstreamer_filter_tensorflow2-lite',
-    nnstreamer_filter_tflite2_sources,
+    filter_sub_tflite2_sources,
     dependencies: nnstreamer_filter_tflite2_deps,
     install: true,
     install_dir: filter_subplugin_install_dir
   )
 
   static_library('nnstreamer_filter_tensorflow2-lite',
-    nnstreamer_filter_tflite2_sources,
+    filter_sub_tflite2_sources,
     dependencies: nnstreamer_filter_tflite2_deps,
     install: true,
     install_dir: nnstreamer_libdir
@@ -352,7 +327,7 @@ if tflite2_support_is_available
         link_args: ['-L' + meson.current_build_dir(), '-ltensorflow2-lite-custom']
       )
       shared_library('nnstreamer_filter_tensorflow2-lite-custom',
-        nnstreamer_filter_tflite2_sources,
+        filter_sub_tflite2_sources,
         dependencies: [tflc_dep, thread_dep, libdl_dep, nnstreamer_single_dep, tflite2_ver_dep, tflite2_custom_extra_dep],
         install: true,
         install_dir:filter_subplugin_install_dir
@@ -376,11 +351,6 @@ if pytorch_support_is_available
     ignore_unused_params = declare_dependency(compile_args: ['-Wno-unused-parameter'])
     pytorch_support_deps += ignore_unused_params
 
-    nnstreamer_filter_torch_sources = []
-    foreach s : filter_sub_torch_sources
-      nnstreamer_filter_torch_sources += join_paths(meson.current_source_dir(), s)
-    endforeach
-
     nnstreamer_filter_torch_deps = pytorch_support_deps + [nnstreamer_single_dep]
 
     # pytorch version
@@ -389,14 +359,14 @@ if pytorch_support_is_available
     endif
 
     shared_library('nnstreamer_filter_pytorch',
-      nnstreamer_filter_torch_sources,
+      filter_sub_torch_sources,
       dependencies: nnstreamer_filter_torch_deps,
       install: true,
       install_dir: filter_subplugin_install_dir
     )
 
     static_library('nnstreamer_filter_pytorch',
-      nnstreamer_filter_torch_sources,
+      filter_sub_torch_sources,
       dependencies: nnstreamer_filter_torch_deps,
       install: true,
       install_dir: nnstreamer_libdir
@@ -409,22 +379,17 @@ endif
 if caffe2_support_is_available
   filter_sub_caffe2_sources = ['tensor_filter_caffe2.cc']
 
-  nnstreamer_filter_caffe2_sources = []
-  foreach s : filter_sub_caffe2_sources
-    nnstreamer_filter_caffe2_sources += join_paths(meson.current_source_dir(), s)
-  endforeach
-
   nnstreamer_filter_caffe2_deps = caffe2_support_deps + [protobuf_dep, glib_dep, nnstreamer_single_dep]
 
   shared_library('nnstreamer_filter_caffe2',
-    nnstreamer_filter_caffe2_sources,
+    filter_sub_caffe2_sources,
     dependencies: nnstreamer_filter_caffe2_deps,
     install: true,
     install_dir: filter_subplugin_install_dir
   )
 
   static_library('nnstreamer_filter_caffe2',
-    nnstreamer_filter_caffe2_sources,
+    filter_sub_caffe2_sources,
     dependencies: nnstreamer_filter_caffe2_deps,
     install: true,
     install_dir: nnstreamer_libdir
@@ -436,20 +401,15 @@ if deepview_rt_support_is_available
 
   filter_sub_deepview_rt_sources = ['tensor_filter_deepview_rt.cc']
 
-  nnstreamer_filter_deepview_rt_sources = []
-  foreach s : filter_sub_deepview_rt_sources
-    nnstreamer_filter_deepview_rt_sources += join_paths(meson.current_source_dir(), s)
-  endforeach
-
   shared_library('nnstreamer_filter_deepview-rt',
-    nnstreamer_filter_deepview_rt_sources,
+    filter_sub_deepview_rt_sources,
     dependencies: nnstreamer_filter_deepview_rt_deps,
     install: true,
     install_dir: filter_subplugin_install_dir
   )
 
   static_library('nnstreamer_filter_deepview-rt',
-    nnstreamer_filter_deepview_rt_sources,
+    filter_sub_deepview_rt_sources,
     dependencies: nnstreamer_filter_deepview_rt_deps,
     install: true,
     install_dir: nnstreamer_libdir
@@ -459,20 +419,15 @@ endif
 if have_python3
   filter_sub_python3_sources = ['tensor_filter_python3.cc']
 
-  nnstreamer_filter_python3_sources = []
-  foreach s : filter_sub_python3_sources
-    nnstreamer_filter_python3_sources += join_paths(meson.current_source_dir(), s)
-  endforeach
-
   shared_library('nnstreamer_filter_python3',
-    nnstreamer_filter_python3_sources,
+    filter_sub_python3_sources,
     dependencies: nnstreamer_python3_helper_dep,
     install: true,
     install_dir: filter_subplugin_install_dir
   )
 
   static_library('nnstreamer_filter_python3',
-    nnstreamer_filter_python3_sources,
+    filter_sub_python3_sources,
     dependencies: nnstreamer_python3_helper_dep,
     install: true,
     install_dir: nnstreamer_libdir
@@ -484,22 +439,17 @@ if mvncsdk2_support_is_available
     'tensor_filter_movidius_ncsdk2.c'
   ]
 
-  nnstreamer_filter_mvncsdk2_sources = []
-  foreach s : filter_sub_mvncsdk2_sources
-    nnstreamer_filter_mvncsdk2_sources += join_paths(meson.current_source_dir(), s)
-  endforeach
-
   nnstreamer_filter_mvncsdk2_deps = mvncsdk2_support_deps + [glib_dep, gst_dep, nnstreamer_dep]
 
   shared_library('nnstreamer_filter_movidius-ncsdk2',
-    nnstreamer_filter_mvncsdk2_sources,
+    filter_sub_mvncsdk2_sources,
     dependencies: nnstreamer_filter_mvncsdk2_deps,
     install: true,
     install_dir: filter_subplugin_install_dir
   )
 
   static_library('nnstreamer_filter_movidius-ncsdk2',
-    nnstreamer_filter_mvncsdk2_sources,
+    filter_sub_mvncsdk2_sources,
     dependencies: nnstreamer_filter_mvncsdk2_deps,
     install: true,
     install_dir: nnstreamer_libdir
@@ -509,13 +459,8 @@ endif
 if get_option('enable-cppfilter')
   filter_sub_cpp_sources = ['tensor_filter_cpp.cc']
 
-  nnstreamer_filter_cpp_sources = []
-  foreach s : filter_sub_cpp_sources
-    nnstreamer_filter_cpp_sources += join_paths(meson.current_source_dir(), s)
-  endforeach
-
   nnstreamer_cpp_lib = shared_library('nnstreamer_filter_cpp',
-    nnstreamer_filter_cpp_sources,
+    filter_sub_cpp_sources,
     dependencies: nnstreamer_single_dep,
     install: true,
     install_dir: filter_subplugin_install_dir
@@ -566,11 +511,6 @@ if get_option('enable-edgetpu')
 
   filter_sub_edgetpu_sources = ['tensor_filter_edgetpu.cc']
 
-  nnstreamer_filter_edgetpu_sources = []
-  foreach s : filter_sub_edgetpu_sources
-    nnstreamer_filter_edgetpu_sources += join_paths(meson.current_source_dir(), s)
-  endforeach
-
   rpath_edgetpu_test_helper = ''
   if get_option('enable-test')
     '''
@@ -582,7 +522,7 @@ if get_option('enable-edgetpu')
   endif
 
   shared_library('nnstreamer_filter_edgetpu',
-    nnstreamer_filter_edgetpu_sources,
+    filter_sub_edgetpu_sources,
     dependencies: nnstreamer_filter_edgetpu_deps,
     install: true,
     install_dir: filter_subplugin_install_dir,
@@ -605,15 +545,10 @@ if get_option('enable-openvino')
   endif
   filter_sub_openvino_sources = ['tensor_filter_openvino.cc']
 
-  nnstreamer_filter_openvino_sources = []
-  foreach s : filter_sub_openvino_sources
-    nnstreamer_filter_openvino_sources += join_paths(meson.current_source_dir(), s)
-  endforeach
-
   nnstreamer_filter_openvino_deps = [glib_dep, gst_dep, nnstreamer_dep, openvino_deps]
 
   nnstreamer_filter_openvino_so_lib = shared_library('nnstreamer_filter_openvino',
-    nnstreamer_filter_openvino_sources,
+    filter_sub_openvino_sources,
     cpp_args: openvino_cpp_args,
     dependencies: nnstreamer_filter_openvino_deps,
     install: true,
@@ -621,7 +556,7 @@ if get_option('enable-openvino')
   )
 
   static_library('nnstreamer_filter_openvino',
-    nnstreamer_filter_openvino_sources,
+    filter_sub_openvino_sources,
     cpp_args: openvino_cpp_args,
     dependencies: nnstreamer_filter_openvino_deps,
     install: true,
@@ -697,13 +632,8 @@ if get_option('enable-mediapipe')
 
   filter_sub_mp_sources = ['tensor_filter_mediapipe.cc']
 
-  nnstreamer_filter_mediapipe_sources = []
-  foreach s : filter_sub_mp_sources
-    nnstreamer_filter_mediapipe_sources += join_paths(meson.current_source_dir(), s)
-  endforeach
-
   shared_library('nnstreamer_filter_mediapipe',
-    nnstreamer_filter_mediapipe_sources,
+    filter_sub_mp_sources,
     dependencies: nnstreamer_filter_mediapipe_deps,
     include_directories: mediapipe_incdir,
     install: true,
@@ -718,15 +648,10 @@ if snpe_support_is_available
   snpe_cpp_args = []
   snpe_cpp_args += '-Wno-terminate'
 
-  nnstreamer_filter_snpe_sources = []
-  foreach s : filter_sub_snpe_sources
-    nnstreamer_filter_snpe_sources += join_paths(meson.current_source_dir(), s)
-  endforeach
-
   nnstreamer_filter_snpe_deps = [glib_dep, gst_dep, nnstreamer_dep, snpe_support_deps]
 
   shared_library('nnstreamer_filter_snpe',
-    nnstreamer_filter_snpe_sources,
+    filter_sub_snpe_sources,
     cpp_args: snpe_cpp_args,
     dependencies: nnstreamer_filter_snpe_deps,
     install: true,
@@ -734,7 +659,7 @@ if snpe_support_is_available
   )
 
   static_library('nnstreamer_filter_snpe',
-    nnstreamer_filter_snpe_sources,
+    filter_sub_snpe_sources,
     cpp_args: snpe_cpp_args,
     dependencies: nnstreamer_filter_snpe_deps,
     install: true,
@@ -746,22 +671,17 @@ endif
 if tensorrt_support_is_available
   filter_sub_tensorrt_sources = ['tensor_filter_tensorrt.cc']
 
-  nnstreamer_filter_tensorrt_sources = []
-  foreach s : filter_sub_tensorrt_sources
-    nnstreamer_filter_tensorrt_sources += join_paths(meson.current_source_dir(), s)
-  endforeach
-
   nnstreamer_filter_tensorrt_deps = [glib_dep, gst_dep, nnstreamer_dep, tensorrt_support_deps]
 
   shared_library('nnstreamer_filter_tensorrt',
-    nnstreamer_filter_tensorrt_sources,
+    filter_sub_tensorrt_sources,
     dependencies: nnstreamer_filter_tensorrt_deps,
     install: true,
     install_dir: filter_subplugin_install_dir
   )
 
   static_library('nnstreamer_filter_tensorrt',
-    nnstreamer_filter_tensorrt_sources,
+    filter_sub_tensorrt_sources,
     dependencies: nnstreamer_filter_tensorrt_deps,
     install: true,
     install_dir: nnstreamer_libdir
@@ -778,22 +698,17 @@ endif
 if lua_support_is_available
   filter_sub_lua_sources = ['tensor_filter_lua.cc']
 
-  nnstreamer_filter_lua_sources = []
-  foreach s : filter_sub_lua_sources
-    nnstreamer_filter_lua_sources += join_paths(meson.current_source_dir(), s)
-  endforeach
-
   nnstreamer_filter_lua_deps = [glib_dep, gst_dep, nnstreamer_dep, lua_support_deps]
 
   shared_library('nnstreamer_filter_lua',
-    nnstreamer_filter_lua_sources,
+    filter_sub_lua_sources,
     dependencies: nnstreamer_filter_lua_deps,
     install: true,
     install_dir: filter_subplugin_install_dir
   )
 
   static_library('nnstreamer_filter_lua',
-    nnstreamer_filter_lua_sources,
+    filter_sub_lua_sources,
     dependencies: nnstreamer_filter_lua_deps,
     install: true,
     install_dir: nnstreamer_libdir
@@ -805,20 +720,15 @@ if tvm_support_is_available
 
   filter_sub_tvm_sources = ['tensor_filter_tvm.cc']
 
-  nnstreamer_filter_tvm_sources = []
-  foreach s : filter_sub_tvm_sources
-    nnstreamer_filter_tvm_sources += join_paths(meson.current_source_dir(), s)
-  endforeach
-
   shared_library('nnstreamer_filter_tvm',
-    nnstreamer_filter_tvm_sources,
+    filter_sub_tvm_sources,
     dependencies: nnstreamer_filter_tvm_deps,
     install: true,
     install_dir: filter_subplugin_install_dir
   )
 
   static_library('nnstreamer_filter_tvm',
-    nnstreamer_filter_tvm_sources,
+    filter_sub_tvm_sources,
     dependencies: nnstreamer_filter_tvm_deps,
     install: true,
     install_dir: nnstreamer_libdir
@@ -830,20 +740,15 @@ if trix_engine_support_is_available
 
   filter_sub_trix_engine_sources = ['tensor_filter_trix_engine.cc']
 
-  nnstreamer_filter_trix_engine_sources = []
-  foreach s : filter_sub_trix_engine_sources
-    nnstreamer_filter_trix_engine_sources += join_paths(meson.current_source_dir(), s)
-  endforeach
-
   shared_library('nnstreamer_filter_trix-engine',
-    nnstreamer_filter_trix_engine_sources,
+    filter_sub_trix_engine_sources,
     dependencies: nnstreamer_filter_trix_engine_deps,
     install: true,
     install_dir: filter_subplugin_install_dir
   )
 
   static_library('nnstreamer_filter_trix-engine',
-    nnstreamer_filter_trix_engine_sources,
+    filter_sub_trix_engine_sources,
     dependencies: nnstreamer_filter_trix_engine_deps,
     install: true,
     install_dir: nnstreamer_libdir
@@ -859,15 +764,10 @@ if mxnet_support_is_available
     'tensor_filter_mxnet.cc'
   ]
 
-  nnstreamer_filter_mxnet_sources = []
-  foreach s : filter_sub_mxnet_sources
-    nnstreamer_filter_mxnet_sources += join_paths(meson.current_source_dir(), s)
-  endforeach
-
   nnstreamer_filter_mxnet_deps = mxnet_support_deps + [glib_dep, gst_dep, nnstreamer_dep, libdl_dep]
 
   nnstreamer_filter_mxnet_so_lib = shared_library('nnstreamer_filter_mxnet',
-    nnstreamer_filter_mxnet_sources,
+    filter_sub_mxnet_sources,
     dependencies: nnstreamer_filter_mxnet_deps,
     install: true,
     install_dir: filter_subplugin_install_dir,
