@@ -69,6 +69,9 @@ struct _GstTensorTrainer
   void *privateData; /**< NNFW plugin's private data is stored here */
   const GstTensorTrainerFramework *fw;  /* for test, need to make */
   GstTensorTrainerProperties prop; /**< NNFW plugin's properties */
+
+  GMutex trainer_lock;
+  GCond train_complete_cond;
 };
 
 /**
