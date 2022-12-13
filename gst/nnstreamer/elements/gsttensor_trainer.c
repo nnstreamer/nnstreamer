@@ -296,6 +296,10 @@ gst_tensor_trainer_init (GstTensorTrainer * trainer)
   trainer->output_configured = 0;
   trainer->inputtype_configured = 0;
   trainer->outputtype_configured = 0;
+
+  g_cond_init (&trainer->train_complete_cond);
+  g_mutex_init (&trainer->trainer_lock);
+  trainer->prop.train_complete_cond = &trainer->train_complete_cond;
 }
 
 /**
@@ -315,6 +319,9 @@ gst_tensor_trainer_finalize (GObject * object)
   g_free (trainer->output_dimensions);
   g_free (trainer->input_type);
   g_free (trainer->output_type);
+
+  g_cond_clear (&trainer->train_complete_cond);
+  g_mutex_clear (&trainer->trainer_lock);
 
   if (trainer->fw_created && trainer->fw) {
     trainer->fw->destroy (trainer->fw, &trainer->prop, &trainer->privateData);
@@ -504,6 +511,10 @@ gst_tensor_trainer_sink_event (GstBaseTransform * trans, GstEvent * event)
     case GST_EVENT_EOS:
       GST_INFO_OBJECT (trainer, "get GST_EVENT_EOS event..state is %d",
           GST_STATE (trainer));
+      g_mutex_lock (&trainer->trainer_lock);
+      GST_INFO_OBJECT (trainer, "wait for train_complete_cond signal");
+      g_cond_wait (&trainer->train_complete_cond, &trainer->trainer_lock);
+      g_mutex_unlock (&trainer->trainer_lock);
       break;
     case GST_EVENT_FLUSH_START:
       GST_INFO_OBJECT (trainer, "get GST_EVENT_FLUSH_START event");
