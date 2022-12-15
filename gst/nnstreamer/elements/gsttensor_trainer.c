@@ -38,7 +38,7 @@
 /**
  * @brief The capabilities of the sink pad
  */
-static GstStaticPadTemplate sinktemplate = GST_STATIC_PAD_TEMPLATE ("sink",
+static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS (CAPS_STRING));
@@ -46,7 +46,7 @@ static GstStaticPadTemplate sinktemplate = GST_STATIC_PAD_TEMPLATE ("sink",
 /**
  * @brief The capabilities of the src pad
  */
-static GstStaticPadTemplate srctemplate = GST_STATIC_PAD_TEMPLATE ("src",
+static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS (CAPS_STRING));
@@ -54,7 +54,7 @@ static GstStaticPadTemplate srctemplate = GST_STATIC_PAD_TEMPLATE ("src",
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_trainer_debug);
 #define GST_CAT_DEFAULT gst_tensor_trainer_debug
 #define gst_tensor_trainer_parent_class parent_class
-G_DEFINE_TYPE (GstTensorTrainer, gst_tensor_trainer, GST_TYPE_BASE_TRANSFORM);
+G_DEFINE_TYPE (GstTensorTrainer, gst_tensor_trainer, GST_TYPE_ELEMENT);
 
 /**
  * @brief Default framework property value
@@ -92,25 +92,19 @@ static void gst_tensor_trainer_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
 static void gst_tensor_trainer_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
-static gboolean gst_tensor_trainer_stop (GstBaseTransform * trans);
 static void gst_tensor_trainer_finalize (GObject * object);
-static gboolean gst_tensor_trainer_sink_event (GstBaseTransform * trans,
-    GstEvent * event);
-static gboolean gst_tensor_trainer_src_event (GstBaseTransform * trans,
-    GstEvent * event);
-static GstFlowReturn gst_tensor_trainer_transform (GstBaseTransform * trans,
-    GstBuffer * inbuf, GstBuffer * outbuf);
+static gboolean gst_tensor_trainer_sink_event (GstPad * sinkpad,
+    GstObject * parent, GstEvent * event);
+static gboolean gst_tensor_trainer_sink_query (GstPad * sinkpad,
+    GstObject * parent, GstQuery * query);
+static gboolean gst_tensor_trainer_src_query (GstPad * srcpad,
+    GstObject * parent, GstQuery * query);
+static GstFlowReturn gst_tensor_trainer_chain (GstPad * sinkpad,
+    GstObject * parent, GstBuffer * inbuf);
+static GstCaps *gst_tensor_trainer_query_caps (GstTensorTrainer * trainer,
+    GstPad * pad, GstCaps * filter);
 static GstStateChangeReturn gst_tensor_trainer_change_state (GstElement *
     element, GstStateChange transition);
-static GstCaps *gst_tensor_trainer_transform_caps (GstBaseTransform * trans,
-    GstPadDirection direction, GstCaps * caps, GstCaps * filter);
-static GstCaps *gst_tensor_trainer_fixate_caps (GstBaseTransform * trans,
-    GstPadDirection direction, GstCaps * caps, GstCaps * othercaps);
-static gboolean gst_tensor_trainer_set_caps (GstBaseTransform * trans,
-    GstCaps * incaps, GstCaps * outcaps);
-static gboolean gst_tensor_trainer_transform_size (GstBaseTransform * trans,
-    GstPadDirection direction, GstCaps * caps, gsize size, GstCaps * othercaps,
-    gsize * othersize);
 
 static void gst_tensor_trainer_set_prop_framework (GstTensorTrainer * trainer,
     const GValue * value);
@@ -137,14 +131,12 @@ static void
 gst_tensor_trainer_class_init (GstTensorTrainerClass * klass)
 {
   GObjectClass *gobject_class;
-  GstBaseTransformClass *trans_class;
   GstElementClass *gstelement_class;
 
   GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, "tensor_trainer", 0,
       "Tensor trainer to train neural network model");
 
   gobject_class = G_OBJECT_CLASS (klass);
-  trans_class = GST_BASE_TRANSFORM_CLASS (klass);
   gstelement_class = GST_ELEMENT_CLASS (klass);
 
   gobject_class->set_property =
@@ -156,26 +148,6 @@ gst_tensor_trainer_class_init (GstTensorTrainerClass * klass)
   /* Called when the element's state changes */
   gstelement_class->change_state =
       GST_DEBUG_FUNCPTR (gst_tensor_trainer_change_state);
-
-  /* Called when the element stop processing */
-  trans_class->stop = GST_DEBUG_FUNCPTR (gst_tensor_trainer_stop);
-
-  /* Event handler on sink pad or src pad */
-  trans_class->sink_event = GST_DEBUG_FUNCPTR (gst_tensor_trainer_sink_event);
-  trans_class->src_event = GST_DEBUG_FUNCPTR (gst_tensor_trainer_src_event);
-
-  /* Transforms incoming buffer */
-  trans_class->transform = GST_DEBUG_FUNCPTR (gst_tensor_trainer_transform);
-
-  /* Caps Negotiation */
-  trans_class->transform_caps =
-      GST_DEBUG_FUNCPTR (gst_tensor_trainer_transform_caps);
-  trans_class->fixate_caps = GST_DEBUG_FUNCPTR (gst_tensor_trainer_fixate_caps);
-  trans_class->set_caps = GST_DEBUG_FUNCPTR (gst_tensor_trainer_set_caps);
-
-  /* Allocation initial outbuffer size */
-  trans_class->transform_size =
-      GST_DEBUG_FUNCPTR (gst_tensor_trainer_transform_size);
 
   /* Install properties for tensor_trainer */
   g_object_class_install_property (gobject_class, PROP_FRAMEWORK,
@@ -261,9 +233,9 @@ gst_tensor_trainer_class_init (GstTensorTrainerClass * klass)
 
   /* Add pad template */
   gst_element_class_add_pad_template (gstelement_class,
-      gst_static_pad_template_get (&srctemplate));
+      gst_static_pad_template_get (&src_template));
   gst_element_class_add_pad_template (gstelement_class,
-      gst_static_pad_template_get (&sinktemplate));
+      gst_static_pad_template_get (&sink_template));
 }
 
 /**
@@ -273,6 +245,25 @@ static void
 gst_tensor_trainer_init (GstTensorTrainer * trainer)
 {
   GST_DEBUG ("<ENTER>");
+  /** setup sink pad */
+  trainer->sinkpad = gst_pad_new_from_static_template (&sink_template, "sink");
+  gst_pad_set_event_function (trainer->sinkpad,
+      GST_DEBUG_FUNCPTR (gst_tensor_trainer_sink_event));
+  gst_pad_set_query_function (trainer->sinkpad,
+      GST_DEBUG_FUNCPTR (gst_tensor_trainer_sink_query));
+  gst_pad_set_chain_function (trainer->sinkpad,
+      GST_DEBUG_FUNCPTR (gst_tensor_trainer_chain));
+  GST_PAD_SET_PROXY_CAPS (trainer->sinkpad);
+  gst_element_add_pad (GST_ELEMENT (trainer), trainer->sinkpad);
+
+  /** setup src pad */
+  trainer->srcpad = gst_pad_new_from_static_template (&src_template, "src");
+  gst_pad_set_query_function (trainer->srcpad,
+      GST_DEBUG_FUNCPTR (gst_tensor_trainer_src_query));
+  GST_PAD_SET_PROXY_CAPS (trainer->srcpad);
+  gst_element_add_pad (GST_ELEMENT (trainer), trainer->srcpad);
+
+  /** init properties */
   trainer->fw_name = g_strdup (DEFAULT_PROP_FRAMEWORK);
   trainer->model_config = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->model_save_path = g_strdup (DEFAULT_STR_PROP_VALUE);
@@ -286,9 +277,11 @@ gst_tensor_trainer_init (GstTensorTrainer * trainer)
   trainer->fw_created = 0;      /* for test */
   trainer->configured = 0;
   trainer->input_configured = 0;
-  trainer->output_configured = 0;
+  trainer->output_configured = FALSE;
   trainer->inputtype_configured = 0;
   trainer->outputtype_configured = 0;
+
+  trainer->total_invoke_num = 0;
 
   g_cond_init (&trainer->train_complete_cond);
   g_mutex_init (&trainer->trainer_lock);
@@ -319,7 +312,6 @@ gst_tensor_trainer_finalize (GObject * object)
   if (trainer->fw_created && trainer->fw) {
     trainer->fw->destroy (trainer->fw, &trainer->prop, &trainer->privateData);
   }
-  /* need to free prop data */
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -489,91 +481,14 @@ gst_tensor_trainer_change_state (GstElement * element,
 }
 
 /**
- * @brief Event handler for sink pad of tensor_trainer
- */
-static gboolean
-gst_tensor_trainer_sink_event (GstBaseTransform * trans, GstEvent * event)
-{
-  GstTensorTrainer *trainer;
-  trainer = GST_TENSOR_TRAINER_CAST (trans);
-
-  GST_INFO_OBJECT (trainer, "sink pad got event (%s)",
-      gst_event_type_get_name (GST_EVENT_TYPE (event)));
-
-  switch (GST_EVENT_TYPE (event)) {
-    case GST_EVENT_EOS:
-      GST_INFO_OBJECT (trainer, "get GST_EVENT_EOS event..state is %d",
-          GST_STATE (trainer));
-      g_mutex_lock (&trainer->trainer_lock);
-      GST_INFO_OBJECT (trainer, "wait for train_complete_cond signal");
-      g_cond_wait (&trainer->train_complete_cond, &trainer->trainer_lock);
-      g_mutex_unlock (&trainer->trainer_lock);
-      break;
-    case GST_EVENT_FLUSH_START:
-      GST_INFO_OBJECT (trainer, "get GST_EVENT_FLUSH_START event");
-      break;
-    case GST_EVENT_FLUSH_STOP:
-      GST_INFO_OBJECT (trainer, "get GST_EVENT_FLUSH_STOP event");
-      break;
-    default:
-      break;
-  }
-
-  return GST_BASE_TRANSFORM_CLASS (parent_class)->sink_event (trans, event);
-}
-
-/**
- * @brief Event handler for src pad of tensor_trainer
- */
-static gboolean
-gst_tensor_trainer_src_event (GstBaseTransform * trans, GstEvent * event)
-{
-  GstTensorTrainer *trainer;
-  trainer = GST_TENSOR_TRAINER_CAST (trans);
-
-  GST_INFO_OBJECT (trainer, "src pad got event (%s)",
-      gst_event_type_get_name (GST_EVENT_TYPE (event)));
-
-  switch (GST_EVENT_TYPE (event)) {
-    case GST_EVENT_EOS:
-      GST_INFO_OBJECT (trainer, "get GST_EVENT_EOS event..state is %d",
-          GST_STATE (trainer));
-      break;
-    case GST_EVENT_FLUSH_START:
-      GST_INFO_OBJECT (trainer, "get GST_EVENT_FLUSH_START event");
-      break;
-    case GST_EVENT_FLUSH_STOP:
-      GST_INFO_OBJECT (trainer, "get GST_EVENT_FLUSH_STOP event");
-      break;
-    default:
-      break;
-  }
-
-  return GST_BASE_TRANSFORM_CLASS (parent_class)->src_event (trans, event);
-}
-
-/**
- * @brief Called when the element stops processing. optional vmethod of BaseTransform
- */
-static gboolean
-gst_tensor_trainer_stop (GstBaseTransform * trans)
-{
-  GstTensorTrainer *trainer;
-  trainer = GST_TENSOR_TRAINER_CAST (trans);
-
-  UNUSED (trainer);
-
-  return TRUE;
-}
-
-/**
- * @brief Transforms one incoming buffer to one outgoing buffer
+ * @brief Chain function, this function does the actual processing.
  */
 static GstFlowReturn
-gst_tensor_trainer_transform (GstBaseTransform * trans, GstBuffer * inbuf,
-    GstBuffer * outbuf)
+gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
+    GstBuffer * inbuf)
 {
   GstTensorTrainer *trainer;
+  GstBuffer *outbuf = NULL;
   gint ret = -1;
   guint mem_blocks, i;
   gsize header_size, expected;
@@ -590,10 +505,11 @@ gst_tensor_trainer_transform (GstBaseTransform * trans, GstBuffer * inbuf,
 
   pid_t pid = getpid ();
   pid_t tid = syscall (SYS_gettid);
-  trainer = GST_TENSOR_TRAINER_CAST (trans);
-  GST_ERROR_OBJECT (trainer, "pid: %d, tid: %d", pid, tid);
 
-  /* Get all input tensors from inbuf */
+  trainer = GST_TENSOR_TRAINER (parent);
+
+  GST_DEBUG_OBJECT (trainer, "pid: %d, tid: %d", pid, tid);
+
   mem_blocks = gst_buffer_n_memory (inbuf);
   for (i = 0; i < mem_blocks; i++) {
     in_mem[i] = gst_buffer_peek_memory (inbuf, i);
@@ -601,8 +517,7 @@ gst_tensor_trainer_transform (GstBaseTransform * trans, GstBuffer * inbuf,
       GST_ERROR_OBJECT (trainer, "Could not map in_mem[%d] GstMemory", i);
       goto error;
     }
-    in_flexible =
-        gst_tensor_pad_caps_is_flexible (GST_BASE_TRANSFORM_SINK_PAD (trans));
+    in_flexible = gst_tensor_pad_caps_is_flexible (sinkpad);
     /* Get header size */
     header_size = 0;
     if (in_flexible) {
@@ -620,7 +535,8 @@ gst_tensor_trainer_transform (GstBaseTransform * trans, GstBuffer * inbuf,
 
   /* Prepare tensor to invoke */
   /* Check number of input tensors */
-  GST_ERROR ("num_tensors: %d", trainer->prop.input_meta.num_tensors);
+  GST_DEBUG_OBJECT (trainer, "num_tensors: %d",
+      trainer->prop.input_meta.num_tensors);
   if (mem_blocks != trainer->prop.input_meta.num_tensors) {
     GST_ERROR_OBJECT (trainer, "Invalid memory blocks(%d),"
         "number of input tensors may be (%d)", mem_blocks,
@@ -629,11 +545,11 @@ gst_tensor_trainer_transform (GstBaseTransform * trans, GstBuffer * inbuf,
   }
 
   /* Check size of input tensors */
-  GST_ERROR ("num_tensors: %d", trainer->prop.input_meta.num_tensors);
   for (i = 0; i < trainer->prop.input_meta.num_tensors; i++) {
     expected = gst_tensor_trainer_get_tensor_size (trainer, i, TRUE);
     if (expected != in_tensors[i].size) {
-      GST_ERROR_OBJECT (trainer, "Invalid tensor size (%u'th memory chunk: %zd)"
+      GST_ERROR_OBJECT (trainer,
+          "Invalid tensor size (%u'th memory chunk: %zd)"
           ", expected size (%zd)", i, in_tensors[i].size, expected);
       goto error;
     }
@@ -654,8 +570,7 @@ gst_tensor_trainer_transform (GstBaseTransform * trans, GstBuffer * inbuf,
 
       /* Get header size */
       header_size = 0;
-      out_flexible =
-          gst_tensor_pad_caps_is_flexible (GST_BASE_TRANSFORM_SRC_PAD (trans));
+      out_flexible = gst_tensor_pad_caps_is_flexible (trainer->srcpad);
       if (out_flexible) {
         gst_tensor_info_convert_to_meta (&trainer->output_meta.info[i],
             &out_meta[i]);
@@ -690,8 +605,8 @@ gst_tensor_trainer_transform (GstBaseTransform * trans, GstBuffer * inbuf,
     }
     /* Call the trainer-subplugin callback, invoke */
     ret =
-        trainer->fw->invoke (trainer->fw, &trainer->prop, trainer->privateData,
-        invoke_tensors, out_tensors);
+        trainer->fw->invoke (trainer->fw, &trainer->prop,
+        trainer->privateData, invoke_tensors);
 
     /* Free out info */
     for (i = 0; i < trainer->output_meta.num_tensors; i++) {
@@ -703,9 +618,11 @@ gst_tensor_trainer_transform (GstBaseTransform * trans, GstBuffer * inbuf,
     }
   } else {
     ret =
-        trainer->fw->invoke (trainer->fw, &trainer->prop, trainer->privateData,
-        invoke_tensors, NULL);
+        trainer->fw->invoke (trainer->fw, &trainer->prop,
+        trainer->privateData, invoke_tensors);
   }
+
+  trainer->total_invoke_num++;
 
   /* Free in info */
   for (i = 0; i < mem_blocks; i++)
@@ -713,24 +630,28 @@ gst_tensor_trainer_transform (GstBaseTransform * trans, GstBuffer * inbuf,
 
   if (ret < 0) {
     GST_ERROR_OBJECT (trainer, "Invoke error");
-    // return GST_FLOW_ERROR;
-  } else if (ret > 0) {
-    /* drop this buffer */
-    // return GST_BASE_TRANSFORM_FLOW_DROPPED;
+    return GST_FLOW_ERROR;
   }
 
-  /*Update result */
-  GST_INFO ("out buffer size : %zd", gst_buffer_get_size (outbuf));
-  if (trainer->push_output) {
+  /* Update result if one of epochs is complete,
+     push one outbuf is necessary to change pipeline state.
+     Scheduling with subplugin does not work.
+   */
+  if (trainer->total_invoke_num == 1
+      || trainer->total_invoke_num ==
+      trainer->prop.num_train_samples + trainer->prop.num_valid_samples) {
+    outbuf = gst_buffer_new ();
     for (i = 0; i < trainer->output_meta.num_tensors; i++) {
       /* append the memory block to outbuf */
       gst_buffer_append_memory (outbuf, out_mem[i]);
     }
     GST_INFO ("after out buffer size : %zd", gst_buffer_get_size (outbuf));
+
+    gst_pad_push (trainer->srcpad, outbuf);
+    return GST_FLOW_OK;
   }
 
   return GST_FLOW_OK;
-
 error:
   mem_blocks = gst_buffer_n_memory (inbuf);
   for (i = 0; i < mem_blocks; i++) {
@@ -749,63 +670,51 @@ error:
 }
 
 /**
- * @brief configure tensor-srcpad cap from "proposed" cap.
+ * @brief Get pad caps for caps negotiation.
  */
 static GstCaps *
-gst_tensor_trainer_transform_caps (GstBaseTransform * trans,
-    GstPadDirection direction, GstCaps * caps, GstCaps * filter)
+gst_tensor_trainer_query_caps (GstTensorTrainer * trainer,
+    GstPad * pad, GstCaps * filter)
 {
-  GstTensorTrainer *trainer;
   GstCaps *result;
-  GstPad *pad;
+  GstCaps *caps;
   GstStructure *structure;
   gboolean configured = FALSE;
-
-  GstTensorsConfig in_config, out_config;
-
-  trainer = GST_TENSOR_TRAINER_CAST (trans);
-
-  GST_DEBUG_OBJECT (trans,
-      "[In direction %s] Transforming caps %" GST_PTR_FORMAT "",
-      (direction == GST_PAD_SINK) ? "sink" : "src", caps);
-
-  if (direction == GST_PAD_SRC)
-    pad = GST_BASE_TRANSFORM_SINK_PAD (trans);
-  else
-    pad = GST_BASE_TRANSFORM_SRC_PAD (trans);
+  GstTensorsConfig in_config;
 
   gst_tensors_config_init (&in_config);
-  gst_tensors_config_init (&out_config);
+  gst_tensors_config_init (&trainer->out_config);
+
+  caps = gst_tensor_pad_possible_caps_from_config (pad, &in_config);
   structure = gst_caps_get_structure (caps, 0);
 
   if (!gst_tensors_config_from_structure (&in_config, structure))
     return NULL;
-
-  /* Set framerate from input config */
-  out_config.rate_n = in_config.rate_n;
-  out_config.rate_d = in_config.rate_d;
+  gst_caps_unref (caps);
 
   /* Need to set property (input, inputtype, output, outputtype)
      for trainer->input_meta and trainer->output_meta */
-  if (direction == GST_PAD_SRC) {
+  if (pad == trainer->srcpad) {
     if (trainer->input_configured) {
-      gst_tensors_info_copy (&out_config.info, &trainer->prop.input_meta);
+      gst_tensors_info_copy (&trainer->out_config.info,
+          &trainer->prop.input_meta);
       configured = TRUE;
     }
   } else {
     if (trainer->output_configured) {
       configured = TRUE;
-      gst_tensors_info_copy (&out_config.info, &trainer->output_meta);
+      gst_tensors_info_copy (&trainer->out_config.info, &trainer->output_meta);
     }
   }
 
   if (configured)
     /* Output info may be configured */
-    result = gst_tensor_pad_possible_caps_from_config (pad, &out_config);
+    result =
+        gst_tensor_pad_possible_caps_from_config (pad, &trainer->out_config);
   else
     result = gst_caps_from_string (CAPS_STRING);
 
-  GST_DEBUG_OBJECT (trans, "caps intersect without filter %" GST_PTR_FORMAT,
+  GST_DEBUG_OBJECT (trainer, "caps intersect without filter %" GST_PTR_FORMAT,
       result);
 
   if (filter) {
@@ -814,63 +723,186 @@ gst_tensor_trainer_transform_caps (GstBaseTransform * trans,
         gst_caps_intersect_full (result, filter, GST_CAPS_INTERSECT_FIRST);
     gst_caps_unref (result);
     result = intersection;
-    GST_DEBUG_OBJECT (trans, "result caps %" GST_PTR_FORMAT, result);
+    GST_DEBUG_OBJECT (trainer, "result caps %" GST_PTR_FORMAT, result);
   }
   gst_tensors_config_free (&in_config);
-  gst_tensors_config_free (&out_config);
 
   return result;
 }
 
 /**
- * @brief fixate caps. required vmethod of GstBaseTransform.
+ * @brief Event handler for sink pad of tensor_trainer
  */
-static GstCaps *
-gst_tensor_trainer_fixate_caps (GstBaseTransform * trans,
-    GstPadDirection direction, GstCaps * caps, GstCaps * othercaps)
+static gboolean
+gst_tensor_trainer_sink_event (GstPad * sinkpad, GstObject * parent,
+    GstEvent * event)
 {
-  UNUSED (direction);
-  UNUSED (caps);
+  GstTensorTrainer *trainer;
+  trainer = GST_TENSOR_TRAINER (parent);
 
-  othercaps = gst_caps_fixate (othercaps);
-  GST_DEBUG_OBJECT (trans, "fixated to %" GST_PTR_FORMAT, othercaps);
+  GST_DEBUG_OBJECT (trainer, "Received %s event: %" GST_PTR_FORMAT,
+      GST_EVENT_TYPE_NAME (event), event);
 
-  return othercaps;
+  switch (GST_EVENT_TYPE (event)) {
+    case GST_EVENT_EOS:
+      GST_INFO_OBJECT (trainer, "get GST_EVENT_EOS event..state is %d",
+          GST_STATE (trainer));
+      g_mutex_lock (&trainer->trainer_lock);
+      GST_INFO_OBJECT (trainer, "wait for train_complete_cond signal");
+      g_cond_wait (&trainer->train_complete_cond, &trainer->trainer_lock);
+      g_mutex_unlock (&trainer->trainer_lock);
+      break;
+    case GST_EVENT_FLUSH_START:
+      GST_INFO_OBJECT (trainer, "get GST_EVENT_FLUSH_START event");
+      break;
+    case GST_EVENT_FLUSH_STOP:
+      GST_INFO_OBJECT (trainer, "get GST_EVENT_FLUSH_STOP event");
+      break;
+    case GST_EVENT_CAPS:
+    {
+      GstCaps *in_caps;
+      GstCaps *out_caps;
+      GstStructure *structure;
+      GstTensorsConfig in_config;
+      gboolean ret = FALSE;
+
+      gst_event_parse_caps (event, &in_caps);
+      GST_INFO_OBJECT (trainer, "[in-caps] : %" GST_PTR_FORMAT, in_caps);
+      /* set out caps */
+
+      structure = gst_caps_get_structure (in_caps, 0);
+      if (!gst_tensors_config_from_structure (&in_config, structure))
+        return ret;
+
+      if (!gst_tensors_info_is_equal (&in_config.info,
+              &trainer->prop.input_meta)) {
+        GST_ERROR_OBJECT (trainer,
+            "The input tensors info is different between incaps and set property value. "
+            "Please check pipeline's input tensor info and tensor_trainer's set property values"
+            "(input, inputtype, output and outputtype)");
+        return ret;
+      }
+
+      trainer->out_config.rate_n = in_config.rate_n;
+      trainer->out_config.rate_d = in_config.rate_d;
+
+      out_caps =
+          gst_tensor_pad_caps_from_config (trainer->srcpad,
+          &trainer->out_config);
+      GST_INFO_OBJECT (trainer, "[out-caps] : %" GST_PTR_FORMAT, out_caps);
+
+      ret = gst_pad_set_caps (trainer->srcpad, out_caps);
+
+      gst_event_unref (event);
+      gst_caps_unref (out_caps);
+
+      gst_tensors_config_free (&in_config);
+      gst_tensors_config_free (&trainer->out_config);
+
+      return ret;
+    }
+    default:
+      break;
+  }
+
+  return gst_pad_event_default (sinkpad, parent, event);
 }
 
 /**
- * @brief set caps. required vmethod of GstBaseTransform.
+ * @brief This function handles sink pad query.
  */
 static gboolean
-gst_tensor_trainer_set_caps (GstBaseTransform * trans, GstCaps * incaps,
-    GstCaps * outcaps)
+gst_tensor_trainer_sink_query (GstPad * sinkpad, GstObject * parent,
+    GstQuery * query)
 {
   GstTensorTrainer *trainer;
-  GstStructure *structure;
-  GstTensorsConfig in_config;
+  trainer = GST_TENSOR_TRAINER (parent);
 
-  trainer = GST_TENSOR_TRAINER_CAST (trans);
+  GST_DEBUG_OBJECT (trainer, "Received '%s' query: %" GST_PTR_FORMAT,
+      GST_QUERY_TYPE_NAME (query), query);
 
-  GST_DEBUG_OBJECT (trainer, "[incaps] : %" GST_PTR_FORMAT, incaps);
-  GST_DEBUG_OBJECT (trainer, "[outcaps] : %" GST_PTR_FORMAT, outcaps);
+  switch (GST_QUERY_TYPE (query)) {
+    case GST_QUERY_CAPS:
+    {
+      GstCaps *caps;
+      GstCaps *filter;
 
-  gst_tensors_config_init (&in_config);
-  structure = gst_caps_get_structure (incaps, 0);
+      GST_DEBUG_OBJECT (trainer, "[GST_QUERY_CAPS]");
+      gst_query_parse_caps (query, &filter);
+      GST_DEBUG_OBJECT (trainer, "Caps from query : %" GST_PTR_FORMAT, filter);
 
-  if (!gst_tensors_config_from_structure (&in_config, structure))
-    return FALSE;
+      caps = gst_tensor_trainer_query_caps (trainer, sinkpad, filter);
 
-  if (!gst_tensors_info_is_equal (&in_config.info, &trainer->prop.input_meta)) {
-    GST_ERROR_OBJECT (trainer,
-        "The input tensors info is different between incaps and set property value. "
-        "Please check pipeline's input tensor info and tensor_trainer's set property values"
-        "(input, inputtype, output and outputtype)");
-    return FALSE;
+      GST_INFO_OBJECT (trainer, "[GST_QUERY_CAPS] : %" GST_PTR_FORMAT, caps);
+      gst_query_set_caps_result (query, caps);
+      gst_caps_unref (caps);
+
+      return TRUE;
+    }
+    case GST_QUERY_ACCEPT_CAPS:
+    {
+      GstCaps *caps;
+      GstCaps *template_caps;
+      gboolean result = FALSE;
+
+      GST_DEBUG_OBJECT (trainer, "[GST_QUERY_ACCEPT_CAPS]");
+      gst_query_parse_accept_caps (query, &caps);
+      GST_INFO_OBJECT (trainer, "Accept caps from query : %" GST_PTR_FORMAT,
+          caps);
+
+      if (gst_caps_is_fixed (caps)) {
+        template_caps = gst_pad_get_pad_template_caps (sinkpad);
+        GST_DEBUG_OBJECT (trainer, "sinkpad template_caps : %" GST_PTR_FORMAT,
+            template_caps);
+
+        result = gst_caps_can_intersect (template_caps, caps);
+        gst_caps_unref (template_caps);
+
+        GST_DEBUG_OBJECT (trainer, "intersect caps : %" GST_PTR_FORMAT, caps);
+      }
+
+      gst_query_set_accept_caps_result (query, result);
+      return TRUE;
+    }
+    default:
+      break;
   }
 
-  gst_tensors_config_free (&in_config);
+  return gst_pad_query_default (sinkpad, parent, query);
+}
 
-  return TRUE;
+/**
+ * @brief This function handles src pad query.
+ */
+static gboolean
+gst_tensor_trainer_src_query (GstPad * srcpad, GstObject * parent,
+    GstQuery * query)
+{
+  GstTensorTrainer *trainer;
+  trainer = GST_TENSOR_TRAINER (parent);
+
+  GST_DEBUG_OBJECT (trainer, "Received %s query: %" GST_PTR_FORMAT,
+      GST_QUERY_TYPE_NAME (query), query);
+
+  switch (GST_QUERY_TYPE (query)) {
+    case GST_QUERY_CAPS:
+    {
+      GstCaps *caps;
+      GstCaps *filter;
+      GST_DEBUG_OBJECT (trainer, "[GST_QUERY_CAPS]");
+      gst_query_parse_caps (query, &filter);
+      GST_DEBUG_OBJECT (trainer, "Caps from query : %" GST_PTR_FORMAT, filter);
+      caps = gst_tensor_trainer_query_caps (trainer, srcpad, filter);
+
+      GST_INFO_OBJECT (trainer, "[GST_QUERY_CAPS] : %" GST_PTR_FORMAT, caps);
+      gst_query_set_caps_result (query, caps);
+      gst_caps_unref (caps);
+      return TRUE;
+    }
+    default:
+      break;
+  }
+  return gst_pad_query_default (srcpad, parent, query);
 }
 
 /**
@@ -891,8 +923,8 @@ gst_tensor_trainer_set_prop_framework (GstTensorTrainer * trainer,
  * @brief Handle "PROP_MODEL_CONFIG" for set-property
  */
 static void
-gst_tensor_trainer_set_prop_model_config_file_path (GstTensorTrainer * trainer,
-    const GValue * value)
+gst_tensor_trainer_set_prop_model_config_file_path (GstTensorTrainer *
+    trainer, const GValue * value)
 {
   g_free (trainer->model_config);
   trainer->model_config = g_value_dup_string (value);
@@ -1035,8 +1067,10 @@ gst_tensor_trainer_find_framework (GstTensorTrainer * trainer, const char *name)
 static void
 gst_tensor_trainer_create_framework (GstTensorTrainer * trainer)
 {
+  pid_t pid = getpid ();
+  pid_t tid = syscall (SYS_gettid);
   g_return_if_fail (trainer != NULL);
-
+  GST_ERROR_OBJECT (trainer, "pid: %d, tid: %d", pid, tid);
   if (!trainer->fw || trainer->fw_created) {
     GST_ERROR_OBJECT (trainer, "fw is not opened(%d) or fw is null(%p)",
         trainer->fw_created, trainer->fw);
@@ -1060,8 +1094,8 @@ gst_tensor_trainer_create_framework (GstTensorTrainer * trainer)
  * @brief Calculate tensor buffer size
  */
 gsize
-gst_tensor_trainer_get_tensor_size (GstTensorTrainer * trainer, guint index,
-    gboolean is_input)
+gst_tensor_trainer_get_tensor_size (GstTensorTrainer * trainer,
+    guint index, gboolean is_input)
 {
   GstTensorsInfo *info;
 
@@ -1077,32 +1111,6 @@ gst_tensor_trainer_get_tensor_size (GstTensorTrainer * trainer, guint index,
   }
 
   return gst_tensor_info_get_size (&info->info[index]);
-}
-
-/**
- * @brief Allocation initial outbuffer size
- */
-static gboolean
-gst_tensor_trainer_transform_size (GstBaseTransform * trans,
-    GstPadDirection direction, GstCaps * caps, gsize size,
-    GstCaps * othercaps, gsize * othersize)
-{
-  GstTensorTrainer *trainer;
-
-  UNUSED (direction);
-  UNUSED (caps);
-  UNUSED (size);
-  UNUSED (othercaps);
-  trainer = GST_TENSOR_TRAINER_CAST (trans);
-
-  GST_DEBUG_OBJECT (trainer, "trainer->configured: %d", trainer->configured);
-
-  /** Internal Logic Error. Cannot proceed without configured pipeline */
-  //g_assert (trainer->configured);
-
-  *othersize = 0;
-
-  return TRUE;
 }
 
 /**
