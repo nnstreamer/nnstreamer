@@ -699,7 +699,7 @@ nnsconf_subplugin_dump (gchar * str, gulong size)
     NNSCONF_PATH_TRAINERS
   };
   static const char *dump_list_str[] = {
-    "Filter", "Decoder", "Conterver"
+    "Filter", "Decoder", "Conterver", "Trainer"
   };
 
   dump_buf buf;
