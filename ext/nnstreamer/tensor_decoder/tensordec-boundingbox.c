@@ -123,8 +123,8 @@ extern uint8_t rasters[][13];
 #define OV_PERSON_DETECTION_SIZE_DETECTION_DESC (7)
 #define OV_PERSON_DETECTION_CONF_THRESHOLD      (0.8)
 #define YOLOV5_DETECTION_NUM_INFO               (5)
-#define YOLOV5_DETECTION_CONF_THRESHOLD         (0.3)
-#define YOLOV5_DETECTION_IOU_THRESHOLD          (0.6)
+#define YOLOV5_DETECTION_CONF_THRESHOLD         (0.25)
+#define YOLOV5_DETECTION_IOU_THRESHOLD          (0.45)
 #define PIXEL_VALUE                             (0xFF0000FF)    /* RED 100% in RGBA */
 #define MP_PALM_DETECTION_INFO_SIZE             (18)
 #define MP_PALM_DETECTION_MAX_TENSORS           (2U)
