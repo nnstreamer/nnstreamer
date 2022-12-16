@@ -38,6 +38,11 @@
  *          This is independent from option1
  * option3: Any option1-dependent values
  *          !!This depends on option1 values!!
+ *          for yolov5 mode:
+ *            This option set whether the x, y, w, h values are scaled to input image or not.
+ *            The default is the values are not scaled.
+ *            option3=0 (default, suitable for tflite models)
+ *            option3=1 (suitable for torchscript models)
  *          for mobilenet-ssd mode:
  *            The option3 definition scheme is, in order, the following:
  *                - box priors location file (mandatory)
@@ -205,6 +210,15 @@ typedef struct
 } properties_MOBILENET_SSD;
 
 /**
+ * @brief Data structure for yolov5 model.
+ */
+typedef struct
+{
+  /* From option3, whether the output values are scaled or not */
+  int scaled_output;
+} properties_YOLOV5;
+
+/**
  * @brief Data structure for SSD bounding box info for mobilenet ssd postprocess model.
  */
 typedef struct
@@ -256,6 +270,7 @@ typedef struct
   {
     properties_MOBILENET_SSD mobilenet_ssd; /**< Properties for mobilenet_ssd configured by option 1 + 3 */
     properties_MOBILENET_SSD_PP mobilenet_ssd_pp; /**< mobilenet_ssd_pp mode properties configuration settings */
+    properties_YOLOV5 yolov5_pp; /**< Properties for yolov5 configured by option3 */
   };
 
   properties_MP_PALM_DETECTION mp_palm_detection; /**< mp_palm_detection mode properties configuration settings */
@@ -343,6 +358,11 @@ logit (float x)
 static int
 _init_modes (bounding_boxes * bdata)
 {
+  if (bdata->mode == YOLOV5_BOUNDING_BOX) {
+    bdata->yolov5_pp.scaled_output = 0; /* default conf is the output is not scaled */
+    return TRUE;
+  }
+
   if (_check_mode_is_mobilenet_ssd (bdata->mode)) {
     properties_MOBILENET_SSD *data = &bdata->mobilenet_ssd;
 #define DETECTION_THRESHOLD (.5f)
@@ -644,6 +664,11 @@ _mp_palm_detection_generate_anchors (properties_MP_PALM_DETECTION *palm_detectio
 static int
 _setOption_mode (bounding_boxes * bdata, const char *param)
 {
+  if (bdata->mode == YOLOV5_BOUNDING_BOX) {
+    bdata->yolov5_pp.scaled_output = (int) g_ascii_strtoll (param, NULL, 10);
+    return TRUE;
+  }
+
   if (_check_mode_is_mobilenet_ssd (bdata->mode)) {
     /* Load prior boxes with the path from option3 */
     properties_MOBILENET_SSD *mobilenet_ssd = &bdata->mobilenet_ssd;
@@ -1646,6 +1671,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
     int bIdx, numTotalBox;
     int cIdx, numTotalClass, cStartIdx, cIdxMax;
     float *boxinput;
+    int is_output_scaled = bdata->yolov5_pp.scaled_output;
 
     numTotalBox = bdata->max_detection;
     numTotalClass = bdata->labeldata.total_labels;
@@ -1672,10 +1698,17 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
           YOLOV5_DETECTION_CONF_THRESHOLD) {
         detectedObject object;
         float cx, cy, w, h;
-        cx = boxinput[bIdx * cIdxMax + 0] * (float) bdata->i_width;
-        cy = boxinput[bIdx * cIdxMax + 1] * (float) bdata->i_height;
-        w = boxinput[bIdx * cIdxMax + 2] * (float) bdata->i_width;
-        h = boxinput[bIdx * cIdxMax + 3] * (float) bdata->i_height;
+        cx = boxinput[bIdx * cIdxMax + 0];
+        cy = boxinput[bIdx * cIdxMax + 1];
+        w = boxinput[bIdx * cIdxMax + 2];
+        h = boxinput[bIdx * cIdxMax + 3];
+
+        if (!is_output_scaled) {
+          cx *= (float) bdata->i_width;
+          cy *= (float) bdata->i_height;
+          w *= (float) bdata->i_width;
+          h *= (float) bdata->i_height;
+        }
 
         object.x = (int) (MAX (0.f, (cx - w / 2.f)));
         object.y = (int) (MAX (0.f, (cy - h / 2.f)));
