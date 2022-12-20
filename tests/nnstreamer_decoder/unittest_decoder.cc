@@ -141,10 +141,8 @@ TEST (tensorDecoderCustom, normal0)
 
   gst_object_unref (pipeline);
   g_free (str_pipeline);
-  g_remove (tmp_flex_default);
-  g_remove (tmp_flex_custom);
-  g_free (tmp_flex_default);
-  g_free (tmp_flex_custom);
+  removeTempFile (&tmp_flex_default);
+  removeTempFile (&tmp_flex_custom);
 }
 
 /**

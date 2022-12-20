@@ -45,6 +45,11 @@ extern int setPipelineStateSync (GstElement *pipeline, GstState state, uint32_t 
 extern gchar * getTempFilename (void);
 
 /**
+ * @brief Remove temp file and release file name.
+ */
+extern void removeTempFile (char **file_name);
+
+/**
  * @brief Wait until the pipeline processing the buffers
  * @return TRUE on success, FALSE when a time-out occurs
  */

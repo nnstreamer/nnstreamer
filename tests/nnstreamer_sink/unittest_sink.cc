@@ -216,12 +216,7 @@ _free_test_data (TestOption &option)
   g_free (g_test_data.caps_name);
 
   /** remove temp file */
-  if (option.tmpfile) {
-    if (g_remove (option.tmpfile) != 0) {
-      _print_log ("failed to remove temp file %s", option.tmpfile);
-    }
-    g_free (option.tmpfile);
-  }
+  removeTempFile (&option.tmpfile);
 
   gst_tensors_config_free (&g_test_data.tensors_config);
 }

@@ -152,12 +152,9 @@ TEST (tensorConverterCustom, normal0)
 
   gst_object_unref (pipeline);
   g_free (str_pipeline);
-  g_remove (tmp_tensor_raw);
-  g_remove (tmp_flex_raw);
-  g_remove (tmp_flex_to_tensor);
-  g_free (tmp_tensor_raw);
-  g_free (tmp_flex_raw);
-  g_free (tmp_flex_to_tensor);
+  removeTempFile (&tmp_tensor_raw);
+  removeTempFile (&tmp_flex_raw);
+  removeTempFile (&tmp_flex_to_tensor);
   g_free (received);
 }
 

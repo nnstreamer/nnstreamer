@@ -120,10 +120,9 @@ TEST (cppFilterOnDemand, pipeline01)
   }
   g_free (str_pipeline);
 
-  g_remove (tmp1);
-  g_remove (tmp2);
-  g_free (tmp1);
-  g_free (tmp2);
+  removeTempFile (&tmp1);
+  removeTempFile (&tmp2);
+
   EXPECT_EQ (basic._unregister (), 0);
 }
 
@@ -199,12 +198,9 @@ TEST (cppFilterObj, base01_n)
   }
   g_free (str_pipeline);
 
-  g_remove (tmp1);
-  g_remove (tmp2);
-  g_remove (tmp3);
-  g_free (tmp1);
-  g_free (tmp2);
-  g_free (tmp3);
+  removeTempFile (&tmp1);
+  removeTempFile (&tmp2);
+  removeTempFile (&tmp3);
 }
 
 /** @brief gtest method */
@@ -245,12 +241,9 @@ TEST (cppFilterObj, base02_n)
   }
   g_free (str_pipeline);
 
-  g_remove (tmp1);
-  g_remove (tmp2);
-  g_remove (tmp3);
-  g_free (tmp1);
-  g_free (tmp2);
-  g_free (tmp3);
+  removeTempFile (&tmp1);
+  removeTempFile (&tmp2);
+  removeTempFile (&tmp3);
 }
 
 /** @brief gtest method */
@@ -310,16 +303,11 @@ TEST (cppFilterObj, base03)
   }
   g_free (str_pipeline);
 
-  g_remove (tmp1);
-  g_remove (tmp2);
-  g_remove (tmp3);
-  g_remove (tmp4);
-  g_remove (tmp5);
-  g_free (tmp1);
-  g_free (tmp2);
-  g_free (tmp3);
-  g_free (tmp4);
-  g_free (tmp5);
+  removeTempFile (&tmp1);
+  removeTempFile (&tmp2);
+  removeTempFile (&tmp3);
+  removeTempFile (&tmp4);
+  removeTempFile (&tmp5);
 }
 
 /**
