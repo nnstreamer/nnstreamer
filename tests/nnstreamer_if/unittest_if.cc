@@ -347,8 +347,7 @@ TEST_F (tensor_if_run, action_0)
   gst_object_unref (pipeline);
 
   g_free (str_pipeline);
-  g_remove (tmp);
-  g_free (tmp);
+  removeTempFile (&tmp);
 }
 
 /**
@@ -409,10 +408,8 @@ TEST_F (tensor_if_run, action_1)
 
   g_free (str_pipeline);
 
-  g_remove (tmp_true);
-  g_remove (tmp_false);
-  g_free (tmp_true);
-  g_free (tmp_false);
+  removeTempFile (&tmp_true);
+  removeTempFile (&tmp_false);
 }
 
 #define change_transform_type(type, size)                                                         \
@@ -477,10 +474,8 @@ TEST_F (tensor_if_run, action_2)
   gst_object_unref (pipeline);
   g_free (str_pipeline);
 
-  g_remove (tmp1);
-  g_remove (tmp2);
-  g_free (tmp1);
-  g_free (tmp2);
+  removeTempFile (&tmp1);
+  removeTempFile (&tmp2);
 }
 
 /**
@@ -534,8 +529,7 @@ TEST_F (tensor_if_run, action_3)
   gst_object_unref (pipeline);
 
   g_free (str_pipeline);
-  g_remove (tmp);
-  g_free (tmp);
+  removeTempFile (&tmp);
 }
 
 /**

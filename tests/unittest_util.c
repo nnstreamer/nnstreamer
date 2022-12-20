@@ -71,6 +71,20 @@ getTempFilename (void)
 }
 
 /**
+ * @brief Remove temp file and release file name.
+ */
+void removeTempFile (char **file_name)
+{
+  if (*file_name) {
+    if (g_remove (*file_name) != 0) {
+      _print_log ("failed to remove temp file %s", *file_name);
+    }
+    g_free (*file_name);
+    *file_name = NULL;
+  }
+}
+
+/**
  * @brief Wait until the pipeline processing the buffers
  * @return TRUE on success, FALSE when a time-out occurs
  */

@@ -1685,9 +1685,8 @@ TEST (confCustom, checkExtraConfPath_p)
   EXPECT_TRUE (nnsconf_loadconf (TRUE));
 
   EXPECT_TRUE (check_custom_conf ("common", "extra_config_path", extra_conf));
-  g_remove (filename);
+  removeTempFile (&filename);
   g_free (fullpath);
-  g_free (filename);
 
   if (confenv) {
     EXPECT_TRUE (g_setenv ("NNSTREAMER_CONF", confenv, TRUE));
