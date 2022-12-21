@@ -28,7 +28,8 @@ filter_basic::getInputDim (GstTensorsInfo *info)
   info->info[0].dimension[0] = 3;
   info->info[0].dimension[1] = 4;
   info->info[0].dimension[2] = 4;
-  info->info[0].dimension[3] = 1;
+  for (int i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
+    info->info[0].dimension[i] = 1;
   return 0;
 }
 
@@ -42,6 +43,8 @@ filter_basic::getOutputDim (GstTensorsInfo *info)
   info->info[0].dimension[1] = 4;
   info->info[0].dimension[2] = 4;
   info->info[0].dimension[3] = 2;
+  for (int i = 4; i < NNS_TENSOR_RANK_LIMIT; i++)
+    info->info[0].dimension[i] = 1;
   return 0;
 }
 
@@ -162,7 +165,8 @@ filter_basic2::getInputDim (GstTensorsInfo *info)
   info->info[0].dimension[0] = 3;
   info->info[0].dimension[1] = 16;
   info->info[0].dimension[2] = 16;
-  info->info[0].dimension[3] = 1;
+  for (int i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
+    info->info[0].dimension[i] = 1;
   return 0;
 }
 
@@ -176,6 +180,8 @@ filter_basic2::getOutputDim (GstTensorsInfo *info)
   info->info[0].dimension[1] = 16;
   info->info[0].dimension[2] = 16;
   info->info[0].dimension[3] = 2;
+  for (int i = 4; i < NNS_TENSOR_RANK_LIMIT; i++)
+    info->info[0].dimension[i] = 1;
   return 0;
 }
 
