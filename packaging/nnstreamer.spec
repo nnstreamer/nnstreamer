@@ -962,7 +962,7 @@ find . -name "CMakeCCompilerId*.gcda" -delete
 find . -name "CMakeCXXCompilerId*.gcda" -delete
 #find . -path "/build/*.j
 # Generate report
-lcov -t 'NNStreamer Unit Test Coverage' -o unittest.info -c -d . -b $(pwd) --no-external
+lcov -t 'NNStreamer Unit Test Coverage' -o unittest.info -c -d . -b build --no-external
 # Exclude generated files (e.g., Orc, Protobuf) and device-dependent filters.
 lcov -r unittest.info "*/*-orc.*" "*/tests/*" "*/tools/*" "*/meson*/*" "*/*@sha/*" "*/*_openvino*" "*/*_edgetpu*" "*/*_movidius_ncsdk2*" "*/*.so.p/*" -o unittest-filtered.info
 # Visualize the report
