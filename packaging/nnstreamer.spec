@@ -22,7 +22,7 @@
 %define		tensorflow_support 0
 %define		tensorflow_lite_support	1
 %define		tensorflow2_lite_support 1
-%define		armnn_support 1
+%define		armnn_support 0
 %define		vivante_support 0
 %define		flatbuf_support 1
 %define		protobuf_support 1
