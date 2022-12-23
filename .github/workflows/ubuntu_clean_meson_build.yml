@@ -18,7 +18,10 @@ jobs:
     - uses: actions/checkout@v3
     - uses: actions/setup-python@v1
     - name: install minimal requirements
-      run: sudo apt-get update && sudo apt-get install -y libglib2.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libunwind-dev
+      run: |
+          sudo apt-get update && \
+          sudo apt-get install -y libglib2.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libunwind-dev googletest \
+            gstreamer1.0-plugins-good
     - uses: BSFishy/meson-build@v1.0.3
       with:
         action: test
