@@ -27,13 +27,13 @@ gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc name=vsrc num-bu
 gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc name=vsrc num-buffers=1 pattern=15 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=160,height=120 ! filesink location=gamut.golden
 # tensor stream test when GSTCAP is specified
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
-        videotestsrc num-buffers=4 pattern=12 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! mux.sink_0 \
-        videotestsrc pattern=13 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! mux.sink_1 \
-        videotestsrc pattern=15 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! mux.sink_2 \
-        tensor_mux name=mux ! tensor_if name=tif compared-value=TENSOR_AVERAGE_VALUE compared-value-option=0 supplied-value=100 operator=LT then=TENSORPICK then-option=1 else=TENSORPICK else-option=2 \
+        videotestsrc num-buffers=5 pattern=12 is-live=true ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=160,height=120,framerate=1/1 ! tensor_converter ! mux.sink_0 \
+        videotestsrc pattern=13 is-live=true ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! mux.sink_1 \
+        videotestsrc pattern=15 is-live=true ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! mux.sink_2 \
+        tensor_mux name=mux sync-mode=basepad sync-option=0:1000000000 ! tensor_if name=tif compared-value=TENSOR_AVERAGE_VALUE compared-value-option=0 supplied-value=100 operator=LT then=TENSORPICK then-option=1 else=TENSORPICK else-option=2 \
             tif.src_0 ! queue ! join.sink_0 \
             tif.src_1 ! queue ! join.sink_1 \
-            join name=join ! multifilesink location=testJoin1_%1d.log sync=false async=false" 1 0 0 $PERFORMANCE
+            join name=join ! multifilesink location=testJoin1_%1d.log sync=true async=false" 1 0 0 $PERFORMANCE
 callCompareTest smpte.golden testJoin1_0.log 1-1 "Compare 1-1" 1 0
 callCompareTest gamut.golden testJoin1_1.log 1-2 "Compare 1-2" 1 0
 callCompareTest smpte.golden testJoin1_2.log 1-3 "Compare 1-3" 1 0
@@ -44,13 +44,13 @@ gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc name=vsrc num-bu
 gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc name=vsrc num-buffers=1 pattern=15 ! tensor_converter ! filesink location=gamut.default.golden
 # tensor stream test when GSTCAP is not specified (default CAP)
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
-        videotestsrc num-buffers=4 pattern=12 ! tensor_converter ! mux.sink_0 \
+        videotestsrc num-buffers=5 pattern=12 is-live=true ! video/x-raw,framerate=1/1 ! tensor_converter ! mux.sink_0 \
         videotestsrc pattern=13 ! tensor_converter ! mux.sink_1 \
         videotestsrc pattern=15 ! tensor_converter ! mux.sink_2 \
-        tensor_mux name=mux ! tensor_if name=tif compared-value=TENSOR_AVERAGE_VALUE compared-value-option=0 supplied-value=100 operator=LT then=TENSORPICK then-option=1 else=TENSORPICK else-option=2 \
+        tensor_mux name=mux sync-mode=basepad sync-option=0:1000000000 ! tensor_if name=tif compared-value=TENSOR_AVERAGE_VALUE compared-value-option=0 supplied-value=100 operator=LT then=TENSORPICK then-option=1 else=TENSORPICK else-option=2 \
             tif.src_0 ! queue ! join.sink_0 \
             tif.src_1 ! queue ! join.sink_1 \
-            join name=join ! multifilesink location=testJoin2_%1d.log sync=false async=false" 2 0 0 $PERFORMANCE
+            join name=join ! multifilesink location=testJoin2_%1d.log sync=true async=false" 2 0 0 $PERFORMANCE
 callCompareTest smpte.default.golden testJoin2_0.log 2-1 "Compare 2-1" 1 0
 callCompareTest gamut.default.golden testJoin2_1.log 2-2 "Compare 2-2" 1 0
 callCompareTest smpte.default.golden testJoin2_2.log 2-3 "Compare 2-3" 1 0
