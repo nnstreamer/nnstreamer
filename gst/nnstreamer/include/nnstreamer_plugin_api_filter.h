@@ -399,12 +399,12 @@ struct _GstTensorFilterFramework
        * @return 0 if supported. -errno if not supported.
        */
 
-       int (*allocateInInvoke) (void **private_data);
-       /**< Optional. tensor_filter_common.c will call it when allocate_in_invoke is set to TRUE. This check if the provided model for the framework supports allocation at invoke or not. If this is not defined, then the value of allocate_in_invoke is assumed to be final for all models.
-        *
-        * @param[in] private_data A subplugin may save its internal private data here.
-        * @return 0 if supported. -errno if not supported.
-        */
+      int (*allocateInInvoke) (void **private_data);
+      /**< Optional. tensor_filter_common.c will call it when allocate_in_invoke is set to TRUE. This check if the provided model for the framework supports allocation at invoke or not. If this is not defined, then the value of allocate_in_invoke is assumed to be final for all models.
+       *
+       * @param[in] private_data A subplugin may save its internal private data here.
+       * @return 0 if supported. -errno if not supported.
+       */
     }
 #ifdef NO_ANONYMOUS_NESTED_STRUCT
         v0
