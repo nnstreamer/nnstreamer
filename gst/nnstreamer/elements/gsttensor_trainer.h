@@ -57,11 +57,9 @@ struct _GstTensorTrainer
   gchar *output_type;
   gboolean push_output;
 
-  gboolean configured;
-  int input_configured;
+  gboolean input_configured;
   gboolean output_configured;
-  int inputtype_configured;
-  int outputtype_configured;
+  gboolean inputtype_configured;
   unsigned int input_ranks[NNS_TENSOR_SIZE_LIMIT];
   unsigned int output_ranks[NNS_TENSOR_SIZE_LIMIT];
   GstTensorsInfo output_meta;

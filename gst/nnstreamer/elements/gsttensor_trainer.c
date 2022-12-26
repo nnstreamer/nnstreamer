@@ -76,9 +76,7 @@ enum
   PROP_MODEL_CONFIG,
   PROP_MODEL_SAVE_PATH,
   PROP_INPUT,
-  PROP_OUTPUT,
   PROP_INPUTTYPE,
-  PROP_OUTPUTTYPE,
   PROP_PUSH_OUTPUT,
   PROP_INPUT_LIST,              /* number of input list */
   PROP_LABEL_LIST,              /* number of label list */
@@ -112,10 +110,10 @@ static void gst_tensor_trainer_set_prop_model_config_file_path (GstTensorTrainer
     * trainer, const GValue * value);
 static void gst_tensor_trainer_set_model_save_path (GstTensorTrainer * trainer,
     const GValue * value);
-static void gst_tensor_trainer_set_prop_dimension (GstTensorTrainer * trainer,
-    const GValue * value, const gboolean is_input);
-static void gst_tensor_trainer_set_prop_type (GstTensorTrainer * trainer,
-    const GValue * value, const gboolean is_input);
+static void gst_tensor_trainer_set_prop_input_dimension (GstTensorTrainer *
+    trainer, const GValue * value);
+static void gst_tensor_trainer_set_prop_input_type (GstTensorTrainer * trainer,
+    const GValue * value);
 static void gst_tensor_trainer_find_framework (GstTensorTrainer * trainer,
     const char *name);
 static void gst_tensor_trainer_create_framework (GstTensorTrainer * trainer);
@@ -123,6 +121,8 @@ static gsize gst_tensor_trainer_get_tensor_size (GstTensorTrainer * trainer,
     guint index, gboolean is_input);
 static void gst_tensor_trainer_create_model (GstTensorTrainer * trainer);
 static void gst_tensor_trainer_train_model (GstTensorTrainer * trainer);
+static void gst_tensor_trainer_output_dimension (GstTensorTrainer * trainer);
+static void gst_tensor_trainer_output_type (GstTensorTrainer * trainer);
 
 /**
  * @brief initialize the tensor_trainer's class
@@ -176,22 +176,8 @@ gst_tensor_trainer_class_init (GstTensorTrainerClass * klass)
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_OUTPUT,
-      g_param_spec_string ("output", "Output dimension",
-          "Output tensors dimension from inner array, up to 4 dimensions ?",
-          DEFAULT_STR_PROP_VALUE,
-          G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
-          G_PARAM_STATIC_STRINGS));
-
   g_object_class_install_property (gobject_class, PROP_INPUTTYPE,
       g_param_spec_string ("inputtype", "Input tensor element type",
-          "Type of each element of the input tensor ?",
-          DEFAULT_STR_PROP_VALUE,
-          G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
-          G_PARAM_STATIC_STRINGS));
-
-  g_object_class_install_property (gobject_class, PROP_OUTPUTTYPE,
-      g_param_spec_string ("outputtype", "Output tensor element type",
           "Type of each element of the input tensor ?",
           DEFAULT_STR_PROP_VALUE,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
@@ -275,17 +261,18 @@ gst_tensor_trainer_init (GstTensorTrainer * trainer)
 
   trainer->fw = NULL;
   trainer->fw_created = 0;      /* for test */
-  trainer->configured = 0;
-  trainer->input_configured = 0;
+  trainer->input_configured = FALSE;
   trainer->output_configured = FALSE;
-  trainer->inputtype_configured = 0;
-  trainer->outputtype_configured = 0;
-
+  trainer->inputtype_configured = FALSE;
   trainer->total_invoke_num = 0;
 
   g_cond_init (&trainer->train_complete_cond);
   g_mutex_init (&trainer->trainer_lock);
   trainer->prop.train_complete_cond = &trainer->train_complete_cond;
+
+  gst_tensor_trainer_output_dimension (trainer);
+  gst_tensor_trainer_output_type (trainer);
+
 }
 
 /**
@@ -339,16 +326,10 @@ gst_tensor_trainer_set_property (GObject * object, guint prop_id,
       gst_tensor_trainer_set_model_save_path (trainer, value);
       break;
     case PROP_INPUT:
-      gst_tensor_trainer_set_prop_dimension (trainer, value, TRUE);
-      break;
-    case PROP_OUTPUT:
-      gst_tensor_trainer_set_prop_dimension (trainer, value, FALSE);
+      gst_tensor_trainer_set_prop_input_dimension (trainer, value);
       break;
     case PROP_INPUTTYPE:
-      gst_tensor_trainer_set_prop_type (trainer, value, TRUE);
-      break;
-    case PROP_OUTPUTTYPE:
-      gst_tensor_trainer_set_prop_type (trainer, value, FALSE);
+      gst_tensor_trainer_set_prop_input_type (trainer, value);
       break;
     case PROP_PUSH_OUTPUT:
       trainer->push_output = g_value_get_boolean (value);
@@ -396,14 +377,8 @@ gst_tensor_trainer_get_property (GObject * object, guint prop_id,
     case PROP_INPUT:
       g_value_set_string (value, trainer->input_dimensions);
       break;
-    case PROP_OUTPUT:
-      g_value_set_string (value, trainer->output_dimensions);
-      break;
     case PROP_INPUTTYPE:
       g_value_set_string (value, trainer->input_type);
-      break;
-    case PROP_OUTPUTTYPE:
-      g_value_set_string (value, trainer->output_type);
       break;
     case PROP_PUSH_OUTPUT:
       g_value_set_boolean (value, trainer->push_output);
@@ -633,9 +608,9 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
     return GST_FLOW_ERROR;
   }
 
-  /* Update result if one of epochs is complete,
-     push one outbuf is necessary to change pipeline state.
-     Scheduling with subplugin does not work.
+  /** Update result if one of epochs is complete,
+      push one outbuf is necessary to change pipeline state.
+      Scheduling with subplugin does not work.
    */
   if (trainer->total_invoke_num == 1
       || trainer->total_invoke_num ==
@@ -692,8 +667,8 @@ gst_tensor_trainer_query_caps (GstTensorTrainer * trainer,
     return NULL;
   gst_caps_unref (caps);
 
-  /* Need to set property (input, inputtype, output, outputtype)
-     for trainer->input_meta and trainer->output_meta */
+  /** Need to set property (input, inputtype, output, outputtype)
+      for trainer->input_meta and trainer->output_meta */
   if (pad == trainer->srcpad) {
     if (trainer->input_configured) {
       gst_tensors_info_copy (&trainer->out_config.info,
@@ -948,11 +923,11 @@ gst_tensor_trainer_set_model_save_path (GstTensorTrainer * trainer,
 }
 
 /**
- * @brief Handle "PROP_INPUT" and "PROP_OUTPUT" for set-property
+ * @brief Handle "PROP_INPUT" for set-property
  */
 static void
-gst_tensor_trainer_set_prop_dimension (GstTensorTrainer * trainer,
-    const GValue * value, const gboolean is_input)
+gst_tensor_trainer_set_prop_input_dimension (GstTensorTrainer * trainer,
+    const GValue * value)
 {
   GstTensorsInfo *info;
   unsigned int *rank;
@@ -960,29 +935,19 @@ gst_tensor_trainer_set_prop_dimension (GstTensorTrainer * trainer,
   gchar **str_dims;
   guint i;
 
-  if ((is_input && trainer->input_configured) || (!is_input
-          && trainer->output_configured)) {
+  if (trainer->input_configured) {
     GST_ERROR_OBJECT (trainer,
-        "Cannot change %s dimension" "the element/pipeline is configured.",
-        (is_input) ? "input" : "output");
+        "Cannot change input dimension" "the element/pipeline is configured.");
     return;
   }
 
-  if (is_input) {
-    info = &trainer->prop.input_meta;
-    rank = trainer->input_ranks;
-    trainer->input_configured = TRUE;
-    g_free (trainer->input_dimensions);
-    trainer->input_dimensions = g_value_dup_string (value);
-    GST_INFO_OBJECT (trainer, "input: %s", trainer->input_dimensions);
-  } else {
-    info = &trainer->output_meta;
-    rank = trainer->output_ranks;
-    trainer->output_configured = TRUE;
-    g_free (trainer->output_dimensions);
-    trainer->output_dimensions = g_value_dup_string (value);
-    GST_INFO_OBJECT (trainer, "output: %s", trainer->output_dimensions);
-  }
+  info = &trainer->prop.input_meta;
+  rank = trainer->input_ranks;
+  trainer->input_configured = TRUE;
+  g_free (trainer->input_dimensions);
+  trainer->input_dimensions = g_value_dup_string (value);
+  GST_INFO_OBJECT (trainer, "input: %s", trainer->input_dimensions);
+
 
   str_dims = g_strsplit_set (g_value_get_string (value), ",.", -1);
   num_dims = g_strv_length (str_dims);
@@ -1002,36 +967,26 @@ gst_tensor_trainer_set_prop_dimension (GstTensorTrainer * trainer,
 }
 
 /**
- * @brief Handle "PROP_INPUTTYPE" and "PROP_OUTPUTTYPE" for set-property
+ * @brief Handle "PROP_INPUTTYPE" for set-property
  */
 static void
-gst_tensor_trainer_set_prop_type (GstTensorTrainer * trainer,
-    const GValue * value, const gboolean is_input)
+gst_tensor_trainer_set_prop_input_type (GstTensorTrainer * trainer,
+    const GValue * value)
 {
   GstTensorsInfo *info;
   guint num_types;
 
-  if ((is_input && trainer->inputtype_configured) || (!is_input
-          && trainer->outputtype_configured)) {
+  if (trainer->inputtype_configured) {
     GST_ERROR_OBJECT (trainer,
-        "Cannot change %stype" "the element/pipeline is configured.",
-        (is_input) ? "input" : "output");
+        "Cannot change inputtype" "the element/pipeline is configured.");
     return;
   }
 
-  if (is_input) {
-    info = &trainer->prop.input_meta;
-    trainer->inputtype_configured = TRUE;
-    g_free (trainer->input_type);
-    trainer->input_type = g_value_dup_string (value);
-    GST_INFO_OBJECT (trainer, "inputtype : %s", trainer->input_type);
-  } else {
-    info = &trainer->output_meta;
-    trainer->outputtype_configured = TRUE;
-    g_free (trainer->output_type);
-    trainer->output_type = g_value_dup_string (value);
-    GST_INFO_OBJECT (trainer, "outputtype : %s", trainer->output_type);
-  }
+  info = &trainer->prop.input_meta;
+  trainer->inputtype_configured = TRUE;
+  g_free (trainer->input_type);
+  trainer->input_type = g_value_dup_string (value);
+  GST_INFO_OBJECT (trainer, "inputtype : %s", trainer->input_type);
 
   num_types =
       gst_tensors_info_parse_types_string (info, g_value_get_string (value));
@@ -1146,6 +1101,40 @@ gst_tensor_trainer_train_model (GstTensorTrainer * trainer)
   if (ret != 0) {
     GST_ERROR_OBJECT (trainer, "model train is failed");
   }
+}
+
+/**
+ * @brief initialize the output tensor dimension
+ */
+static void
+gst_tensor_trainer_output_dimension (GstTensorTrainer * trainer)
+{
+  GstTensorsInfo *info;
+  int i = 0;
+  int value[8] = { 1, 1, 4, 1, 1, 1, 1, 1 };  /** loss, accuracy, val_loss, val_accuracy */
+  g_return_if_fail (trainer != NULL);
+
+  info = &trainer->output_meta;
+  trainer->output_ranks[0] = 4;
+  trainer->output_configured = TRUE;
+
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
+    info->info[0].dimension[i] = value[i];
+
+  info->num_tensors = 1;
+}
+
+/**
+ * @brief initialize the output tensor type
+ */
+static void
+gst_tensor_trainer_output_type (GstTensorTrainer * trainer)
+{
+  GstTensorsInfo *info;
+  g_return_if_fail (trainer != NULL);
+
+  info = &trainer->output_meta;
+  info->info[0].type = _NNS_FLOAT16;
 }
 
 /**
