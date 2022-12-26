@@ -279,7 +279,7 @@ struct _GstTensorFilterFramework
    */
 
   int (*open) (const GstTensorFilterProperties * prop, void **private_data);
-  /**< Optional. tensor_filter.c will call this before any of other callbacks and will call once before calling close.
+  /**< Optional. tensor_filter_common.c will call this before any of other callbacks and will call once before calling close.
    *
    * Note: If 'open' callback is not defined, then the private_data passed in other callbacks will be NULL.
    *
@@ -289,7 +289,7 @@ struct _GstTensorFilterFramework
    */
 
   void (*close) (const GstTensorFilterProperties * prop, void **private_data);
-  /**< Optional. tensor_filter.c will not call other callbacks after calling close. Free-ing private_data is this function's responsibility. Set NULL after that.
+  /**< Optional. tensor_filter_common.c will not call other callbacks after calling close. Free-ing private_data is this function's responsibility. Set NULL after that.
    *
    * @param[in] prop read-only property values
    * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer. Normally, close() frees private_data and set NULL.
@@ -368,14 +368,14 @@ struct _GstTensorFilterFramework
        */
 
       void (*destroyNotify) (void **private_data, void * data);
-      /**< Optional. tensor_filter.c will call it when 'allocate_in_invoke' flag of the framework is TRUE and allocateInInvoke also return enabled. Basically, it is called when the data element is destroyed. If it's set as NULL, g_free() will be used as a default. It will be helpful when the data pointer is included as an object of a nnfw. For instance, if the data pointer is removed when the object is gone, it occurs error. In this case, the objects should be maintained for a while first and destroyed when the data pointer is destroyed. Those kinds of logic could be defined at this method.
+      /**< Optional. tensor_filter_common.c will call it when 'allocate_in_invoke' flag of the framework is TRUE and allocateInInvoke also return enabled. Basically, it is called when the data element is destroyed. If it's set as NULL, g_free() will be used as a default. It will be helpful when the data pointer is included as an object of a nnfw. For instance, if the data pointer is removed when the object is gone, it occurs error. In this case, the objects should be maintained for a while first and destroyed when the data pointer is destroyed. Those kinds of logic could be defined at this method.
        *
        * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer.
        * @param[in] data the data element.
        */
 
       int (*reloadModel) (const GstTensorFilterProperties * prop, void **private_data);
-      /**< Optional. tensor_filter.c will call it when a model property is newly configured. Also, 'is-updatable' property of the framework should be TRUE. This function reloads a new model specified in the 'prop' argument. Note that it requires extra memory size enough to temporarily hold both old and new models during this function to hide the reload overhead.
+      /**< Optional. tensor_filter_common.c will call it when a model property is newly configured. Also, 'is-updatable' property of the framework should be TRUE. This function reloads a new model specified in the 'prop' argument. Note that it requires extra memory size enough to temporarily hold both old and new models during this function to hide the reload overhead.
        *
        * @param[in] prop read-only property values
        * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer. Normally, close() frees private_data and set NULL.
@@ -400,7 +400,7 @@ struct _GstTensorFilterFramework
        */
 
        int (*allocateInInvoke) (void **private_data);
-       /**< Optional. tensor_filter.c will call it when allocate_in_invoke is set to TRUE. This check if the provided model for the framework supports allocation at invoke or not. If this is not defined, then the value of allocate_in_invoke is assumed to be final for all models.
+       /**< Optional. tensor_filter_common.c will call it when allocate_in_invoke is set to TRUE. This check if the provided model for the framework supports allocation at invoke or not. If this is not defined, then the value of allocate_in_invoke is assumed to be final for all models.
         *
         * @param[in] private_data A subplugin may save its internal private data here.
         * @return 0 if supported. -errno if not supported.
@@ -470,8 +470,8 @@ struct _GstTensorFilterFramework
           const GstTensorFilterProperties * prop,
           void *private_data, event_ops ops, GstTensorFilterFrameworkEventData * data);
       /**< Mandatory callback. Runs the event corresponding to the passed operation.
-       * If ops == DESTROY_NOTIFY: tensor_filter.c will call it when 'allocate_in_invoke' property of the framework is TRUE. Basically, it is called when the data element is destroyed. If it's set as NULL, g_free() will be used as a default. It will be helpful when the data pointer is included as an object of a nnfw. For instance, if the data pointer is removed when the object is gone, it occurs error. In this case, the objects should be maintained for a while first and destroyed when the data pointer is destroyed. Those kinds of logic could be defined at this method.
-       * If ops == RELOAD_MODEL: tensor_filter.c will call it when a model property is newly configured. Also, 'is-updatable' property of the framework should be TRUE. This function reloads a new model passed in as argument via data. Note that it requires extra memory size enough to temporarily hold both old and new models during this function to hide the reload overhead.
+       * If ops == DESTROY_NOTIFY: tensor_filter_common.c will call it when 'allocate_in_invoke' property of the framework is TRUE. Basically, it is called when the data element is destroyed. If it's set as NULL, g_free() will be used as a default. It will be helpful when the data pointer is included as an object of a nnfw. For instance, if the data pointer is removed when the object is gone, it occurs error. In this case, the objects should be maintained for a while first and destroyed when the data pointer is destroyed. Those kinds of logic could be defined at this method.
+       * If ops == RELOAD_MODEL: tensor_filter_common.c will call it when a model property is newly configured. Also, 'is-updatable' property of the framework should be TRUE. This function reloads a new model passed in as argument via data. Note that it requires extra memory size enough to temporarily hold both old and new models during this function to hide the reload overhead.
        * If ops == CUSTOM_PROP: tensor_filter will call to update the custom properties of the subplugin.
        * If ops == SET_INPUT_PROP: tensor_filter will call to update the property of the subplugin. This function will take tensor info and layout as the argument. This operation can update input tensor shape, type, name and layout.
        * If ops == SET_OUTPUT_PROP: tensor_filter will call to update the property of the subplugin. This function will take tensor info and layout as the argument. This operation can update output tensor shape, type, name and layout.
@@ -494,7 +494,7 @@ struct _GstTensorFilterFramework
   };
 };
 
-/* extern functions for subplugin management, exist in tensor_filter.c */
+/* extern functions for subplugin management, exist in tensor_filter_common.c */
 /**
  * @brief Filter's sub-plugin should call this function to register itself.
  * @param[in] tfsp Tensor-Filter Sub-Plugin to be registered.
