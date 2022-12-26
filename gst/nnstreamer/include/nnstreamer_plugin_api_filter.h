@@ -274,7 +274,7 @@ struct _GstTensorFilterFramework
 {
   uint64_t version;
   /**< Version of the struct
-   * | 32bit (validity check) | 16bit (API version) | 16bit (Subplugin's internal version. Tensor_filter does not case) |
+   * | 32bit (validity check) | 16bit (API version) | 16bit (Subplugin's internal version. Tensor_filter does not care) |
    * API version will be 0x0 (earlier version (_GstTensorFilterFramework_v0)) or 0x1 (newer version (_GstTensorFilterFramework_v1))
    */
 
