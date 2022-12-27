@@ -863,6 +863,8 @@ export NNSTREAMER_DECODERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_d
 export NNSTREAMER_CONVERTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_converter
 export NNSTREAMER_TRAINERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_trainer
 
+%define files_opetion_for_snpe_subpackage %( if [ -f %{builddir}/ext/nnstreamer/tensor_filter/filter_snpe_list ] ; then \
+	echo "-f %{builddir}/ext/nnstreamer/tensor_filter/filter_snpe_list" ; else echo ""; fi )
 %define test_script $(pwd)/packaging/run_unittests_binaries.sh
 
 # if it's tizen && non-TV, run unittest even if "unit_test"==0 for build-time sanity checks.
@@ -1095,7 +1097,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %if 0%{?snpe_support}
 # Workaround: Conditionally enable nnstreamer-snpe rpm package
 # when existing actual snpe library (snpe.pc)
-%files snpe -f ext/nnstreamer/tensor_filter/filter_snpe_list
+%files snpe %{files_opetion_for_snpe_subpackage}
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %endif
