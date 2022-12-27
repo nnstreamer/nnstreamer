@@ -33,7 +33,6 @@ G_BEGIN_DECLS
   (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_TENSOR_TRAINER))
 #define GST_IS_TENSOR_TRAINER_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_TENSOR_TRAINER))
-//#define GST_TENSOR_TRAINER_CAST(obj)  ((GstTensorTrainer *)(obj))
 
 typedef struct _GstTensorTrainer GstTensorTrainer;
 typedef struct _GstTensorTrainerClass GstTensorTrainerClass;
@@ -66,10 +65,7 @@ struct _GstTensorTrainer
   GstTensorsConfig out_config;
 
   gint64 total_invoke_num;      /**< number of total invokes */
-
-  /* draft */
-  int fw_created;
-  int fw_stop;
+  gboolean fw_created;
 
   void *privateData; /**< NNFW plugin's private data is stored here */
   const GstTensorTrainerFramework *fw;  /* for test, need to make */

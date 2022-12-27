@@ -11,13 +11,15 @@
  *
  * ## Example launch line
  * |[
- * gst-launch-1.0 videotestsrc ! video/x-raw, format=RGB, width=640, height=480 !
- * tensor_converter ! tensor_transform mode=typecast option=float32 !
- * tensor_trainer framework=nntrainer model-config=/usr/bin/model.ini
- * push-output=false input=3:640:480:1 inputtype=float32
- * output=1:1:1:1 outputtype=float32 ! tensor_sink
+ * gst-launch-1.0 filesrc location=mnist_input_200.dat blocksize=3136 ! \
+ * application/octet-stream, framerate=5/1 ! tensor_converter input-dim=1:1:784:1 input-type=float32 \
+ * ! mux.sink_0 filesrc location=mnist_label_200.dat blocksize=40 ! \
+ * application/octet-stream, framerate=5/1 ! tensor_converter input_dim=1:1:10:1 input-type=float32 \
+ * ! mux.sink_1 tensor_mux name=mux sync-mode=nosync ! tensor_trainer framework=nntrainer \
+ * model-config=mnist.ini model-save-path=model.bin push-output=true input=1:1:784:1,1:1:10:1 \
+ * inputtype=float32,float32 input-lists=1 label-lists=1 train-samples=100 valid-samples=100 \
+ * ! tensor_sink
  * ]|
- *
  */
 
 #ifdef HAVE_CONFIG_H
@@ -28,7 +30,6 @@
 #include <nnstreamer_util.h>
 #include "gsttensor_trainer.h"
 #include <unistd.h>
-#include <sys/syscall.h>
 
 /**
  * @brief Default caps string for both sink and source pad.
@@ -80,11 +81,9 @@ enum
   PROP_PUSH_OUTPUT,
   PROP_INPUT_LIST,              /* number of input list */
   PROP_LABEL_LIST,              /* number of label list */
-  PROP_TRAIN_SAMPLES,           /*number of train data */
-  PROP_VALID_SAMPLES,           /*number of vaild data */
+  PROP_TRAIN_SAMPLES,           /* number of train data */
+  PROP_VALID_SAMPLES,           /* number of vaild data */
 };
-
-#define NNS_TENSOR_TYPES 11
 
 static void gst_tensor_trainer_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -260,7 +259,7 @@ gst_tensor_trainer_init (GstTensorTrainer * trainer)
   trainer->push_output = FALSE;
 
   trainer->fw = NULL;
-  trainer->fw_created = 0;      /* for test */
+  trainer->fw_created = FALSE;
   trainer->input_configured = FALSE;
   trainer->output_configured = FALSE;
   trainer->inputtype_configured = FALSE;
@@ -272,7 +271,6 @@ gst_tensor_trainer_init (GstTensorTrainer * trainer)
 
   gst_tensor_trainer_output_dimension (trainer);
   gst_tensor_trainer_output_type (trainer);
-
 }
 
 /**
@@ -315,7 +313,6 @@ gst_tensor_trainer_set_property (GObject * object, guint prop_id,
   trainer = GST_TENSOR_TRAINER (object);
 
   switch (prop_id) {
-
     case PROP_FRAMEWORK:
       gst_tensor_trainer_set_prop_framework (trainer, value);
       break;
@@ -435,12 +432,11 @@ gst_tensor_trainer_change_state (GstElement * element,
   switch (transition) {
     case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
       GST_INFO_OBJECT (trainer, "PLAYING_TO_PAUSED");
-      /* pause model train */
       break;
 
     case GST_STATE_CHANGE_PAUSED_TO_READY:
       GST_INFO_OBJECT (trainer, "PAUSED_TO_READY");
-      /* stop model train */
+      /* stop model train ? */
       break;
 
     case GST_STATE_CHANGE_READY_TO_NULL:
@@ -478,12 +474,7 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
   GstTensorMetaInfo in_meta[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMetaInfo out_meta[NNS_TENSOR_SIZE_LIMIT];
 
-  pid_t pid = getpid ();
-  pid_t tid = syscall (SYS_gettid);
-
   trainer = GST_TENSOR_TRAINER (parent);
-
-  GST_DEBUG_OBJECT (trainer, "pid: %d, tid: %d", pid, tid);
 
   mem_blocks = gst_buffer_n_memory (inbuf);
   for (i = 0; i < mem_blocks; i++) {
@@ -656,6 +647,9 @@ gst_tensor_trainer_query_caps (GstTensorTrainer * trainer,
   GstStructure *structure;
   gboolean configured = FALSE;
   GstTensorsConfig in_config;
+
+  g_return_val_if_fail (trainer != NULL, NULL);
+  g_return_val_if_fail (pad != NULL, NULL);
 
   gst_tensors_config_init (&in_config);
   gst_tensors_config_init (&trainer->out_config);
@@ -889,7 +883,7 @@ gst_tensor_trainer_set_prop_framework (GstTensorTrainer * trainer,
 {
   g_free (trainer->fw_name);
   trainer->fw_name = g_value_dup_string (value);
-  GST_INFO_OBJECT (trainer, "framework: %s", trainer->fw_name);
+  GST_INFO_OBJECT (trainer, "Framework: %s", trainer->fw_name);
 
   /** @todo Check valid framework */
 }
@@ -904,7 +898,7 @@ gst_tensor_trainer_set_prop_model_config_file_path (GstTensorTrainer *
   g_free (trainer->model_config);
   trainer->model_config = g_value_dup_string (value);
   trainer->prop.model_config = trainer->model_config;
-  GST_INFO_OBJECT (trainer, "model configuration file path: %s",
+  GST_INFO_OBJECT (trainer, "Model configuration file path: %s",
       trainer->prop.model_config);
 }
 
@@ -918,7 +912,7 @@ gst_tensor_trainer_set_model_save_path (GstTensorTrainer * trainer,
   g_free (trainer->model_save_path);
   trainer->model_save_path = g_value_dup_string (value);
   trainer->prop.model_save_path = trainer->model_save_path;
-  GST_INFO_OBJECT (trainer, "file path to save the model: %s",
+  GST_INFO_OBJECT (trainer, "File path to save the model: %s",
       trainer->prop.model_save_path);
 }
 
@@ -1005,11 +999,11 @@ gst_tensor_trainer_find_framework (GstTensorTrainer * trainer, const char *name)
   g_return_if_fail (name != NULL);
   g_return_if_fail (trainer != NULL);
 
-  GST_INFO ("find framework: %s", name);
+  GST_INFO_OBJECT (trainer, "Try to find framework: %s", name);
 
   fw = get_subplugin (NNS_SUBPLUGIN_TRAINER, name);
   if (fw) {
-    GST_INFO_OBJECT (trainer, "find framework %s:%p", trainer->fw_name, fw);
+    GST_INFO_OBJECT (trainer, "Find framework %s:%p", trainer->fw_name, fw);
     trainer->fw = fw;
   } else {
     GST_ERROR_OBJECT (trainer, "Can not find framework(%s)", trainer->fw_name);
@@ -1022,27 +1016,24 @@ gst_tensor_trainer_find_framework (GstTensorTrainer * trainer, const char *name)
 static void
 gst_tensor_trainer_create_framework (GstTensorTrainer * trainer)
 {
-  pid_t pid = getpid ();
-  pid_t tid = syscall (SYS_gettid);
   g_return_if_fail (trainer != NULL);
-  GST_ERROR_OBJECT (trainer, "pid: %d, tid: %d", pid, tid);
+
   if (!trainer->fw || trainer->fw_created) {
-    GST_ERROR_OBJECT (trainer, "fw is not opened(%d) or fw is null(%p)",
+    GST_ERROR_OBJECT (trainer, "fw is not opened(%d) or fw is not null(%p)",
         trainer->fw_created, trainer->fw);
     return;
   }
 
-  /* For test */
-  if (!trainer->fw->create) {   /* fw->create, create model with configuration file */
-    GST_ERROR_OBJECT (trainer, "Could not find fw->create");
+  if (!trainer->fw->create) {
+    GST_ERROR_OBJECT (trainer, "Could not create framework");
     return;
   }
-  /* Test code, need to create with load ini file */
-  GST_ERROR ("%p", trainer->privateData);
+
+  GST_DEBUG_OBJECT (trainer, "%p", trainer->privateData);
   if (trainer->fw->create (trainer->fw, &trainer->prop,
           &trainer->privateData) >= 0)
     trainer->fw_created = TRUE;
-  GST_ERROR ("%p", trainer->privateData);
+  GST_DEBUG_OBJECT (trainer, "Success, Framework: %p", trainer->privateData);
 }
 
 /**
@@ -1075,7 +1066,6 @@ static void
 gst_tensor_trainer_create_model (GstTensorTrainer * trainer)
 {
   g_return_if_fail (trainer != NULL);
-  GST_DEBUG_OBJECT (trainer, "called");
 
   if (trainer->fw_name)
     gst_tensor_trainer_find_framework (trainer, trainer->fw_name);
@@ -1096,7 +1086,7 @@ gst_tensor_trainer_train_model (GstTensorTrainer * trainer)
   g_return_if_fail (trainer->fw != NULL);
   g_return_if_fail (trainer->fw->train != NULL);
 
-  GST_DEBUG_OBJECT (trainer, "called");
+  GST_DEBUG_OBJECT (trainer, "Start train model");
   ret = trainer->fw->train (trainer->fw, &trainer->prop, trainer->privateData);
   if (ret != 0) {
     GST_ERROR_OBJECT (trainer, "model train is failed");
