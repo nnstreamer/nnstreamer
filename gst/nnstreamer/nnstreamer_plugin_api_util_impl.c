@@ -860,10 +860,10 @@ gst_tensor_dimension_is_valid (const tensor_dim dim)
     if (dim[i] == 0) {
       gchar *dim_str = gst_tensor_get_dimension_string (dim);
       nns_logd
-          ("Failed to validate tensor dimension. Given dimension: %s. The dimension string should be in the form of d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1. Here, dN is a positive integer.",
+          ("Failed to validate tensor dimension. Given dimension: %s. The dimension string should be in the form of d1:...:d8, d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1. Here, dN is a positive integer.",
           dim_str);
       _nnstreamer_error_write
-          ("Failed to validate tensor dimension. Given dimension: %s. The dimension string should be in the form of d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1. Here, dN is a positive integer.",
+          ("Failed to validate tensor dimension. Given dimension: %s. The dimension string should be in the form of d1:...:d8, d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1. Here, dN is a positive integer.",
           dim_str);
       g_free (dim_str);
       return FALSE;
@@ -876,7 +876,7 @@ gst_tensor_dimension_is_valid (const tensor_dim dim)
 /**
  * @brief Parse tensor dimension parameter string
  * @return The Rank. 0 if error.
- * @param dimstr The dimension string in the format of d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1, where dN is a positive integer and d1 is the innermost dimension; i.e., dim[d4][d3][d2][d1];
+ * @param dimstr The dimension string in the format of d1:...:d8, d1:d2:d3, d1:d2, or d1, where dN is a positive integer and d1 is the innermost dimension; i.e., dim[d8][d7][d6][d5][d4][d3][d2][d1];
  * @param dim dimension to be filled.
  */
 guint
@@ -919,7 +919,7 @@ gst_tensor_parse_dimension (const gchar * dimstr, tensor_dim dim)
 /**
  * @brief Get dimension string from given tensor dimension.
  * @param dim tensor dimension
- * @return Formatted string of given dimension (d1:d2:d3:d4).
+ * @return Formatted string of given dimension (d1:d2:d3:d4:d5:d6:d7:d8).
  * @note The returned value should be freed with g_free()
  */
 gchar *
