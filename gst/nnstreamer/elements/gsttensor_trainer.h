@@ -54,7 +54,6 @@ struct _GstTensorTrainer
   gchar *output_dimensions;
   gchar *input_type;
   gchar *output_type;
-  gboolean push_output;
 
   gboolean input_configured;
   gboolean output_configured;
