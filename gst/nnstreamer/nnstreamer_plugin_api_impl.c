@@ -392,7 +392,7 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
           the negotiation should have been failed before this stage. */
       if (gst_tensors_config_is_static (&in_configs))
         g_assert (n_mem == in_configs.info.num_tensors);
-      g_assert ((counting + n_mem) < NNS_TENSOR_SIZE_LIMIT);
+      g_assert ((counting + n_mem) <= NNS_TENSOR_SIZE_LIMIT);
 
       if (gst_tensors_config_is_flexible (&in_configs))
         configs->info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
