@@ -1124,7 +1124,7 @@ gst_tensor_trainer_output_type (GstTensorTrainer * trainer)
   g_return_if_fail (trainer != NULL);
 
   info = &trainer->output_meta;
-  info->info[0].type = _NNS_FLOAT16;
+  info->info[0].type = _NNS_FLOAT64;
 }
 
 /**
