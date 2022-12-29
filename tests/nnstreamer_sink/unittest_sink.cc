@@ -101,6 +101,8 @@ typedef enum {
   TEST_TYPE_TENSORS_MUX_2, /**< pipeline for tensors with tensor_mux (static and flex tensor stream combined) */
   TEST_TYPE_TENSORS_MUX_3, /**< pipeline for tensors with tensor_mux, tensor_demux (static and flex tensor stream combined) */
   TEST_TYPE_TENSORS_MUX_4, /**< pipeline for tensors with tensor_mux (static tensor stream, refresh mode) */
+  TEST_TYPE_TENSORS_MUX_5, /**< pipeline for tensors with tensor_mux (static tensor stream, num_tensors=16) */
+  TEST_TYPE_TENSORS_MERGE, /**< pipeline for tensors with tensor_merge (static tensor stream, num_tensors=16) */
   TEST_TYPE_TENSORS_FLEX_NEGO_FAILED_1, /**< pipeline for nego failure case (mux, cannot link flex and static pad) */
   TEST_TYPE_TENSORS_FLEX_NEGO_FAILED_2, /**< pipeline for nego failure case (demux, cannot link flex and static pad) */
   TEST_TYPE_TENSORS_MIX_1, /**< pipeline for tensors with tensor_mux, tensor_demux */
@@ -797,6 +799,42 @@ _setup_pipeline (TestOption &option)
         "appsrc name=appsrc ! other/tensor,type=(string)uint8,dimension=(string)10:1:1:1,framerate=(fraction)0/1 ! mux.sink_0 "
         "videotestsrc ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_1");
     break;
+  case TEST_TYPE_TENSORS_MUX_5: {
+    /** other/tensors,num_tensors=16 with tensor_mux */
+    gchar *tee_queue_mux = g_strdup ("");
+    for (i = 0; i < 16; i++) {
+      char *aux = g_strdup (tee_queue_mux);
+      g_free (tee_queue_mux);
+      tee_queue_mux = g_strdup_printf ("%s t. ! queue ! mux.sink_%d", aux, i);
+      g_free (aux);
+    }
+
+    str_pipeline = g_strdup_printf (
+        "tensor_mux name=mux ! tensor_sink name=test_sink "
+        "videotestsrc num-buffers=%d ! video/x-raw,width=4,height=4,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! tee name=t %s",
+        option.num_buffers, tee_queue_mux);
+
+    g_free (tee_queue_mux);
+    break;
+  }
+  case TEST_TYPE_TENSORS_MERGE: {
+    /** other/tensors,num_tensors=16 with tensor_merge */
+    gchar *tee_queue_merge = g_strdup ("");
+    for (i = 0; i < 16; i++) {
+      char *aux = g_strdup (tee_queue_merge);
+      g_free (tee_queue_merge);
+      tee_queue_merge = g_strdup_printf ("%s t. ! queue ! merge.sink_%d", aux, i);
+      g_free (aux);
+    }
+
+    str_pipeline = g_strdup_printf (
+        "tensor_merge name=merge mode=linear option=2 sync_mode=nosync ! tensor_sink name=test_sink "
+        "videotestsrc num-buffers=%d ! video/x-raw,width=4,height=4,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! tee name=t %s",
+        option.num_buffers, tee_queue_merge);
+
+    g_free (tee_queue_merge);
+    break;
+  }
   case TEST_TYPE_TENSORS_FLEX_NEGO_FAILED_1:
     /** tensor_mux nego failure case */
     str_pipeline = g_strdup_printf (
@@ -1633,6 +1671,133 @@ TEST (tensorStreamTest, muxRefreshMode)
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 0);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 }
+
+/**
+ * @brief Test for other/tensors with tensor_mux.
+ */
+TEST (tensorStreamTest, mux16Tensors)
+{
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_TENSORS_MUX_5 };
+  guint i;
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.mem_blocks, 16U);
+  EXPECT_EQ (g_test_data.received_size, 3U * 4 * 4 * 16U);
+
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  /** check tensors config for video */
+  EXPECT_TRUE (gst_tensors_config_validate (&g_test_data.tensors_config));
+  EXPECT_EQ (g_test_data.tensors_config.info.num_tensors, 16U);
+
+  for (i = 0; i < g_test_data.tensors_config.info.num_tensors; i++) {
+    EXPECT_EQ (g_test_data.tensors_config.info.info[i].type, _NNS_UINT8);
+    EXPECT_EQ (g_test_data.tensors_config.info.info[i].dimension[0], 3U);
+    EXPECT_EQ (g_test_data.tensors_config.info.info[i].dimension[1], 4U);
+    EXPECT_EQ (g_test_data.tensors_config.info.info[i].dimension[2], 4U);
+    EXPECT_EQ (g_test_data.tensors_config.info.info[i].dimension[3], 1U);
+  }
+
+  EXPECT_EQ (g_test_data.tensors_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
+
+  /** check caps and config for tensors */
+  {
+    GstCaps *caps;
+    GstStructure *structure;
+    GstTensorsConfig config;
+
+    caps = gst_tensors_caps_from_config (&g_test_data.tensors_config);
+    structure = gst_caps_get_structure (caps, 0);
+
+    EXPECT_TRUE (gst_tensors_config_from_structure (&config, structure));
+    EXPECT_TRUE (gst_tensors_config_is_equal (&config, &g_test_data.tensors_config));
+
+    gst_caps_unref (caps);
+    gst_tensors_config_free (&config);
+  }
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data (option);
+}
+
+/**
+ * @brief Test for other/tensors with tensor_merge.
+ */
+TEST (tensorStreamTest, merge16Tensors)
+{
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_TENSORS_MERGE };
+  guint i;
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.mem_blocks, 1U);
+  EXPECT_EQ (g_test_data.received_size, 3U * 4 * 4 * 16U);
+
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  /** check tensors config for video */
+  EXPECT_TRUE (gst_tensors_config_validate (&g_test_data.tensors_config));
+  EXPECT_EQ (g_test_data.tensors_config.info.num_tensors, 1U);
+
+  for (i = 0; i < g_test_data.tensors_config.info.num_tensors; i++) {
+    EXPECT_EQ (g_test_data.tensors_config.info.info[i].type, _NNS_UINT8);
+    EXPECT_EQ (g_test_data.tensors_config.info.info[i].dimension[0], 3U);
+    EXPECT_EQ (g_test_data.tensors_config.info.info[i].dimension[1], 4U);
+    EXPECT_EQ (g_test_data.tensors_config.info.info[i].dimension[2], 4U * 16U);
+    EXPECT_EQ (g_test_data.tensors_config.info.info[i].dimension[3], 1U);
+  }
+
+  EXPECT_EQ (g_test_data.tensors_config.rate_n, 30);
+  EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
+
+  /** check caps and config for tensors */
+  {
+    GstCaps *caps;
+    GstStructure *structure;
+    GstTensorsConfig config;
+
+    caps = gst_tensors_caps_from_config (&g_test_data.tensors_config);
+    structure = gst_caps_get_structure (caps, 0);
+
+    EXPECT_TRUE (gst_tensors_config_from_structure (&config, structure));
+    EXPECT_TRUE (gst_tensors_config_is_equal (&config, &g_test_data.tensors_config));
+
+    gst_caps_unref (caps);
+    gst_tensors_config_free (&config);
+  }
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data (option);
+}
+
 
 /**
  * @brief Test for flexible tensors with tensor_mux (nego failure).
