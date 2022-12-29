@@ -596,11 +596,12 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
     GST_INFO ("out_buffer size : %zd", gst_buffer_get_size (outbuf));
 
     gst_pad_push (trainer->srcpad, outbuf);
-
-    return GST_FLOW_OK;
   }
 
+  gst_buffer_unref (inbuf);
+
   return GST_FLOW_OK;
+
 error:
   mem_blocks = gst_buffer_n_memory (inbuf);
   for (i = 0; i < mem_blocks; i++) {
@@ -614,6 +615,8 @@ error:
       gst_allocator_free (out_mem[i]->allocator, out_mem[i]);
     }
   }
+
+  gst_buffer_unref (inbuf);
 
   return GST_FLOW_ERROR;
 }
