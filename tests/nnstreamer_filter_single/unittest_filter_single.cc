@@ -202,6 +202,133 @@ TEST_F (NNSFilterSingleTest, invalidProperty_n)
 }
 #endif /* ENABLE_TENSORFLOW_LITE */
 
+#ifdef ENABLE_TENSORFLOW2_LITE
+/**
+ * @brief Test Fixture class for a tensor-filter single functionality with high rank.
+ */
+class NNSFilterSingleTestExtended : public::testing::Test
+{
+protected:
+  GTensorFilterSingle *single;
+  GTensorFilterSingleClass *klass;
+  GstTensorMemory input[2];
+  GstTensorMemory output;
+  gboolean loaded;
+
+public:
+  /**
+   * @brief Construct a new NNSFilterSingleTestExtended object
+   */
+  NNSFilterSingleTestExtended ()
+    : single (nullptr), klass (nullptr), loaded (FALSE)
+  {
+    input[0].data = input[1].data = output.data = nullptr;
+    input[0].size = input[1].size = output.size = 0;
+  }
+
+  /**
+   * @brief SetUp method for each test case
+   */
+  void SetUp () override
+  {
+    g_autofree gchar *model_file = nullptr;
+    gsize length = 4 * 4 * 4 * 4 * 4;
+    guint i;
+    const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+
+    input[0].size = length * 4;
+    input[1].size = length * 4;
+    output.size = length * 4;
+
+    single = (GTensorFilterSingle *) g_object_new (G_TYPE_TENSOR_FILTER_SINGLE, NULL);
+    klass = (GTensorFilterSingleClass *) g_type_class_ref (G_TYPE_TENSOR_FILTER_SINGLE);
+
+    /* supposed to run test in build directory */
+    if (root_path == NULL)
+      root_path = "..";
+
+    model_file = g_build_filename (root_path, "tests", "test_models", "models",
+        "sample_4x4x4x4x4_two_input_one_output.tflite", NULL);
+    ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
+
+    input[0].data = g_malloc0(sizeof(gfloat)*length);
+    input[1].data = g_malloc0(sizeof(gfloat)*length);
+
+    for (i = 0; i < length ; i++) {
+      ((gfloat*)input[0].data)[i] = i;
+      ((gfloat*)input[1].data)[i] = i + 1;
+    }
+
+    g_object_set (G_OBJECT (single), "framework", "tensorflow-lite",
+        "model", model_file, NULL);
+    loaded = TRUE;
+  }
+
+  /**
+   * @brief TearDown method for each test case
+   */
+  void TearDown () override
+  {
+    g_type_class_unref (klass);
+    g_object_unref (single);
+    g_free (input[0].data);
+    g_free (input[1].data);
+    g_free (output.data);
+  }
+};
+
+/**
+ * @brief Test to invoke tf-lite model.
+ */
+TEST_F (NNSFilterSingleTestExtended, invoke_p)
+{
+  guint i, length = 4 * 4 * 4 * 4 * 4;
+  ASSERT_TRUE (this->loaded);
+
+  /* invoke the model and check output result */
+  EXPECT_TRUE (klass->invoke (single, input, &output, TRUE));
+
+  for (i = 0 ; i < length ; i++)
+    EXPECT_EQ (((gfloat *)output.data)[i], (((gfloat*)input[0].data)[i]  + ((gfloat*)input[1].data)[i]));
+
+  EXPECT_TRUE (klass->input_configured (single));
+  EXPECT_TRUE (klass->output_configured (single));
+  EXPECT_FALSE (klass->allocate_in_invoke (single));
+
+  klass->destroy_notify (single, &output);
+}
+
+/**
+ * @brief Test to set invalid info.
+ */
+TEST_F (NNSFilterSingleTestExtended, setInvalidInfo_n)
+{
+  GstTensorsInfo in_info, out_info;
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+
+  ASSERT_TRUE (this->loaded);
+  EXPECT_TRUE (klass->start (single));
+
+  /* valid tensor info */
+  in_info.num_tensors = 2U;
+  in_info.info[0].type = _NNS_FLOAT32;
+  gst_tensor_parse_dimension ("4:4:4:4:4", in_info.info[0].dimension);
+  in_info.info[1].type = _NNS_FLOAT32;
+  gst_tensor_parse_dimension ("4:4:4:4:4", in_info.info[1].dimension);
+  EXPECT_TRUE (klass->set_input_info (single, &in_info, &out_info) == 0);
+
+  /* request to set invalid tensor info */
+  in_info.num_tensors = 1U;
+  EXPECT_FALSE (klass->set_input_info (single, &in_info, &out_info) == 0);
+
+  EXPECT_TRUE (klass->stop (single));
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+}
+
+#endif /* ENABLE_TENSORFLOW2_LITE */
+
 /**
  * @brief Test to start before initializing.
  */

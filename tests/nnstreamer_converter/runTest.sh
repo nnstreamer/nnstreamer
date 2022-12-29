@@ -24,6 +24,7 @@ if [ "$SKIPGEN" == "YES" ]; then
 else
     echo "Test Case Generation Started"
     python3 generateGoldenTestResult.py
+    python3 ../nnstreamer_filter_pytorch/generateTest.py
     sopath=$1
 fi
 convertBMP2PNG
@@ -87,6 +88,10 @@ callCompareTest testcase08.golden testcase08.log 6-2 "PNG Stream Test" 0 0
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! videoscale ! videoconvert ! video/x-raw,format=RGB,framerate=30/1,height=300,width=300 ! tensor_converter ! other/tensor,dimension=3:300:300,types=uint8,framerate=30/1,format=static ! fakesink" 7-1 0 0 $PERFORMANCE
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! videoscale ! videoconvert ! video/x-raw,format=RGB,framerate=30/1,height=300,width=300 ! tensor_converter ! other/tensors,num_tensors=1,dimension=3:300:300,types=uint8,framerate=30/1,format=static ! fakesink" 7-2 0 0 $PERFORMANCE
 
-rm *.log *.bmp *.png *.golden
+# Test with high dimension (rank>4)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_00.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=4:4:4:4:4 input-type=float32 ! fakesink" 8-1 0 0 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_01.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=3:10:10:4:5:6 input-type=uint8 ! fakesink" 8-2 0 0 $PERFORMANCE
+
+rm *.log *.bmp *.png *.golden *.dat
 
 report

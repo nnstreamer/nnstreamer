@@ -65,6 +65,22 @@ testResult $? 2 "Golden test comparison 3-1" 0 1
 python3 checkResult.py dimchg0:b testcase03.direct.log testcase03_2.dimchg02.log 4 1024 1
 testResult $? 2 "Golden test comparison 3-2" 0 1
 
+# Test with rank 6 input
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_01.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=3:10:10:4:5:6 input-type=int8 ! tee name=t ! queue ! tensor_transform mode=dimchg option=0:2 ! filesink location=\"testcase04.dimchg02.log\" sync=true t. ! queue ! filesink location=\"testcase04.direct.log\" sync=true" 4 0 0 $PERFORMANCE
+# dim1 = 3
+# rbs = 3 x 10 x 10
+# es = 1
+python3 checkResult.py dimchg0:b testcase04.direct.log testcase04.dimchg02.log 3 300 1
+testResult $? 4 "Golden test comparison" 0 1
+
+# Test with high(4) dimchg option
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_01.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=3:10:10:4:5:6 input-type=int8 ! tee name=t ! queue ! tensor_transform mode=dimchg option=0:4 ! filesink location=\"testcase05.dimchg04.log\" sync=true t. ! queue ! filesink location=\"testcase05.direct.log\" sync=true" 5 0 0 $PERFORMANCE
+# dim1 = 3
+# rbs = 3 x 10 x 10 x 4 x 5
+# es = 1
+python3 checkResult.py dimchg0:b testcase05.direct.log testcase05.dimchg04.log 3 6000 1
+testResult $? 5 "Golden test comparison" 0 1
+
 rm *.log *.bmp *.png *.golden *.raw *.dat
 
 report

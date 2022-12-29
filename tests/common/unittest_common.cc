@@ -350,6 +350,100 @@ TEST (commonGetTensorDimension, case4)
 }
 
 /**
+ * @brief Test for tensor dimension.
+ */
+TEST (commonGetTensorDimension, case5)
+{
+  tensor_dim dim;
+  gchar *dim_str;
+  guint rank;
+
+  rank = gst_tensor_parse_dimension ("345:123:433:177:851", dim);
+  EXPECT_EQ (rank, 5U);
+  EXPECT_EQ (dim[0], 345U);
+  EXPECT_EQ (dim[1], 123U);
+  EXPECT_EQ (dim[2], 433U);
+  EXPECT_EQ (dim[3], 177U);
+  EXPECT_EQ (dim[4], 851U);
+
+  dim_str = gst_tensor_get_dimension_string (dim);
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal (dim_str, "345:123:433:177:851"));
+  g_free (dim_str);
+}
+
+/**
+ * @brief Test for tensor dimension.
+ */
+TEST (commonGetTensorDimension, case6)
+{
+  tensor_dim dim;
+  gchar *dim_str;
+  guint rank;
+
+  rank = gst_tensor_parse_dimension ("345:123:433:177:851:369", dim);
+  EXPECT_EQ (rank, 6U);
+  EXPECT_EQ (dim[0], 345U);
+  EXPECT_EQ (dim[1], 123U);
+  EXPECT_EQ (dim[2], 433U);
+  EXPECT_EQ (dim[3], 177U);
+  EXPECT_EQ (dim[4], 851U);
+  EXPECT_EQ (dim[5], 369U);
+
+  dim_str = gst_tensor_get_dimension_string (dim);
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal (dim_str, "345:123:433:177:851:369"));
+  g_free (dim_str);
+}
+
+/**
+ * @brief Test for tensor dimension.
+ */
+TEST (commonGetTensorDimension, case7)
+{
+  tensor_dim dim;
+  gchar *dim_str;
+  guint rank;
+
+  rank = gst_tensor_parse_dimension ("345:123:433:177:851:369:456", dim);
+  EXPECT_EQ (rank, 7U);
+  EXPECT_EQ (dim[0], 345U);
+  EXPECT_EQ (dim[1], 123U);
+  EXPECT_EQ (dim[2], 433U);
+  EXPECT_EQ (dim[3], 177U);
+  EXPECT_EQ (dim[4], 851U);
+  EXPECT_EQ (dim[5], 369U);
+  EXPECT_EQ (dim[6], 456U);
+
+  dim_str = gst_tensor_get_dimension_string (dim);
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal (dim_str, "345:123:433:177:851:369:456"));
+  g_free (dim_str);
+}
+
+/**
+ * @brief Test for tensor dimension.
+ */
+TEST (commonGetTensorDimension, case8)
+{
+  tensor_dim dim;
+  gchar *dim_str;
+  guint rank;
+
+  rank = gst_tensor_parse_dimension ("345:123:433:177:851:369:456:91", dim);
+  EXPECT_EQ (rank, 8U);
+  EXPECT_EQ (dim[0], 345U);
+  EXPECT_EQ (dim[1], 123U);
+  EXPECT_EQ (dim[2], 433U);
+  EXPECT_EQ (dim[3], 177U);
+  EXPECT_EQ (dim[4], 851U);
+  EXPECT_EQ (dim[5], 369U);
+  EXPECT_EQ (dim[6], 456U);
+  EXPECT_EQ (dim[7], 91U);
+
+  dim_str = gst_tensor_get_dimension_string (dim);
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal (dim_str, "345:123:433:177:851:369:456:91"));
+  g_free (dim_str);
+}
+
+/**
  * @brief Test to copy tensor info.
  */
 TEST (commonTensorInfo, copyTensor)
@@ -439,11 +533,19 @@ fill_tensors_info_for_test (GstTensorsInfo *info1, GstTensorsInfo *info2)
   info1->info[0].dimension[1] = info2->info[0].dimension[1] = 3;
   info1->info[0].dimension[2] = info2->info[0].dimension[2] = 1;
   info1->info[0].dimension[3] = info2->info[0].dimension[3] = 1;
+  info1->info[0].dimension[4] = info2->info[0].dimension[4] = 2;
+  info1->info[0].dimension[5] = info2->info[0].dimension[5] = 3;
+  info1->info[0].dimension[6] = info2->info[0].dimension[6] = 1;
+  info1->info[0].dimension[7] = info2->info[0].dimension[7] = 1;
 
   info1->info[1].dimension[0] = info2->info[1].dimension[0] = 5;
   info1->info[1].dimension[1] = info2->info[1].dimension[1] = 5;
   info1->info[1].dimension[2] = info2->info[1].dimension[2] = 1;
   info1->info[1].dimension[3] = info2->info[1].dimension[3] = 1;
+  info1->info[1].dimension[4] = info2->info[1].dimension[4] = 5;
+  info1->info[1].dimension[5] = info2->info[1].dimension[5] = 5;
+  info1->info[1].dimension[6] = info2->info[1].dimension[6] = 1;
+  info1->info[1].dimension[7] = info2->info[1].dimension[7] = 1;
 }
 
 /**

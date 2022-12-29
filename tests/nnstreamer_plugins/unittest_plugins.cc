@@ -2140,7 +2140,7 @@ TEST (testTensorTransform, arithmeticFlexTensor)
 }
 
 /**
- * @brief Test data for tensor_aggregator (2 frames with dimension 3:4:2:2)
+ * @brief Test data for tensor_aggregator (2 frames with dimension 3:4:2:2 or 3:2:2:2:2)
  */
 const gint aggr_test_frames[2][48]
     = { { 1101, 1102, 1103, 1104, 1105, 1106, 1107, 1108, 1109, 1110, 1111, 1112,
@@ -2480,6 +2480,236 @@ TEST (testTensorAggregator, aggregate5)
   }
 
   EXPECT_EQ (gst_harness_buffers_received (h), 2U);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_aggregator (concatenate 2 frames with frames-dim 4, out-dimension 3:2:2:2:4)
+ */
+TEST (testTensorAggregator, aggregate6)
+{
+  GstHarness *h;
+  GstTensorsConfig config;
+  guint i;
+  gsize data_in_size;
+
+  h = gst_harness_new ("tensor_aggregator");
+
+  g_object_set (h->element, "frames-out", 2, "frames-dim", 4, NULL);
+
+  /* input tensor info */
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1;
+  config.info.info[0].type = _NNS_INT32;
+  gst_tensor_parse_dimension ("3:2:2:2:2", config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  data_in_size = gst_tensors_info_get_size (&config.info, 0);
+
+  /* push buffers */
+  for (i = 0; i < 2; i++) {
+    _aggregator_test_push_buffer (h, aggr_test_frames[i], data_in_size);
+  }
+
+  /* get output buffer */
+  const gint expected[96] = { 1101, 1102, 1103, 1104, 1105, 1106, 1107, 1108,
+    1109, 1110, 1111, 1112, 1113, 1114, 1115, 1116, 1117, 1118, 1119, 1120,
+    1121, 1122, 1123, 1124, 1201, 1202, 1203, 1204, 1205, 1206, 1207, 1208,
+    1209, 1210, 1211, 1212, 1213, 1214, 1215, 1216, 1217, 1218, 1219, 1220, 1221,
+    1222, 1223, 1224, 2101, 2102, 2103, 2104, 2105, 2106, 2107, 2108, 2109, 2110,
+    2111, 2112, 2113, 2114, 2115, 2116, 2117, 2118, 2119, 2120, 2121, 2122, 2123,
+    2124, 2201, 2202, 2203, 2204, 2205, 2206, 2207, 2208, 2209, 2210, 2211, 2212,
+    2213, 2214, 2215, 2216, 2217, 2218, 2219, 2220, 2221, 2222, 2223, 2224 };
+
+  _aggregator_test_check_output (h, expected, 96);
+
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_aggregator (concatenate 2 frames with frames-dim 3, out-dimension 3:2:2:4:2)
+ */
+TEST (testTensorAggregator, aggregate7)
+{
+  GstHarness *h;
+  GstTensorsConfig config;
+  guint i;
+  gsize data_in_size;
+
+  h = gst_harness_new ("tensor_aggregator");
+
+  g_object_set (h->element, "frames-out", 2, "frames-dim", 3, NULL);
+
+  /* input tensor info */
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1;
+  config.info.info[0].type = _NNS_INT32;
+  gst_tensor_parse_dimension ("3:2:2:2:2", config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  data_in_size = gst_tensors_info_get_size (&config.info, 0);
+
+  /* push buffers */
+  for (i = 0; i < 2; i++) {
+    _aggregator_test_push_buffer (h, aggr_test_frames[i], data_in_size);
+  }
+
+  /* get output buffer */
+  const gint expected[96] = { 1101, 1102, 1103, 1104, 1105, 1106, 1107, 1108,
+    1109, 1110, 1111, 1112, 1113, 1114, 1115, 1116, 1117, 1118, 1119, 1120,
+    1121, 1122, 1123, 1124, 2101, 2102, 2103, 2104, 2105, 2106, 2107, 2108,
+    2109, 2110, 2111, 2112, 2113, 2114, 2115, 2116, 2117, 2118, 2119, 2120, 2121,
+    2122, 2123, 2124, 1201, 1202, 1203, 1204, 1205, 1206, 1207, 1208, 1209, 1210,
+    1211, 1212, 1213, 1214, 1215, 1216, 1217, 1218, 1219, 1220, 1221, 1222, 1223,
+    1224, 2201, 2202, 2203, 2204, 2205, 2206, 2207, 2208, 2209, 2210, 2211, 2212,
+    2213, 2214, 2215, 2216, 2217, 2218, 2219, 2220, 2221, 2222, 2223, 2224 };
+
+  _aggregator_test_check_output (h, expected, 96);
+
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_aggregator (concatenate 2 frames with frames-dim 2, out-dimension 3:2:4:2:2)
+ */
+TEST (testTensorAggregator, aggregate8)
+{
+  GstHarness *h;
+  GstTensorsConfig config;
+  guint i;
+  gsize data_in_size;
+
+  h = gst_harness_new ("tensor_aggregator");
+
+  g_object_set (h->element, "frames-out", 2, "frames-dim", 2, NULL);
+
+  /* input tensor info */
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1;
+  config.info.info[0].type = _NNS_INT32;
+  gst_tensor_parse_dimension ("3:2:2:2:2", config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  data_in_size = gst_tensors_info_get_size (&config.info, 0);
+
+  /* push buffers */
+  for (i = 0; i < 2; i++) {
+    _aggregator_test_push_buffer (h, aggr_test_frames[i], data_in_size);
+  }
+
+  /* get output buffer */
+  const gint expected[96] = { 1101, 1102, 1103, 1104, 1105, 1106, 1107, 1108,
+    1109, 1110, 1111, 1112, 2101, 2102, 2103, 2104, 2105, 2106, 2107, 2108,
+    2109, 2110, 2111, 2112, 1113, 1114, 1115, 1116, 1117, 1118, 1119, 1120,
+    1121, 1122, 1123, 1124, 2113, 2114, 2115, 2116, 2117, 2118, 2119, 2120, 2121,
+    2122, 2123, 2124, 1201, 1202, 1203, 1204, 1205, 1206, 1207, 1208, 1209, 1210,
+    1211, 1212, 2201, 2202, 2203, 2204, 2205, 2206, 2207, 2208, 2209, 2210, 2211,
+    2212, 1213, 1214, 1215, 1216, 1217, 1218, 1219, 1220, 1221, 1222, 1223, 1224,
+    2213, 2214, 2215, 2216, 2217, 2218, 2219, 2220, 2221, 2222, 2223, 2224 };
+
+  _aggregator_test_check_output (h, expected, 96);
+
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_aggregator (concatenate 2 frames with frames-dim 1, out-dimension 3:4:2:2:2)
+ */
+TEST (testTensorAggregator, aggregate9)
+{
+  GstHarness *h;
+  GstTensorsConfig config;
+  guint i;
+  gsize data_in_size;
+
+  h = gst_harness_new ("tensor_aggregator");
+
+  g_object_set (h->element, "frames-out", 2, "frames-dim", 1, NULL);
+
+  /* input tensor info */
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1;
+  config.info.info[0].type = _NNS_INT32;
+  gst_tensor_parse_dimension ("3:2:2:2:2", config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  data_in_size = gst_tensors_info_get_size (&config.info, 0);
+
+  /* push buffers */
+  for (i = 0; i < 2; i++) {
+    _aggregator_test_push_buffer (h, aggr_test_frames[i], data_in_size);
+  }
+
+  /* get output buffer */
+  const gint expected[96] = { 1101, 1102, 1103, 1104, 1105, 1106, 2101, 2102,
+    2103, 2104, 2105, 2106, 1107, 1108, 1109, 1110, 1111, 1112, 2107, 2108,
+    2109, 2110, 2111, 2112, 1113, 1114, 1115, 1116, 1117, 1118, 2113, 2114,
+    2115, 2116, 2117, 2118, 1119, 1120, 1121, 1122, 1123, 1124, 2119, 2120, 2121,
+    2122, 2123, 2124, 1201, 1202, 1203, 1204, 1205, 1206, 2201, 2202, 2203, 2204,
+    2205, 2206, 1207, 1208, 1209, 1210, 1211, 1212, 2207, 2208, 2209, 2210, 2211,
+    2212, 1213, 1214, 1215, 1216, 1217, 1218, 2213, 2214, 2215, 2216, 2217, 2218,
+    1219, 1220, 1221, 1222, 1223, 1224, 2219, 2220, 2221, 2222, 2223, 2224 };
+
+  _aggregator_test_check_output (h, expected, 96);
+
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_aggregator (concatenate 2 frames with frames-dim 0, out-dimension 6:2:2:2:2)
+ */
+TEST (testTensorAggregator, aggregate10)
+{
+  GstHarness *h;
+  GstTensorsConfig config;
+  guint i;
+  gsize data_in_size;
+
+  h = gst_harness_new ("tensor_aggregator");
+
+  g_object_set (h->element, "frames-out", 2, "frames-dim", 0, NULL);
+
+  /* input tensor info */
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1;
+  config.info.info[0].type = _NNS_INT32;
+  gst_tensor_parse_dimension ("3:2:2:2:2", config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  data_in_size = gst_tensors_info_get_size (&config.info, 0);
+
+  /* push buffers */
+  for (i = 0; i < 2; i++) {
+    _aggregator_test_push_buffer (h, aggr_test_frames[i], data_in_size);
+  }
+
+  /* get output buffer */
+  const gint expected[96] = { 1101, 1102, 1103, 2101, 2102, 2103, 1104, 1105,
+    1106, 2104, 2105, 2106, 1107, 1108, 1109, 2107, 2108, 2109, 1110, 1111,
+    1112, 2110, 2111, 2112, 1113, 1114, 1115, 2113, 2114, 2115, 1116, 1117,
+    1118, 2116, 2117, 2118, 1119, 1120, 1121, 2119, 2120, 2121, 1122, 1123, 1124,
+    2122, 2123, 2124, 1201, 1202, 1203, 2201, 2202, 2203, 1204, 1205, 1206, 2204,
+    2205, 2206, 1207, 1208, 1209, 2207, 2208, 2209, 1210, 1211, 1212, 2210, 2211,
+    2212, 1213, 1214, 1215, 2213, 2214, 2215, 1216, 1217, 1218, 2216, 2217, 2218,
+    1219, 1220, 1221, 2219, 2220, 2221, 1222, 1223, 1224, 2222, 2223, 2224 };
+
+  _aggregator_test_check_output (h, expected, 96);
+
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
   gst_harness_teardown (h);
 }
 

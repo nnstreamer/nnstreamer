@@ -65,6 +65,15 @@ else
     fi
 fi
 
+if [ "$SKIPGEN" == "YES" ]; then
+    echo "Test Case Generation Skipped"
+    sopath=$2
+else
+    echo "Test Case Generation Started"
+    python3 ../nnstreamer_filter_pytorch/generateTest.py
+    sopath=$1
+fi
+
 PATH_TO_MODEL="../test_models/models/mobilenet_v1_1.0_224_quant.tflite"
 PATH_TO_LABEL="../test_models/labels/labels.txt"
 PATH_TO_IMAGE="../test_models/data/orange.png"
@@ -201,7 +210,31 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} !
 python3 checkLabel.py tensorfilter.out.log ${PATH_TO_LABEL} orange
 testResult $? 5 "Golden test comparison" 0 1
 
+PATH_TO_MODEL="../test_models/models/sample_4x4x4x4x4_two_input_one_output.tflite"
+# This model is made with below simple python script:
+#
+# import tensorflow as tf
+# from tensorflow import keras
+# from tensorflow.keras.layers import *
+# from tensorflow.keras import *
+
+# x1 = Input((4,4,4,4,4))
+# x2 = Input((4,4,4,4,4))
+# output = Add()([x1,x2])
+# model = Model(inputs=[x1,x2],outputs=[output])
+# model.compile()
+# model.summary()
+
+# converter = tf.lite.TFLiteConverter.from_keras_model(model)
+# tflite_model = converter.convert()
+
+# with open("tflite_model.tflite", "wb") as f:
+#     f.write(tflite_model)
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"test_00.dat\" blocksize=-1 num_buffers=2 ! application/octet-stream ! tensor_converter input-dim=4:4:4:4:4 input-type=float32 ! tee name=t t. ! queue ! mux.sink_0 t. ! queue ! mux.sink_1  tensor_mux name=mux sync_mode=nosync ! queue ! tensor_filter framework=tensorflow2-lite model=${PATH_TO_MODEL} ! multifilesink location=tensorfilter.out.log" 6 0 0 $PERFORMANCE
+callCompareTest test_00.dat.golden tensorfilter.out.log 6 "Compare 6" 1 0
+
 # Cleanup
-rm info *.log
+rm info *.log *.dat *.golden
 
 report

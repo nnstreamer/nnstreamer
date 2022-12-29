@@ -67,6 +67,15 @@ else
     fi
 fi
 
+if [ "$SKIPGEN" == "YES" ]; then
+    echo "Test Case Generation Skipped"
+    sopath=$2
+else
+    echo "Test Case Generation Started"
+    python3 generateTest.py
+    sopath=$1
+fi
+
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=GRAY8,framerate=0/1 ! tensor_converter ! tensor_filter framework=pytorch model=${PATH_TO_MODEL} input=1:28:28:1 inputtype=uint8 output=10:1:1:1 outputtype=uint8 ! filesink location=tensorfilter.out.log" 1 0 0 $PERFORMANCE
 python3 checkLabel.py tensorfilter.out.log ${PATH_TO_IMAGE}
 testResult $? 1 "Golden test comparison" 0 1
@@ -132,7 +141,40 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=2 ! videos
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=2 ! videoscale ! videoconvert ! video/x-raw,width=3,height=4,format=GRAY8,framerate=0/1 ! tensor_converter ! tensor_transform mode=transpose option=2:1:0:3 ! other/tensors,num_tensors=1,dimensions=4:3:1:1,types=uint8,format=static,framerate=0/1 ! tensor_transform mode=typecast option=float32 ! tee name=t t. ! queue ! mux.sink_0 t. ! queue ! mux.sink_1  tensor_mux name=mux sync_mode=nosync ! queue ! tensor_filter framework=pytorch model=${PATH_TO_MODEL} input=4:3:1:1.4:3:1:1 inputtype=float32.float32 output=4:3:1:1.4:3:1:1 outputtype=float32.float32 ! other/tensors,num_tensors=2,dimensions=4:3.4:3 ! filesink location=tensorfilter.out.log" 10-2 0 0 $PERFORMANCE
 
+PATH_TO_MODEL="../test_models/models/sample_4x4x4x4x4_two_input_one_output.pt"
+# This model is made with below simple python script:
+#
+# import torch
+# class MyCell(torch.nn.Module):
+#     def __init__(self):
+#         super(MyCell, self).__init__()
+#     def forward(self, x, y):
+#         z = x + y
+#         return z
+
+# my_cell = MyCell()
+# x, y = torch.rand(4, 4, 4, 4, 4), torch.rand(4, 4, 4, 4, 4)
+# traced_cell = torch.jit.trace(my_cell, (x, y))
+# traced_cell(x, y)
+# traced_cell.save('sample_4x4x4x4x4_two_input_one_output.pt')
+
+# Test multiple input output tensors
+
+## correct input/output info
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_00.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=4:4:4:4:4 input-type=float32 ! tee name=t t. ! queue ! mux.sink_0 t. ! queue ! mux.sink_1  tensor_mux name=mux sync_mode=nosync ! queue ! tensor_filter framework=pytorch model=${PATH_TO_MODEL} input=4:4:4:4:4,4:4:4:4:4 inputtype=float32.float32 output=4:4:4:4:4 outputtype=float32 ! filesink location=tensorfilter.out.log" 11-1 0 0 $PERFORMANCE
+callCompareTest test_00.dat.golden tensorfilter.out.log 11-1 "Compare 11-1" 1 0
+
+## correct input/output info with full dimension
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_00.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=4:4:4:4:4:1:1:1 input-type=float32 ! tee name=t t. ! queue ! mux.sink_0 t. ! queue ! mux.sink_1  tensor_mux name=mux sync_mode=nosync ! queue ! tensor_filter framework=pytorch model=${PATH_TO_MODEL} input=4:4:4:4:4:1:1:1,4:4:4:4:4:1:1:1 inputtype=float32.float32 output=4:4:4:4:4:1:1:1 outputtype=float32 ! filesink location=tensorfilter.out.log" 11-2 0 0 $PERFORMANCE
+callCompareTest test_00.dat.golden tensorfilter.out.log 11-2 "Compare 11-2" 1 0
+
+## wrong input info
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_00.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=4:4:4:4:4 input-type=uint8 ! tee name=t t. ! queue ! mux.sink_0 t. ! queue ! mux.sink_1  tensor_mux name=mux sync_mode=nosync ! queue ! tensor_filter framework=pytorch model=${PATH_TO_MODEL} input=4:4:4:4:2:2,4:4:4:4:2:2 inputtype=uint8.uint8 output=4:4:4:4:4 outputtype=uint8 ! filesink location=tensorfilter.out.log" 12_n 0 1 $PERFORMANCE
+
+## wrong output info
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_00.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=4:4:4:4:4 input-type=uint8 ! tee name=t t. ! queue ! mux.sink_0 t. ! queue ! mux.sink_1  tensor_mux name=mux sync_mode=nosync ! queue ! tensor_filter framework=pytorch model=${PATH_TO_MODEL} input=4:4:4:4:4,4:4:4:4:4 inputtype=uint8.uint8 output=4:2:2:4:4 outputtype=uint8 ! filesink location=tensorfilter.out.log" 13_n 0 1 $PERFORMANCE
+
 # Cleanup
-rm info *.log *.golden
+rm info *.log *.golden *.dat
 
 report
