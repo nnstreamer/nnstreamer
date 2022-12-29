@@ -131,9 +131,6 @@ pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
   assert (input);
   assert (output);
 
-  /* This assumes the limit is 4 */
-  assert (NNS_TENSOR_RANK_LIMIT == 4);
-
   assert (prop->input_meta.info[0].dimension[0] ==
       prop->output_meta.info[0].dimension[0]);
   assert (prop->input_meta.info[0].dimension[3] ==

@@ -25,6 +25,10 @@
 #define D2	(280)
 #define D3	(40)
 #define D4	(1)
+#define D5	(1)
+#define D6	(1)
+#define D7	(1)
+#define D8	(1)
 
 /**
  * @brief _pt_data
@@ -52,6 +56,10 @@ pt_init (const GstTensorFilterProperties * prop)
   data->info.dimension[1] = D2;
   data->info.dimension[2] = D3;
   data->info.dimension[3] = D4;
+  data->info.dimension[4] = D5;
+  data->info.dimension[5] = D6;
+  data->info.dimension[6] = D7;
+  data->info.dimension[7] = D8;
   data->info.type = _NNS_UINT8;
 
   return data;
@@ -80,7 +88,7 @@ get_inputDim (void *private_data, const GstTensorFilterProperties * prop,
   UNUSED (prop);
 
   assert (data);
-  assert (NNS_TENSOR_RANK_LIMIT >= 3);
+  assert (NNS_TENSOR_RANK_LIMIT >= 7);
 
   info->num_tensors = 1;
   gst_tensor_info_copy (&info->info[0], &data->info);
@@ -98,7 +106,7 @@ get_outputDim (void *private_data, const GstTensorFilterProperties * prop,
   UNUSED (prop);
 
   assert (data);
-  assert (NNS_TENSOR_RANK_LIMIT >= 3);
+  assert (NNS_TENSOR_RANK_LIMIT >= 7);
 
   info->num_tensors = 1;
   gst_tensor_info_copy (&info->info[0], &data->info);

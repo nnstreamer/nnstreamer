@@ -99,7 +99,7 @@ TEST (tensorIfProp, properties0)
   EXPECT_EQ (TIFCV_A_VALUE, int_val);
 
   g_object_get (tif_handle, "compared-value-option", &str_val, NULL);
-  EXPECT_STREQ ("0:2:1:1,0", str_val);
+  EXPECT_STREQ ("0:2:1:1:0:0:0:0,0", str_val);
   g_free (str_val);
 
   g_object_get (tif_handle, "supplied-value", &str_val, NULL);
