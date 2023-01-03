@@ -356,7 +356,11 @@ TFLiteInterpreter::invoke (const GstTensorMemory *input, GstTensorMemory *output
   start_time = g_get_monotonic_time ();
   status = interpreter->Invoke ();
 
-  if (is_xnnpack_delegated) {
+  /**
+   * After the very first invoke, the output buffer address may change.
+   * To handle the case, memcpy the output buffer directly.
+   */
+  if (is_xnnpack_delegated || !is_cached_after_first_invoke) {
     for (unsigned int i = 0; i < outputTensorMeta.num_tensors; ++i) {
       tensor_ptr = outputTensorPtr[i];
       g_assert(tensor_ptr->bytes == output[i].size);
