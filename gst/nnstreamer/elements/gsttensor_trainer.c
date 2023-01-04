@@ -541,7 +541,14 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
   if (trainer->total_invoke_num == 1
       || trainer->total_invoke_num ==
       trainer->prop.num_train_samples + trainer->prop.num_valid_samples) {
-
+/*
+    if (trainer->total_invoke_num != 1) {
+      g_mutex_lock (&trainer->trainer_lock);
+      GST_INFO_OBJECT (trainer, "wait for train_complete_cond signal");
+      g_cond_wait (&trainer->train_complete_cond, &trainer->trainer_lock);
+      g_mutex_unlock (&trainer->trainer_lock);
+    }
+*/
     /* Prepare output tensor */
     for (i = 0; i < trainer->output_meta.num_tensors; i++) {
       out_tensors[i].data = NULL;
@@ -702,6 +709,7 @@ gst_tensor_trainer_sink_event (GstPad * sinkpad, GstObject * parent,
     GstEvent * event)
 {
   GstTensorTrainer *trainer;
+  GstTensorTrainerFrameworkInfo info;
   trainer = GST_TENSOR_TRAINER (parent);
 
   GST_DEBUG_OBJECT (trainer, "Received %s event: %" GST_PTR_FORMAT,
@@ -709,12 +717,18 @@ gst_tensor_trainer_sink_event (GstPad * sinkpad, GstObject * parent,
 
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_EOS:
-      GST_INFO_OBJECT (trainer, "get GST_EVENT_EOS event..state is %d",
-          GST_STATE (trainer));
-      g_mutex_lock (&trainer->trainer_lock);
-      GST_INFO_OBJECT (trainer, "wait for train_complete_cond signal");
-      g_cond_wait (&trainer->train_complete_cond, &trainer->trainer_lock);
-      g_mutex_unlock (&trainer->trainer_lock);
+      GST_ERROR ("trainer->privateData: %p", trainer->privateData);
+      trainer->fw->getFrameworkInfo (trainer->fw, NULL, trainer->privateData,
+          &info);
+      GST_INFO_OBJECT (trainer, "train_complete is %d", info.train_complete);
+      if (!info.train_complete) {
+        GST_INFO_OBJECT (trainer, "get GST_EVENT_EOS event..state is %d",
+            GST_STATE (trainer));
+        g_mutex_lock (&trainer->trainer_lock);
+        GST_INFO_OBJECT (trainer, "wait for train_complete_cond signal");
+        g_cond_wait (&trainer->train_complete_cond, &trainer->trainer_lock);
+        g_mutex_unlock (&trainer->trainer_lock);
+      }
       break;
     case GST_EVENT_FLUSH_START:
       GST_INFO_OBJECT (trainer, "get GST_EVENT_FLUSH_START event");
