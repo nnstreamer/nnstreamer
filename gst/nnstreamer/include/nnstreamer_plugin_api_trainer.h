@@ -50,8 +50,12 @@ typedef struct _GstTensorTrainerProperties
 typedef struct _GstTensorTrainerFrameworkInfo
 {
   const char *name;    /**< Name of the neural network framework, searchable by FRAMEWORK property. */
+<<<<<<< HEAD
   int train_complete;  /**< Check if train is complete, Use int instead of gboolean because this is refered by custom plugins. */
   int64_t epoch_cnt;    /**< Number of currently completed epochs */
+=======
+  gboolean  train_complete;  /**< Check if train is complete */
+>>>>>>> 56ee2c43 ([API][trainer] Add train_complete to GstTensorTrainerFrameworkInfo)
 } GstTensorTrainerFrameworkInfo;
 
 typedef struct _GstTensorTrainerFramework GstTensorTrainerFramework;
