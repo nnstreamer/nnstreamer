@@ -703,6 +703,7 @@ gst_tensor_trainer_sink_event (GstPad * sinkpad, GstObject * parent,
     GstEvent * event)
 {
   GstTensorTrainer *trainer;
+  GstTensorTrainerFrameworkInfo info;
   trainer = GST_TENSOR_TRAINER (parent);
 
   GST_DEBUG_OBJECT (trainer, "Received %s event: %" GST_PTR_FORMAT,
@@ -710,12 +711,17 @@ gst_tensor_trainer_sink_event (GstPad * sinkpad, GstObject * parent,
 
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_EOS:
-      GST_INFO_OBJECT (trainer, "get GST_EVENT_EOS event..state is %d",
-          GST_STATE (trainer));
-      g_mutex_lock (&trainer->trainer_lock);
-      GST_INFO_OBJECT (trainer, "wait for training_complete_cond signal");
-      g_cond_wait (&trainer->training_complete_cond, &trainer->trainer_lock);
-      g_mutex_unlock (&trainer->trainer_lock);
+      trainer->fw->getFrameworkInfo (trainer->fw, NULL, trainer->privateData,
+          &info);
+      if (!info.is_training_complete) {
+        GST_INFO_OBJECT (trainer,
+            "got GST_EVENT_EOS event but training is not completed, state is %d",
+            GST_STATE (trainer));
+        g_mutex_lock (&trainer->trainer_lock);
+        GST_INFO_OBJECT (trainer, "wait for training_complete_cond signal");
+        g_cond_wait (&trainer->training_complete_cond, &trainer->trainer_lock);
+        g_mutex_unlock (&trainer->trainer_lock);
+      }
       break;
     case GST_EVENT_FLUSH_START:
       GST_INFO_OBJECT (trainer, "get GST_EVENT_FLUSH_START event");
