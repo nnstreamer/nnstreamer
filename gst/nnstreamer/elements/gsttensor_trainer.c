@@ -11,14 +11,14 @@
  *
  * ## Example launch line
  * |[
- * gst-launch-1.0 filesrc location=mnist_input_200.dat blocksize=3136 ! \
- * application/octet-stream, framerate=5/1 ! tensor_converter input-dim=1:1:784:1 input-type=float32 \
- * ! mux.sink_0 filesrc location=mnist_label_200.dat blocksize=40 ! \
- * application/octet-stream, framerate=5/1 ! tensor_converter input_dim=1:1:10:1 input-type=float32 \
- * ! mux.sink_1 tensor_mux name=mux sync-mode=nosync ! tensor_trainer framework=nntrainer \
- * model-config=mnist.ini model-save-path=model.bin input-dim=1:1:784:1,1:1:10:1 input-type=float32,float32 \
- * num-lists=1 num-labels=1 num-training-samples=100 num-validation-samples=100 ! tensor_sink
+ * gst-launch-1.0 filesrc location=mnist_trainingSet.dat blocksize = 3176 ! application/octet-stream ! \
+ * tensor_converter input-dim=1:1:784:1,1:1:10:1 input-type=float32,float32 ! \
+ * tensor_trainer framework=nntrainer model-config=mnist.ini model-save-path=model.bin input-dim=1:1:784:1,1:1:10:1 \
+ * input-type=float32,float32 num-inputs=1 num-labels=1 num-training-samples=100 num-validation-samples=100 epochs=5 ! \
+ * tensor_sink
  * ]|
+ *
+ * Total number of data to be received is 1000((num-training-samples + num-validation-samples) * epochs)
  */
 
 #ifdef HAVE_CONFIG_H
@@ -60,6 +60,11 @@ G_DEFINE_TYPE (GstTensorTrainer, gst_tensor_trainer, GST_TYPE_ELEMENT);
  * @brief Default framework property value
  */
 #define DEFAULT_PROP_FRAMEWORK "nntrainer"
+#define DEFAULT_PROP_INPUT_LIST 1
+#define DEFAULT_PROP_LABEL_LIST 1
+#define DEFAULT_PROP_TRAIN_SAMPLES 0
+#define DEFAULT_PROP_VALID_SAMPLES 0
+#define DEFAULT_PROP_EPOCHS 1
 
 /**
  * @brief Default string property value 
@@ -79,8 +84,9 @@ enum
   PROP_INPUT_TYPE,
   PROP_NUM_INPUTS,              /* number of input list */
   PROP_NUM_LABELS,              /* number of label list */
-  PROP_NUM_TRAINING_SAMPLES,    /*number of training data */
-  PROP_NUM_VALIDATION_SAMPLES,  /*number of validation data */
+  PROP_NUM_TRAINING_SAMPLES,    /* number of training data */
+  PROP_NUM_VALIDATION_SAMPLES,  /* number of validation data */
+  PROP_EPOCHS,                  /* Repetitions of training */
 };
 
 static void gst_tensor_trainer_set_property (GObject * object, guint prop_id,
@@ -172,44 +178,56 @@ gst_tensor_trainer_class_init (GstTensorTrainerClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_INPUT_DIM,
       g_param_spec_string ("input-dim", "Input dimension",
-          "Input tensors dimension from inner array, up to 4 dimensions ?", "",
+          "Input tensors dimension from inner array, up to 4 dimensions ?",
+          DEFAULT_STR_PROP_VALUE,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_INPUT_TYPE,
       g_param_spec_string ("input-type", "Input tensor element type",
-          "Type of each element of the input tensor ?", "",
+          "Type of each element of the input tensor ?",
+          DEFAULT_STR_PROP_VALUE,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
+
   g_object_class_install_property (gobject_class, PROP_NUM_INPUTS,
-      g_param_spec_uint ("num-inputs", "Number of inputs",
+      g_param_spec_int64 ("num-inputs", "Number of inputs",
           "An input in a tensor can have one or more features data,"
           "set how many inputs are received", 0, NNS_TENSOR_SIZE_LIMIT, 1,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_NUM_LABELS,
-      g_param_spec_uint ("num-labels", "Number of labels",
+      g_param_spec_int64 ("num-labels", "Number of labels",
           "A label in a tensor can have one or more classes data,"
           "set how many labels are received", 0, NNS_TENSOR_SIZE_LIMIT, 1,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_NUM_TRAINING_SAMPLES,
-      g_param_spec_uint ("num-training-samples", "Number of training samples",
+      g_param_spec_int64 ("num-training-samples", "Number of training samples",
           "A sample can consist of multiple inputs and labels in tensors of a gstbuffer"
-          ", set how many samples are taken for training model", 0, G_MAXUINT,
-          1,
+          ", set how many samples are taken for training model",
+          0, G_MAXINT64, 1,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_NUM_VALIDATION_SAMPLES,
-      g_param_spec_uint ("num-validation-samples",
+      g_param_spec_int64 ("num-validation-samples",
           "Number of validation samples",
           "A sample can consist of multiple inputs and labels in tensors of a gstbuffer"
           ", set how many samples are taken for validation model",
-          0, G_MAXUINT, 1,
+          0, G_MAXINT64, 1,
+          G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
+          G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_EPOCHS,
+      g_param_spec_int64 ("epochs", "Number of epoch",
+          "Epochs are repetitions of training samples and validation smaples, "
+          "number of samples received for model training is "
+          "(num-training-samples+num-validation-samples)*epochs", 0, G_MAXINT64,
+          DEFAULT_PROP_EPOCHS,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
@@ -257,13 +275,18 @@ gst_tensor_trainer_init (GstTensorTrainer * trainer)
   trainer->output_dimensions = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->input_type = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->output_type = g_strdup (DEFAULT_STR_PROP_VALUE);
+  trainer->prop.num_inputs = DEFAULT_PROP_INPUT_LIST;
+  trainer->prop.num_labels = DEFAULT_PROP_LABEL_LIST;
+  trainer->prop.num_training_samples = DEFAULT_PROP_TRAIN_SAMPLES;
+  trainer->prop.num_validation_samples = DEFAULT_PROP_VALID_SAMPLES;
+  trainer->prop.num_epochs = DEFAULT_PROP_EPOCHS;
 
   trainer->fw = NULL;
   trainer->fw_created = FALSE;
   trainer->input_configured = FALSE;
   trainer->output_configured = FALSE;
   trainer->inputtype_configured = FALSE;
-  trainer->total_invoke_num = 0;
+  trainer->total_push_data_cnt = 0;
 
   g_cond_init (&trainer->training_complete_cond);
   g_mutex_init (&trainer->trainer_lock);
@@ -329,16 +352,19 @@ gst_tensor_trainer_set_property (GObject * object, guint prop_id,
       gst_tensor_trainer_set_prop_input_type (trainer, value);
       break;
     case PROP_NUM_INPUTS:
-      trainer->prop.num_inputs = g_value_get_uint (value);
+      trainer->prop.num_inputs = g_value_get_int64 (value);
       break;
     case PROP_NUM_LABELS:
-      trainer->prop.num_labels = g_value_get_uint (value);
+      trainer->prop.num_labels = g_value_get_int64 (value);
       break;
     case PROP_NUM_TRAINING_SAMPLES:
-      trainer->prop.num_training_samples = g_value_get_uint (value);
+      trainer->prop.num_training_samples = g_value_get_int64 (value);
       break;
     case PROP_NUM_VALIDATION_SAMPLES:
-      trainer->prop.num_validation_samples = g_value_get_uint (value);
+      trainer->prop.num_validation_samples = g_value_get_int64 (value);
+      break;
+    case PROP_EPOCHS:
+      trainer->prop.num_epochs = g_value_get_int64 (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -374,16 +400,19 @@ gst_tensor_trainer_get_property (GObject * object, guint prop_id,
       g_value_set_string (value, trainer->input_type);
       break;
     case PROP_NUM_INPUTS:
-      g_value_set_uint (value, trainer->prop.num_inputs);
+      g_value_set_int64 (value, trainer->prop.num_inputs);
       break;
     case PROP_NUM_LABELS:
-      g_value_set_uint (value, trainer->prop.num_labels);
+      g_value_set_int64 (value, trainer->prop.num_labels);
       break;
     case PROP_NUM_TRAINING_SAMPLES:
-      g_value_set_uint (value, trainer->prop.num_training_samples);
+      g_value_set_int64 (value, trainer->prop.num_training_samples);
       break;
     case PROP_NUM_VALIDATION_SAMPLES:
-      g_value_set_uint (value, trainer->prop.num_validation_samples);
+      g_value_set_int64 (value, trainer->prop.num_validation_samples);
+      break;
+    case PROP_EPOCHS:
+      g_value_set_int64 (value, trainer->prop.num_epochs);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -462,7 +491,7 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
   GstMemory *out_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
   GstMapInfo out_info[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT];
-  GstTensorMemory invoke_tensors[NNS_TENSOR_SIZE_LIMIT];
+  GstTensorMemory push_tensors[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMetaInfo in_meta[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMetaInfo out_meta[NNS_TENSOR_SIZE_LIMIT];
@@ -492,7 +521,7 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
     GST_INFO ("tensor size: %zd", in_tensors[i].size);
   }
 
-  /* Prepare tensor to invoke */
+  /* Prepare tensor to push */
   /* Check number of input tensors */
   GST_DEBUG_OBJECT (trainer, "num_tensors: %d",
       trainer->prop.input_meta.num_tensors);
@@ -513,24 +542,24 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
       goto error;
     }
     /* Copy to data pointer */
-    invoke_tensors[i] = in_tensors[i];
+    push_tensors[i] = in_tensors[i];
     GST_INFO ("in_tensors[%d].size= %zd", i, in_tensors[i].size);
     GST_INFO ("in_tensors[%d].data: %p", i, in_tensors[i].data);
-    GST_INFO ("invoke_tensors[%d].size= %zd", i, invoke_tensors[i].size);
-    GST_INFO ("invoke_tensors[%d].data: %p", i, invoke_tensors[i].data);
+    GST_INFO ("push_tensors[%d].size= %zd", i, push_tensors[i].size);
+    GST_INFO ("push_tensors[%d].data: %p", i, push_tensors[i].data);
   }
 
   ret =
       trainer->fw->push_data (trainer->fw, &trainer->prop, trainer->privateData,
-      invoke_tensors);
-  trainer->total_invoke_num++;
+      push_tensors);
+  trainer->total_push_data_cnt++;
 
   /* Free in info */
   for (i = 0; i < mem_blocks; i++)
     gst_memory_unmap (in_mem[i], &in_info[i]);
 
   if (ret < 0) {
-    GST_ERROR_OBJECT (trainer, "Invoke error");
+    GST_ERROR_OBJECT (trainer, "push error");
     return GST_FLOW_ERROR;
   }
 
@@ -538,8 +567,8 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
       push one outbuf is necessary to change pipeline state.
       Scheduling with subplugin does not work.
    */
-  if (trainer->total_invoke_num == 1
-      || trainer->total_invoke_num ==
+  if (trainer->total_push_data_cnt == 1
+      || trainer->total_push_data_cnt ==
       trainer->prop.num_training_samples +
       trainer->prop.num_validation_samples) {
 
@@ -919,7 +948,7 @@ gst_tensor_trainer_set_model_save_path (GstTensorTrainer * trainer,
 }
 
 /**
- * @brief Handle "PROP_INPUT_DIM" and "PROP_OUTPUT_DIM" for set-property
+ * @brief Handle "PROP_INPUT_DIM" for set-property
  */
 static void
 gst_tensor_trainer_set_prop_input_dimension (GstTensorTrainer * trainer,
@@ -963,7 +992,7 @@ gst_tensor_trainer_set_prop_input_dimension (GstTensorTrainer * trainer,
 }
 
 /**
- * @brief Handle "PROP_INPUT_TYPE" and "PROP_OUTPUT_TYPE" for set-property
+ * @brief Handle "PROP_INPUT_TYPE" for set-property
  */
 static void
 gst_tensor_trainer_set_prop_input_type (GstTensorTrainer * trainer,
