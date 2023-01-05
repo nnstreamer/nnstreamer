@@ -37,6 +37,7 @@ typedef struct _GstTensorTrainerProperties
   int64_t num_labels;    /**< The number of label lists, the label is where framework receive the class to train the model, num_labels indicates how many labels there are. */
   int64_t num_train_samples;    /**< The number of train sample used to train the model. */
   int64_t num_valid_samples;    /**< The number of valid sample used to train the model. */
+  int64_t num_epochs;    /**< The number of repetition of total train and valid sample. subplugin must receive total samples((num_train_samples + num_valid_samples) * num_epochs) */
 
   GCond *train_complete_cond;    /**< Tensor trainer wait when receive EOS before model training is complete, subplugin should send signal when model train is complete. */
 } GstTensorTrainerProperties;
@@ -50,6 +51,7 @@ typedef struct _GstTensorTrainerFrameworkInfo
 {
   const char *name;    /**< Name of the neural network framework, searchable by FRAMEWORK property. */
   gboolean  train_complete;  /**< Check if train is complete */
+  int64_t epoch_cnt;    /**< Number of currently completed epochs */
 } GstTensorTrainerFrameworkInfo;
 
 typedef struct _GstTensorTrainerFramework GstTensorTrainerFramework;
