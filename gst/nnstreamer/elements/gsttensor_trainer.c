@@ -189,34 +189,34 @@ gst_tensor_trainer_class_init (GstTensorTrainerClass * klass)
           G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_INPUT_LIST,
-      g_param_spec_uint ("input-lists", "Number of input list",
+      g_param_spec_int64 ("input-lists", "Number of input list",
           "Number of input list", 0, NNS_TENSOR_SIZE_LIMIT,
           DEFAULT_PROP_INPUT_LIST,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_LABEL_LIST,
-      g_param_spec_uint ("label-lists", "Number of label list",
+      g_param_spec_int64 ("label-lists", "Number of label list",
           "Number of label list", 0, NNS_TENSOR_SIZE_LIMIT,
           DEFAULT_PROP_LABEL_LIST,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_TRAIN_SAMPLES,
-      g_param_spec_uint ("train-samples", "Number of train sample",
-          "Number of train sample", 0, G_MAXUINT, DEFAULT_PROP_TRAIN_SAMPLES,
+      g_param_spec_int64 ("train-samples", "Number of train sample",
+          "Number of train sample", 0, G_MAXINT64, DEFAULT_PROP_TRAIN_SAMPLES,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_VALID_SAMPLES,
-      g_param_spec_uint ("valid-samples", "Number of valid sample",
-          "Number of valid sample", 0, G_MAXUINT, DEFAULT_PROP_VALID_SAMPLES,
+      g_param_spec_int64 ("valid-samples", "Number of valid sample",
+          "Number of valid sample", 0, G_MAXINT64, DEFAULT_PROP_VALID_SAMPLES,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_EPOCHS,
-      g_param_spec_uint ("epochs", "Number of epoch",
-          "Number of epoch", 0, G_MAXUINT, DEFAULT_PROP_EPOCHS,
+      g_param_spec_int64 ("epochs", "Number of epoch",
+          "Number of epoch", 0, G_MAXINT64, DEFAULT_PROP_EPOCHS,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
@@ -341,19 +341,19 @@ gst_tensor_trainer_set_property (GObject * object, guint prop_id,
       gst_tensor_trainer_set_prop_input_type (trainer, value);
       break;
     case PROP_INPUT_LIST:
-      trainer->prop.num_inputs = g_value_get_uint (value);
+      trainer->prop.num_inputs = g_value_get_int64 (value);
       break;
     case PROP_LABEL_LIST:
-      trainer->prop.num_labels = g_value_get_uint (value);
+      trainer->prop.num_labels = g_value_get_int64 (value);
       break;
     case PROP_TRAIN_SAMPLES:
-      trainer->prop.num_train_samples = g_value_get_uint (value);
+      trainer->prop.num_train_samples = g_value_get_int64 (value);
       break;
     case PROP_VALID_SAMPLES:
-      trainer->prop.num_valid_samples = g_value_get_uint (value);
+      trainer->prop.num_valid_samples = g_value_get_int64 (value);
       break;
     case PROP_EPOCHS:
-      trainer->prop.num_epochs = g_value_get_uint (value);
+      trainer->prop.num_epochs = g_value_get_int64 (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -389,19 +389,19 @@ gst_tensor_trainer_get_property (GObject * object, guint prop_id,
       g_value_set_string (value, trainer->input_type);
       break;
     case PROP_INPUT_LIST:
-      g_value_set_uint (value, trainer->prop.num_inputs);
+      g_value_set_int64 (value, trainer->prop.num_inputs);
       break;
     case PROP_LABEL_LIST:
-      g_value_set_uint (value, trainer->prop.num_labels);
+      g_value_set_int64 (value, trainer->prop.num_labels);
       break;
     case PROP_TRAIN_SAMPLES:
-      g_value_set_uint (value, trainer->prop.num_train_samples);
+      g_value_set_int64 (value, trainer->prop.num_train_samples);
       break;
     case PROP_VALID_SAMPLES:
-      g_value_set_uint (value, trainer->prop.num_valid_samples);
+      g_value_set_int64 (value, trainer->prop.num_valid_samples);
       break;
     case PROP_EPOCHS:
-      g_value_set_uint (value, trainer->prop.num_epochs);
+      g_value_set_int64 (value, trainer->prop.num_epochs);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
