@@ -73,6 +73,12 @@ gst_tensor_query_server_get_edge_handle (edge_server_handle server_h);
 void
 gst_tensor_query_server_set_configured (edge_server_handle server_h);
 
+/**
+ * @brief set query server caps.
+ */
+void
+gst_tensor_query_server_set_caps (edge_server_handle server_h, const char *caps_str);
+
 G_END_DECLS
 
 #endif /* __GST_TENSOR_QUERY_CLIENT_H__ */
