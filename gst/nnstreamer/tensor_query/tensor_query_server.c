@@ -185,6 +185,33 @@ gst_tensor_query_server_set_configured (edge_server_handle server_h)
 }
 
 /**
+ * @brief set query server caps.
+ */
+void
+gst_tensor_query_server_set_caps (edge_server_handle server_h,
+    const char *caps_str)
+{
+  GstTensorQueryServer *data = (GstTensorQueryServer *) server_h;
+  gchar *prev_caps_str = NULL, *new_caps_str;
+
+  if (NULL == data) {
+    return;
+  }
+  g_mutex_lock (&data->lock);
+
+  nns_edge_get_info (data->edge_h, "CAPS", &prev_caps_str);
+  if (!prev_caps_str)
+    prev_caps_str = g_strdup ("");
+  new_caps_str = g_strdup_printf ("%s%s", prev_caps_str, caps_str);
+  nns_edge_set_info (data->edge_h, "CAPS", new_caps_str);
+
+  g_free (prev_caps_str);
+  g_free (new_caps_str);
+
+  g_mutex_unlock (&data->lock);
+}
+
+/**
  * @brief Initialize the query server.
  */
 static void
