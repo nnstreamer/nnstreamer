@@ -11,13 +11,11 @@
  *
  * ## Example launch line
  * |[
- * gst-launch-1.0 filesrc location=mnist_input_1000.dat blocksize=3136 ! \
- * application/octet-stream, framerate=5/1 ! tensor_converter input-dim=1:1:784:1 input-type=float32 \
- * ! mux.sink_0 filesrc location=mnist_label_1000.dat blocksize=40 ! \
- * application/octet-stream, framerate=5/1 ! tensor_converter input_dim=1:1:10:1 input-type=float32 \
- * ! mux.sink_1 tensor_mux name=mux sync-mode=nosync ! tensor_trainer framework=nntrainer \
- * model-config=mnist.ini model-save-path=model.bin input=1:1:784:1,1:1:10:1 inputtype=float32,float32 \
- * input-lists=1 label-lists=1 train-samples=100 valid-samples=100 epochs=5 ! tensor_sink
+ * gst-launch-1.0 filesrc location=mnist_trainingSet.dat blocksize = 3176 ! application/octet-stream ! \
+ * tensor_converter input-dim=1:1:784:1,1:1:10:1 input-type=float32,float32 ! \
+ * tensor_trainer framework=nntrainer model-config=mnist.ini model-save-path=model.bin input=1:1:784:1,1:1:10:1 \
+ * inputtype=float32,float32 input-lists=1 label-lists=1 train-samples=100 valid-samples=100 epochs=5 ! \
+ * tensor_sink
  * ]|
  *
  * Total number of data to be received is 1000((train-samples + valid-samples) * epochs)
