@@ -27,7 +27,7 @@
  */
 #define VIDEO_CAPS_STR \
     GST_VIDEO_CAPS_MAKE ("{ RGB, BGR, RGBx, BGRx, xRGB, xBGR, RGBA, BGRA, ARGB, ABGR, GRAY8 }") \
-    ", views = (int) 1, interlace-mode = (string) progressive"
+    ", interlace-mode = (string) progressive"
 
 #define append_video_caps_template(caps) \
     gst_caps_append (caps, gst_caps_from_string (VIDEO_CAPS_STR))

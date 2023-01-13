@@ -1429,7 +1429,7 @@ gst_tensor_converter_parse_video (GstTensorConverter * self,
    */
   GstVideoInfo vinfo;
   GstVideoFormat format;
-  gint width, height;
+  gint width, height, views;
   guint i;
 
   g_return_val_if_fail (config != NULL, FALSE);
@@ -1440,8 +1440,8 @@ gst_tensor_converter_parse_video (GstTensorConverter * self,
   if (!gst_video_info_from_caps (&vinfo, caps)) {
     char *capstr = gst_caps_to_string (caps);
     GST_ERROR_OBJECT (self,
-        "Failed to get video info from caps; gst_video_info_from_caps (&info, \"%s\") has returned FALSE, which means the given caps cannot be parsed as a video.",
-        capstr);
+      "Failed to get video info from caps; gst_video_info_from_caps (&info, \"%s\") has returned FALSE, which means the given caps cannot be parsed as a video.",
+      capstr);
     g_free (capstr);
     return FALSE;
   }
@@ -1449,6 +1449,13 @@ gst_tensor_converter_parse_video (GstTensorConverter * self,
   format = GST_VIDEO_INFO_FORMAT (&vinfo);
   width = GST_VIDEO_INFO_WIDTH (&vinfo);
   height = GST_VIDEO_INFO_HEIGHT (&vinfo);
+  views = GST_VIDEO_INFO_VIEWS(&vinfo);
+
+  if (views > 1) {
+    GST_WARNING_OBJECT (self,
+      "Incoming video caps should have 'views=(int)1 but has views=(int)%d - ignoring all but view #0. \n",
+      views);
+  }
 
   config->info.num_tensors = 1;
 
