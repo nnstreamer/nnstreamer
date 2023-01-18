@@ -86,18 +86,18 @@ struct _GstTensorTrainerFramework
    * @return 0 if ok. < 0 if error.
    */
 
-  int (*train) (const GstTensorTrainerFramework * self,
+  int (*start) (const GstTensorTrainerFramework * self,
       const GstTensorTrainerProperties * prop, void *private_data);
-  /**< tensor_trainer call this to train the model
+  /**< tensor_trainer call this to start training the model
    * @param[in] prop read-only property values
    * @param[in] private_data, a subplugin may save its internal private data here.
    * @return 0 if ok. < 0 if error.
    */
 
-  int (*invoke) (const GstTensorTrainerFramework * self,
+  int (*push_data) (const GstTensorTrainerFramework * self,
       const GstTensorTrainerProperties * prop,
       void *private_data, const GstTensorMemory * input);
-  /**< tensor_trainer call this to send tensor data to subplugin, subplugin constructs a data set using input.
+  /**< tensor_trainer call this to push tensor data to subplugin, subplugin constructs a data set using input.
    * @param[in] prop read-only property values
    * @param[in] private_data, a subplugin may save its internal private data here.
    * @param[in] input The array of input tensors. Allocated and filled by tensor_trainer
