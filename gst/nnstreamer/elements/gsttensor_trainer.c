@@ -80,8 +80,8 @@ enum
   PROP_FRAMEWORK,
   PROP_MODEL_CONFIG,
   PROP_MODEL_SAVE_PATH,
-  PROP_INPUT,
-  PROP_INPUTTYPE,
+  PROP_INPUT_DIM,
+  PROP_INPUT_TYPE,
   PROP_INPUT_LIST,              /* number of input list */
   PROP_LABEL_LIST,              /* number of label list */
   PROP_TRAIN_SAMPLES,           /* number of train data */
@@ -172,15 +172,15 @@ gst_tensor_trainer_class_init (GstTensorTrainerClass * klass)
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_INPUT,
-      g_param_spec_string ("input", "Input dimension",
+  g_object_class_install_property (gobject_class, PROP_INPUT_DIM,
+      g_param_spec_string ("input-dim", "Input dimension",
           "Input tensors dimension from inner array, up to 4 dimensions ?",
           DEFAULT_STR_PROP_VALUE,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_INPUTTYPE,
-      g_param_spec_string ("inputtype", "Input tensor element type",
+  g_object_class_install_property (gobject_class, PROP_INPUT_TYPE,
+      g_param_spec_string ("input-type", "Input tensor element type",
           "Type of each element of the input tensor ?",
           DEFAULT_STR_PROP_VALUE,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
@@ -332,10 +332,10 @@ gst_tensor_trainer_set_property (GObject * object, guint prop_id,
     case PROP_MODEL_SAVE_PATH:
       gst_tensor_trainer_set_model_save_path (trainer, value);
       break;
-    case PROP_INPUT:
+    case PROP_INPUT_DIM:
       gst_tensor_trainer_set_prop_input_dimension (trainer, value);
       break;
-    case PROP_INPUTTYPE:
+    case PROP_INPUT_TYPE:
       gst_tensor_trainer_set_prop_input_type (trainer, value);
       break;
     case PROP_INPUT_LIST:
@@ -380,10 +380,10 @@ gst_tensor_trainer_get_property (GObject * object, guint prop_id,
     case PROP_MODEL_SAVE_PATH:
       g_value_set_string (value, trainer->model_save_path);
       break;
-    case PROP_INPUT:
+    case PROP_INPUT_DIM:
       g_value_set_string (value, trainer->input_dimensions);
       break;
-    case PROP_INPUTTYPE:
+    case PROP_INPUT_TYPE:
       g_value_set_string (value, trainer->input_type);
       break;
     case PROP_INPUT_LIST:
@@ -942,7 +942,7 @@ gst_tensor_trainer_set_model_save_path (GstTensorTrainer * trainer,
 }
 
 /**
- * @brief Handle "PROP_INPUT" for set-property
+ * @brief Handle "PROP_INPUT_DIM" for set-property
  */
 static void
 gst_tensor_trainer_set_prop_input_dimension (GstTensorTrainer * trainer,
@@ -986,7 +986,7 @@ gst_tensor_trainer_set_prop_input_dimension (GstTensorTrainer * trainer,
 }
 
 /**
- * @brief Handle "PROP_INPUTTYPE" for set-property
+ * @brief Handle "PROP_INPUT_TYPE" for set-property
  */
 static void
 gst_tensor_trainer_set_prop_input_type (GstTensorTrainer * trainer,
