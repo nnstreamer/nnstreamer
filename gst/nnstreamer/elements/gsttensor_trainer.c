@@ -571,7 +571,7 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
     }
     /* Call the trainer-subplugin callback, invoke */
     ret =
-        trainer->fw->invoke (trainer->fw, &trainer->prop,
+        trainer->fw->push_data (trainer->fw, &trainer->prop,
         trainer->privateData, invoke_tensors);
 
     /* Free out info */
@@ -584,7 +584,7 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
     }
   } else {
     ret =
-        trainer->fw->invoke (trainer->fw, &trainer->prop,
+        trainer->fw->push_data (trainer->fw, &trainer->prop,
         trainer->privateData, invoke_tensors);
   }
 
@@ -1084,12 +1084,12 @@ gst_tensor_trainer_train_model (GstTensorTrainer * trainer)
   gint ret = -1;
   g_return_if_fail (trainer != NULL);
   g_return_if_fail (trainer->fw != NULL);
-  g_return_if_fail (trainer->fw->train != NULL);
+  g_return_if_fail (trainer->fw->start != NULL);
 
-  GST_DEBUG_OBJECT (trainer, "Start train model");
-  ret = trainer->fw->train (trainer->fw, &trainer->prop, trainer->privateData);
+  GST_DEBUG_OBJECT (trainer, "Start training model");
+  ret = trainer->fw->start (trainer->fw, &trainer->prop, trainer->privateData);
   if (ret != 0) {
-    GST_ERROR_OBJECT (trainer, "model train is failed");
+    GST_ERROR_OBJECT (trainer, "model training is failed");
   }
 }
 
