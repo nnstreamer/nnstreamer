@@ -63,7 +63,7 @@ struct _GstTensorTrainer
   GstTensorsInfo output_meta;
   GstTensorsConfig out_config;
 
-  gint64 total_invoke_num;      /**< number of total invokes */
+  gint64 total_push_data_cnt;      /**< number of total push data */
   gboolean fw_created;
 
   void *privateData; /**< NNFW plugin's private data is stored here */

@@ -273,7 +273,7 @@ gst_tensor_trainer_init (GstTensorTrainer * trainer)
   trainer->input_configured = FALSE;
   trainer->output_configured = FALSE;
   trainer->inputtype_configured = FALSE;
-  trainer->total_invoke_num = 0;
+  trainer->total_push_data_cnt = 0;
 
   g_cond_init (&trainer->train_complete_cond);
   g_mutex_init (&trainer->trainer_lock);
@@ -478,7 +478,7 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
   GstMemory *out_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
   GstMapInfo out_info[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT];
-  GstTensorMemory invoke_tensors[NNS_TENSOR_SIZE_LIMIT];
+  GstTensorMemory push_tensors[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMetaInfo in_meta[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMetaInfo out_meta[NNS_TENSOR_SIZE_LIMIT];
@@ -508,7 +508,7 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
     GST_INFO ("tensor size: %zd", in_tensors[i].size);
   }
 
-  /* Prepare tensor to invoke */
+  /* Prepare tensor to push */
   /* Check number of input tensors */
   GST_DEBUG_OBJECT (trainer, "num_tensors: %d",
       trainer->prop.input_meta.num_tensors);
@@ -529,24 +529,24 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
       goto error;
     }
     /* Copy to data pointer */
-    invoke_tensors[i] = in_tensors[i];
+    push_tensors[i] = in_tensors[i];
     GST_INFO ("in_tensors[%d].size= %zd", i, in_tensors[i].size);
     GST_INFO ("in_tensors[%d].data: %p", i, in_tensors[i].data);
-    GST_INFO ("invoke_tensors[%d].size= %zd", i, invoke_tensors[i].size);
-    GST_INFO ("invoke_tensors[%d].data: %p", i, invoke_tensors[i].data);
+    GST_INFO ("push_tensors[%d].size= %zd", i, push_tensors[i].size);
+    GST_INFO ("push_tensors[%d].data: %p", i, push_tensors[i].data);
   }
 
   ret =
       trainer->fw->push_data (trainer->fw, &trainer->prop, trainer->privateData,
-      invoke_tensors);
-  trainer->total_invoke_num++;
+      push_tensors);
+  trainer->total_push_data_cnt++;
 
   /* Free in info */
   for (i = 0; i < mem_blocks; i++)
     gst_memory_unmap (in_mem[i], &in_info[i]);
 
   if (ret < 0) {
-    GST_ERROR_OBJECT (trainer, "Invoke error");
+    GST_ERROR_OBJECT (trainer, "push error");
     return GST_FLOW_ERROR;
   }
 
@@ -554,17 +554,17 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
       push one outbuf is necessary to change pipeline state.
       Scheduling with subplugin does not work.
    */
-  if (trainer->total_invoke_num == 1
-      || trainer->total_invoke_num ==
+  if (trainer->total_push_data_cnt == 1
+      || trainer->total_push_data_cnt ==
       trainer->prop.num_train_samples + trainer->prop.num_valid_samples) {
-/*
-    if (trainer->total_invoke_num != 1) {
+#if 0
+    if (trainer->total_push_data_cnt != 1) {
       g_mutex_lock (&trainer->trainer_lock);
       GST_INFO_OBJECT (trainer, "wait for train_complete_cond signal");
       g_cond_wait (&trainer->train_complete_cond, &trainer->trainer_lock);
       g_mutex_unlock (&trainer->trainer_lock);
     }
-*/
+#endif
     /* Prepare output tensor */
     for (i = 0; i < trainer->output_meta.num_tensors; i++) {
       out_tensors[i].data = NULL;
