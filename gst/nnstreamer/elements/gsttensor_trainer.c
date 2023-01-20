@@ -16,8 +16,8 @@
  * ! mux.sink_0 filesrc location=mnist_label_200.dat blocksize=40 ! \
  * application/octet-stream, framerate=5/1 ! tensor_converter input_dim=1:1:10:1 input-type=float32 \
  * ! mux.sink_1 tensor_mux name=mux sync-mode=nosync ! tensor_trainer framework=nntrainer \
- * model-config=mnist.ini model-save-path=model.bin push-output=true input=1:1:784:1,1:1:10:1 \
- * inputtype=float32,float32 input-lists=1 label-lists=1 train-samples=100 valid-samples=100 \
+ * model-config=mnist.ini model-save-path=model.bin input-dim=1:1:784:1,1:1:10:1 \
+ * input-type=float32,float32 num-inputs=1 mum-labels=1 num-training-samples=100 num-alidation-samples=100 \
  * ! tensor_sink
  * ]|
  */
@@ -200,13 +200,13 @@ gst_tensor_trainer_class_init (GstTensorTrainerClass * klass)
   g_object_class_install_property (gobject_class, PROP_NUM_LABELS,
       g_param_spec_uint ("num-labels", "Number of labels",
           "A label in a tensor can have one or more classes data,"
-          "set how many labes are recevied", 0, NNS_TENSOR_SIZE_LIMIT, 1,
+          "set how many labels are received", 0, NNS_TENSOR_SIZE_LIMIT, 1,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_NUM_TRAINING_SAMPLES,
       g_param_spec_uint ("num-training-samples", "Number of training samples",
-          "A sample can consist of muliple inputs and labels in tensors of a gstbuffer"
+          "A sample can consist of multiple inputs and labels in tensors of a gstbuffer"
           ", set how many samples are taken for training model", 0, G_MAXUINT,
           1,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
@@ -215,7 +215,7 @@ gst_tensor_trainer_class_init (GstTensorTrainerClass * klass)
   g_object_class_install_property (gobject_class, PROP_NUM_VALIDATION_SAMPLES,
       g_param_spec_uint ("num-validation-samples",
           "Number of validation samples",
-          "A sample can consist of muliple inputs and labels in tensors of a gstbuffer"
+          "A sample can consist of multiple inputs and labels in tensors of a gstbuffer"
           ", set how many samples are taken for validation model",
           0, G_MAXUINT, 1,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
@@ -581,7 +581,7 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
     }
     /* Call the trainer-subplugin callback, invoke */
     ret =
-        trainer->fw->invoke (trainer->fw, &trainer->prop,
+        trainer->fw->push_data (trainer->fw, &trainer->prop,
         trainer->privateData, invoke_tensors);
 
     /* Free out info */
@@ -594,7 +594,7 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
     }
   } else {
     ret =
-        trainer->fw->invoke (trainer->fw, &trainer->prop,
+        trainer->fw->push_data (trainer->fw, &trainer->prop,
         trainer->privateData, invoke_tensors);
   }
 
@@ -1094,12 +1094,12 @@ gst_tensor_trainer_train_model (GstTensorTrainer * trainer)
   gint ret = -1;
   g_return_if_fail (trainer != NULL);
   g_return_if_fail (trainer->fw != NULL);
-  g_return_if_fail (trainer->fw->train != NULL);
+  g_return_if_fail (trainer->fw->start != NULL);
 
-  GST_DEBUG_OBJECT (trainer, "Start train model");
-  ret = trainer->fw->train (trainer->fw, &trainer->prop, trainer->privateData);
+  GST_DEBUG_OBJECT (trainer, "Start training model");
+  ret = trainer->fw->start (trainer->fw, &trainer->prop, trainer->privateData);
   if (ret != 0) {
-    GST_ERROR_OBJECT (trainer, "model train is failed");
+    GST_ERROR_OBJECT (trainer, "model training is failed");
   }
 }
 
