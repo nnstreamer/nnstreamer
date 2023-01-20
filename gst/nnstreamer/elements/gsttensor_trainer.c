@@ -16,8 +16,8 @@
  * ! mux.sink_0 filesrc location=mnist_label_200.dat blocksize=40 ! \
  * application/octet-stream, framerate=5/1 ! tensor_converter input_dim=1:1:10:1 input-type=float32 \
  * ! mux.sink_1 tensor_mux name=mux sync-mode=nosync ! tensor_trainer framework=nntrainer \
- * model-config=mnist.ini model-save-path=model.bin push-output=true input=1:1:784:1,1:1:10:1 \
- * inputtype=float32,float32 input-lists=1 label-lists=1 train-samples=100 valid-samples=100 \
+ * model-config=mnist.ini model-save-path=model.bin input-dim=1:1:784:1,1:1:10:1 \
+ * input-type=float32,float32 num-inputs=1 mum-labels=1 num-training-samples=100 num-alidation-samples=100 \
  * ! tensor_sink
  * ]|
  */
@@ -581,7 +581,7 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
     }
     /* Call the trainer-subplugin callback, invoke */
     ret =
-        trainer->fw->invoke (trainer->fw, &trainer->prop,
+        trainer->fw->push_data (trainer->fw, &trainer->prop,
         trainer->privateData, invoke_tensors);
 
     /* Free out info */
@@ -594,7 +594,7 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
     }
   } else {
     ret =
-        trainer->fw->invoke (trainer->fw, &trainer->prop,
+        trainer->fw->push_data (trainer->fw, &trainer->prop,
         trainer->privateData, invoke_tensors);
   }
 
@@ -1094,12 +1094,12 @@ gst_tensor_trainer_train_model (GstTensorTrainer * trainer)
   gint ret = -1;
   g_return_if_fail (trainer != NULL);
   g_return_if_fail (trainer->fw != NULL);
-  g_return_if_fail (trainer->fw->train != NULL);
+  g_return_if_fail (trainer->fw->start != NULL);
 
-  GST_DEBUG_OBJECT (trainer, "Start train model");
-  ret = trainer->fw->train (trainer->fw, &trainer->prop, trainer->privateData);
+  GST_DEBUG_OBJECT (trainer, "Start training model");
+  ret = trainer->fw->start (trainer->fw, &trainer->prop, trainer->privateData);
   if (ret != 0) {
-    GST_ERROR_OBJECT (trainer, "model train is failed");
+    GST_ERROR_OBJECT (trainer, "model training is failed");
   }
 }
 
