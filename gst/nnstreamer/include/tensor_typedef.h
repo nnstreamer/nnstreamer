@@ -32,6 +32,7 @@
 #include <stdint.h>
 
 #define NNS_TENSOR_RANK_LIMIT	(8)
+#define NNS_TENSOR_RANK_LIMIT_PREV (4)
 #define NNS_TENSOR_SIZE_LIMIT	(16)
 #define NNS_TENSOR_SIZE_LIMIT_STR	"16"
 #define NNS_TENSOR_SIZE_EXTRA_LIMIT (200)

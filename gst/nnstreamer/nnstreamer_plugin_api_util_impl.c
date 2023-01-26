@@ -639,6 +639,45 @@ gst_tensors_info_get_dimensions_string (const GstTensorsInfo * info)
 }
 
 /**
+ * @brief Get the string of dimensions in tensors info and rank count
+ * @param info tensors info structure
+ * @param rank rank count of given tensor dimension
+ * @return Formatted string of given dimension
+ * @note If rank count is 3, then returned string is 'd1:d2:d3`.
+ * The returned value should be freed with g_free()
+ */
+gchar *
+gst_tensors_info_get_rank_dimensions_string (const GstTensorsInfo * info,
+    const unsigned int rank)
+{
+  gchar *dim_str = NULL;
+
+  g_return_val_if_fail (info != NULL, NULL);
+
+  if (info->num_tensors > 0) {
+    guint i;
+    GString *dimensions = g_string_new (NULL);
+
+    for (i = 0; i < info->num_tensors; i++) {
+      dim_str =
+          gst_tensor_get_rank_dimension_string (info->info[i].dimension, rank);
+
+      g_string_append (dimensions, dim_str);
+
+      if (i < info->num_tensors - 1) {
+        g_string_append (dimensions, ",");
+      }
+
+      g_free (dim_str);
+    }
+
+    dim_str = g_string_free (dimensions, FALSE);
+  }
+
+  return dim_str;
+}
+
+/**
  * @brief Get the string of types in tensors info
  * @param info tensors info structure
  * @return string of types in tensors info (NULL if the number of tensors is 0)
