@@ -157,6 +157,17 @@ extern gchar *
 gst_tensors_info_get_dimensions_string (const GstTensorsInfo * info);
 
 /**
+ * @brief Get the string of dimensions in tensors info and rank count
+ * @param info tensors info structure
+ * @param rank rank count of given tensor dimension
+ * @return Formatted string of given dimension
+ * @note If rank count is 3, then returned string is 'd1:d2:d3`.
+ * The returned value should be freed with g_free()
+ */
+extern gchar *
+gst_tensors_info_get_rank_dimensions_string (const GstTensorsInfo * info, const unsigned int rank);
+
+/**
  * @brief Get the string of types in tensors info
  * @param info tensors info structure
  * @return string of types in tensors info (NULL if the number of tensors is 0)
