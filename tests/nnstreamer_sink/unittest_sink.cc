@@ -6417,6 +6417,108 @@ TEST (tensorFilterCustomEasy, unregister1_n)
   ASSERT_NE (ret, 0);
 }
 
+static int data_received = 0;
+const gint test_frames[20] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19};
+
+/**
+ * @brief Callback for tensor sink signal using gst_tensors_get_nth_memory API.
+ */
+static void
+_manual_extra_tensors_new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
+{
+  GstMemory *mem_res;
+  GstMapInfo info_res;
+  gint *output, i;
+  gboolean ret;
+  GstTensorsInfo ts_info;
+  ts_info.num_tensors = 20;
+
+  data_received++;
+  for (i = 0; i < 20; ++i) {
+    mem_res = gst_tensors_get_nth_memory (buffer, &ts_info, i);
+    ret = gst_memory_map (mem_res, &info_res, GST_MAP_READ);
+    ASSERT_TRUE (ret);
+    output = (gint *) info_res.data;
+    EXPECT_EQ (test_frames[i], *output);
+    gst_memory_unmap (mem_res, &info_res);
+    gst_memory_unref (mem_res);
+  }
+}
+
+/**
+ * @brief TBU
+ */
+TEST (extraTensors, manualextratensors)
+{
+  GstBuffer *buf_0, *buf_1;
+  GstMemory *mem;
+  GstMapInfo info;
+  GstElement *appsrc_handle, *sink_handle;
+  gint i;
+
+  gchar *str_pipeline = g_strdup (
+      "appsrc name=appsrc ! other/tensors,num_tensors=20,format=static,dimensions=(string)1:1.1:1,types=(string)int32.int32,framerate=(fraction)0/1 ! " // this caps do not have any effect yet.
+      "tensor_sink name=sinkx async=false silent=false ");
+
+  GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
+  EXPECT_NE (pipeline, nullptr);
+
+  appsrc_handle = gst_bin_get_by_name (GST_BIN (pipeline), "appsrc");
+  EXPECT_NE (appsrc_handle, nullptr);
+
+  sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  EXPECT_NE (sink_handle, nullptr);
+
+  g_signal_connect (sink_handle, "new-data", (GCallback) _manual_extra_tensors_new_data_cb, NULL);
+
+  buf_0 = gst_buffer_new ();
+
+  for (i = 0; i < 20; i++) {
+    GstTensorInfo tinfo;
+    gboolean ret;
+
+    mem = gst_allocator_alloc (NULL, 4, NULL);
+    ret = gst_memory_map (mem, &info, GST_MAP_WRITE);
+    ASSERT_TRUE (ret);
+    memcpy (info.data, &test_frames[i], 4);
+    gst_memory_unmap (mem, &info);
+
+    if (i < NNS_TENSOR_SIZE_LIMIT) {
+      gst_buffer_append_memory (buf_0, mem);
+      continue;
+    }
+
+    /* set extra info */
+    gst_tensor_info_init (&tinfo);
+    tinfo.type = _NNS_INT32;
+    for (int j = 0; j < NNS_TENSOR_RANK_LIMIT; ++j)
+      tinfo.dimension[j] = 1;
+
+    gst_tensors_extra_append_memory_to_buffer (buf_0, mem, &tinfo);
+    gst_tensor_info_free (&tinfo);
+  }
+
+  data_received = 0;
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (100000);
+
+  EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc_handle), buf_0), GST_FLOW_OK);
+  g_usleep (100000);
+
+  buf_1 = gst_buffer_copy (buf_0);
+  EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc_handle), buf_1), GST_FLOW_OK);
+  g_usleep (100000);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (100000);
+
+  EXPECT_EQ (2, data_received);
+
+  gst_object_unref (appsrc_handle);
+  gst_object_unref (pipeline);
+  g_free (str_pipeline);
+}
+
 /**
  * @brief Main function for unit test.
  */
