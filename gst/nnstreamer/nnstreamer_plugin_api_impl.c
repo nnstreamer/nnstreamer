@@ -1428,3 +1428,131 @@ gst_tensor_meta_info_append_header (GstTensorMetaInfo * meta, GstMemory * mem)
   gst_memory_unmap (new_mem, &new_map);
   return new_mem;
 }
+
+#define NNS_TENSOR_EXTRA_MAGIC 0xf00dc0de
+
+/**
+ * @brief Initialize GstTensorExtraInfo structure with given @a memory.
+ * @param[in/out] extra GstTensorExtraInfo to be initialized.
+ * @param[in] memory The information of given memory is used to initialize @a extra.
+*/
+void
+gst_tensors_extra_init (GstTensorExtraInfo * extra, GstMemory * memory)
+{
+  guint i;
+
+  extra->magic = NNS_TENSOR_EXTRA_MAGIC;
+  extra->version = 0;
+  extra->num_extra_tensors = 0;
+
+  /* set reserved size of NNS_TENSOR_SIZE_LIMIT-th memory */
+  extra->reserved = gst_memory_get_sizes (memory, NULL, NULL);
+  for (i = 0; i < NNS_TENSOR_SIZE_EXTRA_LIMIT; ++i) {
+    gst_tensor_info_init (&extra->infos[i]);
+  }
+}
+
+/**
+ * @brief Get the nth GstMemory from given @a buffer.
+ * @param[in] buffer GstBuffer to be parsed.
+ * @param[in] info GstTensorsInfo to be used in parsing buffer.
+ * @param[in] index Index of GstMemory to be returned.
+ * @return GstMemory if found, otherwise NULL (Caller should free returned memory using gst_memory_unref()).
+*/
+GstMemory *
+gst_tensors_get_nth_memory (GstBuffer * buffer, const GstTensorsInfo * info, const guint index)
+{
+  guint i, offset = 0;
+  GstMemory *extra_tensors_memory, *res_mem;
+  GstMapInfo extra_tensors_map;
+  GstTensorExtraInfo *extra_info;
+
+  if (!GST_IS_BUFFER (buffer)) {
+    nns_loge ("Failed to parse GstBuffer (invalid input buffer).");
+    return NULL;
+  }
+
+  if (!info) {
+    nns_loge ("Failed to get tensors info (invalid input info).");
+    return NULL;
+  }
+
+  if (info->num_tensors <= 0) {
+    nns_loge ("num_tensors is 0. Please check the tensors info.");
+    return NULL;
+  }
+
+  /* If num_tensors is less than or equal to NNS_TENSOR_SIZE_LIMIT, it's trivial. */
+  if (info->num_tensors <= NNS_TENSOR_SIZE_LIMIT || index < NNS_TENSOR_SIZE_LIMIT - 1) {
+    return gst_buffer_get_memory (buffer, index);
+  }
+
+  /* Check the buffer contains NNS_TENSOR_SIZE_LIMIT memory */
+  if (gst_buffer_n_memory (buffer) != NNS_TENSOR_SIZE_LIMIT) {
+    nns_loge ("Failed to get %d-th memory from buffer (invalid buffer size).", index);
+    return NULL;
+  }
+
+  /* If num_tensors is greater than NNS_TENSOR_SIZE_LIMIT, we need to parse extra info. */
+  extra_tensors_memory =
+      gst_buffer_get_memory (buffer, NNS_TENSOR_SIZE_LIMIT - 1);
+  if (!extra_tensors_memory) {
+    nns_loge ("Failed to get %d-th memory", NNS_TENSOR_SIZE_LIMIT);
+    return NULL;
+  }
+
+  if (!gst_memory_map (extra_tensors_memory, &extra_tensors_map, GST_MAP_READ)) {
+    nns_loge ("Failed to map %d-th memory", NNS_TENSOR_SIZE_LIMIT);
+    gst_memory_unref (extra_tensors_memory);
+    return NULL;
+  }
+
+  extra_info = (GstTensorExtraInfo *) extra_tensors_map.data;
+
+  /* check header (extra info) of the memory */
+  /* check magic */
+  if (extra_info->magic != NNS_TENSOR_EXTRA_MAGIC) {
+    nns_loge ("Invalid extra header");
+    gst_memory_unmap (extra_tensors_memory, &extra_tensors_map);
+    gst_memory_unref (extra_tensors_memory);
+    return NULL;
+  }
+
+  /* check index */
+  if (index >= extra_info->num_extra_tensors + NNS_TENSOR_SIZE_LIMIT) {
+    nns_loge ("Invalid index");
+    gst_memory_unmap (extra_tensors_memory, &extra_tensors_map);
+    gst_memory_unref (extra_tensors_memory);
+    return NULL;
+  }
+
+  /* parse the memory */
+  offset = sizeof (GstTensorExtraInfo);
+
+  /* If index is NNS_TENSOR_SIZE_LIMIT - 1 */
+  if (index == NNS_TENSOR_SIZE_LIMIT - 1) {
+    res_mem = gst_memory_share (extra_tensors_memory, offset, extra_info->reserved);
+    gst_memory_unmap (extra_tensors_memory, &extra_tensors_map);
+    gst_memory_unref (extra_tensors_memory);
+
+    return res_mem;
+  }
+
+  offset += extra_info->reserved;
+
+  for (i = 1; i <= index - NNS_TENSOR_SIZE_LIMIT; ++i) {
+    offset += gst_tensor_info_get_size (&extra_info->infos[i - 1]);
+  }
+
+  /* wrap it as GstMemory */
+  res_mem =
+      gst_memory_share (extra_tensors_memory, offset,
+      gst_tensor_info_get_size (&extra_info->infos[index -
+              NNS_TENSOR_SIZE_LIMIT]));
+
+  /* cleanup and return */
+  gst_memory_unmap (extra_tensors_memory, &extra_tensors_map);
+  gst_memory_unref (extra_tensors_memory);
+
+  return res_mem;
+}

@@ -117,5 +117,23 @@ gst_tensor_caps_update_dimension (GstCaps *caps, GstCaps *peer_caps);
 extern gboolean
 gst_tensor_caps_can_intersect (GstCaps *caps1, GstCaps *caps2);
 
+/**
+ * @brief Initialize GstTensorExtraInfo structure with given @a memory.
+ * @param[in/out] extra GstTensorExtraInfo to be initialized.
+ * @param[in] memory The information of given memory is used to initialize @a extra.
+*/
+extern void
+gst_tensors_extra_init (GstTensorExtraInfo * extra, GstMemory * memory);
+
+/**
+ * @brief Get the nth GstMemory from given @a buffer.
+ * @param[in] buffer GstBuffer to be parsed.
+ * @param[in] info GstTensorsInfo to be used in parsing buffer.
+ * @param[in] index Index of GstMemory to be returned.
+ * @return GstMemory if found, otherwise NULL (Caller should free returned memory using gst_memory_unref()).
+*/
+extern GstMemory *
+gst_tensors_get_nth_memory (GstBuffer * buffer, const GstTensorsInfo * info, const guint index);
+
 G_END_DECLS
 #endif /* __NNS_PLUGIN_API_H__ */
