@@ -11,8 +11,8 @@
  *
  * ## Example launch line
  * |[
- * gst-launch-1.0 filesrc location=mnist_trainingSet.dat blocksize = 3176 ! application/octet-stream ! \
- * tensor_converter input-dim=1:1:784:1,1:1:10:1 input-type=float32,float32 ! \
+ * gst-launch-1.0 repo_src location=mnist_trainingSet.dat ! \
+ * other/tensors, format=static, num_tensors=2, framerate=0/1, dimensions=1:1:784:1.1:1:10:1, types=float32.float32 ! \
  * tensor_trainer framework=nntrainer model-config=mnist.ini model-save-path=model.bin input-dim=1:1:784:1,1:1:10:1 \
  * input-type=float32,float32 num-inputs=1 num-labels=1 num-training-samples=100 num-validation-samples=100 epochs=5 ! \
  * tensor_sink
@@ -667,61 +667,36 @@ static GstCaps *
 gst_tensor_trainer_query_caps (GstTensorTrainer * trainer,
     GstPad * pad, GstCaps * filter)
 {
-  GstCaps *result;
   GstCaps *caps;
-  GstStructure *structure;
-  gboolean configured = FALSE;
-  GstTensorsConfig in_config;
+  GstTensorsConfig *config;
 
   g_return_val_if_fail (trainer != NULL, NULL);
   g_return_val_if_fail (pad != NULL, NULL);
 
-  gst_tensors_config_init (&in_config);
+  gst_tensors_config_init (&trainer->in_config);
   gst_tensors_config_init (&trainer->out_config);
 
-  caps = gst_tensor_pad_possible_caps_from_config (pad, &in_config);
-  structure = gst_caps_get_structure (caps, 0);
-
-  if (!gst_tensors_config_from_structure (&in_config, structure))
-    return NULL;
-  gst_caps_unref (caps);
-
-  /** Need to set property (input, inputtype, output, outputtype)
-      for trainer->input_meta and trainer->output_meta */
-  if (pad == trainer->srcpad) {
-    if (trainer->input_configured) {
-      gst_tensors_info_copy (&trainer->out_config.info,
-          &trainer->prop.input_meta);
-      configured = TRUE;
-    }
+  /* tensor config info for given pad */
+  if (pad == trainer->sinkpad) {
+    config = &trainer->in_config;
   } else {
-    if (trainer->output_configured) {
-      configured = TRUE;
-      gst_tensors_info_copy (&trainer->out_config.info, &trainer->output_meta);
-    }
+    config = &trainer->out_config;
   }
 
-  if (configured)
-    /* Output info may be configured */
-    result =
-        gst_tensor_pad_possible_caps_from_config (pad, &trainer->out_config);
-  else
-    result = gst_caps_from_string (CAPS_STRING);
+  caps = gst_tensor_pad_possible_caps_from_config (pad, config);
+  GST_DEBUG_OBJECT (trainer, "caps %" GST_PTR_FORMAT, caps);
+  GST_DEBUG_OBJECT (trainer, "filter %" GST_PTR_FORMAT, filter);
 
-  GST_DEBUG_OBJECT (trainer, "caps intersect without filter %" GST_PTR_FORMAT,
-      result);
-
-  if (filter) {
-    GstCaps *intersection;
-    intersection =
-        gst_caps_intersect_full (result, filter, GST_CAPS_INTERSECT_FIRST);
-    gst_caps_unref (result);
-    result = intersection;
-    GST_DEBUG_OBJECT (trainer, "result caps %" GST_PTR_FORMAT, result);
+  if (caps && filter) {
+    GstCaps *result;
+    result = gst_caps_intersect_full (filter, caps, GST_CAPS_INTERSECT_FIRST);
+    gst_caps_unref (caps);
+    caps = result;
   }
-  gst_tensors_config_free (&in_config);
 
-  return result;
+  GST_DEBUG_OBJECT (trainer, "result caps %" GST_PTR_FORMAT, caps);
+
+  return caps;
 }
 
 /**
@@ -786,6 +761,8 @@ gst_tensor_trainer_sink_event (GstPad * sinkpad, GstObject * parent,
       trainer->out_config.rate_n = in_config.rate_n;
       trainer->out_config.rate_d = in_config.rate_d;
 
+      gst_tensors_info_copy (&trainer->out_config.info, &trainer->output_meta);
+
       out_caps =
           gst_tensor_pad_caps_from_config (trainer->srcpad,
           &trainer->out_config);
@@ -796,7 +773,7 @@ gst_tensor_trainer_sink_event (GstPad * sinkpad, GstObject * parent,
       gst_event_unref (event);
       gst_caps_unref (out_caps);
 
-      gst_tensors_config_free (&in_config);
+      gst_tensors_config_free (&trainer->in_config);
       gst_tensors_config_free (&trainer->out_config);
 
       return ret;
