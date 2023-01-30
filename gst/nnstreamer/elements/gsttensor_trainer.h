@@ -62,6 +62,7 @@ struct _GstTensorTrainer
   unsigned int output_ranks[NNS_TENSOR_SIZE_LIMIT];
   GstTensorsInfo output_meta;
   GstTensorsConfig out_config;
+  GstTensorsConfig in_config;
 
   gint64 total_push_data_cnt;      /**< number of total push data */
   gboolean fw_created;
