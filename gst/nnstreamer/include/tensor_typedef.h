@@ -246,6 +246,7 @@ typedef struct
 {
   unsigned int num_tensors; /**< The number of tensors */
   GstTensorInfo info[NNS_TENSOR_SIZE_LIMIT]; /**< The list of tensor info */
+  GstTensorInfo *extra; /**< The list of tensor info for tensors whose idx is larger than NNS_TENSOR_SIZE_LIMIT */
   tensor_format format; /**< tensor stream type */
 } GstTensorsInfo;
 
