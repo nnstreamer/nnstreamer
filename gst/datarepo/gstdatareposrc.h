@@ -16,7 +16,7 @@
 #include <sys/types.h>
 #include <gst/gst.h>
 #include <gst/base/gstpushsrc.h>
-#include "tensor_typedef.h"
+#include <tensor_typedef.h>
 
 G_BEGIN_DECLS
 #define GST_TYPE_DATA_REPO_SRC \
@@ -30,6 +30,9 @@ G_BEGIN_DECLS
 #define GST_IS_DATA_REPO_SRC_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_DATA_REPO_SRC))
 
+/* media_type has not IMAGE type */
+#define _NNS_IMAGE 5  /**<supposedly image/png, image/jpeg and etc */
+
 #define MAX_ITEM NNS_TENSOR_SIZE_LIMIT
 
 typedef struct _GstDataRepoSrc GstDataRepoSrc;
@@ -42,14 +45,20 @@ struct _GstDataRepoSrc {
 
   GstPushSrc parent; /**< parent object */
 
+  gboolean successful_read; /**< Used for checking EOS when reading more than one images(multi-files) from a path */
   gint fd;	        			  /**< open file descriptor */
   guint64 read_position;		/**< position of fd */
   guint64 offset;
-  guint item_size[MAX_ITEM];
+  guint tensors_size[MAX_ITEM];   /**< For other/tensors media type, each tensor size is stored */
+
+  gint start_frame_index;   /**< Start index of sample to read, in case of image, the starting index of the numbered files */
+  gint stop_frame_index;    /**< End index of sample to read, in case of image, the endig index of the numbered files */
+  gint frame_index;         /**< Current index of sample or file to read */
 
   /* property */
   gchar *filename;          /**< filename */
-  guint length;             /**< buffer size */
+  guint media_size;         /**< media size */
+  guint media_type;         /**< media type */
 
 };
 
