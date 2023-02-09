@@ -1460,7 +1460,8 @@ gst_tensors_extra_init (GstTensorExtraInfo * extra, GstMemory * memory)
  * @return GstMemory if found, otherwise NULL (Caller should free returned memory using gst_memory_unref()).
 */
 GstMemory *
-gst_tensors_get_nth_memory (GstBuffer * buffer, const GstTensorsInfo * info, const guint index)
+gst_tensors_get_nth_memory (GstBuffer * buffer, const GstTensorsInfo * info,
+    const guint index)
 {
   guint i, offset = 0;
   GstMemory *extra_tensors_memory, *res_mem;
@@ -1483,13 +1484,15 @@ gst_tensors_get_nth_memory (GstBuffer * buffer, const GstTensorsInfo * info, con
   }
 
   /* If num_tensors is less than or equal to NNS_TENSOR_SIZE_LIMIT, it's trivial. */
-  if (info->num_tensors <= NNS_TENSOR_SIZE_LIMIT || index < NNS_TENSOR_SIZE_LIMIT - 1) {
+  if (info->num_tensors <= NNS_TENSOR_SIZE_LIMIT
+      || index < NNS_TENSOR_SIZE_LIMIT - 1) {
     return gst_buffer_get_memory (buffer, index);
   }
 
   /* Check the buffer contains NNS_TENSOR_SIZE_LIMIT memory */
   if (gst_buffer_n_memory (buffer) != NNS_TENSOR_SIZE_LIMIT) {
-    nns_loge ("Failed to get %d-th memory from buffer (invalid buffer size).", index);
+    nns_loge ("Failed to get %d-th memory from buffer (invalid buffer size).",
+        index);
     return NULL;
   }
 
@@ -1531,7 +1534,8 @@ gst_tensors_get_nth_memory (GstBuffer * buffer, const GstTensorsInfo * info, con
 
   /* If index is NNS_TENSOR_SIZE_LIMIT - 1 */
   if (index == NNS_TENSOR_SIZE_LIMIT - 1) {
-    res_mem = gst_memory_share (extra_tensors_memory, offset, extra_info->reserved);
+    res_mem =
+        gst_memory_share (extra_tensors_memory, offset, extra_info->reserved);
     gst_memory_unmap (extra_tensors_memory, &extra_tensors_map);
     gst_memory_unref (extra_tensors_memory);
 
@@ -1597,7 +1601,8 @@ is_extra_tensors_memory (GstMemory * mem)
  * @return TRUE if successfully appended, otherwise FALSE.
 */
 gboolean
-gst_tensors_extra_append_memory_to_buffer (GstBuffer * buffer, GstMemory * memory, const GstTensorInfo * tensor_info)
+gst_tensors_extra_append_memory_to_buffer (GstBuffer * buffer,
+    GstMemory * memory, const GstTensorInfo * tensor_info)
 {
   guint num_mems, offset, i;
 
@@ -1670,9 +1675,10 @@ gst_tensors_extra_append_memory_to_buffer (GstBuffer * buffer, GstMemory * memor
     offset = 0;
   }
 
-  memcpy (new_memory_map.data + offset, last_memory_map.data, last_memory_map.size);
+  memcpy (new_memory_map.data + offset, last_memory_map.data,
+      last_memory_map.size);
 
-  /* copy incoming_memory into new_memory*/
+  /* copy incoming_memory into new_memory */
   if (!gst_memory_map (memory, &incoming_memory_map, GST_MAP_READ)) {
     nns_loge ("Failed to map incoming memory");
     gst_memory_unref (new_memory);
@@ -1686,7 +1692,8 @@ gst_tensors_extra_append_memory_to_buffer (GstBuffer * buffer, GstMemory * memor
     gst_tensor_info_copy (&new_memory_extra_info->infos[i], tensor_info);
   }
 
-  memcpy (new_memory_map.data + offset + last_memory_map.size, incoming_memory_map.data, incoming_memory_map.size);
+  memcpy (new_memory_map.data + offset + last_memory_map.size,
+      incoming_memory_map.data, incoming_memory_map.size);
 
   gst_memory_unmap (new_memory, &new_memory_map);
   gst_memory_unmap (memory, &incoming_memory_map);
