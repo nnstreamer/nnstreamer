@@ -6431,6 +6431,8 @@ _manual_extra_tensors_new_data_cb (GstElement *element, GstBuffer *buffer, gpoin
   gint *output, i;
   gboolean ret;
   GstTensorsInfo ts_info;
+
+  gst_tensors_info_init (&ts_info);
   ts_info.num_tensors = 20;
 
   data_received++;
@@ -6443,10 +6445,12 @@ _manual_extra_tensors_new_data_cb (GstElement *element, GstBuffer *buffer, gpoin
     gst_memory_unmap (mem_res, &info_res);
     gst_memory_unref (mem_res);
   }
+
+  gst_tensors_info_free (&ts_info);
 }
 
 /**
- * @brief TBU
+ * @brief Test for extra tensors which are created with gst_tensors_extra_append_memory_to_buffer API.
  */
 TEST (extraTensors, manualextratensors)
 {
