@@ -279,8 +279,8 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
   GstTensorsConfig in_configs;
   GstClockTime base_time = 0;
   guint i, n_mem;
-  GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT];
-  tensor_format in_formats[NNS_TENSOR_SIZE_LIMIT];
+  GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT];
+  tensor_format in_formats[NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT];
 
   g_return_val_if_fail (collect != NULL, FALSE);
   g_return_val_if_fail (sync != NULL, FALSE);
@@ -392,7 +392,8 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
           the negotiation should have been failed before this stage. */
       if (gst_tensors_config_is_static (&in_configs))
         g_assert (n_mem == in_configs.info.num_tensors);
-      g_assert ((counting + n_mem) <= NNS_TENSOR_SIZE_LIMIT);
+      g_assert ((counting + n_mem) <=
+          NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT);
 
       if (gst_tensors_config_is_flexible (&in_configs))
         configs->info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
@@ -400,7 +401,22 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
       for (i = 0; i < n_mem; ++i) {
         in_mem[counting] = gst_buffer_get_memory (buf, i);
 
-        configs->info.info[counting] = in_configs.info.info[i];
+        /* set info */
+        if (counting >= NNS_TENSOR_SIZE_LIMIT) {
+          /* initialize extra info */
+          if (counting == NNS_TENSOR_SIZE_LIMIT) {
+            if (!gst_tensors_info_extra_create (&configs->info)) {
+              ml_loge ("Failed to create extra info.");
+              gst_buffer_unref (buf);
+              return FALSE;
+            }
+          }
+
+          gst_tensor_info_copy (&configs->info.extra[counting -
+                  NNS_TENSOR_SIZE_LIMIT], &in_configs.info.info[i]);
+        } else {
+          configs->info.info[counting] = in_configs.info.info[i];
+        }
         in_formats[counting] = in_configs.info.format;
         counting++;
       }
@@ -426,7 +442,15 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
       }
     }
 
-    gst_buffer_append_memory (tensors_buf, mem);
+    if (i < NNS_TENSOR_SIZE_LIMIT) {
+      gst_buffer_append_memory (tensors_buf, mem);
+    } else {
+      GstTensorInfo *info = &configs->info.extra[i - NNS_TENSOR_SIZE_LIMIT];
+      if (!gst_tensor_buffer_append_memory (tensors_buf, mem, info)) {
+        nns_loge ("Failed to append memory to buffer.");
+        return FALSE;
+      }
+    }
   }
 
   configs->info.num_tensors = counting;
@@ -434,6 +458,8 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
   configs->rate_n = old_numerator;
 
   GST_BUFFER_PTS (tensors_buf) = current_time;
+
+  gst_tensors_config_free (&in_configs);
 
   /* check eos */
   *is_eos = _gst_tensor_time_sync_is_eos (collect, sync, empty_pad);
