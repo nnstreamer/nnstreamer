@@ -241,6 +241,8 @@ gst_tensor_mux_finalize (GObject * object)
     tensor_mux->sync.option = NULL;
   }
 
+  gst_tensors_config_free (&tensor_mux->tensors_config);
+
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
