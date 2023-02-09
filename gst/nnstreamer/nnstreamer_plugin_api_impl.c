@@ -1383,8 +1383,8 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
           (gint *) (&config->info.num_tensors));
 
       if (config->info.num_tensors > NNS_TENSOR_SIZE_LIMIT) {
-        nns_logw ("Invalid param, max size is %d", NNS_TENSOR_SIZE_LIMIT);
-        config->info.num_tensors = NNS_TENSOR_SIZE_LIMIT;
+        /* create extra info */
+        gst_tensors_info_extra_create (&config->info);
       }
 
       /* parse dimensions */
