@@ -135,5 +135,23 @@ gst_tensors_extra_init (GstTensorExtraInfo * extra, GstMemory * memory);
 extern GstMemory *
 gst_tensors_get_nth_memory (GstBuffer * buffer, const GstTensorsInfo * info, const guint index);
 
+/**
+ * @brief Check if given @a mem has extra tensors.
+ * @param[in] mem GstMemory to be checked.
+ * @return TRUE if @mem has extra tensors, otherwise FALSE.
+*/
+extern gboolean
+is_extra_tensors_memory (GstMemory * mem);
+
+/**
+ * @brief Append @a memory to given @a buffer.
+ * @param[in/out] buffer GstBuffer to be appended.
+ * @param[in] memory GstMemory to append. This function will take ownership of this.
+ * @param[in] tensor_info GstTensorInfo of given @a memory.
+ * @return TRUE if successfully appended, otherwise FALSE.
+*/
+extern gboolean
+gst_tensors_extra_append_memory_to_buffer (GstBuffer * buffer, GstMemory * memory, const GstTensorInfo * tensor_info);
+
 G_END_DECLS
 #endif /* __NNS_PLUGIN_API_H__ */
