@@ -1,3 +1,9 @@
+nnstreamer (2.3.0.0+nmu4) UNRELEASED; urgency=medium
+
+  * Non-maintainer upload. 
+
+ -- Torsten Schulz <torsten@eyepop.ai>  Thu, 09 Feb 2023 16:11:21 -0800
+
 nnstreamer (2.3.0.0) unstable bionic focal jammy sid; urgency=medium
 
   * 2.3.0 development starts as 2.4.0-RC1 for experimental and unstable features.
