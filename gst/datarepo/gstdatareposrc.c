@@ -12,12 +12,12 @@
  *
  * ## Example launch line
  * |[
- * gst-launch-1.0 datareposrc location=mnist_trainingSet.dat ! \
+ * gst-launch-1.0 datareposrc location=mnist_trainingSet.dat start-sample-index=3 stop-sample-index=202 epochs=5 ! \
  * other/tensors, format=static, num_tensors=2, framerate=0/1, \
  * dimensions=1:1:784:1.1:1:10:1, types=float32.float32 ! tensor_sink
  * ]|
  * |[
- * gst-launch-1.0 datareposrc location=image_%02ld.png ! pngdec ! fakesink
+ * gst-launch-1.0 datareposrc location=image_%02ld.png start-sample-index=3 stop-sample-index=9 epochs=2 ! pngdec ! fakesink
  * gst-launch-1.0 datareposrc location=audiofile ! audio/x-raw, format=S8, rate=48000, channels=2 ! fakesink
  * gst-launch-1.0 datareposrc location=videofile ! video/x-raw, format=RGB, width=320, height=240 ! fakesink
  * ]|
@@ -113,14 +113,19 @@ enum
 {
   PROP_0,
   PROP_LOCATION,
+  PROP_START_SAMPLE_INDEX,
+  PROP_STOP_SAMPLE_INDEX,
+  PROP_EPOCHS
 };
+
+#define DEFAULT_INDEX 0
+#define DEFAULT_EPOCHS 1
 
 static void gst_data_repo_src_finalize (GObject * object);
 static void gst_data_repo_src_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
 static void gst_data_repo_src_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
-static gboolean gst_data_repo_src_start (GstBaseSrc * basesrc);
 static gboolean gst_data_repo_src_stop (GstBaseSrc * basesrc);
 static GstCaps *gst_data_repo_src_get_caps (GstBaseSrc * basesrc,
     GstCaps * filter);
@@ -154,9 +159,35 @@ gst_data_repo_src_class_init (GstDataRepoSrcClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_LOCATION,
       g_param_spec_string ("location", "File Location",
-          "Location of the file to read that is stored in MLOps Data Repository"
-          "If the files are image, create pattern name like 'filename%04d.png'",
+          "Location of the file to read that is stored in MLOps Data Repository, "
+          "if the files are image, write the index of filename name "
+          "like %04ld or %04lld (e.g., filenmae%04ld.png)",
           NULL,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
+
+  g_object_class_install_property (gobject_class, PROP_START_SAMPLE_INDEX,
+      g_param_spec_int ("start-sample-index", "Start index of samples",
+          "Start index of sample to read, in case of image, "
+          "the starting index of the numbered files. "
+          "Set start index of range of samples or files to read",
+          0, G_MAXINT, DEFAULT_INDEX,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
+
+  g_object_class_install_property (gobject_class, PROP_STOP_SAMPLE_INDEX,
+      g_param_spec_int ("stop-sample-index", "Stop index of samples",
+          "Stop index of sample to read, in case of image, "
+          "the stoppting index of the numbered files. "
+          "Set stop index of range of samples or files to read",
+          0, G_MAXINT, DEFAULT_INDEX,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
+
+  g_object_class_install_property (gobject_class, PROP_EPOCHS,
+      g_param_spec_int ("epochs", "Epochs",
+          "Repetition of range of files or samples to read, set number of repetitions",
+          0, G_MAXINT, DEFAULT_EPOCHS,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
 
@@ -169,7 +200,6 @@ gst_data_repo_src_class_init (GstDataRepoSrcClass * klass)
       "Samsung Electronics Co., Ltd.");
   gst_element_class_add_static_pad_template (gstelement_class, &srctemplate);
 
-  gstbasesrc_class->start = GST_DEBUG_FUNCPTR (gst_data_repo_src_start);
   gstbasesrc_class->stop = GST_DEBUG_FUNCPTR (gst_data_repo_src_stop);
   gstbasesrc_class->get_caps = GST_DEBUG_FUNCPTR (gst_data_repo_src_get_caps);
   gstbasesrc_class->set_caps = GST_DEBUG_FUNCPTR (gst_data_repo_src_set_caps);
@@ -189,14 +219,21 @@ gst_data_repo_src_init (GstDataRepoSrc * src)
 {
   src->filename = NULL;
   src->fd = 0;
-  src->media_type = _NNS_TENSOR;
+  src->media_type = _NNS_MEDIA_INVALID;
   src->offset = 0;
+  src->start_offset = 0;
+  src->last_offset = 0;
   src->successful_read = FALSE;
+  src->is_start = FALSE;
 
-/* let's set value by property */
-  src->frame_index = 0;
-  src->start_frame_index = 0;
-  src->stop_frame_index = 0;
+  src->current_sample_index = 0;
+  src->start_sample_index = 0;
+  src->stop_sample_index = 0;
+  src->epochs = DEFAULT_EPOCHS;
+
+  /* Filling the buffer should be pending until set_caps() */
+  gst_base_src_set_format (GST_BASE_SRC (src), GST_FORMAT_TIME);
+  gst_base_src_set_live (GST_BASE_SRC (src), TRUE);
 }
 
 /**
@@ -273,6 +310,15 @@ gst_data_repo_src_set_property (GObject * object, guint prop_id,
     case PROP_LOCATION:
       gst_data_repo_src_set_location (src, g_value_get_string (value), NULL);
       break;
+    case PROP_START_SAMPLE_INDEX:
+      src->start_sample_index = g_value_get_int (value);
+      break;
+    case PROP_STOP_SAMPLE_INDEX:
+      src->stop_sample_index = g_value_get_int (value);
+      break;
+    case PROP_EPOCHS:
+      src->epochs = g_value_get_int (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -296,10 +342,35 @@ gst_data_repo_src_get_property (GObject * object, guint prop_id, GValue * value,
     case PROP_LOCATION:
       g_value_set_string (value, src->filename);
       break;
+    case PROP_START_SAMPLE_INDEX:
+      g_value_set_int (value, src->start_sample_index);
+      break;
+    case PROP_STOP_SAMPLE_INDEX:
+      g_value_set_int (value, src->stop_sample_index);
+      break;
+    case PROP_EPOCHS:
+      g_value_set_int (value, src->epochs);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
+}
+
+/**
+ * @brief Function to get file offset with sample index
+ */
+static guint64
+gst_data_repo_src_get_file_offset (GstDataRepoSrc * src, guint64 sample_index)
+{
+  guint64 offset;
+  g_return_val_if_fail (src != NULL, 0);
+  g_return_val_if_fail (src->media_type != _NNS_IMAGE, 0);
+  g_return_val_if_fail (src->fd != 0, 0);
+
+  offset = src->media_size * sample_index;
+
+  return offset;
 }
 
 /**
@@ -308,7 +379,7 @@ gst_data_repo_src_get_property (GObject * object, guint prop_id, GValue * value,
 static GstFlowReturn
 gst_data_repo_src_read_tensors (GstDataRepoSrc * src, GstBuffer ** buffer)
 {
-  int i = 0;
+  guint i = 0;
   GstBuffer *buf;
   guint to_read, byte_read;
   int ret;
@@ -316,10 +387,19 @@ gst_data_repo_src_read_tensors (GstDataRepoSrc * src, GstBuffer ** buffer)
   GstMemory *mem[MAX_ITEM] = { 0, };
   GstMapInfo info[MAX_ITEM];
 
+  g_return_val_if_fail (src->fd != 0, GST_FLOW_ERROR);
+
+  if (src->last_offset != 0 && src->offset > src->last_offset) {
+    if (src->epochs-- > DEFAULT_EPOCHS)
+      src->offset = lseek (src->fd, src->start_offset, SEEK_SET);
+    else
+      return GST_FLOW_EOS;
+  }
+
   buf = gst_buffer_new ();
 
-  /** @todo : features and labels indexing with featuer and label index property */
-  for (i = 0; i < 2; i++) {
+  /** @todo : features and labels indexing with feature and label index property */
+  for (i = 0; i < src->num_tensors; i++) {
     mem[i] = gst_allocator_alloc (NULL, src->tensors_size[i], NULL);
 
     if (!gst_memory_map (mem[i], &info[i], GST_MAP_WRITE)) {
@@ -386,7 +466,6 @@ error:
   return GST_FLOW_ERROR;
 }
 
-
 /**
  * @brief Get image filename
  */
@@ -394,15 +473,19 @@ static gchar *
 gst_data_repo_src_get_image_filename (GstDataRepoSrc * src)
 {
   gchar *filename = NULL;
-
+  g_return_val_if_fail (src != NULL, NULL);
   g_return_val_if_fail (src->media_type == _NNS_IMAGE, NULL);
+  g_return_val_if_fail (src->filename != NULL, NULL);
+
+  /* _NNS_IMAGE must have %d in src->filename */
+  GST_DEBUG ("frame index: %d", src->current_sample_index);
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
 #endif
   /* let's set value by property */
-  filename = g_strdup_printf (src->filename, src->frame_index);
+  filename = g_strdup_printf (src->filename, src->current_sample_index);
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif
@@ -422,6 +505,14 @@ gst_data_repo_src_read_multi_images (GstDataRepoSrc * src, GstBuffer ** buffer)
   GstBuffer *buf;
   gboolean ret;
   GError *error = NULL;
+
+  if (src->stop_sample_index != 0
+      && src->current_sample_index > src->stop_sample_index) {
+    if (src->epochs-- > DEFAULT_EPOCHS)
+      src->current_sample_index = src->start_sample_index;
+    else
+      return GST_FLOW_EOS;
+  }
 
   filename = gst_data_repo_src_get_image_filename (src);
   GST_DEBUG_OBJECT (src, "Reading from file \"%s\".", filename);
@@ -443,7 +534,7 @@ gst_data_repo_src_read_multi_images (GstDataRepoSrc * src, GstBuffer ** buffer)
   src->successful_read = TRUE;
   GST_DEBUG_OBJECT (src, "file size is %zd", size);
   /* let's set value by property */
-  src->frame_index++;
+  src->current_sample_index++;
 
   buf = gst_buffer_new ();
   gst_buffer_append_memory (buf,
@@ -484,6 +575,15 @@ gst_data_repo_src_read_others (GstDataRepoSrc * src, GstBuffer ** buffer)
   guint8 *data;
   GstMemory *mem;
   GstMapInfo info;
+
+  g_return_val_if_fail (src->fd != 0, GST_FLOW_ERROR);
+
+  if (src->last_offset != 0 && src->offset > src->last_offset) {
+    if (src->epochs-- > DEFAULT_EPOCHS)
+      src->offset = lseek (src->fd, src->start_offset, SEEK_SET);
+    else
+      return GST_FLOW_EOS;
+  }
 
   mem = gst_allocator_alloc (NULL, src->media_size, NULL);
 
@@ -547,45 +647,22 @@ error:
 }
 
 /**
- * @brief Function to create a buffer
- */
-static GstFlowReturn
-gst_data_repo_src_create (GstPushSrc * pushsrc, GstBuffer ** buffer)
-{
-  GstDataRepoSrc *src;
-  src = GST_DATA_REPO_SRC (pushsrc);
-
-  switch (src->media_type) {
-    case _NNS_TENSOR:
-      return gst_data_repo_src_read_tensors (src, buffer);
-    case _NNS_IMAGE:
-      return gst_data_repo_src_read_multi_images (src, buffer);
-    case _NNS_VIDEO:
-    case _NNS_AUDIO:
-    case _NNS_TEXT:
-    case _NNS_OCTET:
-      return gst_data_repo_src_read_others (src, buffer);
-    default:
-      return GST_FLOW_ERROR;
-  }
-}
-
-/**
  * @brief Start datareposrc, open the file
  */
 static gboolean
-gst_data_repo_src_start (GstBaseSrc * basesrc)
+gst_data_repo_src_start (GstDataRepoSrc * src)
 {
   struct_stat stat_results;
   gchar *filename = NULL;
-  GstDataRepoSrc *src = GST_DATA_REPO_SRC (basesrc);
   int flags = O_RDONLY | O_BINARY;
+
+  g_return_val_if_fail (src != NULL, FALSE);
 
   if (src->filename == NULL || src->filename[0] == '\0')
     goto no_filename;
 
   /* let's set value by property */
-  src->frame_index = src->start_frame_index;
+  src->current_sample_index = src->start_sample_index;
 
   if (src->media_type == _NNS_IMAGE) {
     filename = gst_data_repo_src_get_image_filename (src);
@@ -621,6 +698,18 @@ gst_data_repo_src_start (GstBaseSrc * basesrc)
     /* no longer used */
     g_close (src->fd, NULL);
     src->fd = 0;
+  } else {
+    /* set start offset and last offset */
+    src->start_offset =
+        gst_data_repo_src_get_file_offset (src, src->start_sample_index);
+
+    /* If the user does not set stop_sample_index, datareposrc need to calculate the last offset */
+    src->last_offset =
+        gst_data_repo_src_get_file_offset (src, src->stop_sample_index);
+
+    src->offset = lseek (src->fd, src->start_offset, SEEK_SET);
+    GST_LOG_OBJECT (src, "Start file offset 0x%" G_GINT64_MODIFIER "x",
+        src->offset);
   }
 
   g_free (filename);
@@ -674,6 +763,39 @@ error_close:
 error_exit:
   g_free (filename);
   return FALSE;
+}
+
+/**
+ * @brief Function to create a buffer
+ */
+static GstFlowReturn
+gst_data_repo_src_create (GstPushSrc * pushsrc, GstBuffer ** buffer)
+{
+  GstDataRepoSrc *src;
+  src = GST_DATA_REPO_SRC (pushsrc);
+
+  /** set_caps is completed after PAUSED_TO_PLAYING, so we cannot use change_state.
+      datareposrc can get type and size after set_caps() */
+  if (!src->is_start) {
+    if (!gst_data_repo_src_start (src)) {
+      return GST_FLOW_ERROR;
+    }
+    src->is_start = TRUE;
+  }
+
+  switch (src->media_type) {
+    case _NNS_VIDEO:
+    case _NNS_AUDIO:
+    case _NNS_TEXT:
+    case _NNS_OCTET:
+      return gst_data_repo_src_read_others (src, buffer);
+    case _NNS_TENSOR:
+      return gst_data_repo_src_read_tensors (src, buffer);
+    case _NNS_IMAGE:           /* _NNS_IMAGE is a local define value */
+      return gst_data_repo_src_read_multi_images (src, buffer);
+    default:
+      return GST_FLOW_ERROR;
+  }
 }
 
 /**
@@ -735,7 +857,9 @@ gst_data_repo_src_get_tensors_size (GstDataRepoSrc * src, const GstCaps * caps)
   if (!gst_tensors_config_from_structure (&config, s))
     return 0;
 
-  for (i = 0; i < config.info.num_tensors; i++) {
+  src->num_tensors = config.info.num_tensors;
+
+  for (i = 0; i < src->num_tensors; i++) {
     src->tensors_size[i] = gst_tensor_info_get_size (&config.info.info[i]);
     GST_DEBUG ("%dth size is %d", i, src->tensors_size[i]);
     size = size + src->tensors_size[i];
