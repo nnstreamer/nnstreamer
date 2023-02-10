@@ -43,23 +43,27 @@ typedef struct _GstDataRepoSrcClass GstDataRepoSrcClass;
  */
 struct _GstDataRepoSrc {
 
-  GstPushSrc parent; /**< parent object */
+  GstPushSrc parent;            /**< parent object */
 
-  gboolean successful_read; /**< Used for checking EOS when reading more than one images(multi-files) from a path */
-  gint fd;	        			  /**< open file descriptor */
-  guint64 read_position;		/**< position of fd */
+  gboolean is_start;            /**< check if datareposrc is started */
+  gboolean successful_read;     /**< used for checking EOS when reading more than one images(multi-files) from a path */
+  gint fd;                      /**< open file descriptor */
+  guint64 read_position;        /**< position of fd */
   guint64 offset;
-  guint tensors_size[MAX_ITEM];   /**< For other/tensors media type, each tensor size is stored */
+  guint64 start_offset;         /**< start offset to read */
+  guint64 last_offset;          /**< last offset to read */
+  guint tensors_size[MAX_ITEM];
+  guint num_tensors;
 
-  gint start_frame_index;   /**< Start index of sample to read, in case of image, the starting index of the numbered files */
-  gint stop_frame_index;    /**< End index of sample to read, in case of image, the endig index of the numbered files */
-  gint frame_index;         /**< Current index of sample or file to read */
+  gint current_sample_index;    /**< current index of sample or file to read */
 
   /* property */
-  gchar *filename;          /**< filename */
-  guint media_size;         /**< media size */
-  guint media_type;         /**< media type */
-
+  gchar *filename;              /**< filename */
+  guint media_size;             /**< media size */
+  guint media_type;             /**< media type */
+  gint start_sample_index;      /**< start index of sample to read, in case of image, the starting index of the numbered files */
+  gint stop_sample_index;       /**< stop index of sample to read, in case of image, the stoppting index of the numbered files */
+  gint epochs;                  /**< repetition of range of files or samples to read */
 };
 
 /**
