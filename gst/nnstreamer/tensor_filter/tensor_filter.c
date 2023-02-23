@@ -272,7 +272,7 @@ gst_tensor_filter_get_tensor_size (GstTensorFilter * self, guint index,
     return 0;
   }
 
-  return gst_tensor_info_get_size (&info->info[index]);
+  return gst_tensor_info_get_size (gst_tensors_info_get_nth_info (info, index));
 }
 
 /**
@@ -635,22 +635,34 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   GstTensorFilter *self = GST_TENSOR_FILTER_CAST (trans);
   GstTensorFilterPrivate *priv = &self->priv;
   GstTensorFilterProperties *prop = &priv->prop;
-  GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
-  GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT];
-  GstMemory *out_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
-  GstMapInfo out_info[NNS_TENSOR_SIZE_LIMIT];
-  GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT];
-  GstTensorMemory invoke_tensors[NNS_TENSOR_SIZE_LIMIT];
-  GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT];
+
+  /* TODO: Consider malloc in_mem, in_info, etc. rather than take the stack */
+  GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT] =
+      { 0, };
+  GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT];
+  GstMemory *out_mem[NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT] =
+      { 0, };
+  GstMapInfo out_info[NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT];
+
+  GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT +
+      NNS_TENSOR_SIZE_EXTRA_LIMIT];
+  GstTensorMemory invoke_tensors[NNS_TENSOR_SIZE_LIMIT +
+      NNS_TENSOR_SIZE_EXTRA_LIMIT];
+  GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT +
+      NNS_TENSOR_SIZE_EXTRA_LIMIT];
+
   GList *list;
-  guint i, num_mems;
+  guint i, num_tensors;
   gint ret;
   gboolean allocate_in_invoke, in_flexible, out_flexible;
   gboolean need_profiling;
   gsize expected, hsize;
 
-  GstTensorMetaInfo in_meta[NNS_TENSOR_SIZE_LIMIT];
-  GstTensorMetaInfo out_meta[NNS_TENSOR_SIZE_LIMIT];
+  GstTensorMetaInfo in_meta[NNS_TENSOR_SIZE_LIMIT +
+      NNS_TENSOR_SIZE_EXTRA_LIMIT];
+  GstTensorMetaInfo out_meta[NNS_TENSOR_SIZE_LIMIT +
+      NNS_TENSOR_SIZE_EXTRA_LIMIT];
+
   GstMemory *mem;
 
   /* 0. Check all properties. */
@@ -668,10 +680,10 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
 
   /* 1. Get all input tensors from inbuf. */
   /* Internal Logic Error or GST Bug (sinkcap changed!) */
-  num_mems = gst_buffer_n_memory (inbuf);
+  num_tensors = gst_buffer_n_tensor (inbuf);
 
-  for (i = 0; i < num_mems; i++) {
-    in_mem[i] = gst_buffer_peek_memory (inbuf, i);
+  for (i = 0; i < num_tensors; i++) {
+    in_mem[i] = gst_tensor_buffer_get_nth_memory (inbuf, &prop->input_meta, i);
     if (!gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
       ml_logf_stacktrace
           ("gst_tensor_filter_transform: For the given input buffer, tensor-filter (%s : %s) cannot map input memory from the buffer for reading. The %u-th memory chunk (%u-th tensor) has failed for memory map.\n",
@@ -696,10 +708,10 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     for (list = priv->combi.in_combi; list != NULL; list = list->next) {
       i = GPOINTER_TO_UINT (list->data);
 
-      if (i >= num_mems) {
+      if (i >= num_tensors) {
         ml_loge_stacktrace
             ("gst_tensor_filter_transform: Invalid input combination ('input-combination' property) for the tensor-filter (%s:%s). The %u'th combination's index is %u, which is out of bound (>= %u = the number of memory chunks (tensors) of incoming buffer). Because of buffer index inconsistency, it cannot continue (cannot map the memory for the input buffer).\n",
-            prop->fwname, TF_MODELNAME (prop), info_idx, i, num_mems);
+            prop->fwname, TF_MODELNAME (prop), info_idx, i, num_tensors);
         goto mem_map_error;
       }
 
@@ -714,10 +726,10 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
       invoke_tensors[info_idx++] = in_tensors[i];
     }
   } else {
-    if (num_mems != prop->input_meta.num_tensors) {
+    if (num_tensors != prop->input_meta.num_tensors) {
       ml_loge_stacktrace
           ("gst_tensor_filter_transform: Input buffer has invalid number of memory blocks (%u), which is expected to be %u (the number of tensors). Maybe, the pad capability is not consistent with the actual input stream.\n",
-          num_mems, prop->input_meta.num_tensors);
+          num_tensors, prop->input_meta.num_tensors);
       goto mem_map_error;
     }
 
@@ -791,8 +803,10 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   }
 
   /* 4. Free map info and handle error case */
-  for (i = 0; i < num_mems; i++)
+  for (i = 0; i < num_tensors; i++) {
     gst_memory_unmap (in_mem[i], &in_info[i]);
+    gst_memory_unref (in_mem[i]);
+  }
 
   if (!allocate_in_invoke) {
     for (i = 0; i < prop->output_meta.num_tensors; i++) {
@@ -871,15 +885,18 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     }
 
     /* append the memory block to outbuf */
-    gst_buffer_append_memory (outbuf, out_mem[i]);
+    gst_tensor_buffer_append_memory (outbuf, out_mem[i],
+        gst_tensors_info_get_nth_info (&prop->output_meta, i));
   }
 
   return GST_FLOW_OK;
 mem_map_error:
-  num_mems = gst_buffer_n_memory (inbuf);
-  for (i = 0; i < num_mems; i++) {
-    if (in_mem[i])
+  num_tensors = gst_buffer_n_tensor (inbuf);
+  for (i = 0; i < num_tensors; i++) {
+    if (in_mem[i]) {
       gst_memory_unmap (in_mem[i], &in_info[i]);
+      gst_memory_unref (in_mem[i]);
+    }
   }
 
   if (!allocate_in_invoke) {
@@ -1303,6 +1320,8 @@ gst_tensor_filter_set_caps (GstBaseTransform * trans,
     g_free (compare);
     return FALSE;
   }
+
+  gst_tensors_config_free (&config);
 
   return TRUE;
 }
