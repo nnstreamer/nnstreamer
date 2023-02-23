@@ -14,6 +14,8 @@
 
 #include <unittest_util.h>
 #include <nnstreamer_util.h>
+#include "nnstreamer_plugin_api.h"
+#include "nnstreamer_plugin_api_util.h"
 
 /**
  * @brief internal function to get model file path
@@ -31,6 +33,9 @@ _GetModelFilePath (gchar ** model_file, int option)
       break;
     case 1:
       model_name = "mobilenet_v2_1.0_224.tflite";
+      break;
+    case 2:
+      model_name = "simple_32_in_32_out.tflite";
       break;
     default:
       break;
@@ -272,6 +277,90 @@ TEST (nnstreamerFilterTensorFlow2Lite, floatModelXNNPACKResult)
   g_free (model_file);
   g_free (input_file);
   g_free (is_float);
+}
+
+/**
+ * @brief Signal to validate the result in tensor_sink of 32 input/output model.
+ */
+static void
+check_output_many (GstElement *element, GstBuffer *buffer, gpointer user_data)
+{
+  GstMemory *mem_res;
+  GstMapInfo info_res;
+  gboolean mapped;
+  UNUSED (element);
+
+  GstTensorsInfo ts_info;
+  gst_tensors_info_init (&ts_info);
+  ts_info.num_tensors = 32;
+
+  guint *data_received = (guint *) user_data;
+  (*data_received)++;
+
+  for (guint i = 0; i < 32; i++) {
+    mem_res = gst_tensor_buffer_get_nth_memory (buffer, &ts_info, i);
+    mapped = gst_memory_map (mem_res, &info_res, GST_MAP_READ);
+    ASSERT_TRUE (mapped);
+    gfloat *output = (gfloat *) info_res.data;
+    EXPECT_EQ (17.f, *output);
+    gst_memory_unmap (mem_res, &info_res);
+    gst_memory_unref (mem_res);
+  }
+}
+
+/**
+ * @brief Check result of tflite model with 32 input/output tensors.
+ */
+TEST (nnstreamerFilterTensorFlow2Lite, manyInOutModel)
+{
+  gchar *pipeline;
+  GstElement *gstpipe;
+  GError *err = NULL;
+  gchar *model_file;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 2));
+
+  /* make 32 "t. ! queue ! mux.sink_## " */
+  gchar *tee_queue_mux = g_strdup ("");
+  for (int i = 0; i < 32; i++) {
+    gchar *aux = g_strdup (tee_queue_mux);
+    g_free (tee_queue_mux);
+    tee_queue_mux = g_strdup_printf ("%s t. ! queue ! mux.sink_%d ", aux, i);
+    g_free (aux);
+  }
+
+  /* create a nnstreamer pipeline */
+  pipeline = g_strdup_printf (
+    "videotestsrc pattern=2 num-buffers=10 is-live=true ! "
+    "videoscale ! videoconvert ! video/x-raw,format=GRAY8,width=1,height=1,framerate=30/1 ! "
+    "tensor_converter ! tensor_transform mode=typecast option=float32 ! tee name=t "
+    "%s"
+    "tensor_mux name=mux ! other/tensors,format=static,num_tensors=32 ! "
+    "tensor_filter framework=tensorflow2-lite model=\"%s\" ! tensor_sink name=sinkx",
+      tee_queue_mux, model_file);
+
+  g_free (tee_queue_mux);
+
+  gstpipe = gst_parse_launch (pipeline, &err);
+  ASSERT_TRUE (gstpipe != nullptr);
+
+  GstElement *sink_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "sinkx");
+  ASSERT_TRUE (sink_handle != nullptr);
+
+  guint data_received = 0U;
+  g_signal_connect (sink_handle, "new-data", (GCallback) check_output_many, &data_received);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT * 10), 0);
+  g_usleep (1000 * 1000 * 5); // wait for 5 seconds to check all output is valid
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  EXPECT_EQ (10U, data_received);
+
+  gst_object_unref (sink_handle);
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+  g_free (model_file);
 }
 
 /**
