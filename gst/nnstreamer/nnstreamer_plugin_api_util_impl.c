@@ -314,19 +314,23 @@ gboolean
 gst_tensors_info_extra_create (GstTensorsInfo * info)
 {
   GstTensorInfo *new;
+  guint i;
 
   g_return_val_if_fail (info != NULL, FALSE);
 
   if (info->extra) {
     nns_logd ("Extra tensors info is allocated already");
-    /* clear existing extra info */
-    gst_tensors_info_extra_free (info);
+    return TRUE;
   }
 
   new = g_try_new0 (GstTensorInfo, NNS_TENSOR_SIZE_EXTRA_LIMIT);
   if (!new) {
     nns_loge ("Failed to allocate memory for extra tensors info");
     return FALSE;
+  }
+
+  for (i = 0; i < NNS_TENSOR_SIZE_EXTRA_LIMIT; ++i) {
+    gst_tensor_info_init (&new[i]);
   }
 
   info->extra = new;
@@ -351,6 +355,7 @@ gst_tensors_info_extra_free (GstTensorsInfo * info)
   }
 
   g_free (info->extra);
+  info->extra = NULL;
 }
 
 /**
