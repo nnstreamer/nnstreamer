@@ -517,8 +517,15 @@ gst_tensors_info_is_equal (const GstTensorsInfo * i1, const GstTensorsInfo * i2)
     return FALSE;
   }
 
-  for (i = 0; i < i1->num_tensors; i++) {
+  for (i = 0; i < i1->num_tensors && i < NNS_TENSOR_SIZE_LIMIT; i++) {
     if (!gst_tensor_info_is_equal (&i1->info[i], &i2->info[i])) {
+      return FALSE;
+    }
+  }
+
+  for (i = NNS_TENSOR_SIZE_LIMIT; i < i1->num_tensors; ++i) {
+    if (!gst_tensor_info_is_equal (&i1->extra[i - NNS_TENSOR_SIZE_LIMIT],
+            &i2->extra[i - NNS_TENSOR_SIZE_LIMIT])) {
       return FALSE;
     }
   }
@@ -543,8 +550,17 @@ gst_tensors_info_copy (GstTensorsInfo * dest, const GstTensorsInfo * src)
   num = dest->num_tensors = src->num_tensors;
   dest->format = src->format;
 
-  for (i = 0; i < num; i++) {
+  if (src->extra != NULL) {
+    gst_tensors_info_extra_create (dest);
+  }
+
+  for (i = 0; i < num && i < NNS_TENSOR_SIZE_LIMIT; i++) {
     gst_tensor_info_copy (&dest->info[i], &src->info[i]);
+  }
+
+  for (i = NNS_TENSOR_SIZE_LIMIT; i < num; ++i) {
+    gst_tensor_info_copy (&dest->extra[i - NNS_TENSOR_SIZE_LIMIT],
+        &src->extra[i - NNS_TENSOR_SIZE_LIMIT]);
   }
 }
 
@@ -880,12 +896,13 @@ gst_tensors_info_to_string (const GstTensorsInfo * info)
 
   g_string_append_printf (gstr, "Num_Tensors = %u, Tensors = [",
       info->num_tensors);
-  if (limit > NNS_TENSOR_SIZE_LIMIT) {
-    limit = NNS_TENSOR_SIZE_LIMIT;
+  if (limit > NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT) {
+    limit = NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT;
     g_string_append_printf (gstr,
         "(Num_Tensors out of bound. Showing %d only)", limit);
   }
-  for (i = 0; i < limit; i++) {
+
+  for (i = 0; i < limit && i < NNS_TENSOR_SIZE_LIMIT; i++) {
     const char *name = info->info[i].name;
     const gchar *type = gst_tensor_get_type_string (info->info[i].type);
     gchar *dim = gst_tensor_get_dimension_string (info->info[i].dimension);
@@ -895,6 +912,22 @@ gst_tensors_info_to_string (const GstTensorsInfo * info)
 
     g_free (dim);
   }
+
+  for (i = NNS_TENSOR_SIZE_LIMIT; i < limit; i++) {
+    const char *name = info->extra[i - NNS_TENSOR_SIZE_LIMIT].name;
+    const gchar *type =
+        gst_tensor_get_type_string (info->extra[i -
+            NNS_TENSOR_SIZE_LIMIT].type);
+    gchar *dim =
+        gst_tensor_get_dimension_string (info->extra[i -
+            NNS_TENSOR_SIZE_LIMIT].dimension);
+
+    g_string_append_printf (gstr, "{\"%s\", %s, %s}%s",
+        name, type, dim, (i == info->num_tensors - 1) ? "]" : ", ");
+
+    g_free (dim);
+  }
+
   return g_string_free (gstr, FALSE);
 }
 
