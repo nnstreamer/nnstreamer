@@ -996,6 +996,9 @@ _is_structure_dimensions_same (GstStructure * structure1,
   const char *dim_str2;
   guint num_dim1, num_dim2, i;
 
+  gst_tensors_info_init (&info1);
+  gst_tensors_info_init (&info2);
+
   g_return_val_if_fail (gst_structure_has_field (structure1, "dimensions"),
       FALSE);
   g_return_val_if_fail (gst_structure_has_field (structure2, "dimensions"),
@@ -1007,13 +1010,25 @@ _is_structure_dimensions_same (GstStructure * structure1,
   dim_str2 = gst_structure_get_string (structure2, "dimensions");
   num_dim2 = gst_tensors_info_parse_dimensions_string (&info2, dim_str2);
 
-  if (num_dim1 != num_dim2)
+  if (num_dim1 != num_dim2) {
+    gst_tensors_info_free (&info1);
+    gst_tensors_info_free (&info2);
     return FALSE;
+  }
 
   for (i = 0; i < num_dim1; i++) {
-    if (!_is_tensor_dim_same (info1.info[i].dimension, info2.info[i].dimension))
+    GstTensorInfo *info1i = gst_tensors_info_get_nth_info (&info1, i);
+    GstTensorInfo *info2i = gst_tensors_info_get_nth_info (&info2, i);
+
+    if (!_is_tensor_dim_same (info1i->dimension, info2i->dimension)) {
+      gst_tensors_info_free (&info1);
+      gst_tensors_info_free (&info2);
       return FALSE;
+    }
   }
+
+  gst_tensors_info_free (&info1);
+  gst_tensors_info_free (&info2);
   return TRUE;
 }
 
