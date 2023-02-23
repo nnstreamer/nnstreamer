@@ -37,8 +37,8 @@
     gchar *dim_str; \
     ml_logd (msg " total %d", (i)->num_tensors); \
     for (info_idx = 0; info_idx < (i)->num_tensors; info_idx++) { \
-      dim_str = gst_tensor_get_dimension_string ((i)->info[info_idx].dimension); \
-      ml_logd ("[%d] type=%d dim=%s", info_idx, (i)->info[info_idx].type, dim_str); \
+      dim_str = gst_tensor_get_dimension_string (gst_tensors_info_get_nth_info(i, info_idx)->dimension); \
+      ml_logd ("[%d] type=%d dim=%s", info_idx, gst_tensors_info_get_nth_info(i, info_idx)->type, dim_str); \
       g_free (dim_str); \
     } \
   } \

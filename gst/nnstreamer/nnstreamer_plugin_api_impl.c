@@ -1789,11 +1789,16 @@ gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
   }
 
   new_memory_extra_info = (GstTensorExtraInfo *) new_memory_map.data;
-  new_memory_extra_info->num_extra_tensors += 1;
 
-  for (i = 0; i < new_memory_extra_info->num_extra_tensors; ++i) {
-    gst_tensor_info_copy (&new_memory_extra_info->infos[i], info);
+  /* append tensor info (except the tensor name) */
+  new_memory_extra_info->infos[new_memory_extra_info->num_extra_tensors].type =
+      info->type;
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; ++i) {
+    guint _num = new_memory_extra_info->num_extra_tensors;
+    new_memory_extra_info->infos[_num].dimension[i] = info->dimension[i];
   }
+
+  new_memory_extra_info->num_extra_tensors += 1;
 
   memcpy (new_memory_map.data + offset + last_memory_map.size,
       incoming_memory_map.data, incoming_memory_map.size);
