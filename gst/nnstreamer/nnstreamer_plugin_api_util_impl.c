@@ -306,6 +306,18 @@ gst_tensor_info_get_rank (const GstTensorInfo * info)
   return idx + 1;
 }
 
+GstTensorInfo *
+gst_tensors_info_get_nth_info (GstTensorsInfo * info, guint nth)
+{
+  if (nth < NNS_TENSOR_SIZE_LIMIT)
+    return &info->info[nth];
+
+  if (nth < NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT)
+    return &info->extra[nth - NNS_TENSOR_SIZE_LIMIT];
+
+  return NULL;
+}
+
 /**
  * @brief Allocate and initialize the extra info in given tensors info.
  * @param[in,out] info tensors info to be updated.

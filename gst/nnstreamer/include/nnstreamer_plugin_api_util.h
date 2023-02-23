@@ -467,5 +467,8 @@ gst_tensors_info_extra_create (GstTensorsInfo * info);
 extern void
 gst_tensors_info_extra_free (GstTensorsInfo * info);
 
+extern GstTensorInfo *
+gst_tensors_info_get_nth_info (GstTensorsInfo * info, guint nth);
+
 G_END_DECLS
 #endif /* __NNS_PLUGIN_API_UTIL_H__ */
