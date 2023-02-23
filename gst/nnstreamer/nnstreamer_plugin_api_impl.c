@@ -1807,3 +1807,47 @@ gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
 
   return TRUE;
 }
+
+/**
+ * @brief Get the number of tensors in the buffer.
+ */
+guint
+gst_buffer_n_tensor (GstBuffer * buffer)
+{
+  guint num_mems, result = 0;
+  GstMemory *mem;
+  GstMapInfo map;
+  GstTensorExtraInfo *extra_info;
+
+  g_return_val_if_fail (buffer != NULL, 0);
+
+  num_mems = gst_buffer_n_memory (buffer);
+  if (num_mems < NNS_TENSOR_SIZE_LIMIT) {
+    return num_mems;
+  }
+
+  /* num_mems == NNS_TENSOR_SIZE_LIMIT */
+  mem = gst_buffer_peek_memory (buffer, num_mems - 1);
+  if (!mem) {
+    nns_loge ("Failed to get the last memory.");
+    return 0;
+  }
+
+  if (!gst_tensor_is_extra_memory (mem)) {
+    g_warning ("The last memory does not have extra tensors header. "
+        "Assuming the number of tensors is %d.", num_mems);
+    return num_mems;
+  }
+
+  if (!gst_memory_map (mem, &map, GST_MAP_READ)) {
+    nns_loge ("Failed to map the last memory.");
+    return 0;
+  }
+
+  extra_info = (GstTensorExtraInfo *) map.data;
+  result = extra_info->num_extra_tensors + NNS_TENSOR_SIZE_LIMIT;
+
+  gst_memory_unmap (mem, &map);
+
+  return result;
+}

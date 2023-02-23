@@ -137,5 +137,8 @@ gst_tensor_buffer_get_nth_memory (GstBuffer * buffer, const GstTensorsInfo * inf
 extern gboolean
 gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory, const GstTensorInfo * info);
 
+extern guint
+gst_buffer_n_tensor (GstBuffer * buffer);
+
 G_END_DECLS
 #endif /* __NNS_PLUGIN_API_H__ */
