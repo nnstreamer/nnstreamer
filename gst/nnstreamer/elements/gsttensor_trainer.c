@@ -265,9 +265,9 @@ gst_tensor_trainer_init (GstTensorTrainer * trainer)
   trainer->inputtype_configured = FALSE;
   trainer->total_invoke_num = 0;
 
-  g_cond_init (&trainer->train_complete_cond);
+  g_cond_init (&trainer->training_complete_cond);
   g_mutex_init (&trainer->trainer_lock);
-  trainer->prop.train_complete_cond = &trainer->train_complete_cond;
+  trainer->prop.training_complete_cond = &trainer->training_complete_cond;
 
   gst_tensor_trainer_output_dimension (trainer);
   gst_tensor_trainer_output_type (trainer);
@@ -291,7 +291,7 @@ gst_tensor_trainer_finalize (GObject * object)
   g_free (trainer->input_type);
   g_free (trainer->output_type);
 
-  g_cond_clear (&trainer->train_complete_cond);
+  g_cond_clear (&trainer->training_complete_cond);
   g_mutex_clear (&trainer->trainer_lock);
 
   if (trainer->fw_created && trainer->fw) {
@@ -335,10 +335,10 @@ gst_tensor_trainer_set_property (GObject * object, guint prop_id,
       trainer->prop.num_labels = g_value_get_uint (value);
       break;
     case PROP_NUM_TRAINING_SAMPLES:
-      trainer->prop.num_train_samples = g_value_get_uint (value);
+      trainer->prop.num_training_samples = g_value_get_uint (value);
       break;
     case PROP_NUM_VALIDATION_SAMPLES:
-      trainer->prop.num_valid_samples = g_value_get_uint (value);
+      trainer->prop.num_validation_samples = g_value_get_uint (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -380,10 +380,10 @@ gst_tensor_trainer_get_property (GObject * object, guint prop_id,
       g_value_set_uint (value, trainer->prop.num_labels);
       break;
     case PROP_NUM_TRAINING_SAMPLES:
-      g_value_set_uint (value, trainer->prop.num_train_samples);
+      g_value_set_uint (value, trainer->prop.num_training_samples);
       break;
     case PROP_NUM_VALIDATION_SAMPLES:
-      g_value_set_uint (value, trainer->prop.num_valid_samples);
+      g_value_set_uint (value, trainer->prop.num_validation_samples);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -540,7 +540,8 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
    */
   if (trainer->total_invoke_num == 1
       || trainer->total_invoke_num ==
-      trainer->prop.num_train_samples + trainer->prop.num_valid_samples) {
+      trainer->prop.num_training_samples +
+      trainer->prop.num_validation_samples) {
 
     /* Prepare output tensor */
     for (i = 0; i < trainer->output_meta.num_tensors; i++) {
@@ -712,8 +713,8 @@ gst_tensor_trainer_sink_event (GstPad * sinkpad, GstObject * parent,
       GST_INFO_OBJECT (trainer, "get GST_EVENT_EOS event..state is %d",
           GST_STATE (trainer));
       g_mutex_lock (&trainer->trainer_lock);
-      GST_INFO_OBJECT (trainer, "wait for train_complete_cond signal");
-      g_cond_wait (&trainer->train_complete_cond, &trainer->trainer_lock);
+      GST_INFO_OBJECT (trainer, "wait for training_complete_cond signal");
+      g_cond_wait (&trainer->training_complete_cond, &trainer->trainer_lock);
       g_mutex_unlock (&trainer->trainer_lock);
       break;
     case GST_EVENT_FLUSH_START:
