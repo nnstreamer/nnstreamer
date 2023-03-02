@@ -71,7 +71,7 @@ struct _GstTensorTrainer
   GstTensorTrainerProperties prop; /**< NNFW plugin's properties */
 
   GMutex trainer_lock;
-  GCond train_complete_cond;
+  GCond training_complete_cond;
 };
 
 /**
