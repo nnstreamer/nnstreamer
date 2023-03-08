@@ -1661,7 +1661,7 @@ gst_tensors_extra_append_memory_to_buffer (GstBuffer * buffer,
   /* copy last_memory into new_memory */
   if (!gst_memory_map (last_memory, &last_memory_map, GST_MAP_READ)) {
     nns_loge ("Failed to map last memory");
-    gst_memory_unref (new_memory);
+    gst_memory_unref (last_memory);
     return FALSE;
   }
 
