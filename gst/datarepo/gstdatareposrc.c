@@ -115,11 +115,13 @@ enum
   PROP_LOCATION,
   PROP_START_SAMPLE_INDEX,
   PROP_STOP_SAMPLE_INDEX,
-  PROP_EPOCHS
+  PROP_EPOCHS,
+  PROP_IS_SHUFFLE
 };
 
 #define DEFAULT_INDEX 0
 #define DEFAULT_EPOCHS 1
+#define DEFAULT_IS_SHUFFLE TRUE
 
 static void gst_data_repo_src_finalize (GObject * object);
 static void gst_data_repo_src_set_property (GObject * object, guint prop_id,
@@ -169,7 +171,7 @@ gst_data_repo_src_class_init (GstDataRepoSrcClass * klass)
   g_object_class_install_property (gobject_class, PROP_START_SAMPLE_INDEX,
       g_param_spec_int ("start-sample-index", "Start index of samples",
           "Start index of sample to read, in case of image, "
-          "the starting index of the numbered files. "
+          "the starting index of the numbered files. start at 0."
           "Set start index of range of samples or files to read",
           0, G_MAXINT, DEFAULT_INDEX,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
@@ -178,7 +180,7 @@ gst_data_repo_src_class_init (GstDataRepoSrcClass * klass)
   g_object_class_install_property (gobject_class, PROP_STOP_SAMPLE_INDEX,
       g_param_spec_int ("stop-sample-index", "Stop index of samples",
           "Stop index of sample to read, in case of image, "
-          "the stoppting index of the numbered files. "
+          "the stoppting index of the numbered files. start at 0."
           "Set stop index of range of samples or files to read",
           0, G_MAXINT, DEFAULT_INDEX,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
@@ -190,6 +192,11 @@ gst_data_repo_src_class_init (GstDataRepoSrcClass * klass)
           0, G_MAXINT, DEFAULT_EPOCHS,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
+
+  g_object_class_install_property (gobject_class, PROP_IS_SHUFFLE,
+      g_param_spec_boolean ("is-shuffle", "Is shuffle",
+          "If the value is true, samples index are shuffled",
+          DEFAULT_IS_SHUFFLE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gobject_class->finalize = gst_data_repo_src_finalize;
 
@@ -225,11 +232,14 @@ gst_data_repo_src_init (GstDataRepoSrc * src)
   src->last_offset = 0;
   src->successful_read = FALSE;
   src->is_start = FALSE;
-
   src->current_sample_index = 0;
   src->start_sample_index = 0;
   src->stop_sample_index = 0;
   src->epochs = DEFAULT_EPOCHS;
+  src->shuffled_index_array = g_array_new (FALSE, FALSE, sizeof (gint));
+  src->array_index = 0;
+  src->first_epoch_is_done = FALSE;
+  src->is_shuffle = DEFAULT_IS_SHUFFLE;
 
   /* Filling the buffer should be pending until set_caps() */
   gst_base_src_set_format (GST_BASE_SRC (src), GST_FORMAT_TIME);
@@ -245,6 +255,9 @@ gst_data_repo_src_finalize (GObject * object)
   GstDataRepoSrc *src = GST_DATA_REPO_SRC (object);
 
   g_free (src->filename);
+
+  if (src->shuffled_index_array)
+    g_array_free (src->shuffled_index_array, TRUE);
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -319,6 +332,9 @@ gst_data_repo_src_set_property (GObject * object, guint prop_id,
     case PROP_EPOCHS:
       src->epochs = g_value_get_int (value);
       break;
+    case PROP_IS_SHUFFLE:
+      src->is_shuffle = g_value_get_boolean (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -351,6 +367,9 @@ gst_data_repo_src_get_property (GObject * object, guint prop_id, GValue * value,
     case PROP_EPOCHS:
       g_value_set_int (value, src->epochs);
       break;
+    case PROP_IS_SHUFFLE:
+      g_value_set_boolean (value, src->is_shuffle);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -374,6 +393,54 @@ gst_data_repo_src_get_file_offset (GstDataRepoSrc * src, guint64 sample_index)
 }
 
 /**
+ * @brief Function to shuffle samples index
+ */
+static void
+gst_data_repo_src_shuffle_samples_index (GstDataRepoSrc * src)
+{
+  guint i, j;
+  gint value_i, value_j;
+  g_return_if_fail (src != NULL);
+  g_return_if_fail (src->shuffled_index_array != NULL);
+
+  GST_LOG_OBJECT (src, "samples index are shuffled");
+
+  /* Fisher-Yates algorithm */
+  /* The last index is the number of samples - 1. */
+  for (i = src->num_samples - 1; i > 0; i--) {
+    j = g_random_int_range (0, src->num_samples);
+    value_i = g_array_index (src->shuffled_index_array, gint, i);
+    value_j = g_array_index (src->shuffled_index_array, gint, j);
+
+    /* shuffled_index_array->data type is gchar * */
+    *(src->shuffled_index_array->data + (sizeof (gint) * i)) = value_j;
+    *(src->shuffled_index_array->data + (sizeof (gint) * j)) = value_i;
+  }
+
+  for (i = 0; i < src->shuffled_index_array->len; i++) {
+    GST_DEBUG_OBJECT (src, "%d -> %d", i,
+        g_array_index (src->shuffled_index_array, gint, i));
+  }
+}
+
+/**
+ * @brief Function to check epoch and EOS
+ */
+static gboolean
+gst_data_repo_src_epoch_is_done (GstDataRepoSrc * src)
+{
+  g_return_val_if_fail (src != NULL, FALSE);
+  if (src->num_samples != src->array_index)
+    return FALSE;
+
+  src->first_epoch_is_done = TRUE;
+  src->array_index = 0;
+  src->epochs--;
+
+  return TRUE;
+}
+
+/**
  * @brief Function to read tensors
  */
 static GstFlowReturn
@@ -386,15 +453,33 @@ gst_data_repo_src_read_tensors (GstDataRepoSrc * src, GstBuffer ** buffer)
   guint8 *data;
   GstMemory *mem[MAX_ITEM] = { 0, };
   GstMapInfo info[MAX_ITEM];
+  gint shuffled_index = 0;
+  guint64 offset = 0;
 
   g_return_val_if_fail (src->fd != 0, GST_FLOW_ERROR);
+  g_return_val_if_fail (src->shuffled_index_array != NULL, GST_FLOW_ERROR);
 
-  if (src->last_offset != 0 && src->offset > src->last_offset) {
-    if (src->epochs-- > DEFAULT_EPOCHS)
-      src->offset = lseek (src->fd, src->start_offset, SEEK_SET);
-    else
+  if (gst_data_repo_src_epoch_is_done (src)) {
+    if (src->epochs == 0) {
+      GST_LOG_OBJECT (src, "send EOS");
       return GST_FLOW_EOS;
+    }
+    if (src->is_shuffle)
+      gst_data_repo_src_shuffle_samples_index (src);
   }
+
+  /* only do for first epoch */
+  if (!src->first_epoch_is_done) {
+    /* append samples index to array */
+    g_array_append_val (src->shuffled_index_array, src->current_sample_index);
+    src->current_sample_index++;
+  }
+  shuffled_index =
+      g_array_index (src->shuffled_index_array, gint, src->array_index++);
+  GST_LOG_OBJECT (src, "shuffled_index [%d] -> %d", src->array_index - 1,
+      shuffled_index);
+  offset = gst_data_repo_src_get_file_offset (src, shuffled_index);
+  src->offset = lseek (src->fd, offset, SEEK_SET);
 
   buf = gst_buffer_new ();
 
@@ -473,19 +558,25 @@ static gchar *
 gst_data_repo_src_get_image_filename (GstDataRepoSrc * src)
 {
   gchar *filename = NULL;
+  gint shuffled_index = 0;
   g_return_val_if_fail (src != NULL, NULL);
   g_return_val_if_fail (src->media_type == _NNS_IMAGE, NULL);
   g_return_val_if_fail (src->filename != NULL, NULL);
+  g_return_val_if_fail (src->shuffled_index_array != NULL, NULL);
 
   /* _NNS_IMAGE must have %d in src->filename */
-  GST_DEBUG ("frame index: %d", src->current_sample_index);
+  if (src->shuffled_index_array->len > 0)
+    shuffled_index =
+        g_array_index (src->shuffled_index_array, gint, src->array_index);
+  else
+    shuffled_index = 0;         /* Used for initial file open verification */
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
 #endif
   /* let's set value by property */
-  filename = g_strdup_printf (src->filename, src->current_sample_index);
+  filename = g_strdup_printf (src->filename, shuffled_index);
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif
@@ -506,16 +597,27 @@ gst_data_repo_src_read_multi_images (GstDataRepoSrc * src, GstBuffer ** buffer)
   gboolean ret;
   GError *error = NULL;
 
-  if (src->stop_sample_index != 0
-      && src->current_sample_index > src->stop_sample_index) {
-    if (src->epochs-- > DEFAULT_EPOCHS)
-      src->current_sample_index = src->start_sample_index;
-    else
+  g_return_val_if_fail (src->shuffled_index_array != NULL, GST_FLOW_ERROR);
+
+  if (gst_data_repo_src_epoch_is_done (src)) {
+    if (src->epochs == 0) {
+      GST_LOG_OBJECT (src, "send EOS");
       return GST_FLOW_EOS;
+    }
+    if (src->is_shuffle)
+      gst_data_repo_src_shuffle_samples_index (src);
+  }
+
+  /* only do for first epoch */
+  if (!src->first_epoch_is_done) {
+    /* append samples index to array */
+    g_array_append_val (src->shuffled_index_array, src->current_sample_index);
+    src->current_sample_index++;
   }
 
   filename = gst_data_repo_src_get_image_filename (src);
   GST_DEBUG_OBJECT (src, "Reading from file \"%s\".", filename);
+  src->array_index++;
 
   /* Try to read one image */
   ret = g_file_get_contents (filename, &data, &size, &error);
@@ -533,8 +635,6 @@ gst_data_repo_src_read_multi_images (GstDataRepoSrc * src, GstBuffer ** buffer)
   /* Success reading on image */
   src->successful_read = TRUE;
   GST_DEBUG_OBJECT (src, "file size is %zd", size);
-  /* let's set value by property */
-  src->current_sample_index++;
 
   buf = gst_buffer_new ();
   gst_buffer_append_memory (buf,
@@ -575,15 +675,34 @@ gst_data_repo_src_read_others (GstDataRepoSrc * src, GstBuffer ** buffer)
   guint8 *data;
   GstMemory *mem;
   GstMapInfo info;
+  gint shuffled_index = 0;
+  guint64 offset = 0;
 
   g_return_val_if_fail (src->fd != 0, GST_FLOW_ERROR);
+  g_return_val_if_fail (src->shuffled_index_array != NULL, GST_FLOW_ERROR);
 
-  if (src->last_offset != 0 && src->offset > src->last_offset) {
-    if (src->epochs-- > DEFAULT_EPOCHS)
-      src->offset = lseek (src->fd, src->start_offset, SEEK_SET);
-    else
+  if (gst_data_repo_src_epoch_is_done (src)) {
+    if (src->epochs == 0) {
+      GST_LOG_OBJECT (src, "send EOS");
       return GST_FLOW_EOS;
+    }
+    if (src->is_shuffle)
+      gst_data_repo_src_shuffle_samples_index (src);
   }
+
+  /* only do for first epoch */
+  if (!src->first_epoch_is_done) {
+    /* append samples index to array */
+    g_array_append_val (src->shuffled_index_array, src->current_sample_index);
+    src->current_sample_index++;
+  }
+
+  shuffled_index =
+      g_array_index (src->shuffled_index_array, gint, src->array_index++);
+  GST_LOG_OBJECT (src, "shuffled_index [%d] -> %d", src->array_index - 1,
+      shuffled_index);
+  offset = gst_data_repo_src_get_file_offset (src, shuffled_index);
+  src->offset = lseek (src->fd, offset, SEEK_SET);
 
   mem = gst_allocator_alloc (NULL, src->media_size, NULL);
 
@@ -661,9 +780,12 @@ gst_data_repo_src_start (GstDataRepoSrc * src)
   if (src->filename == NULL || src->filename[0] == '\0')
     goto no_filename;
 
-  /* let's set value by property */
   src->current_sample_index = src->start_sample_index;
-
+  src->num_samples = src->stop_sample_index - src->start_sample_index + 1;
+  GST_INFO_OBJECT (src,
+      "The number of samples to be used out of the total samples in the file is %d, [%d] ~ [%d]",
+      src->num_samples, src->start_sample_index, src->stop_sample_index);
+  GST_INFO_OBJECT (src, "media_type:%d", src->media_type);
   if (src->media_type == _NNS_IMAGE) {
     filename = gst_data_repo_src_get_image_filename (src);
   } else {
