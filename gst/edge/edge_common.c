@@ -31,6 +31,8 @@ gst_edge_get_connect_type (void)
           "Connect with MQTT brokers and directly sending stream frames via TCP connections."},
       {NNS_EDGE_CONNECT_TYPE_AITT, "AITT",
           "Sending stream frames via AITT connections."},
+      {NNS_EDGE_CONNECT_TYPE_MQTT, "MQTT",
+          "Sending stream frames via MQTT connections."},
       {0, NULL, NULL},
     };
     protocol = g_enum_register_static ("edge_protocol", protocols);
