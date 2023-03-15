@@ -74,9 +74,9 @@ TEST (tensorQuery, serverProperties0)
   g_object_get (srv_handle, "dest-port", &uint_val, NULL);
   EXPECT_EQ (5001U, uint_val);
 
-  g_object_set (srv_handle, "connect-type", 1, NULL);
+  g_object_set (srv_handle, "connect-type", 0, NULL);
   g_object_get (srv_handle, "connect-type", &int_val, NULL);
-  EXPECT_EQ (1, int_val);
+  EXPECT_EQ (0, int_val);
 
 
   g_object_set (srv_handle, "timeout", 20U, NULL);
@@ -104,9 +104,9 @@ TEST (tensorQuery, serverProperties0)
   g_object_get (srv_handle, "timeout", &uint_val, NULL);
   EXPECT_EQ (10U, uint_val);
 
-  g_object_set (srv_handle, "connect-type", 1, NULL);
+  g_object_set (srv_handle, "connect-type", 0, NULL);
   g_object_get (srv_handle, "connect-type", &int_val, NULL);
-  EXPECT_EQ (1, int_val);
+  EXPECT_EQ (0, int_val);
 
   g_object_set (srv_handle, "timeout", 20U, NULL);
   g_object_get (srv_handle, "timeout", &uint_val, NULL);
