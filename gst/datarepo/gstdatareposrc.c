@@ -12,14 +12,14 @@
  *
  * ## Example launch line
  * |[
- * gst-launch-1.0 datareposrc location=mnist_trainingSet.dat start-sample-index=3 stop-sample-index=202 epochs=5 ! \
+ * gst-launch-1.0 datareposrc location=mnist_trainingSet.dat json=mnist.json start-sample-index=3 stop-sample-index=202 epochs=5 ! \
  * other/tensors, format=static, num_tensors=2, framerate=0/1, \
  * dimensions=1:1:784:1.1:1:10:1, types=float32.float32 ! tensor_sink
  * ]|
  * |[
- * gst-launch-1.0 datareposrc location=image_%02ld.png start-sample-index=3 stop-sample-index=9 epochs=2 ! pngdec ! fakesink
- * gst-launch-1.0 datareposrc location=audiofile ! audio/x-raw, format=S8, rate=48000, channels=2 ! fakesink
- * gst-launch-1.0 datareposrc location=videofile ! video/x-raw, format=RGB, width=320, height=240 ! fakesink
+ * gst-launch-1.0 datareposrc location=image_%02ld.png json=image.json start-sample-index=3 stop-sample-index=9 epochs=2 ! pngdec ! fakesink
+ * gst-launch-1.0 datareposrc location=audiofile json=audio.json ! audio/x-raw, format=S8, rate=48000, channels=2 ! fakesink
+ * gst-launch-1.0 datareposrc location=videofile json=video.json ! video/x-raw, format=RGB, width=320, height=240 ! fakesink
  * ]|
  */
 
@@ -40,6 +40,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <inttypes.h>
+#include <json-glib/json-glib.h>
 #include "gstdatareposrc.h"
 
 #define struct_stat struct stat
@@ -108,11 +109,12 @@ static GstStaticPadTemplate srctemplate =
 GST_DEBUG_CATEGORY_STATIC (gst_data_repo_src_debug);
 #define GST_CAT_DEFAULT gst_data_repo_src_debug
 
-/* RepoSrc signals and args */
+/* datareposrc signals and args */
 enum
 {
   PROP_0,
   PROP_LOCATION,
+  PROP_JSON,
   PROP_START_SAMPLE_INDEX,
   PROP_STOP_SAMPLE_INDEX,
   PROP_EPOCHS,
@@ -124,6 +126,8 @@ enum
 #define DEFAULT_IS_SHUFFLE TRUE
 
 static void gst_data_repo_src_finalize (GObject * object);
+static GstStateChangeReturn gst_data_repo_src_change_state (GstElement *
+    element, GstStateChange transition);
 static void gst_data_repo_src_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
 static void gst_data_repo_src_get_property (GObject * object, guint prop_id,
@@ -168,6 +172,13 @@ gst_data_repo_src_class_init (GstDataRepoSrcClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
 
+  g_object_class_install_property (gobject_class, PROP_JSON,
+      g_param_spec_string ("json", "Json file path",
+          "Json file path containing the meta information of the file "
+          "specified as location", NULL,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
+
   g_object_class_install_property (gobject_class, PROP_START_SAMPLE_INDEX,
       g_param_spec_int ("start-sample-index", "Start index of samples",
           "Start index of sample to read, in case of image, "
@@ -199,6 +210,7 @@ gst_data_repo_src_class_init (GstDataRepoSrcClass * klass)
           DEFAULT_IS_SHUFFLE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gobject_class->finalize = gst_data_repo_src_finalize;
+  gstelement_class->change_state = gst_data_repo_src_change_state;
 
   gst_element_class_set_static_metadata (gstelement_class,
       "NNStreamer MLOps Data Repository Source",
@@ -225,6 +237,7 @@ static void
 gst_data_repo_src_init (GstDataRepoSrc * src)
 {
   src->filename = NULL;
+  src->json_filename = NULL;
   src->fd = 0;
   src->media_type = _NNS_MEDIA_INVALID;
   src->offset = 0;
@@ -240,6 +253,8 @@ gst_data_repo_src_init (GstDataRepoSrc * src)
   src->array_index = 0;
   src->first_epoch_is_done = FALSE;
   src->is_shuffle = DEFAULT_IS_SHUFFLE;
+  src->num_samples = 0;
+  src->total_samples = 0;
 
   /* Filling the buffer should be pending until set_caps() */
   gst_base_src_set_format (GST_BASE_SRC (src), GST_FORMAT_TIME);
@@ -255,6 +270,7 @@ gst_data_repo_src_finalize (GObject * object)
   GstDataRepoSrc *src = GST_DATA_REPO_SRC (object);
 
   g_free (src->filename);
+  g_free (src->json_filename);
 
   if (src->shuffled_index_array)
     g_array_free (src->shuffled_index_array, TRUE);
@@ -266,10 +282,13 @@ gst_data_repo_src_finalize (GObject * object)
  * @brief Function to set file path.
  */
 static gboolean
-gst_data_repo_src_set_location (GstDataRepoSrc * src, const gchar * location,
-    GError ** err)
+gst_data_repo_src_set_file_path (GstDataRepoSrc * src, const int prop,
+    const gchar * file_path, GError ** err)
 {
   GstState state;
+  gchar *filename;
+
+  g_return_val_if_fail (prop != PROP_LOCATION || prop != PROP_JSON, FALSE);
 
   /* the element must be stopped in order to do this */
   GST_OBJECT_LOCK (src);
@@ -278,28 +297,35 @@ gst_data_repo_src_set_location (GstDataRepoSrc * src, const gchar * location,
     goto wrong_state;
   GST_OBJECT_UNLOCK (src);
 
-  g_free (src->filename);
-
   /* clear the filename if we get a NULL */
-  if (location == NULL) {
-    src->filename = NULL;
+  if (file_path == NULL) {
+    filename = NULL;
   } else {
     /* should be UTF8 */
-    src->filename = g_strdup (location);
-    GST_INFO ("filename : %s", src->filename);
+    filename = g_strdup (file_path);
+    GST_INFO_OBJECT (src, "%sname : %s",
+        (prop == PROP_LOCATION) ? "file" : "json_file", filename);
   }
-  g_object_notify (G_OBJECT (src), "location");
+
+  if (prop == PROP_LOCATION) {
+    g_free (src->filename);
+    src->filename = filename;
+  } else {                      /* PROP_JSON */
+    g_free (src->json_filename);
+    src->json_filename = filename;
+  }
 
   return TRUE;
 
   /* ERROR */
 wrong_state:
   {
-    g_warning ("Changing the `location' property on repo_src when a file is "
+    g_warning
+        ("Changing the `location or json' property on datareposrc when a file is "
         "open is not supported.");
     if (err)
       g_set_error (err, GST_URI_ERROR, GST_URI_ERROR_BAD_STATE,
-          "Changing the `location' property on repo_src when a file is "
+          "Changing the `location or json' property on datareposrc when a file is "
           "open is not supported.");
     GST_OBJECT_UNLOCK (src);
     return FALSE;
@@ -321,7 +347,12 @@ gst_data_repo_src_set_property (GObject * object, guint prop_id,
 
   switch (prop_id) {
     case PROP_LOCATION:
-      gst_data_repo_src_set_location (src, g_value_get_string (value), NULL);
+      gst_data_repo_src_set_file_path (src, PROP_LOCATION,
+          g_value_get_string (value), NULL);
+      break;
+    case PROP_JSON:
+      gst_data_repo_src_set_file_path (src, PROP_JSON,
+          g_value_get_string (value), NULL);
       break;
     case PROP_START_SAMPLE_INDEX:
       src->start_sample_index = g_value_get_int (value);
@@ -358,6 +389,9 @@ gst_data_repo_src_get_property (GObject * object, guint prop_id, GValue * value,
     case PROP_LOCATION:
       g_value_set_string (value, src->filename);
       break;
+    case PROP_JSON:
+      g_value_set_string (value, src->json_filename);
+      break;
     case PROP_START_SAMPLE_INDEX:
       g_value_set_int (value, src->start_sample_index);
       break;
@@ -380,7 +414,7 @@ gst_data_repo_src_get_property (GObject * object, guint prop_id, GValue * value,
  * @brief Function to get file offset with sample index
  */
 static guint64
-gst_data_repo_src_get_file_offset (GstDataRepoSrc * src, guint64 sample_index)
+gst_data_repo_src_get_file_offset (GstDataRepoSrc * src, gint sample_index)
 {
   guint64 offset;
   g_return_val_if_fail (src != NULL, 0);
@@ -965,7 +999,7 @@ gst_data_repo_src_get_caps (GstBaseSrc * basesrc, GstCaps * filter)
  * @brief Get tensors size
  */
 static guint
-gst_data_repo_src_get_tensors_size (GstDataRepoSrc * src, const GstCaps * caps)
+gst_data_repo_src_get_tensors_size (GstDataRepoSrc * src, GstCaps * caps)
 {
   GstStructure *s;
   GstTensorsConfig config;
@@ -1053,13 +1087,25 @@ gst_data_repo_src_get_audio_size (const GstCaps * caps)
 }
 
 /**
- * @brief Get media info from caps
+ * @brief caps after caps negotiation
  */
 static gboolean
-gst_data_repo_src_get_media_info (GstDataRepoSrc * src, const GstCaps * caps)
+gst_data_repo_src_set_caps (GstBaseSrc * basesrc, GstCaps * caps)
+{
+  GstDataRepoSrc *src = GST_DATA_REPO_SRC (basesrc);
+
+  GST_INFO_OBJECT (src, "set caps: %" GST_PTR_FORMAT, caps);
+
+  return TRUE;
+}
+
+/**
+ * @brief Get media type and media size from caps
+ */
+static gboolean
+gst_data_repo_src_get_media_type_and_size (GstDataRepoSrc * src, GstCaps * caps)
 {
   GstStructure *s;
-  guint size = 0;
 
   g_return_val_if_fail (src != NULL, FALSE);
   g_return_val_if_fail (caps != NULL, FALSE);
@@ -1067,55 +1113,185 @@ gst_data_repo_src_get_media_info (GstDataRepoSrc * src, const GstCaps * caps)
   s = gst_caps_get_structure (caps, 0);
 
   if (gst_structure_has_name (s, "other/tensors")) {
-    size = gst_data_repo_src_get_tensors_size (src, caps);
+    src->media_size = gst_data_repo_src_get_tensors_size (src, caps);
     src->media_type = _NNS_TENSOR;
   } else if (gst_structure_has_name (s, "video/x-raw")) {
-    size = gst_data_repo_src_get_video_size (caps);
+    src->media_size = gst_data_repo_src_get_video_size (caps);
     src->media_type = _NNS_VIDEO;
   } else if (gst_structure_has_name (s, "audio/x-raw")) {
-    size = gst_data_repo_src_get_audio_size (caps);
+    src->media_size = gst_data_repo_src_get_audio_size (caps);
     src->media_type = _NNS_AUDIO;
   } else if (gst_structure_has_name (s, "text/x-raw")) {
     src->media_type = _NNS_TEXT;
   } else if (gst_structure_has_name (s, "application/octet-stream")) {
     src->media_type = _NNS_OCTET;
-    size = 3176;                /* for test, let's get size from file */
   } else if (gst_structure_has_name (s, "image/png")
       || gst_structure_has_name (s, "image/jpeg")
       || gst_structure_has_name (s, "image/tiff")
       || gst_structure_has_name (s, "image/gif")) {
     src->media_type = _NNS_IMAGE;
-    size = DEFAULT_BLOCKSIZE;
   } else {
-    GST_ERROR_OBJECT (src, "Could not get a media type");
+    GST_ERROR_OBJECT (src, "Could not get a media type from caps");
     return FALSE;
   }
 
-  /** After caps negotiation, text, and octet only know the mimetype.
-   *  need to get size from file. */
-  if (!size) {
-    GST_ERROR_OBJECT (src, "Could not get size");
-    return FALSE;
-  }
-  src->media_size = size;
-
-  GST_DEBUG_OBJECT (src, "Get media type is %d", src->media_type);
+  GST_DEBUG_OBJECT (src, "media type: %d", src->media_type);
 
   return TRUE;
 }
 
 /**
- * @brief caps after caps negotiation
+ * @brief Read JSON file
  */
 static gboolean
-gst_data_repo_src_set_caps (GstBaseSrc * basesrc, GstCaps * caps)
+gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
 {
-  int ret = FALSE;
-  GstDataRepoSrc *src = GST_DATA_REPO_SRC (basesrc);
+  GError *error = NULL;
+  GFile *file;
+  gchar *contents;
+  JsonParser *parser;
+  JsonNode *root;
+  JsonObject *object;
+  GstCaps *get_caps = NULL;
+  const gchar *caps_str = NULL;
 
-  GST_INFO_OBJECT (src, "set caps: %" GST_PTR_FORMAT, caps);
+  g_return_val_if_fail (src != NULL, FALSE);
+  g_return_val_if_fail (src->json_filename != NULL, FALSE);
 
-  ret = gst_data_repo_src_get_media_info (src, caps);
+  file = g_file_new_for_path (src->json_filename);
+
+  g_file_load_contents (file, NULL, &contents, NULL, NULL, &error);
+  if (error != NULL) {
+    GST_ERROR_OBJECT (src, "Failed to open %s", src->json_filename);
+    g_clear_error (&error);
+    return FALSE;
+  }
+
+  parser = json_parser_new ();
+  if (!json_parser_load_from_data (parser, contents, -1, &error)) {
+    GST_ERROR_OBJECT (src, "Failed to load data from %s", src->json_filename);
+    goto error;
+  }
+
+  root = json_parser_get_root (parser);
+  if (!JSON_NODE_HOLDS_OBJECT (root)) {
+    GST_ERROR_OBJECT (src, "it does not contain a JsonObject: %s", contents);
+    goto error;
+  }
+
+  object = json_node_get_object (root);
+
+  GST_INFO_OBJECT (src, ">>>>>>> Start parsing JSON file(%s)",
+      src->json_filename);
+
+  if (!json_object_has_member (object, "gst_caps")) {
+    GST_ERROR_OBJECT (src, "There is not gst_caps field: %s", contents);
+    goto error;
+  }
+
+  caps_str = json_object_get_string_member (object, "gst_caps");
+  GST_INFO_OBJECT (src, "caps_str : %s", caps_str);
+
+  get_caps = gst_caps_from_string (caps_str);
+  GST_INFO_OBJECT (src, "gst_caps : %" GST_PTR_FORMAT, get_caps);
+
+  /* calculate media size from gst caps */
+  if (!gst_data_repo_src_get_media_type_and_size (src, get_caps))
+    goto error;
+
+  /* In the case of below media type, get media size from JSON */
+  if (src->media_type == _NNS_TEXT || src->media_type == _NNS_OCTET
+      || src->media_type == _NNS_IMAGE) {
+    if (!json_object_has_member (object, "sample_size")) {
+      GST_ERROR_OBJECT (src, "There is not sample_size field: %s", contents);
+      goto error;
+    }
+    src->media_size = json_object_get_int_member (object, "sample_size");
+    GST_INFO_OBJECT (src, "sample_size: %d", src->media_size);
+  }
+
+  if (src->media_size == 0)
+    goto error;
+
+  if (!json_object_has_member (object, "total_samples")) {
+    GST_ERROR_OBJECT (src, "There is not total_samples field: %s", contents);
+    goto error;
+  }
+
+  src->total_samples = json_object_get_int_member (object, "total_samples");
+  GST_INFO_OBJECT (src, "total_samples: %d", src->total_samples);
+
+  g_free (contents);
+  g_object_unref (parser);
+  gst_caps_unref (get_caps);
+  g_object_unref (file);
+
+  return TRUE;
+
+error:
+  GST_ERROR_OBJECT (src, "Failed to parse %s", src->json_filename);
+  g_free (contents);
+  g_object_unref (parser);
+  gst_caps_unref (get_caps);
+  g_object_unref (file);
+
+  return FALSE;
+}
+
+/**
+ * @brief Change state of datareposrc.
+ */
+static GstStateChangeReturn
+gst_data_repo_src_change_state (GstElement * element, GstStateChange transition)
+{
+  GstDataRepoSrc *src = GST_DATA_REPO_SRC (element);
+  GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
+
+  switch (transition) {
+    case GST_STATE_CHANGE_NULL_TO_READY:
+      GST_INFO_OBJECT (src, "NULL_TO_READY");
+      if (!gst_data_repo_src_read_json_file (src))
+        goto state_change_failed;
+
+      if (src->stop_sample_index == 0)
+        src->stop_sample_index = src->total_samples - 1;
+      break;
+
+    case GST_STATE_CHANGE_READY_TO_PAUSED:
+      GST_INFO_OBJECT (src, "READY_TO_PAUSED");
+      break;
+
+    case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+      GST_INFO_OBJECT (src, "PAUSED_TO_PLAYING");
+      break;
+
+    default:
+      break;
+  }
+
+  ret = GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
+
+  switch (transition) {
+    case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
+      GST_INFO_OBJECT (src, "PLAYING_TO_PAUSED");
+      break;
+
+    case GST_STATE_CHANGE_PAUSED_TO_READY:
+      GST_INFO_OBJECT (src, "PAUSED_TO_READY");
+      break;
+
+    case GST_STATE_CHANGE_READY_TO_NULL:
+      GST_INFO_OBJECT (src, "READY_TO_NULL");
+      break;
+
+    default:
+      break;
+  }
 
   return ret;
+
+state_change_failed:
+  GST_ERROR_OBJECT (src, "state change failed");
+
+  return GST_STATE_CHANGE_FAILURE;
 }
