@@ -56,12 +56,14 @@ struct _GstDataRepoSrc {
   guint num_tensors;
   gint current_sample_index;    /**< current index of sample or file to read */
   gboolean first_epoch_is_done;
+  gint total_samples;           /**< The number of total samples */
   gint num_samples;             /**< The number of samples to be used out of the total samples in the file */
   guint media_size;             /**< media size */
   guint media_type;             /**< media type */
 
   /* property */
   gchar *filename;              /**< filename */
+  gchar *json_filename;         /**< json filename containing meta information of the filename */
   gint start_sample_index;      /**< start index of sample to read, in case of image, the starting index of the numbered files */
   gint stop_sample_index;       /**< stop index of sample to read, in case of image, the stoppting index of the numbered files */
   gint epochs;                  /**< repetition of range of files or samples to read */

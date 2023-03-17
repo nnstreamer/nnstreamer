@@ -314,6 +314,9 @@ BuildRequires:	pkgconfig(orc-0.4)
 BuildRequires:	flex
 BuildRequires:	bison
 
+# For datarepo
+BuildRequires: pkgconfig(json-glib-1.0)
+
 # Note that debug packages generate an additional build and storage cost.
 # If you do not need debug packages, run '$ gbs -c .TAOS-CI/.gbs.conf build ... --define "_skip_debug_rpm 1"'.
 
