@@ -6421,7 +6421,7 @@ static int data_received = 0;
 const gint test_frames[20] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19};
 
 /**
- * @brief Callback for tensor sink signal using gst_tensors_get_nth_memory API.
+ * @brief Callback for tensor sink signal using gst_tensor_buffer_get_nth_memory API.
  */
 static void
 _manual_extra_tensors_new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
@@ -6435,7 +6435,7 @@ _manual_extra_tensors_new_data_cb (GstElement *element, GstBuffer *buffer, gpoin
 
   data_received++;
   for (i = 0; i < 20; ++i) {
-    mem_res = gst_tensors_get_nth_memory (buffer, &ts_info, i);
+    mem_res = gst_tensor_buffer_get_nth_memory (buffer, &ts_info, i);
     ret = gst_memory_map (mem_res, &info_res, GST_MAP_READ);
     ASSERT_TRUE (ret);
     output = (gint *) info_res.data;
@@ -6494,7 +6494,7 @@ TEST (extraTensors, manualextratensors)
     for (int j = 0; j < NNS_TENSOR_RANK_LIMIT; ++j)
       tinfo.dimension[j] = 1;
 
-    gst_tensors_extra_append_memory_to_buffer (buf_0, mem, &tinfo);
+    gst_tensor_buffer_append_memory (buf_0, mem, &tinfo);
     gst_tensor_info_free (&tinfo);
   }
 
