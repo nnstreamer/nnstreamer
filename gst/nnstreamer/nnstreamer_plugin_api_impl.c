@@ -1432,6 +1432,19 @@ gst_tensor_meta_info_append_header (GstTensorMetaInfo * meta, GstMemory * mem)
 #define NNS_TENSOR_EXTRA_MAGIC 0xf00dc0de
 
 /**
+ * @brief Data structure to describe a "extra" tensor data.
+ * This represents the information of the NNS_TENSOR_SIZE_LIMIT-th memory block for tensor stream.
+*/
+typedef struct
+{
+  uint32_t magic;
+  uint32_t version;
+  uint32_t num_extra_tensors;
+  uint64_t reserved;
+  GstTensorInfo infos[NNS_TENSOR_SIZE_EXTRA_LIMIT];
+} GstTensorExtraInfo;
+
+/**
  * @brief Check if given @a mem has extra tensors.
  * @param[in] mem GstMemory to be checked.
  * @return TRUE if @mem has extra tensors, otherwise FALSE.
