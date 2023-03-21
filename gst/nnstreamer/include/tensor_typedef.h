@@ -294,18 +294,4 @@ typedef struct
 
 } GstTensorMetaInfo;
 
-/**
- * @brief Data structure to describe a "extra" tensor data.
- * This represents the information of the NNS_TENSOR_SIZE_LIMIT-th memory block for tensor stream.
-*/
-typedef struct
-{
-  uint32_t magic;
-  uint32_t version;
-  uint32_t num_extra_tensors;
-  uint64_t reserved;
-  GstTensorInfo infos[NNS_TENSOR_SIZE_EXTRA_LIMIT];
-} GstTensorExtraInfo;
-
-
 #endif /*__GST_TENSOR_TYPEDEF_H__*/
