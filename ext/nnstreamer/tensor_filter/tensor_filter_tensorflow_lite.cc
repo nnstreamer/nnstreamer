@@ -708,6 +708,7 @@ TFLiteInterpreter::setInputTensorsInfo (const GstTensorsInfo *info)
 {
   TfLiteStatus status = kTfLiteOk;
   const std::vector<int> &input_idx_list = interpreter->inputs ();
+  int input_rank;
 
   /** Cannot change the number of inputs */
   if (info->num_tensors != input_idx_list.size ())
@@ -729,14 +730,15 @@ TFLiteInterpreter::setInputTensorsInfo (const GstTensorsInfo *info)
      * iterate over all possible ranks starting from MIN rank to the actual rank
      * of the dimension array. In case of none of these ranks work, return error
      */
-    for (int rank = 0 ; rank < NNS_TENSOR_RANK_LIMIT ; rank++) {
-      std::vector<int> dims (rank+1);
+    input_rank = gst_tensor_info_get_rank (tensor_info);
+    for (int rank = input_rank; rank <= NNS_TENSOR_RANK_LIMIT; rank++) {
+      std::vector<int> dims (rank);
       /* the order of dimension is reversed at CAPS negotiation */
-      for (int idx = rank ; idx >= 0; idx--) {
+      for (int idx = 0; idx < rank; idx++) {
         /** check overflow when storing uint32_t in int container */
-        if (tensor_info->dimension[idx] > INT_MAX)
+        if (tensor_info->dimension[rank - idx - 1] > INT_MAX)
           return -ERANGE;
-        dims[rank-idx] = tensor_info->dimension[idx];
+        dims[idx] = tensor_info->dimension[rank - idx - 1];
       }
       status = interpreter->ResizeInputTensor (input_idx_list[tensor_idx], dims);
       if (status == kTfLiteOk){
