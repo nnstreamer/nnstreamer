@@ -118,7 +118,8 @@ enum
   PROP_START_SAMPLE_INDEX,
   PROP_STOP_SAMPLE_INDEX,
   PROP_EPOCHS,
-  PROP_IS_SHUFFLE
+  PROP_IS_SHUFFLE,
+  PROP_TENSORS_SEQUENCE,
 };
 
 #define DEFAULT_INDEX 0
@@ -180,7 +181,7 @@ gst_data_repo_src_class_init (GstDataRepoSrcClass * klass)
           GST_PARAM_MUTABLE_READY));
 
   g_object_class_install_property (gobject_class, PROP_START_SAMPLE_INDEX,
-      g_param_spec_int ("start-sample-index", "Start index of samples",
+      g_param_spec_uint ("start-sample-index", "Start index of samples",
           "Start index of sample to read, in case of image, "
           "the starting index of the numbered files. start at 0."
           "Set start index of range of samples or files to read",
@@ -189,7 +190,7 @@ gst_data_repo_src_class_init (GstDataRepoSrcClass * klass)
           GST_PARAM_MUTABLE_READY));
 
   g_object_class_install_property (gobject_class, PROP_STOP_SAMPLE_INDEX,
-      g_param_spec_int ("stop-sample-index", "Stop index of samples",
+      g_param_spec_uint ("stop-sample-index", "Stop index of samples",
           "Stop index of sample to read, in case of image, "
           "the stoppting index of the numbered files. start at 0."
           "Set stop index of range of samples or files to read",
@@ -198,9 +199,21 @@ gst_data_repo_src_class_init (GstDataRepoSrcClass * klass)
           GST_PARAM_MUTABLE_READY));
 
   g_object_class_install_property (gobject_class, PROP_EPOCHS,
-      g_param_spec_int ("epochs", "Epochs",
+      g_param_spec_uint ("epochs", "Epochs",
           "Repetition of range of files or samples to read, set number of repetitions",
           0, G_MAXINT, DEFAULT_EPOCHS,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
+
+  g_object_class_install_property (gobject_class, PROP_TENSORS_SEQUENCE,
+      g_param_spec_string ("tensors-sequence", "Tensors sequence",
+          "Tensors in a sample are read into gstBuffer according to tensors-sequence."
+          "Only read the set tensors among all tensors in a sample"
+          "e.g, if a sample has '1:1:1:1','1:1:10:1','1:1:784:1' and each index is '0,1,2', "
+          "'tensors-sequence=2,1' means that only '1:1:784:1' then '1:1:10:1' are read. "
+          "Use for other/tensors and defalut value is NULL"
+          "(all tensors are read in the order stored in a sample).",
+          NULL,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
 
@@ -238,6 +251,7 @@ gst_data_repo_src_init (GstDataRepoSrc * src)
 {
   src->filename = NULL;
   src->json_filename = NULL;
+  src->tensors_seq_str = NULL;
   src->fd = 0;
   src->media_type = _NNS_MEDIA_INVALID;
   src->offset = 0;
@@ -255,6 +269,7 @@ gst_data_repo_src_init (GstDataRepoSrc * src)
   src->is_shuffle = DEFAULT_IS_SHUFFLE;
   src->num_samples = 0;
   src->total_samples = 0;
+  src->tensors_seq_cnt = 0;
 
   /* Filling the buffer should be pending until set_caps() */
   gst_base_src_set_format (GST_BASE_SRC (src), GST_FORMAT_TIME);
@@ -271,6 +286,7 @@ gst_data_repo_src_finalize (GObject * object)
 
   g_free (src->filename);
   g_free (src->json_filename);
+  g_free (src->tensors_seq_str);
 
   if (src->shuffled_index_array)
     g_array_free (src->shuffled_index_array, TRUE);
@@ -333,6 +349,60 @@ wrong_state:
 }
 
 /**
+ * @brief Function to set tensors sequence
+ */
+static gboolean
+gst_data_repo_src_set_tensors_sequence (GstDataRepoSrc * src)
+{
+  gchar **strv = NULL;
+  guint length;
+  guint i = 0;
+
+  g_return_val_if_fail (src != NULL, FALSE);
+  g_return_val_if_fail (src->tensors_seq_str != NULL, FALSE);
+
+  /* not use NNS_TENSOR_SIZE_LIMIT */
+  strv = g_strsplit (src->tensors_seq_str, ",", -1);
+
+  length = g_strv_length (strv);
+  if (length > NNS_TENSOR_SIZE_LIMIT) {
+    GST_ERROR_OBJECT (src, "The total number of indices exceeded %d.",
+        NNS_TENSOR_SIZE_LIMIT);
+    goto error;
+  }
+
+  while (strv[i] != NULL && strlen (strv[i]) > 0) {
+    src->tensors_seq[i] = (guint) g_ascii_strtoull (strv[i], NULL, 10);
+    if (src->tensors_seq[i] > src->num_tensors - 1) {
+      GST_ERROR_OBJECT (src, "Invalid index %d, max is %d", src->tensors_seq[i],
+          src->num_tensors - 1);
+      goto error;
+    }
+    GST_ERROR ("%d", src->tensors_seq[i]);
+    i++;
+  }
+  src->tensors_seq_cnt = i;
+  GST_INFO_OBJECT (src, "The number of selected tensors is %d",
+      src->tensors_seq_cnt);
+
+  /* num_tensors was calculated from JSON file */
+  if (src->num_tensors < src->tensors_seq_cnt) {
+    GST_ERROR_OBJECT (src,
+        "The number of tensors selected(%d) "
+        "is greater than the total number of tensors(%d) in a sample.",
+        src->tensors_seq_cnt, src->num_tensors);
+    goto error;
+  }
+
+  g_strfreev (strv);
+  return TRUE;
+
+error:
+  g_strfreev (strv);
+  return FALSE;
+}
+
+/**
  * @brief Setter for datareposrc properties.
  */
 static void
@@ -355,16 +425,21 @@ gst_data_repo_src_set_property (GObject * object, guint prop_id,
           g_value_get_string (value), NULL);
       break;
     case PROP_START_SAMPLE_INDEX:
-      src->start_sample_index = g_value_get_int (value);
+      src->start_sample_index = g_value_get_uint (value);
       break;
     case PROP_STOP_SAMPLE_INDEX:
-      src->stop_sample_index = g_value_get_int (value);
+      src->stop_sample_index = g_value_get_uint (value);
       break;
     case PROP_EPOCHS:
-      src->epochs = g_value_get_int (value);
+      src->epochs = g_value_get_uint (value);
       break;
     case PROP_IS_SHUFFLE:
       src->is_shuffle = g_value_get_boolean (value);
+      break;
+    case PROP_TENSORS_SEQUENCE:
+      g_free (src->tensors_seq_str);
+      src->tensors_seq_str = g_value_dup_string (value);
+      GST_INFO_OBJECT (src, "tensors sequence = %s", src->tensors_seq_str);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -393,16 +468,19 @@ gst_data_repo_src_get_property (GObject * object, guint prop_id, GValue * value,
       g_value_set_string (value, src->json_filename);
       break;
     case PROP_START_SAMPLE_INDEX:
-      g_value_set_int (value, src->start_sample_index);
+      g_value_set_uint (value, src->start_sample_index);
       break;
     case PROP_STOP_SAMPLE_INDEX:
-      g_value_set_int (value, src->stop_sample_index);
+      g_value_set_uint (value, src->stop_sample_index);
       break;
     case PROP_EPOCHS:
-      g_value_set_int (value, src->epochs);
+      g_value_set_uint (value, src->epochs);
       break;
     case PROP_IS_SHUFFLE:
       g_value_set_boolean (value, src->is_shuffle);
+      break;
+    case PROP_TENSORS_SEQUENCE:
+      g_value_set_string (value, src->tensors_seq_str);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -421,7 +499,7 @@ gst_data_repo_src_get_file_offset (GstDataRepoSrc * src, gint sample_index)
   g_return_val_if_fail (src->media_type != _NNS_IMAGE, 0);
   g_return_val_if_fail (src->fd != 0, 0);
 
-  offset = src->media_size * sample_index;
+  offset = src->sample_size * sample_index;
 
   return offset;
 }
@@ -480,7 +558,7 @@ gst_data_repo_src_epoch_is_done (GstDataRepoSrc * src)
 static GstFlowReturn
 gst_data_repo_src_read_tensors (GstDataRepoSrc * src, GstBuffer ** buffer)
 {
-  guint i = 0;
+  guint i = 0, seq_idx = 0;
   GstBuffer *buf;
   guint to_read, byte_read;
   int ret;
@@ -488,7 +566,8 @@ gst_data_repo_src_read_tensors (GstDataRepoSrc * src, GstBuffer ** buffer)
   GstMemory *mem[MAX_ITEM] = { 0, };
   GstMapInfo info[MAX_ITEM];
   gint shuffled_index = 0;
-  guint64 offset = 0;
+  guint64 sample_offset = 0;
+  guint64 offset = 0;           /* offset from 0 */
 
   g_return_val_if_fail (src->fd != 0, GST_FLOW_ERROR);
   g_return_val_if_fail (src->shuffled_index_array != NULL, GST_FLOW_ERROR);
@@ -512,28 +591,54 @@ gst_data_repo_src_read_tensors (GstDataRepoSrc * src, GstBuffer ** buffer)
       g_array_index (src->shuffled_index_array, gint, src->array_index++);
   GST_LOG_OBJECT (src, "shuffled_index [%d] -> %d", src->array_index - 1,
       shuffled_index);
-  offset = gst_data_repo_src_get_file_offset (src, shuffled_index);
-  src->offset = lseek (src->fd, offset, SEEK_SET);
+
+  /* sample offset from 0 */
+  sample_offset = gst_data_repo_src_get_file_offset (src, shuffled_index);
+  GST_LOG_OBJECT (src, "sample offset 0x%" G_GINT64_MODIFIER "x (%d size)",
+      sample_offset, (guint) sample_offset);
 
   buf = gst_buffer_new ();
 
-  /** @todo : features and labels indexing with feature and label index property */
-  for (i = 0; i < src->num_tensors; i++) {
-    mem[i] = gst_allocator_alloc (NULL, src->tensors_size[i], NULL);
+  for (i = 0; i < src->tensors_seq_cnt; i++) {
+    seq_idx = src->tensors_seq[i];
+    mem[i] = gst_allocator_alloc (NULL, src->tensors_size[seq_idx], NULL);
 
     if (!gst_memory_map (mem[i], &info[i], GST_MAP_WRITE)) {
       GST_ERROR_OBJECT (src, "Could not map GstMemory[%d]", i);
       goto error;
     }
 
+    GST_INFO_OBJECT (src, "sequence index: %d", seq_idx);
+    GST_INFO_OBJECT (src, "tensor_size[%d]: %d", seq_idx,
+        src->tensors_size[seq_idx]);
+    GST_INFO_OBJECT (src, "tensors_offset[%d]: %d", seq_idx,
+        src->tensors_offset[seq_idx]);
+
+    /** offset and sample_offset(byte size) are from 0.
+      if the size of one sample is 6352 and num_tensors is 4,
+      dimensions are  '1:1:784:1' , '1:1:10:1',  '1:1:784:1' and '1:1:10:1' with float32.
+      the offset of the second sample is as follows.
+        -------------------------------------------------
+          sample_offset: 6352
+          tensors index: [ 0    | 1    | 2    | 3     ]
+           tensors_size: [ 3136 | 40   | 3136 | 40    ]
+         tensors_offset: [ 0    | 3136 | 3176 | 6312  ]
+              fd offset: [ 6352 | 9488 | 9528 | 12664 ]
+        -------------------------------------------------
+      if user sets "tensor-sequence=2,1", datareposrc read offset 9528 then 9488.
+    */
+
     data = info[i].data;
 
     byte_read = 0;
-    to_read = src->tensors_size[i];
+    to_read = src->tensors_size[seq_idx];
+    offset = sample_offset + src->tensors_offset[seq_idx];
+    src->offset = lseek (src->fd, offset, SEEK_SET);
+
     while (to_read > 0) {
       GST_LOG_OBJECT (src,
-          "Reading %d bytes at offset 0x%" G_GINT64_MODIFIER "x", to_read,
-          src->offset + byte_read);
+          "Reading %d bytes at offset 0x%" G_GINT64_MODIFIER "x (%d size)",
+          to_read, src->offset + byte_read, (guint) src->offset + byte_read);
       errno = 0;
       ret = read (src->fd, data + byte_read, to_read);
       GST_LOG_OBJECT (src, "Read: %d", ret);
@@ -738,7 +843,7 @@ gst_data_repo_src_read_others (GstDataRepoSrc * src, GstBuffer ** buffer)
   offset = gst_data_repo_src_get_file_offset (src, shuffled_index);
   src->offset = lseek (src->fd, offset, SEEK_SET);
 
-  mem = gst_allocator_alloc (NULL, src->media_size, NULL);
+  mem = gst_allocator_alloc (NULL, src->sample_size, NULL);
 
   if (!gst_memory_map (mem, &info, GST_MAP_WRITE)) {
     GST_ERROR_OBJECT (src, "Could not map GstMemory");
@@ -748,7 +853,7 @@ gst_data_repo_src_read_others (GstDataRepoSrc * src, GstBuffer ** buffer)
   data = info.data;
 
   byte_read = 0;
-  to_read = src->media_size;
+  to_read = src->sample_size;
   while (to_read > 0) {
     GST_LOG_OBJECT (src, "Reading %d bytes at offset 0x%" G_GINT64_MODIFIER "x",
         to_read, src->offset + byte_read);
@@ -1016,8 +1121,10 @@ gst_data_repo_src_get_tensors_size (GstDataRepoSrc * src, GstCaps * caps)
   src->num_tensors = config.info.num_tensors;
 
   for (i = 0; i < src->num_tensors; i++) {
+    src->tensors_offset[i] = size;
     src->tensors_size[i] = gst_tensor_info_get_size (&config.info.info[i]);
-    GST_DEBUG ("%dth size is %d", i, src->tensors_size[i]);
+    GST_DEBUG ("offset[%d]: %d", i, src->tensors_offset[i]);
+    GST_DEBUG ("size[%d]: %d", i, src->tensors_size[i]);
     size = size + src->tensors_size[i];
   }
 
@@ -1113,13 +1220,13 @@ gst_data_repo_src_get_media_type_and_size (GstDataRepoSrc * src, GstCaps * caps)
   s = gst_caps_get_structure (caps, 0);
 
   if (gst_structure_has_name (s, "other/tensors")) {
-    src->media_size = gst_data_repo_src_get_tensors_size (src, caps);
+    src->sample_size = gst_data_repo_src_get_tensors_size (src, caps);
     src->media_type = _NNS_TENSOR;
   } else if (gst_structure_has_name (s, "video/x-raw")) {
-    src->media_size = gst_data_repo_src_get_video_size (caps);
+    src->sample_size = gst_data_repo_src_get_video_size (caps);
     src->media_type = _NNS_VIDEO;
   } else if (gst_structure_has_name (s, "audio/x-raw")) {
-    src->media_size = gst_data_repo_src_get_audio_size (caps);
+    src->sample_size = gst_data_repo_src_get_audio_size (caps);
     src->media_type = _NNS_AUDIO;
   } else if (gst_structure_has_name (s, "text/x-raw")) {
     src->media_type = _NNS_TEXT;
@@ -1162,7 +1269,8 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
 
   g_file_load_contents (file, NULL, &contents, NULL, NULL, &error);
   if (error != NULL) {
-    GST_ERROR_OBJECT (src, "Failed to open %s", src->json_filename);
+    GST_ERROR_OBJECT (src, "Failed to open %s: %s", src->json_filename,
+        error->message);
     g_clear_error (&error);
     return FALSE;
   }
@@ -1199,18 +1307,18 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
   if (!gst_data_repo_src_get_media_type_and_size (src, get_caps))
     goto error;
 
-  /* In the case of below media type, get media size from JSON */
+  /* In the case of below media type, get sample_size from JSON */
   if (src->media_type == _NNS_TEXT || src->media_type == _NNS_OCTET
       || src->media_type == _NNS_IMAGE) {
     if (!json_object_has_member (object, "sample_size")) {
       GST_ERROR_OBJECT (src, "There is not sample_size field: %s", contents);
       goto error;
     }
-    src->media_size = json_object_get_int_member (object, "sample_size");
-    GST_INFO_OBJECT (src, "sample_size: %d", src->media_size);
+    src->sample_size = json_object_get_int_member (object, "sample_size");
+    GST_INFO_OBJECT (src, "sample_size: %d", src->sample_size);
   }
 
-  if (src->media_size == 0)
+  if (src->sample_size == 0)
     goto error;
 
   if (!json_object_has_member (object, "total_samples")) {
@@ -1244,6 +1352,7 @@ error:
 static GstStateChangeReturn
 gst_data_repo_src_change_state (GstElement * element, GstStateChange transition)
 {
+  guint i;
   GstDataRepoSrc *src = GST_DATA_REPO_SRC (element);
   GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
 
@@ -1255,6 +1364,33 @@ gst_data_repo_src_change_state (GstElement * element, GstStateChange transition)
 
       if (src->stop_sample_index == 0)
         src->stop_sample_index = src->total_samples - 1;
+
+      /* Check invalid property value */
+      if (src->start_sample_index > (src->total_samples - 1)
+          || src->stop_sample_index > (src->total_samples - 1)
+          || src->epochs == 0) {
+        GST_ERROR_OBJECT (src, "Check for invalid range values");
+
+        goto state_change_failed;
+      }
+
+      /* If tensors-sequence properties is set */
+      if (src->tensors_seq_str != NULL) {
+        if (src->media_type != _NNS_TENSOR) {
+          GST_ERROR_OBJECT (src,
+              "tensors-sequence properties is only for tensor/others type(%d), current type(%d)",
+              _NNS_TENSOR, src->media_type);
+          goto state_change_failed;
+        }
+        if (!gst_data_repo_src_set_tensors_sequence (src)) {
+          goto state_change_failed;
+        }
+      } else {
+        for (i = 0; i < src->num_tensors; i++)
+          src->tensors_seq[i] = i;
+        src->tensors_seq_cnt = i;
+      }
+
       break;
 
     case GST_STATE_CHANGE_READY_TO_PAUSED:
