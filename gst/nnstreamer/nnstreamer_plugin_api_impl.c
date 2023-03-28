@@ -1432,12 +1432,53 @@ gst_tensor_meta_info_append_header (GstTensorMetaInfo * meta, GstMemory * mem)
 #define NNS_TENSOR_EXTRA_MAGIC 0xf00dc0de
 
 /**
+ * @brief Data structure to describe a "extra" tensor data.
+ * This represents the information of the NNS_TENSOR_SIZE_LIMIT-th memory block for tensor stream.
+*/
+typedef struct
+{
+  uint32_t magic;
+  uint32_t version;
+  uint32_t num_extra_tensors;
+  uint64_t reserved;
+  GstTensorInfo infos[NNS_TENSOR_SIZE_EXTRA_LIMIT];
+} GstTensorExtraInfo;
+
+/**
+ * @brief Check if given @a mem has extra tensors.
+ * @param[in] mem GstMemory to be checked.
+ * @return TRUE if @mem has extra tensors, otherwise FALSE.
+*/
+static gboolean
+gst_tensor_is_extra_memory (GstMemory * mem)
+{
+  GstMapInfo map;
+  GstTensorExtraInfo *extra_info;
+  gboolean is_extra;
+
+  g_return_val_if_fail (mem != NULL, FALSE);
+
+  if (!gst_memory_map (mem, &map, GST_MAP_READ)) {
+    nns_loge ("Failed to map extra memory");
+    return FALSE;
+  }
+
+  extra_info = (GstTensorExtraInfo *) map.data;
+
+  /* check magic in header (extra info) of the memory */
+  is_extra = (extra_info && extra_info->magic == NNS_TENSOR_EXTRA_MAGIC);
+
+  gst_memory_unmap (mem, &map);
+  return is_extra;
+}
+
+/**
  * @brief Initialize GstTensorExtraInfo structure with given @a memory.
  * @param[in/out] extra GstTensorExtraInfo to be initialized.
  * @param[in] memory The information of given memory is used to initialize @a extra.
 */
-void
-gst_tensors_extra_init (GstTensorExtraInfo * extra, GstMemory * memory)
+static void
+gst_tensor_extra_info_init (GstTensorExtraInfo * extra, GstMemory * memory)
 {
   guint i;
 
@@ -1460,8 +1501,8 @@ gst_tensors_extra_init (GstTensorExtraInfo * extra, GstMemory * memory)
  * @return GstMemory if found, otherwise NULL (Caller should free returned memory using gst_memory_unref()).
 */
 GstMemory *
-gst_tensors_get_nth_memory (GstBuffer * buffer, const GstTensorsInfo * info,
-    const guint index)
+gst_tensor_buffer_get_nth_memory (GstBuffer * buffer,
+    const GstTensorsInfo * info, const guint index)
 {
   guint i, offset = 0;
   GstMemory *extra_tensors_memory, *res_mem;
@@ -1562,47 +1603,15 @@ gst_tensors_get_nth_memory (GstBuffer * buffer, const GstTensorsInfo * info,
 }
 
 /**
- * @brief Check if given @a mem has extra tensors.
- * @param[in] mem GstMemory to be checked.
- * @return TRUE if @mem has extra tensors, otherwise FALSE.
-*/
-gboolean
-is_extra_tensors_memory (GstMemory * mem)
-{
-  GstMapInfo map;
-  GstTensorExtraInfo *extra_info;
-
-  g_return_val_if_fail (mem != NULL, FALSE);
-
-  if (!gst_memory_map (mem, &map, GST_MAP_READ)) {
-    nns_loge ("Failed to map extra memory");
-    return FALSE;
-  }
-
-  extra_info = (GstTensorExtraInfo *) map.data;
-  g_return_val_if_fail (extra_info != NULL, FALSE);
-
-  /* check header (extra info) of the memory */
-  /* check magic */
-  if (extra_info->magic != NNS_TENSOR_EXTRA_MAGIC) {
-    gst_memory_unmap (mem, &map);
-    return FALSE;
-  }
-
-  gst_memory_unmap (mem, &map);
-  return TRUE;
-}
-
-/**
  * @brief Append @a memory to given @a buffer.
  * @param[in/out] buffer GstBuffer to be appended.
  * @param[in] memory GstMemory to append. This function will take ownership of this.
- * @param[in] tensor_info GstTensorInfo of given @a memory.
+ * @param[in] info GstTensorInfo of given @a memory.
  * @return TRUE if successfully appended, otherwise FALSE.
 */
 gboolean
-gst_tensors_extra_append_memory_to_buffer (GstBuffer * buffer,
-    GstMemory * memory, const GstTensorInfo * tensor_info)
+gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
+    const GstTensorInfo * info)
 {
   guint num_mems, offset, i;
 
@@ -1619,6 +1628,11 @@ gst_tensors_extra_append_memory_to_buffer (GstBuffer * buffer,
 
   if (!memory) {
     nns_loge ("Failed to append memory, given memory is NULL.");
+    return FALSE;
+  }
+
+  if (!info) {
+    nns_loge ("Failed to get tensor info (invalid input info).");
     return FALSE;
   }
 
@@ -1640,7 +1654,7 @@ gst_tensors_extra_append_memory_to_buffer (GstBuffer * buffer,
   new_mem_size = gst_memory_get_sizes (last_memory, NULL, NULL);
 
   /* if the memory does not have proper header, append it */
-  if (!is_extra_tensors_memory (last_memory)) {
+  if (!gst_tensor_is_extra_memory (last_memory)) {
     new_mem_size += sizeof (GstTensorExtraInfo);
   }
 
@@ -1661,14 +1675,15 @@ gst_tensors_extra_append_memory_to_buffer (GstBuffer * buffer,
   /* copy last_memory into new_memory */
   if (!gst_memory_map (last_memory, &last_memory_map, GST_MAP_READ)) {
     nns_loge ("Failed to map last memory");
+    gst_memory_unmap (new_memory, &new_memory_map);
     gst_memory_unref (new_memory);
     return FALSE;
   }
 
   /* if the last_memory does not have proper header, append it */
-  if (!is_extra_tensors_memory (last_memory)) {
+  if (!gst_tensor_is_extra_memory (last_memory)) {
     GstTensorExtraInfo *extra_info = (GstTensorExtraInfo *) new_memory_map.data;
-    gst_tensors_extra_init (extra_info, last_memory);
+    gst_tensor_extra_info_init (extra_info, last_memory);
     extra_info->reserved = gst_memory_get_sizes (last_memory, NULL, NULL);
     offset = sizeof (GstTensorExtraInfo);
   } else {
@@ -1681,6 +1696,8 @@ gst_tensors_extra_append_memory_to_buffer (GstBuffer * buffer,
   /* copy incoming_memory into new_memory */
   if (!gst_memory_map (memory, &incoming_memory_map, GST_MAP_READ)) {
     nns_loge ("Failed to map incoming memory");
+    gst_memory_unmap (new_memory, &new_memory_map);
+    gst_memory_unmap (last_memory, &last_memory_map);
     gst_memory_unref (new_memory);
     return FALSE;
   }
@@ -1689,7 +1706,7 @@ gst_tensors_extra_append_memory_to_buffer (GstBuffer * buffer,
   new_memory_extra_info->num_extra_tensors += 1;
 
   for (i = 0; i < new_memory_extra_info->num_extra_tensors; ++i) {
-    gst_tensor_info_copy (&new_memory_extra_info->infos[i], tensor_info);
+    gst_tensor_info_copy (&new_memory_extra_info->infos[i], info);
   }
 
   memcpy (new_memory_map.data + offset + last_memory_map.size,

@@ -54,7 +54,6 @@ struct _GstTensorTrainer
   gchar *output_dimensions;
   gchar *input_type;
   gchar *output_type;
-  gboolean push_output;
 
   gboolean input_configured;
   gboolean output_configured;
@@ -72,7 +71,7 @@ struct _GstTensorTrainer
   GstTensorTrainerProperties prop; /**< NNFW plugin's properties */
 
   GMutex trainer_lock;
-  GCond train_complete_cond;
+  GCond training_complete_cond;
 };
 
 /**

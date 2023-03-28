@@ -16,9 +16,8 @@
  * ! mux.sink_0 filesrc location=mnist_label_200.dat blocksize=40 ! \
  * application/octet-stream, framerate=5/1 ! tensor_converter input_dim=1:1:10:1 input-type=float32 \
  * ! mux.sink_1 tensor_mux name=mux sync-mode=nosync ! tensor_trainer framework=nntrainer \
- * model-config=mnist.ini model-save-path=model.bin input-dim=1:1:784:1,1:1:10:1 \
- * input-type=float32,float32 num-inputs=1 mum-labels=1 num-training-samples=100 num-alidation-samples=100 \
- * ! tensor_sink
+ * model-config=mnist.ini model-save-path=model.bin input-dim=1:1:784:1,1:1:10:1 input-type=float32,float32 \
+ * num-lists=1 num-labels=1 num-training-samples=100 num-validation-samples=100 ! tensor_sink
  * ]|
  */
 
@@ -78,7 +77,6 @@ enum
   PROP_MODEL_SAVE_PATH,
   PROP_INPUT_DIM,
   PROP_INPUT_TYPE,
-  PROP_PUSH_OUTPUT,
   PROP_NUM_INPUTS,              /* number of input list */
   PROP_NUM_LABELS,              /* number of label list */
   PROP_NUM_TRAINING_SAMPLES,    /*number of training data */
@@ -184,12 +182,6 @@ gst_tensor_trainer_class_init (GstTensorTrainerClass * klass)
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_PUSH_OUTPUT,
-      g_param_spec_boolean ("push-output", "Push output tensor",
-          "Add output tensors to output GstBuffer", FALSE,
-          G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
-          G_PARAM_STATIC_STRINGS));
-
   g_object_class_install_property (gobject_class, PROP_NUM_INPUTS,
       g_param_spec_uint ("num-inputs", "Number of inputs",
           "An input in a tensor can have one or more features data,"
@@ -265,7 +257,6 @@ gst_tensor_trainer_init (GstTensorTrainer * trainer)
   trainer->output_dimensions = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->input_type = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->output_type = g_strdup (DEFAULT_STR_PROP_VALUE);
-  trainer->push_output = FALSE;
 
   trainer->fw = NULL;
   trainer->fw_created = FALSE;
@@ -274,9 +265,9 @@ gst_tensor_trainer_init (GstTensorTrainer * trainer)
   trainer->inputtype_configured = FALSE;
   trainer->total_invoke_num = 0;
 
-  g_cond_init (&trainer->train_complete_cond);
+  g_cond_init (&trainer->training_complete_cond);
   g_mutex_init (&trainer->trainer_lock);
-  trainer->prop.train_complete_cond = &trainer->train_complete_cond;
+  trainer->prop.training_complete_cond = &trainer->training_complete_cond;
 
   gst_tensor_trainer_output_dimension (trainer);
   gst_tensor_trainer_output_type (trainer);
@@ -300,7 +291,7 @@ gst_tensor_trainer_finalize (GObject * object)
   g_free (trainer->input_type);
   g_free (trainer->output_type);
 
-  g_cond_clear (&trainer->train_complete_cond);
+  g_cond_clear (&trainer->training_complete_cond);
   g_mutex_clear (&trainer->trainer_lock);
 
   if (trainer->fw_created && trainer->fw) {
@@ -337,11 +328,6 @@ gst_tensor_trainer_set_property (GObject * object, guint prop_id,
     case PROP_INPUT_TYPE:
       gst_tensor_trainer_set_prop_input_type (trainer, value);
       break;
-      break;
-    case PROP_PUSH_OUTPUT:
-      trainer->push_output = g_value_get_boolean (value);
-      GST_INFO_OBJECT (trainer, "push output: %d", trainer->push_output);
-      break;
     case PROP_NUM_INPUTS:
       trainer->prop.num_inputs = g_value_get_uint (value);
       break;
@@ -349,10 +335,10 @@ gst_tensor_trainer_set_property (GObject * object, guint prop_id,
       trainer->prop.num_labels = g_value_get_uint (value);
       break;
     case PROP_NUM_TRAINING_SAMPLES:
-      trainer->prop.num_train_samples = g_value_get_uint (value);
+      trainer->prop.num_training_samples = g_value_get_uint (value);
       break;
     case PROP_NUM_VALIDATION_SAMPLES:
-      trainer->prop.num_valid_samples = g_value_get_uint (value);
+      trainer->prop.num_validation_samples = g_value_get_uint (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -387,9 +373,6 @@ gst_tensor_trainer_get_property (GObject * object, guint prop_id,
     case PROP_INPUT_TYPE:
       g_value_set_string (value, trainer->input_type);
       break;
-    case PROP_PUSH_OUTPUT:
-      g_value_set_boolean (value, trainer->push_output);
-      break;
     case PROP_NUM_INPUTS:
       g_value_set_uint (value, trainer->prop.num_inputs);
       break;
@@ -397,10 +380,10 @@ gst_tensor_trainer_get_property (GObject * object, guint prop_id,
       g_value_set_uint (value, trainer->prop.num_labels);
       break;
     case PROP_NUM_TRAINING_SAMPLES:
-      g_value_set_uint (value, trainer->prop.num_train_samples);
+      g_value_set_uint (value, trainer->prop.num_training_samples);
       break;
     case PROP_NUM_VALIDATION_SAMPLES:
-      g_value_set_uint (value, trainer->prop.num_valid_samples);
+      g_value_set_uint (value, trainer->prop.num_validation_samples);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -537,8 +520,30 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
     GST_INFO ("invoke_tensors[%d].data: %p", i, invoke_tensors[i].data);
   }
 
-  /* Prepare output tensor */
-  if (trainer->push_output) {
+  ret =
+      trainer->fw->push_data (trainer->fw, &trainer->prop, trainer->privateData,
+      invoke_tensors);
+  trainer->total_invoke_num++;
+
+  /* Free in info */
+  for (i = 0; i < mem_blocks; i++)
+    gst_memory_unmap (in_mem[i], &in_info[i]);
+
+  if (ret < 0) {
+    GST_ERROR_OBJECT (trainer, "Invoke error");
+    return GST_FLOW_ERROR;
+  }
+
+  /** Update result if one of epochs is complete,
+      push one outbuf is necessary to change pipeline state.
+      Scheduling with subplugin does not work.
+   */
+  if (trainer->total_invoke_num == 1
+      || trainer->total_invoke_num ==
+      trainer->prop.num_training_samples +
+      trainer->prop.num_validation_samples) {
+
+    /* Prepare output tensor */
     for (i = 0; i < trainer->output_meta.num_tensors; i++) {
       out_tensors[i].data = NULL;
       out_tensors[i].size =
@@ -578,56 +583,35 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
           goto error;
         }
       }
+#if 0
+      /** @todo Need to updatd out_tensors */
+      /* get loss, accuracy, val_loss, val_accuracy */
+      double data[4] = { 0, 0, 0, 0 };
+      ptr = out_info[i].data;
+      memcpy (ptr, data, sizeof (data));
+#endif
     }
-    /* Call the trainer-subplugin callback, invoke */
-    ret =
-        trainer->fw->push_data (trainer->fw, &trainer->prop,
-        trainer->privateData, invoke_tensors);
 
     /* Free out info */
     for (i = 0; i < trainer->output_meta.num_tensors; i++) {
       if (out_mem[i])
         gst_memory_unmap (out_mem[i], &out_info[i]);
-      //if (ret != 0) {
-      //  gst_allocator_free (out_mem[i]->allocator, out_mem[i]);
-      //}
     }
-  } else {
-    ret =
-        trainer->fw->push_data (trainer->fw, &trainer->prop,
-        trainer->privateData, invoke_tensors);
-  }
 
-  trainer->total_invoke_num++;
-
-  /* Free in info */
-  for (i = 0; i < mem_blocks; i++)
-    gst_memory_unmap (in_mem[i], &in_info[i]);
-
-  if (ret < 0) {
-    GST_ERROR_OBJECT (trainer, "Invoke error");
-    return GST_FLOW_ERROR;
-  }
-
-  /** Update result if one of epochs is complete,
-      push one outbuf is necessary to change pipeline state.
-      Scheduling with subplugin does not work.
-   */
-  if (trainer->total_invoke_num == 1
-      || trainer->total_invoke_num ==
-      trainer->prop.num_train_samples + trainer->prop.num_valid_samples) {
     outbuf = gst_buffer_new ();
     for (i = 0; i < trainer->output_meta.num_tensors; i++) {
       /* append the memory block to outbuf */
       gst_buffer_append_memory (outbuf, out_mem[i]);
     }
-    GST_INFO ("after out buffer size : %zd", gst_buffer_get_size (outbuf));
+    GST_INFO ("out_buffer size : %zd", gst_buffer_get_size (outbuf));
 
     gst_pad_push (trainer->srcpad, outbuf);
-    return GST_FLOW_OK;
   }
 
+  gst_buffer_unref (inbuf);
+
   return GST_FLOW_OK;
+
 error:
   mem_blocks = gst_buffer_n_memory (inbuf);
   for (i = 0; i < mem_blocks; i++) {
@@ -641,6 +625,8 @@ error:
       gst_allocator_free (out_mem[i]->allocator, out_mem[i]);
     }
   }
+
+  gst_buffer_unref (inbuf);
 
   return GST_FLOW_ERROR;
 }
@@ -727,8 +713,8 @@ gst_tensor_trainer_sink_event (GstPad * sinkpad, GstObject * parent,
       GST_INFO_OBJECT (trainer, "get GST_EVENT_EOS event..state is %d",
           GST_STATE (trainer));
       g_mutex_lock (&trainer->trainer_lock);
-      GST_INFO_OBJECT (trainer, "wait for train_complete_cond signal");
-      g_cond_wait (&trainer->train_complete_cond, &trainer->trainer_lock);
+      GST_INFO_OBJECT (trainer, "wait for training_complete_cond signal");
+      g_cond_wait (&trainer->training_complete_cond, &trainer->trainer_lock);
       g_mutex_unlock (&trainer->trainer_lock);
       break;
     case GST_EVENT_FLUSH_START:
@@ -1134,7 +1120,7 @@ gst_tensor_trainer_output_type (GstTensorTrainer * trainer)
   g_return_if_fail (trainer != NULL);
 
   info = &trainer->output_meta;
-  info->info[0].type = _NNS_FLOAT16;
+  info->info[0].type = _NNS_FLOAT64;
 }
 
 /**

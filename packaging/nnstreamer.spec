@@ -651,6 +651,11 @@ BuildRequires:	pkgconfig(paho-mqtt-c)
 %description misc
 Provides additional gstreamer plugins for nnstreamer pipelines
 
+%package datarepo
+Summary: NNStreamer MLOps Data Repository plugin packages
+%description datarepo
+NNStreamer's datareposrc/sink plugins for reading and writing files in MLOps Data Repository
+
 ## Define build options ##
 %define enable_tizen -Denable-tizen=false
 %define enable_tizen_sensor -Denable-tizen-sensor=false
@@ -1247,6 +1252,9 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %if 0%{?mqtt_support}
 %{gstlibdir}/libgstmqtt.so
 %endif
+
+%files datarepo
+%{gstlibdir}/libgstdatarepo.so
 
 %if 0%{?release_test}
 %files test-devel
