@@ -11,6 +11,7 @@
  */
 #include <gst/gst.h>
 #include "gstdatareposrc.h"
+#include "gstdatareposink.h"
 
 /**
  * @brief The entry point of the Gstreamer datarepo plugin
@@ -18,8 +19,15 @@
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return gst_element_register (plugin, "datareposrc", GST_RANK_NONE,
-      GST_TYPE_DATA_REPO_SRC);
+  if (!gst_element_register (plugin, "datareposrc", GST_RANK_NONE,
+          GST_TYPE_DATA_REPO_SRC))
+    return FALSE;
+
+  if (!gst_element_register (plugin, "datareposink", GST_RANK_NONE,
+          GST_TYPE_DATA_REPO_SINK))
+    return FALSE;
+
+  return TRUE;
 }
 
 #ifndef PACKAGE
