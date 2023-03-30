@@ -1,22 +1,19 @@
-gstdatarepo_src_inc = include_directories('.', '../nnstreamer/include/')
-
 repo_sources = [
   'datarepo_elements.c',
-  'gstdatareposrc.c'
+  'gstdatareposrc.c',
+  'gstdatareposink.c'
 ]
 
 gstdatarepo_shared = shared_library('gstdatarepo',
   repo_sources,
-  dependencies: [glib_dep, gst_dep, gst_base_dep],
-  include_directories: gstdatarepo_src_inc,
+  dependencies: [nnstreamer_dep],
   install: true,
   install_dir: plugins_install_dir
 )
 
 gstdatarepo_static = static_library('gstdatarepo',
   repo_sources,
-  dependencies: [glib_dep, gst_dep, gst_base_dep],
-  include_directories: gstdatarepo_src_inc,
+  dependencies: [nnstreamer_dep],
   install: true,
   install_dir: nnstreamer_libdir
 )
