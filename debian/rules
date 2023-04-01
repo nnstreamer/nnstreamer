@@ -92,4 +92,4 @@ else
 endif
 
 override_dh_shlibdeps:
-	dh_shlibdeps --exclude=libtensorflow2-lite-custom.so --exclude=libtensorflow.so 
+	dh_shlibdeps --exclude=libtensorflow2-lite-custom.so --dpkg-shlibdeps-params=--ignore-missing-info 
