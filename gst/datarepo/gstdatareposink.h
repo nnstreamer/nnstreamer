@@ -40,7 +40,10 @@ struct _GstDataRepoSink
   GstBaseSink element;
 
   gint fd;            /**< open file descriptor*/
+  gint multifile_index;  /**< index for image files */
   guint64 offset;     /**< offset of fd */
+  guint media_type;   /**< media type */
+  gboolean is_flexible_tensors;
 
   /* property */
   gchar *filename;    /**< filename */
