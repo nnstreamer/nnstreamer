@@ -1,9 +1,16 @@
-nnstreamer (2.3.0.0+nmu7) UNRELEASED; urgency=medium
+nnstreamer (2.3.0.0+nmu8) UNRELEASED; urgency=medium
+
+  * Non-maintainer upload.
+  * Pickup pytorch 2.0.0 
+
+ -- Torsten Schulz <torsten@eyepop.ai>  Mon, 03 Apr 2023 20:02:06 -0700
+
+nnstreamer (2.3.0.0+nmu7) jammy; urgency=medium
 
   * Non-maintainer upload.
   * fix tensorflow debian package (was empty) 
 
- -- Torsten Schulz <torsten@eyepop.ai>  Sat, 01 Apr 2023 09:09:04 -0700
+ -- Torsten Schulz <torsten@eyepop.ai>  Mon, 03 Apr 2023 20:01:54 -0700
 
 nnstreamer (2.3.0.0+nmu6) UNRELEASED; urgency=medium
 
