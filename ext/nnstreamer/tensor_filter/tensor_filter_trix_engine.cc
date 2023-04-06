@@ -70,6 +70,8 @@ TensorFilterTRIxEngine::getEmptyInstance () {
  */
 void
 TensorFilterTRIxEngine::configure_instance (const GstTensorFilterProperties *prop) {
+  uint32_t i, j, rank_limit;
+
   if (!prop->model_files[0] || prop->model_files[0][0] == '\0') {
     nns_loge ("Unable to find a model filepath given\n");
     throw invalid_argument ("Unable to find a model filepath given");
@@ -83,9 +85,9 @@ TensorFilterTRIxEngine::configure_instance (const GstTensorFilterProperties *pro
   }
 
   int status = -ENOENT;
-  for (int i = 0; i < prop->num_hw; i++) {
+  for (int h = 0; h < prop->num_hw; h++) {
     /* TRIV2 alias for now */
-    if (prop->hw_list[i] == ACCL_NPU_SR) {
+    if (prop->hw_list[h] == ACCL_NPU_SR) {
       status = getNPUdeviceByTypeAny (&dev_, NPUCOND_TRIV2_CONN_SOCIP, 2);
       if (status == 0)
         break;
@@ -107,14 +109,19 @@ TensorFilterTRIxEngine::configure_instance (const GstTensorFilterProperties *pro
     throw runtime_error ("Unable to register the model");
   }
 
+  rank_limit = MIN (MAX_RANK, NNS_TENSOR_RANK_LIMIT);
+
   /* check user-provided input tensor info */
   if (prop->input_meta.num_tensors == 0) {
     nns_in_info_.num_tensors = model_meta_->input_seg_num;
-    for (uint32_t i = 0; i < nns_in_info_.num_tensors; i++) {
+    for (i = 0; i < nns_in_info_.num_tensors; i++) {
       nns_in_info_.info[i].type = _NNS_UINT8;
-      for (uint32_t j = 0; j < NNS_TENSOR_RANK_LIMIT; j++)
+      for (j = 0; j < rank_limit; j++)
         nns_in_info_.info[i].dimension[j] =
-            model_meta_->input_seg_dims[i][NNS_TENSOR_RANK_LIMIT - j - 1];
+            model_meta_->input_seg_dims[i][rank_limit - j - 1];
+
+      for ( ; j < NNS_TENSOR_RANK_LIMIT; j++)
+        nns_in_info_.info[i].dimension[j] = 1;
     }
   } else {
     gst_tensors_info_copy (&nns_in_info_, &prop->input_meta);
@@ -123,11 +130,14 @@ TensorFilterTRIxEngine::configure_instance (const GstTensorFilterProperties *pro
   /* check user-provided output tensor info */
   if (prop->output_meta.num_tensors == 0) {
     nns_out_info_.num_tensors = model_meta_->output_seg_num;
-    for (uint32_t i = 0; i < nns_out_info_.num_tensors; i++) {
+    for (i = 0; i < nns_out_info_.num_tensors; i++) {
       nns_out_info_.info[i].type = _NNS_UINT8;
-      for (uint32_t j = 0; j < NNS_TENSOR_RANK_LIMIT; j++)
+      for (j = 0; j < rank_limit; j++)
         nns_out_info_.info[i].dimension[j] =
-            model_meta_->output_seg_dims[i][NNS_TENSOR_RANK_LIMIT - j - 1];
+            model_meta_->output_seg_dims[i][rank_limit - j - 1];
+
+      for ( ; j < NNS_TENSOR_RANK_LIMIT; j++)
+        nns_out_info_.info[i].dimension[j] = 1;
     }
   } else {
     gst_tensors_info_copy (&nns_out_info_, &prop->output_meta);
