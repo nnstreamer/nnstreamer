@@ -12,7 +12,7 @@ Then the given neural network predicts multiple objects with bounding boxes.
 # install nnstreamer and nnstreamer example
 $ sudo add-apt-repository ppa:nnstreamer/ppa
 $ sudo apt-get update
-$ sudo apt install wget nnstreamer nnstreamer-example
+$ sudo apt install wget nnstreamer nnstreamer-example nnstreamer-tensorflow2-lite
 ```
 
 ## Run pipeline.
