@@ -202,7 +202,11 @@ TorchCore::loadModel ()
 
   try {
 #ifdef PYTORCH_VER_ATLEAST_1_2_0
-    model = std::make_shared<torch::jit::script::Module> (torch::jit::load (model_path));
+    c10::optional<c10::Device> device;
+    if (use_gpu) {
+      device = torch::Device(c10::kCUDA);
+    }
+    model = std::make_shared<torch::jit::script::Module> (torch::jit::load (model_path, device));
 #else
     model = torch::jit::load (model_path);
 #endif

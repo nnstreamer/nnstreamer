@@ -1,8 +1,15 @@
-nnstreamer (2.3.0.0+nmu10) UNRELEASED; urgency=medium
+nnstreamer (2.3.0.0+nmu11) UNRELEASED; urgency=medium
+
+  * Non-maintainer upload.
+  * PyTorch filter, load model directly into CUDA device if use_gpu=true
+
+ -- Torsten Schulz <torsten@eyepop.ai>  Mon, 10 Apr 2023 16:28:54 -0700
+
+nnstreamer (2.3.0.0+nmu10) jammy; urgency=medium
 
   * Non-maintainer upload. 
 
- -- Torsten Schulz <torsten@eyepop.ai>  Tue, 04 Apr 2023 07:15:25 -0700
+ -- Torsten Schulz <torsten@eyepop.ai>  Mon, 10 Apr 2023 16:28:46 -0700
 
 nnstreamer (2.3.0.0+nmu9) UNRELEASED; urgency=medium
 
