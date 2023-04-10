@@ -6,14 +6,14 @@ repo_sources = [
 
 gstdatarepo_shared = shared_library('gstdatarepo',
   repo_sources,
-  dependencies: [nnstreamer_dep],
+  dependencies: [nnstreamer_dep, json_glib_dep],
   install: true,
   install_dir: plugins_install_dir
 )
 
 gstdatarepo_static = static_library('gstdatarepo',
   repo_sources,
-  dependencies: [nnstreamer_dep],
+  dependencies: [nnstreamer_dep, json_glib_dep],
   install: true,
   install_dir: nnstreamer_libdir
 )
