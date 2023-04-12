@@ -26,7 +26,7 @@ if [ "$SKIPGEN" == "YES" ]; then
 else
     echo "Test Case Generation Started"
     python3 ../nnstreamer_converter/generateGoldenTestResult.py 8
-    python3 ../nnstreamer_filter_pytorch/generateTest.py
+    python3 ../nnstreamer_converter/generateTest.py
     sopath=$1
 fi
 convertBMP2PNG
