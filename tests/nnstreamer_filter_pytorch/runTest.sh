@@ -72,7 +72,7 @@ if [ "$SKIPGEN" == "YES" ]; then
     sopath=$2
 else
     echo "Test Case Generation Started"
-    python3 generateTest.py
+    python3 ../nnstreamer_converter/generateTest.py
     sopath=$1
 fi
 
