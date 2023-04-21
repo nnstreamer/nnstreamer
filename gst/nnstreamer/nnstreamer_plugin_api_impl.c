@@ -433,6 +433,12 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
 
     if (gst_tensors_config_is_flexible (configs)) {
       /* append header if input tensor is not flexible */
+      if (i >= NNS_TENSOR_SIZE_LIMIT) {
+        /** @todo support extra tensors in case of flexible */
+        nns_loge ("The extra tensor is not supported for flexible tensor.");
+        return FALSE;
+      }
+
       if (in_formats[i] != _NNS_TENSOR_FORMAT_FLEXIBLE) {
         GstTensorMetaInfo meta;
 
