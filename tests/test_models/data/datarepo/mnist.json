@@ -1,0 +1,5 @@
+{
+  "gst_caps":"other/tensors, format=(string)static, framerate=(fraction)0/1, num_tensors=(int)2, dimensions=(string)1:1:784:1.1:1:10:1, types=(string)float32.float32",
+  "total_samples":1000,
+  "sample_size":3176
+}
