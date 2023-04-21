@@ -61,7 +61,6 @@ bus_callback (GstBus * bus, GstMessage * message, gpointer data)
  */
 TEST (datareposink, writeImageFiles)
 {
-  GError *error = NULL;
   GFile *file = NULL;
   gchar *contents = NULL;
   gchar *filename = NULL;
@@ -95,19 +94,16 @@ TEST (datareposink, writeImageFiles)
   for (i = 0; i < 5; i++) {
     filename = g_strdup_printf ("image_%02d.png", i);
     file = g_file_new_for_path (filename);
-    g_file_load_contents (file, NULL, &contents, NULL, NULL, &error);
-    ASSERT_FALSE (error != NULL);
-  }
+    g_free (filename);
 
-  g_object_unref (file);
-  g_free (contents);
-  file = NULL;
-  g_free (filename);
+    ASSERT_TRUE (g_file_load_contents (file, NULL, &contents, NULL, NULL, NULL));
+    g_object_unref (file);
+    g_free (contents);
+  }
 
   /* Confirm file creation */
   file = g_file_new_for_path ("image.json");
-  g_file_load_contents (file, NULL, &contents, NULL, NULL, &error);
-  ASSERT_FALSE (error != NULL);
+  ASSERT_TRUE (g_file_load_contents (file, NULL, &contents, NULL, NULL, NULL));
 
   g_object_unref (file);
   g_free (contents);
@@ -118,7 +114,6 @@ TEST (datareposink, writeImageFiles)
  */
 TEST (datareposink, writeAudioRaw)
 {
-  GError *error = NULL;
   GFile *file = NULL;
   gchar *contents = NULL;
   GstBus *bus;
@@ -151,17 +146,14 @@ TEST (datareposink, writeAudioRaw)
 
   /* Confirm file creation */
   file = g_file_new_for_path ("audio.raw");
-  g_file_load_contents (file, NULL, &contents, NULL, NULL, &error);
-  ASSERT_FALSE (error != NULL);
+  ASSERT_TRUE (g_file_load_contents (file, NULL, &contents, NULL, NULL, NULL));
 
   g_object_unref (file);
   g_free (contents);
-  file = NULL;
 
   /* Confirm file creation */
   file = g_file_new_for_path ("audio.json");
-  g_file_load_contents (file, NULL, &contents, NULL, NULL, &error);
-  ASSERT_FALSE (error != NULL);
+  ASSERT_TRUE (g_file_load_contents (file, NULL, &contents, NULL, NULL, NULL));
 
   g_object_unref (file);
   g_free (contents);
@@ -172,7 +164,6 @@ TEST (datareposink, writeAudioRaw)
  */
 TEST (datareposink, writeVideoRaw)
 {
-  GError *error = NULL;
   GFile *file = NULL;
   gchar *contents = NULL;
   GstBus *bus;
@@ -203,17 +194,14 @@ TEST (datareposink, writeVideoRaw)
 
   /* Confirm file creation */
   file = g_file_new_for_path ("video.raw");
-  g_file_load_contents (file, NULL, &contents, NULL, NULL, &error);
-  ASSERT_FALSE (error != NULL);
+  ASSERT_TRUE (g_file_load_contents (file, NULL, &contents, NULL, NULL, NULL));
 
   g_object_unref (file);
   g_free (contents);
-  file = NULL;
 
   /* Confirm file creation */
   file = g_file_new_for_path ("video.json");
-  g_file_load_contents (file, NULL, &contents, NULL, NULL, &error);
-  ASSERT_FALSE (error != NULL);
+  ASSERT_TRUE (g_file_load_contents (file, NULL, &contents, NULL, NULL, NULL));
 
   g_object_unref (file);
   g_free (contents);
@@ -224,7 +212,6 @@ TEST (datareposink, writeVideoRaw)
  */
 TEST (datareposink, writeTensors)
 {
-  GError *error = NULL;
   GFile *file = NULL;
   gchar *contents = NULL;
   GstBus *bus;
@@ -276,17 +263,14 @@ TEST (datareposink, writeTensors)
 
   /* Confirm file creation */
   file = g_file_new_for_path ("mnist.data");
-  g_file_load_contents (file, NULL, &contents, NULL, NULL, &error);
-  ASSERT_FALSE (error != NULL);
+  ASSERT_TRUE (g_file_load_contents (file, NULL, &contents, NULL, NULL, NULL));
 
   g_object_unref (file);
   g_free (contents);
-  file = NULL;
 
   /* Confirm file creation */
   file = g_file_new_for_path ("mnist.json");
-  g_file_load_contents (file, NULL, &contents, NULL, NULL, &error);
-  ASSERT_FALSE (error != NULL);
+  ASSERT_TRUE (g_file_load_contents (file, NULL, &contents, NULL, NULL, NULL));
 
   g_free (contents);
   g_object_unref (file);
@@ -412,8 +396,8 @@ remove_test_file (void)
   for (i = 0; i < 5; i++) {
     filename = g_strdup_printf ("image_%02d.png", i);
     g_remove (filename);
+    g_free (filename);
   }
-  g_free (filename);
 }
 
 /**

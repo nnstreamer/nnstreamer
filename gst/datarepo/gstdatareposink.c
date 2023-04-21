@@ -579,13 +579,13 @@ gst_data_repo_sink_open_file (GstDataRepoSink * sink)
   if (sink->filename == NULL || sink->filename[0] == '\0')
     goto no_filename;
 
-  /* need to get filename by media type */
-  filename = g_strdup (sink->filename);
-
   /* for image, g_file_set_contents() is used in the write function */
   if (sink->media_type == _NNS_IMAGE) {
     return TRUE;
   }
+
+  /* need to get filename by media type */
+  filename = g_strdup (sink->filename);
 
   GST_INFO_OBJECT (sink, "opening file %s", filename);
 
@@ -658,7 +658,6 @@ __write_json (JsonObject * object, const gchar * filename)
 {
   JsonNode *root;
   JsonGenerator *generator;
-  GError *error = NULL;
   gboolean ret = TRUE;
 
   g_return_val_if_fail (object != NULL, FALSE);
@@ -669,10 +668,9 @@ __write_json (JsonObject * object, const gchar * filename)
   generator = json_generator_new ();
   json_generator_set_root (generator, root);
   json_generator_set_pretty (generator, TRUE);
-  ret = json_generator_to_file (generator, filename, &error);
+  ret = json_generator_to_file (generator, filename, NULL);
   if (!ret) {
-    GST_ERROR ("Failed to write JSON to file %s: %s", filename, error->message);
-    g_clear_error (&error);
+    GST_ERROR ("Failed to write JSON to file %s", filename);
   }
 
   /* Release everything */
