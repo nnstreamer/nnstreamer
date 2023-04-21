@@ -263,7 +263,7 @@ gst_data_repo_src_init (GstDataRepoSrc * src)
   src->start_sample_index = 0;
   src->stop_sample_index = 0;
   src->epochs = DEFAULT_EPOCHS;
-  src->shuffled_index_array = g_array_new (FALSE, FALSE, sizeof (gint));
+  src->shuffled_index_array = g_array_new (FALSE, FALSE, sizeof (guint));
   src->array_index = 0;
   src->first_epoch_is_done = FALSE;
   src->is_shuffle = DEFAULT_IS_SHUFFLE;
@@ -304,7 +304,7 @@ gst_data_repo_src_set_file_path (GstDataRepoSrc * src, const int prop,
   GstState state;
   gchar *filename;
 
-  g_return_val_if_fail (prop != PROP_LOCATION || prop != PROP_JSON, FALSE);
+  g_return_val_if_fail (prop == PROP_LOCATION || prop == PROP_JSON, FALSE);
 
   /* the element must be stopped in order to do this */
   GST_OBJECT_LOCK (src);
@@ -492,9 +492,10 @@ gst_data_repo_src_get_property (GObject * object, guint prop_id, GValue * value,
  * @brief Function to get file offset with sample index
  */
 static guint64
-gst_data_repo_src_get_file_offset (GstDataRepoSrc * src, gint sample_index)
+gst_data_repo_src_get_file_offset (GstDataRepoSrc * src, guint sample_index)
 {
   guint64 offset;
+
   g_return_val_if_fail (src != NULL, 0);
   g_return_val_if_fail (src->media_type != _NNS_IMAGE, 0);
   g_return_val_if_fail (src->fd != 0, 0);
@@ -511,7 +512,7 @@ static void
 gst_data_repo_src_shuffle_samples_index (GstDataRepoSrc * src)
 {
   guint i, j;
-  gint value_i, value_j;
+  guint value_i, value_j;
   g_return_if_fail (src != NULL);
   g_return_if_fail (src->shuffled_index_array != NULL);
 
@@ -521,17 +522,17 @@ gst_data_repo_src_shuffle_samples_index (GstDataRepoSrc * src)
   /* The last index is the number of samples - 1. */
   for (i = src->num_samples - 1; i > 0; i--) {
     j = g_random_int_range (0, src->num_samples);
-    value_i = g_array_index (src->shuffled_index_array, gint, i);
-    value_j = g_array_index (src->shuffled_index_array, gint, j);
+    value_i = g_array_index (src->shuffled_index_array, guint, i);
+    value_j = g_array_index (src->shuffled_index_array, guint, j);
 
     /* shuffled_index_array->data type is gchar * */
-    *(src->shuffled_index_array->data + (sizeof (gint) * i)) = value_j;
-    *(src->shuffled_index_array->data + (sizeof (gint) * j)) = value_i;
+    *(src->shuffled_index_array->data + (sizeof (guint) * i)) = value_j;
+    *(src->shuffled_index_array->data + (sizeof (guint) * j)) = value_i;
   }
 
   for (i = 0; i < src->shuffled_index_array->len; i++) {
     GST_DEBUG_OBJECT (src, "%d -> %d", i,
-        g_array_index (src->shuffled_index_array, gint, i));
+        g_array_index (src->shuffled_index_array, guint, i));
   }
 }
 
@@ -565,7 +566,7 @@ gst_data_repo_src_read_tensors (GstDataRepoSrc * src, GstBuffer ** buffer)
   guint8 *data;
   GstMemory *mem[MAX_ITEM] = { 0, };
   GstMapInfo info[MAX_ITEM];
-  gint shuffled_index = 0;
+  guint shuffled_index = 0;
   guint64 sample_offset = 0;
   guint64 offset = 0;           /* offset from 0 */
 
@@ -588,7 +589,7 @@ gst_data_repo_src_read_tensors (GstDataRepoSrc * src, GstBuffer ** buffer)
     src->current_sample_index++;
   }
   shuffled_index =
-      g_array_index (src->shuffled_index_array, gint, src->array_index++);
+      g_array_index (src->shuffled_index_array, guint, src->array_index++);
   GST_LOG_OBJECT (src, "shuffled_index [%d] -> %d", src->array_index - 1,
       shuffled_index);
 
@@ -697,7 +698,7 @@ static gchar *
 gst_data_repo_src_get_image_filename (GstDataRepoSrc * src)
 {
   gchar *filename = NULL;
-  gint shuffled_index = 0;
+  guint shuffled_index = 0;
   g_return_val_if_fail (src != NULL, NULL);
   g_return_val_if_fail (src->media_type == _NNS_IMAGE, NULL);
   g_return_val_if_fail (src->filename != NULL, NULL);
@@ -706,7 +707,7 @@ gst_data_repo_src_get_image_filename (GstDataRepoSrc * src)
   /* _NNS_IMAGE must have %d in src->filename */
   if (src->shuffled_index_array->len > 0)
     shuffled_index =
-        g_array_index (src->shuffled_index_array, gint, src->array_index);
+        g_array_index (src->shuffled_index_array, guint, src->array_index);
   else
     shuffled_index = 0;         /* Used for initial file open verification */
 
@@ -814,7 +815,7 @@ gst_data_repo_src_read_others (GstDataRepoSrc * src, GstBuffer ** buffer)
   guint8 *data;
   GstMemory *mem;
   GstMapInfo info;
-  gint shuffled_index = 0;
+  guint shuffled_index = 0;
   guint64 offset = 0;
 
   g_return_val_if_fail (src->fd != 0, GST_FLOW_ERROR);
@@ -837,7 +838,7 @@ gst_data_repo_src_read_others (GstDataRepoSrc * src, GstBuffer ** buffer)
   }
 
   shuffled_index =
-      g_array_index (src->shuffled_index_array, gint, src->array_index++);
+      g_array_index (src->shuffled_index_array, guint, src->array_index++);
   GST_LOG_OBJECT (src, "shuffled_index [%d] -> %d", src->array_index - 1,
       shuffled_index);
   offset = gst_data_repo_src_get_file_offset (src, shuffled_index);
@@ -1265,18 +1266,22 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
   g_return_val_if_fail (src != NULL, FALSE);
   g_return_val_if_fail (src->json_filename != NULL, FALSE);
 
-  file = g_file_new_for_path (src->json_filename);
+  if ((file = g_file_new_for_path (src->json_filename)) == NULL) {
+    GST_ERROR_OBJECT (src, "Failed to get file object of %s.",
+        src->json_filename);
+    return FALSE;
+  }
 
-  g_file_load_contents (file, NULL, &contents, NULL, NULL, &error);
-  if (error != NULL) {
+  if (!g_file_load_contents (file, NULL, &contents, NULL, NULL, &error)) {
     GST_ERROR_OBJECT (src, "Failed to open %s: %s", src->json_filename,
-        error->message);
+        error ? error->message : "Unknown error");
     g_clear_error (&error);
+    g_object_unref (file);
     return FALSE;
   }
 
   parser = json_parser_new ();
-  if (!json_parser_load_from_data (parser, contents, -1, &error)) {
+  if (!json_parser_load_from_data (parser, contents, -1, NULL)) {
     GST_ERROR_OBJECT (src, "Failed to load data from %s", src->json_filename);
     goto error;
   }

@@ -749,8 +749,8 @@ remove_test_file (void)
   for (i = 0; i < 5; i++) {
     filename = g_strdup_printf ("img_%02d.png", i);
     g_remove (filename);
+    g_free (filename);
   }
-  g_free (filename);
 }
 
 /**
