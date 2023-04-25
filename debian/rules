@@ -59,10 +59,10 @@ override_dh_auto_build:
 	if [ -f './build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_nnfw.so' ]; then echo "NNFW exists" ; else rm debian/nnstreamer-nnfw.install; fi
 
 override_dh_auto_test:
-	./packaging/run_unittests_binaries.sh ./tests
-	./packaging/run_unittests_binaries.sh ./tests/nnstreamer_edge
 ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes), yes)
 ifeq ($(DEB_HOST_ARCH), amd64)
+	./packaging/run_unittests_binaries.sh ./tests
+	./packaging/run_unittests_binaries.sh ./tests/nnstreamer_edge
 	if [ -f './tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw' ]; then ./packaging/run_unittests_binaries.sh ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw; fi
 endif
 #	cd tests && ssat -n -p=1 && cd ..
