@@ -4267,7 +4267,7 @@ test_custom_v0_handleEvent (event_ops ops, GstTensorFilterFrameworkEventData *da
  */
 static int
 test_custom_v1_invoke (const GstTensorFilterFramework *self,
-    const GstTensorFilterProperties *prop, void *private_data,
+    GstTensorFilterProperties *prop, void *private_data,
     const GstTensorMemory *input, GstTensorMemory *output)
 {
   return test_custom_v0_invoke (prop, &private_data, input, output);
