@@ -223,6 +223,7 @@ if [[ "$?" != 0 ]]; then
     exit
 fi
 
+# Data publishing via AITT
 gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} \
     videotestsrc is-live=true ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tee name=t \
         t. ! queue ! multifilesink location=raw7_%1d.log \
@@ -239,6 +240,31 @@ findFirstMatchedFileNumber "raw7_" ".log" "result7_1_0.log" 7-7
 callCompareTestIfExist raw7_$((num+0)).log result7_1_0.log 7-7 "Compare 7-7" 1 0
 callCompareTestIfExist raw7_$((num+1)).log result7_1_1.log 7-8 "Compare 7-8" 1 0
 callCompareTestIfExist raw7_$((num+2)).log result7_1_2.log 7-9 "Compare 7-9" 1 0
+kill -9 $pid &> /dev/null
+wait $pid
+
+# Data publishing via MQTT
+kill -9 $mospid &> /dev/null
+PORT=`python3 ../../get_available_port.py`
+/usr/sbin/mosquitto -p ${PORT}&
+mospid=$!
+
+gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} \
+    videotestsrc is-live=true ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tee name=t \
+        t. ! queue ! multifilesink location=raw8_%1d.log \
+        t. ! queue ! edgesink port=0 connect-type=MQTT dest-host=127.0.0.1 dest-port=${PORT} topic=tempTopic async=false" 8-1 0 0 30
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
+    edgesrc port=0 connect-type=MQTT dest-host=127.0.0.1 dest-port=${PORT} topic=tempTopic num-buffers=10 ! multifilesink location=result8_0_%1d.log" 8-2 0 0 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
+    edgesrc port=0 connect-type=MQTT dest-host=127.0.0.1 dest-port=${PORT} topic=tempTopic num-buffers=10 ! multifilesink location=result8_1_%1d.log" 8-3 0 0 $PERFORMANCE
+findFirstMatchedFileNumber "raw8_" ".log" "result8_0_0.log" 8-4
+callCompareTestIfExist raw8_$((num+0)).log result8_0_0.log 8-4 "Compare 8-4" 1 0
+callCompareTestIfExist raw8_$((num+1)).log result8_0_1.log 8-5 "Compare 8-5" 1 0
+callCompareTestIfExist raw8_$((num+2)).log result8_0_2.log 8-6 "Compare 8-6" 1 0
+findFirstMatchedFileNumber "raw8_" ".log" "result8_1_0.log" 8-7
+callCompareTestIfExist raw8_$((num+0)).log result8_1_0.log 8-7 "Compare 8-7" 1 0
+callCompareTestIfExist raw8_$((num+1)).log result8_1_1.log 8-8 "Compare 8-8" 1 0
+callCompareTestIfExist raw8_$((num+2)).log result8_1_2.log 8-9 "Compare 8-9" 1 0
 kill -9 $pid &> /dev/null
 wait $pid
 

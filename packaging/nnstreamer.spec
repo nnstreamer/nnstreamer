@@ -314,6 +314,9 @@ BuildRequires:	pkgconfig(orc-0.4)
 BuildRequires:	flex
 BuildRequires:	bison
 
+# For datarepo
+BuildRequires: pkgconfig(json-glib-1.0)
+
 # Note that debug packages generate an additional build and storage cost.
 # If you do not need debug packages, run '$ gbs -c .TAOS-CI/.gbs.conf build ... --define "_skip_debug_rpm 1"'.
 
@@ -693,7 +696,7 @@ NNStreamer's datareposrc/sink plugins for reading and writing files in MLOps Dat
 %if %{with tizen}
 %define enable_tizen -Denable-tizen=true -Dtizen-version-major=0%{tizen_version_major}
 # Element allowance in Tizen
-%define allowed_element_base     'capsfilter input-selector output-selector queue tee valve appsink appsrc audioconvert audiorate audioresample audiomixer videoconvert videocrop videorate videoscale videoflip videomixer compositor fakesrc fakesink filesrc filesink audiotestsrc videotestsrc jpegparse jpegenc jpegdec pngenc pngdec tcpclientsink tcpclientsrc tcpserversink tcpserversrc xvimagesink ximagesink evasimagesink evaspixmapsink glimagesink theoraenc lame vorbisenc wavenc volume oggmux avimux matroskamux v4l2src avsysvideosrc camerasrc tvcamerasrc pulsesrc fimcconvert tizenwlsink gdppay gdpdepay join '
+%define allowed_element_base     'capsfilter input-selector output-selector queue tee valve appsink appsrc audioconvert audiorate audioresample audiomixer videoconvert videocrop videorate videoscale videoflip videomixer compositor fakesrc fakesink filesrc filesink audiotestsrc videotestsrc jpegparse jpegenc jpegdec pngenc pngdec tcpclientsink tcpclientsrc tcpserversink tcpserversrc xvimagesink ximagesink evasimagesink evaspixmapsink glimagesink theoraenc lame vorbisenc wavenc volume oggmux avimux matroskamux v4l2src avsysvideosrc camerasrc tvcamerasrc pulsesrc fimcconvert tizenwlsink gdppay gdpdepay join datareposrc datareposink '
 %define allowed_element_edgeai   'rtpdec rtspsrc rtspclientsink zmqsrc zmqsink mqttsrc mqttsink udpsrc udpsink multiudpsink edgesrc edgesink '
 %define allowed_element_audio    'audioamplify audiochebband audiocheblimit audiodynamic audioecho audiofirfilter audioiirfilter audioinvert audiokaraoke audiopanorama audiowsincband audiowsinclimit scaletempo stereo '
 %if "%{?profile}" == "tv"

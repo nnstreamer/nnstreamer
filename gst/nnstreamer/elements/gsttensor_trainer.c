@@ -11,14 +11,14 @@
  *
  * ## Example launch line
  * |[
- * gst-launch-1.0 filesrc location=mnist_input_200.dat blocksize=3136 ! \
- * application/octet-stream, framerate=5/1 ! tensor_converter input-dim=1:1:784:1 input-type=float32 \
- * ! mux.sink_0 filesrc location=mnist_label_200.dat blocksize=40 ! \
- * application/octet-stream, framerate=5/1 ! tensor_converter input_dim=1:1:10:1 input-type=float32 \
- * ! mux.sink_1 tensor_mux name=mux sync-mode=nosync ! tensor_trainer framework=nntrainer \
- * model-config=mnist.ini model-save-path=model.bin input-dim=1:1:784:1,1:1:10:1 input-type=float32,float32 \
- * num-lists=1 num-labels=1 num-training-samples=100 num-validation-samples=100 ! tensor_sink
+ * gst-launch-1.0 datareposrc location=mnist_trainingSet.dat json=mnist.json start-sample-index=3 stop-sample-index=202 epochs=5 ! \
+ * other/tensors, format=static, num_tensors=2, framerate=0/1, dimensions=1:1:784:1.1:1:10:1, types=float32.float32 ! \
+ * tensor_trainer framework=nntrainer model-config=mnist.ini model-save-path=model.bin input-dim=1:1:784:1,1:1:10:1 \
+ * input-type=float32,float32 num-inputs=1 num-labels=1 num-training-samples=100 num-validation-samples=100 epochs=5 ! \
+ * tensor_sink
  * ]|
+ *
+ * Total number of data to be received is 1000((num-training-samples + num-validation-samples) * epochs)
  */
 
 #ifdef HAVE_CONFIG_H
@@ -59,7 +59,11 @@ G_DEFINE_TYPE (GstTensorTrainer, gst_tensor_trainer, GST_TYPE_ELEMENT);
 /**
  * @brief Default framework property value
  */
-#define DEFAULT_PROP_FRAMEWORK "nntrainer"
+#define DEFAULT_PROP_INPUT_LIST 1
+#define DEFAULT_PROP_LABEL_LIST 1
+#define DEFAULT_PROP_TRAIN_SAMPLES 0
+#define DEFAULT_PROP_VALID_SAMPLES 0
+#define DEFAULT_PROP_EPOCHS 1
 
 /**
  * @brief Default string property value 
@@ -79,8 +83,9 @@ enum
   PROP_INPUT_TYPE,
   PROP_NUM_INPUTS,              /* number of input list */
   PROP_NUM_LABELS,              /* number of label list */
-  PROP_NUM_TRAINING_SAMPLES,    /*number of training data */
-  PROP_NUM_VALIDATION_SAMPLES,  /*number of validation data */
+  PROP_NUM_TRAINING_SAMPLES,    /* number of training data */
+  PROP_NUM_VALIDATION_SAMPLES,  /* number of validation data */
+  PROP_EPOCHS,                  /* Repetitions of training */
 };
 
 static void gst_tensor_trainer_set_property (GObject * object, guint prop_id,
@@ -111,12 +116,13 @@ static void gst_tensor_trainer_set_prop_input_dimension (GstTensorTrainer *
     trainer, const GValue * value);
 static void gst_tensor_trainer_set_prop_input_type (GstTensorTrainer * trainer,
     const GValue * value);
-static void gst_tensor_trainer_find_framework (GstTensorTrainer * trainer,
+static gboolean gst_tensor_trainer_find_framework (GstTensorTrainer * trainer,
     const char *name);
-static void gst_tensor_trainer_create_framework (GstTensorTrainer * trainer);
+static gboolean gst_tensor_trainer_create_framework (GstTensorTrainer *
+    trainer);
 static gsize gst_tensor_trainer_get_tensor_size (GstTensorTrainer * trainer,
     guint index, gboolean is_input);
-static void gst_tensor_trainer_create_model (GstTensorTrainer * trainer);
+static gboolean gst_tensor_trainer_create_model (GstTensorTrainer * trainer);
 static void gst_tensor_trainer_train_model (GstTensorTrainer * trainer);
 static void gst_tensor_trainer_output_dimension (GstTensorTrainer * trainer);
 static void gst_tensor_trainer_output_type (GstTensorTrainer * trainer);
@@ -150,7 +156,7 @@ gst_tensor_trainer_class_init (GstTensorTrainerClass * klass)
   g_object_class_install_property (gobject_class, PROP_FRAMEWORK,
       g_param_spec_string ("framework", "Framework",
           "Neural network framework to be used for model training",
-          DEFAULT_PROP_FRAMEWORK,
+          DEFAULT_STR_PROP_VALUE,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
@@ -172,15 +178,18 @@ gst_tensor_trainer_class_init (GstTensorTrainerClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_INPUT_DIM,
       g_param_spec_string ("input-dim", "Input dimension",
-          "Input tensors dimension from inner array, up to 4 dimensions ?", "",
+          "Input tensors dimension from inner array, up to 4 dimensions ?",
+          DEFAULT_STR_PROP_VALUE,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_INPUT_TYPE,
       g_param_spec_string ("input-type", "Input tensor element type",
-          "Type of each element of the input tensor ?", "",
+          "Type of each element of the input tensor ?",
+          DEFAULT_STR_PROP_VALUE,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
+
 
   g_object_class_install_property (gobject_class, PROP_NUM_INPUTS,
       g_param_spec_uint ("num-inputs", "Number of inputs",
@@ -199,8 +208,8 @@ gst_tensor_trainer_class_init (GstTensorTrainerClass * klass)
   g_object_class_install_property (gobject_class, PROP_NUM_TRAINING_SAMPLES,
       g_param_spec_uint ("num-training-samples", "Number of training samples",
           "A sample can consist of multiple inputs and labels in tensors of a gstbuffer"
-          ", set how many samples are taken for training model", 0, G_MAXUINT,
-          1,
+          ", set how many samples are taken for training model",
+          0, G_MAXINT, 0,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
@@ -209,7 +218,16 @@ gst_tensor_trainer_class_init (GstTensorTrainerClass * klass)
           "Number of validation samples",
           "A sample can consist of multiple inputs and labels in tensors of a gstbuffer"
           ", set how many samples are taken for validation model",
-          0, G_MAXUINT, 1,
+          0, G_MAXINT, 0,
+          G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
+          G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (gobject_class, PROP_EPOCHS,
+      g_param_spec_uint ("epochs", "Number of epoch",
+          "Epochs are repetitions of training samples and validation smaples, "
+          "number of samples received for model training is "
+          "(num-training-samples+num-validation-samples)*epochs", 0, G_MAXINT,
+          DEFAULT_PROP_EPOCHS,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
@@ -250,20 +268,25 @@ gst_tensor_trainer_init (GstTensorTrainer * trainer)
   gst_element_add_pad (GST_ELEMENT (trainer), trainer->srcpad);
 
   /** init properties */
-  trainer->fw_name = g_strdup (DEFAULT_PROP_FRAMEWORK);
+  trainer->fw_name = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->model_config = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->model_save_path = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->input_dimensions = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->output_dimensions = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->input_type = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->output_type = g_strdup (DEFAULT_STR_PROP_VALUE);
+  trainer->prop.num_inputs = DEFAULT_PROP_INPUT_LIST;
+  trainer->prop.num_labels = DEFAULT_PROP_LABEL_LIST;
+  trainer->prop.num_training_samples = DEFAULT_PROP_TRAIN_SAMPLES;
+  trainer->prop.num_validation_samples = DEFAULT_PROP_VALID_SAMPLES;
+  trainer->prop.num_epochs = DEFAULT_PROP_EPOCHS;
 
   trainer->fw = NULL;
   trainer->fw_created = FALSE;
   trainer->input_configured = FALSE;
   trainer->output_configured = FALSE;
   trainer->inputtype_configured = FALSE;
-  trainer->total_invoke_num = 0;
+  trainer->total_push_data_cnt = 0;
 
   g_cond_init (&trainer->training_complete_cond);
   g_mutex_init (&trainer->trainer_lock);
@@ -340,6 +363,9 @@ gst_tensor_trainer_set_property (GObject * object, guint prop_id,
     case PROP_NUM_VALIDATION_SAMPLES:
       trainer->prop.num_validation_samples = g_value_get_uint (value);
       break;
+    case PROP_EPOCHS:
+      trainer->prop.num_epochs = g_value_get_uint (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -385,10 +411,34 @@ gst_tensor_trainer_get_property (GObject * object, guint prop_id,
     case PROP_NUM_VALIDATION_SAMPLES:
       g_value_set_uint (value, trainer->prop.num_validation_samples);
       break;
+    case PROP_EPOCHS:
+      g_value_set_uint (value, trainer->prop.num_epochs);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
+}
+
+/**
+ * @brief Check invalid param
+ */
+static gboolean
+gst_tensor_trainer_check_invalid_param (GstTensorTrainer * trainer)
+{
+  g_return_val_if_fail (trainer != NULL, FALSE);
+
+  /* Parameters that can be retrieved from caps will be removed */
+  if (!trainer->fw_name || !trainer->model_config || !trainer->model_save_path
+      || !trainer->input_dimensions || !trainer->input_type
+      || trainer->prop.num_epochs <= 0 || trainer->prop.num_inputs <= 0
+      || trainer->prop.num_labels <= 0) {
+    GST_ERROR_OBJECT (trainer, "Check for invalid param value");
+
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 /**
@@ -404,11 +454,17 @@ gst_tensor_trainer_change_state (GstElement * element,
   switch (transition) {
     case GST_STATE_CHANGE_NULL_TO_READY:
       GST_INFO_OBJECT (trainer, "NULL_TO_READY");
+
+      if (!gst_tensor_trainer_check_invalid_param (trainer))
+        goto state_change_failed;
+
       break;
 
     case GST_STATE_CHANGE_READY_TO_PAUSED:
       GST_INFO_OBJECT (trainer, "READY_TO_PAUSED");
-      gst_tensor_trainer_create_model (trainer);
+      if (!gst_tensor_trainer_create_model (trainer))
+        goto state_change_failed;
+
       break;
 
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
@@ -442,6 +498,11 @@ gst_tensor_trainer_change_state (GstElement * element,
   }
 
   return ret;
+
+state_change_failed:
+  GST_ERROR_OBJECT (trainer, "state change failed");
+
+  return GST_STATE_CHANGE_FAILURE;
 }
 
 /**
@@ -462,7 +523,7 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
   GstMemory *out_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
   GstMapInfo out_info[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT];
-  GstTensorMemory invoke_tensors[NNS_TENSOR_SIZE_LIMIT];
+  GstTensorMemory push_tensors[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMetaInfo in_meta[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMetaInfo out_meta[NNS_TENSOR_SIZE_LIMIT];
@@ -492,7 +553,7 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
     GST_INFO ("tensor size: %zd", in_tensors[i].size);
   }
 
-  /* Prepare tensor to invoke */
+  /* Prepare tensor to push */
   /* Check number of input tensors */
   GST_DEBUG_OBJECT (trainer, "num_tensors: %d",
       trainer->prop.input_meta.num_tensors);
@@ -513,24 +574,24 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
       goto error;
     }
     /* Copy to data pointer */
-    invoke_tensors[i] = in_tensors[i];
+    push_tensors[i] = in_tensors[i];
     GST_INFO ("in_tensors[%d].size= %zd", i, in_tensors[i].size);
     GST_INFO ("in_tensors[%d].data: %p", i, in_tensors[i].data);
-    GST_INFO ("invoke_tensors[%d].size= %zd", i, invoke_tensors[i].size);
-    GST_INFO ("invoke_tensors[%d].data: %p", i, invoke_tensors[i].data);
+    GST_INFO ("push_tensors[%d].size= %zd", i, push_tensors[i].size);
+    GST_INFO ("push_tensors[%d].data: %p", i, push_tensors[i].data);
   }
 
   ret =
       trainer->fw->push_data (trainer->fw, &trainer->prop, trainer->privateData,
-      invoke_tensors);
-  trainer->total_invoke_num++;
+      push_tensors);
+  trainer->total_push_data_cnt++;
 
   /* Free in info */
   for (i = 0; i < mem_blocks; i++)
     gst_memory_unmap (in_mem[i], &in_info[i]);
 
   if (ret < 0) {
-    GST_ERROR_OBJECT (trainer, "Invoke error");
+    GST_ERROR_OBJECT (trainer, "push error");
     return GST_FLOW_ERROR;
   }
 
@@ -538,8 +599,8 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
       push one outbuf is necessary to change pipeline state.
       Scheduling with subplugin does not work.
    */
-  if (trainer->total_invoke_num == 1
-      || trainer->total_invoke_num ==
+  if (trainer->total_push_data_cnt == 1
+      || trainer->total_push_data_cnt ==
       trainer->prop.num_training_samples +
       trainer->prop.num_validation_samples) {
 
@@ -638,61 +699,36 @@ static GstCaps *
 gst_tensor_trainer_query_caps (GstTensorTrainer * trainer,
     GstPad * pad, GstCaps * filter)
 {
-  GstCaps *result;
   GstCaps *caps;
-  GstStructure *structure;
-  gboolean configured = FALSE;
-  GstTensorsConfig in_config;
+  GstTensorsConfig *config;
 
   g_return_val_if_fail (trainer != NULL, NULL);
   g_return_val_if_fail (pad != NULL, NULL);
 
-  gst_tensors_config_init (&in_config);
+  gst_tensors_config_init (&trainer->in_config);
   gst_tensors_config_init (&trainer->out_config);
 
-  caps = gst_tensor_pad_possible_caps_from_config (pad, &in_config);
-  structure = gst_caps_get_structure (caps, 0);
-
-  if (!gst_tensors_config_from_structure (&in_config, structure))
-    return NULL;
-  gst_caps_unref (caps);
-
-  /** Need to set property (input, inputtype, output, outputtype)
-      for trainer->input_meta and trainer->output_meta */
-  if (pad == trainer->srcpad) {
-    if (trainer->input_configured) {
-      gst_tensors_info_copy (&trainer->out_config.info,
-          &trainer->prop.input_meta);
-      configured = TRUE;
-    }
+  /* tensor config info for given pad */
+  if (pad == trainer->sinkpad) {
+    config = &trainer->in_config;
   } else {
-    if (trainer->output_configured) {
-      configured = TRUE;
-      gst_tensors_info_copy (&trainer->out_config.info, &trainer->output_meta);
-    }
+    config = &trainer->out_config;
   }
 
-  if (configured)
-    /* Output info may be configured */
-    result =
-        gst_tensor_pad_possible_caps_from_config (pad, &trainer->out_config);
-  else
-    result = gst_caps_from_string (CAPS_STRING);
+  caps = gst_tensor_pad_possible_caps_from_config (pad, config);
+  GST_DEBUG_OBJECT (trainer, "caps %" GST_PTR_FORMAT, caps);
+  GST_DEBUG_OBJECT (trainer, "filter %" GST_PTR_FORMAT, filter);
 
-  GST_DEBUG_OBJECT (trainer, "caps intersect without filter %" GST_PTR_FORMAT,
-      result);
-
-  if (filter) {
-    GstCaps *intersection;
-    intersection =
-        gst_caps_intersect_full (result, filter, GST_CAPS_INTERSECT_FIRST);
-    gst_caps_unref (result);
-    result = intersection;
-    GST_DEBUG_OBJECT (trainer, "result caps %" GST_PTR_FORMAT, result);
+  if (caps && filter) {
+    GstCaps *result;
+    result = gst_caps_intersect_full (filter, caps, GST_CAPS_INTERSECT_FIRST);
+    gst_caps_unref (caps);
+    caps = result;
   }
-  gst_tensors_config_free (&in_config);
 
-  return result;
+  GST_DEBUG_OBJECT (trainer, "result caps %" GST_PTR_FORMAT, caps);
+
+  return caps;
 }
 
 /**
@@ -703,6 +739,7 @@ gst_tensor_trainer_sink_event (GstPad * sinkpad, GstObject * parent,
     GstEvent * event)
 {
   GstTensorTrainer *trainer;
+  GstTensorTrainerFrameworkInfo info;
   trainer = GST_TENSOR_TRAINER (parent);
 
   GST_DEBUG_OBJECT (trainer, "Received %s event: %" GST_PTR_FORMAT,
@@ -710,12 +747,17 @@ gst_tensor_trainer_sink_event (GstPad * sinkpad, GstObject * parent,
 
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_EOS:
-      GST_INFO_OBJECT (trainer, "get GST_EVENT_EOS event..state is %d",
-          GST_STATE (trainer));
-      g_mutex_lock (&trainer->trainer_lock);
-      GST_INFO_OBJECT (trainer, "wait for training_complete_cond signal");
-      g_cond_wait (&trainer->training_complete_cond, &trainer->trainer_lock);
-      g_mutex_unlock (&trainer->trainer_lock);
+      trainer->fw->getFrameworkInfo (trainer->fw, NULL, trainer->privateData,
+          &info);
+      if (!info.is_training_complete) {
+        GST_INFO_OBJECT (trainer,
+            "got GST_EVENT_EOS event but training is not completed, state is %d",
+            GST_STATE (trainer));
+        g_mutex_lock (&trainer->trainer_lock);
+        GST_INFO_OBJECT (trainer, "wait for training_complete_cond signal");
+        g_cond_wait (&trainer->training_complete_cond, &trainer->trainer_lock);
+        g_mutex_unlock (&trainer->trainer_lock);
+      }
       break;
     case GST_EVENT_FLUSH_START:
       GST_INFO_OBJECT (trainer, "get GST_EVENT_FLUSH_START event");
@@ -751,6 +793,8 @@ gst_tensor_trainer_sink_event (GstPad * sinkpad, GstObject * parent,
       trainer->out_config.rate_n = in_config.rate_n;
       trainer->out_config.rate_d = in_config.rate_d;
 
+      gst_tensors_info_copy (&trainer->out_config.info, &trainer->output_meta);
+
       out_caps =
           gst_tensor_pad_caps_from_config (trainer->srcpad,
           &trainer->out_config);
@@ -761,7 +805,7 @@ gst_tensor_trainer_sink_event (GstPad * sinkpad, GstObject * parent,
       gst_event_unref (event);
       gst_caps_unref (out_caps);
 
-      gst_tensors_config_free (&in_config);
+      gst_tensors_config_free (&trainer->in_config);
       gst_tensors_config_free (&trainer->out_config);
 
       return ret;
@@ -913,7 +957,7 @@ gst_tensor_trainer_set_model_save_path (GstTensorTrainer * trainer,
 }
 
 /**
- * @brief Handle "PROP_INPUT_DIM" and "PROP_OUTPUT_DIM" for set-property
+ * @brief Handle "PROP_INPUT_DIM" for set-property
  */
 static void
 gst_tensor_trainer_set_prop_input_dimension (GstTensorTrainer * trainer,
@@ -957,7 +1001,7 @@ gst_tensor_trainer_set_prop_input_dimension (GstTensorTrainer * trainer,
 }
 
 /**
- * @brief Handle "PROP_INPUT_TYPE" and "PROP_OUTPUT_TYPE" for set-property
+ * @brief Handle "PROP_INPUT_TYPE" for set-property
  */
 static void
 gst_tensor_trainer_set_prop_input_type (GstTensorTrainer * trainer,
@@ -987,42 +1031,45 @@ gst_tensor_trainer_set_prop_input_type (GstTensorTrainer * trainer,
 /**
  * @brief Find Trainer sub-plugin with the name.
  */
-static void
+static gboolean
 gst_tensor_trainer_find_framework (GstTensorTrainer * trainer, const char *name)
 {
   const GstTensorTrainerFramework *fw = NULL;
 
-  g_return_if_fail (name != NULL);
-  g_return_if_fail (trainer != NULL);
+  g_return_val_if_fail (name != NULL, FALSE);
+  g_return_val_if_fail (trainer != NULL, FALSE);
 
   GST_INFO_OBJECT (trainer, "Try to find framework: %s", name);
 
   fw = get_subplugin (NNS_SUBPLUGIN_TRAINER, name);
-  if (fw) {
-    GST_INFO_OBJECT (trainer, "Find framework %s:%p", trainer->fw_name, fw);
-    trainer->fw = fw;
-  } else {
+  if (!fw) {
     GST_ERROR_OBJECT (trainer, "Can not find framework(%s)", trainer->fw_name);
+    return FALSE;
   }
+
+  GST_INFO_OBJECT (trainer, "Find framework %s:%p", trainer->fw_name, fw);
+  trainer->fw = fw;
+
+  return TRUE;
 }
 
 /**
  * @brief Create NN framework.
  */
-static void
+static gboolean
 gst_tensor_trainer_create_framework (GstTensorTrainer * trainer)
 {
-  g_return_if_fail (trainer != NULL);
+  g_return_val_if_fail (trainer != NULL, FALSE);
 
   if (!trainer->fw || trainer->fw_created) {
     GST_ERROR_OBJECT (trainer, "fw is not opened(%d) or fw is not null(%p)",
         trainer->fw_created, trainer->fw);
-    return;
+    return FALSE;
   }
 
   if (!trainer->fw->create) {
     GST_ERROR_OBJECT (trainer, "Could not create framework");
-    return;
+    return FALSE;
   }
 
   GST_DEBUG_OBJECT (trainer, "%p", trainer->privateData);
@@ -1030,6 +1077,8 @@ gst_tensor_trainer_create_framework (GstTensorTrainer * trainer)
           &trainer->privateData) >= 0)
     trainer->fw_created = TRUE;
   GST_DEBUG_OBJECT (trainer, "Success, Framework: %p", trainer->privateData);
+
+  return TRUE;
 }
 
 /**
@@ -1058,17 +1107,24 @@ gst_tensor_trainer_get_tensor_size (GstTensorTrainer * trainer,
 /**
  * @brief Create model
  */
-static void
+static gboolean
 gst_tensor_trainer_create_model (GstTensorTrainer * trainer)
 {
-  g_return_if_fail (trainer != NULL);
+  gboolean ret = TRUE;
 
-  if (trainer->fw_name)
-    gst_tensor_trainer_find_framework (trainer, trainer->fw_name);
+  g_return_val_if_fail (trainer != NULL, FALSE);
+  g_return_val_if_fail (trainer->fw_name != NULL, FALSE);
+
+  ret = gst_tensor_trainer_find_framework (trainer, trainer->fw_name);
+  if (!ret)
+    return ret;
+
   if (trainer->fw) {
     /* model create and compile */
-    gst_tensor_trainer_create_framework (trainer);
+    ret = gst_tensor_trainer_create_framework (trainer);
   }
+
+  return ret;
 }
 
 /**

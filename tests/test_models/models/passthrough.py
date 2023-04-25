@@ -14,6 +14,10 @@ D1 = 3
 D2 = 280
 D3 = 40
 D4 = 1
+D5 = 1
+D6 = 1
+D7 = 1
+D8 = 1
 
 
 ##
@@ -22,8 +26,8 @@ class CustomFilter(object):
     ##
     # @brief  The constructor for custom filter: passthrough
     def __init__(self, *args):
-        self.input_dims = [nns.TensorShape([D1, D2, D3, D4], np.uint8)]
-        self.output_dims = [nns.TensorShape([D1, D2, D3, D4], np.uint8)]
+        self.input_dims = [nns.TensorShape([D1, D2, D3, D4, D5, D6, D7, D8], np.uint8)]
+        self.output_dims = [nns.TensorShape([D1, D2, D3, D4, D5, D6, D7, D8], np.uint8)]
 
     ##
     # @brief  python callback: getInputDim

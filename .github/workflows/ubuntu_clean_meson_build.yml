@@ -12,7 +12,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-18.04, ubuntu-20.04, ubuntu-22.04 ]
+        os: [ ubuntu-20.04, ubuntu-22.04 ]
 
     steps:
     - uses: actions/checkout@v3
@@ -20,7 +20,7 @@ jobs:
     - name: install minimal requirements
       run: |
           sudo apt-get update && \
-          sudo apt-get install -y libglib2.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libunwind-dev googletest \
+          sudo apt-get install -y libglib2.0-dev libjson-glib-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libunwind-dev googletest \
             gstreamer1.0-plugins-good
     - uses: BSFishy/meson-build@v1.0.3
       with:

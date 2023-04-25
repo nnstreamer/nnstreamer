@@ -279,8 +279,8 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
   GstTensorsConfig in_configs;
   GstClockTime base_time = 0;
   guint i, n_mem;
-  GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT];
-  tensor_format in_formats[NNS_TENSOR_SIZE_LIMIT];
+  GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT];
+  tensor_format in_formats[NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT];
 
   g_return_val_if_fail (collect != NULL, FALSE);
   g_return_val_if_fail (sync != NULL, FALSE);
@@ -392,7 +392,8 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
           the negotiation should have been failed before this stage. */
       if (gst_tensors_config_is_static (&in_configs))
         g_assert (n_mem == in_configs.info.num_tensors);
-      g_assert ((counting + n_mem) <= NNS_TENSOR_SIZE_LIMIT);
+      g_assert ((counting + n_mem) <=
+          NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT);
 
       if (gst_tensors_config_is_flexible (&in_configs))
         configs->info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
@@ -400,7 +401,22 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
       for (i = 0; i < n_mem; ++i) {
         in_mem[counting] = gst_buffer_get_memory (buf, i);
 
-        configs->info.info[counting] = in_configs.info.info[i];
+        /* set info */
+        if (counting >= NNS_TENSOR_SIZE_LIMIT) {
+          /* initialize extra info */
+          if (counting == NNS_TENSOR_SIZE_LIMIT) {
+            if (!gst_tensors_info_extra_create (&configs->info)) {
+              ml_loge ("Failed to create extra info.");
+              gst_buffer_unref (buf);
+              return FALSE;
+            }
+          }
+
+          gst_tensor_info_copy (&configs->info.extra[counting -
+                  NNS_TENSOR_SIZE_LIMIT], &in_configs.info.info[i]);
+        } else {
+          configs->info.info[counting] = in_configs.info.info[i];
+        }
         in_formats[counting] = in_configs.info.format;
         counting++;
       }
@@ -417,6 +433,12 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
 
     if (gst_tensors_config_is_flexible (configs)) {
       /* append header if input tensor is not flexible */
+      if (i >= NNS_TENSOR_SIZE_LIMIT) {
+        /** @todo support extra tensors in case of flexible */
+        nns_loge ("The extra tensor is not supported for flexible tensor.");
+        return FALSE;
+      }
+
       if (in_formats[i] != _NNS_TENSOR_FORMAT_FLEXIBLE) {
         GstTensorMetaInfo meta;
 
@@ -426,7 +448,15 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
       }
     }
 
-    gst_buffer_append_memory (tensors_buf, mem);
+    if (i < NNS_TENSOR_SIZE_LIMIT) {
+      gst_buffer_append_memory (tensors_buf, mem);
+    } else {
+      GstTensorInfo *info = &configs->info.extra[i - NNS_TENSOR_SIZE_LIMIT];
+      if (!gst_tensor_buffer_append_memory (tensors_buf, mem, info)) {
+        nns_loge ("Failed to append memory to buffer.");
+        return FALSE;
+      }
+    }
   }
 
   configs->info.num_tensors = counting;
@@ -434,6 +464,8 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
   configs->rate_n = old_numerator;
 
   GST_BUFFER_PTS (tensors_buf) = current_time;
+
+  gst_tensors_config_free (&in_configs);
 
   /* check eos */
   *is_eos = _gst_tensor_time_sync_is_eos (collect, sync, empty_pad);
@@ -713,30 +745,49 @@ static GstCaps *
 _get_tensor_caps (const GstTensorsConfig * config)
 {
   GstCaps *caps;
-  const GstTensorInfo *_info = &config->info.info[0];
+  GstStructure *structure;
+  const GstTensorInfo *_info;
+
+  g_return_val_if_fail (config != NULL, NULL);
+
+  _info = &config->info.info[0];
 
   if (config->info.num_tensors > 1)
     return NULL;
 
   caps = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT);
 
+  /* structure for backward compatibility */
+  structure = gst_structure_new_empty (NNS_MIMETYPE_TENSOR);
+
   if (gst_tensor_dimension_is_valid (_info->dimension)) {
     gchar *dim_str = gst_tensor_get_dimension_string (_info->dimension);
 
     gst_caps_set_simple (caps, "dimension", G_TYPE_STRING, dim_str, NULL);
+    g_free (dim_str);
+
+    dim_str =
+        gst_tensor_get_rank_dimension_string (_info->dimension,
+        NNS_TENSOR_RANK_LIMIT_PREV);
+    gst_structure_set (structure, "dimension", G_TYPE_STRING, dim_str, NULL);
     g_free (dim_str);
   }
 
   if (_info->type != _NNS_END) {
     gst_caps_set_simple (caps, "type", G_TYPE_STRING,
         gst_tensor_get_type_string (_info->type), NULL);
+    gst_structure_set (structure, "type", G_TYPE_STRING,
+        gst_tensor_get_type_string (_info->type), NULL);
   }
 
   if (config->rate_n >= 0 && config->rate_d > 0) {
     gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION,
         config->rate_n, config->rate_d, NULL);
+    gst_structure_set (structure, "framerate", GST_TYPE_FRACTION,
+        config->rate_n, config->rate_d, NULL);
   }
 
+  gst_caps_append_structure (caps, structure);
   return caps;
 }
 
@@ -747,8 +798,14 @@ static GstCaps *
 _get_tensors_caps (const GstTensorsConfig * config)
 {
   GstCaps *caps;
+  GstStructure *structure;
+
+  g_return_val_if_fail (config != NULL, NULL);
 
   caps = gst_caps_from_string (GST_TENSORS_CAP_DEFAULT);
+
+  /* structure for backward compatibility */
+  structure = gst_structure_new_empty (NNS_MIMETYPE_TENSORS);
 
   if (config->info.num_tensors > 0) {
     gchar *dim_str, *type_str;
@@ -760,6 +817,16 @@ _get_tensors_caps (const GstTensorsConfig * config)
         config->info.num_tensors, NULL);
     gst_caps_set_simple (caps, "dimensions", G_TYPE_STRING, dim_str, NULL);
     gst_caps_set_simple (caps, "types", G_TYPE_STRING, type_str, NULL);
+    g_free (dim_str);
+
+    dim_str =
+        gst_tensors_info_get_rank_dimensions_string (&config->info,
+        NNS_TENSOR_RANK_LIMIT_PREV);
+
+    gst_structure_set (structure, "num_tensors", G_TYPE_INT,
+        config->info.num_tensors, NULL);
+    gst_structure_set (structure, "dimensions", G_TYPE_STRING, dim_str, NULL);
+    gst_structure_set (structure, "types", G_TYPE_STRING, type_str, NULL);
 
     g_free (dim_str);
     g_free (type_str);
@@ -768,8 +835,11 @@ _get_tensors_caps (const GstTensorsConfig * config)
   if (config->rate_n >= 0 && config->rate_d > 0) {
     gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION,
         config->rate_n, config->rate_d, NULL);
+    gst_structure_set (structure, "framerate", GST_TYPE_FRACTION,
+        config->rate_n, config->rate_d, NULL);
   }
 
+  gst_caps_append_structure (caps, structure);
   return caps;
 }
 
@@ -932,6 +1002,9 @@ _is_structure_dimensions_same (GstStructure * structure1,
   const char *dim_str2;
   guint num_dim1, num_dim2, i;
 
+  gst_tensors_info_init (&info1);
+  gst_tensors_info_init (&info2);
+
   g_return_val_if_fail (gst_structure_has_field (structure1, "dimensions"),
       FALSE);
   g_return_val_if_fail (gst_structure_has_field (structure2, "dimensions"),
@@ -943,13 +1016,25 @@ _is_structure_dimensions_same (GstStructure * structure1,
   dim_str2 = gst_structure_get_string (structure2, "dimensions");
   num_dim2 = gst_tensors_info_parse_dimensions_string (&info2, dim_str2);
 
-  if (num_dim1 != num_dim2)
+  if (num_dim1 != num_dim2) {
+    gst_tensors_info_free (&info1);
+    gst_tensors_info_free (&info2);
     return FALSE;
+  }
 
   for (i = 0; i < num_dim1; i++) {
-    if (!_is_tensor_dim_same (info1.info[i].dimension, info2.info[i].dimension))
+    GstTensorInfo *info1i = gst_tensors_info_get_nth_info (&info1, i);
+    GstTensorInfo *info2i = gst_tensors_info_get_nth_info (&info2, i);
+
+    if (!_is_tensor_dim_same (info1i->dimension, info2i->dimension)) {
+      gst_tensors_info_free (&info1);
+      gst_tensors_info_free (&info2);
       return FALSE;
+    }
   }
+
+  gst_tensors_info_free (&info1);
+  gst_tensors_info_free (&info2);
   return TRUE;
 }
 
@@ -1135,6 +1220,7 @@ done:
   gst_caps_unref (templ);
   if (peer_caps)
     gst_caps_unref (peer_caps);
+  caps = gst_caps_truncate (caps);
   return caps;
 }
 
@@ -1241,6 +1327,8 @@ gst_tensors_caps_from_config (const GstTensorsConfig * config)
     caps = _get_tensors_caps (config);
   }
 
+  caps = gst_caps_truncate (caps);
+
   return caps;
 }
 
@@ -1253,9 +1341,13 @@ gst_tensors_caps_from_config (const GstTensorsConfig * config)
 GstCaps *
 gst_tensor_caps_from_config (const GstTensorsConfig * config)
 {
+  GstCaps *caps;
   g_return_val_if_fail (config != NULL, NULL);
 
-  return _get_tensor_caps (config);
+  caps = _get_tensor_caps (config);
+  caps = gst_caps_truncate (caps);
+
+  return caps;
 }
 
 /**
@@ -1312,8 +1404,8 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
           (gint *) (&config->info.num_tensors));
 
       if (config->info.num_tensors > NNS_TENSOR_SIZE_LIMIT) {
-        nns_logw ("Invalid param, max size is %d", NNS_TENSOR_SIZE_LIMIT);
-        config->info.num_tensors = NNS_TENSOR_SIZE_LIMIT;
+        /* create extra info */
+        gst_tensors_info_extra_create (&config->info);
       }
 
       /* parse dimensions */
@@ -1703,11 +1795,16 @@ gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
   }
 
   new_memory_extra_info = (GstTensorExtraInfo *) new_memory_map.data;
-  new_memory_extra_info->num_extra_tensors += 1;
 
-  for (i = 0; i < new_memory_extra_info->num_extra_tensors; ++i) {
-    gst_tensor_info_copy (&new_memory_extra_info->infos[i], info);
+  /* append tensor info (except the tensor name) */
+  new_memory_extra_info->infos[new_memory_extra_info->num_extra_tensors].type =
+      info->type;
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; ++i) {
+    guint _num = new_memory_extra_info->num_extra_tensors;
+    new_memory_extra_info->infos[_num].dimension[i] = info->dimension[i];
   }
+
+  new_memory_extra_info->num_extra_tensors += 1;
 
   memcpy (new_memory_map.data + offset + last_memory_map.size,
       incoming_memory_map.data, incoming_memory_map.size);
@@ -1720,4 +1817,48 @@ gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
   gst_buffer_replace_memory (buffer, num_mems - 1, new_memory);
 
   return TRUE;
+}
+
+/**
+ * @brief Get the number of tensors in the buffer.
+ */
+guint
+gst_buffer_n_tensor (GstBuffer * buffer)
+{
+  guint num_mems, result = 0;
+  GstMemory *mem;
+  GstMapInfo map;
+  GstTensorExtraInfo *extra_info;
+
+  g_return_val_if_fail (buffer != NULL, 0);
+
+  num_mems = gst_buffer_n_memory (buffer);
+  if (num_mems < NNS_TENSOR_SIZE_LIMIT) {
+    return num_mems;
+  }
+
+  /* num_mems == NNS_TENSOR_SIZE_LIMIT */
+  mem = gst_buffer_peek_memory (buffer, num_mems - 1);
+  if (!mem) {
+    nns_loge ("Failed to get the last memory.");
+    return 0;
+  }
+
+  if (!gst_tensor_is_extra_memory (mem)) {
+    g_warning ("The last memory does not have extra tensors header. "
+        "Assuming the number of tensors is %d.", num_mems);
+    return num_mems;
+  }
+
+  if (!gst_memory_map (mem, &map, GST_MAP_READ)) {
+    nns_loge ("Failed to map the last memory.");
+    return 0;
+  }
+
+  extra_info = (GstTensorExtraInfo *) map.data;
+  result = extra_info->num_extra_tensors + NNS_TENSOR_SIZE_LIMIT;
+
+  gst_memory_unmap (mem, &map);
+
+  return result;
 }

@@ -65,7 +65,7 @@ class CustomFilter(object):
                     for c in range(out_dims[0]):
                         ix = int(x * in_dims[1] / out_dims[1])
                         iy = int(y * in_dims[2] / out_dims[2])
-                        output_tensor[z][y][x][c] = input_tensor[z][iy][ix][c]
+                        output_tensor[0][0][0][0][z][y][x][c] = input_tensor[0][0][0][0][z][iy][ix][c]
 
         # to 1-D array
         return [np.ravel(output_tensor)]

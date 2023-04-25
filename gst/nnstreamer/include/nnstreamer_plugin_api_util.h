@@ -157,6 +157,17 @@ extern gchar *
 gst_tensors_info_get_dimensions_string (const GstTensorsInfo * info);
 
 /**
+ * @brief Get the string of dimensions in tensors info and rank count
+ * @param info tensors info structure
+ * @param rank rank count of given tensor dimension
+ * @return Formatted string of given dimension
+ * @note If rank count is 3, then returned string is 'd1:d2:d3`.
+ * The returned value should be freed with g_free()
+ */
+extern gchar *
+gst_tensors_info_get_rank_dimensions_string (const GstTensorsInfo * info, const unsigned int rank);
+
+/**
  * @brief Get the string of types in tensors info
  * @param info tensors info structure
  * @return string of types in tensors info (NULL if the number of tensors is 0)
@@ -274,7 +285,7 @@ gst_tensor_dimension_is_valid (const tensor_dim dim);
 /**
  * @brief Parse tensor dimension parameter string
  * @return The Rank. 0 if error.
- * @param dimstr The dimension string in the format of d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1, where dN is a positive integer and d1 is the innermost dimension; i.e., dim[d4][d3][d2][d1];
+ * @param dimstr The dimension string in the format of d1:...:d8, d1:d2:d3, d1:d2, or d1, where dN is a positive integer and d1 is the innermost dimension; i.e., dim[d8][d7][d6][d5][d4][d3][d2][d1];
  * @param dim dimension to be filled.
  */
 extern guint
@@ -283,7 +294,7 @@ gst_tensor_parse_dimension (const gchar * dimstr, tensor_dim dim);
 /**
  * @brief Get dimension string from given tensor dimension.
  * @param dim tensor dimension
- * @return Formatted string of given dimension (d1:d2:d3:d4).
+ * @return Formatted string of given dimension (d1:d2:d3:d4:d5:d6:d7:d8).
  * @note The returned value should be freed with g_free()
  */
 extern gchar *
@@ -441,6 +452,23 @@ nnstreamer_version_string (void);
  */
 extern void
 nnstreamer_version_fetch (guint * major, guint * minor, guint * micro);
+
+/**
+ * @brief Allocate and initialize the extra info in given tensors info.
+ * @param[in,out] info GstTensorsInfo to be updated.
+*/
+extern gboolean
+gst_tensors_info_extra_create (GstTensorsInfo * info);
+
+/**
+ * @brief Free allocated extra info in given tensors info.
+ * @param[in,out] info GstTensorsInfo to be updated
+*/
+extern void
+gst_tensors_info_extra_free (GstTensorsInfo * info);
+
+extern GstTensorInfo *
+gst_tensors_info_get_nth_info (GstTensorsInfo * info, guint nth);
 
 G_END_DECLS
 #endif /* __NNS_PLUGIN_API_UTIL_H__ */

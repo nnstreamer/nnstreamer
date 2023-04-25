@@ -16,7 +16,7 @@ jobs:
     - name: homebrew
       run: brew install cask
     - name: install minimal requirements
-      run: brew install meson ninja pkg-config cmake libffi glib gstreamer gst-plugins-base gst-plugins-good numpy
+      run: brew install meson ninja pkg-config cmake libffi glib gstreamer gst-plugins-base gst-plugins-good numpy json-glib
     - uses: BSFishy/meson-build@v1.0.3
       with:
         action: build

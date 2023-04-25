@@ -16,7 +16,7 @@
 #include <sys/types.h>
 #include <gst/gst.h>
 #include <gst/base/gstpushsrc.h>
-#include "tensor_typedef.h"
+#include <tensor_typedef.h>
 
 G_BEGIN_DECLS
 #define GST_TYPE_DATA_REPO_SRC \
@@ -24,11 +24,14 @@ G_BEGIN_DECLS
 #define GST_DATA_REPO_SRC(obj) \
   (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_DATA_REPO_SRC,GstDataRepoSrc))
 #define GST_DATA_REPO_SRC_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_DATA_REPO_SRC,GstRepoSrcClass))
+  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_DATA_REPO_SRC,GstDataRepoSrcClass))
 #define GST_IS_DATA_REPO_SRC(obj) \
   (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_DATA_REPO_SRC))
 #define GST_IS_DATA_REPO_SRC_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_DATA_REPO_SRC))
+
+/* media_type has not IMAGE type */
+#define _NNS_IMAGE 5  /**<supposedly image/png, image/jpeg and etc */
 
 #define MAX_ITEM NNS_TENSOR_SIZE_LIMIT
 
@@ -40,17 +43,39 @@ typedef struct _GstDataRepoSrcClass GstDataRepoSrcClass;
  */
 struct _GstDataRepoSrc {
 
-  GstPushSrc parent; /**< parent object */
+  GstPushSrc parent;            /**< parent object */
 
-  gint fd;	        			  /**< open file descriptor */
-  guint64 read_position;		/**< position of fd */
-  guint64 offset;
-  guint item_size[MAX_ITEM];
+  gboolean is_start;            /**< check if datareposrc is started */
+  gboolean successful_read;     /**< used for checking EOS when reading more than one images(multi-files) from a path */
+  gint fd;                      /**< open file descriptor */
+  guint64 read_position;        /**< position of fd */
+  guint64 offset;               /**< offset of fd */
+  guint64 start_offset;         /**< start offset to read */
+  guint64 last_offset;          /**< last offset to read */
+  guint tensors_size[MAX_ITEM];   /**< each tensors size in a sample */
+  guint tensors_offset[MAX_ITEM]; /**< each tensors offset in a sample */
+  guint num_tensors;            /**< The number of tensors in a sample */
+  gint current_sample_index;    /**< current index of sample or file to read */
+  gboolean first_epoch_is_done;
+  guint total_samples;           /**< The number of total samples */
+  guint num_samples;             /**< The number of samples to be used out of the total samples in the file */
+  guint sample_size;             /**< size of one sample */
+  guint media_type;             /**< media type */
 
   /* property */
-  gchar *filename;          /**< filename */
-  guint length;             /**< buffer size */
+  gchar *filename;              /**< filename */
+  gchar *json_filename;         /**< json filename containing meta information of the filename */
+  gchar *tensors_seq_str;       /**< tensors in a sample are read into gstBuffer according to tensors_sequence */
+  guint start_sample_index;      /**< start index of sample to read, in case of image, the starting index of the numbered files */
+  guint stop_sample_index;       /**< stop index of sample to read, in case of image, the stoppting index of the numbered files */
+  guint epochs;                  /**< repetition of range of files or samples to read */
+  gboolean is_shuffle;          /**< shuffle the sample index */
 
+  GArray *shuffled_index_array; /**< shuffled sample index array */
+  guint array_index;             /**< element index of shuffled_index_array */
+
+  guint tensors_seq[MAX_ITEM]; /**< tensors sequence in a sample that will be read into gstbuffer */
+  guint tensors_seq_cnt;
 };
 
 /**

@@ -6431,6 +6431,8 @@ _manual_extra_tensors_new_data_cb (GstElement *element, GstBuffer *buffer, gpoin
   gint *output, i;
   gboolean ret;
   GstTensorsInfo ts_info;
+
+  gst_tensors_info_init (&ts_info);
   ts_info.num_tensors = 20;
 
   data_received++;
@@ -6443,10 +6445,12 @@ _manual_extra_tensors_new_data_cb (GstElement *element, GstBuffer *buffer, gpoin
     gst_memory_unmap (mem_res, &info_res);
     gst_memory_unref (mem_res);
   }
+
+  gst_tensors_info_free (&ts_info);
 }
 
 /**
- * @brief TBU
+ * @brief Test for extra tensors which are created with gst_tensors_extra_append_memory_to_buffer API.
  */
 TEST (extraTensors, manualextratensors)
 {
@@ -6515,6 +6519,88 @@ TEST (extraTensors, manualextratensors)
   EXPECT_EQ (2, data_received);
 
   gst_object_unref (appsrc_handle);
+  gst_object_unref (pipeline);
+  g_free (str_pipeline);
+}
+
+/**
+ * @brief Callback for tensor sink signal. Using gst_tensors_get_nth_memory API
+ */
+static void
+_tensor_mux_extra_tensors_new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
+{
+  GstMemory *mem_res;
+  GstMapInfo info_res;
+  guint8 *output;
+  gint i;
+  gboolean ret;
+  GstTensorsInfo ts_info;
+
+  gst_tensors_info_init (&ts_info);
+  data_received++;
+  ts_info.num_tensors = 20;
+
+  for (i = 0; i < 20; ++i) {
+    mem_res = gst_tensor_buffer_get_nth_memory (buffer, &ts_info, (guint) i);
+    ret = gst_memory_map (mem_res, &info_res, GST_MAP_READ);
+    ASSERT_TRUE (ret);
+    output = (guint8 *) info_res.data;
+    EXPECT_EQ (16, *output);
+    gst_memory_unmap (mem_res, &info_res);
+    gst_memory_unref (mem_res);
+  }
+}
+
+/**
+ * @brief Test tensor_mux of more than 16 sinkpad.
+ */
+TEST (extraTensors, manualtensormux)
+{
+  gchar *str_pipeline = g_strdup (
+      "videotestsrc num-buffers=1 is-live=true ! videoscale ! videoconvert ! "
+      "video/x-raw,format=GRAY8,width=1,height=1,framerate=1/1 ! "
+      "tensor_converter ! other/tensors,format=static,num_tensors=1,types=(string)uint8,dimensions=(string)1:1 ! tee name=t "
+      "t. ! queue ! mux.sink_0 "
+      "t. ! queue ! mux.sink_1 "
+      "t. ! queue ! mux.sink_2 "
+      "t. ! queue ! mux.sink_3 "
+      "t. ! queue ! mux.sink_4 "
+      "t. ! queue ! mux.sink_5 "
+      "t. ! queue ! mux.sink_6 "
+      "t. ! queue ! mux.sink_7 "
+      "t. ! queue ! mux.sink_8 "
+      "t. ! queue ! mux.sink_9 "
+      "t. ! queue ! mux.sink_10 "
+      "t. ! queue ! mux.sink_11 "
+      "t. ! queue ! mux.sink_12 "
+      "t. ! queue ! mux.sink_13 "
+      "t. ! queue ! mux.sink_14 "
+      "t. ! queue ! mux.sink_15 "
+      "t. ! queue ! mux.sink_16 "
+      "t. ! queue ! mux.sink_17 "
+      "t. ! queue ! mux.sink_18 "
+      "t. ! queue ! mux.sink_19 "
+      "tensor_mux name=mux silent=false ! "
+      "tensor_sink name=sinkx async=false silent=false ");
+
+  GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
+  EXPECT_NE (pipeline, nullptr);
+
+  GstElement *sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  EXPECT_NE (sink_handle, nullptr);
+
+  g_signal_connect (sink_handle, "new-data", (GCallback) _tensor_mux_extra_tensors_new_data_cb, NULL);
+
+  data_received = 0;
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (1000000);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (1000000);
+
+  EXPECT_EQ (1, data_received);
+
+  gst_object_unref (sink_handle);
   gst_object_unref (pipeline);
   g_free (str_pipeline);
 }

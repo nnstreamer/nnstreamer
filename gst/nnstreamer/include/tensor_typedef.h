@@ -31,10 +31,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define NNS_TENSOR_RANK_LIMIT	(4)
+#define NNS_TENSOR_RANK_LIMIT	(8)
+#define NNS_TENSOR_RANK_LIMIT_PREV (4)
 #define NNS_TENSOR_SIZE_LIMIT	(16)
 #define NNS_TENSOR_SIZE_LIMIT_STR	"16"
-#define NNS_TENSOR_SIZE_EXTRA_LIMIT (200)
+#define NNS_TENSOR_SIZE_EXTRA_LIMIT (100)
 #define NNS_TENSOR_DIM_NULL ({0, 0, 0, 0})
 
 /**
@@ -245,6 +246,7 @@ typedef struct
 {
   unsigned int num_tensors; /**< The number of tensors */
   GstTensorInfo info[NNS_TENSOR_SIZE_LIMIT]; /**< The list of tensor info */
+  GstTensorInfo *extra; /**< The list of tensor info for tensors whose idx is larger than NNS_TENSOR_SIZE_LIMIT */
   tensor_format format; /**< tensor stream type */
 } GstTensorsInfo;
 
