@@ -81,7 +81,7 @@ class tensor_filter_subplugin
   static int cpp_open (const GstTensorFilterProperties *prop, void **private_data); /**< C wrapper func, open */
   static void cpp_close (const GstTensorFilterProperties *prop, void **private_data); /**< C wrapper func, close */
   static int cpp_invoke (const GstTensorFilterFramework *tf,
-      const GstTensorFilterProperties *prop, void *private_data,
+      GstTensorFilterProperties *prop, void *private_data,
       const GstTensorMemory *input, GstTensorMemory *output); /**< C V1 wrapper func, invoke */
   static int cpp_getFrameworkInfo (const GstTensorFilterFramework *tf,
       const GstTensorFilterProperties *prop, void *private_data,

@@ -161,6 +161,7 @@ typedef struct _GstTensorFilterProperties
 
   int latency; /**< The average latency over the recent 10 inferences in microseconds */
   int throughput; /**< The average throughput in the number of outputs per second */
+  int invoke_dynamic; /**< True for supporting invoke with flexible output. */
 } GstTensorFilterProperties;
 
 /**
@@ -417,14 +418,14 @@ struct _GstTensorFilterFramework
     struct /** _GstTensorFilterFramework_v1 */
     {
       int (*invoke) (const GstTensorFilterFramework * self,
-          const GstTensorFilterProperties * prop, void *private_data,
+          GstTensorFilterProperties * prop, void *private_data,
           const GstTensorMemory * input, GstTensorMemory * output);
       /**< Mandatory callback. Invoke the given network model.
        *
-       * @param[in] prop read-only property values
+       * @param[in/out] prop property values. In the case of dynamic invoke, the output tensors info must be filled.
        * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer.
        * @param[in] input The array of input tensors. Allocated and filled by tensor_filter/main
-       * @param[out] output The array of output tensors. Allocated by tensor_filter/main and to be filled by invoke_NN. If allocate_in_invoke is TRUE, sub-plugin should allocate the memory block for output tensor. (data in GstTensorMemory)
+       * @param[out] output The array of output tensors. Allocated by tensor_filter/main and to be filled by invoke. If allocate_in_invoke is TRUE, sub-plugin should allocate the memory block for output tensor. (data in GstTensorMemory)
        * @return 0 if OK. non-zero if error.
        */
 
