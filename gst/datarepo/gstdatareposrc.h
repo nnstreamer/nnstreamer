@@ -44,6 +44,7 @@ typedef struct _GstDataRepoSrcClass GstDataRepoSrcClass;
 struct _GstDataRepoSrc {
 
   GstPushSrc parent;            /**< parent object */
+  GstPad *src_pad;
 
   gboolean is_start;            /**< check if datareposrc is started */
   gboolean successful_read;     /**< used for checking EOS when reading more than one images(multi-files) from a path */
@@ -60,22 +61,24 @@ struct _GstDataRepoSrc {
   guint total_samples;           /**< The number of total samples */
   guint num_samples;             /**< The number of samples to be used out of the total samples in the file */
   guint sample_size;             /**< size of one sample */
-  guint media_type;             /**< media type */
+  gint media_type;               /**< media type */
 
   /* property */
   gchar *filename;              /**< filename */
   gchar *json_filename;         /**< json filename containing meta information of the filename */
   gchar *tensors_seq_str;       /**< tensors in a sample are read into gstBuffer according to tensors_sequence */
-  guint start_sample_index;      /**< start index of sample to read, in case of image, the starting index of the numbered files */
-  guint stop_sample_index;       /**< stop index of sample to read, in case of image, the stoppting index of the numbered files */
-  guint epochs;                  /**< repetition of range of files or samples to read */
+  guint start_sample_index;     /**< start index of sample to read, in case of image, the starting index of the numbered files */
+  guint stop_sample_index;      /**< stop index of sample to read, in case of image, the stoppting index of the numbered files */
+  guint epochs;                 /**< repetition of range of files or samples to read */
   gboolean is_shuffle;          /**< shuffle the sample index */
 
   GArray *shuffled_index_array; /**< shuffled sample index array */
-  guint array_index;             /**< element index of shuffled_index_array */
+  guint array_index;            /**< element index of shuffled_index_array */
 
-  guint tensors_seq[MAX_ITEM]; /**< tensors sequence in a sample that will be read into gstbuffer */
+  guint tensors_seq[MAX_ITEM];  /**< tensors sequence in a sample that will be read into gstbuffer */
   guint tensors_seq_cnt;
+  gboolean need_changed_caps;   /**< When tensors-sequence changes, caps need to be changed */
+  GstCaps *caps;                /**< optional property, datareposrc should get data format from JSON file caps field */
 };
 
 /**
