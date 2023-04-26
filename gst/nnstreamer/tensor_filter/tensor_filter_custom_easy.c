@@ -33,6 +33,8 @@
 void init_filter_custom_easy (void) __attribute__((constructor));
 void fini_filter_custom_easy (void) __attribute__((destructor));
 
+const char *fw_name = "custom-easy";
+
 /**
  * @brief internal_data
  */
@@ -171,51 +173,6 @@ errorreturn:
 /**
  * @brief Callback required by tensor_filter subplugin
  */
-static int
-custom_invoke (const GstTensorFilterProperties * prop,
-    void **private_data, const GstTensorMemory * input,
-    GstTensorMemory * output)
-{
-  runtime_data *rd = *private_data;
-  /* Internal Logic Error */
-  g_assert (rd && rd->model && rd->model->func);
-
-  return rd->model->func (rd->model->data, prop, input, output);
-}
-
-/**
- * @brief Callback required by tensor_filter subplugin
- */
-static int
-custom_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
-    GstTensorsInfo * info)
-{
-  runtime_data *rd = *private_data;
-  UNUSED (prop);
-  /* Internal Logic Error */
-  g_assert (rd && rd->model);
-  gst_tensors_info_copy (info, &rd->model->in_info);
-  return 0;
-}
-
-/**
- * @brief Callback required by tensor_filter subplugin
- */
-static int
-custom_getOutputDim (const GstTensorFilterProperties * prop,
-    void **private_data, GstTensorsInfo * info)
-{
-  runtime_data *rd = *private_data;
-  UNUSED (prop);
-  /* Internal Logic Error */
-  g_assert (rd && rd->model);
-  gst_tensors_info_copy (info, &rd->model->out_info);
-  return 0;
-}
-
-/**
- * @brief Callback required by tensor_filter subplugin
- */
 static void
 custom_close (const GstTensorFilterProperties * prop, void **private_data)
 {
@@ -225,21 +182,91 @@ custom_close (const GstTensorFilterProperties * prop, void **private_data)
   *private_data = NULL;
 }
 
-static char name_str[] = "custom-easy";
-static GstTensorFilterFramework NNS_support_custom_easy = {
-  .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
-  .name = name_str,
-  .allow_in_place = FALSE,      /* custom cannot support in-place. */
-  .allocate_in_invoke = FALSE,  /* we allocate output buffers for you. */
-  .run_without_model = FALSE,   /* we need a func to run. */
-  .invoke_NN = custom_invoke,
 
-  .getInputDimension = custom_getInputDim,
-  .getOutputDimension = custom_getOutputDim,
-  .setInputDimension = NULL,    /* NYI: we don't support flexible dim, yet */
+/**
+ * @brief Callback required by tensor_filter subplugin
+ */
+static int
+custom_invoke (const GstTensorFilterFramework * self,
+    GstTensorFilterProperties * prop, void *private_data,
+    const GstTensorMemory * input, GstTensorMemory * output)
+{
+  runtime_data *rd = (runtime_data *) private_data;
+  UNUSED (self);
+
+  /* Internal Logic Error */
+  g_assert (rd && rd->model && rd->model->func);
+
+  return rd->model->func (rd->model->data, prop, input, output);
+}
+
+/**
+ * @brief V1 tensor-filter wrapper callback function, "getFrameworkInfo"
+ */
+static int
+custom_getFrameworkInfo (const GstTensorFilterFramework * self,
+    const GstTensorFilterProperties * prop, void *private_data,
+    GstTensorFilterFrameworkInfo * fw_info)
+{
+  UNUSED (self);
+  UNUSED (prop);
+  UNUSED (private_data);
+  fw_info->name = fw_name;
+  fw_info->allow_in_place = 0;
+  fw_info->allocate_in_invoke = 0;
+  fw_info->run_without_model = 1;
+  fw_info->verify_model_path = 0;
+  fw_info->hw_list = NULL;
+  fw_info->num_hw = 0;
+
+  return 0;
+}
+
+/**
+ * @brief C V1 tensor-filter wrapper callback function, "getModelInfo"
+ */
+static int
+custom_getModelInfo (const GstTensorFilterFramework * self,
+    const GstTensorFilterProperties * prop, void *private_data,
+    model_info_ops ops, GstTensorsInfo * in_info, GstTensorsInfo * out_info)
+{
+  runtime_data *rd = private_data;
+  UNUSED (self);
+  UNUSED (prop);
+  UNUSED (ops);
+
+  gst_tensors_info_copy (in_info, &rd->model->in_info);
+  gst_tensors_info_copy (out_info, &rd->model->out_info);
+
+  return 0;
+}
+
+/**
+ * @brief C V1 tensor-filter wrapper callback function, "eventHandler"
+ */
+static int
+custom_eventHandler (const GstTensorFilterFramework * self,
+    const GstTensorFilterProperties * prop, void *private_data, event_ops ops,
+    GstTensorFilterFrameworkEventData * data)
+{
+  UNUSED (self);
+  UNUSED (private_data);
+  UNUSED (ops);
+  UNUSED (data);
+  UNUSED (prop);
+
+  return 0;
+}
+
+static GstTensorFilterFramework NNS_support_custom_easy = {
+  .version = GST_TENSOR_FILTER_FRAMEWORK_V1,
   .open = custom_open,
   .close = custom_close,
-  .destroyNotify = NULL,        /* No need. We don't support "allocate_in_invoke." */
+  .invoke = custom_invoke,
+  .getFrameworkInfo = custom_getFrameworkInfo,
+  .getModelInfo = custom_getModelInfo,
+  .eventHandler = custom_eventHandler,
+  .subplugin_data = NULL,
 };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
