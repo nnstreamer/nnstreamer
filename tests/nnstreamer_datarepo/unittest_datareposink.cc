@@ -227,8 +227,6 @@ TEST (datareposink, writeTensors)
   gchar *str_pipeline = g_strdup_printf (
       "gst-launch-1.0 datareposrc location=%s json=%s "
       "start-sample-index=0 stop-sample-index=9 ! "
-      "other/tensors, format=static, num_tensors=2, framerate=0/1, "
-      "dimensions=1:1:784:1.1:1:10:1, types=float32.float32 ! "
       "datareposink name=datareposink location=mnist.data json=mnist.json",
       file_path, json_path);
 

@@ -12,14 +12,21 @@
  *
  * ## Example launch line
  * |[
- * gst-launch-1.0 datareposrc location=mnist_trainingSet.dat json=mnist.json start-sample-index=3 stop-sample-index=202 epochs=5 ! \
- * other/tensors, format=static, num_tensors=2, framerate=0/1, \
- * dimensions=1:1:784:1.1:1:10:1, types=float32.float32 ! tensor_sink
- * ]|
+ * gst-launch-1.0 datareposrc location=mnist.data json=mnist.json start-sample-index=3 stop-sample-index=202 epochs=5 ! \
+ * ! tensor_sink
+ * gst-launch-1.0 datareposrc location=image_%02ld.png json=image.json start-sample-index=3 stop-sample-index=9 epochs=2 ! fakesink
+ * gst-launch-1.0 datareposrc location=audiofile json=audio.json ! fakesink
+ * gst-launch-1.0 datareposrc location=videofile json=video.json ! fakesink
+ * |]
+ * |[ Unknown sample file(has not JSON) need to set caps and blocksize or set caps to tensors type without blocksize
+ * gst-launch-1.0 datareposrc blocksize=3176 location=unknown.data start-sample-index=3 stop-sample-index=202 epochs=5 \
+ * caps ="application/octet-stream" ! tensor_converter input-dim=1:1:784:1,1:1:10:1 input-type=float32,float32 ! fakesink
+ * |]
+ * or
  * |[
- * gst-launch-1.0 datareposrc location=image_%02ld.png json=image.json start-sample-index=3 stop-sample-index=9 epochs=2 ! pngdec ! fakesink
- * gst-launch-1.0 datareposrc location=audiofile json=audio.json ! audio/x-raw, format=S8, rate=48000, channels=2 ! fakesink
- * gst-launch-1.0 datareposrc location=videofile json=video.json ! video/x-raw, format=RGB, width=320, height=240 ! fakesink
+ * gst-launch-1.0 datareposrc location=unknown.data start-sample-index=3 stop-sample-index=202 epochs=5 \
+ * caps ="other/tensors, format=(string)static, framerate=(fraction)0/1, num_tensors=(int)2, dimensions=(string)1:1:784:1.1:1:10:1, types=(string)float32.float32" \
+ * ! fakesink
  * ]|
  */
 
@@ -59,52 +66,10 @@
 #define O_BINARY (0)
 #endif
 
-/**
- * @brief Default blocksize for reading
- */
-#define DEFAULT_BLOCKSIZE       4*1024
-
-/**
- * @brief Tensors caps
- */
-#define TENSOR_CAPS GST_TENSORS_CAP_MAKE ("{ static, flexible }")
-/**
- * @brief Video caps
- */
-#define SUPPORTED_VIDEO_FORMAT \
-  "{RGB, BGR, RGBx, BGRx, xRGB, xBGR, RGBA, BGRA, ARGB, ABGR, GRAY8}"
-#define VIDEO_CAPS GST_VIDEO_CAPS_MAKE (SUPPORTED_VIDEO_FORMAT) "," \
-  "interlace-mode = (string) progressive"
-/**
- * @brief Audio caps
- */
-#define SUPPORTED_AUDIO_FORMAT \
-  "{S8, U8, S16LE, S16BE, U16LE, U16BE, S32LE, S32BE, U32LE, U32BE, F32LE, F32BE, F64LE, F64BE}"
-#define AUDIO_CAPS GST_AUDIO_CAPS_MAKE (SUPPORTED_AUDIO_FORMAT) "," \
-  "layout = (string) interleaved"
-/**
- * @brief Text caps
- */
-#define TEXT_CAPS "text/x-raw, format = (string) utf8"
-/**
- * @brief Octet caps
- */
-#define OCTET_CAPS "application/octet-stream"
-
-/**
- * @brief Image caps
- */
-#define IMAGE_CAPS \
-  "image/png, width = (int) [ 16, 1000000 ], height = (int) [ 16, 1000000 ], framerate = (fraction) [ 0/1, MAX];" \
-  "image/jpeg, width = (int) [ 16, 65535 ], height = (int) [ 16, 65535 ], framerate = (fraction) [ 0/1, MAX], sof-marker = (int) { 0, 1, 2, 4, 9 };" \
-  "image/tiff, endianness = (int) { BIG_ENDIAN, LITTLE_ENDIAN };" \
-  "image/gif"
-
-static GstStaticPadTemplate srctemplate =
-    GST_STATIC_PAD_TEMPLATE ("src", GST_PAD_SRC, GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (TENSOR_CAPS ";" VIDEO_CAPS ";" AUDIO_CAPS ";" IMAGE_CAPS
-        ";" TEXT_CAPS ";" OCTET_CAPS));
-
+static GstStaticPadTemplate srctemplate = GST_STATIC_PAD_TEMPLATE ("src",
+    GST_PAD_SRC,
+    GST_PAD_ALWAYS,
+    GST_STATIC_CAPS_ANY);
 
 GST_DEBUG_CATEGORY_STATIC (gst_data_repo_src_debug);
 #define GST_CAT_DEFAULT gst_data_repo_src_debug
@@ -120,6 +85,7 @@ enum
   PROP_EPOCHS,
   PROP_IS_SHUFFLE,
   PROP_TENSORS_SEQUENCE,
+  PROP_CAPS,                    /* for setting caps of sample data directly */
 };
 
 #define DEFAULT_INDEX 0
@@ -140,7 +106,6 @@ static gboolean gst_data_repo_src_set_caps (GstBaseSrc * basesrc,
     GstCaps * caps);
 static GstFlowReturn gst_data_repo_src_create (GstPushSrc * pushsrc,
     GstBuffer ** buffer);
-
 #define _do_init \
   GST_DEBUG_CATEGORY_INIT (gst_data_repo_src_debug, "datareposrc", 0, "datareposrc element");
 
@@ -220,7 +185,16 @@ gst_data_repo_src_class_init (GstDataRepoSrcClass * klass)
   g_object_class_install_property (gobject_class, PROP_IS_SHUFFLE,
       g_param_spec_boolean ("is-shuffle", "Is shuffle",
           "If the value is true, samples index are shuffled",
-          DEFAULT_IS_SHUFFLE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          DEFAULT_IS_SHUFFLE,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
+
+  g_object_class_install_property (gobject_class, PROP_CAPS,
+      g_param_spec_boxed ("caps", "Caps",
+          "Optional property, Caps describing the format of the sample data.",
+          GST_TYPE_CAPS,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+          GST_PARAM_MUTABLE_READY));
 
   gobject_class->finalize = gst_data_repo_src_finalize;
   gstelement_class->change_state = gst_data_repo_src_change_state;
@@ -270,6 +244,9 @@ gst_data_repo_src_init (GstDataRepoSrc * src)
   src->num_samples = 0;
   src->total_samples = 0;
   src->tensors_seq_cnt = 0;
+  src->caps = NULL;
+  src->sample_size = 0;
+  src->need_changed_caps = FALSE;
 
   /* Filling the buffer should be pending until set_caps() */
   gst_base_src_set_format (GST_BASE_SRC (src), GST_FORMAT_TIME);
@@ -290,6 +267,12 @@ gst_data_repo_src_finalize (GObject * object)
 
   if (src->shuffled_index_array)
     g_array_free (src->shuffled_index_array, TRUE);
+
+  /* Check for gst-inspect log */
+  if (src->caps) {
+    gst_caps_unref (src->caps);
+    src->caps = NULL;
+  }
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -361,6 +344,8 @@ gst_data_repo_src_set_tensors_sequence (GstDataRepoSrc * src)
   g_return_val_if_fail (src != NULL, FALSE);
   g_return_val_if_fail (src->tensors_seq_str != NULL, FALSE);
 
+  GST_INFO_OBJECT (src, "tensors sequence = %s", src->tensors_seq_str);
+
   /* not use NNS_TENSOR_SIZE_LIMIT */
   strv = g_strsplit (src->tensors_seq_str, ",", -1);
 
@@ -378,7 +363,7 @@ gst_data_repo_src_set_tensors_sequence (GstDataRepoSrc * src)
           src->num_tensors - 1);
       goto error;
     }
-    GST_ERROR ("%d", src->tensors_seq[i]);
+    GST_INFO_OBJECT (src, "%d", src->tensors_seq[i]);
     i++;
   }
   src->tensors_seq_cnt = i;
@@ -398,94 +383,9 @@ gst_data_repo_src_set_tensors_sequence (GstDataRepoSrc * src)
   return TRUE;
 
 error:
+  src->tensors_seq_cnt = 0;
   g_strfreev (strv);
   return FALSE;
-}
-
-/**
- * @brief Setter for datareposrc properties.
- */
-static void
-gst_data_repo_src_set_property (GObject * object, guint prop_id,
-    const GValue * value, GParamSpec * pspec)
-{
-  GstDataRepoSrc *src;
-
-  g_return_if_fail (GST_IS_DATA_REPO_SRC (object));
-
-  src = GST_DATA_REPO_SRC (object);
-
-  switch (prop_id) {
-    case PROP_LOCATION:
-      gst_data_repo_src_set_file_path (src, PROP_LOCATION,
-          g_value_get_string (value), NULL);
-      break;
-    case PROP_JSON:
-      gst_data_repo_src_set_file_path (src, PROP_JSON,
-          g_value_get_string (value), NULL);
-      break;
-    case PROP_START_SAMPLE_INDEX:
-      src->start_sample_index = g_value_get_uint (value);
-      break;
-    case PROP_STOP_SAMPLE_INDEX:
-      src->stop_sample_index = g_value_get_uint (value);
-      break;
-    case PROP_EPOCHS:
-      src->epochs = g_value_get_uint (value);
-      break;
-    case PROP_IS_SHUFFLE:
-      src->is_shuffle = g_value_get_boolean (value);
-      break;
-    case PROP_TENSORS_SEQUENCE:
-      g_free (src->tensors_seq_str);
-      src->tensors_seq_str = g_value_dup_string (value);
-      GST_INFO_OBJECT (src, "tensors sequence = %s", src->tensors_seq_str);
-      break;
-    default:
-      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
-      break;
-  }
-}
-
-/**
- * @brief Getter datareposrc properties
- */
-static void
-gst_data_repo_src_get_property (GObject * object, guint prop_id, GValue * value,
-    GParamSpec * pspec)
-{
-  GstDataRepoSrc *src;
-
-  g_return_if_fail (GST_IS_DATA_REPO_SRC (object));
-
-  src = GST_DATA_REPO_SRC (object);
-
-  switch (prop_id) {
-    case PROP_LOCATION:
-      g_value_set_string (value, src->filename);
-      break;
-    case PROP_JSON:
-      g_value_set_string (value, src->json_filename);
-      break;
-    case PROP_START_SAMPLE_INDEX:
-      g_value_set_uint (value, src->start_sample_index);
-      break;
-    case PROP_STOP_SAMPLE_INDEX:
-      g_value_set_uint (value, src->stop_sample_index);
-      break;
-    case PROP_EPOCHS:
-      g_value_set_uint (value, src->epochs);
-      break;
-    case PROP_IS_SHUFFLE:
-      g_value_set_boolean (value, src->is_shuffle);
-      break;
-    case PROP_TENSORS_SEQUENCE:
-      g_value_set_string (value, src->tensors_seq_str);
-      break;
-    default:
-      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
-      break;
-  }
 }
 
 /**
@@ -1076,29 +976,79 @@ gst_data_repo_src_stop (GstBaseSrc * basesrc)
 }
 
 /**
+ * @brief Get caps with tensors_sequence applied
+ */
+static gboolean
+gst_data_repo_get_caps_by_tensors_sequence (GstDataRepoSrc * src)
+{
+  GstStructure *s;
+  GstTensorsConfig src_config, dst_config;
+  guint i;
+  guint seq_num = 0;
+  GstCaps *new_caps;
+
+  g_return_val_if_fail (src != NULL, FALSE);
+  g_return_val_if_fail (src->caps != NULL, FALSE);
+
+  s = gst_caps_get_structure (src->caps, 0);
+  if (!gst_tensors_config_from_structure (&src_config, s))
+    return FALSE;
+
+  gst_tensors_config_init (&dst_config);
+
+  /* Copy selected tensors in sequence */
+  for (i = 0; i < src->tensors_seq_cnt; i++) {
+    seq_num = src->tensors_seq[i];
+    gst_tensor_info_copy (&dst_config.info.info[i],
+        &src_config.info.info[seq_num]);
+  }
+  dst_config.rate_n = src_config.rate_n;
+  dst_config.rate_d = src_config.rate_d;
+  dst_config.info.format = src_config.info.format;
+  dst_config.info.num_tensors = src->tensors_seq_cnt;
+
+  new_caps = gst_tensors_caps_from_config (&dst_config);
+
+  GST_DEBUG_OBJECT (src,
+      "datareposrc caps by tensors_sequence %" GST_PTR_FORMAT, new_caps);
+
+  gst_caps_replace (&src->caps, new_caps);
+
+  gst_caps_unref (new_caps);
+  gst_tensors_config_free (&dst_config);
+  gst_tensors_config_free (&src_config);
+
+  return TRUE;
+}
+
+/**
  * @brief Get caps for caps negotiation
  */
 static GstCaps *
 gst_data_repo_src_get_caps (GstBaseSrc * basesrc, GstCaps * filter)
 {
   GstDataRepoSrc *src = GST_DATA_REPO_SRC (basesrc);
-  GstCaps *caps = NULL;
 
-  caps = gst_pad_get_pad_template_caps (GST_BASE_SRC_PAD (src));
-  caps = gst_caps_make_writable (caps);
-
-  GST_DEBUG_OBJECT (src, "get caps: %" GST_PTR_FORMAT, caps);
-
-  if (filter) {
-    GstCaps *intersection;
-
-    intersection =
-        gst_caps_intersect_full (filter, caps, GST_CAPS_INTERSECT_FIRST);
-    gst_caps_unref (caps);
-    caps = intersection;
+  if (src->media_type == _NNS_TENSOR && src->need_changed_caps) {
+    gst_data_repo_get_caps_by_tensors_sequence (src);
+    src->need_changed_caps = FALSE;
   }
-  GST_DEBUG_OBJECT (src, "get caps: %" GST_PTR_FORMAT, caps);
-  return caps;
+
+  GST_DEBUG_OBJECT (src, "Current datareposrc caps %" GST_PTR_FORMAT,
+      src->caps);
+
+  if (src->caps) {
+    if (filter)
+      return gst_caps_intersect_full (filter, src->caps,
+          GST_CAPS_INTERSECT_FIRST);
+    else
+      return gst_caps_ref (src->caps);
+  } else {
+    if (filter)
+      return gst_caps_ref (filter);
+    else
+      return gst_caps_new_any ();
+  }
 }
 
 /**
@@ -1234,12 +1184,14 @@ gst_data_repo_src_get_media_type_and_size (GstDataRepoSrc * src, GstCaps * caps)
   } else if (gst_structure_has_name (s, "application/octet-stream")) {
     src->media_type = _NNS_OCTET;
   } else if (gst_structure_has_name (s, "image/png")
+      || gst_structure_has_name (s, "image/bmp")
       || gst_structure_has_name (s, "image/jpeg")
       || gst_structure_has_name (s, "image/tiff")
       || gst_structure_has_name (s, "image/gif")) {
     src->media_type = _NNS_IMAGE;
   } else {
     GST_ERROR_OBJECT (src, "Could not get a media type from caps");
+    src->media_type = _NNS_MEDIA_INVALID;
     return FALSE;
   }
 
@@ -1260,8 +1212,8 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
   JsonParser *parser;
   JsonNode *root;
   JsonObject *object;
-  GstCaps *get_caps = NULL;
   const gchar *caps_str = NULL;
+  GstCaps *new_caps;
 
   g_return_val_if_fail (src != NULL, FALSE);
   g_return_val_if_fail (src->json_filename != NULL, FALSE);
@@ -1305,11 +1257,13 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
   caps_str = json_object_get_string_member (object, "gst_caps");
   GST_INFO_OBJECT (src, "caps_str : %s", caps_str);
 
-  get_caps = gst_caps_from_string (caps_str);
-  GST_INFO_OBJECT (src, "gst_caps : %" GST_PTR_FORMAT, get_caps);
+  new_caps = gst_caps_from_string (caps_str);
+  gst_caps_replace (&src->caps, new_caps);
+  GST_INFO_OBJECT (src, "gst_caps : %" GST_PTR_FORMAT, src->caps);
+  gst_caps_unref (new_caps);
 
   /* calculate media size from gst caps */
-  if (!gst_data_repo_src_get_media_type_and_size (src, get_caps))
+  if (!gst_data_repo_src_get_media_type_and_size (src, src->caps))
     goto error;
 
   /* In the case of below media type, get sample_size from JSON */
@@ -1334,21 +1288,139 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
   src->total_samples = json_object_get_int_member (object, "total_samples");
   GST_INFO_OBJECT (src, "total_samples: %d", src->total_samples);
 
+  if (src->total_samples == 0)
+    goto error;
+
   g_free (contents);
   g_object_unref (parser);
-  gst_caps_unref (get_caps);
   g_object_unref (file);
 
   return TRUE;
 
 error:
+  src->media_type = _NNS_MEDIA_INVALID;
   GST_ERROR_OBJECT (src, "Failed to parse %s", src->json_filename);
   g_free (contents);
   g_object_unref (parser);
-  gst_caps_unref (get_caps);
   g_object_unref (file);
 
   return FALSE;
+}
+
+/**
+ * @brief Setter for datareposrc properties.
+ */
+static void
+gst_data_repo_src_set_property (GObject * object, guint prop_id,
+    const GValue * value, GParamSpec * pspec)
+{
+  GstDataRepoSrc *src;
+  const GstCaps *caps;
+  GstCaps *new_caps;
+
+  g_return_if_fail (GST_IS_DATA_REPO_SRC (object));
+
+  src = GST_DATA_REPO_SRC (object);
+
+  switch (prop_id) {
+    case PROP_LOCATION:
+      gst_data_repo_src_set_file_path (src, PROP_LOCATION,
+          g_value_get_string (value), NULL);
+      break;
+    case PROP_JSON:
+      gst_data_repo_src_set_file_path (src, PROP_JSON,
+          g_value_get_string (value), NULL);
+      /** To get caps, read JSON before Caps negotiation,
+          to get information on sample data */
+      if (!gst_data_repo_src_read_json_file (src)) {
+        GST_ERROR_OBJECT (src, "Faild to get data format");
+      }
+      break;
+    case PROP_START_SAMPLE_INDEX:
+      src->start_sample_index = g_value_get_uint (value);
+      break;
+    case PROP_STOP_SAMPLE_INDEX:
+      src->stop_sample_index = g_value_get_uint (value);
+      break;
+    case PROP_EPOCHS:
+      src->epochs = g_value_get_uint (value);
+      break;
+    case PROP_IS_SHUFFLE:
+      src->is_shuffle = g_value_get_boolean (value);
+      break;
+    case PROP_TENSORS_SEQUENCE:
+      g_free (src->tensors_seq_str);
+      src->tensors_seq_str = g_value_dup_string (value);
+      if (!gst_data_repo_src_set_tensors_sequence (src)) {
+        GST_ERROR_OBJECT (src, "Faild to set tensors sequence");
+      } else {
+        src->need_changed_caps = TRUE;
+      }
+      break;
+    case PROP_CAPS:
+      caps = gst_value_get_caps (value);
+      if (caps) {
+        new_caps = gst_caps_copy (caps);
+        gst_caps_replace (&src->caps, new_caps);
+        gst_data_repo_src_get_media_type_and_size (src, src->caps);
+        gst_caps_unref (new_caps);
+      }
+      /** let's retry set tensors-sequence.
+          if caps property is set later than tensors-sequence property,
+          setting tensors-sequence fails because caps information is unknown.*/
+      if (src->tensors_seq_str) {
+        if (gst_data_repo_src_set_tensors_sequence (src))
+          src->need_changed_caps = TRUE;
+      }
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+      break;
+  }
+}
+
+/**
+ * @brief Getter datareposrc properties
+ */
+static void
+gst_data_repo_src_get_property (GObject * object, guint prop_id, GValue * value,
+    GParamSpec * pspec)
+{
+  GstDataRepoSrc *src;
+
+  g_return_if_fail (GST_IS_DATA_REPO_SRC (object));
+
+  src = GST_DATA_REPO_SRC (object);
+
+  switch (prop_id) {
+    case PROP_LOCATION:
+      g_value_set_string (value, src->filename);
+      break;
+    case PROP_JSON:
+      g_value_set_string (value, src->json_filename);
+      break;
+    case PROP_START_SAMPLE_INDEX:
+      g_value_set_uint (value, src->start_sample_index);
+      break;
+    case PROP_STOP_SAMPLE_INDEX:
+      g_value_set_uint (value, src->stop_sample_index);
+      break;
+    case PROP_EPOCHS:
+      g_value_set_uint (value, src->epochs);
+      break;
+    case PROP_IS_SHUFFLE:
+      g_value_set_boolean (value, src->is_shuffle);
+      break;
+    case PROP_TENSORS_SEQUENCE:
+      g_value_set_string (value, src->tensors_seq_str);
+      break;
+    case PROP_CAPS:
+      gst_value_set_caps (value, src->caps);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+      break;
+  }
 }
 
 /**
@@ -1360,13 +1432,39 @@ gst_data_repo_src_change_state (GstElement * element, GstStateChange transition)
   guint i;
   GstDataRepoSrc *src = GST_DATA_REPO_SRC (element);
   GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
+  GstBaseSrc *basesrc = NULL;
+  gint blocksize;
 
   switch (transition) {
     case GST_STATE_CHANGE_NULL_TO_READY:
       GST_INFO_OBJECT (src, "NULL_TO_READY");
-      if (!gst_data_repo_src_read_json_file (src))
+
+      if (src->media_type == _NNS_MEDIA_INVALID)
         goto state_change_failed;
 
+      /** if media_type is not _NNS_MEDIA_INVALID and sample_size is 0 then
+          'caps' is set by property and sample size needs to be set by blocksize
+          (in the case of otect and text) */
+      if (src->sample_size == 0) {
+        basesrc = GST_BASE_SRC (src);
+        g_object_get (G_OBJECT (basesrc), "blocksize", &blocksize, NULL);
+        GST_DEBUG_OBJECT (src, "blocksize = %d", blocksize);
+        if (blocksize == 0) {
+          GST_ERROR_OBJECT (src, "Please set the 'blocksize' property "
+              "when using the 'caps' property to set the sample format without JSON.");
+          goto state_change_failed;
+        }
+        src->sample_size = blocksize;
+      }
+
+      /** A case of importing a sample format using 'caps' property without JSON. */
+      if (src->total_samples == 0 && src->stop_sample_index == 0) {
+        GST_ERROR_OBJECT (src, "Please set the 'stop-sample-index' property "
+            "when using the 'caps' property to set the sample format without JSON.");
+        goto state_change_failed;
+      }
+
+      /* total_samples -1 is the default value of 'stop-sample-index' property */
       if (src->stop_sample_index == 0)
         src->stop_sample_index = src->total_samples - 1;
 
@@ -1387,9 +1485,10 @@ gst_data_repo_src_change_state (GstElement * element, GstStateChange transition)
               _NNS_TENSOR, src->media_type);
           goto state_change_failed;
         }
-        if (!gst_data_repo_src_set_tensors_sequence (src)) {
+        /* After gst_data_repo_src_set_tensors_sequence() */
+        if (src->tensors_seq_cnt == 0)
           goto state_change_failed;
-        }
+
       } else {
         for (i = 0; i < src->num_tensors; i++)
           src->tensors_seq[i] = i;
