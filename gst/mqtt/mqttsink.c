@@ -929,10 +929,10 @@ gst_mqtt_sink_set_caps (GstBaseSink * basesink, GstCaps * caps)
   ret = gst_caps_replace (&self->in_caps, caps);
 
   if (ret && gst_caps_is_fixed (self->in_caps)) {
-    char *caps_str = gst_caps_to_string (caps);
+    gchar *caps_str = gst_caps_to_string (caps);
 
-    strncpy (self->mqtt_msg_hdr.gst_caps_str, caps_str,
-        MIN (strlen (caps_str), GST_MQTT_MAX_LEN_GST_CAPS_STR - 1));
+    g_strlcpy (self->mqtt_msg_hdr.gst_caps_str, caps_str,
+        GST_MQTT_MAX_LEN_GST_CAPS_STR);
     g_free (caps_str);
   }
 
