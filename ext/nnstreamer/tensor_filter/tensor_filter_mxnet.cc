@@ -109,6 +109,9 @@ void init_filter_mxnet (void)
 void fini_filter_mxnet (void) __attribute__ ((destructor)); /**< Dynamic library desctructor */
 }
 
+/**
+ * @brief tensor_filter_subplugin concrete class for mxnet.
+ */
 class TensorFilterMXNet final : public tensor_filter_subplugin
 {
   public:
@@ -164,6 +167,9 @@ class TensorFilterMXNet final : public tensor_filter_subplugin
 const std::string TensorFilterMXNet::ext_symbol = ".json";
 const std::string TensorFilterMXNet::ext_params = ".params";
 
+/**
+ * @brief Describe framework information.
+ */
 const GstTensorFilterFrameworkInfo TensorFilterMXNet::info_ = { .name = "mxnet",
   .allow_in_place = FALSE,
   .allocate_in_invoke = FALSE,
@@ -175,6 +181,10 @@ const GstTensorFilterFrameworkInfo TensorFilterMXNet::info_ = { .name = "mxnet",
   .accl_default = ACCL_CPU,
   .statistics = nullptr };
 
+/**
+ * @brief mxnet class constructor.
+ */
+
 TensorFilterMXNet::TensorFilterMXNet ()
     : tensor_filter_subplugin (), empty_model_ (true), ctx_ (Context::cpu ()),
       enable_tensorrt_ (false)
@@ -182,17 +192,26 @@ TensorFilterMXNet::TensorFilterMXNet ()
   /** Nothing to do. Just let it have an empty instance */
 }
 
+/**
+ * @brief mxnet class destructor.
+ */
 TensorFilterMXNet::~TensorFilterMXNet ()
 {
   executor_.reset ();
 }
 
+/**
+ * @brief get empty instance of mxnet subplugin.
+ */
 tensor_filter_subplugin &
 TensorFilterMXNet::getEmptyInstance ()
 {
   return *(new TensorFilterMXNet ());
 }
 
+/**
+ * @brief Configure the instance of the mxnet subplugin.
+ */
 void
 TensorFilterMXNet::configure_instance (const GstTensorFilterProperties *prop)
 {
@@ -299,6 +318,9 @@ TensorFilterMXNet::configure_instance (const GstTensorFilterProperties *prop)
   empty_model_ = false;
 }
 
+/**
+ * @brief Invoke the mxnet model and get the inference result.
+ */
 void
 TensorFilterMXNet::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
@@ -336,12 +358,18 @@ TensorFilterMXNet::invoke (const GstTensorMemory *input, GstTensorMemory *output
   }
 }
 
+/**
+ * @brief Get framework information.
+ */
 void
 TensorFilterMXNet::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
 {
   info = info_;
 }
 
+/**
+ * @brief Get the in/output tensors info.
+ */
 int
 TensorFilterMXNet::getModelInfo (
     model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info)
@@ -358,6 +386,9 @@ TensorFilterMXNet::getModelInfo (
   return 0;
 }
 
+/**
+ * @brief Method to handle events.
+ */
 int
 TensorFilterMXNet::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data)
 {
@@ -496,6 +527,9 @@ TensorFilterMXNet::init_filter (void)
       = tensor_filter_subplugin::register_subplugin<TensorFilterMXNet> ();
 }
 
+/**
+ * @brief initializer
+ */
 void
 init_filter_mxnet ()
 {
@@ -510,6 +544,9 @@ TensorFilterMXNet::fini_filter (void)
   tensor_filter_subplugin::unregister_subplugin (registeredRepresentation);
 }
 
+/**
+ * @brief finalizer
+ */
 void
 fini_filter_mxnet ()
 {
