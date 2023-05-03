@@ -12,9 +12,8 @@
  * ## Example launch line
  * |[
  * gst-launch-1.0 datareposrc location=mnist_trainingSet.dat json=mnist.json start-sample-index=3 stop-sample-index=202 epochs=5 ! \
- * other/tensors, format=static, num_tensors=2, framerate=0/1, dimensions=1:1:784:1.1:1:10:1, types=float32.float32 ! \
- * tensor_trainer framework=nntrainer model-config=mnist.ini model-save-path=model.bin input-dim=1:1:784:1,1:1:10:1 \
- * input-type=float32,float32 num-inputs=1 num-labels=1 num-training-samples=100 num-validation-samples=100 epochs=5 ! \
+ * tensor_trainer framework=nntrainer model-config=mnist.ini model-save-path=model.bin \
+ * num-inputs=1 num-labels=1 num-training-samples=100 num-validation-samples=100 epochs=5 ! \
  * tensor_sink
  * ]|
  *
@@ -79,8 +78,6 @@ enum
   PROP_FRAMEWORK,
   PROP_MODEL_CONFIG,
   PROP_MODEL_SAVE_PATH,
-  PROP_INPUT_DIM,
-  PROP_INPUT_TYPE,
   PROP_NUM_INPUTS,              /* number of input list */
   PROP_NUM_LABELS,              /* number of label list */
   PROP_NUM_TRAINING_SAMPLES,    /* number of training data */
@@ -111,10 +108,6 @@ static void gst_tensor_trainer_set_prop_framework (GstTensorTrainer * trainer,
 static void gst_tensor_trainer_set_prop_model_config_file_path (GstTensorTrainer
     * trainer, const GValue * value);
 static void gst_tensor_trainer_set_model_save_path (GstTensorTrainer * trainer,
-    const GValue * value);
-static void gst_tensor_trainer_set_prop_input_dimension (GstTensorTrainer *
-    trainer, const GValue * value);
-static void gst_tensor_trainer_set_prop_input_type (GstTensorTrainer * trainer,
     const GValue * value);
 static gboolean gst_tensor_trainer_find_framework (GstTensorTrainer * trainer,
     const char *name);
@@ -175,21 +168,6 @@ gst_tensor_trainer_class_init (GstTensorTrainerClass * klass)
           DEFAULT_STR_PROP_VALUE,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
-
-  g_object_class_install_property (gobject_class, PROP_INPUT_DIM,
-      g_param_spec_string ("input-dim", "Input dimension",
-          "Input tensors dimension from inner array, up to 4 dimensions ?",
-          DEFAULT_STR_PROP_VALUE,
-          G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
-          G_PARAM_STATIC_STRINGS));
-
-  g_object_class_install_property (gobject_class, PROP_INPUT_TYPE,
-      g_param_spec_string ("input-type", "Input tensor element type",
-          "Type of each element of the input tensor ?",
-          DEFAULT_STR_PROP_VALUE,
-          G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
-          G_PARAM_STATIC_STRINGS));
-
 
   g_object_class_install_property (gobject_class, PROP_NUM_INPUTS,
       g_param_spec_uint ("num-inputs", "Number of inputs",
@@ -271,9 +249,7 @@ gst_tensor_trainer_init (GstTensorTrainer * trainer)
   trainer->fw_name = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->model_config = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->model_save_path = g_strdup (DEFAULT_STR_PROP_VALUE);
-  trainer->input_dimensions = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->output_dimensions = g_strdup (DEFAULT_STR_PROP_VALUE);
-  trainer->input_type = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->output_type = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->prop.num_inputs = DEFAULT_PROP_INPUT_LIST;
   trainer->prop.num_labels = DEFAULT_PROP_LABEL_LIST;
@@ -309,9 +285,7 @@ gst_tensor_trainer_finalize (GObject * object)
   g_free (trainer->fw_name);
   g_free (trainer->model_config);
   g_free (trainer->model_save_path);
-  g_free (trainer->input_dimensions);
   g_free (trainer->output_dimensions);
-  g_free (trainer->input_type);
   g_free (trainer->output_type);
 
   g_cond_clear (&trainer->training_complete_cond);
@@ -344,12 +318,6 @@ gst_tensor_trainer_set_property (GObject * object, guint prop_id,
       break;
     case PROP_MODEL_SAVE_PATH:
       gst_tensor_trainer_set_model_save_path (trainer, value);
-      break;
-    case PROP_INPUT_DIM:
-      gst_tensor_trainer_set_prop_input_dimension (trainer, value);
-      break;
-    case PROP_INPUT_TYPE:
-      gst_tensor_trainer_set_prop_input_type (trainer, value);
       break;
     case PROP_NUM_INPUTS:
       trainer->prop.num_inputs = g_value_get_uint (value);
@@ -393,12 +361,6 @@ gst_tensor_trainer_get_property (GObject * object, guint prop_id,
     case PROP_MODEL_SAVE_PATH:
       g_value_set_string (value, trainer->model_save_path);
       break;
-    case PROP_INPUT_DIM:
-      g_value_set_string (value, trainer->input_dimensions);
-      break;
-    case PROP_INPUT_TYPE:
-      g_value_set_string (value, trainer->input_type);
-      break;
     case PROP_NUM_INPUTS:
       g_value_set_uint (value, trainer->prop.num_inputs);
       break;
@@ -430,7 +392,6 @@ gst_tensor_trainer_check_invalid_param (GstTensorTrainer * trainer)
 
   /* Parameters that can be retrieved from caps will be removed */
   if (!trainer->fw_name || !trainer->model_config || !trainer->model_save_path
-      || !trainer->input_dimensions || !trainer->input_type
       || trainer->prop.num_epochs <= 0 || trainer->prop.num_inputs <= 0
       || trainer->prop.num_labels <= 0) {
     GST_ERROR_OBJECT (trainer, "Check for invalid param value");
@@ -457,18 +418,17 @@ gst_tensor_trainer_change_state (GstElement * element,
 
       if (!gst_tensor_trainer_check_invalid_param (trainer))
         goto state_change_failed;
-
       break;
 
     case GST_STATE_CHANGE_READY_TO_PAUSED:
       GST_INFO_OBJECT (trainer, "READY_TO_PAUSED");
-      if (!gst_tensor_trainer_create_model (trainer))
-        goto state_change_failed;
-
       break;
 
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
       GST_INFO_OBJECT (trainer, "PAUSED_TO_PLAYING");
+      if (!gst_tensor_trainer_create_model (trainer))
+        goto state_change_failed;
+
       gst_tensor_trainer_train_model (trainer);
       break;
 
@@ -775,24 +735,17 @@ gst_tensor_trainer_sink_event (GstPad * sinkpad, GstObject * parent,
 
       gst_event_parse_caps (event, &in_caps);
       GST_INFO_OBJECT (trainer, "[in-caps] : %" GST_PTR_FORMAT, in_caps);
-      /* set out caps */
 
       structure = gst_caps_get_structure (in_caps, 0);
       if (!gst_tensors_config_from_structure (&in_config, structure))
         return ret;
 
-      if (!gst_tensors_info_is_equal (&in_config.info,
-              &trainer->prop.input_meta)) {
-        GST_ERROR_OBJECT (trainer,
-            "The input tensors info is different between incaps and set property value. "
-            "Please check pipeline's input tensor info and tensor_trainer's set property values"
-            "(input, inputtype, output and outputtype)");
-        return ret;
-      }
+      /* copy TensorsInfo from negotiated caps to GstTensorTrainerProperties's input_meta */
+      gst_tensors_info_copy (&trainer->prop.input_meta, &in_config.info);
 
+      /* set out caps */
       trainer->out_config.rate_n = in_config.rate_n;
       trainer->out_config.rate_d = in_config.rate_d;
-
       gst_tensors_info_copy (&trainer->out_config.info, &trainer->output_meta);
 
       out_caps =
@@ -954,78 +907,6 @@ gst_tensor_trainer_set_model_save_path (GstTensorTrainer * trainer,
   trainer->prop.model_save_path = trainer->model_save_path;
   GST_INFO_OBJECT (trainer, "File path to save the model: %s",
       trainer->prop.model_save_path);
-}
-
-/**
- * @brief Handle "PROP_INPUT_DIM" for set-property
- */
-static void
-gst_tensor_trainer_set_prop_input_dimension (GstTensorTrainer * trainer,
-    const GValue * value)
-{
-  GstTensorsInfo *info;
-  unsigned int *rank;
-  guint num_dims;
-  gchar **str_dims;
-  guint i;
-
-  if (trainer->input_configured) {
-    GST_ERROR_OBJECT (trainer,
-        "Cannot change input dimension" "the element/pipeline is configured.");
-    return;
-  }
-
-  info = &trainer->prop.input_meta;
-  rank = trainer->input_ranks;
-  trainer->input_configured = TRUE;
-  g_free (trainer->input_dimensions);
-  trainer->input_dimensions = g_value_dup_string (value);
-  GST_INFO_OBJECT (trainer, "input: %s", trainer->input_dimensions);
-
-
-  str_dims = g_strsplit_set (g_value_get_string (value), ",.", -1);
-  num_dims = g_strv_length (str_dims);
-
-  if (num_dims > NNS_TENSOR_SIZE_LIMIT) {
-    GST_WARNING_OBJECT (trainer, "Invalid param, dimensions(%d) max(%d)",
-        num_dims, NNS_TENSOR_SIZE_LIMIT);
-    num_dims = NNS_TENSOR_SIZE_LIMIT;
-  }
-
-  for (i = 0; i < num_dims; i++)
-    rank[i] = gst_tensor_parse_dimension (str_dims[i], info->info[i].dimension);
-
-  info->num_tensors = num_dims;
-
-  g_strfreev (str_dims);
-}
-
-/**
- * @brief Handle "PROP_INPUT_TYPE" for set-property
- */
-static void
-gst_tensor_trainer_set_prop_input_type (GstTensorTrainer * trainer,
-    const GValue * value)
-{
-  GstTensorsInfo *info;
-  guint num_types;
-
-  if (trainer->inputtype_configured) {
-    GST_ERROR_OBJECT (trainer,
-        "Cannot change inputtype" "the element/pipeline is configured.");
-    return;
-  }
-
-  info = &trainer->prop.input_meta;
-  trainer->inputtype_configured = TRUE;
-  g_free (trainer->input_type);
-  trainer->input_type = g_value_dup_string (value);
-  GST_INFO_OBJECT (trainer, "inputtype : %s", trainer->input_type);
-
-  num_types =
-      gst_tensors_info_parse_types_string (info, g_value_get_string (value));
-
-  info->num_tensors = num_types;
 }
 
 /**
