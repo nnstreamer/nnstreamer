@@ -15,8 +15,8 @@
 
 #include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_util.h>
-#include "tensordecutil.h"
 #include "nnstreamer_python3_helper.h"
+#include "tensordecutil.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -42,7 +42,7 @@ class PYDecoderCore
   int init ();
   const char *getScriptPath ();
   GstFlowReturn decode (const GstTensorsConfig *config,
-    const GstTensorMemory *input, GstBuffer *outbuf);
+      const GstTensorMemory *input, GstBuffer *outbuf);
   GstCaps *getOutCaps (const GstTensorsConfig *config);
 
   /** @brief Lock python-related actions */
@@ -139,7 +139,8 @@ PYDecoderCore::decode (const GstTensorsConfig *config,
 
   for (unsigned int i = 0; i < config->info.num_tensors; i++) {
     tensor_type nns_type = config->info.info[i].type;
-    npy_intp input_dims[] = { (npy_intp) (input[i].size / gst_tensor_get_element_size (nns_type)) };
+    npy_intp input_dims[]
+        = { (npy_intp) (input[i].size / gst_tensor_get_element_size (nns_type)) };
     PyObject *input_array = PyArray_SimpleNewFromData (
         1, input_dims, getNumpyType (nns_type), input[i].data);
     PyList_SetItem (raw_data, i, input_array);
@@ -148,13 +149,13 @@ PYDecoderCore::decode (const GstTensorsConfig *config,
     PyList_SetItem (in_info, i, shape);
   }
 
-  if (!PyObject_HasAttrString (core_obj, (char *)"decode")) {
+  if (!PyObject_HasAttrString (core_obj, (char *) "decode")) {
     Py_ERRMSG ("Cannot find 'decode'");
     ret = GST_FLOW_ERROR;
     goto done;
   }
 
-  output = PyObject_CallMethod (core_obj, "decode",  "OOii", raw_data, in_info, rate_n, rate_d);
+  output = PyObject_CallMethod (core_obj, "decode", "OOii", raw_data, in_info, rate_n, rate_d);
 
   if (output) {
     need_alloc = (gst_buffer_get_size (outbuf) == 0);
@@ -207,16 +208,16 @@ PYDecoderCore::getOutCaps (const GstTensorsConfig *config)
   UNUSED (config);
 
   Py_LOCK ();
-  if (!PyObject_HasAttrString (core_obj, (char *)"getOutCaps")) {
+  if (!PyObject_HasAttrString (core_obj, (char *) "getOutCaps")) {
     ml_loge ("Cannot find 'getOutCaps'");
     ml_loge ("defualt caps is `application/octet-stream`");
     caps = gst_caps_from_string ("application/octet-stream");
     goto done;
   }
 
-  result = PyObject_CallMethod (core_obj, (char *)"getOutCaps", NULL);
+  result = PyObject_CallMethod (core_obj, (char *) "getOutCaps", NULL);
   if (result) {
-    gchar * caps_str = PyBytes_AsString (result);
+    gchar *caps_str = PyBytes_AsString (result);
     caps = gst_caps_from_string (caps_str);
     Py_SAFEDECREF (result);
   } else {
@@ -246,7 +247,7 @@ PYDecoderCore::init ()
   if (shape_cls == NULL)
     return -EINVAL;
 
-  return loadScript (&core_obj, module_name.c_str(), "CustomDecoder");
+  return loadScript (&core_obj, module_name.c_str (), "CustomDecoder");
 }
 
 /**
@@ -307,9 +308,9 @@ decoder_py_setOption (void **pdata, int opNum, const char *param)
 
     try {
       core = new PYDecoderCore (path);
-    } catch (std::bad_alloc & exception) {
+    } catch (std::bad_alloc &exception) {
       ml_loge ("Failed to allocate memory for decoder subplugin: python3\n");
-      ml_loge ("%s", exception.what());
+      ml_loge ("%s", exception.what ());
       return FALSE;
     }
 

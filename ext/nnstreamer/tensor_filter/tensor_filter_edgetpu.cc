@@ -37,8 +37,8 @@
 #include <tensorflow/lite/kernels/register.h>
 #include <tensorflow/lite/model.h>
 
-using nnstreamer::tensor_filter_subplugin;
 using edgetpu::EdgeTpuContext;
+using nnstreamer::tensor_filter_subplugin;
 
 #if defined(TFLITE_VERSION)
 constexpr char tflite_ver[] = G_STRINGIFY (TFLITE_VERSION);
@@ -54,8 +54,8 @@ namespace tensorfilter_edgetpu
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-void _init_filter_edgetpu (void) __attribute__((constructor));
-void _fini_filter_edgetpu (void) __attribute__((destructor));
+void _init_filter_edgetpu (void) __attribute__ ((constructor));
+void _fini_filter_edgetpu (void) __attribute__ ((destructor));
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
@@ -73,13 +73,13 @@ static const std::string
 edgetpu_subplugin_device_type_name (edgetpu_subplugin_device_type t)
 {
   switch (t) {
-  case edgetpu_subplugin_device_type::PCI:
-    return "pci";
-  case edgetpu_subplugin_device_type::DUMMY:
-    return "dummy";
-  case edgetpu_subplugin_device_type::USB:
-  default:
-    return "usb";
+    case edgetpu_subplugin_device_type::PCI:
+      return "pci";
+    case edgetpu_subplugin_device_type::DUMMY:
+      return "dummy";
+    case edgetpu_subplugin_device_type::USB:
+    default:
+      return "usb";
   }
 }
 
@@ -199,7 +199,7 @@ std::string
 edgetpu_subplugin::str_tolower (std::string s)
 {
   std::transform (s.begin (), s.end (), s.begin (),
-      [](unsigned char c) { return std::tolower (c); });
+      [] (unsigned char c) { return std::tolower (c); });
 
   return s;
 }
@@ -273,7 +273,8 @@ edgetpu_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   assert (model_path == nullptr);
 
   if (!g_file_test (prop->model_files[0], G_FILE_TEST_IS_REGULAR)) {
-    const std::string err_msg = "Given file " + (std::string) prop->model_files[0] + " is not valid";
+    const std::string err_msg
+        = "Given file " + (std::string) prop->model_files[0] + " is not valid";
     std::cerr << err_msg << std::endl;
     cleanup ();
     throw std::invalid_argument (err_msg);
@@ -358,7 +359,7 @@ edgetpu_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output
     tensor_ptr = interpreter->tensor (tensor_idx);
 
     assert (tensor_ptr->bytes == input[i].size);
-    tensor_ptr->data.raw = (char *)input[i].data;
+    tensor_ptr->data.raw = (char *) input[i].data;
     tensors_idx.push_back (tensor_idx);
   }
 
@@ -368,7 +369,7 @@ edgetpu_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output
     tensor_ptr = interpreter->tensor (tensor_idx);
 
     assert (tensor_ptr->bytes == output[i].size);
-    tensor_ptr->data.raw = (char *)output[i].data;
+    tensor_ptr->data.raw = (char *) output[i].data;
     tensors_idx.push_back (tensor_idx);
   }
 
@@ -504,20 +505,20 @@ tensor_type
 edgetpu_subplugin::getTensorType (TfLiteType tfType)
 {
   switch (tfType) {
-  case kTfLiteFloat32:
-    return _NNS_FLOAT32;
-  case kTfLiteUInt8:
-    return _NNS_UINT8;
-  case kTfLiteInt32:
-    return _NNS_INT32;
-  case kTfLiteBool:
-    return _NNS_INT8;
-  case kTfLiteInt64:
-    return _NNS_INT64;
-  case kTfLiteString:
-  default:
-    /** @todo Support other types */
-    break;
+    case kTfLiteFloat32:
+      return _NNS_FLOAT32;
+    case kTfLiteUInt8:
+      return _NNS_UINT8;
+    case kTfLiteInt32:
+      return _NNS_INT32;
+    case kTfLiteBool:
+      return _NNS_INT8;
+    case kTfLiteInt64:
+      return _NNS_INT64;
+    case kTfLiteString:
+    default:
+      /** @todo Support other types */
+      break;
   }
 
   return _NNS_END;
@@ -559,8 +560,7 @@ edgetpu_subplugin::init_filter_edgetpu (void)
   registeredRepresentation
       = tensor_filter_subplugin::register_subplugin<edgetpu_subplugin> ();
   nnstreamer_filter_set_custom_property_desc (name, "device_type",
-      "Device type of the Edge-TPU instance {'usb' (default), 'pci', 'dummy'}",
-      NULL);
+      "Device type of the Edge-TPU instance {'usb' (default), 'pci', 'dummy'}", NULL);
 }
 
 /** @brief initializer */
@@ -585,5 +585,5 @@ _fini_filter_edgetpu ()
   edgetpu_subplugin::fini_filter_edgetpu ();
 }
 
-} /* namespace nnstreamer::tensorfilter_edgetpu */
+} // namespace tensorfilter_edgetpu
 } /* namespace nnstreamer */

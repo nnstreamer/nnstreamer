@@ -48,8 +48,8 @@ namespace tensorfilter_mediapipe
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-void _init_filter_mediapipe (void) __attribute__((constructor));
-void _fini_filter_mediapipe (void) __attribute__((destructor));
+void _init_filter_mediapipe (void) __attribute__ ((constructor));
+void _fini_filter_mediapipe (void) __attribute__ ((destructor));
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
@@ -258,8 +258,8 @@ mediapipe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *outp
   // Wrap Mat into an ImageFrame.
   auto input_frame = absl::make_unique<mediapipe::ImageFrame> (
       mediapipe::ImageFormat::SRGB, input_width, input_height, input_widthStep,
-      (uint8_t *)input->data, inputPtrDeleter /* do nothing */
-      );
+      (uint8_t *) input->data, inputPtrDeleter /* do nothing */
+  );
 
   // Send image packet
   status = graph.AddPacketToInputStream (inputInfo.info[0].name,
@@ -369,5 +369,5 @@ _fini_filter_mediapipe ()
   mediapipe_subplugin::fini_filter_mediapipe ();
 }
 
-} /* namespace nnstreamer::tensorfilter_mediapipe */
+} // namespace tensorfilter_mediapipe
 } /* namespace nnstreamer */

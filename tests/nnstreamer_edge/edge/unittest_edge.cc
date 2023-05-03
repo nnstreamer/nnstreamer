@@ -10,10 +10,10 @@
 
 #include <gtest/gtest.h>
 #include <glib.h>
-#include <gst/gst.h>
-#include "unittest_util.h"
 #include <gst/app/gstappsrc.h>
+#include <gst/gst.h>
 #include "nnstreamer_log.h"
+#include "unittest_util.h"
 
 static int data_received;
 
@@ -30,10 +30,9 @@ TEST (edgeSink, properties0)
   gchar *str_val;
 
   /* Create a nnstreamer pipeline */
-  pipeline = g_strdup_printf (
-      "gst-launch-1.0 videotestsrc ! videoconvert ! videoscale ! "
-      "video/x-raw,width=320,height=240,format=RGB,framerate=10/1 ! "
-      "tensor_converter ! edgesink name=sinkx port=0");
+  pipeline = g_strdup_printf ("gst-launch-1.0 videotestsrc ! videoconvert ! videoscale ! "
+                              "video/x-raw,width=320,height=240,format=RGB,framerate=10/1 ! "
+                              "tensor_converter ! edgesink name=sinkx port=0");
   gstpipe = gst_parse_launch (pipeline, NULL);
   EXPECT_NE (gstpipe, nullptr);
 
@@ -108,10 +107,9 @@ TEST (edgeSrc, properties0)
   gchar *str_val;
 
   /* Create a nnstreamer pipeline */
-  pipeline = g_strdup_printf (
-      "gst-launch-1.0 edgesrc port=0 name=srcx ! "
-      "other/tensors,num_tensors=1,dimensions=3:320:240:1,types=uint8,format=static,framerate=30/1 ! "
-      "tensor_sink");
+  pipeline = g_strdup_printf ("gst-launch-1.0 edgesrc port=0 name=srcx ! "
+                              "other/tensors,num_tensors=1,dimensions=3:320:240:1,types=uint8,format=static,framerate=30/1 ! "
+                              "tensor_sink");
   gstpipe = gst_parse_launch (pipeline, NULL);
   EXPECT_NE (gstpipe, nullptr);
 
@@ -160,10 +158,9 @@ TEST (edgeSrc, properties2_n)
   GstElement *gstpipe;
 
   /* Create a nnstreamer pipeline */
-  pipeline = g_strdup_printf (
-      "gst-launch-1.0 edgesrc host=f.a.i.l port=0 name=srcx ! "
-      "other/tensors,num_tensors=1,dimensions=3:320:240:1,types=uint8,format=static,framerate=30/1 ! "
-      "tensor_sink");
+  pipeline = g_strdup_printf ("gst-launch-1.0 edgesrc host=f.a.i.l port=0 name=srcx ! "
+                              "other/tensors,num_tensors=1,dimensions=3:320:240:1,types=uint8,format=static,framerate=30/1 ! "
+                              "tensor_sink");
   gstpipe = gst_parse_launch (pipeline, NULL);
   EXPECT_NE (gstpipe, nullptr);
 
@@ -176,11 +173,10 @@ TEST (edgeSrc, properties2_n)
 /**
  * @brief Test data for edgesink/src (dimension 3:4:2)
  */
-const gint test_frames[48] =
-     {1101, 1102, 1103, 1104, 1105, 1106, 1107, 1108, 1109, 1110, 1111, 1112,
-      1113, 1114, 1115, 1116, 1117, 1118, 1119, 1120, 1121, 1122, 1123, 1124,
-      1201, 1202, 1203, 1204, 1205, 1206, 1207, 1208, 1209, 1210, 1211, 1212,
-      1213, 1214, 1215, 1216, 1217, 1218, 1219, 1220, 1221, 1222, 1223, 1224 };
+const gint test_frames[48] = { 1101, 1102, 1103, 1104, 1105, 1106, 1107, 1108, 1109,
+  1110, 1111, 1112, 1113, 1114, 1115, 1116, 1117, 1118, 1119, 1120, 1121, 1122,
+  1123, 1124, 1201, 1202, 1203, 1204, 1205, 1206, 1207, 1208, 1209, 1210, 1211,
+  1212, 1213, 1214, 1215, 1216, 1217, 1218, 1219, 1220, 1221, 1222, 1223, 1224 };
 
 /**
  * @brief Callback for tensor sink signal.
@@ -198,7 +194,7 @@ new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
   mem_res = gst_buffer_get_memory (buffer, 0);
   ret = gst_memory_map (mem_res, &info_res, GST_MAP_READ);
   ASSERT_TRUE (ret);
-  output = (gint *)info_res.data;
+  output = (gint *) info_res.data;
 
   for (i = 0; i < 48; i++) {
     EXPECT_EQ (test_frames[i], output[i]);
@@ -222,9 +218,10 @@ TEST (edgeSinkSrc, runNormal)
   int ret;
 
   /* Create a nnstreamer pipeline */
-  port= get_available_port ();
+  port = get_available_port ();
   sink_pipeline = g_strdup_printf (
-      "appsrc name=appsrc ! other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! edgesink name=sinkx port=%u async=false", port);
+      "appsrc name=appsrc ! other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! edgesink name=sinkx port=%u async=false",
+      port);
   sink_gstpipe = gst_parse_launch (sink_pipeline, NULL);
   EXPECT_NE (sink_gstpipe, nullptr);
 
@@ -235,17 +232,17 @@ TEST (edgeSinkSrc, runNormal)
   appsrc_handle = gst_bin_get_by_name (GST_BIN (sink_gstpipe), "appsrc");
   EXPECT_NE (appsrc_handle, nullptr);
 
-  src_pipeline = g_strdup_printf (
-      "gst-launch-1.0 edgesrc dest-port=%u name=srcx ! "
-      "other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! "
-      "tensor_sink name=sinkx async=false", port);
+  src_pipeline = g_strdup_printf ("gst-launch-1.0 edgesrc dest-port=%u name=srcx ! "
+                                  "other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! "
+                                  "tensor_sink name=sinkx async=false",
+      port);
   src_gstpipe = gst_parse_launch (src_pipeline, NULL);
   EXPECT_NE (src_gstpipe, nullptr);
 
   sink_handle = gst_bin_get_by_name (GST_BIN (src_gstpipe), "sinkx");
   EXPECT_NE (sink_handle, nullptr);
 
-  g_signal_connect (sink_handle, "new-data", (GCallback)new_data_cb, NULL);
+  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, NULL);
 
   buf = gst_buffer_new ();
   mem = gst_allocator_alloc (NULL, 192, NULL);
@@ -256,14 +253,16 @@ TEST (edgeSinkSrc, runNormal)
   gst_buffer_append_memory (buf, mem);
   data_received = 0;
 
-  EXPECT_EQ (setPipelineStateSync (sink_gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (setPipelineStateSync (sink_gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT),
+      0);
   g_usleep (1000000);
 
   buf = gst_buffer_ref (buf);
   EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc_handle), buf), GST_FLOW_OK);
   g_usleep (100000);
 
-  EXPECT_EQ (setPipelineStateSync (src_gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (setPipelineStateSync (src_gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT),
+      0);
   g_usleep (100000);
 
   EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc_handle), buf), GST_FLOW_OK);
@@ -332,7 +331,7 @@ TEST (edgeSinkSrc, runNormalAitt)
   sink_handle = gst_bin_get_by_name (GST_BIN (src_gstpipe), "sinkx");
   EXPECT_NE (sink_handle, nullptr);
 
-  g_signal_connect (sink_handle, "new-data", (GCallback)new_data_cb, NULL);
+  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, NULL);
 
   buf = gst_buffer_new ();
   mem = gst_allocator_alloc (NULL, 192, NULL);
@@ -343,14 +342,16 @@ TEST (edgeSinkSrc, runNormalAitt)
   gst_buffer_append_memory (buf, mem);
   data_received = 0;
 
-  EXPECT_EQ (setPipelineStateSync (sink_gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (setPipelineStateSync (sink_gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT),
+      0);
   g_usleep (1000000);
 
   buf = gst_buffer_ref (buf);
   EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc_handle), buf), GST_FLOW_OK);
   g_usleep (100000);
 
-  EXPECT_EQ (setPipelineStateSync (src_gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (setPipelineStateSync (src_gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT),
+      0);
   g_usleep (100000);
 
   EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc_handle), buf), GST_FLOW_OK);
@@ -375,7 +376,7 @@ main (int argc, char **argv)
 
   try {
     testing::InitGoogleTest (&argc, argv);
-  } catch ( ...) {
+  } catch (...) {
     g_warning ("catch 'testing::internal::<unnamed>::ClassUniqueToAlwaysTrue'");
   }
 
@@ -383,7 +384,7 @@ main (int argc, char **argv)
 
   try {
     result = RUN_ALL_TESTS ();
-  } catch ( ...) {
+  } catch (...) {
     g_warning ("catch `testing::internal::GoogleTestFailureException`");
   }
 

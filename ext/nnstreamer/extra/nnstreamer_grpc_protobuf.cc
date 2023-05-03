@@ -20,10 +20,10 @@
 
 #include <thread>
 
-#include <grpcpp/grpcpp.h>
 #include <grpcpp/channel.h>
 #include <grpcpp/client_context.h>
 #include <grpcpp/create_channel.h>
+#include <grpcpp/grpcpp.h>
 #include <grpcpp/security/credentials.h>
 
 #include <gst/base/gstdataqueue.h>
@@ -31,8 +31,8 @@
 using namespace grpc;
 
 /** @brief constructor */
-ServiceImplProtobuf::ServiceImplProtobuf (const grpc_config * config):
-  NNStreamerRPC (config), client_stub_ (nullptr)
+ServiceImplProtobuf::ServiceImplProtobuf (const grpc_config *config)
+    : NNStreamerRPC (config), client_stub_ (nullptr)
 {
 }
 
@@ -69,7 +69,8 @@ ServiceImplProtobuf::fill_tensors (Tensors &tensors)
 
 /** @brief read tensors and invoke the registered callback */
 template <typename T>
-Status ServiceImplProtobuf::_read_tensors (T reader)
+Status
+ServiceImplProtobuf::_read_tensors (T reader)
 {
   while (1) {
     Tensors tensors;
@@ -85,7 +86,8 @@ Status ServiceImplProtobuf::_read_tensors (T reader)
 
 /** @brief obtain tensors from data queue and send them over gRPC */
 template <typename T>
-Status ServiceImplProtobuf::_write_tensors (T writer)
+Status
+ServiceImplProtobuf::_write_tensors (T writer)
 {
   while (1) {
     Tensors tensors;
@@ -102,8 +104,7 @@ Status ServiceImplProtobuf::_write_tensors (T writer)
 
 /** @brief convert tensors to buffer */
 void
-ServiceImplProtobuf::_get_buffer_from_tensors (Tensors &tensors,
-    GstBuffer **buffer)
+ServiceImplProtobuf::_get_buffer_from_tensors (Tensors &tensors, GstBuffer **buffer)
 {
   guint num_tensor = tensors.num_tensor ();
   GstMemory *memory;
@@ -111,21 +112,20 @@ ServiceImplProtobuf::_get_buffer_from_tensors (Tensors &tensors,
   *buffer = gst_buffer_new ();
 
   for (guint i = 0; i < num_tensor; i++) {
-    const Tensor * tensor = &tensors.tensor (i);
-    const void * data = tensor->data ().c_str ();
+    const Tensor *tensor = &tensors.tensor (i);
+    const void *data = tensor->data ().c_str ();
     gsize size = tensor->data ().length ();
     gpointer new_data = _g_memdup (data, size);
 
-    memory = gst_memory_new_wrapped ((GstMemoryFlags) 0, new_data, size,
-        0, size, new_data, g_free);
+    memory = gst_memory_new_wrapped (
+        (GstMemoryFlags) 0, new_data, size, 0, size, new_data, g_free);
     gst_buffer_append_memory (*buffer, memory);
   }
 }
 
 /** @brief convert buffer to tensors */
 void
-ServiceImplProtobuf::_get_tensors_from_buffer (GstBuffer *buffer,
-    Tensors &tensors)
+ServiceImplProtobuf::_get_tensors_from_buffer (GstBuffer *buffer, Tensors &tensors)
 {
   Tensors::frame_rate *fr;
   GstMapInfo map;
@@ -144,7 +144,7 @@ ServiceImplProtobuf::_get_tensors_from_buffer (GstBuffer *buffer,
 
   for (guint i = 0; i < config_->info.num_tensors; i++) {
     nnstreamer::protobuf::Tensor *tensor = tensors.add_tensor ();
-    const GstTensorInfo * info = &config_->info.info[i];
+    const GstTensorInfo *info = &config_->info.info[i];
     gsize tsize = gst_tensor_info_get_size (info);
 
     if (data_ptr + tsize > map.size) {
@@ -167,23 +167,23 @@ ServiceImplProtobuf::_get_tensors_from_buffer (GstBuffer *buffer,
 }
 
 /** @brief Constructor of SyncServiceImplProtobuf */
-SyncServiceImplProtobuf::SyncServiceImplProtobuf (const grpc_config * config)
-  : ServiceImplProtobuf (config)
+SyncServiceImplProtobuf::SyncServiceImplProtobuf (const grpc_config *config)
+    : ServiceImplProtobuf (config)
 {
 }
 
 /** @brief client-to-server streaming: a client sends tensors */
 Status
-SyncServiceImplProtobuf::SendTensors (ServerContext *context,
-    ServerReader<Tensors> *reader, Empty *reply)
+SyncServiceImplProtobuf::SendTensors (
+    ServerContext *context, ServerReader<Tensors> *reader, Empty *reply)
 {
   return _read_tensors (reader);
 }
 
 /** @brief server-to-client streaming: a client receives tensors */
 Status
-SyncServiceImplProtobuf::RecvTensors (ServerContext *context,
-    const Empty *request, ServerWriter<Tensors> *writer)
+SyncServiceImplProtobuf::RecvTensors (
+    ServerContext *context, const Empty *request, ServerWriter<Tensors> *writer)
 {
   return _write_tensors (writer);
 }
@@ -194,7 +194,7 @@ SyncServiceImplProtobuf::start_server (std::string address)
 {
   /* listen on the given address without any authentication mechanism */
   ServerBuilder builder;
-  builder.AddListeningPort (address, grpc::InsecureServerCredentials(), &port_);
+  builder.AddListeningPort (address, grpc::InsecureServerCredentials (), &port_);
   builder.RegisterService (this);
 
   /* start the server */
@@ -210,8 +210,8 @@ gboolean
 SyncServiceImplProtobuf::start_client (std::string address)
 {
   /* create a gRPC channel */
-  std::shared_ptr<Channel> channel = grpc::CreateChannel(
-      address, grpc::InsecureChannelCredentials());
+  std::shared_ptr<Channel> channel
+      = grpc::CreateChannel (address, grpc::InsecureChannelCredentials ());
 
   /* connect the server */
   client_stub_ = TensorService::NewStub (channel);
@@ -232,7 +232,7 @@ SyncServiceImplProtobuf::_client_thread ()
 
   if (direction_ == GRPC_DIRECTION_TENSORS_TO_BUFFER) {
     /* initiate the RPC call */
-    std::unique_ptr< ClientWriter<Tensors> > writer(
+    std::unique_ptr<ClientWriter<Tensors>> writer (
         client_stub_->SendTensors (&context, &empty));
 
     _write_tensors (writer.get ());
@@ -243,7 +243,7 @@ SyncServiceImplProtobuf::_client_thread ()
     Tensors tensors;
 
     /* initiate the RPC call */
-    std::unique_ptr< ClientReader<Tensors> > reader(
+    std::unique_ptr<ClientReader<Tensors>> reader (
         client_stub_->RecvTensors (&context, empty));
 
     _read_tensors (reader.get ());
@@ -255,8 +255,8 @@ SyncServiceImplProtobuf::_client_thread ()
 }
 
 /** @brief Constructor of AsyncServiceImplProtobuf */
-AsyncServiceImplProtobuf::AsyncServiceImplProtobuf (const grpc_config * config)
-  : ServiceImplProtobuf (config), last_call_ (nullptr)
+AsyncServiceImplProtobuf::AsyncServiceImplProtobuf (const grpc_config *config)
+    : ServiceImplProtobuf (config), last_call_ (nullptr)
 {
 }
 
@@ -273,7 +273,7 @@ AsyncServiceImplProtobuf::start_server (std::string address)
 {
   /* listen on the given address without any authentication mechanism */
   ServerBuilder builder;
-  builder.AddListeningPort (address, grpc::InsecureServerCredentials(), &port_);
+  builder.AddListeningPort (address, grpc::InsecureServerCredentials (), &port_);
   builder.RegisterService (this);
 
   /* need to manually handle the completion queue */
@@ -294,8 +294,8 @@ gboolean
 AsyncServiceImplProtobuf::start_client (std::string address)
 {
   /* create a gRPC channel */
-  std::shared_ptr<Channel> channel = grpc::CreateChannel(
-      address, grpc::InsecureChannelCredentials());
+  std::shared_ptr<Channel> channel
+      = grpc::CreateChannel (address, grpc::InsecureChannelCredentials ());
 
   /* connect the server */
   client_stub_ = TensorService::NewStub (channel);
@@ -308,148 +308,151 @@ AsyncServiceImplProtobuf::start_client (std::string address)
 }
 
 /** @brief Internal derived class for server */
-class AsyncCallDataServer : public AsyncCallData {
+class AsyncCallDataServer : public AsyncCallData
+{
   public:
-    /** @brief Constructor of AsyncCallDataServer */
-    AsyncCallDataServer (AsyncServiceImplProtobuf *service, ServerCompletionQueue *cq)
+  /** @brief Constructor of AsyncCallDataServer */
+  AsyncCallDataServer (AsyncServiceImplProtobuf *service, ServerCompletionQueue *cq)
       : AsyncCallData (service), cq_ (cq), writer_ (nullptr), reader_ (nullptr)
-    {
-      RunState ();
+  {
+    RunState ();
+  }
+
+  /** @brief implemented RunState () of AsyncCallDataServer */
+  void RunState (bool ok = true) override
+  {
+    if (state_ == PROCESS && !ok) {
+      if (count_ != 0) {
+        if (reader_.get () != nullptr)
+          service_->parse_tensors (rpc_tensors_);
+        state_ = FINISH;
+      } else {
+        return;
+      }
     }
 
-    /** @brief implemented RunState () of AsyncCallDataServer */
-    void RunState (bool ok = true) override
-    {
-      if (state_ == PROCESS && !ok) {
-        if (count_ != 0) {
-          if (reader_.get () != nullptr)
-            service_->parse_tensors (rpc_tensors_);
-          state_ = FINISH;
-        } else {
-          return;
-        }
+    if (state_ == CREATE) {
+      if (service_->getDirection () == GRPC_DIRECTION_BUFFER_TO_TENSORS) {
+        reader_.reset (new ServerAsyncReader<Empty, Tensors> (&ctx_));
+        service_->RequestSendTensors (&ctx_, reader_.get (), cq_, cq_, this);
+      } else {
+        writer_.reset (new ServerAsyncWriter<Tensors> (&ctx_));
+        service_->RequestRecvTensors (&ctx_, &rpc_empty_, writer_.get (), cq_, cq_, this);
+      }
+      state_ = PROCESS;
+    } else if (state_ == PROCESS) {
+      if (count_ == 0) {
+        /* spawn a new instance to serve new clients */
+        service_->set_last_call (new AsyncCallDataServer (service_, cq_));
       }
 
-      if (state_ == CREATE) {
-        if (service_->getDirection () == GRPC_DIRECTION_BUFFER_TO_TENSORS) {
-          reader_.reset (new ServerAsyncReader<Empty, Tensors> (&ctx_));
-          service_->RequestSendTensors (&ctx_, reader_.get (), cq_, cq_, this);
-        } else {
-          writer_.reset (new ServerAsyncWriter<Tensors> (&ctx_));
-          service_->RequestRecvTensors (&ctx_, &rpc_empty_, writer_.get (), cq_, cq_, this);
-        }
-        state_ = PROCESS;
-      } else if (state_ == PROCESS) {
-        if (count_ == 0) {
-          /* spawn a new instance to serve new clients */
-          service_->set_last_call (new AsyncCallDataServer (service_, cq_));
-        }
-
-        if (reader_.get () != nullptr) {
-          if (count_ != 0)
-            service_->parse_tensors (rpc_tensors_);
-          reader_->Read (&rpc_tensors_, this);
-          /* can't read tensors yet. use the next turn */
+      if (reader_.get () != nullptr) {
+        if (count_ != 0)
+          service_->parse_tensors (rpc_tensors_);
+        reader_->Read (&rpc_tensors_, this);
+        /* can't read tensors yet. use the next turn */
+        count_++;
+      } else if (writer_.get () != nullptr) {
+        Tensors tensors;
+        if (service_->fill_tensors (tensors)) {
+          writer_->Write (tensors, this);
           count_++;
-        } else if (writer_.get () != nullptr) {
-          Tensors tensors;
-          if (service_->fill_tensors (tensors)) {
-            writer_->Write (tensors, this);
-            count_++;
-          } else {
-            Status status;
-            writer_->Finish (status, this);
-            state_ = DESTROY;
-          }
-        }
-      } else if (state_ == FINISH) {
-        if (reader_.get () != nullptr)
-          reader_->Finish (rpc_empty_, Status::OK, this);
-        if (writer_.get () != nullptr) {
+        } else {
           Status status;
           writer_->Finish (status, this);
+          state_ = DESTROY;
         }
-        state_ = DESTROY;
-      } else {
-        delete this;
       }
+    } else if (state_ == FINISH) {
+      if (reader_.get () != nullptr)
+        reader_->Finish (rpc_empty_, Status::OK, this);
+      if (writer_.get () != nullptr) {
+        Status status;
+        writer_->Finish (status, this);
+      }
+      state_ = DESTROY;
+    } else {
+      delete this;
     }
+  }
 
   private:
-    ServerCompletionQueue *cq_;
-    ServerContext ctx_;
+  ServerCompletionQueue *cq_;
+  ServerContext ctx_;
 
-    std::unique_ptr<ServerAsyncWriter<Tensors>> writer_;
-    std::unique_ptr<ServerAsyncReader<Empty, Tensors>> reader_;
+  std::unique_ptr<ServerAsyncWriter<Tensors>> writer_;
+  std::unique_ptr<ServerAsyncReader<Empty, Tensors>> reader_;
 };
 
 /** @brief Internal derived class for client */
-class AsyncCallDataClient : public AsyncCallData {
+class AsyncCallDataClient : public AsyncCallData
+{
   public:
-    /** @brief Constructor of AsyncCallDataClient */
-    AsyncCallDataClient (AsyncServiceImplProtobuf *service, TensorService::Stub * stub,
-        CompletionQueue *cq)
-      : AsyncCallData (service), stub_ (stub), cq_ (cq), writer_ (nullptr), reader_ (nullptr)
-    {
-      RunState ();
-    }
+  /** @brief Constructor of AsyncCallDataClient */
+  AsyncCallDataClient (AsyncServiceImplProtobuf *service,
+      TensorService::Stub *stub, CompletionQueue *cq)
+      : AsyncCallData (service), stub_ (stub), cq_ (cq), writer_ (nullptr),
+        reader_ (nullptr)
+  {
+    RunState ();
+  }
 
-    /** @brief implemented RunState () of AsyncCallDataClient */
-    void RunState (bool ok = true) override
-    {
-      if (state_ == PROCESS && !ok) {
-        if (count_ != 0) {
-          if (reader_.get () != nullptr)
-            service_->parse_tensors (rpc_tensors_);
-          state_ = FINISH;
-        } else {
-          return;
-        }
-      }
-
-      if (state_ == CREATE) {
-        if (service_->getDirection () == GRPC_DIRECTION_BUFFER_TO_TENSORS) {
-          reader_ = stub_->AsyncRecvTensors (&ctx_, rpc_empty_, cq_, this);
-        } else {
-          writer_ = stub_->AsyncSendTensors (&ctx_, &rpc_empty_, cq_, this);
-        }
-        state_ = PROCESS;
-      } else if (state_ == PROCESS) {
-        if (reader_.get () != nullptr) {
-          if (count_ != 0)
-            service_->parse_tensors (rpc_tensors_);
-          reader_->Read (&rpc_tensors_, this);
-          /* can't read tensors yet. use the next turn */
-          count_++;
-        } else if (writer_.get () != nullptr) {
-          Tensors tensors;
-          if (service_->fill_tensors (tensors)) {
-            writer_->Write (tensors, this);
-            count_++;
-          } else {
-            writer_->WritesDone (this);
-            state_ = FINISH;
-          }
-        }
-      } else if (state_ == FINISH) {
-        Status status;
-
+  /** @brief implemented RunState () of AsyncCallDataClient */
+  void RunState (bool ok = true) override
+  {
+    if (state_ == PROCESS && !ok) {
+      if (count_ != 0) {
         if (reader_.get () != nullptr)
-          reader_->Finish (&status, this);
-        if (writer_.get () != nullptr)
-          writer_->Finish (&status, this);
-
-        delete this;
+          service_->parse_tensors (rpc_tensors_);
+        state_ = FINISH;
+      } else {
+        return;
       }
     }
+
+    if (state_ == CREATE) {
+      if (service_->getDirection () == GRPC_DIRECTION_BUFFER_TO_TENSORS) {
+        reader_ = stub_->AsyncRecvTensors (&ctx_, rpc_empty_, cq_, this);
+      } else {
+        writer_ = stub_->AsyncSendTensors (&ctx_, &rpc_empty_, cq_, this);
+      }
+      state_ = PROCESS;
+    } else if (state_ == PROCESS) {
+      if (reader_.get () != nullptr) {
+        if (count_ != 0)
+          service_->parse_tensors (rpc_tensors_);
+        reader_->Read (&rpc_tensors_, this);
+        /* can't read tensors yet. use the next turn */
+        count_++;
+      } else if (writer_.get () != nullptr) {
+        Tensors tensors;
+        if (service_->fill_tensors (tensors)) {
+          writer_->Write (tensors, this);
+          count_++;
+        } else {
+          writer_->WritesDone (this);
+          state_ = FINISH;
+        }
+      }
+    } else if (state_ == FINISH) {
+      Status status;
+
+      if (reader_.get () != nullptr)
+        reader_->Finish (&status, this);
+      if (writer_.get () != nullptr)
+        writer_->Finish (&status, this);
+
+      delete this;
+    }
+  }
 
   private:
-    TensorService::Stub * stub_;
-    CompletionQueue * cq_;
-    ClientContext ctx_;
+  TensorService::Stub *stub_;
+  CompletionQueue *cq_;
+  ClientContext ctx_;
 
-    std::unique_ptr<ClientAsyncWriter<Tensors>> writer_;
-    std::unique_ptr<ClientAsyncReader<Tensors>> reader_;
+  std::unique_ptr<ClientAsyncWriter<Tensors>> writer_;
+  std::unique_ptr<ClientAsyncReader<Tensors>> reader_;
 };
 
 /** @brief gRPC client thread */
@@ -464,13 +467,12 @@ AsyncServiceImplProtobuf::_server_thread ()
     bool ok;
 
     /* 10 msec deadline to wait the next event */
-    gpr_timespec deadline =
-      gpr_time_add(gpr_now(GPR_CLOCK_MONOTONIC),
-          gpr_time_from_millis(10, GPR_TIMESPAN));
+    gpr_timespec deadline = gpr_time_add (
+        gpr_now (GPR_CLOCK_MONOTONIC), gpr_time_from_millis (10, GPR_TIMESPAN));
 
     switch (completion_queue_->AsyncNext (&tag, &ok, deadline)) {
       case CompletionQueue::GOT_EVENT:
-        static_cast<AsyncCallDataServer *>(tag)->RunState(ok);
+        static_cast<AsyncCallDataServer *> (tag)->RunState (ok);
         break;
       case CompletionQueue::SHUTDOWN:
         return;
@@ -495,13 +497,12 @@ AsyncServiceImplProtobuf::_client_thread ()
     bool ok;
 
     /* 10 msec deadline to wait the next event */
-    gpr_timespec deadline =
-      gpr_time_add(gpr_now(GPR_CLOCK_MONOTONIC),
-          gpr_time_from_millis(10, GPR_TIMESPAN));
+    gpr_timespec deadline = gpr_time_add (
+        gpr_now (GPR_CLOCK_MONOTONIC), gpr_time_from_millis (10, GPR_TIMESPAN));
 
     switch (cq.AsyncNext (&tag, &ok, deadline)) {
       case CompletionQueue::GOT_EVENT:
-        static_cast<AsyncCallDataClient *>(tag)->RunState(ok);
+        static_cast<AsyncCallDataClient *> (tag)->RunState (ok);
         if (ok == false)
           return;
         break;
@@ -513,7 +514,7 @@ AsyncServiceImplProtobuf::_client_thread ()
 
 /** @brief create gRPC/Protobuf instance */
 extern "C" void *
-create_instance (const grpc_config * config)
+create_instance (const grpc_config *config)
 {
   if (config->is_blocking)
     return new SyncServiceImplProtobuf (config);

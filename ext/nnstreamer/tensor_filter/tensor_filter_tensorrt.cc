@@ -21,8 +21,8 @@
 #include <vector>
 
 #include <nnstreamer_cppplugin_api_filter.hh>
-#include <tensor_common.h>
 #include <nnstreamer_util.h>
+#include <tensor_common.h>
 
 #include <NvInfer.h>
 #include <NvUffParser.h>
@@ -38,18 +38,18 @@ class Logger : public nvinfer1::ILogger
   void log (Severity severity, const char *msg) override
   {
     switch (severity) {
-    case Severity::kWARNING:
-      ml_logw ("%s", msg);
-      break;
-    case Severity::kINFO:
-      ml_logi ("%s", msg);
-      break;
-    case Severity::kVERBOSE:
-      ml_logd ("%s", msg);
-      break;
-    default:
-      ml_loge ("%s", msg);
-      break;
+      case Severity::kWARNING:
+        ml_logw ("%s", msg);
+        break;
+      case Severity::kINFO:
+        ml_logi ("%s", msg);
+        break;
+      case Severity::kVERBOSE:
+        ml_logd ("%s", msg);
+        break;
+      default:
+        ml_loge ("%s", msg);
+        break;
     }
   }
 } gLogger;
@@ -72,8 +72,8 @@ namespace tensorfilter_tensorrt
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-void _init_filter_tensorrt (void) __attribute__((constructor));
-void _fini_filter_tensorrt (void) __attribute__((destructor));
+void _init_filter_tensorrt (void) __attribute__ ((constructor));
+void _fini_filter_tensorrt (void) __attribute__ ((destructor));
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
@@ -359,9 +359,9 @@ tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
 /**
  * @brief Return whether Unified Memory is supported or not.
  * @return 0 if Unified Memory is supported. non-zero if error.
- * @note After Cuda version 6, logical Unified Memory is supported in programming language level.
- *       However, if the target device is not supported, then cudaMemcpy() internally occurs
- *       and it makes performance degradation.
+ * @note After Cuda version 6, logical Unified Memory is supported in
+ * programming language level. However, if the target device is not supported,
+ * then cudaMemcpy() internally occurs and it makes performance degradation.
  */
 int
 tensorrt_subplugin::checkUnifiedMemory (void)
@@ -408,22 +408,22 @@ int
 tensorrt_subplugin::setTensorType (tensor_type t)
 {
   switch (t) {
-  case _NNS_INT32:
-    _DataType = nvinfer1::DataType::kINT32;
-    break;
-  case _NNS_FLOAT32:
-    _DataType = nvinfer1::DataType::kFLOAT;
-    break;
-  case _NNS_INT8:
-    _DataType = nvinfer1::DataType::kINT8;
-    break;
+    case _NNS_INT32:
+      _DataType = nvinfer1::DataType::kINT32;
+      break;
+    case _NNS_FLOAT32:
+      _DataType = nvinfer1::DataType::kFLOAT;
+      break;
+    case _NNS_INT8:
+      _DataType = nvinfer1::DataType::kINT8;
+      break;
 
-  default:
-    /**
-     * TensorRT supports kFLOAT(32bit), kHALF(16bit), kINT8, kINT32 and kBOOL.
-     * However, NNStreamer does not support kHALF and kBOOL.
-     */
-    return -1;
+    default:
+      /**
+       * TensorRT supports kFLOAT(32bit), kHALF(16bit), kINT8, kINT32 and kBOOL.
+       * However, NNStreamer does not support kHALF and kBOOL.
+       */
+      return -1;
   }
 
   return 0;
@@ -439,27 +439,27 @@ int
 tensorrt_subplugin::setInputDims (guint input_rank)
 {
   switch (input_rank) {
-  case 2:
-    _InputDims = nvinfer1::Dims2 ((int)_inputTensorMeta.info[0].dimension[1],
-        (int)_inputTensorMeta.info[0].dimension[0]);
-    break;
+    case 2:
+      _InputDims = nvinfer1::Dims2 ((int) _inputTensorMeta.info[0].dimension[1],
+          (int) _inputTensorMeta.info[0].dimension[0]);
+      break;
 
-  case 3:
-    _InputDims = nvinfer1::Dims3 ((int)_inputTensorMeta.info[0].dimension[2],
-        (int)_inputTensorMeta.info[0].dimension[1],
-        (int)_inputTensorMeta.info[0].dimension[0]);
-    break;
+    case 3:
+      _InputDims = nvinfer1::Dims3 ((int) _inputTensorMeta.info[0].dimension[2],
+          (int) _inputTensorMeta.info[0].dimension[1],
+          (int) _inputTensorMeta.info[0].dimension[0]);
+      break;
 
-  case 4:
-    _InputDims = nvinfer1::Dims4 ((int)_inputTensorMeta.info[0].dimension[3],
-        (int)_inputTensorMeta.info[0].dimension[2],
-        (int)_inputTensorMeta.info[0].dimension[1],
-        (int)_inputTensorMeta.info[0].dimension[0]);
-    break;
+    case 4:
+      _InputDims = nvinfer1::Dims4 ((int) _inputTensorMeta.info[0].dimension[3],
+          (int) _inputTensorMeta.info[0].dimension[2],
+          (int) _inputTensorMeta.info[0].dimension[1],
+          (int) _inputTensorMeta.info[0].dimension[0]);
+      break;
 
-  default:
-    ml_loge ("TensorRT filter does not support %u dimension.", input_rank);
-    return -1;
+    default:
+      ml_loge ("TensorRT filter does not support %u dimension.", input_rank);
+      return -1;
   }
   return 0;
 }
@@ -500,5 +500,5 @@ _fini_filter_tensorrt (void)
   tensorrt_subplugin::fini_filter_tensorrt ();
 }
 
-} /* namespace nnstreamer::tensorfilter_tensorrt */
+} // namespace tensorfilter_tensorrt
 } /* namespace nnstreamer */

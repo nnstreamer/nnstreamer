@@ -37,9 +37,9 @@
 
 #include <torch/script.h>
 /**
-  * Array.h and reverse_iterator.h of PyTorch is GPL-3.0 w/ GCC runtime
-  * exception. Make sure that this is being compiled by GCC
-  */
+ * Array.h and reverse_iterator.h of PyTorch is GPL-3.0 w/ GCC runtime
+ * exception. Make sure that this is being compiled by GCC
+ */
 #ifndef __GNUC__
 #error There are PyTorch C++ headers (Array.h and reverser_iterator.h) having GPL3 with GCC runtime exception. To comply with its GCC runtime exception, we allow GCC only.
 #endif
@@ -70,7 +70,8 @@ class TorchCore
   const char *getModelPath ();
   int getInputTensorDim (GstTensorsInfo *info);
   int getOutputTensorDim (GstTensorsInfo *info);
-  int invoke (const GstTensorFilterProperties *prop, const GstTensorMemory *input, GstTensorMemory *output);
+  int invoke (const GstTensorFilterProperties *prop,
+      const GstTensorMemory *input, GstTensorMemory *output);
 
   private:
   char *model_path;
@@ -96,8 +97,8 @@ class TorchCore
 };
 
 extern "C" { /* accessed by android api */
-void init_filter_torch (void) __attribute__((constructor));
-void fini_filter_torch (void) __attribute__((destructor));
+void init_filter_torch (void) __attribute__ ((constructor));
+void fini_filter_torch (void) __attribute__ ((destructor));
 }
 
 /**
@@ -245,30 +246,29 @@ tensor_type
 TorchCore::getTensorTypeFromTorch (torch::Dtype torchType)
 {
   switch (torchType) {
-  case torch::kU8:
-    return _NNS_UINT8;
-  case torch::kI8:
-    return _NNS_INT8;
-  case torch::kI16:
-    return _NNS_INT16;
-  case torch::kI32:
-    return _NNS_INT32;
-  case torch::kI64:
-    return _NNS_INT64;
-  case torch::kF32:
-    return _NNS_FLOAT32;
-  case torch::kF64:
-    return _NNS_FLOAT64;
-  case torch::kF16:
+    case torch::kU8:
+      return _NNS_UINT8;
+    case torch::kI8:
+      return _NNS_INT8;
+    case torch::kI16:
+      return _NNS_INT16;
+    case torch::kI32:
+      return _NNS_INT32;
+    case torch::kI64:
+      return _NNS_INT64;
+    case torch::kF32:
+      return _NNS_FLOAT32;
+    case torch::kF64:
+      return _NNS_FLOAT64;
+    case torch::kF16:
 #ifdef FLOAT16_SUPPORT
-    return _NNS_FLOAT16;
+      return _NNS_FLOAT16;
 #else
-    ml_loge
-        ("NNStreamer requires -DFLOAT16_SUPPORT as a build option to enable float16 type. This binary does not have float16 feature enabled; thus, float16 type is not supported in this instance.\n");
-    break;
+      ml_loge ("NNStreamer requires -DFLOAT16_SUPPORT as a build option to enable float16 type. This binary does not have float16 feature enabled; thus, float16 type is not supported in this instance.\n");
+      break;
 #endif
-  default:
-    break;
+    default:
+      break;
   }
 
   return _NNS_END;
@@ -283,37 +283,36 @@ bool
 TorchCore::getTensorTypeToTorch (tensor_type tensorType, torch::Dtype *torchType)
 {
   switch (tensorType) {
-  case _NNS_UINT8:
-    *torchType = torch::kU8;
-    break;
-  case _NNS_INT8:
-    *torchType = torch::kI8;
-    break;
-  case _NNS_INT16:
-    *torchType = torch::kI16;
-    break;
-  case _NNS_INT32:
-    *torchType = torch::kI32;
-    break;
-  case _NNS_INT64:
-    *torchType = torch::kI64;
-    break;
-  case _NNS_FLOAT16:
+    case _NNS_UINT8:
+      *torchType = torch::kU8;
+      break;
+    case _NNS_INT8:
+      *torchType = torch::kI8;
+      break;
+    case _NNS_INT16:
+      *torchType = torch::kI16;
+      break;
+    case _NNS_INT32:
+      *torchType = torch::kI32;
+      break;
+    case _NNS_INT64:
+      *torchType = torch::kI64;
+      break;
+    case _NNS_FLOAT16:
 #ifdef FLOAT16_SUPPORT
-    *torchType = torch::kF16;
+      *torchType = torch::kF16;
 #else
-    ml_loge
-        ("NNStreamer requires -DFLOAT16_SUPPORT as a build option to enable float16 type. This binary does not have float16 feature enabled; thus, float16 type is not supported in this instance.\n");
+      ml_loge ("NNStreamer requires -DFLOAT16_SUPPORT as a build option to enable float16 type. This binary does not have float16 feature enabled; thus, float16 type is not supported in this instance.\n");
 #endif
-    break;
-  case _NNS_FLOAT32:
-    *torchType = torch::kF32;
-    break;
-  case _NNS_FLOAT64:
-    *torchType = torch::kF64;
-    break;
-  default:
-    return false;
+      break;
+    case _NNS_FLOAT32:
+      *torchType = torch::kF32;
+      break;
+    case _NNS_FLOAT64:
+      *torchType = torch::kF64;
+      break;
+    default:
+      return false;
   }
 
   return true;
@@ -367,9 +366,9 @@ TorchCore::validateOutputTensor (const at::Tensor output, unsigned int idx)
   }
 
   if (num_gst_tensor != num_torch_tensor) {
-    ml_loge ("Invalid output meta: different element size at index %u. Found size %"
-        G_GSIZE_FORMAT " while expecting size %" G_GSIZE_FORMAT
-        ". Update the tensor shape/size to resolve the error.",
+    ml_loge ("Invalid output meta: different element size at index %u. Found size %" G_GSIZE_FORMAT
+             " while expecting size %" G_GSIZE_FORMAT
+             ". Update the tensor shape/size to resolve the error.",
         idx, num_torch_tensor, num_gst_tensor);
     return -3;
   }
@@ -502,7 +501,8 @@ TorchCore::serializeOutput (
  *         -4 if running the model failed.
  */
 int
-TorchCore::invoke (const GstTensorFilterProperties *prop, const GstTensorMemory *input, GstTensorMemory *output)
+TorchCore::invoke (const GstTensorFilterProperties *prop,
+    const GstTensorMemory *input, GstTensorMemory *output)
 {
 #if (DBG)
   gint64 start_time = g_get_real_time ();
@@ -524,7 +524,7 @@ TorchCore::invoke (const GstTensorFilterProperties *prop, const GstTensorMemory 
       return -1;
     }
     at::TensorOptions options = torch::TensorOptions ().dtype (type);
-    input_shape.resize(prop->input_ranks[i]);
+    input_shape.resize (prop->input_ranks[i]);
     std::reverse (input_shape.begin (), input_shape.end ());
     tensor = torch::from_blob (input[i].data, input_shape, options);
 
@@ -739,26 +739,26 @@ torch_checkAvailability (accl_hw hw)
 
 static gchar filter_subplugin_pytorch[] = "pytorch";
 
-static GstTensorFilterFramework NNS_support_pytorch = {.version = GST_TENSOR_FILTER_FRAMEWORK_V0,
+static GstTensorFilterFramework NNS_support_pytorch = { .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = torch_open,
   .close = torch_close,
-  {.v0 = {
-       .name = filter_subplugin_pytorch,
-       .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
-       .allocate_in_invoke = FALSE,
-       .run_without_model = FALSE,
-       .verify_model_path = TRUE, /* check that the given .pt files are valid */
-       .statistics = nullptr,
-       .invoke_NN = torch_invoke,
-       .getInputDimension = torch_getInputDim,
-       .getOutputDimension = torch_getOutputDim,
-       .setInputDimension = nullptr,
-       .destroyNotify = nullptr,
-       .reloadModel = nullptr,
-       .handleEvent = nullptr,
-       .checkAvailability = torch_checkAvailability,
-       .allocateInInvoke = nullptr,
-   } } };
+  { .v0 = {
+        .name = filter_subplugin_pytorch,
+        .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
+        .allocate_in_invoke = FALSE,
+        .run_without_model = FALSE,
+        .verify_model_path = TRUE, /* check that the given .pt files are valid */
+        .statistics = nullptr,
+        .invoke_NN = torch_invoke,
+        .getInputDimension = torch_getInputDim,
+        .getOutputDimension = torch_getOutputDim,
+        .setInputDimension = nullptr,
+        .destroyNotify = nullptr,
+        .reloadModel = nullptr,
+        .handleEvent = nullptr,
+        .checkAvailability = torch_checkAvailability,
+        .allocateInInvoke = nullptr,
+    } } };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void

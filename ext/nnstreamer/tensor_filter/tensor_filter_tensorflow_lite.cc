@@ -40,49 +40,49 @@
 #include <nnstreamer_util.h>
 
 #if TFLITE_VERSION_MAJOR >= 2 || TFLITE_VERSION_MINOR >= 13
-#  if USE_TENSORFLOW2_HEADER_PATH
-#    include <tensorflow2/lite/kernels/register.h>
-#    include <tensorflow2/lite/model.h>
-#  else
-#    include <tensorflow/lite/kernels/register.h>
-#    include <tensorflow/lite/model.h>
-#  endif
+#if USE_TENSORFLOW2_HEADER_PATH
+#include <tensorflow2/lite/kernels/register.h>
+#include <tensorflow2/lite/model.h>
 #else
-#  include <tensorflow/contrib/lite/kernels/register.h>
-#  include <tensorflow/contrib/lite/model.h>
+#include <tensorflow/lite/kernels/register.h>
+#include <tensorflow/lite/model.h>
+#endif
+#else
+#include <tensorflow/contrib/lite/kernels/register.h>
+#include <tensorflow/contrib/lite/model.h>
 #endif
 
 /** control delegate headers */
 #ifdef TFLITE_XNNPACK_DELEGATE_SUPPORTED
-#  if USE_TENSORFLOW2_HEADER_PATH
-#    include <tensorflow2/lite/delegates/xnnpack/xnnpack_delegate.h>
-#  else
-#    include <tensorflow/lite/delegates/xnnpack/xnnpack_delegate.h>
-#  endif
+#if USE_TENSORFLOW2_HEADER_PATH
+#include <tensorflow2/lite/delegates/xnnpack/xnnpack_delegate.h>
+#else
+#include <tensorflow/lite/delegates/xnnpack/xnnpack_delegate.h>
+#endif
 #endif
 
 #ifdef TFLITE_GPU_DELEGATE_SUPPORTED
-#  if USE_TENSORFLOW2_HEADER_PATH
-#    include <tensorflow2/lite/delegates/gpu/delegate.h>
-#  else
-#    include <tensorflow/lite/delegates/gpu/delegate.h>
-#  endif
+#if USE_TENSORFLOW2_HEADER_PATH
+#include <tensorflow2/lite/delegates/gpu/delegate.h>
+#else
+#include <tensorflow/lite/delegates/gpu/delegate.h>
+#endif
 #endif
 
 #ifdef TFLITE_NNAPI_DELEGATE_SUPPORTED
-#  if USE_TENSORFLOW2_HEADER_PATH
-#    include <tensorflow2/lite/delegates/nnapi/nnapi_delegate.h>
-#  else
-#    include <tensorflow/lite/delegates/nnapi/nnapi_delegate.h>
-#  endif
+#if USE_TENSORFLOW2_HEADER_PATH
+#include <tensorflow2/lite/delegates/nnapi/nnapi_delegate.h>
+#else
+#include <tensorflow/lite/delegates/nnapi/nnapi_delegate.h>
+#endif
 #endif
 
 #ifdef TFLITE_EXTERNAL_DELEGATE_SUPPORTED
-#  if USE_TENSORFLOW2_HEADER_PATH
-#    include <tensorflow2/lite/delegates/external/external_delegate.h>
-#  else
-#    include <tensorflow/lite/delegates/external/external_delegate.h>
-#  endif
+#if USE_TENSORFLOW2_HEADER_PATH
+#include <tensorflow2/lite/delegates/external/external_delegate.h>
+#else
+#include <tensorflow/lite/delegates/external/external_delegate.h>
+#endif
 #endif
 
 #if !defined(TFLITE_SUBPLUGIN_NAME)
@@ -267,7 +267,7 @@ class TFLiteCore
 
   gchar *shared_tensor_filter_key;
   gboolean checkSharedInterpreter (const GstTensorFilterProperties *prop);
-  int reloadInterpreter (TFLiteInterpreter * new_interpreter);
+  int reloadInterpreter (TFLiteInterpreter *new_interpreter);
   void setAccelerator (const char *accelerators, tflite_delegate_e d);
 };
 
@@ -282,7 +282,7 @@ G_LOCK_DEFINE_STATIC (slock);
  * @brief TFLiteInterpreter constructor
  */
 TFLiteInterpreter::TFLiteInterpreter ()
-: delegate_ptr (nullptr, [] (TfLiteDelegate *) {})
+    : delegate_ptr (nullptr, [] (TfLiteDelegate *) {})
 {
   interpreter = nullptr;
   model = nullptr;
@@ -308,7 +308,7 @@ TFLiteInterpreter::~TFLiteInterpreter ()
   g_free (model_path);
   g_free (ext_delegate_path);
   if (ext_delegate_kv_table)
-    g_hash_table_unref(ext_delegate_kv_table);
+    g_hash_table_unref (ext_delegate_kv_table);
 
   gst_tensors_info_free (&inputTensorMeta);
   gst_tensors_info_free (&outputTensorMeta);
@@ -328,13 +328,13 @@ TFLiteInterpreter::invoke (const GstTensorMemory *input, GstTensorMemory *output
 
   /**
    * XNNPACK Delegate uses fixed buffer address for input/output tensors.
-   * Therefore tensor data is to be manually copied from/to input/output GStreamer
-   * buffers memory whose address changes at every round.
+   * Therefore tensor data is to be manually copied from/to input/output
+   * GStreamer buffers memory whose address changes at every round.
    */
   if (is_xnnpack_delegated) {
     for (unsigned int i = 0; i < inputTensorMeta.num_tensors; ++i) {
       tensor_ptr = inputTensorPtr[i];
-      g_assert(tensor_ptr->bytes == input[i].size);
+      g_assert (tensor_ptr->bytes == input[i].size);
       memcpy (tensor_ptr->data.raw, input[i].data, input[i].size);
     }
   } else {
@@ -363,7 +363,7 @@ TFLiteInterpreter::invoke (const GstTensorMemory *input, GstTensorMemory *output
   if (is_xnnpack_delegated || !is_cached_after_first_invoke) {
     for (unsigned int i = 0; i < outputTensorMeta.num_tensors; ++i) {
       tensor_ptr = outputTensorPtr[i];
-      g_assert(tensor_ptr->bytes == output[i].size);
+      g_assert (tensor_ptr->bytes == output[i].size);
       memcpy (output[i].data, tensor_ptr->data.raw, output[i].size);
     }
   }
@@ -447,105 +447,101 @@ TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate_e)
   /** set delegate after the accelerator prop */
   switch (delegate_e) {
     case TFLITE_DELEGATE_XNNPACK:
-    {
+      {
 #if TFLITE_XNNPACK_DELEGATE_SUPPORTED
-      /* set xnnpack delegate */
-      TfLiteXNNPackDelegateOptions xnnpack_options =
-          TfLiteXNNPackDelegateOptionsDefault();
-      xnnpack_options.num_threads = (num_threads > 1) ? num_threads : 0;
+        /* set xnnpack delegate */
+        TfLiteXNNPackDelegateOptions xnnpack_options
+            = TfLiteXNNPackDelegateOptionsDefault ();
+        xnnpack_options.num_threads = (num_threads > 1) ? num_threads : 0;
 
-      is_xnnpack_delegated = true;
-      ml_logw ("Input/output tensors should be memcpy-ed rather than explicitly assigning its ptr when XNNPACK Delegate is used.");
-      ml_logw ("This could cause performance degradation if sizes of input/output tensors are large");
+        is_xnnpack_delegated = true;
+        ml_logw ("Input/output tensors should be memcpy-ed rather than explicitly assigning its ptr when XNNPACK Delegate is used.");
+        ml_logw ("This could cause performance degradation if sizes of input/output tensors are large");
 
-      delegate = TfLiteXNNPackDelegateCreate (&xnnpack_options);
-      void (* deleter) (TfLiteDelegate *) =
-              [] (TfLiteDelegate *delegate_) {
-                  TfLiteXNNPackDelegateDelete (delegate_);
-              };
+        delegate = TfLiteXNNPackDelegateCreate (&xnnpack_options);
+        void (*deleter) (TfLiteDelegate *) = [] (TfLiteDelegate *delegate_) {
+          TfLiteXNNPackDelegateDelete (delegate_);
+        };
 
-      setDelegate (delegate, deleter);
+        setDelegate (delegate, deleter);
 #else
-      ml_logw ("NNStreamer was built without XNNPACK delegate. Given delegate option XNNPACK is ignored.");
+        ml_logw ("NNStreamer was built without XNNPACK delegate. Given delegate option XNNPACK is ignored.");
 #endif
-      break;
-    }
-    case TFLITE_DELEGATE_GPU:
-    {
-#if TFLITE_GPU_DELEGATE_SUPPORTED
-      /* set gpu delegate when accelerator set to GPU */
-      TfLiteGpuDelegateOptionsV2 options = TfLiteGpuDelegateOptionsV2Default ();
-      options.experimental_flags = TFLITE_GPU_EXPERIMENTAL_FLAGS_NONE;
-      options.experimental_flags |= TFLITE_GPU_EXPERIMENTAL_FLAGS_ENABLE_QUANT;
-
-      /**
-       * NNStreamer filter for TFLite2 GPU delegate only supports OpenCL backend
-       * since GLES v3.1 backend has a constraint that
-       * Invoke() must be called from the same EGLContext.
-       */
-      options.experimental_flags |= TFLITE_GPU_EXPERIMENTAL_FLAGS_CL_ONLY;
-      options.inference_priority1 = TFLITE_GPU_INFERENCE_PRIORITY_MIN_LATENCY;
-      options.inference_priority2 = TFLITE_GPU_INFERENCE_PRIORITY_MIN_MEMORY_USAGE;
-      options.inference_priority3 = TFLITE_GPU_INFERENCE_PRIORITY_MAX_PRECISION;
-
-      delegate = TfLiteGpuDelegateV2Create (&options);
-      void (* deleter) (TfLiteDelegate *) =
-              [] (TfLiteDelegate *delegate_) {
-                  TfLiteGpuDelegateV2Delete (delegate_);
-              };
-
-      setDelegate (delegate, deleter);
-#else
-      ml_logw ("NNStreamer was built without GPU delegate. Given delegate option GPU is ignored.");
-#endif
-      break;
-    }
-    case TFLITE_DELEGATE_NNAPI:
-    {
-#if TFLITE_NNAPI_DELEGATE_SUPPORTED
-      /* set nnapi delegate when accelerator set to auto (cpu.neon in Android) or NPU */
-      delegate = new tflite::StatefulNnApiDelegate ();
-      void (* deleter) (TfLiteDelegate *) =
-              [] (TfLiteDelegate *delegate_) {
-                  delete reinterpret_cast<tflite::StatefulNnApiDelegate *> (delegate_);
-              };
-
-      setDelegate (delegate, deleter);
-#else
-      ml_logw ("NNStreamer was built without NNAPI delegate. Given delegate option NNAPI is ignored.");
-#endif
-      break;
-    }
-    case TFLITE_DELEGATE_EXTERNAL:
-    {
-#ifdef TFLITE_EXTERNAL_DELEGATE_SUPPORTED
-      TfLiteExternalDelegateOptions options;
-
-      options = TfLiteExternalDelegateOptionsDefault (ext_delegate_path);
-
-      /* Add optional key values to delegate configuration */
-      if (ext_delegate_kv_table) {
-        GHashTable *table = ext_delegate_kv_table;
-        GHashTableIter iter;
-        gchar *key, *value;
-
-        g_hash_table_iter_init (&iter, table);
-        while (g_hash_table_iter_next (&iter, (gpointer *) &key, (gpointer *) &value))
-           options.insert (&options, key, value);
+        break;
       }
+    case TFLITE_DELEGATE_GPU:
+      {
+#if TFLITE_GPU_DELEGATE_SUPPORTED
+        /* set gpu delegate when accelerator set to GPU */
+        TfLiteGpuDelegateOptionsV2 options = TfLiteGpuDelegateOptionsV2Default ();
+        options.experimental_flags = TFLITE_GPU_EXPERIMENTAL_FLAGS_NONE;
+        options.experimental_flags |= TFLITE_GPU_EXPERIMENTAL_FLAGS_ENABLE_QUANT;
 
-      delegate = TfLiteExternalDelegateCreate (&options);
-      void (* deleter) (TfLiteDelegate *) =
-              [] (TfLiteDelegate *delegate_) {
-                  TfLiteExternalDelegateDelete (delegate_);
-              };
+        /**
+         * NNStreamer filter for TFLite2 GPU delegate only supports OpenCL backend
+         * since GLES v3.1 backend has a constraint that
+         * Invoke() must be called from the same EGLContext.
+         */
+        options.experimental_flags |= TFLITE_GPU_EXPERIMENTAL_FLAGS_CL_ONLY;
+        options.inference_priority1 = TFLITE_GPU_INFERENCE_PRIORITY_MIN_LATENCY;
+        options.inference_priority2 = TFLITE_GPU_INFERENCE_PRIORITY_MIN_MEMORY_USAGE;
+        options.inference_priority3 = TFLITE_GPU_INFERENCE_PRIORITY_MAX_PRECISION;
 
-      setDelegate (delegate, deleter);
+        delegate = TfLiteGpuDelegateV2Create (&options);
+        void (*deleter) (TfLiteDelegate *) = [] (TfLiteDelegate *delegate_) {
+          TfLiteGpuDelegateV2Delete (delegate_);
+        };
+
+        setDelegate (delegate, deleter);
 #else
-      ml_logw ("NNStreamer was built without external delegate. Given delegate option external is ignored.");
+        ml_logw ("NNStreamer was built without GPU delegate. Given delegate option GPU is ignored.");
 #endif
-      break;
-    }
+        break;
+      }
+    case TFLITE_DELEGATE_NNAPI:
+      {
+#if TFLITE_NNAPI_DELEGATE_SUPPORTED
+        /* set nnapi delegate when accelerator set to auto (cpu.neon in Android) or NPU */
+        delegate = new tflite::StatefulNnApiDelegate ();
+        void (*deleter) (TfLiteDelegate *) = [] (TfLiteDelegate *delegate_) {
+          delete reinterpret_cast<tflite::StatefulNnApiDelegate *> (delegate_);
+        };
+
+        setDelegate (delegate, deleter);
+#else
+        ml_logw ("NNStreamer was built without NNAPI delegate. Given delegate option NNAPI is ignored.");
+#endif
+        break;
+      }
+    case TFLITE_DELEGATE_EXTERNAL:
+      {
+#ifdef TFLITE_EXTERNAL_DELEGATE_SUPPORTED
+        TfLiteExternalDelegateOptions options;
+
+        options = TfLiteExternalDelegateOptionsDefault (ext_delegate_path);
+
+        /* Add optional key values to delegate configuration */
+        if (ext_delegate_kv_table) {
+          GHashTable *table = ext_delegate_kv_table;
+          GHashTableIter iter;
+          gchar *key, *value;
+
+          g_hash_table_iter_init (&iter, table);
+          while (g_hash_table_iter_next (&iter, (gpointer *) &key, (gpointer *) &value))
+            options.insert (&options, key, value);
+        }
+
+        delegate = TfLiteExternalDelegateCreate (&options);
+        void (*deleter) (TfLiteDelegate *) = [] (TfLiteDelegate *delegate_) {
+          TfLiteExternalDelegateDelete (delegate_);
+        };
+
+        setDelegate (delegate, deleter);
+#else
+        ml_logw ("NNStreamer was built without external delegate. Given delegate option external is ignored.");
+#endif
+        break;
+      }
     default:
       break;
   }
@@ -579,41 +575,40 @@ tensor_type
 TFLiteInterpreter::getTensorType (TfLiteType tfType)
 {
   switch (tfType) {
-  case kTfLiteFloat32:
-    return _NNS_FLOAT32;
-  case kTfLiteUInt8:
-    return _NNS_UINT8;
-  case kTfLiteInt32:
-    return _NNS_INT32;
-  case kTfLiteBool:
+    case kTfLiteFloat32:
+      return _NNS_FLOAT32;
+    case kTfLiteUInt8:
+      return _NNS_UINT8;
+    case kTfLiteInt32:
+      return _NNS_INT32;
+    case kTfLiteBool:
 #ifdef TFLITE_INT8
-  case kTfLiteInt8:
+    case kTfLiteInt8:
 #endif
-    return _NNS_INT8;
+      return _NNS_INT8;
 #ifdef TFLITE_INT16
-  case kTfLiteInt16:
-    return _NNS_INT16;
+    case kTfLiteInt16:
+      return _NNS_INT16;
 #endif
-  case kTfLiteInt64:
-    return _NNS_INT64;
+    case kTfLiteInt64:
+      return _NNS_INT64;
 #ifdef TFLITE_FLOAT16
-  case kTfLiteFloat16:
+    case kTfLiteFloat16:
 #ifdef FLOAT16_SUPPORT
-    return _NNS_FLOAT16;
+      return _NNS_FLOAT16;
 #else
-    ml_loge
-        ("NNStreamer requires -DFLOAT16_SUPPORT as a build option to enable float16 type. This binary does not have float16 feature enabled; thus, float16 type is not supported in this instance.\n");
-    break;
+      ml_loge ("NNStreamer requires -DFLOAT16_SUPPORT as a build option to enable float16 type. This binary does not have float16 feature enabled; thus, float16 type is not supported in this instance.\n");
+      break;
 #endif
 #endif
-  case kTfLiteString:
+    case kTfLiteString:
 #ifdef TFLITE_COMPLEX64
-  case kTfLiteComplex64:
+    case kTfLiteComplex64:
 #endif
-  default:
-    ml_loge ("Not supported Tensorflow Data Type: [%d].", tfType);
-    /** @todo Support other types */
-    break;
+    default:
+      ml_loge ("Not supported Tensorflow Data Type: [%d].", tfType);
+      /** @todo Support other types */
+      break;
   }
 
   return _NNS_END;
@@ -674,8 +669,8 @@ TFLiteInterpreter::setTensorProp (
 
 #if (DBG)
     gchar *dim_str = gst_tensor_get_dimension_string (info->dimension);
-    ml_logi ("tensorMeta[%d] >> name[%s], type[%d], dim[%s]", i,
-        info->name, info->type, dim_str);
+    ml_logi ("tensorMeta[%d] >> name[%s], type[%d], dim[%s]", i, info->name,
+        info->type, dim_str);
     g_free (dim_str);
 #endif
   }
@@ -746,9 +741,9 @@ TFLiteInterpreter::setInputTensorsInfo (const GstTensorsInfo *info)
         dims[idx] = tensor_info->dimension[rank - idx - 1];
       }
       status = interpreter->ResizeInputTensor (input_idx_list[tensor_idx], dims);
-      if (status == kTfLiteOk){
+      if (status == kTfLiteOk) {
         status = interpreter->AllocateTensors ();
-        if(status == kTfLiteOk)
+        if (status == kTfLiteOk)
           break;
       }
     }
@@ -861,12 +856,10 @@ TFLiteCore::TFLiteCore (const GstTensorFilterProperties *prop)
   shared_tensor_filter_key = NULL;
 
   if (prop->shared_tensor_filter_key) {
-    shared_tensor_filter_key =
-        g_strdup (prop->shared_tensor_filter_key);
+    shared_tensor_filter_key = g_strdup (prop->shared_tensor_filter_key);
     if (!checkSharedInterpreter (prop))
       interpreter = new TFLiteInterpreter ();
-  }
-  else
+  } else
     interpreter = new TFLiteInterpreter ();
 }
 
@@ -874,8 +867,10 @@ TFLiteCore::TFLiteCore (const GstTensorFilterProperties *prop)
  * @brief callback method to destroy interpreter for shared model
  * @param interpreter TFLiteInterpreter*
  */
-void free_interpreter (void * interpreter) {
-  TFLiteInterpreter * self = reinterpret_cast <TFLiteInterpreter *> (interpreter);
+void
+free_interpreter (void *interpreter)
+{
+  TFLiteInterpreter *self = reinterpret_cast<TFLiteInterpreter *> (interpreter);
   delete self;
 }
 
@@ -891,8 +886,7 @@ TFLiteCore::~TFLiteCore ()
     }
     G_UNLOCK (slock);
     g_free (shared_tensor_filter_key);
-  }
-  else {
+  } else {
     delete interpreter;
   }
 }
@@ -904,15 +898,17 @@ TFLiteCore::~TFLiteCore ()
  * in the opposite case, the new TFLiteInterpreter will allocated and registered at the shared table.
  */
 gboolean
-TFLiteCore::checkSharedInterpreter (const GstTensorFilterProperties * prop)
+TFLiteCore::checkSharedInterpreter (const GstTensorFilterProperties *prop)
 {
   G_LOCK (slock);
-  interpreter = (TFLiteInterpreter *) nnstreamer_filter_shared_model_get (this, shared_tensor_filter_key);
+  interpreter = (TFLiteInterpreter *) nnstreamer_filter_shared_model_get (
+      this, shared_tensor_filter_key);
 
   if (!interpreter) {
     /* create new interpreter */
     TFLiteInterpreter *new_interpreter = new TFLiteInterpreter ();
-    interpreter = (TFLiteInterpreter *) nnstreamer_filter_shared_model_insert_and_get (this, shared_tensor_filter_key, new_interpreter);
+    interpreter = (TFLiteInterpreter *) nnstreamer_filter_shared_model_insert_and_get (
+        this, shared_tensor_filter_key, new_interpreter);
     if (!interpreter) {
       G_UNLOCK (slock);
       ml_loge ("Failed to insert the model representation!");
@@ -985,7 +981,8 @@ TFLiteCore::init (tflite_option_s *option)
   g_message ("accl = %s", get_accl_hw_str (accelerator));
 
   if ((err = loadModel ())) {
-    ml_loge ("Failed to load model (TensorFlow-lite interpreter->loadModel() has returned %d. Please check if the model, '%s', is accessible and compatible with the given TensorFlow-lite instance. For example, this TensorFlow-lite's version might not support the given model.\n", err, option->model_file);
+    ml_loge ("Failed to load model (TensorFlow-lite interpreter->loadModel() has returned %d. Please check if the model, '%s', is accessible and compatible with the given TensorFlow-lite instance. For example, this TensorFlow-lite's version might not support the given model.\n",
+        err, option->model_file);
     return -1;
   }
   if (setInputTensorProp ()) {
@@ -1125,7 +1122,7 @@ TFLiteCore::setInputTensorDim (const GstTensorsInfo *info)
  * @return int 0 if ok, non-zero if error
  */
 int
-TFLiteCore::reloadInterpreter (TFLiteInterpreter * new_interpreter)
+TFLiteCore::reloadInterpreter (TFLiteInterpreter *new_interpreter)
 {
   TFLiteInterpreter *old_interpreter = interpreter;
   gboolean in_matched, out_matched;
@@ -1155,9 +1152,11 @@ TFLiteCore::reloadInterpreter (TFLiteInterpreter * new_interpreter)
 /**
  * @brief callback method to replace interpreter for shared model
  */
-void replace_interpreter (void * instance, void * interperter) {
-  TFLiteCore * core = reinterpret_cast <TFLiteCore *> (instance);
-  TFLiteInterpreter * interpreter_new = reinterpret_cast <TFLiteInterpreter *> (interperter);
+void
+replace_interpreter (void *instance, void *interperter)
+{
+  TFLiteCore *core = reinterpret_cast<TFLiteCore *> (instance);
+  TFLiteInterpreter *interpreter_new = reinterpret_cast<TFLiteInterpreter *> (interperter);
   if (core->reloadInterpreter (interpreter_new) != 0)
     nns_loge ("Failed to replace interpreter");
 }
@@ -1173,7 +1172,7 @@ void replace_interpreter (void * instance, void * interperter) {
 int
 TFLiteCore::reloadModel (const char *_model_path)
 {
-  TFLiteInterpreter * interpreter_temp = interpreter;
+  TFLiteInterpreter *interpreter_temp = interpreter;
   const char *_ext_delegate_path;
   GHashTable *_ext_delegate_kv;
 
@@ -1183,8 +1182,8 @@ TFLiteCore::reloadModel (const char *_model_path)
   }
   interpreter_sub = new TFLiteInterpreter ();
   interpreter_sub->setModelPath (_model_path);
-  interpreter->getExtDelegate(&_ext_delegate_path, &_ext_delegate_kv);
-  interpreter_sub->setExtDelegate(_ext_delegate_path, _ext_delegate_kv);
+  interpreter->getExtDelegate (&_ext_delegate_path, &_ext_delegate_kv);
+  interpreter_sub->setExtDelegate (_ext_delegate_path, _ext_delegate_kv);
 
   /**
    * load a model into sub interpreter. This loading overhead is independent
@@ -1211,8 +1210,7 @@ TFLiteCore::reloadModel (const char *_model_path)
     /* update cores with new interpreter that has shared key */
     nnstreamer_filter_shared_model_replace (this, shared_tensor_filter_key,
         interpreter_sub, replace_interpreter, free_interpreter);
-  }
-  else {
+  } else {
     if (reloadInterpreter (interpreter_sub) != 0) {
       ml_loge ("Failed replace interpreter\n");
       return -EINVAL;
@@ -1287,7 +1285,7 @@ tflite_parseCustomOption (const GstTensorFilterProperties *prop, tflite_option_s
         g_strstrip (pair[1]);
 
         if (g_ascii_strcasecmp (pair[0], "NumThreads") == 0) {
-          option->num_threads = (int)g_ascii_strtoll (pair[1], NULL, 10);
+          option->num_threads = (int) g_ascii_strtoll (pair[1], NULL, 10);
         } else if (g_ascii_strcasecmp (pair[0], "Delegate") == 0) {
           if (g_ascii_strcasecmp (pair[1], "NNAPI") == 0)
             option->delegate = TFLITE_DELEGATE_NNAPI;
@@ -1335,8 +1333,7 @@ tflite_parseCustomOption (const GstTensorFilterProperties *prop, tflite_option_s
     g_strfreev (strv);
   }
 
-  if (option->delegate == TFLITE_DELEGATE_EXTERNAL
-      && option->ext_delegate_path == NULL) {
+  if (option->delegate == TFLITE_DELEGATE_EXTERNAL && option->ext_delegate_path == NULL) {
     ml_logw ("No shared lib for external delegate.");
     option->delegate = TFLITE_DELEGATE_NONE;
   }
@@ -1645,13 +1642,12 @@ void
 init_filter_tflite (void)
 {
   nnstreamer_filter_probe (&NNS_support_tensorflow_lite);
-  nnstreamer_filter_set_custom_property_desc (
-      NNS_support_tensorflow_lite.v0.name,
-      "NumThreads", "Number of threads. Set 0 for default behaviors.",
-      "Delegate", "TF-Lite delegation options: {'NNAPI', 'GPU', 'XNNPACK', 'External'}."
+  nnstreamer_filter_set_custom_property_desc (NNS_support_tensorflow_lite.v0.name,
+      "NumThreads", "Number of threads. Set 0 for default behaviors.", "Delegate",
+      "TF-Lite delegation options: {'NNAPI', 'GPU', 'XNNPACK', 'External'}."
       " Do not specify to disable delegation.",
-      "ExtDelegateLib", "Path to external delegate shared library",
-      "ExtDelegateKeyVal", "key/values pairs optional parameters for delegate."
+      "ExtDelegateLib", "Path to external delegate shared library", "ExtDelegateKeyVal",
+      "key/values pairs optional parameters for delegate."
       " Format ExtDelegateKeyVal=key1#value1;key2#value2...",
       NULL);
 }

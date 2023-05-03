@@ -10,8 +10,8 @@
  *
  */
 
-#include <glib.h>
 #include <gtest/gtest.h>
+#include <glib.h>
 #include <mvnc2/mvnc.h>
 #include <string.h>
 
@@ -37,7 +37,7 @@ enum _google_lenet {
 enum _ncsdk_ver_idx {
   MAJOR = 0,
   MINOR = 1,
-  HOTFIX= 2,
+  HOTFIX = 2,
   RC = 3,
 };
 
@@ -74,14 +74,14 @@ typedef uint32_t ncsdk_ver_t[NC_VERSION_MAX_SIZE];
  */
 class NCSDKTensorFilterTestHelper
 {
-public:
+  public:
   /**
    * @brief Make this class as a singletone
    */
-  static NCSDKTensorFilterTestHelper &getInstance () {
-    call_once (NCSDKTensorFilterTestHelper::mOnceFlag, []() {
-      mInstance.reset(new NCSDKTensorFilterTestHelper);
-    });
+  static NCSDKTensorFilterTestHelper &getInstance ()
+  {
+    call_once (NCSDKTensorFilterTestHelper::mOnceFlag,
+        [] () { mInstance.reset (new NCSDKTensorFilterTestHelper); });
     return *(mInstance.get ());
   }
   ~NCSDKTensorFilterTestHelper ();
@@ -93,45 +93,43 @@ public:
 
   /* Mock methods that simulate NCSDK2 APIs */
   /* Mock Global APIs */
-  ncStatus_t ncGlobalGetOption (int option, void *data,
-      unsigned int *dataLength);
+  ncStatus_t ncGlobalGetOption (int option, void *data, unsigned int *dataLength);
   /* Mock Device APIs */
-  ncStatus_t ncDeviceCreate (int index,struct ncDeviceHandle_t **deviceHandle);
-  ncStatus_t ncDeviceOpen(struct ncDeviceHandle_t *deviceHandle);
-  ncStatus_t ncDeviceClose(struct ncDeviceHandle_t *deviceHandle);
-  ncStatus_t ncDeviceDestroy(struct ncDeviceHandle_t **deviceHandle);
+  ncStatus_t ncDeviceCreate (int index, struct ncDeviceHandle_t **deviceHandle);
+  ncStatus_t ncDeviceOpen (struct ncDeviceHandle_t *deviceHandle);
+  ncStatus_t ncDeviceClose (struct ncDeviceHandle_t *deviceHandle);
+  ncStatus_t ncDeviceDestroy (struct ncDeviceHandle_t **deviceHandle);
 
   /* Mock Graph APIs */
-  ncStatus_t ncGraphCreate(const char* name, struct ncGraphHandle_t **graphHandle);
-  ncStatus_t ncGraphAllocate(struct ncDeviceHandle_t *deviceHandle,
+  ncStatus_t ncGraphCreate (const char *name, struct ncGraphHandle_t **graphHandle);
+  ncStatus_t ncGraphAllocate (struct ncDeviceHandle_t *deviceHandle,
       struct ncGraphHandle_t *graphHandle, const void *graphBuffer,
       unsigned int graphBufferLength);
-  ncStatus_t ncGraphGetOption(struct ncGraphHandle_t *graphHandle,
-     int option, void *data, unsigned int *dataLength);
-  ncStatus_t ncGraphQueueInference(struct ncGraphHandle_t *graphHandle,
-      struct ncFifoHandle_t** fifoIn, unsigned int inFifoCount,
-      struct ncFifoHandle_t** fifoOut, unsigned int outFifoCount);
-  ncStatus_t ncGraphDestroy(struct ncGraphHandle_t **graphHandle);
+  ncStatus_t ncGraphGetOption (struct ncGraphHandle_t *graphHandle, int option,
+      void *data, unsigned int *dataLength);
+  ncStatus_t ncGraphQueueInference (struct ncGraphHandle_t *graphHandle,
+      struct ncFifoHandle_t **fifoIn, unsigned int inFifoCount,
+      struct ncFifoHandle_t **fifoOut, unsigned int outFifoCount);
+  ncStatus_t ncGraphDestroy (struct ncGraphHandle_t **graphHandle);
 
   /* Mock FIFO APIs (returning only NC_OK) */
-  ncStatus_t ncFifoCreate(const char* name, ncFifoType_t type,
-      struct ncFifoHandle_t** fifoHandle);
-  ncStatus_t ncFifoAllocate(struct ncFifoHandle_t* fifoHandle,
-      struct ncDeviceHandle_t* device, struct ncTensorDescriptor_t* tensorDesc,
+  ncStatus_t ncFifoCreate (
+      const char *name, ncFifoType_t type, struct ncFifoHandle_t **fifoHandle);
+  ncStatus_t ncFifoAllocate (struct ncFifoHandle_t *fifoHandle,
+      struct ncDeviceHandle_t *device, struct ncTensorDescriptor_t *tensorDesc,
       unsigned int numElem);
-  ncStatus_t ncFifoSetOption(struct ncFifoHandle_t* fifoHandle, int option,
+  ncStatus_t ncFifoSetOption (struct ncFifoHandle_t *fifoHandle, int option,
       const void *data, unsigned int dataLength);
-  ncStatus_t ncFifoGetOption(struct ncFifoHandle_t* fifoHandle, int option,
+  ncStatus_t ncFifoGetOption (struct ncFifoHandle_t *fifoHandle, int option,
       void *data, unsigned int *dataLength);
-  ncStatus_t ncFifoDestroy(struct ncFifoHandle_t** fifoHandle);
-  ncStatus_t ncFifoWriteElem(struct ncFifoHandle_t* fifoHandle,
-      const void *inputTensor, unsigned int * inputTensorLength,
-      void *userParam);
-  ncStatus_t ncFifoReadElem(struct ncFifoHandle_t* fifoHandle, void *outputData,
-      unsigned int* outputDataLen, void **userParam);
-  ncStatus_t ncFifoRemoveElem(struct ncFifoHandle_t* fifoHandle); /* not supported yet */
+  ncStatus_t ncFifoDestroy (struct ncFifoHandle_t **fifoHandle);
+  ncStatus_t ncFifoWriteElem (struct ncFifoHandle_t *fifoHandle,
+      const void *inputTensor, unsigned int *inputTensorLength, void *userParam);
+  ncStatus_t ncFifoReadElem (struct ncFifoHandle_t *fifoHandle,
+      void *outputData, unsigned int *outputDataLen, void **userParam);
+  ncStatus_t ncFifoRemoveElem (struct ncFifoHandle_t *fifoHandle); /* not supported yet */
 
-private:
+  private:
   /* Variables for instance mangement */
   static std::unique_ptr<NCSDKTensorFilterTestHelper> mInstance;
   static std::once_flag mOnceFlag;
@@ -139,13 +137,12 @@ private:
   /* Constructor and destructor */
   NCSDKTensorFilterTestHelper ();
   NCSDKTensorFilterTestHelper (const NCSDKTensorFilterTestHelper &) = delete;
-  NCSDKTensorFilterTestHelper &operator=(const NCSDKTensorFilterTestHelper &)
-      = delete;
+  NCSDKTensorFilterTestHelper &operator= (const NCSDKTensorFilterTestHelper &) = delete;
 
-  struct ncDeviceHandle_t * mDevHandle;
-  struct ncGraphHandle_t * mGraphHandle;
-  struct ncTensorDescriptor_t * mTensorDescInput;
-  struct ncTensorDescriptor_t * mTensorDescOutput;
+  struct ncDeviceHandle_t *mDevHandle;
+  struct ncGraphHandle_t *mGraphHandle;
+  struct ncTensorDescriptor_t *mTensorDescInput;
+  struct ncTensorDescriptor_t *mTensorDescOutput;
   const void *mGraphBuf;
   uint32_t mLenGraphBuf;
   ncsdk_ver_t mVer;

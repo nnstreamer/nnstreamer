@@ -46,9 +46,8 @@
 
 class TensorFilterOpenvino
 {
-public:
-  enum RetVal
-  {
+  public:
+  enum RetVal {
     RetSuccess = 0,
     RetEBusy = -EBUSY,
     RetEInval = -EINVAL,
@@ -59,23 +58,23 @@ public:
   static tensor_type convertFromIETypeStr (std::string type);
   static InferenceEngine::Blob::Ptr convertGstTensorMemoryToBlobPtr (
       const InferenceEngine::TensorDesc tensorDesc,
-      const GstTensorMemory * gstTensor, const tensor_type gstType);
-  static bool isAcclDevSupported (std::vector<std::string> &devsVector,
-      accl_hw hw);
+      const GstTensorMemory *gstTensor, const tensor_type gstType);
+  static bool isAcclDevSupported (std::vector<std::string> &devsVector, accl_hw hw);
 
   TensorFilterOpenvino (std::string path_model_xml, std::string path_model_bin);
   ~TensorFilterOpenvino ();
 
   /** @todo Need to support other acceleration devices */
   int loadModel (accl_hw hw);
-  bool isModelLoaded () {
+  bool isModelLoaded ()
+  {
     return _isLoaded;
   }
 
-  int getInputTensorDim (GstTensorsInfo * info);
-  int getOutputTensorDim (GstTensorsInfo * info);
-  int invoke (const GstTensorFilterProperties * prop,
-      const GstTensorMemory * input, GstTensorMemory * output);
+  int getInputTensorDim (GstTensorsInfo *info);
+  int getOutputTensorDim (GstTensorsInfo *info);
+  int invoke (const GstTensorFilterProperties *prop,
+      const GstTensorMemory *input, GstTensorMemory *output);
   std::string getPathModelXml ();
   void setPathModelXml (std::string pathXml);
   std::string getPathModelBin ();
@@ -84,11 +83,11 @@ public:
   static const std::string extBin;
   static const std::string extXml;
 
-protected:
+  protected:
   InferenceEngine::InputsDataMap _inputsDataMap;
   InferenceEngine::OutputsDataMap _outputsDataMap;
 
-private:
+  private:
   TensorFilterOpenvino ();
 
   InferenceEngine::Core _ieCore;

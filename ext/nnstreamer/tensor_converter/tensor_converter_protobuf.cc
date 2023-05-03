@@ -31,18 +31,18 @@
 #include <iostream>
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api.h>
-#include <string>
-#include <typeinfo>
 #include <nnstreamer_plugin_api_converter.h>
 #include <nnstreamer_util.h>
+#include <string>
+#include <typeinfo>
 #include "nnstreamer_protobuf.h"
 #include "tensor_converter_util.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-void init_pbc (void) __attribute__((constructor));
-void fini_pbc (void) __attribute__((destructor));
+void init_pbc (void) __attribute__ ((constructor));
+void fini_pbc (void) __attribute__ ((destructor));
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
@@ -65,14 +65,12 @@ pbc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
 static gchar converter_subplugin_protobuf[] = "protobuf";
 
 /** @brief protobuf tensor converter sub-plugin NNStreamerExternalConverter instance */
-static NNStreamerExternalConverter protobuf = {
-  .name = converter_subplugin_protobuf,
+static NNStreamerExternalConverter protobuf = { .name = converter_subplugin_protobuf,
   .convert = pbc_convert,
   .get_out_config = tcu_get_out_config,
   .query_caps = pbc_query_caps,
   .open = NULL,
-  .close = NULL
-};
+  .close = NULL };
 
 /** @brief Initialize this object for tensor converter sub-plugin */
 void

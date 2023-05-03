@@ -10,8 +10,8 @@
 #include <gtest/gtest.h>
 #include <glib.h>
 
-#include <nnstreamer_plugin_api_filter.h>
 #include <nnstreamer_plugin_api.h>
+#include <nnstreamer_plugin_api_filter.h>
 
 #define NNS_GRPC_PLUGIN_NAME "nnstreamer_grpc"
 #define NNS_GRPC_TENSOR_SRC_NAME "tensor_src_grpc"
@@ -25,8 +25,7 @@ TEST (nnstreamerGrpc, checkExistence)
   GstPlugin *plugin;
   GstElementFactory *factory;
 
-  plugin = gst_registry_find_plugin (gst_registry_get (),
-      NNS_GRPC_PLUGIN_NAME);
+  plugin = gst_registry_find_plugin (gst_registry_get (), NNS_GRPC_PLUGIN_NAME);
   EXPECT_TRUE (plugin != NULL);
   gst_object_unref (plugin);
 
@@ -67,19 +66,14 @@ TEST (nnstreamerGrpc, checkExistence_n)
 /**
  * @brief Test modes.
  */
-typedef enum {
-  GRPC_MODE_BOTH = 0,
-  GRPC_MODE_SRC,
-  GRPC_MODE_SINK
-} TestMode;
+typedef enum { GRPC_MODE_BOTH = 0, GRPC_MODE_SRC, GRPC_MODE_SINK } TestMode;
 
 /**
  * @brief Test options.
  */
-typedef struct
-{
+typedef struct {
   gboolean server;
-  gchar* host;
+  gchar *host;
   guint port;
   guint fps;
   tensor_type type;
@@ -89,9 +83,8 @@ typedef struct
 /**
  * @brief Data structure for test.
  */
-typedef struct
-{
-  GMainLoop *loop;  /**< main event loop */
+typedef struct {
+  GMainLoop *loop; /**< main event loop */
   GstElement *pipeline; /**< gst pipeline for test */
 } TestData;
 
@@ -117,18 +110,17 @@ _setup_pipeline (TestOption &option)
 
   switch (option.mode) {
     case GRPC_MODE_SRC:
-      str_pipeline = g_strdup_printf (
-        "tensor_src_grpc name=src server=%s host=%s port=%u ! "
-        "other/tensor,dimension=(string)1:1:1:1,type=(string)%s,framerate=(fraction)%u/1 ! "
-        "fakesink",
-        option.server ? "TRUE" : "FALSE", option.host, option.port,
-        gst_tensor_get_type_string (option.type), option.fps);
+      str_pipeline = g_strdup_printf ("tensor_src_grpc name=src server=%s host=%s port=%u ! "
+                                      "other/tensor,dimension=(string)1:1:1:1,type=(string)%s,framerate=(fraction)%u/1 ! "
+                                      "fakesink",
+          option.server ? "TRUE" : "FALSE", option.host, option.port,
+          gst_tensor_get_type_string (option.type), option.fps);
       break;
     case GRPC_MODE_SINK:
       str_pipeline = g_strdup_printf (
-        "videotestsrc ! video/x-raw,format=RGB,width=640,height=480,framerate=%u/1 !"
-        "tensor_converter ! tensor_sink_grpc name=sink server=%s host=%s port=%u",
-        option.fps, option.server ? "TRUE" : "FALSE", option.host, option.port);
+          "videotestsrc ! video/x-raw,format=RGB,width=640,height=480,framerate=%u/1 !"
+          "tensor_converter ! tensor_sink_grpc name=sink server=%s host=%s port=%u",
+          option.fps, option.server ? "TRUE" : "FALSE", option.host, option.port);
       break;
     default:
       return FALSE;
@@ -425,7 +417,8 @@ TEST (nnstreamerGrpc, sinkInvalidPort_n)
 /**
  * @brief gtest main
  */
-int main (int argc, char **argv)
+int
+main (int argc, char **argv)
 {
   int result = -1;
 

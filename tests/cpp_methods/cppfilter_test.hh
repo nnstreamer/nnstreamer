@@ -6,38 +6,42 @@
  * @author      MyungJoo Ham <myungjoo.ham@samsung.com>
  * @bug         No known bugs
  */
+#include <fstream>
 #include <iostream>
 #include <iterator>
-#include <fstream>
 #include <vector>
 
 #include <glib.h>
 #include <tensor_filter_cpp.hh>
 
-class filter_basic: public tensor_filter_cpp {
+class filter_basic : public tensor_filter_cpp
+{
   public:
-    filter_basic(const char *str);
-    ~filter_basic();
+  filter_basic (const char *str);
+  ~filter_basic ();
 
-    int getInputDim(GstTensorsInfo *info);
-    int getOutputDim(GstTensorsInfo *info);
-    int setInputDim(const GstTensorsInfo *in, GstTensorsInfo *out);
-    bool isAllocatedBeforeInvoke();
-    int invoke(const GstTensorMemory *in, GstTensorMemory *out);
+  int getInputDim (GstTensorsInfo *info);
+  int getOutputDim (GstTensorsInfo *info);
+  int setInputDim (const GstTensorsInfo *in, GstTensorsInfo *out);
+  bool isAllocatedBeforeInvoke ();
+  int invoke (const GstTensorMemory *in, GstTensorMemory *out);
 
-    static int resultCompare(const char *inputFile, const char *outputFile, unsigned int nDropAllowed=0);
+  static int resultCompare (const char *inputFile, const char *outputFile,
+      unsigned int nDropAllowed = 0);
 };
 
-class filter_basic2: public tensor_filter_cpp {
+class filter_basic2 : public tensor_filter_cpp
+{
   public:
-    filter_basic2(const char *str);
-    ~filter_basic2();
+  filter_basic2 (const char *str);
+  ~filter_basic2 ();
 
-    int getInputDim(GstTensorsInfo *info);
-    int getOutputDim(GstTensorsInfo *info);
-    int setInputDim(const GstTensorsInfo *in, GstTensorsInfo *out);
-    bool isAllocatedBeforeInvoke();
-    int invoke(const GstTensorMemory *in, GstTensorMemory *out);
+  int getInputDim (GstTensorsInfo *info);
+  int getOutputDim (GstTensorsInfo *info);
+  int setInputDim (const GstTensorsInfo *in, GstTensorsInfo *out);
+  bool isAllocatedBeforeInvoke ();
+  int invoke (const GstTensorMemory *in, GstTensorMemory *out);
 
-    static int resultCompare(const char *inputFile, const char *outputFile, unsigned int nDropAllowed=0);
+  static int resultCompare (const char *inputFile, const char *outputFile,
+      unsigned int nDropAllowed = 0);
 };

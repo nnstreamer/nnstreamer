@@ -64,7 +64,7 @@ TEST (cppFilterOnDemand, basic04_n)
 
 /** @brief Wait until the pipeline saving the file */
 static void
-_wait_save_files (const gchar* file, gsize expected_len)
+_wait_save_files (const gchar *file, gsize expected_len)
 {
   gchar *content = NULL;
   gsize len;

@@ -45,25 +45,25 @@ const gchar *mode[] = { "one-shot", "continuous" };
 const gchar *channels[] = { "auto", "all" };
 const gchar *samp_freq_avail[] = { "1000", "2000", "3000", NULL };
 
-#define CHANGE_ENDIANNESS(NUMBITS)                                  \
-  {                                                                 \
-    if (signchar == 's') {                                          \
-      sdata##NUMBITS = (gint##NUMBITS *)(scan_el_data + location);  \
-      if (endianchar == 'l') {                                      \
-        *sdata##NUMBITS = GINT##NUMBITS##_TO_LE (sdata << shift);   \
-      } else {                                                      \
-        *sdata##NUMBITS = GINT##NUMBITS##_TO_BE (sdata << shift);   \
-      }                                                             \
-    } else {                                                        \
-      udata##NUMBITS = (guint##NUMBITS *)(scan_el_data + location); \
-      if (endianchar == 'l') {                                      \
-        *udata##NUMBITS = GUINT##NUMBITS##_TO_LE (udata << shift);  \
-      } else {                                                      \
-        *udata##NUMBITS = GUINT##NUMBITS##_TO_BE (udata << shift);  \
-      }                                                             \
-    }                                                               \
-    location += num_bytes;                                          \
-    break;                                                          \
+#define CHANGE_ENDIANNESS(NUMBITS)                                   \
+  {                                                                  \
+    if (signchar == 's') {                                           \
+      sdata##NUMBITS = (gint##NUMBITS *) (scan_el_data + location);  \
+      if (endianchar == 'l') {                                       \
+        *sdata##NUMBITS = GINT##NUMBITS##_TO_LE (sdata << shift);    \
+      } else {                                                       \
+        *sdata##NUMBITS = GINT##NUMBITS##_TO_BE (sdata << shift);    \
+      }                                                              \
+    } else {                                                         \
+      udata##NUMBITS = (guint##NUMBITS *) (scan_el_data + location); \
+      if (endianchar == 'l') {                                       \
+        *udata##NUMBITS = GUINT##NUMBITS##_TO_LE (udata << shift);   \
+      } else {                                                       \
+        *udata##NUMBITS = GUINT##NUMBITS##_TO_BE (udata << shift);   \
+      }                                                              \
+    }                                                                \
+    location += num_bytes;                                           \
+    break;                                                           \
   }
 
 
@@ -303,7 +303,7 @@ build_dev_dir_base (const iio_dev_dir_struct *iio_dev)
 static void *
 open_fifo_read (void *vargp)
 {
-  iio_dev_dir_struct *iio_dev = (iio_dev_dir_struct *)vargp;
+  iio_dev_dir_struct *iio_dev = (iio_dev_dir_struct *) vargp;
   iio_dev->dev_device_dir_fd_read = open (iio_dev->dev_device_dir, O_RDONLY);
   return NULL;
 }
@@ -326,7 +326,7 @@ build_dev_dir_dev_data (iio_dev_dir_struct *iio_dev)
    * pipe in write mode. Without an extra thread, attempt to open pipe in write
    * will block indefinitely till the pipe is opened in read mode as well
    */
-  gint val = pthread_create (&thread_read, NULL, open_fifo_read, (void *)iio_dev);
+  gint val = pthread_create (&thread_read, NULL, open_fifo_read, (void *) iio_dev);
   if (val != 0) {
     status = -1;
   } else {
@@ -412,7 +412,7 @@ static gint
 build_dev_dir_samp_freq_avail (const iio_dev_dir_struct *iio_dev)
 {
   gint status = 0;
-  gchar *samp_freq_avail_string = g_strjoinv (" ", (char **)samp_freq_avail);
+  gchar *samp_freq_avail_string = g_strjoinv (" ", (char **) samp_freq_avail);
 
   status += write_file_string (iio_dev->samp_freq_avail, samp_freq_avail_string);
 
@@ -499,7 +499,7 @@ build_dev_dir_scan_elements (iio_dev_dir_struct *iio_dev, const guint num_bits,
   num_bytes++;
 
   data_size = num_bytes * iio_dev->num_scan_elements / skip;
-  scan_el_data = (char *)g_malloc0 (data_size);
+  scan_el_data = (char *) g_malloc0 (data_size);
   if (scan_el_data == NULL) {
     return -1;
   }
@@ -512,21 +512,21 @@ build_dev_dir_scan_elements (iio_dev_dir_struct *iio_dev, const guint num_bits,
     endianchar = 'b';
     signchar = 's';
     switch (idx % (iio_dev->num_scan_elements / 2)) {
-    case 0:
-      /** big endian and signed */
-      break;
-    case 1:
-      /** little endian and unsigned (missing break is intended) */
-      endianchar = 'l';
-    /* fallthrough */
-    case 2:
-      /** big endian and unsigned */
-      signchar = 'u';
-      break;
-    case 3:
-      /** little endian and signed */
-      endianchar = 'l';
-      break;
+      case 0:
+        /** big endian and signed */
+        break;
+      case 1:
+        /** little endian and unsigned (missing break is intended) */
+        endianchar = 'l';
+      /* fallthrough */
+      case 2:
+        /** big endian and unsigned */
+        signchar = 'u';
+        break;
+      case 3:
+        /** little endian and signed */
+        endianchar = 'l';
+        break;
     }
     storage = num_bytes * 8;
     used = num_bits - 2 * (idx / (iio_dev->num_scan_elements / 2));
@@ -543,33 +543,35 @@ build_dev_dir_scan_elements (iio_dev_dir_struct *iio_dev, const guint num_bits,
 
     if (enabled) {
       switch (num_bytes) {
-      case 1: {
-        /** endian-ness does not matter for 1 byte */
-        if (signchar == 's') {
-          sdata8 = (gint8 *)(scan_el_data + location);
-          *sdata8 = sdata << shift;
-        } else {
-          udata8 = (guint8 *)(scan_el_data + location);
-          *udata8 = udata << shift;
-        }
-        location += num_bytes;
-        break;
-      }
-      case 2:
-        CHANGE_ENDIANNESS (16);
-      case 4:
-        CHANGE_ENDIANNESS (32);
-      case 8:
-        CHANGE_ENDIANNESS (64);
-      default: {
-        g_free (scan_el_data);
-        return -1;
-      }
+        case 1:
+          {
+            /** endian-ness does not matter for 1 byte */
+            if (signchar == 's') {
+              sdata8 = (gint8 *) (scan_el_data + location);
+              *sdata8 = sdata << shift;
+            } else {
+              udata8 = (guint8 *) (scan_el_data + location);
+              *udata8 = udata << shift;
+            }
+            location += num_bytes;
+            break;
+          }
+        case 2:
+          CHANGE_ENDIANNESS (16);
+        case 4:
+          CHANGE_ENDIANNESS (32);
+        case 8:
+          CHANGE_ENDIANNESS (64);
+        default:
+          {
+            g_free (scan_el_data);
+            return -1;
+          }
       };
     }
   }
 
-  gchar *copied_scan_el_data = (gchar *)g_malloc (data_size * BUF_LENGTH);
+  gchar *copied_scan_el_data = (gchar *) g_malloc (data_size * BUF_LENGTH);
   if (copied_scan_el_data == NULL) {
     g_free (scan_el_data);
     return -1;
@@ -1049,7 +1051,7 @@ TEST (testTensorSrcIio, startStop)
     dev0 = make_full_device (data_value, data_bits, FALSE, SKIP);                                \
     ASSERT_NE (dev0, nullptr);                                                                   \
     /** setup */                                                                                 \
-    samp_freq = (gint)g_ascii_strtoll (samp_freq_avail[0], NULL, 10);                            \
+    samp_freq = (gint) g_ascii_strtoll (samp_freq_avail[0], NULL, 10);                           \
     dev0->log_file = g_build_filename (dev0->base_dir, "temp.log", NULL);                        \
     parse_launch = g_strdup_printf (                                                             \
         "%s iio-base-dir=%s dev-dir=%s device=%s silent=FALSE ! multifilesink location=%s",      \
@@ -1098,7 +1100,7 @@ TEST (testTensorSrcIio, startStop)
     }                                                                                            \
     /** verify correctness of data */                                                            \
     bytes_to_read = sizeof (float) * BUF_LENGTH * dev0->num_scan_elements / SKIP;                \
-    data_buffer = (gchar *)malloc (bytes_to_read);                                               \
+    data_buffer = (gchar *) malloc (bytes_to_read);                                              \
     if (data_buffer == NULL) {                                                                   \
       close (fd);                                                                                \
       FAIL () << "Failed to malloc for data_buffer";                                             \
@@ -1115,7 +1117,7 @@ TEST (testTensorSrcIio, startStop)
     expect_val = ((data_value & expect_val_mask) + OFFSET) * SCALE;                              \
     expect_val_char = g_strdup_printf ("%.2f", expect_val);                                      \
     for (size_t idx = 0; idx < bytes_to_read; idx += sizeof (float)) {                           \
-      actual_val = *((gfloat *)data_buffer);                                                     \
+      actual_val = *((gfloat *) data_buffer);                                                    \
       actual_val_char = g_strdup_printf ("%.2f", actual_val);                                    \
       EXPECT_STREQ (expect_val_char, actual_val_char);                                           \
       g_free (actual_val_char);                                                                  \
@@ -1191,7 +1193,7 @@ test_tensor_src_iio_data_verify_util (
 
     /** verify correctness of data */
     bytes_to_read = sizeof (float) * BUF_LENGTH * dev0->num_scan_elements;
-    data_buffer = (gchar *)malloc (bytes_to_read);
+    data_buffer = (gchar *) malloc (bytes_to_read);
     if (data_buffer == NULL) {
       close (fd);
       return FALSE;
@@ -1208,7 +1210,7 @@ test_tensor_src_iio_data_verify_util (
     expect_val = ((data_value & expect_val_mask) + OFFSET) * SCALE;
     expect_val_char = g_strdup_printf ("%.2f", expect_val);
     for (size_t idx = 0; idx < bytes_to_read; idx += sizeof (float)) {
-      actual_val = *((gfloat *)data_buffer);
+      actual_val = *((gfloat *) data_buffer);
       actual_val_char = g_strdup_printf ("%.2f", actual_val);
       EXPECT_STREQ (expect_val_char, actual_val_char);
       g_free (actual_val_char);
@@ -1256,7 +1258,7 @@ TEST (testTensorSrcIio, dataVerifyTrigger)
   ASSERT_NE (dev0, nullptr);
   /** setup */
   num_scan_elements = dev0->num_scan_elements;
-  samp_freq = (gint)g_ascii_strtoll (samp_freq_avail[0], NULL, 10);
+  samp_freq = (gint) g_ascii_strtoll (samp_freq_avail[0], NULL, 10);
   dev0->log_file = g_build_filename (dev0->base_dir, "temp.log", NULL);
   parse_launch = g_strdup_printf ("%s iio-base-dir=%s dev-dir=%s device-number=%d trigger=%s silent=FALSE "
                                   "name=my-src-iio ! multifilesink location=%s",
@@ -1286,7 +1288,7 @@ TEST (testTensorSrcIio, dataVerifyTrigger)
   EXPECT_EQ (config.rate_d, 1);
   EXPECT_EQ (config.info.num_tensors, 1U);
   EXPECT_EQ (config.info.info[0].type, _NNS_FLOAT32);
-  EXPECT_EQ (config.info.info[0].dimension[0], (guint)num_scan_elements);
+  EXPECT_EQ (config.info.info[0].dimension[0], (guint) num_scan_elements);
   EXPECT_EQ (config.info.info[0].dimension[1], 1U);
   EXPECT_EQ (config.info.info[0].dimension[2], 1U);
   EXPECT_EQ (config.info.info[0].dimension[3], 1U);
@@ -1339,7 +1341,7 @@ TEST (testTensorSrcIio, dataVerifyCustomChannels)
   dev0 = make_full_device (data_value, data_bits);
   ASSERT_NE (dev0, nullptr);
   /** setup */
-  samp_freq = (gint)g_ascii_strtoll (samp_freq_avail[0], NULL, 10);
+  samp_freq = (gint) g_ascii_strtoll (samp_freq_avail[0], NULL, 10);
   dev0->log_file = g_build_filename (dev0->base_dir, "temp.log", NULL);
   parse_launch = g_strdup_printf ("%s iio-base-dir=%s dev-dir=%s device-number=%d trigger=%s silent=FALSE channels=1,3 "
                                   "name=my-src-iio ! multifilesink location=%s",
@@ -1430,7 +1432,7 @@ TEST (testTensorSrcIio, dataVerifyFreqGenericType)
   ASSERT_NE (dev0, nullptr);
   /** setup */
   num_scan_elements = dev0->num_scan_elements;
-  samp_freq = (gint)g_ascii_strtoll (samp_freq_avail[samp_freq_idx], NULL, 10);
+  samp_freq = (gint) g_ascii_strtoll (samp_freq_avail[samp_freq_idx], NULL, 10);
   dev0->log_file = g_build_filename (dev0->base_dir, "temp.log", NULL);
   parse_launch = g_strdup_printf (
       "%s iio-base-dir=%s dev-dir=%s device-number=%d trigger-number=%d silent=FALSE frequency=%d "
@@ -1471,7 +1473,7 @@ TEST (testTensorSrcIio, dataVerifyFreqGenericType)
   EXPECT_EQ (gst_tensors_config_from_structure (&config, structure), TRUE);
   EXPECT_EQ (config.rate_n, samp_freq);
   EXPECT_EQ (config.rate_d, 1);
-  EXPECT_EQ (config.info.num_tensors, (guint)num_scan_elements);
+  EXPECT_EQ (config.info.num_tensors, (guint) num_scan_elements);
   for (int idx = 0; idx < num_scan_elements; idx++) {
     EXPECT_EQ (config.info.info[idx].type, _NNS_FLOAT32);
     EXPECT_EQ (config.info.info[idx].dimension[0], 1U);
@@ -1561,7 +1563,7 @@ TEST (testTensorSrcIio, DISABLED_unusualCases)
   dev0 = make_full_device (data_value, data_bits);
   ASSERT_NE (dev0, nullptr);
   /** setup */
-  samp_freq = (gint)g_ascii_strtoll (samp_freq_avail[samp_freq_idx], NULL, 10);
+  samp_freq = (gint) g_ascii_strtoll (samp_freq_avail[samp_freq_idx], NULL, 10);
   dev0->log_file = g_build_filename (dev0->base_dir, "temp.log", NULL);
   parse_launch = g_strdup_printf (
       "%s iio-base-dir=%s dev-dir=%s device-number=%d trigger-number=%d silent=FALSE frequency=%d "

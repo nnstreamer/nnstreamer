@@ -40,7 +40,7 @@ new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
   GstMapInfo info_res;
   gboolean mapped;
   gint *output, i;
-  gint index = *(gint *)user_data;
+  gint index = *(gint *) user_data;
   (void) element;
 
   data_received++;
@@ -49,7 +49,7 @@ new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
   mem_res = gst_buffer_get_memory (buffer, 0);
   mapped = gst_memory_map (mem_res, &info_res, GST_MAP_READ);
   ASSERT_TRUE (mapped);
-  output = (gint *)info_res.data;
+  output = (gint *) info_res.data;
 
   for (i = 0; i < 48; i++) {
     EXPECT_EQ (test_frames[index][i], output[i]);
@@ -91,7 +91,7 @@ TEST (join, normal0)
   sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
   EXPECT_NE (sink_handle, nullptr);
 
-  g_signal_connect (sink_handle, "new-data", (GCallback)new_data_cb, (gpointer)&idx);
+  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, (gpointer) &idx);
 
   buf_0 = gst_buffer_new_wrapped (_g_memdup (test_frames[0], 192), 192);
   buf_3 = gst_buffer_copy (buf_0);

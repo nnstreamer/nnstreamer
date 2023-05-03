@@ -603,7 +603,7 @@ TEST (commonTensorInfo, size02_n)
   fill_tensors_info_for_test (&info1, &info2);
 
   /* get size with null param */
-  index = (gint)info1.num_tensors - 1;
+  index = (gint) info1.num_tensors - 1;
   size1 = gst_tensors_info_get_size (NULL, index);
 
   EXPECT_TRUE (size1 == 0);
@@ -621,7 +621,7 @@ TEST (commonTensorInfo, size03_n)
   fill_tensors_info_for_test (&info1, &info2);
 
   /* get size with invalid index */
-  index = (gint)info1.num_tensors;
+  index = (gint) info1.num_tensors;
   size1 = gst_tensors_info_get_size (&info1, index);
 
   EXPECT_TRUE (size1 == 0);
@@ -894,7 +894,7 @@ TEST (commonTensorsInfo, createExtraInfo_n)
 
 /**
  * @brief Test for creating extra info.
-*/
+ */
 TEST (commonTensorsInfo, createExtraInfo)
 {
   GstTensorsInfo info;
@@ -1201,9 +1201,8 @@ TEST (commonTensorsInfoString, types)
 
   info.num_tensors = num_types;
   str_types = gst_tensors_info_get_types_string (&info);
-  EXPECT_STREQ (str_types,
-      "int8,int8,int8,int8,int8,int8,int8,int8,int8,int8,int8,"
-      "int8,int8,int8,int8,int8,int8,int8,int8,int8,int8,int8");
+  EXPECT_STREQ (str_types, "int8,int8,int8,int8,int8,int8,int8,int8,int8,int8,int8,"
+                           "int8,int8,int8,int8,int8,int8,int8,int8,int8,int8,int8");
   g_free (str_types);
 
   /* max (NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT) */
@@ -1281,7 +1280,7 @@ TEST (commonTensorsInfoString, names)
 
   str_names = gst_tensors_info_get_names_string (&info);
   EXPECT_STREQ (str_names, "t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12,t13,t14,t15,"
-      "t16,t17,t18,t19,t20,t21,t22,t23,t24,t25,t26,t27,t28");
+                           "t16,t17,t18,t19,t20,t21,t22,t23,t24,t25,t26,t27,t28");
   g_free (str_names);
 
   /* max (NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT) */
@@ -1341,7 +1340,9 @@ TEST (commonMetaInfo, headerSizeInvalidParam01_n)
  */
 TEST (commonMetaInfo, headerSizeInvalidParam02_n)
 {
-  GstTensorMetaInfo meta = {0, };
+  GstTensorMetaInfo meta = {
+    0,
+  };
   gsize hsize;
 
   hsize = gst_tensor_meta_info_get_header_size (&meta);
@@ -1364,7 +1365,9 @@ TEST (commonMetaInfo, dataSizeInvalidParam01_n)
  */
 TEST (commonMetaInfo, dataSizeInvalidParam02_n)
 {
-  GstTensorMetaInfo meta = {0, };
+  GstTensorMetaInfo meta = {
+    0,
+  };
   gsize dsize;
 
   dsize = gst_tensor_meta_info_get_data_size (&meta);
@@ -1387,7 +1390,9 @@ TEST (commonMetaInfo, validateInvalidParam01_n)
  */
 TEST (commonMetaInfo, validateInvalidParam02_n)
 {
-  GstTensorMetaInfo meta = { 0, };
+  GstTensorMetaInfo meta = {
+    0,
+  };
   gboolean valid;
 
   /* invalid version */
@@ -1657,16 +1662,20 @@ TEST (commonAggregationUtil, clearData)
   EXPECT_TRUE (gst_tensor_aggregation_get_adapter (table, key1) != NULL);
   EXPECT_TRUE (gst_tensor_aggregation_get_adapter (table, key2) != NULL);
 
-  gst_adapter_push (gst_tensor_aggregation_get_adapter (table, key1), gst_buffer_new_allocate (NULL, 1024U, 0));
-  gst_adapter_push (gst_tensor_aggregation_get_adapter (table, key2), gst_buffer_new_allocate (NULL, 512U, 0));
-  gst_adapter_push (gst_tensor_aggregation_get_adapter (table, key1), gst_buffer_new_allocate (NULL, 100U, 0));
+  gst_adapter_push (gst_tensor_aggregation_get_adapter (table, key1),
+      gst_buffer_new_allocate (NULL, 1024U, 0));
+  gst_adapter_push (gst_tensor_aggregation_get_adapter (table, key2),
+      gst_buffer_new_allocate (NULL, 512U, 0));
+  gst_adapter_push (gst_tensor_aggregation_get_adapter (table, key1),
+      gst_buffer_new_allocate (NULL, 100U, 0));
 
   EXPECT_EQ (gst_adapter_available (gst_tensor_aggregation_get_adapter (table, key1)), 1124U);
   EXPECT_EQ (gst_adapter_available (gst_tensor_aggregation_get_adapter (table, key2)), 512U);
 
   gst_tensor_aggregation_clear (table, key2);
   EXPECT_EQ (gst_adapter_available (gst_tensor_aggregation_get_adapter (table, key2)), 0U);
-  gst_adapter_push (gst_tensor_aggregation_get_adapter (table, key2), gst_buffer_new_allocate (NULL, 200U, 0));
+  gst_adapter_push (gst_tensor_aggregation_get_adapter (table, key2),
+      gst_buffer_new_allocate (NULL, 200U, 0));
   EXPECT_EQ (gst_adapter_available (gst_tensor_aggregation_get_adapter (table, key2)), 200U);
 
   gst_tensor_aggregation_clear_all (table);
@@ -1867,7 +1876,8 @@ TEST (confCustom, checkExtraConfPath_p)
   gchar *dir = g_mkdtemp (fullpath);
   gchar *filename = g_build_path ("/", dir, "nnstreamer.ini", NULL);
   const gchar *extra_conf = "/opt/usr/vd/product.ini";
-  gchar *confenv = g_strdup (g_getenv ("NNSTREAMER_CONF"));;
+  gchar *confenv = g_strdup (g_getenv ("NNSTREAMER_CONF"));
+  ;
 
   FILE *fp = g_fopen (filename, "w");
   ASSERT_TRUE (fp != NULL);
@@ -1916,9 +1926,9 @@ TEST (versionControl, getVer01)
 
   EXPECT_STRCASEEQ (VERSION, verstr3);
 
-  EXPECT_EQ ((int)major, NNSTREAMER_VERSION_MAJOR);
-  EXPECT_EQ ((int)minor, NNSTREAMER_VERSION_MINOR);
-  EXPECT_EQ ((int)micro, NNSTREAMER_VERSION_MICRO);
+  EXPECT_EQ ((int) major, NNSTREAMER_VERSION_MAJOR);
+  EXPECT_EQ ((int) minor, NNSTREAMER_VERSION_MINOR);
+  EXPECT_EQ ((int) micro, NNSTREAMER_VERSION_MICRO);
 
   g_free (verstr);
   g_free (verstr2);

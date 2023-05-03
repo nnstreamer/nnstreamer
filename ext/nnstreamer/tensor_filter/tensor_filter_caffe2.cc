@@ -85,8 +85,8 @@ class Caffe2Core
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-void init_filter_caffe2 (void) __attribute__((constructor));
-void fini_filter_caffe2 (void) __attribute__((destructor));
+void init_filter_caffe2 (void) __attribute__ ((constructor));
+void fini_filter_caffe2 (void) __attribute__ ((destructor));
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
@@ -172,39 +172,39 @@ Caffe2Core::initInputTensor ()
         = workSpace.CreateBlob (inputTensorMeta.info[i].name)->GetMutable<Tensor> ();
 
     switch (inputTensorMeta.info[i].type) {
-    case _NNS_INT32:
-      initializeTensor (int32_t);
-      break;
-    case _NNS_UINT32:
-      ml_loge ("invalid data type is used");
-      return -1;
-    case _NNS_INT16:
-      initializeTensor (int16_t);
-      break;
-    case _NNS_UINT16:
-      initializeTensor (uint16_t);
-      break;
-    case _NNS_INT8:
-      initializeTensor (int8_t);
-      break;
-    case _NNS_UINT8:
-      initializeTensor (uint8_t);
-      break;
-    case _NNS_FLOAT64:
-      initializeTensor (double);
-      break;
-    case _NNS_FLOAT32:
-      initializeTensor (float);
-      break;
-    case _NNS_INT64:
-      initializeTensor (int64_t);
-      break;
-    case _NNS_UINT64:
-      ml_loge ("invalid data type is used");
-      return -1;
-    default:
-      ml_loge ("invalid data type is used");
-      return -1;
+      case _NNS_INT32:
+        initializeTensor (int32_t);
+        break;
+      case _NNS_UINT32:
+        ml_loge ("invalid data type is used");
+        return -1;
+      case _NNS_INT16:
+        initializeTensor (int16_t);
+        break;
+      case _NNS_UINT16:
+        initializeTensor (uint16_t);
+        break;
+      case _NNS_INT8:
+        initializeTensor (int8_t);
+        break;
+      case _NNS_UINT8:
+        initializeTensor (uint8_t);
+        break;
+      case _NNS_FLOAT64:
+        initializeTensor (double);
+        break;
+      case _NNS_FLOAT32:
+        initializeTensor (float);
+        break;
+      case _NNS_INT64:
+        initializeTensor (int64_t);
+        break;
+      case _NNS_UINT64:
+        ml_loge ("invalid data type is used");
+        return -1;
+      default:
+        ml_loge ("invalid data type is used");
+        return -1;
     }
 
     inputTensorMap.insert (std::make_pair (inputTensorMeta.info[i].name, inputTensor));
@@ -319,39 +319,39 @@ Caffe2Core::run (const GstTensorMemory *input, GstTensorMemory *output)
     Tensor *inputTensor = inputTensorMap.find (inputTensorMeta.info[i].name)->second;
 
     switch (inputTensorMeta.info[i].type) {
-    case _NNS_INT32:
-      inputTensor->ShareExternalPointer ((int32_t *)input[i].data);
-      break;
-    case _NNS_UINT32:
-      ml_loge ("invalid data type is used");
-      return -1;
-    case _NNS_INT16:
-      inputTensor->ShareExternalPointer ((int16_t *)input[i].data);
-      break;
-    case _NNS_UINT16:
-      inputTensor->ShareExternalPointer ((uint16_t *)input[i].data);
-      break;
-    case _NNS_INT8:
-      inputTensor->ShareExternalPointer ((int8_t *)input[i].data);
-      break;
-    case _NNS_UINT8:
-      inputTensor->ShareExternalPointer ((uint8_t *)input[i].data);
-      break;
-    case _NNS_FLOAT64:
-      inputTensor->ShareExternalPointer ((double *)input[i].data);
-      break;
-    case _NNS_FLOAT32:
-      inputTensor->ShareExternalPointer ((float *)input[i].data);
-      break;
-    case _NNS_INT64:
-      inputTensor->ShareExternalPointer ((int64_t *)input[i].data);
-      break;
-    case _NNS_UINT64:
-      ml_loge ("invalid data type is used");
-      return -1;
-    default:
-      ml_loge ("invalid data type is used");
-      return -1;
+      case _NNS_INT32:
+        inputTensor->ShareExternalPointer ((int32_t *) input[i].data);
+        break;
+      case _NNS_UINT32:
+        ml_loge ("invalid data type is used");
+        return -1;
+      case _NNS_INT16:
+        inputTensor->ShareExternalPointer ((int16_t *) input[i].data);
+        break;
+      case _NNS_UINT16:
+        inputTensor->ShareExternalPointer ((uint16_t *) input[i].data);
+        break;
+      case _NNS_INT8:
+        inputTensor->ShareExternalPointer ((int8_t *) input[i].data);
+        break;
+      case _NNS_UINT8:
+        inputTensor->ShareExternalPointer ((uint8_t *) input[i].data);
+        break;
+      case _NNS_FLOAT64:
+        inputTensor->ShareExternalPointer ((double *) input[i].data);
+        break;
+      case _NNS_FLOAT32:
+        inputTensor->ShareExternalPointer ((float *) input[i].data);
+        break;
+      case _NNS_INT64:
+        inputTensor->ShareExternalPointer ((int64_t *) input[i].data);
+        break;
+      case _NNS_UINT64:
+        ml_loge ("invalid data type is used");
+        return -1;
+      default:
+        ml_loge ("invalid data type is used");
+        return -1;
     }
   }
 
@@ -381,39 +381,39 @@ Caffe2Core::run (const GstTensorMemory *input, GstTensorMemory *output)
     const auto &out = workSpace.GetBlob (outputTensorMeta.info[i].name)->Get<Tensor> ();
 
     switch (outputTensorMeta.info[i].type) {
-    case _NNS_INT32:
-      output[i].data = out.data<int32_t> ();
-      break;
-    case _NNS_UINT32:
-      ml_loge ("invalid data type (uint32) is used");
-      return -1;
-    case _NNS_INT16:
-      output[i].data = out.data<int16_t> ();
-      break;
-    case _NNS_UINT16:
-      output[i].data = out.data<uint16_t> ();
-      break;
-    case _NNS_INT8:
-      output[i].data = out.data<int8_t> ();
-      break;
-    case _NNS_UINT8:
-      output[i].data = out.data<uint8_t> ();
-      break;
-    case _NNS_FLOAT64:
-      output[i].data = out.data<double> ();
-      break;
-    case _NNS_FLOAT32:
-      output[i].data = out.data<float> ();
-      break;
-    case _NNS_INT64:
-      output[i].data = out.data<int64_t> ();
-      break;
-    case _NNS_UINT64:
-      ml_loge ("invalid data type (uint64) is used");
-      return -1;
-    default:
-      ml_loge ("invalid data type is used");
-      return -1;
+      case _NNS_INT32:
+        output[i].data = out.data<int32_t> ();
+        break;
+      case _NNS_UINT32:
+        ml_loge ("invalid data type (uint32) is used");
+        return -1;
+      case _NNS_INT16:
+        output[i].data = out.data<int16_t> ();
+        break;
+      case _NNS_UINT16:
+        output[i].data = out.data<uint16_t> ();
+        break;
+      case _NNS_INT8:
+        output[i].data = out.data<int8_t> ();
+        break;
+      case _NNS_UINT8:
+        output[i].data = out.data<uint8_t> ();
+        break;
+      case _NNS_FLOAT64:
+        output[i].data = out.data<double> ();
+        break;
+      case _NNS_FLOAT32:
+        output[i].data = out.data<float> ();
+        break;
+      case _NNS_INT64:
+        output[i].data = out.data<int64_t> ();
+        break;
+      case _NNS_UINT64:
+        ml_loge ("invalid data type (uint64) is used");
+        return -1;
+      default:
+        ml_loge ("invalid data type is used");
+        return -1;
     }
   }
 
@@ -597,26 +597,26 @@ caffe2_checkAvailability (accl_hw hw)
 
 static gchar filter_subplugin_caffe2[] = "caffe2";
 
-static GstTensorFilterFramework NNS_support_caffe2 = {.version = GST_TENSOR_FILTER_FRAMEWORK_V0,
+static GstTensorFilterFramework NNS_support_caffe2 = { .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = caffe2_open,
   .close = caffe2_close,
-  {.v0 = {
-       .name = filter_subplugin_caffe2,
-       .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
-       .allocate_in_invoke = TRUE,
-       .run_without_model = FALSE,
-       .verify_model_path = FALSE,
-       .statistics = nullptr,
-       .invoke_NN = caffe2_run,
-       .getInputDimension = caffe2_getInputDim,
-       .getOutputDimension = caffe2_getOutputDim,
-       .setInputDimension = nullptr,
-       .destroyNotify = caffe2_destroyNotify,
-       .reloadModel = nullptr,
-       .handleEvent = nullptr,
-       .checkAvailability = caffe2_checkAvailability,
-       .allocateInInvoke = nullptr,
-   } } };
+  { .v0 = {
+        .name = filter_subplugin_caffe2,
+        .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
+        .allocate_in_invoke = TRUE,
+        .run_without_model = FALSE,
+        .verify_model_path = FALSE,
+        .statistics = nullptr,
+        .invoke_NN = caffe2_run,
+        .getInputDimension = caffe2_getInputDim,
+        .getOutputDimension = caffe2_getOutputDim,
+        .setInputDimension = nullptr,
+        .destroyNotify = caffe2_destroyNotify,
+        .reloadModel = nullptr,
+        .handleEvent = nullptr,
+        .checkAvailability = caffe2_checkAvailability,
+        .allocateInInvoke = nullptr,
+    } } };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void

@@ -35,16 +35,16 @@
 #endif /* __OPENVINO_CPU_EXT__ */
 #include <inference_engine.hpp>
 #include <iostream>
+#include <nnstreamer_util.h>
 #include <string>
 #include <vector>
-#include <nnstreamer_util.h>
 #include "tensor_filter_openvino.hh"
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-void init_filter_openvino (void) __attribute__((constructor));
-void fini_filter_openvino (void) __attribute__((destructor));
+void init_filter_openvino (void) __attribute__ ((constructor));
+void fini_filter_openvino (void) __attribute__ ((destructor));
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
@@ -54,7 +54,9 @@ static const gchar *openvino_accl_support[]
         ACCL_NPU_STR, ACCL_CPU_STR, NULL };
 
 std::map<accl_hw, std::string> TensorFilterOpenvino::_nnsAcclHwToOVDevMap = {
-  { ACCL_CPU, "CPU" }, { ACCL_NPU, "MYRIAD" }, { ACCL_NPU_MOVIDIUS, "MYRIAD" },
+  { ACCL_CPU, "CPU" },
+  { ACCL_NPU, "MYRIAD" },
+  { ACCL_NPU_MOVIDIUS, "MYRIAD" },
 };
 
 const std::string TensorFilterOpenvino::extBin = ".bin";
@@ -101,26 +103,26 @@ TensorFilterOpenvino::convertGstTensorMemoryToBlobPtr (const InferenceEngine::Te
     const GstTensorMemory *gstTensor, const tensor_type gstType)
 {
   switch (gstType) {
-  case _NNS_UINT8:
-    return InferenceEngine::Blob::Ptr (new InferenceEngine::TBlob<uint8_t> (
-        tensorDesc, (uint8_t *)gstTensor->data, gstTensor->size));
-  case _NNS_UINT16:
-    return InferenceEngine::Blob::Ptr (new InferenceEngine::TBlob<uint16_t> (
-        tensorDesc, (uint16_t *)gstTensor->data, gstTensor->size));
-  case _NNS_INT8:
-    return InferenceEngine::Blob::Ptr (new InferenceEngine::TBlob<int8_t> (
-        tensorDesc, (int8_t *)gstTensor->data, gstTensor->size));
-  case _NNS_INT16:
-    return InferenceEngine::Blob::Ptr (new InferenceEngine::TBlob<int16_t> (
-        tensorDesc, (int16_t *)gstTensor->data, gstTensor->size));
-  case _NNS_INT32:
-    return InferenceEngine::Blob::Ptr (new InferenceEngine::TBlob<int32_t> (
-        tensorDesc, (int32_t *)gstTensor->data, gstTensor->size));
-  case _NNS_FLOAT32:
-    return InferenceEngine::Blob::Ptr (new InferenceEngine::TBlob<float> (
-        tensorDesc, (float *)gstTensor->data, gstTensor->size));
-  default:
-    return nullptr;
+    case _NNS_UINT8:
+      return InferenceEngine::Blob::Ptr (new InferenceEngine::TBlob<uint8_t> (
+          tensorDesc, (uint8_t *) gstTensor->data, gstTensor->size));
+    case _NNS_UINT16:
+      return InferenceEngine::Blob::Ptr (new InferenceEngine::TBlob<uint16_t> (
+          tensorDesc, (uint16_t *) gstTensor->data, gstTensor->size));
+    case _NNS_INT8:
+      return InferenceEngine::Blob::Ptr (new InferenceEngine::TBlob<int8_t> (
+          tensorDesc, (int8_t *) gstTensor->data, gstTensor->size));
+    case _NNS_INT16:
+      return InferenceEngine::Blob::Ptr (new InferenceEngine::TBlob<int16_t> (
+          tensorDesc, (int16_t *) gstTensor->data, gstTensor->size));
+    case _NNS_INT32:
+      return InferenceEngine::Blob::Ptr (new InferenceEngine::TBlob<int32_t> (
+          tensorDesc, (int32_t *) gstTensor->data, gstTensor->size));
+    case _NNS_FLOAT32:
+      return InferenceEngine::Blob::Ptr (new InferenceEngine::TBlob<float> (
+          tensorDesc, (float *) gstTensor->data, gstTensor->size));
+    default:
+      return nullptr;
   }
 }
 
@@ -254,7 +256,7 @@ TensorFilterOpenvino::getInputTensorDim (GstTensorsInfo *info)
 
   gst_tensors_info_init (info);
 
-  info->num_tensors = (uint32_t)inputsDataMap->size ();
+  info->num_tensors = (uint32_t) inputsDataMap->size ();
   if (info->num_tensors > NNS_TENSOR_SIZE_LIMIT) {
     ml_loge ("The number of input tenosrs in the model "
              "exceeds more than NNS_TENSOR_SIZE_LIMIT, %s",
@@ -328,7 +330,7 @@ TensorFilterOpenvino::getOutputTensorDim (GstTensorsInfo *info)
 
   gst_tensors_info_init (info);
 
-  info->num_tensors = (uint32_t)outputsDataMap->size ();
+  info->num_tensors = (uint32_t) outputsDataMap->size ();
   if (info->num_tensors > NNS_TENSOR_SIZE_LIMIT) {
     ml_loge ("The number of output tenosrs in the model "
              "exceeds more than NNS_TENSOR_SIZE_LIMIT, %s",
@@ -613,26 +615,26 @@ ov_checkAvailability (accl_hw hw)
 
 static gchar filter_subplugin_openvino[] = "openvino";
 
-static GstTensorFilterFramework NNS_support_openvino = {.version = GST_TENSOR_FILTER_FRAMEWORK_V0,
+static GstTensorFilterFramework NNS_support_openvino = { .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = ov_open,
   .close = ov_close,
-  {.v0 = {
-       .name = filter_subplugin_openvino,
-       .allow_in_place = FALSE,
-       .allocate_in_invoke = FALSE,
-       .run_without_model = FALSE,
-       .verify_model_path = FALSE,
-       .statistics = nullptr,
-       .invoke_NN = ov_invoke,
-       .getInputDimension = ov_getInputDim,
-       .getOutputDimension = ov_getOutputDim,
-       .setInputDimension = nullptr,
-       .destroyNotify = nullptr,
-       .reloadModel = nullptr,
-       .handleEvent = nullptr,
-       .checkAvailability = ov_checkAvailability,
-       .allocateInInvoke = nullptr,
-   } } };
+  { .v0 = {
+        .name = filter_subplugin_openvino,
+        .allow_in_place = FALSE,
+        .allocate_in_invoke = FALSE,
+        .run_without_model = FALSE,
+        .verify_model_path = FALSE,
+        .statistics = nullptr,
+        .invoke_NN = ov_invoke,
+        .getInputDimension = ov_getInputDim,
+        .getOutputDimension = ov_getOutputDim,
+        .setInputDimension = nullptr,
+        .destroyNotify = nullptr,
+        .reloadModel = nullptr,
+        .handleEvent = nullptr,
+        .checkAvailability = ov_checkAvailability,
+        .allocateInInvoke = nullptr,
+    } } };
 
 /**
  * @brief Initialize this object for tensor_filter sub-plugin runtime register

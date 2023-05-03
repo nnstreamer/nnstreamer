@@ -56,20 +56,20 @@
  * @endcode
  */
 
+#include <flatbuffers/flexbuffers.h>
 #include <glib.h>
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_converter.h>
 #include <nnstreamer_util.h>
-#include <flatbuffers/flexbuffers.h>
 #include "../extra/nnstreamer_flatbuf.h"
 #include "tensor_converter_util.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-void init_flxc (void) __attribute__((constructor));
-void fini_flxc (void) __attribute__((destructor));
+void init_flxc (void) __attribute__ ((constructor));
+void fini_flxc (void) __attribute__ ((destructor));
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
@@ -118,7 +118,7 @@ flxc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
   out_buf = gst_buffer_new ();
 
   for (guint i = 0; i < config->info.num_tensors; i++) {
-    gchar * tensor_key = g_strdup_printf ("tensor_%d", i);
+    gchar *tensor_key = g_strdup_printf ("tensor_%d", i);
     gsize offset;
     flexbuffers::Vector tensor = tensors[tensor_key].AsVector ();
     flexbuffers::String _name = tensor[0].AsString ();
@@ -135,7 +135,7 @@ flxc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
     mem_size = gst_tensor_info_get_size (&config->info.info[i]);
     if (gst_tensors_config_is_flexible (config)) {
       GstTensorMetaInfo meta;
-      gst_tensor_meta_info_parse_header (&meta,  (gpointer) tensor_data.data ());
+      gst_tensor_meta_info_parse_header (&meta, (gpointer) tensor_data.data ());
       mem_size += gst_tensor_meta_info_get_header_size (&meta);
     }
 
@@ -149,7 +149,7 @@ flxc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
 
   /** copy timestamps */
   gst_buffer_copy_into (
-      out_buf, in_buf, (GstBufferCopyFlags)GST_BUFFER_COPY_METADATA, 0, -1);
+      out_buf, in_buf, (GstBufferCopyFlags) GST_BUFFER_COPY_METADATA, 0, -1);
 done:
   gst_memory_unmap (in_mem, &in_info);
 
@@ -159,14 +159,12 @@ done:
 static const gchar converter_subplugin_flexbuf[] = "flexbuf";
 
 /** @brief flexbuffer tensor converter sub-plugin NNStreamerExternalConverter instance */
-static NNStreamerExternalConverter flexBuf = {
-  .name = converter_subplugin_flexbuf,
+static NNStreamerExternalConverter flexBuf = { .name = converter_subplugin_flexbuf,
   .convert = flxc_convert,
   .get_out_config = tcu_get_out_config,
   .query_caps = flxc_query_caps,
   .open = NULL,
-  .close = NULL
-};
+  .close = NULL };
 
 #ifdef __cplusplus
 extern "C" {

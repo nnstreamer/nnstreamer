@@ -104,8 +104,8 @@ class TFCore
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-void init_filter_tf (void) __attribute__((constructor));
-void fini_filter_tf (void) __attribute__((destructor));
+void init_filter_tf (void) __attribute__ ((constructor));
+void fini_filter_tf (void) __attribute__ ((destructor));
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
@@ -286,37 +286,36 @@ tensor_type
 TFCore::getTensorTypeFromTF (TF_DataType tfType)
 {
   switch (tfType) {
-  case TF_INT32:
-    return _NNS_INT32;
-  case TF_UINT32:
-    return _NNS_UINT32;
-  case TF_INT16:
-    return _NNS_INT16;
-  case TF_UINT16:
-    return _NNS_UINT16;
-  case TF_INT8:
-    return _NNS_INT8;
-  case TF_UINT8:
-    return _NNS_UINT8;
-  case TF_INT64:
-    return _NNS_INT64;
-  case TF_UINT64:
-    return _NNS_UINT64;
-  case TF_FLOAT:
-    return _NNS_FLOAT32;
-  case TF_DOUBLE:
-    return _NNS_FLOAT64;
-  case TF_HALF:
+    case TF_INT32:
+      return _NNS_INT32;
+    case TF_UINT32:
+      return _NNS_UINT32;
+    case TF_INT16:
+      return _NNS_INT16;
+    case TF_UINT16:
+      return _NNS_UINT16;
+    case TF_INT8:
+      return _NNS_INT8;
+    case TF_UINT8:
+      return _NNS_UINT8;
+    case TF_INT64:
+      return _NNS_INT64;
+    case TF_UINT64:
+      return _NNS_UINT64;
+    case TF_FLOAT:
+      return _NNS_FLOAT32;
+    case TF_DOUBLE:
+      return _NNS_FLOAT64;
+    case TF_HALF:
 #ifdef FLOAT16_SUPPORT
-    return _NNS_FLOAT16;
+      return _NNS_FLOAT16;
 #else
-    ml_loge
-        ("NNStreamer requires -DFLOAT16_SUPPORT as a build option to enable float16 type. This binary does not have float16 feature enabled; thus, float16 type is not supported in this instance.\n");
-    break;
+      ml_loge ("NNStreamer requires -DFLOAT16_SUPPORT as a build option to enable float16 type. This binary does not have float16 feature enabled; thus, float16 type is not supported in this instance.\n");
+      break;
 #endif
-  default:
-    /** @todo Support other types */
-    break;
+    default:
+      /** @todo Support other types */
+      break;
   }
 
   return _NNS_END;
@@ -331,37 +330,36 @@ TF_DataType
 TFCore::getTensorTypeToTF (tensor_type tType)
 {
   switch (tType) {
-  case _NNS_INT32:
-    return TF_INT32;
-  case _NNS_UINT32:
-    return TF_UINT32;
-  case _NNS_INT16:
-    return TF_INT16;
-  case _NNS_UINT16:
-    return TF_UINT16;
-  case _NNS_INT8:
-    return TF_INT8;
-  case _NNS_UINT8:
-    return TF_UINT8;
-  case _NNS_INT64:
-    return TF_INT64;
-  case _NNS_UINT64:
-    return TF_UINT64;
-  case _NNS_FLOAT16:
+    case _NNS_INT32:
+      return TF_INT32;
+    case _NNS_UINT32:
+      return TF_UINT32;
+    case _NNS_INT16:
+      return TF_INT16;
+    case _NNS_UINT16:
+      return TF_UINT16;
+    case _NNS_INT8:
+      return TF_INT8;
+    case _NNS_UINT8:
+      return TF_UINT8;
+    case _NNS_INT64:
+      return TF_INT64;
+    case _NNS_UINT64:
+      return TF_UINT64;
+    case _NNS_FLOAT16:
 #ifdef FLOAT16_SUPPORT
-    return TF_HALF;
+      return TF_HALF;
 #else
-    ml_loge
-        ("NNStreamer requires -DFLOAT16_SUPPORT as a build option to enable float16 type. This binary does not have float16 feature enabled; thus, float16 type is not supported in this instance.\n");
-    break;
+      ml_loge ("NNStreamer requires -DFLOAT16_SUPPORT as a build option to enable float16 type. This binary does not have float16 feature enabled; thus, float16 type is not supported in this instance.\n");
+      break;
 #endif
-  case _NNS_FLOAT32:
-    return TF_FLOAT;
-  case _NNS_FLOAT64:
-    return TF_DOUBLE;
-  default:
-    /** @todo Support other types */
-    break;
+    case _NNS_FLOAT32:
+      return TF_FLOAT;
+    case _NNS_FLOAT64:
+      return TF_DOUBLE;
+    default:
+      /** @todo Support other types */
+      break;
   }
 
   /* there is no flag for INVALID */
@@ -387,8 +385,7 @@ TFCore::validateTensor (const GstTensorsInfo *tensorInfo, int is_input)
     g_assert (op != nullptr);
 
     const int num_outputs = TF_OperationNumOutputs (op);
-    g_assert (
-        num_outputs == 1); /* an in/output tensor has only one output for now */
+    g_assert (num_outputs == 1); /* an in/output tensor has only one output for now */
 
     TF_Status *status = TF_NewStatus ();
     const TF_Output output = { op, 0 };
@@ -475,7 +472,7 @@ TFCore::getOutputTensorDim (GstTensorsInfo *info)
 static void
 DeallocateInputTensor (void *data, size_t len, void *arg)
 {
-  tf_tensor_info_s *info_s = (tf_tensor_info_s *)arg;
+  tf_tensor_info_s *info_s = (tf_tensor_info_s *) arg;
   UNUSED (len);
 
   if (info_s && info_s->type == TF_STRING) {
@@ -521,14 +518,14 @@ TFCore::run (const GstTensorMemory *input, GstTensorMemory *output)
       size_t encoded_size = TF_StringEncodedSize (input[i].size);
       size_t total_size = 8 + encoded_size;
 
-      char *input_encoded = (char *)g_malloc0 (total_size);
+      char *input_encoded = (char *) g_malloc0 (total_size);
       if (input_encoded == NULL) {
         ml_loge ("Failed to allocate memory for input tensor.");
         ret = -1;
         goto failed;
       }
 
-      TF_StringEncode ((char *)input[i].data, input[i].size, input_encoded + 8,
+      TF_StringEncode ((char *) input[i].data, input[i].size, input_encoded + 8,
           encoded_size, status); /* fills the rest of tensor data */
       if (TF_GetCode (status) != TF_OK) {
         ml_loge ("Error String Encoding!! - [Code: %d] %s", TF_GetCode (status),
@@ -765,26 +762,26 @@ tf_checkAvailability (accl_hw hw)
 
 static gchar filter_subplugin_tensorflow[] = "tensorflow";
 
-static GstTensorFilterFramework NNS_support_tensorflow = {.version = GST_TENSOR_FILTER_FRAMEWORK_V0,
+static GstTensorFilterFramework NNS_support_tensorflow = { .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = tf_open,
   .close = tf_close,
-  {.v0 = {
-       .name = filter_subplugin_tensorflow,
-       .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
-       .allocate_in_invoke = TRUE,
-       .run_without_model = FALSE,
-       .verify_model_path = TRUE, /* check that the given .pb files are valid */
-       .statistics = nullptr,
-       .invoke_NN = tf_run,
-       .getInputDimension = tf_getInputDim,
-       .getOutputDimension = tf_getOutputDim,
-       .setInputDimension = nullptr,
-       .destroyNotify = tf_destroyNotify,
-       .reloadModel = nullptr,
-       .handleEvent = nullptr,
-       .checkAvailability = tf_checkAvailability,
-       .allocateInInvoke = nullptr, // TODO: what, it's allocate_in_invoke
-   } } };
+  { .v0 = {
+        .name = filter_subplugin_tensorflow,
+        .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
+        .allocate_in_invoke = TRUE,
+        .run_without_model = FALSE,
+        .verify_model_path = TRUE, /* check that the given .pb files are valid */
+        .statistics = nullptr,
+        .invoke_NN = tf_run,
+        .getInputDimension = tf_getInputDim,
+        .getOutputDimension = tf_getOutputDim,
+        .setInputDimension = nullptr,
+        .destroyNotify = tf_destroyNotify,
+        .reloadModel = nullptr,
+        .handleEvent = nullptr,
+        .checkAvailability = tf_checkAvailability,
+        .allocateInInvoke = nullptr, // TODO: what, it's allocate_in_invoke
+    } } };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void
