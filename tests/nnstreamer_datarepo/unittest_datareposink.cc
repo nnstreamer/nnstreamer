@@ -1,4 +1,4 @@
- /**
+/**
  * @file        unittest_datareposink.cc
  * @date        21 Apr 2023
  * @brief       Unit test for datareposink
@@ -20,7 +20,7 @@ static const gchar json[] = "mnist.json";
  * @brief Get file path
  */
 static gchar *
-get_file_path (const gchar * filename)
+get_file_path (const gchar *filename)
 {
   const gchar *root_path = NULL;
   gchar *file_path = NULL;
@@ -31,9 +31,8 @@ get_file_path (const gchar * filename)
   if (root_path == NULL)
     root_path = "..";
 
-  file_path =
-      g_build_filename (root_path, "tests", "test_models", "data", "datarepo",
-      filename, NULL);
+  file_path = g_build_filename (
+      root_path, "tests", "test_models", "data", "datarepo", filename, NULL);
 
   return file_path;
 }
@@ -43,7 +42,7 @@ get_file_path (const gchar * filename)
  * @brief Bus callback function
  */
 static gboolean
-bus_callback (GstBus * bus, GstMessage * message, gpointer data)
+bus_callback (GstBus *bus, GstMessage *message, gpointer data)
 {
   switch (GST_MESSAGE_TYPE (message)) {
     case GST_MESSAGE_EOS:
@@ -71,9 +70,8 @@ TEST (datareposink, writeImageFiles)
 
   loop = g_main_loop_new (NULL, FALSE);
 
-  gchar *str_pipeline =
-      g_strdup ("gst-launch-1.0 videotestsrc num-buffers=5 ! pngenc ! "
-      "datareposink location=image_%02d.png json=image.json");
+  gchar *str_pipeline = g_strdup ("gst-launch-1.0 videotestsrc num-buffers=5 ! pngenc ! "
+                                  "datareposink location=image_%02d.png json=image.json");
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
@@ -83,8 +81,7 @@ TEST (datareposink, writeImageFiles)
   gst_bus_add_watch (bus, bus_callback, loop);
   gst_object_unref (bus);
 
-  setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-      UNITTEST_STATECHANGE_TIMEOUT);
+  setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
   g_main_loop_run (loop);
 
   setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
@@ -124,9 +121,8 @@ TEST (datareposink, writeAudioRaw)
 
   loop = g_main_loop_new (NULL, FALSE);
 
-  gchar *str_pipeline =
-      g_strdup
-      ("gst-launch-1.0 audiotestsrc samplesperbuffer=44100 num-buffers=1 ! "
+  gchar *str_pipeline = g_strdup (
+      "gst-launch-1.0 audiotestsrc samplesperbuffer=44100 num-buffers=1 ! "
       "audio/x-raw, format=S16LE, layout=interleaved, rate=44100, channels=1 ! "
       "datareposink location=audio.raw json=audio.json");
 
@@ -139,8 +135,7 @@ TEST (datareposink, writeAudioRaw)
   gst_bus_add_watch (bus, bus_callback, loop);
   gst_object_unref (bus);
 
-  setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-      UNITTEST_STATECHANGE_TIMEOUT);
+  setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
   g_main_loop_run (loop);
 
   setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
@@ -175,9 +170,8 @@ TEST (datareposink, writeVideoRaw)
 
   loop = g_main_loop_new (NULL, FALSE);
 
-  gchar *str_pipeline =
-      g_strdup ("gst-launch-1.0 videotestsrc num-buffers=10 ! "
-      "datareposink location=video.raw json=video.json");
+  gchar *str_pipeline = g_strdup ("gst-launch-1.0 videotestsrc num-buffers=10 ! "
+                                  "datareposink location=video.raw json=video.json");
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
@@ -188,8 +182,7 @@ TEST (datareposink, writeVideoRaw)
   gst_bus_add_watch (bus, bus_callback, loop);
   gst_object_unref (bus);
 
-  setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-      UNITTEST_STATECHANGE_TIMEOUT);
+  setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
   g_main_loop_run (loop);
 
   setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
@@ -231,9 +224,8 @@ TEST (datareposink, writeTensors)
   file_path = get_file_path (filename);
   json_path = get_file_path (json);
 
-  gchar *str_pipeline =
-      g_strdup_printf
-      ("gst-launch-1.0 datareposrc location=%s json=%s "
+  gchar *str_pipeline = g_strdup_printf (
+      "gst-launch-1.0 datareposrc location=%s json=%s "
       "start-sample-index=0 stop-sample-index=9 ! "
       "other/tensors, format=static, num_tensors=2, framerate=0/1, "
       "dimensions=1:1:784:1.1:1:10:1, types=float32.float32 ! "
@@ -258,8 +250,7 @@ TEST (datareposink, writeTensors)
   gst_bus_add_watch (bus, bus_callback, loop);
   gst_object_unref (bus);
 
-  setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-      UNITTEST_STATECHANGE_TIMEOUT);
+  setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
   g_main_loop_run (loop);
 
   setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
@@ -290,9 +281,8 @@ TEST (datareposink, invalidJsonPath0_n)
 {
   GstElement *datareposink = NULL;
 
-  gchar *str_pipeline =
-      g_strdup ("gst-launch-1.0 videotestsrc num-buffers=10 ! pngenc ! "
-      "datareposink name=datareposink");
+  gchar *str_pipeline = g_strdup ("gst-launch-1.0 videotestsrc num-buffers=10 ! pngenc ! "
+                                  "datareposink name=datareposink");
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
@@ -305,8 +295,7 @@ TEST (datareposink, invalidJsonPath0_n)
   g_object_set (GST_OBJECT (datareposink), "json", NULL, NULL);
 
   /* state chagne failure is expected */
-  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-          UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (pipeline);
 }
@@ -318,9 +307,8 @@ TEST (datareposink, invalidFilePath0_n)
 {
   GstElement *datareposink = NULL;
 
-  gchar *str_pipeline =
-      g_strdup ("gst-launch-1.0 videotestsrc num-buffers=10 ! pngenc ! "
-      "datareposink name=datareposink");
+  gchar *str_pipeline = g_strdup ("gst-launch-1.0 videotestsrc num-buffers=10 ! pngenc ! "
+                                  "datareposink name=datareposink");
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
@@ -334,8 +322,7 @@ TEST (datareposink, invalidFilePath0_n)
   g_object_set (GST_OBJECT (datareposink), "location", NULL, NULL);
 
   /* state chagne failure is expected */
-  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-          UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (pipeline);
 }
@@ -345,17 +332,15 @@ TEST (datareposink, invalidFilePath0_n)
  */
 TEST (datareposink, unsupportedVideoCaps0_n)
 {
-  gchar *str_pipeline =
-      g_strdup ("gst-launch-1.0 videotestsrc ! vp8enc ! "
-      "datareposink location=video.raw json=video.json");
+  gchar *str_pipeline = g_strdup ("gst-launch-1.0 videotestsrc ! vp8enc ! "
+                                  "datareposink location=video.raw json=video.json");
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
   ASSERT_NE (pipeline, nullptr);
 
   /* Could not to to GST_STATE_PLAYING state due to caps negotiation failure */
-  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-          UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (pipeline);
 }
@@ -365,18 +350,15 @@ TEST (datareposink, unsupportedVideoCaps0_n)
  */
 TEST (datareposink, unsupportedAudioCaps0_n)
 {
-  gchar *str_pipeline =
-      g_strdup
-      ("gst-launch-1.0 audiotestsrc ! audio/x-raw,rate=44100,channels=2 ! wavenc ! "
-      "datareposink location=audio.raw json=audio.json");
+  gchar *str_pipeline = g_strdup ("gst-launch-1.0 audiotestsrc ! audio/x-raw,rate=44100,channels=2 ! wavenc ! "
+                                  "datareposink location=audio.raw json=audio.json");
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
   ASSERT_NE (pipeline, nullptr);
 
   /* Could not to to GST_STATE_PLAYING state due to caps negotiation failure */
-  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-          UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (pipeline);
 }
@@ -414,7 +396,7 @@ main (int argc, char **argv)
 
   try {
     testing::InitGoogleTest (&argc, argv);
-  } catch ( ...) {
+  } catch (...) {
     g_warning ("catch 'testing::internal::<unnamed>::ClassUniqueToAlwaysTrue'");
   }
 
@@ -422,7 +404,7 @@ main (int argc, char **argv)
 
   try {
     result = RUN_ALL_TESTS ();
-  } catch ( ...) {
+  } catch (...) {
     g_warning ("catch `testing::internal::GoogleTestFailureException`");
   }
 

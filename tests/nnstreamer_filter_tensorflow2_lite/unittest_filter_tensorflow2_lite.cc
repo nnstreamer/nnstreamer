@@ -12,8 +12,8 @@
 #include <glib.h>
 #include <gst/gst.h>
 
-#include <unittest_util.h>
 #include <nnstreamer_util.h>
+#include <unittest_util.h>
 #include "nnstreamer_plugin_api.h"
 #include "nnstreamer_plugin_api_util.h"
 
@@ -21,7 +21,7 @@
  * @brief internal function to get model file path
  */
 static gboolean
-_GetModelFilePath (gchar ** model_file, int option)
+_GetModelFilePath (gchar **model_file, int option)
 {
   const gchar *src_root = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *root_path = src_root ? g_strdup (src_root) : g_get_current_dir ();
@@ -53,7 +53,7 @@ _GetModelFilePath (gchar ** model_file, int option)
  * @brief internal function to get the orange.png
  */
 static gboolean
-_GetOrangePngFilePath (gchar ** input_file)
+_GetOrangePngFilePath (gchar **input_file)
 {
   const gchar *src_root = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *root_path = src_root ? g_strdup (src_root) : g_get_current_dir ();
@@ -82,7 +82,7 @@ check_output (GstElement *element, GstBuffer *buffer, gpointer user_data)
   mapped = gst_memory_map (mem_res, &info_res, GST_MAP_READ);
   ASSERT_TRUE (mapped);
 
-  gint is_float = (gint) *((guint8 *) user_data);
+  gint is_float = (gint) * ((guint8 *) user_data);
   guint idx, max_idx = -1;
 
   if (is_float == 0) {
@@ -177,7 +177,7 @@ TEST (nnstreamerFilterTensorFlow2Lite, quantModelResult)
 
   /* create a nnstreamer pipeline */
   pipeline = g_strdup_printf ("filesrc location=\"%s\" ! pngdec ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=224,height=224,framerate=0/1 ! tensor_converter ! tensor_filter framework=tensorflow2-lite model=\"%s\" ! tensor_sink name=sink",
-     input_file, model_file);
+      input_file, model_file);
 
   gstpipe = gst_parse_launch (pipeline, &err);
   ASSERT_TRUE (gstpipe != nullptr);
@@ -189,7 +189,8 @@ TEST (nnstreamerFilterTensorFlow2Lite, quantModelResult)
   *is_float = 0;
   g_signal_connect (sink_handle, "new-data", (GCallback) check_output, is_float);
 
-  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT * 10), 0);
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT * 10),
+      0);
 
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
@@ -215,7 +216,7 @@ TEST (nnstreamerFilterTensorFlow2Lite, floatModelResult)
 
   /* create a nnstreamer pipeline */
   pipeline = g_strdup_printf ("filesrc location=\"%s\" ! pngdec ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=224,height=224,framerate=0/1 ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-127.5,div:127.5 ! tensor_filter framework=tensorflow2-lite model=\"%s\" ! tensor_sink name=sink",
-     input_file, model_file);
+      input_file, model_file);
 
   gstpipe = gst_parse_launch (pipeline, &err);
   ASSERT_TRUE (gstpipe != nullptr);
@@ -227,7 +228,8 @@ TEST (nnstreamerFilterTensorFlow2Lite, floatModelResult)
   *is_float = 1;
   g_signal_connect (sink_handle, "new-data", (GCallback) check_output, is_float);
 
-  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT * 10), 0);
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT * 10),
+      0);
 
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
@@ -254,7 +256,7 @@ TEST (nnstreamerFilterTensorFlow2Lite, floatModelXNNPACKResult)
 
   /* create a nnstreamer pipeline */
   pipeline = g_strdup_printf ("filesrc location=\"%s\" ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=224,height=224,framerate=20/1 ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-127.5,div:127.5 ! tensor_filter framework=tensorflow2-lite model=\"%s\" custom=Delegate:XNNPACK,NumThreads:4 ! tensor_sink name=sink",
-     input_file, model_file);
+      input_file, model_file);
 
   gstpipe = gst_parse_launch (pipeline, &err);
   ASSERT_TRUE (gstpipe != nullptr);
@@ -266,7 +268,8 @@ TEST (nnstreamerFilterTensorFlow2Lite, floatModelXNNPACKResult)
   *is_float = 1;
   g_signal_connect (sink_handle, "new-data", (GCallback) check_output, is_float);
 
-  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT * 10), 0);
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT * 10),
+      0);
   g_usleep (1000 * 1000 * 5); // wait for 5 seconds to check all output is valid
 
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
@@ -331,12 +334,12 @@ TEST (nnstreamerFilterTensorFlow2Lite, manyInOutModel)
 
   /* create a nnstreamer pipeline */
   pipeline = g_strdup_printf (
-    "videotestsrc pattern=2 num-buffers=10 is-live=true ! "
-    "videoscale ! videoconvert ! video/x-raw,format=GRAY8,width=1,height=1,framerate=30/1 ! "
-    "tensor_converter ! tensor_transform mode=typecast option=float32 ! tee name=t "
-    "%s"
-    "tensor_mux name=mux ! other/tensors,format=static,num_tensors=32 ! "
-    "tensor_filter framework=tensorflow2-lite model=\"%s\" ! tensor_sink name=sinkx",
+      "videotestsrc pattern=2 num-buffers=10 is-live=true ! "
+      "videoscale ! videoconvert ! video/x-raw,format=GRAY8,width=1,height=1,framerate=30/1 ! "
+      "tensor_converter ! tensor_transform mode=typecast option=float32 ! tee name=t "
+      "%s"
+      "tensor_mux name=mux ! other/tensors,format=static,num_tensors=32 ! "
+      "tensor_filter framework=tensorflow2-lite model=\"%s\" ! tensor_sink name=sinkx",
       tee_queue_mux, model_file);
 
   g_free (tee_queue_mux);
@@ -350,7 +353,8 @@ TEST (nnstreamerFilterTensorFlow2Lite, manyInOutModel)
   guint data_received = 0U;
   g_signal_connect (sink_handle, "new-data", (GCallback) check_output_many, &data_received);
 
-  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT * 10), 0);
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT * 10),
+      0);
   g_usleep (1000 * 1000 * 5); // wait for 5 seconds to check all output is valid
 
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);

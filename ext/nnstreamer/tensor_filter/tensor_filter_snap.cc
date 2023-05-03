@@ -244,18 +244,15 @@ tensor_filter_snap::register_snap ()
   }
   nnstreamer_filter_set_custom_property_desc ("snap", "ModelFWType",
       "Framework type for the given model: {'TENSORFLOWLITE', 'TENSORFLOW', 'CAFFE'}",
-      "ModelEncrypted",
-      "Use encrypted model: {'true': if encrypted. otherwise, not encrypted.",
+      "ModelEncrypted", "Use encrypted model: {'true': if encrypted. otherwise, not encrypted.",
       "ExecutionDataType",
       "Designate data type for the execution: {'FLOAT32' (default), "
       "'FLOAT16', 'QASYMM16', 'QASYMM16'}",
-      "InputFormat", "Designate input data format: {'NHWC', 'NCHW'}",
-      "OutputFormat", "Designate output data format: {'NHWC', 'NCHW'}",
-      "ComputingUnit",
+      "InputFormat", "Designate input data format: {'NHWC', 'NCHW'}", "OutputFormat",
+      "Designate output data format: {'NHWC', 'NCHW'}", "ComputingUnit",
       "Desingate hardware resources: {'CPU' (default), 'GPU', 'NPU', 'DSP'}",
-      "CpuThreadCount", "The number of CPU threads",
-      "GpuCacheSource", "The directory path to the GPU cache source.",
-      NULL);
+      "CpuThreadCount", "The number of CPU threads", "GpuCacheSource",
+      "The directory path to the GPU cache source.", NULL);
 }
 
 /**
@@ -277,7 +274,7 @@ const char *
 tensor_filter_snap::error_string (snap_sdk::ErrCode status)
 {
   static const char *err_string[] = {
-        [static_cast<int> (snap_sdk::ErrCode::OK)] = "OK",
+    [static_cast<int> (snap_sdk::ErrCode::OK)] = "OK",
     [static_cast<int> (snap_sdk::ErrCode::ERR)] = "ERR",
     [static_cast<int> (snap_sdk::ErrCode::UNSUPPORTED_DEVICE)] = "UNSUPPORTED_DEVICE",
     [static_cast<int> (snap_sdk::ErrCode::UNSUPPORTED_MODELTYPE)] = "UNSUPPORTED_MODELTYPE",
@@ -505,7 +502,7 @@ tensor_filter_snap::invoke_internal (const GstTensorFilterProperties *prop,
     }
 
     for (i = 0; i < outputs.size (); i++) {
-      snap_data_info_s snap_info = {.type = outputs[i].GetType (),
+      snap_data_info_s snap_info = { .type = outputs[i].GetType (),
         .format = outputs[i].GetFormat (),
         .shape = outputs[i].GetShapes () };
 
@@ -612,7 +609,7 @@ tensor_filter_snap::parse_custom_prop (const char *custom_prop, snap_option_s &s
           snap_option.computing_unit = snap_sdk::ComputingUnit::CPU;
         }
       } else if (g_ascii_strcasecmp (option[0], "CpuThreadCount") == 0) {
-        snap_option.cpu_thread_count = (int)g_ascii_strtoll (option[1], NULL, 10);
+        snap_option.cpu_thread_count = (int) g_ascii_strtoll (option[1], NULL, 10);
       } else if (g_ascii_strcasecmp (option[0], "GpuCacheSource") == 0) {
         gchar *path = option[1];
 
@@ -670,7 +667,7 @@ tensor_filter_snap::configure_option (
   /* configure in/out data format */
   if (snap_option.input_format.size () == 0
       && !convert_nns_layouts (prop->input_layout, prop->input_meta.num_tensors,
-             snap_option.input_format)) {
+          snap_option.input_format)) {
     snap_loge ("Failed to configure input data format.");
     return false;
   }
@@ -682,7 +679,7 @@ tensor_filter_snap::configure_option (
 
   if (snap_option.output_format.size () == 0
       && !convert_nns_layouts (prop->output_layout,
-             prop->output_meta.num_tensors, snap_option.output_format)) {
+          prop->output_meta.num_tensors, snap_option.output_format)) {
     snap_loge ("Failed to configure output data format.");
     return false;
   }
@@ -746,7 +743,7 @@ tensor_filter_snap::configure_input_meta (
        */
       rank = NNS_TENSOR_RANK_LIMIT;
       for (j = 0; j < rank; j++) {
-        int s = (int)prop->input_meta.info[i].dimension[rank - j - 1];
+        int s = (int) prop->input_meta.info[i].dimension[rank - j - 1];
         snap_info.shape.push_back (s);
       }
     } else {
@@ -839,16 +836,16 @@ tensor_filter_snap::get_snap_data_format (
     tensor_layout nns_layout, snap_sdk::DataFormat &snap_format)
 {
   switch (nns_layout) {
-  case _NNS_LAYOUT_NHWC:
-    snap_format = snap_sdk::DataFormat::NHWC;
-    break;
-  case _NNS_LAYOUT_NCHW:
-    snap_format = snap_sdk::DataFormat::NCHW;
-    break;
-  default:
-    snap_logw ("The tensor layout %d is not supported.", nns_layout);
-    snap_format = snap_sdk::DataFormat::MAX_ENUM;
-    break;
+    case _NNS_LAYOUT_NHWC:
+      snap_format = snap_sdk::DataFormat::NHWC;
+      break;
+    case _NNS_LAYOUT_NCHW:
+      snap_format = snap_sdk::DataFormat::NCHW;
+      break;
+    default:
+      snap_logw ("The tensor layout %d is not supported.", nns_layout);
+      snap_format = snap_sdk::DataFormat::MAX_ENUM;
+      break;
   }
 
   return (snap_format != snap_sdk::DataFormat::MAX_ENUM);
@@ -931,7 +928,7 @@ tensor_filter_snap::parse_dimension (const std::vector<int> &shape, tensor_dim d
 
   for (i = 0; i < rank; i++) {
     snap_logd ("snap data shape[%lu] : %d", i, shape[i]);
-    dim[rank - i - 1] = (unsigned int)shape[i];
+    dim[rank - i - 1] = (unsigned int) shape[i];
   }
 
   /* fill the remnants with 1 */

@@ -15,8 +15,8 @@
  * This example scales an input tensor of [N][input_h][input_w][M]
  * to an ouput tensor of [N][output_h][output_w][M].
  *
- * The custom property is to be given as, "custom=[new-x]x[new-y]", where new-x and new-y are unsigned integers.
- * E.g., custom=640x480
+ * The custom property is to be given as, "custom=[new-x]x[new-y]", where new-x
+ * and new-y are unsigned integers. E.g., custom=640x480
  *
  */
 
@@ -55,12 +55,12 @@ pt_init (const GstTensorFilterProperties *prop)
     const char s[7] = "xX:_/ ";
     gchar **strv = g_strsplit_set (prop->custom_properties, s, 3);
     if (strv[0] != NULL) {
-      data->out_width = (uint32_t)g_ascii_strtoll (strv[0], NULL, 10);
+      data->out_width = (uint32_t) g_ascii_strtoll (strv[0], NULL, 10);
     } else {
       data->out_width = 0;
     }
     if (strv[1] != NULL) {
-      data->out_height = (uint32_t)g_ascii_strtoll (strv[1], NULL, 10);
+      data->out_height = (uint32_t) g_ascii_strtoll (strv[1], NULL, 10);
     } else {
       data->out_height = 0;
     }

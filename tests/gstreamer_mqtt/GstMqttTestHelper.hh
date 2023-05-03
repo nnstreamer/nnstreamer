@@ -14,34 +14,35 @@
 #include <MQTTAsync.h>
 
 #include <glib.h>
-#include <mutex>
 #include <memory>
+#include <mutex>
 
 /**
  * @brief A helper class for testing the GstMQTT elements
  */
 class GstMqttTestHelper
 {
-public:
+  public:
   /**
    * @brief Make this class as a singletone
    */
-  static GstMqttTestHelper &getInstance () {
-    call_once (GstMqttTestHelper::mOnceFlag, []() {
-      mInstance.reset(new GstMqttTestHelper);
-    });
+  static GstMqttTestHelper &getInstance ()
+  {
+    call_once (GstMqttTestHelper::mOnceFlag,
+        [] () { mInstance.reset (new GstMqttTestHelper); });
     return *(mInstance.get ());
   }
 
   /**
    * @brief An empty destructor for this class
    */
-  ~GstMqttTestHelper () {};
+  ~GstMqttTestHelper (){};
 
   /**
    * @brief Initialize this class instead of explcit constuctors
    */
-  void init (void *ctx) {
+  void init (void *ctx)
+  {
     this->context = ctx;
     this->is_connected = false;
 
@@ -53,7 +54,8 @@ public:
   /**
    * @brief Disable all flags that make specific APIs fail
    */
-  void initFailFlags () {
+  void initFailFlags ()
+  {
     this->fail_send = false;
     this->fail_disconnect = false;
     this->fail_subscribe = false;
@@ -63,9 +65,9 @@ public:
   /**
    * @brief Set callbacks (a wrapper of MQTTAsync_setCallbacks())
    */
-  void setCallbacks (MQTTAsync_connectionLost * cl,
-      MQTTAsync_messageArrived * ma,
-      MQTTAsync_deliveryComplete * dc) {
+  void setCallbacks (MQTTAsync_connectionLost *cl, MQTTAsync_messageArrived *ma,
+      MQTTAsync_deliveryComplete *dc)
+  {
     this->cl = cl;
     this->ma = ma;
     this->dc = dc;
@@ -74,88 +76,100 @@ public:
   /**
    * @brief Setter for fail_send (if it is true, MQTTAsync_send() will be failed)
    */
-  void setFailSend (bool flag) {
+  void setFailSend (bool flag)
+  {
     this->fail_send = flag;
   }
 
   /**
    * @brief Setter for fail_disconnect (if it is true, MQTTAsync_disconnect() will be failed)
    */
-  void setFailDisconnect (bool flag) {
+  void setFailDisconnect (bool flag)
+  {
     this->fail_disconnect = flag;
   }
 
   /**
    * @brief Setter for fail_subscribe
    */
-  void setFailSubscribe (bool flag) {
+  void setFailSubscribe (bool flag)
+  {
     this->fail_subscribe = flag;
   }
 
   /**
    * @brief Setter for fail_unsubscribe
    */
-  void setFailUnsubscribe (bool flag) {
+  void setFailUnsubscribe (bool flag)
+  {
     this->fail_subscribe = flag;
   }
 
   /**
    * @brief Setter for is_connected which is used by MQTTAsync_isConnected()
    */
-  void setIsConnected (bool flag) {
+  void setIsConnected (bool flag)
+  {
     this->is_connected = flag;
   }
 
   /**
    * @brief Getter for the context pointer
    */
-  void *getContext () {
+  void *getContext ()
+  {
     return this->context;
   }
 
   /**
    * @brief Getter for fail_send
    */
-  bool getFailSend () {
+  bool getFailSend ()
+  {
     return this->fail_send;
   }
 
   /**
    * @brief Getter for fail_disconnect
    */
-  bool getFailDisconnect () {
+  bool getFailDisconnect ()
+  {
     return this->fail_disconnect;
   }
 
   /**
    * @brief Getter for fail_subscribe
    */
-  bool getFailSubscribe () {
+  bool getFailSubscribe ()
+  {
     return this->fail_subscribe;
   }
 
   /**
    * @brief Getter for fail_unsubscribe
    */
-  bool getFailUnsubscribe () {
+  bool getFailUnsubscribe ()
+  {
     return this->fail_unsubscribe;
   }
 
   /**
    * @brief Getter for is_connected
    */
-  bool getIsConnected () {
+  bool getIsConnected ()
+  {
     return this->is_connected;
   }
 
   /**
    * @brief Getter for the registered MQTTAsync_messageArrived callback
    */
-  MQTTAsync_messageArrived *getCbMessageArrived() {
+  MQTTAsync_messageArrived *getCbMessageArrived ()
+  {
     return this->ma;
   }
 
-private:
+  private:
   /* Variables for instance mangement */
   static std::unique_ptr<GstMqttTestHelper> mInstance;
   static std::once_flag mOnceFlag;
@@ -164,18 +178,18 @@ private:
   /**
    * @brief Default Constructor
    */
-  GstMqttTestHelper ():
-      context (nullptr), cl (nullptr), ma (nullptr), dc (nullptr),
-      fail_send (false), fail_disconnect (false), fail_subscribe (false),
-      fail_unsubscribe (false), is_connected (false) {};
+  GstMqttTestHelper ()
+      : context (nullptr), cl (nullptr), ma (nullptr), dc (nullptr),
+        fail_send (false), fail_disconnect (false), fail_subscribe (false),
+        fail_unsubscribe (false), is_connected (false){};
 
   GstMqttTestHelper (const GstMqttTestHelper &) = delete;
-  GstMqttTestHelper &operator=(const GstMqttTestHelper &) = delete;
+  GstMqttTestHelper &operator= (const GstMqttTestHelper &) = delete;
 
   void *context;
   MQTTAsync_connectionLost *cl;
   MQTTAsync_messageArrived *ma;
-  MQTTAsync_deliveryComplete * dc;
+  MQTTAsync_deliveryComplete *dc;
 
   bool fail_send;
   bool fail_disconnect;

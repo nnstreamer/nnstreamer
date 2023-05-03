@@ -81,7 +81,7 @@ tensor_filter_subplugin::cpp_open (const GstTensorFilterProperties *prop, void *
   assert (tfsp->version == GST_TENSOR_FILTER_FRAMEWORK_V1);
 
   /* 1. Fetch stored empty object from subplugin api (subplugin_data) */
-  tensor_filter_subplugin *sp = (tensor_filter_subplugin *)tfsp->v1.subplugin_data;
+  tensor_filter_subplugin *sp = (tensor_filter_subplugin *) tfsp->v1.subplugin_data;
   assert (sp->sanity == _SANITY_CHECK); /** tfsp is using me! */
 
   /* 2. Spawn another empty object and configure the empty object */
@@ -98,8 +98,8 @@ tensor_filter_subplugin::cpp_open (const GstTensorFilterProperties *prop, void *
     _RETURN_ERR_WITH_MSG (-EINVAL, e.what ());
   }
 
-  /** 3. Mark that this is not a representative (found by nnstreamer_filter_find)
-   * empty object */
+  /** 3. Mark that this is not a representative (found by
+   * nnstreamer_filter_find) empty object */
   obj.fwdesc.v1.subplugin_data = nullptr;
 
 /* 4. Save the object as *private_data */
@@ -118,7 +118,7 @@ tensor_filter_subplugin::cpp_open (const GstTensorFilterProperties *prop, void *
 tensor_filter_subplugin *
 tensor_filter_subplugin::get_tfsp_with_checks (void *ptr)
 {
-  tensor_filter_subplugin *t = (tensor_filter_subplugin *)ptr;
+  tensor_filter_subplugin *t = (tensor_filter_subplugin *) ptr;
   if (!t || t->sanity != _SANITY_CHECK || t->fwdesc.v1.subplugin_data != nullptr) {
     throw std::invalid_argument ("tfsp pointer is invalid");
   }
@@ -199,7 +199,7 @@ tensor_filter_subplugin::cpp_getFrameworkInfo (const GstTensorFilterFramework *t
     assert (tfsp);
     assert (tfsp->version == GST_TENSOR_FILTER_FRAMEWORK_V1);
 
-    obj = (tensor_filter_subplugin *)tfsp->v1.subplugin_data;
+    obj = (tensor_filter_subplugin *) tfsp->v1.subplugin_data;
   } else {
     GET_TFSP_WITH_CHECKS (obj, private_data);
   }
@@ -251,16 +251,16 @@ tensor_filter_subplugin::cpp_eventHandler (const GstTensorFilterFramework *tf,
  * @brief The template for fwdesc, the C wrapper (V1) struct.
  */
 const GstTensorFilterFramework tensor_filter_subplugin::fwdesc_template
-    = {.version = GST_TENSOR_FILTER_FRAMEWORK_V1,
+    = { .version = GST_TENSOR_FILTER_FRAMEWORK_V1,
         .open = cpp_open,
         .close = cpp_close,
-        {.v1 = {
-             .invoke = cpp_invoke,
-             .getFrameworkInfo = cpp_getFrameworkInfo,
-             .getModelInfo = cpp_getModelInfo,
-             .eventHandler = cpp_eventHandler,
-             .subplugin_data = nullptr,
-         } } };
+        { .v1 = {
+              .invoke = cpp_invoke,
+              .getFrameworkInfo = cpp_getFrameworkInfo,
+              .getModelInfo = cpp_getModelInfo,
+              .eventHandler = cpp_eventHandler,
+              .subplugin_data = nullptr,
+          } } };
 
 /**
  * @brief Base constructor. The object represents a non-functional empty anchor

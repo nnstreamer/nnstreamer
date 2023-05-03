@@ -22,9 +22,9 @@
 #include <tensor_meta.h>
 #include <unistd.h>
 
-#include "../unittest_util.h"
 #include "../gst/nnstreamer/elements/gsttensor_sparseutil.h"
 #include "../gst/nnstreamer/elements/gsttensor_transform.h"
+#include "../unittest_util.h"
 
 #ifdef ENABLE_TENSORFLOW_LITE
 #define TEST_REQUIRE_TFLITE(Case, Name) TEST (Case, Name)
@@ -60,7 +60,7 @@
     h = gst_harness_new ("tensor_transform");                                  \
                                                                                \
     g_object_set (h->element, "mode", GTT_TYPECAST, "option", str_to_t, NULL); \
-    g_object_set (h->element, "acceleration", (gboolean)accel, NULL);          \
+    g_object_set (h->element, "acceleration", (gboolean) accel, NULL);         \
     /** input tensor info */                                                   \
     gst_tensors_config_init (&config);                                         \
     config.info.num_tensors = 1U;                                              \
@@ -85,7 +85,7 @@
                                                                                \
       for (i = 0; i < array_size; i++) {                                       \
         from_t value = (i + 1) * (b + 1);                                      \
-        ((from_t *)info.data)[i] = value;                                      \
+        ((from_t *) info.data)[i] = value;                                     \
       }                                                                        \
                                                                                \
       gst_memory_unmap (mem, &info);                                           \
@@ -104,7 +104,7 @@
                                                                                \
       for (i = 0; i < array_size; i++) {                                       \
         to_t expected = (i + 1) * (b + 1);                                     \
-        EXPECT_EQ (((to_t *)info.data)[i], expected);                          \
+        EXPECT_EQ (((to_t *) info.data)[i], expected);                         \
       }                                                                        \
                                                                                \
       gst_memory_unmap (mem, &info);                                           \
@@ -188,7 +188,7 @@
  * @brief wait for output buffer on GstHarness sinkpad.
  */
 static guint
-_harness_wait_for_output_buffer (GstHarness * h, guint expected)
+_harness_wait_for_output_buffer (GstHarness *h, guint expected)
 {
   guint received, count;
 
@@ -621,7 +621,8 @@ TEST (testTensorTransform, arithmeticProperties13_n)
   h = gst_harness_new ("tensor_transform");
   ASSERT_TRUE (NULL != h);
 
-  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "per-channel:invalid,add:1@2", NULL);
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option",
+      "per-channel:invalid,add:1@2", NULL);
   g_object_get (h->element, "option", &str, NULL);
   EXPECT_TRUE (str == NULL);
 
@@ -1136,7 +1137,7 @@ TEST (testTensorTransform, arithmetic1)
   h = gst_harness_new ("tensor_transform");
 
   g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "add:.5", NULL);
-  g_object_set (h->element, "acceleration", (gboolean)FALSE, NULL);
+  g_object_set (h->element, "acceleration", (gboolean) FALSE, NULL);
 
   /* input tensor info */
   gst_tensors_config_init (&config);
@@ -1159,7 +1160,7 @@ TEST (testTensorTransform, arithmetic1)
 
     for (i = 0; i < array_size; i++) {
       float value = (i + 1) * (b + 1) + .2;
-      ((float *)info.data)[i] = value;
+      ((float *) info.data)[i] = value;
     }
 
     gst_memory_unmap (mem, &info);
@@ -1178,7 +1179,7 @@ TEST (testTensorTransform, arithmetic1)
 
     for (i = 0; i < array_size; i++) {
       float expected = (i + 1) * (b + 1) + .2 + .5;
-      EXPECT_FLOAT_EQ (((float *)info.data)[i], expected);
+      EXPECT_FLOAT_EQ (((float *) info.data)[i], expected);
     }
 
     gst_memory_unmap (mem, &info);
@@ -1208,7 +1209,7 @@ TEST (testTensorTransform, arithmetic1Accel)
   h = gst_harness_new ("tensor_transform");
 
   g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "add:.5", NULL);
-  g_object_set (h->element, "acceleration", (gboolean)TRUE, NULL);
+  g_object_set (h->element, "acceleration", (gboolean) TRUE, NULL);
 
   /* input tensor info */
   gst_tensors_config_init (&config);
@@ -1231,7 +1232,7 @@ TEST (testTensorTransform, arithmetic1Accel)
 
     for (i = 0; i < array_size; i++) {
       float value = (i + 1) * (b + 1) + .2;
-      ((float *)info.data)[i] = value;
+      ((float *) info.data)[i] = value;
     }
 
     gst_memory_unmap (mem, &info);
@@ -1250,7 +1251,7 @@ TEST (testTensorTransform, arithmetic1Accel)
 
     for (i = 0; i < array_size; i++) {
       float expected = (i + 1) * (b + 1) + .2 + .5;
-      EXPECT_FLOAT_EQ (((float *)info.data)[i], expected);
+      EXPECT_FLOAT_EQ (((float *) info.data)[i], expected);
     }
 
     gst_memory_unmap (mem, &info);
@@ -1280,7 +1281,7 @@ TEST (testTensorTransform, arithmetic2)
   h = gst_harness_new ("tensor_transform");
 
   g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "mul:.5", NULL);
-  g_object_set (h->element, "acceleration", (gboolean)FALSE, NULL);
+  g_object_set (h->element, "acceleration", (gboolean) FALSE, NULL);
 
   /* input tensor info */
   gst_tensors_config_init (&config);
@@ -1303,7 +1304,7 @@ TEST (testTensorTransform, arithmetic2)
 
     for (i = 0; i < array_size; i++) {
       double value = (i + 1) * (b + 1) + .2;
-      ((double *)info.data)[i] = value;
+      ((double *) info.data)[i] = value;
     }
 
     gst_memory_unmap (mem, &info);
@@ -1322,7 +1323,7 @@ TEST (testTensorTransform, arithmetic2)
 
     for (i = 0; i < array_size; i++) {
       double expected = ((i + 1) * (b + 1) + .2) * .5;
-      EXPECT_DOUBLE_EQ (((double *)info.data)[i], expected);
+      EXPECT_DOUBLE_EQ (((double *) info.data)[i], expected);
     }
 
     gst_memory_unmap (mem, &info);
@@ -1352,7 +1353,7 @@ TEST (testTensorTransform, arithmetic2Accel)
   h = gst_harness_new ("tensor_transform");
 
   g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "mul:.5", NULL);
-  g_object_set (h->element, "acceleration", (gboolean)TRUE, NULL);
+  g_object_set (h->element, "acceleration", (gboolean) TRUE, NULL);
 
   /* input tensor info */
   gst_tensors_config_init (&config);
@@ -1375,7 +1376,7 @@ TEST (testTensorTransform, arithmetic2Accel)
 
     for (i = 0; i < array_size; i++) {
       double value = (i + 1) * (b + 1) + .2;
-      ((double *)info.data)[i] = value;
+      ((double *) info.data)[i] = value;
     }
 
     gst_memory_unmap (mem, &info);
@@ -1394,7 +1395,7 @@ TEST (testTensorTransform, arithmetic2Accel)
 
     for (i = 0; i < array_size; i++) {
       double expected = ((i + 1) * (b + 1) + .2) * .5;
-      EXPECT_DOUBLE_EQ (((double *)info.data)[i], expected);
+      EXPECT_DOUBLE_EQ (((double *) info.data)[i], expected);
     }
 
     gst_memory_unmap (mem, &info);
@@ -1425,7 +1426,7 @@ TEST (testTensorTransform, arithmetic3)
 
   g_object_set (h->element, "mode", GTT_ARITHMETIC, "option",
       "typecast:float32,add:.5,mul:0.2", NULL);
-  g_object_set (h->element, "acceleration", (gboolean)FALSE, NULL);
+  g_object_set (h->element, "acceleration", (gboolean) FALSE, NULL);
 
   /* input tensor info */
   gst_tensors_config_init (&config);
@@ -1451,7 +1452,7 @@ TEST (testTensorTransform, arithmetic3)
 
     for (i = 0; i < array_size; i++) {
       uint8_t value = (i + 1) * (b + 1);
-      ((uint8_t *)info.data)[i] = value;
+      ((uint8_t *) info.data)[i] = value;
     }
 
     gst_memory_unmap (mem, &info);
@@ -1470,7 +1471,7 @@ TEST (testTensorTransform, arithmetic3)
 
     for (i = 0; i < array_size; i++) {
       float expected = ((i + 1) * (b + 1) + .5) * .2;
-      EXPECT_FLOAT_EQ (((float *)info.data)[i], expected);
+      EXPECT_FLOAT_EQ (((float *) info.data)[i], expected);
     }
 
     gst_memory_unmap (mem, &info);
@@ -1501,7 +1502,7 @@ TEST (testTensorTransform, arithmetic3Accel)
 
   g_object_set (h->element, "mode", GTT_ARITHMETIC, "option",
       "typecast:float32,add:.5,mul:0.2", NULL);
-  g_object_set (h->element, "acceleration", (gboolean)TRUE, NULL);
+  g_object_set (h->element, "acceleration", (gboolean) TRUE, NULL);
 
   /* input tensor info */
   gst_tensors_config_init (&config);
@@ -1527,7 +1528,7 @@ TEST (testTensorTransform, arithmetic3Accel)
 
     for (i = 0; i < array_size; i++) {
       uint8_t value = (i + 1) * (b + 1);
-      ((uint8_t *)info.data)[i] = value;
+      ((uint8_t *) info.data)[i] = value;
     }
 
     gst_memory_unmap (mem, &info);
@@ -1546,7 +1547,7 @@ TEST (testTensorTransform, arithmetic3Accel)
 
     for (i = 0; i < array_size; i++) {
       float expected = ((i + 1) * (b + 1) + .5) * .2;
-      EXPECT_FLOAT_EQ (((float *)info.data)[i], expected);
+      EXPECT_FLOAT_EQ (((float *) info.data)[i], expected);
     }
 
     gst_memory_unmap (mem, &info);
@@ -1577,7 +1578,7 @@ TEST (testTensorTransform, arithmetic4)
 
   g_object_set (h->element, "mode", GTT_ARITHMETIC, "option",
       "typecast:float64,add:0.2,add:0.1,typecast:uint16", NULL);
-  g_object_set (h->element, "acceleration", (gboolean)FALSE, NULL);
+  g_object_set (h->element, "acceleration", (gboolean) FALSE, NULL);
 
   /* input tensor info */
   gst_tensors_config_init (&config);
@@ -1603,7 +1604,7 @@ TEST (testTensorTransform, arithmetic4)
 
     for (i = 0; i < array_size; i++) {
       uint8_t value = (i + 1) * (b + 1);
-      ((uint8_t *)info.data)[i] = value;
+      ((uint8_t *) info.data)[i] = value;
     }
 
     gst_memory_unmap (mem, &info);
@@ -1622,7 +1623,7 @@ TEST (testTensorTransform, arithmetic4)
 
     for (i = 0; i < array_size; i++) {
       double expected = (i + 1) * (b + 1) + .3;
-      EXPECT_DOUBLE_EQ (((double *)info.data)[i], expected);
+      EXPECT_DOUBLE_EQ (((double *) info.data)[i], expected);
     }
 
     gst_memory_unmap (mem, &info);
@@ -1655,7 +1656,7 @@ TEST (testTensorTransform, arithmetic4Accel)
 
   g_object_set (h->element, "mode", GTT_ARITHMETIC, "option",
       "typecast:float64,add:0.2,add:0.1,typecast:uint16", NULL);
-  g_object_set (h->element, "acceleration", (gboolean)TRUE, NULL);
+  g_object_set (h->element, "acceleration", (gboolean) TRUE, NULL);
 
   /* input tensor info */
   gst_tensors_config_init (&config);
@@ -1681,7 +1682,7 @@ TEST (testTensorTransform, arithmetic4Accel)
 
     for (i = 0; i < array_size; i++) {
       uint8_t value = (i + 1) * (b + 1);
-      ((uint8_t *)info.data)[i] = value;
+      ((uint8_t *) info.data)[i] = value;
     }
 
     gst_memory_unmap (mem, &info);
@@ -1700,7 +1701,7 @@ TEST (testTensorTransform, arithmetic4Accel)
 
     for (i = 0; i < array_size; i++) {
       double expected = (i + 1) * (b + 1) + .3;
-      EXPECT_DOUBLE_EQ (((double *)info.data)[i], expected);
+      EXPECT_DOUBLE_EQ (((double *) info.data)[i], expected);
     }
 
     gst_memory_unmap (mem, &info);
@@ -1731,7 +1732,7 @@ TEST (testTensorTransform, arithmetic5)
 
   g_object_set (h->element, "mode", GTT_ARITHMETIC, "option",
       "typecast:int32,mul:2,div:2,add:-1", NULL);
-  g_object_set (h->element, "acceleration", (gboolean)FALSE, NULL);
+  g_object_set (h->element, "acceleration", (gboolean) FALSE, NULL);
 
   /* input tensor info */
   gst_tensors_config_init (&config);
@@ -1757,7 +1758,7 @@ TEST (testTensorTransform, arithmetic5)
 
     for (i = 0; i < array_size; i++) {
       uint8_t value = (i + 1) * (b + 1);
-      ((uint8_t *)info.data)[i] = value;
+      ((uint8_t *) info.data)[i] = value;
     }
 
     gst_memory_unmap (mem, &info);
@@ -1776,7 +1777,7 @@ TEST (testTensorTransform, arithmetic5)
 
     for (i = 0; i < array_size; i++) {
       int32_t expected = (i + 1) * (b + 1) - 1;
-      EXPECT_EQ (((int32_t *)info.data)[i], expected);
+      EXPECT_EQ (((int32_t *) info.data)[i], expected);
     }
 
     gst_memory_unmap (mem, &info);
@@ -1807,7 +1808,7 @@ TEST (testTensorTransform, arithmetic5Accel)
 
   g_object_set (h->element, "mode", GTT_ARITHMETIC, "option",
       "typecast:int32,mul:2,div:2,add:-1", NULL);
-  g_object_set (h->element, "acceleration", (gboolean)TRUE, NULL);
+  g_object_set (h->element, "acceleration", (gboolean) TRUE, NULL);
 
   /* input tensor info */
   gst_tensors_config_init (&config);
@@ -1833,7 +1834,7 @@ TEST (testTensorTransform, arithmetic5Accel)
 
     for (i = 0; i < array_size; i++) {
       uint8_t value = (i + 1) * (b + 1);
-      ((uint8_t *)info.data)[i] = value;
+      ((uint8_t *) info.data)[i] = value;
     }
 
     gst_memory_unmap (mem, &info);
@@ -1852,7 +1853,7 @@ TEST (testTensorTransform, arithmetic5Accel)
 
     for (i = 0; i < array_size; i++) {
       int32_t expected = (i + 1) * (b + 1) - 1;
-      EXPECT_EQ (((int32_t *)info.data)[i], expected);
+      EXPECT_EQ (((int32_t *) info.data)[i], expected);
     }
 
     gst_memory_unmap (mem, &info);
@@ -1882,7 +1883,8 @@ TEST (testTensorTransform, arithmeticPerChannel)
   h = gst_harness_new ("tensor_transform");
 
   g_object_set (h->element, "mode", GTT_ARITHMETIC, "option",
-      "typecast:int32,per-channel:true@0,mul:1@0,mul:2@1,mul:3@2,mul:4@3,mul:5@4,add:-1@0,add:-2@1,add:-3@2,add:-4@3,add:-5@4", NULL);
+      "typecast:int32,per-channel:true@0,mul:1@0,mul:2@1,mul:3@2,mul:4@3,mul:5@4,add:-1@0,add:-2@1,add:-3@2,add:-4@3,add:-5@4",
+      NULL);
   g_object_set (h->element, "acceleration", (gboolean) FALSE, NULL);
 
   /**
@@ -1915,7 +1917,7 @@ TEST (testTensorTransform, arithmeticPerChannel)
 
     for (i = 0; i < array_size; i++) {
       uint8_t value = (i + 1) * (b + 1);
-      ((uint8_t *)info.data)[i] = value;
+      ((uint8_t *) info.data)[i] = value;
     }
 
     gst_memory_unmap (mem, &info);
@@ -1934,7 +1936,7 @@ TEST (testTensorTransform, arithmeticPerChannel)
 
     for (i = 0; i < array_size; i++) {
       int32_t expected = ((i + 1) * (b + 1)) * (i + 1) - (i + 1);
-      EXPECT_EQ (((int32_t *)info.data)[i], expected);
+      EXPECT_EQ (((int32_t *) info.data)[i], expected);
     }
 
     gst_memory_unmap (mem, &info);
@@ -1962,7 +1964,7 @@ TEST (testTensorTransform, arithmeticChangeOptionString)
   h = gst_harness_new ("tensor_transform");
 
   g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "add:.5", NULL);
-  g_object_set (h->element, "acceleration", (gboolean)FALSE, NULL);
+  g_object_set (h->element, "acceleration", (gboolean) FALSE, NULL);
 
   /* input tensor info */
   gst_tensors_config_init (&config);
@@ -1981,7 +1983,7 @@ TEST (testTensorTransform, arithmeticChangeOptionString)
 
   for (i = 0; i < array_size; i++) {
     float value = (i + 1) * (i * 3 + 1) + .2;
-    ((float *)info.data)[i] = value;
+    ((float *) info.data)[i] = value;
   }
 
   gst_memory_unmap (mem, &info);
@@ -2000,7 +2002,7 @@ TEST (testTensorTransform, arithmeticChangeOptionString)
 
   for (i = 0; i < array_size; i++) {
     float expected = (i + 1) * (i * 3 + 1) + .2 + .5;
-    EXPECT_FLOAT_EQ (((float *)info.data)[i], expected);
+    EXPECT_FLOAT_EQ (((float *) info.data)[i], expected);
   }
 
   gst_memory_unmap (mem, &info);
@@ -2015,7 +2017,7 @@ TEST (testTensorTransform, arithmeticChangeOptionString)
 
   for (i = 0; i < array_size; i++) {
     float value = (i + 1) * (i * 3 + 1) + .9;
-    ((float *)info.data)[i] = value;
+    ((float *) info.data)[i] = value;
   }
 
   gst_memory_unmap (mem, &info);
@@ -2034,7 +2036,7 @@ TEST (testTensorTransform, arithmeticChangeOptionString)
 
   for (i = 0; i < array_size; i++) {
     float expected = ((i + 1) * (i * 3 + 1) + .9) * 20;
-    EXPECT_FLOAT_EQ (((float *)info.data)[i], expected);
+    EXPECT_FLOAT_EQ (((float *) info.data)[i], expected);
   }
 
   gst_memory_unmap (mem, &info);
@@ -2223,8 +2225,7 @@ TEST (testTensorAggregator, properties)
  * @brief Internal function for tensor-aggregator test, push buffer to harness pad.
  */
 static void
-_aggregator_test_push_buffer (GstHarness * h,
-    const gint * data, const gsize data_size)
+_aggregator_test_push_buffer (GstHarness *h, const gint *data, const gsize data_size)
 {
   GstBuffer *buf;
   GstMemory *mem;
@@ -2244,8 +2245,7 @@ _aggregator_test_push_buffer (GstHarness * h,
  * @brief Internal function for tensor-aggregator test, check output data.
  */
 static void
-_aggregator_test_check_output (GstHarness * h,
-    const gint * expected, const gint length)
+_aggregator_test_check_output (GstHarness *h, const gint *expected, const gint length)
 {
   GstBuffer *output;
   GstMemory *mem;
@@ -2460,7 +2460,7 @@ TEST (testTensorAggregator, aggregate5)
 
   h = gst_harness_new ("tensor_aggregator");
 
-  g_object_set (h->element, "concat", (gboolean)FALSE, NULL);
+  g_object_set (h->element, "concat", (gboolean) FALSE, NULL);
 
   /* in/out tensor info */
   gst_tensors_config_init (&config);
@@ -2928,14 +2928,14 @@ TEST (testTensorConverter, bytesToMulti1)
   mem = gst_buffer_peek_memory (out_buf, 0);
   ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_READ));
   for (i = 0; i < 48; i++)
-    EXPECT_EQ (((gint *)info.data)[i], aggr_test_frames[0][i]);
+    EXPECT_EQ (((gint *) info.data)[i], aggr_test_frames[0][i]);
   gst_memory_unmap (mem, &info);
 
   /* 2nd tensor */
   mem = gst_buffer_peek_memory (out_buf, 1);
   ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_READ));
   for (i = 0; i < 48; i++)
-    EXPECT_EQ (((gint *)info.data)[i], aggr_test_frames[1][i]);
+    EXPECT_EQ (((gint *) info.data)[i], aggr_test_frames[1][i]);
   gst_memory_unmap (mem, &info);
 
   gst_buffer_unref (out_buf);
@@ -3006,28 +3006,28 @@ TEST (testTensorConverter, bytesToMulti2)
   mem = gst_buffer_peek_memory (out_buf, 0);
   ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_READ));
   for (i = 0; i < 24; i++)
-    EXPECT_EQ (((gint *)info.data)[i], aggr_test_frames[0][i]);
+    EXPECT_EQ (((gint *) info.data)[i], aggr_test_frames[0][i]);
   gst_memory_unmap (mem, &info);
 
   /* 2nd tensor */
   mem = gst_buffer_peek_memory (out_buf, 1);
   ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_READ));
   for (i = 24; i < 48; i++)
-    EXPECT_EQ (((gint *)info.data)[i - 24], aggr_test_frames[0][i]);
+    EXPECT_EQ (((gint *) info.data)[i - 24], aggr_test_frames[0][i]);
   gst_memory_unmap (mem, &info);
 
   /* 3rd tensor */
   mem = gst_buffer_peek_memory (out_buf, 2);
   ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_READ));
   for (i = 0; i < 24; i++)
-    EXPECT_EQ (((gint *)info.data)[i], aggr_test_frames[1][i]);
+    EXPECT_EQ (((gint *) info.data)[i], aggr_test_frames[1][i]);
   gst_memory_unmap (mem, &info);
 
   /* 4th tensor */
   mem = gst_buffer_peek_memory (out_buf, 3);
   ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_READ));
   for (i = 24; i < 48; i++)
-    EXPECT_EQ (((gint *)info.data)[i - 24], aggr_test_frames[1][i]);
+    EXPECT_EQ (((gint *) info.data)[i - 24], aggr_test_frames[1][i]);
   gst_memory_unmap (mem, &info);
 
   gst_buffer_unref (out_buf);
@@ -3362,8 +3362,8 @@ TEST (testTensorConverter, bytesToStatic)
   input = (gint *) g_malloc0 (data_size / 2);
   for (i = 0; i < 24; i++)
     input[i] = aggr_test_frames[0][i + 24];
-  mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, input, data_size / 2,
-      0, data_size / 2, input, g_free);
+  mem = gst_memory_new_wrapped (
+      (GstMemoryFlags) 0, input, data_size / 2, 0, data_size / 2, input, g_free);
   gst_buffer_append_memory (in_buf, mem);
 
   /* push buffer and compare result */
@@ -3511,8 +3511,8 @@ TEST (testTensorConverter, flexToStaticTensor)
   for (i = 0; i < 10; i++)
     value[i] = i * 10;
 
-  mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, data, data_size,
-      0, data_size, data, g_free);
+  mem = gst_memory_new_wrapped (
+      (GstMemoryFlags) 0, data, data_size, 0, data_size, data, g_free);
   gst_buffer_append_memory (in_buf, mem);
 
   /* 2nd mem block */
@@ -3526,8 +3526,8 @@ TEST (testTensorConverter, flexToStaticTensor)
   for (i = 0; i < 20; i++)
     value[i] = i * 20;
 
-  mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, data, data_size,
-      0, data_size, data, g_free);
+  mem = gst_memory_new_wrapped (
+      (GstMemoryFlags) 0, data, data_size, 0, data_size, data, g_free);
   gst_buffer_append_memory (in_buf, mem);
 
   EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
@@ -3594,8 +3594,8 @@ TEST (testTensorConverter, flexToStaticInvalidBuffer1_n)
   data = g_malloc0 (data_size);
   gst_tensor_meta_info_update_header (&meta, data);
 
-  mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, data, data_size,
-      0, data_size, data, g_free);
+  mem = gst_memory_new_wrapped (
+      (GstMemoryFlags) 0, data, data_size, 0, data_size, data, g_free);
   gst_buffer_append_memory (in_buf, mem);
 
   EXPECT_NE (gst_harness_push (h, in_buf), GST_FLOW_OK);
@@ -3647,8 +3647,8 @@ TEST (testTensorConverter, flexToStaticInvalidBuffer2_n)
   data = g_malloc0 (data_size);
   gst_tensor_meta_info_update_header (&meta, data);
 
-  mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, data, data_size,
-      0, data_size, data, g_free);
+  mem = gst_memory_new_wrapped (
+      (GstMemoryFlags) 0, data, data_size, 0, data_size, data, g_free);
   gst_buffer_append_memory (in_buf, mem);
 
   /* 2nd mem block (invalid size) */
@@ -3659,8 +3659,8 @@ TEST (testTensorConverter, flexToStaticInvalidBuffer2_n)
   data = g_malloc0 (data_size);
   gst_tensor_meta_info_update_header (&meta, data);
 
-  mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, data, data_size,
-      0, data_size, data, g_free);
+  mem = gst_memory_new_wrapped (
+      (GstMemoryFlags) 0, data, data_size, 0, data_size, data, g_free);
   gst_buffer_append_memory (in_buf, mem);
 
   EXPECT_NE (gst_harness_push (h, in_buf), GST_FLOW_OK);
@@ -3686,23 +3686,23 @@ TEST (testTensorTransform, orcAdd)
   };
 
   for (i = 0; i < array_size; i++) {
-    data_s8[i] = (gint)i - 1;
+    data_s8[i] = (gint) i - 1;
   }
 
   nns_orc_add_c_s8 (data_s8, -20, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (data_s8[i], (gint)i - 1 - 20);
+    EXPECT_EQ (data_s8[i], (gint) i - 1 - 20);
   }
 
   for (i = 0; i < array_size; i++) {
-    data_s8[i] = (gint)i + 1;
+    data_s8[i] = (gint) i + 1;
   }
 
   nns_orc_add_c_s8 (data_s8, 20, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (data_s8[i], (gint)i + 1 + 20);
+    EXPECT_EQ (data_s8[i], (gint) i + 1 + 20);
   }
 
   /* add constant u8 */
@@ -3726,23 +3726,23 @@ TEST (testTensorTransform, orcAdd)
   };
 
   for (i = 0; i < array_size; i++) {
-    data_s16[i] = (gint)i - 1;
+    data_s16[i] = (gint) i - 1;
   }
 
   nns_orc_add_c_s16 (data_s16, -16, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (data_s16[i], (gint)i - 1 - 16);
+    EXPECT_EQ (data_s16[i], (gint) i - 1 - 16);
   }
 
   for (i = 0; i < array_size; i++) {
-    data_s16[i] = (gint)i + 1;
+    data_s16[i] = (gint) i + 1;
   }
 
   nns_orc_add_c_s16 (data_s16, 16, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (data_s16[i], (gint)i + 1 + 16);
+    EXPECT_EQ (data_s16[i], (gint) i + 1 + 16);
   }
 
   /* add constant u16 */
@@ -3766,23 +3766,23 @@ TEST (testTensorTransform, orcAdd)
   };
 
   for (i = 0; i < array_size; i++) {
-    data_s32[i] = (gint)i + 1;
+    data_s32[i] = (gint) i + 1;
   }
 
   nns_orc_add_c_s32 (data_s32, -32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (data_s32[i], (gint)i + 1 - 32);
+    EXPECT_EQ (data_s32[i], (gint) i + 1 - 32);
   }
 
   for (i = 0; i < array_size; i++) {
-    data_s32[i] = (gint)i + 1;
+    data_s32[i] = (gint) i + 1;
   }
 
   nns_orc_add_c_s32 (data_s32, 32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (data_s32[i], (gint)i + 1 + 32);
+    EXPECT_EQ (data_s32[i], (gint) i + 1 + 32);
   }
 
   /* add constant u32 */
@@ -3865,7 +3865,7 @@ TEST (testTensorTransform, orcMul)
   };
 
   for (i = 0; i < array_size; i++) {
-    data_s8[i] = (gint)i + 1;
+    data_s8[i] = (gint) i + 1;
   }
 
   nns_orc_mul_c_s8 (data_s8, -3, array_size);
@@ -3875,7 +3875,7 @@ TEST (testTensorTransform, orcMul)
   }
 
   for (i = 0; i < array_size; i++) {
-    data_s8[i] = (gint)i + 1;
+    data_s8[i] = (gint) i + 1;
   }
 
   nns_orc_mul_c_s8 (data_s8, 5, array_size);
@@ -3905,7 +3905,7 @@ TEST (testTensorTransform, orcMul)
   };
 
   for (i = 0; i < array_size; i++) {
-    data_s16[i] = (gint)i + 1;
+    data_s16[i] = (gint) i + 1;
   }
 
   nns_orc_mul_c_s16 (data_s16, -16, array_size);
@@ -3915,7 +3915,7 @@ TEST (testTensorTransform, orcMul)
   }
 
   for (i = 0; i < array_size; i++) {
-    data_s16[i] = (gint)i + 1;
+    data_s16[i] = (gint) i + 1;
   }
 
   nns_orc_mul_c_s16 (data_s16, 16, array_size);
@@ -3945,7 +3945,7 @@ TEST (testTensorTransform, orcMul)
   };
 
   for (i = 0; i < array_size; i++) {
-    data_s32[i] = (gint)i + 1;
+    data_s32[i] = (gint) i + 1;
   }
 
   nns_orc_mul_c_s32 (data_s32, -32, array_size);
@@ -3955,7 +3955,7 @@ TEST (testTensorTransform, orcMul)
   }
 
   for (i = 0; i < array_size; i++) {
-    data_s32[i] = (gint)i + 1;
+    data_s32[i] = (gint) i + 1;
   }
 
   nns_orc_mul_c_s32 (data_s32, 32, array_size);
@@ -4113,7 +4113,7 @@ TEST (testTensorTransform, orcConvS8)
   nns_orc_conv_s8_to_s8 (res_s8, data_s8, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_s8[i], (int8_t)data_s8[i]);
+    EXPECT_EQ (res_s8[i], (int8_t) data_s8[i]);
   }
 
   /* convert u8 */
@@ -4124,7 +4124,7 @@ TEST (testTensorTransform, orcConvS8)
   nns_orc_conv_s8_to_u8 (res_u8, data_s8, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_u8[i], (uint8_t)data_s8[i]);
+    EXPECT_EQ (res_u8[i], (uint8_t) data_s8[i]);
   }
 
   /* convert s16 */
@@ -4135,7 +4135,7 @@ TEST (testTensorTransform, orcConvS8)
   nns_orc_conv_s8_to_s16 (res_s16, data_s8, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_s16[i], (int16_t)data_s8[i]);
+    EXPECT_EQ (res_s16[i], (int16_t) data_s8[i]);
   }
 
   /* convert u16 */
@@ -4146,7 +4146,7 @@ TEST (testTensorTransform, orcConvS8)
   nns_orc_conv_s8_to_u16 (res_u16, data_s8, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_u16[i], (uint16_t)data_s8[i]);
+    EXPECT_EQ (res_u16[i], (uint16_t) data_s8[i]);
   }
 
   /* convert s32 */
@@ -4157,7 +4157,7 @@ TEST (testTensorTransform, orcConvS8)
   nns_orc_conv_s8_to_s32 (res_s32, data_s8, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_s32[i], (int32_t)data_s8[i]);
+    EXPECT_EQ (res_s32[i], (int32_t) data_s8[i]);
   }
 
   /* convert u32 */
@@ -4168,7 +4168,7 @@ TEST (testTensorTransform, orcConvS8)
   nns_orc_conv_s8_to_u32 (res_u32, data_s8, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_u32[i], (uint32_t)data_s8[i]);
+    EXPECT_EQ (res_u32[i], (uint32_t) data_s8[i]);
   }
 
   /* convert f32 */
@@ -4179,7 +4179,7 @@ TEST (testTensorTransform, orcConvS8)
   nns_orc_conv_s8_to_f32 (res_f32, data_s8, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_FLOAT_EQ (res_f32[i], (float)data_s8[i]);
+    EXPECT_FLOAT_EQ (res_f32[i], (float) data_s8[i]);
   }
 
   /* convert f64 */
@@ -4190,7 +4190,7 @@ TEST (testTensorTransform, orcConvS8)
   nns_orc_conv_s8_to_f64 (res_f64, data_s8, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_DOUBLE_EQ (res_f64[i], (double)data_s8[i]);
+    EXPECT_DOUBLE_EQ (res_f64[i], (double) data_s8[i]);
   }
 }
 
@@ -4218,7 +4218,7 @@ TEST (testTensorTransform, orcConvU8)
   nns_orc_conv_u8_to_s8 (res_s8, data_u8, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_s8[i], (int8_t)data_u8[i]);
+    EXPECT_EQ (res_s8[i], (int8_t) data_u8[i]);
   }
 
   /* convert u8 */
@@ -4229,7 +4229,7 @@ TEST (testTensorTransform, orcConvU8)
   nns_orc_conv_u8_to_u8 (res_u8, data_u8, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_u8[i], (uint8_t)data_u8[i]);
+    EXPECT_EQ (res_u8[i], (uint8_t) data_u8[i]);
   }
 
   /* convert s16 */
@@ -4240,7 +4240,7 @@ TEST (testTensorTransform, orcConvU8)
   nns_orc_conv_u8_to_s16 (res_s16, data_u8, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_s16[i], (int16_t)data_u8[i]);
+    EXPECT_EQ (res_s16[i], (int16_t) data_u8[i]);
   }
 
   /* convert u16 */
@@ -4251,7 +4251,7 @@ TEST (testTensorTransform, orcConvU8)
   nns_orc_conv_u8_to_u16 (res_u16, data_u8, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_u16[i], (uint16_t)data_u8[i]);
+    EXPECT_EQ (res_u16[i], (uint16_t) data_u8[i]);
   }
 
   /* convert s32 */
@@ -4262,7 +4262,7 @@ TEST (testTensorTransform, orcConvU8)
   nns_orc_conv_u8_to_s32 (res_s32, data_u8, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_s32[i], (int32_t)data_u8[i]);
+    EXPECT_EQ (res_s32[i], (int32_t) data_u8[i]);
   }
 
   /* convert u32 */
@@ -4273,7 +4273,7 @@ TEST (testTensorTransform, orcConvU8)
   nns_orc_conv_u8_to_u32 (res_u32, data_u8, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_u32[i], (uint32_t)data_u8[i]);
+    EXPECT_EQ (res_u32[i], (uint32_t) data_u8[i]);
   }
 
   /* convert f32 */
@@ -4284,7 +4284,7 @@ TEST (testTensorTransform, orcConvU8)
   nns_orc_conv_u8_to_f32 (res_f32, data_u8, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_FLOAT_EQ (res_f32[i], (float)data_u8[i]);
+    EXPECT_FLOAT_EQ (res_f32[i], (float) data_u8[i]);
   }
 
   /* convert f64 */
@@ -4295,7 +4295,7 @@ TEST (testTensorTransform, orcConvU8)
   nns_orc_conv_u8_to_f64 (res_f64, data_u8, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_DOUBLE_EQ (res_f64[i], (double)data_u8[i]);
+    EXPECT_DOUBLE_EQ (res_f64[i], (double) data_u8[i]);
   }
 }
 
@@ -4323,7 +4323,7 @@ TEST (testTensorTransform, orcConvS16)
   nns_orc_conv_s16_to_s8 (res_s8, data_s16, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_s8[i], (int8_t)data_s16[i]);
+    EXPECT_EQ (res_s8[i], (int8_t) data_s16[i]);
   }
 
   /* convert u8 */
@@ -4334,7 +4334,7 @@ TEST (testTensorTransform, orcConvS16)
   nns_orc_conv_s16_to_u8 (res_u8, data_s16, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_u8[i], (uint8_t)data_s16[i]);
+    EXPECT_EQ (res_u8[i], (uint8_t) data_s16[i]);
   }
 
   /* convert s16 */
@@ -4345,7 +4345,7 @@ TEST (testTensorTransform, orcConvS16)
   nns_orc_conv_s16_to_s16 (res_s16, data_s16, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_s16[i], (int16_t)data_s16[i]);
+    EXPECT_EQ (res_s16[i], (int16_t) data_s16[i]);
   }
 
   /* convert u16 */
@@ -4356,7 +4356,7 @@ TEST (testTensorTransform, orcConvS16)
   nns_orc_conv_s16_to_u16 (res_u16, data_s16, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_u16[i], (uint16_t)data_s16[i]);
+    EXPECT_EQ (res_u16[i], (uint16_t) data_s16[i]);
   }
 
   /* convert s32 */
@@ -4367,7 +4367,7 @@ TEST (testTensorTransform, orcConvS16)
   nns_orc_conv_s16_to_s32 (res_s32, data_s16, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_s32[i], (int32_t)data_s16[i]);
+    EXPECT_EQ (res_s32[i], (int32_t) data_s16[i]);
   }
 
   /* convert u32 */
@@ -4378,7 +4378,7 @@ TEST (testTensorTransform, orcConvS16)
   nns_orc_conv_s16_to_u32 (res_u32, data_s16, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_u32[i], (uint32_t)data_s16[i]);
+    EXPECT_EQ (res_u32[i], (uint32_t) data_s16[i]);
   }
 
   /* convert f32 */
@@ -4389,7 +4389,7 @@ TEST (testTensorTransform, orcConvS16)
   nns_orc_conv_s16_to_f32 (res_f32, data_s16, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_FLOAT_EQ (res_f32[i], (float)data_s16[i]);
+    EXPECT_FLOAT_EQ (res_f32[i], (float) data_s16[i]);
   }
 
   /* convert f64 */
@@ -4400,7 +4400,7 @@ TEST (testTensorTransform, orcConvS16)
   nns_orc_conv_s16_to_f64 (res_f64, data_s16, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_DOUBLE_EQ (res_f64[i], (double)data_s16[i]);
+    EXPECT_DOUBLE_EQ (res_f64[i], (double) data_s16[i]);
   }
 }
 
@@ -4428,7 +4428,7 @@ TEST (testTensorTransform, orcConvU16)
   nns_orc_conv_u16_to_s8 (res_s8, data_u16, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_s8[i], (int8_t)data_u16[i]);
+    EXPECT_EQ (res_s8[i], (int8_t) data_u16[i]);
   }
 
   /* convert u8 */
@@ -4439,7 +4439,7 @@ TEST (testTensorTransform, orcConvU16)
   nns_orc_conv_u16_to_u8 (res_u8, data_u16, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_u8[i], (uint8_t)data_u16[i]);
+    EXPECT_EQ (res_u8[i], (uint8_t) data_u16[i]);
   }
 
   /* convert s16 */
@@ -4450,7 +4450,7 @@ TEST (testTensorTransform, orcConvU16)
   nns_orc_conv_u16_to_s16 (res_s16, data_u16, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_s16[i], (int16_t)data_u16[i]);
+    EXPECT_EQ (res_s16[i], (int16_t) data_u16[i]);
   }
 
   /* convert u16 */
@@ -4461,7 +4461,7 @@ TEST (testTensorTransform, orcConvU16)
   nns_orc_conv_u16_to_u16 (res_u16, data_u16, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_u16[i], (uint16_t)data_u16[i]);
+    EXPECT_EQ (res_u16[i], (uint16_t) data_u16[i]);
   }
 
   /* convert s32 */
@@ -4472,7 +4472,7 @@ TEST (testTensorTransform, orcConvU16)
   nns_orc_conv_u16_to_s32 (res_s32, data_u16, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_s32[i], (int32_t)data_u16[i]);
+    EXPECT_EQ (res_s32[i], (int32_t) data_u16[i]);
   }
 
   /* convert u32 */
@@ -4483,7 +4483,7 @@ TEST (testTensorTransform, orcConvU16)
   nns_orc_conv_u16_to_u32 (res_u32, data_u16, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_u32[i], (uint32_t)data_u16[i]);
+    EXPECT_EQ (res_u32[i], (uint32_t) data_u16[i]);
   }
 
   /* convert f32 */
@@ -4494,7 +4494,7 @@ TEST (testTensorTransform, orcConvU16)
   nns_orc_conv_u16_to_f32 (res_f32, data_u16, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_FLOAT_EQ (res_f32[i], (float)data_u16[i]);
+    EXPECT_FLOAT_EQ (res_f32[i], (float) data_u16[i]);
   }
 
   /* convert f64 */
@@ -4505,7 +4505,7 @@ TEST (testTensorTransform, orcConvU16)
   nns_orc_conv_u16_to_f64 (res_f64, data_u16, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_DOUBLE_EQ (res_f64[i], (double)data_u16[i]);
+    EXPECT_DOUBLE_EQ (res_f64[i], (double) data_u16[i]);
   }
 }
 
@@ -4533,7 +4533,7 @@ TEST (testTensorTransform, orcConvS32)
   nns_orc_conv_s32_to_s8 (res_s8, data_s32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_s8[i], (int8_t)data_s32[i]);
+    EXPECT_EQ (res_s8[i], (int8_t) data_s32[i]);
   }
 
   /* convert u8 */
@@ -4544,7 +4544,7 @@ TEST (testTensorTransform, orcConvS32)
   nns_orc_conv_s32_to_u8 (res_u8, data_s32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_u8[i], (uint8_t)data_s32[i]);
+    EXPECT_EQ (res_u8[i], (uint8_t) data_s32[i]);
   }
 
   /* convert s16 */
@@ -4555,7 +4555,7 @@ TEST (testTensorTransform, orcConvS32)
   nns_orc_conv_s32_to_s16 (res_s16, data_s32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_s16[i], (int16_t)data_s32[i]);
+    EXPECT_EQ (res_s16[i], (int16_t) data_s32[i]);
   }
 
   /* convert u16 */
@@ -4566,7 +4566,7 @@ TEST (testTensorTransform, orcConvS32)
   nns_orc_conv_s32_to_u16 (res_u16, data_s32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_u16[i], (uint16_t)data_s32[i]);
+    EXPECT_EQ (res_u16[i], (uint16_t) data_s32[i]);
   }
 
   /* convert s32 */
@@ -4577,7 +4577,7 @@ TEST (testTensorTransform, orcConvS32)
   nns_orc_conv_s32_to_s32 (res_s32, data_s32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_s32[i], (int32_t)data_s32[i]);
+    EXPECT_EQ (res_s32[i], (int32_t) data_s32[i]);
   }
 
   /* convert u32 */
@@ -4588,7 +4588,7 @@ TEST (testTensorTransform, orcConvS32)
   nns_orc_conv_s32_to_u32 (res_u32, data_s32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_u32[i], (uint32_t)data_s32[i]);
+    EXPECT_EQ (res_u32[i], (uint32_t) data_s32[i]);
   }
 
   /* convert f32 */
@@ -4599,7 +4599,7 @@ TEST (testTensorTransform, orcConvS32)
   nns_orc_conv_s32_to_f32 (res_f32, data_s32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_FLOAT_EQ (res_f32[i], (float)data_s32[i]);
+    EXPECT_FLOAT_EQ (res_f32[i], (float) data_s32[i]);
   }
 
   /* convert f64 */
@@ -4610,7 +4610,7 @@ TEST (testTensorTransform, orcConvS32)
   nns_orc_conv_s32_to_f64 (res_f64, data_s32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_DOUBLE_EQ (res_f64[i], (double)data_s32[i]);
+    EXPECT_DOUBLE_EQ (res_f64[i], (double) data_s32[i]);
   }
 }
 
@@ -4638,7 +4638,7 @@ TEST (testTensorTransform, orcConvU32)
   nns_orc_conv_u32_to_s8 (res_s8, data_u32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_s8[i], (int8_t)data_u32[i]);
+    EXPECT_EQ (res_s8[i], (int8_t) data_u32[i]);
   }
 
   /* convert u8 */
@@ -4649,7 +4649,7 @@ TEST (testTensorTransform, orcConvU32)
   nns_orc_conv_u32_to_u8 (res_u8, data_u32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_u8[i], (uint8_t)data_u32[i]);
+    EXPECT_EQ (res_u8[i], (uint8_t) data_u32[i]);
   }
 
   /* convert s16 */
@@ -4660,7 +4660,7 @@ TEST (testTensorTransform, orcConvU32)
   nns_orc_conv_u32_to_s16 (res_s16, data_u32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_s16[i], (int16_t)data_u32[i]);
+    EXPECT_EQ (res_s16[i], (int16_t) data_u32[i]);
   }
 
   /* convert u16 */
@@ -4671,7 +4671,7 @@ TEST (testTensorTransform, orcConvU32)
   nns_orc_conv_u32_to_u16 (res_u16, data_u32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_u16[i], (uint16_t)data_u32[i]);
+    EXPECT_EQ (res_u16[i], (uint16_t) data_u32[i]);
   }
 
   /* convert s32 */
@@ -4682,7 +4682,7 @@ TEST (testTensorTransform, orcConvU32)
   nns_orc_conv_u32_to_s32 (res_s32, data_u32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_s32[i], (int32_t)data_u32[i]);
+    EXPECT_EQ (res_s32[i], (int32_t) data_u32[i]);
   }
 
   /* convert u32 */
@@ -4693,7 +4693,7 @@ TEST (testTensorTransform, orcConvU32)
   nns_orc_conv_u32_to_u32 (res_u32, data_u32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_u32[i], (uint32_t)data_u32[i]);
+    EXPECT_EQ (res_u32[i], (uint32_t) data_u32[i]);
   }
 
   /* convert f32 */
@@ -4704,7 +4704,7 @@ TEST (testTensorTransform, orcConvU32)
   nns_orc_conv_u32_to_f32 (res_f32, data_u32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_FLOAT_EQ (res_f32[i], (float)((int32_t)data_u32[i]));
+    EXPECT_FLOAT_EQ (res_f32[i], (float) ((int32_t) data_u32[i]));
   }
 
   /* convert f64 */
@@ -4715,7 +4715,7 @@ TEST (testTensorTransform, orcConvU32)
   nns_orc_conv_u32_to_f64 (res_f64, data_u32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_DOUBLE_EQ (res_f64[i], (double)((int32_t)data_u32[i]));
+    EXPECT_DOUBLE_EQ (res_f64[i], (double) ((int32_t) data_u32[i]));
   }
 }
 
@@ -4732,7 +4732,7 @@ TEST (testTensorTransform, orcConvF32)
   };
 
   for (i = 0; i < array_size; i++) {
-    data_f32[i] = (((float)i) + 1.) * -1.;
+    data_f32[i] = (((float) i) + 1.) * -1.;
   }
 
   /* convert s8 */
@@ -4743,7 +4743,7 @@ TEST (testTensorTransform, orcConvF32)
   nns_orc_conv_f32_to_s8 (res_s8, data_f32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_s8[i], (int8_t)data_f32[i]);
+    EXPECT_EQ (res_s8[i], (int8_t) data_f32[i]);
   }
 
   /* convert u8 */
@@ -4754,8 +4754,8 @@ TEST (testTensorTransform, orcConvF32)
   nns_orc_conv_f32_to_u8 (res_u8, data_f32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    int8_t val = (int8_t)data_f32[i];
-    EXPECT_EQ (res_u8[i], (uint8_t)val);
+    int8_t val = (int8_t) data_f32[i];
+    EXPECT_EQ (res_u8[i], (uint8_t) val);
   }
 
   /* convert s16 */
@@ -4766,7 +4766,7 @@ TEST (testTensorTransform, orcConvF32)
   nns_orc_conv_f32_to_s16 (res_s16, data_f32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_s16[i], (int16_t)data_f32[i]);
+    EXPECT_EQ (res_s16[i], (int16_t) data_f32[i]);
   }
 
   /* convert u16 */
@@ -4777,8 +4777,8 @@ TEST (testTensorTransform, orcConvF32)
   nns_orc_conv_f32_to_u16 (res_u16, data_f32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    int16_t val = (int16_t)data_f32[i];
-    EXPECT_EQ (res_u16[i], (uint16_t)val);
+    int16_t val = (int16_t) data_f32[i];
+    EXPECT_EQ (res_u16[i], (uint16_t) val);
   }
 
   /* convert s32 */
@@ -4789,7 +4789,7 @@ TEST (testTensorTransform, orcConvF32)
   nns_orc_conv_f32_to_s32 (res_s32, data_f32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_s32[i], (int32_t)data_f32[i]);
+    EXPECT_EQ (res_s32[i], (int32_t) data_f32[i]);
   }
 
   /* convert u32 */
@@ -4800,8 +4800,8 @@ TEST (testTensorTransform, orcConvF32)
   nns_orc_conv_f32_to_u32 (res_u32, data_f32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    int32_t val = (int32_t)data_f32[i];
-    EXPECT_EQ (res_u32[i], (uint32_t)val);
+    int32_t val = (int32_t) data_f32[i];
+    EXPECT_EQ (res_u32[i], (uint32_t) val);
   }
 
   /* convert f32 */
@@ -4812,7 +4812,7 @@ TEST (testTensorTransform, orcConvF32)
   nns_orc_conv_f32_to_f32 (res_f32, data_f32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_FLOAT_EQ (res_f32[i], (float)data_f32[i]);
+    EXPECT_FLOAT_EQ (res_f32[i], (float) data_f32[i]);
   }
 
   /* convert f64 */
@@ -4823,7 +4823,7 @@ TEST (testTensorTransform, orcConvF32)
   nns_orc_conv_f32_to_f64 (res_f64, data_f32, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_DOUBLE_EQ (res_f64[i], (double)data_f32[i]);
+    EXPECT_DOUBLE_EQ (res_f64[i], (double) data_f32[i]);
   }
 }
 
@@ -4840,7 +4840,7 @@ TEST (testTensorTransform, orcConvF64)
   };
 
   for (i = 0; i < array_size; i++) {
-    data_f64[i] = (((double)i) + 1.) * -1.;
+    data_f64[i] = (((double) i) + 1.) * -1.;
   }
 
   /* convert s8 */
@@ -4851,7 +4851,7 @@ TEST (testTensorTransform, orcConvF64)
   nns_orc_conv_f64_to_s8 (res_s8, data_f64, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_s8[i], (int8_t)data_f64[i]);
+    EXPECT_EQ (res_s8[i], (int8_t) data_f64[i]);
   }
 
   /* convert u8 */
@@ -4862,8 +4862,8 @@ TEST (testTensorTransform, orcConvF64)
   nns_orc_conv_f64_to_u8 (res_u8, data_f64, array_size);
 
   for (i = 0; i < array_size; i++) {
-    int8_t val = (int8_t)data_f64[i];
-    EXPECT_EQ (res_u8[i], (uint8_t)val);
+    int8_t val = (int8_t) data_f64[i];
+    EXPECT_EQ (res_u8[i], (uint8_t) val);
   }
 
   /* convert s16 */
@@ -4874,7 +4874,7 @@ TEST (testTensorTransform, orcConvF64)
   nns_orc_conv_f64_to_s16 (res_s16, data_f64, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_s16[i], (int16_t)data_f64[i]);
+    EXPECT_EQ (res_s16[i], (int16_t) data_f64[i]);
   }
 
   /* convert u16 */
@@ -4885,8 +4885,8 @@ TEST (testTensorTransform, orcConvF64)
   nns_orc_conv_f64_to_u16 (res_u16, data_f64, array_size);
 
   for (i = 0; i < array_size; i++) {
-    int16_t val = (int16_t)data_f64[i];
-    EXPECT_EQ (res_u16[i], (uint16_t)val);
+    int16_t val = (int16_t) data_f64[i];
+    EXPECT_EQ (res_u16[i], (uint16_t) val);
   }
 
   /* convert s32 */
@@ -4897,7 +4897,7 @@ TEST (testTensorTransform, orcConvF64)
   nns_orc_conv_f64_to_s32 (res_s32, data_f64, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_EQ (res_s32[i], (int32_t)data_f64[i]);
+    EXPECT_EQ (res_s32[i], (int32_t) data_f64[i]);
   }
 
   /* convert u32 */
@@ -4908,8 +4908,8 @@ TEST (testTensorTransform, orcConvF64)
   nns_orc_conv_f64_to_u32 (res_u32, data_f64, array_size);
 
   for (i = 0; i < array_size; i++) {
-    int32_t val = (int32_t)data_f64[i];
-    EXPECT_EQ (res_u32[i], (uint32_t)val);
+    int32_t val = (int32_t) data_f64[i];
+    EXPECT_EQ (res_u32[i], (uint32_t) val);
   }
 
   /* convert f32 */
@@ -4920,7 +4920,7 @@ TEST (testTensorTransform, orcConvF64)
   nns_orc_conv_f64_to_f32 (res_f32, data_f64, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_FLOAT_EQ (res_f32[i], (float)data_f64[i]);
+    EXPECT_FLOAT_EQ (res_f32[i], (float) data_f64[i]);
   }
 
   /* convert f64 */
@@ -4931,7 +4931,7 @@ TEST (testTensorTransform, orcConvF64)
   nns_orc_conv_f64_to_f64 (res_f64, data_f64, array_size);
 
   for (i = 0; i < array_size; i++) {
-    EXPECT_DOUBLE_EQ (res_f64[i], (double)data_f64[i]);
+    EXPECT_DOUBLE_EQ (res_f64[i], (double) data_f64[i]);
   }
 }
 
@@ -4943,8 +4943,8 @@ TEST (testTensorTransform, orcPerformance)
   const guint array_size = 80000;
   guint i;
   gint64 start_ts, stop_ts, diff_loop, diff_orc;
-  uint8_t *data_u8 = (uint8_t *)g_malloc0 (sizeof (uint8_t) * array_size);
-  float *data_float = (float *)g_malloc0 (sizeof (float) * array_size);
+  uint8_t *data_u8 = (uint8_t *) g_malloc0 (sizeof (uint8_t) * array_size);
+  float *data_float = (float *) g_malloc0 (sizeof (float) * array_size);
   gboolean ret = true;
 
   if (!(ret = (data_u8 != NULL)))
@@ -5012,7 +5012,7 @@ TEST (testTensorTransform, orcPerformance)
   /* loop */
   start_ts = g_get_real_time ();
   for (i = 0; i < array_size; ++i) {
-    data_float[i] = (float)data_u8[i];
+    data_float[i] = (float) data_u8[i];
   }
   stop_ts = g_get_real_time ();
 
@@ -5107,7 +5107,7 @@ TEST (testTensorTransform, orcPerformance)
   /* loop */
   start_ts = g_get_real_time ();
   for (i = 0; i < array_size; ++i) {
-    data_float[i] = (float)data_u8[i];
+    data_float[i] = (float) data_u8[i];
     data_float[i] += .2;
     data_float[i] *= 1.2;
   }
@@ -5399,7 +5399,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, reloadTFliteModelNotFound_n)
   g_free (test_model);
   test_model = g_build_filename (root_path, "tests", "test_models", "models",
       "mobilenet_v2_1.0_224_quant.tflite", NULL);
-  ((gchar **)model_files)[0] = test_model; /* remove const for the test */
+  ((gchar **) model_files)[0] = test_model; /* remove const for the test */
 
   /* reload tf-lite model */
   EXPECT_TRUE (fw->reloadModel (prop, &private_data) == 0);
@@ -5407,7 +5407,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, reloadTFliteModelNotFound_n)
   g_free (test_model);
   test_model = g_build_filename (root_path, "tests", "test_models", "models",
       "model_does_not_exist.tflite", NULL);
-  ((gchar **)model_files)[0] = test_model; /* remove const for the test */
+  ((gchar **) model_files)[0] = test_model; /* remove const for the test */
 
   /* reload tf-lite model which does not exist */
   EXPECT_FALSE (fw->reloadModel (prop, &private_data) == 0);
@@ -5463,7 +5463,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, reloadTFliteModelWrongDims_n)
   g_free (test_model);
   test_model = g_build_filename (root_path, "tests", "test_models", "models",
       "add.tflite", NULL); /* it has unmatched dimension with mobilenet v1 */
-  ((gchar **)model_files)[0] = test_model; /* remove const for the test */
+  ((gchar **) model_files)[0] = test_model; /* remove const for the test */
 
   /* reload tf-lite model with unmatched dims */
   EXPECT_FALSE (fw->reloadModel (prop, &private_data) == 0);
@@ -6519,8 +6519,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, flexInvalidBuffer1_n)
   h = gst_harness_new_empty ();
   ASSERT_TRUE (h != NULL);
 
-  pipeline = g_strdup_printf (
-      "tensor_filter framework=tensorflow-lite model=%s", test_model);
+  pipeline = g_strdup_printf ("tensor_filter framework=tensorflow-lite model=%s", test_model);
   gst_harness_add_parse (h, pipeline);
   g_free (pipeline);
 
@@ -6548,8 +6547,8 @@ TEST_REQUIRE_TFLITE (testTensorFilter, flexInvalidBuffer1_n)
   data = g_malloc0 (data_size);
   gst_tensor_meta_info_update_header (&meta, data);
 
-  mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, data, data_size,
-      0, data_size, data, g_free);
+  mem = gst_memory_new_wrapped (
+      (GstMemoryFlags) 0, data, data_size, 0, data_size, data, g_free);
   gst_buffer_append_memory (in_buf, mem);
 
   /* 2nd mem block (invalid, unnecessary block) */
@@ -6560,8 +6559,8 @@ TEST_REQUIRE_TFLITE (testTensorFilter, flexInvalidBuffer1_n)
   data = g_malloc0 (data_size);
   gst_tensor_meta_info_update_header (&meta, data);
 
-  mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, data, data_size,
-      0, data_size, data, g_free);
+  mem = gst_memory_new_wrapped (
+      (GstMemoryFlags) 0, data, data_size, 0, data_size, data, g_free);
   gst_buffer_append_memory (in_buf, mem);
 
   EXPECT_NE (gst_harness_push (h, in_buf), GST_FLOW_OK);
@@ -6591,8 +6590,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, flexInvalidBuffer2_n)
   h = gst_harness_new_empty ();
   ASSERT_TRUE (h != NULL);
 
-  pipeline = g_strdup_printf (
-      "tensor_filter framework=tensorflow-lite model=%s", test_model);
+  pipeline = g_strdup_printf ("tensor_filter framework=tensorflow-lite model=%s", test_model);
   gst_harness_add_parse (h, pipeline);
   g_free (pipeline);
 
@@ -6615,8 +6613,8 @@ TEST_REQUIRE_TFLITE (testTensorFilter, flexInvalidBuffer2_n)
   data = g_malloc0 (data_size);
   gst_tensor_meta_info_update_header (&meta, data);
 
-  mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, data, data_size,
-      0, data_size, data, g_free);
+  mem = gst_memory_new_wrapped (
+      (GstMemoryFlags) 0, data, data_size, 0, data_size, data, g_free);
   gst_buffer_append_memory (in_buf, mem);
 
   EXPECT_NE (gst_harness_push (h, in_buf), GST_FLOW_OK);
@@ -6647,8 +6645,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, flexToFlex)
   h = gst_harness_new_empty ();
   ASSERT_TRUE (h != NULL);
 
-  pipeline = g_strdup_printf (
-      "tensor_filter framework=tensorflow-lite model=%s", test_model);
+  pipeline = g_strdup_printf ("tensor_filter framework=tensorflow-lite model=%s", test_model);
   gst_harness_add_parse (h, pipeline);
   g_free (pipeline);
 
@@ -6673,8 +6670,8 @@ TEST_REQUIRE_TFLITE (testTensorFilter, flexToFlex)
   data = g_malloc0 (data_size);
   gst_tensor_meta_info_update_header (&meta, data);
 
-  mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, data, data_size,
-      0, data_size, data, g_free);
+  mem = gst_memory_new_wrapped (
+      (GstMemoryFlags) 0, data, data_size, 0, data_size, data, g_free);
   gst_buffer_append_memory (in_buf, mem);
 
   EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
@@ -6773,7 +6770,7 @@ TEST (testStreamBuffers, tensorsNormal)
       mem = gst_buffer_peek_memory (conv_out_buf, i);
       ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_READ));
       for (j = 0; j < 48; j++)
-        EXPECT_EQ (((gint *)info.data)[j], aggr_test_frames[i][j]);
+        EXPECT_EQ (((gint *) info.data)[j], aggr_test_frames[i][j]);
       gst_memory_unmap (mem, &info);
     }
 
@@ -7102,8 +7099,7 @@ TEST (testConverterSubplugins, flexbufInvalidParam1_n)
 /**
  * @brief Data structure for tensor-crop test.
  */
-typedef struct
-{
+typedef struct {
   GstHarness *crop;
   GstHarness *raw;
   GstHarness *info;
@@ -7128,7 +7124,7 @@ typedef struct
  * After calling this function, you should set raw-pad caps.
  */
 static void
-_crop_test_init (crop_test_data_s * crop_test)
+_crop_test_init (crop_test_data_s *crop_test)
 {
   GstPad *raw_sink, *info_sink, *raw_src, *info_src;
   GstCaps *caps;
@@ -7173,7 +7169,7 @@ _crop_test_init (crop_test_data_s * crop_test)
  * @brief Free tensor-crop test data.
  */
 static void
-_crop_test_free (crop_test_data_s * crop_test)
+_crop_test_free (crop_test_data_s *crop_test)
 {
   gst_harness_teardown (crop_test->raw);
   gst_harness_teardown (crop_test->info);
@@ -7189,52 +7185,52 @@ _crop_test_free (crop_test_data_s * crop_test)
 /**
  * @brief Macro to push raw buffer to tensor_crop.
  */
-#define _crop_test_push_raw_buffer(ctd,ts) \
-  do { \
-    GstBuffer *rb = gst_buffer_new (); \
-    GstMemory *mem; \
-    mem = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY, \
-        (ctd)->raw_data, (ctd)->raw_size, 0, (ctd)->raw_size, NULL, NULL); \
-    if ((ctd)->raw_format == _NNS_TENSOR_FORMAT_FLEXIBLE) { \
-      GstTensorMetaInfo meta; \
-      gst_tensor_info_convert_to_meta (&(ctd)->raw_info, &meta); \
+#define _crop_test_push_raw_buffer(ctd, ts)                                           \
+  do {                                                                                \
+    GstBuffer *rb = gst_buffer_new ();                                                \
+    GstMemory *mem;                                                                   \
+    mem = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY, (ctd)->raw_data,          \
+        (ctd)->raw_size, 0, (ctd)->raw_size, NULL, NULL);                             \
+    if ((ctd)->raw_format == _NNS_TENSOR_FORMAT_FLEXIBLE) {                           \
+      GstTensorMetaInfo meta;                                                         \
+      gst_tensor_info_convert_to_meta (&(ctd)->raw_info, &meta);                      \
       gst_buffer_append_memory (rb, gst_tensor_meta_info_append_header (&meta, mem)); \
-      gst_memory_unref (mem); \
-    } else  { \
-      gst_buffer_append_memory (rb, mem); \
-    } \
-    if ((ts) != GST_CLOCK_TIME_NONE) \
-      GST_BUFFER_TIMESTAMP (rb) = (ts); \
-    EXPECT_EQ (gst_harness_push ((ctd)->raw_q, rb), GST_FLOW_OK); \
+      gst_memory_unref (mem);                                                         \
+    } else {                                                                          \
+      gst_buffer_append_memory (rb, mem);                                             \
+    }                                                                                 \
+    if ((ts) != GST_CLOCK_TIME_NONE)                                                  \
+      GST_BUFFER_TIMESTAMP (rb) = (ts);                                               \
+    EXPECT_EQ (gst_harness_push ((ctd)->raw_q, rb), GST_FLOW_OK);                     \
   } while (0)
 
 /**
  * @brief Macro to push info buffer to tensor_crop.
  */
-#define _crop_test_push_info_buffer(ctd,ts) \
-  do { \
-    GstBuffer *ib = gst_buffer_new (); \
-    GstMemory *mem; \
-    GstTensorMetaInfo meta; \
-    gst_tensor_meta_info_init (&meta); \
-    meta.type = (ctd)->info_type; \
-    meta.dimension[0] = 4U; \
-    meta.dimension[1] = (ctd)->info_num; \
-    meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE; \
-    mem = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY, \
-        (ctd)->info_data, (ctd)->info_size, 0, (ctd)->info_size, NULL, NULL); \
+#define _crop_test_push_info_buffer(ctd, ts)                                        \
+  do {                                                                              \
+    GstBuffer *ib = gst_buffer_new ();                                              \
+    GstMemory *mem;                                                                 \
+    GstTensorMetaInfo meta;                                                         \
+    gst_tensor_meta_info_init (&meta);                                              \
+    meta.type = (ctd)->info_type;                                                   \
+    meta.dimension[0] = 4U;                                                         \
+    meta.dimension[1] = (ctd)->info_num;                                            \
+    meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;                                      \
+    mem = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY, (ctd)->info_data,       \
+        (ctd)->info_size, 0, (ctd)->info_size, NULL, NULL);                         \
     gst_buffer_append_memory (ib, gst_tensor_meta_info_append_header (&meta, mem)); \
-    gst_memory_unref (mem); \
-    if ((ts) != GST_CLOCK_TIME_NONE) \
-      GST_BUFFER_TIMESTAMP (ib) = (ts); \
-    EXPECT_EQ (gst_harness_push ((ctd)->info_q, ib), GST_FLOW_OK); \
+    gst_memory_unref (mem);                                                         \
+    if ((ts) != GST_CLOCK_TIME_NONE)                                                \
+      GST_BUFFER_TIMESTAMP (ib) = (ts);                                             \
+    EXPECT_EQ (gst_harness_push ((ctd)->info_q, ib), GST_FLOW_OK);                  \
   } while (0)
 
 /**
  * @brief Push raw and info buffer to tensor_crop.
  */
 static void
-_crop_test_push_buffer (crop_test_data_s * crop_test)
+_crop_test_push_buffer (crop_test_data_s *crop_test)
 {
   GstTensorsConfig config;
 
@@ -7246,8 +7242,7 @@ _crop_test_push_buffer (crop_test_data_s * crop_test)
   config.rate_n = 0;
   config.rate_d = 1;
 
-  gst_harness_set_src_caps (crop_test->raw_q,
-      gst_tensors_caps_from_config (&config));
+  gst_harness_set_src_caps (crop_test->raw_q, gst_tensors_caps_from_config (&config));
 
   /* push raw buffer */
   _crop_test_push_raw_buffer (crop_test, crop_test->ts_raw);
@@ -7256,7 +7251,8 @@ _crop_test_push_buffer (crop_test_data_s * crop_test)
   _crop_test_push_info_buffer (crop_test, crop_test->ts_info);
 
   /* wait for output buffer */
-  crop_test->received = _harness_wait_for_output_buffer (crop_test->crop, (crop_test->received + 1));
+  crop_test->received
+      = _harness_wait_for_output_buffer (crop_test->crop, (crop_test->received + 1));
 }
 
 /**
@@ -7265,7 +7261,7 @@ _crop_test_push_buffer (crop_test_data_s * crop_test)
  * info buffer uint32 [3, 0, 3, 1] [2, 1, 7, 2]
  */
 static void
-_crop_test_compare_res1 (crop_test_data_s * crop_test)
+_crop_test_compare_res1 (crop_test_data_s *crop_test)
 {
   GstBuffer *out_buf;
   GstMemory *mem;
@@ -7331,7 +7327,7 @@ _crop_test_compare_res1 (crop_test_data_s * crop_test)
  * info buffer uint32 [2, 0, 3, 1] [1, 1, 5, 2]
  */
 static void
-_crop_test_compare_res2 (crop_test_data_s * crop_test)
+_crop_test_compare_res2 (crop_test_data_s *crop_test)
 {
   GstBuffer *out_buf;
   GstMemory *mem;
@@ -7683,41 +7679,81 @@ TEST (testTensorCrop, infoDelayed_n)
 /**
  * @brief Macro to test sparse tensor conversion for each data type.
  */
-#define RUN_SPARSE_CONVERT_TEST(ttype,dtype) do {\
-    failed = false;\
-    const gint sparse_test_data[40] = {\
-      0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,\
-      0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,\
-    };\
-    GstMemory *sparse, *dense, *origin;\
-    GstMapInfo map;\
-    GstTensorInfo info;\
-    GstTensorMetaInfo meta;\
-    guint i;\
-    gpointer data;\
-    gsize data_size;\
-    gst_tensor_info_init (&info);\
-    info.type = ttype;\
-    gst_tensor_parse_dimension ("40", info.dimension);\
-    gst_tensor_info_convert_to_meta (&info, &meta);\
-    data_size = gst_tensor_info_get_size (&info);\
-    data = g_malloc0 (data_size);\
-    for (i = 0; i < 40U; i++)\
-      ((dtype *) data)[i] = (dtype) sparse_test_data[i];\
-    origin = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY,\
-        data, data_size, 0, data_size, data, g_free);\
-    sparse = gst_tensor_sparse_from_dense (&meta, origin);\
-    EXPECT_TRUE (sparse != NULL);\
-    dense = gst_tensor_sparse_to_dense (&meta, sparse);\
-    EXPECT_TRUE (dense != NULL);\
-    ASSERT_TRUE (gst_memory_map (dense, &map, GST_MAP_READ));\
-    for (i = 0; i < 40U; i++)\
-      if (((dtype *) data)[i] != ((dtype *) map.data)[i]) failed = true;\
-    gst_memory_unmap (dense, &map);\
-    gst_tensor_info_free (&info);\
-    gst_memory_unref (sparse);\
-    gst_memory_unref (dense);\
-    gst_memory_unref (origin);\
+#define RUN_SPARSE_CONVERT_TEST(ttype, dtype)                                   \
+  do {                                                                          \
+    failed = false;                                                             \
+    const gint sparse_test_data[40] = {                                         \
+      0,                                                                        \
+      0,                                                                        \
+      1,                                                                        \
+      0,                                                                        \
+      0,                                                                        \
+      0,                                                                        \
+      1,                                                                        \
+      0,                                                                        \
+      0,                                                                        \
+      0,                                                                        \
+      0,                                                                        \
+      0,                                                                        \
+      0,                                                                        \
+      0,                                                                        \
+      0,                                                                        \
+      0,                                                                        \
+      0,                                                                        \
+      0,                                                                        \
+      1,                                                                        \
+      0,                                                                        \
+      0,                                                                        \
+      0,                                                                        \
+      0,                                                                        \
+      1,                                                                        \
+      0,                                                                        \
+      0,                                                                        \
+      0,                                                                        \
+      0,                                                                        \
+      1,                                                                        \
+      0,                                                                        \
+      0,                                                                        \
+      0,                                                                        \
+      0,                                                                        \
+      0,                                                                        \
+      0,                                                                        \
+      0,                                                                        \
+      0,                                                                        \
+      0,                                                                        \
+      0,                                                                        \
+      1,                                                                        \
+    };                                                                          \
+    GstMemory *sparse, *dense, *origin;                                         \
+    GstMapInfo map;                                                             \
+    GstTensorInfo info;                                                         \
+    GstTensorMetaInfo meta;                                                     \
+    guint i;                                                                    \
+    gpointer data;                                                              \
+    gsize data_size;                                                            \
+    gst_tensor_info_init (&info);                                               \
+    info.type = ttype;                                                          \
+    gst_tensor_parse_dimension ("40", info.dimension);                          \
+    gst_tensor_info_convert_to_meta (&info, &meta);                             \
+    data_size = gst_tensor_info_get_size (&info);                               \
+    data = g_malloc0 (data_size);                                               \
+    for (i = 0; i < 40U; i++)                                                   \
+      ((dtype *) data)[i] = (dtype) sparse_test_data[i];                        \
+    origin = gst_memory_new_wrapped (                                           \
+        GST_MEMORY_FLAG_READONLY, data, data_size, 0, data_size, data, g_free); \
+    sparse = gst_tensor_sparse_from_dense (&meta, origin);                      \
+    EXPECT_TRUE (sparse != NULL);                                               \
+    dense = gst_tensor_sparse_to_dense (&meta, sparse);                         \
+    EXPECT_TRUE (dense != NULL);                                                \
+    ASSERT_TRUE (gst_memory_map (dense, &map, GST_MAP_READ));                   \
+    for (i = 0; i < 40U; i++)                                                   \
+      if (((dtype *) data)[i] != ((dtype *) map.data)[i])                       \
+        failed = true;                                                          \
+    gst_memory_unmap (dense, &map);                                             \
+    gst_tensor_info_free (&info);                                               \
+    gst_memory_unref (sparse);                                                  \
+    gst_memory_unref (dense);                                                   \
+    gst_memory_unref (origin);                                                  \
   } while (0)
 
 /**
@@ -7761,8 +7797,8 @@ TEST (testTensorSparse, utilInvalidMeta_n)
   /* temporal data, unspecified tensor info. */
   gst_tensor_meta_info_init (&meta);
   data = (guint *) g_malloc0 (data_size);
-  in = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY,
-      data, data_size, 0, data_size, data, g_free);
+  in = gst_memory_new_wrapped (
+      GST_MEMORY_FLAG_READONLY, data, data_size, 0, data_size, data, g_free);
 
   out = gst_tensor_sparse_from_dense (&meta, in);
   EXPECT_FALSE (out != NULL);

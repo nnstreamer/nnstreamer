@@ -16,22 +16,24 @@
 #define __TENSOR_FILTER_SUBPLUGIN_TRIxEngine_H__
 
 /* npu-engine headers */
-#include <npubinfmt.h>
 #include <libnpuhost.h>
+#include <npubinfmt.h>
 
 /* nnstreamer plugin api headers */
-#include <nnstreamer_plugin_api.h>
 #include <nnstreamer_cppplugin_api_filter.hh>
-#include <nnstreamer_util.h>
 #include <nnstreamer_log.h>
+#include <nnstreamer_plugin_api.h>
+#include <nnstreamer_util.h>
 
-namespace nnstreamer {
+namespace nnstreamer
+{
 
 /**
  * @brief Class for TRIx-Engine subplugin
  */
-class TensorFilterTRIxEngine : public tensor_filter_subplugin {
- public:
+class TensorFilterTRIxEngine : public tensor_filter_subplugin
+{
+  public:
   TensorFilterTRIxEngine ();
   ~TensorFilterTRIxEngine ();
 
@@ -47,7 +49,7 @@ class TensorFilterTRIxEngine : public tensor_filter_subplugin {
   static void init_filter_trix_engine ();
   static void fini_filter_trix_engine ();
 
- private:
+  private:
   static data_layout convert_data_layout (const tensor_layout &layout);
   static data_type convert_data_type (const tensor_type &type);
 

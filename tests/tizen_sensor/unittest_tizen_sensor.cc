@@ -15,26 +15,26 @@
 #include <gtest/gtest.h>
 #include <glib.h>
 #include <gst/gst.h>
-#include <unittest_util.h>
 #include <tensor_typedef.h>
+#include <unittest_util.h>
 #include "dummy_sensor.h" /* Dummy Tizen Sensor Framework */
 
 static const unsigned int TEST_TIME_OUT_TIZEN_SENSOR_MS
     = 10000U; /* timeout occur after 10 seconds */
 
-#define wait_for_start(pipe)                                      \
-  do {                                                            \
-    int counter = 0;                                              \
-    GstState state = GST_STATE_NULL;                              \
-    GstStateChangeReturn ret;                                     \
-    g_usleep (10000);                                             \
-    while (state != GST_STATE_PLAYING && counter < 100) {         \
-      g_usleep (100000);                                          \
-      counter++;                                                  \
+#define wait_for_start(pipe)                                         \
+  do {                                                               \
+    int counter = 0;                                                 \
+    GstState state = GST_STATE_NULL;                                 \
+    GstStateChangeReturn ret;                                        \
+    g_usleep (10000);                                                \
+    while (state != GST_STATE_PLAYING && counter < 100) {            \
+      g_usleep (100000);                                             \
+      counter++;                                                     \
       ret = gst_element_get_state (pipe, &state, NULL, GST_MSECOND); \
-      EXPECT_NE (ret, GST_STATE_CHANGE_FAILURE);                  \
-    }                                                             \
-    ASSERT_EQ (state, GST_STATE_PLAYING); \
+      EXPECT_NE (ret, GST_STATE_CHANGE_FAILURE);                     \
+    }                                                                \
+    ASSERT_EQ (state, GST_STATE_PLAYING);                            \
   } while (0)
 
 /**

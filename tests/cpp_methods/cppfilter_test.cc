@@ -83,8 +83,8 @@ filter_basic::invoke (const GstTensorMemory *in, GstTensorMemory *out)
   g_assert (prop->output_meta.info[0].type == _NNS_UINT8);
 
   for (int i = 0; i < 4 * 4 * 3; i++) {
-    *((uint8_t *)out[0].data + i) = *((uint8_t *)in[0].data + i) * 2;
-    *((uint8_t *)out[0].data + i + 4 * 4 * 3) = *((uint8_t *)in[0].data + i) + 1;
+    *((uint8_t *) out[0].data + i) = *((uint8_t *) in[0].data + i) * 2;
+    *((uint8_t *) out[0].data + i + 4 * 4 * 3) = *((uint8_t *) in[0].data + i) + 1;
   }
   return 0;
 }
@@ -220,8 +220,8 @@ filter_basic2::invoke (const GstTensorMemory *in, GstTensorMemory *out)
   g_assert (prop->output_meta.info[0].type == _NNS_UINT8);
 
   for (int i = 0; i < 16 * 16 * 3; i++) {
-    *((uint8_t *)out[0].data + i) = *((uint8_t *)in[0].data + i) * 3;
-    *((uint8_t *)out[0].data + i + 16 * 16 * 3) = *((uint8_t *)in[0].data + i) + 2;
+    *((uint8_t *) out[0].data + i) = *((uint8_t *) in[0].data + i) * 3;
+    *((uint8_t *) out[0].data + i + 16 * 16 * 3) = *((uint8_t *) in[0].data + i) + 2;
   }
   return 0;
 }
@@ -287,8 +287,8 @@ filter_basic2::resultCompare (
 
 class tensor_filter_cpp *reg1, *reg2, *reg3;
 
-void init_shared_lib (void) __attribute__((constructor));
-void fini_shared_lib (void) __attribute__((destructor));
+void init_shared_lib (void) __attribute__ ((constructor));
+void fini_shared_lib (void) __attribute__ ((destructor));
 
 /** @brief API method */
 void

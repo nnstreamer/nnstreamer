@@ -554,7 +554,7 @@ new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
   GstMemory *mem_res;
   GstMapInfo info_res;
   gint *output, i;
-  gint index = *(gint *)user_data;
+  gint index = *(gint *) user_data;
   gboolean ret;
 
   data_received++;
@@ -563,7 +563,7 @@ new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
   mem_res = gst_buffer_get_memory (buffer, 0);
   ret = gst_memory_map (mem_res, &info_res, GST_MAP_READ);
   ASSERT_TRUE (ret);
-  output = (gint *)info_res.data;
+  output = (gint *) info_res.data;
 
   for (i = 0; i < 48; i++) {
     EXPECT_EQ (test_frames[index][i], output[i]);
@@ -607,7 +607,7 @@ TEST (tensorIfAppsrc, action0)
   sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
   EXPECT_NE (sink_handle, nullptr);
 
-  g_signal_connect (sink_handle, "new-data", (GCallback)new_data_cb, (gpointer)&idx);
+  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, (gpointer) &idx);
 
   buf_0 = gst_buffer_new ();
   mem = gst_allocator_alloc (NULL, 192, NULL);
@@ -689,13 +689,13 @@ TEST (tensorIfAppsrc, action1)
   sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sink_true");
   EXPECT_NE (sink_handle, nullptr);
 
-  g_signal_connect (sink_handle, "new-data", (GCallback)new_data_cb, (gpointer)&idx);
+  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, (gpointer) &idx);
   gst_object_unref (sink_handle);
 
   sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sink_false");
   EXPECT_NE (sink_handle, nullptr);
 
-  g_signal_connect (sink_handle, "new-data", (GCallback)new_data_cb, (gpointer)&idx);
+  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, (gpointer) &idx);
   gst_object_unref (sink_handle);
 
   buf_0 = gst_buffer_new ();
@@ -747,8 +747,8 @@ tensor_if_custom_cb (const GstTensorsInfo *info, const GstTensorMemory *input,
   if (!info || !input || !result)
     return FALSE;
 
-  idx = *(gint *)user_data;
-  output = (gint *)input[idx].data;
+  idx = *(gint *) user_data;
+  output = (gint *) input[idx].data;
   *result = TRUE;
 
   for (i = 0; i < 48; i++) {
@@ -780,7 +780,7 @@ TEST (tensorIfCustom, normal0)
       "tif.src_1 ! queue ! tensor_sink name=sink_false async=false");
 
   EXPECT_EQ (0,
-      nnstreamer_if_custom_register ("tifx", tensor_if_custom_cb, (gpointer)&idx));
+      nnstreamer_if_custom_register ("tifx", tensor_if_custom_cb, (gpointer) &idx));
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   EXPECT_NE (pipeline, nullptr);
@@ -794,13 +794,13 @@ TEST (tensorIfCustom, normal0)
   tif_handle = gst_bin_get_by_name (GST_BIN (pipeline), "tif");
   EXPECT_NE (tif_handle, nullptr);
 
-  g_signal_connect (sink_handle, "new-data", (GCallback)new_data_cb, (gpointer)&idx);
+  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, (gpointer) &idx);
   gst_object_unref (sink_handle);
 
   sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sink_false");
   EXPECT_NE (sink_handle, nullptr);
 
-  g_signal_connect (sink_handle, "new-data", (GCallback)new_data_cb, (gpointer)&idx);
+  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, (gpointer) &idx);
   gst_object_unref (sink_handle);
 
   g_object_get (tif_handle, "compared-value-option", &str_val, NULL);

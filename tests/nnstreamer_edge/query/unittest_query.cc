@@ -31,10 +31,10 @@ TEST (tensorQuery, serverProperties0)
   src_port = get_available_port ();
 
   /* Create a nnstreamer pipeline */
-  pipeline = g_strdup_printf (
-      "tensor_query_serversrc host=127.0.0.1 name=serversrc port=%u ! "
-      "other/tensors,num_tensors=1,dimensions=3:300:300:1,types=uint8 ! "
-      "tensor_query_serversink name=serversink", src_port);
+  pipeline = g_strdup_printf ("tensor_query_serversrc host=127.0.0.1 name=serversrc port=%u ! "
+                              "other/tensors,num_tensors=1,dimensions=3:300:300:1,types=uint8 ! "
+                              "tensor_query_serversink name=serversink",
+      src_port);
   gstpipe = gst_parse_launch (pipeline, NULL);
   EXPECT_NE (gstpipe, nullptr);
 
@@ -137,10 +137,10 @@ TEST (tensorQuery, serverProperties2_n)
   src_port = get_available_port ();
 
   /* Create a nnstreamer pipeline */
-  pipeline = g_strdup_printf (
-      "tensor_query_serversrc name=serversrc host=f.a.i.l port=%u ! "
-      "other/tensors,num_tensors=1,dimensions=3:300:300:1,types=uint8 ! "
-      "tensor_query_serversink sync=false async=false", src_port);
+  pipeline = g_strdup_printf ("tensor_query_serversrc name=serversrc host=f.a.i.l port=%u ! "
+                              "other/tensors,num_tensors=1,dimensions=3:300:300:1,types=uint8 ! "
+                              "tensor_query_serversink sync=false async=false",
+      src_port);
   gstpipe = gst_parse_launch (pipeline, NULL);
   EXPECT_NE (gstpipe, nullptr);
 
@@ -222,10 +222,10 @@ TEST (tensorQuery, serverRun)
   src_port = get_available_port ();
 
   /* Create a nnstreamer pipeline */
-  pipeline = g_strdup_printf (
-      "tensor_query_serversrc name=serversrc host=127.0.0.1 port=%u ! "
-      "other/tensors,num_tensors=1,dimensions=3:300:300:1,types=uint8 ! "
-      "tensor_query_serversink sync=false async=false", src_port);
+  pipeline = g_strdup_printf ("tensor_query_serversrc name=serversrc host=127.0.0.1 port=%u ! "
+                              "other/tensors,num_tensors=1,dimensions=3:300:300:1,types=uint8 ! "
+                              "tensor_query_serversink sync=false async=false",
+      src_port);
   gstpipe = gst_parse_launch (pipeline, NULL);
   EXPECT_NE (gstpipe, nullptr);
 
@@ -248,9 +248,8 @@ TEST (tensorQuery, clientAlone_n)
   GstElement *gstpipe;
 
   /* Create a query client pipeline */
-  pipeline = g_strdup_printf (
-      "videotestsrc ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB !"
-      "tensor_converter ! tensor_query_client ! tensor_sink");
+  pipeline = g_strdup_printf ("videotestsrc ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB !"
+                              "tensor_converter ! tensor_query_client ! tensor_sink");
   gstpipe = gst_parse_launch (pipeline, NULL);
   EXPECT_NE (gstpipe, nullptr);
 

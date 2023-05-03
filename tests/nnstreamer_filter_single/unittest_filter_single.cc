@@ -17,21 +17,20 @@
 /**
  * @brief Test Fixture class for a tensor-filter single functionality.
  */
-class NNSFilterSingleTest : public::testing::Test
+class NNSFilterSingleTest : public ::testing::Test
 {
-protected:
+  protected:
   GTensorFilterSingle *single;
   GTensorFilterSingleClass *klass;
   GstTensorMemory input;
   GstTensorMemory output;
   gboolean loaded;
 
-public:
+  public:
   /**
    * @brief Construct a new NNSFilterSingleTest object
    */
-  NNSFilterSingleTest ()
-    : single (nullptr), klass (nullptr), loaded (FALSE)
+  NNSFilterSingleTest () : single (nullptr), klass (nullptr), loaded (FALSE)
   {
     input.data = output.data = nullptr;
     input.size = output.size = 0;
@@ -61,13 +60,13 @@ public:
         "mobilenet_v1_1.0_224_quant.tflite", NULL);
     ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
 
-    data_file = g_build_filename (root_path, "tests", "test_models",
-        "data", "orange.raw", NULL);
-    ASSERT_TRUE (g_file_get_contents (data_file, (gchar **) & input.data, &length, NULL));
+    data_file = g_build_filename (
+        root_path, "tests", "test_models", "data", "orange.raw", NULL);
+    ASSERT_TRUE (g_file_get_contents (data_file, (gchar **) &input.data, &length, NULL));
     ASSERT_TRUE (length == input.size);
 
-    g_object_set (G_OBJECT (single), "framework", "tensorflow-lite",
-        "model", model_file, NULL);
+    g_object_set (G_OBJECT (single), "framework", "tensorflow-lite", "model",
+        model_file, NULL);
     loaded = TRUE;
   }
 
@@ -206,21 +205,21 @@ TEST_F (NNSFilterSingleTest, invalidProperty_n)
 /**
  * @brief Test Fixture class for a tensor-filter single functionality with high rank.
  */
-class NNSFilterSingleTestExtended : public::testing::Test
+class NNSFilterSingleTestExtended : public ::testing::Test
 {
-protected:
+  protected:
   GTensorFilterSingle *single;
   GTensorFilterSingleClass *klass;
   GstTensorMemory input[2];
   GstTensorMemory output;
   gboolean loaded;
 
-public:
+  public:
   /**
    * @brief Construct a new NNSFilterSingleTestExtended object
    */
   NNSFilterSingleTestExtended ()
-    : single (nullptr), klass (nullptr), loaded (FALSE)
+      : single (nullptr), klass (nullptr), loaded (FALSE)
   {
     input[0].data = input[1].data = output.data = nullptr;
     input[0].size = input[1].size = output.size = 0;
@@ -251,16 +250,16 @@ public:
         "sample_4x4x4x4x4_two_input_one_output.tflite", NULL);
     ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
 
-    input[0].data = g_malloc0(sizeof(gfloat)*length);
-    input[1].data = g_malloc0(sizeof(gfloat)*length);
+    input[0].data = g_malloc0 (sizeof (gfloat) * length);
+    input[1].data = g_malloc0 (sizeof (gfloat) * length);
 
-    for (i = 0; i < length ; i++) {
-      ((gfloat*)input[0].data)[i] = i;
-      ((gfloat*)input[1].data)[i] = i + 1;
+    for (i = 0; i < length; i++) {
+      ((gfloat *) input[0].data)[i] = i;
+      ((gfloat *) input[1].data)[i] = i + 1;
     }
 
-    g_object_set (G_OBJECT (single), "framework", "tensorflow-lite",
-        "model", model_file, NULL);
+    g_object_set (G_OBJECT (single), "framework", "tensorflow-lite", "model",
+        model_file, NULL);
     loaded = TRUE;
   }
 
@@ -288,8 +287,9 @@ TEST_F (NNSFilterSingleTestExtended, invoke_p)
   /* invoke the model and check output result */
   EXPECT_TRUE (klass->invoke (single, input, &output, TRUE));
 
-  for (i = 0 ; i < length ; i++)
-    EXPECT_EQ (((gfloat *)output.data)[i], (((gfloat*)input[0].data)[i]  + ((gfloat*)input[1].data)[i]));
+  for (i = 0; i < length; i++)
+    EXPECT_EQ (((gfloat *) output.data)[i],
+        (((gfloat *) input[0].data)[i] + ((gfloat *) input[1].data)[i]));
 
   EXPECT_TRUE (klass->input_configured (single));
   EXPECT_TRUE (klass->output_configured (single));

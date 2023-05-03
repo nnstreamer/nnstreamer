@@ -21,7 +21,7 @@ static const gchar model_config[] = "mnist.ini";
  * @brief Get file path
  */
 static gchar *
-get_file_path (const gchar * filename)
+get_file_path (const gchar *filename)
 {
   const gchar *root_path = NULL;
   gchar *file_path = NULL;
@@ -32,30 +32,32 @@ get_file_path (const gchar * filename)
   if (root_path == NULL)
     root_path = "..";
 
-  file_path =
-      g_build_filename (root_path, "tests", "test_models", "data", "datarepo",
-      filename, NULL);
+  file_path = g_build_filename (
+      root_path, "tests", "test_models", "data", "datarepo", filename, NULL);
 
   return file_path;
 }
 
 
 /**
- * @brief Model training test using mnist.data (MNIST Test), model.bin is created.
- * 
+ * @brief Model training test using mnist.data (MNIST Test), model.bin is
+ * created.
+ *
  * framework: framework to use for training the model
- * model-config: model configuration file path. models are limited to creating with configuration files.
- * model-save-path: model save path by query in MLOps
- * input-dims:input dimensions, in case of MNIST, 1:1:784:1 is a input and 1:1:10:1 is a label.
- * input_type: data type. Sample(mnist.data)'s data type is float32.
- * num-inputs: sub-plugin supports multiple inputs, in case of MNIST, num-inputs is 1.
- * num-labels: sub-plugin supports multiple labels, in case of MNIST, num-labels is 1.
- * num-training-samples: Number of training samples, A sample can consist of multiple inputs and labels in tensors(in case of MNIST, all is 1),
- *   set how many samples are taken for training model.
- * num-validation-samples: num-validation-samples, A sample can consist of multiple inputs and labels in tensors(in case of MNIST, all is 1),
- *   set how many samples are taken for validation model.
- * epochs : epochs are repetitions of training samples and validation smaples.
- *   number of samples received for model training is (num-training-samples + num-validation-samples) * epochs
+ * model-config: model configuration file path. models are limited to creating
+ * with configuration files. model-save-path: model save path by query in MLOps
+ * input-dims:input dimensions, in case of MNIST, 1:1:784:1 is a input and
+ * 1:1:10:1 is a label. input_type: data type. Sample(mnist.data)'s data type is
+ * float32. num-inputs: sub-plugin supports multiple inputs, in case of MNIST,
+ * num-inputs is 1. num-labels: sub-plugin supports multiple labels, in case of
+ * MNIST, num-labels is 1. num-training-samples: Number of training samples, A
+ * sample can consist of multiple inputs and labels in tensors(in case of MNIST,
+ * all is 1), set how many samples are taken for training model.
+ * num-validation-samples: num-validation-samples, A sample can consist of
+ * multiple inputs and labels in tensors(in case of MNIST, all is 1), set how
+ * many samples are taken for validation model. epochs : epochs are repetitions
+ * of training samples and validation smaples. number of samples received for
+ * model training is (num-training-samples + num-validation-samples) * epochs
  */
 
 TEST (tensor_trainer, SetParams)
@@ -71,9 +73,8 @@ TEST (tensor_trainer, SetParams)
   json_path = get_file_path (json);
   model_config_path = get_file_path (model_config);
 
-  gchar *str_pipeline =
-      g_strdup_printf
-      ("gst-launch-1.0 datareposrc location=%s json=%s "
+  gchar *str_pipeline = g_strdup_printf (
+      "gst-launch-1.0 datareposrc location=%s json=%s "
       "start-sample-index=3 stop-sample-index=202 tensors-sequence=0,1 epochs=1 ! "
       "other/tensors, format=static, num_tensors=2, framerate=0/1, "
       "dimensions=1:1:784:1.1:1:10:1, types=float32.float32 ! "
@@ -81,7 +82,8 @@ TEST (tensor_trainer, SetParams)
       "model-save-path=model.bin input-dim=1:1:784:1,1:1:10:1 "
       "input-type=float32,float32 num-inputs=1 num-labels=1 "
       "num-training-samples=100 num-validation-samples=100 epochs=1 ! "
-      "tensor_sink", file_path, json_path, model_config_path);
+      "tensor_sink",
+      file_path, json_path, model_config_path);
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
@@ -90,8 +92,7 @@ TEST (tensor_trainer, SetParams)
   tensor_trainer = gst_bin_get_by_name (GST_BIN (pipeline), "tensor_trainer");
   EXPECT_NE (tensor_trainer, nullptr);
 
-  setPipelineStateSync (pipeline, GST_STATE_PAUSED,
-      UNITTEST_STATECHANGE_TIMEOUT);
+  setPipelineStateSync (pipeline, GST_STATE_PAUSED, UNITTEST_STATECHANGE_TIMEOUT);
 
   g_object_get (tensor_trainer, "model-config", &get_str, NULL);
   EXPECT_STREQ (get_str, model_config_path);
@@ -146,9 +147,8 @@ TEST (tensor_trainer, invalidFramework0_n)
   json_path = get_file_path (json);
   model_config_path = get_file_path (model_config);
 
-  gchar *str_pipeline =
-      g_strdup_printf
-      ("gst-launch-1.0 datareposrc location=%s json=%s "
+  gchar *str_pipeline = g_strdup_printf (
+      "gst-launch-1.0 datareposrc location=%s json=%s "
       "start-sample-index=3 stop-sample-index=202 tensors-sequence=0,1 epochs=5 ! "
       "other/tensors, format=static, num_tensors=2, framerate=0/1, "
       "dimensions=1:1:784:1.1:1:10:1, types=float32.float32 ! "
@@ -173,8 +173,7 @@ TEST (tensor_trainer, invalidFramework0_n)
   g_object_set (GST_OBJECT (tensor_trainer), "framework", NULL, NULL);
 
   /* state chagne failure is expected */
-  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-          UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (pipeline);
 }
@@ -193,9 +192,8 @@ TEST (tensor_trainer, invalidFramework1_n)
   json_path = get_file_path (json);
   model_config_path = get_file_path (model_config);
 
-  gchar *str_pipeline =
-      g_strdup_printf
-      ("gst-launch-1.0 datareposrc location=%s json=%s "
+  gchar *str_pipeline = g_strdup_printf (
+      "gst-launch-1.0 datareposrc location=%s json=%s "
       "start-sample-index=3 stop-sample-index=202 tensors-sequence=0,1 epochs=5 ! "
       "other/tensors, format=static, num_tensors=2, framerate=0/1, "
       "dimensions=1:1:784:1.1:1:10:1, types=float32.float32 ! "
@@ -220,8 +218,7 @@ TEST (tensor_trainer, invalidFramework1_n)
   g_object_set (GST_OBJECT (tensor_trainer), "framework", "no_framework", NULL);
 
   /* state chagne failure is expected */
-  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-          UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (pipeline);
 }
@@ -238,9 +235,8 @@ TEST (tensor_trainer, invalidModelConfig0_n)
   file_path = get_file_path (filename);
   json_path = get_file_path (json);
 
-  gchar *str_pipeline =
-      g_strdup_printf
-      ("gst-launch-1.0 datareposrc location=%s json=%s"
+  gchar *str_pipeline = g_strdup_printf (
+      "gst-launch-1.0 datareposrc location=%s json=%s"
       "start-sample-index=3 stop-sample-index=202 tensors-sequence=0,1 epochs=5 ! "
       "other/tensors, format=static, num_tensors=2, framerate=0/1, "
       "dimensions=1:1:784:1.1:1:10:1, types=float32.float32 ! "
@@ -263,8 +259,7 @@ TEST (tensor_trainer, invalidModelConfig0_n)
   g_object_set (GST_OBJECT (tensor_trainer), "model-config", NULL, NULL);
 
   /* state chagne failure is expected */
-  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-          UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (pipeline);
 }
@@ -283,9 +278,8 @@ TEST (tensor_trainer, invalidModelSavePath0_n)
   json_path = get_file_path (json);
   model_config_path = get_file_path (model_config);
 
-  gchar *str_pipeline =
-      g_strdup_printf
-      ("gst-launch-1.0 datareposrc location=%s json=%s "
+  gchar *str_pipeline = g_strdup_printf (
+      "gst-launch-1.0 datareposrc location=%s json=%s "
       "start-sample-index=3 stop-sample-index=202 tensors-sequence=0,1 epochs=5 ! "
       "other/tensors, format=static, num_tensors=2, framerate=0/1, "
       "dimensions=1:1:784:1.1:1:10:1, types=float32.float32 ! "
@@ -308,8 +302,7 @@ TEST (tensor_trainer, invalidModelSavePath0_n)
   g_object_set (GST_OBJECT (tensor_trainer), "model-save-path", NULL, NULL);
 
   /* state chagne failure is expected */
-  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-          UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (pipeline);
 }
@@ -328,9 +321,8 @@ TEST (tensor_trainer, invalidInputDimension0_n)
   json_path = get_file_path (json);
   model_config_path = get_file_path (model_config);
 
-  gchar *str_pipeline =
-      g_strdup_printf
-      ("gst-launch-1.0 datareposrc location=%s json=%s "
+  gchar *str_pipeline = g_strdup_printf (
+      "gst-launch-1.0 datareposrc location=%s json=%s "
       "start-sample-index=3 stop-sample-index=202 tensors-sequence=0,1 epochs=5 ! "
       "other/tensors, format=static, num_tensors=2, framerate=0/1, "
       "dimensions=1:1:784:1.1:1:10:1, types=float32.float32 ! "
@@ -353,8 +345,7 @@ TEST (tensor_trainer, invalidInputDimension0_n)
   g_object_set (GST_OBJECT (tensor_trainer), "input-dim", NULL, NULL);
 
   /* state chagne failure is expected */
-  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-          UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (pipeline);
 }
@@ -373,9 +364,8 @@ TEST (tensor_trainer, invalidInputType0_n)
   json_path = get_file_path (json);
   model_config_path = get_file_path (model_config);
 
-  gchar *str_pipeline =
-      g_strdup_printf
-      ("gst-launch-1.0 datareposrc location=%s json=%s "
+  gchar *str_pipeline = g_strdup_printf (
+      "gst-launch-1.0 datareposrc location=%s json=%s "
       "start-sample-index=3 stop-sample-index=202 tensors-sequence=0,1 epochs=5 ! "
       "other/tensors, format=static, num_tensors=2, framerate=0/1, "
       "dimensions=1:1:784:1.1:1:10:1, types=float32.float32 ! "
@@ -398,8 +388,7 @@ TEST (tensor_trainer, invalidInputType0_n)
   g_object_set (GST_OBJECT (tensor_trainer), "input-type", NULL, NULL);
 
   /* state chagne failure is expected */
-  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-          UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (pipeline);
 }
@@ -420,17 +409,16 @@ TEST (tensor_trainer, invalidModelNumTrainingSamples0_n)
   json_path = get_file_path (json);
   model_config_path = get_file_path (model_config);
 
-  gchar *str_pipeline =
-      g_strdup_printf
-      ("gst-launch-1.0 datareposrc location=%s json=%s "
+  gchar *str_pipeline = g_strdup_printf (
+      "gst-launch-1.0 datareposrc location=%s json=%s "
       "start-sample-index=3 stop-sample-index=202 tensors-sequence=0,1 epochs=5 ! "
       "other/tensors, format=static, num_tensors=2, framerate=0/1, "
       "dimensions=1:1:784:1.1:1:10:1, types=float32.float32 ! "
       "tensor_trainer name=tensor_trainer framework=nntrainer model-config=%s "
       "model-save-path=model.bin input-dim=1:1:784:1,1:1:10:1 "
       "input-type=float32,float32 num-inputs=1 num-labels=1 "
-      "num-validation-samples=100 epochs=5 ! tensor_sink", file_path, json_path,
-      model_config_path);
+      "num-validation-samples=100 epochs=5 ! tensor_sink",
+      file_path, json_path, model_config_path);
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
@@ -443,12 +431,10 @@ TEST (tensor_trainer, invalidModelNumTrainingSamples0_n)
   ASSERT_NE (tensor_trainer, nullptr);
 
   /* set invalid param */
-  g_object_set (GST_OBJECT (tensor_trainer), "num-training-samples",
-      invalid_value, NULL);
-  /** value "-1" is out of range for property 'num-training-samples' of type 'guint'
-     default value is set */
-  g_object_get (GST_OBJECT (tensor_trainer), "num-training-samples", &get_value,
-      NULL);
+  g_object_set (GST_OBJECT (tensor_trainer), "num-training-samples", invalid_value, NULL);
+  /** value "-1" is out of range for property 'num-training-samples' of type
+     'guint' default value is set */
+  g_object_get (GST_OBJECT (tensor_trainer), "num-training-samples", &get_value, NULL);
   /* state chagne failure is expected */
   EXPECT_EQ (get_value, 0U);
 
@@ -471,17 +457,16 @@ TEST (tensor_trainer, invalidModelNumValidationSamples0_n)
   json_path = get_file_path (json);
   model_config_path = get_file_path (model_config);
 
-  gchar *str_pipeline =
-      g_strdup_printf
-      ("gst-launch-1.0 datareposrc location=%s json=%s "
+  gchar *str_pipeline = g_strdup_printf (
+      "gst-launch-1.0 datareposrc location=%s json=%s "
       "start-sample-index=3 stop-sample-index=202 tensors-sequence=0,1 epochs=5 ! "
       "other/tensors, format=static, num_tensors=2, framerate=0/1, "
       "dimensions=1:1:784:1.1:1:10:1, types=float32.float32 ! "
       "tensor_trainer name=tensor_trainer framework=nntrainer model-config=%s "
       "model-save-path=model.bin input-dim=1:1:784:1,1:1:10:1 "
       "input-type=float32,float32 num-inputs=1 num-labels=1 "
-      "num-training-samples=100 epochs=5 ! tensor_sink", file_path, json_path,
-      model_config_path);
+      "num-training-samples=100 epochs=5 ! tensor_sink",
+      file_path, json_path, model_config_path);
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
@@ -494,12 +479,10 @@ TEST (tensor_trainer, invalidModelNumValidationSamples0_n)
   ASSERT_NE (tensor_trainer, nullptr);
 
   /* set invalid param */
-  g_object_set (GST_OBJECT (tensor_trainer), "num-validation-samples",
-      invalid_value, NULL);
-  /** value "-1" is out of range for property 'num-validation-samples' of type 'guint'
-     default value is set */
-  g_object_get (GST_OBJECT (tensor_trainer), "num-validation-samples",
-      &get_value, NULL);
+  g_object_set (GST_OBJECT (tensor_trainer), "num-validation-samples", invalid_value, NULL);
+  /** value "-1" is out of range for property 'num-validation-samples' of type
+     'guint' default value is set */
+  g_object_get (GST_OBJECT (tensor_trainer), "num-validation-samples", &get_value, NULL);
   /* state chagne failure is expected */
   EXPECT_EQ (get_value, 0U);
 
@@ -522,9 +505,8 @@ TEST (tensor_trainer, invalidEpochs0_n)
   json_path = get_file_path (json);
   model_config_path = get_file_path (model_config);
 
-  gchar *str_pipeline =
-      g_strdup_printf
-      ("gst-launch-1.0 datareposrc location=%s json=%s "
+  gchar *str_pipeline = g_strdup_printf (
+      "gst-launch-1.0 datareposrc location=%s json=%s "
       "start-sample-index=3 stop-sample-index=202 tensors-sequence=0,1 epochs=5 ! "
       "other/tensors, format=static, num_tensors=2, framerate=0/1, "
       "dimensions=1:1:784:1.1:1:10:1, types=float32.float32 ! "
@@ -571,17 +553,16 @@ TEST (tensor_trainer, invalidNumInputs0_n)
   json_path = get_file_path (json);
   model_config_path = get_file_path (model_config);
 
-  gchar *str_pipeline =
-      g_strdup_printf
-      ("gst-launch-1.0 datareposrc location=%s json=%s "
+  gchar *str_pipeline = g_strdup_printf (
+      "gst-launch-1.0 datareposrc location=%s json=%s "
       "start-sample-index=3 stop-sample-index=202 tensors-sequence=0,1 epochs=5 ! "
       "other/tensors, format=static, num_tensors=2, framerate=0/1, "
       "dimensions=1:1:784:1.1:1:10:1, types=float32.float32 ! "
       "tensor_trainer name=tensor_trainer framework=nntrainer model-config=%s "
       "model-save-path=model.bin input-dim=1:1:784:1,1:1:10:1 "
       "input-type=float32,float32 num-labels=1 num-training-samples=100 "
-      "num-validation-samples=100 epochs=5 ! tensor_sink", file_path, json_path,
-      model_config_path);
+      "num-validation-samples=100 epochs=5 ! tensor_sink",
+      file_path, json_path, model_config_path);
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
@@ -620,9 +601,8 @@ TEST (tensor_trainer, invalidNumLabels0_n)
   json_path = get_file_path (json);
   model_config_path = get_file_path (model_config);
 
-  gchar *str_pipeline =
-      g_strdup_printf
-      ("gst-launch-1.0 datareposrc location=%s json=%s "
+  gchar *str_pipeline = g_strdup_printf (
+      "gst-launch-1.0 datareposrc location=%s json=%s "
       "start-sample-index=3 stop-sample-index=202 tensors-sequence=0,1 epochs=5 ! "
       "other/tensors, format=static, num_tensors=2, framerate=0/1, "
       "dimensions=1:1:784:1.1:1:10:1, types=float32.float32 ! "
@@ -630,7 +610,8 @@ TEST (tensor_trainer, invalidNumLabels0_n)
       "model-save-path=model.bin input-dim=1:1:784:1,1:1:10:1 "
       "input-type=float32,float32 num-labels=1 num-labels=1 "
       "num-training-samples=100 num-validation-samples=100 epochs=5 ! "
-      "tensor_sink", file_path, json_path, model_config_path);
+      "tensor_sink",
+      file_path, json_path, model_config_path);
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
@@ -644,8 +625,8 @@ TEST (tensor_trainer, invalidNumLabels0_n)
 
   /* set invalid param */
   g_object_set (GST_OBJECT (tensor_trainer), "num-labels", invalid_value, NULL);
-  /** value "-1" of type 'gint64' is invalid or out of range for property 'num-labels' of type 'guint'
-     default value is set */
+  /** value "-1" of type 'gint64' is invalid or out of range for property
+     'num-labels' of type 'guint' default value is set */
   g_object_get (GST_OBJECT (tensor_trainer), "num-labels", &get_value, NULL);
   /* state chagne failure is expected */
   EXPECT_EQ (get_value, 1U);
@@ -663,7 +644,7 @@ main (int argc, char **argv)
 
   try {
     testing::InitGoogleTest (&argc, argv);
-  } catch ( ...) {
+  } catch (...) {
     g_warning ("catch 'testing::internal::<unnamed>::ClassUniqueToAlwaysTrue'");
   }
 
@@ -671,7 +652,7 @@ main (int argc, char **argv)
 
   try {
     result = RUN_ALL_TESTS ();
-  } catch ( ...) {
+  } catch (...) {
     g_warning ("catch `testing::internal::GoogleTestFailureException`");
   }
 

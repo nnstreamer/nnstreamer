@@ -8,7 +8,7 @@
  * @date	24 Apr 2020
  * @brief	NNStreamer tensor-filter sub-plugin for SNPE (Qualcomm Neural Processing SDK)
  * @see		http://github.com/nnstreamer/nnstreamer
- * @see		https://developer.qualcomm.com/software/qualcomm-neural-processing-sdk
+ * @see https://developer.qualcomm.com/software/qualcomm-neural-processing-sdk
  * @author	Yongjoo Ahn <yongjoo1.ahn@samsung.com>
  * @bug		No known bugs except for NYI items
  *
@@ -30,9 +30,9 @@
 
 #include <DlContainer/IDlContainer.hpp>
 #include <DlSystem/ITensorFactory.hpp>
+#include <DlSystem/IUserBufferFactory.hpp>
 #include <DlSystem/RuntimeList.hpp>
 #include <DlSystem/TensorMap.hpp>
-#include <DlSystem/IUserBufferFactory.hpp>
 #include <SNPE/SNPE.hpp>
 #include <SNPE/SNPEBuilder.hpp>
 #include <SNPE/SNPEFactory.hpp>
@@ -57,9 +57,9 @@ extern "C" {
 #if defined(__ANDROID__)
 void init_filter_snpe (JNIEnv *env, jobject context);
 #else
-void init_filter_snpe (void) __attribute__((constructor));
+void init_filter_snpe (void) __attribute__ ((constructor));
 #endif
-void fini_filter_snpe (void) __attribute__((destructor));
+void fini_filter_snpe (void) __attribute__ ((destructor));
 }
 
 /** @brief tensor-filter-subplugin concrete class for SNPE */
@@ -95,8 +95,10 @@ class snpe_subplugin final : public tensor_filter_subplugin
   bool configure_option (const GstTensorFilterProperties *prop);
   bool parse_custom_prop (const char *custom_prop);
   bool set_output_tensor_names (const GstTensorsInfo *info);
-  void configureUserBuffer (zdl::DlSystem::UserBufferMap &buffer_map, const zdl::DlSystem::StringList strList);
-  void setTensorProp (GstTensorsInfo &tensor_meta, const zdl::DlSystem::StringList strList, tensor_type data_type);
+  void configureUserBuffer (zdl::DlSystem::UserBufferMap &buffer_map,
+      const zdl::DlSystem::StringList strList);
+  void setTensorProp (GstTensorsInfo &tensor_meta,
+      const zdl::DlSystem::StringList strList, tensor_type data_type);
   static const char *runtimeToString (zdl::DlSystem::Runtime_t runtime);
 
   tensor_type input_data_type;
@@ -210,16 +212,16 @@ const char *
 snpe_subplugin::runtimeToString (zdl::DlSystem::Runtime_t runtime)
 {
   switch (runtime) {
-  case zdl::DlSystem::Runtime_t::CPU:
-    return "CPU";
-  case zdl::DlSystem::Runtime_t::GPU:
-    return "GPU";
-  case zdl::DlSystem::Runtime_t::DSP:
-    return "DSP";
-  case zdl::DlSystem::Runtime_t::AIP_FIXED8_TF:
-    return "AIP_FIXED8_TF";
-  default:
-    return "invalid_runtime...";
+    case zdl::DlSystem::Runtime_t::CPU:
+      return "CPU";
+    case zdl::DlSystem::Runtime_t::GPU:
+      return "GPU";
+    case zdl::DlSystem::Runtime_t::DSP:
+      return "DSP";
+    case zdl::DlSystem::Runtime_t::AIP_FIXED8_TF:
+      return "AIP_FIXED8_TF";
+    default:
+      return "invalid_runtime...";
   }
 }
 
@@ -406,7 +408,8 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   }
 
   if (!g_file_test (prop->model_files[0], G_FILE_TEST_IS_REGULAR)) {
-    const std::string err_msg = "Given file " + (std::string) prop->model_files[0] + " is not valid";
+    const std::string err_msg
+        = "Given file " + (std::string) prop->model_files[0] + " is not valid";
     std::cerr << err_msg << std::endl;
     cleanup ();
     throw std::invalid_argument (err_msg);
@@ -418,7 +421,7 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 
   container = zdl::DlContainer::IDlContainer::open (model_path);
 
-  zdl::SNPE::SNPEBuilder snpe_builder (container.get());
+  zdl::SNPE::SNPEBuilder snpe_builder (container.get ());
   if (output_tensor_names_list.size () > 0) {
     nns_logd ("Use user given output tensor names");
     snpe_builder.setOutputTensors (output_tensor_names_list);
@@ -454,7 +457,7 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     configureUserBuffer (input_buffer_map, input_tensor_names_list);
     configureUserBuffer (output_buffer_map, output_tensor_names_list);
 
-  } else {  /** ITENSOR mode */
+  } else { /** ITENSOR mode */
     for (size_t i = 0; i < input_tensor_names_list.size (); ++i) {
       const zdl::DlSystem::Optional<zdl::DlSystem::TensorShape> &inputDims_opt
           = snpe->getInputDimensions (input_tensor_names_list.at (i));
@@ -487,11 +490,13 @@ snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 
   if (use_user_buffer) {
     for (unsigned int i = 0; i < inputInfo.num_tensors; ++i) {
-      input_buffer_map.getUserBuffer (inputInfo.info[i].name)->setBufferAddress (input[i].data);
+      input_buffer_map.getUserBuffer (inputInfo.info[i].name)
+          ->setBufferAddress (input[i].data);
     }
 
     for (unsigned int i = 0; i < outputInfo.num_tensors; ++i) {
-      output_buffer_map.getUserBuffer (outputInfo.info[i].name)->setBufferAddress (output[i].data);
+      output_buffer_map.getUserBuffer (outputInfo.info[i].name)
+          ->setBufferAddress (output[i].data);
     }
 
     snpe->execute (input_buffer_map, output_buffer_map);
@@ -501,16 +506,18 @@ snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
       size_t fsize = input_tensors[i].get ()->getSize ();
 
       switch (input_data_type) {
-        case _NNS_FLOAT32: {
-          float *inbuf = (float *) input[i].data;
-          std::copy (inbuf, inbuf + fsize, input_tensors[i].get ()->begin ());
-          break;
-        }
-        case _NNS_UINT8: {
-          uint8_t *inbuf = (uint8_t *) input[i].data;
-          std::copy (inbuf, inbuf + fsize, input_tensors[i].get ()->begin ());
-          break;
-        }
+        case _NNS_FLOAT32:
+          {
+            float *inbuf = (float *) input[i].data;
+            std::copy (inbuf, inbuf + fsize, input_tensors[i].get ()->begin ());
+            break;
+          }
+        case _NNS_UINT8:
+          {
+            uint8_t *inbuf = (uint8_t *) input[i].data;
+            std::copy (inbuf, inbuf + fsize, input_tensors[i].get ()->begin ());
+            break;
+          }
         default:
           throw std::runtime_error ("Got invalid input data type");
       }
@@ -520,18 +527,21 @@ snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
     snpe->execute (input_tensor_map, output_tensor_map);
 
     for (unsigned int i = 0; i < outputInfo.num_tensors; ++i) {
-      zdl::DlSystem::ITensor *output_tensor = output_tensor_map.getTensor (output_tensor_names_list.at (i));
+      zdl::DlSystem::ITensor *output_tensor
+          = output_tensor_map.getTensor (output_tensor_names_list.at (i));
       switch (output_data_type) {
-        case _NNS_FLOAT32: {
-          float *outbuf = (float *) output[i].data;
-          std::copy (output_tensor->cbegin (), output_tensor->cend (), outbuf);
-          break;
-        }
-        case _NNS_UINT8: {
-          uint8_t *outbuf = (uint8_t *) output[i].data;
-          std::copy (output_tensor->cbegin (), output_tensor->cend (), outbuf);
-          break;
-        }
+        case _NNS_FLOAT32:
+          {
+            float *outbuf = (float *) output[i].data;
+            std::copy (output_tensor->cbegin (), output_tensor->cend (), outbuf);
+            break;
+          }
+        case _NNS_UINT8:
+          {
+            uint8_t *outbuf = (uint8_t *) output[i].data;
+            std::copy (output_tensor->cbegin (), output_tensor->cend (), outbuf);
+            break;
+          }
         default:
           throw std::runtime_error ("Got invalid output data type");
       }
@@ -590,18 +600,22 @@ snpe_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &
  * @brief Method to configure user_buffer_map with given strList of tensor names
  */
 void
-snpe_subplugin::configureUserBuffer (zdl::DlSystem::UserBufferMap &buffer_map, const zdl::DlSystem::StringList strList)
+snpe_subplugin::configureUserBuffer (zdl::DlSystem::UserBufferMap &buffer_map,
+    const zdl::DlSystem::StringList strList)
 {
-  zdl::DlSystem::IUserBufferFactory& ubFactory = zdl::SNPE::SNPEFactory::getUserBufferFactory ();
+  zdl::DlSystem::IUserBufferFactory &ubFactory
+      = zdl::SNPE::SNPEFactory::getUserBufferFactory ();
   for (const char *name : strList) {
     auto bufferAttributesOpt = snpe->getInputOutputBufferAttributes (name);
-    const zdl::DlSystem::TensorShape& bufferShape = (*bufferAttributesOpt)->getDims ();
+    const zdl::DlSystem::TensorShape &bufferShape = (*bufferAttributesOpt)->getDims ();
     std::vector<size_t> strides (bufferShape.rank ());
     strides[strides.size () - 1] = sizeof (float);
     for (size_t i = strides.size () - 1; i > 0; --i) {
       if (bufferShape[i] == 0) {
         if (max_resizable_dim == 0) {
-          throw std::runtime_error (std::string ("zero dim is detected in tensor ") + name + std::string (". User should provide MaxResizableDim with custom option"));
+          throw std::runtime_error (
+              std::string ("zero dim is detected in tensor ") + name
+              + std::string (". User should provide MaxResizableDim with custom option"));
         }
         nns_logi ("zero dim (resizable dim) is detected in %zu-th dim of tensor %s. Set it as user given max number: %zu",
             i, name, max_resizable_dim);
@@ -616,9 +630,11 @@ snpe_subplugin::configureUserBuffer (zdl::DlSystem::UserBufferMap &buffer_map, c
     }
 
     std::unique_ptr<zdl::DlSystem::UserBufferEncoding> userBufferEncoding;
-    userBufferEncoding = std::unique_ptr<zdl::DlSystem::UserBufferEncodingFloat>(new zdl::DlSystem::UserBufferEncodingFloat ());
+    userBufferEncoding = std::unique_ptr<zdl::DlSystem::UserBufferEncodingFloat> (
+        new zdl::DlSystem::UserBufferEncodingFloat ());
 
-    user_input_buffers.push_back (ubFactory.createUserBuffer (NULL, bufSize, strides, userBufferEncoding.get ()));
+    user_input_buffers.push_back (ubFactory.createUserBuffer (
+        NULL, bufSize, strides, userBufferEncoding.get ()));
 
     if (user_input_buffers.back () == nullptr) {
       throw std::runtime_error ("Error while creating user buffer.");
@@ -632,7 +648,8 @@ snpe_subplugin::configureUserBuffer (zdl::DlSystem::UserBufferMap &buffer_map, c
  * @brief Method to set tensor properties with user_buffer.
  */
 void
-snpe_subplugin::setTensorProp (GstTensorsInfo &tensor_meta, const zdl::DlSystem::StringList strList, tensor_type data_type)
+snpe_subplugin::setTensorProp (GstTensorsInfo &tensor_meta,
+    const zdl::DlSystem::StringList strList, tensor_type data_type)
 {
   unsigned int idx = 0;
   tensor_meta.num_tensors = strList.size ();
@@ -641,11 +658,13 @@ snpe_subplugin::setTensorProp (GstTensorsInfo &tensor_meta, const zdl::DlSystem:
     tensor_meta.info[idx].type = data_type;
     tensor_meta.info[idx].name = g_strdup (name);
     auto bufferAttributesOpt = snpe->getInputOutputBufferAttributes (name);
-    const zdl::DlSystem::TensorShape& bufferShape = (*bufferAttributesOpt)->getDims ();
+    const zdl::DlSystem::TensorShape &bufferShape = (*bufferAttributesOpt)->getDims ();
     for (size_t j = 0; j < bufferShape.rank (); ++j) {
       if (bufferShape[bufferShape.rank () - j - 1] == 0) {
         if (max_resizable_dim == 0) {
-          throw std::runtime_error (std::string ("zero dim is detected in tensor ") + name + std::string (". User should provide MaxResizableDim with custom option"));
+          throw std::runtime_error (
+              std::string ("zero dim is detected in tensor ") + name
+              + std::string (". User should provide MaxResizableDim with custom option"));
         }
         bufferShape[bufferShape.rank () - j - 1] = max_resizable_dim;
       }
@@ -666,22 +685,14 @@ snpe_subplugin::init_filter_snpe (void)
 {
   registeredRepresentation
       = tensor_filter_subplugin::register_subplugin<snpe_subplugin> ();
-  nnstreamer_filter_set_custom_property_desc (name,
-      "Runtime",
-      "Designate hardware resource {'CPU' (default), 'GPU', 'DSP', 'NPU'}",
-      "CPUFallback",
-      "Set true to enable CPU fallback {'true' (default), 'false'}",
-      "OutputTensor",
+  nnstreamer_filter_set_custom_property_desc (name, "Runtime",
+      "Designate hardware resource {'CPU' (default), 'GPU', 'DSP', 'NPU'}", "CPUFallback",
+      "Set true to enable CPU fallback {'true' (default), 'false'}", "OutputTensor",
       "Tensor names for the output, separated by ';'. E.g., 'concat:0;concat_1:0'",
-      "InputType",
-      "Set the data type of the input {'float32 (default)', 'uint8'}",
-      "OutputType",
-      "Set the data type of the output {'float32 (default)', 'uint8'}",
-      "UserBuffer",
-      "Use user supplied buffers for input/output tensors {'false (default)', 'true'}",
-      "MaxResizableDim",
-      "Max number for resizable dim (should be greater than 0)",
-      NULL);
+      "InputType", "Set the data type of the input {'float32 (default)', 'uint8'}",
+      "OutputType", "Set the data type of the output {'float32 (default)', 'uint8'}",
+      "UserBuffer", "Use user supplied buffers for input/output tensors {'false (default)', 'true'}",
+      "MaxResizableDim", "Max number for resizable dim (should be greater than 0)", NULL);
 }
 
 /** @brief Destruct the subplugin */
@@ -835,5 +846,5 @@ fini_filter_snpe ()
   snpe_subplugin::fini_filter_snpe ();
 }
 
-} /* namespace nnstreamer::tensor_filter_snpe */
+} // namespace tensor_filter_snpe
 } /* namespace nnstreamer */

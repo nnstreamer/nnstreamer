@@ -24,8 +24,8 @@
 #include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_util.h>
 #include <typeinfo>
-#include "tensordecutil.h"
 #include "../extra/nnstreamer_flatbuf.h"
+#include "tensordecutil.h"
 
 namespace nnstreamer
 {
@@ -143,7 +143,8 @@ fbd_decode (void **pdata, const GstTensorsConfig *config,
     tensor_vector.push_back (tensor);
   }
 
-  tensors = CreateTensors (builder, num_tensors, &fr, builder.CreateVector (tensor_vector), format);
+  tensors = CreateTensors (
+      builder, num_tensors, &fr, builder.CreateVector (tensor_vector), format);
 
   /* Serialize the data.*/
   builder.Finish (tensors);

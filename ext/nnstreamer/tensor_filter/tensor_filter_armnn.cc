@@ -30,8 +30,8 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <memory>
 #include <map>
+#include <memory>
 #include <vector>
 
 #include <armnn/ArmNN.hpp>
@@ -111,8 +111,8 @@ class ArmNNCore
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-void init_filter_armnn (void) __attribute__((constructor));
-void fini_filter_armnn (void) __attribute__((destructor));
+void init_filter_armnn (void) __attribute__ ((constructor));
+void fini_filter_armnn (void) __attribute__ ((destructor));
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
@@ -360,16 +360,16 @@ armnn::Compute
 ArmNNCore::getBackend (const accl_hw hw)
 {
   switch (hw) {
-  case ACCL_GPU:
-    return armnn::Compute::GpuAcc;
-  case ACCL_NONE:
-  /** intended */
-  case ACCL_CPU:
-    return armnn::Compute::CpuRef;
-  case ACCL_CPU_NEON:
-  /** intended */
-  default:
-    return armnn::Compute::CpuAcc;
+    case ACCL_GPU:
+      return armnn::Compute::GpuAcc;
+    case ACCL_NONE:
+    /** intended */
+    case ACCL_CPU:
+      return armnn::Compute::CpuRef;
+    case ACCL_CPU_NEON:
+    /** intended */
+    default:
+      return armnn::Compute::CpuAcc;
   }
 }
 
@@ -454,32 +454,32 @@ tensor_type
 ArmNNCore::getGstTensorType (armnn::DataType armType)
 {
   switch (armType) {
-  case armnn::DataType::Signed32:
-    /** Supported with tf and tflite */
-    return _NNS_INT32;
-  case armnn::DataType::Float32:
-    /** Supported with tf, tflite and caffe */
-    return _NNS_FLOAT32;
-  case armnn::DataType::Float16:
+    case armnn::DataType::Signed32:
+      /** Supported with tf and tflite */
+      return _NNS_INT32;
+    case armnn::DataType::Float32:
+      /** Supported with tf, tflite and caffe */
+      return _NNS_FLOAT32;
+    case armnn::DataType::Float16:
 #ifdef FLOAT16_SUPPORT
-    return _NNS_FLOAT16;
+      return _NNS_FLOAT16;
 #else
-    ml_logw ("Unsupported armnn datatype Float16. Recompile with -DFLOAT16_SUPPORT option.");
+      ml_logw ("Unsupported armnn datatype Float16. Recompile with -DFLOAT16_SUPPORT option.");
 #endif
-    break;
-  case armnn::DataType::QAsymmU8:
-    /** Supported with tflite */
-    return _NNS_UINT8;
-  case armnn::DataType::Boolean:
-    ml_logw ("Unsupported armnn datatype Boolean.");
-    break;
-  case armnn::DataType::QSymmS16:
-    ml_logw ("Unsupported armnn datatype QuantisedSym16.");
-    break;
-  default:
-    ml_logw ("Unsupported armnn datatype unknown.");
-    /** @todo Support other types */
-    break;
+      break;
+    case armnn::DataType::QAsymmU8:
+      /** Supported with tflite */
+      return _NNS_UINT8;
+    case armnn::DataType::Boolean:
+      ml_logw ("Unsupported armnn datatype Boolean.");
+      break;
+    case armnn::DataType::QSymmS16:
+      ml_logw ("Unsupported armnn datatype QuantisedSym16.");
+      break;
+    default:
+      ml_logw ("Unsupported armnn datatype unknown.");
+      /** @todo Support other types */
+      break;
   }
 
   return _NNS_END;
@@ -781,26 +781,26 @@ armnn_checkAvailability (accl_hw hw)
 
 static gchar filter_subplugin_armnn[] = "armnn";
 
-static GstTensorFilterFramework NNS_support_armnn = {.version = GST_TENSOR_FILTER_FRAMEWORK_V0,
+static GstTensorFilterFramework NNS_support_armnn = { .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = armnn_open,
   .close = armnn_close,
-  {.v0 = {
-       .name = filter_subplugin_armnn,
-       .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
-       .allocate_in_invoke = FALSE,
-       .run_without_model = FALSE,
-       .verify_model_path = FALSE,
-       .statistics = nullptr,
-       .invoke_NN = armnn_invoke,
-       .getInputDimension = armnn_getInputDim,
-       .getOutputDimension = armnn_getOutputDim,
-       .setInputDimension = nullptr,
-       .destroyNotify = nullptr,
-       .reloadModel = nullptr,
-       .handleEvent = nullptr,
-       .checkAvailability = armnn_checkAvailability,
-       .allocateInInvoke = nullptr,
-   } } };
+  { .v0 = {
+        .name = filter_subplugin_armnn,
+        .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
+        .allocate_in_invoke = FALSE,
+        .run_without_model = FALSE,
+        .verify_model_path = FALSE,
+        .statistics = nullptr,
+        .invoke_NN = armnn_invoke,
+        .getInputDimension = armnn_getInputDim,
+        .getOutputDimension = armnn_getOutputDim,
+        .setInputDimension = nullptr,
+        .destroyNotify = nullptr,
+        .reloadModel = nullptr,
+        .handleEvent = nullptr,
+        .checkAvailability = armnn_checkAvailability,
+        .allocateInInvoke = nullptr,
+    } } };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void

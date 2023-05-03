@@ -13,9 +13,9 @@
 #include <gst/gst.h>
 #include <unittest_util.h>
 
-#include <tensor_common.h>
 #include <nnstreamer_plugin_api_filter.h>
 #include <nnstreamer_util.h>
+#include <tensor_common.h>
 
 /**
  * @brief Set tensor filter properties
@@ -263,7 +263,8 @@ end
   sp->close (&prop, &data);
 
   /* double close */
-  sp->close (&prop, &data);;
+  sp->close (&prop, &data);
+  ;
 }
 
 
@@ -918,7 +919,8 @@ TEST (nnstreamerFilterLua, dataType00_n)
   outputTensorsInfo={num=1,dim={{1,2,2,1},},type={'%s',}} \
   function nnstreamer_invoke() \
   for i=1,1*2*2*1 do output_tensor(1)[i] = input_tensor(1)[i] end \
-  end", invalid_data_type, invalid_data_type);
+  end",
+      invalid_data_type, invalid_data_type);
 
   const gchar *model_files[] = {
     model,
@@ -963,7 +965,8 @@ TEST (nnstreamerFilterLua, dataType01)
     outputTensorsInfo={num=1,dim={{1,2,2,1},},type={'%s',}} \
     function nnstreamer_invoke() \
     for i=1,1*2*2*1 do output_tensor(1)[i] = input_tensor(1)[i] end \
-    end", gst_tensor_get_type_string (ttype), gst_tensor_get_type_string (ttype));
+    end",
+        gst_tensor_get_type_string (ttype), gst_tensor_get_type_string (ttype));
 
     const gchar *model_files[] = {
       model,
@@ -998,7 +1001,7 @@ TEST (nnstreamerFilterLua, launch00_n)
   /**
    * Create a invalid pipeline the input dimension should be 3 : 24 : 24 : 1
    * Given 3 : 11 : 11 : 1
-  */
+   */
   pipeline = g_strdup_printf ("videotestsrc num-buffers=1 ! video/x-raw,width=100,height=100,format=RGB ! tensor_converter ! mux.sink_0 videotestsrc num-buffers=1 ! video/x-raw,width=11,height=11,format=RGB ! tensor_converter ! mux.sink_1 tensor_mux name=mux sync_mode=nosync ! tensor_filter framework=lua model=\"%s\" ! tensor_demux name=demux demux.src_0 ! tensor_decoder mode=direct_video ! video/x-raw,width=100,height=100,format=RGB ! videoconvert ! autovideosink demux.src_1 ! tensor_sink name=sinkx async=false sync=false",
       simple_lua_script);
 
@@ -1009,7 +1012,8 @@ TEST (nnstreamerFilterLua, launch00_n)
   EXPECT_NE (sink_handle, nullptr);
   g_signal_connect (sink_handle, "new-data", (GCallback) check_output, NULL);
 
-  EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT * 10), 0);
+  EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT * 10),
+      0);
 
   gst_object_unref (sink_handle);
   gst_object_unref (gstpipe);
@@ -1036,8 +1040,10 @@ TEST (nnstreamerFilterLua, launch01)
   EXPECT_NE (sink_handle, nullptr);
   g_signal_connect (sink_handle, "new-data", (GCallback) check_output, NULL);
 
-  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT * 10), 0);
-  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT * 10), 0);
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT * 10),
+      0);
+  EXPECT_EQ (
+      setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT * 10), 0);
 
   gst_object_unref (sink_handle);
   gst_object_unref (gstpipe);

@@ -96,7 +96,7 @@ gst_tensor_decoder_protobuf (const GstTensorsConfig *config,
       tensor->add_dimension (pbd_config.info.info[i].dimension[j]);
     }
 
-    tensor->set_data (input[i].data, (int)input[i].size);
+    tensor->set_data (input[i].data, (int) input[i].size);
   }
 
   size = tensors.ByteSizeLong ();
@@ -169,22 +169,22 @@ gst_tensor_converter_protobuf (GstBuffer *in_buf, GstTensorsConfig *config, void
     const gchar *name = _name.c_str ();
 
     config->info.info[i].name = (name && strlen (name) > 0) ? g_strdup (name) : NULL;
-    config->info.info[i].type = (tensor_type)tensor->type ();
+    config->info.info[i].type = (tensor_type) tensor->type ();
     for (guint j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
       config->info.info[i].dimension[j] = tensor->dimension (j);
     }
     mem_size = tensor->data ().length ();
     mem_data = _g_memdup (tensor->data ().c_str (), mem_size);
 
-    out_mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, mem_data, mem_size,
-        0, mem_size, NULL, NULL);
+    out_mem = gst_memory_new_wrapped (
+        (GstMemoryFlags) 0, mem_data, mem_size, 0, mem_size, NULL, NULL);
 
     gst_buffer_append_memory (out_buf, out_mem);
   }
 
   /** copy timestamps */
   gst_buffer_copy_into (
-      out_buf, in_buf, (GstBufferCopyFlags)GST_BUFFER_COPY_METADATA, 0, -1);
+      out_buf, in_buf, (GstBufferCopyFlags) GST_BUFFER_COPY_METADATA, 0, -1);
   gst_memory_unmap (in_mem, &in_info);
 
   return out_buf;

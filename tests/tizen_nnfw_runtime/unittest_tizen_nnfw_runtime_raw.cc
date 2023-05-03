@@ -16,13 +16,13 @@
  * @brief Set tensor filter properties
  */
 static void
-_SetFilterProp (GstTensorFilterProperties *prop, const gchar * name, const gchar **models)
+_SetFilterProp (GstTensorFilterProperties *prop, const gchar *name, const gchar **models)
 {
   memset (prop, 0, sizeof (GstTensorFilterProperties));
   prop->fwname = name;
   prop->fw_opened = 0;
   prop->model_files = models;
-  prop->num_models = g_strv_length ((gchar**)models);
+  prop->num_models = g_strv_length ((gchar **) models);
 }
 
 /**
@@ -77,12 +77,13 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, getDimension)
   model_file = get_model_file ();
   ASSERT_TRUE (model_file != nullptr);
   const gchar *model_files[] = {
-    model_file, NULL,
+    model_file,
+    NULL,
   };
 
   _SetFilterProp (&prop, "nnfw", model_files);
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("nnfw");
-  EXPECT_NE (sp, (void *)NULL);
+  EXPECT_NE (sp, (void *) NULL);
 
   gst_tensors_info_init (&info);
   gst_tensors_info_init (&res);
@@ -134,11 +135,12 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, setDimension)
   model_file = get_model_file ();
   ASSERT_TRUE (model_file != nullptr);
   const gchar *model_files[] = {
-    model_file, NULL,
+    model_file,
+    NULL,
   };
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("nnfw");
-  EXPECT_NE (sp, (void *)NULL);
+  EXPECT_NE (sp, (void *) NULL);
 
   gst_tensors_info_init (&in_info);
   gst_tensors_info_init (&out_info);
@@ -200,13 +202,13 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, setDimension)
 
   /* generate dummy data */
   for (int idx = 0; idx < tensor_size; idx++)
-    ((float *)input.data)[idx] = (float)idx;
+    ((float *) input.data)[idx] = (float) idx;
 
   ret = sp->invoke_NN (&prop, &data, &input, &output);
   EXPECT_EQ (ret, 0);
 
   for (int idx = 0; idx < tensor_size; idx++)
-    EXPECT_FLOAT_EQ (((float *)output.data)[idx], (float)(idx + 2));
+    EXPECT_FLOAT_EQ (((float *) output.data)[idx], (float) (idx + 2));
 
   g_free (input.data);
   g_free (output.data);
@@ -232,11 +234,12 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, invoke)
   model_file = get_model_file ();
   ASSERT_TRUE (model_file != nullptr);
   const gchar *model_files[] = {
-    model_file, NULL,
+    model_file,
+    NULL,
   };
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("nnfw");
-  EXPECT_NE (sp, (void *)NULL);
+  EXPECT_NE (sp, (void *) NULL);
 
   output.size = input.size = sizeof (float) * 1;
 
@@ -248,15 +251,15 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, invoke)
   EXPECT_EQ (ret, 0);
 
   /** invoke successful */
-  *((float *)input.data) = 10.0;
+  *((float *) input.data) = 10.0;
   ret = sp->invoke_NN (&prop, &data, &input, &output);
   EXPECT_EQ (ret, 0);
-  EXPECT_FLOAT_EQ (*((float *)output.data), 12.0);
+  EXPECT_FLOAT_EQ (*((float *) output.data), 12.0);
 
-  *((float *)input.data) = 1.0;
+  *((float *) input.data) = 1.0;
   ret = sp->invoke_NN (&prop, &data, &input, &output);
   EXPECT_EQ (ret, 0);
-  EXPECT_FLOAT_EQ (*((float *)output.data), 3.0);
+  EXPECT_FLOAT_EQ (*((float *) output.data), 3.0);
 
   sp->close (&prop, &data);
   g_free (model_file);
@@ -313,15 +316,16 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, invokeAdvanced)
       root_path, "tests", "test_models", "data", "orange.raw", NULL);
 
   const gchar *model_files[] = {
-    model_file, NULL,
+    model_file,
+    NULL,
   };
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("nnfw");
-  EXPECT_NE (sp, (void *)NULL);
+  EXPECT_NE (sp, (void *) NULL);
 
-  if (!g_file_test (model_file, G_FILE_TEST_EXISTS) ||
-      !g_file_test (manifest_file, G_FILE_TEST_EXISTS) ||
-      !g_file_test (data_file, G_FILE_TEST_EXISTS)) {
+  if (!g_file_test (model_file, G_FILE_TEST_EXISTS)
+      || !g_file_test (manifest_file, G_FILE_TEST_EXISTS)
+      || !g_file_test (data_file, G_FILE_TEST_EXISTS)) {
     goto failed;
   }
 
@@ -383,7 +387,7 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, invokeAdvanced)
   input.data = NULL;
   output.data = g_malloc (output.size);
 
-  EXPECT_TRUE (g_file_get_contents (data_file, (gchar **)&input.data, &data_read, NULL));
+  EXPECT_TRUE (g_file_get_contents (data_file, (gchar **) &input.data, &data_read, NULL));
   EXPECT_EQ (data_read, input.size);
 
   ret = sp->invoke_NN (&prop, &data, &input, &output);
@@ -392,7 +396,7 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, invokeAdvanced)
   /**
    * entry 952 (idx 951) is orange as per tests/test_models/labels/labels.txt
    */
-  max_idx = get_argmax ((guint8 *)output.data, output.size);
+  max_idx = get_argmax ((guint8 *) output.data, output.size);
   EXPECT_EQ (max_idx, 951U);
 
   g_free (output.data);

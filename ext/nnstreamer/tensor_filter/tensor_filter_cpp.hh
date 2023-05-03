@@ -68,10 +68,10 @@
 #ifdef __cplusplus
 
 #include <atomic>
-#include <vector>
+#include <nnstreamer_plugin_api_filter.h>
 #include <stdint.h>
 #include <unordered_map>
-#include <nnstreamer_plugin_api_filter.h>
+#include <vector>
 
 /**
  * @brief This allows to have a c++ class inserted as a filter in a neural network pipeline of nnstreamer
@@ -81,69 +81,77 @@
  *         tensor_filter_cpp class. They should NOT touch any private
  *         properties.
  */
-class tensor_filter_cpp {
+class tensor_filter_cpp
+{
   private:
-    const uint32_t validity;
-    const char *name; /**< The name of this C++ custom filter, searchable with "model" property */
+  const uint32_t validity;
+  const char *name; /**< The name of this C++ custom filter, searchable with "model" property */
 
-    std::atomic_uint ref_count;
-    static std::unordered_map<std::string, tensor_filter_cpp*> filters;
-    static std::vector<void *> handles;
-    static bool close_all_called;
+  std::atomic_uint ref_count;
+  static std::unordered_map<std::string, tensor_filter_cpp *> filters;
+  static std::vector<void *> handles;
+  static bool close_all_called;
 
   protected:
-    const GstTensorFilterProperties *prop;
+  const GstTensorFilterProperties *prop;
 
   public:
-    tensor_filter_cpp(const char *modelName); /**< modelName is the model property of tensor_filter, which could be the path to the model file (requires proper extension name) or the registered model name at runtime. */
-    virtual ~tensor_filter_cpp();
+  tensor_filter_cpp (const char *modelName); /**< modelName is the model property of tensor_filter,
+                                                which could be the path to the model file (requires proper extension name) or the registered model name at runtime. */
+  virtual ~tensor_filter_cpp ();
 
-    /** C++ plugin writers need to fill {getInput/Output} inclusive-or {setInput} */
-    virtual int getInputDim(GstTensorsInfo *info) = 0;
-    virtual int getOutputDim(GstTensorsInfo *info) = 0;
+  /** C++ plugin writers need to fill {getInput/Output} inclusive-or {setInput} */
+  virtual int getInputDim (GstTensorsInfo *info) = 0;
+  virtual int getOutputDim (GstTensorsInfo *info) = 0;
 
-    virtual int setInputDim(const GstTensorsInfo *in, GstTensorsInfo *out) = 0;
+  virtual int setInputDim (const GstTensorsInfo *in, GstTensorsInfo *out) = 0;
 
-    virtual int invoke(const GstTensorMemory *in, GstTensorMemory *out) = 0;
+  virtual int invoke (const GstTensorMemory *in, GstTensorMemory *out) = 0;
 
-    virtual bool isAllocatedBeforeInvoke() = 0;
-      /**< return true if you want nnstreamer to preallocate output buffers
-           before calling invoke. This value should be configured at the
-           constructor and cannot be changed afterwards.
-           This should not change its return values. */
+  virtual bool isAllocatedBeforeInvoke () = 0;
+  /**< return true if you want nnstreamer to preallocate output buffers
+       before calling invoke. This value should be configured at the
+       constructor and cannot be changed afterwards.
+       This should not change its return values. */
 
-    /** API. Do not override. */
-    static int __register(class tensor_filter_cpp *filter, unsigned int ref_count = 0);
-      /**< Register a C++ custom filter with this API if you want to register
-           it at runtime or at the constructor of a shared object if you want
-           to load it dynamically. This should be invoked before initialized
-           (constructed) by tensor_filter at run-time.
-           If you don't want to touch initial ref_count, keep it 0.
-      */
-    /** @brief Register this instance (same effect with __register) */
-    int _register(unsigned int ref_count = 0) {
-      return __register(this, ref_count);
-    }
-    static int __unregister(const char *name);
-      /**< Unregister the run-time registered c++ filter.
-           Do not call this to filters loaded as a .so (independent)
-           filter. */
-    /** @brief Unregister this instance (same effect with __unregister */
-    int _unregister() {
-      return __unregister(this->name);
-    }
+  /** API. Do not override. */
+  static int __register (class tensor_filter_cpp *filter, unsigned int ref_count = 0);
+  /**< Register a C++ custom filter with this API if you want to register
+       it at runtime or at the constructor of a shared object if you want
+       to load it dynamically. This should be invoked before initialized
+       (constructed) by tensor_filter at run-time.
+       If you don't want to touch initial ref_count, keep it 0.
+  */
+  /** @brief Register this instance (same effect with __register) */
+  int _register (unsigned int ref_count = 0)
+  {
+    return __register (this, ref_count);
+  }
+  static int __unregister (const char *name);
+  /**< Unregister the run-time registered c++ filter.
+       Do not call this to filters loaded as a .so (independent)
+       filter. */
+  /** @brief Unregister this instance (same effect with __unregister */
+  int _unregister ()
+  {
+    return __unregister (this->name);
+  }
 
-    bool isValid();
-      /**< Check if it's a valid filter_cpp object. Do not override. */
+  bool isValid ();
+  /**< Check if it's a valid filter_cpp object. Do not override. */
 
-    /** Internal functions for tensor_filter main. Do not override */
-    static int getInputDim (const GstTensorFilterProperties *prop, void **private_data, GstTensorsInfo *info);
-    static int getOutputDim (const GstTensorFilterProperties *prop, void **private_data, GstTensorsInfo *info);
-    static int setInputDim (const GstTensorFilterProperties *prop, void **private_data, const GstTensorsInfo *in, GstTensorsInfo *out);
-    static int invoke (const GstTensorFilterProperties *prop, void **private_data, const GstTensorMemory *input, GstTensorMemory *output);
-    static int open (const GstTensorFilterProperties *prop, void **private_data);
-    static void close (const GstTensorFilterProperties *prop, void **private_data);
-    static void close_all_handles (void);
+  /** Internal functions for tensor_filter main. Do not override */
+  static int getInputDim (const GstTensorFilterProperties *prop,
+      void **private_data, GstTensorsInfo *info);
+  static int getOutputDim (const GstTensorFilterProperties *prop,
+      void **private_data, GstTensorsInfo *info);
+  static int setInputDim (const GstTensorFilterProperties *prop,
+      void **private_data, const GstTensorsInfo *in, GstTensorsInfo *out);
+  static int invoke (const GstTensorFilterProperties *prop, void **private_data,
+      const GstTensorMemory *input, GstTensorMemory *output);
+  static int open (const GstTensorFilterProperties *prop, void **private_data);
+  static void close (const GstTensorFilterProperties *prop, void **private_data);
+  static void close_all_handles (void);
 };
 
 #endif /* __cplusplus */
