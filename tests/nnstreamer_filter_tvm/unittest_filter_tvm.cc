@@ -15,9 +15,9 @@
 #include <nnstreamer_conf.h>
 #include <unittest_util.h>
 
-#include <tensor_common.h>
 #include <nnstreamer_plugin_api_filter.h>
 #include <nnstreamer_util.h>
+#include <tensor_common.h>
 
 #if defined(__aarch64__)
 #define ARCH "aarch64"
@@ -35,7 +35,7 @@
  */
 class NNStreamerFilterTVMTest : public ::testing::Test
 {
-protected:
+  protected:
   const GstTensorFilterFramework *sp;
   const gchar *wrong_model_files[2];
   const gchar *proper_model_files[2];
@@ -53,17 +53,19 @@ protected:
   {
     const gchar *src_root = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
     g_autofree gchar *root_path = src_root ? g_strdup (src_root) : g_get_current_dir ();
-    g_autofree gchar *model_name = g_strdup_printf ("tvm_add_one_%s%s_", ARCH, NNSTREAMER_SO_FILE_EXTENSION);
+    g_autofree gchar *model_name
+        = g_strdup_printf ("tvm_add_one_%s%s_", ARCH, NNSTREAMER_SO_FILE_EXTENSION);
 
     return g_build_filename (root_path, "tests", "test_models", "models", model_name, NULL);
   }
 
-public:
+  public:
   /**
    * @brief Construct a new NNStreamerFilterTVMTest object
    */
   NNStreamerFilterTVMTest ()
-    : sp(nullptr), model_file(nullptr), pipeline(nullptr), gstpipe(nullptr), sink_handle(nullptr)
+      : sp (nullptr), model_file (nullptr), pipeline (nullptr),
+        gstpipe (nullptr), sink_handle (nullptr)
   {
     input.data = output.data = nullptr;
     input.size = output.size = 0;
@@ -91,7 +93,7 @@ public:
     wrong_model_files[0] = "temp.so";
     wrong_model_files[1] = NULL;
 
-    model_file = SetModelFile();
+    model_file = SetModelFile ();
     proper_model_files[0] = model_file;
     proper_model_files[1] = NULL;
 
@@ -120,8 +122,7 @@ public:
   /**
    * @brief Signal handler to validate new output data
    */
-  static void
-  CheckOutput (GstElement *element, GstBuffer *buffer, gpointer user_data)
+  static void CheckOutput (GstElement *element, GstBuffer *buffer, gpointer user_data)
   {
     GstMemory *mem_res;
     GstMapInfo info_res;
@@ -396,7 +397,8 @@ TEST_F (NNStreamerFilterTVMTest, launch00)
 
   sink_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "sink");
   EXPECT_NE (sink_handle, nullptr);
-  g_signal_connect (sink_handle, "new-data", (GCallback) NNStreamerFilterTVMTest::CheckOutput, NULL);
+  g_signal_connect (sink_handle, "new-data",
+      (GCallback) NNStreamerFilterTVMTest::CheckOutput, NULL);
 
   /* Test */
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);

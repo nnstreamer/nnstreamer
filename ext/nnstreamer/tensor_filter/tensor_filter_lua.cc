@@ -72,17 +72,17 @@
  */
 
 extern "C" {
+#include <lauxlib.h>
 #include <lua.h>
 #include <lualib.h>
-#include <lauxlib.h>
 }
 
 #include <glib.h>
-#include <string>
 #include <memory>
 #include <nnstreamer_cppplugin_api_filter.hh>
 #include <nnstreamer_log.h>
 #include <nnstreamer_util.h>
+#include <string>
 #include <tensor_common.h>
 
 
@@ -93,8 +93,8 @@ namespace tensorfilter_lua
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-void _init_filter_lua (void) __attribute__((constructor));
-void _fini_filter_lua (void) __attribute__((destructor));
+void _init_filter_lua (void) __attribute__ ((constructor));
+void _fini_filter_lua (void) __attribute__ ((destructor));
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
@@ -112,7 +112,7 @@ typedef struct lua_tensor {
 static int
 tensor_index (lua_State *L)
 {
-  lua_tensor *lt = *((lua_tensor **) luaL_checkudata(L, 1, "lua_tensor"));
+  lua_tensor *lt = *((lua_tensor **) luaL_checkudata (L, 1, "lua_tensor"));
   int tidx = luaL_checkint (L, 2) - 1;
 
   uint element_size = gst_tensor_get_element_size (lt->type);
@@ -149,8 +149,7 @@ tensor_index (lua_State *L)
 #ifdef FLOAT16_SUPPORT
       value = (double) ((float16 *) lt->data)[tidx];
 #else
-      nns_loge
-          ("NNStreamer requires -DFLOAT16_SUPPORT as a build option to enable float16 type. This binary does not have float16 feature enabled; thus, float16 type is not supported in this instance.\n");
+      nns_loge ("NNStreamer requires -DFLOAT16_SUPPORT as a build option to enable float16 type. This binary does not have float16 feature enabled; thus, float16 type is not supported in this instance.\n");
       throw std::runtime_error ("Float16 not supported. Recompile with -DFLOAT16_SUPPORT.");
 #endif
       break;
@@ -172,10 +171,10 @@ tensor_index (lua_State *L)
 
 /** @brief For assigning new value in Lua */
 static int
-tensor_newindex (lua_State* L)
+tensor_newindex (lua_State *L)
 {
   lua_tensor *lt = *((lua_tensor **) luaL_checkudata (L, 1, "lua_tensor"));
-  int tidx = luaL_checkint(L, 2) - 1;
+  int tidx = luaL_checkint (L, 2) - 1;
   double value = luaL_checknumber (L, 3);
 
   uint element_size = gst_tensor_get_element_size (lt->type);
@@ -187,29 +186,29 @@ tensor_newindex (lua_State* L)
       ((int32_t *) lt->data)[tidx] = (int32_t) value;
       break;
     case _NNS_UINT32:
-    {
-      int32_t temp = (int32_t) value;
-      ((uint32_t *) lt->data)[tidx] = (uint32_t) temp;
-      break;
-    }
+      {
+        int32_t temp = (int32_t) value;
+        ((uint32_t *) lt->data)[tidx] = (uint32_t) temp;
+        break;
+      }
     case _NNS_INT16:
       ((int16_t *) lt->data)[tidx] = (int16_t) value;
       break;
     case _NNS_UINT16:
-    {
-      int16_t temp = (int16_t) value;
-      ((uint16_t *) lt->data)[tidx] = (uint16_t) temp;
-      break;
-    }
+      {
+        int16_t temp = (int16_t) value;
+        ((uint16_t *) lt->data)[tidx] = (uint16_t) temp;
+        break;
+      }
     case _NNS_INT8:
       ((int8_t *) lt->data)[tidx] = (int8_t) value;
       break;
     case _NNS_UINT8:
-    {
-      int8_t temp = (int8_t) value;
-      ((uint8_t *) lt->data)[tidx] = (uint8_t) temp;
-      break;
-    }
+      {
+        int8_t temp = (int8_t) value;
+        ((uint8_t *) lt->data)[tidx] = (uint8_t) temp;
+        break;
+      }
     case _NNS_FLOAT64:
       ((double *) lt->data)[tidx] = (uint8_t) value;
       break;
@@ -220,8 +219,7 @@ tensor_newindex (lua_State* L)
 #ifdef FLOAT16_SUPPORT
       ((float16 *) lt->data)[tidx] = (float16) value;
 #else
-      nns_loge
-          ("NNStreamer requires -DFLOAT16_SUPPORT as a build option to enable float16 type. This binary does not have float16 feature enabled; thus, float16 type is not supported in this instance.\n");
+      nns_loge ("NNStreamer requires -DFLOAT16_SUPPORT as a build option to enable float16 type. This binary does not have float16 feature enabled; thus, float16 type is not supported in this instance.\n");
       throw std::runtime_error ("Float16 not supported. Recompile with -DFLOAT16_SUPPORT.");
 #endif
       break;
@@ -229,11 +227,11 @@ tensor_newindex (lua_State* L)
       ((int64_t *) lt->data)[tidx] = (int64_t) value;
       break;
     case _NNS_UINT64:
-    {
-      int64_t temp = (int64_t) value;
-      ((uint64_t *) lt->data)[tidx] = (uint64_t) temp;
-      break;
-    }
+      {
+        int64_t temp = (int64_t) value;
+        ((uint64_t *) lt->data)[tidx] = (uint64_t) temp;
+        break;
+      }
     default:
       throw std::runtime_error ("Error occurred during set tensor value");
       break;
@@ -244,7 +242,7 @@ tensor_newindex (lua_State* L)
 
 /** @brief Expose C array to Lua */
 static int
-expose_tensor (lua_State* L, lua_tensor *tensor)
+expose_tensor (lua_State *L, lua_tensor *tensor)
 {
   lua_tensor **ptensor = (lua_tensor **) lua_newuserdata (L, sizeof (lua_tensor *));
   *ptensor = tensor;
@@ -256,7 +254,7 @@ expose_tensor (lua_State* L, lua_tensor *tensor)
 
 /** @brief Get input tensor in Lua */
 static int
-getInputTensor (lua_State* L)
+getInputTensor (lua_State *L)
 {
   int tidx = lua_tointeger (L, 1);
   if (tidx <= 0 || tidx > NNS_TENSOR_SIZE_LIMIT) {
@@ -290,11 +288,8 @@ getOutputTensor (lua_State *L)
 static void
 create_tensor_type (lua_State *L)
 {
-  static const struct luaL_reg tensor[] = {
-    {"__index", tensor_index},
-    {"__newindex", tensor_newindex},
-    {NULL, NULL}
-  };
+  static const struct luaL_reg tensor[] = { { "__index", tensor_index },
+    { "__newindex", tensor_newindex }, { NULL, NULL } };
 
   luaL_newmetatable (L, "lua_tensor");
   luaL_openlib (L, NULL, tensor, 0);
@@ -341,7 +336,7 @@ const accl_hw lua_subplugin::hw_list[] = { ACCL_CPU };
 
 /** @brief Class constructor */
 lua_subplugin::lua_subplugin ()
-    : tensor_filter_subplugin (), L (NULL), input_lua_tensors {}, output_lua_tensors {}
+    : tensor_filter_subplugin (), L (NULL), input_lua_tensors{}, output_lua_tensors{}
 {
   gst_tensors_info_init (std::addressof (inputInfo));
   gst_tensors_info_init (std::addressof (outputInfo));
@@ -359,7 +354,7 @@ lua_subplugin::~lua_subplugin ()
 
 /** @brief tensor-filter subplugin mandatory method */
 tensor_filter_subplugin &
-lua_subplugin::getEmptyInstance  ()
+lua_subplugin::getEmptyInstance ()
 {
   return *(new lua_subplugin ());
 }
@@ -376,7 +371,8 @@ lua_subplugin::setTensorsInfo (GstTensorsInfo &tensors_info)
       int num_tensors = lua_tointeger (L, -1);
       if (num_tensors <= 0 || num_tensors > NNS_TENSOR_SIZE_LIMIT)
         throw std::invalid_argument (
-            "The number of tensors required by the given model exceeds the nnstreamer tensor limit (" NNS_TENSOR_SIZE_LIMIT_STR " by default).");
+            "The number of tensors required by the given model exceeds the nnstreamer tensor limit (" NNS_TENSOR_SIZE_LIMIT_STR
+            " by default).");
       tensors_info.num_tensors = (uint) num_tensors;
     } else {
       throw std::invalid_argument ("Failed to parse `num`. Please check the script");
@@ -391,7 +387,8 @@ lua_subplugin::setTensorsInfo (GstTensorsInfo &tensors_info)
         lua_gettable (L, -2);
         tensors_info.info[j - 1].type = gst_tensor_get_type (lua_tostring (L, -1));
         if (tensors_info.info[j - 1].type == _NNS_END)
-          throw std::invalid_argument ("Failed to parse `type`. Possible types are " GST_TENSOR_TYPE_ALL);
+          throw std::invalid_argument (
+              "Failed to parse `type`. Possible types are " GST_TENSOR_TYPE_ALL);
         lua_pop (L, 1);
       }
     } else {
@@ -430,7 +427,8 @@ lua_subplugin::setTensorsInfo (GstTensorsInfo &tensors_info)
     }
     lua_pop (L, 1);
   } else {
-    throw std::invalid_argument ("Failed to parse global variable `[input/output]TensorsInfo`. Please check the script");
+    throw std::invalid_argument (
+        "Failed to parse global variable `[input/output]TensorsInfo`. Please check the script");
   }
 }
 
@@ -461,14 +459,14 @@ lua_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     std::unique_ptr<gchar, decltype (&g_free)> script_ptr (script, g_free);
 
     if (luaL_dostring (L, script_ptr.get ()) != 0) {
-      throw std::invalid_argument (std::string ("Failed to run given Lua script. Error message: ") +
-          lua_tostring (L, -1));
+      throw std::invalid_argument (std::string ("Failed to run given Lua script. Error message: ")
+                                   + lua_tostring (L, -1));
     }
   } else {
     /** Do File mode */
     if (luaL_dofile (L, prop->model_files[0]) != 0) {
-      throw std::invalid_argument (std::string ("Failed to run given Lua script file. Error message: ") +
-          lua_tostring (L, -1));
+      throw std::invalid_argument (std::string ("Failed to run given Lua script file. Error message: ")
+                                   + lua_tostring (L, -1));
     }
   }
 
@@ -502,10 +500,10 @@ lua_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
   }
 
   lua_getglobal (L, "nnstreamer_invoke");
-  if (lua_isfunction(L, -1)) {
-      if (lua_pcall (L, 0, 0, 0) != 0) {
-        throw std::runtime_error ("error while pcall nnstreamer_invoke");
-      }
+  if (lua_isfunction (L, -1)) {
+    if (lua_pcall (L, 0, 0, 0) != 0) {
+      throw std::runtime_error ("error while pcall nnstreamer_invoke");
+    }
   } else {
     throw std::runtime_error ("Error while loading function `nnstreamer_invoke` in lua script");
   }
@@ -526,8 +524,7 @@ lua_subplugin::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
 
 /** @brief tensor-filter subplugin mandatory method */
 int
-lua_subplugin::getModelInfo (
-    model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info)
+lua_subplugin::getModelInfo (model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info)
 {
   if (ops == GET_IN_OUT_INFO) {
     gst_tensors_info_copy (std::addressof (in_info), std::addressof (inputInfo));
@@ -587,5 +584,5 @@ _fini_filter_lua ()
   lua_subplugin::fini_filter_lua ();
 }
 
-} /* namespace nnstreamer::tensorfilter_lua */
+} // namespace tensorfilter_lua
 } /* namespace nnstreamer */

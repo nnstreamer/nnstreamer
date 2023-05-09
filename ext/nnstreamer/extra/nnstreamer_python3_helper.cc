@@ -24,10 +24,8 @@
 #include "nnstreamer_python3_helper.h"
 
 /** @brief object structure for custom Python type: TensorShape */
-typedef struct
-{
-  PyObject_HEAD
-  PyObject *dims;
+typedef struct {
+  PyObject_HEAD PyObject *dims;
   PyArray_Descr *type;
 } TensorShapeObject;
 
@@ -40,7 +38,7 @@ PyMODINIT_FUNC PyInit_nnstreamer_python (void);
  * @param args : arguments for the method
  */
 static PyObject *
-TensorShape_setDims (TensorShapeObject * self, PyObject * args)
+TensorShape_setDims (TensorShapeObject *self, PyObject *args)
 {
   PyObject *dims;
   PyObject *new_dims;
@@ -75,7 +73,7 @@ TensorShape_setDims (TensorShapeObject * self, PyObject * args)
  * @param args : arguments for the method
  */
 static PyObject *
-TensorShape_getDims (TensorShapeObject * self, PyObject * args)
+TensorShape_getDims (TensorShapeObject *self, PyObject *args)
 {
   UNUSED (args);
   return Py_BuildValue ("O", self->dims);
@@ -87,7 +85,7 @@ TensorShape_getDims (TensorShapeObject * self, PyObject * args)
  * @param args : arguments for the method
  */
 static PyObject *
-TensorShape_getType (TensorShapeObject * self, PyObject * args)
+TensorShape_getType (TensorShapeObject *self, PyObject *args)
 {
   UNUSED (args);
   return Py_BuildValue ("O", self->type);
@@ -100,7 +98,7 @@ TensorShape_getType (TensorShapeObject * self, PyObject * args)
  * @param kw : keywords for the arguments
  */
 static PyObject *
-TensorShape_new (PyTypeObject * type, PyObject * args, PyObject * kw)
+TensorShape_new (PyTypeObject *type, PyObject *args, PyObject *kw)
 {
   TensorShapeObject *self = (TensorShapeObject *) type->tp_alloc (type, 0);
   UNUSED (args);
@@ -123,7 +121,7 @@ TensorShape_new (PyTypeObject * type, PyObject * args, PyObject * kw)
  * @param kw : keywords for the arguments
  */
 static int
-TensorShape_init (TensorShapeObject * self, PyObject * args, PyObject * kw)
+TensorShape_init (TensorShapeObject *self, PyObject *args, PyObject *kw)
 {
   char *keywords[] = { (char *) "dims", (char *) "type", NULL };
   PyObject *dims = NULL;
@@ -133,9 +131,8 @@ TensorShape_init (TensorShapeObject * self, PyObject * args, PyObject * kw)
     return -1;
 
   if (dims) {
-    PyObject *none =
-        PyObject_CallMethod ((PyObject *) self, (char *) "setDims",
-        (char *) "O", dims);
+    PyObject *none = PyObject_CallMethod (
+        (PyObject *) self, (char *) "setDims", (char *) "O", dims);
     Py_SAFEDECREF (none);
   }
 
@@ -158,7 +155,7 @@ TensorShape_init (TensorShapeObject * self, PyObject * args, PyObject * kw)
  * @param self : Python type object
  */
 static void
-TensorShape_dealloc (TensorShapeObject * self)
+TensorShape_dealloc (TensorShapeObject *self)
 {
   Py_SAFEDECREF (self->dims);
   Py_SAFEDECREF (self->type);
@@ -166,29 +163,22 @@ TensorShape_dealloc (TensorShapeObject * self)
 }
 
 /** @brief members for custom type object */
-static PyMemberDef TensorShape_members[] = {
-  {(char *) "dims", T_OBJECT_EX, offsetof (TensorShapeObject, dims), 0, NULL},
-  {(char *) "type", T_OBJECT_EX, offsetof (TensorShapeObject, type), 0, NULL}
-};
+static PyMemberDef TensorShape_members[]
+    = { { (char *) "dims", T_OBJECT_EX, offsetof (TensorShapeObject, dims), 0, NULL },
+        { (char *) "type", T_OBJECT_EX, offsetof (TensorShapeObject, type), 0, NULL } };
 
 /** @brief methods for custom type object */
-static PyMethodDef TensorShape_methods[] = {
-  {(char *) "setDims", (PyCFunction) TensorShape_setDims,
-        METH_VARARGS | METH_KEYWORDS, NULL},
-  {(char *) "getDims", (PyCFunction) TensorShape_getDims,
-        METH_VARARGS | METH_KEYWORDS, NULL},
-  {(char *) "getType", (PyCFunction) TensorShape_getType,
-        METH_VARARGS | METH_KEYWORDS, NULL},
-  {NULL, NULL, 0, NULL}
-};
+static PyMethodDef TensorShape_methods[] = { { (char *) "setDims", (PyCFunction) TensorShape_setDims,
+                                                 METH_VARARGS | METH_KEYWORDS, NULL },
+  { (char *) "getDims", (PyCFunction) TensorShape_getDims, METH_VARARGS | METH_KEYWORDS, NULL },
+  { (char *) "getType", (PyCFunction) TensorShape_getType, METH_VARARGS | METH_KEYWORDS, NULL },
+  { NULL, NULL, 0, NULL } };
 
 /** @brief Structure for custom type object */
-static PyTypeObject TensorShapeType = []{
+static PyTypeObject TensorShapeType = [] {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-  PyTypeObject ret = {
-    PyVarObject_HEAD_INIT (NULL, 0)
-  };
+  PyTypeObject ret = { PyVarObject_HEAD_INIT (NULL, 0) };
 #pragma GCC diagnostic pop
   ret.tp_name = "nnstreamer_python.TensorShape";
   ret.tp_basicsize = sizeof (TensorShapeObject);
@@ -205,16 +195,15 @@ static PyTypeObject TensorShapeType = []{
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-static PyModuleDef nnstreamer_python_module = {
-  PyModuleDef_HEAD_INIT, "nnstreamer_python", NULL, -1, NULL
-};
+static PyModuleDef nnstreamer_python_module
+    = { PyModuleDef_HEAD_INIT, "nnstreamer_python", NULL, -1, NULL };
 #pragma GCC diagnostic pop
 
 /** @brief module initialization (python 3.x) */
 PyMODINIT_FUNC
 PyInit_nnstreamer_python (void)
 {
-  PyObject *type_object = (PyObject *) & TensorShapeType;
+  PyObject *type_object = (PyObject *) &TensorShapeType;
   PyObject *module;
 
   /** Check TensorShape type */
@@ -243,29 +232,29 @@ tensor_type
 getTensorType (NPY_TYPES npyType)
 {
   switch (npyType) {
-  case NPY_INT32:
-    return _NNS_INT32;
-  case NPY_UINT32:
-    return _NNS_UINT32;
-  case NPY_INT16:
-    return _NNS_INT16;
-  case NPY_UINT16:
-    return _NNS_UINT16;
-  case NPY_INT8:
-    return _NNS_INT8;
-  case NPY_UINT8:
-    return _NNS_UINT8;
-  case NPY_INT64:
-    return _NNS_INT64;
-  case NPY_UINT64:
-    return _NNS_UINT64;
-  case NPY_FLOAT32:
-    return _NNS_FLOAT32;
-  case NPY_FLOAT64:
-    return _NNS_FLOAT64;
-  default:
-    /** @todo Support other types */
-    break;
+    case NPY_INT32:
+      return _NNS_INT32;
+    case NPY_UINT32:
+      return _NNS_UINT32;
+    case NPY_INT16:
+      return _NNS_INT16;
+    case NPY_UINT16:
+      return _NNS_UINT16;
+    case NPY_INT8:
+      return _NNS_INT8;
+    case NPY_UINT8:
+      return _NNS_UINT8;
+    case NPY_INT64:
+      return _NNS_INT64;
+    case NPY_UINT64:
+      return _NNS_UINT64;
+    case NPY_FLOAT32:
+      return _NNS_FLOAT32;
+    case NPY_FLOAT64:
+      return _NNS_FLOAT64;
+    default:
+      /** @todo Support other types */
+      break;
   }
 
   return _NNS_END;
@@ -280,29 +269,29 @@ NPY_TYPES
 getNumpyType (tensor_type tType)
 {
   switch (tType) {
-  case _NNS_INT32:
-    return NPY_INT32;
-  case _NNS_UINT32:
-    return NPY_UINT32;
-  case _NNS_INT16:
-    return NPY_INT16;
-  case _NNS_UINT16:
-    return NPY_UINT16;
-  case _NNS_INT8:
-    return NPY_INT8;
-  case _NNS_UINT8:
-    return NPY_UINT8;
-  case _NNS_INT64:
-    return NPY_INT64;
-  case _NNS_UINT64:
-    return NPY_UINT64;
-  case _NNS_FLOAT32:
-    return NPY_FLOAT32;
-  case _NNS_FLOAT64:
-    return NPY_FLOAT64;
-  default:
-    /** @todo Support other types */
-    break;
+    case _NNS_INT32:
+      return NPY_INT32;
+    case _NNS_UINT32:
+      return NPY_UINT32;
+    case _NNS_INT16:
+      return NPY_INT16;
+    case _NNS_UINT16:
+      return NPY_UINT16;
+    case _NNS_INT8:
+      return NPY_INT8;
+    case _NNS_UINT8:
+      return NPY_UINT8;
+    case _NNS_INT64:
+      return NPY_INT64;
+    case _NNS_UINT64:
+      return NPY_UINT64;
+    case _NNS_FLOAT32:
+      return NPY_FLOAT32;
+    case _NNS_FLOAT64:
+      return NPY_FLOAT64;
+    default:
+      /** @todo Support other types */
+      break;
   }
   return NPY_NOTYPE;
 }
@@ -337,16 +326,19 @@ loadScript (PyObject **core_obj, const gchar *module_name, const gchar *class_na
 /**
  * @brief	loads the dynamic shared object of the python
  */
-int openPythonLib (void **handle)
+int
+openPythonLib (void **handle)
 {
-    /**
+  /**
    * To fix import error of python extension modules
    * (e.g., multiarray.x86_64-linux-gnu.so: undefined symbol: PyExc_SystemError)
    */
-  gchar libname[32] = { 0, };
+  gchar libname[32] = {
+    0,
+  };
 
-  g_snprintf (libname, sizeof (libname), "libpython%d.%d.%s",
-      PY_MAJOR_VERSION, PY_MINOR_VERSION, SO_EXT);
+  g_snprintf (libname, sizeof (libname), "libpython%d.%d.%s", PY_MAJOR_VERSION,
+      PY_MINOR_VERSION, SO_EXT);
   *handle = dlopen (libname, RTLD_LAZY | RTLD_GLOBAL);
   if (NULL == *handle) {
     /* check the python was compiled with '--with-pymalloc' */
@@ -364,7 +356,8 @@ int openPythonLib (void **handle)
 /**
  * @brief	Add custom python module to system path
  */
-int addToSysPath (const gchar *path)
+int
+addToSysPath (const gchar *path)
 {
   /** Add current/directory path to sys.path */
   PyObject *sys_module = PyImport_ImportModule ("sys");
@@ -406,13 +399,13 @@ parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
   info->num_tensors = PyList_Size (result);
   for (i = 0; i < info->num_tensors; i++) {
     /** don't own the reference */
-    PyObject *tensor_shape = PyList_GetItem (result, (Py_ssize_t)i);
+    PyObject *tensor_shape = PyList_GetItem (result, (Py_ssize_t) i);
     if (nullptr == tensor_shape) {
       Py_ERRMSG ("The function %s has failed, cannot get TensorShape object.", __FUNCTION__);
       return -1;
     }
 
-    PyObject *shape_type = PyObject_CallMethod (tensor_shape, (char *)"getType", NULL);
+    PyObject *shape_type = PyObject_CallMethod (tensor_shape, (char *) "getType", NULL);
     if (nullptr == shape_type) {
       Py_ERRMSG ("The function %s has failed, cannot get the tensor type.", __FUNCTION__);
       return -1;
@@ -420,10 +413,10 @@ parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
 
     /** convert numpy type to tensor type */
     info->info[i].type
-        = getTensorType ((NPY_TYPES) (((PyArray_Descr *)shape_type)->type_num));
+        = getTensorType ((NPY_TYPES) (((PyArray_Descr *) shape_type)->type_num));
     Py_SAFEDECREF (shape_type);
 
-    PyObject *shape_dims = PyObject_CallMethod (tensor_shape, (char *)"getDims", NULL);
+    PyObject *shape_dims = PyObject_CallMethod (tensor_shape, (char *) "getDims", NULL);
     if (nullptr == shape_dims) {
       Py_ERRMSG ("The function %s has failed, cannot get the tensor dimension.", __FUNCTION__);
       return -1;
@@ -437,23 +430,23 @@ parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
 
     rank = (guint) PyList_Size (shape_dims);
     if (rank > NNS_TENSOR_RANK_LIMIT) {
-      Py_ERRMSG ("The function %s has failed, max rank of tensor dimension is %d.", __FUNCTION__, NNS_TENSOR_RANK_LIMIT);
+      Py_ERRMSG ("The function %s has failed, max rank of tensor dimension is %d.",
+          __FUNCTION__, NNS_TENSOR_RANK_LIMIT);
       Py_SAFEDECREF (shape_dims);
       return -EINVAL;
     }
 
     for (j = 0; j < rank; j++) {
-      PyErr_Clear();
-      PyObject *item = PyList_GetItem (shape_dims, (Py_ssize_t)j);
+      PyErr_Clear ();
+      PyObject *item = PyList_GetItem (shape_dims, (Py_ssize_t) j);
       int val = -1;
 
-      if (PyErr_Occurred()) {
-        PyErr_Print();
-        PyErr_Clear();
+      if (PyErr_Occurred ()) {
+        PyErr_Print ();
+        PyErr_Clear ();
         info->info[i].dimension[j] = 0;
-        ml_loge
-          ("Python nnstreamer plugin has returned dimensions of the %u'th tensor not in an array. Python code should return int-type array for dimensions. Indexes are counted from 0.\n",
-          i + 1);
+        ml_loge ("Python nnstreamer plugin has returned dimensions of the %u'th tensor not in an array. Python code should return int-type array for dimensions. Indexes are counted from 0.\n",
+            i + 1);
         Py_SAFEDECREF (shape_dims);
         return -EINVAL;
       }
@@ -463,20 +456,19 @@ parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
       } else if (PyFloat_Check (item)) {
         /** Regard this as a warning. Don't return -EINVAL with this */
         val = (int) PyFloat_AsDouble (item);
-        ml_loge
-          ("Python nnstreamer plugin has returned the %u'th dimension value of the %u'th tensor in floating-point type (%f), which is casted as unsigned-int. Python code should return int-type for dimension values. Indexes are counted from 0.\n",
-          j + 1, i + 1, PyFloat_AsDouble (item));
+        ml_loge ("Python nnstreamer plugin has returned the %u'th dimension value of the %u'th tensor in floating-point type (%f), which is casted as unsigned-int. Python code should return int-type for dimension values. Indexes are counted from 0.\n",
+            j + 1, i + 1, PyFloat_AsDouble (item));
       } else {
         info->info[i].dimension[j] = 0;
-        ml_loge
-          ("Python nnstreamer plugin has returned the %u'th dimension value of the %u'th tensor neither in integer or floating-pointer. Python code should return int-type for dimension values. Indexes are counted from 0.\n",
-          j + 1, i + 1);
+        ml_loge ("Python nnstreamer plugin has returned the %u'th dimension value of the %u'th tensor neither in integer or floating-pointer. Python code should return int-type for dimension values. Indexes are counted from 0.\n",
+            j + 1, i + 1);
         Py_SAFEDECREF (shape_dims);
         return -EINVAL;
       }
 
       if (val <= 0) {
-        Py_ERRMSG ("The %u'th dimension value of the %u'th tensor is invalid (%d).", j + 1, i + 1, val);
+        Py_ERRMSG ("The %u'th dimension value of the %u'th tensor is invalid (%d).",
+            j + 1, i + 1, val);
         Py_SAFEDECREF (shape_dims);
         return -EINVAL;
       }
@@ -501,13 +493,13 @@ parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
  * @return created object
  */
 PyObject *
-PyTensorShape_New (PyObject * shape_cls, const GstTensorInfo *info)
+PyTensorShape_New (PyObject *shape_cls, const GstTensorInfo *info)
 {
   _import_array (); /** for numpy */
 
   PyObject *args = PyTuple_New (2);
   PyObject *dims = PyList_New (NNS_TENSOR_RANK_LIMIT);
-  PyObject *type = (PyObject *)PyArray_DescrFromType (getNumpyType (info->type));
+  PyObject *type = (PyObject *) PyArray_DescrFromType (getNumpyType (info->type));
 
   if (nullptr == args || nullptr == dims || nullptr == type) {
     Py_ERRMSG ("The function %s has failed, cannot create args.", __FUNCTION__);
@@ -519,7 +511,7 @@ PyTensorShape_New (PyObject * shape_cls, const GstTensorInfo *info)
   }
 
   for (int i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
-    PyList_SetItem (dims, i, PyLong_FromLong ((uint64_t)info->dimension[i]));
+    PyList_SetItem (dims, i, PyLong_FromLong ((uint64_t) info->dimension[i]));
 
   PyTuple_SetItem (args, 0, dims);
   PyTuple_SetItem (args, 1, type);

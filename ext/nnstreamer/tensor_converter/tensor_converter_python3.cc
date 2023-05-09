@@ -7,7 +7,7 @@
  * @file	tensor_converter_python3.c
  * @date	May 03 2021
  * @brief	NNStreamer tensor-converter subplugin, "python3",
-*         which converts to tensors using python.
+ *         which converts to tensors using python.
  * @see		https://github.com/nnstreamer/nnstreamer
  * @author	Gichan Jang <gichan2.jang@samsung.com>
  * @bug		python converter with Python3.9.10 is stucked during Py_Finalize().
@@ -20,8 +20,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-void init_converter_py (void) __attribute__((constructor));
-void fini_converter_py (void) __attribute__((destructor));
+void init_converter_py (void) __attribute__ ((constructor));
+void fini_converter_py (void) __attribute__ ((destructor));
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
@@ -40,7 +40,7 @@ class PYConverterCore
 
   int init ();
   const char *getScriptPath ();
-  GstBuffer *convert (GstBuffer*in_buf, GstTensorsConfig *config);
+  GstBuffer *convert (GstBuffer *in_buf, GstTensorsConfig *config);
 
   /** @brief Lock python-related actions */
   void Py_LOCK ()
@@ -145,21 +145,20 @@ PYConverterCore::convert (GstBuffer *in_buf, GstTensorsConfig *config)
     }
 
     npy_intp input_dims[] = { (npy_intp) (in_info[i].size) };
-    PyObject *input_array = PyArray_SimpleNewFromData (
-        1, input_dims, NPY_UINT8, in_info[i].data);
+    PyObject *input_array
+        = PyArray_SimpleNewFromData (1, input_dims, NPY_UINT8, in_info[i].data);
 
     PyList_SetItem (param, i, input_array);
   }
 
-  if (!PyObject_HasAttrString (core_obj, (char *)"convert")) {
+  if (!PyObject_HasAttrString (core_obj, (char *) "convert")) {
     Py_ERRMSG ("Cannot find 'convert'");
     goto done;
   }
 
   pyValue = PyObject_CallMethod (core_obj, "convert", "(O)", param);
 
-  if (!PyArg_ParseTuple (pyValue, "OOii", &tensors_info, &output,
-      &rate_n, &rate_d)) {
+  if (!PyArg_ParseTuple (pyValue, "OOii", &tensors_info, &output, &rate_n, &rate_d)) {
     Py_ERRMSG ("Failed to parse converting result");
     goto done;
   }
@@ -177,13 +176,13 @@ PYConverterCore::convert (GstBuffer *in_buf, GstTensorsConfig *config)
     out_buf = gst_buffer_new ();
     for (unsigned int i = 0; i < num_tensors; i++) {
       PyArrayObject *output_array
-          = (PyArrayObject *)PyList_GetItem (output, (Py_ssize_t)i);
+          = (PyArrayObject *) PyList_GetItem (output, (Py_ssize_t) i);
 
       mem_size = PyArray_SIZE (output_array);
       mem_data = _g_memdup ((guint8 *) PyArray_DATA (output_array), mem_size);
 
-      out_mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, mem_data, mem_size,
-          0, mem_size, mem_data, g_free);
+      out_mem = gst_memory_new_wrapped (
+          (GstMemoryFlags) 0, mem_data, mem_size, 0, mem_size, mem_data, g_free);
       gst_buffer_append_memory (out_buf, out_mem);
     }
   } else {
@@ -220,7 +219,7 @@ PYConverterCore::init ()
   if (shape_cls == NULL)
     return -EINVAL;
 
-  return loadScript (&core_obj, module_name.c_str(), "CustomConverter");
+  return loadScript (&core_obj, module_name.c_str (), "CustomConverter");
 }
 
 /**
@@ -361,7 +360,7 @@ void
 init_converter_py (void)
 {
   /** Python should be initialized and finalized only once */
-  if (!Py_IsInitialized()) {
+  if (!Py_IsInitialized ()) {
     Py_Initialize ();
   }
   registerExternalConverter (&Python);
@@ -374,8 +373,9 @@ fini_converter_py (void)
   unregisterExternalConverter (Python.name);
 /**
  * @todo Remove below lines after this issue is addressed.
- * Tizen issues: After python version has been upgraded from 3.9.1 to 3.9.10, python converter is stopped at Py_Finalize.
- * Since Py_Initialize is not called twice from this object, Py_Finalize is temporarily removed.
+ * Tizen issues: After python version has been upgraded from 3.9.1 to 3.9.10,
+ * python converter is stopped at Py_Finalize. Since Py_Initialize is not called
+ * twice from this object, Py_Finalize is temporarily removed.
  */
 #if 0
   /** Python should be initialized and finalized only once */

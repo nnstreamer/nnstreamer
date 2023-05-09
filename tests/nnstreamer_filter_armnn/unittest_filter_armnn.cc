@@ -26,7 +26,7 @@ _SetFilterProp (GstTensorFilterProperties *prop, const gchar *name, const gchar 
   prop->fwname = name;
   prop->fw_opened = 0;
   prop->model_files = models;
-  prop->num_models = g_strv_length ((gchar **)models);
+  prop->num_models = g_strv_length ((gchar **) models);
 }
 
 
@@ -36,7 +36,7 @@ _SetFilterProp (GstTensorFilterProperties *prop, const gchar *name, const gchar 
 TEST (nnstreamerFilterArmnn, checkExistence)
 {
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
-  EXPECT_NE (sp, (void *)NULL);
+  EXPECT_NE (sp, (void *) NULL);
 }
 
 /**
@@ -46,13 +46,14 @@ TEST (nnstreamerFilterArmnn, openClose00_n)
 {
   int ret;
   const gchar *model_files[] = {
-    "temp.armnn", NULL,
+    "temp.armnn",
+    NULL,
   };
   GstTensorFilterProperties prop;
   void *data = NULL;
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
-  EXPECT_NE (sp, (void *)NULL);
+  EXPECT_NE (sp, (void *) NULL);
 
   _SetFilterProp (&prop, "armnn", model_files);
   ret = sp->open (&prop, &data);
@@ -76,10 +77,11 @@ TEST (nnstreamerFilterArmnn, openClose01_n)
   ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
 
   const gchar *model_files[] = {
-    model_file, NULL,
+    model_file,
+    NULL,
   };
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
-  EXPECT_NE (sp, (void *)NULL);
+  EXPECT_NE (sp, (void *) NULL);
   _SetFilterProp (&prop, "armnn", model_files);
 
   /** close without open, should not crash */
@@ -114,13 +116,14 @@ TEST (nnstreamerFilterArmnn, getDimension)
   ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
 
   const gchar *model_files[] = {
-    model_file, NULL,
+    model_file,
+    NULL,
   };
 
   _SetFilterProp (&prop, "armnn", model_files);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
-  EXPECT_NE (sp, (void *)NULL);
+  EXPECT_NE (sp, (void *) NULL);
 
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);
@@ -180,13 +183,14 @@ TEST (nnstreamerFilterArmnn, getDimension1_n)
   ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
 
   const gchar *model_files[] = {
-    model_file, NULL,
+    model_file,
+    NULL,
   };
 
   _SetFilterProp (&prop, "armnn", model_files);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
-  EXPECT_NE (sp, (void *)NULL);
+  EXPECT_NE (sp, (void *) NULL);
 
   /** get input dimension without open */
   ret = sp->getInputDimension (&prop, &data, &res);
@@ -214,12 +218,13 @@ TEST (nnstreamerFilterArmnn, getDimension2_n)
   ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
 
   const gchar *model_files[] = {
-    model_file, NULL,
+    model_file,
+    NULL,
   };
   _SetFilterProp (&prop, "armnn", model_files);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
-  EXPECT_NE (sp, (void *)NULL);
+  EXPECT_NE (sp, (void *) NULL);
 
   /** get output dimension without open */
   ret = sp->getOutputDimension (&prop, &data, &res);
@@ -247,13 +252,14 @@ TEST (nnstreamerFilterArmnn, invoke00)
   ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
 
   const gchar *model_files[] = {
-    model_file, NULL,
+    model_file,
+    NULL,
   };
 
   _SetFilterProp (&prop, "armnn", model_files);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
-  EXPECT_NE (sp, (void *)NULL);
+  EXPECT_NE (sp, (void *) NULL);
 
   output.size = input.size = sizeof (float) * 1;
 
@@ -264,15 +270,15 @@ TEST (nnstreamerFilterArmnn, invoke00)
   EXPECT_EQ (ret, 0);
 
   /** invoke successful */
-  *((float *)input.data) = 10.0;
+  *((float *) input.data) = 10.0;
   ret = sp->invoke_NN (&prop, &data, &input, &output);
   EXPECT_EQ (ret, 0);
-  EXPECT_EQ (*((float *)output.data), 12.0);
+  EXPECT_EQ (*((float *) output.data), 12.0);
 
-  *((float *)input.data) = 1.0;
+  *((float *) input.data) = 1.0;
   ret = sp->invoke_NN (&prop, &data, &input, &output);
   EXPECT_EQ (ret, 0);
-  EXPECT_EQ (*((float *)output.data), 3.0);
+  EXPECT_EQ (*((float *) output.data), 3.0);
 
   g_free (input.data);
   g_free (output.data);
@@ -299,13 +305,14 @@ TEST (nnstreamerFilterArmnn, invoke01_n)
   ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
 
   const gchar *model_files[] = {
-    model_file, NULL,
+    model_file,
+    NULL,
   };
 
   _SetFilterProp (&prop, "armnn", model_files);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
-  EXPECT_NE (sp, (void *)NULL);
+  EXPECT_NE (sp, (void *) NULL);
 
   output.size = input.size = sizeof (float) * 1;
 
@@ -338,12 +345,13 @@ TEST (nnstreamerFilterArmnn, invoke02_n)
   ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
 
   const gchar *model_files[] = {
-    model_file, NULL,
+    model_file,
+    NULL,
   };
 
   _SetFilterProp (&prop, "armnn", model_files);
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
-  EXPECT_NE (sp, (void *)NULL);
+  EXPECT_NE (sp, (void *) NULL);
 
   output.size = input.size = sizeof (float) * 1;
 
@@ -382,12 +390,13 @@ TEST (nnstreamerFilterArmnn, invoke03_n)
   ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
 
   const gchar *model_files[] = {
-    model_file, NULL,
+    model_file,
+    NULL,
   };
   _SetFilterProp (&prop, "armnn", model_files);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
-  EXPECT_NE (sp, (void *)NULL);
+  EXPECT_NE (sp, (void *) NULL);
 
   output.size = sizeof (float) * 1;
 
@@ -425,12 +434,13 @@ TEST (nnstreamerFilterArmnn, invoke04_n)
   ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
 
   const gchar *model_files[] = {
-    model_file, NULL,
+    model_file,
+    NULL,
   };
   _SetFilterProp (&prop, "armnn", model_files);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
-  EXPECT_NE (sp, (void *)NULL);
+  EXPECT_NE (sp, (void *) NULL);
 
   input.size = sizeof (float) * 1;
 
@@ -496,12 +506,13 @@ TEST (nnstreamerFilterArmnn, invokeAdvanced)
   }
 
   const gchar *model_files[] = {
-    model_file, NULL,
+    model_file,
+    NULL,
   };
   _SetFilterProp (&prop, "armnn", model_files);
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
-  EXPECT_NE (sp, (void *)NULL);
+  EXPECT_NE (sp, (void *) NULL);
 
   info.num_tensors = 1;
   info.info[0].type = _NNS_UINT8;
@@ -569,7 +580,7 @@ TEST (nnstreamerFilterArmnn, invokeAdvanced)
 
   /** entry 952 (idx 951) is orange as per tests/test_models/labels/labels.txt
    */
-  max_idx = get_argmax<guint8> ((guint8 *)output.data, output.size);
+  max_idx = get_argmax<guint8> ((guint8 *) output.data, output.size);
   EXPECT_EQ (max_idx, 951);
 
   g_free (data_file);
@@ -605,7 +616,8 @@ TEST (nnstreamerFilterArmnn, invoke01)
   ASSERT_TRUE (g_file_test (data_file, G_FILE_TEST_EXISTS));
 
   const gchar *model_files[] = {
-    model_file, NULL,
+    model_file,
+    NULL,
   };
   _SetFilterProp (&prop, "armnn", model_files);
 
@@ -624,13 +636,14 @@ TEST (nnstreamerFilterArmnn, invoke01)
   input.size = input_uint8_size * gst_tensor_get_element_size (_NNS_FLOAT32);
   input.data = g_malloc (input.size);
   for (gsize idx = 0; idx < input_uint8_size; idx++) {
-    ((float *)input.data)[idx] = static_cast<float> (((guint8 *)input_uint8_data)[idx]);
-    ((float *)input.data)[idx] -= 127.5;
-    ((float *)input.data)[idx] /= 127.5;
+    ((float *) input.data)[idx]
+        = static_cast<float> (((guint8 *) input_uint8_data)[idx]);
+    ((float *) input.data)[idx] -= 127.5;
+    ((float *) input.data)[idx] /= 127.5;
   }
 
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("armnn");
-  EXPECT_NE (sp, (void *)NULL);
+  EXPECT_NE (sp, (void *) NULL);
 
   output.size = gst_tensor_get_element_size (_NNS_FLOAT32) * num_labels;
   output.data = g_malloc (output.size);
@@ -652,7 +665,7 @@ TEST (nnstreamerFilterArmnn, invoke01)
   ret = sp->invoke_NN (&prop, &data, &input, &output);
   EXPECT_EQ (ret, 0);
 
-  max_idx = get_argmax<float> ((float *)output.data, num_labels);
+  max_idx = get_argmax<float> ((float *) output.data, num_labels);
   EXPECT_EQ (max_idx, 9);
 
   sp->close (&prop, &data);
@@ -679,7 +692,7 @@ TEST (nnstreamerFilterArmnn, invoke01)
   ret = sp->invoke_NN (&prop, &data, &input, &output);
   EXPECT_EQ (ret, 0);
 
-  max_idx = get_argmax<float> ((float *)output.data, num_labels);
+  max_idx = get_argmax<float> ((float *) output.data, num_labels);
   EXPECT_EQ (max_idx, 9);
 
   sp->close (&prop, &data);

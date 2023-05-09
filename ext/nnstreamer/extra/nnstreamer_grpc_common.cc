@@ -12,8 +12,8 @@
  * @bug     No known bugs except for NYI items
  */
 
-#include "nnstreamer_conf.h"
 #include "nnstreamer_grpc_common.h"
+#include "nnstreamer_conf.h"
 
 #include <gmodule.h>
 
@@ -30,16 +30,14 @@ using namespace grpc;
 
 /** @brief create new instance of NNStreamerRPC */
 NNStreamerRPC *
-NNStreamerRPC::createInstance (const grpc_config * config)
+NNStreamerRPC::createInstance (const grpc_config *config)
 {
   gchar *name = NULL;
 
   if (config->idl == GRPC_IDL_PROTOBUF)
-    name = g_strdup_printf ("%s%s", NNS_GRPC_PROTOBUF_NAME,
-        NNSTREAMER_SO_FILE_EXTENSION);
+    name = g_strdup_printf ("%s%s", NNS_GRPC_PROTOBUF_NAME, NNSTREAMER_SO_FILE_EXTENSION);
   else if (config->idl == GRPC_IDL_FLATBUF)
-    name = g_strdup_printf ("%s%s", NNS_GRPC_FLATBUF_NAME,
-        NNSTREAMER_SO_FILE_EXTENSION);
+    name = g_strdup_printf ("%s%s", NNS_GRPC_FLATBUF_NAME, NNSTREAMER_SO_FILE_EXTENSION);
 
   if (name == NULL) {
     ml_loge ("Unsupported IDL detected: %d\n", config->idl);
@@ -53,11 +51,10 @@ NNStreamerRPC::createInstance (const grpc_config * config)
     return NULL;
   }
 
-  using function_ptr = void * (*)(const grpc_config * config);
+  using function_ptr = void *(*) (const grpc_config *config);
   function_ptr create_instance;
 
-  if (!g_module_symbol (module, NNS_GRPC_CREATE_INSTANCE,
-        (gpointer *) &create_instance)) {
+  if (!g_module_symbol (module, NNS_GRPC_CREATE_INSTANCE, (gpointer *) &create_instance)) {
     ml_loge ("Error loading create_instance: %s\n", g_module_error ());
     g_free (name);
     g_module_close (module);
@@ -78,25 +75,25 @@ NNStreamerRPC::createInstance (const grpc_config * config)
 }
 
 /** @brief constructor of NNStreamerRPC */
-NNStreamerRPC::NNStreamerRPC (const grpc_config * config):
-  host_ (config->host), port_ (config->port),
-  is_server_ (config->is_server), is_blocking_ (config->is_blocking),
-  direction_ (config->dir), cb_ (config->cb), cb_data_ (config->cb_data),
-  config_ (config->config), server_instance_ (nullptr), handle_ (nullptr),
-  stop_ (false)
+NNStreamerRPC::NNStreamerRPC (const grpc_config *config)
+    : host_ (config->host), port_ (config->port), is_server_ (config->is_server),
+      is_blocking_ (config->is_blocking), direction_ (config->dir),
+      cb_ (config->cb), cb_data_ (config->cb_data), config_ (config->config),
+      server_instance_ (nullptr), handle_ (nullptr), stop_ (false)
 {
-  queue_ = gst_data_queue_new (_data_queue_check_full_cb,
-      NULL, NULL, NULL);
+  queue_ = gst_data_queue_new (_data_queue_check_full_cb, NULL, NULL, NULL);
 }
 
 /** @brief destructor of NNStreamerRPC */
-NNStreamerRPC::~NNStreamerRPC () {
+NNStreamerRPC::~NNStreamerRPC ()
+{
   g_clear_pointer (&queue_, gst_object_unref);
 }
 
 /** @brief start gRPC server */
 gboolean
-NNStreamerRPC::start () {
+NNStreamerRPC::start ()
+{
   if (direction_ == GRPC_DIRECTION_NONE)
     return FALSE;
 
@@ -108,7 +105,8 @@ NNStreamerRPC::start () {
 
 /** @brief stop the thread */
 void
-NNStreamerRPC::stop () {
+NNStreamerRPC::stop ()
+{
   if (stop_)
     return;
 
@@ -137,7 +135,8 @@ NNStreamerRPC::stop () {
 
 /** @brief send buffer holding tensors */
 gboolean
-NNStreamerRPC::send (GstBuffer *buffer) {
+NNStreamerRPC::send (GstBuffer *buffer)
+{
   GstDataQueueItem *item;
 
   buffer = gst_buffer_ref (buffer);
@@ -158,7 +157,8 @@ NNStreamerRPC::send (GstBuffer *buffer) {
 
 /** @brief start server service */
 gboolean
-NNStreamerRPC::_start_server () {
+NNStreamerRPC::_start_server ()
+{
   std::string address (host_);
 
   address += ":" + std::to_string (port_);
@@ -170,7 +170,8 @@ NNStreamerRPC::_start_server () {
 
 /** @brief start client service */
 gboolean
-NNStreamerRPC::_start_client () {
+NNStreamerRPC::_start_client ()
+{
   std::string address (host_);
 
   address += ":" + std::to_string (port_);
@@ -180,8 +181,8 @@ NNStreamerRPC::_start_client () {
 
 /** @brief private method to check full  */
 gboolean
-NNStreamerRPC::_data_queue_check_full_cb (GstDataQueue * queue,
-    guint visible, guint bytes, guint64 time, gpointer checkdata)
+NNStreamerRPC::_data_queue_check_full_cb (GstDataQueue *queue, guint visible,
+    guint bytes, guint64 time, gpointer checkdata)
 {
   /* no full */
   return FALSE;
@@ -189,7 +190,8 @@ NNStreamerRPC::_data_queue_check_full_cb (GstDataQueue * queue,
 
 /** @brief private method to free a data item */
 void
-NNStreamerRPC::_data_queue_item_free (GstDataQueueItem * item) {
+NNStreamerRPC::_data_queue_item_free (GstDataQueueItem *item)
+{
   if (item->object)
     gst_mini_object_unref (item->object);
   g_free (item);
@@ -213,13 +215,13 @@ grpc_get_idl (const gchar *idl_str)
  * @brief gRPC C++ wrapper to create the class instance
  */
 void *
-grpc_new (const grpc_config * config)
+grpc_new (const grpc_config *config)
 {
   g_return_val_if_fail (config != NULL, NULL);
 
-  NNStreamerRPC * self = NNStreamerRPC::createInstance (config);
+  NNStreamerRPC *self = NNStreamerRPC::createInstance (config);
 
-  return static_cast <void *> (self);
+  return static_cast<void *> (self);
 }
 
 /**
@@ -230,7 +232,7 @@ grpc_destroy (void *instance)
 {
   g_return_if_fail (instance != NULL);
 
-  NNStreamerRPC * self = static_cast<NNStreamerRPC *> (instance);
+  NNStreamerRPC *self = static_cast<NNStreamerRPC *> (instance);
   void *handle = self->getModuleHandle ();
 
   delete self;
@@ -243,11 +245,11 @@ grpc_destroy (void *instance)
  * @brief gRPC C++ wrapper to start gRPC service
  */
 gboolean
-grpc_start (void * instance)
+grpc_start (void *instance)
 {
   g_return_val_if_fail (instance != NULL, FALSE);
 
-  NNStreamerRPC * self = static_cast<NNStreamerRPC *> (instance);
+  NNStreamerRPC *self = static_cast<NNStreamerRPC *> (instance);
 
   return self->start ();
 }
@@ -256,11 +258,11 @@ grpc_start (void * instance)
  * @brief gRPC C++ wrapper to stop service
  */
 void
-grpc_stop (void * instance)
+grpc_stop (void *instance)
 {
   g_return_if_fail (instance != NULL);
 
-  grpc::NNStreamerRPC * self = static_cast<grpc::NNStreamerRPC *> (instance);
+  grpc::NNStreamerRPC *self = static_cast<grpc::NNStreamerRPC *> (instance);
 
   self->stop ();
 }
@@ -269,11 +271,11 @@ grpc_stop (void * instance)
  * @brief gRPC C++ wrapper to send messages
  */
 gboolean
-grpc_send (void * instance, GstBuffer *buffer)
+grpc_send (void *instance, GstBuffer *buffer)
 {
   g_return_val_if_fail (instance != NULL, FALSE);
 
-  grpc::NNStreamerRPC * self = static_cast<grpc::NNStreamerRPC *> (instance);
+  grpc::NNStreamerRPC *self = static_cast<grpc::NNStreamerRPC *> (instance);
 
   return self->send (buffer);
 }
@@ -282,29 +284,29 @@ grpc_send (void * instance, GstBuffer *buffer)
  * @brief get gRPC listening port of the server instance
  */
 int
-grpc_get_listening_port (void * instance)
+grpc_get_listening_port (void *instance)
 {
   g_return_val_if_fail (instance != NULL, -EINVAL);
 
-  NNStreamerRPC * self = static_cast<NNStreamerRPC *> (instance);
+  NNStreamerRPC *self = static_cast<NNStreamerRPC *> (instance);
 
   return self->getListeningPort ();
 }
 
-#define silent_debug(...) do { \
-    if (* silent) { \
+#define silent_debug(...)                   \
+  do {                                      \
+    if (*silent) {                          \
       GST_DEBUG_OBJECT (self, __VA_ARGS__); \
-    } \
+    }                                       \
   } while (0)
 
 /**
  * @brief check the validity of hostname string
  */
 gboolean
-_check_hostname (gchar * str)
+_check_hostname (gchar *str)
 {
-  if (g_strcmp0 (str, "localhost") == 0 ||
-      g_hostname_is_ip_address (str))
+  if (g_strcmp0 (str, "localhost") == 0 || g_hostname_is_ip_address (str))
     return TRUE;
 
   return FALSE;
@@ -314,9 +316,8 @@ _check_hostname (gchar * str)
  * @brief set-prop common for both grpc elements
  */
 void
-grpc_common_set_property (GObject * self, gboolean * silent,
-    grpc_private * grpc, guint prop_id, const GValue * value,
-    GParamSpec * pspec)
+grpc_common_set_property (GObject *self, gboolean *silent, grpc_private *grpc,
+    guint prop_id, const GValue *value, GParamSpec *pspec)
 {
   switch (prop_id) {
     case PROP_SILENT:
@@ -332,37 +333,37 @@ grpc_common_set_property (GObject * self, gboolean * silent,
       silent_debug ("Set blocking = %d", grpc->config.is_blocking);
       break;
     case PROP_IDL:
-    {
-      const gchar * idl_str = g_value_get_string (value);
+      {
+        const gchar *idl_str = g_value_get_string (value);
 
-      if (idl_str) {
-        grpc_idl idl = grpc_get_idl (idl_str);
-        if (idl != GRPC_IDL_NONE) {
-          grpc->config.idl = idl;
-          silent_debug ("Set idl = %s", idl_str);
-        } else {
-          ml_loge ("Invalid IDL string provided: %s", idl_str);
+        if (idl_str) {
+          grpc_idl idl = grpc_get_idl (idl_str);
+          if (idl != GRPC_IDL_NONE) {
+            grpc->config.idl = idl;
+            silent_debug ("Set idl = %s", idl_str);
+          } else {
+            ml_loge ("Invalid IDL string provided: %s", idl_str);
+          }
         }
-      }
-      break;
-    }
-    case PROP_HOST:
-    {
-      gchar * host;
-
-      if (!g_value_get_string (value))
         break;
-
-      host = g_value_dup_string (value);
-      if (_check_hostname (host)) {
-        g_free (grpc->config.host);
-        grpc->config.host = host;
-        silent_debug ("Set host = %s", grpc->config.host);
-      } else {
-        g_free (host);
       }
-      break;
-    }
+    case PROP_HOST:
+      {
+        gchar *host;
+
+        if (!g_value_get_string (value))
+          break;
+
+        host = g_value_dup_string (value);
+        if (_check_hostname (host)) {
+          g_free (grpc->config.host);
+          grpc->config.host = host;
+          silent_debug ("Set host = %s", grpc->config.host);
+        } else {
+          g_free (host);
+        }
+        break;
+      }
     case PROP_PORT:
       grpc->config.port = g_value_get_int (value);
       silent_debug ("Set port = %d", grpc->config.port);
@@ -377,8 +378,8 @@ grpc_common_set_property (GObject * self, gboolean * silent,
  * @brief get-prop common for both grpc elements
  */
 void
-grpc_common_get_property (GObject * self, gboolean silent, guint out,
-    grpc_private * grpc, guint prop_id, GValue * value, GParamSpec * pspec)
+grpc_common_get_property (GObject *self, gboolean silent, guint out,
+    grpc_private *grpc, guint prop_id, GValue *value, GParamSpec *pspec)
 {
   switch (prop_id) {
     case PROP_SILENT:

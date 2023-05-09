@@ -12,9 +12,9 @@
 #include <gtest/gtest.h>
 #include <glib.h>
 #include <gst/gst.h>
-#include <unittest_util.h>
 #include <nnstreamer_util.h>
 #include <tensor_common.h>
+#include <unittest_util.h>
 
 static const gchar model_name1[] = "mobilenet_v1_1.0_224_quant.tflite";
 static const gchar model_name2[] = "mobilenet_v2_1.0_224_quant.tflite";
@@ -32,7 +32,7 @@ _new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
   GstMapInfo info;
   gsize i, max_i = 0;
   guint8 max_val = 0;
-  gint idx = *(gint*)user_data;
+  gint idx = *(gint *) user_data;
   UNUSED (element);
 
   mem = gst_buffer_get_memory (buffer, 0);
@@ -52,16 +52,17 @@ _new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
 /**
  * @brief helper to get base pipeline string
  */
-static void _get_pipeline_str (gchar **str, const gchar *model1, const gchar *model2)
+static void
+_get_pipeline_str (gchar **str, const gchar *model1, const gchar *model2)
 {
   const gchar *src_root = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *root_path = src_root ? g_strdup (src_root) : g_get_current_dir ();
-  gchar *model_path1 = g_build_filename (
-      root_path, "tests", "test_models", "models", model1, NULL);
-  gchar *model_path2 = g_build_filename (
-      root_path, "tests", "test_models", "models", model2, NULL);
-  gchar *image_path = g_build_filename (
-      root_path, "tests", "test_models", "data", data_name, NULL);
+  gchar *model_path1
+      = g_build_filename (root_path, "tests", "test_models", "models", model1, NULL);
+  gchar *model_path2
+      = g_build_filename (root_path, "tests", "test_models", "models", model2, NULL);
+  gchar *image_path
+      = g_build_filename (root_path, "tests", "test_models", "data", data_name, NULL);
 
   ASSERT_TRUE (g_file_test (model_path1, G_FILE_TEST_EXISTS));
   ASSERT_TRUE (g_file_test (model_path2, G_FILE_TEST_EXISTS));
@@ -108,8 +109,8 @@ TEST (nnstreamerFilterSharedModel, tfliteInvalidShape_n)
   gchar *root_path = src_root ? g_strdup (src_root) : g_get_current_dir ();
   gchar *model_path1 = g_build_filename (
       root_path, "tests", "test_models", "models", model_name1, NULL);
-  gchar *image_path = g_build_filename (
-      root_path, "tests", "test_models", "data", data_name, NULL);
+  gchar *image_path
+      = g_build_filename (root_path, "tests", "test_models", "data", data_name, NULL);
   gchar *pipeline_str;
   GstElement *pipeline;
   ASSERT_TRUE (g_file_test (model_path1, G_FILE_TEST_EXISTS));
@@ -145,7 +146,7 @@ TEST (nnstreamerFilterSharedModel, tfliteSharedReload)
 {
   gchar *pipeline_str;
   GstElement *pipeline, *filter1, *filter2, *sink1, *sink2;
-  gint idx0=0, idx1=1;
+  gint idx0 = 0, idx1 = 1;
   const gchar *src_root = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *root_path = src_root ? g_strdup (src_root) : g_get_current_dir ();
   gchar *new_model_path = g_build_filename (
@@ -156,7 +157,7 @@ TEST (nnstreamerFilterSharedModel, tfliteSharedReload)
   _get_pipeline_str (&pipeline_str, model_name1, model_name1);
   pipeline = gst_parse_launch (pipeline_str, NULL);
   g_free (pipeline_str);
-  memset (res, 0, sizeof(res));
+  memset (res, 0, sizeof (res));
 
   filter1 = gst_bin_get_by_name (GST_BIN (pipeline), "filter1");
   ASSERT_TRUE (filter1 != NULL);
@@ -165,10 +166,10 @@ TEST (nnstreamerFilterSharedModel, tfliteSharedReload)
 
   sink1 = gst_bin_get_by_name (GST_BIN (pipeline), "sink1");
   EXPECT_NE (sink1, nullptr);
-  g_signal_connect (sink1, "new-data", (GCallback) _new_data_cb, (gpointer)&idx0);
+  g_signal_connect (sink1, "new-data", (GCallback) _new_data_cb, (gpointer) &idx0);
   sink2 = gst_bin_get_by_name (GST_BIN (pipeline), "sink2");
   EXPECT_NE (sink2, nullptr);
-  g_signal_connect (sink2, "new-data", (GCallback) _new_data_cb, (gpointer)&idx1);
+  g_signal_connect (sink2, "new-data", (GCallback) _new_data_cb, (gpointer) &idx1);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   g_usleep (TEST_DEFAULT_SLEEP_TIME);
@@ -178,7 +179,7 @@ TEST (nnstreamerFilterSharedModel, tfliteSharedReload)
   /* check two filters have same output */
   EXPECT_NE (res[0], 0U);
   EXPECT_EQ (res[0], res[1]);
-  memset (res, 0, sizeof(res));
+  memset (res, 0, sizeof (res));
 
   /* reload filter */
   g_object_set (filter1, "model", new_model_path, NULL);

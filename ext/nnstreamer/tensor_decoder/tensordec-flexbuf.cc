@@ -136,7 +136,7 @@ flxd_decode (void **pdata, const GstTensorsConfig *config,
   is_flexible = gst_tensors_config_is_flexible (&flxd_config);
 
   num_tensors = flxd_config.info.num_tensors;
-  fbb.Map ([&]() {
+  fbb.Map ([&] () {
     fbb.UInt ("num_tensors", num_tensors);
     fbb.Int ("rate_n", flxd_config.rate_n);
     fbb.Int ("rate_d", flxd_config.rate_d);
@@ -156,7 +156,7 @@ flxd_decode (void **pdata, const GstTensorsConfig *config,
       }
       tensor_type type = flxd_config.info.info[i].type;
 
-      fbb.Vector (tensor_key, [&]() {
+      fbb.Vector (tensor_key, [&] () {
         fbb += tensor_name;
         fbb += type;
         fbb.Vector (flxd_config.info.info[i].dimension, NNS_TENSOR_RANK_LIMIT);

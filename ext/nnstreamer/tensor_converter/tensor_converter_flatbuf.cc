@@ -35,8 +35,8 @@
 #include <nnstreamer_plugin_api_converter.h>
 #include <nnstreamer_util.h>
 #include <typeinfo>
-#include "tensor_converter_util.h"
 #include "../extra/nnstreamer_flatbuf.h"
+#include "tensor_converter_util.h"
 
 namespace nnstreamer
 {
@@ -45,8 +45,8 @@ namespace flatbuf
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-void init_fbc (void) __attribute__((constructor));
-void fini_fbc (void) __attribute__((destructor));
+void init_fbc (void) __attribute__ ((constructor));
+void fini_fbc (void) __attribute__ ((destructor));
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
@@ -109,7 +109,7 @@ fbc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
     const gchar *name = _name.c_str ();
 
     config->info.info[i].name = (name && strlen (name) > 0) ? g_strdup (name) : NULL;
-    config->info.info[i].type = (tensor_type)tensor->Get (i)->type ();
+    config->info.info[i].type = (tensor_type) tensor->Get (i)->type ();
     tensor_data = tensor->Get (i)->data ();
 
     for (guint j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
@@ -126,7 +126,7 @@ fbc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
 
   /** copy timestamps */
   gst_buffer_copy_into (
-      out_buf, in_buf, (GstBufferCopyFlags)GST_BUFFER_COPY_METADATA, 0, -1);
+      out_buf, in_buf, (GstBufferCopyFlags) GST_BUFFER_COPY_METADATA, 0, -1);
 done:
   gst_memory_unmap (in_mem, &in_info);
 
@@ -136,14 +136,12 @@ done:
 static const gchar converter_subplugin_flatbuf[] = "flatbuf";
 
 /** @brief flatbuffer tensor converter sub-plugin NNStreamerExternalConverter instance */
-static NNStreamerExternalConverter flatBuf = {
-  .name = converter_subplugin_flatbuf,
+static NNStreamerExternalConverter flatBuf = { .name = converter_subplugin_flatbuf,
   .convert = fbc_convert,
   .get_out_config = tcu_get_out_config,
   .query_caps = fbc_query_caps,
   .open = NULL,
-  .close = NULL
-};
+  .close = NULL };
 
 #ifdef __cplusplus
 extern "C" {

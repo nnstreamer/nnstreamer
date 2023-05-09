@@ -21,11 +21,17 @@ const static gchar MODEL_BASE_NAME_MOBINET_V2[] = "openvino_mobilenetv2-int8-tf-
 
 const static uint32_t MOBINET_V2_IN_NUM_TENSOR = 1;
 const static uint32_t MOBINET_V2_IN_DIMS[NNS_TENSOR_SIZE_LIMIT] = {
-  224, 224, 3, 1,
+  224,
+  224,
+  3,
+  1,
 };
 const static uint32_t MOBINET_V2_OUT_NUM_TENSOR = 1;
 const static uint32_t MOBINET_V2_OUT_DIMS[NNS_TENSOR_SIZE_LIMIT] = {
-  1001, 1, 1, 1,
+  1001,
+  1,
+  1,
+  1,
 };
 
 /** @brief wooksong: please fill in */
@@ -121,7 +127,8 @@ TEST (tensorFilterOpenvino, openAndClose0)
   prop->accl_str = "true:cpu";
   {
     const gchar *model_files[] = {
-      test_model, NULL,
+      test_model,
+      NULL,
     };
 
     prop->model_files = model_files;
@@ -150,7 +157,8 @@ TEST (tensorFilterOpenvino, openAndClose0)
             .c_str (),
         NULL);
     const gchar *model_files[] = {
-      test_model_xml, test_model_bin,
+      test_model_xml,
+      test_model_bin,
     };
 
     prop->num_models = 2;
@@ -176,7 +184,8 @@ TEST (tensorFilterOpenvino, openAndClose0)
       NULL);
   {
     const gchar *model_files[] = {
-      test_model, NULL,
+      test_model,
+      NULL,
     };
 
     prop->num_models = 1;
@@ -202,7 +211,8 @@ TEST (tensorFilterOpenvino, openAndClose0)
       NULL);
   {
     const gchar *model_files[] = {
-      test_model, NULL,
+      test_model,
+      NULL,
     };
 
     prop->num_models = 1;
@@ -267,7 +277,7 @@ TEST (tensorFilterOpenvino, openAndClose1)
   EXPECT_NE (ret, 0);
   EXPECT_EQ (ret, TensorFilterOpenvino::RetENoDev);
 #endif
-  private_data = (gpointer)tfOv;
+  private_data = (gpointer) tfOv;
 
   /* prepare properties */
   prop = g_new0 (GstTensorFilterProperties, 1);
@@ -277,7 +287,8 @@ TEST (tensorFilterOpenvino, openAndClose1)
   prop->accl_str = "true:cpu";
   {
     const gchar *model_files[] = {
-      test_model_xml, test_model_bin,
+      test_model_xml,
+      test_model_bin,
     };
 
     prop->model_files = model_files;
@@ -334,7 +345,7 @@ TEST (tensorFilterOpenvino, openAndClose2)
 
   tfOv = new TensorFilterOpenvino (str_test_model.assign (test_model_xml),
       str_test_model.assign (test_model_bin));
-  private_data = (gpointer)tfOv;
+  private_data = (gpointer) tfOv;
 
   /* prepare properties */
   prop = g_new0 (GstTensorFilterProperties, 1);
@@ -344,7 +355,8 @@ TEST (tensorFilterOpenvino, openAndClose2)
   prop->accl_str = "true:cpu";
   {
     const gchar *model_files[] = {
-      test_model_xml, test_model_bin,
+      test_model_xml,
+      test_model_bin,
     };
 
     prop->model_files = model_files;
@@ -388,7 +400,8 @@ TEST (tensorFilterOpenvino, openAndClose0_n)
   test_model = g_build_filename (
       root_path, "tests", "test_models", "models", "NOT_EXIST", NULL);
   const gchar *model_files[] = {
-    test_model, NULL,
+    test_model,
+    NULL,
   };
 
   /* prepare properties */
@@ -420,7 +433,8 @@ TEST (tensorFilterOpenvino, openAndClose0_n)
             .c_str (),
         NULL);
     const gchar *model_files[] = {
-      test_model_xml1, test_model_xml2,
+      test_model_xml1,
+      test_model_xml2,
     };
 
     prop->num_models = 2;
@@ -448,7 +462,8 @@ TEST (tensorFilterOpenvino, openAndClose0_n)
             .c_str (),
         NULL);
     const gchar *model_files[] = {
-      test_model_bin1, test_model_bin2,
+      test_model_bin1,
+      test_model_bin2,
     };
 
     prop->num_models = 2;
@@ -490,7 +505,8 @@ TEST (tensorFilterOpenvino, openAndClose1_n)
   test_model = g_build_filename (root_path, "tests", "test_models", "models",
       MODEL_BASE_NAME_MOBINET_V2, NULL);
   const gchar *model_files[] = {
-    test_model, NULL,
+    test_model,
+    NULL,
   };
 
   /* prepare properties */
@@ -559,7 +575,8 @@ TEST (tensorFilterOpenvino, openAndClose2_n)
   test_model = g_build_filename (root_path, "tests", "test_models", "models",
       MODEL_BASE_NAME_MOBINET_V2, NULL);
   const gchar *model_files[] = {
-    test_model, NULL,
+    test_model,
+    NULL,
   };
 
   /* prepare properties */
@@ -624,7 +641,8 @@ TEST (tensorFilterOpenvino, getTensorDim0)
   prop->accl_str = "true:cpu";
   {
     const gchar *model_files[] = {
-      test_model, NULL,
+      test_model,
+      NULL,
     };
 
     prop->model_files = model_files;
@@ -714,13 +732,13 @@ TEST (tensorFilterOpenvino, getTensorDim0_n)
 
     for (int i = 1; i < NNS_TENSOR_SIZE_LIMIT + 1; ++i) {
       InferenceEngine::InputInfo *info = new InferenceEngine::InputInfo ();
-      std::string name_input_n = std::string ((char *)&i);
+      std::string name_input_n = std::string ((char *) &i);
       inDataMap[name_input_n] = InferenceEngine::InputInfo::Ptr (info);
     }
 
     tfOvTest.setInputsDataMap (inDataMap);
     ret = tfOvTest.loadModel (ACCL_CPU);
-    private_data = (gpointer)&tfOvTest;
+    private_data = (gpointer) &tfOvTest;
 
 #ifdef __OPENVINO_CPU_EXT__
     EXPECT_EQ (ret, 0);
@@ -796,7 +814,7 @@ TEST (tensorFilterOpenvino, getTensorDim1_n)
 
     tfOvTest.setInputsDataMap (inDataMap);
     ret = tfOvTest.loadModel (ACCL_CPU);
-    private_data = (gpointer)&tfOvTest;
+    private_data = (gpointer) &tfOvTest;
 
 #ifdef __OPENVINO_CPU_EXT__
     EXPECT_EQ (ret, 0);
@@ -861,7 +879,7 @@ TEST (tensorFilterOpenvino, getTensorDim2_n)
     InferenceEngine::SizeVector dims = InferenceEngine::SizeVector ();
 
     for (int i = 0; i < NNS_TENSOR_SIZE_LIMIT + 1; ++i) {
-      std::string name_output_n = std::string ((char *)&i);
+      std::string name_output_n = std::string ((char *) &i);
       InferenceEngine::Data *data = new InferenceEngine::Data (
           name_output_n, dims, InferenceEngine::Precision::FP32);
       InferenceEngine::DataPtr outputDataPtr (data);
@@ -871,7 +889,7 @@ TEST (tensorFilterOpenvino, getTensorDim2_n)
 
     tfOvTest.setOutputsDataMap (outDataMap);
     ret = tfOvTest.loadModel (ACCL_CPU);
-    private_data = (gpointer)&tfOvTest;
+    private_data = (gpointer) &tfOvTest;
 
 #ifdef __OPENVINO_CPU_EXT__
     EXPECT_EQ (ret, 0);
@@ -944,7 +962,7 @@ TEST (tensorFilterOpenvino, getTensorDim3_n)
 
     tfOvTest.setOutputsDataMap (outDataMap);
     ret = tfOvTest.loadModel (ACCL_CPU);
-    private_data = (gpointer)&tfOvTest;
+    private_data = (gpointer) &tfOvTest;
 
 #ifdef __OPENVINO_CPU_EXT__
     EXPECT_EQ (ret, 0);
@@ -976,10 +994,20 @@ TEST (tensorFilterOpenvino, convertFromIETypeStr0)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   const std::vector<std::string> ie_suport_type_strs = {
-    "I8", "I16", "I32", "U8", "U16", "FP32",
+    "I8",
+    "I16",
+    "I32",
+    "U8",
+    "U16",
+    "FP32",
   };
   const std::vector<tensor_type> nns_support_types = {
-    _NNS_INT8, _NNS_INT16, _NNS_INT32, _NNS_UINT8, _NNS_UINT16, _NNS_FLOAT32,
+    _NNS_INT8,
+    _NNS_INT16,
+    _NNS_INT32,
+    _NNS_UINT8,
+    _NNS_UINT16,
+    _NNS_FLOAT32,
   };
   std::string str_test_model;
   gchar *test_model_xml;
@@ -1115,7 +1143,7 @@ TEST (tensorFilterOpenvino, convertFromIETypeStr1_n)
       mem.size *= MOBINET_V2_IN_DIMS[i];                                             \
     }                                                                                \
     tensorTestDesc.setDims (dims);                                                   \
-    mem.data = (void *)g_malloc0 (mem.size);                                         \
+    mem.data = (void *) g_malloc0 (mem.size);                                        \
                                                                                      \
     ret = tfOvTest.convertGstTensorMemoryToBlobPtr (tensorTestDesc, &mem, nns_type); \
     EXPECT_EQ (mem.size, ret->byteSize ());                                          \

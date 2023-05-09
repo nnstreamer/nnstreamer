@@ -8,11 +8,11 @@
  * @bug         No known bugs
  */
 
+#include <gtest/gtest.h>
 #include <glib.h>
 #include <gst/base/gstbasesrc.h>
 #include <gst/check/gstharness.h>
 #include <gst/gst.h>
-#include <gtest/gtest.h>
 
 #include <MQTTAsync.h>
 #include <unittest_util.h>
@@ -28,7 +28,8 @@ std::once_flag GstMqttTestHelper::mOnceFlag;
 /**
  * @brief A mock function for MQTTAsync_create() in paho-mqtt-c
  */
-int MQTTAsync_create (MQTTAsync *handle, const char *serverURI,
+int
+MQTTAsync_create (MQTTAsync *handle, const char *serverURI,
     const char *clientId, int persistence_type, void *persistence_context)
 {
   return MQTTASYNC_SUCCESS;
@@ -37,8 +38,8 @@ int MQTTAsync_create (MQTTAsync *handle, const char *serverURI,
 /**
  * @brief A mock function for MQTTAsync_connect() in paho-mqtt-c
  */
-int MQTTAsync_connect (MQTTAsync handle,
-    const MQTTAsync_connectOptions *options)
+int
+MQTTAsync_connect (MQTTAsync handle, const MQTTAsync_connectOptions *options)
 {
   MQTTAsync_successData data;
   void *ctx = GstMqttTestHelper::getInstance ().getContext ();
@@ -52,9 +53,9 @@ int MQTTAsync_connect (MQTTAsync handle,
 /**
  * @brief A mock function for MQTTAsync_setCallbacks() in paho-mqtt-c
  */
-int MQTTAsync_setCallbacks(MQTTAsync handle, void * context,
-    MQTTAsync_connectionLost * cl, MQTTAsync_messageArrived * ma,
-    MQTTAsync_deliveryComplete * dc)
+int
+MQTTAsync_setCallbacks (MQTTAsync handle, void *context, MQTTAsync_connectionLost *cl,
+    MQTTAsync_messageArrived *ma, MQTTAsync_deliveryComplete *dc)
 {
   GstMqttTestHelper::getInstance ().init (context);
   GstMqttTestHelper::getInstance ().setCallbacks (cl, ma, dc);
@@ -65,9 +66,9 @@ int MQTTAsync_setCallbacks(MQTTAsync handle, void * context,
 /**
  * @brief A mock function for MQTTAsync_send() in paho-mqtt-c
  */
-int MQTTAsync_send (MQTTAsync handle, const char *destinationName,
-    int payloadlen, const void * payload, int qos, int retained,
-    MQTTAsync_responseOptions * response)
+int
+MQTTAsync_send (MQTTAsync handle, const char *destinationName, int payloadlen,
+    const void *payload, int qos, int retained, MQTTAsync_responseOptions *response)
 {
   void *ctx = GstMqttTestHelper::getInstance ().getContext ();
   std::future<void> ret;
@@ -78,13 +79,11 @@ int MQTTAsync_send (MQTTAsync handle, const char *destinationName,
 
     failure_data.code = -1;
     failure_data.message = "";
-    ret = std::async (std::launch::async, response->onFailure, ctx,
-        &failure_data);
+    ret = std::async (std::launch::async, response->onFailure, ctx, &failure_data);
     return MQTTASYNC_FAILURE;
   }
 
-  ret = std::async (std::launch::async, response->onSuccess, ctx,
-      &data);
+  ret = std::async (std::launch::async, response->onSuccess, ctx, &data);
 
   return MQTTASYNC_SUCCESS;
 }
@@ -92,7 +91,8 @@ int MQTTAsync_send (MQTTAsync handle, const char *destinationName,
 /**
  * @brief A mock function for int MQTTAsync_isConnected() in paho-mqtt-c
  */
-int MQTTAsync_isConnected (MQTTAsync handle)
+int
+MQTTAsync_isConnected (MQTTAsync handle)
 {
   return GstMqttTestHelper::getInstance ().getIsConnected ();
 }
@@ -100,8 +100,8 @@ int MQTTAsync_isConnected (MQTTAsync handle)
 /**
  * @brief A mock function for MQTTAsync_disconnect() in paho-mqtt-c
  */
-int MQTTAsync_disconnect (MQTTAsync handle,
-    const MQTTAsync_disconnectOptions *options)
+int
+MQTTAsync_disconnect (MQTTAsync handle, const MQTTAsync_disconnectOptions *options)
 {
   void *ctx;
   std::future<void> ret;
@@ -117,14 +117,12 @@ int MQTTAsync_disconnect (MQTTAsync handle,
 
     fdata.code = -1;
     fdata.message = "";
-    ret = std::async (std::launch::async, options->onFailure, ctx,
-      &fdata);
+    ret = std::async (std::launch::async, options->onFailure, ctx, &fdata);
 
     return MQTTASYNC_FAILURE;
   }
 
-  ret = std::async (std::launch::async, options->onSuccess, ctx,
-      &data);
+  ret = std::async (std::launch::async, options->onSuccess, ctx, &data);
 
   return MQTTASYNC_SUCCESS;
 }
@@ -132,7 +130,8 @@ int MQTTAsync_disconnect (MQTTAsync handle,
 /**
  * @brief A mock function for MQTTAsync_destroy() in paho-mqtt-c
  */
-void MQTTAsync_destroy (MQTTAsync *handle)
+void
+MQTTAsync_destroy (MQTTAsync *handle)
 {
   return;
 }
@@ -140,8 +139,9 @@ void MQTTAsync_destroy (MQTTAsync *handle)
 /**
  * @brief A mock function for MQTTAsync_subscribe() in paho-mqtt-c
  */
-int MQTTAsync_subscribe (MQTTAsync handle, const char * topic, int qos,
-    MQTTAsync_responseOptions * response)
+int
+MQTTAsync_subscribe (MQTTAsync handle, const char *topic, int qos,
+    MQTTAsync_responseOptions *response)
 {
   MQTTAsync_successData data;
   std::future<void> ret;
@@ -163,8 +163,8 @@ int MQTTAsync_subscribe (MQTTAsync handle, const char * topic, int qos,
 /**
  * @brief A mock function for MQTTAsync_unsubscribe() in paho-mqtt-c
  */
-int MQTTAsync_unsubscribe (MQTTAsync handle, const char * topic,
-    MQTTAsync_responseOptions * response)
+int
+MQTTAsync_unsubscribe (MQTTAsync handle, const char *topic, MQTTAsync_responseOptions *response)
 {
   void *ctx = response->context;
   MQTTAsync_successData data;
@@ -186,7 +186,8 @@ int MQTTAsync_unsubscribe (MQTTAsync handle, const char * topic,
 /**
  * @brief A helper function to fill the timestamp information into the header
  */
-void _set_ts_gst_mqtt_message_hdr (GstElement *elm, GstMQTTMessageHdr *hdr,
+void
+_set_ts_gst_mqtt_message_hdr (GstElement *elm, GstMQTTMessageHdr *hdr,
     const GstClockTimeDiff diff_sent, const GstClockTime duration)
 {
   GstClockTime base_time;
@@ -555,8 +556,8 @@ TEST (testMqttSinkWithHelper, sinkPush3_n)
 /**
  * @brief A helper function for the generation of a dummy MQTT message
  */
-static void _gen_dummy_mqtt_msg (MQTTAsync_message *msg, GstMQTTMessageHdr *hdr,
-    const gsize len_buf)
+static void
+_gen_dummy_mqtt_msg (MQTTAsync_message *msg, GstMQTTMessageHdr *hdr, const gsize len_buf)
 {
   gboolean mapped;
   GstBuffer *buf;
@@ -573,8 +574,7 @@ static void _gen_dummy_mqtt_msg (MQTTAsync_message *msg, GstMQTTMessageHdr *hdr,
   ASSERT_EQ (mapped, TRUE);
 
   memcpy (msg->payload, hdr, GST_MQTT_LEN_MSG_HDR);
-  memcpy (&((guint8 *) msg->payload)[GST_MQTT_LEN_MSG_HDR], map.data,
-      len_buf);
+  memcpy (&((guint8 *) msg->payload)[GST_MQTT_LEN_MSG_HDR], map.data, len_buf);
 
   gst_memory_unmap (mem, &map);
   gst_buffer_unref (buf);
@@ -588,11 +588,11 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch0)
   const gsize len_buf = 1024;
   gchar *caps_str = g_strdup ("video/x-raw,width=640,height=320,format=RGB");
   gchar *topic_name = g_strdup ("test_topic");
-  gchar *str_pipeline = g_strdup_printf (
-      "mqttsrc sub-topic=%s debug=true is-live=true num-buffers=%d "
-      "sub-timeout=%" G_GINT64_FORMAT " ! "
-      "capsfilter caps=%s ! videoconvert ! videoscale ! fakesink",
-      topic_name, 1, G_TIME_SPAN_MINUTE, caps_str);
+  gchar *str_pipeline
+      = g_strdup_printf ("mqttsrc sub-topic=%s debug=true is-live=true num-buffers=%d "
+                         "sub-timeout=%" G_GINT64_FORMAT " ! "
+                         "capsfilter caps=%s ! videoconvert ! videoscale ! fakesink",
+          topic_name, 1, G_TIME_SPAN_MINUTE, caps_str);
   GError *err = NULL;
   GstElement *pipeline;
   GstStateChangeReturn ret;
@@ -612,7 +612,7 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch0)
   }
   GstMqttTestHelper::getInstance ().initFailFlags ();
 
-  msg = (MQTTAsync_message *) g_try_malloc0 (sizeof(*msg));
+  msg = (MQTTAsync_message *) g_try_malloc0 (sizeof (*msg));
   if (!msg) {
     err_flag = true;
     err_msg = std::string ("Failed to allocate a MQTTAsync_message");
@@ -637,8 +637,7 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch0)
   msg->payload = (MQTTAsync_message *) g_try_malloc0 (msg->payloadlen);
   if (!msg->payload) {
     err_flag = true;
-    err_msg = std::string (
-        "Failed to allocate buffer for MQTT message payload");
+    err_msg = std::string ("Failed to allocate buffer for MQTT message payload");
     goto free_msg_buf;
   }
 
@@ -682,11 +681,11 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch1)
   const gsize len_buf = 1024;
   gchar *caps_str = g_strdup ("video/x-raw,width=640,height=320,format=RGB");
   gchar *topic_name = g_strdup ("test_topic");
-  gchar *str_pipeline = g_strdup_printf (
-      "mqttsrc sub-topic=%s debug=true is-live=true num-buffers=%d "
-      "sub-timeout=%" G_GINT64_FORMAT " ! "
-      "capsfilter caps=%s ! videoconvert ! videoscale ! fakesink",
-      topic_name, 2, G_TIME_SPAN_MINUTE, caps_str);
+  gchar *str_pipeline
+      = g_strdup_printf ("mqttsrc sub-topic=%s debug=true is-live=true num-buffers=%d "
+                         "sub-timeout=%" G_GINT64_FORMAT " ! "
+                         "capsfilter caps=%s ! videoconvert ! videoscale ! fakesink",
+          topic_name, 2, G_TIME_SPAN_MINUTE, caps_str);
   GError *err = NULL;
   GstElement *pipeline;
   GstStateChangeReturn ret;
@@ -706,7 +705,7 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch1)
   }
   GstMqttTestHelper::getInstance ().initFailFlags ();
 
-  msg = (MQTTAsync_message *) g_try_malloc0 (sizeof(*msg));
+  msg = (MQTTAsync_message *) g_try_malloc0 (sizeof (*msg));
   if (!msg) {
     err_msg = std::string ("Failed to allocate a MQTTAsync_message");
     goto free_strs;
@@ -729,8 +728,7 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch1)
   msg->payloadlen = GST_MQTT_LEN_MSG_HDR + len_buf;
   msg->payload = g_try_malloc0 (msg->payloadlen);
   if (!msg->payload) {
-    err_msg = std::string (
-        "Failed to allocate buffer for MQTT message payload");
+    err_msg = std::string ("Failed to allocate buffer for MQTT message payload");
     err_flag = true;
     goto free_msg_buf;
   }
@@ -787,11 +785,11 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch0_n)
   const gsize len_buf = 1024;
   gchar *caps_str = g_strdup ("video/x-raw,width=640,height=320,format=RGB");
   gchar *topic_name = g_strdup ("test_topic");
-  gchar *str_pipeline = g_strdup_printf (
-      "mqttsrc sub-topic=%s debug=true is-live=true num-buffers=%d "
-      "sub-timeout=%" G_GINT64_FORMAT " ! "
-      "capsfilter caps=%s ! videoconvert ! videoscale ! fakesink",
-      topic_name, 1, G_TIME_SPAN_MINUTE, caps_str);
+  gchar *str_pipeline
+      = g_strdup_printf ("mqttsrc sub-topic=%s debug=true is-live=true num-buffers=%d "
+                         "sub-timeout=%" G_GINT64_FORMAT " ! "
+                         "capsfilter caps=%s ! videoconvert ! videoscale ! fakesink",
+          topic_name, 1, G_TIME_SPAN_MINUTE, caps_str);
   GError *err = NULL;
   GstElement *pipeline;
   GstStateChangeReturn ret;
@@ -813,7 +811,7 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch0_n)
   GstMqttTestHelper::getInstance ().initFailFlags ();
   GstMqttTestHelper::getInstance ().setFailSubscribe (TRUE);
 
-  msg = (MQTTAsync_message *) g_try_malloc0 (sizeof(*msg));
+  msg = (MQTTAsync_message *) g_try_malloc0 (sizeof (*msg));
   if (!msg) {
     err_msg = std::string ("Failed to allocate a MQTTAsync_message");
     goto free_strs;
@@ -836,8 +834,7 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch0_n)
   msg->payloadlen = GST_MQTT_LEN_MSG_HDR + len_buf;
   msg->payload = (MQTTAsync_message *) g_try_malloc0 (msg->payloadlen);
   if (!msg->payload) {
-    err_msg = std::string (
-        "Failed to allocate buffer for MQTT message payload");
+    err_msg = std::string ("Failed to allocate buffer for MQTT message payload");
     err_flag = true;
     goto free_msg_buf;
   }
@@ -883,11 +880,11 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch1_n)
   const gsize len_buf = 1024;
   gchar *caps_str = g_strdup ("video/x-raw,width=640,height=320,format=RGB");
   gchar *topic_name = g_strdup ("test_topic");
-  gchar *str_pipeline = g_strdup_printf (
-      "mqttsrc sub-topic=%s debug=true is-live=true num-buffers=%d "
-      "sub-timeout=%" G_GINT64_FORMAT " ! "
-      "capsfilter caps=%s ! videoconvert ! videoscale ! fakesink",
-      topic_name, 1, G_TIME_SPAN_MINUTE, caps_str);
+  gchar *str_pipeline
+      = g_strdup_printf ("mqttsrc sub-topic=%s debug=true is-live=true num-buffers=%d "
+                         "sub-timeout=%" G_GINT64_FORMAT " ! "
+                         "capsfilter caps=%s ! videoconvert ! videoscale ! fakesink",
+          topic_name, 1, G_TIME_SPAN_MINUTE, caps_str);
   GError *err = NULL;
   GstElement *pipeline;
   GstStateChangeReturn ret;
@@ -909,7 +906,7 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch1_n)
   GstMqttTestHelper::getInstance ().initFailFlags ();
   GstMqttTestHelper::getInstance ().setFailDisconnect (TRUE);
 
-  msg = (MQTTAsync_message *) g_try_malloc0 (sizeof(*msg));
+  msg = (MQTTAsync_message *) g_try_malloc0 (sizeof (*msg));
   if (!msg) {
     err_msg = std::string ("Failed to allocate a MQTTAsync_message");
     goto free_strs;
@@ -932,8 +929,7 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch1_n)
   msg->payloadlen = GST_MQTT_LEN_MSG_HDR + len_buf;
   msg->payload = (MQTTAsync_message *) g_try_malloc0 (msg->payloadlen);
   if (!msg->payload) {
-    err_msg = std::string (
-        "Failed to allocate buffer for MQTT message payload");
+    err_msg = std::string ("Failed to allocate buffer for MQTT message payload");
     err_flag = true;
     goto free_msg_buf;
   }
@@ -980,11 +976,11 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch2)
   const gsize len_buf = 1024;
   gchar *caps_str = g_strdup ("video/x-raw,width=640,height=320,format=RGB");
   gchar *topic_name = g_strdup ("test_topic");
-  gchar *str_pipeline = g_strdup_printf (
-      "mqttsrc sub-topic=%s debug=true is-live=true num-buffers=%d "
-      "sub-timeout=%" G_GINT64_FORMAT " ! "
-      "capsfilter caps=%s ! videoconvert ! videoscale ! fakesink",
-      topic_name, 1, G_TIME_SPAN_MINUTE, caps_str);
+  gchar *str_pipeline
+      = g_strdup_printf ("mqttsrc sub-topic=%s debug=true is-live=true num-buffers=%d "
+                         "sub-timeout=%" G_GINT64_FORMAT " ! "
+                         "capsfilter caps=%s ! videoconvert ! videoscale ! fakesink",
+          topic_name, 1, G_TIME_SPAN_MINUTE, caps_str);
   GError *err = NULL;
   GstElement *pipeline;
   GstStateChangeReturn ret;
@@ -1006,7 +1002,7 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch2)
   GstMqttTestHelper::getInstance ().initFailFlags ();
   GstMqttTestHelper::getInstance ().setFailUnsubscribe (TRUE);
 
-  msg = (MQTTAsync_message *) g_try_malloc0 (sizeof(*msg));
+  msg = (MQTTAsync_message *) g_try_malloc0 (sizeof (*msg));
   if (!msg) {
     err_msg = std::string ("Failed to allocate a MQTTAsync_message");
     goto free_strs;
@@ -1029,8 +1025,7 @@ TEST (testMqttSrcWithHelper, srcNormalLaunch2)
   msg->payloadlen = GST_MQTT_LEN_MSG_HDR + len_buf;
   msg->payload = (MQTTAsync_message *) g_try_malloc0 (msg->payloadlen);
   if (!msg->payload) {
-    err_msg = std::string (
-        "Failed to allocate buffer for MQTT message payload");
+    err_msg = std::string ("Failed to allocate buffer for MQTT message payload");
     err_flag = true;
     goto free_msg_buf;
   }

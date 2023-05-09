@@ -20,9 +20,9 @@
 
 #include <glib.h>
 #include <nnstreamer_plugin_api.h>
+#include <nnstreamer_util.h>
 #include <string.h>
 #include <tensor_filter_custom.h>
-#include <nnstreamer_util.h>
 
 #include <iostream>
 #include <memory>
@@ -40,18 +40,18 @@ class Logger : public nvinfer1::ILogger
   void log (Severity severity, const char *msg) override
   {
     switch (severity) {
-    case Severity::kWARNING:
-      g_warning ("%s", msg);
-      break;
-    case Severity::kINFO:
-      g_message ("%s", msg);
-      break;
-    case Severity::kVERBOSE:
-      g_debug ("%s", msg);
-      break;
-    default:
-      g_critical ("%s", msg);
-      break;
+      case Severity::kWARNING:
+        g_warning ("%s", msg);
+        break;
+      case Severity::kINFO:
+        g_message ("%s", msg);
+        break;
+      case Severity::kVERBOSE:
+        g_debug ("%s", msg);
+        break;
+      default:
+        g_critical ("%s", msg);
+        break;
     }
   }
 } gLogger;
@@ -189,9 +189,9 @@ CustomTensorRT::setInputMeta (const GstTensorsInfo *info)
     return false;
 
   /* TensorRT uses the NCHW data format */
-  mInputDims = nvinfer1::Dims4{ (int)info->info[0].dimension[3],
-    (int)info->info[0].dimension[2], (int)info->info[0].dimension[1],
-    (int)info->info[0].dimension[0] };
+  mInputDims = nvinfer1::Dims4{ (int) info->info[0].dimension[3],
+    (int) info->info[0].dimension[2], (int) info->info[0].dimension[1],
+    (int) info->info[0].dimension[0] };
 
   gst_tensors_info_copy (&mInputMeta, info);
 
@@ -205,9 +205,9 @@ gboolean
 CustomTensorRT::setOutputMeta (const GstTensorsInfo *info)
 {
   /* TensorRT uses the NCHW data format */
-  mOutputDims = nvinfer1::Dims4{ (int)info->info[0].dimension[3],
-    (int)info->info[0].dimension[2], (int)info->info[0].dimension[1],
-    (int)info->info[0].dimension[0] };
+  mOutputDims = nvinfer1::Dims4{ (int) info->info[0].dimension[3],
+    (int) info->info[0].dimension[2], (int) info->info[0].dimension[1],
+    (int) info->info[0].dimension[0] };
 
   gst_tensors_info_copy (&mOutputMeta, info);
 
@@ -359,7 +359,7 @@ pt_init (const GstTensorFilterProperties *prop)
     info.num_tensors = 1;
     for (i = 0; i < NNS_TENSOR_RANK_LIMIT - 1; i++) {
       info.info[0].type = _NNS_FLOAT32;
-      info.info[0].dimension[i] = (int)g_ascii_strtoll (strv[i], NULL, 10);
+      info.info[0].dimension[i] = (int) g_ascii_strtoll (strv[i], NULL, 10);
     }
     info.info[0].dimension[NNS_TENSOR_RANK_LIMIT - 1] = 1;
 

@@ -8,8 +8,8 @@
  * @bug         No known bugs
  */
 
-#include <glib.h>
 #include <gtest/gtest.h>
+#include <glib.h>
 #include <gmock/gmock.h>
 #include <unittest_util.h>
 #include "../gst/mqtt/ntputil.h"
@@ -19,10 +19,10 @@
 #include <netdb.h>
 
 using ::testing::_;
+using ::testing::Assign;
 using ::testing::DoAll;
 using ::testing::Return;
 using ::testing::SetArgPointee;
-using ::testing::Assign;
 using ::testing::SetErrnoAndReturn;
 
 const uint64_t NTPUTIL_TIMESTAMP_DELTA = 2208988800ULL;
@@ -30,28 +30,28 @@ const uint64_t NTPUTIL_TIMESTAMP_DELTA = 2208988800ULL;
 /**
  * @brief Interface for NTP util mock class
  */
-class INtpUtil {
-public:
+class INtpUtil
+{
+  public:
   /**
    * @brief Destroy the INtpUtil object
    */
-  virtual ~INtpUtil () {};
+  virtual ~INtpUtil (){};
   virtual struct hostent *gethostbyname (const char *name) = 0;
-  virtual int connect (int sockfd, const struct sockaddr *addr,
-                  socklen_t addrlen) = 0;
+  virtual int connect (int sockfd, const struct sockaddr *addr, socklen_t addrlen) = 0;
   virtual ssize_t write (int fd, const void *buf, size_t count) = 0;
   virtual ssize_t read (int fd, void *buf, size_t count) = 0;
-  virtual uint32_t  _convert_to_host_byte_order (uint32_t netlong) = 0;
+  virtual uint32_t _convert_to_host_byte_order (uint32_t netlong) = 0;
 };
 
 /**
  * @brief Mock class for testing ntp util
  */
-class NtpUtilMock : public INtpUtil {
-public:
+class NtpUtilMock : public INtpUtil
+{
+  public:
   MOCK_METHOD (struct hostent *, gethostbyname, (const char *name));
-  MOCK_METHOD (int, connect, (int sockfd, const struct sockaddr *addr,
-                  socklen_t addrlen));
+  MOCK_METHOD (int, connect, (int sockfd, const struct sockaddr *addr, socklen_t addrlen));
   MOCK_METHOD (ssize_t, write, (int fd, const void *buf, size_t count));
   MOCK_METHOD (ssize_t, read, (int fd, void *buf, size_t count));
   MOCK_METHOD (uint32_t, _convert_to_host_byte_order, (uint32_t netlong));
@@ -61,7 +61,8 @@ NtpUtilMock *mockInstance = nullptr;
 /**
  * @brief Mocking function for gethostbyname
  */
-struct hostent *gethostbyname (const char *name)
+struct hostent *
+gethostbyname (const char *name)
 {
   return mockInstance->gethostbyname (name);
 }
@@ -69,8 +70,8 @@ struct hostent *gethostbyname (const char *name)
 /**
  * @brief Mocking function for gethostbyname
  */
-int connect (int sockfd, const struct sockaddr *addr,
-                  socklen_t addrlen)
+int
+connect (int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 {
   return mockInstance->connect (sockfd, addr, addrlen);
 }
@@ -81,7 +82,8 @@ int connect (int sockfd, const struct sockaddr *addr,
 /**
  * @brief Mocking function for write.
  */
-ssize_t write (int fd, const void *buf, size_t count)
+ssize_t
+write (int fd, const void *buf, size_t count)
 {
   return mockInstance->write (fd, buf, count);
 }
@@ -89,7 +91,8 @@ ssize_t write (int fd, const void *buf, size_t count)
 /**
  * @brief Mocking function for read.
  */
-ssize_t read (int fd, void *buf, size_t count)
+ssize_t
+read (int fd, void *buf, size_t count)
 {
   return mockInstance->read (fd, buf, count);
 }
@@ -98,7 +101,8 @@ ssize_t read (int fd, void *buf, size_t count)
 /**
  * @brief Mocking function for _convert_to_host_byte_order.
  */
-uint32_t _convert_to_host_byte_order (uint32_t netlong)
+uint32_t
+_convert_to_host_byte_order (uint32_t netlong)
 {
   return mockInstance->_convert_to_host_byte_order (netlong);
 }
@@ -110,7 +114,7 @@ uint32_t _convert_to_host_byte_order (uint32_t netlong)
 class ntpUtilMockTest : public ::testing::Test
 {
   protected:
-    struct hostent host;
+  struct hostent host;
   /**
    * @brief  Sets up the base fixture
    */
@@ -143,25 +147,21 @@ class ntpUtilMockTest : public ::testing::Test
 TEST_F (ntpUtilMockTest, getEpochNormal_p)
 {
   int64_t ret;
-  const char *hnames[] = {"temp"};
-  uint16_t ports[] = {8080U};
+  const char *hnames[] = { "temp" };
+  uint16_t ports[] = { 8080U };
 
   mockInstance = new NtpUtilMock ();
 
-  EXPECT_CALL (*mockInstance, gethostbyname(_))
-      .Times(1).WillOnce(Return((struct hostent *)&host));
-  EXPECT_CALL (*mockInstance, connect(_, _, _))
-      .Times(1).WillOnce(Return(0));
-  EXPECT_CALL (*mockInstance, write(_, _, _))
-      .Times(1).WillOnce(Return(0));
-  EXPECT_CALL (*mockInstance, read(_, _, _))
-      .Times(1).WillOnce(Return(0));
-  EXPECT_CALL (*mockInstance, _convert_to_host_byte_order(_))
-      .Times(2)
-      .WillOnce(Return(NTPUTIL_TIMESTAMP_DELTA + 1ULL))
-      .WillOnce(Return(1ULL));
+  EXPECT_CALL (*mockInstance, gethostbyname (_)).Times (1).WillOnce (Return ((struct hostent *) &host));
+  EXPECT_CALL (*mockInstance, connect (_, _, _)).Times (1).WillOnce (Return (0));
+  EXPECT_CALL (*mockInstance, write (_, _, _)).Times (1).WillOnce (Return (0));
+  EXPECT_CALL (*mockInstance, read (_, _, _)).Times (1).WillOnce (Return (0));
+  EXPECT_CALL (*mockInstance, _convert_to_host_byte_order (_))
+      .Times (2)
+      .WillOnce (Return (NTPUTIL_TIMESTAMP_DELTA + 1ULL))
+      .WillOnce (Return (1ULL));
 
-  ret = ntputil_get_epoch (1, (char **)hnames, ports);
+  ret = ntputil_get_epoch (1, (char **) hnames, ports);
 
   EXPECT_GE (ret, 0);
 
@@ -177,11 +177,9 @@ TEST_F (ntpUtilMockTest, getEpochHostNameFail_n)
 
   mockInstance = new NtpUtilMock ();
 
-  EXPECT_CALL (*mockInstance, gethostbyname(_))
-      .Times(1)
-      .WillOnce(DoAll(
-        testing::Assign(&h_errno, HOST_NOT_FOUND),
-        Return (nullptr)));
+  EXPECT_CALL (*mockInstance, gethostbyname (_))
+      .Times (1)
+      .WillOnce (DoAll (testing::Assign (&h_errno, HOST_NOT_FOUND), Return (nullptr)));
 
   ret = ntputil_get_epoch (0, nullptr, nullptr);
   EXPECT_LT (ret, 0);
@@ -198,10 +196,8 @@ TEST_F (ntpUtilMockTest, getEpochConnectFail_n)
 
   mockInstance = new NtpUtilMock ();
 
-  EXPECT_CALL (*mockInstance, gethostbyname(_))
-      .Times(1).WillOnce(Return((struct hostent *)&host));
-  EXPECT_CALL (*mockInstance, connect(_, _, _))
-      .Times(1).WillOnce(SetErrnoAndReturn(EINVAL, -1));
+  EXPECT_CALL (*mockInstance, gethostbyname (_)).Times (1).WillOnce (Return ((struct hostent *) &host));
+  EXPECT_CALL (*mockInstance, connect (_, _, _)).Times (1).WillOnce (SetErrnoAndReturn (EINVAL, -1));
 
   ret = ntputil_get_epoch (0, nullptr, nullptr);
   EXPECT_LT (ret, 0);
@@ -218,12 +214,9 @@ TEST_F (ntpUtilMockTest, getEpochWriteFail_n)
 
   mockInstance = new NtpUtilMock ();
 
-  EXPECT_CALL (*mockInstance, gethostbyname(_))
-      .Times(1).WillOnce(Return((struct hostent *)&host));
-  EXPECT_CALL (*mockInstance, connect(_, _, _))
-      .Times(1).WillOnce(Return(0));
-  EXPECT_CALL (*mockInstance, write(_, _, _))
-      .Times(1).WillOnce(SetErrnoAndReturn(EINVAL, -1));
+  EXPECT_CALL (*mockInstance, gethostbyname (_)).Times (1).WillOnce (Return ((struct hostent *) &host));
+  EXPECT_CALL (*mockInstance, connect (_, _, _)).Times (1).WillOnce (Return (0));
+  EXPECT_CALL (*mockInstance, write (_, _, _)).Times (1).WillOnce (SetErrnoAndReturn (EINVAL, -1));
 
   ret = ntputil_get_epoch (0, nullptr, nullptr);
 
@@ -241,14 +234,10 @@ TEST_F (ntpUtilMockTest, getEpochReadFail_n)
 
   mockInstance = new NtpUtilMock ();
 
-  EXPECT_CALL (*mockInstance, gethostbyname(_))
-      .Times(1).WillOnce(Return((struct hostent *)&host));
-  EXPECT_CALL (*mockInstance, connect(_, _, _))
-      .Times(1).WillOnce(Return(0));
-  EXPECT_CALL (*mockInstance, write(_, _, _))
-      .Times(1).WillOnce(Return(0));
-  EXPECT_CALL (*mockInstance, read(_, _, _))
-      .Times(1).WillOnce(SetErrnoAndReturn(EINVAL, -1));
+  EXPECT_CALL (*mockInstance, gethostbyname (_)).Times (1).WillOnce (Return ((struct hostent *) &host));
+  EXPECT_CALL (*mockInstance, connect (_, _, _)).Times (1).WillOnce (Return (0));
+  EXPECT_CALL (*mockInstance, write (_, _, _)).Times (1).WillOnce (Return (0));
+  EXPECT_CALL (*mockInstance, read (_, _, _)).Times (1).WillOnce (SetErrnoAndReturn (EINVAL, -1));
 
   ret = ntputil_get_epoch (0, nullptr, nullptr);
 
@@ -266,18 +255,14 @@ TEST_F (ntpUtilMockTest, getEpochIvalidTimestamp)
 
   mockInstance = new NtpUtilMock ();
 
-  EXPECT_CALL (*mockInstance, gethostbyname(_))
-      .Times(1).WillOnce(Return((struct hostent *)&host));
-  EXPECT_CALL (*mockInstance, connect(_, _, _))
-      .Times(1).WillOnce(Return(0));
-  EXPECT_CALL (*mockInstance, write(_, _, _))
-      .Times(1).WillOnce(Return(0));
-  EXPECT_CALL (*mockInstance, read(_, _, _))
-      .Times(1).WillOnce(Return(0));
-  EXPECT_CALL (*mockInstance, _convert_to_host_byte_order(_))
-      .Times(2)
-      .WillOnce(Return(1ULL))
-      .WillOnce(Return(1ULL));
+  EXPECT_CALL (*mockInstance, gethostbyname (_)).Times (1).WillOnce (Return ((struct hostent *) &host));
+  EXPECT_CALL (*mockInstance, connect (_, _, _)).Times (1).WillOnce (Return (0));
+  EXPECT_CALL (*mockInstance, write (_, _, _)).Times (1).WillOnce (Return (0));
+  EXPECT_CALL (*mockInstance, read (_, _, _)).Times (1).WillOnce (Return (0));
+  EXPECT_CALL (*mockInstance, _convert_to_host_byte_order (_))
+      .Times (2)
+      .WillOnce (Return (1ULL))
+      .WillOnce (Return (1ULL));
 
   ret = ntputil_get_epoch (0, nullptr, nullptr);
 

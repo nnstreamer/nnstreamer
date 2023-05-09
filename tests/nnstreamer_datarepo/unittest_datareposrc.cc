@@ -1,4 +1,4 @@
- /**
+/**
  * @file        unittest_datareposrc.cc
  * @date        21 Apr 2023
  * @brief       Unit test for datareposrc
@@ -20,7 +20,7 @@ static const gchar json[] = "mnist.json";
  * @brief Get file path
  */
 static gchar *
-get_file_path (const gchar * filename)
+get_file_path (const gchar *filename)
 {
   const gchar *root_path = NULL;
   gchar *file_path = NULL;
@@ -31,9 +31,8 @@ get_file_path (const gchar * filename)
   if (root_path == NULL)
     root_path = "..";
 
-  file_path =
-      g_build_filename (root_path, "tests", "test_models", "data", "datarepo",
-      filename, NULL);
+  file_path = g_build_filename (
+      root_path, "tests", "test_models", "data", "datarepo", filename, NULL);
 
   return file_path;
 }
@@ -42,7 +41,7 @@ get_file_path (const gchar * filename)
  * @brief Bus callback function
  */
 static gboolean
-bus_callback (GstBus * bus, GstMessage * message, gpointer data)
+bus_callback (GstBus *bus, GstMessage *message, gpointer data)
 {
   switch (GST_MESSAGE_TYPE (message)) {
     case GST_MESSAGE_EOS:
@@ -66,9 +65,8 @@ create_video_test_file ()
 
   loop = g_main_loop_new (NULL, FALSE);
 
-  gchar *str_pipeline =
-      g_strdup ("gst-launch-1.0 videotestsrc num-buffers=10 ! "
-      "datareposink location=video1.raw json=video1.json");
+  gchar *str_pipeline = g_strdup ("gst-launch-1.0 videotestsrc num-buffers=10 ! "
+                                  "datareposink location=video1.raw json=video1.json");
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
@@ -79,8 +77,7 @@ create_video_test_file ()
   gst_bus_add_watch (bus, bus_callback, loop);
   gst_object_unref (bus);
 
-  setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-      UNITTEST_STATECHANGE_TIMEOUT);
+  setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
   g_main_loop_run (loop);
 
   setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
@@ -99,9 +96,8 @@ create_audio_test_file ()
 
   loop = g_main_loop_new (NULL, FALSE);
 
-  gchar *str_pipeline =
-      g_strdup
-      ("gst-launch-1.0 audiotestsrc samplesperbuffer=44100 num-buffers=1 ! "
+  gchar *str_pipeline = g_strdup (
+      "gst-launch-1.0 audiotestsrc samplesperbuffer=44100 num-buffers=1 ! "
       "audio/x-raw, format=S16LE, layout=interleaved, rate=44100, channels=1 ! "
       "datareposink location=audio1.raw json=audio1.json");
 
@@ -114,8 +110,7 @@ create_audio_test_file ()
   gst_bus_add_watch (bus, bus_callback, loop);
   gst_object_unref (bus);
 
-  setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-      UNITTEST_STATECHANGE_TIMEOUT);
+  setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
   g_main_loop_run (loop);
 
   setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
@@ -134,9 +129,8 @@ create_image_test_file ()
 
   loop = g_main_loop_new (NULL, FALSE);
 
-  gchar *str_pipeline =
-      g_strdup ("gst-launch-1.0 videotestsrc num-buffers=5 ! pngenc ! "
-      "datareposink location=img_%02d.png json=img.json");
+  gchar *str_pipeline = g_strdup ("gst-launch-1.0 videotestsrc num-buffers=5 ! pngenc ! "
+                                  "datareposink location=img_%02d.png json=img.json");
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
@@ -147,8 +141,7 @@ create_image_test_file ()
   gst_bus_add_watch (bus, bus_callback, loop);
   gst_object_unref (bus);
 
-  setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-      UNITTEST_STATECHANGE_TIMEOUT);
+  setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
   g_main_loop_run (loop);
 
   setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
@@ -168,11 +161,11 @@ TEST (datareposrc, readImageFiles)
 
   loop = g_main_loop_new (NULL, FALSE);
 
-  gchar *str_pipeline =
-      g_strdup ("gst-launch-1.0 datareposrc "
-      "location=img_%02d.png "
-      "json=img.json "
-      "start-sample-index=0 stop-sample-index=4 ! pngdec ! fakesink");
+  gchar *str_pipeline
+      = g_strdup ("gst-launch-1.0 datareposrc "
+                  "location=img_%02d.png "
+                  "json=img.json "
+                  "start-sample-index=0 stop-sample-index=4 ! pngdec ! fakesink");
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
   ASSERT_NE (pipeline, nullptr);
@@ -182,8 +175,7 @@ TEST (datareposrc, readImageFiles)
   gst_bus_add_watch (bus, bus_callback, loop);
   gst_object_unref (bus);
 
-  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-          UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   g_main_loop_run (loop);
 
@@ -204,8 +196,8 @@ TEST (datareposrc, readVideoRaw)
 
   loop = g_main_loop_new (NULL, FALSE);
 
-  gchar *str_pipeline =
-      g_strdup ("gst-launch-1.0 datareposrc "
+  gchar *str_pipeline = g_strdup (
+      "gst-launch-1.0 datareposrc "
       "location=video1.raw "
       "json=video1.json ! "
       "video/x-raw, format=RGBx, width=320, height=240, framerate=30/1 ! fakesink");
@@ -218,8 +210,7 @@ TEST (datareposrc, readVideoRaw)
   gst_bus_add_watch (bus, bus_callback, loop);
   gst_object_unref (bus);
 
-  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-          UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   g_main_loop_run (loop);
 
@@ -240,8 +231,8 @@ TEST (datareposrc, readAudioRaw)
 
   loop = g_main_loop_new (NULL, FALSE);
 
-  gchar *str_pipeline =
-      g_strdup ("gst-launch-1.0 datareposrc "
+  gchar *str_pipeline = g_strdup (
+      "gst-launch-1.0 datareposrc "
       "location=audio1.raw "
       "json=audio1.json ! "
       "audio/x-raw, format=S16LE, rate=44100, channels=1, layout=interleaved ! fakesink ");
@@ -254,8 +245,7 @@ TEST (datareposrc, readAudioRaw)
   gst_bus_add_watch (bus, bus_callback, loop);
   gst_object_unref (bus);
 
-  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-          UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   g_main_loop_run (loop);
 
@@ -271,8 +261,8 @@ TEST (datareposrc, invalidJsonPath0_n)
 {
   GstElement *datareposrc = NULL;
 
-  gchar *str_pipeline =
-      g_strdup ("gst-launch-1.0 datareposrc name=datareposrc ! "
+  gchar *str_pipeline = g_strdup (
+      "gst-launch-1.0 datareposrc name=datareposrc ! "
       "video/x-raw, format=RGBx, width=320, height=240, framerate=30/1 ! fakesink");
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
@@ -286,8 +276,7 @@ TEST (datareposrc, invalidJsonPath0_n)
   g_object_set (GST_OBJECT (datareposrc), "json", NULL, NULL);
 
   /* state chagne failure is expected */
-  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-          UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
 
   gst_object_unref (pipeline);
@@ -300,8 +289,8 @@ TEST (datareposrc, invalidJsonPath1_n)
 {
   GstElement *datareposrc = NULL;
 
-  gchar *str_pipeline =
-      g_strdup ("gst-launch-1.0 datareposrc name=datareposrc ! "
+  gchar *str_pipeline = g_strdup (
+      "gst-launch-1.0 datareposrc name=datareposrc ! "
       "video/x-raw, format=RGBx, width=320, height=240, framerate=30/1 ! fakesink");
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
@@ -315,8 +304,7 @@ TEST (datareposrc, invalidJsonPath1_n)
   g_object_set (GST_OBJECT (datareposrc), "json", "no_search_file", NULL);
 
   /* state chagne failure is expected */
-  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-          UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
 
@@ -330,8 +318,8 @@ TEST (datareposrc, invalidFilePath0_n)
 {
   GstElement *datareposrc = NULL;
 
-  gchar *str_pipeline =
-      g_strdup ("gst-launch-1.0 datareposrc name=datareposrc ! "
+  gchar *str_pipeline = g_strdup (
+      "gst-launch-1.0 datareposrc name=datareposrc ! "
       "video/x-raw, format=RGBx, width=320, height=240, framerate=30/1 ! fakesink");
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
@@ -345,8 +333,7 @@ TEST (datareposrc, invalidFilePath0_n)
   g_object_set (GST_OBJECT (datareposrc), "location", NULL, NULL);
 
   /* state chagne failure is expected */
-  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-          UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (pipeline);
 }
@@ -358,8 +345,8 @@ TEST (datareposrc, invalidFilePath1_n)
 {
   GstElement *datareposrc = NULL;
 
-  gchar *str_pipeline =
-      g_strdup ("gst-launch-1.0 datareposrc name=datareposrc ! "
+  gchar *str_pipeline = g_strdup (
+      "gst-launch-1.0 datareposrc name=datareposrc ! "
       "video/x-raw, format=RGBx, width=320, height=240, framerate=30/1 ! fakesink");
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   g_free (str_pipeline);
@@ -373,8 +360,7 @@ TEST (datareposrc, invalidFilePath1_n)
   g_object_set (GST_OBJECT (datareposrc), "location", "no_search_file", NULL);
 
   /* state chagne failure is expected */
-  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-          UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (pipeline);
 }
@@ -402,9 +388,8 @@ TEST (datareposrc, readTensors)
   file_path = get_file_path (filename);
   json_path = get_file_path (json);
 
-  gchar *str_pipeline =
-      g_strdup_printf
-      ("gst-launch-1.0 datareposrc name=datareposrc location=%s json=%s "
+  gchar *str_pipeline = g_strdup_printf (
+      "gst-launch-1.0 datareposrc name=datareposrc location=%s json=%s "
       "start-sample-index=0 stop-sample-index=9 epochs=2 tensors-sequence=0,1 !"
       "other/tensors, format=static, num_tensors=2, framerate=0/1, "
       "dimensions=1:1:784:1.1:1:10:1, types=float32.float32 ! fakesink",
@@ -433,8 +418,7 @@ TEST (datareposrc, readTensors)
   g_object_get (datareposrc, "is-shuffle", &get_value, NULL);
   ASSERT_EQ (get_value, 1U);
 
-  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-          UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   g_main_loop_run (loop);
 
@@ -460,9 +444,8 @@ TEST (datareposrc, invalidStartSampleIndex0_n)
   file_path = get_file_path (filename);
   json_path = get_file_path (json);
 
-  gchar *str_pipeline =
-      g_strdup_printf
-      ("gst-launch-1.0 datareposrc name=datareposrc location=%s json=%s "
+  gchar *str_pipeline = g_strdup_printf (
+      "gst-launch-1.0 datareposrc name=datareposrc location=%s json=%s "
       "stop-sample-index=9 epochs=2 tensors-sequence=0,1 !"
       "other/tensors, format=static, num_tensors=2, framerate=0/1, "
       "dimensions=1:1:784:1.1:1:10:1, types=float32.float32 ! fakesink",
@@ -477,12 +460,10 @@ TEST (datareposrc, invalidStartSampleIndex0_n)
   ASSERT_NE (datareposrc, nullptr);
 
   /* set invalid param */
-  g_object_set (GST_OBJECT (datareposrc), "start-sample-index",
-      idx_out_of_range, NULL);
+  g_object_set (GST_OBJECT (datareposrc), "start-sample-index", idx_out_of_range, NULL);
 
   /* state chagne failure is expected */
-  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-          UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (pipeline);
 }
@@ -502,9 +483,8 @@ TEST (datareposrc, invalidStartSampleIndex1_n)
   file_path = get_file_path (filename);
   json_path = get_file_path (json);
 
-  gchar *str_pipeline =
-      g_strdup_printf
-      ("gst-launch-1.0 datareposrc name=datareposrc location=%s json=%s "
+  gchar *str_pipeline = g_strdup_printf (
+      "gst-launch-1.0 datareposrc name=datareposrc location=%s json=%s "
       "stop-sample-index=9 epochs=2 tensors-sequence=0,1 !"
       "other/tensors, format=static, num_tensors=2, framerate=0/1, "
       "dimensions=1:1:784:1.1:1:10:1, types=float32.float32 ! fakesink",
@@ -519,12 +499,10 @@ TEST (datareposrc, invalidStartSampleIndex1_n)
   ASSERT_NE (datareposrc, nullptr);
 
   /* set invalid param */
-  g_object_set (GST_OBJECT (datareposrc), "start-sample-index",
-      idx_out_of_range, NULL);
-  /** value "-1" of type 'gint' is invalid or out of range for property 'start-sample-index' of type 'gint'
-     default value is set */
-  g_object_get (GST_OBJECT (datareposrc), "start-sample-index", &get_value,
-      NULL);
+  g_object_set (GST_OBJECT (datareposrc), "start-sample-index", idx_out_of_range, NULL);
+  /** value "-1" of type 'gint' is invalid or out of range for property
+     'start-sample-index' of type 'gint' default value is set */
+  g_object_get (GST_OBJECT (datareposrc), "start-sample-index", &get_value, NULL);
   EXPECT_EQ (get_value, 0U);
 
   gst_object_unref (pipeline);
@@ -544,9 +522,8 @@ TEST (datareposrc, invalidStopSampleIndex0_n)
   file_path = get_file_path (filename);
   json_path = get_file_path (json);
 
-  gchar *str_pipeline =
-      g_strdup_printf
-      ("gst-launch-1.0 datareposrc name=datareposrc location=%s json=%s "
+  gchar *str_pipeline = g_strdup_printf (
+      "gst-launch-1.0 datareposrc name=datareposrc location=%s json=%s "
       "start-sample-index=0 epochs=2 tensors-sequence=0,1 !"
       "other/tensors, format=static, num_tensors=2, framerate=0/1, "
       "dimensions=1:1:784:1.1:1:10:1, types=float32.float32 ! fakesink",
@@ -560,12 +537,10 @@ TEST (datareposrc, invalidStopSampleIndex0_n)
   datareposrc = gst_bin_get_by_name (GST_BIN (pipeline), "datareposrc");
   ASSERT_NE (datareposrc, nullptr);
 
-  g_object_set (GST_OBJECT (datareposrc), "stop-sample-index", idx_out_of_range,
-      NULL);
+  g_object_set (GST_OBJECT (datareposrc), "stop-sample-index", idx_out_of_range, NULL);
 
   /* state chagne failure is expected */
-  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-          UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (pipeline);
 }
@@ -585,9 +560,8 @@ TEST (datareposrc, invalidStopSampleIndex1_n)
   file_path = get_file_path (filename);
   json_path = get_file_path (json);
 
-  gchar *str_pipeline =
-      g_strdup_printf
-      ("gst-launch-1.0 datareposrc name=datareposrc location=%s json=%s "
+  gchar *str_pipeline = g_strdup_printf (
+      "gst-launch-1.0 datareposrc name=datareposrc location=%s json=%s "
       "start-sample-index=0 epochs=2 tensors-sequence=0,1 !"
       "other/tensors, format=static, num_tensors=2, framerate=0/1, "
       "dimensions=1:1:784:1.1:1:10:1, types=float32.float32 ! fakesink",
@@ -602,12 +576,10 @@ TEST (datareposrc, invalidStopSampleIndex1_n)
   ASSERT_NE (datareposrc, nullptr);
 
   /* set invalid param */
-  g_object_set (GST_OBJECT (datareposrc), "stop-sample-index", idx_out_of_range,
-      NULL);
-  /** value "-1" of type 'gint' is invalid or out of range for property 'start-sample-index' of type 'gint'
-     default value is set */
-  g_object_get (GST_OBJECT (datareposrc), "stop-sample-index", &get_value,
-      NULL);
+  g_object_set (GST_OBJECT (datareposrc), "stop-sample-index", idx_out_of_range, NULL);
+  /** value "-1" of type 'gint' is invalid or out of range for property
+     'start-sample-index' of type 'gint' default value is set */
+  g_object_get (GST_OBJECT (datareposrc), "stop-sample-index", &get_value, NULL);
   EXPECT_EQ (get_value, 0U);
 
   gst_object_unref (pipeline);
@@ -627,9 +599,8 @@ TEST (datareposrc, invalidEpochs0_n)
   file_path = get_file_path (filename);
   json_path = get_file_path (json);
 
-  gchar *str_pipeline =
-      g_strdup_printf
-      ("gst-launch-1.0 datareposrc name=datareposrc location=%s json=%s "
+  gchar *str_pipeline = g_strdup_printf (
+      "gst-launch-1.0 datareposrc name=datareposrc location=%s json=%s "
       "start-sample-index=0 stop-sample-index=9 tensors-sequence=0,1 ! "
       "other/tensors, format=static, num_tensors=2, framerate=0/1, "
       "dimensions=1:1:784:1.1:1:10:1, types=float32.float32 ! fakesink",
@@ -645,8 +616,8 @@ TEST (datareposrc, invalidEpochs0_n)
 
   /* set invalid param */
   g_object_set (GST_OBJECT (datareposrc), "epochs", invalid_epochs, NULL);
-  /** value "-1" of type 'gint' is invalid or out of range for property 'start-sample-index' of type 'gint'
-     default value is set */
+  /** value "-1" of type 'gint' is invalid or out of range for property
+     'start-sample-index' of type 'gint' default value is set */
   g_object_get (GST_OBJECT (datareposrc), "epochs", &get_value, NULL);
   EXPECT_EQ (get_value, 1U);
 
@@ -666,9 +637,8 @@ TEST (datareposrc, invalidEpochs1_n)
   file_path = get_file_path (filename);
   json_path = get_file_path (json);
 
-  gchar *str_pipeline =
-      g_strdup_printf
-      ("gst-launch-1.0 datareposrc name=datareposrc location=%s json=%s "
+  gchar *str_pipeline = g_strdup_printf (
+      "gst-launch-1.0 datareposrc name=datareposrc location=%s json=%s "
       "start-sample-index=0 stop-sample-index=9 tensors-sequence=0,1 ! "
       "other/tensors, format=static, num_tensors=2, framerate=0/1, "
       "dimensions=1:1:784:1.1:1:10:1, types=float32.float32 ! fakesink",
@@ -686,8 +656,7 @@ TEST (datareposrc, invalidEpochs1_n)
   g_object_set (GST_OBJECT (datareposrc), "epochs", invalid_epochs, NULL);
 
   /* state chagne failure is expected */
-  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-          UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (pipeline);
 }
@@ -705,9 +674,8 @@ TEST (datareposrc, invalidTensorsSequence0_n)
   file_path = get_file_path (filename);
   json_path = get_file_path (json);
 
-  gchar *str_pipeline =
-      g_strdup_printf
-      ("gst-launch-1.0 datareposrc name=datareposrc location=%s json=%s "
+  gchar *str_pipeline = g_strdup_printf (
+      "gst-launch-1.0 datareposrc name=datareposrc location=%s json=%s "
       "start-sample-index=0 stop-sample-index=9 ! "
       "other/tensors, format=static, num_tensors=2, framerate=0/1, "
       "dimensions=1:1:784:1.1:1:10:1, types=float32.float32 ! fakesink",
@@ -725,8 +693,7 @@ TEST (datareposrc, invalidTensorsSequence0_n)
   g_object_set (GST_OBJECT (datareposrc), "tensors-sequence", "1,0,2", NULL);
 
   /* state chagne failure is expected */
-  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING,
-          UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (pipeline);
 }
@@ -763,7 +730,7 @@ main (int argc, char **argv)
 
   try {
     testing::InitGoogleTest (&argc, argv);
-  } catch ( ...) {
+  } catch (...) {
     g_warning ("catch 'testing::internal::<unnamed>::ClassUniqueToAlwaysTrue'");
   }
 
@@ -771,7 +738,7 @@ main (int argc, char **argv)
 
   try {
     result = RUN_ALL_TESTS ();
-  } catch ( ...) {
+  } catch (...) {
     g_warning ("catch `testing::internal::GoogleTestFailureException`");
   }
 

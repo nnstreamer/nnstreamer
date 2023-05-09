@@ -83,8 +83,8 @@ class dvrt_subplugin final : public tensor_filter_subplugin
   static dvrt_subplugin *registeredRepresentation;
 
   void cleanup ();
-  int parseCustomOptions (const GstTensorFilterProperties *props,
-                          struct dvrt_options_s *opts);
+  int parseCustomOptions (
+      const GstTensorFilterProperties *props, struct dvrt_options_s *opts);
   int initContext (dvrt_options_s *options);
   int initTensorsMeta ();
   int setInputTensorProp ();
@@ -104,8 +104,7 @@ class dvrt_subplugin final : public tensor_filter_subplugin
   void configure_instance (const GstTensorFilterProperties *prop);
   void invoke (const GstTensorMemory *input, GstTensorMemory *output);
   void getFrameworkInfo (GstTensorFilterFrameworkInfo &info);
-  int getModelInfo (model_info_ops ops, GstTensorsInfo &in_info,
-                                        GstTensorsInfo &out_info);
+  int getModelInfo (model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info);
   int eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data);
 };
 
@@ -130,8 +129,8 @@ dvrt_subplugin::dvrt_subplugin ()
   gst_tensors_info_init (std::addressof (outputInfo));
 
   modelMap = nullptr;
-  context  = nullptr;
-  engine   = nullptr;
+  context = nullptr;
+  engine = nullptr;
 }
 
 /** @brief cleanup resources used by dvrt subplugin */
@@ -180,8 +179,8 @@ dvrt_subplugin::getEmptyInstance ()
  * @return 0 if OK. non-zero if error.
  */
 int
-dvrt_subplugin::parseCustomOptions (const GstTensorFilterProperties *props,
-                                    struct dvrt_options_s *opts)
+dvrt_subplugin::parseCustomOptions (
+    const GstTensorFilterProperties *props, struct dvrt_options_s *opts)
 {
   if (props->num_models == 1)
     opts->modelPath = props->model_files[0];
@@ -189,8 +188,8 @@ dvrt_subplugin::parseCustomOptions (const GstTensorFilterProperties *props,
     opts->modelPath = nullptr;
 
   opts->enginePath = nullptr;
-  opts->cacheMb    = DVRT_CONTEXT_CACHE_SIZE_MB_DEFAULT;
-  opts->memPoolMb  = DVRT_CONTEXT_MEMPOOL_SIZE_MB_DEFAULT;
+  opts->cacheMb = DVRT_CONTEXT_CACHE_SIZE_MB_DEFAULT;
+  opts->memPoolMb = DVRT_CONTEXT_MEMPOOL_SIZE_MB_DEFAULT;
 
   if (props->custom_properties) {
     gchar **strv;
@@ -237,44 +236,44 @@ dvrt_subplugin::getTensorType (gsize index, tensor_type *type)
 
   _type = nn_model_layer_datatype_id (model, index);
   switch (_type) {
-  case NNTensorType_I8:
-    res = _NNS_INT8;
-    break;
-  case NNTensorType_U8:
-    res = _NNS_UINT8;
-    break;
-  case NNTensorType_I16:
-    res = _NNS_INT16;
-    break;
-  case NNTensorType_U16:
-    res = _NNS_UINT16;
-    break;
-  case NNTensorType_I32:
-    res = _NNS_INT32;
-    break;
-  case NNTensorType_U32:
-    res = _NNS_UINT32;
-    break;
-  case NNTensorType_I64:
-    res = _NNS_INT64;
-    break;
-  case NNTensorType_U64:
-    res = _NNS_UINT64;
-    break;
-  case NNTensorType_F32:
-    res = _NNS_FLOAT32;
-    break;
-  case NNTensorType_F64:
-    res = _NNS_FLOAT64;
-    break;
-  case NNTensorType_F16:
+    case NNTensorType_I8:
+      res = _NNS_INT8;
+      break;
+    case NNTensorType_U8:
+      res = _NNS_UINT8;
+      break;
+    case NNTensorType_I16:
+      res = _NNS_INT16;
+      break;
+    case NNTensorType_U16:
+      res = _NNS_UINT16;
+      break;
+    case NNTensorType_I32:
+      res = _NNS_INT32;
+      break;
+    case NNTensorType_U32:
+      res = _NNS_UINT32;
+      break;
+    case NNTensorType_I64:
+      res = _NNS_INT64;
+      break;
+    case NNTensorType_U64:
+      res = _NNS_UINT64;
+      break;
+    case NNTensorType_F32:
+      res = _NNS_FLOAT32;
+      break;
+    case NNTensorType_F64:
+      res = _NNS_FLOAT64;
+      break;
+    case NNTensorType_F16:
 #ifdef FLOAT16_SUPPORT
-    res = _NNS_FLOAT16;
-    break;
+      res = _NNS_FLOAT16;
+      break;
 #endif
-  default:
-    nns_logw ("Tensor type not supported: %d", (gint)_type);
-    return -EINVAL;
+    default:
+      nns_logw ("Tensor type not supported: %d", (gint) _type);
+      return -EINVAL;
   }
 
   *type = res;
@@ -334,8 +333,7 @@ dvrt_subplugin::setTensorProp (gint isInput)
   }
 
   if (num > NNS_TENSOR_SIZE_LIMIT) {
-    nns_logw ("Too many %s tensors: %zu max: %d",
-    tag, num, NNS_TENSOR_SIZE_LIMIT);
+    nns_logw ("Too many %s tensors: %zu max: %d", tag, num, NNS_TENSOR_SIZE_LIMIT);
     return -EINVAL;
   }
   tensorMeta->num_tensors = num;
@@ -358,7 +356,7 @@ dvrt_subplugin::setTensorProp (gint isInput)
     gchar *dim;
     dim = gst_tensor_get_dimension_string (tensorMeta->info[i].dimension);
     ml_logd ("tensorMeta[%zu] >> name[%s], type[%d], dim[%s]", i,
-             tensorMeta->info[i].name, tensorMeta->info[i].type, dim);
+        tensorMeta->info[i].name, tensorMeta->info[i].type, dim);
     g_free (dim);
   }
 
@@ -401,8 +399,7 @@ dvrt_subplugin::initContext (dvrt_options_s *options)
 
   GMappedFile *modelMap = g_mapped_file_new (options->modelPath, FALSE, &err);
   if (!modelMap || err) {
-    nns_logw ("Could not map model file %s %s",
-              options->modelPath, err->message);
+    nns_logw ("Could not map model file %s %s", options->modelPath, err->message);
     g_clear_error (&err);
     return -ENOENT;
   }
@@ -420,17 +417,13 @@ dvrt_subplugin::initContext (dvrt_options_s *options)
     engine = nn_engine_init (e);
     nnerror = nn_engine_load (engine, options->enginePath);
     if (nnerror) {
-      nns_logw ("Engine load failed %s %s",
-                options->enginePath, nn_strerror (nnerror));
+      nns_logw ("Engine load failed %s %s", options->enginePath, nn_strerror (nnerror));
       return -ENOENT;
     }
   }
 
-  context = nn_context_init (engine,
-            (size_t) (options->memPoolMb * 1024UL * 1024UL),
-            nullptr,
-            (size_t) (options->cacheMb * 1024UL * 1024UL),
-            nullptr);
+  context = nn_context_init (engine, (size_t) (options->memPoolMb * 1024UL * 1024UL),
+      nullptr, (size_t) (options->cacheMb * 1024UL * 1024UL), nullptr);
   if (!context) {
     nns_logw ("Context init failed");
     return -ENOMEM;
@@ -511,8 +504,7 @@ dvrt_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
     memcpy (output[i].data, data, output[i].size);
     nn_tensor_unmap (tensor);
 
-    nns_logd ("Invoke Output copy from (%p) (%zu) bytes",
-              data, output[i].size);
+    nns_logd ("Invoke Output copy from (%p) (%zu) bytes", data, output[i].size);
   }
 }
 
@@ -562,11 +554,9 @@ dvrt_subplugin::init_filter_dvrt (void)
 {
   registeredRepresentation
       = tensor_filter_subplugin::register_subplugin<dvrt_subplugin> ();
-  nnstreamer_filter_set_custom_property_desc (name,
-      "Cache",   "Context cache size in MiB",
-      "MemPool", "Context mempool size in MiB",
-      "Engine",  "Engine plugin path for context acceleration",
-      nullptr);
+  nnstreamer_filter_set_custom_property_desc (name, "Cache",
+      "Context cache size in MiB", "MemPool", "Context mempool size in MiB",
+      "Engine", "Engine plugin path for context acceleration", nullptr);
 }
 
 /** @brief initializer */
@@ -591,5 +581,5 @@ _fini_filter_dvrt ()
   dvrt_subplugin::fini_filter_dvrt ();
 }
 
-}  /* namespace nnstreamer::tensorfilter_dvrt */
+} // namespace tensorfilter_dvrt
 } /* namespace nnstreamer */

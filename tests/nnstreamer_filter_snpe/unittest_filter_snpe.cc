@@ -13,15 +13,15 @@
 #include <gst/gst.h>
 #include <unittest_util.h>
 
-#include <tensor_common.h>
 #include <nnstreamer_plugin_api_filter.h>
 #include <nnstreamer_util.h>
+#include <tensor_common.h>
 
 /**
  * @brief internal function to get model filename
  */
 static gboolean
-_GetModelFilePath (gchar ** model_file, gboolean is_float_model)
+_GetModelFilePath (gchar **model_file, gboolean is_float_model)
 {
   const gchar *src_root = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *root_path = src_root ? g_strdup (src_root) : g_get_current_dir ();
@@ -39,7 +39,8 @@ _GetModelFilePath (gchar ** model_file, gboolean is_float_model)
  * @brief Set tensor filter properties
  */
 static void
-_SetFilterProp (GstTensorFilterProperties *prop, const gchar *name, const gchar **models, gboolean is_float_model)
+_SetFilterProp (GstTensorFilterProperties *prop, const gchar *name,
+    const gchar **models, gboolean is_float_model)
 {
   memset (prop, 0, sizeof (GstTensorFilterProperties));
   prop->fwname = name;

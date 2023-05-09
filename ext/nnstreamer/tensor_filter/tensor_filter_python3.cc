@@ -48,9 +48,9 @@
 #define NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
 #undef NO_ANONYMOUS_NESTED_STRUCT
+#include <map>
 #include <nnstreamer_conf.h>
 #include <nnstreamer_util.h>
-#include <map>
 #include "nnstreamer_python3_helper.h"
 
 /**
@@ -70,8 +70,8 @@ typedef enum _cb_type {
   CB_END,
 } cb_type;
 
-#define Py_LOCK() PyGILState_Ensure()
-#define Py_UNLOCK(gstate) PyGILState_Release(gstate)
+#define Py_LOCK() PyGILState_Ensure ()
+#define Py_UNLOCK(gstate) PyGILState_Release (gstate)
 
 /**
  * @brief	Python embedding core structure
@@ -126,8 +126,8 @@ class PYCore
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-void init_filter_py (void) __attribute__((constructor));
-void fini_filter_py (void) __attribute__((destructor));
+void init_filter_py (void) __attribute__ ((constructor));
+void fini_filter_py (void) __attribute__ ((destructor));
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
@@ -169,7 +169,6 @@ PYCore::PYCore (const char *_script_path, const char *_custom)
   core_obj = NULL;
   configured = false;
   shape_cls = NULL;
-
 }
 
 /**
@@ -285,10 +284,10 @@ PYCore::loadScript ()
       if (core_obj) {
         /** check whther either setInputDim or getInputDim/getOutputDim are
          * defined */
-        if (PyObject_HasAttrString (core_obj, (char *)"setInputDim"))
+        if (PyObject_HasAttrString (core_obj, (char *) "setInputDim"))
           callback_type = CB_SETDIM;
-        else if (PyObject_HasAttrString (core_obj, (char *)"getInputDim")
-                 && PyObject_HasAttrString (core_obj, (char *)"getOutputDim"))
+        else if (PyObject_HasAttrString (core_obj, (char *) "getInputDim")
+                 && PyObject_HasAttrString (core_obj, (char *) "getOutputDim"))
           callback_type = CB_GETDIM;
         else
           callback_type = CB_END;
@@ -335,26 +334,26 @@ int
 PYCore::checkTensorType (int nns_type, int np_type)
 {
   switch (nns_type) {
-  case _NNS_INT64:
-    return np_type == NPY_INT64;
-  case _NNS_UINT64:
-    return np_type == NPY_UINT64;
-  case _NNS_INT32:
-    return np_type == NPY_INT32;
-  case _NNS_UINT32:
-    return np_type == NPY_UINT32;
-  case _NNS_INT16:
-    return np_type == NPY_INT16;
-  case _NNS_UINT16:
-    return np_type == NPY_UINT16;
-  case _NNS_INT8:
-    return np_type == NPY_INT8;
-  case _NNS_UINT8:
-    return np_type == NPY_UINT8;
-  case _NNS_FLOAT64:
-    return np_type == NPY_FLOAT64;
-  case _NNS_FLOAT32:
-    return np_type == NPY_FLOAT32;
+    case _NNS_INT64:
+      return np_type == NPY_INT64;
+    case _NNS_UINT64:
+      return np_type == NPY_UINT64;
+    case _NNS_INT32:
+      return np_type == NPY_INT32;
+    case _NNS_UINT32:
+      return np_type == NPY_UINT32;
+    case _NNS_INT16:
+      return np_type == NPY_INT16;
+    case _NNS_UINT16:
+      return np_type == NPY_UINT16;
+    case _NNS_INT8:
+      return np_type == NPY_INT8;
+    case _NNS_UINT8:
+      return np_type == NPY_UINT8;
+    case _NNS_FLOAT64:
+      return np_type == NPY_FLOAT64;
+    case _NNS_FLOAT32:
+      return np_type == NPY_FLOAT32;
   }
 
   return 0;
@@ -399,7 +398,7 @@ PYCore::getInputTensorDim (GstTensorsInfo *info)
 
   PyGILState_STATE gstate = Py_LOCK ();
 
-  PyObject *result = PyObject_CallMethod (core_obj, (char *)"getInputDim", NULL);
+  PyObject *result = PyObject_CallMethod (core_obj, (char *) "getInputDim", NULL);
   if (result) {
     res = parseTensorsInfo (result, info);
     Py_SAFEDECREF (result);
@@ -429,7 +428,7 @@ PYCore::getOutputTensorDim (GstTensorsInfo *info)
 
   PyGILState_STATE gstate = Py_LOCK ();
 
-  PyObject *result = PyObject_CallMethod (core_obj, (char *)"getOutputDim", NULL);
+  PyObject *result = PyObject_CallMethod (core_obj, (char *) "getOutputDim", NULL);
   if (result) {
     res = parseTensorsInfo (result, info);
     Py_SAFEDECREF (result);
@@ -474,7 +473,7 @@ PYCore::setInputTensorDim (const GstTensorsInfo *in_info, GstTensorsInfo *out_in
   }
 
   PyObject *result
-      = PyObject_CallMethod (core_obj, (char *)"setInputDim", (char *)"(O)", param);
+      = PyObject_CallMethod (core_obj, (char *) "setInputDim", (char *) "(O)", param);
 
   Py_SAFEDECREF (param);
 
@@ -509,7 +508,7 @@ PYCore::freeOutputTensors (void *data)
     Py_SAFEDECREF (it->second);
     outputArrayMap.erase (it);
   } else {
-    ml_loge ("Cannot find output data: 0x%lx", (unsigned long)data);
+    ml_loge ("Cannot find output data: 0x%lx", (unsigned long) data);
   }
 
   Py_UNLOCK (gstate);
@@ -550,11 +549,10 @@ PYCore::run (const GstTensorMemory *input, GstTensorMemory *output)
   }
 
 
-  result
-      = PyObject_CallMethod (core_obj, (char *)"invoke", (char *)"(O)", param);
+  result = PyObject_CallMethod (core_obj, (char *) "invoke", (char *) "(O)", param);
 
   if (result) {
-    if ((unsigned int)PyList_Size (result) != outputTensorMeta.num_tensors) {
+    if ((unsigned int) PyList_Size (result) != outputTensorMeta.num_tensors) {
       res = -EINVAL;
       ml_logf ("The Python allocated size mismatched. Cannot proceed.\n");
       Py_SAFEDECREF (result);
@@ -563,7 +561,7 @@ PYCore::run (const GstTensorMemory *input, GstTensorMemory *output)
 
     for (unsigned int i = 0; i < outputTensorMeta.num_tensors; i++) {
       PyArrayObject *output_array
-          = (PyArrayObject *)PyList_GetItem (result, (Py_ssize_t)i);
+          = (PyArrayObject *) PyList_GetItem (result, (Py_ssize_t) i);
       /** type/size checking */
       if (checkTensorType (outputTensorMeta.info[i].type, PyArray_TYPE (output_array))
           && checkTensorSize (&output[i], output_array)) {
@@ -744,7 +742,7 @@ py_loadScriptFile (const GstTensorFilterProperties *prop, void **private_data)
   /* init null */
   *private_data = NULL;
 
-  PyGILState_STATE gstate = PyGILState_Ensure();
+  PyGILState_STATE gstate = PyGILState_Ensure ();
   core = new PYCore (script_path, prop->custom_properties);
   if (core == NULL) {
     g_printerr ("Failed to allocate memory for filter subplugin: Python\n");
@@ -803,27 +801,27 @@ py_checkAvailability (accl_hw hw)
 
 static gchar filter_subplugin_python[] = "python3";
 
-static GstTensorFilterFramework NNS_support_python = {.version = GST_TENSOR_FILTER_FRAMEWORK_V0,
+static GstTensorFilterFramework NNS_support_python = { .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = py_open,
   .close = py_close,
-  {.v0 = {
-       .name = filter_subplugin_python,
-       .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
-       .allocate_in_invoke = TRUE,
-       .run_without_model = FALSE,
-       .verify_model_path = TRUE,
-       .statistics = nullptr,
-       .invoke_NN = py_run,
-       /** dimension-related callbacks are dynamically updated */
-       .getInputDimension = py_getInputDim,
-       .getOutputDimension = py_getOutputDim,
-       .setInputDimension = py_setInputDim,
-       .destroyNotify = py_destroyNotify,
-       .reloadModel = nullptr,
-       .handleEvent = nullptr,
-       .checkAvailability = py_checkAvailability,
-       .allocateInInvoke = nullptr,
-   } } };
+  { .v0 = {
+        .name = filter_subplugin_python,
+        .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
+        .allocate_in_invoke = TRUE,
+        .run_without_model = FALSE,
+        .verify_model_path = TRUE,
+        .statistics = nullptr,
+        .invoke_NN = py_run,
+        /** dimension-related callbacks are dynamically updated */
+        .getInputDimension = py_getInputDim,
+        .getOutputDimension = py_getOutputDim,
+        .setInputDimension = py_setInputDim,
+        .destroyNotify = py_destroyNotify,
+        .reloadModel = nullptr,
+        .handleEvent = nullptr,
+        .checkAvailability = py_checkAvailability,
+        .allocateInInvoke = nullptr,
+    } } };
 
 static PyThreadState *st;
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
@@ -834,13 +832,13 @@ init_filter_py (void)
   if (!Py_IsInitialized ())
     Py_Initialize ();
   PyEval_InitThreads_IfGood ();
-  st = PyEval_SaveThread();
+  st = PyEval_SaveThread ();
 
   nnstreamer_filter_probe (&NNS_support_python);
-  nnstreamer_filter_set_custom_property_desc (filter_subplugin_python,
-      "${GENERAL_STRING}",
+  nnstreamer_filter_set_custom_property_desc (filter_subplugin_python, "${GENERAL_STRING}",
       "There is no key-value pair defined by python3 subplugin. "
-      "Provide arguments for the given python3 script.", NULL);
+      "Provide arguments for the given python3 script.",
+      NULL);
 }
 
 /** @brief Destruct the subplugin */

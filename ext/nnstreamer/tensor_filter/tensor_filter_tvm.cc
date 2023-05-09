@@ -214,7 +214,8 @@ tvm_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   }
 
   if (!g_file_test (prop->model_files[0], G_FILE_TEST_IS_REGULAR)) {
-    const std::string err_msg = "Given file " + (std::string) prop->model_files[0] + " is not valid";
+    const std::string err_msg
+        = "Given file " + (std::string) prop->model_files[0] + " is not valid";
     std::cerr << err_msg << std::endl;
     cleanup ();
     throw std::invalid_argument (err_msg);
@@ -356,7 +357,8 @@ tvm_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
   tvm::runtime::NDArray tensor;
 
   /* input data is aligned */
-  const tvm::runtime::PackedFunc &set_input_zero_copy = gmod.GetFunction ("set_input_zero_copy");
+  const tvm::runtime::PackedFunc &set_input_zero_copy
+      = gmod.GetFunction ("set_input_zero_copy");
   if (set_input_zero_copy == nullptr) {
     cleanup ();
     throw std::runtime_error ("Packed function `set_input_zero_copy` not defined in model");

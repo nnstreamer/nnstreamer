@@ -49,30 +49,30 @@ G_LOCK_DEFINE_STATIC (lock_handles);
 static gchar filter_subplugin_cpp[] = "cpp";
 bool tensor_filter_cpp::close_all_called = false;
 
-static GstTensorFilterFramework NNS_support_cpp = {.version = GST_TENSOR_FILTER_FRAMEWORK_V0,
+static GstTensorFilterFramework NNS_support_cpp = { .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
   .open = tensor_filter_cpp::open,
   .close = tensor_filter_cpp::close,
-  {.v0 = {
-       .name = filter_subplugin_cpp,
-       .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
-       .allocate_in_invoke = FALSE,
-       .run_without_model = FALSE,
-       .verify_model_path = FALSE,
-       .statistics = nullptr,
-       .invoke_NN = tensor_filter_cpp::invoke,
-       .getInputDimension = tensor_filter_cpp::getInputDim,
-       .getOutputDimension = tensor_filter_cpp::getOutputDim,
-       .setInputDimension = tensor_filter_cpp::setInputDim,
-       .destroyNotify = nullptr,
-       .reloadModel = nullptr,
-       .handleEvent = nullptr,
-       .checkAvailability = nullptr,
-       .allocateInInvoke = nullptr,
-   } } };
+  { .v0 = {
+        .name = filter_subplugin_cpp,
+        .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
+        .allocate_in_invoke = FALSE,
+        .run_without_model = FALSE,
+        .verify_model_path = FALSE,
+        .statistics = nullptr,
+        .invoke_NN = tensor_filter_cpp::invoke,
+        .getInputDimension = tensor_filter_cpp::getInputDim,
+        .getOutputDimension = tensor_filter_cpp::getOutputDim,
+        .setInputDimension = tensor_filter_cpp::setInputDim,
+        .destroyNotify = nullptr,
+        .reloadModel = nullptr,
+        .handleEvent = nullptr,
+        .checkAvailability = nullptr,
+        .allocateInInvoke = nullptr,
+    } } };
 
 G_BEGIN_DECLS
-void init_filter_cpp (void) __attribute__((constructor));
-void fini_filter_cpp (void) __attribute__((destructor));
+void init_filter_cpp (void) __attribute__ ((constructor));
+void fini_filter_cpp (void) __attribute__ ((destructor));
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void
@@ -90,10 +90,10 @@ fini_filter_cpp (void)
 }
 G_END_DECLS
 
-#define loadClass(name, ptr)                                   \
-  class tensor_filter_cpp *name = (tensor_filter_cpp *)*(ptr); \
-  assert (false == close_all_called);                          \
-  assert (*(ptr));                                             \
+#define loadClass(name, ptr)                                    \
+  class tensor_filter_cpp *name = (tensor_filter_cpp *) *(ptr); \
+  assert (false == close_all_called);                           \
+  assert (*(ptr));                                              \
   assert (name->isValid ());
 
 /**
@@ -109,7 +109,7 @@ tensor_filter_cpp::tensor_filter_cpp (const char *name)
  */
 tensor_filter_cpp::~tensor_filter_cpp ()
 {
-  g_free ((gpointer)name);
+  g_free ((gpointer) name);
 }
 
 /**
@@ -207,7 +207,7 @@ tensor_filter_cpp::invoke (const GstTensorFilterProperties *prop,
 /**
  * @brief Printout only once for a given error
  */
-__attribute__((format (printf, 3, 4))) static void
+__attribute__ ((format (printf, 3, 4))) static void
 g_printerr_once (const char *file, int line, const char *fmt, ...)
 {
   static guint file_hash = 0;
@@ -245,7 +245,7 @@ tensor_filter_cpp::open (const GstTensorFilterProperties *prop, void **private_d
     if (prop->num_models < 2)
       return -EINVAL;
 
-    GModule *module = g_module_open (prop->model_files[1], (GModuleFlags)0);
+    GModule *module = g_module_open (prop->model_files[1], (GModuleFlags) 0);
     if (!module) {
       g_printerr_once (__FILE__, __LINE__,
           "C++ custom filter %s cannot be found: opening %s failed\n",
@@ -262,10 +262,10 @@ tensor_filter_cpp::open (const GstTensorFilterProperties *prop, void **private_d
     }
 
     /** We do not know until when this handle might be required: user may
-      * invoke functions from it at anytime while the pipeline is not
-      * closed */
+     * invoke functions from it at anytime while the pipeline is not
+     * closed */
     G_LOCK (lock_handles);
-    handles.push_back ((void *)module);
+    handles.push_back ((void *) module);
     G_UNLOCK (lock_handles);
   }
 
@@ -313,7 +313,7 @@ tensor_filter_cpp::close_all_handles ()
 #else
   G_LOCK (lock_handles);
   for (void *handle : handles) {
-    g_module_close ((GModule *)handle);
+    g_module_close ((GModule *) handle);
   }
   G_UNLOCK (lock_handles);
 #endif

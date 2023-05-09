@@ -16,27 +16,24 @@
 
 using namespace std;
 
-namespace nnstreamer {
+namespace nnstreamer
+{
 
 void init_filter_trix_engine (void) __attribute__ ((constructor));
 void fini_filter_trix_engine (void) __attribute__ ((destructor));
 
 TensorFilterTRIxEngine *TensorFilterTRIxEngine::registered = nullptr;
 const char *TensorFilterTRIxEngine::name = "trix-engine";
-const accl_hw TensorFilterTRIxEngine::hw_list[] = {ACCL_NPU_SR};
+const accl_hw TensorFilterTRIxEngine::hw_list[] = { ACCL_NPU_SR };
 const int TensorFilterTRIxEngine::num_hw = 1;
 
 /**
  * @brief Construct a new TRIx-Engine subplugin instance
  */
 TensorFilterTRIxEngine::TensorFilterTRIxEngine ()
-    : dev_type_ (NPUCOND_CONN_UNKNOWN),
-      dev_ (nullptr),
-      model_path_ (nullptr),
-      model_meta_ (nullptr),
-      model_id_ (0),
-      trix_in_info_ (),
-      trix_out_info_ () {
+    : dev_type_ (NPUCOND_CONN_UNKNOWN), dev_ (nullptr), model_path_ (nullptr),
+      model_meta_ (nullptr), model_id_ (0), trix_in_info_ (), trix_out_info_ ()
+{
   gst_tensors_info_init (addressof (nns_in_info_));
   gst_tensors_info_init (addressof (nns_out_info_));
 }
@@ -44,7 +41,8 @@ TensorFilterTRIxEngine::TensorFilterTRIxEngine ()
 /**
  * @brief Destruct the TRIx-Engine subplugin instance
  */
-TensorFilterTRIxEngine::~TensorFilterTRIxEngine () {
+TensorFilterTRIxEngine::~TensorFilterTRIxEngine ()
+{
   g_free (model_path_);
   g_free (model_meta_);
 
@@ -61,7 +59,8 @@ TensorFilterTRIxEngine::~TensorFilterTRIxEngine () {
  * @brief Method to get an empty object
  */
 tensor_filter_subplugin &
-TensorFilterTRIxEngine::getEmptyInstance () {
+TensorFilterTRIxEngine::getEmptyInstance ()
+{
   return *(new TensorFilterTRIxEngine ());
 }
 
@@ -69,7 +68,8 @@ TensorFilterTRIxEngine::getEmptyInstance () {
  * @brief Configure TRIx-Engine instance
  */
 void
-TensorFilterTRIxEngine::configure_instance (const GstTensorFilterProperties *prop) {
+TensorFilterTRIxEngine::configure_instance (const GstTensorFilterProperties *prop)
+{
   uint32_t i, j, rank_limit;
 
   if (!prop->model_files[0] || prop->model_files[0][0] == '\0') {
@@ -117,10 +117,10 @@ TensorFilterTRIxEngine::configure_instance (const GstTensorFilterProperties *pro
     for (i = 0; i < nns_in_info_.num_tensors; i++) {
       nns_in_info_.info[i].type = _NNS_UINT8;
       for (j = 0; j < rank_limit; j++)
-        nns_in_info_.info[i].dimension[j] =
-            model_meta_->input_seg_dims[i][rank_limit - j - 1];
+        nns_in_info_.info[i].dimension[j]
+            = model_meta_->input_seg_dims[i][rank_limit - j - 1];
 
-      for ( ; j < NNS_TENSOR_RANK_LIMIT; j++)
+      for (; j < NNS_TENSOR_RANK_LIMIT; j++)
         nns_in_info_.info[i].dimension[j] = 1;
     }
   } else {
@@ -133,10 +133,10 @@ TensorFilterTRIxEngine::configure_instance (const GstTensorFilterProperties *pro
     for (i = 0; i < nns_out_info_.num_tensors; i++) {
       nns_out_info_.info[i].type = _NNS_UINT8;
       for (j = 0; j < rank_limit; j++)
-        nns_out_info_.info[i].dimension[j] =
-            model_meta_->output_seg_dims[i][rank_limit - j - 1];
+        nns_out_info_.info[i].dimension[j]
+            = model_meta_->output_seg_dims[i][rank_limit - j - 1];
 
-      for ( ; j < NNS_TENSOR_RANK_LIMIT; j++)
+      for (; j < NNS_TENSOR_RANK_LIMIT; j++)
         nns_out_info_.info[i].dimension[j] = 1;
     }
   } else {
@@ -150,7 +150,8 @@ TensorFilterTRIxEngine::configure_instance (const GstTensorFilterProperties *pro
  * @brief Convert data layout (from NNStreamer to TRIx-Engine)
  */
 data_layout
-TensorFilterTRIxEngine::convert_data_layout (const tensor_layout &layout) {
+TensorFilterTRIxEngine::convert_data_layout (const tensor_layout &layout)
+{
   switch (layout) {
     case _NNS_LAYOUT_NHWC:
       return DATA_LAYOUT_NHWC;
@@ -165,7 +166,8 @@ TensorFilterTRIxEngine::convert_data_layout (const tensor_layout &layout) {
  * @brief Convert data type (from NNStreamer to TRIx-Engine)
  */
 data_type
-TensorFilterTRIxEngine::convert_data_type (const tensor_type &type) {
+TensorFilterTRIxEngine::convert_data_type (const tensor_type &type)
+{
   switch (type) {
     case _NNS_INT32:
       return DATA_TYPE_INT32;
@@ -196,7 +198,8 @@ TensorFilterTRIxEngine::convert_data_type (const tensor_type &type) {
  * @brief Set data info of input/output tensors using metadata
  */
 void
-TensorFilterTRIxEngine::set_data_info (const GstTensorFilterProperties *prop) {
+TensorFilterTRIxEngine::set_data_info (const GstTensorFilterProperties *prop)
+{
   const tensor_layout *input_layout = &(prop->input_layout[0]);
   const tensor_layout *output_layout = &(prop->output_layout[0]);
 
@@ -219,7 +222,8 @@ TensorFilterTRIxEngine::set_data_info (const GstTensorFilterProperties *prop) {
  * @brief Feed the tensor data to input buffers before invoke()
  */
 void
-TensorFilterTRIxEngine::feed_input_data (const GstTensorMemory *input, input_buffers *input_buf) {
+TensorFilterTRIxEngine::feed_input_data (const GstTensorMemory *input, input_buffers *input_buf)
+{
   input_buf->num_buffers = model_meta_->input_seg_num;
 
   for (uint32_t idx = 0; idx < input_buf->num_buffers; ++idx) {
@@ -233,8 +237,9 @@ TensorFilterTRIxEngine::feed_input_data (const GstTensorMemory *input, input_buf
  * @brief Extract the tensor data from output buffers after invoke()
  */
 void
-TensorFilterTRIxEngine::extract_output_data (const output_buffers *output_buf,
-                                             GstTensorMemory *output) {
+TensorFilterTRIxEngine::extract_output_data (
+    const output_buffers *output_buf, GstTensorMemory *output)
+{
   /* internal logic error */
   assert (output_buf->num_buffers == model_meta_->output_seg_num);
 
@@ -248,7 +253,8 @@ TensorFilterTRIxEngine::extract_output_data (const output_buffers *output_buf,
  * @brief Invoke TRIxEngine using input tensors
  */
 void
-TensorFilterTRIxEngine::invoke (const GstTensorMemory *input, GstTensorMemory *output) {
+TensorFilterTRIxEngine::invoke (const GstTensorMemory *input, GstTensorMemory *output)
+{
   int req_id;
   int status;
 
@@ -263,8 +269,8 @@ TensorFilterTRIxEngine::invoke (const GstTensorMemory *input, GstTensorMemory *o
   /* feed input data to npu-engine */
   feed_input_data (input, &input_buf);
 
-  status =
-      setNPU_requestData (dev_, req_id, &input_buf, &trix_in_info_, &output_buf, &trix_out_info_);
+  status = setNPU_requestData (
+      dev_, req_id, &input_buf, &trix_in_info_, &output_buf, &trix_out_info_);
   if (status != 0) {
     nns_loge ("Unable to create NPU request for model %u", model_id_);
     return;
@@ -289,7 +295,8 @@ TensorFilterTRIxEngine::invoke (const GstTensorMemory *input, GstTensorMemory *o
  * @brief Get TRIxEngine framework info.
  */
 void
-TensorFilterTRIxEngine::getFrameworkInfo (GstTensorFilterFrameworkInfo &info) {
+TensorFilterTRIxEngine::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
+{
   info.name = name;
   info.allow_in_place = FALSE;
   info.allocate_in_invoke = TRUE;
@@ -303,8 +310,9 @@ TensorFilterTRIxEngine::getFrameworkInfo (GstTensorFilterFrameworkInfo &info) {
  * @brief Get TRIxEngine model info.
  */
 int
-TensorFilterTRIxEngine::getModelInfo (model_info_ops ops, GstTensorsInfo &in_info,
-                                      GstTensorsInfo &out_info) {
+TensorFilterTRIxEngine::getModelInfo (
+    model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info)
+{
   if (ops != GET_IN_OUT_INFO) {
     return -ENOENT;
   }
@@ -318,7 +326,8 @@ TensorFilterTRIxEngine::getModelInfo (model_info_ops ops, GstTensorsInfo &in_inf
  * @brief Method to handle the event
  */
 int
-TensorFilterTRIxEngine::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data) {
+TensorFilterTRIxEngine::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data)
+{
   UNUSED (ops);
   UNUSED (data);
   return -ENOENT;
@@ -328,7 +337,8 @@ TensorFilterTRIxEngine::eventHandler (event_ops ops, GstTensorFilterFrameworkEve
  * @brief Register the subpkugin
  */
 void
-TensorFilterTRIxEngine::init_filter_trix_engine () {
+TensorFilterTRIxEngine::init_filter_trix_engine ()
+{
   registered = tensor_filter_subplugin::register_subplugin<TensorFilterTRIxEngine> ();
 }
 
@@ -336,7 +346,8 @@ TensorFilterTRIxEngine::init_filter_trix_engine () {
  * @brief Destruct the subplugin
  */
 void
-TensorFilterTRIxEngine::fini_filter_trix_engine () {
+TensorFilterTRIxEngine::fini_filter_trix_engine ()
+{
   /* internal logic error */
   assert (registered != nullptr);
   tensor_filter_subplugin::unregister_subplugin (registered);
@@ -346,7 +357,8 @@ TensorFilterTRIxEngine::fini_filter_trix_engine () {
  * @brief Subplugin initializer
  */
 void
-init_filter_trix_engine () {
+init_filter_trix_engine ()
+{
   TensorFilterTRIxEngine::init_filter_trix_engine ();
 }
 
@@ -354,7 +366,8 @@ init_filter_trix_engine () {
  * @brief Subplugin finalizer
  */
 void
-fini_filter_trix_engine () {
+fini_filter_trix_engine ()
+{
   TensorFilterTRIxEngine::fini_filter_trix_engine ();
 }
 

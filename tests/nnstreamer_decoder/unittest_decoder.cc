@@ -14,8 +14,8 @@
 #include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_subplugin.h>
 #include <tensor_common.h>
-#include <unittest_util.h>
 #include <tensor_decoder_custom.h>
+#include <unittest_util.h>
 
 #define TEST_TIMEOUT_MS (5000U)
 
@@ -26,7 +26,7 @@ static int data_received;
  */
 static int
 tensor_decoder_custom_cb (const GstTensorMemory *input,
-    const GstTensorsConfig *config, void * data, GstBuffer *out_buf)
+    const GstTensorsConfig *config, void *data, GstBuffer *out_buf)
 {
   GstMapInfo out_info;
   GstMemory *out_mem;
@@ -36,7 +36,7 @@ tensor_decoder_custom_cb (const GstTensorMemory *input,
   flexbuffers::Builder fbb;
 
   data_received++;
-  fbb.Map ([&]() {
+  fbb.Map ([&] () {
     fbb.UInt ("num_tensors", num_tensors);
     fbb.Int ("rate_n", config->rate_n);
     fbb.Int ("rate_d", config->rate_d);
@@ -52,7 +52,7 @@ tensor_decoder_custom_cb (const GstTensorMemory *input,
       }
       tensor_type type = config->info.info[i].type;
 
-      fbb.Vector (tensor_key, [&]() {
+      fbb.Vector (tensor_key, [&] () {
         fbb += tensor_name;
         fbb += type;
         fbb.Vector (config->info.info[i].dimension, NNS_TENSOR_RANK_LIMIT);
@@ -335,8 +335,8 @@ TEST (tensorDecoder, subpluginNullDesc_n)
   data = subplugin_get_custom_property_desc (NNS_SUBPLUGIN_DECODER, "mode");
   EXPECT_FALSE (data != NULL);
 
-  nnstreamer_decoder_set_custom_property_desc ("mode",
-      "Desc2", "decoder subplugin for test", NULL);
+  nnstreamer_decoder_set_custom_property_desc (
+      "mode", "Desc2", "decoder subplugin for test", NULL);
   data = subplugin_get_custom_property_desc (NNS_SUBPLUGIN_DECODER, "mode");
   EXPECT_TRUE (data != NULL);
 

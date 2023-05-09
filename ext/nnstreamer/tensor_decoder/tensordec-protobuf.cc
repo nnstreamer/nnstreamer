@@ -27,8 +27,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-void init_pb (void) __attribute__((constructor));
-void fini_pb (void) __attribute__((destructor));
+void init_pb (void) __attribute__ ((constructor));
+void fini_pb (void) __attribute__ ((destructor));
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
@@ -43,8 +43,8 @@ pb_init (void **pdata)
   return TRUE;
 }
 
-/** 
- * @brief tensordec-plugin's GstTensorDecoderDef callback 
+/**
+ * @brief tensordec-plugin's GstTensorDecoderDef callback
  */
 static void
 pb_exit (void **pdata)
@@ -92,7 +92,7 @@ static gchar decoder_subplugin_protobuf[] = "protobuf";
 /**
  * @brief protocol buffers tensordec-plugin GstTensorDecoderDef instance
  */
-static GstTensorDecoderDef protobuf = {.modename = decoder_subplugin_protobuf,
+static GstTensorDecoderDef protobuf = { .modename = decoder_subplugin_protobuf,
   .init = pb_init,
   .exit = pb_exit,
   .setOption = pb_setOption,

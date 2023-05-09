@@ -8,10 +8,10 @@
  * @bug         No known bugs
  */
 
+#include <gtest/gtest.h>
 #include <glib.h>
 #include <gst/check/gstharness.h>
 #include <gst/gst.h>
-#include <gtest/gtest.h>
 #include <unittest_util.h>
 
 /**

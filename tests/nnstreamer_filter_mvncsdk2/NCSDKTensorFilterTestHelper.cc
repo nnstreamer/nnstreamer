@@ -85,28 +85,28 @@ NCSDKTensorFilterTestHelper::init (model_t model)
   this->mFailStage = fail_stage_t::NONE;
 
   switch (model) {
-  default:
-  case GOOGLE_LENET:
-    this->mModel = model;
-    try {
-      this->mTensorDescInput = new struct ncTensorDescriptor_t ();
-      this->mTensorDescInput->c = GOOGLE_LENET_IN_DIM_C;
-      this->mTensorDescInput->n = GOOGLE_LENET_IN_DIM_N;
-      this->mTensorDescInput->w = GOOGLE_LENET_IN_DIM_W;
-      this->mTensorDescInput->h = GOOGLE_LENET_IN_DIM_H;
-      this->mTensorDescInput->dataType = NC_FIFO_FP32;
+    default:
+    case GOOGLE_LENET:
+      this->mModel = model;
+      try {
+        this->mTensorDescInput = new struct ncTensorDescriptor_t ();
+        this->mTensorDescInput->c = GOOGLE_LENET_IN_DIM_C;
+        this->mTensorDescInput->n = GOOGLE_LENET_IN_DIM_N;
+        this->mTensorDescInput->w = GOOGLE_LENET_IN_DIM_W;
+        this->mTensorDescInput->h = GOOGLE_LENET_IN_DIM_H;
+        this->mTensorDescInput->dataType = NC_FIFO_FP32;
 
-      this->mTensorDescOutput = new struct ncTensorDescriptor_t ();
-      this->mTensorDescOutput->c = GOOGLE_LENET_OUT_DIM_C;
-      this->mTensorDescOutput->n = GOOGLE_LENET_OUT_DIM_N;
-      this->mTensorDescOutput->w = GOOGLE_LENET_OUT_DIM_W;
-      this->mTensorDescOutput->h = GOOGLE_LENET_OUT_DIM_H;
-      this->mTensorDescOutput->dataType = NC_FIFO_FP32;
-    } catch (const std::bad_alloc &e) {
-      this->mTensorDescInput = nullptr;
-      this->mTensorDescOutput = nullptr;
-    }
-    break;
+        this->mTensorDescOutput = new struct ncTensorDescriptor_t ();
+        this->mTensorDescOutput->c = GOOGLE_LENET_OUT_DIM_C;
+        this->mTensorDescOutput->n = GOOGLE_LENET_OUT_DIM_N;
+        this->mTensorDescOutput->w = GOOGLE_LENET_OUT_DIM_W;
+        this->mTensorDescOutput->h = GOOGLE_LENET_OUT_DIM_H;
+        this->mTensorDescOutput->dataType = NC_FIFO_FP32;
+      } catch (const std::bad_alloc &e) {
+        this->mTensorDescInput = nullptr;
+        this->mTensorDescOutput = nullptr;
+      }
+      break;
   }
 }
 
@@ -174,13 +174,13 @@ NCSDKTensorFilterTestHelper::ncGlobalGetOption (int option, void *data, unsigned
   }
 
   switch (option) {
-  case NC_RO_API_VERSION:
-    if (sizeof (ncsdk_ver_t) != (*dataLength))
+    case NC_RO_API_VERSION:
+      if (sizeof (ncsdk_ver_t) != (*dataLength))
+        return NC_ERROR;
+      memcpy (data, this->mVer, *dataLength);
+      break;
+    default:
       return NC_ERROR;
-    memcpy (data, this->mVer, *dataLength);
-    break;
-  default:
-    return NC_ERROR;
   }
   return NC_OK;
 }
@@ -310,28 +310,28 @@ NCSDKTensorFilterTestHelper::ncGraphGetOption (struct ncGraphHandle_t *graphHand
 {
   UNUSED (graphHandle);
   switch (option) {
-  case NC_RO_GRAPH_INPUT_TENSOR_DESCRIPTORS:
-    if (this->mFailStage == fail_stage_t::FAIL_GRAPH_GET_INPUT_TENSOR_DESC) {
-      return NC_ERROR;
-    }
-    if (this->mTensorDescInput == nullptr) {
-      return NC_OUT_OF_MEMORY;
-    }
-    if (sizeof (*this->mTensorDescInput) != (*dataLength))
-      return NC_INVALID_PARAMETERS;
-    memcpy (data, (void *)this->mTensorDescInput, *dataLength);
-    break;
-  case NC_RO_GRAPH_OUTPUT_TENSOR_DESCRIPTORS:
-    if (this->mFailStage == fail_stage_t::FAIL_GRAPH_GET_OUTPUT_TENSOR_DESC) {
-      return NC_ERROR;
-    }
-    if (this->mTensorDescOutput == nullptr) {
-      return NC_OUT_OF_MEMORY;
-    }
-    if (sizeof (*this->mTensorDescOutput) != (*dataLength))
-      return NC_INVALID_PARAMETERS;
-    memcpy (data, (void *)this->mTensorDescOutput, *dataLength);
-    break;
+    case NC_RO_GRAPH_INPUT_TENSOR_DESCRIPTORS:
+      if (this->mFailStage == fail_stage_t::FAIL_GRAPH_GET_INPUT_TENSOR_DESC) {
+        return NC_ERROR;
+      }
+      if (this->mTensorDescInput == nullptr) {
+        return NC_OUT_OF_MEMORY;
+      }
+      if (sizeof (*this->mTensorDescInput) != (*dataLength))
+        return NC_INVALID_PARAMETERS;
+      memcpy (data, (void *) this->mTensorDescInput, *dataLength);
+      break;
+    case NC_RO_GRAPH_OUTPUT_TENSOR_DESCRIPTORS:
+      if (this->mFailStage == fail_stage_t::FAIL_GRAPH_GET_OUTPUT_TENSOR_DESC) {
+        return NC_ERROR;
+      }
+      if (this->mTensorDescOutput == nullptr) {
+        return NC_OUT_OF_MEMORY;
+      }
+      if (sizeof (*this->mTensorDescOutput) != (*dataLength))
+        return NC_INVALID_PARAMETERS;
+      memcpy (data, (void *) this->mTensorDescOutput, *dataLength);
+      break;
   }
 
   return NC_OK;
