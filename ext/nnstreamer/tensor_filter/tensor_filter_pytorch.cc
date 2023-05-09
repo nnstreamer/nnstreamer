@@ -93,7 +93,7 @@ class TorchCore
   int processIValue (const torch::jit::IValue &value, GstTensorMemory *output,
       unsigned int idx);
   int serializeOutput (const torch::jit::IValue &value, GstTensorMemory *output,
-      unsigned int *idx);
+      unsigned int *idxm, unsigned int limit_idx);
 };
 
 extern "C" { /* accessed by android api */
@@ -451,8 +451,12 @@ TorchCore::processIValue (
  */
 int
 TorchCore::serializeOutput (
-    const torch::jit::IValue &value, GstTensorMemory *output, unsigned int *idx)
+    const torch::jit::IValue &value, GstTensorMemory *output, unsigned int *idx, unsigned int limit_idx)
 {
+  if (*idx >= limit_idx) {
+    return 0;
+  }
+
   /** serialize the output based on its type */
   if (value.isTensor ()) {
     if (processIValue (value, output, *idx)) {
@@ -464,7 +468,7 @@ TorchCore::serializeOutput (
   } else if (value.isTuple ()) {
     auto output_elements = value.toTuple ()->elements ();
     for (auto element : output_elements) {
-      if (serializeOutput (element, output, idx)) {
+      if (serializeOutput (element, output, idx, limit_idx)) {
         ml_loge ("Failed to process a tensor tuple. Output Tensor Information is not valid at index %d",
             *idx);
         return -2;
@@ -480,7 +484,7 @@ TorchCore::serializeOutput (
     c10::ArrayRef<torch::jit::IValue> output_list = value.toGenericListRef ();
 #endif
     for (auto &element : output_list) {
-      if (serializeOutput (element, output, idx)) {
+      if (serializeOutput (element, output, idx, limit_idx)) {
         ml_loge ("Failed to process a tensor list. Output Tensor Information is not valid at index %d",
             *idx);
         return -2;
@@ -562,7 +566,7 @@ TorchCore::invoke (const GstTensorFilterProperties *prop,
   }
 
   unsigned int idx = 0;
-  int retval = serializeOutput (output_value, output, &idx);
+  int retval = serializeOutput (output_value, output, &idx, outputTensorMeta.num_tensors);
   if (retval) {
     ml_loge ("Error %d: failed to serialize the output of the model at index %d.",
         retval, idx);
