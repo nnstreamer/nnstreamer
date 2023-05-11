@@ -1085,8 +1085,8 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
 
   if (priv->configured) {
     /** already configured, compare to old. */
-    g_assert (gst_tensors_config_is_equal (&priv->in_config, &in_config));
-    g_assert (gst_tensors_config_is_equal (&priv->out_config, &out_config));
+    g_assert (gst_tensors_info_is_equal (&priv->in_config.info, &in_config.info));
+    g_assert (gst_tensors_info_is_equal (&priv->out_config.info, &out_config.info));
   } else {
     gst_tensors_config_copy (&priv->in_config, &in_config);
     gst_tensors_config_copy (&priv->out_config, &out_config);
@@ -1310,7 +1310,7 @@ gst_tensor_filter_set_caps (GstBaseTransform * trans,
   gst_tensors_config_from_structure (&config, structure);
   if (gst_tensors_config_is_flexible (&config)) {
     GST_INFO_OBJECT (self, "Output tensor is flexible.");
-  } else if (!gst_tensors_config_is_equal (&priv->out_config, &config)) {
+  } else if (!gst_tensors_info_is_equal (&priv->out_config.info, &config.info)) {
     GstTensorFilterProperties *prop = &priv->prop;
     gchar *compare = gst_tensorsinfo_compare_to_string (&priv->out_config.info,
         &config.info);
