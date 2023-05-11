@@ -663,9 +663,7 @@ gst_tensor_converter_sink_query (GstPad * pad, GstObject * parent,
       GstCaps *filter;
 
       gst_query_parse_caps (query, &filter);
-      silent_debug_caps (self, filter, "filter");
       caps = gst_tensor_converter_query_caps (self, pad, filter);
-      silent_debug_caps (self, caps, "query-caps");
 
       gst_query_set_caps_result (query, caps);
       gst_caps_unref (caps);

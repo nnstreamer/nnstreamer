@@ -1,9 +1,16 @@
-nnstreamer (2.3.0.0+nmu13) UNRELEASED; urgency=medium
+nnstreamer (2.3.0.0+nmu14) UNRELEASED; urgency=medium
+
+  * Non-maintainer upload.
+  * 
+
+ -- Torsten Schulz <torsten@eyepop.ai>  Thu, 11 May 2023 13:56:03 -0700
+
+nnstreamer (2.3.0.0+nmu13) jammy; urgency=medium
 
   * Non-maintainer upload.
   * Allow PyTorch filter to be configured with less output tensors than PyTorch natively returns 
 
- -- Torsten Schulz <torsten@eyepop.ai>  Tue, 09 May 2023 16:59:25 -0700
+ -- Torsten Schulz <torsten@eyepop.ai>  Thu, 11 May 2023 13:55:58 -0700
 
 nnstreamer (2.3.0.0+nmu12) jammy; urgency=medium
 
