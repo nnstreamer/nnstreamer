@@ -2058,10 +2058,7 @@ gst_tensor_converter_query_caps (GstTensorConverter * self, GstPad * pad,
 {
   GstCaps *caps;
 
-  caps = gst_pad_get_current_caps (pad);
-  if (!caps) {
-    caps = gst_pad_get_pad_template_caps (pad);
-  }
+  caps = gst_pad_get_pad_template_caps (pad);
 
   if (pad == self->sinkpad) {
     GstCaps *media_caps;
