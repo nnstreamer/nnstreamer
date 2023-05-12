@@ -3845,7 +3845,7 @@ TEST (tensorStreamTest, filterProperties1)
   ASSERT_TRUE (str != NULL);
   EXPECT_TRUE (strstr (str, "custom") != NULL);
   EXPECT_TRUE (strstr (str, "custom-easy") != NULL);
-#ifdef ENABLE_TENSORFLOW_LITE
+#if defined(ENABLE_TENSORFLOW_LITE) || defined(ENABLE_TENSORFLOW2_LITE)
   EXPECT_TRUE ((strstr (str, "tensorflow-lite") != NULL)
                || (strstr (str, "tensorflow1-lite") != NULL)
                || (strstr (str, "tensorflow2-lite") != NULL));
