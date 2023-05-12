@@ -5583,15 +5583,6 @@ TEST (tensorStreamTest, issue739MuxParallel3)
 /**
  * @brief Test multi-stream sync & frame-dropping of Issue #739, 1st subissue
  */
-TEST (tensorStreamTest, issue739MuxParallel4)
-{
-  /** @todo Write this after the tensor-mux/merge sync-option "basepad" is updated */
-  EXPECT_EQ (1, 1);
-}
-
-/**
- * @brief Test multi-stream sync & frame-dropping of Issue #739, 1st subissue
- */
 TEST (tensorStreamTest, issue739MergeParallel1)
 {
   const guint num_buffers = 2;
