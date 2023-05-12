@@ -137,6 +137,9 @@ gst_tensor_buffer_get_nth_memory (GstBuffer * buffer, const GstTensorsInfo * inf
 extern gboolean
 gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory, const GstTensorInfo * info);
 
+/**
+ * @brief Get the number of tensors in the buffer.
+ */
 extern guint
 gst_buffer_n_tensor (GstBuffer * buffer);
 

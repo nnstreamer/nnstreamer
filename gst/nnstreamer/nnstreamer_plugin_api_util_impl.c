@@ -306,6 +306,9 @@ gst_tensor_info_get_rank (const GstTensorInfo * info)
   return idx + 1;
 }
 
+/**
+ * @brief Get the pointer of nth tensor information.
+ */
 GstTensorInfo *
 gst_tensors_info_get_nth_info (GstTensorsInfo * info, guint nth)
 {

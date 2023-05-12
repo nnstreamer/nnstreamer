@@ -467,6 +467,9 @@ gst_tensors_info_extra_create (GstTensorsInfo * info);
 extern void
 gst_tensors_info_extra_free (GstTensorsInfo * info);
 
+/**
+ * @brief Get the pointer of nth tensor information.
+ */
 extern GstTensorInfo *
 gst_tensors_info_get_nth_info (GstTensorsInfo * info, guint nth);
 
