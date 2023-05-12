@@ -26,7 +26,7 @@
 #include "../gst/nnstreamer/elements/gsttensor_transform.h"
 #include "../unittest_util.h"
 
-#ifdef ENABLE_TENSORFLOW_LITE
+#if defined(ENABLE_TENSORFLOW_LITE) || defined(ENABLE_TENSORFLOW2_LITE)
 #define TEST_REQUIRE_TFLITE(Case, Name) TEST (Case, Name)
 #else
 #define TEST_REQUIRE_TFLITE(Case, Name) TEST (Case, DISABLED_##Name)
@@ -5938,7 +5938,8 @@ TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoNoFwNoPermission_n)
   gst_object_unref (gstpipe);
 }
 
-#if !defined(ENABLE_TENSORFLOW_LITE) && defined(ENABLE_NNFW_RUNTIME)
+#if !defined(ENABLE_TENSORFLOW_LITE) && !defined(ENABLE_TENSORFLOW2_LITE) \
+    && defined(ENABLE_NNFW_RUNTIME)
 /**
  * @brief Test framework auto detecion option in tensor-filter.
  * @details Check if nnfw (second priority) is detected automatically

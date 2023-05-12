@@ -13,7 +13,7 @@
 
 #include "../gst/nnstreamer/tensor_filter/tensor_filter_single.h"
 
-#ifdef ENABLE_TENSORFLOW_LITE
+#if defined(ENABLE_TENSORFLOW_LITE) || defined(ENABLE_TENSORFLOW2_LITE)
 /**
  * @brief Test Fixture class for a tensor-filter single functionality.
  */
@@ -326,7 +326,6 @@ TEST_F (NNSFilterSingleTestExtended, setInvalidInfo_n)
   gst_tensors_info_free (&in_info);
   gst_tensors_info_free (&out_info);
 }
-
 #endif /* ENABLE_TENSORFLOW2_LITE */
 
 /**
