@@ -312,12 +312,18 @@ gst_tensor_info_get_rank (const GstTensorInfo * info)
 GstTensorInfo *
 gst_tensors_info_get_nth_info (GstTensorsInfo * info, guint nth)
 {
+  g_return_val_if_fail (info != NULL, NULL);
+
   if (nth < NNS_TENSOR_SIZE_LIMIT)
     return &info->info[nth];
+
+  if (!gst_tensors_info_extra_create (info))
+    return NULL;
 
   if (nth < NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT)
     return &info->extra[nth - NNS_TENSOR_SIZE_LIMIT];
 
+  nns_loge ("Failed to get the information, invalid index %u.", nth);
   return NULL;
 }
 
@@ -334,7 +340,6 @@ gst_tensors_info_extra_create (GstTensorsInfo * info)
   g_return_val_if_fail (info != NULL, FALSE);
 
   if (info->extra) {
-    nns_logd ("Extra tensors info is allocated already");
     return TRUE;
   }
 
