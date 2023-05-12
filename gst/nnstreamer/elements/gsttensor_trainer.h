@@ -62,15 +62,17 @@ struct _GstTensorTrainer
   GstTensorsConfig out_config;
   GstTensorsConfig in_config;
 
-  gint64 total_push_data_cnt;      /**< number of total push data */
+  guint total_push_data_cnt;      /**< number of total push data in one eposh */
   gboolean fw_created;
 
   void *privateData; /**< NNFW plugin's private data is stored here */
   const GstTensorTrainerFramework *fw;  /* for test, need to make */
   GstTensorTrainerProperties prop; /**< NNFW plugin's properties */
 
-  GMutex trainer_lock;
+  GMutex training_complete_lock;
   GCond training_complete_cond;
+  GMutex epoch_complete_lock;
+  GCond epoch_complete_cond;
 };
 
 /**

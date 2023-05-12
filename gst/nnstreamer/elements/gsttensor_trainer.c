@@ -18,6 +18,10 @@
  * ]|
  *
  * Total number of data to be received is 1000((num-training-samples + num-validation-samples) * epochs)
+ * 
+ * output tensors : dimensions=(string)1:1:4:1:1:1:1:1, types=(string)float64.
+ * values are training loss, training accuracy, validation loss and validation accuracy.
+ * An invalid value(-1.0) is stored if the value fetched from the sub-plugin is not greater than 0
  */
 
 #ifdef HAVE_CONFIG_H
@@ -63,14 +67,14 @@ G_DEFINE_TYPE (GstTensorTrainer, gst_tensor_trainer, GST_TYPE_ELEMENT);
 #define DEFAULT_PROP_TRAIN_SAMPLES 0
 #define DEFAULT_PROP_VALID_SAMPLES 0
 #define DEFAULT_PROP_EPOCHS 1
-
+#define INVALID_VALUE -1
 /**
- * @brief Default string property value 
+ * @brief Default string property value
  */
 #define DEFAULT_STR_PROP_VALUE ""
 
 /**
- * @brief Default string property value 
+ * @brief Default string property value
  */
 enum
 {
@@ -265,8 +269,9 @@ gst_tensor_trainer_init (GstTensorTrainer * trainer)
   trainer->total_push_data_cnt = 0;
 
   g_cond_init (&trainer->training_complete_cond);
-  g_mutex_init (&trainer->trainer_lock);
-  trainer->prop.training_complete_cond = &trainer->training_complete_cond;
+  g_mutex_init (&trainer->training_complete_lock);
+  g_cond_init (&trainer->epoch_complete_cond);
+  g_mutex_init (&trainer->epoch_complete_lock);
 
   gst_tensor_trainer_output_dimension (trainer);
   gst_tensor_trainer_output_type (trainer);
@@ -289,7 +294,9 @@ gst_tensor_trainer_finalize (GObject * object)
   g_free (trainer->output_type);
 
   g_cond_clear (&trainer->training_complete_cond);
-  g_mutex_clear (&trainer->trainer_lock);
+  g_mutex_clear (&trainer->training_complete_lock);
+  g_cond_clear (&trainer->epoch_complete_cond);
+  g_mutex_clear (&trainer->epoch_complete_lock);
 
   if (trainer->fw_created && trainer->fw) {
     trainer->fw->destroy (trainer->fw, &trainer->prop, &trainer->privateData);
@@ -465,6 +472,52 @@ state_change_failed:
   return GST_STATE_CHANGE_FAILURE;
 }
 
+
+/**
+ * @brief Check if current epochs is complete, 
+ * tensor_trainer wait for one of epochs to complete before getting the results from the subplugin
+ */
+static gboolean
+gst_tensor_trainer_epochs_is_complete (GstTensorTrainer * trainer)
+{
+  int required_sample;
+  gint64 end_time;
+  GstTensorTrainerFrameworkEventData event_data;
+
+  g_return_val_if_fail (trainer != NULL, FALSE);
+  g_return_val_if_fail (trainer->fw != NULL, FALSE);
+  g_return_val_if_fail (&trainer->prop != NULL, FALSE);
+
+  required_sample =
+      trainer->prop.num_training_samples + trainer->prop.num_validation_samples;
+  if (trainer->total_push_data_cnt % required_sample != 0)
+    return FALSE;
+
+  trainer->fw->eventHandler (trainer->fw, &trainer->prop, trainer->privateData,
+      CHECK_EPOCH_COMPLETION, &event_data);
+
+  if (event_data.is_epoch_complete)
+    return TRUE;
+  GST_ERROR("event_data.is_epoch_complete (%d)", event_data.is_epoch_complete);
+  /* wait for epoch to complete */
+  g_mutex_lock (&trainer->epoch_complete_lock);
+  while (!event_data.is_epoch_complete) {
+    GST_ERROR("event_data.is_epoch_complete (%d)", event_data.is_epoch_complete);
+    end_time = g_get_monotonic_time () + 1 * G_TIME_SPAN_SECOND;
+    if (!g_cond_wait_until (&trainer->epoch_complete_cond,
+            &trainer->epoch_complete_lock, end_time)) {
+      /* check again */
+      trainer->fw->eventHandler (trainer->fw, &trainer->prop,
+          trainer->privateData, CHECK_EPOCH_COMPLETION, &event_data);
+
+      GST_INFO_OBJECT (trainer, "is_epoch_complete(%d)",
+          event_data.is_epoch_complete);
+    }
+  }
+  g_mutex_unlock (&trainer->epoch_complete_lock);
+  return TRUE;
+}
+
 /**
  * @brief Chain function, this function does the actual processing.
  */
@@ -487,6 +540,9 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
   GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMetaInfo in_meta[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMetaInfo out_meta[NNS_TENSOR_SIZE_LIMIT];
+  double data[4] =
+      { INVALID_VALUE, INVALID_VALUE, INVALID_VALUE, INVALID_VALUE };
+  void *ptr;
 
   trainer = GST_TENSOR_TRAINER (parent);
 
@@ -560,9 +616,7 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
       Scheduling with subplugin does not work.
    */
   if (trainer->total_push_data_cnt == 1
-      || trainer->total_push_data_cnt ==
-      trainer->prop.num_training_samples +
-      trainer->prop.num_validation_samples) {
+      || gst_tensor_trainer_epochs_is_complete (trainer)) {
 
     /* Prepare output tensor */
     for (i = 0; i < trainer->output_meta.num_tensors; i++) {
@@ -604,13 +658,26 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
           goto error;
         }
       }
-#if 0
-      /** @todo Need to updatd out_tensors */
-      /* get loss, accuracy, val_loss, val_accuracy */
-      double data[4] = { 0, 0, 0, 0 };
+
+      /* If the value is invalid, it is already set by INVALID_VALUE. */
+      if (trainer->prop.training_loss > 0)
+        data[0] = trainer->prop.training_loss;
+      if (trainer->prop.training_accuracy > 0)
+        data[1] = trainer->prop.training_accuracy;
+      if (trainer->prop.validation_loss > 0)
+        data[2] = trainer->prop.validation_loss;
+      if (trainer->prop.validation_accuracy > 0)
+        data[3] = trainer->prop.validation_accuracy;
+
+      GST_DEBUG_OBJECT (trainer,
+          "#%d/%d epochs [training_loss: %f, training_accuracy: %f, validation_loss: %f, validation_accuracy: %f]",
+          trainer->prop.epoch_count, trainer->prop.num_epochs, data[0], data[1],
+          data[2], data[3]);
+
+      /* updatd out_tensors */
+      /* write training loss, training accuracy, validation loss, validation accuracy */
       ptr = out_info[i].data;
       memcpy (ptr, data, sizeof (data));
-#endif
     }
 
     /* Free out info */
@@ -692,6 +759,48 @@ gst_tensor_trainer_query_caps (GstTensorTrainer * trainer,
 }
 
 /**
+ * @brief Check if training is complete in subplugin to avoid deadlock.
+ * deadlock: is_training_complete is false and training ends in the subplugin after g_cond_wait().
+ */
+static gboolean
+gst_tensor_trainer_training_is_complete (GstTensorTrainer * trainer)
+{
+  GstTensorTrainerFrameworkEventData event_data;
+  gint64 end_time;
+
+  g_return_val_if_fail (trainer != NULL, FALSE);
+  g_return_val_if_fail (trainer->fw != NULL, FALSE);
+
+  trainer->fw->eventHandler (trainer->fw, NULL, trainer->privateData,
+      CHECK_TRAINING_COMPLETION, &event_data);
+
+  if (event_data.is_training_complete)
+    return TRUE;
+
+  GST_INFO_OBJECT (trainer,
+      "got GST_EVENT_EOS event but training is not completed, state is %d",
+      GST_STATE (trainer));
+
+  g_mutex_lock (&trainer->training_complete_lock);
+
+  while (!event_data.is_training_complete) {
+    end_time = g_get_monotonic_time () + 1 * G_TIME_SPAN_SECOND;
+    if (!g_cond_wait_until (&trainer->training_complete_cond,
+            &trainer->training_complete_lock, end_time)) {
+      /* check again */
+      trainer->fw->eventHandler (trainer->fw, NULL, trainer->privateData,
+          CHECK_TRAINING_COMPLETION, &event_data);
+
+      GST_INFO_OBJECT (trainer, "is_training_complete(%d)",
+          event_data.is_training_complete);
+    }
+  }
+  g_mutex_unlock (&trainer->training_complete_lock);
+
+  return TRUE;
+}
+
+/**
  * @brief Event handler for sink pad of tensor_trainer
  */
 static gboolean
@@ -699,7 +808,6 @@ gst_tensor_trainer_sink_event (GstPad * sinkpad, GstObject * parent,
     GstEvent * event)
 {
   GstTensorTrainer *trainer;
-  GstTensorTrainerFrameworkInfo info;
   trainer = GST_TENSOR_TRAINER (parent);
 
   GST_DEBUG_OBJECT (trainer, "Received %s event: %" GST_PTR_FORMAT,
@@ -707,17 +815,9 @@ gst_tensor_trainer_sink_event (GstPad * sinkpad, GstObject * parent,
 
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_EOS:
-      trainer->fw->getFrameworkInfo (trainer->fw, NULL, trainer->privateData,
-          &info);
-      if (!info.is_training_complete) {
-        GST_INFO_OBJECT (trainer,
-            "got GST_EVENT_EOS event but training is not completed, state is %d",
-            GST_STATE (trainer));
-        g_mutex_lock (&trainer->trainer_lock);
-        GST_INFO_OBJECT (trainer, "wait for training_complete_cond signal");
-        g_cond_wait (&trainer->training_complete_cond, &trainer->trainer_lock);
-        g_mutex_unlock (&trainer->trainer_lock);
-      }
+      if (gst_tensor_trainer_training_is_complete (trainer))
+        GST_DEBUG_OBJECT (trainer, "training is complete in sub-plugin[%s]",
+            trainer->fw_name);
       break;
     case GST_EVENT_FLUSH_START:
       GST_INFO_OBJECT (trainer, "get GST_EVENT_FLUSH_START event");
