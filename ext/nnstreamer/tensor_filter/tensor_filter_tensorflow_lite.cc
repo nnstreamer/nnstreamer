@@ -809,6 +809,7 @@ TFLiteInterpreter::cacheInOutTensorPtr ()
 {
   int tensor_idx;
   TfLiteTensor *tensor_ptr;
+  GstTensorInfo *info;
 
   inputTensorPtr.clear ();
   inputTensorPtr.reserve (inputTensorMeta.num_tensors);
@@ -816,7 +817,7 @@ TFLiteInterpreter::cacheInOutTensorPtr ()
     tensor_idx = interpreter->inputs ()[i];
     tensor_ptr = interpreter->tensor (tensor_idx);
 
-    GstTensorInfo *info = gst_tensors_info_get_nth_info (&inputTensorMeta, i);
+    info = gst_tensors_info_get_nth_info (&inputTensorMeta, i);
     if (tensor_ptr->bytes != gst_tensor_info_get_size (info))
       goto fail_exit;
 
@@ -829,7 +830,7 @@ TFLiteInterpreter::cacheInOutTensorPtr ()
     tensor_idx = interpreter->outputs ()[i];
     tensor_ptr = interpreter->tensor (tensor_idx);
 
-    GstTensorInfo *info = gst_tensors_info_get_nth_info (&outputTensorMeta, i);
+    info = gst_tensors_info_get_nth_info (&outputTensorMeta, i);
     if (tensor_ptr->bytes != gst_tensor_info_get_size (info))
       goto fail_exit;
 

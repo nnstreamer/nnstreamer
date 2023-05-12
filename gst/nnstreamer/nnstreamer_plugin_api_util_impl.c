@@ -453,6 +453,7 @@ gboolean
 gst_tensors_info_validate (const GstTensorsInfo * info)
 {
   guint i;
+  GstTensorInfo *_info;
 
   g_return_val_if_fail (info != NULL, FALSE);
 
@@ -485,19 +486,10 @@ gst_tensors_info_validate (const GstTensorsInfo * info)
   }
 
   for (i = 0; i < info->num_tensors; i++) {
-    if (i == NNS_TENSOR_SIZE_LIMIT) {
-      break;
-    }
+    _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info, i);
 
-    if (!gst_tensor_info_validate (&info->info[i])) {
+    if (!gst_tensor_info_validate (_info))
       return FALSE;
-    }
-  }
-
-  for (i = NNS_TENSOR_SIZE_LIMIT; i < info->num_tensors; ++i) {
-    if (!gst_tensor_info_validate (&info->extra[i - NNS_TENSOR_SIZE_LIMIT])) {
-      return FALSE;
-    }
   }
 
   return TRUE;
@@ -511,6 +503,7 @@ gboolean
 gst_tensors_info_is_equal (const GstTensorsInfo * i1, const GstTensorsInfo * i2)
 {
   guint i;
+  GstTensorInfo *_info1, *_info2;
 
   g_return_val_if_fail (i1 != NULL, FALSE);
   g_return_val_if_fail (i2 != NULL, FALSE);
@@ -537,15 +530,11 @@ gst_tensors_info_is_equal (const GstTensorsInfo * i1, const GstTensorsInfo * i2)
     return FALSE;
   }
 
-  for (i = 0; i < i1->num_tensors && i < NNS_TENSOR_SIZE_LIMIT; i++) {
-    if (!gst_tensor_info_is_equal (&i1->info[i], &i2->info[i])) {
-      return FALSE;
-    }
-  }
+  for (i = 0; i < i1->num_tensors; i++) {
+    _info1 = gst_tensors_info_get_nth_info ((GstTensorsInfo *) i1, i);
+    _info2 = gst_tensors_info_get_nth_info ((GstTensorsInfo *) i2, i);
 
-  for (i = NNS_TENSOR_SIZE_LIMIT; i < i1->num_tensors; ++i) {
-    if (!gst_tensor_info_is_equal (&i1->extra[i - NNS_TENSOR_SIZE_LIMIT],
-            &i2->extra[i - NNS_TENSOR_SIZE_LIMIT])) {
+    if (!gst_tensor_info_is_equal (_info1, _info2)) {
       return FALSE;
     }
   }
@@ -562,6 +551,7 @@ void
 gst_tensors_info_copy (GstTensorsInfo * dest, const GstTensorsInfo * src)
 {
   guint i, num;
+  GstTensorInfo *_dest, *_src;
 
   g_return_if_fail (dest != NULL);
   g_return_if_fail (src != NULL);
@@ -574,13 +564,11 @@ gst_tensors_info_copy (GstTensorsInfo * dest, const GstTensorsInfo * src)
     gst_tensors_info_extra_create (dest);
   }
 
-  for (i = 0; i < num && i < NNS_TENSOR_SIZE_LIMIT; i++) {
-    gst_tensor_info_copy (&dest->info[i], &src->info[i]);
-  }
+  for (i = 0; i < num; i++) {
+    _dest = gst_tensors_info_get_nth_info (dest, i);
+    _src = gst_tensors_info_get_nth_info ((GstTensorsInfo *) src, i);
 
-  for (i = NNS_TENSOR_SIZE_LIMIT; i < num; ++i) {
-    gst_tensor_info_copy (&dest->extra[i - NNS_TENSOR_SIZE_LIMIT],
-        &src->extra[i - NNS_TENSOR_SIZE_LIMIT]);
+    gst_tensor_info_copy (_dest, _src);
   }
 }
 
@@ -595,6 +583,7 @@ gst_tensors_info_parse_dimensions_string (GstTensorsInfo * info,
     const gchar * dim_string)
 {
   guint num_dims = 0;
+  GstTensorInfo *_info;
 
   g_return_val_if_fail (info != NULL, 0);
 
@@ -612,18 +601,12 @@ gst_tensors_info_parse_dimensions_string (GstTensorsInfo * info,
       num_dims = NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT;
     }
 
-    for (i = 0; i < num_dims; i++) {
-      if (i == NNS_TENSOR_SIZE_LIMIT) {
-        /* create extra info */
-        gst_tensors_info_extra_create (info);
-        break;
-      }
-      gst_tensor_parse_dimension (str_dims[i], info->info[i].dimension);
-    }
+    if (num_dims >= NNS_TENSOR_SIZE_LIMIT)
+      gst_tensors_info_extra_create (info);
 
-    for (i = NNS_TENSOR_SIZE_LIMIT; i < num_dims; ++i) {
-      gst_tensor_parse_dimension (str_dims[i],
-          info->extra[i - NNS_TENSOR_SIZE_LIMIT].dimension);
+    for (i = 0; i < num_dims; i++) {
+      _info = gst_tensors_info_get_nth_info (info, i);
+      gst_tensor_parse_dimension (str_dims[i], _info->dimension);
     }
 
     g_strfreev (str_dims);
@@ -643,6 +626,7 @@ gst_tensors_info_parse_types_string (GstTensorsInfo * info,
     const gchar * type_string)
 {
   guint num_types = 0;
+  GstTensorInfo *_info;
 
   g_return_val_if_fail (info != NULL, 0);
 
@@ -660,18 +644,12 @@ gst_tensors_info_parse_types_string (GstTensorsInfo * info,
       num_types = NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT;
     }
 
-    for (i = 0; i < num_types; i++) {
-      if (i == NNS_TENSOR_SIZE_LIMIT) {
-        /* create extra info */
-        gst_tensors_info_extra_create (info);
-        break;
-      }
-      info->info[i].type = gst_tensor_get_type (str_types[i]);
-    }
+    if (num_types >= NNS_TENSOR_SIZE_LIMIT)
+      gst_tensors_info_extra_create (info);
 
-    for (i = NNS_TENSOR_SIZE_LIMIT; i < num_types; ++i) {
-      info->extra[i - NNS_TENSOR_SIZE_LIMIT].type =
-          gst_tensor_get_type (str_types[i]);
+    for (i = 0; i < num_types; i++) {
+      _info = gst_tensors_info_get_nth_info (info, i);
+      _info->type = gst_tensor_get_type (str_types[i]);
     }
 
     g_strfreev (str_types);
@@ -691,6 +669,7 @@ gst_tensors_info_parse_names_string (GstTensorsInfo * info,
     const gchar * name_string)
 {
   guint num_names = 0;
+  GstTensorInfo *_info;
 
   g_return_val_if_fail (info != NULL, 0);
 
@@ -708,34 +687,21 @@ gst_tensors_info_parse_names_string (GstTensorsInfo * info,
       num_names = NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT;
     }
 
+    if (num_names >= NNS_TENSOR_SIZE_LIMIT)
+      gst_tensors_info_extra_create (info);
+
     for (i = 0; i < num_names; i++) {
       gchar *str_name;
-      if (i == NNS_TENSOR_SIZE_LIMIT) {
-        /* create extra info */
-        gst_tensors_info_extra_create (info);
-        break;
-      }
-      str_name = g_strdup (str_names[i]);
-      g_free (info->info[i].name);
-      info->info[i].name = NULL;
 
-      if (str_name && strlen (g_strstrip (str_name)))
-        info->info[i].name = str_name;
+      _info = gst_tensors_info_get_nth_info (info, i);
+      g_free (_info->name);
+      _info->name = NULL;
+
+      str_name = g_strstrip (g_strdup (str_names[i]));
+      if (str_name && strlen (str_name))
+        _info->name = str_name;
       else
         g_free (str_name);
-    }
-
-    for (i = NNS_TENSOR_SIZE_LIMIT; i < num_names; ++i) {
-      gchar *str_name = g_strdup (str_names[i]);
-
-      g_free (info->extra[i - NNS_TENSOR_SIZE_LIMIT].name);
-      info->extra[i - NNS_TENSOR_SIZE_LIMIT].name = NULL;
-
-      if (str_name && strlen (g_strstrip (str_name)))
-        info->extra[i - NNS_TENSOR_SIZE_LIMIT].name = str_name;
-      else {
-        g_free (str_name);
-      }
     }
 
     g_strfreev (str_names);
@@ -753,36 +719,8 @@ gst_tensors_info_parse_names_string (GstTensorsInfo * info,
 gchar *
 gst_tensors_info_get_dimensions_string (const GstTensorsInfo * info)
 {
-  gchar *dim_str = NULL;
-
-  g_return_val_if_fail (info != NULL, NULL);
-
-  if (info->num_tensors > 0) {
-    guint i;
-    GString *dimensions = g_string_new (NULL);
-
-    for (i = 0; i < info->num_tensors; i++) {
-      if (i >= NNS_TENSOR_SIZE_LIMIT) {
-        dim_str =
-            gst_tensor_get_dimension_string (info->extra[i -
-                NNS_TENSOR_SIZE_LIMIT].dimension);
-      } else {
-        dim_str = gst_tensor_get_dimension_string (info->info[i].dimension);
-      }
-
-      g_string_append (dimensions, dim_str);
-
-      if (i < info->num_tensors - 1) {
-        g_string_append (dimensions, ",");
-      }
-
-      g_free (dim_str);
-    }
-
-    dim_str = g_string_free (dimensions, FALSE);
-  }
-
-  return dim_str;
+  return gst_tensors_info_get_rank_dimensions_string (info,
+      NNS_TENSOR_RANK_LIMIT);
 }
 
 /**
@@ -798,6 +736,7 @@ gst_tensors_info_get_rank_dimensions_string (const GstTensorsInfo * info,
     const unsigned int rank)
 {
   gchar *dim_str = NULL;
+  GstTensorInfo *_info;
 
   g_return_val_if_fail (info != NULL, NULL);
 
@@ -806,8 +745,8 @@ gst_tensors_info_get_rank_dimensions_string (const GstTensorsInfo * info,
     GString *dimensions = g_string_new (NULL);
 
     for (i = 0; i < info->num_tensors; i++) {
-      dim_str =
-          gst_tensor_get_rank_dimension_string (info->info[i].dimension, rank);
+      _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info, i);
+      dim_str = gst_tensor_get_rank_dimension_string (_info->dimension, rank);
 
       g_string_append (dimensions, dim_str);
 
@@ -834,6 +773,7 @@ gchar *
 gst_tensors_info_get_types_string (const GstTensorsInfo * info)
 {
   gchar *type_str = NULL;
+  GstTensorInfo *_info;
 
   g_return_val_if_fail (info != NULL, NULL);
 
@@ -842,16 +782,10 @@ gst_tensors_info_get_types_string (const GstTensorsInfo * info)
     GString *types = g_string_new (NULL);
 
     for (i = 0; i < info->num_tensors; i++) {
-      if (i >= NNS_TENSOR_SIZE_LIMIT) {
-        g_string_append (types,
-            gst_tensor_get_type_string (info->extra[i -
-                    NNS_TENSOR_SIZE_LIMIT].type));
-      } else {
-        if (info->info[i].type != _NNS_END) {
-          g_string_append (types,
-              gst_tensor_get_type_string (info->info[i].type));
-        }
-      }
+      _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info, i);
+
+      if (_info->type != _NNS_END)
+        g_string_append (types, gst_tensor_get_type_string (_info->type));
 
       if (i < info->num_tensors - 1) {
         g_string_append (types, ",");
@@ -874,6 +808,7 @@ gchar *
 gst_tensors_info_get_names_string (const GstTensorsInfo * info)
 {
   gchar *name_str = NULL;
+  GstTensorInfo *_info;
 
   g_return_val_if_fail (info != NULL, NULL);
 
@@ -882,15 +817,11 @@ gst_tensors_info_get_names_string (const GstTensorsInfo * info)
     GString *names = g_string_new (NULL);
 
     for (i = 0; i < info->num_tensors; i++) {
-      if (i >= NNS_TENSOR_SIZE_LIMIT) {
-        if (info->extra[i - NNS_TENSOR_SIZE_LIMIT].name) {
-          g_string_append (names, info->extra[i - NNS_TENSOR_SIZE_LIMIT].name);
-        }
-      } else {
-        if (info->info[i].name) {
-          g_string_append (names, info->info[i].name);
-        }
-      }
+      _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info, i);
+
+      if (_info->name)
+        g_string_append (names, _info->name);
+
       if (i < info->num_tensors - 1) {
         g_string_append (names, ",");
       }
@@ -913,6 +844,7 @@ gst_tensors_info_to_string (const GstTensorsInfo * info)
   GString *gstr = g_string_new (NULL);
   unsigned int i;
   unsigned int limit = info->num_tensors;
+  GstTensorInfo *_info;
 
   g_string_append_printf (gstr, "Num_Tensors = %u, Tensors = [",
       info->num_tensors);
@@ -922,28 +854,18 @@ gst_tensors_info_to_string (const GstTensorsInfo * info)
         "(Num_Tensors out of bound. Showing %d only)", limit);
   }
 
-  for (i = 0; i < limit && i < NNS_TENSOR_SIZE_LIMIT; i++) {
-    const char *name = info->info[i].name;
-    const gchar *type = gst_tensor_get_type_string (info->info[i].type);
-    gchar *dim = gst_tensor_get_dimension_string (info->info[i].dimension);
+  for (i = 0; i < limit; i++) {
+    const gchar *name;
+    const gchar *type;
+    gchar *dim;
+
+    _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info, i);
+    name = _info->name;
+    type = gst_tensor_get_type_string (_info->type);
+    dim = gst_tensor_get_dimension_string (_info->dimension);
 
     g_string_append_printf (gstr, "{\"%s\", %s, %s}%s",
-        name, type, dim, (i == info->num_tensors - 1) ? "]" : ", ");
-
-    g_free (dim);
-  }
-
-  for (i = NNS_TENSOR_SIZE_LIMIT; i < limit; i++) {
-    const char *name = info->extra[i - NNS_TENSOR_SIZE_LIMIT].name;
-    const gchar *type =
-        gst_tensor_get_type_string (info->extra[i -
-            NNS_TENSOR_SIZE_LIMIT].type);
-    gchar *dim =
-        gst_tensor_get_dimension_string (info->extra[i -
-            NNS_TENSOR_SIZE_LIMIT].dimension);
-
-    g_string_append_printf (gstr, "{\"%s\", %s, %s}%s",
-        name, type, dim, (i == info->num_tensors - 1) ? "]" : ", ");
+        name ? name : "", type, dim, (i == info->num_tensors - 1) ? "]" : ", ");
 
     g_free (dim);
   }
@@ -1139,20 +1061,7 @@ gst_tensor_parse_dimension (const gchar * dimstr, tensor_dim dim)
 gchar *
 gst_tensor_get_dimension_string (const tensor_dim dim)
 {
-  guint i;
-  GString *dim_str;
-
-  dim_str = g_string_new (NULL);
-
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-    g_string_append_printf (dim_str, "%u", dim[i]);
-
-    if (i < NNS_TENSOR_RANK_LIMIT - 1) {
-      g_string_append (dim_str, ":");
-    }
-  }
-
-  return g_string_free (dim_str, FALSE);
+  return gst_tensor_get_rank_dimension_string (dim, NNS_TENSOR_RANK_LIMIT);
 }
 
 /**
@@ -1198,10 +1107,10 @@ gst_tensor_dimension_string_is_equal (const gchar * dimstr1,
     const gchar * dimstr2)
 {
   tensor_dim dim1, dim2;
-  int rank1, rank2, i, j, num_tensors1, num_tensors2;
+  guint rank1, rank2, i, j, num_tensors1, num_tensors2;
   gchar **strv1;
   gchar **strv2;
-  gboolean res = TRUE;
+  gboolean is_equal = FALSE;
 
   strv1 = g_strsplit_set (dimstr1, ",.", -1);
   strv2 = g_strsplit_set (dimstr2, ",.", -1);
@@ -1209,31 +1118,33 @@ gst_tensor_dimension_string_is_equal (const gchar * dimstr1,
   num_tensors1 = g_strv_length (strv1);
   num_tensors2 = g_strv_length (strv2);
 
-  if (num_tensors1 != num_tensors2) {
-    res = FALSE;
-  } else {
-    for (i = 0; i < num_tensors1 && res; i++) {
-      rank1 = gst_tensor_parse_dimension (strv1[i], dim1);
-      rank2 = gst_tensor_parse_dimension (strv2[i], dim2);
+  if (num_tensors1 != num_tensors2)
+    goto done;
 
-      if (!rank1 || !rank2) {
-        res = FALSE;
-        break;
-      }
+  for (i = 0; i < num_tensors1; i++) {
+    for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++)
+      dim1[j] = dim2[j] = 0;
 
-      for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
-        if (dim1[j] != dim2[j]) {
-          res = FALSE;
-          break;
-        }
-      }
+    rank1 = gst_tensor_parse_dimension (strv1[i], dim1);
+    rank2 = gst_tensor_parse_dimension (strv2[i], dim2);
+
+    if (!rank1 || !rank2)
+      goto done;
+
+    for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
+      if (dim1[j] != dim2[j])
+        goto done;
     }
   }
 
+  /* Compared all tensor dimensions from input string. */
+  is_equal = TRUE;
+
+done:
   g_strfreev (strv1);
   g_strfreev (strv2);
 
-  return res;
+  return is_equal;
 }
 
 /**
