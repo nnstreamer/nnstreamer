@@ -952,90 +952,22 @@ gst_tensors_config_from_peer (GstPad * pad, GstTensorsConfig * config,
 }
 
 /**
- * @brief Check whether the tensor dimensions are same
- */
-static gboolean
-_is_tensor_dim_same (tensor_dim dim1, tensor_dim dim2)
-{
-  guint i;
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-    if (dim1[i] != dim2[i])
-      return FALSE;
-  }
-  return TRUE;
-}
-
-/**
  * @brief Check whether two structures have the same dimension
  */
 static gboolean
-_is_structure_dimension_same (GstStructure * structure1,
-    GstStructure * structure2)
+_is_structure_dimension_same (GstStructure * st1, GstStructure * st2,
+    const gchar * fieldname)
 {
-  tensor_dim dim1, dim2;
   const char *dim_str1;
   const char *dim_str2;
 
-  g_return_val_if_fail (gst_structure_has_field (structure1, "dimension"),
-      FALSE);
-  g_return_val_if_fail (gst_structure_has_field (structure2, "dimension"),
-      FALSE);
+  g_return_val_if_fail (gst_structure_has_field (st1, fieldname), FALSE);
+  g_return_val_if_fail (gst_structure_has_field (st2, fieldname), FALSE);
 
-  dim_str1 = gst_structure_get_string (structure1, "dimension");
-  gst_tensor_parse_dimension (dim_str1, dim1);
+  dim_str1 = gst_structure_get_string (st1, fieldname);
+  dim_str2 = gst_structure_get_string (st2, fieldname);
 
-  dim_str2 = gst_structure_get_string (structure2, "dimension");
-  gst_tensor_parse_dimension (dim_str2, dim2);
-
-  return _is_tensor_dim_same (dim1, dim2);
-}
-
-/**
- * @brief Check whether two structures have the same dimensions
- */
-static gboolean
-_is_structure_dimensions_same (GstStructure * structure1,
-    GstStructure * structure2)
-{
-  GstTensorsInfo info1, info2;
-  const char *dim_str1;
-  const char *dim_str2;
-  guint num_dim1, num_dim2, i;
-
-  gst_tensors_info_init (&info1);
-  gst_tensors_info_init (&info2);
-
-  g_return_val_if_fail (gst_structure_has_field (structure1, "dimensions"),
-      FALSE);
-  g_return_val_if_fail (gst_structure_has_field (structure2, "dimensions"),
-      FALSE);
-
-  dim_str1 = gst_structure_get_string (structure1, "dimensions");
-  num_dim1 = gst_tensors_info_parse_dimensions_string (&info1, dim_str1);
-
-  dim_str2 = gst_structure_get_string (structure2, "dimensions");
-  num_dim2 = gst_tensors_info_parse_dimensions_string (&info2, dim_str2);
-
-  if (num_dim1 != num_dim2) {
-    gst_tensors_info_free (&info1);
-    gst_tensors_info_free (&info2);
-    return FALSE;
-  }
-
-  for (i = 0; i < num_dim1; i++) {
-    GstTensorInfo *info1i = gst_tensors_info_get_nth_info (&info1, i);
-    GstTensorInfo *info2i = gst_tensors_info_get_nth_info (&info2, i);
-
-    if (!_is_tensor_dim_same (info1i->dimension, info2i->dimension)) {
-      gst_tensors_info_free (&info1);
-      gst_tensors_info_free (&info2);
-      return FALSE;
-    }
-  }
-
-  gst_tensors_info_free (&info1);
-  gst_tensors_info_free (&info2);
-  return TRUE;
+  return gst_tensor_dimension_string_is_equal (dim_str1, dim_str2);
 }
 
 /**
@@ -1063,7 +995,8 @@ gst_tensor_caps_update_dimension (GstCaps * caps, GstCaps * peer_caps)
       if (gst_structure_has_field (structure, "dimension")
           && gst_structure_has_field (structure_peer, "dimension")) {
         /* update dimensions for negotiation */
-        if (_is_structure_dimension_same (structure, structure_peer)) {
+        if (_is_structure_dimension_same (structure, structure_peer,
+                "dimension")) {
           gst_structure_set (structure, "dimension", G_TYPE_STRING,
               gst_structure_get_string (structure_peer, "dimension"), NULL);
         }
@@ -1072,7 +1005,8 @@ gst_tensor_caps_update_dimension (GstCaps * caps, GstCaps * peer_caps)
       else if (gst_structure_has_field (structure, "dimensions")
           && gst_structure_has_field (structure_peer, "dimensions")) {
         /* update dimensions for negotiation */
-        if (_is_structure_dimensions_same (structure, structure_peer)) {
+        if (_is_structure_dimension_same (structure, structure_peer,
+                "dimensions")) {
           gst_structure_set (structure, "dimensions", G_TYPE_STRING,
               gst_structure_get_string (structure_peer, "dimensions"), NULL);
         }
@@ -1106,12 +1040,13 @@ gst_tensor_caps_can_intersect (GstCaps * caps1, GstCaps * caps2)
   structure1 = gst_caps_get_structure (caps1, 0);
   structure2 = gst_caps_get_structure (caps2, 0);
 
-  name1 = gst_structure_get_name (structure1);
-  name2 = gst_structure_get_name (structure2);
-
   if (!gst_structure_is_tensor_stream (structure1)
       || !gst_structure_is_tensor_stream (structure2))
     return FALSE;
+
+  name1 = gst_structure_get_name (structure1);
+  name2 = gst_structure_get_name (structure2);
+
   if (!g_str_equal (name1, name2))
     return FALSE;
 
@@ -1119,14 +1054,14 @@ gst_tensor_caps_can_intersect (GstCaps * caps1, GstCaps * caps2)
   if (g_str_equal (name1, NNS_MIMETYPE_TENSOR)) {
     if (gst_structure_has_field (structure1, "dimension")
         && gst_structure_has_field (structure2, "dimension")) {
-      if (!_is_structure_dimension_same (structure1, structure2))
+      if (!_is_structure_dimension_same (structure1, structure2, "dimension"))
         return FALSE;
     }
   }
   /* other/tensors */
   else if (gst_structure_has_field (structure1, "dimensions")
       && gst_structure_has_field (structure2, "dimensions")) {
-    if (!_is_structure_dimensions_same (structure1, structure2))
+    if (!_is_structure_dimension_same (structure1, structure2, "dimensions"))
       return FALSE;
   }
 
