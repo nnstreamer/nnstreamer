@@ -88,7 +88,10 @@
  *          This is independent from option1
  * option5: Input Dimension (WIDTH:HEIGHT)
  *          This is independent from option1
- * option6: Box Style (NYI)
+ * option6: Whether to track result bounding boxes or not
+ *          0 (default, do not track)
+ *          1 (track result bounding boxes, with naive centroid based algorithm)
+ * option7: Box Style (NYI)
  *
  * MAJOR TODO: Support other colorspaces natively from _decode for performance gain
  * (e.g., BGRA, ARGB, ...)
@@ -219,6 +222,42 @@ typedef struct
 } properties_YOLOV5;
 
 /**
+ * @brief Structure for object centroid tracking.
+ */
+typedef struct
+{
+  guint id;
+  guint matched_box_idx;
+  gint cx;
+  gint cy;
+  guint consecutive_disappeared_frames;
+} centroid;
+
+/**
+ * @brief Structure for distances. {distance} : {centroids} x {boxes}
+ */
+typedef struct
+{
+  guint centroid_idx;
+  guint box_idx;
+  guint64 distance;
+} distanceArrayData;
+
+/** @brief Compare function for sorting distances. */
+static int
+distance_compare (const void *a, const void *b)
+{
+  const distanceArrayData *da = (const distanceArrayData *) a;
+  const distanceArrayData *db = (const distanceArrayData *) b;
+
+  if (da->distance < db->distance)
+    return -1;
+  if (da->distance > db->distance)
+    return 1;
+  return 0;
+}
+
+/**
  * @brief Data structure for SSD bounding box info for mobilenet ssd postprocess model.
  */
 typedef struct
@@ -231,7 +270,8 @@ typedef struct
 /**
  * @brief anchor data
  */
-typedef struct {
+typedef struct
+{
   float x_center;
   float y_center;
   float w;
@@ -286,6 +326,15 @@ typedef struct
   /* From option5 */
   guint i_width; /**< Input Video Width */
   guint i_height; /**< Input Video Height */
+
+  /* From option6 (track or not) */
+  gint is_track;
+  guint centroids_last_id; /**< The last_id of centroid valid id is 1, 2, ... (not 0). */
+  guint max_centroids_num; /**< The maximum number of centroids */
+  guint consecutive_disappear_threshold; /**< The threshold of consecutive disappeared frames */
+
+  GArray *centroids; /**< Array for centroids */
+  GArray *distanceArray; /**< Array for distances */
 
   guint max_detection;
   gboolean flag_use_label;
@@ -452,6 +501,17 @@ bb_init (void **pdata)
   bdata->i_height = 0;
   bdata->flag_use_label = FALSE;
 
+  /* for track */
+  bdata->is_track = 0;
+  bdata->centroids_last_id = 0U;
+  bdata->max_centroids_num = 100U;
+  bdata->consecutive_disappear_threshold = 100U;
+  bdata->centroids =
+      g_array_sized_new (TRUE, TRUE, sizeof (centroid), bdata->max_centroids_num);
+  bdata->distanceArray =
+      g_array_sized_new (TRUE, TRUE, sizeof (float),
+      bdata->max_centroids_num * bdata->max_centroids_num);
+
   initSingleLineSprite (singleLineSprite, rasters, PIXEL_VALUE);
 
   /* The default values when the user didn't specify */
@@ -474,6 +534,9 @@ static void
 bb_exit (void **pdata)
 {
   bounding_boxes *bdata = *pdata;
+
+  g_array_free (bdata->centroids, TRUE);
+  g_array_free (bdata->distanceArray, TRUE);
 
   _free_labels (&bdata->labeldata);
 
@@ -870,6 +933,10 @@ bb_setOption (void **pdata, int opNum, const char *param)
     bdata->i_width = dim[0];
     bdata->i_height = dim[1];
     return TRUE;
+  } else if (opNum == 5) {
+    /* option6 = track or not */
+    bdata->is_track = (int) g_ascii_strtoll (param, NULL, 10);
+    return TRUE;
   }
   /**
    * @todo Accept color / border-width / ... with option-2
@@ -1138,8 +1205,170 @@ typedef struct
   int width;
   int height;
   gfloat prob;
+
+  int tracking_id;
 } detectedObject;
 
+/**
+ * @brief Update centroids with given bounding boxes.
+ */
+static void
+update_centroids (void **pdata, GArray * boxes)
+{
+  guint i, j;
+  bounding_boxes *bdata = *pdata;
+  GArray *centroids = bdata->centroids;
+  GArray *distanceArray = bdata->distanceArray;
+
+  if (boxes->len > bdata->max_centroids_num) {
+    nns_logw ("update_centroids: too many detected objects");
+    return;
+  }
+  /* remove disappeared centroids */
+  i = 0;
+  while (i < centroids->len) {
+    centroid *c = &g_array_index (centroids, centroid, i);
+    if (c->consecutive_disappeared_frames >= bdata->consecutive_disappear_threshold) {
+      g_array_remove_index (centroids, i);
+    } else {
+      i++;
+    }
+  }
+
+  if (centroids->len > bdata->max_centroids_num) {
+    nns_logw ("update_centroids: too many detected centroids");
+    return;
+  }
+  /* if boxes is empty */
+  if (boxes->len == 0U) {
+    guint i;
+    for (i = 0; i < centroids->len; i++) {
+      centroid *c = &g_array_index (centroids, centroid, i);
+
+      if (c->id > 0)
+        c->consecutive_disappeared_frames++;
+    }
+
+    return;
+  }
+  /* initialize centroids with given boxes */
+  if (centroids->len == 0U) {
+    guint i;
+    for (i = 0; i < boxes->len; i++) {
+      detectedObject *box = &g_array_index (boxes, detectedObject, i);
+      centroid c;
+
+      bdata->centroids_last_id++;
+      c.id = bdata->centroids_last_id;
+      c.consecutive_disappeared_frames = 0;
+      c.cx = box->x + box->width / 2;
+      c.cy = box->y + box->height / 2;
+      c.matched_box_idx = i;
+
+      g_array_append_val (centroids, c);
+
+      box->tracking_id = c.id;
+    }
+
+    return;
+  }
+  /* calculate the distance among centroids and boxes */
+  g_array_set_size (distanceArray, centroids->len * boxes->len);
+
+  for (i = 0; i < centroids->len; i++) {
+    centroid *c = &g_array_index (centroids, centroid, i);
+    c->matched_box_idx = G_MAXUINT32;
+
+    for (j = 0; j < boxes->len; j++) {
+      detectedObject *box = &g_array_index (boxes, detectedObject, j);
+      distanceArrayData *d =
+          &g_array_index (distanceArray, distanceArrayData,
+          i * centroids->len + j);
+
+      d->centroid_idx = i;
+      d->box_idx = j;
+
+      /* invalid centroid */
+      if (c->id == 0) {
+        d->distance = G_MAXUINT64;
+      } else {
+        /* calculate euclidean distance */
+        d->distance =
+            (c->cx - box->x) * (c->cx - box->x) + (c->cy - box->y) * (c->cy -
+            box->y);
+      }
+    }
+  }
+
+  g_array_sort (distanceArray, distance_compare);
+
+  {
+    /* Starting from the least distance pair (centroid, box), matching each other */
+    guint dIdx, cIdx, bIdx;
+
+    for (dIdx = 0; dIdx < distanceArray->len; dIdx++) {
+      distanceArrayData *d =
+          &g_array_index (distanceArray, distanceArrayData, dIdx);
+      centroid *c = &g_array_index (centroids, centroid, d->centroid_idx);
+      detectedObject *box = &g_array_index (boxes, detectedObject, d->box_idx);
+
+      cIdx = d->centroid_idx;
+      bIdx = d->box_idx;
+
+      /* the centroid is invalid */
+      if (c->id == 0) {
+        continue;
+      }
+      /* the box is already assigned to a centroid */
+      if (box->tracking_id != 0) {
+        continue;
+      }
+      /* the centroid is already assigned to a box */
+      if (c->matched_box_idx != G_MAXUINT32) {
+        continue;
+      }
+      /* now match the box with the centroid */
+      c->matched_box_idx = bIdx;
+      box->tracking_id = c->id;
+      c->consecutive_disappeared_frames = 0;
+    }
+
+    /* increase consecutive_disappeared_frames of unmatched centroids */
+    for (cIdx = 0; cIdx < centroids->len; cIdx++) {
+      centroid *c = &g_array_index (centroids, centroid, cIdx);
+
+      if (c->id == 0) {
+        continue;
+      }
+
+      if (c->matched_box_idx == G_MAXUINT32) {
+        c->consecutive_disappeared_frames++;
+      }
+    }
+
+    /* for those unmatched boxes - register as new centroids */
+    for (bIdx = 0; bIdx < boxes->len; bIdx++) {
+      detectedObject *box = &g_array_index (boxes, detectedObject, bIdx);
+      centroid c;
+
+      if (box->tracking_id != 0) {
+        continue;
+      }
+
+      bdata->centroids_last_id++;
+      c.id = bdata->centroids_last_id;
+      c.consecutive_disappeared_frames = 0;
+      c.cx = box->x + box->width / 2;
+      c.cy = box->y + box->height / 2;
+      c.matched_box_idx = bIdx;
+
+      g_array_append_val (centroids, c);
+
+      box->tracking_id = c.id;
+    }
+  }
+
+}
 
 #define _expit(x) \
     (1.f / (1.f + expf (- ((float)x))))
@@ -1470,8 +1699,6 @@ draw (GstMapInfo * out_info, bounding_boxes * bdata, GArray * results)
     int x1, x2, y1, y2;         /* Box positions on the output surface */
     int j;
     uint32_t *pos1, *pos2;
-    const char *label;
-    int label_len;
     detectedObject *a = &g_array_index (results, detectedObject, i);
 
 
@@ -1511,9 +1738,20 @@ draw (GstMapInfo * out_info, bounding_boxes * bdata, GArray * results)
       pos2 += bdata->width;
     }
 
-    /* 2. Write Labels */
+    /* 2. Write Labels + tracking ID */
     if (bdata->flag_use_label) {
-      label = bdata->labeldata.labels[a->class_id];
+      g_autofree gchar *label = NULL;
+      guint j;
+      gsize label_len;
+
+      if (bdata->is_track != 0) {
+        label =
+            g_strdup_printf ("%s-%d", bdata->labeldata.labels[a->class_id],
+            a->tracking_id);
+      } else {
+        label = g_strdup_printf ("%s", bdata->labeldata.labels[a->class_id]);
+      }
+
       label_len = strlen (label);
       /* x1 is the same: x1 = MAX (0, (bdata->width * a->x) / bdata->i_width); */
       y1 = MAX (0, (y1 - 14));
@@ -1754,6 +1992,10 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
   } else {
     GST_ERROR ("Failed to get output buffer, unknown mode %d.", bdata->mode);
     goto error_unmap;
+  }
+
+  if (bdata->is_track != 0) {
+    update_centroids (pdata, results);
   }
 
   draw (&out_info, bdata, results);
