@@ -264,6 +264,9 @@ gst_tensor_trainer_init (GstTensorTrainer * trainer)
   trainer->inputtype_configured = FALSE;
   trainer->total_push_data_cnt = 0;
 
+  gst_tensors_config_init (&trainer->in_config);
+  gst_tensors_config_init (&trainer->out_config);
+
   g_cond_init (&trainer->training_complete_cond);
   g_mutex_init (&trainer->trainer_lock);
   trainer->prop.training_complete_cond = &trainer->training_complete_cond;
@@ -287,6 +290,9 @@ gst_tensor_trainer_finalize (GObject * object)
   g_free (trainer->model_save_path);
   g_free (trainer->output_dimensions);
   g_free (trainer->output_type);
+
+  gst_tensors_config_free (&trainer->in_config);
+  gst_tensors_config_free (&trainer->out_config);
 
   g_cond_clear (&trainer->training_complete_cond);
   g_mutex_clear (&trainer->trainer_lock);
@@ -665,9 +671,6 @@ gst_tensor_trainer_query_caps (GstTensorTrainer * trainer,
   g_return_val_if_fail (trainer != NULL, NULL);
   g_return_val_if_fail (pad != NULL, NULL);
 
-  gst_tensors_config_init (&trainer->in_config);
-  gst_tensors_config_init (&trainer->out_config);
-
   /* tensor config info for given pad */
   if (pad == trainer->sinkpad) {
     config = &trainer->in_config;
@@ -730,22 +733,27 @@ gst_tensor_trainer_sink_event (GstPad * sinkpad, GstObject * parent,
       GstCaps *in_caps;
       GstCaps *out_caps;
       GstStructure *structure;
-      GstTensorsConfig in_config;
+      GstTensorsConfig config;
       gboolean ret = FALSE;
 
       gst_event_parse_caps (event, &in_caps);
       GST_INFO_OBJECT (trainer, "[in-caps] : %" GST_PTR_FORMAT, in_caps);
 
       structure = gst_caps_get_structure (in_caps, 0);
-      if (!gst_tensors_config_from_structure (&in_config, structure))
-        return ret;
+      if (!gst_tensors_config_from_structure (&config, structure) ||
+          !gst_tensors_config_validate (&config)) {
+        gst_tensors_config_free (&config);
+        gst_event_unref (event);
+        return FALSE;
+      }
 
       /* copy TensorsInfo from negotiated caps to GstTensorTrainerProperties's input_meta */
-      gst_tensors_info_copy (&trainer->prop.input_meta, &in_config.info);
+      gst_tensors_info_copy (&trainer->prop.input_meta, &config.info);
 
-      /* set out caps */
-      trainer->out_config.rate_n = in_config.rate_n;
-      trainer->out_config.rate_d = in_config.rate_d;
+      /* set tensor-config and out caps */
+      trainer->in_config = config;
+      trainer->out_config.rate_n = config.rate_n;
+      trainer->out_config.rate_d = config.rate_d;
       gst_tensors_info_copy (&trainer->out_config.info, &trainer->output_meta);
 
       out_caps =
@@ -757,10 +765,6 @@ gst_tensor_trainer_sink_event (GstPad * sinkpad, GstObject * parent,
 
       gst_event_unref (event);
       gst_caps_unref (out_caps);
-
-      gst_tensors_config_free (&trainer->in_config);
-      gst_tensors_config_free (&trainer->out_config);
-
       return ret;
     }
     default:
