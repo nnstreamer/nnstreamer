@@ -1332,7 +1332,6 @@ gst_tensors_caps_from_config (const GstTensorsConfig * config)
   return caps;
 }
 
-
 /**
  * @brief Get tensor caps from tensors config
  * @param config tensors config info
@@ -1526,7 +1525,7 @@ gst_tensor_meta_info_append_header (GstTensorMetaInfo * meta, GstMemory * mem)
 /**
  * @brief Data structure to describe a "extra" tensor data.
  * This represents the information of the NNS_TENSOR_SIZE_LIMIT-th memory block for tensor stream.
-*/
+ */
 typedef struct
 {
   uint32_t magic;
@@ -1540,7 +1539,7 @@ typedef struct
  * @brief Check if given @a mem has extra tensors.
  * @param[in] mem GstMemory to be checked.
  * @return TRUE if @mem has extra tensors, otherwise FALSE.
-*/
+ */
 static gboolean
 gst_tensor_is_extra_memory (GstMemory * mem)
 {
@@ -1568,7 +1567,7 @@ gst_tensor_is_extra_memory (GstMemory * mem)
  * @brief Initialize GstTensorExtraInfo structure with given @a memory.
  * @param[in/out] extra GstTensorExtraInfo to be initialized.
  * @param[in] memory The information of given memory is used to initialize @a extra.
-*/
+ */
 static void
 gst_tensor_extra_info_init (GstTensorExtraInfo * extra, GstMemory * memory)
 {
@@ -1591,7 +1590,7 @@ gst_tensor_extra_info_init (GstTensorExtraInfo * extra, GstMemory * memory)
  * @param[in] info GstTensorsInfo to be used in parsing buffer.
  * @param[in] index Index of GstMemory to be returned.
  * @return GstMemory if found, otherwise NULL (Caller should free returned memory using gst_memory_unref()).
-*/
+ */
 GstMemory *
 gst_tensor_buffer_get_nth_memory (GstBuffer * buffer,
     const GstTensorsInfo * info, const guint index)
@@ -1700,7 +1699,7 @@ gst_tensor_buffer_get_nth_memory (GstBuffer * buffer,
  * @param[in] memory GstMemory to append. This function will take ownership of this.
  * @param[in] info GstTensorInfo of given @a memory.
  * @return TRUE if successfully appended, otherwise FALSE.
-*/
+ */
 gboolean
 gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
     const GstTensorInfo * info)

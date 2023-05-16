@@ -169,7 +169,6 @@ TEST (tensorIfProp, properties0)
   g_free (pipeline);
 }
 
-
 /**
  * @brief Test for invalid properties of tensor_if
  */
@@ -391,7 +390,6 @@ TEST_F (tensor_if_run, action_1)
   EXPECT_EQ (memcmp (content1, content2, len1), 0);
   g_free (content1);
   g_free (content2);
-
 
   /* False action result */
   EXPECT_TRUE (g_file_get_contents ("./gamut.golden", &content1, &len1, NULL));
@@ -856,7 +854,6 @@ TEST (tensorIfCustom, normal1)
       "tif.src_0 ! queue ! tensor_sink name=sink_true async=false "
       "tif.src_1 ! queue ! tensor_sink name=sink_false async=false");
 
-
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   EXPECT_NE (pipeline, nullptr);
 
@@ -910,7 +907,6 @@ TEST (tensorIfCustom, invalidParam3_n)
 {
   EXPECT_NE (0, nnstreamer_if_custom_unregister ("tifx"));
 }
-
 
 /**
  * @brief Main GTest

@@ -1877,7 +1877,6 @@ TEST (confCustom, checkExtraConfPath_p)
   gchar *filename = g_build_path ("/", dir, "nnstreamer.ini", NULL);
   const gchar *extra_conf = "/opt/usr/vd/product.ini";
   gchar *confenv = g_strdup (g_getenv ("NNSTREAMER_CONF"));
-  ;
 
   FILE *fp = g_fopen (filename, "w");
   ASSERT_TRUE (fp != NULL);

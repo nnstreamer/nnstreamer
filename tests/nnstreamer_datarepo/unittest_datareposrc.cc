@@ -278,7 +278,6 @@ TEST (datareposrc, invalidJsonPath0_n)
   /* state chagne failure is expected */
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
-
   gst_object_unref (pipeline);
 }
 

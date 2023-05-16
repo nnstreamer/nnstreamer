@@ -264,7 +264,6 @@ end
 
   /* double close */
   sp->close (&prop, &data);
-  ;
 }
 
 

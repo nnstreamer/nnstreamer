@@ -15,6 +15,7 @@
 #include <string.h>
 
 #include <nnstreamer_conf.h>
+#include <tensor_filter_custom_easy.h>
 #include <unittest_util.h>
 #include "nnstreamer_plugin_api_filter.h"
 #include "tensor_common.h"
@@ -1802,7 +1803,6 @@ TEST (tensorStreamTest, merge16Tensors)
   EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data (option);
 }
-
 
 /**
  * @brief Test for flexible tensors with tensor_mux (nego failure).
@@ -6292,8 +6292,6 @@ TEST (tensorStreamTest, tensorsCap1)
   _free_test_data (option);
 }
 
-#include <tensor_filter_custom_easy.h>
-
 /**
  * @brief In-Code Test Function for custom-easy filter
  */
@@ -6660,7 +6658,6 @@ main (int argc, char **argv)
       fps = DEFAULT_FPS;
     }
   }
-
 
   try {
     ret = RUN_ALL_TESTS ();

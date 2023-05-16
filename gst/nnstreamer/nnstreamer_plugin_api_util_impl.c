@@ -330,7 +330,7 @@ gst_tensors_info_get_nth_info (GstTensorsInfo * info, guint nth)
 /**
  * @brief Allocate and initialize the extra info in given tensors info.
  * @param[in,out] info tensors info to be updated.
-*/
+ */
 gboolean
 gst_tensors_info_extra_create (GstTensorsInfo * info)
 {
@@ -1592,7 +1592,6 @@ gst_tensor_meta_info_parse_header (GstTensorMetaInfo * meta, gpointer header)
     default:
       break;
   }
-
 
   /** @todo update meta info for each version */
   return gst_tensor_meta_info_validate (meta);
