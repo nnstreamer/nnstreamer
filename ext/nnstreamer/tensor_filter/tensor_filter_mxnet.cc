@@ -184,7 +184,6 @@ const GstTensorFilterFrameworkInfo TensorFilterMXNet::info_ = { .name = "mxnet",
 /**
  * @brief mxnet class constructor.
  */
-
 TensorFilterMXNet::TensorFilterMXNet ()
     : tensor_filter_subplugin (), empty_model_ (true), ctx_ (Context::cpu ()),
       enable_tensorrt_ (false)

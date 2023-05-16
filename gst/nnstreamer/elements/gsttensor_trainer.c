@@ -65,12 +65,12 @@ G_DEFINE_TYPE (GstTensorTrainer, gst_tensor_trainer, GST_TYPE_ELEMENT);
 #define DEFAULT_PROP_EPOCHS 1
 
 /**
- * @brief Default string property value 
+ * @brief Default string property value
  */
 #define DEFAULT_STR_PROP_VALUE ""
 
 /**
- * @brief Default string property value 
+ * @brief Default string property value
  */
 enum
 {

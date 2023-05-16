@@ -38,7 +38,6 @@ get_file_path (const gchar *filename)
   return file_path;
 }
 
-
 /**
  * @brief Model training test using mnist.data (MNIST Test), model.bin is
  * created.
@@ -57,7 +56,6 @@ get_file_path (const gchar *filename)
  * of training samples and validation smaples. number of samples received for
  * model training is (num-training-samples + num-validation-samples) * epochs
  */
-
 TEST (tensor_trainer, SetParams)
 {
   gchar *file_path = NULL;

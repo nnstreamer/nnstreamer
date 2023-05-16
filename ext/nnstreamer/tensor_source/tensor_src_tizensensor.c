@@ -173,8 +173,6 @@ static GstFlowReturn gst_tensor_src_tizensensor_create (GstBaseSrc * src,
 static GstFlowReturn gst_tensor_src_tizensensor_fill (GstBaseSrc * src,
     guint64 offset, guint size, GstBuffer * buf);
 
-/** internal functions */
-
 #define gst_tensor_src_tizensensor_parent_class parent_class
 G_DEFINE_TYPE (GstTensorSrcTIZENSENSOR, gst_tensor_src_tizensensor,
     GST_TYPE_BASE_SRC);
@@ -855,7 +853,6 @@ gst_tensor_src_tizensensor_finalize (GObject * object)
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
-
 /**
  * @brief start function
  * @details This is called when state changed null to ready.
@@ -1275,7 +1272,6 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
     }
 
     /* 2. Do not timestamp. Let BaseSrc timestamp */
-
     nns_logd ("read sensor_data at %" GST_TIME_FORMAT,
         GST_TIME_ARGS (event->timestamp * 1000));
 

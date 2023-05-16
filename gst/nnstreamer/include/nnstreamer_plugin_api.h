@@ -80,7 +80,8 @@ gst_tensors_caps_from_config (const GstTensorsConfig * config);
  * @brief set alignment that default allocator would align to
  * @param alignment bytes of alignment
  */
-extern void gst_tensor_alloc_init (gsize alignment);
+extern void
+gst_tensor_alloc_init (gsize alignment);
 
 /**
  * @brief Parse memory and fill the tensor meta.
@@ -123,7 +124,7 @@ gst_tensor_caps_can_intersect (GstCaps *caps1, GstCaps *caps2);
  * @param[in] info GstTensorsInfo to be used in parsing buffer.
  * @param[in] index Index of GstMemory to be returned.
  * @return GstMemory if found, otherwise NULL (Caller should free returned memory using gst_memory_unref()).
-*/
+ */
 extern GstMemory *
 gst_tensor_buffer_get_nth_memory (GstBuffer * buffer, const GstTensorsInfo * info, const guint index);
 
@@ -133,7 +134,7 @@ gst_tensor_buffer_get_nth_memory (GstBuffer * buffer, const GstTensorsInfo * inf
  * @param[in] memory GstMemory to append. This function will take ownership of this.
  * @param[in] info GstTensorInfo of given @a memory.
  * @return TRUE if successfully appended, otherwise FALSE.
-*/
+ */
 extern gboolean
 gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory, const GstTensorInfo * info);
 

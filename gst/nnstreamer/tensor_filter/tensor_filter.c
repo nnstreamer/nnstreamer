@@ -455,7 +455,6 @@ record_statistics (GstTensorFilterPrivate * priv)
   }
 }
 
-
 /**
  * @brief Track estimated latency and notify pipeline when it changes.
  *        Latency estimates may be a bit jittery. On the principle we want to
@@ -1217,7 +1216,6 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
      * However, according to gstreamer doxygen entry, if filter is given, that's not to be ignored.
      * For now, we assume that if caps-size is 0, filter is "ANY".
      */
-
     intersection =
         gst_caps_intersect_full (result, filter, GST_CAPS_INTERSECT_FIRST);
 
@@ -1257,7 +1255,6 @@ gst_tensor_filter_fixate_caps (GstBaseTransform * trans,
   /**
    * To get the out-caps, GstTensorFilter has to parse tensor info from NN model.
    */
-
   result = gst_tensor_filter_transform_caps (trans, direction, caps, othercaps);
   gst_caps_unref (othercaps);
   result = gst_caps_make_writable (result);

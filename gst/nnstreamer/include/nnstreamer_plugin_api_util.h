@@ -456,14 +456,14 @@ nnstreamer_version_fetch (guint * major, guint * minor, guint * micro);
 /**
  * @brief Allocate and initialize the extra info in given tensors info.
  * @param[in,out] info GstTensorsInfo to be updated.
-*/
+ */
 extern gboolean
 gst_tensors_info_extra_create (GstTensorsInfo * info);
 
 /**
  * @brief Free allocated extra info in given tensors info.
  * @param[in,out] info GstTensorsInfo to be updated
-*/
+ */
 extern void
 gst_tensors_info_extra_free (GstTensorsInfo * info);
 
