@@ -6,4 +6,7 @@ if mqtt_support_is_available
   subdir('mqtt')
 endif
 subdir('nnstreamer')
-subdir('datarepo')
+
+if get_option('enable-datarepo')
+  subdir('datarepo')
+endif

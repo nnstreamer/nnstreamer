@@ -4,6 +4,8 @@ repo_sources = [
   'gstdatareposink.c'
 ]
 
+json_glib_dep = dependency('json-glib-1.0')
+
 gstdatarepo_shared = shared_library('gstdatarepo',
   repo_sources,
   dependencies: [nnstreamer_dep, json_glib_dep],
