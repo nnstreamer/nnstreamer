@@ -196,8 +196,6 @@ gst_tensor_info_validate (const GstTensorInfo * info)
 gboolean
 gst_tensor_info_is_equal (const GstTensorInfo * i1, const GstTensorInfo * i2)
 {
-  guint i;
-
   if (!gst_tensor_info_validate (i1) || !gst_tensor_info_validate (i2)) {
     return FALSE;
   }
@@ -209,16 +207,14 @@ gst_tensor_info_is_equal (const GstTensorInfo * i1, const GstTensorInfo * i2)
     return FALSE;
   }
 
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-    if (i1->dimension[i] != i2->dimension[i]) {
-      gchar *dim_str1 = gst_tensor_get_dimension_string (i1->dimension);
-      gchar *dim_str2 = gst_tensor_get_dimension_string (i2->dimension);
-      nns_logd ("Tensor info is not equal. Given tensor dimensions %s vs %s",
-          dim_str1, dim_str2);
-      g_free (dim_str1);
-      g_free (dim_str2);
-      return FALSE;
-    }
+  if (!gst_tensor_dimension_is_equal (i1->dimension, i2->dimension)) {
+    gchar *dim_str1 = gst_tensor_get_dimension_string (i1->dimension);
+    gchar *dim_str2 = gst_tensor_get_dimension_string (i2->dimension);
+    nns_logd ("Tensor info is not equal. Given tensor dimensions %s vs %s",
+        dim_str1, dim_str2);
+    g_free (dim_str1);
+    g_free (dim_str2);
+    return FALSE;
   }
 
   /* matched all */
@@ -1010,6 +1006,27 @@ gst_tensor_dimension_is_valid (const tensor_dim dim)
 }
 
 /**
+ * @brief Compare the tensor dimension.
+ * @return TRUE if given tensors have same dimension.
+ */
+gboolean
+gst_tensor_dimension_is_equal (const tensor_dim dim1, const tensor_dim dim2)
+{
+  guint i;
+
+  /* Do not compare zero dimension. */
+  if (dim1[0] == 0U || dim2[0] == 0U)
+    return FALSE;
+
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    if (dim1[i] != dim2[i])
+      return FALSE;
+  }
+
+  return TRUE;
+}
+
+/**
  * @brief Parse tensor dimension parameter string
  * @return The Rank. 0 if error.
  * @param dimstr The dimension string in the format of d1:...:d8, d1:d2:d3, d1:d2, or d1, where dN is a positive integer and d1 is the innermost dimension; i.e., dim[d8][d7][d6][d5][d4][d3][d2][d1];
@@ -1023,6 +1040,10 @@ gst_tensor_parse_dimension (const gchar * dimstr, tensor_dim dim)
   gchar **strv;
   gchar *dim_string;
   guint i, num_dims;
+
+  /* 0-init */
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
+    dim[i] = 0;
 
   if (dimstr == NULL)
     return 0;
@@ -1131,10 +1152,8 @@ gst_tensor_dimension_string_is_equal (const gchar * dimstr1,
     if (!rank1 || !rank2)
       goto done;
 
-    for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
-      if (dim1[j] != dim2[j])
-        goto done;
-    }
+    if (!gst_tensor_dimension_is_equal (dim1, dim2))
+      goto done;
   }
 
   /* Compared all tensor dimensions from input string. */

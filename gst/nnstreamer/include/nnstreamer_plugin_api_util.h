@@ -283,6 +283,13 @@ extern gboolean
 gst_tensor_dimension_is_valid (const tensor_dim dim);
 
 /**
+ * @brief Compare the tensor dimension.
+ * @return TRUE if given tensors have same dimension.
+ */
+extern gboolean
+gst_tensor_dimension_is_equal (const tensor_dim dim1, const tensor_dim dim2);
+
+/**
  * @brief Parse tensor dimension parameter string
  * @return The Rank. 0 if error.
  * @param dimstr The dimension string in the format of d1:...:d8, d1:d2:d3, d1:d2, or d1, where dN is a positive integer and d1 is the innermost dimension; i.e., dim[d8][d7][d6][d5][d4][d3][d2][d1];
