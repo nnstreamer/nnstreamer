@@ -230,10 +230,27 @@ _free_test_data (TestOption &option)
 static void
 _message_cb (GstBus *bus, GstMessage *message, gpointer user_data)
 {
-  switch (GST_MESSAGE_TYPE (message)) {
+  GstMessageType type = GST_MESSAGE_TYPE (message);
+
+  switch (type) {
     case GST_MESSAGE_ERROR:
     case GST_MESSAGE_WARNING:
       _print_log ("received error message");
+
+      if (DBG) {
+        gchar *debug = NULL;
+        GError *error = NULL;
+
+        if (type == GST_MESSAGE_WARNING)
+          gst_message_parse_warning (message, &error, &debug);
+        else
+          gst_message_parse_error (message, &error, &debug);
+
+        _print_log ("error: %s, debug: %s", error->message, debug);
+        g_clear_error (&error);
+        g_free (debug);
+      }
+
       g_test_data.status = TEST_ERR_MESSAGE;
       g_test_data.test_failed = TRUE;
       g_main_loop_quit (g_test_data.loop);
