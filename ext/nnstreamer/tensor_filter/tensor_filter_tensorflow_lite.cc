@@ -626,12 +626,18 @@ TFLiteInterpreter::getTensorDim (int tensor_idx, tensor_dim dim)
 {
   TfLiteIntArray *tensor_dims = interpreter->tensor (tensor_idx)->dims;
   int len = tensor_dims->size;
+
+  /* 0-init */
+  for (guint i = 0; i < NNS_TENSOR_RANK_LIMIT; ++i)
+    dim[i] = 0;
+
   if (len > NNS_TENSOR_RANK_LIMIT)
     return -EPERM;
 
   /* the order of dimension is reversed at CAPS negotiation */
   std::reverse_copy (tensor_dims->data, tensor_dims->data + len, dim);
 
+  /** @todo remove below lines (dno not fill 1) */
   /* fill the remnants with 1 */
   for (int i = len; i < NNS_TENSOR_RANK_LIMIT; ++i) {
     dim[i] = 1;
@@ -730,8 +736,12 @@ TFLiteInterpreter::setInputTensorsInfo (const GstTensorsInfo *info)
      * iterate over all possible ranks starting from MIN rank to the actual rank
      * of the dimension array. In case of none of these ranks work, return error
      */
-    input_rank = gst_tensor_info_get_rank (tensor_info);
-    for (int rank = input_rank; rank <= NNS_TENSOR_RANK_LIMIT; rank++) {
+    for (input_rank = NNS_TENSOR_RANK_LIMIT - 1; input_rank > 0; input_rank--) {
+      if (tensor_info->dimension[input_rank] > 1)
+        break;
+    }
+
+    for (int rank = input_rank + 1; rank <= NNS_TENSOR_RANK_LIMIT; rank++) {
       std::vector<int> dims (rank);
       /* the order of dimension is reversed at CAPS negotiation */
       for (int idx = 0; idx < rank; idx++) {

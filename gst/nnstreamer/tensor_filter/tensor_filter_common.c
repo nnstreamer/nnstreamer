@@ -263,7 +263,7 @@ gst_tensor_filter_get_rank_string (const GstTensorFilterProperties * prop,
       if (_ranks[i] != 0)
         g_string_append_printf (rank, "%u", _ranks[i]);
       else
-        g_string_append_printf (rank, "%d",
+        g_string_append_printf (rank, "%u",
             gst_tensor_info_get_rank (&_meta->info[i]));
 
       if (i < _meta->num_tensors - 1)

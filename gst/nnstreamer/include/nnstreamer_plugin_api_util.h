@@ -91,7 +91,7 @@ gst_tensor_info_convert_to_meta (GstTensorInfo * info, GstTensorMetaInfo * meta)
  * @param info tensor info structure
  * @return tensor rank (Minimum rank is 1 if given info is valid)
  */
-extern gint
+extern guint
 gst_tensor_info_get_rank (const GstTensorInfo * info);
 
 /**
@@ -288,6 +288,14 @@ gst_tensor_dimension_is_valid (const tensor_dim dim);
  */
 extern gboolean
 gst_tensor_dimension_is_equal (const tensor_dim dim1, const tensor_dim dim2);
+
+/**
+ * @brief Get the rank of tensor dimension.
+ * @param dim tensor dimension.
+ * @return tensor rank (Minimum rank is 1 if given info is valid)
+ */
+extern guint
+gst_tensor_dimension_get_rank (const tensor_dim dim);
 
 /**
  * @brief Parse tensor dimension parameter string
