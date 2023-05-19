@@ -324,25 +324,9 @@ if gtest_dep.found()
     test('unittest_filter_shared_model', unittest_filter_shared_model, timeout: 30, env: testenv)
   endif
 
-  # Run unittest_datareposink
-  unittest_datareposink = executable('unittest_datareposink',
-    join_paths('nnstreamer_datarepo', 'unittest_datareposink.cc'),
-    dependencies: [nnstreamer_unittest_deps],
-    install: get_option('install-test'),
-    install_dir: unittest_install_dir
-  )
-
-  test('unittest_datareposink', unittest_datareposink, env: testenv)
-
-  # Run unittest_datareposrc
-  unittest_datareposrc = executable('unittest_datareposrc',
-    join_paths('nnstreamer_datarepo', 'unittest_datareposrc.cc'),
-    dependencies: [nnstreamer_unittest_deps],
-    install: get_option('install-test'),
-    install_dir: unittest_install_dir
-  )
-
-  test('unittest_datareposrc', unittest_datareposrc, env: testenv)
+  if get_option('enable-datarepo')
+    subdir('nnstreamer_datarepo')
+  endif
 
   # Run unittest_trainer
   unittest_trainer = executable('unittest_trainer',
