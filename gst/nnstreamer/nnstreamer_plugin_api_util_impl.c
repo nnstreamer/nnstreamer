@@ -368,14 +368,14 @@ gst_tensors_info_extra_free (GstTensorsInfo * info)
   guint i;
 
   g_return_if_fail (info != NULL);
-  g_return_if_fail (info->extra != NULL);
 
-  for (i = 0; i < NNS_TENSOR_SIZE_EXTRA_LIMIT; ++i) {
-    gst_tensor_info_free (&info->extra[i]);
+  if (info->extra) {
+    for (i = 0; i < NNS_TENSOR_SIZE_EXTRA_LIMIT; ++i)
+      gst_tensor_info_free (&info->extra[i]);
+
+    g_free (info->extra);
+    info->extra = NULL;
   }
-
-  g_free (info->extra);
-  info->extra = NULL;
 }
 
 /**
