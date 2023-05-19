@@ -767,7 +767,7 @@ TEST (commonTensorsInfo, equalInvalidParam1_n)
  */
 TEST (commonTensorInfo, getrankInvalidParam0_n)
 {
-  EXPECT_EQ (0, gst_tensor_info_get_rank (NULL));
+  EXPECT_EQ (0U, gst_tensor_info_get_rank (NULL));
 }
 
 /**

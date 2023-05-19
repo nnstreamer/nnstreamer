@@ -208,12 +208,10 @@ gst_tensor_info_is_equal (const GstTensorInfo * i1, const GstTensorInfo * i2)
   }
 
   if (!gst_tensor_dimension_is_equal (i1->dimension, i2->dimension)) {
-    gchar *dim_str1 = gst_tensor_get_dimension_string (i1->dimension);
-    gchar *dim_str2 = gst_tensor_get_dimension_string (i2->dimension);
+    g_autofree gchar *_dim1 = gst_tensor_get_dimension_string (i1->dimension);
+    g_autofree gchar *_dim2 = gst_tensor_get_dimension_string (i2->dimension);
     nns_logd ("Tensor info is not equal. Given tensor dimensions %s vs %s",
-        dim_str1, dim_str2);
-    g_free (dim_str1);
-    g_free (dim_str2);
+        _dim1, _dim2);
     return FALSE;
   }
 
@@ -286,7 +284,7 @@ gst_tensor_info_convert_to_meta (GstTensorInfo * info, GstTensorMetaInfo * meta)
  * @param info tensor info structure
  * @return tensor rank (Minimum rank is 1 if given info is valid)
  */
-gint
+guint
 gst_tensor_info_get_rank (const GstTensorInfo * info)
 {
   gint idx;
@@ -298,7 +296,7 @@ gst_tensor_info_get_rank (const GstTensorInfo * info)
     if (info->dimension[idx] != 1)
       break;
   }
-
+  /** @todo use gst_tensor_dimension_get_rank (info->dimension) after 0-init dim is done */
   return idx + 1;
 }
 
@@ -987,22 +985,28 @@ gboolean
 gst_tensor_dimension_is_valid (const tensor_dim dim)
 {
   guint i;
+  gboolean is_valid = FALSE;
 
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; ++i) {
-    if (dim[i] == 0) {
-      gchar *dim_str = gst_tensor_get_dimension_string (dim);
-      nns_logd
-          ("Failed to validate tensor dimension. Given dimension: %s. The dimension string should be in the form of d1:...:d8, d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1. Here, dN is a positive integer.",
-          dim_str);
-      _nnstreamer_error_write
-          ("Failed to validate tensor dimension. Given dimension: %s. The dimension string should be in the form of d1:...:d8, d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1. Here, dN is a positive integer.",
-          dim_str);
-      g_free (dim_str);
-      return FALSE;
-    }
+  i = gst_tensor_dimension_get_rank (dim);
+  if (i == 0)
+    goto done;
+
+  for (; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    if (dim[i] > 0)
+      goto done;
   }
 
-  return TRUE;
+  is_valid = TRUE;
+
+done:
+  if (!is_valid) {
+    nns_logd
+        ("Failed to validate tensor dimension. The dimension string should be in the form of d1:...:d8, d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1. Here, dN is a positive integer.");
+    _nnstreamer_error_write
+        ("Failed to validate tensor dimension. The dimension string should be in the form of d1:...:d8, d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1. Here, dN is a positive integer.");
+  }
+
+  return is_valid;
 }
 
 /**
@@ -1019,11 +1023,43 @@ gst_tensor_dimension_is_equal (const tensor_dim dim1, const tensor_dim dim2)
     return FALSE;
 
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-    if (dim1[i] != dim2[i])
-      return FALSE;
+    if (dim1[i] != dim2[i]) {
+      const tensor_dim *remained;
+
+      if (dim1[i] == 0U)
+        remained = (const tensor_dim *) &dim2;
+      else if (dim2[i] == 0U)
+        remained = (const tensor_dim *) &dim1;
+      else
+        return FALSE;
+
+      /* Supposed dimension is same if remained dimension is 1. */
+      for (; i < NNS_TENSOR_RANK_LIMIT; i++) {
+        if ((*remained)[i] > 1)
+          return FALSE;
+      }
+    }
   }
 
   return TRUE;
+}
+
+/**
+ * @brief Get the rank of tensor dimension.
+ * @param dim tensor dimension.
+ * @return tensor rank (Minimum rank is 1 if given dimension is valid)
+ */
+guint
+gst_tensor_dimension_get_rank (const tensor_dim dim)
+{
+  guint i;
+
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    if (dim[i] == 0)
+      break;
+  }
+
+  return i;
 }
 
 /**
@@ -1065,6 +1101,10 @@ gst_tensor_parse_dimension (const gchar * dimstr, tensor_dim dim)
     rank = i + 1;
   }
 
+  /**
+   * @todo remove below lines
+   * (0-initialized before parsing the string, filled remained dimension with 0)
+   */
   for (; i < NNS_TENSOR_RANK_LIMIT; i++)
     dim[i] = 1;
 
@@ -1109,9 +1149,12 @@ gst_tensor_get_rank_dimension_string (const tensor_dim dim,
     actual_rank = rank;
 
   for (i = 0; i < actual_rank; i++) {
+    if (dim[i] == 0)
+      break;
+
     g_string_append_printf (dim_str, "%u", dim[i]);
 
-    if (i < actual_rank - 1) {
+    if (i < actual_rank - 1 && dim[i + 1] > 0) {
       g_string_append (dim_str, ":");
     }
   }
@@ -1149,10 +1192,8 @@ gst_tensor_dimension_string_is_equal (const gchar * dimstr1,
     rank1 = gst_tensor_parse_dimension (strv1[i], dim1);
     rank2 = gst_tensor_parse_dimension (strv2[i], dim2);
 
-    if (!rank1 || !rank2)
-      goto done;
-
-    if (!gst_tensor_dimension_is_equal (dim1, dim2))
+    /* 'rank 0' means invalid dimension */
+    if (!rank1 || !rank2 || !gst_tensor_dimension_is_equal (dim1, dim2))
       goto done;
   }
 
@@ -1178,10 +1219,13 @@ gst_tensor_get_element_count (const tensor_dim dim)
   guint i;
 
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    if (dim[i] == 0)
+      break;
+
     count *= dim[i];
   }
 
-  return count;
+  return (i > 0) ? count : 0;
 }
 
 /**
@@ -1559,7 +1603,7 @@ gst_tensor_meta_info_convert (GstTensorMetaInfo * meta, GstTensorInfo * info)
       break;
     }
 
-    /** @todo handle rank from info.dimension */
+    /** @todo handle rank from info.dimension (Fill 0, not 1) */
     info->dimension[i] = (meta->dimension[i] > 0) ? meta->dimension[i] : 1;
   }
 
