@@ -173,3 +173,10 @@ Multi-Arch: same
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer extra package
  Provides additional gstreamer plugins for nnstreamer pipelines
+
+Package: nnstreamer-datarepo
+Architecture: any
+Multi-Arch: same
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: NNStreamer MLOps Data Repository plugin packages
+ NNStreamer's datareposrc/sink plugins for reading and writing files in MLOps Data Repository
