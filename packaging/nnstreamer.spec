@@ -890,6 +890,7 @@ export NNSTREAMER_TRAINERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_t
     bash %{test_script} ./tests
     bash %{test_script} ./tests/cpp_methods
     bash %{test_script} ./tests/nnstreamer_filter_extensions_common
+    bash %{test_script} ./tests/nnstreamer_datarepo
 %if 0%{?nnstreamer_edge_support}
     bash %{test_script} ./tests/nnstreamer_edge
 %endif
