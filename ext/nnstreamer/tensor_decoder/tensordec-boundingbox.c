@@ -1293,9 +1293,11 @@ update_centroids (void **pdata, GArray * boxes)
         d->distance = G_MAXUINT64;
       } else {
         /* calculate euclidean distance */
+        int bcx = box->x + box->width / 2;
+        int bcy = box->y + box->height / 2;
+
         d->distance =
-            (c->cx - box->x) * (c->cx - box->x) + (c->cy - box->y) * (c->cy -
-            box->y);
+            (c->cx - bcx) * (c->cx - bcx) + (c->cy - bcy) * (c->cy - bcy);
       }
     }
   }
@@ -1955,6 +1957,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
 
         object.prob = maxClassConfVal * boxinput[bIdx * cIdxMax + 4];
         object.class_id = maxClassIdx - YOLOV5_DETECTION_NUM_INFO;
+        object.tracking_id = 0;
         object.valid = TRUE;
         g_array_append_val (results, object);
       }
