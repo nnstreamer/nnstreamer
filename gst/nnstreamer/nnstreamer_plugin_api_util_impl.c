@@ -1018,26 +1018,16 @@ gst_tensor_dimension_is_equal (const tensor_dim dim1, const tensor_dim dim2)
 {
   guint i;
 
-  /* Do not compare zero dimension. */
-  if (dim1[0] == 0U || dim2[0] == 0U)
+  /* Do not compare invalid dimensions. */
+  if (!gst_tensor_dimension_is_valid (dim1) ||
+      !gst_tensor_dimension_is_valid (dim2))
     return FALSE;
 
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
     if (dim1[i] != dim2[i]) {
-      const tensor_dim *remained;
-
-      if (dim1[i] == 0U)
-        remained = (const tensor_dim *) &dim2;
-      else if (dim2[i] == 0U)
-        remained = (const tensor_dim *) &dim1;
-      else
-        return FALSE;
-
       /* Supposed dimension is same if remained dimension is 1. */
-      for (; i < NNS_TENSOR_RANK_LIMIT; i++) {
-        if ((*remained)[i] > 1)
-          return FALSE;
-      }
+      if (dim1[i] > 1 || dim2[i] > 1)
+        return FALSE;
     }
   }
 

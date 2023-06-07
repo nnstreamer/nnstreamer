@@ -2114,6 +2114,110 @@ TEST (commonUtil, createTensorBufferInvalidSize_n)
 }
 
 /**
+ * @brief Test tensor dimension validation check util
+ */
+TEST (commonUtil, tensorDimensionIsValid)
+{
+  tensor_dim dim;
+  gint i;
+
+  dim[0] = 3;
+  dim[1] = 280;
+  dim[2] = 40;
+  dim[3] = 1;
+
+  for (i = 4; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    dim[i] = 0;
+  }
+
+  EXPECT_TRUE (gst_tensor_dimension_is_valid (dim));
+}
+
+/**
+ * @brief Test tensor dimension validation check util
+ */
+TEST (commonUtil, tensorDimensionIsValid_n)
+{
+  tensor_dim dim;
+  gint i;
+
+  dim[0] = 3;
+  dim[1] = 280;
+  dim[2] = 40;
+  dim[3] = 0;
+
+  for (i = 4; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    dim[i] = 1;
+  }
+
+  EXPECT_FALSE (gst_tensor_dimension_is_valid (dim));
+}
+
+/**
+ * @brief Test tensor dimension compare util
+ */
+TEST (commonUtil, tensorDimensionIsEqual)
+{
+  tensor_dim dim1, dim2;
+  gint i;
+
+  dim1[0] = dim2[0] = 3;
+  dim1[1] = dim2[1] = 280;
+  dim1[2] = dim2[2] = 40;
+  dim1[3] = dim2[3] = 1;
+
+  for (i = 4; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    dim1[i] = 0;
+    dim2[i] = 1;
+  }
+
+  EXPECT_TRUE (gst_tensor_dimension_is_equal (dim1, dim2));
+}
+
+/**
+ * @brief Test tensor dimension compare util
+ */
+TEST (commonUtil, tensorDimensionIsEqual_n)
+{
+  tensor_dim dim1, dim2;
+  gint i;
+
+  dim1[0] = dim2[0] = 3;
+  dim1[1] = dim2[1] = 280;
+  dim1[2] = dim2[2] = 40;
+  dim1[3] = dim2[3] = 1;
+  dim1[4] = 0;
+  dim2[4] = 2;
+
+  for (i = 5; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    dim1[i] = 0;
+    dim2[i] = 1;
+  }
+
+  EXPECT_FALSE (gst_tensor_dimension_is_equal (dim1, dim2));
+}
+
+/**
+ * @brief Test tensor dimension compare util
+ */
+TEST (commonUtil, tensorDimensionIsEqualInvalid_n)
+{
+  tensor_dim dim1, dim2;
+  gint i;
+
+  dim1[0] = dim2[0] = 3;
+  dim1[1] = dim2[1] = 4;
+  dim1[2] = dim2[2] = 0;
+  dim1[3] = dim2[3] = 1;
+
+  for (i = 5; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    dim1[i] = dim2[i] = 0;
+  }
+
+  EXPECT_FALSE (gst_tensor_dimension_is_equal (dim1, dim2));
+}
+
+/**
  * @brief Main function for unit test.
  */
 int
