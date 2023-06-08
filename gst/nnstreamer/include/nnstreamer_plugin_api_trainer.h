@@ -54,7 +54,7 @@ typedef struct _GstTensorTrainerProperties
 typedef struct _GstTensorTrainerFrameworkInfo
 {
   const char *name;    /**< Name of the neural network framework, searchable by FRAMEWORK property. */
- } GstTensorTrainerFrameworkInfo;
+} GstTensorTrainerFrameworkInfo;
 
 typedef struct _GstTensorTrainerFramework GstTensorTrainerFramework;
 
