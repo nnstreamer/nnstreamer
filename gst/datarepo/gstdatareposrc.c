@@ -268,11 +268,8 @@ gst_data_repo_src_finalize (GObject * object)
   if (src->shuffled_index_array)
     g_array_free (src->shuffled_index_array, TRUE);
 
-  /* Check for gst-inspect log */
-  if (src->caps) {
-    gst_caps_unref (src->caps);
-    src->caps = NULL;
-  }
+  if (src->caps)
+    gst_caps_replace (&src->caps, NULL);
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -1012,9 +1009,8 @@ gst_data_repo_get_caps_by_tensors_sequence (GstDataRepoSrc * src)
   GST_DEBUG_OBJECT (src,
       "datareposrc caps by tensors_sequence %" GST_PTR_FORMAT, new_caps);
 
-  gst_caps_replace (&src->caps, new_caps);
+  gst_caps_take (&src->caps, new_caps);
 
-  gst_caps_unref (new_caps);
   gst_tensors_config_free (&dst_config);
   gst_tensors_config_free (&src_config);
 
@@ -1258,9 +1254,8 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
   GST_INFO_OBJECT (src, "caps_str : %s", caps_str);
 
   new_caps = gst_caps_from_string (caps_str);
-  gst_caps_replace (&src->caps, new_caps);
+  gst_caps_take (&src->caps, new_caps);
   GST_INFO_OBJECT (src, "gst_caps : %" GST_PTR_FORMAT, src->caps);
-  gst_caps_unref (new_caps);
 
   /* calculate media size from gst caps */
   if (!gst_data_repo_src_get_media_type_and_size (src, src->caps))
@@ -1361,9 +1356,8 @@ gst_data_repo_src_set_property (GObject * object, guint prop_id,
       caps = gst_value_get_caps (value);
       if (caps) {
         new_caps = gst_caps_copy (caps);
-        gst_caps_replace (&src->caps, new_caps);
+        gst_caps_take (&src->caps, new_caps);
         gst_data_repo_src_get_media_type_and_size (src, src->caps);
-        gst_caps_unref (new_caps);
       }
       /** let's retry set tensors-sequence.
           if caps property is set later than tensors-sequence property,
@@ -1488,7 +1482,6 @@ gst_data_repo_src_change_state (GstElement * element, GstStateChange transition)
         /* After gst_data_repo_src_set_tensors_sequence() */
         if (src->tensors_seq_cnt == 0)
           goto state_change_failed;
-
       } else {
         for (i = 0; i < src->num_tensors; i++)
           src->tensors_seq[i] = i;
