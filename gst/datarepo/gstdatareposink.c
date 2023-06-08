@@ -264,7 +264,6 @@ gst_data_repo_sink_write_others (GstDataRepoSink * sink, GstBuffer * buffer)
 {
   gsize write_size = 0;
   GstMapInfo info;
-  guint to_write = 0, byte_write = 0;
 
   g_return_val_if_fail (sink != NULL, GST_FLOW_ERROR);
   g_return_val_if_fail (buffer != NULL, GST_FLOW_ERROR);
@@ -273,30 +272,25 @@ gst_data_repo_sink_write_others (GstDataRepoSink * sink, GstBuffer * buffer)
   GST_OBJECT_LOCK (sink);
   gst_buffer_map (buffer, &info, GST_MAP_READ);
   sink->sample_size = info.size;
-  to_write = info.size;
 
   GST_LOG_OBJECT (sink,
-      "Writing %d bytes at offset 0x%" G_GINT64_MODIFIER "x (%d size)",
-      to_write, sink->offset + byte_write, (guint) sink->offset + byte_write);
+      "Writing %lld bytes at offset 0x%" G_GINT64_MODIFIER "x (%lld size)",
+      (long long) info.size, sink->offset, (long long) sink->offset);
 
   write_size = write (sink->fd, info.data, info.size);
-  if (write_size != info.size) {
-    GST_ERROR_OBJECT (sink, "Could not write data to file");
-    goto error;
-  }
+
   gst_buffer_unmap (buffer, &info);
   GST_OBJECT_UNLOCK (sink);
+
+  if (write_size != info.size) {
+    GST_ERROR_OBJECT (sink, "Could not write data to file");
+    return GST_FLOW_ERROR;
+  }
 
   sink->offset += write_size;
   sink->total_samples++;
 
   return GST_FLOW_OK;
-
-error:
-  gst_buffer_unmap (buffer, &info);
-  GST_OBJECT_UNLOCK (sink);
-
-  return GST_FLOW_ERROR;
 }
 
 /**
@@ -307,7 +301,7 @@ gst_data_repo_sink_write_flexible_tensors (GstDataRepoSink * sink,
     GstBuffer * buffer)
 {
   GstMapInfo info;
-  guint to_write = 0;
+  gsize to_write = 0;
 
   g_return_val_if_fail (sink != NULL, GST_FLOW_ERROR);
   g_return_val_if_fail (buffer != NULL, GST_FLOW_ERROR);
@@ -388,8 +382,9 @@ gst_data_repo_sink_write_multi_images (GstDataRepoSink * sink,
   g_free (filename);
 
   if (!ret) {
-    GST_ERROR_OBJECT (sink, "Could not write data to file");
-    g_error_free (error);
+    GST_ERROR_OBJECT (sink, "Could not write data to file: %s",
+        error ? error->message : "unknown error");
+    g_clear_error (&error);
     return GST_FLOW_ERROR;
   }
 
