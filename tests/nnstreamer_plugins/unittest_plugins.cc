@@ -2122,7 +2122,6 @@ TEST (testTensorTransform, arithmeticFlexTensor)
     gst_tensor_meta_info_parse_header (&meta, map.data);
     EXPECT_EQ (meta.type, _NNS_FLOAT32);
     EXPECT_EQ (meta.dimension[0], 5U);
-    EXPECT_EQ (meta.dimension[1], 1U);
 
     hsize = gst_tensor_meta_info_get_header_size (&meta);
     ASSERT_EQ (gst_buffer_get_size (out_buf), data_out_size + hsize);
@@ -6424,21 +6423,21 @@ TEST_REQUIRE_TFLITE (testTensorFilter, propertyRank02)
   EXPECT_TRUE (gst_tensor_dimension_string_is_equal (input_dim, "3:224:224:1"));
   g_free (input_dim);
 
-  /* Rank should be 3 since input dimension string is not given. */
+  /* Rank should be 4 since input dimension string is not given. */
   gchar *input_ranks;
   g_object_get (filter, "inputranks", &input_ranks, NULL);
-  EXPECT_STREQ (input_ranks, "3");
+  EXPECT_STREQ (input_ranks, "4");
   g_free (input_ranks);
 
   gchar *output_dim;
   g_object_get (filter, "output", &output_dim, NULL);
-  EXPECT_TRUE (gst_tensor_dimension_string_is_equal (output_dim, "1001:1:1:1"));
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal (output_dim, "1001:1"));
   g_free (output_dim);
 
-  /* Rank should be 1 since output dimension string is not given. */
+  /* Rank should be 2 since output dimension string is not given. */
   gchar *output_ranks;
   g_object_get (filter, "outputranks", &output_ranks, NULL);
-  EXPECT_STREQ (output_ranks, "1");
+  EXPECT_STREQ (output_ranks, "2");
   g_free (output_ranks);
 
   g_object_unref (filter);

@@ -300,7 +300,6 @@ TEST (commonGetTensorDimension, case2)
   EXPECT_EQ (dim[0], 345U);
   EXPECT_EQ (dim[1], 123U);
   EXPECT_EQ (dim[2], 433U);
-  EXPECT_EQ (dim[3], 1U);
 
   dim_str = gst_tensor_get_dimension_string (dim);
   EXPECT_TRUE (gst_tensor_dimension_string_is_equal (dim_str, "345:123:433:1"));
@@ -320,8 +319,6 @@ TEST (commonGetTensorDimension, case3)
   EXPECT_EQ (rank, 2U);
   EXPECT_EQ (dim[0], 345U);
   EXPECT_EQ (dim[1], 123U);
-  EXPECT_EQ (dim[2], 1U);
-  EXPECT_EQ (dim[3], 1U);
 
   dim_str = gst_tensor_get_dimension_string (dim);
   EXPECT_TRUE (gst_tensor_dimension_string_is_equal (dim_str, "345:123:1:1"));
@@ -340,9 +337,6 @@ TEST (commonGetTensorDimension, case4)
   rank = gst_tensor_parse_dimension ("345", dim);
   EXPECT_EQ (rank, 1U);
   EXPECT_EQ (dim[0], 345U);
-  EXPECT_EQ (dim[1], 1U);
-  EXPECT_EQ (dim[2], 1U);
-  EXPECT_EQ (dim[3], 1U);
 
   dim_str = gst_tensor_get_dimension_string (dim);
   EXPECT_TRUE (gst_tensor_dimension_string_is_equal (dim_str, "345:1:1:1"));

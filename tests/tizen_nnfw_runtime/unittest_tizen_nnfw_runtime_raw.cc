@@ -69,7 +69,7 @@ get_model_file ()
  */
 TEST (nnstreamerNnfwRuntimeRawFunctions, getDimension)
 {
-  int ret, i;
+  int ret;
   void *data = NULL;
   GstTensorsInfo info, res;
   gchar *model_file;
@@ -93,8 +93,7 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, getDimension)
 
   info.num_tensors = 1;
   info.info[0].type = _NNS_FLOAT32;
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
-    info.info[0].dimension[i] = 1;
+  info.info[0].dimension[0] = 1;
 
   /** get input/output dimension successfully */
   ret = sp->getInputDimension (&prop, &data, &res);
@@ -102,16 +101,14 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, getDimension)
 
   EXPECT_EQ (res.num_tensors, info.num_tensors);
   EXPECT_EQ (res.info[0].type, info.info[0].type);
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
-    EXPECT_EQ (res.info[0].dimension[i], info.info[0].dimension[i]);
+  EXPECT_EQ (res.info[0].dimension[0], info.info[0].dimension[0]);
 
   ret = sp->getOutputDimension (&prop, &data, &res);
   EXPECT_EQ (ret, 0);
 
   EXPECT_EQ (res.num_tensors, info.num_tensors);
   EXPECT_EQ (res.info[0].type, info.info[0].type);
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
-    EXPECT_EQ (res.info[0].dimension[i], info.info[0].dimension[i]);
+  EXPECT_EQ (res.info[0].dimension[0], info.info[0].dimension[0]);
 
   sp->close (&prop, &data);
 
@@ -159,8 +156,6 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, setDimension)
   res.num_tensors = 1;
   res.info[0].type = _NNS_FLOAT32;
   res.info[0].dimension[0] = tensor_size;
-  for (i = 1; i < NNS_TENSOR_RANK_LIMIT; i++)
-    res.info[0].dimension[i] = 1;
 
   /** get input/output dimension successfully */
   ret = sp->getInputDimension (&prop, &data, &in_info);
@@ -170,8 +165,6 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, setDimension)
   EXPECT_EQ (res.info[0].type, in_info.info[0].type);
 
   EXPECT_NE (res.info[0].dimension[0], in_info.info[0].dimension[0]);
-  for (i = 1; i < NNS_TENSOR_RANK_LIMIT; i++)
-    EXPECT_EQ (res.info[0].dimension[i], in_info.info[0].dimension[i]);
 
   ret = sp->setInputDimension (&prop, &data, &res, &out_info);
   EXPECT_EQ (ret, 0);
@@ -372,16 +365,11 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, invokeAdvanced)
   info.info[0].type = _NNS_UINT8;
   info.info[0].dimension[0] = 1001;
   info.info[0].dimension[1] = 1;
-  info.info[0].dimension[2] = 1;
-  info.info[0].dimension[3] = 1;
 
   EXPECT_EQ (res.num_tensors, info.num_tensors);
   EXPECT_EQ (res.info[0].type, info.info[0].type);
   EXPECT_EQ (res.info[0].dimension[0], info.info[0].dimension[0]);
   EXPECT_EQ (res.info[0].dimension[1], info.info[0].dimension[1]);
-  EXPECT_EQ (res.info[0].dimension[2], info.info[0].dimension[2]);
-  EXPECT_EQ (res.info[0].dimension[3], info.info[0].dimension[3]);
-
   output.size = gst_tensor_info_get_size (&res.info[0]);
 
   input.data = NULL;

@@ -3045,8 +3045,6 @@ TEST (tensorStreamTest, octetCurrentTs)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT8);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 10U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 0);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -3092,8 +3090,6 @@ TEST (tensorStreamTest, octetFramerateTs)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT8);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 10U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 10);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -3166,8 +3162,6 @@ TEST (tensorStreamTest, octetValidTs)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT8);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 10U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 0);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -3240,8 +3234,6 @@ TEST (tensorStreamTest, octetInvalidTs)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT8);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 10U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 0);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -3314,8 +3306,6 @@ TEST (tensorStreamTest, octet2f)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_INT8);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 5U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 10);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -3382,15 +3372,9 @@ TEST (tensorStreamTest, octetMultiTensors)
 
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_INT32);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 2U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
 
   EXPECT_EQ (g_test_data.tensors_config.info.info[1].type, _NNS_INT8);
   EXPECT_EQ (g_test_data.tensors_config.info.info[1].dimension[0], 2U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[1].dimension[1], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[1].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[1].dimension[3], 1U);
 
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 10);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
@@ -3547,9 +3531,6 @@ TEST (tensorStreamTest, flexToStatic)
   EXPECT_TRUE (gst_tensors_config_validate (&g_test_data.tensors_config));
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT8);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 10U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 10);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
