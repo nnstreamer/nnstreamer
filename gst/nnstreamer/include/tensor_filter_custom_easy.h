@@ -64,6 +64,31 @@ extern int NNS_custom_easy_register (const char * modelname,
     const GstTensorsInfo * in_info, const GstTensorsInfo * out_info);
 
 /**
+ * @brief Invoke the "main function" with flexible input and output. Output tensor memory should be allocated.
+ * @param[in/out] private_data A subplugin may save its internal private data here. The subplugin is responsible for alloc/free of this pointer.
+ * @param[in] info structure of input tensors info
+ * @param[out] info structure of output tensors info. The subplugin should fill this info.
+ * @param[in] input The array of input tensors. Allocated and filled by tensor_filter/main
+ * @param[out] output The array of output tensors. The subplugin should allocate the memory block for output tensor. (data in GstTensorMemory)
+ * @note rank limit (NNS_TENSOR_RANK_LIMIT) and typesize (tensor_element_size) defined in tensor_typedef.h
+ * @return 0 if success
+ */
+typedef int (*NNS_custom_invoke_dynamic) (void *private_data, const GstTensorsInfo * in_info, GstTensorsInfo * out_info,
+      const GstTensorMemory * input, GstTensorMemory * output);
+
+/**
+ * @brief Register the custom-easy tensor function for dynamic invoke.
+ * @param[in] modelname The name of custom-easy tensor function.
+ * @param[in] func The tensor function body
+ * @param[in/out] private_data The internal data for the function
+ * @param[in] in_info Input tensor metadata.
+ * @note NNS_custom_invoke_dynamic defined in tensor_filter_custom.h
+ *       Output buffers should be allocated in the invoke function.
+ */
+extern int NNS_custom_easy_dynamic_register (const char * modelname,
+    NNS_custom_invoke_dynamic func, void *data, const GstTensorsInfo * in_info);
+
+/**
  * @brief Unregister the custom-easy tensor function.
  * @param[in] modelname The registered name of custom-easy tensor function.
  * @return 0 if success, non-zero if error

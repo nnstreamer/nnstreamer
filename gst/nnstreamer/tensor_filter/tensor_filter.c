@@ -677,6 +677,12 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   out_flexible =
       gst_tensor_pad_caps_is_flexible (GST_BASE_TRANSFORM_SRC_PAD (trans));
 
+  if (priv->prop.invoke_dynamic && !out_flexible) {
+    ml_loge
+        ("Dynamic Invoke of tensor filter is activated but the output of tensor filter is static tensors. Currently, only flexible tensors is supported as output of dynamic invoke. If you don't want to dynamic invoke, remove the invoke-dynamic option of tensor filter.");
+    return GST_FLOW_ERROR;
+  }
+
   /* 1. Get all input tensors from inbuf. */
   /* Internal Logic Error or GST Bug (sinkcap changed!) */
   num_tensors = gst_buffer_n_tensor (inbuf);
@@ -694,6 +700,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     if (in_flexible) {
       gst_tensor_meta_info_parse_header (&in_meta[i], in_info[i].data);
       hsize = gst_tensor_meta_info_get_header_size (&in_meta[i]);
+      gst_tensor_meta_info_convert (&in_meta[i], &prop->input_meta.info[i]);
     }
 
     in_tensors[i].data = in_info[i].data + hsize;
@@ -751,7 +758,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     out_tensors[i].size = gst_tensor_filter_get_tensor_size (self, i, FALSE);
 
     hsize = 0;
-    if (out_flexible) {
+    if (out_flexible && !priv->prop.invoke_dynamic) {
       gst_tensor_info_convert_to_meta (&prop->output_meta.info[i],
           &out_meta[i]);
       hsize = gst_tensor_meta_info_get_header_size (&out_meta[i]);
@@ -871,7 +878,22 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
       }
     }
 
-    if (allocate_in_invoke) {
+    if (priv->prop.invoke_dynamic) {
+      GstTensorMetaInfo meta;
+      GstMemory *flex_mem;
+
+      /* Convert to flexible tensors */
+      gst_tensor_info_convert_to_meta (&prop->output_meta.info[i], &meta);
+      meta.media_type = _NNS_TENSOR;
+      meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+      flex_mem = gst_memory_new_wrapped (0,
+          out_tensors[i].data, out_tensors[i].size, 0,
+          out_tensors[i].size, out_tensors[i].data, g_free);
+
+      out_mem[i] = gst_tensor_meta_info_append_header (&meta, flex_mem);
+      gst_memory_unref (flex_mem);
+    } else if (allocate_in_invoke) {
       /* prepare memory block if successfully done */
       out_mem[i] = mem = gst_tensor_filter_get_wrapped_mem (self,
           out_tensors[i].data, out_tensors[i].size);
@@ -927,7 +949,6 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
   gboolean flexible;
 
   g_return_val_if_fail (incaps != NULL, FALSE);
-
   priv = &self->priv;
   prop = &priv->prop;
   gst_tensors_config_init (&in_config);
@@ -1084,8 +1105,10 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
 
   if (priv->configured) {
     /** already configured, compare to old. */
-    g_assert (gst_tensors_config_is_equal (&priv->in_config, &in_config));
-    g_assert (gst_tensors_config_is_equal (&priv->out_config, &out_config));
+    if (!priv->prop.invoke_dynamic) {
+      g_assert (gst_tensors_config_is_equal (&priv->in_config, &in_config));
+      g_assert (gst_tensors_config_is_equal (&priv->out_config, &out_config));
+    }
   } else {
     gst_tensors_config_copy (&priv->in_config, &in_config);
     gst_tensors_config_copy (&priv->out_config, &out_config);
@@ -1098,6 +1121,7 @@ done:
   gst_tensors_config_free (&out_config);
   gst_tensors_info_free (&in_info);
   gst_tensors_info_free (&out_info);
+
   return priv->configured;
 }
 
@@ -1295,7 +1319,8 @@ gst_tensor_filter_set_caps (GstBaseTransform * trans,
     return FALSE;
   }
 
-  if (!gst_tensors_config_validate (&priv->out_config)) {
+  if (!priv->prop.invoke_dynamic &&
+      !gst_tensors_config_validate (&priv->out_config)) {
     GST_ELEMENT_ERROR_BTRACE (self, STREAM, WRONG_TYPE,
         ("Failed to validate output tensor configuration. Please refer to the error log of gst_tensors_config_validate(): %s",
             GST_STR_NULL (_nnstreamer_error ())));
@@ -1516,6 +1541,7 @@ gst_tensor_filter_start (GstBaseTransform * trans)
   if (priv->fw == NULL)
     return FALSE;
   gst_tensor_filter_common_open_fw (priv);
+
   return priv->prop.fw_opened;
 }
 
