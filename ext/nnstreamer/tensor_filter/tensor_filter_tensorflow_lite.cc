@@ -641,12 +641,6 @@ TFLiteInterpreter::getTensorDim (int tensor_idx, tensor_dim dim)
   /* the order of dimension is reversed at CAPS negotiation */
   std::reverse_copy (tensor_dims->data, tensor_dims->data + len, dim);
 
-  /** @todo remove below lines (dno not fill 1) */
-  /* fill the remnants with 1 */
-  for (int i = len; i < NNS_TENSOR_RANK_LIMIT; ++i) {
-    dim[i] = 1;
-  }
-
   return 0;
 }
 

@@ -270,10 +270,7 @@ gst_tensor_info_convert_to_meta (GstTensorInfo * info, GstTensorMetaInfo * meta)
 
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
     /** @todo handle rank from info.dimension */
-    if (info->dimension[i] > 0)
-      meta->dimension[i] = info->dimension[i];
-    else
-      break;
+    meta->dimension[i] = info->dimension[i];
   }
 
   return TRUE;
@@ -287,17 +284,9 @@ gst_tensor_info_convert_to_meta (GstTensorInfo * info, GstTensorMetaInfo * meta)
 guint
 gst_tensor_info_get_rank (const GstTensorInfo * info)
 {
-  gint idx;
-
   g_return_val_if_fail (info != NULL, 0);
 
-  /** rank is at least 1 */
-  for (idx = NNS_TENSOR_RANK_LIMIT - 1; idx > 0; idx--) {
-    if (info->dimension[idx] != 1)
-      break;
-  }
-  /** @todo use gst_tensor_dimension_get_rank (info->dimension) after 0-init dim is done */
-  return idx + 1;
+  return gst_tensor_dimension_get_rank (info->dimension);
 }
 
 /**
@@ -1095,13 +1084,6 @@ gst_tensor_parse_dimension (const gchar * dimstr, tensor_dim dim)
     rank = i + 1;
   }
 
-  /**
-   * @todo remove below lines
-   * (0-initialized before parsing the string, filled remained dimension with 0)
-   */
-  for (; i < NNS_TENSOR_RANK_LIMIT; i++)
-    dim[i] = 1;
-
   g_strfreev (strv);
   g_free (dim_string);
   return rank;
@@ -1622,8 +1604,7 @@ gst_tensor_meta_info_convert (GstTensorMetaInfo * meta, GstTensorInfo * info)
       break;
     }
 
-    /** @todo handle rank from info.dimension (Fill 0, not 1) */
-    info->dimension[i] = (meta->dimension[i] > 0) ? meta->dimension[i] : 1;
+    info->dimension[i] = meta->dimension[i];
   }
 
   return TRUE;
