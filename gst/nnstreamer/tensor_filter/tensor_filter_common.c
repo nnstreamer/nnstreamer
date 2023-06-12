@@ -129,6 +129,7 @@ enum
   PROP_OUTPUTCOMBINATION,
   PROP_SHARED_TENSOR_FILTER_KEY,
   PROP_LATENCY_REPORT,
+  PROP_INVOKE_DYNAMIC,
 };
 
 /**
@@ -781,6 +782,9 @@ gst_tensor_filter_allocate_in_invoke (GstTensorFilterPrivate * priv)
 {
   int allocate_in_invoke = 0;
 
+  if (priv->prop.invoke_dynamic)
+    return TRUE;
+
   if (GST_TF_FW_V0 (priv->fw)) {
     allocate_in_invoke = priv->fw->allocate_in_invoke;
     if (allocate_in_invoke == TRUE && priv->fw->allocateInInvoke) {
@@ -1013,6 +1017,12 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
       g_param_spec_boolean ("latency-report", "Latency report",
           "Report to the pipeline the estimated tensor-filter element latency.",
           FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_INVOKE_DYNAMIC,
+      g_param_spec_boolean ("invoke-dynamic", "Enable dynamic invoke",
+          "Flexible tensors whose memory size changes can be used as"
+          "input and output of the tensor filter. "
+          "With this option, the output caps is always in the format of flexible tensors.",
+          FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 }
 
 /**
@@ -1034,6 +1044,7 @@ gst_tensor_filter_common_init_property (GstTensorFilterPrivate * priv)
 
   /* init internal properties */
   priv->silent = TRUE;
+  priv->prop.invoke_dynamic = FALSE;
   gst_tensors_config_init (&priv->in_config);
   gst_tensors_config_init (&priv->out_config);
 }
@@ -1906,6 +1917,19 @@ _gtfc_setprop_SHARED_TENSOR_FILTER_KEY (GstTensorFilterProperties * prop,
 }
 
 /**
+ * @brief Handle "PROP_INVOKE_DYNAMIC" for set-property
+ */
+static gint
+_gtfc_setprop_PROP_INVOKE_DYNAMIC (GstTensorFilterPrivate * priv,
+    const GValue * value)
+{
+  priv->prop.invoke_dynamic = g_value_get_boolean (value);
+  priv->info.allocate_in_invoke = TRUE;
+
+  return 0;
+}
+
+/**
  * @brief Set the properties for tensor_filter
  * @param[in] priv Struct containing the properties of the object
  * @param[in] prop_id Id for the property
@@ -1987,6 +2011,9 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
       break;
     case PROP_LATENCY_REPORT:
       priv->latency_reporting = g_value_get_boolean (value);
+      break;
+    case PROP_INVOKE_DYNAMIC:
+      status = _gtfc_setprop_PROP_INVOKE_DYNAMIC (priv, value);
       break;
     default:
       return FALSE;
@@ -2193,6 +2220,9 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
     case PROP_LATENCY_REPORT:
       g_value_set_boolean (value, priv->latency_reporting);
       break;
+    case PROP_INVOKE_DYNAMIC:
+      g_value_set_boolean (value, prop->invoke_dynamic);
+      break;
     default:
       /* unknown property */
       return FALSE;
@@ -2388,8 +2418,11 @@ gst_tensor_filter_load_tensor_info (GstTensorFilterPrivate * priv)
     silent_debug_info (&in_info, "input tensor");
   }
 
-  /* supposed fixed out-tensor info if getOutputDimension was success. */
-  if (!prop->output_configured && res_out == 0) {
+  /** In case of dynamic invoke, output tensors info is determined after invoke. */
+  if (prop->invoke_dynamic) {
+    prop->output_configured = TRUE;
+  } else if (!prop->output_configured && res_out == 0) {
+    /* supposed fixed out-tensor info if getOutputDimension was success. */
     g_assert (out_info.num_tensors > 0);
 
     /** if set-property called and already has info, verify it! */

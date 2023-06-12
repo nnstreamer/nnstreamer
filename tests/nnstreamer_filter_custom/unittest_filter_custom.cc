@@ -10,46 +10,44 @@
 #include <gtest/gtest.h>
 #include <glib/gstdio.h>
 #include <gst/gst.h>
-#include <stdlib.h>
-#include <unittest_util.h>
-#include <tensor_filter_custom_easy.h>
-#include <nnstreamer_util.h>
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_util.h>
+#include <nnstreamer_util.h>
+#include <stdlib.h>
+#include <tensor_filter_custom_easy.h>
+#include <unittest_util.h>
 
 static guint filter_received;
 static guint sink_received;
 
-#define NNS_custom_easy_dynamic_register(...) 0
 /**
  * @brief In-Code Test Function for custom-easy filter
  */
-// static int
-// _custom_easy_filter_dynamic (void *data, const GstTensorsInfo * in_info,
-//     GstTensorsInfo * out_info, const GstTensorMemory * input,
-//     GstTensorMemory * output)
-// {
-//   gchar *dim_str;
-//   guint i;
+static int
+_custom_easy_filter_dynamic (void *data, const GstTensorsInfo *in_info,
+    GstTensorsInfo *out_info, const GstTensorMemory *input, GstTensorMemory *output)
+{
+  gchar *dim_str;
+  guint i;
 
-//  /* Fill output tensors info */
-//   gst_tensors_info_init (out_info);
-//   out_info->info[0].type = _NNS_UINT32;
-//   dim_str = g_strdup_printf ("%u:1:1:1", ++filter_received);
-//   gst_tensor_parse_dimension (dim_str, out_info->info[0].dimension);
-//   out_info->num_tensors = 1;
-//   out_info->format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  /* Fill output tensors info */
+  gst_tensors_info_init (out_info);
+  out_info->info[0].type = _NNS_UINT32;
+  dim_str = g_strdup_printf ("%u:1:1:1", ++filter_received);
+  gst_tensor_parse_dimension (dim_str, out_info->info[0].dimension);
+  out_info->num_tensors = 1;
+  out_info->format = _NNS_TENSOR_FORMAT_FLEXIBLE;
 
-//   /* Allocate and fill output memory */
-//   output[0].size = sizeof (guint) * filter_received;
-//   output[0].data = g_malloc0 (output[0].size);
+  /* Allocate and fill output memory */
+  output[0].size = sizeof (guint) * filter_received;
+  output[0].data = g_malloc0 (output[0].size);
 
-//   for (i = 0; i < filter_received; i++) {
-//     ((guint *) output[0].data)[i] = i;
-//   }
+  for (i = 0; i < filter_received; i++) {
+    ((guint *) output[0].data)[i] = i;
+  }
 
-//   return 0;
-// }
+  return 0;
+}
 
 /**
  * @brief Callback for tensor sink signal.
@@ -94,7 +92,7 @@ new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
  * @brief Test custom-easy filter with flexible tensor input/output.
  * @todo Enable the test after development is done.
  */
-TEST (tensorFilterCustom, DISABLED_flexibleInvoke_p)
+TEST (tensorFilterCustom, flexibleInvoke_p)
 {
   gchar *pipeline;
   GstElement *gstpipe;
@@ -114,10 +112,10 @@ TEST (tensorFilterCustom, DISABLED_flexibleInvoke_p)
 
   /* create a nnstreamer pipeline */
   pipeline = g_strdup_printf (
-    "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=224,height=224,framerate=10/1 ! tensor_converter ! other/tensors,format=flexible ! j.sink_0 "
-    "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=320,height=240,framerate=10/1 ! tensor_converter ! other/tensors,format=flexible ! j.sink_1 "
-    "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=640,height=480,framerate=10/1 ! tensor_converter ! other/tensors,format=flexible ! j.sink_2 "
-    "join name=j ! other/tensors,format=flexible ! tensor_filter framework=custom-easy invoke-dynamic=TRUE model=flexbible_filter ! other/tensors,format=flexible ! tensor_sink name=sinkx sync=true");
+      "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=224,height=224,framerate=10/1 ! tensor_converter ! other/tensors,format=flexible ! j.sink_0 "
+      "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=320,height=240,framerate=10/1 ! tensor_converter ! other/tensors,format=flexible ! j.sink_1 "
+      "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=640,height=480,framerate=10/1 ! tensor_converter ! other/tensors,format=flexible ! j.sink_2 "
+      "join name=j ! other/tensors,format=flexible ! tensor_filter framework=custom-easy invoke-dynamic=TRUE model=flexbible_filter ! other/tensors,format=flexible ! tensor_sink name=sinkx sync=true");
 
   gstpipe = gst_parse_launch (pipeline, &err);
   ASSERT_TRUE (gstpipe != nullptr);
@@ -148,7 +146,7 @@ TEST (tensorFilterCustom, DISABLED_flexibleInvoke_p)
  * @brief Test custom-easy filter with static input, flexible output.
  * @todo Enable the test after development is done.
  */
-TEST (tensorFilterCustom, DISABLED_staticFlexibleInvoke_p)
+TEST (tensorFilterCustom, staticFlexibleInvoke_p)
 {
   gchar *pipeline;
   GstElement *gstpipe;
@@ -168,10 +166,10 @@ TEST (tensorFilterCustom, DISABLED_staticFlexibleInvoke_p)
 
   /* create a nnstreamer pipeline */
   pipeline = g_strdup_printf (
-    "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=224,height=224,framerate=10/1 ! tensor_converter ! j.sink_0 "
-    "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=320,height=240,framerate=10/1 ! tensor_converter ! j.sink_1 "
-    "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=640,height=480,framerate=10/1 ! tensor_converter ! j.sink_2 "
-    "join name=j ! other/tensors,format=flexible ! tensor_filter framework=custom-easy invoke-dynamic=TRUE model=flexbible_filter ! other/tensors,format=flexible ! tensor_sink name=sinkx sync=true");
+      "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=224,height=224,framerate=10/1 ! tensor_converter ! j.sink_0 "
+      "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=320,height=240,framerate=10/1 ! tensor_converter ! j.sink_1 "
+      "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=640,height=480,framerate=10/1 ! tensor_converter ! j.sink_2 "
+      "join name=j ! other/tensors,format=flexible ! tensor_filter framework=custom-easy invoke-dynamic=TRUE model=flexbible_filter ! other/tensors,format=flexible ! tensor_sink name=sinkx sync=true");
 
   gstpipe = gst_parse_launch (pipeline, &err);
   ASSERT_TRUE (gstpipe != nullptr);
@@ -202,7 +200,7 @@ TEST (tensorFilterCustom, DISABLED_staticFlexibleInvoke_p)
  * @brief Test dynamic invoke with invalid prop..
  * @todo Enable the test after development is done.
  */
-TEST (tensorFilterCustom, DISABLED_flexibleInvokeInvalidProp_n)
+TEST (tensorFilterCustom, flexibleInvokeInvalidProp_n)
 {
   gchar *pipeline;
   GstElement *gstpipe;
@@ -222,10 +220,10 @@ TEST (tensorFilterCustom, DISABLED_flexibleInvokeInvalidProp_n)
 
   /* create a nnstreamer pipeline */
   pipeline = g_strdup_printf (
-    "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=224,height=224,framerate=10/1 ! tensor_converter ! other/tensors,format=flexible ! j.sink_0 "
-    "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=320,height=240,framerate=10/1 ! tensor_converter ! other/tensors,format=flexible ! j.sink_1 "
-    "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=640,height=480,framerate=10/1 ! tensor_converter ! other/tensors,format=flexible ! j.sink_2 "
-    "join name=j ! other/tensors,format=flexible ! tensor_filter framework=custom-easy invoke-dynamic=FALSE model=flexbible_filter ! other/tensors,format=flexible ! tensor_sink name=sinkx sync=true");
+      "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=224,height=224,framerate=10/1 ! tensor_converter ! other/tensors,format=flexible ! j.sink_0 "
+      "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=320,height=240,framerate=10/1 ! tensor_converter ! other/tensors,format=flexible ! j.sink_1 "
+      "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=640,height=480,framerate=10/1 ! tensor_converter ! other/tensors,format=flexible ! j.sink_2 "
+      "join name=j ! other/tensors,format=flexible ! tensor_filter framework=custom-easy invoke-dynamic=FALSE model=flexbible_filter ! other/tensors,format=flexible ! tensor_sink name=sinkx sync=true");
 
   gstpipe = gst_parse_launch (pipeline, &err);
   ASSERT_TRUE (gstpipe != nullptr);
@@ -272,7 +270,7 @@ _custom_easy_filter (void *data, const GstTensorFilterProperties *prop,
  * @brief Test custom-easy statc invoke with flexible tensor input/output.
  * @todo Enable the test after development is done.
  */
-TEST (tensorFilterCustom, DISABLED_staticInvoke_n)
+TEST (tensorFilterCustom, staticInvoke_n)
 {
   gchar *pipeline;
   GstElement *gstpipe;
@@ -298,10 +296,10 @@ TEST (tensorFilterCustom, DISABLED_staticInvoke_n)
 
   /* create a nnstreamer pipeline */
   pipeline = g_strdup_printf (
-    "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=224,height=224,framerate=10/1 ! tensor_converter ! other/tensors,format=flexible ! j.sink_0 "
-    "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=320,height=240,framerate=10/1 ! tensor_converter ! other/tensors,format=flexible ! j.sink_1 "
-    "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=640,height=480,framerate=10/1 ! tensor_converter ! other/tensors,format=flexible ! j.sink_2 "
-    "join name=j ! other/tensors,format=flexible ! tensor_filter framework=custom-easy model=normal_filter ! other/tensors,format=flexible ! tensor_sink name=sinkx sync=true");
+      "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=224,height=224,framerate=10/1 ! tensor_converter ! other/tensors,format=flexible ! j.sink_0 "
+      "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=320,height=240,framerate=10/1 ! tensor_converter ! other/tensors,format=flexible ! j.sink_1 "
+      "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=640,height=480,framerate=10/1 ! tensor_converter ! other/tensors,format=flexible ! j.sink_2 "
+      "join name=j ! other/tensors,format=flexible ! tensor_filter framework=custom-easy model=normal_filter ! other/tensors,format=flexible ! tensor_sink name=sinkx sync=true");
 
   gstpipe = gst_parse_launch (pipeline, &err);
   ASSERT_TRUE (gstpipe != nullptr);
@@ -327,7 +325,7 @@ TEST (tensorFilterCustom, DISABLED_staticInvoke_n)
 /**
  * @brief Test custom-easy filter with flexible tensor input/output without register custom easy model.
  */
-TEST (tensorFilterCustom, DISABLED_notRegisterFlexibleInvoke_n)
+TEST (tensorFilterCustom, notRegisterFlexibleInvoke_n)
 {
   gchar *pipeline;
   GstElement *gstpipe;
@@ -342,8 +340,9 @@ TEST (tensorFilterCustom, DISABLED_notRegisterFlexibleInvoke_n)
 
   /* create a nnstreamer pipeline */
   pipeline = g_strdup_printf (
-    "videotestsrc num-buffers=3 ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=10/1 ! "
-        "tensor_converter ! tensor_filter name=test_filter framework=custom invoke-dynamic=TRUE model=%s ! tensor_sink sync=true", model_file);
+      "videotestsrc num-buffers=3 ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=10/1 ! "
+      "tensor_converter ! tensor_filter name=test_filter framework=custom invoke-dynamic=TRUE model=%s ! tensor_sink sync=true",
+      model_file);
 
   gstpipe = gst_parse_launch (pipeline, &err);
   ASSERT_TRUE (gstpipe != nullptr);
@@ -360,7 +359,7 @@ TEST (tensorFilterCustom, DISABLED_notRegisterFlexibleInvoke_n)
  * @brief Test dynamic invoke with invalid param.
  * @todo Enable the test after development is done.
  */
-TEST (tensorFilterCustom, DISABLED_dynamicRegisterInvalidParam_n)
+TEST (tensorFilterCustom, dynamicRegisterInvalidParam_n)
 {
   GstTensorsInfo info_in;
   int ret;
@@ -370,12 +369,10 @@ TEST (tensorFilterCustom, DISABLED_dynamicRegisterInvalidParam_n)
   info_in.info[0].name = NULL;
   info_in.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
 
-  ret = NNS_custom_easy_dynamic_register (
-      NULL, _custom_easy_filter_dynamic, NULL, &info_in);
+  ret = NNS_custom_easy_dynamic_register (NULL, _custom_easy_filter_dynamic, NULL, &info_in);
   EXPECT_NE (0, ret);
 
-  ret = NNS_custom_easy_dynamic_register (
-      "temp_name", NULL, NULL, &info_in);
+  ret = NNS_custom_easy_dynamic_register ("temp_name", NULL, NULL, &info_in);
   EXPECT_NE (0, ret);
 
   ret = NNS_custom_easy_dynamic_register (
