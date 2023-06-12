@@ -121,7 +121,7 @@ il_getOutCaps (void **pdata, const GstTensorsConfig * config)
   /* This allows N:1 only! */
   g_return_val_if_fail (dim[0] > 0 && dim[1] == 1, NULL);
   for (i = 2; i < NNS_TENSOR_RANK_LIMIT; i++)
-    g_return_val_if_fail (dim[i] == 1, NULL);
+    g_return_val_if_fail (dim[i] == 0, NULL);
 
   caps = gst_caps_from_string (DECODER_IL_TEXT_CAPS_STR);
   setFramerateFromConfig (caps, config);

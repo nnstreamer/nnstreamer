@@ -1152,15 +1152,28 @@ gst_tensor_transform_dimchg (GstTensorTransform * filter,
      *
      * @todo CRITICAL-TODO: Optimize the performance!
      */
-    for (i = NNS_TENSOR_RANK_LIMIT - 1; i > to; i--)
+    for (i = NNS_TENSOR_RANK_LIMIT - 1; i > to; i--) {
+      if (toDim[i] == 0)
+        continue;
       loopLimit *= toDim[i];
-    for (i = 0; i < to; i++)
-      loopBlockSize *= toDim[i];
+    }
 
-    for (i = 0; i < from; i++)
+    for (i = 0; i < to; i++) {
+      if (toDim[i] == 0)
+        break;
+      loopBlockSize *= toDim[i];
+    }
+
+    for (i = 0; i < from; i++) {
+      if (fromDim[i] == 0)
+        break;
       copyblocksize *= fromDim[i];
-    for (i = 0; i < to; i++)
+    }
+    for (i = 0; i < to; i++) {
+      if (toDim[i] == 0)
+        break;
       copyblocklimit *= toDim[i];
+    }
 
     for (i = 0; i < loopLimit; i++) {
       /* [i1][i2][...][iN][b][...] i = i1 x i2 x ... x iN */
@@ -1470,7 +1483,10 @@ gst_tensor_transform_transpose (GstTensorTransform * filter,
 
   indexI = filter->data_transpose.trans_order[0];
   indexJ = filter->data_transpose.trans_order[1];
-  SL = fromDim[3], SI = fromDim[0], SJ = fromDim[1], SK = fromDim[2];
+  SL = fromDim[3] > 0 ? fromDim[3] : 1;
+  SI = fromDim[0] > 0 ? fromDim[0] : 1;
+  SJ = fromDim[1] > 0 ? fromDim[1] : 1;
+  SK = fromDim[2] > 0 ? fromDim[2] : 1;
 
   switch (indexI) {
     case 0:

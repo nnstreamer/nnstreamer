@@ -404,9 +404,6 @@ nnfw_convert_to_gst_info (const nnfw_tinfo_s * nnfw_info,
 
     for (idx = ninfo->rank - 1; idx >= 0; idx--)
       ginfo->dimension[idx] = ninfo->dims[ninfo->rank - idx - 1];
-
-    for (idx = NNS_TENSOR_RANK_LIMIT - 1; idx >= ninfo->rank; idx--)
-      ginfo->dimension[idx] = 1;
   }
 
   gst_info->num_tensors = nnfw_info->num_tensors;

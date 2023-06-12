@@ -714,8 +714,9 @@ tr_getOutCaps (void **pdata, const GstTensorsConfig *config)
   g_return_val_if_fail (dim1[1] == 1, NULL);
   max_detection = dim1[2];
   g_return_val_if_fail (max_detection > 0, NULL);
+  /** @todo unused dimension value should be 0 */
   for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
-    g_return_val_if_fail (dim1[i] == 1, NULL);
+    g_return_val_if_fail (dim1[i] == 0 || dim1[i] == 1, NULL);
 
   /**Check if the second tensor is compatible */
   dim2 = config->info.info[1].dimension;
@@ -726,7 +727,7 @@ tr_getOutCaps (void **pdata, const GstTensorsConfig *config)
         max_label, data->label_path, data->labeldata.total_labels);
   g_return_val_if_fail (max_detection == dim2[1], NULL);
   for (i = 2; i < NNS_TENSOR_RANK_LIMIT; i++)
-    g_return_val_if_fail (dim2[i] == 1, NULL);
+    g_return_val_if_fail (dim2[i] == 0 || dim2[i] == 1, NULL);
 
   /**Check consistency with max_detection */
   if (!_set_max_detection (data, max_detection, MOBILENET_SSD_DETECTION_MAX)) {

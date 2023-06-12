@@ -1045,8 +1045,10 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
     g_return_val_if_fail (dim1[1] == 1, NULL);
     max_detection = dim1[2];
     g_return_val_if_fail (max_detection > 0, NULL);
+
+    /** @todo unused dimension value should be 0 */
     for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
-      g_return_val_if_fail (dim1[i] == 1, NULL);
+      g_return_val_if_fail (dim1[i] == 0 || dim1[i] == 1, NULL);
 
     /* Check if the second tensor is compatible */
     dim2 = config->info.info[1].dimension;
@@ -1058,7 +1060,7 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
           max_label, data->label_path, data->labeldata.total_labels);
     g_return_val_if_fail (max_detection == dim2[1], NULL);
     for (i = 2; i < NNS_TENSOR_RANK_LIMIT; i++)
-      g_return_val_if_fail (dim2[i] == 1, NULL);
+      g_return_val_if_fail (dim2[i] == 0 || dim2[i] == 1, NULL);
 
     /* Check consistency with max_detection */
     if (!_set_max_detection (data, max_detection, MOBILENET_SSD_DETECTION_MAX)) {
@@ -1086,7 +1088,7 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
     dim1 = config->info.info[num_idx].dimension;
     g_return_val_if_fail (dim1[0] == 1, NULL);
     for (i = 1; i < NNS_TENSOR_RANK_LIMIT; ++i)
-      g_return_val_if_fail (dim1[i] == 1, NULL);
+      g_return_val_if_fail (dim1[i] == 0 || dim1[i] == 1, NULL);
 
     /* Check if the classes & scores tensors are compatible */
     dim2 = config->info.info[classes_idx].dimension;
@@ -1094,8 +1096,8 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
     g_return_val_if_fail (dim3[0] == dim2[0], NULL);
     max_detection = dim2[0];
     for (i = 1; i < NNS_TENSOR_RANK_LIMIT; ++i) {
-      g_return_val_if_fail (dim2[i] == 1, NULL);
-      g_return_val_if_fail (dim3[i] == 1, NULL);
+      g_return_val_if_fail (dim2[i] == 0 || dim2[i] == 1, NULL);
+      g_return_val_if_fail (dim3[i] == 0 || dim3[i] == 1, NULL);
     }
 
     /* Check if the bbox locations tensor is compatible */
@@ -1103,7 +1105,7 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
     g_return_val_if_fail (BOX_SIZE == dim4[0], NULL);
     g_return_val_if_fail (max_detection == dim4[1], NULL);
     for (i = 2; i < NNS_TENSOR_RANK_LIMIT; ++i)
-      g_return_val_if_fail (dim4[i] == 1, NULL);
+      g_return_val_if_fail (dim4[i] == 0 || dim4[i] == 1, NULL);
 
     /* Check consistency with max_detection */
     if (!_set_max_detection (data, max_detection,
@@ -1126,7 +1128,7 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
         NULL);
     g_return_val_if_fail (dim[1] == OV_PERSON_DETECTION_MAX, NULL);
     for (i = 2; i < NNS_TENSOR_RANK_LIMIT; ++i)
-      g_return_val_if_fail (dim[i] == 1, NULL);
+      g_return_val_if_fail (dim[i] == 0 || dim[i] == 1, NULL);
   } else if (data->mode == YOLOV5_BOUNDING_BOX) {
     const guint *dim = config->info.info[0].dimension;
     if (!_check_tensors (config, 1U))
@@ -1155,14 +1157,14 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
     g_return_val_if_fail (max_detection > 0, NULL);
     g_return_val_if_fail (dim1[2] == 1, NULL);
     for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
-      g_return_val_if_fail (dim1[i] == 1, NULL);
+      g_return_val_if_fail (dim1[i] == 0 || dim1[i] == 1, NULL);
 
     /* Check if the second tensor is compatible */
     dim2 = config->info.info[1].dimension;
     g_return_val_if_fail (dim2[0] == 1, NULL);
     g_return_val_if_fail (max_detection == dim2[1], NULL);
     for (i = 2; i < NNS_TENSOR_RANK_LIMIT; i++)
-      g_return_val_if_fail (dim2[i] == 1, NULL);
+      g_return_val_if_fail (dim2[i] == 0 || dim2[i] == 1, NULL);
 
     /* Check consistency with max_detection */
     if (!_set_max_detection (data, max_detection, MP_PALM_DETECTION_DETECTION_MAX)) {
