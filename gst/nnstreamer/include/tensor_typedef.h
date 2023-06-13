@@ -35,7 +35,14 @@
 #define NNS_TENSOR_RANK_LIMIT_PREV (4)
 #define NNS_TENSOR_SIZE_LIMIT	(16)
 #define NNS_TENSOR_SIZE_LIMIT_STR	"16"
-#define NNS_TENSOR_SIZE_EXTRA_LIMIT (100)
+
+/**
+ * @todo Set NNS_TENSOR_SIZE_LIMIT as 256,
+ * and define NNS_TENSOR_SIZE_LIMIT_STATIC as 16.
+ * And define NNS_TENSOR_SIZE_EXTRA_LIMIT as (NNS_TENSOR_SIZE_LIMIT - NNS_TENSOR_SIZE_LIMIT_STATIC).
+ * Then update other source codes accordingly.
+ */
+#define NNS_TENSOR_SIZE_EXTRA_LIMIT (240)
 #define NNS_TENSOR_DIM_NULL ({0, 0, 0, 0})
 
 /**
