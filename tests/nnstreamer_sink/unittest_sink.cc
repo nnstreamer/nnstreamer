@@ -4266,9 +4266,8 @@ test_custom_v0_handleEvent (event_ops ops, GstTensorFilterFrameworkEventData *da
  * @brief The mandatory callback for GstTensorFilterFramework (v1).
  */
 static int
-test_custom_v1_invoke (const GstTensorFilterFramework *self,
-    GstTensorFilterProperties *prop, void *private_data,
-    const GstTensorMemory *input, GstTensorMemory *output)
+test_custom_v1_invoke (const GstTensorFilterFramework *self, GstTensorFilterProperties *prop,
+    void *private_data, const GstTensorMemory *input, GstTensorMemory *output)
 {
   return test_custom_v0_invoke (prop, &private_data, input, output);
 }
