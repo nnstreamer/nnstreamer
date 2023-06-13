@@ -6451,14 +6451,10 @@ _manual_extra_tensors_new_data_cb (GstElement *element, GstBuffer *buffer, gpoin
   GstMapInfo info_res;
   gint *output, i;
   gboolean ret;
-  GstTensorsInfo ts_info;
-
-  gst_tensors_info_init (&ts_info);
-  ts_info.num_tensors = 20;
 
   data_received++;
   for (i = 0; i < 20; ++i) {
-    mem_res = gst_tensor_buffer_get_nth_memory (buffer, &ts_info, i);
+    mem_res = gst_tensor_buffer_get_nth_memory (buffer, i);
     ret = gst_memory_map (mem_res, &info_res, GST_MAP_READ);
     ASSERT_TRUE (ret);
     output = (gint *) info_res.data;
@@ -6466,8 +6462,6 @@ _manual_extra_tensors_new_data_cb (GstElement *element, GstBuffer *buffer, gpoin
     gst_memory_unmap (mem_res, &info_res);
     gst_memory_unref (mem_res);
   }
-
-  gst_tensors_info_free (&ts_info);
 }
 
 /**
@@ -6556,14 +6550,11 @@ _tensor_mux_extra_tensors_new_data_cb (GstElement *element, GstBuffer *buffer, g
   guint8 *output;
   gint i;
   gboolean ret;
-  GstTensorsInfo ts_info;
 
-  gst_tensors_info_init (&ts_info);
   data_received++;
-  ts_info.num_tensors = 20;
 
   for (i = 0; i < 20; ++i) {
-    mem_res = gst_tensor_buffer_get_nth_memory (buffer, &ts_info, (guint) i);
+    mem_res = gst_tensor_buffer_get_nth_memory (buffer, (guint) i);
     ret = gst_memory_map (mem_res, &info_res, GST_MAP_READ);
     ASSERT_TRUE (ret);
     output = (guint8 *) info_res.data;

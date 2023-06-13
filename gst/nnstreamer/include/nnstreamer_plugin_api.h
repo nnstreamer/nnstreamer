@@ -126,7 +126,7 @@ gst_tensor_caps_can_intersect (GstCaps *caps1, GstCaps *caps2);
  * @return GstMemory if found, otherwise NULL (Caller should free returned memory using gst_memory_unref()).
  */
 extern GstMemory *
-gst_tensor_buffer_get_nth_memory (GstBuffer * buffer, const GstTensorsInfo * info, const guint index);
+gst_tensor_buffer_get_nth_memory (GstBuffer * buffer, const guint index);
 
 /**
  * @brief Append @a memory to given @a buffer.
