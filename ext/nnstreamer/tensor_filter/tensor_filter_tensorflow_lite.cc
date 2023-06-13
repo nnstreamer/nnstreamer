@@ -39,6 +39,10 @@
 #include <nnstreamer_conf.h>
 #include <nnstreamer_util.h>
 
+#if TFLITE_VERSION_MAJOR < 2
+#pragma message("tensor_filter of TensorFlow Lite version 1.X is deprecated. Please use of TF Lite 2.X")
+#endif
+
 #if TFLITE_VERSION_MAJOR >= 2 || TFLITE_VERSION_MINOR >= 13
 #if USE_TENSORFLOW2_HEADER_PATH
 #include <tensorflow2/lite/kernels/register.h>
@@ -1437,6 +1441,9 @@ done:
 static int
 tflite_open (const GstTensorFilterProperties *prop, void **private_data)
 {
+#if TFLITE_VERSION_MAJOR < 2
+  ml_logw ("tensor_filter of TensorFlow Lite version 1.X is deprecated. Please use of TF Lite 2.X");
+#endif
   int status = tflite_loadModelFile (prop, private_data);
 
   return status;
