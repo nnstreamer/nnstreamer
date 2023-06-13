@@ -293,15 +293,11 @@ check_output_many (GstElement *element, GstBuffer *buffer, gpointer user_data)
   gboolean mapped;
   UNUSED (element);
 
-  GstTensorsInfo ts_info;
-  gst_tensors_info_init (&ts_info);
-  ts_info.num_tensors = 32;
-
   guint *data_received = (guint *) user_data;
   (*data_received)++;
 
   for (guint i = 0; i < 32; i++) {
-    mem_res = gst_tensor_buffer_get_nth_memory (buffer, &ts_info, i);
+    mem_res = gst_tensor_buffer_get_nth_memory (buffer, i);
     mapped = gst_memory_map (mem_res, &info_res, GST_MAP_READ);
     ASSERT_TRUE (mapped);
     gfloat *output = (gfloat *) info_res.data;

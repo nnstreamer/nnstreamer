@@ -1523,10 +1523,9 @@ gst_tensor_extra_info_init (GstTensorExtraInfo * extra, gsize reserved_size)
  * @return GstMemory if found, otherwise NULL (Caller should free returned memory using gst_memory_unref()).
  */
 GstMemory *
-gst_tensor_buffer_get_nth_memory (GstBuffer * buffer,
-    const GstTensorsInfo * info, const guint index)
+gst_tensor_buffer_get_nth_memory (GstBuffer * buffer, const guint index)
 {
-  guint i, offset = 0;
+  guint i, num_tensors, offset = 0;
   GstMemory *extra_tensors_memory, *res_mem;
   GstMapInfo extra_tensors_map;
   GstTensorExtraInfo *extra_info;
@@ -1536,19 +1535,14 @@ gst_tensor_buffer_get_nth_memory (GstBuffer * buffer,
     return NULL;
   }
 
-  if (!info) {
-    nns_loge ("Failed to get tensors info (invalid input info).");
-    return NULL;
-  }
-
-  if (info->num_tensors <= 0) {
-    nns_loge ("num_tensors is 0. Please check the tensors info.");
+  num_tensors = gst_buffer_n_tensor (buffer);
+  if (num_tensors == 0U) {
+    nns_loge ("num_tensors is 0. Please check the buffer.");
     return NULL;
   }
 
   /* If num_tensors is less than or equal to NNS_TENSOR_SIZE_LIMIT, it's trivial. */
-  if (info->num_tensors <= NNS_TENSOR_SIZE_LIMIT
-      || index < NNS_TENSOR_SIZE_LIMIT - 1) {
+  if (num_tensors <= NNS_TENSOR_SIZE_LIMIT || index < NNS_TENSOR_SIZE_LIMIT - 1) {
     return gst_buffer_get_memory (buffer, index);
   }
 

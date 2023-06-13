@@ -688,7 +688,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   num_tensors = gst_buffer_n_tensor (inbuf);
 
   for (i = 0; i < num_tensors; i++) {
-    in_mem[i] = gst_tensor_buffer_get_nth_memory (inbuf, &prop->input_meta, i);
+    in_mem[i] = gst_tensor_buffer_get_nth_memory (inbuf, i);
     if (!gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
       ml_logf_stacktrace
           ("gst_tensor_filter_transform: For the given input buffer, tensor-filter (%s : %s) cannot map input memory from the buffer for reading. The %u-th memory chunk (%u-th tensor) has failed for memory map.\n",
