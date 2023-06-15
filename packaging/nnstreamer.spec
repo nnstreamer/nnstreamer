@@ -995,6 +995,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %defattr(-,root,root,-)
 %license LICENSE
 %{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_bounding_boxes.so
+%{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_tensor_region.so
 %{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_pose_estimation.so
 %{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_image_segment.so
 %{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_image_labeling.so

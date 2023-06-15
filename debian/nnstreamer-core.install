@@ -1,4 +1,5 @@
 /usr/lib/nnstreamer/decoders/libnnstreamer_decoder_bounding_boxes.so
+/usr/lib/nnstreamer/decoders/libnnstreamer_decoder_tensor_region.so
 /usr/lib/nnstreamer/decoders/libnnstreamer_decoder_pose_estimation.so
 /usr/lib/nnstreamer/decoders/libnnstreamer_decoder_image_segment.so
 /usr/lib/nnstreamer/decoders/libnnstreamer_decoder_image_labeling.so
