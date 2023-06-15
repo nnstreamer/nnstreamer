@@ -143,6 +143,11 @@ NNSTREAMER_DECODER_BB_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordecutil.c \
     $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-font.c
 
+#decoder tensorRegion 
+NNSTREAMER_DECODER_TR_SRCS := \
+    $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-tensor_region.c \
+    $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordecutil.c \
+
 # decoder directvideo
 NNSTREAMER_DECODER_DV_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-directvideo.c \
@@ -215,4 +220,4 @@ endif
 GST_BUILDING_BLOCK_LIST := $(GST_LIBS_COMMON) $(GST_LIBS_GST)
 
 # gstreamer building block for decoder and filter
-NNSTREAMER_BUILDING_BLOCK_LIST := $(GST_BUILDING_BLOCK_LIST) nnstreamer nnstreamer_decoder_bounding_boxes nnstreamer_decoder_pose_estimation nnstreamer_filter_tensorflow-lite nnstreamer_decoder_flatbuf
+NNSTREAMER_BUILDING_BLOCK_LIST := $(GST_BUILDING_BLOCK_LIST) nnstreamer nnstreamer_decoder_bounding_boxes nnstreamer_decoder_tensor_region nnstreamer_decoder_pose_estimation nnstreamer_filter_tensorflow-lite nnstreamer_decoder_flatbuf
