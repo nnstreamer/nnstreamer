@@ -396,15 +396,14 @@ typedef struct {
  * @param[in] results The final results to be transfered.
  */
 static void
-finalize (GstMapInfo *out_info, tensor_region *data, GArray *results)
+gst_tensor_top_detectedObjects_cropInfo (GstMapInfo *out_info, tensor_region *data, GArray *results)
 {
 
   guint i;
   guint size = sizeof (crop_region); /**Assuming crop_region is a structure with four integer fields */
-  guint8 *out_data = out_info->data;
+  int *out_data = (int *)out_info->data;
   crop_region region;
   guint maxx = MIN (results->len, data->num);
-
   for (i = 0; i < maxx; i++) {
     detected_object *temp = &g_array_index (results, detected_object, i);
     region.x = temp->x;
@@ -578,18 +577,31 @@ nms (GArray *results, gfloat threshold)
   } while (i < results->len);
 }
 
+/**
+ * @brief Private function to initialize the meta info
+ */
+static void 
+init_meta(GstTensorMetaInfo * meta, tensor_region * trData){
+  gst_tensor_meta_info_init (meta);
+  meta->type = _NNS_UINT32;
+  meta->dimension[0] = BOX_SIZE;
+  meta->dimension[1] = trData->num;
+  meta->media_type = _NNS_TENSOR;
+}
+
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static GstFlowReturn
 tr_decode (void **pdata, const GstTensorsConfig *config,
     const GstTensorMemory *input, GstBuffer *outbuf)
 {
   tensor_region *trData = *pdata;
+  GstTensorMetaInfo meta;
   GstMapInfo out_info;
   GstMemory *out_mem;
   GArray *results = NULL;
   const guint num_tensors = config->info.num_tensors;
   gboolean need_output_alloc = gst_buffer_get_size (outbuf) == 0;
-  const size_t size = (size_t) 4 * trData->num; /**4 field per block */
+  const size_t size = (size_t) 4 * trData->num * sizeof(uint32_t); /**4 field per block */
 
   g_assert (outbuf);
   /**Ensure we have outbuf properly allocated */
@@ -639,11 +651,17 @@ tr_decode (void **pdata, const GstTensorsConfig *config,
     GST_ERROR ("Failed to get output buffer, unknown mode %d.", trData->mode);
     goto error_unmap;
   }
-  finalize (&out_info, trData, results);
+  gst_tensor_top_detectedObjects_cropInfo (&out_info, trData, results);
 
   g_array_free (results, TRUE);
 
   gst_memory_unmap (out_mem, &out_info);
+
+  /** converting to Flexible tensor since  
+   * info pad of tensor_crop has capability for flexible tensor stream 
+  */
+  init_meta(&meta, trData);
+  out_mem = gst_tensor_meta_info_append_header(&meta, out_mem);
 
   if (need_output_alloc)
     gst_buffer_append_memory (outbuf, out_mem);
@@ -723,7 +741,7 @@ tr_getOutCaps (void **pdata, const GstTensorsConfig *config)
   if (!_set_max_detection (data, max_detection, MOBILENET_SSD_DETECTION_MAX)) {
     return NULL;
   }
-  str = g_strdup_printf ("testing");
+  str = g_strdup_printf("other/tensor-flexible, width=%u, height=%u, type=(int)32, dimension=%d:%d", data->i_width, data->i_height, BOX_SIZE, data->num);
   caps = gst_caps_from_string (str);
   setFramerateFromConfig (caps, config);
   g_free (str);
