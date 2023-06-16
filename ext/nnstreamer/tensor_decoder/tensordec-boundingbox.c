@@ -1297,7 +1297,8 @@ update_centroids (void **pdata, GArray * boxes)
         int bcy = box->y + box->height / 2;
 
         d->distance =
-            (c->cx - bcx) * (c->cx - bcx) + (c->cy - bcy) * (c->cy - bcy);
+            (guint64) ((c->cx - bcx) * (c->cx - bcx)
+                     + (c->cy - bcy) * (c->cy - bcy));
       }
     }
   }
@@ -1314,7 +1315,6 @@ update_centroids (void **pdata, GArray * boxes)
       centroid *c = &g_array_index (centroids, centroid, d->centroid_idx);
       detectedObject *box = &g_array_index (boxes, detectedObject, d->box_idx);
 
-      cIdx = d->centroid_idx;
       bIdx = d->box_idx;
 
       /* the centroid is invalid */

@@ -45,7 +45,7 @@ _custom_easy_filter_dynamic (void *data, const GstTensorsInfo *in_info,
   for (i = 0; i < filter_received; i++) {
     ((guint *) output[0].data)[i] = i;
   }
-
+  g_free (dim_str);
   return 0;
 }
 
