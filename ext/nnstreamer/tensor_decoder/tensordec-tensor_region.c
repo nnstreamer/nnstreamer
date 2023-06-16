@@ -1,19 +1,7 @@
+/* SPDX-License-Identifier: LGPL-2.1-only */
 /**
- * GStreamer / NNStreamer tensor_decoder subplugin, "bounding boxes"
- * Copyright (C) 2018 Samsung Electronics Co. Ltd.
- * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
- * Copyright 2021 NXP
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public
- * License as published by the Free Software Foundation;
- * version 2.1 of the License.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
- *
+ * GStreamer / NNStreamer tensor_decoder subplugin, "tensor_region"
+ * Copyright (C) 2023 Harsh Jain <hjain24in@gmail.com>
  */
 /**
  * @file        tensordec-tensor_region.c
@@ -392,11 +380,11 @@ typedef struct {
 /**
  * @brief transfer crop region info with the given results to the output buffer
  * @param[out] out_info The output buffer 
- * @param[in] trData The Tensor_region internal data.
+ * @param[in] data The Tensor_region internal data.
  * @param[in] results The final results to be transfered.
  */
 static void
-gst_tensor_top_detectedObjects_cropInfo (GstMapInfo *out_info, tensor_region *data, GArray *results)
+gst_tensor_top_detectedObjects_cropInfo (GstMapInfo *out_info, const tensor_region *data, GArray *results)
 {
 
   guint i;
@@ -581,7 +569,7 @@ nms (GArray *results, gfloat threshold)
  * @brief Private function to initialize the meta info
  */
 static void 
-init_meta(GstTensorMetaInfo * meta, tensor_region * trData){
+init_meta(GstTensorMetaInfo * meta, const tensor_region * trData){
   gst_tensor_meta_info_init (meta);
   meta->type = _NNS_UINT32;
   meta->dimension[0] = BOX_SIZE;
@@ -681,7 +669,7 @@ error_free:
  * @brief set the max_detection
  */
 static int
-_set_max_detection (tensor_region *data, const guint max_detection, const unsigned int limit)
+_set_max_detection (tensor_region *data, guint max_detection, unsigned int limit)
 {
   /**Check consistency with max_detection */
   if (data->max_detections == 0)
@@ -741,7 +729,7 @@ tr_getOutCaps (void **pdata, const GstTensorsConfig *config)
   if (!_set_max_detection (data, max_detection, MOBILENET_SSD_DETECTION_MAX)) {
     return NULL;
   }
-  str = g_strdup_printf("other/tensor-flexible, width=%u, height=%u, type=(int)32, dimension=%d:%d", data->i_width, data->i_height, BOX_SIZE, data->num);
+  str = g_strdup_printf("other/tensors,format=flexible");
   caps = gst_caps_from_string (str);
   setFramerateFromConfig (caps, config);
   g_free (str);
