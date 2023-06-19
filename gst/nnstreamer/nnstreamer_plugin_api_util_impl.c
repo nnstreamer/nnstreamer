@@ -422,6 +422,7 @@ gst_tensors_info_free (GstTensorsInfo * info)
 gsize
 gst_tensors_info_get_size (const GstTensorsInfo * info, gint index)
 {
+  GstTensorInfo *_info;
   gsize data_size = 0;
   guint i;
 
@@ -429,10 +430,13 @@ gst_tensors_info_get_size (const GstTensorsInfo * info, gint index)
   g_return_val_if_fail (index < (gint) info->num_tensors, 0);
 
   if (index < 0) {
-    for (i = 0; i < info->num_tensors; ++i)
-      data_size += gst_tensor_info_get_size (&info->info[i]);
+    for (i = 0; i < info->num_tensors; ++i) {
+      _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info, i);
+      data_size += gst_tensor_info_get_size (_info);
+    }
   } else {
-    data_size = gst_tensor_info_get_size (&info->info[index]);
+    _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info, index);
+    data_size = gst_tensor_info_get_size (_info);
   }
 
   return data_size;
