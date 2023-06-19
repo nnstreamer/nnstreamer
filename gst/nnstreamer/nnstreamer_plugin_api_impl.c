@@ -1518,7 +1518,6 @@ gst_tensor_extra_info_init (GstTensorExtraInfo * extra, gsize reserved_size)
 /**
  * @brief Get the nth GstMemory from given @a buffer.
  * @param[in] buffer GstBuffer to be parsed.
- * @param[in] info GstTensorsInfo to be used in parsing buffer.
  * @param[in] index Index of GstMemory to be returned.
  * @return GstMemory if found, otherwise NULL (Caller should free returned memory using gst_memory_unref()).
  */
