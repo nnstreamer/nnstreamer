@@ -424,6 +424,9 @@ g_tensor_filter_set_input_info (GTensorFilterSingle * self,
   }
 
   if (status == 0) {
+    gst_tensors_info_free (&priv->prop.input_meta);
+    gst_tensors_info_free (&priv->prop.output_meta);
+
     gst_tensors_info_copy (&priv->prop.input_meta, in_info);
     gst_tensors_info_copy (&priv->prop.output_meta, out_info);
   }
