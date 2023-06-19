@@ -140,7 +140,7 @@ gst_tensors_layout_init (tensors_layout layout)
 {
   int i;
 
-  for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
+  for (i = 0; i < NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT; i++) {
     layout[i] = _NNS_LAYOUT_ANY;
   }
 }
@@ -152,7 +152,7 @@ static void
 gst_tensors_rank_init (unsigned int ranks[])
 {
   int i;
-  for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; ++i) {
+  for (i = 0; i < NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT; ++i) {
     ranks[i] = 0;
   }
 }
@@ -215,11 +215,11 @@ gst_tensors_parse_layouts_string (tensors_layout layout,
     str_layouts = g_strsplit_set (layout_string, ",.", -1);
     num_layouts = g_strv_length (str_layouts);
 
-    if (num_layouts > NNS_TENSOR_SIZE_LIMIT) {
+    if (num_layouts > NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT) {
       nns_logw ("Invalid param, layouts (%d) max (%d)\n",
-          num_layouts, NNS_TENSOR_SIZE_LIMIT);
+          num_layouts, NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT);
 
-      num_layouts = NNS_TENSOR_SIZE_LIMIT;
+      num_layouts = NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT;
     }
 
     for (i = 0; i < num_layouts; i++) {
@@ -265,7 +265,8 @@ gst_tensor_filter_get_rank_string (const GstTensorFilterProperties * prop,
         g_string_append_printf (rank, "%u", _ranks[i]);
       else
         g_string_append_printf (rank, "%u",
-            gst_tensor_info_get_rank (&_meta->info[i]));
+            gst_tensor_info_get_rank (gst_tensors_info_get_nth_info (
+                    (GstTensorsInfo *) _meta, i)));
 
       if (i < _meta->num_tensors - 1)
         g_string_append_printf (rank, ",");
@@ -307,8 +308,8 @@ gst_tensor_filter_get_dimension_string (const GstTensorFilterProperties * prop,
 
     for (i = 0; i < tinfo->num_tensors; ++i) {
       dim_str =
-          gst_tensor_get_rank_dimension_string (tinfo->info[i].dimension,
-          *(_rank + i));
+          gst_tensor_get_rank_dimension_string (gst_tensors_info_get_nth_info (
+              (GstTensorsInfo *) tinfo, i)->dimension, *(_rank + i));
       g_string_append (dimensions, dim_str);
 
       if (i < tinfo->num_tensors - 1) {
@@ -841,23 +842,29 @@ gst_tensorsinfo_compare_to_string (const GstTensorsInfo * info1,
 
   g_return_val_if_fail (info1 != NULL && info2 != NULL, NULL);
 
-  for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
+  for (i = 0; i < NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT; i++) {
     if (info1->num_tensors <= i && info2->num_tensors <= i)
       break;
 
     if (info1->num_tensors > i) {
-      tmp = gst_tensor_get_dimension_string (info1->info[i].dimension);
-      left = g_strdup_printf ("%s [%s]",
-          gst_tensor_get_type_string (info1->info[i].type), tmp);
+      GstTensorInfo *info1_i =
+          gst_tensors_info_get_nth_info ((GstTensorsInfo *) info1, i);
+      tmp = gst_tensor_get_dimension_string (info1_i->dimension);
+      left =
+          g_strdup_printf ("%s [%s]",
+          gst_tensor_get_type_string (info1_i->type), tmp);
       g_free (tmp);
     } else {
       left = g_strdup ("None");
     }
 
     if (info2->num_tensors > i) {
-      tmp = gst_tensor_get_dimension_string (info2->info[i].dimension);
-      right = g_strdup_printf ("%s [%s]",
-          gst_tensor_get_type_string (info2->info[i].type), tmp);
+      GstTensorInfo *info2_i =
+          gst_tensors_info_get_nth_info ((GstTensorsInfo *) info2, i);
+      tmp = gst_tensor_get_dimension_string (info2_i->dimension);
+      right =
+          g_strdup_printf ("%s [%s]",
+          gst_tensor_get_type_string (info2_i->type), tmp);
       g_free (tmp);
     } else {
       right = g_strdup ("None");
@@ -1505,16 +1512,16 @@ _gtfc_setprop_DIMENSION (GstTensorFilterPrivate * priv,
     str_dims = g_strsplit_set (g_value_get_string (value), ",.", -1);
     num_dims = g_strv_length (str_dims);
 
-    if (num_dims > NNS_TENSOR_SIZE_LIMIT) {
+    if (num_dims > NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT) {
       nns_logw ("Invalid param, dimensions (%d) max (%d)\n",
-          num_dims, NNS_TENSOR_SIZE_LIMIT);
+          num_dims, NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT);
 
-      num_dims = NNS_TENSOR_SIZE_LIMIT;
+      num_dims = NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT;
     }
 
     for (i = 0; i < num_dims; ++i) {
       rank[i] = gst_tensor_parse_dimension (str_dims[i],
-          info->info[i].dimension);
+          gst_tensors_info_get_nth_info (info, i)->dimension);
     }
     g_strfreev (str_dims);
 
@@ -1770,7 +1777,8 @@ _gtfc_setprop_LAYOUT (GstTensorFilterPrivate * priv,
         if (priv->fw->eventHandler
             (priv->fw, prop, priv->privateData, evt, &data) == 0) {
           memcpy (*layout, data.layout,
-              sizeof (tensor_layout) * NNS_TENSOR_SIZE_LIMIT);
+              sizeof (tensor_layout) * (NNS_TENSOR_SIZE_LIMIT +
+                  NNS_TENSOR_SIZE_EXTRA_LIMIT));
         } else {
           ml_logw ("Unable to update layout.");
         }
@@ -1840,7 +1848,8 @@ _gtfc_setprop_INPUTCOMBINATION (GstTensorFilterPrivate * priv,
 
   for (i = 0; i < num; i++) {
     val = g_ascii_strtoull (strv[i], NULL, 10);
-    if (errno == ERANGE || val >= NNS_TENSOR_SIZE_LIMIT) {
+    if (errno == ERANGE
+        || val >= NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT) {
       ml_loge ("Invalid value %s, cannot set combination option.", strv[i]);
       ret = ERANGE;
       break;
@@ -1887,7 +1896,8 @@ _gtfc_setprop_OUTPUTCOMBINATION (GstTensorFilterPrivate * priv,
       break;
     }
 
-    if (errno == ERANGE || val >= NNS_TENSOR_SIZE_LIMIT) {
+    if (errno == ERANGE
+        || val >= NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT) {
       ml_loge ("Invalid value %s, cannot set combination option.", strv[i]);
       ret = ERANGE;
       break;
@@ -2255,10 +2265,12 @@ gst_tensor_filter_common_get_combined_in_info (GstTensorFilterPrivate * priv,
         goto error;
       }
 
-      gst_tensor_info_copy (&combined->info[idx++], &in->info[i]);
+      gst_tensor_info_copy (gst_tensors_info_get_nth_info (combined, idx++),
+          gst_tensors_info_get_nth_info ((GstTensorsInfo *) in, i));
 
-      if (idx >= NNS_TENSOR_SIZE_LIMIT) {
-        nns_loge ("The max number of tensors is %d.", NNS_TENSOR_SIZE_LIMIT);
+      if (idx >= NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT) {
+        nns_loge ("The max number of tensors is %d.",
+            NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT);
         goto error;
       }
     }
@@ -2302,7 +2314,8 @@ gst_tensor_filter_common_get_combined_out_info (GstTensorFilterPrivate * priv,
           goto error;
         }
 
-        gst_tensor_info_copy (&combined->info[idx++], &in->info[i]);
+        gst_tensor_info_copy (gst_tensors_info_get_nth_info (combined, idx++),
+            gst_tensors_info_get_nth_info ((GstTensorsInfo *) in, i));
       }
     }
 
@@ -2315,7 +2328,8 @@ gst_tensor_filter_common_get_combined_out_info (GstTensorFilterPrivate * priv,
           goto error;
         }
 
-        gst_tensor_info_copy (&combined->info[idx++], &out->info[i]);
+        gst_tensor_info_copy (gst_tensors_info_get_nth_info (combined, idx++),
+            gst_tensors_info_get_nth_info ((GstTensorsInfo *) out, i));
       }
     }
 
