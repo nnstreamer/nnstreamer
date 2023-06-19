@@ -726,7 +726,7 @@ TFLiteInterpreter::setInputTensorsInfo (const GstTensorsInfo *info)
     tensor_type tf_type;
     const GstTensorInfo *tensor_info;
 
-    tensor_info = &info->info[tensor_idx];
+    tensor_info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info, tensor_idx);
 
     /** cannot change the type of input */
     tf_type = getTensorType (interpreter->tensor (input_idx_list[tensor_idx])->type);

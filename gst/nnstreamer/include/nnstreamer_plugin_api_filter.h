@@ -128,7 +128,7 @@ typedef enum _nns_tensor_layout
   _NNS_LAYOUT_NONE,        /**< NONE: none of the above defined layouts */
 } tensor_layout;
 
-typedef tensor_layout tensors_layout[NNS_TENSOR_SIZE_LIMIT];
+typedef tensor_layout tensors_layout[NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT];
 
 /**
  * @brief GstTensorFilter's properties for NN framework (internal data structure)
@@ -146,12 +146,12 @@ typedef struct _GstTensorFilterProperties
   int input_configured; /**< TRUE if input tensor is configured. Use int instead of gboolean because this is refered by custom plugins. */
   GstTensorsInfo input_meta; /**< configured input tensor info */
   tensors_layout input_layout; /**< data layout info provided as a property to tensor_filter for the input, defaults to _NNS_LAYOUT_ANY for all the tensors */
-  unsigned int input_ranks[NNS_TENSOR_SIZE_LIMIT];  /**< the rank list of input tensors, it is calculated based on the dimension string. */
+  unsigned int input_ranks[NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT];  /**< the rank list of input tensors, it is calculated based on the dimension string. */
 
   int output_configured; /**< TRUE if output tensor is configured. Use int instead of gboolean because this is refered by custom plugins. */
   GstTensorsInfo output_meta; /**< configured output tensor info */
   tensors_layout output_layout; /**< data layout info provided as a property to tensor_filter for the output, defaults to _NNS_LAYOUT_ANY for all the tensors */
-  unsigned int output_ranks[NNS_TENSOR_SIZE_LIMIT];  /**< the rank list of output tensors, it is calculated based on the dimension string. */
+  unsigned int output_ranks[NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT];  /**< the rank list of output tensors, it is calculated based on the dimension string. */
 
   const char *custom_properties; /**< sub-plugin specific custom property values in string */
   accl_hw *hw_list; /**< accelerators supported by framework intersected with user provided accelerator preference, use in GstTensorFilterFramework V1 only */
