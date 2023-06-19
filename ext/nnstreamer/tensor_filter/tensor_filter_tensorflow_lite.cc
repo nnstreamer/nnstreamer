@@ -694,6 +694,7 @@ TFLiteInterpreter::setTensorProp (
 int
 TFLiteInterpreter::setInputTensorProp ()
 {
+  gst_tensors_info_free (&inputTensorMeta);
   return setTensorProp (interpreter->inputs (), &inputTensorMeta);
 }
 
@@ -704,6 +705,7 @@ TFLiteInterpreter::setInputTensorProp ()
 int
 TFLiteInterpreter::setOutputTensorProp ()
 {
+  gst_tensors_info_free (&outputTensorMeta);
   return setTensorProp (interpreter->outputs (), &outputTensorMeta);
 }
 
@@ -1559,25 +1561,25 @@ tflite_setInputDim (const GstTensorFilterProperties *prop, void **private_data,
   /** get current input tensor info for resetting */
   status = core->getInputTensorDim (&cur_in_info);
   if (status != 0)
-    return status;
+    goto exit;
 
   /** set new input tensor info */
   status = core->setInputTensorDim (in_info);
   if (status != 0) {
     tflite_setInputDim_recovery (core, &cur_in_info, "while setting input tensor info", 0);
-    return status;
+    goto exit;
   }
 
   /** update input tensor info */
   if ((status = core->setInputTensorProp ()) != 0) {
     tflite_setInputDim_recovery (core, &cur_in_info, "while updating input tensor info", 1);
-    return status;
+    goto exit;
   }
 
   /** update output tensor info */
   if ((status = core->setOutputTensorProp ()) != 0) {
     tflite_setInputDim_recovery (core, &cur_in_info, "while updating output tensor info", 2);
-    return status;
+    goto exit;
   }
 
   /** update the input and output tensor cache */
@@ -1585,7 +1587,7 @@ tflite_setInputDim (const GstTensorFilterProperties *prop, void **private_data,
   if (status != 0) {
     tflite_setInputDim_recovery (
         core, &cur_in_info, "while updating input and output tensor cache", 2);
-    return status;
+    goto exit;
   }
 
   /** get output tensor info to be returned */
@@ -1593,10 +1595,13 @@ tflite_setInputDim (const GstTensorFilterProperties *prop, void **private_data,
   if (status != 0) {
     tflite_setInputDim_recovery (
         core, &cur_in_info, "while retreiving update output tensor info", 2);
-    return status;
+    goto exit;
   }
 
-  return 0;
+exit:
+  gst_tensors_info_free (&cur_in_info);
+
+  return status;
 }
 
 /**
