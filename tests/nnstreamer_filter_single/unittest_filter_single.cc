@@ -326,6 +326,144 @@ TEST_F (NNSFilterSingleTestExtended, setInvalidInfo_n)
   gst_tensors_info_free (&in_info);
   gst_tensors_info_free (&out_info);
 }
+
+/**
+ * @brief Test Fixture class for a tensor-filter-single with 32 in/out model.
+ */
+class NNSFilterSingleTestManyInOut : public ::testing::Test
+{
+  protected:
+  GTensorFilterSingle *single;
+  GTensorFilterSingleClass *klass;
+  GstTensorMemory input[32];
+  GstTensorMemory output[32];
+  gboolean loaded;
+
+  public:
+  /**
+   * @brief Constructor
+   */
+  NNSFilterSingleTestManyInOut ()
+      : single (nullptr), klass (nullptr), loaded (FALSE)
+  {
+    for (guint i = 0; i < 32; i++) {
+      input[i].data = output[i].data = nullptr;
+      input[i].size = output[i].size = 0;
+    }
+  }
+
+  /**
+   * @brief SetUp method for each test case
+   */
+  void SetUp () override
+  {
+    g_autofree gchar *model_file = nullptr;
+    guint num_tensors = 32;
+    const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+
+
+    single = (GTensorFilterSingle *) g_object_new (G_TYPE_TENSOR_FILTER_SINGLE, NULL);
+    klass = (GTensorFilterSingleClass *) g_type_class_ref (G_TYPE_TENSOR_FILTER_SINGLE);
+
+    /* supposed to run test in build directory */
+    if (root_path == NULL)
+      root_path = "..";
+
+    model_file = g_build_filename (root_path, "tests", "test_models", "models",
+        "simple_32_in_32_out.tflite", NULL);
+    ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
+
+
+    for (guint i = 0; i < num_tensors; i++) {
+      input[i].size = 1 * sizeof (float);
+      input[i].data = g_malloc0 (1 * sizeof (float));
+
+      ((gfloat *) input[i].data)[0] = 16.0f;
+
+      output[i].size = 1 * sizeof (float);
+    }
+
+    g_object_set (G_OBJECT (single), "framework", "tensorflow-lite", "model",
+        model_file, NULL);
+    loaded = TRUE;
+  }
+
+  /**
+   * @brief TearDown method for each test case
+   */
+  void TearDown () override
+  {
+    g_type_class_unref (klass);
+    g_object_unref (single);
+
+    for (guint i = 0; i < 32; i++) {
+      g_free (input[i].data);
+      g_free (output[i].data);
+    }
+  }
+};
+
+/**
+ * @brief Test invoke of the tf-lite model.
+ */
+TEST_F (NNSFilterSingleTestManyInOut, invoke_p)
+{
+  ASSERT_TRUE (this->loaded);
+
+  EXPECT_TRUE (klass->invoke (single, input, output, TRUE));
+  for (guint i = 0; i < 32; i++)
+    EXPECT_EQ (((float *) output[i].data)[0], 17.0f);
+
+  EXPECT_TRUE (klass->invoke (single, input, output, FALSE));
+  for (guint i = 0; i < 32; i++)
+    EXPECT_EQ (((float *) output[i].data)[0], 17.0f);
+}
+
+/**
+ * @brief Test to set invalid info.
+ */
+TEST_F (NNSFilterSingleTestManyInOut, setInvalidInfo_n)
+{
+  GstTensorsInfo in_info, out_info;
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+
+  ASSERT_TRUE (this->loaded);
+  EXPECT_TRUE (klass->start (single));
+
+  /* valid tensor info */
+  in_info.num_tensors = 32U;
+  for (guint i = 0; i < in_info.num_tensors; i++) {
+    GstTensorInfo *info_i = gst_tensors_info_get_nth_info (&in_info, i);
+    info_i->type = _NNS_FLOAT32;
+    gst_tensor_parse_dimension ("1", info_i->dimension);
+  }
+
+  EXPECT_TRUE (klass->set_input_info (single, &in_info, &out_info) == 0);
+
+  EXPECT_EQ (out_info.num_tensors, 32U);
+  for (guint i = 0; i < out_info.num_tensors; i++) {
+    GstTensorInfo *info_i = gst_tensors_info_get_nth_info (&out_info, i);
+    EXPECT_EQ (info_i->type, _NNS_FLOAT32);
+    EXPECT_EQ (info_i->dimension[0], 1U);
+    EXPECT_EQ (gst_tensor_info_get_rank (info_i), 1U);
+  }
+
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+
+  /* request to set invalid tensor info */
+  in_info.num_tensors = 16U;
+  EXPECT_FALSE (klass->set_input_info (single, &in_info, &out_info) == 0);
+
+  EXPECT_TRUE (klass->stop (single));
+
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+}
+
 #endif /* ENABLE_TENSORFLOW2_LITE */
 
 /**
