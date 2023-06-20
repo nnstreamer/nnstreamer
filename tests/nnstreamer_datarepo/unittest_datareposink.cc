@@ -37,7 +37,6 @@ get_file_path (const gchar *filename)
   return file_path;
 }
 
-
 /**
  * @brief Bus callback function
  */
@@ -46,6 +45,7 @@ bus_callback (GstBus *bus, GstMessage *message, gpointer data)
 {
   switch (GST_MESSAGE_TYPE (message)) {
     case GST_MESSAGE_EOS:
+    case GST_MESSAGE_ERROR:
       g_main_loop_quit ((GMainLoop *) data);
       break;
     default:
@@ -53,6 +53,37 @@ bus_callback (GstBus *bus, GstMessage *message, gpointer data)
   }
 
   return TRUE;
+}
+
+/**
+ * @brief create image test file
+ */
+static void
+create_image_test_file ()
+{
+  GstBus *bus;
+  GMainLoop *loop;
+
+  loop = g_main_loop_new (NULL, FALSE);
+
+  gchar *str_pipeline = g_strdup ("gst-launch-1.0 videotestsrc num-buffers=5 ! pngenc ! "
+                                  "datareposink location=img_%02d.png json=img.json");
+
+  GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
+  g_free (str_pipeline);
+  ASSERT_NE (pipeline, nullptr);
+
+  bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
+  ASSERT_NE (bus, nullptr);
+  gst_bus_add_watch (bus, bus_callback, loop);
+  gst_object_unref (bus);
+
+  setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
+  g_main_loop_run (loop);
+
+  setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
+  gst_object_unref (pipeline);
+  g_main_loop_unref (loop);
 }
 
 /**
@@ -67,15 +98,13 @@ TEST (datareposink, writeImageFiles)
   GMainLoop *loop;
   gint i = 0;
   gboolean ret;
-
-  loop = g_main_loop_new (NULL, FALSE);
-
-  gchar *str_pipeline = g_strdup ("gst-launch-1.0 videotestsrc num-buffers=5 ! pngenc ! "
-                                  "datareposink location=image_%02d.png json=image.json");
+  const gchar *str_pipeline
+      = "videotestsrc num-buffers=5 ! pngenc ! datareposink location=image_%02d.png json=image.json";
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
-  g_free (str_pipeline);
+  ASSERT_NE (pipeline, nullptr);
 
+  loop = g_main_loop_new (NULL, FALSE);
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
   ASSERT_NE (bus, nullptr);
   gst_bus_add_watch (bus, bus_callback, loop);
@@ -106,6 +135,13 @@ TEST (datareposink, writeImageFiles)
   g_object_unref (file);
   g_free (contents);
   ASSERT_EQ (ret, TRUE);
+
+  g_remove ("image.json");
+  for (i = 0; i < 5; i++) {
+    filename = g_strdup_printf ("image_%02d.png", i);
+    g_remove (filename);
+    g_free (filename);
+  }
 }
 
 /**
@@ -118,18 +154,15 @@ TEST (datareposink, writeAudioRaw)
   GstBus *bus;
   GMainLoop *loop;
   gboolean ret;
-
-  loop = g_main_loop_new (NULL, FALSE);
-
-  gchar *str_pipeline = g_strdup (
-      "gst-launch-1.0 audiotestsrc samplesperbuffer=44100 num-buffers=1 ! "
-      "audio/x-raw, format=S16LE, layout=interleaved, rate=44100, channels=1 ! "
-      "datareposink location=audio.raw json=audio.json");
+  const gchar *str_pipeline
+      = "audiotestsrc samplesperbuffer=44100 num-buffers=1 ! "
+        "audio/x-raw, format=S16LE, layout=interleaved, rate=44100, channels=1 ! "
+        "datareposink location=audio.raw json=audio.json";
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
-  g_free (str_pipeline);
   ASSERT_NE (pipeline, nullptr);
 
+  loop = g_main_loop_new (NULL, FALSE);
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
   ASSERT_NE (bus, nullptr);
   gst_bus_add_watch (bus, bus_callback, loop);
@@ -155,6 +188,9 @@ TEST (datareposink, writeAudioRaw)
   g_object_unref (file);
   g_free (contents);
   ASSERT_EQ (ret, TRUE);
+
+  g_remove ("audio.json");
+  g_remove ("audio.raw");
 }
 
 /**
@@ -167,16 +203,13 @@ TEST (datareposink, writeVideoRaw)
   GstBus *bus;
   GMainLoop *loop;
   gboolean ret;
-
-  loop = g_main_loop_new (NULL, FALSE);
-
-  gchar *str_pipeline = g_strdup ("gst-launch-1.0 videotestsrc num-buffers=10 ! "
-                                  "datareposink location=video.raw json=video.json");
+  const gchar *str_pipeline
+      = "videotestsrc num-buffers=10 ! datareposink location=video.raw json=video.json";
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
-  g_free (str_pipeline);
   ASSERT_NE (pipeline, nullptr);
 
+  loop = g_main_loop_new (NULL, FALSE);
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
   ASSERT_NE (bus, nullptr);
   gst_bus_add_watch (bus, bus_callback, loop);
@@ -202,6 +235,9 @@ TEST (datareposink, writeVideoRaw)
   g_object_unref (file);
   g_free (contents);
   ASSERT_EQ (ret, TRUE);
+
+  g_remove ("video.raw");
+  g_remove ("video.json");
 }
 
 /**
@@ -225,8 +261,7 @@ TEST (datareposink, writeTensors)
   json_path = get_file_path (json);
 
   gchar *str_pipeline = g_strdup_printf (
-      "gst-launch-1.0 datareposrc location=%s json=%s "
-      "start-sample-index=0 stop-sample-index=9 ! "
+      "datareposrc location=%s json=%s start-sample-index=0 stop-sample-index=9 ! "
       "datareposink name=datareposink location=mnist.data json=mnist.json",
       file_path, json_path);
 
@@ -270,6 +305,63 @@ TEST (datareposink, writeTensors)
   g_free (file_path);
   g_free (json_path);
   ASSERT_EQ (ret, TRUE);
+
+  g_remove ("mnist.data");
+  g_remove ("mnist.json");
+}
+
+/**
+ * @brief Test for writing flexible tensors
+ */
+TEST (datareposink, writeFlexibleTensors)
+{
+  GFile *file = NULL;
+  gchar *contents = NULL;
+  GstBus *bus;
+  GMainLoop *loop;
+  gboolean ret;
+  const gchar *str_pipeline
+      = "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! "
+        "video/x-raw,format=RGB,width=176,height=144,framerate=10/1 ! tensor_converter ! join0.sink_0 "
+        "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! "
+        "video/x-raw,format=RGB,width=320,height=240,framerate=10/1 ! tensor_converter ! join0.sink_1 "
+        "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! "
+        "video/x-raw,format=RGB,width=640,height=480,framerate=10/1 ! tensor_converter ! join0.sink_2 "
+        "join name=join0 ! other/tensors,format=flexible ! "
+        "datareposink location=flexible.data json=flexible.json";
+
+  GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
+  ASSERT_NE (pipeline, nullptr);
+
+  loop = g_main_loop_new (NULL, FALSE);
+  bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
+  ASSERT_NE (bus, nullptr);
+  gst_bus_add_watch (bus, bus_callback, loop);
+  gst_object_unref (bus);
+
+  setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
+  g_main_loop_run (loop);
+
+  setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
+  gst_object_unref (pipeline);
+  g_main_loop_unref (loop);
+
+  /* Confirm file creation */
+  file = g_file_new_for_path ("flexible.data");
+  ret = g_file_load_contents (file, NULL, &contents, NULL, NULL, NULL);
+  g_object_unref (file);
+  g_free (contents);
+  ASSERT_EQ (ret, TRUE);
+
+  /* Confirm file creation */
+  file = g_file_new_for_path ("flexible.json");
+  ret = g_file_load_contents (file, NULL, &contents, NULL, NULL, NULL);
+  g_object_unref (file);
+  g_free (contents);
+  ASSERT_EQ (ret, TRUE);
+
+  g_remove ("flexible.data");
+  g_remove ("flexible.json");
 }
 
 /**
@@ -279,11 +371,11 @@ TEST (datareposink, invalidJsonPath0_n)
 {
   GstElement *datareposink = NULL;
 
-  gchar *str_pipeline = g_strdup ("gst-launch-1.0 videotestsrc num-buffers=10 ! pngenc ! "
-                                  "datareposink name=datareposink");
+  const gchar *str_pipeline
+      = "videotestsrc num-buffers=10 ! pngenc ! datareposink name=datareposink";
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
-  g_free (str_pipeline);
+  ASSERT_NE (pipeline, nullptr);
 
   datareposink = gst_bin_get_by_name (GST_BIN (pipeline), "datareposink");
   EXPECT_NE (datareposink, nullptr);
@@ -305,11 +397,10 @@ TEST (datareposink, invalidFilePath0_n)
 {
   GstElement *datareposink = NULL;
 
-  gchar *str_pipeline = g_strdup ("gst-launch-1.0 videotestsrc num-buffers=10 ! pngenc ! "
-                                  "datareposink name=datareposink");
+  const gchar *str_pipeline
+      = "videotestsrc num-buffers=10 ! pngenc ! datareposink name=datareposink";
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
-  g_free (str_pipeline);
   ASSERT_NE (pipeline, nullptr);
 
   datareposink = gst_bin_get_by_name (GST_BIN (pipeline), "datareposink");
@@ -330,11 +421,10 @@ TEST (datareposink, invalidFilePath0_n)
  */
 TEST (datareposink, unsupportedVideoCaps0_n)
 {
-  gchar *str_pipeline = g_strdup ("gst-launch-1.0 videotestsrc ! vp8enc ! "
-                                  "datareposink location=video.raw json=video.json");
+  const gchar *str_pipeline
+      = "videotestsrc ! vp8enc ! datareposink location=video.raw json=video.json";
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
-  g_free (str_pipeline);
   ASSERT_NE (pipeline, nullptr);
 
   /* Could not to to GST_STATE_PLAYING state due to caps negotiation failure */
@@ -348,11 +438,10 @@ TEST (datareposink, unsupportedVideoCaps0_n)
  */
 TEST (datareposink, unsupportedAudioCaps0_n)
 {
-  gchar *str_pipeline = g_strdup ("gst-launch-1.0 audiotestsrc ! audio/x-raw,rate=44100,channels=2 ! wavenc ! "
-                                  "datareposink location=audio.raw json=audio.json");
+  const gchar *str_pipeline = "audiotestsrc ! audio/x-raw,rate=44100,channels=2 ! "
+                              "wavenc ! datareposink location=audio.raw json=audio.json";
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
-  g_free (str_pipeline);
   ASSERT_NE (pipeline, nullptr);
 
   /* Could not to to GST_STATE_PLAYING state due to caps negotiation failure */
@@ -362,26 +451,62 @@ TEST (datareposink, unsupportedAudioCaps0_n)
 }
 
 /**
- * @brief remove test file
+ * @brief Test for writing flexible tensors
  */
-static void
-remove_test_file (void)
+TEST (datareposink, writeFlexibleTensors_n)
 {
-  gchar *filename = NULL;
+  GFile *file = NULL;
+  GstBus *bus;
+  GMainLoop *loop;
+  GstElement *pipeline;
+  GFileInfo *file_info = NULL;
+  gint64 size = 0;
   int i;
+  gchar *filename = NULL;
 
-  g_remove ("audio.json");
-  g_remove ("audio.raw");
-  g_remove ("video.json");
-  g_remove ("video.raw");
-  g_remove ("mnist.json");
-  g_remove ("mnist.data");
+  create_image_test_file ();
+
+  /* Insert non-Flexible Tensor data after negotiating with flexible caps. */
+  const gchar *str_pipeline
+      = "multifilesrc location=img_%02d.png caps=other/tensors,format=flexible ! "
+        "datareposink location=flexible.data json=flexible.json";
+
+  pipeline = gst_parse_launch (str_pipeline, NULL);
+  ASSERT_NE (pipeline, nullptr);
+
+  loop = g_main_loop_new (NULL, FALSE);
+  bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
+  ASSERT_NE (bus, nullptr);
+  gst_bus_add_watch (bus, bus_callback, loop);
+  gst_object_unref (bus);
+
+  setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
+  g_main_loop_run (loop);
+
+  setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
+  gst_object_unref (pipeline);
+  g_main_loop_unref (loop);
+
+  /* Confirm file creation */
+  file = g_file_new_for_path ("flexible.data");
+  ASSERT_NE (file, nullptr);
+  file_info = g_file_query_info (
+      file, G_FILE_ATTRIBUTE_STANDARD_SIZE, G_FILE_QUERY_INFO_NONE, NULL, NULL);
+  ASSERT_NE (file_info, nullptr);
+  size = g_file_info_get_size (file_info);
+  ASSERT_EQ (size, 0);
+  g_object_unref (file_info);
+  g_object_unref (file);
 
   for (i = 0; i < 5; i++) {
-    filename = g_strdup_printf ("image_%02d.png", i);
+    filename = g_strdup_printf ("img_%02d.png", i);
     g_remove (filename);
     g_free (filename);
   }
+
+  g_remove ("img.json");
+  g_remove ("flexible.json");
+  g_remove ("flexible.data");
 }
 
 /**
@@ -405,8 +530,6 @@ main (int argc, char **argv)
   } catch (...) {
     g_warning ("catch `testing::internal::GoogleTestFailureException`");
   }
-
-  remove_test_file ();
 
   return result;
 }

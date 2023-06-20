@@ -43,14 +43,17 @@ struct _GstDataRepoSink
 
   GstCaps *fixed_caps;            /**< to get meta info */
   JsonObject *json_object;        /**< JSON object */
-  JsonArray *json_offset_array;   /**< offset array for flexible tensors */
+  JsonArray *sample_offset_array;   /**< offset array of sample */
+  JsonArray *tensor_size_array;    /**< size array of flexible tensor */
+  JsonArray *tensor_count_array;  /**< array for the number of cumulative tensors */
+  guint flexible_tensor_count;
 
   gboolean is_flexible_tensors;
   gint fd;                        /**< open file descriptor*/
   GstDataRepoDataType data_type;  /**< data type */
   gint total_samples;             /**< The number of total samples, in the case of multi-files, it is used as an index. */
-  guint64 offset;                 /**< offset of fd */
-  guint sample_size;              /**< size of one sample */
+  guint64 fd_offset;              /**< offset of fd */
+  guint sample_size;             /**< size of one sample */
 
   /* property */
   gchar *filename;    /**< filename */
