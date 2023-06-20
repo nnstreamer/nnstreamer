@@ -7097,6 +7097,7 @@ TEST (testConverterSubplugins, flexbufInvalidParam1_n)
 }
 #endif /** ENABLE_FLATBUF && ENABLE_PROTOBUF */
 
+
 /**
  * @brief Data structure for tensor-crop test.
  */
