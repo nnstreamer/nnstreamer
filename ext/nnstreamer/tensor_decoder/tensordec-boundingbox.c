@@ -1297,8 +1297,8 @@ update_centroids (void **pdata, GArray * boxes)
         int bcy = box->y + box->height / 2;
 
         d->distance =
-            (guint64) ((c->cx - bcx) * (c->cx - bcx))
-                     +  (guint64) ((c->cy - bcy) * (c->cy - bcy));
+            (guint64) (c->cx - bcx) * (c->cx - bcx)
+                     +  (guint64) (c->cy - bcy) * (c->cy - bcy);
       }
     }
   }
