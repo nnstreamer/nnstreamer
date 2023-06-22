@@ -40,7 +40,7 @@ static void new_data_cb(GstElement* sink, const gpointer user_data)
   g_signal_emit_by_name(sink, "pull-sample", &sample);
 
   /** Expected values of cropping info for orange.png */
-  guint32 expected_values[] = {58, 61, 219, 213};
+  guint32 expected_values[] = {58, 62, 219, 211};
 
   if (sample != nullptr) {
     GstBuffer* outbuf = gst_sample_get_buffer(sample);
@@ -139,27 +139,22 @@ TEST_REQUIRE_TFLITE (TensorDecoder, TensorRegion)
   if (root_path == nullptr)
     root_path = "..";
 
-  const gchar* image_path = g_build_filename(root_path, "tests", "test_models", "data",
-                                             "orange.png", nullptr);
-  const gchar* model = g_build_filename(root_path, "tests", "test_models", "models", "ssd_mobilenet_v2_coco.tflite", nullptr);
+  const gchar* tensor_0 = g_build_filename(root_path, "tests", "nnstreamer_decoder_tensorRegion", "mobilenet_ssd_tensor.0", nullptr);
+  const gchar* tensor_1 = g_build_filename(root_path, "tests", "nnstreamer_decoder_tensorRegion", "mobilenet_ssd_tensor.1", nullptr);
   const gchar* labels_path = g_build_filename(root_path, "tests", "test_models", "labels", "labels.txt", nullptr);
   const gchar* box_priors_path = g_build_filename(root_path, "tests", "nnstreamer_decoder_boundingbox", "box_priors.txt", nullptr);
 
-  ASSERT_TRUE(g_file_test(image_path, G_FILE_TEST_EXISTS));
-  ASSERT_TRUE(g_file_test(model, G_FILE_TEST_EXISTS));
+  ASSERT_TRUE(g_file_test(tensor_0, G_FILE_TEST_EXISTS));
+  ASSERT_TRUE(g_file_test(tensor_1, G_FILE_TEST_EXISTS));
   ASSERT_TRUE(g_file_test(labels_path, G_FILE_TEST_EXISTS));
   ASSERT_TRUE(g_file_test(box_priors_path, G_FILE_TEST_EXISTS));
 
   /** Create the GStreamer pipeline */
   gchar* pipeline_str = g_strdup_printf(
-      "filesrc location=%s ! decodebin ! videoconvert ! videoscale ! "
-      "video/x-raw,width=640,height=480,format=RGB ! videoscale ! "
-      "video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! "
-      "tensor_transform mode=arithmetic option=typecast:float32,add:-127.5,div:127.5 ! "
-      "tensor_filter framework=tensorflow2-lite model=%s ! "
-      "tensor_decoder mode=tensor_region option1=1 option2=%s option3=%s ! "
-      "appsink name=sinkx",
-      image_path, model, labels_path, box_priors_path);
+      "multifilesrc name=fs1 location=%s start-index=0 stop-index=1 caps=application/octet-stream ! tensor_converter name=el1 input-dim=4:1:1917:1 input-type=float32 ! mux.sink_0 \
+       multifilesrc name=fs2 location=%s start-index=0 stop-index=1 caps=application/octet-stream ! tensor_converter name=el2 input-dim=91:1917:1 input-type=float32 ! mux.sink_1 \
+       tensor_mux name=mux ! other/tensors,format=static ! tensor_decoder mode=tensor_region option1=1 option2=%s option3=%s ! appsink name=sinkx ",
+      tensor_0, tensor_1, labels_path, box_priors_path);
 
   GstElement* pipeline = gst_parse_launch(pipeline_str, nullptr);
   g_free(pipeline_str);
