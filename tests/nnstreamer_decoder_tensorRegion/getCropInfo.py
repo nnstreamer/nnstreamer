@@ -26,7 +26,7 @@ image_path = sys.argv[1]
 
 # Create the GStreamer pipeline
 pipeline_str = """
-    filesrc location={} ! decodebin ! videoconvert ! videoscale ! video/x-raw,width=640,height=480,format=RGB ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-127.5,div:127.5 ! tensor_filter framework=tensorflow2-lite model=ssd_mobilenet_v2_coco.tflite ! tensor_decoder mode=tensor_region option1=1 option2=../nnstreamer_decoder_boundingbox/coco_labels_list.txt option3=../nnstreamer_decoder_boundingbox/box_priors.txt ! appsink name=output
+    filesrc location={} ! decodebin ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-127.5,div:127.5 ! tensor_filter framework=tensorflow2-lite model=../test_models/models/ssd_mobilenet_v2_coco.tflite ! tensor_decoder mode=tensor_region option1=1 option2=../nnstreamer_decoder_boundingbox/coco_labels_list.txt option3=../nnstreamer_decoder_boundingbox/box_priors.txt ! appsink name=output
 """.format(image_path)
 
 pipeline = Gst.parse_launch(pipeline_str)

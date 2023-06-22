@@ -84,27 +84,14 @@ if gtest_dep.found()
 
     test('unittest_sink', unittest_sink, timeout: 120, env: testenv)
 
-    # RUN unittest_tensorRegion
-    if tflite2_support_is_available
-      message('ssd_mobilenet_v2_coco.tflite model will be downloaded')
-      download_url = 'https://github.com/nnsuite/testcases/raw/master/DeepLearningModels/tensorflow-lite/ssd_mobilenet_v2_coco'
-      filename = 'ssd_mobilenet_v2_coco.tflite'
-      unittest_model = join_paths(unittest_base_dir, 'tests', 'test_models', 'models')
-      r = run_command('wget', '-nc', '-P', unittest_model, download_url + filename)
-      if r.returncode() == 0
-        output = r.stdout().strip()
-      else
-        errortxt = r.stderr().strip()
-      endif
-
-      unittest_tensorRegion = executable('unittest_tensorRegion',
-        join_paths('nnstreamer_decoder_tensorRegion', 'unittest_tensorRegion.cc'),
-        dependencies: [nnstreamer_unittest_deps],
-        install: get_option('install-test'),
-        install_dir: unittest_install_dir
-      )
-      test('unittest_tensorRegion', unittest_tensorRegion, env: testenv)
-    endif
+    # RUN unittest_tensor_region
+    unittest_tensor_region = executable('unittest_tensor_region',
+      join_paths('nnstreamer_decoder_tensor_region', 'unittest_tensor_region.cc'),
+      dependencies: [nnstreamer_unittest_deps],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+    test('unittest_tensor_region', unittest_tensor_region, env: testenv)
 
     # Run unittest_plugins
     unittest_plugins = executable('unittest_plugins',
