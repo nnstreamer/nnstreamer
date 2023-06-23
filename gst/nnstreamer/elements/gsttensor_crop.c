@@ -809,6 +809,11 @@ gst_tensor_crop_collected (GstCollectPads * pads, gpointer user_data)
 
     data = (GstCollectData *) walk->data;
 
+    if (GST_COLLECT_PADS_STATE_IS_SET (data, GST_COLLECT_PADS_STATE_EOS)) {
+      gst_pad_push_event (self->srcpad, gst_event_new_eos ());
+      return GST_FLOW_EOS;
+    }
+
     if (data->pad == self->sinkpad_raw) {
       data_raw = data;
     } else if (data->pad == self->sinkpad_info) {
