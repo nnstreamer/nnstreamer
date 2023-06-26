@@ -1566,16 +1566,15 @@ gst_tensor_buffer_get_nth_memory (GstBuffer * buffer, const guint index)
     return NULL;
   }
 
-  extra_info = (GstTensorExtraInfo *) extra_tensors_map.data;
-
   /* check header (extra info) of the memory */
-  /* check magic */
-  if (extra_info->magic != NNS_TENSOR_EXTRA_MAGIC) {
+  if (!gst_memory_is_extra_tensor (&extra_tensors_map)) {
     nns_loge ("Invalid extra header");
     gst_memory_unmap (extra_tensors_memory, &extra_tensors_map);
     gst_memory_unref (extra_tensors_memory);
     return NULL;
   }
+
+  extra_info = (GstTensorExtraInfo *) extra_tensors_map.data;
 
   /* check index */
   if (index >= extra_info->num_extra_tensors + NNS_TENSOR_SIZE_LIMIT) {
@@ -1628,13 +1627,13 @@ gboolean
 gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
     const GstTensorInfo * info)
 {
-  guint num_mems, offset, i;
+  guint num_mems, offset, i, new_mem_index;
 
   GstMemory *new_memory, *last_memory;
   gsize new_mem_size, last_mem_size;
 
   GstMapInfo new_memory_map, last_memory_map, incoming_memory_map;
-  GstTensorExtraInfo *new_memory_extra_info;
+  GstTensorExtraInfo *extra_info;
   gboolean is_extra;
 
   if (!GST_IS_BUFFER (buffer)) {
@@ -1696,9 +1695,18 @@ gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
     return FALSE;
   }
 
+  if (!gst_memory_map (memory, &incoming_memory_map, GST_MAP_READ)) {
+    nns_loge ("Failed to map incoming memory");
+    gst_memory_unmap (new_memory, &new_memory_map);
+    gst_memory_unmap (last_memory, &last_memory_map);
+    gst_memory_unref (new_memory);
+    return FALSE;
+  }
+
+  extra_info = (GstTensorExtraInfo *) new_memory_map.data;
+
   /* if the last_memory does not have proper header, append it */
   if (!is_extra) {
-    GstTensorExtraInfo *extra_info = (GstTensorExtraInfo *) new_memory_map.data;
     gst_tensor_extra_info_init (extra_info, last_mem_size);
     offset = sizeof (GstTensorExtraInfo);
   } else {
@@ -1710,25 +1718,14 @@ gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
       last_memory_map.size);
 
   /* copy incoming_memory into new_memory */
-  if (!gst_memory_map (memory, &incoming_memory_map, GST_MAP_READ)) {
-    nns_loge ("Failed to map incoming memory");
-    gst_memory_unmap (new_memory, &new_memory_map);
-    gst_memory_unmap (last_memory, &last_memory_map);
-    gst_memory_unref (new_memory);
-    return FALSE;
-  }
-
-  new_memory_extra_info = (GstTensorExtraInfo *) new_memory_map.data;
+  new_mem_index = extra_info->num_extra_tensors;
+  extra_info->num_extra_tensors += 1;
 
   /* append tensor info (except the tensor name) */
-  new_memory_extra_info->infos[new_memory_extra_info->num_extra_tensors].type =
-      info->type;
+  extra_info->infos[new_mem_index].type = info->type;
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; ++i) {
-    guint _num = new_memory_extra_info->num_extra_tensors;
-    new_memory_extra_info->infos[_num].dimension[i] = info->dimension[i];
+    extra_info->infos[new_mem_index].dimension[i] = info->dimension[i];
   }
-
-  new_memory_extra_info->num_extra_tensors += 1;
 
   memcpy (new_memory_map.data + offset + last_memory_map.size,
       incoming_memory_map.data, incoming_memory_map.size);
