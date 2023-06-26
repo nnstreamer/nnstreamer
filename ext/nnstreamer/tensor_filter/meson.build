@@ -641,8 +641,8 @@ if get_option('enable-mediapipe')
   )
 endif
 
+run_command('sh', '-c', 'touch filter_snpe_list', check : true)
 if snpe_support_is_available
-  run_command('sh', '-c', 'touch $MESON_BUILD_ROOT/$MESON_SUBDIR/filter_snpe_list', check : true)
   filter_sub_snpe_sources = ['tensor_filter_snpe.cc']
 
   snpe_cpp_args = []
@@ -665,7 +665,7 @@ if snpe_support_is_available
     install: true,
     install_dir: nnstreamer_libdir
   )
-  run_command('sh', '-c', 'echo "%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_snpe.so" >> $MESON_BUILD_ROOT/$MESON_SUBDIR/filter_snpe_list', check : true)
+  run_command('sh', '-c', 'echo "%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_snpe.so" >> filter_snpe_list', check : true)
 endif
 
 if tensorrt_support_is_available
