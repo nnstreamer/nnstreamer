@@ -288,6 +288,7 @@ typedef struct
  */
 typedef struct
 {
+  uint32_t magic;
   uint32_t version;
   uint32_t type;
   uint32_t dimension[NNS_TENSOR_META_RANK_LIMIT];
