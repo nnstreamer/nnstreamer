@@ -47,7 +47,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <inttypes.h>
-#include <json-glib/json-glib.h>
 #include "gstdatareposrc.h"
 
 #define struct_stat struct stat
@@ -226,9 +225,10 @@ gst_data_repo_src_init (GstDataRepoSrc * src)
   src->filename = NULL;
   src->json_filename = NULL;
   src->tensors_seq_str = NULL;
+  src->file_size = 0;
   src->fd = 0;
   src->data_type = GST_DATA_REPO_DATA_UNKNOWN;
-  src->offset = 0;
+  src->fd_offset = 0;
   src->start_offset = 0;
   src->last_offset = 0;
   src->successful_read = FALSE;
@@ -239,6 +239,12 @@ gst_data_repo_src_init (GstDataRepoSrc * src)
   src->epochs = DEFAULT_EPOCHS;
   src->shuffled_index_array = g_array_new (FALSE, FALSE, sizeof (guint));
   src->array_index = 0;
+  src->sample_offset_array = NULL;
+  src->sample_offset_array_len = 0;
+  src->tensor_size_array = NULL;
+  src->tensor_size_array_len = 0;
+  src->tensor_count_array = NULL;
+  src->tensor_count_array_len = 0;
   src->first_epoch_is_done = FALSE;
   src->is_shuffle = DEFAULT_IS_SHUFFLE;
   src->num_samples = 0;
@@ -247,6 +253,7 @@ gst_data_repo_src_init (GstDataRepoSrc * src)
   src->caps = NULL;
   src->sample_size = 0;
   src->need_changed_caps = FALSE;
+  src->is_flexible_tensors = FALSE;
 
   /* Filling the buffer should be pending until set_caps() */
   gst_base_src_set_format (GST_BASE_SRC (src), GST_FORMAT_TIME);
@@ -264,6 +271,14 @@ gst_data_repo_src_finalize (GObject * object)
   g_free (src->filename);
   g_free (src->json_filename);
   g_free (src->tensors_seq_str);
+
+  /* close the file */
+  if (src->fd) {
+    g_close (src->fd, NULL);
+    src->fd = 0;
+  }
+
+  g_object_unref (src->parser);
 
   if (src->shuffled_index_array)
     g_array_free (src->shuffled_index_array, TRUE);
@@ -456,13 +471,14 @@ gst_data_repo_src_epoch_is_done (GstDataRepoSrc * src)
 static GstFlowReturn
 gst_data_repo_src_read_tensors (GstDataRepoSrc * src, GstBuffer ** buffer)
 {
+  GstFlowReturn ret = GST_FLOW_OK;
   guint i = 0, seq_idx = 0;
   GstBuffer *buf;
   guint to_read, byte_read;
-  int ret;
+  int read_size;
   guint8 *data;
-  GstMemory *mem[MAX_ITEM] = { 0, };
-  GstMapInfo info[MAX_ITEM];
+  GstMemory *mem = NULL;
+  GstMapInfo info;
   guint shuffled_index = 0;
   guint64 sample_offset = 0;
   guint64 offset = 0;           /* offset from 0 */
@@ -499,10 +515,11 @@ gst_data_repo_src_read_tensors (GstDataRepoSrc * src, GstBuffer ** buffer)
 
   for (i = 0; i < src->tensors_seq_cnt; i++) {
     seq_idx = src->tensors_seq[i];
-    mem[i] = gst_allocator_alloc (NULL, src->tensors_size[seq_idx], NULL);
+    mem = gst_allocator_alloc (NULL, src->tensors_size[seq_idx], NULL);
 
-    if (!gst_memory_map (mem[i], &info[i], GST_MAP_WRITE)) {
+    if (!gst_memory_map (mem, &info, GST_MAP_WRITE)) {
       GST_ERROR_OBJECT (src, "Could not map GstMemory[%d]", i);
+      ret = GST_FLOW_ERROR;
       goto error;
     }
 
@@ -526,66 +543,221 @@ gst_data_repo_src_read_tensors (GstDataRepoSrc * src, GstBuffer ** buffer)
       if user sets "tensor-sequence=2,1", datareposrc read offset 9528 then 9488.
     */
 
-    data = info[i].data;
+    data = info.data;
 
     byte_read = 0;
     to_read = src->tensors_size[seq_idx];
     offset = sample_offset + src->tensors_offset[seq_idx];
-    src->offset = lseek (src->fd, offset, SEEK_SET);
+    src->fd_offset = lseek (src->fd, offset, SEEK_SET);
 
     while (to_read > 0) {
       GST_LOG_OBJECT (src,
           "Reading %d bytes at offset 0x%" G_GINT64_MODIFIER "x (%d size)",
-          to_read, src->offset + byte_read, (guint) src->offset + byte_read);
+          to_read, src->fd_offset + byte_read,
+          (guint) src->fd_offset + byte_read);
       errno = 0;
-      ret = read (src->fd, data + byte_read, to_read);
-      GST_LOG_OBJECT (src, "Read: %d", ret);
-      if (ret < 0) {
+      read_size = read (src->fd, data + byte_read, to_read);
+      GST_LOG_OBJECT (src, "Read: %d", read_size);
+      if (read_size < 0) {
         if (errno == EAGAIN || errno == EINTR)
           continue;
-        goto could_not_read;
+        GST_ELEMENT_ERROR (src, RESOURCE, READ, (NULL), GST_ERROR_SYSTEM);
+        ret = GST_FLOW_ERROR;
+        goto error;
       }
       /* files should eos if they read 0 and more was requested */
-      if (ret == 0) {
+      if (read_size == 0) {
         /* .. but first we should return any remaining data */
         if (byte_read > 0)
           break;
-        goto eos;
+        GST_DEBUG ("EOS");
+        ret = GST_FLOW_EOS;
+        goto error;
       }
-      to_read -= ret;
-      byte_read += ret;
+      to_read -= read_size;
+      byte_read += read_size;
 
-      src->read_position += ret;
-      src->offset += ret;
+      src->read_position += read_size;
+      src->fd_offset += read_size;
     }
 
-    if (mem[i])
-      gst_memory_unmap (mem[i], &info[i]);
-
-    gst_buffer_append_memory (buf, mem[i]);
+    gst_memory_unmap (mem, &info);
+    gst_buffer_append_memory (buf, mem);
   }
 
   *buffer = buf;
 
   return GST_FLOW_OK;
 
-could_not_read:
-  {
-    GST_ELEMENT_ERROR (src, RESOURCE, READ, (NULL), GST_ERROR_SYSTEM);
-    gst_memory_unmap (mem[0], &info[0]);
-    gst_buffer_unref (buf);
-    return GST_FLOW_ERROR;
-  }
-eos:
-  {
-    GST_DEBUG ("EOS");
-    gst_memory_unmap (mem[0], &info[0]);
-    gst_buffer_unref (buf);
-    return GST_FLOW_EOS;
-  }
 error:
+  if (mem) {
+    gst_memory_unmap (mem, &info);
+    gst_memory_unref (mem);
+  }
+
   gst_buffer_unref (buf);
-  return GST_FLOW_ERROR;
+
+  return ret;
+}
+
+/**
+ * @brief Function to get num_tensors from tensor_count_array
+ */
+static guint
+gst_data_repo_src_get_num_tensors (GstDataRepoSrc * src, guint shuffled_index)
+{
+  guint num_tensors = 0;
+  guint cur_idx_tensor_cnt = 0;
+  guint next_idx_tensor_cnt = 0;
+
+  g_return_val_if_fail (src != NULL, 0);
+
+  cur_idx_tensor_cnt =
+      json_array_get_int_element (src->tensor_count_array, shuffled_index);
+  GST_DEBUG_OBJECT (src, "cur_idx_tensor_cnt:%u", cur_idx_tensor_cnt);
+
+  if (shuffled_index + 1 == src->tensor_count_array_len) {
+    next_idx_tensor_cnt = src->tensor_size_array_len;
+  } else {
+    next_idx_tensor_cnt =
+        json_array_get_int_element (src->tensor_count_array,
+        shuffled_index + 1);
+  }
+  GST_DEBUG_OBJECT (src, "next_idx_tensor_cnt:%u", next_idx_tensor_cnt);
+
+  num_tensors = next_idx_tensor_cnt - cur_idx_tensor_cnt;
+  GST_DEBUG_OBJECT (src, "num_tensors:%u", num_tensors);
+
+  return num_tensors;
+}
+
+/**
+ * @brief Function to read tensors
+ */
+static GstFlowReturn
+gst_data_repo_src_read_flexible_tensors (GstDataRepoSrc * src,
+    GstBuffer ** buffer)
+{
+  GstFlowReturn ret = GST_FLOW_OK;
+  guint i;
+  guint shuffled_index = 0;
+  gint64 sample_offset;
+  guint num_tensors = 0;
+  GstBuffer *buf;
+  GstMemory *mem;
+  GstMapInfo info;
+  GstTensorMetaInfo meta;
+  guint to_read, byte_read;
+  int read_size;
+  guint8 *data;
+  guint tensor_count;
+  guint tensor_size;
+
+  g_return_val_if_fail (src->fd != 0, GST_FLOW_ERROR);
+  g_return_val_if_fail (src->shuffled_index_array != NULL, GST_FLOW_ERROR);
+
+  if (gst_data_repo_src_epoch_is_done (src)) {
+    if (src->epochs == 0) {
+      GST_LOG_OBJECT (src, "send EOS");
+      return GST_FLOW_EOS;
+    }
+    if (src->is_shuffle)
+      gst_data_repo_src_shuffle_samples_index (src);
+  }
+
+  /* only do for first epoch */
+  if (!src->first_epoch_is_done) {
+    /* append samples index to array */
+    g_array_append_val (src->shuffled_index_array, src->current_sample_index);
+    src->current_sample_index++;
+  }
+
+  shuffled_index =
+      g_array_index (src->shuffled_index_array, guint, src->array_index++);
+  GST_LOG_OBJECT (src, "shuffled_index [%d] -> %d", src->array_index - 1,
+      shuffled_index);
+
+  /* sample offset from 0 */
+  sample_offset =
+      json_array_get_int_element (src->sample_offset_array, shuffled_index);
+  GST_LOG_OBJECT (src, "sample offset 0x%" G_GINT64_MODIFIER "x (%d size)",
+      sample_offset, (guint) sample_offset);
+
+  src->fd_offset = lseek (src->fd, sample_offset, SEEK_SET);
+
+  buf = gst_buffer_new ();
+
+  tensor_count =
+      json_array_get_int_element (src->tensor_count_array, shuffled_index);
+  num_tensors = gst_data_repo_src_get_num_tensors (src, shuffled_index);
+
+  for (i = 0; i < num_tensors; i++) {
+    tensor_size =
+        json_array_get_int_element (src->tensor_size_array, tensor_count + i);
+    mem = gst_allocator_alloc (NULL, tensor_size, NULL);
+
+    if (!gst_memory_map (mem, &info, GST_MAP_WRITE)) {
+      GST_ERROR_OBJECT (src, "Could not map GstMemory[%d]", i);
+      ret = GST_FLOW_ERROR;
+      goto error;
+    }
+
+    data = info.data;
+    byte_read = 0;
+    to_read = tensor_size;
+    while (to_read > 0) {
+      GST_LOG_OBJECT (src,
+          "Reading %d bytes at offset 0x%" G_GINT64_MODIFIER "x (%lld size)",
+          to_read, src->fd_offset + byte_read, (long long) src->fd_offset);
+      errno = 0;
+      read_size = read (src->fd, data + byte_read, to_read);
+      GST_LOG_OBJECT (src, "Read: %d", read_size);
+      if (read_size < 0) {
+        if (errno == EAGAIN || errno == EINTR)
+          continue;
+        GST_ELEMENT_ERROR (src, RESOURCE, READ, (NULL), GST_ERROR_SYSTEM);
+        ret = GST_FLOW_ERROR;
+        goto error;
+      }
+      /* files should eos if they read 0 and more was requested */
+      if (read_size == 0) {
+        /* .. but first we should return any remaining data */
+        if (byte_read > 0)
+          break;
+        GST_DEBUG ("EOS");
+        ret = GST_FLOW_EOS;
+        goto error;
+      }
+      to_read -= read_size;
+      byte_read += read_size;
+
+      src->read_position += read_size;
+      src->fd_offset += read_size;
+    }
+
+    /* check invalid flexible tensor */
+    if (!gst_tensor_meta_info_parse_header (&meta, info.data)) {
+      GST_ERROR_OBJECT (src, "Invalid flexible tensors");
+      ret = GST_FLOW_ERROR;
+      goto error;
+    }
+
+    gst_memory_unmap (mem, &info);
+    gst_buffer_append_memory (buf, mem);
+  }
+
+  *buffer = buf;
+
+  return GST_FLOW_OK;
+
+error:
+  if (mem) {
+    gst_memory_unmap (mem, &info);
+    gst_memory_unref (mem);
+  }
+  gst_buffer_unref (buf);
+
+  return ret;
 }
 
 /**
@@ -631,7 +803,7 @@ gst_data_repo_src_read_multi_images (GstDataRepoSrc * src, GstBuffer ** buffer)
   gchar *data;
   gchar *filename;
   GstBuffer *buf;
-  gboolean ret;
+  gboolean read_size;
   GError *error = NULL;
 
   g_return_val_if_fail (src->shuffled_index_array != NULL, GST_FLOW_ERROR);
@@ -657,8 +829,8 @@ gst_data_repo_src_read_multi_images (GstDataRepoSrc * src, GstBuffer ** buffer)
   src->array_index++;
 
   /* Try to read one image */
-  ret = g_file_get_contents (filename, &data, &size, &error);
-  if (!ret) {
+  read_size = g_file_get_contents (filename, &data, &size, &error);
+  if (!read_size) {
     if (src->successful_read) {
       /* If we've read at least one buffer successfully, not finding the next file is EOS. */
       g_free (filename);
@@ -706,9 +878,10 @@ handle_error:
 static GstFlowReturn
 gst_data_repo_src_read_others (GstDataRepoSrc * src, GstBuffer ** buffer)
 {
+  GstFlowReturn ret = GST_FLOW_OK;
   GstBuffer *buf;
   guint to_read, byte_read;
-  int ret;
+  int read_size;
   guint8 *data;
   GstMemory *mem;
   GstMapInfo info;
@@ -739,13 +912,13 @@ gst_data_repo_src_read_others (GstDataRepoSrc * src, GstBuffer ** buffer)
   GST_LOG_OBJECT (src, "shuffled_index [%d] -> %d", src->array_index - 1,
       shuffled_index);
   offset = gst_data_repo_src_get_file_offset (src, shuffled_index);
-  src->offset = lseek (src->fd, offset, SEEK_SET);
+  src->fd_offset = lseek (src->fd, offset, SEEK_SET);
 
   mem = gst_allocator_alloc (NULL, src->sample_size, NULL);
 
   if (!gst_memory_map (mem, &info, GST_MAP_WRITE)) {
     GST_ERROR_OBJECT (src, "Could not map GstMemory");
-    goto error;
+    return GST_FLOW_ERROR;
   }
 
   data = info.data;
@@ -754,31 +927,34 @@ gst_data_repo_src_read_others (GstDataRepoSrc * src, GstBuffer ** buffer)
   to_read = src->sample_size;
   while (to_read > 0) {
     GST_LOG_OBJECT (src, "Reading %d bytes at offset 0x%" G_GINT64_MODIFIER "x",
-        to_read, src->offset + byte_read);
+        to_read, src->fd_offset + byte_read);
     errno = 0;
-    ret = read (src->fd, data + byte_read, to_read);
-    GST_LOG_OBJECT (src, "Read: %d", ret);
-    if (ret < 0) {
+    read_size = read (src->fd, data + byte_read, to_read);
+    GST_LOG_OBJECT (src, "Read: %d", read_size);
+    if (read_size < 0) {
       if (errno == EAGAIN || errno == EINTR)
         continue;
-      goto could_not_read;
+      GST_ELEMENT_ERROR (src, RESOURCE, READ, (NULL), GST_ERROR_SYSTEM);
+      ret = GST_FLOW_ERROR;
+      goto error;
     }
     /* files should eos if they read 0 and more was requested */
-    if (ret == 0) {
+    if (read_size == 0) {
       /* .. but first we should return any remaining data */
       if (byte_read > 0)
         break;
-      goto eos;
+      GST_DEBUG ("EOS");
+      ret = GST_FLOW_EOS;
+      goto error;
     }
-    to_read -= ret;
-    byte_read += ret;
+    to_read -= read_size;
+    byte_read += read_size;
 
-    src->read_position += ret;
-    src->offset += ret;
+    src->read_position += read_size;
+    src->fd_offset += read_size;
   }
 
-  if (mem)
-    gst_memory_unmap (mem, &info);
+  gst_memory_unmap (mem, &info);
 
   buf = gst_buffer_new ();
   gst_buffer_append_memory (buf, mem);
@@ -786,20 +962,13 @@ gst_data_repo_src_read_others (GstDataRepoSrc * src, GstBuffer ** buffer)
   *buffer = buf;
   return GST_FLOW_OK;
 
-could_not_read:
-  {
-    GST_ELEMENT_ERROR (src, RESOURCE, READ, (NULL), GST_ERROR_SYSTEM);
-    gst_memory_unmap (mem, &info);
-    return GST_FLOW_ERROR;
-  }
-eos:
-  {
-    GST_DEBUG ("EOS");
-    gst_memory_unmap (mem, &info);
-    return GST_FLOW_EOS;
-  }
 error:
-  return GST_FLOW_ERROR;
+  if (mem) {
+    gst_memory_unmap (mem, &info);
+    gst_memory_unref (mem);
+  }
+
+  return ret;
 }
 
 /**
@@ -841,6 +1010,10 @@ gst_data_repo_src_start (GstDataRepoSrc * src)
   if (fstat (src->fd, &stat_results) < 0)
     goto no_stat;
 
+  src->file_size = stat_results.st_size;
+  if (src->file_size == 0)
+    goto error_close;
+
   if (S_ISDIR (stat_results.st_mode))
     goto was_directory;
 
@@ -866,9 +1039,9 @@ gst_data_repo_src_start (GstDataRepoSrc * src)
     src->last_offset =
         gst_data_repo_src_get_file_offset (src, src->stop_sample_index);
 
-    src->offset = lseek (src->fd, src->start_offset, SEEK_SET);
+    src->fd_offset = lseek (src->fd, src->start_offset, SEEK_SET);
     GST_LOG_OBJECT (src, "Start file offset 0x%" G_GINT64_MODIFIER "x",
-        src->offset);
+        src->fd_offset);
   }
 
   g_free (filename);
@@ -949,7 +1122,10 @@ gst_data_repo_src_create (GstPushSrc * pushsrc, GstBuffer ** buffer)
     case GST_DATA_REPO_DATA_OCTET:
       return gst_data_repo_src_read_others (src, buffer);
     case GST_DATA_REPO_DATA_TENSOR:
-      return gst_data_repo_src_read_tensors (src, buffer);
+      if (src->is_flexible_tensors)
+        return gst_data_repo_src_read_flexible_tensors (src, buffer);
+      else
+        return gst_data_repo_src_read_tensors (src, buffer);
     case GST_DATA_REPO_DATA_IMAGE:
       return gst_data_repo_src_read_multi_images (src, buffer);
     default:
@@ -1163,6 +1339,10 @@ gst_data_repo_src_set_caps (GstBaseSrc * basesrc, GstCaps * caps)
 static gboolean
 gst_data_repo_src_get_data_type_and_size (GstDataRepoSrc * src, GstCaps * caps)
 {
+  GstStructure *s;
+  const GValue *v;
+  const gchar *format;
+
   g_return_val_if_fail (src != NULL, FALSE);
   g_return_val_if_fail (caps != NULL, FALSE);
 
@@ -1177,6 +1357,11 @@ gst_data_repo_src_get_data_type_and_size (GstDataRepoSrc * src, GstCaps * caps)
       break;
     case GST_DATA_REPO_DATA_TENSOR:
       src->sample_size = gst_data_repo_src_get_tensors_size (src, caps);
+      s = gst_caps_get_structure (caps, 0);
+      v = gst_structure_get_value (s, "format");
+      format = g_value_get_string (v);
+      if (g_strcmp0 (format, "flexible") == 0)
+        src->is_flexible_tensors = TRUE;
       break;
     default:
       break;
@@ -1195,7 +1380,6 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
   GError *error = NULL;
   GFile *file;
   gchar *contents;
-  JsonParser *parser;
   JsonNode *root;
   JsonObject *object;
   const gchar *caps_str = NULL;
@@ -1218,13 +1402,15 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
     return FALSE;
   }
 
-  parser = json_parser_new ();
-  if (!json_parser_load_from_data (parser, contents, -1, NULL)) {
+
+  src->parser = json_parser_new ();
+
+  if (!json_parser_load_from_data (src->parser, contents, -1, NULL)) {
     GST_ERROR_OBJECT (src, "Failed to load data from %s", src->json_filename);
     goto error;
   }
 
-  root = json_parser_get_root (parser);
+  root = json_parser_get_root (src->parser);
   if (!JSON_NODE_HOLDS_OBJECT (root)) {
     GST_ERROR_OBJECT (src, "it does not contain a JsonObject: %s", contents);
     goto error;
@@ -1263,8 +1449,40 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
     GST_INFO_OBJECT (src, "sample_size: %d", src->sample_size);
   }
 
-  if (src->sample_size == 0)
-    goto error;
+  if (src->is_flexible_tensors) {
+    if (!json_object_has_member (object, "sample_offset")) {
+      GST_ERROR_OBJECT (src, "There is not sample_offset field: %s", contents);
+      goto error;
+    }
+    src->sample_offset_array =
+        json_object_get_array_member (object, "sample_offset");
+    src->sample_offset_array_len =
+        json_array_get_length (src->sample_offset_array);
+
+    if (!json_object_has_member (object, "tensor_size")) {
+      GST_ERROR_OBJECT (src, "There is not tensor_size field: %s", contents);
+      goto error;
+    }
+    src->tensor_size_array =
+        json_object_get_array_member (object, "tensor_size");
+    src->tensor_size_array_len = json_array_get_length (src->tensor_size_array);
+    GST_INFO_OBJECT (src, "tensor_size_array_len:%u",
+        src->tensor_size_array_len);
+
+    if (!json_object_has_member (object, "tensor_count")) {
+      GST_ERROR_OBJECT (src, "There is not tensor_count field: %s", contents);
+      goto error;
+    }
+    src->tensor_count_array =
+        json_object_get_array_member (object, "tensor_count");
+    src->tensor_count_array_len =
+        json_array_get_length (src->tensor_count_array);
+    GST_INFO_OBJECT (src, "tensor_count_array_len:%u",
+        src->tensor_count_array_len);
+  } else {
+    if (src->sample_size == 0)
+      goto error;
+  }
 
   if (!json_object_has_member (object, "total_samples")) {
     GST_ERROR_OBJECT (src, "There is not total_samples field: %s", contents);
@@ -1278,16 +1496,13 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
     goto error;
 
   g_free (contents);
-  g_object_unref (parser);
   g_object_unref (file);
 
   return TRUE;
-
 error:
   src->data_type = GST_DATA_REPO_DATA_UNKNOWN;
   GST_ERROR_OBJECT (src, "Failed to parse %s", src->json_filename);
   g_free (contents);
-  g_object_unref (parser);
   g_object_unref (file);
 
   return FALSE;
@@ -1430,7 +1645,7 @@ gst_data_repo_src_change_state (GstElement * element, GstStateChange transition)
       /** if data_type is not GST_DATA_REPO_DATA_UNKNOWN and sample_size is 0 then
           'caps' is set by property and sample size needs to be set by blocksize
           (in the case of otect and text) */
-      if (src->sample_size == 0) {
+      if (src->sample_size == 0 && !src->is_flexible_tensors) {
         basesrc = GST_BASE_SRC (src);
         g_object_get (G_OBJECT (basesrc), "blocksize", &blocksize, NULL);
         GST_DEBUG_OBJECT (src, "blocksize = %d", blocksize);

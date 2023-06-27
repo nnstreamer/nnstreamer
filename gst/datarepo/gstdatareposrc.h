@@ -16,6 +16,7 @@
 #include <sys/types.h>
 #include <gst/gst.h>
 #include <gst/base/gstpushsrc.h>
+#include <json-glib/json-glib.h>
 #include <tensor_typedef.h>
 #include "gstdatarepo.h"
 
@@ -44,11 +45,13 @@ struct _GstDataRepoSrc {
   GstPushSrc parent;            /**< parent object */
   GstPad *src_pad;
 
+  gboolean is_flexible_tensors;
   gboolean is_start;            /**< check if datareposrc is started */
   gboolean successful_read;     /**< used for checking EOS when reading more than one images(multi-files) from a path */
   gint fd;                      /**< open file descriptor */
+  gint file_size;               /**< file size, in bytes */
   guint64 read_position;        /**< position of fd */
-  guint64 offset;               /**< offset of fd */
+  guint64 fd_offset;            /**< offset of fd */
   guint64 start_offset;         /**< start offset to read */
   guint64 last_offset;          /**< last offset to read */
   guint tensors_size[MAX_ITEM];   /**< each tensors size in a sample */
@@ -77,6 +80,15 @@ struct _GstDataRepoSrc {
   guint tensors_seq_cnt;
   gboolean need_changed_caps;   /**< When tensors-sequence changes, caps need to be changed */
   GstCaps *caps;                /**< optional property, datareposrc should get data format from JSON file caps field */
+
+  /* flexible tensors */
+  JsonArray *sample_offset_array;   /**< offset array of sample */
+  JsonArray *tensor_size_array;     /**< size array of flexible tensor to be stored in a Gstbuffer */
+  JsonArray *tensor_count_array;    /**< array for the number of cumulative tensors */
+  JsonParser *parser;               /**< Keep JSON data after parsing JSON file */
+  guint sample_offset_array_len;
+  guint tensor_size_array_len;
+  guint tensor_count_array_len;
 };
 
 /**
