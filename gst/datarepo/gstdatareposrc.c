@@ -980,6 +980,7 @@ gst_data_repo_get_caps_by_tensors_sequence (GstDataRepoSrc * src)
 {
   GstStructure *s;
   GstTensorsConfig src_config, dst_config;
+  GstTensorInfo *_src_info, *_dst_info;
   guint i;
   guint seq_num = 0;
   GstCaps *new_caps;
@@ -996,8 +997,9 @@ gst_data_repo_get_caps_by_tensors_sequence (GstDataRepoSrc * src)
   /* Copy selected tensors in sequence */
   for (i = 0; i < src->tensors_seq_cnt; i++) {
     seq_num = src->tensors_seq[i];
-    gst_tensor_info_copy (&dst_config.info.info[i],
-        &src_config.info.info[seq_num]);
+    _src_info = gst_tensors_info_get_nth_info (&src_config.info, seq_num);
+    _dst_info = gst_tensors_info_get_nth_info (&dst_config.info, i);
+    gst_tensor_info_copy (_dst_info, _src_info);
   }
   dst_config.rate_n = src_config.rate_n;
   dst_config.rate_d = src_config.rate_d;
@@ -1055,6 +1057,7 @@ gst_data_repo_src_get_tensors_size (GstDataRepoSrc * src, GstCaps * caps)
 {
   GstStructure *s;
   GstTensorsConfig config;
+  GstTensorInfo *_info;
   guint size = 0;
   guint i = 0;
 
@@ -1069,7 +1072,8 @@ gst_data_repo_src_get_tensors_size (GstDataRepoSrc * src, GstCaps * caps)
 
   for (i = 0; i < src->num_tensors; i++) {
     src->tensors_offset[i] = size;
-    src->tensors_size[i] = gst_tensor_info_get_size (&config.info.info[i]);
+    _info = gst_tensors_info_get_nth_info (&config.info, i);
+    src->tensors_size[i] = gst_tensor_info_get_size (_info);
     GST_DEBUG ("offset[%d]: %d", i, src->tensors_offset[i]);
     GST_DEBUG ("size[%d]: %d", i, src->tensors_size[i]);
     size = size + src->tensors_size[i];
