@@ -1,5 +1,5 @@
 /**
- * @file	unittest_tensorRegion.cc
+ * @file	unittest_tensor_region.cc
  * @date	20 June 2023
  * @brief	Unit test for tensor_decoder::tensor_region. (testcases to check data conversion or buffer transfer)
  * @see		https://github.com/nnstreamer/nnstreamer
@@ -139,8 +139,8 @@ TEST_REQUIRE_TFLITE (TensorDecoder, TensorRegion)
   if (root_path == nullptr)
     root_path = "..";
 
-  const gchar* tensor_0 = g_build_filename(root_path, "tests", "nnstreamer_decoder_tensorRegion", "mobilenet_ssd_tensor.0", nullptr);
-  const gchar* tensor_1 = g_build_filename(root_path, "tests", "nnstreamer_decoder_tensorRegion", "mobilenet_ssd_tensor.1", nullptr);
+  const gchar* tensor_0 = g_build_filename(root_path, "tests", "nnstreamer_decoder_tensor_region", "mobilenet_ssd_tensor.0", nullptr);
+  const gchar* tensor_1 = g_build_filename(root_path, "tests", "nnstreamer_decoder_tensor_region", "mobilenet_ssd_tensor.1", nullptr);
   const gchar* labels_path = g_build_filename(root_path, "tests", "test_models", "labels", "labels.txt", nullptr);
   const gchar* box_priors_path = g_build_filename(root_path, "tests", "nnstreamer_decoder_boundingbox", "box_priors.txt", nullptr);
 
