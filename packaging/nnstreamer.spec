@@ -805,6 +805,13 @@ NNStreamer's datareposrc/sink plugins for reading and writing files in MLOps Dat
 %define enable_trix_engine -Dtrix-engine-support=disabled
 %endif
 
+# Support ml-agent
+%if 0%{?ml_agent_support}
+%define enable_ml_agent -Dml-agent-support=enabled
+%else
+%define enable_ml_agent -Dml-agent-support=disabled
+%endif
+
 # Framework priority for each file extension
 %define fw_priority_bin ''
 %define fw_priority_nb ''
@@ -869,7 +876,7 @@ meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir
 	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_openvino} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} \
 	%{enable_flatbuf} %{enable_trix_engine} %{enable_datarepo} \
 	%{enable_tizen_sensor} %{enable_mqtt} %{enable_lua} %{enable_tvm} %{enable_test} %{enable_test_coverage} %{install_test} \
-        %{fp16_support} %{nnsedge} \
+	%{fp16_support} %{nnsedge} %{enable_ml_agent} \
 	%{builddir}
 
 ninja -C %{builddir} %{?_smp_mflags}
