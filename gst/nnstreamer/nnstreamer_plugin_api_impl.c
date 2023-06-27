@@ -1504,6 +1504,8 @@ gst_tensor_extra_info_init (GstTensorExtraInfo * extra, gsize reserved_size)
 {
   guint i;
 
+  g_return_if_fail (extra != NULL);
+
   extra->magic = NNS_TENSOR_EXTRA_MAGIC;
   extra->version = 0;
   extra->num_extra_tensors = 0;
@@ -1646,7 +1648,7 @@ gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
     return FALSE;
   }
 
-  if (!info) {
+  if (!gst_tensor_info_validate (info)) {
     nns_loge ("Failed to get tensor info (invalid input info).");
     return FALSE;
   }
