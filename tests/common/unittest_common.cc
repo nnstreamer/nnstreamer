@@ -1336,15 +1336,29 @@ TEST (commonMetaInfo, headerSizeInvalidParam01_n)
 }
 
 /**
- * @brief Test for tensor meta info (header size with invalid meta).
+ * @brief Test for tensor meta info (header size with invalid magic).
  */
 TEST (commonMetaInfo, headerSizeInvalidParam02_n)
 {
-  GstTensorMetaInfo meta = {
-    0,
-  };
+  GstTensorMetaInfo meta;
   gsize hsize;
 
+  gst_tensor_meta_info_init (&meta);
+  meta.magic = 0U;
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  EXPECT_EQ (hsize, 0U);
+}
+
+/**
+ * @brief Test for tensor meta info (header size with invalid version).
+ */
+TEST (commonMetaInfo, headerSizeInvalidParam03_n)
+{
+  GstTensorMetaInfo meta;
+  gsize hsize;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.version = 0U;
   hsize = gst_tensor_meta_info_get_header_size (&meta);
   EXPECT_EQ (hsize, 0U);
 }
@@ -1361,15 +1375,29 @@ TEST (commonMetaInfo, dataSizeInvalidParam01_n)
 }
 
 /**
- * @brief Test for tensor meta info (data size with invalid meta).
+ * @brief Test for tensor meta info (data size with invalid magic).
  */
 TEST (commonMetaInfo, dataSizeInvalidParam02_n)
 {
-  GstTensorMetaInfo meta = {
-    0,
-  };
+  GstTensorMetaInfo meta;
   gsize dsize;
 
+  gst_tensor_meta_info_init (&meta);
+  meta.magic = 0U;
+  dsize = gst_tensor_meta_info_get_data_size (&meta);
+  EXPECT_EQ (dsize, 0U);
+}
+
+/**
+ * @brief Test for tensor meta info (data size with invalid version).
+ */
+TEST (commonMetaInfo, dataSizeInvalidParam03_n)
+{
+  GstTensorMetaInfo meta;
+  gsize dsize;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.version = 0U;
   dsize = gst_tensor_meta_info_get_data_size (&meta);
   EXPECT_EQ (dsize, 0U);
 }
@@ -1386,18 +1414,40 @@ TEST (commonMetaInfo, validateInvalidParam01_n)
 }
 
 /**
- * @brief Test for tensor meta info (validate meta with invalid meta).
+ * @brief Test for tensor meta info (validate meta with invalid magic).
  */
 TEST (commonMetaInfo, validateInvalidParam02_n)
 {
-  GstTensorMetaInfo meta = {
-    0,
-  };
+  GstTensorMetaInfo meta;
   gboolean valid;
 
-  /* invalid version */
+  gst_tensor_meta_info_init (&meta);
+  meta.magic = 0U;
   valid = gst_tensor_meta_info_validate (&meta);
   EXPECT_FALSE (valid);
+}
+
+/**
+ * @brief Test for tensor meta info (validate meta with invalid version).
+ */
+TEST (commonMetaInfo, validateInvalidParam03_n)
+{
+  GstTensorMetaInfo meta;
+  gboolean valid;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.version = 0U;
+  valid = gst_tensor_meta_info_validate (&meta);
+  EXPECT_FALSE (valid);
+}
+
+/**
+ * @brief Test for tensor meta info (validate meta with invalid meta).
+ */
+TEST (commonMetaInfo, validateInvalidParam04_n)
+{
+  GstTensorMetaInfo meta;
+  gboolean valid;
 
   /* set valid meta */
   gst_tensor_meta_info_init (&meta);

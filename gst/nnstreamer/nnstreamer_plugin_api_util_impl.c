@@ -1354,6 +1354,16 @@ gst_tensor_get_format_string (tensor_format format)
 }
 
 /**
+ * @brief Magic number of tensor meta.
+ */
+#define GST_TENSOR_META_MAGIC (0xfeedcced)
+
+/**
+ * @brief Macro to check the tensor meta.
+ */
+#define GST_TENSOR_META_MAGIC_VALID(m) ((m) == GST_TENSOR_META_MAGIC)
+
+/**
  * @brief Macro to check the meta version.
  */
 #define GST_TENSOR_META_VERSION_VALID(v) (((v) & 0xDE000000) == 0xDE000000)
@@ -1385,6 +1395,7 @@ gst_tensor_meta_info_init (GstTensorMetaInfo * meta)
   /* zero-init */
   memset (meta, 0, sizeof (GstTensorMetaInfo));
 
+  meta->magic = GST_TENSOR_META_MAGIC;
   meta->version = GST_TENSOR_META_VERSION;
   meta->type = _NNS_END;
   meta->format = _NNS_TENSOR_FORMAT_STATIC;
@@ -1402,6 +1413,7 @@ gst_tensor_meta_info_get_version (GstTensorMetaInfo * meta,
     guint * major, guint * minor)
 {
   g_return_if_fail (meta != NULL);
+  g_return_if_fail (GST_TENSOR_META_MAGIC_VALID (meta->magic));
   g_return_if_fail (GST_TENSOR_META_VERSION_VALID (meta->version));
 
   if (major)
@@ -1422,6 +1434,7 @@ gst_tensor_meta_info_validate (GstTensorMetaInfo * meta)
   guint i;
 
   g_return_val_if_fail (meta != NULL, FALSE);
+  g_return_val_if_fail (GST_TENSOR_META_MAGIC_VALID (meta->magic), FALSE);
   g_return_val_if_fail (GST_TENSOR_META_VERSION_VALID (meta->version), FALSE);
 
   if (meta->type >= _NNS_END) {
@@ -1467,6 +1480,7 @@ gsize
 gst_tensor_meta_info_get_header_size (GstTensorMetaInfo * meta)
 {
   g_return_val_if_fail (meta != NULL, 0);
+  g_return_val_if_fail (GST_TENSOR_META_MAGIC_VALID (meta->magic), 0);
   g_return_val_if_fail (GST_TENSOR_META_VERSION_VALID (meta->version), 0);
 
   /* return fixed size for meta version */
@@ -1489,6 +1503,7 @@ gst_tensor_meta_info_get_data_size (GstTensorMetaInfo * meta)
   gsize dsize;
 
   g_return_val_if_fail (meta != NULL, 0);
+  g_return_val_if_fail (GST_TENSOR_META_MAGIC_VALID (meta->magic), 0);
   g_return_val_if_fail (GST_TENSOR_META_VERSION_VALID (meta->version), 0);
 
   dsize = gst_tensor_get_element_size (meta->type);
@@ -1546,16 +1561,17 @@ gst_tensor_meta_info_parse_header (GstTensorMetaInfo * meta, gpointer header)
 
   gst_tensor_meta_info_init (meta);
 
-  meta->version = val[0];
-  meta->type = val[1];
-  memcpy (meta->dimension, &val[2],
+  meta->magic = val[0];
+  meta->version = val[1];
+  meta->type = val[2];
+  memcpy (meta->dimension, &val[3],
       sizeof (uint32_t) * NNS_TENSOR_META_RANK_LIMIT);
-  meta->format = val[18];
-  meta->media_type = val[19];
+  meta->format = val[19];
+  meta->media_type = val[20];
 
   switch ((tensor_format) meta->format) {
     case _NNS_TENSOR_FORMAT_SPARSE:
-      meta->sparse_info.nnz = val[20];
+      meta->sparse_info.nnz = val[21];
       break;
     default:
       break;
