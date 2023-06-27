@@ -74,7 +74,8 @@ enum
   PROP_MODE_OPTION7,
   PROP_MODE_OPTION8,
   PROP_MODE_OPTION9,
-  PROP_SUBPLUGINS
+  PROP_SUBPLUGINS,
+  PROP_CONFIG
 };
 
 /**
@@ -358,6 +359,11 @@ gst_tensordec_class_init (GstTensorDecoderClass * klass)
           "Registrable sub-plugins list", "",
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_CONFIG,
+      g_param_spec_string ("config-file", "Configuration-file",
+          "sets config file path which contains plugins properties", "",
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
   gst_element_class_set_details_simple (gstelement_class,
       "TensorDecoder",
       "Converter/Tensor",
@@ -505,6 +511,12 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
         gst_tensor_decoder_clean_plugin (self);
         self->decoder = NULL;
       }
+      break;
+    }
+    case PROP_CONFIG:
+    {
+      const gchar *config_path = g_value_get_string (value);
+      gst_tensor_parse_config_file (config_path, object);
       break;
     }
       PROP_MODE_OPTION (1);

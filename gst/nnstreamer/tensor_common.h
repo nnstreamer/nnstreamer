@@ -109,6 +109,21 @@ typedef struct
 } GstTensorPad;
 
 /**
+ * @brief Parses a configuration file and sets the corresponding properties on a GObject.
+ *
+ * This function reads the contents of the configuration file located at the given path
+ * and sets the properties of the specified GObject based on the configuration data.
+ *
+ * @param config_path The path to the configuration file.
+ * @param object      The GObject on which to set the properties.
+ *
+ * @note The responsibility of managing the memory of the GObject passed as a parameter
+ *       lies outside this function.
+ */
+extern void 
+gst_tensor_parse_config_file (const gchar *config_path, const GObject *object);
+
+/**
  * @brief Get the corresponding mode from the string value.
  * @param[in] str The string value for the mode.
  * @return Corresponding mode for the string. SYNC_END for errors.

@@ -1784,3 +1784,98 @@ gst_buffer_n_tensor (GstBuffer * buffer)
 
   return num_mems;
 }
+
+/**
+ * @brief Sets the value of a property based on the specified property value and GParamSpec.
+ *
+ * @param prop_value A pointer to the GValue where the property value will be set.
+ * @param param_spec A pointer to the GParamSpec that describes the property.
+ * @param property_value A string representing the value to be set for the property.
+ *
+ * @note This API is intended to be used by gst_tensor_parse_config_file ()
+ */
+
+static void
+set_property_value (GValue * prop_value, const GParamSpec * param_spec,
+    const gchar * property_value)
+{
+  GType value_type = G_PARAM_SPEC_VALUE_TYPE (param_spec);
+  g_value_init (prop_value, value_type);
+
+  if (value_type == G_TYPE_BOOLEAN) {
+    gboolean value = g_ascii_strcasecmp (property_value, "true") == 0;
+    g_value_set_boolean (prop_value, value);
+  } else if (value_type == G_TYPE_INT) {
+    gint value = atoi (property_value);
+    g_value_set_int (prop_value, value);
+  } else if (value_type == G_TYPE_UINT) {
+    guint value = atoi (property_value);
+    g_value_set_uint (prop_value, value);
+  } else if (value_type == G_TYPE_FLOAT) {
+    gfloat value = atof (property_value);
+    g_value_set_float (prop_value, value);
+  } else if (value_type == G_TYPE_DOUBLE) {
+    gdouble value = atof (property_value);
+    g_value_set_double (prop_value, value);
+  } else {
+    g_value_set_string (prop_value, property_value); /** default is string */
+  }
+}
+
+/**
+ * @brief Parses a configuration file and sets the corresponding properties on a GObject.
+ *
+ * This function reads the contents of the configuration file located at the given path
+ * and sets the properties of the specified GObject based on the configuration data.
+ *
+ * @param config_path The path to the configuration file.
+ * @param object      The GObject on which to set the properties.
+ *
+ * @note The responsibility of managing the memory of the GObject passed as a parameter
+ *       lies outside this function.
+ */
+
+void
+gst_tensor_parse_config_file (const gchar * config_path, const GObject * object)
+{
+  GError *error = NULL;
+  gchar *config_data = NULL;
+  gchar **lines = NULL;
+  gchar **line = NULL;
+  GObjectClass *g_object_class = G_OBJECT_GET_CLASS (object);
+
+  if (!g_file_get_contents (config_path, &config_data, NULL, &error)) {
+    GST_DEBUG ("Failed to read config file: %s\n", error->message);
+    g_error_free (error);
+    return;
+  }
+
+  lines = g_strsplit (config_data, "\n", -1);
+  g_free (config_data);
+
+  /** Iterate over each line */
+  for (line = lines; *line; ++line) {
+    gchar **parts = g_strsplit (*line, "=", 2);
+    if (g_strv_length (parts) == 2) {
+      gchar *property_name = g_strstrip (g_strdup (parts[0]));
+      gchar *property_value = g_strstrip (g_strdup (parts[1]));
+
+      GParamSpec *pdata =
+          g_object_class_find_property (g_object_class, property_name);
+
+      if (pdata != NULL) {
+        GValue prop_value = G_VALUE_INIT;
+        set_property_value (&prop_value, pdata, property_value);
+        g_object_set_property (G_OBJECT (object), pdata->name, &prop_value);
+        g_value_unset (&prop_value);
+      }
+
+      g_free (property_name);
+      g_free (property_value);
+    }
+
+    g_strfreev (parts);
+  }
+
+  g_strfreev (lines);
+}
