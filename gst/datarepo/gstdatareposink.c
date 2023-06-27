@@ -35,7 +35,6 @@
 #include <nnstreamer_util.h>
 #include "gstdatareposink.h"
 
-
 /**
  * @brief Tensors caps
  */
@@ -76,9 +75,6 @@ static GstStaticPadTemplate sinktemplate =
     GST_STATIC_PAD_TEMPLATE ("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
     GST_STATIC_CAPS (TENSOR_CAPS ";" VIDEO_CAPS ";" AUDIO_CAPS ";" IMAGE_CAPS
         ";" TEXT_CAPS ";" OCTET_CAPS));
-
-/* media_type has not IMAGE type */
-#define _NNS_IMAGE 5  /**<supposedly image/png, image/jpeg and etc */
 
 /**
  * @brief datareposink properties.
@@ -180,7 +176,7 @@ gst_data_repo_sink_init (GstDataRepoSink * sink)
   sink->filename = NULL;
   sink->fd = 0;
   sink->offset = 0;
-  sink->media_type = _NNS_MEDIA_INVALID;
+  sink->data_type = GST_DATA_REPO_DATA_UNKNOWN;
   sink->is_flexible_tensors = FALSE;
   sink->fixed_caps = NULL;
   sink->json_object = NULL;
@@ -334,7 +330,7 @@ gst_data_repo_sink_get_image_filename (GstDataRepoSink * sink)
   gchar *filename = NULL;
 
   g_return_val_if_fail (sink != NULL, NULL);
-  g_return_val_if_fail (sink->media_type == _NNS_IMAGE, NULL);
+  g_return_val_if_fail (sink->data_type == GST_DATA_REPO_DATA_IMAGE, NULL);
   g_return_val_if_fail (sink->filename != NULL, NULL);
 
 #ifdef __GNUC__
@@ -401,17 +397,17 @@ gst_data_repo_sink_render (GstBaseSink * bsink, GstBuffer * buffer)
 {
   GstDataRepoSink *sink = GST_DATA_REPO_SINK_CAST (bsink);
 
-  switch (sink->media_type) {
-    case _NNS_VIDEO:
-    case _NNS_AUDIO:
-    case _NNS_TEXT:
-    case _NNS_OCTET:
-    case _NNS_TENSOR:
+  switch (sink->data_type) {
+    case GST_DATA_REPO_DATA_VIDEO:
+    case GST_DATA_REPO_DATA_AUDIO:
+    case GST_DATA_REPO_DATA_TEXT:
+    case GST_DATA_REPO_DATA_OCTET:
+    case GST_DATA_REPO_DATA_TENSOR:
       if (sink->is_flexible_tensors)
         return gst_data_repo_sink_write_flexible_tensors (sink, buffer);
       /* default write function for tensors(fixed), video, audio, text and octet */
       return gst_data_repo_sink_write_others (sink, buffer);
-    case _NNS_IMAGE:           /* _NNS_IMAGE is a local define value */
+    case GST_DATA_REPO_DATA_IMAGE:
       return gst_data_repo_sink_write_multi_images (sink, buffer);
     default:
       return GST_FLOW_ERROR;
@@ -451,7 +447,7 @@ gst_data_repo_sink_get_caps (GstBaseSink * bsink, GstCaps * filter)
  * @brief Get media type from caps
  */
 static gboolean
-gst_data_repo_sink_get_media_type (GstDataRepoSink * sink, GstCaps * caps)
+gst_data_repo_sink_get_data_type (GstDataRepoSink * sink, GstCaps * caps)
 {
   GstStructure *s;
 
@@ -461,26 +457,26 @@ gst_data_repo_sink_get_media_type (GstDataRepoSink * sink, GstCaps * caps)
   s = gst_caps_get_structure (caps, 0);
 
   if (gst_structure_has_name (s, "other/tensors")) {
-    sink->media_type = _NNS_TENSOR;
+    sink->data_type = GST_DATA_REPO_DATA_TENSOR;
   } else if (gst_structure_has_name (s, "video/x-raw")) {
-    sink->media_type = _NNS_VIDEO;
+    sink->data_type = GST_DATA_REPO_DATA_VIDEO;
   } else if (gst_structure_has_name (s, "audio/x-raw")) {
-    sink->media_type = _NNS_AUDIO;
+    sink->data_type = GST_DATA_REPO_DATA_AUDIO;
   } else if (gst_structure_has_name (s, "text/x-raw")) {
-    sink->media_type = _NNS_TEXT;
+    sink->data_type = GST_DATA_REPO_DATA_TEXT;
   } else if (gst_structure_has_name (s, "application/octet-stream")) {
-    sink->media_type = _NNS_OCTET;
+    sink->data_type = GST_DATA_REPO_DATA_OCTET;
   } else if (gst_structure_has_name (s, "image/png")
       || gst_structure_has_name (s, "image/jpeg")
       || gst_structure_has_name (s, "image/tiff")
       || gst_structure_has_name (s, "image/gif")) {
-    sink->media_type = _NNS_IMAGE;
+    sink->data_type = GST_DATA_REPO_DATA_IMAGE;
   } else {
     GST_ERROR_OBJECT (sink, "Could not get a media type from caps");
     return FALSE;
   }
 
-  GST_DEBUG_OBJECT (sink, "media type: %d", sink->media_type);
+  GST_DEBUG_OBJECT (sink, "data type: %d", sink->data_type);
 
   return TRUE;
 }
@@ -497,7 +493,7 @@ gst_data_repo_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
   sink = GST_DATA_REPO_SINK (bsink);
   GST_INFO_OBJECT (sink, "set caps %" GST_PTR_FORMAT, caps);
 
-  ret = gst_data_repo_sink_get_media_type (sink, caps);
+  ret = gst_data_repo_sink_get_data_type (sink, caps);
 
   sink->fixed_caps = gst_caps_copy (caps);
 
@@ -570,13 +566,13 @@ gst_data_repo_sink_open_file (GstDataRepoSink * sink)
   int flags = O_CREAT | O_WRONLY;
 
   g_return_val_if_fail (sink != NULL, FALSE);
-  g_return_val_if_fail (sink->media_type != _NNS_MEDIA_INVALID, FALSE);
+  g_return_val_if_fail (sink->data_type != GST_DATA_REPO_DATA_UNKNOWN, FALSE);
 
   if (sink->filename == NULL || sink->filename[0] == '\0')
     goto no_filename;
 
   /* for image, g_file_set_contents() is used in the write function */
-  if (sink->media_type == _NNS_IMAGE) {
+  if (sink->data_type == GST_DATA_REPO_DATA_IMAGE) {
     return TRUE;
   }
 
@@ -687,7 +683,7 @@ gst_data_repo_sink_write_json_meta_file (GstDataRepoSink * sink)
 
   g_return_val_if_fail (sink != NULL, FALSE);
   g_return_val_if_fail (sink->json_filename != NULL, FALSE);
-  g_return_val_if_fail (sink->media_type != _NNS_MEDIA_INVALID, FALSE);
+  g_return_val_if_fail (sink->data_type != GST_DATA_REPO_DATA_UNKNOWN, FALSE);
   g_return_val_if_fail (sink->fixed_caps != NULL, FALSE);
   g_return_val_if_fail (sink->json_object != NULL, FALSE);
   g_return_val_if_fail (sink->json_offset_array != NULL, FALSE);

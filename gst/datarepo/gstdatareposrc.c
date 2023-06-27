@@ -227,7 +227,7 @@ gst_data_repo_src_init (GstDataRepoSrc * src)
   src->json_filename = NULL;
   src->tensors_seq_str = NULL;
   src->fd = 0;
-  src->media_type = _NNS_MEDIA_INVALID;
+  src->data_type = GST_DATA_REPO_DATA_UNKNOWN;
   src->offset = 0;
   src->start_offset = 0;
   src->last_offset = 0;
@@ -394,7 +394,7 @@ gst_data_repo_src_get_file_offset (GstDataRepoSrc * src, guint sample_index)
   guint64 offset;
 
   g_return_val_if_fail (src != NULL, 0);
-  g_return_val_if_fail (src->media_type != _NNS_IMAGE, 0);
+  g_return_val_if_fail (src->data_type != GST_DATA_REPO_DATA_IMAGE, 0);
   g_return_val_if_fail (src->fd != 0, 0);
 
   offset = src->sample_size * sample_index;
@@ -597,11 +597,11 @@ gst_data_repo_src_get_image_filename (GstDataRepoSrc * src)
   gchar *filename = NULL;
   guint shuffled_index = 0;
   g_return_val_if_fail (src != NULL, NULL);
-  g_return_val_if_fail (src->media_type == _NNS_IMAGE, NULL);
+  g_return_val_if_fail (src->data_type == GST_DATA_REPO_DATA_IMAGE, NULL);
   g_return_val_if_fail (src->filename != NULL, NULL);
   g_return_val_if_fail (src->shuffled_index_array != NULL, NULL);
 
-  /* _NNS_IMAGE must have %d in src->filename */
+  /* GST_DATA_REPO_DATA_IMAGE must have %d in src->filename */
   if (src->shuffled_index_array->len > 0)
     shuffled_index =
         g_array_index (src->shuffled_index_array, guint, src->array_index);
@@ -822,8 +822,8 @@ gst_data_repo_src_start (GstDataRepoSrc * src)
   GST_INFO_OBJECT (src,
       "The number of samples to be used out of the total samples in the file is %d, [%d] ~ [%d]",
       src->num_samples, src->start_sample_index, src->stop_sample_index);
-  GST_INFO_OBJECT (src, "media_type:%d", src->media_type);
-  if (src->media_type == _NNS_IMAGE) {
+  GST_INFO_OBJECT (src, "data type: %d", src->data_type);
+  if (src->data_type == GST_DATA_REPO_DATA_IMAGE) {
     filename = gst_data_repo_src_get_image_filename (src);
   } else {
     filename = g_strdup (src->filename);
@@ -853,7 +853,7 @@ gst_data_repo_src_start (GstDataRepoSrc * src)
 
   src->read_position = 0;
 
-  if (src->media_type == _NNS_IMAGE) {
+  if (src->data_type == GST_DATA_REPO_DATA_IMAGE) {
     /* no longer used */
     g_close (src->fd, NULL);
     src->fd = 0;
@@ -942,15 +942,15 @@ gst_data_repo_src_create (GstPushSrc * pushsrc, GstBuffer ** buffer)
     src->is_start = TRUE;
   }
 
-  switch (src->media_type) {
-    case _NNS_VIDEO:
-    case _NNS_AUDIO:
-    case _NNS_TEXT:
-    case _NNS_OCTET:
+  switch (src->data_type) {
+    case GST_DATA_REPO_DATA_VIDEO:
+    case GST_DATA_REPO_DATA_AUDIO:
+    case GST_DATA_REPO_DATA_TEXT:
+    case GST_DATA_REPO_DATA_OCTET:
       return gst_data_repo_src_read_others (src, buffer);
-    case _NNS_TENSOR:
+    case GST_DATA_REPO_DATA_TENSOR:
       return gst_data_repo_src_read_tensors (src, buffer);
-    case _NNS_IMAGE:           /* _NNS_IMAGE is a local define value */
+    case GST_DATA_REPO_DATA_IMAGE:
       return gst_data_repo_src_read_multi_images (src, buffer);
     default:
       return GST_FLOW_ERROR;
@@ -1025,7 +1025,7 @@ gst_data_repo_src_get_caps (GstBaseSrc * basesrc, GstCaps * filter)
 {
   GstDataRepoSrc *src = GST_DATA_REPO_SRC (basesrc);
 
-  if (src->media_type == _NNS_TENSOR && src->need_changed_caps) {
+  if (src->data_type == GST_DATA_REPO_DATA_TENSOR && src->need_changed_caps) {
     gst_data_repo_get_caps_by_tensors_sequence (src);
     src->need_changed_caps = FALSE;
   }
@@ -1157,7 +1157,7 @@ gst_data_repo_src_set_caps (GstBaseSrc * basesrc, GstCaps * caps)
  * @brief Get media type and media size from caps
  */
 static gboolean
-gst_data_repo_src_get_media_type_and_size (GstDataRepoSrc * src, GstCaps * caps)
+gst_data_repo_src_get_data_type_and_size (GstDataRepoSrc * src, GstCaps * caps)
 {
   GstStructure *s;
 
@@ -1168,30 +1168,30 @@ gst_data_repo_src_get_media_type_and_size (GstDataRepoSrc * src, GstCaps * caps)
 
   if (gst_structure_has_name (s, "other/tensors")) {
     src->sample_size = gst_data_repo_src_get_tensors_size (src, caps);
-    src->media_type = _NNS_TENSOR;
+    src->data_type = GST_DATA_REPO_DATA_TENSOR;
   } else if (gst_structure_has_name (s, "video/x-raw")) {
     src->sample_size = gst_data_repo_src_get_video_size (caps);
-    src->media_type = _NNS_VIDEO;
+    src->data_type = GST_DATA_REPO_DATA_VIDEO;
   } else if (gst_structure_has_name (s, "audio/x-raw")) {
     src->sample_size = gst_data_repo_src_get_audio_size (caps);
-    src->media_type = _NNS_AUDIO;
+    src->data_type = GST_DATA_REPO_DATA_AUDIO;
   } else if (gst_structure_has_name (s, "text/x-raw")) {
-    src->media_type = _NNS_TEXT;
+    src->data_type = GST_DATA_REPO_DATA_TEXT;
   } else if (gst_structure_has_name (s, "application/octet-stream")) {
-    src->media_type = _NNS_OCTET;
+    src->data_type = GST_DATA_REPO_DATA_OCTET;
   } else if (gst_structure_has_name (s, "image/png")
       || gst_structure_has_name (s, "image/bmp")
       || gst_structure_has_name (s, "image/jpeg")
       || gst_structure_has_name (s, "image/tiff")
       || gst_structure_has_name (s, "image/gif")) {
-    src->media_type = _NNS_IMAGE;
+    src->data_type = GST_DATA_REPO_DATA_IMAGE;
   } else {
     GST_ERROR_OBJECT (src, "Could not get a media type from caps");
-    src->media_type = _NNS_MEDIA_INVALID;
+    src->data_type = GST_DATA_REPO_DATA_UNKNOWN;
     return FALSE;
   }
 
-  GST_DEBUG_OBJECT (src, "media type: %d", src->media_type);
+  GST_DEBUG_OBJECT (src, "data type: %d", src->data_type);
 
   return TRUE;
 }
@@ -1258,12 +1258,13 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
   GST_INFO_OBJECT (src, "gst_caps : %" GST_PTR_FORMAT, src->caps);
 
   /* calculate media size from gst caps */
-  if (!gst_data_repo_src_get_media_type_and_size (src, src->caps))
+  if (!gst_data_repo_src_get_data_type_and_size (src, src->caps))
     goto error;
 
   /* In the case of below media type, get sample_size from JSON */
-  if (src->media_type == _NNS_TEXT || src->media_type == _NNS_OCTET
-      || src->media_type == _NNS_IMAGE) {
+  if (src->data_type == GST_DATA_REPO_DATA_TEXT
+      || src->data_type == GST_DATA_REPO_DATA_OCTET
+      || src->data_type == GST_DATA_REPO_DATA_IMAGE) {
     if (!json_object_has_member (object, "sample_size")) {
       GST_ERROR_OBJECT (src, "There is not sample_size field: %s", contents);
       goto error;
@@ -1293,7 +1294,7 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
   return TRUE;
 
 error:
-  src->media_type = _NNS_MEDIA_INVALID;
+  src->data_type = GST_DATA_REPO_DATA_UNKNOWN;
   GST_ERROR_OBJECT (src, "Failed to parse %s", src->json_filename);
   g_free (contents);
   g_object_unref (parser);
@@ -1357,7 +1358,7 @@ gst_data_repo_src_set_property (GObject * object, guint prop_id,
       if (caps) {
         new_caps = gst_caps_copy (caps);
         gst_caps_take (&src->caps, new_caps);
-        gst_data_repo_src_get_media_type_and_size (src, src->caps);
+        gst_data_repo_src_get_data_type_and_size (src, src->caps);
       }
       /** let's retry set tensors-sequence.
           if caps property is set later than tensors-sequence property,
@@ -1433,10 +1434,10 @@ gst_data_repo_src_change_state (GstElement * element, GstStateChange transition)
     case GST_STATE_CHANGE_NULL_TO_READY:
       GST_INFO_OBJECT (src, "NULL_TO_READY");
 
-      if (src->media_type == _NNS_MEDIA_INVALID)
+      if (src->data_type == GST_DATA_REPO_DATA_UNKNOWN)
         goto state_change_failed;
 
-      /** if media_type is not _NNS_MEDIA_INVALID and sample_size is 0 then
+      /** if data_type is not GST_DATA_REPO_DATA_UNKNOWN and sample_size is 0 then
           'caps' is set by property and sample size needs to be set by blocksize
           (in the case of otect and text) */
       if (src->sample_size == 0) {
@@ -1473,10 +1474,10 @@ gst_data_repo_src_change_state (GstElement * element, GstStateChange transition)
 
       /* If tensors-sequence properties is set */
       if (src->tensors_seq_str != NULL) {
-        if (src->media_type != _NNS_TENSOR) {
+        if (src->data_type != GST_DATA_REPO_DATA_TENSOR) {
           GST_ERROR_OBJECT (src,
               "tensors-sequence properties is only for tensor/others type(%d), current type(%d)",
-              _NNS_TENSOR, src->media_type);
+              GST_DATA_REPO_DATA_TENSOR, src->data_type);
           goto state_change_failed;
         }
         /* After gst_data_repo_src_set_tensors_sequence() */

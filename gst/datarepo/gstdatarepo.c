@@ -2,7 +2,7 @@
 /**
  * Copyright (C) 2022 Samsung Electronics Co., Ltd.
  *
- * @file	datarepo_elements.c
+ * @file	gstdatarepo.c
  * @date	31 January 2023
  * @brief	Register datarepo plugins
  * @see		https://github.com/nnstreamer/nnstreamer
@@ -10,6 +10,7 @@
  * @bug		No known bugs except for NYI items
  */
 #include <gst/gst.h>
+#include "gstdatarepo.h"
 #include "gstdatareposrc.h"
 #include "gstdatareposink.h"
 
