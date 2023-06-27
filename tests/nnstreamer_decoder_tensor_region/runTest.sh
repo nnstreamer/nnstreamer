@@ -34,8 +34,6 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
     tensor_mux name=mux ! other/tensors,format=static ! tensor_decoder mode=tensor_region option1=1 option2=${PATH_TO_LABELS} option3=${PATH_TO_BOX_PRIORS} ! crop.info\
     tensor_crop name=crop ! other/tensors,format=flexible ! tensor_converter ! tensor_decoder mode=direct_video ! videoconvert ! video/x-raw,format=RGBx  !  filesink location=tensor_region_output_orange.txt   " 0 0 0 $PERFORMANCE
 
-python3 generateResults.py ${PATH_TO_IMAGE} "tensor_region_orange.txt" 58 62 219 211
-
 callCompareTest tensor_region_orange.txt tensor_region_output_orange.txt 0 "mobilenet-ssd Decode 1" 0
-rm tensor_region_*
+rm tensor_region_output_*
 report
