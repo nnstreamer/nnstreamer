@@ -944,6 +944,13 @@ ln -sf %{_libdir}/nnstreamer_python3.so nnstreamer_python.so
 popd
 %endif
 
+%if 0%{?snpe_support}
+%define snpe_sub_plugin libnnstreamer_filter_snpe.so
+%define files_for_snpe_subpackage files_for_snpe_subpackage.txt
+rm -f %{files_for_snpe_subpackage}
+find %{buildroot} -type f -name '%{snpe_sub_plugin}' -printf '/%%P\n' > %{files_for_snpe_subpackage}
+%endif
+
 %if 0%{?testcoverage}
 ##
 # The included directories are:
@@ -1105,7 +1112,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %if 0%{?snpe_support}
 # Workaround: Conditionally enable nnstreamer-snpe rpm package
 # when existing actual snpe library (snpe.pc)
-%files snpe -f ext/nnstreamer/tensor_filter/filter_snpe_list
+%files snpe -f %{files_for_snpe_subpackage}
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %endif

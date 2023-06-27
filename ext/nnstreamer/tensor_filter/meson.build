@@ -641,7 +641,6 @@ if get_option('enable-mediapipe')
   )
 endif
 
-run_command('sh', '-c', 'touch filter_snpe_list', check : true)
 if snpe_support_is_available
   filter_sub_snpe_sources = ['tensor_filter_snpe.cc']
 
@@ -665,7 +664,6 @@ if snpe_support_is_available
     install: true,
     install_dir: nnstreamer_libdir
   )
-  run_command('sh', '-c', 'echo "%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_snpe.so" >> filter_snpe_list', check : true)
 endif
 
 if tensorrt_support_is_available
