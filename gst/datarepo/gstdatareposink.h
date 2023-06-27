@@ -16,6 +16,7 @@
 #include <gst/gst.h>
 #include <gst/base/gstbasesink.h>
 #include <json-glib/json-glib.h>
+#include "gstdatarepo.h"
 
 G_BEGIN_DECLS
 #define GST_TYPE_DATA_REPO_SINK \
@@ -46,10 +47,10 @@ struct _GstDataRepoSink
 
   gboolean is_flexible_tensors;
   gint fd;                        /**< open file descriptor*/
-  gint media_type;                /**< media type */
+  GstDataRepoDataType data_type;  /**< data type */
   gint total_samples;             /**< The number of total samples, in the case of multi-files, it is used as an index. */
   guint64 offset;                 /**< offset of fd */
-  guint sample_size;             /**< size of one sample */
+  guint sample_size;              /**< size of one sample */
 
   /* property */
   gchar *filename;    /**< filename */

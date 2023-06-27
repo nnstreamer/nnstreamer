@@ -17,6 +17,7 @@
 #include <gst/gst.h>
 #include <gst/base/gstpushsrc.h>
 #include <tensor_typedef.h>
+#include "gstdatarepo.h"
 
 G_BEGIN_DECLS
 #define GST_TYPE_DATA_REPO_SRC \
@@ -29,9 +30,6 @@ G_BEGIN_DECLS
   (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_DATA_REPO_SRC))
 #define GST_IS_DATA_REPO_SRC_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_DATA_REPO_SRC))
-
-/* media_type has not IMAGE type */
-#define _NNS_IMAGE 5  /**<supposedly image/png, image/jpeg and etc */
 
 #define MAX_ITEM NNS_TENSOR_SIZE_LIMIT
 
@@ -61,7 +59,7 @@ struct _GstDataRepoSrc {
   guint total_samples;           /**< The number of total samples */
   guint num_samples;             /**< The number of samples to be used out of the total samples in the file */
   guint sample_size;             /**< size of one sample */
-  gint media_type;               /**< media type */
+  GstDataRepoDataType data_type; /**< media type */
 
   /* property */
   gchar *filename;              /**< filename */
