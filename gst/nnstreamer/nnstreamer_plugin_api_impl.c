@@ -1776,7 +1776,7 @@ gst_buffer_n_tensor (GstBuffer * buffer)
     extra_info = (GstTensorExtraInfo *) map.data;
     num_mems = extra_info->num_extra_tensors + NNS_TENSOR_SIZE_LIMIT;
   } else {
-    nns_logw ("The last memory does not have extra tensors header. "
+    nns_logi ("The last memory does not have extra tensors header. "
         "Assuming the number of tensors is %d.", num_mems);
   }
 
