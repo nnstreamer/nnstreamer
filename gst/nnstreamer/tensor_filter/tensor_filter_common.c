@@ -26,6 +26,7 @@
 #include <string.h>
 
 #include <hw_accel.h>
+#include <ml_agent.h>
 #include <nnstreamer_log.h>
 #include <nnstreamer_util.h>
 
@@ -1399,7 +1400,7 @@ _gtfc_setprop_MODEL (GstTensorFilterPrivate * priv,
     GstTensorFilterProperties * prop, const GValue * value)
 {
   gint status = 0;
-  const gchar *model_files = g_value_get_string (value);
+  const gchar *model_files = mlagent_parse_uri_string (value);
   GstTensorFilterProperties _prop;
 
   if (!model_files) {
