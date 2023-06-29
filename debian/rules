@@ -61,6 +61,7 @@ override_dh_auto_build:
 override_dh_auto_test:
 	./packaging/run_unittests_binaries.sh ./tests
 	./packaging/run_unittests_binaries.sh ./tests/nnstreamer_edge
+	./packaging/run_unittests_binaries.sh ./tests/nnstreamer_datarepo
 ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes), yes)
 ifeq ($(DEB_HOST_ARCH), amd64)
 	if [ -f './tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw' ]; then ./packaging/run_unittests_binaries.sh ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw; fi
