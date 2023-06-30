@@ -123,7 +123,7 @@ if tflite_support_is_available
 
   filter_sub_tflite_sources = ['tensor_filter_tensorflow_lite.cc']
 
-  nnstreamer_filter_tflite_deps = tflite_support_deps + [thread_dep, libdl_dep, glib_dep, nnstreamer_single_dep]
+  nnstreamer_filter_tflite_deps = tflite_support_deps + [thread_dep, libdl_dep, glib_dep, nnstreamer_single_dep, flatbuf_dep]
 
   # Since tf-1.13, tflite has moved from contrib to core
   tflite_h_prefix='#include <tensorflow/lite/model.h>'
