@@ -13,6 +13,8 @@
 #ifndef __GST_DATA_REPO_H__
 #define __GST_DATA_REPO_H__
 
+#include <gst/gst.h>
+
 G_BEGIN_DECLS
 
 /**
@@ -30,6 +32,12 @@ typedef enum
 
   GST_DATA_REPO_DATA_MAX
 } GstDataRepoDataType;
+
+/**
+ * @brief Get data type from caps.
+ */
+GstDataRepoDataType
+gst_data_repo_get_data_type_from_caps (const GstCaps * caps);
 
 G_END_DECLS
 #endif /* __GST_DATA_REPO_H__ */

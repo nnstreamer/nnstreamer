@@ -442,62 +442,22 @@ gst_data_repo_sink_get_caps (GstBaseSink * bsink, GstCaps * filter)
   return caps;
 }
 
-
-/**
- * @brief Get media type from caps
- */
-static gboolean
-gst_data_repo_sink_get_data_type (GstDataRepoSink * sink, GstCaps * caps)
-{
-  GstStructure *s;
-
-  g_return_val_if_fail (sink != NULL, FALSE);
-  g_return_val_if_fail (caps != NULL, FALSE);
-
-  s = gst_caps_get_structure (caps, 0);
-
-  if (gst_structure_has_name (s, "other/tensors")) {
-    sink->data_type = GST_DATA_REPO_DATA_TENSOR;
-  } else if (gst_structure_has_name (s, "video/x-raw")) {
-    sink->data_type = GST_DATA_REPO_DATA_VIDEO;
-  } else if (gst_structure_has_name (s, "audio/x-raw")) {
-    sink->data_type = GST_DATA_REPO_DATA_AUDIO;
-  } else if (gst_structure_has_name (s, "text/x-raw")) {
-    sink->data_type = GST_DATA_REPO_DATA_TEXT;
-  } else if (gst_structure_has_name (s, "application/octet-stream")) {
-    sink->data_type = GST_DATA_REPO_DATA_OCTET;
-  } else if (gst_structure_has_name (s, "image/png")
-      || gst_structure_has_name (s, "image/jpeg")
-      || gst_structure_has_name (s, "image/tiff")
-      || gst_structure_has_name (s, "image/gif")) {
-    sink->data_type = GST_DATA_REPO_DATA_IMAGE;
-  } else {
-    GST_ERROR_OBJECT (sink, "Could not get a media type from caps");
-    return FALSE;
-  }
-
-  GST_DEBUG_OBJECT (sink, "data type: %d", sink->data_type);
-
-  return TRUE;
-}
-
 /**
  * @brief Set caps of datareposink.
  */
 static gboolean
 gst_data_repo_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
 {
-  int ret;
   GstDataRepoSink *sink;
 
   sink = GST_DATA_REPO_SINK (bsink);
   GST_INFO_OBJECT (sink, "set caps %" GST_PTR_FORMAT, caps);
 
-  ret = gst_data_repo_sink_get_data_type (sink, caps);
-
+  sink->data_type = gst_data_repo_get_data_type_from_caps (caps);
   sink->fixed_caps = gst_caps_copy (caps);
 
-  return ret;
+  GST_DEBUG_OBJECT (sink, "data type: %d", sink->data_type);
+  return (sink->data_type != GST_DATA_REPO_DATA_UNKNOWN);
 }
 
 /**
