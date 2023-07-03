@@ -1163,41 +1163,27 @@ gst_data_repo_src_set_caps (GstBaseSrc * basesrc, GstCaps * caps)
 static gboolean
 gst_data_repo_src_get_data_type_and_size (GstDataRepoSrc * src, GstCaps * caps)
 {
-  GstStructure *s;
-
   g_return_val_if_fail (src != NULL, FALSE);
   g_return_val_if_fail (caps != NULL, FALSE);
 
-  s = gst_caps_get_structure (caps, 0);
+  src->data_type = gst_data_repo_get_data_type_from_caps (caps);
 
-  if (gst_structure_has_name (s, "other/tensors")) {
-    src->sample_size = gst_data_repo_src_get_tensors_size (src, caps);
-    src->data_type = GST_DATA_REPO_DATA_TENSOR;
-  } else if (gst_structure_has_name (s, "video/x-raw")) {
-    src->sample_size = gst_data_repo_src_get_video_size (caps);
-    src->data_type = GST_DATA_REPO_DATA_VIDEO;
-  } else if (gst_structure_has_name (s, "audio/x-raw")) {
-    src->sample_size = gst_data_repo_src_get_audio_size (caps);
-    src->data_type = GST_DATA_REPO_DATA_AUDIO;
-  } else if (gst_structure_has_name (s, "text/x-raw")) {
-    src->data_type = GST_DATA_REPO_DATA_TEXT;
-  } else if (gst_structure_has_name (s, "application/octet-stream")) {
-    src->data_type = GST_DATA_REPO_DATA_OCTET;
-  } else if (gst_structure_has_name (s, "image/png")
-      || gst_structure_has_name (s, "image/bmp")
-      || gst_structure_has_name (s, "image/jpeg")
-      || gst_structure_has_name (s, "image/tiff")
-      || gst_structure_has_name (s, "image/gif")) {
-    src->data_type = GST_DATA_REPO_DATA_IMAGE;
-  } else {
-    GST_ERROR_OBJECT (src, "Could not get a media type from caps");
-    src->data_type = GST_DATA_REPO_DATA_UNKNOWN;
-    return FALSE;
+  switch (src->data_type) {
+    case GST_DATA_REPO_DATA_VIDEO:
+      src->sample_size = gst_data_repo_src_get_video_size (caps);
+      break;
+    case GST_DATA_REPO_DATA_AUDIO:
+      src->sample_size = gst_data_repo_src_get_audio_size (caps);
+      break;
+    case GST_DATA_REPO_DATA_TENSOR:
+      src->sample_size = gst_data_repo_src_get_tensors_size (src, caps);
+      break;
+    default:
+      break;
   }
 
   GST_DEBUG_OBJECT (src, "data type: %d", src->data_type);
-
-  return TRUE;
+  return (src->data_type != GST_DATA_REPO_DATA_UNKNOWN);
 }
 
 /**
