@@ -25,6 +25,68 @@ static const gchar *gst_tensor_time_sync_mode_string[] = {
   [SYNC_END] = NULL
 };
 
+#define NNS_TENSOR_EXTRA_MAGIC 0xf00dc0de
+
+/**
+ * @brief Data structure to describe a "extra" tensor data.
+ * This represents the information of the NNS_TENSOR_SIZE_LIMIT-th memory block for tensor stream.
+ */
+typedef struct
+{
+  uint32_t magic;
+  uint32_t version;
+  uint32_t num_extra_tensors;
+  uint64_t reserved;
+  GstTensorInfo infos[NNS_TENSOR_SIZE_EXTRA_LIMIT];
+} GstTensorExtraInfo;
+
+/**
+ * @brief Check if given memory has extra tensors.
+ * @param[in] map GstMapInfo of GstMemory to be checked.
+ * @return TRUE if @map has extra tensors, otherwise FALSE.
+ */
+static gboolean
+gst_memory_map_is_extra_tensor (GstMapInfo * map)
+{
+  GstTensorExtraInfo *extra_info;
+  gboolean is_extra;
+
+  g_return_val_if_fail (map != NULL, FALSE);
+
+  if (map->size < sizeof (GstTensorExtraInfo))
+    return FALSE;
+
+  extra_info = (GstTensorExtraInfo *) map->data;
+
+  /* check magic in header (extra info) of the memory */
+  is_extra = (extra_info && extra_info->magic == NNS_TENSOR_EXTRA_MAGIC);
+
+  return is_extra;
+}
+
+/**
+ * @brief Initialize GstTensorExtraInfo structure with given @a memory.
+ * @param[in/out] extra GstTensorExtraInfo to be initialized.
+ * @param[in] reserved_size The memory size of extra memory block.
+ */
+static void
+gst_tensor_extra_info_init (GstTensorExtraInfo * extra, gsize reserved_size)
+{
+  guint i;
+
+  g_return_if_fail (extra != NULL);
+
+  extra->magic = NNS_TENSOR_EXTRA_MAGIC;
+  extra->version = 0;
+  extra->num_extra_tensors = 0;
+
+  /* set reserved size of NNS_TENSOR_SIZE_LIMIT-th memory */
+  extra->reserved = reserved_size;
+  for (i = 0; i < NNS_TENSOR_SIZE_EXTRA_LIMIT; ++i) {
+    gst_tensor_info_init (&extra->infos[i]);
+  }
+}
+
 /**
  * @brief Get the corresponding mode from the string value.
  * @param[in] str The string value for the mode.
@@ -491,6 +553,7 @@ gst_tensor_buffer_from_config (GstBuffer * in, GstTensorsConfig * config)
   gsize total, offset;
   gsize mem_size[NNS_TENSOR_SIZE_LIMIT];
   gboolean configured = FALSE;
+  gboolean is_extra = FALSE;
 
   if (!GST_IS_BUFFER (in)) {
     nns_loge ("Failed to get tensor buffer, invalid input buffer.");
@@ -514,8 +577,15 @@ gst_tensor_buffer_from_config (GstBuffer * in, GstTensorsConfig * config)
     }
 
     num = config->info.num_tensors;
+    if ((is_extra = (num > NNS_TENSOR_SIZE_LIMIT)))
+      num = NNS_TENSOR_SIZE_LIMIT;
     for (i = 0; i < num; i++)
       mem_size[i] = gst_tensors_info_get_size (&config->info, i);
+    if (is_extra) {
+      mem_size[num - 1] += sizeof (GstTensorExtraInfo);
+      for (; i < config->info.num_tensors; i++)
+        mem_size[num - 1] += gst_tensors_info_get_size (&config->info, i);
+    }
   } else {
     if (num > 1) {
       /* Suppose it is already configured. */
@@ -533,6 +603,12 @@ gst_tensor_buffer_from_config (GstBuffer * in, GstTensorsConfig * config)
     while (offset < total) {
       GstTensorMetaInfo meta;
       gpointer h = map.data + offset;
+
+      if (num >= NNS_TENSOR_SIZE_LIMIT - 1) {
+        /* Suppose remained memory may include extra tensors. */
+        mem_size[num++] = total - offset;
+        break;
+      }
 
       gst_tensor_meta_info_parse_header (&meta, h);
       mem_size[num] = gst_tensor_meta_info_get_header_size (&meta);
@@ -1455,68 +1531,6 @@ gst_tensor_meta_info_append_header (GstTensorMetaInfo * meta, GstMemory * mem)
   return new_mem;
 }
 
-#define NNS_TENSOR_EXTRA_MAGIC 0xf00dc0de
-
-/**
- * @brief Data structure to describe a "extra" tensor data.
- * This represents the information of the NNS_TENSOR_SIZE_LIMIT-th memory block for tensor stream.
- */
-typedef struct
-{
-  uint32_t magic;
-  uint32_t version;
-  uint32_t num_extra_tensors;
-  uint64_t reserved;
-  GstTensorInfo infos[NNS_TENSOR_SIZE_EXTRA_LIMIT];
-} GstTensorExtraInfo;
-
-/**
- * @brief Check if given memory has extra tensors.
- * @param[in] map GstMapInfo of GstMemory to be checked.
- * @return TRUE if @map has extra tensors, otherwise FALSE.
- */
-static gboolean
-gst_memory_is_extra_tensor (GstMapInfo * map)
-{
-  GstTensorExtraInfo *extra_info;
-  gboolean is_extra;
-
-  g_return_val_if_fail (map != NULL, FALSE);
-
-  if (map->size < sizeof (GstTensorExtraInfo))
-    return FALSE;
-
-  extra_info = (GstTensorExtraInfo *) map->data;
-
-  /* check magic in header (extra info) of the memory */
-  is_extra = (extra_info && extra_info->magic == NNS_TENSOR_EXTRA_MAGIC);
-
-  return is_extra;
-}
-
-/**
- * @brief Initialize GstTensorExtraInfo structure with given @a memory.
- * @param[in/out] extra GstTensorExtraInfo to be initialized.
- * @param[in] reserved_size The memory size of extra memory block.
- */
-static void
-gst_tensor_extra_info_init (GstTensorExtraInfo * extra, gsize reserved_size)
-{
-  guint i;
-
-  g_return_if_fail (extra != NULL);
-
-  extra->magic = NNS_TENSOR_EXTRA_MAGIC;
-  extra->version = 0;
-  extra->num_extra_tensors = 0;
-
-  /* set reserved size of NNS_TENSOR_SIZE_LIMIT-th memory */
-  extra->reserved = reserved_size;
-  for (i = 0; i < NNS_TENSOR_SIZE_EXTRA_LIMIT; ++i) {
-    gst_tensor_info_init (&extra->infos[i]);
-  }
-}
-
 /**
  * @brief Get the nth GstMemory from given @a buffer.
  * @param[in] buffer GstBuffer to be parsed.
@@ -1569,7 +1583,7 @@ gst_tensor_buffer_get_nth_memory (GstBuffer * buffer, const guint index)
   }
 
   /* check header (extra info) of the memory */
-  if (!gst_memory_is_extra_tensor (&extra_tensors_map)) {
+  if (!gst_memory_map_is_extra_tensor (&extra_tensors_map)) {
     nns_loge ("Invalid extra header");
     gst_memory_unmap (extra_tensors_memory, &extra_tensors_map);
     gst_memory_unref (extra_tensors_memory);
@@ -1676,7 +1690,7 @@ gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
   new_mem_size = last_mem_size = gst_memory_get_sizes (last_memory, NULL, NULL);
 
   /* if the memory does not have proper header, append it */
-  is_extra = gst_memory_is_extra_tensor (&last_memory_map);
+  is_extra = gst_memory_map_is_extra_tensor (&last_memory_map);
   if (!is_extra) {
     new_mem_size += sizeof (GstTensorExtraInfo);
   }
@@ -1772,7 +1786,7 @@ gst_buffer_n_tensor (GstBuffer * buffer)
     return 0;
   }
 
-  if (gst_memory_is_extra_tensor (&map)) {
+  if (gst_memory_map_is_extra_tensor (&map)) {
     extra_info = (GstTensorExtraInfo *) map.data;
     num_mems = extra_info->num_extra_tensors + NNS_TENSOR_SIZE_LIMIT;
   } else {
