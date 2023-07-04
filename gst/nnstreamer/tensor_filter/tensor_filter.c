@@ -685,7 +685,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
 
   /* 1. Get all input tensors from inbuf. */
   /* Internal Logic Error or GST Bug (sinkcap changed!) */
-  num_tensors = gst_buffer_n_tensor (inbuf);
+  num_tensors = gst_tensor_buffer_get_count (inbuf);
 
   for (i = 0; i < num_tensors; i++) {
     in_mem[i] = gst_tensor_buffer_get_nth_memory (inbuf, i);
@@ -912,7 +912,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
 
   return GST_FLOW_OK;
 mem_map_error:
-  num_tensors = gst_buffer_n_tensor (inbuf);
+  num_tensors = gst_tensor_buffer_get_count (inbuf);
   for (i = 0; i < num_tensors; i++) {
     if (in_mem[i]) {
       gst_memory_unmap (in_mem[i], &in_info[i]);

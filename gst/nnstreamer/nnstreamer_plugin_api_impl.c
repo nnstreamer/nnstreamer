@@ -1550,7 +1550,7 @@ gst_tensor_buffer_get_nth_memory (GstBuffer * buffer, const guint index)
     return NULL;
   }
 
-  num_tensors = gst_buffer_n_tensor (buffer);
+  num_tensors = gst_tensor_buffer_get_count (buffer);
   if (num_tensors == 0U) {
     nns_loge ("num_tensors is 0. Please check the buffer.");
     return NULL;
@@ -1760,7 +1760,7 @@ gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
  * @brief Get the number of tensors in the buffer.
  */
 guint
-gst_buffer_n_tensor (GstBuffer * buffer)
+gst_tensor_buffer_get_count (GstBuffer * buffer)
 {
   guint num_mems;
   GstMemory *mem;

@@ -141,7 +141,7 @@ gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory, const G
  * @brief Get the number of tensors in the buffer.
  */
 extern guint
-gst_buffer_n_tensor (GstBuffer * buffer);
+gst_tensor_buffer_get_count (GstBuffer * buffer);
 
 G_END_DECLS
 #endif /* __NNS_PLUGIN_API_H__ */
