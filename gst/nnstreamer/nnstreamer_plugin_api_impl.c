@@ -1216,17 +1216,19 @@ gst_tensor_pad_possible_caps_from_config (GstPad * pad,
 }
 
 /**
- * @brief Check current pad caps is flexible tensor.
- * @param pad GstPad to check current caps
- * @return TRUE if pad has flexible tensor caps.
- */
-gboolean
-gst_tensor_pad_caps_is_flexible (GstPad * pad)
+  * @brief Get tensor format of current pad caps.
+  * @param pad GstPad to check current caps.
+  * @return The tensor_format of current pad caps.
+  *
+  * If pad does not have tensor caps return _NNS_TENSOR_FORMAT_END
+  */
+extern tensor_format
+gst_tensor_pad_get_format (GstPad * pad)
 {
   GstCaps *caps;
-  gboolean ret = FALSE;
+  tensor_format ret = _NNS_TENSOR_FORMAT_END;
 
-  g_return_val_if_fail (GST_IS_PAD (pad), FALSE);
+  g_return_val_if_fail (GST_IS_PAD (pad), _NNS_TENSOR_FORMAT_END);
 
   caps = gst_pad_get_current_caps (pad);
   if (caps) {
@@ -1234,9 +1236,9 @@ gst_tensor_pad_caps_is_flexible (GstPad * pad)
     GstTensorsConfig config;
 
     structure = gst_caps_get_structure (caps, 0);
-    if (gst_tensors_config_from_structure (&config, structure))
-      ret = gst_tensors_config_is_flexible (&config);
-
+    if (gst_tensors_config_from_structure (&config, structure)) {
+      ret = config.info.format;
+    }
     gst_caps_unref (caps);
     gst_tensors_config_free (&config);
   }
