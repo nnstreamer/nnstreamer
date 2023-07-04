@@ -1,7 +1,13 @@
+all: configure-tflite build-tflite package-tflite
+
+clean:
+	rm -rf build_tflite
+	rm -rf package_tflite
+
 configure-tflite:
 	mkdir -p build_tflite 
 	cmake tensorflow/tensorflow/lite -B build_tflite/  \
-	  find build-DSYSTEM_FARMHASH=OFF \
+	  -DSYSTEM_FARMHASH=OFF \
 	  -DTFLITE_ENABLE_GPU=ON \
 	  -DCMAKE_BUILD_TYPE=Debug \
 	  -DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON 
@@ -16,7 +22,7 @@ package-tflite:
 	mkdir -p package_tflite/lib/
 	mkdir -p package_tflite/include/
 	install build_tflite/libtensorflow-lite.a package_tflite/lib/
-	install build_tflite/_deps/cpuinfo-build/libcpuinfo.a package_tflite/lib/
+	install build_tflite/cpuinfo/libcpuinfo.a package_tflite/lib/
 	install build_tflite/_deps/xnnpack-build/libXNNPACK.a package_tflite/lib/
 	install build_tflite/pthreadpool/libpthreadpool.a package_tflite/lib/
 	install build_tflite/_deps/farmhash-build/libfarmhash.a package_tflite/lib/
