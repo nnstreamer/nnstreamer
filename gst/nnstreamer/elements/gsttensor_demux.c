@@ -468,24 +468,26 @@ done:
 static GstFlowReturn
 gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 {
-  guint num_tensors, num_srcs, i;
+  guint num_tensors, num_srcs, i, idx;
   GstFlowReturn res = GST_FLOW_OK;
   GstTensorDemux *tensor_demux;
   GList *list = NULL;
+  GstTensorInfo *_info;
+
   UNUSED (pad);
   tensor_demux = GST_TENSOR_DEMUX (parent);
 
   buf = gst_tensor_buffer_from_config (buf, &tensor_demux->tensors_config);
 
-  if (gst_tensors_config_is_flexible (&tensor_demux->tensors_config)) {
-    /* cannot get exact number of tensors from config */
-    num_tensors = gst_buffer_n_memory (buf);
-  } else {
-    num_tensors = tensor_demux->tensors_config.info.num_tensors;
+  /**
+   * The number of tensors in the buffer:
+   * The number of tensors from caps and gst-buffer should be same when incoming buffer is static tensor.
+   * If given buffer is flexible tensor, we cannot get exact number of tensors from config.
+   */
+  num_tensors = gst_tensor_buffer_get_count (buf);
+  if (gst_tensors_config_is_static (&tensor_demux->tensors_config))
+    g_assert (tensor_demux->tensors_config.info.num_tensors == num_tensors);
 
-    /* supposed n memory blocks in buffer */
-    g_assert (gst_buffer_n_memory (buf) == num_tensors);
-  }
   GST_DEBUG_OBJECT (tensor_demux, " Number of Tensors: %d", num_tensors);
 
   num_srcs = num_tensors;
@@ -511,15 +513,30 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
       num = g_strv_length (strv);
       for (j = 0; j < num; j++) {
-        gint64 idx = g_ascii_strtoll (strv[j], NULL, 10);
-        mem = gst_buffer_get_memory (buf, idx);
-        gst_buffer_append_memory (outbuf, mem);
+        idx = (guint) g_ascii_strtoll (strv[j], NULL, 10);
+        _info =
+            gst_tensors_info_get_nth_info (&tensor_demux->tensors_config.info,
+            idx);
+        mem = gst_tensor_buffer_get_nth_memory (buf, idx);
+        if (!gst_tensor_buffer_append_memory (outbuf, mem, _info)) {
+          gst_memory_unref (mem);
+          gst_buffer_unref (outbuf);
+          res = GST_FLOW_ERROR;
+          goto error;
+        }
       }
       g_strfreev (strv);
       list = list->next;
     } else {
-      mem = gst_buffer_get_memory (buf, i);
-      gst_buffer_append_memory (outbuf, mem);
+      _info =
+          gst_tensors_info_get_nth_info (&tensor_demux->tensors_config.info, i);
+      mem = gst_tensor_buffer_get_nth_memory (buf, i);
+      if (!gst_tensor_buffer_append_memory (outbuf, mem, _info)) {
+        gst_memory_unref (mem);
+        gst_buffer_unref (outbuf);
+        res = GST_FLOW_ERROR;
+        goto error;
+      }
     }
 
     ts = GST_BUFFER_TIMESTAMP (buf);
@@ -552,6 +569,7 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       break;
   }
 
+error:
   gst_buffer_unref (buf);
   return res;
 }
