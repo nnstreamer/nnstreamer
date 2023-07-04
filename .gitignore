@@ -58,3 +58,6 @@ debian/nnstreamer-dev/*
 bin/
 obj/
 .cache
+
+third_party/package_tflite/
+third_party/build_tflite/
