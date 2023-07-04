@@ -22,7 +22,7 @@ package-tflite:
 	mkdir -p embedded_root/lib/
 	mkdir -p embedded_root/include/
 	install build_tflite/libtensorflow-lite.a embedded_root/lib/
-	install build_tflite/cpuinfo/libcpuinfo.a embedded_root/lib/
+	install build_tflite/_deps/cpuinfo-build/libcpuinfo.a embedded_root/lib/
 	install build_tflite/_deps/xnnpack-build/libXNNPACK.a embedded_root/lib/
 	install build_tflite/pthreadpool/libpthreadpool.a embedded_root/lib/
 	install build_tflite/_deps/farmhash-build/libfarmhash.a embedded_root/lib/
@@ -32,7 +32,7 @@ package-tflite:
 	install build_tflite/_deps/abseil-cpp-build/absl/*/libabsl_*.a embedded_root/lib/
 	install build_tflite/_deps/ruy-build/ruy/libruy*.a embedded_root/lib/
 	(cd  tensorflow/ && find tensorflow/lite -type f -name "*.h" -exec install -Dm 755 "{}" "../embedded_root/include/{}" \;)
-	(cd  build_tflite/flatbuffers/include/ && find flatbuffers -type f -name "*.h" -exec install -Dm 755 "{}" "../embedded_root/include/{}" \;)
+	(cd  build_tflite/flatbuffers/include/ && find flatbuffers -type f -name "*.h" -exec install -Dm 755 "{}" "../../../embedded_root/include/{}" \;)
 	mkdir -p embedded_root/lib/pkgconfig/
 	echo "Name: tensorflow2-lite\n\
 Description: tensorflow lite static library\n\
