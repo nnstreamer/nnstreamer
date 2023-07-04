@@ -307,7 +307,7 @@ gst_data_repo_sink_write_flexible_tensors (GstDataRepoSink * sink,
   guint num_tensors, i;
   gsize write_size = 0, total_write = 0, tensor_size;
   GstMapInfo info;
-  GstMemory *mem;
+  GstMemory *mem = NULL;
   GstTensorMetaInfo meta;
 
   g_return_val_if_fail (sink != NULL, GST_FLOW_ERROR);
@@ -372,8 +372,8 @@ gst_data_repo_sink_write_flexible_tensors (GstDataRepoSink * sink,
 
 error:
   gst_memory_unmap (mem, &info);
-  gst_memory_unref (mem);
 mem_map_error:
+  gst_memory_unref (mem);
   GST_OBJECT_UNLOCK (sink);
 
   return GST_FLOW_ERROR;
