@@ -212,12 +212,29 @@ extern GstCaps *
 gst_tensor_pad_possible_caps_from_config (GstPad * pad, const GstTensorsConfig * config);
 
 /**
- * @brief Check current pad caps is flexible tensor.
- * @param pad GstPad to check current caps
- * @return TRUE if pad has flexible tensor caps.
+  * @brief Get tensor format of current pad caps.
+  * @param pad GstPad to check current caps.
+  * @return The tensor_format of current pad caps.
+  *
+  * If pad does not have tensor caps return _NNS_TENSOR_FORMAT_END
+  */
+extern tensor_format
+gst_tensor_pad_get_format (GstPad *pad);
+
+/**
+ * @brief Macro to check current pad caps is static tensor.
  */
-extern gboolean
-gst_tensor_pad_caps_is_flexible (GstPad * pad);
+#define gst_tensor_pad_caps_is_static(p) (gst_tensor_pad_get_format (p) == _NNS_TENSOR_FORMAT_STATIC)
+
+/**
+ * @brief Macro to check current pad caps is flexible tensor.
+ */
+#define gst_tensor_pad_caps_is_flexible(p) (gst_tensor_pad_get_format (p) == _NNS_TENSOR_FORMAT_FLEXIBLE)
+
+/**
+ * @brief Macro to check current pad caps is sparse tensor.
+ */
+#define gst_tensor_pad_caps_is_sparse(p) (gst_tensor_pad_get_format (p) == _NNS_TENSOR_FORMAT_SPARSE)
 
 /**
  * @brief Gets new hash table for tensor aggregation.
