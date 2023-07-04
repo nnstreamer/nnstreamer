@@ -61,3 +61,4 @@ obj/
 
 third_party/package_tflite/
 third_party/build_tflite/
+third_party/embedded_root/
