@@ -320,7 +320,7 @@ gst_data_repo_sink_write_flexible_tensors (GstDataRepoSink * sink,
 
   GST_OBJECT_LOCK (sink);
 
-  num_tensors = gst_buffer_n_tensor (buffer);
+  num_tensors = gst_tensor_buffer_get_count (buffer);
   GST_INFO_OBJECT (sink, "num_tensors: %u", num_tensors);
 
   for (i = 0; i < num_tensors; i++) {
