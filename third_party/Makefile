@@ -29,7 +29,7 @@ package-tflite:
 	install build_tflite/_deps/fft2d-build/libfft2d_fftsg.a embedded_root/lib/
 	install build_tflite/_deps/fft2d-build/libfft2d_fftsg2d.a embedded_root/lib/
 	install build_tflite/_deps/flatbuffers-build/libflatbuffers.a embedded_root/lib/
-	install build_tflite/_deps/abseil-cpp-build/absl/*/libabsl_*.a embedded_root/lib/
+	if test -f "build_tflite/_deps/abseil-cpp-build/Makefile"; then install build_tflite/_deps/abseil-cpp-build/absl/*/libabsl_*.a embedded_root/lib/; fi;	
 	install build_tflite/_deps/ruy-build/ruy/libruy*.a embedded_root/lib/
 	(cd  tensorflow/ && find tensorflow/lite -type f -name "*.h" -exec install -Dm 755 "{}" "../embedded_root/include/{}" \;)
 	(cd  build_tflite/flatbuffers/include/ && find flatbuffers -type f -name "*.h" -exec install -Dm 755 "{}" "../../../embedded_root/include/{}" \;)
@@ -37,7 +37,7 @@ package-tflite:
 	echo "Name: tensorflow2-lite\n\
 Description: tensorflow lite static library\n\
 Version: 2.13.0-RC2\n\
-Libs: -L$(mkfile_dir)/embedded_root/lib/ -ltensorflow-lite -lflatbuffers \
+Libs: -L$(mkfile_dir)/embedded_root/lib/ -L/opt/homebrew/lib -ltensorflow-lite -lflatbuffers \
 -labsl_hash -labsl_status -labsl_strings -labsl_strings_internal -labsl_raw_hash_set -labsl_time \
 -labsl_raw_logging_internal -labsl_int128 -labsl_cord -labsl_cord_internal -labsl_cordz_info -labsl_crc_cord_state \
 -labsl_crc32c -labsl_cordz_handle -labsl_crc_internal -labsl_synchronization -labsl_base -labsl_str_format_internal \
