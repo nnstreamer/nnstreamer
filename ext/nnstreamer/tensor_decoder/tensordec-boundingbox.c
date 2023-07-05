@@ -1497,8 +1497,11 @@ nms (GArray * results, gfloat threshold)
   guint boxes_size;
   guint i, j;
 
-  g_array_sort (results, compare_detection);
   boxes_size = results->len;
+  if (boxes_size == 0U)
+    return;
+
+  g_array_sort (results, compare_detection);
 
   for (i = 0; i < boxes_size; i++) {
     detectedObject *a = &g_array_index (results, detectedObject, i);
