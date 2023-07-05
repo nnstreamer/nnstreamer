@@ -1643,14 +1643,13 @@ gboolean
 gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
     const GstTensorInfo * info)
 {
-  guint num_mems, offset, i, new_mem_index;
-
+  guint num_mems, offset, new_mem_index;
   GstMemory *new_memory, *last_memory;
   gsize new_mem_size, last_mem_size;
-
   GstMapInfo new_memory_map, last_memory_map, incoming_memory_map;
   GstTensorExtraInfo *extra_info;
-  gboolean is_extra;
+  GstTensorMetaInfo meta;
+  gboolean is_extra, is_static;
 
   if (!GST_IS_BUFFER (buffer)) {
     nns_loge ("Failed to append memory, given buffer is invalid.");
@@ -1662,9 +1661,17 @@ gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
     return FALSE;
   }
 
-  if (!gst_tensor_info_validate (info)) {
-    nns_loge ("Failed to get tensor info (invalid input info).");
-    return FALSE;
+  if (gst_tensor_meta_info_parse_memory (&meta, memory)) {
+    is_static = (meta.format == _NNS_TENSOR_FORMAT_STATIC);
+  } else {
+    /* Suppose given memory is static tensor. */
+    is_static = TRUE;
+
+    /* Error case if given tensor-info is invalid. */
+    if (!gst_tensor_info_validate (info)) {
+      nns_loge ("Failed to get tensor info (invalid input info).");
+      return FALSE;
+    }
   }
 
   num_mems = gst_buffer_n_memory (buffer);
@@ -1737,10 +1744,11 @@ gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
   new_mem_index = extra_info->num_extra_tensors;
   extra_info->num_extra_tensors += 1;
 
-  /* append tensor info (except the tensor name) */
-  extra_info->infos[new_mem_index].type = info->type;
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; ++i) {
-    extra_info->infos[new_mem_index].dimension[i] = info->dimension[i];
+  /* Copy tensor info into extra. */
+  if (is_static) {
+    gst_tensor_info_copy (&extra_info->infos[new_mem_index], info);
+  } else {
+    gst_tensor_meta_info_convert (&meta, &extra_info->infos[new_mem_index]);
   }
 
   memcpy (new_memory_map.data + offset + last_memory_map.size,
