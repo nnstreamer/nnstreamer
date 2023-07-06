@@ -9,7 +9,7 @@ configure-tflite:
 	cmake tensorflow/tensorflow/lite -B build_tflite/  \
 	  -DSYSTEM_FARMHASH=OFF \
 	  -DTFLITE_ENABLE_GPU=ON \
-	  -DCMAKE_BUILD_TYPE=Debug \
+	  -DCMAKE_BUILD_TYPE=Release \
 	  -DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON 
 
 build-tflite:
