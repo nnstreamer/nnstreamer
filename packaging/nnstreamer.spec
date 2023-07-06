@@ -223,8 +223,6 @@ BuildRequires: tensorflow-devel
 # for armnn
 %if 0%{?armnn_support}
 BuildRequires: armnn-devel
-BuildRequires:  libarmcl
-BuildConflicts: libarmcl-release
 %endif
 
 %if 0%{?edgetpu_support}
@@ -269,10 +267,6 @@ BuildRequires:	capi-system-sensor-devel
 # Tizen 5.5 M2+ support nn-runtime (nnfw)
 # As of 2019-09-24, unfortunately, nnfw does not support pkg-config
 BuildRequires:  nnfw-devel
-%ifarch %arm aarch64
-BuildRequires:  libarmcl
-BuildConflicts: libarmcl-release
-%endif
 %endif
 
 %if 0%{?pytorch_support}
