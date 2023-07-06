@@ -1552,6 +1552,26 @@ TEST (commonMetaInfo, parseMemInvalidParam_n)
 }
 
 /**
+ * @brief Test for tensor meta info (parse memory with invalid memory size).
+ */
+TEST (commonMetaInfo, parseMemInvalidSize_n)
+{
+  GstTensorMetaInfo meta;
+  GstMemory *mem;
+  gsize hsize;
+  gboolean ret;
+
+  gst_tensor_meta_info_init (&meta);
+  hsize = gst_tensor_meta_info_get_header_size (&meta) / 2;
+  mem = gst_allocator_alloc (NULL, hsize, NULL);
+
+  ret = gst_tensor_meta_info_parse_memory (&meta, mem);
+  EXPECT_FALSE (ret);
+
+  gst_memory_unref (mem);
+}
+
+/**
  * @brief Test for tensor meta info (append header to memory).
  */
 TEST (commonMetaInfo, appendHeader)
