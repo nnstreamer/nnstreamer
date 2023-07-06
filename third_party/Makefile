@@ -22,7 +22,8 @@ package-tflite:
 	mkdir -p embedded_root/lib/
 	mkdir -p embedded_root/include/
 	install build_tflite/libtensorflow-lite.a embedded_root/lib/
-	install build_tflite/_deps/cpuinfo-build/libcpuinfo.a embedded_root/lib/
+	if test -f "build_tflite/_deps/cpuinfo-build/libcpuinfo.a"; then install build_tflite/_deps/cpuinfo-build/libcpuinfo.a embedded_root/lib/; fi;
+	if test -f "build_tflite/cpuinfo/libcpuinfo.a"; then install build_tflite/cpuinfo/libcpuinfo.a embedded_root/lib/; fi;
 	install build_tflite/_deps/xnnpack-build/libXNNPACK.a embedded_root/lib/
 	install build_tflite/pthreadpool/libpthreadpool.a embedded_root/lib/
 	install build_tflite/_deps/farmhash-build/libfarmhash.a embedded_root/lib/
