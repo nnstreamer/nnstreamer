@@ -340,7 +340,7 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
   guint counting, empty_pad;
   GstTensorsConfig in_configs;
   GstClockTime base_time = 0;
-  guint i, n_mem;
+  guint i;
   GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT];
   tensor_format in_formats[NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT];
 
@@ -376,6 +376,8 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
 
   walk = collect->data;
 
+  gst_tensors_config_init (&in_configs);
+
   while (walk) {
     gboolean configured = FALSE;
     gboolean is_empty = FALSE;
@@ -386,6 +388,9 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
     if (gst_pad_has_current_caps (pad->pad)) {
       GstCaps *caps = gst_pad_get_current_caps (pad->pad);
       GstStructure *s = gst_caps_get_structure (caps, 0);
+
+      if (gst_tensors_config_validate (&in_configs))
+        gst_tensors_config_free (&in_configs);
 
       gst_tensors_config_from_structure (&in_configs, s);
       gst_caps_unref (caps);
@@ -447,38 +452,25 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
     }
 
     if (GST_IS_BUFFER (buf)) {
+      guint32 n_tensor = gst_tensor_buffer_get_count (buf);
       buf = gst_tensor_buffer_from_config (buf, &in_configs);
-      n_mem = gst_buffer_n_memory (buf);
 
       /** These are internal logic error. If given inputs are incorrect,
           the negotiation should have been failed before this stage. */
       if (gst_tensors_config_is_static (&in_configs))
-        g_assert (n_mem == in_configs.info.num_tensors);
-      g_assert ((counting + n_mem) <=
+        g_assert (n_tensor == in_configs.info.num_tensors);
+      g_assert ((counting + n_tensor) <=
           NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT);
 
       if (gst_tensors_config_is_flexible (&in_configs))
         configs->info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
 
-      for (i = 0; i < n_mem; ++i) {
-        in_mem[counting] = gst_buffer_get_memory (buf, i);
+      for (i = 0; i < n_tensor; ++i) {
+        in_mem[counting] = gst_tensor_buffer_get_nth_memory (buf, i);
 
         /* set info */
-        if (counting >= NNS_TENSOR_SIZE_LIMIT) {
-          /* initialize extra info */
-          if (counting == NNS_TENSOR_SIZE_LIMIT) {
-            if (!gst_tensors_info_extra_create (&configs->info)) {
-              ml_loge ("Failed to create extra info.");
-              gst_buffer_unref (buf);
-              return FALSE;
-            }
-          }
-
-          gst_tensor_info_copy (&configs->info.extra[counting -
-                  NNS_TENSOR_SIZE_LIMIT], &in_configs.info.info[i]);
-        } else {
-          configs->info.info[counting] = in_configs.info.info[i];
-        }
+        gst_tensor_info_copy (gst_tensors_info_get_nth_info (&configs->info,
+                counting), gst_tensors_info_get_nth_info (&in_configs.info, i));
         in_formats[counting] = in_configs.info.format;
         counting++;
       }
