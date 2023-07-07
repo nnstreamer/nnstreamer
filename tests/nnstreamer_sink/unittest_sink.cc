@@ -6542,18 +6542,19 @@ TEST (extraTensors, manualextratensors)
  * @brief Callback for tensor sink signal. Using gst_tensors_get_nth_memory API
  */
 static void
-_tensor_mux_extra_tensors_new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
+_tensor_extra_tensors_new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
 {
   GstMemory *mem_res;
   GstMapInfo info_res;
   guint8 *output;
-  gint i;
+  guint32 i;
   gboolean ret;
 
-  data_received++;
+  guint32 *data_received = (guint32 *) user_data;
+  (*data_received)++;
 
-  for (i = 0; i < 20; ++i) {
-    mem_res = gst_tensor_buffer_get_nth_memory (buffer, (guint) i);
+  for (i = 0; i < gst_tensor_buffer_get_count (buffer); ++i) {
+    mem_res = gst_tensor_buffer_get_nth_memory (buffer, i);
     ret = gst_memory_map (mem_res, &info_res, GST_MAP_READ);
     ASSERT_TRUE (ret);
     output = (guint8 *) info_res.data;
@@ -6566,9 +6567,9 @@ _tensor_mux_extra_tensors_new_data_cb (GstElement *element, GstBuffer *buffer, g
 /**
  * @brief Test tensor_mux of more than 16 sinkpad.
  */
-TEST (extraTensors, manualtensormux)
+TEST (extraTensors, tensormux)
 {
-  gchar *str_pipeline = g_strdup (
+  g_autofree gchar *str_pipeline = g_strdup (
       "videotestsrc num-buffers=1 is-live=true ! videoscale ! videoconvert ! "
       "video/x-raw,format=GRAY8,width=1,height=1,framerate=1/1 ! "
       "tensor_converter ! other/tensors,format=static,num_tensors=1,types=(string)uint8,dimensions=(string)1:1 ! tee name=t "
@@ -6592,8 +6593,8 @@ TEST (extraTensors, manualtensormux)
       "t. ! queue ! mux.sink_17 "
       "t. ! queue ! mux.sink_18 "
       "t. ! queue ! mux.sink_19 "
-      "tensor_mux name=mux silent=false ! "
-      "tensor_sink name=sinkx async=false silent=false ");
+      "tensor_mux name=mux ! "
+      "tensor_sink name=sinkx async=false");
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   EXPECT_NE (pipeline, nullptr);
@@ -6601,21 +6602,162 @@ TEST (extraTensors, manualtensormux)
   GstElement *sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
   EXPECT_NE (sink_handle, nullptr);
 
+  guint32 data_received = 0U;
   g_signal_connect (sink_handle, "new-data",
-      (GCallback) _tensor_mux_extra_tensors_new_data_cb, NULL);
+      (GCallback) _tensor_extra_tensors_new_data_cb, &data_received);
 
-  data_received = 0;
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   g_usleep (1000000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   g_usleep (1000000);
 
-  EXPECT_EQ (1, data_received);
+  EXPECT_EQ (1U, data_received);
 
   gst_object_unref (sink_handle);
   gst_object_unref (pipeline);
-  g_free (str_pipeline);
+}
+
+/**
+ * @brief Test tensor_sink and tensor_mux with num_tensors=256.
+ */
+TEST (extraTensors, muxMax)
+{
+  g_autofree gchar *str_pipeline = g_strdup (
+      "videotestsrc num-buffers=1 is-live=true ! videoscale ! videoconvert ! "
+      "video/x-raw,format=GRAY8,width=1,height=1,framerate=1/1 ! "
+      "tensor_converter ! other/tensors,format=static,num_tensors=1,types=(string)uint8,dimensions=(string)1:1 ! tee name=t "
+      "t. ! queue ! mux.sink_0 "
+      "t. ! queue ! mux.sink_1 "
+      "t. ! queue ! mux.sink_2 "
+      "t. ! queue ! mux.sink_3 "
+      "t. ! queue ! mux.sink_4 "
+      "t. ! queue ! mux.sink_5 "
+      "t. ! queue ! mux.sink_6 "
+      "t. ! queue ! mux.sink_7 "
+      "t. ! queue ! mux.sink_8 "
+      "t. ! queue ! mux.sink_9 "
+      "t. ! queue ! mux.sink_10 "
+      "t. ! queue ! mux.sink_11 "
+      "t. ! queue ! mux.sink_12 "
+      "t. ! queue ! mux.sink_13 "
+      "t. ! queue ! mux.sink_14 "
+      "t. ! queue ! mux.sink_15 "
+      "tensor_mux name=mux ! tee name=t16 "
+      "t16. ! queue ! mux256.sink_0 "
+      "t16. ! queue ! mux256.sink_1 "
+      "t16. ! queue ! mux256.sink_2 "
+      "t16. ! queue ! mux256.sink_3 "
+      "t16. ! queue ! mux256.sink_4 "
+      "t16. ! queue ! mux256.sink_5 "
+      "t16. ! queue ! mux256.sink_6 "
+      "t16. ! queue ! mux256.sink_7 "
+      "t16. ! queue ! mux256.sink_8 "
+      "t16. ! queue ! mux256.sink_9 "
+      "t16. ! queue ! mux256.sink_10 "
+      "t16. ! queue ! mux256.sink_11 "
+      "t16. ! queue ! mux256.sink_12 "
+      "t16. ! queue ! mux256.sink_13 "
+      "t16. ! queue ! mux256.sink_14 "
+      "t16. ! queue ! mux256.sink_15 "
+      "tensor_mux name=mux256 ! "
+      "tensor_sink name=sinkx async=false");
+
+  GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
+  EXPECT_NE (pipeline, nullptr);
+
+  GstElement *sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  EXPECT_NE (sink_handle, nullptr);
+
+  guint32 data_received = 0U;
+  g_signal_connect (sink_handle, "new-data",
+      (GCallback) _tensor_extra_tensors_new_data_cb, &data_received);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (1000000);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (1000000);
+
+  EXPECT_EQ (1U, data_received);
+
+  gst_object_unref (sink_handle);
+  gst_object_unref (pipeline);
+}
+
+/**
+ * @brief Test tensor_demux of more than 16 sinkpad.
+ */
+TEST (extraTensors, demux)
+{
+  g_autofree gchar *str_pipeline = g_strdup (
+      "videotestsrc pattern=2 num-buffers=5 ! videoscale ! videoconvert ! "
+      "video/x-raw,format=GRAY8,width=1,height=1,framerate=(fraction)30/1 ! "
+      "tensor_converter ! other/tensors,format=(string)static,num_tensors=1,types=(string)uint8,dimensions=(string)1:1 ! tee name=t "
+      "t. ! queue ! mux.sink_0 "
+      "t. ! queue ! mux.sink_1 "
+      "t. ! queue ! mux.sink_2 "
+      "t. ! queue ! mux.sink_3 "
+      "t. ! queue ! mux.sink_4 "
+      "t. ! queue ! mux.sink_5 "
+      "t. ! queue ! mux.sink_6 "
+      "t. ! queue ! mux.sink_7 "
+      "t. ! queue ! mux.sink_8 "
+      "t. ! queue ! mux.sink_9 "
+      "t. ! queue ! mux.sink_10 "
+      "t. ! queue ! mux.sink_11 "
+      "t. ! queue ! mux.sink_12 "
+      "t. ! queue ! mux.sink_13 "
+      "t. ! queue ! mux.sink_14 "
+      "t. ! queue ! mux.sink_15 "
+      "t. ! queue ! mux.sink_16 "
+      "t. ! queue ! mux.sink_17 "
+      "t. ! queue ! mux.sink_18 "
+      "t. ! queue ! mux.sink_19 "
+      "tensor_mux name=mux ! "
+      "tensor_demux name=demux "
+      "demux.src_0 ! queue ! tensor_sink name=sink0 async=false "
+      "demux.src_15 ! queue ! tensor_sink name=sink15 async=false "
+      "demux.src_19 ! queue ! tensor_sink name=sink19 async=false");
+
+  GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
+  EXPECT_NE (pipeline, nullptr);
+
+  GstElement *sink_handle0 = gst_bin_get_by_name (GST_BIN (pipeline), "sink0");
+  EXPECT_NE (sink_handle0, nullptr);
+
+  guint32 datareceived0 = 0U;
+  g_signal_connect (sink_handle0, "new-data",
+      (GCallback) _tensor_extra_tensors_new_data_cb, &datareceived0);
+
+  GstElement *sink_handle15 = gst_bin_get_by_name (GST_BIN (pipeline), "sink15");
+  EXPECT_NE (sink_handle15, nullptr);
+
+  guint32 datareceived15 = 0U;
+  g_signal_connect (sink_handle15, "new-data",
+      (GCallback) _tensor_extra_tensors_new_data_cb, &datareceived15);
+
+  GstElement *sink_handle19 = gst_bin_get_by_name (GST_BIN (pipeline), "sink19");
+  EXPECT_NE (sink_handle19, nullptr);
+
+  guint32 datareceived19 = 0U;
+  g_signal_connect (sink_handle19, "new-data",
+      (GCallback) _tensor_extra_tensors_new_data_cb, &datareceived19);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (1000000);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (1000000);
+
+  EXPECT_EQ (5U, datareceived0);
+  EXPECT_EQ (5U, datareceived15);
+  EXPECT_EQ (5U, datareceived19);
+
+  gst_object_unref (sink_handle0);
+  gst_object_unref (sink_handle15);
+  gst_object_unref (sink_handle19);
+  gst_object_unref (pipeline);
 }
 
 /**
@@ -6654,6 +6796,8 @@ main (int argc, char **argv)
     g_print ("option parsing failed: %s\n", error->message);
     g_clear_error (&error);
   }
+
+  g_option_context_free (optionctx);
 
   if (jitter_cmd_arg != NULL) {
     jitter = (gulong) g_ascii_strtoull (jitter_cmd_arg, NULL, 10) * MSEC_PER_USEC;
