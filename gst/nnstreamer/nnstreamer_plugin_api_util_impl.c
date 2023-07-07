@@ -1384,6 +1384,11 @@ gst_tensor_get_format_string (tensor_format format)
 #define GST_TENSOR_META_IS_V1(v) (GST_TENSOR_META_VERSION_VALID(v) && (((v) & 0x00FFF000) & GST_TENSOR_META_MAKE_VERSION(1,0)))
 
 /**
+ * @brief Macro to check the meta is valid.
+ */
+#define GST_TENSOR_META_IS_VALID(m) ((m) && GST_TENSOR_META_MAGIC_VALID ((m)->magic) && GST_TENSOR_META_VERSION_VALID ((m)->version))
+
+/**
  * @brief Initialize the tensor meta info structure.
  * @param[in,out] meta tensor meta structure to be initialized
  */
@@ -1413,8 +1418,9 @@ gst_tensor_meta_info_get_version (GstTensorMetaInfo * meta,
     guint * major, guint * minor)
 {
   g_return_if_fail (meta != NULL);
-  g_return_if_fail (GST_TENSOR_META_MAGIC_VALID (meta->magic));
-  g_return_if_fail (GST_TENSOR_META_VERSION_VALID (meta->version));
+
+  if (!GST_TENSOR_META_IS_VALID (meta))
+    return;
 
   if (major)
     *major = (meta->version & 0x00FFF000) >> 12;
@@ -1434,8 +1440,9 @@ gst_tensor_meta_info_validate (GstTensorMetaInfo * meta)
   guint i;
 
   g_return_val_if_fail (meta != NULL, FALSE);
-  g_return_val_if_fail (GST_TENSOR_META_MAGIC_VALID (meta->magic), FALSE);
-  g_return_val_if_fail (GST_TENSOR_META_VERSION_VALID (meta->version), FALSE);
+
+  if (!GST_TENSOR_META_IS_VALID (meta))
+    return FALSE;
 
   if (meta->type >= _NNS_END) {
     nns_logd ("Failed to validate tensor meta info. type: %s. ",
@@ -1480,8 +1487,9 @@ gsize
 gst_tensor_meta_info_get_header_size (GstTensorMetaInfo * meta)
 {
   g_return_val_if_fail (meta != NULL, 0);
-  g_return_val_if_fail (GST_TENSOR_META_MAGIC_VALID (meta->magic), 0);
-  g_return_val_if_fail (GST_TENSOR_META_VERSION_VALID (meta->version), 0);
+
+  if (!GST_TENSOR_META_IS_VALID (meta))
+    return 0;
 
   /* return fixed size for meta version */
   if (GST_TENSOR_META_IS_V1 (meta->version)) {
@@ -1503,8 +1511,9 @@ gst_tensor_meta_info_get_data_size (GstTensorMetaInfo * meta)
   gsize dsize;
 
   g_return_val_if_fail (meta != NULL, 0);
-  g_return_val_if_fail (GST_TENSOR_META_MAGIC_VALID (meta->magic), 0);
-  g_return_val_if_fail (GST_TENSOR_META_VERSION_VALID (meta->version), 0);
+
+  if (!GST_TENSOR_META_IS_VALID (meta))
+    return 0;
 
   dsize = gst_tensor_get_element_size (meta->type);
 

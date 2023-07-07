@@ -1484,10 +1484,8 @@ gst_tensor_meta_info_parse_memory (GstTensorMetaInfo * meta, GstMemory * mem)
   /* Check header size of tensor-meta. */
   hsize = gst_tensor_meta_info_get_header_size (meta);
   msize = gst_memory_get_sizes (mem, NULL, NULL);
-  if (msize < hsize) {
-    nns_loge ("Failed to get the meta, invalid memory size %zd.", msize);
+  if (msize < hsize)
     return FALSE;
-  }
 
   if (!gst_memory_map (mem, &map, GST_MAP_READ)) {
     nns_loge ("Failed to get the meta, cannot map the memory.");
