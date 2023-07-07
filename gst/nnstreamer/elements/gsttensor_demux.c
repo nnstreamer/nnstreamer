@@ -208,6 +208,7 @@ gst_tensor_demux_remove_src_pads (GstTensorDemux * tensor_demux)
   tensor_demux->srcpads = NULL;
   tensor_demux->num_srcpads = 0;
 
+  gst_tensors_config_free (&tensor_demux->tensors_config);
   gst_tensors_config_init (&tensor_demux->tensors_config);
 }
 
@@ -309,8 +310,9 @@ gst_tensor_demux_get_tensor_config (GstTensorDemux * tensor_demux,
       if (idx >= total)
         return FALSE;
 
-      gst_tensor_info_copy (&config->info.info[i],
-          &tensor_demux->tensors_config.info.info[idx]);
+      gst_tensor_info_copy (gst_tensors_info_get_nth_info (&config->info, i),
+          gst_tensors_info_get_nth_info (&tensor_demux->tensors_config.info,
+              idx));
     }
 
     config->info.num_tensors = num;
@@ -321,7 +323,8 @@ gst_tensor_demux_get_tensor_config (GstTensorDemux * tensor_demux,
 
     config->info.num_tensors = 1;
     gst_tensor_info_copy (&config->info.info[0],
-        &tensor_demux->tensors_config.info.info[nth]);
+        gst_tensors_info_get_nth_info (&tensor_demux->tensors_config.info,
+            nth));
   }
 
   config->info.format = tensor_demux->tensors_config.info.format;
