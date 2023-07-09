@@ -1,0 +1,92 @@
+pipeline {
+
+    agent {
+        label 'linux-amd64'
+    }
+
+    stages {
+        stage('Clone sources') {
+            steps {
+                checkout scmGit(
+                    branches: [[name: '*/main']], 
+                    extensions: [
+                        submodule(parentCredentials: true,recursiveSubmodules: true, reference: ''),
+                        [$class: 'WipeWorkspace']
+                    ], 
+                    userRemoteConfigs: [
+                        [
+                            credentialsId: 'deploy_key_eyepop-nnstreamer_rsa', 
+                            url: 'git@github.com:eyepop-ai/eyepop-nnstreamer.git'
+                        ]
+                    ]
+                )
+                script {
+                    gitTag=sh(returnStdout: true, script: "git tag --contains | head -1").trim()
+                }   
+            }
+        }
+
+        stage('Build TFlite') {
+            steps {
+                dir('third_party') {
+                    sh 'make'
+                }
+            }
+        }
+    
+        stage('Configure') {
+            steps {
+                sh "meson -Dwerror=false -Dcaffe2-support=disabled -Dpython3-support=disabled build/ --pkg-config-path=./third_party/embedded_root/lib/pkgconfig"
+            }
+        }
+    
+        stage('Build') {
+            steps {
+                sh "ninja -C build"        
+            }
+        }
+    
+        stage('Test') {
+            steps {
+                sh "ninja -C build/ test"        
+            }
+        }
+        stage('Debian build') {
+            when { 
+                 expression {
+                     return gitTag;
+                 }
+            }
+            steps {
+                sh 'uname -a && mkdir -p ./build.debian/linux_amd64/'
+                sh 'DEB_BUILD_OPTIONS="nocheck notest" debuild -us -uc'
+                sh 'mv ../nnstreamer*.deb ../nnstreamer*.ddeb ../nnstreamer*.dsc ../nnstreamer*.gz ../nnstreamer*.build ../nnstreamer*.buildinfo ../nnstreamer*.changes ./build.debian/linux_amd64/ && ls -la ./build.debian/linux_amd64/'
+            }
+        }
+        stage('Debian publish') {
+            when { 
+                 expression {
+                     return gitTag;
+                 }
+            }
+            steps {
+                withAWS(credentials:'repo-uploader', region: 'us-east-1') {
+                    script {
+                        sh "deb-s3 upload --bucket repo.dev.eyepop.xyz ./build.debian/linux_amd64/*.deb"
+                    }
+                }
+            }
+        }
+   }
+    post {
+        success {
+            script {
+                if (gitTag) {
+                    currentBuild.description = "Release build version (gitTag="+gitTag+")"
+                } else {
+                    currentBuild.description = "Commit build version"
+                }
+            }
+        }
+    }
+}
