@@ -39,7 +39,7 @@
 /**
  * @brief Tensors caps
  */
-#define TENSOR_CAPS GST_TENSORS_CAP_MAKE ("{ static, flexible }")
+#define TENSOR_CAPS GST_TENSORS_CAP_MAKE ("{ static, flexible, sparse }")
 /**
  * @brief Video caps
  */
@@ -178,11 +178,11 @@ gst_data_repo_sink_init (GstDataRepoSink * sink)
   sink->fd = 0;
   sink->fd_offset = 0;
   sink->data_type = GST_DATA_REPO_DATA_UNKNOWN;
-  sink->is_flexible_tensors = FALSE;
+  sink->is_static_tensors = FALSE;
   sink->fixed_caps = NULL;
   sink->json_object = NULL;
   sink->total_samples = 0;
-  sink->flexible_tensor_count = 0;
+  sink->cumulative_tensors = 0;
   sink->json_object = json_object_new ();
   sink->sample_offset_array = json_array_new ();
   sink->tensor_size_array = json_array_new ();
@@ -298,10 +298,10 @@ gst_data_repo_sink_write_others (GstDataRepoSink * sink, GstBuffer * buffer)
 }
 
 /**
- * @brief Function to write flexible tensors
+ * @brief Function to write flexible tensors or sparse tensors
  */
 static GstFlowReturn
-gst_data_repo_sink_write_flexible_tensors (GstDataRepoSink * sink,
+gst_data_repo_sink_write_flexible_or_sparse_tensors (GstDataRepoSink * sink,
     GstBuffer * buffer)
 {
   guint num_tensors, i;
@@ -331,7 +331,8 @@ gst_data_repo_sink_write_flexible_tensors (GstDataRepoSink * sink,
     }
 
     if (!gst_tensor_meta_info_parse_header (&meta, info.data)) {
-      GST_ERROR_OBJECT (sink, "Invalid flexible tensors");
+      GST_ERROR_OBJECT (sink,
+          "Invalid format of tensors, the format is static.");
       goto error;
     }
     tensor_size = info.size;
@@ -358,11 +359,10 @@ gst_data_repo_sink_write_flexible_tensors (GstDataRepoSink * sink,
   json_array_add_int_element (sink->sample_offset_array, sink->fd_offset);
   sink->fd_offset += total_write;
 
-  GST_LOG_OBJECT (sink, "flexible_tensor_count: %u",
-      sink->flexible_tensor_count);
+  GST_LOG_OBJECT (sink, "cumulative_tensors: %u", sink->cumulative_tensors);
   json_array_add_int_element (sink->tensor_count_array,
-      sink->flexible_tensor_count);
-  sink->flexible_tensor_count += num_tensors;
+      sink->cumulative_tensors);
+  sink->cumulative_tensors += num_tensors;
 
   sink->total_samples++;
 
@@ -455,19 +455,21 @@ gst_data_repo_sink_render (GstBaseSink * bsink, GstBuffer * buffer)
 {
   GstDataRepoSink *sink = GST_DATA_REPO_SINK_CAST (bsink);
 
-  sink->is_flexible_tensors =
-      gst_tensor_pad_caps_is_flexible (GST_BASE_SINK_PAD (sink));
-
   switch (sink->data_type) {
     case GST_DATA_REPO_DATA_VIDEO:
     case GST_DATA_REPO_DATA_AUDIO:
     case GST_DATA_REPO_DATA_TEXT:
     case GST_DATA_REPO_DATA_OCTET:
-    case GST_DATA_REPO_DATA_TENSOR:
-      if (sink->is_flexible_tensors)
-        return gst_data_repo_sink_write_flexible_tensors (sink, buffer);
-      /* default write function for tensors(fixed), video, audio, text and octet */
       return gst_data_repo_sink_write_others (sink, buffer);
+    case GST_DATA_REPO_DATA_TENSOR:
+    {
+      sink->is_static_tensors =
+          gst_tensor_pad_caps_is_static (GST_BASE_SINK_PAD (sink));
+      if (!sink->is_static_tensors)
+        return gst_data_repo_sink_write_flexible_or_sparse_tensors (sink,
+            buffer);
+      return gst_data_repo_sink_write_others (sink, buffer);
+    }
     case GST_DATA_REPO_DATA_IMAGE:
       return gst_data_repo_sink_write_multi_images (sink, buffer);
     default:
@@ -719,7 +721,7 @@ gst_data_repo_sink_write_json_meta_file (GstDataRepoSink * sink)
   json_object_set_int_member (sink->json_object, "total_samples",
       sink->total_samples);
 
-  if (sink->is_flexible_tensors) {
+  if (sink->data_type == GST_DATA_REPO_DATA_TENSOR && !sink->is_static_tensors) {
     json_object_set_array_member (sink->json_object, "sample_offset",
         sink->sample_offset_array);
     json_object_set_array_member (sink->json_object, "tensor_size",

@@ -253,7 +253,7 @@ gst_data_repo_src_init (GstDataRepoSrc * src)
   src->caps = NULL;
   src->sample_size = 0;
   src->need_changed_caps = FALSE;
-  src->is_flexible_tensors = FALSE;
+  src->is_static_tensors = FALSE;
 
   /* Filling the buffer should be pending until set_caps() */
   gst_base_src_set_format (GST_BASE_SRC (src), GST_FORMAT_TIME);
@@ -429,7 +429,6 @@ gst_data_repo_src_shuffle_samples_index (GstDataRepoSrc * src)
   g_return_if_fail (src->shuffled_index_array != NULL);
 
   GST_LOG_OBJECT (src, "samples index are shuffled");
-
   /* Fisher-Yates algorithm */
   /* The last index is the number of samples - 1. */
   for (i = src->num_samples - 1; i > 0; i--) {
@@ -438,8 +437,10 @@ gst_data_repo_src_shuffle_samples_index (GstDataRepoSrc * src)
     value_j = g_array_index (src->shuffled_index_array, guint, j);
 
     /* shuffled_index_array->data type is gchar * */
-    *(src->shuffled_index_array->data + (sizeof (guint) * i)) = value_j;
-    *(src->shuffled_index_array->data + (sizeof (guint) * j)) = value_i;
+    *(guint *) (src->shuffled_index_array->data + (sizeof (guint) * i)) =
+        value_j;
+    *(guint *) (src->shuffled_index_array->data + (sizeof (guint) * j)) =
+        value_i;
   }
 
   for (i = 0; i < src->shuffled_index_array->len; i++) {
@@ -632,10 +633,10 @@ gst_data_repo_src_get_num_tensors (GstDataRepoSrc * src, guint shuffled_index)
 }
 
 /**
- * @brief Function to read tensors
+ * @brief Function to read flexible or sparse tensors
  */
 static GstFlowReturn
-gst_data_repo_src_read_flexible_tensors (GstDataRepoSrc * src,
+gst_data_repo_src_read_flexible_or_sparse_tensors (GstDataRepoSrc * src,
     GstBuffer ** buffer)
 {
   GstFlowReturn ret = GST_FLOW_OK;
@@ -1122,10 +1123,10 @@ gst_data_repo_src_create (GstPushSrc * pushsrc, GstBuffer ** buffer)
     case GST_DATA_REPO_DATA_OCTET:
       return gst_data_repo_src_read_others (src, buffer);
     case GST_DATA_REPO_DATA_TENSOR:
-      if (src->is_flexible_tensors)
-        return gst_data_repo_src_read_flexible_tensors (src, buffer);
-      else
+      if (src->is_static_tensors)
         return gst_data_repo_src_read_tensors (src, buffer);
+      else
+        return gst_data_repo_src_read_flexible_or_sparse_tensors (src, buffer);
     case GST_DATA_REPO_DATA_IMAGE:
       return gst_data_repo_src_read_multi_images (src, buffer);
     default:
@@ -1360,8 +1361,8 @@ gst_data_repo_src_get_data_type_and_size (GstDataRepoSrc * src, GstCaps * caps)
       s = gst_caps_get_structure (caps, 0);
       v = gst_structure_get_value (s, "format");
       format = g_value_get_string (v);
-      if (g_strcmp0 (format, "flexible") == 0)
-        src->is_flexible_tensors = TRUE;
+      if (g_strcmp0 (format, "static") == 0)
+        src->is_static_tensors = TRUE;
       break;
     default:
       break;
@@ -1449,7 +1450,7 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
     GST_INFO_OBJECT (src, "sample_size: %d", src->sample_size);
   }
 
-  if (src->is_flexible_tensors) {
+  if (src->data_type == GST_DATA_REPO_DATA_TENSOR && !src->is_static_tensors) {
     if (!json_object_has_member (object, "sample_offset")) {
       GST_ERROR_OBJECT (src, "There is not sample_offset field: %s", contents);
       goto error;
@@ -1645,7 +1646,8 @@ gst_data_repo_src_change_state (GstElement * element, GstStateChange transition)
       /** if data_type is not GST_DATA_REPO_DATA_UNKNOWN and sample_size is 0 then
           'caps' is set by property and sample size needs to be set by blocksize
           (in the case of otect and text) */
-      if (src->sample_size == 0 && !src->is_flexible_tensors) {
+      if (src->sample_size == 0 && (src->data_type == GST_DATA_REPO_DATA_OCTET
+              || src->data_type == GST_DATA_REPO_DATA_TEXT)) {
         basesrc = GST_BASE_SRC (src);
         g_object_get (G_OBJECT (basesrc), "blocksize", &blocksize, NULL);
         GST_DEBUG_OBJECT (src, "blocksize = %d", blocksize);
