@@ -44,13 +44,13 @@ override_dh_auto_configure:
 	mkdir -p ${BUILDDIR}
 ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes), yes)
 	meson --buildtype=plain --prefix=/usr --sysconfdir=/etc --libdir=lib/$(DEB_HOST_MULTIARCH) --bindir=lib/nnstreamer/bin --includedir=include \
-	-Dcaffe2-support=disabled -Denable-edgetpu=true -Denable-openvino=true -Dgrpc-support=disabled -Dmqtt-support=disabled \
+	-Dcaffe2-support=disabled -Dwerror=false -Dcaffe2-support=disabled -Dpython3-support=disabled -Dgrpc-support=disabled -Dmqtt-support=disabled \
 	--pkg-config-path=./third_party/embedded_root/lib/pkgconfig \
 	-Denable-tizen=false -Denable-test=true -Dinstall-test=true -Dsubplugindir=/usr/lib/nnstreamer $(FLOAT16) ${BUILDDIR}
 else
 	# Debian has less packages ready.
 	meson --buildtype=plain --prefix=/usr --sysconfdir=/etc --libdir=lib/$(DEB_HOST_MULTIARCH) --bindir=lib/nnstreamer/bin --includedir=include \
-	-Dcaffe2-support=disabled -Denable-edgetpu=false -Denable-openvino=false -Dgrpc-support=disabled -Dmqtt-support=disabled \
+	-Dcaffe2-support=disabled -Dwerror=false -Dcaffe2-support=disabled -Dpython3-support=disabled -Dgrpc-support=disabled -Dmqtt-support=disabled \
 	--pkg-config-path=./third_party/embedded_root/lib/pkgconfig \
 	-Denable-tizen=false -Denable-test=true -Dinstall-test=true -Dsubplugindir=/usr/lib/nnstreamer ${BUILDDIR}
 endif
