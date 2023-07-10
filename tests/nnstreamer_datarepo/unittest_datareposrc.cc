@@ -67,6 +67,40 @@ new_data_cb (GstElement *element, GstBuffer *buffer, gint *user_data)
 }
 
 /**
+ * @brief create sparse tensors file
+ */
+static void
+create_sparse_tensors_test_file ()
+{
+  GstBus *bus;
+  GMainLoop *loop;
+  gchar *file_path = get_file_path (filename);
+  gchar *json_path = get_file_path (json);
+
+  const gchar *str_pipeline = g_strdup_printf (
+      "datareposrc location=%s json=%s start-sample-index=0 stop-sample-index=9 ! "
+      "tensor_sparse_enc ! other/tensors,format=sparse,framerate=0/1 ! "
+      "datareposink location=sparse.data json=sparse.json",
+      file_path, json_path);
+
+  GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
+  ASSERT_NE (pipeline, nullptr);
+
+  loop = g_main_loop_new (NULL, FALSE);
+  bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
+  ASSERT_NE (bus, nullptr);
+  gst_bus_add_watch (bus, bus_callback, loop);
+  gst_object_unref (bus);
+
+  setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
+  g_main_loop_run (loop);
+
+  setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
+  gst_object_unref (pipeline);
+  g_main_loop_unref (loop);
+}
+
+/**
  * @brief create flexible tensors file
  */
 static void
@@ -556,6 +590,74 @@ TEST (datareposrc, readFlexibleTensors)
 }
 
 /**
+ * @brief Test for reading a file composed of sparse tensors
+ * the default shuffle is TRUE.
+ */
+TEST (datareposrc, readSparseTensors)
+{
+  GFile *file = NULL;
+  GFileInfo *info = NULL;
+  gint64 size, org_size = 31760;
+  gint buffer_count = 0;
+  GstElement *tensor_sink;
+  GstBus *bus;
+  const gchar *str_pipeline = NULL;
+  GMainLoop *loop;
+  GCallback handler = G_CALLBACK (new_data_cb);
+  str_pipeline
+      = "datareposrc location=sparse.data json=sparse.json ! tensor_sparse_dec ! "
+        "other/tensors, format=static, num_tensors=2, framerate=0/1, "
+        "dimensions=1:1:784:1.1:1:10:1, types=\"float32,float32\" ! tee name= t "
+        "t. ! queue ! filesink location=sample.data t. ! queue ! tensor_sink name=tensor_sink0";
+
+  create_sparse_tensors_test_file ();
+  GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
+  ASSERT_NE (pipeline, nullptr);
+
+  tensor_sink = gst_bin_get_by_name (GST_BIN (pipeline), "tensor_sink0");
+  ASSERT_NE (tensor_sink, nullptr);
+
+  g_signal_connect (tensor_sink, "new-data", (GCallback) handler, &buffer_count);
+
+  loop = g_main_loop_new (NULL, FALSE);
+  bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
+  ASSERT_NE (bus, nullptr);
+  gst_bus_add_watch (bus, bus_callback, loop);
+  gst_object_unref (bus);
+
+  setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
+  g_main_loop_run (loop);
+
+  setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
+  EXPECT_NE (buffer_count, 0);
+  handler = NULL;
+
+  file = g_file_new_for_path ("sparse.data");
+  info = g_file_query_info (
+      file, G_FILE_ATTRIBUTE_STANDARD_SIZE, G_FILE_QUERY_INFO_NONE, NULL, NULL);
+  size = g_file_info_get_size (info);
+  g_object_unref (file);
+  g_object_unref (info);
+  EXPECT_LT (size, org_size);
+
+  file = g_file_new_for_path ("sample.data");
+  info = g_file_query_info (
+      file, G_FILE_ATTRIBUTE_STANDARD_SIZE, G_FILE_QUERY_INFO_NONE, NULL, NULL);
+  size = g_file_info_get_size (info);
+  g_object_unref (file);
+  g_object_unref (info);
+  EXPECT_EQ (size, org_size);
+
+  gst_object_unref (tensor_sink);
+  gst_object_unref (pipeline);
+  g_main_loop_unref (loop);
+
+  g_remove ("sparse.json");
+  g_remove ("sparse.data");
+  g_remove ("sample.data");
+}
+
+/**
  * @brief Test for reading a tensors file with Caps property
  */
 TEST (datareposrc, readTensorsNoJSONWithCapsParam)
@@ -915,6 +1017,57 @@ TEST (datareposrc, readInvalidFlexibleTensors)
   g_remove ("audio1.raw");
   g_remove ("flexible.json");
   g_remove ("flexible.data");
+}
+
+/**
+ * @brief Test for reading a file composed of non-sparse tensors
+ * the default shuffle is TRUE.
+ */
+TEST (datareposrc, readInvalidSparseTensors)
+{
+  gint buffer_count = 0;
+  GstBus *bus;
+  GMainLoop *loop;
+  GCallback handler = G_CALLBACK (new_data_cb);
+  const gchar *str_pipeline
+      = "datareposrc location=audio1.raw json=sparse.json ! tensor_sink name=tensor_sink0";
+  GstElement *tensor_sink;
+
+  create_sparse_tensors_test_file ();
+  create_audio_test_file ();
+
+  GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
+  ASSERT_NE (pipeline, nullptr);
+
+  tensor_sink = gst_bin_get_by_name (GST_BIN (pipeline), "tensor_sink0");
+  ASSERT_NE (tensor_sink, nullptr);
+
+  g_signal_connect (tensor_sink, "new-data", (GCallback) handler, &buffer_count);
+
+  loop = g_main_loop_new (NULL, FALSE);
+  bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
+  ASSERT_NE (bus, nullptr);
+  gst_bus_add_watch (bus, bus_callback, loop);
+  gst_object_unref (bus);
+
+  /* EXPECT_EQ not checked due to internal data stream error */
+  setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
+  g_main_loop_run (loop);
+
+  setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
+
+  /* Internal data stream error */
+  EXPECT_EQ (buffer_count, 0);
+  handler = NULL;
+
+  gst_object_unref (tensor_sink);
+  gst_object_unref (pipeline);
+  g_main_loop_unref (loop);
+
+  g_remove ("audio1.json");
+  g_remove ("audio1.raw");
+  g_remove ("sparse.json");
+  g_remove ("sparse.data");
 }
 
 /**

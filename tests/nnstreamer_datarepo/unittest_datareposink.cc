@@ -364,6 +364,76 @@ TEST (datareposink, writeFlexibleTensors)
   g_remove ("flexible.json");
 }
 
+
+/**
+ * @brief Test for writing sparse tensors
+ */
+TEST (datareposink, writeSparseTensors)
+{
+  GFile *file = NULL;
+  gchar *contents = NULL;
+  GstBus *bus;
+  GMainLoop *loop;
+  gchar *file_path = NULL;
+  gchar *json_path = NULL;
+  gboolean ret;
+  gint64 size, org_size = 31760;
+  GFileInfo *info = NULL;
+
+  loop = g_main_loop_new (NULL, FALSE);
+
+  file_path = get_file_path (filename);
+  json_path = get_file_path (json);
+
+  gchar *str_pipeline = g_strdup_printf (
+      "datareposrc location=%s json=%s start-sample-index=0 stop-sample-index=9 ! "
+      "tensor_sparse_enc ! other/tensors,format=sparse,framerate=0/1 ! "
+      "datareposink location=sparse.data json=sparse.json",
+      file_path, json_path);
+
+  GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
+  g_free (str_pipeline);
+  ASSERT_NE (pipeline, nullptr);
+
+  bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
+  ASSERT_NE (bus, nullptr);
+  gst_bus_add_watch (bus, bus_callback, loop);
+  gst_object_unref (bus);
+
+  setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
+  g_main_loop_run (loop);
+
+  setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
+  gst_object_unref (pipeline);
+  g_main_loop_unref (loop);
+
+  /* Confirm file creation */
+  file = g_file_new_for_path ("sparse.json");
+  ret = g_file_load_contents (file, NULL, &contents, NULL, NULL, NULL);
+  g_free (contents);
+  g_object_unref (file);
+  g_free (file_path);
+  g_free (json_path);
+  ASSERT_EQ (ret, TRUE);
+
+  /* Confirm file creation */
+  file = g_file_new_for_path ("sparse.data");
+  ret = g_file_load_contents (file, NULL, &contents, NULL, NULL, NULL);
+  info = g_file_query_info (
+      file, G_FILE_ATTRIBUTE_STANDARD_SIZE, G_FILE_QUERY_INFO_NONE, NULL, NULL);
+  size = g_file_info_get_size (info);
+  g_object_unref (file);
+  g_object_unref (info);
+  g_free (contents);
+  ASSERT_EQ (ret, TRUE);
+
+  /* The size of one mnist sample is 3176 bytes, the number of samples for test is 10. */
+  EXPECT_LT (size, org_size);
+
+  g_remove ("sparse.data");
+  g_remove ("sparse.json");
+}
+
 /**
  * @brief Test for writing a file with invalid param (JSON path)
  */
@@ -507,6 +577,65 @@ TEST (datareposink, writeFlexibleTensors_n)
   g_remove ("img.json");
   g_remove ("flexible.json");
   g_remove ("flexible.data");
+}
+
+/**
+ * @brief Test for writing flexible tensors
+ */
+TEST (datareposink, writeSparseTensors_n)
+{
+  GFile *file = NULL;
+  GstBus *bus;
+  GMainLoop *loop;
+  GstElement *pipeline;
+  GFileInfo *file_info = NULL;
+  gint64 size = 0;
+  int i;
+  gchar *filename = NULL;
+
+  create_image_test_file ();
+
+  /* Insert non-Flexible Tensor data after negotiating with flexible caps. */
+  const gchar *str_pipeline
+      = "multifilesrc location=img_%02d.png ! other/tensors,format=sparse,framerate=0/1 ! "
+        "datareposink location=sparse.data json=sparse.json";
+
+  pipeline = gst_parse_launch (str_pipeline, NULL);
+  ASSERT_NE (pipeline, nullptr);
+
+  loop = g_main_loop_new (NULL, FALSE);
+  bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
+  ASSERT_NE (bus, nullptr);
+  gst_bus_add_watch (bus, bus_callback, loop);
+  gst_object_unref (bus);
+
+  setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
+  g_main_loop_run (loop);
+
+  setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
+  gst_object_unref (pipeline);
+  g_main_loop_unref (loop);
+
+  /* Confirm file creation */
+  file = g_file_new_for_path ("sparse.data");
+  ASSERT_NE (file, nullptr);
+  file_info = g_file_query_info (
+      file, G_FILE_ATTRIBUTE_STANDARD_SIZE, G_FILE_QUERY_INFO_NONE, NULL, NULL);
+  ASSERT_NE (file_info, nullptr);
+  size = g_file_info_get_size (file_info);
+  ASSERT_EQ (size, 0);
+  g_object_unref (file_info);
+  g_object_unref (file);
+
+  for (i = 0; i < 5; i++) {
+    filename = g_strdup_printf ("img_%02d.png", i);
+    g_remove (filename);
+    g_free (filename);
+  }
+
+  g_remove ("img.json");
+  g_remove ("sparse.json");
+  g_remove ("sparse.data");
 }
 
 /**

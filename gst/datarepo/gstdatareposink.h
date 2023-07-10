@@ -46,9 +46,9 @@ struct _GstDataRepoSink
   JsonArray *sample_offset_array;   /**< offset array of sample */
   JsonArray *tensor_size_array;    /**< size array of flexible tensor */
   JsonArray *tensor_count_array;  /**< array for the number of cumulative tensors */
-  guint flexible_tensor_count;
+  guint cumulative_tensors;    /**< the number of cumulated tensors */
 
-  gboolean is_flexible_tensors;
+  gboolean is_static_tensors;
   gint fd;                        /**< open file descriptor*/
   GstDataRepoDataType data_type;  /**< data type */
   gint total_samples;             /**< The number of total samples, in the case of multi-files, it is used as an index. */
