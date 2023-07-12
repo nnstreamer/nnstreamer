@@ -26,17 +26,9 @@ pipeline {
             }
         }
 
-        stage('Build TFlite') {
-            steps {
-                dir('third_party') {
-                    sh 'make'
-                }
-            }
-        }
-    
         stage('Configure') {
             steps {
-                sh "meson -Dwerror=false -Dcaffe2-support=disabled -Dpython3-support=disabled build/ --pkg-config-path=./third_party/embedded_root/lib/pkgconfig"
+                sh "meson -Dwerror=false -Dcaffe2-support=disabled -Dpython3-support=disabled build/ 
             }
         }
     
