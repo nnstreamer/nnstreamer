@@ -28,7 +28,7 @@ pipeline {
 
         stage('Configure') {
             steps {
-                sh "meson -Dwerror=false -Dcaffe2-support=disabled -Dpython3-support=disabled build/ 
+                sh "meson -Dwerror=false -Dcaffe2-support=disabled -Dpython3-support=disabled build/" 
             }
         }
     
