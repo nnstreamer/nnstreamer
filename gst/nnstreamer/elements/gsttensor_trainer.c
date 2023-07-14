@@ -458,9 +458,10 @@ gst_tensor_trainer_change_state (GstElement * element,
 
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
       GST_INFO_OBJECT (trainer, "PAUSED_TO_PLAYING");
-      if (!gst_tensor_trainer_create_model (trainer))
-        goto state_change_failed;
-
+      if (!trainer->fw_created) {
+        if (!gst_tensor_trainer_create_model (trainer))
+          goto state_change_failed;
+      }
       gst_tensor_trainer_create_event_notifier (trainer);
       gst_tensor_trainer_train_model (trainer);
       break;
@@ -507,16 +508,11 @@ gst_tensor_trainer_wait_for_epoch_completion (GstTensorTrainer * trainer)
   g_return_if_fail (trainer != NULL);
 
   g_mutex_lock (&trainer->epoch_completion_lock);
-  if (trainer->is_epoch_complete) {
-    /* It's already completed */
-    trainer->is_epoch_complete = FALSE;
-    g_mutex_unlock (&trainer->epoch_completion_lock);
-    return;
+  while (!trainer->is_epoch_complete) {
+    GST_INFO_OBJECT (trainer, "wait for epoch_completion_cond signal");
+    g_cond_wait (&trainer->epoch_completion_cond,
+        &trainer->epoch_completion_lock);
   }
-
-  GST_INFO_OBJECT (trainer, "wait for epoch_completion_cond signal");
-  g_cond_wait (&trainer->epoch_completion_cond,
-      &trainer->epoch_completion_lock);
   trainer->is_epoch_complete = FALSE;
   g_mutex_unlock (&trainer->epoch_completion_lock);
 }
@@ -575,6 +571,11 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
   trainer = GST_TENSOR_TRAINER (parent);
   in_flexible = gst_tensor_pad_caps_is_flexible (sinkpad);
   num_tensors = gst_tensor_buffer_get_count (inbuf);
+
+  if (!trainer->fw_created) {
+    if (!gst_tensor_trainer_create_model (trainer))
+      return GST_FLOW_ERROR;
+  }
 
   if (num_tensors >= TRAINER_TENSOR_SIZE_LIMT)
     return GST_FLOW_ERROR;
@@ -710,7 +711,7 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
       if (ret < 0) {
         GST_ERROR_OBJECT (trainer, "Failed to Get status from sub-plugin.(%s).",
             trainer->fw_name);
-        return GST_FLOW_ERROR;
+        goto error;
       }
       /* If the value is invalid, it is already set by -INFINITY. */
       if (trainer->prop.training_loss > 0)
@@ -811,30 +812,24 @@ gst_tensor_trainer_query_caps (GstTensorTrainer * trainer,
 /**
  * @brief Wait for training completion
  */
-static gboolean
+static void
 gst_tensor_trainer_wait_for_training_completion (GstTensorTrainer * trainer)
 {
-  g_return_val_if_fail (trainer != NULL, FALSE);
+  g_return_if_fail (trainer != NULL);
 
   g_mutex_lock (&trainer->training_completion_lock);
-  if (trainer->is_training_complete) {
-    /* It's already completed */
-    trainer->is_training_complete = FALSE;
-    g_mutex_unlock (&trainer->training_completion_lock);
-    return TRUE;
+  while (!trainer->is_training_complete) {
+    GST_INFO_OBJECT (trainer,
+        "got GST_EVENT_EOS event but training is not completed, state is %d, "
+        "wait for training_completion_cond signal", GST_STATE (trainer));
+    g_cond_wait (&trainer->training_completion_cond,
+        &trainer->training_completion_lock);
   }
-
-  GST_INFO_OBJECT (trainer,
-      "got GST_EVENT_EOS event but training is not completed, state is %d",
-      GST_STATE (trainer));
-
-  GST_INFO_OBJECT (trainer, "wait for training_completion_cond signal");
-  g_cond_wait (&trainer->training_completion_cond,
-      &trainer->training_completion_lock);
   trainer->is_training_complete = FALSE;
   g_mutex_unlock (&trainer->training_completion_lock);
 
-  return TRUE;
+  GST_DEBUG_OBJECT (trainer, "training is completed in sub-plugin[%s]",
+      trainer->fw_name);
 }
 
 /**
@@ -852,9 +847,8 @@ gst_tensor_trainer_sink_event (GstPad * sinkpad, GstObject * parent,
 
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_EOS:
-      if (gst_tensor_trainer_wait_for_training_completion (trainer))
-        GST_DEBUG_OBJECT (trainer, "training is completed in sub-plugin[%s]",
-            trainer->fw_name);
+      if (!trainer->is_training_complete)
+        gst_tensor_trainer_wait_for_training_completion (trainer);
       break;
     case GST_EVENT_FLUSH_START:
       GST_INFO_OBJECT (trainer, "get GST_EVENT_FLUSH_START event");
@@ -1093,11 +1087,12 @@ gst_tensor_trainer_create_framework (GstTensorTrainer * trainer)
 
   GST_DEBUG_OBJECT (trainer, "%p", trainer->privateData);
   if (trainer->fw->create (trainer->fw, &trainer->prop,
-          &trainer->privateData) >= 0)
+          &trainer->privateData) >= 0) {
     trainer->fw_created = TRUE;
-  GST_DEBUG_OBJECT (trainer, "Success, Framework: %p", trainer->privateData);
-
-  return TRUE;
+    GST_DEBUG_OBJECT (trainer, "Success, Framework: %p", trainer->privateData);
+    return TRUE;
+  }
+  return FALSE;
 }
 
 /**
