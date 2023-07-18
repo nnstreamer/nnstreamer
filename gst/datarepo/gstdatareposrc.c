@@ -254,6 +254,8 @@ gst_data_repo_src_init (GstDataRepoSrc * src)
   src->sample_size = 0;
   src->need_changed_caps = FALSE;
   src->is_static_tensors = FALSE;
+  src->n_frame = 0;
+  src->running_time = 0;
 
   /* Filling the buffer should be pending until set_caps() */
   gst_base_src_set_format (GST_BASE_SRC (src), GST_FORMAT_TIME);
@@ -1099,11 +1101,50 @@ error_exit:
 }
 
 /**
+ * @brief Set timestamp
+ */
+static void
+gst_data_repo_src_set_timestamp (GstDataRepoSrc * src, GstBuffer * buffer)
+{
+
+  GstClockTime next_time;
+  GstClockTime duration = GST_CLOCK_TIME_NONE;
+
+  g_return_if_fail (src != NULL);
+  g_return_if_fail (buffer != NULL);
+
+  /* Unlike video, audio should control one sample by framerate. */
+  if (src->data_type == GST_DATA_REPO_DATA_AUDIO) {
+    GST_WARNING_OBJECT (src,
+        "Use audiorate element for the framerate of audio");
+    return;
+  }
+
+  duration = gst_util_uint64_scale_int (GST_SECOND, src->rate_d, src->rate_n);
+  GST_BUFFER_DURATION (buffer) = duration;
+  GST_BUFFER_TIMESTAMP (buffer) = src->running_time;
+  gst_object_sync_values (GST_OBJECT (src), GST_BUFFER_TIMESTAMP (buffer));
+
+  next_time =
+      gst_util_uint64_scale (src->n_frame++, src->rate_d * GST_SECOND,
+      src->rate_n);
+  src->running_time = next_time;
+
+  GST_LOG_OBJECT (src, "next_time %" GST_TIME_FORMAT "",
+      GST_TIME_ARGS (next_time));
+  GST_LOG_OBJECT (src,
+      "timestamp [%" GST_TIME_FORMAT " dur %" GST_TIME_FORMAT "]",
+      GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (buffer)),
+      GST_TIME_ARGS (GST_BUFFER_DURATION (buffer)));
+}
+
+/**
  * @brief Function to create a buffer
  */
 static GstFlowReturn
 gst_data_repo_src_create (GstPushSrc * pushsrc, GstBuffer ** buffer)
 {
+  GstFlowReturn ret = GST_FLOW_OK;
   GstDataRepoSrc *src;
   src = GST_DATA_REPO_SRC (pushsrc);
 
@@ -1121,17 +1162,28 @@ gst_data_repo_src_create (GstPushSrc * pushsrc, GstBuffer ** buffer)
     case GST_DATA_REPO_DATA_AUDIO:
     case GST_DATA_REPO_DATA_TEXT:
     case GST_DATA_REPO_DATA_OCTET:
-      return gst_data_repo_src_read_others (src, buffer);
+      ret = gst_data_repo_src_read_others (src, buffer);
+      break;
     case GST_DATA_REPO_DATA_TENSOR:
       if (src->is_static_tensors)
-        return gst_data_repo_src_read_tensors (src, buffer);
+        ret = gst_data_repo_src_read_tensors (src, buffer);
       else
-        return gst_data_repo_src_read_flexible_or_sparse_tensors (src, buffer);
+        ret = gst_data_repo_src_read_flexible_or_sparse_tensors (src, buffer);
+      break;
     case GST_DATA_REPO_DATA_IMAGE:
-      return gst_data_repo_src_read_multi_images (src, buffer);
+      ret = gst_data_repo_src_read_multi_images (src, buffer);
+      break;
     default:
       return GST_FLOW_ERROR;
   }
+
+  if (ret != GST_FLOW_OK)
+    return ret;
+
+  if (src->rate_n)
+    gst_data_repo_src_set_timestamp (src, *buffer);
+
+  return GST_FLOW_OK;
 }
 
 /**
@@ -1348,6 +1400,7 @@ gst_data_repo_src_get_data_type_and_size (GstDataRepoSrc * src, GstCaps * caps)
   g_return_val_if_fail (caps != NULL, FALSE);
 
   src->data_type = gst_data_repo_get_data_type_from_caps (caps);
+  s = gst_caps_get_structure (caps, 0);
 
   switch (src->data_type) {
     case GST_DATA_REPO_DATA_VIDEO:
@@ -1368,7 +1421,12 @@ gst_data_repo_src_get_data_type_and_size (GstDataRepoSrc * src, GstCaps * caps)
       break;
   }
 
-  GST_DEBUG_OBJECT (src, "data type: %d", src->data_type);
+  v = gst_structure_get_value (s, "framerate");
+  src->rate_n = gst_value_get_fraction_numerator (v);
+  src->rate_d = gst_value_get_fraction_denominator (v);
+  GST_LOG_OBJECT (src, "framerate %d/%d", src->rate_n, src->rate_d);
+  GST_LOG_OBJECT (src, "data type: %d", src->data_type);
+
   return (src->data_type != GST_DATA_REPO_DATA_UNKNOWN);
 }
 

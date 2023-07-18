@@ -89,6 +89,10 @@ struct _GstDataRepoSrc {
   guint sample_offset_array_len;
   guint tensor_size_array_len;
   guint tensor_count_array_len;
+
+  GstClockTime running_time;    /**< one frame running time */
+  gint rate_n, rate_d;
+  guint64 n_frame;
 };
 
 /**
