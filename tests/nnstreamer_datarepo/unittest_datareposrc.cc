@@ -62,7 +62,6 @@ static void
 new_data_cb (GstElement *element, GstBuffer *buffer, gint *user_data)
 {
   (*user_data)++;
-  g_warning ("count:%d", *user_data);
   return;
 }
 
@@ -77,15 +76,15 @@ create_sparse_tensors_test_file ()
   gchar *file_path = get_file_path (filename);
   gchar *json_path = get_file_path (json);
 
-  const gchar *str_pipeline = g_strdup_printf (
+  gchar *str_pipeline = g_strdup_printf (
       "datareposrc location=%s json=%s start-sample-index=0 stop-sample-index=9 ! "
       "tensor_sparse_enc ! other/tensors,format=sparse,framerate=0/1 ! "
       "datareposink location=sparse.data json=sparse.json",
       file_path, json_path);
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
+  g_free (str_pipeline);
   ASSERT_NE (pipeline, nullptr);
-
   loop = g_main_loop_new (NULL, FALSE);
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
   ASSERT_NE (bus, nullptr);
@@ -104,21 +103,24 @@ create_sparse_tensors_test_file ()
  * @brief create flexible tensors file
  */
 static void
-create_flexible_tensors_test_file ()
+create_flexible_tensors_test_file (gint fps)
 {
   GstBus *bus;
   GMainLoop *loop;
-  const gchar *str_pipeline
-      = "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! "
-        "video/x-raw,format=RGB,width=176,height=144,framerate=10/1 ! tensor_converter ! join0.sink_0 "
-        "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! "
-        "video/x-raw,format=RGB,width=320,height=240,framerate=10/1 ! tensor_converter ! join0.sink_1 "
-        "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! "
-        "video/x-raw,format=RGB,width=640,height=480,framerate=10/1 ! tensor_converter ! join0.sink_2 "
-        "join name=join0 ! other/tensors,format=flexible ! "
-        "datareposink location=flexible.data json=flexible.json";
+  gint rate_n = fps;
+  gchar *str_pipeline = g_strdup_printf (
+      "videotestsrc num-buffers=10 ! videoconvert ! videoscale ! "
+      "video/x-raw,format=RGB,width=176,height=144,framerate=%d/1 ! tensor_converter ! join0.sink_0 "
+      "videotestsrc num-buffers=10 ! videoconvert ! videoscale ! "
+      "video/x-raw,format=RGB,width=320,height=240,framerate=%d/1 ! tensor_converter ! join0.sink_1 "
+      "videotestsrc num-buffers=10 ! videoconvert ! videoscale ! "
+      "video/x-raw,format=RGB,width=640,height=480,framerate=%d/1 ! tensor_converter ! join0.sink_2 "
+      "join name=join0 ! other/tensors,format=flexible ! "
+      "datareposink location=flexible.data json=flexible.json",
+      rate_n, rate_n, rate_n);
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
+  g_free (str_pipeline);
   ASSERT_NE (pipeline, nullptr);
 
   loop = g_main_loop_new (NULL, FALSE);
@@ -320,23 +322,20 @@ TEST (datareposrc, readVideoRaw)
  */
 TEST (datareposrc, readAudioRaw)
 {
-  gint buffer_count = 0;
-  GstElement *tensor_sink;
+  gchar *data_1 = NULL, *data_2 = NULL;
+  gsize size_1, size_2;
   GstBus *bus;
   GMainLoop *loop;
-  GCallback handler = G_CALLBACK (new_data_cb);
+  gint ret = -1;
   const gchar *str_pipeline
-      = "datareposrc location=audio1.raw json=audio1.json ! tensor_converter ! tensor_sink name=tensor_sink0";
+      = "datareposrc location=audio1.raw json=audio1.json ! tee name=t "
+        "t. ! queue ! datareposink location=result.raw json=result.json "
+        "t. ! queue ! tensor_sink";
 
   create_audio_test_file ();
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   ASSERT_NE (pipeline, nullptr);
-
-  tensor_sink = gst_bin_get_by_name (GST_BIN (pipeline), "tensor_sink0");
-  ASSERT_NE (tensor_sink, nullptr);
-
-  g_signal_connect (tensor_sink, "new-data", (GCallback) handler, &buffer_count);
 
   loop = g_main_loop_new (NULL, FALSE);
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
@@ -349,15 +348,36 @@ TEST (datareposrc, readAudioRaw)
 
   setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
 
-  EXPECT_NE (buffer_count, 0);
-  handler = NULL;
-
-  gst_object_unref (tensor_sink);
   gst_object_unref (pipeline);
   g_main_loop_unref (loop);
 
+  if (!g_file_get_contents ("aduio1.raw", &data_1, &size_1, NULL)) {
+    goto error;
+  }
+
+  if (!g_file_get_contents ("result.raw", &data_2, &size_2, NULL)) {
+    goto error;
+  }
+  EXPECT_EQ (size_1, size_2);
+  g_free (data_1);
+  g_free (data_2);
+
+  if (!g_file_get_contents ("audio1.json", &data_1, &size_1, NULL)) {
+    goto error;
+  }
+
+  if (!g_file_get_contents ("result.json", &data_2, &size_2, NULL)) {
+    goto error;
+  }
+  ret = g_strcmp0 (data_1, data_2);
+  EXPECT_EQ (ret, 0);
+error:
+  g_free (data_1);
+  g_free (data_2);
   g_remove ("audio1.json");
   g_remove ("audio1.raw");
+  g_remove ("result.json");
+  g_remove ("result.raw");
 }
 
 /**
@@ -551,22 +571,19 @@ TEST (datareposrc, readTensors)
  */
 TEST (datareposrc, readFlexibleTensors)
 {
-  gint buffer_count = 0;
-  GstElement *tensor_sink;
+  gchar *data_1 = NULL, *data_2 = NULL;
+  gsize size_1, size_2;
+  gint fps = 10, ret = -1;
   GstBus *bus;
   const gchar *str_pipeline = NULL;
   GMainLoop *loop;
-  GCallback handler = G_CALLBACK (new_data_cb);
-  str_pipeline = "datareposrc location=flexible.data json=flexible.json ! tensor_sink name=tensor_sink0";
+  str_pipeline = "datareposrc location=flexible.data json=flexible.json ! tee name=t "
+                 "t. ! queue ! datareposink location=result.data json=result.json "
+                 "t. ! queue ! tensor_sink";
 
-  create_flexible_tensors_test_file ();
+  create_flexible_tensors_test_file (fps);
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   ASSERT_NE (pipeline, nullptr);
-
-  tensor_sink = gst_bin_get_by_name (GST_BIN (pipeline), "tensor_sink0");
-  ASSERT_NE (tensor_sink, nullptr);
-
-  g_signal_connect (tensor_sink, "new-data", (GCallback) handler, &buffer_count);
 
   loop = g_main_loop_new (NULL, FALSE);
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
@@ -578,10 +595,129 @@ TEST (datareposrc, readFlexibleTensors)
   g_main_loop_run (loop);
 
   setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
-  EXPECT_NE (buffer_count, 0);
-  handler = NULL;
+
+  gst_object_unref (pipeline);
+  g_main_loop_unref (loop);
+
+  if (!g_file_get_contents ("flexible.raw", &data_1, &size_1, NULL)) {
+    goto error;
+  }
+
+  if (!g_file_get_contents ("result.raw", &data_2, &size_2, NULL)) {
+    goto error;
+  }
+  EXPECT_EQ (size_1, size_2);
+  g_free (data_1);
+  g_free (data_2);
+
+  if (!g_file_get_contents ("flexible.json", &data_1, &size_1, NULL)) {
+    goto error;
+  }
+
+  if (!g_file_get_contents ("result.json", &data_2, &size_2, NULL)) {
+    goto error;
+  }
+  ret = g_strcmp0 (data_1, data_2);
+  EXPECT_EQ (ret, 0);
+error:
+  g_free (data_1);
+  g_free (data_2);
+  g_remove ("flexible.json");
+  g_remove ("flexible.data");
+  g_remove ("result.json");
+  g_remove ("result.data");
+}
+
+
+/**
+ * @brief Framerate Test for reading a file composed of flexible tensors
+ */
+TEST (datareposrc, fps30ReadFlexibleTensors)
+{
+  gint fps = 30;
+  guint64 start_time, end_time;
+  gdouble elapsed_time;
+  GstElement *tensor_sink;
+  GstBus *bus;
+  const gchar *str_pipeline = NULL;
+  const gchar *test_pipeline = "videotestsrc num-buffers=30 ! fakesink sync=true";
+  GMainLoop *loop;
+  str_pipeline = "datareposrc location=flexible.data json=flexible.json ! queue ! tensor_sink name=tensor_sink0 sync=true";
+
+  create_flexible_tensors_test_file (fps);
+  GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
+  ASSERT_NE (pipeline, nullptr);
+
+  loop = g_main_loop_new (NULL, FALSE);
+  bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
+  ASSERT_NE (bus, nullptr);
+  gst_bus_add_watch (bus, bus_callback, loop);
+  gst_object_unref (bus);
+
+  start_time = g_get_monotonic_time ();
+
+  setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
+  g_main_loop_run (loop);
+
+  setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
+  end_time = g_get_monotonic_time ();
+  elapsed_time = (end_time - start_time) / (double) G_USEC_PER_SEC;
+
+  g_print ("Elapsed time: %.6f second\n", elapsed_time);
+  EXPECT_LT (0.8, elapsed_time);
+
+  gst_object_unref (pipeline);
+  g_main_loop_unref (loop);
+
+  pipeline = gst_parse_launch (str_pipeline, NULL);
+  ASSERT_NE (pipeline, nullptr);
+
+  loop = g_main_loop_new (NULL, FALSE);
+  bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
+  ASSERT_NE (bus, nullptr);
+  gst_bus_add_watch (bus, bus_callback, loop);
+  gst_object_unref (bus);
+
+  tensor_sink = gst_bin_get_by_name (GST_BIN (pipeline), "tensor_sink0");
+  g_object_set (GST_OBJECT (tensor_sink), "sync", FALSE, NULL);
+
+  start_time = g_get_monotonic_time ();
+
+  setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
+  g_main_loop_run (loop);
+
+  setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
+  end_time = g_get_monotonic_time ();
+  elapsed_time = (end_time - start_time) / (double) G_USEC_PER_SEC;
+
+  g_print ("Elapsed time: %.6f second\n", elapsed_time);
+  EXPECT_LT (elapsed_time, 0.05);
 
   gst_object_unref (tensor_sink);
+  gst_object_unref (pipeline);
+  g_main_loop_unref (loop);
+
+  pipeline = gst_parse_launch (test_pipeline, NULL);
+  ASSERT_NE (pipeline, nullptr);
+
+  loop = g_main_loop_new (NULL, FALSE);
+  bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
+  ASSERT_NE (bus, nullptr);
+  gst_bus_add_watch (bus, bus_callback, loop);
+  gst_object_unref (bus);
+
+  start_time = g_get_monotonic_time ();
+
+  setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
+  g_main_loop_run (loop);
+
+  setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
+  end_time = g_get_monotonic_time ();
+  elapsed_time = (end_time - start_time) / (double) G_USEC_PER_SEC;
+
+  g_print ("Elapsed time: %.6f second\n", elapsed_time);
+  EXPECT_LT (0.8, elapsed_time);
+
   gst_object_unref (pipeline);
   g_main_loop_unref (loop);
 
@@ -595,20 +731,19 @@ TEST (datareposrc, readFlexibleTensors)
  */
 TEST (datareposrc, readSparseTensors)
 {
-  GFile *file = NULL;
-  GFileInfo *info = NULL;
-  gint64 size, org_size = 31760;
+  gchar *data = NULL;
+  gsize size, org_size = 31760;
   gint buffer_count = 0;
   GstElement *tensor_sink;
   GstBus *bus;
   const gchar *str_pipeline = NULL;
   GMainLoop *loop;
   GCallback handler = G_CALLBACK (new_data_cb);
-  str_pipeline
-      = "datareposrc location=sparse.data json=sparse.json ! tensor_sparse_dec ! "
-        "other/tensors, format=static, num_tensors=2, framerate=0/1, "
-        "dimensions=1:1:784:1.1:1:10:1, types=\"float32,float32\" ! tee name= t "
-        "t. ! queue ! filesink location=sample.data t. ! queue ! tensor_sink name=tensor_sink0";
+  str_pipeline = "datareposrc location=sparse.data json=sparse.json ! tensor_sparse_dec ! "
+                 "other/tensors, format=static, num_tensors=2, framerate=0/1, "
+                 "dimensions=1:1:784:1.1:1:10:1, types=\"float32,float32\" ! tee name= t "
+                 "t. ! queue ! filesink location=sample.data "
+                 "t. ! queue ! tensor_sink name=tensor_sink0";
 
   create_sparse_tensors_test_file ();
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
@@ -632,26 +767,22 @@ TEST (datareposrc, readSparseTensors)
   EXPECT_NE (buffer_count, 0);
   handler = NULL;
 
-  file = g_file_new_for_path ("sparse.data");
-  info = g_file_query_info (
-      file, G_FILE_ATTRIBUTE_STANDARD_SIZE, G_FILE_QUERY_INFO_NONE, NULL, NULL);
-  size = g_file_info_get_size (info);
-  g_object_unref (file);
-  g_object_unref (info);
-  EXPECT_LT (size, org_size);
-
-  file = g_file_new_for_path ("sample.data");
-  info = g_file_query_info (
-      file, G_FILE_ATTRIBUTE_STANDARD_SIZE, G_FILE_QUERY_INFO_NONE, NULL, NULL);
-  size = g_file_info_get_size (info);
-  g_object_unref (file);
-  g_object_unref (info);
-  EXPECT_EQ (size, org_size);
-
   gst_object_unref (tensor_sink);
   gst_object_unref (pipeline);
   g_main_loop_unref (loop);
 
+  if (!g_file_get_contents ("sparse.data", &data, &size, NULL)) {
+    goto error;
+  }
+  EXPECT_LT (size, org_size);
+  g_free (data);
+
+  if (!g_file_get_contents ("sample.data", &data, &size, NULL)) {
+    goto error;
+  }
+  EXPECT_EQ (size, org_size);
+error:
+  g_free (data);
   g_remove ("sparse.json");
   g_remove ("sparse.data");
   g_remove ("sample.data");
@@ -972,9 +1103,10 @@ TEST (datareposrc, invalidTensorsSequence0_n)
  * @brief Test for reading a file composed of non-flexible tensors
  * the default shuffle is TRUE.
  */
-TEST (datareposrc, readInvalidFlexibleTensors)
+TEST (datareposrc, readInvalidFlexibleTensors_n)
 {
   gint buffer_count = 0;
+  gint fps = 10;
   GstBus *bus;
   GMainLoop *loop;
   GCallback handler = G_CALLBACK (new_data_cb);
@@ -982,7 +1114,7 @@ TEST (datareposrc, readInvalidFlexibleTensors)
       = "datareposrc location=audio1.raw json=flexible.json ! tensor_sink name=tensor_sink0";
   GstElement *tensor_sink;
 
-  create_flexible_tensors_test_file ();
+  create_flexible_tensors_test_file (fps);
   create_audio_test_file ();
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
@@ -1023,7 +1155,7 @@ TEST (datareposrc, readInvalidFlexibleTensors)
  * @brief Test for reading a file composed of non-sparse tensors
  * the default shuffle is TRUE.
  */
-TEST (datareposrc, readInvalidSparseTensors)
+TEST (datareposrc, readInvalidSparseTensors_n)
 {
   gint buffer_count = 0;
   GstBus *bus;
