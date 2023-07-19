@@ -389,7 +389,7 @@ gst_tensor_top_detectedObjects_cropInfo (GstMapInfo *out_info, const tensor_regi
 
   guint i;
   guint size = sizeof (crop_region); /**Assuming crop_region is a structure with four integer fields */
-  int *out_data = (int *)out_info->data;
+  guint *out_data = (guint *)out_info->data;
   crop_region region;
   guint maxx = MIN (results->len, data->num);
   for (i = 0; i < maxx; i++) {
@@ -399,7 +399,7 @@ gst_tensor_top_detectedObjects_cropInfo (GstMapInfo *out_info, const tensor_regi
     region.w = temp->width;
     region.h = temp->height;
     memcpy (out_data, &region, size);
-    out_data += size;
+    out_data += size / sizeof (guint);
   }
 }
 
@@ -538,8 +538,11 @@ nms (GArray *results, gfloat threshold)
   guint boxes_size;
   guint i, j;
  
-  g_array_sort (results, compare_detection);
   boxes_size = results->len;
+  if (boxes_size == 0U)
+    return;
+    
+  g_array_sort (results, compare_detection);
  
   for (i = 0; i < boxes_size; i++) {
     detected_object *a = &g_array_index (results, detected_object, i);
