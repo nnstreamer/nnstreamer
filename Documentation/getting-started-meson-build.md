@@ -29,7 +29,7 @@ The following dependencies are needed to compile/build/run.
 
 The minimal requirement to build nnstreamer with default configuration is
 ```bash
-$ sudo apt-get install meson ninja-build gcc g++ libglib2.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+$ sudo apt-get install meson ninja-build gcc g++ libglib2.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libjson-glib-dev
 ```
 
 Optional utilities:
