@@ -32,7 +32,8 @@ typedef struct _GstTensorTrainerProperties
 {
   GstTensorsInfo input_meta;    /**< configured input tensor info */
   const char *model_config;    /**< The configuration file path for creating model */
-  const char *model_save_path;    /**< The file path to save the model */
+  const char *model_save_path;    /**< The file path to save the new model */
+  const char *model_load_path;    /**< The file path to load an existing model to use for training a new model */
   unsigned int num_inputs;    /**< The number of input lists, the input is where framework receive the features to train the model, num_inputs indicates how many inputs there are. */
   unsigned int num_labels;    /**< The number of label lists, the label is where framework receive the class to train the model, num_labels indicates how many labels there are. */
   unsigned int num_training_samples;    /**< The number of training sample used to train the model. */

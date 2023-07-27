@@ -48,8 +48,6 @@ struct _GstTensorTrainer
   GstPad *srcpad;
 
   gchar *fw_name;
-  gchar *model_config;
-  gchar *model_save_path;
   gchar *output_dimensions;
   gchar *output_type;
 

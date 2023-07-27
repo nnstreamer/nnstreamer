@@ -73,7 +73,7 @@ TEST (tensor_trainer, SetParams)
       "gst-launch-1.0 datareposrc location=%s json=%s "
       "start-sample-index=3 stop-sample-index=202 tensors-sequence=0,1 epochs=1 ! "
       "tensor_trainer name=tensor_trainer framework=nntrainer model-config=%s "
-      "model-save-path=model.bin num-inputs=1 num-labels=1 "
+      "model-save-path=new_model.bin model-load-path=old_model.bin num-inputs=1 num-labels=1 "
       "num-training-samples=100 num-validation-samples=100 epochs=1 ! "
       "tensor_sink",
       file_path, json_path, model_config_path);
@@ -89,9 +89,22 @@ TEST (tensor_trainer, SetParams)
 
   g_object_get (tensor_trainer, "model-config", &get_str, NULL);
   EXPECT_STREQ (get_str, model_config_path);
+  g_free (get_str);
 
   g_object_get (tensor_trainer, "model-save-path", &get_str, NULL);
-  EXPECT_STREQ (get_str, "model.bin");
+  EXPECT_STREQ (get_str, "new_model.bin");
+  g_free (get_str);
+
+  g_object_get (tensor_trainer, "model-load-path", &get_str, NULL);
+  EXPECT_STREQ (get_str, "old_model.bin");
+  g_free (get_str);
+
+  /* set nullable param */
+  g_object_set (GST_OBJECT (tensor_trainer), "model-load-path", NULL, NULL);
+
+  g_object_get (tensor_trainer, "model-load-path", &get_str, NULL);
+  EXPECT_STREQ (get_str, NULL);
+  g_free (get_str);
 
   g_object_get (tensor_trainer, "num-inputs", &get_value, NULL);
   ASSERT_EQ (get_value, 1U);
