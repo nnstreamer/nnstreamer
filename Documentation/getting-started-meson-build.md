@@ -54,7 +54,7 @@ $ git clone https://github.com/nnstreamer/nnstreamer
 ```
 $ sudo add-apt-repository ppa:nnstreamer/ppa
 $ sudo apt-get update
-$ sudo apt-get install libedgetpu-dev libflatbuffers-dev libgrpc-dev openvino-dev libpaho-mqtt-dev libprotobuf-dev pytorch tensorflow-c-dev tensorflow-lite-dev tensorflow2-lite-dev tvm-runtime-dev
+$ sudo apt-get install libedgetpu-dev libflatbuffers-dev libgrpc-dev openvino-dev libpaho-mqtt-dev libprotobuf-dev pytorch tensorflow2-lite-dev tvm-runtime-dev
 ```
 
 *Option B*: Build & install your own frameworks and provide corresponding pkg-config files.
