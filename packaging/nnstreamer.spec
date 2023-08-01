@@ -690,14 +690,18 @@ NNStreamer's datareposrc/sink plugins for reading and writing files in MLOps Dat
 %if %{with tizen}
 %define enable_tizen -Denable-tizen=true -Dtizen-version-major=0%{tizen_version_major}
 # Element allowance in Tizen
-%define allowed_element_base     'capsfilter input-selector output-selector queue tee valve appsink appsrc audioconvert audiorate audioresample audiomixer videoconvert videocrop videorate videoscale videoflip videomixer compositor fakesrc fakesink filesrc filesink audiotestsrc videotestsrc jpegparse jpegenc jpegdec pngenc pngdec tcpclientsink tcpclientsrc tcpserversink tcpserversrc xvimagesink ximagesink evasimagesink evaspixmapsink glimagesink theoraenc lame vorbisenc wavenc volume oggmux avimux matroskamux v4l2src avsysvideosrc camerasrc tvcamerasrc pulsesrc fimcconvert tizenwlsink gdppay gdpdepay join datareposrc datareposink '
-%define allowed_element_edgeai   'rtpdec rtspsrc rtspclientsink zmqsrc zmqsink mqttsrc mqttsink udpsrc udpsink multiudpsink edgesrc edgesink '
+%define allowed_element_base     'capsfilter input-selector output-selector queue tee valve appsink appsrc audioconvert audiorate audioresample audiomixer videoconvert videocrop videorate videoscale videoflip videomixer compositor fakesrc fakesink filesrc filesink audiotestsrc videotestsrc jpegparse jpegenc jpegdec pngenc pngdec xvimagesink ximagesink evasimagesink evaspixmapsink glimagesink theoraenc lame vorbisenc wavenc volume oggmux avimux matroskamux v4l2src pulsesrc '
+%define allowed_element_edgeai   'rtpdec rtspsrc rtspclientsink zmqsrc zmqsink mqttsrc mqttsink udpsrc udpsink multiudpsink tcpclientsink tcpclientsrc tcpserversink tcpserversrc edgesrc edgesink gdppay gdpdepay '
 %define allowed_element_audio    'audioamplify audiochebband audiocheblimit audiodynamic audioecho audiofirfilter audioiirfilter audioinvert audiokaraoke audiopanorama audiowsincband audiowsinclimit scaletempo stereo '
+%define allowed_element_tizen    'tizencamerasrc avsysvideosrc camerasrc tvcamerasrc fimcconvert tizenwlsink '
+%define allowed_element_extra    'join datareposrc datareposink '
+
+%define allowed_element_all      %{allowed_element_base}%{allowed_element_audio}%{allowed_element_edgeai}%{allowed_element_tizen}%{allowed_element_extra}
 %if "%{?profile}" == "tv"
 %define allowed_element_vd       'tvdpbsrc '
-%define allowed_element          %{allowed_element_base}%{allowed_element_audio}%{allowed_element_edgeai}%{allowed_element_vd}
+%define allowed_element          %{allowed_element_all}%{allowed_element_vd}
 %else
-%define allowed_element          %{allowed_element_base}%{allowed_element_audio}%{allowed_element_edgeai}
+%define allowed_element          %{allowed_element_all}
 %endif
 %define element_restriction -Denable-element-restriction=true -Dallowed-elements=%{allowed_element}
 %endif #if tizen
