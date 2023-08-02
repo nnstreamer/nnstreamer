@@ -8,9 +8,9 @@ title: Tizen GBS
 
 * If you are a Tizen application developer, you may still use GBS to build your customized nnstreamer for your own Tizen devices. However, you won't be able to publish Tizen application that depends on your modification. You need to upstream your modifications to github.com/nnstreamer/nnstreamer and wait for next Tizen updates.
 
-[How to install GBS](https://source.tizen.org/documentation/developer-guide/getting-started-guide/installing-development-tools)
+[How to install GBS](https://docs.tizen.org/platform/developing/installing/)
 
-[How to build with GBS](https://source.tizen.org/documentation/reference/git-build-system/usage/gbs-build)
+[How to build with GBS](https://docs.tizen.org/platform/developing/building/)
 
 
 ### Build without options
