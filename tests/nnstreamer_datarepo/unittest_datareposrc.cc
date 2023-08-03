@@ -361,6 +361,7 @@ TEST (datareposrc, readAudioRaw)
   EXPECT_EQ (size_1, size_2);
   g_free (data_1);
   g_free (data_2);
+  data_1 = data_2 = NULL;
 
   if (!g_file_get_contents ("audio1.json", &data_1, &size_1, NULL)) {
     goto error;
@@ -609,6 +610,7 @@ TEST (datareposrc, readFlexibleTensors)
   EXPECT_EQ (size_1, size_2);
   g_free (data_1);
   g_free (data_2);
+  data_1 = data_2 = NULL;
 
   if (!g_file_get_contents ("flexible.json", &data_1, &size_1, NULL)) {
     goto error;
