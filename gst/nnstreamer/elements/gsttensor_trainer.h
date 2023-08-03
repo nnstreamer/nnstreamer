@@ -57,6 +57,7 @@ struct _GstTensorTrainer
   gboolean fw_created;
   gboolean is_training_complete;
   gboolean is_epoch_complete;
+  gboolean ready_to_complete_training;
   unsigned int input_ranks[NNS_TENSOR_SIZE_LIMIT];
   unsigned int output_ranks[NNS_TENSOR_SIZE_LIMIT];
   GstTensorsInfo output_meta;

@@ -101,6 +101,7 @@ enum
   PROP_NUM_TRAINING_SAMPLES,    /* number of training data */
   PROP_NUM_VALIDATION_SAMPLES,  /* number of validation data */
   PROP_EPOCHS,                  /* Repetitions of training */
+  PROP_READY_TO_COMPLETE_TRAINING
 };
 
 #define TRAINER_TENSOR_SIZE_LIMT ((NNS_TENSOR_SIZE_LIMIT) + (NNS_TENSOR_SIZE_EXTRA_LIMIT))
@@ -140,7 +141,9 @@ static gsize gst_tensor_trainer_get_tensor_size (GstTensorTrainer * trainer,
 static gboolean gst_tensor_trainer_create_model (GstTensorTrainer * trainer);
 static void gst_tensor_trainer_create_event_notifier (GstTensorTrainer *
     trainer);
-static void gst_tensor_trainer_train_model (GstTensorTrainer * trainer);
+static void gst_tensor_trainer_start_model_training (GstTensorTrainer *
+    trainer);
+static void gst_tensor_trainer_stop_model_training (GstTensorTrainer * trainer);
 static void gst_tensor_trainer_output_dimension (GstTensorTrainer * trainer);
 static void gst_tensor_trainer_output_type (GstTensorTrainer * trainer);
 
@@ -240,6 +243,14 @@ gst_tensor_trainer_class_init (GstTensorTrainerClass * klass)
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class,
+      PROP_READY_TO_COMPLETE_TRAINING,
+      g_param_spec_boolean ("ready-to-complete", "Ready to complete training ",
+          "Set when the training is ready to be completed and saved. "
+          "When it is set, the training session will be completed(stopped and saved) "
+          "after the current epoch. This cannot be reverted", FALSE,
+          G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
+
   gst_element_class_set_details_simple (gstelement_class, "TensorTrainer",
       "Trainer/Tensor", "Train tensor data using NN Frameworks",
       "Samsung Electronics Co., Ltd.");
@@ -286,9 +297,10 @@ gst_tensor_trainer_init (GstTensorTrainer * trainer)
   trainer->prop.num_training_samples = DEFAULT_PROP_TRAIN_SAMPLES;
   trainer->prop.num_validation_samples = DEFAULT_PROP_VALID_SAMPLES;
   trainer->prop.num_epochs = DEFAULT_PROP_EPOCHS;
+
   trainer->output_dimensions = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->output_type = g_strdup (DEFAULT_STR_PROP_VALUE);
-
+  trainer->ready_to_complete_training = FALSE;
   trainer->fw = NULL;
   trainer->fw_created = FALSE;
   trainer->input_configured = FALSE;
@@ -317,7 +329,6 @@ static void
 gst_tensor_trainer_finalize (GObject * object)
 {
   GstTensorTrainer *trainer;
-
   trainer = GST_TENSOR_TRAINER (object);
 
   g_free (trainer->fw_name);
@@ -350,6 +361,7 @@ gst_tensor_trainer_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
   GstTensorTrainer *trainer;
+  GstState state = GST_STATE_NULL;
 
   trainer = GST_TENSOR_TRAINER (object);
 
@@ -380,6 +392,20 @@ gst_tensor_trainer_set_property (GObject * object, guint prop_id,
       break;
     case PROP_EPOCHS:
       trainer->prop.num_epochs = g_value_get_uint (value);
+      break;
+    case PROP_READY_TO_COMPLETE_TRAINING:
+      gst_element_get_state (GST_ELEMENT (trainer), &state, NULL, 0);
+      if (state != GST_STATE_PLAYING) {
+        GST_ERROR_OBJECT (trainer,
+            "Failed to set 'ready-to-complete' in the current state(%s), Set only in PLAYING state.",
+            gst_element_state_get_name (state));
+        break;
+      }
+      if (trainer->ready_to_complete_training == g_value_get_boolean (value))
+        break;
+      trainer->ready_to_complete_training = g_value_get_boolean (value);
+      if (trainer->ready_to_complete_training)
+        gst_tensor_trainer_stop_model_training (trainer);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -485,7 +511,7 @@ gst_tensor_trainer_change_state (GstElement * element,
           goto state_change_failed;
       }
       gst_tensor_trainer_create_event_notifier (trainer);
-      gst_tensor_trainer_train_model (trainer);
+      gst_tensor_trainer_start_model_training (trainer);
       break;
 
     default:
@@ -591,6 +617,7 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
   void *ptr;
 
   trainer = GST_TENSOR_TRAINER (parent);
+
   in_flexible = gst_tensor_pad_caps_is_flexible (sinkpad);
   num_tensors = gst_tensor_buffer_get_count (inbuf);
 
@@ -601,6 +628,14 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
 
   if (num_tensors >= TRAINER_TENSOR_SIZE_LIMT)
     return GST_FLOW_ERROR;
+
+  if (trainer->is_training_complete == TRUE) {
+    /** app need to send gst_element_send_event(tensor_trainer, gst_event_new_eos())
+        after training_complete or set eos to datareposrc */
+    GST_WARNING_OBJECT (trainer,
+        "Training is completed, buffer is dropped, please chagne state of pipeline");
+    return GST_FLOW_OK;
+  }
 
   for (i = 0; i < num_tensors; i++) {
     in_mem[i] = gst_tensor_buffer_get_nth_memory (inbuf, i);
@@ -920,7 +955,6 @@ gst_tensor_trainer_sink_event (GstPad * sinkpad, GstObject * parent,
     default:
       break;
   }
-
   return gst_pad_event_default (sinkpad, parent, event);
 }
 
@@ -1187,22 +1221,41 @@ gst_tensor_trainer_create_event_notifier (GstTensorTrainer * trainer)
 }
 
 /**
- * @brief Train model
+ * @brief Start model training
  */
 static void
-gst_tensor_trainer_train_model (GstTensorTrainer * trainer)
+gst_tensor_trainer_start_model_training (GstTensorTrainer * trainer)
 {
   gint ret = -1;
   g_return_if_fail (trainer != NULL);
   g_return_if_fail (trainer->fw != NULL);
   g_return_if_fail (trainer->fw->start != NULL);
 
-  GST_DEBUG_OBJECT (trainer, "Start training model");
+  GST_DEBUG_OBJECT (trainer, "Start model training");
   ret =
       trainer->fw->start (trainer->fw, &trainer->prop, &trainer->notifier,
       trainer->privateData);
   if (ret != 0) {
-    GST_ERROR_OBJECT (trainer, "model training is failed");
+    GST_ERROR_OBJECT (trainer, "Model training is failed");
+  }
+}
+
+/**
+ * @brief Stop model training
+ */
+static void
+gst_tensor_trainer_stop_model_training (GstTensorTrainer * trainer)
+{
+  gint ret = -1;
+  g_return_if_fail (trainer != NULL);
+  g_return_if_fail (trainer->fw != NULL);
+  g_return_if_fail (trainer->fw->stop != NULL);
+  g_return_if_fail (trainer->ready_to_complete_training);
+
+  GST_DEBUG_OBJECT (trainer, "Stop model training");
+  ret = trainer->fw->stop (trainer->fw, &trainer->prop, &trainer->privateData);
+  if (ret != 0) {
+    GST_ERROR_OBJECT (trainer, "Stopping model training is failed");
   }
 }
 

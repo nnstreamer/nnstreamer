@@ -125,6 +125,14 @@ struct _GstTensorTrainerFramework
    * @return 0 if ok. < 0 if error.
    */
 
+  int (*stop) (const GstTensorTrainerFramework * self,
+      const GstTensorTrainerProperties * prop, void **private_data);
+  /**< tensor_trainer call this to stop training the model
+   * @param[in] prop read-only property values
+   * @param[in/out] private_data, a subplugin may save its internal private data here.
+   * @return 0 if ok. < 0 if error.
+   */ 
+
   int (*push_data) (const GstTensorTrainerFramework * self,
       const GstTensorTrainerProperties * prop,
       void *private_data, const GstTensorMemory * input);
