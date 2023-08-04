@@ -268,13 +268,18 @@ gst_data_repo_sink_write_others (GstDataRepoSink * sink, GstBuffer * buffer)
 {
   gsize write_size = 0;
   GstMapInfo info;
+  GstFlowReturn ret = GST_FLOW_OK;
 
   g_return_val_if_fail (sink != NULL, GST_FLOW_ERROR);
   g_return_val_if_fail (buffer != NULL, GST_FLOW_ERROR);
   g_return_val_if_fail (sink->fd != 0, GST_FLOW_ERROR);
 
+  if (!gst_buffer_map (buffer, &info, GST_MAP_READ)) {
+    GST_ERROR_OBJECT (sink, "Failed to map the incoming buffer.");
+    return GST_FLOW_ERROR;
+  }
+
   GST_OBJECT_LOCK (sink);
-  gst_buffer_map (buffer, &info, GST_MAP_READ);
   sink->sample_size = info.size;
 
   GST_LOG_OBJECT (sink,
@@ -283,18 +288,18 @@ gst_data_repo_sink_write_others (GstDataRepoSink * sink, GstBuffer * buffer)
 
   write_size = write (sink->fd, info.data, info.size);
 
-  gst_buffer_unmap (buffer, &info);
-  GST_OBJECT_UNLOCK (sink);
-
   if (write_size != info.size) {
     GST_ERROR_OBJECT (sink, "Could not write data to file");
-    return GST_FLOW_ERROR;
+    ret = GST_FLOW_ERROR;
+  } else {
+    sink->fd_offset += write_size;
+    sink->total_samples++;
   }
 
-  sink->fd_offset += write_size;
-  sink->total_samples++;
+  GST_OBJECT_UNLOCK (sink);
+  gst_buffer_unmap (buffer, &info);
 
-  return GST_FLOW_OK;
+  return ret;
 }
 
 /**
@@ -411,40 +416,40 @@ static GstFlowReturn
 gst_data_repo_sink_write_multi_images (GstDataRepoSink * sink,
     GstBuffer * buffer)
 {
-  gchar *filename;
-  gboolean ret;
+  g_autofree gchar *filename = NULL;
+  GstFlowReturn ret = GST_FLOW_OK;
   GError *error = NULL;
   GstMapInfo info;
 
   g_return_val_if_fail (sink != NULL, GST_FLOW_ERROR);
   g_return_val_if_fail (buffer != NULL, GST_FLOW_ERROR);
 
+  if (!gst_buffer_map (buffer, &info, GST_MAP_READ)) {
+    GST_ERROR_OBJECT (sink, "Failed to map the incoming buffer.");
+    return GST_FLOW_ERROR;
+  }
+
   filename = gst_data_repo_sink_get_image_filename (sink);
 
   GST_OBJECT_LOCK (sink);
-  gst_buffer_map (buffer, &info, GST_MAP_READ);
-
   sink->sample_size = info.size;
 
   GST_DEBUG_OBJECT (sink, "Writing to file \"%s\", size(%zd)", filename,
       info.size);
-  ret = g_file_set_contents (filename, (char *) info.data, info.size, &error);
 
-  gst_buffer_unmap (buffer, &info);
-  GST_OBJECT_UNLOCK (sink);
-
-  g_free (filename);
-
-  if (!ret) {
+  if (!g_file_set_contents (filename, (char *) info.data, info.size, &error)) {
     GST_ERROR_OBJECT (sink, "Could not write data to file: %s",
         error ? error->message : "unknown error");
     g_clear_error (&error);
-    return GST_FLOW_ERROR;
+    ret = GST_FLOW_ERROR;
+  } else {
+    sink->total_samples++;
   }
 
-  sink->total_samples++;
+  GST_OBJECT_UNLOCK (sink);
+  gst_buffer_unmap (buffer, &info);
 
-  return GST_FLOW_OK;
+  return ret;
 }
 
 /**
