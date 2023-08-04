@@ -733,7 +733,7 @@ TEST (datareposrc, fps30ReadFlexibleTensors)
  */
 TEST (datareposrc, readSparseTensors)
 {
-  gchar *data = NULL;
+  gchar *sparse_data = NULL, *sample_data = NULL;
   gsize size, org_size = 31760;
   gint buffer_count = 0;
   GstElement *tensor_sink;
@@ -773,18 +773,18 @@ TEST (datareposrc, readSparseTensors)
   gst_object_unref (pipeline);
   g_main_loop_unref (loop);
 
-  if (!g_file_get_contents ("sparse.data", &data, &size, NULL)) {
+  if (!g_file_get_contents ("sparse.data", &sparse_data, &size, NULL)) {
     goto error;
   }
   EXPECT_LT (size, org_size);
-  g_free (data);
 
-  if (!g_file_get_contents ("sample.data", &data, &size, NULL)) {
+  if (!g_file_get_contents ("sample.data", &sample_data, &size, NULL)) {
     goto error;
   }
   EXPECT_EQ (size, org_size);
 error:
-  g_free (data);
+  g_free (sparse_data);
+  g_free (sample_data);
   g_remove ("sparse.json");
   g_remove ("sparse.data");
   g_remove ("sample.data");
