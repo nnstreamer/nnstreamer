@@ -1391,6 +1391,7 @@ update_centroids (void **pdata, GArray * boxes)
 #define _get_object_i_mobilenet_ssd(bb, index, total_labels, boxprior, boxinputptr, detinputptr, result) \
   do { \
     unsigned int c; \
+    gfloat highscore = -FLT_MAX; \
     properties_MOBILENET_SSD *data = &bb->mobilenet_ssd; \
     float sigmoid_threshold = data->sigmoid_threshold; \
     float y_scale = data->params[MOBILENET_SSD_PARAMS_Y_SCALE_IDX]; \
@@ -1411,14 +1412,15 @@ update_centroids (void **pdata, GArray * boxes)
         int y = ymin * bb->i_height; \
         int width = w * bb->i_width; \
         int height = h * bb->i_height; \
-        result->class_id = c; \
-        result->x = MAX (0, x); \
-        result->y = MAX (0, y); \
-        result->width = width; \
-        result->height = height; \
-        result->prob = score; \
-        result->valid = TRUE; \
-        break; \
+        if (highscore < score) { \
+          result->class_id = c; \
+          result->x = MAX (0, x); \
+          result->y = MAX (0, y); \
+          result->width = width; \
+          result->height = height; \
+          result->prob = score; \
+          result->valid = TRUE; \
+        } \
       } \
     } \
   } while (0);
