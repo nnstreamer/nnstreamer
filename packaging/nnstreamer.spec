@@ -270,8 +270,10 @@ BuildRequires:	capi-system-sensor-devel
 # As of 2019-09-24, unfortunately, nnfw does not support pkg-config
 BuildRequires:  nnfw-devel
 %ifarch %arm aarch64
+%if 0%{tizen_version_major} <= 7
 BuildRequires:  libarmcl
 BuildConflicts: libarmcl-release
+%endif
 %endif
 %endif
 
