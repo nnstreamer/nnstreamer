@@ -1396,7 +1396,7 @@ update_centroids (void **pdata, GArray * boxes)
     float h_scale = data->params[MOBILENET_SSD_PARAMS_H_SCALE_IDX]; \
     float w_scale = data->params[MOBILENET_SSD_PARAMS_W_SCALE_IDX]; \
     result->valid = FALSE; \
-    for (c = 1; c < total_labels; c++) { \
+    for (c = 0; c < total_labels; c++) { \
       if (detinputptr[c] >= sigmoid_threshold) { \
         gfloat score = _expit (detinputptr[c]); \
         float ycenter = boxinputptr[0] / y_scale * boxprior[2][index] + boxprior[0][index]; \
