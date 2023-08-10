@@ -22,3 +22,10 @@ jobs:
       run: cp .github/workflows/tizen.gbs.conf ~/.gbs.conf
     - name: run GBS
       run: gbs build
+    - name: get nntrainer
+      uses: actions/checkout@v3
+      with:
+        repository: nnstreamer/nntrainer
+        path: nntrainer
+    - name: run nntrainer GBS build
+      run: pushd nntrainer && gbs build --define "unit_test 1" && popd
