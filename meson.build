@@ -325,6 +325,15 @@ if not get_option('mxnet-support').disabled()
   endif
 endif
 
+# nnstreamer-edge
+nnstreamer_edge_dep = dependency('nnstreamer-edge', method : 'pkg-config', required: false)
+if get_option('nnstreamer-edge-support').enabled()
+  if not nnstreamer_edge_dep.found()
+    error('nnstreamer-edge not found whilt it is enabled.')
+  endif
+endif
+## Without the explicit method designation, it fails to find cflags in older Meson
+
 # features registration to be controlled
 #
 # register feature as follows
@@ -421,7 +430,7 @@ features = {
     'project_args': { 'ENABLE_TRIX_ENGINE' : 1 }
   },
   'nnstreamer-edge-support': {
-    'target': 'nnstreamer-edge',
+    'extra_deps': [ nnstreamer_edge_dep ],
     'project_args': { 'ENABLE_NNSTREAMER_EDGE': 1 }
   },
   'mxnet-support': {
