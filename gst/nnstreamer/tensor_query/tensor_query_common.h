@@ -16,7 +16,7 @@
 #include "tensor_typedef.h"
 #include "tensor_common.h"
 #include "tensor_meta.h"
-#include "nnstreamer-edge.h"
+#include <nnstreamer-edge.h>
 
 #ifdef __cplusplus
 extern "C" {

@@ -16,7 +16,7 @@
 #include <gst/gst.h>
 #include <gio/gio.h>
 #include <tensor_common.h>
-#include "nnstreamer-edge.h"
+#include <nnstreamer-edge.h>
 
 G_BEGIN_DECLS
 

@@ -15,7 +15,7 @@
 
 #include <gst/gst.h>
 #include <tensor_common.h>
-#include "nnstreamer-edge.h"
+#include <nnstreamer-edge.h>
 #include "tensor_meta.h"
 
 G_BEGIN_DECLS
