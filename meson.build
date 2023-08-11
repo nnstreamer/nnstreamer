@@ -157,6 +157,7 @@ protobuf_dep = dependency('protobuf', version: '>= 3.6.1', required: false)
 flatc = find_program('flatc', required : get_option('flatbuf-support'))
 flatbuf_dep = disabler()
 flatbuf_version_check_dep = disabler()
+flatc_dep = disabler()
 if flatc.found()
   # TODO: After bumping up meson version to 0.62.0, we can use flatc.version()
   # Please refer https://mesonbuild.com/Reference-manual_returned_external_program.html#external_programversion
@@ -165,13 +166,22 @@ if flatc.found()
       required : get_option('flatbuf-support'))
   flatbuf_version_check_dep = dependency('flatbuffers', version: '>=2.0.0',
       required : get_option('flatbuf-support'))
+  flatc_dep = declare_dependency()
 endif
 
 # Protobuf compiler
 pb_comp = find_program('protoc', required: get_option('protobuf-support'))
+pb_comp_dep = disabler()
+if (pb_comp.found())
+  pb_comp_dep = declare_dependency()
+endif
 
 #orc
 pg_orcc = find_program('orcc', required: get_option('orcc-support'))
+pg_orcc_dep = disabler()
+if (pg_orcc.found())
+  pg_orcc_dep = declare_dependency()
+endif
 orc_dep = dependency('orc-0.4', version: '>= 0.4.17', required: get_option('orcc-support'))
 
 ## nnfw
@@ -386,7 +396,7 @@ features = {
     'project_args': { 'ENABLE_ARMNN': 1 }
   },
   'orcc-support': {
-    'extra_deps': [ orc_dep, pg_orcc ],
+    'extra_deps': [ orc_dep, pg_orcc_dep ],
     'project_args': {'HAVE_ORC': 1},
     'project_args_disabled': { 'DISABLE_ORC': 1 },
     'extra_args': {'orcc_args': [pg_orcc, '--include', 'glib.h'] }
@@ -396,11 +406,11 @@ features = {
     'project_args': { 'ENABLE_SNPE' : 1 },
   },
   'flatbuf-support': {
-    'extra_deps': [ flatc, flatbuf_dep, flatbuf_version_check_dep ],
+    'extra_deps': [ flatc_dep, flatbuf_dep, flatbuf_version_check_dep ],
     'project_args': { 'ENABLE_FLATBUF': 1 }
   },
   'protobuf-support': {
-    'extra_deps': [ pb_comp, protobuf_dep ],
+    'extra_deps': [ pb_comp_dep, protobuf_dep ],
     'project_args': { 'ENABLE_PROTOBUF': 1 }
   },
   'tensorrt-support': {
