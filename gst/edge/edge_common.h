@@ -15,7 +15,7 @@
 
 #include <glib.h>
 #include <gst/gst.h>
-#include "nnstreamer-edge.h"
+#include <nnstreamer-edge.h>
 
 #ifndef GST_EDGE_PACKAGE
 #define GST_EDGE_PACKAGE "GStreamer Edge Plugins"
