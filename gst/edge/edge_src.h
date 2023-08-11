@@ -16,7 +16,7 @@
 #include <gst/gst.h>
 #include <gst/base/gstbasesrc.h>
 #include "edge_common.h"
-#include "nnstreamer-edge.h"
+#include <nnstreamer-edge.h>
 #include "nnstreamer_util.h"
 #include "../nnstreamer/nnstreamer_log.h"
 
