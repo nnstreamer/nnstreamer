@@ -38,6 +38,7 @@
 %define		trix_engine_support 1
 # Support AI offloading (tensor_query) using nnstreamer-edge interface
 %define		nnstreamer_edge_support 1
+%define         datarepo_support 1
 
 %define		check_test 1
 %define		release_test 1
@@ -309,7 +310,9 @@ BuildRequires:	flex
 BuildRequires:	bison
 
 # For datarepo
+%if 0%{?datarepo_support}
 BuildRequires: pkgconfig(json-glib-1.0)
+%endif
 
 # Note that debug packages generate an additional build and storage cost.
 # If you do not need debug packages, run '$ gbs -c .TAOS-CI/.gbs.conf build ... --define "_skip_debug_rpm 1"'.
@@ -648,10 +651,15 @@ BuildRequires:	pkgconfig(paho-mqtt-c)
 %description misc
 Provides additional gstreamer plugins for nnstreamer pipelines
 
+%if 0%{?datarepo_support}
 %package datarepo
 Summary: NNStreamer MLOps Data Repository plugin packages
 %description datarepo
 NNStreamer's datareposrc/sink plugins for reading and writing files in MLOps Data Repository
+%define enable_datarepo -Ddatarepo-support=enabled
+%else
+%define enable_datarepo -Ddatarepo-support=disabled
+%endif
 
 ## Define build options ##
 %define enable_tizen -Denable-tizen=false
@@ -853,7 +861,7 @@ meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir
 	%{enable_tizen} %{element_restriction} %{fw_priority} -Denable-env-var=false -Denable-symbolic-link=false \
 	%{enable_tf_lite} %{enable_tf2_lite} %{enable_tf} %{enable_pytorch} %{enable_caffe2} %{enable_python3} \
 	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_openvino} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} \
-	%{enable_flatbuf} %{enable_trix_engine} \
+	%{enable_flatbuf} %{enable_trix_engine} %{enable_datarepo} \
 	%{enable_tizen_sensor} %{enable_mqtt} %{enable_lua} %{enable_tvm} %{enable_test} %{enable_test_coverage} %{install_test} \
         %{fp16_support} \
 	%{builddir}
@@ -886,7 +894,9 @@ export NNSTREAMER_TRAINERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_t
     bash %{test_script} ./tests
     bash %{test_script} ./tests/cpp_methods
     bash %{test_script} ./tests/nnstreamer_filter_extensions_common
+%if 0%{?datarepo_support}
     bash %{test_script} ./tests/nnstreamer_datarepo
+%endif
 %if 0%{?nnstreamer_edge_support}
     bash %{test_script} ./tests/nnstreamer_edge
 %endif
@@ -1261,8 +1271,10 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{gstlibdir}/libgstmqtt.so
 %endif
 
+%if 0%{?datarepo_support}
 %files datarepo
 %{gstlibdir}/libgstdatarepo.so
+%endif
 
 %if 0%{?release_test}
 %files test-devel
