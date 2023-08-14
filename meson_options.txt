@@ -26,6 +26,7 @@ option('trix-engine-support', type: 'feature', value: 'auto')
 option('nnstreamer-edge-support', type: 'feature', value: 'auto')
 option('mxnet-support', type: 'feature', value: 'auto')
 option('parser-support', type: 'feature', value: 'auto') # gstreamer pipeline description <--> pbtxt pipeline
+option('datarepo-support', type: 'feature', value: 'auto', description: 'Data repository sink/src for in-pipeline training') # this required json-glib-1.0.
 
 # booleans & other options
 option('enable-test', type: 'boolean', value: true)
@@ -50,7 +51,6 @@ option('framework-priority-bin', type: 'string', value: '', description: 'A comm
 option('skip-tflite-flatbuf-check', type: 'boolean', value: false, description: 'Do not check the availability of flatbuf for tensorflow-lite build. In some systems, flatbuffers\' dependency cannot be found with meson.')
 option('trix-engine-alias', type: 'string', value: 'srnpu', description: 'The alias name list of trix-engine sub-plugin. This option provides backward compatibility of the previous framework name.')
 option('enable-float16', type: 'boolean', value: false, description: 'Support float16 streams with GCC extensions')
-option('enable-datarepo', type: 'boolean', value: true, description: 'Data repository sink/src for in-pipeline training')
 
 # Utilities
 option('enable-nnstreamer-check', type: 'boolean', value: true)

@@ -7,8 +7,6 @@ if mqtt_support_is_available
 endif
 subdir('nnstreamer')
 
-if get_option('enable-datarepo')
-  json_glib_dep = dependency('json-glib-1.0', required : true, \
-      not_found_message : 'json-glib-1.0 package should be installed to build the datarepo elements.')
+if datarepo_support_is_available
   subdir('datarepo')
 endif

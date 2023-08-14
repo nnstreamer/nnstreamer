@@ -342,7 +342,7 @@ if gtest_dep.found()
     test('unittest_filter_shared_model', unittest_filter_shared_model, timeout: 30, env: testenv)
   endif
 
-  if get_option('enable-datarepo')
+  if datarepo_support_is_available
     subdir('nnstreamer_datarepo')
   endif
 
