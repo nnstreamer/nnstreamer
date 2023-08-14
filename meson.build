@@ -344,6 +344,15 @@ if get_option('nnstreamer-edge-support').enabled()
 endif
 ## Without the explicit method designation, it fails to find cflags in older Meson
 
+# datarepo requires json-glib-1.0 in the name of json_glib_dep
+json_glib_dep = dependency('json-glib-1.0', required: false)
+if get_option('datarepo-support').enabled() and not json_glib_dep.found()
+  error('json-glib-1.0 is required for datarepo-support option.')
+endif
+if not get_option('datarepo-support').disabled() and not json_glib_dep.found()
+  message('datarepo-support is off because json-glib-1.0 is not available.')
+endif
+
 # features registration to be controlled
 #
 # register feature as follows
@@ -446,7 +455,10 @@ features = {
   'mxnet-support': {
     'extra_deps': [ mxnet_dep ],
     'project_args': { 'ENABLE_MXNET' : 1 }
-  }
+  },
+  'datarepo-support': {
+    'extra_deps': [ json_glib_dep ],
+  },
 }
 
 project_args = {}
