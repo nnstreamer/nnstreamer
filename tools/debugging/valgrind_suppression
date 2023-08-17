@@ -1,0 +1,314 @@
+{
+        ignore_unversioned_libs
+        Memcheck:Leak
+        obj:*python*
+}
+{
+        ignore_v1
+        Memcheck:Value1
+        obj:*python*
+}
+{
+        ignore_v2
+        Memcheck:Value2
+        obj:*python*
+}
+{
+        ignore_v4
+        Memcheck:Value4
+        obj:*python*
+}
+{
+        ignore_v8
+        Memcheck:Value8
+        obj:*python*
+}
+{
+        ignore_v16
+        Memcheck:Value16
+        obj:*python*
+}
+{
+        ignore_v0
+        Memcheck:Value0
+        obj:*python*
+}
+{
+        ignore_r4
+        Memcheck:Addr4
+        obj:*python*
+}
+{
+        ignore_r8
+        Memcheck:Addr8
+        obj:*python*
+}
+{
+        ignore_cond
+        Memcheck:Cond
+        obj:*
+        ...
+        obj:*python*
+}
+{
+        ignore_jmp
+        Memcheck:Jump
+        obj:*python*
+}
+{
+        glib_gst_leak
+        Memcheck:Leak
+        ...
+        fun:g_type_register_static_simple
+        fun:gst_adapter_get_type
+        fun:gst_adapter_new
+        fun:gst_tensor_aggregation_add_data
+        fun:gst_tensor_aggregation_init
+        fun:gst_tensor_converter_init
+        fun:g_type_create_instance
+        ...
+}
+{
+        glibgst_leak3A
+        Memcheck:Leak
+        ...
+        fun:*alloc
+        obj:*/libglib*
+        obj:*/libgobject*
+        obj:*/libgobject*
+        obj:*/libgobject*
+        obj:*/libgstreamer*
+        obj:*/libgstreamer*
+        obj:*/libgstreamer*
+        fun:g_option_context_parse
+        obj:*/gst-launch*
+        ...
+}
+{
+        glibgst_leak3
+        Memcheck:Leak
+        ...
+        fun:*alloc
+        obj:*/libglib*
+        obj:*/libgobject*
+        obj:*/libgobject*
+        obj:*/libgstreamer*
+        obj:*/libgstreamer*
+        obj:*/libgstreamer*
+        fun:g_option_context_parse
+        obj:*/gst-launch*
+        ...
+}
+{
+        glibgst_leak2A
+        Memcheck:Leak
+        ...
+        fun:*alloc
+        obj:*/libglib*
+        obj:*/libgobject*
+        obj:*/libgobject*
+        obj:*/libgobject*
+        obj:*/libgstreamer*
+        obj:*/libgstreamer*
+        fun:g_option_context_parse
+        obj:*/gst-launch*
+        ...
+}
+{
+        glibgst_leak2
+        Memcheck:Leak
+        ...
+        fun:*alloc
+        obj:*/libglib*
+        obj:*/libgobject*
+        obj:*/libgobject*
+        obj:*/libgstreamer*
+        obj:*/libgstreamer*
+        fun:g_option_context_parse
+        obj:*/gst-launch*
+        ...
+}
+{
+        glibgst_leak1
+        Memcheck:Leak
+        ...
+        fun:*alloc
+        obj:*/libglib*
+        obj:*/libgobject*
+        obj:*/libgobject*
+        obj:*/libgstreamer*
+        fun:g_option_context_parse
+        obj:*/gst-launch*
+        ...
+}
+{
+        glibgst_leakN
+        Memcheck:Leak
+        ...
+        fun:*alloc
+        obj:*/libglib*
+        obj:*/libgobject*
+        obj:*/libgobject*
+        obj:*/libgobject*
+        obj:*/libgobject*
+        obj:*/libgobject*
+        obj:*/libgstreamer*
+        obj:*/libgobject*
+        obj:*/libgobject*
+        obj:*/libgobject*
+        obj:*/libgobject*
+        obj:*/libgobject*
+        obj:*/libgstreamer*
+        obj:*/libgstreamer*
+        fun:g_option_context_parse
+        obj:*/gst-launch*
+        ...
+}
+{
+        gobject_class_init_leaks_we_dont_have_class_finalize
+        Memcheck:Leak
+        ...
+        fun:_dl_open
+        ...
+        fun:gst_tensor_converter_class_init
+        ...
+}
+{
+        ld_to_gobject
+        Memcheck:Leak
+        ...
+        fun:*alloc*
+        obj:*/libgobject*
+        obj:*/libgobject*
+        fun:g_type_register_fundamental
+        obj:*/libgobject*
+        obj:*/libgobject*
+        fun:call_init
+        fun:_dl_init
+        obj:*/ld-*
+        ...
+}
+{
+        ld_to_gobject2
+        Memcheck:Leak
+        ...
+        fun:*alloc*
+        obj:*/libgobject*
+        fun:g_type_register_fundamental
+        obj:*/libgobject*
+        obj:*/libgobject*
+        fun:call_init
+        fun:_dl_init
+        obj:*/ld-*
+        ...
+}
+{
+        ld_to_gobjectDirect
+        Memcheck:Leak
+        ...
+        fun:*alloc*
+        obj:*/libgobject*
+        obj:*/libgobject*
+        obj:*/libgobject*
+        fun:call_init
+        fun:_dl_init
+        obj:*/ld-*
+        ...
+}
+{
+        ld_to_glibDirect
+        Memcheck:Leak
+        ...
+        fun:*alloc*
+        obj:*/libglib*
+        obj:*/libglib*
+        fun:call_init
+        fun:_dl_init
+        obj:*/ld-*
+        ...
+}
+{
+        gstpipe1
+        Memcheck:Leak
+        fun:*alloc
+        fun:allocate_dtv
+        fun:_dl_allocate_tls
+        fun:allocate_stack
+        fun:pthread_create*
+        obj:*/libglib*
+        ...
+        obj:*/libgstreamer*
+        ...
+        obj:*/libgstbase*
+        fun:gst_base_src_start_complete
+        obj:*/libgstbase*
+        ...
+        obj:*/libgstbase*
+        fun:gst_element_change_state
+        obj:*/libgstreamer*
+        ...
+        obj:*/libgstreamer*
+        obj:*/gst-launch*
+        ...
+}
+{
+        gstpipe2
+        Memcheck:Leak
+        fun:*alloc
+        fun:allocate_dtv
+        fun:_dl_allocate_tls
+        fun:allocate_stack
+        fun:pthread_create*
+        obj:*/libglib*
+        ...
+        fun:g_thread_new
+        ...
+        fun:g_unix_signal_add_full
+        obj:*/gst-launch*
+        ...
+}
+{
+        gstpipe3
+        Memcheck:Leak
+        fun:*alloc
+        fun:allocate_dtv
+        fun:_dl_allocate_tls
+        fun:allocate_stack
+        fun:pthread_create*
+        obj:*/libglib*
+        ...
+        fun:g_thread_pool_push
+        ...
+        fun:gst_element_change_state
+        ...
+        obj:*/gst-launch*
+        ...
+}
+{
+        gstlaunch
+        Memcheck:Leak
+        fun:*alloc
+        fun:g_realloc
+        obj:*/libgobject*
+        fun:g_type_register_static
+        fun:g_enum_register_static
+        obj:*/libgstcoreelements.so
+	fun:g_type_class_ref
+	fun:g_object_new_with_properties
+	fun:g_object_new
+	fun:gst_element_factory_create
+	fun:gst_element_factory_make
+	fun:gst_element_link_pads_filtered
+        obj:*/libgstreamer*
+        fun:gst_parse_launch_full
+        fun:gst_parse_launchv_full
+        obj:*/gst-launch*
+        ...
+}
+{
+        gtest_gst_init
+        Memcheck:Leak
+        ...
+        fun:gst_init
+        fun:main
+}

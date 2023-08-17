@@ -75,7 +75,7 @@ run_entry() {
   fi
 
   if [[ "$VALGRIND" == "valgrind" ]]; then
-    valgrind -v --tool=memcheck --leak-check=full --num-callers=40 --error-exitcode=-1 ${entry} --gtest_output="xml:${entry##*/}.xml"
+    valgrind -v --suppressions=../tools/debugging/valgrind_suppression --track-origins=yes --tool=memcheck --num-callers=200 --leak-check=full ${entry} --gtest_output="xml:${entry##*/}.xml"
   else
     ${entry} --gtest_output="xml:${entry##*/}.xml"
   fi
