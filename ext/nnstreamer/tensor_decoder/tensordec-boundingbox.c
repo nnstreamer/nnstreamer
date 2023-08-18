@@ -1978,7 +1978,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
 
     /* Already checked with getOutCaps. Thus, this is an internal bug */
     g_assert (num_tensors >= MP_PALM_DETECTION_MAX_TENSORS);
-    results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), 100);
+    /* results will be allocated by _get_objects_mp_palm_detection_ */
 
     boxes = &input[0];
     detections = &input[1];
