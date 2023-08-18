@@ -474,6 +474,8 @@ _init_modes (bounding_boxes * bdata)
     data->strides[2] = MP_PALM_DETECTION_STRIDE_2_DEFAULT;
     data->strides[3] = MP_PALM_DETECTION_STRIDE_3_DEFAULT;
     data->min_score_threshold = MP_PALM_DETECTION_MIN_SCORE_THRESHOLD_DEFAULT;
+    if (data->anchors)
+      g_array_free (data->anchors, TRUE);
     data->anchors = g_array_new(FALSE, TRUE, sizeof(anchor));
 
     return TRUE;
@@ -526,6 +528,11 @@ _exit_modes (bounding_boxes * bdata)
     /* properties_MOBILENET_SSD *data = &bdata->mobilenet_ssd; */
   } else if (_check_mode_is_mobilenet_ssd_pp (bdata->mode)) {
     /* post processing */
+  } else if (_check_mode_is_mp_palm_detection (bdata->mode)) {
+    properties_MP_PALM_DETECTION *data = &bdata->mp_palm_detection;
+    if (data->anchors)
+      g_array_free (data->anchors, TRUE);
+    data->anchors = NULL;
   }
 }
 
@@ -858,6 +865,8 @@ bb_setOption (void **pdata, int opNum, const char *param)
     }
 
     if (bdata->mode != previous && bdata->mode != BOUNDING_BOX_UNKNOWN) {
+      if (previous != BOUNDING_BOX_UNKNOWN)
+        _exit_modes (bdata);
       return _init_modes (bdata);
     }
     return TRUE;
