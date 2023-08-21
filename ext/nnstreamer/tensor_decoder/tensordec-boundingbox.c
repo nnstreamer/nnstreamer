@@ -1143,7 +1143,7 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
         (data->labeldata.total_labels + YOLOV5_DETECTION_NUM_INFO), NULL);
     g_return_val_if_fail (dim[1] == data->max_detection, NULL);
     for (i = 2; i < NNS_TENSOR_RANK_LIMIT; ++i)
-      g_return_val_if_fail (dim[i] == 1, NULL);
+      g_return_val_if_fail (dim[i] == 0 || dim[i] == 1, NULL);
   } else if (data->mode == MP_PALM_DETECTION_BOUNDING_BOX) {
     const uint32_t *dim1, *dim2;
     if (!_check_tensors (config, MP_PALM_DETECTION_MAX_TENSORS))
