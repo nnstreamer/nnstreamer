@@ -41,8 +41,13 @@
  *          for yolov5 mode:
  *            This option set whether the x, y, w, h values are scaled to input image or not.
  *            The default is the values are not scaled.
- *            option3=0 (default, suitable for tflite models)
+ *            option3=0 (default, suitable for tflite models exported by official guide)
  *            option3=1 (suitable for torchscript models)
+ *          for yolov8 mode:
+ *            This option set whether the x, y, w, h values are scaled to input image or not.
+ *            The default is the values are not scaled.
+ *            option3=0 (default, suitable for tflite models exported by official guide)
+ *            option3=1
  *          for mobilenet-ssd mode:
  *            The option3 definition scheme is, in order, the following:
  *                - box priors location file (mandatory)
@@ -133,6 +138,9 @@ extern uint8_t rasters[][13];
 #define YOLOV5_DETECTION_NUM_INFO               (5)
 #define YOLOV5_DETECTION_CONF_THRESHOLD         (0.25)
 #define YOLOV5_DETECTION_IOU_THRESHOLD          (0.45)
+#define YOLOV8_DETECTION_NUM_INFO               (4)
+#define YOLOV8_DETECTION_CONF_THRESHOLD         (0.25)
+#define YOLOV8_DETECTION_IOU_THRESHOLD          (0.7)
 #define PIXEL_VALUE                             (0xFF0000FF)    /* RED 100% in RGBA */
 #define MP_PALM_DETECTION_INFO_SIZE             (18)
 #define MP_PALM_DETECTION_MAX_TENSORS           (2U)
@@ -163,6 +171,8 @@ typedef enum
 
   MP_PALM_DETECTION_BOUNDING_BOX = 7,
 
+  YOLOV8_BOUNDING_BOX = 8,
+
   BOUNDING_BOX_UNKNOWN,
 } bounding_box_modes;
 
@@ -190,6 +200,7 @@ static const char *bb_modes[] = {
   [OLDNAME_MOBILENET_SSD_PP_BOUNDING_BOX] = "tf-ssd",
   [YOLOV5_BOUNDING_BOX] = "yolov5",
   [MP_PALM_DETECTION_BOUNDING_BOX] = "mp-palm-detection",
+  [YOLOV8_BOUNDING_BOX] = "yolov8",
   NULL,
 };
 
@@ -213,13 +224,13 @@ typedef struct
 } properties_MOBILENET_SSD;
 
 /**
- * @brief Data structure for yolov5 model.
+ * @brief Data structure for yolov5 and yolov8 model.
  */
 typedef struct
 {
   /* From option3, whether the output values are scaled or not */
   int scaled_output;
-} properties_YOLOV5;
+} properties_YOLO;
 
 /**
  * @brief Structure for object centroid tracking.
@@ -310,7 +321,7 @@ typedef struct
   {
     properties_MOBILENET_SSD mobilenet_ssd; /**< Properties for mobilenet_ssd configured by option 1 + 3 */
     properties_MOBILENET_SSD_PP mobilenet_ssd_pp; /**< mobilenet_ssd_pp mode properties configuration settings */
-    properties_YOLOV5 yolov5_pp; /**< Properties for yolov5 configured by option3 */
+    properties_YOLO yolo_pp; /**< Properties for yolov5 and yolov8 configured by option3 */
   };
 
   properties_MP_PALM_DETECTION mp_palm_detection; /**< mp_palm_detection mode properties configuration settings */
@@ -407,8 +418,8 @@ logit (float x)
 static int
 _init_modes (bounding_boxes * bdata)
 {
-  if (bdata->mode == YOLOV5_BOUNDING_BOX) {
-    bdata->yolov5_pp.scaled_output = 0; /* default conf is the output is not scaled */
+  if (bdata->mode == YOLOV5_BOUNDING_BOX || bdata->mode == YOLOV8_BOUNDING_BOX) {
+    bdata->yolo_pp.scaled_output = 0; /* default conf is the output is not scaled */
     return TRUE;
   }
 
@@ -734,8 +745,8 @@ _mp_palm_detection_generate_anchors (properties_MP_PALM_DETECTION *palm_detectio
 static int
 _setOption_mode (bounding_boxes * bdata, const char *param)
 {
-  if (bdata->mode == YOLOV5_BOUNDING_BOX) {
-    bdata->yolov5_pp.scaled_output = (int) g_ascii_strtoll (param, NULL, 10);
+  if (bdata->mode == YOLOV5_BOUNDING_BOX || bdata->mode == YOLOV8_BOUNDING_BOX) {
+    bdata->yolo_pp.scaled_output = (int) g_ascii_strtoll (param, NULL, 10);
     return TRUE;
   }
 
@@ -1151,6 +1162,27 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
     g_return_val_if_fail (dim[0] ==
         (data->labeldata.total_labels + YOLOV5_DETECTION_NUM_INFO), NULL);
     g_return_val_if_fail (dim[1] == data->max_detection, NULL);
+    for (i = 2; i < NNS_TENSOR_RANK_LIMIT; ++i)
+      g_return_val_if_fail (dim[i] == 0 || dim[i] == 1, NULL);
+  } else if (data->mode == YOLOV8_BOUNDING_BOX) {
+    const guint *dim = config->info.info[0].dimension;
+    if (!_check_tensors (config, 1U))
+      return NULL;
+
+    /** Only support for float type model */
+    g_return_val_if_fail (config->info.info[0].type == _NNS_FLOAT32, NULL);
+
+    data->max_detection =
+        (data->i_width / 32) * (data->i_height / 32) +
+        (data->i_width / 16) * (data->i_height / 16) +
+        (data->i_width / 8) * (data->i_height / 8);
+
+    if (dim[0] != (data->labeldata.total_labels + YOLOV8_DETECTION_NUM_INFO) || dim[1] != data->max_detection) {
+      nns_loge ("yolov8 boundingbox decoder requires the input shape to be %d:%d:1. But given shape is %d:%d:1. `tensor_transform mode=transpose` would be helpful.",
+          data->labeldata.total_labels + YOLOV8_DETECTION_NUM_INFO, data->max_detection, dim[0], dim[1]);
+      return NULL;
+    }
+
     for (i = 2; i < NNS_TENSOR_RANK_LIMIT; ++i)
       g_return_val_if_fail (dim[i] == 0 || dim[i] == 1, NULL);
   } else if (data->mode == MP_PALM_DETECTION_BOUNDING_BOX) {
@@ -1927,14 +1959,14 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
     int bIdx, numTotalBox;
     int cIdx, numTotalClass, cStartIdx, cIdxMax;
     float *boxinput;
-    int is_output_scaled = bdata->yolov5_pp.scaled_output;
+    int is_output_scaled = bdata->yolo_pp.scaled_output;
 
     numTotalBox = bdata->max_detection;
     numTotalClass = bdata->labeldata.total_labels;
     cStartIdx = YOLOV5_DETECTION_NUM_INFO;
     cIdxMax = numTotalClass + cStartIdx;
 
-    boxinput = (float *) input[0].data; // boxinput[1][1][numTotalBox][cIdxMax]
+    boxinput = (float *) input[0].data; // boxinput[numTotalBox][cIdxMax]
 
     /** Only support for float type model */
     g_assert (config->info.info[0].type == _NNS_FLOAT32);
@@ -1980,6 +2012,60 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
     }
 
     nms (results, YOLOV5_DETECTION_IOU_THRESHOLD);
+  } else if (bdata->mode == YOLOV8_BOUNDING_BOX) {
+    int bIdx, numTotalBox;
+    int cIdx, numTotalClass, cStartIdx, cIdxMax;
+    float *boxinput;
+    int is_output_scaled = bdata->yolo_pp.scaled_output;
+
+    numTotalBox = bdata->max_detection;
+    numTotalClass = bdata->labeldata.total_labels;
+    cStartIdx = YOLOV8_DETECTION_NUM_INFO;
+    cIdxMax = numTotalClass + cStartIdx;
+
+    boxinput = (float *) input[0].data; // boxinput[numTotalBox][cIdxMax]
+
+    results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), numTotalBox);
+    for (bIdx = 0; bIdx < numTotalBox; ++bIdx) {
+      float maxClassConfVal = -INFINITY;
+      int maxClassIdx = -1;
+      for (cIdx = cStartIdx; cIdx < cIdxMax; ++cIdx) {
+        if (boxinput[bIdx * cIdxMax + cIdx] > maxClassConfVal) {
+          maxClassConfVal = boxinput[bIdx * cIdxMax + cIdx];
+          maxClassIdx = cIdx;
+        }
+      }
+
+      if (maxClassConfVal >
+          YOLOV8_DETECTION_CONF_THRESHOLD) {
+        detectedObject object;
+        float cx, cy, w, h;
+        cx = boxinput[bIdx * cIdxMax + 0];
+        cy = boxinput[bIdx * cIdxMax + 1];
+        w = boxinput[bIdx * cIdxMax + 2];
+        h = boxinput[bIdx * cIdxMax + 3];
+
+        if (!is_output_scaled) {
+          cx *= (float) bdata->i_width;
+          cy *= (float) bdata->i_height;
+          w *= (float) bdata->i_width;
+          h *= (float) bdata->i_height;
+        }
+
+        object.x = (int) (MAX (0.f, (cx - w / 2.f)));
+        object.y = (int) (MAX (0.f, (cy - h / 2.f)));
+        object.width = (int) (MIN ((float) bdata->i_width, w));
+        object.height = (int) (MIN ((float) bdata->i_height, h));
+
+        object.prob = maxClassConfVal;
+        object.class_id = maxClassIdx - YOLOV8_DETECTION_NUM_INFO;
+        object.tracking_id = 0;
+        object.valid = TRUE;
+        g_array_append_val (results, object);
+      }
+    }
+
+    nms (results, YOLOV8_DETECTION_IOU_THRESHOLD);
   } else if (bdata->mode == MP_PALM_DETECTION_BOUNDING_BOX) {
     const GstTensorMemory *boxes = NULL;
     const GstTensorMemory *detections = NULL;
