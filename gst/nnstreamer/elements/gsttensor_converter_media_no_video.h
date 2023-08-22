@@ -38,7 +38,9 @@ typedef enum {
   GST_VIDEO_FORMAT_BGRA,
   GST_VIDEO_FORMAT_ARGB,
   GST_VIDEO_FORMAT_ABGR,
-  GST_VIDEO_FORMAT_I420
+  GST_VIDEO_FORMAT_I420,
+  GST_VIDEO_FORMAT_GRAY16_BE,
+  GST_VIDEO_FORMAT_GRAY16_LE
 } GstVideoFormat;
 
 #define gst_video_info_init(i) memset (i, 0, sizeof (GstVideoInfo))
