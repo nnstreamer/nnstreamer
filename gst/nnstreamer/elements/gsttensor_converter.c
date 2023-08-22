@@ -1465,6 +1465,11 @@ gst_tensor_converter_parse_video (GstTensorConverter * self,
       config->info.info[0].type = _NNS_UINT8;
       config->info.info[0].dimension[0] = 1;
       break;
+    case GST_VIDEO_FORMAT_GRAY16_BE:
+    case GST_VIDEO_FORMAT_GRAY16_LE:
+      config->info.info[0].type = _NNS_UINT16;
+      config->info.info[0].dimension[0] = 1;
+      break;
     case GST_VIDEO_FORMAT_RGB:
     case GST_VIDEO_FORMAT_BGR:
       config->info.info[0].type = _NNS_UINT8;
@@ -1483,7 +1488,7 @@ gst_tensor_converter_parse_video (GstTensorConverter * self,
       break;
     default:
       GST_WARNING_OBJECT (self,
-          "The given video caps with format \"%s\" is not supported. Please use GRAY8, RGB, BGR, RGBx, BGRx, xRGB, xBGR, RGBA, BGRA, ARGB, or ABGR.\n",
+          "The given video caps with format \"%s\" is not supported. Please use GRAY8, GRAY16_LE, GRAY16_BE, RGB, BGR, RGBx, BGRx, xRGB, xBGR, RGBA, BGRA, ARGB, or ABGR.\n",
           GST_STR_NULL (gst_video_format_to_string (format)));
       break;
   }
@@ -1937,8 +1942,7 @@ gst_tensor_converter_get_possible_media_caps (GstTensorConverter * self)
       switch (type) {
         case _NNS_VIDEO:
           /* video caps from tensor info */
-          if (is_video_supported (self)
-              && config.info.info[0].type == _NNS_UINT8) {
+          if (is_video_supported (self)) {
             GValue supported_formats = G_VALUE_INIT;
             gint colorspace, width, height;
 
@@ -1946,7 +1950,7 @@ gst_tensor_converter_get_possible_media_caps (GstTensorConverter * self)
             switch (colorspace) {
               case 1:
                 gst_tensor_converter_get_format_list (&supported_formats,
-                    "GRAY8", NULL);
+                    "GRAY8", "GRAY16_BE", "GRAY16_LE", NULL);
                 break;
               case 3:
                 gst_tensor_converter_get_format_list (&supported_formats,
