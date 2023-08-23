@@ -733,7 +733,10 @@ _mp_palm_detection_generate_anchors (properties_MP_PALM_DETECTION *palm_detectio
       layer_id = last_same_stride_layer;
     }
 
-    g_array_free(aspect_ratios, FALSE);
+    g_array_free (anchor_height, TRUE);
+    g_array_free (anchor_width, TRUE);
+    g_array_free (aspect_ratios, TRUE);
+    g_array_free (scales, TRUE);
   }
 }
 
