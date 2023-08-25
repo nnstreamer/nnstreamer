@@ -256,6 +256,7 @@ gst_data_repo_src_init (GstDataRepoSrc * src)
   src->is_static_tensors = FALSE;
   src->n_frame = 0;
   src->running_time = 0;
+  src->parser = NULL;
 
   /* Filling the buffer should be pending until set_caps() */
   gst_base_src_set_format (GST_BASE_SRC (src), GST_FORMAT_TIME);
@@ -1461,7 +1462,8 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
     return FALSE;
   }
 
-
+  if (src->parser)
+    g_object_unref (src->parser);
   src->parser = json_parser_new ();
 
   if (!json_parser_load_from_data (src->parser, contents, -1, NULL)) {
