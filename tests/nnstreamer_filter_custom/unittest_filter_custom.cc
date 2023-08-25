@@ -353,6 +353,7 @@ TEST (tensorFilterCustom, notRegisterFlexibleInvoke_n)
 
   gst_object_unref (gstpipe);
   g_free (pipeline);
+  g_free (model_file);
 }
 
 /**
