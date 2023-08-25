@@ -123,7 +123,8 @@ TEST (tensor_trainer, SetParams)
 
   setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
 
-  gst_object_unref (pipeline);
+  gst_object_unref (GST_OBJECT (tensor_trainer));
+  gst_object_unref (GST_OBJECT (pipeline));
   g_free (file_path);
   g_free (json_path);
   g_free (model_config_path);
@@ -168,7 +169,8 @@ TEST (tensor_trainer, invalidFramework0_n)
   /* state chagne failure is expected */
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
-  gst_object_unref (pipeline);
+  gst_object_unref (GST_OBJECT (tensor_trainer));
+  gst_object_unref (GST_OBJECT (pipeline));
 }
 
 /**
@@ -210,7 +212,8 @@ TEST (tensor_trainer, invalidFramework1_n)
   /* state chagne failure is expected */
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
-  gst_object_unref (pipeline);
+  gst_object_unref (GST_OBJECT (tensor_trainer));
+  gst_object_unref (GST_OBJECT (pipeline));
 }
 
 /**
@@ -248,7 +251,8 @@ TEST (tensor_trainer, invalidModelConfig0_n)
   /* state chagne failure is expected */
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
-  gst_object_unref (pipeline);
+  gst_object_unref (GST_OBJECT (tensor_trainer));
+  gst_object_unref (GST_OBJECT (pipeline));
 }
 
 /**
@@ -289,7 +293,8 @@ TEST (tensor_trainer, invalidModelSavePath0_n)
   /* state chagne failure is expected */
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
-  gst_object_unref (pipeline);
+  gst_object_unref (GST_OBJECT (tensor_trainer));
+  gst_object_unref (GST_OBJECT (pipeline));
 }
 
 /**
@@ -334,7 +339,8 @@ TEST (tensor_trainer, invalidModelNumTrainingSamples0_n)
   /* state chagne failure is expected */
   EXPECT_EQ (get_value, 0U);
 
-  gst_object_unref (pipeline);
+  gst_object_unref (GST_OBJECT (tensor_trainer));
+  gst_object_unref (GST_OBJECT (pipeline));
 }
 
 /**
@@ -379,7 +385,8 @@ TEST (tensor_trainer, invalidModelNumValidationSamples0_n)
   /* state chagne failure is expected */
   EXPECT_EQ (get_value, 0U);
 
-  gst_object_unref (pipeline);
+  gst_object_unref (GST_OBJECT (tensor_trainer));
+  gst_object_unref (GST_OBJECT (pipeline));
 }
 
 /**
@@ -424,7 +431,8 @@ TEST (tensor_trainer, invalidEpochs0_n)
   /* state chagne failure is expected */
   EXPECT_EQ (get_value, 1U);
 
-  gst_object_unref (pipeline);
+  gst_object_unref (GST_OBJECT (tensor_trainer));
+  gst_object_unref (GST_OBJECT (pipeline));
 }
 
 /**
@@ -469,7 +477,8 @@ TEST (tensor_trainer, invalidNumInputs0_n)
   /* state chagne failure is expected */
   EXPECT_EQ (get_value, 1U);
 
-  gst_object_unref (pipeline);
+  gst_object_unref (GST_OBJECT (tensor_trainer));
+  gst_object_unref (GST_OBJECT (pipeline));
 }
 
 /**
@@ -514,7 +523,8 @@ TEST (tensor_trainer, invalidNumLabels0_n)
   /* state chagne failure is expected */
   EXPECT_EQ (get_value, 1U);
 
-  gst_object_unref (pipeline);
+  gst_object_unref (GST_OBJECT (tensor_trainer));
+  gst_object_unref (GST_OBJECT (pipeline));
 }
 
 /**
