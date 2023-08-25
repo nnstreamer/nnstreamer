@@ -487,6 +487,11 @@ lua_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 void
 lua_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
+  if (!input)
+    throw std::runtime_error ("Invalid input buffer, it is NULL.");
+  if (!output)
+    throw std::runtime_error ("Invalid output buffer, it is NULL.");
+
   for (uint i = 0; i < inputInfo.num_tensors; ++i) {
     input_lua_tensors[i].type = inputInfo.info[i].type;
     input_lua_tensors[i].data = input[i].data;
