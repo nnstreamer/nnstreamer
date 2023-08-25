@@ -560,6 +560,15 @@ gst_tensor_split_change_state (GstElement * element, GstStateChange transition)
 }
 
 /**
+ * @brief Glib Array Clear Function
+ */
+static void
+_clear_tensorseg (tensor_dim ** element)
+{
+  g_free (*element);
+}
+
+/**
  * @brief Get property (gst element vmethod)
  */
 static void
@@ -594,23 +603,35 @@ gst_tensor_split_set_property (GObject * object, guint prop_id,
       guint i;
       const gchar *param = g_value_get_string (value);
       gchar **strv = g_strsplit_set (param, ",.;/", -1);
+      GArray *tensorseg = split->tensorseg;
+
       split->num_tensors = g_strv_length (strv);
-      split->tensorseg =
-          g_array_sized_new (FALSE, FALSE, sizeof (tensor_dim *),
-          split->num_tensors);
+      if (NULL == tensorseg) {
+        split->tensorseg =
+            g_array_sized_new (FALSE, FALSE, sizeof (tensor_dim *),
+            split->num_tensors);
+        g_array_set_clear_func (split->tensorseg,
+            (GDestroyNotify) _clear_tensorseg);
+
+        for (i = 0; i < split->num_tensors; i++) {
+          tensor_dim *d = g_new0 (tensor_dim, 1);
+          g_array_append_val (split->tensorseg, d);
+        }
+        tensorseg = split->tensorseg;
+      }
       for (i = 0; i < split->num_tensors; i++) {
         gchar **p;
         gint num, k;
         tensor_dim *d;
         p = g_strsplit_set (strv[i], ":", -1);
         num = g_strv_length (p);
-        d = g_new0 (tensor_dim, 1);
-        g_assert (d != NULL);
+
+        d = g_array_index (tensorseg, tensor_dim *, i);
+
         for (k = 0; k < num; k++) {
           (*d)[k] = g_ascii_strtod (p[k], NULL);
         }
 
-        g_array_append_val (split->tensorseg, d);
         g_strfreev (p);
       }
       g_strfreev (strv);
