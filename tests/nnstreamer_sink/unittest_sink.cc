@@ -1707,6 +1707,7 @@ TEST (tensorStreamTest, muxRefreshMode)
 
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 0);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
+  _free_test_data (option);
 }
 
 /**
@@ -1853,6 +1854,7 @@ TEST (tensorStreamTest, muxFlexNegoFailed_n)
   /* failed : cannot link mux (flex) and tensor_sink (static) */
   EXPECT_EQ (g_test_data.status, TEST_ERR_MESSAGE);
   EXPECT_EQ (g_test_data.received, 0U);
+  _free_test_data (option);
 }
 
 /**
@@ -1873,6 +1875,7 @@ TEST (tensorStreamTest, demuxFlexNegoFailed_n)
   /* failed : cannot link demux (flex) and tensor_sink (static) */
   EXPECT_EQ (g_test_data.status, TEST_ERR_MESSAGE);
   EXPECT_EQ (g_test_data.received, 0U);
+  _free_test_data (option);
 }
 
 /**
