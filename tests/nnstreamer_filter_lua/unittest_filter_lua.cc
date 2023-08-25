@@ -485,9 +485,9 @@ TEST (nnstreamerFilterLua, invoke01_n)
   output.data = g_malloc (output.size);
   ((float *) input.data)[0] = 10.0;
 
-  /* catching assertion error */
-  EXPECT_DEATH (sp->invoke (NULL, NULL, data, NULL, &output), "");
-  EXPECT_DEATH (sp->invoke (NULL, NULL, data, &input, NULL), "");
+  /* catching exception */
+  EXPECT_NE (sp->invoke (NULL, NULL, data, NULL, &output), 0);
+  EXPECT_NE (sp->invoke (NULL, NULL, data, &input, NULL), 0);
 
   g_free (input.data);
   g_free (output.data);
