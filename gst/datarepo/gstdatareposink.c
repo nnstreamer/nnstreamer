@@ -209,6 +209,16 @@ gst_data_repo_sink_finalize (GObject * object)
   if (sink->fixed_caps)
     gst_caps_unref (sink->fixed_caps);
 
+  if (sink->sample_offset_array)
+    json_array_unref (sink->sample_offset_array);
+  if (sink->tensor_size_array)
+    json_array_unref (sink->tensor_size_array);
+  if (sink->tensor_count_array)
+    json_array_unref (sink->tensor_count_array);
+  if (sink->json_object) {
+    json_object_unref (sink->json_object);
+    sink->json_object = NULL;
+  }
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
@@ -733,6 +743,10 @@ gst_data_repo_sink_write_json_meta_file (GstDataRepoSink * sink)
         sink->tensor_size_array);
     json_object_set_array_member (sink->json_object, "tensor_count",
         sink->tensor_count_array);
+
+    sink->sample_offset_array = NULL;
+    sink->tensor_size_array = NULL;
+    sink->tensor_count_array = NULL;
   } else {
     json_object_set_int_member (sink->json_object, "sample_size",
         sink->sample_size);
@@ -745,6 +759,7 @@ gst_data_repo_sink_write_json_meta_file (GstDataRepoSink * sink)
 
   json_object_unref (sink->json_object);
   g_free (caps_str);
+  sink->json_object = NULL;
 
   return ret;
 }
