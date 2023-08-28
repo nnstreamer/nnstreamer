@@ -124,8 +124,8 @@ TEST (datareposink, writeImageFiles)
     g_free (filename);
 
     ret = g_file_load_contents (file, NULL, &contents, NULL, NULL, NULL);
-    g_object_unref (file);
     g_free (contents);
+    g_object_unref (file);
     ASSERT_EQ (ret, TRUE);
   }
 
@@ -274,9 +274,12 @@ TEST (datareposink, writeTensors)
 
   g_object_get (datareposink, "location", &get_str, NULL);
   EXPECT_STREQ (get_str, "mnist.data");
+  g_free (get_str);
 
   g_object_get (datareposink, "json", &get_str, NULL);
   EXPECT_STREQ (get_str, "mnist.json");
+  g_free (get_str);
+  gst_object_unref (datareposink);
 
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
   ASSERT_NE (bus, nullptr);
@@ -287,8 +290,8 @@ TEST (datareposink, writeTensors)
   g_main_loop_run (loop);
 
   setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
-  gst_object_unref (pipeline);
   g_main_loop_unref (loop);
+  gst_object_unref (pipeline);
 
   /* Confirm file creation */
   file = g_file_new_for_path ("mnist.data");
@@ -457,6 +460,7 @@ TEST (datareposink, invalidJsonPath0_n)
   /* state chagne failure is expected */
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
+  gst_object_unref (datareposink);
   gst_object_unref (pipeline);
 }
 
@@ -483,6 +487,7 @@ TEST (datareposink, invalidFilePath0_n)
   /* state chagne failure is expected */
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
+  gst_object_unref (datareposink);
   gst_object_unref (pipeline);
 }
 
