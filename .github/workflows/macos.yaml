@@ -15,7 +15,8 @@ jobs:
     - uses: actions/setup-python@v1
     - name: homebrew
       run: |
-          brew update
+          # temporarily disabled, because it always fails these days.
+          # brew update
           brew install cask
     - name: install minimal requirements
       run: brew install meson ninja pkg-config cmake libffi glib gstreamer numpy json-glib
