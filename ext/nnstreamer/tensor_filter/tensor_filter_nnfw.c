@@ -393,7 +393,7 @@ nnfw_convert_to_gst_info (const nnfw_tinfo_s * nnfw_info,
 
   for (i = 0; i < nnfw_info->num_tensors; i++) {
     const nnfw_tensorinfo *ninfo = &nnfw_info->info[i];
-    GstTensorInfo *ginfo = &gst_info->info[i];
+    GstTensorInfo *ginfo = gst_tensors_info_get_nth_info (gst_info, i);
     gint idx;
 
     if (ninfo->rank > NNS_TENSOR_RANK_LIMIT)
@@ -443,7 +443,12 @@ nnfw_tensor_info_set (const nnfw_pdata * pdata,
   struct nnfw_tensorinfo nnfw_info;
   gint err;
   gint idx;
-  const GstTensorInfo *info = &tensors_info->info[tensor_idx];
+  GstTensorInfo *info;
+
+  info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) tensors_info,
+      tensor_idx);
+  if (!info)
+    return -EINVAL;
 
   err = nnfw_tensor_type_from_gst (info->type, &nnfw_info.dtype);
   if (err)
