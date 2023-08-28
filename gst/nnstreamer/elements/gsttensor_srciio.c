@@ -1551,8 +1551,9 @@ gst_tensor_src_iio_create_config (GstTensorSrcIIO * tensor_src_iio)
   }
 
   /** compile tensor info data */
-  gst_tensor_info_init (info);
   for (list = tensor_src_iio->channels; list != NULL; list = list->next) {
+    gst_tensor_info_init (&info[info_idx]);
+
     channel_prop = (GstTensorSrcIIOChannelProperties *) list->data;
     if (!channel_prop->enabled)
       continue;
