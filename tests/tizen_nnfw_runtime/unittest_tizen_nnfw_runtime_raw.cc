@@ -122,7 +122,7 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, getDimension)
  */
 TEST (nnstreamerNnfwRuntimeRawFunctions, setDimension)
 {
-  int ret, i;
+  int ret;
   void *data = NULL;
   GstTensorsInfo in_info, out_info, res;
   GstTensorMemory input, output;
@@ -175,17 +175,16 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, setDimension)
 
   EXPECT_EQ (res.num_tensors, in_info.num_tensors);
   EXPECT_EQ (res.info[0].type, in_info.info[0].type);
-
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
-    EXPECT_EQ (res.info[0].dimension[i], in_info.info[0].dimension[i]);
+  EXPECT_TRUE (gst_tensor_dimension_is_equal (
+      res.info[0].dimension, in_info.info[0].dimension));
 
   ret = sp->getOutputDimension (&prop, &data, &out_info);
   EXPECT_EQ (ret, 0);
 
   EXPECT_EQ (res.num_tensors, out_info.num_tensors);
   EXPECT_EQ (res.info[0].type, out_info.info[0].type);
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
-    EXPECT_EQ (res.info[0].dimension[i], out_info.info[0].dimension[i]);
+  EXPECT_TRUE (gst_tensor_dimension_is_equal (
+      res.info[0].dimension, out_info.info[0].dimension));
 
   input.size = gst_tensor_info_get_size (&in_info.info[0]);
   output.size = gst_tensor_info_get_size (&out_info.info[0]);
