@@ -13,8 +13,8 @@
 #include <stdlib.h>
 #include <gst/gst.h>
 #include <nnstreamer_util.h>
+#include <unittest_util.h>
 
-#define _print_log(...) if (!silent) g_message (__VA_ARGS__)
 #define make_gst_element(element) do{\
   element = gst_element_factory_make(#element, #element);\
   if (!element) {\
@@ -28,7 +28,6 @@
 #define EVENT_INTERVAL (1000)
 #define EVENT_TIMEOUT (10000)
 
-static gboolean silent = TRUE;
 static gchar *input_img_path = NULL;
 static gchar *first_model_path = NULL;
 static gchar *second_model_path = NULL;
@@ -134,24 +133,35 @@ check_output (GstElement * sink, void *data __attribute__ ((unused)))
  * @brief Reload a tensor filter's model (v1 <-> v2)
  */
 static gboolean
-reload_model (GstElement * tensor_filter)
+reload_model (GstElement * pipeline)
 {
   static gboolean is_first = TRUE;
   const gchar *model_path;
+  GstElement *tensor_filter;
 
-  if (!tensor_filter)
+  if (!pipeline)
     return FALSE;
 
-  model_path = is_first ? second_model_path : first_model_path;
+  tensor_filter = gst_bin_get_by_name (GST_BIN (pipeline), "tfilter");
+  if (!tensor_filter) {
+    return FALSE;
+  }
 
+  model_path = is_first ? second_model_path : first_model_path;
+  setPipelineStateSync (pipeline, GST_STATE_PAUSED, UNITTEST_STATECHANGE_TIMEOUT);
+  g_usleep (TEST_DEFAULT_SLEEP_TIME);
   g_object_set (G_OBJECT (tensor_filter), "model", model_path, NULL);
 
   _print_log ("Model %s is just reloaded\n", model_path);
 
   is_first = !is_first;
-
+  setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
+  g_usleep (TEST_DEFAULT_SLEEP_TIME);
   /* repeat if it's playing */
-  return (GST_STATE (GST_ELEMENT (tensor_filter)) == GST_STATE_PLAYING);
+
+  gst_object_unref (tensor_filter);
+
+  return (GST_STATE (GST_ELEMENT (pipeline)) == GST_STATE_PLAYING);
 }
 
 /**
@@ -200,8 +210,6 @@ main (int argc, char *argv[])
           &second_model_path,
           "The path of second model file",
         "e.g., models/mobilenet_v2_1.0_224_quant.tflite"},
-    {"silent", 's', G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &silent,
-        "Hide debug message", "TRUE (default)"},
     {NULL}
   };
 
@@ -246,6 +254,7 @@ main (int argc, char *argv[])
   g_object_set (G_OBJECT (capsfilter), "caps", caps, NULL);
   gst_caps_unref (caps);
 
+  g_object_set (G_OBJECT (tensor_filter), "name", "tfilter", NULL);
   g_object_set (G_OBJECT (tensor_filter), "framework", "tensorflow-lite", NULL);
   g_object_set (G_OBJECT (tensor_filter), "model", first_model_path, NULL);
   g_object_set (G_OBJECT (tensor_filter), "is-updatable", TRUE, NULL);
@@ -269,7 +278,7 @@ main (int argc, char *argv[])
   gst_element_set_state (pipeline, GST_STATE_PLAYING);
 
   /* add timeout events */
-  g_timeout_add (EVENT_INTERVAL, (GSourceFunc) reload_model, tensor_filter);
+  g_timeout_add (EVENT_INTERVAL, (GSourceFunc) reload_model, pipeline);
   g_timeout_add (EVENT_TIMEOUT, (GSourceFunc) stop_loop, loop);
 
   g_main_loop_run (loop);
