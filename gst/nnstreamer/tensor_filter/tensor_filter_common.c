@@ -1016,7 +1016,7 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
           "The key(name) of shared model representation",
           "Multiple element instances of tensor-filter in a pipeline may share "
           "a single resource instance if they share the same framework (subplugin) "
-          "and nerual network model. Designate \"shared-tensor-filter-key\" "
+          "and neural network model. Designate \"shared-tensor-filter-key\" "
           "to declare and share such instances. "
           "If it is NULL, it means the model representations is not shared.",
           NULL, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
