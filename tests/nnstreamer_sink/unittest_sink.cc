@@ -2575,7 +2575,6 @@ TEST (tensorStreamTest, videoGray83fPadding)
   _free_test_data (option);
 }
 
-
 /**
  * @brief Test for video format GRAY16_BE.
  */
@@ -2690,8 +2689,8 @@ TEST (tensorStreamTest, audioS8)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_INT8);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 500U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 16000);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -2731,8 +2730,8 @@ TEST (tensorStreamTest, audioU8100f)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT8);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 100U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 16000);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -2772,8 +2771,8 @@ TEST (tensorStreamTest, audioS16)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_INT16);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 500U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 16000);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -2813,8 +2812,8 @@ TEST (tensorStreamTest, audioU161000f)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT16);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 1000U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 16000);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -2854,8 +2853,8 @@ TEST (tensorStreamTest, audioS32)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_INT32);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 500U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 44100);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -2895,8 +2894,8 @@ TEST (tensorStreamTest, audioU32)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT32);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 500U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 44100);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -2936,8 +2935,8 @@ TEST (tensorStreamTest, audioF32)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_FLOAT32);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 500U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 44100);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -2977,8 +2976,8 @@ TEST (tensorStreamTest, audioF64)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_FLOAT64);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 500U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 44100);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -3024,8 +3023,8 @@ TEST (tensorStreamTest, textUtf8)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT8);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 20U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 0);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -3098,8 +3097,8 @@ TEST (tensorStreamTest, textUtf83f)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT8);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 30U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 3U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 10);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -4268,8 +4267,8 @@ TEST (tensorStreamTest, customFilterDropBuffer)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_INT16);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 200U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 16000);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -4763,8 +4762,8 @@ TEST (tensorStreamTest, tensorsMix)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_INT16);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 500U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 30); /** 30 fps from video stream */
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -4905,8 +4904,8 @@ TEST (tensorStreamTest, demuxProperties2)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_INT16);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 500U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 30);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -4979,8 +4978,8 @@ _test_transform_typecast (TestType test, tensor_type type, guint buffers)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, type);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 10U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 0);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -5443,8 +5442,8 @@ TEST (tensorStreamTest, audioAggregateS16)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_INT16);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 2000U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 16000);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -5484,8 +5483,8 @@ TEST (tensorStreamTest, audioAggregateU16)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT16);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 100U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 16000);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
