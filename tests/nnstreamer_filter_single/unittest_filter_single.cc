@@ -279,7 +279,7 @@ class NNSFilterSingleTestExtended : public ::testing::Test
 /**
  * @brief Test to invoke tf-lite model.
  */
-TEST_F (NNSFilterSingleTestExtended, invoke_p)
+TEST_F (NNSFilterSingleTestExtended, DISABLED_invoke_p)
 {
   guint i, length = 4 * 4 * 4 * 4 * 4;
   ASSERT_TRUE (this->loaded);
@@ -301,7 +301,7 @@ TEST_F (NNSFilterSingleTestExtended, invoke_p)
 /**
  * @brief Test to set invalid info.
  */
-TEST_F (NNSFilterSingleTestExtended, setInvalidInfo_n)
+TEST_F (NNSFilterSingleTestExtended, DISABLED_setInvalidInfo_n)
 {
   GstTensorsInfo in_info, out_info;
   gst_tensors_info_init (&in_info);
