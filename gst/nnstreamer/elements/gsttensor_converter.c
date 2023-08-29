@@ -1497,9 +1497,9 @@ gst_tensor_converter_parse_video (GstTensorConverter * self,
   config->info.info[0].dimension[2] = height;
 
   /* Supposed 1 frame in tensor, change dimension[3] if tensor contains N frames. */
-  for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++) {
-    config->info.info[0].dimension[i] = 1;
-  }
+  config->info.info[0].dimension[3] = 1;
+  for (i = 4; i < NNS_TENSOR_RANK_LIMIT; i++)
+    config->info.info[0].dimension[i] = 0;
 
   config->rate_n = GST_VIDEO_INFO_FPS_N (&vinfo);
   config->rate_d = GST_VIDEO_INFO_FPS_D (&vinfo);
@@ -1600,9 +1600,9 @@ gst_tensor_converter_parse_audio (GstTensorConverter * self,
   config->info.info[0].dimension[0] = channels;
 
   /* Supposed 1 frame in tensor, change dimension[1] if tensor contains N frames. */
-  for (i = 1; i < NNS_TENSOR_RANK_LIMIT; i++) {
-    config->info.info[0].dimension[i] = 1;
-  }
+  config->info.info[0].dimension[1] = 1;
+  for (i = 2; i < NNS_TENSOR_RANK_LIMIT; i++)
+    config->info.info[0].dimension[i] = 0;
 
   config->rate_n = GST_AUDIO_INFO_RATE (&ainfo);
   config->rate_d = 1;
@@ -1665,9 +1665,9 @@ gst_tensor_converter_parse_text (GstTensorConverter * self,
   config->info.info[0].dimension[0] = text_size;
 
   /* Supposed 1 frame in tensor, change dimension[1] if tensor contains N frames. */
-  for (i = 1; i < NNS_TENSOR_RANK_LIMIT; i++) {
-    config->info.info[0].dimension[i] = 1;
-  }
+  config->info.info[0].dimension[1] = 1;
+  for (i = 2; i < NNS_TENSOR_RANK_LIMIT; i++)
+    config->info.info[0].dimension[i] = 0;
 
   if (gst_structure_has_field (structure, "framerate")) {
     gst_structure_get_fraction (structure, "framerate", &config->rate_n,
@@ -1757,14 +1757,16 @@ gst_tensor_converter_parse_octet (GstTensorConverter * self,
    * We cannot get the exact tensors info from caps.
    * All tensors info should be updated.
    * If output is flexible, dimension should be updated in chain function with buffer size.
+   * (data format for tensor: [size])
    */
   if (flexible) {
     config->info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
 
     config->info.num_tensors = 1;
     config->info.info[0].type = _NNS_UINT8;
-    for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
-      config->info.info[0].dimension[i] = 1;
+    config->info.info[0].dimension[0] = 1;
+    for (i = 1; i < NNS_TENSOR_RANK_LIMIT; i++)
+      config->info.info[0].dimension[i] = 0;
   } else {
     gst_tensors_info_copy (&config->info, _info);
     self->frame_size = gst_tensors_info_get_size (&config->info, -1);
@@ -1808,11 +1810,13 @@ gst_tensor_converter_parse_tensor (GstTensorConverter * self,
     /**
      * We cannot get the exact tensors info from caps.
      * All tensors info should be updated in chain function.
+     * (data format for tensor: [size])
      */
     config->info.num_tensors = 1;
     config->info.info[0].type = _NNS_UINT8;
-    for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
-      config->info.info[0].dimension[i] = 1;
+    config->info.info[0].dimension[0] = 1;
+    for (i = 1; i < NNS_TENSOR_RANK_LIMIT; i++)
+      config->info.info[0].dimension[i] = 0;
   }
 
   if (gst_structure_has_field (structure, "framerate")) {

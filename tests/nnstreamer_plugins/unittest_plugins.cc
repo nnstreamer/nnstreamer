@@ -3422,7 +3422,7 @@ TEST (testTensorConverter, bytesToFlex)
 
     EXPECT_EQ (meta.type, _NNS_UINT8);
     EXPECT_EQ (meta.dimension[0], data_size);
-    EXPECT_EQ (meta.dimension[1], 1U);
+    EXPECT_LE (meta.dimension[1], 1U);
     EXPECT_EQ ((media_type) meta.media_type, _NNS_OCTET);
 
     data_size = gst_tensor_meta_info_get_header_size (&meta);
