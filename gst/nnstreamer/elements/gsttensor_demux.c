@@ -307,8 +307,10 @@ gst_tensor_demux_get_tensor_config (GstTensorDemux * tensor_demux,
       idx = (guint) g_ascii_strtoll (strv[i], NULL, 10);
 
       /* Internal error, handle invalid index. */
-      if (idx >= total)
+      if (idx >= total) {
+        g_strfreev (strv);
         return FALSE;
+      }
 
       gst_tensor_info_copy (gst_tensors_info_get_nth_info (&config->info, i),
           gst_tensors_info_get_nth_info (&tensor_demux->tensors_config.info,
@@ -316,6 +318,7 @@ gst_tensor_demux_get_tensor_config (GstTensorDemux * tensor_demux,
     }
 
     config->info.num_tensors = num;
+    g_strfreev (strv);
   } else {
     /* Internal error, handle invalid index. */
     if (nth >= total)
