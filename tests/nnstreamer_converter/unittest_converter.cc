@@ -439,6 +439,7 @@ TEST (tensorConverterPython, dynamicDimension)
   EXPECT_EQ (1U, config.info.info[0].dimension[3]);
   gst_tensors_config_free (&config);
   gst_caps_unref (caps);
+  gst_object_unref (sink_pad);
 
   EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc_handle), buf_2), GST_FLOW_OK);
   EXPECT_TRUE (wait_pipeline_process_buffers (data_received, 3, TEST_TIMEOUT_MS));
