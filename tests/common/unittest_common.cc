@@ -2125,6 +2125,8 @@ TEST (commonUtil, createTensorBufferInvalidConfig_n)
   in = gst_buffer_new_allocate (NULL, 200, NULL);
   out = gst_tensor_buffer_from_config (in, &config);
   EXPECT_FALSE (out != NULL);
+
+  gst_buffer_unref (out);
 }
 
 /**
@@ -2148,10 +2150,14 @@ TEST (commonUtil, createTensorBufferNullParam_n)
   in = gst_buffer_new_allocate (NULL, data_size, NULL);
   out = gst_tensor_buffer_from_config (NULL, &config);
   EXPECT_FALSE (out != NULL);
+  gst_buffer_unref (in);
+  gst_buffer_unref (out);
 
   in = gst_buffer_new_allocate (NULL, data_size, NULL);
   out = gst_tensor_buffer_from_config (in, NULL);
   EXPECT_FALSE (out != NULL);
+
+  gst_buffer_unref (out);
 }
 
 /**
@@ -2175,6 +2181,8 @@ TEST (commonUtil, createTensorBufferInvalidSize_n)
   in = gst_buffer_new_allocate (NULL, data_size, NULL);
   out = gst_tensor_buffer_from_config (in, &config);
   EXPECT_FALSE (out != NULL);
+
+  gst_buffer_unref (out);
 }
 
 /**
