@@ -609,8 +609,6 @@ gst_tensor_split_set_property (GObject * object, guint prop_id,
         for (k = 0; k < num; k++) {
           (*d)[k] = g_ascii_strtod (p[k], NULL);
         }
-        for (k = num; k < NNS_TENSOR_RANK_LIMIT; k++)
-          (*d)[k] = 1;
 
         g_array_append_val (split->tensorseg, d);
         g_strfreev (p);
