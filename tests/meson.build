@@ -43,7 +43,7 @@ unittest_util_dep = declare_dependency(link_with: unittest_util_shared,
 subdir('nnstreamer_repo_dynamicity')
 
 # filter_reload (Currently, the reload test for tensor filter requires tflite)
-if tflite_support_is_available
+if tflite2_support_is_available
   subdir('nnstreamer_filter_reload')
 endif
 
@@ -384,11 +384,11 @@ if get_option('install-test')
   install_subdir('nnstreamer_filter_custom', install_dir: unittest_install_dir)
   if tflite_support_is_available
     install_subdir('nnstreamer_filter_tensorflow_lite', install_dir: unittest_install_dir)
+  endif
+  if tflite2_support_is_available
     install_subdir('nnstreamer_decoder_image_labeling', install_dir: unittest_install_dir)
     install_subdir('nnstreamer_decoder_image_segment', install_dir: unittest_install_dir)
     install_subdir('nnstreamer_filter_reload', install_dir: unittest_install_dir)
-  endif
-  if tflite2_support_is_available
     install_subdir('nnstreamer_filter_tensorflow2_lite', install_dir: unittest_install_dir)
   endif
   if have_python3
