@@ -71,8 +71,8 @@ class CustomDecoder(object):
                     fbb.String("")
                     fbb.Int(ttype)
                     with fbb.TypedVector():
-                        for j in range(8):
-                            fbb.Int(dims[j])
+                        for d in dims:
+                            fbb.Int(d)
                     fbb.Blob(raw_data[i])
 
         data = bytes(fbb.Finish())

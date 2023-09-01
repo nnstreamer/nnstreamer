@@ -20,6 +20,7 @@
 #include <errno.h>
 #include <math.h>
 #include <tensor_filter_custom.h>
+#include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_util.h>
 #include <glib.h>
 
@@ -42,7 +43,6 @@ static void *
 pt_init (const GstTensorFilterProperties * prop)
 {
   pt_data *data = (pt_data *) malloc (sizeof (pt_data));
-  int i;
   UNUSED (prop);
 
   assert (data);
@@ -50,11 +50,11 @@ pt_init (const GstTensorFilterProperties * prop)
 
   data->id = 0;
   data->counter = 0;
+  gst_tensor_info_init (&data->info[0]);
   data->info[0].dimension[0] = TSIZE;
   data->info[0].dimension[1] = TSIZE;
   data->info[0].dimension[2] = TSIZE;
-  for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
-    data->info[0].dimension[i] = 1;
+  data->info[0].dimension[3] = 1;
   data->info[0].type = _NNS_FLOAT32;
   data->info[1] = data->info[0];
   data->info[2] = data->info[0];

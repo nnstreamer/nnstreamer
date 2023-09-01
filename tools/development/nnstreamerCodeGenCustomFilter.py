@@ -115,19 +115,14 @@ cg_getInputDim (void * _data, const GstTensorFilterProperties * prop,
   int i;
 
   assert (data);
+  gst_tensors_info_init (in_info);
   in_info->num_tensors = 1; /** @todo MODIFY THIS! */
   in_info->info[0].name = NULL; /** Optional, default is null. Set new memory for tensor name string. */
   in_info->info[0].type = _NNS_UINT8; /** @todo MODIFY THIS! */
   in_info->info[0].dimension[0] = 3; /** @todo MODIFY THIS! */
   in_info->info[0].dimension[1] = 224; /** @todo MODIFY THIS! */
   in_info->info[0].dimension[2] = 224; /** @todo MODIFY THIS! */
-
-  /**
-   * Check max dimension (NNS_TENSOR_RANK_LIMIT) and
-   * fill 1 to uninitialized dimension values.
-   */
-  for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
-    in_info->info[0].dimension[i] = 1;
+  in_info->info[0].dimension[3] = 1; /** @todo MODIFY THIS! */
 
   return 0;
 }}
@@ -153,19 +148,14 @@ cg_getOutputDim (void * _data, const GstTensorFilterProperties * prop,
   int i;
 
   assert (data);
+  gst_tensors_info_init (out_info);
   out_info->num_tensors = 1; /** @todo MODIFY THIS! */
   out_info->info[0].name = NULL; /** Optional, default is null. Set new memory for tensor name string. */
   out_info->info[0].type = _NNS_UINT8; /** @todo MODIFY THIS! */
   out_info->info[0].dimension[0] = 3; /** @todo MODIFY THIS! */
   out_info->info[0].dimension[1] = 224; /** @todo MODIFY THIS! */
   out_info->info[0].dimension[2] = 224; /** @todo MODIFY THIS! */
-
-  /**
-   * Check max dimension (NNS_TENSOR_RANK_LIMIT) and
-   * fill 1 to uninitialized dimension values.
-   */
-  for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
-    out_info->info[0].dimension[i] = 1;
+  out_info->info[0].dimension[3] = 1; /** @todo MODIFY THIS! */
 
   return 0;
 }}
@@ -204,6 +194,7 @@ cg_setInputDim (void * _data, const GstTensorFilterProperties *prop,
   assert (in_info);
   assert (out_info);
 
+  gst_tensors_info_init (out_info);
   out_info->num_tensors = in_info->num_tensors; /** @todo Configure the number of tensors in a output frame */
 
   /** @todo Configure the name/type/dimension of tensors in a output frame. */
@@ -245,9 +236,9 @@ cg_allocate_invoke (void * _data, const GstTensorFilterProperties * prop,
   int i;
 
   /** If you want to look at input dimension/type, refer to prop->input_meta */
-  const GstTensorsInfo * in_info __attribute__((unused)) = &prop->input_meta;
+  const GstTensorsInfo *in_info __attribute__((unused)) = &prop->input_meta;
   /** If you want to look at output dimension/type, refer to prop->output_meta */
-  const GstTensorsInfo * out_info = &prop->output_meta;
+  const GstTensorsInfo *out_info = &prop->output_meta;
 
   /** Allocate output buffer */
   for (i = 0; i < out_info->num_tensors; i++)
@@ -298,9 +289,9 @@ cg_invoke (void * _data, const GstTensorFilterProperties *prop,
   int i;
 
   /** If you want to look at input dimension/type, refer to prop->input_meta */
-  const GstTensorsInfo * in_info __attribute__((unused)) = &prop->input_meta;
+  const GstTensorsInfo *in_info __attribute__((unused)) = &prop->input_meta;
   /** If you want to look at output dimension/type, refer to prop->output_meta */
-  const GstTensorsInfo * out_info __attribute__((unused)) = &prop->output_meta;
+  const GstTensorsInfo *out_info __attribute__((unused)) = &prop->output_meta;
 
   /** @note Caller will allocate output buffer accornding to out_info. */
 
