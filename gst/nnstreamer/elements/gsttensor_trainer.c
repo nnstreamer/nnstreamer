@@ -1267,15 +1267,20 @@ gst_tensor_trainer_output_dimension (GstTensorTrainer * trainer)
 {
   GstTensorsInfo *info;
   int i = 0;
-  int value[8] = { 1, 1, 4, 1, 1, 1, 1, 1 };  /** loss, accuracy, val_loss, val_accuracy */
+
   g_return_if_fail (trainer != NULL);
 
   info = &trainer->output_meta;
   trainer->output_ranks[0] = 4;
   trainer->output_configured = TRUE;
 
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
-    info->info[0].dimension[i] = value[i];
+  info->info[0].dimension[0] = 1;
+  info->info[0].dimension[1] = 1;
+  info->info[0].dimension[2] = 4; /** loss, accuracy, val_loss, val_accuracy */
+  info->info[0].dimension[3] = 1;
+
+  for (i = 4; i < NNS_TENSOR_RANK_LIMIT; i++)
+    info->info[0].dimension[i] = 0;
 
   info->num_tensors = 1;
 }
