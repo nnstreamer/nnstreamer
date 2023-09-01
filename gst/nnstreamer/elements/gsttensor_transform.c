@@ -67,7 +67,7 @@
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_transform_debug);
 #define GST_CAT_DEFAULT gst_tensor_transform_debug
 #define CAPS_STRING GST_TENSOR_CAP_DEFAULT ";" GST_TENSORS_CAP_MAKE ("{ static, flexible }")
-#define REGEX_DIMCHG_OPTION "^([0-7]):([0-7])$"
+#define REGEX_DIMCHG_OPTION "^([0-9]|1[0-5]):([0-9]|1[0-5])$"
 #define REGEX_TYPECAST_OPTION "(^[u]?int(8|16|32|64)$|^float(16|32|64)$)"
 #define REGEX_TRANSPOSE_OPTION "^(?:([0-2]):(?!.*\\1)){3}3$"
 #define REGEX_STAND_OPTION "^(default|dc-average)(:([u]?int(8|16|32|64)|float(16|32|64)))?(,per-channel:(true|false))?$"
@@ -180,7 +180,7 @@ gst_tensor_transform_mode_get_type (void)
     static GEnumValue mode_types[] = {
       {GTT_DIMCHG, "Mode for changing tensor dimensions, "
             "option=FROM_DIM:TO_DIM (with a regex, " REGEX_DIMCHG_OPTION
-            ", where NNS_TENSOR_RANK_LIMIT is 8)",
+            ", where NNS_TENSOR_RANK_LIMIT is 16)",
           "dimchg"},
       {GTT_TYPECAST, "Mode for casting type of tensor, "
             "option=" REGEX_TYPECAST_OPTION, "typecast"},

@@ -1692,27 +1692,6 @@ TEST (commonMetaInfo, convertMetaInvalidParam02_n)
 }
 
 /**
- * @brief Test for tensor meta info (dimension rank mismatched).
- */
-TEST (commonMetaInfo, convertMetaInvalidParam03_n)
-{
-  GstTensorMetaInfo meta;
-  GstTensorInfo info;
-  guint i;
-  gboolean ret;
-
-  gst_tensor_meta_info_init (&meta);
-  meta.type = _NNS_UINT16;
-  meta.format = _NNS_TENSOR_FORMAT_STATIC;
-  /* rank > NNS_TENSOR_RANK_LIMIT */
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT + 3; i++)
-    meta.dimension[i] = 2;
-
-  ret = gst_tensor_meta_info_convert (&meta, &info);
-  EXPECT_FALSE (ret);
-}
-
-/**
  * @brief Test for aggregation utils (clear data).
  */
 TEST (commonAggregationUtil, clearData)

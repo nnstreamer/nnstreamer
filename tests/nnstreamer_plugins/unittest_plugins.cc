@@ -295,8 +295,8 @@ TEST (testTensorTransform, dimchgProperties0_n)
   h = gst_harness_new ("tensor_transform");
   ASSERT_TRUE (NULL != h);
 
-  /* It should be in the form of ^([0-3]):([0-3]) */
-  g_object_set (h->element, "mode", GTT_DIMCHG, "option", "10:11", NULL);
+  /* It should be in the form of ^([0-9]|1[0-5]):([0-9]|1[0-5]) */
+  g_object_set (h->element, "mode", GTT_DIMCHG, "option", "20:21", NULL);
 
   g_object_get (h->element, "option", &str, NULL);
   EXPECT_TRUE (str == NULL);
@@ -315,7 +315,7 @@ TEST (testTensorTransform, dimchgProperties1_n)
   h = gst_harness_new ("tensor_transform");
   ASSERT_TRUE (NULL != h);
 
-  /* It should be in the form of ^([0-3]):([0-3]) */
+  /* It should be in the form of ^([0-9]|1[0-5]):([0-9]|1[0-5]) */
   g_object_set (h->element, "mode", GTT_DIMCHG, "option", "1,2", NULL);
 
   g_object_get (h->element, "option", &str, NULL);
@@ -355,7 +355,7 @@ TEST (testTensorTransform, dimchgProperties3_n)
   h = gst_harness_new ("tensor_transform");
   ASSERT_TRUE (NULL != h);
 
-  /* It should be in the form of ^([0-3]):([0-3]) */
+  /* It should be in the form of ^([0-9]|1[0-5]):([0-9]|1[0-5]) */
   g_object_set (h->element, "mode", GTT_DIMCHG, "option", "0:2,1:3", NULL);
 
   g_object_get (h->element, "option", &str, NULL);
