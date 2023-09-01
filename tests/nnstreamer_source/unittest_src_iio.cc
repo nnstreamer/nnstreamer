@@ -1290,8 +1290,7 @@ TEST (testTensorSrcIio, dataVerifyTrigger)
   EXPECT_EQ (config.info.info[0].type, _NNS_FLOAT32);
   EXPECT_EQ (config.info.info[0].dimension[0], (guint) num_scan_elements);
   EXPECT_EQ (config.info.info[0].dimension[1], 1U);
-  EXPECT_EQ (config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (config.info.info[0].dimension[3], 1U);
+  EXPECT_EQ (config.info.info[0].dimension[2], 0U);
 
   gst_object_unref (src_iio);
   gst_object_unref (src_pad);
@@ -1373,8 +1372,7 @@ TEST (testTensorSrcIio, dataVerifyCustomChannels)
   EXPECT_EQ (config.info.info[0].type, _NNS_FLOAT32);
   EXPECT_EQ (config.info.info[0].dimension[0], 2U);
   EXPECT_EQ (config.info.info[0].dimension[1], 1U);
-  EXPECT_EQ (config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (config.info.info[0].dimension[3], 1U);
+  EXPECT_EQ (config.info.info[0].dimension[2], 0U);
 
   gst_object_unref (src_iio);
   gst_object_unref (src_pad);
@@ -1478,14 +1476,7 @@ TEST (testTensorSrcIio, dataVerifyFreqGenericType)
     EXPECT_EQ (config.info.info[idx].type, _NNS_FLOAT32);
     EXPECT_EQ (config.info.info[idx].dimension[0], 1U);
     EXPECT_EQ (config.info.info[idx].dimension[1], 1U);
-    EXPECT_EQ (config.info.info[idx].dimension[2], 1U);
-    EXPECT_EQ (config.info.info[idx].dimension[3], 1U);
-  }
-  for (int idx = num_scan_elements; idx < NNS_TENSOR_SIZE_LIMIT; idx++) {
-    EXPECT_EQ (config.info.info[idx].dimension[0], 0U);
-    EXPECT_EQ (config.info.info[idx].dimension[1], 0U);
     EXPECT_EQ (config.info.info[idx].dimension[2], 0U);
-    EXPECT_EQ (config.info.info[idx].dimension[3], 0U);
   }
 
   gst_object_unref (src_iio);

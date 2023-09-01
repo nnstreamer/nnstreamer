@@ -1536,7 +1536,7 @@ gst_tensor_src_iio_create_config (GstTensorSrcIIO * tensor_src_iio)
   GList *list;
   GstTensorSrcIIOChannelProperties *channel_prop;
   gint tensor_info_merged_size;
-  guint info_idx = 0, dim_idx = 0;
+  guint info_idx = 0;
   GstTensorInfo *info;
   GstTensorsConfig *config;
 
@@ -1559,9 +1559,7 @@ gst_tensor_src_iio_create_config (GstTensorSrcIIO * tensor_src_iio)
       continue;
     info[info_idx].name = channel_prop->name;
     info[info_idx].type = _NNS_FLOAT32;
-    for (dim_idx = 0; dim_idx < NNS_TENSOR_RANK_LIMIT; dim_idx++) {
-      info[info_idx].dimension[dim_idx] = 1;
-    }
+    info[info_idx].dimension[0] = 1;
     info[info_idx].dimension[1] = tensor_src_iio->buffer_capacity;
     info_idx += 1;
   }
