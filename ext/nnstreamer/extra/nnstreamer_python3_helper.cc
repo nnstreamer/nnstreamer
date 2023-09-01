@@ -396,6 +396,7 @@ parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
   if (PyList_Size (result) < 0)
     return -1;
 
+  gst_tensors_info_init (info);
   info->num_tensors = PyList_Size (result);
   for (i = 0; i < info->num_tensors; i++) {
     /** don't own the reference */
@@ -466,7 +467,7 @@ parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
         return -EINVAL;
       }
 
-      if (val <= 0) {
+      if (val < 0) {
         Py_ERRMSG ("The %u'th dimension value of the %u'th tensor is invalid (%d).",
             j + 1, i + 1, val);
         Py_SAFEDECREF (shape_dims);
@@ -475,10 +476,6 @@ parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
 
       info->info[i].dimension[j] = (uint32_t) val;
     }
-
-    /* Fill remained dims */
-    for (; j < NNS_TENSOR_RANK_LIMIT; j++)
-      info->info[i].dimension[j] = 1U;
 
     info->info[i].name = NULL;
     Py_SAFEDECREF (shape_dims);
