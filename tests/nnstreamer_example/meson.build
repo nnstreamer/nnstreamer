@@ -64,6 +64,7 @@ endif
 # custom_example_RNN
 library('dummyRNN',
   join_paths('custom_example_RNN', 'dummy_RNN.c'),
+  dependencies: [glib_dep, nnstreamer_dep],
   include_directories: nnstreamer_inc,
   install: get_option('install-test'),
   install_dir: customfilter_install_dir
@@ -72,7 +73,7 @@ library('dummyRNN',
 # custom_example_LSTM
 library('dummyLSTM',
   join_paths('custom_example_LSTM', 'dummy_LSTM.c'),
-  dependencies: [libm_dep, glib_dep],
+  dependencies: [libm_dep, glib_dep, nnstreamer_dep],
   include_directories: nnstreamer_inc,
   install: get_option('install-test'),
   install_dir: customfilter_install_dir
