@@ -190,12 +190,10 @@ dv_getOutCaps (void **pdata, const GstTensorsConfig * config)
         format = GST_VIDEO_FORMAT_GRAY16_LE;
         break;
       case DIRECT_VIDEO_FORMAT_UNKNOWN:
+      default:
         GST_WARNING ("Default format has been applied: GRAY8");
         format = GST_VIDEO_FORMAT_GRAY8;
         break;
-      default:
-        GST_ERROR ("Invalid format. Please check the video format");
-        return NULL;
     }
   } else if (channel == 3) {
     switch (ddata->format) {
@@ -206,12 +204,9 @@ dv_getOutCaps (void **pdata, const GstTensorsConfig * config)
         format = GST_VIDEO_FORMAT_BGR;
         break;
       case DIRECT_VIDEO_FORMAT_UNKNOWN:
+      default:
         GST_WARNING ("Default format has been applied: RGB");
         format = GST_VIDEO_FORMAT_RGB;
-        break;
-      default:
-        GST_ERROR ("Invalid format. Please check the video format");
-        return NULL;
     }
   } else if (channel == 4) {
     switch (ddata->format) {
@@ -240,12 +235,10 @@ dv_getOutCaps (void **pdata, const GstTensorsConfig * config)
         format = GST_VIDEO_FORMAT_ABGR;
         break;
       case DIRECT_VIDEO_FORMAT_UNKNOWN:
+      default:
         GST_WARNING ("Default format has been applied: BGRx");
         format = GST_VIDEO_FORMAT_BGRx;
         break;
-      default:
-        GST_ERROR ("Invalid format. Please check the video format");
-        return NULL;
     }
   } else {
     GST_ERROR ("%d channel is not supported", channel);
