@@ -489,9 +489,9 @@ edgetpu_subplugin::getTensorDim (tflite::Interpreter *interpreter, int tensor_id
   /* the order of dimension is reversed at CAPS negotiation */
   std::reverse_copy (tensor_dims->data, tensor_dims->data + len, dim);
 
-  /* fill the remnants with 1 */
+  /* fill the remnants with 0 */
   for (int i = len; i < NNS_TENSOR_RANK_LIMIT; ++i) {
-    dim[i] = 1;
+    dim[i] = 0;
   }
 
   return 0;
@@ -535,19 +535,25 @@ void
 edgetpu_subplugin::setTensorProp (tflite::Interpreter *interpreter,
     const std::vector<int> &tensor_idx_list, GstTensorsInfo &tensorMeta)
 {
-  tensorMeta.num_tensors = tensor_idx_list.size ();
-  if (tensorMeta.num_tensors > NNS_TENSOR_SIZE_LIMIT)
+  GstTensorInfo *_info;
+  unsigned int num;
+
+  num = tensor_idx_list.size ();
+  if (num > NNS_TENSOR_SIZE_LIMIT)
     throw std::invalid_argument (
         "The number of tensors required by the given model exceeds the nnstreamer tensor limit (16 by default).");
 
-  for (unsigned int i = 0; i < tensorMeta.num_tensors; ++i) {
-    if (getTensorDim (interpreter, tensor_idx_list[i], tensorMeta.info[i].dimension)) {
+  tensorMeta.num_tensors = num;
+
+  for (unsigned int i = 0; i < num; ++i) {
+    _info = gst_tensors_info_get_nth_info (std::addressof (tensorMeta), i);
+
+    if (getTensorDim (interpreter, tensor_idx_list[i], _info->dimension)) {
       std::cerr << "failed to get the dimension of tensors" << std::endl;
       throw std::invalid_argument ("Cannot get the dimensions of given tensors at the tensor ");
     }
-    tensorMeta.info[i].type
-        = getTensorType (interpreter->tensor (tensor_idx_list[i])->type);
-    tensorMeta.info[i].name = nullptr; /** @todo tensor name is not retrieved */
+    _info->type = getTensorType (interpreter->tensor (tensor_idx_list[i])->type);
+    _info->name = nullptr; /** @todo tensor name is not retrieved */
   }
 }
 

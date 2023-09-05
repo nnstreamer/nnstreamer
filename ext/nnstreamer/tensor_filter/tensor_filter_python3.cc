@@ -452,6 +452,7 @@ PYCore::getOutputTensorDim (GstTensorsInfo *info)
 int
 PYCore::setInputTensorDim (const GstTensorsInfo *in_info, GstTensorsInfo *out_info)
 {
+  GstTensorInfo *_info;
   int res = 0;
 
   if (nullptr == in_info || nullptr == out_info)
@@ -465,7 +466,10 @@ PYCore::setInputTensorDim (const GstTensorsInfo *in_info, GstTensorsInfo *out_in
     throw std::runtime_error ("PyList_New(); has failed.");
 
   for (unsigned int i = 0; i < in_info->num_tensors; i++) {
-    PyObject *shape = PyTensorShape_New (shape_cls, &in_info->info[i]);
+    PyObject *shape;
+
+    _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) in_info, i);
+    shape = PyTensorShape_New (shape_cls, _info);
     if (nullptr == shape)
       throw std::runtime_error ("PyTensorShape_New(); has failed.");
 
@@ -525,6 +529,7 @@ PYCore::freeOutputTensors (void *data)
 int
 PYCore::run (const GstTensorMemory *input, GstTensorMemory *output)
 {
+  GstTensorInfo *_info;
   int res = 0;
   PyObject *result;
 
@@ -539,8 +544,10 @@ PYCore::run (const GstTensorMemory *input, GstTensorMemory *output)
 
   PyObject *param = PyList_New (inputTensorMeta.num_tensors);
   for (unsigned int i = 0; i < inputTensorMeta.num_tensors; i++) {
+    _info = gst_tensors_info_get_nth_info (&inputTensorMeta, i);
+
     /** create a Numpy array wrapper (1-D) for NNS tensor data */
-    tensor_type nns_type = inputTensorMeta.info[i].type;
+    tensor_type nns_type = _info->type;
     npy_intp input_dims[]
         = { (npy_intp) (input[i].size / gst_tensor_get_element_size (nns_type)) };
     PyObject *input_array = PyArray_SimpleNewFromData (
@@ -562,8 +569,11 @@ PYCore::run (const GstTensorMemory *input, GstTensorMemory *output)
     for (unsigned int i = 0; i < outputTensorMeta.num_tensors; i++) {
       PyArrayObject *output_array
           = (PyArrayObject *) PyList_GetItem (result, (Py_ssize_t) i);
+
+      _info = gst_tensors_info_get_nth_info (&outputTensorMeta, i);
+
       /** type/size checking */
-      if (checkTensorType (outputTensorMeta.info[i].type, PyArray_TYPE (output_array))
+      if (checkTensorType (_info->type, PyArray_TYPE (output_array))
           && checkTensorSize (&output[i], output_array)) {
         /** obtain the pointer to the buffer for the output array */
         output[i].data = PyArray_DATA (output_array);

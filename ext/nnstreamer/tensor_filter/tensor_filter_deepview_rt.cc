@@ -301,9 +301,9 @@ dvrt_subplugin::getTensorDim (gsize index, tensor_dim dim)
   for (i = 0; i < dims; i++)
     dim[dims - i - 1] = shape[i];
 
-  /* fill remaining entries with 1 */
+  /* fill remaining entries with 0 */
   for (i = dims; i < NNS_TENSOR_RANK_LIMIT; ++i) {
-    dim[i] = 1;
+    dim[i] = 0;
   }
 
   return 0;
@@ -317,6 +317,7 @@ int
 dvrt_subplugin::setTensorProp (gint isInput)
 {
   GstTensorsInfo *tensorMeta;
+  GstTensorInfo *_info;
   const guint32 *indices;
   gsize num;
   vector<NNTensor *> *tensors;
@@ -343,20 +344,22 @@ dvrt_subplugin::setTensorProp (gint isInput)
   for (size_t i = 0; i < num; i++) {
     gsize index = indices[i];
     NNTensor *tensor = nn_context_tensor_index (context, index);
+
+    _info = gst_tensors_info_get_nth_info (tensorMeta, (guint) i);
     tensors->push_back (tensor);
 
     const gchar *name = nn_model_layer_name (model, index);
-    tensorMeta->info[i].name = g_strdup (name);
-    if (getTensorDim (index, tensorMeta->info[i].dimension))
+    _info->name = g_strdup (name);
+    if (getTensorDim (index, _info->dimension))
       return -EINVAL;
 
-    if (getTensorType (index, &tensorMeta->info[i].type))
+    if (getTensorType (index, &_info->type))
       return -EINVAL;
 
     gchar *dim;
-    dim = gst_tensor_get_dimension_string (tensorMeta->info[i].dimension);
-    ml_logd ("tensorMeta[%zu] >> name[%s], type[%d], dim[%s]", i,
-        tensorMeta->info[i].name, tensorMeta->info[i].type, dim);
+    dim = gst_tensor_get_dimension_string (_info->dimension);
+    ml_logd ("tensorMeta[%zu] >> name[%s], type[%d], dim[%s]", i, _info->name,
+        _info->type, dim);
     g_free (dim);
   }
 
