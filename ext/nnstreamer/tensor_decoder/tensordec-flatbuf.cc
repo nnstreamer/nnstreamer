@@ -84,7 +84,6 @@ static GstFlowReturn
 fbd_decode (void **pdata, const GstTensorsConfig *config,
     const GstTensorMemory *input, GstBuffer *outbuf)
 {
-  char *name;
   Tensor_type type;
   Tensor_format format;
   GstMapInfo out_info;
@@ -101,7 +100,7 @@ fbd_decode (void **pdata, const GstTensorsConfig *config,
   frame_rate fr;
   gboolean is_flexible;
   GstTensorMetaInfo meta;
-  GstTensorsConfig fbd_config;
+  GstTensorInfo *_info;
 
   UNUSED (pdata);
 
@@ -109,30 +108,31 @@ fbd_decode (void **pdata, const GstTensorsConfig *config,
     ml_loge ("NULL parameter is passed to tensor_decoder::flatbuf");
     return GST_FLOW_ERROR;
   }
-  gst_tensors_config_copy (&fbd_config, config);
 
-  is_flexible = gst_tensors_config_is_flexible (&fbd_config);
+  is_flexible = gst_tensors_config_is_flexible (config);
 
-  num_tensors = fbd_config.info.num_tensors;
-  fr = frame_rate (fbd_config.rate_n, fbd_config.rate_d);
-  format = (Tensor_format) fbd_config.info.format;
+  num_tensors = config->info.num_tensors;
+  fr = frame_rate (config->rate_n, config->rate_d);
+  format = (Tensor_format) config->info.format;
   /* Fill the info in tensor and puth to tensor vector */
   for (i = 0; i < num_tensors; i++) {
     unsigned char *tmp_buf;
 
+    _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, i);
+
     if (is_flexible) {
       gst_tensor_meta_info_parse_header (&meta, input[i].data);
-      gst_tensor_meta_info_convert (&meta, &fbd_config.info.info[i]);
+      gst_tensor_meta_info_convert (&meta, _info);
     }
-    dim = builder.CreateVector (fbd_config.info.info[i].dimension, NNS_TENSOR_RANK_LIMIT);
-    name = fbd_config.info.info[i].name;
 
-    if (name == NULL)
+    dim = builder.CreateVector (_info->dimension, NNS_TENSOR_RANK_LIMIT);
+
+    if (_info->name == NULL)
       tensor_name = builder.CreateString ("");
     else
-      tensor_name = builder.CreateString (name);
+      tensor_name = builder.CreateString (_info->name);
 
-    type = (Tensor_type) fbd_config.info.info[i].type;
+    type = (Tensor_type) _info->type;
 
     /* Create the vector first, and fill in data later */
     /** @todo Consider to remove memcpy */

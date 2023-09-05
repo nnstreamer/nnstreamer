@@ -74,6 +74,8 @@ fbc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
   GstMemory *in_mem, *out_mem;
   GstMapInfo in_info;
   guint mem_size;
+  GstTensorInfo *_info;
+
   UNUSED (priv_data);
 
   if (!in_buf || !config) {
@@ -108,12 +110,15 @@ fbc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
     std::string _name = tensor->Get (i)->name ()->str ();
     const gchar *name = _name.c_str ();
 
-    config->info.info[i].name = (name && strlen (name) > 0) ? g_strdup (name) : NULL;
-    config->info.info[i].type = (tensor_type) tensor->Get (i)->type ();
+    _info = gst_tensors_info_get_nth_info (&config->info, i);
+
+    g_free (_info->name);
+    _info->name = (name && strlen (name) > 0) ? g_strdup (name) : NULL;
+    _info->type = (tensor_type) tensor->Get (i)->type ();
     tensor_data = tensor->Get (i)->data ();
 
     for (guint j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
-      config->info.info[i].dimension[j] = tensor->Get (i)->dimension ()->Get (j);
+      _info->dimension[j] = tensor->Get (i)->dimension ()->Get (j);
     }
     mem_size = VectorLength (tensor_data);
 

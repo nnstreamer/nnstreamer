@@ -91,6 +91,8 @@ flxc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
   GstMemory *in_mem, *out_mem;
   GstMapInfo in_info;
   gsize mem_size;
+  GstTensorInfo *_info;
+
   UNUSED (priv_data);
 
   if (!in_buf || !config) {
@@ -124,12 +126,15 @@ flxc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
     flexbuffers::String _name = tensor[0].AsString ();
     const gchar *name = _name.c_str ();
 
-    config->info.info[i].name = (name && strlen (name) > 0) ? g_strdup (name) : NULL;
-    config->info.info[i].type = (tensor_type) tensor[1].AsInt32 ();
+    _info = gst_tensors_info_get_nth_info (&config->info, i);
+
+    g_free (_info->name);
+    _info->name = (name && strlen (name) > 0) ? g_strdup (name) : NULL;
+    _info->type = (tensor_type) tensor[1].AsInt32 ();
 
     flexbuffers::TypedVector dim = tensor[2].AsTypedVector ();
     for (guint j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
-      config->info.info[i].dimension[j] = dim[j].AsInt32 ();
+      _info->dimension[j] = dim[j].AsInt32 ();
     }
     flexbuffers::Blob tensor_data = tensor[3].AsBlob ();
     mem_size = gst_tensor_info_get_size (&config->info.info[i]);
