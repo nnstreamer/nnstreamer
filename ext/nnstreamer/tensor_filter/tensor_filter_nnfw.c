@@ -558,6 +558,7 @@ nnfw_invoke_dummy (const nnfw_pdata * pdata, const nnfw_tinfo_s * in_info,
     const nnfw_tinfo_s * out_info)
 {
   GstTensorsInfo gst_in_info, gst_out_info;
+  GstTensorInfo *_info;
   GstTensorMemory input[NNS_TENSOR_SIZE_LIMIT] = { {0} };
   GstTensorMemory output[NNS_TENSOR_SIZE_LIMIT] = { {0} };
   gboolean failed = FALSE;
@@ -571,13 +572,17 @@ nnfw_invoke_dummy (const nnfw_pdata * pdata, const nnfw_tinfo_s * in_info,
   }
 
   for (i = 0; i < gst_in_info.num_tensors; ++i) {
-    input[i].size = gst_tensor_info_get_size (&gst_in_info.info[i]);
+    _info = gst_tensors_info_get_nth_info (&gst_in_info, i);
+
+    input[i].size = gst_tensor_info_get_size (_info);
     input[i].data = g_malloc0 (input[i].size);
   }
 
   /* The output shape would be changed, set enough size for output buffer. */
   for (i = 0; i < gst_out_info.num_tensors; ++i) {
-    output[i].size = gst_tensor_info_get_size (&gst_out_info.info[i]) * 2;
+    _info = gst_tensors_info_get_nth_info (&gst_out_info, i);
+
+    output[i].size = gst_tensor_info_get_size (_info) * 2;
     output[i].data = g_malloc0 (output[i].size);
   }
 

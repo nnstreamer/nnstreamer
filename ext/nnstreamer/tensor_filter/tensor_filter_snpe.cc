@@ -231,16 +231,20 @@ snpe_subplugin::runtimeToString (zdl::DlSystem::Runtime_t runtime)
 bool
 snpe_subplugin::set_output_tensor_names (const GstTensorsInfo *info)
 {
+  GstTensorInfo *_info;
+
   if (output_tensor_names_list.size () > 0) {
     output_tensor_names_list = zdl::DlSystem::StringList ();
   }
   for (unsigned int i = 0; i < info->num_tensors; ++i) {
-    if (info->info[i].name == nullptr || info->info[i].name[0] == '\0') {
+    _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info, i);
+
+    if (_info->name == nullptr || _info->name[0] == '\0') {
       /* failed */
       nns_loge ("Given output tensor name with index %u is invalid, it is null.", i);
       return false;
     }
-    output_tensor_names_list.append (info->info[i].name);
+    output_tensor_names_list.append (_info->name);
   }
   return true;
 }
@@ -487,16 +491,17 @@ snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 #if (DBG)
   gint64 start_time = g_get_real_time ();
 #endif
+  GstTensorInfo *_info;
 
   if (use_user_buffer) {
     for (unsigned int i = 0; i < inputInfo.num_tensors; ++i) {
-      input_buffer_map.getUserBuffer (inputInfo.info[i].name)
-          ->setBufferAddress (input[i].data);
+      _info = gst_tensors_info_get_nth_info (std::addressof (inputInfo), i);
+      input_buffer_map.getUserBuffer (_info->name)->setBufferAddress (input[i].data);
     }
 
     for (unsigned int i = 0; i < outputInfo.num_tensors; ++i) {
-      output_buffer_map.getUserBuffer (outputInfo.info[i].name)
-          ->setBufferAddress (output[i].data);
+      _info = gst_tensors_info_get_nth_info (std::addressof (outputInfo), i);
+      output_buffer_map.getUserBuffer (_info->name)->setBufferAddress (output[i].data);
     }
 
     snpe->execute (input_buffer_map, output_buffer_map);
@@ -651,12 +656,15 @@ void
 snpe_subplugin::setTensorProp (GstTensorsInfo &tensor_meta,
     const zdl::DlSystem::StringList strList, tensor_type data_type)
 {
+  GstTensorInfo *_info;
   unsigned int idx = 0;
   tensor_meta.num_tensors = strList.size ();
 
   for (const char *name : strList) {
-    tensor_meta.info[idx].type = data_type;
-    tensor_meta.info[idx].name = g_strdup (name);
+    _info = gst_tensors_info_get_nth_info (std::addressof (tensor_meta), idx);
+
+    _info->type = data_type;
+    _info->name = g_strdup (name);
     auto bufferAttributesOpt = snpe->getInputOutputBufferAttributes (name);
     const zdl::DlSystem::TensorShape &bufferShape = (*bufferAttributesOpt)->getDims ();
     for (size_t j = 0; j < bufferShape.rank (); ++j) {
@@ -668,10 +676,10 @@ snpe_subplugin::setTensorProp (GstTensorsInfo &tensor_meta,
         }
         bufferShape[bufferShape.rank () - j - 1] = max_resizable_dim;
       }
-      tensor_meta.info[idx].dimension[j] = bufferShape[bufferShape.rank () - j - 1];
+      _info->dimension[j] = bufferShape[bufferShape.rank () - j - 1];
     }
     for (size_t j = bufferShape.rank (); j < NNS_TENSOR_RANK_LIMIT; ++j) {
-      tensor_meta.info[idx].dimension[j] = 1;
+      _info->dimension[j] = 0;
     }
     idx++;
   }

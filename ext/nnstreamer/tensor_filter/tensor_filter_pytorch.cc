@@ -333,6 +333,7 @@ TorchCore::validateOutputTensor (const at::Tensor output, unsigned int idx)
   gsize num_gst_tensor, num_torch_tensor;
   at::Tensor sliced_output = output.slice (0);
   c10::IntArrayRef sliced_output_sizes = sliced_output.sizes ();
+  GstTensorInfo *_info;
 
   /** if idx is in bounds */
   if (outputTensorMeta.num_tensors <= idx) {
@@ -341,10 +342,12 @@ TorchCore::validateOutputTensor (const at::Tensor output, unsigned int idx)
     return -1;
   }
 
+  _info = gst_tensors_info_get_nth_info (&outputTensorMeta, idx);
+
   /** when output is a scalar */
   if (tensor_shape[0] == 0) {
     otype = getTensorTypeFromTorch (output.scalar_type ());
-    if (outputTensorMeta.info[idx].type != otype) {
+    if (_info->type != otype) {
       ml_loge ("Invalid output meta: different type at index %u. Update the type of tensor at index %u to %d tensor_type",
           idx, idx, otype);
       return -2;
@@ -353,13 +356,13 @@ TorchCore::validateOutputTensor (const at::Tensor output, unsigned int idx)
   }
 
   otype = getTensorTypeFromTorch (sliced_output.scalar_type ());
-  if (outputTensorMeta.info[idx].type != otype) {
+  if (_info->type != otype) {
     ml_loge ("Invalid output meta: different type at index %u. Update the type of tensor at index %u to %d tensor_type",
         idx, idx, otype);
     return -2;
   }
 
-  num_gst_tensor = gst_tensor_get_element_count (outputTensorMeta.info[idx].dimension);
+  num_gst_tensor = gst_tensor_get_element_count (_info->dimension);
   num_torch_tensor = 1;
   for (int j = 0; j < sliced_output.ndimension (); j++) {
     num_torch_tensor *= sliced_output_sizes[j];
@@ -511,7 +514,7 @@ TorchCore::invoke (const GstTensorFilterProperties *prop,
 #if (DBG)
   gint64 start_time = g_get_real_time ();
 #endif
-
+  GstTensorInfo *_info;
   std::vector<torch::jit::IValue> input_feeds;
   torch::jit::IValue output_value;
   torch::Dtype type;
@@ -520,11 +523,13 @@ TorchCore::invoke (const GstTensorFilterProperties *prop,
   /** @todo Support other input types other than at::Tensor */
   for (uint i = 0; i < inputTensorMeta.num_tensors; ++i) {
     std::vector<int64_t> input_shape;
-    input_shape.assign (&inputTensorMeta.info[i].dimension[0],
-        &inputTensorMeta.info[i].dimension[0] + NNS_TENSOR_RANK_LIMIT);
 
-    if (!getTensorTypeToTorch (inputTensorMeta.info[i].type, &type)) {
-      ml_loge ("This data type is not valid: %d", inputTensorMeta.info[i].type);
+    _info = gst_tensors_info_get_nth_info (&inputTensorMeta, i);
+
+    input_shape.assign (&_info->dimension[0], &_info->dimension[0] + NNS_TENSOR_RANK_LIMIT);
+
+    if (!getTensorTypeToTorch (_info->type, &type)) {
+      ml_loge ("This data type is not valid: %d", _info->type);
       return -1;
     }
     at::TensorOptions options = torch::TensorOptions ().dtype (type);
@@ -591,9 +596,9 @@ TorchCore::fillTensorDim (torch::autograd::Variable tensor_meta, tensor_dim dim)
   /** the order of dimension is reversed at CAPS negotiation */
   std::reverse_copy (tensor_meta.sizes ().begin (), tensor_meta.sizes ().end (), dim);
 
-  /** fill the remnants with 1 */
+  /** fill the remnants with 0 */
   for (int idx = num_dim; idx < NNS_TENSOR_RANK_LIMIT; ++idx) {
-    dim[idx] = 1;
+    dim[idx] = 0;
   }
 
   return 0;

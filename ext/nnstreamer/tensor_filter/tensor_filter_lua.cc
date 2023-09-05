@@ -363,6 +363,7 @@ lua_subplugin::getEmptyInstance ()
 void
 lua_subplugin::setTensorsInfo (GstTensorsInfo &tensors_info)
 {
+  GstTensorInfo *_info;
 
   if (lua_istable (L, -1)) {
     lua_pushstring (L, "num");
@@ -383,10 +384,11 @@ lua_subplugin::setTensorsInfo (GstTensorsInfo &tensors_info)
     lua_gettable (L, -2);
     if (lua_istable (L, -1)) {
       for (uint j = 1; j <= tensors_info.num_tensors; ++j) {
+        _info = gst_tensors_info_get_nth_info (std::addressof (tensors_info), (j - 1));
         lua_pushinteger (L, j);
         lua_gettable (L, -2);
-        tensors_info.info[j - 1].type = gst_tensor_get_type (lua_tostring (L, -1));
-        if (tensors_info.info[j - 1].type == _NNS_END)
+        _info->type = gst_tensor_get_type (lua_tostring (L, -1));
+        if (_info->type == _NNS_END)
           throw std::invalid_argument (
               "Failed to parse `type`. Possible types are " GST_TENSOR_TYPE_ALL);
         lua_pop (L, 1);
@@ -400,6 +402,7 @@ lua_subplugin::setTensorsInfo (GstTensorsInfo &tensors_info)
     lua_gettable (L, -2);
     if (lua_istable (L, -1)) {
       for (uint j = 1; j <= tensors_info.num_tensors; ++j) {
+        _info = gst_tensors_info_get_nth_info (std::addressof (tensors_info), (j - 1));
         lua_pushinteger (L, j);
         lua_gettable (L, -2);
         if (lua_istable (L, -1)) {
@@ -408,14 +411,14 @@ lua_subplugin::setTensorsInfo (GstTensorsInfo &tensors_info)
             lua_pushinteger (L, i);
             lua_gettable (L, -2);
             if (lua_isnumber (L, -1)) {
-              tensors_info.info[j - 1].dimension[i - 1] = lua_tointeger (L, -1);
+              _info->dimension[i - 1] = lua_tointeger (L, -1);
             } else {
               throw std::invalid_argument ("Failed to parse `dim`. Please check the script");
             }
             lua_pop (L, 1);
           }
           for (uint i = len + 1; i <= NNS_TENSOR_RANK_LIMIT; i++) {
-            tensors_info.info[j - 1].dimension[i - 1] = 1;
+            _info->dimension[i - 1] = 0;
           }
         } else {
           throw std::invalid_argument ("Failed to parse `dim`. Please check the script");
@@ -487,19 +490,25 @@ lua_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 void
 lua_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
+  GstTensorInfo *_info;
+
   if (!input)
     throw std::runtime_error ("Invalid input buffer, it is NULL.");
   if (!output)
     throw std::runtime_error ("Invalid output buffer, it is NULL.");
 
   for (uint i = 0; i < inputInfo.num_tensors; ++i) {
-    input_lua_tensors[i].type = inputInfo.info[i].type;
+    _info = gst_tensors_info_get_nth_info (std::addressof (inputInfo), i);
+
+    input_lua_tensors[i].type = _info->type;
     input_lua_tensors[i].data = input[i].data;
     input_lua_tensors[i].size = input[i].size;
   }
 
   for (uint i = 0; i < outputInfo.num_tensors; ++i) {
-    output_lua_tensors[i].type = outputInfo.info[i].type;
+    _info = gst_tensors_info_get_nth_info (std::addressof (outputInfo), i);
+
+    output_lua_tensors[i].type = _info->type;
     output_lua_tensors[i].data = output[i].data;
     output_lua_tensors[i].size = output[i].size;
   }

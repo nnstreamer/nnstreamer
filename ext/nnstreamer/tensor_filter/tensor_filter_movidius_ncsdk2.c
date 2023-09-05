@@ -36,6 +36,7 @@
 #define NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
 #undef NO_ANONYMOUS_NESTED_STRUCT
+#include <nnstreamer_plugin_api_util.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 
@@ -373,8 +374,9 @@ _mvncsdk2_getInputDim (const GstTensorFilterProperties * prop,
 
   /** MVNCSDK only supports one tensor at a time */
   info->num_tensors = NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED;
-  nns_input_tensor_info =
-      &(info->info[NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED - 1]);
+  nns_input_tensor_info = gst_tensors_info_get_nth_info (info,
+      NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED - 1);
+
   /**
    * MVNCSDK only supports data types of FP32 and FP16. If the data type of
    * input tensor is set to FP32, NCSDK automatically convert it to FP16 as
@@ -407,7 +409,9 @@ _mvncsdk2_getOutputDim (const GstTensorFilterProperties * prop,
 
   /** MVNCSDK only supports one tensor at a time */
   info->num_tensors = NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED;
-  nns_output_info = &(info->info[NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED - 1]);
+  nns_output_info = gst_tensors_info_get_nth_info (info,
+      NNS_MVNCSDK2_MAX_NUM_TENOSORS_SUPPORTED - 1);
+
   /**
    * MVNCSDK only supports data types of FP32 and FP16. If the data type of
    * input tensor is set to FP32, NCSDK automatically convert it to FP16 as

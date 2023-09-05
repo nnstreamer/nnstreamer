@@ -428,6 +428,7 @@ tensor_filter_snap::close ()
 bool
 tensor_filter_snap::validate (const GstTensorFilterProperties *prop, snap_option_s &snap_option)
 {
+  GstTensorInfo *_info;
   GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT] = {
     0,
   };
@@ -442,7 +443,9 @@ tensor_filter_snap::validate (const GstTensorFilterProperties *prop, snap_option
 
   /* Invoke with dummy data to validate output meta. */
   for (i = 0; i < prop->input_meta.num_tensors; i++) {
-    in_tensors[i].size = gst_tensor_info_get_size (&prop->input_meta.info[i]);
+    _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &prop->input_meta, i);
+
+    in_tensors[i].size = gst_tensor_info_get_size (_info);
     in_tensors[i].data = g_malloc0 (in_tensors[i].size);
   }
 
@@ -706,6 +709,7 @@ bool
 tensor_filter_snap::configure_input_meta (
     const GstTensorFilterProperties *prop, snap_option_s &snap_option)
 {
+  GstTensorInfo *_info;
   snap_sdk::ErrCode status;
   guint i, j;
   gulong rank;
@@ -719,9 +723,11 @@ tensor_filter_snap::configure_input_meta (
     snap_data_info_s snap_info;
     snap_sdk::SnapData in_data;
 
+    _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &prop->input_meta, i);
+
     snap_info.format = snap_option.input_format[i];
 
-    if (!convert_nns_type (prop->input_meta.info[i].type, snap_info.type)) {
+    if (!convert_nns_type (_info->type, snap_info.type)) {
       snap_logw ("Failed to convert input type.");
       return false;
     }
@@ -743,7 +749,7 @@ tensor_filter_snap::configure_input_meta (
        */
       rank = NNS_TENSOR_RANK_LIMIT;
       for (j = 0; j < rank; j++) {
-        int s = (int) prop->input_meta.info[i].dimension[rank - j - 1];
+        int s = (int) _info->dimension[rank - j - 1];
         snap_info.shape.push_back (s);
       }
     } else {
@@ -931,9 +937,9 @@ tensor_filter_snap::parse_dimension (const std::vector<int> &shape, tensor_dim d
     dim[rank - i - 1] = (unsigned int) shape[i];
   }
 
-  /* fill the remnants with 1 */
+  /* fill the remnants with 0 */
   for (i = rank; i < NNS_TENSOR_RANK_LIMIT; i++) {
-    dim[i] = 1;
+    dim[i] = 0;
   }
 
   return true;
@@ -945,16 +951,19 @@ tensor_filter_snap::parse_dimension (const std::vector<int> &shape, tensor_dim d
 bool
 tensor_filter_snap::convert_names (const GstTensorsInfo *info, std::vector<std::string> &names)
 {
+  GstTensorInfo *_info;
   guint i;
 
   for (i = 0; i < info->num_tensors; ++i) {
-    if (info->info[i].name == nullptr) {
+    _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info, i);
+
+    if (_info->name == nullptr) {
       /* failed */
       snap_loge ("Given tensor name with index %d is invalid.", i);
       return false;
     }
 
-    names.push_back (std::string (info->info[i].name));
+    names.push_back (std::string (_info->name));
   }
 
   return true;
@@ -984,6 +993,7 @@ tensor_filter_snap::compare_meta (const GstTensorFilterProperties *prop,
   }
 
   for (i = 0; i < nns_info->num_tensors; ++i) {
+    GstTensorInfo *_info;
     GstTensorInfo snap_info;
     tensor_layout snap_layout = _NNS_LAYOUT_NONE;
 
@@ -999,7 +1009,8 @@ tensor_filter_snap::compare_meta (const GstTensorFilterProperties *prop,
       return false;
     }
 
-    if (!gst_tensor_info_is_equal (&nns_info->info[i], &snap_info)) {
+    _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) nns_info, i);
+    if (!gst_tensor_info_is_equal (_info, &snap_info)) {
       snap_logw ("Given tensor info is not equal.");
       return false;
     }

@@ -378,9 +378,13 @@ TFCore::getTensorTypeToTF (tensor_type tType)
 int
 TFCore::validateTensor (const GstTensorsInfo *tensorInfo, int is_input)
 {
+  GstTensorInfo *_info;
+
   for (unsigned int i = 0; i < tensorInfo->num_tensors; i++) {
+    _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) tensorInfo, i);
+
     /* set the name of tensor */
-    TF_Operation *op = TF_GraphOperationByName (graph, tensorInfo->info[i].name);
+    TF_Operation *op = TF_GraphOperationByName (graph, _info->name);
 
     g_assert (op != nullptr);
 
@@ -401,7 +405,7 @@ TFCore::validateTensor (const GstTensorsInfo *tensorInfo, int is_input)
     }
 
     if (type != TF_STRING) {
-      g_assert (tensorInfo->info[i].type == getTensorTypeFromTF (type));
+      g_assert (_info->type == getTensorTypeFromTF (type));
     }
     info_s.type = type;
 
@@ -423,12 +427,11 @@ TFCore::validateTensor (const GstTensorsInfo *tensorInfo, int is_input)
 
       /* check the validity of dimension */
       for (int d = 0; d < num_dims; ++d) {
-        info_s.dims.push_back (
-            static_cast<int64_t> (tensorInfo->info[i].dimension[num_dims - d - 1]));
+        info_s.dims.push_back (static_cast<int64_t> (_info->dimension[num_dims - d - 1]));
         if (dims[d] < 0) {
           continue;
         }
-        g_assert (tensorInfo->info[i].dimension[num_dims - d - 1] == dims[d]);
+        g_assert (_info->dimension[num_dims - d - 1] == dims[d]);
       }
     }
     if (is_input) {
@@ -497,6 +500,7 @@ TFCore::run (const GstTensorMemory *input, GstTensorMemory *output)
 #if (DBG)
   gint64 start_time = g_get_real_time ();
 #endif
+  GstTensorInfo *_info;
   std::vector<TF_Output> input_ops;
   std::vector<TF_Tensor *> input_tensors;
   std::vector<TF_Output> output_ops;
@@ -506,9 +510,10 @@ TFCore::run (const GstTensorMemory *input, GstTensorMemory *output)
 
   /* create input tensor for the graph from `input` */
   for (unsigned int i = 0; i < inputTensorMeta.num_tensors; i++) {
+    _info = gst_tensors_info_get_nth_info (&inputTensorMeta, i);
+
     TF_Tensor *in_tensor = nullptr;
-    TF_Output input_op
-        = { TF_GraphOperationByName (graph, inputTensorMeta.info[i].name), 0 };
+    TF_Output input_op = { TF_GraphOperationByName (graph, _info->name), 0 };
     g_assert (input_op.oper != nullptr);
     input_ops.push_back (input_op);
 
@@ -550,8 +555,9 @@ TFCore::run (const GstTensorMemory *input, GstTensorMemory *output)
 
   /* create output tensor for the graph from `output` */
   for (unsigned int i = 0; i < outputTensorMeta.num_tensors; i++) {
-    TF_Output output_op
-        = { TF_GraphOperationByName (graph, outputTensorMeta.info[i].name), 0 };
+    _info = gst_tensors_info_get_nth_info (&outputTensorMeta, i);
+
+    TF_Output output_op = { TF_GraphOperationByName (graph, _info->name), 0 };
     g_assert (output_op.oper != nullptr);
     output_ops.push_back (output_op);
 

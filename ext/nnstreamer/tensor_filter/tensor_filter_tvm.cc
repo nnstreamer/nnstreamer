@@ -198,6 +198,8 @@ tvm_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 {
   unsigned int i;
   int idx;
+  GstTensorInfo *_info;
+
   if (!parse_custom_prop (prop->custom_properties)) {
     nns_loge ("Failed to parse custom property.");
     cleanup ();
@@ -251,16 +253,18 @@ tvm_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     dt = arr.operator-> ();
     input_tensor_list.push_back (*dt);
 
-    if (!convert_dtype (inputInfo.info[i].type, dt->dtype)) {
+    _info = gst_tensors_info_get_nth_info (&inputInfo, i);
+
+    if (!convert_dtype (_info->type, dt->dtype)) {
       cleanup ();
       throw std::invalid_argument ("Failed to convert DLPack data type");
     }
 
     for (idx = 0; idx < dt->ndim; ++idx)
-      inputInfo.info[i].dimension[idx] = dt->shape[dt->ndim - idx - 1];
+      _info->dimension[idx] = dt->shape[dt->ndim - idx - 1];
     for (; idx < NNS_TENSOR_RANK_LIMIT; ++idx)
-      inputInfo.info[i].dimension[idx] = 1;
-    inputInfo.info[i].name = nullptr;
+      _info->dimension[idx] = 0;
+    _info->name = nullptr;
   }
 
   for (i = 0; i < outputInfo.num_tensors; ++i) {
@@ -268,16 +272,18 @@ tvm_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     dt = arr.operator-> ();
     output_tensor_list.push_back (*dt);
 
-    if (!convert_dtype (outputInfo.info[i].type, dt->dtype)) {
+    _info = gst_tensors_info_get_nth_info (&outputInfo, i);
+
+    if (!convert_dtype (_info->type, dt->dtype)) {
       cleanup ();
       throw std::invalid_argument ("Failed to convert DLPack data type");
     }
 
     for (idx = 0; idx < dt->ndim; ++idx)
-      outputInfo.info[i].dimension[idx] = dt->shape[dt->ndim - idx - 1];
+      _info->dimension[idx] = dt->shape[dt->ndim - idx - 1];
     for (; idx < NNS_TENSOR_RANK_LIMIT; ++idx)
-      outputInfo.info[i].dimension[idx] = 1;
-    outputInfo.info[i].name = nullptr;
+      _info->dimension[idx] = 0;
+    _info->name = nullptr;
   }
   empty_model = false;
 }

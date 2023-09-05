@@ -173,6 +173,8 @@ tensorrt_subplugin::getEmptyInstance ()
 void
 tensorrt_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 {
+  GstTensorInfo *_info;
+
   /* Set model path */
   if (prop->num_models != 1 || !prop->model_files[0]) {
     ml_loge ("TensorRT filter requires one UFF model file.");
@@ -191,7 +193,8 @@ tensorrt_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   }
 
   /* Get the datatype of input tensor */
-  if (setTensorType (_inputTensorMeta.info[0].type) != 0) {
+  _info = gst_tensors_info_get_nth_info (&_inputTensorMeta, 0U);
+  if (setTensorType (_info->type) != 0) {
     ml_loge ("TensorRT filter does not support the input data type.");
     throw std::invalid_argument ("TensorRT filter does not support the input data type.");
   }
@@ -294,6 +297,8 @@ tensorrt_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventDa
 int
 tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
 {
+  GstTensorInfo *_info;
+
   UNUSED (prop);
 
   if (checkUnifiedMemory () != 0) {
@@ -327,9 +332,11 @@ tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
   }
 
   /* Register tensor input & output */
-  parser->registerInput (_inputTensorMeta.info[0].name, _InputDims,
-      nvuffparser::UffInputOrder::kNCHW);
-  parser->registerOutput (_outputTensorMeta.info[0].name);
+  _info = gst_tensors_info_get_nth_info (&_inputTensorMeta, 0U);
+  parser->registerInput (_info->name, _InputDims, nvuffparser::UffInputOrder::kNCHW);
+
+  _info = gst_tensors_info_get_nth_info (&_outputTensorMeta, 0U);
+  parser->registerOutput (_info->name);
 
   /* Parse the imported model */
   parser->parse (_uff_path, *network, _DataType);
@@ -438,23 +445,24 @@ tensorrt_subplugin::setTensorType (tensor_type t)
 int
 tensorrt_subplugin::setInputDims (guint input_rank)
 {
+  GstTensorInfo *_info;
+
+  _info = gst_tensors_info_get_nth_info (&_inputTensorMeta, 0U);
+
   switch (input_rank) {
     case 2:
-      _InputDims = nvinfer1::Dims2 ((int) _inputTensorMeta.info[0].dimension[1],
-          (int) _inputTensorMeta.info[0].dimension[0]);
+      _InputDims
+          = nvinfer1::Dims2 ((int) _info->dimension[1], (int) _info->dimension[0]);
       break;
 
     case 3:
-      _InputDims = nvinfer1::Dims3 ((int) _inputTensorMeta.info[0].dimension[2],
-          (int) _inputTensorMeta.info[0].dimension[1],
-          (int) _inputTensorMeta.info[0].dimension[0]);
+      _InputDims = nvinfer1::Dims3 ((int) _info->dimension[2],
+          (int) _info->dimension[1], (int) _info->dimension[0]);
       break;
 
     case 4:
-      _InputDims = nvinfer1::Dims4 ((int) _inputTensorMeta.info[0].dimension[3],
-          (int) _inputTensorMeta.info[0].dimension[2],
-          (int) _inputTensorMeta.info[0].dimension[1],
-          (int) _inputTensorMeta.info[0].dimension[0]);
+      _InputDims = nvinfer1::Dims4 ((int) _info->dimension[3], (int) _info->dimension[2],
+          (int) _info->dimension[1], (int) _info->dimension[0]);
       break;
 
     default:
