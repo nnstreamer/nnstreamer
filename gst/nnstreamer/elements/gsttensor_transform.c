@@ -1723,11 +1723,14 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
 
     if (filter->apply && !g_list_find (filter->apply, GINT_TO_POINTER (i))) {
       GstMemory *mem = gst_buffer_peek_memory (inbuf, i);
+      GstMemory *mem_temp;
 
       if (!in_flexible && out_flexible) {
         /* append meta */
         gst_tensor_info_convert_to_meta (out_info, &meta);
-        mem = gst_tensor_meta_info_append_header (&meta, mem);
+        mem_temp = gst_tensor_meta_info_append_header (&meta, mem);
+        gst_memory_unref (mem);
+        mem = mem_temp;
       } else {
         mem = gst_memory_ref (mem);
       }
