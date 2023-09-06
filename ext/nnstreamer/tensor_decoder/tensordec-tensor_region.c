@@ -17,7 +17,7 @@
  * option1: number of cropping regions required (default is 1)
  * option2: Location of label file
  *          This is independent from option1
- * option3: 
+ * option3:
  *          for mobilenet-ssd mode:
  *            The option3 definition scheme is, in order, the following:
  *                - box priors location file (mandatory)
@@ -379,7 +379,7 @@ typedef struct {
 
 /**
  * @brief transfer crop region info with the given results to the output buffer
- * @param[out] out_info The output buffer 
+ * @param[out] out_info The output buffer
  * @param[in] data The Tensor_region internal data.
  * @param[in] results The final results to be transfered.
  */
@@ -537,13 +537,13 @@ nms (GArray *results, gfloat threshold)
 {
   guint boxes_size;
   guint i, j;
- 
+
   boxes_size = results->len;
   if (boxes_size == 0U)
     return;
-    
+
   g_array_sort (results, compare_detection);
- 
+
   for (i = 0; i < boxes_size; i++) {
     detected_object *a = &g_array_index (results, detected_object, i);
     if (a->valid == TRUE) {
@@ -571,7 +571,7 @@ nms (GArray *results, gfloat threshold)
 /**
  * @brief Private function to initialize the meta info
  */
-static void 
+static void
 init_meta(GstTensorMetaInfo * meta, const tensor_region * trData){
   gst_tensor_meta_info_init (meta);
   meta->type = _NNS_UINT32;
@@ -621,7 +621,7 @@ tr_decode (void **pdata, const GstTensorsConfig *config,
     boxes = &input[0];
     if (num_tensors >= MOBILENET_SSD_MAX_TENSORS) /**lgtm[cpp/constant-comparison] */
       detections = &input[1];
-    
+
     switch (config->info.info[0].type) {
       _get_objects_mobilenet_ssd_ (uint8_t, _NNS_UINT8);
       _get_objects_mobilenet_ssd_ (int8_t, _NNS_INT8);
@@ -648,8 +648,8 @@ tr_decode (void **pdata, const GstTensorsConfig *config,
 
   gst_memory_unmap (out_mem, &out_info);
 
-  /** converting to Flexible tensor since  
-   * info pad of tensor_crop has capability for flexible tensor stream 
+  /** converting to Flexible tensor since
+   * info pad of tensor_crop has capability for flexible tensor stream
   */
   init_meta(&meta, trData);
   out_mem = gst_tensor_meta_info_append_header(&meta, out_mem);
