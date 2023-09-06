@@ -106,7 +106,7 @@ typedef struct {
 
 /** @brief Internal data structure for tensor region */
 typedef struct {
-  tensor_region_modes mode;
+  tensor_region_modes mode; /**< When a mode is being changed, _cleanup_mode_properties () should be called before changing it */
   union {
     properties_MOBILENET_SSD mobilenet_ssd; /**< Properties for mobilenet_ssd  */
   };
@@ -126,6 +126,20 @@ typedef struct {
 
 } tensor_region;
 
+/** @brief Internal function for mode change preparation */
+static void
+_cleanup_mode_properties (tensor_region *tr)
+{
+  switch (tr->mode) {
+  case MOBILENET_SSD_BOUNDING_BOX: {
+    properties_MOBILENET_SSD *mobilenet_ssd = &tr->mobilenet_ssd;
+    g_free (mobilenet_ssd->box_prior_path);
+    break;
+  }
+  default:
+    break;
+  }
+}
 
 /** @brief Mathematic inverse of sigmoid function, aka logit */
 static float
@@ -267,6 +281,7 @@ tr_exit (void **pdata)
   tensor_region *trData = *pdata;
   g_array_free (trData->regions, TRUE);
   _free_labels (&trData->labeldata);
+  _cleanup_mode_properties (trData);
 
   if (trData->label_path)
     g_free (trData->label_path);
@@ -278,7 +293,7 @@ tr_exit (void **pdata)
 static int
 _setOption_mode (tensor_region *trData, const char *param)
 {
-  if(trData->mode == MOBILENET_SSD_BOUNDING_BOX){
+  if (trData->mode == MOBILENET_SSD_BOUNDING_BOX) {
     properties_MOBILENET_SSD *mobilenet_ssd = &trData->mobilenet_ssd;
     gchar **options;
     int noptions, idx;
@@ -294,8 +309,10 @@ _setOption_mode (tensor_region *trData, const char *param)
 
     if (NULL != mobilenet_ssd->box_prior_path) {
       ret = _mobilenet_ssd_loadBoxPrior (trData);
-      if (ret == 0)
-        goto exit_mobilenet_ssd;
+      if (ret == 0) {
+        g_strfreev (options);
+        return ret;
+      }
     }
 
     for (idx = 1; idx < noptions; idx++) {
@@ -306,7 +323,6 @@ _setOption_mode (tensor_region *trData, const char *param)
 
     mobilenet_ssd->sigmoid_threshold
         = logit (mobilenet_ssd->params[MOBILENET_SSD_PARAMS_THRESHOLD_IDX]);
-  exit_mobilenet_ssd:
     g_strfreev (options);
     return ret;
   }
