@@ -383,7 +383,7 @@ gst_tensor_if_set_property_cv_option (const GValue * value, GList ** prop_list)
     val = g_ascii_strtoll (strv[1], NULL, 10);
     if (errno == ERANGE) {
       ml_loge ("Overflow occured during converting %s to a gint64 value",
-          strv[i]);
+          strv[1]);
     }
     *prop_list = g_list_append (*prop_list, GINT_TO_POINTER (val));
   }
