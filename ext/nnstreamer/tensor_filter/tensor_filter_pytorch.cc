@@ -202,7 +202,10 @@ TorchCore::loadModel ()
 #endif
 
   try {
-    model = std::make_shared<torch::jit::script::Module> (torch::jit::load (model_path));
+    torch::Device device
+        = use_gpu ? torch::Device (torch::kCUDA) : torch::Device (torch::kCPU);
+    model = std::make_shared<torch::jit::script::Module> (
+        torch::jit::load (model_path, device));
   } catch (const std::invalid_argument &ia) {
     ml_loge ("Invalid argument while loading the model: %s", ia.what ());
     return -1;
@@ -217,10 +220,6 @@ TorchCore::loadModel ()
   if (model == nullptr) {
     ml_loge ("Failed to read graph.");
     return -1;
-  }
-
-  if (use_gpu) {
-    model->to (at::kCUDA);
   }
 
   /** set the model to evaluation mode */
