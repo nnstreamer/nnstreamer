@@ -51,8 +51,7 @@ TensorShape_setDims (TensorShapeObject *self, PyObject *args)
   len = PyList_Size (dims);
   if (len < NNS_TENSOR_RANK_LIMIT) {
     for (i = 0; i < NNS_TENSOR_RANK_LIMIT - len; i++)
-      /** fill '1's in remaining slots */
-      PyList_Append (dims, PyLong_FromLong (1));
+      PyList_Append (dims, PyLong_FromLong (0));
     new_dims = dims;
     Py_XINCREF (new_dims);
   } else {
