@@ -20,7 +20,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_edgesrc_debug);
 #define GST_CAT_DEFAULT gst_edgesrc_debug
 
 /**
- * @brief the capabilities of the outputs 
+ * @brief the capabilities of the outputs
  */
 static GstStaticPadTemplate srctemplate = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC, GST_PAD_ALWAYS, GST_STATIC_CAPS_ANY);
@@ -122,7 +122,7 @@ gst_edgesrc_class_init (GstEdgeSrcClass * klass)
 }
 
 /**
- * @brief initialize edgesrc element 
+ * @brief initialize edgesrc element
  */
 static void
 gst_edgesrc_init (GstEdgeSrc * self)

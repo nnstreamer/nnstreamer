@@ -77,9 +77,9 @@
  * 	   |
  * 	videoconvert
  * 	   |
- * 	videoscale -- tee ------------------------------------------------- compositor -- videoconvert -- ximagesink 
+ * 	videoscale -- tee ------------------------------------------------- compositor -- videoconvert -- ximagesink
  * 	                |                                                       |
- *		   videoscale							| 
+ *		   videoscale							|
  * 	                |                                                       |
  *		   tensor_converter -- tensor_transform -- tensor_filter -- tensor_decoder
  *
