@@ -1310,7 +1310,7 @@ TEST (commonMetaInfo, initDefaultValue)
   EXPECT_EQ (meta.type, _NNS_END);
   EXPECT_EQ (meta.format, _NNS_TENSOR_FORMAT_STATIC);
   EXPECT_EQ ((media_type) meta.media_type, _NNS_TENSOR);
-  for (i = 0; i < NNS_TENSOR_META_RANK_LIMIT; i++)
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
     EXPECT_EQ (meta.dimension[i], 0U);
 
   /* current version after init */

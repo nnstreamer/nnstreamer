@@ -45,13 +45,6 @@
 #define NNS_TENSOR_SIZE_EXTRA_LIMIT (240)
 #define NNS_TENSOR_DIM_NULL ({0, 0, 0, 0})
 
-/**
- * @brief The maximum rank in meta info (see GstTensorMetaInfo).
- * This RANK is applied to meta info of other/tensors-flexible only and
- * does not affect other/tensors(s)'s NNS_TENSOR_RANK_LIMIT.
- */
-#define NNS_TENSOR_META_RANK_LIMIT	(16)
-
 #define NNS_MIMETYPE_TENSOR "other/tensor"
 #define NNS_MIMETYPE_TENSORS "other/tensors"
 
@@ -291,7 +284,7 @@ typedef struct
   uint32_t magic;
   uint32_t version;
   uint32_t type;
-  uint32_t dimension[NNS_TENSOR_META_RANK_LIMIT];
+  tensor_dim dimension;
   uint32_t format;
   uint32_t media_type;
 
