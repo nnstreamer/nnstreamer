@@ -353,11 +353,6 @@ if pytorch_support_is_available
 
     nnstreamer_filter_torch_deps = pytorch_support_deps + [nnstreamer_single_dep]
 
-    # pytorch version
-    if pytorch_support_deps[0].version().version_compare('>=1.2.0')
-      nnstreamer_filter_torch_deps += declare_dependency(compile_args: ['-DPYTORCH_VER_ATLEAST_1_2_0=1'])
-    endif
-
     shared_library('nnstreamer_filter_pytorch',
       filter_sub_torch_sources,
       dependencies: nnstreamer_filter_torch_deps,

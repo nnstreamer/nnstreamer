@@ -202,11 +202,7 @@ TorchCore::loadModel ()
 #endif
 
   try {
-#ifdef PYTORCH_VER_ATLEAST_1_2_0
     model = std::make_shared<torch::jit::script::Module> (torch::jit::load (model_path));
-#else
-    model = torch::jit::load (model_path);
-#endif
   } catch (const std::invalid_argument &ia) {
     ml_loge ("Invalid argument while loading the model: %s", ia.what ());
     return -1;
@@ -473,15 +469,10 @@ TorchCore::serializeOutput (const torch::jit::IValue &value,
         return -2;
       }
     }
-#ifdef PYTORCH_VER_ATLEAST_1_2_0
   } else if (value.isList ()) {
     c10::ArrayRef<torch::jit::IValue> output_ref_list = value.toListRef ();
     std::vector<torch::jit::IValue> output_list (
         output_ref_list.begin (), output_ref_list.end ());
-#else
-  } else if (value.isGenericList ()) {
-    c10::ArrayRef<torch::jit::IValue> output_list = value.toGenericListRef ();
-#endif
     for (auto &element : output_list) {
       if (serializeOutput (element, output, idx, limit_idx)) {
         ml_loge ("Failed to process a tensor list. Output Tensor Information is not valid at index %d",
