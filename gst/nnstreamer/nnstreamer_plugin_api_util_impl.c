@@ -1419,8 +1419,6 @@ gst_tensor_meta_info_get_version (GstTensorMetaInfo * meta,
 gboolean
 gst_tensor_meta_info_validate (GstTensorMetaInfo * meta)
 {
-  guint i;
-
   g_return_val_if_fail (meta != NULL, FALSE);
 
   if (!GST_TENSOR_META_IS_VALID (meta))
@@ -1432,17 +1430,12 @@ gst_tensor_meta_info_validate (GstTensorMetaInfo * meta)
     return FALSE;
   }
 
-  for (i = 0; i < NNS_TENSOR_META_RANK_LIMIT; i++) {
-    if (meta->dimension[i] == 0) {
-      if (i == 0) {
-        gchar *dim_str = gst_tensor_get_dimension_string (meta->dimension);
-        nns_logd ("Failed to validate tensor meta info. Given dimension: %s",
-            dim_str);
-        g_free (dim_str);
-        return FALSE;
-      }
-      break;
-    }
+  if (!gst_tensor_dimension_is_valid (meta->dimension)) {
+    gchar *dim_str = gst_tensor_get_dimension_string (meta->dimension);
+    nns_logd ("Failed to validate tensor meta info. Given dimension: %s",
+        dim_str);
+    g_free (dim_str);
+    return FALSE;
   }
 
   if (meta->format >= _NNS_TENSOR_FORMAT_END) {
@@ -1489,7 +1482,6 @@ gst_tensor_meta_info_get_header_size (GstTensorMetaInfo * meta)
 gsize
 gst_tensor_meta_info_get_data_size (GstTensorMetaInfo * meta)
 {
-  guint i;
   gsize dsize;
 
   g_return_val_if_fail (meta != NULL, 0);
@@ -1503,14 +1495,9 @@ gst_tensor_meta_info_get_data_size (GstTensorMetaInfo * meta)
     return meta->sparse_info.nnz * (dsize + sizeof (guint));
   }
 
-  for (i = 0; i < NNS_TENSOR_META_RANK_LIMIT; i++) {
-    if (meta->dimension[i] == 0)
-      break;
+  dsize *= gst_tensor_get_element_count (meta->dimension);
 
-    dsize *= meta->dimension[i];
-  }
-
-  return (i > 0) ? dsize : 0;
+  return dsize;
 }
 
 /**
@@ -1555,8 +1542,7 @@ gst_tensor_meta_info_parse_header (GstTensorMetaInfo * meta, gpointer header)
   meta->magic = val[0];
   meta->version = val[1];
   meta->type = val[2];
-  memcpy (meta->dimension, &val[3],
-      sizeof (uint32_t) * NNS_TENSOR_META_RANK_LIMIT);
+  memcpy (meta->dimension, &val[3], sizeof (uint32_t) * NNS_TENSOR_RANK_LIMIT);
   meta->format = val[19];
   meta->media_type = val[20];
 
@@ -1590,22 +1576,8 @@ gst_tensor_meta_info_convert (GstTensorMetaInfo * meta, GstTensorInfo * info)
 
   info->type = meta->type;
 
-  for (i = 0; i < NNS_TENSOR_META_RANK_LIMIT; i++) {    /* lgtm[cpp/constant-comparison] */
-    if (i >= NNS_TENSOR_RANK_LIMIT) {
-      if (meta->dimension[i] > 0) {
-        nns_loge ("Given meta has invalid dimension (dimension[%u] %u).",
-            i, meta->dimension[i]);
-        nns_loge ("Failed to set info, max rank should be %u.",
-            NNS_TENSOR_RANK_LIMIT);
-        return FALSE;
-      }
-
-      /* tensor-info max rank is NNS_TENSOR_RANK_LIMIT */
-      break;
-    }
-
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
     info->dimension[i] = meta->dimension[i];
-  }
 
   return TRUE;
 }
