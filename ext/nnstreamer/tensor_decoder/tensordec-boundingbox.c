@@ -1969,7 +1969,8 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
     cStartIdx = YOLOV5_DETECTION_NUM_INFO;
     cIdxMax = numTotalClass + cStartIdx;
 
-    boxinput = (float *) input[0].data; // boxinput[numTotalBox][cIdxMax]
+    /* boxinput[numTotalBox][cIdxMax] */
+    boxinput = (float *) input[0].data;
 
     /** Only support for float type model */
     g_assert (config->info.info[0].type == _NNS_FLOAT32);
@@ -2026,7 +2027,8 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
     cStartIdx = YOLOV8_DETECTION_NUM_INFO;
     cIdxMax = numTotalClass + cStartIdx;
 
-    boxinput = (float *) input[0].data; // boxinput[numTotalBox][cIdxMax]
+    /* boxinput[numTotalBox][cIdxMax] */
+    boxinput = (float *) input[0].data;
 
     results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), numTotalBox);
     for (bIdx = 0; bIdx < numTotalBox; ++bIdx) {

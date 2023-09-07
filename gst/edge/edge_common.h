@@ -28,10 +28,11 @@
 #define GST_TYPE_EDGE_CONNECT_TYPE (gst_edge_get_connect_type ())
 
 G_BEGIN_DECLS
+
 /**
  * @brief register GEnumValue array for edge protocol property handling
  */
-    GType gst_edge_get_connect_type (void);
+GType gst_edge_get_connect_type (void);
 
 G_END_DECLS
 #endif /* __GST_EDGE_H__ */

@@ -212,12 +212,12 @@ extern GstCaps *
 gst_tensor_pad_possible_caps_from_config (GstPad * pad, const GstTensorsConfig * config);
 
 /**
-  * @brief Get tensor format of current pad caps.
-  * @param pad GstPad to check current caps.
-  * @return The tensor_format of current pad caps.
-  *
-  * If pad does not have tensor caps return _NNS_TENSOR_FORMAT_END
-  */
+ * @brief Get tensor format of current pad caps.
+ * @param pad GstPad to check current caps.
+ * @return The tensor_format of current pad caps.
+ *
+ * If pad does not have tensor caps return _NNS_TENSOR_FORMAT_END
+ */
 extern tensor_format
 gst_tensor_pad_get_format (GstPad *pad);
 
