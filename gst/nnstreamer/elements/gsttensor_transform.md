@@ -33,7 +33,7 @@ title: tensor_transform
   - Enum "gtt_mode_type" Default: -1, "unknown"
     - (0): dimchg
       - A mode for changing tensor dimensions
-      - An option should be provided as option=FROM_DIM:TO_DIM (with a regex, ^([0-3]):([0-3])$, where NNS_TENSOR_RANK_LIMIT is 4).
+      - An option should be provided as option=FROM_DIM:TO_DIM (with a regex, ^([0-9]|1[0-5]):([0-9]|1[0-5])$, where NNS_TENSOR_RANK_LIMIT is 16).
       - Example: Move 1st dim to 2nd dim (i.e., [a][H][W][C] ==> [a][C][H][W])
 
         ```bash
