@@ -300,7 +300,7 @@ gst_tensor_dimension_get_rank (const tensor_dim dim);
 /**
  * @brief Parse tensor dimension parameter string
  * @return The Rank. 0 if error.
- * @param dimstr The dimension string in the format of d1:...:d8, d1:d2:d3, d1:d2, or d1, where dN is a positive integer and d1 is the innermost dimension; i.e., dim[d8][d7][d6][d5][d4][d3][d2][d1];
+ * @param dimstr The dimension string in the format of d1:...:d16, d1:d2:d3, d1:d2, or d1, where dN is a positive integer and d1 is the innermost dimension; i.e., dim[d16]...[d1];
  * @param dim dimension to be filled.
  */
 extern guint
@@ -309,7 +309,7 @@ gst_tensor_parse_dimension (const gchar * dimstr, tensor_dim dim);
 /**
  * @brief Get dimension string from given tensor dimension.
  * @param dim tensor dimension
- * @return Formatted string of given dimension (d1:d2:d3:d4:d5:d6:d7:d8).
+ * @return Formatted string of given dimension (d1:d2:d3:...:d15:d16).
  * @note The returned value should be freed with g_free()
  */
 extern gchar *

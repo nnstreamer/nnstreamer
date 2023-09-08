@@ -927,7 +927,7 @@ tensor_filter_snap::parse_dimension (const std::vector<int> &shape, tensor_dim d
 
   rank = shape.size ();
   if (rank > NNS_TENSOR_RANK_LIMIT) {
-    /* supposed max rank is less than 4 (NNS_TENSOR_RANK_LIMIT) */
+    /* supposed max rank is less than 16 (NNS_TENSOR_RANK_LIMIT) */
     snap_loge ("The rank is invalid (%lu).", rank);
     return false;
   }
