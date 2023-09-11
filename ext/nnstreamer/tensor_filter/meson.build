@@ -279,7 +279,7 @@ if tflite2_support_is_available
     ]
     filepath = ''
     foreach file : filepaths
-      if run_command('bash', '-c', '[ -f "' + file + '" ]').returncode() == 0
+      if run_command('bash', '-c', '[ -f "' + file + '" ]', check : false).returncode() == 0
         message('Found: ' + file)
         filepath = file
         configure_file (
@@ -302,8 +302,8 @@ if tflite2_support_is_available
           join_paths(meson.current_source_dir(), 'libtensorflow2-lite.a',)]
 
       foreach file : filepaths
-        if run_command('bash', '-c', '[ -f "'+ file + '" ]').returncode() == 0
-          somake = run_command('gcc', '-shared', '-o', 'libtensorflow2-lite-custom.so', '-Wl,--whole-archive', file, '-Wl,--no-whole-archive')
+        if run_command('bash', '-c', '[ -f "'+ file + '" ]', check : false).returncode() == 0
+          somake = run_command('gcc', '-shared', '-o', 'libtensorflow2-lite-custom.so', '-Wl,--whole-archive', file, '-Wl,--no-whole-archive', check : false)
           if somake.returncode() == 0
             message('Successfully created libtensorflow2-lite-custom.so from archive: ' + file)
             configure_file (
