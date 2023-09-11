@@ -215,7 +215,7 @@ if not get_option('snpe-support').disabled()
           error('@0@ does not exists'.format(SNPE_ROOT))
         endif
 
-        snpe_lib = cxx.find_library('libSNPE',
+        snpe_lib = cxx.find_library('SNPE',
           dirs: join_paths(SNPE_ROOT, 'lib', 'x86_64-linux-clang'),
           required: true
         )
