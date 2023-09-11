@@ -80,18 +80,17 @@ TEST (nnstreamerFilterSnpe, getModelInfo00)
   EXPECT_EQ (ret, 0);
 
   EXPECT_EQ (in_info.num_tensors, 1U);
-  EXPECT_EQ (in_info.info[0].dimension[0], 1U);
-  EXPECT_EQ (in_info.info[0].dimension[1], 1U);
-  EXPECT_EQ (in_info.info[0].dimension[2], 1U);
-  EXPECT_EQ (in_info.info[0].dimension[3], 1U);
   EXPECT_EQ (in_info.info[0].type, _NNS_FLOAT32);
+  EXPECT_EQ (in_info.info[0].dimension[0], 1U);
+  for (int i = 1; i < NNS_TENSOR_RANK_LIMIT; ++i)
+    EXPECT_EQ (in_info.info[0].dimension[i], 0U);
 
   EXPECT_EQ (out_info.num_tensors, 1U);
-  EXPECT_EQ (out_info.info[0].dimension[0], 1U);
-  EXPECT_EQ (out_info.info[0].dimension[1], 1U);
-  EXPECT_EQ (out_info.info[0].dimension[2], 1U);
-  EXPECT_EQ (out_info.info[0].dimension[3], 1U);
   EXPECT_EQ (out_info.info[0].type, _NNS_FLOAT32);
+  EXPECT_EQ (out_info.info[0].dimension[0], 1U);
+  for (int i = 1; i < NNS_TENSOR_RANK_LIMIT; ++i)
+    EXPECT_EQ (out_info.info[0].dimension[i], 0U);
+
 
   sp->close (&prop, &data);
   gst_tensors_info_free (&in_info);
