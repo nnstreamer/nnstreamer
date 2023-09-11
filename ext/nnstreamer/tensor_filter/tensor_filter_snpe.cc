@@ -419,8 +419,6 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     throw std::invalid_argument (err_msg);
   }
 
-  assert (model_path == nullptr);
-
   model_path = g_strdup (prop->model_files[0]);
 
   container = zdl::DlContainer::IDlContainer::open (model_path);
@@ -485,13 +483,15 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 void
 snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
-  assert (!empty_model);
-  assert (snpe);
-
 #if (DBG)
   gint64 start_time = g_get_real_time ();
 #endif
   GstTensorInfo *_info;
+
+  if (!input)
+    throw std::runtime_error ("Invalid input buffer, it is NULL.");
+  if (!output)
+    throw std::runtime_error ("Invalid output buffer, it is NULL.");
 
   if (use_user_buffer) {
     for (unsigned int i = 0; i < inputInfo.num_tensors; ++i) {
