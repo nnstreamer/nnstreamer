@@ -433,6 +433,7 @@ TEST (nnstreamerFilterSnpe, launch04_n)
   ASSERT_TRUE (gstpipe != nullptr);
 
   EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (100000);
 
   gst_object_unref (gstpipe);
   g_free (pipeline);
