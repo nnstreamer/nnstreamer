@@ -1,3 +1,9 @@
+nnstreamer (2.4.0.0) unstable xenial bionic focal; urgency=medium
+
+  * 2.4.0 Release (LTS for Tizen 8.0 M2 Release)
+
+ -- MyungJoo Ham <myungjoo.ham@samsung.com>  Thu, 12 Sep 2023 12:50:00 +0900
+
 nnstreamer (2.3.0.0) unstable bionic focal jammy sid; urgency=medium
 
   * 2.3.0 development starts as 2.4.0-RC1 for experimental and unstable features.
