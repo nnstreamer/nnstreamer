@@ -87,23 +87,5 @@ foreach ext : extensions
     install_dir: unittest_install_dir
   )
 
-  filter_ext_common_testenv = environment()
-  filter_ext_common_testenv.set('GST_PLUGIN_PATH', path_gst_plugin)
-  filter_ext_common_testenv.set('NNSTREAMER_CONF', path_nns_conf)
-  filter_ext_common_testenv.set('NNSTREAMER_FILTERS', path_nns_plugin_filters)
-  filter_ext_common_testenv.set('NNSTREAMER_DECODERS', path_nns_plugin_decoders)
-  filter_ext_common_testenv.set('NNSTREAMER_CONVERTERS', path_nns_plugin_converters)
-  filter_ext_common_testenv.set('NNSTREAMER_SOURCE_ROOT_PATH', meson.source_root())
-
-  if ext[0] == 'python3'
-    py3_module_path = join_paths(meson.build_root(), 'tests/' + ext[0] + '_module')
-    run_command('rm', '-rf', py3_module_path, check : true)
-    run_command('mkdir', '-p', py3_module_path, check : true)
-    run_command('ln', '-sf',
-        join_paths(meson.build_root(), 'ext/nnstreamer/extra/nnstreamer_python3.' + so_ext),
-        py3_module_path + '/nnstreamer_python.' + so_ext, check : true)
-    filter_ext_common_testenv.set('PYTHONPATH', py3_module_path)
-  endif
-
-  test(ext_test_template_prefix + ext[4], exec, env: filter_ext_common_testenv)
+  test(ext_test_template_prefix + ext[4], exec, env: testenv)
 endforeach

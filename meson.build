@@ -741,6 +741,13 @@ if get_option('enable-test')
   testenv.set('NNSTREAMER_TRAINERS', path_nns_plugin_trainers)
   testenv.set('NNSTREAMER_SOURCE_ROOT_PATH', meson.source_root())
   testenv.set('NNSTREAMER_BUILD_ROOT_PATH', meson.build_root())
+  if have_python3
+    py3_module_path = join_paths(meson.current_build_dir(), 'ext/nnstreamer/extra')
+    run_command('ln', '-s',
+        py3_module_path + '/nnstreamer_python3.' + so_ext,
+        py3_module_path + '/nnstreamer_python.' + so_ext, check : true)
+    testenv.set('PYTHONPATH', py3_module_path)
+  endif
 
   subdir('tests')
 endif
