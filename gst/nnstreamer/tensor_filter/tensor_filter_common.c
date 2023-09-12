@@ -101,38 +101,6 @@ G_LOCK_DEFINE_STATIC (shared_model_table);
 static GHashTable *shared_model_table = NULL;
 
 /**
- * @brief GstTensorFilter properties.
- */
-enum
-{
-  PROP_0,
-  PROP_SILENT,
-  PROP_FRAMEWORK,
-  PROP_MODEL,
-  PROP_INPUT,
-  PROP_INPUTTYPE,
-  PROP_INPUTNAME,
-  PROP_INPUTLAYOUT,
-  PROP_INPUTRANKS,
-  PROP_OUTPUT,
-  PROP_OUTPUTTYPE,
-  PROP_OUTPUTNAME,
-  PROP_OUTPUTLAYOUT,
-  PROP_OUTPUTRANKS,
-  PROP_CUSTOM,
-  PROP_SUBPLUGINS,
-  PROP_ACCELERATOR,
-  PROP_IS_UPDATABLE,
-  PROP_LATENCY,
-  PROP_THROUGHPUT,
-  PROP_INPUTCOMBINATION,
-  PROP_OUTPUTCOMBINATION,
-  PROP_SHARED_TENSOR_FILTER_KEY,
-  PROP_LATENCY_REPORT,
-  PROP_INVOKE_DYNAMIC,
-};
-
-/**
  * @brief Initialize the tensors layout.
  */
 static void
@@ -1030,6 +998,10 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
           "input and output of the tensor filter. "
           "With this option, the output caps is always in the format of flexible tensors.",
           FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_CONFIG,
+      g_param_spec_string ("config-file", "Configuration-file",
+          "sets config file path which contains plugins properties", "",
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 }
 
 /**
