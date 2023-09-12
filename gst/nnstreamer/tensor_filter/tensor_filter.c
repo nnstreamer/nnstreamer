@@ -290,8 +290,13 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
 
   silent_debug (self, "Setting property for prop %d.\n", prop_id);
 
-  if (!gst_tensor_filter_common_set_property (priv, prop_id, value, pspec))
+  if (prop_id == PROP_CONFIG) {
+    const gchar *config_path = g_value_get_string (value);
+    gst_tensor_parse_config_file (config_path, object);
+  } else if (!gst_tensor_filter_common_set_property (priv, prop_id, value,
+          pspec)) {
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+  }
 }
 
 /**

@@ -1,0 +1,2 @@
+framework=tensorflow2-lite
+model=../test_models/models/sample_4x4x4x4x4_two_input_one_output.tflite
