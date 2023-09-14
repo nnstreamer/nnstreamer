@@ -831,6 +831,12 @@ NNStreamer's datareposrc/sink plugins for reading and writing files in MLOps Dat
 %define fp16_support -Denable-float16=false
 %endif
 
+%if 0%{?nnstreamer_edge_support}
+%define nnsedge -Dnnstreamer-edge-support=enabled
+%else
+%define nnsedge -Dnnstreamer-edge-support=disabled
+%endif
+
 %define fw_priority -Dframework-priority-nb=%{fw_priority_nb} -Dframework-priority-bin=%{fw_priority_bin}
 
 %prep
@@ -863,7 +869,7 @@ meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir
 	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_openvino} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} \
 	%{enable_flatbuf} %{enable_trix_engine} %{enable_datarepo} \
 	%{enable_tizen_sensor} %{enable_mqtt} %{enable_lua} %{enable_tvm} %{enable_test} %{enable_test_coverage} %{install_test} \
-        %{fp16_support} \
+        %{fp16_support} %{nnsedge} \
 	%{builddir}
 
 ninja -C %{builddir} %{?_smp_mflags}
