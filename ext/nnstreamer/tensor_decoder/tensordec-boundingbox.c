@@ -96,7 +96,10 @@
  * option6: Whether to track result bounding boxes or not
  *          0 (default, do not track)
  *          1 (track result bounding boxes, with naive centroid based algorithm)
- * option7: Box Style (NYI)
+ * option7: Whether to log the result boungding boxes or not
+ *          0 (default, do not log)
+ *          1 (log result bounding boxes)
+ * option8: Box Style (NYI)
  *
  * MAJOR TODO: Support other colorspaces natively from _decode for performance gain
  * (e.g., BGRA, ARGB, ...)
@@ -349,6 +352,9 @@ typedef struct
 
   guint max_detection;
   gboolean flag_use_label;
+
+  /* From option7 (log or not) */
+  gint do_log;
 } bounding_boxes;
 
 /** @brief check the mode is mobilenet-ssd */
@@ -513,6 +519,7 @@ bb_init (void **pdata)
   bdata->i_width = 0;
   bdata->i_height = 0;
   bdata->flag_use_label = FALSE;
+  bdata->do_log = 0;
 
   /* for track */
   bdata->is_track = 0;
@@ -959,6 +966,10 @@ bb_setOption (void **pdata, int opNum, const char *param)
   } else if (opNum == 5) {
     /* option6 = track or not */
     bdata->is_track = (int) g_ascii_strtoll (param, NULL, 10);
+    return TRUE;
+  } else if (opNum == 6) {
+    /* option7 - log or not */
+    bdata->do_log = (int) g_ascii_strtoll (param, NULL, 10);
     return TRUE;
   }
   /**
@@ -1829,6 +1840,26 @@ draw (GstMapInfo * out_info, bounding_boxes * bdata, GArray * results)
   }
 }
 
+/**
+ * @brief Log the given results
+ */
+static void
+log_boxes (bounding_boxes * bdata, GArray * results)
+{
+  guint i;
+
+  nns_logi ("Detect %u boxes in %u x %u input image", results->len, bdata->i_width, bdata->i_height);
+  for (i = 0; i < results->len; i++) {
+    detectedObject *b = &g_array_index (results, detectedObject, i);
+    if (bdata->labeldata.total_labels > 0)
+      nns_logi ("[%s] x:%d y:%d w:%d h:%d prob:%.4f",
+          bdata->labeldata.labels[b->class_id], b->x, b->y, b->width, b->height, b->prob);
+    else
+      nns_logi ("x:%d y:%d w:%d h:%d prob:%.4f",
+          b->x, b->y, b->width, b->height, b->prob);
+  }
+}
+
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static GstFlowReturn
 bb_decode (void **pdata, const GstTensorsConfig * config,
@@ -2102,6 +2133,10 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
   } else {
     GST_ERROR ("Failed to get output buffer, unknown mode %d.", bdata->mode);
     goto error_unmap;
+  }
+
+  if (bdata->do_log != 0) {
+    log_boxes (bdata, results);
   }
 
   if (bdata->is_track != 0) {
