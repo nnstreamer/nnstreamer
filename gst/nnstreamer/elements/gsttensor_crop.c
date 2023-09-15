@@ -444,13 +444,12 @@ gst_tensor_crop_negotiate (GstTensorCrop * self)
     GSList *walk;
 
     if (self->send_stream_start) {
-      gchar *sid;
+      g_autofree gchar *element_name = gst_element_get_name (self);
+      g_autofree gchar *pad_name = gst_pad_get_name (self->srcpad);
+      g_autofree gchar *sid = gst_pad_create_stream_id_printf (self->srcpad,
+          GST_ELEMENT_CAST (self), "%s-nnscrop-%s", element_name, pad_name);
 
-      sid = g_strdup_printf ("%s-%08x",
-          GST_ELEMENT_NAME (self), g_random_int ());
       gst_pad_push_event (self->srcpad, gst_event_new_stream_start (sid));
-      g_free (sid);
-
       self->send_stream_start = FALSE;
     }
 
