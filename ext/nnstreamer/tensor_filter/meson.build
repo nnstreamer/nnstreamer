@@ -771,6 +771,26 @@ if mxnet_support_is_available
   )
 endif
 
+if ncnn_support_is_available
+  filter_sub_ncnn_sources = ['tensor_filter_ncnn.cc']
+
+  nnstreamer_filter_ncnn_deps = ncnn_support_deps + [glib_dep, gst_dep, nnstreamer_dep]
+
+  shared_library('nnstreamer_filter_ncnn',
+    filter_sub_ncnn_sources,
+    dependencies: nnstreamer_filter_ncnn_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_ncnn',
+    filter_sub_ncnn_sources,
+    dependencies: nnstreamer_filter_ncnn_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+endif
+
 if onnxruntime_support_is_available
   filter_sub_onnxruntime_sources = ['tensor_filter_onnxruntime.cc']
 
