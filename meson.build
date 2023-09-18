@@ -341,6 +341,17 @@ if not get_option('mxnet-support').disabled()
   endif
 endif
 
+# ncnn
+ncnn_dep = dependency('', required: false)
+if not get_option('ncnn-support').disabled()
+  ncnn_dep = cxx.find_library('ncnn', required: false)
+  if not ncnn_dep.found()
+    if cxx.check_header('ncnn/net.h', required: get_option('ncnn-support'))
+      ncnn_dep = declare_dependency(link_args: ['-lncnn'])
+    endif
+  endif
+endif
+
 # nnstreamer-edge
 nnstreamer_edge_dep = dependency('nnstreamer-edge', method : 'pkg-config', required: false)
 if get_option('nnstreamer-edge-support').enabled()
@@ -471,6 +482,10 @@ features = {
   'mxnet-support': {
     'extra_deps': [ mxnet_dep ],
     'project_args': { 'ENABLE_MXNET' : 1 }
+  },
+  'ncnn-support': {
+    'extra_deps': [ ncnn_dep ],
+    'project_args': { 'ENABLE_NCNN' : 1 }
   },
   'datarepo-support': {
     'extra_deps': [ json_glib_dep ],
