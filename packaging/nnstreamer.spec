@@ -38,7 +38,7 @@
 %define		trix_engine_support 1
 # Support AI offloading (tensor_query) using nnstreamer-edge interface
 %define		nnstreamer_edge_support 1
-%define         datarepo_support 1
+%define		datarepo_support 1
 
 %define		check_test 1
 %define		release_test 1
@@ -1279,6 +1279,9 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 
 %if 0%{?datarepo_support}
 %files datarepo
+%manifest nnstreamer.manifest
+%defattr(-,root,root,-)
+%license LICENSE
 %{gstlibdir}/libgstdatarepo.so
 %endif
 
