@@ -40,7 +40,7 @@ struct frame_rate {
 table Tensor {
   name  : string;
   type : Tensor_type = NNS_END;
-  dimension : [uint32]; // support up to 4th ranks.
+  dimension : [uint32]; // support up to 16th ranks.
   data : [ubyte];
 }
 
