@@ -89,12 +89,12 @@ testResult $? 1 "Golden test comparison(with config_file_golden.0)" 0 1
 # Fail test for invalid input properties
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter framework=tensorflow2-lite model=${PATH_TO_MODEL} input=7:1 inputtype=float32 ! filesink location=tensorfilter.out.log" 2F_n 0 1 $PERFORMANCE
 
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter config-file=config_file_golden.1 ! filesink location=tensorfilter.out.log" "2F_n(with config_file_golden.1)" 0 1 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter config-file=config_file_golden.1 ! filesink location=tensorfilter.out.log" "2FConfig_n" 0 1 $PERFORMANCE
 
 # Fail test for invalid output properties
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter framework=tensorflow2-lite model=${PATH_TO_MODEL} output=1:7 outputtype=int8 ! filesink location=tensorfilter.out.log" 3F_n 0 1 $PERFORMANCE
 
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter model=${PATH_TO_MODEL} config-file=config_file_golden.2 ! filesink location=tensorfilter.out.log" "3F_n(with config_file_golden.2)" 0 1 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter model=${PATH_TO_MODEL} config-file=config_file_golden.2 ! filesink location=tensorfilter.out.log" "3FConfig_n" 0 1 $PERFORMANCE
 
 PATH_TO_MULTI_TENSOR_OUTPUT_MODEL="../test_models/models/multi_person_mobilenet_v1_075_float.tflite"
 
