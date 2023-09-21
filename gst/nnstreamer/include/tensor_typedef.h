@@ -235,7 +235,7 @@ typedef struct
                    User must designate this in a few NNFW frameworks (tensorflow)
                    and some (tensorflow-lite) do not need this. */
   tensor_type type; /**< Type of each element in the tensor. User must designate this. */
-  tensor_dim dimension; /**< Dimension. We support up to 4th ranks.  */
+  tensor_dim dimension; /**< Dimension. We support up to 16th ranks.  */
 } GstTensorInfo;
 
 /**
