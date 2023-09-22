@@ -893,8 +893,8 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
           "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_INPUT,
       g_param_spec_string ("input", "Input dimension",
-          "Input tensor dimension from inner array, up to 4 dimensions ?", "",
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          "Input tensor dimension from inner array (Max rank #NNS_TENSOR_RANK_LIMIT)",
+          "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_INPUTNAME,
       g_param_spec_string ("inputname", "Name of Input Tensor",
           "The Name of Input Tensor", "",
@@ -918,8 +918,8 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_OUTPUT,
       g_param_spec_string ("output", "Output dimension",
-          "Output tensor dimension from inner array, up to 4 dimensions ?", "",
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          "Output tensor dimension from inner array (Max rank #NNS_TENSOR_RANK_LIMIT)",
+          "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_OUTPUTTYPE,
       g_param_spec_string ("outputtype", "Output tensor element type",
           "Type of each element of the output tensor ?", "",
@@ -1000,7 +1000,7 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
           FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_CONFIG,
       g_param_spec_string ("config-file", "Configuration-file",
-          "sets config file path which contains plugins properties", "",
+          "Path to configuraion file which contains plugins properties", "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 }
 
@@ -1051,6 +1051,7 @@ gst_tensor_filter_common_free_property (GstTensorFilterPrivate * priv)
 
   gst_tensors_config_free (&priv->in_config);
   gst_tensors_config_free (&priv->out_config);
+  g_free (priv->config_path);
 
   g_list_free (priv->combi.in_combi);
   g_list_free (priv->combi.out_combi_i);

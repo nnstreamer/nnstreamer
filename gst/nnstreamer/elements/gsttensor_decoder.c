@@ -361,7 +361,7 @@ gst_tensordec_class_init (GstTensorDecoderClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_CONFIG,
       g_param_spec_string ("config-file", "Configuration-file",
-          "sets config file path which contains plugins properties", "",
+          "Path to configuraion file which contains plugins properties", "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_set_details_simple (gstelement_class,
@@ -413,6 +413,7 @@ gst_tensordec_init (GstTensorDecoder * self)
   self->is_custom = FALSE;
   self->custom.func = NULL;
   self->custom.data = NULL;
+  self->config_path = NULL;
   for (i = 0; i < TensorDecMaxOpNum; i++)
     self->option[i] = NULL;
 
@@ -515,8 +516,9 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
     }
     case PROP_CONFIG:
     {
-      const gchar *config_path = g_value_get_string (value);
-      gst_tensor_parse_config_file (config_path, object);
+      g_free (self->config_path);
+      self->config_path = g_strdup (g_value_get_string (value));
+      gst_tensor_parse_config_file (self->config_path, object);
       break;
     }
       PROP_MODE_OPTION (1);
@@ -588,6 +590,9 @@ gst_tensordec_get_property (GObject * object, guint prop_id,
       }
       break;
     }
+    case PROP_CONFIG:
+      g_value_set_string (value, self->config_path ? self->config_path : "");
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -607,6 +612,7 @@ gst_tensordec_class_finalize (GObject * object)
 
   gst_tensor_decoder_clean_plugin (self);
 
+  g_free (self->config_path);
   for (i = 0; i < TensorDecMaxOpNum; ++i) {
     g_free (self->option[i]);
   }

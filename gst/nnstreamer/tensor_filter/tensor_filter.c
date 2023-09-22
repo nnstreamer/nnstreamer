@@ -291,12 +291,14 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
   silent_debug (self, "Setting property for prop %d.\n", prop_id);
 
   if (prop_id == PROP_CONFIG) {
-    const gchar *config_path = g_value_get_string (value);
-    gst_tensor_parse_config_file (config_path, object);
-  } else if (!gst_tensor_filter_common_set_property (priv, prop_id, value,
-          pspec)) {
-    G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+    g_free (priv->config_path);
+    priv->config_path = g_strdup (g_value_get_string (value));
+    gst_tensor_parse_config_file (priv->config_path, object);
+    return;
   }
+
+  if (!gst_tensor_filter_common_set_property (priv, prop_id, value, pspec))
+    G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
 }
 
 /**
@@ -313,6 +315,11 @@ gst_tensor_filter_get_property (GObject * object, guint prop_id,
   priv = &self->priv;
 
   silent_debug (self, "Getting property for prop %d.\n", prop_id);
+
+  if (prop_id == PROP_CONFIG) {
+    g_value_set_string (value, priv->config_path ? priv->config_path : "");
+    return;
+  }
 
   if (!gst_tensor_filter_common_get_property (priv, prop_id, value, pspec))
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
