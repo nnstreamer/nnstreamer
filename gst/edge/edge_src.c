@@ -228,20 +228,14 @@ gst_edgesrc_class_finalize (GObject * object)
   GstEdgeSrc *self = GST_EDGESRC (object);
   nns_edge_data_h data_h;
 
-  if (self->host) {
-    g_free (self->host);
-    self->host = NULL;
-  }
+  g_free (self->host);
+  self->host = NULL;
 
-  if (self->dest_host) {
-    g_free (self->dest_host);
-    self->dest_host = NULL;
-  }
+  g_free (self->dest_host);
+  self->dest_host = NULL;
 
-  if (self->topic) {
-    g_free (self->topic);
-    self->topic = NULL;
-  }
+  g_free (self->topic);
+  self->topic = NULL;
 
   if (self->msg_queue) {
     while ((data_h = g_async_queue_try_pop (self->msg_queue))) {

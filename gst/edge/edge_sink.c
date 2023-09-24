@@ -256,10 +256,15 @@ static void
 gst_edgesink_finalize (GObject * object)
 {
   GstEdgeSink *self = GST_EDGESINK (object);
-  if (self->host) {
-    g_free (self->host);
-    self->host = NULL;
-  }
+
+  g_free (self->host);
+  self->host = NULL;
+
+  g_free (self->dest_host);
+  self->dest_host = NULL;
+
+  g_free (self->topic);
+  self->topic = NULL;
 
   if (self->edge_h) {
     nns_edge_release_handle (self->edge_h);
