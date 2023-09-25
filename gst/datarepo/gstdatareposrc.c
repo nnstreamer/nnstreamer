@@ -131,7 +131,7 @@ gst_data_repo_src_class_init (GstDataRepoSrcClass * klass)
   g_object_class_install_property (gobject_class, PROP_LOCATION,
       g_param_spec_string ("location", "File Location",
           "Location of the file to read that is stored in MLOps Data Repository, "
-          "if the files are image, write the index of filename name "
+          "if the files are images, write the index of filename name "
           "like %04ld or %04lld (e.g., filenmae%04ld.png)",
           NULL,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
@@ -156,7 +156,7 @@ gst_data_repo_src_class_init (GstDataRepoSrcClass * klass)
   g_object_class_install_property (gobject_class, PROP_STOP_SAMPLE_INDEX,
       g_param_spec_uint ("stop-sample-index", "Stop index of samples",
           "Stop index of sample to read, in case of image, "
-          "the stoppting index of the numbered files. start at 0."
+          "the stopping index of the numbered files. start at 0."
           "Set stop index of range of samples or files to read",
           0, G_MAXINT, DEFAULT_INDEX,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
@@ -175,7 +175,7 @@ gst_data_repo_src_class_init (GstDataRepoSrcClass * klass)
           "Only read the set tensors among all tensors in a sample"
           "e.g, if a sample has '1:1:1:1','1:1:10:1','1:1:784:1' and each index is '0,1,2', "
           "'tensors-sequence=2,1' means that only '1:1:784:1' then '1:1:10:1' are read. "
-          "Use for other/tensors and defalut value is NULL"
+          "Use for other/tensors and the default value is NULL"
           "(all tensors are read in the order stored in a sample).",
           NULL,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
@@ -183,7 +183,7 @@ gst_data_repo_src_class_init (GstDataRepoSrcClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_IS_SHUFFLE,
       g_param_spec_boolean ("is-shuffle", "Is shuffle",
-          "If the value is true, samples index are shuffled",
+          "If the value is true, samples are shuffled",
           DEFAULT_IS_SHUFFLE,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
@@ -1486,7 +1486,7 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
       src->json_filename);
 
   if (!json_object_has_member (object, "gst_caps")) {
-    GST_ERROR_OBJECT (src, "There is not gst_caps field: %s", contents);
+    GST_ERROR_OBJECT (src, "There is no gst_caps field: %s", contents);
     goto error;
   }
 
@@ -1515,7 +1515,7 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
 
   if (src->data_type == GST_DATA_REPO_DATA_TENSOR && !src->is_static_tensors) {
     if (!json_object_has_member (object, "sample_offset")) {
-      GST_ERROR_OBJECT (src, "There is not sample_offset field: %s", contents);
+      GST_ERROR_OBJECT (src, "There is no sample_offset field: %s", contents);
       goto error;
     }
     src->sample_offset_array =
@@ -1524,7 +1524,7 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
         json_array_get_length (src->sample_offset_array);
 
     if (!json_object_has_member (object, "tensor_size")) {
-      GST_ERROR_OBJECT (src, "There is not tensor_size field: %s", contents);
+      GST_ERROR_OBJECT (src, "There is no tensor_size field: %s", contents);
       goto error;
     }
     src->tensor_size_array =
@@ -1534,7 +1534,7 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
         src->tensor_size_array_len);
 
     if (!json_object_has_member (object, "tensor_count")) {
-      GST_ERROR_OBJECT (src, "There is not tensor_count field: %s", contents);
+      GST_ERROR_OBJECT (src, "There is no tensor_count field: %s", contents);
       goto error;
     }
     src->tensor_count_array =
@@ -1549,7 +1549,7 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
   }
 
   if (!json_object_has_member (object, "total_samples")) {
-    GST_ERROR_OBJECT (src, "There is not total_samples field: %s", contents);
+    GST_ERROR_OBJECT (src, "There is no total_samples field: %s", contents);
     goto error;
   }
 
@@ -1598,7 +1598,7 @@ gst_data_repo_src_set_property (GObject * object, guint prop_id,
       /** To get caps, read JSON before Caps negotiation,
           to get information on sample data */
       if (!gst_data_repo_src_read_json_file (src)) {
-        GST_ERROR_OBJECT (src, "Faild to get data format");
+        GST_ERROR_OBJECT (src, "Failed to get data format");
       }
       break;
     case PROP_START_SAMPLE_INDEX:
@@ -1617,7 +1617,7 @@ gst_data_repo_src_set_property (GObject * object, guint prop_id,
       g_free (src->tensors_seq_str);
       src->tensors_seq_str = g_value_dup_string (value);
       if (!gst_data_repo_src_set_tensors_sequence (src)) {
-        GST_ERROR_OBJECT (src, "Faild to set tensors sequence");
+        GST_ERROR_OBJECT (src, "Failed to set tensors sequence");
       } else {
         src->need_changed_caps = TRUE;
       }
