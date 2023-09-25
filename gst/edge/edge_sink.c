@@ -81,13 +81,9 @@ static void gst_edgesink_set_connect_type (GstEdgeSink * self,
 static void
 gst_edgesink_class_init (GstEdgeSinkClass * klass)
 {
-  GObjectClass *gobject_class;
-  GstElementClass *gstelement_class;
-  GstBaseSinkClass *gstbasesink_class;
-
-  gstbasesink_class = (GstBaseSinkClass *) klass;
-  gstelement_class = (GstElementClass *) gstbasesink_class;
-  gobject_class = (GObjectClass *) gstelement_class;
+  GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
+  GstElementClass *gstelement_class = GST_ELEMENT_CLASS (klass);
+  GstBaseSinkClass *gstbasesink_class = GST_BASE_SINK_CLASS (klass);
 
   gobject_class->set_property = gst_edgesink_set_property;
   gobject_class->get_property = gst_edgesink_get_property;
