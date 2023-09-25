@@ -281,7 +281,8 @@ gst_data_repo_src_finalize (GObject * object)
     src->fd = 0;
   }
 
-  g_object_unref (src->parser);
+  if (src->parser)
+    g_object_unref (src->parser);
 
   if (src->shuffled_index_array)
     g_array_free (src->shuffled_index_array, TRUE);
