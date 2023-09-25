@@ -1422,9 +1422,12 @@ gst_data_repo_src_get_data_type_and_size (GstDataRepoSrc * src, GstCaps * caps)
       break;
   }
 
-  v = gst_structure_get_value (s, "framerate");
-  src->rate_n = gst_value_get_fraction_numerator (v);
-  src->rate_d = gst_value_get_fraction_denominator (v);
+  src->rate_n = 0;
+  src->rate_d = 1;
+  if (gst_structure_has_field (s, "framerate")) {
+    gst_structure_get_fraction (s, "framerate", &src->rate_n, &src->rate_d);
+  }
+
   GST_LOG_OBJECT (src, "framerate %d/%d", src->rate_n, src->rate_d);
   GST_LOG_OBJECT (src, "data type: %d", src->data_type);
 
