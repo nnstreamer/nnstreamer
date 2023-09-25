@@ -299,8 +299,8 @@ static gboolean
 gst_data_repo_src_set_file_path (GstDataRepoSrc * src, const int prop,
     const gchar * file_path, GError ** err)
 {
+  gchar *filename = NULL;
   GstState state;
-  gchar *filename;
 
   g_return_val_if_fail (prop == PROP_LOCATION || prop == PROP_JSON, FALSE);
 
@@ -352,7 +352,7 @@ wrong_state:
 static gboolean
 gst_data_repo_src_set_tensors_sequence (GstDataRepoSrc * src)
 {
-  gchar **strv = NULL;
+  g_auto (GStrv) strv = NULL;
   guint length;
   guint i = 0;
 
@@ -393,13 +393,10 @@ gst_data_repo_src_set_tensors_sequence (GstDataRepoSrc * src)
         src->tensors_seq_cnt, src->num_tensors);
     goto error;
   }
-
-  g_strfreev (strv);
   return TRUE;
 
 error:
   src->tensors_seq_cnt = 0;
-  g_strfreev (strv);
   return FALSE;
 }
 
@@ -803,9 +800,9 @@ gst_data_repo_src_get_image_filename (GstDataRepoSrc * src)
 static GstFlowReturn
 gst_data_repo_src_read_multi_images (GstDataRepoSrc * src, GstBuffer ** buffer)
 {
+  g_autofree gchar *filename = NULL;
   gsize size;
   gchar *data;
-  gchar *filename;
   GstBuffer *buf;
   gboolean read_size;
   GError *error = NULL;
@@ -837,7 +834,6 @@ gst_data_repo_src_read_multi_images (GstDataRepoSrc * src, GstBuffer ** buffer)
   if (!read_size) {
     if (src->successful_read) {
       /* If we've read at least one buffer successfully, not finding the next file is EOS. */
-      g_free (filename);
       if (error != NULL)
         g_error_free (error);
       return GST_FLOW_EOS;
@@ -854,7 +850,6 @@ gst_data_repo_src_read_multi_images (GstDataRepoSrc * src, GstBuffer ** buffer)
       gst_memory_new_wrapped (0, data, size, 0, size, data, g_free));
   GST_DEBUG_OBJECT (src, "read file \"%s\".", filename);
 
-  g_free (filename);
   *buffer = buf;
 
   return GST_FLOW_OK;
@@ -871,7 +866,6 @@ handle_error:
           ("Error while reading from file \"%s\".", filename),
           ("%s", g_strerror (errno)));
     }
-    g_free (filename);
     return GST_FLOW_ERROR;
   }
 }
@@ -981,8 +975,8 @@ error:
 static gboolean
 gst_data_repo_src_start (GstDataRepoSrc * src)
 {
+  g_autofree gchar *filename = NULL;
   struct_stat stat_results;
-  gchar *filename = NULL;
   int flags = O_RDONLY | O_BINARY;
 
   g_return_val_if_fail (src != NULL, FALSE);
@@ -1048,8 +1042,6 @@ gst_data_repo_src_start (GstDataRepoSrc * src)
         src->fd_offset);
   }
 
-  g_free (filename);
-
   return TRUE;
 
   /* ERROR */
@@ -1097,7 +1089,6 @@ error_close:
   g_close (src->fd, NULL);
   src->fd = 0;
 error_exit:
-  g_free (filename);
   return FALSE;
 }
 
@@ -1437,9 +1428,9 @@ gst_data_repo_src_get_data_type_and_size (GstDataRepoSrc * src, GstCaps * caps)
 static gboolean
 gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
 {
+  g_autofree gchar *contents = NULL;
   GError *error = NULL;
   GFile *file;
-  gchar *contents;
   JsonNode *root;
   JsonObject *object;
   const gchar *caps_str = NULL;
@@ -1556,14 +1547,12 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
   if (src->total_samples == 0)
     goto error;
 
-  g_free (contents);
   g_object_unref (file);
 
   return TRUE;
 error:
   src->data_type = GST_DATA_REPO_DATA_UNKNOWN;
   GST_ERROR_OBJECT (src, "Failed to parse %s", src->json_filename);
-  g_free (contents);
   g_object_unref (file);
 
   return FALSE;
