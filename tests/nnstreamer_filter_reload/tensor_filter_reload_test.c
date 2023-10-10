@@ -32,7 +32,6 @@ static gchar *input_img_path = NULL;
 static gchar *first_model_path = NULL;
 static gchar *second_model_path = NULL;
 
-static GMainLoop *loop = NULL;
 static gint return_val = 0;
 
 /**
@@ -41,8 +40,8 @@ static gint return_val = 0;
 static gboolean
 bus_callback (GstBus * bus, GstMessage * message, gpointer data)
 {
+  GMainLoop *loop = data;
   UNUSED (bus);
-  UNUSED (data);
   _print_log ("Got %s message\n", GST_MESSAGE_TYPE_NAME (message));
 
   switch (GST_MESSAGE_TYPE (message)) {
@@ -272,7 +271,7 @@ main (int argc, char *argv[])
       tensor_converter, tensor_filter, appsink, NULL);
 
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
-  gst_bus_add_watch (bus, bus_callback, NULL);
+  gst_bus_add_watch (bus, bus_callback, loop);
   gst_object_unref (bus);
 
   gst_element_set_state (pipeline, GST_STATE_PLAYING);
