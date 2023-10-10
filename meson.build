@@ -163,7 +163,9 @@ if flatc.found()
   # Please refer https://mesonbuild.com/Reference-manual_returned_external_program.html#external_programversion
   flatc_ver = run_command(flatc, '--version', check : true).stdout().split()[2]
   flatbuf_dep = dependency('flatbuffers', version: flatc_ver,
-      required : get_option('flatbuf-support'))
+      required : get_option('flatbuf-support'),
+      not_found_message : 'flatbuffers version '+flatc_ver+' is required because flatc (flatbuf-compiler) '+flatc_ver+' is installed'
+      )
   flatbuf_version_check_dep = dependency('flatbuffers', version: '>=2.0.0',
       required : get_option('flatbuf-support'))
   flatc_dep = declare_dependency()
