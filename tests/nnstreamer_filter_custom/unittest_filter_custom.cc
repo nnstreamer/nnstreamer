@@ -129,7 +129,7 @@ TEST (tensorFilterCustom, flexibleInvoke_p)
   sink_received = 0;
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
-  EXPECT_TRUE (wait_pipeline_process_buffers (&sink_received, 6, TEST_TIMEOUT_LIMIT));
+  EXPECT_TRUE (wait_pipeline_process_buffers (&sink_received, 6, TEST_TIMEOUT_LIMIT_MS));
   g_usleep (1000000);
 
   /** cleanup registered custom_easy filter */
@@ -183,7 +183,7 @@ TEST (tensorFilterCustom, staticFlexibleInvoke_p)
   sink_received = 0;
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
-  EXPECT_TRUE (wait_pipeline_process_buffers (&sink_received, 6, TEST_TIMEOUT_LIMIT));
+  EXPECT_TRUE (wait_pipeline_process_buffers (&sink_received, 6, TEST_TIMEOUT_LIMIT_MS));
   g_usleep (1000000);
 
   /** cleanup registered custom_easy filter */
