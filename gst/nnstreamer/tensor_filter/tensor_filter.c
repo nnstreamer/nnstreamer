@@ -771,8 +771,15 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
 
     hsize = 0;
     if (out_flexible && !priv->prop.invoke_dynamic) {
-      gst_tensor_info_convert_to_meta (&prop->output_meta.info[i],
+      gboolean ret = FALSE;
+      ret = gst_tensor_info_convert_to_meta (&prop->output_meta.info[i],
           &out_meta[i]);
+      if (TRUE != ret) {
+        ml_loge_stacktrace
+            ("gst_tensor_filter_transform: The configured output tensor information is invalid, at %u'th output tensor\n",
+            i);
+        goto mem_map_error;
+      }
       hsize = gst_tensor_meta_info_get_header_size (&out_meta[i]);
     }
 
