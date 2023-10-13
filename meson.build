@@ -57,6 +57,10 @@ warning_flags = [
   '-Wvla',
   '-Wpointer-arith'
 ]
+if cxx.get_id() == 'clang'
+  # For the usage of GstTensorFilterFramework in tensor_filter_support_cc.cc
+  warning_flags += '-Wno-c99-designator'
+endif
 
 warning_c_flags = [
   '-Wmissing-declarations',
