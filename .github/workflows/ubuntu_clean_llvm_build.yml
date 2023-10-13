@@ -1,0 +1,28 @@
+name: Minimal meson build in Ubuntu with LLVM/clang
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-22.04 ]
+
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-python@v1
+    - name: install minimal requirements
+      run: |
+          sudo apt-get update && \
+          sudo apt-get install -y libglib2.0-dev libjson-glib-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libunwind-dev googletest \
+            gstreamer1.0-plugins-good clang meson ninja-build
+    - name: meson build with llvm/clang
+      run: |
+          CC=clang CXX=clang++ meson build && \
+          ninja test -C build
