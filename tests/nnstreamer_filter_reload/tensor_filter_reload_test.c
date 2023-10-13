@@ -209,7 +209,7 @@ main (int argc, char *argv[])
           &second_model_path,
           "The path of second model file",
         "e.g., models/mobilenet_v2_1.0_224_quant.tflite"},
-    {NULL}
+    {0}
   };
 
   /* parse options */

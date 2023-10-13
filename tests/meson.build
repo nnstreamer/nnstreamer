@@ -50,7 +50,16 @@ endif
 # gtest
 gtest_dep = dependency('gtest', required: false)
 if gtest_dep.found()
-  lesser_code_quality_accepted_for_unittest_code = declare_dependency(compile_args: ['-Wno-unused-parameter', '-Wno-missing-field-initializers', '-Wno-maybe-uninitialized'])
+  gtest_compile_args = ['-Wno-unused-parameter', '-Wno-missing-field-initializers', '-Wno-format-nonliteral']
+  if cc.get_id() == 'clang' and cxx.get_id() == 'clang'
+    gtest_compile_args += '-Wno-uninitialized'
+    gtest_compile_args += '-Wno-format-nonliteral'
+    gtest_compile_args += '-Wno-deprecated-copy'
+  else
+    gtest_compile_args += '-Wno-maybe-uninitialized'
+  endif
+
+  lesser_code_quality_accepted_for_unittest_code = declare_dependency(compile_args: gtest_compile_args)
 
   nnstreamer_unittest_deps = [
     unittest_util_dep,
