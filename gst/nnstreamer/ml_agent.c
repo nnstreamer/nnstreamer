@@ -12,7 +12,7 @@
  * @bug     No known bugs except for NYI items
  */
 
-#include <ml-agentd/ml-agent-dbus-interface.h>
+#include <ml-agent-interface.h>
 
 #include "ml_agent.h"
 
@@ -86,9 +86,7 @@ mlagent_parse_uri_string (const GValue * val)
        * @todo The specification of the data layout filled in the third
        *       argument (i.e., stringfied_json) by the callee is not fully decided.
        */
-      rcode =
-          ml_agent_dbus_interface_model_get (name, version, stringfied_json,
-          &err);
+      rcode = ml_agent_model_get (name, version, stringfied_json, &err);
       g_clear_error (&err);
 
       if (rcode != 0)
