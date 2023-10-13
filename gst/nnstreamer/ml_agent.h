@@ -17,7 +17,7 @@
 
 #include <glib-object.h>
 
-#ifdef ENABLE_ML_AGENTD
+#ifdef ENABLE_ML_AGENT
 /**
  * @brief Parse the given URI into the valid file path string
  */
