@@ -38,16 +38,13 @@
  *          This is independent from option1
  * option3: Any option1-dependent values
  *          !!This depends on option1 values!!
- *          for yolov5 mode:
- *            This option set whether the x, y, w, h values are scaled to input image or not.
- *            The default is the values are not scaled.
- *            option3=0 (default, suitable for tflite models exported by official guide)
- *            option3=1 (suitable for torchscript models)
- *          for yolov8 mode:
- *            This option set whether the x, y, w, h values are scaled to input image or not.
- *            The default is the values are not scaled.
- *            option3=0 (default, suitable for tflite models exported by official guide)
- *            option3=1
+ *          for yolov5 and yolov8 mode:
+ *            The option3 requires up to 3 numbers, which tell
+ *              - whether the output values are scaled or not
+ *                0: not scaled (default), 1: scaled (e.g., 0.0 ~ 1.0)
+ *              - the threshold of confidence (optional, default set to 0.25)
+ *              - the threshold of IOU (optional, default set to 0.45)
+ *            An example of option3 is "option3=0:0.65:0.6"
  *          for mobilenet-ssd mode:
  *            The option3 definition scheme is, in order, the following:
  *                - box priors location file (mandatory)
@@ -138,12 +135,10 @@ extern uint8_t rasters[][13];
 #define OV_PERSON_DETECTION_MAX_TENSORS         (1U)
 #define OV_PERSON_DETECTION_SIZE_DETECTION_DESC (7)
 #define OV_PERSON_DETECTION_CONF_THRESHOLD      (0.8)
+#define YOLO_DETECTION_CONF_THRESHOLD           (0.25)
+#define YOLO_DETECTION_IOU_THRESHOLD            (0.45)
 #define YOLOV5_DETECTION_NUM_INFO               (5)
-#define YOLOV5_DETECTION_CONF_THRESHOLD         (0.25)
-#define YOLOV5_DETECTION_IOU_THRESHOLD          (0.45)
 #define YOLOV8_DETECTION_NUM_INFO               (4)
-#define YOLOV8_DETECTION_CONF_THRESHOLD         (0.25)
-#define YOLOV8_DETECTION_IOU_THRESHOLD          (0.7)
 #define PIXEL_VALUE                             (0xFF0000FF)    /* RED 100% in RGBA */
 #define MP_PALM_DETECTION_INFO_SIZE             (18)
 #define MP_PALM_DETECTION_MAX_TENSORS           (2U)
@@ -233,6 +228,8 @@ typedef struct
 {
   /* From option3, whether the output values are scaled or not */
   int scaled_output;
+  gfloat conf_threshold;
+  gfloat iou_threshold;
 } properties_YOLO;
 
 /**
@@ -426,6 +423,8 @@ _init_modes (bounding_boxes * bdata)
 {
   if (bdata->mode == YOLOV5_BOUNDING_BOX || bdata->mode == YOLOV8_BOUNDING_BOX) {
     bdata->yolo_pp.scaled_output = 0; /* default conf is the output is not scaled */
+    bdata->yolo_pp.conf_threshold = YOLO_DETECTION_CONF_THRESHOLD;
+    bdata->yolo_pp.iou_threshold = YOLO_DETECTION_IOU_THRESHOLD;
     return TRUE;
   }
 
@@ -756,7 +755,23 @@ static int
 _setOption_mode (bounding_boxes * bdata, const char *param)
 {
   if (bdata->mode == YOLOV5_BOUNDING_BOX || bdata->mode == YOLOV8_BOUNDING_BOX) {
-    bdata->yolo_pp.scaled_output = (int) g_ascii_strtoll (param, NULL, 10);
+    properties_YOLO *yolo = &bdata->yolo_pp;
+    gchar **options;
+    int noptions;
+
+    options = g_strsplit (param, ":", -1);
+    noptions = g_strv_length (options);
+    if (noptions > 0)
+      yolo->scaled_output = (int) g_ascii_strtoll (options[0], NULL, 10);
+    if (noptions > 1)
+      yolo->conf_threshold = (gfloat) g_ascii_strtod (options[1], NULL);
+    if (noptions > 2)
+      yolo->iou_threshold = (gfloat) g_ascii_strtod (options[2], NULL);
+
+    nns_logi ("Setting YOLOV5/YOLOV8 decoder as scaled_output: %d, conf_threshold: %.2f, iou_threshold: %.2f",
+        yolo->scaled_output, yolo->conf_threshold, yolo->iou_threshold);
+
+    g_strfreev (options);
     return TRUE;
   }
 
@@ -2018,7 +2033,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
       }
 
       if (maxClassConfVal * boxinput[bIdx * cIdxMax + 4] >
-          YOLOV5_DETECTION_CONF_THRESHOLD) {
+          bdata->yolo_pp.conf_threshold) {
         detectedObject object;
         float cx, cy, w, h;
         cx = boxinput[bIdx * cIdxMax + 0];
@@ -2046,7 +2061,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
       }
     }
 
-    nms (results, YOLOV5_DETECTION_IOU_THRESHOLD);
+    nms (results, bdata->yolo_pp.iou_threshold);
   } else if (bdata->mode == YOLOV8_BOUNDING_BOX) {
     int bIdx, numTotalBox;
     int cIdx, numTotalClass, cStartIdx, cIdxMax;
@@ -2073,7 +2088,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
       }
 
       if (maxClassConfVal >
-          YOLOV8_DETECTION_CONF_THRESHOLD) {
+          bdata->yolo_pp.conf_threshold) {
         detectedObject object;
         float cx, cy, w, h;
         cx = boxinput[bIdx * cIdxMax + 0];
@@ -2101,7 +2116,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
       }
     }
 
-    nms (results, YOLOV8_DETECTION_IOU_THRESHOLD);
+    nms (results, bdata->yolo_pp.iou_threshold);
   } else if (bdata->mode == MP_PALM_DETECTION_BOUNDING_BOX) {
     const GstTensorMemory *boxes = NULL;
     const GstTensorMemory *detections = NULL;
