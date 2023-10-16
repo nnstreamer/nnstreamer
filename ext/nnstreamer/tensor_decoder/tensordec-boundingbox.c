@@ -528,7 +528,7 @@ bb_init (void **pdata)
   bdata->centroids =
       g_array_sized_new (TRUE, TRUE, sizeof (centroid), bdata->max_centroids_num);
   bdata->distanceArray =
-      g_array_sized_new (TRUE, TRUE, sizeof (float),
+      g_array_sized_new (TRUE, TRUE, sizeof (distanceArrayData),
       bdata->max_centroids_num * bdata->max_centroids_num);
 
   initSingleLineSprite (singleLineSprite, rasters, PIXEL_VALUE);
