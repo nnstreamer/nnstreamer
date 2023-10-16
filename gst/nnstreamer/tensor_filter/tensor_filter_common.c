@@ -881,13 +881,28 @@ gst_tensorsinfo_compare_print (const GstTensorsInfo * info1,
 void
 gst_tensor_filter_install_properties (GObjectClass * gobject_class)
 {
+  gchar **subplugins = NULL;
+  gchar *strbuf;
+  static gchar *strprint = NULL;
+
   g_object_class_install_property (gobject_class, PROP_SILENT,
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output",
           FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  subplugins = get_all_subplugins (NNS_SUBPLUGIN_FILTER);
+  strbuf = g_strjoinv (", ", subplugins);
+  g_free (strprint);
+  strprint = g_strdup_printf
+      ("Neural network framework. Custom property depends on the specified framework. Use 'auto' to let tensor_filter determine the framework. For more detail, please refer to the documentation or nnstreamer-check utility. Available frameworks (filter subplugins) are: {%s}.",
+      strbuf);
+
   g_object_class_install_property (gobject_class, PROP_FRAMEWORK,
-      g_param_spec_string ("framework", "Framework",
-          "Neural network framework", "auto",
+      g_param_spec_string ("framework", "Framework", strprint, "auto",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_free (strbuf);
+  g_strfreev (subplugins);
+
   g_object_class_install_property (gobject_class, PROP_MODEL,
       g_param_spec_string ("model", "Model filepath",
           "File path to the model file. Separated with ',' in case of multiple model files(like caffe2)",

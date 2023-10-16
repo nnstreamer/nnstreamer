@@ -289,6 +289,9 @@ gst_tensordec_class_init (GstTensorDecoderClass * klass)
   GObjectClass *gobject_class;
   GstElementClass *gstelement_class;
   GstBaseTransformClass *trans_class;
+  gchar **subplugins = NULL;
+  gchar *strbuf;
+  static gchar *strprint = NULL;
 
   GST_DEBUG_CATEGORY_INIT (gst_tensordec_debug, "tensor_decoder", 0,
       "Element to convert tensor to media stream");
@@ -305,9 +308,18 @@ gst_tensordec_class_init (GstTensorDecoderClass * klass)
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output",
           DEFAULT_SILENT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  subplugins = get_all_subplugins (NNS_SUBPLUGIN_DECODER);
+  strbuf = g_strjoinv (", ", subplugins);
+  g_free (strprint);
+  strprint = g_strdup_printf
+      ("Decoder mode. Other options (option1 to optionN) depend on the specified model. For more detail on optionX for each mode, please refer to the documentation or nnstreamer-check utility. Available modes (decoder subplugins) are: {%s}.",
+      strbuf);
+
   g_object_class_install_property (gobject_class, PROP_MODE,
-      g_param_spec_string ("mode", "Mode", "Decoder mode", "",
+      g_param_spec_string ("mode", "Mode", strprint, "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_free (strbuf);
+  g_strfreev (subplugins);
 
   g_object_class_install_property (gobject_class, PROP_MODE_OPTION1,
       g_param_spec_string ("option1", "Mode option 1",
