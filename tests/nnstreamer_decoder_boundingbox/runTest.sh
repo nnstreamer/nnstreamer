@@ -92,4 +92,32 @@ callCompareTest palm_detection_result_golden.0 palm_detection_result_0.log 5-0 "
 callCompareTest palm_detection_result_golden.1 palm_detection_result_1.log 5-1 "palm detection Decode 1 (with config_file.2)" 0
 rm palm_detection_result_*.log
 
+# yolov5 decoder test
+## wrong tensor dimension
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov5_decoder_input.raw start-index=0 stop-index=0 caps=application/octet-stream ! tensor_converter input-dim=85:10647:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov5 option2=coco-80.txt option3=0:0.25:0.45 option4=320:320 option5=320:320 option6=0 option7=1 ! fakesink" "6 yolov5 decoder_n" 0 1
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov5_decoder_input.raw start-index=0 stop-index=0 caps=application/octet-stream ! tensor_converter input-dim=85:6300:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov5 option2=coco-80.txt option3=0:0.25:0.45 option4=320:320 option5=320:320 option6=0 option7=1 ! videoconvert ! video/x-raw,format=RGBA ! multifilesink location=yolov5_result_%1d.log" "6 yolov5 decoder" 0 0
+
+callCompareTest yolov5_result_golden.raw yolov5_result_0.log "6 diff" "yolov5 golden" 0
+
+# test track mode
+## wrong tensor dimension
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov5_decoder_input.raw start-index=0 stop-index=0 caps=application/octet-stream ! tensor_converter input-dim=85:10647:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov5 option2=coco-80.txt option3=0:0.25:0.45 option4=320:320 option5=320:320 option6=1 option7=1 ! fakesink" "7 yolov5 decoder_n" 0 1
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov5_decoder_input.raw start-index=0 stop-index=2 caps=application/octet-stream ! tensor_converter input-dim=85:6300:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov5 option2=coco-80.txt option3=0:0.25:0.45 option4=320:320 option5=320:320 option6=1 option7=1 ! videoconvert ! video/x-raw,format=RGBA ! multifilesink location=yolov5_track_result_%1d.log" "7 yolov5 decoder with track mode" 0 0
+
+callCompareTest yolov5_track_result_golden.raw yolov5_track_result_0.log "7 diff" "yolov5 with track mode golden" 0
+callCompareTest yolov5_track_result_golden.raw yolov5_track_result_1.log "7 diff" "yolov5 with track mode golden" 0
+callCompareTest yolov5_track_result_golden.raw yolov5_track_result_2.log "7 diff" "yolov5 with track mode golden" 0
+
+# yolov8 decoder test
+## wrong tensor dimension
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov8_decoder_input.raw caps=application/octet-stream start-index=0 stop-index=0 ! tensor_converter input-dim=84:8400:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov8 option2=coco-80.txt option3=0:0.25:0.45 option4=320:320 option5=320:320 option6=0 option7=1 ! fakesink" "8 yolov8 decoder_n" 0 1
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov8_decoder_input.raw caps=application/octet-stream start-index=0 stop-index=0 ! tensor_converter input-dim=84:2100:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov8 option2=coco-80.txt option3=0:0.25:0.45 option4=320:320 option5=320:320 option6=0 option7=1 ! videoconvert ! video/x-raw,format=RGBA ! multifilesink location=yolov8_result_%1d.log" "8 yolov8 decoder" 0 0
+
+callCompareTest yolov8_result_golden.raw yolov8_result_0.log "8 diff" "yolov8 golden" 0
+
+rm yolov*.log
+
 report
