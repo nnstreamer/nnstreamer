@@ -81,7 +81,6 @@ G_LOCK_DEFINE_STATIC (errlock);
 const char *
 _nnstreamer_error (void)
 {
-
   G_LOCK (errlock);
   if (errmsg_reported || errmsg[0] == '\0') {
     G_UNLOCK (errlock);
