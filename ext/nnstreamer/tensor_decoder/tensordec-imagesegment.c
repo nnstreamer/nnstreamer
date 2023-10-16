@@ -650,6 +650,11 @@ void
 init_is (void)
 {
   nnstreamer_decoder_probe (&imageSegment);
+  nnstreamer_decoder_set_custom_property_desc ( decoder_subplugin_image_segment,
+      "option1",
+      "Mode of image segmentation. { tflite-deeplab (input: #labels x width x height (float32, label probability). e.g., deeplabv3_257_mv_gpu.tflite), snpe-deeplab (input: width x height x 1 (float32, label index) e.g., deeplabv3_mnv2_pascal_train_aug.dlc), snpe-depth (input: 1 x width x height (float32, grayscale) e.g., .dlc snpe models producing grayscale images) }",
+      "option2", "Maximum number of labels. 20 is applied if not specified.",
+      NULL);
 }
 
 /** @brief Destruct this object for tensordec-plugin */

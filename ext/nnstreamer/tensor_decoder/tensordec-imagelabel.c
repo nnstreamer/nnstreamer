@@ -261,6 +261,9 @@ void
 init_il (void)
 {
   nnstreamer_decoder_probe (&imageLabeling);
+  nnstreamer_decoder_set_custom_property_desc (
+      decoder_subplugin_image_labeling, "option1", "The path to the label file",
+      NULL);
 }
 
 /** @brief Destruct this object for tensordec-plugin */
