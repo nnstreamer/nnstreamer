@@ -373,6 +373,10 @@ void
 init_dv (void)
 {
   nnstreamer_decoder_probe (&directVideo);
+  nnstreamer_decoder_set_custom_property_desc (decoder_subplugin_direct_video,
+      "option1",
+      "The output video format. If this is unspecified, it is 'GRAY8' (dim[0]/channel == 1), 'RGB' (dim[0]/channel == 3), or 'BGRx' (dim[0]/channel == 4). Available options are: { GRAY8, RGB, BGR, RGBx, BGRx, xRGB, xBGR, RGBA, BGRA, ARGB, ABGR, GRAY16_BE, GRAY16_LE }.",
+      NULL);
 }
 
 /** @brief Destruct this object for tensordec-plugin */
