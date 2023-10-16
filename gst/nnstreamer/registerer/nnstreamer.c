@@ -128,6 +128,6 @@ gst_nnstreamer_init (GstPlugin * plugin)
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     nnstreamer,
-    "nnstreamer plugin library",
+    "NNStreamer plugin library allows neural networks in GStreamer pipelines. Use nnstreamer-check utility for more information of the current NNStreamer installation.",
     gst_nnstreamer_init, VERSION, "LGPL", "nnstreamer",
     "https://github.com/nnstreamer/nnstreamer");
