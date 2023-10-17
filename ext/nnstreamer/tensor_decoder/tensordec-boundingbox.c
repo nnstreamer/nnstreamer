@@ -120,14 +120,14 @@
 #include <nnstreamer_util.h>
 #include "tensordecutil.h"
 
-void init_bb (void) __attribute__ ((constructor));
-void fini_bb (void) __attribute__ ((destructor));
+void init_bb (void) __attribute__((constructor));
+void fini_bb (void) __attribute__((destructor));
 
 /* font.c */
 extern uint8_t rasters[][13];
 
 #define BOX_SIZE                                (4)
-#define MOBILENET_SSD_DETECTION_MAX             (2034) /* add ssd_mobilenet v3 support */
+#define MOBILENET_SSD_DETECTION_MAX             (2034)  /* add ssd_mobilenet v3 support */
 #define MOBILENET_SSD_MAX_TENSORS               (2U)
 #define MOBILENET_SSD_PP_DETECTION_MAX          (100)
 #define MOBILENET_SSD_PP_MAX_TENSORS            (4U)
@@ -422,7 +422,7 @@ static int
 _init_modes (bounding_boxes * bdata)
 {
   if (bdata->mode == YOLOV5_BOUNDING_BOX || bdata->mode == YOLOV8_BOUNDING_BOX) {
-    bdata->yolo_pp.scaled_output = 0; /* default conf is the output is not scaled */
+    bdata->yolo_pp.scaled_output = 0;   /* default conf is the output is not scaled */
     bdata->yolo_pp.conf_threshold = YOLO_DETECTION_CONF_THRESHOLD;
     bdata->yolo_pp.iou_threshold = YOLO_DETECTION_IOU_THRESHOLD;
     return TRUE;
@@ -492,7 +492,7 @@ _init_modes (bounding_boxes * bdata)
     data->min_score_threshold = MP_PALM_DETECTION_MIN_SCORE_THRESHOLD_DEFAULT;
     if (data->anchors)
       g_array_free (data->anchors, TRUE);
-    data->anchors = g_array_new(FALSE, TRUE, sizeof(anchor));
+    data->anchors = g_array_new (FALSE, TRUE, sizeof (anchor));
 
     return TRUE;
   }
@@ -526,7 +526,8 @@ bb_init (void **pdata)
   bdata->max_centroids_num = 100U;
   bdata->consecutive_disappear_threshold = 100U;
   bdata->centroids =
-      g_array_sized_new (TRUE, TRUE, sizeof (centroid), bdata->max_centroids_num);
+      g_array_sized_new (TRUE, TRUE, sizeof (centroid),
+      bdata->max_centroids_num);
   bdata->distanceArray =
       g_array_sized_new (TRUE, TRUE, sizeof (float),
       bdata->max_centroids_num * bdata->max_centroids_num);
@@ -654,12 +655,14 @@ error:
  * @brief Calculate anchor scale
  */
 static gfloat
-_calculate_scale (float min_scale, float max_scale, int stride_index, int num_strides)
+_calculate_scale (float min_scale, float max_scale, int stride_index,
+    int num_strides)
 {
   if (num_strides == 1) {
     return (min_scale + max_scale) * 0.5f;
   } else {
-    return min_scale + (max_scale - min_scale) * 1.0 * stride_index / (num_strides - 1.0f);
+    return min_scale + (max_scale -
+        min_scale) * 1.0 * stride_index / (num_strides - 1.0f);
   }
 }
 
@@ -667,7 +670,8 @@ _calculate_scale (float min_scale, float max_scale, int stride_index, int num_st
  * @brief Generate anchor information
  */
 static void
-_mp_palm_detection_generate_anchors (properties_MP_PALM_DETECTION *palm_detection)
+_mp_palm_detection_generate_anchors (properties_MP_PALM_DETECTION *
+    palm_detection)
 {
   int layer_id = 0;
   int strides[MP_PALM_DETECTION_PARAMS_STRIDE_SIZE];
@@ -683,35 +687,37 @@ _mp_palm_detection_generate_anchors (properties_MP_PALM_DETECTION *palm_detectio
   }
 
   while (layer_id < num_layers) {
-    GArray *aspect_ratios = g_array_new(FALSE, TRUE, sizeof(gfloat));
-    GArray *scales = g_array_new(FALSE, TRUE, sizeof(gfloat));
-    GArray *anchor_height = g_array_new(FALSE, TRUE, sizeof(gfloat));
-    GArray *anchor_width = g_array_new(FALSE, TRUE, sizeof(gfloat));
+    GArray *aspect_ratios = g_array_new (FALSE, TRUE, sizeof (gfloat));
+    GArray *scales = g_array_new (FALSE, TRUE, sizeof (gfloat));
+    GArray *anchor_height = g_array_new (FALSE, TRUE, sizeof (gfloat));
+    GArray *anchor_width = g_array_new (FALSE, TRUE, sizeof (gfloat));
 
     int last_same_stride_layer = layer_id;
 
     while (last_same_stride_layer < num_layers
-           && strides[last_same_stride_layer] == strides[layer_id]) {
+        && strides[last_same_stride_layer] == strides[layer_id]) {
       gfloat scale;
       gfloat ratio = 1.0f;
-      g_array_append_val(aspect_ratios, ratio);
-      g_array_append_val(aspect_ratios, ratio);
-      scale = _calculate_scale(palm_detection->min_scale, palm_detection->max_scale,
-                                     last_same_stride_layer, num_layers);
-      g_array_append_val(scales, scale);
-      scale = _calculate_scale(palm_detection->min_scale, palm_detection->max_scale,
-                                     last_same_stride_layer + 1, num_layers);
-      g_array_append_val(scales, scale);
+      g_array_append_val (aspect_ratios, ratio);
+      g_array_append_val (aspect_ratios, ratio);
+      scale =
+          _calculate_scale (palm_detection->min_scale,
+          palm_detection->max_scale, last_same_stride_layer, num_layers);
+      g_array_append_val (scales, scale);
+      scale =
+          _calculate_scale (palm_detection->min_scale,
+          palm_detection->max_scale, last_same_stride_layer + 1, num_layers);
+      g_array_append_val (scales, scale);
       last_same_stride_layer++;
     }
 
     for (i = 0; i < aspect_ratios->len; ++i) {
-      const float ratio_sqrts = sqrt(g_array_index (aspect_ratios, gfloat, i));
+      const float ratio_sqrts = sqrt (g_array_index (aspect_ratios, gfloat, i));
       const gfloat sc = g_array_index (scales, gfloat, i);
       gfloat anchor_height_ = sc / ratio_sqrts;
       gfloat anchor_width_ = sc * ratio_sqrts;
-      g_array_append_val(anchor_height, anchor_height_);
-      g_array_append_val(anchor_width, anchor_width_);
+      g_array_append_val (anchor_height, anchor_height_);
+      g_array_append_val (anchor_width, anchor_width_);
     }
 
     {
@@ -721,18 +727,20 @@ _mp_palm_detection_generate_anchors (properties_MP_PALM_DETECTION *palm_detectio
       int anchor_id;
 
       const int stride = strides[layer_id];
-      feature_map_height = ceil(1.0f * 192 / stride);
-      feature_map_width = ceil(1.0f * 192 / stride);
+      feature_map_height = ceil (1.0f * 192 / stride);
+      feature_map_width = ceil (1.0f * 192 / stride);
 
       for (y = 0; y < feature_map_height; ++y) {
         for (x = 0; x < feature_map_width; ++x) {
-          for (anchor_id = 0; anchor_id < (int)aspect_ratios->len; ++anchor_id) {
+          for (anchor_id = 0; anchor_id < (int) aspect_ratios->len; ++anchor_id) {
             const float x_center = (x + offset_x) * 1.0f / feature_map_width;
             const float y_center = (y + offset_y) * 1.0f / feature_map_height;
 
-            const anchor a = {.x_center = x_center, .y_center = y_center,
-              .w = g_array_index (anchor_width, gfloat, anchor_id), .h = g_array_index (anchor_height, gfloat, anchor_id)};
-            g_array_append_val(palm_detection->anchors, a);
+            const anchor a = {.x_center = x_center,.y_center = y_center,
+              .w = g_array_index (anchor_width, gfloat, anchor_id),.h =
+                  g_array_index (anchor_height, gfloat, anchor_id)
+            };
+            g_array_append_val (palm_detection->anchors, a);
           }
         }
       }
@@ -768,7 +776,8 @@ _setOption_mode (bounding_boxes * bdata, const char *param)
     if (noptions > 2)
       yolo->iou_threshold = (gfloat) g_ascii_strtod (options[2], NULL);
 
-    nns_logi ("Setting YOLOV5/YOLOV8 decoder as scaled_output: %d, conf_threshold: %.2f, iou_threshold: %.2f",
+    nns_logi
+        ("Setting YOLOV5/YOLOV8 decoder as scaled_output: %d, conf_threshold: %.2f, iou_threshold: %.2f",
         yolo->scaled_output, yolo->conf_threshold, yolo->iou_threshold);
 
     g_strfreev (options);
@@ -858,8 +867,7 @@ _setOption_mode (bounding_boxes * bdata, const char *param)
     noptions = g_strv_length (options);
 
     if (noptions > MP_PALM_DETECTION_PARAMS_MAX) {
-      GST_ERROR
-          ("Invalid MP PALM DETECTION PARAM length: %d", noptions);
+      GST_ERROR ("Invalid MP PALM DETECTION PARAM length: %d", noptions);
       ret = FALSE;
       goto exit_mp_palm_detection;
     }
@@ -875,7 +883,7 @@ _setOption_mode (bounding_boxes * bdata, const char *param)
       mp_palm_detection_option (palm_detection->strides[idx - 6], gint, idx);
     }
 
-    _mp_palm_detection_generate_anchors(palm_detection);
+    _mp_palm_detection_generate_anchors (palm_detection);
 
   exit_mp_palm_detection:
     g_strfreev (options);
@@ -1206,9 +1214,12 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
         (data->i_width / 16) * (data->i_height / 16) +
         (data->i_width / 8) * (data->i_height / 8);
 
-    if (dim[0] != (data->labeldata.total_labels + YOLOV8_DETECTION_NUM_INFO) || dim[1] != data->max_detection) {
-      nns_loge ("yolov8 boundingbox decoder requires the input shape to be %d:%d:1. But given shape is %d:%d:1. `tensor_transform mode=transpose` would be helpful.",
-          data->labeldata.total_labels + YOLOV8_DETECTION_NUM_INFO, data->max_detection, dim[0], dim[1]);
+    if (dim[0] != (data->labeldata.total_labels + YOLOV8_DETECTION_NUM_INFO)
+        || dim[1] != data->max_detection) {
+      nns_loge
+          ("yolov8 boundingbox decoder requires the input shape to be %d:%d:1. But given shape is %d:%d:1. `tensor_transform mode=transpose` would be helpful.",
+          data->labeldata.total_labels + YOLOV8_DETECTION_NUM_INFO,
+          data->max_detection, dim[0], dim[1]);
       return NULL;
     }
 
@@ -1237,7 +1248,8 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
       g_return_val_if_fail (dim2[i] == 0 || dim2[i] == 1, NULL);
 
     /* Check consistency with max_detection */
-    if (!_set_max_detection (data, max_detection, MP_PALM_DETECTION_DETECTION_MAX)) {
+    if (!_set_max_detection (data, max_detection,
+            MP_PALM_DETECTION_DETECTION_MAX)) {
       return NULL;
     }
   }
@@ -1300,7 +1312,8 @@ update_centroids (void **pdata, GArray * boxes)
   i = 0;
   while (i < centroids->len) {
     centroid *c = &g_array_index (centroids, centroid, i);
-    if (c->consecutive_disappeared_frames >= bdata->consecutive_disappear_threshold) {
+    if (c->consecutive_disappeared_frames >=
+        bdata->consecutive_disappear_threshold) {
       g_array_remove_index (centroids, i);
     } else {
       i++;
@@ -1353,8 +1366,7 @@ update_centroids (void **pdata, GArray * boxes)
 
     for (j = 0; j < boxes->len; j++) {
       detectedObject *box = &g_array_index (boxes, detectedObject, j);
-      distanceArrayData *d =
-          &g_array_index (distanceArray, distanceArrayData,
+      distanceArrayData *d = &g_array_index (distanceArray, distanceArrayData,
           i * centroids->len + j);
 
       d->centroid_idx = i;
@@ -1368,9 +1380,8 @@ update_centroids (void **pdata, GArray * boxes)
         int bcx = box->x + box->width / 2;
         int bcy = box->y + box->height / 2;
 
-        d->distance =
-            (guint64) (c->cx - bcx) * (c->cx - bcx)
-                     +  (guint64) (c->cy - bcy) * (c->cy - bcy);
+        d->distance = (guint64) (c->cx - bcx) * (c->cx - bcx)
+            + (guint64) (c->cy - bcy) * (c->cy - bcy);
       }
     }
   }
@@ -1863,12 +1874,14 @@ log_boxes (bounding_boxes * bdata, GArray * results)
 {
   guint i;
 
-  nns_logi ("Detect %u boxes in %u x %u input image", results->len, bdata->i_width, bdata->i_height);
+  nns_logi ("Detect %u boxes in %u x %u input image", results->len,
+      bdata->i_width, bdata->i_height);
   for (i = 0; i < results->len; i++) {
     detectedObject *b = &g_array_index (results, detectedObject, i);
     if (bdata->labeldata.total_labels > 0)
       nns_logi ("[%s] x:%d y:%d w:%d h:%d prob:%.4f",
-          bdata->labeldata.labels[b->class_id], b->x, b->y, b->width, b->height, b->prob);
+          bdata->labeldata.labels[b->class_id], b->x, b->y, b->width, b->height,
+          b->prob);
     else
       nns_logi ("x:%d y:%d w:%d h:%d prob:%.4f",
           b->x, b->y, b->width, b->height, b->prob);
@@ -1881,7 +1894,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
     const GstTensorMemory * input, GstBuffer * outbuf)
 {
   bounding_boxes *bdata = *pdata;
-  const size_t size = (size_t) bdata->width * bdata->height * 4; /* RGBA */
+  const size_t size = (size_t) bdata->width * bdata->height * 4;        /* RGBA */
   GstMapInfo out_info;
   GstMemory *out_mem;
   GArray *results = NULL;
@@ -1910,7 +1923,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
     goto error_free;
   }
 
-  /** reset the buffer with alpha 0 / black */
+                                                                /** reset the buffer with alpha 0 / black */
   memset (out_info.data, 0, size);
 
   if (_check_mode_is_mobilenet_ssd (bdata->mode)) {
@@ -1927,7 +1940,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
     results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), 100);
 
     boxes = &input[0];
-    if (num_tensors >= MOBILENET_SSD_MAX_TENSORS) /* lgtm[cpp/constant-comparison] */
+    if (num_tensors >= MOBILENET_SSD_MAX_TENSORS)       /* lgtm[cpp/constant-comparison] */
       detections = &input[1];
 
     switch (config->info.info[0].type) {
@@ -2021,7 +2034,8 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
     /** Only support for float type model */
     g_assert (config->info.info[0].type == _NNS_FLOAT32);
 
-    results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), numTotalBox);
+    results =
+        g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), numTotalBox);
     for (bIdx = 0; bIdx < numTotalBox; ++bIdx) {
       float maxClassConfVal = -INFINITY;
       int maxClassIdx = -1;
@@ -2076,7 +2090,8 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
     /* boxinput[numTotalBox][cIdxMax] */
     boxinput = (float *) input[0].data;
 
-    results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), numTotalBox);
+    results =
+        g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), numTotalBox);
     for (bIdx = 0; bIdx < numTotalBox; ++bIdx) {
       float maxClassConfVal = -INFINITY;
       int maxClassIdx = -1;
@@ -2087,8 +2102,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
         }
       }
 
-      if (maxClassConfVal >
-          bdata->yolo_pp.conf_threshold) {
+      if (maxClassConfVal > bdata->yolo_pp.conf_threshold) {
         detectedObject object;
         float cx, cy, w, h;
         cx = boxinput[bIdx * cIdxMax + 0];
@@ -2130,16 +2144,16 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
     detections = &input[1];
 
     switch (config->info.info[0].type) {
-      _get_objects_mp_palm_detection_ (uint8_t, _NNS_UINT8);
-      _get_objects_mp_palm_detection_ (int8_t, _NNS_INT8);
-      _get_objects_mp_palm_detection_ (uint16_t, _NNS_UINT16);
-      _get_objects_mp_palm_detection_ (int16_t, _NNS_INT16);
-      _get_objects_mp_palm_detection_ (uint32_t, _NNS_UINT32);
-      _get_objects_mp_palm_detection_ (int32_t, _NNS_INT32);
-      _get_objects_mp_palm_detection_ (uint64_t, _NNS_UINT64);
-      _get_objects_mp_palm_detection_ (int64_t, _NNS_INT64);
-      _get_objects_mp_palm_detection_ (float, _NNS_FLOAT32);
-      _get_objects_mp_palm_detection_ (double, _NNS_FLOAT64);
+        _get_objects_mp_palm_detection_ (uint8_t, _NNS_UINT8);
+        _get_objects_mp_palm_detection_ (int8_t, _NNS_INT8);
+        _get_objects_mp_palm_detection_ (uint16_t, _NNS_UINT16);
+        _get_objects_mp_palm_detection_ (int16_t, _NNS_INT16);
+        _get_objects_mp_palm_detection_ (uint32_t, _NNS_UINT32);
+        _get_objects_mp_palm_detection_ (int32_t, _NNS_INT32);
+        _get_objects_mp_palm_detection_ (uint64_t, _NNS_UINT64);
+        _get_objects_mp_palm_detection_ (int64_t, _NNS_INT64);
+        _get_objects_mp_palm_detection_ (float, _NNS_FLOAT32);
+        _get_objects_mp_palm_detection_ (double, _NNS_FLOAT64);
 
       default:
         g_assert (0);
