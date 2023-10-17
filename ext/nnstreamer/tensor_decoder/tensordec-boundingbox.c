@@ -93,7 +93,7 @@
  * option6: Whether to track result bounding boxes or not
  *          0 (default, do not track)
  *          1 (track result bounding boxes, with naive centroid based algorithm)
- * option7: Whether to log the result boungding boxes or not
+ * option7: Whether to log the result bounding boxes or not
  *          0 (default, do not log)
  *          1 (log result bounding boxes)
  * option8: Box Style (NYI)
@@ -2205,16 +2205,88 @@ static GstTensorDecoderDef boundingBox = {
   .decode = bb_decode
 };
 
+static gchar *custom_prop_desc = NULL;
+
 /** @brief Initialize this object for tensordec-plugin */
 void
 init_bb (void)
 {
   nnstreamer_decoder_probe (&boundingBox);
+
+  {
+    g_autofree gchar *sub_desc = g_strjoinv ("|", (GStrv) bb_modes);
+
+    g_free (custom_prop_desc);
+    custom_prop_desc =
+        g_strdup_printf ("Decoder mode of bounding box: [%s]", sub_desc);
+
+    nnstreamer_decoder_set_custom_property_desc (decoder_subplugin_bounding_box,
+        "option1", custom_prop_desc, "option2",
+        "Location of the label file. This is independent from option1.",
+        "option3",
+        "Sub-option values that depend on option1;\n"
+        "\tfor yolov5 and yolov8 mode:\n"
+        "\t\tThe option3 requires up to 3 numbers, which tell\n"
+        "\t\t- whether the output values are scaled or not\n"
+        "\t\t   0: not scaled (default), 1: scaled (e.g., 0.0 ~ 1.0)\n"
+        "\t\t- the threshold of confidence (optional, default set to 0.25)\n"
+        "\t\t- the threshold of IOU (optional, default set to 0.45)\n"
+        "\t\tAn example of option3 is option3 = 0: 0.65:0.6 \n"
+        "\tfor mobilenet-ssd mode:\n"
+        "\t\tThe option3 definition scheme is, in order, as follows\n"
+        "\t\t- box priors location file (mandatory)\n"
+        "\t\t- detection threshold (optional, default set to 0.5)box priors location file (mandatory)\n"
+        "\t\t- Y box scale (optional, default set to 10.0)\n"
+        "\t\t- X box scale (optional, default set to 10.0)\n"
+        "\t\t- H box scale (optional, default set to 5.0)\n"
+        "\t\t- W box scale (optional, default set to 5.0)\n"
+        "\t\tThe default parameters value could be set in the following ways:\n"
+        "\t\t option3=box-priors.txt:0.5:10.0:10.0:5.0:5.0:0.5\n"
+        "\t\t option3=box-priors.txt\n"
+        "\t\t option3=box-priors.txt::::::\n"
+        "\t\tIt's possible to set only few values, using the default values for those not specified through the command line.\n"
+        "\t\tYou could specify respectively the detection and IOU thresholds to 0.65 and 0.6 with the option3 parameter as follow:\n"
+        "\t\t option3=box-priors.txt:0.65:::::0.6\n"
+        "\tfor mobilenet-ssd-postprocess mode:\n"
+        "\t\tThe option3 is required to have 5 integer numbers, which tell the tensor-dec how to interpret the given tensor inputs.\n"
+        "\t\tThe first 4 numbers separated by colon, \':\', designate which are location:class:score:number of the tensors.\n"
+        "\t\tThe last number separated by comma, ',\' from the first 4 numbers designate the threshold in percent.\n"
+        "\t\tIn other words, \"option3=%i:%i:%i:%i,%i\"\n"
+        "\tfor mp-palm-detection mode:\n"
+        "\t\tThe option3 is required to have five float numbers, as follows;\n"
+        "\t\t- box score threshold (mandatory)\n"
+        "\t\t- number of layers for anchor generation (optional, default set to 4)\n"
+        "\t\t- minimum scale factor for anchor generation (optional, default set to 1.0)\n"
+        "\t\t- maximum scale factor for anchor generation (optional, default set to 1.0)\n"
+        "\t\t- X offset (optional, default set to 0.5)\n"
+        "\t\t- Y offset (optional, default set to 0.5)\n"
+        "\t\t- strides for each layer for anchor generation (optional, default set to 8:16:16:16)\n"
+        "\t\tThe default parameter value could be set in the following ways:\n"
+        "\t\t option3=0.5\n"
+        "\t\t option3=0.5:4:0.2:0.8\n"
+        "\t\t option3=0.5:4:1.0:1.0:0.5:0.5:8:16:16:16",
+        "option4",
+        "Video Output Dimension (WIDTH:HEIGHT). This is independent from option1.",
+        "option5",
+        "Input Dimension (WIDTH:HEIGHT). This is independent from option1.",
+        "option6",
+        "Whether to track result bounding boxes or not\n"
+        "\t\t 0 (default, do not track)\n"
+        "\t\t 1 (track result bounding boxes, with naive centroid based algorithm)",
+        "option7",
+        "Whether to log the result bounding boxes or not\n"
+        "\t\t 0 (default, do not log)\n" "\t\t 1 (log result bounding boxes)"
+        "\tThis is independent from option1", "option8", "Box Style (NYI)",
+        NULL);
+  }
+
 }
 
 /** @brief Destruct this object for tensordec-plugin */
 void
 fini_bb (void)
 {
+  g_free (custom_prop_desc);
+  custom_prop_desc = NULL;
   nnstreamer_decoder_exit (boundingBox.modename);
 }
