@@ -852,10 +852,12 @@ gst_tensors_info_to_string (const GstTensorsInfo * info)
     dim = gst_tensor_get_dimension_string (_info->dimension);
 
     g_string_append_printf (gstr, "{\"%s\", %s, %s}%s",
-        name ? name : "", type, dim, (i == info->num_tensors - 1) ? "]" : ", ");
+        name ? name : "", type, dim, (i == info->num_tensors - 1) ? "" : ", ");
 
     g_free (dim);
   }
+
+  g_string_append_printf (gstr, "]");
 
   return g_string_free (gstr, FALSE);
 }
@@ -1098,7 +1100,17 @@ gst_tensor_parse_dimension (const gchar * dimstr, tensor_dim dim)
 gchar *
 gst_tensor_get_dimension_string (const tensor_dim dim)
 {
-  return gst_tensor_get_rank_dimension_string (dim, NNS_TENSOR_RANK_LIMIT);
+  gchar *res =
+      gst_tensor_get_rank_dimension_string (dim, NNS_TENSOR_RANK_LIMIT);
+
+  if (!res)
+    return NULL;
+  if (*res == '\0') {
+    g_free (res);
+    return NULL;
+  }
+
+  return res;
 }
 
 /**
