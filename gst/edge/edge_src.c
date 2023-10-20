@@ -82,20 +82,21 @@ gst_edgesrc_class_init (GstEdgeSrcClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_HOST,
       g_param_spec_string ("host", "Host",
-          "A self host address", DEFAULT_HOST,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          "A self host address (DEPRECATED, has no effect).", DEFAULT_HOST,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_DEPRECATED));
   g_object_class_install_property (gobject_class, PROP_PORT,
       g_param_spec_uint ("port", "Port",
-          "A self port number.",
-          0, 65535, DEFAULT_PORT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          "A self port number (DEPRECATED, has no effect).",
+          0, 65535, DEFAULT_PORT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_DEPRECATED));
   g_object_class_install_property (gobject_class, PROP_DEST_HOST,
       g_param_spec_string ("dest-host", "Destination Host",
           "A host address of edgesink to receive the packets from edgesink",
           DEFAULT_HOST, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_DEST_PORT,
       g_param_spec_uint ("dest-port", "Destination Port",
-          "A port of edgesink to receive the packets from edgesink",
-          0, 65535, DEFAULT_PORT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          "A port of edgesink to receive the packets from edgesink", 0, 65535,
+          DEFAULT_PORT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_CONNECT_TYPE,
       g_param_spec_enum ("connect-type", "Connect Type",
           "The connections type between edgesink and edgesrc.",
@@ -132,8 +133,6 @@ gst_edgesrc_init (GstEdgeSrc * self)
   gst_base_src_set_format (basesrc, GST_FORMAT_TIME);
   gst_base_src_set_async (basesrc, FALSE);
 
-  self->host = g_strdup (DEFAULT_HOST);
-  self->port = DEFAULT_PORT;
   self->dest_host = g_strdup (DEFAULT_HOST);
   self->dest_port = DEFAULT_PORT;
   self->topic = NULL;
@@ -152,15 +151,10 @@ gst_edgesrc_set_property (GObject * object, guint prop_id, const GValue * value,
 
   switch (prop_id) {
     case PROP_HOST:
-      if (!g_value_get_string (value)) {
-        nns_logw ("host property cannot be NULL");
-        break;
-      }
-      g_free (self->host);
-      self->host = g_value_dup_string (value);
+      nns_logw ("host property is deprecated");
       break;
     case PROP_PORT:
-      self->port = g_value_get_uint (value);
+      nns_logw ("port property is deprecated");
       break;
     case PROP_DEST_HOST:
       gst_edgesrc_set_dest_host (self, g_value_get_string (value));
@@ -196,10 +190,10 @@ gst_edgesrc_get_property (GObject * object, guint prop_id, GValue * value,
 
   switch (prop_id) {
     case PROP_HOST:
-      g_value_set_string (value, self->host);
+      nns_logw ("host property is deprecated");
       break;
     case PROP_PORT:
-      g_value_set_uint (value, self->port);
+      nns_logw ("port property is deprecated");
       break;
     case PROP_DEST_HOST:
       g_value_set_string (value, gst_edgesrc_get_dest_host (self));
@@ -227,9 +221,6 @@ gst_edgesrc_class_finalize (GObject * object)
 {
   GstEdgeSrc *self = GST_EDGESRC (object);
   nns_edge_data_h data_h;
-
-  g_free (self->host);
-  self->host = NULL;
 
   g_free (self->dest_host);
   self->dest_host = NULL;
@@ -320,13 +311,6 @@ gst_edgesrc_start (GstBaseSrc * basesrc)
     return FALSE;
   }
 
-  if (self->host)
-    nns_edge_set_info (self->edge_h, "HOST", self->host);
-  if (self->port > 0) {
-    port = g_strdup_printf ("%u", self->port);
-    nns_edge_set_info (self->edge_h, "PORT", port);
-    g_free (port);
-  }
   if (self->dest_host)
     nns_edge_set_info (self->edge_h, "DEST_HOST", self->dest_host);
   if (self->dest_port > 0) {

@@ -95,7 +95,9 @@ gst_edgesink_class_init (GstEdgeSinkClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_PORT,
       g_param_spec_uint ("port", "Port",
-          "A self port address to accept connection from edgesrc.",
+          "A self port address to accept connection from edgesrc. "
+          "If the port is set to 0 then the available port is allocated. "
+          "If the connect-type is AITT then the port setting is not required.",
           0, 65535, DEFAULT_PORT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_CONNECT_TYPE,
       g_param_spec_enum ("connect-type", "Connect Type",
