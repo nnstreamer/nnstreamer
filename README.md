@@ -96,6 +96,9 @@ For more details, please access the following manuals.
 </a><a href="https://github.com/nnstreamer/nnstreamer-example/blob/master/native/example_object_detection_tensorflow_lite">
   <img src="https://raw.githubusercontent.com/nnstreamer/nnstreamer-example/master/native/example_object_detection_tensorflow_lite/object_detection_tflite_demo.webp" height=180>
 </a>
+<a href="https://github.com/nnstreamer/nnstreamer-example/tree/main/Tizen.platform/Tizen_IoT_face_landmark">
+  <img src="Documentation/media/face_landmark.webp" height=180>
+</a>
 <a href="https://fainders.ai">
   <img src="Documentation/media/FaindersAI_Store.webp" height=180>
 </a>
