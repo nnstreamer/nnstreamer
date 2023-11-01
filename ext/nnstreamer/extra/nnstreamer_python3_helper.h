@@ -32,9 +32,15 @@
 #define SO_EXT "so.1.0"
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define Py_ERRMSG(...)     \
   do {                     \
-    PyErr_Print ();        \
+    if (PyErr_Occurred ()) \
+      PyErr_Print ();      \
+    PyErr_Clear();         \
     ml_loge (__VA_ARGS__); \
   } while (0);
 
@@ -61,4 +67,7 @@ extern int addToSysPath (const gchar *path);
 extern int parseTensorsInfo (PyObject *result, GstTensorsInfo *info);
 extern PyObject * PyTensorShape_New (PyObject * shape_cls, const GstTensorInfo *info);
 
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
 #endif /* __NNS_PYTHON_HELPER_H__ */
