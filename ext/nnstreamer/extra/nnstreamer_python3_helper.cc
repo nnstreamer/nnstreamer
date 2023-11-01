@@ -484,6 +484,15 @@ parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
     Py_SAFEDECREF (shape_dims);
   }
 
+  /* Validate output tensors info after parsing python object. */
+  if (!gst_tensors_info_validate (info)) {
+    gchar *info_str = gst_tensors_info_to_string (info);
+    Py_ERRMSG ("Failed to parse the tensors information from python script, it may include invalid tensor type or dimension value (%s).",
+        info_str);
+    g_free (info_str);
+    return -EINVAL;
+  }
+
   return 0;
 }
 
