@@ -345,6 +345,7 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
   guint counting, empty_pad;
   GstTensorsConfig in_configs;
   GstClockTime base_time = 0;
+  GstTensorInfo *_info;
   guint i;
   GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT];
   tensor_format in_formats[NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT];
@@ -488,6 +489,7 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
 
   /* append memories to output buffer */
   for (i = 0; i < counting; i++) {
+    _info = gst_tensors_info_get_nth_info (&configs->info, i);
     mem = in_mem[i];
 
     if (gst_tensors_config_is_flexible (configs)) {
@@ -501,20 +503,15 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
       if (in_formats[i] != _NNS_TENSOR_FORMAT_FLEXIBLE) {
         GstTensorMetaInfo meta;
 
-        gst_tensor_info_convert_to_meta (&configs->info.info[i], &meta);
+        gst_tensor_info_convert_to_meta (_info, &meta);
         mem = gst_tensor_meta_info_append_header (&meta, in_mem[i]);
         gst_memory_unref (in_mem[i]);
       }
     }
 
-    if (i < NNS_TENSOR_SIZE_LIMIT) {
-      gst_buffer_append_memory (tensors_buf, mem);
-    } else {
-      GstTensorInfo *info = &configs->info.extra[i - NNS_TENSOR_SIZE_LIMIT];
-      if (!gst_tensor_buffer_append_memory (tensors_buf, mem, info)) {
-        nns_loge ("Failed to append memory to buffer.");
-        return FALSE;
-      }
+    if (!gst_tensor_buffer_append_memory (tensors_buf, mem, _info)) {
+      nns_loge ("Failed to append memory to buffer.");
+      return FALSE;
     }
   }
 
