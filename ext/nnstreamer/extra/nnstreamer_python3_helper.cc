@@ -23,6 +23,10 @@
 #include <nnstreamer_util.h>
 #include "nnstreamer_python3_helper.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /** @brief object structure for custom Python type: TensorShape */
 typedef struct {
   PyObject_HEAD PyObject *dims;
@@ -143,7 +147,7 @@ TensorShape_init (TensorShapeObject *self, PyObject *args, PyObject *kw)
       self->type = dtype;
       Py_XINCREF (self->type);
     } else
-      ml_loge ("Wrong data type");
+      Py_ERRMSG ("Wrong data type.");
   }
 
   return 0;
@@ -445,7 +449,7 @@ parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
         PyErr_Print ();
         PyErr_Clear ();
         info->info[i].dimension[j] = 0;
-        ml_loge ("Python nnstreamer plugin has returned dimensions of the %u'th tensor not in an array. Python code should return int-type array for dimensions. Indexes are counted from 0.\n",
+        Py_ERRMSG ("Python nnstreamer plugin has returned dimensions of the %u'th tensor not in an array. Python code should return int-type array for dimensions. Indexes are counted from 0.\n",
             i + 1);
         Py_SAFEDECREF (shape_dims);
         return -EINVAL;
@@ -456,11 +460,11 @@ parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
       } else if (PyFloat_Check (item)) {
         /** Regard this as a warning. Don't return -EINVAL with this */
         val = (int) PyFloat_AsDouble (item);
-        ml_loge ("Python nnstreamer plugin has returned the %u'th dimension value of the %u'th tensor in floating-point type (%f), which is casted as unsigned-int. Python code should return int-type for dimension values. Indexes are counted from 0.\n",
+        Py_ERRMSG ("Python nnstreamer plugin has returned the %u'th dimension value of the %u'th tensor in floating-point type (%f), which is casted as unsigned-int. Python code should return int-type for dimension values. Indexes are counted from 0.\n",
             j + 1, i + 1, PyFloat_AsDouble (item));
       } else {
         info->info[i].dimension[j] = 0;
-        ml_loge ("Python nnstreamer plugin has returned the %u'th dimension value of the %u'th tensor neither in integer or floating-pointer. Python code should return int-type for dimension values. Indexes are counted from 0.\n",
+        Py_ERRMSG ("Python nnstreamer plugin has returned the %u'th dimension value of the %u'th tensor neither in integer or floating-pointer. Python code should return int-type for dimension values. Indexes are counted from 0.\n",
             j + 1, i + 1);
         Py_SAFEDECREF (shape_dims);
         return -EINVAL;
@@ -515,3 +519,7 @@ PyTensorShape_New (PyObject *shape_cls, const GstTensorInfo *info)
   return PyObject_CallObject (shape_cls, args);
   /* Its value is checked by setInputTensorDim */
 }
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
