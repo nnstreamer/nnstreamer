@@ -129,14 +129,14 @@ PYConverterCore::convert (GstBuffer *in_buf, GstTensorsConfig *config)
 
   if (nullptr == in_buf)
     throw std::invalid_argument ("Null pointers are given to PYConverterCore::convert().\n");
-  num = gst_buffer_n_memory (in_buf);
+  num = gst_tensor_buffer_get_count (in_buf);
   tensors_info = output = pyValue = param = nullptr;
 
   Py_LOCK ();
   param = PyList_New (num);
 
   for (i = 0; i < num; i++) {
-    in_mem[i] = gst_buffer_peek_memory (in_buf, i);
+    in_mem[i] = gst_tensor_buffer_get_nth_memory (in_buf, i);
 
     if (!gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
       Py_ERRMSG ("Cannot map input memory / tensor_converter::custom-script");
@@ -171,6 +171,7 @@ PYConverterCore::convert (GstBuffer *in_buf, GstTensorsConfig *config)
   config->rate_d = rate_d;
 
   if (output) {
+    GstTensorInfo *_info;
     unsigned int num_tensors = PyList_Size (output);
 
     out_buf = gst_buffer_new ();
@@ -178,20 +179,24 @@ PYConverterCore::convert (GstBuffer *in_buf, GstTensorsConfig *config)
       PyArrayObject *output_array
           = (PyArrayObject *) PyList_GetItem (output, (Py_ssize_t) i);
 
+      _info = gst_tensors_info_get_nth_info (&config->info, i);
       mem_size = PyArray_SIZE (output_array);
       mem_data = _g_memdup ((guint8 *) PyArray_DATA (output_array), mem_size);
 
       out_mem = gst_memory_new_wrapped (
           (GstMemoryFlags) 0, mem_data, mem_size, 0, mem_size, mem_data, g_free);
-      gst_buffer_append_memory (out_buf, out_mem);
+
+      gst_tensor_buffer_append_memory (out_buf, out_mem, _info);
     }
   } else {
     Py_ERRMSG ("Fail to get output from 'convert'");
   }
 
 done:
-  for (i = 0; i < num; i++)
+  for (i = 0; i < num; i++) {
     gst_memory_unmap (in_mem[i], &in_info[i]);
+    gst_memory_unref (in_mem[i]);
+  }
 
   Py_SAFEDECREF (param);
   Py_SAFEDECREF (pyValue);
