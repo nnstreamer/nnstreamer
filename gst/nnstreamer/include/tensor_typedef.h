@@ -32,7 +32,6 @@
 #include <stdint.h>
 
 #define NNS_TENSOR_RANK_LIMIT	(16)
-#define NNS_TENSOR_RANK_LIMIT_PREV (4)
 #define NNS_TENSOR_SIZE_LIMIT	(16)
 #define NNS_TENSOR_SIZE_LIMIT_STR	"16"
 
@@ -43,7 +42,6 @@
  * Then update other source codes accordingly.
  */
 #define NNS_TENSOR_SIZE_EXTRA_LIMIT (240)
-#define NNS_TENSOR_DIM_NULL ({0, 0, 0, 0})
 
 #define NNS_MIMETYPE_TENSOR "other/tensor"
 #define NNS_MIMETYPE_TENSORS "other/tensors"
