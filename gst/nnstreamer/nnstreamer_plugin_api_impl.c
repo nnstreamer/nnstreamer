@@ -25,6 +25,11 @@ static const gchar *gst_tensor_time_sync_mode_string[] = {
   [SYNC_END] = NULL
 };
 
+/**
+ * @brief The old rank of tensor.
+ */
+#define NNS_TENSOR_RANK_LIMIT_PREV (4)
+
 #define NNS_TENSOR_EXTRA_MAGIC 0xf00dc0de
 
 /**
