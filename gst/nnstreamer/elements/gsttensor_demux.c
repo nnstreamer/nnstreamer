@@ -525,7 +525,6 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
             idx);
         mem = gst_tensor_buffer_get_nth_memory (buf, idx);
         if (!gst_tensor_buffer_append_memory (outbuf, mem, _info)) {
-          gst_memory_unref (mem);
           gst_buffer_unref (outbuf);
           res = GST_FLOW_ERROR;
           goto error;
@@ -538,7 +537,6 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
           gst_tensors_info_get_nth_info (&tensor_demux->tensors_config.info, i);
       mem = gst_tensor_buffer_get_nth_memory (buf, i);
       if (!gst_tensor_buffer_append_memory (outbuf, mem, _info)) {
-        gst_memory_unref (mem);
         gst_buffer_unref (outbuf);
         res = GST_FLOW_ERROR;
         goto error;
