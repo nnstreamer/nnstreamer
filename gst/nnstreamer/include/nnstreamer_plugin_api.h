@@ -130,7 +130,7 @@ gst_tensor_buffer_get_nth_memory (GstBuffer * buffer, const guint index);
 /**
  * @brief Append @a memory to given @a buffer.
  * @param[in/out] buffer GstBuffer to be appended.
- * @param[in] memory GstMemory to append. This function will take ownership of this.
+ * @param[in] memory GstMemory to append. This function takes ownership of this, even if it returns failure.
  * @param[in] info GstTensorInfo of given @a memory.
  * @return TRUE if successfully appended, otherwise FALSE.
  */

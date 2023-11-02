@@ -1638,7 +1638,7 @@ gst_tensor_buffer_get_nth_memory (GstBuffer * buffer, const guint index)
 /**
  * @brief Append @a memory to given @a buffer.
  * @param[in/out] buffer GstBuffer to be appended.
- * @param[in] memory GstMemory to append. This function will take ownership of this.
+ * @param[in] memory GstMemory to append. This function takes ownership of this, even if it returns failure.
  * @param[in] info GstTensorInfo of given @a memory.
  * @return TRUE if successfully appended, otherwise FALSE.
  */
@@ -1647,21 +1647,22 @@ gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
     const GstTensorInfo * info)
 {
   guint num_mems, offset, new_mem_index;
-  GstMemory *new_memory, *last_memory;
+  GstMemory *new_memory = NULL, *last_memory = NULL;
   gsize new_mem_size, last_mem_size;
   GstMapInfo new_memory_map, last_memory_map, incoming_memory_map;
   GstTensorExtraInfo *extra_info;
   GstTensorMetaInfo meta;
   gboolean is_extra, is_static;
+  gboolean appended = FALSE;
 
   if (!GST_IS_BUFFER (buffer)) {
     nns_loge ("Failed to append memory, given buffer is invalid.");
-    return FALSE;
+    goto failed;
   }
 
   if (!memory) {
     nns_loge ("Failed to append memory, given memory is NULL.");
-    return FALSE;
+    goto failed;
   }
 
   if (gst_tensor_meta_info_parse_memory (&meta, memory)) {
@@ -1673,7 +1674,7 @@ gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
     /* Error case if given tensor-info is invalid. */
     if (!gst_tensor_info_validate (info)) {
       nns_loge ("Failed to get tensor info (invalid input info).");
-      return FALSE;
+      goto failed;
     }
   }
 
@@ -1689,12 +1690,13 @@ gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
   last_memory = gst_buffer_peek_memory (buffer, num_mems - 1);
   if (!last_memory) {
     nns_loge ("Failed to get last memory");
-    return FALSE;
+    goto failed;
   }
 
   if (!gst_memory_map (last_memory, &last_memory_map, GST_MAP_READ)) {
     nns_loge ("Failed to map last memory");
-    return FALSE;
+    last_memory = NULL;
+    goto failed;
   }
 
   new_mem_size = last_mem_size = gst_memory_get_sizes (last_memory, NULL, NULL);
@@ -1710,23 +1712,19 @@ gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
   new_memory = gst_allocator_alloc (NULL, new_mem_size, NULL);
   if (!new_memory) {
     nns_loge ("Failed to allocate memory for extra tensors.");
-    gst_memory_unmap (last_memory, &last_memory_map);
-    return FALSE;
+    goto failed;
   }
 
   if (!gst_memory_map (new_memory, &new_memory_map, GST_MAP_WRITE)) {
     nns_loge ("Failed to map extra memory");
-    gst_memory_unmap (last_memory, &last_memory_map);
     gst_memory_unref (new_memory);
-    return FALSE;
+    new_memory = NULL;
+    goto failed;
   }
 
   if (!gst_memory_map (memory, &incoming_memory_map, GST_MAP_READ)) {
     nns_loge ("Failed to map incoming memory");
-    gst_memory_unmap (new_memory, &new_memory_map);
-    gst_memory_unmap (last_memory, &last_memory_map);
-    gst_memory_unref (new_memory);
-    return FALSE;
+    goto failed;
   }
 
   extra_info = (GstTensorExtraInfo *) new_memory_map.data;
@@ -1757,14 +1755,26 @@ gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
   memcpy (new_memory_map.data + offset + last_memory_map.size,
       incoming_memory_map.data, incoming_memory_map.size);
 
-  gst_memory_unmap (new_memory, &new_memory_map);
   gst_memory_unmap (memory, &incoming_memory_map);
-  gst_memory_unmap (last_memory, &last_memory_map);
 
-  gst_memory_unref (memory);
   gst_buffer_replace_memory (buffer, num_mems - 1, new_memory);
+  appended = TRUE;
 
-  return TRUE;
+failed:
+  if (new_memory) {
+    gst_memory_unmap (new_memory, &new_memory_map);
+    if (!appended)
+      gst_memory_unref (new_memory);
+  }
+
+  if (last_memory)
+    gst_memory_unmap (last_memory, &last_memory_map);
+
+  /* Release incoming memory even if failed to append it into buffer. */
+  if (memory)
+    gst_memory_unref (memory);
+
+  return appended;
 }
 
 /**
