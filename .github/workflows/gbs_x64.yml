@@ -31,11 +31,11 @@ jobs:
         path: ~/GBS-ROOT/local/cache
         key: ${{ steps.make-key.outputs.cache_key }}
     - name: run GBS
-      run: gbs build
+      run: gbs build --skip-srcrpm --define "_skip_debug_rpm 1"
     - name: get nntrainer
       uses: actions/checkout@v3
       with:
         repository: nnstreamer/nntrainer
         path: nntrainer
     - name: run nntrainer GBS build
-      run: pushd nntrainer && gbs build --define "unit_test 1" && popd
+      run: pushd nntrainer && gbs build --skip-srcrpm --define "unit_test 1" --define "_skip_debug_rpm 1" && popd
