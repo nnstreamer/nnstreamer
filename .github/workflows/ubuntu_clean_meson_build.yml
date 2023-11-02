@@ -1,8 +1,6 @@
 name: Minimal meson build in Ubuntu
 
 on:
-  push:
-    branches: [ main ]
   pull_request:
     branches: [ main ]
 

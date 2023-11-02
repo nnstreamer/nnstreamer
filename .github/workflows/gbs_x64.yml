@@ -1,8 +1,6 @@
 name: GBS Tizen build for x64 from Ubuntu
 
 on:
-  push:
-    branches: [ main ]
   pull_request:
     branches: [ main ]
 
