@@ -38,8 +38,10 @@
 void init_dv (void) __attribute__((constructor));
 void fini_dv (void) __attribute__((destructor));
 
+#define DECODER_DV_FORMATS "{ GRAY8, RGB, BGR, RGBx, BGRx, xRGB, xBGR, RGBA, BGRA, ARGB, ABGR, GRAY16_BE, GRAY16_LE }"
+
 #define DECODER_DV_VIDEO_CAPS_STR \
-    GST_VIDEO_CAPS_MAKE ("{ GRAY8, RGB, BGR, RGBx, BGRx, xRGB, xBGR, RGBA, BGRA, ARGB, ABGR, GRAY16_BE, GRAY16_LE }") \
+    GST_VIDEO_CAPS_MAKE (DECODER_DV_FORMATS) \
     ", views = (int) 1, interlace-mode = (string) progressive"
 
 /**
@@ -375,8 +377,8 @@ init_dv (void)
   nnstreamer_decoder_probe (&directVideo);
   nnstreamer_decoder_set_custom_property_desc (decoder_subplugin_direct_video,
       "option1",
-      "The output video format. If this is unspecified, it is 'GRAY8' (dim[0]/channel == 1), 'RGB' (dim[0]/channel == 3), or 'BGRx' (dim[0]/channel == 4). Available options are: { GRAY8, RGB, BGR, RGBx, BGRx, xRGB, xBGR, RGBA, BGRA, ARGB, ABGR, GRAY16_BE, GRAY16_LE }.",
-      NULL);
+      "The output video format. If this is unspecified, it is 'GRAY8' (dim[0]/channel == 1), 'RGB' (dim[0]/channel == 3), or 'BGRx' (dim[0]/channel == 4). Available options are: "
+      DECODER_DV_FORMATS, NULL);
 }
 
 /** @brief Destruct this object for tensordec-plugin */
