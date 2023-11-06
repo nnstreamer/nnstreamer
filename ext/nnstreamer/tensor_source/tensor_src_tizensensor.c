@@ -1162,6 +1162,8 @@ gst_tensor_src_tizensensor_create (GstBaseSrc * src, guint64 offset,
 
 exit:
   _UNLOCK (self);
+  if (retval != GST_FLOW_OK)
+    gst_buffer_unref (buf);
   return retval;
 }
 
