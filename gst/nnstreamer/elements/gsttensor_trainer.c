@@ -18,7 +18,7 @@
  * ]|
  *
  * Total number of data to be received is 1000((num-training-samples + num-validation-samples) * epochs)
- * 
+ *
  * output tensors : dimensions=1:1:4, types=float64.
  * values are training loss, training accuracy, validation loss and validation accuracy.
  * -INFINITY value is stored if the value fetched from the sub-plugin is not greater than 0.
@@ -566,7 +566,7 @@ gst_tensor_trainer_wait_for_epoch_completion (GstTensorTrainer * trainer)
 }
 
 /**
- * @brief Check if current epochs is complete, 
+ * @brief Check if current epochs is complete,
  * tensor_trainer wait for one of epochs to complete before getting the results from the subplugin
  */
 static gboolean

@@ -1803,7 +1803,6 @@ gst_tensor_buffer_get_count (GstBuffer * buffer)
  *
  * @note This API is intended to be used by gst_tensor_parse_config_file ()
  */
-
 static void
 set_property_value (GValue * prop_value, const GParamSpec * param_spec,
     const gchar * property_value)

@@ -35,8 +35,8 @@
 #include <nnstreamer_util.h>
 #include "tensordecutil.h"
 
-void init_dv (void) __attribute__ ((constructor));
-void fini_dv (void) __attribute__ ((destructor));
+void init_dv (void) __attribute__((constructor));
+void fini_dv (void) __attribute__((destructor));
 
 #define DECODER_DV_VIDEO_CAPS_STR \
     GST_VIDEO_CAPS_MAKE ("{ GRAY8, RGB, BGR, RGBx, BGRx, xRGB, xBGR, RGBA, BGRA, ARGB, ABGR, GRAY16_BE, GRAY16_LE }") \
@@ -273,7 +273,7 @@ static size_t
 _get_video_xraw_bufsize (const tensor_dim dim, gsize data_size)
 {
   /* dim[0] is bpp and there is zeropadding only when dim[0]%4 > 0 */
-  return (size_t)((dim[0] * dim[1] - 1) / 4 + 1) * 4 * dim[2] * data_size;
+  return (size_t) ((dim[0] * dim[1] - 1) / 4 + 1) * 4 * dim[2] * data_size;
 }
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
@@ -291,7 +291,7 @@ dv_getTransformSize (void **pdata, const GstTensorsConfig * config,
   UNUSED (othercaps);
 
   if (direction == GST_PAD_SINK)
-    transform_size =  _get_video_xraw_bufsize (dim, data_size);
+    transform_size = _get_video_xraw_bufsize (dim, data_size);
 
   return transform_size;
 }

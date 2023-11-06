@@ -1923,7 +1923,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
     goto error_free;
   }
 
-                                                                /** reset the buffer with alpha 0 / black */
+  /* reset the buffer with alpha 0 / black */
   memset (out_info.data, 0, size);
 
   if (_check_mode_is_mobilenet_ssd (bdata->mode)) {
