@@ -89,7 +89,7 @@ pt_exit (void *private_data, const GstTensorFilterProperties * prop)
     assert (0 < num_tensors && num_tensors <= NNS_TENSOR_SIZE_LIMIT); \
     for (i = 0; i < num_tensors; ++i) { \
       _info->info[i] = _data->info[i]; \
-      _info->info[i].name = g_strdup(_data->info[i].name); \
+      _info->info[i].name = g_strdup (_data->info[i].name); \
     } \
   } while (0)
 

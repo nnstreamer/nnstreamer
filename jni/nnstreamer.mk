@@ -143,7 +143,7 @@ NNSTREAMER_DECODER_BB_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordecutil.c \
     $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-font.c
 
-#decoder tensorRegion 
+#decoder tensorRegion
 NNSTREAMER_DECODER_TR_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-tensor_region.c \
     $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordecutil.c \

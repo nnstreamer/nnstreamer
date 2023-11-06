@@ -1070,8 +1070,7 @@ gst_tensor_parse_dimension (const gchar * dimstr, tensor_dim dim)
     return 0;
 
   /* remove spaces */
-  dim_string = g_strdup (dimstr);
-  g_strstrip (dim_string);
+  dim_string = g_strstrip (g_strdup (dimstr));
 
   strv = g_strsplit (dim_string, ":", NNS_TENSOR_RANK_LIMIT);
   num_dims = g_strv_length (strv);
