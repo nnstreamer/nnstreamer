@@ -342,6 +342,7 @@ gst_tensor_src_grpc_finalize (GObject * object)
   g_free (grpc->config.host);
   g_free (grpc);
   g_clear_pointer (&self->queue, gst_object_unref);
+  gst_tensors_config_free (&self->config);
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
