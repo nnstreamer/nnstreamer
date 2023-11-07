@@ -83,9 +83,10 @@ fbc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
     return NULL;
   }
 
-  in_mem = gst_buffer_peek_memory (in_buf, 0);
+  in_mem = gst_buffer_get_all_memory (in_buf);
   if (!gst_memory_map (in_mem, &in_info, GST_MAP_READ)) {
     nns_loge ("Cannot map input memory / tensor_converter::flatbuf");
+    gst_memory_unref (in_mem);
     return NULL;
   }
 
@@ -126,7 +127,7 @@ fbc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
 
     out_mem = gst_memory_share (in_mem, offset, mem_size);
 
-    gst_buffer_append_memory (out_buf, out_mem);
+    gst_tensor_buffer_append_memory (out_buf, out_mem, _info);
   }
 
   /** copy timestamps */
@@ -134,6 +135,7 @@ fbc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
       out_buf, in_buf, (GstBufferCopyFlags) GST_BUFFER_COPY_METADATA, 0, -1);
 done:
   gst_memory_unmap (in_mem, &in_info);
+  gst_memory_unref (in_mem);
 
   return out_buf;
 }

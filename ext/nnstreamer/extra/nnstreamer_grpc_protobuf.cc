@@ -107,6 +107,7 @@ void
 ServiceImplProtobuf::_get_buffer_from_tensors (Tensors &tensors, GstBuffer **buffer)
 {
   guint num_tensor = tensors.num_tensor ();
+  GstTensorInfo *_info;
   GstMemory *memory;
 
   *buffer = gst_buffer_new ();
@@ -117,9 +118,11 @@ ServiceImplProtobuf::_get_buffer_from_tensors (Tensors &tensors, GstBuffer **buf
     gsize size = tensor->data ().length ();
     gpointer new_data = _g_memdup (data, size);
 
+    _info = gst_tensors_info_get_nth_info (&config_->info, i);
+
     memory = gst_memory_new_wrapped (
         (GstMemoryFlags) 0, new_data, size, 0, size, new_data, g_free);
-    gst_buffer_append_memory (*buffer, memory);
+    gst_tensor_buffer_append_memory (*buffer, memory, _info);
   }
 }
 
@@ -128,8 +131,9 @@ void
 ServiceImplProtobuf::_get_tensors_from_buffer (GstBuffer *buffer, Tensors &tensors)
 {
   Tensors::frame_rate *fr;
+  GstTensorInfo *_info;
+  GstMemory *mem;
   GstMapInfo map;
-  gsize data_ptr = 0;
 
   tensors.set_num_tensor (config_->info.num_tensors);
 
@@ -137,33 +141,26 @@ ServiceImplProtobuf::_get_tensors_from_buffer (GstBuffer *buffer, Tensors &tenso
   fr->set_rate_n (config_->rate_n);
   fr->set_rate_d (config_->rate_d);
 
-  if (!gst_buffer_map (buffer, &map, GST_MAP_READ)) {
-    ml_loge ("Unable to map the buffer\n");
-    return;
-  }
-
   for (guint i = 0; i < config_->info.num_tensors; i++) {
     nnstreamer::protobuf::Tensor *tensor = tensors.add_tensor ();
-    const GstTensorInfo *info = &config_->info.info[i];
-    gsize tsize = gst_tensor_info_get_size (info);
 
-    if (data_ptr + tsize > map.size) {
-      ml_logw ("Setting invalid tensor data");
-      break;
-    }
+    _info = gst_tensors_info_get_nth_info (&config_->info, i);
+
+    mem = gst_tensor_buffer_get_nth_memory (buffer, i);
+    g_assert (gst_memory_map (mem, &map, GST_MAP_READ));
 
     /* set tensor info */
     tensor->set_name ("Anonymous");
-    tensor->set_type ((Tensor::Tensor_type) info->type);
+    tensor->set_type ((Tensor::Tensor_type) _info->type);
 
     for (guint j = 0; j < NNS_TENSOR_RANK_LIMIT; j++)
-      tensor->add_dimension (info->dimension[j]);
+      tensor->add_dimension (_info->dimension[j]);
 
-    tensor->set_data (map.data + data_ptr, tsize);
-    data_ptr += tsize;
+    tensor->set_data (map.data, map.size);
+
+    gst_memory_unmap (mem, &map);
+    gst_memory_unref (mem);
   }
-
-  gst_buffer_unmap (buffer, &map);
 }
 
 /** @brief Constructor of SyncServiceImplProtobuf */

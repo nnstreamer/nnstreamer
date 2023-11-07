@@ -135,6 +135,7 @@ gst_tensor_converter_protobuf (GstBuffer *in_buf, GstTensorsConfig *config, void
 {
   nnstreamer::protobuf::Tensors tensors;
   nnstreamer::protobuf::Tensors::frame_rate *fr = NULL;
+  GstTensorInfo *_info;
   GstMemory *in_mem, *out_mem;
   GstMapInfo in_info;
   GstBuffer *out_buf;
@@ -147,10 +148,10 @@ gst_tensor_converter_protobuf (GstBuffer *in_buf, GstTensorsConfig *config, void
     return NULL;
   }
 
-  in_mem = gst_buffer_peek_memory (in_buf, 0);
-
+  in_mem = gst_buffer_get_all_memory (in_buf);
   if (!gst_memory_map (in_mem, &in_info, GST_MAP_READ)) {
     nns_loge ("Cannot map input memory / tensor_converter_protobuf");
+    gst_memory_unref (in_mem);
     return NULL;
   }
 
@@ -168,10 +169,12 @@ gst_tensor_converter_protobuf (GstBuffer *in_buf, GstTensorsConfig *config, void
     std::string _name = tensor->name ();
     const gchar *name = _name.c_str ();
 
-    config->info.info[i].name = (name && strlen (name) > 0) ? g_strdup (name) : NULL;
-    config->info.info[i].type = (tensor_type) tensor->type ();
+    _info = gst_tensors_info_get_nth_info (&config->info, i);
+
+    _info->name = (name && strlen (name) > 0) ? g_strdup (name) : NULL;
+    _info->type = (tensor_type) tensor->type ();
     for (guint j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
-      config->info.info[i].dimension[j] = tensor->dimension (j);
+      _info->dimension[j] = tensor->dimension (j);
     }
     mem_size = tensor->data ().length ();
     mem_data = _g_memdup (tensor->data ().c_str (), mem_size);
@@ -179,13 +182,14 @@ gst_tensor_converter_protobuf (GstBuffer *in_buf, GstTensorsConfig *config, void
     out_mem = gst_memory_new_wrapped (
         (GstMemoryFlags) 0, mem_data, mem_size, 0, mem_size, NULL, NULL);
 
-    gst_buffer_append_memory (out_buf, out_mem);
+    gst_tensor_buffer_append_memory (out_buf, out_mem, _info);
   }
 
   /** copy timestamps */
   gst_buffer_copy_into (
       out_buf, in_buf, (GstBufferCopyFlags) GST_BUFFER_COPY_METADATA, 0, -1);
   gst_memory_unmap (in_mem, &in_info);
+  gst_memory_unref (in_mem);
 
   return out_buf;
 }
