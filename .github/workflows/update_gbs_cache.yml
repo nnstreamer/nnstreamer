@@ -2,7 +2,7 @@ name: Update GBS cache once a day
 
 on:
   schedule:
-    - cron: '58 15 * * 0,1,2,3,4' # every weekday at 00:58 (KST)
+    - cron: '3 0 * * 1-5' # every weekday at 09:03 (KST)
 
   # Allow manually triggering the workflow
   workflow_dispatch:
