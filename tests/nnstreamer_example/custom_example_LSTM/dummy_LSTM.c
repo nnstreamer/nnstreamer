@@ -25,6 +25,7 @@
 #include <glib.h>
 
 #define TSIZE   (4)
+#define MAX_INFO (3)
 
 /**
  * @brief _pt_data
@@ -33,7 +34,7 @@ typedef struct _pt_data
 {
   uint32_t id; /***< Just for testing */
   uint32_t counter; /**< Internal frame counter for debugging/demo */
-  GstTensorInfo info[3]; /**< tensor info. 0:new frame / 1:recurring frame 2:recurring frame*/
+  GstTensorInfo info[MAX_INFO]; /**< tensor info. 0:new frame / 1:recurring frame 2:recurring frame*/
 } pt_data;
 
 /**
@@ -69,12 +70,14 @@ static void
 pt_exit (void *private_data, const GstTensorFilterProperties * prop)
 {
   pt_data *data = private_data;
+  int i;
+
   UNUSED (prop);
   assert (data);
 
-  g_free (data->info[0].name);
-  g_free (data->info[1].name);
-  g_free (data->info[2].name);
+  for (i = 0; i < MAX_INFO; i++)
+    gst_tensor_info_free (&data->info[i]);
+
   free (data);
 }
 
@@ -86,10 +89,9 @@ pt_exit (void *private_data, const GstTensorFilterProperties * prop)
     unsigned int i = 0; \
     unsigned int num_tensors = 0; \
     num_tensors = _info->num_tensors; \
-    assert (0 < num_tensors && num_tensors <= NNS_TENSOR_SIZE_LIMIT); \
+    assert (0 < num_tensors && num_tensors <= MAX_INFO); \
     for (i = 0; i < num_tensors; ++i) { \
-      _info->info[i] = _data->info[i]; \
-      _info->info[i].name = g_strdup (_data->info[i].name); \
+      gst_tensor_info_copy (&_info->info[i], &_data->info[i]); \
     } \
   } while (0)
 

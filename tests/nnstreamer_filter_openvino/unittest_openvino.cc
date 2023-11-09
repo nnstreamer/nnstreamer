@@ -20,18 +20,20 @@
 const static gchar MODEL_BASE_NAME_MOBINET_V2[] = "openvino_mobilenetv2-int8-tf-0001";
 
 const static uint32_t MOBINET_V2_IN_NUM_TENSOR = 1;
-const static uint32_t MOBINET_V2_IN_DIMS[NNS_TENSOR_SIZE_LIMIT] = {
+const static uint32_t MOBINET_V2_IN_DIMS[NNS_TENSOR_RANK_LIMIT] = {
   224,
   224,
   3,
   1,
+  0,
 };
 const static uint32_t MOBINET_V2_OUT_NUM_TENSOR = 1;
-const static uint32_t MOBINET_V2_OUT_DIMS[NNS_TENSOR_SIZE_LIMIT] = {
+const static uint32_t MOBINET_V2_OUT_DIMS[NNS_TENSOR_RANK_LIMIT] = {
   1001,
   1,
   1,
   1,
+  0,
 };
 
 /** @brief wooksong: please fill in */
