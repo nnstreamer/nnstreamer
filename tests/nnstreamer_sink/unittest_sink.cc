@@ -6552,10 +6552,11 @@ TEST (extraTensors, manualextratensors)
   GstMemory *mem;
   GstMapInfo info;
   GstElement *appsrc_handle, *sink_handle;
-  gint i;
+  GstTensorInfo tinfo;
+  gint i, j;
 
   gchar *str_pipeline = g_strdup (
-      "appsrc name=appsrc ! other/tensors,num_tensors=20,format=static,dimensions=(string)1:1.1:1,types=(string)int32.int32,framerate=(fraction)0/1 ! " // this caps do not have any effect yet.
+      "appsrc name=appsrc caps=other/tensors,num_tensors=20,format=static,dimensions=(string)1:1.1:1,types=(string)int32.int32,framerate=(fraction)0/1 ! "
       "tensor_sink name=sinkx async=false silent=false ");
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
@@ -6572,8 +6573,13 @@ TEST (extraTensors, manualextratensors)
 
   buf_0 = gst_buffer_new ();
 
+  /* set extra info */
+  gst_tensor_info_init (&tinfo);
+  tinfo.type = _NNS_INT32;
+  for (j = 0; j < 4; ++j)
+    tinfo.dimension[j] = 1;
+
   for (i = 0; i < 20; i++) {
-    GstTensorInfo tinfo;
     gboolean ret;
 
     mem = gst_allocator_alloc (NULL, 4, NULL);
@@ -6582,20 +6588,10 @@ TEST (extraTensors, manualextratensors)
     memcpy (info.data, &test_frames[i], 4);
     gst_memory_unmap (mem, &info);
 
-    if (i < NNS_TENSOR_SIZE_LIMIT) {
-      gst_buffer_append_memory (buf_0, mem);
-      continue;
-    }
-
-    /* set extra info */
-    gst_tensor_info_init (&tinfo);
-    tinfo.type = _NNS_INT32;
-    for (int j = 0; j < NNS_TENSOR_RANK_LIMIT; ++j)
-      tinfo.dimension[j] = 1;
-
     gst_tensor_buffer_append_memory (buf_0, mem, &tinfo);
-    gst_tensor_info_free (&tinfo);
   }
+
+  gst_tensor_info_free (&tinfo);
 
   data_received = 0;
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
