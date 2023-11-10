@@ -104,8 +104,6 @@ enum
   PROP_READY_TO_COMPLETE_TRAINING
 };
 
-#define TRAINER_TENSOR_SIZE_LIMT ((NNS_TENSOR_SIZE_LIMIT) + (NNS_TENSOR_SIZE_EXTRA_LIMIT))
-
 static void gst_tensor_trainer_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
 static void gst_tensor_trainer_get_property (GObject * object, guint prop_id,
@@ -601,15 +599,15 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
   guint num_tensors, i;
   gsize header_size, expected;
   gboolean in_flexible, out_flexible;
-  GstMemory *in_mem[TRAINER_TENSOR_SIZE_LIMT] = { 0, };
-  GstMapInfo in_info[TRAINER_TENSOR_SIZE_LIMT];
-  GstMemory *out_mem[TRAINER_TENSOR_SIZE_LIMT] = { 0, };
-  GstMapInfo out_info[TRAINER_TENSOR_SIZE_LIMT];
-  GstTensorMemory in_tensors[TRAINER_TENSOR_SIZE_LIMT];
-  GstTensorMemory push_tensors[TRAINER_TENSOR_SIZE_LIMT];
-  GstTensorMemory out_tensors[TRAINER_TENSOR_SIZE_LIMT];
-  GstTensorMetaInfo in_meta[TRAINER_TENSOR_SIZE_LIMT];
-  GstTensorMetaInfo out_meta[TRAINER_TENSOR_SIZE_LIMT];
+  GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
+  GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT];
+  GstMemory *out_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
+  GstMapInfo out_info[NNS_TENSOR_SIZE_LIMIT];
+  GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT];
+  GstTensorMemory push_tensors[NNS_TENSOR_SIZE_LIMIT];
+  GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT];
+  GstTensorMetaInfo in_meta[NNS_TENSOR_SIZE_LIMIT];
+  GstTensorMetaInfo out_meta[NNS_TENSOR_SIZE_LIMIT];
   GstTensorInfo *info = NULL;
 
   double model_stats[MODEL_STATS_SIZE] =
@@ -626,7 +624,7 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
       return GST_FLOW_ERROR;
   }
 
-  if (num_tensors >= TRAINER_TENSOR_SIZE_LIMT)
+  if (num_tensors >= NNS_TENSOR_SIZE_LIMIT)
     return GST_FLOW_ERROR;
 
   if (trainer->is_training_complete == TRUE) {

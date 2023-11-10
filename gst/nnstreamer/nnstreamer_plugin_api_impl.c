@@ -345,8 +345,8 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
   GstClockTime base_time = 0;
   GstTensorInfo *_info;
   guint i, j;
-  GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT];
-  tensor_format in_formats[NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT];
+  GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT];
+  tensor_format in_formats[NNS_TENSOR_SIZE_LIMIT];
 
   g_return_val_if_fail (collect != NULL, FALSE);
   g_return_val_if_fail (sync != NULL, FALSE);
@@ -463,8 +463,7 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
           the negotiation should have been failed before this stage. */
       if (gst_tensors_config_is_static (&in_configs))
         g_assert (n_tensor == in_configs.info.num_tensors);
-      g_assert ((counting + n_tensor) <=
-          NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT);
+      g_assert ((counting + n_tensor) <= NNS_TENSOR_SIZE_LIMIT);
 
       if (gst_tensors_config_is_flexible (&in_configs))
         configs->info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
@@ -540,7 +539,7 @@ gst_tensor_buffer_from_config (GstBuffer * in, GstTensorsConfig * config)
   GstMapInfo map;
   guint i, num;
   gsize total, offset;
-  gsize mem_size[NNS_TENSOR_SIZE_LIMIT];
+  gsize mem_size[NNS_TENSOR_MEMORY_MAX];
   gboolean configured = FALSE;
   gboolean is_extra = FALSE;
 
@@ -566,8 +565,8 @@ gst_tensor_buffer_from_config (GstBuffer * in, GstTensorsConfig * config)
     }
 
     num = config->info.num_tensors;
-    if ((is_extra = (num > NNS_TENSOR_SIZE_LIMIT)))
-      num = NNS_TENSOR_SIZE_LIMIT;
+    if ((is_extra = (num > NNS_TENSOR_MEMORY_MAX)))
+      num = NNS_TENSOR_MEMORY_MAX;
     for (i = 0; i < num; i++)
       mem_size[i] = gst_tensors_info_get_size (&config->info, i);
     if (is_extra) {
@@ -1410,11 +1409,6 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
       gst_structure_get_int (structure, "num_tensors",
           (gint *) (&config->info.num_tensors));
 
-      if (config->info.num_tensors > NNS_TENSOR_SIZE_LIMIT) {
-        /* create extra info */
-        gst_tensors_info_extra_create (&config->info);
-      }
-
       /* parse dimensions */
       if (gst_structure_has_field (structure, "dimensions")) {
         const gchar *dims_str;
@@ -1561,21 +1555,21 @@ gst_tensor_buffer_get_nth_memory (GstBuffer * buffer, const guint index)
     return NULL;
   }
 
-  /* If num_tensors is less than or equal to NNS_TENSOR_SIZE_LIMIT, it's trivial. */
-  if (num_tensors <= NNS_TENSOR_SIZE_LIMIT || index < NNS_TENSOR_SIZE_LIMIT - 1) {
+  /* If num_tensors is less than or equal to NNS_TENSOR_MEMORY_MAX, it's trivial. */
+  if (num_tensors <= NNS_TENSOR_MEMORY_MAX || index < NNS_TENSOR_MEMORY_MAX - 1) {
     return gst_buffer_get_memory (buffer, index);
   }
 
-  /* If num_tensors is greater than NNS_TENSOR_SIZE_LIMIT, we need to parse extra info. */
+  /* If num_tensors is greater than NNS_TENSOR_MEMORY_MAX, we need to parse extra info. */
   extra_tensors_memory =
-      gst_buffer_peek_memory (buffer, NNS_TENSOR_SIZE_LIMIT - 1);
+      gst_buffer_peek_memory (buffer, NNS_TENSOR_MEMORY_MAX - 1);
   if (!extra_tensors_memory) {
-    nns_loge ("Failed to get %d-th memory", NNS_TENSOR_SIZE_LIMIT);
+    nns_loge ("Failed to get %d-th memory", NNS_TENSOR_MEMORY_MAX);
     return NULL;
   }
 
   if (!gst_memory_map (extra_tensors_memory, &extra_tensors_map, GST_MAP_READ)) {
-    nns_loge ("Failed to map %d-th memory", NNS_TENSOR_SIZE_LIMIT);
+    nns_loge ("Failed to map %d-th memory", NNS_TENSOR_MEMORY_MAX);
     return NULL;
   }
 
@@ -1589,8 +1583,8 @@ gst_tensor_buffer_get_nth_memory (GstBuffer * buffer, const guint index)
   extra_info = (GstTensorExtraInfo *) extra_tensors_map.data;
   offset = sizeof (GstTensorExtraInfo);
 
-  /* If index is NNS_TENSOR_SIZE_LIMIT - 1 */
-  if (index == NNS_TENSOR_SIZE_LIMIT - 1) {
+  /* If index is NNS_TENSOR_MEMORY_MAX - 1 */
+  if (index == NNS_TENSOR_MEMORY_MAX - 1) {
     res_mem =
         gst_memory_share (extra_tensors_memory, offset, extra_info->reserved);
     goto done;
@@ -1598,7 +1592,7 @@ gst_tensor_buffer_get_nth_memory (GstBuffer * buffer, const guint index)
 
   offset += extra_info->reserved;
 
-  for (i = 1; i <= index - NNS_TENSOR_SIZE_LIMIT; ++i) {
+  for (i = 1; i <= index - NNS_TENSOR_MEMORY_MAX; ++i) {
     offset += gst_tensor_info_get_size (&extra_info->infos[i - 1]);
   }
 
@@ -1606,7 +1600,7 @@ gst_tensor_buffer_get_nth_memory (GstBuffer * buffer, const guint index)
   res_mem =
       gst_memory_share (extra_tensors_memory, offset,
       gst_tensor_info_get_size (&extra_info->infos[index -
-              NNS_TENSOR_SIZE_LIMIT]));
+              NNS_TENSOR_MEMORY_MAX]));
 
 done:
   gst_memory_unmap (extra_tensors_memory, &extra_tensors_map);
@@ -1659,12 +1653,12 @@ gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
   num_mems = gst_buffer_n_memory (buffer);
 
   /* trivial call to gst_buffer_append_memory */
-  if (num_mems < NNS_TENSOR_SIZE_LIMIT) {
+  if (num_mems < NNS_TENSOR_MEMORY_MAX) {
     gst_buffer_append_memory (buffer, memory);
     return TRUE;
   }
 
-  /* given buffer has NNS_TENSOR_SIZE_LIMIT memory blocks */
+  /* given buffer has NNS_TENSOR_MEMORY_MAX memory blocks */
   last_memory = gst_buffer_peek_memory (buffer, num_mems - 1);
   if (!last_memory) {
     nns_loge ("Failed to get last memory");
@@ -1769,11 +1763,11 @@ gst_tensor_buffer_get_count (GstBuffer * buffer)
   g_return_val_if_fail (buffer != NULL, 0);
 
   num_mems = gst_buffer_n_memory (buffer);
-  if (num_mems < NNS_TENSOR_SIZE_LIMIT) {
+  if (num_mems < NNS_TENSOR_MEMORY_MAX) {
     return num_mems;
   }
 
-  /* num_mems == NNS_TENSOR_SIZE_LIMIT */
+  /* num_mems == NNS_TENSOR_MEMORY_MAX */
   mem = gst_buffer_peek_memory (buffer, num_mems - 1);
   if (!mem) {
     nns_loge ("Failed to get the last memory.");
@@ -1787,7 +1781,7 @@ gst_tensor_buffer_get_count (GstBuffer * buffer)
 
   if (gst_memory_map_is_extra_tensor (&map)) {
     extra_info = (GstTensorExtraInfo *) map.data;
-    num_mems = extra_info->num_extra_tensors + NNS_TENSOR_SIZE_LIMIT;
+    num_mems = extra_info->num_extra_tensors + NNS_TENSOR_MEMORY_MAX;
   } else {
     nns_logi ("The last memory does not have extra tensors header. "
         "Assuming the number of tensors is %d.", num_mems);

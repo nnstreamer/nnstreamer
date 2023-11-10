@@ -655,10 +655,6 @@ TFLiteInterpreter::setTensorProp (
     const std::vector<int> &tensor_idx_list, GstTensorsInfo *tensorMeta)
 {
   tensorMeta->num_tensors = tensor_idx_list.size ();
-  if (tensorMeta->num_tensors > NNS_TENSOR_SIZE_LIMIT) {
-    ml_logi ("Create extra tensor info for the tflite model");
-    gst_tensors_info_extra_create (tensorMeta);
-  }
 
   for (unsigned int i = 0; i < tensorMeta->num_tensors; ++i) {
     int idx = tensor_idx_list[i];

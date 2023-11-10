@@ -32,8 +32,6 @@ G_BEGIN_DECLS
 #define GST_IS_DATA_REPO_SRC_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_DATA_REPO_SRC))
 
-#define MAX_ITEM NNS_TENSOR_SIZE_LIMIT
-
 typedef struct _GstDataRepoSrc GstDataRepoSrc;
 typedef struct _GstDataRepoSrcClass GstDataRepoSrcClass;
 
@@ -53,8 +51,8 @@ struct _GstDataRepoSrc {
   guint64 fd_offset;            /**< offset of fd */
   guint64 start_offset;         /**< start offset to read */
   guint64 last_offset;          /**< last offset to read */
-  guint tensors_size[MAX_ITEM];   /**< each tensors size in a sample */
-  guint tensors_offset[MAX_ITEM]; /**< each tensors offset in a sample */
+  guint tensors_size[NNS_TENSOR_SIZE_LIMIT];   /**< each tensors size in a sample */
+  guint tensors_offset[NNS_TENSOR_SIZE_LIMIT]; /**< each tensors offset in a sample */
   gint current_sample_index;    /**< current index of sample or file to read */
   gboolean first_epoch_is_done;
   guint total_samples;           /**< The number of total samples */
@@ -74,7 +72,7 @@ struct _GstDataRepoSrc {
   GArray *shuffled_index_array; /**< shuffled sample index array */
   guint array_index;            /**< element index of shuffled_index_array */
 
-  guint tensors_seq[MAX_ITEM];  /**< tensors sequence in a sample that will be read into gstbuffer */
+  guint tensors_seq[NNS_TENSOR_SIZE_LIMIT];  /**< tensors sequence in a sample that will be read into gstbuffer */
   guint tensors_seq_cnt;
   gboolean need_changed_caps;   /**< When tensors-sequence changes, caps need to be changed */
   GstCaps *caps;                /**< optional property, datareposrc should get data format from JSON file caps field */

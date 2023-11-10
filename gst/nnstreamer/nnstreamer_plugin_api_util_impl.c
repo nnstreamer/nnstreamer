@@ -295,70 +295,26 @@ gst_tensor_info_get_rank (const GstTensorInfo * info)
 GstTensorInfo *
 gst_tensors_info_get_nth_info (GstTensorsInfo * info, guint index)
 {
+  guint i;
+
   g_return_val_if_fail (info != NULL, NULL);
 
-  if (index < NNS_TENSOR_SIZE_LIMIT)
+  if (index < NNS_TENSOR_MEMORY_MAX)
     return &info->info[index];
 
-  if (!gst_tensors_info_extra_create (info))
-    return NULL;
+  if (!info->extra) {
+    info->extra = g_new0 (GstTensorInfo, NNS_TENSOR_SIZE_EXTRA_LIMIT);
 
-  if (index < NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT)
-    return &info->extra[index - NNS_TENSOR_SIZE_LIMIT];
-
-  nns_loge ("Failed to get the information, invalid index %u.", index);
-  return NULL;
-}
-
-/**
- * @brief Allocate and initialize the extra info in given tensors info.
- * @param[in,out] info tensors info to be updated.
- */
-gboolean
-gst_tensors_info_extra_create (GstTensorsInfo * info)
-{
-  GstTensorInfo *new;
-  guint i;
-
-  g_return_val_if_fail (info != NULL, FALSE);
-
-  if (info->extra) {
-    return TRUE;
-  }
-
-  new = g_try_new0 (GstTensorInfo, NNS_TENSOR_SIZE_EXTRA_LIMIT);
-  if (!new) {
-    nns_loge ("Failed to allocate memory for extra tensors info");
-    return FALSE;
-  }
-
-  for (i = 0; i < NNS_TENSOR_SIZE_EXTRA_LIMIT; ++i) {
-    gst_tensor_info_init (&new[i]);
-  }
-
-  info->extra = new;
-
-  return TRUE;
-}
-
-/**
- * @brief Free allocated extra info in given tensors info.
- * @param[in,out] info tensors info whose extra info is to be freed.
- */
-void
-gst_tensors_info_extra_free (GstTensorsInfo * info)
-{
-  guint i;
-
-  g_return_if_fail (info != NULL);
-
-  if (info->extra) {
     for (i = 0; i < NNS_TENSOR_SIZE_EXTRA_LIMIT; ++i)
-      gst_tensor_info_free (&info->extra[i]);
-
-    g_free (info->extra);
-    info->extra = NULL;
+      gst_tensor_info_init (&info->extra[i]);
   }
+
+  if (index < NNS_TENSOR_SIZE_LIMIT)
+    return &info->extra[index - NNS_TENSOR_MEMORY_MAX];
+
+  nns_loge ("Failed to get the information, invalid index %u (max %d).",
+      index, NNS_TENSOR_SIZE_LIMIT);
+  return NULL;
 }
 
 /**
@@ -378,7 +334,7 @@ gst_tensors_info_init (GstTensorsInfo * info)
   /** @note default format is static */
   info->format = _NNS_TENSOR_FORMAT_STATIC;
 
-  for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
+  for (i = 0; i < NNS_TENSOR_MEMORY_MAX; i++) {
     gst_tensor_info_init (&info->info[i]);
   }
 }
@@ -394,12 +350,17 @@ gst_tensors_info_free (GstTensorsInfo * info)
 
   g_return_if_fail (info != NULL);
 
-  for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
+  for (i = 0; i < NNS_TENSOR_MEMORY_MAX; i++) {
     gst_tensor_info_free (&info->info[i]);
   }
 
-  if (info->extra)
-    gst_tensors_info_extra_free (info);
+  if (info->extra) {
+    for (i = 0; i < NNS_TENSOR_SIZE_EXTRA_LIMIT; ++i)
+      gst_tensor_info_free (&info->extra[i]);
+
+    g_free (info->extra);
+    info->extra = NULL;
+  }
 
   /* Init default */
   gst_tensors_info_init (info);
@@ -550,10 +511,6 @@ gst_tensors_info_copy (GstTensorsInfo * dest, const GstTensorsInfo * src)
   num = dest->num_tensors = src->num_tensors;
   dest->format = src->format;
 
-  if (src->extra != NULL) {
-    gst_tensors_info_extra_create (dest);
-  }
-
   for (i = 0; i < num; i++) {
     _dest = gst_tensors_info_get_nth_info (dest, i);
     _src = gst_tensors_info_get_nth_info ((GstTensorsInfo *) src, i);
@@ -584,15 +541,12 @@ gst_tensors_info_parse_dimensions_string (GstTensorsInfo * info,
     str_dims = g_strsplit_set (dim_string, ",.", -1);
     num_dims = g_strv_length (str_dims);
 
-    if (num_dims > NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT) {
+    if (num_dims > NNS_TENSOR_SIZE_LIMIT) {
       nns_logw ("Invalid param, dimensions (%d) max (%d)\n",
-          num_dims, NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT);
+          num_dims, NNS_TENSOR_SIZE_LIMIT);
 
-      num_dims = NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT;
+      num_dims = NNS_TENSOR_SIZE_LIMIT;
     }
-
-    if (num_dims >= NNS_TENSOR_SIZE_LIMIT)
-      gst_tensors_info_extra_create (info);
 
     for (i = 0; i < num_dims; i++) {
       _info = gst_tensors_info_get_nth_info (info, i);
@@ -627,15 +581,12 @@ gst_tensors_info_parse_types_string (GstTensorsInfo * info,
     str_types = g_strsplit_set (type_string, ",.", -1);
     num_types = g_strv_length (str_types);
 
-    if (num_types > NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT) {
+    if (num_types > NNS_TENSOR_SIZE_LIMIT) {
       nns_logw ("Invalid param, types (%d) max (%d)\n",
-          num_types, NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT);
+          num_types, NNS_TENSOR_SIZE_LIMIT);
 
-      num_types = NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT;
+      num_types = NNS_TENSOR_SIZE_LIMIT;
     }
-
-    if (num_types >= NNS_TENSOR_SIZE_LIMIT)
-      gst_tensors_info_extra_create (info);
 
     for (i = 0; i < num_types; i++) {
       _info = gst_tensors_info_get_nth_info (info, i);
@@ -670,15 +621,12 @@ gst_tensors_info_parse_names_string (GstTensorsInfo * info,
     str_names = g_strsplit (name_string, ",", -1);
     num_names = g_strv_length (str_names);
 
-    if (num_names > NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT) {
+    if (num_names > NNS_TENSOR_SIZE_LIMIT) {
       nns_logw ("Invalid param, names (%d) max (%d)\n",
-          num_names, NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT);
+          num_names, NNS_TENSOR_SIZE_LIMIT);
 
-      num_names = NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT;
+      num_names = NNS_TENSOR_SIZE_LIMIT;
     }
-
-    if (num_names >= NNS_TENSOR_SIZE_LIMIT)
-      gst_tensors_info_extra_create (info);
 
     for (i = 0; i < num_names; i++) {
       gchar *str_name;
@@ -838,8 +786,8 @@ gst_tensors_info_to_string (const GstTensorsInfo * info)
 
   g_string_append_printf (gstr, "Num_Tensors = %u, Tensors = [",
       info->num_tensors);
-  if (limit > NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT) {
-    limit = NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT;
+  if (limit > NNS_TENSOR_SIZE_LIMIT) {
+    limit = NNS_TENSOR_SIZE_LIMIT;
     g_string_append_printf (gstr,
         "(Num_Tensors out of bound. Showing %d only)", limit);
   }

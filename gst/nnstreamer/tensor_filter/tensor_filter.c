@@ -648,19 +648,14 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   GstTensorFilterProperties *prop = &priv->prop;
 
   /* TODO: Consider malloc in_mem, in_info, etc. rather than take the stack */
-  GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT] =
-      { 0, };
-  GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT];
-  GstMemory *out_mem[NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT] =
-      { 0, };
-  GstMapInfo out_info[NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT];
+  GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
+  GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT];
+  GstMemory *out_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
+  GstMapInfo out_info[NNS_TENSOR_SIZE_LIMIT];
 
-  GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT +
-      NNS_TENSOR_SIZE_EXTRA_LIMIT];
-  GstTensorMemory invoke_tensors[NNS_TENSOR_SIZE_LIMIT +
-      NNS_TENSOR_SIZE_EXTRA_LIMIT];
-  GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT +
-      NNS_TENSOR_SIZE_EXTRA_LIMIT];
+  GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT];
+  GstTensorMemory invoke_tensors[NNS_TENSOR_SIZE_LIMIT];
+  GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT];
 
   GList *list;
   guint i, num_tensors;
@@ -669,10 +664,8 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   gboolean need_profiling;
   gsize expected, hsize;
 
-  GstTensorMetaInfo in_meta[NNS_TENSOR_SIZE_LIMIT +
-      NNS_TENSOR_SIZE_EXTRA_LIMIT];
-  GstTensorMetaInfo out_meta[NNS_TENSOR_SIZE_LIMIT +
-      NNS_TENSOR_SIZE_EXTRA_LIMIT];
+  GstTensorMetaInfo in_meta[NNS_TENSOR_SIZE_LIMIT];
+  GstTensorMetaInfo out_meta[NNS_TENSOR_SIZE_LIMIT];
 
   GstMemory *mem;
 
