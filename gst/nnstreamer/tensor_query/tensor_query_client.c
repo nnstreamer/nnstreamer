@@ -360,26 +360,6 @@ gst_tensor_query_client_update_caps (GstTensorQueryClient * self,
 }
 
 /**
- * @brief Retry to connect to available server.
- */
-static gboolean
-_client_retry_connection (GstTensorQueryClient * self)
-{
-  if (NNS_EDGE_ERROR_NONE != nns_edge_disconnect (self->edge_h)) {
-    nns_loge ("Failed to retry connection, disconnection failure");
-    return FALSE;
-  }
-
-  if (NNS_EDGE_ERROR_NONE != nns_edge_connect (self->edge_h,
-          self->dest_host, self->dest_port)) {
-    nns_loge ("Failed to retry connection, connection failure");
-    return FALSE;
-  }
-
-  return TRUE;
-}
-
-/**
  * @brief Parse caps from received event data.
  */
 static gchar *
@@ -690,8 +670,8 @@ gst_tensor_query_client_chain (GstPad * pad,
   g_free (val);
 
   if (NNS_EDGE_ERROR_NONE != nns_edge_send (self->edge_h, data_h)) {
-    nns_logw ("Failed to publish to server node, retry connection.");
-    goto retry;
+    nns_logi ("Failed to publish to server node.");
+    goto done;
   }
 
   nns_edge_data_destroy (data_h);
@@ -723,13 +703,7 @@ gst_tensor_query_client_chain (GstPad * pad,
 
     res = gst_pad_push (self->srcpad, out_buf);
   }
-  goto done;
 
-retry:
-  if (!self->topic || !_client_retry_connection (self)) {
-    nns_loge ("Failed to retry connection");
-    res = GST_FLOW_ERROR;
-  }
 done:
   if (data_h) {
     nns_edge_data_destroy (data_h);

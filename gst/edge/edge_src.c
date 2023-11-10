@@ -65,6 +65,8 @@ static void gst_edgesrc_set_dest_port (GstEdgeSrc * self,
 static nns_edge_connect_type_e gst_edgesrc_get_connect_type (GstEdgeSrc * self);
 static void gst_edgesrc_set_connect_type (GstEdgeSrc * self,
     const nns_edge_connect_type_e connect_type);
+static GstStateChangeReturn gst_edgesrc_change_state (GstElement *
+    element, GstStateChange transition);
 
 /**
  * @brief initialize the class
@@ -117,6 +119,7 @@ gst_edgesrc_class_init (GstEdgeSrcClass * klass)
 
   gstbasesrc_class->start = gst_edgesrc_start;
   gstbasesrc_class->create = gst_edgesrc_create;
+  gstelement_class->change_state = gst_edgesrc_change_state;
 
   GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT,
       GST_EDGE_ELEM_NAME_SRC, 0, "Edge src");
@@ -138,6 +141,7 @@ gst_edgesrc_init (GstEdgeSrc * self)
   self->topic = NULL;
   self->msg_queue = g_async_queue_new ();
   self->connect_type = DEFAULT_CONNECT_TYPE;
+  self->playing = FALSE;
 }
 
 /**
@@ -222,6 +226,7 @@ gst_edgesrc_class_finalize (GObject * object)
   GstEdgeSrc *self = GST_EDGESRC (object);
   nns_edge_data_h data_h;
 
+  self->playing = FALSE;
   g_free (self->dest_host);
   self->dest_host = NULL;
 
@@ -241,6 +246,39 @@ gst_edgesrc_class_finalize (GObject * object)
     self->edge_h = NULL;
   }
   G_OBJECT_CLASS (parent_class)->finalize (object);
+}
+
+
+/**
+ * @brief Change state of edgesrc.
+ */
+static GstStateChangeReturn
+gst_edgesrc_change_state (GstElement * element, GstStateChange transition)
+{
+  GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
+  GstEdgeSrc *self = GST_EDGESRC (element);
+
+  switch (transition) {
+    case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+      GST_INFO_OBJECT (self, "State changed from PAUSED to PLAYING.");
+      self->playing = TRUE;
+      break;
+    default:
+      break;
+  }
+
+  ret = GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
+  switch (transition) {
+    case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
+    {
+      GST_INFO_OBJECT (self, "State changed from PLAYING to PAUSED.");
+      self->playing = FALSE;
+      break;
+    }
+    default:
+      break;
+  }
+  return ret;
 }
 
 /**
@@ -269,13 +307,7 @@ _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
     }
     case NNS_EDGE_EVENT_CONNECTION_CLOSED:
     {
-      nns_edge_disconnect (self->edge_h);
-      ret = nns_edge_connect (self->edge_h, self->dest_host, self->dest_port);
-      if (NNS_EDGE_ERROR_NONE != ret) {
-        nns_edge_data_h data_h;
-        nns_edge_data_create (&data_h);
-        g_async_queue_push (self->msg_queue, data_h);
-      }
+      self->playing = FALSE;
       break;
     }
     default:
@@ -333,6 +365,7 @@ gst_edgesrc_start (GstBaseSrc * basesrc)
     nns_loge ("Failed to connect to edge server!");
     return FALSE;
   }
+  self->playing = TRUE;
 
   return TRUE;
 }
@@ -345,8 +378,7 @@ gst_edgesrc_create (GstBaseSrc * basesrc, guint64 offset, guint size,
     GstBuffer ** out_buf)
 {
   GstEdgeSrc *self = GST_EDGESRC (basesrc);
-
-  nns_edge_data_h data_h;
+  nns_edge_data_h data_h = NULL;
   GstBuffer *buffer = NULL;
   guint i, num_data;
   int ret;
@@ -354,11 +386,13 @@ gst_edgesrc_create (GstBaseSrc * basesrc, guint64 offset, guint size,
   UNUSED (offset);
   UNUSED (size);
 
-  data_h = g_async_queue_pop (self->msg_queue);
+  while (self->playing && !data_h) {
+    data_h = g_async_queue_timeout_pop (self->msg_queue, G_USEC_PER_SEC);
+  }
 
   if (!data_h) {
     nns_loge ("Failed to get message from the edgesrc message queue.");
-    goto done;
+    return GST_FLOW_ERROR;
   }
 
   ret = nns_edge_data_get_count (data_h, &num_data);
