@@ -32,19 +32,15 @@
 #include <stdint.h>
 
 #define NNS_TENSOR_RANK_LIMIT	(16)
-#define NNS_TENSOR_SIZE_LIMIT	(16)
-#define NNS_TENSOR_SIZE_LIMIT_STR	"16"
 
 /**
- * @todo Set NNS_TENSOR_SIZE_LIMIT as 256,
- * and define NNS_TENSOR_SIZE_LIMIT_STATIC as 16.
- * And define NNS_TENSOR_SIZE_EXTRA_LIMIT as (NNS_TENSOR_SIZE_LIMIT - NNS_TENSOR_SIZE_LIMIT_STATIC).
- * Then update other source codes accordingly.
+ * @brief The number of tensors NNStreamer supports is 256.
+ * The max memories of gst-buffer is 16 (See NNS_TENSOR_MEMORY_MAX).
+ * Internally NNStreamer handles the memories as tensors.
+ * If the number of tensors is larger than 16, we modify the last memory and combine tensors into the memory.
  */
-#define NNS_TENSOR_SIZE_EXTRA_LIMIT (240)
-
-#define NNS_MIMETYPE_TENSOR "other/tensor"
-#define NNS_MIMETYPE_TENSORS "other/tensors"
+#define NNS_TENSOR_SIZE_LIMIT		(256)
+#define NNS_TENSOR_SIZE_LIMIT_STR	"256"
 
 /**
  * @brief This value, 16, can be checked with gst_buffer_get_max_memory(),
@@ -53,6 +49,16 @@
  * we need static value. To modify (increase) this value, you need to update
  * gstreamer/gstbuffer.c as well.
  */
+#define NNS_TENSOR_MEMORY_MAX		(16)
+
+/**
+ * @brief Max number of extra tensors.
+ */
+#define NNS_TENSOR_SIZE_EXTRA_LIMIT (NNS_TENSOR_SIZE_LIMIT - NNS_TENSOR_MEMORY_MAX)
+
+#define NNS_MIMETYPE_TENSOR "other/tensor"
+#define NNS_MIMETYPE_TENSORS "other/tensors"
+
 #define GST_TENSOR_NUM_TENSORS_RANGE "(int) [ 1, " NNS_TENSOR_SIZE_LIMIT_STR " ]"
 #define GST_TENSOR_RATE_RANGE "(fraction) [ 0, max ]"
 
@@ -107,7 +113,7 @@
  * @brief Caps string for the caps template of static tensor stream.
  */
 #define GST_TENSORS_CAP_DEFAULT \
-    GST_TENSORS_CAP_WITH_NUM(GST_TENSOR_NUM_TENSORS_RANGE)
+    GST_TENSORS_CAP_WITH_NUM (GST_TENSOR_NUM_TENSORS_RANGE)
 
 /**
  * @brief Caps string for the caps template of flexible tensors.
@@ -243,8 +249,8 @@ typedef struct
 typedef struct
 {
   unsigned int num_tensors; /**< The number of tensors */
-  GstTensorInfo info[NNS_TENSOR_SIZE_LIMIT]; /**< The list of tensor info */
-  GstTensorInfo *extra; /**< The list of tensor info for tensors whose idx is larger than NNS_TENSOR_SIZE_LIMIT */
+  GstTensorInfo info[NNS_TENSOR_MEMORY_MAX]; /**< The list of tensor info (max NNS_TENSOR_MEMORY_MAX as static) */
+  GstTensorInfo *extra; /**< The list of tensor info for tensors whose idx is larger than NNS_TENSOR_MEMORY_MAX */
   tensor_format format; /**< tensor stream type */
 } GstTensorsInfo;
 

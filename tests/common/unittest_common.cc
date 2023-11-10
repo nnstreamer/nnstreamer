@@ -879,25 +879,6 @@ TEST (commonTensorsInfo, getNameInvalidParam1_n)
 }
 
 /**
- * @brief Test for creating extra info with invalid param.
- */
-TEST (commonTensorsInfo, createExtraInfo_n)
-{
-  EXPECT_FALSE (gst_tensors_info_extra_create (NULL));
-}
-
-/**
- * @brief Test for creating extra info.
- */
-TEST (commonTensorsInfo, createExtraInfo)
-{
-  GstTensorsInfo info;
-  gst_tensors_info_init (&info);
-  EXPECT_TRUE (gst_tensors_info_extra_create (&info));
-  gst_tensors_info_free (&info);
-}
-
-/**
  * @brief Test for same tensors config.
  */
 TEST (commonTensorsConfig, equal01_p)
@@ -1137,9 +1118,9 @@ TEST (commonTensorsInfoString, dimensions)
 
   g_free (str_dims);
 
-  /* max (NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT) */
+  /* max (NNS_TENSOR_SIZE_LIMIT) */
   GString *max_dims = g_string_new (NULL);
-  guint exceed_lim = NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT + 11;
+  guint exceed_lim = NNS_TENSOR_SIZE_LIMIT + 11;
   for (guint i = 0; i < exceed_lim; i++) {
     g_string_append_printf (max_dims, "%d", i);
     if (i < exceed_lim - 1)
@@ -1150,7 +1131,7 @@ TEST (commonTensorsInfoString, dimensions)
 
   num_dims = gst_tensors_info_parse_dimensions_string (&info, str_dims);
   EXPECT_NE (num_dims, exceed_lim);
-  EXPECT_EQ (num_dims, (guint) (NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT));
+  EXPECT_EQ (num_dims, (guint) (NNS_TENSOR_SIZE_LIMIT));
 
   g_free (str_dims);
   gst_tensors_info_free (&info);
@@ -1199,9 +1180,9 @@ TEST (commonTensorsInfoString, types)
                            "int8,int8,int8,int8,int8,int8,int8,int8,int8,int8,int8");
   g_free (str_types);
 
-  /* max (NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT) */
+  /* max (NNS_TENSOR_SIZE_LIMIT) */
   GString *max_types = g_string_new (NULL);
-  guint exceed_lim = NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT + 13;
+  guint exceed_lim = NNS_TENSOR_SIZE_LIMIT + 13;
   for (guint i = 0; i < exceed_lim; i++) {
     g_string_append_printf (max_types, "%s", "uint8");
     if (i < exceed_lim - 1)
@@ -1212,7 +1193,7 @@ TEST (commonTensorsInfoString, types)
 
   num_types = gst_tensors_info_parse_types_string (&info, str_types);
   EXPECT_NE (num_types, exceed_lim);
-  EXPECT_EQ (num_types, (guint) (NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT));
+  EXPECT_EQ (num_types, (guint) (NNS_TENSOR_SIZE_LIMIT));
 
   g_free (str_types);
   gst_tensors_info_free (&info);
@@ -1277,9 +1258,9 @@ TEST (commonTensorsInfoString, names)
                            "t16,t17,t18,t19,t20,t21,t22,t23,t24,t25,t26,t27,t28");
   g_free (str_names);
 
-  /* max (NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT) */
+  /* max (NNS_TENSOR_SIZE_LIMIT) */
   GString *max_names = g_string_new (NULL);
-  guint exceed_lim = NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT + 17;
+  guint exceed_lim = NNS_TENSOR_SIZE_LIMIT + 17;
   for (i = 0; i < exceed_lim; i++) {
     g_string_append_printf (max_names, "t%d", i);
     if (i < exceed_lim - 1)
@@ -1290,7 +1271,7 @@ TEST (commonTensorsInfoString, names)
 
   num_names = gst_tensors_info_parse_names_string (&info, str_names);
   EXPECT_NE (num_names, exceed_lim);
-  EXPECT_EQ (num_names, (guint) (NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT));
+  EXPECT_EQ (num_names, (guint) (NNS_TENSOR_SIZE_LIMIT));
 
   g_free (str_names);
   gst_tensors_info_free (&info);
