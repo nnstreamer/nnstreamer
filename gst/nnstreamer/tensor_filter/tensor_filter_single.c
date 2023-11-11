@@ -119,7 +119,7 @@ g_tensor_filter_single_init (GTensorFilterSingle * self)
 
   self->priv = g_type_instance_get_private ((GTypeInstance *) self,
       G_TYPE_TENSOR_FILTER_SINGLE);
-  spriv = (GTensorFilterSinglePrivate *) self->priv;
+  spriv = G_TENSOR_FILTER_SINGLE_PRIV (self);
   priv = &spriv->filter_priv;
 
   gst_tensor_filter_common_init_property (priv);
