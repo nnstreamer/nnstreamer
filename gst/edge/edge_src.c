@@ -65,8 +65,8 @@ static void gst_edgesrc_set_dest_port (GstEdgeSrc * self,
 static nns_edge_connect_type_e gst_edgesrc_get_connect_type (GstEdgeSrc * self);
 static void gst_edgesrc_set_connect_type (GstEdgeSrc * self,
     const nns_edge_connect_type_e connect_type);
-static GstStateChangeReturn gst_edgesrc_change_state (GstElement *
-    element, GstStateChange transition);
+static GstStateChangeReturn gst_edgesrc_change_state (GstElement * element,
+    GstStateChange transition);
 
 /**
  * @brief initialize the class
@@ -248,7 +248,6 @@ gst_edgesrc_class_finalize (GObject * object)
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
-
 /**
  * @brief Change state of edgesrc.
  */
@@ -268,16 +267,16 @@ gst_edgesrc_change_state (GstElement * element, GstStateChange transition)
   }
 
   ret = GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
+
   switch (transition) {
     case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
-    {
       GST_INFO_OBJECT (self, "State changed from PLAYING to PAUSED.");
       self->playing = FALSE;
       break;
-    }
     default:
       break;
   }
+
   return ret;
 }
 
@@ -380,11 +379,18 @@ gst_edgesrc_create (GstBaseSrc * basesrc, guint64 offset, guint size,
   GstEdgeSrc *self = GST_EDGESRC (basesrc);
   nns_edge_data_h data_h = NULL;
   GstBuffer *buffer = NULL;
-  guint i, num_data;
+  GstMemory *mem;
+  GstCaps *caps;
+  GstStructure *structure;
+  GstTensorsConfig config;
+  GstTensorInfo *_info;
+  gboolean is_tensor;
+  guint i, num_data, max_mems;
   int ret;
 
   UNUSED (offset);
   UNUSED (size);
+  gst_tensors_config_init (&config);
 
   while (self->playing && !data_h) {
     data_h = g_async_queue_timeout_pop (self->msg_queue, G_USEC_PER_SEC);
@@ -401,6 +407,24 @@ gst_edgesrc_create (GstBaseSrc * basesrc, guint64 offset, guint size,
     goto done;
   }
 
+  /* Check current caps and max memory. */
+  caps = gst_pad_get_current_caps (GST_BASE_SRC_PAD (basesrc));
+  structure = gst_caps_get_structure (caps, 0);
+  is_tensor = gst_structure_is_tensor_stream (structure);
+
+  if (is_tensor)
+    gst_tensors_config_from_structure (&config, structure);
+
+  gst_caps_unref (caps);
+
+  max_mems = is_tensor ? NNS_TENSOR_SIZE_LIMIT : gst_buffer_get_max_memory ();
+  if (num_data > max_mems) {
+    nns_loge
+        ("Cannot create new buffer. The edge-data has %u memories, but allowed memories is %u.",
+        num_data, max_mems);
+    goto done;
+  }
+
   buffer = gst_buffer_new ();
   for (i = 0; i < num_data; i++) {
     void *data = NULL;
@@ -409,15 +433,22 @@ gst_edgesrc_create (GstBaseSrc * basesrc, guint64 offset, guint size,
 
     nns_edge_data_get (data_h, i, &data, &data_len);
     new_data = _g_memdup (data, data_len);
+    mem = gst_memory_new_wrapped (0, new_data, data_len, 0, data_len,
+        new_data, g_free);
 
-    gst_buffer_append_memory (buffer,
-        gst_memory_new_wrapped (0, new_data, data_len, 0, data_len, new_data,
-            g_free));
+    if (is_tensor) {
+      _info = gst_tensors_info_get_nth_info (&config.info, i);
+      gst_tensor_buffer_append_memory (buffer, mem, _info);
+    } else {
+      gst_buffer_append_memory (buffer, mem);
+    }
   }
 
 done:
   if (data_h)
     nns_edge_data_destroy (data_h);
+
+  gst_tensors_config_free (&config);
 
   if (buffer == NULL) {
     nns_loge ("Failed to get buffer to push to the edgesrc.");
