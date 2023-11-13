@@ -363,6 +363,9 @@ static GstFlowReturn
 gst_edgesink_render (GstBaseSink * basesink, GstBuffer * buffer)
 {
   GstEdgeSink *self = GST_EDGESINK (basesink);
+  GstCaps *caps;
+  GstStructure *structure;
+  gboolean is_tensor;
   nns_edge_data_h data_h;
   guint i, num_mems;
   int ret;
@@ -375,19 +378,40 @@ gst_edgesink_render (GstBaseSink * basesink, GstBuffer * buffer)
     return GST_FLOW_ERROR;
   }
 
-  num_mems = gst_buffer_n_memory (buffer);
+  caps = gst_pad_get_current_caps (GST_BASE_SINK_PAD (basesink));
+  structure = gst_caps_get_structure (caps, 0);
+  is_tensor = gst_structure_is_tensor_stream (structure);
+  gst_caps_unref (caps);
+
+  if (is_tensor)
+    num_mems = gst_tensor_buffer_get_count (buffer);
+  else
+    num_mems = gst_buffer_n_memory (buffer);
+
   for (i = 0; i < num_mems; i++) {
-    mem[i] = gst_buffer_peek_memory (buffer, i);
+    if (is_tensor)
+      mem[i] = gst_tensor_buffer_get_nth_memory (buffer, i);
+    else
+      mem[i] = gst_buffer_get_memory (buffer, i);
+
     if (!gst_memory_map (mem[i], &map[i], GST_MAP_READ)) {
-      nns_loge ("Cannot map the %uth memory in gst-buffer", i);
+      nns_loge ("Cannot map the %uth memory in gst-buffer.", i);
+      gst_memory_unref (mem[i]);
       num_mems = i;
       goto done;
     }
-    nns_edge_data_add (data_h, map[i].data, map[i].size, NULL);
+
+    ret = nns_edge_data_add (data_h, map[i].data, map[i].size, NULL);
+    if (ret != NNS_EDGE_ERROR_NONE) {
+      nns_loge ("Failed to append %u-th memory into edge data.", i);
+      num_mems = i + 1;
+      goto done;
+    }
   }
 
-  nns_edge_send (self->edge_h, data_h);
-  goto done;
+  ret = nns_edge_send (self->edge_h, data_h);
+  if (ret != NNS_EDGE_ERROR_NONE)
+    nns_loge ("Failed to send edge data, connection lost or internal error.");
 
 done:
   if (data_h)
@@ -395,6 +419,7 @@ done:
 
   for (i = 0; i < num_mems; i++) {
     gst_memory_unmap (mem[i], &map[i]);
+    gst_memory_unref (mem[i]);
   }
 
   return GST_FLOW_OK;

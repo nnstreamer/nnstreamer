@@ -9,6 +9,7 @@ edge_deps = [
     glib_dep,
     gst_base_dep,
     gst_dep,
+    nnstreamer_dep,
     nnstreamer_edge_dep,
 ]
 
@@ -22,7 +23,6 @@ gstedge_shared = shared_library('gstedge',
   edge_srcs,
   dependencies: edge_deps,
   install: true,
-  include_directories: include_directories('../nnstreamer/include'),
   install_dir: plugins_install_dir
 )
 
