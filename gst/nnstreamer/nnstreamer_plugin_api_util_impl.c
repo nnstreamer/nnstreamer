@@ -141,10 +141,10 @@ gst_tensor_info_free (GstTensorInfo * info)
 {
   g_return_if_fail (info != NULL);
 
-  if (info->name) {
-    g_free (info->name);
-    info->name = NULL;
-  }
+  g_free (info->name);
+
+  /* Init default */
+  gst_tensor_info_init (info);
 }
 
 /**
@@ -400,6 +400,9 @@ gst_tensors_info_free (GstTensorsInfo * info)
 
   if (info->extra)
     gst_tensors_info_extra_free (info);
+
+  /* Init default */
+  gst_tensors_info_init (info);
 }
 
 /**
