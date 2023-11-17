@@ -294,6 +294,105 @@ gst_data_repo_src_finalize (GObject * object)
 }
 
 /**
+ * @brief Parse gst-caps to get media type and data size.
+ * @note This function always takes the ownership of gst-caps.
+ */
+static gboolean
+gst_data_repo_src_parse_caps (GstDataRepoSrc * src, GstCaps * caps)
+{
+  GstStructure *s;
+
+  g_return_val_if_fail (src != NULL, FALSE);
+  g_return_val_if_fail (caps != NULL, FALSE);
+
+  src->data_type = gst_data_repo_get_data_type_from_caps (caps);
+  s = gst_caps_get_structure (caps, 0);
+
+  switch (src->data_type) {
+    case GST_DATA_REPO_DATA_VIDEO:
+    {
+      GstVideoInfo video_info;
+
+      gst_video_info_init (&video_info);
+      gst_video_info_from_caps (&video_info, caps);
+
+      /* https://gstreamer.freedesktop.org/documentation/additional/design/mediatype-video-raw.html?gi-language=c */
+      src->sample_size = (guint) GST_VIDEO_INFO_SIZE (&video_info);
+
+      GST_DEBUG_OBJECT (src, "format(%s), width(%d), height(%d): %u byte/frame",
+          gst_structure_get_string (s, "format"),
+          GST_VIDEO_INFO_WIDTH (&video_info),
+          GST_VIDEO_INFO_HEIGHT (&video_info), src->sample_size);
+      break;
+    }
+    case GST_DATA_REPO_DATA_AUDIO:
+    {
+      GstAudioInfo audio_info;
+      gint rate, channel, depth;
+
+      gst_audio_info_init (&audio_info);
+      gst_audio_info_from_caps (&audio_info, caps);
+
+      rate = GST_AUDIO_INFO_RATE (&audio_info);
+      channel = GST_AUDIO_INFO_CHANNELS (&audio_info);
+      depth = GST_AUDIO_INFO_DEPTH (&audio_info);
+
+      src->sample_size = channel * (depth / 8) * rate;
+
+      GST_DEBUG_OBJECT (src,
+          "format(%s), depth(%d), rate(%d), channel(%d): %u bps",
+          gst_structure_get_string (s, "format"), depth, rate, channel,
+          src->sample_size);
+      break;
+    }
+    case GST_DATA_REPO_DATA_TENSOR:
+    {
+      GstTensorsConfig config;
+      GstTensorInfo *_info;
+      guint i;
+
+      gst_tensors_config_from_structure (&config, s);
+
+      src->is_static_tensors =
+          (config.info.format == _NNS_TENSOR_FORMAT_STATIC);
+      src->num_tensors = config.info.num_tensors;
+      src->sample_size = 0;
+
+      for (i = 0; i < src->num_tensors; i++) {
+        src->tensors_offset[i] = src->sample_size;
+        _info = gst_tensors_info_get_nth_info (&config.info, i);
+        src->tensors_size[i] = gst_tensor_info_get_size (_info);
+        GST_DEBUG_OBJECT (src, "offset[%u]: %u", i, src->tensors_offset[i]);
+        GST_DEBUG_OBJECT (src, "size[%u]: %u", i, src->tensors_size[i]);
+        src->sample_size += src->tensors_size[i];
+      }
+
+      gst_tensors_config_free (&config);
+      break;
+    }
+    default:
+      break;
+  }
+
+  src->rate_n = 0;
+  src->rate_d = 1;
+  if (gst_structure_has_field (s, "framerate")) {
+    gst_structure_get_fraction (s, "framerate", &src->rate_n, &src->rate_d);
+  }
+
+  GST_LOG_OBJECT (src, "framerate %d/%d", src->rate_n, src->rate_d);
+  GST_LOG_OBJECT (src, "data type: %d", src->data_type);
+
+  /* This function always takes caps. */
+  if (src->data_type != GST_DATA_REPO_DATA_UNKNOWN)
+    gst_caps_take (&src->caps, caps);
+  else
+    gst_caps_unref (caps);
+
+  return (src->data_type != GST_DATA_REPO_DATA_UNKNOWN);
+}
+
+/**
  * @brief Function to set file path.
  */
 static gboolean
@@ -445,7 +544,7 @@ gst_data_repo_src_shuffle_samples_index (GstDataRepoSrc * src)
   }
 
   for (i = 0; i < src->shuffled_index_array->len; i++) {
-    GST_DEBUG_OBJECT (src, "%d -> %d", i,
+    GST_DEBUG_OBJECT (src, "%u -> %u", i,
         g_array_index (src->shuffled_index_array, guint, i));
   }
 }
@@ -572,7 +671,7 @@ gst_data_repo_src_read_tensors (GstDataRepoSrc * src, GstBuffer ** buffer)
         /* .. but first we should return any remaining data */
         if (byte_read > 0)
           break;
-        GST_DEBUG ("EOS");
+        GST_DEBUG_OBJECT (src, "EOS");
         ret = GST_FLOW_EOS;
         goto error;
       }
@@ -726,7 +825,7 @@ gst_data_repo_src_read_flexible_or_sparse_tensors (GstDataRepoSrc * src,
         /* .. but first we should return any remaining data */
         if (byte_read > 0)
           break;
-        GST_DEBUG ("EOS");
+        GST_DEBUG_OBJECT (src, "EOS");
         ret = GST_FLOW_EOS;
         goto error;
       }
@@ -849,7 +948,6 @@ gst_data_repo_src_read_multi_images (GstDataRepoSrc * src, GstBuffer ** buffer)
   buf = gst_buffer_new ();
   gst_buffer_append_memory (buf,
       gst_memory_new_wrapped (0, data, size, 0, size, data, g_free));
-  GST_DEBUG_OBJECT (src, "read file \"%s\".", filename);
 
   *buffer = buf;
 
@@ -942,7 +1040,7 @@ gst_data_repo_src_read_others (GstDataRepoSrc * src, GstBuffer ** buffer)
       /* .. but first we should return any remaining data */
       if (byte_read > 0)
         break;
-      GST_DEBUG ("EOS");
+      GST_DEBUG_OBJECT (src, "EOS");
       ret = GST_FLOW_EOS;
       goto error;
     }
@@ -1233,12 +1331,10 @@ gst_data_repo_get_caps_by_tensors_sequence (GstDataRepoSrc * src)
   GST_DEBUG_OBJECT (src,
       "datareposrc caps by tensors_sequence %" GST_PTR_FORMAT, new_caps);
 
-  gst_caps_take (&src->caps, new_caps);
-
   gst_tensors_config_free (&dst_config);
   gst_tensors_config_free (&src_config);
 
-  return TRUE;
+  return gst_data_repo_src_parse_caps (src, new_caps);
 }
 
 /**
@@ -1272,101 +1368,6 @@ gst_data_repo_src_get_caps (GstBaseSrc * basesrc, GstCaps * filter)
 }
 
 /**
- * @brief Get tensors size
- */
-static guint
-gst_data_repo_src_get_tensors_size (GstDataRepoSrc * src, GstCaps * caps)
-{
-  GstStructure *s;
-  GstTensorsConfig config;
-  GstTensorInfo *_info;
-  guint size = 0;
-  guint i = 0;
-
-  g_return_val_if_fail (src != NULL, 0);
-  g_return_val_if_fail (caps != NULL, 0);
-
-  s = gst_caps_get_structure (caps, 0);
-  if (!gst_tensors_config_from_structure (&config, s))
-    return 0;
-
-  src->num_tensors = config.info.num_tensors;
-
-  for (i = 0; i < src->num_tensors; i++) {
-    src->tensors_offset[i] = size;
-    _info = gst_tensors_info_get_nth_info (&config.info, i);
-    src->tensors_size[i] = gst_tensor_info_get_size (_info);
-    GST_DEBUG ("offset[%d]: %d", i, src->tensors_offset[i]);
-    GST_DEBUG ("size[%d]: %d", i, src->tensors_size[i]);
-    size = size + src->tensors_size[i];
-  }
-
-  gst_tensors_config_free (&config);
-
-  return size;
-}
-
-/**
- * @brief Get video size
- */
-static guint
-gst_data_repo_src_get_video_size (const GstCaps * caps)
-{
-  GstStructure *s;
-  const gchar *format_str;
-  gint width = 0, height = 0;
-  GstVideoInfo video_info;
-  guint size = 0;
-
-  g_return_val_if_fail (caps != NULL, 0);
-
-  s = gst_caps_get_structure (caps, 0);
-  gst_video_info_init (&video_info);
-  gst_video_info_from_caps (&video_info, caps);
-
-  format_str = gst_structure_get_string (s, "format");
-  width = GST_VIDEO_INFO_WIDTH (&video_info);
-  height = GST_VIDEO_INFO_HEIGHT (&video_info);
-  /** https://gstreamer.freedesktop.org/documentation/additional/design/mediatype-video-raw.html?gi-language=c */
-  size = (guint) GST_VIDEO_INFO_SIZE (&video_info);
-  GST_DEBUG ("format(%s), width(%d), height(%d): %d Byte/frame", format_str,
-      width, height, size);
-
-  return size;
-}
-
-/**
- * @brief Get audio size
- */
-static guint
-gst_data_repo_src_get_audio_size (const GstCaps * caps)
-{
-  GstStructure *s;
-  const gchar *format_str;
-  guint size = 0;
-  gint rate = 0, channel = 0;
-  GstAudioInfo audio_info;
-  gint depth;
-
-  g_return_val_if_fail (caps != NULL, 0);
-
-  s = gst_caps_get_structure (caps, 0);
-  gst_audio_info_init (&audio_info);
-  gst_audio_info_from_caps (&audio_info, caps);
-
-  format_str = gst_structure_get_string (s, "format");
-  rate = GST_AUDIO_INFO_RATE (&audio_info);
-  channel = GST_AUDIO_INFO_CHANNELS (&audio_info);
-  depth = GST_AUDIO_INFO_DEPTH (&audio_info);
-
-  size = channel * (depth / 8) * rate;
-  GST_DEBUG ("format(%s), depth(%d), rate(%d), channel(%d): %d Bps", format_str,
-      depth, rate, channel, size);
-
-  return size;
-}
-
-/**
  * @brief caps after caps negotiation
  */
 static gboolean
@@ -1377,53 +1378,6 @@ gst_data_repo_src_set_caps (GstBaseSrc * basesrc, GstCaps * caps)
   GST_INFO_OBJECT (src, "set caps: %" GST_PTR_FORMAT, caps);
 
   return TRUE;
-}
-
-/**
- * @brief Get media type and media size from caps
- */
-static gboolean
-gst_data_repo_src_get_data_type_and_size (GstDataRepoSrc * src, GstCaps * caps)
-{
-  GstStructure *s;
-  const GValue *v;
-  const gchar *format;
-
-  g_return_val_if_fail (src != NULL, FALSE);
-  g_return_val_if_fail (caps != NULL, FALSE);
-
-  src->data_type = gst_data_repo_get_data_type_from_caps (caps);
-  s = gst_caps_get_structure (caps, 0);
-
-  switch (src->data_type) {
-    case GST_DATA_REPO_DATA_VIDEO:
-      src->sample_size = gst_data_repo_src_get_video_size (caps);
-      break;
-    case GST_DATA_REPO_DATA_AUDIO:
-      src->sample_size = gst_data_repo_src_get_audio_size (caps);
-      break;
-    case GST_DATA_REPO_DATA_TENSOR:
-      src->sample_size = gst_data_repo_src_get_tensors_size (src, caps);
-      s = gst_caps_get_structure (caps, 0);
-      v = gst_structure_get_value (s, "format");
-      format = g_value_get_string (v);
-      if (g_strcmp0 (format, "static") == 0)
-        src->is_static_tensors = TRUE;
-      break;
-    default:
-      break;
-  }
-
-  src->rate_n = 0;
-  src->rate_d = 1;
-  if (gst_structure_has_field (s, "framerate")) {
-    gst_structure_get_fraction (s, "framerate", &src->rate_n, &src->rate_d);
-  }
-
-  GST_LOG_OBJECT (src, "framerate %d/%d", src->rate_n, src->rate_d);
-  GST_LOG_OBJECT (src, "data type: %d", src->data_type);
-
-  return (src->data_type != GST_DATA_REPO_DATA_UNKNOWN);
 }
 
 /**
@@ -1486,12 +1440,12 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
   GST_INFO_OBJECT (src, "caps_str : %s", caps_str);
 
   new_caps = gst_caps_from_string (caps_str);
-  gst_caps_take (&src->caps, new_caps);
-  GST_INFO_OBJECT (src, "gst_caps : %" GST_PTR_FORMAT, src->caps);
 
   /* calculate media size from gst caps */
-  if (!gst_data_repo_src_get_data_type_and_size (src, src->caps))
+  if (!gst_data_repo_src_parse_caps (src, new_caps))
     goto error;
+
+  GST_INFO_OBJECT (src, "gst_caps : %" GST_PTR_FORMAT, src->caps);
 
   /* In the case of below media type, get sample_size from JSON */
   if (src->data_type == GST_DATA_REPO_DATA_TEXT
@@ -1571,7 +1525,6 @@ gst_data_repo_src_set_property (GObject * object, guint prop_id,
 {
   GstDataRepoSrc *src;
   const GstCaps *caps;
-  GstCaps *new_caps;
 
   g_return_if_fail (GST_IS_DATA_REPO_SRC (object));
 
@@ -1615,9 +1568,7 @@ gst_data_repo_src_set_property (GObject * object, guint prop_id,
     case PROP_CAPS:
       caps = gst_value_get_caps (value);
       if (caps) {
-        new_caps = gst_caps_copy (caps);
-        gst_caps_take (&src->caps, new_caps);
-        gst_data_repo_src_get_data_type_and_size (src, src->caps);
+        gst_data_repo_src_parse_caps (src, gst_caps_copy (caps));
       }
       /** let's retry set tensors-sequence.
           if caps property is set later than tensors-sequence property,
@@ -1687,7 +1638,7 @@ gst_data_repo_src_change_state (GstElement * element, GstStateChange transition)
   GstDataRepoSrc *src = GST_DATA_REPO_SRC (element);
   GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
   GstBaseSrc *basesrc = NULL;
-  gint blocksize;
+  guint blocksize;
 
   switch (transition) {
     case GST_STATE_CHANGE_NULL_TO_READY:
@@ -1703,7 +1654,7 @@ gst_data_repo_src_change_state (GstElement * element, GstStateChange transition)
               || src->data_type == GST_DATA_REPO_DATA_TEXT)) {
         basesrc = GST_BASE_SRC (src);
         g_object_get (G_OBJECT (basesrc), "blocksize", &blocksize, NULL);
-        GST_DEBUG_OBJECT (src, "blocksize = %d", blocksize);
+        GST_DEBUG_OBJECT (src, "blocksize = %u", blocksize);
         if (blocksize == 0) {
           GST_ERROR_OBJECT (src, "Please set the 'blocksize' property "
               "when using the 'caps' property to set the sample format without JSON.");
