@@ -137,11 +137,10 @@ gst_tensor_time_sync_set_option_data (tensor_time_sync_data * sync)
       break;
     case SYNC_BASEPAD:
     {
+      g_auto (GStrv) strv = g_strsplit (sync->option, ":", 2);
       guint sink_id;
       guint duration;
-      gchar **strv;
 
-      strv = g_strsplit (sync->option, ":", 2);
       if (strv[0] != NULL)
         sink_id = (guint) g_ascii_strtoull (strv[0], NULL, 10);
       else
@@ -154,7 +153,6 @@ gst_tensor_time_sync_set_option_data (tensor_time_sync_data * sync)
 
       sync->data_basepad.sink_id = sink_id;
       sync->data_basepad.duration = duration;
-      g_strfreev (strv);
       break;
     }
     default:
@@ -828,16 +826,19 @@ _get_tensor_caps (const GstTensorsConfig * config)
   structure = gst_structure_new_empty (NNS_MIMETYPE_TENSOR);
 
   if (gst_tensor_dimension_is_valid (_info->dimension)) {
-    gchar *dim_str = gst_tensor_get_dimension_string (_info->dimension);
+    {
+      g_autofree gchar *dim_str =
+          gst_tensor_get_dimension_string (_info->dimension);
 
-    gst_caps_set_simple (caps, "dimension", G_TYPE_STRING, dim_str, NULL);
-    g_free (dim_str);
+      gst_caps_set_simple (caps, "dimension", G_TYPE_STRING, dim_str, NULL);
+    }
 
-    dim_str =
-        gst_tensor_get_rank_dimension_string (_info->dimension,
-        NNS_TENSOR_RANK_LIMIT_PREV);
-    gst_structure_set (structure, "dimension", G_TYPE_STRING, dim_str, NULL);
-    g_free (dim_str);
+    {
+      g_autofree gchar *dim_str =
+          gst_tensor_get_rank_dimension_string (_info->dimension,
+          NNS_TENSOR_RANK_LIMIT_PREV);
+      gst_structure_set (structure, "dimension", G_TYPE_STRING, dim_str, NULL);
+    }
   }
 
   if (_info->type != _NNS_END) {
@@ -875,28 +876,31 @@ _get_tensors_caps (const GstTensorsConfig * config)
   structure = gst_structure_new_empty (NNS_MIMETYPE_TENSORS);
 
   if (config->info.num_tensors > 0) {
-    gchar *dim_str, *type_str;
+    g_autofree gchar *type_str =
+        gst_tensors_info_get_types_string (&config->info);
 
-    dim_str = gst_tensors_info_get_dimensions_string (&config->info);
-    type_str = gst_tensors_info_get_types_string (&config->info);
+    /* Set GstCaps */
+    {
+      g_autofree gchar *dim_str =
+          gst_tensors_info_get_dimensions_string (&config->info);
 
-    gst_caps_set_simple (caps, "num_tensors", G_TYPE_INT,
-        config->info.num_tensors, NULL);
-    gst_caps_set_simple (caps, "dimensions", G_TYPE_STRING, dim_str, NULL);
-    gst_caps_set_simple (caps, "types", G_TYPE_STRING, type_str, NULL);
-    g_free (dim_str);
+      gst_caps_set_simple (caps, "num_tensors", G_TYPE_INT,
+          config->info.num_tensors, NULL);
+      gst_caps_set_simple (caps, "dimensions", G_TYPE_STRING, dim_str, NULL);
+      gst_caps_set_simple (caps, "types", G_TYPE_STRING, type_str, NULL);
+    }
 
-    dim_str =
-        gst_tensors_info_get_rank_dimensions_string (&config->info,
-        NNS_TENSOR_RANK_LIMIT_PREV);
+    /* Set GstStructure */
+    {
+      g_autofree gchar *dim_str =
+          gst_tensors_info_get_rank_dimensions_string (&config->info,
+          NNS_TENSOR_RANK_LIMIT_PREV);
 
-    gst_structure_set (structure, "num_tensors", G_TYPE_INT,
-        config->info.num_tensors, NULL);
-    gst_structure_set (structure, "dimensions", G_TYPE_STRING, dim_str, NULL);
-    gst_structure_set (structure, "types", G_TYPE_STRING, type_str, NULL);
-
-    g_free (dim_str);
-    g_free (type_str);
+      gst_structure_set (structure, "num_tensors", G_TYPE_INT,
+          config->info.num_tensors, NULL);
+      gst_structure_set (structure, "dimensions", G_TYPE_STRING, dim_str, NULL);
+      gst_structure_set (structure, "types", G_TYPE_STRING, type_str, NULL);
+    }
   }
 
   if (config->rate_n >= 0 && config->rate_d > 0) {
@@ -1846,10 +1850,10 @@ set_property_value (GValue * prop_value, const GParamSpec * param_spec,
 void
 gst_tensor_parse_config_file (const gchar * config_path, const GObject * object)
 {
+  g_autofree gchar *config_data = NULL;
+  g_auto (GStrv) lines = NULL;
+  GStrv line = NULL;
   GError *error = NULL;
-  gchar *config_data = NULL;
-  gchar **lines = NULL;
-  gchar **line = NULL;
   GObjectClass *g_object_class = G_OBJECT_GET_CLASS (object);
 
   if (!g_file_get_contents (config_path, &config_data, NULL, &error)) {
@@ -1859,14 +1863,14 @@ gst_tensor_parse_config_file (const gchar * config_path, const GObject * object)
   }
 
   lines = g_strsplit (config_data, "\n", -1);
-  g_free (config_data);
 
   /** Iterate over each line */
   for (line = lines; *line; ++line) {
-    gchar **parts = g_strsplit (*line, "=", 2);
+    g_auto (GStrv) parts = g_strsplit (*line, "=", 2);
+
     if (g_strv_length (parts) == 2) {
-      gchar *property_name = g_strstrip (g_strdup (parts[0]));
-      gchar *property_value = g_strstrip (g_strdup (parts[1]));
+      g_autofree gchar *property_name = g_strstrip (g_strdup (parts[0]));
+      g_autofree gchar *property_value = g_strstrip (g_strdup (parts[1]));
 
       GParamSpec *pdata =
           g_object_class_find_property (g_object_class, property_name);
@@ -1877,13 +1881,6 @@ gst_tensor_parse_config_file (const gchar * config_path, const GObject * object)
         g_object_set_property (G_OBJECT (object), pdata->name, &prop_value);
         g_value_unset (&prop_value);
       }
-
-      g_free (property_name);
-      g_free (property_value);
     }
-
-    g_strfreev (parts);
   }
-
-  g_strfreev (lines);
 }
