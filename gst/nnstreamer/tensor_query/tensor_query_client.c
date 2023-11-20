@@ -641,7 +641,7 @@ gst_tensor_query_client_chain (GstPad * pad,
   GstBuffer *out_buf = NULL;
   GstFlowReturn res = GST_FLOW_OK;
   nns_edge_data_h data_h;
-  guint i, num_mems, num_data;
+  guint i, num_tensors, num_data;
   int ret;
   GstMemory *mem[NNS_TENSOR_SIZE_LIMIT];
   GstMapInfo map[NNS_TENSOR_SIZE_LIMIT];
@@ -654,12 +654,13 @@ gst_tensor_query_client_chain (GstPad * pad,
     return GST_FLOW_ERROR;
   }
 
-  num_mems = gst_buffer_n_memory (buf);
-  for (i = 0; i < num_mems; i++) {
-    mem[i] = gst_buffer_peek_memory (buf, i);
+  num_tensors = gst_tensor_buffer_get_count (buf);
+  for (i = 0; i < num_tensors; i++) {
+    mem[i] = gst_tensor_buffer_get_nth_memory (buf, i);
     if (!gst_memory_map (mem[i], &map[i], GST_MAP_READ)) {
       ml_loge ("Cannot map the %uth memory in gst-buffer.", i);
-      num_mems = i;
+      gst_memory_unref (mem[i]);
+      num_tensors = i;
       goto done;
     }
     nns_edge_data_add (data_h, map[i].data, map[i].size, NULL);
@@ -709,8 +710,10 @@ done:
     nns_edge_data_destroy (data_h);
   }
 
-  for (i = 0; i < num_mems; i++)
+  for (i = 0; i < num_tensors; i++) {
     gst_memory_unmap (mem[i], &map[i]);
+    gst_memory_unref (mem[i]);
+  }
 
   gst_buffer_unref (buf);
   return res;

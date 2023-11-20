@@ -253,10 +253,10 @@ gst_data_repo_src_init (GstDataRepoSrc * src)
   src->caps = NULL;
   src->sample_size = 0;
   src->need_changed_caps = FALSE;
-  src->is_static_tensors = FALSE;
   src->n_frame = 0;
   src->running_time = 0;
   src->parser = NULL;
+  gst_tensors_config_init (&src->config);
 
   /* Filling the buffer should be pending until set_caps() */
   gst_base_src_set_format (GST_BASE_SRC (src), GST_FORMAT_TIME);
@@ -289,6 +289,8 @@ gst_data_repo_src_finalize (GObject * object)
 
   if (src->caps)
     gst_caps_replace (&src->caps, NULL);
+
+  gst_tensors_config_free (&src->config);
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -347,27 +349,22 @@ gst_data_repo_src_parse_caps (GstDataRepoSrc * src, GstCaps * caps)
     }
     case GST_DATA_REPO_DATA_TENSOR:
     {
-      GstTensorsConfig config;
       GstTensorInfo *_info;
       guint i;
 
-      gst_tensors_config_from_structure (&config, s);
-
-      src->is_static_tensors =
-          (config.info.format == _NNS_TENSOR_FORMAT_STATIC);
-      src->num_tensors = config.info.num_tensors;
+      /* Set current tensors information if given data type is tensor. */
+      gst_tensors_config_free (&src->config);
+      gst_tensors_config_from_structure (&src->config, s);
       src->sample_size = 0;
 
-      for (i = 0; i < src->num_tensors; i++) {
+      for (i = 0; i < src->config.info.num_tensors; i++) {
         src->tensors_offset[i] = src->sample_size;
-        _info = gst_tensors_info_get_nth_info (&config.info, i);
+        _info = gst_tensors_info_get_nth_info (&src->config.info, i);
         src->tensors_size[i] = gst_tensor_info_get_size (_info);
         GST_DEBUG_OBJECT (src, "offset[%u]: %u", i, src->tensors_offset[i]);
         GST_DEBUG_OBJECT (src, "size[%u]: %u", i, src->tensors_size[i]);
         src->sample_size += src->tensors_size[i];
       }
-
-      gst_tensors_config_free (&config);
       break;
     }
     default:
@@ -473,9 +470,9 @@ gst_data_repo_src_set_tensors_sequence (GstDataRepoSrc * src)
 
   while (strv[i] != NULL && strlen (strv[i]) > 0) {
     src->tensors_seq[i] = (guint) g_ascii_strtoull (strv[i], NULL, 10);
-    if (src->tensors_seq[i] > src->num_tensors - 1) {
+    if (src->tensors_seq[i] > src->config.info.num_tensors - 1) {
       GST_ERROR_OBJECT (src, "Invalid index %d, max is %d", src->tensors_seq[i],
-          src->num_tensors - 1);
+          src->config.info.num_tensors - 1);
       goto error;
     }
     GST_INFO_OBJECT (src, "%d", src->tensors_seq[i]);
@@ -486,11 +483,11 @@ gst_data_repo_src_set_tensors_sequence (GstDataRepoSrc * src)
       src->tensors_seq_cnt);
 
   /* num_tensors was calculated from JSON file */
-  if (src->num_tensors < src->tensors_seq_cnt) {
+  if (src->config.info.num_tensors < src->tensors_seq_cnt) {
     GST_ERROR_OBJECT (src,
         "The number of tensors selected(%d) "
         "is greater than the total number of tensors(%d) in a sample.",
-        src->tensors_seq_cnt, src->num_tensors);
+        src->tensors_seq_cnt, src->config.info.num_tensors);
     goto error;
   }
   return TRUE;
@@ -683,7 +680,9 @@ gst_data_repo_src_read_tensors (GstDataRepoSrc * src, GstBuffer ** buffer)
     }
 
     gst_memory_unmap (mem, &info);
-    gst_buffer_append_memory (buf, mem);
+
+    gst_tensor_buffer_append_memory (buf, mem,
+        gst_tensors_info_get_nth_info (&src->config.info, i));
   }
 
   *buffer = buf;
@@ -748,6 +747,7 @@ gst_data_repo_src_read_flexible_or_sparse_tensors (GstDataRepoSrc * src,
   GstMemory *mem;
   GstMapInfo info;
   GstTensorMetaInfo meta;
+  GstTensorInfo tinfo;
   guint to_read, byte_read;
   int read_size;
   guint8 *data;
@@ -844,7 +844,10 @@ gst_data_repo_src_read_flexible_or_sparse_tensors (GstDataRepoSrc * src,
     }
 
     gst_memory_unmap (mem, &info);
-    gst_buffer_append_memory (buf, mem);
+
+    gst_tensor_meta_info_convert (&meta, &tinfo);
+    gst_tensor_buffer_append_memory (buf, mem, &tinfo);
+    gst_tensor_info_free (&tinfo);
   }
 
   *buffer = buf;
@@ -1256,7 +1259,7 @@ gst_data_repo_src_create (GstPushSrc * pushsrc, GstBuffer ** buffer)
       ret = gst_data_repo_src_read_others (src, buffer);
       break;
     case GST_DATA_REPO_DATA_TENSOR:
-      if (src->is_static_tensors)
+      if (gst_tensors_config_is_static (&src->config))
         ret = gst_data_repo_src_read_tensors (src, buffer);
       else
         ret = gst_data_repo_src_read_flexible_or_sparse_tensors (src, buffer);
@@ -1459,7 +1462,8 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
     GST_INFO_OBJECT (src, "sample_size: %d", src->sample_size);
   }
 
-  if (src->data_type == GST_DATA_REPO_DATA_TENSOR && !src->is_static_tensors) {
+  if (src->data_type == GST_DATA_REPO_DATA_TENSOR &&
+      !gst_tensors_config_is_static (&src->config)) {
     if (!json_object_has_member (object, "sample_offset")) {
       GST_ERROR_OBJECT (src, "There is no sample_offset field: %s", contents);
       goto error;
@@ -1695,7 +1699,7 @@ gst_data_repo_src_change_state (GstElement * element, GstStateChange transition)
         if (src->tensors_seq_cnt == 0)
           goto state_change_failed;
       } else {
-        for (i = 0; i < src->num_tensors; i++)
+        for (i = 0; i < src->config.info.num_tensors; i++)
           src->tensors_seq[i] = i;
         src->tensors_seq_cnt = i;
       }

@@ -1692,7 +1692,7 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
   GstMapInfo in_map[NNS_TENSOR_SIZE_LIMIT];
   GstMapInfo out_map[NNS_TENSOR_SIZE_LIMIT];
   uint8_t *inptr, *outptr;
-  guint i, num_tensors;
+  guint i, num_tensors, num_mems;
   gsize buf_size, hsize;
   GstTensorMetaInfo meta;
   GstTensorInfo in_flex_info, out_flex_info;
@@ -1708,36 +1708,37 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
   out_flexible =
       gst_tensor_pad_caps_is_flexible (GST_BASE_TRANSFORM_SRC_PAD (trans));
 
+  num_mems = gst_tensor_buffer_get_count (inbuf);
   if (in_flexible) {
-    num_tensors = gst_buffer_n_memory (inbuf);
+    num_tensors = num_mems;
     g_return_val_if_fail (out_flexible, GST_FLOW_ERROR);
   } else {
     num_tensors = filter->in_config.info.num_tensors;
-    g_return_val_if_fail (gst_buffer_n_memory (inbuf) == num_tensors,
-        GST_FLOW_ERROR);
+    g_return_val_if_fail (num_mems == num_tensors, GST_FLOW_ERROR);
   }
 
   for (i = 0; i < num_tensors; i++) {
-    in_info = &filter->in_config.info.info[i];
-    out_info = &filter->out_config.info.info[i];
+    in_info = gst_tensors_info_get_nth_info (&filter->in_config.info, i);
+    out_info = gst_tensors_info_get_nth_info (&filter->out_config.info, i);
 
     if (filter->apply && !g_list_find (filter->apply, GINT_TO_POINTER (i))) {
-      GstMemory *mem = gst_buffer_peek_memory (inbuf, i);
+      GstMemory *mem = gst_tensor_buffer_get_nth_memory (inbuf, i);
 
       if (!in_flexible && out_flexible) {
+        GstMemory *old = mem;
+
         /* append meta */
         gst_tensor_info_convert_to_meta (out_info, &meta);
-        mem = gst_tensor_meta_info_append_header (&meta, mem);
-      } else {
-        mem = gst_memory_ref (mem);
+        mem = gst_tensor_meta_info_append_header (&meta, old);
+        gst_memory_unref (old);
       }
 
-      gst_buffer_append_memory (outbuf, mem);
+      gst_tensor_buffer_append_memory (outbuf, mem, out_info);
       continue;
     }
 
     /* parse input buffer */
-    in_mem[i] = gst_buffer_peek_memory (inbuf, i);
+    in_mem[i] = gst_tensor_buffer_get_nth_memory (inbuf, i);
     if (!gst_memory_map (in_mem[i], &in_map[i], GST_MAP_READ)) {
       ml_loge ("Cannot map input buffer to gst-buf at tensor-transform.\n");
       res = GST_FLOW_ERROR;
@@ -1772,7 +1773,7 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
     }
 
     out_mem[i] = gst_allocator_alloc (NULL, buf_size, NULL);
-    gst_buffer_append_memory (outbuf, out_mem[i]);
+    gst_tensor_buffer_append_memory (outbuf, out_mem[i], out_info);
 
     if (!gst_memory_map (out_mem[i], &out_map[i], GST_MAP_WRITE)) {
       ml_loge ("Cannot map output buffer to gst-buf at tensor-transform.\n");
@@ -1820,8 +1821,10 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
 
 done:
   for (i = 0; i < num_tensors; i++) {
-    if (in_mem[i])
+    if (in_mem[i]) {
       gst_memory_unmap (in_mem[i], &in_map[i]);
+      gst_memory_unref (in_mem[i]);
+    }
     if (out_mem[i])
       gst_memory_unmap (out_mem[i], &out_map[i]);
   }
@@ -2002,6 +2005,7 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
   result = gst_caps_new_empty ();
   for (i = 0; i < gst_caps_get_size (caps); i++) {
     GstTensorsConfig in_config, out_config;
+    GstTensorInfo *in_info, *out_info;
     gboolean is_types_not_fixed = FALSE;
     GstCaps *result_aux = gst_caps_new_empty ();
 
@@ -2017,9 +2021,12 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
       out_config.info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
     } else {
       for (j = 0; j < in_config.info.num_tensors; j++) {
+        in_info = gst_tensors_info_get_nth_info (&in_config.info, j);
+        out_info = gst_tensors_info_get_nth_info (&out_config.info, j);
+
         gst_tensor_transform_convert_dimension (filter, direction,
-            j, &in_config.info.info[j], &out_config.info.info[j]);
-        if (out_config.info.info[j].type == _NNS_END) {
+            j, in_info, out_info);
+        if (out_info->type == _NNS_END) {
           /* types cannot be specified */
           is_types_not_fixed = TRUE;
         }
@@ -2113,6 +2120,7 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
   GstTensorTransform *filter;
   GstTensorsConfig in_config, out_config;
   GstTensorsConfig config;
+  GstTensorInfo *in_info, *out_info;
   gboolean in_flexible, out_flexible;
   gboolean allowed = FALSE;
   guint i;
@@ -2146,8 +2154,11 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
 
   if (!in_flexible) {
     for (i = 0; i < in_config.info.num_tensors; i++) {
+      in_info = gst_tensors_info_get_nth_info (&in_config.info, i);
+      out_info = gst_tensors_info_get_nth_info (&config.info, i);
+
       if (!gst_tensor_transform_convert_dimension (filter, GST_PAD_SINK,
-              i, &in_config.info.info[i], &config.info.info[i])) {
+              i, in_info, out_info)) {
         GST_ERROR_OBJECT (filter,
             "Tensor info is not matched with given properties.");
         goto error;
