@@ -447,8 +447,9 @@ static GstBuffer *
 gst_tensor_mux_chain_flex_tensor (GstTensorMux * tensor_mux, GstBuffer * buf)
 {
   GstBuffer *buffer;
-  GstMemory *mem;
+  GstMemory *mem, *new_mem;
   GstTensorsInfo *info;
+  GstTensorInfo *_info;
   GstTensorMetaInfo meta;
   guint i;
 
@@ -460,13 +461,15 @@ gst_tensor_mux_chain_flex_tensor (GstTensorMux * tensor_mux, GstBuffer * buf)
   buffer = gst_buffer_new ();
 
   for (i = 0; i < info->num_tensors; i++) {
-    mem = gst_buffer_peek_memory (buf, i);
+    mem = gst_tensor_buffer_get_nth_memory (buf, i);
 
     /* append header */
-    gst_tensor_info_convert_to_meta (&info->info[i], &meta);
-    mem = gst_tensor_meta_info_append_header (&meta, mem);
+    _info = gst_tensors_info_get_nth_info (info, i);
+    gst_tensor_info_convert_to_meta (_info, &meta);
+    new_mem = gst_tensor_meta_info_append_header (&meta, mem);
+    gst_memory_unref (mem);
 
-    gst_buffer_append_memory (buffer, mem);
+    gst_tensor_buffer_append_memory (buffer, new_mem, _info);
   }
 
   gst_buffer_copy_into (buffer, buf, GST_BUFFER_COPY_METADATA, 0, -1);

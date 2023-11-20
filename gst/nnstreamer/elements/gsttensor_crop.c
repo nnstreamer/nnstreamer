@@ -19,8 +19,8 @@
  * The raw pad accepts tensor (other/tensor) which will be cropped with crop info.
  * The info pad has capability for flexible tensor stream (other/tensors-flexible), that can have a various buffer size for crop info.
  * Incoming buffer on info pad should be an array of crop info.
- * Note that NNStreamer supports maximum 16 (NNS_TENSOR_SIZE_LIMIT) memory blocks in a buffer.
- * So, when incoming buffer on info pad has more than 16 crop-info array, tensor_crop will ignore the data and output buffer will have 16 memory blocks.
+ * Note that NNStreamer supports maximum NNS_TENSOR_SIZE_LIMIT memory blocks in a buffer.
+ * So, when incoming buffer on info pad has more than NNS_TENSOR_SIZE_LIMIT crop-info array, tensor_crop will ignore the data.
  *
  * The output is always in the format of other/tensors-flexible.
  *
@@ -512,7 +512,7 @@ gst_tensor_crop_prepare_out_meta (GstTensorCrop * self, gpointer buffer,
   /**
    * @note tensor-crop handles single tensor. Parse first one.
    */
-  _info = &config.info.info[0];
+  _info = gst_tensors_info_get_nth_info (&config.info, 0);
   *is_flexible = gst_tensors_config_is_flexible (&config);
 
   if (*is_flexible) {
@@ -550,17 +550,17 @@ gst_tensor_crop_get_crop_info (GstTensorCrop * self, GstBuffer * info,
   guint8 *pos, *src, *desc;
   gboolean ret = FALSE;
 
-  i = gst_buffer_n_memory (info);
+  i = gst_tensor_buffer_get_count (info);
   g_assert (i > 0);
   if (i > 1) {
     GST_WARNING_OBJECT (self,
         "Info buffer has %u memories, parse first one.", i);
   }
 
-  mem = gst_buffer_peek_memory (info, 0);
+  mem = gst_tensor_buffer_get_nth_memory (info, 0);
   if (!gst_memory_map (mem, &map, GST_MAP_READ)) {
     GST_ERROR_OBJECT (self, "Failed to map the info buffer.");
-    return FALSE;
+    goto done;
   }
 
   /* parse crop-info from flex tensor */
@@ -605,7 +605,11 @@ gst_tensor_crop_get_crop_info (GstTensorCrop * self, GstBuffer * info,
   ret = TRUE;
 
 done:
-  gst_memory_unmap (mem, &map);
+  if (mem) {
+    gst_memory_unmap (mem, &map);
+    gst_memory_unref (mem);
+  }
+
   return ret;
 }
 
@@ -626,17 +630,17 @@ gst_tensor_crop_do_cropping (GstTensorCrop * self, GstBuffer * raw,
   guint8 *cropped, *dpos, *desc, *src;
   guint i, j, ch, mw, mh, _x, _y, _w, _h;
 
-  i = gst_buffer_n_memory (raw);
+  i = gst_tensor_buffer_get_count (raw);
   g_assert (i > 0);
   if (i > 1) {
     GST_WARNING_OBJECT (self,
         "Raw data buffer has %u memories, parse first one.", i);
   }
 
-  mem = gst_buffer_peek_memory (raw, 0);
+  mem = gst_tensor_buffer_get_nth_memory (raw, 0);
   if (!gst_memory_map (mem, &map, GST_MAP_READ)) {
     GST_ERROR_OBJECT (self, "Failed to map the raw buffer.");
-    return NULL;
+    goto done;
   }
 
   if (!gst_tensor_crop_prepare_out_meta (self, map.data, &meta,
@@ -665,6 +669,9 @@ gst_tensor_crop_do_cropping (GstTensorCrop * self, GstBuffer * raw,
   hsize = gst_tensor_meta_info_get_header_size (&meta);
 
   for (i = 0; i < cinfo->num; i++) {
+    GstTensorInfo crop_info;
+    GstMemory *crop_mem;
+
     _x = (cinfo->region[i].x < mw) ? cinfo->region[i].x : mw;
     _y = (cinfo->region[i].y < mh) ? cinfo->region[i].y : mh;
     _w = (_x + cinfo->region[i].w - 1 < mw) ? cinfo->region[i].w : (mw - _x);
@@ -686,15 +693,24 @@ gst_tensor_crop_do_cropping (GstTensorCrop * self, GstBuffer * raw,
       memcpy (desc, src, (esize * ch * _w));
     }
 
-    gst_buffer_append_memory (result,
-        gst_memory_new_wrapped (0, cropped, dsize, 0, dsize, cropped, g_free));
+    /* Prepare tensors-info to append memory into gst-buffer. */
+    gst_tensor_meta_info_convert (&meta, &crop_info);
+    crop_mem =
+        gst_memory_new_wrapped (0, cropped, dsize, 0, dsize, cropped, g_free);
+
+    gst_tensor_buffer_append_memory (result, crop_mem, &crop_info);
+    gst_tensor_info_free (&crop_info);
   }
 
   /* set timestamp from raw buffer */
   gst_buffer_copy_into (result, raw, GST_BUFFER_COPY_METADATA, 0, -1);
 
 done:
-  gst_memory_unmap (mem, &map);
+  if (mem) {
+    gst_memory_unmap (mem, &map);
+    gst_memory_unref (mem);
+  }
+
   return result;
 }
 

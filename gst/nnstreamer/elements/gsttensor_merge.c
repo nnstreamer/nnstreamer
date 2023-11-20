@@ -484,9 +484,10 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
   element_size = gst_tensor_get_element_size (type);
 
   for (i = 0; i < num_mem; i++) {
-    mem[i] = gst_buffer_peek_memory (tensors_buf, i);
+    mem[i] = gst_tensor_buffer_get_nth_memory (tensors_buf, i);
     if (!gst_memory_map (mem[i], &mInfo[i], GST_MAP_READ)) {
       ml_logf ("Cannot map input memory buffers (%d)\n", i);
+      gst_memory_unref (mem[i]);
       num_mem = i;
       ret = GST_FLOW_ERROR;
       goto error_ret;
@@ -594,8 +595,10 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
       -1);
 
 error_ret:
-  for (i = 0; i < num_mem; i++)
+  for (i = 0; i < num_mem; i++) {
     gst_memory_unmap (mem[i], &mInfo[i]);
+    gst_memory_unref (mem[i]);
+  }
   return ret;
 }
 

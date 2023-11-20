@@ -899,22 +899,28 @@ gst_tensor_if_get_comparison_result (GstTensorIf * tensor_if,
  */
 static gboolean
 gst_tensor_if_get_tensor_average (GstTensorIf * tensor_if,
-    GstBuffer * buf, tensor_data_s * cv, gint nth)
+    GstBuffer * buf, tensor_data_s * cv, guint nth)
 {
+  GstTensorInfo *_info;
   GstMemory *in_mem;
   GstMapInfo in_info;
   gdouble *avg = NULL;
-  tensor_type type = tensor_if->in_config.info.info[nth].type;
+  tensor_type type;
 
-  in_mem = gst_buffer_peek_memory (buf, nth);
+  in_mem = gst_tensor_buffer_get_nth_memory (buf, nth);
   if (!gst_memory_map (in_mem, &in_info, GST_MAP_READ)) {
     GST_WARNING_OBJECT (tensor_if, "Failed to map the input buffer.");
+    gst_memory_unref (in_mem);
     return FALSE;
   }
+
+  _info = gst_tensors_info_get_nth_info (&tensor_if->in_config.info, nth);
+  type = _info->type;
 
   gst_tensor_data_raw_average (in_info.data, in_info.size, type, &avg);
 
   gst_memory_unmap (in_mem, &in_info);
+  gst_memory_unref (in_mem);
 
   gst_tensor_data_set (cv, _NNS_FLOAT64, avg);
   gst_tensor_data_typecast (cv, type);
@@ -930,6 +936,8 @@ static gboolean
 gst_tensor_if_calculate_cv (GstTensorIf * tensor_if, GstBuffer * buf,
     tensor_data_s * cv)
 {
+  GstTensorInfo *_info;
+
   switch (tensor_if->cv) {
     case TIFCV_A_VALUE:
     {
@@ -951,17 +959,19 @@ gst_tensor_if_calculate_cv (GstTensorIf * tensor_if, GstBuffer * buf,
       }
 
       nth = GPOINTER_TO_INT (list->data);
-      if (gst_buffer_n_memory (buf) <= nth) {
+      if (gst_tensor_buffer_get_count (buf) <= nth) {
         GST_ERROR_OBJECT (tensor_if, "Index should be lower than buffer size");
         return FALSE;
       }
 
-      in_type = tensor_if->in_config.info.info[nth].type;
-      in_dim = tensor_if->in_config.info.info[nth].dimension;
+      _info = gst_tensors_info_get_nth_info (&tensor_if->in_config.info, nth);
+      in_type = _info->type;
+      in_dim = _info->dimension;
 
-      in_mem = gst_buffer_peek_memory (buf, nth);
+      in_mem = gst_tensor_buffer_get_nth_memory (buf, nth);
       if (!gst_memory_map (in_mem, &in_info, GST_MAP_READ)) {
         GST_WARNING_OBJECT (tensor_if, "Failed to map the input buffer.");
+        gst_memory_unref (in_mem);
         return FALSE;
       }
 
@@ -976,7 +986,7 @@ gst_tensor_if_calculate_cv (GstTensorIf * tensor_if, GstBuffer * buf,
 
       gst_tensor_data_set (cv, in_type, in_info.data + idx);
       gst_memory_unmap (in_mem, &in_info);
-
+      gst_memory_unref (in_mem);
       break;
     }
     case TIFCV_TENSOR_AVERAGE_VALUE:
@@ -988,7 +998,7 @@ gst_tensor_if_calculate_cv (GstTensorIf * tensor_if, GstBuffer * buf,
         return FALSE;
       }
       nth = GPOINTER_TO_INT (tensor_if->cv_option->data);
-      if (gst_buffer_n_memory (buf) <= nth) {
+      if (gst_tensor_buffer_get_count (buf) <= nth) {
         GST_ERROR_OBJECT (tensor_if, "Index should be lower than buffer size");
         return FALSE;
       }
@@ -1071,12 +1081,15 @@ gst_tensor_if_check_condition (GstTensorIf * tensor_if, GstBuffer * buf,
     }
 
     for (i = 0; i < tensor_if->in_config.info.num_tensors; i++) {
-      in_mem[i] = gst_buffer_peek_memory (buf, i);
+      in_mem[i] = gst_tensor_buffer_get_nth_memory (buf, i);
       if (!gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
-        for (j = 0; j < i; j++)
+        for (j = 0; j < i; j++) {
           gst_memory_unmap (in_mem[j], &in_info[j]);
-        GST_WARNING_OBJECT (tensor_if, "Cannot map input memory buffer(%d)\n",
-            i);
+          gst_memory_unref (in_mem[j]);
+        }
+        gst_memory_unref (in_mem[i]);
+
+        GST_WARNING_OBJECT (tensor_if, "Cannot map input buffer(%d)\n", i);
         return FALSE;
       }
       in_tensors[i].data = in_info[i].data;
@@ -1086,8 +1099,10 @@ gst_tensor_if_check_condition (GstTensorIf * tensor_if, GstBuffer * buf,
     ret = tensor_if->custom.func (&tensor_if->in_config.info, in_tensors,
         tensor_if->custom.data, result);
 
-    for (i = 0; i < tensor_if->in_config.info.num_tensors; i++)
+    for (i = 0; i < tensor_if->in_config.info.num_tensors; i++) {
       gst_memory_unmap (in_mem[i], &in_info[i]);
+      gst_memory_unref (in_mem[i]);
+    }
   } else {
     tensor_data_s cv = {.type = _NNS_END,.data._uint8_t = 0 };
     if (!gst_tensor_if_calculate_cv (tensor_if, buf, &cv)) {
@@ -1124,7 +1139,7 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   num_tensors = tensor_if->in_config.info.num_tensors;
   GST_DEBUG_OBJECT (tensor_if, " Number of Tensors: %u", num_tensors);
   /* supposed n memory blocks in buffer */
-  g_assert (gst_buffer_n_memory (buf) == num_tensors);
+  g_assert (gst_tensor_buffer_get_count (buf) == num_tensors);
 
   if (!gst_tensor_if_check_condition (tensor_if, buf, &condition_result)) {
     GST_ERROR_OBJECT (tensor_if, " Failed to check condition");
@@ -1160,16 +1175,22 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     {
       GList *list;
       gint info_idx = 0;
+      GstTensorInfo *dest, *src;
 
       outbuf = gst_buffer_new ();
       for (list = curr_act_option; list != NULL; list = list->next) {
         i = GPOINTER_TO_INT (list->data);
+        src = gst_tensors_info_get_nth_info (&tensor_if->in_config.info, i);
+
         if (config->info.num_tensors == 0) {
-          gst_tensor_info_copy (&config->info.info[info_idx++],
-              &tensor_if->in_config.info.info[i]);
+          dest = gst_tensors_info_get_nth_info (&config->info, info_idx);
+          info_idx++;
+
+          gst_tensor_info_copy (dest, src);
         }
-        mem = gst_buffer_get_memory (buf, i);
-        gst_buffer_append_memory (outbuf, mem);
+
+        mem = gst_tensor_buffer_get_nth_memory (buf, i);
+        gst_tensor_buffer_append_memory (outbuf, mem, src);
       }
       config->info.num_tensors = info_idx;
       break;

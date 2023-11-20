@@ -45,7 +45,6 @@ struct _GstDataRepoSrc {
   GstPushSrc parent;            /**< parent object */
   GstPad *src_pad;
 
-  gboolean is_static_tensors;
   gboolean is_start;            /**< check if datareposrc is started */
   gboolean successful_read;     /**< used for checking EOS when reading more than one images(multi-files) from a path */
   gint fd;                      /**< open file descriptor */
@@ -56,7 +55,6 @@ struct _GstDataRepoSrc {
   guint64 last_offset;          /**< last offset to read */
   guint tensors_size[MAX_ITEM];   /**< each tensors size in a sample */
   guint tensors_offset[MAX_ITEM]; /**< each tensors offset in a sample */
-  guint num_tensors;            /**< The number of tensors in a sample */
   gint current_sample_index;    /**< current index of sample or file to read */
   gboolean first_epoch_is_done;
   guint total_samples;           /**< The number of total samples */
@@ -82,6 +80,7 @@ struct _GstDataRepoSrc {
   GstCaps *caps;                /**< optional property, datareposrc should get data format from JSON file caps field */
 
   /* flexible tensors */
+  GstTensorsConfig config;          /**< tensors information from current caps */
   JsonArray *sample_offset_array;   /**< offset array of sample */
   JsonArray *tensor_size_array;     /**< size array of flexible tensor to be stored in a Gstbuffer */
   JsonArray *tensor_count_array;    /**< array for the number of cumulative tensors */

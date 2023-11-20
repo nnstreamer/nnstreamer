@@ -710,23 +710,27 @@ gst_tensordec_transform (GstBaseTransform * trans,
     GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT];
     GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT];
     GstTensorMemory input[NNS_TENSOR_SIZE_LIMIT];
-    guint i, num_tensors;
+    guint i, num_tensors, num_mems;
 
+    num_mems = gst_tensor_buffer_get_count (inbuf);
     if (gst_tensors_config_is_flexible (&self->tensor_config)) {
-      self->tensor_config.info.num_tensors = gst_buffer_n_memory (inbuf);
+      self->tensor_config.info.num_tensors = num_mems;
     }
     num_tensors = self->tensor_config.info.num_tensors;
     /** Internal logic error. Negotation process should prevent this! */
-    g_assert (gst_buffer_n_memory (inbuf) == num_tensors);
+    g_assert (num_mems == num_tensors);
 
     for (i = 0; i < num_tensors; i++) {
-      in_mem[i] = gst_buffer_peek_memory (inbuf, i);
+      in_mem[i] = gst_tensor_buffer_get_nth_memory (inbuf, i);
       if (!gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
         guint j;
         ml_logf ("Failed to map in_mem[%u].\n", i);
 
-        for (j = 0; j < i; j++)
+        for (j = 0; j < i; j++) {
           gst_memory_unmap (in_mem[j], &in_info[j]);
+          gst_memory_unref (in_mem[j]);
+        }
+        gst_memory_unref (in_mem[i]);
         return GST_FLOW_ERROR;
       }
 
@@ -744,8 +748,10 @@ gst_tensordec_transform (GstBaseTransform * trans,
       res = GST_FLOW_ERROR;
     }
 
-    for (i = 0; i < num_tensors; i++)
+    for (i = 0; i < num_tensors; i++) {
       gst_memory_unmap (in_mem[i], &in_info[i]);
+      gst_memory_unref (in_mem[i]);
+    }
   } else {
     GST_ERROR_OBJECT (self, "Decoder plugin not yet configured.");
     goto unknown_type;
