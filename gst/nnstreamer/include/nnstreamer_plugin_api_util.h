@@ -1,14 +1,14 @@
 /* SPDX-License-Identifier: LGPL-2.1-only */
 /**
- * NNStreamer Common API Header for Plug-Ins
+ * NNStreamer Common API Header for sub-plugin writers
  * Copyright (C) 2022 Gichan Jang <gichan2.jang@samsung.com>
  */
 /**
  * @file  nnstreamer_plugin_api_util.h
  * @date  28 Jan 2022
- * @brief Optional/Additional NNStreamer APIs for sub-plugin writers. (No Gst dep)
+ * @brief Optional/Additional NNStreamer APIs for sub-plugin writers. (No GStreamer dependency)
  * @see https://github.com/nnstreamer/nnstreamer
- * @author Gichan Jang <myungjoo.ham@samsung.com>
+ * @author Gichan Jang <gichan2.jang@samsung.com>
  * @bug No known bugs except for NYI items
  */
 #ifndef __NNS_PLUGIN_API_UTIL_H__
@@ -93,6 +93,15 @@ gst_tensor_info_convert_to_meta (GstTensorInfo * info, GstTensorMetaInfo * meta)
  */
 extern guint
 gst_tensor_info_get_rank (const GstTensorInfo * info);
+
+/**
+ * @brief Get the pointer of nth tensor information.
+ * @param info tensors info structure
+ * @param index the index of tensor to be fetched
+ * @return The pointer to tensor info structure
+ */
+extern GstTensorInfo *
+gst_tensors_info_get_nth_info (GstTensorsInfo * info, guint index);
 
 /**
  * @brief Initialize the tensors info structure
@@ -481,12 +490,6 @@ gst_tensors_info_extra_create (GstTensorsInfo * info);
  */
 extern void
 gst_tensors_info_extra_free (GstTensorsInfo * info);
-
-/**
- * @brief Get the pointer of nth tensor information.
- */
-extern GstTensorInfo *
-gst_tensors_info_get_nth_info (GstTensorsInfo * info, guint nth);
 
 G_END_DECLS
 #endif /* __NNS_PLUGIN_API_UTIL_H__ */

@@ -293,20 +293,20 @@ gst_tensor_info_get_rank (const GstTensorInfo * info)
  * @brief Get the pointer of nth tensor information.
  */
 GstTensorInfo *
-gst_tensors_info_get_nth_info (GstTensorsInfo * info, guint nth)
+gst_tensors_info_get_nth_info (GstTensorsInfo * info, guint index)
 {
   g_return_val_if_fail (info != NULL, NULL);
 
-  if (nth < NNS_TENSOR_SIZE_LIMIT)
-    return &info->info[nth];
+  if (index < NNS_TENSOR_SIZE_LIMIT)
+    return &info->info[index];
 
   if (!gst_tensors_info_extra_create (info))
     return NULL;
 
-  if (nth < NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT)
-    return &info->extra[nth - NNS_TENSOR_SIZE_LIMIT];
+  if (index < NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT)
+    return &info->extra[index - NNS_TENSOR_SIZE_LIMIT];
 
-  nns_loge ("Failed to get the information, invalid index %u.", nth);
+  nns_loge ("Failed to get the information, invalid index %u.", index);
   return NULL;
 }
 
