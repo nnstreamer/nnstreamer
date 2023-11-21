@@ -685,7 +685,7 @@ gst_tensor_query_client_chain (GstPad * pad,
   nns_edge_data_set_info (data_h, "client_id", val);
   g_free (val);
 
-  if (self->requested_num > self->max_request) {
+  if (self->max_request > 0 && self->requested_num > self->max_request) {
     nns_logi
         ("the processing speed of the query server is too slow. Drop the input buffer.");
   } else {
