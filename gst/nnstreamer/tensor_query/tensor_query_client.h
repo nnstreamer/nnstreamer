@@ -59,6 +59,9 @@ struct _GstTensorQueryClient
   nns_edge_connect_type_e connect_type;
   nns_edge_h edge_h;
   GAsyncQueue *msg_queue;
+
+  guint max_request;
+  guint requested_num;
 };
 
 /**
