@@ -78,7 +78,7 @@ mlagent_parse_uri_string (const GValue * val)
       /** Convert the given URI for a model to the file path */
       g_autofree gchar *name = g_strdup (parts[MODEL_PART_IDX_NAME]);
       guint version = strtoul (parts[MODEL_PART_IDX_VERSION], NULL, 10);
-      g_auto (GStrv) stringfied_json = NULL;
+      g_autofree gchar *stringfied_json = NULL;
       GError *err;
       gint rcode;
 
@@ -86,7 +86,7 @@ mlagent_parse_uri_string (const GValue * val)
        * @todo The specification of the data layout filled in the third
        *       argument (i.e., stringfied_json) by the callee is not fully decided.
        */
-      rcode = ml_agent_model_get (name, version, stringfied_json, &err);
+      rcode = ml_agent_model_get (name, version, &stringfied_json, &err);
       g_clear_error (&err);
 
       if (rcode != 0)
