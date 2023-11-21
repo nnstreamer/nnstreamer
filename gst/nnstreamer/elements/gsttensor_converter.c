@@ -839,12 +839,12 @@ _gst_tensor_converter_chain_timestamp (GstTensorConverter * self,
 }
 
 /** @brief Chain function's private routine to process octet stream */
-static GstBuffer *
+static void
 _gst_tensor_converter_chain_octet (GstTensorConverter * self, GstBuffer * buf)
 {
-  GstBuffer *buffer = buf;
   GstTensorsInfo *_info = &self->tensors_config.info;
   gboolean multi = (_info->num_tensors > 1);
+  guint nummem = gst_buffer_n_memory (buf);
 
   /* configure multi tensors */
   if (multi || gst_buffer_n_memory (buf) > 1) {
@@ -855,42 +855,38 @@ _gst_tensor_converter_chain_octet (GstTensorConverter * self, GstBuffer * buf)
     g_assert (self->frames_per_tensor == 1);
 
     offset = 0;
-    buffer = gst_buffer_new ();
     mem = gst_buffer_get_all_memory (buf);
 
     if (multi) {
       for (i = 0; i < _info->num_tensors; ++i) {
         size = gst_tensors_info_get_size (_info, i);
-        gst_buffer_append_memory (buffer, gst_memory_share (mem, offset, size));
+        if (nummem > i) {
+          gst_buffer_replace_memory (buf, i,
+              gst_memory_share (mem, offset, size));
+        } else {
+          gst_buffer_append_memory (buf, gst_memory_share (mem, offset, size));
+        }
         offset += size;
       }
 
       gst_memory_unref (mem);
     } else {
-      gst_buffer_append_memory (buffer, mem);
+      gst_buffer_replace_all_memory (buf, mem);
     }
-
-    /* copy timestamps */
-    gst_buffer_copy_into (buffer, buf, GST_BUFFER_COPY_METADATA, 0, -1);
-    gst_buffer_unref (buf);
   }
-
-  return buffer;
 }
 
 /** @brief Chain function's private routine to process flex tensor */
-static GstBuffer *
+static void
 _gst_tensor_converter_chain_flex_tensor (GstTensorConverter * self,
     GstBuffer * buf)
 {
-  GstBuffer *buffer;
-  GstMemory *mem;
+  GstMemory *mem, *newmem;
   GstTensorsInfo *info;
   GstTensorMetaInfo meta;
   guint i;
 
   info = &self->tensors_config.info;
-  buffer = gst_buffer_new ();
 
   for (i = 0; i < info->num_tensors; i++) {
     gst_tensor_info_convert_to_meta (&info->info[i], &meta);
@@ -910,14 +906,11 @@ _gst_tensor_converter_chain_flex_tensor (GstTensorConverter * self,
     }
 
     mem = gst_buffer_peek_memory (buf, i);
-    mem = gst_tensor_meta_info_append_header (&meta, mem);
+    newmem = gst_tensor_meta_info_append_header (&meta, mem);
+    /** The old mem is unref'ed by gst_buffer_unref (buf) a few lines below */
 
-    gst_buffer_append_memory (buffer, mem);
+    gst_buffer_replace_memory (buf, i, newmem);
   }
-
-  gst_buffer_copy_into (buffer, buf, GST_BUFFER_COPY_METADATA, 0, -1);
-  gst_buffer_unref (buf);
-  return buffer;
 }
 
 /** @brief Chain function's private routine to push buffer into src pad */
@@ -926,15 +919,16 @@ _gst_tensor_converter_chain_push (GstTensorConverter * self, GstBuffer * buf)
 {
   GstBuffer *buffer = buf;
 
+
   if (self->in_media_type == _NNS_OCTET) {
     /* configure multi tensors */
-    buffer = _gst_tensor_converter_chain_octet (self, buffer);
+    _gst_tensor_converter_chain_octet (self, buffer);
   }
 
   /* if output is flexible, add header. */
   if (!self->do_not_append_header
       && gst_tensor_pad_caps_is_flexible (self->srcpad)) {
-    buffer = _gst_tensor_converter_chain_flex_tensor (self, buffer);
+    _gst_tensor_converter_chain_flex_tensor (self, buffer);
   }
 
   silent_debug_timestamp (self, buffer);
@@ -1298,6 +1292,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
   if (frames_in == frames_out) {
     /** do nothing, push the incoming buffer */
+    inbuf = gst_buffer_make_writable (inbuf);
     return _gst_tensor_converter_chain_push (self, inbuf);
   }
 

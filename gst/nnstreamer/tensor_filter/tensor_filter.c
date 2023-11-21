@@ -872,6 +872,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
       }
 
       gst_buffer_append_memory (outbuf, mem);
+      gst_memory_unref (in_mem[i]);
     }
   }
 
@@ -910,6 +911,8 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
           out_tensors[i].data, out_tensors[i].size, 0,
           out_tensors[i].size, out_tensors[i].data, g_free);
 
+      if (!allocate_in_invoke)
+        gst_allocator_free (out_mem[i]->allocator, out_mem[i]);
       out_mem[i] = gst_tensor_meta_info_append_header (&meta, flex_mem);
       gst_memory_unref (flex_mem);
     } else if (allocate_in_invoke) {
