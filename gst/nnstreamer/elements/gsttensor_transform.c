@@ -2009,11 +2009,9 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
     gboolean is_types_not_fixed = FALSE;
     GstCaps *result_aux = gst_caps_new_empty ();
 
-    structure = gst_caps_get_structure (caps, i);
-
-    gst_tensors_config_init (&in_config);
     gst_tensors_config_init (&out_config);
 
+    structure = gst_caps_get_structure (caps, i);
     gst_tensors_config_from_structure (&in_config, structure);
 
     if (gst_tensors_config_is_flexible (&in_config)) {
@@ -2041,42 +2039,28 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
       gst_caps_append (result_aux, gst_tensor_caps_from_config (&out_config));
     } else {
       gst_caps_append (result_aux, gst_tensors_caps_from_config (&out_config));
-    }
 
-    /* remove `types` field from caps */
-    if (is_types_not_fixed) {
-      GstStructure *s;
-      for (j = 0; j < gst_caps_get_size (result_aux); ++j) {
-        s = gst_caps_get_structure (result_aux, j);
+      /* remove `types` field from caps */
+      if (is_types_not_fixed) {
+        GstStructure *s = gst_caps_get_structure (result_aux, 0);
         gst_structure_remove_field (s, "types");
       }
     }
 
     gst_caps_append (result, result_aux);
+
+    gst_tensors_config_free (&in_config);
+    gst_tensors_config_free (&out_config);
   }
 
   if (filtercap && gst_caps_get_size (filtercap) > 0) {
     GstCaps *intersection;
-    GstPad *pad;
-    GstCaps *peer_caps;
-
-    gst_tensor_caps_update_dimension (result, filtercap);
 
     intersection =
         gst_caps_intersect_full (result, filtercap, GST_CAPS_INTERSECT_FIRST);
 
     gst_caps_unref (result);
     result = intersection;
-
-    if (direction == GST_PAD_SINK)
-      pad = GST_BASE_TRANSFORM_SRC_PAD (filter);
-    else
-      pad = GST_BASE_TRANSFORM_SINK_PAD (filter);
-
-    if ((peer_caps = gst_pad_peer_query_caps (pad, NULL))) {
-      gst_tensor_caps_update_dimension (result, peer_caps);
-      gst_caps_unref (peer_caps);
-    }
   }
 
   silent_debug_caps (filter, result, "to");
