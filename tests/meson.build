@@ -391,7 +391,7 @@ if get_option('install-test')
   install_subdir('nnstreamer_decoder_pose', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_demux', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_filter_custom', install_dir: unittest_install_dir)
-  if tflite_support_is_available
+  if tflite_support_is_available or tflite2_support_is_available
     install_subdir('nnstreamer_filter_tensorflow_lite', install_dir: unittest_install_dir)
   endif
   if tflite2_support_is_available
