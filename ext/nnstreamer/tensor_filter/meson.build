@@ -638,15 +638,10 @@ endif
 
 if snpe_support_is_available
   filter_sub_snpe_sources = ['tensor_filter_snpe.cc']
-
-  snpe_cpp_args = []
-  snpe_cpp_args += '-Wno-terminate'
-
   nnstreamer_filter_snpe_deps = [glib_dep, gst_dep, nnstreamer_dep, snpe_support_deps]
 
   shared_library('nnstreamer_filter_snpe',
     filter_sub_snpe_sources,
-    cpp_args: snpe_cpp_args,
     dependencies: nnstreamer_filter_snpe_deps,
     install: true,
     install_dir: filter_subplugin_install_dir
@@ -654,7 +649,6 @@ if snpe_support_is_available
 
   static_library('nnstreamer_filter_snpe',
     filter_sub_snpe_sources,
-    cpp_args: snpe_cpp_args,
     dependencies: nnstreamer_filter_snpe_deps,
     install: true,
     install_dir: nnstreamer_libdir
