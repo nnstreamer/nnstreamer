@@ -33,7 +33,11 @@ if nnfw_runtime_support_is_available
 endif
 
 if pytorch_support_is_available
-  extensions += [['pytorch', 'torch', nnstreamer_filter_torch_deps, 'pytorch_lenet5.pt', 'pytorch']]
+  if cxx.get_id() == 'gcc'
+    extensions += [['pytorch', 'torch', nnstreamer_filter_torch_deps, 'pytorch_lenet5.pt', 'pytorch']]
+  else # Compilers is not gcc
+    warning('There are a few headers (Array.h and reverse_iterator.h) that require gcc for license issues. Disabling pytorch subplugin build')
+  endif
 endif
 
 if caffe2_support_is_available
