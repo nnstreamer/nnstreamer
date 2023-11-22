@@ -78,7 +78,7 @@ mlagent_parse_uri_string (const GValue * val)
       /** Convert the given URI for a model to the file path */
       g_autofree gchar *name = g_strdup (parts[MODEL_PART_IDX_NAME]);
       guint version = strtoul (parts[MODEL_PART_IDX_VERSION], NULL, 10);
-      g_auto (GStrv) stringfied_json;
+      g_auto (GStrv) stringfied_json = NULL;
       GError *err;
       gint rcode;
 
