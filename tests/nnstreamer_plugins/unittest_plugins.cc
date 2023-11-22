@@ -5124,6 +5124,59 @@ error:
 #endif /* HAVE_ORC */
 
 /**
+ * @brief caps negotiation with tensor-filter.
+ */
+TEST_REQUIRE_TFLITE (testTensorTransform, negotiationFilter)
+{
+  GstHarness *h;
+  GstBuffer *in_buf, *out_buf;
+  gsize in_size, out_size;
+  GstTensorsConfig config;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  g_autofree gchar *test_model = g_build_filename (root_path, "tests",
+      "test_models", "models", "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  g_autofree gchar *pipeline = g_strdup_printf (
+      "tensor_transform mode=typecast option=uint8 ! tensor_filter framework=tensorflow-lite model=%s",
+      test_model);
+
+  h = gst_harness_new_parse (pipeline);
+  ASSERT_TRUE (h != NULL);
+
+  /* input tensor info */
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1U;
+  config.info.info[0].type = _NNS_UINT32;
+  gst_tensor_parse_dimension ("3:224:224", config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+
+  /* push buffer (dummy input RGB 224x224, output 1001) */
+  in_size = gst_tensors_info_get_size (&config.info, 0);
+  out_size = 1001;
+
+  in_buf = gst_harness_create_buffer (h, in_size);
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+  /* get output buffer */
+  out_buf = gst_harness_pull (h);
+  EXPECT_EQ (gst_buffer_n_memory (out_buf), 1U);
+  EXPECT_EQ (gst_buffer_get_size (out_buf), out_size);
+  gst_buffer_unref (out_buf);
+
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Test to re-open tf-lite model file in tensor-filter.
  */
 TEST_REQUIRE_TFLITE (testTensorFilter, reopenTFlite01)
