@@ -714,7 +714,7 @@ gst_tensor_if_event (GstPad * pad, GstObject * parent, GstEvent * event)
 
 /**
  * @brief Checking if the source pad is created and if not, create TensorPad
- * @param tesnor_if TensorIf Object
+ * @param tensor_if TensorIf Object
  * @param config Tensors Config Data
  * @param nth source ordering
  * @return TensorPad if pad is already created, then return created pad.

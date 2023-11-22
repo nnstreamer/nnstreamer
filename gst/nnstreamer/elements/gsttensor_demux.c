@@ -338,7 +338,7 @@ gst_tensor_demux_get_tensor_config (GstTensorDemux * tensor_demux,
 
 /**
  * @brief Checking if the source pad is created and if not, create TensorPad
- * @param tesnor_demux TensorDemux Object
+ * @param tensor_demux TensorDemux Object
  * @param[out] created will be updated in this function
  * @param nth source ordering
  * @param total number of tensors
