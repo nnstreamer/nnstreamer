@@ -1122,7 +1122,7 @@ gst_data_repo_src_start (GstDataRepoSrc * src)
 
   /* record if it's a regular (hence seekable and lengthable) file */
   if (!S_ISREG (stat_results.st_mode))
-    goto error_close;;
+    goto error_close;
 
   src->read_position = 0;
 
