@@ -29,14 +29,14 @@ neural network developers to manage neural network pipelines and their filters e
 
 ## Official Releases
 
-|     | [Tizen](http://download.tizen.org/snapshots/tizen/unified/latest/repos/standard/packages/) | [Ubuntu](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) | Android | [Yocto](https://github.com/nnstreamer/meta-neural-network) | macOS |
+|     | [Tizen](https://download.tizen.org/snapshots/TIZEN/Tizen/Tizen-Unified/latest/repos/standard/packages/) | [Ubuntu](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) | Android | [Yocto](https://github.com/nnstreamer/meta-neural-network) | macOS |
 | :-- | :--: | :--: | :--: | :--: | :--: |
 |     | 5.5M2 and later | ~~16.04~~/18.04/20.04/22.04 | 9/P | Kirkstone |   |
 | arm | [![armv7l badge](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/badge/armv7l_result_badge.svg)](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/build_result/latest/log/) | Available  | Available| Ready | N/A |
 | arm64 |  [![aarch64 badge](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/badge/aarch64_result_badge.svg)](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/build_result/latest/log/) | Available  | [![android badge](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/badge/android_result_badge.svg)](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/build_result/latest/log/) | [![yocto badge](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/badge/yocto_result_badge.svg)](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/build_result/latest/log/) | N/A |
 | x64 | [![x64 badge](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/badge/x86_64_result_badge.svg)](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/build_result/latest/log/)  | [![ubuntu badge](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/badge/ubuntu_result_badge.svg)](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/build_result/latest/log/)  | Ready  | Ready | Available |
 | x86 | [![x86 badge](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/badge/i586_result_badge.svg)](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/build_result/latest/log/)  | N/A  | N/A  | Ready | N/A |
-| Publish | [Tizen Repo](http://download.tizen.org/snapshots/tizen/unified/latest/repos/standard/packages/) | [PPA](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) | [Daily build](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/build_result/latest/android/) | [Layer](https://github.com/nnstreamer/meta-neural-network) | [Brew Tap](Documentation/getting-started-macos.md) |
+| Publish | [Tizen Repo](https://download.tizen.org/snapshots/TIZEN/Tizen/Tizen-Unified/latest/repos/standard/packages/) | [PPA](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) | [Daily build](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/build_result/latest/android/) | [Layer](https://github.com/nnstreamer/meta-neural-network) | [Brew Tap](Documentation/getting-started-macos.md) |
 | API | C/C# (Official) | C | Java | C  | C  |
 
 - Ready: CI system ensures build-ability and unit-testing. Users may easily build and execute. However, we do not have automated release & deployment system for this instance.

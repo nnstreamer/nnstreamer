@@ -176,7 +176,7 @@ Note that test elements in /tests/ are not elements for applications. They exist
 # Other Components
 - CI ([@AWS](http://ci.nnstreamer.ai/nnstreamer/ci/taos)) (stable): Up and Running.
 - CD
-  - Tizen (since 5.5 M1) [Package Download](http://download.tizen.org/snapshots/tizen/unified/latest/repos/standard/packages/) [Build & Release Infra](https://build.tizen.org/project/show/Tizen:Unified)
+  - Tizen (since 5.5 M1) [Package Download](https://download.tizen.org/snapshots/TIZEN/Tizen/Tizen-Unified/latest/repos/standard/packages/) [Build & Release Infra](https://build.tizen.org/project/show/Tizen:Unified)
   - Ubuntu [Launchpad PPA](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa)
   - Yocto/OpenEmbedded [OpenEmbedded Layer, "meta-neural-network"](https://layers.openembedded.org/layerindex/branch/master/layer/meta-neural-network/)
   - Android WIP: JCenter Repository & Daily Build Release
