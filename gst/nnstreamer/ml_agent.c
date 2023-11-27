@@ -25,21 +25,21 @@ const gchar URI_KEYWORD_MODEL[] = "model";
 const gchar *
 mlagent_parse_uri_string (const GValue * val)
 {
-  const g_autofree gchar *ret = g_value_get_string (val);
-  const g_autofree gchar *scheme;
+  const gchar *uri = g_value_get_string (val);
+  g_autofree gchar *scheme = NULL;
   gchar *uri_hier_part;
   gchar **parts;
 
-  if (!ret)
+  if (!uri)
     return NULL;
 
   /** Common checker for the given URI */
-  scheme = g_uri_parse_scheme (ret);
+  scheme = g_uri_parse_scheme (uri);
   if (!scheme || g_strcmp0 (URI_SCHEME, scheme)) {
-    return g_steal_pointer (&ret);
+    return uri;
   }
 
-  uri_hier_part = g_strstr_len (ret, -1, ":");
+  uri_hier_part = g_strstr_len (uri, -1, ":");
   while (*uri_hier_part == ':' || *uri_hier_part == '/') {
     uri_hier_part++;
   }
@@ -102,5 +102,5 @@ mlagent_parse_uri_string (const GValue * val)
 fallback:
   g_strfreev (parts);
 
-  return g_steal_pointer (&ret);
+  return uri;
 }
