@@ -12,21 +12,29 @@
  * @bug     No known bugs except for NYI items
  */
 
+#include <json-glib/json-glib.h>
+#include <nnstreamer_log.h>
 #include <ml-agent-interface.h>
 
 #include "ml_agent.h"
 
 const gchar URI_SCHEME[] = "mlagent";
 const gchar URI_KEYWORD_MODEL[] = "model";
+const gchar JSON_KEY_MODEL_PATH[] = "path";
 
 /**
- * @brief Parse the given URI into the valid file path string
+ * @brief Get a path of the model file from a given GValue
+ * @param[in] val A pointer to a GValue holding a G_TYPE_STRING value
+ * @return A newly allocated c-string representing the model file path, if the given GValue contains a valid URI
+ * Otherwise, it simply returns a duplicated (strdup'ed) c-string that the val contains.
+ * @note The caller should free the return c-string after using it.
  */
-const gchar *
-mlagent_parse_uri_string (const GValue * val)
+gchar *
+mlagent_get_model_path_from (const GValue * val)
 {
-  const gchar *uri = g_value_get_string (val);
   g_autofree gchar *scheme = NULL;
+  g_autofree gchar *uri = g_value_dup_string (val);
+  GError *err = NULL;
   gchar *uri_hier_part;
   gchar **parts;
 
@@ -36,7 +44,7 @@ mlagent_parse_uri_string (const GValue * val)
   /** Common checker for the given URI */
   scheme = g_uri_parse_scheme (uri);
   if (!scheme || g_strcmp0 (URI_SCHEME, scheme)) {
-    return uri;
+    return g_steal_pointer (&uri);
   }
 
   uri_hier_part = g_strstr_len (uri, -1, ":");
@@ -79,7 +87,7 @@ mlagent_parse_uri_string (const GValue * val)
       g_autofree gchar *name = g_strdup (parts[MODEL_PART_IDX_NAME]);
       guint version = strtoul (parts[MODEL_PART_IDX_VERSION], NULL, 10);
       g_autofree gchar *stringfied_json = NULL;
-      GError *err;
+      g_autoptr (JsonParser) json_parser = NULL;
       gint rcode;
 
       /**
@@ -87,19 +95,64 @@ mlagent_parse_uri_string (const GValue * val)
        *       argument (i.e., stringfied_json) by the callee is not fully decided.
        */
       rcode = ml_agent_model_get (name, version, &stringfied_json, &err);
+      if (rcode != 0) {
+        nns_loge
+            ("Failed to get the stringied JSON using the given URI(%s): %s",
+            uri, (err ? err->message : "unknown reason"));
+        goto fallback;
+      }
       g_clear_error (&err);
 
-      if (rcode != 0)
-        goto fallback;
-
+      json_parser = json_parser_new ();
       /** @todo Parse stringfied_json to get the model's path */
-    } else {
-      /** TBU */
-      goto fallback;
+      if (!json_parser_load_from_data (json_parser, stringfied_json, -1, &err)) {
+        nns_loge ("Failed to parse the stringied JSON while "
+            "get the model's path: %s",
+            (err ? err->message : "unknown reason"));
+        goto fallback;
+      }
+      g_clear_error (&err);
+
+      {
+        const gchar *path = NULL;
+        JsonNode *jroot;
+        JsonObject *jobj;
+
+        jroot = json_parser_get_root (json_parser);
+        if (jroot == NULL) {
+          nns_loge ("Failed to get JSON root node while get the model's path");
+          goto fallback;
+        }
+
+        jobj = json_node_get_object (jroot);
+        if (jobj == NULL) {
+          nns_loge
+              ("Failed to get JSON object from the root node while get the model's path");
+          goto fallback;
+        }
+
+        if (!json_object_has_member (jobj, JSON_KEY_MODEL_PATH)) {
+          nns_loge
+              ("Failed to get the model's path from the given URI: "
+              "There is no key named, %s, in the JSON object",
+              JSON_KEY_MODEL_PATH);
+          goto fallback;
+        }
+
+        path = json_object_get_string_member (jobj, JSON_KEY_MODEL_PATH);
+        if (path == NULL || !g_strcmp0 (path, "")) {
+          nns_loge
+              ("Failed to get the model's path from the given URI: "
+              "Invalid value for the key, %s", JSON_KEY_MODEL_PATH);
+          goto fallback;
+        }
+        return g_strdup (path);
+      }
     }
   }
 
 fallback:
+  g_clear_error (&err);
   g_strfreev (parts);
 
   return uri;

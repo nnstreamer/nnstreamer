@@ -1415,7 +1415,7 @@ _gtfc_setprop_MODEL (GstTensorFilterPrivate * priv,
     GstTensorFilterProperties * prop, const GValue * value)
 {
   gint status = 0;
-  const gchar *model_files = mlagent_parse_uri_string (value);
+  g_autofree gchar *model_files = mlagent_get_model_path_from (value);
   GstTensorFilterProperties _prop;
 
   if (!model_files) {

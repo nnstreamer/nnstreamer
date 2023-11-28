@@ -18,12 +18,17 @@
 #include <glib-object.h>
 
 #ifdef ENABLE_ML_AGENT
+
 /**
  * @brief Parse the given URI into the valid file path string
+ * @param[in] val A pointer to a GValue holding a G_TYPE_STRING value
+ * @return A newly allocated c-string containing the model file path in the case that the valid URI is given.
+ * Otherwise, it simply returns c-string that the val contains.
+ * @note The caller should free the return c-string after using it.
  */
-const gchar *mlagent_parse_uri_string (const GValue * val);
+gchar *mlagent_get_model_path_from (const GValue * val);
 #else
-#define mlagent_parse_uri_string g_value_get_string
+#define mlagent_get_model_path_from(v) g_value_dup_string (v)
 #endif
 
 #endif /* __ML_AGENT_H__ */
