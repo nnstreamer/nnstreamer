@@ -196,7 +196,7 @@ gst_tensor_trainer_class_init (GstTensorTrainerClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_MODEL_LOAD_PATH,
       g_param_spec_string ("model-load-path", "Model load path",
-          "(nullable) Path to load an existing model to use for training a new model",
+          "(nullable) Path to a model file to be loaded for the given training session.",
           DEFAULT_STR_PROP_VALUE,
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
