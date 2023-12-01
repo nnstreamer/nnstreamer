@@ -221,7 +221,6 @@ typedef uint32_t tensor_dim[NNS_TENSOR_RANK_LIMIT];
 
 /**
  * @brief The unit of each data tensors. It will be used as an input/output tensor of other/tensors.
- * @note This must be coherent with api/capi/include/nnstreamer-capi-private.h:ml_tensor_data_s
  */
 typedef struct
 {
@@ -231,7 +230,6 @@ typedef struct
 
 /**
  * @brief Internal data structure for tensor info.
- * @note This must be coherent with api/capi/include/nnstreamer-capi-private.h:ml_tensor_info_s
  */
 typedef struct
 {
@@ -244,7 +242,6 @@ typedef struct
 
 /**
  * @brief Internal meta data exchange format for a other/tensors instance
- * @note This must be coherent with api/capi/include/nnstreamer-capi-private.h:ml_tensors_info_s
  */
 typedef struct
 {
