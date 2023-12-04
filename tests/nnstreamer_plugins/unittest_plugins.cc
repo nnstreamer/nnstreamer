@@ -5143,8 +5143,15 @@ TEST_REQUIRE_TFLITE (testTensorTransform, negotiationFilter)
       "test_models", "models", "mobilenet_v1_1.0_224_quant.tflite", NULL);
   ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
 
+  /**
+   * tensor-filter information
+   * input type uint8 dimension 3:224:224:1
+   * output type uint8 dimension 1001:1
+   */
   g_autofree gchar *pipeline = g_strdup_printf (
-      "tensor_transform mode=typecast option=uint8 ! tensor_filter framework=tensorflow-lite model=%s",
+      "tensor_transform mode=typecast option=uint8 ! tensor_filter framework=tensorflow-lite model=%s ! "
+      "other/tensors,num_tensors=1,dimensions=(string)\"1001:1:1:1:1\" ! "
+      "tensor_transform mode=typecast option=int8",
       test_model);
 
   h = gst_harness_new_parse (pipeline);

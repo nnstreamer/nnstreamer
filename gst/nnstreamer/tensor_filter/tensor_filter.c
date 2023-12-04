@@ -1157,7 +1157,6 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
   GstTensorsConfig in_config, out_config;
   GstPad *pad;
   GstCaps *result;
-  GstCaps *peer_caps;
   GstStructure *structure;
   gboolean configured = FALSE;
 
@@ -1231,17 +1230,20 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
   if (configured) {
     /* output info may be configured */
     result = gst_tensor_pad_possible_caps_from_config (pad, &out_config);
+
+    /* Update dimension for src pad caps. */
+    if (direction == GST_PAD_SINK) {
+      GstCaps *peer = gst_pad_peer_query_caps (pad, NULL);
+
+      if (peer) {
+        if (!gst_caps_is_any (peer))
+          gst_tensor_caps_update_dimension (result, peer);
+        gst_caps_unref (peer);
+      }
+    }
   } else {
     /* we don't know the exact tensor info yet */
     result = gst_caps_from_string (CAPS_STRING);
-  }
-
-  /* Update caps dimension for src pad cap */
-  if (direction == GST_PAD_SINK) {
-    if ((peer_caps = gst_pad_peer_query_caps (pad, NULL))) {
-      gst_tensor_caps_update_dimension (result, peer_caps);
-      gst_caps_unref (peer_caps);
-    }
   }
 
   if (filter && gst_caps_get_size (filter) > 0) {
