@@ -355,6 +355,18 @@ if gtest_dep.found()
     subdir('nnstreamer_datarepo')
   endif
 
+    # ONNXRUNTIME unittest
+  if onnxruntime_support_is_available
+    unittest_filter_onnxruntime = executable('unittest_filter_onnxruntime',
+      join_paths('nnstreamer_filter_onnxruntime', 'unittest_filter_onnxruntime.cc'),
+      dependencies: [nnstreamer_unittest_deps],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+
+    test('unittest_filter_onnxruntime', unittest_filter_onnxruntime, env: testenv)
+  endif
+
   # Run unittest_trainer
   unittest_trainer = executable('unittest_trainer',
     join_paths('nnstreamer_trainer', 'unittest_trainer.cc'),
