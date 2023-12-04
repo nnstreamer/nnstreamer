@@ -803,26 +803,58 @@ gst_tensor_aggregation_get_adapter (GHashTable * table, const guint32 key)
 }
 
 /**
+ * @brief Internal function to check tensor dimensions to append old caps for backward compatibility (rank 4).
+ */
+static gboolean
+_append_prev_caps (const GstTensorsConfig * config)
+{
+  GstTensorsInfo *info;
+  GstTensorInfo *_info;
+  guint i, rank, min_rank;
+
+  g_return_val_if_fail (config != NULL, FALSE);
+
+  info = (GstTensorsInfo *) (&config->info);
+  if (!gst_tensors_info_validate (info))
+    return FALSE;
+
+  for (i = 0; i < info->num_tensors; i++) {
+    _info = gst_tensors_info_get_nth_info (info, i);
+
+    rank = gst_tensor_dimension_get_rank (_info->dimension);
+    min_rank = gst_tensor_dimension_get_min_rank (_info->dimension);
+
+    if (rank <= NNS_TENSOR_RANK_LIMIT_PREV ||
+        min_rank > NNS_TENSOR_RANK_LIMIT_PREV)
+      return FALSE;
+  }
+
+  return TRUE;
+}
+
+/**
  * @brief Internal function to get caps for single tensor from config.
  */
 static GstCaps *
 _get_tensor_caps (const GstTensorsConfig * config)
 {
   GstCaps *caps;
-  GstStructure *structure;
-  const GstTensorInfo *_info;
+  GstStructure *structure = NULL;
+  GstTensorsInfo *info;
+  GstTensorInfo *_info;
 
   g_return_val_if_fail (config != NULL, NULL);
 
-  _info = &config->info.info[0];
-
-  if (config->info.num_tensors > 1)
+  info = (GstTensorsInfo *) (&config->info);
+  if (info->num_tensors > 1)
     return NULL;
 
   caps = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT);
+  _info = gst_tensors_info_get_nth_info (info, 0);
 
   /* structure for backward compatibility */
-  structure = gst_structure_new_empty (NNS_MIMETYPE_TENSOR);
+  if (_append_prev_caps (config))
+    structure = gst_structure_new_empty (NNS_MIMETYPE_TENSOR);
 
   if (gst_tensor_dimension_is_valid (_info->dimension)) {
     {
@@ -832,29 +864,36 @@ _get_tensor_caps (const GstTensorsConfig * config)
       gst_caps_set_simple (caps, "dimension", G_TYPE_STRING, dim_str, NULL);
     }
 
-    {
+    if (structure) {
       g_autofree gchar *dim_str =
           gst_tensor_get_rank_dimension_string (_info->dimension,
           NNS_TENSOR_RANK_LIMIT_PREV);
+
       gst_structure_set (structure, "dimension", G_TYPE_STRING, dim_str, NULL);
     }
   }
 
   if (_info->type != _NNS_END) {
-    gst_caps_set_simple (caps, "type", G_TYPE_STRING,
-        gst_tensor_get_type_string (_info->type), NULL);
-    gst_structure_set (structure, "type", G_TYPE_STRING,
-        gst_tensor_get_type_string (_info->type), NULL);
+    const gchar *type_str = gst_tensor_get_type_string (_info->type);
+
+    gst_caps_set_simple (caps, "type", G_TYPE_STRING, type_str, NULL);
+
+    if (structure)
+      gst_structure_set (structure, "type", G_TYPE_STRING, type_str, NULL);
   }
 
   if (config->rate_n >= 0 && config->rate_d > 0) {
     gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION,
         config->rate_n, config->rate_d, NULL);
-    gst_structure_set (structure, "framerate", GST_TYPE_FRACTION,
-        config->rate_n, config->rate_d, NULL);
+
+    if (structure)
+      gst_structure_set (structure, "framerate", GST_TYPE_FRACTION,
+          config->rate_n, config->rate_d, NULL);
   }
 
-  gst_caps_append_structure (caps, structure);
+  if (structure)
+    gst_caps_append_structure (caps, structure);
+
   return caps;
 }
 
@@ -865,14 +904,15 @@ static GstCaps *
 _get_tensors_caps (const GstTensorsConfig * config)
 {
   GstCaps *caps;
-  GstStructure *structure;
+  GstStructure *structure = NULL;
 
   g_return_val_if_fail (config != NULL, NULL);
 
   caps = gst_caps_from_string (GST_TENSORS_CAP_DEFAULT);
 
   /* structure for backward compatibility */
-  structure = gst_structure_new_empty (NNS_MIMETYPE_TENSORS);
+  if (_append_prev_caps (config))
+    structure = gst_structure_new_empty (NNS_MIMETYPE_TENSORS);
 
   if (config->info.num_tensors > 0) {
     g_autofree gchar *type_str =
@@ -890,7 +930,7 @@ _get_tensors_caps (const GstTensorsConfig * config)
     }
 
     /* Set GstStructure */
-    {
+    if (structure) {
       g_autofree gchar *dim_str =
           gst_tensors_info_get_rank_dimensions_string (&config->info,
           NNS_TENSOR_RANK_LIMIT_PREV);
@@ -905,11 +945,15 @@ _get_tensors_caps (const GstTensorsConfig * config)
   if (config->rate_n >= 0 && config->rate_d > 0) {
     gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION,
         config->rate_n, config->rate_d, NULL);
-    gst_structure_set (structure, "framerate", GST_TYPE_FRACTION,
-        config->rate_n, config->rate_d, NULL);
+
+    if (structure)
+      gst_structure_set (structure, "framerate", GST_TYPE_FRACTION,
+          config->rate_n, config->rate_d, NULL);
   }
 
-  gst_caps_append_structure (caps, structure);
+  if (structure)
+    gst_caps_append_structure (caps, structure);
+
   return caps;
 }
 
