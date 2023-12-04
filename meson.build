@@ -478,6 +478,10 @@ features = {
   'ml-agent-support': {
     'extra_deps': [ ml_agent_dep ],
     'project_args': { 'ENABLE_ML_AGENT' : 1 }
+  },
+  'onnxruntime-support': {
+    'target': 'libonnxruntime',
+    'project_args': { 'ENABLE_ONNXRUNTIME': 1 }
   }
 }
 

@@ -36,6 +36,7 @@
 %define		tvm_support 1
 %define		snpe_support 1
 %define		trix_engine_support 1
+%define     onnxruntime_support 0
 # Support AI offloading (tensor_query) using nnstreamer-edge interface
 %define		nnstreamer_edge_support 1
 %define		datarepo_support 1
@@ -109,6 +110,7 @@
 %define		tvm_support 0
 %define		snpe_support 0
 %define		trix_engine_support 0
+%define     onnxruntime_support 0
 %define		nnstreamer_edge_support 0
 %endif
 
@@ -123,6 +125,7 @@
 %define		mqtt_support 0
 %define		tvm_support 0
 %define		trix_engine_support 0
+%define     onnxruntime_support 0
 %endif
 
 # Release unit test suite as a subpackage only if check_test is enabled.
@@ -293,6 +296,10 @@ BuildRequires:	snpe-devel
 
 %if 0%{?trix_engine_support}
 BuildRequires:	npu-engine-devel
+%endif
+
+%if 0%{?onnxruntime_support}
+BuildRequires: onnxruntime-devel
 %endif
 
 # Unit Testing Uses SSAT (https://github.com/myungjoo/SSAT.git)
@@ -492,6 +499,15 @@ Requires:	nnstreamer = %{version}-%{release}
 Requires:	trix-engine
 %description trix-engine
 NNStreamer's tensor_filter subplugin of trix-engine
+%endif
+
+# for onnxruntime
+%if 0%{?onnxruntime_support}
+%package onnxruntime
+Summary:	NNStreamer onnxruntime Support
+Requires:	nnstreamer = %{version}-%{release}
+%description onnxruntime
+NNStreamer's tensor_filter subplugin of onnxruntime
 %endif
 
 %package devel
@@ -812,6 +828,13 @@ NNStreamer's datareposrc/sink plugins for reading and writing files in MLOps Dat
 %define enable_ml_agent -Dml-agent-support=disabled
 %endif
 
+# Support onnxruntime
+%if 0%{?onnxruntime_support}
+%define enable_onnxruntime -Donnxruntime-support=enabled
+%else
+%define enable_onnxruntime -Donnxruntime-support=disabled
+%endif
+
 # Framework priority for each file extension
 %define fw_priority_bin ''
 %define fw_priority_nb ''
@@ -875,7 +898,7 @@ meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir
 	%{enable_tf_lite} %{enable_tf2_lite} %{enable_tf} %{enable_pytorch} %{enable_caffe2} %{enable_python3} \
 	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_openvino} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} \
 	%{enable_flatbuf} %{enable_trix_engine} %{enable_datarepo} \
-	%{enable_tizen_sensor} %{enable_mqtt} %{enable_lua} %{enable_tvm} %{enable_test} %{enable_test_coverage} %{install_test} \
+	%{enable_tizen_sensor} %{enable_mqtt} %{enable_lua} %{enable_tvm} %{enable_onnxruntime} %{enable_test} %{enable_test_coverage} %{install_test} \
 	%{fp16_support} %{nnsedge} %{enable_ml_agent} \
 	%{builddir}
 
@@ -1144,6 +1167,14 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_trix-engine.so
+%endif
+
+# for onnxruntime
+%if 0%{?onnxruntime_support}
+%files onnxruntime
+%manifest nnstreamer.manifest
+%defattr(-,root,root,-)
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_onnxruntime.so
 %endif
 
 %files devel

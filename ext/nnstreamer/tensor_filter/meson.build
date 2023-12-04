@@ -766,3 +766,23 @@ if mxnet_support_is_available
     include_directories: include_directories('.')
   )
 endif
+
+if onnxruntime_support_is_available
+  filter_sub_onnxruntime_sources = ['tensor_filter_onnxruntime.cc']
+
+  nnstreamer_filter_onnxruntime_deps = [glib_dep, gst_dep, nnstreamer_dep, onnxruntime_support_deps]
+
+  shared_library('nnstreamer_filter_onnxruntime',
+    filter_sub_onnxruntime_sources,
+    dependencies: nnstreamer_filter_onnxruntime_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_onnxruntime',
+    filter_sub_onnxruntime_sources,
+    dependencies: nnstreamer_filter_onnxruntime_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+endif
