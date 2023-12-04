@@ -307,6 +307,15 @@ extern guint
 gst_tensor_dimension_get_rank (const tensor_dim dim);
 
 /**
+ * @brief Get the minimum rank of tensor dimension.
+ * @details The C-arrays with dim 4:4:4 and 4:4:4:1 have same data. In this case, this function returns min rank 3.
+ * @param dim tensor dimension.
+ * @return tensor rank (Minimum rank is 1 if given dimension is valid)
+ */
+extern guint
+gst_tensor_dimension_get_min_rank (const tensor_dim dim);
+
+/**
  * @brief Parse tensor dimension parameter string
  * @return The Rank. 0 if error.
  * @param dimstr The dimension string in the format of d1:...:d16, d1:d2:d3, d1:d2, or d1, where dN is a positive integer and d1 is the innermost dimension; i.e., dim[d16]...[d1];
