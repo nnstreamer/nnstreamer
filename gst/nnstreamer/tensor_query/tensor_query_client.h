@@ -46,7 +46,8 @@ struct _GstTensorQueryClient
 
   gboolean silent; /**< True if logging is minimized */
   gchar *in_caps_str;
-
+  gboolean is_tensor;
+  GstTensorsConfig config;
   guint timeout; /**< timeout value (in ms) to wait message from server */
 
   /* Query-hybrid feature */
