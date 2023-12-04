@@ -202,6 +202,8 @@ gst_tensor_query_client_init (GstTensorQueryClient * self)
   self->msg_queue = g_async_queue_new ();
   self->max_request = DEFAULT_MAX_REQUEST;
   self->requested_num = 0;
+  self->is_tensor = FALSE;
+  gst_tensors_config_init (&self->config);
 }
 
 /**
@@ -235,6 +237,8 @@ gst_tensor_query_client_finalize (GObject * object)
     nns_edge_release_handle (self->edge_h);
     self->edge_h = NULL;
   }
+
+  gst_tensors_config_free (&self->config);
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -358,6 +362,20 @@ gst_tensor_query_client_update_caps (GstTensorQueryClient * self,
   if (curr_caps == NULL || !gst_caps_is_equal (curr_caps, out_caps)) {
     if (gst_caps_is_fixed (out_caps)) {
       ret = gst_pad_set_caps (self->srcpad, out_caps);
+
+      /**
+       * If pad caps is updated, prepare the tensor information here.
+       * It will be used in chain function, to push tensor buffer into src pad.
+       */
+      if (ret) {
+        GstStructure *s = gst_caps_get_structure (out_caps, 0);
+
+        self->is_tensor = gst_structure_is_tensor_stream (s);
+        if (self->is_tensor) {
+          gst_tensors_config_free (&self->config);
+          gst_tensors_config_from_structure (&self->config, s);
+        }
+      }
     } else {
       nns_loge ("out-caps from tensor_query_serversink is not fixed. "
           "Failed to update client src caps, out-caps: %s", caps_str);
@@ -456,6 +474,9 @@ _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
         gst_tensors_config_from_structure (&client_config, client_st);
 
         result = gst_tensors_config_is_equal (&server_config, &client_config);
+
+        gst_tensors_config_free (&server_config);
+        gst_tensors_config_free (&client_config);
       }
 
       if (result || gst_caps_can_intersect (client_caps, server_caps)) {
@@ -656,18 +677,24 @@ gst_tensor_query_client_chain (GstPad * pad,
   GstTensorQueryClient *self = GST_TENSOR_QUERY_CLIENT (parent);
   GstBuffer *out_buf = NULL;
   GstFlowReturn res = GST_FLOW_OK;
-  nns_edge_data_h data_h;
-  guint i, num_tensors, num_data;
-  int ret;
+  nns_edge_data_h data_h = NULL;
+  guint i, num_tensors = 0, num_data = 0;
+  int ret = NNS_EDGE_ERROR_NONE;
   GstMemory *mem[NNS_TENSOR_SIZE_LIMIT];
   GstMapInfo map[NNS_TENSOR_SIZE_LIMIT];
   gchar *val;
   UNUSED (pad);
 
+  if (self->max_request > 0 && self->requested_num > self->max_request) {
+    nns_logi
+        ("The processing speed of the query server is too slow. Drop the input buffer.");
+    goto try_pop;
+  }
+
   ret = nns_edge_data_create (&data_h);
   if (ret != NNS_EDGE_ERROR_NONE) {
     nns_loge ("Failed to create data handle in client chain.");
-    return GST_FLOW_ERROR;
+    goto try_pop;
   }
 
   num_tensors = gst_tensor_buffer_get_count (buf);
@@ -677,7 +704,7 @@ gst_tensor_query_client_chain (GstPad * pad,
       ml_loge ("Cannot map the %uth memory in gst-buffer.", i);
       gst_memory_unref (mem[i]);
       num_tensors = i;
-      goto done;
+      goto try_pop;
     }
     nns_edge_data_add (data_h, map[i].data, map[i].size, NULL);
   }
@@ -686,50 +713,57 @@ gst_tensor_query_client_chain (GstPad * pad,
   nns_edge_data_set_info (data_h, "client_id", val);
   g_free (val);
 
-  if (self->max_request > 0 && self->requested_num > self->max_request) {
-    nns_logi
-        ("the processing speed of the query server is too slow. Drop the input buffer.");
-  } else {
-    if (NNS_EDGE_ERROR_NONE != nns_edge_send (self->edge_h, data_h)) {
-      nns_logi ("Failed to publish to server node.");
-      goto done;
-    }
+  ret = nns_edge_send (self->edge_h, data_h);
+  if (ret == NNS_EDGE_ERROR_NONE) {
     self->requested_num++;
+  } else {
+    nns_loge ("Failed to publish to server node.");
   }
 
-  nns_edge_data_destroy (data_h);
+try_pop:
+  if (data_h)
+    nns_edge_data_destroy (data_h);
 
   data_h = g_async_queue_timeout_pop (self->msg_queue,
       self->timeout * G_TIME_SPAN_MILLISECOND);
   if (data_h) {
     self->requested_num--;
     ret = nns_edge_data_get_count (data_h, &num_data);
-    if (ret != NNS_EDGE_ERROR_NONE || num_data == 0) {
+
+    if (ret == NNS_EDGE_ERROR_NONE && num_data > 0) {
+      GstMemory *new_mem;
+      GstTensorInfo *_info;
+
+      out_buf = gst_buffer_new ();
+
+      for (i = 0; i < num_data; i++) {
+        void *data = NULL;
+        nns_size_t data_len;
+        gpointer new_data;
+
+        nns_edge_data_get (data_h, i, &data, &data_len);
+        new_data = _g_memdup (data, data_len);
+
+        new_mem = gst_memory_new_wrapped (0, new_data, data_len, 0, data_len,
+            new_data, g_free);
+
+        if (self->is_tensor) {
+          _info = gst_tensors_info_get_nth_info (&self->config.info, i);
+          gst_tensor_buffer_append_memory (out_buf, new_mem, _info);
+        } else {
+          gst_buffer_append_memory (out_buf, new_mem);
+        }
+      }
+
+      /* metadata from incoming buffer */
+      gst_buffer_copy_into (out_buf, buf, GST_BUFFER_COPY_METADATA, 0, -1);
+
+      res = gst_pad_push (self->srcpad, out_buf);
+    } else {
       nns_loge ("Failed to get the number of memories of the edge data.");
       res = GST_FLOW_ERROR;
-      goto done;
     }
 
-    out_buf = gst_buffer_new ();
-    for (i = 0; i < num_data; i++) {
-      void *data = NULL;
-      nns_size_t data_len;
-      gpointer new_data;
-
-      nns_edge_data_get (data_h, i, &data, &data_len);
-      new_data = _g_memdup (data, data_len);
-      gst_buffer_append_memory (out_buf,
-          gst_memory_new_wrapped (0, new_data, data_len, 0,
-              data_len, new_data, g_free));
-    }
-    /* metadata from incoming buffer */
-    gst_buffer_copy_into (out_buf, buf, GST_BUFFER_COPY_METADATA, 0, -1);
-
-    res = gst_pad_push (self->srcpad, out_buf);
-  }
-
-done:
-  if (data_h) {
     nns_edge_data_destroy (data_h);
   }
 
