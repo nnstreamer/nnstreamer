@@ -1043,42 +1043,45 @@ _is_structure_dimension_same (GstStructure * st1, GstStructure * st2,
 /**
  * @brief Update caps dimensions for negotiation
  * @param caps caps to compare and update
- * @param peer_caps caps to compare
+ * @param filter caps to compare
  */
 void
-gst_tensor_caps_update_dimension (GstCaps * caps, GstCaps * peer_caps)
+gst_tensor_caps_update_dimension (GstCaps * caps, GstCaps * filter)
 {
-  GstStructure *structure;
-  GstStructure *structure_peer;
+  GstStructure *st_caps, *st_filter;
   guint i, j;
 
-  g_return_if_fail (caps != NULL);
-  g_return_if_fail (peer_caps != NULL);
+  g_return_if_fail (GST_IS_CAPS (caps));
+  g_return_if_fail (GST_IS_CAPS (filter));
 
   for (i = 0; i < gst_caps_get_size (caps); i++) {
-    structure = gst_caps_get_structure (caps, i);
+    st_caps = gst_caps_get_structure (caps, i);
 
-    for (j = 0; j < gst_caps_get_size (peer_caps); j++) {
-      structure_peer = gst_caps_get_structure (peer_caps, j);
+    if (!gst_structure_is_tensor_stream (st_caps))
+      continue;
+
+    for (j = 0; j < gst_caps_get_size (filter); j++) {
+      st_filter = gst_caps_get_structure (filter, j);
+
+      if (!gst_structure_is_tensor_stream (st_filter))
+        continue;
 
       /* other/tensor */
-      if (gst_structure_has_field (structure, "dimension")
-          && gst_structure_has_field (structure_peer, "dimension")) {
+      if (gst_structure_has_field (st_caps, "dimension")
+          && gst_structure_has_field (st_filter, "dimension")) {
         /* update dimensions for negotiation */
-        if (_is_structure_dimension_same (structure, structure_peer,
-                "dimension")) {
-          gst_structure_set (structure, "dimension", G_TYPE_STRING,
-              gst_structure_get_string (structure_peer, "dimension"), NULL);
+        if (_is_structure_dimension_same (st_caps, st_filter, "dimension")) {
+          gst_structure_set (st_caps, "dimension", G_TYPE_STRING,
+              gst_structure_get_string (st_filter, "dimension"), NULL);
         }
       }
       /* other/tensors */
-      else if (gst_structure_has_field (structure, "dimensions")
-          && gst_structure_has_field (structure_peer, "dimensions")) {
+      else if (gst_structure_has_field (st_caps, "dimensions")
+          && gst_structure_has_field (st_filter, "dimensions")) {
         /* update dimensions for negotiation */
-        if (_is_structure_dimension_same (structure, structure_peer,
-                "dimensions")) {
-          gst_structure_set (structure, "dimensions", G_TYPE_STRING,
-              gst_structure_get_string (structure_peer, "dimensions"), NULL);
+        if (_is_structure_dimension_same (st_caps, st_filter, "dimensions")) {
+          gst_structure_set (st_caps, "dimensions", G_TYPE_STRING,
+              gst_structure_get_string (st_filter, "dimensions"), NULL);
         }
       }
     }

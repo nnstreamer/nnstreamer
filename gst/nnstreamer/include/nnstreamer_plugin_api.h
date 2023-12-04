@@ -104,10 +104,10 @@ gst_tensor_meta_info_append_header (GstTensorMetaInfo * meta, GstMemory * mem);
 /**
  * @brief Update caps dimension for negotiation
  * @param caps caps to compare and update
- * @param peer_caps caps to compare
+ * @param filter caps to compare
  */
 extern void
-gst_tensor_caps_update_dimension (GstCaps *caps, GstCaps *peer_caps);
+gst_tensor_caps_update_dimension (GstCaps *caps, GstCaps *filter);
 
 /**
  * @brief  Try intersecting @caps1 and @caps2 for tensor stream
