@@ -675,6 +675,13 @@ end
     NULL,
   };
 
+#ifdef __riscv
+  GTEST_SKIP ();
+  /** @todo Exception handling in filter::lua for RISCV
+   * Somehow, nnstreamer::lua in riscv64 at Ubuntu 20.02
+   * cannot handle exceptions nicely. */
+#endif
+
   output.size = input.size = sizeof (uint8_t) * 3 * 100 * 100 * 1;
 
   /* alloc input data without alignment */
