@@ -638,7 +638,7 @@ endif
 
 if snpe_support_is_available
   filter_sub_snpe_sources = ['tensor_filter_snpe.cc']
-  nnstreamer_filter_snpe_deps = [glib_dep, gst_dep, nnstreamer_dep, snpe_support_deps]
+  nnstreamer_filter_snpe_deps = [glib_dep, gst_dep, nnstreamer_dep, snpe_support_deps, declare_dependency(compile_args: ['-Wno-deprecated-declarations'])]
 
   shared_library('nnstreamer_filter_snpe',
     filter_sub_snpe_sources,
