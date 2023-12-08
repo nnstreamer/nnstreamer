@@ -710,7 +710,7 @@ TFLiteInterpreter::setInputTensorsInfo (const GstTensorsInfo *info)
 {
   TfLiteStatus status = kTfLiteOk;
   const std::vector<int> &input_idx_list = interpreter->inputs ();
-  int input_rank;
+  int input_rank, cur_rank, dim;
 
   /** Cannot change the number of inputs */
   if (info->num_tensors != input_idx_list.size ())
@@ -721,6 +721,7 @@ TFLiteInterpreter::setInputTensorsInfo (const GstTensorsInfo *info)
     const GstTensorInfo *tensor_info;
 
     tensor_info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info, tensor_idx);
+    cur_rank = gst_tensor_info_get_rank (tensor_info);
 
     /** cannot change the type of input */
     tf_type = getTensorType (interpreter->tensor (input_idx_list[tensor_idx])->type);
@@ -732,7 +733,7 @@ TFLiteInterpreter::setInputTensorsInfo (const GstTensorsInfo *info)
      * iterate over all possible ranks starting from MIN rank to the actual rank
      * of the dimension array. In case of none of these ranks work, return error
      */
-    for (input_rank = NNS_TENSOR_RANK_LIMIT - 1; input_rank > 0; input_rank--) {
+    for (input_rank = cur_rank - 1; input_rank > 0; input_rank--) {
       if (tensor_info->dimension[input_rank] > 1)
         break;
     }
@@ -744,7 +745,8 @@ TFLiteInterpreter::setInputTensorsInfo (const GstTensorsInfo *info)
         /** check overflow when storing uint32_t in int container */
         if (tensor_info->dimension[rank - idx - 1] > INT_MAX)
           return -ERANGE;
-        dims[idx] = tensor_info->dimension[rank - idx - 1];
+        dim = tensor_info->dimension[rank - idx - 1];
+        dims[idx] = (dim > 0) ? dim : 1;
       }
       status = interpreter->ResizeInputTensor (input_idx_list[tensor_idx], dims);
       if (status == kTfLiteOk) {
