@@ -20,8 +20,15 @@
 #pragma GCC diagnostic ignored "-Wformat"
 #endif
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+#include <unistd.h>
+#include <mutex>
 #include <nnstreamer_util.h>
 #include "nnstreamer_python3_helper.h"
+#include <sys/syscall.h>
+#define gettid() syscall(SYS_gettid)
 
 #ifdef __cplusplus
 extern "C" {
@@ -552,6 +559,7 @@ PyTensorShape_New (PyObject *shape_cls, const GstTensorInfo *info)
 }
 
 static int ref_counter = 0;
+//static PyThreadState *pythr = NULL;
 
 /**
  * @brief Do Py_Initialize w/ reference count for different python subplugins
@@ -562,8 +570,10 @@ void _refcnt_py_initalize()
   if (!ref_counter) {
     fprintf(stderr, "\n\nPY INIT\n\n\n");
     Py_Initialize();
-    PyEval_InitThreads_IfGood ();
+
+    PyEval_InitThreads_IfGood();
   }
+
   ref_counter++;
 }
 
@@ -579,6 +589,43 @@ void _refcnt_py_finalize()
     Py_Finalize();
   }
   ref_counter--;
+}
+
+
+PyGILState_STATE
+_py_start()
+{
+  int state1 = 0, state2 = 0;
+
+  if (!Py_IsInitialized()) {
+    fprintf(stderr, "\n\nPY NOT INITED.\n\n");
+    Py_Initialize();
+  }
+  if (!PyEval_ThreadsInitialized()) {
+    state1 = 1;
+    fprintf(stderr, "\n\nEVAL INIT THREAD\n\n");
+    PyEval_InitThreads_IfGood();
+  }
+ // PyEval_RestoreThread (pythr);
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 7
+  if (_Py_Finalizing != nullptr) {
+#else
+  if (_Py_IsFinalizing()) {
+#endif
+    state2 = 1;
+    fprintf(stderr, "\n\nCANNOT Ensure\n\n");
+    return (PyGILState_STATE) 0;
+  }
+
+  fprintf(stderr, "s1 %d, s2 %d @ %ld\n", state1, state2, gettid());
+  return Py_LOCK();
+}
+
+void
+_py_end (PyGILState_STATE state)
+{
+  Py_UNLOCK (state);
+//  pythr = PyEval_SaveThread ();
 }
 
 #ifdef __cplusplus

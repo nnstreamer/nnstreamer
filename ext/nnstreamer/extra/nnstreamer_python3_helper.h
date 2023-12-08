@@ -61,6 +61,12 @@ extern "C" {
 #define Py_LOCK() PyGILState_Ensure()
 #define Py_UNLOCK(gstate) PyGILState_Release(gstate)
 
+#define _Py_BEGIN_THREAD_CONTROL \
+  PyEval_RestoreThread (ptst);
+
+#define _Py_END_THREAD_CONTROL \
+  ptst = PyEval_SaveThread ();
+
 extern tensor_type getTensorType (NPY_TYPES npyType);
 extern NPY_TYPES getNumpyType (tensor_type tType);
 extern int loadScript (PyObject **core_obj, const gchar *module_name, const gchar *class_name);
@@ -71,6 +77,9 @@ extern PyObject * PyTensorShape_New (PyObject * shape_cls, const GstTensorInfo *
 
 extern void _refcnt_py_initalize();
 extern void _refcnt_py_finalize();
+
+extern PyGILState_STATE _py_start ();
+extern void _py_end (PyGILState_STATE state);
 
 #ifdef __cplusplus
 } /* extern "C" */

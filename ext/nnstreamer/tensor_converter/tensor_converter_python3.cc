@@ -13,9 +13,15 @@
  * @bug		python converter with Python3.9.10 is stucked during Py_Finalize().
  */
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+#include <unistd.h>
 #include <nnstreamer_plugin_api_converter.h>
 #include <nnstreamer_util.h>
 #include "nnstreamer_python3_helper.h"
+#include <sys/syscall.h>
+#define gettid() syscall(SYS_gettid)
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,6 +32,7 @@ void fini_converter_py (void) __attribute__ ((destructor));
 }
 #endif /* __cplusplus */
 
+static PyThreadState *g_ptst; /**< The default python interpreter */
 /**
  * @brief	Python embedding core structure
  */
@@ -48,6 +55,8 @@ class PYConverterCore
   PyObject *shape_cls;
   PyObject *core_obj;
   void *handle; /**< returned handle by dlopen() */
+
+  PyThreadState *ptst; /**< The python interpreter for converter::python instance */
 };
 
 /**
@@ -62,7 +71,9 @@ PYConverterCore::PYConverterCore (const char *_script_path)
   if (openPythonLib (&handle))
     throw std::runtime_error (dlerror ());
 
-  PyGILState_STATE gstate = Py_LOCK ();
+  PyEval_AcquireThread (g_ptst);
+  ptst = Py_NewInterpreter ();
+  PyThreadState_Swap (ptst);
 
   _import_array (); /** for numpy */
 
@@ -85,7 +96,7 @@ PYConverterCore::PYConverterCore (const char *_script_path)
   core_obj = NULL;
   shape_cls = NULL;
 
-  Py_UNLOCK (gstate);
+  _Py_END_THREAD_CONTROL
 }
 
 /**
@@ -94,11 +105,12 @@ PYConverterCore::PYConverterCore (const char *_script_path)
  */
 PYConverterCore::~PYConverterCore ()
 {
-  PyGILState_STATE gstate = Py_LOCK ();
+  _Py_BEGIN_THREAD_CONTROL
   Py_SAFEDECREF (core_obj);
   Py_SAFEDECREF (shape_cls);
   PyErr_Clear ();
-  Py_UNLOCK (gstate);
+
+  Py_EndInterpreter (ptst);
 
   dlclose (handle);
 }
@@ -126,7 +138,8 @@ PYConverterCore::convert (GstBuffer *in_buf, GstTensorsConfig *config)
 
   fprintf(stderr, "%s:%d\n", __FILE__, __LINE__);
 
-  PyGILState_STATE gstate = Py_LOCK ();
+  _Py_BEGIN_THREAD_CONTROL
+
   param = PyList_New (num);
 
   for (i = 0; i < num; i++) {
@@ -197,7 +210,8 @@ done:
   Py_SAFEDECREF (param);
   Py_SAFEDECREF (pyValue);
 
-  Py_UNLOCK (gstate);
+  _Py_END_THREAD_CONTROL
+
   return out_buf;
 }
 
@@ -209,12 +223,14 @@ int
 PYConverterCore::init ()
 {
   int ret = 0;
-  PyGILState_STATE gstate = Py_LOCK ();
+
+  _Py_BEGIN_THREAD_CONTROL
+
   /** Find nnstreamer_api module */
   PyObject *api_module = PyImport_ImportModule ("nnstreamer_python");
   if (api_module == NULL) {
-    Py_UNLOCK (gstate);
-    return -EINVAL;
+    ret = -EINVAL;
+    goto done;
   }
 
   shape_cls = PyObject_GetAttrString (api_module, "TensorShape");
@@ -225,7 +241,8 @@ PYConverterCore::init ()
     ret = loadScript (&core_obj, module_name.c_str (), "CustomConverter");
 
   Py_SAFEDECREF (api_module);
-  Py_UNLOCK (gstate);
+done:
+  _Py_END_THREAD_CONTROL
   return ret;
 }
 
@@ -263,6 +280,9 @@ py_open (const gchar *path, void **priv_data)
 {
   PYConverterCore *core;
 
+  if (!PyEval_ThreadsInitialized ())
+    PyEval_InitThreads_IfGood ();
+
   if (!Py_IsInitialized ())
     throw std::runtime_error ("Python is not initialize.");
 
@@ -279,23 +299,19 @@ py_open (const gchar *path, void **priv_data)
   /* init null */
   *priv_data = NULL;
 
-  PyGILState_STATE gstate = Py_LOCK ();
   core = new PYConverterCore (path);
   if (core == NULL) {
     Py_ERRMSG ("Failed to allocate memory for converter subplugin: Python\n");
-    Py_UNLOCK (gstate);
     return -1;
   }
 
   if (core->init () != 0) {
     delete core;
     Py_ERRMSG ("failed to initailize the object: Python\n");
-    Py_UNLOCK (gstate);
     return -2;
   }
   *priv_data = core;
 
-  Py_UNLOCK (gstate);
   return 0;
 }
 
@@ -363,16 +379,24 @@ static NNStreamerExternalConverter Python = {
   .close = py_close,
 };
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /** @brief Initialize this object for tensor converter sub-plugin */
 void
 init_converter_py (void)
 {
   /** Python should be initialized and finalized only once */
-  _refcnt_py_initalize ();
+  //_refcnt_py_initalize ();
+
+  fprintf(stderr, "TID = %ld", gettid());
+  if (!Py_IsInitialized()) {
+    Py_Initialize();
+    fprintf(stderr, "%s:%d / PyInit\n", __FILE__, __LINE__);
+  }
+  if (!PyEval_ThreadsInitialized()) {
+    PyEval_InitThreads_IfGood ();
+    fprintf(stderr, "%s:%d / PyInitThread\n", __FILE__, __LINE__);
+
+    g_ptst = PyEval_SaveThread();
+  }
 
   registerExternalConverter (&Python);
 }
@@ -383,8 +407,5 @@ fini_converter_py (void)
 {
   unregisterExternalConverter (Python.name);
 
-  _refcnt_py_finalize ();
+  //_refcnt_py_finalize ();
 }
-#ifdef __cplusplus
-}
-#endif /* __cplusplus */
