@@ -346,30 +346,30 @@ else # no tflite2
 endif
 
 if pytorch_support_is_available
-  if cxx.get_id() == 'gcc'
-    filter_sub_torch_sources = ['tensor_filter_pytorch.cc']
-    # pytorch sources contain unused parameters
-    ignore_unused_params = declare_dependency(compile_args: ['-Wno-unused-parameter'])
-    pytorch_support_deps += ignore_unused_params
+  if cxx.get_id() != 'gcc'
+    error('Pytorch headers (Array.h and reverse_iterator.h) require GCC for license issues. Use GCC or disable pytorch with -Dpytorch-support=disabled.')
+  endif
+
+  filter_sub_torch_sources = ['tensor_filter_pytorch.cc']
+  # pytorch sources contain unused parameters
+  ignore_unused_params = declare_dependency(compile_args: ['-Wno-unused-parameter'])
+  pytorch_support_deps += ignore_unused_params
 
     nnstreamer_filter_torch_deps = [pytorch_support_deps, nnstreamer_single_dep]
 
-    shared_library('nnstreamer_filter_pytorch',
-      filter_sub_torch_sources,
-      dependencies: nnstreamer_filter_torch_deps,
-      install: true,
-      install_dir: filter_subplugin_install_dir
-    )
+  shared_library('nnstreamer_filter_pytorch',
+    filter_sub_torch_sources,
+    dependencies: nnstreamer_filter_torch_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
 
-    static_library('nnstreamer_filter_pytorch',
-      filter_sub_torch_sources,
-      dependencies: nnstreamer_filter_torch_deps,
-      install: true,
-      install_dir: nnstreamer_libdir
-    )
-  else # Compilers is not gcc
-    warning('There are a few headers (Array.h and reverse_iterator.h) that require gcc for license issues. Disabling pytorch subplugin build')
-  endif
+  static_library('nnstreamer_filter_pytorch',
+    filter_sub_torch_sources,
+    dependencies: nnstreamer_filter_torch_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
 endif
 
 if caffe2_support_is_available
