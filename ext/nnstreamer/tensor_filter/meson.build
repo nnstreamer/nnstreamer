@@ -184,6 +184,10 @@ if tflite2_support_is_available
   )
   message('TensorFlow2-lite version: ' + tflite2_ver)
 
+  if not cxx.check_header('flatbuffers/flatbuffers.h')
+    error('flatbuffers header files are required to build tensorflow2-lite subplugin. Please install compatible version for tensorflow-lite library. Or disable tflite2-support in meson_options.txt')
+  endif
+
   filter_sub_tflite2_sources = ['tensor_filter_tensorflow_lite.cc']
 
   nnstreamer_filter_tflite2_deps = tflite2_support_deps + [thread_dep, libdl_dep, nnstreamer_single_dep]
