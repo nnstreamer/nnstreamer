@@ -222,8 +222,9 @@ PYConverterCore::init ()
   shape_cls = PyObject_GetAttrString (api_module, "TensorShape");
   Py_SAFEDECREF (api_module);
 
-  if (shape_cls == NULL)
+  if (shape_cls == NULL) {
     return -EINVAL;
+  }
 
   return loadScript (&core_obj, module_name.c_str (), "CustomConverter");
 }
@@ -244,10 +245,12 @@ PYConverterCore::getScriptPath ()
 static void
 py_close (void **private_data)
 {
+  PyGILState_STATE gstate = PyGILState_Ensure ();
   PYConverterCore *core = static_cast<PYConverterCore *> (*private_data);
 
   g_return_if_fail (core != NULL);
   delete core;
+  PyGILState_Release (gstate);
 
   *private_data = NULL;
 }
@@ -260,7 +263,9 @@ py_close (void **private_data)
 static int
 py_open (const gchar *path, void **priv_data)
 {
+  int ret = 0;
   PYConverterCore *core;
+  PyGILState_STATE gstate;
 
   if (!Py_IsInitialized ())
     throw std::runtime_error ("Python is not initialize.");
@@ -278,20 +283,25 @@ py_open (const gchar *path, void **priv_data)
   /* init null */
   *priv_data = NULL;
 
+  gstate = PyGILState_Ensure ();
   core = new PYConverterCore (path);
   if (core == NULL) {
-    Py_ERRMSG ("Failed to allocate memory for converter subplugin: Python\n");
-    return -1;
+    Py_ERRMSG ("Failed to allocate memory for converter subplugin or path invalid: Python\n");
+    ret = -ENOMEM;
+    goto done;
   }
 
   if (core->init () != 0) {
     delete core;
-    Py_ERRMSG ("failed to initailize the object: Python\n");
-    return -2;
+    Py_ERRMSG ("failed to initailize the object or the python script is invalid: Python\n");
+    ret = -EINVAL;
+    goto done;
   }
-  *priv_data = core;
 
-  return 0;
+  *priv_data = core;
+done:
+  PyGILState_Release (gstate);
+  return ret;
 }
 
 /** @brief tensor converter plugin's NNStreamerExternalConverter callback */
@@ -340,10 +350,16 @@ python_get_out_config (const GstCaps *in_cap, GstTensorsConfig *config)
 static GstBuffer *
 python_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
 {
+  GstBuffer *ret;
   PYConverterCore *core = static_cast<PYConverterCore *> (priv_data);
+  PyGILState_STATE gstate;
   g_return_val_if_fail (in_buf, NULL);
   g_return_val_if_fail (config, NULL);
-  return core->convert (in_buf, config);
+
+  gstate = PyGILState_Ensure ();
+  ret = core->convert (in_buf, config);
+  PyGILState_Release (gstate);
+  return ret;
 }
 
 static const gchar converter_subplugin_python[] = "python3";
@@ -361,6 +377,7 @@ static NNStreamerExternalConverter Python = {
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
+static PyThreadState *st;
 /** @brief Initialize this object for tensor converter sub-plugin */
 void
 init_converter_py (void)
@@ -369,6 +386,8 @@ init_converter_py (void)
   if (!Py_IsInitialized ()) {
     Py_Initialize ();
   }
+  PyEval_InitThreads_IfGood ();
+  st = PyEval_SaveThread ();
   registerExternalConverter (&Python);
 }
 
@@ -376,6 +395,7 @@ init_converter_py (void)
 void
 fini_converter_py (void)
 {
+  PyEval_RestoreThread (st);
   unregisterExternalConverter (Python.name);
 /**
  * @todo Remove below lines after this issue is addressed.
