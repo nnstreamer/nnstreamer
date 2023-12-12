@@ -858,7 +858,17 @@ fini_filter_py (void)
   PyEval_RestoreThread (st);
   nnstreamer_filter_exit (NNS_support_python.v0.name);
 
+/**
+ * @todo Remove below lines after this issue is addressed.
+ * Tizen issues: After python version has been upgraded from 3.9.1 to 3.9.10,
+ * python converter is stopped at Py_Finalize. Since Py_Initialize is not called
+ * twice from this object, Py_Finalize is temporarily removed.
+ * We do not know if it's safe to call this at this point.
+ * We can finalize when ALL python subplugins share the same ref counter.
+ */
+#if 0
   /** Python should be initialized and finalized only once */
   if (Py_IsInitialized ())
     Py_Finalize ();
+#endif
 }
