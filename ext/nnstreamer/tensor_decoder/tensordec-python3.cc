@@ -275,7 +275,9 @@ decoder_py_exit (void **pdata)
   PYDecoderCore *core = static_cast<PYDecoderCore *> (*pdata);
 
   g_return_if_fail (core != NULL);
+  PyGILState_STATE gstate = PyGILState_Ensure ();
   delete core;
+  PyGILState_Release (gstate);
 
   *pdata = NULL;
 }
@@ -285,6 +287,7 @@ static int
 decoder_py_setOption (void **pdata, int opNum, const char *param)
 {
   gchar *path = (gchar *) param;
+  int ret = TRUE;
 
   /* opNum 1 = python script path */
   if (opNum == 0) {
@@ -306,22 +309,30 @@ decoder_py_setOption (void **pdata, int opNum, const char *param)
     /* init null */
     *pdata = NULL;
 
+    PyGILState_STATE gstate = PyGILState_Ensure ();
+
     try {
       core = new PYDecoderCore (path);
     } catch (std::bad_alloc &exception) {
       ml_loge ("Failed to allocate memory for decoder subplugin: python3\n");
       ml_loge ("%s", exception.what ());
-      return FALSE;
+      ret = FALSE;
+      goto done;
     }
 
     if (core->init () != 0) {
       delete core;
       ml_loge ("failed to initailize the object: Python3\n");
-      return FALSE;
+      ret = FALSE;
+      goto done;
     }
     *pdata = core;
 
-    return TRUE;
+    ret = TRUE;
+    goto done;
+  done:
+    PyGILState_Release (gstate);
+    return ret;
   }
 
   GST_INFO ("Property mode-option-%d is ignored", opNum + 1);
@@ -335,7 +346,9 @@ decoder_py_getOutCaps (void **pdata, const GstTensorsConfig *config)
   GstCaps *caps;
   PYDecoderCore *core = static_cast<PYDecoderCore *> (*pdata);
 
+  PyGILState_STATE gstate = PyGILState_Ensure ();
   caps = core->getOutCaps (config);
+  PyGILState_Release (gstate);
   setFramerateFromConfig (caps, config);
   return caps;
 }
@@ -345,11 +358,16 @@ static GstFlowReturn
 decoder_py_decode (void **pdata, const GstTensorsConfig *config,
     const GstTensorMemory *input, GstBuffer *outbuf)
 {
+  GstFlowReturn ret;
   PYDecoderCore *core = static_cast<PYDecoderCore *> (*pdata);
   g_return_val_if_fail (config, GST_FLOW_ERROR);
   g_return_val_if_fail (input, GST_FLOW_ERROR);
   g_return_val_if_fail (outbuf, GST_FLOW_ERROR);
-  return core->decode (config, input, outbuf);
+
+  PyGILState_STATE gstate = PyGILState_Ensure ();
+  ret = core->decode (config, input, outbuf);
+  PyGILState_Release (gstate);
+  return ret;
 }
 
 static gchar decoder_subplugin_python3[] = "python3";
@@ -366,7 +384,7 @@ static GstTensorDecoderDef Python = { .modename = decoder_subplugin_python3,
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-
+static PyThreadState *st;
 /** @brief Initialize this object for tensordec-plugin */
 void
 init_decoder_py (void)
@@ -374,6 +392,8 @@ init_decoder_py (void)
   /** Python should be initialized and finalized only once */
   if (!Py_IsInitialized ())
     Py_Initialize ();
+  PyEval_InitThreads_IfGood ();
+  st = PyEval_SaveThread ();
 
   nnstreamer_decoder_probe (&Python);
 }
@@ -382,11 +402,22 @@ init_decoder_py (void)
 void
 fini_decoder_py (void)
 {
+  PyEval_RestoreThread (st);
   nnstreamer_decoder_exit (Python.modename);
 
+/**
+ * @todo Remove below lines after this issue is addressed.
+ * Tizen issues: After python version has been upgraded from 3.9.1 to 3.9.10,
+ * python converter is stopped at Py_Finalize. Since Py_Initialize is not called
+ * twice from this object, Py_Finalize is temporarily removed.
+ * We do not know if it's safe to call this at this point.
+ * We can finalize when ALL python subplugins share the same ref counter.
+ */
+#if 0
   /** Python should be initialized and finalized only once */
   if (Py_IsInitialized ())
     Py_Finalize ();
+#endif
 }
 #ifdef __cplusplus
 }
