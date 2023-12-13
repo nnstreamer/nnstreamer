@@ -858,17 +858,12 @@ static GstTensorFilterFramework NNS_support_python = { .version = GST_TENSOR_FIL
         .allocateInInvoke = nullptr,
     } } };
 
-static PyThreadState *st;
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void
 init_filter_py (void)
 {
   /** Python should be initialized and finalized only once */
-  if (!Py_IsInitialized ())
-    Py_Initialize ();
-  PyEval_InitThreads_IfGood ();
-  st = PyEval_SaveThread ();
-
+  nnstreamer_python_init_refcnt ();
   nnstreamer_filter_probe (&NNS_support_python);
   nnstreamer_filter_set_custom_property_desc (filter_subplugin_python, "${GENERAL_STRING}",
       "There is no key-value pair defined by python3 subplugin. "
@@ -880,7 +875,8 @@ init_filter_py (void)
 void
 fini_filter_py (void)
 {
-  PyEval_RestoreThread (st);
+  nnstreamer_python_status_check ();
+  nnstreamer_python_fini_refcnt ();
   nnstreamer_filter_exit (NNS_support_python.v0.name);
 
 /**

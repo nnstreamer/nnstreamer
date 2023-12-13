@@ -529,6 +529,61 @@ PyTensorShape_New (PyObject *shape_cls, const GstTensorInfo *info)
   /* Its value is checked by setInputTensorDim */
 }
 
+static int python_init_counter = 0;
+static PyThreadState *st = NULL;
+/**
+ * @brief Py_Initialize common wrapper for Python subplugins
+ * @note This prevents a python-using subplugin finalizing another subplugin's
+ * python interpreter by sharing the reference counter.
+ */
+void
+nnstreamer_python_init_refcnt ()
+{
+  if (!Py_IsInitialized ()) {
+    Py_Initialize ();
+    PyEval_InitThreads_IfGood ();
+    st = PyEval_SaveThread ();
+  }
+  python_init_counter++;
+}
+
+/**
+ * @brief Py_Finalize common wrapper for Python subplugins
+ * @note This prevents a python-using subplugin finalizing another subplugin's
+ * python interpreter by sharing the reference counter.
+ */
+void
+nnstreamer_python_fini_refcnt ()
+{
+  python_init_counter--;
+  if (python_init_counter == 0) {
+    /**
+     * @todo Python Finalize() is buggy and leaky.
+     *   Do not call it until Python is fixed. (not fixed as in 2023-12)
+     *   Calling Finalize at this state will leave modules randomly, which
+     *   may cause assertion failure at exit.
+      PyEval_RestoreThread (st);
+      Py_Finalize ();
+     */
+  }
+}
+
+/**
+ * @brief Check Py_Init status for python eval functions.
+ * @return 0 if it's ready. negative error value if it's not ready.
+ */
+int
+nnstreamer_python_status_check ()
+{
+  if (python_init_counter == 0) {
+    fprintf (stderr, "nnstreamer_python_init_refcnt() is not called or it's already closed.");
+    return -EINVAL;
+  }
+
+  assert (Py_IsInitialized ());
+  return 0;
+}
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif

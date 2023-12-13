@@ -375,17 +375,12 @@ static NNStreamerExternalConverter Python = {
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-static PyThreadState *st;
 /** @brief Initialize this object for tensor converter sub-plugin */
 void
 init_converter_py (void)
 {
   /** Python should be initialized and finalized only once */
-  if (!Py_IsInitialized ()) {
-    Py_Initialize ();
-  }
-  PyEval_InitThreads_IfGood ();
-  st = PyEval_SaveThread ();
+  nnstreamer_python_init_refcnt ();
   registerExternalConverter (&Python);
 }
 
@@ -393,7 +388,8 @@ init_converter_py (void)
 void
 fini_converter_py (void)
 {
-  PyEval_RestoreThread (st);
+  nnstreamer_python_status_check ();
+  nnstreamer_python_fini_refcnt ();
   unregisterExternalConverter (Python.name);
 /**
  * @todo Remove below lines after this issue is addressed.

@@ -67,6 +67,24 @@ extern int addToSysPath (const gchar *path);
 extern int parseTensorsInfo (PyObject *result, GstTensorsInfo *info);
 extern PyObject * PyTensorShape_New (PyObject * shape_cls, const GstTensorInfo *info);
 
+/**
+ * @brief Py_Initialize common wrapper for Python subplugins
+ * @note This prevents a python-using subplugin finalizing another subplugin's python interpreter by sharing the reference counter.
+ */
+extern void nnstreamer_python_init_refcnt ();
+
+/**
+ * @brief Py_Finalize common wrapper for Python subplugins
+ * @note This prevents a python-using subplugin finalizing another subplugin's python interpreter by sharing the reference counter.
+ */
+extern void nnstreamer_python_fini_refcnt ();
+
+/**
+ * @brief Check Py_Init status for python eval functions.
+ * @return 0 if it's ready. negative error value if it's not ready.
+ */
+extern int nnstreamer_python_status_check ();
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif

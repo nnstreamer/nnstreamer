@@ -384,17 +384,12 @@ static GstTensorDecoderDef Python = { .modename = decoder_subplugin_python3,
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-static PyThreadState *st;
 /** @brief Initialize this object for tensordec-plugin */
 void
 init_decoder_py (void)
 {
   /** Python should be initialized and finalized only once */
-  if (!Py_IsInitialized ())
-    Py_Initialize ();
-  PyEval_InitThreads_IfGood ();
-  st = PyEval_SaveThread ();
-
+  nnstreamer_python_init_refcnt ();
   nnstreamer_decoder_probe (&Python);
 }
 
@@ -402,7 +397,8 @@ init_decoder_py (void)
 void
 fini_decoder_py (void)
 {
-  PyEval_RestoreThread (st);
+  nnstreamer_python_status_check ();
+  nnstreamer_python_fini_refcnt ();
   nnstreamer_decoder_exit (Python.modename);
 
 /**
