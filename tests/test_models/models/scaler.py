@@ -60,8 +60,8 @@ class CustomFilter(object):
         in_dims = self.input_dims[0].getDims()
         out_dims = self.output_dims[0].getDims()
 
-        reversed_in_dims = np.flip(in_dims)
-        reversed_out_dims = np.flip(out_dims)
+        reversed_in_dims = np.flip(in_dims,axis=0)
+        reversed_out_dims = np.flip(out_dims,axis=0)
 
         input_tensor = np.reshape(input_array[0], reversed_in_dims[~np.in1d(reversed_in_dims, np.array([0, 1]))])
         output_tensor = np.empty(reversed_out_dims[~np.in1d(reversed_out_dims, np.array([0, 1]))], dtype=self.output_dims[0].getType())
