@@ -355,6 +355,26 @@ if gtest_dep.found()
     subdir('nnstreamer_datarepo')
   endif
 
+  if ml_agent_support_is_available
+    ml_agent_lib_common_objs = nnstreamer_single_lib.extract_objects('ml_agent.c')
+
+    lib_mlagent_mock = static_library('mock_mlagentmock',
+      join_paths('unittest_mlagent', 'mock_mlagent.cc'),
+      dependencies: [glib_dep, json_glib_dep],
+      include_directories: nnstreamer_inc,
+      install: get_option('install-test'),
+      install_dir: nnstreamer_libdir
+    )
+
+    whole_dep = declare_dependency(link_whole: lib_mlagent_mock)
+
+    filter_mlagent = executable('unittest_mlagent',
+      join_paths('unittest_mlagent', 'unittest_mlagent.cc'),
+      objects:ml_agent_lib_common_objs,
+      dependencies: [nnstreamer_unittest_deps, nnstreamer_internal_deps, whole_dep],
+    )
+  endif
+
     # ONNXRUNTIME unittest
   if onnxruntime_support_is_available
     unittest_filter_onnxruntime = executable('unittest_filter_onnxruntime',
