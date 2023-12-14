@@ -317,9 +317,15 @@ BuildRequires:	pkgconfig(orc-0.4)
 BuildRequires:	flex
 BuildRequires:	bison
 
-# For datarepo
-%if 0%{?datarepo_support}
+# For datarepo or ml-agent
+#TODO: the dependency on ml-agent should be changed from mandatory to optional
+%if 0%{?datarepo_support} || 0%{?ml_agent_support}
 BuildRequires: pkgconfig(json-glib-1.0)
+%endif
+
+# For ml-agent
+%if 0%{?ml_agent_support}
+BuildRequires: pkgconfig(ml-agent)
 %endif
 
 # Note that debug packages generate an additional build and storage cost.
