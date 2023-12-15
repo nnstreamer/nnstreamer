@@ -46,22 +46,26 @@ typedef enum
 	SENSOR_ULTRAVIOLET,                     /**< Ultraviolet sensor */
 	SENSOR_TEMPERATURE,                     /**< Temperature sensor */
 	SENSOR_HUMIDITY,                        /**< Humidity sensor */
-	SENSOR_HRM,                             /**< Heart-rate monitor @if MOBILE (Since 2.3.1) @endif
+	SENSOR_HRM,                             /**< Heart-rate monitor
+	                                             @since_tizen 2.3.1
 	                                             @n Privilege : http://tizen.org/privilege/healthinfo */
-	SENSOR_HRM_LED_GREEN,                   /**< Green LED sensor of HRM @if MOBILE (Since 2.3.1) @endif
+	SENSOR_HRM_LED_GREEN,                   /**< Green LED sensor of HRM
+	                                             @since_tizen 2.3.1
 	                                             @n Privilege : http://tizen.org/privilege/healthinfo */
-	SENSOR_HRM_LED_IR,                      /**< Infra-Red LED sensor of HRM @if MOBILE (Since 2.3.1) @endif
+	SENSOR_HRM_LED_IR,                      /**< Infra-Red LED sensor of HRM
+	                                             @since_tizen 2.3.1
 	                                             @n Privilege : http://tizen.org/privilege/healthinfo */
-	SENSOR_HRM_LED_RED,                     /**< Red LED sensor of HRM @if MOBILE (Since 2.3.1) @endif
+	SENSOR_HRM_LED_RED,                     /**< Red LED sensor of HRM
+	                                             @since_tizen 2.3.1
 	                                             @n Privilege : http://tizen.org/privilege/healthinfo */
 	SENSOR_GYROSCOPE_UNCALIBRATED,          /**< Uncalibrated Gyroscope sensor
-	                                             @if MOBILE (Since 2.4) @elseif WEARABLE (Since 2.3.2) @endif */
+	                                             @since_tizen 2.4 */
 	SENSOR_GEOMAGNETIC_UNCALIBRATED,        /**< Uncalibrated Geomagnetic sensor
-	                                             @if MOBILE (Since 2.4) @elseif WEARABLE (Since 2.3.2) @endif */
+	                                             @since_tizen 2.4 */
 	SENSOR_GYROSCOPE_ROTATION_VECTOR,       /**< Gyroscope-based rotation vector sensor
-	                                             @if MOBILE (Since 2.4) @elseif WEARABLE (Since 2.3.2) @endif */
+	                                             @since_tizen 2.4 */
 	SENSOR_GEOMAGNETIC_ROTATION_VECTOR,     /**< Geomagnetic-based rotation vector sensor
-	                                             @if MOBILE (Since 2.4) @elseif WEARABLE (Since 2.3.2) @endif */
+	                                             @since_tizen 2.4 */
 	SENSOR_SIGNIFICANT_MOTION = 0x100,      /**< Significant motion sensor (Since 4.0) */
 	SENSOR_HUMAN_PEDOMETER = 0x300,         /**< Pedometer (Since 3.0)
 	                                             @n Privilege : http://tizen.org/privilege/healthinfo */
@@ -77,7 +81,7 @@ typedef enum
 
 /**
  * @brief   Enumeration for errors.
- * @since_tizen @if MOBILE 2.3 @elseif WEARABLE 2.3.1 @endif
+ * @since_tizen 2.3
  */
 typedef enum {
 	SENSOR_ERROR_NONE                  = TIZEN_ERROR_NONE,                 /**< Successful */
@@ -87,11 +91,11 @@ typedef enum {
 	SENSOR_ERROR_PERMISSION_DENIED     = TIZEN_ERROR_PERMISSION_DENIED,    /**< Permission denied */
 	SENSOR_ERROR_OUT_OF_MEMORY         = TIZEN_ERROR_OUT_OF_MEMORY,        /**< Out of memory */
 	SENSOR_ERROR_NO_DATA               = TIZEN_ERROR_NO_DATA,              /**< No data available
-                                                                                @if MOBILE (Since 3.0) @elseif WEARABLE (Since 2.3.2) @endif */
+                                                                                @since_tizen 3.0 */
 	SENSOR_ERROR_NOT_NEED_CALIBRATION  = TIZEN_ERROR_SENSOR | 0x03,        /**< Sensor doesn't need calibration */
 	SENSOR_ERROR_OPERATION_FAILED      = TIZEN_ERROR_SENSOR | 0x06,        /**< Operation failed */
 	SENSOR_ERROR_NOT_AVAILABLE         = TIZEN_ERROR_SENSOR | 0x07,        /**< The sensor is supported, but currently not available
-                                                                                @if MOBILE (Since 3.0) @elseif WEARABLE (Since 2.3.2) @endif */
+                                                                                @since_tizen 3.0 */
 } sensor_error_e;
 
 
