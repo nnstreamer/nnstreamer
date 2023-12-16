@@ -63,12 +63,11 @@ class ncnn_subplugin final : public tensor_filter_subplugin
 
   private:
   bool empty_model; /**< Empty (not initialized) model flag */
+  static const GstTensorFilterFrameworkInfo info; /**< Framework info */
   GstTensorsInfo inputInfo; /**< Input tensors metadata */
   GstTensorsInfo outputInfo; /**< Output tensors metadata */
-  bool use_vulkan;
   bool use_yolo_decoder;
 
-  static const char *name;
   static ncnn_subplugin *registeredRepresentation;
 
   ncnn::Net net; /**< Model symbol */
@@ -82,7 +81,19 @@ class ncnn_subplugin final : public tensor_filter_subplugin
       ncnn::Mat &out, void *output_data, const uint32_t num_bytes);
 };
 
-const char *ncnn_subplugin::name = "ncnn";
+/**
+ * @brief Describe framework information.
+ */
+const GstTensorFilterFrameworkInfo ncnn_subplugin::info = { .name = "ncnn",
+  .allow_in_place = FALSE,
+  .allocate_in_invoke = FALSE,
+  .run_without_model = FALSE,
+  .verify_model_path = TRUE,
+  .hw_list = (const accl_hw[]){ ACCL_CPU, ACCL_GPU },
+  .num_hw = 2,
+  .accl_auto = ACCL_CPU,
+  .accl_default = ACCL_CPU,
+  .statistics = nullptr };
 
 /**
  * @brief Construct a new ncnn subplugin::ncnn subplugin object
@@ -136,10 +147,17 @@ ncnn_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   try {
     // parse custom properties
     parseCustomProperties (prop);
-    net.opt.use_vulkan_compute = use_vulkan;
   } catch (const std::invalid_argument &e) {
     throw std::invalid_argument (
         "Failed to parse custom property : " + std::string (e.what ()));
+  }
+
+  // decide use vulkan acceleration
+  if (std::find (prop->hw_list, prop->hw_list + prop->num_hw, ACCL_GPU)
+      != (prop->hw_list + prop->num_hw)) {
+    net.opt.use_vulkan_compute = true;
+  } else {
+    net.opt.use_vulkan_compute = false;
   }
 
   // load model files
@@ -302,11 +320,7 @@ ncnn_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 void
 ncnn_subplugin::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
 {
-  info.name = name;
-  info.allow_in_place = 0;
-  info.allocate_in_invoke = 0;
-  info.run_without_model = 0;
-  info.verify_model_path = 1;
+  info = ncnn_subplugin::info;
 }
 
 /**
@@ -349,7 +363,6 @@ ncnn_subplugin::parseCustomProperties (const GstTensorFilterProperties *prop)
   const char *custom_props = prop->custom_properties;
 
   // set default values
-  std::string vulkan_option = "auto";
   use_yolo_decoder = false;
 
   if (custom_props) {
@@ -376,18 +389,6 @@ ncnn_subplugin::parseCustomProperties (const GstTensorFilterProperties *prop)
             throw std::invalid_argument ("Invalid option for use_yolo_decoder: "
                                          + std::string (option.get ()[1]) + ".");
           }
-        } else if (g_ascii_strcasecmp (option.get ()[0], "use_vulkan") == 0) {
-          // true or false or auto (default)
-          if (g_ascii_strcasecmp (option.get ()[1], "true") == 0) {
-            vulkan_option = "true";
-          } else if (g_ascii_strcasecmp (option.get ()[1], "false") == 0) {
-            vulkan_option = "false";
-          } else if (g_ascii_strcasecmp (option.get ()[1], "auto") == 0) {
-            vulkan_option = "auto";
-          } else {
-            throw std::invalid_argument ("Invalid option for use_vulkan: "
-                                         + std::string (option.get ()[1]) + ".");
-          }
         } else {
           throw std::invalid_argument (
               "Unsupported custom property: " + std::string (option.get ()[0]) + ".");
@@ -398,20 +399,6 @@ ncnn_subplugin::parseCustomProperties (const GstTensorFilterProperties *prop)
       }
     }
   }
-
-  // auto dectect gpu (or vulkan device) instances
-  if (vulkan_option == "auto") {
-    if (ncnn::get_gpu_count () != 0)
-      vulkan_option = "true";
-    else
-      vulkan_option = "false";
-  }
-
-  // set member variable
-  if (vulkan_option == "true")
-    use_vulkan = true;
-  else
-    use_vulkan = false;
 }
 
 /**
