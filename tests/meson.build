@@ -428,6 +428,9 @@ if get_option('install-test')
   if caffe2_support_is_available
     install_subdir('nnstreamer_filter_caffe2', install_dir: unittest_install_dir)
   endif
+  if ncnn_support_is_available
+    install_subdir('nnstreamer_filter_ncnn', install_dir: unittest_install_dir)
+  endif
   if deepview_rt_support_is_available
     install_subdir('nnstreamer_filter_deepview_rt', install_dir: unittest_install_dir)
   endif
