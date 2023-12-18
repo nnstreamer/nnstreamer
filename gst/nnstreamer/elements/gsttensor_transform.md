@@ -74,10 +74,10 @@ title: tensor_transform
     - (3): transpose
       - A mode for transposing shape of tensor
       - An option should be provided as D1':D2':D3':D4 (fixed to 3)
-      - Example: 640:480:3:1 ==> 3:480:640:1
+      - Example: 3:640:480:1 (NHWC) ==> 640:480:3:1 (NCHW)
 
         ```bash
-        ... ! tensor_converter input-dim=640:480:3:1 ! tensor_transform mode=transpose option=2:1:0:3 ! ...
+        ... ! tensor_converter input-dim=3:640:480:1 ! tensor_transform mode=transpose option=1:2:0:3 ! ...
         ```
 
     - (4): stand
