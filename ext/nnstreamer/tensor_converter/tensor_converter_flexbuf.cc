@@ -137,7 +137,7 @@ flxc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
       _info->dimension[j] = dim[j].AsInt32 ();
     }
     flexbuffers::Blob tensor_data = tensor[3].AsBlob ();
-    mem_size = gst_tensor_info_get_size (&config->info.info[i]);
+    mem_size = gst_tensor_info_get_size (_info);
     if (gst_tensors_config_is_flexible (config)) {
       GstTensorMetaInfo meta;
       gst_tensor_meta_info_parse_header (&meta, (gpointer) tensor_data.data ());

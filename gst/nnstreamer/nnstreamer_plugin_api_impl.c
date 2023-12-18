@@ -592,7 +592,7 @@ gst_tensor_buffer_from_config (GstBuffer * in, GstTensorsConfig * config)
       GstTensorMetaInfo meta;
       gpointer h = map.data + offset;
 
-      if (num >= NNS_TENSOR_SIZE_LIMIT - 1) {
+      if (num >= NNS_TENSOR_MEMORY_MAX - 1) {
         /* Suppose remained memory may include extra tensors. */
         mem_size[num++] = total - offset;
         break;

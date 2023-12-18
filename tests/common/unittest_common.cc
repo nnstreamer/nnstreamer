@@ -565,6 +565,7 @@ fill_tensors_config_for_test (GstTensorsConfig *conf1, GstTensorsConfig *conf2)
 TEST (commonTensorInfo, size01_p)
 {
   GstTensorsInfo info1, info2;
+  GstTensorInfo *_info;
   gsize size1, size2;
   guint i;
 
@@ -577,7 +578,8 @@ TEST (commonTensorInfo, size01_p)
 
   size1 = 0;
   for (i = 0; i < info2.num_tensors; i++) {
-    size1 += gst_tensor_info_get_size (&info2.info[i]);
+    _info = gst_tensors_info_get_nth_info (&info2, i);
+    size1 += gst_tensor_info_get_size (_info);
   }
 
   size2 = gst_tensors_info_get_size (&info2, -1);
