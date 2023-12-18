@@ -1,21 +1,46 @@
 /* SPDX-License-Identifier: LGPL-2.1-only */
 /**
  * @file    tensor_filter_ncnn.cc
- * @date    15 Dec 2022
- * @brief   NNStreamer tensor-filter sub-plugin for Tencent NCNN
+ * @date    18 Dec 2023
+ * @brief   NNStreamer tensor-filter sub-plugin for Tencent ncnn
  * @author  Sungbin Jo <goranmoomin@daum.net>
  * @author  SangLyul Cho <chosanglyul@gmail.com>
+ * @author  Kijun Shin <sharaelong.shin@gmail.com>
  * @see     http://github.com/nnstreamer/nnstreamer
  * @bug     No known bugs.
  *
- * This is the NCNN plugin for tensor_filter.
+ * This is the ncnn plugin for tensor_filter.
  *
  * @details Usage examples
- *  TODO
+ *  Case 1: image classification by squeezenet
+ *  Case 2: object detection by mobilenetv2-ssdlite
  *
- * @note Special considerations on props:
- *  TODO
- *  TODO make description of yolo filter output size
+ * @note Special considerations on properties:
+ *  input, inputtype, output, outputtype:
+ *    It is essential to set these four options correctly.
+ *    For assistance in configuring the shape and type,
+ *    please refer to the examples provided.
+ *
+ *  accelerator:
+ *    Enable Vulkan acceleration by setting accelerator=true:gpu.
+ *    This option is applicable if your device is equipped
+ *    with any Vulkan-acceleratable processor.
+ *
+ *  custom:
+ *    Each entries are separated by ','
+ *    Each entries have property_key=value format.
+ *    There must be no spaces.
+ *
+ *    Supported custom properties:
+ *      use_yolo_decoder (optional, default=false)
+ *        Enable this option by setting use_yolo_decoder=true if your model
+ *        includes a Yolov3DetectionOutput layer or yolo-related output layers,
+ *        especially when dealing with variable output sizes (num_detection, 6).
+ *        In such cases, you must also configure
+ *        output=(5+num_labels, max_detection, 1) and outputtype=float32.
+ *        To calculate the max_detection for an input image of size (w, h),
+ *        use the formula: (w/32)*(h/32) + (w/16)*(h/16) + (w/8)*(h/8)*3.
+ *        See also: https://github.com/nnstreamer/nnstreamer/blob/main/ext/nnstreamer/tensor_decoder/tensordec-boundingbox.c#L1194
  */
 
 #include <functional>
@@ -42,7 +67,7 @@ void fini_filter_ncnn (void) __attribute__ ((destructor));
 G_END_DECLS
 
 /**
- * @brief Class for NCNN subplugin.
+ * @brief Class for ncnn subplugin.
  */
 class ncnn_subplugin final : public tensor_filter_subplugin
 {
@@ -53,7 +78,7 @@ class ncnn_subplugin final : public tensor_filter_subplugin
   ncnn_subplugin ();
   ~ncnn_subplugin ();
 
-  /**< Implementations of tensor_filter_subplugin */
+  /**< Implementations of ncnn tensor_filter_subplugin */
   tensor_filter_subplugin &getEmptyInstance ();
   void configure_instance (const GstTensorFilterProperties *prop);
   void invoke (const GstTensorMemory *input, GstTensorMemory *output);
@@ -66,7 +91,7 @@ class ncnn_subplugin final : public tensor_filter_subplugin
   static const GstTensorFilterFrameworkInfo info; /**< Framework info */
   GstTensorsInfo inputInfo; /**< Input tensors metadata */
   GstTensorsInfo outputInfo; /**< Output tensors metadata */
-  bool use_yolo_decoder;
+  bool use_yolo_decoder; /**< Yolo decoder flag to fix output dimension */
 
   static ncnn_subplugin *registeredRepresentation;
 
