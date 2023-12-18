@@ -28,7 +28,7 @@
  *
  *  custom:
  *    Each entries are separated by ','
- *    Each entries have property_key=value format.
+ *    Each entries have property_key:value format.
  *    There must be no spaces.
  *
  *    Supported custom properties:
@@ -213,7 +213,7 @@ ncnn_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   // init input matrices
   for (guint i = 0; i < inputInfo.num_tensors; i++) {
     // get dimensions of the input matrix from inputInfo
-    const uint32_t *dim = inputInfo.info[i].dimension;
+    const uint32_t *dim = gst_tensors_info_get_nth_info (&inputInfo, i)->dimension;
     std::vector<int> shape;
     while (*dim)
       shape.push_back (*dim++);
@@ -234,7 +234,8 @@ ncnn_subplugin::configure_instance (const GstTensorFilterProperties *prop)
         in = ncnn::Mat (shape[0], shape[1], shape[2], shape[3]);
         break;
       default:
-        throw std::invalid_argument ("Wrong input dimension");
+        throw std::invalid_argument ("ncnn subplugin supports only up to 4 ranks and does not support input tensors of "
+                                     + std::to_string (shape.size ()) + " dimensions.");
     }
     input_mats.push_back (in);
   }
@@ -260,7 +261,12 @@ ncnn_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 void
 ncnn_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
-  assert (!empty_model);
+  if (empty_model)
+    throw std::runtime_error (
+        "Model is empty: the ncnn instance is not configured and "
+        "its \"invoke\" method is called. This may be an internal bug of "
+        "nnstreamer or ncnn-subplugin unless if you have directly accessed "
+        "ncnn-subplugin.");
 
   // make extractor instance for each inference
   ncnn::Extractor ex = net.create_extractor ();
@@ -305,7 +311,8 @@ ncnn_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
     // write detection-box infos to the output tensor
     for (guint i = 0; i < outputInfo.num_tensors; i++) {
       ncnn::Mat &out = output_mats.at (i);
-      const int label_count = outputInfo.info[i].dimension[0];
+      const int label_count
+          = gst_tensors_info_get_nth_info (&outputInfo, i)->dimension[0];
       float *output_data = (float *) output->data;
       for (int j = 0; j < out.h; j++) {
         float *values = out.row (j);
@@ -398,7 +405,7 @@ ncnn_subplugin::parseCustomProperties (const GstTensorFilterProperties *prop)
 
     for (guint i = 0; i < len; i++) {
       // split with = to parse single option
-      uniq_g_strv option (g_strsplit (options.get ()[i], "=", -1), g_strfreev);
+      uniq_g_strv option (g_strsplit (options.get ()[i], ":", -1), g_strfreev);
 
       // we only have key=value form option
       if (g_strv_length (option.get ()) == 2) {
