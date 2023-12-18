@@ -188,6 +188,7 @@ cg_setInputDim (void * _data, const GstTensorFilterProperties *prop,
                 const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
 {{
   _{sname}_data *data = _data;
+  GstTensorInfo *_in, *_out;
   int i, j;
 
   assert (data);
@@ -199,11 +200,14 @@ cg_setInputDim (void * _data, const GstTensorFilterProperties *prop,
 
   /** @todo Configure the name/type/dimension of tensors in a output frame. */
   for (i = 0; i < out_info->num_tensors; i++) {{
-    out_info->info[i].name = NULL; /** Optional, default is null. Set new memory for tensor name string. */
-    out_info->info[i].type = in_info->info[i].type;
+    _in = gst_tensors_info_get_nth_info ((GstTensorsInfo *) in_info, i);
+    _out = gst_tensors_info_get_nth_info (out_info, i);
+
+    _out->name = NULL; /** Optional, default is null. Set new memory for tensor name string. */
+    _out->type = _in->type;
 
     for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++)
-      out_info->info[i].dimension[j] = in_info->info[i].dimension[j];
+      _out->dimension[j] = _in->dimension[j];
   }}
 
   return 0;
@@ -242,11 +246,11 @@ cg_allocate_invoke (void * _data, const GstTensorFilterProperties * prop,
 
   /** Allocate output buffer */
   for (i = 0; i < out_info->num_tensors; i++)
-    output[i].data = malloc (gst_tensor_info_get_size (&out_info->info[i]));
+    output[i].data = malloc (gst_tensors_info_get_size (out_info, i));
 
   /** @todo Add your inference code/calls. Fill in the output buffer */
   for (i = 0; i < out_info->num_tensors; i++) {{
-    int s, size = gst_tensor_info_get_size (&out_info->info[i]);
+    int s, size = gst_tensors_info_get_size (out_info, i);
     uint8_t *ptr = output[i].data;
     for (s = 0; s < size; s++)
       ptr[s] = (uint8_t) s;
@@ -297,7 +301,7 @@ cg_invoke (void * _data, const GstTensorFilterProperties *prop,
 
   /** @todo Add your inference code/calls. Fill in the output buffer */
   for (i = 0; i < out_info->num_tensors; i++) {{
-    int s, size = gst_tensor_info_get_size (&out_info->info[i]);
+    int s, size = gst_tensors_info_get_size (out_info, i);
     uint8_t *ptr = output[i].data;
     for (s = 0; s < size; s++)
       ptr[s] = (uint8_t) s;

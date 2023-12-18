@@ -6801,7 +6801,7 @@ TEST (testStreamBuffers, tensorsNormal)
     gst_tensor_parse_dimension ("3:4:2:2", config.info.info[1].dimension);
 
     for (i = 0; i < config.info.num_tensors; i++) {
-      input[i].size = gst_tensor_info_get_size (&config.info.info[i]);
+      input[i].size = gst_tensors_info_get_size (&config.info, i);
       input[i].data = g_malloc0 (input[0].size);
       memcpy (input[i].data, aggr_test_frames[i], input[i].size);
     }
