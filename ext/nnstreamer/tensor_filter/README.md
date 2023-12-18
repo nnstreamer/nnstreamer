@@ -36,6 +36,8 @@ title: NNStreamer tensor\_filter default subplugin manual
 - subplugin name: 'tensorflow1-lite'
 - subplugin name: 'tensorflow2-lite'
 - subplugin name: 'tensorflow2-lite-custom'
+## ncnn
+- subplugin name: 'ncnn'
 
 ### How to use custom tensorflow-lite binaries
 
