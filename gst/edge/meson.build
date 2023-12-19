@@ -1,16 +1,16 @@
 edge_srcs = [
-    'edge_common.c',
-    'edge_elements.c',
-    'edge_sink.c',
-    'edge_src.c',
+  'edge_common.c',
+  'edge_elements.c',
+  'edge_sink.c',
+  'edge_src.c',
 ]
 
 edge_deps = [
-    glib_dep,
-    gst_base_dep,
-    gst_dep,
-    nnstreamer_dep,
-    nnstreamer_edge_dep,
+  glib_dep,
+  gst_base_dep,
+  gst_dep,
+  nnstreamer_dep,
+  nnstreamer_edge_support_deps
 ]
 
 if build_platform == 'tizen'
@@ -27,7 +27,7 @@ gstedge_shared = shared_library('gstedge',
 )
 
 gstedge_dep = declare_dependency(
-    link_with: gstedge_shared,
-    dependencies: edge_deps,
-    include_directories: include_directories('.')
+  link_with: gstedge_shared,
+  dependencies: edge_deps,
+  include_directories: include_directories('.')
 )

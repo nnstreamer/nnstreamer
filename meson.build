@@ -352,15 +352,6 @@ if not get_option('ncnn-support').disabled()
   endif
 endif
 
-# nnstreamer-edge
-nnstreamer_edge_dep = dependency('nnstreamer-edge', method : 'pkg-config', required: false)
-if get_option('nnstreamer-edge-support').enabled()
-  if not nnstreamer_edge_dep.found()
-    error('nnstreamer-edge not found whilt it is enabled.')
-  endif
-endif
-## Without the explicit method designation, it fails to find cflags in older Meson
-
 # datarepo requires json-glib-1.0 in the name of json_glib_dep
 json_glib_dep = dependency('json-glib-1.0', required: false)
 if get_option('datarepo-support').enabled() and not json_glib_dep.found()
@@ -476,7 +467,7 @@ features = {
     'project_args': { 'ENABLE_TRIX_ENGINE' : 1 }
   },
   'nnstreamer-edge-support': {
-    'extra_deps': [ nnstreamer_edge_dep ],
+    'target': 'nnstreamer-edge',
     'project_args': { 'ENABLE_NNSTREAMER_EDGE': 1 }
   },
   'mxnet-support': {
