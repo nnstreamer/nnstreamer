@@ -462,11 +462,19 @@ nnfw_tensor_info_set (const nnfw_pdata * pdata,
   if (nnfw_info.rank < pdata->in_info.info[tensor_idx].rank)
     nnfw_info.rank = pdata->in_info.info[tensor_idx].rank;
 
+  /** @note Maximum rank expressible with nnfw is 6 (NNFW_MAX_RANK) */
+  if (nnfw_info.rank > NNFW_MAX_RANK) {
+    guint min_rank = gst_tensor_dimension_get_min_rank (info->dimension);
+    if (min_rank < NNFW_MAX_RANK)
+      nnfw_info.rank = NNFW_MAX_RANK;
+    else
+      return -EINVAL;
+  }
+
   /** reverse the order of dimension */
   for (idx = nnfw_info.rank - 1; idx >= 0; idx--)
     nnfw_info.dims[nnfw_info.rank - idx - 1] = info->dimension[idx];
 
-  /** @note Maximum rank expressible with nnfw is 6 (NNFW_MAX_RANK) */
   for (idx = NNFW_MAX_RANK - 1; idx >= nnfw_info.rank; idx--)
     nnfw_info.dims[idx] = 0;
 
