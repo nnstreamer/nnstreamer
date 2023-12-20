@@ -13,6 +13,7 @@
  * @bug		python converter with Python3.9.10 is stucked during Py_Finalize().
  */
 
+#include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_converter.h>
 #include <nnstreamer_util.h>
 #include "nnstreamer_python3_helper.h"

@@ -17,7 +17,6 @@
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_util.h>
-#include <tensor_common.h>
 
 #include <dlpack/dlpack.h>
 #include <tvm/runtime/module.h>

@@ -29,7 +29,6 @@
 #include <fcntl.h>
 #include <glib.h>
 #include <glib/gstdio.h>
-#include <gst/gst.h>
 #include <mvnc2/mvnc.h>
 #include <nnstreamer_log.h>
 #include <nnstreamer_util.h>
@@ -152,8 +151,8 @@ _mvncsdk2_open (const GstTensorFilterProperties * prop, void **private_data)
       idx_dev = i;
       break;
     } else {
-      GST_WARNING ("Failed to create device handle at index %d: "
-          "%d is returned\n", i, ret_code);
+      nns_logw ("Failed to create device handle at index %d: %d is returned\n",
+          i, ret_code);
     }
   }
   if ((ret_code != NC_OK) && (i == NNS_MVNCSDK2_SUPPORT_MAX_NUMS_DEVICES)) {

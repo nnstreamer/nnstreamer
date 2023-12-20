@@ -81,10 +81,9 @@ extern "C" {
 #include <memory>
 #include <nnstreamer_cppplugin_api_filter.hh>
 #include <nnstreamer_log.h>
+#include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_util.h>
 #include <string>
-#include <tensor_common.h>
-
 
 namespace nnstreamer
 {

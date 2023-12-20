@@ -47,9 +47,8 @@
 #include <glib.h>
 #include <nnstreamer_cppplugin_api_filter.hh>
 #include <nnstreamer_log.h>
-#include <nnstreamer_plugin_api.h>
+#include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_util.h>
-#include <tensor_common.h>
 #include <thread>
 
 #include <ncnn/net.h>

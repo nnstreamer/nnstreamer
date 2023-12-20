@@ -53,21 +53,21 @@ Description: NNStreamer Single-shot
 Package: nnstreamer-tensorflow2-lite
 Architecture: any
 Multi-Arch: same
-Depends: nnstreamer, ${shlibs:Depends}, ${misc:Depends}
+Depends: nnstreamer-single, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer TensorFlow Lite 2.x Support
  This package allows nnstreamer to support tensorflow-lite 2.x.
 
 Package: nnstreamer-pytorch
 Architecture: any
 Multi-Arch: same
-Depends: nnstreamer, pytorch, ${shlibs:Depends}, ${misc:Depends}
+Depends: nnstreamer-single, pytorch, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer Pytorch Support
  This package allows nnstreamer to support pytorch.
 
 Package: nnstreamer-caffe2
 Architecture: any
 Multi-Arch: same
-Depends: nnstreamer, pytorch, ${shlibs:Depends}, ${misc:Depends}
+Depends: nnstreamer-single, pytorch, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer Caffe2 Support
  This package allows nnstreamer to support caffe2.
 
@@ -81,21 +81,21 @@ Description: NNStreamer Python Custom Filter Support (3.x)
 Package: nnstreamer-edgetpu
 Architecture: any
 Multi-Arch: same
-Depends: nnstreamer, libedgetpu1-std, ${shlibs:Depends}, ${misc:Depends}
+Depends: nnstreamer-single, libedgetpu1-std, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer Edge TPU support
  This package allows nnstreamer to support Edge TPU.
 
 Package: nnstreamer-openvino
 Architecture: any
 Multi-Arch: same
-Depends: nnstreamer, openvino, ${shlibs:Depends}, ${misc:Depends}
+Depends: nnstreamer-single, openvino, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer OpenVino support
  This package allows nnstreamer to support OpenVino.
 
 Package: nnstreamer-nnfw
 Architecture: amd64
 Multi-Arch: same
-Depends: nnstreamer, nnfw, ${shlibs:Depends}, ${misc:Depends}
+Depends: nnstreamer-single, nnfw, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer NNFW (ONE) support
  This package allows nnstreamer to support NNFW (ONE, On-Device Neural Engine).
 

@@ -8,14 +8,14 @@ libdl_dep = cc.find_library('dl') # dl library
 base_deps = [
   glib_dep,
   gobject_dep,
-  nnstreamer_dep
+  nnstreamer_single_dep
 ]
 
 sources = [
-  'tensor_filter_subplugin.c'
+  'tensor_filter_vivante.c'
 ]
 
-# TODO: This header files are specified to support Tizen. 
+# TODO: This header files are specified to support Tizen.
 # If you use VIM3/Ubuntu18.04(aarch64) board,
 # you need to update the below header folders.
 # - '/usr/include/vivante', '/usr/include/VX'

@@ -165,14 +165,14 @@ if have_python3
 
   shared_library('nnstreamer_decoder_python3',
     decoder_sub_python3_sources,
-    dependencies: nnstreamer_python3_helper_dep,
+    dependencies: [nnstreamer_dep, nnstreamer_python3_helper_dep],
     install: true,
     install_dir: decoder_subplugin_install_dir
   )
 
   static_library('nnstreamer_decoder_python3',
     decoder_sub_python3_sources,
-    dependencies: nnstreamer_python3_helper_dep,
+    dependencies: [nnstreamer_dep, nnstreamer_python3_helper_dep],
     install: true,
     install_dir: nnstreamer_libdir
   )
