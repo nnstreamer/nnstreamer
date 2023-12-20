@@ -8,7 +8,7 @@
  */
 
 /**
- * @file	tensor_filter_subplugin.c
+ * @file	tensor_filter_vivante.c
  * @date	28 Jan 2020
  * @brief	NNStreamer tensor-filter subplugin template
  * @see		http://github.com/nnsuite/nnstreamer

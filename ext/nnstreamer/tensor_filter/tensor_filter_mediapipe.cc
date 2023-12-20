@@ -19,7 +19,7 @@
 #include <string>
 
 #include <nnstreamer_cppplugin_api_filter.hh>
-#include <tensor_common.h>
+#include <nnstreamer_plugin_api_util.h>
 
 #include <mediapipe/framework/calculator_framework.h>
 #include <mediapipe/framework/formats/image_frame.h>

@@ -22,7 +22,7 @@
 #include <numpy/arrayobject.h>
 #include <structmember.h>
 #include <nnstreamer_log.h>
-#include <nnstreamer_plugin_api.h>
+#include <nnstreamer_plugin_api_util.h>
 #include <stdexcept>
 #include <string>
 

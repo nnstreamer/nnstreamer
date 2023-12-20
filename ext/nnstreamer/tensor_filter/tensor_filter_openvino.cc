@@ -29,7 +29,7 @@
 #define NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
 #undef NO_ANONYMOUS_NESTED_STRUCT
-#include <tensor_common.h>
+#include <nnstreamer_plugin_api_util.h>
 #ifdef __OPENVINO_CPU_EXT__
 #include <ext_list.hpp>
 #endif /* __OPENVINO_CPU_EXT__ */
@@ -240,6 +240,15 @@ TensorFilterOpenvino::loadModel (accl_hw hw)
   this->_inferRequest = this->_executableNet.CreateInferRequest ();
 
   return RetSuccess;
+}
+
+/**
+ * @brief Check the neural network model is loaded.
+ */
+bool
+TensorFilterOpenvino::isModelLoaded ()
+{
+  return _isLoaded;
 }
 
 /**

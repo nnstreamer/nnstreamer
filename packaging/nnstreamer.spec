@@ -362,7 +362,7 @@ NNStreamer's global configuration setup for the end user.
 %if 0%{?tensorflow_support}
 %package tensorflow
 Summary:	NNStreamer TensorFlow Support
-Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	tensorflow
 %description tensorflow
 NNStreamer's tensor_filter subplugin of TensorFlow.
@@ -375,7 +375,7 @@ Tensorflow used for building this package.
 %if 0%{?tensorflow_lite_support}
 %package tensorflow-lite
 Summary:	NNStreamer TensorFlow Lite Support
-Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-single = %{version}-%{release}
 # tensorflow-lite provides .a file and it's embedded into the subplugin. No dep to tflite.
 %description tensorflow-lite
 NNStreamer's tensor_filter subplugin of TensorFlow Lite.
@@ -385,7 +385,7 @@ NNStreamer's tensor_filter subplugin of TensorFlow Lite.
 %if 0%{?tensorflow2_lite_support}
 %package tensorflow2-lite
 Summary:	NNStreamer TensorFlow2 Lite Support
-Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-single = %{version}-%{release}
 # tensorflow2-lite provides .a file and it's embedded into the subplugin. No dep to tflite.
 %description tensorflow2-lite
 NNStreamer's tensor_filter subplugin of TensorFlow2 Lite.
@@ -402,7 +402,7 @@ NNStreamer's tensor_filter subplugin of Python3.
 %if 0%{?armnn_support}
 %package armnn
 Summary:	NNStreamer Arm NN support
-Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	armnn
 %description armnn
 NNStreamer's tensor_filter subplugin of Arm NN Inference Engine.
@@ -412,7 +412,7 @@ NNStreamer's tensor_filter subplugin of Arm NN Inference Engine.
 %if 0%{?vivante_support}
 %package vivante
 Summary:    NNStreamer subplugin for Verisilicon's Vivante
-Requires:   nnstreamer = %{version}-%{release}
+Requires:   nnstreamer-single = %{version}-%{release}
 %description vivante
 NNStreamer filter subplugin for Verisilicon Vivante.
 %define enable_vivante -Denable-vivante=true
@@ -447,7 +447,7 @@ NNStreamer's tensor_converter and decoder subplugin of flatbuf.
 %if 0%{?pytorch_support}
 %package pytorch
 Summary:	NNStreamer PyTorch Support
-Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	pytorch
 %description pytorch
 NNStreamer's tensor_filter subplugin of pytorch
@@ -457,7 +457,7 @@ NNStreamer's tensor_filter subplugin of pytorch
 %if 0%{?caffe2_support}
 %package caffe2
 Summary:	NNStreamer caffe2 Support
-Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	pytorch
 %description caffe2
 NNStreamer's tensor_filter subplugin of caffe2
@@ -467,7 +467,7 @@ NNStreamer's tensor_filter subplugin of caffe2
 %if 0%{?lua_support}
 %package lua
 Summary:	NNStreamer lua Support
-Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	lua
 %description lua
 NNStreamer's tensor_filter subplugin of lua
@@ -486,7 +486,7 @@ NNStreamer's tensor_filter subplugin of tvm
 %if 0%{?snpe_support}
 %package snpe
 Summary:	NNStreamer snpe Support
-Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	snpe
 %description snpe
 NNStreamer's tensor_filter subplugin of snpe
@@ -496,7 +496,7 @@ NNStreamer's tensor_filter subplugin of snpe
 %if 0%{?trix_engine_support}
 %package trix-engine
 Summary:	NNStreamer TRIx-Engine support
-Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	trix-engine
 %description trix-engine
 NNStreamer's tensor_filter subplugin of trix-engine
@@ -506,7 +506,7 @@ NNStreamer's tensor_filter subplugin of trix-engine
 %if 0%{?onnxruntime_support}
 %package onnxruntime
 Summary:	NNStreamer onnxruntime Support
-Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-single = %{version}-%{release}
 %description onnxruntime
 NNStreamer's tensor_filter subplugin of onnxruntime
 %endif
@@ -571,7 +571,7 @@ HTML pages of lcov results of NNStreamer generated during rpmbuild
 %if 0%{?nnfw_support}
 %package nnfw
 Summary:	NNStreamer Tizen-nnfw runtime support
-Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	nnfw
 %description nnfw
 NNStreamer's tensor_filter subplugin of Tizen-NNFW Runtime. (5.5 M2 +)
@@ -580,7 +580,7 @@ NNStreamer's tensor_filter subplugin of Tizen-NNFW Runtime. (5.5 M2 +)
 %if 0%{?mvncsdk2_support}
 %package	ncsdk2
 Summary:	NNStreamer Intel Movidius NCSDK2 support
-Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-single = %{version}-%{release}
 Group:		Machine Learning/ML Framework
 %description	ncsdk2
 NNStreamer's tensor_filter subplugin of Intel Movidius Neural Compute stick SDK2.
@@ -589,7 +589,7 @@ NNStreamer's tensor_filter subplugin of Intel Movidius Neural Compute stick SDK2
 %if 0%{openvino_support}
 %package	openvino
 Summary:	NNStreamer OpenVino support
-Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	openvino
 Group:		Machine Learning/ML Framework
 %description	openvino
@@ -641,7 +641,7 @@ NNStreamer's gRPC IDL support for flatbuf
 %package edgetpu
 Summary:	NNStreamer plugin for Google-Coral Edge TPU
 Requires:	libedgetpu1
-Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-single = %{version}-%{release}
 %description edgetpu
 You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML APIs.
 %endif

@@ -21,8 +21,8 @@
 #include <vector>
 
 #include <nnstreamer_cppplugin_api_filter.hh>
+#include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_util.h>
-#include <tensor_common.h>
 
 #include <NvInfer.h>
 #include <NvUffParser.h>

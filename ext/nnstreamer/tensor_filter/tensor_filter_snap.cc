@@ -27,7 +27,7 @@
 #include <android/log.h>
 
 #include <nnstreamer_cppplugin_api_filter.hh>
-#include <nnstreamer_plugin_api.h>
+#include <nnstreamer_plugin_api_util.h>
 #include <snap_sdk_interface.h>
 
 #define TAG "NNStreamer-SNAP"
