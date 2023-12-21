@@ -17,6 +17,7 @@ message Tensor {
     NNS_FLOAT32 = 7;
     NNS_INT64 = 8;
     NNS_UINT64 = 9;
+    NNS_FLOAT16 = 10;
   }
   Tensor_type type = 2;
   repeated uint32 dimension = 3;
