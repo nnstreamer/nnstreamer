@@ -133,6 +133,7 @@
 
 /**
  * @brief Possible data element types of other/tensor.
+ * @note When changing tensor type, you shoud update related type in ML-API and protobuf/flatbuf schema also.
  */
 typedef enum _nns_tensor_type
 {

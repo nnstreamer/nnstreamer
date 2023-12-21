@@ -20,7 +20,7 @@ enum Tensor_type : int {
   NNS_FLOAT32,
   NNS_INT64,
   NNS_UINT64,
-
+  NNS_FLOAT16,
   NNS_END
   }
 
