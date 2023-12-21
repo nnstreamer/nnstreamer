@@ -274,12 +274,12 @@ if tflite2_support_is_available
     ## @todo If we are allowed to use meson > 0.53, use "FS" module!
 
     filepaths = [
-        join_paths(meson.current_source_dir(), 'libtensorflow2-lite.so',),
-        join_paths(meson.current_build_dir(), 'libtensorflow2-lite.so',),
+        join_paths(meson.current_source_dir(), 'libtensorflow2-lite.so'),
+        join_paths(meson.current_build_dir(), 'libtensorflow2-lite.so'),
         join_paths(nnstreamer_libdir, 'libtensorflow2-lite.so'),
         '/usr/lib/libtensorflow2-lite.so',
         '/usr/lib64/libtensorflow2-lite.so',
-        './libtensorflow2-lite.so',
+        './libtensorflow2-lite.so'
     ]
     filepath = ''
     foreach file : filepaths
@@ -297,24 +297,21 @@ if tflite2_support_is_available
 
     if filepath == ''
       ## No shared tfl lib found. Get static lib and convert it
+      custom_tflite_lib = join_paths(meson.current_build_dir(), 'libtensorflow2-lite-custom.so')
 
       filepaths = [join_paths(nnstreamer_libdir, 'libtensorflow2-lite.a'),
           '/usr/lib/libtensorflow2-lite.a',
           '/usr/lib64/libtensorflow2-lite.a',
           './libtensorflow2-lite.a',
-          join_paths(meson.current_build_dir(), 'libtensorflow2-lite.a',),
-          join_paths(meson.current_source_dir(), 'libtensorflow2-lite.a',)]
+          join_paths(meson.current_build_dir(), 'libtensorflow2-lite.a'),
+          join_paths(meson.current_source_dir(), 'libtensorflow2-lite.a')
+      ]
 
       foreach file : filepaths
         if run_command('bash', '-c', '[ -f "'+ file + '" ]', check : false).returncode() == 0
-          somake = run_command('gcc', '-shared', '-o', 'libtensorflow2-lite-custom.so', '-Wl,--whole-archive', file, '-Wl,--no-whole-archive', check : false)
+          somake = run_command('gcc', '-shared', '-o', custom_tflite_lib, '-Wl,--whole-archive', file, '-Wl,--no-whole-archive', check : false)
           if somake.returncode() == 0
             message('Successfully created libtensorflow2-lite-custom.so from archive: ' + file)
-            configure_file (
-              input: join_paths(meson.current_source_dir(), 'libtensorflow2-lite-custom.so'),
-              output: 'libtensorflow2-lite-custom.so',
-              copy: true
-            )
             filepath = file
             break
           else
