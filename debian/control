@@ -1,3 +1,5 @@
+### PPA does NOT use this file!  ###
+### Rule file will override!     ###
 Source: nnstreamer
 Section: libs
 Priority: optional
