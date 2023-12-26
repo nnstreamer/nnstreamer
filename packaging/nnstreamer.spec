@@ -436,9 +436,6 @@ NNStreamer's tensor_converter and decoder subplugin of Protobuf.
 Summary:	NNStreamer Flatbuf Support
 Requires:	nnstreamer = %{version}-%{release}
 Requires:	flatbuffers
-%if "%{?profile}" != "tv"
-Recommends: flatbuffers-python
-%endif
 %description flatbuf
 NNStreamer's tensor_converter and decoder subplugin of flatbuf.
 %endif
