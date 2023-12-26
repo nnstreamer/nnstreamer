@@ -344,10 +344,11 @@ endif
 # ncnn
 ncnn_dep = dependency('', required: false)
 if not get_option('ncnn-support').disabled()
-  ncnn_dep = cxx.find_library('ncnn', required: false)
-  if not ncnn_dep.found()
-    if cxx.check_header('ncnn/net.h', required: get_option('ncnn-support'))
-      ncnn_dep = declare_dependency(link_args: ['-lncnn'])
+  ncnn_dep = dependency('ncnn', required: false)
+  if (not ncnn_dep.found())
+    ncnn_lib = cxx.find_library('ncnn', required: false)
+    if (ncnn_lib.found() and cxx.check_header('ncnn/net.h'))
+      ncnn_dep = declare_dependency(dependencies: [ ncnn_lib ])
     endif
   endif
 endif
