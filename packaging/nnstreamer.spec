@@ -1183,6 +1183,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_includedir}/nnstreamer/tensor_decoder_custom.h
 %{_includedir}/nnstreamer/nnstreamer_plugin_api_decoder.h
 %{_includedir}/nnstreamer/nnstreamer_plugin_api_converter.h
+%{_includedir}/nnstreamer/nnstreamer_plugin_api_trainer.h
 %{_includedir}/nnstreamer/nnstreamer_plugin_api.h
 %{_includedir}/nnstreamer/nnstreamer_util.h
 %{_includedir}/nnstreamer/tensor_filter_cpp.hh
@@ -1202,7 +1203,6 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %files single-devel
 %{_includedir}/nnstreamer/tensor_typedef.h
 %{_includedir}/nnstreamer/nnstreamer_plugin_api_filter.h
-%{_includedir}/nnstreamer/nnstreamer_plugin_api_trainer.h
 %{_includedir}/nnstreamer/nnstreamer_plugin_api_util.h
 %{_includedir}/nnstreamer/nnstreamer_version.h
 %{_libdir}/pkgconfig/nnstreamer-single.pc
