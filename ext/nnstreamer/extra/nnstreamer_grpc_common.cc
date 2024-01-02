@@ -193,7 +193,7 @@ void
 NNStreamerRPC::_data_queue_item_free (GstDataQueueItem *item)
 {
   if (item->object)
-    gst_mini_object_unref (item->object);
+    gst_buffer_unref (GST_BUFFER (item->object));
   g_free (item);
 }
 
