@@ -1,6 +1,7 @@
 /usr/include/nnstreamer/nnstreamer_plugin_api.h
 /usr/include/nnstreamer/nnstreamer_plugin_api_converter.h
 /usr/include/nnstreamer/nnstreamer_plugin_api_decoder.h
+/usr/include/nnstreamer/nnstreamer_plugin_api_trainer.h
 /usr/include/nnstreamer/nnstreamer_util.h
 /usr/include/nnstreamer/tensor_if.h
 /usr/include/nnstreamer/tensor_filter_custom.h
