@@ -287,7 +287,7 @@ static int
 decoder_py_setOption (void **pdata, int opNum, const char *param)
 {
   gchar *path = (gchar *) param;
-  int ret = TRUE;
+  int ret = FALSE;
 
   /* opNum 1 = python script path */
   if (opNum == 0) {
@@ -316,20 +316,18 @@ decoder_py_setOption (void **pdata, int opNum, const char *param)
     } catch (std::bad_alloc &exception) {
       ml_loge ("Failed to allocate memory for decoder subplugin: python3\n");
       ml_loge ("%s", exception.what ());
-      ret = FALSE;
       goto done;
     }
 
     if (core->init () != 0) {
       delete core;
       ml_loge ("failed to initailize the object: Python3\n");
-      ret = FALSE;
       goto done;
     }
-    *pdata = core;
 
+    *pdata = core;
     ret = TRUE;
-    goto done;
+
   done:
     PyGILState_Release (gstate);
     return ret;

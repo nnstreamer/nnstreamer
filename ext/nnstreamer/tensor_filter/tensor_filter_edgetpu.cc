@@ -591,5 +591,5 @@ _fini_filter_edgetpu ()
   edgetpu_subplugin::fini_filter_edgetpu ();
 }
 
-} // namespace tensorfilter_edgetpu
+} /* namespace tensorfilter_edgetpu */
 } /* namespace nnstreamer */

@@ -58,7 +58,7 @@ else
             report
             exit
         fi
-else
+    else
         echo "Cannot identify nnstreamer.ini"
         report
         exit

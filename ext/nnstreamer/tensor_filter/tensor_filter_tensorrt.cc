@@ -269,7 +269,6 @@ tensorrt_subplugin::getModelInfo (
   }
 
   gst_tensors_info_copy (std::addressof (in_info), std::addressof (_inputTensorMeta));
-
   gst_tensors_info_copy (std::addressof (out_info), std::addressof (_outputTensorMeta));
 
   return 0;
@@ -508,5 +507,5 @@ _fini_filter_tensorrt (void)
   tensorrt_subplugin::fini_filter_tensorrt ();
 }
 
-} // namespace tensorfilter_tensorrt
+} /* namespace tensorfilter_tensorrt */
 } /* namespace nnstreamer */

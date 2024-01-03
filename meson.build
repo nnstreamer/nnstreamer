@@ -361,6 +361,7 @@ endif
 if not get_option('datarepo-support').disabled() and not json_glib_dep.found()
   message('datarepo-support is off because json-glib-1.0 is not available.')
 endif
+
 # ml-agent
 ml_agent_dep = dependency('', required: false)
 if not get_option('ml-agent-support').disabled()

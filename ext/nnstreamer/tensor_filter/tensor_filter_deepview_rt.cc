@@ -584,5 +584,5 @@ _fini_filter_dvrt ()
   dvrt_subplugin::fini_filter_dvrt ();
 }
 
-} // namespace tensorfilter_dvrt
+} /* namespace tensorfilter_dvrt */
 } /* namespace nnstreamer */

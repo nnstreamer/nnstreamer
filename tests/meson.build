@@ -375,7 +375,7 @@ if gtest_dep.found()
     )
   endif
 
-    # ONNXRUNTIME unittest
+  # ONNXRUNTIME unittest
   if onnxruntime_support_is_available
     unittest_filter_onnxruntime = executable('unittest_filter_onnxruntime',
       join_paths('nnstreamer_filter_onnxruntime', 'unittest_filter_onnxruntime.cc'),

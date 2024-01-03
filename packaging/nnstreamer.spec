@@ -36,7 +36,7 @@
 %define		tvm_support 1
 %define		snpe_support 1
 %define		trix_engine_support 1
-%define     onnxruntime_support 0
+%define		onnxruntime_support 0
 # Support AI offloading (tensor_query) using nnstreamer-edge interface
 %define		nnstreamer_edge_support 1
 %define		datarepo_support 1
@@ -110,7 +110,7 @@
 %define		tvm_support 0
 %define		snpe_support 0
 %define		trix_engine_support 0
-%define     onnxruntime_support 0
+%define		onnxruntime_support 0
 %define		nnstreamer_edge_support 0
 %endif
 
@@ -125,7 +125,7 @@
 %define		mqtt_support 0
 %define		tvm_support 0
 %define		trix_engine_support 0
-%define     onnxruntime_support 0
+%define		onnxruntime_support 0
 %endif
 
 # Release unit test suite as a subpackage only if check_test is enabled.
@@ -667,7 +667,6 @@ Summary:	NNStreamer extra packages
 %if 0%{?mqtt_support}
 BuildRequires:	pkgconfig(paho-mqtt-c)
 %endif
-
 %description misc
 Provides additional gstreamer plugins for nnstreamer pipelines
 
@@ -902,7 +901,8 @@ meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir
 	%{enable_tf_lite} %{enable_tf2_lite} %{enable_tf} %{enable_pytorch} %{enable_caffe2} %{enable_python3} \
 	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_openvino} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} \
 	%{enable_flatbuf} %{enable_trix_engine} %{enable_datarepo} \
-	%{enable_tizen_sensor} %{enable_mqtt} %{enable_lua} %{enable_tvm} %{enable_onnxruntime} %{enable_test} %{enable_test_coverage} %{install_test} \
+	%{enable_tizen_sensor} %{enable_mqtt} %{enable_lua} %{enable_tvm} %{enable_onnxruntime} \
+        %{enable_test} %{enable_test_coverage} %{install_test} \
 	%{fp16_support} %{nnsedge} %{enable_ml_agent} \
 	%{builddir}
 

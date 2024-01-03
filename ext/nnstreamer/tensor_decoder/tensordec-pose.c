@@ -798,7 +798,7 @@ pose_decode (void **pdata, const GstTensorsConfig * config,
 
     } else {
       p.x = (maxX * data->width) / data->i_width;
-      p.y = (maxY * data->height) / data->i_height;;
+      p.y = (maxY * data->height) / data->i_height;
     }
     /* Some keypoints can be estimated slightly out of image range */
     p.x = MIN (data->width, (guint) (MAX (0, p.x)));

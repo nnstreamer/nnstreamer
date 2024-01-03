@@ -785,7 +785,7 @@ _snpe_set_env (JNIEnv *env, jobject context)
       ";/system/lib/rfsa/adsp;/system/vendor/lib/rfsa/adsp;/dsp", NULL);
 
   /**
-   *  See https://developer.qualcomm.com/docs/snpe/dsp_runtime.html for details
+   * See https://developer.qualcomm.com/docs/snpe/dsp_runtime.html for details
    */
   nns_logi ("Set env ADSP_LIBRARY_PATH for snpe DSP/AIP runtime: %s", new_path);
   g_setenv ("ADSP_LIBRARY_PATH", new_path, TRUE);
@@ -854,5 +854,5 @@ fini_filter_snpe ()
   snpe_subplugin::fini_filter_snpe ();
 }
 
-} // namespace tensor_filter_snpe
+} /* namespace tensor_filter_snpe */
 } /* namespace nnstreamer */

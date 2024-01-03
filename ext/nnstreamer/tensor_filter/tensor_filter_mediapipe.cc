@@ -260,13 +260,13 @@ mediapipe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *outp
     throw std::runtime_error ("Fail to start mediapipe graph");
   }
 
-  // Wrap Mat into an ImageFrame.
+  /* Wrap Mat into an ImageFrame. */
   auto input_frame = absl::make_unique<mediapipe::ImageFrame> (
       mediapipe::ImageFormat::SRGB, input_width, input_height, input_widthStep,
       (uint8_t *) input->data, inputPtrDeleter /* do nothing */
   );
 
-  // Send image packet
+  /* Send image packet. */
   status = graph.AddPacketToInputStream (in_info->name,
       mediapipe::Adopt (input_frame.release ()).At (mediapipe::Timestamp (frame_timestamp++)));
   if (!status.ok ()) {
@@ -274,7 +274,7 @@ mediapipe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *outp
     throw std::runtime_error ("Failed to add input packet");
   }
 
-  // Get the graph result packet, or stop if that fails.
+  /* Get the graph result packet, or stop if that fails. */
   mediapipe::Packet packet;
   if (!poller.Next (&packet)) {
     std::cerr << "Failed to get output packet from mediapipe graph" << std::endl;
@@ -374,5 +374,5 @@ _fini_filter_mediapipe ()
   mediapipe_subplugin::fini_filter_mediapipe ();
 }
 
-} // namespace tensorfilter_mediapipe
+} /* namespace tensorfilter_mediapipe */
 } /* namespace nnstreamer */

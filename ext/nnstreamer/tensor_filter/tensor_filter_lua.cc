@@ -597,5 +597,5 @@ _fini_filter_lua ()
   lua_subplugin::fini_filter_lua ();
 }
 
-} // namespace tensorfilter_lua
+} /* namespace tensorfilter_lua */
 } /* namespace nnstreamer */

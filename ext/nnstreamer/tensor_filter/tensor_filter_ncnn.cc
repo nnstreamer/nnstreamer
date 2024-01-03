@@ -157,36 +157,36 @@ ncnn_subplugin::getEmptyInstance ()
 void
 ncnn_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 {
-  // get input / output info from properties
+  /* get input / output info from properties */
   gst_tensors_info_copy (std::addressof (inputInfo), std::addressof (prop->input_meta));
   gst_tensors_info_copy (std::addressof (outputInfo), std::addressof (prop->output_meta));
 
-  // check number of model files
+  /* check number of model files */
   if (prop->num_models > 2 || prop->num_models <= 0) {
     throw std::invalid_argument (std::string ("Number of model files must be 1 or 2;")
                                  + " Multiple model is not supported.");
   }
 
-  // try to parse custom properties of the ncnn_subplugin
+  /* try to parse custom properties of the ncnn_subplugin */
   try {
-    // parse custom properties
+    /* parse custom properties */
     parseCustomProperties (prop);
   } catch (const std::invalid_argument &e) {
     throw std::invalid_argument (
         "Failed to parse custom property : " + std::string (e.what ()));
   }
 
-  // decide use vulkan acceleration
+  /* decide use vulkan acceleration */
   if (std::find (prop->hw_list, prop->hw_list + prop->num_hw, ACCL_GPU)
       != (prop->hw_list + prop->num_hw)) {
     net.opt.use_vulkan_compute = true;
-    g_message ("accl = gpu\n");
+    nns_logi ("accl = gpu\n");
   } else {
     net.opt.use_vulkan_compute = false;
   }
 
-  // load model files
-  // ncnn returns nonzero value when an error occurs
+  /* load model files */
+  /* ncnn returns nonzero value when an error occurs */
   if (prop->num_models == 1) {
     if (net.load_param_bin (prop->model_files[0]))
       throw std::invalid_argument (
@@ -200,7 +200,7 @@ ncnn_subplugin::configure_instance (const GstTensorFilterProperties *prop)
           "Failed to open the bin file " + std::string (prop->model_files[1]));
   }
 
-  // get input layers from the ncnn network
+  /* get input layers from the ncnn network */
   const std::vector<int> &input_indexes = net.input_indexes ();
   input_mats.clear ();
   if (inputInfo.num_tensors != input_indexes.size ())
@@ -209,15 +209,15 @@ ncnn_subplugin::configure_instance (const GstTensorFilterProperties *prop)
         + ": Found in argument = " + std::to_string (inputInfo.num_tensors)
         + ", Found in model file = " + std::to_string (input_indexes.size ()));
 
-  // init input matrices
+  /* init input matrices */
   for (guint i = 0; i < inputInfo.num_tensors; i++) {
-    // get dimensions of the input matrix from inputInfo
+    /* get dimensions of the input matrix from inputInfo */
     const uint32_t *dim = gst_tensors_info_get_nth_info (&inputInfo, i)->dimension;
     std::vector<int> shape;
     while (*dim)
       shape.push_back (*dim++);
 
-    // make ncnn matrix object
+    /* make ncnn matrix object */
     ncnn::Mat in;
     switch (shape.size ()) {
       case 1:
@@ -239,7 +239,7 @@ ncnn_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     input_mats.push_back (in);
   }
 
-  // get output layers from the ncnn network
+  /* get output layers from the ncnn network */
   const std::vector<int> &output_indexes = net.output_indexes ();
   output_mats.clear ();
   if (outputInfo.num_tensors != output_indexes.size ())
@@ -248,7 +248,7 @@ ncnn_subplugin::configure_instance (const GstTensorFilterProperties *prop)
         + ": Found in argument = " + std::to_string (outputInfo.num_tensors)
         + ", Found in model file = " + std::to_string (output_indexes.size ()));
 
-  // init output matrices
+  /* init output matrices */
   output_mats.resize (outputInfo.num_tensors);
 
   empty_model = false;
@@ -267,14 +267,14 @@ ncnn_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
         "nnstreamer or ncnn-subplugin unless if you have directly accessed "
         "ncnn-subplugin.");
 
-  // make extractor instance for each inference
+  /* make extractor instance for each inference */
   ncnn::Extractor ex = net.create_extractor ();
 
-  // get input layer indices
+  /* get input layer indices */
   std::vector<std::thread> input_thrs;
   const std::vector<int> &input_indexes = net.input_indexes ();
 
-  // get input from input tensor and push to the network
+  /* get input from input tensor and push to the network */
   const char *input_data = (const char *) input->data;
   for (guint i = 0; i < inputInfo.num_tensors; i++) {
     ncnn::Mat &in = input_mats.at (i);
@@ -284,30 +284,30 @@ ncnn_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
     input_data += num_bytes;
   }
 
-  // join threads
+  /* join threads */
   for (std::thread &thr : input_thrs)
     thr.join ();
 
-  // get output layer indices
+  /* get output layer indices */
   std::vector<std::thread> output_thrs;
   const std::vector<int> &output_indexes = net.output_indexes ();
 
   if (use_yolo_decoder) {
-    // get output and store to ncnn matrix
+    /* get output and store to ncnn matrix */
     for (guint i = 0; i < outputInfo.num_tensors; i++) {
       ncnn::Mat &out = output_mats.at (i);
       output_thrs.emplace_back (extract_thread, std::ref (ex),
           output_indexes.at (i), std::ref (out), nullptr, 0);
     }
 
-    // memset output to zero and hide latency by multithreading
+    /* memset output to zero and hide latency by multithreading */
     memset (output->data, 0, output->size);
 
-    // join threads
+    /* join threads */
     for (std::thread &thr : output_thrs)
       thr.join ();
 
-    // write detection-box infos to the output tensor
+    /* write detection-box infos to the output tensor */
     for (guint i = 0; i < outputInfo.num_tensors; i++) {
       ncnn::Mat &out = output_mats.at (i);
       const int label_count
@@ -330,7 +330,7 @@ ncnn_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
       }
     }
   } else {
-    // get output and store to the output tensor
+    /* get output and store to the output tensor */
     char *output_data = (char *) output->data;
     for (guint i = 0; i < outputInfo.num_tensors; i++) {
       ncnn::Mat &out = output_mats.at (i);
@@ -340,7 +340,7 @@ ncnn_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
       output_data += num_bytes;
     }
 
-    // join threads
+    /* join threads */
     for (std::thread &thr : output_thrs)
       thr.join ();
   }
@@ -394,25 +394,25 @@ ncnn_subplugin::parseCustomProperties (const GstTensorFilterProperties *prop)
   using uniq_g_strv = std::unique_ptr<gchar *, std::function<void (gchar **)>>;
   const char *custom_props = prop->custom_properties;
 
-  // set default values
+  /* set default values */
   use_yolo_decoder = false;
 
   if (custom_props) {
-    // split with , to parse options
+    /* split with , to parse options */
     uniq_g_strv options (g_strsplit (custom_props, ",", -1), g_strfreev);
     guint len = g_strv_length (options.get ());
 
     for (guint i = 0; i < len; i++) {
-      // split with = to parse single option
+      /* split with = to parse single option */
       uniq_g_strv option (g_strsplit (options.get ()[i], ":", -1), g_strfreev);
 
-      // we only have key=value form option
+      /* we only have key=value form option */
       if (g_strv_length (option.get ()) == 2) {
         g_strstrip (option.get ()[0]);
         g_strstrip (option.get ()[1]);
 
         if (g_ascii_strcasecmp (option.get ()[0], "use_yolo_decoder") == 0) {
-          // true or false (default) only
+          /* true or false (default) only */
           if (g_ascii_strcasecmp (option.get ()[1], "true") == 0) {
             use_yolo_decoder = true;
           } else if (g_ascii_strcasecmp (option.get ()[1], "false") == 0) {
@@ -440,10 +440,10 @@ void
 ncnn_subplugin::input_thread (ncnn::Extractor &ex, const int idx,
     const ncnn::Mat &in, const void *input_data, const uint32_t num_bytes)
 {
-  // copy from the input matrix
+  /* copy from the input matrix */
   memcpy (in.data, input_data, num_bytes);
 
-  // input to the network
+  /* input to the network */
   ex.input (idx, in);
 }
 
@@ -454,10 +454,10 @@ void
 ncnn_subplugin::extract_thread (ncnn::Extractor &ex, const int idx,
     ncnn::Mat &out, void *output_data, const uint32_t num_bytes)
 {
-  // output from the network
+  /* output from the network */
   ex.extract (idx, out);
 
-  // copy to the output matrix
+  /* copy to the output matrix */
   if (output_data)
     memcpy (output_data, out.data, num_bytes);
 }
@@ -480,7 +480,7 @@ ncnn_subplugin::init_filter_ncnn (void)
 void
 ncnn_subplugin::fini_filter_ncnn (void)
 {
-  assert (registeredRepresentation != nullptr);
+  g_assert (registeredRepresentation != nullptr);
   tensor_filter_subplugin::unregister_subplugin (registeredRepresentation);
 }
 
@@ -502,5 +502,5 @@ fini_filter_ncnn ()
   ncnn_subplugin::fini_filter_ncnn ();
 }
 
-} // namespace tensorfilter_ncnn
+} /* namespace tensorfilter_ncnn */
 } /* namespace nnstreamer */
