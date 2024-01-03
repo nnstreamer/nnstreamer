@@ -492,5 +492,5 @@ fini_filter_tvm ()
   tvm_subplugin::fini_filter_tvm ();
 }
 
-} // namespace tensorfilter_tvm
+} /* namespace tensorfilter_tvm */
 } /* namespace nnstreamer */

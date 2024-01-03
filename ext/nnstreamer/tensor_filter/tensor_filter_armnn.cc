@@ -36,10 +36,10 @@
 
 #include <armnn/ArmNN.hpp>
 
-#if ENABLE_ARMNN_CAFFE
+#if defined(ENABLE_ARMNN_CAFFE)
 #include <armnnCaffeParser/ICaffeParser.hpp>
 #endif
-#if ENABLE_ARMNN_TFLITE
+#if defined(ENABLE_ARMNN_TFLITE)
 #include <armnnTfLiteParser/ITfLiteParser.hpp>
 #endif
 
@@ -180,7 +180,7 @@ ArmNNCore::getModelPath ()
   return model_path;
 }
 
-#if ENABLE_ARMNN_CAFFE
+#if defined(ENABLE_ARMNN_CAFFE)
 /**
  * @brief make network with caffe parser
  * @param[in] input_map input data map
@@ -233,7 +233,7 @@ ArmNNCore::makeCaffeNetwork (std::map<std::string, armnn::TensorShape> &input_ma
   g_printerr ("ARMNN-CAFFE was not enabled at build-time. tensor-filter::armnn cannot handle caffe networks.");
   return -EPERM;
 }
-#endif
+#endif /* ENABLE_ARMNN_CAFFE */
 
 /**
  * @brief make network with tensorflow parser
@@ -252,7 +252,7 @@ ArmNNCore::makeTfNetwork (std::map<std::string, armnn::TensorShape> &input_map,
   return -EPERM;
 }
 
-#if ENABLE_ARMNN_TFLITE
+#if defined(ENABLE_ARMNN_TFLITE)
 /**
  * @brief make network with tensorflow-lite parser
  * @return 0 on success, -errno on error
@@ -293,7 +293,7 @@ ArmNNCore::makeTfLiteNetwork ()
 {
   return -EPERM;
 }
-#endif
+#endif /* ENABLE_ARMNN_TFLITE */
 
 /**
  * @brief make network based on the model file received

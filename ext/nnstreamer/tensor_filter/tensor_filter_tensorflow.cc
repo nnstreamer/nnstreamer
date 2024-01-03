@@ -786,7 +786,7 @@ static GstTensorFilterFramework NNS_support_tensorflow = { .version = GST_TENSOR
         .reloadModel = nullptr,
         .handleEvent = nullptr,
         .checkAvailability = tf_checkAvailability,
-        .allocateInInvoke = nullptr, // TODO: what, it's allocate_in_invoke
+        .allocateInInvoke = nullptr, /** @todo what, it's allocate_in_invoke */
     } } };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
