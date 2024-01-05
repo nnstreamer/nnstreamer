@@ -184,7 +184,9 @@ if tflite2_support_is_available
   )
   message('TensorFlow2-lite version: ' + tflite2_ver)
 
-  if not cxx.check_header('flatbuffers/flatbuffers.h')
+  # check flatbuffers header
+  ## Note that tizen tflite package has its own flatbuffers header internally.
+  if build_platform != 'tizen' and not cxx.check_header('flatbuffers/flatbuffers.h')
     error('flatbuffers header files are required to build tensorflow2-lite subplugin. Please install compatible version for tensorflow-lite library. Or disable tflite2-support in meson_options.txt')
   endif
 
