@@ -146,6 +146,8 @@ mlagent_get_model_path_from (const GValue * val)
               "Invalid value for the key, %s", JSON_KEY_MODEL_PATH);
           goto fallback;
         }
+
+        g_strfreev (parts);
         return g_strdup (path);
       }
     }
@@ -155,5 +157,5 @@ fallback:
   g_clear_error (&err);
   g_strfreev (parts);
 
-  return uri;
+  return g_strdup (uri);
 }

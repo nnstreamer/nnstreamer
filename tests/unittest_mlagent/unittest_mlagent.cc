@@ -127,6 +127,8 @@ TEST (testMLAgent, GetModelInvalidModel_n)
    * the given URI as it is so that it is handled by the fallback procedure (i.e., regarding it as a file path).
    */
   EXPECT_STREQ (uri, path);
+
+  g_value_reset (&val);
 }
 
 /**
