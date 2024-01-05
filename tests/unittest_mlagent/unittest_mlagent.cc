@@ -94,7 +94,8 @@ TEST (testMLAgent, GetModelInvalidURIFormats_n)
 
     path = mlagent_get_model_path_from (&val);
 
-    /* In the case that invalid URIs are given, mlagent_get_model_path_from () returns
+    /**
+     * In the case that invalid URIs are given, mlagent_get_model_path_from () returns
      * the given URI as it is so that it is handled by the fallback procedure (i.e., regarding it as a file path).
      */
     EXPECT_STREQ (uri, path);
@@ -123,7 +124,8 @@ TEST (testMLAgent, GetModelInvalidModel_n)
 
   path = mlagent_get_model_path_from (&val);
 
-  /* In the case that invalid URIs are given, mlagent_get_model_path_from () returns
+  /**
+   * In the case that invalid URIs are given, mlagent_get_model_path_from () returns
    * the given URI as it is so that it is handled by the fallback procedure (i.e., regarding it as a file path).
    */
   EXPECT_STREQ (uri, path);
