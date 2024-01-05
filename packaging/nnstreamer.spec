@@ -207,7 +207,6 @@ BuildRequires: tensorflow-lite-devel
 %if 0%{?tensorflow2_lite_support}
 # for tensorflow2-lite
 BuildRequires: tensorflow2-lite-devel
-BuildRequires: flatbuffers-devel
 # tensorflow2-lite-custom requires scripts for rpm >= 4.9
 BuildRequires:  rpm >= 4.9
 %global __requires_exclude ^libtensorflow2-lite-custom.*$
