@@ -9,6 +9,6 @@ test_templatedir=@TEST_TEMPLATE_DIR@ # test template dir to be used
 Name: nnstreamer-internal
 Description: Dev Kit of NNStreamer single-shot
 Version: @VERSION@
-Requires: nnstreamer
+Requires: nnstreamer-single
 Libs: -L${libdir} -lnnstreamer-single
 Cflags: -I${includedir}/nnstreamer
