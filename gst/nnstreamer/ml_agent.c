@@ -87,7 +87,7 @@ mlagent_get_model_path_from (const GValue * val)
       g_autofree gchar *name = g_strdup (parts[MODEL_PART_IDX_NAME]);
       guint version = strtoul (parts[MODEL_PART_IDX_VERSION], NULL, 10);
       g_autofree gchar *stringfied_json = NULL;
-      g_autoptr (JsonParser) json_parser = NULL;
+      JsonParser *json_parser = NULL;
       gint rcode;
 
       /**
@@ -146,12 +146,16 @@ mlagent_get_model_path_from (const GValue * val)
               "Invalid value for the key, %s", JSON_KEY_MODEL_PATH);
           goto fallback;
         }
+        if (json_parser)
+          g_object_unref (json_parser);
         return g_strdup (path);
       }
     }
   }
 
 fallback:
+  if (json_parser)
+    g_object_unref (json_parser);
   g_clear_error (&err);
   g_strfreev (parts);
 
