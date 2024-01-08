@@ -243,10 +243,11 @@ PYConverterCore::getScriptPath ()
 static void
 py_close (void **private_data)
 {
-  PyGILState_STATE gstate = PyGILState_Ensure ();
   PYConverterCore *core = static_cast<PYConverterCore *> (*private_data);
 
   g_return_if_fail (core != NULL);
+
+  PyGILState_STATE gstate = PyGILState_Ensure ();
   delete core;
   PyGILState_Release (gstate);
 
