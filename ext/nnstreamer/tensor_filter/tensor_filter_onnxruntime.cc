@@ -70,7 +70,7 @@ class onnxruntime_subplugin final : public tensor_filter_subplugin
   void cleanup ();
   void clearNodeInfo (onnx_node_info_s &node);
   void convertTensorInfo (onnx_node_info_s &node, GstTensorsInfo &info);
-  int convertTensorDim (std::vector<int64_t> shapes, tensor_dim &dim);
+  int convertTensorDim (std::vector<int64_t> &shapes, tensor_dim &dim);
   int convertTensorType (ONNXTensorElementDataType _type, tensor_type &type);
 
   public:
@@ -166,7 +166,7 @@ onnxruntime_subplugin::convertTensorInfo (onnx_node_info_s &node, GstTensorsInfo
  * @return 0 if OK. non-zero if error.
  */
 int
-onnxruntime_subplugin::convertTensorDim (std::vector<int64_t> shapes, tensor_dim &dim)
+onnxruntime_subplugin::convertTensorDim (std::vector<int64_t> &shapes, tensor_dim &dim)
 {
   size_t i, rank;
 
@@ -179,7 +179,8 @@ onnxruntime_subplugin::convertTensorDim (std::vector<int64_t> shapes, tensor_dim
   /* the order of dimension is reversed at CAPS negotiation */
   for (i = 0; i < rank; i++) {
     /* free dimensions are treated as 1 if not overriden */
-    dim[i] = (shapes[rank - i - 1] > 0) ? shapes[rank - i - 1] : 1;
+    shapes[rank - i - 1] = (shapes[rank - i - 1] > 0) ? shapes[rank - i - 1] : 1;
+    dim[i] = shapes[rank - i - 1];
   }
 
   /* fill remaining entries with 0 */
