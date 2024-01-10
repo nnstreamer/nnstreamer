@@ -1,0 +1,5 @@
+{
+    "workbench.colorTheme": "Default Dark+",
+    "terminal.integrated.shell.linux": "/bin/bash",
+    "tizen.studio.path": "/home/sdk/tizen-studio/"
+}
