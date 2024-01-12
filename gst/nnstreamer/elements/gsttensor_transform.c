@@ -73,6 +73,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_transform_debug);
 #define REGEX_STAND_OPTION "^(default|dc-average)(:([u]?int(8|16|32|64)|float(16|32|64)))?(,per-channel:(true|false))?$"
 #define REGEX_CLAMP_OPTION "^((([-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?))):"\
     "((([-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?)))$"
+#define REGEX_PADDING_OPTION "^((left|right|top|bottom|front|back):(\\d)(,)?)+(layout:(NCHW|NHWC))?$"
 #define REGEX_ARITH_OPTION "^(typecast:([u]?int(8|16|32|64)|float(16|32|64)),)?"\
     "(per-channel:(false|true@[0-9]+),)?"\
     "(((add|mul|div)(:([-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?))+(@[0-9]+)?)(,|))+$"
@@ -84,6 +85,12 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_transform_debug);
  * This RANK does not affect other/tensors(s)'s NNS_TENSOR_RANK_LIMIT.
  */
 #define NNS_TENSOR_TRANSPOSE_RANK_LIMIT (4)
+
+/**
+ * @brief The padding rank is fixed to 3.
+ * This RANK does not affect other/tensors(s)'s NNS_TENSOR_RANK_LIMIT.
+ */
+#define NNS_TENSOR_PADDING_RANK_LIMIT (3)
 
 /**
  * @brief tensor_transform properties
@@ -196,6 +203,9 @@ gst_tensor_transform_mode_get_type (void)
       {GTT_CLAMP, "Mode for clamping all elements of tensor into the range, "
             "option=CLAMP_MIN:CLAMP_MAX",
           "clamp"},
+      {GTT_PADDING, "Mode for padding of tensor, "
+            "option=left|right|top|bottom|front|back:NUMBER[,layout:(NCHW|NHWC)]",
+          "padding"},
       {GTT_UNKNOWN, "Unknown or not-implemented-yet mode",
           "unknown"},
       {0, NULL, NULL},
@@ -948,6 +958,72 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
       ret = filter->loaded = TRUE;
       break;
     }
+    case GTT_PADDING:
+    {
+      gchar **options = NULL;
+      guint i, num_options;
+
+      if (!g_regex_match_simple (REGEX_PADDING_OPTION, filter->option,
+              G_REGEX_CASELESS, 0)) {
+        ml_loge
+            ("%s: padding: \'%s\' is not valid option string: it should be in the form of left|right|top|bottom|front|back:PADDING,[layout:(NCHW|NHWC)]\n",
+            filter_name, filter->option);
+        break;
+      }
+
+      for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
+        filter->data_padding.pad[i] = 0;
+      filter->data_padding.layout = _NNS_LAYOUT_ANY;
+
+      options = g_strsplit (filter->option, ",", -1);
+      num_options = g_strv_length (options);
+
+      for (i = 0; i < num_options; i++) {
+        gchar **strv = g_strsplit (options[i], ":", 2);
+        if (g_ascii_strcasecmp (strv[0], "left") == 0) {
+          filter->data_padding.pad[PADDING_LEFT] =
+              g_ascii_strtoull (strv[1], NULL, 10);
+        } else if (g_ascii_strcasecmp (strv[0], "right") == 0) {
+          filter->data_padding.pad[PADDING_RIGHT]
+              = g_ascii_strtoull (strv[1], NULL, 10);
+        } else if (g_ascii_strcasecmp (strv[0], "top") == 0) {
+          filter->data_padding.pad[PADDING_TOP] =
+              g_ascii_strtoull (strv[1], NULL, 10);
+        } else if (g_ascii_strcasecmp (strv[0], "bottom") == 0) {
+          filter->data_padding.pad[PADDING_BOTTOM]
+              = g_ascii_strtoull (strv[1], NULL, 10);
+        } else if (g_ascii_strcasecmp (strv[0], "front") == 0) {
+          filter->data_padding.pad[PADDING_FRONT]
+              = g_ascii_strtoull (strv[1], NULL, 10);
+        } else if (g_ascii_strcasecmp (strv[0], "back") == 0) {
+          filter->data_padding.pad[PADDING_BACK] =
+              g_ascii_strtoull (strv[1], NULL, 10);
+        } else if (g_ascii_strcasecmp (strv[0], "layout") == 0) {
+          if (g_ascii_strcasecmp (strv[1], "NHWC") == 0)
+            filter->data_padding.layout = _NNS_LAYOUT_NHWC;
+          else
+            filter->data_padding.layout = _NNS_LAYOUT_NCHW;
+        } else {
+          ml_logw ("Unknown option for padding mode: %s", strv[0]);
+        }
+        g_strfreev (strv);
+      }
+      g_strfreev (options);
+
+      if (filter->data_padding.layout == _NNS_LAYOUT_NHWC) {
+        guint prev_left = filter->data_padding.pad[PADDING_LEFT],
+            prev_right = filter->data_padding.pad[PADDING_RIGHT];
+        filter->data_padding.pad[PADDING_LEFT] =
+            filter->data_padding.pad[PADDING_FRONT];
+        filter->data_padding.pad[PADDING_RIGHT] =
+            filter->data_padding.pad[PADDING_BACK];
+        filter->data_padding.pad[PADDING_FRONT] = prev_left;
+        filter->data_padding.pad[PADDING_BACK] = prev_right;
+      }
+
+      ret = filter->loaded = TRUE;
+      break;
+    }
     default:
       GST_ERROR_OBJECT (filter, "Cannot identify mode\n");
       ret = FALSE;
@@ -1674,6 +1750,61 @@ gst_tensor_transform_clamp (GstTensorTransform * filter,
 }
 
 /**
+ * @brief subrouting for tensor-tranform, "padding" case.
+ * @param[in/out] filter "this" pointer
+ * @param[in] in_info input tensor info
+ * @param[in] out_info output tensor info
+ * @param[in] inptr input tensor
+ * @param[out] outptr output tensor
+ * @return Gst flow status
+ */
+static GstFlowReturn
+gst_tensor_transform_padding (GstTensorTransform * filter,
+    GstTensorInfo * in_info, GstTensorInfo * out_info, const uint8_t * inptr,
+    uint8_t * outptr)
+{
+  gsize element_size, in_loop_size, out_loop_size, copy_block_size;
+  guint i, j, k, left, top, front, loop_limit = 1;
+  element_size = gst_tensor_get_element_size (in_info->type);
+
+  in_loop_size = in_info->dimension[2] * in_info->dimension[1]
+      * in_info->dimension[0] * element_size;
+  out_loop_size = out_info->dimension[2] * out_info->dimension[1]
+      * out_info->dimension[0] * element_size;
+  copy_block_size = in_info->dimension[0] * element_size;
+
+  for (i = NNS_TENSOR_PADDING_RANK_LIMIT; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    if (in_info->dimension[i] == 0)
+      break;
+    loop_limit *= in_info->dimension[i];
+  }
+
+  left = filter->data_padding.pad[PADDING_LEFT];
+  top = filter->data_padding.pad[PADDING_TOP];
+  front = filter->data_padding.pad[PADDING_FRONT];
+
+  /** @todo Add constant option instead of using zero padding value */
+  memset (outptr, 0, out_loop_size * loop_limit);
+
+  for (i = 0; i < loop_limit; i++)
+    for (j = 0; j < in_info->dimension[2]; j++)
+      for (k = 0; k < in_info->dimension[1]; k++) {
+        guint in_idx = j * in_info->dimension[1] * in_info->dimension[0]
+            + k * in_info->dimension[0];
+        guint out_idx = j * out_info->dimension[1] * out_info->dimension[0]
+            + k * out_info->dimension[0];
+
+        out_idx += left + top * out_info->dimension[0]
+            + front * out_info->dimension[1] * out_info->dimension[0];
+
+        memcpy (outptr + out_idx * element_size + out_loop_size * i,
+            inptr + in_idx * element_size + in_loop_size * i, copy_block_size);
+      }
+
+  return GST_FLOW_OK;
+}
+
+/**
  * @brief non-ip transform. required vmethod for BaseTransform class.
  * @param[in/out] trans "super" pointer
  * @param[in] inbuf The input gst buffer
@@ -1810,6 +1941,10 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
         break;
       case GTT_CLAMP:
         res = gst_tensor_transform_clamp (filter, in_info, out_info,
+            inptr, outptr);
+        break;
+      case GTT_PADDING:
+        res = gst_tensor_transform_padding (filter, in_info, out_info,
             inptr, outptr);
         break;
       default:
@@ -1970,6 +2105,19 @@ gst_tensor_transform_convert_dimension (GstTensorTransform * filter,
       /* same tensors info, do nothing. */
       break;
 
+    case GTT_PADDING:
+      if (direction == GST_PAD_SINK) {
+        out_info->dimension[0] +=
+            filter->data_padding.pad[PADDING_LEFT] +
+            filter->data_padding.pad[PADDING_RIGHT];
+        out_info->dimension[1] +=
+            filter->data_padding.pad[PADDING_TOP] +
+            filter->data_padding.pad[PADDING_BOTTOM];
+        out_info->dimension[2] +=
+            filter->data_padding.pad[PADDING_FRONT] +
+            filter->data_padding.pad[PADDING_BACK];
+      }
+      break;
     default:
       return FALSE;
   }
