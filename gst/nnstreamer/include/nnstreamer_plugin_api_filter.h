@@ -101,33 +101,6 @@ typedef enum
   ACCL_NPU_SR       = 0x4100,     /**< specify device as any SR npu, if possible */
 } accl_hw;
 
-/**
- * @brief Internal tensor layout format for other/tensor
- *
- * The layout is needed by some of the subplugins to appropriately  process the
- * data based on the axis of the channel in the data. Layout information will be
- * currently utilized by only some of the sublpugins (SNAP, NNFW), and should be
- * provided to use some of the subplugins (SNAP).
- *
- * Tensor layout is stored locally in the tensor filter element, and not shared
- * with other elements in the pipeline. Thus, tensor layout is not part of the
- * capabilities of the element, and does not take part in the caps negotiation.
- *
- * NONE layout implies that the layout of the data is neither NHWC nor NCHW. '
- * However, ANY layout implies that the layout of the provided data is not
- * relevant.
- *
- * @note Providing tensor layout can also decide acceleration to be supported
- * as not all the accelerators might support all the layouts (NYI).
- */
-typedef enum _nns_tensor_layout
-{
-  _NNS_LAYOUT_ANY = 0,     /**< does not care about the data layout */
-  _NNS_LAYOUT_NHWC,        /**< NHWC: channel last layout */
-  _NNS_LAYOUT_NCHW,        /**< NCHW: channel first layout */
-  _NNS_LAYOUT_NONE,        /**< NONE: none of the above defined layouts */
-} tensor_layout;
-
 typedef tensor_layout tensors_layout[NNS_TENSOR_SIZE_LIMIT];
 
 /**
