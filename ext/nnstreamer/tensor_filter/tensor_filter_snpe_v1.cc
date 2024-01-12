@@ -4,7 +4,7 @@
  * Copyright (C) 2020 Yongjoo Ahn <yongjoo1.ahn@samsung.com>
  */
 /**
- * @file	tensor_filter_snpe.cc
+ * @file	tensor_filter_snpe_v1.cc
  * @date	24 Apr 2020
  * @brief	NNStreamer tensor-filter sub-plugin for SNPE (Qualcomm Neural Processing SDK)
  * @see		http://github.com/nnstreamer/nnstreamer
@@ -13,10 +13,6 @@
  * @bug		No known bugs except for NYI items
  *
  * This is the per-NN-framework plugin (SNPE) for tensor_filter.
- *
- * @todo This supports only ITensor for input. Do support IUserBuffer.
- * @todo This supports float32 input output only. Do support Tf8 using IUserBuffer.
- * @todo This supports only CPU runtime on linux-x86_64. Do support others.
  */
 
 #include <iostream>
