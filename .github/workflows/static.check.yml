@@ -1,0 +1,79 @@
+name: Static checkers and verifiers
+
+# "Pre-build" Scripts from TAOS-CI
+# @todo Make this "reusable workflow" and publish for all projects.
+
+## Common variables and files
+# - changed_file_list in GITHUB_ENV: the list of files updated in this pull-request.
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  simple_script_checkers:
+    runs-on: ubuntu-latest
+    name: Static checks
+    steps:
+      - name: Preparing step 1... Checking out
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: -${{ github.event.pull_request.commits }}
+      - name: Preparing step 2... Installing packages
+        run: sudo apt-get update && sudo apt-get install clang-format git grep gawk exuberant-ctags
+      - name: Preparing step 3... Identify changed files
+        run: |
+          tmpfile=$(mktemp)
+          git show --pretty="format:" --name-only --diff-filter=AMRC ${{ github.event.pull_request.head.sha}} -${{ github.event.pull_request.commits }} > ${tmpfile}
+          echo "changed_file_list=${tmpfile}" >> "$GITHUB_ENV"
+          echo "::group::The list of changed files"
+          for file in `cat ${tmpfile}`; do
+            echo "$file"
+          done
+          echo "::endgroup::"
+      - name: /Checker/ clang-format for .cc/.hh/.hpp/.cpp files
+        # Originally from "pr-prebuild-clang"
+        run: |
+          echo "Check .clang-format file"
+          if [ ! -f ".clang-format" ]; then
+            echo "::error .clang-format file not found"
+            exit 1
+          fi
+          for file in `cat $changed_file_list`; do
+            echo "Checking $file"
+            if [[ "$file" =~ .*\.hh$ ]] || [[ "$file" =~ .*\.hpp ]] || [[ "$file" =~ .*\.cc$ ]] || [[ "$file" =~ .*\.cpp ]]; then
+              clang-format -i ${file}
+            fi
+          done
+          git diff -- *.cc *.hh *.hpp *.cpp > .ci.clang-format.patch
+          SIZE=$(stat -c%s .ci.clang-format.patch)
+          if [[ $SIZE -ne 0 ]]; then
+            echo "::group::The clang-format complaints..."
+            cat .ci.clang-format.patch
+            echo "::endgroup::"
+            echo "::error clang-format has found style errors in C++ files."
+            exit 1
+          fi
+          echo "clang-format shows no style errors."
+      - name: /Checker/ File size check
+        # Originally from "pr-prebuild-file-size"
+        run: |
+          for file in `cat $changed_file_list`; do
+            echo "Checking $file"
+            FILESIZE=$(stat -c%s "$file")
+            FILESIZE_NUM=`echo $FILESIZE | sed ':a;s/\B[0-9]\{3\}\>/,&/;ta'`
+            if [[ $FILESIZE -gt $[ 5*1024*1024 ] ]]; then
+              echo "::error $file is too large: $FILESIZE > 5MiB"
+              exit 1
+            fi
+          done
+      - name: /Checker/ Doxygen tag check
+        # Originally from "pr-prebuild-doxygen-tag"
+        run: |
+          for file in `cat $changed_file_list`; do
+            echo "Checking $file"
+            if [[ `file $file | grep "ASCII text" | wc -l` -gt 0 ]]; then
+              bash .github/workflows/static.check.scripts/doxygen-tag.sh $file 1
+            fi
+          done
