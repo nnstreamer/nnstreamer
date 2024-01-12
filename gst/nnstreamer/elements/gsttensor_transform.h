@@ -62,7 +62,7 @@ typedef enum _tensor_transform_mode
   GTT_TRANSPOSE,      /* Transpose. "transpose" */
   GTT_STAND,          /* Standardization. "stand" */
   GTT_CLAMP,          /* Clamp, "clamp" */
-  GTT_PADDING,          /* Padding, "padding" */
+  GTT_PADDING,        /* Padding, "padding" */
 
   GTT_UNKNOWN = -1,   /* Unknown/Not-implemented-yet Mode. "unknown" */
 } tensor_transform_mode;

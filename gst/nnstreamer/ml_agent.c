@@ -72,11 +72,8 @@ mlagent_get_model_path_from (const GValue * val)
 
     const size_t NUM_PARTS_MODEL = 3;
     size_t num_parts;
-    size_t i = 0;
 
-    while (parts[++i]);
-
-    num_parts = i;
+    num_parts = g_strv_length (parts);
     if (num_parts == 0) {
       goto fallback;
     }
