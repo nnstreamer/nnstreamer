@@ -138,6 +138,7 @@ ArmNNCore::ArmNNCore (const char *_model_path, accl_hw hw)
  */
 ArmNNCore::~ArmNNCore ()
 {
+  g_free (model_path);
   gst_tensors_info_free (&inputTensorMeta);
   gst_tensors_info_free (&outputTensorMeta);
 }
