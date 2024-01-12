@@ -201,6 +201,7 @@ endif
 
 # snpe
 snpe_dep = dependency('', required: false)
+snpe_api_version = 0 # Check whether the snpe api version is 1 or 2
 if not get_option('snpe-support').disabled()
   # Check whether the platform supports snpe
   snpe_dep = dependency('snpe', required: false)
@@ -226,13 +227,40 @@ if not get_option('snpe-support').disabled()
           required: true
         )
 
-        snpe_incdir = include_directories(join_paths(SNPE_ROOT, 'include', 'zdl'))
+        # SNPE 1 and 2 has different include paths
+        # Use this to check which version of snpe is provided
+        snpe_include_path = ''
+        snpe_1_include_path = join_paths(SNPE_ROOT, 'include', 'zdl')
+        if run_command('[', '-d', snpe_1_include_path, ']', check : false).returncode() == 0
+          snpe_api_version = 1
+          snpe_include_path = snpe_1_include_path
+        endif
+
+        snpe_2_include_path = join_paths(SNPE_ROOT, 'include', 'SNPE')
+        if run_command('[', '-d', snpe_2_include_path, ']', check : false).returncode() == 0
+          snpe_api_version = 2
+          snpe_include_path = snpe_2_include_path
+        endif
+
+        if snpe_include_path == ''
+          error('SNPE header files are not found in your $SNPE_ROOT path')
+        endif
+
+        snpe_incdir = include_directories(snpe_include_path)
 
         snpe_dep = declare_dependency(
           dependencies: snpe_lib,
           include_directories: snpe_incdir
         )
+      else
+        message('If you want to build SNPE tensor_filter, provide $SNPE_ROOT as the path of SNPE SDK')
       endif
+    endif
+  else # snpe found via pkg-config or cmake
+    if snpe_dep.version().version_compare('>=2.0')
+      snpe_api_version = 2
+    else
+      snpe_api_version = 1
     endif
   endif
 endif
@@ -432,7 +460,7 @@ features = {
   },
   'snpe-support': {
     'extra_deps': [ snpe_dep ],
-    'project_args': { 'ENABLE_SNPE' : 1 },
+    'project_args': { 'ENABLE_SNPE' : 1, 'SNPE_VERSION_MAJOR' : snpe_api_version },
   },
   'flatbuf-support': {
     'extra_deps': [ flatc_dep, flatbuf_dep, flatbuf_version_check_dep ],
