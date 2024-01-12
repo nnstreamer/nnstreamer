@@ -62,6 +62,7 @@ typedef enum _tensor_transform_mode
   GTT_TRANSPOSE,      /* Transpose. "transpose" */
   GTT_STAND,          /* Standardization. "stand" */
   GTT_CLAMP,          /* Clamp, "clamp" */
+  GTT_PADDING,          /* Padding, "padding" */
 
   GTT_UNKNOWN = -1,   /* Unknown/Not-implemented-yet Mode. "unknown" */
 } tensor_transform_mode;
@@ -82,6 +83,17 @@ typedef enum
   STAND_DC_AVERAGE = 1,
   STAND_END,
 } tensor_transform_stand_mode;
+
+typedef enum
+{
+  PADDING_LEFT = 0,
+  PADDING_RIGHT = 1,
+  PADDING_TOP = 2,
+  PADDING_BOTTOM = 3,
+  PADDING_FRONT = 4,
+  PADDING_BACK = 5,
+  PADDING_END,
+} tensor_transform_padding_axis;
 
 /**
  * @brief Internal data structure for dimchg mode.
@@ -141,6 +153,14 @@ typedef struct _tensor_transform_clamp {
 } tensor_transform_clamp;
 
 /**
+ * @brief Internal data structure for padding mode.
+ */
+typedef struct _tensor_transform_padding {
+  guint pad[NNS_TENSOR_RANK_LIMIT];
+  tensor_layout layout;
+} tensor_transform_padding;
+
+/**
  * @brief Internal data structure for tensor_transform instances.
  */
 struct _GstTensorTransform
@@ -157,6 +177,7 @@ struct _GstTensorTransform
     tensor_transform_transpose data_transpose; /**< Parsed option value for "transpose" mode. */
     tensor_transform_stand data_stand; /**< Parsed option value for "stand" mode. */
     tensor_transform_clamp data_clamp; /**< Parsed option value for "clamp" mode. */
+    tensor_transform_padding data_padding; /**< Parsed option value for "padding" mode. */
   };
   gboolean loaded; /**< TRUE if mode & option are loaded */
   gboolean acceleration; /**< TRUE to set orc acceleration */
