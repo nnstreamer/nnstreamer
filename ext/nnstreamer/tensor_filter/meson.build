@@ -639,7 +639,13 @@ if get_option('enable-mediapipe')
 endif
 
 if snpe_support_is_available
-  filter_sub_snpe_sources = ['tensor_filter_snpe_v1.cc']
+  # Decide source code file wrt snpe api version.
+  if snpe_api_version == 2
+    filter_sub_snpe_sources = ['tensor_filter_snpe.cc']
+  else # snpe_api_version == 1
+    filter_sub_snpe_sources = ['tensor_filter_snpe_v1.cc']
+  endif
+
   nnstreamer_filter_snpe_deps = [glib_dep, nnstreamer_single_dep, snpe_support_deps, declare_dependency(compile_args: ['-Wno-deprecated-declarations'])]
 
   shared_library('nnstreamer_filter_snpe',
