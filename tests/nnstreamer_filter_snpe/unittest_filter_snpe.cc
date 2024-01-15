@@ -25,7 +25,13 @@ _GetModelFilePath (gchar **model_file, gboolean is_float_model)
 {
   const gchar *src_root = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *root_path = src_root ? g_strdup (src_root) : g_get_current_dir ();
-  std::string model_name = is_float_model ? "add2_float.dlc" : "add2_uint8.dlc";
+#if SNPE_VERSION_MAJOR == 1
+  std::string model_name = is_float_model ? "add2_float.v1.dlc" : "add2_uint8.v1.dlc";
+#elif SNPE_VERSION_MAJOR == 2
+  std::string model_name = is_float_model ? "add2_float.v2.dlc" : "add2_uint8.v2.dlc";
+#else
+#error "Unsupported SNPE version"
+#endif
 
   *model_file = g_build_filename (
       root_path, "tests", "test_models", "models", model_name.c_str (), NULL);
