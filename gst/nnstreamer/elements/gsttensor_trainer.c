@@ -493,9 +493,6 @@ gst_tensor_trainer_change_state (GstElement * element,
   switch (transition) {
     case GST_STATE_CHANGE_NULL_TO_READY:
       GST_INFO_OBJECT (trainer, "NULL_TO_READY");
-
-      if (!gst_tensor_trainer_check_invalid_param (trainer))
-        goto state_change_failed;
       break;
 
     case GST_STATE_CHANGE_READY_TO_PAUSED:
@@ -504,6 +501,8 @@ gst_tensor_trainer_change_state (GstElement * element,
 
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
       GST_INFO_OBJECT (trainer, "PAUSED_TO_PLAYING");
+      if (!gst_tensor_trainer_check_invalid_param (trainer))
+        goto state_change_failed;
       if (!trainer->fw_created) {
         if (!gst_tensor_trainer_create_model (trainer))
           goto state_change_failed;
@@ -620,6 +619,8 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
   num_tensors = gst_tensor_buffer_get_count (inbuf);
 
   if (!trainer->fw_created) {
+    if (!gst_tensor_trainer_check_invalid_param (trainer))
+      return GST_FLOW_ERROR;
     if (!gst_tensor_trainer_create_model (trainer))
       return GST_FLOW_ERROR;
   }
