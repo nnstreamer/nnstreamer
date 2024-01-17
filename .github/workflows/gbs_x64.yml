@@ -1,5 +1,8 @@
 name: GBS Tizen build for x64 from Ubuntu
 
+# ${{ github.event.pull_request.commits }} : # commits in this PR
+# - changed_file_list in GITHUB_ENV: the list of files updated in this pull-request.
+
 on:
   pull_request:
     branches: [ main ]
@@ -10,30 +13,48 @@ jobs:
     runs-on: ubuntu-20.04
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Check if rebuild required
+      ## @todo This should become a reusable workflow.
+      run: |
+        tmpfile=$(mktemp)
+        git show --pretty="format:" --name-only --diff-filter=AMRC ${{ github.event.pull_request.head.sha}} -${{ github.event.pull_request.commits }} | sort | uniq | awk NF > ${tmpfile}
+        echo "changed_file_list=${tmpfile}" >> "$GITHUB_ENV"
+        rebuild=`bash .github/workflows/check_if_rebuild_requires.sh ${tmpfile} gbs | grep "REBUILD=YES" | wc -l`
+        echo "Rebuild required: ${rebuild}"
+        echo "rebuild=${rebuild}" >> "$GITHUB_ENV"
     - uses: actions/setup-python@v1
-    - name: prepare deb sources for GBS
-      run: echo "deb [trusted=yes] http://download.tizen.org/tools/latest-release/Ubuntu_20.04/ /" | sudo tee /etc/apt/sources.list.d/tizen.list
-    - name: install GBS
-      run: sudo apt-get update && sudo apt-get install -y gbs
-    - name: configure GBS
-      run: cp .github/workflows/tizen.gbs.conf ~/.gbs.conf
+    - name: prepare GBS
+      if: env.rebuild == '1'
+      run: |
+        echo "deb [trusted=yes] http://download.tizen.org/tools/latest-release/Ubuntu_20.04/ /" | sudo tee /etc/apt/sources.list.d/tizen.list
+        sudo apt-get update && sudo apt-get install -y gbs
+        cp .github/workflows/tizen.gbs.conf ~/.gbs.conf
     - name: make cache key
+      if: env.rebuild == '1'
       id: make-key
       run: echo "cache_key=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
       shell: bash
     - name: cache gbs cache
       id: cache-gbs-root
+      if: env.rebuild == '1'
       uses: actions/cache@v3
       with:
         path: ~/GBS-ROOT/local/cache
         key: ${{ steps.make-key.outputs.cache_key }}
     - name: run GBS
-      run: gbs build --skip-srcrpm --define "_skip_debug_rpm 1"
+      if: env.rebuild == '1'
+      run: |
+        gbs build --skip-srcrpm --define "_skip_debug_rpm 1"
     - name: get nntrainer
+      if: env.rebuild == '1'
       uses: actions/checkout@v3
       with:
         repository: nnstreamer/nntrainer
         path: nntrainer
     - name: run nntrainer GBS build
-      run: pushd nntrainer && gbs build --skip-srcrpm --define "unit_test 1" --define "_skip_debug_rpm 1" && popd
+      if: env.rebuild == '1'
+      run: |
+        pushd nntrainer && gbs build --skip-srcrpm --define "unit_test 1" --define "_skip_debug_rpm 1" && popd

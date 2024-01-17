@@ -9,9 +9,21 @@ jobs:
     runs-on: ubuntu-20.04
     name: Build on Ubuntu 20.04 RISC-V 64
     steps:
-      - uses: actions/checkout@v2.1.0
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check if rebuild required
+        ## @todo This should become a reusable workflow.
+        run: |
+          tmpfile=$(mktemp)
+          git show --pretty="format:" --name-only --diff-filter=AMRC ${{ github.event.pull_request.head.sha}} -${{ github.event.pull_request.commits }} | sort | uniq | awk NF > ${tmpfile}
+          echo "changed_file_list=${tmpfile}" >> "$GITHUB_ENV"
+          rebuild=`bash .github/workflows/check_if_rebuild_requires.sh ${tmpfile} rebuild | grep "REBUILD=YES" | wc -l`
+          echo "Rebuild required: ${rebuild}"
+          echo "rebuild=${rebuild}" >> "$GITHUB_ENV"
       - uses: nnstreamer/run-on-arch-action@master
         name: Run commands
+        if: env.rebuild == '1'
         id: Build
         with:
           arch: riscv64

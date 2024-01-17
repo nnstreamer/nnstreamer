@@ -13,32 +13,47 @@ jobs:
         os: [ ubuntu-20.04, ubuntu-22.04 ]
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Check if rebuild required
+      ## @todo This should become a reusable workflow.
+      run: |
+        tmpfile=$(mktemp)
+        git show --pretty="format:" --name-only --diff-filter=AMRC ${{ github.event.pull_request.head.sha}} -${{ github.event.pull_request.commits }} | sort | uniq | awk NF > ${tmpfile}
+        echo "changed_file_list=${tmpfile}" >> "$GITHUB_ENV"
+        rebuild=`bash .github/workflows/check_if_rebuild_requires.sh ${tmpfile} rebuild | grep "REBUILD=YES" | wc -l`
+        echo "Rebuild required: ${rebuild}"
+        echo "rebuild=${rebuild}" >> "$GITHUB_ENV"
     - uses: actions/setup-python@v1
       with:
         python-version: '3.x'
-    - name: install minimal requirements
-      run: sudo apt-get update && sudo apt-get install -y libglib2.0-dev libjson-glib-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libunwind-dev googletest
-    - name: install additional packages for features
-      run: sudo apt-get install -y liborc-0.4-dev flex bison libopencv-dev pkg-config python3-dev python3-numpy python3
-    - name: install additional package from PPA for testing
-      run: sudo add-apt-repository -y ppa:nnstreamer/ppa && sudo apt-get update && sudo apt-get install -y ssat libpaho-mqtt-dev
-    - name: install additional package from Ubuntu for testing and valgrind
-      run: sudo apt-get install -y valgrind gstreamer1.0-tools gstreamer1.0-plugins-good gstreamer1.0-plugins-base libgtest-dev libpng-dev libc6-dbg binutils-x86-64-linux-gnu-dbg valgrind-dbg
-    - run: pip install meson ninja
-    - run: meson setup build/
+    - name: install requirements
+      if: env.rebuild == '1'
+      run: |
+        sudo apt-get update && sudo apt-get install -y libglib2.0-dev libjson-glib-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libunwind-dev googletest
+        sudo apt-get install -y liborc-0.4-dev flex bison libopencv-dev pkg-config python3-dev python3-numpy python3
+        sudo add-apt-repository -y ppa:nnstreamer/ppa && sudo apt-get update && sudo apt-get install -y ssat libpaho-mqtt-dev
+        sudo apt-get install -y valgrind gstreamer1.0-tools gstreamer1.0-plugins-good gstreamer1.0-plugins-base libgtest-dev libpng-dev libc6-dbg binutils-x86-64-linux-gnu-dbg valgrind-dbg
+        pip install meson ninja
+    - name: build and unit test
+      if: env.rebuild == '1'
+      run: |
+        meson setup build/
+        meson compile -C build/
+        meson test -C build/ -v
       env:
         CC: gcc
-    - run: meson compile -C build/
-    - run: meson test -C build/ -v
     - uses: actions/upload-artifact@v1
       if: failure()
       with:
         name: Meson_Testlog
         path: build/meson-logs/testlog.txt
     - name: SSAT run with Valgrind on decoder-bounding-box
+      if: env.rebuild == '1'
       run: if [ '${{ matrix.os }}' == 'ubuntu-22.04' ]; then export NNSTREAMER_BUILD_ROOT_PATH=`pwd`/build && export NNSTREAMER_FILTERS=`pwd`/build/ext/nnstreamer/tensor_filter && export NNSTREAMER_DECODERS=`pwd`/build/ext/nnstreamer/tensor_decoder && export NNSTREAMER_CONVERTERS=`pwd`/build/ext/nnstreamer/tensor_converter && export GST_PLUGIN_PATH=`pwd`/build/gst && export NNSTREAMER_CONF=`pwd`/build/nnstreamer-test.ini && pushd tests/nnstreamer_decoder_boundingbox && G_SLICE=always-malloc G_DEBUG=gc-friendly ssat -n -p=1 --enable-valgrind --valgrind-suppression ../../tools/debugging/valgrind_suppression --summary summary.txt -cn _n && popd; fi
     - name: GTEST run with Valgrind on a case
+      if: env.rebuild == '1'
       run: if [ '${{ matrix.os }}' == 'ubuntu-22.04' ]; then export NNSTREAMER_BUILD_ROOT_PATH=`pwd`/build && export NNSTREAMER_FILTERS=`pwd`/build/ext/nnstreamer/tensor_filter && export NNSTREAMER_DECODERS=`pwd`/build/ext/nnstreamer/tensor_decoder && export NNSTREAMER_CONVERTERS=`pwd`/build/ext/nnstreamer/tensor_converter && export GST_PLUGIN_PATH=`pwd`/build/gst && export NNSTREAMER_CONF=`pwd`/build/nnstreamer-test.ini && G_SLICE=always-malloc G_DEBUG=gc-friendly ./packaging/run_unittests_binaries.sh --valgrind ./tests/ || echo "There are Valgrind errors. Please fix it. As we have a lot of Valgrind errors from different libraries and possible from nnstreamer itself, we are not halting the build with Valgrind errors until we get them all."; fi
 
 # TODO: add more subplugins to be built
