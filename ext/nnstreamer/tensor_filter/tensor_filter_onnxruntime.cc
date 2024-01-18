@@ -92,7 +92,8 @@ class onnxruntime_subplugin final : public tensor_filter_subplugin
  * @brief Constructor for onnxruntime_subplugin.
  */
 onnxruntime_subplugin::onnxruntime_subplugin ()
-    : configured{ false }, session{ nullptr }, sessionOptions{ nullptr }, env{ nullptr }, memInfo{ nullptr }
+    : configured{ false }, model_path{ nullptr }, session{ nullptr },
+      sessionOptions{ nullptr }, env{ nullptr }, memInfo{ nullptr }
 {
 }
 
