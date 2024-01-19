@@ -82,12 +82,7 @@ jobs:
         # Originally from "pr-prebuild-doxygen-tag"
         # Need "grep"
         run: |
-          for file in `cat $changed_file_list`; do
-            echo "Checking $file"
-            if [[ `file $file | grep "ASCII text" | wc -l` -gt 0 ]]; then
-              bash .github/workflows/static.check.scripts/doxygen-tag.sh $file 1
-            fi
-          done
+          bash .github/workflows/static.check.scripts/doxygen-tag.sh $changed_file_list 1
       - name: /Checker/ Indent
         # Originally from "pr-prebuild-indent"
         # Need "indent"
