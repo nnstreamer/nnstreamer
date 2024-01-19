@@ -21,7 +21,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: -${{ github.event.pull_request.commits }}
       - name: Preparing step 2... Installing packages
-        run: sudo apt-get update && sudo apt-get install clang-format git grep gawk exuberant-ctags
+        run: sudo apt-get update && sudo apt-get install clang-format git grep gawk exuberant-ctags indent pylint
       - name: Preparing step 3... Identify changed files
         run: |
           tmpfile_pre=$(mktemp)
@@ -43,6 +43,7 @@ jobs:
           echo "changed_file_list=${tmpfile}" >> "$GITHUB_ENV"
       - name: /Checker/ clang-format for .cc/.hh/.hpp/.cpp files
         # Originally from "pr-prebuild-clang"
+        # Need "clang-format"
         run: |
           echo "Check .clang-format file"
           if [ ! -f ".clang-format" ]; then
@@ -79,6 +80,7 @@ jobs:
           done
       - name: /Checker/ Doxygen tag check
         # Originally from "pr-prebuild-doxygen-tag"
+        # Need "grep"
         run: |
           for file in `cat $changed_file_list`; do
             echo "Checking $file"
@@ -86,3 +88,17 @@ jobs:
               bash .github/workflows/static.check.scripts/doxygen-tag.sh $file 1
             fi
           done
+      - name: /Checker/ Indent
+        # Originally from "pr-prebuild-indent"
+        # Need "indent"
+        run: |
+          bash .github/workflows/static.check.scripts/indent.sh $changed_file_list
+      - name: /Checker/ Pylint
+        # Originally from "pr-prebuild-pylint"
+        # Need "pylint"
+        run: |
+          bash .github/workflows/static.check.scripts/pylint.sh $changed_file_list
+      - name: /Checker/ Newline
+        # Originally from "pr-prebuild-newline"
+        run: |
+          bash .github/workflows/static.check.scripts/newline.sh $changed_file_list
