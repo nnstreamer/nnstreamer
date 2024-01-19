@@ -21,7 +21,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: -${{ github.event.pull_request.commits }}
       - name: Preparing step 2... Installing packages
-        run: sudo apt-get update && sudo apt-get install clang-format git grep gawk exuberant-ctags indent pylint
+        run: sudo apt-get update && sudo apt-get install clang-format git grep gawk exuberant-ctags indent pylint rpmlint aha
       - name: Preparing step 3... Identify changed files
         run: |
           tmpfile_pre=$(mktemp)
@@ -97,3 +97,9 @@ jobs:
         # Originally from "pr-prebuild-newline"
         run: |
           bash .github/workflows/static.check.scripts/newline.sh $changed_file_list
+      - name: /Checker/ RPM Spec
+        # Originally from "pr-prebuild-rpm-spec"
+        # Need "rpmlint", "aha"
+        # Tolerated errors: 40 (make it 0 someday!!!)
+        run: |
+          bash .github/workflows/static.check.scripts/rpm-spec.sh $changed_file_list 40
