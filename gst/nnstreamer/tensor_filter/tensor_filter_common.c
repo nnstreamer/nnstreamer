@@ -734,8 +734,14 @@ gst_tensor_filter_parse_modelpaths_string (GstTensorFilterProperties * prop,
   g_strfreev_const (prop->model_files);
 
   if (model_files) {
-    prop->model_files = (const gchar **) g_strsplit_set (model_files, ",", -1);
-    prop->num_models = g_strv_length ((gchar **) prop->model_files);
+    gchar **models = g_strsplit_set (model_files, ",", -1);
+    guint i, num = g_strv_length (models);
+
+    for (i = 0; i < num; i++)
+      g_strstrip (models[i]);
+
+    prop->model_files = (const gchar **) models;
+    prop->num_models = num;
   } else {
     prop->model_files = NULL;
     prop->num_models = 0;
