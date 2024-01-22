@@ -21,7 +21,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: -${{ github.event.pull_request.commits }}
       - name: Preparing step 2... Installing packages
-        run: sudo apt-get update && sudo apt-get install clang-format git grep gawk exuberant-ctags indent pylint rpmlint aha
+        run: sudo apt-get update && sudo apt-get install clang-format git grep gawk exuberant-ctags indent pylint rpmlint aha cppcheck aspell doxygen
       - name: Preparing step 3... Identify changed files
         run: |
           tmpfile_pre=$(mktemp)
@@ -83,7 +83,7 @@ jobs:
         # Need "grep"
         run: |
           bash .github/workflows/static.check.scripts/doxygen-tag.sh $changed_file_list 1
-      - name: /Checker/ Indent
+      - name: /Checker/ Indent check
         # Originally from "pr-prebuild-indent"
         # Need "indent"
         run: |
@@ -93,13 +93,42 @@ jobs:
         # Need "pylint"
         run: |
           bash .github/workflows/static.check.scripts/pylint.sh $changed_file_list
-      - name: /Checker/ Newline
+      - name: /Checker/ Incorrect newlines
         # Originally from "pr-prebuild-newline"
         run: |
           bash .github/workflows/static.check.scripts/newline.sh $changed_file_list
-      - name: /Checker/ RPM Spec
+      - name: /Checker/ RPM spec lint
         # Originally from "pr-prebuild-rpm-spec"
         # Need "rpmlint", "aha"
         # Tolerated errors: 40 (make it 0 someday!!!)
         run: |
           bash .github/workflows/static.check.scripts/rpm-spec.sh $changed_file_list 40
+      - name: /Checker/ CPPCheck errors
+        # Originally from "pr-prebuild-cppcheck"
+        # Need "cppcheck"
+        run: |
+          bash .github/workflows/static.check.scripts/cppcheck.sh $changed_file_list 0
+      - name: /Checker/ Commit without proper message
+        # Originally from "pr-prebuild-nobody"
+        run: |
+          bash .github/workflows/static.check.scripts/nobody.sh ${{ github.event.pull_request.commits }}
+      - name: /Checker/ Timestamp from the future
+        # Originally from "pr-prebuild-timestamp"
+        run: |
+          bash .github/workflows/static.check.scripts/timestamp.sh ${{ github.event.pull_request.commits }}
+      - name: /Checker/ Executable bits in source code files
+        # Originally from "pr-prebuild-executable"
+        run: |
+          bash .github/workflows/static.check.scripts/executable.sh $changed_file_list
+      - name: /Checker/ Hardcoded paths
+        # Originally from "pr-prebuild-hardcoded-path"
+        run: |
+          bash .github/workflows/static.check.scripts/hardcoded-path.sh $changed_file_list
+      - name: /Checker/ Misspelling
+        # Originally from "pr-prebuild-misspelling"
+        run: |
+          bash .github/workflows/static.check.scripts/misspelling.sh $changed_file_list
+      - name: /Checker/ Doxygen build test
+        # Originally from "pr-prebuild-doxygen-build"
+        run: |
+          bash .github/workflows/static.check.scripts/doxygen-build.sh $changed_file_list
