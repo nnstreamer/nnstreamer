@@ -17,8 +17,12 @@
 #include <tensor_filter_custom_easy.h>
 #include <unittest_util.h>
 
-static guint filter_received;
-static guint sink_received;
+/** @brief User data for new_data_cb and custom filter */
+typedef struct _cb_data {
+  GMutex lock;
+  guint filter_received;
+  guint sink_received;
+} cb_data;
 
 /**
  * @brief In-Code Test Function for custom-easy filter
@@ -30,21 +34,32 @@ _custom_easy_filter_dynamic (void *data, const GstTensorsInfo *in_info,
   gchar *dim_str;
   guint i;
 
+  cb_data *cbdata = (cb_data *) data;
+  if (cbdata == NULL) {
+    g_printerr ("%s:%s is called with its third parameter NULL. Cannot proceed.",
+        __FILE__, __func__);
+    return -EINVAL;
+  }
+
   /* Fill output tensors info */
   gst_tensors_info_init (out_info);
   out_info->info[0].type = _NNS_UINT32;
-  dim_str = g_strdup_printf ("%u:1:1:1", ++filter_received);
+
+  /** Protect cbdata->* */
+  g_mutex_lock (&cbdata->lock);
+  dim_str = g_strdup_printf ("%u:1:1:1", ++(cbdata->filter_received));
   gst_tensor_parse_dimension (dim_str, out_info->info[0].dimension);
   out_info->num_tensors = 1;
   out_info->format = _NNS_TENSOR_FORMAT_FLEXIBLE;
 
   /* Allocate and fill output memory */
-  output[0].size = sizeof (guint) * filter_received;
+  output[0].size = sizeof (guint) * cbdata->filter_received;
   output[0].data = g_malloc0 (output[0].size);
 
-  for (i = 0; i < filter_received; i++) {
+  for (i = 0; i < cbdata->filter_received; i++) {
     ((guint *) output[0].data)[i] = i;
   }
+  g_mutex_unlock (&cbdata->lock);
   g_free (dim_str);
   return 0;
 }
@@ -61,29 +76,42 @@ new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
   GstMapInfo map;
   guint *data;
   guint i;
+  cb_data *cbdata = (cb_data *) user_data;
 
-  expected_size = sizeof (guint) * ++sink_received;
+  if (cbdata == NULL) {
+    g_printerr ("%s:%s is called with its third parameter NULL. Cannot proceed.",
+        __FILE__, __func__);
+    return;
+  }
+
+  /** Protect cbdata->* */
+  g_mutex_lock (&cbdata->lock);
+
+  cbdata->sink_received = cbdata->sink_received + 1;
+  expected_size = sizeof (guint) * cbdata->sink_received;
 
   EXPECT_EQ (1U, gst_buffer_n_memory (buffer));
 
   mem = gst_buffer_peek_memory (buffer, 0);
   if (!gst_memory_map (mem, &map, GST_MAP_READ)) {
     g_message ("Failed to map the info buffer.");
+    g_mutex_unlock (&cbdata->lock);
     return;
   }
 
   gst_tensor_meta_info_parse_header (&meta, map.data);
   EXPECT_EQ (_NNS_TENSOR_FORMAT_FLEXIBLE, meta.format);
-  EXPECT_EQ (sink_received, meta.dimension[0]);
+  EXPECT_EQ (cbdata->sink_received, meta.dimension[0]);
 
   mem_size = gst_memory_get_sizes (mem, NULL, NULL);
   header_size = gst_tensor_meta_info_get_header_size (&meta);
   EXPECT_EQ (expected_size, mem_size - header_size);
 
   data = (guint *) (map.data + header_size);
-  for (i = 0; i < filter_received; i++) {
+  for (i = 0; i < cbdata->filter_received; i++) {
     EXPECT_EQ (i, data[i]);
   }
+  g_mutex_unlock (&cbdata->lock);
 
   gst_memory_unmap (mem, &map);
 }
@@ -101,13 +129,18 @@ TEST (tensorFilterCustom, flexibleInvoke_p)
   GstElement *sink_handle;
   int ret;
 
+  cb_data data;
+  g_mutex_init (&data.lock);
+  data.filter_received = 0;
+  data.sink_received = 0;
+
   gst_tensors_info_init (&info_in);
   info_in.num_tensors = 1U;
   info_in.info[0].name = NULL;
   info_in.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
 
   ret = NNS_custom_easy_dynamic_register (
-      "flexbible_filter", _custom_easy_filter_dynamic, NULL, &info_in);
+      "flexbible_filter", _custom_easy_filter_dynamic, &data, &info_in);
   ASSERT_EQ (ret, 0);
 
   /* create a nnstreamer pipeline */
@@ -123,13 +156,11 @@ TEST (tensorFilterCustom, flexibleInvoke_p)
   sink_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "sinkx");
   EXPECT_NE (sink_handle, nullptr);
 
-  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, NULL);
+  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, &data);
 
-  filter_received = 0;
-  sink_received = 0;
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
-  EXPECT_TRUE (wait_pipeline_process_buffers (&sink_received, 6, TEST_TIMEOUT_LIMIT_MS));
+  EXPECT_TRUE (wait_pipeline_process_buffers (&data.sink_received, 6, TEST_TIMEOUT_LIMIT_MS));
   g_usleep (1000000);
 
   /** cleanup registered custom_easy filter */
@@ -139,6 +170,7 @@ TEST (tensorFilterCustom, flexibleInvoke_p)
   gst_object_unref (sink_handle);
   gst_object_unref (gstpipe);
   g_free (pipeline);
+  g_mutex_clear (&data.lock);
 }
 
 
@@ -155,13 +187,18 @@ TEST (tensorFilterCustom, staticFlexibleInvoke_p)
   GstElement *sink_handle;
   int ret;
 
+  cb_data data;
+  g_mutex_init (&data.lock);
+  data.filter_received = 0;
+  data.sink_received = 0;
+
   gst_tensors_info_init (&info_in);
   info_in.num_tensors = 1U;
   info_in.info[0].name = NULL;
   info_in.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
 
   ret = NNS_custom_easy_dynamic_register (
-      "flexbible_filter", _custom_easy_filter_dynamic, NULL, &info_in);
+      "flexbible_filter", _custom_easy_filter_dynamic, &data, &info_in);
   ASSERT_EQ (ret, 0);
 
   /* create a nnstreamer pipeline */
@@ -177,13 +214,11 @@ TEST (tensorFilterCustom, staticFlexibleInvoke_p)
   sink_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "sinkx");
   EXPECT_NE (sink_handle, nullptr);
 
-  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, NULL);
+  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, &data);
 
-  filter_received = 0;
-  sink_received = 0;
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
-  EXPECT_TRUE (wait_pipeline_process_buffers (&sink_received, 6, TEST_TIMEOUT_LIMIT_MS));
+  EXPECT_TRUE (wait_pipeline_process_buffers (&data.sink_received, 6, TEST_TIMEOUT_LIMIT_MS));
   g_usleep (1000000);
 
   /** cleanup registered custom_easy filter */
@@ -193,6 +228,7 @@ TEST (tensorFilterCustom, staticFlexibleInvoke_p)
   gst_object_unref (sink_handle);
   gst_object_unref (gstpipe);
   g_free (pipeline);
+  g_mutex_clear (&data.lock);
 }
 
 
@@ -209,13 +245,18 @@ TEST (tensorFilterCustom, flexibleInvokeInvalidProp_n)
   GstElement *sink_handle;
   int ret;
 
+  cb_data data;
+  g_mutex_init (&data.lock);
+  data.filter_received = 0;
+  data.sink_received = 0;
+
   gst_tensors_info_init (&info_in);
   info_in.num_tensors = 1U;
   info_in.info[0].name = NULL;
   info_in.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
 
   ret = NNS_custom_easy_dynamic_register (
-      "flexbible_filter", _custom_easy_filter_dynamic, NULL, &info_in);
+      "flexbible_filter", _custom_easy_filter_dynamic, &data, &info_in);
   ASSERT_EQ (ret, 0);
 
   /* create a nnstreamer pipeline */
@@ -231,10 +272,8 @@ TEST (tensorFilterCustom, flexibleInvokeInvalidProp_n)
   sink_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "sinkx");
   EXPECT_NE (sink_handle, nullptr);
 
-  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, NULL);
+  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, &data);
 
-  filter_received = 0;
-  sink_received = 0;
   EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   /** cleanup registered custom_easy filter */
@@ -244,6 +283,7 @@ TEST (tensorFilterCustom, flexibleInvokeInvalidProp_n)
   gst_object_unref (sink_handle);
   gst_object_unref (gstpipe);
   g_free (pipeline);
+  g_mutex_clear (&data.lock);
 }
 
 /**
@@ -254,14 +294,23 @@ _custom_easy_filter (void *data, const GstTensorFilterProperties *prop,
     const GstTensorMemory *input, GstTensorMemory *output)
 {
   guint i;
+  cb_data *cbdata = (cb_data *) data;
+  if (cbdata == NULL) {
+    g_printerr ("%s:%s is called with its third parameter NULL. Cannot proceed.",
+        __FILE__, __func__);
+    return -EINVAL;
+  }
 
+  /** Protect cbdata->* */
+  g_mutex_lock (&cbdata->lock);
   /* Allocate and fill output memory */
-  output[0].size = sizeof (guint) * ++filter_received;
+  output[0].size = sizeof (guint) * ++(cbdata->filter_received);
   output[0].data = g_malloc0 (output[0].size);
 
-  for (i = 0; i < filter_received; i++) {
+  for (i = 0; i < cbdata->filter_received; i++) {
     ((guint *) output[0].data)[i] = i;
   }
+  g_mutex_unlock (&cbdata->lock);
 
   return 0;
 }
@@ -280,6 +329,11 @@ TEST (tensorFilterCustom, staticInvoke_n)
   GstElement *sink_handle;
   int ret;
 
+  cb_data data;
+  g_mutex_init (&data.lock);
+  data.filter_received = 0;
+  data.sink_received = 0;
+
   gst_tensors_info_init (&info_in);
   info_in.num_tensors = 1U;
   info_in.info[0].name = NULL;
@@ -291,7 +345,7 @@ TEST (tensorFilterCustom, staticInvoke_n)
   info_out.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
 
   ret = NNS_custom_easy_register (
-      "normal_filter", _custom_easy_filter, NULL, &info_in, &info_out);
+      "normal_filter", _custom_easy_filter, &data, &info_in, &info_out);
   ASSERT_EQ (ret, 0);
 
   /* create a nnstreamer pipeline */
@@ -309,8 +363,6 @@ TEST (tensorFilterCustom, staticInvoke_n)
 
   g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, NULL);
 
-  filter_received = 0;
-  sink_received = 0;
   EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   /** cleanup registered custom_easy filter */
@@ -320,6 +372,7 @@ TEST (tensorFilterCustom, staticInvoke_n)
   gst_object_unref (sink_handle);
   gst_object_unref (gstpipe);
   g_free (pipeline);
+  g_mutex_clear (&data.lock);
 }
 
 /**
@@ -347,7 +400,6 @@ TEST (tensorFilterCustom, notRegisterFlexibleInvoke_n)
   gstpipe = gst_parse_launch (pipeline, &err);
   ASSERT_TRUE (gstpipe != nullptr);
 
-  filter_received = 0;
   EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   g_usleep (100000);
 
@@ -370,7 +422,12 @@ TEST (tensorFilterCustom, dynamicRegisterInvalidParam_n)
   info_in.info[0].name = NULL;
   info_in.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
 
-  ret = NNS_custom_easy_dynamic_register (NULL, _custom_easy_filter_dynamic, NULL, &info_in);
+  cb_data data;
+  g_mutex_init (&data.lock);
+  data.filter_received = 0;
+  data.sink_received = 0;
+
+  ret = NNS_custom_easy_dynamic_register (NULL, _custom_easy_filter_dynamic, &data, &info_in);
   EXPECT_NE (0, ret);
 
   ret = NNS_custom_easy_dynamic_register ("temp_name", NULL, NULL, &info_in);
@@ -379,6 +436,7 @@ TEST (tensorFilterCustom, dynamicRegisterInvalidParam_n)
   ret = NNS_custom_easy_dynamic_register (
       "temp_name", _custom_easy_filter_dynamic, NULL, NULL);
   EXPECT_NE (0, ret);
+  g_mutex_clear (&data.lock);
 }
 
 /**
