@@ -24,14 +24,23 @@ jobs:
         run: sudo apt-get update && sudo apt-get install clang-format git grep gawk exuberant-ctags
       - name: Preparing step 3... Identify changed files
         run: |
+          tmpfile_pre=$(mktemp)
           tmpfile=$(mktemp)
-          git show --pretty="format:" --name-only --diff-filter=AMRC ${{ github.event.pull_request.head.sha}} -${{ github.event.pull_request.commits }} > ${tmpfile}
-          echo "changed_file_list=${tmpfile}" >> "$GITHUB_ENV"
+          git show --pretty="format:" --name-only --diff-filter=AMRC ${{ github.event.pull_request.head.sha}} -${{ github.event.pull_request.commits }} > ${tmpfile_pre}
+
+          ####### Screen out deleted files from the file list!!!
+
           echo "::group::The list of changed files"
-          for file in `cat ${tmpfile}`; do
-            echo "$file"
+          for file in `cat ${tmpfile_pre}`; do
+            if [[ -f $file ]]; then
+              echo "$file"
+              echo "$file" >> $tmpfile
+            else
+              echo "$file is deleted."
+            fi
           done
           echo "::endgroup::"
+          echo "changed_file_list=${tmpfile}" >> "$GITHUB_ENV"
       - name: /Checker/ clang-format for .cc/.hh/.hpp/.cpp files
         # Originally from "pr-prebuild-clang"
         run: |
