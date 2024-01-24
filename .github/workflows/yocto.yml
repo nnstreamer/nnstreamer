@@ -1,0 +1,71 @@
+name: Build test/ Yocto 4.0.15
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        fetch-depth: -${{ github.event.pull_request.commits }}
+    - name: Check if rebuild required
+      ## @todo This should become a reusable workflow.
+      run: |
+        tmpfile=$(mktemp)
+        git show --pretty="format:" --name-only --diff-filter=AMRC ${{ github.event.pull_request.head.sha}} -${{ github.event.pull_request.commits }} | sort | uniq | awk NF > ${tmpfile}
+        echo "changed_file_list=${tmpfile}" >> "$GITHUB_ENV"
+        rebuild=`bash .github/workflows/check_if_rebuild_requires.sh ${tmpfile} build | grep "REBUILD=YES" | wc -l`
+        echo "Rebuild required: ${rebuild}"
+        echo "rebuild=${rebuild}" >> "$GITHUB_ENV"
+    - name: make cache key
+      if: env.rebuild == '1'
+      id: make-key
+      run: echo "cache_key=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+      shell: bash
+    - name: cache Yocto SDK
+      id: cache-gbs-root
+      if: env.rebuild == '1'
+      uses: actions/cache@v3
+      with:
+        path: ~/poky_sdk/
+        key: ${{ steps.make-key.outputs.cache_key }}
+    - name: Prepare build
+      if: env.rebuild == '1'
+      run: |
+        echo "::group::apt-get install"
+        sudo apt-get update
+        sudo apt-get install sudo curl diffstat python2.7 locales bash-completion qemu gawk wget git diffstat unzip texinfo gcc build-essential chrpath socat cpio python3 python3-pip python3-pexpect xz-utils debianutils iputils-ping python3-git python3-jinja2 libegl1-mesa libsdl1.2-dev pylint3 xterm python3-subunit mesa-common-dev gzip libglib2.0-dev libjson-glib-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libunwind-dev googletest liborc-0.4-dev flex bison libopencv-dev pkg-config python3-dev python3-numpy git
+        sudo ln -sf python2.7 /usr/bin/python
+        echo "::endgroup::"
+        echo "::group::Locale Setup"
+        sudo dpkg-reconfigure locales
+        sudo locale-gen "en_US.UTF-8"
+        sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
+        export LC_ALL=en_US.UTF-8
+        export LANG=en_US.UTF-8
+        export LANGUAGE=en_US:en
+        locale
+        echo "::endgroup::"
+        echo "::group::eSDK install"
+        ## @todo Find a way to cache this.
+        if [[ -f ~/poky_sdk/environment-setup-cortexa57-poky-linux ]]; then
+          echo "There is a cached eSDK. Skip installing and reset previous builds"
+          . ~/poky_sdk/environment-setup-cortexa57-poky-linux
+          devtool reset -a -r
+        else
+          wget -nv https://downloads.yoctoproject.org/releases/yocto/yocto-4.0.15/toolchain/x86_64/poky-glibc-x86_64-core-image-minimal-cortexa57-qemuarm64-toolchain-ext-4.0.15.sh
+          sh poky-glibc-x86_64-core-image-minimal-cortexa57-qemuarm64-toolchain-ext-4.0.15.sh -d ~/poky_sdk
+        fi
+        echo "::endgroup::"
+    - name: Build
+      if: env.rebuild == '1'
+      run: |
+        # Get meta-nerual-network
+        . ~/poky_sdk/environment-setup-cortexa57-poky-linux
+        devtool add metaneuralnetwork http://github.com/nnstreamer/meta-neural-network.git
+        devtool build metaneuralnetwork
