@@ -1,4 +1,4 @@
-name: GBS Tizen build for x64 from Ubuntu
+name: Build and unit test/ Tizen/GBS
 
 # ${{ github.event.pull_request.commits }} : # commits in this PR
 # - changed_file_list in GITHUB_ENV: the list of files updated in this pull-request.
@@ -10,12 +10,25 @@ on:
 jobs:
   build:
 
+    strategy:
+      matrix:
+        include:
+          - aarch: "-A x86_64"
+            option: "--define \"unit_test 1\""
+          - aarch: "-A i586"
+            option: "--define \"unit_test 1\""
+          - aarch: "-A armv7l"
+            option: "--define \"unit_test 0\""
+          - aarch: "-A aarch64"
+            option: "--define \"unit_test 0\""
+
     runs-on: ubuntu-20.04
 
     steps:
     - uses: actions/checkout@v4
       with:
-        fetch-depth: 0
+        ref: ${{ github.event.pull_request.head.sha }}
+        fetch-depth: -${{ github.event.pull_request.commits }}
     - name: Check if rebuild required
       ## @todo This should become a reusable workflow.
       run: |
@@ -47,7 +60,11 @@ jobs:
     - name: run GBS
       if: env.rebuild == '1'
       run: |
-        gbs build --skip-srcrpm --define "_skip_debug_rpm 1"
+        gbs build --skip-srcrpm --define "_skip_debug_rpm 1" ${{ matrix.aarch }} ${{ matrix.option }}
+        ## Skip nntrainer build test in aarch64. @todo We need #2430 and #2431 in nntrainer.git
+        if [[ "${{ matrix.aarch }}" == "-A aarch64" ]]; then
+          echo "rebuild=0" >> "$GITHUB_ENV"
+        fi
     - name: get nntrainer
       if: env.rebuild == '1'
       uses: actions/checkout@v3
@@ -57,4 +74,6 @@ jobs:
     - name: run nntrainer GBS build
       if: env.rebuild == '1'
       run: |
-        pushd nntrainer && gbs build --skip-srcrpm --define "unit_test 1" --define "_skip_debug_rpm 1" && popd
+        pushd nntrainer
+        gbs build --skip-srcrpm ${{ matrix.aarch }} ${{ matrix.option }} --define "_skip_debug_rpm 1"
+        popd

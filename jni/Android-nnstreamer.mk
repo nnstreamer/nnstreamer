@@ -120,7 +120,7 @@ gstvideoconvert gstvideorate gstvideoscale \
 gmodule-2.0 iconv png16 gstpng gstmultifile gio-2.0 \
 gstbase-1.0 gstvideo-1.0 tag-1.0 orc app-1.0 badbase-1.0 gthread \
 cairo pixman gstbadvideo gstcontroller jpeg gstpbutils gstallocators \
-bz2 harfbuzz
+bz2 harfbuzz z
 
 ifeq ($(NO_AUDIO), false)
 BUILDING_BLOCK_LIST += gstaudio-1.0 gstbadaudio-1.0 gstaudioconvert gstaudiomixer gstaudiorate gstaudioresample gstaudiotestsrc
