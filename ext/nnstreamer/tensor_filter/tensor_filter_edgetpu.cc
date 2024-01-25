@@ -141,7 +141,8 @@ const accl_hw edgetpu_subplugin::hw_list[] = { ACCL_NPU_EDGE_TPU };
 edgetpu_subplugin::edgetpu_subplugin ()
     : tensor_filter_subplugin (), empty_model (true), model_path (nullptr),
       device_type (edgetpu_subplugin_device_type::DEFAULT),
-      model_interpreter (nullptr), edgetpu_context (nullptr), model (nullptr)
+      model_interpreter (nullptr), interpreter (nullptr),
+      edgetpu_context (nullptr), model (nullptr)
 {
   gst_tensors_info_init (std::addressof (inputInfo));
   gst_tensors_info_init (std::addressof (outputInfo));

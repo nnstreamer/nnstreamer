@@ -1585,7 +1585,8 @@ gst_tensor_meta_info_append_header (GstTensorMetaInfo * meta, GstMemory * mem)
 GstMemory *
 gst_tensor_buffer_get_nth_memory (GstBuffer * buffer, const guint index)
 {
-  guint i, num_tensors, offset = 0;
+  guint i, num_tensors;
+  gsize offset;
   GstMemory *extra_tensors_memory, *res_mem = NULL;
   GstMapInfo extra_tensors_map;
   GstTensorExtraInfo *extra_info;

@@ -1662,6 +1662,10 @@ _gtfc_setprop_ACCELERATOR (GstTensorFilterPrivate * priv,
       GstTensorFilterFrameworkEventData data;
       memcpy (&_prop, prop, sizeof (GstTensorFilterProperties));
 
+      /* null-init hw list before parsing accel string (old ptr in _prop). */
+      prop->num_hw = 0;
+      prop->hw_list = NULL;
+
       gst_tensor_filter_parse_accelerator (priv, prop, accelerators);
       data.num_hw = prop->num_hw;
       data.hw_list = prop->hw_list;

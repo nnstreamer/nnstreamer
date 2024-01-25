@@ -130,22 +130,25 @@ PYDecoderCore::decode (const GstTensorsConfig *config,
   PyObject *output = NULL;
   PyObject *raw_data, *in_info;
   GstFlowReturn ret = GST_FLOW_OK;
+  GstTensorsInfo *info;
 
   Py_LOCK ();
-  raw_data = PyList_New (config->info.num_tensors);
-  in_info = PyList_New (config->info.num_tensors);
+  info = (GstTensorsInfo *) &config->info;
+  raw_data = PyList_New (info->num_tensors);
+  in_info = PyList_New (info->num_tensors);
   rate_n = config->rate_n;
   rate_d = config->rate_d;
 
-  for (unsigned int i = 0; i < config->info.num_tensors; i++) {
-    tensor_type nns_type = config->info.info[i].type;
+  for (unsigned int i = 0; i < info->num_tensors; i++) {
+    GstTensorInfo *_info = gst_tensors_info_get_nth_info (info, i);
+    tensor_type nns_type = _info->type;
     npy_intp input_dims[]
         = { (npy_intp) (input[i].size / gst_tensor_get_element_size (nns_type)) };
     PyObject *input_array = PyArray_SimpleNewFromData (
         1, input_dims, getNumpyType (nns_type), input[i].data);
     PyList_SetItem (raw_data, i, input_array);
 
-    PyObject *shape = PyTensorShape_New (shape_cls, &config->info.info[i]);
+    PyObject *shape = PyTensorShape_New (shape_cls, _info);
     PyList_SetItem (in_info, i, shape);
   }
 

@@ -73,7 +73,7 @@ fbc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
   GstBuffer *out_buf = NULL;
   GstMemory *in_mem, *out_mem;
   GstMapInfo in_info;
-  guint mem_size;
+  gsize mem_size;
   GstTensorInfo *_info;
 
   UNUSED (priv_data);
