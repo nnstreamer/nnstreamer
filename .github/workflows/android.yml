@@ -80,3 +80,6 @@ jobs:
         ls -la /data/nnstreamer/cerbero.custom-1.12.4-ndkr12b-20190213-0900/build/dist/android_arm64/lib/
         echo "::endgroup::"
         cd ..
+    - name: ML API Test
+      if: env.rebuild == '1'
+      run: |
