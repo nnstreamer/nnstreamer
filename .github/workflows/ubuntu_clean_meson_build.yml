@@ -20,17 +20,12 @@ jobs:
       uses: ./.github/actions/check-rebuild
       with:
         mode: rebuild
-    - if: env.rebuild == '1'
-      uses: actions/setup-python@v1
-      with:
-        python-version: '3.x'
     - name: install requirements
       if: env.rebuild == '1'
       run: |
-        sudo apt-get update && sudo apt-get install -y libglib2.0-dev libjson-glib-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libunwind-dev googletest gdb
-        sudo apt-get install -y liborc-0.4-dev flex bison libopencv-dev pkg-config python3-dev python3-numpy python3
-        sudo add-apt-repository -y ppa:nnstreamer/ppa && sudo apt-get update && sudo apt-get install -y ssat libpaho-mqtt-dev
-        sudo apt-get install -y valgrind gstreamer1.0-tools gstreamer1.0-plugins-good gstreamer1.0-plugins-base libgtest-dev libpng-dev libc6-dbg binutils-x86-64-linux-gnu-dbg valgrind-dbg
+        sudo add-apt-repository -y ppa:nnstreamer/ppa
+        sudo apt-get update
+        sudo apt-get install -y ssat libpaho-mqtt-dev libglib2.0-dev libjson-glib-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libunwind-dev googletest liborc-0.4-dev flex bison libopencv-dev pkg-config python3-dev python3-numpy python3 sed valgrind gstreamer1.0-tools gstreamer1.0-plugins-good gstreamer1.0-plugins-base libgtest-dev libpng-dev libc6-dbg binutils-x86-64-linux-gnu-dbg valgrind-dbg gstreamer1.0-tools tigervnc-standalone-server coreutils procps tensorflow2-lite-dev python3-gi python3-gi-cairo gdb
         pip install meson ninja
     - name: build and unit test
       if: env.rebuild == '1'
@@ -72,6 +67,115 @@ jobs:
     - name: GTEST run with Valgrind on a case
       if: env.rebuild == '1'
       run: if [ '${{ matrix.os }}' == 'ubuntu-22.04' ]; then export NNSTREAMER_BUILD_ROOT_PATH=`pwd`/build && export NNSTREAMER_FILTERS=`pwd`/build/ext/nnstreamer/tensor_filter && export NNSTREAMER_DECODERS=`pwd`/build/ext/nnstreamer/tensor_decoder && export NNSTREAMER_CONVERTERS=`pwd`/build/ext/nnstreamer/tensor_converter && export GST_PLUGIN_PATH=`pwd`/build/gst && export NNSTREAMER_CONF=`pwd`/build/nnstreamer-test.ini && G_SLICE=always-malloc G_DEBUG=gc-friendly ./packaging/run_unittests_binaries.sh --valgrind ./tests/ || echo "There are Valgrind errors. Please fix it. As we have a lot of Valgrind errors from different libraries and possible from nnstreamer itself, we are not halting the build with Valgrind errors until we get them all."; fi
+    - name: get NNStreamer Example Apps
+      if: env.rebuild == '1'
+      uses: actions/checkout@v4
+      with:
+        repository: nnstreamer/nnstreamer-example
+        path: examples
+    - name: get V4L2 loopback
+      if: env.rebuild == '1'
+      uses: actions/checkout@v4
+      with:
+        repository: umlaeute/v4l2loopback
+        path: v4l2loopback
+    - name: NNStreamer App Test
+      if: env.rebuild == '1'
+      run: |
+        export GST_PLUGIN_PATH=$(pwd)/build/gst/nnstreamer
+        currentpath=$(pwd)
+        sed -i "s|@SUBPLUGIN_INSTALL_PREFIX@|${currentpath}|" .github/workflows/ubuntu_clean_meson_build.nnstreamer.ini
+        sudo cp .github/workflows/ubuntu_clean_meson_build.nnstreamer.ini /etc/nnstreamer.ini
+        pushd examples
+        echo "::group::Start building exmaple apps."
+        meson --prefix=$(pwd) --sysconfdir=$(pwd) --libdir=lib --bindir=bin --includedir=include build
+        ninja -C build install
+        echo "::endgroup::"
+        pushd bin
+        echo "::group::Fetch an image classification model"
+        bash get-model-image-classification-tflite.sh
+        echo "::endgroup::"
+        popd
+        popd
+
+        echo "Install a V4L2 cam with videotestsrc"
+        declare -i xvnc_port=31
+        if [[ ! -e /dev/video0 ]]; then
+          pushd v4l2loopback
+          make clean
+          make
+          echo "uname -r"
+          uname -r
+          if [[ ! -f "/lib/modules/`uname -r`/kernel/drivers/media/media.ko" ]]; then
+            echo "installing media.ko and videodev.ko with linux-modules-extra-`uname -r`"
+            sudo apt-get install linux-modules-extra-`uname -r`
+          fi
+          echo "media.ko"
+          sudo modprobe media || echo "media.ko not in extra?"
+          echo "videodev.ko"
+          sudo modprobe videodev || echo "videodev.ko not in extra?"
+          echo "v4l2loopback.ko"
+          sudo insmod ./v4l2loopback.ko
+          cat /etc/group | grep video
+          sudo chmod a+rw /dev/video0
+          popd
+        fi
+        echo "Checking .Xauthority"
+        if [[ ! -f ~/.Xauthority ]]; then
+          touch ~/.Xauthority
+        fi
+
+        echo "Declaring xvnc_pid"
+        declare -i xvnc_pid=0
+        if [[ `ps -A -o pid,cmd | grep "[\:]${xvnc_port}" | wc -l` == "1" ]]; then
+          xvnc_pid=$(ps -A -o pid,cmd | grep "[\:]${xvnc_port}" | awk '{printf $1}')
+          echo "xvnc_pid = ${xvnc_pid}"
+          if [[ $xvnc_pid -ne 0 ]]; then
+            kill $xvnc_pid
+            echo "killed xvnc"
+          fi
+        fi
+
+        echo "Launching Xtigervnc at port ${xvnc_port}"
+        Xtigervnc :${xvnc_port} &
+        export DISPLAY=:${xvnc_port}
+        declare -i producer_id=0
+
+        gst-launch-1.0 videotestsrc ! v4l2sink device=/dev/video0 &
+        producer_id=$!
+        sleep 5
+
+        echo "V4L2 Loopback producer is = ${producer_id}"
+
+        echo "::group::Simple gstreamer pipeline"
+        timeout 2 gst-launch-1.0 v4l2src device=/dev/video0 ! videoconvert ! ximagesink || if [[ "124" != "$?" ]]; then exit 1; fi
+        echo "::endgroup::"
+
+        pushd examples/bin
+
+        echo "::group::V4L2Cam --> Image Classification (C/GStreamer)"
+        timeout 2 ./nnstreamer_example_image_classification_tflite || if [[ "124" != "$?" ]]; then exit 1; fi
+        echo "::endgroup::"
+
+        echo "::group::V4L2Cam --> Image Classification (Python/GStreamer)"
+        timeout 2 python3 nnstreamer_example_image_classification_tflite.py || if [[ "124" != "$?" ]]; then exit 1; fi
+        echo "::endgroup::"
+
+        echo "::group::V4L2Cam --> Tensor Stream Path Manipulators (C/GStreamer)"
+        timeout 2 ./nnstreamer_example_cam || if [[ "124" != "$?" ]]; then exit 1; fi
+        echo "::endgroup::"
+
+        echo "::group::V4L2Cam --> Sink examples (C/GStreamer)"
+        ./nnstreamer_sink_example
+        echo "::endgroup::"
+
+        echo "::group::V4L2Cam --> Sink examples with more tensor paths (C/GStreamer)"
+        ./nnstreamer_sink_example_play
+        echo "::endgroup::"
+
+        kill ${producer_id}
+
+        popd
 
 # TODO: add more subplugins to be built
 # TODO: add unit testing

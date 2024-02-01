@@ -60,10 +60,6 @@ jobs:
       if: env.rebuild == '1'
       run: |
         gbs build --skip-srcrpm --define "_skip_debug_rpm 1" -A ${{ matrix.gbs_build_arch }} ${{ matrix.gbs_build_option }}
-        ## Skip nntrainer build test in aarch64. @todo We need #2430 and #2431 in nntrainer.git
-        if [[ "${{ matrix.gbs_build_arch }}" == "aarch64" ]]; then
-          echo "rebuild=0" >> "$GITHUB_ENV"
-        fi
 
     - name: get nntrainer
       if: env.rebuild == '1'
@@ -75,6 +71,38 @@ jobs:
     - name: run nntrainer GBS build
       if: env.rebuild == '1'
       run: |
-        pushd nntrainer
-        gbs build --skip-srcrpm -A ${{ matrix.gbs_build_arch }} ${{ matrix.gbs_build_option }} --define "_skip_debug_rpm 1"
+        ## Skip nntrainer build test in aarch64. @todo We need #2430 and #2431 in nntrainer.git
+        if [[ "${{ matrix.gbs_build_arch }}" == "aarch64" ]]; then
+          echo "Skipping aarch64/nntrainer build temporarily. Reenable this after fp16 related issues are resolved."
+        else
+          pushd nntrainer
+          echo "::group::Build and run unit-tests for NNTrainer"
+          gbs build --skip-srcrpm ${{ matrix.aarch }} ${{ matrix.option }} --define "_skip_debug_rpm 1"
+          echo "::endgroup::"
+          popd
+        fi
+    - name: get ML API
+      if: env.rebuild == '1'
+      uses: actions/checkout@v4
+      with:
+        repository: nnstreamer/api
+        path: api
+    - name: get ML Agent
+      if: env.rebuild == '1'
+      uses: actions/checkout@v4
+      with:
+        repository: nnstreamer/deviceMLOps.MLAgent
+        path: mlagent
+    - name: run ml-api and ml-agent build
+      if: env.rebuild == '1'
+      run: |
+        pushd api
+        echo "::group::Build and run unit-tests for ML API"
+        gbs build --skip-srcrpm --define "_skip_debug_rpm 1" -A ${{ matrix.gbs_build_arch }} ${{ matrix.gbs_build_option }}
+        echo "::endgroup::"
+        popd
+        pushd mlagent
+        echo "::group::Build and run unit-tests for ML Agent (deviceMLOps.MLAgent)"
+        gbs build --skip-srcrpm --define "_skip_debug_rpm 1" -A ${{ matrix.gbs_build_arch }} ${{ matrix.gbs_build_option }}
+        echo "::endgroup::"
         popd

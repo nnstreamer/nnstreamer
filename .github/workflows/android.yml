@@ -69,3 +69,6 @@ jobs:
         ndk-build NDK_PROJECT_PATH=. APP_BUILD_SCRIPT=./Android-app.mk NDK_APPLICATION_MK=./Application.mk -j$(nproc)
         echo "::endgroup::"
         cd ..
+    - name: ML API Test
+      if: env.rebuild == '1'
+      run: |
