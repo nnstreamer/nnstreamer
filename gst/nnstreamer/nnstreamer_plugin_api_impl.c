@@ -1776,6 +1776,8 @@ gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
       incoming_memory_map.data, incoming_memory_map.size);
 
   gst_memory_unmap (memory, &incoming_memory_map);
+  gst_memory_unmap (last_memory, &last_memory_map);
+  last_memory = NULL;
 
   gst_buffer_replace_memory (buffer, num_mems - 1, new_memory);
   appended = TRUE;
