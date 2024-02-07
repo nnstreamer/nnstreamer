@@ -626,7 +626,7 @@ TEST (datareposink, writeSparseTensors_n)
   ASSERT_NE (file, nullptr);
   file_info = g_file_query_info (
       file, G_FILE_ATTRIBUTE_STANDARD_SIZE, G_FILE_QUERY_INFO_NONE, NULL, NULL);
-  ASSERT_NE (file_info, nullptr);
+  ASSERT_NE (file_info, NULL); /** this returns NULL, not nullptr */
   size = g_file_info_get_size (file_info);
   ASSERT_EQ (size, 0);
   g_object_unref (file_info);
