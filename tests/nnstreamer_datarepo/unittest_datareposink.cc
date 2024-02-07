@@ -557,6 +557,7 @@ TEST (datareposink, writeFlexibleTensors_n)
 
   setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
   g_main_loop_run (loop);
+  g_usleep (100000); /** wait 0.1 sec before forcing stop */
 
   setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
   gst_object_unref (pipeline);
