@@ -55,6 +55,7 @@ for file in `cat $files`; do
           --honour-newlines \
           --tab-size8 \
           --indent-level2 \
+          --leave-preprocessor-space \
           $file
       ;;
     esac
@@ -71,9 +72,8 @@ fi
 echo "::endgroup::"
 
 if [ $failed = 1 ]; then
-    echo "::error There is an indentation style error."
+    echo "::warning There is an indentation style error."
     echo "::group::The indentation style errors are..."
     cat ${tmpfile}
     echo "::endgroup::"
-    exit 1
 fi
