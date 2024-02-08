@@ -25,20 +25,16 @@ jobs:
     runs-on: ubuntu-20.04
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: myungjoo/is_rebuild_required@main
       with:
-        ref: ${{ github.event.pull_request.head.sha }}
-        fetch-depth: -${{ github.event.pull_request.commits }}
-    - name: Check if rebuild required
-      ## @todo This should become a reusable workflow.
-      run: |
-        tmpfile=$(mktemp)
-        git show --pretty="format:" --name-only --diff-filter=AMRC ${{ github.event.pull_request.head.sha}} -${{ github.event.pull_request.commits }} | sort | uniq | awk NF > ${tmpfile}
-        echo "changed_file_list=${tmpfile}" >> "$GITHUB_ENV"
-        rebuild=`bash .github/workflows/check_if_rebuild_requires.sh ${tmpfile} gbs | grep "REBUILD=YES" | wc -l`
-        echo "Rebuild required: ${rebuild}"
-        echo "rebuild=${rebuild}" >> "$GITHUB_ENV"
-    - uses: actions/setup-python@v1
+        build-script: 'gbs'
+        language: 'C,C++'
+    - name: debugging
+      if: env.rebuild == '0'
+      run: echo "It says NOT to rebuild!"
+    - name: debugging2
+      if: env.rebuild == '1'
+      run: echo "It says REBUILD!"
     - name: prepare GBS
       if: env.rebuild == '1'
       run: |
