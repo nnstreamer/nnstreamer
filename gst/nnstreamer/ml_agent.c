@@ -83,15 +83,15 @@ mlagent_get_model_path_from (const GValue * val)
       /** Convert the given URI for a model to the file path */
       g_autofree gchar *name = g_strdup (parts[MODEL_PART_IDX_NAME]);
       guint version = strtoul (parts[MODEL_PART_IDX_VERSION], NULL, 10);
-      g_autofree gchar *stringfied_json = NULL;
+      g_autofree gchar *stringified_json = NULL;
       g_autoptr (JsonParser) json_parser = NULL;
       gint rcode;
 
       /**
        * @todo The specification of the data layout filled in the third
-       *       argument (i.e., stringfied_json) by the callee is not fully decided.
+       *       argument (i.e., stringified_json) by the callee is not fully decided.
        */
-      rcode = ml_agent_model_get (name, version, &stringfied_json, &err);
+      rcode = ml_agent_model_get (name, version, &stringified_json, &err);
       if (rcode != 0) {
         nns_loge
             ("Failed to get the stringied JSON using the given URI(%s): %s",
@@ -101,9 +101,9 @@ mlagent_get_model_path_from (const GValue * val)
       g_clear_error (&err);
 
       json_parser = json_parser_new ();
-      /** @todo Parse stringfied_json to get the model's path */
-      if (!json_parser_load_from_data (json_parser, stringfied_json, -1, &err)) {
-        nns_loge ("Failed to parse the stringied JSON while "
+      /** @todo Parse stringified_json to get the model's path */
+      if (!json_parser_load_from_data (json_parser, stringified_json, -1, &err)) {
+        nns_loge ("Failed to parse the stringified JSON while "
             "get the model's path: %s",
             (err ? err->message : "unknown reason"));
         goto fallback;
