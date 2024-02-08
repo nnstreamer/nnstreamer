@@ -1768,6 +1768,12 @@ gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
   /* Copy tensor info into extra. */
   if (is_static) {
     gst_tensor_info_copy (&extra_info->infos[new_mem_index], info);
+
+    /**
+     * Free the name string, cause it does not freed by gstreamer.
+     * @todo Make custom gst_allocator later?
+     */
+    g_free (extra_info->infos[new_mem_index].name);
   } else {
     gst_tensor_meta_info_convert (&meta, &extra_info->infos[new_mem_index]);
   }
