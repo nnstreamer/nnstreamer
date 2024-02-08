@@ -604,14 +604,14 @@ tr_decode (void **pdata, const GstTensorsConfig *config,
   tensor_region *trData = *pdata;
   GstTensorMetaInfo meta;
   GstMapInfo out_info;
-  GstMemory *out_mem;
+  GstMemory *out_mem, *tmp_mem;
   GArray *results = NULL;
   const guint num_tensors = config->info.num_tensors;
   gboolean need_output_alloc = gst_buffer_get_size (outbuf) == 0;
   const size_t size = (size_t) 4 * trData->num * sizeof(uint32_t); /**4 field per block */
 
   g_assert (outbuf);
-  /**Ensure we have outbuf properly allocated */
+  /** Ensure we have outbuf properly allocated */
   if (need_output_alloc) {
     out_mem = gst_allocator_alloc (NULL, size, NULL);
   } else {
@@ -666,14 +666,18 @@ tr_decode (void **pdata, const GstTensorsConfig *config,
 
   /** converting to Flexible tensor since
    * info pad of tensor_crop has capability for flexible tensor stream
-  */
-  init_meta(&meta, trData);
-  out_mem = gst_tensor_meta_info_append_header(&meta, out_mem);
+   */
+  init_meta (&meta, trData);
+  tmp_mem = out_mem;
+  out_mem = gst_tensor_meta_info_append_header (&meta, tmp_mem);
+  gst_memory_unref (tmp_mem);
 
-  if (need_output_alloc)
+  if (need_output_alloc) {
     gst_buffer_append_memory (outbuf, out_mem);
-  else
+  } else {
+    gst_buffer_replace_all_memory (outbuf, out_mem);
     gst_memory_unref (out_mem);
+  }
 
   return GST_FLOW_OK;
 error_unmap:
