@@ -117,9 +117,10 @@ jobs:
           echo "v4l2loopback.ko"
           sudo insmod ./v4l2loopback.ko
           cat /etc/group | grep video
-          sudo chmod a+rw /dev/video0
           popd
         fi
+        sudo chmod a+rw /dev/video0
+        ls -la /dev/video0
         echo "Checking .Xauthority"
         if [[ ! -f ~/.Xauthority ]]; then
           touch ~/.Xauthority
