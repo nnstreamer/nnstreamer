@@ -332,6 +332,8 @@ gst_tensor_if_set_property_glist (const GValue * value, GList ** prop_list,
   const gchar *param = g_value_get_string (value);
   gchar **strv = g_strsplit_set (param, delimiters, -1);
   gint i, num = g_strv_length (strv);
+
+  g_list_free (*prop_list);
   *prop_list = NULL;
 
   for (i = 0; i < num; i++) {
@@ -388,6 +390,7 @@ gst_tensor_if_set_property_cv_option (const GValue * value, GList ** prop_list)
     *prop_list = g_list_append (*prop_list, GINT_TO_POINTER (val));
   }
   g_strfreev (strv);
+  g_value_reset (&tmp);
 }
 
 /**
