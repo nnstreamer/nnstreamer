@@ -174,7 +174,7 @@ gst_tensor_converter_protobuf (GstBuffer *in_buf, GstTensorsConfig *config, void
     mem_data = _g_memdup (tensor->data ().c_str (), mem_size);
 
     out_mem = gst_memory_new_wrapped (
-        (GstMemoryFlags) 0, mem_data, mem_size, 0, mem_size, NULL, NULL);
+        (GstMemoryFlags) 0, mem_data, mem_size, 0, mem_size, mem_data, g_free);
 
     gst_tensor_buffer_append_memory (out_buf, out_mem, _info);
   }
