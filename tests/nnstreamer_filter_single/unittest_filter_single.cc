@@ -172,6 +172,7 @@ TEST_F (NNSFilterSingleTest, setInvalidInfo_n)
   in_info.info[0].type = _NNS_UINT8;
   gst_tensor_parse_dimension ("3:224:224:1", in_info.info[0].dimension);
   EXPECT_TRUE (klass->set_input_info (single, &in_info, &out_info) == 0);
+  gst_tensors_info_free (&out_info);
 
   /* request to set invalid tensor info */
   gst_tensor_parse_dimension ("1:1:1:1", in_info.info[0].dimension);
@@ -317,6 +318,7 @@ TEST_F (NNSFilterSingleTestExtended, setInvalidInfo_n)
   in_info.info[1].type = _NNS_FLOAT32;
   gst_tensor_parse_dimension ("4:4:4:4:4", in_info.info[1].dimension);
   EXPECT_TRUE (klass->set_input_info (single, &in_info, &out_info) == 0);
+  gst_tensors_info_free (&out_info);
 
   /* request to set invalid tensor info */
   in_info.num_tensors = 1U;
