@@ -3232,6 +3232,8 @@ TEST (testTensorConverter, bytesToMultiInvalidType03_n)
   EXPECT_DEATH (gst_harness_push (h, in_buf), "");
 
   EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  gst_buffer_unref (in_buf);
   gst_harness_teardown (h);
 }
 
@@ -3272,6 +3274,8 @@ TEST (testTensorConverter, bytesToMultiInvalidSize_n)
   EXPECT_DEATH (gst_harness_push (h, in_buf), "");
 
   EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  gst_buffer_unref (in_buf);
   gst_harness_teardown (h);
 }
 
