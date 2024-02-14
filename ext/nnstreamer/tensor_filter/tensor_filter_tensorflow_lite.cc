@@ -1200,19 +1200,19 @@ TFLiteCore::reloadModel (const char *_model_path)
    */
   if (interpreter_sub->loadModel (num_threads, delegate) != 0) {
     ml_loge ("Failed to load model %s\n", _model_path);
-    return -EINVAL;
+    goto error;
   }
   if (interpreter_sub->setInputTensorProp () != 0) {
     ml_loge ("Failed to initialize input tensor\n");
-    return -EINVAL;
+    goto error;
   }
   if (interpreter_sub->setOutputTensorProp () != 0) {
     ml_loge ("Failed to initialize output tensor\n");
-    return -EINVAL;
+    goto error;
   }
   if (interpreter_sub->cacheInOutTensorPtr () != 0) {
     ml_loge ("Failed to cache input and output tensors storage\n");
-    return -EINVAL;
+    goto error;
   }
 
   if (shared_tensor_filter_key) {
@@ -1222,12 +1222,16 @@ TFLiteCore::reloadModel (const char *_model_path)
   } else {
     if (reloadInterpreter (interpreter_sub) != 0) {
       ml_loge ("Failed replace interpreter\n");
-      return -EINVAL;
+      goto error;
     }
     delete interpreter_temp;
   }
 
   return 0;
+
+error:
+  delete interpreter_sub;
+  return -EINVAL;
 }
 
 /**
