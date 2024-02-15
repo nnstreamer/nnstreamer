@@ -15,7 +15,7 @@ Build-Depends: gcc-9 | gcc-8 | gcc-7 | gcc-6 | gcc-5 (>=5.4),
  pytorch, libedgetpu1-std (>=12), libedgetpu-dev (>=12),
  openvino-dev, openvino-cpu-mkldnn [amd64],
  nnfw-dev [amd64] | gcc,
- tvm-runtime-dev
+ tvm-runtime-dev, onnxruntime-dev
 Standards-Version: 3.9.6
 Homepage: https://github.com/nnstreamer/nnstreamer
 
@@ -105,6 +105,13 @@ Multi-Arch: same
 Depends: nnstreamer, tvm-runtime, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer TVM support
  This package allows nnstreamer to support TVM
+
+Package: nnstreamer-onnxruntime
+Architecture: any
+Multi-Arch: same
+Depends: nnstreamer, onnxruntime, ${shlibs:Depends}, ${misc:Depends}
+Description: NNStreamer onnxruntime support
+ This package allows nnstreamer to support onnxruntime
 
 Package: nnstreamer-protobuf
 Architecture: any
