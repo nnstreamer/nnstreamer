@@ -3096,16 +3096,17 @@ nnstreamer_filter_shared_model_replace (void *instance, const char *key,
   GList *itr;
   UNUSED (instance);
 
-  if (!shared_model_table) {
-    ml_loge ("The shared model representation is not supported properly!");
-    return;
-  }
   if (!key) {
     ml_loge ("The key should NOT be NULL!");
     return;
   }
 
   G_LOCK (shared_model_table);
+  if (!shared_model_table) {
+    ml_loge ("The shared model representation is not supported properly!");
+    goto done;
+  }
+
   model_rep = g_hash_table_lookup (shared_model_table, key);
   if (model_rep) {
     itr = model_rep->referred_list;
@@ -3117,5 +3118,7 @@ nnstreamer_filter_shared_model_replace (void *instance, const char *key,
     free_callback (model_rep->shared_interpreter);
     model_rep->shared_interpreter = new_interpreter;
   }
+
+done:
   G_UNLOCK (shared_model_table);
 }

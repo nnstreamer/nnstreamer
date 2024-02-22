@@ -123,7 +123,9 @@ _search_subplugin (subpluginType type, const gchar * name, const gchar * path)
 
   spdata = _get_subplugin_data (type, name);
   if (spdata) {
+    G_LOCK (splock);
     g_ptr_array_add (handles, (gpointer) module);
+    G_UNLOCK (splock);
   } else {
     ml_loge
         ("nnstreamer_subplugin of %s(%s) is broken. It does not call register_subplugin with its init function.",
