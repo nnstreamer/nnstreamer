@@ -52,7 +52,9 @@ gst_tensor_repo_get_repodata (guint nth)
 
   g_return_val_if_fail (_repo.initialized, NULL);
 
+  GST_REPO_LOCK ();
   p = g_hash_table_lookup (_repo.hash, GINT_TO_POINTER (nth));
+  GST_REPO_UNLOCK ();
 
   return (GstTensorRepoData *) p;
 }
@@ -333,31 +335,34 @@ gst_tensor_repo_remove_repodata (guint nth)
 
   g_return_val_if_fail (_repo.initialized, FALSE);
 
-  GST_REPO_LOCK ();
   data = gst_tensor_repo_get_repodata (nth);
 
   if (data) {
-    g_mutex_lock (&data->lock);
-    if (data->buffer)
-      gst_buffer_unref (data->buffer);
-    if (data->caps)
-      gst_caps_unref (data->caps);
-    g_mutex_unlock (&data->lock);
-
-    g_mutex_clear (&data->lock);
-    g_cond_clear (&data->cond_pull);
-    g_cond_clear (&data->cond_push);
-
+    GST_REPO_LOCK ();
     ret = g_hash_table_remove (_repo.hash, GINT_TO_POINTER (nth));
 
     if (ret) {
       _repo.num_data--;
       if (DBG)
         GST_DEBUG ("key[%d] is removed\n", nth);
+
+      g_mutex_lock (&data->lock);
+      if (data->buffer)
+        gst_buffer_unref (data->buffer);
+      if (data->caps)
+        gst_caps_unref (data->caps);
+      g_mutex_unlock (&data->lock);
+
+      g_mutex_clear (&data->lock);
+      g_cond_clear (&data->cond_pull);
+      g_cond_clear (&data->cond_push);
+
+      g_free (data);
     }
+
+    GST_REPO_UNLOCK ();
   }
 
-  GST_REPO_UNLOCK ();
   return ret;
 }
 
@@ -370,10 +375,10 @@ gst_tensor_repo_init (void)
   if (_repo.initialized)
     return;
 
-  _repo.num_data = 0;
   g_mutex_init (&_repo.repo_lock);
   g_cond_init (&_repo.repo_cond);
   GST_REPO_LOCK ();
+  _repo.num_data = 0;
   _repo.hash = g_hash_table_new (g_direct_hash, g_direct_equal);
   _repo.initialized = TRUE;
   GST_REPO_BROADCAST ();
