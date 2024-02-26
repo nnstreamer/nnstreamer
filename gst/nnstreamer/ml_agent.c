@@ -14,7 +14,7 @@
 
 #include <json-glib/json-glib.h>
 #include <nnstreamer_log.h>
-#include <ml-agent-interface.h>
+#include <mlops-agent-interface.h>
 
 #include "ml_agent.h"
 
@@ -91,14 +91,12 @@ mlagent_get_model_path_from (const GValue * val)
        * @todo The specification of the data layout filled in the third
        *       argument (i.e., stringified_json) by the callee is not fully decided.
        */
-      rcode = ml_agent_model_get (name, version, &stringified_json, &err);
+      rcode = ml_agent_model_get (name, version, &stringified_json);
       if (rcode != 0) {
         nns_loge
-            ("Failed to get the stringied JSON using the given URI(%s): %s",
-            uri, (err ? err->message : "unknown reason"));
+            ("Failed to get the stringied JSON using the given URI(%s)", uri);
         goto fallback;
       }
-      g_clear_error (&err);
 
       json_parser = json_parser_new ();
       /** @todo Parse stringified_json to get the model's path */
