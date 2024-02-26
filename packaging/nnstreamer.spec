@@ -324,7 +324,7 @@ BuildRequires: pkgconfig(json-glib-1.0)
 
 # For ml-agent
 %if 0%{?ml_agent_support}
-BuildRequires: pkgconfig(ml-agent)
+BuildRequires: pkgconfig(mlops-agent)
 %endif
 
 # Note that debug packages generate an additional build and storage cost.

@@ -390,17 +390,6 @@ if not get_option('datarepo-support').disabled() and not json_glib_dep.found()
   message('datarepo-support is off because json-glib-1.0 is not available.')
 endif
 
-# ml-agent
-ml_agent_dep = dependency('', required: false)
-if not get_option('ml-agent-support').disabled()
-  ml_agent_dep = dependency('ml-agent', required: false)
-  if not ml_agent_dep.found()
-    if cc.check_header('ml-agent/ml-agent-interface.h', dependencies: [glib_dep], required: get_option('ml-agent-support'))
-      ml_agent_dep = cc.find_library('ml-agent', required: true)
-    endif
-  endif
-endif
-
 # features registration to be controlled
 #
 # register feature as follows
@@ -512,7 +501,7 @@ features = {
     'extra_deps': [ json_glib_dep ],
   },
   'ml-agent-support': {
-    'extra_deps': [ ml_agent_dep ],
+    'target': 'mlops-agent',
     'project_args': { 'ENABLE_ML_AGENT' : 1 }
   },
   'onnxruntime-support': {
