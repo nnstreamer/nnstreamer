@@ -35,11 +35,13 @@
 #include <nnstreamer_util.h>
 #include "tensordecutil.h"
 
-void init_dv (void) __attribute__ ((constructor));
-void fini_dv (void) __attribute__ ((destructor));
+void init_dv (void) __attribute__((constructor));
+void fini_dv (void) __attribute__((destructor));
+
+#define DECODER_DV_FORMATS "{ GRAY8, RGB, BGR, RGBx, BGRx, xRGB, xBGR, RGBA, BGRA, ARGB, ABGR, GRAY16_BE, GRAY16_LE }"
 
 #define DECODER_DV_VIDEO_CAPS_STR \
-    GST_VIDEO_CAPS_MAKE ("{ GRAY8, RGB, BGR, RGBx, BGRx, xRGB, xBGR, RGBA, BGRA, ARGB, ABGR }") \
+    GST_VIDEO_CAPS_MAKE (DECODER_DV_FORMATS) \
     ", views = (int) 1, interlace-mode = (string) progressive"
 
 /**
@@ -65,6 +67,8 @@ typedef enum
   DIRECT_VIDEO_FORMAT_BGRA = 9,
   DIRECT_VIDEO_FORMAT_ARGB = 10,
   DIRECT_VIDEO_FORMAT_ABGR = 11,
+  DIRECT_VIDEO_FORMAT_GRAY16_BE = 12,
+  DIRECT_VIDEO_FORMAT_GRAY16_LE = 13,
 } direct_video_formats;
 
 /**
@@ -92,6 +96,8 @@ static const char *dv_formats[] = {
   [DIRECT_VIDEO_FORMAT_BGRA] = "BGRA",
   [DIRECT_VIDEO_FORMAT_ARGB] = "ARGB",
   [DIRECT_VIDEO_FORMAT_ABGR] = "ABGR",
+  [DIRECT_VIDEO_FORMAT_GRAY16_BE] = "GRAY16_BE",
+  [DIRECT_VIDEO_FORMAT_GRAY16_LE] = "GRAY16_LE",
   NULL,
 };
 
@@ -179,13 +185,17 @@ dv_getOutCaps (void **pdata, const GstTensorsConfig * config)
       case DIRECT_VIDEO_FORMAT_GRAY8:
         format = GST_VIDEO_FORMAT_GRAY8;
         break;
+      case DIRECT_VIDEO_FORMAT_GRAY16_BE:
+        format = GST_VIDEO_FORMAT_GRAY16_BE;
+        break;
+      case DIRECT_VIDEO_FORMAT_GRAY16_LE:
+        format = GST_VIDEO_FORMAT_GRAY16_LE;
+        break;
       case DIRECT_VIDEO_FORMAT_UNKNOWN:
+      default:
         GST_WARNING ("Default format has been applied: GRAY8");
         format = GST_VIDEO_FORMAT_GRAY8;
         break;
-      default:
-        GST_ERROR ("Invalid format. Please check the video format");
-        return NULL;
     }
   } else if (channel == 3) {
     switch (ddata->format) {
@@ -196,12 +206,9 @@ dv_getOutCaps (void **pdata, const GstTensorsConfig * config)
         format = GST_VIDEO_FORMAT_BGR;
         break;
       case DIRECT_VIDEO_FORMAT_UNKNOWN:
+      default:
         GST_WARNING ("Default format has been applied: RGB");
         format = GST_VIDEO_FORMAT_RGB;
-        break;
-      default:
-        GST_ERROR ("Invalid format. Please check the video format");
-        return NULL;
     }
   } else if (channel == 4) {
     switch (ddata->format) {
@@ -230,12 +237,10 @@ dv_getOutCaps (void **pdata, const GstTensorsConfig * config)
         format = GST_VIDEO_FORMAT_ABGR;
         break;
       case DIRECT_VIDEO_FORMAT_UNKNOWN:
+      default:
         GST_WARNING ("Default format has been applied: BGRx");
         format = GST_VIDEO_FORMAT_BGRx;
         break;
-      default:
-        GST_ERROR ("Invalid format. Please check the video format");
-        return NULL;
     }
   } else {
     GST_ERROR ("%d channel is not supported", channel);
@@ -267,10 +272,10 @@ dv_getOutCaps (void **pdata, const GstTensorsConfig * config)
 
 /** @brief get video output buffer size */
 static size_t
-_get_video_xraw_bufsize (const tensor_dim dim)
+_get_video_xraw_bufsize (const tensor_dim dim, gsize data_size)
 {
   /* dim[0] is bpp and there is zeropadding only when dim[0]%4 > 0 */
-  return (size_t)((dim[0] * dim[1] - 1) / 4 + 1) * 4 * dim[2];
+  return (size_t) ((dim[0] * dim[1] - 1) / 4 + 1) * 4 * dim[2] * data_size;
 }
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
@@ -280,15 +285,17 @@ dv_getTransformSize (void **pdata, const GstTensorsConfig * config,
 {
   /* Direct video uses the first tensor only even if it's multi-tensor */
   const uint32_t *dim = &(config->info.info[0].dimension[0]);
+  gsize data_size = gst_tensor_get_element_size (config->info.info[0].type);
+  gsize transform_size = 0;
   UNUSED (pdata);
   UNUSED (caps);
   UNUSED (size);
   UNUSED (othercaps);
 
   if (direction == GST_PAD_SINK)
-    return _get_video_xraw_bufsize (dim);
-  else
-    return 0; /** @todo NYI */
+    transform_size = _get_video_xraw_bufsize (dim, data_size);
+
+  return transform_size;
 }
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
@@ -300,14 +307,15 @@ dv_decode (void **pdata, const GstTensorsConfig * config,
   GstMemory *out_mem;
   /* Direct video uses the first tensor only even if it's multi-tensor */
   const uint32_t *dim = &(config->info.info[0].dimension[0]);
-  size_t size = _get_video_xraw_bufsize (dim);
+  gsize data_size = gst_tensor_get_element_size (config->info.info[0].type);
+
+  size_t size = _get_video_xraw_bufsize (dim, data_size);
   UNUSED (pdata);
 
   g_assert (outbuf);
   if (gst_buffer_get_size (outbuf) > 0 && gst_buffer_get_size (outbuf) != size) {
     gst_buffer_set_size (outbuf, size);
   }
-  g_assert (config->info.info[0].type == _NNS_UINT8);
 
   if (gst_buffer_get_size (outbuf) == 0) {
     out_mem = gst_allocator_alloc (NULL, size, NULL);
@@ -367,6 +375,10 @@ void
 init_dv (void)
 {
   nnstreamer_decoder_probe (&directVideo);
+  nnstreamer_decoder_set_custom_property_desc (decoder_subplugin_direct_video,
+      "option1",
+      "The output video format. If this is unspecified, it is 'GRAY8' (dim[0]/channel == 1), 'RGB' (dim[0]/channel == 3), or 'BGRx' (dim[0]/channel == 4). Available options are: "
+      DECODER_DV_FORMATS, NULL);
 }
 
 /** @brief Destruct this object for tensordec-plugin */

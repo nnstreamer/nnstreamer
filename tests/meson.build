@@ -25,32 +25,41 @@ if libpng_dep.found()
   )
 endif
 
+# Shared library of internal APIs for nnstreamer-test
+unittest_util_shared = shared_library('nnstreamer_unittest_util',
+  join_paths(meson.current_source_dir(), 'unittest_util.c'),
+  dependencies: nnstreamer_dep,
+  include_directories: nnstreamer_inc,
+  install: get_option('install-test'),
+  install_dir: nnstreamer_libdir
+)
+unittest_util_dep = declare_dependency(link_with: unittest_util_shared,
+  dependencies: nnstreamer_dep,
+  compile_args: ['-DFAKEDLOG=1'],
+  include_directories: include_directories('.')
+)
+
 # ssat repo_dynamic
 subdir('nnstreamer_repo_dynamicity')
 
 # filter_reload (Currently, the reload test for tensor filter requires tflite)
-if tflite_support_is_available
+if tflite2_support_is_available
   subdir('nnstreamer_filter_reload')
 endif
 
 # gtest
 gtest_dep = dependency('gtest', required: false)
 if gtest_dep.found()
-  lesser_code_quality_accepted_for_unittest_code = declare_dependency(compile_args: ['-Wno-unused-parameter', '-Wno-missing-field-initializers', '-Wno-maybe-uninitialized'])
+  gtest_compile_args = ['-Wno-unused-parameter', '-Wno-missing-field-initializers', '-Wno-format-nonliteral']
+  if cc.get_id() == 'clang' and cxx.get_id() == 'clang'
+    gtest_compile_args += '-Wno-uninitialized'
+    gtest_compile_args += '-Wno-format-nonliteral'
+    gtest_compile_args += '-Wno-deprecated-copy'
+  else
+    gtest_compile_args += '-Wno-maybe-uninitialized'
+  endif
 
-  # Shared library of internal APIs for nnstreamer-gtest
-  unittest_util_shared = shared_library('nnstreamer_unittest_util',
-    join_paths(meson.current_source_dir(), 'unittest_util.c'),
-    dependencies: nnstreamer_dep,
-    include_directories: nnstreamer_inc,
-    install: get_option('install-test'),
-    install_dir: nnstreamer_libdir
-  )
-  unittest_util_dep = declare_dependency(link_with: unittest_util_shared,
-    dependencies: nnstreamer_dep,
-    compile_args: ['-DFAKEDLOG=1'],
-    include_directories: include_directories('.')
-  )
+  lesser_code_quality_accepted_for_unittest_code = declare_dependency(compile_args: gtest_compile_args)
 
   nnstreamer_unittest_deps = [
     unittest_util_dep,
@@ -83,6 +92,15 @@ if gtest_dep.found()
     )
 
     test('unittest_sink', unittest_sink, timeout: 120, env: testenv)
+
+    # RUN unittest_tensor_region
+    unittest_tensor_region = executable('unittest_tensor_region',
+      join_paths('nnstreamer_decoder_tensor_region', 'unittest_tensor_region.cc'),
+      dependencies: [nnstreamer_unittest_deps],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+    test('unittest_tensor_region', unittest_tensor_region, env: testenv)
 
     # Run unittest_plugins
     unittest_plugins = executable('unittest_plugins',
@@ -208,6 +226,15 @@ if gtest_dep.found()
 
       test('unittest_converter', unittest_converter, env: testenv)
     endif
+
+    unittest_filter_custom = executable('unittest_filter_custom',
+      join_paths('nnstreamer_filter_custom', 'unittest_filter_custom.cc'),
+      dependencies: [nnstreamer_unittest_deps],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+
+    test('unittest_filter_custom', unittest_filter_custom, timeout: 120, env: testenv)
   endif
 
   # Armnn unittest
@@ -334,25 +361,41 @@ if gtest_dep.found()
     test('unittest_filter_shared_model', unittest_filter_shared_model, timeout: 30, env: testenv)
   endif
 
-  # Run unittest_datareposink
-  unittest_datareposink = executable('unittest_datareposink',
-    join_paths('nnstreamer_datarepo', 'unittest_datareposink.cc'),
-    dependencies: [nnstreamer_unittest_deps],
-    install: get_option('install-test'),
-    install_dir: unittest_install_dir
-  )
+  if datarepo_support_is_available
+    subdir('nnstreamer_datarepo')
+  endif
 
-  test('unittest_datareposink', unittest_datareposink, env: testenv)
+  if ml_agent_support_is_available
+    ml_agent_lib_common_objs = nnstreamer_single_lib.extract_objects('ml_agent.c')
 
-  # Run unittest_datareposrc
-  unittest_datareposrc = executable('unittest_datareposrc',
-    join_paths('nnstreamer_datarepo', 'unittest_datareposrc.cc'),
-    dependencies: [nnstreamer_unittest_deps],
-    install: get_option('install-test'),
-    install_dir: unittest_install_dir
-  )
+    lib_mlagent_mock = static_library('mock_mlagentmock',
+      join_paths('unittest_mlagent', 'mock_mlagent.cc'),
+      dependencies: [glib_dep, json_glib_dep],
+      include_directories: nnstreamer_inc,
+      install: get_option('install-test'),
+      install_dir: nnstreamer_libdir
+    )
 
-  test('unittest_datareposrc', unittest_datareposrc, env: testenv)
+    whole_dep = declare_dependency(link_whole: lib_mlagent_mock)
+
+    filter_mlagent = executable('unittest_mlagent',
+      join_paths('unittest_mlagent', 'unittest_mlagent.cc'),
+      objects:ml_agent_lib_common_objs,
+      dependencies: [nnstreamer_unittest_deps, nnstreamer_internal_deps, whole_dep],
+    )
+  endif
+
+  # ONNXRUNTIME unittest
+  if onnxruntime_support_is_available
+    unittest_filter_onnxruntime = executable('unittest_filter_onnxruntime',
+      join_paths('nnstreamer_filter_onnxruntime', 'unittest_filter_onnxruntime.cc'),
+      dependencies: [nnstreamer_unittest_deps],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+
+    test('unittest_filter_onnxruntime', unittest_filter_onnxruntime, env: testenv)
+  endif
 
   # Run unittest_trainer
   unittest_trainer = executable('unittest_trainer',
@@ -390,13 +433,13 @@ if get_option('install-test')
   install_subdir('nnstreamer_decoder_pose', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_demux', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_filter_custom', install_dir: unittest_install_dir)
-  if tflite_support_is_available
+  if tflite_support_is_available or tflite2_support_is_available
     install_subdir('nnstreamer_filter_tensorflow_lite', install_dir: unittest_install_dir)
+  endif
+  if tflite2_support_is_available
     install_subdir('nnstreamer_decoder_image_labeling', install_dir: unittest_install_dir)
     install_subdir('nnstreamer_decoder_image_segment', install_dir: unittest_install_dir)
     install_subdir('nnstreamer_filter_reload', install_dir: unittest_install_dir)
-  endif
-  if tflite2_support_is_available
     install_subdir('nnstreamer_filter_tensorflow2_lite', install_dir: unittest_install_dir)
   endif
   if have_python3
@@ -414,6 +457,9 @@ if get_option('install-test')
   endif
   if caffe2_support_is_available
     install_subdir('nnstreamer_filter_caffe2', install_dir: unittest_install_dir)
+  endif
+  if ncnn_support_is_available
+    install_subdir('nnstreamer_filter_ncnn', install_dir: unittest_install_dir)
   endif
   if deepview_rt_support_is_available
     install_subdir('nnstreamer_filter_deepview_rt', install_dir: unittest_install_dir)
@@ -439,6 +485,7 @@ if get_option('install-test')
   install_subdir('transform_arithmetic', install_dir: unittest_install_dir)
   install_subdir('transform_clamp', install_dir: unittest_install_dir)
   install_subdir('transform_dimchg', install_dir: unittest_install_dir)
+  install_subdir('transform_padding', install_dir: unittest_install_dir)
   install_subdir('transform_stand', install_dir: unittest_install_dir)
   install_subdir('transform_transpose', install_dir: unittest_install_dir)
   install_subdir('transform_typecast', install_dir: unittest_install_dir)

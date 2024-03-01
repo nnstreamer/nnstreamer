@@ -20,7 +20,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_edgesrc_debug);
 #define GST_CAT_DEFAULT gst_edgesrc_debug
 
 /**
- * @brief the capabilities of the outputs 
+ * @brief the capabilities of the outputs
  */
 static GstStaticPadTemplate srctemplate = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC, GST_PAD_ALWAYS, GST_STATIC_CAPS_ANY);
@@ -65,6 +65,8 @@ static void gst_edgesrc_set_dest_port (GstEdgeSrc * self,
 static nns_edge_connect_type_e gst_edgesrc_get_connect_type (GstEdgeSrc * self);
 static void gst_edgesrc_set_connect_type (GstEdgeSrc * self,
     const nns_edge_connect_type_e connect_type);
+static GstStateChangeReturn gst_edgesrc_change_state (GstElement * element,
+    GstStateChange transition);
 
 /**
  * @brief initialize the class
@@ -82,20 +84,21 @@ gst_edgesrc_class_init (GstEdgeSrcClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_HOST,
       g_param_spec_string ("host", "Host",
-          "A self host address", DEFAULT_HOST,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          "A self host address (DEPRECATED, has no effect).", DEFAULT_HOST,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_DEPRECATED));
   g_object_class_install_property (gobject_class, PROP_PORT,
       g_param_spec_uint ("port", "Port",
-          "A self port number.",
-          0, 65535, DEFAULT_PORT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          "A self port number (DEPRECATED, has no effect).",
+          0, 65535, DEFAULT_PORT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_DEPRECATED));
   g_object_class_install_property (gobject_class, PROP_DEST_HOST,
       g_param_spec_string ("dest-host", "Destination Host",
           "A host address of edgesink to receive the packets from edgesink",
           DEFAULT_HOST, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_DEST_PORT,
       g_param_spec_uint ("dest-port", "Destination Port",
-          "A port of edgesink to receive the packets from edgesink",
-          0, 65535, DEFAULT_PORT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          "A port of edgesink to receive the packets from edgesink", 0, 65535,
+          DEFAULT_PORT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_CONNECT_TYPE,
       g_param_spec_enum ("connect-type", "Connect Type",
           "The connections type between edgesink and edgesrc.",
@@ -116,13 +119,14 @@ gst_edgesrc_class_init (GstEdgeSrcClass * klass)
 
   gstbasesrc_class->start = gst_edgesrc_start;
   gstbasesrc_class->create = gst_edgesrc_create;
+  gstelement_class->change_state = gst_edgesrc_change_state;
 
   GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT,
       GST_EDGE_ELEM_NAME_SRC, 0, "Edge src");
 }
 
 /**
- * @brief initialize edgesrc element 
+ * @brief initialize edgesrc element
  */
 static void
 gst_edgesrc_init (GstEdgeSrc * self)
@@ -132,13 +136,12 @@ gst_edgesrc_init (GstEdgeSrc * self)
   gst_base_src_set_format (basesrc, GST_FORMAT_TIME);
   gst_base_src_set_async (basesrc, FALSE);
 
-  self->host = g_strdup (DEFAULT_HOST);
-  self->port = DEFAULT_PORT;
   self->dest_host = g_strdup (DEFAULT_HOST);
   self->dest_port = DEFAULT_PORT;
   self->topic = NULL;
   self->msg_queue = g_async_queue_new ();
   self->connect_type = DEFAULT_CONNECT_TYPE;
+  self->playing = FALSE;
 }
 
 /**
@@ -152,15 +155,10 @@ gst_edgesrc_set_property (GObject * object, guint prop_id, const GValue * value,
 
   switch (prop_id) {
     case PROP_HOST:
-      if (!g_value_get_string (value)) {
-        nns_logw ("host property cannot be NULL");
-        break;
-      }
-      g_free (self->host);
-      self->host = g_value_dup_string (value);
+      nns_logw ("host property is deprecated");
       break;
     case PROP_PORT:
-      self->port = g_value_get_uint (value);
+      nns_logw ("port property is deprecated");
       break;
     case PROP_DEST_HOST:
       gst_edgesrc_set_dest_host (self, g_value_get_string (value));
@@ -196,10 +194,10 @@ gst_edgesrc_get_property (GObject * object, guint prop_id, GValue * value,
 
   switch (prop_id) {
     case PROP_HOST:
-      g_value_set_string (value, self->host);
+      nns_logw ("host property is deprecated");
       break;
     case PROP_PORT:
-      g_value_set_uint (value, self->port);
+      nns_logw ("port property is deprecated");
       break;
     case PROP_DEST_HOST:
       g_value_set_string (value, gst_edgesrc_get_dest_host (self));
@@ -228,10 +226,12 @@ gst_edgesrc_class_finalize (GObject * object)
   GstEdgeSrc *self = GST_EDGESRC (object);
   nns_edge_data_h data_h;
 
-  if (self->dest_host) {
-    g_free (self->dest_host);
-    self->dest_host = NULL;
-  }
+  self->playing = FALSE;
+  g_free (self->dest_host);
+  self->dest_host = NULL;
+
+  g_free (self->topic);
+  self->topic = NULL;
 
   if (self->msg_queue) {
     while ((data_h = g_async_queue_try_pop (self->msg_queue))) {
@@ -246,6 +246,38 @@ gst_edgesrc_class_finalize (GObject * object)
     self->edge_h = NULL;
   }
   G_OBJECT_CLASS (parent_class)->finalize (object);
+}
+
+/**
+ * @brief Change state of edgesrc.
+ */
+static GstStateChangeReturn
+gst_edgesrc_change_state (GstElement * element, GstStateChange transition)
+{
+  GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
+  GstEdgeSrc *self = GST_EDGESRC (element);
+
+  switch (transition) {
+    case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+      GST_INFO_OBJECT (self, "State changed from PAUSED to PLAYING.");
+      self->playing = TRUE;
+      break;
+    default:
+      break;
+  }
+
+  ret = GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
+
+  switch (transition) {
+    case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
+      GST_INFO_OBJECT (self, "State changed from PLAYING to PAUSED.");
+      self->playing = FALSE;
+      break;
+    default:
+      break;
+  }
+
+  return ret;
 }
 
 /**
@@ -274,13 +306,7 @@ _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
     }
     case NNS_EDGE_EVENT_CONNECTION_CLOSED:
     {
-      nns_edge_disconnect (self->edge_h);
-      ret = nns_edge_connect (self->edge_h, self->dest_host, self->dest_port);
-      if (NNS_EDGE_ERROR_NONE != ret) {
-        nns_edge_data_h data_h;
-        nns_edge_data_create (&data_h);
-        g_async_queue_push (self->msg_queue, data_h);
-      }
+      self->playing = FALSE;
       break;
     }
     default:
@@ -316,13 +342,6 @@ gst_edgesrc_start (GstBaseSrc * basesrc)
     return FALSE;
   }
 
-  if (self->host)
-    nns_edge_set_info (self->edge_h, "HOST", self->host);
-  if (self->port > 0) {
-    port = g_strdup_printf ("%u", self->port);
-    nns_edge_set_info (self->edge_h, "PORT", port);
-    g_free (port);
-  }
   if (self->dest_host)
     nns_edge_set_info (self->edge_h, "DEST_HOST", self->dest_host);
   if (self->dest_port > 0) {
@@ -345,6 +364,7 @@ gst_edgesrc_start (GstBaseSrc * basesrc)
     nns_loge ("Failed to connect to edge server!");
     return FALSE;
   }
+  self->playing = TRUE;
 
   return TRUE;
 }
@@ -357,25 +377,51 @@ gst_edgesrc_create (GstBaseSrc * basesrc, guint64 offset, guint size,
     GstBuffer ** out_buf)
 {
   GstEdgeSrc *self = GST_EDGESRC (basesrc);
-
-  nns_edge_data_h data_h;
+  nns_edge_data_h data_h = NULL;
   GstBuffer *buffer = NULL;
-  guint i, num_data;
+  GstMemory *mem;
+  GstCaps *caps;
+  GstStructure *structure;
+  GstTensorsConfig config;
+  GstTensorInfo *_info;
+  gboolean is_tensor;
+  guint i, num_data, max_mems;
   int ret;
 
   UNUSED (offset);
   UNUSED (size);
+  gst_tensors_config_init (&config);
 
-  data_h = g_async_queue_pop (self->msg_queue);
+  while (self->playing && !data_h) {
+    data_h = g_async_queue_timeout_pop (self->msg_queue, G_USEC_PER_SEC);
+  }
 
   if (!data_h) {
     nns_loge ("Failed to get message from the edgesrc message queue.");
-    goto done;
+    return GST_FLOW_ERROR;
   }
 
   ret = nns_edge_data_get_count (data_h, &num_data);
   if (ret != NNS_EDGE_ERROR_NONE || num_data == 0) {
     nns_loge ("Failed to get the number of memories of the edge data.");
+    goto done;
+  }
+
+  /* Check current caps and max memory. */
+  caps = gst_pad_get_current_caps (GST_BASE_SRC_PAD (basesrc));
+  structure = gst_caps_get_structure (caps, 0);
+  is_tensor = gst_structure_is_tensor_stream (structure);
+
+  if (is_tensor)
+    gst_tensors_config_from_structure (&config, structure);
+
+  gst_caps_unref (caps);
+
+  max_mems = is_tensor ? NNS_TENSOR_SIZE_LIMIT : gst_buffer_get_max_memory ();
+  if (num_data > max_mems) {
+    nns_loge
+        ("Cannot create new buffer. The edge-data has %u memories, but allowed memories is %u.",
+        num_data, max_mems);
     goto done;
   }
 
@@ -387,15 +433,22 @@ gst_edgesrc_create (GstBaseSrc * basesrc, guint64 offset, guint size,
 
     nns_edge_data_get (data_h, i, &data, &data_len);
     new_data = _g_memdup (data, data_len);
+    mem = gst_memory_new_wrapped (0, new_data, data_len, 0, data_len,
+        new_data, g_free);
 
-    gst_buffer_append_memory (buffer,
-        gst_memory_new_wrapped (0, new_data, data_len, 0, data_len, new_data,
-            g_free));
+    if (is_tensor) {
+      _info = gst_tensors_info_get_nth_info (&config.info, i);
+      gst_tensor_buffer_append_memory (buffer, mem, _info);
+    } else {
+      gst_buffer_append_memory (buffer, mem);
+    }
   }
 
 done:
   if (data_h)
     nns_edge_data_destroy (data_h);
+
+  gst_tensors_config_free (&config);
 
   if (buffer == NULL) {
     nns_loge ("Failed to get buffer to push to the edgesrc.");

@@ -89,7 +89,7 @@ gstvideoconvert gstvideorate gstvideoscale \
 gmodule-2.0 iconv png16 gstpng gstmultifile gio-2.0 \
 gstbase-1.0 gstvideo-1.0 tag-1.0 orc app-1.0 badbase-1.0 gthread \
 cairo pixman gstbadvideo gstcontroller jpeg gstpbutils gstallocators \
-bz2 harfbuzz nnstreamer
+bz2 harfbuzz z nnstreamer
 
 
 ifeq ($(NO_AUDIO), false)
@@ -104,8 +104,9 @@ LOCAL_MODULE    := tensor_repo_dynamic_test
 LOCAL_SRC_FILES += ../tests/nnstreamer_repo_dynamicity/tensor_repo_dynamic_test.c
 LOCAL_CFLAGS    += -O0 -DVERSION=\"$(NNSTREAMER_VERSION)\"
 LOCAL_CXXFLAGS  += -std=c++11 -DVERSION=\"$(NNSTREAMER_VERSION)\"
-LOCAL_LDLIBS    := -llog
-LOCAL_LDFLAGS   := $(CUSTOM_LINKER64)
+LOCAL_LDLIBS    += -llog
+#LOCAL_LDFLAGS   += $(CUSTOM_LINKER64)
+LOCAL_LDFLAGS   += -fuse-ld=bfd
 
 LOCAL_C_INCLUDES       := $(NNSTREAMER_INCLUDES)
 LOCAL_SHARED_LIBRARIES := $(BUILDING_BLOCK_LIST)

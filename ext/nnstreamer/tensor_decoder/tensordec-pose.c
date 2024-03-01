@@ -77,9 +77,9 @@
  * 	   |
  * 	videoconvert
  * 	   |
- * 	videoscale -- tee ------------------------------------------------- compositor -- videoconvert -- ximagesink 
+ * 	videoscale -- tee ------------------------------------------------- compositor -- videoconvert -- ximagesink
  * 	                |                                                       |
- *		   videoscale							| 
+ *		   videoscale							|
  * 	                |                                                       |
  *		   tensor_converter -- tensor_transform -- tensor_filter -- tensor_decoder
  *
@@ -471,14 +471,14 @@ pose_getOutCaps (void **pdata, const GstTensorsConfig * config)
   dim = config->info.info[0].dimension;
   g_return_val_if_fail (dim[0] == pose_size, NULL);
   for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
-    g_return_val_if_fail (dim[i] == 1, NULL);
+    g_return_val_if_fail (dim[i] <= 1, NULL);
 
   if (data->mode == HEATMAP_OFFSET) {
     dim = config->info.info[1].dimension;
     g_return_val_if_fail (dim[0] == (2 * pose_size), NULL);
 
     for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
-      g_return_val_if_fail (dim[i] == 1, NULL);
+      g_return_val_if_fail (dim[i] <= 1, NULL);
   }
 
   str = g_strdup_printf ("video/x-raw, format = RGBA, " /* Use alpha channel to make the background transparent */
@@ -798,7 +798,7 @@ pose_decode (void **pdata, const GstTensorsConfig * config,
 
     } else {
       p.x = (maxX * data->width) / data->i_width;
-      p.y = (maxY * data->height) / data->i_height;;
+      p.y = (maxY * data->height) / data->i_height;
     }
     /* Some keypoints can be estimated slightly out of image range */
     p.x = MIN (data->width, (guint) (MAX (0, p.x)));

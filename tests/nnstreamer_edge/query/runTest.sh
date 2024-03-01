@@ -43,7 +43,7 @@ function _callCompareTest() {
 
 # Run tensor query server as echo server with default address option.
 PORT=`python3 ../../get_available_port.py`
-gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc port=${PORT} ! other/tensors,format=static,num_tensors=1,dimensions=(string)3:300:300:1,types=(string)uint8 ! tensor_query_serversink async=false" 1-1 0 0 30
+gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc port=${PORT} ! other/tensors,format=static,num_tensors=1,dimensions=(string)3:300:300:1,types=(string)uint8,framerate=0/1 ! tensor_query_serversink async=false" 1-1 0 0 30
 pid=$!
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc is-live=true num-buffers=10 ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! tee name = t t. ! queue ! multifilesink location= raw1_%1d.log t. ! queue ! tensor_query_client dest-port=${PORT} ! multifilesink location=result1_%1d.log sync=true " 1-2 0 0 $PERFORMANCE $TIMEOUT_SEC
 _callCompareTest raw1_0.log result1_0.log 1-3 "Compare 1-3" 1 0
@@ -53,9 +53,21 @@ _callCompareTest raw1_2.log result1_2.log 1-5 "Compare 1-5" 1 0
 kill -9 $pid &> /dev/null
 wait $pid
 
+# A server that mimics as if it takes a long time to process using identity element.
+PORT=`python3 ../../get_available_port.py`
+gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc port=${PORT} ! other/tensors,format=static,num_tensors=1,dimensions=(string)3:300:300:1,types=(string)uint8,framerate=0/1 ! identity sleep-time=500000 ! tensor_query_serversink async=false" 1.1-1 0 0 30
+pid=$!
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc is-live=true num-buffers=50 ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB,framerate=10/1 ! tensor_converter ! tee name = t t. ! queue ! multifilesink location= raw1.1_%1d.log t. ! queue ! tensor_query_client max-request=3 dest-port=${PORT} ! multifilesink location=result1.1_%1d.log sync=true " 1.1-2 0 0 $PERFORMANCE $TIMEOUT_SEC
+_callCompareTest raw1.1_0.log result1.1_0.log 1.1-3 "Compare 1.1-3" 1 0
+_callCompareTest raw1.1_1.log result1.1_1.log 1.1-4 "Compare 1.1-4" 1 0
+# The third result should fail because third input buffer has been dropped.
+_callCompareTest raw1.1_2.log result1.1_2.log 1.1-5 "[Fail test] Compare 1.1-5" 1 1
+kill -9 $pid &> /dev/null
+wait $pid
+
 # Run tensor query server as echo server with given address option. (multi clients)
 PORT1=`python3 ../../get_available_port.py`
-gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc host=127.0.0.1 port=${PORT1} ! other/tensors,format=static,num_tensors=1,dimensions=(string)3:300:300:1,types=(string)uint8 ! tensor_query_serversink async=false" 2-1 0 0 30
+gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc host=127.0.0.1 port=${PORT1} ! other/tensors,format=static,num_tensors=1,dimensions=(string)3:300:300:1,types=(string)uint8,framerate=0/1 ! tensor_query_serversink async=false" 2-1 0 0 30
 pid=$!
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc is-live=true num-buffers=10  ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! tee name = t t. ! queue ! multifilesink location= raw2_%1d.log t. ! queue ! tensor_query_client host=127.0.0.1 port=0 dest-host=127.0.0.1 dest-port=${PORT1} ! multifilesink location=result2_%1d.log" 2-2 0 0 $PERFORMANCE $TIMEOUT_SEC
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc is-live=true num-buffers=10  ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! tee name = t t. ! queue ! multifilesink location= raw2_2_%1d.log t. ! queue ! tensor_query_client host=127.0.0.1 port=0 dest-host=127.0.0.1 dest-port=${PORT1} ! multifilesink location=result2_2_%1d.log" 2-3 0 0 $PERFORMANCE $TIMEOUT_SEC
@@ -70,7 +82,7 @@ wait $pid
 
 # Test flexible tensors
 PORT=`python3 ../../get_available_port.py`
-gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc port=${PORT} ! other/tensors,format=flexible ! tensor_query_serversink async=false" 3-1 0 0 30
+gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc port=${PORT} ! other/tensors,format=flexible,framerate=0/1 ! tensor_query_serversink async=false" 3-1 0 0 30
 pid=$!
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc is-live=true num-buffers=10  ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! other/tensors,format=flexible ! tee name = t t. ! queue ! multifilesink location= raw3_%1d.log t. ! queue ! tensor_query_client port=0 dest-port=${PORT} ! multifilesink location=result3_%1d.log" 3-2 0 0 $PERFORMANCE $TIMEOUT_SEC
 _callCompareTest raw3_0.log result3_0.log 3-3 "Compare 3-3" 1 0
@@ -84,7 +96,7 @@ PORT1=`python3 ../../get_available_port.py`
 PORT2=`python3 ../../get_available_port.py`
 PORT3=`python3 ../../get_available_port.py`
 PORT4=`python3 ../../get_available_port.py`
-gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc id=0 port=${PORT1} ! other/tensors,format=flexible ! tensor_query_serversink id=0 async=false \
+gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc id=0 port=${PORT1} ! other/tensors,format=flexible,framerate=0/1 ! tensor_query_serversink id=0 async=false \
     tensor_query_serversrc id=1 port=${PORT2} ! other/tensors,format=flexible ! tensor_query_serversink id=1 async=false" 5-1 0 0 30
 pid=$!
 # Client pipeline 5-2 is connected to server ID 0.

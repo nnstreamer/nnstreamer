@@ -31,7 +31,7 @@ static GOptionEntry entries[] = {
         "From pbtxt to gst pipeline", NULL},
   {"verbose", 'v', 0, G_OPTION_ARG_NONE, &verbose, "Enable verbose messages",
         NULL},
-  {NULL}
+  {0}
 };
 
 /** @brief Get input string for parsing */

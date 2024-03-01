@@ -46,6 +46,7 @@ enum
   PROP_TOPIC,
   PROP_TIMEOUT,
   PROP_SILENT,
+  PROP_MAX_REQUEST,
 };
 
 #define TCP_HIGHEST_PORT        65535
@@ -54,6 +55,7 @@ enum
 #define TCP_DEFAULT_CLIENT_SRC_PORT 3001
 #define DEFAULT_CLIENT_TIMEOUT  0
 #define DEFAULT_SILENT TRUE
+#define DEFAULT_MAX_REQUEST 2
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_query_client_debug);
 #define GST_CAT_DEFAULT gst_tensor_query_client_debug
@@ -145,7 +147,13 @@ gst_tensor_query_client_class_init (GstTensorQueryClientClass * klass)
           "A timeout value (in ms) to wait message from query server after sending buffer to server. 0 means no wait.",
           0, G_MAXUINT, DEFAULT_CLIENT_TIMEOUT,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
+  g_object_class_install_property (gobject_class, PROP_MAX_REQUEST,
+      g_param_spec_uint ("max-request", "Maximum number of request",
+          "Sets the maximum number of buffers to request to the query server. "
+          "If the processing speed of query server is slower than the query client, the input buffer is dropped. "
+          "Two buffers are requested by default, and 0 means that all buffers are sent to query server without drop. ",
+          0, G_MAXUINT, DEFAULT_MAX_REQUEST,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&sinktemplate));
   gst_element_class_add_pad_template (gstelement_class,
@@ -192,6 +200,10 @@ gst_tensor_query_client_init (GstTensorQueryClient * self)
   self->timeout = DEFAULT_CLIENT_TIMEOUT;
   self->edge_h = NULL;
   self->msg_queue = g_async_queue_new ();
+  self->max_request = DEFAULT_MAX_REQUEST;
+  self->requested_num = 0;
+  self->is_tensor = FALSE;
+  gst_tensors_config_init (&self->config);
 }
 
 /**
@@ -225,6 +237,8 @@ gst_tensor_query_client_finalize (GObject * object)
     nns_edge_release_handle (self->edge_h);
     self->edge_h = NULL;
   }
+
+  gst_tensors_config_free (&self->config);
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -279,6 +293,9 @@ gst_tensor_query_client_set_property (GObject * object, guint prop_id,
     case PROP_SILENT:
       self->silent = g_value_get_boolean (value);
       break;
+    case PROP_MAX_REQUEST:
+      self->max_request = g_value_get_uint (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -319,6 +336,9 @@ gst_tensor_query_client_get_property (GObject * object, guint prop_id,
     case PROP_SILENT:
       g_value_set_boolean (value, self->silent);
       break;
+    case PROP_MAX_REQUEST:
+      g_value_set_uint (value, self->max_request);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -342,6 +362,20 @@ gst_tensor_query_client_update_caps (GstTensorQueryClient * self,
   if (curr_caps == NULL || !gst_caps_is_equal (curr_caps, out_caps)) {
     if (gst_caps_is_fixed (out_caps)) {
       ret = gst_pad_set_caps (self->srcpad, out_caps);
+
+      /**
+       * If pad caps is updated, prepare the tensor information here.
+       * It will be used in chain function, to push tensor buffer into src pad.
+       */
+      if (ret) {
+        GstStructure *s = gst_caps_get_structure (out_caps, 0);
+
+        self->is_tensor = gst_structure_is_tensor_stream (s);
+        if (self->is_tensor) {
+          gst_tensors_config_free (&self->config);
+          gst_tensors_config_from_structure (&self->config, s);
+        }
+      }
     } else {
       nns_loge ("out-caps from tensor_query_serversink is not fixed. "
           "Failed to update client src caps, out-caps: %s", caps_str);
@@ -357,26 +391,6 @@ gst_tensor_query_client_update_caps (GstTensorQueryClient * self,
   gst_caps_unref (out_caps);
 
   return ret;
-}
-
-/**
- * @brief Retry to connect to available server.
- */
-static gboolean
-_client_retry_connection (GstTensorQueryClient * self)
-{
-  if (NNS_EDGE_ERROR_NONE != nns_edge_disconnect (self->edge_h)) {
-    nns_loge ("Failed to retry connection, disconnection failure");
-    return FALSE;
-  }
-
-  if (NNS_EDGE_ERROR_NONE != nns_edge_connect (self->edge_h,
-          self->dest_host, self->dest_port)) {
-    nns_loge ("Failed to retry connection, connection failure");
-    return FALSE;
-  }
-
-  return TRUE;
 }
 
 /**
@@ -460,6 +474,9 @@ _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
         gst_tensors_config_from_structure (&client_config, client_st);
 
         result = gst_tensors_config_is_equal (&server_config, &client_config);
+
+        gst_tensors_config_free (&server_config);
+        gst_tensors_config_free (&client_config);
       }
 
       if (result || gst_caps_can_intersect (client_caps, server_caps)) {
@@ -660,27 +677,34 @@ gst_tensor_query_client_chain (GstPad * pad,
   GstTensorQueryClient *self = GST_TENSOR_QUERY_CLIENT (parent);
   GstBuffer *out_buf = NULL;
   GstFlowReturn res = GST_FLOW_OK;
-  nns_edge_data_h data_h;
-  guint i, num_mems, num_data;
-  int ret;
+  nns_edge_data_h data_h = NULL;
+  guint i, num_tensors = 0, num_data = 0;
+  int ret = NNS_EDGE_ERROR_NONE;
   GstMemory *mem[NNS_TENSOR_SIZE_LIMIT];
   GstMapInfo map[NNS_TENSOR_SIZE_LIMIT];
   gchar *val;
   UNUSED (pad);
 
+  if (self->max_request > 0 && self->requested_num > self->max_request) {
+    nns_logi
+        ("The processing speed of the query server is too slow. Drop the input buffer.");
+    goto try_pop;
+  }
+
   ret = nns_edge_data_create (&data_h);
   if (ret != NNS_EDGE_ERROR_NONE) {
     nns_loge ("Failed to create data handle in client chain.");
-    return GST_FLOW_ERROR;
+    goto try_pop;
   }
 
-  num_mems = gst_buffer_n_memory (buf);
-  for (i = 0; i < num_mems; i++) {
-    mem[i] = gst_buffer_peek_memory (buf, i);
+  num_tensors = gst_tensor_buffer_get_count (buf);
+  for (i = 0; i < num_tensors; i++) {
+    mem[i] = gst_tensor_buffer_get_nth_memory (buf, i);
     if (!gst_memory_map (mem[i], &map[i], GST_MAP_READ)) {
       ml_loge ("Cannot map the %uth memory in gst-buffer.", i);
-      num_mems = i;
-      goto done;
+      gst_memory_unref (mem[i]);
+      num_tensors = i;
+      goto try_pop;
     }
     nns_edge_data_add (data_h, map[i].data, map[i].size, NULL);
   }
@@ -689,54 +713,64 @@ gst_tensor_query_client_chain (GstPad * pad,
   nns_edge_data_set_info (data_h, "client_id", val);
   g_free (val);
 
-  if (NNS_EDGE_ERROR_NONE != nns_edge_send (self->edge_h, data_h)) {
-    nns_logw ("Failed to publish to server node, retry connection.");
-    goto retry;
+  ret = nns_edge_send (self->edge_h, data_h);
+  if (ret == NNS_EDGE_ERROR_NONE) {
+    self->requested_num++;
+  } else {
+    nns_loge ("Failed to publish to server node.");
   }
 
-  nns_edge_data_destroy (data_h);
+try_pop:
+  if (data_h)
+    nns_edge_data_destroy (data_h);
 
   data_h = g_async_queue_timeout_pop (self->msg_queue,
       self->timeout * G_TIME_SPAN_MILLISECOND);
   if (data_h) {
+    self->requested_num--;
     ret = nns_edge_data_get_count (data_h, &num_data);
-    if (ret != NNS_EDGE_ERROR_NONE || num_data == 0) {
+
+    if (ret == NNS_EDGE_ERROR_NONE && num_data > 0) {
+      GstMemory *new_mem;
+      GstTensorInfo *_info;
+
+      out_buf = gst_buffer_new ();
+
+      for (i = 0; i < num_data; i++) {
+        void *data = NULL;
+        nns_size_t data_len;
+        gpointer new_data;
+
+        nns_edge_data_get (data_h, i, &data, &data_len);
+        new_data = _g_memdup (data, data_len);
+
+        new_mem = gst_memory_new_wrapped (0, new_data, data_len, 0, data_len,
+            new_data, g_free);
+
+        if (self->is_tensor) {
+          _info = gst_tensors_info_get_nth_info (&self->config.info, i);
+          gst_tensor_buffer_append_memory (out_buf, new_mem, _info);
+        } else {
+          gst_buffer_append_memory (out_buf, new_mem);
+        }
+      }
+
+      /* metadata from incoming buffer */
+      gst_buffer_copy_into (out_buf, buf, GST_BUFFER_COPY_METADATA, 0, -1);
+
+      res = gst_pad_push (self->srcpad, out_buf);
+    } else {
       nns_loge ("Failed to get the number of memories of the edge data.");
       res = GST_FLOW_ERROR;
-      goto done;
     }
 
-    out_buf = gst_buffer_new ();
-    for (i = 0; i < num_data; i++) {
-      void *data = NULL;
-      nns_size_t data_len;
-      gpointer new_data;
-
-      nns_edge_data_get (data_h, i, &data, &data_len);
-      new_data = _g_memdup (data, data_len);
-      gst_buffer_append_memory (out_buf,
-          gst_memory_new_wrapped (0, new_data, data_len, 0,
-              data_len, new_data, g_free));
-    }
-    /* metadata from incoming buffer */
-    gst_buffer_copy_into (out_buf, buf, GST_BUFFER_COPY_METADATA, 0, -1);
-
-    res = gst_pad_push (self->srcpad, out_buf);
-  }
-  goto done;
-
-retry:
-  if (!self->topic || !_client_retry_connection (self)) {
-    nns_loge ("Failed to retry connection");
-    res = GST_FLOW_ERROR;
-  }
-done:
-  if (data_h) {
     nns_edge_data_destroy (data_h);
   }
 
-  for (i = 0; i < num_mems; i++)
+  for (i = 0; i < num_tensors; i++) {
     gst_memory_unmap (mem[i], &map[i]);
+    gst_memory_unref (mem[i]);
+  }
 
   gst_buffer_unref (buf);
   return res;

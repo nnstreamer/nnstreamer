@@ -77,6 +77,39 @@ G_BEGIN_DECLS
 #define GST_TF_STAT_MAX_RECENT (10)
 
 /**
+ * @brief GstTensorFilter properties.
+ */
+enum
+{
+  PROP_0,
+  PROP_SILENT,
+  PROP_FRAMEWORK,
+  PROP_MODEL,
+  PROP_INPUT,
+  PROP_INPUTTYPE,
+  PROP_INPUTNAME,
+  PROP_INPUTLAYOUT,
+  PROP_INPUTRANKS,
+  PROP_OUTPUT,
+  PROP_OUTPUTTYPE,
+  PROP_OUTPUTNAME,
+  PROP_OUTPUTLAYOUT,
+  PROP_OUTPUTRANKS,
+  PROP_CUSTOM,
+  PROP_SUBPLUGINS,
+  PROP_ACCELERATOR,
+  PROP_IS_UPDATABLE,
+  PROP_LATENCY,
+  PROP_THROUGHPUT,
+  PROP_INPUTCOMBINATION,
+  PROP_OUTPUTCOMBINATION,
+  PROP_SHARED_TENSOR_FILTER_KEY,
+  PROP_LATENCY_REPORT,
+  PROP_INVOKE_DYNAMIC,
+  PROP_CONFIG
+};
+
+/**
  * @brief Structure definition for tensor-filter statistics
  */
 typedef struct _GstTensorFilterStatistics
@@ -126,6 +159,7 @@ typedef struct _GstTensorFilterPrivate
   gboolean silent; /**< Verbose mode if FALSE. int instead of gboolean for non-glib custom plugins */
   gboolean configured; /**< True if already successfully configured tensor metadata */
   gboolean is_updatable; /**<  a given model to the filter is updatable if TRUE */
+  gchar *config_path; /**< Path to configuration file */
   GstTensorsConfig in_config; /**< input tensor info */
   GstTensorsConfig out_config; /**< output tensor info */
 

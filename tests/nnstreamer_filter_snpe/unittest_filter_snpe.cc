@@ -25,7 +25,13 @@ _GetModelFilePath (gchar **model_file, gboolean is_float_model)
 {
   const gchar *src_root = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   gchar *root_path = src_root ? g_strdup (src_root) : g_get_current_dir ();
-  std::string model_name = is_float_model ? "add2_float.dlc" : "add2_uint8.dlc";
+#if SNPE_VERSION_MAJOR == 1
+  std::string model_name = is_float_model ? "add2_float.v1.dlc" : "add2_uint8.v1.dlc";
+#elif SNPE_VERSION_MAJOR == 2
+  std::string model_name = is_float_model ? "add2_float.v2.dlc" : "add2_uint8.v2.dlc";
+#else
+#error "Unsupported SNPE version"
+#endif
 
   *model_file = g_build_filename (
       root_path, "tests", "test_models", "models", model_name.c_str (), NULL);
@@ -80,18 +86,17 @@ TEST (nnstreamerFilterSnpe, getModelInfo00)
   EXPECT_EQ (ret, 0);
 
   EXPECT_EQ (in_info.num_tensors, 1U);
-  EXPECT_EQ (in_info.info[0].dimension[0], 1U);
-  EXPECT_EQ (in_info.info[0].dimension[1], 1U);
-  EXPECT_EQ (in_info.info[0].dimension[2], 1U);
-  EXPECT_EQ (in_info.info[0].dimension[3], 1U);
   EXPECT_EQ (in_info.info[0].type, _NNS_FLOAT32);
+  EXPECT_EQ (in_info.info[0].dimension[0], 1U);
+  for (int i = 1; i < NNS_TENSOR_RANK_LIMIT; ++i)
+    EXPECT_EQ (in_info.info[0].dimension[i], 0U);
 
   EXPECT_EQ (out_info.num_tensors, 1U);
-  EXPECT_EQ (out_info.info[0].dimension[0], 1U);
-  EXPECT_EQ (out_info.info[0].dimension[1], 1U);
-  EXPECT_EQ (out_info.info[0].dimension[2], 1U);
-  EXPECT_EQ (out_info.info[0].dimension[3], 1U);
   EXPECT_EQ (out_info.info[0].type, _NNS_FLOAT32);
+  EXPECT_EQ (out_info.info[0].dimension[0], 1U);
+  for (int i = 1; i < NNS_TENSOR_RANK_LIMIT; ++i)
+    EXPECT_EQ (out_info.info[0].dimension[i], 0U);
+
 
   sp->close (&prop, &data);
   gst_tensors_info_free (&in_info);
@@ -288,9 +293,9 @@ TEST (nnstreamerFilterSnpe, invoke01_n)
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);
 
-  /* catching assertion error */
-  EXPECT_DEATH (sp->invoke (NULL, NULL, data, NULL, &output), "");
-  EXPECT_DEATH (sp->invoke (NULL, NULL, data, &input, NULL), "");
+  /* catching exception */
+  EXPECT_NE (sp->invoke (NULL, NULL, data, NULL, &output), 0);
+  EXPECT_NE (sp->invoke (NULL, NULL, data, &input, NULL), 0);
 
   g_free (input.data);
   g_free (output.data);
@@ -433,6 +438,7 @@ TEST (nnstreamerFilterSnpe, launch04_n)
   ASSERT_TRUE (gstpipe != nullptr);
 
   EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (100000);
 
   gst_object_unref (gstpipe);
   g_free (pipeline);

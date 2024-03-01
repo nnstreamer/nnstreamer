@@ -42,3 +42,8 @@ rm *.png
 cp tmp_doc/*.md .
 rm -r tmp_doc
 rm -rf Documentation/nnst-exam
+
+# github.com uses .md and github.io uses .html
+find . -type f -name "*.html" -exec sed -i -E 's+<li>(.*)<a href="/gst(.*).md+<li>\1<a href="gst\2.html+' {} \;
+find . -type f -name "*.html" -exec sed -i -E 's+<li>(.*)<a href="/Documentation/(.*).md+<li>\1<a href="\2.html+' {} \;
+

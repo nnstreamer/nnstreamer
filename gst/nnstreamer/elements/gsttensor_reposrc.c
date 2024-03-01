@@ -290,8 +290,9 @@ static GstBuffer *
 gst_tensor_reposrc_gen_dummy_buffer (GstTensorRepoSrc * self)
 {
   GstBuffer *buf = NULL;
+  GstTensorInfo *_info;
   GstMemory *mem;
-  GstMapInfo info;
+  GstMapInfo map;
   guint i, num_tensors;
   gsize size = 0;
 
@@ -299,19 +300,20 @@ gst_tensor_reposrc_gen_dummy_buffer (GstTensorRepoSrc * self)
   num_tensors = self->config.info.num_tensors;
 
   for (i = 0; i < num_tensors; i++) {
-    size = gst_tensor_info_get_size (&self->config.info.info[i]);
+    _info = gst_tensors_info_get_nth_info (&self->config.info, i);
+    size = gst_tensor_info_get_size (_info);
     mem = gst_allocator_alloc (NULL, size, NULL);
 
-    if (!gst_memory_map (mem, &info, GST_MAP_WRITE)) {
+    if (!gst_memory_map (mem, &map, GST_MAP_WRITE)) {
       gst_allocator_free (NULL, mem);
-      ml_logf ("Cannot mep gst memory (tensor-repo-src)\n");
       gst_buffer_unref (buf);
+      ml_logf ("Cannot mep gst memory (tensor-repo-src)\n");
       return NULL;
     }
-    memset (info.data, 0, size);
-    gst_memory_unmap (mem, &info);
+    memset (map.data, 0, map.size);
+    gst_memory_unmap (mem, &map);
 
-    gst_buffer_append_memory (buf, mem);
+    gst_tensor_buffer_append_memory (buf, mem, _info);
   }
 
   return buf;

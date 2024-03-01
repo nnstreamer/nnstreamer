@@ -300,7 +300,6 @@ TEST (commonGetTensorDimension, case2)
   EXPECT_EQ (dim[0], 345U);
   EXPECT_EQ (dim[1], 123U);
   EXPECT_EQ (dim[2], 433U);
-  EXPECT_EQ (dim[3], 1U);
 
   dim_str = gst_tensor_get_dimension_string (dim);
   EXPECT_TRUE (gst_tensor_dimension_string_is_equal (dim_str, "345:123:433:1"));
@@ -320,8 +319,6 @@ TEST (commonGetTensorDimension, case3)
   EXPECT_EQ (rank, 2U);
   EXPECT_EQ (dim[0], 345U);
   EXPECT_EQ (dim[1], 123U);
-  EXPECT_EQ (dim[2], 1U);
-  EXPECT_EQ (dim[3], 1U);
 
   dim_str = gst_tensor_get_dimension_string (dim);
   EXPECT_TRUE (gst_tensor_dimension_string_is_equal (dim_str, "345:123:1:1"));
@@ -340,9 +337,6 @@ TEST (commonGetTensorDimension, case4)
   rank = gst_tensor_parse_dimension ("345", dim);
   EXPECT_EQ (rank, 1U);
   EXPECT_EQ (dim[0], 345U);
-  EXPECT_EQ (dim[1], 1U);
-  EXPECT_EQ (dim[2], 1U);
-  EXPECT_EQ (dim[3], 1U);
 
   dim_str = gst_tensor_get_dimension_string (dim);
   EXPECT_TRUE (gst_tensor_dimension_string_is_equal (dim_str, "345:1:1:1"));
@@ -571,6 +565,7 @@ fill_tensors_config_for_test (GstTensorsConfig *conf1, GstTensorsConfig *conf2)
 TEST (commonTensorInfo, size01_p)
 {
   GstTensorsInfo info1, info2;
+  GstTensorInfo *_info;
   gsize size1, size2;
   guint i;
 
@@ -583,7 +578,8 @@ TEST (commonTensorInfo, size01_p)
 
   size1 = 0;
   for (i = 0; i < info2.num_tensors; i++) {
-    size1 += gst_tensor_info_get_size (&info2.info[i]);
+    _info = gst_tensors_info_get_nth_info (&info2, i);
+    size1 += gst_tensor_info_get_size (_info);
   }
 
   size2 = gst_tensors_info_get_size (&info2, -1);
@@ -767,7 +763,7 @@ TEST (commonTensorsInfo, equalInvalidParam1_n)
  */
 TEST (commonTensorInfo, getrankInvalidParam0_n)
 {
-  EXPECT_EQ (0, gst_tensor_info_get_rank (NULL));
+  EXPECT_EQ (0U, gst_tensor_info_get_rank (NULL));
 }
 
 /**
@@ -882,25 +878,6 @@ TEST (commonTensorsInfo, getNameInvalidParam1_n)
   gst_tensors_info_init (&info);
   info.num_tensors = 0;
   EXPECT_EQ (0U, gst_tensors_info_get_names_string (&info));
-}
-
-/**
- * @brief Test for creating extra info with invalid param.
- */
-TEST (commonTensorsInfo, createExtraInfo_n)
-{
-  EXPECT_FALSE (gst_tensors_info_extra_create (NULL));
-}
-
-/**
- * @brief Test for creating extra info.
- */
-TEST (commonTensorsInfo, createExtraInfo)
-{
-  GstTensorsInfo info;
-  gst_tensors_info_init (&info);
-  EXPECT_TRUE (gst_tensors_info_extra_create (&info));
-  gst_tensors_info_free (&info);
 }
 
 /**
@@ -1143,9 +1120,9 @@ TEST (commonTensorsInfoString, dimensions)
 
   g_free (str_dims);
 
-  /* max (NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT) */
+  /* max (NNS_TENSOR_SIZE_LIMIT) */
   GString *max_dims = g_string_new (NULL);
-  guint exceed_lim = NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT + 11;
+  guint exceed_lim = NNS_TENSOR_SIZE_LIMIT + 11;
   for (guint i = 0; i < exceed_lim; i++) {
     g_string_append_printf (max_dims, "%d", i);
     if (i < exceed_lim - 1)
@@ -1156,7 +1133,7 @@ TEST (commonTensorsInfoString, dimensions)
 
   num_dims = gst_tensors_info_parse_dimensions_string (&info, str_dims);
   EXPECT_NE (num_dims, exceed_lim);
-  EXPECT_EQ (num_dims, (guint) (NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT));
+  EXPECT_EQ (num_dims, (guint) (NNS_TENSOR_SIZE_LIMIT));
 
   g_free (str_dims);
   gst_tensors_info_free (&info);
@@ -1205,9 +1182,9 @@ TEST (commonTensorsInfoString, types)
                            "int8,int8,int8,int8,int8,int8,int8,int8,int8,int8,int8");
   g_free (str_types);
 
-  /* max (NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT) */
+  /* max (NNS_TENSOR_SIZE_LIMIT) */
   GString *max_types = g_string_new (NULL);
-  guint exceed_lim = NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT + 13;
+  guint exceed_lim = NNS_TENSOR_SIZE_LIMIT + 13;
   for (guint i = 0; i < exceed_lim; i++) {
     g_string_append_printf (max_types, "%s", "uint8");
     if (i < exceed_lim - 1)
@@ -1218,7 +1195,7 @@ TEST (commonTensorsInfoString, types)
 
   num_types = gst_tensors_info_parse_types_string (&info, str_types);
   EXPECT_NE (num_types, exceed_lim);
-  EXPECT_EQ (num_types, (guint) (NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT));
+  EXPECT_EQ (num_types, (guint) (NNS_TENSOR_SIZE_LIMIT));
 
   g_free (str_types);
   gst_tensors_info_free (&info);
@@ -1283,9 +1260,9 @@ TEST (commonTensorsInfoString, names)
                            "t16,t17,t18,t19,t20,t21,t22,t23,t24,t25,t26,t27,t28");
   g_free (str_names);
 
-  /* max (NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT) */
+  /* max (NNS_TENSOR_SIZE_LIMIT) */
   GString *max_names = g_string_new (NULL);
-  guint exceed_lim = NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT + 17;
+  guint exceed_lim = NNS_TENSOR_SIZE_LIMIT + 17;
   for (i = 0; i < exceed_lim; i++) {
     g_string_append_printf (max_names, "t%d", i);
     if (i < exceed_lim - 1)
@@ -1296,7 +1273,7 @@ TEST (commonTensorsInfoString, names)
 
   num_names = gst_tensors_info_parse_names_string (&info, str_names);
   EXPECT_NE (num_names, exceed_lim);
-  EXPECT_EQ (num_names, (guint) (NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT));
+  EXPECT_EQ (num_names, (guint) (NNS_TENSOR_SIZE_LIMIT));
 
   g_free (str_names);
   gst_tensors_info_free (&info);
@@ -1316,7 +1293,7 @@ TEST (commonMetaInfo, initDefaultValue)
   EXPECT_EQ (meta.type, _NNS_END);
   EXPECT_EQ (meta.format, _NNS_TENSOR_FORMAT_STATIC);
   EXPECT_EQ ((media_type) meta.media_type, _NNS_TENSOR);
-  for (i = 0; i < NNS_TENSOR_META_RANK_LIMIT; i++)
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
     EXPECT_EQ (meta.dimension[i], 0U);
 
   /* current version after init */
@@ -1336,15 +1313,29 @@ TEST (commonMetaInfo, headerSizeInvalidParam01_n)
 }
 
 /**
- * @brief Test for tensor meta info (header size with invalid meta).
+ * @brief Test for tensor meta info (header size with invalid magic).
  */
 TEST (commonMetaInfo, headerSizeInvalidParam02_n)
 {
-  GstTensorMetaInfo meta = {
-    0,
-  };
+  GstTensorMetaInfo meta;
   gsize hsize;
 
+  gst_tensor_meta_info_init (&meta);
+  meta.magic = 0U;
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  EXPECT_EQ (hsize, 0U);
+}
+
+/**
+ * @brief Test for tensor meta info (header size with invalid version).
+ */
+TEST (commonMetaInfo, headerSizeInvalidParam03_n)
+{
+  GstTensorMetaInfo meta;
+  gsize hsize;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.version = 0U;
   hsize = gst_tensor_meta_info_get_header_size (&meta);
   EXPECT_EQ (hsize, 0U);
 }
@@ -1361,15 +1352,29 @@ TEST (commonMetaInfo, dataSizeInvalidParam01_n)
 }
 
 /**
- * @brief Test for tensor meta info (data size with invalid meta).
+ * @brief Test for tensor meta info (data size with invalid magic).
  */
 TEST (commonMetaInfo, dataSizeInvalidParam02_n)
 {
-  GstTensorMetaInfo meta = {
-    0,
-  };
+  GstTensorMetaInfo meta;
   gsize dsize;
 
+  gst_tensor_meta_info_init (&meta);
+  meta.magic = 0U;
+  dsize = gst_tensor_meta_info_get_data_size (&meta);
+  EXPECT_EQ (dsize, 0U);
+}
+
+/**
+ * @brief Test for tensor meta info (data size with invalid version).
+ */
+TEST (commonMetaInfo, dataSizeInvalidParam03_n)
+{
+  GstTensorMetaInfo meta;
+  gsize dsize;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.version = 0U;
   dsize = gst_tensor_meta_info_get_data_size (&meta);
   EXPECT_EQ (dsize, 0U);
 }
@@ -1386,18 +1391,40 @@ TEST (commonMetaInfo, validateInvalidParam01_n)
 }
 
 /**
- * @brief Test for tensor meta info (validate meta with invalid meta).
+ * @brief Test for tensor meta info (validate meta with invalid magic).
  */
 TEST (commonMetaInfo, validateInvalidParam02_n)
 {
-  GstTensorMetaInfo meta = {
-    0,
-  };
+  GstTensorMetaInfo meta;
   gboolean valid;
 
-  /* invalid version */
+  gst_tensor_meta_info_init (&meta);
+  meta.magic = 0U;
   valid = gst_tensor_meta_info_validate (&meta);
   EXPECT_FALSE (valid);
+}
+
+/**
+ * @brief Test for tensor meta info (validate meta with invalid version).
+ */
+TEST (commonMetaInfo, validateInvalidParam03_n)
+{
+  GstTensorMetaInfo meta;
+  gboolean valid;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.version = 0U;
+  valid = gst_tensor_meta_info_validate (&meta);
+  EXPECT_FALSE (valid);
+}
+
+/**
+ * @brief Test for tensor meta info (validate meta with invalid meta).
+ */
+TEST (commonMetaInfo, validateInvalidParam04_n)
+{
+  GstTensorMetaInfo meta;
+  gboolean valid;
 
   /* set valid meta */
   gst_tensor_meta_info_init (&meta);
@@ -1496,6 +1523,26 @@ TEST (commonMetaInfo, parseMemInvalidParam_n)
   EXPECT_FALSE (ret);
 
   ret = gst_tensor_meta_info_parse_memory (&meta, NULL);
+  EXPECT_FALSE (ret);
+
+  gst_memory_unref (mem);
+}
+
+/**
+ * @brief Test for tensor meta info (parse memory with invalid memory size).
+ */
+TEST (commonMetaInfo, parseMemInvalidSize_n)
+{
+  GstTensorMetaInfo meta;
+  GstMemory *mem;
+  gsize hsize;
+  gboolean ret;
+
+  gst_tensor_meta_info_init (&meta);
+  hsize = gst_tensor_meta_info_get_header_size (&meta) / 2;
+  mem = gst_allocator_alloc (NULL, hsize, NULL);
+
+  ret = gst_tensor_meta_info_parse_memory (&meta, mem);
   EXPECT_FALSE (ret);
 
   gst_memory_unref (mem);
@@ -1624,27 +1671,6 @@ TEST (commonMetaInfo, convertMetaInvalidParam02_n)
   EXPECT_FALSE (ret);
 
   ret = gst_tensor_meta_info_convert (&meta, NULL);
-  EXPECT_FALSE (ret);
-}
-
-/**
- * @brief Test for tensor meta info (dimension rank mismatched).
- */
-TEST (commonMetaInfo, convertMetaInvalidParam03_n)
-{
-  GstTensorMetaInfo meta;
-  GstTensorInfo info;
-  guint i;
-  gboolean ret;
-
-  gst_tensor_meta_info_init (&meta);
-  meta.type = _NNS_UINT16;
-  meta.format = _NNS_TENSOR_FORMAT_STATIC;
-  /* rank > NNS_TENSOR_RANK_LIMIT */
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT + 3; i++)
-    meta.dimension[i] = 2;
-
-  ret = gst_tensor_meta_info_convert (&meta, &info);
   EXPECT_FALSE (ret);
 }
 
@@ -1877,7 +1903,6 @@ TEST (confCustom, checkExtraConfPath_p)
   gchar *filename = g_build_path ("/", dir, "nnstreamer.ini", NULL);
   const gchar *extra_conf = "/opt/usr/vd/product.ini";
   gchar *confenv = g_strdup (g_getenv ("NNSTREAMER_CONF"));
-  ;
 
   FILE *fp = g_fopen (filename, "w");
   ASSERT_TRUE (fp != NULL);
@@ -2062,6 +2087,8 @@ TEST (commonUtil, createTensorBufferInvalidConfig_n)
   in = gst_buffer_new_allocate (NULL, 200, NULL);
   out = gst_tensor_buffer_from_config (in, &config);
   EXPECT_FALSE (out != NULL);
+
+  gst_buffer_unref (out);
 }
 
 /**
@@ -2085,10 +2112,14 @@ TEST (commonUtil, createTensorBufferNullParam_n)
   in = gst_buffer_new_allocate (NULL, data_size, NULL);
   out = gst_tensor_buffer_from_config (NULL, &config);
   EXPECT_FALSE (out != NULL);
+  gst_buffer_unref (in);
+  gst_buffer_unref (out);
 
   in = gst_buffer_new_allocate (NULL, data_size, NULL);
   out = gst_tensor_buffer_from_config (in, NULL);
   EXPECT_FALSE (out != NULL);
+
+  gst_buffer_unref (out);
 }
 
 /**
@@ -2112,6 +2143,112 @@ TEST (commonUtil, createTensorBufferInvalidSize_n)
   in = gst_buffer_new_allocate (NULL, data_size, NULL);
   out = gst_tensor_buffer_from_config (in, &config);
   EXPECT_FALSE (out != NULL);
+
+  gst_buffer_unref (out);
+}
+
+/**
+ * @brief Test tensor dimension validation check util
+ */
+TEST (commonUtil, tensorDimensionIsValid)
+{
+  tensor_dim dim;
+  gint i;
+
+  dim[0] = 3;
+  dim[1] = 280;
+  dim[2] = 40;
+  dim[3] = 1;
+
+  for (i = 4; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    dim[i] = 0;
+  }
+
+  EXPECT_TRUE (gst_tensor_dimension_is_valid (dim));
+}
+
+/**
+ * @brief Test tensor dimension validation check util
+ */
+TEST (commonUtil, tensorDimensionIsValid_n)
+{
+  tensor_dim dim;
+  gint i;
+
+  dim[0] = 3;
+  dim[1] = 280;
+  dim[2] = 40;
+  dim[3] = 0;
+
+  for (i = 4; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    dim[i] = 1;
+  }
+
+  EXPECT_FALSE (gst_tensor_dimension_is_valid (dim));
+}
+
+/**
+ * @brief Test tensor dimension compare util
+ */
+TEST (commonUtil, tensorDimensionIsEqual)
+{
+  tensor_dim dim1, dim2;
+  gint i;
+
+  dim1[0] = dim2[0] = 3;
+  dim1[1] = dim2[1] = 280;
+  dim1[2] = dim2[2] = 40;
+  dim1[3] = dim2[3] = 1;
+
+  for (i = 4; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    dim1[i] = 0;
+    dim2[i] = 1;
+  }
+
+  EXPECT_TRUE (gst_tensor_dimension_is_equal (dim1, dim2));
+}
+
+/**
+ * @brief Test tensor dimension compare util
+ */
+TEST (commonUtil, tensorDimensionIsEqual_n)
+{
+  tensor_dim dim1, dim2;
+  gint i;
+
+  dim1[0] = dim2[0] = 3;
+  dim1[1] = dim2[1] = 280;
+  dim1[2] = dim2[2] = 40;
+  dim1[3] = dim2[3] = 1;
+  dim1[4] = 0;
+  dim2[4] = 2;
+
+  for (i = 5; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    dim1[i] = 0;
+    dim2[i] = 1;
+  }
+
+  EXPECT_FALSE (gst_tensor_dimension_is_equal (dim1, dim2));
+}
+
+/**
+ * @brief Test tensor dimension compare util
+ */
+TEST (commonUtil, tensorDimensionIsEqualInvalid_n)
+{
+  tensor_dim dim1, dim2;
+  gint i;
+
+  dim1[0] = dim2[0] = 3;
+  dim1[1] = dim2[1] = 4;
+  dim1[2] = dim2[2] = 0;
+  dim1[3] = dim2[3] = 1;
+
+  for (i = 5; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    dim1[i] = dim2[i] = 0;
+  }
+
+  EXPECT_FALSE (gst_tensor_dimension_is_equal (dim1, dim2));
 }
 
 /**

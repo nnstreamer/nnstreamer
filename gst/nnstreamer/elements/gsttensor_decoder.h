@@ -71,6 +71,7 @@ struct _GstTensorDecoder
   /** For transformer */
   gboolean negotiated; /**< TRUE if tensor metadata is set */
   gboolean silent; /**< True if logging is minimized */
+  gchar *config_path; /**< Path to configuration file */
   gchar *option[TensorDecMaxOpNum]; /**< Assume we have two options */
 
   /** For Tensor */

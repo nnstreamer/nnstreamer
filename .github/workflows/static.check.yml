@@ -1,0 +1,158 @@
+name: Static checkers and verifiers
+
+# "Pre-build" Scripts from TAOS-CI
+# @todo Make this "reusable workflow" and publish for all projects.
+
+## Common variables and files
+# - changed_file_list in GITHUB_ENV: the list of files updated in this pull-request.
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  simple_script_checkers:
+    runs-on: ubuntu-latest
+    name: Static checks
+    steps:
+      - name: Preparing step 1... Checking out
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: -${{ github.event.pull_request.commits }}
+      - name: Preparing step 2... Installing packages
+        run: sudo apt-get update && sudo apt-get install clang-format git grep gawk exuberant-ctags indent pylint rpmlint aha cppcheck aspell doxygen sloccount shellcheck flawfinder
+      - name: Preparing step 3... Identify changed files
+        run: |
+          tmpfile_pre=$(mktemp)
+          tmpfile=$(mktemp)
+          git show --pretty="format:" --name-only --diff-filter=AMRC ${{ github.event.pull_request.head.sha}} -${{ github.event.pull_request.commits }} > ${tmpfile_pre}
+
+          ####### Screen out deleted files from the file list!!!
+
+          echo "::group::The list of changed files"
+          for file in `cat ${tmpfile_pre}`; do
+            if [[ -f $file ]]; then
+              echo "$file"
+              echo "$file" >> $tmpfile
+            else
+              echo "$file is deleted."
+            fi
+          done
+          echo "::endgroup::"
+          echo "changed_file_list=${tmpfile}" >> "$GITHUB_ENV"
+      - name: /Checker/ clang-format for .cc/.hh/.hpp/.cpp files
+        # Originally from "pr-prebuild-clang"
+        # Need "clang-format"
+        run: |
+          echo "Check .clang-format file"
+          if [ ! -f ".clang-format" ]; then
+            echo "::error .clang-format file not found"
+            exit 1
+          fi
+          for file in `cat $changed_file_list`; do
+            echo "Checking $file"
+            if [[ "$file" =~ .*\.hh$ ]] || [[ "$file" =~ .*\.hpp ]] || [[ "$file" =~ .*\.cc$ ]] || [[ "$file" =~ .*\.cpp ]]; then
+              clang-format -i ${file}
+            fi
+          done
+          git diff -- *.cc *.hh *.hpp *.cpp > .ci.clang-format.patch
+          SIZE=$(stat -c%s .ci.clang-format.patch)
+          if [[ $SIZE -ne 0 ]]; then
+            echo "::group::The clang-format complaints..."
+            cat .ci.clang-format.patch
+            echo "::endgroup::"
+            echo "::error clang-format has found style errors in C++ files."
+            exit 1
+          fi
+          echo "clang-format shows no style errors."
+      - name: /Checker/ File size check
+        # Originally from "pr-prebuild-file-size"
+        run: |
+          for file in `cat $changed_file_list`; do
+            echo "Checking $file"
+            FILESIZE=$(stat -c%s "$file")
+            FILESIZE_NUM=`echo $FILESIZE | sed ':a;s/\B[0-9]\{3\}\>/,&/;ta'`
+            if [[ $FILESIZE -gt $[ 5*1024*1024 ] ]]; then
+              echo "::error $file is too large: $FILESIZE > 5MiB"
+              exit 1
+            fi
+          done
+      - name: /Checker/ Doxygen tag check
+        # Originally from "pr-prebuild-doxygen-tag"
+        # Need "grep"
+        run: |
+          bash .github/workflows/static.check.scripts/doxygen-tag.sh $changed_file_list 1
+      - name: /Checker/ Indent check
+        # Originally from "pr-prebuild-indent"
+        # Need "indent"
+        run: |
+          bash .github/workflows/static.check.scripts/indent.sh $changed_file_list
+      - name: /Checker/ Pylint
+        # Originally from "pr-prebuild-pylint"
+        # Need "pylint"
+        run: |
+          bash .github/workflows/static.check.scripts/pylint.sh $changed_file_list
+      - name: /Checker/ Incorrect newlines
+        # Originally from "pr-prebuild-newline"
+        run: |
+          bash .github/workflows/static.check.scripts/newline.sh $changed_file_list
+      - name: /Checker/ RPM spec lint
+        # Originally from "pr-prebuild-rpm-spec"
+        # Need "rpmlint", "aha"
+        # Tolerated errors: 40 (make it 0 someday!!!)
+        run: |
+          bash .github/workflows/static.check.scripts/rpm-spec.sh $changed_file_list 40
+      - name: /Checker/ CPPCheck errors
+        # Originally from "pr-prebuild-cppcheck"
+        # Need "cppcheck"
+        run: |
+          bash .github/workflows/static.check.scripts/cppcheck.sh $changed_file_list 0
+      - name: /Checker/ Commit without proper message
+        # Originally from "pr-prebuild-nobody"
+        run: |
+          bash .github/workflows/static.check.scripts/nobody.sh ${{ github.event.pull_request.commits }}
+      - name: /Checker/ Timestamp from the future
+        # Originally from "pr-prebuild-timestamp"
+        run: |
+          bash .github/workflows/static.check.scripts/timestamp.sh ${{ github.event.pull_request.commits }}
+      - name: /Checker/ Executable bits in source code files
+        # Originally from "pr-prebuild-executable"
+        run: |
+          bash .github/workflows/static.check.scripts/executable.sh $changed_file_list
+      - name: /Checker/ Hardcoded paths
+        # Originally from "pr-prebuild-hardcoded-path"
+        run: |
+          bash .github/workflows/static.check.scripts/hardcoded-path.sh $changed_file_list
+      - name: /Checker/ Misspelling
+        # Originally from "pr-prebuild-misspelling"
+        run: |
+          bash .github/workflows/static.check.scripts/misspelling.sh $changed_file_list
+      - name: /Checker/ Doxygen build test
+        # Originally from "pr-prebuild-doxygen-build"
+        run: |
+          bash .github/workflows/static.check.scripts/doxygen-build.sh $changed_file_list
+      - name: /Checker/ sloccount limit
+        # Originally from "pr-prebuild-sloccount"
+        run: |
+          bash .github/workflows/static.check.scripts/sloccount.sh $changed_file_list
+      - name: /Checker/ prohibited words
+        # Originally from "pr-prebuild-prohibited-words"
+        run: |
+          bash .github/workflows/static.check.scripts/prohibited-words.sh $changed_file_list
+      - name: /Checker/ signed-off-by required
+        # Originally from "pr-prebuild-signed-off-by"
+        run: |
+          bash .github/workflows/static.check.scripts/signed-off-by.sh ${{ github.event.pull_request.commits }}
+      - name: /Checker/ shellcheck for shell scripts
+        # Originally from "pr-prebuild-shellcheck"
+        run: |
+          bash .github/workflows/static.check.scripts/shellcheck.sh $changed_file_list
+      - name: /Checker/ flawfinder for C/C++ files
+        # Originally from "pr-prebuild-flawfinder"
+        run: |
+          bash .github/workflows/static.check.scripts/flawfinder.sh $changed_file_list 1
+      - name: /Checker/ covertity for C/C++ files
+        # Originally from "pr-prebuild-coverity"
+        run: |
+          #bash .github/workflows/static.check.scripts/coverity.sh $changed_file_list

@@ -33,7 +33,7 @@ title: tensor_transform
   - Enum "gtt_mode_type" Default: -1, "unknown"
     - (0): dimchg
       - A mode for changing tensor dimensions
-      - An option should be provided as option=FROM_DIM:TO_DIM (with a regex, ^([0-3]):([0-3])$, where NNS_TENSOR_RANK_LIMIT is 4).
+      - An option should be provided as option=FROM_DIM:TO_DIM (with a regex, ^([0-9]|1[0-5]):([0-9]|1[0-5])$, where NNS_TENSOR_RANK_LIMIT is 16).
       - Example: Move 1st dim to 2nd dim (i.e., [a][H][W][C] ==> [a][C][H][W])
 
         ```bash
@@ -74,10 +74,10 @@ title: tensor_transform
     - (3): transpose
       - A mode for transposing shape of tensor
       - An option should be provided as D1':D2':D3':D4 (fixed to 3)
-      - Example: 640:480:3:1 ==> 3:480:640:1
+      - Example: 3:640:480:1 (NHWC) ==> 640:480:3:1 (NCHW)
 
         ```bash
-        ... ! tensor_converter input-dim=640:480:3:1 ! tensor_transform mode=transpose option=2:1:0:3 ! ...
+        ... ! tensor_converter input-dim=3:640:480:1 ! tensor_transform mode=transpose option=1:2:0:3 ! ...
         ```
 
     - (4): stand

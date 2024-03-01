@@ -63,7 +63,8 @@ toplevel_srcs = [
 ]
 toplevel_deps = [
   glib_dep,
-  gobject_dep
+  gobject_dep,
+  declare_dependency(compile_args : '-Wno-unused-but-set-variable')
 ]
 toplevel = executable('nnstreamer-parser', toplevel_srcs,
   dependencies: toplevel_deps,

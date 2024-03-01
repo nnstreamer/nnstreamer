@@ -393,7 +393,7 @@ nnfw_convert_to_gst_info (const nnfw_tinfo_s * nnfw_info,
 
   for (i = 0; i < nnfw_info->num_tensors; i++) {
     const nnfw_tensorinfo *ninfo = &nnfw_info->info[i];
-    GstTensorInfo *ginfo = &gst_info->info[i];
+    GstTensorInfo *ginfo = gst_tensors_info_get_nth_info (gst_info, i);
     gint idx;
 
     if (ninfo->rank > NNS_TENSOR_RANK_LIMIT)
@@ -404,9 +404,6 @@ nnfw_convert_to_gst_info (const nnfw_tinfo_s * nnfw_info,
 
     for (idx = ninfo->rank - 1; idx >= 0; idx--)
       ginfo->dimension[idx] = ninfo->dims[ninfo->rank - idx - 1];
-
-    for (idx = NNS_TENSOR_RANK_LIMIT - 1; idx >= ninfo->rank; idx--)
-      ginfo->dimension[idx] = 1;
   }
 
   gst_info->num_tensors = nnfw_info->num_tensors;
@@ -446,7 +443,12 @@ nnfw_tensor_info_set (const nnfw_pdata * pdata,
   struct nnfw_tensorinfo nnfw_info;
   gint err;
   gint idx;
-  const GstTensorInfo *info = &tensors_info->info[tensor_idx];
+  GstTensorInfo *info;
+
+  info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) tensors_info,
+      tensor_idx);
+  if (!info)
+    return -EINVAL;
 
   err = nnfw_tensor_type_from_gst (info->type, &nnfw_info.dtype);
   if (err)
@@ -460,11 +462,19 @@ nnfw_tensor_info_set (const nnfw_pdata * pdata,
   if (nnfw_info.rank < pdata->in_info.info[tensor_idx].rank)
     nnfw_info.rank = pdata->in_info.info[tensor_idx].rank;
 
+  /** @note Maximum rank expressible with nnfw is 6 (NNFW_MAX_RANK) */
+  if (nnfw_info.rank > NNFW_MAX_RANK) {
+    guint min_rank = gst_tensor_dimension_get_min_rank (info->dimension);
+    if (min_rank < NNFW_MAX_RANK)
+      nnfw_info.rank = NNFW_MAX_RANK;
+    else
+      return -EINVAL;
+  }
+
   /** reverse the order of dimension */
   for (idx = nnfw_info.rank - 1; idx >= 0; idx--)
     nnfw_info.dims[nnfw_info.rank - idx - 1] = info->dimension[idx];
 
-  /** @note Maximum rank expressible with nnfw is 6 (NNFW_MAX_RANK) */
   for (idx = NNFW_MAX_RANK - 1; idx >= nnfw_info.rank; idx--)
     nnfw_info.dims[idx] = 0;
 
@@ -556,6 +566,7 @@ nnfw_invoke_dummy (const nnfw_pdata * pdata, const nnfw_tinfo_s * in_info,
     const nnfw_tinfo_s * out_info)
 {
   GstTensorsInfo gst_in_info, gst_out_info;
+  GstTensorInfo *_info;
   GstTensorMemory input[NNS_TENSOR_SIZE_LIMIT] = { {0} };
   GstTensorMemory output[NNS_TENSOR_SIZE_LIMIT] = { {0} };
   gboolean failed = FALSE;
@@ -569,13 +580,17 @@ nnfw_invoke_dummy (const nnfw_pdata * pdata, const nnfw_tinfo_s * in_info,
   }
 
   for (i = 0; i < gst_in_info.num_tensors; ++i) {
-    input[i].size = gst_tensor_info_get_size (&gst_in_info.info[i]);
+    _info = gst_tensors_info_get_nth_info (&gst_in_info, i);
+
+    input[i].size = gst_tensor_info_get_size (_info);
     input[i].data = g_malloc0 (input[i].size);
   }
 
   /* The output shape would be changed, set enough size for output buffer. */
   for (i = 0; i < gst_out_info.num_tensors; ++i) {
-    output[i].size = gst_tensor_info_get_size (&gst_out_info.info[i]) * 2;
+    _info = gst_tensors_info_get_nth_info (&gst_out_info, i);
+
+    output[i].size = gst_tensor_info_get_size (_info) * 2;
     output[i].data = g_malloc0 (output[i].size);
   }
 

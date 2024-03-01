@@ -130,22 +130,25 @@ PYDecoderCore::decode (const GstTensorsConfig *config,
   PyObject *output = NULL;
   PyObject *raw_data, *in_info;
   GstFlowReturn ret = GST_FLOW_OK;
+  GstTensorsInfo *info;
 
   Py_LOCK ();
-  raw_data = PyList_New (config->info.num_tensors);
-  in_info = PyList_New (config->info.num_tensors);
+  info = (GstTensorsInfo *) &config->info;
+  raw_data = PyList_New (info->num_tensors);
+  in_info = PyList_New (info->num_tensors);
   rate_n = config->rate_n;
   rate_d = config->rate_d;
 
-  for (unsigned int i = 0; i < config->info.num_tensors; i++) {
-    tensor_type nns_type = config->info.info[i].type;
+  for (unsigned int i = 0; i < info->num_tensors; i++) {
+    GstTensorInfo *_info = gst_tensors_info_get_nth_info (info, i);
+    tensor_type nns_type = _info->type;
     npy_intp input_dims[]
         = { (npy_intp) (input[i].size / gst_tensor_get_element_size (nns_type)) };
     PyObject *input_array = PyArray_SimpleNewFromData (
         1, input_dims, getNumpyType (nns_type), input[i].data);
     PyList_SetItem (raw_data, i, input_array);
 
-    PyObject *shape = PyTensorShape_New (shape_cls, &config->info.info[i]);
+    PyObject *shape = PyTensorShape_New (shape_cls, _info);
     PyList_SetItem (in_info, i, shape);
   }
 
@@ -275,7 +278,9 @@ decoder_py_exit (void **pdata)
   PYDecoderCore *core = static_cast<PYDecoderCore *> (*pdata);
 
   g_return_if_fail (core != NULL);
+  PyGILState_STATE gstate = PyGILState_Ensure ();
   delete core;
+  PyGILState_Release (gstate);
 
   *pdata = NULL;
 }
@@ -285,6 +290,7 @@ static int
 decoder_py_setOption (void **pdata, int opNum, const char *param)
 {
   gchar *path = (gchar *) param;
+  int ret = FALSE;
 
   /* opNum 1 = python script path */
   if (opNum == 0) {
@@ -306,22 +312,28 @@ decoder_py_setOption (void **pdata, int opNum, const char *param)
     /* init null */
     *pdata = NULL;
 
+    PyGILState_STATE gstate = PyGILState_Ensure ();
+
     try {
       core = new PYDecoderCore (path);
     } catch (std::bad_alloc &exception) {
       ml_loge ("Failed to allocate memory for decoder subplugin: python3\n");
       ml_loge ("%s", exception.what ());
-      return FALSE;
+      goto done;
     }
 
     if (core->init () != 0) {
       delete core;
       ml_loge ("failed to initailize the object: Python3\n");
-      return FALSE;
+      goto done;
     }
-    *pdata = core;
 
-    return TRUE;
+    *pdata = core;
+    ret = TRUE;
+
+  done:
+    PyGILState_Release (gstate);
+    return ret;
   }
 
   GST_INFO ("Property mode-option-%d is ignored", opNum + 1);
@@ -335,7 +347,9 @@ decoder_py_getOutCaps (void **pdata, const GstTensorsConfig *config)
   GstCaps *caps;
   PYDecoderCore *core = static_cast<PYDecoderCore *> (*pdata);
 
+  PyGILState_STATE gstate = PyGILState_Ensure ();
   caps = core->getOutCaps (config);
+  PyGILState_Release (gstate);
   setFramerateFromConfig (caps, config);
   return caps;
 }
@@ -345,11 +359,16 @@ static GstFlowReturn
 decoder_py_decode (void **pdata, const GstTensorsConfig *config,
     const GstTensorMemory *input, GstBuffer *outbuf)
 {
+  GstFlowReturn ret;
   PYDecoderCore *core = static_cast<PYDecoderCore *> (*pdata);
   g_return_val_if_fail (config, GST_FLOW_ERROR);
   g_return_val_if_fail (input, GST_FLOW_ERROR);
   g_return_val_if_fail (outbuf, GST_FLOW_ERROR);
-  return core->decode (config, input, outbuf);
+
+  PyGILState_STATE gstate = PyGILState_Ensure ();
+  ret = core->decode (config, input, outbuf);
+  PyGILState_Release (gstate);
+  return ret;
 }
 
 static gchar decoder_subplugin_python3[] = "python3";
@@ -366,15 +385,12 @@ static GstTensorDecoderDef Python = { .modename = decoder_subplugin_python3,
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-
 /** @brief Initialize this object for tensordec-plugin */
 void
 init_decoder_py (void)
 {
   /** Python should be initialized and finalized only once */
-  if (!Py_IsInitialized ())
-    Py_Initialize ();
-
+  nnstreamer_python_init_refcnt ();
   nnstreamer_decoder_probe (&Python);
 }
 
@@ -382,11 +398,23 @@ init_decoder_py (void)
 void
 fini_decoder_py (void)
 {
+  nnstreamer_python_status_check ();
+  nnstreamer_python_fini_refcnt ();
   nnstreamer_decoder_exit (Python.modename);
 
+/**
+ * @todo Remove below lines after this issue is addressed.
+ * Tizen issues: After python version has been upgraded from 3.9.1 to 3.9.10,
+ * python converter is stopped at Py_Finalize. Since Py_Initialize is not called
+ * twice from this object, Py_Finalize is temporarily removed.
+ * We do not know if it's safe to call this at this point.
+ * We can finalize when ALL python subplugins share the same ref counter.
+ */
+#if 0
   /** Python should be initialized and finalized only once */
   if (Py_IsInitialized ())
     Py_Finalize ();
+#endif
 }
 #ifdef __cplusplus
 }

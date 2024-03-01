@@ -1536,8 +1536,8 @@ gst_tensor_src_iio_create_config (GstTensorSrcIIO * tensor_src_iio)
   GList *list;
   GstTensorSrcIIOChannelProperties *channel_prop;
   gint tensor_info_merged_size;
-  guint info_idx = 0, dim_idx = 0;
-  GstTensorInfo *info;
+  guint info_idx = 0;
+  GstTensorInfo *info, *dest;
   GstTensorsConfig *config;
 
   /**
@@ -1551,16 +1551,15 @@ gst_tensor_src_iio_create_config (GstTensorSrcIIO * tensor_src_iio)
   }
 
   /** compile tensor info data */
-  gst_tensor_info_init (info);
   for (list = tensor_src_iio->channels; list != NULL; list = list->next) {
+    gst_tensor_info_init (&info[info_idx]);
+
     channel_prop = (GstTensorSrcIIOChannelProperties *) list->data;
     if (!channel_prop->enabled)
       continue;
     info[info_idx].name = channel_prop->name;
     info[info_idx].type = _NNS_FLOAT32;
-    for (dim_idx = 0; dim_idx < NNS_TENSOR_RANK_LIMIT; dim_idx++) {
-      info[info_idx].dimension[dim_idx] = 1;
-    }
+    info[info_idx].dimension[0] = 1;
     info[info_idx].dimension[1] = tensor_src_iio->buffer_capacity;
     info_idx += 1;
   }
@@ -1600,7 +1599,8 @@ gst_tensor_src_iio_create_config (GstTensorSrcIIO * tensor_src_iio)
   }
   gst_tensors_config_init (config);
   for (info_idx = 0; info_idx < (guint) tensor_info_merged_size; info_idx++) {
-    gst_tensor_info_copy (&config->info.info[info_idx], &info[info_idx]);
+    dest = gst_tensors_info_get_nth_info (&config->info, info_idx);
+    gst_tensor_info_copy (dest, &info[info_idx]);
   }
 
   /**
@@ -2335,18 +2335,19 @@ gst_tensor_src_iio_create (GstBaseSrc * src, guint64 offset,
   GstTensorSrcIIO *self;
   GstBuffer *buf;
   GstMemory *mem;
+  GstTensorInfo *_info;
   guint buffer_size;
   guint idx = 0;
   UNUSED (size);
 
   self = GST_TENSOR_SRC_IIO_CAST (src);
   buf = gst_buffer_new ();
-  buffer_size = gst_tensor_info_get_size (&self->tensors_config->info.info[0]);
+  buffer_size = gst_tensors_info_get_size (&self->tensors_config->info, 0);
 
   for (idx = 0; idx < self->tensors_config->info.num_tensors; idx++) {
     /** all the data, if unermged should be of the same size*/
-    g_assert (buffer_size ==
-        gst_tensor_info_get_size (&self->tensors_config->info.info[idx]));
+    _info = gst_tensors_info_get_nth_info (&self->tensors_config->info, idx);
+    g_assert (buffer_size == gst_tensor_info_get_size (_info));
 
     mem = gst_allocator_alloc (NULL, buffer_size, NULL);
     if (mem == NULL) {
@@ -2354,7 +2355,7 @@ gst_tensor_src_iio_create (GstBaseSrc * src, guint64 offset,
       goto error_buffer_unref;
     }
 
-    gst_buffer_append_memory (buf, mem);
+    gst_tensor_buffer_append_memory (buf, mem, _info);
   }
 
   if (gst_tensor_src_iio_fill (src, offset, buffer_size, buf) != GST_FLOW_OK) {
@@ -2469,6 +2470,7 @@ gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset, guint size,
     GstBuffer * buffer)
 {
   GstTensorSrcIIO *self;
+  GstFlowReturn ret = GST_FLOW_ERROR;
   gint status, bytes_to_read;
   guint idx, ch_idx, num_mapped;
   gchar *raw_data_base, *raw_data;
@@ -2484,17 +2486,19 @@ gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset, guint size,
   self = GST_TENSOR_SRC_IIO (src);
 
   /** Only supporting tensors made of 1 tensor for now */
-  g_assert (gst_buffer_n_memory (buffer) ==
+  g_assert (gst_tensor_buffer_get_count (buffer) ==
       self->tensors_config->info.num_tensors);
 
   /** get writable buffer */
   num_mapped = 0;
   for (idx = 0; idx < self->tensors_config->info.num_tensors; idx++) {
-    mem[idx] = gst_buffer_peek_memory (buffer, idx);
+    mem[idx] = gst_tensor_buffer_get_nth_memory (buffer, idx);
     if (!gst_memory_map (mem[idx], &map[idx], GST_MAP_WRITE)) {
       for (ch_idx = 0; ch_idx < num_mapped; ch_idx++) {
         gst_memory_unmap (mem[ch_idx], &map[ch_idx]);
+        gst_memory_unref (mem[ch_idx]);
       }
+      gst_memory_unref (mem[idx]);
       return GST_FLOW_ERROR;
     }
     num_mapped = idx + 1;
@@ -2586,19 +2590,14 @@ gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset, guint size,
     raw_data += self->scan_size;
   }
 
-  /** wrap up the buffer */
-  g_free (raw_data_base);
-  for (idx = 0; idx < self->tensors_config->info.num_tensors; idx++) {
-    gst_memory_unmap (mem[idx], &map[idx]);
-  }
-
-  return GST_FLOW_OK;
+  ret = GST_FLOW_OK;
 
 error_data_free:
   g_free (raw_data_base);
   for (idx = 0; idx < self->tensors_config->info.num_tensors; idx++) {
     gst_memory_unmap (mem[idx], &map[idx]);
+    gst_memory_unref (mem[idx]);
   }
 
-  return GST_FLOW_ERROR;
+  return ret;
 }

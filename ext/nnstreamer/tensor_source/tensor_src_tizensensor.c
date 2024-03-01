@@ -173,8 +173,6 @@ static GstFlowReturn gst_tensor_src_tizensensor_create (GstBaseSrc * src,
 static GstFlowReturn gst_tensor_src_tizensensor_fill (GstBaseSrc * src,
     guint64 offset, guint size, GstBuffer * buf);
 
-/** internal functions */
-
 #define gst_tensor_src_tizensensor_parent_class parent_class
 G_DEFINE_TYPE (GstTensorSrcTIZENSENSOR, gst_tensor_src_tizensensor,
     GST_TYPE_BASE_SRC);
@@ -256,82 +254,82 @@ typedef struct
 static TizenSensorSpec tizensensorspecs[] = {
   {.type = SENSOR_ACCELEROMETER,.value_count = 3,
         .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
-          .dimension = {3, 1, 1, 1, 1, 1, 1, 1}}},
+          .dimension = {3, 1, 0, }}},
   {.type = SENSOR_GRAVITY,.value_count = 3,
         .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
-          .dimension = {3, 1, 1, 1, 1, 1, 1, 1}}},
+          .dimension = {3, 1, 0, }}},
   {.type = SENSOR_LINEAR_ACCELERATION,.value_count = 3,
         .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
-          .dimension = {3, 1, 1, 1, 1, 1, 1, 1}}},
+          .dimension = {3, 1, 0, }}},
   {.type = SENSOR_MAGNETIC,.value_count = 3,
         .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
-          .dimension = {3, 1, 1, 1, 1, 1, 1, 1}}},
+          .dimension = {3, 1, 0, }}},
   {.type = SENSOR_ROTATION_VECTOR,.value_count = 4,
         .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
-          .dimension = {4, 1, 1, 1, 1, 1, 1, 1}}},
+          .dimension = {4, 1, 0, }}},
   {.type = SENSOR_ORIENTATION,.value_count = 3,
         .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
-          .dimension = {3, 1, 1, 1, 1, 1, 1, 1}}},
+          .dimension = {3, 1, 0, }}},
   {.type = SENSOR_GYROSCOPE,.value_count = 3,
         .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
-          .dimension = {3, 1, 1, 1, 1, 1, 1, 1}}},
+          .dimension = {3, 1, 0, }}},
   {.type = SENSOR_LIGHT,.value_count = 1,
         .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
-          .dimension = {1, 1, 1, 1, 1, 1, 1, 1}}},
+          .dimension = {1, 1, 0, }}},
   {.type = SENSOR_PROXIMITY,.value_count = 1,
         .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
-          .dimension = {1, 1, 1, 1, 1, 1, 1, 1}}},
+          .dimension = {1, 1, 0, }}},
   {.type = SENSOR_PRESSURE,.value_count = 1,
         .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
-          .dimension = {1, 1, 1, 1, 1, 1, 1, 1}}},
+          .dimension = {1, 1, 0, }}},
   {.type = SENSOR_ULTRAVIOLET,.value_count = 1,
         .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
-          .dimension = {1, 1, 1, 1, 1, 1, 1, 1}}},
+          .dimension = {1, 1, 0, }}},
   {.type = SENSOR_TEMPERATURE,.value_count = 1,
         .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
-          .dimension = {1, 1, 1, 1, 1, 1, 1, 1}}},
+          .dimension = {1, 1, 0, }}},
   {.type = SENSOR_HUMIDITY,.value_count = 1,
         .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
-          .dimension = {1, 1, 1, 1, 1, 1, 1, 1}}},
+          .dimension = {1, 1, 0, }}},
   {.type = SENSOR_HRM,.value_count = 1,
         .tinfo = {.name = NULL,.type = _NNS_INT32,
-          .dimension = {1, 1, 1, 1, 1, 1, 1, 1}}},
+          .dimension = {1, 1, 0, }}},
   {.type = SENSOR_HRM_LED_GREEN,.value_count = 1,
         .tinfo = {.name = NULL,.type = _NNS_INT32,
-          .dimension = {1, 1, 1, 1, 1, 1, 1, 1}}},
+          .dimension = {1, 1, 0, }}},
   {.type = SENSOR_HRM_LED_IR,.value_count = 1,
         .tinfo = {.name = NULL,.type = _NNS_INT32,
-          .dimension = {1, 1, 1, 1, 1, 1, 1, 1}}},
+          .dimension = {1, 1, 0, }}},
   {.type = SENSOR_HRM_LED_RED,.value_count = 1,
         .tinfo = {.name = NULL,.type = _NNS_INT32,
-          .dimension = {1, 1, 1, 1, 1, 1, 1, 1}}},
+          .dimension = {1, 1, 0, }}},
   {.type = SENSOR_GYROSCOPE_UNCALIBRATED,.value_count = 6,
         .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
-          .dimension = {6, 1, 1, 1, 1, 1, 1, 1}}},
+          .dimension = {6, 1, 0, }}},
   {.type = SENSOR_GEOMAGNETIC_UNCALIBRATED,.value_count = 6,
         .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
-          .dimension = {6, 1, 1, 1, 1, 1, 1, 1}}},
+          .dimension = {6, 1, 0, }}},
   {.type = SENSOR_GYROSCOPE_ROTATION_VECTOR,.value_count = 4,
         .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
-          .dimension = {4, 1, 1, 1, 1, 1, 1, 1}}},
+          .dimension = {4, 1, 0, }}},
   {.type = SENSOR_GEOMAGNETIC_ROTATION_VECTOR,.value_count = 4,
         .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
-          .dimension = {4, 1, 1, 1, 1, 1, 1, 1}}},
+          .dimension = {4, 1, 0, }}},
   {.type = SENSOR_SIGNIFICANT_MOTION,.value_count = 1,
         .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
-          .dimension = {1, 1, 1, 1, 1, 1, 1, 1}}},
+          .dimension = {1, 1, 0, }}},
   {.type = SENSOR_HUMAN_PEDOMETER,.value_count = 8,     /* Last 5 values might be flost32..? */
         .tinfo = {.name = NULL,.type = _NNS_INT32,
-          .dimension = {8, 1, 1, 1, 1, 1, 1, 1}}},
+          .dimension = {8, 1, 0, }}},
   {.type = SENSOR_HUMAN_SLEEP_MONITOR,.value_count = 1, /* STATE */
         .tinfo = {.name = NULL,.type = _NNS_INT32,
-          .dimension = {1, 1, 1, 1, 1, 1, 1, 1}}},
+          .dimension = {1, 1, 0, }}},
   {.type = SENSOR_HUMAN_SLEEP_DETECTOR,.value_count = 1, /** @todo check! */
         .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
-          .dimension = {1, 1, 1, 1, 1, 1, 1, 1}}},
+          .dimension = {1, 1, 0, }}},
   {.type = SENSOR_HUMAN_STRESS_MONITOR,.value_count = 1, /** @todo check! */
         .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
-          .dimension = {1, 1, 1, 1, 1, 1, 1, 1}}},
+          .dimension = {1, 1, 0, }}},
   {.type = SENSOR_LAST,.value_count = 0,.tinfo = {0,}},
 };
 
@@ -855,7 +853,6 @@ gst_tensor_src_tizensensor_finalize (GObject * object)
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
-
 /**
  * @brief start function
  * @details This is called when state changed null to ready.
@@ -1165,6 +1162,8 @@ gst_tensor_src_tizensensor_create (GstBaseSrc * src, guint64 offset,
 
 exit:
   _UNLOCK (self);
+  if (retval != GST_FLOW_OK)
+    gst_buffer_unref (buf);
   return retval;
 }
 
@@ -1275,7 +1274,6 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
     }
 
     /* 2. Do not timestamp. Let BaseSrc timestamp */
-
     nns_logd ("read sensor_data at %" GST_TIME_FORMAT,
         GST_TIME_ARGS (event->timestamp * 1000));
 

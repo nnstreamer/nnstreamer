@@ -202,15 +202,10 @@ TorchCore::loadModel ()
 #endif
 
   try {
-#ifdef PYTORCH_VER_ATLEAST_1_2_0
-    c10::optional<c10::Device> device;
-    if (use_gpu) {
-      device = torch::Device(c10::kCUDA);
-    }
-    model = std::make_shared<torch::jit::script::Module> (torch::jit::load (model_path, device));
-#else
-    model = torch::jit::load (model_path);
-#endif
+    torch::Device device
+        = use_gpu ? torch::Device (torch::kCUDA) : torch::Device (torch::kCPU);
+    model = std::make_shared<torch::jit::script::Module> (
+        torch::jit::load (model_path, device));
   } catch (const std::invalid_argument &ia) {
     ml_loge ("Invalid argument while loading the model: %s", ia.what ());
     return -1;
@@ -225,10 +220,6 @@ TorchCore::loadModel ()
   if (model == nullptr) {
     ml_loge ("Failed to read graph.");
     return -1;
-  }
-
-  if (use_gpu) {
-    model->to (at::kCUDA);
   }
 
   /** set the model to evaluation mode */
@@ -337,6 +328,7 @@ TorchCore::validateOutputTensor (const at::Tensor output, unsigned int idx)
   gsize num_gst_tensor, num_torch_tensor;
   at::Tensor sliced_output = output.slice (0);
   c10::IntArrayRef sliced_output_sizes = sliced_output.sizes ();
+  GstTensorInfo *_info;
 
   /** if idx is in bounds */
   if (outputTensorMeta.num_tensors <= idx) {
@@ -345,10 +337,12 @@ TorchCore::validateOutputTensor (const at::Tensor output, unsigned int idx)
     return -1;
   }
 
+  _info = gst_tensors_info_get_nth_info (&outputTensorMeta, idx);
+
   /** when output is a scalar */
   if (tensor_shape[0] == 0) {
     otype = getTensorTypeFromTorch (output.scalar_type ());
-    if (outputTensorMeta.info[idx].type != otype) {
+    if (_info->type != otype) {
       ml_loge ("Invalid output meta: different type at index %u. Update the type of tensor at index %u to %d tensor_type",
           idx, idx, otype);
       return -2;
@@ -357,13 +351,13 @@ TorchCore::validateOutputTensor (const at::Tensor output, unsigned int idx)
   }
 
   otype = getTensorTypeFromTorch (sliced_output.scalar_type ());
-  if (outputTensorMeta.info[idx].type != otype) {
+  if (_info->type != otype) {
     ml_loge ("Invalid output meta: different type at index %u. Update the type of tensor at index %u to %d tensor_type",
         idx, idx, otype);
     return -2;
   }
 
-  num_gst_tensor = gst_tensor_get_element_count (outputTensorMeta.info[idx].dimension);
+  num_gst_tensor = gst_tensor_get_element_count (_info->dimension);
   num_torch_tensor = 1;
   for (int j = 0; j < sliced_output.ndimension (); j++) {
     num_torch_tensor *= sliced_output_sizes[j];
@@ -450,8 +444,8 @@ TorchCore::processIValue (
  *         -3 if output is of unsupported format.
  */
 int
-TorchCore::serializeOutput (
-    const torch::jit::IValue &value, GstTensorMemory *output, unsigned int *idx, unsigned int limit_idx)
+TorchCore::serializeOutput (const torch::jit::IValue &value,
+    GstTensorMemory *output, unsigned int *idx, unsigned int limit_idx)
 {
   if (*idx >= limit_idx) {
     return 0;
@@ -474,15 +468,10 @@ TorchCore::serializeOutput (
         return -2;
       }
     }
-#ifdef PYTORCH_VER_ATLEAST_1_2_0
   } else if (value.isList ()) {
     c10::ArrayRef<torch::jit::IValue> output_ref_list = value.toListRef ();
     std::vector<torch::jit::IValue> output_list (
         output_ref_list.begin (), output_ref_list.end ());
-#else
-  } else if (value.isGenericList ()) {
-    c10::ArrayRef<torch::jit::IValue> output_list = value.toGenericListRef ();
-#endif
     for (auto &element : output_list) {
       if (serializeOutput (element, output, idx, limit_idx)) {
         ml_loge ("Failed to process a tensor list. Output Tensor Information is not valid at index %d",
@@ -515,7 +504,7 @@ TorchCore::invoke (const GstTensorFilterProperties *prop,
 #if (DBG)
   gint64 start_time = g_get_real_time ();
 #endif
-
+  GstTensorInfo *_info;
   std::vector<torch::jit::IValue> input_feeds;
   torch::jit::IValue output_value;
   torch::Dtype type;
@@ -524,11 +513,13 @@ TorchCore::invoke (const GstTensorFilterProperties *prop,
   /** @todo Support other input types other than at::Tensor */
   for (uint i = 0; i < inputTensorMeta.num_tensors; ++i) {
     std::vector<int64_t> input_shape;
-    input_shape.assign (&inputTensorMeta.info[i].dimension[0],
-        &inputTensorMeta.info[i].dimension[0] + NNS_TENSOR_RANK_LIMIT);
 
-    if (!getTensorTypeToTorch (inputTensorMeta.info[i].type, &type)) {
-      ml_loge ("This data type is not valid: %d", inputTensorMeta.info[i].type);
+    _info = gst_tensors_info_get_nth_info (&inputTensorMeta, i);
+
+    input_shape.assign (&_info->dimension[0], &_info->dimension[0] + NNS_TENSOR_RANK_LIMIT);
+
+    if (!getTensorTypeToTorch (_info->type, &type)) {
+      ml_loge ("This data type is not valid: %d", _info->type);
       return -1;
     }
     at::TensorOptions options = torch::TensorOptions ().dtype (type);
@@ -595,9 +586,9 @@ TorchCore::fillTensorDim (torch::autograd::Variable tensor_meta, tensor_dim dim)
   /** the order of dimension is reversed at CAPS negotiation */
   std::reverse_copy (tensor_meta.sizes ().begin (), tensor_meta.sizes ().end (), dim);
 
-  /** fill the remnants with 1 */
+  /** fill the remnants with 0 */
   for (int idx = num_dim; idx < NNS_TENSOR_RANK_LIMIT; ++idx) {
-    dim[idx] = 1;
+    dim[idx] = 0;
   }
 
   return 0;

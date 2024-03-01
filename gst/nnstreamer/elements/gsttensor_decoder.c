@@ -74,7 +74,8 @@ enum
   PROP_MODE_OPTION7,
   PROP_MODE_OPTION8,
   PROP_MODE_OPTION9,
-  PROP_SUBPLUGINS
+  PROP_SUBPLUGINS,
+  PROP_CONFIG
 };
 
 /**
@@ -288,6 +289,9 @@ gst_tensordec_class_init (GstTensorDecoderClass * klass)
   GObjectClass *gobject_class;
   GstElementClass *gstelement_class;
   GstBaseTransformClass *trans_class;
+  gchar **subplugins = NULL;
+  gchar *strbuf;
+  static gchar *strprint = NULL;
 
   GST_DEBUG_CATEGORY_INIT (gst_tensordec_debug, "tensor_decoder", 0,
       "Element to convert tensor to media stream");
@@ -304,9 +308,18 @@ gst_tensordec_class_init (GstTensorDecoderClass * klass)
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output",
           DEFAULT_SILENT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  subplugins = get_all_subplugins (NNS_SUBPLUGIN_DECODER);
+  strbuf = g_strjoinv (", ", subplugins);
+  g_free (strprint);
+  strprint = g_strdup_printf
+      ("Decoder mode. Other options (option1 to optionN) depend on the specified model. For more detail on optionX for each mode, please refer to the documentation or nnstreamer-check utility. Available modes (decoder subplugins) are: {%s}.",
+      strbuf);
+
   g_object_class_install_property (gobject_class, PROP_MODE,
-      g_param_spec_string ("mode", "Mode", "Decoder mode", "",
+      g_param_spec_string ("mode", "Mode", strprint, "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_free (strbuf);
+  g_strfreev (subplugins);
 
   g_object_class_install_property (gobject_class, PROP_MODE_OPTION1,
       g_param_spec_string ("option1", "Mode option 1",
@@ -358,6 +371,11 @@ gst_tensordec_class_init (GstTensorDecoderClass * klass)
           "Registrable sub-plugins list", "",
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_CONFIG,
+      g_param_spec_string ("config-file", "Configuration-file",
+          "Path to configuraion file which contains plugins properties", "",
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
   gst_element_class_set_details_simple (gstelement_class,
       "TensorDecoder",
       "Converter/Tensor",
@@ -407,6 +425,7 @@ gst_tensordec_init (GstTensorDecoder * self)
   self->is_custom = FALSE;
   self->custom.func = NULL;
   self->custom.data = NULL;
+  self->config_path = NULL;
   for (i = 0; i < TensorDecMaxOpNum; i++)
     self->option[i] = NULL;
 
@@ -507,6 +526,13 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
       }
       break;
     }
+    case PROP_CONFIG:
+    {
+      g_free (self->config_path);
+      self->config_path = g_strdup (g_value_get_string (value));
+      gst_tensor_parse_config_file (self->config_path, object);
+      break;
+    }
       PROP_MODE_OPTION (1);
       PROP_MODE_OPTION (2);
       PROP_MODE_OPTION (3);
@@ -576,6 +602,9 @@ gst_tensordec_get_property (GObject * object, guint prop_id,
       }
       break;
     }
+    case PROP_CONFIG:
+      g_value_set_string (value, self->config_path ? self->config_path : "");
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -595,6 +624,7 @@ gst_tensordec_class_finalize (GObject * object)
 
   gst_tensor_decoder_clean_plugin (self);
 
+  g_free (self->config_path);
   for (i = 0; i < TensorDecMaxOpNum; ++i) {
     g_free (self->option[i]);
   }
@@ -680,23 +710,27 @@ gst_tensordec_transform (GstBaseTransform * trans,
     GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT];
     GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT];
     GstTensorMemory input[NNS_TENSOR_SIZE_LIMIT];
-    guint i, num_tensors;
+    guint i, num_tensors, num_mems;
 
+    num_mems = gst_tensor_buffer_get_count (inbuf);
     if (gst_tensors_config_is_flexible (&self->tensor_config)) {
-      self->tensor_config.info.num_tensors = gst_buffer_n_memory (inbuf);
+      self->tensor_config.info.num_tensors = num_mems;
     }
     num_tensors = self->tensor_config.info.num_tensors;
     /** Internal logic error. Negotation process should prevent this! */
-    g_assert (gst_buffer_n_memory (inbuf) == num_tensors);
+    g_assert (num_mems == num_tensors);
 
     for (i = 0; i < num_tensors; i++) {
-      in_mem[i] = gst_buffer_peek_memory (inbuf, i);
+      in_mem[i] = gst_tensor_buffer_get_nth_memory (inbuf, i);
       if (!gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
         guint j;
         ml_logf ("Failed to map in_mem[%u].\n", i);
 
-        for (j = 0; j < i; j++)
+        for (j = 0; j < i; j++) {
           gst_memory_unmap (in_mem[j], &in_info[j]);
+          gst_memory_unref (in_mem[j]);
+        }
+        gst_memory_unref (in_mem[i]);
         return GST_FLOW_ERROR;
       }
 
@@ -714,8 +748,10 @@ gst_tensordec_transform (GstBaseTransform * trans,
       res = GST_FLOW_ERROR;
     }
 
-    for (i = 0; i < num_tensors; i++)
+    for (i = 0; i < num_tensors; i++) {
       gst_memory_unmap (in_mem[i], &in_info[i]);
+      gst_memory_unref (in_mem[i]);
+    }
   } else {
     GST_ERROR_OBJECT (self, "Decoder plugin not yet configured.");
     goto unknown_type;

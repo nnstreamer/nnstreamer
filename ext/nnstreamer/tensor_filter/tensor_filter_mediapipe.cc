@@ -19,7 +19,7 @@
 #include <string>
 
 #include <nnstreamer_cppplugin_api_filter.hh>
-#include <tensor_common.h>
+#include <nnstreamer_plugin_api_util.h>
 
 #include <mediapipe/framework/calculator_framework.h>
 #include <mediapipe/framework/formats/image_frame.h>
@@ -112,11 +112,14 @@ mediapipe_subplugin::mediapipe_subplugin ()
 mediapipe_subplugin::~mediapipe_subplugin ()
 {
   mediapipe::Status status;
+  GstTensorInfo *_info;
 
   g_free (config_path);
 
   for (unsigned int i = 0; i < inputInfo.num_tensors; i++) {
-    status = graph.CloseInputStream (inputInfo.info[i].name);
+    _info = gst_tensors_info_get_nth_info (&inputInfo, i);
+
+    status = graph.CloseInputStream (_info->name);
     if (!status.ok ()) {
       std::cerr << "Failed to close input stream" << std::endl;
     }
@@ -240,36 +243,38 @@ mediapipe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *outp
 #if (DBG)
   gint64 start_time = g_get_real_time ();
 #endif
-  int input_width = inputInfo.info[0].dimension[1];
-  int input_height = inputInfo.info[0].dimension[2];
-  int input_channels = inputInfo.info[0].dimension[0];
+  GstTensorInfo *in_info = gst_tensors_info_get_nth_info (&inputInfo, 0U);
+  GstTensorInfo *out_info = gst_tensors_info_get_nth_info (&outputInfo, 0U);
+  int input_width = in_info->dimension[1];
+  int input_height = in_info->dimension[2];
+  int input_channels = in_info->dimension[0];
   int input_widthStep = input_width * input_channels;
   mediapipe::Status status;
 
   /* TODO to make it better, start the graph at init or previous step */
   mediapipe::OutputStreamPoller poller
-      = graph.AddOutputStreamPoller (outputInfo.info[0].name).ValueOrDie ();
+      = graph.AddOutputStreamPoller (out_info->name).ValueOrDie ();
   status = graph.StartRun ({});
   if (!status.ok ()) {
     std::cerr << "Fail to start mediapipe graph" << std::endl;
     throw std::runtime_error ("Fail to start mediapipe graph");
   }
 
-  // Wrap Mat into an ImageFrame.
+  /* Wrap Mat into an ImageFrame. */
   auto input_frame = absl::make_unique<mediapipe::ImageFrame> (
       mediapipe::ImageFormat::SRGB, input_width, input_height, input_widthStep,
       (uint8_t *) input->data, inputPtrDeleter /* do nothing */
   );
 
-  // Send image packet
-  status = graph.AddPacketToInputStream (inputInfo.info[0].name,
+  /* Send image packet. */
+  status = graph.AddPacketToInputStream (in_info->name,
       mediapipe::Adopt (input_frame.release ()).At (mediapipe::Timestamp (frame_timestamp++)));
   if (!status.ok ()) {
     std::cerr << "Failed to add input packet" << std::endl;
     throw std::runtime_error ("Failed to add input packet");
   }
 
-  // Get the graph result packet, or stop if that fails.
+  /* Get the graph result packet, or stop if that fails. */
   mediapipe::Packet packet;
   if (!poller.Next (&packet)) {
     std::cerr << "Failed to get output packet from mediapipe graph" << std::endl;
@@ -369,5 +374,5 @@ _fini_filter_mediapipe ()
   mediapipe_subplugin::fini_filter_mediapipe ();
 }
 
-} // namespace tensorfilter_mediapipe
+} /* namespace tensorfilter_mediapipe */
 } /* namespace nnstreamer */

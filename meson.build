@@ -2,14 +2,14 @@
 # If you are using Tizen 5.0+ or Ubuntu/Bionix+, you don't need to mind meson version.
 
 project('nnstreamer', 'c', 'cpp',
-  version: '2.3.0',
+  version: '2.4.1',
   license: ['LGPL-2.1'],
   meson_version: '>=0.50.0',
   default_options: [
     'werror=true',
     'warning_level=2',
     'c_std=gnu89',
-    'cpp_std=c++14'
+    'cpp_std=c++17'
   ]
 )
 
@@ -57,6 +57,10 @@ warning_flags = [
   '-Wvla',
   '-Wpointer-arith'
 ]
+if cxx.get_id() == 'clang'
+  # For the usage of GstTensorFilterFramework in tensor_filter_support_cc.cc
+  warning_flags += '-Wno-c99-designator'
+endif
 
 warning_c_flags = [
   '-Wmissing-declarations',
@@ -145,7 +149,6 @@ gst_video_dep = dependency('gstreamer-video-' + gst_api_verision)
 gst_audio_dep = dependency('gstreamer-audio-' + gst_api_verision)
 gst_app_dep = dependency('gstreamer-app-' + gst_api_verision)
 gst_check_dep = dependency('gstreamer-check-' + gst_api_verision)
-json_glib_dep = dependency('json-glib-1.0')
 
 libm_dep = cc.find_library('m') # cmath library
 libdl_dep = cc.find_library('dl') # DL library
@@ -158,21 +161,33 @@ protobuf_dep = dependency('protobuf', version: '>= 3.6.1', required: false)
 flatc = find_program('flatc', required : get_option('flatbuf-support'))
 flatbuf_dep = disabler()
 flatbuf_version_check_dep = disabler()
+flatc_dep = disabler()
 if flatc.found()
   # TODO: After bumping up meson version to 0.62.0, we can use flatc.version()
   # Please refer https://mesonbuild.com/Reference-manual_returned_external_program.html#external_programversion
   flatc_ver = run_command(flatc, '--version', check : true).stdout().split()[2]
   flatbuf_dep = dependency('flatbuffers', version: flatc_ver,
-      required : get_option('flatbuf-support'))
+      required : get_option('flatbuf-support'),
+      not_found_message : 'flatbuffers version '+flatc_ver+' is required because flatc (flatbuf-compiler) '+flatc_ver+' is installed'
+      )
   flatbuf_version_check_dep = dependency('flatbuffers', version: '>=2.0.0',
       required : get_option('flatbuf-support'))
+  flatc_dep = declare_dependency()
 endif
 
 # Protobuf compiler
 pb_comp = find_program('protoc', required: get_option('protobuf-support'))
+pb_comp_dep = disabler()
+if (pb_comp.found())
+  pb_comp_dep = declare_dependency()
+endif
 
 #orc
 pg_orcc = find_program('orcc', required: get_option('orcc-support'))
+pg_orcc_dep = disabler()
+if (pg_orcc.found())
+  pg_orcc_dep = declare_dependency()
+endif
 orc_dep = dependency('orc-0.4', version: '>= 0.4.17', required: get_option('orcc-support'))
 
 ## nnfw
@@ -186,6 +201,7 @@ endif
 
 # snpe
 snpe_dep = dependency('', required: false)
+snpe_api_version = 0 # Check whether the snpe api version is 1 or 2
 if not get_option('snpe-support').disabled()
   # Check whether the platform supports snpe
   snpe_dep = dependency('snpe', required: false)
@@ -206,18 +222,45 @@ if not get_option('snpe-support').disabled()
           error('@0@ does not exists'.format(SNPE_ROOT))
         endif
 
-        snpe_lib = cxx.find_library('libSNPE',
+        snpe_lib = cxx.find_library('SNPE',
           dirs: join_paths(SNPE_ROOT, 'lib', 'x86_64-linux-clang'),
           required: true
         )
 
-        snpe_incdir = include_directories(join_paths(SNPE_ROOT, 'include', 'zdl'))
+        # SNPE 1 and 2 has different include paths
+        # Use this to check which version of snpe is provided
+        snpe_include_path = ''
+        snpe_1_include_path = join_paths(SNPE_ROOT, 'include', 'zdl')
+        if run_command('[', '-d', snpe_1_include_path, ']', check : false).returncode() == 0
+          snpe_api_version = 1
+          snpe_include_path = snpe_1_include_path
+        endif
+
+        snpe_2_include_path = join_paths(SNPE_ROOT, 'include', 'SNPE')
+        if run_command('[', '-d', snpe_2_include_path, ']', check : false).returncode() == 0
+          snpe_api_version = 2
+          snpe_include_path = snpe_2_include_path
+        endif
+
+        if snpe_include_path == ''
+          error('SNPE header files are not found in your $SNPE_ROOT path')
+        endif
+
+        snpe_incdir = include_directories(snpe_include_path)
 
         snpe_dep = declare_dependency(
           dependencies: snpe_lib,
           include_directories: snpe_incdir
         )
+      else
+        message('If you want to build SNPE tensor_filter, provide $SNPE_ROOT as the path of SNPE SDK')
       endif
+    endif
+  else # snpe found via pkg-config or cmake
+    if snpe_dep.version().version_compare('>=2.0')
+      snpe_api_version = 2
+    else
+      snpe_api_version = 1
     endif
   endif
 endif
@@ -326,6 +369,38 @@ if not get_option('mxnet-support').disabled()
   endif
 endif
 
+# ncnn
+ncnn_dep = dependency('', required: false)
+if not get_option('ncnn-support').disabled()
+  ncnn_dep = dependency('ncnn', required: false)
+  if (not ncnn_dep.found())
+    ncnn_lib = cxx.find_library('ncnn', required: false)
+    if (ncnn_lib.found() and cxx.check_header('ncnn/net.h'))
+      ncnn_dep = declare_dependency(dependencies: [ ncnn_lib ])
+    endif
+  endif
+endif
+
+# datarepo requires json-glib-1.0 in the name of json_glib_dep
+json_glib_dep = dependency('json-glib-1.0', required: false)
+if get_option('datarepo-support').enabled() and not json_glib_dep.found()
+  error('json-glib-1.0 is required for datarepo-support option.')
+endif
+if not get_option('datarepo-support').disabled() and not json_glib_dep.found()
+  message('datarepo-support is off because json-glib-1.0 is not available.')
+endif
+
+# ml-agent
+ml_agent_dep = dependency('', required: false)
+if not get_option('ml-agent-support').disabled()
+  ml_agent_dep = dependency('ml-agent', required: false)
+  if not ml_agent_dep.found()
+    if cc.check_header('ml-agent/ml-agent-interface.h', dependencies: [glib_dep], required: get_option('ml-agent-support'))
+      ml_agent_dep = cc.find_library('ml-agent', required: true)
+    endif
+  endif
+endif
+
 # features registration to be controlled
 #
 # register feature as follows
@@ -354,7 +429,7 @@ features = {
   },
   'pytorch-support': {
     'target': 'pytorch',
-    'target_alt': 'Torch',
+    'target_alt': 'torch',
     'project_args': { 'ENABLE_PYTORCH': 1 }
   },
   'caffe2-support': {
@@ -378,21 +453,21 @@ features = {
     'project_args': { 'ENABLE_ARMNN': 1 }
   },
   'orcc-support': {
-    'extra_deps': [ orc_dep, pg_orcc ],
+    'extra_deps': [ orc_dep, pg_orcc_dep ],
     'project_args': {'HAVE_ORC': 1},
     'project_args_disabled': { 'DISABLE_ORC': 1 },
     'extra_args': {'orcc_args': [pg_orcc, '--include', 'glib.h'] }
   },
   'snpe-support': {
     'extra_deps': [ snpe_dep ],
-    'project_args': { 'ENABLE_SNPE' : 1 },
+    'project_args': { 'ENABLE_SNPE' : 1, 'SNPE_VERSION_MAJOR' : snpe_api_version },
   },
   'flatbuf-support': {
-    'extra_deps': [ flatc, flatbuf_dep, flatbuf_version_check_dep ],
+    'extra_deps': [ flatc_dep, flatbuf_dep, flatbuf_version_check_dep ],
     'project_args': { 'ENABLE_FLATBUF': 1 }
   },
   'protobuf-support': {
-    'extra_deps': [ pb_comp, protobuf_dep ],
+    'extra_deps': [ pb_comp_dep, protobuf_dep ],
     'project_args': { 'ENABLE_PROTOBUF': 1 }
   },
   'tensorrt-support': {
@@ -428,6 +503,21 @@ features = {
   'mxnet-support': {
     'extra_deps': [ mxnet_dep ],
     'project_args': { 'ENABLE_MXNET' : 1 }
+  },
+  'ncnn-support': {
+    'extra_deps': [ ncnn_dep ],
+    'project_args': { 'ENABLE_NCNN' : 1 }
+  },
+  'datarepo-support': {
+    'extra_deps': [ json_glib_dep ],
+  },
+  'ml-agent-support': {
+    'extra_deps': [ ml_agent_dep ],
+    'project_args': { 'ENABLE_ML_AGENT' : 1 }
+  },
+  'onnxruntime-support': {
+    'target': 'libonnxruntime',
+    'project_args': { 'ENABLE_ONNXRUNTIME': 1 }
   }
 }
 
@@ -711,6 +801,13 @@ if get_option('enable-test')
   testenv.set('NNSTREAMER_TRAINERS', path_nns_plugin_trainers)
   testenv.set('NNSTREAMER_SOURCE_ROOT_PATH', meson.source_root())
   testenv.set('NNSTREAMER_BUILD_ROOT_PATH', meson.build_root())
+  if have_python3
+    py3_module_path = join_paths(meson.current_build_dir(), 'ext/nnstreamer/extra')
+    run_command('ln', '-sf',
+        py3_module_path + '/nnstreamer_python3.' + so_ext,
+        py3_module_path + '/nnstreamer_python.' + so_ext, check : true)
+    testenv.set('PYTHONPATH', py3_module_path)
+  endif
 
   subdir('tests')
 endif

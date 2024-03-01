@@ -82,11 +82,19 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} !
 python3 checkLabel.py tensorfilter.out.log ${PATH_TO_LABEL} orange
 testResult $? 1 "Golden test comparison" 0 1
 
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter config-file=config_file_golden.0 ! filesink location=tensorfilter.out.log" 1 0 0 $PERFORMANCE
+python3 checkLabel.py tensorfilter.out.log ${PATH_TO_LABEL} orange
+testResult $? 1 "Golden test comparison(with config_file_golden.0)" 0 1
+
 # Fail test for invalid input properties
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter framework=tensorflow2-lite model=${PATH_TO_MODEL} input=7:1 inputtype=float32 ! filesink location=tensorfilter.out.log" 2F_n 0 1 $PERFORMANCE
 
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter config-file=config_file_golden.1 ! filesink location=tensorfilter.out.log" "2FConfig_n" 0 1 $PERFORMANCE
+
 # Fail test for invalid output properties
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter framework=tensorflow2-lite model=${PATH_TO_MODEL} output=1:7 outputtype=int8 ! filesink location=tensorfilter.out.log" 3F_n 0 1 $PERFORMANCE
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter model=${PATH_TO_MODEL} config-file=config_file_golden.2 ! filesink location=tensorfilter.out.log" "3FConfig_n" 0 1 $PERFORMANCE
 
 PATH_TO_MULTI_TENSOR_OUTPUT_MODEL="../test_models/models/multi_person_mobilenet_v1_075_float.tflite"
 
@@ -198,15 +206,15 @@ cat info | grep "accl = ${auto_accl}$"
 testResult $? 2-17 "accelerator set test" 0 1
 
 # Dimension declaration test cases
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter framework=tensorflow2-lite model=${PATH_TO_MODEL} ! \"other/tensors,num_tensors=1,dimensions=1001:1:1\" !filesink location=tensorfilter.out.log" 3 0 0 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter framework=tensorflow2-lite model=${PATH_TO_MODEL} ! \"other/tensors,num_tensors=1,dimensions=1001:1:1\" ! filesink location=tensorfilter.out.log" 3 0 0 $PERFORMANCE
 python3 checkLabel.py tensorfilter.out.log ${PATH_TO_LABEL} orange
 testResult $? 3 "Golden test comparison" 0 1
 
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter framework=tensorflow2-lite model=${PATH_TO_MODEL} ! \"other/tensors,num_tensors=1,dimensions=(string)1001:1\" !filesink location=tensorfilter.out.log" 4 0 0 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter framework=tensorflow2-lite model=${PATH_TO_MODEL} ! \"other/tensors,num_tensors=1,dimensions=(string)1001:1\" ! filesink location=tensorfilter.out.log" 4 0 0 $PERFORMANCE
 python3 checkLabel.py tensorfilter.out.log ${PATH_TO_LABEL} orange
 testResult $? 4 "Golden test comparison" 0 1
 
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter framework=tensorflow2-lite model=${PATH_TO_MODEL} ! \"other/tensors,num_tensors=1,dimensions=(string)1001\" !filesink location=tensorfilter.out.log" 5 0 0 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,framerate=0/1 ! tensor_converter ! tensor_filter framework=tensorflow2-lite model=${PATH_TO_MODEL} ! \"other/tensors,num_tensors=1,dimensions=(string)1001\" ! filesink location=tensorfilter.out.log" 5 0 0 $PERFORMANCE
 python3 checkLabel.py tensorfilter.out.log ${PATH_TO_LABEL} orange
 testResult $? 5 "Golden test comparison" 0 1
 
@@ -233,6 +241,9 @@ PATH_TO_MODEL="../test_models/models/sample_4x4x4x4x4_two_input_one_output.tflit
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"test_00.dat\" blocksize=-1 num_buffers=2 ! application/octet-stream ! tensor_converter input-dim=4:4:4:4:4 input-type=float32 ! tee name=t t. ! queue ! mux.sink_0 t. ! queue ! mux.sink_1  tensor_mux name=mux sync_mode=nosync ! queue ! tensor_filter framework=tensorflow2-lite model=${PATH_TO_MODEL} ! multifilesink location=tensorfilter.out.log" 6 0 0 $PERFORMANCE
 callCompareTest test_00.dat.golden tensorfilter.out.log 6 "Compare 6" 1 0
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=\"test_00.dat\" blocksize=-1 num_buffers=2 ! application/octet-stream ! tensor_converter input-dim=4:4:4:4:4 input-type=float32 ! tee name=t t. ! queue ! mux.sink_0 t. ! queue ! mux.sink_1  tensor_mux name=mux sync_mode=nosync ! queue ! tensor_filter config-file=config_file.0 ! multifilesink location=tensorfilter.out.log" "6(with config_file.0)" 0 0 $PERFORMANCE
+callCompareTest test_00.dat.golden tensorfilter.out.log 6 "Compare 6 (with config_file.0)" 1 0
 
 # Cleanup
 rm info *.log *.dat *.golden

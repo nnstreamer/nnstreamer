@@ -119,7 +119,7 @@ g_tensor_filter_single_init (GTensorFilterSingle * self)
 
   self->priv = g_type_instance_get_private ((GTypeInstance *) self,
       G_TYPE_TENSOR_FILTER_SINGLE);
-  spriv = (GTensorFilterSinglePrivate *) self->priv;
+  spriv = G_TENSOR_FILTER_SINGLE_PRIV (self);
   priv = &spriv->filter_priv;
 
   gst_tensor_filter_common_init_property (priv);
@@ -324,7 +324,7 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
   GTensorFilterSinglePrivate *spriv;
   GstTensorFilterPrivate *priv;
   GstTensorMemory *_out;
-  GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT] = { {0} };
+  GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT] = { {0} }; /** @todo refactor this local variable */
   guint i;
   gint status;
 
@@ -424,6 +424,9 @@ g_tensor_filter_set_input_info (GTensorFilterSingle * self,
   }
 
   if (status == 0) {
+    gst_tensors_info_free (&priv->prop.input_meta);
+    gst_tensors_info_free (&priv->prop.output_meta);
+
     gst_tensors_info_copy (&priv->prop.input_meta, in_info);
     gst_tensors_info_copy (&priv->prop.output_meta, out_info);
   }

@@ -175,7 +175,9 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
 videotestsrc num-buffers=1 ! \
     video/x-raw,format=RGB,width=10,height=10,framerate=0/1 ! videoconvert ! \
     tensor_converter ! tensor_filter framework=lua \
-    model=\"${MAKE_SAMPLE_TENSORS_SCRIPT}\" ! tensor_sparse_enc ! filesink location=./sample1.sparse" 4 0 0 $PERFORMANCE
+    model=\"${MAKE_SAMPLE_TENSORS_SCRIPT}\" ! \
+    other/tensors,num_tensors=1,framerate=0/1,dimensions=1:3:4:1,types=uint8 ! \
+    tensor_sparse_enc ! filesink location=./sample1.sparse" 4 0 0 $PERFORMANCE
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
 filesrc location=sample1.sparse ! \

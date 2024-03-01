@@ -186,7 +186,7 @@ MQTTAsync_unsubscribe (MQTTAsync handle, const char *topic, MQTTAsync_responseOp
 /**
  * @brief A helper function to fill the timestamp information into the header
  */
-void
+static void
 _set_ts_gst_mqtt_message_hdr (GstElement *elm, GstMQTTMessageHdr *hdr,
     const GstClockTimeDiff diff_sent, const GstClockTime duration)
 {

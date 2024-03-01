@@ -33,6 +33,8 @@
 void init_filter_custom_easy (void) __attribute__((constructor));
 void fini_filter_custom_easy (void) __attribute__((destructor));
 
+const char *fw_name = "custom-easy";
+
 /**
  * @brief internal_data
  */
@@ -42,6 +44,7 @@ typedef struct _internal_data
   GstTensorsInfo in_info;
   GstTensorsInfo out_info;
   void *data; /**< The easy-filter writer's data */
+  NNS_custom_invoke_dynamic func_dynamic;
 } internal_data;
 
 /**
@@ -100,6 +103,39 @@ NNS_custom_easy_register (const char *modelname,
   return -EINVAL;
 }
 
+
+/**
+ * @brief Register the custom-easy tensor function. More info in .h
+ * @return 0 if success. -ERRNO if error.
+ */
+int
+NNS_custom_easy_dynamic_register (const char *modelname,
+    NNS_custom_invoke_dynamic func, void *data, const GstTensorsInfo * in_info)
+{
+  internal_data *ptr;
+
+  if (!func || !in_info)
+    return -EINVAL;
+
+  if (!gst_tensors_info_validate (in_info))
+    return -EINVAL;
+
+  ptr = g_new0 (internal_data, 1);
+
+  if (!ptr)
+    return -ENOMEM;
+
+  ptr->func_dynamic = func;
+  ptr->data = data;
+  gst_tensors_info_copy (&ptr->in_info, in_info);
+
+  if (register_subplugin (NNS_EASY_CUSTOM_FILTER, modelname, ptr))
+    return 0;
+
+  custom_free_internal_data (ptr);
+  return -EINVAL;
+}
+
 /**
  * @brief Unregister the custom-easy tensor function.
  * @return 0 if success. -EINVAL if invalid model name.
@@ -142,19 +178,38 @@ custom_open (const GstTensorFilterProperties * prop, void **private_data)
     goto errorreturn;
   }
 
-  if (NULL == rd->model->func) {
+  if (NULL == rd->model->func && NULL == rd->model->func_dynamic) {
     ml_logf
         ("A custom-easy filter, \"%s\", should provide invoke function body, 'func'. A null-ptr is supplied instead.\n",
         prop->model_files[0]);
     goto errorreturn;
   }
+
+  if (!prop->invoke_dynamic && rd->model->func_dynamic) {
+    ml_loge
+        ("Not matched easy-custom model, \"%s\". "
+        "Dynamic invoke option is disabled but you registered dynamic invoke function. "
+        "You should register model using NNS_custom_easy_register.",
+        prop->model_files[0]);
+    goto errorreturn;
+  }
+
+  if (prop->invoke_dynamic && rd->model->func) {
+    ml_loge
+        ("Not matched easy-custom model, \"%s\". "
+        "If want to use dynamic invoke, register model using NNS_custom_easy_dynamic_register.",
+        prop->model_files[0]);
+    goto errorreturn;
+  }
+
   if (!gst_tensors_info_validate (&rd->model->in_info)) {
     ml_logf
         ("A custom-easy filter, \"%s\", should provide input stream metadata, 'in_info'.\n",
         prop->model_files[0]);
     goto errorreturn;
   }
-  if (!gst_tensors_info_validate (&rd->model->out_info)) {
+
+  if (rd->model->func && !gst_tensors_info_validate (&rd->model->out_info)) {
     ml_logf
         ("A custom-easy filter, \"%s\", should provide output stream metadata, 'out_info'.\n",
         prop->model_files[0]);
@@ -171,51 +226,6 @@ errorreturn:
 /**
  * @brief Callback required by tensor_filter subplugin
  */
-static int
-custom_invoke (const GstTensorFilterProperties * prop,
-    void **private_data, const GstTensorMemory * input,
-    GstTensorMemory * output)
-{
-  runtime_data *rd = *private_data;
-  /* Internal Logic Error */
-  g_assert (rd && rd->model && rd->model->func);
-
-  return rd->model->func (rd->model->data, prop, input, output);
-}
-
-/**
- * @brief Callback required by tensor_filter subplugin
- */
-static int
-custom_getInputDim (const GstTensorFilterProperties * prop, void **private_data,
-    GstTensorsInfo * info)
-{
-  runtime_data *rd = *private_data;
-  UNUSED (prop);
-  /* Internal Logic Error */
-  g_assert (rd && rd->model);
-  gst_tensors_info_copy (info, &rd->model->in_info);
-  return 0;
-}
-
-/**
- * @brief Callback required by tensor_filter subplugin
- */
-static int
-custom_getOutputDim (const GstTensorFilterProperties * prop,
-    void **private_data, GstTensorsInfo * info)
-{
-  runtime_data *rd = *private_data;
-  UNUSED (prop);
-  /* Internal Logic Error */
-  g_assert (rd && rd->model);
-  gst_tensors_info_copy (info, &rd->model->out_info);
-  return 0;
-}
-
-/**
- * @brief Callback required by tensor_filter subplugin
- */
 static void
 custom_close (const GstTensorFilterProperties * prop, void **private_data)
 {
@@ -225,21 +235,109 @@ custom_close (const GstTensorFilterProperties * prop, void **private_data)
   *private_data = NULL;
 }
 
-static char name_str[] = "custom-easy";
-static GstTensorFilterFramework NNS_support_custom_easy = {
-  .version = GST_TENSOR_FILTER_FRAMEWORK_V0,
-  .name = name_str,
-  .allow_in_place = FALSE,      /* custom cannot support in-place. */
-  .allocate_in_invoke = FALSE,  /* we allocate output buffers for you. */
-  .run_without_model = FALSE,   /* we need a func to run. */
-  .invoke_NN = custom_invoke,
 
-  .getInputDimension = custom_getInputDim,
-  .getOutputDimension = custom_getOutputDim,
-  .setInputDimension = NULL,    /* NYI: we don't support flexible dim, yet */
+/**
+ * @brief Callback required by tensor_filter subplugin
+ */
+static int
+custom_invoke (const GstTensorFilterFramework * self,
+    GstTensorFilterProperties * prop, void *private_data,
+    const GstTensorMemory * input, GstTensorMemory * output)
+{
+  int ret = 0;
+  runtime_data *rd = (runtime_data *) private_data;
+  UNUSED (self);
+
+  /* Internal Logic Error */
+  g_assert (rd && rd->model);
+
+  if (!prop->invoke_dynamic) {
+    if (!rd->model->func) {
+      ml_loge
+          ("Custom filter function is not registered. Register the function using `NNS_custom_easy_register`.");
+      return -1;
+    }
+    return rd->model->func (rd->model->data, prop, input, output);
+  } else {
+    if (!rd->model->func_dynamic) {
+      ml_loge
+          ("Dynamic invoke is enabled but dynamic custom filter function is not registered. Register the function using `NNS_custom_easy_dynamic_register`.");
+      return -1;
+    }
+    return rd->model->func_dynamic (rd->model->data, &prop->input_meta,
+        &prop->output_meta, input, output);
+  }
+
+  return ret;
+}
+
+/**
+ * @brief V1 tensor-filter wrapper callback function, "getFrameworkInfo"
+ */
+static int
+custom_getFrameworkInfo (const GstTensorFilterFramework * self,
+    const GstTensorFilterProperties * prop, void *private_data,
+    GstTensorFilterFrameworkInfo * fw_info)
+{
+  UNUSED (self);
+  UNUSED (prop);
+  UNUSED (private_data);
+  fw_info->name = fw_name;
+  fw_info->allow_in_place = 0;
+  fw_info->allocate_in_invoke = 0;
+  fw_info->run_without_model = 1;
+  fw_info->verify_model_path = 0;
+  fw_info->hw_list = NULL;
+  fw_info->num_hw = 0;
+
+  return 0;
+}
+
+/**
+ * @brief C V1 tensor-filter wrapper callback function, "getModelInfo"
+ */
+static int
+custom_getModelInfo (const GstTensorFilterFramework * self,
+    const GstTensorFilterProperties * prop, void *private_data,
+    model_info_ops ops, GstTensorsInfo * in_info, GstTensorsInfo * out_info)
+{
+  runtime_data *rd = private_data;
+  UNUSED (self);
+  UNUSED (prop);
+  UNUSED (ops);
+
+  gst_tensors_info_copy (in_info, &rd->model->in_info);
+  gst_tensors_info_copy (out_info, &rd->model->out_info);
+
+  return 0;
+}
+
+/**
+ * @brief C V1 tensor-filter wrapper callback function, "eventHandler"
+ */
+static int
+custom_eventHandler (const GstTensorFilterFramework * self,
+    const GstTensorFilterProperties * prop, void *private_data, event_ops ops,
+    GstTensorFilterFrameworkEventData * data)
+{
+  UNUSED (self);
+  UNUSED (private_data);
+  UNUSED (ops);
+  UNUSED (data);
+  UNUSED (prop);
+
+  return 0;
+}
+
+static GstTensorFilterFramework NNS_support_custom_easy = {
+  .version = GST_TENSOR_FILTER_FRAMEWORK_V1,
   .open = custom_open,
   .close = custom_close,
-  .destroyNotify = NULL,        /* No need. We don't support "allocate_in_invoke." */
+  .invoke = custom_invoke,
+  .getFrameworkInfo = custom_getFrameworkInfo,
+  .getModelInfo = custom_getModelInfo,
+  .eventHandler = custom_eventHandler,
+  .subplugin_data = NULL,
 };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */

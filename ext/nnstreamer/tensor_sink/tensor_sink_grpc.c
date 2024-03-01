@@ -240,6 +240,7 @@ gst_tensor_sink_grpc_finalize (GObject * gobject)
 
   g_free (grpc->config.host);
   g_free (grpc);
+  gst_tensors_config_free (&self->config);
 
   G_OBJECT_CLASS (parent_class)->finalize (gobject);
 }

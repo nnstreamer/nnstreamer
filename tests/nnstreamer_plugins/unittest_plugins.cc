@@ -26,7 +26,7 @@
 #include "../gst/nnstreamer/elements/gsttensor_transform.h"
 #include "../unittest_util.h"
 
-#ifdef ENABLE_TENSORFLOW_LITE
+#if defined(ENABLE_TENSORFLOW_LITE) || defined(ENABLE_TENSORFLOW2_LITE)
 #define TEST_REQUIRE_TFLITE(Case, Name) TEST (Case, Name)
 #else
 #define TEST_REQUIRE_TFLITE(Case, Name) TEST (Case, DISABLED_##Name)
@@ -295,8 +295,8 @@ TEST (testTensorTransform, dimchgProperties0_n)
   h = gst_harness_new ("tensor_transform");
   ASSERT_TRUE (NULL != h);
 
-  /* It should be in the form of ^([0-3]):([0-3]) */
-  g_object_set (h->element, "mode", GTT_DIMCHG, "option", "10:11", NULL);
+  /* It should be in the form of ^([0-9]|1[0-5]):([0-9]|1[0-5]) */
+  g_object_set (h->element, "mode", GTT_DIMCHG, "option", "20:21", NULL);
 
   g_object_get (h->element, "option", &str, NULL);
   EXPECT_TRUE (str == NULL);
@@ -315,7 +315,7 @@ TEST (testTensorTransform, dimchgProperties1_n)
   h = gst_harness_new ("tensor_transform");
   ASSERT_TRUE (NULL != h);
 
-  /* It should be in the form of ^([0-3]):([0-3]) */
+  /* It should be in the form of ^([0-9]|1[0-5]):([0-9]|1[0-5]) */
   g_object_set (h->element, "mode", GTT_DIMCHG, "option", "1,2", NULL);
 
   g_object_get (h->element, "option", &str, NULL);
@@ -355,7 +355,7 @@ TEST (testTensorTransform, dimchgProperties3_n)
   h = gst_harness_new ("tensor_transform");
   ASSERT_TRUE (NULL != h);
 
-  /* It should be in the form of ^([0-3]):([0-3]) */
+  /* It should be in the form of ^([0-9]|1[0-5]):([0-9]|1[0-5]) */
   g_object_set (h->element, "mode", GTT_DIMCHG, "option", "0:2,1:3", NULL);
 
   g_object_get (h->element, "option", &str, NULL);
@@ -2122,7 +2122,6 @@ TEST (testTensorTransform, arithmeticFlexTensor)
     gst_tensor_meta_info_parse_header (&meta, map.data);
     EXPECT_EQ (meta.type, _NNS_FLOAT32);
     EXPECT_EQ (meta.dimension[0], 5U);
-    EXPECT_EQ (meta.dimension[1], 1U);
 
     hsize = gst_tensor_meta_info_get_header_size (&meta);
     ASSERT_EQ (gst_buffer_get_size (out_buf), data_out_size + hsize);
@@ -3233,6 +3232,8 @@ TEST (testTensorConverter, bytesToMultiInvalidType03_n)
   EXPECT_DEATH (gst_harness_push (h, in_buf), "");
 
   EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  gst_buffer_unref (in_buf);
   gst_harness_teardown (h);
 }
 
@@ -3273,6 +3274,8 @@ TEST (testTensorConverter, bytesToMultiInvalidSize_n)
   EXPECT_DEATH (gst_harness_push (h, in_buf), "");
 
   EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  gst_buffer_unref (in_buf);
   gst_harness_teardown (h);
 }
 
@@ -3423,7 +3426,7 @@ TEST (testTensorConverter, bytesToFlex)
 
     EXPECT_EQ (meta.type, _NNS_UINT8);
     EXPECT_EQ (meta.dimension[0], data_size);
-    EXPECT_EQ (meta.dimension[1], 1U);
+    EXPECT_LE (meta.dimension[1], 1U);
     EXPECT_EQ ((media_type) meta.media_type, _NNS_OCTET);
 
     data_size = gst_tensor_meta_info_get_header_size (&meta);
@@ -5125,6 +5128,66 @@ error:
 #endif /* HAVE_ORC */
 
 /**
+ * @brief caps negotiation with tensor-filter.
+ */
+TEST_REQUIRE_TFLITE (testTensorTransform, negotiationFilter)
+{
+  GstHarness *h;
+  GstBuffer *in_buf, *out_buf;
+  gsize in_size, out_size;
+  GstTensorsConfig config;
+
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  g_autofree gchar *test_model = g_build_filename (root_path, "tests",
+      "test_models", "models", "mobilenet_v1_1.0_224_quant.tflite", NULL);
+  ASSERT_TRUE (g_file_test (test_model, G_FILE_TEST_EXISTS));
+
+  /**
+   * tensor-filter information
+   * input type uint8 dimension 3:224:224:1
+   * output type uint8 dimension 1001:1
+   */
+  g_autofree gchar *pipeline = g_strdup_printf (
+      "tensor_transform mode=typecast option=uint8 ! tensor_filter framework=tensorflow-lite model=%s ! "
+      "other/tensors,num_tensors=1,dimensions=(string)\"1001:1:1:1:1\" ! "
+      "tensor_transform mode=typecast option=int8",
+      test_model);
+
+  h = gst_harness_new_parse (pipeline);
+  ASSERT_TRUE (h != NULL);
+
+  /* input tensor info */
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1U;
+  config.info.info[0].type = _NNS_UINT32;
+  gst_tensor_parse_dimension ("3:224:224", config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+
+  /* push buffer (dummy input RGB 224x224, output 1001) */
+  in_size = gst_tensors_info_get_size (&config.info, 0);
+  out_size = 1001;
+
+  in_buf = gst_harness_create_buffer (h, in_size);
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+  /* get output buffer */
+  out_buf = gst_harness_pull (h);
+  EXPECT_EQ (gst_buffer_n_memory (out_buf), 1U);
+  EXPECT_EQ (gst_buffer_get_size (out_buf), out_size);
+  gst_buffer_unref (out_buf);
+
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Test to re-open tf-lite model file in tensor-filter.
  */
 TEST_REQUIRE_TFLITE (testTensorFilter, reopenTFlite01)
@@ -5938,7 +6001,8 @@ TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoNoFwNoPermission_n)
   gst_object_unref (gstpipe);
 }
 
-#if !defined(ENABLE_TENSORFLOW_LITE) && defined(ENABLE_NNFW_RUNTIME)
+#if !defined(ENABLE_TENSORFLOW_LITE) && !defined(ENABLE_TENSORFLOW2_LITE) \
+    && defined(ENABLE_NNFW_RUNTIME)
 /**
  * @brief Test framework auto detecion option in tensor-filter.
  * @details Check if nnfw (second priority) is detected automatically
@@ -6423,21 +6487,21 @@ TEST_REQUIRE_TFLITE (testTensorFilter, propertyRank02)
   EXPECT_TRUE (gst_tensor_dimension_string_is_equal (input_dim, "3:224:224:1"));
   g_free (input_dim);
 
-  /* Rank should be 3 since input dimension string is not given. */
+  /* Rank should be 4 since input dimension string is not given. */
   gchar *input_ranks;
   g_object_get (filter, "inputranks", &input_ranks, NULL);
-  EXPECT_STREQ (input_ranks, "3");
+  EXPECT_STREQ (input_ranks, "4");
   g_free (input_ranks);
 
   gchar *output_dim;
   g_object_get (filter, "output", &output_dim, NULL);
-  EXPECT_TRUE (gst_tensor_dimension_string_is_equal (output_dim, "1001:1:1:1"));
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal (output_dim, "1001:1"));
   g_free (output_dim);
 
-  /* Rank should be 1 since output dimension string is not given. */
+  /* Rank should be 2 since output dimension string is not given. */
   gchar *output_ranks;
   g_object_get (filter, "outputranks", &output_ranks, NULL);
-  EXPECT_STREQ (output_ranks, "1");
+  EXPECT_STREQ (output_ranks, "2");
   g_free (output_ranks);
 
   g_object_unref (filter);
@@ -6741,7 +6805,7 @@ TEST (testStreamBuffers, tensorsNormal)
     gst_tensor_parse_dimension ("3:4:2:2", config.info.info[1].dimension);
 
     for (i = 0; i < config.info.num_tensors; i++) {
-      input[i].size = gst_tensor_info_get_size (&config.info.info[i]);
+      input[i].size = gst_tensors_info_get_size (&config.info, i);
       input[i].data = g_malloc0 (input[0].size);
       memcpy (input[i].data, aggr_test_frames[i], input[i].size);
     }

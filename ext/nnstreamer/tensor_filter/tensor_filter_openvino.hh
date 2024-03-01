@@ -35,7 +35,6 @@
 
 #include <glib.h>
 #include <nnstreamer_plugin_api_filter.h>
-#include <tensor_common.h>
 #ifdef __OPENVINO_CPU_EXT__
 #include <ext_list.hpp>
 #endif /* __OPENVINO_CPU_EXT__ */
@@ -44,6 +43,9 @@
 #include <string>
 #include <vector>
 
+/**
+ * @brief Wrapper class for OpenVino.
+ */
 class TensorFilterOpenvino
 {
   public:
@@ -66,11 +68,7 @@ class TensorFilterOpenvino
 
   /** @todo Need to support other acceleration devices */
   int loadModel (accl_hw hw);
-  bool isModelLoaded ()
-  {
-    return _isLoaded;
-  }
-
+  bool isModelLoaded ();
   int getInputTensorDim (GstTensorsInfo *info);
   int getOutputTensorDim (GstTensorsInfo *info);
   int invoke (const GstTensorFilterProperties *prop,

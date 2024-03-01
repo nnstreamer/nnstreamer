@@ -31,22 +31,16 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define NNS_TENSOR_RANK_LIMIT	(8)
-#define NNS_TENSOR_RANK_LIMIT_PREV (4)
-#define NNS_TENSOR_SIZE_LIMIT	(16)
-#define NNS_TENSOR_SIZE_LIMIT_STR	"16"
-#define NNS_TENSOR_SIZE_EXTRA_LIMIT (100)
-#define NNS_TENSOR_DIM_NULL ({0, 0, 0, 0})
+#define NNS_TENSOR_RANK_LIMIT	(16)
 
 /**
- * @brief The maximum rank in meta info (see GstTensorMetaInfo).
- * This RANK is applied to meta info of other/tensors-flexible only and
- * does not affect other/tensors(s)'s NNS_TENSOR_RANK_LIMIT.
+ * @brief The number of tensors NNStreamer supports is 256.
+ * The max memories of gst-buffer is 16 (See NNS_TENSOR_MEMORY_MAX).
+ * Internally NNStreamer handles the memories as tensors.
+ * If the number of tensors is larger than 16, we modify the last memory and combine tensors into the memory.
  */
-#define NNS_TENSOR_META_RANK_LIMIT	(16)
-
-#define NNS_MIMETYPE_TENSOR "other/tensor"
-#define NNS_MIMETYPE_TENSORS "other/tensors"
+#define NNS_TENSOR_SIZE_LIMIT		(256)
+#define NNS_TENSOR_SIZE_LIMIT_STR	"256"
 
 /**
  * @brief This value, 16, can be checked with gst_buffer_get_max_memory(),
@@ -55,6 +49,16 @@
  * we need static value. To modify (increase) this value, you need to update
  * gstreamer/gstbuffer.c as well.
  */
+#define NNS_TENSOR_MEMORY_MAX		(16)
+
+/**
+ * @brief Max number of extra tensors.
+ */
+#define NNS_TENSOR_SIZE_EXTRA_LIMIT (NNS_TENSOR_SIZE_LIMIT - NNS_TENSOR_MEMORY_MAX)
+
+#define NNS_MIMETYPE_TENSOR "other/tensor"
+#define NNS_MIMETYPE_TENSORS "other/tensors"
+
 #define GST_TENSOR_NUM_TENSORS_RANGE "(int) [ 1, " NNS_TENSOR_SIZE_LIMIT_STR " ]"
 #define GST_TENSOR_RATE_RANGE "(fraction) [ 0, max ]"
 
@@ -109,7 +113,7 @@
  * @brief Caps string for the caps template of static tensor stream.
  */
 #define GST_TENSORS_CAP_DEFAULT \
-    GST_TENSORS_CAP_WITH_NUM(GST_TENSOR_NUM_TENSORS_RANGE)
+    GST_TENSORS_CAP_WITH_NUM (GST_TENSOR_NUM_TENSORS_RANGE)
 
 /**
  * @brief Caps string for the caps template of flexible tensors.
@@ -129,6 +133,7 @@
 
 /**
  * @brief Possible data element types of other/tensor.
+ * @note When changing tensor type, you shoud update related type in ML-API and protobuf/flatbuf schema also.
  */
 typedef enum _nns_tensor_type
 {
@@ -195,6 +200,32 @@ typedef enum _tensor_format
 } tensor_format;
 
 /**
+ * @brief Tensor layout format for other/tensor
+ *
+ * The layout is needed by some of the element to appropriately process the
+ * data based on the axis of the channel in the data. Layout information will be
+ * currently utilized by only some of the elements (SNAP, NNFW in tensor_filter,
+ * PADDING mode in tensor_transform)
+ *
+ * Tensor layout is not part of the capabilities of the element,
+ * and does not take part in the caps negotiation.
+ *
+ * NONE layout implies that the layout of the data is neither NHWC nor NCHW. '
+ * However, ANY layout implies that the layout of the provided data is not
+ * relevant.
+ *
+ * @note Providing tensor layout can also decide acceleration to be supported
+ * as not all the accelerators might support all the layouts (NYI).
+ */
+typedef enum _nns_tensor_layout
+{
+  _NNS_LAYOUT_ANY = 0,     /**< does not care about the data layout */
+  _NNS_LAYOUT_NHWC,        /**< NHWC: channel last layout */
+  _NNS_LAYOUT_NCHW,        /**< NCHW: channel first layout */
+  _NNS_LAYOUT_NONE,        /**< NONE: none of the above defined layouts */
+} tensor_layout;
+
+/**
  * @brief To make the code simple with all the types. "C++ Template"-like.
  */
 typedef union {
@@ -217,7 +248,6 @@ typedef uint32_t tensor_dim[NNS_TENSOR_RANK_LIMIT];
 
 /**
  * @brief The unit of each data tensors. It will be used as an input/output tensor of other/tensors.
- * @note This must be coherent with api/capi/include/nnstreamer-capi-private.h:ml_tensor_data_s
  */
 typedef struct
 {
@@ -227,7 +257,6 @@ typedef struct
 
 /**
  * @brief Internal data structure for tensor info.
- * @note This must be coherent with api/capi/include/nnstreamer-capi-private.h:ml_tensor_info_s
  */
 typedef struct
 {
@@ -235,18 +264,17 @@ typedef struct
                    User must designate this in a few NNFW frameworks (tensorflow)
                    and some (tensorflow-lite) do not need this. */
   tensor_type type; /**< Type of each element in the tensor. User must designate this. */
-  tensor_dim dimension; /**< Dimension. We support up to 4th ranks.  */
+  tensor_dim dimension; /**< Dimension. We support up to 16th ranks.  */
 } GstTensorInfo;
 
 /**
  * @brief Internal meta data exchange format for a other/tensors instance
- * @note This must be coherent with api/capi/include/nnstreamer-capi-private.h:ml_tensors_info_s
  */
 typedef struct
 {
   unsigned int num_tensors; /**< The number of tensors */
-  GstTensorInfo info[NNS_TENSOR_SIZE_LIMIT]; /**< The list of tensor info */
-  GstTensorInfo *extra; /**< The list of tensor info for tensors whose idx is larger than NNS_TENSOR_SIZE_LIMIT */
+  GstTensorInfo info[NNS_TENSOR_MEMORY_MAX]; /**< The list of tensor info (max NNS_TENSOR_MEMORY_MAX as static) */
+  GstTensorInfo *extra; /**< The list of tensor info for tensors whose idx is larger than NNS_TENSOR_MEMORY_MAX */
   tensor_format format; /**< tensor stream type */
 } GstTensorsInfo;
 
@@ -281,9 +309,10 @@ typedef struct
  */
 typedef struct
 {
+  uint32_t magic;
   uint32_t version;
   uint32_t type;
-  uint32_t dimension[NNS_TENSOR_META_RANK_LIMIT];
+  tensor_dim dimension;
   uint32_t format;
   uint32_t media_type;
 

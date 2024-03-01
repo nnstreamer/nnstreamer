@@ -47,6 +47,11 @@ nnstreamer_single_sources = [
   'nnstreamer_plugin_api_util_impl.c'
 ]
 
+if ml_agent_support_is_available
+  nnstreamer_single_sources += files('ml_agent.c')
+  nnstreamer_single_deps += [ml_agent_dep, json_glib_dep]
+endif
+
 # Add nnstreamer registerer and common sources
 nnstreamer_sources = [
   'registerer/nnstreamer.c',

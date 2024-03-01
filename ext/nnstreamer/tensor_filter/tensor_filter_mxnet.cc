@@ -81,7 +81,7 @@
  *                custom=input_rank=4:1
  */
 #include <nnstreamer_cppplugin_api_filter.hh>
-#include <nnstreamer_plugin_api.h>
+#include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_util.h>
 #include <stdexcept>
 #include <unistd.h>
@@ -133,7 +133,7 @@ class TensorFilterMXNet final : public tensor_filter_subplugin
   static const std::string ext_params; /**< extension of model parameters (.params) */
 
   private:
-  Shape tensorInfoToShape (GstTensorInfo &tensorinfo, int rank);
+  Shape tensorDimensionToShape (tensor_dim dimension, int rank);
   MXDType tensorTypeToMXNet (tensor_type type);
   void parseCustomProperties (const GstTensorFilterProperties *prop);
   void splitParamMap (const std::map<std::string, NDArray> &paramMap,
@@ -147,7 +147,7 @@ class TensorFilterMXNet final : public tensor_filter_subplugin
   GstTensorsInfo inputs_info_; /**< Input tensors metadata */
   GstTensorsInfo outputs_info_; /**< Output tensors metadata */
 
-  // GstTensorInfo does not contain rank info, so extra fields needed */
+  /* GstTensorInfo does not contain rank info, so extra fields needed. */
   int input_ranks_[NNS_TENSOR_RANK_LIMIT]; /**< Rank info of input tensor */
   int output_ranks_[NNS_TENSOR_RANK_LIMIT]; /**< Rank info of output tensor */
 
@@ -184,7 +184,6 @@ const GstTensorFilterFrameworkInfo TensorFilterMXNet::info_ = { .name = "mxnet",
 /**
  * @brief mxnet class constructor.
  */
-
 TensorFilterMXNet::TensorFilterMXNet ()
     : tensor_filter_subplugin (), empty_model_ (true), ctx_ (Context::cpu ()),
       enable_tensorrt_ (false)
@@ -215,6 +214,8 @@ TensorFilterMXNet::getEmptyInstance ()
 void
 TensorFilterMXNet::configure_instance (const GstTensorFilterProperties *prop)
 {
+  GstTensorInfo *_info;
+
   if (prop->num_models != 1) {
     throw std::invalid_argument ("Multiple models is not supported.");
   }
@@ -231,12 +232,12 @@ TensorFilterMXNet::configure_instance (const GstTensorFilterProperties *prop)
                                  + std::string (e.what ()) + "\n\tReference: " + __FILE__);
   }
 
-  // Validate model file paths and then assign
+  /* Validate model file paths and then assign. */
   std::tie (model_symbol_path_, model_params_path_) = [&] {
     const std::vector<std::string> extensions{ TensorFilterMXNet::ext_symbol,
       TensorFilterMXNet::ext_params };
 
-    // trim extension like .json
+    /* Trim extension like .json. */
     const std::string model_path = [&] {
       std::string path (prop->model_files[0]);
       for (const std::string &ext : extensions) {
@@ -247,7 +248,7 @@ TensorFilterMXNet::configure_instance (const GstTensorFilterProperties *prop)
       return path;
     }();
 
-    // validate paths
+    /* Validate paths. */
     for (const std::string &ext : extensions) {
       std::string path (model_path + ext);
       if (g_access (path.c_str (), R_OK) != 0) {
@@ -259,13 +260,13 @@ TensorFilterMXNet::configure_instance (const GstTensorFilterProperties *prop)
         model_path + TensorFilterMXNet::ext_params);
   }();
 
-  // Read a model
+  /* Read a model. */
   net_ = Symbol::Load (model_symbol_path_);
   if (enable_tensorrt_) {
     net_ = net_.GetBackendSymbol ("TensorRT");
   }
 
-  // Load parameters into temporary array maps
+  /* Load parameters into temporary array maps. */
   std::map<std::string, NDArray> parameters;
   NDArray::Load (model_params_path_, nullptr, &parameters);
   if (!enable_tensorrt_) {
@@ -280,35 +281,35 @@ TensorFilterMXNet::configure_instance (const GstTensorFilterProperties *prop)
     convertParamMapToTargetContext (intermediate_aux_map, &aux_map_, ctx_);
   }
 
-  // WaitAll is need when we copy data between GPU and the main memory
+  /* WaitAll is need when we copy data between GPU and the main memory. */
   NDArray::WaitAll ();
 
   gst_tensors_info_copy (&inputs_info_, &prop->input_meta);
   gst_tensors_info_copy (&outputs_info_, &prop->output_meta);
 
-  // Set ndarrays for the input layers
+  /* Set ndarrays for the input layers. */
   for (unsigned int i = 0; i < inputs_info_.num_tensors; i++) {
-    auto &input_tensor = inputs_info_.info[i];
-    args_map_[input_tensor.name]
-        = NDArray (tensorInfoToShape (input_tensor, input_ranks_[i]), ctx_,
-            false, tensorTypeToMXNet (input_tensor.type));
+    _info = gst_tensors_info_get_nth_info (&inputs_info_, i);
+    args_map_[_info->name]
+        = NDArray (tensorDimensionToShape (_info->dimension, input_ranks_[i]),
+            ctx_, false, tensorTypeToMXNet (_info->type));
   }
 
-  // These are ndarrays where the execution engine runs
+  /* These are ndarrays where the execution engine runs. */
   std::vector<NDArray> arg_arrays;
   std::vector<NDArray> grad_arrays;
   std::vector<OpReqType> grad_reqs;
   std::vector<NDArray> aux_arrays;
 
   try {
-    // infer and create ndarrays according to the given array maps.
+    /* infer and create ndarrays according to the given array maps. */
     net_.InferExecutorArrays (ctx_, &arg_arrays, &grad_arrays, &grad_reqs,
         &aux_arrays, args_map_, std::map<std::string, NDArray> (),
         std::map<std::string, OpReqType> (), aux_map_);
     for (auto &i : grad_reqs)
       i = OpReqType::kNullOp;
 
-    // Create a symbolic execution engine after binding the model to input parameters.
+    /* Create a symbolic execution engine after binding the model to input parameters. */
     executor_ = std::make_unique<Executor> (
         net_, ctx_, arg_arrays, grad_arrays, grad_reqs, aux_arrays);
   } catch (const std::exception &e) {
@@ -327,10 +328,10 @@ TensorFilterMXNet::invoke (const GstTensorMemory *input, GstTensorMemory *output
   assert (!empty_model_);
   assert (executor_);
 
-  // Copy input
+  /* Copy input. */
   for (unsigned int i = 0; i < inputs_info_.num_tensors; i++) {
-    auto &input_info = inputs_info_.info[i];
-    auto &input_ndarray = args_map_[input_info.name];
+    GstTensorInfo *input_info = gst_tensors_info_get_nth_info (&inputs_info_, i);
+    auto &input_ndarray = args_map_[input_info->name];
 
     assert ((input_ndarray.Size () * sizeof (mx_float)) == input[i].size);
     input_ndarray.SyncCopyFromCPU (
@@ -338,18 +339,20 @@ TensorFilterMXNet::invoke (const GstTensorMemory *input, GstTensorMemory *output
     NDArray::WaitAll ();
   }
 
-  // Run forward pass
+  /* Run forward pass. */
   executor_->Forward (false);
   NDArray::WaitAll ();
 
-  // Copy output
+  /* Copy outpu. */
   for (unsigned int i = 0; i < outputs_info_.num_tensors; i++) {
-    auto &output_info = outputs_info_.info[i];
+    GstTensorInfo *output_info = gst_tensors_info_get_nth_info (&outputs_info_, i);
     NDArray result;
 
-    // Warning: It will cause segfault if the operator name (output name) is different from expected.
-    //          The user should know the name of the operator name.
-    Operator (output_info.name) (executor_->outputs[0]).Invoke (result);
+    /**
+     * Warning: It will cause segfault if the operator name (output name) is different from expected.
+     * The user should know the name of the operator name.
+     */
+    Operator (output_info->name) (executor_->outputs[0]).Invoke (result);
     NDArray::WaitAll ();
 
     assert ((result.Size () * sizeof (mx_float)) == output[i].size);
@@ -398,12 +401,12 @@ TensorFilterMXNet::eventHandler (event_ops ops, GstTensorFilterFrameworkEventDat
 }
 
 /**
- * @brief Convert GstTensorInfo to MXNet Shape
+ * @brief Convert tensor_dim to MXNet Shape
  */
 Shape
-TensorFilterMXNet::tensorInfoToShape (GstTensorInfo &tensorinfo, int rank)
+TensorFilterMXNet::tensorDimensionToShape (tensor_dim dimension, int rank)
 {
-  return Shape (std::vector<index_t> (tensorinfo.dimension, tensorinfo.dimension + rank));
+  return Shape (std::vector<index_t> (dimension, dimension + rank));
 }
 
 /**
@@ -553,5 +556,5 @@ fini_filter_mxnet ()
   TensorFilterMXNet::fini_filter ();
 }
 
-} // namespace tensorfilter_mxnet
+} /* namespace tensorfilter_mxnet */
 } /* namespace nnstreamer */

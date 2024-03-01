@@ -24,9 +24,9 @@ PATH_TO_PLUGIN="../../build"
 if [[ -d $PATH_TO_PLUGIN ]]; then
     ini_path="${PATH_TO_PLUGIN}/ext/nnstreamer/tensor_filter"
     if [[ -d ${ini_path} ]]; then
-        check=$(ls ${ini_path} | grep tensorflow1-lite.so)
+        check=$(ls ${ini_path} | grep tensorflow2-lite.so)
         if [[ ! $check ]]; then
-            echo "Cannot find tensorflow1-lite shared lib"
+            echo "Cannot find tensorflow2-lite shared lib"
             report
             exit
         fi
@@ -47,9 +47,9 @@ else
         fi
 
         if [[ -d ${value} ]]; then
-            check=$(ls ${value} | grep tensorflow1-lite.so)
+            check=$(ls ${value} | grep tensorflow2-lite.so)
             if [[ ! $check ]]; then
-                echo "Cannot find tensorflow1-lite shared lib"
+                echo "Cannot find tensorflow2-lite shared lib"
                 report
                 exit
             fi
@@ -71,7 +71,7 @@ PATH_TO_MODEL="../test_models/models/mobilenet_v1_1.0_224_quant.tflite"
 PATH_TO_LABEL="../test_models/labels/labels.txt"
 PATH_TO_IMAGE="../test_models/data/orange.png"
 
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"${PATH_TO_IMAGE}\" ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw, format=RGB, framerate=0/1 ! tensor_converter ! tensor_filter framework=\"tensorflow1-lite\" model=\"${PATH_TO_MODEL}\" ! \
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"${PATH_TO_IMAGE}\" ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw, format=RGB, framerate=0/1 ! tensor_converter ! tensor_filter framework=\"tensorflow2-lite\" model=\"${PATH_TO_MODEL}\" ! \
 tee name=t ! queue ! tensor_transform mode=typecast option=uint8 ! tensor_decoder mode=image_labeling option1=\"${PATH_TO_LABEL}\" ! filesink location=\"tensordecoder.orange.uint8.log\" \
 t. ! queue ! tensor_transform mode=typecast option=uint16 ! tensor_decoder mode=image_labeling option1=\"${PATH_TO_LABEL}\" ! filesink location=\"tensordecoder.orange.uint16.log\" \
 t. ! queue ! tensor_transform mode=typecast option=uint32 ! tensor_decoder mode=image_labeling option1=\"${PATH_TO_LABEL}\" ! filesink location=\"tensordecoder.orange.uint32.log\" \

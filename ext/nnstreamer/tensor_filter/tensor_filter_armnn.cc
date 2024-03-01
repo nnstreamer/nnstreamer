@@ -36,10 +36,10 @@
 
 #include <armnn/ArmNN.hpp>
 
-#if ENABLE_ARMNN_CAFFE
+#if defined(ENABLE_ARMNN_CAFFE)
 #include <armnnCaffeParser/ICaffeParser.hpp>
 #endif
-#if ENABLE_ARMNN_TFLITE
+#if defined(ENABLE_ARMNN_TFLITE)
 #include <armnnTfLiteParser/ITfLiteParser.hpp>
 #endif
 
@@ -48,7 +48,7 @@
 #include <nnstreamer_plugin_api_filter.h>
 #undef NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_conf.h>
-#include <nnstreamer_plugin_api.h>
+#include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_util.h>
 
 static const gchar *armnn_accl_support[]
@@ -138,6 +138,7 @@ ArmNNCore::ArmNNCore (const char *_model_path, accl_hw hw)
  */
 ArmNNCore::~ArmNNCore ()
 {
+  g_free (model_path);
   gst_tensors_info_free (&inputTensorMeta);
   gst_tensors_info_free (&outputTensorMeta);
 }
@@ -180,7 +181,7 @@ ArmNNCore::getModelPath ()
   return model_path;
 }
 
-#if ENABLE_ARMNN_CAFFE
+#if defined(ENABLE_ARMNN_CAFFE)
 /**
  * @brief make network with caffe parser
  * @param[in] input_map input data map
@@ -233,7 +234,7 @@ ArmNNCore::makeCaffeNetwork (std::map<std::string, armnn::TensorShape> &input_ma
   g_printerr ("ARMNN-CAFFE was not enabled at build-time. tensor-filter::armnn cannot handle caffe networks.");
   return -EPERM;
 }
-#endif
+#endif /* ENABLE_ARMNN_CAFFE */
 
 /**
  * @brief make network with tensorflow parser
@@ -252,7 +253,7 @@ ArmNNCore::makeTfNetwork (std::map<std::string, armnn::TensorShape> &input_map,
   return -EPERM;
 }
 
-#if ENABLE_ARMNN_TFLITE
+#if defined(ENABLE_ARMNN_TFLITE)
 /**
  * @brief make network with tensorflow-lite parser
  * @return 0 on success, -errno on error
@@ -293,7 +294,7 @@ ArmNNCore::makeTfLiteNetwork ()
 {
   return -EPERM;
 }
-#endif
+#endif /* ENABLE_ARMNN_TFLITE */
 
 /**
  * @brief make network based on the model file received
@@ -305,6 +306,7 @@ ArmNNCore::makeNetwork (const GstTensorFilterProperties *prop)
 {
   std::vector<std::string> output_vec;
   std::map<std::string, armnn::TensorShape> input_map;
+  GstTensorInfo *_info;
 
   if (g_str_has_suffix (model_path, ".tflite")) {
     return makeTfLiteNetwork ();
@@ -314,33 +316,35 @@ ArmNNCore::makeNetwork (const GstTensorFilterProperties *prop)
   if (prop->output_meta.num_tensors != 0) {
     output_vec.reserve (prop->output_meta.num_tensors);
     for (unsigned int i = 0; i < prop->output_meta.num_tensors; i++) {
-      if (prop->output_meta.info[i].name == NULL) {
+      _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &prop->output_meta, i);
+
+      if (_info->name == NULL) {
         /** clear output vec in case of error */
         output_vec.clear ();
         output_vec.shrink_to_fit ();
         break;
       }
-      output_vec.push_back (prop->output_meta.info[i].name);
+      output_vec.push_back (_info->name);
     }
   }
 
   /** Create input map with name and data shape */
   for (unsigned int i = 0; i < prop->input_meta.num_tensors; i++) {
-    if (prop->input_meta.info[i].name == NULL) {
+    _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &prop->input_meta, i);
+
+    if (_info->name == NULL) {
       /** clear input map in case of error */
       input_map.clear ();
       break;
     }
 
     /** Set dimension only if valid */
-    if (gst_tensor_dimension_is_valid (prop->input_meta.info[i].dimension)) {
+    if (gst_tensor_dimension_is_valid (_info->dimension)) {
       unsigned int rev_dim[NNS_TENSOR_RANK_LIMIT];
-      std::reverse_copy (prop->input_meta.info[i].dimension,
-          prop->input_meta.info[i].dimension + NNS_TENSOR_RANK_LIMIT, rev_dim);
-      input_map[prop->input_meta.info[i].name]
-          = armnn::TensorShape (NNS_TENSOR_RANK_LIMIT, rev_dim);
+      std::reverse_copy (_info->dimension, _info->dimension + NNS_TENSOR_RANK_LIMIT, rev_dim);
+      input_map[_info->name] = armnn::TensorShape (NNS_TENSOR_RANK_LIMIT, rev_dim);
     } else {
-      input_map[prop->input_meta.info[i].name] = armnn::TensorShape ();
+      input_map[_info->name] = armnn::TensorShape ();
     }
   }
 
@@ -507,7 +511,7 @@ ArmNNCore::setTensorProp (const std::vector<armnn::BindingPointInfo> &bindings,
   for (unsigned int idx = 0; idx < bindings.size (); ++idx) {
     armnn::TensorInfo arm_info = bindings[idx].second;
     armnn::TensorShape arm_shape;
-    GstTensorInfo *gst_info = &tensorMeta->info[idx];
+    GstTensorInfo *gst_info = gst_tensors_info_get_nth_info (tensorMeta, idx);
 
     /* Use binding id as a name, if no name already exists */
     if (gst_info->name == NULL) {
@@ -541,7 +545,7 @@ ArmNNCore::setTensorProp (const std::vector<armnn::BindingPointInfo> &bindings,
     }
 
     for (int i = NNS_TENSOR_RANK_LIMIT - 1; i >= num_dim; i--) {
-      gst_info->dimension[i] = 1;
+      gst_info->dimension[i] = 0;
     }
   }
 

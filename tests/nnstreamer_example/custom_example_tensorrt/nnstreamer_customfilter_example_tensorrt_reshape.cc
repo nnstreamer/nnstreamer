@@ -32,6 +32,11 @@
 #include <NvInferRuntimeCommon.h>
 #include <cuda_runtime_api.h>
 
+/**
+ * @brief Min rank in this example (TensorRT uses the NCHW data format).
+ */
+#define MIN_RANK (4)
+
 using Severity = nvinfer1::ILogger::Severity;
 
 /** @brief a global object of ILogger */
@@ -349,19 +354,19 @@ pt_init (const GstTensorFilterProperties *prop)
 
   if (prop->custom_properties && strlen (prop->custom_properties) > 0) {
     gchar **strv = g_strsplit (prop->custom_properties, ":", -1);
-    gsize i;
+    guint i;
 
-    if (g_strv_length (strv) != NNS_TENSOR_RANK_LIMIT - 1) {
+    if (g_strv_length (strv) != MIN_RANK - 1) {
       g_critical ("Please specify a proper 'custom' property");
       goto err;
     }
 
     info.num_tensors = 1;
-    for (i = 0; i < NNS_TENSOR_RANK_LIMIT - 1; i++) {
+    for (i = 0; i < MIN_RANK - 1; i++) {
       info.info[0].type = _NNS_FLOAT32;
       info.info[0].dimension[i] = (int) g_ascii_strtoll (strv[i], NULL, 10);
     }
-    info.info[0].dimension[NNS_TENSOR_RANK_LIMIT - 1] = 1;
+    info.info[0].dimension[MIN_RANK - 1] = 1;
 
     g_strfreev (strv);
   } else {

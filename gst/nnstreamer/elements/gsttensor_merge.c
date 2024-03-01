@@ -484,9 +484,10 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
   element_size = gst_tensor_get_element_size (type);
 
   for (i = 0; i < num_mem; i++) {
-    mem[i] = gst_buffer_peek_memory (tensors_buf, i);
+    mem[i] = gst_tensor_buffer_get_nth_memory (tensors_buf, i);
     if (!gst_memory_map (mem[i], &mInfo[i], GST_MAP_READ)) {
       ml_logf ("Cannot map input memory buffers (%d)\n", i);
+      gst_memory_unref (mem[i]);
       num_mem = i;
       ret = GST_FLOW_ERROR;
       goto error_ret;
@@ -594,8 +595,10 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
       -1);
 
 error_ret:
-  for (i = 0; i < num_mem; i++)
+  for (i = 0; i < num_mem; i++) {
     gst_memory_unmap (mem[i], &mInfo[i]);
+    gst_memory_unref (mem[i]);
+  }
   return ret;
 }
 
@@ -675,10 +678,14 @@ gst_tensor_merge_collected (GstCollectPads * pads,
   GST_DEBUG_OBJECT (tensor_merge, " all pads are collected ");
 
   if (tensor_merge->need_stream_start) {
-    gchar s_id[32];
-    g_snprintf (s_id, sizeof (s_id), " tensormerge - %08x ", g_random_int ());
-    gst_pad_push_event (tensor_merge->srcpad,
-        gst_event_new_stream_start (s_id));
+    g_autofree gchar *element_name = gst_element_get_name (tensor_merge);
+    g_autofree gchar *pad_name = gst_pad_get_name (tensor_merge->srcpad);
+    g_autofree gchar *sid =
+        gst_pad_create_stream_id_printf (tensor_merge->srcpad,
+        GST_ELEMENT_CAST (tensor_merge), "%s-nnsmerge-%s", element_name,
+        pad_name);
+
+    gst_pad_push_event (tensor_merge->srcpad, gst_event_new_stream_start (sid));
     tensor_merge->need_stream_start = FALSE;
   }
 

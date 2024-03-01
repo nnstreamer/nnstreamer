@@ -22,7 +22,7 @@
 /* nnstreamer plugin api headers */
 #include <nnstreamer_cppplugin_api_filter.hh>
 #include <nnstreamer_log.h>
-#include <nnstreamer_plugin_api.h>
+#include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_util.h>
 
 namespace nnstreamer

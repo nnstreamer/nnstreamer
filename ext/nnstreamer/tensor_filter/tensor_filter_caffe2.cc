@@ -150,12 +150,10 @@ Caffe2Core::init (const GstTensorFilterProperties *prop)
   return 0;
 }
 
-#define initializeTensor(type)                                                            \
-  do {                                                                                    \
-    ReinitializeTensor (inputTensor,                                                      \
-        { inputTensorMeta.info[i].dimension[3], inputTensorMeta.info[i].dimension[2],     \
-            inputTensorMeta.info[i].dimension[1], inputTensorMeta.info[i].dimension[0] }, \
-        at::dtype<type> ().device (CPU));                                                 \
+#define initializeTensor(type)                                                 \
+  do {                                                                         \
+    ReinitializeTensor (                                                       \
+        inputTensor, at::IntArrayRef (dims), at::dtype<type> ().device (CPU)); \
   } while (0);
 
 /**
@@ -164,14 +162,21 @@ Caffe2Core::init (const GstTensorFilterProperties *prop)
 int
 Caffe2Core::initInputTensor ()
 {
-  guint i;
+  GstTensorInfo *_info;
+  guint i, j, rank;
 
   inputTensorMap.clear ();
   for (i = 0; i < inputTensorMeta.num_tensors; i++) {
-    Tensor *inputTensor
-        = workSpace.CreateBlob (inputTensorMeta.info[i].name)->GetMutable<Tensor> ();
+    _info = gst_tensors_info_get_nth_info (&inputTensorMeta, i);
+    rank = gst_tensor_info_get_rank (_info);
 
-    switch (inputTensorMeta.info[i].type) {
+    Tensor *inputTensor = workSpace.CreateBlob (_info->name)->GetMutable<Tensor> ();
+    std::vector<long int> dims (rank);
+
+    for (j = 0; j < rank; j++)
+      dims[j] = (long int) _info->dimension[rank - j - 1];
+
+    switch (_info->type) {
       case _NNS_INT32:
         initializeTensor (int32_t);
         break;
@@ -207,7 +212,7 @@ Caffe2Core::initInputTensor ()
         return -1;
     }
 
-    inputTensorMap.insert (std::make_pair (inputTensorMeta.info[i].name, inputTensor));
+    inputTensorMap.insert (std::make_pair (_info->name, inputTensor));
   }
   return 0;
 }
@@ -310,15 +315,18 @@ Caffe2Core::getOutputTensorDim (GstTensorsInfo *info)
 int
 Caffe2Core::run (const GstTensorMemory *input, GstTensorMemory *output)
 {
+  GstTensorInfo *_info;
   unsigned int i;
 #if (DBG)
   gint64 start_time = g_get_real_time ();
 #endif
 
   for (i = 0; i < inputTensorMeta.num_tensors; i++) {
-    Tensor *inputTensor = inputTensorMap.find (inputTensorMeta.info[i].name)->second;
+    _info = gst_tensors_info_get_nth_info (&inputTensorMeta, i);
 
-    switch (inputTensorMeta.info[i].type) {
+    Tensor *inputTensor = inputTensorMap.find (_info->name)->second;
+
+    switch (_info->type) {
       case _NNS_INT32:
         inputTensor->ShareExternalPointer ((int32_t *) input[i].data);
         break;
@@ -378,9 +386,11 @@ Caffe2Core::run (const GstTensorMemory *input, GstTensorMemory *output)
   }
 
   for (i = 0; i < outputTensorMeta.num_tensors; i++) {
-    const auto &out = workSpace.GetBlob (outputTensorMeta.info[i].name)->Get<Tensor> ();
+    _info = gst_tensors_info_get_nth_info (&outputTensorMeta, i);
 
-    switch (outputTensorMeta.info[i].type) {
+    const auto &out = workSpace.GetBlob (_info->name)->Get<Tensor> ();
+
+    switch (_info->type) {
       case _NNS_INT32:
         output[i].data = out.data<int32_t> ();
         break;

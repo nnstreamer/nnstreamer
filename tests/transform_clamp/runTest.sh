@@ -26,7 +26,7 @@ if [ "$SKIPGEN" == "YES" ]; then
     sopath=$2
 else
     echo "Test Case Generation Started"
-    python3 generateTest.py
+    python3 generateTest.py || (echo "Failed to run test preparation script (generateTest.py). Test not available." && report && exit)
     sopath=$1
 fi
 

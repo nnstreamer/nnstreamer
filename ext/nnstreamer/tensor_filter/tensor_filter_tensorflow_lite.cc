@@ -39,6 +39,10 @@
 #include <nnstreamer_conf.h>
 #include <nnstreamer_util.h>
 
+#if TFLITE_VERSION_MAJOR < 2
+#pragma message("tensor_filter of TensorFlow Lite version 1.X is deprecated. Please use of TF Lite 2.X")
+#endif
+
 #if TFLITE_VERSION_MAJOR >= 2 || TFLITE_VERSION_MINOR >= 13
 #if USE_TENSORFLOW2_HEADER_PATH
 #include <tensorflow2/lite/kernels/register.h>
@@ -626,16 +630,16 @@ TFLiteInterpreter::getTensorDim (int tensor_idx, tensor_dim dim)
 {
   TfLiteIntArray *tensor_dims = interpreter->tensor (tensor_idx)->dims;
   int len = tensor_dims->size;
+
+  /* 0-init */
+  for (guint i = 0; i < NNS_TENSOR_RANK_LIMIT; ++i)
+    dim[i] = 0;
+
   if (len > NNS_TENSOR_RANK_LIMIT)
     return -EPERM;
 
   /* the order of dimension is reversed at CAPS negotiation */
   std::reverse_copy (tensor_dims->data, tensor_dims->data + len, dim);
-
-  /* fill the remnants with 1 */
-  for (int i = len; i < NNS_TENSOR_RANK_LIMIT; ++i) {
-    dim[i] = 1;
-  }
 
   return 0;
 }
@@ -651,10 +655,6 @@ TFLiteInterpreter::setTensorProp (
     const std::vector<int> &tensor_idx_list, GstTensorsInfo *tensorMeta)
 {
   tensorMeta->num_tensors = tensor_idx_list.size ();
-  if (tensorMeta->num_tensors > NNS_TENSOR_SIZE_LIMIT) {
-    ml_logi ("Create extra tensor info for the tflite model");
-    gst_tensors_info_extra_create (tensorMeta);
-  }
 
   for (unsigned int i = 0; i < tensorMeta->num_tensors; ++i) {
     int idx = tensor_idx_list[i];
@@ -684,6 +684,7 @@ TFLiteInterpreter::setTensorProp (
 int
 TFLiteInterpreter::setInputTensorProp ()
 {
+  gst_tensors_info_free (&inputTensorMeta);
   return setTensorProp (interpreter->inputs (), &inputTensorMeta);
 }
 
@@ -694,6 +695,7 @@ TFLiteInterpreter::setInputTensorProp ()
 int
 TFLiteInterpreter::setOutputTensorProp ()
 {
+  gst_tensors_info_free (&outputTensorMeta);
   return setTensorProp (interpreter->outputs (), &outputTensorMeta);
 }
 
@@ -708,7 +710,7 @@ TFLiteInterpreter::setInputTensorsInfo (const GstTensorsInfo *info)
 {
   TfLiteStatus status = kTfLiteOk;
   const std::vector<int> &input_idx_list = interpreter->inputs ();
-  int input_rank;
+  int input_rank, cur_rank, dim;
 
   /** Cannot change the number of inputs */
   if (info->num_tensors != input_idx_list.size ())
@@ -718,7 +720,8 @@ TFLiteInterpreter::setInputTensorsInfo (const GstTensorsInfo *info)
     tensor_type tf_type;
     const GstTensorInfo *tensor_info;
 
-    tensor_info = &info->info[tensor_idx];
+    tensor_info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info, tensor_idx);
+    cur_rank = gst_tensor_info_get_rank (tensor_info);
 
     /** cannot change the type of input */
     tf_type = getTensorType (interpreter->tensor (input_idx_list[tensor_idx])->type);
@@ -730,15 +733,20 @@ TFLiteInterpreter::setInputTensorsInfo (const GstTensorsInfo *info)
      * iterate over all possible ranks starting from MIN rank to the actual rank
      * of the dimension array. In case of none of these ranks work, return error
      */
-    input_rank = gst_tensor_info_get_rank (tensor_info);
-    for (int rank = input_rank; rank <= NNS_TENSOR_RANK_LIMIT; rank++) {
+    for (input_rank = cur_rank - 1; input_rank > 0; input_rank--) {
+      if (tensor_info->dimension[input_rank] > 1)
+        break;
+    }
+
+    for (int rank = input_rank + 1; rank <= NNS_TENSOR_RANK_LIMIT; rank++) {
       std::vector<int> dims (rank);
       /* the order of dimension is reversed at CAPS negotiation */
       for (int idx = 0; idx < rank; idx++) {
         /** check overflow when storing uint32_t in int container */
         if (tensor_info->dimension[rank - idx - 1] > INT_MAX)
           return -ERANGE;
-        dims[idx] = tensor_info->dimension[rank - idx - 1];
+        dim = tensor_info->dimension[rank - idx - 1];
+        dims[idx] = (dim > 0) ? dim : 1;
       }
       status = interpreter->ResizeInputTensor (input_idx_list[tensor_idx], dims);
       if (status == kTfLiteOk) {
@@ -809,6 +817,7 @@ TFLiteInterpreter::cacheInOutTensorPtr ()
 {
   int tensor_idx;
   TfLiteTensor *tensor_ptr;
+  GstTensorInfo *info;
 
   inputTensorPtr.clear ();
   inputTensorPtr.reserve (inputTensorMeta.num_tensors);
@@ -816,7 +825,7 @@ TFLiteInterpreter::cacheInOutTensorPtr ()
     tensor_idx = interpreter->inputs ()[i];
     tensor_ptr = interpreter->tensor (tensor_idx);
 
-    GstTensorInfo *info = gst_tensors_info_get_nth_info (&inputTensorMeta, i);
+    info = gst_tensors_info_get_nth_info (&inputTensorMeta, i);
     if (tensor_ptr->bytes != gst_tensor_info_get_size (info))
       goto fail_exit;
 
@@ -829,7 +838,7 @@ TFLiteInterpreter::cacheInOutTensorPtr ()
     tensor_idx = interpreter->outputs ()[i];
     tensor_ptr = interpreter->tensor (tensor_idx);
 
-    GstTensorInfo *info = gst_tensors_info_get_nth_info (&outputTensorMeta, i);
+    info = gst_tensors_info_get_nth_info (&outputTensorMeta, i);
     if (tensor_ptr->bytes != gst_tensor_info_get_size (info))
       goto fail_exit;
 
@@ -1191,19 +1200,19 @@ TFLiteCore::reloadModel (const char *_model_path)
    */
   if (interpreter_sub->loadModel (num_threads, delegate) != 0) {
     ml_loge ("Failed to load model %s\n", _model_path);
-    return -EINVAL;
+    goto error;
   }
   if (interpreter_sub->setInputTensorProp () != 0) {
     ml_loge ("Failed to initialize input tensor\n");
-    return -EINVAL;
+    goto error;
   }
   if (interpreter_sub->setOutputTensorProp () != 0) {
     ml_loge ("Failed to initialize output tensor\n");
-    return -EINVAL;
+    goto error;
   }
   if (interpreter_sub->cacheInOutTensorPtr () != 0) {
     ml_loge ("Failed to cache input and output tensors storage\n");
-    return -EINVAL;
+    goto error;
   }
 
   if (shared_tensor_filter_key) {
@@ -1213,12 +1222,16 @@ TFLiteCore::reloadModel (const char *_model_path)
   } else {
     if (reloadInterpreter (interpreter_sub) != 0) {
       ml_loge ("Failed replace interpreter\n");
-      return -EINVAL;
+      goto error;
     }
     delete interpreter_temp;
   }
 
   return 0;
+
+error:
+  delete interpreter_sub;
+  return -EINVAL;
 }
 
 /**
@@ -1426,6 +1439,9 @@ done:
 static int
 tflite_open (const GstTensorFilterProperties *prop, void **private_data)
 {
+#if TFLITE_VERSION_MAJOR < 2
+  ml_logw ("tensor_filter of TensorFlow Lite version 1.X is deprecated. Please use of TF Lite 2.X");
+#endif
   int status = tflite_loadModelFile (prop, private_data);
 
   return status;
@@ -1541,25 +1557,25 @@ tflite_setInputDim (const GstTensorFilterProperties *prop, void **private_data,
   /** get current input tensor info for resetting */
   status = core->getInputTensorDim (&cur_in_info);
   if (status != 0)
-    return status;
+    goto exit;
 
   /** set new input tensor info */
   status = core->setInputTensorDim (in_info);
   if (status != 0) {
     tflite_setInputDim_recovery (core, &cur_in_info, "while setting input tensor info", 0);
-    return status;
+    goto exit;
   }
 
   /** update input tensor info */
   if ((status = core->setInputTensorProp ()) != 0) {
     tflite_setInputDim_recovery (core, &cur_in_info, "while updating input tensor info", 1);
-    return status;
+    goto exit;
   }
 
   /** update output tensor info */
   if ((status = core->setOutputTensorProp ()) != 0) {
     tflite_setInputDim_recovery (core, &cur_in_info, "while updating output tensor info", 2);
-    return status;
+    goto exit;
   }
 
   /** update the input and output tensor cache */
@@ -1567,7 +1583,7 @@ tflite_setInputDim (const GstTensorFilterProperties *prop, void **private_data,
   if (status != 0) {
     tflite_setInputDim_recovery (
         core, &cur_in_info, "while updating input and output tensor cache", 2);
-    return status;
+    goto exit;
   }
 
   /** get output tensor info to be returned */
@@ -1575,10 +1591,13 @@ tflite_setInputDim (const GstTensorFilterProperties *prop, void **private_data,
   if (status != 0) {
     tflite_setInputDim_recovery (
         core, &cur_in_info, "while retreiving update output tensor info", 2);
-    return status;
+    goto exit;
   }
 
-  return 0;
+exit:
+  gst_tensors_info_free (&cur_in_info);
+
+  return status;
 }
 
 /**

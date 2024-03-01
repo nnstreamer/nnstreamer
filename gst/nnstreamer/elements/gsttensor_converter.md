@@ -7,7 +7,7 @@ title: tensor_converter
 ## Supported features
 
 - Video: direct conversion of video/x-raw / non-interlace(progressive) to [height][width][#Colorspace] tensor. (#Colorspace:width:height:frames-per-tensor)
-  - Supported colorspaces: RGB (3), BGRx (4), Gray8 (1)
+  - Supported colorspaces: RGB (3), BGRx (4), Gray8 and Gray16 (1)
   - You may express ```frames-per-tensor``` to have multiple image frames in a tensor like audio and text as well.
   - If ```frames-per-tensor``` is not configured, the default value is 1.
   - Golden tests for such input
@@ -24,7 +24,7 @@ title: tensor_converter
 
     e.g, converting 10 bytes of octet stream to 2 static tensors:
 
-    ```... ! application/octet-stream ! tensor_converter input-dim=2:1:1:1,2:1:1:1 input-type=int32,int8 ! ...```
+    ```... ! application/octet-stream ! tensor_converter input-dim=2,2 input-type=int32,int8 ! ...```
   - Octet stream to flexible tensor: With a caps filter (```other/tensors,format=flexible```), tensor-converter generates flexible tensor.
     In this case, you don't need to denote ```input-type``` and ```input-dim``` in pipeline description.
     Converter sets the dimension with buffer size (size:1:1:1) and type uint8, and appends this information (tensor-meta) in the memory of outgoing buffer.

@@ -1,5 +1,5 @@
 repo_sources = [
-  'datarepo_elements.c',
+  'gstdatarepo.c',
   'gstdatareposrc.c',
   'gstdatareposink.c'
 ]

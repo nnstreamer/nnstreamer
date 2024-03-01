@@ -38,11 +38,13 @@
  *          This is independent from option1
  * option3: Any option1-dependent values
  *          !!This depends on option1 values!!
- *          for yolov5 mode:
- *            This option set whether the x, y, w, h values are scaled to input image or not.
- *            The default is the values are not scaled.
- *            option3=0 (default, suitable for tflite models)
- *            option3=1 (suitable for torchscript models)
+ *          for yolov5 and yolov8 mode:
+ *            The option3 requires up to 3 numbers, which tell
+ *              - whether the output values are scaled or not
+ *                0: not scaled (default), 1: scaled (e.g., 0.0 ~ 1.0)
+ *              - the threshold of confidence (optional, default set to 0.25)
+ *              - the threshold of IOU (optional, default set to 0.45)
+ *            An example of option3 is "option3=0:0.65:0.6"
  *          for mobilenet-ssd mode:
  *            The option3 definition scheme is, in order, the following:
  *                - box priors location file (mandatory)
@@ -88,7 +90,13 @@
  *          This is independent from option1
  * option5: Input Dimension (WIDTH:HEIGHT)
  *          This is independent from option1
- * option6: Box Style (NYI)
+ * option6: Whether to track result bounding boxes or not
+ *          0 (default, do not track)
+ *          1 (track result bounding boxes, with naive centroid based algorithm)
+ * option7: Whether to log the result bounding boxes or not
+ *          0 (default, do not log)
+ *          1 (log result bounding boxes)
+ * option8: Box Style (NYI)
  *
  * MAJOR TODO: Support other colorspaces natively from _decode for performance gain
  * (e.g., BGRA, ARGB, ...)
@@ -112,14 +120,14 @@
 #include <nnstreamer_util.h>
 #include "tensordecutil.h"
 
-void init_bb (void) __attribute__ ((constructor));
-void fini_bb (void) __attribute__ ((destructor));
+void init_bb (void) __attribute__((constructor));
+void fini_bb (void) __attribute__((destructor));
 
 /* font.c */
 extern uint8_t rasters[][13];
 
 #define BOX_SIZE                                (4)
-#define MOBILENET_SSD_DETECTION_MAX             (2034) /* add ssd_mobilenet v3 support */
+#define MOBILENET_SSD_DETECTION_MAX             (2034)  /* add ssd_mobilenet v3 support */
 #define MOBILENET_SSD_MAX_TENSORS               (2U)
 #define MOBILENET_SSD_PP_DETECTION_MAX          (100)
 #define MOBILENET_SSD_PP_MAX_TENSORS            (4U)
@@ -127,9 +135,10 @@ extern uint8_t rasters[][13];
 #define OV_PERSON_DETECTION_MAX_TENSORS         (1U)
 #define OV_PERSON_DETECTION_SIZE_DETECTION_DESC (7)
 #define OV_PERSON_DETECTION_CONF_THRESHOLD      (0.8)
+#define YOLO_DETECTION_CONF_THRESHOLD           (0.25)
+#define YOLO_DETECTION_IOU_THRESHOLD            (0.45)
 #define YOLOV5_DETECTION_NUM_INFO               (5)
-#define YOLOV5_DETECTION_CONF_THRESHOLD         (0.25)
-#define YOLOV5_DETECTION_IOU_THRESHOLD          (0.45)
+#define YOLOV8_DETECTION_NUM_INFO               (4)
 #define PIXEL_VALUE                             (0xFF0000FF)    /* RED 100% in RGBA */
 #define MP_PALM_DETECTION_INFO_SIZE             (18)
 #define MP_PALM_DETECTION_MAX_TENSORS           (2U)
@@ -160,6 +169,8 @@ typedef enum
 
   MP_PALM_DETECTION_BOUNDING_BOX = 7,
 
+  YOLOV8_BOUNDING_BOX = 8,
+
   BOUNDING_BOX_UNKNOWN,
 } bounding_box_modes;
 
@@ -187,6 +198,7 @@ static const char *bb_modes[] = {
   [OLDNAME_MOBILENET_SSD_PP_BOUNDING_BOX] = "tf-ssd",
   [YOLOV5_BOUNDING_BOX] = "yolov5",
   [MP_PALM_DETECTION_BOUNDING_BOX] = "mp-palm-detection",
+  [YOLOV8_BOUNDING_BOX] = "yolov8",
   NULL,
 };
 
@@ -210,13 +222,51 @@ typedef struct
 } properties_MOBILENET_SSD;
 
 /**
- * @brief Data structure for yolov5 model.
+ * @brief Data structure for yolov5 and yolov8 model.
  */
 typedef struct
 {
   /* From option3, whether the output values are scaled or not */
   int scaled_output;
-} properties_YOLOV5;
+  gfloat conf_threshold;
+  gfloat iou_threshold;
+} properties_YOLO;
+
+/**
+ * @brief Structure for object centroid tracking.
+ */
+typedef struct
+{
+  guint id;
+  guint matched_box_idx;
+  gint cx;
+  gint cy;
+  guint consecutive_disappeared_frames;
+} centroid;
+
+/**
+ * @brief Structure for distances. {distance} : {centroids} x {boxes}
+ */
+typedef struct
+{
+  guint centroid_idx;
+  guint box_idx;
+  guint64 distance;
+} distanceArrayData;
+
+/** @brief Compare function for sorting distances. */
+static int
+distance_compare (const void *a, const void *b)
+{
+  const distanceArrayData *da = (const distanceArrayData *) a;
+  const distanceArrayData *db = (const distanceArrayData *) b;
+
+  if (da->distance < db->distance)
+    return -1;
+  if (da->distance > db->distance)
+    return 1;
+  return 0;
+}
 
 /**
  * @brief Data structure for SSD bounding box info for mobilenet ssd postprocess model.
@@ -231,7 +281,8 @@ typedef struct
 /**
  * @brief anchor data
  */
-typedef struct {
+typedef struct
+{
   float x_center;
   float y_center;
   float w;
@@ -270,7 +321,7 @@ typedef struct
   {
     properties_MOBILENET_SSD mobilenet_ssd; /**< Properties for mobilenet_ssd configured by option 1 + 3 */
     properties_MOBILENET_SSD_PP mobilenet_ssd_pp; /**< mobilenet_ssd_pp mode properties configuration settings */
-    properties_YOLOV5 yolov5_pp; /**< Properties for yolov5 configured by option3 */
+    properties_YOLO yolo_pp; /**< Properties for yolov5 and yolov8 configured by option3 */
   };
 
   properties_MP_PALM_DETECTION mp_palm_detection; /**< mp_palm_detection mode properties configuration settings */
@@ -287,8 +338,20 @@ typedef struct
   guint i_width; /**< Input Video Width */
   guint i_height; /**< Input Video Height */
 
+  /* From option6 (track or not) */
+  gint is_track;
+  guint centroids_last_id; /**< The last_id of centroid valid id is 1, 2, ... (not 0). */
+  guint max_centroids_num; /**< The maximum number of centroids */
+  guint consecutive_disappear_threshold; /**< The threshold of consecutive disappeared frames */
+
+  GArray *centroids; /**< Array for centroids */
+  GArray *distanceArray; /**< Array for distances */
+
   guint max_detection;
   gboolean flag_use_label;
+
+  /* From option7 (log or not) */
+  gint do_log;
 } bounding_boxes;
 
 /** @brief check the mode is mobilenet-ssd */
@@ -358,8 +421,10 @@ logit (float x)
 static int
 _init_modes (bounding_boxes * bdata)
 {
-  if (bdata->mode == YOLOV5_BOUNDING_BOX) {
-    bdata->yolov5_pp.scaled_output = 0; /* default conf is the output is not scaled */
+  if (bdata->mode == YOLOV5_BOUNDING_BOX || bdata->mode == YOLOV8_BOUNDING_BOX) {
+    bdata->yolo_pp.scaled_output = 0;   /* default conf is the output is not scaled */
+    bdata->yolo_pp.conf_threshold = YOLO_DETECTION_CONF_THRESHOLD;
+    bdata->yolo_pp.iou_threshold = YOLO_DETECTION_IOU_THRESHOLD;
     return TRUE;
   }
 
@@ -425,7 +490,9 @@ _init_modes (bounding_boxes * bdata)
     data->strides[2] = MP_PALM_DETECTION_STRIDE_2_DEFAULT;
     data->strides[3] = MP_PALM_DETECTION_STRIDE_3_DEFAULT;
     data->min_score_threshold = MP_PALM_DETECTION_MIN_SCORE_THRESHOLD_DEFAULT;
-    data->anchors = g_array_new(FALSE, TRUE, sizeof(anchor));
+    if (data->anchors)
+      g_array_free (data->anchors, TRUE);
+    data->anchors = g_array_new (FALSE, TRUE, sizeof (anchor));
 
     return TRUE;
   }
@@ -451,6 +518,19 @@ bb_init (void **pdata)
   bdata->i_width = 0;
   bdata->i_height = 0;
   bdata->flag_use_label = FALSE;
+  bdata->do_log = 0;
+
+  /* for track */
+  bdata->is_track = 0;
+  bdata->centroids_last_id = 0U;
+  bdata->max_centroids_num = 100U;
+  bdata->consecutive_disappear_threshold = 100U;
+  bdata->centroids =
+      g_array_sized_new (TRUE, TRUE, sizeof (centroid),
+      bdata->max_centroids_num);
+  bdata->distanceArray =
+      g_array_sized_new (TRUE, TRUE, sizeof (distanceArrayData),
+      bdata->max_centroids_num * bdata->max_centroids_num);
 
   initSingleLineSprite (singleLineSprite, rasters, PIXEL_VALUE);
 
@@ -466,6 +546,11 @@ _exit_modes (bounding_boxes * bdata)
     /* properties_MOBILENET_SSD *data = &bdata->mobilenet_ssd; */
   } else if (_check_mode_is_mobilenet_ssd_pp (bdata->mode)) {
     /* post processing */
+  } else if (_check_mode_is_mp_palm_detection (bdata->mode)) {
+    properties_MP_PALM_DETECTION *data = &bdata->mp_palm_detection;
+    if (data->anchors)
+      g_array_free (data->anchors, TRUE);
+    data->anchors = NULL;
   }
 }
 
@@ -474,6 +559,9 @@ static void
 bb_exit (void **pdata)
 {
   bounding_boxes *bdata = *pdata;
+
+  g_array_free (bdata->centroids, TRUE);
+  g_array_free (bdata->distanceArray, TRUE);
 
   _free_labels (&bdata->labeldata);
 
@@ -567,12 +655,14 @@ error:
  * @brief Calculate anchor scale
  */
 static gfloat
-_calculate_scale (float min_scale, float max_scale, int stride_index, int num_strides)
+_calculate_scale (float min_scale, float max_scale, int stride_index,
+    int num_strides)
 {
   if (num_strides == 1) {
     return (min_scale + max_scale) * 0.5f;
   } else {
-    return min_scale + (max_scale - min_scale) * 1.0 * stride_index / (num_strides - 1.0f);
+    return min_scale + (max_scale -
+        min_scale) * 1.0 * stride_index / (num_strides - 1.0f);
   }
 }
 
@@ -580,7 +670,8 @@ _calculate_scale (float min_scale, float max_scale, int stride_index, int num_st
  * @brief Generate anchor information
  */
 static void
-_mp_palm_detection_generate_anchors (properties_MP_PALM_DETECTION *palm_detection)
+_mp_palm_detection_generate_anchors (properties_MP_PALM_DETECTION *
+    palm_detection)
 {
   int layer_id = 0;
   int strides[MP_PALM_DETECTION_PARAMS_STRIDE_SIZE];
@@ -596,35 +687,37 @@ _mp_palm_detection_generate_anchors (properties_MP_PALM_DETECTION *palm_detectio
   }
 
   while (layer_id < num_layers) {
-    GArray *aspect_ratios = g_array_new(FALSE, TRUE, sizeof(gfloat));
-    GArray *scales = g_array_new(FALSE, TRUE, sizeof(gfloat));
-    GArray *anchor_height = g_array_new(FALSE, TRUE, sizeof(gfloat));
-    GArray *anchor_width = g_array_new(FALSE, TRUE, sizeof(gfloat));
+    GArray *aspect_ratios = g_array_new (FALSE, TRUE, sizeof (gfloat));
+    GArray *scales = g_array_new (FALSE, TRUE, sizeof (gfloat));
+    GArray *anchor_height = g_array_new (FALSE, TRUE, sizeof (gfloat));
+    GArray *anchor_width = g_array_new (FALSE, TRUE, sizeof (gfloat));
 
     int last_same_stride_layer = layer_id;
 
     while (last_same_stride_layer < num_layers
-           && strides[last_same_stride_layer] == strides[layer_id]) {
+        && strides[last_same_stride_layer] == strides[layer_id]) {
       gfloat scale;
       gfloat ratio = 1.0f;
-      g_array_append_val(aspect_ratios, ratio);
-      g_array_append_val(aspect_ratios, ratio);
-      scale = _calculate_scale(palm_detection->min_scale, palm_detection->max_scale,
-                                     last_same_stride_layer, num_layers);
-      g_array_append_val(scales, scale);
-      scale = _calculate_scale(palm_detection->min_scale, palm_detection->max_scale,
-                                     last_same_stride_layer + 1, num_layers);
-      g_array_append_val(scales, scale);
+      g_array_append_val (aspect_ratios, ratio);
+      g_array_append_val (aspect_ratios, ratio);
+      scale =
+          _calculate_scale (palm_detection->min_scale,
+          palm_detection->max_scale, last_same_stride_layer, num_layers);
+      g_array_append_val (scales, scale);
+      scale =
+          _calculate_scale (palm_detection->min_scale,
+          palm_detection->max_scale, last_same_stride_layer + 1, num_layers);
+      g_array_append_val (scales, scale);
       last_same_stride_layer++;
     }
 
     for (i = 0; i < aspect_ratios->len; ++i) {
-      const float ratio_sqrts = sqrt(g_array_index (aspect_ratios, gfloat, i));
+      const float ratio_sqrts = sqrt (g_array_index (aspect_ratios, gfloat, i));
       const gfloat sc = g_array_index (scales, gfloat, i);
       gfloat anchor_height_ = sc / ratio_sqrts;
       gfloat anchor_width_ = sc * ratio_sqrts;
-      g_array_append_val(anchor_height, anchor_height_);
-      g_array_append_val(anchor_width, anchor_width_);
+      g_array_append_val (anchor_height, anchor_height_);
+      g_array_append_val (anchor_width, anchor_width_);
     }
 
     {
@@ -634,25 +727,30 @@ _mp_palm_detection_generate_anchors (properties_MP_PALM_DETECTION *palm_detectio
       int anchor_id;
 
       const int stride = strides[layer_id];
-      feature_map_height = ceil(1.0f * 192 / stride);
-      feature_map_width = ceil(1.0f * 192 / stride);
+      feature_map_height = ceil (1.0f * 192 / stride);
+      feature_map_width = ceil (1.0f * 192 / stride);
 
       for (y = 0; y < feature_map_height; ++y) {
         for (x = 0; x < feature_map_width; ++x) {
-          for (anchor_id = 0; anchor_id < (int)aspect_ratios->len; ++anchor_id) {
+          for (anchor_id = 0; anchor_id < (int) aspect_ratios->len; ++anchor_id) {
             const float x_center = (x + offset_x) * 1.0f / feature_map_width;
             const float y_center = (y + offset_y) * 1.0f / feature_map_height;
 
-            const anchor a = {.x_center = x_center, .y_center = y_center,
-              .w = g_array_index (anchor_width, gfloat, anchor_id), .h = g_array_index (anchor_height, gfloat, anchor_id)};
-            g_array_append_val(palm_detection->anchors, a);
+            const anchor a = {.x_center = x_center,.y_center = y_center,
+              .w = g_array_index (anchor_width, gfloat, anchor_id),.h =
+                  g_array_index (anchor_height, gfloat, anchor_id)
+            };
+            g_array_append_val (palm_detection->anchors, a);
           }
         }
       }
       layer_id = last_same_stride_layer;
     }
 
-    g_array_free(aspect_ratios, FALSE);
+    g_array_free (anchor_height, TRUE);
+    g_array_free (anchor_width, TRUE);
+    g_array_free (aspect_ratios, TRUE);
+    g_array_free (scales, TRUE);
   }
 }
 
@@ -664,8 +762,25 @@ _mp_palm_detection_generate_anchors (properties_MP_PALM_DETECTION *palm_detectio
 static int
 _setOption_mode (bounding_boxes * bdata, const char *param)
 {
-  if (bdata->mode == YOLOV5_BOUNDING_BOX) {
-    bdata->yolov5_pp.scaled_output = (int) g_ascii_strtoll (param, NULL, 10);
+  if (bdata->mode == YOLOV5_BOUNDING_BOX || bdata->mode == YOLOV8_BOUNDING_BOX) {
+    properties_YOLO *yolo = &bdata->yolo_pp;
+    gchar **options;
+    int noptions;
+
+    options = g_strsplit (param, ":", -1);
+    noptions = g_strv_length (options);
+    if (noptions > 0)
+      yolo->scaled_output = (int) g_ascii_strtoll (options[0], NULL, 10);
+    if (noptions > 1)
+      yolo->conf_threshold = (gfloat) g_ascii_strtod (options[1], NULL);
+    if (noptions > 2)
+      yolo->iou_threshold = (gfloat) g_ascii_strtod (options[2], NULL);
+
+    nns_logi
+        ("Setting YOLOV5/YOLOV8 decoder as scaled_output: %d, conf_threshold: %.2f, iou_threshold: %.2f",
+        yolo->scaled_output, yolo->conf_threshold, yolo->iou_threshold);
+
+    g_strfreev (options);
     return TRUE;
   }
 
@@ -752,8 +867,7 @@ _setOption_mode (bounding_boxes * bdata, const char *param)
     noptions = g_strv_length (options);
 
     if (noptions > MP_PALM_DETECTION_PARAMS_MAX) {
-      GST_ERROR
-          ("Invalid MP PALM DETECTION PARAM length: %d", noptions);
+      GST_ERROR ("Invalid MP PALM DETECTION PARAM length: %d", noptions);
       ret = FALSE;
       goto exit_mp_palm_detection;
     }
@@ -769,7 +883,7 @@ _setOption_mode (bounding_boxes * bdata, const char *param)
       mp_palm_detection_option (palm_detection->strides[idx - 6], gint, idx);
     }
 
-    _mp_palm_detection_generate_anchors(palm_detection);
+    _mp_palm_detection_generate_anchors (palm_detection);
 
   exit_mp_palm_detection:
     g_strfreev (options);
@@ -795,6 +909,8 @@ bb_setOption (void **pdata, int opNum, const char *param)
     }
 
     if (bdata->mode != previous && bdata->mode != BOUNDING_BOX_UNKNOWN) {
+      if (previous != BOUNDING_BOX_UNKNOWN)
+        _exit_modes (bdata);
       return _init_modes (bdata);
     }
     return TRUE;
@@ -869,6 +985,14 @@ bb_setOption (void **pdata, int opNum, const char *param)
     }
     bdata->i_width = dim[0];
     bdata->i_height = dim[1];
+    return TRUE;
+  } else if (opNum == 5) {
+    /* option6 = track or not */
+    bdata->is_track = (int) g_ascii_strtoll (param, NULL, 10);
+    return TRUE;
+  } else if (opNum == 6) {
+    /* option7 - log or not */
+    bdata->do_log = (int) g_ascii_strtoll (param, NULL, 10);
     return TRUE;
   }
   /**
@@ -978,8 +1102,10 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
     g_return_val_if_fail (dim1[1] == 1, NULL);
     max_detection = dim1[2];
     g_return_val_if_fail (max_detection > 0, NULL);
+
+    /** @todo unused dimension value should be 0 */
     for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
-      g_return_val_if_fail (dim1[i] == 1, NULL);
+      g_return_val_if_fail (dim1[i] == 0 || dim1[i] == 1, NULL);
 
     /* Check if the second tensor is compatible */
     dim2 = config->info.info[1].dimension;
@@ -991,7 +1117,7 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
           max_label, data->label_path, data->labeldata.total_labels);
     g_return_val_if_fail (max_detection == dim2[1], NULL);
     for (i = 2; i < NNS_TENSOR_RANK_LIMIT; i++)
-      g_return_val_if_fail (dim2[i] == 1, NULL);
+      g_return_val_if_fail (dim2[i] == 0 || dim2[i] == 1, NULL);
 
     /* Check consistency with max_detection */
     if (!_set_max_detection (data, max_detection, MOBILENET_SSD_DETECTION_MAX)) {
@@ -1019,7 +1145,7 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
     dim1 = config->info.info[num_idx].dimension;
     g_return_val_if_fail (dim1[0] == 1, NULL);
     for (i = 1; i < NNS_TENSOR_RANK_LIMIT; ++i)
-      g_return_val_if_fail (dim1[i] == 1, NULL);
+      g_return_val_if_fail (dim1[i] == 0 || dim1[i] == 1, NULL);
 
     /* Check if the classes & scores tensors are compatible */
     dim2 = config->info.info[classes_idx].dimension;
@@ -1027,8 +1153,8 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
     g_return_val_if_fail (dim3[0] == dim2[0], NULL);
     max_detection = dim2[0];
     for (i = 1; i < NNS_TENSOR_RANK_LIMIT; ++i) {
-      g_return_val_if_fail (dim2[i] == 1, NULL);
-      g_return_val_if_fail (dim3[i] == 1, NULL);
+      g_return_val_if_fail (dim2[i] == 0 || dim2[i] == 1, NULL);
+      g_return_val_if_fail (dim3[i] == 0 || dim3[i] == 1, NULL);
     }
 
     /* Check if the bbox locations tensor is compatible */
@@ -1036,7 +1162,7 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
     g_return_val_if_fail (BOX_SIZE == dim4[0], NULL);
     g_return_val_if_fail (max_detection == dim4[1], NULL);
     for (i = 2; i < NNS_TENSOR_RANK_LIMIT; ++i)
-      g_return_val_if_fail (dim4[i] == 1, NULL);
+      g_return_val_if_fail (dim4[i] == 0 || dim4[i] == 1, NULL);
 
     /* Check consistency with max_detection */
     if (!_set_max_detection (data, max_detection,
@@ -1059,7 +1185,7 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
         NULL);
     g_return_val_if_fail (dim[1] == OV_PERSON_DETECTION_MAX, NULL);
     for (i = 2; i < NNS_TENSOR_RANK_LIMIT; ++i)
-      g_return_val_if_fail (dim[i] == 1, NULL);
+      g_return_val_if_fail (dim[i] == 0 || dim[i] == 1, NULL);
   } else if (data->mode == YOLOV5_BOUNDING_BOX) {
     const guint *dim = config->info.info[0].dimension;
     if (!_check_tensors (config, 1U))
@@ -1074,7 +1200,31 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
         (data->labeldata.total_labels + YOLOV5_DETECTION_NUM_INFO), NULL);
     g_return_val_if_fail (dim[1] == data->max_detection, NULL);
     for (i = 2; i < NNS_TENSOR_RANK_LIMIT; ++i)
-      g_return_val_if_fail (dim[i] == 1, NULL);
+      g_return_val_if_fail (dim[i] == 0 || dim[i] == 1, NULL);
+  } else if (data->mode == YOLOV8_BOUNDING_BOX) {
+    const guint *dim = config->info.info[0].dimension;
+    if (!_check_tensors (config, 1U))
+      return NULL;
+
+    /** Only support for float type model */
+    g_return_val_if_fail (config->info.info[0].type == _NNS_FLOAT32, NULL);
+
+    data->max_detection =
+        (data->i_width / 32) * (data->i_height / 32) +
+        (data->i_width / 16) * (data->i_height / 16) +
+        (data->i_width / 8) * (data->i_height / 8);
+
+    if (dim[0] != (data->labeldata.total_labels + YOLOV8_DETECTION_NUM_INFO)
+        || dim[1] != data->max_detection) {
+      nns_loge
+          ("yolov8 boundingbox decoder requires the input shape to be %d:%d:1. But given shape is %d:%d:1. `tensor_transform mode=transpose` would be helpful.",
+          data->labeldata.total_labels + YOLOV8_DETECTION_NUM_INFO,
+          data->max_detection, dim[0], dim[1]);
+      return NULL;
+    }
+
+    for (i = 2; i < NNS_TENSOR_RANK_LIMIT; ++i)
+      g_return_val_if_fail (dim[i] == 0 || dim[i] == 1, NULL);
   } else if (data->mode == MP_PALM_DETECTION_BOUNDING_BOX) {
     const uint32_t *dim1, *dim2;
     if (!_check_tensors (config, MP_PALM_DETECTION_MAX_TENSORS))
@@ -1088,17 +1238,18 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
     g_return_val_if_fail (max_detection > 0, NULL);
     g_return_val_if_fail (dim1[2] == 1, NULL);
     for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
-      g_return_val_if_fail (dim1[i] == 1, NULL);
+      g_return_val_if_fail (dim1[i] == 0 || dim1[i] == 1, NULL);
 
     /* Check if the second tensor is compatible */
     dim2 = config->info.info[1].dimension;
     g_return_val_if_fail (dim2[0] == 1, NULL);
     g_return_val_if_fail (max_detection == dim2[1], NULL);
     for (i = 2; i < NNS_TENSOR_RANK_LIMIT; i++)
-      g_return_val_if_fail (dim2[i] == 1, NULL);
+      g_return_val_if_fail (dim2[i] == 0 || dim2[i] == 1, NULL);
 
     /* Check consistency with max_detection */
-    if (!_set_max_detection (data, max_detection, MP_PALM_DETECTION_DETECTION_MAX)) {
+    if (!_set_max_detection (data, max_detection,
+            MP_PALM_DETECTION_DETECTION_MAX)) {
       return NULL;
     }
   }
@@ -1138,8 +1289,171 @@ typedef struct
   int width;
   int height;
   gfloat prob;
+
+  int tracking_id;
 } detectedObject;
 
+/**
+ * @brief Update centroids with given bounding boxes.
+ */
+static void
+update_centroids (void **pdata, GArray * boxes)
+{
+  guint i, j;
+  bounding_boxes *bdata = *pdata;
+  GArray *centroids = bdata->centroids;
+  GArray *distanceArray = bdata->distanceArray;
+
+  if (boxes->len > bdata->max_centroids_num) {
+    nns_logw ("update_centroids: too many detected objects");
+    return;
+  }
+  /* remove disappeared centroids */
+  i = 0;
+  while (i < centroids->len) {
+    centroid *c = &g_array_index (centroids, centroid, i);
+    if (c->consecutive_disappeared_frames >=
+        bdata->consecutive_disappear_threshold) {
+      g_array_remove_index (centroids, i);
+    } else {
+      i++;
+    }
+  }
+
+  if (centroids->len > bdata->max_centroids_num) {
+    nns_logw ("update_centroids: too many detected centroids");
+    return;
+  }
+  /* if boxes is empty */
+  if (boxes->len == 0U) {
+    guint i;
+    for (i = 0; i < centroids->len; i++) {
+      centroid *c = &g_array_index (centroids, centroid, i);
+
+      if (c->id > 0)
+        c->consecutive_disappeared_frames++;
+    }
+
+    return;
+  }
+  /* initialize centroids with given boxes */
+  if (centroids->len == 0U) {
+    guint i;
+    for (i = 0; i < boxes->len; i++) {
+      detectedObject *box = &g_array_index (boxes, detectedObject, i);
+      centroid c;
+
+      bdata->centroids_last_id++;
+      c.id = bdata->centroids_last_id;
+      c.consecutive_disappeared_frames = 0;
+      c.cx = box->x + box->width / 2;
+      c.cy = box->y + box->height / 2;
+      c.matched_box_idx = i;
+
+      g_array_append_val (centroids, c);
+
+      box->tracking_id = c.id;
+    }
+
+    return;
+  }
+  /* calculate the distance among centroids and boxes */
+  g_array_set_size (distanceArray, centroids->len * boxes->len);
+
+  for (i = 0; i < centroids->len; i++) {
+    centroid *c = &g_array_index (centroids, centroid, i);
+    c->matched_box_idx = G_MAXUINT32;
+
+    for (j = 0; j < boxes->len; j++) {
+      detectedObject *box = &g_array_index (boxes, detectedObject, j);
+      distanceArrayData *d = &g_array_index (distanceArray, distanceArrayData,
+          i * centroids->len + j);
+
+      d->centroid_idx = i;
+      d->box_idx = j;
+
+      /* invalid centroid */
+      if (c->id == 0) {
+        d->distance = G_MAXUINT64;
+      } else {
+        /* calculate euclidean distance */
+        int bcx = box->x + box->width / 2;
+        int bcy = box->y + box->height / 2;
+
+        d->distance = (guint64) (c->cx - bcx) * (c->cx - bcx)
+            + (guint64) (c->cy - bcy) * (c->cy - bcy);
+      }
+    }
+  }
+
+  g_array_sort (distanceArray, distance_compare);
+
+  {
+    /* Starting from the least distance pair (centroid, box), matching each other */
+    guint dIdx, cIdx, bIdx;
+
+    for (dIdx = 0; dIdx < distanceArray->len; dIdx++) {
+      distanceArrayData *d =
+          &g_array_index (distanceArray, distanceArrayData, dIdx);
+      centroid *c = &g_array_index (centroids, centroid, d->centroid_idx);
+      detectedObject *box = &g_array_index (boxes, detectedObject, d->box_idx);
+
+      bIdx = d->box_idx;
+
+      /* the centroid is invalid */
+      if (c->id == 0) {
+        continue;
+      }
+      /* the box is already assigned to a centroid */
+      if (box->tracking_id != 0) {
+        continue;
+      }
+      /* the centroid is already assigned to a box */
+      if (c->matched_box_idx != G_MAXUINT32) {
+        continue;
+      }
+      /* now match the box with the centroid */
+      c->matched_box_idx = bIdx;
+      box->tracking_id = c->id;
+      c->consecutive_disappeared_frames = 0;
+    }
+
+    /* increase consecutive_disappeared_frames of unmatched centroids */
+    for (cIdx = 0; cIdx < centroids->len; cIdx++) {
+      centroid *c = &g_array_index (centroids, centroid, cIdx);
+
+      if (c->id == 0) {
+        continue;
+      }
+
+      if (c->matched_box_idx == G_MAXUINT32) {
+        c->consecutive_disappeared_frames++;
+      }
+    }
+
+    /* for those unmatched boxes - register as new centroids */
+    for (bIdx = 0; bIdx < boxes->len; bIdx++) {
+      detectedObject *box = &g_array_index (boxes, detectedObject, bIdx);
+      centroid c;
+
+      if (box->tracking_id != 0) {
+        continue;
+      }
+
+      bdata->centroids_last_id++;
+      c.id = bdata->centroids_last_id;
+      c.consecutive_disappeared_frames = 0;
+      c.cx = box->x + box->width / 2;
+      c.cy = box->y + box->height / 2;
+      c.matched_box_idx = bIdx;
+
+      g_array_append_val (centroids, c);
+
+      box->tracking_id = c.id;
+    }
+  }
+
+}
 
 #define _expit(x) \
     (1.f / (1.f + expf (- ((float)x))))
@@ -1158,6 +1472,7 @@ typedef struct
 #define _get_object_i_mobilenet_ssd(bb, index, total_labels, boxprior, boxinputptr, detinputptr, result) \
   do { \
     unsigned int c; \
+    gfloat highscore = -FLT_MAX; \
     properties_MOBILENET_SSD *data = &bb->mobilenet_ssd; \
     float sigmoid_threshold = data->sigmoid_threshold; \
     float y_scale = data->params[MOBILENET_SSD_PARAMS_Y_SCALE_IDX]; \
@@ -1178,14 +1493,15 @@ typedef struct
         int y = ymin * bb->i_height; \
         int width = w * bb->i_width; \
         int height = h * bb->i_height; \
-        result->class_id = c; \
-        result->x = MAX (0, x); \
-        result->y = MAX (0, y); \
-        result->width = width; \
-        result->height = height; \
-        result->prob = score; \
-        result->valid = TRUE; \
-        break; \
+        if (highscore < score) { \
+          result->class_id = c; \
+          result->x = MAX (0, x); \
+          result->y = MAX (0, y); \
+          result->width = width; \
+          result->height = height; \
+          result->prob = score; \
+          result->valid = TRUE; \
+        } \
       } \
     } \
   } while (0);
@@ -1266,8 +1582,11 @@ nms (GArray * results, gfloat threshold)
   guint boxes_size;
   guint i, j;
 
-  g_array_sort (results, compare_detection);
   boxes_size = results->len;
+  if (boxes_size == 0U)
+    return;
+
+  g_array_sort (results, compare_detection);
 
   for (i = 0; i < boxes_size; i++) {
     detectedObject *a = &g_array_index (results, detectedObject, i);
@@ -1470,8 +1789,6 @@ draw (GstMapInfo * out_info, bounding_boxes * bdata, GArray * results)
     int x1, x2, y1, y2;         /* Box positions on the output surface */
     int j;
     uint32_t *pos1, *pos2;
-    const char *label;
-    int label_len;
     detectedObject *a = &g_array_index (results, detectedObject, i);
 
 
@@ -1511,9 +1828,20 @@ draw (GstMapInfo * out_info, bounding_boxes * bdata, GArray * results)
       pos2 += bdata->width;
     }
 
-    /* 2. Write Labels */
+    /* 2. Write Labels + tracking ID */
     if (bdata->flag_use_label) {
-      label = bdata->labeldata.labels[a->class_id];
+      g_autofree gchar *label = NULL;
+      guint j;
+      gsize label_len;
+
+      if (bdata->is_track != 0) {
+        label =
+            g_strdup_printf ("%s-%d", bdata->labeldata.labels[a->class_id],
+            a->tracking_id);
+      } else {
+        label = g_strdup_printf ("%s", bdata->labeldata.labels[a->class_id]);
+      }
+
       label_len = strlen (label);
       /* x1 is the same: x1 = MAX (0, (bdata->width * a->x) / bdata->i_width); */
       y1 = MAX (0, (y1 - 14));
@@ -1538,13 +1866,35 @@ draw (GstMapInfo * out_info, bounding_boxes * bdata, GArray * results)
   }
 }
 
+/**
+ * @brief Log the given results
+ */
+static void
+log_boxes (bounding_boxes * bdata, GArray * results)
+{
+  guint i;
+
+  nns_logi ("Detect %u boxes in %u x %u input image", results->len,
+      bdata->i_width, bdata->i_height);
+  for (i = 0; i < results->len; i++) {
+    detectedObject *b = &g_array_index (results, detectedObject, i);
+    if (bdata->labeldata.total_labels > 0)
+      nns_logi ("[%s] x:%d y:%d w:%d h:%d prob:%.4f",
+          bdata->labeldata.labels[b->class_id], b->x, b->y, b->width, b->height,
+          b->prob);
+    else
+      nns_logi ("x:%d y:%d w:%d h:%d prob:%.4f",
+          b->x, b->y, b->width, b->height, b->prob);
+  }
+}
+
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static GstFlowReturn
 bb_decode (void **pdata, const GstTensorsConfig * config,
     const GstTensorMemory * input, GstBuffer * outbuf)
 {
   bounding_boxes *bdata = *pdata;
-  const size_t size = (size_t) bdata->width * bdata->height * 4; /* RGBA */
+  const size_t size = (size_t) bdata->width * bdata->height * 4;        /* RGBA */
   GstMapInfo out_info;
   GstMemory *out_mem;
   GArray *results = NULL;
@@ -1573,7 +1923,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
     goto error_free;
   }
 
-  /** reset the buffer with alpha 0 / black */
+  /* reset the buffer with alpha 0 / black */
   memset (out_info.data, 0, size);
 
   if (_check_mode_is_mobilenet_ssd (bdata->mode)) {
@@ -1590,7 +1940,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
     results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), 100);
 
     boxes = &input[0];
-    if (num_tensors >= MOBILENET_SSD_MAX_TENSORS) /* lgtm[cpp/constant-comparison] */
+    if (num_tensors >= MOBILENET_SSD_MAX_TENSORS)       /* lgtm[cpp/constant-comparison] */
       detections = &input[1];
 
     switch (config->info.info[0].type) {
@@ -1671,19 +2021,21 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
     int bIdx, numTotalBox;
     int cIdx, numTotalClass, cStartIdx, cIdxMax;
     float *boxinput;
-    int is_output_scaled = bdata->yolov5_pp.scaled_output;
+    int is_output_scaled = bdata->yolo_pp.scaled_output;
 
     numTotalBox = bdata->max_detection;
     numTotalClass = bdata->labeldata.total_labels;
     cStartIdx = YOLOV5_DETECTION_NUM_INFO;
     cIdxMax = numTotalClass + cStartIdx;
 
-    boxinput = (float *) input[0].data; // boxinput[1][1][numTotalBox][cIdxMax]
+    /* boxinput[numTotalBox][cIdxMax] */
+    boxinput = (float *) input[0].data;
 
     /** Only support for float type model */
     g_assert (config->info.info[0].type == _NNS_FLOAT32);
 
-    results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), numTotalBox);
+    results =
+        g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), numTotalBox);
     for (bIdx = 0; bIdx < numTotalBox; ++bIdx) {
       float maxClassConfVal = -INFINITY;
       int maxClassIdx = -1;
@@ -1695,7 +2047,7 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
       }
 
       if (maxClassConfVal * boxinput[bIdx * cIdxMax + 4] >
-          YOLOV5_DETECTION_CONF_THRESHOLD) {
+          bdata->yolo_pp.conf_threshold) {
         detectedObject object;
         float cx, cy, w, h;
         cx = boxinput[bIdx * cIdxMax + 0];
@@ -1717,12 +2069,68 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
 
         object.prob = maxClassConfVal * boxinput[bIdx * cIdxMax + 4];
         object.class_id = maxClassIdx - YOLOV5_DETECTION_NUM_INFO;
+        object.tracking_id = 0;
         object.valid = TRUE;
         g_array_append_val (results, object);
       }
     }
 
-    nms (results, YOLOV5_DETECTION_IOU_THRESHOLD);
+    nms (results, bdata->yolo_pp.iou_threshold);
+  } else if (bdata->mode == YOLOV8_BOUNDING_BOX) {
+    int bIdx, numTotalBox;
+    int cIdx, numTotalClass, cStartIdx, cIdxMax;
+    float *boxinput;
+    int is_output_scaled = bdata->yolo_pp.scaled_output;
+
+    numTotalBox = bdata->max_detection;
+    numTotalClass = bdata->labeldata.total_labels;
+    cStartIdx = YOLOV8_DETECTION_NUM_INFO;
+    cIdxMax = numTotalClass + cStartIdx;
+
+    /* boxinput[numTotalBox][cIdxMax] */
+    boxinput = (float *) input[0].data;
+
+    results =
+        g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), numTotalBox);
+    for (bIdx = 0; bIdx < numTotalBox; ++bIdx) {
+      float maxClassConfVal = -INFINITY;
+      int maxClassIdx = -1;
+      for (cIdx = cStartIdx; cIdx < cIdxMax; ++cIdx) {
+        if (boxinput[bIdx * cIdxMax + cIdx] > maxClassConfVal) {
+          maxClassConfVal = boxinput[bIdx * cIdxMax + cIdx];
+          maxClassIdx = cIdx;
+        }
+      }
+
+      if (maxClassConfVal > bdata->yolo_pp.conf_threshold) {
+        detectedObject object;
+        float cx, cy, w, h;
+        cx = boxinput[bIdx * cIdxMax + 0];
+        cy = boxinput[bIdx * cIdxMax + 1];
+        w = boxinput[bIdx * cIdxMax + 2];
+        h = boxinput[bIdx * cIdxMax + 3];
+
+        if (!is_output_scaled) {
+          cx *= (float) bdata->i_width;
+          cy *= (float) bdata->i_height;
+          w *= (float) bdata->i_width;
+          h *= (float) bdata->i_height;
+        }
+
+        object.x = (int) (MAX (0.f, (cx - w / 2.f)));
+        object.y = (int) (MAX (0.f, (cy - h / 2.f)));
+        object.width = (int) (MIN ((float) bdata->i_width, w));
+        object.height = (int) (MIN ((float) bdata->i_height, h));
+
+        object.prob = maxClassConfVal;
+        object.class_id = maxClassIdx - YOLOV8_DETECTION_NUM_INFO;
+        object.tracking_id = 0;
+        object.valid = TRUE;
+        g_array_append_val (results, object);
+      }
+    }
+
+    nms (results, bdata->yolo_pp.iou_threshold);
   } else if (bdata->mode == MP_PALM_DETECTION_BOUNDING_BOX) {
     const GstTensorMemory *boxes = NULL;
     const GstTensorMemory *detections = NULL;
@@ -1730,22 +2138,22 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
 
     /* Already checked with getOutCaps. Thus, this is an internal bug */
     g_assert (num_tensors >= MP_PALM_DETECTION_MAX_TENSORS);
-    results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), 100);
+    /* results will be allocated by _get_objects_mp_palm_detection_ */
 
     boxes = &input[0];
     detections = &input[1];
 
     switch (config->info.info[0].type) {
-      _get_objects_mp_palm_detection_ (uint8_t, _NNS_UINT8);
-      _get_objects_mp_palm_detection_ (int8_t, _NNS_INT8);
-      _get_objects_mp_palm_detection_ (uint16_t, _NNS_UINT16);
-      _get_objects_mp_palm_detection_ (int16_t, _NNS_INT16);
-      _get_objects_mp_palm_detection_ (uint32_t, _NNS_UINT32);
-      _get_objects_mp_palm_detection_ (int32_t, _NNS_INT32);
-      _get_objects_mp_palm_detection_ (uint64_t, _NNS_UINT64);
-      _get_objects_mp_palm_detection_ (int64_t, _NNS_INT64);
-      _get_objects_mp_palm_detection_ (float, _NNS_FLOAT32);
-      _get_objects_mp_palm_detection_ (double, _NNS_FLOAT64);
+        _get_objects_mp_palm_detection_ (uint8_t, _NNS_UINT8);
+        _get_objects_mp_palm_detection_ (int8_t, _NNS_INT8);
+        _get_objects_mp_palm_detection_ (uint16_t, _NNS_UINT16);
+        _get_objects_mp_palm_detection_ (int16_t, _NNS_INT16);
+        _get_objects_mp_palm_detection_ (uint32_t, _NNS_UINT32);
+        _get_objects_mp_palm_detection_ (int32_t, _NNS_INT32);
+        _get_objects_mp_palm_detection_ (uint64_t, _NNS_UINT64);
+        _get_objects_mp_palm_detection_ (int64_t, _NNS_INT64);
+        _get_objects_mp_palm_detection_ (float, _NNS_FLOAT32);
+        _get_objects_mp_palm_detection_ (double, _NNS_FLOAT64);
 
       default:
         g_assert (0);
@@ -1754,6 +2162,14 @@ bb_decode (void **pdata, const GstTensorsConfig * config,
   } else {
     GST_ERROR ("Failed to get output buffer, unknown mode %d.", bdata->mode);
     goto error_unmap;
+  }
+
+  if (bdata->do_log != 0) {
+    log_boxes (bdata, results);
+  }
+
+  if (bdata->is_track != 0) {
+    update_centroids (pdata, results);
   }
 
   draw (&out_info, bdata, results);
@@ -1789,16 +2205,88 @@ static GstTensorDecoderDef boundingBox = {
   .decode = bb_decode
 };
 
+static gchar *custom_prop_desc = NULL;
+
 /** @brief Initialize this object for tensordec-plugin */
 void
 init_bb (void)
 {
   nnstreamer_decoder_probe (&boundingBox);
+
+  {
+    g_autofree gchar *sub_desc = g_strjoinv ("|", (GStrv) bb_modes);
+
+    g_free (custom_prop_desc);
+    custom_prop_desc =
+        g_strdup_printf ("Decoder mode of bounding box: [%s]", sub_desc);
+
+    nnstreamer_decoder_set_custom_property_desc (decoder_subplugin_bounding_box,
+        "option1", custom_prop_desc, "option2",
+        "Location of the label file. This is independent from option1.",
+        "option3",
+        "Sub-option values that depend on option1;\n"
+        "\tfor yolov5 and yolov8 mode:\n"
+        "\t\tThe option3 requires up to 3 numbers, which tell\n"
+        "\t\t- whether the output values are scaled or not\n"
+        "\t\t   0: not scaled (default), 1: scaled (e.g., 0.0 ~ 1.0)\n"
+        "\t\t- the threshold of confidence (optional, default set to 0.25)\n"
+        "\t\t- the threshold of IOU (optional, default set to 0.45)\n"
+        "\t\tAn example of option3 is option3 = 0: 0.65:0.6 \n"
+        "\tfor mobilenet-ssd mode:\n"
+        "\t\tThe option3 definition scheme is, in order, as follows\n"
+        "\t\t- box priors location file (mandatory)\n"
+        "\t\t- detection threshold (optional, default set to 0.5)box priors location file (mandatory)\n"
+        "\t\t- Y box scale (optional, default set to 10.0)\n"
+        "\t\t- X box scale (optional, default set to 10.0)\n"
+        "\t\t- H box scale (optional, default set to 5.0)\n"
+        "\t\t- W box scale (optional, default set to 5.0)\n"
+        "\t\tThe default parameters value could be set in the following ways:\n"
+        "\t\t option3=box-priors.txt:0.5:10.0:10.0:5.0:5.0:0.5\n"
+        "\t\t option3=box-priors.txt\n"
+        "\t\t option3=box-priors.txt::::::\n"
+        "\t\tIt's possible to set only few values, using the default values for those not specified through the command line.\n"
+        "\t\tYou could specify respectively the detection and IOU thresholds to 0.65 and 0.6 with the option3 parameter as follow:\n"
+        "\t\t option3=box-priors.txt:0.65:::::0.6\n"
+        "\tfor mobilenet-ssd-postprocess mode:\n"
+        "\t\tThe option3 is required to have 5 integer numbers, which tell the tensor-dec how to interpret the given tensor inputs.\n"
+        "\t\tThe first 4 numbers separated by colon, \':\', designate which are location:class:score:number of the tensors.\n"
+        "\t\tThe last number separated by comma, ',\' from the first 4 numbers designate the threshold in percent.\n"
+        "\t\tIn other words, \"option3=%i:%i:%i:%i,%i\"\n"
+        "\tfor mp-palm-detection mode:\n"
+        "\t\tThe option3 is required to have five float numbers, as follows;\n"
+        "\t\t- box score threshold (mandatory)\n"
+        "\t\t- number of layers for anchor generation (optional, default set to 4)\n"
+        "\t\t- minimum scale factor for anchor generation (optional, default set to 1.0)\n"
+        "\t\t- maximum scale factor for anchor generation (optional, default set to 1.0)\n"
+        "\t\t- X offset (optional, default set to 0.5)\n"
+        "\t\t- Y offset (optional, default set to 0.5)\n"
+        "\t\t- strides for each layer for anchor generation (optional, default set to 8:16:16:16)\n"
+        "\t\tThe default parameter value could be set in the following ways:\n"
+        "\t\t option3=0.5\n"
+        "\t\t option3=0.5:4:0.2:0.8\n"
+        "\t\t option3=0.5:4:1.0:1.0:0.5:0.5:8:16:16:16",
+        "option4",
+        "Video Output Dimension (WIDTH:HEIGHT). This is independent from option1.",
+        "option5",
+        "Input Dimension (WIDTH:HEIGHT). This is independent from option1.",
+        "option6",
+        "Whether to track result bounding boxes or not\n"
+        "\t\t 0 (default, do not track)\n"
+        "\t\t 1 (track result bounding boxes, with naive centroid based algorithm)",
+        "option7",
+        "Whether to log the result bounding boxes or not\n"
+        "\t\t 0 (default, do not log)\n" "\t\t 1 (log result bounding boxes)"
+        "\tThis is independent from option1", "option8", "Box Style (NYI)",
+        NULL);
+  }
+
 }
 
 /** @brief Destruct this object for tensordec-plugin */
 void
 fini_bb (void)
 {
+  g_free (custom_prop_desc);
+  custom_prop_desc = NULL;
   nnstreamer_decoder_exit (boundingBox.modename);
 }

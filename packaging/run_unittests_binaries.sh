@@ -10,6 +10,7 @@
 input=""
 skip_tests=""
 this_script="$(basename -- $0)"
+VALGRIND=""
 while (( "$#" )); do
   case "$1" in
     -k|--skip)
@@ -27,6 +28,10 @@ while (( "$#" )); do
       echo "    -k | --skip  BINARY_NAME[,*]" >&2
       echo "        Skip the test cases whose names are...(valid only if target is a directory)" >&2
       exit 0
+      ;;
+    --valgrind)
+      VALGRIND="valgrind"
+      shift 1
       ;;
     -*|--*)
       echo "$1: invalid option" >&2
@@ -69,7 +74,12 @@ run_entry() {
     popd
   fi
 
-  ${entry} --gtest_output="xml:${entry##*/}.xml"
+  if [[ "$VALGRIND" == "valgrind" ]]; then
+    valgrind -v --suppressions=../tools/debugging/valgrind_suppression --track-origins=yes --tool=memcheck --num-callers=200 --leak-check=full ${entry} --gtest_output="xml:${entry##*/}.xml"
+  else
+    ${entry} --gtest_output="xml:${entry##*/}.xml"
+  fi
+
   retval=$?
   export PYTHONPATH=${_PYTHONPATH}
 

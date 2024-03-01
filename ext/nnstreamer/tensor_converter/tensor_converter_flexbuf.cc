@@ -91,6 +91,8 @@ flxc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
   GstMemory *in_mem, *out_mem;
   GstMapInfo in_info;
   gsize mem_size;
+  GstTensorInfo *_info;
+
   UNUSED (priv_data);
 
   if (!in_buf || !config) {
@@ -98,10 +100,10 @@ flxc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
     return NULL;
   }
 
-  in_mem = gst_buffer_peek_memory (in_buf, 0);
-
+  in_mem = gst_buffer_get_all_memory (in_buf);
   if (!gst_memory_map (in_mem, &in_info, GST_MAP_READ)) {
     ml_loge ("Cannot map input memory / tensor_converter::flexbuf.\n");
+    gst_memory_unref (in_mem);
     return NULL;
   }
 
@@ -124,15 +126,18 @@ flxc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
     flexbuffers::String _name = tensor[0].AsString ();
     const gchar *name = _name.c_str ();
 
-    config->info.info[i].name = (name && strlen (name) > 0) ? g_strdup (name) : NULL;
-    config->info.info[i].type = (tensor_type) tensor[1].AsInt32 ();
+    _info = gst_tensors_info_get_nth_info (&config->info, i);
+
+    g_free (_info->name);
+    _info->name = (name && strlen (name) > 0) ? g_strdup (name) : NULL;
+    _info->type = (tensor_type) tensor[1].AsInt32 ();
 
     flexbuffers::TypedVector dim = tensor[2].AsTypedVector ();
     for (guint j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
-      config->info.info[i].dimension[j] = dim[j].AsInt32 ();
+      _info->dimension[j] = dim[j].AsInt32 ();
     }
     flexbuffers::Blob tensor_data = tensor[3].AsBlob ();
-    mem_size = gst_tensor_info_get_size (&config->info.info[i]);
+    mem_size = gst_tensor_info_get_size (_info);
     if (gst_tensors_config_is_flexible (config)) {
       GstTensorMetaInfo meta;
       gst_tensor_meta_info_parse_header (&meta, (gpointer) tensor_data.data ());
@@ -143,7 +148,7 @@ flxc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
 
     out_mem = gst_memory_share (in_mem, offset, mem_size);
 
-    gst_buffer_append_memory (out_buf, out_mem);
+    gst_tensor_buffer_append_memory (out_buf, out_mem, _info);
     g_free (tensor_key);
   }
 
@@ -152,6 +157,7 @@ flxc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
       out_buf, in_buf, (GstBufferCopyFlags) GST_BUFFER_COPY_METADATA, 0, -1);
 done:
   gst_memory_unmap (in_mem, &in_info);
+  gst_memory_unref (in_mem);
 
   return out_buf;
 }

@@ -80,7 +80,8 @@ gst_tensors_caps_from_config (const GstTensorsConfig * config);
  * @brief set alignment that default allocator would align to
  * @param alignment bytes of alignment
  */
-extern void gst_tensor_alloc_init (gsize alignment);
+extern void
+gst_tensor_alloc_init (gsize alignment);
 
 /**
  * @brief Parse memory and fill the tensor meta.
@@ -103,10 +104,10 @@ gst_tensor_meta_info_append_header (GstTensorMetaInfo * meta, GstMemory * mem);
 /**
  * @brief Update caps dimension for negotiation
  * @param caps caps to compare and update
- * @param peer_caps caps to compare
+ * @param filter caps to compare
  */
 extern void
-gst_tensor_caps_update_dimension (GstCaps *caps, GstCaps *peer_caps);
+gst_tensor_caps_update_dimension (GstCaps *caps, GstCaps *filter);
 
 /**
  * @brief  Try intersecting @caps1 and @caps2 for tensor stream
@@ -120,25 +121,27 @@ gst_tensor_caps_can_intersect (GstCaps *caps1, GstCaps *caps2);
 /**
  * @brief Get the nth GstMemory from given @a buffer.
  * @param[in] buffer GstBuffer to be parsed.
- * @param[in] info GstTensorsInfo to be used in parsing buffer.
  * @param[in] index Index of GstMemory to be returned.
  * @return GstMemory if found, otherwise NULL (Caller should free returned memory using gst_memory_unref()).
-*/
+ */
 extern GstMemory *
-gst_tensor_buffer_get_nth_memory (GstBuffer * buffer, const GstTensorsInfo * info, const guint index);
+gst_tensor_buffer_get_nth_memory (GstBuffer * buffer, const guint index);
 
 /**
  * @brief Append @a memory to given @a buffer.
  * @param[in/out] buffer GstBuffer to be appended.
- * @param[in] memory GstMemory to append. This function will take ownership of this.
+ * @param[in] memory GstMemory to append. This function takes ownership of this, even if it returns failure.
  * @param[in] info GstTensorInfo of given @a memory.
  * @return TRUE if successfully appended, otherwise FALSE.
-*/
+ */
 extern gboolean
 gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory, const GstTensorInfo * info);
 
+/**
+ * @brief Get the number of tensors in the buffer.
+ */
 extern guint
-gst_buffer_n_tensor (GstBuffer * buffer);
+gst_tensor_buffer_get_count (GstBuffer * buffer);
 
 G_END_DECLS
 #endif /* __NNS_PLUGIN_API_H__ */

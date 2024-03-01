@@ -26,7 +26,7 @@
  * @brief Caps string for supported video format
  */
 #define VIDEO_CAPS_STR \
-    GST_VIDEO_CAPS_MAKE ("{ RGB, BGR, RGBx, BGRx, xRGB, xBGR, RGBA, BGRA, ARGB, ABGR, GRAY8 }") \
+    GST_VIDEO_CAPS_MAKE ("{ RGB, BGR, RGBx, BGRx, xRGB, xBGR, RGBA, BGRA, ARGB, ABGR, GRAY8, GRAY16_BE, GRAY16_LE }") \
     ", interlace-mode = (string) progressive"
 
 #define append_video_caps_template(caps) \

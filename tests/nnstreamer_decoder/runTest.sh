@@ -94,6 +94,29 @@ else
     callCompareTest test_06_raw_2.log test_06_decoded_2.log 6-3 "Compare for case 6-3" 1 0
 fi
 
+
+# Test for GRAY16_BE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw, width=160, height=120, framerate=5/1,format=GRAY16_BE ! tee name =t t. ! queue ! tensor_converter ! tensor_decoder mode=direct_video option1=GRAY16_BE ! filesink location=\"testcase7_dv.raw\" sync=true t. ! queue ! filesink location=\"testcase7_origin.raw\" sync=true" 7 0 0 $PERFORMANCE
+callCompareTest testcase7_origin.raw testcase7_dv.raw 7 "Compare for case 7" 0 0
+
+# Test for GRAY16_LE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw, width=160, height=120, framerate=5/1,format=GRAY16_LE ! tee name =t t. ! queue ! tensor_converter ! tensor_decoder mode=direct_video option1=GRAY16_LE ! filesink location=\"testcase8_dv.raw\" sync=true t. ! queue ! filesink location=\"testcase8_origin.raw\" sync=true" 8 0 0 $PERFORMANCE
+callCompareTest testcase8_origin.raw testcase8_dv.raw 8 "Compare for case 8" 0 0
+
+# Test all supported video formats of direct video
+function video_format_test() {
+    gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw,format=${1},width=640,height=480,framerate=0/1 ! filesink location=\"testcase09_${1}.golden.raw\" sync=true" "Generate golden test for ${1}" 0 0 $PERFORMANCE
+
+    gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw,format=${1},width=640,height=480,framerate=0/1 ! tensor_converter ! tensor_decoder mode=direct_video option1=${1} ! filesink location=\"testcase09_${1}.log\" sync=true" "direct video conversion result ${1}" 0 0 $PERFORMANCE
+
+    callCompareTest testcase09_${1}.golden.raw testcase09_${1}.log 1 "Test ${1} comparison" 0 0
+}
+
+VIDEO_FORMAT=("GRAY8" "GRAY16_LE" "GRAY16_BE" "RGB" "BGR" "RGBx" "BGRx" "xRGB" "xBGR" "RGBA" "BGRA" "ARGB" "ABGR")
+for FORMAT in ${VIDEO_FORMAT[@]}; do
+    video_format_test ${FORMAT}
+done
+
 rm *.log *.bmp *.png *.golden *.raw
 
 report
