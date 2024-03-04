@@ -1774,6 +1774,7 @@ gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
      * @todo Make custom gst_allocator later?
      */
     g_free (extra_info->infos[new_mem_index].name);
+    extra_info->infos[new_mem_index].name = NULL;
   } else {
     gst_tensor_meta_info_convert (&meta, &extra_info->infos[new_mem_index]);
   }
