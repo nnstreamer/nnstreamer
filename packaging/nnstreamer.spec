@@ -1340,7 +1340,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 * Fri Sep 15 2023 MyungJoo Ham <myungjoo.ham@samsung.com>
 - Start development of 2.4.1 (2.4.2-RC1)
 
-* Thu Sep 12 2023 MyungJoo Ham <myungjoo.ham@samsung.com>
+* Tue Sep 12 2023 MyungJoo Ham <myungjoo.ham@samsung.com>
 - Release of 2.4.0, the new LTS version of 2023. (Tizen 8.0 M2)
 
 * Tue Sep 27 2022 MyungJoo Ham <myungjoo.ham@samsung.com>
