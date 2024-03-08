@@ -22,8 +22,9 @@
  *
  * @see		https://github.com/nnstreamer/nnstreamer
  * @author	Jijoong Moon <jijoong.moon@samsung.com>
- * @bug		No known bugs except for NYI items
- *
+ * @bug		If the elment size is 2 or larger, padding won't work.
+ *              GRAY16 types has size of 2 and if you have padding, it won't work.
+ *              To correct this, dv_decode() should be fixed.
  */
 
 #include <string.h>
@@ -35,8 +36,8 @@
 #include <nnstreamer_util.h>
 #include "tensordecutil.h"
 
-void init_dv (void) __attribute__((constructor));
-void fini_dv (void) __attribute__((destructor));
+void init_dv (void) __attribute__ ((constructor));
+void fini_dv (void) __attribute__ ((destructor));
 
 #define DECODER_DV_FORMATS "{ GRAY8, RGB, BGR, RGBx, BGRx, xRGB, xBGR, RGBA, BGRA, ARGB, ABGR, GRAY16_BE, GRAY16_LE }"
 
@@ -173,6 +174,8 @@ dv_getOutCaps (void **pdata, const GstTensorsConfig * config)
   GstVideoFormat format;
   gint width, height, channel;
   GstCaps *caps;
+  guint element_size_from_cap = 1; /** Assume 1 byte per element */
+  tensor_type input_tensor_type = config->info.info[0].type;
 
   g_return_val_if_fail (config != NULL, NULL);
   GST_INFO ("Num Tensors = %d", config->info.num_tensors);
@@ -187,9 +190,11 @@ dv_getOutCaps (void **pdata, const GstTensorsConfig * config)
         break;
       case DIRECT_VIDEO_FORMAT_GRAY16_BE:
         format = GST_VIDEO_FORMAT_GRAY16_BE;
+        element_size_from_cap = 2;
         break;
       case DIRECT_VIDEO_FORMAT_GRAY16_LE:
         format = GST_VIDEO_FORMAT_GRAY16_LE;
+        element_size_from_cap = 2;
         break;
       case DIRECT_VIDEO_FORMAT_UNKNOWN:
       default:
@@ -245,6 +250,22 @@ dv_getOutCaps (void **pdata, const GstTensorsConfig * config)
   } else {
     GST_ERROR ("%d channel is not supported", channel);
     return NULL;
+  }
+
+  if (gst_tensor_get_element_size (input_tensor_type) != element_size_from_cap) {
+    GST_ERROR ("The element size of input tensor (%" G_GSIZE_FORMAT
+        " byte / %s) for tensor_decoder::direct_video must be same as the element size of output (%u byte / %s). Note that except for GrayScale-16 format, it should be 1 byte / element, normally; i.e., RGB, RGBA, and BGRx. It is recommended to convert to UINT8 tensor stream or UINT16 tensor stream (GreyScale-16) before tensor_decoder::direct_video.",
+        gst_tensor_get_element_size (input_tensor_type),
+        gst_tensor_get_type_string (input_tensor_type),
+        element_size_from_cap,
+        ((element_size_from_cap == 2) ? "uint16" : "uint8"));
+    return NULL;
+  }
+
+  if (input_tensor_type != _NNS_UINT8 && input_tensor_type != _NNS_UINT16) {
+    GST_WARNING
+        ("The input tensor type for tensor_decoder::direct_video is recommended to be either UINT8 or UINT16. The current type, %s, does not incur buffer size mismatch, but the actual behavior might be inconsistent. Try UINT8/UINT16, which is meant to be the video/x-raw element type.",
+        gst_tensor_get_type_string (input_tensor_type));
   }
 
   width = config->info.info[0].dimension[1];
