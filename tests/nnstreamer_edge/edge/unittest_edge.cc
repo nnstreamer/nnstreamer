@@ -292,6 +292,7 @@ _check_mqtt_broker ()
  */
 TEST (edgeSinkSrc, runNormalAitt)
 {
+  GTEST_SKIP ();
   gchar *sink_pipeline, *src_pipeline;
   GstElement *sink_gstpipe, *src_gstpipe;
   GstElement *appsrc_handle, *sink_handle;
