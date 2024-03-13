@@ -547,7 +547,9 @@ foreach feature_name, data : features
     endif
   endforeach
 
-  if get_option(feature_name).disabled() or not _available
+  if get_option(feature_name).enabled() and not _available
+    error('@0@ is enabled, but unable to find the target dependency'.format(feature_name))
+  elif get_option(feature_name).disabled() or not _available
     project_args += data.get('project_args_disabled', {})
     set_variable(variable_deps_name, [])
     set_variable(variable_available_name, false)
