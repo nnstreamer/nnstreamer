@@ -17,11 +17,9 @@
 #include <errno.h>
 
 #if defined(__aarch64__) || defined(__arm__)
-#if defined(__TIZEN__)
-#include <asm-arm/hwcap.h>
-#elif defined(__ANDROID__) || defined(__linux__)
+#if defined(__TIZEN__) || defined(__ANDROID__) || defined(__linux__)
 #include <asm/hwcap.h>
-#endif /* __TIZEN__ */
+#endif /* __TIZEN__ || __ANDROID__ || __linux__ */
 #endif /* __arch64__ || __arm__ */
 
 #if !defined(__APPLE__)
