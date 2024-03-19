@@ -57,19 +57,19 @@ Depends: nnstreamer-single, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer TensorFlow Lite 2.x Support
  This package allows nnstreamer to support tensorflow-lite 2.x.
 
+Package: nnstreamer-tensorflow
+Architecture: any
+Multi-Arch: same
+Depends: nnstreamer, ${shlibs:Depends}, ${misc:Depends}
+Description: NNStreamer TensorFlow 2.x Support
+ This package allows nnstreamer to support tensorflow 2.x.
+
 Package: nnstreamer-pytorch
 Architecture: any
 Multi-Arch: same
-Depends: nnstreamer-single, pytorch, ${shlibs:Depends}, ${misc:Depends}
+Depends: nnstreamer, pytorch, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer Pytorch Support
  This package allows nnstreamer to support pytorch.
-
-Package: nnstreamer-caffe2
-Architecture: any
-Multi-Arch: same
-Depends: nnstreamer-single, pytorch, ${shlibs:Depends}, ${misc:Depends}
-Description: NNStreamer Caffe2 Support
- This package allows nnstreamer to support caffe2.
 
 Package: nnstreamer-python3
 Architecture: any

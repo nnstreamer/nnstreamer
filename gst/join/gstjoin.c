@@ -681,6 +681,7 @@ gst_join_request_new_pad (GstElement * element, GstPadTemplate * templ,
   return sinkpad;
 }
 
+
 /**
  * @brief register this element
  */

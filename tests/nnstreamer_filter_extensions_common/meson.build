@@ -33,7 +33,7 @@ if nnfw_runtime_support_is_available
 endif
 
 if pytorch_support_is_available
-  extensions += [['pytorch', 'torch', nnstreamer_filter_torch_deps, 'pytorch_lenet5.pt', 'pytorch']]
+#  extensions += [['pytorch', 'torch', nnstreamer_filter_torch_deps, 'pytorch_lenet5.pt', 'pytorch']]
 endif
 
 if caffe2_support_is_available
