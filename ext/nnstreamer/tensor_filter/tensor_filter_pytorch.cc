@@ -26,6 +26,8 @@
  *
  */
 
+#include <torchvision/vision.h>
+
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api_util.h>
 #define NO_ANONYMOUS_NESTED_STRUCT
