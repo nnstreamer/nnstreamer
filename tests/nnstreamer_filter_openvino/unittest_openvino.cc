@@ -20,18 +20,20 @@
 const static gchar MODEL_BASE_NAME_MOBINET_V2[] = "openvino_mobilenetv2-int8-tf-0001";
 
 const static uint32_t MOBINET_V2_IN_NUM_TENSOR = 1;
-const static uint32_t MOBINET_V2_IN_DIMS[NNS_TENSOR_SIZE_LIMIT] = {
+const static uint32_t MOBINET_V2_IN_DIMS[NNS_TENSOR_RANK_LIMIT] = {
   224,
   224,
   3,
   1,
+  0,
 };
 const static uint32_t MOBINET_V2_OUT_NUM_TENSOR = 1;
-const static uint32_t MOBINET_V2_OUT_DIMS[NNS_TENSOR_SIZE_LIMIT] = {
+const static uint32_t MOBINET_V2_OUT_DIMS[NNS_TENSOR_RANK_LIMIT] = {
   1001,
   1,
   1,
   1,
+  0,
 };
 
 /** @brief wooksong: please fill in */
@@ -619,6 +621,7 @@ TEST (tensorFilterOpenvino, getTensorDim0)
   const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
   GstTensorFilterProperties *prop = NULL;
   GstTensorsInfo nns_tensors_info;
+  GstTensorInfo *_info;
   gpointer private_data = NULL;
   std::string str_test_model;
   gchar *test_model;
@@ -662,9 +665,8 @@ TEST (tensorFilterOpenvino, getTensorDim0)
   EXPECT_EQ (ret, 0);
   EXPECT_EQ (nns_tensors_info.num_tensors, MOBINET_V2_IN_NUM_TENSOR);
   for (uint32_t i = 0; i < MOBINET_V2_IN_NUM_TENSOR; ++i) {
-    for (uint32_t j = 0; j < NNS_TENSOR_RANK_LIMIT; ++j) {
-      EXPECT_EQ (nns_tensors_info.info[i].dimension[j], MOBINET_V2_IN_DIMS[j]);
-    }
+    _info = gst_tensors_info_get_nth_info (&nns_tensors_info, i);
+    EXPECT_TRUE (gst_tensor_dimension_is_equal (_info->dimension, MOBINET_V2_IN_DIMS));
   }
 
   /* Test getOutputDimension () */
@@ -673,9 +675,8 @@ TEST (tensorFilterOpenvino, getTensorDim0)
   EXPECT_EQ (ret, 0);
   EXPECT_EQ (nns_tensors_info.num_tensors, MOBINET_V2_OUT_NUM_TENSOR);
   for (uint32_t i = 0; i < MOBINET_V2_OUT_NUM_TENSOR; ++i) {
-    for (uint32_t j = 0; j < NNS_TENSOR_RANK_LIMIT; ++j) {
-      EXPECT_EQ (nns_tensors_info.info[i].dimension[j], MOBINET_V2_OUT_DIMS[j]);
-    }
+    _info = gst_tensors_info_get_nth_info (&nns_tensors_info, i);
+    EXPECT_TRUE (gst_tensor_dimension_is_equal (_info->dimension, MOBINET_V2_OUT_DIMS));
   }
 
   fw->close (prop, &private_data);

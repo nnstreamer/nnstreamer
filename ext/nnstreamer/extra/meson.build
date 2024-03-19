@@ -61,7 +61,7 @@ if grpc_support_is_available
 endif
 
 if have_python3
-  nnstreamer_python3_deps = [python3_dep, libdl_dep, glib_dep, gst_dep, nnstreamer_dep]
+  nnstreamer_python3_deps = [python3_dep, libdl_dep, glib_dep, nnstreamer_single_dep]
   nnstreamer_python3_src = ['nnstreamer_python3_helper.cc']
 
   nnstreamer_python3_helper = shared_library('nnstreamer_python3',

@@ -70,9 +70,6 @@ typedef enum _cb_type {
   CB_END,
 } cb_type;
 
-#define Py_LOCK() PyGILState_Ensure ()
-#define Py_UNLOCK(gstate) PyGILState_Release (gstate)
-
 /**
  * @brief	Python embedding core structure
  */
@@ -86,7 +83,6 @@ class PYCore
   ~PYCore ();
 
   int init (const GstTensorFilterProperties *prop);
-  int loadScript ();
   const char *getScriptPath ();
   int getInputTensorDim (GstTensorsInfo *info);
   int getOutputTensorDim (GstTensorsInfo *info);
@@ -101,10 +97,8 @@ class PYCore
     return callback_type;
   }
 
-  int checkTensorType (int nns_type, int np_type);
-  int checkTensorSize (GstTensorMemory *output, PyArrayObject *array);
-
   private:
+  int loadScript ();
   const std::string script_path; /**< from model_path property */
   const std::string module_args; /**< from custom property */
 
@@ -121,6 +115,21 @@ class PYCore
 
   bool configured; /**< True if the script is successfully loaded */
   void *handle; /**< returned handle by dlopen() */
+  GMutex py_mutex;
+
+  int checkTensorSize (GstTensorMemory *output, PyArrayObject *array);
+  int checkTensorType (int nns_type, int np_type);
+
+  /** @brief Lock python-related actions */
+  void Py_LOCK ()
+  {
+    g_mutex_lock (&py_mutex);
+  }
+  /** @brief Unlock python-related actions */
+  void Py_UNLOCK ()
+  {
+    g_mutex_unlock (&py_mutex);
+  }
 };
 
 #ifdef __cplusplus
@@ -169,6 +178,7 @@ PYCore::PYCore (const char *_script_path, const char *_custom)
   core_obj = NULL;
   configured = false;
   shape_cls = NULL;
+  g_mutex_init (&py_mutex);
 }
 
 /**
@@ -180,12 +190,12 @@ PYCore::~PYCore ()
   gst_tensors_info_free (&inputTensorMeta);
   gst_tensors_info_free (&outputTensorMeta);
 
-  PyGILState_STATE gstate = Py_LOCK ();
+  Py_LOCK ();
   Py_SAFEDECREF (core_obj);
   Py_SAFEDECREF (shape_cls);
 
   PyErr_Clear ();
-  Py_UNLOCK (gstate);
+  Py_UNLOCK ();
 
   dlclose (handle);
 }
@@ -197,9 +207,9 @@ PYCore::~PYCore ()
 int
 PYCore::init (const GstTensorFilterProperties *prop)
 {
-  PyGILState_STATE gstate = Py_LOCK ();
   int ret = -EINVAL;
   /** Find nnstreamer_api module */
+  Py_LOCK ();
   PyObject *api_module = PyImport_ImportModule ("nnstreamer_python");
   if (api_module == NULL) {
     Py_ERRMSG ("Cannt find `nnstreamer_python` module");
@@ -219,7 +229,7 @@ PYCore::init (const GstTensorFilterProperties *prop)
 
   ret = loadScript ();
 exit:
-  Py_UNLOCK (gstate);
+  Py_UNLOCK ();
   return ret;
 }
 
@@ -244,12 +254,12 @@ PYCore::getScriptPath ()
 int
 PYCore::loadScript ()
 {
+  /** This is a private method that needs the lock kept locked */
 #if (DBG)
   gint64 start_time = g_get_real_time ();
 #endif
 
   int ret = -EINVAL;
-  PyGILState_STATE gstate = Py_LOCK ();
 
   PyObject *module = PyImport_ImportModule (module_name.c_str ());
   if (module) {
@@ -320,7 +330,6 @@ PYCore::loadScript ()
 
   ret = 0;
 exit:
-  Py_UNLOCK (gstate);
   return ret;
 }
 
@@ -368,16 +377,14 @@ PYCore::checkTensorType (int nns_type, int np_type)
 int
 PYCore::checkTensorSize (GstTensorMemory *output, PyArrayObject *array)
 {
+  /** This is a private method that needs the lock kept locked */
   if (nullptr == output || nullptr == array)
     throw std::invalid_argument ("Null pointers are given to PYCore::checkTensorSize().\n");
 
-  PyGILState_STATE gstate = Py_LOCK ();
   size_t total_size = PyArray_ITEMSIZE (array);
 
   for (int i = 0; i < PyArray_NDIM (array); i++)
     total_size *= PyArray_DIM (array, i);
-
-  Py_UNLOCK (gstate);
 
   return (output->size == total_size);
 }
@@ -396,7 +403,7 @@ PYCore::getInputTensorDim (GstTensorsInfo *info)
   if (nullptr == info)
     throw std::invalid_argument ("A null pointer is given to PYCore::getInputTensorDim().\n");
 
-  PyGILState_STATE gstate = Py_LOCK ();
+  Py_LOCK ();
 
   PyObject *result = PyObject_CallMethod (core_obj, (char *) "getInputDim", NULL);
   if (result) {
@@ -407,7 +414,7 @@ PYCore::getInputTensorDim (GstTensorsInfo *info)
     res = -1;
   }
 
-  Py_UNLOCK (gstate);
+  Py_UNLOCK ();
 
   return res;
 }
@@ -426,7 +433,7 @@ PYCore::getOutputTensorDim (GstTensorsInfo *info)
   if (nullptr == info)
     throw std::invalid_argument ("A null pointer is given to PYCore::getOutputTensorDim().\n");
 
-  PyGILState_STATE gstate = Py_LOCK ();
+  Py_LOCK ();
 
   PyObject *result = PyObject_CallMethod (core_obj, (char *) "getOutputDim", NULL);
   if (result) {
@@ -437,7 +444,7 @@ PYCore::getOutputTensorDim (GstTensorsInfo *info)
     res = -1;
   }
 
-  Py_UNLOCK (gstate);
+  Py_UNLOCK ();
 
   return res;
 }
@@ -452,22 +459,30 @@ PYCore::getOutputTensorDim (GstTensorsInfo *info)
 int
 PYCore::setInputTensorDim (const GstTensorsInfo *in_info, GstTensorsInfo *out_info)
 {
+  GstTensorInfo *_info;
   int res = 0;
 
   if (nullptr == in_info || nullptr == out_info)
     throw std::invalid_argument ("Null pointers are given to PYCore::setInputTensorDim().\n");
 
-  PyGILState_STATE gstate = Py_LOCK ();
+  Py_LOCK ();
 
   /** to Python list object */
   PyObject *param = PyList_New (in_info->num_tensors);
-  if (nullptr == param)
+  if (nullptr == param) {
+    Py_UNLOCK ();
     throw std::runtime_error ("PyList_New(); has failed.");
+  }
 
   for (unsigned int i = 0; i < in_info->num_tensors; i++) {
-    PyObject *shape = PyTensorShape_New (shape_cls, &in_info->info[i]);
-    if (nullptr == shape)
+    PyObject *shape;
+
+    _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) in_info, i);
+    shape = PyTensorShape_New (shape_cls, _info);
+    if (nullptr == shape) {
+      Py_UNLOCK ();
       throw std::runtime_error ("PyTensorShape_New(); has failed.");
+    }
 
     PyList_SetItem (param, i, shape);
   }
@@ -488,7 +503,7 @@ PYCore::setInputTensorDim (const GstTensorsInfo *in_info, GstTensorsInfo *out_in
     res = -1;
   }
 
-  Py_UNLOCK (gstate);
+  Py_UNLOCK ();
 
   return res;
 }
@@ -501,7 +516,6 @@ void
 PYCore::freeOutputTensors (void *data)
 {
   std::map<void *, PyArrayObject *>::iterator it;
-  PyGILState_STATE gstate = Py_LOCK ();
 
   it = outputArrayMap.find (data);
   if (it != outputArrayMap.end ()) {
@@ -510,8 +524,6 @@ PYCore::freeOutputTensors (void *data)
   } else {
     ml_loge ("Cannot find output data: 0x%lx", (unsigned long) data);
   }
-
-  Py_UNLOCK (gstate);
 }
 
 /**
@@ -525,6 +537,7 @@ PYCore::freeOutputTensors (void *data)
 int
 PYCore::run (const GstTensorMemory *input, GstTensorMemory *output)
 {
+  GstTensorInfo *_info;
   int res = 0;
   PyObject *result;
 
@@ -535,12 +548,14 @@ PYCore::run (const GstTensorMemory *input, GstTensorMemory *output)
   if (nullptr == output || nullptr == input)
     throw std::invalid_argument ("Null pointers are given to PYCore::run().\n");
 
-  PyGILState_STATE gstate = Py_LOCK ();
+  Py_LOCK ();
 
   PyObject *param = PyList_New (inputTensorMeta.num_tensors);
   for (unsigned int i = 0; i < inputTensorMeta.num_tensors; i++) {
+    _info = gst_tensors_info_get_nth_info (&inputTensorMeta, i);
+
     /** create a Numpy array wrapper (1-D) for NNS tensor data */
-    tensor_type nns_type = inputTensorMeta.info[i].type;
+    tensor_type nns_type = _info->type;
     npy_intp input_dims[]
         = { (npy_intp) (input[i].size / gst_tensor_get_element_size (nns_type)) };
     PyObject *input_array = PyArray_SimpleNewFromData (
@@ -562,8 +577,11 @@ PYCore::run (const GstTensorMemory *input, GstTensorMemory *output)
     for (unsigned int i = 0; i < outputTensorMeta.num_tensors; i++) {
       PyArrayObject *output_array
           = (PyArrayObject *) PyList_GetItem (result, (Py_ssize_t) i);
+
+      _info = gst_tensors_info_get_nth_info (&outputTensorMeta, i);
+
       /** type/size checking */
-      if (checkTensorType (outputTensorMeta.info[i].type, PyArray_TYPE (output_array))
+      if (checkTensorType (_info->type, PyArray_TYPE (output_array))
           && checkTensorSize (&output[i], output_array)) {
         /** obtain the pointer to the buffer for the output array */
         output[i].data = PyArray_DATA (output_array);
@@ -584,7 +602,7 @@ PYCore::run (const GstTensorMemory *input, GstTensorMemory *output)
 
 exit_decref:
   Py_SAFEDECREF (param);
-  Py_UNLOCK (gstate);
+  Py_UNLOCK ();
 
 #if (DBG)
   gint64 stop_time = g_get_real_time ();
@@ -612,7 +630,10 @@ py_run (const GstTensorFilterProperties *prop, void **private_data,
   g_return_val_if_fail (input, -EINVAL);
   g_return_val_if_fail (output, -EINVAL);
 
-  return core->run (input, output);
+  PyGILState_STATE gstate = PyGILState_Ensure ();
+  int ret = core->run (input, output);
+  PyGILState_Release (gstate);
+  return ret;
 }
 
 /**
@@ -626,7 +647,9 @@ py_destroyNotify (void **private_data, void *data)
   PYCore *core = static_cast<PYCore *> (*private_data);
 
   if (core) {
+    PyGILState_STATE gstate = PyGILState_Ensure ();
     core->freeOutputTensors (data);
+    PyGILState_Release (gstate);
   }
 }
 
@@ -649,7 +672,10 @@ py_setInputDim (const GstTensorFilterProperties *prop, void **private_data,
     return -ENOENT;
   }
 
-  return core->setInputTensorDim (in_info, out_info);
+  PyGILState_STATE gstate = PyGILState_Ensure ();
+  int ret = core->setInputTensorDim (in_info, out_info);
+  PyGILState_Release (gstate);
+  return ret;
 }
 
 /**
@@ -669,7 +695,10 @@ py_getInputDim (const GstTensorFilterProperties *prop, void **private_data, GstT
     return -ENOENT;
   }
 
-  return core->getInputTensorDim (info);
+  PyGILState_STATE gstate = PyGILState_Ensure ();
+  int ret = core->getInputTensorDim (info);
+  PyGILState_Release (gstate);
+  return ret;
 }
 
 /**
@@ -690,7 +719,10 @@ py_getOutputDim (const GstTensorFilterProperties *prop, void **private_data,
     return -ENOENT;
   }
 
-  return core->getOutputTensorDim (info);
+  PyGILState_STATE gstate = PyGILState_Ensure ();
+  int ret = core->getOutputTensorDim (info);
+  PyGILState_Release (gstate);
+  return ret;
 }
 
 /**
@@ -703,7 +735,9 @@ py_close (const GstTensorFilterProperties *prop, void **private_data)
   UNUSED (prop);
 
   g_return_if_fail (core != NULL);
+  PyGILState_STATE gstate = PyGILState_Ensure ();
   delete core;
+  PyGILState_Release (gstate);
 
   *private_data = NULL;
 }
@@ -781,6 +815,7 @@ py_open (const GstTensorFilterProperties *prop, void **private_data)
 {
   if (!Py_IsInitialized ())
     throw std::runtime_error ("Python is not initialize.");
+  /* Do not acquire GIL. py_loadScriptFile will do it */
   int status = py_loadScriptFile (prop, private_data);
 
   return status;
@@ -823,17 +858,12 @@ static GstTensorFilterFramework NNS_support_python = { .version = GST_TENSOR_FIL
         .allocateInInvoke = nullptr,
     } } };
 
-static PyThreadState *st;
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void
 init_filter_py (void)
 {
   /** Python should be initialized and finalized only once */
-  if (!Py_IsInitialized ())
-    Py_Initialize ();
-  PyEval_InitThreads_IfGood ();
-  st = PyEval_SaveThread ();
-
+  nnstreamer_python_init_refcnt ();
   nnstreamer_filter_probe (&NNS_support_python);
   nnstreamer_filter_set_custom_property_desc (filter_subplugin_python, "${GENERAL_STRING}",
       "There is no key-value pair defined by python3 subplugin. "
@@ -845,10 +875,21 @@ init_filter_py (void)
 void
 fini_filter_py (void)
 {
-  PyEval_RestoreThread (st);
+  nnstreamer_python_status_check ();
+  nnstreamer_python_fini_refcnt ();
   nnstreamer_filter_exit (NNS_support_python.v0.name);
 
+/**
+ * @todo Remove below lines after this issue is addressed.
+ * Tizen issues: After python version has been upgraded from 3.9.1 to 3.9.10,
+ * python converter is stopped at Py_Finalize. Since Py_Initialize is not called
+ * twice from this object, Py_Finalize is temporarily removed.
+ * We do not know if it's safe to call this at this point.
+ * We can finalize when ALL python subplugins share the same ref counter.
+ */
+#if 0
   /** Python should be initialized and finalized only once */
   if (Py_IsInitialized ())
     Py_Finalize ();
+#endif
 }

@@ -930,9 +930,21 @@ gst_mqtt_sink_set_caps (GstBaseSink * basesink, GstCaps * caps)
 
   if (ret && gst_caps_is_fixed (self->in_caps)) {
     gchar *caps_str = gst_caps_to_string (caps);
+    gsize len;
 
-    g_strlcpy (self->mqtt_msg_hdr.gst_caps_str, caps_str,
+    if (caps_str == NULL) {
+      g_critical ("Fail to convert caps to string representation");
+      return FALSE;
+    }
+
+    len = g_strlcpy (self->mqtt_msg_hdr.gst_caps_str, caps_str,
         GST_MQTT_MAX_LEN_GST_CAPS_STR);
+
+    if (len >= GST_MQTT_MAX_LEN_GST_CAPS_STR) {
+      g_critical ("Fail to copy caps_str.");
+      ret = FALSE;
+    }
+
     g_free (caps_str);
   }
 

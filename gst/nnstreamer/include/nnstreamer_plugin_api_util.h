@@ -1,14 +1,14 @@
 /* SPDX-License-Identifier: LGPL-2.1-only */
 /**
- * NNStreamer Common API Header for Plug-Ins
+ * NNStreamer Common API Header for sub-plugin writers
  * Copyright (C) 2022 Gichan Jang <gichan2.jang@samsung.com>
  */
 /**
  * @file  nnstreamer_plugin_api_util.h
  * @date  28 Jan 2022
- * @brief Optional/Additional NNStreamer APIs for sub-plugin writers. (No Gst dep)
+ * @brief Optional/Additional NNStreamer APIs for sub-plugin writers. (No GStreamer dependency)
  * @see https://github.com/nnstreamer/nnstreamer
- * @author Gichan Jang <myungjoo.ham@samsung.com>
+ * @author Gichan Jang <gichan2.jang@samsung.com>
  * @bug No known bugs except for NYI items
  */
 #ifndef __NNS_PLUGIN_API_UTIL_H__
@@ -91,8 +91,17 @@ gst_tensor_info_convert_to_meta (GstTensorInfo * info, GstTensorMetaInfo * meta)
  * @param info tensor info structure
  * @return tensor rank (Minimum rank is 1 if given info is valid)
  */
-extern gint
+extern guint
 gst_tensor_info_get_rank (const GstTensorInfo * info);
+
+/**
+ * @brief Get the pointer of nth tensor information.
+ * @param info tensors info structure
+ * @param index the index of tensor to be fetched
+ * @return The pointer to tensor info structure
+ */
+extern GstTensorInfo *
+gst_tensors_info_get_nth_info (GstTensorsInfo * info, guint index);
 
 /**
  * @brief Initialize the tensors info structure
@@ -283,9 +292,33 @@ extern gboolean
 gst_tensor_dimension_is_valid (const tensor_dim dim);
 
 /**
+ * @brief Compare the tensor dimension.
+ * @return TRUE if given tensors have same dimension.
+ */
+extern gboolean
+gst_tensor_dimension_is_equal (const tensor_dim dim1, const tensor_dim dim2);
+
+/**
+ * @brief Get the rank of tensor dimension.
+ * @param dim tensor dimension.
+ * @return tensor rank (Minimum rank is 1 if given info is valid)
+ */
+extern guint
+gst_tensor_dimension_get_rank (const tensor_dim dim);
+
+/**
+ * @brief Get the minimum rank of tensor dimension.
+ * @details The C-arrays with dim 4:4:4 and 4:4:4:1 have same data. In this case, this function returns min rank 3.
+ * @param dim tensor dimension.
+ * @return tensor rank (Minimum rank is 1 if given dimension is valid)
+ */
+extern guint
+gst_tensor_dimension_get_min_rank (const tensor_dim dim);
+
+/**
  * @brief Parse tensor dimension parameter string
  * @return The Rank. 0 if error.
- * @param dimstr The dimension string in the format of d1:...:d8, d1:d2:d3, d1:d2, or d1, where dN is a positive integer and d1 is the innermost dimension; i.e., dim[d8][d7][d6][d5][d4][d3][d2][d1];
+ * @param dimstr The dimension string in the format of d1:...:d16, d1:d2:d3, d1:d2, or d1, where dN is a positive integer and d1 is the innermost dimension; i.e., dim[d16]...[d1];
  * @param dim dimension to be filled.
  */
 extern guint
@@ -294,7 +327,7 @@ gst_tensor_parse_dimension (const gchar * dimstr, tensor_dim dim);
 /**
  * @brief Get dimension string from given tensor dimension.
  * @param dim tensor dimension
- * @return Formatted string of given dimension (d1:d2:d3:d4:d5:d6:d7:d8).
+ * @return Formatted string of given dimension (d1:d2:d3:...:d15:d16).
  * @note The returned value should be freed with g_free()
  */
 extern gchar *
@@ -452,23 +485,6 @@ nnstreamer_version_string (void);
  */
 extern void
 nnstreamer_version_fetch (guint * major, guint * minor, guint * micro);
-
-/**
- * @brief Allocate and initialize the extra info in given tensors info.
- * @param[in,out] info GstTensorsInfo to be updated.
-*/
-extern gboolean
-gst_tensors_info_extra_create (GstTensorsInfo * info);
-
-/**
- * @brief Free allocated extra info in given tensors info.
- * @param[in,out] info GstTensorsInfo to be updated
-*/
-extern void
-gst_tensors_info_extra_free (GstTensorsInfo * info);
-
-extern GstTensorInfo *
-gst_tensors_info_get_nth_info (GstTensorsInfo * info, guint nth);
 
 G_END_DECLS
 #endif /* __NNS_PLUGIN_API_UTIL_H__ */

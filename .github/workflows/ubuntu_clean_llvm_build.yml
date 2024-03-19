@@ -1,0 +1,52 @@
+name: Minimal meson build in Ubuntu with LLVM/clang
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-22.04 ]
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Check if rebuild required
+      ## @todo This should become a reusable workflow.
+      run: |
+        tmpfile=$(mktemp)
+        git show --pretty="format:" --name-only --diff-filter=AMRC ${{ github.event.pull_request.head.sha}} -${{ github.event.pull_request.commits }} | sort | uniq | awk NF > ${tmpfile}
+        echo "changed_file_list=${tmpfile}" >> "$GITHUB_ENV"
+        rebuild=`bash .github/workflows/check_if_rebuild_requires.sh ${tmpfile} rebuild | grep "REBUILD=YES" | wc -l`
+        echo "Rebuild required: ${rebuild}"
+        echo "rebuild=${rebuild}" >> "$GITHUB_ENV"
+    - uses: actions/setup-python@v1
+      with:
+        python-version: '3.x'
+    - name: install minimal requirements
+      if: env.rebuild == '1'
+      run: |
+          sudo apt-get update && \
+          sudo apt-get install -y libglib2.0-dev libjson-glib-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libunwind-dev googletest \
+            gstreamer1.0-plugins-good clang
+    - run: pip install meson ninja
+      if: env.rebuild == '1'
+    - run: meson setup build/
+      if: env.rebuild == '1'
+      env:
+        CC: clang
+        CXX: clang++
+    - run: meson compile -C build/
+      if: env.rebuild == '1'
+    - run: meson test -C build/ -v
+      if: env.rebuild == '1'
+    - uses: actions/upload-artifact@v1
+      if: failure()
+      with:
+        name: Meson_LLVM_Testlog
+        path: build/meson-logs/testlog.txt

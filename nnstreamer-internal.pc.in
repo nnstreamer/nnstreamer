@@ -7,8 +7,8 @@ includedir=@INCLUDE_INSTALL_DIR@
 test_templatedir=@TEST_TEMPLATE_DIR@ # test template dir to be used
 
 Name: nnstreamer-internal
-Description: Dev Kit of NNStreamer API implementation
+Description: Dev Kit of NNStreamer single-shot
 Version: @VERSION@
-Requires: nnstreamer
-Libs: -L${libdir} -lnnstreamer
+Requires: nnstreamer-single
+Libs: -L${libdir} -lnnstreamer-single
 Cflags: -I${includedir}/nnstreamer

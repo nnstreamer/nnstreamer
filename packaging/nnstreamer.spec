@@ -36,8 +36,10 @@
 %define		tvm_support 1
 %define		snpe_support 1
 %define		trix_engine_support 1
+%define		onnxruntime_support 1
 # Support AI offloading (tensor_query) using nnstreamer-edge interface
 %define		nnstreamer_edge_support 1
+%define		datarepo_support 1
 
 %define		check_test 1
 %define		release_test 1
@@ -108,6 +110,7 @@
 %define		tvm_support 0
 %define		snpe_support 0
 %define		trix_engine_support 0
+%define		onnxruntime_support 0
 %define		nnstreamer_edge_support 0
 %endif
 
@@ -122,6 +125,7 @@
 %define		mqtt_support 0
 %define		tvm_support 0
 %define		trix_engine_support 0
+%define		onnxruntime_support 0
 %endif
 
 # Release unit test suite as a subpackage only if check_test is enabled.
@@ -146,7 +150,7 @@ Summary:	gstreamer plugins for neural networks
 # 2. Tizen  : ./packaging/nnstreamer.spec
 # 3. Android: ./jni/nnstreamer.mk
 # 4. Meson  : ./meson.build
-Version:	2.3.0
+Version:	2.4.1
 Release:	0
 Group:		Machine Learning/ML Framework
 Packager:	MyungJoo Ham <myungjoo.ham@samsung.com>
@@ -223,8 +227,6 @@ BuildRequires: tensorflow-devel
 # for armnn
 %if 0%{?armnn_support}
 BuildRequires: armnn-devel
-BuildRequires:  libarmcl
-BuildConflicts: libarmcl-release
 %endif
 
 %if 0%{?edgetpu_support}
@@ -269,10 +271,6 @@ BuildRequires:	capi-system-sensor-devel
 # Tizen 5.5 M2+ support nn-runtime (nnfw)
 # As of 2019-09-24, unfortunately, nnfw does not support pkg-config
 BuildRequires:  nnfw-devel
-%ifarch %arm aarch64
-BuildRequires:  libarmcl
-BuildConflicts: libarmcl-release
-%endif
 %endif
 
 %if 0%{?pytorch_support}
@@ -300,6 +298,10 @@ BuildRequires:	snpe-devel
 BuildRequires:	npu-engine-devel
 %endif
 
+%if 0%{?onnxruntime_support}
+BuildRequires: onnxruntime-devel
+%endif
+
 # Unit Testing Uses SSAT (https://github.com/myungjoo/SSAT.git)
 %if 0%{?unit_test} || 0%{?edge_test}
 BuildRequires:	ssat >= 1.1.0
@@ -314,8 +316,16 @@ BuildRequires:	pkgconfig(orc-0.4)
 BuildRequires:	flex
 BuildRequires:	bison
 
-# For datarepo
+# For datarepo or ml-agent
+#TODO: the dependency on ml-agent should be changed from mandatory to optional
+%if 0%{?datarepo_support} || 0%{?ml_agent_support}
 BuildRequires: pkgconfig(json-glib-1.0)
+%endif
+
+# For ml-agent
+%if 0%{?ml_agent_support}
+BuildRequires: pkgconfig(mlops-agent)
+%endif
 
 # Note that debug packages generate an additional build and storage cost.
 # If you do not need debug packages, run '$ gbs -c .TAOS-CI/.gbs.conf build ... --define "_skip_debug_rpm 1"'.
@@ -357,7 +367,7 @@ NNStreamer's global configuration setup for the end user.
 %if 0%{?tensorflow_support}
 %package tensorflow
 Summary:	NNStreamer TensorFlow Support
-Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	tensorflow
 %description tensorflow
 NNStreamer's tensor_filter subplugin of TensorFlow.
@@ -370,7 +380,7 @@ Tensorflow used for building this package.
 %if 0%{?tensorflow_lite_support}
 %package tensorflow-lite
 Summary:	NNStreamer TensorFlow Lite Support
-Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-single = %{version}-%{release}
 # tensorflow-lite provides .a file and it's embedded into the subplugin. No dep to tflite.
 %description tensorflow-lite
 NNStreamer's tensor_filter subplugin of TensorFlow Lite.
@@ -380,7 +390,7 @@ NNStreamer's tensor_filter subplugin of TensorFlow Lite.
 %if 0%{?tensorflow2_lite_support}
 %package tensorflow2-lite
 Summary:	NNStreamer TensorFlow2 Lite Support
-Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-single = %{version}-%{release}
 # tensorflow2-lite provides .a file and it's embedded into the subplugin. No dep to tflite.
 %description tensorflow2-lite
 NNStreamer's tensor_filter subplugin of TensorFlow2 Lite.
@@ -397,7 +407,7 @@ NNStreamer's tensor_filter subplugin of Python3.
 %if 0%{?armnn_support}
 %package armnn
 Summary:	NNStreamer Arm NN support
-Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	armnn
 %description armnn
 NNStreamer's tensor_filter subplugin of Arm NN Inference Engine.
@@ -407,7 +417,7 @@ NNStreamer's tensor_filter subplugin of Arm NN Inference Engine.
 %if 0%{?vivante_support}
 %package vivante
 Summary:    NNStreamer subplugin for Verisilicon's Vivante
-Requires:   nnstreamer = %{version}-%{release}
+Requires:   nnstreamer-single = %{version}-%{release}
 %description vivante
 NNStreamer filter subplugin for Verisilicon Vivante.
 %define enable_vivante -Denable-vivante=true
@@ -431,9 +441,6 @@ NNStreamer's tensor_converter and decoder subplugin of Protobuf.
 Summary:	NNStreamer Flatbuf Support
 Requires:	nnstreamer = %{version}-%{release}
 Requires:	flatbuffers
-%if "%{?profile}" != "tv"
-Recommends: flatbuffers-python
-%endif
 %description flatbuf
 NNStreamer's tensor_converter and decoder subplugin of flatbuf.
 %endif
@@ -442,7 +449,7 @@ NNStreamer's tensor_converter and decoder subplugin of flatbuf.
 %if 0%{?pytorch_support}
 %package pytorch
 Summary:	NNStreamer PyTorch Support
-Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	pytorch
 %description pytorch
 NNStreamer's tensor_filter subplugin of pytorch
@@ -452,7 +459,7 @@ NNStreamer's tensor_filter subplugin of pytorch
 %if 0%{?caffe2_support}
 %package caffe2
 Summary:	NNStreamer caffe2 Support
-Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	pytorch
 %description caffe2
 NNStreamer's tensor_filter subplugin of caffe2
@@ -462,7 +469,7 @@ NNStreamer's tensor_filter subplugin of caffe2
 %if 0%{?lua_support}
 %package lua
 Summary:	NNStreamer lua Support
-Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	lua
 %description lua
 NNStreamer's tensor_filter subplugin of lua
@@ -481,7 +488,7 @@ NNStreamer's tensor_filter subplugin of tvm
 %if 0%{?snpe_support}
 %package snpe
 Summary:	NNStreamer snpe Support
-Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	snpe
 %description snpe
 NNStreamer's tensor_filter subplugin of snpe
@@ -491,10 +498,20 @@ NNStreamer's tensor_filter subplugin of snpe
 %if 0%{?trix_engine_support}
 %package trix-engine
 Summary:	NNStreamer TRIx-Engine support
-Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	trix-engine
 %description trix-engine
 NNStreamer's tensor_filter subplugin of trix-engine
+%endif
+
+# for onnxruntime
+%if 0%{?onnxruntime_support}
+%package onnxruntime
+Summary:	NNStreamer onnxruntime Support
+Requires:	nnstreamer-single = %{version}-%{release}
+Requires:	onnxruntime
+%description onnxruntime
+NNStreamer's tensor_filter subplugin of onnxruntime
 %endif
 
 %package devel
@@ -557,7 +574,7 @@ HTML pages of lcov results of NNStreamer generated during rpmbuild
 %if 0%{?nnfw_support}
 %package nnfw
 Summary:	NNStreamer Tizen-nnfw runtime support
-Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	nnfw
 %description nnfw
 NNStreamer's tensor_filter subplugin of Tizen-NNFW Runtime. (5.5 M2 +)
@@ -566,7 +583,7 @@ NNStreamer's tensor_filter subplugin of Tizen-NNFW Runtime. (5.5 M2 +)
 %if 0%{?mvncsdk2_support}
 %package	ncsdk2
 Summary:	NNStreamer Intel Movidius NCSDK2 support
-Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-single = %{version}-%{release}
 Group:		Machine Learning/ML Framework
 %description	ncsdk2
 NNStreamer's tensor_filter subplugin of Intel Movidius Neural Compute stick SDK2.
@@ -575,7 +592,7 @@ NNStreamer's tensor_filter subplugin of Intel Movidius Neural Compute stick SDK2
 %if 0%{openvino_support}
 %package	openvino
 Summary:	NNStreamer OpenVino support
-Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	openvino
 Group:		Machine Learning/ML Framework
 %description	openvino
@@ -627,7 +644,7 @@ NNStreamer's gRPC IDL support for flatbuf
 %package edgetpu
 Summary:	NNStreamer plugin for Google-Coral Edge TPU
 Requires:	libedgetpu1
-Requires:	nnstreamer = %{version}-%{release}
+Requires:	nnstreamer-single = %{version}-%{release}
 %description edgetpu
 You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML APIs.
 %endif
@@ -650,14 +667,18 @@ Summary:	NNStreamer extra packages
 %if 0%{?mqtt_support}
 BuildRequires:	pkgconfig(paho-mqtt-c)
 %endif
-
 %description misc
 Provides additional gstreamer plugins for nnstreamer pipelines
 
+%if 0%{?datarepo_support}
 %package datarepo
 Summary: NNStreamer MLOps Data Repository plugin packages
 %description datarepo
 NNStreamer's datareposrc/sink plugins for reading and writing files in MLOps Data Repository
+%define enable_datarepo -Ddatarepo-support=enabled
+%else
+%define enable_datarepo -Ddatarepo-support=disabled
+%endif
 
 ## Define build options ##
 %define enable_tizen -Denable-tizen=false
@@ -696,14 +717,18 @@ NNStreamer's datareposrc/sink plugins for reading and writing files in MLOps Dat
 %if %{with tizen}
 %define enable_tizen -Denable-tizen=true -Dtizen-version-major=0%{tizen_version_major}
 # Element allowance in Tizen
-%define allowed_element_base     'capsfilter input-selector output-selector queue tee valve appsink appsrc audioconvert audiorate audioresample audiomixer videoconvert videocrop videorate videoscale videoflip videomixer compositor fakesrc fakesink filesrc filesink audiotestsrc videotestsrc jpegparse jpegenc jpegdec pngenc pngdec tcpclientsink tcpclientsrc tcpserversink tcpserversrc xvimagesink ximagesink evasimagesink evaspixmapsink glimagesink theoraenc lame vorbisenc wavenc volume oggmux avimux matroskamux v4l2src avsysvideosrc camerasrc tvcamerasrc pulsesrc fimcconvert tizenwlsink gdppay gdpdepay join datareposrc datareposink '
-%define allowed_element_edgeai   'rtpdec rtspsrc rtspclientsink zmqsrc zmqsink mqttsrc mqttsink udpsrc udpsink multiudpsink edgesrc edgesink '
+%define allowed_element_base     'capsfilter identity input-selector output-selector queue tee valve appsink appsrc audioconvert audiorate audioresample audiomixer videoconvert videocrop videorate videoscale videoflip videomixer compositor fakesrc fakesink filesrc filesink multifilesrc multifilesink audiotestsrc videotestsrc jpegparse jpegenc jpegdec pngenc pngdec xvimagesink ximagesink evasimagesink evaspixmapsink glimagesink theoraenc lame vorbisenc wavenc volume oggmux avimux matroskamux v4l2src pulsesrc '
+%define allowed_element_edgeai   'rtpdec rtspsrc rtspclientsink zmqsrc zmqsink mqttsrc mqttsink udpsrc udpsink multiudpsink tcpclientsink tcpclientsrc tcpserversink tcpserversrc edgesrc edgesink gdppay gdpdepay '
 %define allowed_element_audio    'audioamplify audiochebband audiocheblimit audiodynamic audioecho audiofirfilter audioiirfilter audioinvert audiokaraoke audiopanorama audiowsincband audiowsinclimit scaletempo stereo '
+%define allowed_element_tizen    'tizencamerasrc avsysvideosrc camerasrc tvcamerasrc fimcconvert tizenwlsink '
+%define allowed_element_extra    'join datareposrc datareposink '
+
+%define allowed_element_all      %{allowed_element_base}%{allowed_element_audio}%{allowed_element_edgeai}%{allowed_element_tizen}%{allowed_element_extra}
 %if "%{?profile}" == "tv"
 %define allowed_element_vd       'tvdpbsrc '
-%define allowed_element          %{allowed_element_base}%{allowed_element_audio}%{allowed_element_edgeai}%{allowed_element_vd}
+%define allowed_element          %{allowed_element_all}%{allowed_element_vd}
 %else
-%define allowed_element          %{allowed_element_base}%{allowed_element_audio}%{allowed_element_edgeai}
+%define allowed_element          %{allowed_element_all}
 %endif
 %define element_restriction -Denable-element-restriction=true -Dallowed-elements=%{allowed_element}
 %endif #if tizen
@@ -799,6 +824,20 @@ NNStreamer's datareposrc/sink plugins for reading and writing files in MLOps Dat
 %define enable_trix_engine -Dtrix-engine-support=disabled
 %endif
 
+# Support ml-agent
+%if 0%{?ml_agent_support}
+%define enable_ml_agent -Dml-agent-support=enabled
+%else
+%define enable_ml_agent -Dml-agent-support=disabled
+%endif
+
+# Support onnxruntime
+%if 0%{?onnxruntime_support}
+%define enable_onnxruntime -Donnxruntime-support=enabled
+%else
+%define enable_onnxruntime -Donnxruntime-support=disabled
+%endif
+
 # Framework priority for each file extension
 %define fw_priority_bin ''
 %define fw_priority_nb ''
@@ -823,6 +862,12 @@ NNStreamer's datareposrc/sink plugins for reading and writing files in MLOps Dat
 %define fp16_support -Denable-float16=true
 %else
 %define fp16_support -Denable-float16=false
+%endif
+
+%if 0%{?nnstreamer_edge_support}
+%define nnsedge -Dnnstreamer-edge-support=enabled
+%else
+%define nnsedge -Dnnstreamer-edge-support=disabled
 %endif
 
 %define fw_priority -Dframework-priority-nb=%{fw_priority_nb} -Dframework-priority-bin=%{fw_priority_bin}
@@ -855,9 +900,10 @@ meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir
 	%{enable_tizen} %{element_restriction} %{fw_priority} -Denable-env-var=false -Denable-symbolic-link=false \
 	%{enable_tf_lite} %{enable_tf2_lite} %{enable_tf} %{enable_pytorch} %{enable_caffe2} %{enable_python3} \
 	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_openvino} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} \
-	%{enable_flatbuf} %{enable_trix_engine} \
-	%{enable_tizen_sensor} %{enable_mqtt} %{enable_lua} %{enable_tvm} %{enable_test} %{enable_test_coverage} %{install_test} \
-        %{fp16_support} \
+	%{enable_flatbuf} %{enable_trix_engine} %{enable_datarepo} \
+	%{enable_tizen_sensor} %{enable_mqtt} %{enable_lua} %{enable_tvm} %{enable_onnxruntime} \
+        %{enable_test} %{enable_test_coverage} %{install_test} \
+	%{fp16_support} %{nnsedge} %{enable_ml_agent} \
 	%{builddir}
 
 ninja -C %{builddir} %{?_smp_mflags}
@@ -871,8 +917,9 @@ export NNSTREAMER_DECODERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_d
 export NNSTREAMER_CONVERTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_converter
 export NNSTREAMER_TRAINERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_trainer
 
-%define files_opetion_for_snpe_subpackage %( if [ -f %{builddir}/ext/nnstreamer/tensor_filter/filter_snpe_list ] ; then \
-	echo "-f %{builddir}/ext/nnstreamer/tensor_filter/filter_snpe_list" ; else echo ""; fi )
+# Suppress ORC logs during unittests (showing WARNING or higher)
+export ORC_DEBUG=2
+
 %define test_script $(pwd)/packaging/run_unittests_binaries.sh
 
 # if it's tizen && non-TV, run unittest even if "unit_test"==0 for build-time sanity checks.
@@ -890,6 +937,9 @@ export NNSTREAMER_TRAINERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_t
     bash %{test_script} ./tests
     bash %{test_script} ./tests/cpp_methods
     bash %{test_script} ./tests/nnstreamer_filter_extensions_common
+%if 0%{?datarepo_support}
+    bash %{test_script} ./tests/nnstreamer_datarepo
+%endif
 %if 0%{?nnstreamer_edge_support}
     bash %{test_script} ./tests/nnstreamer_edge
 %endif
@@ -945,6 +995,13 @@ ln -sf %{_libdir}/nnstreamer_python3.so nnstreamer_python.so
 popd
 %endif
 
+%if 0%{?snpe_support}
+%define snpe_sub_plugin libnnstreamer_filter_snpe.so
+%define files_for_snpe_subpackage files_for_snpe_subpackage.txt
+rm -f %{files_for_snpe_subpackage}
+find %{buildroot} -type f -name '%{snpe_sub_plugin}' -printf '/%%P\n' > %{files_for_snpe_subpackage}
+%endif
+
 %if 0%{?testcoverage}
 ##
 # The included directories are:
@@ -994,6 +1051,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %defattr(-,root,root,-)
 %license LICENSE
 %{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_bounding_boxes.so
+%{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_tensor_region.so
 %{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_pose_estimation.so
 %{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_image_segment.so
 %{_prefix}/lib/nnstreamer/decoders/libnnstreamer_decoder_image_labeling.so
@@ -1105,7 +1163,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %if 0%{?snpe_support}
 # Workaround: Conditionally enable nnstreamer-snpe rpm package
 # when existing actual snpe library (snpe.pc)
-%files snpe %{files_opetion_for_snpe_subpackage}
+%files snpe -f %{files_for_snpe_subpackage}
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %endif
@@ -1118,6 +1176,14 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_trix-engine.so
 %endif
 
+# for onnxruntime
+%if 0%{?onnxruntime_support}
+%files onnxruntime
+%manifest nnstreamer.manifest
+%defattr(-,root,root,-)
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_onnxruntime.so
+%endif
+
 %files devel
 %{_includedir}/nnstreamer/tensor_if.h
 %{_includedir}/nnstreamer/tensor_filter_custom.h
@@ -1126,6 +1192,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{_includedir}/nnstreamer/tensor_decoder_custom.h
 %{_includedir}/nnstreamer/nnstreamer_plugin_api_decoder.h
 %{_includedir}/nnstreamer/nnstreamer_plugin_api_converter.h
+%{_includedir}/nnstreamer/nnstreamer_plugin_api_trainer.h
 %{_includedir}/nnstreamer/nnstreamer_plugin_api.h
 %{_includedir}/nnstreamer/nnstreamer_util.h
 %{_includedir}/nnstreamer/tensor_filter_cpp.hh
@@ -1145,7 +1212,6 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %files single-devel
 %{_includedir}/nnstreamer/tensor_typedef.h
 %{_includedir}/nnstreamer/nnstreamer_plugin_api_filter.h
-%{_includedir}/nnstreamer/nnstreamer_plugin_api_trainer.h
 %{_includedir}/nnstreamer/nnstreamer_plugin_api_util.h
 %{_includedir}/nnstreamer/nnstreamer_version.h
 %{_libdir}/pkgconfig/nnstreamer-single.pc
@@ -1256,8 +1322,13 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %{gstlibdir}/libgstmqtt.so
 %endif
 
+%if 0%{?datarepo_support}
 %files datarepo
+%manifest nnstreamer.manifest
+%defattr(-,root,root,-)
+%license LICENSE
 %{gstlibdir}/libgstdatarepo.so
+%endif
 
 %if 0%{?release_test}
 %files test-devel
@@ -1266,6 +1337,12 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %endif
 
 %changelog
+* Fri Sep 15 2023 MyungJoo Ham <myungjoo.ham@samsung.com>
+- Start development of 2.4.1 (2.4.2-RC1)
+
+* Tue Sep 12 2023 MyungJoo Ham <myungjoo.ham@samsung.com>
+- Release of 2.4.0, the new LTS version of 2023. (Tizen 8.0 M2)
+
 * Tue Sep 27 2022 MyungJoo Ham <myungjoo.ham@samsung.com>
 - Start development of 2.3.0 (2.4.0-RC1) for experimental and unstable features.
 

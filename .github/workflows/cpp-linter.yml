@@ -1,0 +1,25 @@
+name: c++-source-file-format-checker
+
+on: pull_request
+
+jobs:
+  cpp-linter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cpp-linter/cpp-linter-action@v2
+        id: linter
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          style: file
+          extensions: 'cc'
+          version: 16
+          lines-changed-only: true
+
+
+      - name: failing fast
+        if: steps.linter.outputs.clang-format-checks-failed > 0
+        run: |
+          echo "This PR failed to pass the C++ source file format checks."
+          exit 1

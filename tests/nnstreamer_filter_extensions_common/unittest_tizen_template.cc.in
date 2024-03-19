@@ -315,7 +315,7 @@ TEST (nnstreamer@EXT_ABBRV@BasicFunctions, setDimension)
     set.num_tensors = 1;
     set.info[0].type = _NNS_INT8;
     for (i = 0; i < NNS_TENSOR_RANK_LIMIT; ++i) {
-      set.info[0].dimension[i] = 10-i;
+      set.info[0].dimension[i] = (NNS_TENSOR_RANK_LIMIT * 2) - i;
     }
   }
 

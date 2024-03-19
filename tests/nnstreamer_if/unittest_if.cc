@@ -81,7 +81,7 @@ TEST (tensorIfProp, properties0)
   pipeline = g_strdup_printf (
       "videotestsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! "
       "video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! "
-      "tensor_if name=tif compared-value=A_VALUE compared-value-option=0:2:1:1,0 "
+      "tensor_if name=tif compared-value=A_VALUE compared-value-option=1:2:1:1,1 "
       "supplied-value=100 operator=GE then=PASSTHROUGH else=SKIP ! tensor_sink");
   gstpipe = gst_parse_launch (pipeline, NULL);
   EXPECT_NE (pipeline, nullptr);
@@ -99,7 +99,7 @@ TEST (tensorIfProp, properties0)
   EXPECT_EQ (TIFCV_A_VALUE, int_val);
 
   g_object_get (tif_handle, "compared-value-option", &str_val, NULL);
-  EXPECT_STREQ ("0:2:1:1:0:0:0:0,0", str_val);
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal ("1:2:1:1,1", str_val));
   g_free (str_val);
 
   g_object_get (tif_handle, "supplied-value", &str_val, NULL);
@@ -168,7 +168,6 @@ TEST (tensorIfProp, properties0)
   gst_object_unref (gstpipe);
   g_free (pipeline);
 }
-
 
 /**
  * @brief Test for invalid properties of tensor_if
@@ -391,7 +390,6 @@ TEST_F (tensor_if_run, action_1)
   EXPECT_EQ (memcmp (content1, content2, len1), 0);
   g_free (content1);
   g_free (content2);
-
 
   /* False action result */
   EXPECT_TRUE (g_file_get_contents ("./gamut.golden", &content1, &len1, NULL));
@@ -856,7 +854,6 @@ TEST (tensorIfCustom, normal1)
       "tif.src_0 ! queue ! tensor_sink name=sink_true async=false "
       "tif.src_1 ! queue ! tensor_sink name=sink_false async=false");
 
-
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   EXPECT_NE (pipeline, nullptr);
 
@@ -910,7 +907,6 @@ TEST (tensorIfCustom, invalidParam3_n)
 {
   EXPECT_NE (0, nnstreamer_if_custom_unregister ("tifx"));
 }
-
 
 /**
  * @brief Main GTest

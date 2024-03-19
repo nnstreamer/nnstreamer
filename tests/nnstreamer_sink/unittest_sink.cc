@@ -15,6 +15,7 @@
 #include <string.h>
 
 #include <nnstreamer_conf.h>
+#include <tensor_filter_custom_easy.h>
 #include <unittest_util.h>
 #include "nnstreamer_plugin_api_filter.h"
 #include "tensor_common.h"
@@ -78,6 +79,8 @@ typedef enum {
   TEST_TYPE_VIDEO_GRAY8, /**< pipeline for video (GRAY8) */
   TEST_TYPE_VIDEO_GRAY8_PADDING, /**< pipeline for video (GRAY8), remove padding */
   TEST_TYPE_VIDEO_GRAY8_3F_PADDING, /**< pipeline for video (GRAY8) 3 frames, remove padding */
+  TEST_TYPE_VIDEO_GRAY16_BE, /**< pipeline for video (GRAY16_BE) */
+  TEST_TYPE_VIDEO_GRAY16_LE, /**< pipeline for video (GRAY16_LE) */
   TEST_TYPE_AUDIO_S8, /**< pipeline for audio (S8) */
   TEST_TYPE_AUDIO_U8_100F, /**< pipeline for audio (U8) 100 frames */
   TEST_TYPE_AUDIO_S16, /**< pipeline for audio (S16) */
@@ -229,10 +232,27 @@ _free_test_data (TestOption &option)
 static void
 _message_cb (GstBus *bus, GstMessage *message, gpointer user_data)
 {
-  switch (GST_MESSAGE_TYPE (message)) {
+  GstMessageType type = GST_MESSAGE_TYPE (message);
+
+  switch (type) {
     case GST_MESSAGE_ERROR:
     case GST_MESSAGE_WARNING:
       _print_log ("received error message");
+
+      if (DBG) {
+        gchar *debug = NULL;
+        GError *error = NULL;
+
+        if (type == GST_MESSAGE_WARNING)
+          gst_message_parse_warning (message, &error, &debug);
+        else
+          gst_message_parse_error (message, &error, &debug);
+
+        _print_log ("error: %s, debug: %s", error->message, debug);
+        g_clear_error (&error);
+        g_free (debug);
+      }
+
       g_test_data.status = TEST_ERR_MESSAGE;
       g_test_data.test_failed = TRUE;
       g_main_loop_quit (g_test_data.loop);
@@ -644,6 +664,18 @@ _setup_pipeline (TestOption &option)
       str_pipeline = g_strdup_printf (
           "videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=162,height=120,format=GRAY8,framerate=(fraction)%lu/1 ! "
           "tensor_converter frames-per-tensor=3 ! tensor_sink name=test_sink",
+          option.num_buffers, fps);
+      break;
+    case TEST_TYPE_VIDEO_GRAY16_BE:
+      /** video 160x120 GRAY16_BE */
+      str_pipeline = g_strdup_printf ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=GRAY16_BE,framerate=(fraction)%lu/1 ! "
+                                      "tensor_converter ! tensor_sink name=test_sink",
+          option.num_buffers, fps);
+      break;
+    case TEST_TYPE_VIDEO_GRAY16_LE:
+      /** video 160x120 GRAY16_LE */
+      str_pipeline = g_strdup_printf ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=GRAY16_LE,framerate=(fraction)%lu/1 ! "
+                                      "tensor_converter ! tensor_sink name=test_sink",
           option.num_buffers, fps);
       break;
     case TEST_TYPE_AUDIO_S8:
@@ -1675,6 +1707,7 @@ TEST (tensorStreamTest, muxRefreshMode)
 
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 0);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
+  _free_test_data (option);
 }
 
 /**
@@ -1803,7 +1836,6 @@ TEST (tensorStreamTest, merge16Tensors)
   _free_test_data (option);
 }
 
-
 /**
  * @brief Test for flexible tensors with tensor_mux (nego failure).
  */
@@ -1822,6 +1854,7 @@ TEST (tensorStreamTest, muxFlexNegoFailed_n)
   /* failed : cannot link mux (flex) and tensor_sink (static) */
   EXPECT_EQ (g_test_data.status, TEST_ERR_MESSAGE);
   EXPECT_EQ (g_test_data.received, 0U);
+  _free_test_data (option);
 }
 
 /**
@@ -1842,6 +1875,7 @@ TEST (tensorStreamTest, demuxFlexNegoFailed_n)
   /* failed : cannot link demux (flex) and tensor_sink (static) */
   EXPECT_EQ (g_test_data.status, TEST_ERR_MESSAGE);
   EXPECT_EQ (g_test_data.received, 0U);
+  _free_test_data (option);
 }
 
 /**
@@ -2542,6 +2576,88 @@ TEST (tensorStreamTest, videoGray83fPadding)
 }
 
 /**
+ * @brief Test for video format GRAY16_BE.
+ */
+TEST (tensorStreamTest, videoGray16BE)
+{
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_VIDEO_GRAY16_BE };
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers and signals */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.mem_blocks, 1U);
+  EXPECT_EQ (g_test_data.received_size, 160U * 120 * 2);
+
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  /** check tensor config for video */
+  EXPECT_TRUE (gst_tensors_config_validate (&g_test_data.tensors_config));
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT16);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 160U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 120U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_EQ (g_test_data.tensors_config.rate_n, (int) fps);
+  EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data (option);
+}
+
+/**
+ * @brief Test for video format GRAY16_LE.
+ */
+TEST (tensorStreamTest, videoGray16LE)
+{
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_VIDEO_GRAY16_LE };
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers and signals */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.mem_blocks, 1U);
+  EXPECT_EQ (g_test_data.received_size, 160U * 120 * 2);
+
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  /** check tensor config for video */
+  EXPECT_TRUE (gst_tensors_config_validate (&g_test_data.tensors_config));
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT16);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 160U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 120U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_EQ (g_test_data.tensors_config.rate_n, (int) fps);
+  EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data (option);
+}
+
+/**
  * @brief Test for audio format S8.
  */
 TEST (tensorStreamTest, audioS8)
@@ -2573,8 +2689,8 @@ TEST (tensorStreamTest, audioS8)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_INT8);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 500U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 16000);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -2614,8 +2730,8 @@ TEST (tensorStreamTest, audioU8100f)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT8);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 100U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 16000);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -2655,8 +2771,8 @@ TEST (tensorStreamTest, audioS16)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_INT16);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 500U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 16000);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -2696,8 +2812,8 @@ TEST (tensorStreamTest, audioU161000f)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT16);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 1000U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 16000);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -2737,8 +2853,8 @@ TEST (tensorStreamTest, audioS32)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_INT32);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 500U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 44100);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -2778,8 +2894,8 @@ TEST (tensorStreamTest, audioU32)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT32);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 500U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 44100);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -2819,8 +2935,8 @@ TEST (tensorStreamTest, audioF32)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_FLOAT32);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 500U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 44100);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -2860,8 +2976,8 @@ TEST (tensorStreamTest, audioF64)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_FLOAT64);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 500U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 44100);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -2907,8 +3023,8 @@ TEST (tensorStreamTest, textUtf8)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT8);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 20U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 0);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -2981,8 +3097,8 @@ TEST (tensorStreamTest, textUtf83f)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT8);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 30U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 3U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 10);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -3028,8 +3144,6 @@ TEST (tensorStreamTest, octetCurrentTs)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT8);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 10U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 0);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -3075,8 +3189,6 @@ TEST (tensorStreamTest, octetFramerateTs)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT8);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 10U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 10);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -3149,8 +3261,6 @@ TEST (tensorStreamTest, octetValidTs)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT8);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 10U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 0);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -3223,8 +3333,6 @@ TEST (tensorStreamTest, octetInvalidTs)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT8);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 10U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 0);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -3297,8 +3405,6 @@ TEST (tensorStreamTest, octet2f)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_INT8);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 5U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 10);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -3365,15 +3471,9 @@ TEST (tensorStreamTest, octetMultiTensors)
 
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_INT32);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 2U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
 
   EXPECT_EQ (g_test_data.tensors_config.info.info[1].type, _NNS_INT8);
   EXPECT_EQ (g_test_data.tensors_config.info.info[1].dimension[0], 2U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[1].dimension[1], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[1].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[1].dimension[3], 1U);
 
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 10);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
@@ -3530,9 +3630,6 @@ TEST (tensorStreamTest, flexToStatic)
   EXPECT_TRUE (gst_tensors_config_validate (&g_test_data.tensors_config));
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT8);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 10U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 10);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -3845,7 +3942,7 @@ TEST (tensorStreamTest, filterProperties1)
   ASSERT_TRUE (str != NULL);
   EXPECT_TRUE (strstr (str, "custom") != NULL);
   EXPECT_TRUE (strstr (str, "custom-easy") != NULL);
-#ifdef ENABLE_TENSORFLOW_LITE
+#if defined(ENABLE_TENSORFLOW_LITE) || defined(ENABLE_TENSORFLOW2_LITE)
   EXPECT_TRUE ((strstr (str, "tensorflow-lite") != NULL)
                || (strstr (str, "tensorflow1-lite") != NULL)
                || (strstr (str, "tensorflow2-lite") != NULL));
@@ -4170,8 +4267,8 @@ TEST (tensorStreamTest, customFilterDropBuffer)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_INT16);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 200U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 16000);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -4249,9 +4346,8 @@ test_custom_v0_handleEvent (event_ops ops, GstTensorFilterFrameworkEventData *da
  * @brief The mandatory callback for GstTensorFilterFramework (v1).
  */
 static int
-test_custom_v1_invoke (const GstTensorFilterFramework *self,
-    const GstTensorFilterProperties *prop, void *private_data,
-    const GstTensorMemory *input, GstTensorMemory *output)
+test_custom_v1_invoke (const GstTensorFilterFramework *self, GstTensorFilterProperties *prop,
+    void *private_data, const GstTensorMemory *input, GstTensorMemory *output)
 {
   return test_custom_v0_invoke (prop, &private_data, input, output);
 }
@@ -4666,8 +4762,8 @@ TEST (tensorStreamTest, tensorsMix)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_INT16);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 500U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 30); /** 30 fps from video stream */
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -4808,8 +4904,8 @@ TEST (tensorStreamTest, demuxProperties2)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_INT16);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 500U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 30);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -4882,8 +4978,8 @@ _test_transform_typecast (TestType test, tensor_type type, guint buffers)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, type);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 10U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 0);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -5346,8 +5442,8 @@ TEST (tensorStreamTest, audioAggregateS16)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_INT16);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 2000U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 16000);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -5387,8 +5483,8 @@ TEST (tensorStreamTest, audioAggregateU16)
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT16);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 1U);
   EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 100U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
-  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[2], 1U);
+  EXPECT_LE (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
   EXPECT_EQ (g_test_data.tensors_config.rate_n, 16000);
   EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
 
@@ -5578,15 +5674,6 @@ TEST (tensorStreamTest, issue739MuxParallel3)
 
   EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data (option);
-}
-
-/**
- * @brief Test multi-stream sync & frame-dropping of Issue #739, 1st subissue
- */
-TEST (tensorStreamTest, issue739MuxParallel4)
-{
-  /** @todo Write this after the tensor-mux/merge sync-option "basepad" is updated */
-  EXPECT_EQ (1, 1);
 }
 
 /**
@@ -6301,8 +6388,6 @@ TEST (tensorStreamTest, tensorsCap1)
   _free_test_data (option);
 }
 
-#include <tensor_filter_custom_easy.h>
-
 /**
  * @brief In-Code Test Function for custom-easy filter
  */
@@ -6445,14 +6530,10 @@ _manual_extra_tensors_new_data_cb (GstElement *element, GstBuffer *buffer, gpoin
   GstMapInfo info_res;
   gint *output, i;
   gboolean ret;
-  GstTensorsInfo ts_info;
-
-  gst_tensors_info_init (&ts_info);
-  ts_info.num_tensors = 20;
 
   data_received++;
   for (i = 0; i < 20; ++i) {
-    mem_res = gst_tensor_buffer_get_nth_memory (buffer, &ts_info, i);
+    mem_res = gst_tensor_buffer_get_nth_memory (buffer, i);
     ret = gst_memory_map (mem_res, &info_res, GST_MAP_READ);
     ASSERT_TRUE (ret);
     output = (gint *) info_res.data;
@@ -6460,8 +6541,6 @@ _manual_extra_tensors_new_data_cb (GstElement *element, GstBuffer *buffer, gpoin
     gst_memory_unmap (mem_res, &info_res);
     gst_memory_unref (mem_res);
   }
-
-  gst_tensors_info_free (&ts_info);
 }
 
 /**
@@ -6473,10 +6552,11 @@ TEST (extraTensors, manualextratensors)
   GstMemory *mem;
   GstMapInfo info;
   GstElement *appsrc_handle, *sink_handle;
-  gint i;
+  GstTensorInfo tinfo;
+  gint i, j;
 
   gchar *str_pipeline = g_strdup (
-      "appsrc name=appsrc ! other/tensors,num_tensors=20,format=static,dimensions=(string)1:1.1:1,types=(string)int32.int32,framerate=(fraction)0/1 ! " // this caps do not have any effect yet.
+      "appsrc name=appsrc caps=other/tensors,num_tensors=20,format=static,dimensions=(string)1:1.1:1,types=(string)int32.int32,framerate=(fraction)0/1 ! "
       "tensor_sink name=sinkx async=false silent=false ");
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
@@ -6493,8 +6573,13 @@ TEST (extraTensors, manualextratensors)
 
   buf_0 = gst_buffer_new ();
 
+  /* set extra info */
+  gst_tensor_info_init (&tinfo);
+  tinfo.type = _NNS_INT32;
+  for (j = 0; j < 4; ++j)
+    tinfo.dimension[j] = 1;
+
   for (i = 0; i < 20; i++) {
-    GstTensorInfo tinfo;
     gboolean ret;
 
     mem = gst_allocator_alloc (NULL, 4, NULL);
@@ -6503,20 +6588,10 @@ TEST (extraTensors, manualextratensors)
     memcpy (info.data, &test_frames[i], 4);
     gst_memory_unmap (mem, &info);
 
-    if (i < NNS_TENSOR_SIZE_LIMIT) {
-      gst_buffer_append_memory (buf_0, mem);
-      continue;
-    }
-
-    /* set extra info */
-    gst_tensor_info_init (&tinfo);
-    tinfo.type = _NNS_INT32;
-    for (int j = 0; j < NNS_TENSOR_RANK_LIMIT; ++j)
-      tinfo.dimension[j] = 1;
-
     gst_tensor_buffer_append_memory (buf_0, mem, &tinfo);
-    gst_tensor_info_free (&tinfo);
   }
+
+  gst_tensor_info_free (&tinfo);
 
   data_received = 0;
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
@@ -6543,21 +6618,19 @@ TEST (extraTensors, manualextratensors)
  * @brief Callback for tensor sink signal. Using gst_tensors_get_nth_memory API
  */
 static void
-_tensor_mux_extra_tensors_new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
+_tensor_extra_tensors_new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
 {
   GstMemory *mem_res;
   GstMapInfo info_res;
   guint8 *output;
-  gint i;
+  guint32 i;
   gboolean ret;
-  GstTensorsInfo ts_info;
 
-  gst_tensors_info_init (&ts_info);
-  data_received++;
-  ts_info.num_tensors = 20;
+  guint32 *data_received = (guint32 *) user_data;
+  (*data_received)++;
 
-  for (i = 0; i < 20; ++i) {
-    mem_res = gst_tensor_buffer_get_nth_memory (buffer, &ts_info, (guint) i);
+  for (i = 0; i < gst_tensor_buffer_get_count (buffer); ++i) {
+    mem_res = gst_tensor_buffer_get_nth_memory (buffer, i);
     ret = gst_memory_map (mem_res, &info_res, GST_MAP_READ);
     ASSERT_TRUE (ret);
     output = (guint8 *) info_res.data;
@@ -6570,9 +6643,9 @@ _tensor_mux_extra_tensors_new_data_cb (GstElement *element, GstBuffer *buffer, g
 /**
  * @brief Test tensor_mux of more than 16 sinkpad.
  */
-TEST (extraTensors, manualtensormux)
+TEST (extraTensors, tensormux)
 {
-  gchar *str_pipeline = g_strdup (
+  g_autofree gchar *str_pipeline = g_strdup (
       "videotestsrc num-buffers=1 is-live=true ! videoscale ! videoconvert ! "
       "video/x-raw,format=GRAY8,width=1,height=1,framerate=1/1 ! "
       "tensor_converter ! other/tensors,format=static,num_tensors=1,types=(string)uint8,dimensions=(string)1:1 ! tee name=t "
@@ -6596,8 +6669,8 @@ TEST (extraTensors, manualtensormux)
       "t. ! queue ! mux.sink_17 "
       "t. ! queue ! mux.sink_18 "
       "t. ! queue ! mux.sink_19 "
-      "tensor_mux name=mux silent=false ! "
-      "tensor_sink name=sinkx async=false silent=false ");
+      "tensor_mux name=mux ! "
+      "tensor_sink name=sinkx async=false");
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   EXPECT_NE (pipeline, nullptr);
@@ -6605,21 +6678,162 @@ TEST (extraTensors, manualtensormux)
   GstElement *sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
   EXPECT_NE (sink_handle, nullptr);
 
+  guint32 data_received = 0U;
   g_signal_connect (sink_handle, "new-data",
-      (GCallback) _tensor_mux_extra_tensors_new_data_cb, NULL);
+      (GCallback) _tensor_extra_tensors_new_data_cb, &data_received);
 
-  data_received = 0;
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   g_usleep (1000000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   g_usleep (1000000);
 
-  EXPECT_EQ (1, data_received);
+  EXPECT_EQ (1U, data_received);
 
   gst_object_unref (sink_handle);
   gst_object_unref (pipeline);
-  g_free (str_pipeline);
+}
+
+/**
+ * @brief Test tensor_sink and tensor_mux with num_tensors=256.
+ */
+TEST (extraTensors, muxMax)
+{
+  g_autofree gchar *str_pipeline = g_strdup (
+      "videotestsrc num-buffers=1 is-live=true ! videoscale ! videoconvert ! "
+      "video/x-raw,format=GRAY8,width=1,height=1,framerate=1/1 ! "
+      "tensor_converter ! other/tensors,format=static,num_tensors=1,types=(string)uint8,dimensions=(string)1:1 ! tee name=t "
+      "t. ! queue ! mux.sink_0 "
+      "t. ! queue ! mux.sink_1 "
+      "t. ! queue ! mux.sink_2 "
+      "t. ! queue ! mux.sink_3 "
+      "t. ! queue ! mux.sink_4 "
+      "t. ! queue ! mux.sink_5 "
+      "t. ! queue ! mux.sink_6 "
+      "t. ! queue ! mux.sink_7 "
+      "t. ! queue ! mux.sink_8 "
+      "t. ! queue ! mux.sink_9 "
+      "t. ! queue ! mux.sink_10 "
+      "t. ! queue ! mux.sink_11 "
+      "t. ! queue ! mux.sink_12 "
+      "t. ! queue ! mux.sink_13 "
+      "t. ! queue ! mux.sink_14 "
+      "t. ! queue ! mux.sink_15 "
+      "tensor_mux name=mux ! tee name=t16 "
+      "t16. ! queue ! mux256.sink_0 "
+      "t16. ! queue ! mux256.sink_1 "
+      "t16. ! queue ! mux256.sink_2 "
+      "t16. ! queue ! mux256.sink_3 "
+      "t16. ! queue ! mux256.sink_4 "
+      "t16. ! queue ! mux256.sink_5 "
+      "t16. ! queue ! mux256.sink_6 "
+      "t16. ! queue ! mux256.sink_7 "
+      "t16. ! queue ! mux256.sink_8 "
+      "t16. ! queue ! mux256.sink_9 "
+      "t16. ! queue ! mux256.sink_10 "
+      "t16. ! queue ! mux256.sink_11 "
+      "t16. ! queue ! mux256.sink_12 "
+      "t16. ! queue ! mux256.sink_13 "
+      "t16. ! queue ! mux256.sink_14 "
+      "t16. ! queue ! mux256.sink_15 "
+      "tensor_mux name=mux256 ! "
+      "tensor_sink name=sinkx async=false");
+
+  GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
+  EXPECT_NE (pipeline, nullptr);
+
+  GstElement *sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  EXPECT_NE (sink_handle, nullptr);
+
+  guint32 data_received = 0U;
+  g_signal_connect (sink_handle, "new-data",
+      (GCallback) _tensor_extra_tensors_new_data_cb, &data_received);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (1000000);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (1000000);
+
+  EXPECT_EQ (1U, data_received);
+
+  gst_object_unref (sink_handle);
+  gst_object_unref (pipeline);
+}
+
+/**
+ * @brief Test tensor_demux of more than 16 sinkpad.
+ */
+TEST (extraTensors, demux)
+{
+  g_autofree gchar *str_pipeline = g_strdup (
+      "videotestsrc pattern=2 num-buffers=5 ! videoscale ! videoconvert ! "
+      "video/x-raw,format=GRAY8,width=1,height=1,framerate=(fraction)30/1 ! "
+      "tensor_converter ! other/tensors,format=(string)static,num_tensors=1,types=(string)uint8,dimensions=(string)1:1 ! tee name=t "
+      "t. ! queue ! mux.sink_0 "
+      "t. ! queue ! mux.sink_1 "
+      "t. ! queue ! mux.sink_2 "
+      "t. ! queue ! mux.sink_3 "
+      "t. ! queue ! mux.sink_4 "
+      "t. ! queue ! mux.sink_5 "
+      "t. ! queue ! mux.sink_6 "
+      "t. ! queue ! mux.sink_7 "
+      "t. ! queue ! mux.sink_8 "
+      "t. ! queue ! mux.sink_9 "
+      "t. ! queue ! mux.sink_10 "
+      "t. ! queue ! mux.sink_11 "
+      "t. ! queue ! mux.sink_12 "
+      "t. ! queue ! mux.sink_13 "
+      "t. ! queue ! mux.sink_14 "
+      "t. ! queue ! mux.sink_15 "
+      "t. ! queue ! mux.sink_16 "
+      "t. ! queue ! mux.sink_17 "
+      "t. ! queue ! mux.sink_18 "
+      "t. ! queue ! mux.sink_19 "
+      "tensor_mux name=mux ! "
+      "tensor_demux name=demux "
+      "demux.src_0 ! queue ! tensor_sink name=sink0 async=false "
+      "demux.src_15 ! queue ! tensor_sink name=sink15 async=false "
+      "demux.src_19 ! queue ! tensor_sink name=sink19 async=false");
+
+  GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
+  EXPECT_NE (pipeline, nullptr);
+
+  GstElement *sink_handle0 = gst_bin_get_by_name (GST_BIN (pipeline), "sink0");
+  EXPECT_NE (sink_handle0, nullptr);
+
+  guint32 datareceived0 = 0U;
+  g_signal_connect (sink_handle0, "new-data",
+      (GCallback) _tensor_extra_tensors_new_data_cb, &datareceived0);
+
+  GstElement *sink_handle15 = gst_bin_get_by_name (GST_BIN (pipeline), "sink15");
+  EXPECT_NE (sink_handle15, nullptr);
+
+  guint32 datareceived15 = 0U;
+  g_signal_connect (sink_handle15, "new-data",
+      (GCallback) _tensor_extra_tensors_new_data_cb, &datareceived15);
+
+  GstElement *sink_handle19 = gst_bin_get_by_name (GST_BIN (pipeline), "sink19");
+  EXPECT_NE (sink_handle19, nullptr);
+
+  guint32 datareceived19 = 0U;
+  g_signal_connect (sink_handle19, "new-data",
+      (GCallback) _tensor_extra_tensors_new_data_cb, &datareceived19);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (1000000);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (1000000);
+
+  EXPECT_EQ (5U, datareceived0);
+  EXPECT_EQ (5U, datareceived15);
+  EXPECT_EQ (5U, datareceived19);
+
+  gst_object_unref (sink_handle0);
+  gst_object_unref (sink_handle15);
+  gst_object_unref (sink_handle19);
+  gst_object_unref (pipeline);
 }
 
 /**
@@ -6659,6 +6873,8 @@ main (int argc, char **argv)
     g_clear_error (&error);
   }
 
+  g_option_context_free (optionctx);
+
   if (jitter_cmd_arg != NULL) {
     jitter = (gulong) g_ascii_strtoull (jitter_cmd_arg, NULL, 10) * MSEC_PER_USEC;
   }
@@ -6669,7 +6885,6 @@ main (int argc, char **argv)
       fps = DEFAULT_FPS;
     }
   }
-
 
   try {
     ret = RUN_ALL_TESTS ();

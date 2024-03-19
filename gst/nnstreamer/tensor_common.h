@@ -109,6 +109,21 @@ typedef struct
 } GstTensorPad;
 
 /**
+ * @brief Parses a configuration file and sets the corresponding properties on a GObject.
+ *
+ * This function reads the contents of the configuration file located at the given path
+ * and sets the properties of the specified GObject based on the configuration data.
+ *
+ * @param config_path The path to the configuration file.
+ * @param object      The GObject on which to set the properties.
+ *
+ * @note The responsibility of managing the memory of the GObject passed as a parameter
+ *       lies outside this function.
+ */
+extern void 
+gst_tensor_parse_config_file (const gchar *config_path, const GObject *object);
+
+/**
  * @brief Get the corresponding mode from the string value.
  * @param[in] str The string value for the mode.
  * @return Corresponding mode for the string. SYNC_END for errors.
@@ -197,12 +212,29 @@ extern GstCaps *
 gst_tensor_pad_possible_caps_from_config (GstPad * pad, const GstTensorsConfig * config);
 
 /**
- * @brief Check current pad caps is flexible tensor.
- * @param pad GstPad to check current caps
- * @return TRUE if pad has flexible tensor caps.
+ * @brief Get tensor format of current pad caps.
+ * @param pad GstPad to check current caps.
+ * @return The tensor_format of current pad caps.
+ *
+ * If pad does not have tensor caps return _NNS_TENSOR_FORMAT_END
  */
-extern gboolean
-gst_tensor_pad_caps_is_flexible (GstPad * pad);
+extern tensor_format
+gst_tensor_pad_get_format (GstPad *pad);
+
+/**
+ * @brief Macro to check current pad caps is static tensor.
+ */
+#define gst_tensor_pad_caps_is_static(p) (gst_tensor_pad_get_format (p) == _NNS_TENSOR_FORMAT_STATIC)
+
+/**
+ * @brief Macro to check current pad caps is flexible tensor.
+ */
+#define gst_tensor_pad_caps_is_flexible(p) (gst_tensor_pad_get_format (p) == _NNS_TENSOR_FORMAT_FLEXIBLE)
+
+/**
+ * @brief Macro to check current pad caps is sparse tensor.
+ */
+#define gst_tensor_pad_caps_is_sparse(p) (gst_tensor_pad_get_format (p) == _NNS_TENSOR_FORMAT_SPARSE)
 
 /**
  * @brief Gets new hash table for tensor aggregation.

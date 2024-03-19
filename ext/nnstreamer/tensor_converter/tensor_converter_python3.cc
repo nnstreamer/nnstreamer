@@ -13,6 +13,7 @@
  * @bug		python converter with Python3.9.10 is stucked during Py_Finalize().
  */
 
+#include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_converter.h>
 #include <nnstreamer_util.h>
 #include "nnstreamer_python3_helper.h"
@@ -129,14 +130,14 @@ PYConverterCore::convert (GstBuffer *in_buf, GstTensorsConfig *config)
 
   if (nullptr == in_buf)
     throw std::invalid_argument ("Null pointers are given to PYConverterCore::convert().\n");
-  num = gst_buffer_n_memory (in_buf);
+  num = gst_tensor_buffer_get_count (in_buf);
   tensors_info = output = pyValue = param = nullptr;
 
   Py_LOCK ();
   param = PyList_New (num);
 
   for (i = 0; i < num; i++) {
-    in_mem[i] = gst_buffer_peek_memory (in_buf, i);
+    in_mem[i] = gst_tensor_buffer_get_nth_memory (in_buf, i);
 
     if (!gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
       Py_ERRMSG ("Cannot map input memory / tensor_converter::custom-script");
@@ -171,6 +172,7 @@ PYConverterCore::convert (GstBuffer *in_buf, GstTensorsConfig *config)
   config->rate_d = rate_d;
 
   if (output) {
+    GstTensorInfo *_info;
     unsigned int num_tensors = PyList_Size (output);
 
     out_buf = gst_buffer_new ();
@@ -178,20 +180,24 @@ PYConverterCore::convert (GstBuffer *in_buf, GstTensorsConfig *config)
       PyArrayObject *output_array
           = (PyArrayObject *) PyList_GetItem (output, (Py_ssize_t) i);
 
+      _info = gst_tensors_info_get_nth_info (&config->info, i);
       mem_size = PyArray_SIZE (output_array);
       mem_data = _g_memdup ((guint8 *) PyArray_DATA (output_array), mem_size);
 
       out_mem = gst_memory_new_wrapped (
           (GstMemoryFlags) 0, mem_data, mem_size, 0, mem_size, mem_data, g_free);
-      gst_buffer_append_memory (out_buf, out_mem);
+
+      gst_tensor_buffer_append_memory (out_buf, out_mem, _info);
     }
   } else {
     Py_ERRMSG ("Fail to get output from 'convert'");
   }
 
 done:
-  for (i = 0; i < num; i++)
+  for (i = 0; i < num; i++) {
     gst_memory_unmap (in_mem[i], &in_info[i]);
+    gst_memory_unref (in_mem[i]);
+  }
 
   Py_SAFEDECREF (param);
   Py_SAFEDECREF (pyValue);
@@ -209,9 +215,8 @@ PYConverterCore::init ()
 {
   /** Find nnstreamer_api module */
   PyObject *api_module = PyImport_ImportModule ("nnstreamer_python");
-  if (api_module == NULL) {
+  if (api_module == NULL)
     return -EINVAL;
-  }
 
   shape_cls = PyObject_GetAttrString (api_module, "TensorShape");
   Py_SAFEDECREF (api_module);
@@ -241,7 +246,10 @@ py_close (void **private_data)
   PYConverterCore *core = static_cast<PYConverterCore *> (*private_data);
 
   g_return_if_fail (core != NULL);
+
+  PyGILState_STATE gstate = PyGILState_Ensure ();
   delete core;
+  PyGILState_Release (gstate);
 
   *private_data = NULL;
 }
@@ -254,7 +262,9 @@ py_close (void **private_data)
 static int
 py_open (const gchar *path, void **priv_data)
 {
+  int ret = 0;
   PYConverterCore *core;
+  PyGILState_STATE gstate;
 
   if (!Py_IsInitialized ())
     throw std::runtime_error ("Python is not initialize.");
@@ -272,20 +282,25 @@ py_open (const gchar *path, void **priv_data)
   /* init null */
   *priv_data = NULL;
 
+  gstate = PyGILState_Ensure ();
   core = new PYConverterCore (path);
   if (core == NULL) {
-    Py_ERRMSG ("Failed to allocate memory for converter subplugin: Python\n");
-    return -1;
+    Py_ERRMSG ("Failed to allocate memory for converter subplugin or path invalid: Python\n");
+    ret = -ENOMEM;
+    goto done;
   }
 
   if (core->init () != 0) {
     delete core;
-    Py_ERRMSG ("failed to initailize the object: Python\n");
-    return -2;
+    Py_ERRMSG ("failed to initailize the object or the python script is invalid: Python\n");
+    ret = -EINVAL;
+    goto done;
   }
-  *priv_data = core;
 
-  return 0;
+  *priv_data = core;
+done:
+  PyGILState_Release (gstate);
+  return ret;
 }
 
 /** @brief tensor converter plugin's NNStreamerExternalConverter callback */
@@ -334,10 +349,16 @@ python_get_out_config (const GstCaps *in_cap, GstTensorsConfig *config)
 static GstBuffer *
 python_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
 {
+  GstBuffer *ret;
   PYConverterCore *core = static_cast<PYConverterCore *> (priv_data);
+  PyGILState_STATE gstate;
   g_return_val_if_fail (in_buf, NULL);
   g_return_val_if_fail (config, NULL);
-  return core->convert (in_buf, config);
+
+  gstate = PyGILState_Ensure ();
+  ret = core->convert (in_buf, config);
+  PyGILState_Release (gstate);
+  return ret;
 }
 
 static const gchar converter_subplugin_python[] = "python3";
@@ -360,9 +381,7 @@ void
 init_converter_py (void)
 {
   /** Python should be initialized and finalized only once */
-  if (!Py_IsInitialized ()) {
-    Py_Initialize ();
-  }
+  nnstreamer_python_init_refcnt ();
   registerExternalConverter (&Python);
 }
 
@@ -370,6 +389,8 @@ init_converter_py (void)
 void
 fini_converter_py (void)
 {
+  nnstreamer_python_status_check ();
+  nnstreamer_python_fini_refcnt ();
   unregisterExternalConverter (Python.name);
 /**
  * @todo Remove below lines after this issue is addressed.

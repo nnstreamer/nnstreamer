@@ -373,9 +373,10 @@ gst_tensor_sparse_enc_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 {
   GstFlowReturn ret = GST_FLOW_OK;
   GstTensorSparseEnc *self = GST_TENSOR_SPARSE_ENC (parent);
-  GstMemory *mem;
+  GstMemory *in_mem, *out_mem;
   GstBuffer *outbuf;
   GstTensorsInfo *info;
+  GstTensorInfo *_info;
   guint i;
 
   UNUSED (pad);
@@ -386,21 +387,25 @@ gst_tensor_sparse_enc_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
   for (i = 0; i < info->num_tensors; ++i) {
     GstTensorMetaInfo meta;
-    gst_tensor_info_convert_to_meta (&info->info[i], &meta);
+
+    _info = gst_tensors_info_get_nth_info (info, i);
+    gst_tensor_info_convert_to_meta (_info, &meta);
 
     meta.format = _NNS_TENSOR_FORMAT_SPARSE;
     meta.media_type = _NNS_TENSOR;
 
     /* do real encoding here */
-    mem = gst_buffer_peek_memory (buf, i);
-    mem = gst_tensor_sparse_from_dense (&meta, mem);
-    if (!mem) {
+    in_mem = gst_tensor_buffer_get_nth_memory (buf, i);
+    out_mem = gst_tensor_sparse_from_dense (&meta, in_mem);
+    gst_memory_unref (in_mem);
+
+    if (!out_mem) {
       nns_loge ("failed to convert to sparse tensor");
       ret = GST_FLOW_ERROR;
       goto done;
     }
 
-    gst_buffer_append_memory (outbuf, mem);
+    gst_tensor_buffer_append_memory (outbuf, out_mem, _info);
   }
 
   ret = gst_pad_push (self->srcpad, outbuf);

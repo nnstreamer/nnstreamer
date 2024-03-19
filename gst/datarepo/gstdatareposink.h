@@ -16,6 +16,7 @@
 #include <gst/gst.h>
 #include <gst/base/gstbasesink.h>
 #include <json-glib/json-glib.h>
+#include "gstdatarepo.h"
 
 G_BEGIN_DECLS
 #define GST_TYPE_DATA_REPO_SINK \
@@ -42,13 +43,16 @@ struct _GstDataRepoSink
 
   GstCaps *fixed_caps;            /**< to get meta info */
   JsonObject *json_object;        /**< JSON object */
-  JsonArray *json_offset_array;   /**< offset array for flexible tensors */
+  JsonArray *sample_offset_array;   /**< offset array of sample */
+  JsonArray *tensor_size_array;    /**< size array of flexible tensor */
+  JsonArray *tensor_count_array;  /**< array for the number of cumulative tensors */
+  guint cumulative_tensors;    /**< the number of cumulated tensors */
 
-  gboolean is_flexible_tensors;
+  gboolean is_static_tensors;
   gint fd;                        /**< open file descriptor*/
-  gint media_type;                /**< media type */
+  GstDataRepoDataType data_type;  /**< data type */
   gint total_samples;             /**< The number of total samples, in the case of multi-files, it is used as an index. */
-  guint64 offset;                 /**< offset of fd */
+  guint64 fd_offset;              /**< offset of fd */
   guint sample_size;             /**< size of one sample */
 
   /* property */

@@ -32,14 +32,14 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <nnstreamer_plugin_api.h>
+#include <tensor_common.h>
 #include <nnstreamer_util.h>
 #include "gstdatareposink.h"
-
 
 /**
  * @brief Tensors caps
  */
-#define TENSOR_CAPS GST_TENSORS_CAP_MAKE ("{ static, flexible }")
+#define TENSOR_CAPS GST_TENSORS_CAP_MAKE ("{ static, flexible, sparse }")
 /**
  * @brief Video caps
  */
@@ -69,15 +69,13 @@
   "image/png, width = (int) [ 16, 1000000 ], height = (int) [ 16, 1000000 ], framerate = (fraction) [ 0/1, MAX];" \
   "image/jpeg, width = (int) [ 16, 65535 ], height = (int) [ 16, 65535 ], framerate = (fraction) [ 0/1, MAX], sof-marker = (int) { 0, 1, 2, 4, 9 };" \
   "image/tiff, endianness = (int) { BIG_ENDIAN, LITTLE_ENDIAN };" \
-  "image/gif"
+  "image/gif;" \
+  "image/bmp"
 
 static GstStaticPadTemplate sinktemplate =
     GST_STATIC_PAD_TEMPLATE ("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
     GST_STATIC_CAPS (TENSOR_CAPS ";" VIDEO_CAPS ";" AUDIO_CAPS ";" IMAGE_CAPS
         ";" TEXT_CAPS ";" OCTET_CAPS));
-
-/* media_type has not IMAGE type */
-#define _NNS_IMAGE 5  /**<supposedly image/png, image/jpeg and etc */
 
 /**
  * @brief datareposink properties.
@@ -178,15 +176,17 @@ gst_data_repo_sink_init (GstDataRepoSink * sink)
 {
   sink->filename = NULL;
   sink->fd = 0;
-  sink->offset = 0;
-  sink->media_type = _NNS_MEDIA_INVALID;
-  sink->is_flexible_tensors = FALSE;
+  sink->fd_offset = 0;
+  sink->data_type = GST_DATA_REPO_DATA_UNKNOWN;
+  sink->is_static_tensors = FALSE;
   sink->fixed_caps = NULL;
   sink->json_object = NULL;
   sink->total_samples = 0;
-  /* init here for flexible tensor */
+  sink->cumulative_tensors = 0;
   sink->json_object = json_object_new ();
-  sink->json_offset_array = json_array_new ();
+  sink->sample_offset_array = json_array_new ();
+  sink->tensor_size_array = json_array_new ();
+  sink->tensor_count_array = json_array_new ();
 }
 
 /**
@@ -200,10 +200,25 @@ gst_data_repo_sink_finalize (GObject * object)
   g_free (sink->filename);
   g_free (sink->json_filename);
 
+  if (sink->fd) {
+    g_close (sink->fd, NULL);
+    sink->fd = 0;
+  }
+
   /* Check for gst-inspect log */
   if (sink->fixed_caps)
     gst_caps_unref (sink->fixed_caps);
 
+  if (sink->sample_offset_array)
+    json_array_unref (sink->sample_offset_array);
+  if (sink->tensor_size_array)
+    json_array_unref (sink->tensor_size_array);
+  if (sink->tensor_count_array)
+    json_array_unref (sink->tensor_count_array);
+  if (sink->json_object) {
+    json_object_unref (sink->json_object);
+    sink->json_object = NULL;
+  }
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
@@ -263,71 +278,120 @@ gst_data_repo_sink_write_others (GstDataRepoSink * sink, GstBuffer * buffer)
 {
   gsize write_size = 0;
   GstMapInfo info;
-  guint to_write = 0, byte_write = 0;
+  GstFlowReturn ret = GST_FLOW_OK;
 
   g_return_val_if_fail (sink != NULL, GST_FLOW_ERROR);
   g_return_val_if_fail (buffer != NULL, GST_FLOW_ERROR);
   g_return_val_if_fail (sink->fd != 0, GST_FLOW_ERROR);
 
+  if (!gst_buffer_map (buffer, &info, GST_MAP_READ)) {
+    GST_ERROR_OBJECT (sink, "Failed to map the incoming buffer.");
+    return GST_FLOW_ERROR;
+  }
+
   GST_OBJECT_LOCK (sink);
-  gst_buffer_map (buffer, &info, GST_MAP_READ);
   sink->sample_size = info.size;
-  to_write = info.size;
 
   GST_LOG_OBJECT (sink,
-      "Writing %d bytes at offset 0x%" G_GINT64_MODIFIER "x (%d size)",
-      to_write, sink->offset + byte_write, (guint) sink->offset + byte_write);
+      "Writing %lld bytes at offset 0x%" G_GINT64_MODIFIER "x (%lld size)",
+      (long long) info.size, sink->fd_offset, (long long) sink->fd_offset);
 
   write_size = write (sink->fd, info.data, info.size);
+
   if (write_size != info.size) {
     GST_ERROR_OBJECT (sink, "Could not write data to file");
-    goto error;
+    ret = GST_FLOW_ERROR;
+  } else {
+    sink->fd_offset += write_size;
+    sink->total_samples++;
   }
-  gst_buffer_unmap (buffer, &info);
+
   GST_OBJECT_UNLOCK (sink);
-
-  sink->offset += write_size;
-  sink->total_samples++;
-
-  return GST_FLOW_OK;
-
-error:
   gst_buffer_unmap (buffer, &info);
-  GST_OBJECT_UNLOCK (sink);
 
-  return GST_FLOW_ERROR;
+  return ret;
 }
 
 /**
- * @brief Function to write flexible tensors
+ * @brief Function to write flexible tensors or sparse tensors
  */
 static GstFlowReturn
-gst_data_repo_sink_write_flexible_tensors (GstDataRepoSink * sink,
+gst_data_repo_sink_write_flexible_or_sparse_tensors (GstDataRepoSink * sink,
     GstBuffer * buffer)
 {
+  guint num_tensors, i;
+  gsize write_size = 0, total_write = 0, tensor_size;
   GstMapInfo info;
-  guint to_write = 0;
+  GstMemory *mem = NULL;
+  GstTensorMetaInfo meta;
 
   g_return_val_if_fail (sink != NULL, GST_FLOW_ERROR);
   g_return_val_if_fail (buffer != NULL, GST_FLOW_ERROR);
   g_return_val_if_fail (sink->fd != 0, GST_FLOW_ERROR);
   g_return_val_if_fail (sink->json_object != NULL, GST_FLOW_ERROR);
-  g_return_val_if_fail (sink->json_offset_array != NULL, GST_FLOW_ERROR);
+  g_return_val_if_fail (sink->sample_offset_array != NULL, GST_FLOW_ERROR);
+  g_return_val_if_fail (sink->tensor_size_array != NULL, GST_FLOW_ERROR);
+  g_return_val_if_fail (sink->tensor_count_array != NULL, GST_FLOW_ERROR);
 
   GST_OBJECT_LOCK (sink);
-  gst_buffer_map (buffer, &info, GST_MAP_READ);
 
-  to_write = info.size;
+  num_tensors = gst_tensor_buffer_get_count (buffer);
+  GST_INFO_OBJECT (sink, "num_tensors: %u", num_tensors);
 
-  gst_buffer_unmap (buffer, &info);
-  GST_OBJECT_UNLOCK (sink);
+  for (i = 0; i < num_tensors; i++) {
+    mem = gst_tensor_buffer_get_nth_memory (buffer, i);
+    if (!gst_memory_map (mem, &info, GST_MAP_READ)) {
+      GST_ERROR_OBJECT (sink, "Failed to map memory");
+      goto mem_map_error;
+    }
 
-  json_array_add_int_element (sink->json_offset_array, sink->offset);
+    if (!gst_tensor_meta_info_parse_header (&meta, info.data)) {
+      GST_ERROR_OBJECT (sink,
+          "Invalid format of tensors, the format is static.");
+      goto error;
+    }
+    tensor_size = info.size;
+
+    GST_LOG_OBJECT (sink, "tensor[%u] size: %zd", i, tensor_size);
+    GST_LOG_OBJECT (sink,
+        "Writing %lld bytes at offset 0x%" G_GINT64_MODIFIER "x (%lld size)",
+        (long long) tensor_size, sink->fd_offset + total_write,
+        (long long) sink->fd_offset + total_write);
+
+    write_size = write (sink->fd, info.data, tensor_size);
+    if (write_size != tensor_size) {
+      GST_ERROR_OBJECT (sink, "Could not write data to file");
+      goto error;
+    }
+
+    json_array_add_int_element (sink->tensor_size_array, tensor_size);
+    total_write += write_size;
+
+    gst_memory_unmap (mem, &info);
+    gst_memory_unref (mem);
+  }
+
+  json_array_add_int_element (sink->sample_offset_array, sink->fd_offset);
+  sink->fd_offset += total_write;
+
+  GST_LOG_OBJECT (sink, "cumulative_tensors: %u", sink->cumulative_tensors);
+  json_array_add_int_element (sink->tensor_count_array,
+      sink->cumulative_tensors);
+  sink->cumulative_tensors += num_tensors;
 
   sink->total_samples++;
-  sink->offset += to_write;
+
+  GST_OBJECT_UNLOCK (sink);
 
   return GST_FLOW_OK;
+
+error:
+  gst_memory_unmap (mem, &info);
+mem_map_error:
+  gst_memory_unref (mem);
+  GST_OBJECT_UNLOCK (sink);
+
+  return GST_FLOW_ERROR;
 }
 
 /**
@@ -339,7 +403,7 @@ gst_data_repo_sink_get_image_filename (GstDataRepoSink * sink)
   gchar *filename = NULL;
 
   g_return_val_if_fail (sink != NULL, NULL);
-  g_return_val_if_fail (sink->media_type == _NNS_IMAGE, NULL);
+  g_return_val_if_fail (sink->data_type == GST_DATA_REPO_DATA_IMAGE, NULL);
   g_return_val_if_fail (sink->filename != NULL, NULL);
 
 #ifdef __GNUC__
@@ -362,39 +426,40 @@ static GstFlowReturn
 gst_data_repo_sink_write_multi_images (GstDataRepoSink * sink,
     GstBuffer * buffer)
 {
-  gchar *filename;
-  gboolean ret;
+  g_autofree gchar *filename = NULL;
+  GstFlowReturn ret = GST_FLOW_OK;
   GError *error = NULL;
   GstMapInfo info;
 
   g_return_val_if_fail (sink != NULL, GST_FLOW_ERROR);
   g_return_val_if_fail (buffer != NULL, GST_FLOW_ERROR);
 
+  if (!gst_buffer_map (buffer, &info, GST_MAP_READ)) {
+    GST_ERROR_OBJECT (sink, "Failed to map the incoming buffer.");
+    return GST_FLOW_ERROR;
+  }
+
   filename = gst_data_repo_sink_get_image_filename (sink);
 
   GST_OBJECT_LOCK (sink);
-  gst_buffer_map (buffer, &info, GST_MAP_READ);
-
   sink->sample_size = info.size;
 
   GST_DEBUG_OBJECT (sink, "Writing to file \"%s\", size(%zd)", filename,
       info.size);
-  ret = g_file_set_contents (filename, (char *) info.data, info.size, &error);
 
-  gst_buffer_unmap (buffer, &info);
-  GST_OBJECT_UNLOCK (sink);
-
-  g_free (filename);
-
-  if (!ret) {
-    GST_ERROR_OBJECT (sink, "Could not write data to file");
-    g_error_free (error);
-    return GST_FLOW_ERROR;
+  if (!g_file_set_contents (filename, (char *) info.data, info.size, &error)) {
+    GST_ERROR_OBJECT (sink, "Could not write data to file: %s",
+        error ? error->message : "unknown error");
+    g_clear_error (&error);
+    ret = GST_FLOW_ERROR;
+  } else {
+    sink->total_samples++;
   }
 
-  sink->total_samples++;
+  GST_OBJECT_UNLOCK (sink);
+  gst_buffer_unmap (buffer, &info);
 
-  return GST_FLOW_OK;
+  return ret;
 }
 
 /**
@@ -405,17 +470,22 @@ gst_data_repo_sink_render (GstBaseSink * bsink, GstBuffer * buffer)
 {
   GstDataRepoSink *sink = GST_DATA_REPO_SINK_CAST (bsink);
 
-  switch (sink->media_type) {
-    case _NNS_VIDEO:
-    case _NNS_AUDIO:
-    case _NNS_TEXT:
-    case _NNS_OCTET:
-    case _NNS_TENSOR:
-      if (sink->is_flexible_tensors)
-        return gst_data_repo_sink_write_flexible_tensors (sink, buffer);
-      /* default write function for tensors(fixed), video, audio, text and octet */
+  switch (sink->data_type) {
+    case GST_DATA_REPO_DATA_VIDEO:
+    case GST_DATA_REPO_DATA_AUDIO:
+    case GST_DATA_REPO_DATA_TEXT:
+    case GST_DATA_REPO_DATA_OCTET:
       return gst_data_repo_sink_write_others (sink, buffer);
-    case _NNS_IMAGE:           /* _NNS_IMAGE is a local define value */
+    case GST_DATA_REPO_DATA_TENSOR:
+    {
+      sink->is_static_tensors =
+          gst_tensor_pad_caps_is_static (GST_BASE_SINK_PAD (sink));
+      if (!sink->is_static_tensors)
+        return gst_data_repo_sink_write_flexible_or_sparse_tensors (sink,
+            buffer);
+      return gst_data_repo_sink_write_others (sink, buffer);
+    }
+    case GST_DATA_REPO_DATA_IMAGE:
       return gst_data_repo_sink_write_multi_images (sink, buffer);
     default:
       return GST_FLOW_ERROR;
@@ -450,62 +520,22 @@ gst_data_repo_sink_get_caps (GstBaseSink * bsink, GstCaps * filter)
   return caps;
 }
 
-
-/**
- * @brief Get media type from caps
- */
-static gboolean
-gst_data_repo_sink_get_media_type (GstDataRepoSink * sink, GstCaps * caps)
-{
-  GstStructure *s;
-
-  g_return_val_if_fail (sink != NULL, FALSE);
-  g_return_val_if_fail (caps != NULL, FALSE);
-
-  s = gst_caps_get_structure (caps, 0);
-
-  if (gst_structure_has_name (s, "other/tensors")) {
-    sink->media_type = _NNS_TENSOR;
-  } else if (gst_structure_has_name (s, "video/x-raw")) {
-    sink->media_type = _NNS_VIDEO;
-  } else if (gst_structure_has_name (s, "audio/x-raw")) {
-    sink->media_type = _NNS_AUDIO;
-  } else if (gst_structure_has_name (s, "text/x-raw")) {
-    sink->media_type = _NNS_TEXT;
-  } else if (gst_structure_has_name (s, "application/octet-stream")) {
-    sink->media_type = _NNS_OCTET;
-  } else if (gst_structure_has_name (s, "image/png")
-      || gst_structure_has_name (s, "image/jpeg")
-      || gst_structure_has_name (s, "image/tiff")
-      || gst_structure_has_name (s, "image/gif")) {
-    sink->media_type = _NNS_IMAGE;
-  } else {
-    GST_ERROR_OBJECT (sink, "Could not get a media type from caps");
-    return FALSE;
-  }
-
-  GST_DEBUG_OBJECT (sink, "media type: %d", sink->media_type);
-
-  return TRUE;
-}
-
 /**
  * @brief Set caps of datareposink.
  */
 static gboolean
 gst_data_repo_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
 {
-  int ret;
   GstDataRepoSink *sink;
 
   sink = GST_DATA_REPO_SINK (bsink);
   GST_INFO_OBJECT (sink, "set caps %" GST_PTR_FORMAT, caps);
 
-  ret = gst_data_repo_sink_get_media_type (sink, caps);
-
+  sink->data_type = gst_data_repo_get_data_type_from_caps (caps);
   sink->fixed_caps = gst_caps_copy (caps);
 
-  return ret;
+  GST_DEBUG_OBJECT (sink, "data type: %d", sink->data_type);
+  return (sink->data_type != GST_DATA_REPO_DATA_UNKNOWN);
 }
 
 /**
@@ -574,13 +604,13 @@ gst_data_repo_sink_open_file (GstDataRepoSink * sink)
   int flags = O_CREAT | O_WRONLY;
 
   g_return_val_if_fail (sink != NULL, FALSE);
-  g_return_val_if_fail (sink->media_type != _NNS_MEDIA_INVALID, FALSE);
+  g_return_val_if_fail (sink->data_type != GST_DATA_REPO_DATA_UNKNOWN, FALSE);
 
   if (sink->filename == NULL || sink->filename[0] == '\0')
     goto no_filename;
 
   /* for image, g_file_set_contents() is used in the write function */
-  if (sink->media_type == _NNS_IMAGE) {
+  if (sink->data_type == GST_DATA_REPO_DATA_IMAGE) {
     return TRUE;
   }
 
@@ -691,10 +721,12 @@ gst_data_repo_sink_write_json_meta_file (GstDataRepoSink * sink)
 
   g_return_val_if_fail (sink != NULL, FALSE);
   g_return_val_if_fail (sink->json_filename != NULL, FALSE);
-  g_return_val_if_fail (sink->media_type != _NNS_MEDIA_INVALID, FALSE);
+  g_return_val_if_fail (sink->data_type != GST_DATA_REPO_DATA_UNKNOWN, FALSE);
   g_return_val_if_fail (sink->fixed_caps != NULL, FALSE);
   g_return_val_if_fail (sink->json_object != NULL, FALSE);
-  g_return_val_if_fail (sink->json_offset_array != NULL, FALSE);
+  g_return_val_if_fail (sink->sample_offset_array != NULL, FALSE);
+  g_return_val_if_fail (sink->tensor_size_array != NULL, FALSE);
+  g_return_val_if_fail (sink->tensor_count_array != NULL, GST_FLOW_ERROR);
 
   caps_str = gst_caps_to_string (sink->fixed_caps);
   GST_DEBUG_OBJECT (sink, "caps string: %s", caps_str);
@@ -704,22 +736,30 @@ gst_data_repo_sink_write_json_meta_file (GstDataRepoSink * sink)
   json_object_set_int_member (sink->json_object, "total_samples",
       sink->total_samples);
 
-  if (sink->is_flexible_tensors)
-    json_object_set_array_member (sink->json_object, "offset",
-        sink->json_offset_array);
-  else
+  if (sink->data_type == GST_DATA_REPO_DATA_TENSOR && !sink->is_static_tensors) {
+    json_object_set_array_member (sink->json_object, "sample_offset",
+        sink->sample_offset_array);
+    json_object_set_array_member (sink->json_object, "tensor_size",
+        sink->tensor_size_array);
+    json_object_set_array_member (sink->json_object, "tensor_count",
+        sink->tensor_count_array);
+
+    sink->sample_offset_array = NULL;
+    sink->tensor_size_array = NULL;
+    sink->tensor_count_array = NULL;
+  } else {
     json_object_set_int_member (sink->json_object, "sample_size",
         sink->sample_size);
-
+  }
   ret = __write_json (sink->json_object, sink->json_filename);
   if (!ret) {
-    GST_ERROR_OBJECT (sink, "Faild to write json meta file: %s",
+    GST_ERROR_OBJECT (sink, "Failed to write json meta file: %s",
         sink->json_filename);
   }
 
   json_object_unref (sink->json_object);
-  json_array_unref (sink->json_offset_array);
   g_free (caps_str);
+  sink->json_object = NULL;
 
   return ret;
 }

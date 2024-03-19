@@ -14,6 +14,13 @@
 #include "unittest_util.h"
 
 /**
+ * @ref https://github.com/nnstreamer/nnstreamer/commit/7f38acb78c26f0f144b6d6fe7fb887b7431d395b
+ */
+#if !defined(ESTRPIPE)
+#define ESTRPIPE EPIPE
+#endif /* !defined(ESTRPIPE) */
+
+/**
  * @brief Set pipeline state, wait until it's done.
  * @return 0 success, -ESTRPIPE if failed, -ETIME if timeout happens.
  */

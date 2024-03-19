@@ -1,8 +1,6 @@
 name: macos
 
 on:
-  push:
-    branches: [ main ]
   pull_request:
     branches: [ main ]
 
@@ -11,13 +9,30 @@ jobs:
     runs-on: macos-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Check if rebuild required
+      ## @todo This should become a reusable workflow.
+      run: |
+        tmpfile=$(mktemp)
+        git show --pretty="format:" --name-only --diff-filter=AMRC ${{ github.event.pull_request.head.sha}} -${{ github.event.pull_request.commits }} | sort | uniq | awk NF > ${tmpfile}
+        echo "changed_file_list=${tmpfile}" >> "$GITHUB_ENV"
+        rebuild=`bash .github/workflows/check_if_rebuild_requires.sh ${tmpfile} rebuild | grep "REBUILD=YES" | wc -l`
+        echo "Rebuild required: ${rebuild}"
+        echo "rebuild=${rebuild}" >> "$GITHUB_ENV"
     - uses: actions/setup-python@v1
     - name: homebrew
-      run: brew install cask
+      if: env.rebuild == '1'
+      run: |
+          # temporarily disabled, because it always fails these days.
+          # brew update
+          brew install cask
     - name: install minimal requirements
-      run: brew install meson ninja pkg-config cmake libffi glib gstreamer gst-plugins-base gst-plugins-good numpy json-glib
+      if: env.rebuild == '1'
+      run: brew install meson ninja pkg-config cmake libffi glib gstreamer numpy json-glib
     - uses: BSFishy/meson-build@v1.0.3
+      if: env.rebuild == '1'
       with:
         action: build
 

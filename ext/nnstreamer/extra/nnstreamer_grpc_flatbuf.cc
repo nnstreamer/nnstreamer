@@ -114,6 +114,7 @@ ServiceImplFlatbuf::_get_buffer_from_tensors (Message<Tensors> &msg, GstBuffer *
 {
   const Tensors *tensors = msg.GetRoot ();
   guint num_tensor = tensors->num_tensor ();
+  GstTensorInfo *_info;
   GstMemory *memory;
 
   *buffer = gst_buffer_new ();
@@ -124,9 +125,11 @@ ServiceImplFlatbuf::_get_buffer_from_tensors (Message<Tensors> &msg, GstBuffer *
     gsize size = VectorLength (tensor->data ());
     gpointer new_data = _g_memdup (data, size);
 
+    _info = gst_tensors_info_get_nth_info (&config_->info, i);
+
     memory = gst_memory_new_wrapped (
         (GstMemoryFlags) 0, new_data, size, 0, size, new_data, g_free);
-    gst_buffer_append_memory (*buffer, memory);
+    gst_tensor_buffer_append_memory (*buffer, memory, _info);
   }
 }
 
@@ -146,33 +149,26 @@ ServiceImplFlatbuf::_get_tensors_from_buffer (GstBuffer *buffer, Message<Tensors
   Tensor_format format = (Tensor_format) config_->info.format;
   unsigned int num_tensors = config_->info.num_tensors;
   frame_rate fr = frame_rate (config_->rate_n, config_->rate_d);
-
+  GstTensorInfo *_info;
+  GstMemory *mem;
   GstMapInfo map;
-  gsize data_ptr = 0;
-
-  if (!gst_buffer_map (buffer, &map, GST_MAP_READ)) {
-    ml_loge ("Unable to map the buffer\n");
-    return;
-  }
 
   for (guint i = 0; i < num_tensors; i++) {
-    const GstTensorInfo *info = &config_->info.info[i];
-    gsize tsize = gst_tensor_info_get_size (info);
+    _info = gst_tensors_info_get_nth_info (&config_->info, i);
 
-    if (data_ptr + tsize > map.size) {
-      ml_logw ("Setting invalid tensor data");
-      break;
-    }
+    mem = gst_tensor_buffer_get_nth_memory (buffer, i);
+    g_assert (gst_memory_map (mem, &map, GST_MAP_READ));
 
-    tensor_dim = builder.CreateVector (info->dimension, NNS_TENSOR_RANK_LIMIT);
+    tensor_dim = builder.CreateVector (_info->dimension, NNS_TENSOR_RANK_LIMIT);
     tensor_name = builder.CreateString ("Anonymous");
-    tensor_type = (Tensor_type) info->type;
-    tensor_data = builder.CreateVector<unsigned char> (map.data + data_ptr, tsize);
-
-    data_ptr += tsize;
+    tensor_type = (Tensor_type) _info->type;
+    tensor_data = builder.CreateVector<unsigned char> (map.data, map.size);
 
     tensor = CreateTensor (builder, tensor_name, tensor_type, tensor_dim, tensor_data);
     tensor_vector.push_back (tensor);
+
+    gst_memory_unmap (mem, &map);
+    gst_memory_unref (mem);
   }
 
   tensors = CreateTensors (
@@ -180,8 +176,6 @@ ServiceImplFlatbuf::_get_tensors_from_buffer (GstBuffer *buffer, Message<Tensors
 
   builder.Finish (tensors);
   msg = builder.ReleaseMessage<Tensors> ();
-
-  gst_buffer_unmap (buffer, &map);
 }
 
 /** @brief Constructor of SyncServiceImplFlatbuf */

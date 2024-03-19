@@ -48,31 +48,33 @@ struct _GstTensorTrainer
   GstPad *srcpad;
 
   gchar *fw_name;
-  gchar *model_config;
-  gchar *model_save_path;
-  gchar *input_dimensions;
   gchar *output_dimensions;
-  gchar *input_type;
   gchar *output_type;
 
   gboolean input_configured;
   gboolean output_configured;
   gboolean inputtype_configured;
+  gboolean fw_created;
+  gboolean is_training_complete;
+  gboolean is_epoch_complete;
+  gboolean ready_to_complete_training;
   unsigned int input_ranks[NNS_TENSOR_SIZE_LIMIT];
   unsigned int output_ranks[NNS_TENSOR_SIZE_LIMIT];
   GstTensorsInfo output_meta;
   GstTensorsConfig out_config;
   GstTensorsConfig in_config;
 
-  gint64 total_push_data_cnt;      /**< number of total push data */
-  gboolean fw_created;
+  guint total_push_data_cnt;      /**< number of total push data in one eposh */
 
   void *privateData; /**< NNFW plugin's private data is stored here */
-  const GstTensorTrainerFramework *fw;  /* for test, need to make */
+  const GstTensorTrainerFramework *fw; /**< Subplugin definition */
   GstTensorTrainerProperties prop; /**< NNFW plugin's properties */
+  GstTensorTrainerEventNotifier notifier; /**< Event notifier */
 
-  GMutex trainer_lock;
-  GCond training_complete_cond;
+  GMutex training_completion_lock;
+  GCond training_completion_cond;
+  GMutex epoch_completion_lock;
+  GCond epoch_completion_cond;
 };
 
 /**

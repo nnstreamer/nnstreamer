@@ -29,7 +29,7 @@
 #define NO_ANONYMOUS_NESTED_STRUCT
 #include <nnstreamer_plugin_api_filter.h>
 #undef NO_ANONYMOUS_NESTED_STRUCT
-#include <tensor_common.h>
+#include <nnstreamer_plugin_api_util.h>
 #ifdef __OPENVINO_CPU_EXT__
 #include <ext_list.hpp>
 #endif /* __OPENVINO_CPU_EXT__ */
@@ -243,6 +243,15 @@ TensorFilterOpenvino::loadModel (accl_hw hw)
 }
 
 /**
+ * @brief Check the neural network model is loaded.
+ */
+bool
+TensorFilterOpenvino::isModelLoaded ()
+{
+  return _isLoaded;
+}
+
+/**
  * @brief	Get the information about the dimensions of input tensors from the given model
  * @param[out] info metadata containing the dimesions and types information of the input tensors
  * @return 0 (TensorFilterOpenvino::RetSuccess) if OK, negative values if error
@@ -252,6 +261,7 @@ TensorFilterOpenvino::getInputTensorDim (GstTensorsInfo *info)
 {
   InferenceEngine::InputsDataMap *inputsDataMap = &(this->_inputsDataMap);
   InferenceEngine::InputsDataMap::iterator inputDataMapIter;
+  GstTensorInfo *_info;
   int ret, i, j;
 
   gst_tensors_info_init (info);
@@ -285,12 +295,11 @@ TensorFilterOpenvino::getInputTensorDim (GstTensorsInfo *info)
       goto failed;
     }
 
+    _info = gst_tensors_info_get_nth_info (info, i);
+
     for (sizeVecRIter = dimsSizeVec.rbegin (), j = 0;
          sizeVecRIter != dimsSizeVec.rend (); ++sizeVecRIter, ++j) {
-      info->info[i].dimension[j] = (*sizeVecRIter != 0 ? *sizeVecRIter : 1);
-    }
-    for (int k = j; k < NNS_TENSOR_RANK_LIMIT; ++k) {
-      info->info[i].dimension[k] = 1;
+      _info->dimension[j] = (*sizeVecRIter != 0 ? *sizeVecRIter : 1);
     }
 
     ieTensorTypeStr = eachInputInfo->getPrecision ().name ();
@@ -303,8 +312,8 @@ TensorFilterOpenvino::getInputTensorDim (GstTensorsInfo *info)
       goto failed;
     }
 
-    info->info[i].type = nnsTensorType;
-    info->info[i].name = g_strdup (eachInputInfo->name ().c_str ());
+    _info->type = nnsTensorType;
+    _info->name = g_strdup (eachInputInfo->name ().c_str ());
     this->_inputTensorDescs[i] = eachInputTensorDesc;
   }
 
@@ -326,6 +335,7 @@ TensorFilterOpenvino::getOutputTensorDim (GstTensorsInfo *info)
 {
   InferenceEngine::OutputsDataMap *outputsDataMap = &(this->_outputsDataMap);
   InferenceEngine::OutputsDataMap::iterator outputDataMapIter;
+  GstTensorInfo *_info;
   int ret, i, j;
 
   gst_tensors_info_init (info);
@@ -359,12 +369,11 @@ TensorFilterOpenvino::getOutputTensorDim (GstTensorsInfo *info)
       goto failed;
     }
 
+    _info = gst_tensors_info_get_nth_info (info, i);
+
     for (sizeVecRIter = dimsSizeVec.rbegin (), j = 0;
          sizeVecRIter != dimsSizeVec.rend (); ++sizeVecRIter, ++j) {
-      info->info[i].dimension[j] = (*sizeVecRIter != 0 ? *sizeVecRIter : 1);
-    }
-    for (int k = j; k < NNS_TENSOR_RANK_LIMIT; ++k) {
-      info->info[i].dimension[k] = 1;
+      _info->dimension[j] = (*sizeVecRIter != 0 ? *sizeVecRIter : 1);
     }
 
     ieTensorTypeStr = eachOutputInfo->getPrecision ().name ();
@@ -377,8 +386,8 @@ TensorFilterOpenvino::getOutputTensorDim (GstTensorsInfo *info)
       goto failed;
     }
 
-    info->info[i].type = nnsTensorType;
-    info->info[i].name = g_strdup (eachOutputInfo->getName ().c_str ());
+    _info->type = nnsTensorType;
+    _info->name = g_strdup (eachOutputInfo->getName ().c_str ());
     this->_outputTensorDescs[i] = eachOutputTensorDesc;
   }
 
@@ -403,14 +412,16 @@ TensorFilterOpenvino::invoke (const GstTensorFilterProperties *prop,
 {
   InferenceEngine::BlobMap inBlobMap;
   InferenceEngine::BlobMap outBlobMap;
+  GstTensorInfo *info;
   guint num_tensors;
   guint i;
 
   num_tensors = (prop->input_meta).num_tensors;
   for (i = 0; i < num_tensors; ++i) {
-    const GstTensorInfo *info = &((prop->input_meta).info[i]);
+    info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &prop->input_meta, i);
+
     InferenceEngine::Blob::Ptr blob = convertGstTensorMemoryToBlobPtr (
-        this->_inputTensorDescs[i], &(input[i]), prop->input_meta.info[i].type);
+        this->_inputTensorDescs[i], &(input[i]), info->type);
     if (blob == nullptr) {
       ml_loge ("Failed to create a blob for the input tensor: %u", i);
       return RetEInval;
@@ -421,9 +432,10 @@ TensorFilterOpenvino::invoke (const GstTensorFilterProperties *prop,
 
   num_tensors = (prop->output_meta).num_tensors;
   for (i = 0; i < num_tensors; ++i) {
-    const GstTensorInfo *info = &((prop->output_meta).info[i]);
+    info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &prop->output_meta, i);
+
     InferenceEngine::Blob::Ptr blob = convertGstTensorMemoryToBlobPtr (
-        this->_outputTensorDescs[i], &(output[i]), prop->output_meta.info[i].type);
+        this->_outputTensorDescs[i], &(output[i]), info->type);
     outBlobMap.insert (make_pair (std::string (info->name), blob));
     if (blob == nullptr) {
       ml_loge ("Failed to create a blob for the output tensor: %u", i);

@@ -16,8 +16,9 @@
 #include <gst/gst.h>
 #include <gst/base/gstbasesink.h>
 #include "edge_common.h"
-#include "nnstreamer-edge.h"
-#include "../nnstreamer/nnstreamer_log.h"
+#include <nnstreamer-edge.h>
+#include "nnstreamer_log.h"
+#include "nnstreamer_plugin_api.h"
 #include "tensor_typedef.h"
 
 G_BEGIN_DECLS
@@ -50,6 +51,8 @@ struct _GstEdgeSink
 
   nns_edge_connect_type_e connect_type;
   nns_edge_h edge_h;
+  gboolean wait_connection;
+  guint64 connection_timeout;
 };
 
 /**

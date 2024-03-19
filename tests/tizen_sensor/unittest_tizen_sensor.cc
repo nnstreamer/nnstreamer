@@ -367,7 +367,9 @@ TEST (tizensensorAsSource, virtualSensorCreate06_n)
   pipeline = g_strdup_printf ("tensor_src_tizensensor type=SENSOR_HRM_LED_GREEN ! tensor_sink");
   pipe = gst_parse_launch (pipeline, &err);
 
-  if (pipe) {
+  if (err) {
+    failed = TRUE;
+  } else if (pipe) {
     ret = gst_element_set_state (pipe, GST_STATE_PAUSED);
     failed = (ret == GST_STATE_CHANGE_FAILURE);
     gst_object_unref (pipe);

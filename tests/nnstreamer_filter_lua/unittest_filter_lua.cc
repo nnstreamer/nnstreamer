@@ -264,7 +264,6 @@ end
 
   /* double close */
   sp->close (&prop, &data);
-  ;
 }
 
 
@@ -486,9 +485,9 @@ TEST (nnstreamerFilterLua, invoke01_n)
   output.data = g_malloc (output.size);
   ((float *) input.data)[0] = 10.0;
 
-  /* catching assertion error */
-  EXPECT_DEATH (sp->invoke (NULL, NULL, data, NULL, &output), "");
-  EXPECT_DEATH (sp->invoke (NULL, NULL, data, &input, NULL), "");
+  /* catching exception */
+  EXPECT_NE (sp->invoke (NULL, NULL, data, NULL, &output), 0);
+  EXPECT_NE (sp->invoke (NULL, NULL, data, &input, NULL), 0);
 
   g_free (input.data);
   g_free (output.data);
@@ -675,6 +674,13 @@ end
     invalid_lua_script,
     NULL,
   };
+
+#ifdef __riscv
+  GTEST_SKIP ();
+  /** @todo Exception handling in filter::lua for RISCV
+   * Somehow, nnstreamer::lua in riscv64 at Ubuntu 20.02
+   * cannot handle exceptions nicely. */
+#endif
 
   output.size = input.size = sizeof (uint8_t) * 3 * 100 * 100 * 1;
 

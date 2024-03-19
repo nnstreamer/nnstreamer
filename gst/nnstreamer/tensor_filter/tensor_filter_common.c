@@ -26,6 +26,7 @@
 #include <string.h>
 
 #include <hw_accel.h>
+#include <ml_agent.h>
 #include <nnstreamer_log.h>
 #include <nnstreamer_util.h>
 
@@ -37,9 +38,12 @@
     gchar *dim_str; \
     ml_logd (msg " total %d", (i)->num_tensors); \
     for (info_idx = 0; info_idx < (i)->num_tensors; info_idx++) { \
-      dim_str = gst_tensor_get_dimension_string (gst_tensors_info_get_nth_info(i, info_idx)->dimension); \
-      ml_logd ("[%d] type=%d dim=%s", info_idx, gst_tensors_info_get_nth_info(i, info_idx)->type, dim_str); \
-      g_free (dim_str); \
+      GstTensorInfo *nth = gst_tensors_info_get_nth_info (i, info_idx); \
+      if (nth) { \
+        dim_str = gst_tensor_get_dimension_string (nth->dimension); \
+        ml_logd ("[%d] type=%d dim=%s", info_idx, nth->type, dim_str); \
+        g_free (dim_str); \
+      } \
     } \
   } \
 } while (0)
@@ -96,37 +100,6 @@ static gint _gtfc_setprop_ACCELERATOR (GstTensorFilterPrivate * priv,
  */
 G_LOCK_DEFINE_STATIC (shared_model_table);
 static GHashTable *shared_model_table = NULL;
-
-/**
- * @brief GstTensorFilter properties.
- */
-enum
-{
-  PROP_0,
-  PROP_SILENT,
-  PROP_FRAMEWORK,
-  PROP_MODEL,
-  PROP_INPUT,
-  PROP_INPUTTYPE,
-  PROP_INPUTNAME,
-  PROP_INPUTLAYOUT,
-  PROP_INPUTRANKS,
-  PROP_OUTPUT,
-  PROP_OUTPUTTYPE,
-  PROP_OUTPUTNAME,
-  PROP_OUTPUTLAYOUT,
-  PROP_OUTPUTRANKS,
-  PROP_CUSTOM,
-  PROP_SUBPLUGINS,
-  PROP_ACCELERATOR,
-  PROP_IS_UPDATABLE,
-  PROP_LATENCY,
-  PROP_THROUGHPUT,
-  PROP_INPUTCOMBINATION,
-  PROP_OUTPUTCOMBINATION,
-  PROP_SHARED_TENSOR_FILTER_KEY,
-  PROP_LATENCY_REPORT,
-};
 
 /**
  * @brief Initialize the tensors layout.
@@ -260,8 +233,9 @@ gst_tensor_filter_get_rank_string (const GstTensorFilterProperties * prop,
       if (_ranks[i] != 0)
         g_string_append_printf (rank, "%u", _ranks[i]);
       else
-        g_string_append_printf (rank, "%d",
-            gst_tensor_info_get_rank (&_meta->info[i]));
+        g_string_append_printf (rank, "%u",
+            gst_tensor_info_get_rank (gst_tensors_info_get_nth_info (
+                    (GstTensorsInfo *) _meta, i)));
 
       if (i < _meta->num_tensors - 1)
         g_string_append_printf (rank, ",");
@@ -303,8 +277,8 @@ gst_tensor_filter_get_dimension_string (const GstTensorFilterProperties * prop,
 
     for (i = 0; i < tinfo->num_tensors; ++i) {
       dim_str =
-          gst_tensor_get_rank_dimension_string (tinfo->info[i].dimension,
-          *(_rank + i));
+          gst_tensor_get_rank_dimension_string (gst_tensors_info_get_nth_info (
+              (GstTensorsInfo *) tinfo, i)->dimension, *(_rank + i));
       g_string_append (dimensions, dim_str);
 
       if (i < tinfo->num_tensors - 1) {
@@ -760,8 +734,14 @@ gst_tensor_filter_parse_modelpaths_string (GstTensorFilterProperties * prop,
   g_strfreev_const (prop->model_files);
 
   if (model_files) {
-    prop->model_files = (const gchar **) g_strsplit_set (model_files, ",", -1);
-    prop->num_models = g_strv_length ((gchar **) prop->model_files);
+    gchar **models = g_strsplit_set (model_files, ",", -1);
+    guint i, num = g_strv_length (models);
+
+    for (i = 0; i < num; i++)
+      g_strstrip (models[i]);
+
+    prop->model_files = (const gchar **) models;
+    prop->num_models = num;
   } else {
     prop->model_files = NULL;
     prop->num_models = 0;
@@ -777,6 +757,9 @@ gboolean
 gst_tensor_filter_allocate_in_invoke (GstTensorFilterPrivate * priv)
 {
   int allocate_in_invoke = 0;
+
+  if (priv->prop.invoke_dynamic)
+    return TRUE;
 
   if (GST_TF_FW_V0 (priv->fw)) {
     allocate_in_invoke = priv->fw->allocate_in_invoke;
@@ -839,18 +822,24 @@ gst_tensorsinfo_compare_to_string (const GstTensorsInfo * info1,
       break;
 
     if (info1->num_tensors > i) {
-      tmp = gst_tensor_get_dimension_string (info1->info[i].dimension);
-      left = g_strdup_printf ("%s [%s]",
-          gst_tensor_get_type_string (info1->info[i].type), tmp);
+      GstTensorInfo *info1_i =
+          gst_tensors_info_get_nth_info ((GstTensorsInfo *) info1, i);
+      tmp = gst_tensor_get_dimension_string (info1_i->dimension);
+      left =
+          g_strdup_printf ("%s [%s]",
+          gst_tensor_get_type_string (info1_i->type), tmp);
       g_free (tmp);
     } else {
       left = g_strdup ("None");
     }
 
     if (info2->num_tensors > i) {
-      tmp = gst_tensor_get_dimension_string (info2->info[i].dimension);
-      right = g_strdup_printf ("%s [%s]",
-          gst_tensor_get_type_string (info2->info[i].type), tmp);
+      GstTensorInfo *info2_i =
+          gst_tensors_info_get_nth_info ((GstTensorsInfo *) info2, i);
+      tmp = gst_tensor_get_dimension_string (info2_i->dimension);
+      right =
+          g_strdup_printf ("%s [%s]",
+          gst_tensor_get_type_string (info2_i->type), tmp);
       g_free (tmp);
     } else {
       right = g_strdup ("None");
@@ -898,21 +887,36 @@ gst_tensorsinfo_compare_print (const GstTensorsInfo * info1,
 void
 gst_tensor_filter_install_properties (GObjectClass * gobject_class)
 {
+  gchar **subplugins = NULL;
+  gchar *strbuf;
+  static gchar *strprint = NULL;
+
   g_object_class_install_property (gobject_class, PROP_SILENT,
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output",
           FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  subplugins = get_all_subplugins (NNS_SUBPLUGIN_FILTER);
+  strbuf = g_strjoinv (", ", subplugins);
+  g_free (strprint);
+  strprint = g_strdup_printf
+      ("Neural network framework. Custom property depends on the specified framework. Use 'auto' to let tensor_filter determine the framework. For more detail, please refer to the documentation or nnstreamer-check utility. Available frameworks (filter subplugins) are: {%s}.",
+      strbuf);
+
   g_object_class_install_property (gobject_class, PROP_FRAMEWORK,
-      g_param_spec_string ("framework", "Framework",
-          "Neural network framework", "auto",
+      g_param_spec_string ("framework", "Framework", strprint, "auto",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_free (strbuf);
+  g_strfreev (subplugins);
+
   g_object_class_install_property (gobject_class, PROP_MODEL,
       g_param_spec_string ("model", "Model filepath",
           "File path to the model file. Separated with ',' in case of multiple model files(like caffe2)",
           "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_INPUT,
       g_param_spec_string ("input", "Input dimension",
-          "Input tensor dimension from inner array, up to 4 dimensions ?", "",
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          "Input tensor dimension from inner array (Max rank #NNS_TENSOR_RANK_LIMIT)",
+          "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_INPUTNAME,
       g_param_spec_string ("inputname", "Name of Input Tensor",
           "The Name of Input Tensor", "",
@@ -936,8 +940,8 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_OUTPUT,
       g_param_spec_string ("output", "Output dimension",
-          "Output tensor dimension from inner array, up to 4 dimensions ?", "",
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          "Output tensor dimension from inner array (Max rank #NNS_TENSOR_RANK_LIMIT)",
+          "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_OUTPUTTYPE,
       g_param_spec_string ("outputtype", "Output tensor element type",
           "Type of each element of the output tensor ?", "",
@@ -1002,7 +1006,7 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
           "The key(name) of shared model representation",
           "Multiple element instances of tensor-filter in a pipeline may share "
           "a single resource instance if they share the same framework (subplugin) "
-          "and nerual network model. Designate \"shared-tensor-filter-key\" "
+          "and neural network model. Designate \"shared-tensor-filter-key\" "
           "to declare and share such instances. "
           "If it is NULL, it means the model representations is not shared.",
           NULL, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
@@ -1010,6 +1014,16 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
       g_param_spec_boolean ("latency-report", "Latency report",
           "Report to the pipeline the estimated tensor-filter element latency.",
           FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_INVOKE_DYNAMIC,
+      g_param_spec_boolean ("invoke-dynamic", "Enable dynamic invoke",
+          "Flexible tensors whose memory size changes can be used as"
+          "input and output of the tensor filter. "
+          "With this option, the output caps is always in the format of flexible tensors.",
+          FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_CONFIG,
+      g_param_spec_string ("config-file", "Configuration-file",
+          "Path to configuraion file which contains plugins properties", "",
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 }
 
 /**
@@ -1031,6 +1045,7 @@ gst_tensor_filter_common_init_property (GstTensorFilterPrivate * priv)
 
   /* init internal properties */
   priv->silent = TRUE;
+  priv->prop.invoke_dynamic = FALSE;
   gst_tensors_config_init (&priv->in_config);
   gst_tensors_config_init (&priv->out_config);
 }
@@ -1058,6 +1073,7 @@ gst_tensor_filter_common_free_property (GstTensorFilterPrivate * priv)
 
   gst_tensors_config_free (&priv->in_config);
   gst_tensors_config_free (&priv->out_config);
+  g_free (priv->config_path);
 
   g_list_free (priv->combi.in_combi);
   g_list_free (priv->combi.out_combi_i);
@@ -1405,7 +1421,7 @@ _gtfc_setprop_MODEL (GstTensorFilterPrivate * priv,
     GstTensorFilterProperties * prop, const GValue * value)
 {
   gint status = 0;
-  const gchar *model_files = g_value_get_string (value);
+  g_autofree gchar *model_files = mlagent_get_model_path_from (value);
   GstTensorFilterProperties _prop;
 
   if (!model_files) {
@@ -1500,7 +1516,7 @@ _gtfc_setprop_DIMENSION (GstTensorFilterPrivate * priv,
 
     for (i = 0; i < num_dims; ++i) {
       rank[i] = gst_tensor_parse_dimension (str_dims[i],
-          info->info[i].dimension);
+          gst_tensors_info_get_nth_info (info, i)->dimension);
     }
     g_strfreev (str_dims);
 
@@ -1646,6 +1662,10 @@ _gtfc_setprop_ACCELERATOR (GstTensorFilterPrivate * priv,
       GstTensorFilterFrameworkEventData data;
       memcpy (&_prop, prop, sizeof (GstTensorFilterProperties));
 
+      /* null-init hw list before parsing accel string (old ptr in _prop). */
+      prop->num_hw = 0;
+      prop->hw_list = NULL;
+
       gst_tensor_filter_parse_accelerator (priv, prop, accelerators);
       data.num_hw = prop->num_hw;
       data.hw_list = prop->hw_list;
@@ -1756,7 +1776,7 @@ _gtfc_setprop_LAYOUT (GstTensorFilterPrivate * priv,
         if (priv->fw->eventHandler
             (priv->fw, prop, priv->privateData, evt, &data) == 0) {
           memcpy (*layout, data.layout,
-              sizeof (tensor_layout) * NNS_TENSOR_SIZE_LIMIT);
+              sizeof (tensor_layout) * (NNS_TENSOR_SIZE_LIMIT));
         } else {
           ml_logw ("Unable to update layout.");
         }
@@ -1903,6 +1923,19 @@ _gtfc_setprop_SHARED_TENSOR_FILTER_KEY (GstTensorFilterProperties * prop,
 }
 
 /**
+ * @brief Handle "PROP_INVOKE_DYNAMIC" for set-property
+ */
+static gint
+_gtfc_setprop_PROP_INVOKE_DYNAMIC (GstTensorFilterPrivate * priv,
+    const GValue * value)
+{
+  priv->prop.invoke_dynamic = g_value_get_boolean (value);
+  priv->info.allocate_in_invoke = TRUE;
+
+  return 0;
+}
+
+/**
  * @brief Set the properties for tensor_filter
  * @param[in] priv Struct containing the properties of the object
  * @param[in] prop_id Id for the property
@@ -1984,6 +2017,9 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
       break;
     case PROP_LATENCY_REPORT:
       priv->latency_reporting = g_value_get_boolean (value);
+      break;
+    case PROP_INVOKE_DYNAMIC:
+      status = _gtfc_setprop_PROP_INVOKE_DYNAMIC (priv, value);
       break;
     default:
       return FALSE;
@@ -2190,6 +2226,9 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
     case PROP_LATENCY_REPORT:
       g_value_set_boolean (value, priv->latency_reporting);
       break;
+    case PROP_INVOKE_DYNAMIC:
+      g_value_set_boolean (value, prop->invoke_dynamic);
+      break;
     default:
       /* unknown property */
       return FALSE;
@@ -2222,7 +2261,8 @@ gst_tensor_filter_common_get_combined_in_info (GstTensorFilterPrivate * priv,
         goto error;
       }
 
-      gst_tensor_info_copy (&combined->info[idx++], &in->info[i]);
+      gst_tensor_info_copy (gst_tensors_info_get_nth_info (combined, idx++),
+          gst_tensors_info_get_nth_info ((GstTensorsInfo *) in, i));
 
       if (idx >= NNS_TENSOR_SIZE_LIMIT) {
         nns_loge ("The max number of tensors is %d.", NNS_TENSOR_SIZE_LIMIT);
@@ -2269,7 +2309,8 @@ gst_tensor_filter_common_get_combined_out_info (GstTensorFilterPrivate * priv,
           goto error;
         }
 
-        gst_tensor_info_copy (&combined->info[idx++], &in->info[i]);
+        gst_tensor_info_copy (gst_tensors_info_get_nth_info (combined, idx++),
+            gst_tensors_info_get_nth_info ((GstTensorsInfo *) in, i));
       }
     }
 
@@ -2282,7 +2323,8 @@ gst_tensor_filter_common_get_combined_out_info (GstTensorFilterPrivate * priv,
           goto error;
         }
 
-        gst_tensor_info_copy (&combined->info[idx++], &out->info[i]);
+        gst_tensor_info_copy (gst_tensors_info_get_nth_info (combined, idx++),
+            gst_tensors_info_get_nth_info ((GstTensorsInfo *) out, i));
       }
     }
 
@@ -2385,8 +2427,11 @@ gst_tensor_filter_load_tensor_info (GstTensorFilterPrivate * priv)
     silent_debug_info (&in_info, "input tensor");
   }
 
-  /* supposed fixed out-tensor info if getOutputDimension was success. */
-  if (!prop->output_configured && res_out == 0) {
+  /** In case of dynamic invoke, output tensors info is determined after invoke. */
+  if (prop->invoke_dynamic) {
+    prop->output_configured = TRUE;
+  } else if (!prop->output_configured && res_out == 0) {
+    /* supposed fixed out-tensor info if getOutputDimension was success. */
     g_assert (out_info.num_tensors > 0);
 
     /** if set-property called and already has info, verify it! */
@@ -3051,16 +3096,17 @@ nnstreamer_filter_shared_model_replace (void *instance, const char *key,
   GList *itr;
   UNUSED (instance);
 
-  if (!shared_model_table) {
-    ml_loge ("The shared model representation is not supported properly!");
-    return;
-  }
   if (!key) {
     ml_loge ("The key should NOT be NULL!");
     return;
   }
 
   G_LOCK (shared_model_table);
+  if (!shared_model_table) {
+    ml_loge ("The shared model representation is not supported properly!");
+    goto done;
+  }
+
   model_rep = g_hash_table_lookup (shared_model_table, key);
   if (model_rep) {
     itr = model_rep->referred_list;
@@ -3072,5 +3118,7 @@ nnstreamer_filter_shared_model_replace (void *instance, const char *key,
     free_callback (model_rep->shared_interpreter);
     model_rep->shared_interpreter = new_interpreter;
   }
+
+done:
   G_UNLOCK (shared_model_table);
 }

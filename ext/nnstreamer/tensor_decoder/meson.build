@@ -56,6 +56,26 @@ static_library('nnstreamer_decoder_bounding_boxes',
   install_dir: nnstreamer_libdir
 )
 
+# tensor_region
+decoder_sub_tensor_region_sources = [
+  'tensordec-tensor_region.c',
+  'tensordecutil.c'
+]
+
+shared_library('nnstreamer_decoder_tensor_region',
+  decoder_sub_tensor_region_sources,
+  dependencies: [nnstreamer_dep, glib_dep, gst_dep],
+  install: true,
+  install_dir: decoder_subplugin_install_dir
+)
+
+static_library('nnstreamer_decoder_tensor_region',
+  decoder_sub_tensor_region_sources,
+  dependencies: [nnstreamer_dep, glib_dep, gst_dep],
+  install: true,
+  install_dir: nnstreamer_libdir
+)
+
 # pose estimation
 decoder_sub_pose_estimation_sources = [
   'tensordec-pose.c',
@@ -145,14 +165,14 @@ if have_python3
 
   shared_library('nnstreamer_decoder_python3',
     decoder_sub_python3_sources,
-    dependencies: nnstreamer_python3_helper_dep,
+    dependencies: [nnstreamer_dep, nnstreamer_python3_helper_dep],
     install: true,
     install_dir: decoder_subplugin_install_dir
   )
 
   static_library('nnstreamer_decoder_python3',
     decoder_sub_python3_sources,
-    dependencies: nnstreamer_python3_helper_dep,
+    dependencies: [nnstreamer_dep, nnstreamer_python3_helper_dep],
     install: true,
     install_dir: nnstreamer_libdir
   )

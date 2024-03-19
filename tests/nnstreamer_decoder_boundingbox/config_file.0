@@ -1,0 +1,5 @@
+mode=bounding_boxes
+option2=coco_labels_list.txt
+option3=box_priors.txt
+option4=160:120
+option5=300:300

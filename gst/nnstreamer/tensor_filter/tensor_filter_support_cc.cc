@@ -42,7 +42,6 @@
 
 #include <nnstreamer_cppplugin_api_filter.hh>
 #include <nnstreamer_util.h>
-#include <tensor_common.h>
 
 namespace nnstreamer
 {
@@ -155,7 +154,7 @@ tensor_filter_subplugin::cpp_close (const GstTensorFilterProperties *prop, void 
  */
 int
 tensor_filter_subplugin::cpp_invoke (const GstTensorFilterFramework *tf,
-    const GstTensorFilterProperties *prop, void *private_data,
+    GstTensorFilterProperties *prop, void *private_data,
     const GstTensorMemory *input, GstTensorMemory *output)
 {
   tensor_filter_subplugin *obj;

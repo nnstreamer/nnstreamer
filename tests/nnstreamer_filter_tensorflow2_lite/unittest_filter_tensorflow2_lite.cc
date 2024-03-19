@@ -110,6 +110,9 @@ check_output (GstElement *element, GstBuffer *buffer, gpointer user_data)
   }
 
   EXPECT_EQ (max_idx, 951U);
+
+  gst_memory_unmap (mem_res, &info_res);
+  gst_memory_unref (mem_res);
 }
 
 /**
@@ -194,6 +197,7 @@ TEST (nnstreamerFilterTensorFlow2Lite, quantModelResult)
 
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
+  gst_object_unref (sink_handle);
   gst_object_unref (gstpipe);
   g_free (pipeline);
   g_free (model_file);
@@ -293,15 +297,11 @@ check_output_many (GstElement *element, GstBuffer *buffer, gpointer user_data)
   gboolean mapped;
   UNUSED (element);
 
-  GstTensorsInfo ts_info;
-  gst_tensors_info_init (&ts_info);
-  ts_info.num_tensors = 32;
-
   guint *data_received = (guint *) user_data;
   (*data_received)++;
 
   for (guint i = 0; i < 32; i++) {
-    mem_res = gst_tensor_buffer_get_nth_memory (buffer, &ts_info, i);
+    mem_res = gst_tensor_buffer_get_nth_memory (buffer, i);
     mapped = gst_memory_map (mem_res, &info_res, GST_MAP_READ);
     ASSERT_TRUE (mapped);
     gfloat *output = (gfloat *) info_res.data;

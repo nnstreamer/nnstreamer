@@ -141,10 +141,10 @@ gst_tensor_info_free (GstTensorInfo * info)
 {
   g_return_if_fail (info != NULL);
 
-  if (info->name) {
-    g_free (info->name);
-    info->name = NULL;
-  }
+  g_free (info->name);
+
+  /* Init default */
+  gst_tensor_info_init (info);
 }
 
 /**
@@ -196,8 +196,6 @@ gst_tensor_info_validate (const GstTensorInfo * info)
 gboolean
 gst_tensor_info_is_equal (const GstTensorInfo * i1, const GstTensorInfo * i2)
 {
-  guint i;
-
   if (!gst_tensor_info_validate (i1) || !gst_tensor_info_validate (i2)) {
     return FALSE;
   }
@@ -209,16 +207,12 @@ gst_tensor_info_is_equal (const GstTensorInfo * i1, const GstTensorInfo * i2)
     return FALSE;
   }
 
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-    if (i1->dimension[i] != i2->dimension[i]) {
-      gchar *dim_str1 = gst_tensor_get_dimension_string (i1->dimension);
-      gchar *dim_str2 = gst_tensor_get_dimension_string (i2->dimension);
-      nns_logd ("Tensor info is not equal. Given tensor dimensions %s vs %s",
-          dim_str1, dim_str2);
-      g_free (dim_str1);
-      g_free (dim_str2);
-      return FALSE;
-    }
+  if (!gst_tensor_dimension_is_equal (i1->dimension, i2->dimension)) {
+    g_autofree gchar *_dim1 = gst_tensor_get_dimension_string (i1->dimension);
+    g_autofree gchar *_dim2 = gst_tensor_get_dimension_string (i2->dimension);
+    nns_logd ("Tensor info is not equal. Given tensor dimensions %s vs %s",
+        _dim1, _dim2);
+    return FALSE;
   }
 
   /* matched all */
@@ -276,10 +270,7 @@ gst_tensor_info_convert_to_meta (GstTensorInfo * info, GstTensorMetaInfo * meta)
 
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
     /** @todo handle rank from info.dimension */
-    if (info->dimension[i] > 0)
-      meta->dimension[i] = info->dimension[i];
-    else
-      break;
+    meta->dimension[i] = info->dimension[i];
   }
 
   return TRUE;
@@ -290,84 +281,40 @@ gst_tensor_info_convert_to_meta (GstTensorInfo * info, GstTensorMetaInfo * meta)
  * @param info tensor info structure
  * @return tensor rank (Minimum rank is 1 if given info is valid)
  */
-gint
+guint
 gst_tensor_info_get_rank (const GstTensorInfo * info)
 {
-  gint idx;
-
   g_return_val_if_fail (info != NULL, 0);
 
-  /** rank is at least 1 */
-  for (idx = NNS_TENSOR_RANK_LIMIT - 1; idx > 0; idx--) {
-    if (info->dimension[idx] != 1)
-      break;
-  }
-
-  return idx + 1;
-}
-
-GstTensorInfo *
-gst_tensors_info_get_nth_info (GstTensorsInfo * info, guint nth)
-{
-  if (nth < NNS_TENSOR_SIZE_LIMIT)
-    return &info->info[nth];
-
-  if (nth < NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT)
-    return &info->extra[nth - NNS_TENSOR_SIZE_LIMIT];
-
-  return NULL;
+  return gst_tensor_dimension_get_rank (info->dimension);
 }
 
 /**
- * @brief Allocate and initialize the extra info in given tensors info.
- * @param[in,out] info tensors info to be updated.
-*/
-gboolean
-gst_tensors_info_extra_create (GstTensorsInfo * info)
-{
-  GstTensorInfo *new;
-  guint i;
-
-  g_return_val_if_fail (info != NULL, FALSE);
-
-  if (info->extra) {
-    nns_logd ("Extra tensors info is allocated already");
-    return TRUE;
-  }
-
-  new = g_try_new0 (GstTensorInfo, NNS_TENSOR_SIZE_EXTRA_LIMIT);
-  if (!new) {
-    nns_loge ("Failed to allocate memory for extra tensors info");
-    return FALSE;
-  }
-
-  for (i = 0; i < NNS_TENSOR_SIZE_EXTRA_LIMIT; ++i) {
-    gst_tensor_info_init (&new[i]);
-  }
-
-  info->extra = new;
-
-  return TRUE;
-}
-
-/**
- * @brief Free allocated extra info in given tensors info.
- * @param[in,out] info tensors info whose extra info is to be freed.
+ * @brief Get the pointer of nth tensor information.
  */
-void
-gst_tensors_info_extra_free (GstTensorsInfo * info)
+GstTensorInfo *
+gst_tensors_info_get_nth_info (GstTensorsInfo * info, guint index)
 {
   guint i;
 
-  g_return_if_fail (info != NULL);
-  g_return_if_fail (info->extra != NULL);
+  g_return_val_if_fail (info != NULL, NULL);
 
-  for (i = 0; i < NNS_TENSOR_SIZE_EXTRA_LIMIT; ++i) {
-    gst_tensor_info_free (&info->extra[i]);
+  if (index < NNS_TENSOR_MEMORY_MAX)
+    return &info->info[index];
+
+  if (!info->extra) {
+    info->extra = g_new0 (GstTensorInfo, NNS_TENSOR_SIZE_EXTRA_LIMIT);
+
+    for (i = 0; i < NNS_TENSOR_SIZE_EXTRA_LIMIT; ++i)
+      gst_tensor_info_init (&info->extra[i]);
   }
 
-  g_free (info->extra);
-  info->extra = NULL;
+  if (index < NNS_TENSOR_SIZE_LIMIT)
+    return &info->extra[index - NNS_TENSOR_MEMORY_MAX];
+
+  nns_loge ("Failed to get the information, invalid index %u (max %d).",
+      index, NNS_TENSOR_SIZE_LIMIT);
+  return NULL;
 }
 
 /**
@@ -387,7 +334,7 @@ gst_tensors_info_init (GstTensorsInfo * info)
   /** @note default format is static */
   info->format = _NNS_TENSOR_FORMAT_STATIC;
 
-  for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
+  for (i = 0; i < NNS_TENSOR_MEMORY_MAX; i++) {
     gst_tensor_info_init (&info->info[i]);
   }
 }
@@ -403,12 +350,20 @@ gst_tensors_info_free (GstTensorsInfo * info)
 
   g_return_if_fail (info != NULL);
 
-  for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
+  for (i = 0; i < NNS_TENSOR_MEMORY_MAX; i++) {
     gst_tensor_info_free (&info->info[i]);
   }
 
-  if (info->extra)
-    gst_tensors_info_extra_free (info);
+  if (info->extra) {
+    for (i = 0; i < NNS_TENSOR_SIZE_EXTRA_LIMIT; ++i)
+      gst_tensor_info_free (&info->extra[i]);
+
+    g_free (info->extra);
+    info->extra = NULL;
+  }
+
+  /* Init default */
+  gst_tensors_info_init (info);
 }
 
 /**
@@ -420,6 +375,7 @@ gst_tensors_info_free (GstTensorsInfo * info)
 gsize
 gst_tensors_info_get_size (const GstTensorsInfo * info, gint index)
 {
+  GstTensorInfo *_info;
   gsize data_size = 0;
   guint i;
 
@@ -427,10 +383,13 @@ gst_tensors_info_get_size (const GstTensorsInfo * info, gint index)
   g_return_val_if_fail (index < (gint) info->num_tensors, 0);
 
   if (index < 0) {
-    for (i = 0; i < info->num_tensors; ++i)
-      data_size += gst_tensor_info_get_size (&info->info[i]);
+    for (i = 0; i < info->num_tensors; ++i) {
+      _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info, i);
+      data_size += gst_tensor_info_get_size (_info);
+    }
   } else {
-    data_size = gst_tensor_info_get_size (&info->info[index]);
+    _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info, index);
+    data_size = gst_tensor_info_get_size (_info);
   }
 
   return data_size;
@@ -445,6 +404,7 @@ gboolean
 gst_tensors_info_validate (const GstTensorsInfo * info)
 {
   guint i;
+  GstTensorInfo *_info;
 
   g_return_val_if_fail (info != NULL, FALSE);
 
@@ -477,19 +437,10 @@ gst_tensors_info_validate (const GstTensorsInfo * info)
   }
 
   for (i = 0; i < info->num_tensors; i++) {
-    if (i == NNS_TENSOR_SIZE_LIMIT) {
-      break;
-    }
+    _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info, i);
 
-    if (!gst_tensor_info_validate (&info->info[i])) {
+    if (!gst_tensor_info_validate (_info))
       return FALSE;
-    }
-  }
-
-  for (i = NNS_TENSOR_SIZE_LIMIT; i < info->num_tensors; ++i) {
-    if (!gst_tensor_info_validate (&info->extra[i - NNS_TENSOR_SIZE_LIMIT])) {
-      return FALSE;
-    }
   }
 
   return TRUE;
@@ -503,6 +454,7 @@ gboolean
 gst_tensors_info_is_equal (const GstTensorsInfo * i1, const GstTensorsInfo * i2)
 {
   guint i;
+  GstTensorInfo *_info1, *_info2;
 
   g_return_val_if_fail (i1 != NULL, FALSE);
   g_return_val_if_fail (i2 != NULL, FALSE);
@@ -529,15 +481,11 @@ gst_tensors_info_is_equal (const GstTensorsInfo * i1, const GstTensorsInfo * i2)
     return FALSE;
   }
 
-  for (i = 0; i < i1->num_tensors && i < NNS_TENSOR_SIZE_LIMIT; i++) {
-    if (!gst_tensor_info_is_equal (&i1->info[i], &i2->info[i])) {
-      return FALSE;
-    }
-  }
+  for (i = 0; i < i1->num_tensors; i++) {
+    _info1 = gst_tensors_info_get_nth_info ((GstTensorsInfo *) i1, i);
+    _info2 = gst_tensors_info_get_nth_info ((GstTensorsInfo *) i2, i);
 
-  for (i = NNS_TENSOR_SIZE_LIMIT; i < i1->num_tensors; ++i) {
-    if (!gst_tensor_info_is_equal (&i1->extra[i - NNS_TENSOR_SIZE_LIMIT],
-            &i2->extra[i - NNS_TENSOR_SIZE_LIMIT])) {
+    if (!gst_tensor_info_is_equal (_info1, _info2)) {
       return FALSE;
     }
   }
@@ -554,6 +502,7 @@ void
 gst_tensors_info_copy (GstTensorsInfo * dest, const GstTensorsInfo * src)
 {
   guint i, num;
+  GstTensorInfo *_dest, *_src;
 
   g_return_if_fail (dest != NULL);
   g_return_if_fail (src != NULL);
@@ -562,17 +511,11 @@ gst_tensors_info_copy (GstTensorsInfo * dest, const GstTensorsInfo * src)
   num = dest->num_tensors = src->num_tensors;
   dest->format = src->format;
 
-  if (src->extra != NULL) {
-    gst_tensors_info_extra_create (dest);
-  }
+  for (i = 0; i < num; i++) {
+    _dest = gst_tensors_info_get_nth_info (dest, i);
+    _src = gst_tensors_info_get_nth_info ((GstTensorsInfo *) src, i);
 
-  for (i = 0; i < num && i < NNS_TENSOR_SIZE_LIMIT; i++) {
-    gst_tensor_info_copy (&dest->info[i], &src->info[i]);
-  }
-
-  for (i = NNS_TENSOR_SIZE_LIMIT; i < num; ++i) {
-    gst_tensor_info_copy (&dest->extra[i - NNS_TENSOR_SIZE_LIMIT],
-        &src->extra[i - NNS_TENSOR_SIZE_LIMIT]);
+    gst_tensor_info_copy (_dest, _src);
   }
 }
 
@@ -587,6 +530,7 @@ gst_tensors_info_parse_dimensions_string (GstTensorsInfo * info,
     const gchar * dim_string)
 {
   guint num_dims = 0;
+  GstTensorInfo *_info;
 
   g_return_val_if_fail (info != NULL, 0);
 
@@ -597,25 +541,16 @@ gst_tensors_info_parse_dimensions_string (GstTensorsInfo * info,
     str_dims = g_strsplit_set (dim_string, ",.", -1);
     num_dims = g_strv_length (str_dims);
 
-    if (num_dims > NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT) {
+    if (num_dims > NNS_TENSOR_SIZE_LIMIT) {
       nns_logw ("Invalid param, dimensions (%d) max (%d)\n",
-          num_dims, NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT);
+          num_dims, NNS_TENSOR_SIZE_LIMIT);
 
-      num_dims = NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT;
+      num_dims = NNS_TENSOR_SIZE_LIMIT;
     }
 
     for (i = 0; i < num_dims; i++) {
-      if (i == NNS_TENSOR_SIZE_LIMIT) {
-        /* create extra info */
-        gst_tensors_info_extra_create (info);
-        break;
-      }
-      gst_tensor_parse_dimension (str_dims[i], info->info[i].dimension);
-    }
-
-    for (i = NNS_TENSOR_SIZE_LIMIT; i < num_dims; ++i) {
-      gst_tensor_parse_dimension (str_dims[i],
-          info->extra[i - NNS_TENSOR_SIZE_LIMIT].dimension);
+      _info = gst_tensors_info_get_nth_info (info, i);
+      gst_tensor_parse_dimension (str_dims[i], _info->dimension);
     }
 
     g_strfreev (str_dims);
@@ -635,6 +570,7 @@ gst_tensors_info_parse_types_string (GstTensorsInfo * info,
     const gchar * type_string)
 {
   guint num_types = 0;
+  GstTensorInfo *_info;
 
   g_return_val_if_fail (info != NULL, 0);
 
@@ -645,25 +581,16 @@ gst_tensors_info_parse_types_string (GstTensorsInfo * info,
     str_types = g_strsplit_set (type_string, ",.", -1);
     num_types = g_strv_length (str_types);
 
-    if (num_types > NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT) {
+    if (num_types > NNS_TENSOR_SIZE_LIMIT) {
       nns_logw ("Invalid param, types (%d) max (%d)\n",
-          num_types, NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT);
+          num_types, NNS_TENSOR_SIZE_LIMIT);
 
-      num_types = NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT;
+      num_types = NNS_TENSOR_SIZE_LIMIT;
     }
 
     for (i = 0; i < num_types; i++) {
-      if (i == NNS_TENSOR_SIZE_LIMIT) {
-        /* create extra info */
-        gst_tensors_info_extra_create (info);
-        break;
-      }
-      info->info[i].type = gst_tensor_get_type (str_types[i]);
-    }
-
-    for (i = NNS_TENSOR_SIZE_LIMIT; i < num_types; ++i) {
-      info->extra[i - NNS_TENSOR_SIZE_LIMIT].type =
-          gst_tensor_get_type (str_types[i]);
+      _info = gst_tensors_info_get_nth_info (info, i);
+      _info->type = gst_tensor_get_type (str_types[i]);
     }
 
     g_strfreev (str_types);
@@ -683,6 +610,7 @@ gst_tensors_info_parse_names_string (GstTensorsInfo * info,
     const gchar * name_string)
 {
   guint num_names = 0;
+  GstTensorInfo *_info;
 
   g_return_val_if_fail (info != NULL, 0);
 
@@ -693,41 +621,25 @@ gst_tensors_info_parse_names_string (GstTensorsInfo * info,
     str_names = g_strsplit (name_string, ",", -1);
     num_names = g_strv_length (str_names);
 
-    if (num_names > NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT) {
+    if (num_names > NNS_TENSOR_SIZE_LIMIT) {
       nns_logw ("Invalid param, names (%d) max (%d)\n",
-          num_names, NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT);
+          num_names, NNS_TENSOR_SIZE_LIMIT);
 
-      num_names = NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT;
+      num_names = NNS_TENSOR_SIZE_LIMIT;
     }
 
     for (i = 0; i < num_names; i++) {
       gchar *str_name;
-      if (i == NNS_TENSOR_SIZE_LIMIT) {
-        /* create extra info */
-        gst_tensors_info_extra_create (info);
-        break;
-      }
-      str_name = g_strdup (str_names[i]);
-      g_free (info->info[i].name);
-      info->info[i].name = NULL;
 
-      if (str_name && strlen (g_strstrip (str_name)))
-        info->info[i].name = str_name;
+      _info = gst_tensors_info_get_nth_info (info, i);
+      g_free (_info->name);
+      _info->name = NULL;
+
+      str_name = g_strstrip (g_strdup (str_names[i]));
+      if (str_name && strlen (str_name))
+        _info->name = str_name;
       else
         g_free (str_name);
-    }
-
-    for (i = NNS_TENSOR_SIZE_LIMIT; i < num_names; ++i) {
-      gchar *str_name = g_strdup (str_names[i]);
-
-      g_free (info->extra[i - NNS_TENSOR_SIZE_LIMIT].name);
-      info->extra[i - NNS_TENSOR_SIZE_LIMIT].name = NULL;
-
-      if (str_name && strlen (g_strstrip (str_name)))
-        info->extra[i - NNS_TENSOR_SIZE_LIMIT].name = str_name;
-      else {
-        g_free (str_name);
-      }
     }
 
     g_strfreev (str_names);
@@ -745,36 +657,8 @@ gst_tensors_info_parse_names_string (GstTensorsInfo * info,
 gchar *
 gst_tensors_info_get_dimensions_string (const GstTensorsInfo * info)
 {
-  gchar *dim_str = NULL;
-
-  g_return_val_if_fail (info != NULL, NULL);
-
-  if (info->num_tensors > 0) {
-    guint i;
-    GString *dimensions = g_string_new (NULL);
-
-    for (i = 0; i < info->num_tensors; i++) {
-      if (i >= NNS_TENSOR_SIZE_LIMIT) {
-        dim_str =
-            gst_tensor_get_dimension_string (info->extra[i -
-                NNS_TENSOR_SIZE_LIMIT].dimension);
-      } else {
-        dim_str = gst_tensor_get_dimension_string (info->info[i].dimension);
-      }
-
-      g_string_append (dimensions, dim_str);
-
-      if (i < info->num_tensors - 1) {
-        g_string_append (dimensions, ",");
-      }
-
-      g_free (dim_str);
-    }
-
-    dim_str = g_string_free (dimensions, FALSE);
-  }
-
-  return dim_str;
+  return gst_tensors_info_get_rank_dimensions_string (info,
+      NNS_TENSOR_RANK_LIMIT);
 }
 
 /**
@@ -790,6 +674,7 @@ gst_tensors_info_get_rank_dimensions_string (const GstTensorsInfo * info,
     const unsigned int rank)
 {
   gchar *dim_str = NULL;
+  GstTensorInfo *_info;
 
   g_return_val_if_fail (info != NULL, NULL);
 
@@ -798,8 +683,8 @@ gst_tensors_info_get_rank_dimensions_string (const GstTensorsInfo * info,
     GString *dimensions = g_string_new (NULL);
 
     for (i = 0; i < info->num_tensors; i++) {
-      dim_str =
-          gst_tensor_get_rank_dimension_string (info->info[i].dimension, rank);
+      _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info, i);
+      dim_str = gst_tensor_get_rank_dimension_string (_info->dimension, rank);
 
       g_string_append (dimensions, dim_str);
 
@@ -826,6 +711,7 @@ gchar *
 gst_tensors_info_get_types_string (const GstTensorsInfo * info)
 {
   gchar *type_str = NULL;
+  GstTensorInfo *_info;
 
   g_return_val_if_fail (info != NULL, NULL);
 
@@ -834,16 +720,10 @@ gst_tensors_info_get_types_string (const GstTensorsInfo * info)
     GString *types = g_string_new (NULL);
 
     for (i = 0; i < info->num_tensors; i++) {
-      if (i >= NNS_TENSOR_SIZE_LIMIT) {
-        g_string_append (types,
-            gst_tensor_get_type_string (info->extra[i -
-                    NNS_TENSOR_SIZE_LIMIT].type));
-      } else {
-        if (info->info[i].type != _NNS_END) {
-          g_string_append (types,
-              gst_tensor_get_type_string (info->info[i].type));
-        }
-      }
+      _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info, i);
+
+      if (_info->type != _NNS_END)
+        g_string_append (types, gst_tensor_get_type_string (_info->type));
 
       if (i < info->num_tensors - 1) {
         g_string_append (types, ",");
@@ -866,6 +746,7 @@ gchar *
 gst_tensors_info_get_names_string (const GstTensorsInfo * info)
 {
   gchar *name_str = NULL;
+  GstTensorInfo *_info;
 
   g_return_val_if_fail (info != NULL, NULL);
 
@@ -874,15 +755,11 @@ gst_tensors_info_get_names_string (const GstTensorsInfo * info)
     GString *names = g_string_new (NULL);
 
     for (i = 0; i < info->num_tensors; i++) {
-      if (i >= NNS_TENSOR_SIZE_LIMIT) {
-        if (info->extra[i - NNS_TENSOR_SIZE_LIMIT].name) {
-          g_string_append (names, info->extra[i - NNS_TENSOR_SIZE_LIMIT].name);
-        }
-      } else {
-        if (info->info[i].name) {
-          g_string_append (names, info->info[i].name);
-        }
-      }
+      _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info, i);
+
+      if (_info->name)
+        g_string_append (names, _info->name);
+
       if (i < info->num_tensors - 1) {
         g_string_append (names, ",");
       }
@@ -905,40 +782,33 @@ gst_tensors_info_to_string (const GstTensorsInfo * info)
   GString *gstr = g_string_new (NULL);
   unsigned int i;
   unsigned int limit = info->num_tensors;
+  GstTensorInfo *_info;
 
   g_string_append_printf (gstr, "Num_Tensors = %u, Tensors = [",
       info->num_tensors);
-  if (limit > NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT) {
-    limit = NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT;
+  if (limit > NNS_TENSOR_SIZE_LIMIT) {
+    limit = NNS_TENSOR_SIZE_LIMIT;
     g_string_append_printf (gstr,
         "(Num_Tensors out of bound. Showing %d only)", limit);
   }
 
-  for (i = 0; i < limit && i < NNS_TENSOR_SIZE_LIMIT; i++) {
-    const char *name = info->info[i].name;
-    const gchar *type = gst_tensor_get_type_string (info->info[i].type);
-    gchar *dim = gst_tensor_get_dimension_string (info->info[i].dimension);
+  for (i = 0; i < limit; i++) {
+    const gchar *name;
+    const gchar *type;
+    gchar *dim;
+
+    _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info, i);
+    name = _info->name;
+    type = gst_tensor_get_type_string (_info->type);
+    dim = gst_tensor_get_dimension_string (_info->dimension);
 
     g_string_append_printf (gstr, "{\"%s\", %s, %s}%s",
-        name, type, dim, (i == info->num_tensors - 1) ? "]" : ", ");
+        name ? name : "", type, dim, (i == info->num_tensors - 1) ? "" : ", ");
 
     g_free (dim);
   }
 
-  for (i = NNS_TENSOR_SIZE_LIMIT; i < limit; i++) {
-    const char *name = info->extra[i - NNS_TENSOR_SIZE_LIMIT].name;
-    const gchar *type =
-        gst_tensor_get_type_string (info->extra[i -
-            NNS_TENSOR_SIZE_LIMIT].type);
-    gchar *dim =
-        gst_tensor_get_dimension_string (info->extra[i -
-            NNS_TENSOR_SIZE_LIMIT].dimension);
-
-    g_string_append_printf (gstr, "{\"%s\", %s, %s}%s",
-        name, type, dim, (i == info->num_tensors - 1) ? "]" : ", ");
-
-    g_free (dim);
-  }
+  g_string_append_printf (gstr, "]");
 
   return g_string_free (gstr, FALSE);
 }
@@ -1061,18 +931,49 @@ gboolean
 gst_tensor_dimension_is_valid (const tensor_dim dim)
 {
   guint i;
+  gboolean is_valid = FALSE;
 
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; ++i) {
-    if (dim[i] == 0) {
-      gchar *dim_str = gst_tensor_get_dimension_string (dim);
-      nns_logd
-          ("Failed to validate tensor dimension. Given dimension: %s. The dimension string should be in the form of d1:...:d8, d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1. Here, dN is a positive integer.",
-          dim_str);
-      _nnstreamer_error_write
-          ("Failed to validate tensor dimension. Given dimension: %s. The dimension string should be in the form of d1:...:d8, d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1. Here, dN is a positive integer.",
-          dim_str);
-      g_free (dim_str);
-      return FALSE;
+  i = gst_tensor_dimension_get_rank (dim);
+  if (i == 0)
+    goto done;
+
+  for (; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    if (dim[i] > 0)
+      goto done;
+  }
+
+  is_valid = TRUE;
+
+done:
+  if (!is_valid) {
+    nns_logd
+        ("Failed to validate tensor dimension. The dimension string should be in the form of d1:...:d8, d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1. Here, dN is a positive integer.");
+    _nnstreamer_error_write
+        ("Failed to validate tensor dimension. The dimension string should be in the form of d1:...:d8, d1:d2:d3:d4, d1:d2:d3, d1:d2, or d1. Here, dN is a positive integer.");
+  }
+
+  return is_valid;
+}
+
+/**
+ * @brief Compare the tensor dimension.
+ * @return TRUE if given tensors have same dimension.
+ */
+gboolean
+gst_tensor_dimension_is_equal (const tensor_dim dim1, const tensor_dim dim2)
+{
+  guint i;
+
+  /* Do not compare invalid dimensions. */
+  if (!gst_tensor_dimension_is_valid (dim1) ||
+      !gst_tensor_dimension_is_valid (dim2))
+    return FALSE;
+
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    if (dim1[i] != dim2[i]) {
+      /* Supposed dimension is same if remained dimension is 1. */
+      if (dim1[i] > 1 || dim2[i] > 1)
+        return FALSE;
     }
   }
 
@@ -1080,9 +981,50 @@ gst_tensor_dimension_is_valid (const tensor_dim dim)
 }
 
 /**
+ * @brief Get the rank of tensor dimension.
+ * @param dim tensor dimension.
+ * @return tensor rank (Minimum rank is 1 if given dimension is valid)
+ */
+guint
+gst_tensor_dimension_get_rank (const tensor_dim dim)
+{
+  guint i;
+
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    if (dim[i] == 0)
+      break;
+  }
+
+  return i;
+}
+
+/**
+ * @brief Get the minimum rank of tensor dimension.
+ * @details The C-arrays with dim 4:4:4 and 4:4:4:1 have same data. In this case, this function returns min rank 3.
+ * @param dim tensor dimension.
+ * @return tensor rank (Minimum rank is 1 if given dimension is valid)
+ */
+guint
+gst_tensor_dimension_get_min_rank (const tensor_dim dim)
+{
+  guint i, rank;
+
+  rank = gst_tensor_dimension_get_rank (dim);
+  if (rank == 0)
+    return 0;
+
+  for (i = rank - 1; i > 0; i--) {
+    if (dim[i] > 1)
+      break;
+  }
+
+  return (i + 1);
+}
+
+/**
  * @brief Parse tensor dimension parameter string
  * @return The Rank. 0 if error.
- * @param dimstr The dimension string in the format of d1:...:d8, d1:d2:d3, d1:d2, or d1, where dN is a positive integer and d1 is the innermost dimension; i.e., dim[d8][d7][d6][d5][d4][d3][d2][d1];
+ * @param dimstr The dimension string in the format of d1:...:d16, d1:d2:d3, d1:d2, or d1, where dN is a positive integer and d1 is the innermost dimension; i.e., dim[d16]...[d1];
  * @param dim dimension to be filled.
  */
 guint
@@ -1094,12 +1036,15 @@ gst_tensor_parse_dimension (const gchar * dimstr, tensor_dim dim)
   gchar *dim_string;
   guint i, num_dims;
 
+  /* 0-init */
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
+    dim[i] = 0;
+
   if (dimstr == NULL)
     return 0;
 
   /* remove spaces */
-  dim_string = g_strdup (dimstr);
-  g_strstrip (dim_string);
+  dim_string = g_strstrip (g_strdup (dimstr));
 
   strv = g_strsplit (dim_string, ":", NNS_TENSOR_RANK_LIMIT);
   num_dims = g_strv_length (strv);
@@ -1114,9 +1059,6 @@ gst_tensor_parse_dimension (const gchar * dimstr, tensor_dim dim)
     rank = i + 1;
   }
 
-  for (; i < NNS_TENSOR_RANK_LIMIT; i++)
-    dim[i] = 1;
-
   g_strfreev (strv);
   g_free (dim_string);
   return rank;
@@ -1125,26 +1067,23 @@ gst_tensor_parse_dimension (const gchar * dimstr, tensor_dim dim)
 /**
  * @brief Get dimension string from given tensor dimension.
  * @param dim tensor dimension
- * @return Formatted string of given dimension (d1:d2:d3:d4:d5:d6:d7:d8).
+ * @return Formatted string of given dimension (d1:d2:d3:...:d15:d16).
  * @note The returned value should be freed with g_free()
  */
 gchar *
 gst_tensor_get_dimension_string (const tensor_dim dim)
 {
-  guint i;
-  GString *dim_str;
+  gchar *res =
+      gst_tensor_get_rank_dimension_string (dim, NNS_TENSOR_RANK_LIMIT);
 
-  dim_str = g_string_new (NULL);
-
-  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
-    g_string_append_printf (dim_str, "%u", dim[i]);
-
-    if (i < NNS_TENSOR_RANK_LIMIT - 1) {
-      g_string_append (dim_str, ":");
-    }
+  if (!res)
+    return NULL;
+  if (*res == '\0') {
+    g_free (res);
+    return NULL;
   }
 
-  return g_string_free (dim_str, FALSE);
+  return res;
 }
 
 /**
@@ -1171,9 +1110,12 @@ gst_tensor_get_rank_dimension_string (const tensor_dim dim,
     actual_rank = rank;
 
   for (i = 0; i < actual_rank; i++) {
+    if (dim[i] == 0)
+      break;
+
     g_string_append_printf (dim_str, "%u", dim[i]);
 
-    if (i < actual_rank - 1) {
+    if (i < actual_rank - 1 && dim[i + 1] > 0) {
       g_string_append (dim_str, ":");
     }
   }
@@ -1190,10 +1132,10 @@ gst_tensor_dimension_string_is_equal (const gchar * dimstr1,
     const gchar * dimstr2)
 {
   tensor_dim dim1, dim2;
-  int rank1, rank2, i, j, num_tensors1, num_tensors2;
+  guint rank1, rank2, i, j, num_tensors1, num_tensors2;
   gchar **strv1;
   gchar **strv2;
-  gboolean res = TRUE;
+  gboolean is_equal = FALSE;
 
   strv1 = g_strsplit_set (dimstr1, ",.", -1);
   strv2 = g_strsplit_set (dimstr2, ",.", -1);
@@ -1201,31 +1143,29 @@ gst_tensor_dimension_string_is_equal (const gchar * dimstr1,
   num_tensors1 = g_strv_length (strv1);
   num_tensors2 = g_strv_length (strv2);
 
-  if (num_tensors1 != num_tensors2) {
-    res = FALSE;
-  } else {
-    for (i = 0; i < num_tensors1 && res; i++) {
-      rank1 = gst_tensor_parse_dimension (strv1[i], dim1);
-      rank2 = gst_tensor_parse_dimension (strv2[i], dim2);
+  if (num_tensors1 != num_tensors2)
+    goto done;
 
-      if (!rank1 || !rank2) {
-        res = FALSE;
-        break;
-      }
+  for (i = 0; i < num_tensors1; i++) {
+    for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++)
+      dim1[j] = dim2[j] = 0;
 
-      for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
-        if (dim1[j] != dim2[j]) {
-          res = FALSE;
-          break;
-        }
-      }
-    }
+    rank1 = gst_tensor_parse_dimension (strv1[i], dim1);
+    rank2 = gst_tensor_parse_dimension (strv2[i], dim2);
+
+    /* 'rank 0' means invalid dimension */
+    if (!rank1 || !rank2 || !gst_tensor_dimension_is_equal (dim1, dim2))
+      goto done;
   }
 
+  /* Compared all tensor dimensions from input string. */
+  is_equal = TRUE;
+
+done:
   g_strfreev (strv1);
   g_strfreev (strv2);
 
-  return res;
+  return is_equal;
 }
 
 /**
@@ -1240,10 +1180,13 @@ gst_tensor_get_element_count (const tensor_dim dim)
   guint i;
 
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    if (dim[i] == 0)
+      break;
+
     count *= dim[i];
   }
 
-  return count;
+  return (i > 0) ? count : 0;
 }
 
 /**
@@ -1378,6 +1321,16 @@ gst_tensor_get_format_string (tensor_format format)
 }
 
 /**
+ * @brief Magic number of tensor meta.
+ */
+#define GST_TENSOR_META_MAGIC (0xfeedcced)
+
+/**
+ * @brief Macro to check the tensor meta.
+ */
+#define GST_TENSOR_META_MAGIC_VALID(m) ((m) == GST_TENSOR_META_MAGIC)
+
+/**
  * @brief Macro to check the meta version.
  */
 #define GST_TENSOR_META_VERSION_VALID(v) (((v) & 0xDE000000) == 0xDE000000)
@@ -1398,6 +1351,11 @@ gst_tensor_get_format_string (tensor_format format)
 #define GST_TENSOR_META_IS_V1(v) (GST_TENSOR_META_VERSION_VALID(v) && (((v) & 0x00FFF000) & GST_TENSOR_META_MAKE_VERSION(1,0)))
 
 /**
+ * @brief Macro to check the meta is valid.
+ */
+#define GST_TENSOR_META_IS_VALID(m) ((m) && GST_TENSOR_META_MAGIC_VALID ((m)->magic) && GST_TENSOR_META_VERSION_VALID ((m)->version))
+
+/**
  * @brief Initialize the tensor meta info structure.
  * @param[in,out] meta tensor meta structure to be initialized
  */
@@ -1409,6 +1367,7 @@ gst_tensor_meta_info_init (GstTensorMetaInfo * meta)
   /* zero-init */
   memset (meta, 0, sizeof (GstTensorMetaInfo));
 
+  meta->magic = GST_TENSOR_META_MAGIC;
   meta->version = GST_TENSOR_META_VERSION;
   meta->type = _NNS_END;
   meta->format = _NNS_TENSOR_FORMAT_STATIC;
@@ -1426,7 +1385,9 @@ gst_tensor_meta_info_get_version (GstTensorMetaInfo * meta,
     guint * major, guint * minor)
 {
   g_return_if_fail (meta != NULL);
-  g_return_if_fail (GST_TENSOR_META_VERSION_VALID (meta->version));
+
+  if (!GST_TENSOR_META_IS_VALID (meta))
+    return;
 
   if (major)
     *major = (meta->version & 0x00FFF000) >> 12;
@@ -1443,10 +1404,10 @@ gst_tensor_meta_info_get_version (GstTensorMetaInfo * meta,
 gboolean
 gst_tensor_meta_info_validate (GstTensorMetaInfo * meta)
 {
-  guint i;
-
   g_return_val_if_fail (meta != NULL, FALSE);
-  g_return_val_if_fail (GST_TENSOR_META_VERSION_VALID (meta->version), FALSE);
+
+  if (!GST_TENSOR_META_IS_VALID (meta))
+    return FALSE;
 
   if (meta->type >= _NNS_END) {
     nns_logd ("Failed to validate tensor meta info. type: %s. ",
@@ -1454,17 +1415,12 @@ gst_tensor_meta_info_validate (GstTensorMetaInfo * meta)
     return FALSE;
   }
 
-  for (i = 0; i < NNS_TENSOR_META_RANK_LIMIT; i++) {
-    if (meta->dimension[i] == 0) {
-      if (i == 0) {
-        gchar *dim_str = gst_tensor_get_dimension_string (meta->dimension);
-        nns_logd ("Failed to validate tensor meta info. Given dimension: %s",
-            dim_str);
-        g_free (dim_str);
-        return FALSE;
-      }
-      break;
-    }
+  if (!gst_tensor_dimension_is_valid (meta->dimension)) {
+    gchar *dim_str = gst_tensor_get_dimension_string (meta->dimension);
+    nns_logd ("Failed to validate tensor meta info. Given dimension: %s",
+        dim_str);
+    g_free (dim_str);
+    return FALSE;
   }
 
   if (meta->format >= _NNS_TENSOR_FORMAT_END) {
@@ -1491,7 +1447,9 @@ gsize
 gst_tensor_meta_info_get_header_size (GstTensorMetaInfo * meta)
 {
   g_return_val_if_fail (meta != NULL, 0);
-  g_return_val_if_fail (GST_TENSOR_META_VERSION_VALID (meta->version), 0);
+
+  if (!GST_TENSOR_META_IS_VALID (meta))
+    return 0;
 
   /* return fixed size for meta version */
   if (GST_TENSOR_META_IS_V1 (meta->version)) {
@@ -1509,11 +1467,12 @@ gst_tensor_meta_info_get_header_size (GstTensorMetaInfo * meta)
 gsize
 gst_tensor_meta_info_get_data_size (GstTensorMetaInfo * meta)
 {
-  guint i;
   gsize dsize;
 
   g_return_val_if_fail (meta != NULL, 0);
-  g_return_val_if_fail (GST_TENSOR_META_VERSION_VALID (meta->version), 0);
+
+  if (!GST_TENSOR_META_IS_VALID (meta))
+    return 0;
 
   dsize = gst_tensor_get_element_size (meta->type);
 
@@ -1521,14 +1480,9 @@ gst_tensor_meta_info_get_data_size (GstTensorMetaInfo * meta)
     return meta->sparse_info.nnz * (dsize + sizeof (guint));
   }
 
-  for (i = 0; i < NNS_TENSOR_META_RANK_LIMIT; i++) {
-    if (meta->dimension[i] == 0)
-      break;
+  dsize *= gst_tensor_get_element_count (meta->dimension);
 
-    dsize *= meta->dimension[i];
-  }
-
-  return (i > 0) ? dsize : 0;
+  return dsize;
 }
 
 /**
@@ -1570,21 +1524,20 @@ gst_tensor_meta_info_parse_header (GstTensorMetaInfo * meta, gpointer header)
 
   gst_tensor_meta_info_init (meta);
 
-  meta->version = val[0];
-  meta->type = val[1];
-  memcpy (meta->dimension, &val[2],
-      sizeof (uint32_t) * NNS_TENSOR_META_RANK_LIMIT);
-  meta->format = val[18];
-  meta->media_type = val[19];
+  meta->magic = val[0];
+  meta->version = val[1];
+  meta->type = val[2];
+  memcpy (meta->dimension, &val[3], sizeof (uint32_t) * NNS_TENSOR_RANK_LIMIT);
+  meta->format = val[19];
+  meta->media_type = val[20];
 
   switch ((tensor_format) meta->format) {
     case _NNS_TENSOR_FORMAT_SPARSE:
-      meta->sparse_info.nnz = val[20];
+      meta->sparse_info.nnz = val[21];
       break;
     default:
       break;
   }
-
 
   /** @todo update meta info for each version */
   return gst_tensor_meta_info_validate (meta);
@@ -1608,23 +1561,8 @@ gst_tensor_meta_info_convert (GstTensorMetaInfo * meta, GstTensorInfo * info)
 
   info->type = meta->type;
 
-  for (i = 0; i < NNS_TENSOR_META_RANK_LIMIT; i++) {    /* lgtm[cpp/constant-comparison] */
-    if (i >= NNS_TENSOR_RANK_LIMIT) {
-      if (meta->dimension[i] > 0) {
-        nns_loge ("Given meta has invalid dimension (dimension[%u] %u).",
-            i, meta->dimension[i]);
-        nns_loge ("Failed to set info, max rank should be %u.",
-            NNS_TENSOR_RANK_LIMIT);
-        return FALSE;
-      }
-
-      /* tensor-info max rank is NNS_TENSOR_RANK_LIMIT */
-      break;
-    }
-
-    /** @todo handle rank from info.dimension */
-    info->dimension[i] = (meta->dimension[i] > 0) ? meta->dimension[i] : 1;
-  }
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
+    info->dimension[i] = meta->dimension[i];
 
   return TRUE;
 }

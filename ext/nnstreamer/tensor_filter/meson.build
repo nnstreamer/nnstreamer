@@ -1,7 +1,7 @@
 if nnfw_runtime_support_is_available
   filter_sub_nnfw_sources = ['tensor_filter_nnfw.c']
 
-  nnstreamer_filter_nnfw_deps = nnfw_runtime_support_deps + [nnstreamer_single_dep]
+  nnstreamer_filter_nnfw_deps = [nnfw_runtime_support_deps, nnstreamer_single_dep]
 
   # Check old function (@todo remove this definition later, nnfw ver >= 1.6.0)
   if not cc.has_header_symbol('nnfw/nnfw.h', 'nnfw_set_input_tensorinfo', dependencies: nnfw_dep)
@@ -43,7 +43,7 @@ if armnn_support_is_available
     message('ARMNN subplugin is built with TFLite parser.')
   endif
 
-  nnstreamer_filter_armnn_deps = armnn_support_deps + [glib_dep, gst_dep, nnstreamer_dep ]
+  nnstreamer_filter_armnn_deps = [armnn_support_deps, glib_dep, nnstreamer_single_dep]
 
   armnn_plugin_lib = shared_library('nnstreamer_filter_armnn',
     filter_sub_armnn_sources,
@@ -81,7 +81,7 @@ if tf_support_is_available
 
   filter_sub_tf_sources = ['tensor_filter_tensorflow.cc']
 
-  nnstreamer_filter_tf_deps = tf_support_deps + [nnstreamer_single_dep]
+  nnstreamer_filter_tf_deps = [tf_support_deps, nnstreamer_single_dep]
   nnstreamer_filter_tf_deps += tf_ver_dep
 
   shared_library('nnstreamer_filter_tensorflow',
@@ -123,7 +123,7 @@ if tflite_support_is_available
 
   filter_sub_tflite_sources = ['tensor_filter_tensorflow_lite.cc']
 
-  nnstreamer_filter_tflite_deps = tflite_support_deps + [thread_dep, libdl_dep, glib_dep, nnstreamer_single_dep]
+  nnstreamer_filter_tflite_deps = [tflite_support_deps, thread_dep, libdl_dep, glib_dep, nnstreamer_single_dep]
 
   # Since tf-1.13, tflite has moved from contrib to core
   tflite_h_prefix='#include <tensorflow/lite/model.h>'
@@ -184,9 +184,15 @@ if tflite2_support_is_available
   )
   message('TensorFlow2-lite version: ' + tflite2_ver)
 
+  # check flatbuffers header
+  ## Note that tizen tflite package has its own flatbuffers header internally.
+  if build_platform != 'tizen' and not cxx.check_header('flatbuffers/flatbuffers.h')
+    error('flatbuffers header files are required to build tensorflow2-lite subplugin. Please install compatible version for tensorflow-lite library. Or disable tflite2-support in meson_options.txt')
+  endif
+
   filter_sub_tflite2_sources = ['tensor_filter_tensorflow_lite.cc']
 
-  nnstreamer_filter_tflite2_deps = tflite2_support_deps + [thread_dep, libdl_dep, nnstreamer_single_dep]
+  nnstreamer_filter_tflite2_deps = [tflite2_support_deps, thread_dep, libdl_dep, nnstreamer_single_dep]
 
   tflite2_compile_args = []
   tflite2_compile_args += '-DTFLITE_INT8=1'
@@ -270,16 +276,16 @@ if tflite2_support_is_available
     ## @todo If we are allowed to use meson > 0.53, use "FS" module!
 
     filepaths = [
-        join_paths(meson.current_source_dir(), 'libtensorflow2-lite.so',),
-        join_paths(meson.current_build_dir(), 'libtensorflow2-lite.so',),
+        join_paths(meson.current_source_dir(), 'libtensorflow2-lite.so'),
+        join_paths(meson.current_build_dir(), 'libtensorflow2-lite.so'),
         join_paths(nnstreamer_libdir, 'libtensorflow2-lite.so'),
         '/usr/lib/libtensorflow2-lite.so',
         '/usr/lib64/libtensorflow2-lite.so',
-        './libtensorflow2-lite.so',
+        './libtensorflow2-lite.so'
     ]
     filepath = ''
     foreach file : filepaths
-      if run_command('bash', '-c', '[ -f "' + file + '" ]').returncode() == 0
+      if run_command('bash', '-c', '[ -f "' + file + '" ]', check : false).returncode() == 0
         message('Found: ' + file)
         filepath = file
         configure_file (
@@ -293,24 +299,21 @@ if tflite2_support_is_available
 
     if filepath == ''
       ## No shared tfl lib found. Get static lib and convert it
+      custom_tflite_lib = join_paths(meson.current_build_dir(), 'libtensorflow2-lite-custom.so')
 
       filepaths = [join_paths(nnstreamer_libdir, 'libtensorflow2-lite.a'),
           '/usr/lib/libtensorflow2-lite.a',
           '/usr/lib64/libtensorflow2-lite.a',
           './libtensorflow2-lite.a',
-          join_paths(meson.current_build_dir(), 'libtensorflow2-lite.a',),
-          join_paths(meson.current_source_dir(), 'libtensorflow2-lite.a',)]
+          join_paths(meson.current_build_dir(), 'libtensorflow2-lite.a'),
+          join_paths(meson.current_source_dir(), 'libtensorflow2-lite.a')
+      ]
 
       foreach file : filepaths
-        if run_command('bash', '-c', '[ -f "'+ file + '" ]').returncode() == 0
-          somake = run_command('gcc', '-shared', '-o', 'libtensorflow2-lite-custom.so', '-Wl,--whole-archive', file, '-Wl,--no-whole-archive')
+        if run_command('bash', '-c', '[ -f "'+ file + '" ]', check : false).returncode() == 0
+          somake = run_command('gcc', '-shared', '-o', custom_tflite_lib, '-Wl,--whole-archive', file, '-Wl,--no-whole-archive', check : false)
           if somake.returncode() == 0
             message('Successfully created libtensorflow2-lite-custom.so from archive: ' + file)
-            configure_file (
-              input: join_paths(meson.current_source_dir(), 'libtensorflow2-lite-custom.so'),
-              output: 'libtensorflow2-lite-custom.so',
-              copy: true
-            )
             filepath = file
             break
           else
@@ -345,41 +348,36 @@ else # no tflite2
 endif
 
 if pytorch_support_is_available
-  if cxx.get_id() == 'gcc'
-    filter_sub_torch_sources = ['tensor_filter_pytorch.cc']
-    # pytorch sources contain unused parameters
-    ignore_unused_params = declare_dependency(compile_args: ['-Wno-unused-parameter'])
-    pytorch_support_deps += ignore_unused_params
-
-    nnstreamer_filter_torch_deps = pytorch_support_deps + [nnstreamer_single_dep]
-
-    # pytorch version
-    if pytorch_support_deps[0].version().version_compare('>=1.2.0')
-      nnstreamer_filter_torch_deps += declare_dependency(compile_args: ['-DPYTORCH_VER_ATLEAST_1_2_0=1'])
-    endif
-
-    shared_library('nnstreamer_filter_pytorch',
-      filter_sub_torch_sources,
-      dependencies: nnstreamer_filter_torch_deps,
-      install: true,
-      install_dir: filter_subplugin_install_dir
-    )
-
-    static_library('nnstreamer_filter_pytorch',
-      filter_sub_torch_sources,
-      dependencies: nnstreamer_filter_torch_deps,
-      install: true,
-      install_dir: nnstreamer_libdir
-    )
-  else # Compilers is not gcc
-    warning('There are a few headers (Array.h and reverse_iterator.h) that require gcc for license issues. Disabling pytorch subplugin build')
+  if cxx.get_id() != 'gcc'
+    error('Pytorch headers (Array.h and reverse_iterator.h) require GCC for license issues. Use GCC or disable pytorch with -Dpytorch-support=disabled.')
   endif
+
+  filter_sub_torch_sources = ['tensor_filter_pytorch.cc']
+  # pytorch sources contain unused parameters
+  ignore_unused_params = declare_dependency(compile_args: ['-Wno-unused-parameter'])
+  pytorch_support_deps += ignore_unused_params
+
+    nnstreamer_filter_torch_deps = [pytorch_support_deps, nnstreamer_single_dep]
+
+  shared_library('nnstreamer_filter_pytorch',
+    filter_sub_torch_sources,
+    dependencies: nnstreamer_filter_torch_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_pytorch',
+    filter_sub_torch_sources,
+    dependencies: nnstreamer_filter_torch_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
 endif
 
 if caffe2_support_is_available
   filter_sub_caffe2_sources = ['tensor_filter_caffe2.cc']
 
-  nnstreamer_filter_caffe2_deps = caffe2_support_deps + [protobuf_dep, glib_dep, nnstreamer_single_dep]
+  nnstreamer_filter_caffe2_deps = [caffe2_support_deps, protobuf_dep, glib_dep, nnstreamer_single_dep]
 
   shared_library('nnstreamer_filter_caffe2',
     filter_sub_caffe2_sources,
@@ -397,7 +395,7 @@ if caffe2_support_is_available
 endif
 
 if deepview_rt_support_is_available
-  nnstreamer_filter_deepview_rt_deps = deepview_rt_support_deps + [glib_dep, gst_dep, nnstreamer_dep]
+  nnstreamer_filter_deepview_rt_deps = [deepview_rt_support_deps, glib_dep, nnstreamer_single_dep]
 
   filter_sub_deepview_rt_sources = ['tensor_filter_deepview_rt.cc']
 
@@ -439,7 +437,7 @@ if mvncsdk2_support_is_available
     'tensor_filter_movidius_ncsdk2.c'
   ]
 
-  nnstreamer_filter_mvncsdk2_deps = mvncsdk2_support_deps + [glib_dep, gst_dep, nnstreamer_dep]
+  nnstreamer_filter_mvncsdk2_deps = [mvncsdk2_support_deps, glib_dep, nnstreamer_single_dep]
 
   shared_library('nnstreamer_filter_movidius-ncsdk2',
     filter_sub_mvncsdk2_sources,
@@ -497,7 +495,7 @@ if get_option('enable-edgetpu')
     endif
   endif
 
-  nnstreamer_filter_edgetpu_deps = [glib_dep, gst_dep, nnstreamer_dep, edgetpu_dep, libdl_dep]
+  nnstreamer_filter_edgetpu_deps = [glib_dep, nnstreamer_single_dep, edgetpu_dep, libdl_dep]
 
   if tflite2_support_is_available
     nnstreamer_filter_edgetpu_deps += [tflite2_support_deps, tflite2_ver_dep]
@@ -545,7 +543,7 @@ if get_option('enable-openvino')
   endif
   filter_sub_openvino_sources = ['tensor_filter_openvino.cc']
 
-  nnstreamer_filter_openvino_deps = [glib_dep, gst_dep, nnstreamer_dep, openvino_deps]
+  nnstreamer_filter_openvino_deps = [glib_dep, nnstreamer_single_dep, openvino_deps]
 
   nnstreamer_filter_openvino_so_lib = shared_library('nnstreamer_filter_openvino',
     filter_sub_openvino_sources,
@@ -616,8 +614,7 @@ if get_option('enable-mediapipe')
 
   nnstreamer_filter_mediapipe_deps = [
     glib_dep,
-    gst_dep,
-    nnstreamer_dep,
+    nnstreamer_single_dep,
     opencv_core_dep,
     opencv_video_dep,
     opencv_imgcodecs_dep,
@@ -642,17 +639,17 @@ if get_option('enable-mediapipe')
 endif
 
 if snpe_support_is_available
-  run_command('sh', '-c', 'touch $MESON_BUILD_ROOT/$MESON_SUBDIR/filter_snpe_list', check : true)
-  filter_sub_snpe_sources = ['tensor_filter_snpe.cc']
+  # Decide source code file wrt snpe api version.
+  if snpe_api_version == 2
+    filter_sub_snpe_sources = ['tensor_filter_snpe.cc']
+  else # snpe_api_version == 1
+    filter_sub_snpe_sources = ['tensor_filter_snpe_v1.cc']
+  endif
 
-  snpe_cpp_args = []
-  snpe_cpp_args += '-Wno-terminate'
-
-  nnstreamer_filter_snpe_deps = [glib_dep, gst_dep, nnstreamer_dep, snpe_support_deps]
+  nnstreamer_filter_snpe_deps = [glib_dep, nnstreamer_single_dep, snpe_support_deps, declare_dependency(compile_args: ['-Wno-deprecated-declarations'])]
 
   shared_library('nnstreamer_filter_snpe',
     filter_sub_snpe_sources,
-    cpp_args: snpe_cpp_args,
     dependencies: nnstreamer_filter_snpe_deps,
     install: true,
     install_dir: filter_subplugin_install_dir
@@ -660,18 +657,16 @@ if snpe_support_is_available
 
   static_library('nnstreamer_filter_snpe',
     filter_sub_snpe_sources,
-    cpp_args: snpe_cpp_args,
     dependencies: nnstreamer_filter_snpe_deps,
     install: true,
     install_dir: nnstreamer_libdir
   )
-  run_command('sh', '-c', 'echo "%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_snpe.so" >> $MESON_BUILD_ROOT/$MESON_SUBDIR/filter_snpe_list', check : true)
 endif
 
 if tensorrt_support_is_available
   filter_sub_tensorrt_sources = ['tensor_filter_tensorrt.cc']
 
-  nnstreamer_filter_tensorrt_deps = [glib_dep, gst_dep, nnstreamer_dep, tensorrt_support_deps]
+  nnstreamer_filter_tensorrt_deps = [glib_dep, nnstreamer_single_dep, tensorrt_support_deps]
 
   shared_library('nnstreamer_filter_tensorrt',
     filter_sub_tensorrt_sources,
@@ -698,7 +693,7 @@ endif
 if lua_support_is_available
   filter_sub_lua_sources = ['tensor_filter_lua.cc']
 
-  nnstreamer_filter_lua_deps = [glib_dep, gst_dep, nnstreamer_dep, lua_support_deps]
+  nnstreamer_filter_lua_deps = [glib_dep, nnstreamer_single_dep, lua_support_deps]
 
   shared_library('nnstreamer_filter_lua',
     filter_sub_lua_sources,
@@ -716,7 +711,7 @@ if lua_support_is_available
 endif
 
 if tvm_support_is_available
-  nnstreamer_filter_tvm_deps = tvm_support_deps + [glib_dep, gst_dep, nnstreamer_dep]
+  nnstreamer_filter_tvm_deps = [tvm_support_deps, glib_dep, nnstreamer_dep]
 
   filter_sub_tvm_sources = ['tensor_filter_tvm.cc']
 
@@ -736,7 +731,7 @@ if tvm_support_is_available
 endif
 
 if trix_engine_support_is_available
-  nnstreamer_filter_trix_engine_deps = trix_engine_support_deps + [glib_dep, gst_dep, nnstreamer_dep]
+  nnstreamer_filter_trix_engine_deps = [trix_engine_support_deps, glib_dep, nnstreamer_single_dep]
 
   filter_sub_trix_engine_sources = ['tensor_filter_trix_engine.cc']
 
@@ -764,7 +759,7 @@ if mxnet_support_is_available
     'tensor_filter_mxnet.cc'
   ]
 
-  nnstreamer_filter_mxnet_deps = mxnet_support_deps + [glib_dep, gst_dep, nnstreamer_dep, libdl_dep]
+  nnstreamer_filter_mxnet_deps = [mxnet_support_deps, glib_dep, nnstreamer_single_dep, libdl_dep]
 
   nnstreamer_filter_mxnet_so_lib = shared_library('nnstreamer_filter_mxnet',
     filter_sub_mxnet_sources,
@@ -777,5 +772,45 @@ if mxnet_support_is_available
   nnstreamer_filter_mxnet_dep = declare_dependency(
     link_with: nnstreamer_filter_mxnet_so_lib,
     include_directories: include_directories('.')
+  )
+endif
+
+if ncnn_support_is_available
+  filter_sub_ncnn_sources = ['tensor_filter_ncnn.cc']
+
+  nnstreamer_filter_ncnn_deps = [ncnn_support_deps, glib_dep, nnstreamer_single_dep]
+
+  shared_library('nnstreamer_filter_ncnn',
+    filter_sub_ncnn_sources,
+    dependencies: nnstreamer_filter_ncnn_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_ncnn',
+    filter_sub_ncnn_sources,
+    dependencies: nnstreamer_filter_ncnn_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+endif
+
+if onnxruntime_support_is_available
+  filter_sub_onnxruntime_sources = ['tensor_filter_onnxruntime.cc']
+
+  nnstreamer_filter_onnxruntime_deps = [glib_dep, nnstreamer_single_dep, onnxruntime_support_deps]
+
+  shared_library('nnstreamer_filter_onnxruntime',
+    filter_sub_onnxruntime_sources,
+    dependencies: nnstreamer_filter_onnxruntime_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_onnxruntime',
+    filter_sub_onnxruntime_sources,
+    dependencies: nnstreamer_filter_onnxruntime_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
   )
 endif

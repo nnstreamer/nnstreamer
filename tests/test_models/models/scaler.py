@@ -6,6 +6,8 @@
 # @file    scaler.py
 # @brief   Python custom filter example: scaler
 # @author  Dongju Chae <dongju.chae@samsung.com>
+# @note    This filter is an example of Python custom filter
+#          and only supports rank 2,3 models.
 
 import numpy as np
 import nnstreamer_python as nns
@@ -55,17 +57,28 @@ class CustomFilter(object):
     # @return Output tensors: list of output numpy array
     def invoke(self, input_array):
         # reshape to n-D array (in reverse order)
-        input_tensor = np.reshape(input_array[0], self.input_dims[0].getDims()[::-1])
-        output_tensor = np.empty(self.output_dims[0].getDims()[::-1], dtype=self.output_dims[0].getType())
         in_dims = self.input_dims[0].getDims()
         out_dims = self.output_dims[0].getDims()
-        for z in range(out_dims[3]):
+
+        reversed_in_dims = np.flip(in_dims,axis=0)
+        reversed_out_dims = np.flip(out_dims,axis=0)
+
+        input_tensor = np.reshape(input_array[0], reversed_in_dims[~np.in1d(reversed_in_dims, np.array([0, 1]))])
+        output_tensor = np.empty(reversed_out_dims[~np.in1d(reversed_out_dims, np.array([0, 1]))], dtype=self.output_dims[0].getType())
+
+        if len(output_tensor.shape) == 3:
             for y in range(out_dims[2]):
                 for x in range(out_dims[1]):
                     for c in range(out_dims[0]):
                         ix = int(x * in_dims[1] / out_dims[1])
                         iy = int(y * in_dims[2] / out_dims[2])
-                        output_tensor[0][0][0][0][z][y][x][c] = input_tensor[0][0][0][0][z][iy][ix][c]
+                        output_tensor[y][x][c] = input_tensor[iy][ix][c]
+        elif len(output_tensor.shape) == 2:
+            for x in range(out_dims[1]):
+                for c in range(out_dims[0]):
+                    ix = int(x * in_dims[1] / out_dims[1])
+                    iy = int(in_dims[2] / out_dims[2])
+                    output_tensor[x][c] = input_tensor[ix][c]
 
         # to 1-D array
         return [np.ravel(output_tensor)]

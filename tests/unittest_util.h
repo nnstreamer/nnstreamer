@@ -31,6 +31,7 @@ extern "C" {
 #define UNITTEST_STATECHANGE_TIMEOUT (2000U)
 #define TEST_DEFAULT_SLEEP_TIME (10000U)
 #define TEST_TIMEOUT_LIMIT (10000000U) /* 10 secs */
+#define TEST_TIMEOUT_LIMIT_MS (10000U) /* 10 secs */
 
 /**
  * @brief Set pipeline state, wait until it's done.

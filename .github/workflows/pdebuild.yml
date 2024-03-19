@@ -1,0 +1,94 @@
+name: Build and unit test/ Pdebuild Ubuntu 22.04
+
+# ${{ github.event.pull_request.commits }} : # commits in this PR
+# - changed_file_list in GITHUB_ENV: the list of files updated in this pull-request.
+
+## @todo apply "cache" to pdebuilder cache, or create docker images ready for pdebuild
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        #os: [ ubuntu-20.04, ubuntu-22.04 ]
+        ## ppa/nnstreamer's ubuntu 20.04 has gpgv error:
+        # E: Release signed by unknown key (key id CADA0F77901522B3)
+        #    The specified keyring /usr/share/keyrings/ubuntu-archive-keyring.gpg may be incorrect or out of date.
+        #    You can find the latest Debian release key at https://ftp-master.debian.org/keys.html
+        # E: debootstrap failed
+        # E: Tail of debootstrap.log:
+        # amd64: ok
+        # 2024-01-24 15:01:58 URL:http://ppa.launchpad.net/nnstreamer/ppa/ubuntu/dists/focal/InRelease [18035/18035] -> "/var/cache/pbuilder/build/10399/var/lib/apt/lists/partial/ppa.launchpad.net_nnstreamer_ppa_ubuntu_dists_focal_InRelease" [1]
+        # gpgv: Signature made Wed Jan 24 09:12:55 2024 UTC
+        # gpgv:                using RSA key 373A37D40E480F96524A4027CADA0F77901522B3
+        # gpgv: Can't check signature: No public key
+        # E: End of debootstrap.log
+        # W: Aborting with an error
+        os: [ ubuntu-22.04 ]
+        arch: [ amd64, arm64 ]
+        include:
+          - distroname: jammy
+            os: ubuntu-22.04
+        #  - distroname: focal
+        #    os: ubuntu-20.04
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        fetch-depth: -${{ github.event.pull_request.commits }}
+    - name: Check if rebuild required
+      ## @todo This should become a reusable workflow.
+      run: |
+        tmpfile=$(mktemp)
+        git show --pretty="format:" --name-only --diff-filter=AMRC ${{ github.event.pull_request.head.sha}} -${{ github.event.pull_request.commits }} | sort | uniq | awk NF > ${tmpfile}
+        echo "changed_file_list=${tmpfile}" >> "$GITHUB_ENV"
+        rebuild=`bash .github/workflows/check_if_rebuild_requires.sh ${tmpfile} debian | grep "REBUILD=YES" | wc -l`
+        echo "Rebuild required: ${rebuild}"
+        echo "rebuild=${rebuild}" >> "$GITHUB_ENV"
+    - uses: actions/setup-python@v1
+    - name: make cache key
+      if: env.rebuild == '1'
+      id: make-key
+      run: echo "cache_key=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+      shell: bash
+    - name: cache pbuilder cache
+      id: cache-pbuilder
+      if: env.rebuild == '1'
+      uses: actions/cache@v3
+      with:
+        path: /var/cache/pbuilder
+        key: ${{ steps.make-key.outputs.cache_key }}
+    - name: prepare pdebuild
+      if: env.rebuild == '1'
+      run: |
+        echo "Installing build tools"
+        sudo add-apt-repository ppa:nnstreamer/ppa
+        echo "::group::apt-get update && apt-get install"
+        sudo apt-get update && sudo apt-get install -y pbuilder debootstrap curl ubuntu-dev-tools qemu-user-static debian-archive-keyring ubuntu-keyring debhelper
+        echo "::endgroup::"
+        echo "DISTRIBUTION=${{ matrix.distroname }}" > ~/.pbuilderrc
+        echo "OTHERMIRROR=\"deb [trusted=yes] http://archive.ubuntu.com/ubuntu ${{ matrix.distroname }}-backports universe |deb [trusted=yes] http://ppa.launchpad.net/nnstreamer/ppa/ubuntu ${{ matrix.distroname }} main\"" >> ~/.pbuilderrc
+        cat ~/.pbuilderrc
+        sudo mkdir -p /root/
+        sudo ln -s ~/.pbuilderrc /root/
+        echo "=== pbuilder create"
+        echo "::group::pbuilder create --allow-untrusted"
+        sudo pbuilder create --allow-untrusted
+        echo "::endgroup::"
+        echo "=== pbuilder update"
+        echo "::group::pbuilder update --distribution ${{ matrix.distroname }}"
+        sudo pbuilder update --distribution ${{ matrix.distroname }}
+        echo "::endgroup"
+        echo "::group::pbuilder update"
+        sudo pbuilder update
+        echo "::endgroup"
+    - name: run pdebuild
+      if: env.rebuild == '1'
+      run: |
+        pdebuild --architecture ${{ matrix.arch }} -- --distribution ${{ matrix.distroname }}

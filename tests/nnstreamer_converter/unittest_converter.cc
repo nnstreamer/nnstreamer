@@ -33,6 +33,7 @@ tensor_converter_custom_cb (GstBuffer *in_buf, void *data, GstTensorsConfig *con
   guint mem_size;
   gpointer mem_data;
   guint *received = (guint *) data;
+  GstTensorInfo *_info;
 
   if (!in_buf || !config)
     return NULL;
@@ -59,12 +60,17 @@ tensor_converter_custom_cb (GstBuffer *in_buf, void *data, GstTensorsConfig *con
   for (guint i = 0; i < config->info.num_tensors; i++) {
     gchar *tensor_key = g_strdup_printf ("tensor_%d", i);
     flexbuffers::Vector tensor = tensors[tensor_key].AsVector ();
-    config->info.info[i].name = g_strdup (tensor[0].AsString ().c_str ());
-    config->info.info[i].type = (tensor_type) tensor[1].AsInt32 ();
+    flexbuffers::String _name = tensor[0].AsString ();
+    const gchar *name = _name.c_str ();
+
+    _info = gst_tensors_info_get_nth_info (&config->info, i);
+
+    _info->name = (name && strlen (name) > 0) ? g_strdup (name) : NULL;
+    _info->type = (tensor_type) tensor[1].AsInt32 ();
 
     flexbuffers::TypedVector dim = tensor[2].AsTypedVector ();
     for (guint j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
-      config->info.info[i].dimension[j] = dim[j].AsInt32 ();
+      _info->dimension[j] = dim[j].AsInt32 ();
     }
     flexbuffers::Blob tensor_data = tensor[3].AsBlob ();
     mem_size = tensor_data.size ();
@@ -439,6 +445,7 @@ TEST (tensorConverterPython, dynamicDimension)
   EXPECT_EQ (1U, config.info.info[0].dimension[3]);
   gst_tensors_config_free (&config);
   gst_caps_unref (caps);
+  gst_object_unref (sink_pad);
 
   EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc_handle), buf_2), GST_FLOW_OK);
   EXPECT_TRUE (wait_pipeline_process_buffers (data_received, 3, TEST_TIMEOUT_MS));

@@ -25,7 +25,7 @@
 /**
  * @brief g_memdup() function replaced by g_memdup2() in glib version >= 2.68
  */
-#if GLIB_USE_G_MEMDUP2
+#if defined(GLIB_USE_G_MEMDUP2)
 #define _g_memdup(data, size) g_memdup2 (data, size)
 #else
 #define _g_memdup(data, size) g_memdup (data, size)

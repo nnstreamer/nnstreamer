@@ -16,7 +16,7 @@
 #include <gst/gst.h>
 #include <gio/gio.h>
 #include <tensor_common.h>
-#include "nnstreamer-edge.h"
+#include <nnstreamer-edge.h>
 
 G_BEGIN_DECLS
 
@@ -46,7 +46,8 @@ struct _GstTensorQueryClient
 
   gboolean silent; /**< True if logging is minimized */
   gchar *in_caps_str;
-
+  gboolean is_tensor;
+  GstTensorsConfig config;
   guint timeout; /**< timeout value (in ms) to wait message from server */
 
   /* Query-hybrid feature */
@@ -59,6 +60,9 @@ struct _GstTensorQueryClient
   nns_edge_connect_type_e connect_type;
   nns_edge_h edge_h;
   GAsyncQueue *msg_queue;
+
+  guint max_request;
+  guint requested_num;
 };
 
 /**

@@ -290,6 +290,13 @@ gst_tensor_filter_set_property (GObject * object, guint prop_id,
 
   silent_debug (self, "Setting property for prop %d.\n", prop_id);
 
+  if (prop_id == PROP_CONFIG) {
+    g_free (priv->config_path);
+    priv->config_path = g_strdup (g_value_get_string (value));
+    gst_tensor_parse_config_file (priv->config_path, object);
+    return;
+  }
+
   if (!gst_tensor_filter_common_set_property (priv, prop_id, value, pspec))
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
 }
@@ -308,6 +315,11 @@ gst_tensor_filter_get_property (GObject * object, guint prop_id,
   priv = &self->priv;
 
   silent_debug (self, "Getting property for prop %d.\n", prop_id);
+
+  if (prop_id == PROP_CONFIG) {
+    g_value_set_string (value, priv->config_path ? priv->config_path : "");
+    return;
+  }
 
   if (!gst_tensor_filter_common_get_property (priv, prop_id, value, pspec))
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -454,7 +466,6 @@ record_statistics (GstTensorFilterPrivate * priv)
     }
   }
 }
-
 
 /**
  * @brief Track estimated latency and notify pipeline when it changes.
@@ -637,19 +648,14 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   GstTensorFilterProperties *prop = &priv->prop;
 
   /* TODO: Consider malloc in_mem, in_info, etc. rather than take the stack */
-  GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT] =
-      { 0, };
-  GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT];
-  GstMemory *out_mem[NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT] =
-      { 0, };
-  GstMapInfo out_info[NNS_TENSOR_SIZE_LIMIT + NNS_TENSOR_SIZE_EXTRA_LIMIT];
+  GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
+  GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT];
+  GstMemory *out_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
+  GstMapInfo out_info[NNS_TENSOR_SIZE_LIMIT];
 
-  GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT +
-      NNS_TENSOR_SIZE_EXTRA_LIMIT];
-  GstTensorMemory invoke_tensors[NNS_TENSOR_SIZE_LIMIT +
-      NNS_TENSOR_SIZE_EXTRA_LIMIT];
-  GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT +
-      NNS_TENSOR_SIZE_EXTRA_LIMIT];
+  GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT];
+  GstTensorMemory invoke_tensors[NNS_TENSOR_SIZE_LIMIT];
+  GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT];
 
   GList *list;
   guint i, num_tensors;
@@ -658,10 +664,8 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   gboolean need_profiling;
   gsize expected, hsize;
 
-  GstTensorMetaInfo in_meta[NNS_TENSOR_SIZE_LIMIT +
-      NNS_TENSOR_SIZE_EXTRA_LIMIT];
-  GstTensorMetaInfo out_meta[NNS_TENSOR_SIZE_LIMIT +
-      NNS_TENSOR_SIZE_EXTRA_LIMIT];
+  GstTensorMetaInfo in_meta[NNS_TENSOR_SIZE_LIMIT];
+  GstTensorMetaInfo out_meta[NNS_TENSOR_SIZE_LIMIT];
 
   GstMemory *mem;
 
@@ -678,12 +682,18 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   out_flexible =
       gst_tensor_pad_caps_is_flexible (GST_BASE_TRANSFORM_SRC_PAD (trans));
 
+  if (priv->prop.invoke_dynamic && !out_flexible) {
+    ml_loge
+        ("Dynamic Invoke of tensor filter is activated but the output of tensor filter is static tensors. Currently, only flexible tensors is supported as output of dynamic invoke. If you don't want to dynamic invoke, remove the invoke-dynamic option of tensor filter.");
+    return GST_FLOW_ERROR;
+  }
+
   /* 1. Get all input tensors from inbuf. */
   /* Internal Logic Error or GST Bug (sinkcap changed!) */
-  num_tensors = gst_buffer_n_tensor (inbuf);
+  num_tensors = gst_tensor_buffer_get_count (inbuf);
 
   for (i = 0; i < num_tensors; i++) {
-    in_mem[i] = gst_tensor_buffer_get_nth_memory (inbuf, &prop->input_meta, i);
+    in_mem[i] = gst_tensor_buffer_get_nth_memory (inbuf, i);
     if (!gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
       ml_logf_stacktrace
           ("gst_tensor_filter_transform: For the given input buffer, tensor-filter (%s : %s) cannot map input memory from the buffer for reading. The %u-th memory chunk (%u-th tensor) has failed for memory map.\n",
@@ -695,6 +705,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     if (in_flexible) {
       gst_tensor_meta_info_parse_header (&in_meta[i], in_info[i].data);
       hsize = gst_tensor_meta_info_get_header_size (&in_meta[i]);
+      gst_tensor_meta_info_convert (&in_meta[i], &prop->input_meta.info[i]);
     }
 
     in_tensors[i].data = in_info[i].data + hsize;
@@ -752,9 +763,16 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     out_tensors[i].size = gst_tensor_filter_get_tensor_size (self, i, FALSE);
 
     hsize = 0;
-    if (out_flexible) {
-      gst_tensor_info_convert_to_meta (&prop->output_meta.info[i],
+    if (out_flexible && !priv->prop.invoke_dynamic) {
+      gboolean ret = FALSE;
+      ret = gst_tensor_info_convert_to_meta (&prop->output_meta.info[i],
           &out_meta[i]);
+      if (TRUE != ret) {
+        ml_loge_stacktrace
+            ("gst_tensor_filter_transform: The configured output tensor information is invalid, at %u'th output tensor\n",
+            i);
+        goto mem_map_error;
+      }
       hsize = gst_tensor_meta_info_get_header_size (&out_meta[i]);
     }
 
@@ -872,7 +890,22 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
       }
     }
 
-    if (allocate_in_invoke) {
+    if (priv->prop.invoke_dynamic) {
+      GstTensorMetaInfo meta;
+      GstMemory *flex_mem;
+
+      /* Convert to flexible tensors */
+      gst_tensor_info_convert_to_meta (&prop->output_meta.info[i], &meta);
+      meta.media_type = _NNS_TENSOR;
+      meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+      flex_mem = gst_memory_new_wrapped (0,
+          out_tensors[i].data, out_tensors[i].size, 0,
+          out_tensors[i].size, out_tensors[i].data, g_free);
+
+      out_mem[i] = gst_tensor_meta_info_append_header (&meta, flex_mem);
+      gst_memory_unref (flex_mem);
+    } else if (allocate_in_invoke) {
       /* prepare memory block if successfully done */
       out_mem[i] = mem = gst_tensor_filter_get_wrapped_mem (self,
           out_tensors[i].data, out_tensors[i].size);
@@ -891,7 +924,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
 
   return GST_FLOW_OK;
 mem_map_error:
-  num_tensors = gst_buffer_n_tensor (inbuf);
+  num_tensors = gst_tensor_buffer_get_count (inbuf);
   for (i = 0; i < num_tensors; i++) {
     if (in_mem[i]) {
       gst_memory_unmap (in_mem[i], &in_info[i]);
@@ -928,7 +961,6 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
   gboolean flexible;
 
   g_return_val_if_fail (incaps != NULL, FALSE);
-
   priv = &self->priv;
   prop = &priv->prop;
   gst_tensors_config_init (&in_config);
@@ -1085,10 +1117,10 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
 
   if (priv->configured) {
     /** already configured, compare to old. */
-    g_assert (gst_tensors_info_is_equal (&priv->in_config.info,
-            &in_config.info));
-    g_assert (gst_tensors_info_is_equal (&priv->out_config.info,
-            &out_config.info));
+    if (!priv->prop.invoke_dynamic) {
+      g_assert (gst_tensors_config_is_equal (&priv->in_config, &in_config));
+      g_assert (gst_tensors_config_is_equal (&priv->out_config, &out_config));
+    }
   } else {
     gst_tensors_config_copy (&priv->in_config, &in_config);
     gst_tensors_config_copy (&priv->out_config, &out_config);
@@ -1101,6 +1133,7 @@ done:
   gst_tensors_config_free (&out_config);
   gst_tensors_info_free (&in_info);
   gst_tensors_info_free (&out_info);
+
   return priv->configured;
 }
 
@@ -1124,7 +1157,6 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
   GstTensorsConfig in_config, out_config;
   GstPad *pad;
   GstCaps *result;
-  GstCaps *peer_caps;
   GstStructure *structure;
   gboolean configured = FALSE;
 
@@ -1198,17 +1230,20 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
   if (configured) {
     /* output info may be configured */
     result = gst_tensor_pad_possible_caps_from_config (pad, &out_config);
+
+    /* Update dimension for src pad caps. */
+    if (direction == GST_PAD_SINK) {
+      GstCaps *peer = gst_pad_peer_query_caps (pad, NULL);
+
+      if (peer) {
+        if (!gst_caps_is_any (peer))
+          gst_tensor_caps_update_dimension (result, peer);
+        gst_caps_unref (peer);
+      }
+    }
   } else {
     /* we don't know the exact tensor info yet */
     result = gst_caps_from_string (CAPS_STRING);
-  }
-
-  /* Update caps dimension for src pad cap */
-  if (direction == GST_PAD_SINK) {
-    if ((peer_caps = gst_pad_peer_query_caps (pad, NULL))) {
-      gst_tensor_caps_update_dimension (result, peer_caps);
-      gst_caps_unref (peer_caps);
-    }
   }
 
   if (filter && gst_caps_get_size (filter) > 0) {
@@ -1219,7 +1254,6 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
      * However, according to gstreamer doxygen entry, if filter is given, that's not to be ignored.
      * For now, we assume that if caps-size is 0, filter is "ANY".
      */
-
     intersection =
         gst_caps_intersect_full (result, filter, GST_CAPS_INTERSECT_FIRST);
 
@@ -1259,7 +1293,6 @@ gst_tensor_filter_fixate_caps (GstBaseTransform * trans,
   /**
    * To get the out-caps, GstTensorFilter has to parse tensor info from NN model.
    */
-
   result = gst_tensor_filter_transform_caps (trans, direction, caps, othercaps);
   gst_caps_unref (othercaps);
   result = gst_caps_make_writable (result);
@@ -1300,7 +1333,8 @@ gst_tensor_filter_set_caps (GstBaseTransform * trans,
     return FALSE;
   }
 
-  if (!gst_tensors_config_validate (&priv->out_config)) {
+  if (!priv->prop.invoke_dynamic &&
+      !gst_tensors_config_validate (&priv->out_config)) {
     GST_ELEMENT_ERROR_BTRACE (self, STREAM, WRONG_TYPE,
         ("Failed to validate output tensor configuration. Please refer to the error log of gst_tensors_config_validate(): %s",
             GST_STR_NULL (_nnstreamer_error ())));
@@ -1521,6 +1555,7 @@ gst_tensor_filter_start (GstBaseTransform * trans)
   if (priv->fw == NULL)
     return FALSE;
   gst_tensor_filter_common_open_fw (priv);
+
   return priv->prop.fw_opened;
 }
 

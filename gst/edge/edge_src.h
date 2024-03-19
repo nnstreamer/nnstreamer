@@ -16,9 +16,10 @@
 #include <gst/gst.h>
 #include <gst/base/gstbasesrc.h>
 #include "edge_common.h"
-#include "nnstreamer-edge.h"
+#include <nnstreamer-edge.h>
+#include "nnstreamer_log.h"
+#include "nnstreamer_plugin_api.h"
 #include "nnstreamer_util.h"
-#include "../nnstreamer/nnstreamer_log.h"
 
 G_BEGIN_DECLS
 #define GST_TYPE_EDGESRC \
@@ -42,8 +43,6 @@ struct _GstEdgeSrc
 {
   GstBaseSrc element;
 
-  gchar *host;
-  guint16 port;
   gchar *dest_host;
   guint16 dest_port;
   gchar *topic;
@@ -51,6 +50,8 @@ struct _GstEdgeSrc
   nns_edge_connect_type_e connect_type;
   nns_edge_h edge_h;
   GAsyncQueue *msg_queue;
+
+  gboolean playing;
 };
 
 /**

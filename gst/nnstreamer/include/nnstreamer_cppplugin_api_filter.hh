@@ -14,7 +14,7 @@
  *
  */
 /**
- * @file	tensor_filter_support_cc.h
+ * @file	nnstreamer_cppplugin_api_filter.hh
  * @date	15 Jan 2020
  * @brief	Base class for tensor_filter subplugins of C++ classes.
  * @see		http://github.com/nnstreamer/nnstreamer
@@ -81,8 +81,8 @@ class tensor_filter_subplugin
   static int cpp_open (const GstTensorFilterProperties *prop, void **private_data); /**< C wrapper func, open */
   static void cpp_close (const GstTensorFilterProperties *prop, void **private_data); /**< C wrapper func, close */
   static int cpp_invoke (const GstTensorFilterFramework *tf,
-      const GstTensorFilterProperties *prop, void *private_data,
-      const GstTensorMemory *input, GstTensorMemory *output); /**< C V1 wrapper func, invoke */
+      GstTensorFilterProperties *prop, void *private_data, const GstTensorMemory *input,
+      GstTensorMemory *output); /**< C V1 wrapper func, invoke */
   static int cpp_getFrameworkInfo (const GstTensorFilterFramework *tf,
       const GstTensorFilterProperties *prop, void *private_data,
       GstTensorFilterFrameworkInfo *fw_info); /**< C V1 wrapper func, getFrameworkInfo */

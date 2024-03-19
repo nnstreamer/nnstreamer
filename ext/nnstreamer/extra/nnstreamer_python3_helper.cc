@@ -23,6 +23,10 @@
 #include <nnstreamer_util.h>
 #include "nnstreamer_python3_helper.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /** @brief object structure for custom Python type: TensorShape */
 typedef struct {
   PyObject_HEAD PyObject *dims;
@@ -51,8 +55,7 @@ TensorShape_setDims (TensorShapeObject *self, PyObject *args)
   len = PyList_Size (dims);
   if (len < NNS_TENSOR_RANK_LIMIT) {
     for (i = 0; i < NNS_TENSOR_RANK_LIMIT - len; i++)
-      /** fill '1's in remaining slots */
-      PyList_Append (dims, PyLong_FromLong (1));
+      PyList_Append (dims, PyLong_FromLong (0));
     new_dims = dims;
     Py_XINCREF (new_dims);
   } else {
@@ -144,7 +147,7 @@ TensorShape_init (TensorShapeObject *self, PyObject *args, PyObject *kw)
       self->type = dtype;
       Py_XINCREF (self->type);
     } else
-      ml_loge ("Wrong data type");
+      Py_ERRMSG ("Wrong data type.");
   }
 
   return 0;
@@ -396,6 +399,7 @@ parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
   if (PyList_Size (result) < 0)
     return -1;
 
+  gst_tensors_info_init (info);
   info->num_tensors = PyList_Size (result);
   for (i = 0; i < info->num_tensors; i++) {
     /** don't own the reference */
@@ -445,7 +449,7 @@ parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
         PyErr_Print ();
         PyErr_Clear ();
         info->info[i].dimension[j] = 0;
-        ml_loge ("Python nnstreamer plugin has returned dimensions of the %u'th tensor not in an array. Python code should return int-type array for dimensions. Indexes are counted from 0.\n",
+        Py_ERRMSG ("Python nnstreamer plugin has returned dimensions of the %u'th tensor not in an array. Python code should return int-type array for dimensions. Indexes are counted from 0.\n",
             i + 1);
         Py_SAFEDECREF (shape_dims);
         return -EINVAL;
@@ -456,17 +460,17 @@ parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
       } else if (PyFloat_Check (item)) {
         /** Regard this as a warning. Don't return -EINVAL with this */
         val = (int) PyFloat_AsDouble (item);
-        ml_loge ("Python nnstreamer plugin has returned the %u'th dimension value of the %u'th tensor in floating-point type (%f), which is casted as unsigned-int. Python code should return int-type for dimension values. Indexes are counted from 0.\n",
+        Py_ERRMSG ("Python nnstreamer plugin has returned the %u'th dimension value of the %u'th tensor in floating-point type (%f), which is casted as unsigned-int. Python code should return int-type for dimension values. Indexes are counted from 0.\n",
             j + 1, i + 1, PyFloat_AsDouble (item));
       } else {
         info->info[i].dimension[j] = 0;
-        ml_loge ("Python nnstreamer plugin has returned the %u'th dimension value of the %u'th tensor neither in integer or floating-pointer. Python code should return int-type for dimension values. Indexes are counted from 0.\n",
+        Py_ERRMSG ("Python nnstreamer plugin has returned the %u'th dimension value of the %u'th tensor neither in integer or floating-pointer. Python code should return int-type for dimension values. Indexes are counted from 0.\n",
             j + 1, i + 1);
         Py_SAFEDECREF (shape_dims);
         return -EINVAL;
       }
 
-      if (val <= 0) {
+      if (val < 0) {
         Py_ERRMSG ("The %u'th dimension value of the %u'th tensor is invalid (%d).",
             j + 1, i + 1, val);
         Py_SAFEDECREF (shape_dims);
@@ -476,12 +480,17 @@ parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
       info->info[i].dimension[j] = (uint32_t) val;
     }
 
-    /* Fill remained dims */
-    for (; j < NNS_TENSOR_RANK_LIMIT; j++)
-      info->info[i].dimension[j] = 1U;
-
     info->info[i].name = NULL;
     Py_SAFEDECREF (shape_dims);
+  }
+
+  /* Validate output tensors info after parsing python object. */
+  if (!gst_tensors_info_validate (info)) {
+    gchar *info_str = gst_tensors_info_to_string (info);
+    Py_ERRMSG ("Failed to parse the tensors information from python script, it may include invalid tensor type or dimension value (%s).",
+        info_str);
+    g_free (info_str);
+    return -EINVAL;
   }
 
   return 0;
@@ -519,3 +528,62 @@ PyTensorShape_New (PyObject *shape_cls, const GstTensorInfo *info)
   return PyObject_CallObject (shape_cls, args);
   /* Its value is checked by setInputTensorDim */
 }
+
+static int python_init_counter = 0;
+static PyThreadState *st = NULL;
+/**
+ * @brief Py_Initialize common wrapper for Python subplugins
+ * @note This prevents a python-using subplugin finalizing another subplugin's
+ * python interpreter by sharing the reference counter.
+ */
+void
+nnstreamer_python_init_refcnt ()
+{
+  if (!Py_IsInitialized ()) {
+    Py_Initialize ();
+    PyEval_InitThreads_IfGood ();
+    st = PyEval_SaveThread ();
+  }
+  python_init_counter++;
+}
+
+/**
+ * @brief Py_Finalize common wrapper for Python subplugins
+ * @note This prevents a python-using subplugin finalizing another subplugin's
+ * python interpreter by sharing the reference counter.
+ */
+void
+nnstreamer_python_fini_refcnt ()
+{
+  python_init_counter--;
+  if (python_init_counter == 0) {
+    /**
+     * @todo Python Finalize() is buggy and leaky.
+     *   Do not call it until Python is fixed. (not fixed as in 2023-12)
+     *   Calling Finalize at this state will leave modules randomly, which
+     *   may cause assertion failure at exit.
+      PyEval_RestoreThread (st);
+      Py_Finalize ();
+     */
+  }
+}
+
+/**
+ * @brief Check Py_Init status for python eval functions.
+ * @return 0 if it's ready. negative error value if it's not ready.
+ */
+int
+nnstreamer_python_status_check ()
+{
+  if (python_init_counter == 0) {
+    fprintf (stderr, "nnstreamer_python_init_refcnt() is not called or it's already closed.");
+    return -EINVAL;
+  }
+
+  assert (Py_IsInitialized ());
+  return 0;
+}
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif

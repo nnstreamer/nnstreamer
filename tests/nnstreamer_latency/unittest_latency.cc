@@ -269,6 +269,8 @@ main (int argc, char **argv)
     g_clear_error (&error);
   }
 
+  g_option_context_free (optionctx);
+
   try {
     result = RUN_ALL_TESTS ();
   } catch (...) {

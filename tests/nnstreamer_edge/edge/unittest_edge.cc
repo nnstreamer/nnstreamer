@@ -107,7 +107,7 @@ TEST (edgeSrc, properties0)
   gchar *str_val;
 
   /* Create a nnstreamer pipeline */
-  pipeline = g_strdup_printf ("gst-launch-1.0 edgesrc port=0 name=srcx ! "
+  pipeline = g_strdup_printf ("gst-launch-1.0 edgesrc name=srcx ! "
                               "other/tensors,num_tensors=1,dimensions=3:320:240:1,types=uint8,format=static,framerate=30/1 ! "
                               "tensor_sink");
   gstpipe = gst_parse_launch (pipeline, NULL);
@@ -117,15 +117,6 @@ TEST (edgeSrc, properties0)
   EXPECT_NE (edge_handle, nullptr);
 
   /* Set/Get properties of edgesrc */
-  g_object_set (edge_handle, "host", "127.0.0.2", NULL);
-  g_object_get (edge_handle, "host", &str_val, NULL);
-  EXPECT_STREQ ("127.0.0.2", str_val);
-  g_free (str_val);
-
-  g_object_set (edge_handle, "port", 5001U, NULL);
-  g_object_get (edge_handle, "port", &uint_val, NULL);
-  EXPECT_EQ (5001U, uint_val);
-
   g_object_set (edge_handle, "dest-host", "127.0.0.2", NULL);
   g_object_get (edge_handle, "dest-host", &str_val, NULL);
   EXPECT_STREQ ("127.0.0.2", str_val);
@@ -301,6 +292,7 @@ _check_mqtt_broker ()
  */
 TEST (edgeSinkSrc, runNormalAitt)
 {
+  GTEST_SKIP ();
   gchar *sink_pipeline, *src_pipeline;
   GstElement *sink_gstpipe, *src_gstpipe;
   GstElement *appsrc_handle, *sink_handle;

@@ -40,6 +40,8 @@ enum
   PROP_DEST_PORT,
   PROP_CONNECT_TYPE,
   PROP_TOPIC,
+  PROP_WAIT_CONNECTION,
+  PROP_CONNECTION_TIMEOUT,
 
   PROP_LAST
 };
@@ -79,13 +81,9 @@ static void gst_edgesink_set_connect_type (GstEdgeSink * self,
 static void
 gst_edgesink_class_init (GstEdgeSinkClass * klass)
 {
-  GObjectClass *gobject_class;
-  GstElementClass *gstelement_class;
-  GstBaseSinkClass *gstbasesink_class;
-
-  gstbasesink_class = (GstBaseSinkClass *) klass;
-  gstelement_class = (GstElementClass *) gstbasesink_class;
-  gobject_class = (GObjectClass *) gstelement_class;
+  GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
+  GstElementClass *gstelement_class = GST_ELEMENT_CLASS (klass);
+  GstBaseSinkClass *gstbasesink_class = GST_BASE_SINK_CLASS (klass);
 
   gobject_class->set_property = gst_edgesink_set_property;
   gobject_class->get_property = gst_edgesink_get_property;
@@ -97,7 +95,9 @@ gst_edgesink_class_init (GstEdgeSinkClass * klass)
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_PORT,
       g_param_spec_uint ("port", "Port",
-          "A self port address to accept connection from edgesrc.",
+          "A self port address to accept connection from edgesrc. "
+          "If the port is set to 0 then the available port is allocated. "
+          "If the connect-type is AITT then the port setting is not required.",
           0, 65535, DEFAULT_PORT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_CONNECT_TYPE,
       g_param_spec_enum ("connect-type", "Connect Type",
@@ -117,6 +117,17 @@ gst_edgesink_class_init (GstEdgeSinkClass * klass)
       g_param_spec_string ("topic", "Topic",
           "The main topic of the host and option if necessary. "
           "(topic)/(optional topic for main topic).", "",
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_WAIT_CONNECTION,
+      g_param_spec_boolean ("wait-connection", "Wait connection to edgesrc",
+          "Wait until edgesink is connected to edgesrc. "
+          "In case of false(default), the buffers entering the edgesink are dropped.",
+          FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_CONNECTION_TIMEOUT,
+      g_param_spec_uint64 ("connection-timeout",
+          "Timeout for wating a connection",
+          "The timeout (in milliseconds) for waiting a connection to receiver. "
+          "0 timeout (default) means infinite wait.", 0, G_MAXUINT64, 0,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_add_pad_template (gstelement_class,
@@ -146,6 +157,8 @@ gst_edgesink_init (GstEdgeSink * self)
   self->dest_port = DEFAULT_PORT;
   self->topic = NULL;
   self->connect_type = DEFAULT_CONNECT_TYPE;
+  self->wait_connection = FALSE;
+  self->connection_timeout = 0;
 }
 
 /**
@@ -186,6 +199,12 @@ gst_edgesink_set_property (GObject * object, guint prop_id,
       g_free (self->topic);
       self->topic = g_value_dup_string (value);
       break;
+    case PROP_WAIT_CONNECTION:
+      self->wait_connection = g_value_get_boolean (value);
+      break;
+    case PROP_CONNECTION_TIMEOUT:
+      self->connection_timeout = g_value_get_uint64 (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -220,6 +239,12 @@ gst_edgesink_get_property (GObject * object, guint prop_id, GValue * value,
     case PROP_TOPIC:
       g_value_set_string (value, self->topic);
       break;
+    case PROP_WAIT_CONNECTION:
+      g_value_set_boolean (value, self->wait_connection);
+      break;
+    case PROP_CONNECTION_TIMEOUT:
+      g_value_set_uint64 (value, self->connection_timeout);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -233,10 +258,15 @@ static void
 gst_edgesink_finalize (GObject * object)
 {
   GstEdgeSink *self = GST_EDGESINK (object);
-  if (self->host) {
-    g_free (self->host);
-    self->host = NULL;
-  }
+
+  g_free (self->host);
+  self->host = NULL;
+
+  g_free (self->dest_host);
+  self->dest_host = NULL;
+
+  g_free (self->topic);
+  self->topic = NULL;
 
   if (self->edge_h) {
     nns_edge_release_handle (self->edge_h);
@@ -295,6 +325,34 @@ gst_edgesink_start (GstBaseSink * basesink)
     return FALSE;
   }
 
+  if (self->wait_connection) {
+    guint64 remaining = self->connection_timeout;
+    if (0 == remaining)
+      remaining = G_MAXUINT64;
+
+    while (remaining >= 10 &&
+        NNS_EDGE_ERROR_NONE != nns_edge_is_connected (self->edge_h)) {
+      if (!self->wait_connection) {
+        nns_logi
+            ("Waiting for connection to edgesrc was canceled by the user.");
+        return FALSE;
+      }
+      g_usleep (10000);
+      remaining -= 10;
+    }
+
+    if (remaining > 0 &&
+        NNS_EDGE_ERROR_NONE != nns_edge_is_connected (self->edge_h)) {
+      g_usleep (remaining * 1000U);
+    }
+
+    if (NNS_EDGE_ERROR_NONE != nns_edge_is_connected (self->edge_h)) {
+      nns_loge ("Failed to connect to edgesrc within timeout: %ju ms",
+          self->connection_timeout);
+      return FALSE;
+    }
+  }
+
   return TRUE;
 }
 
@@ -305,6 +363,9 @@ static GstFlowReturn
 gst_edgesink_render (GstBaseSink * basesink, GstBuffer * buffer)
 {
   GstEdgeSink *self = GST_EDGESINK (basesink);
+  GstCaps *caps;
+  GstStructure *structure;
+  gboolean is_tensor;
   nns_edge_data_h data_h;
   guint i, num_mems;
   int ret;
@@ -317,19 +378,40 @@ gst_edgesink_render (GstBaseSink * basesink, GstBuffer * buffer)
     return GST_FLOW_ERROR;
   }
 
-  num_mems = gst_buffer_n_memory (buffer);
+  caps = gst_pad_get_current_caps (GST_BASE_SINK_PAD (basesink));
+  structure = gst_caps_get_structure (caps, 0);
+  is_tensor = gst_structure_is_tensor_stream (structure);
+  gst_caps_unref (caps);
+
+  if (is_tensor)
+    num_mems = gst_tensor_buffer_get_count (buffer);
+  else
+    num_mems = gst_buffer_n_memory (buffer);
+
   for (i = 0; i < num_mems; i++) {
-    mem[i] = gst_buffer_peek_memory (buffer, i);
+    if (is_tensor)
+      mem[i] = gst_tensor_buffer_get_nth_memory (buffer, i);
+    else
+      mem[i] = gst_buffer_get_memory (buffer, i);
+
     if (!gst_memory_map (mem[i], &map[i], GST_MAP_READ)) {
-      nns_loge ("Cannot map the %uth memory in gst-buffer", i);
+      nns_loge ("Cannot map the %uth memory in gst-buffer.", i);
+      gst_memory_unref (mem[i]);
       num_mems = i;
       goto done;
     }
-    nns_edge_data_add (data_h, map[i].data, map[i].size, NULL);
+
+    ret = nns_edge_data_add (data_h, map[i].data, map[i].size, NULL);
+    if (ret != NNS_EDGE_ERROR_NONE) {
+      nns_loge ("Failed to append %u-th memory into edge data.", i);
+      num_mems = i + 1;
+      goto done;
+    }
   }
 
-  nns_edge_send (self->edge_h, data_h);
-  goto done;
+  ret = nns_edge_send (self->edge_h, data_h);
+  if (ret != NNS_EDGE_ERROR_NONE)
+    nns_loge ("Failed to send edge data, connection lost or internal error.");
 
 done:
   if (data_h)
@@ -337,6 +419,7 @@ done:
 
   for (i = 0; i < num_mems; i++) {
     gst_memory_unmap (mem[i], &map[i]);
+    gst_memory_unref (mem[i]);
   }
 
   return GST_FLOW_OK;

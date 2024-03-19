@@ -70,6 +70,7 @@ TensorFilterTRIxEngine::getEmptyInstance ()
 void
 TensorFilterTRIxEngine::configure_instance (const GstTensorFilterProperties *prop)
 {
+  GstTensorInfo *_info;
   uint32_t i, j, rank_limit;
 
   if (!prop->model_files[0] || prop->model_files[0][0] == '\0') {
@@ -115,13 +116,14 @@ TensorFilterTRIxEngine::configure_instance (const GstTensorFilterProperties *pro
   if (prop->input_meta.num_tensors == 0) {
     nns_in_info_.num_tensors = model_meta_->input_seg_num;
     for (i = 0; i < nns_in_info_.num_tensors; i++) {
-      nns_in_info_.info[i].type = _NNS_UINT8;
+      _info = gst_tensors_info_get_nth_info (&nns_in_info_, i);
+
+      _info->type = _NNS_UINT8;
       for (j = 0; j < rank_limit; j++)
-        nns_in_info_.info[i].dimension[j]
-            = model_meta_->input_seg_dims[i][rank_limit - j - 1];
+        _info->dimension[j] = model_meta_->input_seg_dims[i][rank_limit - j - 1];
 
       for (; j < NNS_TENSOR_RANK_LIMIT; j++)
-        nns_in_info_.info[i].dimension[j] = 1;
+        _info->dimension[j] = 0;
     }
   } else {
     gst_tensors_info_copy (&nns_in_info_, &prop->input_meta);
@@ -131,13 +133,14 @@ TensorFilterTRIxEngine::configure_instance (const GstTensorFilterProperties *pro
   if (prop->output_meta.num_tensors == 0) {
     nns_out_info_.num_tensors = model_meta_->output_seg_num;
     for (i = 0; i < nns_out_info_.num_tensors; i++) {
-      nns_out_info_.info[i].type = _NNS_UINT8;
+      _info = gst_tensors_info_get_nth_info (&nns_out_info_, i);
+
+      _info->type = _NNS_UINT8;
       for (j = 0; j < rank_limit; j++)
-        nns_out_info_.info[i].dimension[j]
-            = model_meta_->output_seg_dims[i][rank_limit - j - 1];
+        _info->dimension[j] = model_meta_->output_seg_dims[i][rank_limit - j - 1];
 
       for (; j < NNS_TENSOR_RANK_LIMIT; j++)
-        nns_out_info_.info[i].dimension[j] = 1;
+        _info->dimension[j] = 0;
     }
   } else {
     gst_tensors_info_copy (&nns_out_info_, &prop->output_meta);
@@ -200,21 +203,26 @@ TensorFilterTRIxEngine::convert_data_type (const tensor_type &type)
 void
 TensorFilterTRIxEngine::set_data_info (const GstTensorFilterProperties *prop)
 {
+  GstTensorInfo *_info;
   const tensor_layout *input_layout = &(prop->input_layout[0]);
   const tensor_layout *output_layout = &(prop->output_layout[0]);
 
   trix_in_info_.num_info = model_meta_->input_seg_num;
 
   for (uint32_t idx = 0; idx < trix_in_info_.num_info; ++idx) {
+    _info = gst_tensors_info_get_nth_info (&nns_in_info_, idx);
+
     trix_in_info_.info[idx].layout = convert_data_layout (input_layout[idx]);
-    trix_in_info_.info[idx].type = convert_data_type (nns_in_info_.info[idx].type);
+    trix_in_info_.info[idx].type = convert_data_type (_info->type);
   }
 
   trix_out_info_.num_info = model_meta_->output_seg_num;
 
   for (uint32_t idx = 0; idx < trix_out_info_.num_info; ++idx) {
+    _info = gst_tensors_info_get_nth_info (&nns_out_info_, idx);
+
     trix_out_info_.info[idx].layout = convert_data_layout (output_layout[idx]);
-    trix_out_info_.info[idx].type = convert_data_type (nns_out_info_.info[idx].type);
+    trix_out_info_.info[idx].type = convert_data_type (_info->type);
   }
 }
 
