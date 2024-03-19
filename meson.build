@@ -537,7 +537,7 @@ features = {
   },
   'tf-support': {
     'target': 'tensorflow',
-    'extra_deps': [ protobuf_dep ],
+    'extra_deps': [ ],
     'project_args': { 'ENABLE_TENSORFLOW': 1 },
   },
   'tflite-support': {

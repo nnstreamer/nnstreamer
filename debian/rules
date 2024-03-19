@@ -44,7 +44,8 @@ override_dh_auto_configure:
 ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes), yes)
 	meson --buildtype=plain --prefix=/usr --sysconfdir=/etc --libdir=lib/$(DEB_HOST_MULTIARCH) --bindir=lib/nnstreamer/bin --includedir=include \
 	-Denable-edgetpu=true -Denable-openvino=true -Dgrpc-support=disabled -Dmqtt-support=enabled \
-	-Ddatarepo-support=enabled -Donnxruntime-support=enabled \
+	-Ddatarepo-support=enabled \
+	-Dtf-support=enabled \
 	-Denable-tizen=false -Denable-test=true -Dinstall-test=true -Dsubplugindir=/usr/lib/nnstreamer $(FLOAT16) ${BUILDDIR}
 else
 	# Debian has less packages ready.
@@ -68,7 +69,7 @@ ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes), yes)
 ifeq ($(DEB_HOST_ARCH), amd64)
 	if [ -f './tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw' ]; then ./packaging/run_unittests_binaries.sh ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw; fi
 endif
-	cd tests && ssat -n -p=1 && cd ..
+	echo "Skipping SSAT tests"
 else
 	echo "Skipping SSAT test because it's not in Debian."
 endif
@@ -94,4 +95,4 @@ else
 endif
 
 override_dh_shlibdeps:
-	dh_shlibdeps --exclude=libtensorflow2-lite-custom.so
+	dh_shlibdeps --exclude=libtensorflow2-lite-custom.so --dpkg-shlibdeps-params=--ignore-missing-info

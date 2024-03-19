@@ -9,5 +9,4 @@
 /usr/lib/*/libnnstreamer-converter-util.so
 /usr/lib/*/libnnstreamer-decoder-util.so
 /usr/lib/*/libnnstreamer.so
-/usr/lib/*/gstreamer-1.0/libgstedge.so
 /usr/lib/*/gstreamer-1.0/libnnstreamer.so
