@@ -13,7 +13,7 @@ In order to build and run Docker containers from the provided Dockerfile, [docke
 The `docker build` command builds the Docker image from the given Dockerfile in the specified `PATH`. For example, the following commands create a container image using the Dockerfile in the current directory.
 
 ```bash
-$ cd tools/docker
+$ cd tools/docker/UbuntuBuild
 $ docker build .
 ```
 
@@ -22,7 +22,7 @@ Instead of `.`, it is possible to specify the the directory that includes the Do
 ```bash
 $ pwd
 ~/nnstreamer
-$ docker build ./tools/docker/
+$ docker build ./tools/docker/UbuntuBuild
 ```
 
 To check the created image, use the `images` sub-command.
@@ -39,7 +39,7 @@ By default, the created image is based on Ubuntu 18.04 and all of the sub-plugin
 To name and tag the created image, use the `-t` option with the [`build`](https://docs.docker.com/engine/reference/commandline/build/) sub-command.
 
 ```bash
-$ cd tools/docker
+$ cd tools/docker/UbuntuBuild
 $ docker build . -t nns:latest
 ...
 $ docker images
