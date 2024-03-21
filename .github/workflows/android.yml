@@ -8,23 +8,24 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v4
+    - uses: myungjoo/is_rebuild_required@v1
       with:
-        ref: ${{ github.event.pull_request.head.sha }}
-        fetch-depth: -${{ github.event.pull_request.commits }}
-    - uses: nttld/setup-ndk@v1
+        build-script: 'android'
+    - name: Setup Android NDK
+      if: env.rebuild == '1'
+      uses: nttld/setup-ndk@v1
       with:
         ndk-version: r12b
         link-to-sdk: true
-    - name: Check if rebuild required
-      ## @todo This should become a reusable workflow.
-      run: |
-        tmpfile=$(mktemp)
-        git show --pretty="format:" --name-only --diff-filter=AMRC ${{ github.event.pull_request.head.sha}} -${{ github.event.pull_request.commits }} | sort | uniq | awk NF > ${tmpfile}
-        echo "changed_file_list=${tmpfile}" >> "$GITHUB_ENV"
-        rebuild=`bash .github/workflows/check_if_rebuild_requires.sh ${tmpfile} android | grep "REBUILD=YES" | wc -l`
-        echo "Rebuild required: ${rebuild}"
-        echo "rebuild=${rebuild}" >> "$GITHUB_ENV"
+    - name: Setup JDK 17
+      if: env.rebuild == '1'
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+    - name: Setup Android SDK
+      if: env.rebuild == '1'
+      uses: android-actions/setup-android@v3
     - name: make cache key
       if: env.rebuild == '1'
       id: make-key
@@ -37,6 +38,18 @@ jobs:
       with:
         path: ~/android
         key: ${{ steps.make-key.outputs.cache_key }}
+    - name: get NNStreamer API
+      if: env.rebuild == '1'
+      uses: actions/checkout@v4
+      with:
+        repository: nnstreamer/api
+        path: api
+    - name: get NNStreamer Edge
+      if: env.rebuild == '1'
+      uses: actions/checkout@v4
+      with:
+        repository: nnstreamer/nnstreamer-edge
+        path: nnstreamer-edge
     - name: Prepare Build
       if: env.rebuild == '1'
       run: |
@@ -57,7 +70,7 @@ jobs:
           popd
           echo "::endgroup::"
         fi
-    - name: NDK Build
+    - name: Build and Test
       if: env.rebuild == '1'
       run: |
         export GSTREAMER_ROOT_ANDROID=~/android/gst_root_android
@@ -73,11 +86,13 @@ jobs:
         export LD=$target_host-ld
         export STRIP=$target_host-strip
         export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/android/gst_root_android/arm64/lib/
+        export ANDROID_NDK=$(dirname $(which ndk-build))
+        export ANDROID_SDK=/usr/local/lib/android/sdk/
+
         cd jni
         echo "::group::Build NNStreamer with ndk-build"
         ndk-build NDK_PROJECT_PATH=. APP_BUILD_SCRIPT=./Android-nnstreamer.mk NDK_APPLICATION_MK=./Application.mk -j$(nproc)
         echo "::endgroup::"
-        ls -la ./libs/arm64-v8a/
         cp ./libs/arm64-v8a/libnnstreamer.so $GSTREAMER_ROOT_ANDROID/arm64/lib/gstreamer-1.0/
         export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:./libs/arm64-v8a
 
@@ -94,3 +109,16 @@ jobs:
         ls -la /data/nnstreamer/cerbero.custom-1.12.4-ndkr12b-20190213-0900/build/dist/android_arm64/lib/
         echo "::endgroup::"
         cd ..
+
+        pushd api
+          mkdir -p build_result
+          export ML_API_ROOT=$(pwd)
+          common_option="--gstreamer_dir=$GSTREAMER_ROOT_ANDROID --nnstreamer_dir=$NNSTREAMER_ROOT --nnstreamer_edge_dir=$NNSTREAMER_ROOT/nnstreamer-edge --android_sdk_dir=$ANDROID_SDK --android_ndk_dir=$ANDROID_NDK --result_dir=build_result --enable_nnfw=no"
+          echo "::group::ML Java API full build"
+          bash ./java/build-nnstreamer-android.sh $common_option --build_type=all
+          echo "::endgroup::"
+
+          echo "::group::ML Java API single-only build"
+          bash ./java/build-nnstreamer-android.sh $common_option --build_type=single
+          echo "::endgroup::"
+        popd
