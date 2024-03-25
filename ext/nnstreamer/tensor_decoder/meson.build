@@ -38,7 +38,7 @@ static_library('nnstreamer_decoder_image_labeling',
 
 # bounding boxes
 decoder_sub_bounding_boxes_sources = [
-  'tensordec-boundingbox.c',
+  'tensordec-boundingbox.cc',
   'tensordecutil.c',
   'tensordec-font.c'
 ]
