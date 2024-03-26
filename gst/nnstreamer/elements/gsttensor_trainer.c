@@ -402,7 +402,8 @@ gst_tensor_trainer_set_property (GObject * object, guint prop_id,
       if (trainer->ready_to_complete_training == g_value_get_boolean (value))
         break;
       trainer->ready_to_complete_training = g_value_get_boolean (value);
-      if (trainer->ready_to_complete_training)
+      if (trainer->ready_to_complete_training == TRUE
+          && trainer->is_training_complete == FALSE)
         gst_tensor_trainer_stop_model_training (trainer);
       break;
     default:
@@ -493,6 +494,8 @@ gst_tensor_trainer_change_state (GstElement * element,
   switch (transition) {
     case GST_STATE_CHANGE_NULL_TO_READY:
       GST_INFO_OBJECT (trainer, "NULL_TO_READY");
+      /* currently not used */
+      trainer->is_training_complete = FALSE;
       break;
 
     case GST_STATE_CHANGE_READY_TO_PAUSED:
@@ -881,7 +884,6 @@ gst_tensor_trainer_wait_for_training_completion (GstTensorTrainer * trainer)
     g_cond_wait (&trainer->training_completion_cond,
         &trainer->training_completion_lock);
   }
-  trainer->is_training_complete = FALSE;
   g_mutex_unlock (&trainer->training_completion_lock);
 
   GST_DEBUG_OBJECT (trainer, "training is completed in sub-plugin[%s]",
