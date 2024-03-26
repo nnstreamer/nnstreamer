@@ -40,11 +40,6 @@ if caffe2_support_is_available
   extensions += [['caffe2', 'caffe2', nnstreamer_filter_caffe2_deps, 'caffe2_init_net.pb,caffe2_predict_net.pb', 'caffe2']]
 endif
 
-if have_python3
-  extensions += [['python3', 'python3', nnstreamer_python3_helper_dep, 'passthrough.py', 'python3-get']]
-  extensions += [['python3', 'python3', nnstreamer_python3_helper_dep, 'scaler.py', 'python3-set']]
-endif
-
 sed_command = find_program('sed', required: true)
 sed_command_edit_in_place_option = '-i'
 if build_platform == 'macos'
