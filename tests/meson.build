@@ -275,6 +275,17 @@ if gtest_dep.found()
     test('unittest_filter_tensorflow2_lite', unittest_filter_tensorflow2_lite, env: testenv)
   endif
 
+  if have_python3
+    unittest_filter_python3 = executable('unittest_filter_python3',
+      join_paths('nnstreamer_filter_python3', 'unittest_filter_python3.cc'),
+      dependencies: [nnstreamer_unittest_deps, python3_dep],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+
+    test('unittest_filter_python3', unittest_filter_python3, env: testenv)
+  endif
+
   # Run unittest_decoder
   if flatbuf_support_is_available
     unittest_decoder = executable('unittest_decoder',
