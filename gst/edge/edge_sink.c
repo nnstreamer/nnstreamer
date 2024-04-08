@@ -341,11 +341,6 @@ gst_edgesink_start (GstBaseSink * basesink)
       remaining -= 10;
     }
 
-    if (remaining > 0 &&
-        NNS_EDGE_ERROR_NONE != nns_edge_is_connected (self->edge_h)) {
-      g_usleep (remaining * 1000U);
-    }
-
     if (NNS_EDGE_ERROR_NONE != nns_edge_is_connected (self->edge_h)) {
       nns_loge ("Failed to connect to edgesrc within timeout: %ju ms",
           self->connection_timeout);
