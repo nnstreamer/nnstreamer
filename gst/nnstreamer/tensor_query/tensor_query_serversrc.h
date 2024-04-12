@@ -19,7 +19,6 @@
 #include "tensor_query_server.h"
 
 G_BEGIN_DECLS
-
 #define GST_TYPE_TENSOR_QUERY_SERVERSRC \
   (gst_tensor_query_serversrc_get_type())
 #define GST_TENSOR_QUERY_SERVERSRC(obj) \
@@ -31,7 +30,6 @@ G_BEGIN_DECLS
 #define GST_IS_TENSOR_QUERY_SERVERSRC_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_TENSOR_QUERY_SERVERSRC))
 #define GST_TENSOR_QUERY_SERVERSRC_CAST(obj) ((GstTensorQueryServerSrc *)(obj))
-
 typedef struct _GstTensorQueryServerSrc GstTensorQueryServerSrc;
 typedef struct _GstTensorQueryServerSrcClass GstTensorQueryServerSrcClass;
 
@@ -57,6 +55,7 @@ struct _GstTensorQueryServerSrc
   edge_server_handle server_h;
   nns_edge_h edge_h;
   GAsyncQueue *msg_queue;
+  gboolean playing;
 };
 
 /**

@@ -19,10 +19,9 @@
 #include "tensor_meta.h"
 
 G_BEGIN_DECLS
-
 #define DEFAULT_SERVER_ID 0
 #define DEFAULT_QUERY_INFO_TIMEOUT 5
-typedef void * edge_server_handle;
+typedef void *edge_server_handle;
 
 /**
  * @brief GstTensorQueryServer internal info data structure.
@@ -40,45 +39,44 @@ typedef struct
 /**
  * @brief Get nnstreamer edge server handle.
  */
-edge_server_handle
-gst_tensor_query_server_get_handle (const char *id);
+edge_server_handle gst_tensor_query_server_get_handle (const char *id);
 
 /**
  * @brief Add GstTensorQueryServer.
  */
-edge_server_handle
-gst_tensor_query_server_add_data (const char *id, nns_edge_connect_type_e connect_type);
+edge_server_handle gst_tensor_query_server_add_data (const char *id);
 
 /**
  * @brief Remove GstTensorQueryServer.
  */
-void
-gst_tensor_query_server_remove_data (edge_server_handle server_h);
+void gst_tensor_query_server_remove_data (edge_server_handle server_h);
 
 /**
  * @brief Wait until the sink is configured and get server info handle.
  */
-gboolean
-gst_tensor_query_server_wait_sink (edge_server_handle server_h);
+gboolean gst_tensor_query_server_wait_sink (edge_server_handle server_h);
 
 /**
- * @brief Get edge handle from server data.
+ * @brief Get nnstreamer edge handle of query server.
  */
-nns_edge_h
-gst_tensor_query_server_get_edge_handle (edge_server_handle server_h);
+nns_edge_h gst_tensor_query_server_get_edge_handle (const char *id, nns_edge_connect_type_e connect_type);
 
 /**
  * @brief set query server sink configured.
  */
-void
-gst_tensor_query_server_set_configured (edge_server_handle server_h);
+void gst_tensor_query_server_set_configured (edge_server_handle server_h);
 
 /**
  * @brief set query server caps.
  */
 void
-gst_tensor_query_server_set_caps (edge_server_handle server_h, const char *caps_str);
+gst_tensor_query_server_set_caps (edge_server_handle server_h,
+    const char *caps_str);
+
+/**
+ * @brief Release nnstreamer edge handle of query server.
+ */
+void gst_tensor_query_server_release_edge_handle (edge_server_handle server_h);
 
 G_END_DECLS
-
 #endif /* __GST_TENSOR_QUERY_CLIENT_H__ */
