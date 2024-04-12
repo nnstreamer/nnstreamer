@@ -130,37 +130,37 @@ static void
 gst_tensor_query_serversink_finalize (GObject * object)
 {
   GstTensorQueryServerSink *sink = GST_TENSOR_QUERY_SERVERSINK (object);
-  gst_tensor_query_server_remove_data (sink->server_h);
+  gst_tensor_query_server_remove_data (sink->sink_id);
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
 /**
  * @brief start processing of query_serversink
  */
-static void
+static gboolean
 _gst_tensor_query_serversink_start (GstTensorQueryServerSink * sink)
 {
-  gchar *id_str = NULL;
+  gboolean ret;
 
-  id_str = g_strdup_printf ("%u", sink->sink_id);
-  sink->server_h = gst_tensor_query_server_add_data (id_str);
-  g_free (id_str);
+  ret = gst_tensor_query_server_add_data (sink->sink_id);
+  if (ret)
+    gst_tensor_query_server_set_configured (sink->sink_id);
 
-  gst_tensor_query_server_set_configured (sink->server_h);
+  return ret;
 }
 
 /**
  * @brief start processing of query_serversink
  */
-static void
+static gboolean
 _gst_tensor_query_serversink_playing (GstTensorQueryServerSink * sink)
 {
-  gchar *id_str = NULL;
+  gboolean ret;
 
-  id_str = g_strdup_printf ("%u", sink->sink_id);
-  sink->edge_h =
-      gst_tensor_query_server_get_edge_handle (id_str, sink->connect_type);
-  g_free (id_str);
+  ret = gst_tensor_query_server_prepare (sink->sink_id, sink->connect_type,
+      NULL);
+
+  return ret;
 }
 
 /**
@@ -175,18 +175,17 @@ gst_tensor_query_serversink_change_state (GstElement * element,
 
   switch (transition) {
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
-      _gst_tensor_query_serversink_playing (sink);
-      if (!sink->edge_h) {
+      if (!_gst_tensor_query_serversink_playing (sink)) {
         nns_loge ("Failed to change state from PAUSED to PLAYING.");
         return GST_STATE_CHANGE_FAILURE;
       }
       break;
     case GST_STATE_CHANGE_READY_TO_PAUSED:
-      _gst_tensor_query_serversink_start (sink);
-      if (!sink->server_h) {
+      if (!_gst_tensor_query_serversink_start (sink)) {
         nns_loge ("Failed to change state from READY to PAUSED.");
         return GST_STATE_CHANGE_FAILURE;
       }
+      break;
     default:
       break;
   }
@@ -199,8 +198,7 @@ gst_tensor_query_serversink_change_state (GstElement * element,
 
   switch (transition) {
     case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
-      gst_tensor_query_server_release_edge_handle (sink->server_h);
-      sink->edge_h = NULL;
+      gst_tensor_query_server_release_edge_handle (sink->sink_id);
       break;
     default:
       break;
@@ -277,7 +275,7 @@ gst_tensor_query_serversink_set_caps (GstBaseSink * bsink, GstCaps * caps)
   caps_str = gst_caps_to_string (caps);
 
   new_caps_str = g_strdup_printf ("@query_server_sink_caps@%s", caps_str);
-  gst_tensor_query_server_set_caps (sink->server_h, new_caps_str);
+  gst_tensor_query_server_set_caps (sink->sink_id, new_caps_str);
 
   g_free (new_caps_str);
   g_free (caps_str);
@@ -293,42 +291,15 @@ gst_tensor_query_serversink_render (GstBaseSink * bsink, GstBuffer * buf)
 {
   GstTensorQueryServerSink *sink = GST_TENSOR_QUERY_SERVERSINK (bsink);
   GstMetaQuery *meta_query;
-  nns_edge_data_h data_h;
-  guint i, num_tensors = 0;
-  gint ret;
-  GstMemory *mem[NNS_TENSOR_SIZE_LIMIT];
-  GstMapInfo map[NNS_TENSOR_SIZE_LIMIT];
-  char *val;
 
   meta_query = gst_buffer_get_meta_query (buf);
   if (meta_query) {
     sink->metaless_frame_count = 0;
 
-    ret = nns_edge_data_create (&data_h);
-    if (ret != NNS_EDGE_ERROR_NONE) {
-      nns_loge ("Failed to create data handle in server sink.");
+    if (!gst_tensor_query_server_send_buffer (sink->sink_id, buf)) {
+      nns_loge ("Failed to send buffer to edge device in server sink.");
       return GST_FLOW_ERROR;
     }
-
-    num_tensors = gst_tensor_buffer_get_count (buf);
-    for (i = 0; i < num_tensors; i++) {
-      mem[i] = gst_tensor_buffer_get_nth_memory (buf, i);
-      if (!gst_memory_map (mem[i], &map[i], GST_MAP_READ)) {
-        ml_loge ("Cannot map the %uth memory in gst-buffer.", i);
-        gst_memory_unref (mem[i]);
-        num_tensors = i;
-        nns_edge_data_destroy (data_h);
-        goto done;
-      }
-      nns_edge_data_add (data_h, map[i].data, map[i].size, NULL);
-    }
-
-    val = g_strdup_printf ("%lld", (long long) meta_query->client_id);
-    nns_edge_data_set_info (data_h, "client_id", val);
-    g_free (val);
-
-    nns_edge_send (sink->edge_h, data_h);
-    nns_edge_data_destroy (data_h);
   } else {
     nns_logw ("Cannot get tensor query meta. Drop buffers!\n");
     sink->metaless_frame_count++;
@@ -340,11 +311,6 @@ gst_tensor_query_serversink_render (GstBaseSink * bsink, GstBuffer * buf)
           "See: https://github.com/nnstreamer/nnstreamer/wiki/Available-elements-on-query-server");
       return GST_FLOW_ERROR;
     }
-  }
-done:
-  for (i = 0; i < num_tensors; i++) {
-    gst_memory_unmap (mem[i], &map[i]);
-    gst_memory_unref (mem[i]);
   }
 
   return GST_FLOW_OK;
