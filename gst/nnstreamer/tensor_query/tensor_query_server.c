@@ -72,11 +72,9 @@ gst_tensor_query_server_get_handle (const char *id)
  * @brief Add nnstreamer edge server handle into hash table.
  */
 edge_server_handle
-gst_tensor_query_server_add_data (const char *id,
-    nns_edge_connect_type_e connect_type)
+gst_tensor_query_server_add_data (const char *id)
 {
   GstTensorQueryServer *data = NULL;
-  int ret;
 
   data = gst_tensor_query_server_get_handle (id);
 
@@ -95,14 +93,6 @@ gst_tensor_query_server_add_data (const char *id,
   data->id = g_strdup (id);
   data->configured = FALSE;
 
-  ret = nns_edge_create_handle (id, connect_type,
-      NNS_EDGE_NODE_TYPE_QUERY_SERVER, &data->edge_h);
-  if (NNS_EDGE_ERROR_NONE != ret) {
-    GST_ERROR ("Failed to get nnstreamer edge handle.");
-    _release_server_data (data);
-    return NULL;
-  }
-
   G_LOCK (query_server_table);
   g_hash_table_insert (_qs_table, g_strdup (id), data);
   G_UNLOCK (query_server_table);
@@ -110,16 +100,48 @@ gst_tensor_query_server_add_data (const char *id,
   return data;
 }
 
-
 /**
- * @brief Get edge handle from server data.
+ * @brief Get nnstreamer edge handle of query server.
  */
 nns_edge_h
-gst_tensor_query_server_get_edge_handle (edge_server_handle server_h)
+gst_tensor_query_server_get_edge_handle (const char *id,
+    nns_edge_connect_type_e connect_type)
+{
+  GstTensorQueryServer *data = NULL;
+  int ret;
+
+  data = gst_tensor_query_server_get_handle (id);
+  if (!data)
+    return NULL;
+
+  g_mutex_lock (&data->lock);
+  if (data->edge_h) {
+    goto done;
+  }
+
+  ret = nns_edge_create_handle (id, connect_type,
+      NNS_EDGE_NODE_TYPE_QUERY_SERVER, &data->edge_h);
+  if (NNS_EDGE_ERROR_NONE != ret) {
+    GST_ERROR ("Failed to get nnstreamer edge handle.");
+  }
+
+done:
+  g_mutex_unlock (&data->lock);
+  return data->edge_h;
+}
+
+/**
+ * @brief Release nnstreamer edge handle of query server.
+ */
+void
+gst_tensor_query_server_release_edge_handle (edge_server_handle server_h)
 {
   GstTensorQueryServer *data = (GstTensorQueryServer *) server_h;
 
-  return data ? data->edge_h : NULL;
+  g_mutex_lock (&data->lock);
+  nns_edge_release_handle (data->edge_h);
+  data->edge_h = NULL;
+  g_mutex_unlock (&data->lock);
 }
 
 /**

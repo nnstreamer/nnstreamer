@@ -20,7 +20,6 @@
 #include "tensor_query_server.h"
 #include "tensor_query_common.h"
 G_BEGIN_DECLS
-
 #define GST_TYPE_TENSOR_QUERY_SERVERSINK \
   (gst_tensor_query_serversink_get_type())
 #define GST_TENSOR_QUERY_SERVERSINK(obj) \
@@ -32,7 +31,6 @@ G_BEGIN_DECLS
 #define GST_IS_TENSOR_QUERY_SERVERSINK_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_TENSOR_QUERY_SERVERSINK))
 #define GST_TENSOR_QUERY_SERVERSINK_CAST(obj) ((GstTensorQueryServerSink *)(obj))
-
 typedef struct _GstTensorQueryServerSink GstTensorQueryServerSink;
 typedef struct _GstTensorQueryServerSinkClass GstTensorQueryServerSinkClass;
 

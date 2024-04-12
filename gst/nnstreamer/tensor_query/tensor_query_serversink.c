@@ -42,14 +42,14 @@ enum
 #define gst_tensor_query_serversink_parent_class parent_class
 G_DEFINE_TYPE (GstTensorQueryServerSink, gst_tensor_query_serversink,
     GST_TYPE_BASE_SINK);
-
+static GstStateChangeReturn gst_tensor_query_serversink_change_state (GstElement
+    * element, GstStateChange transition);
 static void gst_tensor_query_serversink_set_property (GObject * object,
     guint prop_id, const GValue * value, GParamSpec * pspec);
 static void gst_tensor_query_serversink_get_property (GObject * object,
     guint prop_id, GValue * value, GParamSpec * pspec);
 static void gst_tensor_query_serversink_finalize (GObject * object);
 
-static gboolean gst_tensor_query_serversink_start (GstBaseSink * bsink);
 static GstFlowReturn gst_tensor_query_serversink_render (GstBaseSink * bsink,
     GstBuffer * buf);
 static gboolean gst_tensor_query_serversink_set_caps (GstBaseSink * basesink,
@@ -69,6 +69,7 @@ gst_tensor_query_serversink_class_init (GstTensorQueryServerSinkClass * klass)
   gstelement_class = (GstElementClass *) gstbasesink_class;
   gobject_class = (GObjectClass *) gstelement_class;
 
+  gstelement_class->change_state = gst_tensor_query_serversink_change_state;
   gobject_class->set_property = gst_tensor_query_serversink_set_property;
   gobject_class->get_property = gst_tensor_query_serversink_get_property;
   gobject_class->finalize = gst_tensor_query_serversink_finalize;
@@ -103,7 +104,6 @@ gst_tensor_query_serversink_class_init (GstTensorQueryServerSinkClass * klass)
       "Send tensor data as a server over the network",
       "Samsung Electronics Co., Ltd.");
 
-  gstbasesink_class->start = gst_tensor_query_serversink_start;
   gstbasesink_class->set_caps = gst_tensor_query_serversink_set_caps;
   gstbasesink_class->render = gst_tensor_query_serversink_render;
 
@@ -132,6 +132,81 @@ gst_tensor_query_serversink_finalize (GObject * object)
   GstTensorQueryServerSink *sink = GST_TENSOR_QUERY_SERVERSINK (object);
   gst_tensor_query_server_remove_data (sink->server_h);
   G_OBJECT_CLASS (parent_class)->finalize (object);
+}
+
+/**
+ * @brief start processing of query_serversink
+ */
+static void
+_gst_tensor_query_serversink_start (GstTensorQueryServerSink * sink)
+{
+  gchar *id_str = NULL;
+
+  id_str = g_strdup_printf ("%u", sink->sink_id);
+  sink->server_h = gst_tensor_query_server_add_data (id_str);
+  g_free (id_str);
+
+  gst_tensor_query_server_set_configured (sink->server_h);
+}
+
+/**
+ * @brief start processing of query_serversink
+ */
+static void
+_gst_tensor_query_serversink_playing (GstTensorQueryServerSink * sink)
+{
+  gchar *id_str = NULL;
+
+  id_str = g_strdup_printf ("%u", sink->sink_id);
+  sink->edge_h =
+      gst_tensor_query_server_get_edge_handle (id_str, sink->connect_type);
+  g_free (id_str);
+}
+
+/**
+ * @brief Change state of query server sink.
+ */
+static GstStateChangeReturn
+gst_tensor_query_serversink_change_state (GstElement * element,
+    GstStateChange transition)
+{
+  GstTensorQueryServerSink *sink = GST_TENSOR_QUERY_SERVERSINK (element);
+  GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
+
+  switch (transition) {
+    case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+      _gst_tensor_query_serversink_playing (sink);
+      if (!sink->edge_h) {
+        nns_loge ("Failed to change state from PAUSED to PLAYING.");
+        return GST_STATE_CHANGE_FAILURE;
+      }
+      break;
+    case GST_STATE_CHANGE_READY_TO_PAUSED:
+      _gst_tensor_query_serversink_start (sink);
+      if (!sink->server_h) {
+        nns_loge ("Failed to change state from READY to PAUSED.");
+        return GST_STATE_CHANGE_FAILURE;
+      }
+    default:
+      break;
+  }
+
+  ret = GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
+  if (ret == GST_STATE_CHANGE_FAILURE) {
+    nns_loge ("Failed to change state");
+    return ret;
+  }
+
+  switch (transition) {
+    case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
+      gst_tensor_query_server_release_edge_handle (sink->server_h);
+      sink->edge_h = NULL;
+      break;
+    default:
+      break;
+  }
+
+  return ret;
 }
 
 /**
@@ -188,26 +263,6 @@ gst_tensor_query_serversink_get_property (GObject * object, guint prop_id,
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
-}
-
-/**
- * @brief start processing of query_serversink
- */
-static gboolean
-gst_tensor_query_serversink_start (GstBaseSink * bsink)
-{
-  GstTensorQueryServerSink *sink = GST_TENSOR_QUERY_SERVERSINK (bsink);
-  gchar *id_str = NULL;
-
-  id_str = g_strdup_printf ("%u", sink->sink_id);
-  sink->server_h =
-      gst_tensor_query_server_add_data (id_str, sink->connect_type);
-  g_free (id_str);
-
-  sink->edge_h = gst_tensor_query_server_get_edge_handle (sink->server_h);
-  gst_tensor_query_server_set_configured (sink->server_h);
-
-  return TRUE;
 }
 
 /**
