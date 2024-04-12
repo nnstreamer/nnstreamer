@@ -21,14 +21,29 @@
 G_BEGIN_DECLS
 #define DEFAULT_SERVER_ID 0
 #define DEFAULT_QUERY_INFO_TIMEOUT 5
-typedef void *edge_server_handle;
+
+/**
+ * @brief Internal data structure for nns-edge info to prepare edge connection.
+ */
+typedef struct
+{
+  gchar *host;
+  guint16 port;
+  gchar *dest_host;
+  guint16 dest_port;
+  gchar *topic;
+
+  /* nns-edge callback info */
+  nns_edge_event_cb cb;
+  void *pdata;
+} GstTensorQueryEdgeInfo;
 
 /**
  * @brief GstTensorQueryServer internal info data structure.
  */
 typedef struct
 {
-  char *id;
+  guint id;
   gboolean configured;
   GMutex lock;
   GCond cond;
@@ -37,46 +52,45 @@ typedef struct
 } GstTensorQueryServer;
 
 /**
- * @brief Get nnstreamer edge server handle.
- */
-edge_server_handle gst_tensor_query_server_get_handle (const char *id);
-
-/**
  * @brief Add GstTensorQueryServer.
  */
-edge_server_handle gst_tensor_query_server_add_data (const char *id);
+gboolean gst_tensor_query_server_add_data (const guint id);
+
+/**
+ * @brief Prepare edge connection and its handle.
+ */
+gboolean gst_tensor_query_server_prepare (const guint id,
+    nns_edge_connect_type_e connect_type, GstTensorQueryEdgeInfo *edge_info);
 
 /**
  * @brief Remove GstTensorQueryServer.
  */
-void gst_tensor_query_server_remove_data (edge_server_handle server_h);
+void gst_tensor_query_server_remove_data (const guint id);
 
 /**
  * @brief Wait until the sink is configured and get server info handle.
  */
-gboolean gst_tensor_query_server_wait_sink (edge_server_handle server_h);
+gboolean gst_tensor_query_server_wait_sink (const guint id);
 
 /**
- * @brief Get nnstreamer edge handle of query server.
+ * @brief Send buffer to connected edge device.
  */
-nns_edge_h gst_tensor_query_server_get_edge_handle (const char *id, nns_edge_connect_type_e connect_type);
+gboolean gst_tensor_query_server_send_buffer (const guint id, GstBuffer *buffer);
 
 /**
  * @brief set query server sink configured.
  */
-void gst_tensor_query_server_set_configured (edge_server_handle server_h);
+void gst_tensor_query_server_set_configured (const guint id);
 
 /**
  * @brief set query server caps.
  */
-void
-gst_tensor_query_server_set_caps (edge_server_handle server_h,
-    const char *caps_str);
+void gst_tensor_query_server_set_caps (const guint id, const gchar *caps_str);
 
 /**
  * @brief Release nnstreamer edge handle of query server.
  */
-void gst_tensor_query_server_release_edge_handle (edge_server_handle server_h);
+void gst_tensor_query_server_release_edge_handle (const guint id);
 
 G_END_DECLS
 #endif /* __GST_TENSOR_QUERY_CLIENT_H__ */

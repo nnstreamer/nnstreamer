@@ -47,8 +47,6 @@ struct _GstTensorQueryServerSink
   gint metaless_frame_count;
 
   nns_edge_connect_type_e connect_type;
-  edge_server_handle server_h;
-  nns_edge_h edge_h;
 };
 
 /**

@@ -88,6 +88,7 @@ gst_tensor_query_serversrc_class_init (GstTensorQueryServerSrcClass * klass)
   gobject_class->get_property = gst_tensor_query_serversrc_get_property;
   gobject_class->finalize = gst_tensor_query_serversrc_finalize;
   gstelement_class->change_state = gst_tensor_query_serversrc_change_state;
+  gstpushsrc_class->create = gst_tensor_query_serversrc_create;
 
   g_object_class_install_property (gobject_class, PROP_HOST,
       g_param_spec_string ("host", "Host", "The hostname to listen as",
@@ -135,8 +136,6 @@ gst_tensor_query_serversrc_class_init (GstTensorQueryServerSrcClass * klass)
       "TensorQueryServerSrc", "Source/Tensor/Query",
       "Receive tensor data as a server over the network",
       "Samsung Electronics Co., Ltd.");
-
-  gstpushsrc_class->create = gst_tensor_query_serversrc_create;
 
   GST_DEBUG_CATEGORY_INIT (gst_tensor_query_serversrc_debug,
       "tensor_query_serversrc", 0, "Tensor Query Server Source");
@@ -233,18 +232,15 @@ _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
 static gboolean
 _gst_tensor_query_serversrc_start (GstTensorQueryServerSrc * src)
 {
-  gchar *id_str = NULL;
+  gboolean ret = FALSE;
 
-  id_str = g_strdup_printf ("%u", src->src_id);
-  src->server_h = gst_tensor_query_server_add_data (id_str);
-  g_free (id_str);
+  if (gst_tensor_query_server_add_data (src->src_id))
+    ret = gst_tensor_query_server_wait_sink (src->src_id);
 
-  if (!gst_tensor_query_server_wait_sink (src->server_h)) {
+  if (!ret)
     nns_loge ("Failed to get server information from query server.");
-    return FALSE;
-  }
 
-  return TRUE;
+  return ret;
 }
 
 /**
@@ -254,44 +250,20 @@ static gboolean
 _gst_tensor_query_serversrc_playing (GstTensorQueryServerSrc * src,
     nns_edge_connect_type_e connect_type)
 {
-  gchar *id_str = NULL, *port = NULL, *dest_port = NULL;
+  GstTensorQueryEdgeInfo edge_info = { 0 };
+  gboolean ret;
 
-  id_str = g_strdup_printf ("%u", src->src_id);
-  src->edge_h = gst_tensor_query_server_get_edge_handle (id_str, connect_type);
-  g_free (id_str);
+  edge_info.host = src->host;
+  edge_info.port = src->port;
+  edge_info.dest_host = src->dest_host;
+  edge_info.dest_port = src->dest_port;
+  edge_info.topic = src->topic;
+  edge_info.cb = _nns_edge_event_cb;
+  edge_info.pdata = src;
 
-  if (!src->edge_h) {
-    return FALSE;
-  }
+  ret = gst_tensor_query_server_prepare (src->src_id, connect_type, &edge_info);
 
-  if (src->host)
-    nns_edge_set_info (src->edge_h, "HOST", src->host);
-  if (src->port > 0) {
-    port = g_strdup_printf ("%u", src->port);
-    nns_edge_set_info (src->edge_h, "PORT", port);
-    g_free (port);
-  }
-  if (src->dest_host)
-    nns_edge_set_info (src->edge_h, "DEST_HOST", src->dest_host);
-  if (src->dest_port > 0) {
-    dest_port = g_strdup_printf ("%u", src->dest_port);
-    nns_edge_set_info (src->edge_h, "DEST_PORT", dest_port);
-    g_free (dest_port);
-  }
-  if (src->topic)
-    nns_edge_set_info (src->edge_h, "TOPIC", src->topic);
-
-  nns_edge_set_event_callback (src->edge_h, _nns_edge_event_cb, src);
-
-  if (NNS_EDGE_ERROR_NONE != nns_edge_start (src->edge_h)) {
-    nns_loge
-        ("Failed to start NNStreamer-edge. Please check server IP and port.");
-    return FALSE;
-  }
-
-  src->playing = TRUE;
-
-  return TRUE;
+  return ret;
 }
 
 /**
@@ -331,11 +303,10 @@ gst_tensor_query_serversrc_change_state (GstElement * element,
   switch (transition) {
     case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
       src->playing = FALSE;
-      gst_tensor_query_server_release_edge_handle (src->server_h);
-      src->edge_h = NULL;
+      gst_tensor_query_server_release_edge_handle (src->src_id);
       break;
     case GST_STATE_CHANGE_PAUSED_TO_READY:
-      gst_tensor_query_server_remove_data (src->server_h);
+      gst_tensor_query_server_remove_data (src->src_id);
       break;
     default:
       break;
@@ -459,12 +430,13 @@ _gst_tensor_query_serversrc_get_buffer (GstTensorQueryServerSrc * src)
   GstMetaQuery *meta_query;
   int ret;
 
-  while (src->playing && !data_h)
+  while (src->playing && !data_h) {
     data_h = g_async_queue_timeout_pop (src->msg_queue,
         DEFAULT_DATA_POP_TIMEOUT);
+  }
 
   if (!data_h) {
-    nns_loge ("Failed to get message from the server message queue");
+    nns_loge ("Failed to get message from the server message queue.");
     return NULL;
   }
 
@@ -515,6 +487,8 @@ gst_tensor_query_serversrc_create (GstPushSrc * psrc, GstBuffer ** outbuf)
 {
   GstTensorQueryServerSrc *src = GST_TENSOR_QUERY_SERVERSRC (psrc);
   GstBaseSrc *bsrc = GST_BASE_SRC (psrc);
+  GstStateChangeReturn sret;
+  GstState state = GST_STATE_NULL;
 
   if (!src->configured) {
     gchar *caps_str, *new_caps_str;
@@ -527,7 +501,7 @@ gst_tensor_query_serversrc_create (GstPushSrc * psrc, GstBuffer ** outbuf)
     caps_str = gst_caps_to_string (caps);
 
     new_caps_str = g_strdup_printf ("@query_server_src_caps@%s", caps_str);
-    gst_tensor_query_server_set_caps (src->server_h, new_caps_str);
+    gst_tensor_query_server_set_caps (src->src_id, new_caps_str);
     g_free (new_caps_str);
     g_free (caps_str);
 
@@ -537,6 +511,12 @@ gst_tensor_query_serversrc_create (GstPushSrc * psrc, GstBuffer ** outbuf)
 
   *outbuf = _gst_tensor_query_serversrc_get_buffer (src);
   if (*outbuf == NULL) {
+    sret = gst_element_get_state (GST_ELEMENT (psrc), &state, NULL, 0);
+    if (sret != GST_STATE_CHANGE_SUCCESS || state != GST_STATE_PLAYING) {
+      nns_logw ("Failed to get buffer for query server, not in PLAYING state.");
+      return GST_FLOW_FLUSHING;
+    }
+
     nns_loge ("Failed to get buffer to push to the tensor query serversrc.");
     return GST_FLOW_ERROR;
   }
