@@ -112,19 +112,21 @@ gst_tensor_query_server_prepare (const guint id,
   GstTensorQueryServer *data;
   gchar *port_str, *id_str;
   gboolean prepared = FALSE;
-  int ret;
+  gint ret;
 
   data = gst_tensor_query_server_get_handle (id);
   if (NULL == data) {
     return FALSE;
   }
 
-  id_str = g_strdup_printf ("%u", id);
-
   g_mutex_lock (&data->lock);
   if (data->edge_h == NULL) {
+    id_str = g_strdup_printf ("%u", id);
+
     ret = nns_edge_create_handle (id_str, connect_type,
         NNS_EDGE_NODE_TYPE_QUERY_SERVER, &data->edge_h);
+    g_free (id_str);
+
     if (NNS_EDGE_ERROR_NONE != ret) {
       GST_ERROR ("Failed to get nnstreamer edge handle.");
       goto done;
@@ -166,7 +168,6 @@ gst_tensor_query_server_prepare (const guint id,
 
 done:
   g_mutex_unlock (&data->lock);
-  g_free (id_str);
   return prepared;
 }
 
