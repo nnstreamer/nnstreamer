@@ -59,7 +59,7 @@ function findFirstMatchedFileNumber() {
     fi
 
     command -v cmp
-    
+
     if [[ $? == 0 && ! -L $(which cmp) ]]; then
         cmp_exist=1
     else
@@ -67,7 +67,7 @@ function findFirstMatchedFileNumber() {
     fi
 
     while :
-    do  
+    do
         num=$((num+1))
         raw_file="$1$num$2"
 
@@ -97,12 +97,12 @@ function findFirstMatchedFileNumber() {
     done
 }
 
-# Run edge sink server as echo server with default address option. 
+# Run edge sink server as echo server with default address option.
 PORT=`python3 ../../get_available_port.py`
 gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} \
     videotestsrc is-live=true ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tee name=t \
         t. ! queue ! multifilesink location=raw1_%1d.log \
-        t. ! queue ! edgesink port=${PORT} async=false" 1-1 0 0 30
+        t. ! queue ! edgesink port=${PORT} async=false" 1-1 1 0 30
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
     edgesrc dest-port=${PORT} num-buffers=10 ! multifilesink location=result1_%1d.log" 1-2 0 0 $PERFORMANCE
 findFirstMatchedFileNumber "raw1_" ".log" "result1_0.log" 1-3
@@ -124,7 +124,7 @@ PORT=`python3 ../../get_available_port.py`
 gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} \
     videotestsrc is-live=true ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tee name=t \
         t. ! queue ! multifilesink location=raw2_%1d.log \
-        t. ! queue ! edgesink port=${PORT} async=false" 2-1 0 0 30
+        t. ! queue ! edgesink port=${PORT} async=false" 2-1 1 0 30
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
     edgesrc dest-port=${PORT} num-buffers=10 ! multifilesink location=result2_0_%1d.log" 2-2 0 0 $PERFORMANCE
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
@@ -145,7 +145,7 @@ PORT=`python3 ../../get_available_port.py`
 gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} \
     videotestsrc is-live=true ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! other/tensors,format=flexible ! tee name=t \
         t. ! queue ! multifilesink location=raw3_%1d.log \
-        t. ! queue ! edgesink port=${PORT} async=false" 3-1 0 0 30
+        t. ! queue ! edgesink port=${PORT} async=false" 3-1 1 0 30
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
     edgesrc dest-port=${PORT} num-buffers=10 ! multifilesink location=result3_%1d.log" 3-2 0 0 $PERFORMANCE
 findFirstMatchedFileNumber "raw3_" ".log" "result3_0.log" 3-3
@@ -160,7 +160,7 @@ PORT=`python3 ../../get_available_port.py`
 gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} \
     videotestsrc is-live=true ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tensor_converter ! other/tensors,num_tensors=1,dimensions=3:300:300:1,types=uint8,format=static ! tee name=t \
         t. ! queue ! multifilesink location=raw4_%1d.log \
-        t. ! queue ! edgesink port=${PORT} async=false" 4-1 0 0 30
+        t. ! queue ! edgesink port=${PORT} async=false" 4-1 1 0 30
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
     edgesrc dest-port=${PORT} num-buffers=10 ! multifilesink location=result4_%1d.log" 4-2 0 0 $PERFORMANCE
 findFirstMatchedFileNumber "raw4_" ".log" "result4_0.log" 4-3
@@ -175,7 +175,7 @@ PORT=`python3 ../../get_available_port.py`
 gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} \
     audiotestsrc ! audioconvert ! tee name=t \
         t. ! queue ! multifilesink location=raw5_%1d.log \
-        t. ! queue ! edgesink port=${PORT} async=false" 5-1 0 0 30
+        t. ! queue ! edgesink port=${PORT} async=false" 5-1 1 0 30
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
     edgesrc dest-port=${PORT} num-buffers=10 ! multifilesink location=result5_%1d.log" 5-2 0 0 $PERFORMANCE
 findFirstMatchedFileNumber "raw5_" ".log" "result5_0.log" 5-3
@@ -203,7 +203,7 @@ mospid=$!
 gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} \
     videotestsrc is-live=true ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tee name=t \
         t. ! queue ! multifilesink location=raw6_%1d.log \
-        t. ! queue ! edgesink port=0 connect-type=HYBRID dest-host=127.0.0.1 dest-port=${PORT} topic=tempTopic async=false" 6-1 0 0 30
+        t. ! queue ! edgesink port=0 connect-type=HYBRID dest-host=127.0.0.1 dest-port=${PORT} topic=tempTopic async=false" 6-1 1 0 30
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
     edgesrc port=0 connect-type=HYBRID dest-host=127.0.0.1 dest-port=${PORT} topic=tempTopic num-buffers=10 ! multifilesink location=result6_0_%1d.log" 6-2 0 0 $PERFORMANCE
 findFirstMatchedFileNumber "raw6_" ".log" "result6_0_0.log" 6-4
@@ -222,7 +222,7 @@ else
     gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} \
         videotestsrc is-live=true ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tee name=t \
             t. ! queue ! multifilesink location=raw7_%1d.log \
-            t. ! queue ! edgesink port=0 connect-type=AITT dest-host=127.0.0.1 dest-port=${PORT} topic=tempTopic async=false" 7-1 0 0 30
+            t. ! queue ! edgesink port=0 connect-type=AITT dest-host=127.0.0.1 dest-port=${PORT} topic=tempTopic async=false" 7-1 1 0 30
     gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
         edgesrc port=0 connect-type=AITT dest-host=127.0.0.1 dest-port=${PORT} topic=tempTopic num-buffers=10 ! multifilesink location=result7_0_%1d.log" 7-2 0 0 $PERFORMANCE
     gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
@@ -248,7 +248,7 @@ mospid=$!
 gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} \
     videotestsrc is-live=true ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tee name=t \
         t. ! queue ! multifilesink location=raw8_%1d.log \
-        t. ! queue ! edgesink port=0 connect-type=MQTT dest-host=127.0.0.1 dest-port=${PORT} topic=tempTopic async=false" 8-1 0 0 30
+        t. ! queue ! edgesink port=0 connect-type=MQTT dest-host=127.0.0.1 dest-port=${PORT} topic=tempTopic async=false" 8-1 1 0 30
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
     edgesrc port=0 connect-type=MQTT dest-host=127.0.0.1 dest-port=${PORT} topic=tempTopic num-buffers=10 ! multifilesink location=result8_0_%1d.log" 8-2 0 0 $PERFORMANCE
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
