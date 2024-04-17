@@ -180,7 +180,7 @@ ncnn_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   if (std::find (prop->hw_list, prop->hw_list + prop->num_hw, ACCL_GPU)
       != (prop->hw_list + prop->num_hw)) {
     net.opt.use_vulkan_compute = true;
-    nns_logi ("accl = gpu\n");
+    g_message ("accl = gpu\n");
   } else {
     net.opt.use_vulkan_compute = false;
   }
