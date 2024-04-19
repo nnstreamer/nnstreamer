@@ -1,4 +1,4 @@
-ARG UBUNTU_VER=18.04
+ARG UBUNTU_VER=22.04
 # If the value assigned to MIN_RUN_ENV is non-zero length,
 # only nnstreamer, nnstreamer-core, and nnstreamer-configuration packages are installed
 # in the container.
@@ -12,14 +12,17 @@ ARG BUILDDIR=build
 ARG USERNAME=nns
 
 ENV DEBIAN_FRONTEND noninteractive
+ARG UBUNTU_APT_MIRROR="http://archive.ubuntu.com/ubuntu/"
+ENV UBUNTU_APT_MIRROR ${UBUNTU_APT_MIRROR}
 
 RUN set -x && \
     echo "debconf debconf/frontend select ${DEBIAN_FRONTEND}" | debconf-set-selections && \
     echo 'APT::Install-Recommends "false";' | tee /etc/apt/apt.conf.d/99install-recommends && \
     echo 'APT::Get::Assume-Yes "true";' | tee /etc/apt/apt.conf.d/99assume-yes && \
     sed -Ei 's|^(DPkg::Pre-Install-Pkgs .*)|#\1|g' /etc/apt/apt.conf.d/70debconf && \
+    sed -i "s|http://archive.ubuntu.com/ubuntu/|${UBUNTU_APT_MIRROR}|" /etc/apt/sources.list && \
     apt-get update && \
-    apt-get install software-properties-common && \
+    apt-get install software-properties-common gpg-agent && \
     add-apt-repository ppa:nnstreamer/ppa -u && \
     add-apt-repository ppa:one-runtime/ppa -u && \
     apt-get install \
@@ -78,7 +81,7 @@ RUN set -x && \
     echo 'APT::Get::Assume-Yes "true";' | tee /etc/apt/apt.conf.d/99assume-yes && \
     sed -Ei 's|^(DPkg::Pre-Install-Pkgs .*)|#\1|g' /etc/apt/apt.conf.d/70debconf && \
     apt-get update && \
-    apt-get install software-properties-common && \
+    apt-get install software-properties-common gpg-agent && \
     add-apt-repository ppa:nnstreamer/ppa -u && \
     add-apt-repository ppa:one-runtime/ppa -u && \
     apt-get install \
