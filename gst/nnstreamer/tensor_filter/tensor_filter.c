@@ -1346,7 +1346,7 @@ gst_tensor_filter_set_caps (GstBaseTransform * trans,
   gst_tensors_config_from_structure (&config, structure);
   if (gst_tensors_config_is_flexible (&config)) {
     GST_INFO_OBJECT (self, "Output tensor is flexible.");
-  } else if (!gst_tensors_config_is_equal (&priv->out_config, &config)) {
+  } else if (!gst_tensors_info_is_equal (&priv->out_config.info, &config.info)) {
     GstTensorFilterProperties *prop = &priv->prop;
     gchar *compare = gst_tensorsinfo_compare_to_string (&priv->out_config.info,
         &config.info);

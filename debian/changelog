@@ -1,14 +1,82 @@
-nnstreamer (2.4.1.0) unstable bionic focal jammy sid; urgency=medium
+nnstreamer (2.3.0.0+ep1) UNRELEASED; urgency=medium
 
-  * 2.4.1 development starts (2.4.2-RC1)
+  * Non-maintainer upload.
 
- -- MyungJoo Ham <myungjoo.ham@samsung.com>  Fri, 15 Sep 2023 18:30:00 +0900
+ -- Torsten Schulz <torsten@eyepop.ai>  Wed, 05 Jul 2023 16:46:24 -0700
 
-nnstreamer (2.4.0.0) unstable xenial bionic focal; urgency=medium
+nnstreamer (2.3.0.0+nmu14) UNRELEASED; urgency=medium
 
-  * 2.4.0 Release (LTS for Tizen 8.0 M2 Release)
+  * Non-maintainer upload.
+  * 
 
- -- MyungJoo Ham <myungjoo.ham@samsung.com>  Thu, 12 Sep 2023 12:50:00 +0900
+ -- Torsten Schulz <torsten@eyepop.ai>  Thu, 11 May 2023 13:56:03 -0700
+
+nnstreamer (2.3.0.0+nmu13) jammy; urgency=medium
+
+  * Non-maintainer upload.
+  * Allow PyTorch filter to be configured with less output tensors than PyTorch natively returns 
+
+ -- Torsten Schulz <torsten@eyepop.ai>  Thu, 11 May 2023 13:55:58 -0700
+
+nnstreamer (2.3.0.0+nmu12) jammy; urgency=medium
+
+  * Non-maintainer upload.
+  * Merging upstream changes
+
+ -- Torsten Schulz <torsten@eyepop.ai>  Tue, 09 May 2023 16:59:18 -0700
+
+nnstreamer (2.3.0.0+nmu11) jammy; urgency=medium
+
+  * Non-maintainer upload.
+  * PyTorch filter, load model directly into CUDA device if use_gpu=true
+
+ -- Torsten Schulz <torsten@eyepop.ai>  Tue, 25 Apr 2023 15:41:36 -0700
+
+nnstreamer (2.3.0.0+nmu10) jammy; urgency=medium
+
+  * Non-maintainer upload. 
+
+ -- Torsten Schulz <torsten@eyepop.ai>  Mon, 10 Apr 2023 16:28:46 -0700
+
+nnstreamer (2.3.0.0+nmu9) UNRELEASED; urgency=medium
+
+  * Non-maintainer upload. 
+
+ -- Torsten Schulz <torsten@eyepop.ai>  Mon, 03 Apr 2023 20:30:49 -0700
+
+nnstreamer (2.3.0.0+nmu8) UNRELEASED; urgency=medium
+
+  * Non-maintainer upload.
+  * Pickup pytorch 2.0.0 
+
+ -- Torsten Schulz <torsten@eyepop.ai>  Mon, 03 Apr 2023 20:02:06 -0700
+
+nnstreamer (2.3.0.0+nmu7) jammy; urgency=medium
+
+  * Non-maintainer upload.
+  * fix tensorflow debian package (was empty) 
+
+ -- Torsten Schulz <torsten@eyepop.ai>  Mon, 03 Apr 2023 20:01:54 -0700
+
+nnstreamer (2.3.0.0+nmu6) UNRELEASED; urgency=medium
+
+  * Non-maintainer upload.
+  * 
+
+ -- Torsten Schulz <torsten@eyepop.ai>  Fri, 31 Mar 2023 13:51:41 -0700
+
+nnstreamer (2.3.0.0+nmu5) UNRELEASED; urgency=medium
+
+  * Non-maintainer upload.
+  * 
+
+ -- Torsten Schulz <torsten@eyepop.ai>  Tue, 28 Mar 2023 09:53:38 -0700
+
+nnstreamer (2.3.0.0+nmu4) UNRELEASED; urgency=medium
+
+  * Non-maintainer upload. 
+
+ -- Torsten Schulz <torsten@eyepop.ai>  Thu, 09 Feb 2023 16:11:21 -0800
 
 nnstreamer (2.3.0.0) unstable bionic focal jammy sid; urgency=medium
 
