@@ -77,6 +77,7 @@ gboolean
 gst_tensor_query_server_add_data (const guint id)
 {
   GstTensorQueryServer *data;
+  gboolean ret;
 
   data = gst_tensor_query_server_get_handle (id);
 
@@ -96,10 +97,10 @@ gst_tensor_query_server_add_data (const guint id)
   data->configured = FALSE;
 
   G_LOCK (query_server_table);
-  g_hash_table_insert (_qs_table, GUINT_TO_POINTER (id), data);
+  ret = g_hash_table_insert (_qs_table, GUINT_TO_POINTER (id), data);
   G_UNLOCK (query_server_table);
 
-  return TRUE;
+  return ret;
 }
 
 /**

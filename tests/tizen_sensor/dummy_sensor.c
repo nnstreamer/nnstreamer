@@ -145,7 +145,6 @@ sensor_create_listener (sensor_h sensor, sensor_listener_h * listener)
 int
 sensor_destroy_listener (sensor_listener_h listener)
 {
-  bool removed = false;
   sensor_listener_s *l = listener;
   sensor_s *s;
   GHashTable *table;
@@ -161,8 +160,7 @@ sensor_destroy_listener (sensor_listener_h listener)
   if (table == NULL)
     return -EINVAL;
 
-  removed = g_hash_table_remove (table, l);
-  if (removed == false)
+  if (!g_hash_table_remove (table, l))
     return -EINVAL;
 
   return 0;
