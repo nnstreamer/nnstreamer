@@ -6,7 +6,7 @@ title: Code of conduct
 
 ## Our Pledge
 
-In the interest of fostering an open and welcoming environment, we as contributors and maintainers pledge to making participation in our project based on meritocracy and our community a harassment-free experience for everyone.
+In the interest of fostering an open and welcoming environment, we as contributors and maintainers pledge to make participation in our project based on meritocracy and our community a harassment-free experience for everyone.
 
 ## Our Standards
 
@@ -35,7 +35,7 @@ Project maintainers have the right and responsibility to remove, edit, or reject
 
 By submitting a code, you are guaranteeing, up your best knowledge, that
 * The content of the submitted code is not patented or you are providing the right to practice the related patents according to the license of NNStreamer to NNStreamer users and developers.
-* You have the right to contribute the code; you have the copyright (or the copyright holder has permitted to submit the code to NNStreamer). If your code is done for a employer, the employer may have the right to the code.
+* You have the right to contribute the code; you have the copyright (or the copyright holder has permitted to submit the code to NNStreamer). If your code is done for an employer, the employer may have the right to the code.
 * You have tested and verified the code.
 * You allow the maintainers to update the license of the project later as long as the update does not conflict with the base code of this project. The base code is the code before your contribution.
 

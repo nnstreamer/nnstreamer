@@ -63,7 +63,7 @@ Every contributor is able and encouraged to review codes and to participate in o
 
 A committer is responsible for reviewing incoming pull-requests and is able to reject or approve pull requests. Note that contributors may review pull-requests, but they cannot reject it or vote for approval.
 
-A contributor may become a committer with approvals of more than half of the committers. 
+A contributor may become a committer with approvals of more than half of the committers.
 
 A committer may be retired by approvals of more than half of the committers.
 

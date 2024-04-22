@@ -1105,10 +1105,10 @@ gst_tensor_filter_common_free_property (GstTensorFilterPrivate * priv)
 }
 
 /**
- * @brief Parse the accelerator hardwares to be used for this framework
+ * @brief Parse the hardware accelerators to be used for this framework
  * @param[in] priv Struct containing the properties of the object
  * @param[in] prop Struct containing the properties of the framework
- * @param[in] accelerators user given input for hardare accelerators
+ * @param[in] accelerators user given input for hardware accelerators
  * @note The order of preference set by the user is maintained
  */
 static void

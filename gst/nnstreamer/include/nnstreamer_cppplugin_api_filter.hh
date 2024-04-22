@@ -78,20 +78,20 @@ class tensor_filter_subplugin
   /** Helper function */
   static inline tensor_filter_subplugin *get_tfsp_with_checks (void *ptr);
   /** tensor_filter/C wrapper functions */
-  static int cpp_open (const GstTensorFilterProperties *prop, void **private_data); /**< C wrapper func, open */
-  static void cpp_close (const GstTensorFilterProperties *prop, void **private_data); /**< C wrapper func, close */
+  static int cpp_open (const GstTensorFilterProperties *prop, void **private_data); /**< C wrapper function, open */
+  static void cpp_close (const GstTensorFilterProperties *prop, void **private_data); /**< C wrapper function, close */
   static int cpp_invoke (const GstTensorFilterFramework *tf,
       GstTensorFilterProperties *prop, void *private_data, const GstTensorMemory *input,
-      GstTensorMemory *output); /**< C V1 wrapper func, invoke */
+      GstTensorMemory *output); /**< C V1 wrapper function, invoke */
   static int cpp_getFrameworkInfo (const GstTensorFilterFramework *tf,
       const GstTensorFilterProperties *prop, void *private_data,
-      GstTensorFilterFrameworkInfo *fw_info); /**< C V1 wrapper func, getFrameworkInfo */
+      GstTensorFilterFrameworkInfo *fw_info); /**< C V1 wrapper function, getFrameworkInfo */
   static int cpp_getModelInfo (const GstTensorFilterFramework *tf,
       const GstTensorFilterProperties *prop, void *private_data,
-      model_info_ops ops, GstTensorsInfo *in_info, GstTensorsInfo *out_info); /**< C V1 wrapper func, getModelInfo */
+      model_info_ops ops, GstTensorsInfo *in_info, GstTensorsInfo *out_info); /**< C V1 wrapper function, getModelInfo */
   static int cpp_eventHandler (const GstTensorFilterFramework *tf,
       const GstTensorFilterProperties *prop, void *private_data, event_ops ops,
-      GstTensorFilterFrameworkEventData *data); /**< C V1 wrapper func, eventHandler */
+      GstTensorFilterFrameworkEventData *data); /**< C V1 wrapper function, eventHandler */
 
   GstTensorFilterFramework fwdesc; /**< Represents C/V1 wrapper for the derived
                                       class and its objects. Derived should not
@@ -129,8 +129,8 @@ class tensor_filter_subplugin
    * @brief Unregister the registered "derived" class.
    * @detail The registered derived class may unregister itself if it can
    *         guarantee that the class won't be used anymore; i.e., at its
-   * exit(). The derived class type should be the template typename.
-   * @param [in] emptyInstance An emptyInstance that mey be "delete"d by this
+   *         exit(). The derived class type should be the template typename.
+   * @param [in] emptyInstance An emptyInstance that may be "delete"d by this
    *             function. It may be created by getEmptyInstance() or the one
    *             created by register_subplugin(); It is recommended to keep
    *             the object created by register_subplugin() and feed it to
@@ -158,7 +158,7 @@ class tensor_filter_subplugin
    ** These should be filled/implemented by subplugin authors **
    *************************************************************/
   tensor_filter_subplugin ();
-  /**< Creates a non-functional "empty" object
+  /**< Creates a non-functional "empty" object.
        Subplugin (derived class) should make a constructor with same role and input arguments!
     */
 
@@ -193,18 +193,18 @@ class tensor_filter_subplugin
   virtual int getModelInfo (model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info)
       = 0;
   /**< Mandatory virtual method.
-   *  For a given opened model (an instance of the derived class),
+   * For a given opened model (an instance of the derived class),
    * provide input/output dimensions.
-   *  At least one of the two possible ops should be available.
-   *  Return -ENOENT if the ops is not available by this object
-   *  Return -EINVAL if it is an invalid request.
+   * At least one of the two possible ops should be available.
+   * Return -ENOENT if the ops is not available by this object
+   * Return -EINVAL if it is an invalid request.
    */
 
   virtual int eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data);
   /**< Optional. If not implemented, no event is handled
-   *  Return -ENOENT if the ops is not to be handled by this object
+   * Return -ENOENT if the ops is not to be handled by this object
    *                 (e.g., let the framework do "free")
-   *  Return -EINVAL if it is an invalid request.
+   * Return -EINVAL if it is an invalid request.
    */
 };
 

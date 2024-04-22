@@ -110,7 +110,7 @@ extern void
 gst_tensor_caps_update_dimension (GstCaps *caps, GstCaps *filter);
 
 /**
- * @brief  Try intersecting @caps1 and @caps2 for tensor stream
+ * @brief Try intersecting @caps1 and @caps2 for tensor stream
  * @param caps1 a GstCaps to intersect
  * @param caps2 a GstCaps to intersect
  * @return TRUE if intersection would be not empty.
