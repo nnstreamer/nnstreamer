@@ -219,7 +219,7 @@ gst_tensors_info_copy (GstTensorsInfo * dest, const GstTensorsInfo * src);
 /**
  * @brief GstTensorsInfo represented as a string. Caller should free it.
  * @param info GstTensorsInfo structure
- * @return The newly allocated string representing the tensorsinfo. Free after use.
+ * @return The newly allocated string representing the tensors info. Free after use.
  */
 extern gchar *
 gst_tensors_info_to_string (const GstTensorsInfo * info);

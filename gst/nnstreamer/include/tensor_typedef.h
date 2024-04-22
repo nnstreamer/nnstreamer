@@ -23,7 +23,7 @@
  *
  * To Packagers:
  *
- * This fils it to be packaged as "devel" package for NN developers.
+ * This file is to be packaged as "devel" package for NN developers.
  */
 #ifndef __GST_TENSOR_TYPEDEF_H__
 #define __GST_TENSOR_TYPEDEF_H__
@@ -133,7 +133,7 @@
 
 /**
  * @brief Possible data element types of other/tensor.
- * @note When changing tensor type, you shoud update related type in ML-API and protobuf/flatbuf schema also.
+ * @note When changing tensor type, you should update related type in ML-API and protobuf/flatbuf schema also.
  */
 typedef enum _nns_tensor_type
 {
@@ -274,7 +274,7 @@ typedef struct
 {
   unsigned int num_tensors; /**< The number of tensors */
   GstTensorInfo info[NNS_TENSOR_MEMORY_MAX]; /**< The list of tensor info (max NNS_TENSOR_MEMORY_MAX as static) */
-  GstTensorInfo *extra; /**< The list of tensor info for tensors whose idx is larger than NNS_TENSOR_MEMORY_MAX */
+  GstTensorInfo *extra; /**< The list of tensor info for tensors whose index is larger than NNS_TENSOR_MEMORY_MAX */
   tensor_format format; /**< tensor stream type */
 } GstTensorsInfo;
 

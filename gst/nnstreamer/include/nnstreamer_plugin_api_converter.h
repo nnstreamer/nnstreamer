@@ -42,7 +42,7 @@ typedef struct _NNStreamerExternalConverter
 {
   const char *name;
 
-  /* 1. chain func, data handling. */
+  /* 1. chain function, data handling. */
   GstBuffer *(*convert) (GstBuffer * in_buf, GstTensorsConfig * config, void *priv_data);
   /**< Convert the given input stream to tensor/tensors stream.
    *

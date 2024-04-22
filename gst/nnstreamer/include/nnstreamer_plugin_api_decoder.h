@@ -59,7 +59,7 @@ typedef struct _GstTensorDecoderDef
        * @return TRUE if OK. FALSE if error.
        */
   GstCaps *(*getOutCaps) (void **private_data, const GstTensorsConfig *config);
-      /**< The caller should unref the returned GstCaps.
+      /**< The caller should unref the returned GstCaps using gst_caps_unref().
        * The sub-plugin should validate the information of input tensor and return proper media type.
        * Note that the information of input tensor is not a fixed value and the pipeline may try different values during the cap negotiations.
        * Do NOT allocate or fix internal data structure until decode is called.

@@ -23,14 +23,14 @@
 G_BEGIN_DECLS
 /**
  * @brief Decode from tensors to media as customized operation
- * @param[in] input the input memory containg tensors
+ * @param[in] input the input memory containing tensors
  * @param[in] config input tensors config
  * @param[in] data private data for the callback
  * @param[out] output buffer filled by user
  * @return 0 if success. -ERRNO if error.
  */
 typedef int (* tensor_decoder_custom) (const GstTensorMemory *input,
-    const GstTensorsConfig *config, void *data, GstBuffer * out_buf);
+    const GstTensorsConfig *config, void *data, GstBuffer *out_buf);
 
 /**
  * @brief Register the custom callback function.

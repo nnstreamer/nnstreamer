@@ -32,7 +32,7 @@ static const std::vector<MockModel> default_models{
 
 /**
  * @brief Initialize the MockMLAgent using given MockModels
- * @param[in] models A vector containg MockModels
+ * @param[in] models A vector containing MockModels
  */
 void
 _init (const std::vector<MockModel> &models = default_models)

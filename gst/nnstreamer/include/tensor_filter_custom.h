@@ -74,13 +74,13 @@ typedef int (*NNS_custom_get_output_dimension) (void *private_data,
     const GstTensorFilterProperties * prop, GstTensorsInfo * info);
 
 /**
- * @brief Set input dim by framework. Let custom plutin set output dim accordingly.
- * @param[in] private_data The pointer returned by NNStreamer_custom_init
+ * @brief Set input dim by framework. Let custom plugin set output dim accordingly.
+ * @param[in] private_data The pointer returned by NNStreamer_custom_init.
  * @param[in] prop GstTensorFilter's property values. Do not change its values.
- * @param[in] in_info Input tensor info designated by the gstreamer framework. Note that this is not a fixed value and gstreamer may try different values during pad-cap negotiations.
+ * @param[in] in_info Input tensor info designated by the GStreamer framework. Note that this is not a fixed value and GStreamer may try different values during pad-cap negotiations.
  * @param[out] out_info Output tensor info according to the input tensor info.
  *
- * @caution Do not fix internal values based on this call. Gstreamer may call
+ * @caution Do not fix internal values based on this call. GStreamer may call
  * this function repeatedly with different values during pad-cap negotiations.
  * Fix values when invoke is finally called.
  */
@@ -115,19 +115,19 @@ typedef int (*NNS_custom_allocate_invoke) (void *private_data,
  * @brief It's a post-processing method about the used data pointer if it has been allocated at custom filter.
  * @param[in] data the data element.
  */
-typedef void (*NNS_custom_destroy_notify) (void * data);
+typedef void (*NNS_custom_destroy_notify) (void *data);
 
 /**
  * @brief Custom Filter Class
  *
- * Note that exery function pointer is MANDATORY!
+ * Note that every function pointer is MANDATORY!
  */
 struct _NNStreamer_custom_class
 {
   NNS_custom_init_func initfunc; /**< called before any other callbacks from tensor_filter_custom.c */
   NNS_custom_exit_func exitfunc; /**< will not call other callbacks after this call */
   NNS_custom_get_input_dimension getInputDim; /**< a custom filter is required to provide input tensor dimension unless setInputdim is defined. */
-  NNS_custom_get_output_dimension getOutputDim; /**< a custom filter is require dto provide output tensor dimension unless setInputDim is defined. */
+  NNS_custom_get_output_dimension getOutputDim; /**< a custom filter is required to provide output tensor dimension unless setInputDim is defined. */
   NNS_custom_set_input_dimension setInputDim; /**< without getI/O-Dim, this allows framework to set input dimension and get output dimension from the custom filter according to the input dimension */
   NNS_custom_invoke invoke; /**< the main function, "invoke", that transforms input to output. invoke is supposed to fill in the given output buffer. (invoke) XOR (allocate_invoke) MUST hold. */
   NNS_custom_allocate_invoke allocate_invoke; /**< the main function, "allocate & invoke", that transforms input to output. allocate_invoke is supposed to allocate output buffer by itself. (invoke) XOR (allocate_invoke) MUST hold. */

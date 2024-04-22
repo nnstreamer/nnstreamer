@@ -48,7 +48,7 @@ typedef struct _GstTensorTrainerProperties
 } GstTensorTrainerProperties;
 
 /**
- * @brief GstTensorTrainer's Subplugin framework related information
+ * @brief GstTensorTrainer's subplugin framework related information
  *
  * All the information is provided statically.
  */
@@ -61,7 +61,7 @@ typedef struct _GstTensorTrainerFramework GstTensorTrainerFramework;
 
 /**
  * @brief GstTensorTrainer's event type list
- * 
+ *
  * Event types that subplugins must send to tensor_trainer
  */
 typedef enum
@@ -79,14 +79,14 @@ typedef enum
 typedef struct _GstTensorTrainerEventNotifier
 {
   uint64_t version;
-  void * notifier;
+  void *notifier;
   /**< Version of the struct
    * | 32bit (validity check) | 16bit (API version) | 16bit (Subplugin's internal version) |
    */
 } GstTensorTrainerEventNotifier;
 
 /**
- * @brief tensor_trainer Subplugin definition
+ * @brief tensor_trainer subplugin definition
  *
  * Common callback parameters:
  * prop Trainer properties. Read Only.
@@ -131,7 +131,7 @@ struct _GstTensorTrainerFramework
    * @param[in] prop read-only property values
    * @param[in/out] private_data, a subplugin may save its internal private data here.
    * @return 0 if ok. < 0 if error.
-   */ 
+   */
 
   int (*push_data) (const GstTensorTrainerFramework * self,
       const GstTensorTrainerProperties * prop,
@@ -186,7 +186,7 @@ nnstreamer_trainer_exit (GstTensorTrainerFramework * ttsp);
 
 /**
  * @brief Trainer's sub-plugin call this to notify event
- * 
+ *
  * @param notifier sub-plugin must send events to tensor_trainer with a notifier.
  * @param type Event types that subplugins must send to tensor_trainer
  * @param data Optional data for the event
