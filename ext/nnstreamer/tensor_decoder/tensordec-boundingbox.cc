@@ -170,7 +170,8 @@ static int
 bb_setOption (void **pdata, int opNum, const char *param)
 {
   BoundingBox *bdata = static_cast<BoundingBox *> (*pdata);
-  return bdata->setOption (opNum, param);
+  BoundingBoxOption option = static_cast<BoundingBoxOption> (opNum);
+  return bdata->setOption (option, param);
 }
 
 /**
@@ -580,7 +581,7 @@ iou (detectedObject *a, detectedObject *b)
 }
 
 /**
- * @brief Apply NMS to the given results (objects[MOBILENET_SSD_DETECTION_MAX])
+ * @brief Apply NMS to the given results (objects[DETECTION_MAX])
  * @param[in/out] results The results to be filtered with nms
  */
 static void
@@ -620,7 +621,7 @@ nms (GArray *results, gfloat threshold)
 }
 
 /**
- * @brief Draw with the given results (objects[MOBILENET_SSD_DETECTION_MAX]) to the output buffer
+ * @brief Draw with the given results (objects[DETECTION_MAX]) to the output buffer
  * @param[out] out_info The output buffer (RGBA plain)
  * @param[in] bdata The bounding-box internal data.
  * @param[in] results The final results to be drawn.
@@ -864,23 +865,23 @@ BoundingBox::setInputModelSize (const char *param)
 }
 
 int
-BoundingBox::setOption (int opNum, const char *param)
+BoundingBox::setOption (BoundingBoxOption option, const char *param)
 {
-  if (opNum == 0) {
+  if (option == BoundingBoxOption::MODE) {
     return setBoxDecodingMode (param);
-  } else if (opNum == 1) {
+  } else if (option == BoundingBoxOption::LABEL_PATH) {
     return setLabelPath (param);
-  } else if (opNum == 2) {
+  } else if (option == BoundingBoxOption::INTERNAL) {
     /* option3 = per-decoding-mode option */
     return bdata->setOptionInternal (param);
-  } else if (opNum == 3) {
+  } else if (option == BoundingBoxOption::VIDEO_SIZE) {
     return setVideoSize (param);
-  } else if (opNum == 4) {
+  } else if (option == BoundingBoxOption::INPUT_MODEL_SIZE) {
     return setInputModelSize (param);
-  } else if (opNum == 5) {
+  } else if (option == BoundingBoxOption::TRACK) {
     is_track = (int) g_ascii_strtoll (param, NULL, 10);
     return TRUE;
-  } else if (opNum == 6) {
+  } else if (option == BoundingBoxOption::LOG) {
     do_log = (int) g_ascii_strtoll (param, NULL, 10);
     return TRUE;
   }
@@ -888,7 +889,7 @@ BoundingBox::setOption (int opNum, const char *param)
   /**
    * @todo Accept color / border-width / ... with option-2
    */
-  GST_INFO ("Property mode-option-%d is ignored", opNum + 1);
+  GST_INFO ("Property mode-option-%d is ignored", static_cast<int> (option) + 1);
   return TRUE;
 }
 
@@ -983,13 +984,13 @@ error_free:
 
 MobilenetSSD::MobilenetSSD ()
 {
-  params[MOBILENET_SSD_PARAMS_THRESHOLD_IDX] = DETECTION_THRESHOLD;
-  params[MOBILENET_SSD_PARAMS_Y_SCALE_IDX] = Y_SCALE;
-  params[MOBILENET_SSD_PARAMS_X_SCALE_IDX] = X_SCALE;
-  params[MOBILENET_SSD_PARAMS_H_SCALE_IDX] = H_SCALE;
-  params[MOBILENET_SSD_PARAMS_W_SCALE_IDX] = W_SCALE;
-  params[MOBILENET_SSD_PARAMS_IOU_THRESHOLD_IDX] = THRESHOLD_IOU;
-  sigmoid_threshold = logit (DETECTION_THRESHOLD);
+  params[THRESHOLD_IDX] = DETECTION_THRESHOLD_DEFAULT;
+  params[Y_SCALE_IDX] = Y_SCALE_DEFAULT;
+  params[X_SCALE_IDX] = X_SCALE_DEFAULT;
+  params[H_SCALE_IDX] = H_SCALE_DEFAULT;
+  params[W_SCALE_IDX] = W_SCALE_DEFAULT;
+  params[IOU_THRESHOLD_IDX] = THRESHOLD_IOU_DEFAULT;
+  sigmoid_threshold = logit (DETECTION_THRESHOLD_DEFAULT);
 
   max_detection = 0;
   total_labels = 0;
@@ -1041,9 +1042,9 @@ MobilenetSSD::mobilenet_ssd_loadBoxPrior ()
         column++;
 
         if (word && *word) {
-          if (registered > MOBILENET_SSD_DETECTION_MAX) {
+          if (registered > DETECTION_MAX) {
             GST_WARNING ("Decoder/Bound-Box/SSD's box prior data file has too many priors. %d >= %d",
-                registered, MOBILENET_SSD_DETECTION_MAX);
+                registered, DETECTION_MAX);
             break;
           }
           box_priors[row][registered] = (gfloat) g_ascii_strtod (word, NULL);
@@ -1078,8 +1079,8 @@ MobilenetSSD::setOptionInternal (const char *param)
   options = g_strsplit (param, ":", -1);
   noptions = g_strv_length (options);
 
-  if (noptions > (MOBILENET_SSD_PARAMS_MAX + 1))
-    noptions = MOBILENET_SSD_PARAMS_MAX + 1;
+  if (noptions > (PARAMS_MAX + 1))
+    noptions = PARAMS_MAX + 1;
 
   if (box_prior_path) {
     g_free (box_prior_path);
@@ -1100,7 +1101,7 @@ MobilenetSSD::setOptionInternal (const char *param)
     params[idx - 1] = strtod (options[idx], NULL);
   }
 
-  sigmoid_threshold = logit (params[MOBILENET_SSD_PARAMS_THRESHOLD_IDX]);
+  sigmoid_threshold = logit (params[THRESHOLD_IDX]);
 
   return TRUE;
 
@@ -1116,7 +1117,7 @@ MobilenetSSD::checkCompatible (const GstTensorsConfig *config)
   int i;
   guint max_detection, max_label;
 
-  if (!_check_tensors (config, MOBILENET_SSD_MAX_TENSORS))
+  if (!_check_tensors (config, MAX_TENSORS))
     return FALSE;
 
   /* Check if the first tensor is compatible */
@@ -1148,7 +1149,7 @@ MobilenetSSD::checkCompatible (const GstTensorsConfig *config)
   else
     g_return_val_if_fail (max_detection == this->max_detection, FALSE);
 
-  if (this->max_detection > MOBILENET_SSD_DETECTION_MAX) {
+  if (this->max_detection > DETECTION_MAX) {
     GST_ERROR ("Incoming tensor has too large detection-max : %u", max_detection);
     return FALSE;
   }
@@ -1170,11 +1171,11 @@ MobilenetSSD::decode (const GstTensorsConfig *config, const GstTensorMemory *inp
    */
 
   /* Already checked with getOutCaps. Thus, this is an internal bug */
-  g_assert (num_tensors >= MOBILENET_SSD_MAX_TENSORS);
+  g_assert (num_tensors >= MAX_TENSORS);
   results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), 100);
 
   boxes = &input[0];
-  if (num_tensors >= MOBILENET_SSD_MAX_TENSORS) /* lgtm[cpp/constant-comparison] */
+  if (num_tensors >= MAX_TENSORS) /* lgtm[cpp/constant-comparison] */
     detections = &input[1];
 
   switch (config->info.info[0].type) {
@@ -1191,23 +1192,22 @@ MobilenetSSD::decode (const GstTensorsConfig *config, const GstTensorMemory *inp
     default:
       g_assert (0);
   }
-  nms (results, params[MOBILENET_SSD_PARAMS_IOU_THRESHOLD_IDX]);
+  nms (results, params[IOU_THRESHOLD_IDX]);
   return results;
 }
 
 MobilenetSSDPP::MobilenetSSDPP ()
 {
-  tensor_mapping[MOBILENET_SSD_PP_BBOX_IDX_LOCATIONS]
-      = MOBILENET_SSD_PP_BBOX_IDX_LOCATIONS_DEFAULT;
-  tensor_mapping[MOBILENET_SSD_PP_BBOX_IDX_CLASSES] = MOBILENET_SSD_PP_BBOX_IDX_CLASSES_DEFAULT;
-  tensor_mapping[MOBILENET_SSD_PP_BBOX_IDX_SCORES] = MOBILENET_SSD_PP_BBOX_IDX_SCORES_DEFAULT;
-  tensor_mapping[MOBILENET_SSD_PP_BBOX_IDX_NUM] = MOBILENET_SSD_PP_BBOX_IDX_NUM_DEFAULT;
-  threshold = MOBILENET_SSD_PP_BBOX_THRESHOLD_DEFAULT;
+  tensor_mapping[LOCATIONS_IDX] = LOCATIONS_DEFAULT;
+  tensor_mapping[CLASSES_IDX] = CLASSES_DEFAULT;
+  tensor_mapping[SCORES_IDX] = SCORES_DEFAULT;
+  tensor_mapping[NUM_IDX] = NUM_DEFAULT;
+  threshold = THRESHOLD_DEFAULT;
 }
 
 /** @brief Helper to retrieve tensor index by feature */
 int
-MobilenetSSDPP::get_mobilenet_ssd_pp_tensor_idx (mobilenet_ssd_pp_bbox_idx_t idx)
+MobilenetSSDPP::get_mobilenet_ssd_pp_tensor_idx (int idx)
 {
   return tensor_mapping[idx];
 }
@@ -1216,11 +1216,9 @@ int
 MobilenetSSDPP::setOptionInternal (const char *param)
 {
   int threshold_percent;
-  int ret = sscanf (param, "%i:%i:%i:%i,%i",
-      &tensor_mapping[MOBILENET_SSD_PP_BBOX_IDX_LOCATIONS],
-      &tensor_mapping[MOBILENET_SSD_PP_BBOX_IDX_CLASSES],
-      &tensor_mapping[MOBILENET_SSD_PP_BBOX_IDX_SCORES],
-      &tensor_mapping[MOBILENET_SSD_PP_BBOX_IDX_NUM], &threshold_percent);
+  int ret = sscanf (param, "%i:%i:%i:%i,%i", &tensor_mapping[LOCATIONS_IDX],
+      &tensor_mapping[CLASSES_IDX], &tensor_mapping[SCORES_IDX],
+      &tensor_mapping[NUM_IDX], &threshold_percent);
 
   if ((ret == EOF) || (ret < 5)) {
     GST_ERROR ("Invalid options, must be \"locations idx:classes idx:scores idx:num idx,threshold\"");
@@ -1229,10 +1227,8 @@ MobilenetSSDPP::setOptionInternal (const char *param)
 
   GST_INFO ("MOBILENET SSD POST PROCESS output tensors mapping: "
             "locations idx (%d), classes idx (%d), scores idx (%d), num detections idx (%d)",
-      tensor_mapping[MOBILENET_SSD_PP_BBOX_IDX_LOCATIONS],
-      tensor_mapping[MOBILENET_SSD_PP_BBOX_IDX_CLASSES],
-      tensor_mapping[MOBILENET_SSD_PP_BBOX_IDX_SCORES],
-      tensor_mapping[MOBILENET_SSD_PP_BBOX_IDX_NUM]);
+      tensor_mapping[LOCATIONS_IDX], tensor_mapping[CLASSES_IDX],
+      tensor_mapping[SCORES_IDX], tensor_mapping[NUM_IDX]);
 
   if ((threshold_percent > 100) || (threshold_percent < 0)) {
     GST_ERROR ("Invalid MOBILENET SSD POST PROCESS threshold detection (%i), must be in range [0 100]",
@@ -1252,13 +1248,13 @@ MobilenetSSDPP::checkCompatible (const GstTensorsConfig *config)
   const uint32_t *dim1, *dim2, *dim3, *dim4;
   int locations_idx, classes_idx, scores_idx, num_idx, i;
 
-  if (!_check_tensors (config, MOBILENET_SSD_PP_MAX_TENSORS))
+  if (!_check_tensors (config, MAX_TENSORS))
     return FALSE;
 
-  locations_idx = get_mobilenet_ssd_pp_tensor_idx (MOBILENET_SSD_PP_BBOX_IDX_LOCATIONS);
-  classes_idx = get_mobilenet_ssd_pp_tensor_idx (MOBILENET_SSD_PP_BBOX_IDX_CLASSES);
-  scores_idx = get_mobilenet_ssd_pp_tensor_idx (MOBILENET_SSD_PP_BBOX_IDX_SCORES);
-  num_idx = get_mobilenet_ssd_pp_tensor_idx (MOBILENET_SSD_PP_BBOX_IDX_NUM);
+  locations_idx = get_mobilenet_ssd_pp_tensor_idx (LOCATIONS_IDX);
+  classes_idx = get_mobilenet_ssd_pp_tensor_idx (CLASSES_IDX);
+  scores_idx = get_mobilenet_ssd_pp_tensor_idx (SCORES_IDX);
+  num_idx = get_mobilenet_ssd_pp_tensor_idx (NUM_IDX);
 
   /* Check if the number of detections tensor is compatible */
   dim1 = config->info.info[num_idx].dimension;
@@ -1289,7 +1285,7 @@ MobilenetSSDPP::checkCompatible (const GstTensorsConfig *config)
   else
     g_return_val_if_fail (max_detection == this->max_detection, FALSE);
 
-  if (this->max_detection > MOBILENET_SSD_DETECTION_MAX) {
+  if (this->max_detection > DETECTION_MAX) {
     GST_ERROR ("Incoming tensor has too large detection-max : %u", max_detection);
     return FALSE;
   }
@@ -1306,12 +1302,12 @@ MobilenetSSDPP::decode (const GstTensorsConfig *config, const GstTensorMemory *i
   const guint num_tensors = config->info.num_tensors;
 
   /* Already checked with getOutCaps. Thus, this is an internal bug */
-  g_assert (num_tensors >= MOBILENET_SSD_PP_MAX_TENSORS);
+  g_assert (num_tensors >= MAX_TENSORS);
 
-  locations_idx = get_mobilenet_ssd_pp_tensor_idx (MOBILENET_SSD_PP_BBOX_IDX_LOCATIONS);
-  classes_idx = get_mobilenet_ssd_pp_tensor_idx (MOBILENET_SSD_PP_BBOX_IDX_CLASSES);
-  scores_idx = get_mobilenet_ssd_pp_tensor_idx (MOBILENET_SSD_PP_BBOX_IDX_SCORES);
-  num_idx = get_mobilenet_ssd_pp_tensor_idx (MOBILENET_SSD_PP_BBOX_IDX_NUM);
+  locations_idx = get_mobilenet_ssd_pp_tensor_idx (LOCATIONS_IDX);
+  classes_idx = get_mobilenet_ssd_pp_tensor_idx (CLASSES_IDX);
+  scores_idx = get_mobilenet_ssd_pp_tensor_idx (SCORES_IDX);
+  num_idx = get_mobilenet_ssd_pp_tensor_idx (NUM_IDX);
 
   mem_num = &input[num_idx];
   mem_classes = &input[classes_idx];
@@ -1342,7 +1338,7 @@ OVDetection::checkCompatible (const GstTensorsConfig *config)
   int i;
   UNUSED (total_labels);
 
-  if (!_check_tensors (config, OV_PERSON_DETECTION_MAX_TENSORS))
+  if (!_check_tensors (config, DEFAULT_MAX_TENSORS))
     return FALSE;
 
   /**
@@ -1350,8 +1346,8 @@ OVDetection::checkCompatible (const GstTensorsConfig *config)
    * number (i.e., 200) of detected bounding boxes.
    */
   dim = config->info.info[0].dimension;
-  g_return_val_if_fail (dim[0] == OV_PERSON_DETECTION_SIZE_DETECTION_DESC, FALSE);
-  g_return_val_if_fail (dim[1] == OV_PERSON_DETECTION_MAX, FALSE);
+  g_return_val_if_fail (dim[0] == DEFAULT_SIZE_DETECTION_DESC, FALSE);
+  g_return_val_if_fail (dim[1] == DETECTION_MAX, FALSE);
   for (i = 2; i < NNS_TENSOR_RANK_LIMIT; ++i)
     g_return_val_if_fail (dim[i] == 0 || dim[i] == 1, FALSE);
 
@@ -1365,9 +1361,9 @@ OVDetection::decode (const GstTensorsConfig *config, const GstTensorMemory *inpu
   const guint num_tensors = config->info.num_tensors;
 
   /* Already checked with getOutCaps. Thus, this is an internal bug */
-  g_assert (num_tensors >= OV_PERSON_DETECTION_MAX_TENSORS);
+  g_assert (num_tensors >= DEFAULT_MAX_TENSORS);
 
-  results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), OV_PERSON_DETECTION_MAX);
+  results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), DETECTION_MAX);
   switch (config->info.info[0].type) {
     _get_persons_ov (uint8_t, input[0].data, _NNS_UINT8, results);
     _get_persons_ov (int8_t, input[0].data, _NNS_INT8, results);
@@ -1420,7 +1416,7 @@ YoloV5::checkCompatible (const GstTensorsConfig *config)
                       + (i_width / 8) * (i_height / 8))
                   * 3;
 
-  g_return_val_if_fail (dim[0] == (total_labels + YOLOV5_DETECTION_NUM_INFO), FALSE);
+  g_return_val_if_fail (dim[0] == (total_labels + DEFAULT_DETECTION_NUM_INFO), FALSE);
   g_return_val_if_fail (dim[1] == max_detection, FALSE);
   for (i = 2; i < NNS_TENSOR_RANK_LIMIT; ++i)
     g_return_val_if_fail (dim[i] == 0 || dim[i] == 1, FALSE);
@@ -1439,7 +1435,7 @@ YoloV5::decode (const GstTensorsConfig *config, const GstTensorMemory *input)
 
   numTotalBox = max_detection;
   numTotalClass = total_labels;
-  cStartIdx = YOLOV5_DETECTION_NUM_INFO;
+  cStartIdx = DEFAULT_DETECTION_NUM_INFO;
   cIdxMax = numTotalClass + cStartIdx;
 
   /* boxinput[numTotalBox][cIdxMax] */
@@ -1480,7 +1476,7 @@ YoloV5::decode (const GstTensorsConfig *config, const GstTensorMemory *input)
       object.height = (int) (MIN ((float) i_height, h));
 
       object.prob = maxClassConfVal * boxinput[bIdx * cIdxMax + 4];
-      object.class_id = maxClassIdx - YOLOV5_DETECTION_NUM_INFO;
+      object.class_id = maxClassIdx - DEFAULT_DETECTION_NUM_INFO;
       object.tracking_id = 0;
       object.valid = TRUE;
       g_array_append_val (results, object);
@@ -1528,9 +1524,9 @@ YoloV8::checkCompatible (const GstTensorsConfig *config)
   max_detection = (i_width / 32) * (i_height / 32) + (i_width / 16) * (i_height / 16)
                   + (i_width / 8) * (i_height / 8);
 
-  if (dim[0] != (total_labels + YOLOV8_DETECTION_NUM_INFO) || dim[1] != max_detection) {
+  if (dim[0] != (total_labels + DEFAULT_DETECTION_NUM_INFO) || dim[1] != max_detection) {
     nns_loge ("yolov8 boundingbox decoder requires the input shape to be %d:%d:1. But given shape is %d:%d:1. `tensor_transform mode=transpose` would be helpful.",
-        total_labels + YOLOV8_DETECTION_NUM_INFO, max_detection, dim[0], dim[1]);
+        total_labels + DEFAULT_DETECTION_NUM_INFO, max_detection, dim[0], dim[1]);
     return FALSE;
   }
 
@@ -1551,7 +1547,7 @@ YoloV8::decode (const GstTensorsConfig *config, const GstTensorMemory *input)
 
   numTotalBox = max_detection;
   numTotalClass = total_labels;
-  cStartIdx = YOLOV8_DETECTION_NUM_INFO;
+  cStartIdx = DEFAULT_DETECTION_NUM_INFO;
   cIdxMax = numTotalClass + cStartIdx;
 
   /* boxinput[numTotalBox][cIdxMax] */
@@ -1589,7 +1585,7 @@ YoloV8::decode (const GstTensorsConfig *config, const GstTensorMemory *input)
       object.height = (int) (MIN ((float) i_height, h));
 
       object.prob = maxClassConfVal;
-      object.class_id = maxClassIdx - YOLOV8_DETECTION_NUM_INFO;
+      object.class_id = maxClassIdx - DEFAULT_DETECTION_NUM_INFO;
       object.tracking_id = 0;
       object.valid = TRUE;
       g_array_append_val (results, object);
@@ -1606,16 +1602,16 @@ YoloV8::decode (const GstTensorsConfig *config, const GstTensorMemory *input)
 
 MpPalmDetection::MpPalmDetection ()
 {
-  num_layers = MP_PALM_DETECTION_NUM_LAYERS_DEFAULT;
-  min_scale = MP_PALM_DETECTION_MIN_SCALE_DEFAULT;
-  max_scale = MP_PALM_DETECTION_MAX_SCALE_DEFAULT;
-  offset_x = MP_PALM_DETECTION_OFFSET_X_DEFAULT;
-  offset_y = MP_PALM_DETECTION_OFFSET_Y_DEFAULT;
-  strides[0] = MP_PALM_DETECTION_STRIDE_0_DEFAULT;
-  strides[1] = MP_PALM_DETECTION_STRIDE_1_DEFAULT;
-  strides[2] = MP_PALM_DETECTION_STRIDE_2_DEFAULT;
-  strides[3] = MP_PALM_DETECTION_STRIDE_3_DEFAULT;
-  min_score_threshold = MP_PALM_DETECTION_MIN_SCORE_THRESHOLD_DEFAULT;
+  num_layers = NUM_LAYERS_DEFAULT;
+  min_scale = MIN_SCALE_DEFAULT;
+  max_scale = MAX_SCALE_DEFAULT;
+  offset_x = OFFSET_X_DEFAULT;
+  offset_y = OFFSET_Y_DEFAULT;
+  strides[0] = STRIDE_0_DEFAULT;
+  strides[1] = STRIDE_1_DEFAULT;
+  strides[2] = STRIDE_2_DEFAULT;
+  strides[3] = STRIDE_3_DEFAULT;
+  min_score_threshold = MIN_SCORE_THRESHOLD_DEFAULT;
   anchors = g_array_new (FALSE, TRUE, sizeof (anchor));
 }
 
@@ -1722,7 +1718,7 @@ MpPalmDetection::setOptionInternal (const char *param)
   options = g_strsplit (param, ":", -1);
   noptions = g_strv_length (options);
 
-  if (noptions > MP_PALM_DETECTION_PARAMS_MAX) {
+  if (noptions > PARAMS_MAX) {
     GST_ERROR ("Invalid MP PALM DETECTION PARAM length: %d", noptions);
     ret = FALSE;
     goto exit_mp_palm_detection;
@@ -1750,13 +1746,13 @@ MpPalmDetection::checkCompatible (const GstTensorsConfig *config)
 {
   const uint32_t *dim1, *dim2;
   int i;
-  if (!_check_tensors (config, MP_PALM_DETECTION_MAX_TENSORS))
+  if (!_check_tensors (config, MAX_TENSORS))
     return FALSE;
 
   /* Check if the first tensor is compatible */
   dim1 = config->info.info[0].dimension;
 
-  g_return_val_if_fail (dim1[0] == MP_PALM_DETECTION_INFO_SIZE, FALSE);
+  g_return_val_if_fail (dim1[0] == INFO_SIZE, FALSE);
   max_detection = dim1[1];
   g_return_val_if_fail (max_detection > 0, FALSE);
   g_return_val_if_fail (dim1[2] == 1, FALSE);
@@ -1776,7 +1772,7 @@ MpPalmDetection::checkCompatible (const GstTensorsConfig *config)
   else
     g_return_val_if_fail (max_detection == this->max_detection, FALSE);
 
-  if (this->max_detection > MP_PALM_DETECTION_DETECTION_MAX) {
+  if (this->max_detection > MAX_DETECTION) {
     GST_ERROR ("Incoming tensor has too large detection-max : %u", max_detection);
     return FALSE;
   }
@@ -1792,7 +1788,7 @@ MpPalmDetection::decode (const GstTensorsConfig *config, const GstTensorMemory *
   const guint num_tensors = config->info.num_tensors;
 
   /* Already checked with getOutCaps. Thus, this is an internal bug */
-  g_assert (num_tensors >= MP_PALM_DETECTION_MAX_TENSORS);
+  g_assert (num_tensors >= MAX_TENSORS);
 
   /* results will be allocated by _get_objects_mp_palm_detection_ */
   boxes = &input[0];
