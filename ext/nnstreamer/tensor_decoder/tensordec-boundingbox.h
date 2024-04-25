@@ -4,23 +4,7 @@
 #include <math.h> /* expf */
 #include "tensordecutil.h"
 
-#define BOX_SIZE (4)
-#define MOBILENET_SSD_DETECTION_MAX (2034) /* add ssd_mobilenet v3 support */
-#define MOBILENET_SSD_MAX_TENSORS (2U)
-#define MOBILENET_SSD_PP_DETECTION_MAX (100)
-#define MOBILENET_SSD_PP_MAX_TENSORS (4U)
-#define OV_PERSON_DETECTION_MAX (200U)
-#define OV_PERSON_DETECTION_MAX_TENSORS (1U)
-#define OV_PERSON_DETECTION_SIZE_DETECTION_DESC (7)
-#define OV_PERSON_DETECTION_CONF_THRESHOLD (0.8)
-#define YOLO_DETECTION_CONF_THRESHOLD (0.25)
-#define YOLO_DETECTION_IOU_THRESHOLD (0.45)
-#define YOLOV5_DETECTION_NUM_INFO (5)
-#define YOLOV8_DETECTION_NUM_INFO (4)
 #define PIXEL_VALUE (0xFF0000FF) /* RED 100% in RGBA */
-#define MP_PALM_DETECTION_INFO_SIZE (18)
-#define MP_PALM_DETECTION_MAX_TENSORS (2U)
-#define MP_PALM_DETECTION_DETECTION_MAX (2016)
 
 /**
  * @brief C++-Template-like box location calculation for box-priors for Mobilenet SSD Model
@@ -41,7 +25,7 @@
       size_t boxbpi = config->info.info[0].dimension[0];                                                     \
       _type *detinput_ = (_type *) detinput;                                                                 \
       size_t detbpi = config->info.info[1].dimension[0];                                                     \
-      int num = (MOBILENET_SSD_DETECTION_MAX > max_detection) ? max_detection : MOBILENET_SSD_DETECTION_MAX; \
+      int num = (DETECTION_MAX > max_detection) ? max_detection : DETECTION_MAX;                             \
       detectedObject object = {                                                                              \
         .valid = FALSE, .class_id = 0, .x = 0, .y = 0, .width = 0, .height = 0, .prob = .0, .tracking_id = 0 \
       };                                                                                                     \
@@ -68,8 +52,8 @@
  * @brief C++-Template-like box location calculation for box-priors
  * @bug This is not macro-argument safe. Use paranthesis!
  * @param[in] bb The configuration, "bounding_boxes"
- * @param[in] index The index (3rd dimension of BOX_SIZE:1:MOBILENET_SSD_DETECTION_MAX:1)
- * @param[in] total_labels The count of total labels. We can get this from input tensor info. (1st dimension of LABEL_SIZE:MOBILENET_SSD_DETECTION_MAX:1:1)
+ * @param[in] index The index (3rd dimension of BOX_SIZE:1:DETECTION_MAX:1)
+ * @param[in] total_labels The count of total labels. We can get this from input tensor info. (1st dimension of LABEL_SIZE:DETECTION_MAX:1:1)
  * @param[in] boxprior The box prior data from the box file of SSD.
  * @param[in] boxinputptr Cursor pointer of input + byte-per-index * index (box)
  * @param[in] detinputptr Cursor pointer of input + byte-per-index * index (detection)
@@ -80,10 +64,10 @@
   do {                                                                            \
     unsigned int c;                                                               \
     gfloat highscore = -FLT_MAX;                                                  \
-    float y_scale = params[MOBILENET_SSD_PARAMS_Y_SCALE_IDX];                     \
-    float x_scale = params[MOBILENET_SSD_PARAMS_X_SCALE_IDX];                     \
-    float h_scale = params[MOBILENET_SSD_PARAMS_H_SCALE_IDX];                     \
-    float w_scale = params[MOBILENET_SSD_PARAMS_W_SCALE_IDX];                     \
+    float y_scale = params[Y_SCALE_IDX];                                          \
+    float x_scale = params[X_SCALE_IDX];                                          \
+    float h_scale = params[H_SCALE_IDX];                                          \
+    float w_scale = params[W_SCALE_IDX];                                          \
     result->valid = FALSE;                                                        \
     for (c = 1; c < total_labels; c++) {                                          \
       if (detinputptr[c] >= sigmoid_threshold) {                                  \
@@ -112,6 +96,17 @@
       }                                                                           \
     }                                                                             \
   } while (0);
+
+enum class BoundingBoxOption {
+  MODE = 0,
+  LABEL_PATH = 1,
+  INTERNAL = 2,
+  VIDEO_SIZE = 3,
+  INPUT_MODEL_SIZE = 4,
+  TRACK = 5,
+  LOG = 6,
+  UNKNOWN,
+};
 
 /**
  * @brief There can be different schemes for bounding boxes.
@@ -257,6 +252,8 @@ typedef struct {
   _get_objects_mobilenet_ssd_pp (type, typename, (mem_num->data), (mem_classes->data), \
       (mem_scores->data), (mem_boxes->data), config, results, i_width, i_height)
 
+
+#define OV_PERSON_DETECTION_CONF_THRESHOLD (0.8)
 /**
  * @brief C++-Template-like box location calculation for OpenVino Person Detection Model
  * @param[in] type The tensor type of inputptr
@@ -273,7 +270,7 @@ typedef struct {
       type *typed_inputptr = (type *) inputptr;                                                              \
       guint d;                                                                                               \
                                                                                                              \
-      for (d = 1; d <= OV_PERSON_DETECTION_MAX; ++d) {                                                       \
+      for (d = 1; d <= DETECTION_MAX; ++d) {                                                                 \
         struct {                                                                                             \
           type image_id;                                                                                     \
           type label;                                                                                        \
@@ -419,7 +416,7 @@ class BoundingBox
   void logBoxes (GArray *results);
   void updateCentroids (GArray *boxes);
 
-  int setOption (int opNum, const char *param);
+  int setOption (BoundingBoxOption opNum, const char *param);
   GstCaps *getOutCaps (const GstTensorsConfig *config);
   GstFlowReturn decode (const GstTensorsConfig *config,
       const GstTensorMemory *input, GstBuffer *outbuf);
@@ -464,21 +461,6 @@ logit (float x)
   return log (x / (1.0 - x));
 }
 
-#define MOBILENET_SSD_PARAMS_THRESHOLD_IDX 0
-#define MOBILENET_SSD_PARAMS_Y_SCALE_IDX 1
-#define MOBILENET_SSD_PARAMS_X_SCALE_IDX 2
-#define MOBILENET_SSD_PARAMS_H_SCALE_IDX 3
-#define MOBILENET_SSD_PARAMS_W_SCALE_IDX 4
-#define MOBILENET_SSD_PARAMS_IOU_THRESHOLD_IDX 5
-#define MOBILENET_SSD_PARAMS_MAX 6
-
-#define DETECTION_THRESHOLD (.5f)
-#define THRESHOLD_IOU (.5f)
-#define Y_SCALE (10.0f)
-#define X_SCALE (10.0f)
-#define H_SCALE (5.0f)
-#define W_SCALE (5.0f)
-
 class MobilenetSSD : public BoxProperties
 {
   public:
@@ -489,30 +471,58 @@ class MobilenetSSD : public BoxProperties
   int checkCompatible (const GstTensorsConfig *config);
   GArray *decode (const GstTensorsConfig *config, const GstTensorMemory *input);
 
+  static const int BOX_SIZE = 4;
+  static const int DETECTION_MAX = 2034; /* add ssd_mobilenet v3 support */
+  static const guint MAX_TENSORS = 2U;
+
+  static const int THRESHOLD_IDX = 0;
+  static const int Y_SCALE_IDX = 1;
+  static const int X_SCALE_IDX = 2;
+  static const int H_SCALE_IDX = 3;
+  static const int W_SCALE_IDX = 4;
+  static const int IOU_THRESHOLD_IDX = 5;
+  static const int PARAMS_MAX = 6;
+
+  static constexpr gfloat DETECTION_THRESHOLD_DEFAULT = 0.5f;
+  static constexpr gfloat THRESHOLD_IOU_DEFAULT = 0.5f;
+  static constexpr gfloat Y_SCALE_DEFAULT = 10.0f;
+  static constexpr gfloat X_SCALE_DEFAULT = 10.0f;
+  static constexpr gfloat H_SCALE_DEFAULT = 5.0f;
+  static constexpr gfloat W_SCALE_DEFAULT = 5.0f;
+
   private:
   char *box_prior_path; /**< Box Prior file path */
-  gfloat box_priors[BOX_SIZE][MOBILENET_SSD_DETECTION_MAX + 1]; /** loaded box prior */
-  gfloat params[MOBILENET_SSD_PARAMS_MAX]; /** Post Processing parameters */
+  gfloat box_priors[BOX_SIZE][DETECTION_MAX + 1]; /** loaded box prior */
+  gfloat params[PARAMS_MAX]; /** Post Processing parameters */
   gfloat sigmoid_threshold; /** Inverse value of valid detection threshold in sigmoid domain */
 };
 
-#define MOBILENET_SSD_PP_BBOX_IDX_LOCATIONS_DEFAULT 3
-#define MOBILENET_SSD_PP_BBOX_IDX_CLASSES_DEFAULT 1
-#define MOBILENET_SSD_PP_BBOX_IDX_SCORES_DEFAULT 2
-#define MOBILENET_SSD_PP_BBOX_IDX_NUM_DEFAULT 0
-#define MOBILENET_SSD_PP_BBOX_THRESHOLD_DEFAULT G_MINFLOAT
 class MobilenetSSDPP : public BoxProperties
 {
   public:
   MobilenetSSDPP ();
-  int get_mobilenet_ssd_pp_tensor_idx (mobilenet_ssd_pp_bbox_idx_t idx);
+  int get_mobilenet_ssd_pp_tensor_idx (int idx);
 
   int setOptionInternal (const char *param);
   int checkCompatible (const GstTensorsConfig *config);
   GArray *decode (const GstTensorsConfig *config, const GstTensorMemory *input);
 
+  static const int BOX_SIZE = 4;
+  static const guint DETECTION_MAX = 100;
+  static const guint MAX_TENSORS = 4U;
+  static const int LOCATIONS_IDX = 0;
+  static const int CLASSES_IDX = 1;
+  static const int SCORES_IDX = 2;
+  static const int NUM_IDX = 3;
+
+  static const gint LOCATIONS_DEFAULT = 3;
+  static const gint CLASSES_DEFAULT = 1;
+  static const gint SCORES_DEFAULT = 2;
+  static const gint NUM_DEFAULT = 0;
+  static constexpr gfloat THRESHOLD_DEFAULT = G_MINFLOAT;
+
   private:
-  gint tensor_mapping[MOBILENET_SSD_PP_MAX_TENSORS]; /* Output tensor index mapping */
+  gint tensor_mapping[MAX_TENSORS]; /* Output tensor index mapping */
   gfloat threshold; /* Detection threshold */
 };
 
@@ -526,7 +536,14 @@ class OVDetection : public BoxProperties
   }
   int checkCompatible (const GstTensorsConfig *config);
   GArray *decode (const GstTensorsConfig *config, const GstTensorMemory *input);
+
+  static const guint DETECTION_MAX = 200U;
+  static const guint DEFAULT_MAX_TENSORS = 1;
+  static const guint DEFAULT_SIZE_DETECTION_DESC = 7;
 };
+
+#define YOLO_DETECTION_CONF_THRESHOLD (0.25)
+#define YOLO_DETECTION_IOU_THRESHOLD (0.45)
 
 class YoloV5 : public BoxProperties
 {
@@ -539,6 +556,8 @@ class YoloV5 : public BoxProperties
   int setOptionInternal (const char *param);
   int checkCompatible (const GstTensorsConfig *config);
   GArray *decode (const GstTensorsConfig *config, const GstTensorMemory *input);
+
+  static const int DEFAULT_DETECTION_NUM_INFO = 5;
 
   private:
   /* From option3, whether the output values are scaled or not */
@@ -559,27 +578,14 @@ class YoloV8 : public BoxProperties
   int checkCompatible (const GstTensorsConfig *config);
   GArray *decode (const GstTensorsConfig *config, const GstTensorMemory *input);
 
+  static const int DEFAULT_DETECTION_NUM_INFO = 4;
+
   private:
   /* From option3, whether the output values are scaled or not */
   int scaled_output;
   gfloat conf_threshold;
   gfloat iou_threshold;
 };
-
-/* From option3, anchor data */
-#define MP_PALM_DETECTION_PARAMS_STRIDE_SIZE 8
-#define MP_PALM_DETECTION_PARAMS_MAX 13
-
-#define MP_PALM_DETECTION_NUM_LAYERS_DEFAULT (4)
-#define MP_PALM_DETECTION_MIN_SCALE_DEFAULT (1.0)
-#define MP_PALM_DETECTION_MAX_SCALE_DEFAULT (1.0)
-#define MP_PALM_DETECTION_OFFSET_X_DEFAULT (0.5)
-#define MP_PALM_DETECTION_OFFSET_Y_DEFAULT (0.5)
-#define MP_PALM_DETECTION_STRIDE_0_DEFAULT (8)
-#define MP_PALM_DETECTION_STRIDE_1_DEFAULT (16)
-#define MP_PALM_DETECTION_STRIDE_2_DEFAULT (16)
-#define MP_PALM_DETECTION_STRIDE_3_DEFAULT (16)
-#define MP_PALM_DETECTION_MIN_SCORE_THRESHOLD_DEFAULT (0.5)
 
 class MpPalmDetection : public BoxProperties
 {
@@ -592,6 +598,24 @@ class MpPalmDetection : public BoxProperties
 
   GArray *decode (const GstTensorsConfig *config, const GstTensorMemory *input);
 
+  static const guint INFO_SIZE = 18;
+  static const guint MAX_TENSORS = 2U;
+  static const guint MAX_DETECTION = 2016;
+
+  static const gint NUM_LAYERS_DEFAULT = 4;
+  static constexpr gfloat MIN_SCALE_DEFAULT = 1.0;
+  static constexpr gfloat MAX_SCALE_DEFAULT = 1.0;
+  static constexpr gfloat OFFSET_X_DEFAULT = 0.5;
+  static constexpr gfloat OFFSET_Y_DEFAULT = 0.5;
+  static const gint STRIDE_0_DEFAULT = 8;
+  static const gint STRIDE_1_DEFAULT = 16;
+  static const gint STRIDE_2_DEFAULT = 16;
+  static const gint STRIDE_3_DEFAULT = 16;
+  static constexpr gfloat MIN_SCORE_THRESHOLD_DEFAULT = 0.5;
+
+  static const int PARAMS_STRIDE_SIZE = 8;
+  static const int PARAMS_MAX = 13;
+
   private:
   gint num_layers;
   /** Number of stride layers */
@@ -599,7 +623,7 @@ class MpPalmDetection : public BoxProperties
   gfloat max_scale; /** Maximum scale */
   gfloat offset_x; /** anchor X offset */
   gfloat offset_y; /** anchor Y offset */
-  gint strides[MP_PALM_DETECTION_PARAMS_STRIDE_SIZE]; /** Stride data for each layers */
+  gint strides[PARAMS_MAX]; /** Stride data for each layers */
   gfloat min_score_threshold; /** minimum threshold of score */
 
   GArray *anchors;
