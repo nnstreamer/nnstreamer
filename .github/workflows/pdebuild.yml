@@ -30,7 +30,10 @@ jobs:
         # E: End of debootstrap.log
         # W: Aborting with an error
         os: [ ubuntu-22.04 ]
-        arch: [ amd64, arm64 ]
+        #arch: [ amd64, arm64 ]
+        ## pdebuild with `--architecture arm64` is meaningless
+        ## pbuilder create --architecture arm64 currently fails
+        arch: [ amd64 ]
         include:
           - distroname: jammy
             os: ubuntu-22.04
