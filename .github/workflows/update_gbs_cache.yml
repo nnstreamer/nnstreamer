@@ -2,32 +2,44 @@ name: Update GBS cache once a day
 
 on:
   schedule:
-    - cron: '3 0 * * 1-5' # every weekday at 09:03 (KST)
+    # 05:00 AM (KST) Mon-Fri
+    - cron: "00 20 * * 0-4"
 
   # Allow manually triggering the workflow
   workflow_dispatch:
 
 jobs:
-  cache_gbs:
+  cache_gbs_build:
+    strategy:
+      matrix:
+        gbs_build_arch: [x86_64, i586, armv7l, aarch64]
+
     runs-on: ubuntu-20.04
+
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: actions/setup-python@v1
+
     - name: prepare deb sources for GBS
       run: echo "deb [trusted=yes] http://download.tizen.org/tools/latest-release/Ubuntu_20.04/ /" | sudo tee /etc/apt/sources.list.d/tizen.list
+
     - name: install GBS
       run: sudo apt-get update && sudo apt-get install -y gbs
+
     - name: configure GBS
       run: cp .github/workflows/tizen.gbs.conf ~/.gbs.conf
-    - name: make cache key
-      id: make-key
-      run: echo "cache_key=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
-      shell: bash
-    - name: cache gbs cache
-      id: cache-gbs-root
-      uses: actions/cache@v3
+
+    - name: get date
+      id: get-date
+      run: |
+        echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
+    - name: run GBS
+      run: gbs build --skip-srcrpm --define "_skip_debug_rpm 1" -A ${{ matrix.gbs_build_arch }}
+
+    - name: save gbs cache
+      uses: actions/cache/save@v4
+      if: always()
       with:
         path: ~/GBS-ROOT/local/cache
-        key: ${{ steps.make-key.outputs.cache_key }}
-    - name: run GBS
-      run: gbs build --skip-srcrpm --define "_skip_debug_rpm 1"
+        key: gbs-cache-${{ matrix.gbs_build_arch }}-${{ steps.get-date.outputs.date }}

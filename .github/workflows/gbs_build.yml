@@ -13,14 +13,14 @@ jobs:
     strategy:
       matrix:
         include:
-          - aarch: "-A x86_64"
-            option: "--define \"unit_test 1\""
-          - aarch: "-A i586"
-            option: "--define \"unit_test 1\""
-          - aarch: "-A armv7l"
-            option: "--define \"unit_test 0\""
-          - aarch: "-A aarch64"
-            option: "--define \"unit_test 0\""
+          - gbs_build_arch: "x86_64"
+            gbs_build_option: "--define \"unit_test 1\""
+          - gbs_build_arch: "i586"
+            gbs_build_option: "--define \"unit_test 1\""
+          - gbs_build_arch: "armv7l"
+            gbs_build_option: "--define \"unit_test 0\""
+          - gbs_build_arch: "aarch64"
+            gbs_build_option: "--define \"unit_test 0\""
 
     runs-on: ubuntu-20.04
 
@@ -29,6 +29,7 @@ jobs:
       with:
         ref: ${{ github.event.pull_request.head.sha }}
         fetch-depth: -${{ github.event.pull_request.commits }}
+
     - name: Check if rebuild required
       ## @todo This should become a reusable workflow.
       run: |
@@ -38,42 +39,49 @@ jobs:
         rebuild=`bash .github/workflows/check_if_rebuild_requires.sh ${tmpfile} gbs | grep "REBUILD=YES" | wc -l`
         echo "Rebuild required: ${rebuild}"
         echo "rebuild=${rebuild}" >> "$GITHUB_ENV"
+
     - uses: actions/setup-python@v1
+
     - name: prepare GBS
       if: env.rebuild == '1'
       run: |
         echo "deb [trusted=yes] http://download.tizen.org/tools/latest-release/Ubuntu_20.04/ /" | sudo tee /etc/apt/sources.list.d/tizen.list
         sudo apt-get update && sudo apt-get install -y gbs
         cp .github/workflows/tizen.gbs.conf ~/.gbs.conf
-    - name: make cache key
+
+    - name: get date
+      id: get-date
+      run: |
+        echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
+    - name: restore gbs cache from main branch
       if: env.rebuild == '1'
-      id: make-key
-      run: echo "cache_key=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
-      shell: bash
-    - name: cache gbs cache
-      id: cache-gbs-root
-      if: env.rebuild == '1'
-      uses: actions/cache@v3
+      uses: actions/cache/restore@v4
       with:
         path: ~/GBS-ROOT/local/cache
-        key: ${{ steps.make-key.outputs.cache_key }}
+        key: gbs-cache-${{ matrix.gbs_build_arch }}-${{ steps.get-date.outputs.date }}
+        restore-keys: |
+          gbs-cache-${{ matrix.gbs_build_arch }}-
+
     - name: run GBS
       if: env.rebuild == '1'
       run: |
-        gbs build --skip-srcrpm --define "_skip_debug_rpm 1" ${{ matrix.aarch }} ${{ matrix.option }}
+        gbs build --skip-srcrpm --define "_skip_debug_rpm 1" -A ${{ matrix.gbs_build_arch }} ${{ matrix.gbs_build_option }}
         ## Skip nntrainer build test in aarch64. @todo We need #2430 and #2431 in nntrainer.git
-        if [[ "${{ matrix.aarch }}" == "-A aarch64" ]]; then
+        if [[ "${{ matrix.gbs_build_arch }}" == "aarch64" ]]; then
           echo "rebuild=0" >> "$GITHUB_ENV"
         fi
+
     - name: get nntrainer
       if: env.rebuild == '1'
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: nnstreamer/nntrainer
         path: nntrainer
+
     - name: run nntrainer GBS build
       if: env.rebuild == '1'
       run: |
         pushd nntrainer
-        gbs build --skip-srcrpm ${{ matrix.aarch }} ${{ matrix.option }} --define "_skip_debug_rpm 1"
+        gbs build --skip-srcrpm -A ${{ matrix.gbs_build_arch }} ${{ matrix.gbs_build_option }} --define "_skip_debug_rpm 1"
         popd
