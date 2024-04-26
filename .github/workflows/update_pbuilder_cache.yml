@@ -1,0 +1,67 @@
+name: Update pbuilder cache once a day
+
+on:
+  schedule:
+    # 04:00 AM (KST) Mon-Fri
+    - cron: "00 19 * * 0-4"
+
+  # Allow manually triggering the workflow
+  workflow_dispatch:
+
+jobs:
+  cache_pbuilder:
+    strategy:
+      matrix:
+        os: [ ubuntu-22.04 ]
+        arch: [ amd64 ]
+        include:
+          - distroname: jammy
+            os: ubuntu-22.04
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v1
+      - name: make cache dir for pbuilder
+        ## prevent permission error
+        run: sudo mkdir --mode a=rwx --parents /var/cache/pbuilder
+
+      - name: prepare pdebuild
+        run: |
+          echo "Installing build tools"
+          sudo add-apt-repository ppa:nnstreamer/ppa
+          echo "::group::apt-get update && apt-get install"
+          sudo apt-get update && sudo apt-get install -y pbuilder debootstrap curl ubuntu-dev-tools qemu-user-static debian-archive-keyring ubuntu-keyring debhelper
+          echo "::endgroup::"
+          echo "DISTRIBUTION=${{ matrix.distroname }}" > ~/.pbuilderrc
+          echo "OTHERMIRROR=\"deb [trusted=yes] http://archive.ubuntu.com/ubuntu ${{ matrix.distroname }}-backports universe |deb [trusted=yes] http://ppa.launchpad.net/nnstreamer/ppa/ubuntu ${{ matrix.distroname }} main\"" >> ~/.pbuilderrc
+          cat ~/.pbuilderrc
+          sudo mkdir -p /root/
+          sudo ln -s ~/.pbuilderrc /root/
+
+      - name: make pbuilder base.tgz
+        run: |
+          echo "=== pbuilder create"
+          echo "::group::pbuilder create --allow-untrusted"
+          sudo pbuilder create --allow-untrusted
+          echo "::endgroup::"
+          echo "=== pbuilder update"
+          echo "::group::pbuilder update --distribution ${{ matrix.distroname }}"
+          sudo pbuilder update --distribution ${{ matrix.distroname }}
+          echo "::endgroup"
+          echo "::group::pbuilder update"
+          sudo pbuilder update
+          echo "::endgroup"
+
+      - name: run pdebuild
+        run: |
+          pdebuild --architecture ${{ matrix.arch }} -- --distribution ${{ matrix.distroname }}
+
+      - name: save pbuilder cache
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: |
+            /var/cache/pbuilder/aptcache
+            /var/cache/pbuilder/base.tgz
+          key: pbuilder-cache-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('**/debian/control') }}
