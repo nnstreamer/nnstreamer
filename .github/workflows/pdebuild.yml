@@ -55,23 +55,7 @@ jobs:
         echo "Rebuild required: ${rebuild}"
         echo "rebuild=${rebuild}" >> "$GITHUB_ENV"
     - uses: actions/setup-python@v1
-    - name: make cache dir for pbuilder
-      ## prevent permission error
-      run: sudo mkdir --mode a=rwx --parents /var/cache/pbuilder
-    - name: make cache key
-      if: env.rebuild == '1'
-      id: make-key
-      run: echo "cache_key=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
-      shell: bash
-    - name: cache pbuilder cache
-      id: cache-pbuilder
-      if: env.rebuild == '1'
-      uses: actions/cache@v3
-      with:
-        path: |
-          /var/cache/pbuilder/aptcache
-          /var/cache/pbuilder/base.tgz
-        key: ${{ steps.make-key.outputs.cache_key }}
+    ## @todo Make cache works (daily update cache on main branch / restore the cache on each PR (w/o saving))
     - name: prepare pdebuild
       if: env.rebuild == '1'
       run: |
@@ -86,7 +70,6 @@ jobs:
         sudo mkdir -p /root/
         sudo ln -s ~/.pbuilderrc /root/
     - name: make pbuilder base.tgz
-      if: steps.cache-pbuilder.outputs.cache-hit != 'true'
       run: |
         echo "=== pbuilder create"
         echo "::group::pbuilder create --allow-untrusted"

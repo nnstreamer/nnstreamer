@@ -25,18 +25,7 @@ jobs:
         rebuild=`bash .github/workflows/check_if_rebuild_requires.sh ${tmpfile} android | grep "REBUILD=YES" | wc -l`
         echo "Rebuild required: ${rebuild}"
         echo "rebuild=${rebuild}" >> "$GITHUB_ENV"
-    - name: make cache key
-      if: env.rebuild == '1'
-      id: make-key
-      run: echo "cache_key=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
-      shell: bash
-    - name: cache GST root
-      id: cache-gbs-root
-      if: env.rebuild == '1'
-      uses: actions/cache@v3
-      with:
-        path: ~/android
-        key: ${{ steps.make-key.outputs.cache_key }}
+    ## @todo Make cache works (daily update cache on main branch / restore the cache on each PR (w/o saving))
     - name: Prepare Build
       if: env.rebuild == '1'
       run: |
