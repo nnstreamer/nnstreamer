@@ -55,7 +55,23 @@ jobs:
         echo "Rebuild required: ${rebuild}"
         echo "rebuild=${rebuild}" >> "$GITHUB_ENV"
     - uses: actions/setup-python@v1
-    ## @todo Make cache works (daily update cache on main branch / restore the cache on each PR (w/o saving))
+
+    - name: make cache dir for pbuilder
+      ## prevent permission error
+      run: sudo mkdir --mode a=rwx --parents /var/cache/pbuilder
+
+    - name: restore pbuilder cache
+      id: restore-pbuilder-cache
+      if: env.rebuild == '1'
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          /var/cache/pbuilder/aptcache
+          /var/cache/pbuilder/base.tgz
+        key: pbuilder-cache-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('**/debian/control') }}
+        restore-keys: |
+          pbuilder-cache-${{ matrix.os }}-${{ matrix.arch }}-
+
     - name: prepare pdebuild
       if: env.rebuild == '1'
       run: |
@@ -69,7 +85,9 @@ jobs:
         cat ~/.pbuilderrc
         sudo mkdir -p /root/
         sudo ln -s ~/.pbuilderrc /root/
+
     - name: make pbuilder base.tgz
+      if: ${{ env.rebuild == '1' && steps.restore-pbuilder-cache.outputs.cache-hit != 'true' }}
       run: |
         echo "=== pbuilder create"
         echo "::group::pbuilder create --allow-untrusted"
@@ -82,6 +100,7 @@ jobs:
         echo "::group::pbuilder update"
         sudo pbuilder update
         echo "::endgroup"
+
     - name: run pdebuild
       if: env.rebuild == '1'
       run: |
