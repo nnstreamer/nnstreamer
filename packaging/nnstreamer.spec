@@ -1029,10 +1029,15 @@ find . -name "*.gcno" -exec sh -c 'touch -a "${1%.gcno}.gcda"' _ {} \;
 find . -name "CMakeCCompilerId*.gcda" -delete
 find . -name "CMakeCXXCompilerId*.gcda" -delete
 #find . -path "/%{builddir}/*.j
-# Generate report
+# Generate report and exclude generated files (e.g., Orc, Protobuf) and device-dependent filters.
+# Set different lcov options for Tizen/lcov versions.
+%if 0%{tizen_version_major} >= 9
 lcov -t 'NNStreamer Unit Test Coverage' -o unittest.info -c -d . -b %{builddir} --no-external --ignore-errors mismatch
-# Exclude generated files (e.g., Orc, Protobuf) and device-dependent filters.
 lcov -r unittest.info "*/*-orc.*" "*/tests/*" "*/tools/*" "*/meson*/*" "*/*@sha/*" "*/*_openvino*" "*/*_edgetpu*" "*/*_movidius_ncsdk2*" "*/*.so.p/*" -o unittest-filtered.info --ignore-errors graph,unused
+%else
+lcov -t 'NNStreamer Unit Test Coverage' -o unittest.info -c -d . -b %{builddir} --no-external
+lcov -r unittest.info "*/*-orc.*" "*/tests/*" "*/tools/*" "*/meson*/*" "*/*@sha/*" "*/*_openvino*" "*/*_edgetpu*" "*/*_movidius_ncsdk2*" "*/*.so.p/*" -o unittest-filtered.info
+%endif # tizen_version_major >= 9
 # Visualize the report
 genhtml -o result unittest-filtered.info -t "nnstreamer %{version}-%{release} ${VCS}" --ignore-errors source -p ${RPM_BUILD_DIR}
 
