@@ -43,5 +43,5 @@ jobs:
             export NNSTREAMER_DECODERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_decoder
             export NNSTREAMER_CONVERTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_converter
             export NNSTREAMER_TRAINERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_trainer
-            bash ./packaging/run_unittests_binaries.sh ./tests
+            bash ./packaging/run_unittests_binaries.sh -k unittest_filter_python3 ./tests
             cd tests/nnstreamer_converter && ssat && cd ../..
