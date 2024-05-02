@@ -22,7 +22,7 @@ jobs:
           - gbs_build_arch: "aarch64"
             gbs_build_option: "--define \"unit_test 0\""
 
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
 
     steps:
     - uses: actions/checkout@v4
@@ -45,7 +45,7 @@ jobs:
     - name: prepare GBS
       if: env.rebuild == '1'
       run: |
-        echo "deb [trusted=yes] http://download.tizen.org/tools/latest-release/Ubuntu_20.04/ /" | sudo tee /etc/apt/sources.list.d/tizen.list
+        echo "deb [trusted=yes] http://download.tizen.org/tools/latest-release/Ubuntu_22.04/ /" | sudo tee /etc/apt/sources.list.d/tizen.list
         sudo apt-get update && sudo apt-get install -y gbs
         cp .github/workflows/tizen.gbs.conf ~/.gbs.conf
 
@@ -66,7 +66,7 @@ jobs:
     - name: run GBS
       if: env.rebuild == '1'
       run: |
-        gbs build --skip-srcrpm --define "_skip_debug_rpm 1" -A ${{ matrix.gbs_build_arch }} ${{ matrix.gbs_build_option }}
+        gbs build --profile=profile.tizen80 --skip-srcrpm --define "_skip_debug_rpm 1" -A ${{ matrix.gbs_build_arch }} ${{ matrix.gbs_build_option }}
         ## Skip nntrainer build test in aarch64. @todo We need #2430 and #2431 in nntrainer.git
         if [[ "${{ matrix.gbs_build_arch }}" == "aarch64" ]]; then
           echo "rebuild=0" >> "$GITHUB_ENV"
@@ -83,5 +83,5 @@ jobs:
       if: env.rebuild == '1'
       run: |
         pushd nntrainer
-        gbs build --skip-srcrpm -A ${{ matrix.gbs_build_arch }} ${{ matrix.gbs_build_option }} --define "_skip_debug_rpm 1"
+        gbs build --profile=profile.tizen80 --skip-srcrpm -A ${{ matrix.gbs_build_arch }} ${{ matrix.gbs_build_option }} --define "_skip_debug_rpm 1"
         popd
