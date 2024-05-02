@@ -74,6 +74,11 @@
 %define		trix_engine_support 0
 %endif
 
+# Enable a few features from Tizen 9.0 release.
+%if 0%{tizen_version_major} < 9
+%define		onnxruntime_support 0
+%endif
+
 # Disable e-TPU if it's not 64bit system
 %ifnarch aarch64 x86_64
 %define		edgetpu_support 0
