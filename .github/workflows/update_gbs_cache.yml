@@ -14,14 +14,14 @@ jobs:
       matrix:
         gbs_build_arch: [x86_64, i586, armv7l, aarch64]
 
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
 
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-python@v1
 
     - name: prepare deb sources for GBS
-      run: echo "deb [trusted=yes] http://download.tizen.org/tools/latest-release/Ubuntu_20.04/ /" | sudo tee /etc/apt/sources.list.d/tizen.list
+      run: echo "deb [trusted=yes] http://download.tizen.org/tools/latest-release/Ubuntu_22.04/ /" | sudo tee /etc/apt/sources.list.d/tizen.list
 
     - name: install GBS
       run: sudo apt-get update && sudo apt-get install -y gbs
