@@ -39,6 +39,11 @@ jobs:
           sudo mkdir -p /root/
           sudo ln -s ~/.pbuilderrc /root/
 
+      - name: get date
+        id: get-date
+        run: |
+          echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
       - name: make pbuilder base.tgz
         run: |
           echo "=== pbuilder create"
@@ -64,4 +69,4 @@ jobs:
           path: |
             /var/cache/pbuilder/aptcache
             /var/cache/pbuilder/base.tgz
-          key: pbuilder-cache-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('**/debian/control') }}
+          key: pbuilder-cache-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('**/debian/control') }}-${{ steps.get-date.outputs.date }}
