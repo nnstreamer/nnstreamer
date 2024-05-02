@@ -60,6 +60,11 @@ jobs:
       ## prevent permission error
       run: sudo mkdir --mode a=rwx --parents /var/cache/pbuilder
 
+    - name: get date
+      id: get-date
+      run: |
+        echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
     - name: restore pbuilder cache
       id: restore-pbuilder-cache
       if: env.rebuild == '1'
@@ -68,8 +73,9 @@ jobs:
         path: |
           /var/cache/pbuilder/aptcache
           /var/cache/pbuilder/base.tgz
-        key: pbuilder-cache-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('**/debian/control') }}
+        key: pbuilder-cache-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('**/debian/control') }}-${{ steps.get-date.outputs.date }}
         restore-keys: |
+          pbuilder-cache-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('**/debian/control') }}-
           pbuilder-cache-${{ matrix.os }}-${{ matrix.arch }}-
 
     - name: prepare pdebuild
