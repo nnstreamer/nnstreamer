@@ -69,6 +69,13 @@ Depends: nnstreamer, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer Protobuf converter/decoder support
  This package allows to pack/unpack tensor streams to/from protobuf.
 
+Package: nnstreamer-onnxruntime
+Architecture: any
+Multi-Arch: same
+Depends: nnstreamer, ${shlibs:Depends}, ${misc:Depends}
+Description: NNStreamer onnxruntime support
+ This package allows nnstreamer to support onnxruntime
+
 Package: nnstreamer-dev
 Architecture: any
 Multi-Arch: same

@@ -99,6 +99,13 @@ Depends: nnstreamer-single, nnfw, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer NNFW (ONE) support
  This package allows nnstreamer to support NNFW (ONE, On-Device Neural Engine).
 
+Package: nnstreamer-onnxruntime
+Architecture: any
+Multi-Arch: same
+Depends: nnstreamer, ${shlibs:Depends}, ${misc:Depends}
+Description: NNStreamer onnxruntime support
+ This package allows nnstreamer to support onnxruntime
+
 Package: nnstreamer-dev
 Architecture: any
 Multi-Arch: same

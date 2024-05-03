@@ -4,6 +4,12 @@ nnstreamer (2.4.2.0) unstable bionic focal jammy sid; urgency=medium
 
  -- MyungJoo Ham <myungjoo.ham@samsung.com>  Mon, 02 Sep 2024 11:00:00 +0900
 
+nnstreamer (2.4.1+nmu2) UNRELEASED; urgency=medium
+
+  * Include onnxruntime filter
+
+ -- Torsten Schulz <torsten@eyepop.ai>  Fri, 03 May 2024 15:02:38 -0700
+
 nnstreamer (2.4.1+nmu1) UNRELEASED; urgency=medium
 
   * Non-maintainer upload.
