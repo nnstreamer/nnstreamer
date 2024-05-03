@@ -28,7 +28,7 @@ pipeline {
 
         stage('Configure') {
             steps {
-                sh "meson -Dwerror=false -Dtf-support=enabled -Dcaffe2-support=disabled -Dpython3-support=disabled build/ -Denable-test=false" 
+                sh "meson -Dwerror=false -Donnxruntime-support=enabled -Dtf-support=enabled -Dcaffe2-support=disabled -Dpython3-support=disabled build/ -Denable-test=false"
             }
         }
     

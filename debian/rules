@@ -45,12 +45,12 @@ ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes), yes)
 	meson --buildtype=plain --prefix=/usr --sysconfdir=/etc --libdir=lib/$(DEB_HOST_MULTIARCH) --bindir=lib/nnstreamer/bin --includedir=include \
 	-Denable-edgetpu=true -Denable-openvino=true -Dgrpc-support=disabled -Dmqtt-support=enabled \
 	-Ddatarepo-support=enabled \
-	-Dtf-support=enabled \
+	-Dtf-support=enabled -Donnxruntime-support=enabled \
 	-Denable-tizen=false -Denable-test=true -Dinstall-test=true -Dsubplugindir=/usr/lib/nnstreamer $(FLOAT16) ${BUILDDIR}
 else
 	# Debian has less packages ready.
 	meson --buildtype=plain --prefix=/usr --sysconfdir=/etc --libdir=lib/$(DEB_HOST_MULTIARCH) --bindir=lib/nnstreamer/bin --includedir=include \
-	-Denable-edgetpu=false -Denable-openvino=false -Dgrpc-support=disabled -Dmqtt-support=enabled \
+	-Denable-edgetpu=false -Denable-openvino=false -Dgrpc-support=disabled -Dmqtt-support=enabled -Donnxruntime-support=enabled \
 	-Denable-tizen=false -Denable-test=true -Dinstall-test=true -Dsubplugindir=/usr/lib/nnstreamer ${BUILDDIR}
 endif
 
