@@ -478,6 +478,13 @@ gst_tensor_trainer_check_invalid_param (GstTensorTrainer * trainer)
     return FALSE;
   }
 
+  if (!g_file_test (trainer->prop.model_config,
+          (G_FILE_TEST_EXISTS | G_FILE_TEST_IS_REGULAR))) {
+    GST_ERROR_OBJECT (trainer, "Model config file does not exist. [%s]",
+        trainer->prop.model_config);
+    return FALSE;
+  }
+
   return TRUE;
 }
 

@@ -256,6 +256,48 @@ TEST (tensor_trainer, invalidModelConfig0_n)
 }
 
 /**
+ * @brief Model training test with invalid param (model-config)
+ */
+TEST (tensor_trainer, invalidModelConfig1_n)
+{
+  gchar *file_path = NULL;
+  gchar *json_path = NULL;
+  gchar *non_existent_path = NULL;
+  GstElement *tensor_trainer = NULL;
+
+  file_path = get_file_path (filename);
+  json_path = get_file_path (json);
+  non_existent_path = get_file_path ("non_existent_file.ini");
+
+  gchar *str_pipeline = g_strdup_printf (
+      "gst-launch-1.0 datareposrc location=%s json=%s"
+      "start-sample-index=3 stop-sample-index=202 tensors-sequence=0,1 epochs=5 ! "
+      "tensor_trainer name=tensor_trainer framework=nntrainer"
+      "model-save-path=model.bin num-inputs=1 num-labels=1 "
+      "num-training-samples=100 num-validation-samples=100 epochs=5 ! tensor_sink",
+      file_path, json_path);
+
+  GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
+  g_free (str_pipeline);
+  g_free (file_path);
+  g_free (json_path);
+  ASSERT_NE (pipeline, nullptr);
+
+  tensor_trainer = gst_bin_get_by_name (GST_BIN (pipeline), "tensor_trainer");
+  ASSERT_NE (tensor_trainer, nullptr);
+
+  /* set invalid param */
+  g_object_set (GST_OBJECT (tensor_trainer), "model-config", non_existent_path, NULL);
+
+  /* state chagne failure is expected */
+  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  g_free (non_existent_path);
+  gst_object_unref (GST_OBJECT (tensor_trainer));
+  gst_object_unref (GST_OBJECT (pipeline));
+}
+
+/**
  * @brief Model training test with invalid param (model-save-path)
  */
 TEST (tensor_trainer, invalidModelSavePath0_n)
