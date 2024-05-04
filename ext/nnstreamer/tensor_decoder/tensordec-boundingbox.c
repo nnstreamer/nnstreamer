@@ -1203,11 +1203,24 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
       g_return_val_if_fail (dim[i] == 0 || dim[i] == 1, NULL);
   } else if (data->mode == YOLOV8_BOUNDING_BOX) {
     const guint *dim = config->info.info[0].dimension;
-    if (!_check_tensors (config, 1U))
+    if (!_check_tensors (config, 1U)) {
+      gchar *typestr = gst_tensors_info_to_string (&config->info);
+      nns_loge
+          ("Yolov8 bounding-box decoder needs at least 1 valid tensor. The given input tensor is: %s.",
+          typestr);
+      g_free (typestr);
       return NULL;
+    }
 
     /** Only support for float type model */
-    g_return_val_if_fail (config->info.info[0].type == _NNS_FLOAT32, NULL);
+    if (config->info.info[0].type != _NNS_FLOAT32) {
+      gchar *typestr = gst_tensors_info_to_string (&config->info);
+      nns_loge
+          ("Yolov8 bounding-box decoder accepts float32 input tensors only. The given input tensor is: %s.",
+          typestr);
+      g_free (typestr);
+      return NULL;
+    }
 
     data->max_detection =
         (data->i_width / 32) * (data->i_height / 32) +
@@ -1224,7 +1237,13 @@ bb_getOutCaps (void **pdata, const GstTensorsConfig * config)
     }
 
     for (i = 2; i < NNS_TENSOR_RANK_LIMIT; ++i)
-      g_return_val_if_fail (dim[i] == 0 || dim[i] == 1, NULL);
+      if (dim[i] != 0 && dim[i] != 1) {
+        gchar *typestr = gst_tensors_info_to_string (&config->info);
+        nns_loge
+            ("Yolov8 bounding-box decoder accepts RANK=2 tensors (3rd and later dimensions should be 1 or 0). The given input tensor is: %s.",
+            typestr);
+        g_free (typestr);
+      }
   } else if (data->mode == MP_PALM_DETECTION_BOUNDING_BOX) {
     const uint32_t *dim1, *dim2;
     if (!_check_tensors (config, MP_PALM_DETECTION_MAX_TENSORS))
