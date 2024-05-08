@@ -1,102 +1,121 @@
+/**
+ * GStreamer / NNStreamer tensor_decoder subplugin, "bounding boxes"
+ * Copyright (C) 2018 Samsung Electronics Co. Ltd.
+ * Copyright (C) 2018 MyungJoo Ham <myungjoo.ham@samsung.com>
+ * Copyright 2021 NXP
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Library General Public
+ * License as published by the Free Software Foundation;
+ * version 2.1 of the License.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Library General Public License for more details.
+ *
+ */
+/**
+ * @file        tensordec-boundingbox.h
+ * @date        15 Nov 2018
+ * @brief       NNStreamer tensor-decoder subplugin, "bounding boxes",
+ *              which converts tensors to video stream w/ boxes on
+ *              transparent background.
+ *              This code is NYI/WIP and not compilable.
+ *
+ * @see         https://github.com/nnstreamer/nnstreamer
+ * @author      MyungJoo Ham <myungjoo.ham@samsung.com>
+ * @bug         No known bugs except for NYI items
+ *
+ * option1: Decoder mode of bounding box.
+ *          Available: yolov5
+ *                     mobilenet-ssd (single shot multibox detector with priors.)
+ *                     mobilenet-ssd-postprocess
+ *                     ov-person-detection
+ *                     tf-ssd (deprecated, recommend to use mobilenet-ssd-postprocess)
+ *                     tflite-ssd (deprecated, recommend to use mobilenet-ssd)
+ * option2: Location of label file
+ *          This is independent from option1
+ * option3: Any option1-dependent values
+ *          !!This depends on option1 values!!
+ *          for yolov5 and yolov8 mode:
+ *            The option3 requires up to 3 numbers, which tell
+ *              - whether the output values are scaled or not
+ *                0: not scaled (default), 1: scaled (e.g., 0.0 ~ 1.0)
+ *              - the threshold of confidence (optional, default set to 0.25)
+ *              - the threshold of IOU (optional, default set to 0.45)
+ *            An example of option3 is "option3=0:0.65:0.6"
+ *          for mobilenet-ssd mode:
+ *            The option3 definition scheme is, in order, the following:
+ *                - box priors location file (mandatory)
+ *                - Detection threshold (optional, default set to 0.5)
+ *                - Y box scale (optional, default set to 10.0)
+ *                - X box scale (optional, default set to 10.0)
+ *                - h box scale (optional, default set to 5.0)
+ *                - w box scale (optional, default set to 5.0)
+ *                - IOU box valid threshold (optional, default set to 0.5)
+ *            The default parameters value could be set in the following ways:
+ *            option3=box-priors.txt:0.5:10.0:10.0:5.0:5.0:0.5
+ *            option3=box-priors.txt
+ *            option3=box-priors.txt::::::
+ *
+ *            It's possible to set only few values, using the default values for
+ *            those not specified through the command line.
+ *            You could specify respectively the detection and IOU thresholds to 0.65
+ *            and 0.6 with the option3 parameter as follow:
+ *            option3=box-priors.txt:0.65:::::0.6
+ *          for mobilenet-ssd-postprocess mode:
+ *            The option3 is required to have 5 integer numbers, which tell
+ *            the tensor-dec how to interpret the given tensor inputs.
+ *            The first 4 numbers separated by colon, ':', designate which
+ *            are location:class:score:number of the tensors.
+ *            The last number separated by comma, ',' from the first 4 numbers
+ *            designate the threshold in percent.
+ *            In other words, "option3=%i:%i:%i:%i,%i".
+ *          for mp-palm-detection mode:
+ *            The option3 is required to have 5 float numbers, as following
+ *                - box score threshold (mandatory)
+ *                - number of layers for anchor generation (optional, default set to 4)
+ *                - minimum scale factor for anchor generation (optional, default set to 1.0)
+ *                - maximum scale factor for anchor generation (optional, default set to 1.0)
+ *                - X offset (optional, default set to 0.5)
+ *                - Y offset (optional, default set to 0.5)
+ *                - strides for each layer for anchor generation (optional, default set to 8:16:16:16)
+ *            The default parameter value could be set in the following ways:
+ *            option3=0.5
+ *            option3=0.5:4:0.2:0.8
+ *            option3=0.5:4:1.0:1.0:0.5:0.5:8:16:16:16
+ *
+ * option4: Video Output Dimension (WIDTH:HEIGHT)
+ *          This is independent from option1
+ * option5: Input Dimension (WIDTH:HEIGHT)
+ *          This is independent from option1
+ * option6: Whether to track result bounding boxes or not
+ *          0 (default, do not track)
+ *          1 (track result bounding boxes, with naive centroid based algorithm)
+ * option7: Whether to log the result bounding boxes or not
+ *          0 (default, do not log)
+ *          1 (log result bounding boxes)
+ * option8: Box Style (NYI)
+ *
+ * MAJOR TODO: Support other colorspaces natively from _decode for performance gain
+ * (e.g., BGRA, ARGB, ...)
+ *
+ */
+
 #ifndef _TENSORDECBB_H__
 #define _TENSORDECBB_H__
-
+#include <gst/gst.h>
 #include <math.h> /* expf */
+#include <nnstreamer_log.h>
+#include <nnstreamer_util.h>
 #include "tensordecutil.h"
 
 #define PIXEL_VALUE (0xFF0000FF) /* RED 100% in RGBA */
 
 /**
- * @brief C++-Template-like box location calculation for box-priors for Mobilenet SSD Model
- * @param[in] type The tensor type of inputptr
- * @param[in] typename nnstreamer enum corresponding to the type
- * @param[in] boxprior The box prior data from the box file of MOBILENET_SSD.
- * @param[in] boxinput Input Tensor Data (Boxes)
- * @param[in] detinput Input Tensor Data (Detection). Null if not available. (numtensor ==1)
- * @param[in] config Tensor configs of the input tensors
- * @param[out] results The object returned. (GArray with detectedObject)
+ * @brief Option of bounding box
  */
-#define _get_objects_mobilenet_ssd(_type, typename, boxprior, boxinput,                                      \
-    detinput, config, results, i_width, i_height, max_detection)                                             \
-  case typename:                                                                                             \
-    {                                                                                                        \
-      int d;                                                                                                 \
-      _type *boxinput_ = (_type *) boxinput;                                                                 \
-      size_t boxbpi = config->info.info[0].dimension[0];                                                     \
-      _type *detinput_ = (_type *) detinput;                                                                 \
-      size_t detbpi = config->info.info[1].dimension[0];                                                     \
-      int num = (DETECTION_MAX > max_detection) ? max_detection : DETECTION_MAX;                             \
-      detectedObject object = {                                                                              \
-        .valid = FALSE, .class_id = 0, .x = 0, .y = 0, .width = 0, .height = 0, .prob = .0, .tracking_id = 0 \
-      };                                                                                                     \
-      for (d = 0; d < num; d++) {                                                                            \
-        _get_object_i_mobilenet_ssd (d, detbpi, boxprior, (boxinput_ + (d * boxbpi)),                        \
-            (detinput_ + (d * detbpi)), (&object), i_width, i_height);                                       \
-        if (object.valid == TRUE) {                                                                          \
-          g_array_append_val (results, object);                                                              \
-        }                                                                                                    \
-      }                                                                                                      \
-    }                                                                                                        \
-    break
-
-
-/** @brief Macro to simplify calling _get_objects_mobilenet_ssd */
-#define _get_objects_mobilenet_ssd_(type, typename)                      \
-  _get_objects_mobilenet_ssd (type, typename, box_priors, (boxes->data), \
-      (detections->data), config, results, i_width, i_height, max_detection)
-
-
-#define _expit(x) (1.f / (1.f + expf (-((float) x))))
-
-/**
- * @brief C++-Template-like box location calculation for box-priors
- * @bug This is not macro-argument safe. Use paranthesis!
- * @param[in] bb The configuration, "bounding_boxes"
- * @param[in] index The index (3rd dimension of BOX_SIZE:1:DETECTION_MAX:1)
- * @param[in] total_labels The count of total labels. We can get this from input tensor info. (1st dimension of LABEL_SIZE:DETECTION_MAX:1:1)
- * @param[in] boxprior The box prior data from the box file of SSD.
- * @param[in] boxinputptr Cursor pointer of input + byte-per-index * index (box)
- * @param[in] detinputptr Cursor pointer of input + byte-per-index * index (detection)
- * @param[in] result The object returned. (pointer to object)
- */
-#define _get_object_i_mobilenet_ssd(index, total_labels, boxprior,                \
-    boxinputptr, detinputptr, result, i_width, i_height)                          \
-  do {                                                                            \
-    unsigned int c;                                                               \
-    gfloat highscore = -FLT_MAX;                                                  \
-    float y_scale = params[Y_SCALE_IDX];                                          \
-    float x_scale = params[X_SCALE_IDX];                                          \
-    float h_scale = params[H_SCALE_IDX];                                          \
-    float w_scale = params[W_SCALE_IDX];                                          \
-    result->valid = FALSE;                                                        \
-    for (c = 1; c < total_labels; c++) {                                          \
-      if (detinputptr[c] >= sigmoid_threshold) {                                  \
-        gfloat score = _expit (detinputptr[c]);                                   \
-        float ycenter                                                             \
-            = boxinputptr[0] / y_scale * boxprior[2][index] + boxprior[0][index]; \
-        float xcenter                                                             \
-            = boxinputptr[1] / x_scale * boxprior[3][index] + boxprior[1][index]; \
-        float h = (float) expf (boxinputptr[2] / h_scale) * boxprior[2][index];   \
-        float w = (float) expf (boxinputptr[3] / w_scale) * boxprior[3][index];   \
-        float ymin = ycenter - h / 2.f;                                           \
-        float xmin = xcenter - w / 2.f;                                           \
-        int x = xmin * i_width;                                                   \
-        int y = ymin * i_height;                                                  \
-        int width = w * i_width;                                                  \
-        int height = h * i_height;                                                \
-        if (highscore < score) {                                                  \
-          result->class_id = c;                                                   \
-          result->x = MAX (0, x);                                                 \
-          result->y = MAX (0, y);                                                 \
-          result->width = width;                                                  \
-          result->height = height;                                                \
-          result->prob = score;                                                   \
-          result->valid = TRUE;                                                   \
-        }                                                                         \
-      }                                                                           \
-    }                                                                             \
-  } while (0);
-
 enum class BoundingBoxOption {
   MODE = 0,
   LABEL_PATH = 1,
@@ -129,33 +148,6 @@ typedef enum {
 
   BOUNDING_BOX_UNKNOWN,
 } bounding_box_modes;
-
-/**
- * @brief MOBILENET SSD PostProcess Output tensor feature mapping.
- */
-typedef enum {
-  MOBILENET_SSD_PP_BBOX_IDX_LOCATIONS = 0,
-  MOBILENET_SSD_PP_BBOX_IDX_CLASSES = 1,
-  MOBILENET_SSD_PP_BBOX_IDX_SCORES = 2,
-  MOBILENET_SSD_PP_BBOX_IDX_NUM = 3,
-  MOBILENET_SSD_PP_BBOX_IDX_UNKNOWN
-} mobilenet_ssd_pp_bbox_idx_t;
-
-/**
- * @brief List of bounding-box decoding schemes in string
- */
-static const char *bb_modes[] = {
-  [MOBILENET_SSD_BOUNDING_BOX] = "mobilenet-ssd",
-  [MOBILENET_SSD_PP_BOUNDING_BOX] = "mobilenet-ssd-postprocess",
-  [OV_PERSON_DETECTION_BOUNDING_BOX] = "ov-person-detection",
-  [OV_FACE_DETECTION_BOUNDING_BOX] = "ov-face-detection",
-  [OLDNAME_MOBILENET_SSD_BOUNDING_BOX] = "tflite-ssd",
-  [OLDNAME_MOBILENET_SSD_PP_BOUNDING_BOX] = "tf-ssd",
-  [YOLOV5_BOUNDING_BOX] = "yolov5",
-  [MP_PALM_DETECTION_BOUNDING_BOX] = "mp-palm-detection",
-  [YOLOV8_BOUNDING_BOX] = "yolov8",
-  NULL,
-};
 
 /**
  * @brief Structure for object centroid tracking.
@@ -200,166 +192,24 @@ typedef struct {
   int tracking_id;
 } detectedObject;
 
-/**
- * @brief C++-Template-like box location calculation for Tensorflow SSD model
- * @param[in] type The tensor type of inputptr
- * @param[in] typename nnstreamer enum corresponding to the type
- * @param[in] numinput Input Tensor Data (The number of detections)
- * @param[in] classinput Input Tensor Data (Detected classes)
- * @param[in] scoreinput Input Tensor Data (Detection scores)
- * @param[in] boxesinput Input Tensor Data (Boxes)
- * @param[in] config Tensor configs of the input tensors
- * @param[out] results The object returned. (GArray with detectedObject)
- */
-#define _get_objects_mobilenet_ssd_pp(_type, typename, numinput, classinput,       \
-    scoreinput, boxesinput, config, results, i_width, i_height)                    \
-  case typename:                                                                   \
-    {                                                                              \
-      int d, num;                                                                  \
-      size_t boxbpi;                                                               \
-      _type *num_detection_ = (_type *) numinput;                                  \
-      _type *classes_ = (_type *) classinput;                                      \
-      _type *scores_ = (_type *) scoreinput;                                       \
-      _type *boxes_ = (_type *) boxesinput;                                        \
-      int locations_idx                                                            \
-          = get_mobilenet_ssd_pp_tensor_idx (MOBILENET_SSD_PP_BBOX_IDX_LOCATIONS); \
-      num = (int) num_detection_[0];                                               \
-      results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), num);     \
-      boxbpi = config->info.info[locations_idx].dimension[0];                      \
-      for (d = 0; d < num; d++) {                                                  \
-        _type x1, x2, y1, y2;                                                      \
-        detectedObject object;                                                     \
-        if (scores_[d] < threshold)                                                \
-          continue;                                                                \
-        object.valid = TRUE;                                                       \
-        object.class_id = (int) classes_[d];                                       \
-        x1 = MIN (MAX (boxes_[d * boxbpi + 1], 0), 1);                             \
-        y1 = MIN (MAX (boxes_[d * boxbpi], 0), 1);                                 \
-        x2 = MIN (MAX (boxes_[d * boxbpi + 3], 0), 1);                             \
-        y2 = MIN (MAX (boxes_[d * boxbpi + 2], 0), 1);                             \
-        object.x = (int) (x1 * i_width);                                           \
-        object.y = (int) (y1 * i_height);                                          \
-        object.width = (int) ((x2 - x1) * i_width);                                \
-        object.height = (int) ((y2 - y1) * i_height);                              \
-        object.prob = scores_[d];                                                  \
-        g_array_append_val (results, object);                                      \
-      }                                                                            \
-    }                                                                              \
-    break
-
-/** @brief Macro to simplify calling _get_objects_mobilenet_ssd_pp */
-#define _get_objects_mobilenet_ssd_pp_(type, typename)                                 \
-  _get_objects_mobilenet_ssd_pp (type, typename, (mem_num->data), (mem_classes->data), \
-      (mem_scores->data), (mem_boxes->data), config, results, i_width, i_height)
-
-
-#define OV_PERSON_DETECTION_CONF_THRESHOLD (0.8)
-/**
- * @brief C++-Template-like box location calculation for OpenVino Person Detection Model
- * @param[in] type The tensor type of inputptr
- * @param[in] intputptr Input tensor Data
- * @param[in] typename nnstreamer enum corresponding to the type
- * @param[out] results The object returned. (GArray with detectedObject)
- */
-#define _get_persons_ov(type, inputptr, typename, results)                                                   \
-  case typename:                                                                                             \
-    {                                                                                                        \
-      detectedObject object = {                                                                              \
-        .valid = FALSE, .class_id = 0, .x = 0, .y = 0, .width = 0, .height = 0, .prob = .0, .tracking_id = 0 \
-      };                                                                                                     \
-      type *typed_inputptr = (type *) inputptr;                                                              \
-      guint d;                                                                                               \
-                                                                                                             \
-      for (d = 1; d <= DETECTION_MAX; ++d) {                                                                 \
-        struct {                                                                                             \
-          type image_id;                                                                                     \
-          type label;                                                                                        \
-          type conf;                                                                                         \
-          type x_min;                                                                                        \
-          type y_min;                                                                                        \
-          type x_max;                                                                                        \
-          type y_max;                                                                                        \
-        } desc;                                                                                              \
-                                                                                                             \
-        memcpy (&desc, typed_inputptr, sizeof (desc));                                                       \
-        typed_inputptr += (sizeof (desc) / sizeof (type));                                                   \
-        object.valid = FALSE;                                                                                \
-                                                                                                             \
-        if ((int) desc.image_id < 0) {                                                                       \
-          max_detection = (d - 1);                                                                           \
-          break;                                                                                             \
-        }                                                                                                    \
-        object.class_id = -1;                                                                                \
-        object.x = (int) (desc.x_min * (type) i_width);                                                      \
-        object.y = (int) (desc.y_min * (type) i_height);                                                     \
-        object.width = (int) ((desc.x_max - desc.x_min) * (type) i_width);                                   \
-        object.height = (int) ((desc.y_max - desc.y_min) * (type) i_height);                                 \
-        if (desc.conf < OV_PERSON_DETECTION_CONF_THRESHOLD)                                                  \
-          continue;                                                                                          \
-        object.prob = 1;                                                                                     \
-        object.valid = TRUE;                                                                                 \
-        g_array_append_val (results, object);                                                                \
-      }                                                                                                      \
-    }                                                                                                        \
-    break
 
 /**
- * @brief C++-Template-like box location calculation for Tensorflow model
- * @param[in] type The tensor type of inputptr
- * @param[in] typename nnstreamer enum corresponding to the type
- * @param[in] scoreinput Input Tensor Data (Detection scores)
- * @param[in] boxesinput Input Tensor Data (Boxes)
- * @param[in] config Tensor configs of the input tensors
- * @param[out] results The object returned. (GArray with detectedObject)
+ * @brief Apply NMS to the given results (objects[DETECTION_MAX])
+ * @param[in/out] results The results to be filtered with nms
  */
-#define _get_objects_mp_palm_detection(_type, typename, scoreinput, boxesinput, config) \
-  case typename:                                                                        \
-    {                                                                                   \
-      int d_;                                                                           \
-      _type *scores_ = (_type *) scoreinput;                                            \
-      _type *boxes_ = (_type *) boxesinput;                                             \
-      int num_ = max_detection;                                                         \
-      size_t boxbpi_ = config->info.info[0].dimension[0];                               \
-      results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), num_);         \
-      for (d_ = 0; d_ < num_; d_++) {                                                   \
-        gfloat y_center, x_center, h, w;                                                \
-        gfloat ymin, xmin;                                                              \
-        int y, x, width, height;                                                        \
-        detectedObject object;                                                          \
-        gfloat score = (gfloat) scores_[d_];                                            \
-        _type *box = boxes_ + boxbpi_ * d_;                                             \
-        anchor *a = &g_array_index (this->anchors, anchor, d_);                         \
-        score = MAX (score, -100.0f);                                                   \
-        score = MIN (score, 100.0f);                                                    \
-        score = 1.0f / (1.0f + exp (-score));                                           \
-        if (score < min_score_threshold)                                                \
-          continue;                                                                     \
-        y_center = (box[0] * 1.f) / i_height * a->h + a->y_center;                      \
-        x_center = (box[1] * 1.f) / i_width * a->w + a->x_center;                       \
-        h = (box[2] * 1.f) / i_height * a->h;                                           \
-        w = (box[3] * 1.f) / i_width * a->w;                                            \
-        ymin = y_center - h / 2.f;                                                      \
-        xmin = x_center - w / 2.f;                                                      \
-        y = ymin * i_height;                                                            \
-        x = xmin * i_width;                                                             \
-        width = w * i_width;                                                            \
-        height = h * i_height;                                                          \
-        object.class_id = 0;                                                            \
-        object.x = MAX (0, x);                                                          \
-        object.y = MAX (0, y);                                                          \
-        object.width = width;                                                           \
-        object.height = height;                                                         \
-        object.prob = score;                                                            \
-        object.valid = TRUE;                                                            \
-        g_array_append_val (results, object);                                           \
-      }                                                                                 \
-    }                                                                                   \
-    break
+void nms (GArray *results, gfloat threshold);
 
-/** @brief Macro to simplify calling _get_objects_mp_palm_detection */
-#define _get_objects_mp_palm_detection_(type, typename) \
-  _get_objects_mp_palm_detection (type, typename, (detections->data), (boxes->data), config)
+/**
+ * @brief check the num_tensors is valid
+ * @param[in] config The structure of tensors info to check.
+ * @param[in] limit The limit of tensors number.
+ * @return TRUE if tensors info is valid.
+ */
+int check_tensors (const GstTensorsConfig *config, const unsigned int limit);
 
+/**
+ * @brief	Interface for Bounding box's properties
+ */
 class BoxProperties
 {
   public:
@@ -400,7 +250,9 @@ class BoxProperties
   guint total_labels;
 };
 
-
+/**
+ * @brief	Class for Bounding box tensor decoder
+ */
 class BoundingBox
 {
   public:
@@ -448,19 +300,9 @@ class BoundingBox
   gboolean flag_use_label;
 };
 
-/** @brief Mathematic inverse of sigmoid function, aka logit */
-static float
-logit (float x)
-{
-  if (x <= 0.0f)
-    return -INFINITY;
-
-  if (x >= 1.0f)
-    return INFINITY;
-
-  return log (x / (1.0 - x));
-}
-
+/**
+ * @brief	Class for MobilenetSSD box properties
+ */
 class MobilenetSSD : public BoxProperties
 {
   public:
@@ -473,22 +315,7 @@ class MobilenetSSD : public BoxProperties
 
   static const int BOX_SIZE = 4;
   static const int DETECTION_MAX = 2034; /* add ssd_mobilenet v3 support */
-  static const guint MAX_TENSORS = 2U;
-
-  static const int THRESHOLD_IDX = 0;
-  static const int Y_SCALE_IDX = 1;
-  static const int X_SCALE_IDX = 2;
-  static const int H_SCALE_IDX = 3;
-  static const int W_SCALE_IDX = 4;
-  static const int IOU_THRESHOLD_IDX = 5;
   static const int PARAMS_MAX = 6;
-
-  static constexpr gfloat DETECTION_THRESHOLD_DEFAULT = 0.5f;
-  static constexpr gfloat THRESHOLD_IOU_DEFAULT = 0.5f;
-  static constexpr gfloat Y_SCALE_DEFAULT = 10.0f;
-  static constexpr gfloat X_SCALE_DEFAULT = 10.0f;
-  static constexpr gfloat H_SCALE_DEFAULT = 5.0f;
-  static constexpr gfloat W_SCALE_DEFAULT = 5.0f;
 
   private:
   char *box_prior_path; /**< Box Prior file path */
@@ -497,6 +324,9 @@ class MobilenetSSD : public BoxProperties
   gfloat sigmoid_threshold; /** Inverse value of valid detection threshold in sigmoid domain */
 };
 
+/**
+ * @brief	Class for MobilenetSSDPP box properties
+ */
 class MobilenetSSDPP : public BoxProperties
 {
   public:
@@ -507,25 +337,16 @@ class MobilenetSSDPP : public BoxProperties
   int checkCompatible (const GstTensorsConfig *config);
   GArray *decode (const GstTensorsConfig *config, const GstTensorMemory *input);
 
-  static const int BOX_SIZE = 4;
-  static const guint DETECTION_MAX = 100;
   static const guint MAX_TENSORS = 4U;
-  static const int LOCATIONS_IDX = 0;
-  static const int CLASSES_IDX = 1;
-  static const int SCORES_IDX = 2;
-  static const int NUM_IDX = 3;
-
-  static const gint LOCATIONS_DEFAULT = 3;
-  static const gint CLASSES_DEFAULT = 1;
-  static const gint SCORES_DEFAULT = 2;
-  static const gint NUM_DEFAULT = 0;
-  static constexpr gfloat THRESHOLD_DEFAULT = G_MINFLOAT;
 
   private:
   gint tensor_mapping[MAX_TENSORS]; /* Output tensor index mapping */
   gfloat threshold; /* Detection threshold */
 };
 
+/**
+ * @brief	Class for OVDetection box properties
+ */
 class OVDetection : public BoxProperties
 {
   public:
@@ -542,22 +363,16 @@ class OVDetection : public BoxProperties
   static const guint DEFAULT_SIZE_DETECTION_DESC = 7;
 };
 
-#define YOLO_DETECTION_CONF_THRESHOLD (0.25)
-#define YOLO_DETECTION_IOU_THRESHOLD (0.45)
-
+/**
+ * @brief	Class for YoloV5 box properties
+ */
 class YoloV5 : public BoxProperties
 {
   public:
-  YoloV5 ()
-      : scaled_output (0), conf_threshold (YOLO_DETECTION_CONF_THRESHOLD),
-        iou_threshold (YOLO_DETECTION_IOU_THRESHOLD)
-  {
-  }
+  YoloV5 ();
   int setOptionInternal (const char *param);
   int checkCompatible (const GstTensorsConfig *config);
   GArray *decode (const GstTensorsConfig *config, const GstTensorMemory *input);
-
-  static const int DEFAULT_DETECTION_NUM_INFO = 5;
 
   private:
   /* From option3, whether the output values are scaled or not */
@@ -566,19 +381,16 @@ class YoloV5 : public BoxProperties
   gfloat iou_threshold;
 };
 
+/**
+ * @brief	Class for YoloV8 box properties
+ */
 class YoloV8 : public BoxProperties
 {
   public:
-  YoloV8 ()
-      : scaled_output (0), conf_threshold (YOLO_DETECTION_CONF_THRESHOLD),
-        iou_threshold (YOLO_DETECTION_IOU_THRESHOLD)
-  {
-  }
+  YoloV8 ();
   int setOptionInternal (const char *param);
   int checkCompatible (const GstTensorsConfig *config);
   GArray *decode (const GstTensorsConfig *config, const GstTensorMemory *input);
-
-  static const int DEFAULT_DETECTION_NUM_INFO = 4;
 
   private:
   /* From option3, whether the output values are scaled or not */
@@ -587,6 +399,9 @@ class YoloV8 : public BoxProperties
   gfloat iou_threshold;
 };
 
+/**
+ * @brief	Class for MpPalmDetection box properties
+ */
 class MpPalmDetection : public BoxProperties
 {
   public:
@@ -598,22 +413,6 @@ class MpPalmDetection : public BoxProperties
 
   GArray *decode (const GstTensorsConfig *config, const GstTensorMemory *input);
 
-  static const guint INFO_SIZE = 18;
-  static const guint MAX_TENSORS = 2U;
-  static const guint MAX_DETECTION = 2016;
-
-  static const gint NUM_LAYERS_DEFAULT = 4;
-  static constexpr gfloat MIN_SCALE_DEFAULT = 1.0;
-  static constexpr gfloat MAX_SCALE_DEFAULT = 1.0;
-  static constexpr gfloat OFFSET_X_DEFAULT = 0.5;
-  static constexpr gfloat OFFSET_Y_DEFAULT = 0.5;
-  static const gint STRIDE_0_DEFAULT = 8;
-  static const gint STRIDE_1_DEFAULT = 16;
-  static const gint STRIDE_2_DEFAULT = 16;
-  static const gint STRIDE_3_DEFAULT = 16;
-  static constexpr gfloat MIN_SCORE_THRESHOLD_DEFAULT = 0.5;
-
-  static const int PARAMS_STRIDE_SIZE = 8;
   static const int PARAMS_MAX = 13;
 
   private:
