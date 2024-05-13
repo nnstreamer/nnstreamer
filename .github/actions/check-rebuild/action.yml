@@ -1,0 +1,20 @@
+name: Check if rebuild required
+description:
+
+inputs:
+  mode:
+    description: build mode to be checked
+    required: false
+    default: build
+
+runs:
+  using: composite
+  steps:
+    - run: |
+        tmpfile=$(mktemp)
+        git show --pretty="format:" --name-only --diff-filter=AMRC ${{ github.event.pull_request.head.sha}} -${{ github.event.pull_request.commits }} | sort | uniq | awk NF > ${tmpfile}
+        echo "changed_file_list=${tmpfile}" >> "$GITHUB_ENV"
+        rebuild=`bash .github/actions/check-rebuild/check_if_rebuild_requires.sh ${tmpfile} ${{ inputs.mode }} | grep "REBUILD=YES" | wc -l`
+        echo "Rebuild required: ${rebuild}"
+        echo "rebuild=${rebuild}" >> "$GITHUB_ENV"
+      shell: sh
