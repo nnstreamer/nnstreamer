@@ -17,15 +17,11 @@ jobs:
       with:
         fetch-depth: 0
     - name: Check if rebuild required
-      ## @todo This should become a reusable workflow.
-      run: |
-        tmpfile=$(mktemp)
-        git show --pretty="format:" --name-only --diff-filter=AMRC ${{ github.event.pull_request.head.sha}} -${{ github.event.pull_request.commits }} | sort | uniq | awk NF > ${tmpfile}
-        echo "changed_file_list=${tmpfile}" >> "$GITHUB_ENV"
-        rebuild=`bash .github/workflows/check_if_rebuild_requires.sh ${tmpfile} rebuild | grep "REBUILD=YES" | wc -l`
-        echo "Rebuild required: ${rebuild}"
-        echo "rebuild=${rebuild}" >> "$GITHUB_ENV"
-    - uses: actions/setup-python@v1
+      uses: ./.github/actions/check-rebuild
+      with:
+        mode: rebuild
+    - if: env.rebuild == '1'
+      uses: actions/setup-python@v1
       with:
         python-version: '3.x'
     - name: install requirements
