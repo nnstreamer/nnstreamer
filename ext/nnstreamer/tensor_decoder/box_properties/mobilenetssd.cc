@@ -32,7 +32,32 @@
 #define H_SCALE_DEFAULT (5.0f)
 #define W_SCALE_DEFAULT (5.0f)
 
+#define BOX_SIZE (4)
+#define DETECTION_MAX (2034) /* add ssd_mobilenet v3 support */
+#define PARAMS_MAX (6)
+
 #define _expit(x) (1.f / (1.f + expf (-((float) x))))
+
+/**
+ * @brief Class for MobilenetSSD box properties
+ */
+class MobilenetSSD : public BoxProperties
+{
+  public:
+  MobilenetSSD ();
+  ~MobilenetSSD ();
+  int mobilenet_ssd_loadBoxPrior ();
+
+  int setOptionInternal (const char *param);
+  int checkCompatible (const GstTensorsConfig *config);
+  GArray *decode (const GstTensorsConfig *config, const GstTensorMemory *input);
+
+  private:
+  char *box_prior_path; /**< Box Prior file path */
+  gfloat box_priors[BOX_SIZE][DETECTION_MAX + 1]; /** loaded box prior */
+  gfloat params[PARAMS_MAX]; /** Post Processing parameters */
+  gfloat sigmoid_threshold; /** Inverse value of valid detection threshold in sigmoid domain */
+};
 
 /**
  * @brief C++-Template-like box location calculation for box-priors
@@ -135,6 +160,17 @@ logit (float x)
   return log (x / (1.0 - x));
 }
 
+static BoxProperties *mobilenet = nullptr;
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+void init_properties_mobilenetssd (void) __attribute__ ((constructor));
+void fini_properties_mobilenetssd (void) __attribute__ ((destructor));
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+
 /** @brief Constructor of MobilenetSSD */
 MobilenetSSD::MobilenetSSD ()
 {
@@ -149,6 +185,13 @@ MobilenetSSD::MobilenetSSD ()
   max_detection = 0;
   total_labels = 0;
   box_prior_path = nullptr;
+  name = g_strdup_printf ("mobilenet-ssd");
+}
+
+/** @brief Destructor of MobilenetSSD */
+MobilenetSSD::~MobilenetSSD ()
+{
+  g_free (name);
 }
 
 /**
@@ -359,4 +402,19 @@ MobilenetSSD::decode (const GstTensorsConfig *config, const GstTensorMemory *inp
   }
   nms (results, params[IOU_THRESHOLD_IDX]);
   return results;
+}
+
+/** @brief Initialize this object for tensor decoder bounding box */
+void
+init_properties_mobilenetssd ()
+{
+  mobilenet = new MobilenetSSD ();
+  BoundingBox::addProperties (mobilenet);
+}
+
+/** @brief Destruct this object for tensor decoder bounding box */
+void
+fini_properties_mobilenetssd ()
+{
+  delete mobilenet;
 }

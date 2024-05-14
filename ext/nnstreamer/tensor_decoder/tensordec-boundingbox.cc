@@ -51,6 +51,11 @@ void fini_bb (void) __attribute__ ((destructor));
 }
 #endif /* __cplusplus */
 
+/**
+ * @brief mutex for box properties table.
+ */
+G_LOCK_DEFINE_STATIC (box_properties_table);
+
 /* font.c */
 extern uint8_t rasters[][13];
 
@@ -76,6 +81,23 @@ static const char *bb_modes[] = {
   [YOLOV8_BOUNDING_BOX] = "yolov8",
   NULL,
 };
+
+/**
+ * @brief Change deprecated mode name
+ */
+static const char *
+updateDecodingMode (const char *param)
+{
+  if (g_strcmp0 (param, bb_modes[OLDNAME_MOBILENET_SSD_BOUNDING_BOX]) == 0) {
+    return bb_modes[MOBILENET_SSD_BOUNDING_BOX];
+  }
+
+  if (g_strcmp0 (param, bb_modes[OLDNAME_MOBILENET_SSD_PP_BOUNDING_BOX]) == 0) {
+    return bb_modes[MOBILENET_SSD_PP_BOUNDING_BOX];
+  }
+
+  return param;
+}
 
 /** @brief tensordec-plugin's GstTensorDecoderDef callback */
 static int
@@ -399,10 +421,10 @@ BoundingBox::~BoundingBox ()
   if (label_path)
     g_free (label_path);
 
-  if (bdata) {
-    delete bdata;
-    bdata = nullptr;
-  }
+  G_LOCK (box_properties_table);
+  g_hash_table_destroy (properties_table);
+  properties_table = nullptr;
+  G_UNLOCK (box_properties_table);
 }
 
 /**
@@ -688,45 +710,15 @@ BoundingBox::checkLabelProps ()
 int
 BoundingBox::setBoxDecodingMode (const char *param)
 {
-  bounding_box_modes previous = mode;
-
   if (NULL == param || *param == '\0') {
     GST_ERROR ("Please set the valid mode at option1 to set box decoding mode");
     return FALSE;
   }
 
-  mode = static_cast<bounding_box_modes> (find_key_strv (bb_modes, param));
-
-  if (mode != previous && mode != BOUNDING_BOX_UNKNOWN) {
-    if (previous != BOUNDING_BOX_UNKNOWN) {
-      delete bdata;
-    }
-
-    switch (mode) {
-      case MOBILENET_SSD_BOUNDING_BOX:
-      case OLDNAME_MOBILENET_SSD_BOUNDING_BOX:
-        bdata = new MobilenetSSD ();
-        break;
-      case MOBILENET_SSD_PP_BOUNDING_BOX:
-      case OLDNAME_MOBILENET_SSD_PP_BOUNDING_BOX:
-        bdata = new MobilenetSSDPP ();
-        break;
-      case OV_PERSON_DETECTION_BOUNDING_BOX:
-      case OV_FACE_DETECTION_BOUNDING_BOX:
-        bdata = new OVDetection ();
-        break;
-      case YOLOV5_BOUNDING_BOX:
-        bdata = new YoloV5 ();
-        break;
-      case YOLOV8_BOUNDING_BOX:
-        bdata = new YoloV8 ();
-        break;
-      case MP_PALM_DETECTION_BOUNDING_BOX:
-        bdata = new MpPalmDetection ();
-        break;
-      default:
-        return FALSE;
-    }
+  bdata = getProperties (updateDecodingMode (param));
+  if (bdata == nullptr) {
+    nns_loge ("Could not find box properties name %s", param);
+    return FALSE;
   }
 
   return TRUE;
@@ -944,4 +936,42 @@ error_free:
   gst_memory_unref (out_mem);
 
   return GST_FLOW_ERROR;
+}
+
+/**
+ * @brief Get bounding box properties from hash table
+ */
+BoxProperties *
+BoundingBox::getProperties (const gchar *properties_name)
+{
+  gpointer data;
+  G_LOCK (box_properties_table);
+  if (properties_table == nullptr) {
+    properties_table = g_hash_table_new (g_str_hash, g_str_equal);
+  }
+  data = g_hash_table_lookup (properties_table, properties_name);
+  G_UNLOCK (box_properties_table);
+
+  return static_cast<BoxProperties *> (data);
+}
+
+/**
+ * @brief Add bounding box properties into hash table
+ */
+gboolean
+BoundingBox::addProperties (BoxProperties *boxProperties)
+{
+  BoxProperties *data;
+  gboolean ret;
+
+  data = getProperties (boxProperties->name);
+  if (NULL != data) {
+    return TRUE;
+  }
+
+  G_LOCK (box_properties_table);
+  ret = g_hash_table_insert (properties_table, boxProperties->name, boxProperties);
+  G_UNLOCK (box_properties_table);
+
+  return ret;
 }

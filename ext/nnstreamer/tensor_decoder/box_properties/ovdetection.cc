@@ -17,6 +17,27 @@
 #include "../tensordec-boundingbox.h"
 
 #define OV_PERSON_DETECTION_CONF_THRESHOLD (0.8)
+#define DETECTION_MAX (200U)
+#define DEFAULT_MAX_TENSORS (1)
+#define DEFAULT_SIZE_DETECTION_DESC (7)
+
+/**
+ * @brief Class for OVDetection box properties
+ */
+class OVDetection : public BoxProperties
+{
+  public:
+  OVDetection ();
+  ~OVDetection ();
+  int setOptionInternal (const char *param)
+  {
+    UNUSED (param);
+    return TRUE;
+  }
+  int checkCompatible (const GstTensorsConfig *config);
+  GArray *decode (const GstTensorsConfig *config, const GstTensorMemory *input);
+};
+
 /**
  * @brief C++-Template-like box location calculation for OpenVino Person Detection Model
  * @param[in] type The tensor type of inputptr
@@ -65,6 +86,29 @@
       }                                                                                                      \
     }                                                                                                        \
     break
+
+static BoxProperties *ov_detection = nullptr;
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+void init_properties_ovdetection (void) __attribute__ ((constructor));
+void fini_properties_ovdetection (void) __attribute__ ((destructor));
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+
+/** @brief Constructor of OVDetection */
+OVDetection::OVDetection ()
+{
+  name = g_strdup_printf ("ov-person-detection");
+}
+
+/** @brief Destructor of OVDetection */
+OVDetection::~OVDetection ()
+{
+  g_free (name);
+}
 
 /** @brief Check compatibility of given tensors config */
 int
@@ -120,4 +164,19 @@ OVDetection::decode (const GstTensorsConfig *config, const GstTensorMemory *inpu
       g_assert (0);
   }
   return results;
+}
+
+/** @brief Initialize this object for tensor decoder bounding box */
+void
+init_properties_ovdetection ()
+{
+  ov_detection = new OVDetection ();
+  BoundingBox::addProperties (ov_detection);
+}
+
+/** @brief Destruct this object for tensor decoder bounding box */
+void
+fini_properties_ovdetection ()
+{
+  delete ov_detection;
 }

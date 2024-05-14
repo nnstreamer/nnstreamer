@@ -241,6 +241,7 @@ class BoxProperties
   {
     return i_height;
   }
+  gchar *name;
 
   protected:
   guint i_width; /**< Input Video Width */
@@ -273,6 +274,9 @@ class BoundingBox
   GstFlowReturn decode (const GstTensorsConfig *config,
       const GstTensorMemory *input, GstBuffer *outbuf);
 
+  static BoxProperties *getProperties (const gchar *properties_name);
+  static gboolean addProperties (BoxProperties *boxProperties);
+
   private:
   bounding_box_modes mode;
   BoxProperties *bdata;
@@ -298,133 +302,9 @@ class BoundingBox
   gint do_log;
 
   gboolean flag_use_label;
+
+  /* Table for box properties data */
+  inline static GHashTable *properties_table;
 };
 
-/**
- * @brief	Class for MobilenetSSD box properties
- */
-class MobilenetSSD : public BoxProperties
-{
-  public:
-  MobilenetSSD ();
-  int mobilenet_ssd_loadBoxPrior ();
-
-  int setOptionInternal (const char *param);
-  int checkCompatible (const GstTensorsConfig *config);
-  GArray *decode (const GstTensorsConfig *config, const GstTensorMemory *input);
-
-  static const int BOX_SIZE = 4;
-  static const int DETECTION_MAX = 2034; /* add ssd_mobilenet v3 support */
-  static const int PARAMS_MAX = 6;
-
-  private:
-  char *box_prior_path; /**< Box Prior file path */
-  gfloat box_priors[BOX_SIZE][DETECTION_MAX + 1]; /** loaded box prior */
-  gfloat params[PARAMS_MAX]; /** Post Processing parameters */
-  gfloat sigmoid_threshold; /** Inverse value of valid detection threshold in sigmoid domain */
-};
-
-/**
- * @brief	Class for MobilenetSSDPP box properties
- */
-class MobilenetSSDPP : public BoxProperties
-{
-  public:
-  MobilenetSSDPP ();
-  int get_mobilenet_ssd_pp_tensor_idx (int idx);
-
-  int setOptionInternal (const char *param);
-  int checkCompatible (const GstTensorsConfig *config);
-  GArray *decode (const GstTensorsConfig *config, const GstTensorMemory *input);
-
-  static const guint MAX_TENSORS = 4U;
-
-  private:
-  gint tensor_mapping[MAX_TENSORS]; /* Output tensor index mapping */
-  gfloat threshold; /* Detection threshold */
-};
-
-/**
- * @brief	Class for OVDetection box properties
- */
-class OVDetection : public BoxProperties
-{
-  public:
-  int setOptionInternal (const char *param)
-  {
-    UNUSED (param);
-    return TRUE;
-  }
-  int checkCompatible (const GstTensorsConfig *config);
-  GArray *decode (const GstTensorsConfig *config, const GstTensorMemory *input);
-
-  static const guint DETECTION_MAX = 200U;
-  static const guint DEFAULT_MAX_TENSORS = 1;
-  static const guint DEFAULT_SIZE_DETECTION_DESC = 7;
-};
-
-/**
- * @brief	Class for YoloV5 box properties
- */
-class YoloV5 : public BoxProperties
-{
-  public:
-  YoloV5 ();
-  int setOptionInternal (const char *param);
-  int checkCompatible (const GstTensorsConfig *config);
-  GArray *decode (const GstTensorsConfig *config, const GstTensorMemory *input);
-
-  private:
-  /* From option3, whether the output values are scaled or not */
-  int scaled_output;
-  gfloat conf_threshold;
-  gfloat iou_threshold;
-};
-
-/**
- * @brief	Class for YoloV8 box properties
- */
-class YoloV8 : public BoxProperties
-{
-  public:
-  YoloV8 ();
-  int setOptionInternal (const char *param);
-  int checkCompatible (const GstTensorsConfig *config);
-  GArray *decode (const GstTensorsConfig *config, const GstTensorMemory *input);
-
-  private:
-  /* From option3, whether the output values are scaled or not */
-  int scaled_output;
-  gfloat conf_threshold;
-  gfloat iou_threshold;
-};
-
-/**
- * @brief	Class for MpPalmDetection box properties
- */
-class MpPalmDetection : public BoxProperties
-{
-  public:
-  MpPalmDetection ();
-  ~MpPalmDetection ();
-  void mp_palm_detection_generate_anchors ();
-  int setOptionInternal (const char *param);
-  int checkCompatible (const GstTensorsConfig *config);
-
-  GArray *decode (const GstTensorsConfig *config, const GstTensorMemory *input);
-
-  static const int PARAMS_MAX = 13;
-
-  private:
-  gint num_layers;
-  /** Number of stride layers */
-  gfloat min_scale; /** Minimum scale */
-  gfloat max_scale; /** Maximum scale */
-  gfloat offset_x; /** anchor X offset */
-  gfloat offset_y; /** anchor Y offset */
-  gint strides[PARAMS_MAX]; /** Stride data for each layers */
-  gfloat min_score_threshold; /** minimum threshold of score */
-
-  GArray *anchors;
-};
 #endif /* _TENSORDECBB_H__ */

@@ -23,12 +23,32 @@
 #define CLASSES_IDX (1)
 #define SCORES_IDX (2)
 #define NUM_IDX (3)
+#define MAX_TENSORS (4U)
 
 #define LOCATIONS_DEFAULT (3)
 #define CLASSES_DEFAULT (1)
 #define SCORES_DEFAULT (2)
 #define NUM_DEFAULT (0)
 #define THRESHOLD_DEFAULT (G_MINFLOAT)
+
+/**
+ * @brief Class for MobilenetSSDPP box properties
+ */
+class MobilenetSSDPP : public BoxProperties
+{
+  public:
+  MobilenetSSDPP ();
+  ~MobilenetSSDPP ();
+  int get_mobilenet_ssd_pp_tensor_idx (int idx);
+
+  int setOptionInternal (const char *param);
+  int checkCompatible (const GstTensorsConfig *config);
+  GArray *decode (const GstTensorsConfig *config, const GstTensorMemory *input);
+
+  private:
+  gint tensor_mapping[MAX_TENSORS]; /* Output tensor index mapping */
+  gfloat threshold; /* Detection threshold */
+};
 
 /**
  * @brief C++-Template-like box location calculation for Tensorflow SSD model
@@ -82,6 +102,17 @@
   _get_objects_mobilenet_ssd_pp (type, typename, (mem_num->data), (mem_classes->data), \
       (mem_scores->data), (mem_boxes->data), config, results, i_width, i_height)
 
+static BoxProperties *mobilenetpp = nullptr;
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+void init_properties_mobilenetssd_pp (void) __attribute__ ((constructor));
+void fini_properties_mobilenetssd_pp (void) __attribute__ ((destructor));
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+
 /**
  * @brief MOBILENET SSD PostProcess Output tensor feature mapping.
  */
@@ -93,6 +124,8 @@ typedef enum {
   MOBILENET_SSD_PP_BBOX_IDX_UNKNOWN
 } mobilenet_ssd_pp_bbox_idx_t;
 
+
+/** @brief Constructor of MobilenetSSDPP */
 MobilenetSSDPP::MobilenetSSDPP ()
 {
   tensor_mapping[LOCATIONS_IDX] = LOCATIONS_DEFAULT;
@@ -100,6 +133,14 @@ MobilenetSSDPP::MobilenetSSDPP ()
   tensor_mapping[SCORES_IDX] = SCORES_DEFAULT;
   tensor_mapping[NUM_IDX] = NUM_DEFAULT;
   threshold = THRESHOLD_DEFAULT;
+  name = g_strdup_printf ("mobilenet-ssd-postprocess");
+}
+
+
+/** @brief Destructor of MobilenetSSDPP */
+MobilenetSSDPP::~MobilenetSSDPP ()
+{
+  g_free (name);
 }
 
 /** @brief Helper to retrieve tensor index by feature */
@@ -235,4 +276,19 @@ MobilenetSSDPP::decode (const GstTensorsConfig *config, const GstTensorMemory *i
       g_assert (0);
   }
   return results;
+}
+
+/** @brief Initialize this object for tensor decoder bounding box */
+void
+init_properties_mobilenetssd_pp ()
+{
+  mobilenetpp = new MobilenetSSDPP ();
+  BoundingBox::addProperties (mobilenetpp);
+}
+
+/** @brief Destruct this object for tensor decoder bounding box */
+void
+fini_properties_mobilenetssd_pp ()
+{
+  delete mobilenetpp;
 }
