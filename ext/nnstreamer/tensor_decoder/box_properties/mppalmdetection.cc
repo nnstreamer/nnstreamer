@@ -32,6 +32,34 @@
 #define MIN_SCORE_THRESHOLD_DEFAULT (0.5)
 
 #define PARAMS_STRIDE_SIZE (8)
+#define PARAMS_MAX (13)
+
+/**
+ * @brief Class for MpPalmDetection box properties
+ */
+class MpPalmDetection : public BoxProperties
+{
+  public:
+  MpPalmDetection ();
+  ~MpPalmDetection ();
+  void mp_palm_detection_generate_anchors ();
+  int setOptionInternal (const char *param);
+  int checkCompatible (const GstTensorsConfig *config);
+
+  GArray *decode (const GstTensorsConfig *config, const GstTensorMemory *input);
+
+  private:
+  gint num_layers;
+  /** Number of stride layers */
+  gfloat min_scale; /** Minimum scale */
+  gfloat max_scale; /** Maximum scale */
+  gfloat offset_x; /** anchor X offset */
+  gfloat offset_y; /** anchor Y offset */
+  gint strides[PARAMS_MAX]; /** Stride data for each layers */
+  gfloat min_score_threshold; /** minimum threshold of score */
+
+  GArray *anchors;
+};
 
 /**
  * @brief C++-Template-like box location calculation for Tensorflow model
@@ -106,6 +134,17 @@ _calculate_scale (float min_scale, float max_scale, int stride_index, int num_st
     return min_scale + (max_scale - min_scale) * 1.0 * stride_index / (num_strides - 1.0f);
   }
 }
+
+static BoxProperties *mp_palm_detection = nullptr;
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+void init_properties_mp_palm_detection (void) __attribute__ ((constructor));
+void fini_properties_mp_palm_detection (void) __attribute__ ((destructor));
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 /**
  * @brief Generate anchor information
@@ -193,6 +232,7 @@ MpPalmDetection::MpPalmDetection ()
   strides[3] = STRIDE_3_DEFAULT;
   min_score_threshold = MIN_SCORE_THRESHOLD_DEFAULT;
   anchors = g_array_new (FALSE, TRUE, sizeof (anchor));
+  name = g_strdup_printf ("mp-palm-detection");
 }
 
 /** @brief Destructor of MpPalmDetection */
@@ -201,6 +241,7 @@ MpPalmDetection::~MpPalmDetection ()
   if (anchors)
     g_array_free (anchors, TRUE);
   anchors = NULL;
+  g_free (name);
 }
 
 /** @brief Set internal option of MpPalmDetection
@@ -315,4 +356,19 @@ MpPalmDetection::decode (const GstTensorsConfig *config, const GstTensorMemory *
   }
   nms (results, 0.05f);
   return results;
+}
+
+/** @brief Initialize this object for tensor decoder bounding box */
+void
+init_properties_mp_palm_detection ()
+{
+  mp_palm_detection = new MpPalmDetection ();
+  BoundingBox::addProperties (mp_palm_detection);
+}
+
+/** @brief Destruct this object for tensor decoder bounding box */
+void
+fini_properties_mp_palm_detection ()
+{
+  delete mp_palm_detection;
 }

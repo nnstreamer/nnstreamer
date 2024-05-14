@@ -22,12 +22,72 @@
 #define DEFAULT_DETECTION_NUM_INFO_YOLO5 (5)
 #define DEFAULT_DETECTION_NUM_INFO_YOLO8 (4)
 
+/**
+ * @brief Class for YoloV5 box properties
+ */
+class YoloV5 : public BoxProperties
+{
+  public:
+  YoloV5 ();
+  ~YoloV5 ();
+  int setOptionInternal (const char *param);
+  int checkCompatible (const GstTensorsConfig *config);
+  GArray *decode (const GstTensorsConfig *config, const GstTensorMemory *input);
+
+  private:
+  /* From option3, whether the output values are scaled or not */
+  int scaled_output;
+  gfloat conf_threshold;
+  gfloat iou_threshold;
+};
+
+/**
+ * @brief Class for YoloV8 box properties
+ */
+class YoloV8 : public BoxProperties
+{
+  public:
+  YoloV8 ();
+  ~YoloV8 ();
+  int setOptionInternal (const char *param);
+  int checkCompatible (const GstTensorsConfig *config);
+  GArray *decode (const GstTensorsConfig *config, const GstTensorMemory *input);
+
+  private:
+  /* From option3, whether the output values are scaled or not */
+  int scaled_output;
+  gfloat conf_threshold;
+  gfloat iou_threshold;
+};
+
+static BoxProperties *yolo5 = nullptr;
+static BoxProperties *yolo8 = nullptr;
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+void init_properties_yolo5 (void) __attribute__ ((constructor));
+void fini_properties_yolo5 (void) __attribute__ ((destructor));
+
+void init_properties_yolo8 (void) __attribute__ ((constructor));
+void fini_properties_yolo8 (void) __attribute__ ((destructor));
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+
 /** @brief Constructor of YoloV5 */
 YoloV5::YoloV5 ()
 {
   scaled_output = 0;
   conf_threshold = YOLO_DETECTION_CONF_THRESHOLD;
   iou_threshold = YOLO_DETECTION_IOU_THRESHOLD;
+  name = g_strdup_printf ("yolov5");
+}
+
+/** @brief Destructor of YoloV5 */
+YoloV5::~YoloV5 ()
+{
+  g_free (name);
 }
 
 /** @brief Set internal option of YoloV5
@@ -153,6 +213,13 @@ YoloV8::YoloV8 ()
   scaled_output = 0;
   conf_threshold = YOLO_DETECTION_CONF_THRESHOLD;
   iou_threshold = YOLO_DETECTION_IOU_THRESHOLD;
+  name = g_strdup_printf ("yolov8");
+}
+
+/** @brief Destructor of YoloV8 */
+YoloV8::~YoloV8 ()
+{
+  g_free (name);
 }
 
 /** @brief Set internal option of YoloV8 */
@@ -284,4 +351,34 @@ YoloV8::decode (const GstTensorsConfig *config, const GstTensorMemory *input)
 
   nms (results, iou_threshold);
   return results;
+}
+
+/** @brief Initialize this object for tensor decoder bounding box */
+void
+init_properties_yolo5 ()
+{
+  yolo5 = new YoloV5 ();
+  BoundingBox::addProperties (yolo5);
+}
+
+/** @brief Destruct this object for tensor decoder bounding box */
+void
+fini_properties_yolo5 ()
+{
+  delete yolo5;
+}
+
+/** @brief Initialize this object for tensor decoder bounding box */
+void
+init_properties_yolo8 ()
+{
+  yolo8 = new YoloV8 ();
+  BoundingBox::addProperties (yolo8);
+}
+
+/** @brief Destruct this object for tensor decoder bounding box */
+void
+fini_properties_yolo8 ()
+{
+  delete yolo8;
 }
