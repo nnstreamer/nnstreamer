@@ -128,6 +128,7 @@ typedef enum {
 /** @brief Constructor of MobilenetSSDPP */
 MobilenetSSDPP::MobilenetSSDPP ()
 {
+  max_detection = 0;
   tensor_mapping[LOCATIONS_IDX] = LOCATIONS_DEFAULT;
   tensor_mapping[CLASSES_IDX] = CLASSES_DEFAULT;
   tensor_mapping[SCORES_IDX] = SCORES_DEFAULT;
@@ -208,7 +209,6 @@ MobilenetSSDPP::checkCompatible (const GstTensorsConfig *config)
   dim2 = config->info.info[classes_idx].dimension;
   dim3 = config->info.info[scores_idx].dimension;
   g_return_val_if_fail (dim3[0] == dim2[0], FALSE);
-  max_detection = dim2[0];
   for (i = 1; i < NNS_TENSOR_RANK_LIMIT; ++i) {
     g_return_val_if_fail (dim2[i] == 0 || dim2[i] == 1, FALSE);
     g_return_val_if_fail (dim3[i] == 0 || dim3[i] == 1, FALSE);
@@ -217,17 +217,19 @@ MobilenetSSDPP::checkCompatible (const GstTensorsConfig *config)
   /* Check if the bbox locations tensor is compatible */
   dim4 = config->info.info[locations_idx].dimension;
   g_return_val_if_fail (BOX_SIZE == dim4[0], FALSE);
-  g_return_val_if_fail (max_detection == dim4[1], FALSE);
+  g_return_val_if_fail (dim2[0] == dim4[1], FALSE);
   for (i = 2; i < NNS_TENSOR_RANK_LIMIT; ++i)
     g_return_val_if_fail (dim4[i] == 0 || dim4[i] == 1, FALSE);
 
   /* Check consistency with max_detection */
-  if (this->max_detection == 0)
-    this->max_detection = max_detection;
-  else
-    g_return_val_if_fail (max_detection == this->max_detection, FALSE);
+  if (max_detection != 0 && max_detection != dim2[0]) {
+    GST_ERROR ("Failed to check consistency with max_detection");
+    return FALSE;
+  } else {
+    max_detection = dim2[0];
+  }
 
-  if (this->max_detection > DETECTION_MAX) {
+  if (max_detection > DETECTION_MAX) {
     GST_ERROR ("Incoming tensor has too large detection-max : %u", max_detection);
     return FALSE;
   }

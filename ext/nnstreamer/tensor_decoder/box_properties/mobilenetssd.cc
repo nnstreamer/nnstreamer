@@ -318,7 +318,7 @@ MobilenetSSD::checkCompatible (const GstTensorsConfig *config)
 {
   const uint32_t *dim1, *dim2;
   int i;
-  guint max_detection, max_label;
+  guint max_label;
 
   if (!check_tensors (config, MAX_TENSORS))
     return FALSE;
@@ -327,8 +327,7 @@ MobilenetSSD::checkCompatible (const GstTensorsConfig *config)
   dim1 = config->info.info[0].dimension;
   g_return_val_if_fail (dim1[0] == BOX_SIZE, FALSE);
   g_return_val_if_fail (dim1[1] == 1, FALSE);
-  max_detection = dim1[2];
-  g_return_val_if_fail (max_detection > 0, FALSE);
+  g_return_val_if_fail (dim1[2] > 0, FALSE);
 
   /** @todo unused dimension value should be 0 */
   for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
@@ -342,17 +341,19 @@ MobilenetSSD::checkCompatible (const GstTensorsConfig *config)
   if (max_label < total_labels)
     GST_WARNING ("The given tensor (2nd) has max_label (first dimension: %u) smaller than the number of labels in labels file (%u).",
         max_label, total_labels);
-  g_return_val_if_fail (max_detection == dim2[1], FALSE);
+  g_return_val_if_fail (dim1[2] == dim2[1], FALSE);
   for (i = 2; i < NNS_TENSOR_RANK_LIMIT; i++)
     g_return_val_if_fail (dim2[i] == 0 || dim2[i] == 1, FALSE);
 
   /* Check consistency with max_detection */
-  if (this->max_detection == 0)
-    this->max_detection = max_detection;
-  else
-    g_return_val_if_fail (max_detection == this->max_detection, FALSE);
+  if (max_detection != 0 && max_detection != dim1[2]) {
+    GST_ERROR ("Failed to check consistency with max_detection");
+    return FALSE;
+  } else {
+    max_detection = dim1[2];
+  }
 
-  if (this->max_detection > DETECTION_MAX) {
+  if (max_detection > DETECTION_MAX) {
     GST_ERROR ("Incoming tensor has too large detection-max : %u", max_detection);
     return FALSE;
   }
@@ -383,8 +384,7 @@ MobilenetSSD::decode (const GstTensorsConfig *config, const GstTensorMemory *inp
   results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), 100);
 
   boxes = &input[0];
-  if (num_tensors >= MAX_TENSORS) /* lgtm[cpp/constant-comparison] */
-    detections = &input[1];
+  detections = &input[1];
 
   switch (config->info.info[0].type) {
     _get_objects_mobilenet_ssd_ (uint8_t, _NNS_UINT8);
