@@ -410,6 +410,8 @@ BoundingBox::BoundingBox ()
 
   label_path = nullptr;
   labeldata.labels = nullptr;
+  labeldata.max_word_length = 0;
+  labeldata.total_labels = 0;
   bdata = nullptr;
 }
 
@@ -641,7 +643,7 @@ BoundingBox::draw (GstMapInfo *out_info, GArray *results)
     if (flag_use_label) {
       g_autofree gchar *label = NULL;
       guint j;
-      gsize label_len;
+      gsize label_len = 0;
 
       if (is_track != 0) {
         label = g_strdup_printf ("%s-%d", labeldata.labels[a->class_id], a->tracking_id);
@@ -649,7 +651,9 @@ BoundingBox::draw (GstMapInfo *out_info, GArray *results)
         label = g_strdup_printf ("%s", labeldata.labels[a->class_id]);
       }
 
-      label_len = strlen (label);
+      if (label != NULL)
+        label_len = strlen (label);
+
       /* x1 is the same: x1 = MAX (0, (width * a->x) / i_width); */
       y1 = MAX (0, (y1 - 14));
       pos1 = &frame[y1 * width + x1];

@@ -221,6 +221,7 @@ MpPalmDetection::mp_palm_detection_generate_anchors ()
 /** @brief Constructor of MpPalmDetection */
 MpPalmDetection::MpPalmDetection ()
 {
+  max_detection = 0;
   num_layers = NUM_LAYERS_DEFAULT;
   min_scale = MIN_SCALE_DEFAULT;
   max_scale = MAX_SCALE_DEFAULT;
@@ -287,6 +288,7 @@ MpPalmDetection::checkCompatible (const GstTensorsConfig *config)
 {
   const uint32_t *dim1, *dim2;
   int i;
+
   if (!check_tensors (config, MAX_TENSORS))
     return FALSE;
 
@@ -294,8 +296,7 @@ MpPalmDetection::checkCompatible (const GstTensorsConfig *config)
   dim1 = config->info.info[0].dimension;
 
   g_return_val_if_fail (dim1[0] == INFO_SIZE, FALSE);
-  max_detection = dim1[1];
-  g_return_val_if_fail (max_detection > 0, FALSE);
+  g_return_val_if_fail (dim1[1] > 0, FALSE);
   g_return_val_if_fail (dim1[2] == 1, FALSE);
   for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
     g_return_val_if_fail (dim1[i] == 0 || dim1[i] == 1, FALSE);
@@ -303,17 +304,19 @@ MpPalmDetection::checkCompatible (const GstTensorsConfig *config)
   /* Check if the second tensor is compatible */
   dim2 = config->info.info[1].dimension;
   g_return_val_if_fail (dim2[0] == 1, FALSE);
-  g_return_val_if_fail (max_detection == dim2[1], FALSE);
+  g_return_val_if_fail (dim1[1] == dim2[1], FALSE);
   for (i = 2; i < NNS_TENSOR_RANK_LIMIT; i++)
     g_return_val_if_fail (dim2[i] == 0 || dim2[i] == 1, FALSE);
 
   /* Check consistency with max_detection */
-  if (this->max_detection == 0)
-    this->max_detection = max_detection;
-  else
-    g_return_val_if_fail (max_detection == this->max_detection, FALSE);
+  if (max_detection != 0 && max_detection != dim1[1]) {
+    GST_ERROR ("Failed to check consistency with max_detection");
+    return FALSE;
+  } else {
+    max_detection = dim1[1];
+  }
 
-  if (this->max_detection > MAX_DETECTION) {
+  if (max_detection > MAX_DETECTION) {
     GST_ERROR ("Incoming tensor has too large detection-max : %u", max_detection);
     return FALSE;
   }
