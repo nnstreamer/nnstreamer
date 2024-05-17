@@ -46,13 +46,16 @@ TensorShape_setDims (TensorShapeObject *self, PyObject *args)
 {
   PyObject *dims;
   PyObject *new_dims;
-  unsigned int i, len;
+  Py_ssize_t i, len;
 
   /** PyArg_ParseTuple() returns borrowed references */
   if (!PyArg_ParseTuple (args, "O", &dims))
     Py_RETURN_NONE;
 
   len = PyList_Size (dims);
+  if (len < 0 || len > NNS_TENSOR_RANK_LIMIT)
+    Py_RETURN_NONE;
+
   if (len < NNS_TENSOR_RANK_LIMIT) {
     for (i = 0; i < NNS_TENSOR_RANK_LIMIT - len; i++)
       PyList_Append (dims, PyLong_FromLong (0));
@@ -394,14 +397,14 @@ addToSysPath (const gchar *path)
 int
 parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
 {
-  guint i, j, rank;
+  Py_ssize_t i, j, num = PyList_Size (result);
 
-  if (PyList_Size (result) < 0)
+  if (num < 0 || num > NNS_TENSOR_SIZE_LIMIT)
     return -1;
 
   gst_tensors_info_init (info);
-  info->num_tensors = PyList_Size (result);
-  for (i = 0; i < info->num_tensors; i++) {
+  info->num_tensors = (unsigned int) num;
+  for (i = 0; i < num; i++) {
     /** don't own the reference */
     PyObject *tensor_shape = PyList_GetItem (result, (Py_ssize_t) i);
     if (nullptr == tensor_shape) {
@@ -432,8 +435,8 @@ parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
       return -EINVAL;
     }
 
-    rank = (guint) PyList_Size (shape_dims);
-    if (rank > NNS_TENSOR_RANK_LIMIT) {
+    Py_ssize_t rank = PyList_Size (shape_dims);
+    if (rank < 0 || rank > NNS_TENSOR_RANK_LIMIT) {
       Py_ERRMSG ("The function %s has failed, max rank of tensor dimension is %d.",
           __FUNCTION__, NNS_TENSOR_RANK_LIMIT);
       Py_SAFEDECREF (shape_dims);
@@ -449,7 +452,7 @@ parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
         PyErr_Print ();
         PyErr_Clear ();
         info->info[i].dimension[j] = 0;
-        Py_ERRMSG ("Python nnstreamer plugin has returned dimensions of the %u'th tensor not in an array. Python code should return int-type array for dimensions. Indexes are counted from 0.\n",
+        Py_ERRMSG ("Python nnstreamer plugin has returned dimensions of the %zd'th tensor not in an array. Python code should return int-type array for dimensions. Indexes are counted from 0.\n",
             i + 1);
         Py_SAFEDECREF (shape_dims);
         return -EINVAL;
@@ -460,18 +463,18 @@ parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
       } else if (PyFloat_Check (item)) {
         /** Regard this as a warning. Don't return -EINVAL with this */
         val = (int) PyFloat_AsDouble (item);
-        Py_ERRMSG ("Python nnstreamer plugin has returned the %u'th dimension value of the %u'th tensor in floating-point type (%f), which is casted as unsigned-int. Python code should return int-type for dimension values. Indexes are counted from 0.\n",
+        Py_ERRMSG ("Python nnstreamer plugin has returned the %zd'th dimension value of the %zd'th tensor in floating-point type (%f), which is casted as unsigned-int. Python code should return int-type for dimension values. Indexes are counted from 0.\n",
             j + 1, i + 1, PyFloat_AsDouble (item));
       } else {
         info->info[i].dimension[j] = 0;
-        Py_ERRMSG ("Python nnstreamer plugin has returned the %u'th dimension value of the %u'th tensor neither in integer or floating-pointer. Python code should return int-type for dimension values. Indexes are counted from 0.\n",
+        Py_ERRMSG ("Python nnstreamer plugin has returned the %zd'th dimension value of the %zd'th tensor neither in integer or floating-pointer. Python code should return int-type for dimension values. Indexes are counted from 0.\n",
             j + 1, i + 1);
         Py_SAFEDECREF (shape_dims);
         return -EINVAL;
       }
 
       if (val < 0) {
-        Py_ERRMSG ("The %u'th dimension value of the %u'th tensor is invalid (%d).",
+        Py_ERRMSG ("The %zd'th dimension value of the %zd'th tensor is invalid (%d).",
             j + 1, i + 1, val);
         Py_SAFEDECREF (shape_dims);
         return -EINVAL;
