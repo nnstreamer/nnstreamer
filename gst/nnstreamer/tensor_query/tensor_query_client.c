@@ -727,7 +727,8 @@ try_pop:
   data_h = g_async_queue_timeout_pop (self->msg_queue,
       self->timeout * G_TIME_SPAN_MILLISECOND);
   if (data_h) {
-    self->requested_num--;
+    if (self->requested_num > 0)
+      self->requested_num--;
     ret = nns_edge_data_get_count (data_h, &num_data);
 
     if (ret == NNS_EDGE_ERROR_NONE && num_data > 0) {
