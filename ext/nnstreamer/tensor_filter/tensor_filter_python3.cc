@@ -834,8 +834,8 @@ TensorFilterPython::fini_filter_py ()
  */
 #if 0
   /** Python should be initialized and finalized only once */
-    if (Py_IsInitialized ())
-      Py_Finalize ();
+  if (Py_IsInitialized ())
+    Py_Finalize ();
 #endif
 }
 
