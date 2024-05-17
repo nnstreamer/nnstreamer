@@ -173,10 +173,15 @@ PYConverterCore::convert (GstBuffer *in_buf, GstTensorsConfig *config)
 
   if (output) {
     GstTensorInfo *_info;
-    unsigned int num_tensors = PyList_Size (output);
+    Py_ssize_t num_tensors = PyList_Size (output);
+
+    if (num_tensors < 0 || num_tensors > NNS_TENSOR_SIZE_LIMIT) {
+      Py_ERRMSG ("Fail to get output from 'convert', invalid output size.");
+      goto done;
+    }
 
     out_buf = gst_buffer_new ();
-    for (unsigned int i = 0; i < num_tensors; i++) {
+    for (i = 0; i < (guint) num_tensors; i++) {
       PyArrayObject *output_array
           = (PyArrayObject *) PyList_GetItem (output, (Py_ssize_t) i);
 
