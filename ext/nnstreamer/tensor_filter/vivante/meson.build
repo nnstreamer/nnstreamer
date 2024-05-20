@@ -2,8 +2,6 @@
 cc = meson.get_compiler('c')
 
 libovx_dep = cc.find_library('ovxlib') # ovxlib library
-libdl_dep = cc.find_library('dl') # dl library
-
 
 base_deps = [
   glib_dep,
@@ -23,7 +21,6 @@ sources = [
 # - https://dl.khadas.com/repos/vim3/ (Ubuntu 18.04, aarch64, Bionic)
 vivante_todo_incs = []
 vivante_todo_incs += include_directories(
-  '/usr/include/dann',
   '/usr/include/ovx',
   '/usr/include/amlogic-vsi-npu-sdk'
 )
