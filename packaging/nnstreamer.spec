@@ -119,6 +119,28 @@
 %define		nnstreamer_edge_support 0
 %endif
 
+# Disable a few features for movable device
+%if 0%{?mv_prj}
+%define		grpc_support 0
+%define		check_test 0
+%define		edgetpu_support 0
+%define		protobuf_support 0
+%define		python3_support 0
+%define		mvncsdk2_support 0
+%define		openvino_support 0
+%define		nnfw_support 0
+%define		armnn_support 0
+%define		vivante_support 0
+%define		pytorch_support 0
+%define		caffe2_support 0
+%define		tensorflow_support 0
+%define		lua_support 0
+%define		mqtt_support 0
+%define		tvm_support 0
+%define		trix_engine_support 0
+%define		onnxruntime_support 0
+%endif
+
 # DA requested to remove unnecessary module builds
 %if 0%{?_with_da_profile}
 %define		mvncsdk2_support 0
