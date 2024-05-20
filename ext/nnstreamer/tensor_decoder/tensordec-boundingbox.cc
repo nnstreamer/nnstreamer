@@ -607,7 +607,7 @@ BoundingBox::draw (GstMapInfo *out_info, GArray *results)
     if ((flag_use_label)
         && ((a->class_id < 0 || a->class_id >= (int) labeldata.total_labels))) {
       /** @todo make it "logw_once" after we get logw_once API. */
-      ml_logw ("Invalid class found with tensordec-boundingbox.c.\n");
+      ml_logw ("Invalid class found with tensordec-boundingbox.\n");
       continue;
     }
 

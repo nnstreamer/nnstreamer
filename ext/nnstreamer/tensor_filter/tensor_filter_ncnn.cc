@@ -40,7 +40,7 @@
  *        output=(5+num_labels, max_detection, 1) and outputtype=float32.
  *        To calculate the max_detection for an input image of size (w, h),
  *        use the formula: (w/32)*(h/32) + (w/16)*(h/16) + (w/8)*(h/8)*3.
- *        See also: https://github.com/nnstreamer/nnstreamer/blob/main/ext/nnstreamer/tensor_decoder/tensordec-boundingbox.c#L1194
+ *        See also: https://github.com/nnstreamer/nnstreamer/blob/main/ext/nnstreamer/tensor_decoder/box_properties/yolo.cc#L130
  */
 
 #include <functional>

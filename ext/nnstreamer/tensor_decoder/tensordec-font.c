@@ -38,7 +38,7 @@
  * @file tensordec-font.c
  * @date 20 Nov 2018
  * @brief imported from font.c of https://courses.cs.washington.edu/courses/cse457/98a/tech/OpenGL/font.c
- *        and modified to support tensordec-boundingbox.c
+ *        and modified to support tensordec-boundingbox.cc
  * @see https://github.com/nnstreamer/nnstreamer
  * @see https://courses.cs.washington.edu/courses/cse457/98a/tech/OpenGL/font.c
  * @bug No known bugs.
