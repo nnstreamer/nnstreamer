@@ -139,7 +139,8 @@ NNSTREAMER_DECODER_FLEXBUF_SRCS := \
 
 # decoder boundingbox
 NNSTREAMER_DECODER_BB_SRCS := \
-    $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-boundingbox.c \
+    $(wildcard $(NNSTREAMER_EXT_HOME)/tensor_decoder/box_properties/*.cc) \
+    $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-boundingbox.cc \
     $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordecutil.c \
     $(NNSTREAMER_EXT_HOME)/tensor_decoder/tensordec-font.c
 
