@@ -405,6 +405,8 @@ parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
   gst_tensors_info_init (info);
   info->num_tensors = (unsigned int) num;
   for (i = 0; i < num; i++) {
+    GstTensorInfo *_info = gst_tensors_info_get_nth_info (info, (guint) i);
+
     /** don't own the reference */
     PyObject *tensor_shape = PyList_GetItem (result, (Py_ssize_t) i);
     if (nullptr == tensor_shape) {
@@ -419,8 +421,7 @@ parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
     }
 
     /** convert numpy type to tensor type */
-    info->info[i].type
-        = getTensorType ((NPY_TYPES) (((PyArray_Descr *) shape_type)->type_num));
+    _info->type = getTensorType ((NPY_TYPES) (((PyArray_Descr *) shape_type)->type_num));
     Py_SAFEDECREF (shape_type);
 
     PyObject *shape_dims = PyObject_CallMethod (tensor_shape, (char *) "getDims", NULL);
@@ -451,7 +452,7 @@ parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
       if (PyErr_Occurred ()) {
         PyErr_Print ();
         PyErr_Clear ();
-        info->info[i].dimension[j] = 0;
+        _info->dimension[j] = 0;
         Py_ERRMSG ("Python nnstreamer plugin has returned dimensions of the %zd'th tensor not in an array. Python code should return int-type array for dimensions. Indexes are counted from 0.\n",
             i + 1);
         Py_SAFEDECREF (shape_dims);
@@ -466,7 +467,7 @@ parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
         Py_ERRMSG ("Python nnstreamer plugin has returned the %zd'th dimension value of the %zd'th tensor in floating-point type (%f), which is casted as unsigned-int. Python code should return int-type for dimension values. Indexes are counted from 0.\n",
             j + 1, i + 1, PyFloat_AsDouble (item));
       } else {
-        info->info[i].dimension[j] = 0;
+        _info->dimension[j] = 0;
         Py_ERRMSG ("Python nnstreamer plugin has returned the %zd'th dimension value of the %zd'th tensor neither in integer or floating-pointer. Python code should return int-type for dimension values. Indexes are counted from 0.\n",
             j + 1, i + 1);
         Py_SAFEDECREF (shape_dims);
@@ -480,10 +481,10 @@ parseTensorsInfo (PyObject *result, GstTensorsInfo *info)
         return -EINVAL;
       }
 
-      info->info[i].dimension[j] = (uint32_t) val;
+      _info->dimension[j] = (uint32_t) val;
     }
 
-    info->info[i].name = NULL;
+    _info->name = NULL;
     Py_SAFEDECREF (shape_dims);
   }
 
