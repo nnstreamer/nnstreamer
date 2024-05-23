@@ -14,14 +14,33 @@
  * 
  **/
 
-#include <functional>
+
 #include <glib.h>
 #include <nnstreamer_cppplugin_api_filter.hh>
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_util.h>
-#include <thread>
 
+#include <iostream>
+#include <memory>
+
+#include <executorch/extension/data_loader/file_data_loader.h>
+#include <executorch/extension/evalue_util/print_evalue.h>
+#include <executorch/extension/runner_util/inputs.h>
+#include <executorch/runtime/executor/method.h>
+#include <executorch/runtime/executor/program.h>
+#include <executorch/runtime/platform/log.h>
+#include <executorch/runtime/platform/runtime.h>
+
+// static uint8_t method_allocator_pool[4 * 1024U * 1024U]; // 4 MB
+
+// DEFINE_string(
+//     model_path,
+//     "model.pte",
+//     "Model serialized in flatbuffer format.");
+
+using namespace torch::executor;
+using torch::executor::util::FileDataLoader;
 
 namespace nnstreamer
 {
@@ -58,7 +77,7 @@ class executorch_subplugin final: public tensor_filter_subplugin
 
     private:
     bool empty_model; /**< Empty (not initialized) model flag */
-}
+};
 
 }
 }

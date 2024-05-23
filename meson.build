@@ -405,6 +405,18 @@ if not get_option('ncnn-support').disabled()
   endif
 endif
 
+# executorch
+executorch_dep = dependency('', required: false)
+if not get_option('executorch-support').disabled()
+  executorch_dep = dependency('executorch', required: false)
+  if (not executorch_dep.found())
+    executorch_lib = cxx.find_library('executorch', required: false)
+    if (executorch_lib.found() and cxx.check_header('executorch/runtime/platform/runtime.h'))
+      executorch_dep = declare_dependency(dependencies: [ executorch_lib ])
+    endif
+  endif
+endif
+
 # datarepo requires json-glib-1.0 in the name of json_glib_dep
 json_glib_dep = dependency('json-glib-1.0', required: false)
 if get_option('datarepo-support').enabled() and not json_glib_dep.found()
@@ -524,6 +536,10 @@ features = {
   'ncnn-support': {
     'extra_deps': [ ncnn_dep ],
     'project_args': { 'ENABLE_NCNN' : 1 }
+  },
+  'executorch-support': {
+    'extra_deps': [ executorch_dep ],
+    'project_args': { 'ENABLE_EXECUTORCH' : 1 }
   },
   'datarepo-support': {
     'extra_deps': [ json_glib_dep ],
