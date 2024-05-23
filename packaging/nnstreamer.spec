@@ -21,7 +21,7 @@
 # If you want to build RPM for other Linux distro, you may need to
 # touch these values for your needs.
 %define		tensorflow_support 0
-%define		tensorflow_lite_support	1
+%define		tensorflow_lite_support	0
 %define		tensorflow2_lite_support 1
 %define		armnn_support 0
 %define		vivante_support 0
