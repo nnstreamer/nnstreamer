@@ -4,6 +4,7 @@ on: pull_request
 
 jobs:
   cpp-linter:
+    name: CPP-Linter
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

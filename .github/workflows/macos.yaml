@@ -6,6 +6,7 @@ on:
 
 jobs:
   build:
+    name: Build on MacOS-latest with Meson
     runs-on: macos-latest
 
     steps:
