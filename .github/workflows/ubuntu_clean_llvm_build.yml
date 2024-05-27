@@ -6,7 +6,7 @@ on:
 
 jobs:
   build:
-
+    name: Build on Ubuntu with LLVM/Clang
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:

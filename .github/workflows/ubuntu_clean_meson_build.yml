@@ -6,7 +6,7 @@ on:
 
 jobs:
   build:
-
+    name: Build with meson and test with Valgrind in Ubuntu
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
