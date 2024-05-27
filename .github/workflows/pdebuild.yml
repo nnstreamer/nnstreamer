@@ -11,7 +11,7 @@ on:
 
 jobs:
   build:
-
+    name: Ubuntu pdebuild on Ubuntu
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:

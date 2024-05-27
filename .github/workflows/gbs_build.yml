@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-
+    name: Tizen GBS build on Ubuntu
     strategy:
       matrix:
         include:
