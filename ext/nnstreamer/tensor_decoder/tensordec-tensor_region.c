@@ -404,8 +404,8 @@ gst_tensor_top_detectedObjects_cropInfo (GstMapInfo *out_info, const tensor_regi
 {
 
   guint i;
-  guint size = sizeof (crop_region); /**Assuming crop_region is a structure with four integer fields */
-  guint *out_data = (guint *)out_info->data;
+  gsize size = sizeof (crop_region); /**Assuming crop_region is a structure with four integer fields */
+  guint *out_data = (guint *) out_info->data;
   crop_region region;
   guint maxx = MIN (results->len, data->num);
   for (i = 0; i < maxx; i++) {

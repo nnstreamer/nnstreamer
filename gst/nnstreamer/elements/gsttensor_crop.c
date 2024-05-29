@@ -588,8 +588,7 @@ gst_tensor_crop_get_crop_info (GstTensorCrop * self, GstBuffer * info,
 
   memset (cinfo, 0, sizeof (tensor_crop_info_s));
 
-  cinfo->num = dsize / (esize * 4);
-  cinfo->num = MIN (cinfo->num, NNS_TENSOR_SIZE_LIMIT);
+  cinfo->num = MIN (dsize / (esize * 4), NNS_TENSOR_SIZE_LIMIT);
 
   for (i = 0; i < cinfo->num; i++) {
     pos = map.data + hsize + (esize * 4 * i);

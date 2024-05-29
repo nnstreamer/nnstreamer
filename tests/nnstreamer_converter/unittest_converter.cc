@@ -30,7 +30,7 @@ tensor_converter_custom_cb (GstBuffer *in_buf, void *data, GstTensorsConfig *con
   GstMemory *in_mem, *out_mem;
   GstBuffer *out_buf = NULL;
   GstMapInfo in_info;
-  guint mem_size;
+  gsize mem_size;
   gpointer mem_data;
   guint *received = (guint *) data;
   GstTensorInfo *_info;

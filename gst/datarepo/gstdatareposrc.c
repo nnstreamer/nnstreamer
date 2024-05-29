@@ -321,7 +321,7 @@ gst_data_repo_src_parse_caps (GstDataRepoSrc * src, GstCaps * caps)
       /* https://gstreamer.freedesktop.org/documentation/additional/design/mediatype-video-raw.html?gi-language=c */
       src->sample_size = (guint) GST_VIDEO_INFO_SIZE (&video_info);
 
-      GST_DEBUG_OBJECT (src, "format(%s), width(%d), height(%d): %u byte/frame",
+      GST_DEBUG_OBJECT (src, "format(%s), width(%d), height(%d): %zd byte/frame",
           gst_structure_get_string (s, "format"),
           GST_VIDEO_INFO_WIDTH (&video_info),
           GST_VIDEO_INFO_HEIGHT (&video_info), src->sample_size);
@@ -342,7 +342,7 @@ gst_data_repo_src_parse_caps (GstDataRepoSrc * src, GstCaps * caps)
       src->sample_size = channel * (depth / 8) * rate;
 
       GST_DEBUG_OBJECT (src,
-          "format(%s), depth(%d), rate(%d), channel(%d): %u bps",
+          "format(%s), depth(%d), rate(%d), channel(%d): %zd bps",
           gst_structure_get_string (s, "format"), depth, rate, channel,
           src->sample_size);
       break;
@@ -361,8 +361,8 @@ gst_data_repo_src_parse_caps (GstDataRepoSrc * src, GstCaps * caps)
         src->tensors_offset[i] = src->sample_size;
         _info = gst_tensors_info_get_nth_info (&src->config.info, i);
         src->tensors_size[i] = gst_tensor_info_get_size (_info);
-        GST_DEBUG_OBJECT (src, "offset[%u]: %u", i, src->tensors_offset[i]);
-        GST_DEBUG_OBJECT (src, "size[%u]: %u", i, src->tensors_size[i]);
+        GST_DEBUG_OBJECT (src, "offset[%u]: %zd", i, src->tensors_offset[i]);
+        GST_DEBUG_OBJECT (src, "size[%u]: %zd", i, src->tensors_size[i]);
         src->sample_size += src->tensors_size[i];
       }
       break;
@@ -572,8 +572,8 @@ gst_data_repo_src_read_tensors (GstDataRepoSrc * src, GstBuffer ** buffer)
   GstFlowReturn ret = GST_FLOW_OK;
   guint i = 0, seq_idx = 0;
   GstBuffer *buf;
-  guint to_read, byte_read;
-  int read_size;
+  gsize to_read, byte_read;
+  gssize read_size;
   guint8 *data;
   GstMemory *mem = NULL;
   GstMapInfo info;
@@ -622,9 +622,9 @@ gst_data_repo_src_read_tensors (GstDataRepoSrc * src, GstBuffer ** buffer)
     }
 
     GST_INFO_OBJECT (src, "sequence index: %d", seq_idx);
-    GST_INFO_OBJECT (src, "tensor_size[%d]: %d", seq_idx,
+    GST_INFO_OBJECT (src, "tensor_size[%d]: %zd", seq_idx,
         src->tensors_size[seq_idx]);
-    GST_INFO_OBJECT (src, "tensors_offset[%d]: %d", seq_idx,
+    GST_INFO_OBJECT (src, "tensors_offset[%d]: %zd", seq_idx,
         src->tensors_offset[seq_idx]);
 
     /** offset and sample_offset(byte size) are from 0.
@@ -650,12 +650,12 @@ gst_data_repo_src_read_tensors (GstDataRepoSrc * src, GstBuffer ** buffer)
 
     while (to_read > 0) {
       GST_LOG_OBJECT (src,
-          "Reading %d bytes at offset 0x%" G_GINT64_MODIFIER "x (%d size)",
+          "Reading %zd bytes at offset 0x%" G_GINT64_MODIFIER "x (%zd size)",
           to_read, src->fd_offset + byte_read,
           (guint) src->fd_offset + byte_read);
       errno = 0;
       read_size = read (src->fd, data + byte_read, to_read);
-      GST_LOG_OBJECT (src, "Read: %d", read_size);
+      GST_LOG_OBJECT (src, "Read: %zd", read_size);
       if (read_size < 0) {
         if (errno == EAGAIN || errno == EINTR)
           continue;
@@ -748,8 +748,8 @@ gst_data_repo_src_read_flexible_or_sparse_tensors (GstDataRepoSrc * src,
   GstMapInfo info;
   GstTensorMetaInfo meta;
   GstTensorInfo tinfo;
-  guint to_read, byte_read;
-  int read_size;
+  gsize to_read, byte_read;
+  gssize read_size;
   guint8 *data;
   guint tensor_count;
   guint tensor_size;
@@ -808,11 +808,11 @@ gst_data_repo_src_read_flexible_or_sparse_tensors (GstDataRepoSrc * src,
     to_read = tensor_size;
     while (to_read > 0) {
       GST_LOG_OBJECT (src,
-          "Reading %d bytes at offset 0x%" G_GINT64_MODIFIER "x (%lld size)",
+          "Reading %zd bytes at offset 0x%" G_GINT64_MODIFIER "x (%lld size)",
           to_read, src->fd_offset + byte_read, (long long) src->fd_offset);
       errno = 0;
       read_size = read (src->fd, data + byte_read, to_read);
-      GST_LOG_OBJECT (src, "Read: %d", read_size);
+      GST_LOG_OBJECT (src, "Read: %zd", read_size);
       if (read_size < 0) {
         if (errno == EAGAIN || errno == EINTR)
           continue;
@@ -980,8 +980,8 @@ gst_data_repo_src_read_others (GstDataRepoSrc * src, GstBuffer ** buffer)
 {
   GstFlowReturn ret = GST_FLOW_OK;
   GstBuffer *buf;
-  guint to_read, byte_read;
-  int read_size;
+  gsize to_read, byte_read;
+  gssize read_size;
   guint8 *data;
   GstMemory *mem;
   GstMapInfo info;
@@ -1026,11 +1026,11 @@ gst_data_repo_src_read_others (GstDataRepoSrc * src, GstBuffer ** buffer)
   byte_read = 0;
   to_read = src->sample_size;
   while (to_read > 0) {
-    GST_LOG_OBJECT (src, "Reading %d bytes at offset 0x%" G_GINT64_MODIFIER "x",
+    GST_LOG_OBJECT (src, "Reading %zd bytes at offset 0x%" G_GINT64_MODIFIER "x",
         to_read, src->fd_offset + byte_read);
     errno = 0;
     read_size = read (src->fd, data + byte_read, to_read);
-    GST_LOG_OBJECT (src, "Read: %d", read_size);
+    GST_LOG_OBJECT (src, "Read: %zd", read_size);
     if (read_size < 0) {
       if (errno == EAGAIN || errno == EINTR)
         continue;
@@ -1459,7 +1459,7 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
       goto error;
     }
     src->sample_size = json_object_get_int_member (object, "sample_size");
-    GST_INFO_OBJECT (src, "sample_size: %d", src->sample_size);
+    GST_INFO_OBJECT (src, "sample_size: %zd", src->sample_size);
   }
 
   if (src->data_type == GST_DATA_REPO_DATA_TENSOR &&
