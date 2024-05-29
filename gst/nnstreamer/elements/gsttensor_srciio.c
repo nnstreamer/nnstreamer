@@ -805,9 +805,9 @@ exit_fail:
 static gchar *
 gst_tensor_src_iio_get_generic_name (const gchar * channel_name)
 {
-  guint digit_len = 1;
+  gsize digit_len = 1;
   gchar *generic_name;
-  guint channel_name_len = strlen (channel_name);
+  gsize channel_name_len = strlen (channel_name);
 
   while (g_ascii_isdigit (channel_name[channel_name_len - digit_len])) {
     digit_len++;

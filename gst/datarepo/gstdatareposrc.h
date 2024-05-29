@@ -51,13 +51,13 @@ struct _GstDataRepoSrc {
   guint64 fd_offset;            /**< offset of fd */
   guint64 start_offset;         /**< start offset to read */
   guint64 last_offset;          /**< last offset to read */
-  guint tensors_size[NNS_TENSOR_SIZE_LIMIT];   /**< each tensors size in a sample */
-  guint tensors_offset[NNS_TENSOR_SIZE_LIMIT]; /**< each tensors offset in a sample */
+  gsize tensors_size[NNS_TENSOR_SIZE_LIMIT];   /**< each tensors size in a sample */
+  gsize tensors_offset[NNS_TENSOR_SIZE_LIMIT]; /**< each tensors offset in a sample */
   gint current_sample_index;    /**< current index of sample or file to read */
   gboolean first_epoch_is_done;
   guint total_samples;           /**< The number of total samples */
   guint num_samples;             /**< The number of samples to be used out of the total samples in the file */
-  guint sample_size;             /**< size of one sample */
+  gsize sample_size;             /**< size of one sample */
   GstDataRepoDataType data_type; /**< media type */
 
   /* property */

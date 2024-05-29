@@ -481,7 +481,7 @@ build_dev_dir_scan_elements (iio_dev_dir_struct *iio_dev, const guint num_bits,
   gint32 *sdata32;
   guint64 *udata64;
   gint64 *sdata64;
-  gint data_size;
+  gsize data_size;
   gchar *scan_el_data;
   gint location = 0;
   gint enabled = 0;

@@ -121,11 +121,11 @@ class ntpUtilMockTest : public ::testing::Test
   void SetUp () override
   {
     host.h_name = g_strdup ("github.com");
-    host.h_aliases = (char **) calloc (1, sizeof (char *));
+    host.h_aliases = g_new0 (gchar *, 1);
     host.h_aliases[0] = g_strdup ("www.github.com");
     host.h_addrtype = AF_INET;
     host.h_length = 4;
-    host.h_addr_list = (char **) calloc (1, sizeof (char *));
+    host.h_addr_list = g_new0 (gchar *, 1);
     host.h_addr_list[0] = g_strdup ("52.78.231.108");
   }
   /**

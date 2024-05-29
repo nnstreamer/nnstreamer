@@ -902,7 +902,7 @@ gst_tensor_src_tizensensor_start (GstBaseSrc * src)
   }
 
   /* set data size */
-  blocksize = gst_tensor_info_get_size (self->src_spec);
+  blocksize = (guint) gst_tensor_info_get_size (self->src_spec);
   gst_base_src_set_blocksize (src, blocksize);
 
   self->running = TRUE;
@@ -1142,7 +1142,7 @@ gst_tensor_src_tizensensor_create (GstBaseSrc * src, guint64 offset,
   g_assert (self->src_spec);    /* It should be valid if configured */
 
   /* We don't have multi-tensor (tensors with num-tensors > 1) */
-  buffer_size = gst_tensor_info_get_size (self->src_spec);
+  buffer_size = (guint) gst_tensor_info_get_size (self->src_spec);
   mem = gst_allocator_alloc (NULL, buffer_size, NULL);
   if (mem == NULL) {
     GST_ERROR_OBJECT (self,
@@ -1221,6 +1221,7 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
   GstMemory *mem;
   GstMapInfo map;
   int src_dim;
+  guint data_size;
   UNUSED (offset);
   _LOCK (self);
 
@@ -1231,10 +1232,11 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
     goto exit;
   }
 
-  if (size != gst_tensor_info_get_size (self->src_spec)) {
+  data_size = (guint) gst_tensor_info_get_size (self->src_spec);
+  if (size != data_size) {
     GST_ERROR_OBJECT (self,
-        "gst_tensor_src_tizensensor_fill() requires size value (%u) to be matched with the configurations of sensors (%lu)",
-        size, (unsigned long) gst_tensor_info_get_size (self->src_spec));
+        "gst_tensor_src_tizensensor_fill() requires size value (%u) to be matched with the configurations of sensors (%u).",
+        size, data_size);
     retval = GST_FLOW_ERROR;
     goto exit;
   }
@@ -1267,7 +1269,7 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
     src_dim = self->src_spec->dimension[0];
     if (event->value_count != src_dim) {
       GST_ERROR_OBJECT (self,
-          "The number of values (%d) mismatches the metadata (%d)",
+          "The number of values (%d) mismatches the metadata (%d).",
           event->value_count, src_dim);
       retval = GST_FLOW_ERROR;
       goto exit_unmap;

@@ -1666,9 +1666,9 @@ gboolean
 gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
     const GstTensorInfo * info)
 {
-  guint num_mems, offset, new_mem_index;
+  guint num_mems, new_mem_index;
   GstMemory *new_memory = NULL, *last_memory = NULL;
-  gsize new_mem_size, last_mem_size;
+  gsize offset, new_mem_size, last_mem_size;
   GstMapInfo new_memory_map, last_memory_map, incoming_memory_map;
   GstTensorExtraInfo *extra_info;
   GstTensorMetaInfo meta;

@@ -199,12 +199,11 @@ main (int argc, char *argv[])
   bitmap_t bmp;
   int x, y;
   uint16_t width, height, *ptr16;
-  size_t size;
+  size_t size, strn;
   char byte;
   char header[26];              /** gen24bBMP.py gives you 24B headered bmp file */
   int ret;
   char *pngfilename;
-  unsigned int strn;
 
   /** Read the .bmp file (argv[1]) */
   if (argc < 2 || argc > 3) {
