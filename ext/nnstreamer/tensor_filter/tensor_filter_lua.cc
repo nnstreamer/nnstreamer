@@ -114,7 +114,7 @@ tensor_index (lua_State *L)
   lua_tensor *lt = *((lua_tensor **) luaL_checkudata (L, 1, "lua_tensor"));
   int tidx = luaL_checkint (L, 2) - 1;
 
-  uint element_size = gst_tensor_get_element_size (lt->type);
+  gsize element_size = gst_tensor_get_element_size (lt->type);
   if (tidx < 0 || (size_t) tidx * element_size >= lt->size)
     throw std::runtime_error ("Invalid index for tensor");
 
@@ -176,7 +176,7 @@ tensor_newindex (lua_State *L)
   int tidx = luaL_checkint (L, 2) - 1;
   double value = luaL_checknumber (L, 3);
 
-  uint element_size = gst_tensor_get_element_size (lt->type);
+  gsize element_size = gst_tensor_get_element_size (lt->type);
   if (tidx < 0 || (size_t) tidx * element_size >= lt->size)
     throw std::runtime_error ("Invalid index for tensor");
 
