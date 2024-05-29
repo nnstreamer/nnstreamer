@@ -348,7 +348,7 @@ _new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
       g_test_data.tensors_config.info.num_tensors = mem_blocks;
       for (i = 0; i < mem_blocks; i++) {
         GstMemory *mem = gst_buffer_peek_memory (buffer, i);
-        guint mem_size = gst_memory_get_sizes (mem, NULL, NULL);
+        guint mem_size = (guint) gst_memory_get_sizes (mem, NULL, NULL);
 
         g_test_data.tensors_config.info.info[i].type = _NNS_UINT8;
         g_test_data.tensors_config.info.info[i].dimension[0] = mem_size;

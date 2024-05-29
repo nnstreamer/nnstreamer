@@ -27,7 +27,7 @@ typedef uint8_t rasters_t[][13];
 typedef struct {
   char **labels; /**< The list of loaded labels. Null if not loaded */
   guint total_labels; /**< The number of loaded labels */
-  guint max_word_length; /**< The max size of labels */
+  gsize max_word_length; /**< The max size of labels */
 } imglabel_t;
 
 extern void

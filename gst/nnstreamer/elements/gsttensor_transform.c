@@ -774,7 +774,7 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
                   values[1]);
               filter->data_arithmetic.per_channel_arith = TRUE;
               filter->data_arithmetic.ch_dim =
-                  g_ascii_strtoull (values[1], NULL, 10);
+                  (guint) g_ascii_strtoull (values[1], NULL, 10);
             }
 
             g_strfreev (values);
@@ -982,22 +982,22 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
         gchar **strv = g_strsplit (options[i], ":", 2);
         if (g_ascii_strcasecmp (strv[0], "left") == 0) {
           filter->data_padding.pad[PADDING_LEFT] =
-              g_ascii_strtoull (strv[1], NULL, 10);
+              (guint) g_ascii_strtoull (strv[1], NULL, 10);
         } else if (g_ascii_strcasecmp (strv[0], "right") == 0) {
-          filter->data_padding.pad[PADDING_RIGHT]
-              = g_ascii_strtoull (strv[1], NULL, 10);
+          filter->data_padding.pad[PADDING_RIGHT] =
+              (guint) g_ascii_strtoull (strv[1], NULL, 10);
         } else if (g_ascii_strcasecmp (strv[0], "top") == 0) {
           filter->data_padding.pad[PADDING_TOP] =
-              g_ascii_strtoull (strv[1], NULL, 10);
+              (guint) g_ascii_strtoull (strv[1], NULL, 10);
         } else if (g_ascii_strcasecmp (strv[0], "bottom") == 0) {
-          filter->data_padding.pad[PADDING_BOTTOM]
-              = g_ascii_strtoull (strv[1], NULL, 10);
+          filter->data_padding.pad[PADDING_BOTTOM] =
+              (guint) g_ascii_strtoull (strv[1], NULL, 10);
         } else if (g_ascii_strcasecmp (strv[0], "front") == 0) {
-          filter->data_padding.pad[PADDING_FRONT]
-              = g_ascii_strtoull (strv[1], NULL, 10);
+          filter->data_padding.pad[PADDING_FRONT] =
+              (guint) g_ascii_strtoull (strv[1], NULL, 10);
         } else if (g_ascii_strcasecmp (strv[0], "back") == 0) {
           filter->data_padding.pad[PADDING_BACK] =
-              g_ascii_strtoull (strv[1], NULL, 10);
+              (guint) g_ascii_strtoull (strv[1], NULL, 10);
         } else if (g_ascii_strcasecmp (strv[0], "layout") == 0) {
           if (g_ascii_strcasecmp (strv[1], "NHWC") == 0)
             filter->data_padding.layout = _NNS_LAYOUT_NHWC;
