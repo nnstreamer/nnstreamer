@@ -64,7 +64,7 @@ struct _GstTensorTrainer
   GstTensorsConfig out_config;
   GstTensorsConfig in_config;
 
-  guint total_push_data_cnt;      /**< number of total push data in one eposh */
+  guint cur_epoch_data_cnt;      /**< number of total push data in one eposh */
 
   void *privateData; /**< NNFW plugin's private data is stored here */
   const GstTensorTrainerFramework *fw; /**< Subplugin definition */
