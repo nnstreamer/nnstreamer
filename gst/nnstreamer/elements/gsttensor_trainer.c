@@ -306,7 +306,7 @@ gst_tensor_trainer_init (GstTensorTrainer * trainer)
   trainer->inputtype_configured = FALSE;
   trainer->is_training_complete = FALSE;
   trainer->is_epoch_complete = FALSE;
-  trainer->total_push_data_cnt = 0;
+  trainer->cur_epoch_data_cnt = 0;
 
   gst_tensors_config_init (&trainer->in_config);
   gst_tensors_config_init (&trainer->out_config);
@@ -530,6 +530,8 @@ gst_tensor_trainer_change_state (GstElement * element,
   switch (transition) {
     case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
       GST_INFO_OBJECT (trainer, "PLAYING_TO_PAUSED");
+      GST_INFO_OBJECT (trainer, "cur_epoch_data_cnt=%u",
+          trainer->cur_epoch_data_cnt);
       break;
 
     case GST_STATE_CHANGE_PAUSED_TO_READY:
@@ -579,7 +581,7 @@ gst_tensor_trainer_wait_for_epoch_completion (GstTensorTrainer * trainer)
 static gboolean
 gst_tensor_trainer_epochs_is_complete (GstTensorTrainer * trainer)
 {
-  int required_sample;
+  guint required_sample;
 
   g_return_val_if_fail (trainer != NULL, FALSE);
   g_return_val_if_fail (trainer->fw != NULL, FALSE);
@@ -587,11 +589,11 @@ gst_tensor_trainer_epochs_is_complete (GstTensorTrainer * trainer)
 
   required_sample =
       trainer->prop.num_training_samples + trainer->prop.num_validation_samples;
-  if (trainer->total_push_data_cnt % required_sample != 0)
+  if (trainer->cur_epoch_data_cnt != required_sample)
     return FALSE;
 
   gst_tensor_trainer_wait_for_epoch_completion (trainer);
-
+  trainer->cur_epoch_data_cnt = 0;
   return TRUE;
 }
 
@@ -710,7 +712,7 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
   ret =
       trainer->fw->push_data (trainer->fw, &trainer->prop, trainer->privateData,
       push_tensors);
-  trainer->total_push_data_cnt++;
+  trainer->cur_epoch_data_cnt++;
 
   /* Free in info */
   for (i = 0; i < num_tensors; i++) {
@@ -727,7 +729,7 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
       push one outbuf is necessary to change pipeline state.
       Scheduling with subplugin does not work.
    */
-  if (trainer->total_push_data_cnt == 1
+  if (trainer->cur_epoch_data_cnt == 1
       || gst_tensor_trainer_epochs_is_complete (trainer)) {
 
     /* Prepare output tensor */
