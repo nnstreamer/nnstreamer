@@ -273,6 +273,7 @@ cudart_dep = dependency('', required: false)
 if not get_option('tensorrt-support').disabled()
   # check available cuda versions (11.0 and 10.2 are recommended)
   cuda_vers = [
+    '12.1',
     '11.0',
     '10.2',
     '10.1',
@@ -286,7 +287,7 @@ if not get_option('tensorrt-support').disabled()
     cuda_dep = dependency('cuda-' + ver, required: false)
     cudart_dep = dependency('cudart-' + ver, required: false)
     if cuda_dep.found() and cudart_dep.found()
-      if ver != '11.0' and ver != '10.2'
+      if ver != '12.1' and ver != '11.0' and ver != '10.2'
         message('Warning: the recommended cuda version is at least 10.2')
       endif
       break
@@ -294,12 +295,12 @@ if not get_option('tensorrt-support').disabled()
   endforeach
 
   nvinfer_lib = cxx.find_library('nvinfer', required: false)
-  if nvinfer_lib.found() and cxx.check_header('NvInfer.h')
+  if nvinfer_lib.found() #and cxx.check_header('NvInfer.h')
     nvinfer_dep = declare_dependency(dependencies: nvinfer_lib)
   endif
 
   nvparsers_lib = cxx.find_library('nvparsers', required: false)
-  if nvparsers_lib.found() and cxx.check_header('NvUffParser.h')
+  if nvparsers_lib.found() #and cxx.check_header('NvUffParser.h')
     nvparsers_dep = declare_dependency(dependencies: nvparsers_lib)
   endif
 endif

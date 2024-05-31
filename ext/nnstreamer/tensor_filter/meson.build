@@ -670,6 +670,7 @@ if tensorrt_support_is_available
 
   shared_library('nnstreamer_filter_tensorrt',
     filter_sub_tensorrt_sources,
+    link_args: '-L/usr/local/cuda-12.1/targets/x86_64-linux/lib/stubs',
     dependencies: nnstreamer_filter_tensorrt_deps,
     install: true,
     install_dir: filter_subplugin_install_dir
@@ -677,6 +678,7 @@ if tensorrt_support_is_available
 
   static_library('nnstreamer_filter_tensorrt',
     filter_sub_tensorrt_sources,
+    link_args: '-L/usr/local/cuda-12.1/targets/x86_64-linux/lib/stubs',
     dependencies: nnstreamer_filter_tensorrt_deps,
     install: true,
     install_dir: nnstreamer_libdir

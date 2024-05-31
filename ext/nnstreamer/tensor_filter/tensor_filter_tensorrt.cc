@@ -21,6 +21,7 @@
 #include <vector>
 
 #include <nnstreamer_cppplugin_api_filter.hh>
+#include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_util.h>
 
@@ -35,7 +36,7 @@ using Severity = nvinfer1::ILogger::Severity;
 /** @brief a global object of ILogger */
 class Logger : public nvinfer1::ILogger
 {
-  void log (Severity severity, const char *msg) override
+  void log (Severity severity, const char *msg) noexcept override
   {
     switch (severity) {
       case Severity::kWARNING:
@@ -312,7 +313,8 @@ tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
     return -1;
   }
 
-  auto network = makeUnique (builder->createNetwork ());
+  const auto explicitBatch = 1U << static_cast<uint32_t>(nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH);
+  auto network = makeUnique (builder->createNetworkV2 (explicitBatch));
   if (!network) {
     ml_loge ("Failed to create network");
     return -1;

@@ -19,6 +19,7 @@
  */
 
 #include <glib.h>
+#include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_util.h>
 #include <string.h>

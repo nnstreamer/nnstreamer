@@ -4,6 +4,13 @@
 # ignore cmake build directory
 /build
 
+# ignore generated documentation directories
+/html
+/latex
+
+# ignore docker artifact directory
+/tools/docker/deps
+
 # ignore golden test generated files
 /tests/*/*.log
 /tests/*/*.golden
