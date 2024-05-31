@@ -1,0 +1,90 @@
+# Custom container for building and testing tensorrt, using sources from host.
+ARG UBUNTU_VER=22.04
+ARG CUDA_VER=12.1.1-cudnn8-devel
+
+FROM nvcr.io/nvidia/cuda:${CUDA_VER}-ubuntu${UBUNTU_VER} AS cuda-trt10-base
+
+ARG UBUNTU_APT_MIRROR="http://archive.ubuntu.com/ubuntu/"
+ARG DEBCONF_NOWARNINGS="yes"
+ARG DEBCONF_TERSE="yes"
+ARG LANG="C.UTF-8"
+
+ENV DEBIAN_FRONTEND noninteractive
+ENV UBUNTU_APT_MIRROR ${UBUNTU_APT_MIRROR}
+ENV NVIDIA_DRIVER_CAPABILITIES=all
+
+# Configure apt and custom repositories
+RUN set -x && \
+    echo "debconf debconf/frontend select ${DEBIAN_FRONTEND}" | debconf-set-selections && \
+    echo 'APT::Install-Recommends "false";' | tee /etc/apt/apt.conf.d/99install-recommends && \
+    echo 'APT::Get::Assume-Yes "true";' | tee /etc/apt/apt.conf.d/99assume-yes && \
+    sed -Ei 's|^(DPkg::Pre-Install-Pkgs .*)|#\1|g' /etc/apt/apt.conf.d/70debconf && \
+    sed -i "s|http://archive.ubuntu.com/ubuntu/|${UBUNTU_APT_MIRROR}|" /etc/apt/sources.list && \
+    apt-get update && \
+    apt-get install software-properties-common gpg-agent && \
+    add-apt-repository ppa:nnstreamer/ppa -u && \
+    add-apt-repository ppa:one-runtime/ppa -u
+    
+# General tools to enable connectivity problem shooting
+RUN apt-get install \
+        dnsutils \
+        iproute2 \
+        iputils-ping \
+        net-tools \
+        vim \
+        less \
+        telnet \
+        lsof
+
+# Install build prerequisites
+RUN apt-get install \
+        build-essential \
+        cmake \
+        gdb \
+        git \
+        gfortran \
+        nano \
+        pkg-config \
+        qv4l2 \
+        unzip \
+        v4l-utils \
+        wget
+
+# Install python prerequisites
+RUN apt-get install \
+        python3-dev \
+        python3-dbg \
+        python3-pip
+
+# Install tensorrt for cuda 12.1
+# The .deb file is expected to be present in the docker folder, where this dockerfile resides.
+# Download from here (needs login): https://developer.nvidia.com/tensorrt/download
+# Copy .deb file to tools/docker/deps/
+RUN --mount=type=bind,target=/tools/docker/deps,source=tools/docker/deps \
+    --mount=type=bind,target=/tools/docker/tmp,source=tools/docker/tmp,rw \
+    mkdir -p /tools/docker/tmp/tensorrt \
+    && dpkg --instdir="/tools/docker/tmp/tensorrt" --unpack "/tools/docker/deps/nv-tensorrt-local-repo-ubuntu2204-10.0.1-cuda-12.4_1.0-1_amd64.deb" \
+    && dpkg -i "/tools/docker/tmp/tensorrt/var/nv-tensorrt-local-repo-ubuntu2204-10.0.1-cuda-12.4/"*.deb
+
+RUN apt-get install \
+        gstreamer1.0-plugins-base \
+        gstreamer1.0-plugins-good \
+        gstreamer1.0-tools \
+        gstreamer1.0-x \
+        git \
+        build-essential \
+        pkg-config \
+        cmake \
+        ninja-build \
+        flex \
+        bison \
+        meson \
+        equivs \
+        devscripts \
+        libcairo2-dev
+
+RUN --mount=type=bind,target=/debian,source=debian \
+    mk-build-deps \
+        --install \
+        --tool='apt-get -o Debug::pkgProblemResolver=yes --no-install-recommends --yes' \
+        /debian/control

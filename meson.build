@@ -267,11 +267,11 @@ endif
 
 # tensorrt
 nvinfer_dep = dependency('', required: false)
-nvparsers_dep = dependency('', required: false)
+# nvparsers_dep = dependency('', required: false)
 cuda_dep = dependency('', required: false)
 cudart_dep = dependency('', required: false)
 if not get_option('tensorrt-support').disabled()
-  # check available cuda versions (11.0 and 10.2 are recommended)
+  # check available cuda versions (12.1 is recommended)
   cuda_vers = [
     '12.1',
     '11.0',
@@ -299,10 +299,10 @@ if not get_option('tensorrt-support').disabled()
     nvinfer_dep = declare_dependency(dependencies: nvinfer_lib)
   endif
 
-  nvparsers_lib = cxx.find_library('nvparsers', required: false)
-  if nvparsers_lib.found() #and cxx.check_header('NvUffParser.h')
-    nvparsers_dep = declare_dependency(dependencies: nvparsers_lib)
-  endif
+#  nvparsers_lib = cxx.find_library('nvparsers', required: false)
+#  if nvparsers_lib.found() #and cxx.check_header('NvUffParser.h')
+#    nvparsers_dep = declare_dependency(dependencies: nvparsers_lib)
+#  endif
 endif
 
 # gRPC
@@ -461,7 +461,7 @@ features = {
     'project_args': { 'ENABLE_PROTOBUF': 1 }
   },
   'tensorrt-support': {
-    'extra_deps': [ nvinfer_dep, nvparsers_dep, cuda_dep, cudart_dep ],
+    'extra_deps': [ nvinfer_dep, cuda_dep, cudart_dep ],
     'project_args': { 'ENABLE_TENSORRT': 1 }
   },
   'grpc-support': {

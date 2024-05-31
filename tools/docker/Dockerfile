@@ -1,23 +1,10 @@
 ARG UBUNTU_VER=22.04
-ARG CUDA_VER=12.1.1-cudnn8-devel
 # If the value assigned to MIN_RUN_ENV is non-zero length,
 # only nnstreamer, nnstreamer-core, and nnstreamer-configuration packages are installed
 # in the container.
 ARG MIN_RUN_ENV=""
-# FROM ubuntu:${UBUNTU_VER} AS dev-base
-FROM nvcr.io/nvidia/cuda:${CUDA_VER}-ubuntu${UBUNTU_VER} AS cuda-trt-base
-ENV NVIDIA_DRIVER_CAPABILITIES=all
+FROM ubuntu:${UBUNTU_VER} AS dev-base
 
-RUN --mount=type=bind,target=/docker/deps,source=tools/docker/deps \
-    --mount=type=bind,target=/docker/tmp,source=tools/docker/tmp,rw \
-    mkdir -p /docker/tmp/tensorrt \
-    && dpkg --instdir="/docker/tmp/tensorrt" --unpack "/docker/deps/nv-tensorrt-local-repo-ubuntu2204-8.6.1-cuda-12.0_1.0-1_amd64.deb" \
-    && ls -laR "/docker/tmp/tensorrt/" \
-    && cd "/docker/tmp/tensorrt/var/nv-tensorrt-local-repo-ubuntu2204-8.6.1-cuda-12.0" \
-    && dpkg -i $(find ./ -iname "*.deb" | grep -v python)
-    # && dpkg -i "libnvinfer-bin_8.6.1.6-1+cuda12.0_amd64.deb" "libnvinfer-dev_8.6.1.6-1+cuda12.0_amd64.deb" "libnvinfer8_8.6.1.6-1+cuda12.0_amd64.deb" "libnvparsers-dev_8.6.1.6-1+cuda12.0_amd64.deb" "libnvparsers8_8.6.1.6-1+cuda12.0_amd64.deb" "tensorrt-dev_8.6.1.6-1+cuda12.0_amd64.deb" "tensorrt-libs_8.6.1.6-1+cuda12.0_amd64.deb" "tensorrt_8.6.1.6-1+cuda12.0_amd64.deb" "uff-converter-tf_8.6.1.6-1+cuda12.0_amd64.deb"
-
-FROM cuda-trt-base AS build-base
 ARG DEBCONF_NOWARNINGS="yes"
 ARG DEBCONF_TERSE="yes"
 ARG LANG="C.UTF-8"
@@ -52,21 +39,18 @@ RUN set -x && \
     useradd -ms /bin/bash ${USERNAME}
 
 SHELL ["/bin/bash", "-c"]
-# USER ${USERNAME}
-USER root
+USER ${USERNAME}
 WORKDIR /home/${USERNAME}
-# RUN git clone https://github.com/nnstreamer/nnstreamer.git
-ADD ./ /home/${USERNAME}/nnstreamer
+RUN git clone https://github.com/nnstreamer/nnstreamer.git
 WORKDIR /home/${USERNAME}/nnstreamer
 RUN mk-build-deps debian/control
+USER root
 RUN apt-get -f install ./nnstreamer-build-deps*.deb && \
     rm -f ./nnstreamer-build-deps*.deb && \
     rm -rf /var/lib/apt/lists/*
-
-FROM build-base AS dev-base
-# USER ${USERNAME}
+USER ${USERNAME}
 RUN meson ${BUILDDIR} && \
-    ninja -C ${BUILDDIR} --verbose
+    ninja -C ${BUILDDIR}
 ENV GST_PLUGIN_PATH=/home/${USERNAME}/nnstreamer/${BUILDDIR}/gst/nnstreamer \
     NNSTREAMER_CONF=/home/${USERNAME}/nnstreamer/${BUILDDIR}/nnstreamer-test.ini \
     NNSTREAMER_FILTERS=/home/${USERNAME}/nnstreamer/${BUILDDIR}/ext/nnstreamer/tensor_filter \
@@ -82,11 +66,10 @@ WORKDIR /home/${NNS_USERNAME}/nnstreamer
 RUN sed -i "s|run_unittests_binaries.sh|run_unittests_binaries.sh -k unittest_mqtt|g" ./debian/rules && \
     debuild -us -uc
 
-FROM cuda-trt-base AS run_env
-# FROM ubuntu:${UBUNTU_VER} AS run_env
-# ARG DEBCONF_NOWARNINGS="yes"
-# ARG DEBCONF_TERSE="yes"
-# ARG LANG="C.UTF-8"
+FROM ubuntu:${UBUNTU_VER} AS run_env
+ARG DEBCONF_NOWARNINGS="yes"
+ARG DEBCONF_TERSE="yes"
+ARG LANG="C.UTF-8"
 ARG BUILDDIR=build
 ARG USERNAME=nns
 ARG MIN_RUN_ENV
