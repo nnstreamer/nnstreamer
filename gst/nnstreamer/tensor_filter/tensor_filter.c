@@ -613,7 +613,7 @@ _gst_tensor_filter_transform_validate (GstBaseTransform * trans,
     return GST_FLOW_ERROR;
   }
 
-  silent_debug (self, "Invoking %s with %s model\n", priv->fw->name,
+  silent_debug (self, "Invoking %s with %s model\n", prop->fwname,
       GST_STR_NULL (prop->model_files[0]));
 
   /* skip input data when throttling delay is set */

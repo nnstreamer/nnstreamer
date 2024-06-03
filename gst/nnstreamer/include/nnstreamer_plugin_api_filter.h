@@ -157,8 +157,8 @@ typedef struct _GstTensorFilterFrameworkInfo
 {
   const char *name; /**< Name of the neural network framework, searchable by FRAMEWORK property. Subplugin is supposed to allocate/deallocate. */
   int allow_in_place; /**< TRUE(nonzero) if in-place transfer of input-to-output is allowed. Not supported in main, yet. */
-  int allocate_in_invoke; /**< TRUE(nonzero) if invoke_NN is going to allocate output ptr by itself and return the address via output ptr. Do not change this value after cap negotiation is complete (or the stream has been started). */
-  int run_without_model; /**< TRUE(nonzero) when the neural network framework does not need a model file. Tensor-filter will run invoke_NN without model. */
+  int allocate_in_invoke; /**< TRUE(nonzero) if invoke[_NN] is going to allocate output ptr by itself and return the address via output ptr. Do not change this value after cap negotiation is complete (or the stream has been started). */
+  int run_without_model; /**< TRUE(nonzero) when the neural network framework does not need a model file. Tensor-filter will run invoke[_NN] without model. */
   int verify_model_path; /**< TRUE(nonzero) when the NNS framework, not the sub-plugin, should verify the path of model files. */
   const accl_hw *hw_list; /**< List of supported hardware accelerators by the framework. Positive response of this check does not guarantee successful running of model with this accelerator. Subplugin is supposed to allocate/deallocate. */
   int num_hw; /**< number of hardware accelerators in the hw_list supported by the framework. */

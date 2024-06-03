@@ -41,16 +41,16 @@ class Logger : public nvinfer1::ILogger
   {
     switch (severity) {
       case Severity::kWARNING:
-        ml_logw ("%s", msg);
+        ml_logw ("NVINFER: %s", msg);
         break;
       case Severity::kINFO:
-        ml_logi ("%s", msg);
+        ml_logi ("NVINFER: %s", msg);
         break;
       case Severity::kVERBOSE:
-        ml_logd ("%s", msg);
+        ml_logd ("NVINFER: %s", msg);
         break;
       default:
-        ml_loge ("%s", msg);
+        ml_loge ("NVINFER: %s", msg);
         break;
     }
   }
@@ -99,7 +99,6 @@ class tensorrt_subplugin final : public tensor_filter_subplugin
 
   gchar *_engine_path; /**< engine file path to infer */
   void *_inputBuffer; /**< Input Cuda buffer */
-  void *_outputBuffer; /**< Output Cuda buffer */
   cudaStream_t _stream; /**< The cuda inference stream */
 
   GstTensorsInfo _inputTensorMeta;
@@ -110,6 +109,11 @@ class tensorrt_subplugin final : public tensor_filter_subplugin
   UniquePtr<nvinfer1::IRuntime> _Runtime{ nullptr };
   UniquePtr<nvinfer1::ICudaEngine> _Engine{ nullptr };
   UniquePtr<nvinfer1::IExecutionContext> _Context{ nullptr };
+
+  const char* _input_tensor_name{ nullptr };
+  std::uint32_t _input_tensor_buffer_size{ 0 };
+  const char* _output_tensor_name{ nullptr };
+  std::uint32_t _output_tensor_buffer_size{ 0 };
 
   int allocBuffer (void **buffer, gsize size);
   int setInputDims (guint input_rank);
@@ -214,32 +218,43 @@ tensorrt_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 void
 tensorrt_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
-  /* If internal _inputBuffer is nullptr, tne allocate GPU memory */
-  // if (!_inputBuffer) {
-  //   if (allocBuffer (&_inputBuffer, input->size) != 0) {
-  //     ml_loge ("Failed to allocate GPU memory for input");
-  //     throw std::runtime_error ("Failed to allocate GPU memory for input");
-  //   }
-  // }
+  ml_logw(
+    "Invoking tensorrt engine with buffer sizes: %lu; %u; %lu; %u",
+    input->size,
+    _input_tensor_buffer_size,
+    output->size,
+    _output_tensor_buffer_size
+  );
 
   /* Copy input data to Cuda memory space */
   memcpy (_inputBuffer, input->data, input->size);
 
   /* Allocate output buffer */
-  // if (allocBuffer (&output->data, output->size) != 0) {
-  //   ml_loge ("Failed to allocate GPU memory for output");
-  //   throw std::runtime_error ("Failed to allocate GPU memory for output");
-  // }
+  if (allocBuffer (&output->data, output->size) != 0) {
+    ml_loge ("Failed to allocate GPU memory for output");
+    throw std::runtime_error ("Failed to allocate GPU memory for output");
+  }
 
-  /* Bind the input and execute the network */
-  std::vector<void *> bindings = { _inputBuffer, output->data };
+  if (!_Context->setOutputTensorAddress(_output_tensor_name, output->data)) {
+    ml_loge ("Unable to set output tensor address");
+    throw std::runtime_error ("Unable to set output tensor address");
+  }
+
+  /* Execute the network */
   if (!_Context->enqueueV3 (_stream)) {
     ml_loge ("Failed to execute the network");
     throw std::runtime_error ("Failed to execute the network");
   }
 
-  /* wait for GPU to finish the inference */
-  cudaStreamSynchronize(_stream);
+  /* Wait for GPU to finish the inference */
+  cudaError_t status = cudaStreamSynchronize(_stream);
+
+  if (status != cudaSuccess) {
+    ml_loge ("Failed to synchronize the cuda stream");
+    throw std::runtime_error ("Failed to synchronize the cuda stream");
+  }
+
+  ml_logw("After cudaStreamSynchronize");
 }
 
 /**
@@ -252,7 +267,7 @@ tensorrt_subplugin::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
   info.allow_in_place = FALSE;
   info.allocate_in_invoke = TRUE;
   info.run_without_model = FALSE;
-  info.verify_model_path = FALSE;
+  info.verify_model_path = TRUE;
   info.hw_list = hw_list;
   info.num_hw = num_hw;
 }
@@ -331,7 +346,7 @@ tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
   std::streamsize size = file.tellg();
   file.seekg(0, std::ios::beg);
 
-  ml_logw(
+  ml_logi(
     "Loading tensorrt engine from file: %s with buffer size: %" G_GUINT64_FORMAT,
     _engine_path,
     size
@@ -355,6 +370,23 @@ tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
     ml_loge ("Unable to deserialize tensorrt engine");
     return -1;
   }
+
+  // Create the cuda stream
+  cudaStreamCreate(&_stream);
+
+  /* Create ExecutionContext object */
+  _Context = makeUnique (_Engine->createExecutionContext ());
+  if (!_Context) {
+    ml_loge ("Failed to create the TensorRT ExecutionContext object");
+    return -1;
+  }
+
+  // Set optimization profile to the default
+  // todo: support for optimization profiles
+  // if (!_Context->setOptimizationProfileAsync(0, stream)) {
+  //   ml_loge ("Unable to set optimization profile");
+  //   return -1;
+  // }
 
   // Get number of IO buffers
   auto num_io_buffers = _Engine->getNbIOTensors();
@@ -391,75 +423,42 @@ tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
     const auto tensor_dtype_size = getTensorRTDataTypeSize(tensor_dtype);
     const auto tensor_volume = getVolume(tensor_shape);
     const auto tensor_buffer_size = tensor_dtype_size * tensor_volume;
-    ml_logw ("BUFFER SIZE: %d", tensor_buffer_size);
+    ml_logd ("BUFFER SIZE: %d", tensor_buffer_size);
 
     // Allocate GPU memory for input and output buffers
     const auto tensor_mode = _Engine->getTensorIOMode(tensor_name);
     if (tensor_mode == nvinfer1::TensorIOMode::kINPUT) {
+      _input_tensor_name = tensor_name;
+      _input_tensor_buffer_size = tensor_buffer_size;
       if (allocBuffer (&_inputBuffer, tensor_buffer_size) != 0) {
         ml_loge ("Failed to allocate GPU memory for input");
         return -1;
       }
-    } else if (tensor_mode == nvinfer1::TensorIOMode::kOUTPUT) {
-      if (allocBuffer (&_outputBuffer, tensor_buffer_size) != 0) {
-        ml_loge ("Failed to allocate GPU memory for output");
+
+      if (!_Context->setInputShape(tensor_name, tensor_shape)) {
+        ml_loge ("Unable to set input shape");
         return -1;
       }
+
+      if (!_Context->setInputTensorAddress(tensor_name, _inputBuffer)) {
+        ml_loge ("Unable to set input tensor address");
+        return -1;
+      }
+
+    } else if (tensor_mode == nvinfer1::TensorIOMode::kOUTPUT) {
+      _output_tensor_name = tensor_name;
+      _output_tensor_buffer_size = tensor_buffer_size;
+
     } else {
       ml_loge ("TensorIOMode not supported");
       return -1;
     }
   }
 
-  /* Create ExecutionContext obejct */
-  _Context = makeUnique (_Engine->createExecutionContext ());
-  if (!_Context) {
-    ml_loge ("Failed to create the TensorRT ExecutionContext object");
+  if (!_Context->allInputDimensionsSpecified()) {
+    ml_loge ("Not all required dimensions were specified");
     return -1;
   }
-
-  cudaStreamCreate(&_stream);
-
-  // const auto explicitBatch = 1U << static_cast<uint32_t>(nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH);
-  // auto network = makeUnique (builder->createNetworkV2 (explicitBatch));
-  // if (!network) {
-  //   ml_loge ("Failed to create network");
-  //   return -1;
-  // }
-
-  // auto config = makeUnique (builder->createBuilderConfig ());
-  // if (!config) {
-  //   ml_loge ("Failed to create config");
-  //   return -1;
-  // }
-
-  // auto parser = makeUnique (nvuffparser::createUffParser ());
-  // if (!parser) {
-  //   ml_loge ("Failed to create parser");
-  //   return -1;
-  // }
-
-  // /* Register tensor input & output */
-  // _info = gst_tensors_info_get_nth_info (&_inputTensorMeta, 0U);
-  // parser->registerInput (_info->name, _InputDims, nvuffparser::UffInputOrder::kNCHW);
-
-  // _info = gst_tensors_info_get_nth_info (&_outputTensorMeta, 0U);
-  // parser->registerOutput (_info->name);
-
-  // /* Parse the imported model */
-  // parser->parse (_engine_path, *network, _DataType);
-
-  // /* Set config */
-  // builder->setMaxBatchSize (1);
-  // config->setMaxWorkspaceSize (1 << 20);
-  // config->setFlag (nvinfer1::BuilderFlag::kGPU_FALLBACK);
-
-  // /* Create Engine object */
-  // _Engine = makeUnique (builder->buildEngineWithConfig (*network, *config));
-  // if (!_Engine) {
-  //   ml_loge ("Failed to create the TensorRT Engine object");
-  //   return -1;
-  // }
 
   return 0;
 }
