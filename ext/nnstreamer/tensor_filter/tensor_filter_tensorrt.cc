@@ -104,8 +104,6 @@ class tensorrt_subplugin final : public tensor_filter_subplugin
   GstTensorsInfo _inputTensorMeta;
   GstTensorsInfo _outputTensorMeta;
 
-  nvinfer1::Dims _InputDims;
-  nvinfer1::DataType _DataType;
   UniquePtr<nvinfer1::IRuntime> _Runtime{ nullptr };
   UniquePtr<nvinfer1::ICudaEngine> _Engine{ nullptr };
   UniquePtr<nvinfer1::IExecutionContext> _Context{ nullptr };
@@ -116,12 +114,11 @@ class tensorrt_subplugin final : public tensor_filter_subplugin
   std::uint32_t _output_tensor_buffer_size{ 0 };
 
   int allocBuffer (void **buffer, gsize size);
-  int setInputDims (guint input_rank);
-  int setTensorType (tensor_type t);
   int loadModel (const GstTensorFilterProperties *prop);
   int checkUnifiedMemory ();
   std::uint32_t getVolume (const nvinfer1::Dims& shape) const;
   std::uint32_t getTensorRTDataTypeSize (nvinfer1::DataType tensorrt_data_type) const;
+  tensor_type getNnStreamerDataType(nvinfer1::DataType tensorrt_data_type) const;
 
   /** @brief Make unique pointer */
   template <typename T> UniquePtr<T> makeUnique (T *t)
@@ -177,8 +174,6 @@ tensorrt_subplugin::getEmptyInstance ()
 void
 tensorrt_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 {
-  GstTensorInfo *_info;
-
   /* Set model path */
   if (prop->num_models != 1 || !prop->model_files[0]) {
     ml_loge ("TensorRT filter requires one engine model file.");
@@ -190,18 +185,6 @@ tensorrt_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   /* Set input/output TensorsInfo */
   gst_tensors_info_copy (&_inputTensorMeta, &prop->input_meta);
   gst_tensors_info_copy (&_outputTensorMeta, &prop->output_meta);
-
-  /* Set nvinfer1::Dims object */
-  if (setInputDims (prop->input_ranks[0]) != 0) {
-    throw std::invalid_argument ("TensorRT filter only supports 2, 3, 4 dimensions");
-  }
-
-  /* Get the datatype of input tensor */
-  _info = gst_tensors_info_get_nth_info (&_inputTensorMeta, 0U);
-  if (setTensorType (_info->type) != 0) {
-    ml_loge ("TensorRT filter does not support the input data type.");
-    throw std::invalid_argument ("TensorRT filter does not support the input data type.");
-  }
 
   /* Make a TensorRT engine */
   if (loadModel (prop)) {
@@ -218,7 +201,7 @@ tensorrt_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 void
 tensorrt_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
-  ml_logw(
+  ml_logi(
     "Invoking tensorrt engine with buffer sizes: %lu; %u; %lu; %u",
     input->size,
     _input_tensor_buffer_size,
@@ -254,7 +237,7 @@ tensorrt_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *outpu
     throw std::runtime_error ("Failed to synchronize the cuda stream");
   }
 
-  ml_logw("After cudaStreamSynchronize");
+  ml_logd("After cudaStreamSynchronize");
 }
 
 /**
@@ -445,9 +428,33 @@ tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
         return -1;
       }
 
+      // Set the nnstreamer GstTensorInfo properties
+      GstTensorInfo *tensor_info = gst_tensors_info_get_nth_info (&_inputTensorMeta, 0U);
+      tensor_info->name = g_strdup(tensor_name);
+      tensor_info->type = getNnStreamerDataType(tensor_dtype);
+      for (int i = 0; i < tensor_shape.nbDims; ++i) {
+        tensor_info->dimension[i] = tensor_shape.d[i];
+      }
+      // Set tensor dimensions in reverse order
+      // for (int i = tensor_shape.nbDims - 1; i >= 0; --i) {
+      //   tensor_info->dimension[i] = tensor_shape.d[i];
+      // }
+
     } else if (tensor_mode == nvinfer1::TensorIOMode::kOUTPUT) {
       _output_tensor_name = tensor_name;
       _output_tensor_buffer_size = tensor_buffer_size;
+
+      // Set the nnstreamer GstTensorInfo properties
+      GstTensorInfo *tensor_info = gst_tensors_info_get_nth_info (&_outputTensorMeta, 0U);
+      tensor_info->name = g_strdup(tensor_name);
+      tensor_info->type = getNnStreamerDataType(tensor_dtype);
+      for (int i = 0; i < tensor_shape.nbDims; ++i) {
+        tensor_info->dimension[i] = tensor_shape.d[i];
+      }
+      // Set tensor dimensions in reverse order
+      // for (int i = tensor_shape.nbDims - 1; i >= 0; --i) {
+      //   tensor_info->dimension[i] = tensor_shape.d[i];
+      // }
 
     } else {
       ml_loge ("TensorIOMode not supported");
@@ -504,74 +511,6 @@ tensorrt_subplugin::allocBuffer (void **buffer, gsize size)
   return 0;
 }
 
-/**
- * @brief Set the data type of the the TensorRT.
- * @param[in] t : data type of NNStreamer
- * @return 0 if OK. -1 if it is not supported.
- * @note TensorRT supports kFLOAT(32bit), kHALF(16bit), kINT8, kINT32 and kBOOL.
- *       However, NNStreamer does not support kHALF and kBOOL so error(i.e. -1) returns in this case.
- */
-int
-tensorrt_subplugin::setTensorType (tensor_type t)
-{
-  switch (t) {
-    case _NNS_INT32:
-      _DataType = nvinfer1::DataType::kINT32;
-      break;
-    case _NNS_FLOAT32:
-      _DataType = nvinfer1::DataType::kFLOAT;
-      break;
-    case _NNS_INT8:
-      _DataType = nvinfer1::DataType::kINT8;
-      break;
-
-    default:
-      /**
-       * TensorRT supports kFLOAT(32bit), kHALF(16bit), kINT8, kINT32 and kBOOL.
-       * However, NNStreamer does not support kHALF and kBOOL.
-       */
-      return -1;
-  }
-
-  return 0;
-}
-
-/**
- * @brief Set the input dimension of the TensorRT.
- * @param[in] input_rank : actual input rank of input tensors.
- * @return 0 if OK. -1 if it is not supported.
- * @note The actual rank count is dependent on the dimension string of the tensor filter parameter.
- */
-int
-tensorrt_subplugin::setInputDims (guint input_rank)
-{
-  GstTensorInfo *_info;
-
-  _info = gst_tensors_info_get_nth_info (&_inputTensorMeta, 0U);
-
-  switch (input_rank) {
-    case 2:
-      _InputDims
-          = nvinfer1::Dims2 ((int) _info->dimension[1], (int) _info->dimension[0]);
-      break;
-
-    case 3:
-      _InputDims = nvinfer1::Dims3 ((int) _info->dimension[2],
-          (int) _info->dimension[1], (int) _info->dimension[0]);
-      break;
-
-    case 4:
-      _InputDims = nvinfer1::Dims4 ((int) _info->dimension[3], (int) _info->dimension[2],
-          (int) _info->dimension[1], (int) _info->dimension[0]);
-      break;
-
-    default:
-      ml_loge ("TensorRT filter does not support %u dimension.", input_rank);
-      return -1;
-  }
-  return 0;
-}
-
 std::uint32_t
 tensorrt_subplugin::getVolume (const nvinfer1::Dims& shape) const
 {
@@ -622,6 +561,45 @@ tensorrt_subplugin::getTensorRTDataTypeSize (nvinfer1::DataType tensorrt_data_ty
   //     fp8: 1,
   // }
 }
+
+tensor_type tensorrt_subplugin::getNnStreamerDataType(nvinfer1::DataType tensorrt_data_type) const
+{
+  switch (tensorrt_data_type) {
+    case nvinfer1::DataType::kFLOAT:
+      return _NNS_FLOAT32;
+    case nvinfer1::DataType::kHALF:
+      return _NNS_FLOAT16;
+    case nvinfer1::DataType::kINT8:
+      return _NNS_INT8;
+    case nvinfer1::DataType::kINT32:
+      return _NNS_INT32;
+    case nvinfer1::DataType::kBOOL:
+      return _NNS_INT8;
+    case nvinfer1::DataType::kUINT8:
+      return _NNS_UINT8;
+    // kFP8 not supported yet by tensorrt
+    case nvinfer1::DataType::kFP8:
+    default:
+      throw std::runtime_error("TensorRT data type not supported.");
+  }
+
+  // typedef enum _nns_tensor_type
+  // {
+  //   _NNS_INT32 = 0,
+  //   _NNS_UINT32,
+  //   _NNS_INT16,
+  //   _NNS_UINT16,
+  //   _NNS_INT8,
+  //   _NNS_UINT8,
+  //   _NNS_FLOAT64,
+  //   _NNS_FLOAT32,
+  //   _NNS_INT64,
+  //   _NNS_UINT64,
+  //   _NNS_FLOAT16, /**< added with nnstreamer 2.1.1-devel. If you add any operators (e.g., tensor_transform) to float16, it will either be not supported or be too inefficient. */
+  //   _NNS_END,
+  // } tensor_type;
+}
+
 
 tensorrt_subplugin *tensorrt_subplugin::registeredRepresentation = nullptr;
 
