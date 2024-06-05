@@ -71,6 +71,17 @@ void _fini_filter_tensorrt (void) __attribute__ ((destructor));
 }
 #endif /* __cplusplus */
 
+struct TensorRtTensorInfo {
+  const char* name;
+  nvinfer1::TensorIOMode mode;
+  nvinfer1::Dims shape;
+  nvinfer1::DataType dtype;
+  std::size_t dtype_size;
+  std::size_t volume;
+  std::size_t buffer_size;
+  void *buffer; /**< Cuda buffer */
+};
+
 /** @brief tensorrt subplugin class */
 class tensorrt_subplugin final : public tensor_filter_subplugin
 {
@@ -97,8 +108,8 @@ class tensorrt_subplugin final : public tensor_filter_subplugin
   static const int num_hw = 0;
   static tensorrt_subplugin *registeredRepresentation;
 
+  bool _configured{ false }; /**< Flag to keep track of whether this instance has been configured or not. */
   gchar *_engine_path; /**< engine file path to infer */
-  void *_inputBuffer; /**< Input Cuda buffer */
   cudaStream_t _stream; /**< The cuda inference stream */
 
   GstTensorsInfo _inputTensorMeta;
@@ -108,14 +119,14 @@ class tensorrt_subplugin final : public tensor_filter_subplugin
   UniquePtr<nvinfer1::ICudaEngine> _Engine{ nullptr };
   UniquePtr<nvinfer1::IExecutionContext> _Context{ nullptr };
 
-  const char* _input_tensor_name{ nullptr };
-  std::uint32_t _input_tensor_buffer_size{ 0 };
-  const char* _output_tensor_name{ nullptr };
-  std::uint32_t _output_tensor_buffer_size{ 0 };
+  std::vector<TensorRtTensorInfo> _tensorrt_input_tensor_infos{};
+  std::vector<TensorRtTensorInfo> _tensorrt_output_tensor_infos{};
 
+  void cleanup();
   int allocBuffer (void **buffer, gsize size);
   int loadModel (const GstTensorFilterProperties *prop);
   int checkUnifiedMemory ();
+  void convertTensorsInfo (const std::vector<TensorRtTensorInfo>& tensorrt_tensor_infos, GstTensorsInfo &info);
   std::uint32_t getVolume (const nvinfer1::Dims& shape) const;
   std::uint32_t getTensorRTDataTypeSize (nvinfer1::DataType tensorrt_data_type) const;
   tensor_type getNnStreamerDataType(nvinfer1::DataType tensorrt_data_type) const;
@@ -134,10 +145,8 @@ const accl_hw tensorrt_subplugin::hw_list[] = {};
  * @brief constructor of tensorrt_subplugin
  */
 tensorrt_subplugin::tensorrt_subplugin ()
-    : tensor_filter_subplugin (), _engine_path (nullptr), _inputBuffer (nullptr)
+    : tensor_filter_subplugin (), _engine_path (nullptr)
 {
-  gst_tensors_info_init (&_inputTensorMeta);
-  gst_tensors_info_init (&_outputTensorMeta);
 }
 
 /**
@@ -145,16 +154,28 @@ tensorrt_subplugin::tensorrt_subplugin ()
  */
 tensorrt_subplugin::~tensorrt_subplugin ()
 {
+  cleanup ();
+}
+
+void
+tensorrt_subplugin::cleanup ()
+{
+  if (!_configured)
+    return;
+
   gst_tensors_info_free (&_inputTensorMeta);
   gst_tensors_info_free (&_outputTensorMeta);
 
-  if (_inputBuffer != nullptr)
-    cudaFree (_inputBuffer);
+  for (const auto& tensorrt_tensor_info : _tensorrt_input_tensor_infos) {
+    cudaFree (tensorrt_tensor_info.buffer);
+  }
 
   if (_engine_path != nullptr)
     g_free (_engine_path);
 
-  cudaStreamDestroy(_stream);
+  if (_stream) {
+    cudaStreamDestroy(_stream);
+  }
 }
 
 /**
@@ -182,15 +203,16 @@ tensorrt_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   assert (_engine_path == nullptr);
   _engine_path = g_strdup (prop->model_files[0]);
 
-  /* Set input/output TensorsInfo */
-  gst_tensors_info_copy (&_inputTensorMeta, &prop->input_meta);
-  gst_tensors_info_copy (&_outputTensorMeta, &prop->output_meta);
+  gst_tensors_info_init (&_inputTensorMeta);
+  gst_tensors_info_init (&_outputTensorMeta);
 
   /* Make a TensorRT engine */
   if (loadModel (prop)) {
     ml_loge ("Failed to build a TensorRT engine");
     throw std::runtime_error ("Failed to build a TensorRT engine");
   }
+
+  _configured = true;
 }
 
 /**
@@ -201,26 +223,34 @@ tensorrt_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 void
 tensorrt_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
-  ml_logi(
-    "Invoking tensorrt engine with buffer sizes: %lu; %u; %lu; %u",
-    input->size,
-    _input_tensor_buffer_size,
-    output->size,
-    _output_tensor_buffer_size
-  );
+  g_assert (_configured);
+
+  if (!input)
+    throw std::runtime_error ("Invalid input buffer, it is NULL.");
+  if (!output)
+    throw std::runtime_error ("Invalid output buffer, it is NULL.");
 
   /* Copy input data to Cuda memory space */
-  memcpy (_inputBuffer, input->data, input->size);
-
-  /* Allocate output buffer */
-  if (allocBuffer (&output->data, output->size) != 0) {
-    ml_loge ("Failed to allocate GPU memory for output");
-    throw std::runtime_error ("Failed to allocate GPU memory for output");
+  for (std::size_t i = 0; i < _tensorrt_input_tensor_infos.size(); ++i) {
+    const auto& tensorrt_tensor_info = _tensorrt_input_tensor_infos[i];
+    g_assert (tensorrt_tensor_info.buffer_size == input[i].size);
+    // todo: assert buffer sizes?
+    memcpy (tensorrt_tensor_info.buffer, input[i].data, input[i].size);
   }
 
-  if (!_Context->setOutputTensorAddress(_output_tensor_name, output->data)) {
-    ml_loge ("Unable to set output tensor address");
-    throw std::runtime_error ("Unable to set output tensor address");
+  /* Allocate output buffer */
+  for (std::size_t i = 0; i < _tensorrt_output_tensor_infos.size(); ++i) {
+    const auto& tensorrt_tensor_info = _tensorrt_output_tensor_infos[i];
+    g_assert (tensorrt_tensor_info.buffer_size == output[i].size);
+    if (allocBuffer (&output[i].data, output[i].size) != 0) {
+      ml_loge ("Failed to allocate GPU memory for output");
+      throw std::runtime_error ("Failed to allocate GPU memory for output");
+    }
+
+    if (!_Context->setOutputTensorAddress(tensorrt_tensor_info.name, output[i].data)) {
+      ml_loge ("Unable to set output tensor address");
+      throw std::runtime_error ("Unable to set output tensor address");
+    }
   }
 
   /* Execute the network */
@@ -237,7 +267,7 @@ tensorrt_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *outpu
     throw std::runtime_error ("Failed to synchronize the cuda stream");
   }
 
-  ml_logd("After cudaStreamSynchronize");
+  // ml_logd("After cudaStreamSynchronize");
 }
 
 /**
@@ -383,78 +413,53 @@ tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
   }
 
   // Iterate the model io buffers
+  _tensorrt_input_tensor_infos.clear();
+  _tensorrt_output_tensor_infos.clear();
   for (int buffer_index = 0; buffer_index < num_io_buffers; ++buffer_index) {
+    TensorRtTensorInfo tensorrt_tensor_info{};
+
     // Get buffer name
-    const auto tensor_name = _Engine->getIOTensorName(buffer_index);
+    tensorrt_tensor_info.name = _Engine->getIOTensorName(buffer_index);
 
     // Read and verify IO buffer shape
-    const auto tensor_shape = _Engine->getTensorShape(tensor_name);
-    if (tensor_shape.d[0] == -1) {
+    tensorrt_tensor_info.shape = _Engine->getTensorShape(tensorrt_tensor_info.name);
+    if (tensorrt_tensor_info.shape.d[0] == -1) {
       ml_loge ("Dynamic batch size is not supported");
       return -1;
     }
-    // if (tensor_shape.d[0] != 1) {
-    //   ml_loge ("Only an explicit batch size of 1 is supported");
-    //   return -1;
-    // }
 
     // Does not work: "Get bytes per component failed, internalGetBindingVectorizedDim() result shall not equal -1."
-    // const auto tensor_dtype_size = _Engine->getTensorBytesPerComponent(tensor_name);
+    // tensorrt_tensor_info.dtype_size = _Engine->getTensorBytesPerComponent(tensor_name);
 
     // Get data type and buffer size info
-    const auto tensor_dtype = _Engine->getTensorDataType(tensor_name);
-    const auto tensor_dtype_size = getTensorRTDataTypeSize(tensor_dtype);
-    const auto tensor_volume = getVolume(tensor_shape);
-    const auto tensor_buffer_size = tensor_dtype_size * tensor_volume;
-    ml_logd ("BUFFER SIZE: %d", tensor_buffer_size);
+    tensorrt_tensor_info.mode = _Engine->getTensorIOMode(tensorrt_tensor_info.name);
+    tensorrt_tensor_info.dtype = _Engine->getTensorDataType(tensorrt_tensor_info.name);
+    tensorrt_tensor_info.dtype_size = getTensorRTDataTypeSize(tensorrt_tensor_info.dtype);
+    tensorrt_tensor_info.volume = getVolume(tensorrt_tensor_info.shape);
+    tensorrt_tensor_info.buffer_size = tensorrt_tensor_info.dtype_size * tensorrt_tensor_info.volume;
+    ml_logd ("BUFFER SIZE: %" G_GUINT64_FORMAT, tensorrt_tensor_info.buffer_size);
 
     // Allocate GPU memory for input and output buffers
-    const auto tensor_mode = _Engine->getTensorIOMode(tensor_name);
-    if (tensor_mode == nvinfer1::TensorIOMode::kINPUT) {
-      _input_tensor_name = tensor_name;
-      _input_tensor_buffer_size = tensor_buffer_size;
-      if (allocBuffer (&_inputBuffer, tensor_buffer_size) != 0) {
+    if (tensorrt_tensor_info.mode == nvinfer1::TensorIOMode::kINPUT) {
+      if (allocBuffer (&tensorrt_tensor_info.buffer, tensorrt_tensor_info.buffer_size) != 0) {
         ml_loge ("Failed to allocate GPU memory for input");
         return -1;
       }
 
-      if (!_Context->setInputShape(tensor_name, tensor_shape)) {
+      if (!_Context->setInputShape(tensorrt_tensor_info.name, tensorrt_tensor_info.shape)) {
         ml_loge ("Unable to set input shape");
         return -1;
       }
 
-      if (!_Context->setInputTensorAddress(tensor_name, _inputBuffer)) {
+      if (!_Context->setInputTensorAddress(tensorrt_tensor_info.name, tensorrt_tensor_info.buffer)) {
         ml_loge ("Unable to set input tensor address");
         return -1;
       }
 
-      // Set the nnstreamer GstTensorInfo properties
-      GstTensorInfo *tensor_info = gst_tensors_info_get_nth_info (&_inputTensorMeta, 0U);
-      tensor_info->name = g_strdup(tensor_name);
-      tensor_info->type = getNnStreamerDataType(tensor_dtype);
-      for (int i = 0; i < tensor_shape.nbDims; ++i) {
-        tensor_info->dimension[i] = tensor_shape.d[i];
-      }
-      // Set tensor dimensions in reverse order
-      // for (int i = tensor_shape.nbDims - 1; i >= 0; --i) {
-      //   tensor_info->dimension[i] = tensor_shape.d[i];
-      // }
+      _tensorrt_input_tensor_infos.push_back(tensorrt_tensor_info);
 
-    } else if (tensor_mode == nvinfer1::TensorIOMode::kOUTPUT) {
-      _output_tensor_name = tensor_name;
-      _output_tensor_buffer_size = tensor_buffer_size;
-
-      // Set the nnstreamer GstTensorInfo properties
-      GstTensorInfo *tensor_info = gst_tensors_info_get_nth_info (&_outputTensorMeta, 0U);
-      tensor_info->name = g_strdup(tensor_name);
-      tensor_info->type = getNnStreamerDataType(tensor_dtype);
-      for (int i = 0; i < tensor_shape.nbDims; ++i) {
-        tensor_info->dimension[i] = tensor_shape.d[i];
-      }
-      // Set tensor dimensions in reverse order
-      // for (int i = tensor_shape.nbDims - 1; i >= 0; --i) {
-      //   tensor_info->dimension[i] = tensor_shape.d[i];
-      // }
+    } else if (tensorrt_tensor_info.mode == nvinfer1::TensorIOMode::kOUTPUT) {
+      _tensorrt_output_tensor_infos.push_back(tensorrt_tensor_info);
 
     } else {
       ml_loge ("TensorIOMode not supported");
@@ -467,7 +472,33 @@ tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
     return -1;
   }
 
+  convertTensorsInfo(_tensorrt_input_tensor_infos, _inputTensorMeta);
+  convertTensorsInfo(_tensorrt_output_tensor_infos, _outputTensorMeta);
+
   return 0;
+}
+
+void
+tensorrt_subplugin::convertTensorsInfo (const std::vector<TensorRtTensorInfo>& tensorrt_tensor_infos, GstTensorsInfo &info)
+{
+  gst_tensors_info_init (std::addressof (info));
+  info.num_tensors = tensorrt_tensor_infos.size();
+
+  for (guint i = 0; i < info.num_tensors; ++i) {
+    const auto& tensorrt_tensor_info = tensorrt_tensor_infos[i];
+
+    // Set the nnstreamer GstTensorInfo properties
+    GstTensorInfo *tensor_info = gst_tensors_info_get_nth_info (std::addressof (info), i);
+    tensor_info->name = g_strdup(tensorrt_tensor_info.name);
+    tensor_info->type = getNnStreamerDataType(tensorrt_tensor_info.dtype);
+    // for (int i = 0; i < tensor_shape.nbDims; ++i) {
+    //   tensor_info->dimension[i] = tensor_shape.d[i];
+    // }
+    // Set tensor dimensions in reverse order
+    for (int i = tensorrt_tensor_info.shape.nbDims - 1; i >= 0; --i) {
+      tensor_info->dimension[i] = tensorrt_tensor_info.shape.d[i];
+    }
+  }
 }
 
 /**
