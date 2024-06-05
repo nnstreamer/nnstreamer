@@ -125,8 +125,8 @@ class tensorrt_subplugin final : public tensor_filter_subplugin
   void cleanup();
   int allocBuffer (void **buffer, gsize size);
   int loadModel (const GstTensorFilterProperties *prop);
-  int checkUnifiedMemory ();
-  void convertTensorsInfo (const std::vector<TensorRtTensorInfo>& tensorrt_tensor_infos, GstTensorsInfo &info);
+  int checkUnifiedMemory () const;
+  void convertTensorsInfo (const std::vector<TensorRtTensorInfo>& tensorrt_tensor_infos, GstTensorsInfo &info, bool reverseDims = true) const;
   std::uint32_t getVolume (const nvinfer1::Dims& shape) const;
   std::uint32_t getTensorRTDataTypeSize (nvinfer1::DataType tensorrt_data_type) const;
   tensor_type getNnStreamerDataType(nvinfer1::DataType tensorrt_data_type) const;
@@ -203,9 +203,6 @@ tensorrt_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   assert (_engine_path == nullptr);
   _engine_path = g_strdup (prop->model_files[0]);
 
-  gst_tensors_info_init (&_inputTensorMeta);
-  gst_tensors_info_init (&_outputTensorMeta);
-
   /* Make a TensorRT engine */
   if (loadModel (prop)) {
     ml_loge ("Failed to build a TensorRT engine");
@@ -230,28 +227,42 @@ tensorrt_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *outpu
   if (!output)
     throw std::runtime_error ("Invalid output buffer, it is NULL.");
 
+  cudaError_t status;
+
   /* Copy input data to Cuda memory space */
   for (std::size_t i = 0; i < _tensorrt_input_tensor_infos.size(); ++i) {
     const auto& tensorrt_tensor_info = _tensorrt_input_tensor_infos[i];
     g_assert (tensorrt_tensor_info.buffer_size == input[i].size);
-    // todo: assert buffer sizes?
-    memcpy (tensorrt_tensor_info.buffer, input[i].data, input[i].size);
+
+    status = cudaMemcpyAsync(
+      tensorrt_tensor_info.buffer,
+      input[i].data,
+      input[i].size,
+      cudaMemcpyHostToDevice,
+      _stream
+    );
+
+    if (status != cudaSuccess) {
+      ml_loge ("Failed to copy to cuda input buffer");
+      throw std::runtime_error ("Failed to copy to cuda input buffer");
+    }
+    // memcpy (tensorrt_tensor_info.buffer, input[i].data, input[i].size);
   }
 
   /* Allocate output buffer */
-  for (std::size_t i = 0; i < _tensorrt_output_tensor_infos.size(); ++i) {
-    const auto& tensorrt_tensor_info = _tensorrt_output_tensor_infos[i];
-    g_assert (tensorrt_tensor_info.buffer_size == output[i].size);
-    if (allocBuffer (&output[i].data, output[i].size) != 0) {
-      ml_loge ("Failed to allocate GPU memory for output");
-      throw std::runtime_error ("Failed to allocate GPU memory for output");
-    }
+  // for (std::size_t i = 0; i < _tensorrt_output_tensor_infos.size(); ++i) {
+  //   const auto& tensorrt_tensor_info = _tensorrt_output_tensor_infos[i];
+  //   g_assert (tensorrt_tensor_info.buffer_size == output[i].size);
+  //   if (allocBuffer (&output[i].data, output[i].size) != 0) {
+  //     ml_loge ("Failed to allocate GPU memory for output");
+  //     throw std::runtime_error ("Failed to allocate GPU memory for output");
+  //   }
 
-    if (!_Context->setOutputTensorAddress(tensorrt_tensor_info.name, output[i].data)) {
-      ml_loge ("Unable to set output tensor address");
-      throw std::runtime_error ("Unable to set output tensor address");
-    }
-  }
+  //   if (!_Context->setOutputTensorAddress(tensorrt_tensor_info.name, output[i].data)) {
+  //     ml_loge ("Unable to set output tensor address");
+  //     throw std::runtime_error ("Unable to set output tensor address");
+  //   }
+  // }
 
   /* Execute the network */
   if (!_Context->enqueueV3 (_stream)) {
@@ -259,8 +270,28 @@ tensorrt_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *outpu
     throw std::runtime_error ("Failed to execute the network");
   }
 
+  for (std::size_t i = 0; i < _tensorrt_output_tensor_infos.size(); ++i) {
+    const auto& tensorrt_tensor_info = _tensorrt_output_tensor_infos[i];
+    g_assert (tensorrt_tensor_info.buffer_size == output[i].size);
+
+    status = cudaMemcpyAsync(
+      output[i].data,
+      tensorrt_tensor_info.buffer,
+      output[i].size,
+      cudaMemcpyDeviceToHost,
+      _stream
+    );
+
+    // memcpy (input[i].data, _tensorrt_input_tensor_infos[0].buffer, input[i].size);
+
+    if (status != cudaSuccess) {
+      ml_loge ("Failed to copy from cuda output buffer");
+      throw std::runtime_error ("Failed to copy from cuda output buffer");
+    }
+  }
+
   /* Wait for GPU to finish the inference */
-  cudaError_t status = cudaStreamSynchronize(_stream);
+  status = cudaStreamSynchronize(_stream);
 
   if (status != cudaSuccess) {
     ml_loge ("Failed to synchronize the cuda stream");
@@ -278,7 +309,7 @@ tensorrt_subplugin::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
 {
   info.name = name;
   info.allow_in_place = FALSE;
-  info.allocate_in_invoke = TRUE;
+  info.allocate_in_invoke = FALSE;
   info.run_without_model = FALSE;
   info.verify_model_path = TRUE;
   info.hw_list = hw_list;
@@ -375,8 +406,8 @@ tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
   // Create an engine, a representation of the optimized model.
   _Engine = makeUnique(
     _Runtime->deserializeCudaEngine(
-      tensorrt_engine_file_buffer.data()
-      , tensorrt_engine_file_buffer.size()
+      tensorrt_engine_file_buffer.data(),
+      tensorrt_engine_file_buffer.size()
     )
   );
   if (!_Engine) {
@@ -407,10 +438,10 @@ tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
     ml_loge ("Engine has no IO buffers");
     return -1;
   }
-  if (num_io_buffers != 2) {
-    ml_loge ("Number of IO buffers is not supported (only 2 IO buffers are supported, 1 for input, 1 for output)");
-    return -1;
-  }
+  // if (num_io_buffers != 2) {
+  //   ml_loge ("Number of IO buffers is not supported (only 2 IO buffers are supported, 1 for input, 1 for output)");
+  //   return -1;
+  // }
 
   // Iterate the model io buffers
   _tensorrt_input_tensor_infos.clear();
@@ -439,13 +470,13 @@ tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
     tensorrt_tensor_info.buffer_size = tensorrt_tensor_info.dtype_size * tensorrt_tensor_info.volume;
     ml_logd ("BUFFER SIZE: %" G_GUINT64_FORMAT, tensorrt_tensor_info.buffer_size);
 
+    if (allocBuffer (&tensorrt_tensor_info.buffer, tensorrt_tensor_info.buffer_size) != 0) {
+      ml_loge ("Failed to allocate GPU memory for tensorrt tensor");
+      return -1;
+    }
+
     // Allocate GPU memory for input and output buffers
     if (tensorrt_tensor_info.mode == nvinfer1::TensorIOMode::kINPUT) {
-      if (allocBuffer (&tensorrt_tensor_info.buffer, tensorrt_tensor_info.buffer_size) != 0) {
-        ml_loge ("Failed to allocate GPU memory for input");
-        return -1;
-      }
-
       if (!_Context->setInputShape(tensorrt_tensor_info.name, tensorrt_tensor_info.shape)) {
         ml_loge ("Unable to set input shape");
         return -1;
@@ -459,6 +490,12 @@ tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
       _tensorrt_input_tensor_infos.push_back(tensorrt_tensor_info);
 
     } else if (tensorrt_tensor_info.mode == nvinfer1::TensorIOMode::kOUTPUT) {
+
+      if (!_Context->setOutputTensorAddress(tensorrt_tensor_info.name, tensorrt_tensor_info.buffer)) {
+        ml_loge ("Unable to set output tensor address");
+        return -1;
+      }
+
       _tensorrt_output_tensor_infos.push_back(tensorrt_tensor_info);
 
     } else {
@@ -479,24 +516,28 @@ tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
 }
 
 void
-tensorrt_subplugin::convertTensorsInfo (const std::vector<TensorRtTensorInfo>& tensorrt_tensor_infos, GstTensorsInfo &info)
+tensorrt_subplugin::convertTensorsInfo (
+  const std::vector<TensorRtTensorInfo>& tensorrt_tensor_infos,
+  GstTensorsInfo &info,
+  bool reverseDims /* = true */) const
 {
   gst_tensors_info_init (std::addressof (info));
   info.num_tensors = tensorrt_tensor_infos.size();
 
-  for (guint i = 0; i < info.num_tensors; ++i) {
-    const auto& tensorrt_tensor_info = tensorrt_tensor_infos[i];
+  for (guint tensor_index = 0; tensor_index < info.num_tensors; ++tensor_index) {
+    const auto& tensorrt_tensor_info = tensorrt_tensor_infos[tensor_index];
 
     // Set the nnstreamer GstTensorInfo properties
-    GstTensorInfo *tensor_info = gst_tensors_info_get_nth_info (std::addressof (info), i);
+    GstTensorInfo *tensor_info = gst_tensors_info_get_nth_info (std::addressof (info), tensor_index);
     tensor_info->name = g_strdup(tensorrt_tensor_info.name);
     tensor_info->type = getNnStreamerDataType(tensorrt_tensor_info.dtype);
-    // for (int i = 0; i < tensor_shape.nbDims; ++i) {
-    //   tensor_info->dimension[i] = tensor_shape.d[i];
-    // }
     // Set tensor dimensions in reverse order
-    for (int i = tensorrt_tensor_info.shape.nbDims - 1; i >= 0; --i) {
-      tensor_info->dimension[i] = tensorrt_tensor_info.shape.d[i];
+    for (int dim_index = 0; dim_index < tensorrt_tensor_info.shape.nbDims; ++dim_index) {
+      std::size_t from_dim_index = dim_index;
+      if (reverseDims) {
+        from_dim_index = tensorrt_tensor_info.shape.nbDims - dim_index - 1;
+      }
+      tensor_info->dimension[dim_index] = tensorrt_tensor_info.shape.d[from_dim_index];
     }
   }
 }
@@ -509,7 +550,7 @@ tensorrt_subplugin::convertTensorsInfo (const std::vector<TensorRtTensorInfo>& t
  * then cudaMemcpy() internally occurs and it makes performance degradation.
  */
 int
-tensorrt_subplugin::checkUnifiedMemory (void)
+tensorrt_subplugin::checkUnifiedMemory () const
 {
   int version;
 
