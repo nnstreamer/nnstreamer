@@ -299,10 +299,10 @@ if not get_option('tensorrt-support').disabled()
     nvinfer_dep = declare_dependency(dependencies: nvinfer_lib)
   endif
 
-#  nvparsers_lib = cxx.find_library('nvparsers', required: false)
-#  if nvparsers_lib.found() #and cxx.check_header('NvUffParser.h')
-#    nvparsers_dep = declare_dependency(dependencies: nvparsers_lib)
-#  endif
+  nvonnxparser_lib = cxx.find_library('nvonnxparser', required: false)
+  if nvonnxparser_lib.found() #and cxx.check_header('NvOnnxParser.h')
+    nvonnxparser_dep = declare_dependency(dependencies: nvonnxparser_lib)
+  endif
 endif
 
 # gRPC
@@ -461,7 +461,7 @@ features = {
     'project_args': { 'ENABLE_PROTOBUF': 1 }
   },
   'tensorrt-support': {
-    'extra_deps': [ nvinfer_dep, cuda_dep, cudart_dep ],
+    'extra_deps': [ nvinfer_dep, nvonnxparser_dep, cuda_dep, cudart_dep ],
     'project_args': { 'ENABLE_TENSORRT': 1 }
   },
   'grpc-support': {

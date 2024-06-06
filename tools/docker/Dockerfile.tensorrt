@@ -88,3 +88,6 @@ RUN --mount=type=bind,target=/debian,source=debian \
         --install \
         --tool='apt-get -o Debug::pkgProblemResolver=yes --no-install-recommends --yes' \
         /debian/control
+
+RUN pip install \
+    ultralytics==8.0.180

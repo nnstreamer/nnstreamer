@@ -28,6 +28,7 @@
 #include <nnstreamer_util.h>
 
 #include <NvInfer.h>
+#include <NvOnnxParser.h>
 #include <cuda_runtime_api.h>
 
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
@@ -71,7 +72,24 @@ void _fini_filter_tensorrt (void) __attribute__ ((destructor));
 }
 #endif /* __cplusplus */
 
-struct TensorRtTensorInfo {
+struct NvInferDeleter
+{
+    template <typename T>
+    void operator()(T* obj) const
+    {
+        delete obj;
+    }
+};
+
+template <typename T>
+using NvInferUniquePtr = std::unique_ptr<T, NvInferDeleter>;
+
+template <typename T> NvInferUniquePtr<T> makeNvInferUniquePtr (T *t)
+{
+  return NvInferUniquePtr<T>{ t };
+}
+
+struct NvInferTensorInfo {
   const char* name;
   nvinfer1::TensorIOMode mode;
   nvinfer1::Dims shape;
@@ -108,34 +126,37 @@ class tensorrt_subplugin final : public tensor_filter_subplugin
   static const int num_hw = 0;
   static tensorrt_subplugin *registeredRepresentation;
 
-  bool _configured{ false }; /**< Flag to keep track of whether this instance has been configured or not. */
-  gchar *_engine_path; /**< engine file path to infer */
-  cudaStream_t _stream; /**< The cuda inference stream */
+  bool _configured{}; /**< Flag to keep track of whether this instance has been configured or not. */
+  gchar *_model_path{}; /**< engine file path to infer */
+  std::filesystem::path _engine_fs_path{};
+  cudaStream_t _stream{}; /**< The cuda inference stream */
 
   GstTensorsInfo _inputTensorMeta;
   GstTensorsInfo _outputTensorMeta;
 
-  UniquePtr<nvinfer1::IRuntime> _Runtime{ nullptr };
-  UniquePtr<nvinfer1::ICudaEngine> _Engine{ nullptr };
-  UniquePtr<nvinfer1::IExecutionContext> _Context{ nullptr };
+  NvInferUniquePtr<nvinfer1::IRuntime> _Runtime{};
+  NvInferUniquePtr<nvinfer1::ICudaEngine> _Engine{};
+  NvInferUniquePtr<nvinfer1::IExecutionContext> _Context{};
 
-  std::vector<TensorRtTensorInfo> _tensorrt_input_tensor_infos{};
-  std::vector<TensorRtTensorInfo> _tensorrt_output_tensor_infos{};
+  std::vector<NvInferTensorInfo> _tensorrt_input_tensor_infos{};
+  std::vector<NvInferTensorInfo> _tensorrt_output_tensor_infos{};
 
   void cleanup();
   int allocBuffer (void **buffer, gsize size);
   int loadModel (const GstTensorFilterProperties *prop);
   int checkUnifiedMemory () const;
-  void convertTensorsInfo (const std::vector<TensorRtTensorInfo>& tensorrt_tensor_infos, GstTensorsInfo &info, bool reverseDims = true) const;
+  void convertTensorsInfo (const std::vector<NvInferTensorInfo>& tensorrt_tensor_infos, GstTensorsInfo &info, bool reverseDims = true) const;
   std::uint32_t getVolume (const nvinfer1::Dims& shape) const;
   std::uint32_t getTensorRTDataTypeSize (nvinfer1::DataType tensorrt_data_type) const;
   tensor_type getNnStreamerDataType(nvinfer1::DataType tensorrt_data_type) const;
 
-  /** @brief Make unique pointer */
-  template <typename T> UniquePtr<T> makeUnique (T *t)
-  {
-    return UniquePtr<T>{ t };
-  }
+  int constructNetwork(
+  /*  NvInferUniquePtr<nvinfer1::IBuilder>& builder,
+    NvInferUniquePtr<nvinfer1::INetworkDefinition>& network,
+    NvInferUniquePtr<nvinfer1::IBuilderConfig>& config, */
+    NvInferUniquePtr<nvonnxparser::IParser>& parser) const;
+  int buildSaveEngine () const;
+  int loadEngine ();
 };
 
 const char *tensorrt_subplugin::name = "tensorrt";
@@ -145,7 +166,7 @@ const accl_hw tensorrt_subplugin::hw_list[] = {};
  * @brief constructor of tensorrt_subplugin
  */
 tensorrt_subplugin::tensorrt_subplugin ()
-    : tensor_filter_subplugin (), _engine_path (nullptr)
+    : tensor_filter_subplugin (), _model_path (nullptr)
 {
 }
 
@@ -170,8 +191,8 @@ tensorrt_subplugin::cleanup ()
     cudaFree (tensorrt_tensor_info.buffer);
   }
 
-  if (_engine_path != nullptr)
-    g_free (_engine_path);
+  if (_model_path != nullptr)
+    g_free (_model_path);
 
   if (_stream) {
     cudaStreamDestroy(_stream);
@@ -200,8 +221,8 @@ tensorrt_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     ml_loge ("TensorRT filter requires one engine model file.");
     throw std::invalid_argument ("The .engine model file is not given.");
   }
-  assert (_engine_path == nullptr);
-  _engine_path = g_strdup (prop->model_files[0]);
+  assert (_model_path == nullptr);
+  _model_path = g_strdup (prop->model_files[0]);
 
   /* Make a TensorRT engine */
   if (loadModel (prop)) {
@@ -282,8 +303,6 @@ tensorrt_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *outpu
       _stream
     );
 
-    // memcpy (input[i].data, _tensorrt_input_tensor_infos[0].buffer, input[i].size);
-
     if (status != cudaSuccess) {
       ml_loge ("Failed to copy from cuda output buffer");
       throw std::runtime_error ("Failed to copy from cuda output buffer");
@@ -297,8 +316,6 @@ tensorrt_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *outpu
     ml_loge ("Failed to synchronize the cuda stream");
     throw std::runtime_error ("Failed to synchronize the cuda stream");
   }
-
-  // ml_logd("After cudaStreamSynchronize");
 }
 
 /**
@@ -347,8 +364,148 @@ tensorrt_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventDa
   return 0;
 }
 
+int
+tensorrt_subplugin::constructNetwork(
+/*  NvInferUniquePtr<nvinfer1::IBuilder>& builder,
+  NvInferUniquePtr<nvinfer1::INetworkDefinition>& network,
+  NvInferUniquePtr<nvinfer1::IBuilderConfig>& config, */
+  NvInferUniquePtr<nvonnxparser::IParser>& parser) const
+{
+  auto parsed = parser->parseFromFile (
+    _model_path,
+    static_cast<int>(nvinfer1::ILogger::Severity::kWARNING));
+  if (!parsed) {
+    ml_loge ("Unable to parse onnx file");
+    return -1;
+  }
+
+  // todo: add support for builder parameters
+  // if (mParams.fp16)
+  // {
+  //     config->setFlag(BuilderFlag::kFP16);
+  // }
+  // if (mParams.bf16)
+  // {
+  //     config->setFlag(BuilderFlag::kBF16);
+  // }
+  // if (mParams.int8)
+  // {
+  //     config->setFlag(BuilderFlag::kINT8);
+  //     samplesCommon::setAllDynamicRanges(network.get(), 127.0F, 127.0F);
+  // }
+
+  // samplesCommon::enableDLA(builder.get(), config.get(), mParams.dlaCore);
+
+  return 0;
+}
+
+/***/
+int
+tensorrt_subplugin::buildSaveEngine () const
+{
+  auto builder = makeNvInferUniquePtr (nvinfer1::createInferBuilder (gLogger));
+  if (!builder) {
+    ml_loge ("Unable to create builder");
+    return -1;
+  }
+
+  auto network = makeNvInferUniquePtr (builder->createNetworkV2 (0));
+  if (!network) {
+    ml_loge ("Unable to create network");
+    return -1;
+  }
+
+  auto config = makeNvInferUniquePtr (builder->createBuilderConfig ());
+  if (!config) {
+    ml_loge ("Unable to create builder config");
+    return -1;
+  }
+
+  auto parser = makeNvInferUniquePtr (nvonnxparser::createParser (*network, gLogger));
+  if (!parser) {
+    ml_loge ("Unable to create onnx parser");
+    return -1;
+  }
+
+  if (constructNetwork(
+    /* builder,
+    network,
+    config, */
+    parser) != 0) {
+    return -1;
+  }
+
+  // // CUDA stream used for profiling by the builder.
+  // auto profileStream = samplesCommon::makeCudaStream();
+  // if (!profileStream)
+  // {
+  //     return -1;
+  // }
+  // config->setProfileStream(*profileStream);
+
+  auto host_memory = makeNvInferUniquePtr (builder->buildSerializedNetwork (*network, *config));
+  if (!host_memory) {
+    ml_loge ("Unable to build serialized network");
+    return -1;
+  }
+
+  std::ofstream engineFile(_engine_fs_path, std::ios::binary);
+  if (!engineFile) {
+    ml_loge ("Unable to open engine file for saving");
+    return -1;
+  }
+  engineFile.write(static_cast<char*>(host_memory->data()), host_memory->size());
+
+  return 0;
+}
+
 /**
  * @brief Load .engine model file and make internal object for TensorRT inference
+ * @return 0 if successfully loaded, or -1.
+ */
+int
+tensorrt_subplugin::loadEngine ()
+{
+  // Create file
+  std::ifstream file(_engine_fs_path, std::ios::binary | std::ios::ate);
+  std::streamsize size = file.tellg();
+  if (size < 0) {
+    ml_loge ("Unable to open engine file %s", std::string(_engine_fs_path).data());
+    return -1;
+  }
+
+  file.seekg(0, std::ios::beg);
+  ml_logi(
+    "Loading tensorrt engine from file: %s with buffer size: %" G_GUINT64_FORMAT,
+    std::string(_engine_fs_path).data(),
+    size
+  );
+
+  // Read file
+  std::vector<char> tensorrt_engine_file_buffer(size);
+  if (!file.read(tensorrt_engine_file_buffer.data(), size)) {
+    ml_loge ("Unable to read engine file %s", std::string(_engine_fs_path).data());
+    return -1;
+  }
+
+  // Create an engine, a representation of the optimized model.
+  _Engine = NvInferUniquePtr<nvinfer1::ICudaEngine>(
+    _Runtime->deserializeCudaEngine(
+      tensorrt_engine_file_buffer.data(),
+      tensorrt_engine_file_buffer.size()
+    )
+  );
+  if (!_Engine) {
+    ml_loge ("Unable to deserialize tensorrt engine");
+    return -1;
+  }
+
+  return 0;
+}
+
+
+/**
+ * @brief Load and interpret model file.
  * @param[in] prop : property of tensor_filter instance
  * @return 0 if successfully loaded, or -1.
  */
@@ -378,52 +535,45 @@ tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
       return -1;
   }
 
+  // Parse model from .onnx and create .engine if necessary
+  std::filesystem::path model_fs_path(_model_path);
+  if (".onnx" == model_fs_path.extension ()) {
+    _engine_fs_path = std::filesystem::path("/tmp") / model_fs_path.stem();
+    _engine_fs_path += ".engine";
+    if (!std::filesystem::exists(_engine_fs_path)) {
+      buildSaveEngine ();
+    }
+    if (!std::filesystem::exists(_engine_fs_path)) {
+      ml_loge ("Unable to build and/or save engine file");
+      return -1;
+    }
+  } else if (".engine" == model_fs_path.extension ()) {
+    _engine_fs_path = model_fs_path;
+  } else {
+    ml_loge ("Unsupported model file extension %s", std::string (model_fs_path.extension ()).data());
+    return -1;
+  }
+
   // Create a runtime to deserialize the engine file.
-  _Runtime = makeUnique (nvinfer1::createInferRuntime (gLogger));
+  _Runtime = makeNvInferUniquePtr (nvinfer1::createInferRuntime (gLogger));
   if (!_Runtime) {
     ml_loge ("Failed to create TensorRT runtime");
     return -1;
   }
 
-  // Create file
-  std::ifstream file(_engine_path, std::ios::binary | std::ios::ate);
-  std::streamsize size = file.tellg();
-  file.seekg(0, std::ios::beg);
-
-  ml_logi(
-    "Loading tensorrt engine from file: %s with buffer size: %" G_GUINT64_FORMAT,
-    _engine_path,
-    size
-  );
-
-  // Read file
-  std::vector<char> tensorrt_engine_file_buffer(size);
-  if (!file.read(tensorrt_engine_file_buffer.data(), size)) {
-    ml_loge ("Unable to read engine file %s", _engine_path);
+  if (loadEngine () != 0) {
     return -1;
   }
 
-  // Create an engine, a representation of the optimized model.
-  _Engine = makeUnique(
-    _Runtime->deserializeCudaEngine(
-      tensorrt_engine_file_buffer.data(),
-      tensorrt_engine_file_buffer.size()
-    )
-  );
-  if (!_Engine) {
-    ml_loge ("Unable to deserialize tensorrt engine");
+  /* Create ExecutionContext object */
+  _Context = makeNvInferUniquePtr (_Engine->createExecutionContext ());
+  if (!_Context) {
+    ml_loge ("Failed to create the TensorRT ExecutionContext object");
     return -1;
   }
 
   // Create the cuda stream
   cudaStreamCreate(&_stream);
-
-  /* Create ExecutionContext object */
-  _Context = makeUnique (_Engine->createExecutionContext ());
-  if (!_Context) {
-    ml_loge ("Failed to create the TensorRT ExecutionContext object");
-    return -1;
-  }
 
   // Set optimization profile to the default
   // todo: support for optimization profiles
@@ -438,16 +588,12 @@ tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
     ml_loge ("Engine has no IO buffers");
     return -1;
   }
-  // if (num_io_buffers != 2) {
-  //   ml_loge ("Number of IO buffers is not supported (only 2 IO buffers are supported, 1 for input, 1 for output)");
-  //   return -1;
-  // }
 
   // Iterate the model io buffers
   _tensorrt_input_tensor_infos.clear();
   _tensorrt_output_tensor_infos.clear();
   for (int buffer_index = 0; buffer_index < num_io_buffers; ++buffer_index) {
-    TensorRtTensorInfo tensorrt_tensor_info{};
+    NvInferTensorInfo tensorrt_tensor_info{};
 
     // Get buffer name
     tensorrt_tensor_info.name = _Engine->getIOTensorName(buffer_index);
@@ -458,9 +604,6 @@ tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
       ml_loge ("Dynamic batch size is not supported");
       return -1;
     }
-
-    // Does not work: "Get bytes per component failed, internalGetBindingVectorizedDim() result shall not equal -1."
-    // tensorrt_tensor_info.dtype_size = _Engine->getTensorBytesPerComponent(tensor_name);
 
     // Get data type and buffer size info
     tensorrt_tensor_info.mode = _Engine->getTensorIOMode(tensorrt_tensor_info.name);
@@ -517,7 +660,7 @@ tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
 
 void
 tensorrt_subplugin::convertTensorsInfo (
-  const std::vector<TensorRtTensorInfo>& tensorrt_tensor_infos,
+  const std::vector<NvInferTensorInfo>& tensorrt_tensor_infos,
   GstTensorsInfo &info,
   bool reverseDims /* = true */) const
 {
