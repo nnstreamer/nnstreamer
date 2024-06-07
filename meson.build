@@ -267,7 +267,7 @@ endif
 
 # tensorrt
 nvinfer_dep = dependency('', required: false)
-# nvparsers_dep = dependency('', required: false)
+nvonnxparser_dep = dependency('', required: false)
 cuda_dep = dependency('', required: false)
 cudart_dep = dependency('', required: false)
 if not get_option('tensorrt-support').disabled()
@@ -295,12 +295,12 @@ if not get_option('tensorrt-support').disabled()
   endforeach
 
   nvinfer_lib = cxx.find_library('nvinfer', required: false)
-  if nvinfer_lib.found() #and cxx.check_header('NvInfer.h')
+  if nvinfer_lib.found() and cxx.has_header('NvInfer.h')
     nvinfer_dep = declare_dependency(dependencies: nvinfer_lib)
   endif
 
   nvonnxparser_lib = cxx.find_library('nvonnxparser', required: false)
-  if nvonnxparser_lib.found() #and cxx.check_header('NvOnnxParser.h')
+  if nvonnxparser_lib.found() and cxx.has_header('NvOnnxParser.h')
     nvonnxparser_dep = declare_dependency(dependencies: nvonnxparser_lib)
   endif
 endif

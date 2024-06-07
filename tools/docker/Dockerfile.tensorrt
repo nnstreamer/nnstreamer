@@ -27,34 +27,34 @@ RUN set -x && \
     
 # General tools to enable connectivity problem shooting
 RUN apt-get install \
-        dnsutils \
-        iproute2 \
-        iputils-ping \
-        net-tools \
-        vim \
-        less \
-        telnet \
-        lsof
+    dnsutils \
+    iproute2 \
+    iputils-ping \
+    net-tools \
+    vim \
+    less \
+    telnet \
+    lsof
 
 # Install build prerequisites
 RUN apt-get install \
-        build-essential \
-        cmake \
-        gdb \
-        git \
-        gfortran \
-        nano \
-        pkg-config \
-        qv4l2 \
-        unzip \
-        v4l-utils \
-        wget
+    build-essential \
+    cmake \
+    gdb \
+    git \
+    gfortran \
+    nano \
+    pkg-config \
+    qv4l2 \
+    unzip \
+    v4l-utils \
+    wget
 
 # Install python prerequisites
 RUN apt-get install \
-        python3-dev \
-        python3-dbg \
-        python3-pip
+    python3-dev \
+    python3-dbg \
+    python3-pip
 
 # Install tensorrt for cuda 12.1
 # The .deb file is expected to be present in the docker folder, where this dockerfile resides.
@@ -67,21 +67,21 @@ RUN --mount=type=bind,target=/tools/docker/deps,source=tools/docker/deps \
     && dpkg -i "/tools/docker/tmp/tensorrt/var/nv-tensorrt-local-repo-ubuntu2204-10.0.1-cuda-12.4/"*.deb
 
 RUN apt-get install \
-        gstreamer1.0-plugins-base \
-        gstreamer1.0-plugins-good \
-        gstreamer1.0-tools \
-        gstreamer1.0-x \
-        git \
-        build-essential \
-        pkg-config \
-        cmake \
-        ninja-build \
-        flex \
-        bison \
-        meson \
-        equivs \
-        devscripts \
-        libcairo2-dev
+    gstreamer1.0-plugins-base \
+    gstreamer1.0-plugins-good \
+    gstreamer1.0-tools \
+    gstreamer1.0-x \
+    git \
+    build-essential \
+    pkg-config \
+    cmake \
+    ninja-build \
+    flex \
+    bison \
+    meson \
+    equivs \
+    devscripts \
+    libcairo2-dev
 
 RUN --mount=type=bind,target=/debian,source=debian \
     mk-build-deps \
