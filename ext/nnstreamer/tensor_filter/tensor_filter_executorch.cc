@@ -25,9 +25,11 @@
 #include <memory>
 #include <vector>
 
+#include <executorch/cmake-out/kernels/portable/portable_ops_lib/RegisterCodegenUnboxedKernelsEverything.cpp>
 #include <executorch/extension/data_loader/file_data_loader.h>
 #include <executorch/extension/evalue_util/print_evalue.h>
 #include <executorch/extension/runner_util/inputs.h>
+#include <executorch/kernels/prim_ops/register_prim_ops.cpp>
 #include <executorch/runtime/executor/method.h>
 #include <executorch/runtime/executor/program.h>
 #include <executorch/runtime/platform/log.h>
@@ -40,13 +42,15 @@ using torch::executor::util::FileDataLoader;
 
 namespace nnstreamer
 {
-namespace tensor_filter_executorch
+namespace tensorfilter_executorch
 {
 
-extern "C" {
+G_BEGIN_DECLS
+
 void init_filter_executorch (void) __attribute__ ((constructor));
 void fini_filter_executorch (void) __attribute__ ((destructor));
-}
+
+G_END_DECLS
 
 /**
  * @brief tensor-filter-subplugin concrete class for ExecuTorch
@@ -100,9 +104,7 @@ const GstTensorFilterFrameworkInfo executorch_subplugin::framework_info = { .nam
 /**
  * @brief Constructor for executorch subplugin.
  */
-executorch_subplugin::executorch_subplugin ()
-    : tensor_filter_subplugin (), configured (false), model_path (nullptr),
-      method_name (nullptr)
+executorch_subplugin::executorch_subplugin () : tensor_filter_subplugin ()
 {
   gst_tensors_info_init (std::addressof (inputInfo));
   gst_tensors_info_init (std::addressof (outputInfo));
@@ -150,9 +152,11 @@ executorch_subplugin::cleanup ()
 void
 executorch_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 {
-  /* Already configured */
-  if (configured)
-    cleanup ();
+  /* get input / output info from properties */
+  gst_tensors_info_copy (std::addressof (inputInfo), std::addressof (prop->input_meta));
+  gst_tensors_info_copy (std::addressof (outputInfo), std::addressof (prop->output_meta));
+
+  runtime_init ();
 
   try {
     /* Load network (.pte file) */
@@ -274,7 +278,7 @@ executorch_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *out
 void
 executorch_subplugin::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
 {
-  info = framework_info;
+  info = executorch_subplugin::framework_info;
 }
 
 /**
@@ -342,5 +346,5 @@ fini_filter_executorch ()
 }
 
 
-} // namespace tensor_filter_executorch
+} // namespace tensorfilter_executorch
 } // namespace nnstreamer
