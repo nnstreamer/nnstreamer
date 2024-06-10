@@ -145,17 +145,17 @@ class tensorrt_subplugin final : public tensor_filter_subplugin
   std::vector<NvInferTensorInfo> _tensorrt_output_tensor_infos{};
 
   void cleanup();
-  int allocBuffer (void **buffer, gsize size);
-  int loadModel (const GstTensorFilterProperties *prop);
-  int checkUnifiedMemory () const;
-  int convertTensorsInfo (const std::vector<NvInferTensorInfo>& tensorrt_tensor_infos, GstTensorsInfo &info) const;
+  void allocBuffer (void **buffer, gsize size);
+  void loadModel (const GstTensorFilterProperties *prop);
+  void checkUnifiedMemory () const;
+  void convertTensorsInfo (const std::vector<NvInferTensorInfo>& tensorrt_tensor_infos, GstTensorsInfo &info) const;
   std::size_t getVolume (const nvinfer1::Dims& shape) const;
   std::size_t getTensorRTDataTypeSize (nvinfer1::DataType tensorrt_data_type) const;
   tensor_type getNnStreamerDataType(nvinfer1::DataType tensorrt_data_type) const;
 
-  int constructNetwork(NvInferUniquePtr<nvonnxparser::IParser>& parser) const;
-  int buildSaveEngine () const;
-  int loadEngine ();
+  void constructNetwork(NvInferUniquePtr<nvonnxparser::IParser>& parser) const;
+  void buildSaveEngine () const;
+  void loadEngine ();
 };
 
 const char *tensorrt_subplugin::name = "tensorrt";
@@ -224,10 +224,7 @@ tensorrt_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   _model_path = g_strdup (prop->model_files[0]);
 
   /* Make a TensorRT engine */
-  if (loadModel (prop)) {
-    ml_loge ("Failed to build a TensorRT engine");
-    throw std::runtime_error ("Failed to build a TensorRT engine");
-  }
+  loadModel (prop);
 
   _configured = true;
 }
@@ -347,7 +344,10 @@ tensorrt_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventDa
   return 0;
 }
 
-int
+/**
+ * @brief Parses the model; changes the state of the provided parser.
+ */
+void
 tensorrt_subplugin::constructNetwork(NvInferUniquePtr<nvonnxparser::IParser>& parser) const
 {
   auto parsed = parser->parseFromFile (
@@ -355,65 +355,60 @@ tensorrt_subplugin::constructNetwork(NvInferUniquePtr<nvonnxparser::IParser>& pa
     static_cast<int>(nvinfer1::ILogger::Severity::kWARNING));
   if (!parsed) {
     ml_loge ("Unable to parse onnx file");
-    return -1;
+    throw std::runtime_error ("Unable to parse onnx file");
   }
-
-  return 0;
 }
 
-/***/
-int
+/**
+ * Builds and saves the .engine file.
+ */
+void
 tensorrt_subplugin::buildSaveEngine () const
 {
   auto builder = makeNvInferUniquePtr (nvinfer1::createInferBuilder (gLogger));
   if (!builder) {
     ml_loge ("Unable to create builder");
-    return -1;
+    throw std::runtime_error ("Unable to create builder");
   }
 
   auto network = makeNvInferUniquePtr (builder->createNetworkV2 (0));
   if (!network) {
     ml_loge ("Unable to create network");
-    return -1;
+    throw std::runtime_error ("Unable to create network");
   }
 
   auto config = makeNvInferUniquePtr (builder->createBuilderConfig ());
   if (!config) {
     ml_loge ("Unable to create builder config");
-    return -1;
+    throw std::runtime_error ("Unable to create builder config");
   }
 
   auto parser = makeNvInferUniquePtr (nvonnxparser::createParser (*network, gLogger));
   if (!parser) {
     ml_loge ("Unable to create onnx parser");
-    return -1;
+    throw std::runtime_error ("Unable to create onnx parser");
   }
 
-  if (constructNetwork(parser) != 0) {
-    return -1;
-  }
+  constructNetwork(parser);
 
   auto host_memory = makeNvInferUniquePtr (builder->buildSerializedNetwork (*network, *config));
   if (!host_memory) {
     ml_loge ("Unable to build serialized network");
-    return -1;
+    throw std::runtime_error ("Unable to build serialized network");
   }
 
   std::ofstream engineFile(_engine_fs_path, std::ios::binary);
   if (!engineFile) {
     ml_loge ("Unable to open engine file for saving");
-    return -1;
+    throw std::runtime_error ("Unable to open engine file for saving");
   }
   engineFile.write(static_cast<char*>(host_memory->data()), host_memory->size());
-
-  return 0;
 }
 
 /**
- * @brief Load .engine model file and make internal object for TensorRT inference
- * @return 0 if successfully loaded, or -1.
+ * @brief Loads the .engine model file and makes a member object to be used for inference.
  */
-int
+void
 tensorrt_subplugin::loadEngine ()
 {
   // Create file
@@ -421,7 +416,7 @@ tensorrt_subplugin::loadEngine ()
   std::streamsize size = file.tellg();
   if (size < 0) {
     ml_loge ("Unable to open engine file %s", std::string(_engine_fs_path).data());
-    return -1;
+    throw std::runtime_error ("Unable to open engine file");
   }
 
   file.seekg(0, std::ios::beg);
@@ -435,7 +430,7 @@ tensorrt_subplugin::loadEngine ()
   std::vector<char> tensorrt_engine_file_buffer(size);
   if (!file.read(tensorrt_engine_file_buffer.data(), size)) {
     ml_loge ("Unable to read engine file %s", std::string(_engine_fs_path).data());
-    return -1;
+    throw std::runtime_error ("Unable to read engine file");
   }
 
   // Create an engine, a representation of the optimized model.
@@ -447,42 +442,36 @@ tensorrt_subplugin::loadEngine ()
   );
   if (!_Engine) {
     ml_loge ("Unable to deserialize tensorrt engine");
-    return -1;
+    throw std::runtime_error ("Unable to deserialize tensorrt engine");
   }
-
-  return 0;
 }
 
 
 /**
- * @brief Load and interpret model file.
- * @param[in] prop : property of tensor_filter instance
- * @return 0 if successfully loaded, or -1.
+ * @brief Loads and interprets the model file.
+ * @param[in] prop: property of tensor_filter instance
  */
-int
+void
 tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
 {
   // GstTensorInfo *_info;
 
   UNUSED (prop);
 
-  if (checkUnifiedMemory () != 0) {
-    ml_loge ("Failed to enable unified memory");
-    return -1;
-  }
+  checkUnifiedMemory ();
 
   // Set the device index
   // todo: read device_id from props?
   auto device_id = 0;
   auto ret = cudaSetDevice (device_id);
   if (ret != 0) {
-      int num_gpus;
-      cudaGetDeviceCount (&num_gpus);
-      ml_loge ("Unable to set GPU device index to: %d. CUDA-capable GPU(s): %d.",
-        device_id,
-        num_gpus
-      );
-      return -1;
+    int num_gpus;
+    cudaGetDeviceCount (&num_gpus);
+    ml_loge ("Unable to set GPU device index to: %d. CUDA-capable GPU(s): %d.",
+      device_id,
+      num_gpus
+    );
+    throw std::runtime_error ("Unable to set GPU device index");
   }
 
   // Parse model from .onnx and create .engine if necessary
@@ -495,31 +484,29 @@ tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
     }
     if (!std::filesystem::exists(_engine_fs_path)) {
       ml_loge ("Unable to build and/or save engine file");
-      return -1;
+    throw std::runtime_error ("Unable to build and/or save engine file");
     }
   } else if (".engine" == model_fs_path.extension ()) {
     _engine_fs_path = model_fs_path;
   } else {
     ml_loge ("Unsupported model file extension %s", std::string (model_fs_path.extension ()).data());
-    return -1;
+    throw std::runtime_error ("Unsupported model file extension");
   }
 
   // Create a runtime to deserialize the engine file.
   _Runtime = makeNvInferUniquePtr (nvinfer1::createInferRuntime (gLogger));
   if (!_Runtime) {
     ml_loge ("Failed to create TensorRT runtime");
-    return -1;
+    throw std::runtime_error ("Failed to create TensorRT runtime");
   }
 
-  if (loadEngine () != 0) {
-    return -1;
-  }
+  loadEngine ();
 
   /* Create ExecutionContext object */
   _Context = makeNvInferUniquePtr (_Engine->createExecutionContext ());
   if (!_Context) {
     ml_loge ("Failed to create the TensorRT ExecutionContext object");
-    return -1;
+    throw std::runtime_error ("Failed to create the TensorRT ExecutionContext object");
   }
 
   // Create the cuda stream
@@ -529,7 +516,7 @@ tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
   auto num_io_buffers = _Engine->getNbIOTensors();
   if (num_io_buffers <= 0) {
     ml_loge ("Engine has no IO buffers");
-    return -1;
+    throw std::runtime_error ("Engine has no IO buffers");
   }
 
   // Iterate the model io buffers
@@ -545,7 +532,7 @@ tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
     tensorrt_tensor_info.shape = _Engine->getTensorShape(tensorrt_tensor_info.name);
     if (tensorrt_tensor_info.shape.d[0] == -1) {
       ml_loge ("Dynamic batch size is not supported");
-      return -1;
+      throw std::runtime_error ("Dynamic batch size is not supported");
     }
 
     // Get data type and buffer size info
@@ -556,21 +543,18 @@ tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
     tensorrt_tensor_info.buffer_size = tensorrt_tensor_info.dtype_size * tensorrt_tensor_info.volume;
     ml_logd ("BUFFER SIZE: %" G_GUINT64_FORMAT, tensorrt_tensor_info.buffer_size);
 
-    if (allocBuffer (&tensorrt_tensor_info.buffer, tensorrt_tensor_info.buffer_size) != 0) {
-      ml_loge ("Failed to allocate GPU memory for tensorrt tensor");
-      return -1;
-    }
+    allocBuffer (&tensorrt_tensor_info.buffer, tensorrt_tensor_info.buffer_size);
 
     // Allocate GPU memory for input and output buffers
     if (tensorrt_tensor_info.mode == nvinfer1::TensorIOMode::kINPUT) {
       if (!_Context->setInputShape(tensorrt_tensor_info.name, tensorrt_tensor_info.shape)) {
         ml_loge ("Unable to set input shape");
-        return -1;
+        throw std::runtime_error ("Unable to set input shape");
       }
 
       if (!_Context->setInputTensorAddress(tensorrt_tensor_info.name, tensorrt_tensor_info.buffer)) {
         ml_loge ("Unable to set input tensor address");
-        return -1;
+        throw std::runtime_error ("Unable to set input tensor address");
       }
 
       _tensorrt_input_tensor_infos.push_back(tensorrt_tensor_info);
@@ -579,35 +563,30 @@ tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
 
       if (!_Context->setOutputTensorAddress(tensorrt_tensor_info.name, tensorrt_tensor_info.buffer)) {
         ml_loge ("Unable to set output tensor address");
-        return -1;
+        throw std::runtime_error ("Unable to set output tensor address");
       }
 
       _tensorrt_output_tensor_infos.push_back(tensorrt_tensor_info);
 
     } else {
       ml_loge ("TensorIOMode not supported");
-      return -1;
+      throw std::runtime_error ("TensorIOMode not supported");
     }
   }
 
   if (!_Context->allInputDimensionsSpecified()) {
     ml_loge ("Not all required dimensions were specified");
-    return -1;
+    throw std::runtime_error ("Not all required dimensions were specified");
   }
 
-  if (convertTensorsInfo(_tensorrt_input_tensor_infos, _inputTensorMeta) != 0) {
-    ml_loge ("Could not convert _tensorrt_input_tensor_infos");
-    return -1;
-  }
-  if (convertTensorsInfo(_tensorrt_output_tensor_infos, _outputTensorMeta) != 0) {
-    ml_loge ("Could not convert _tensorrt_output_tensor_infos");
-    return -1;
-  }
-
-  return 0;
+  convertTensorsInfo(_tensorrt_input_tensor_infos, _inputTensorMeta);
+  convertTensorsInfo(_tensorrt_output_tensor_infos, _outputTensorMeta);
 }
 
-int
+/**
+ * Converts the NvInferTensorInfo's to the nnstreamer GstTensorsInfo.
+ */
+void
 tensorrt_subplugin::convertTensorsInfo (
   const std::vector<NvInferTensorInfo>& tensorrt_tensor_infos,
   GstTensorsInfo &info) const
@@ -622,9 +601,6 @@ tensorrt_subplugin::convertTensorsInfo (
     GstTensorInfo *tensor_info = gst_tensors_info_get_nth_info (std::addressof (info), tensor_index);
     tensor_info->name = g_strdup(tensorrt_tensor_info.name);
     tensor_info->type = getNnStreamerDataType(tensorrt_tensor_info.dtype);
-    if (tensor_info->type == _NNS_END) {
-      return -1;
-    }
 
     // Set tensor dimensions in reverse order
     for (int dim_index = 0; dim_index < tensorrt_tensor_info.shape.nbDims; ++dim_index) {
@@ -632,56 +608,50 @@ tensorrt_subplugin::convertTensorsInfo (
       tensor_info->dimension[dim_index] = tensorrt_tensor_info.shape.d[from_dim_index];
     }
   }
-
-  return 0;
 }
 
 /**
  * @brief Return whether Unified Memory is supported or not.
- * @return 0 if Unified Memory is supported. non-zero if error.
  * @note After Cuda version 6, logical Unified Memory is supported in
  * programming language level. However, if the target device is not supported,
  * then cudaMemcpy() internally occurs and it makes performance degradation.
  */
-int
+void
 tensorrt_subplugin::checkUnifiedMemory () const
 {
   int version;
 
-  if (cudaRuntimeGetVersion (&version) != cudaSuccess)
-    return -1;
+  if (cudaRuntimeGetVersion (&version) != cudaSuccess) {
+    ml_loge ("Unable to get cuda runtime version");
+    throw std::runtime_error ("Unable to get cuda runtime version");
+  }
 
   /* Unified memory requires at least CUDA-6 */
-  if (version < 6000)
-    return -1;
-
-  return 0;
+  if (version < 6000) {
+    ml_loge ("Unified memory requires at least CUDA-6");
+    throw std::runtime_error ("Unified memory requires at least CUDA-6");
+  }
 }
 
 /**
- * @brief Allocate a GPU buffer memory
+ * @brief Allocates a GPU buffer memory
  * @param[out] buffer : pointer to allocated memory
  * @param[in] size : allocation size in bytes
- * @return 0 if OK. non-zero if error.
  */
-int
+void
 tensorrt_subplugin::allocBuffer (void **buffer, gsize size)
 {
   cudaError_t status = cudaMallocManaged (buffer, size);
 
   if (status != cudaSuccess) {
     ml_loge ("Failed to allocate Cuda memory");
-    return -1;
+    throw std::runtime_error ("Failed to allocate Cuda memory");
   }
-
-  return 0;
 }
 
 /**
- * @brief Allocate a GPU buffer memory
- * @param[out] buffer : pointer to allocated memory
- * @param[in] size : allocation size in bytes
- * @return 0 if OK. non-zero if error.
+ * @brief Calculates the volume (in elements, not in bytes) of the provided shape.
+ * @param[in] shape : The shape for which to calculate the volume.
  */
 std::size_t
 tensorrt_subplugin::getVolume (const nvinfer1::Dims& shape) const
@@ -696,7 +666,6 @@ tensorrt_subplugin::getVolume (const nvinfer1::Dims& shape) const
 /**
  * @brief Get the size of the TensorRT data type.
  * @param[in] tensorrt_data_type : The TensorRT data type.
- * @return The size if OK. -1 if the TensorRT data type is not supported.
  * @note: see also https://github.com/NVIDIA/TensorRT/blob/ccf119972b50299ba00d35d39f3938296e187f4e/samples/common/common.h#L539C1-L552C14
  */
 std::size_t
@@ -717,13 +686,14 @@ tensorrt_subplugin::getTensorRTDataTypeSize (nvinfer1::DataType tensorrt_data_ty
     default:
       ml_loge("Element size is not implemented for data-type");
   }
-  return -1;
+  ml_loge("Unable to determine tensorrt data type size");
+  throw std::runtime_error ("Unable to determine tensorrt data type size");
 }
 
 /**
  * @brief Get the corresponding nnstreamer tensor_type based on the TensorRT data type.
  * @param[in] tensorrt_data_type : The TensorRT data type.
- * @return The nnstreamer tensor_type if OK. _NNS_END if the TensorRT data type is not supported.
+ * @return The nnstreamer tensor_type.
  */
 tensor_type
 tensorrt_subplugin::getNnStreamerDataType(nvinfer1::DataType tensorrt_data_type) const
@@ -743,7 +713,8 @@ tensorrt_subplugin::getNnStreamerDataType(nvinfer1::DataType tensorrt_data_type)
     default:
       ml_loge("Element size is not implemented for data type.");
   }
-  return _NNS_END;
+  ml_loge("Unable to get the nnstreamer data type");
+  throw std::runtime_error ("Unable to get the nnstreamer data type");
 }
 
 tensorrt_subplugin *tensorrt_subplugin::registeredRepresentation = nullptr;
