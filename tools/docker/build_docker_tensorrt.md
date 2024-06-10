@@ -11,7 +11,7 @@ cd nnstreamer
 # Execute from nnstreamer repository root (i.e. ${HOME}/src/projects/nnstreamer)
 docker build -f tools/docker/Dockerfile.tensorrt --target=cuda-trt10-base -t cuda-trt10-base:latest --progress=plain .
 # Enable docker container to connect to host X server
-xhost+
+sudo xhost+
 # Run docker container, so we can manually build nnstreamer[-example] and test
 docker run \
     --name cuda-trt10-base \
@@ -58,14 +58,8 @@ ninja -C build install
 
 ```
 # Verify pkg-config for nnstreamer
-export PKG_CONFIG_PATH=$NNST_INSTALLDIR/lib/pkgconfig
+export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:$NNST_INSTALLDIR/lib/pkgconfig
 pkg-config --debug nnstreamer
-```
-
-```
-# Verify local installation
-export GST_PLUGIN_PATH=/mnt/projects/nnstreamer/build/gst/nnstreamer
-gst-inspect-1.0 nnstreamer
 ```
 
 # Build nnstreamer-example in container
@@ -89,6 +83,12 @@ Run-time dependency nnstreamer found: YES 2.4.1
 export C_INCLUDE_PATH=$C_INCLUDE_PATH:$NNST_INSTALLDIR/include
 export CPLUS_INCLUDE_PATH=$CPLUS_INCLUDE_PATH:$NNST_INSTALLDIR/include
 ninja -C build install
+```
+
+```
+# Verify local installation
+export GST_PLUGIN_PATH=GST_PLUGIN_PATH:/mnt/projects/nnstreamer/build/gst/nnstreamer
+gst-inspect-1.0 nnstreamer
 ```
 
 ```

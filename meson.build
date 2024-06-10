@@ -265,34 +265,26 @@ if not get_option('snpe-support').disabled()
   endif
 endif
 
-# tensorrt
-nvinfer_dep = dependency('', required: false)
-nvonnxparser_dep = dependency('', required: false)
+# cuda
+cuda_version_str = ''
 cuda_dep = dependency('', required: false)
 cudart_dep = dependency('', required: false)
-if not get_option('tensorrt-support').disabled()
-  # check available cuda versions (12.1 is recommended)
-  cuda_vers = [
-    '12.1',
-    '11.0',
-    '10.2',
-    '10.1',
-    '10.0',
-    '9.2',
-    '9.1',
-    '9.0'
-  ]
+nvcc = find_program('nvcc', required: false)
+if nvcc.found()
+  cuda_version_str = run_command(find_program('tools/cuda-version.sh'), check: true).stdout().strip()
+  message('$cuda_version_str: @0@'.format(cuda_version_str))
+  cuda_dep = dependency('cuda-' + cuda_version_str, required: false)
+  cudart_dep = dependency('cudart-' + cuda_version_str, required: false)
+endif
 
-  foreach ver : cuda_vers
-    cuda_dep = dependency('cuda-' + ver, required: false)
-    cudart_dep = dependency('cudart-' + ver, required: false)
-    if cuda_dep.found() and cudart_dep.found()
-      if ver != '12.1' and ver != '11.0' and ver != '10.2'
-        message('Warning: the recommended cuda version is at least 10.2')
-      endif
-      break
-    endif
-  endforeach
+# tensorrt
+tensorrt_version_str = ''
+nvinfer_dep = dependency('', required: false)
+nvonnxparser_dep = dependency('', required: false)
+if not get_option('tensorrt-support').disabled()
+
+  tensorrt_version_str = run_command(find_program('tools/tensorrt-version.sh'), check: true).stdout().strip()
+  message('$tensorrt_version_str: @0@'.format(tensorrt_version_str))
 
   nvinfer_lib = cxx.find_library('nvinfer', required: false)
   if nvinfer_lib.found() and cxx.has_header('NvInfer.h')
@@ -302,6 +294,26 @@ if not get_option('tensorrt-support').disabled()
   nvonnxparser_lib = cxx.find_library('nvonnxparser', required: false)
   if nvonnxparser_lib.found() and cxx.has_header('NvOnnxParser.h')
     nvonnxparser_dep = declare_dependency(dependencies: nvonnxparser_lib)
+  endif
+endif
+
+# cuda/tensorrt version checks
+cuda_major = 0
+cuda_minor = 0
+tensorrt_major = 0
+tensorrt_minor = 0
+if cuda_version_str != '' and tensorrt_version_str != ''
+  cuda_versions = cuda_version_str.split('.')
+  tensorrt_versions = tensorrt_version_str.split('.')
+  cuda_major = cuda_versions[0].to_int()
+  cuda_minor = cuda_versions[1].to_int()
+  tensorrt_major = tensorrt_versions[0].to_int()
+  tensorrt_minor = tensorrt_versions[1].to_int()
+  if cuda_major < 11 and tensorrt_major >= 10
+    message('Warning: TensorRT 10 requires at least cuda 11.0')
+  endif
+  if cuda_major < 10 or (cuda_major == 10 and cuda_minor < 2)
+    message('Warning: the recommended cuda version is at least 10.2')
   endif
 endif
 

@@ -664,7 +664,12 @@ if snpe_support_is_available
 endif
 
 if tensorrt_support_is_available
-  filter_sub_tensorrt_sources = ['tensor_filter_tensorrt.cc']
+  # Decide source code file wrt tensorrt version.
+  if tensorrt_major >= 10
+    filter_sub_tensorrt_sources = ['tensor_filter_tensorrt_v10.cc']
+  else
+    filter_sub_tensorrt_sources = ['tensor_filter_tensorrt.cc']
+  endif
 
   nnstreamer_filter_tensorrt_deps = [glib_dep, nnstreamer_single_dep, tensorrt_support_deps]
 
