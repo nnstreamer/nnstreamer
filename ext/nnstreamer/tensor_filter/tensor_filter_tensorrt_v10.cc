@@ -15,7 +15,9 @@
  *
  * @note Only support engine file as inference model.
  * Possible todos:
- *   - Add support for model builder parameters.
+ *  - Add support for model builder parameters.
+ *  - Read device_id from options.
+ *  - Add support for optimization profile(s).
  */
 
 #include <algorithm>
@@ -130,6 +132,7 @@ class tensorrt_subplugin final : public tensor_filter_subplugin
   static tensorrt_subplugin *registeredRepresentation;
 
   bool _configured{}; /**< Flag to keep track of whether this instance has been configured or not. */
+  int _device_id{}; /**< Device id of the gpu to use. */
   gchar *_model_path{}; /**< engine file path */
   std::filesystem::path _engine_fs_path{}; /**< filesystem path to engine file */
   cudaStream_t _stream{}; /**< The cuda inference stream */
@@ -265,28 +268,20 @@ tensorrt_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *outpu
     }
   }
 
+  for (std::size_t i = 0; i < _tensorrt_output_tensor_infos.size(); ++i) {
+    const auto& tensorrt_tensor_info = _tensorrt_output_tensor_infos[i];
+    g_assert (tensorrt_tensor_info.buffer_size == output[i].size);
+    allocBuffer (&output[i].data, output[i].size);
+    if (!_Context->setOutputTensorAddress(tensorrt_tensor_info.name, output[i].data)) {
+      ml_loge ("Unable to set output tensor address");
+      throw std::runtime_error ("Unable to set output tensor address");
+    }
+  }
+
   /* Execute the network */
   if (!_Context->enqueueV3 (_stream)) {
     ml_loge ("Failed to execute the network");
     throw std::runtime_error ("Failed to execute the network");
-  }
-
-  for (std::size_t i = 0; i < _tensorrt_output_tensor_infos.size(); ++i) {
-    const auto& tensorrt_tensor_info = _tensorrt_output_tensor_infos[i];
-    g_assert (tensorrt_tensor_info.buffer_size == output[i].size);
-
-    status = cudaMemcpyAsync(
-      output[i].data,
-      tensorrt_tensor_info.buffer,
-      output[i].size,
-      cudaMemcpyDeviceToHost,
-      _stream
-    );
-
-    if (status != cudaSuccess) {
-      ml_loge ("Failed to copy from cuda output buffer");
-      throw std::runtime_error ("Failed to copy from cuda output buffer");
-    }
   }
 
   /* Wait for GPU to finish the inference */
@@ -306,7 +301,7 @@ tensorrt_subplugin::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
 {
   info.name = name;
   info.allow_in_place = FALSE;
-  info.allocate_in_invoke = FALSE;
+  info.allocate_in_invoke = TRUE;
   info.run_without_model = FALSE;
   info.verify_model_path = TRUE;
   info.hw_list = hw_list;
@@ -458,21 +453,19 @@ tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
 
   UNUSED (prop);
 
-  checkUnifiedMemory ();
-
   // Set the device index
-  // todo: read device_id from props?
-  auto device_id = 0;
-  auto ret = cudaSetDevice (device_id);
+  auto ret = cudaSetDevice (_device_id);
   if (ret != 0) {
     int num_gpus;
     cudaGetDeviceCount (&num_gpus);
     ml_loge ("Unable to set GPU device index to: %d. CUDA-capable GPU(s): %d.",
-      device_id,
+      _device_id,
       num_gpus
     );
     throw std::runtime_error ("Unable to set GPU device index");
   }
+
+  checkUnifiedMemory ();
 
   // Parse model from .onnx and create .engine if necessary
   std::filesystem::path model_fs_path(_model_path);
@@ -481,10 +474,7 @@ tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
     _engine_fs_path += ".engine";
     if (!std::filesystem::exists(_engine_fs_path)) {
       buildSaveEngine ();
-    }
-    if (!std::filesystem::exists(_engine_fs_path)) {
-      ml_loge ("Unable to build and/or save engine file");
-    throw std::runtime_error ("Unable to build and/or save engine file");
+      g_assert (std::filesystem::exists(_engine_fs_path));
     }
   } else if (".engine" == model_fs_path.extension ()) {
     _engine_fs_path = model_fs_path;
@@ -543,15 +533,16 @@ tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
     tensorrt_tensor_info.buffer_size = tensorrt_tensor_info.dtype_size * tensorrt_tensor_info.volume;
     ml_logd ("BUFFER SIZE: %" G_GUINT64_FORMAT, tensorrt_tensor_info.buffer_size);
 
-    allocBuffer (&tensorrt_tensor_info.buffer, tensorrt_tensor_info.buffer_size);
-
-    // Allocate GPU memory for input and output buffers
+    // Iterate the input and output buffers
     if (tensorrt_tensor_info.mode == nvinfer1::TensorIOMode::kINPUT) {
+
       if (!_Context->setInputShape(tensorrt_tensor_info.name, tensorrt_tensor_info.shape)) {
         ml_loge ("Unable to set input shape");
         throw std::runtime_error ("Unable to set input shape");
       }
 
+      // Allocate only for input, memory for output is allocated in the invoke method.
+      allocBuffer (&tensorrt_tensor_info.buffer, tensorrt_tensor_info.buffer_size);
       if (!_Context->setInputTensorAddress(tensorrt_tensor_info.name, tensorrt_tensor_info.buffer)) {
         ml_loge ("Unable to set input tensor address");
         throw std::runtime_error ("Unable to set input tensor address");
@@ -560,11 +551,6 @@ tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
       _tensorrt_input_tensor_infos.push_back(tensorrt_tensor_info);
 
     } else if (tensorrt_tensor_info.mode == nvinfer1::TensorIOMode::kOUTPUT) {
-
-      if (!_Context->setOutputTensorAddress(tensorrt_tensor_info.name, tensorrt_tensor_info.buffer)) {
-        ml_loge ("Unable to set output tensor address");
-        throw std::runtime_error ("Unable to set output tensor address");
-      }
 
       _tensorrt_output_tensor_infos.push_back(tensorrt_tensor_info);
 
@@ -627,9 +613,19 @@ tensorrt_subplugin::checkUnifiedMemory () const
   }
 
   /* Unified memory requires at least CUDA-6 */
+  // Note: the cuda programming guide specifies at least version 5
+  //  https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#unified-memory-programming
   if (version < 6000) {
     ml_loge ("Unified memory requires at least CUDA-6");
     throw std::runtime_error ("Unified memory requires at least CUDA-6");
+  }
+
+  // Get device properties
+  cudaDeviceProp prop;
+  cudaGetDeviceProperties(&prop, _device_id);
+  if (prop.managedMemory == 0) {
+    ml_loge ("The current device does not support managedmemory");
+    throw std::runtime_error ("The current device does not support managedmemory");
   }
 }
 
