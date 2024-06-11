@@ -613,8 +613,6 @@ tensorrt_subplugin::checkUnifiedMemory () const
   }
 
   /* Unified memory requires at least CUDA-6 */
-  // Note: the cuda programming guide specifies at least version 5
-  //  https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#unified-memory-programming
   if (version < 6000) {
     ml_loge ("Unified memory requires at least CUDA-6");
     throw std::runtime_error ("Unified memory requires at least CUDA-6");
@@ -626,6 +624,13 @@ tensorrt_subplugin::checkUnifiedMemory () const
   if (prop.managedMemory == 0) {
     ml_loge ("The current device does not support managedmemory");
     throw std::runtime_error ("The current device does not support managedmemory");
+  }
+
+  // The cuda programming guide specifies at least compute capability version 5
+  //  https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#unified-memory-programming
+  if (prop.major < 5) {
+    ml_loge ("The minimum required compute capability for unified memory is version 5");
+    throw std::runtime_error ("The minimum required compute capability for unified memory is version 5");
   }
 }
 
