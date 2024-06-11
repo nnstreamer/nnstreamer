@@ -139,6 +139,9 @@
 %define		tvm_support 0
 %define		trix_engine_support 0
 %define		onnxruntime_support 0
+# Disable snpe build temporarily
+# TODO: Enable snpe build after fixing the snpe package
+%define		snpe_support 0
 %endif
 
 # DA requested to remove unnecessary module builds
