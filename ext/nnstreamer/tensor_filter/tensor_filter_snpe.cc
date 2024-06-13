@@ -8,7 +8,7 @@
  * @date      15 Jan 2024
  * @brief     NNStreamer tensor-filter sub-plugin for SNPE (Qualcomm Neural Processing SDK)
  * @see       http://github.com/nnstreamer/nnstreamer
- * @see       https://developer.qualcomm.com/software/qualcomm-neural-processing-sdk
+              https://developer.qualcomm.com/software/qualcomm-neural-processing-sdk
  * @author    Yongjoo Ahn <yongjoo1.ahn@samsung.com>
  * @bug       No known bugs except for NYI items
  *
@@ -198,9 +198,8 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
       Snpe_StringList_Delete (outputstrListHandle);
   };
 
-  /** @todo support other runtimes */
+  /* default runtime is CPU */
   Snpe_Runtime_t runtime = SNPE_RUNTIME_CPU;
-  std::string runtime_str;
 
   /* lambda function to handle tensor */
   auto handleTensor = [&] (const char *tensorName, GstTensorInfo *info,
@@ -268,6 +267,43 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     ret = Snpe_UserBufferMap_Add (bufferMapHandle, tensorName, iub);
   };
 
+  auto parse_custom_prop = [&runtime] (const char *custom_prop) {
+    if (!custom_prop)
+      return;
+
+    gchar **options = g_strsplit (custom_prop, ",", -1);
+
+    for (guint op = 0; op < g_strv_length (options); ++op) {
+      gchar **option = g_strsplit (options[op], ":", -1);
+
+      if (g_strv_length (option) > 1) {
+        g_strstrip (option[0]);
+        g_strstrip (option[1]);
+
+        if (g_ascii_strcasecmp (option[0], "Runtime") == 0) {
+          if (g_ascii_strcasecmp (option[1], "CPU") == 0) {
+            runtime = SNPE_RUNTIME_CPU;
+          } else if (g_ascii_strcasecmp (option[1], "GPU") == 0) {
+            runtime = SNPE_RUNTIME_GPU;
+          } else if (g_ascii_strcasecmp (option[1], "DSP") == 0) {
+            runtime = SNPE_RUNTIME_DSP;
+          } else if (g_ascii_strcasecmp (option[1], "NPU") == 0
+                     || g_ascii_strcasecmp (option[1], "AIP") == 0) {
+            runtime = SNPE_RUNTIME_AIP_FIXED8_TF;
+          } else {
+            nns_logw ("Unknown runtime (%s), set CPU as default.", options[op]);
+          }
+        } else {
+          nns_logw ("Unknown option (%s).", options[op]);
+        }
+      }
+
+      g_strfreev (option);
+    }
+
+    g_strfreev (options);
+  };
+
   configured = true;
   try {
     /* Log SNPE version */
@@ -277,14 +313,20 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 
     nns_logi ("SNPE Version: %s", Snpe_DlVersion_ToString (lib_version_h));
 
-    /* Set Runtime */
-    runtime_str = std::string (Snpe_RuntimeList_RuntimeToString (runtime));
-    if (Snpe_Util_IsRuntimeAvailable (runtime) == 0)
-      throw std::runtime_error ("Runtime " + runtime_str + " is not available");
+    /* parse custom properties */
+    parse_custom_prop (prop->custom_properties);
 
+    /* Check the given Runtime is available */
+    std::string runtime_str = std::string (Snpe_RuntimeList_RuntimeToString (runtime));
+    if (Snpe_Util_IsRuntimeAvailable (runtime) == 0)
+      throw std::runtime_error ("Given runtime " + runtime_str + " is not available");
+
+    nns_logi ("Given runtime %s is available", runtime_str.c_str ());
+
+    /* set runtimelist config */
     runtime_list_h = Snpe_RuntimeList_Create ();
     if (Snpe_RuntimeList_Add (runtime_list_h, runtime) != SNPE_SUCCESS)
-      throw std::runtime_error ("Failed to add runtime " + runtime_str);
+      throw std::runtime_error ("Failed to add given runtime to Snpe_RuntimeList");
 
     /* Load network (dlc file) */
     if (!g_file_test (prop->model_files[0], G_FILE_TEST_IS_REGULAR)) {
@@ -306,6 +348,7 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     if (Snpe_SNPEBuilder_SetRuntimeProcessorOrder (snpebuilder_h, runtime_list_h) != SNPE_SUCCESS)
       throw std::runtime_error ("Failed to set runtime processor order");
 
+    /* set UserBuffer mode */
     if (Snpe_SNPEBuilder_SetUseUserSuppliedBuffers (snpebuilder_h, true) != SNPE_SUCCESS)
       throw std::runtime_error ("Failed to set use user supplied buffers");
 
