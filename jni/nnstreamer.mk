@@ -109,6 +109,12 @@ NNSTREAMER_FILTER_CAFFE2_SRCS := \
 NNSTREAMER_FILTER_SNPE_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_snpe.cc
 
+# Check whether the version of SNPE SDK is old (v1, rather than v2)
+ifeq ($(shell test -d ${SNPE_ROOT}/include/zdl; echo $$?),0)
+NNSTREAMER_FILTER_SNPE_SRCS := \
+    $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_snpe_v1.cc
+endif
+
 # filter snap
 NNSTREAMER_FILTER_SNAP_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_snap.cc
