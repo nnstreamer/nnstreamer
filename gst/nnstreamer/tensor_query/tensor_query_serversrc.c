@@ -67,6 +67,8 @@ static void gst_tensor_query_serversrc_get_property (GObject * object,
 static void gst_tensor_query_serversrc_finalize (GObject * object);
 static GstFlowReturn gst_tensor_query_serversrc_create (GstPushSrc * psrc,
     GstBuffer ** buf);
+static gboolean gst_tensor_query_serversrc_set_caps (GstBaseSrc * bsrc,
+    GstCaps * caps);
 
 /**
  * @brief initialize the query_serversrc class
@@ -274,7 +276,9 @@ gst_tensor_query_serversrc_change_state (GstElement * element,
     GstStateChange transition)
 {
   GstTensorQueryServerSrc *src = GST_TENSOR_QUERY_SERVERSRC (element);
+  GstBaseSrc *bsrc = GST_BASE_SRC (element);
   GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
+  GstCaps *caps;
 
   switch (transition) {
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
@@ -307,6 +311,10 @@ gst_tensor_query_serversrc_change_state (GstElement * element,
       break;
     case GST_STATE_CHANGE_PAUSED_TO_READY:
       gst_tensor_query_server_remove_data (src->src_id);
+      break;
+    case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+      caps = gst_pad_peer_query_caps (GST_BASE_SRC_PAD (bsrc), NULL);
+      gst_tensor_query_serversrc_set_caps (bsrc, caps);
       break;
     default:
       break;
@@ -491,19 +499,12 @@ gst_tensor_query_serversrc_create (GstPushSrc * psrc, GstBuffer ** outbuf)
   GstState state = GST_STATE_NULL;
 
   if (!src->configured) {
-    gchar *caps_str, *new_caps_str;
-
     GstCaps *caps = gst_pad_peer_query_caps (GST_BASE_SRC_PAD (bsrc), NULL);
     if (gst_caps_is_fixed (caps)) {
       gst_base_src_set_caps (bsrc, caps);
     }
 
-    caps_str = gst_caps_to_string (caps);
-
-    new_caps_str = g_strdup_printf ("@query_server_src_caps@%s", caps_str);
-    gst_tensor_query_server_set_caps (src->src_id, new_caps_str);
-    g_free (new_caps_str);
-    g_free (caps_str);
+    gst_tensor_query_serversrc_set_caps (bsrc, caps);
 
     gst_caps_unref (caps);
     src->configured = TRUE;
@@ -522,4 +523,24 @@ gst_tensor_query_serversrc_create (GstPushSrc * psrc, GstBuffer ** outbuf)
   }
 
   return GST_FLOW_OK;
+}
+
+/**
+ * @brief An implementation of the set_caps vmethod in GstBaseSrcClass
+ */
+static gboolean
+gst_tensor_query_serversrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
+{
+  GstTensorQueryServerSrc *src = GST_TENSOR_QUERY_SERVERSRC (bsrc);
+  gchar *caps_str, *new_caps_str;
+
+  caps_str = gst_caps_to_string (caps);
+
+  new_caps_str = g_strdup_printf ("@query_server_src_caps@%s", caps_str);
+  gst_tensor_query_server_set_caps (src->src_id, new_caps_str);
+
+  g_free (new_caps_str);
+  g_free (caps_str);
+
+  return TRUE;
 }
