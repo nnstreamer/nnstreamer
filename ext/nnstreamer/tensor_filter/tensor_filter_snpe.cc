@@ -42,13 +42,20 @@
 #error "This code targets only SNPE 2.x"
 #endif
 
+#if defined(__ANDROID__)
+#include <jni.h>
+#endif
 
 namespace nnstreamer
 {
 namespace tensor_filter_snpe
 {
 extern "C" {
+#if defined(__ANDROID__)
+void init_filter_snpe (JNIEnv *env, jobject context);
+#else
 void init_filter_snpe (void) __attribute__ ((constructor));
+#endif
 void fini_filter_snpe (void) __attribute__ ((destructor));
 }
 
@@ -478,6 +485,131 @@ snpe_subplugin::fini_filter_snpe (void)
   tensor_filter_subplugin::unregister_subplugin (registeredRepresentation);
 }
 
+#if defined(__ANDROID__)
+/**
+ * @brief Set additional environment (ADSP_LIBRARY_PATH) for snpe
+ */
+static gboolean
+_snpe_set_env (JNIEnv *env, jobject context)
+{
+  gboolean snpe_failed = TRUE;
+  jclass context_class = NULL;
+  jmethodID get_application_info_method_id = NULL;
+  jobject application_info_object = NULL;
+  jclass application_info_object_class = NULL;
+  jfieldID native_library_dir_field_id = NULL;
+  jstring native_library_dir_path = NULL;
+
+  const gchar *native_library_dir_path_str;
+  gchar *new_path;
+
+  g_return_val_if_fail (env != NULL, FALSE);
+  g_return_val_if_fail (context != NULL, FALSE);
+
+  context_class = env->GetObjectClass (context);
+  if (!context_class) {
+    nns_loge ("Failed to get context class.");
+    goto done;
+  }
+
+  get_application_info_method_id = env->GetMethodID (context_class,
+      "getApplicationInfo", "()Landroid/content/pm/ApplicationInfo;");
+  if (!get_application_info_method_id) {
+    nns_loge ("Failed to get method ID for `ApplicationInfo()`.");
+    goto done;
+  }
+
+  application_info_object = env->CallObjectMethod (context, get_application_info_method_id);
+  if (env->ExceptionCheck ()) {
+    env->ExceptionDescribe ();
+    env->ExceptionClear ();
+    nns_loge ("Failed to call method `ApplicationInfo()`.");
+    goto done;
+  }
+
+  application_info_object_class = env->GetObjectClass (application_info_object);
+  if (!application_info_object_class) {
+    nns_loge ("Failed to get `ApplicationInfo` object class");
+    goto done;
+  }
+
+  native_library_dir_field_id = env->GetFieldID (
+      application_info_object_class, "nativeLibraryDir", "Ljava/lang/String;");
+  if (!native_library_dir_field_id) {
+    nns_loge ("Failed to get field ID for `nativeLibraryDir`.");
+    goto done;
+  }
+
+  native_library_dir_path = static_cast<jstring> (
+      env->GetObjectField (application_info_object, native_library_dir_field_id));
+  if (!native_library_dir_path) {
+    nns_loge ("Failed to get field `nativeLibraryDir`.");
+    goto done;
+  }
+  gchar *ls_cmd;
+
+  native_library_dir_path_str = env->GetStringUTFChars (native_library_dir_path, NULL);
+  if (env->ExceptionCheck ()) {
+    env->ExceptionDescribe ();
+    env->ExceptionClear ();
+    nns_loge ("Failed to get string `nativeLibraryDir`");
+    goto done;
+  }
+
+  new_path = g_strconcat (native_library_dir_path_str,
+      ";/system/lib/rfsa/adsp;/system/vendor/lib/rfsa/adsp;/dsp", NULL);
+
+  /**
+   * See https://docs.qualcomm.com/bundle/publicresource/topics/80-63442-2/dsp_runtime.html for details
+   */
+  nns_logi ("Set env ADSP_LIBRARY_PATH for snpe DSP/AIP runtime: %s", new_path);
+  g_setenv ("ADSP_LIBRARY_PATH", new_path, TRUE);
+
+  g_free (new_path);
+  env->ReleaseStringUTFChars (native_library_dir_path, native_library_dir_path_str);
+
+  snpe_failed = FALSE;
+
+done:
+
+  if (native_library_dir_path) {
+    env->DeleteLocalRef (native_library_dir_path);
+  }
+
+  if (application_info_object_class) {
+    env->DeleteLocalRef (application_info_object_class);
+  }
+
+  if (application_info_object) {
+    env->DeleteLocalRef (application_info_object);
+  }
+
+  if (context_class) {
+    env->DeleteLocalRef (context_class);
+  }
+
+  return !(snpe_failed);
+}
+
+/**
+ * @brief Register the sub-plugin for SNPE in Android.
+ */
+void
+init_filter_snpe (JNIEnv *env, jobject context)
+{
+  if (nnstreamer_filter_find ("snap")) {
+    nns_loge ("Cannot use SNPE and SNAP both. Won't register this SNPE subplugin.");
+    return;
+  }
+
+  if (!_snpe_set_env (env, context)) {
+    nns_loge ("Failed to set extra env");
+    return;
+  }
+
+  snpe_subplugin::init_filter_snpe ();
+}
+#else
 /**
  * @brief Register the sub-plugin for SNPE.
  */
@@ -486,6 +618,7 @@ init_filter_snpe ()
 {
   snpe_subplugin::init_filter_snpe ();
 }
+#endif
 
 /**
  * @brief Destruct the sub-plugin for SNPE.
