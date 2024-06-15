@@ -683,6 +683,26 @@ if tensorrt_support_is_available
   )
 endif
 
+if tensorrt10_support_is_available
+  filter_sub_tensorrt10_sources = ['tensor_filter_tensorrt10.cc']
+
+  nnstreamer_filter_tensorrt10_deps = [glib_dep, nnstreamer_single_dep, tensorrt10_support_deps]
+
+  shared_library('nnstreamer_filter_tensorrt10',
+    filter_sub_tensorrt10_sources,
+    dependencies: nnstreamer_filter_tensorrt10_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_tensorrt10',
+    filter_sub_tensorrt10_sources,
+    dependencies: nnstreamer_filter_tensorrt10_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+endif
+
 if lua_support_is_available
   if lua_support_deps[0].version().version_compare('>=5.3')
     message ('tensor-filter::lua does not support Lua >= 5.3, yet. Fix #3531 first.')

@@ -265,42 +265,68 @@ if not get_option('snpe-support').disabled()
   endif
 endif
 
-# tensorrt
-nvinfer_dep = dependency('', required: false)
-nvparsers_dep = dependency('', required: false)
+# cuda
+cuda_version_str = ''
+cuda_major = 0
+cuda_minor = 0
 cuda_dep = dependency('', required: false)
 cudart_dep = dependency('', required: false)
-if not get_option('tensorrt-support').disabled()
-  # check available cuda versions (11.0 and 10.2 are recommended)
-  cuda_vers = [
-    '11.0',
-    '10.2',
-    '10.1',
-    '10.0',
-    '9.2',
-    '9.1',
-    '9.0'
-  ]
+if not get_option('tensorrt-support').disabled() or not get_option('tensorrt10-support').disabled()
+  nvcc = find_program('nvcc', required: false)
+  if nvcc.found()
+    cuda_version_str = run_command(find_program('tools/cuda-version.sh'), check: true).stdout().strip()
+    message('$cuda_version_str: @0@'.format(cuda_version_str))
 
-  foreach ver : cuda_vers
-    cuda_dep = dependency('cuda-' + ver, required: false)
-    cudart_dep = dependency('cudart-' + ver, required: false)
-    if cuda_dep.found() and cudart_dep.found()
-      if ver != '11.0' and ver != '10.2'
-        message('Warning: the recommended cuda version is at least 10.2')
-      endif
-      break
-    endif
-  endforeach
+    cuda_versions = cuda_version_str.split('.')
+    cuda_major = cuda_versions[0].to_int()
+    cuda_minor = cuda_versions[1].to_int()
+
+    cuda_dep = dependency('cuda-' + cuda_version_str, required: false)
+    cudart_dep = dependency('cudart-' + cuda_version_str, required: false)
+  endif
+endif
+
+# tensorrt
+tensorrt_version_str = ''
+tensorrt_major = 0
+tensorrt_minor = 0
+nvinfer_dep = dependency('', required: false)
+nvuffparsers_dep = dependency('', required: false)
+nvonnxparser_dep = dependency('', required: false)
+if cuda_major > 0 and (not get_option('tensorrt-support').disabled() or not get_option('tensorrt10-support').disabled())
+
+  tensorrt_version_str = run_command(find_program('tools/tensorrt-version.sh'), check: true).stdout().strip()
+  message('$tensorrt_version_str: @0@'.format(tensorrt_version_str))
+
+  tensorrt_versions = tensorrt_version_str.split('.')
+  tensorrt_major = tensorrt_versions[0].to_int()
+  tensorrt_minor = tensorrt_versions[1].to_int()
 
   nvinfer_lib = cxx.find_library('nvinfer', required: false)
-  if nvinfer_lib.found() and cxx.check_header('NvInfer.h')
+  if nvinfer_lib.found() and cxx.has_header('NvInfer.h')
     nvinfer_dep = declare_dependency(dependencies: nvinfer_lib)
   endif
 
-  nvparsers_lib = cxx.find_library('nvparsers', required: false)
-  if nvparsers_lib.found() and cxx.check_header('NvUffParser.h')
-    nvparsers_dep = declare_dependency(dependencies: nvparsers_lib)
+  if tensorrt_major < 10 and not get_option('tensorrt-support').disabled()
+    nvuffparsers_lib = cxx.find_library('nvuffparsers', required: false)
+    if nvuffparsers_lib.found() and cxx.has_header('NvUffParser.h')
+      nvuffparsers_dep = declare_dependency(dependencies: nvuffparsers_lib)
+    endif
+  elif tensorrt_major >= 10 and not get_option('tensorrt10-support').disabled()
+    nvonnxparser_lib = cxx.find_library('nvonnxparser', required: false)
+    if nvonnxparser_lib.found() and cxx.has_header('NvOnnxParser.h')
+      nvonnxparser_dep = declare_dependency(dependencies: nvonnxparser_lib)
+    endif
+  endif
+endif
+
+# cuda/tensorrt version checks
+if cuda_version_str != '' and tensorrt_version_str != ''
+  if cuda_major < 11 and tensorrt_major >= 10
+    message('Warning: TensorRT 10 requires at least cuda 11.0')
+  endif
+  if cuda_major < 10 or (cuda_major == 10 and cuda_minor < 2)
+    message('Warning: the recommended cuda version is at least 10.2')
   endif
 endif
 
@@ -460,8 +486,12 @@ features = {
     'project_args': { 'ENABLE_PROTOBUF': 1 }
   },
   'tensorrt-support': {
-    'extra_deps': [ nvinfer_dep, nvparsers_dep, cuda_dep, cudart_dep ],
+    'extra_deps': [ nvinfer_dep, nvuffparsers_dep, cuda_dep, cudart_dep ],
     'project_args': { 'ENABLE_TENSORRT': 1 }
+  },
+  'tensorrt10-support': {
+    'extra_deps': [ nvinfer_dep, nvonnxparser_dep, cuda_dep, cudart_dep ],
+    'project_args': { 'ENABLE_TENSORRT10': 1 }
   },
   'grpc-support': {
     'extra_deps': [ grpc_dep, gpr_dep, grpcpp_dep ],
