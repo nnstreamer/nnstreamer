@@ -271,49 +271,63 @@ cuda_major = 0
 cuda_minor = 0
 cuda_dep = dependency('', required: false)
 cudart_dep = dependency('', required: false)
-if not get_option('tensorrt-support').disabled() or not get_option('tensorrt10-support').disabled()
+if not get_option('tensorrt-support').disabled() or \
+  not get_option('tensorrt10-support').disabled() or \
+  not get_option('dali-support').disabled()
   nvcc = find_program('nvcc', required: false)
   if nvcc.found()
-    cuda_version_str = run_command(find_program('tools/cuda-version.sh'), check: true).stdout().strip()
-    message('$cuda_version_str: @0@'.format(cuda_version_str))
+    cuda_version_cmd = run_command(find_program('tools/cuda-version.sh'), check: false)
+    if cuda_version_cmd.returncode() != 0
+      message('ERROR: tools/cuda-version.sh exited with exit code: @0@, tensorrt10-support and/or dali-support will be disabled.'.format(cuda_version_cmd.returncode()))
+    else
+      cuda_version_str = cuda_version_cmd.stdout().strip()
+      message('$cuda_version_str: @0@'.format(cuda_version_str))
 
-    cuda_versions = cuda_version_str.split('.')
-    cuda_major = cuda_versions[0].to_int()
-    cuda_minor = cuda_versions[1].to_int()
+      cuda_versions = cuda_version_str.split('.')
+      cuda_major = cuda_versions[0].to_int()
+      cuda_minor = cuda_versions[1].to_int()
 
-    cuda_dep = dependency('cuda-' + cuda_version_str, required: false)
-    cudart_dep = dependency('cudart-' + cuda_version_str, required: false)
+      cuda_dep = dependency('cuda-' + cuda_version_str, required: false)
+      cudart_dep = dependency('cudart-' + cuda_version_str, required: false)
+    endif
   endif
 endif
 
 # tensorrt
-tensorrt_version_str = run_command(find_program('tools/tensorrt-version.sh'), check: true).stdout().strip()
+tensorrt_version_str = ''
 tensorrt_major = 0
 tensorrt_minor = 0
 nvinfer_dep = dependency('', required: false)
 nvuffparsers_dep = dependency('', required: false)
 nvonnxparser_dep = dependency('', required: false)
-if tensorrt_version_str != '' and cuda_major > 0 and (not get_option('tensorrt-support').disabled() or not get_option('tensorrt10-support').disabled())
-  message('$tensorrt_version_str: @0@'.format(tensorrt_version_str))
+if cuda_major > 0 and (not get_option('tensorrt-support').disabled() or not get_option('tensorrt10-support').disabled())
 
-  tensorrt_versions = tensorrt_version_str.split('.')
-  tensorrt_major = tensorrt_versions[0].to_int()
-  tensorrt_minor = tensorrt_versions[1].to_int()
+  tensorrt_version_cmd = run_command(find_program('tools/tensorrt-version.sh'), check: false)
+  if tensorrt_version_cmd.returncode() != 0
+    message('ERROR: tools/tensorrt-version.sh exited with exit code: @0@, tensorrt10-support will be disabled.'.format(tensorrt_version_cmd.returncode()))
+  else
+    tensorrt_version_str = tensorrt_version_cmd.stdout().strip()
+    message('$tensorrt_version_str: @0@'.format(tensorrt_version_str))
 
-  nvinfer_lib = cxx.find_library('nvinfer', required: false)
-  if nvinfer_lib.found() and cxx.has_header('NvInfer.h')
-    nvinfer_dep = declare_dependency(dependencies: nvinfer_lib)
-  endif
+    tensorrt_versions = tensorrt_version_str.split('.')
+    tensorrt_major = tensorrt_versions[0].to_int()
+    tensorrt_minor = tensorrt_versions[1].to_int()
 
-  if tensorrt_major < 10 and not get_option('tensorrt-support').disabled()
-    nvuffparsers_lib = cxx.find_library('nvuffparsers', required: false)
-    if nvuffparsers_lib.found() and cxx.has_header('NvUffParser.h')
-      nvuffparsers_dep = declare_dependency(dependencies: nvuffparsers_lib)
+    nvinfer_lib = cxx.find_library('nvinfer', required: false)
+    if nvinfer_lib.found() and cxx.has_header('NvInfer.h')
+      nvinfer_dep = declare_dependency(dependencies: nvinfer_lib)
     endif
-  elif tensorrt_major >= 10 and not get_option('tensorrt10-support').disabled()
-    nvonnxparser_lib = cxx.find_library('nvonnxparser', required: false)
-    if nvonnxparser_lib.found() and cxx.has_header('NvOnnxParser.h')
-      nvonnxparser_dep = declare_dependency(dependencies: nvonnxparser_lib)
+
+    if tensorrt_major < 10 and not get_option('tensorrt-support').disabled()
+      nvuffparsers_lib = cxx.find_library('nvuffparsers', required: false)
+      if nvuffparsers_lib.found() and cxx.has_header('NvUffParser.h')
+        nvuffparsers_dep = declare_dependency(dependencies: nvuffparsers_lib)
+      endif
+    elif tensorrt_major >= 10 and not get_option('tensorrt10-support').disabled()
+      nvonnxparser_lib = cxx.find_library('nvonnxparser', required: false)
+      if nvonnxparser_lib.found() and cxx.has_header('NvOnnxParser.h')
+        nvonnxparser_dep = declare_dependency(dependencies: nvonnxparser_lib)
+      endif
     endif
   endif
 endif
@@ -414,6 +428,79 @@ if not get_option('datarepo-support').disabled() and not json_glib_dep.found()
   message('datarepo-support is off because json-glib-1.0 is not available.')
 endif
 
+# Python3
+have_python3 = false
+if not get_option('python3-support').disabled()
+  # Check python 3.x
+  python3_dep = dependency('python3', required: false)
+  if python3_dep.found() and python3_dep.version().version_compare('>= 3.8')
+    # The name of .pc file provides C/CXX/LD_FLAGS for Python C API has been changed since v3.8
+    python3_dep = dependency('python3-embed', required: false)
+  endif
+
+  if python3_dep.found()
+    pg_pkgconfig = find_program('pkg-config')
+
+    python3_inc_args = []
+    python3_inc_args += run_command(pg_pkgconfig, ['python3', '--cflags'], check : true).stdout().strip().split()
+    python3_inc_args += run_command('python3', ['-c', 'import site\nfor i in site.getsitepackages(): print("-I" + i + "/numpy/core/include")'], check : true).stdout().strip().split()
+    r = run_command('python3', ['-m', 'site', '--user-site'], check : false)
+    if r.returncode() == 0
+      python3_inc_args += '-I' + r.stdout().strip() + '/numpy/core/include'
+    endif
+    python3_inc_valid_args = []
+
+    foreach python3_inc_arg : python3_inc_args
+      if cxx.has_argument(python3_inc_arg) and \
+          cxx.check_header('numpy/arrayobject.h', args : python3_inc_arg, dependencies : python3_dep)
+        python3_inc_valid_args += python3_inc_arg
+        have_python3 = true
+        break
+      endif
+    endforeach
+
+    if have_python3
+      python3_dep = declare_dependency(dependencies: python3_dep,
+          compile_args : python3_inc_valid_args)
+    else
+      warning('Found python3, but failed to find numpy.')
+      warning('Disable nnstreamer-python3.')
+      python3_dep = disabler()
+    endif
+  endif
+
+  if get_option('python3-support').enabled() and not have_python3
+    error('Cannot find python3 with numpy support')
+  endif
+endif
+
+# dali
+dali_dep = dependency('', required: false)
+if not get_option('dali-support').disabled() and have_python3
+  # Read include folder, lib folder, compile args
+  dali_config_cmd = run_command(find_program('tools/dali-config.sh'), check: false)
+  if dali_config_cmd.returncode() != 0
+    message('ERROR: tools/dali-config.sh exited with exit code: @0@, dali-support will be disabled.'.format(dali_config_cmd.returncode()))
+  else
+    dali_config = dali_config_cmd.stdout().split()
+    dali_inc_folder = dali_config[0]
+    dali_lib_folder = dali_config[1]
+    dali_compile_args = dali_config[2]
+    dali_lib = cxx.find_library('dali', required: false, dirs: [dali_lib_folder])
+    dali_core_lib = cxx.find_library('dali_core', required: false, dirs: [dali_lib_folder])
+    dali_kernels_lib = cxx.find_library('dali_kernels', required: false, dirs: [dali_lib_folder])
+    dali_operators_lib = cxx.find_library('dali_operators', required: false, dirs: [dali_lib_folder])
+    if (dali_lib.found() and dali_core_lib.found() and dali_kernels_lib.found() and dali_operators_lib.found() and cxx.has_header(dali_inc_folder + '/dali/c_api.h'))
+      dali_inc = include_directories(dali_inc_folder, is_system: true)
+      dali_dep = declare_dependency(
+        dependencies: [ dali_lib, dali_core_lib, dali_kernels_lib, dali_operators_lib ],
+        include_directories: [ dali_inc ],
+        compile_args: [ dali_compile_args ]
+      )
+    endif
+  endif
+endif
+
 # features registration to be controlled
 #
 # register feature as follows
@@ -490,6 +577,10 @@ features = {
   'tensorrt10-support': {
     'extra_deps': [ nvinfer_dep, nvonnxparser_dep, cuda_dep, cudart_dep ],
     'project_args': { 'ENABLE_TENSORRT10': 1 }
+  },
+  'dali-support': {
+    'extra_deps': [ dali_dep, cuda_dep, cudart_dep ],
+    'project_args': { 'ENABLE_DALI': 1 }
   },
   'grpc-support': {
     'extra_deps': [ grpc_dep, gpr_dep, grpcpp_dep ],
@@ -614,52 +705,6 @@ if not (pytorch_support_is_available or caffe2_support_is_available)
   endif
   if cxx.has_argument (redundant_decls_flag)
     add_project_arguments([redundant_decls_flag], language: 'cpp')
-  endif
-endif
-
-# Python3
-have_python3 = false
-if not get_option('python3-support').disabled()
-  # Check python 3.x
-  python3_dep = dependency('python3', required: false)
-  if python3_dep.found() and python3_dep.version().version_compare('>= 3.8')
-    # The name of .pc file provides C/CXX/LD_FLAGS for Python C API has been changed since v3.8
-    python3_dep = dependency('python3-embed', required: false)
-  endif
-
-  if python3_dep.found()
-    pg_pkgconfig = find_program('pkg-config')
-
-    python3_inc_args = []
-    python3_inc_args += run_command(pg_pkgconfig, ['python3', '--cflags'], check : true).stdout().strip().split()
-    python3_inc_args += run_command('python3', ['-c', 'import site\nfor i in site.getsitepackages(): print("-I" + i + "/numpy/core/include")'], check : true).stdout().strip().split()
-    r = run_command('python3', ['-m', 'site', '--user-site'], check : false)
-    if r.returncode() == 0
-      python3_inc_args += '-I' + r.stdout().strip() + '/numpy/core/include'
-    endif
-    python3_inc_valid_args = []
-
-    foreach python3_inc_arg : python3_inc_args
-      if cxx.has_argument(python3_inc_arg) and \
-          cxx.check_header('numpy/arrayobject.h', args : python3_inc_arg, dependencies : python3_dep)
-        python3_inc_valid_args += python3_inc_arg
-        have_python3 = true
-        break
-      endif
-    endforeach
-
-    if have_python3
-      python3_dep = declare_dependency(dependencies: python3_dep,
-          compile_args : python3_inc_valid_args)
-    else
-      warning('Found python3, but failed to find numpy.')
-      warning('Disable nnstreamer-python3.')
-      python3_dep = disabler()
-    endif
-  endif
-
-  if get_option('python3-support').enabled() and not have_python3
-    error('Cannot find python3 with numpy support')
   endif
 endif
 

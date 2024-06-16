@@ -492,4 +492,13 @@ if get_option('install-test')
   install_subdir('transform_stand', install_dir: unittest_install_dir)
   install_subdir('transform_transpose', install_dir: unittest_install_dir)
   install_subdir('transform_typecast', install_dir: unittest_install_dir)
+  if dali_support_is_available
+    install_subdir('nnstreamer_filter_dali', install_dir: unittest_install_dir)
+    create_dali_pipeline = executable('create_dali_pipeline',
+      join_paths('nnstreamer_filter_dali', 'create_dali_pipeline.cc'),
+      dependencies: [dali_dep, cuda_dep, cudart_dep],
+      install: get_option('install-test'),
+      install_dir: join_paths(unittest_install_dir, 'nnstreamer_filter_dali'),
+    )
+  endif
 endif

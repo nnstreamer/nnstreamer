@@ -857,3 +857,23 @@ if onnxruntime_support_is_available
     install_dir: nnstreamer_libdir
   )
 endif
+
+if dali_support_is_available
+  filter_sub_dali_sources = ['tensor_filter_dali.cc']
+
+  nnstreamer_filter_dali_deps = [glib_dep, nnstreamer_single_dep, cuda_dep, cudart_dep, dali_support_deps]
+
+  shared_library('nnstreamer_filter_dali',
+    filter_sub_dali_sources,
+    dependencies: nnstreamer_filter_dali_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_dali',
+    filter_sub_dali_sources,
+    dependencies: nnstreamer_filter_dali_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+endif
