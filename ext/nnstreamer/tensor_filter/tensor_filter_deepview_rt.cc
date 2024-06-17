@@ -400,7 +400,7 @@ dvrt_subplugin::initContext (dvrt_options_s *options)
   if (!options->modelPath)
     return -ENOENT;
 
-  GMappedFile *modelMap = g_mapped_file_new (options->modelPath, FALSE, &err);
+  modelMap = g_mapped_file_new (options->modelPath, FALSE, &err);
   if (!modelMap || err) {
     nns_logw ("Could not map model file %s %s", options->modelPath, err->message);
     g_clear_error (&err);
