@@ -25,7 +25,7 @@
 #include <memory>
 #include <vector>
 
-#include <executorch/cmake-out/kernels/portable/portable_ops_lib/RegisterCodegenUnboxedKernelsEverything.cpp>
+#include <executorch/cmake-out/kernels/portable/RegisterCodegenUnboxedKernelsEverything.cpp>
 #include <executorch/extension/data_loader/file_data_loader.h>
 #include <executorch/extension/evalue_util/print_evalue.h>
 #include <executorch/extension/runner_util/inputs.h>
@@ -68,9 +68,16 @@ class executorch_subplugin final : public tensor_filter_subplugin
   GstTensorsInfo inputInfo; /**< Input tensors metadata */
   GstTensorsInfo outputInfo; /**< Output tensors metadata */
 
-  /** executorch method*/
+  /** executorch */
+  std::unique_ptr<Result<FileDataLoader>> loader;
+  std::unique_ptr<Result<Program>> program;
   std::unique_ptr<Result<Method>> method;
   const char *method_name;
+  MemoryManager *memory_manager;
+  MemoryAllocator *method_allocator;
+  HierarchicalAllocator *planned_memory;
+  std::vector<std::unique_ptr<uint8_t[]>> planned_buffers;
+  std::vector<Span<uint8_t>> planned_spans;
 
   public:
   static void init_filter_executorch ();
@@ -144,6 +151,9 @@ executorch_subplugin::cleanup ()
 
   method_name = nullptr;
   configured = false;
+  delete method_allocator;
+  delete planned_memory;
+  delete memory_manager;
 }
 
 /**
@@ -156,8 +166,6 @@ executorch_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   gst_tensors_info_copy (std::addressof (inputInfo), std::addressof (prop->input_meta));
   gst_tensors_info_copy (std::addressof (outputInfo), std::addressof (prop->output_meta));
 
-  runtime_init ();
-
   try {
     /* Load network (.pte file) */
     if (!g_file_test (prop->model_files[0], G_FILE_TEST_IS_REGULAR)) {
@@ -169,34 +177,33 @@ executorch_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     model_path = g_strdup (prop->model_files[0]);
 
     // Create a loader to get the data of the program file.
-    Result<FileDataLoader> loader = FileDataLoader::from (model_path);
-    ET_CHECK_MSG (loader.ok (), "FileDataLoader::from() failed: 0x%" PRIx32,
-        (uint32_t) loader.error ());
+    loader = std::make_unique<Result<FileDataLoader>> (FileDataLoader::from (model_path));
+    ET_CHECK_MSG (loader->ok (), "FileDataLoader::from() failed: 0x%" PRIx32,
+        (uint32_t) loader->error ());
 
     // Parse the program file.
-    Result<Program> program = Program::load (&loader.get ());
-    if (!program.ok ()) {
+    program = std::make_unique<Result<Program>> (Program::load (&loader->get ()));
+    if (!program->ok ()) {
       ET_LOG (Error, "Failed to parse model file %s", model_path);
       return;
     }
     ET_LOG (Info, "Model file %s is loaded.", model_path);
 
     // Use the first method in the program.
-    const auto method_name_result = program->get_method_name (0);
+    const auto method_name_result = program->get ().get_method_name (0);
     ET_CHECK_MSG (method_name_result.ok (), "Program has no methods");
     method_name = *method_name_result;
     ET_LOG (Info, "Using method %s", method_name);
 
     // MethodMeta describes the memory requirements of the method.
-    Result<MethodMeta> method_meta = program->method_meta (method_name);
+    Result<MethodMeta> method_meta = program->get ().method_meta (method_name);
     ET_CHECK_MSG (method_meta.ok (), "Failed to get method_meta for %s: 0x%" PRIx32,
         method_name, (uint32_t) method_meta.error ());
 
-    MemoryAllocator method_allocator{ MemoryAllocator (
-        sizeof (method_allocator_pool), method_allocator_pool) };
+    method_allocator
+        = new MemoryAllocator (sizeof (method_allocator_pool), method_allocator_pool);
 
-    std::vector<std::unique_ptr<uint8_t[]>> planned_buffers; // Owns the memory
-    std::vector<Span<uint8_t>> planned_spans; // Passed to the allocator
+
     size_t num_memory_planned_buffers = method_meta->num_memory_planned_buffers ();
     for (size_t id = 0; id < num_memory_planned_buffers; ++id) {
       // .get() will always succeed because id < num_memory_planned_buffers.
@@ -206,11 +213,12 @@ executorch_subplugin::configure_instance (const GstTensorFilterProperties *prop)
       planned_buffers.push_back (std::make_unique<uint8_t[]> (buffer_size));
       planned_spans.push_back ({ planned_buffers.back ().get (), buffer_size });
     }
-    HierarchicalAllocator planned_memory ({ planned_spans.data (), planned_spans.size () });
+    planned_memory = new HierarchicalAllocator (
+        { planned_spans.data (), planned_spans.size () });
 
     // Assemble all of the allocators into the MemoryManager that the Executor
     // will use.
-    MemoryManager memory_manager (&method_allocator, &planned_memory);
+    memory_manager = new MemoryManager (method_allocator, planned_memory);
 
     //
     // Load the method from the program, using the provided allocators. Running
@@ -219,7 +227,7 @@ executorch_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     //
 
     method = std::make_unique<Result<Method>> (
-        program->load_method (method_name, &memory_manager));
+        program->get ().load_method (method_name, memory_manager));
     ET_CHECK_MSG (method->ok (), "Loading of method %s failed with status 0x%" PRIx32,
         method_name, (uint32_t) method->error ());
     ET_LOG (Info, "Method loaded.");
@@ -250,12 +258,7 @@ executorch_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *out
   Method &method_ref = method->get ();
 
   // Set inputs
-  for (unsigned int i = 0; i < inputInfo.num_tensors; i++) {
-    GstTensorInfo *info = gst_tensors_info_get_nth_info (std::addressof (inputInfo), i);
-    EValue input_value ((const char *) input[i].data, info->type);
-    Error set_input_error = method_ref.set_input (input_value, i);
-    assert (set_input_error == Error::Ok);
-  }
+  // TODO
 
   // Execute the method
   Error status = method_ref.execute ();
@@ -264,12 +267,7 @@ executorch_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *out
   ET_LOG (Info, "Model executed successfully.");
 
   // Get outputs
-  for (unsigned int i = 0; i < outputInfo.num_tensors; i++) {
-    auto output_value = method_ref.get_output (i);
-    Error set_output_error
-        = method_ref.set_output_data_ptr (output[i].data, sizeof (output[i].data), i);
-    assert (set_output_error == Error::Ok);
-  }
+  // TODO
 }
 
 /**
@@ -315,6 +313,7 @@ executorch_subplugin *executorch_subplugin::registeredRepresentation = nullptr;
 void
 executorch_subplugin::init_filter_executorch (void)
 {
+  runtime_init ();
   registeredRepresentation
       = tensor_filter_subplugin::register_subplugin<executorch_subplugin> ();
 }
