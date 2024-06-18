@@ -642,8 +642,7 @@ BoundingBox::draw (GstMapInfo *out_info, GArray *results)
     /* 2. Write Labels + tracking ID */
     if (flag_use_label) {
       g_autofree gchar *label = NULL;
-      guint j;
-      gsize label_len = 0;
+      gsize k, label_len;
 
       if (is_track != 0) {
         label = g_strdup_printf ("%s-%d", labeldata.labels[a->class_id], a->tracking_id);
@@ -651,14 +650,13 @@ BoundingBox::draw (GstMapInfo *out_info, GArray *results)
         label = g_strdup_printf ("%s", labeldata.labels[a->class_id]);
       }
 
-      if (label != NULL)
-        label_len = strlen (label);
+      label_len = label ? strlen (label) : 0;
 
       /* x1 is the same: x1 = MAX (0, (width * a->x) / i_width); */
       y1 = MAX (0, (y1 - 14));
       pos1 = &frame[y1 * width + x1];
-      for (j = 0; j < label_len; j++) {
-        unsigned int char_index = label[j];
+      for (k = 0; k < label_len; k++) {
+        unsigned int char_index = label[k];
         if ((x1 + 8) > (int) width)
           break; /* Stop drawing if it may overfill */
         pos2 = pos1;
