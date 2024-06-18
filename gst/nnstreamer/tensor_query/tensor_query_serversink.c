@@ -181,6 +181,10 @@ gst_tensor_query_serversink_change_state (GstElement * element,
         nns_loge ("Failed to change state from PAUSED to PLAYING.");
         return GST_STATE_CHANGE_FAILURE;
       }
+
+      caps = gst_pad_peer_query_caps (GST_BASE_SINK_PAD (bsink), NULL);
+      gst_tensor_query_serversink_set_caps (bsink, caps);
+      gst_caps_unref (caps);
       break;
     case GST_STATE_CHANGE_READY_TO_PAUSED:
       if (!_gst_tensor_query_serversink_start (sink)) {
@@ -201,10 +205,6 @@ gst_tensor_query_serversink_change_state (GstElement * element,
   switch (transition) {
     case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
       gst_tensor_query_server_release_edge_handle (sink->sink_id);
-      break;
-    case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
-      caps = gst_pad_peer_query_caps (GST_BASE_SINK_PAD (bsink), NULL);
-      gst_tensor_query_serversink_set_caps(bsink, caps);
       break;
     default:
       break;
