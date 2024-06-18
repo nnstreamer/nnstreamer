@@ -190,7 +190,7 @@ _mvncsdk2_open (const GstTensorFilterProperties * prop, void **private_data)
   }
 
   /* Warning: conversion unsigned long to unsigned int */
-  len_model_file = g_mapped_file_get_length (file_model);
+  len_model_file = (guint32) g_mapped_file_get_length (file_model);
   buf_model_file = (void *) g_mapped_file_get_contents (file_model);
 
   /* Actually, send the model to the device */
