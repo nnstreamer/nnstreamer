@@ -78,6 +78,7 @@ class executorch_subplugin final : public tensor_filter_subplugin
   HierarchicalAllocator *planned_memory;
   std::vector<std::unique_ptr<uint8_t[]>> planned_buffers;
   std::vector<Span<uint8_t>> planned_spans;
+  Error fill_data (Tensor tensor, void *data);
 
   public:
   static void init_filter_executorch ();
@@ -258,7 +259,34 @@ executorch_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *out
   Method &method_ref = method->get ();
 
   // Set inputs
-  // TODO
+  MethodMeta method_meta = method_ref.method_meta ();
+  size_t num_allocated = 0;
+  void **inputs = (void **) malloc (sizeof (void *));
+
+  Result<TensorInfo> tensor_meta = method_meta.input_tensor_meta (0);
+
+  void *data_ptr = malloc (tensor_meta->nbytes ());
+  inputs[0] = data_ptr;
+
+  TensorImpl impl = TensorImpl (tensor_meta->scalar_type (),
+      tensor_meta->sizes ().size (),
+      const_cast<TensorImpl::SizesType *> (tensor_meta->sizes ().data ()), data_ptr,
+      const_cast<TensorImpl::DimOrderType *> (tensor_meta->dim_order ().data ()));
+  Tensor t (&impl);
+
+  Error err = fill_data (t, input->data);
+  if (err == Error::InvalidArgument) {
+    throw std::runtime_error ("Unsupported data type");
+  }
+
+  Error set_input_error = method_ref.set_input (t, 0);
+  assert (set_input_error == Error::Ok);
+
+  Result<util::BufferCleanup> inputs_prepared
+      = util::BufferCleanup ({ inputs, num_allocated });
+  ET_CHECK_MSG (inputs_prepared.ok (), "Could not prepare inputs: 0x%" PRIx32,
+      (uint32_t) inputs_prepared.error ());
+  ET_LOG (Info, "Inputs prepared.");
 
   // Execute the method
   Error status = method_ref.execute ();
@@ -267,7 +295,32 @@ executorch_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *out
   ET_LOG (Info, "Model executed successfully.");
 
   // Get outputs
-  // TODO
+  std::vector<EValue> outputs (method_ref.outputs_size ());
+  status = method_ref.get_outputs (outputs.data (), outputs.size ());
+  ET_CHECK (status == Error::Ok);
+  const auto &output_tensor = outputs[0].toTensor ();
+  size_t output_tensor_size = output_tensor.nbytes ();
+  std::memcpy (output->data, output_tensor.const_data_ptr (), output_tensor_size);
+}
+
+Error
+executorch_subplugin::fill_data (Tensor tensor, void *data)
+{
+  switch (tensor.scalar_type ()) {
+#define FILL_CASE(T, n)                                                      \
+  case (torch::executor::ScalarType::n):                                     \
+    {                                                                        \
+      T *ptr = static_cast<T *> (data);                                      \
+      std::copy (ptr, ptr + tensor.numel (), tensor.mutable_data_ptr<T> ()); \
+      break;                                                                 \
+    }
+    ET_FORALL_REAL_TYPES_AND (Bool, FILL_CASE)
+    default:
+      ET_LOG (Error, "Unsupported scalar type %d", (int) tensor.scalar_type ());
+      return Error::InvalidArgument;
+  }
+#undef FILL_CASE
+  return Error::Ok;
 }
 
 /**
