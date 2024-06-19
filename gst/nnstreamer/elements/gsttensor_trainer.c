@@ -101,7 +101,6 @@ enum
   PROP_NUM_TRAINING_SAMPLES,    /* number of training data */
   PROP_NUM_VALIDATION_SAMPLES,  /* number of validation data */
   PROP_EPOCHS,                  /* Repetitions of training */
-  PROP_READY_TO_COMPLETE_TRAINING
 };
 
 static void gst_tensor_trainer_set_property (GObject * object, guint prop_id,
@@ -241,14 +240,6 @@ gst_tensor_trainer_class_init (GstTensorTrainerClass * klass)
           G_PARAM_READWRITE | GST_PARAM_MUTABLE_READY |
           G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class,
-      PROP_READY_TO_COMPLETE_TRAINING,
-      g_param_spec_boolean ("ready-to-complete", "Ready to complete training ",
-          "Set when the training is ready to be completed and saved. "
-          "When it is set, the training session will be completed(stopped and saved) "
-          "after the current epoch. This cannot be reverted", FALSE,
-          G_PARAM_WRITABLE | G_PARAM_STATIC_STRINGS));
-
   gst_element_class_set_details_simple (gstelement_class, "TensorTrainer",
       "Trainer/Tensor", "Train tensor data using NN Frameworks",
       "Samsung Electronics Co., Ltd.");
@@ -298,7 +289,6 @@ gst_tensor_trainer_init (GstTensorTrainer * trainer)
 
   trainer->output_dimensions = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->output_type = g_strdup (DEFAULT_STR_PROP_VALUE);
-  trainer->ready_to_complete_training = FALSE;
   trainer->fw = NULL;
   trainer->fw_created = FALSE;
   trainer->input_configured = FALSE;
@@ -365,7 +355,6 @@ gst_tensor_trainer_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
   GstTensorTrainer *trainer;
-  GstState state = GST_STATE_NULL;
 
   trainer = GST_TENSOR_TRAINER (object);
 
@@ -396,21 +385,6 @@ gst_tensor_trainer_set_property (GObject * object, guint prop_id,
       break;
     case PROP_EPOCHS:
       trainer->prop.num_epochs = g_value_get_uint (value);
-      break;
-    case PROP_READY_TO_COMPLETE_TRAINING:
-      gst_element_get_state (GST_ELEMENT (trainer), &state, NULL, 0);
-      if (state != GST_STATE_PLAYING) {
-        GST_ERROR_OBJECT (trainer,
-            "Failed to set 'ready-to-complete' in the current state(%s), Set only in PLAYING state.",
-            gst_element_state_get_name (state));
-        break;
-      }
-      if (trainer->ready_to_complete_training == g_value_get_boolean (value))
-        break;
-      trainer->ready_to_complete_training = g_value_get_boolean (value);
-      if (trainer->ready_to_complete_training == TRUE
-          && trainer->is_training_complete == FALSE)
-        gst_tensor_trainer_stop_model_training (trainer);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
