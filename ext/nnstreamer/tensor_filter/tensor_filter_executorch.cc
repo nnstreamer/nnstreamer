@@ -25,7 +25,7 @@
 #include <memory>
 #include <vector>
 
-#include <executorch/cmake-out/kernels/portable/RegisterCodegenUnboxedKernelsEverything.cpp>
+#include <executorch/cmake-out/kernels/portable/portable_ops_lib/RegisterCodegenUnboxedKernelsEverything.cpp>
 #include <executorch/extension/data_loader/file_data_loader.h>
 #include <executorch/extension/evalue_util/print_evalue.h>
 #include <executorch/extension/runner_util/inputs.h>
