@@ -122,10 +122,8 @@ gst_tensor_src_iio_process_scanned_data_from_##DTYPE_UNSIGNED ( \
   if (prop->is_signed) { \
     DTYPE_SIGNED value_signed; \
     guint shift_value; \
-    \
-    shift_value = (sizeof (DTYPE_UNSIGNED) * 8) - prop->used_bits; \
-    value_signed = ((DTYPE_SIGNED) (value_unsigned << shift_value)) >> \
-        shift_value; \
+    shift_value = ((guint) (sizeof (DTYPE_UNSIGNED) * 8)) - prop->used_bits; \
+    value_signed = ((DTYPE_SIGNED) (value_unsigned << shift_value)) >> shift_value; \
     value_float = ((gfloat) value_signed + prop->offset) * prop->scale; \
   } else { \
     value_float = ((gfloat) value_unsigned + prop->offset) * prop->scale; \
@@ -2333,10 +2331,11 @@ gst_tensor_src_iio_create (GstBaseSrc * src, guint64 offset,
     guint size, GstBuffer ** buffer)
 {
   GstTensorSrcIIO *self;
+  GstFlowReturn ret = GST_FLOW_ERROR;
   GstBuffer *buf;
   GstMemory *mem;
   GstTensorInfo *_info;
-  guint buffer_size;
+  gsize buffer_size;
   guint idx = 0;
   UNUSED (size);
 
@@ -2352,22 +2351,21 @@ gst_tensor_src_iio_create (GstBaseSrc * src, guint64 offset,
     mem = gst_allocator_alloc (NULL, buffer_size, NULL);
     if (mem == NULL) {
       GST_ERROR_OBJECT (self, "Error allocating memory for buffer.");
-      goto error_buffer_unref;
+      goto error;
     }
 
     gst_tensor_buffer_append_memory (buf, mem, _info);
   }
 
-  if (gst_tensor_src_iio_fill (src, offset, buffer_size, buf) != GST_FLOW_OK) {
-    goto error_buffer_unref;
-  }
+  ret = gst_tensor_src_iio_fill (src, offset, (guint) buffer_size, buf);
 
-  *buffer = buf;
-  return GST_FLOW_OK;
+error:
+  if (ret == GST_FLOW_OK)
+    *buffer = buf;
+  else
+    gst_buffer_unref (buf);
 
-error_buffer_unref:
-  gst_buffer_unref (buf);
-  return GST_FLOW_ERROR;
+  return ret;
 }
 
 /**

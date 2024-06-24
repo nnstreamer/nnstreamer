@@ -206,7 +206,7 @@ _mvncsdk2_open (const GstTensorFilterProperties * prop, void **private_data)
   /**
    * 5. Get the tensor desciptions for input and output form allocated model
    */
-  len = sizeof (tensor_desc_input);
+  len = (guint32) sizeof (tensor_desc_input);
   ret_code =
       ncGraphGetOption (handle_graph, NC_RO_GRAPH_INPUT_TENSOR_DESCRIPTORS,
       &tensor_desc_input, &len);
@@ -215,7 +215,7 @@ _mvncsdk2_open (const GstTensorFilterProperties * prop, void **private_data)
     goto err_destroy_graph_h;
   }
 
-  len = sizeof (tensor_desc_output);
+  len = (guint32) sizeof (tensor_desc_output);
   ret_code =
       ncGraphGetOption (handle_graph, NC_RO_GRAPH_OUTPUT_TENSOR_DESCRIPTORS,
       &tensor_desc_output, &len);
