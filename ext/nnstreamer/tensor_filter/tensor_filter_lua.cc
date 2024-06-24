@@ -405,18 +405,23 @@ lua_subplugin::setTensorsInfo (GstTensorsInfo &tensors_info)
         lua_pushinteger (L, j);
         lua_gettable (L, -2);
         if (lua_istable (L, -1)) {
-          uint len = lua_objlen (L, -1);
-          for (uint i = 1; i <= len; ++i) {
+          int d;
+          size_t i, len = lua_objlen (L, -1);
+
+          if (len > NNS_TENSOR_RANK_LIMIT)
+            throw std::invalid_argument ("Failed to parse `dim`. Invalid dim length.");
+
+          for (i = 1; i <= len; ++i) {
             lua_pushinteger (L, i);
             lua_gettable (L, -2);
-            if (lua_isnumber (L, -1)) {
-              _info->dimension[i - 1] = lua_tointeger (L, -1);
+            if (lua_isnumber (L, -1) && (d = lua_tointeger (L, -1)) > 0) {
+              _info->dimension[i - 1] = (uint32_t) d;
             } else {
               throw std::invalid_argument ("Failed to parse `dim`. Please check the script");
             }
             lua_pop (L, 1);
           }
-          for (uint i = len + 1; i <= NNS_TENSOR_RANK_LIMIT; i++) {
+          for (i = len + 1; i <= NNS_TENSOR_RANK_LIMIT; i++) {
             _info->dimension[i - 1] = 0;
           }
         } else {
