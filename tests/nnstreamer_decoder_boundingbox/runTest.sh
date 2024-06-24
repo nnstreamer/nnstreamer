@@ -118,6 +118,10 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov8_decode
 
 callCompareTest yolov8_result_golden.raw yolov8_result_0.log "8 diff" "yolov8 golden" 0
 
+# negative case for box properties
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=10 ! video/x-raw,format=RGB,width=224,height=224,framerate=0/1 ! videoconvert ! tensor_converter ! tensor_decoder mode=bounding_boxes option1=wrong_mode_name ! fakesink " 9_n 0 1
+
 rm yolov*.log
 
 report
