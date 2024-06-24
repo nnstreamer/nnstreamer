@@ -166,7 +166,7 @@ typedef struct _GstTensorFilterPrivate
   gint latency_mode;     /**< latency profiling mode (0: off, 1: on, ...) */
   gint throughput_mode;  /**< throughput profiling mode (0: off, 1: on, ...) */
   gboolean latency_reporting; /**< reporting of estimated filter latency is enabled */
-  guint64 latency_reported; /**< latency value reported (ns) in last LATENCY query */
+  gint64 latency_reported; /**< latency value reported (ns) in last LATENCY query */
 
   GstTensorFilterCombination combi;
 } GstTensorFilterPrivate;
