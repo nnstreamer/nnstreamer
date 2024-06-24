@@ -752,7 +752,7 @@ gst_data_repo_src_read_flexible_or_sparse_tensors (GstDataRepoSrc * src,
   gssize read_size;
   guint8 *data;
   guint tensor_count;
-  guint tensor_size;
+  gsize tensor_size;
 
   g_return_val_if_fail (src->fd != 0, GST_FLOW_ERROR);
   g_return_val_if_fail (src->shuffled_index_array != NULL, GST_FLOW_ERROR);
