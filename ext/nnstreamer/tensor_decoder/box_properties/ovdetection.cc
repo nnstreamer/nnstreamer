@@ -45,46 +45,46 @@ class OVDetection : public BoxProperties
  * @param[in] typename nnstreamer enum corresponding to the type
  * @param[out] results The object returned. (GArray with detectedObject)
  */
-#define _get_persons_ov(type, inputptr, typename, results)                                                   \
-  case typename:                                                                                             \
-    {                                                                                                        \
-      detectedObject object = {                                                                              \
-        .valid = FALSE, .class_id = 0, .x = 0, .y = 0, .width = 0, .height = 0, .prob = .0, .tracking_id = 0 \
-      };                                                                                                     \
-      type *typed_inputptr = (type *) inputptr;                                                              \
-      guint d;                                                                                               \
-                                                                                                             \
-      for (d = 1; d <= DETECTION_MAX; ++d) {                                                                 \
-        struct {                                                                                             \
-          type image_id;                                                                                     \
-          type label;                                                                                        \
-          type conf;                                                                                         \
-          type x_min;                                                                                        \
-          type y_min;                                                                                        \
-          type x_max;                                                                                        \
-          type y_max;                                                                                        \
-        } desc;                                                                                              \
-                                                                                                             \
-        memcpy (&desc, typed_inputptr, sizeof (desc));                                                       \
-        typed_inputptr += (sizeof (desc) / sizeof (type));                                                   \
-        object.valid = FALSE;                                                                                \
-                                                                                                             \
-        if ((int) desc.image_id < 0) {                                                                       \
-          max_detection = (d - 1);                                                                           \
-          break;                                                                                             \
-        }                                                                                                    \
-        object.class_id = -1;                                                                                \
-        object.x = (int) (desc.x_min * (type) i_width);                                                      \
-        object.y = (int) (desc.y_min * (type) i_height);                                                     \
-        object.width = (int) ((desc.x_max - desc.x_min) * (type) i_width);                                   \
-        object.height = (int) ((desc.y_max - desc.y_min) * (type) i_height);                                 \
-        if (desc.conf < OV_PERSON_DETECTION_CONF_THRESHOLD)                                                  \
-          continue;                                                                                          \
-        object.prob = 1;                                                                                     \
-        object.valid = TRUE;                                                                                 \
-        g_array_append_val (results, object);                                                                \
-      }                                                                                                      \
-    }                                                                                                        \
+#define _get_persons_ov(type, inputptr, typename, results)                                                     \
+  case typename:                                                                                               \
+    {                                                                                                          \
+      type *typed_inputptr = (type *) inputptr;                                                                \
+      guint d;                                                                                                 \
+                                                                                                               \
+      for (d = 1; d <= DETECTION_MAX; ++d) {                                                                   \
+        struct {                                                                                               \
+          type image_id;                                                                                       \
+          type label;                                                                                          \
+          type conf;                                                                                           \
+          type x_min;                                                                                          \
+          type y_min;                                                                                          \
+          type x_max;                                                                                          \
+          type y_max;                                                                                          \
+        } desc;                                                                                                \
+                                                                                                               \
+        memcpy (&desc, typed_inputptr, sizeof (desc));                                                         \
+        typed_inputptr += (sizeof (desc) / sizeof (type));                                                     \
+                                                                                                               \
+        if ((int) desc.image_id < 0) {                                                                         \
+          max_detection = (d - 1);                                                                             \
+          break;                                                                                               \
+        }                                                                                                      \
+        if ((double) desc.conf < OV_PERSON_DETECTION_CONF_THRESHOLD)                                           \
+          continue;                                                                                            \
+                                                                                                               \
+        detectedObject object = {                                                                              \
+          .valid = FALSE, .class_id = 0, .x = 0, .y = 0, .width = 0, .height = 0, .prob = .0, .tracking_id = 0 \
+        };                                                                                                     \
+        object.class_id = -1;                                                                                  \
+        object.x = (int) (desc.x_min * (type) i_width);                                                        \
+        object.y = (int) (desc.y_min * (type) i_height);                                                       \
+        object.width = (int) ((desc.x_max - desc.x_min) * (type) i_width);                                     \
+        object.height = (int) ((desc.y_max - desc.y_min) * (type) i_height);                                   \
+        object.prob = 1;                                                                                       \
+        object.valid = TRUE;                                                                                   \
+        g_array_append_val (results, object);                                                                  \
+      }                                                                                                        \
+    }                                                                                                          \
     break
 
 static BoxProperties *ov_detection = nullptr;
