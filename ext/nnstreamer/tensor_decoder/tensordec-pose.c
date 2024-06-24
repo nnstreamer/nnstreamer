@@ -637,18 +637,20 @@ draw_label (uint32_t * frame, pose_data * data, pose * xydata)
   int x1, y1, x2, y2;
   uint32_t *pos1, *pos2;
 
-  guint i, j, label_len;
+  guint i;
   guint pose_size = data->total_labels;
   char *label;
   for (i = 0; i < pose_size; i++) {
     if (xydata[i].valid) {
       pose_metadata_t *md = pose_get_metadata_by_id (data, i);
+      gsize j, label_len;
+
       x1 = xydata[i].x;
       y1 = xydata[i].y;
       if (md == NULL)
         continue;
       label = md->label;
-      label_len = strlen (label);
+      label_len = label ? strlen (label) : 0;
       y1 = MAX (0, (y1 - 14));
       pos1 = &frame[y1 * data->width + x1];
       for (j = 0; j < label_len; j++) {

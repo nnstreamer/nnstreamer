@@ -481,7 +481,8 @@ static void
 track_latency (GstTensorFilter * self)
 {
   GstTensorFilterPrivate *priv = &self->priv;
-  gdouble estimated, reported, deviation;
+  gint64 estimated, reported;
+  gdouble deviation;
 
   GST_OBJECT_LOCK (self);
   estimated = priv->prop.latency * GST_USECOND;
@@ -495,8 +496,8 @@ track_latency (GstTensorFilter * self)
       deviation = 0;
 
     if ((estimated > reported) || (deviation > LATENCY_REPORT_THRESHOLD)) {
-
-      ml_logd ("[%s] latency reported:%.0f estimated:%.0f deviation:%.4f",
+      ml_logd
+          ("[%s] latency reported:%" G_GINT64_FORMAT " estimated:%" G_GINT64_FORMAT " deviation:%.4f",
           TF_MODELNAME (&(priv->prop)), reported, estimated, deviation);
 
       gst_element_post_message (GST_ELEMENT_CAST (self),
@@ -1398,7 +1399,7 @@ gst_tensor_filter_query (GstBaseTransform * trans,
               GST_TIME_FORMAT " max %" GST_TIME_FORMAT,
               GST_TIME_ARGS (min), GST_TIME_ARGS (max));
 
-          latency = (gdouble) estimated *GST_USECOND *
+          latency = (gdouble) estimated * GST_USECOND *
               (1 + LATENCY_REPORT_HEADROOM);
           priv->latency_reported = (gint64) latency;
 
