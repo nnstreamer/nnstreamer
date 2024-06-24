@@ -1,4 +1,4 @@
-name: Build test/ Android NDK r12b
+name: Build test/ Android NDK r25c
 
 on:
   pull_request:
@@ -20,7 +20,7 @@ jobs:
     - if: env.rebuild == '1'
       uses: nttld/setup-ndk@v1
       with:
-        ndk-version: r12b
+        ndk-version: r25c
         link-to-sdk: true
     ## @todo Make cache works (daily update cache on main branch / restore the cache on each PR (w/o saving))
     - name: Prepare Build
@@ -34,12 +34,10 @@ jobs:
           echo "Gst-Root-Android cached."
         else
           echo "::group::Download prebuilt Android-Gstreamer libraries"
-          mkdir -p ~/android/gst_root_android/arm64
-          pushd ~/android/gst_root_android/arm64
-          wget http://ci.nnstreamer.ai/warehouse/gstreamer-prebuilts-for-android-device/gst_root_android-custom-1.12.4-ndkr12b-20190213-0900/gstreamer-1.0-android-arm64-1.12.4-runtime.tar.bz2
-          wget http://ci.nnstreamer.ai/warehouse/gstreamer-prebuilts-for-android-device/gst_root_android-custom-1.12.4-ndkr12b-20190213-0900/gstreamer-1.0-android-arm64-1.12.4.tar.bz2
-          tar -xf gstreamer-1.0-android-arm64-1.12.4-runtime.tar.bz2
-          tar -xf gstreamer-1.0-android-arm64-1.12.4.tar.bz2
+          mkdir -p ~/android/gst_root_android/
+          pushd ~/android/gst_root_android/
+          wget https://gstreamer.freedesktop.org/pkg/android/1.24.0/gstreamer-1.0-android-universal-1.24.0.tar.xz
+          tar -xf gstreamer-1.0-android-universal-1.24.0.tar.xz
           popd
           echo "::endgroup::"
         fi
@@ -67,16 +65,7 @@ jobs:
         cp ./libs/arm64-v8a/libnnstreamer.so $GSTREAMER_ROOT_ANDROID/arm64/lib/gstreamer-1.0/
         export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:./libs/arm64-v8a
 
-        # Workaround for the gstreamer-android prebuild binary build glitches
-        result=$(readelf -d ~/android/gst_root_android/arm64/lib/libfontconfig.so | grep "/data/nnstreamer/cerbero.custom-1.12.4-ndkr12b-20190213-0900/build/dist/android_arm64/lib")
-        if [[ ! -z $result ]]; then
-          echo "Warning: the given prebuilt binaries for Android have incorrect rpaths."
-          sudo mkdir -p /data/nnstreamer/cerbero.custom-1.12.4-ndkr12b-20190213-0900/build/dist/android_arm64/
-          sudo ln -s ~/android/gst_root_android/arm64/lib /data/nnstreamer/cerbero.custom-1.12.4-ndkr12b-20190213-0900/build/dist/android_arm64/lib
-        fi
-
         echo "::group::Build a test application"
         ndk-build NDK_PROJECT_PATH=. APP_BUILD_SCRIPT=./Android-app.mk NDK_APPLICATION_MK=./Application.mk -j$(nproc)
-        ls -la /data/nnstreamer/cerbero.custom-1.12.4-ndkr12b-20190213-0900/build/dist/android_arm64/lib/
         echo "::endgroup::"
         cd ..
