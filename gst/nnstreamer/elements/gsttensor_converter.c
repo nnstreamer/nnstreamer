@@ -1158,6 +1158,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     case _NNS_OCTET:
       if (gst_tensors_config_is_flexible (config)) {
         /* update dimension with buffer size */
+        g_assert (buf_size <= G_MAXUINT32);
         config->info.info[0].dimension[0] = buf_size;
         frame_size = buf_size;
       } else {
