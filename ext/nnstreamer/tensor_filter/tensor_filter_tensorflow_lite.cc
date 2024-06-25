@@ -125,9 +125,29 @@ typedef enum {
   TFLITE_DELEGATE_NNAPI,
   TFLITE_DELEGATE_XNNPACK,
   TFLITE_DELEGATE_EXTERNAL,
+  TFLITE_DELEGATE_QNN,
 
   TFLITE_DELEGATE_MAX
 } tflite_delegate_e;
+
+/**
+ * @brief Internal enum for QNN backend type.
+ */
+typedef enum QNNBackendType {
+  QNN_BACKEND_UNDEFINED = 0,
+  QNN_BACKEND_GPU,
+  QNN_BACKEND_HTP,
+  QNN_BACKEND_DSP
+} QNNBackendType;
+
+/**
+ * @brief Internal enum for QNN Performance mode.
+ */
+typedef enum QNNPerformanceMode {
+  QNN_PERFMODE_Default = 0,
+  QNN_PERFMODE_HighPerf,
+  QNN_PERFMODE_PowerSaver
+} QNNPerformanceMode;
 
 /**
  * @brief Option to open tf-lite model.
@@ -139,6 +159,8 @@ typedef struct {
   gint num_threads; /**< the number of threads */
   const gchar *ext_delegate_path; /**< path to external delegate lib */
   GHashTable *ext_delegate_kv_table; /**< external delegate key values options */
+  QNNBackendType qnn_backend_type; /**< QNN Delegate backend type */
+  QNNPerformanceMode qnn_performance_mode; /**< QNN Delegate performance mode */
 } tflite_option_s;
 
 /**
@@ -228,6 +250,8 @@ class TFLiteInterpreter
   bool is_xnnpack_delegated; /**< To check if XNNPACK delegate is used */
   char *ext_delegate_path; /**< path to external delegate lib */
   GHashTable *ext_delegate_kv_table; /**< external delegate key values options */
+  QNNBackendType qnn_backend_type; /**< QNN Delegate backend type */
+  QNNPerformanceMode qnn_performance_mode; /**< QNN Delegate performance mode */
 
   std::unique_ptr<tflite::Interpreter> interpreter;
   std::unique_ptr<tflite::FlatBufferModel> model;
@@ -242,6 +266,7 @@ class TFLiteInterpreter
   int setTensorProp (const std::vector<int> &tensor_idx_list, GstTensorsInfo *tensorMeta);
 
   tflite::Interpreter::TfLiteDelegatePtr delegate_ptr; /**< single delegate supported */
+  friend class TFLiteCore;
 };
 
 /**
@@ -305,6 +330,7 @@ TFLiteInterpreter::TFLiteInterpreter ()
   model_path = nullptr;
   ext_delegate_path = nullptr;
   ext_delegate_kv_table = nullptr;
+  qnn_backend_type = QNN_BACKEND_UNDEFINED;
 
   g_mutex_init (&mutex);
 
@@ -555,6 +581,64 @@ TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate_e)
         setDelegate (delegate, deleter);
 #else
         ml_logw ("NNStreamer was built without external delegate. Given delegate option external is ignored.");
+#endif
+        break;
+      }
+    case TFLITE_DELEGATE_QNN:
+      {
+#ifdef TFLITE_QNN_DELEGATE_SUPPORTED
+        QnnDelegateApiVersion qnn_delegate_api_version = TfLiteQnnDelegateGetApiVersion ();
+        nns_logi ("QNN Delegate API version: %u.%u.%u", qnn_delegate_api_version.major,
+            qnn_delegate_api_version.minor, qnn_delegate_api_version.patch);
+
+        TfLiteQnnDelegateOptions options = TfLiteQnnDelegateOptionsDefault ();
+
+        /* Set backend type (GPU, HTP, DSP) */
+        switch (qnn_backend_type) {
+          case QNN_BACKEND_GPU:
+            options.backend_type = kGpuBackend;
+            break;
+          case QNN_BACKEND_HTP:
+            options.backend_type = kHtpBackend;
+            break;
+          case QNN_BACKEND_DSP:
+            options.backend_type = kDspBackend;
+            break;
+          default:
+            ml_loge ("Please set proper QNN Backend option");
+            return -1;
+        }
+
+        /* Set performance mode (default, high performance, power saver) */
+        switch (qnn_performance_mode) {
+          case QNN_PERFMODE_HighPerf:
+            options.dsp_options.performance_mode = kDspHighPerformance;
+            options.htp_options.performance_mode = kHtpHighPerformance;
+            options.gpu_options.performance_mode = kGpuHigh;
+            break;
+          case QNN_PERFMODE_PowerSaver:
+            options.dsp_options.performance_mode = kDspPowerSaver;
+            options.htp_options.performance_mode = kHtpPowerSaver;
+            options.gpu_options.performance_mode = kGpuLow;
+            break;
+          case QNN_PERFMODE_Default:
+            // do nothing
+            break;
+          default:
+            break;
+        }
+
+        /* Set log level as Warn */
+        options.log_level = kLogLevelWarn;
+
+        delegate = TfLiteQnnDelegateCreate (&options);
+        void (*deleter) (TfLiteDelegate *) = [] (TfLiteDelegate *delegate_) {
+          TfLiteQnnDelegateDelete (delegate_);
+        };
+
+        setDelegate (delegate, deleter);
+#else
+        ml_logw ("NNStreamer was built without QNN delegate. Given delegate option QNN is ignored.");
 #endif
         break;
       }
@@ -995,6 +1079,8 @@ TFLiteCore::init (tflite_option_s *option)
 {
   interpreter->setModelPath (option->model_file);
   interpreter->setExtDelegate (option->ext_delegate_path, option->ext_delegate_kv_table);
+  interpreter->qnn_backend_type = option->qnn_backend_type;
+  interpreter->qnn_performance_mode = option->qnn_performance_mode;
   num_threads = option->num_threads;
   int err;
 
@@ -1294,6 +1380,8 @@ tflite_parseCustomOption (const GstTensorFilterProperties *prop, tflite_option_s
   option->num_threads = -1;
   option->ext_delegate_path = nullptr;
   option->ext_delegate_kv_table = nullptr;
+  option->qnn_backend_type = QNN_BACKEND_UNDEFINED;
+  option->qnn_performance_mode = QNN_PERFMODE_Default;
 
   if (prop->custom_properties) {
     gchar **strv;
@@ -1320,6 +1408,8 @@ tflite_parseCustomOption (const GstTensorFilterProperties *prop, tflite_option_s
             option->delegate = TFLITE_DELEGATE_XNNPACK;
           else if (g_ascii_strcasecmp (pair[1], "External") == 0)
             option->delegate = TFLITE_DELEGATE_EXTERNAL;
+          else if (g_ascii_strcasecmp (pair[1], "QNN") == 0)
+            option->delegate = TFLITE_DELEGATE_QNN;
           else
             ml_logw ("Unknown option to set tensorflow-lite delegate (%s).", pair[1]);
         } else if (g_ascii_strcasecmp (pair[0], "ExtDelegateLib") == 0) {
@@ -1347,6 +1437,27 @@ tflite_parseCustomOption (const GstTensorFilterProperties *prop, tflite_option_s
             g_strfreev (kv);
           }
           g_strfreev (kvpairs);
+        } else if (g_ascii_strcasecmp (pair[0], "QNNBackend") == 0) {
+          /* parse QNN Delegate Backend custom options */
+          if (g_ascii_strcasecmp (pair[1], "HTP") == 0)
+            option->qnn_backend_type = QNN_BACKEND_HTP;
+          else if (g_ascii_strcasecmp (pair[1], "DSP") == 0)
+            option->qnn_backend_type = QNN_BACKEND_DSP;
+          else if (g_ascii_strcasecmp (pair[1], "GPU") == 0)
+            option->qnn_backend_type = QNN_BACKEND_GPU;
+          else
+            ml_logw ("Unknown QNN backend option (%s).", pair[1]);
+        } else if (g_ascii_strcasecmp (pair[0], "QNNPerformanceMode") == 0) {
+          /* parse QNN Delegate Performance mode custom options */
+          if (g_ascii_strcasecmp (pair[1], "default") == 0)
+            option->qnn_performance_mode = QNN_PERFMODE_Default;
+          else if (g_ascii_strcasecmp (pair[1], "highperformance") == 0)
+            option->qnn_performance_mode = QNN_PERFMODE_HighPerf;
+          else if (g_ascii_strcasecmp (pair[1], "powersaver") == 0)
+            option->qnn_performance_mode = QNN_PERFMODE_PowerSaver;
+          else
+            ml_logw ("Unknown option for QNN perf mode: %s. Please set one of { \"default\", \"highperformance\", \"powersaver\" }",
+                pair[1]);
         } else {
           ml_logw ("Unknown option (%s).", strv[i]);
         }
