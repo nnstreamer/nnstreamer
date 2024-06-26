@@ -491,7 +491,7 @@ track_latency (GstTensorFilter * self)
 
   if ((priv->latency_reporting) && (estimated > 0)) {
     if (reported > 0)
-      deviation = ABS (estimated - reported) / reported;
+      deviation = (gdouble) ABS (estimated - reported) / reported;
     else
       deviation = 0;
 
