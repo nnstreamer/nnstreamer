@@ -571,7 +571,7 @@ gst_data_repo_src_read_tensors (GstDataRepoSrc * src, GstBuffer ** buffer)
 {
   GstFlowReturn ret = GST_FLOW_OK;
   guint i = 0, seq_idx = 0;
-  GstBuffer *buf;
+  GstBuffer *buf = NULL;
   gsize to_read, byte_read;
   gssize read_size;
   guint8 *data;
@@ -683,6 +683,7 @@ gst_data_repo_src_read_tensors (GstDataRepoSrc * src, GstBuffer ** buffer)
 
     gst_tensor_buffer_append_memory (buf, mem,
         gst_tensors_info_get_nth_info (&src->config.info, i));
+    mem = NULL;
   }
 
   *buffer = buf;
@@ -694,8 +695,8 @@ error:
     gst_memory_unmap (mem, &info);
     gst_memory_unref (mem);
   }
-
-  gst_buffer_unref (buf);
+  if (buf)
+    gst_buffer_unref (buf);
 
   return ret;
 }
@@ -709,19 +710,24 @@ gst_data_repo_src_get_num_tensors (GstDataRepoSrc * src, guint shuffled_index)
   guint num_tensors = 0;
   guint cur_idx_tensor_cnt = 0;
   guint next_idx_tensor_cnt = 0;
+  gint64 val;
 
   g_return_val_if_fail (src != NULL, 0);
 
-  cur_idx_tensor_cnt =
-      json_array_get_int_element (src->tensor_count_array, shuffled_index);
+  val = json_array_get_int_element (src->tensor_count_array, shuffled_index);
+  g_return_val_if_fail (val >= 0, 0);
+
+  cur_idx_tensor_cnt = (guint) val;
   GST_DEBUG_OBJECT (src, "cur_idx_tensor_cnt:%u", cur_idx_tensor_cnt);
 
   if (shuffled_index + 1 == src->tensor_count_array_len) {
     next_idx_tensor_cnt = src->tensor_size_array_len;
   } else {
-    next_idx_tensor_cnt =
-        json_array_get_int_element (src->tensor_count_array,
+    val = json_array_get_int_element (src->tensor_count_array,
         shuffled_index + 1);
+    g_return_val_if_fail (val >= 0, 0);
+
+    next_idx_tensor_cnt = (guint) val;
   }
   GST_DEBUG_OBJECT (src, "next_idx_tensor_cnt:%u", next_idx_tensor_cnt);
 
@@ -741,10 +747,10 @@ gst_data_repo_src_read_flexible_or_sparse_tensors (GstDataRepoSrc * src,
   GstFlowReturn ret = GST_FLOW_OK;
   guint i;
   guint shuffled_index = 0;
-  gint64 sample_offset;
+  gint64 val;
   guint num_tensors = 0;
-  GstBuffer *buf;
-  GstMemory *mem;
+  GstBuffer *buf = NULL;
+  GstMemory *mem = NULL;
   GstMapInfo info;
   GstTensorMetaInfo meta;
   GstTensorInfo tinfo;
@@ -779,22 +785,37 @@ gst_data_repo_src_read_flexible_or_sparse_tensors (GstDataRepoSrc * src,
       shuffled_index);
 
   /* sample offset from 0 */
-  sample_offset =
-      json_array_get_int_element (src->sample_offset_array, shuffled_index);
-  GST_LOG_OBJECT (src, "sample offset 0x%" G_GINT64_MODIFIER "x (%d size)",
-      sample_offset, (guint) sample_offset);
+  val = json_array_get_int_element (src->sample_offset_array, shuffled_index);
+  if (val < 0) {
+    GST_ERROR_OBJECT (src, "Could not get the sample offset from json.");
+    return GST_FLOW_ERROR;
+  }
 
-  src->fd_offset = lseek (src->fd, sample_offset, SEEK_SET);
+  GST_LOG_OBJECT (src, "sample offset 0x%" G_GINT64_MODIFIER "x (%d size)",
+      val, (guint) val);
+
+  src->fd_offset = lseek (src->fd, val, SEEK_SET);
+
+  val = json_array_get_int_element (src->tensor_count_array, shuffled_index);
+  if (val < 0) {
+    GST_ERROR_OBJECT (src, "Could not get the tensor count from json.");
+    return GST_FLOW_ERROR;
+  }
+  tensor_count = (guint) val;
+
+  num_tensors = gst_data_repo_src_get_num_tensors (src, shuffled_index);
 
   buf = gst_buffer_new ();
 
-  tensor_count =
-      json_array_get_int_element (src->tensor_count_array, shuffled_index);
-  num_tensors = gst_data_repo_src_get_num_tensors (src, shuffled_index);
-
   for (i = 0; i < num_tensors; i++) {
-    tensor_size =
-        json_array_get_int_element (src->tensor_size_array, tensor_count + i);
+    val = json_array_get_int_element (src->tensor_size_array, tensor_count + i);
+    if (val < 0) {
+      GST_ERROR_OBJECT (src, "Could not get the size of tensor from json.");
+      ret = GST_FLOW_ERROR;
+      goto error;
+    }
+
+    tensor_size = (gsize) val;
     mem = gst_allocator_alloc (NULL, tensor_size, NULL);
 
     if (!gst_memory_map (mem, &info, GST_MAP_WRITE)) {
@@ -848,6 +869,7 @@ gst_data_repo_src_read_flexible_or_sparse_tensors (GstDataRepoSrc * src,
     gst_tensor_meta_info_convert (&meta, &tinfo);
     gst_tensor_buffer_append_memory (buf, mem, &tinfo);
     gst_tensor_info_free (&tinfo);
+    mem = NULL;
   }
 
   *buffer = buf;
@@ -859,7 +881,8 @@ error:
     gst_memory_unmap (mem, &info);
     gst_memory_unref (mem);
   }
-  gst_buffer_unref (buf);
+  if (buf)
+    gst_buffer_unref (buf);
 
   return ret;
 }
@@ -1396,6 +1419,7 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
   JsonObject *object;
   const gchar *caps_str = NULL;
   GstCaps *new_caps;
+  gint64 val;
 
   g_return_val_if_fail (src != NULL, FALSE);
   g_return_val_if_fail (src->json_filename != NULL, FALSE);
@@ -1458,7 +1482,14 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
       GST_ERROR_OBJECT (src, "There is not sample_size field: %s", contents);
       goto error;
     }
-    src->sample_size = json_object_get_int_member (object, "sample_size");
+
+    val = json_object_get_int_member (object, "sample_size");
+    if (val < 0) {
+      GST_ERROR_OBJECT (src, "Invalid sample_size: %" G_GINT64_FORMAT, val);
+      goto error;
+    }
+
+    src->sample_size = (gsize) val;
     GST_INFO_OBJECT (src, "sample_size: %zd", src->sample_size);
   }
 
@@ -1503,11 +1534,14 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
     goto error;
   }
 
-  src->total_samples = json_object_get_int_member (object, "total_samples");
-  GST_INFO_OBJECT (src, "total_samples: %d", src->total_samples);
-
-  if (src->total_samples == 0)
+  val = json_object_get_int_member (object, "total_samples");
+  if (val <= 0) {
+    GST_ERROR_OBJECT (src, "Invalid total_samples: %" G_GINT64_FORMAT, val);
     goto error;
+  }
+
+  src->total_samples = (guint) val;
+  GST_INFO_OBJECT (src, "total_samples: %u", src->total_samples);
 
   g_object_unref (file);
 
