@@ -57,13 +57,15 @@ struct _GstTensorTrainer
   gboolean fw_created;
   gboolean is_training_complete;
   gboolean is_epoch_complete;
-  gboolean ready_to_complete_training;
   unsigned int input_ranks[NNS_TENSOR_SIZE_LIMIT];
   unsigned int output_ranks[NNS_TENSOR_SIZE_LIMIT];
+
+  GstTensorMemory push_tensors[NNS_TENSOR_SIZE_LIMIT];
   GstTensorsInfo output_meta;
   GstTensorsConfig out_config;
   GstTensorsConfig in_config;
 
+  guint required_sample;
   guint cur_epoch_data_cnt;      /**< number of total push data in one eposh */
 
   void *privateData; /**< NNFW plugin's private data is stored here */
@@ -75,6 +77,8 @@ struct _GstTensorTrainer
   GCond training_completion_cond;
   GMutex epoch_completion_lock;
   GCond epoch_completion_cond;
+
+  GThread *dummy_data_thread; /**< Dummy data generation thread */
 };
 
 /**
