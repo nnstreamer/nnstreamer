@@ -15,7 +15,7 @@
 
 static char *path_to_lib = NULL;
 
-/** @brief Positive case for the simpliest execution path */
+/** @brief Positive case for the simplest execution path */
 TEST (cppFilterOnDemand, basic01)
 {
   filter_basic basic ("basic_01");
@@ -23,7 +23,7 @@ TEST (cppFilterOnDemand, basic01)
   EXPECT_EQ (basic._unregister (), 0);
 }
 
-/** @brief Negative case for the simpliest execution path */
+/** @brief Negative case for the simplest execution path */
 TEST (cppFilterOnDemand, basic02_n)
 {
   filter_basic basic ("basic_02");
@@ -34,7 +34,7 @@ TEST (cppFilterOnDemand, basic02_n)
   EXPECT_NE (basic._unregister (), 0);
 }
 
-/** @brief Negative case for the simpliest execution path w/ static calls */
+/** @brief Negative case for the simplest execution path w/ static calls */
 TEST (cppFilterOnDemand, basic03_n)
 {
   filter_basic basic ("basic_03");
@@ -45,7 +45,7 @@ TEST (cppFilterOnDemand, basic03_n)
   EXPECT_NE (filter_basic::__unregister ("basic_03"), 0);
 }
 
-/** @brief Negative case for the simpliest execution path w/ static calls */
+/** @brief Negative case for the simplest execution path w/ static calls */
 TEST (cppFilterOnDemand, basic04_n)
 {
   filter_basic basic ("basic_04");
@@ -126,8 +126,8 @@ TEST (cppFilterOnDemand, pipeline01)
   EXPECT_EQ (basic._unregister (), 0);
 }
 
-/** @brief Negative case for the simpliest execution path */
-TEST (cppFilterOnDemand, unregstered01_n)
+/** @brief Negative case for the simplest execution path */
+TEST (cppFilterOnDemand, unregistered01_n)
 {
   filter_basic basic ("basic_01");
   gchar *str_pipeline = g_strdup_printf (

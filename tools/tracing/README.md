@@ -160,7 +160,7 @@ $ GST_DEBUG="GST_TRACER:7" GST_TRACERS="buffer" gst-launch-1.0 videotestsrc ! fa
 
 #### gstshark-plot (Experimental/Unstable)
 gstshark-plot is a set of [Octave](https://www.gnu.org/software/octave/) scripts included with GstShark. The gstshark-plot scripts are located in scripts/graphics directory, inside the repository. The main script that processes the data is the gstshark-plot script. Currently, the scripts need to be run on this directory, but on upcoming releases the scripts will be accessible from any path. Make sure the GST_SHARK_CTF_DISABLE environment variable is unset, to enable the generation of the full traces.
-Note that you have to run "unset GST_SHARK_LOCATION" statement in order to archive output date into CTF (Commen Trace Format, ./gstshark_yyyy-mm-dd_hh:mm:ss/) folder.
+Note that you have to run "unset GST_SHARK_LOCATION" statement in order to archive output date into CTF (Common Trace Format, ./gstshark_yyyy-mm-dd_hh:mm:ss/) folder.
 * CTF (Common Trace Format) file: Directory with date and time with the traces of the latest session. 
 ```bash
 $ unset GST_SHARK_LOCATION

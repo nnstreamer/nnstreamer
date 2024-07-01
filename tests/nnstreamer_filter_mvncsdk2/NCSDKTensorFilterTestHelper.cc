@@ -40,7 +40,7 @@ compareTensorDesc (const struct ncTensorDescriptor_t &tensor1,
 }
 
 /**
- * @brief Default constuctor. Note that explicit invocation of init () is always
+ * @brief Default constructor. Note that explicit invocation of init () is always
  * required after getting the instance.
  */
 NCSDKTensorFilterTestHelper::NCSDKTensorFilterTestHelper ()

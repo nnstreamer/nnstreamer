@@ -1272,7 +1272,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       } else {
         /** @todo identify and printout the given input stream caps. */
         GST_ERROR_OBJECT (self,
-            "Tensor converter has an undefined behavior with type _NNS_MEDIA_ANY. It should've been custom-code or custom-script mode or a corrsponding external converter should've been registered (tensor_converter subplugin). However, nothing is available for the given input stream.");
+            "Tensor converter has an undefined behavior with type _NNS_MEDIA_ANY. It should've been custom-code or custom-script mode or a corresponding external converter should've been registered (tensor_converter subplugin). However, nothing is available for the given input stream.");
         goto error;
       }
       self->do_not_append_header =

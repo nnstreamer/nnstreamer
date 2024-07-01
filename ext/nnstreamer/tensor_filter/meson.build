@@ -483,7 +483,7 @@ if get_option('enable-edgetpu')
 
   edgetpu_dep = dependency('edgetpu', required: false)
   if not edgetpu_dep.found()
-    # Since the developement package for Ubuntu does not have pkgconfig file,
+    # Since the development package for Ubuntu does not have pkgconfig file,
     # check that the required header and library files exist in the system
     # include and lib directories.
     if cxx.has_header('edgetpu.h')

@@ -18,7 +18,7 @@
 /**
  * SECTION: element-tensor_reposrc
  *
- * Pop elemnt to handle tensor repo
+ * Pop element to handle tensor repo
  *
  * @file	gsttensor_reposrc.c
  * @date	19 Nov 2018
@@ -240,7 +240,7 @@ gst_tensor_reposrc_set_property (GObject * object, guint prop_id,
       if (new_caps && gst_caps_get_size (new_caps) == 1 && st
           && gst_structure_get_fraction (st, "framerate", &self->fps_n,
               &self->fps_d)) {
-        GST_INFO_OBJECT (self, "Seting framerate to %d/%d", self->fps_n,
+        GST_INFO_OBJECT (self, "Setting framerate to %d/%d", self->fps_n,
             self->fps_d);
       } else {
         self->fps_n = -1;

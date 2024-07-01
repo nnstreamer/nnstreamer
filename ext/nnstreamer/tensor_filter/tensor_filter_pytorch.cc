@@ -692,7 +692,7 @@ torch_invoke (const GstTensorFilterProperties *prop, void **private_data,
  * @brief The optional callback for GstTensorFilterFramework
  * @param prop property of tensor_filter instance
  * @param private_data : pytorch plugin's private data
- * @param[out] info The dimesions and types of input tensors
+ * @param[out] info The dimensions and types of input tensors
  */
 static gint
 torch_getInputDim (const GstTensorFilterProperties *prop, void **private_data,
@@ -709,7 +709,7 @@ torch_getInputDim (const GstTensorFilterProperties *prop, void **private_data,
  * @brief The optional callback for GstTensorFilterFramework
  * @param prop property of tensor_filter instance
  * @param private_data : pytorch plugin's private data
- * @param[out] info The dimesions and types of output tensors
+ * @param[out] info The dimensions and types of output tensors
  */
 static gint
 torch_getOutputDim (const GstTensorFilterProperties *prop, void **private_data,

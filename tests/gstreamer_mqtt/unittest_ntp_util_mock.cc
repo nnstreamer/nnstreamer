@@ -249,7 +249,7 @@ TEST_F (ntpUtilMockTest, getEpochReadFail_n)
 /**
  * @brief Test for ntp util to get epoch.
  */
-TEST_F (ntpUtilMockTest, getEpochIvalidTimestamp)
+TEST_F (ntpUtilMockTest, getEpochInvalidTimestamp)
 {
   int64_t ret;
 

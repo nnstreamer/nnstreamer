@@ -62,8 +62,8 @@
  *     "Already registered (-EINVAL)" may occur.
  *
  */
-#ifndef __NNS_TENSOR_FITLER_CPP_H__
-#define __NNS_TENSOR_FITLER_CPP_H__
+#ifndef __NNS_TENSOR_FILTER_CPP_H__
+#define __NNS_TENSOR_FILTER_CPP_H__
 
 #ifdef __cplusplus
 
@@ -156,4 +156,4 @@ class tensor_filter_cpp
 
 #endif /* __cplusplus */
 
-#endif /* __NNS_TENSOR_FITLER_CPP_H__ */
+#endif /* __NNS_TENSOR_FILTER_CPP_H__ */

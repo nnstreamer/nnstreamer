@@ -53,7 +53,7 @@ get_file_path (const gchar *filename)
  * num-validation-samples: num-validation-samples, A sample can consist of
  * multiple inputs and labels in tensors(in case of MNIST, all is 1), set how
  * many samples are taken for validation model. epochs : epochs are repetitions
- * of training samples and validation smaples. number of samples received for
+ * of training samples and validation samples. number of samples received for
  * model training is (num-training-samples + num-validation-samples) * epochs
  */
 TEST (tensor_trainer, SetParams)
@@ -166,7 +166,7 @@ TEST (tensor_trainer, invalidFramework0_n)
   /* set invalid param */
   g_object_set (GST_OBJECT (tensor_trainer), "framework", NULL, NULL);
 
-  /* state chagne failure is expected */
+  /* state change failure is expected */
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (GST_OBJECT (tensor_trainer));
@@ -209,7 +209,7 @@ TEST (tensor_trainer, invalidFramework1_n)
   /* set invalid param */
   g_object_set (GST_OBJECT (tensor_trainer), "framework", "no_framework", NULL);
 
-  /* state chagne failure is expected */
+  /* state change failure is expected */
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (GST_OBJECT (tensor_trainer));
@@ -248,7 +248,7 @@ TEST (tensor_trainer, invalidModelConfig0_n)
   /* set invalid param */
   g_object_set (GST_OBJECT (tensor_trainer), "model-config", NULL, NULL);
 
-  /* state chagne failure is expected */
+  /* state change failure is expected */
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (GST_OBJECT (tensor_trainer));
@@ -289,7 +289,7 @@ TEST (tensor_trainer, invalidModelConfig1_n)
   /* set invalid param */
   g_object_set (GST_OBJECT (tensor_trainer), "model-config", non_existent_path, NULL);
 
-  /* state chagne failure is expected */
+  /* state change failure is expected */
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   g_free (non_existent_path);
@@ -332,7 +332,7 @@ TEST (tensor_trainer, invalidModelSavePath0_n)
   /* set invalid param */
   g_object_set (GST_OBJECT (tensor_trainer), "model-save-path", NULL, NULL);
 
-  /* state chagne failure is expected */
+  /* state change failure is expected */
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (GST_OBJECT (tensor_trainer));
@@ -378,7 +378,7 @@ TEST (tensor_trainer, invalidModelNumTrainingSamples0_n)
   /** value "-1" is out of range for property 'num-training-samples' of type
      'guint' default value is set */
   g_object_get (GST_OBJECT (tensor_trainer), "num-training-samples", &get_value, NULL);
-  /* state chagne failure is expected */
+  /* state change failure is expected */
   EXPECT_EQ (get_value, 0U);
 
   gst_object_unref (GST_OBJECT (tensor_trainer));
@@ -424,7 +424,7 @@ TEST (tensor_trainer, invalidModelNumValidationSamples0_n)
   /** value "-1" is out of range for property 'num-validation-samples' of type
      'guint' default value is set */
   g_object_get (GST_OBJECT (tensor_trainer), "num-validation-samples", &get_value, NULL);
-  /* state chagne failure is expected */
+  /* state change failure is expected */
   EXPECT_EQ (get_value, 0U);
 
   gst_object_unref (GST_OBJECT (tensor_trainer));
@@ -470,7 +470,7 @@ TEST (tensor_trainer, invalidEpochs0_n)
   /** value "-1" is out of range for property 'epochs' of type 'guint'
      default value is set */
   g_object_get (GST_OBJECT (tensor_trainer), "epochs", &get_value, NULL);
-  /* state chagne failure is expected */
+  /* state change failure is expected */
   EXPECT_EQ (get_value, 1U);
 
   gst_object_unref (GST_OBJECT (tensor_trainer));
@@ -516,7 +516,7 @@ TEST (tensor_trainer, invalidNumInputs0_n)
   /** value "-1" is out of range for property 'num-inputs' of type 'guint'
      default value is set */
   g_object_get (GST_OBJECT (tensor_trainer), "num-inputs", &get_value, NULL);
-  /* state chagne failure is expected */
+  /* state change failure is expected */
   EXPECT_EQ (get_value, 1U);
 
   gst_object_unref (GST_OBJECT (tensor_trainer));
@@ -562,7 +562,7 @@ TEST (tensor_trainer, invalidNumLabels0_n)
   /** value "-1" of type 'gint64' is invalid or out of range for property
      'num-labels' of type 'guint' default value is set */
   g_object_get (GST_OBJECT (tensor_trainer), "num-labels", &get_value, NULL);
-  /* state chagne failure is expected */
+  /* state change failure is expected */
   EXPECT_EQ (get_value, 1U);
 
   gst_object_unref (GST_OBJECT (tensor_trainer));

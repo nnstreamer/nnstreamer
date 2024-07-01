@@ -95,7 +95,7 @@ v4l2src name=cam_src ! videoscale ! videoconvert ! video/x-raw,width=640,height=
   ![tee-pipeline-img](./filter_tee.png)  
 
 #### Object detection using output combination option
-The orignal video frame is passed to output of tensor-filter using the property output-combination.  
+The original video frame is passed to output of tensor-filter using the property output-combination.  
   - launch script
 ```
 gst-launch-1.0 \
@@ -116,15 +116,15 @@ v4l2src name=cam_src ! videoscale ! videoconvert ! video/x-raw,width=640,height=
 ## Sub-Components
 
 ### Main ```tensor_filter.c```
-This is the main placeholder for all different subcomponents. With the property, ```FRAMEWORK```, this main component loads the proper subcomponent (e.g., tensorflow-lite support, custom support, or other addtional NNFW supports).  
+This is the main placeholder for all different subcomponents. With the property, ```FRAMEWORK```, this main component loads the proper subcomponent (e.g., tensorflow-lite support, custom support, or other additional NNFW supports).  
 The main component is supposed process the standard properties for subcomponents as well as processing the input/output dimensions.  
 The subcomponents as supposed to fill in ```GstTensor_Filter_Framework``` struct and register it with ```supported``` array in ```tensor_filter.h```.  
-Note that the registering sturcture may be updated later. (We may follow what ```Linux.kernel/drivers/devfreq/devfreq.c``` does)
+Note that the registering structure may be updated later. (We may follow what ```Linux.kernel/drivers/devfreq/devfreq.c``` does)
 
 ### Tensorflow-lite support, ```tensor_filter_tensorflow_lite.cc```
 This should fill in ```GstTensor_Filter_Framework``` supporting tensorflow_lite.  
 
 ### Custom function support, ```tensor_filter_custom.c```
 Neural network and streameline developers may define their own tensor postprocessing operations with tensor_filter_custom.  
-With ```nnstreamer-devel``` package installed at build time (e.g., ```BuildRequires: pkgconfig(nnstreamer)``` in .spec file), develerops can implement their own functions and expose their functions via ```NNStreamer_custom_class``` defined in ```tensor_fitler_custom.h```.  
+With ```nnstreamer-devel``` package installed at build time (e.g., ```BuildRequires: pkgconfig(nnstreamer)``` in .spec file), develerops can implement their own functions and expose their functions via ```NNStreamer_custom_class``` defined in ```tensor_filter_custom.h```.  
 The resulting custom developer plugin should exist as a shared library (.so) with the symbol NNStreamer_custom exposed with all the func defined in NNStreamer_custom_class.  

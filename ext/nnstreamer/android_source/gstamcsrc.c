@@ -162,7 +162,7 @@ static GstStateChangeReturn gst_amc_src_change_state (GstElement * element,
     GstStateChange transition);
 
 /**
- * @brief enum for propery
+ * @brief enum for property
  */
 typedef enum
 {

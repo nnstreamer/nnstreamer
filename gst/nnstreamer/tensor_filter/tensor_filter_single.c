@@ -238,7 +238,7 @@ g_tensor_filter_allocate_in_invoke (GTensorFilterSingle * self)
 }
 
 /**
- * @brief Called when the element starts processing, if fw not laoded
+ * @brief Called when the element starts processing, if fw not loaded
  * @param self "this" pointer
  * @return TRUE if there is no error.
  */

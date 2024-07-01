@@ -30,7 +30,7 @@ export VSI_NN_LOG_LEVEL=5
 
 #################### Build ################################################
 if [[ $BUILD == 1 ]]; then
-    echo -e "Compling source .........."
+    echo -e "Compiling source .........."
     rm -rf ./build 
     meson  -Denable-vivante=true  build 
     ninja -C build  
@@ -79,7 +79,7 @@ if [[ $RUN_TEST == 1 ]]; then
         start_time=$( date +%s.%N )
         $CMD
         if [[ $? != 0 ]]; then
-            echo -e "Oooops. The exectuion is failed. Pleasse fix a bug."
+            echo -e "Oooops. The execution is failed. Please fix a bug."
             exit 1
         fi
         elapsed_time=$( date +%s.%N --date="$start_time seconds ago" )

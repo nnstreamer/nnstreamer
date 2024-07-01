@@ -71,8 +71,8 @@ G_END_DECLS
 class ncnn_subplugin final : public tensor_filter_subplugin
 {
   public:
-  static void init_filter_ncnn (); /**< Dynamic library contstructor helper */
-  static void fini_filter_ncnn (); /**< Dynamic library desctructor helper */
+  static void init_filter_ncnn (); /**< Dynamic library constructor helper */
+  static void fini_filter_ncnn (); /**< Dynamic library destructor helper */
 
   ncnn_subplugin ();
   ~ncnn_subplugin ();

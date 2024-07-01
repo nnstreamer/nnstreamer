@@ -66,7 +66,7 @@ class Pipeline:
         self.sinks = []
 
     ##
-    # @brief add a filter instnace
+    # @brief add a filter instance
     def addFilter(self, _filter):
         self.filters[_filter.name] = _filter
 

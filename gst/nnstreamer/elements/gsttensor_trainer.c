@@ -234,7 +234,7 @@ gst_tensor_trainer_class_init (GstTensorTrainerClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_EPOCHS,
       g_param_spec_uint ("epochs", "Number of epoch",
-          "Epochs are repetitions of training samples and validation smaples, "
+          "Epochs are repetitions of training samples and validation samples, "
           "number of samples received for model training is "
           "(num-training-samples+num-validation-samples)*epochs", 0, G_MAXINT,
           DEFAULT_PROP_EPOCHS,
@@ -699,7 +699,7 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
     /** app need to send gst_element_send_event(tensor_trainer, gst_event_new_eos())
         after training_complete or set eos to datareposrc */
     GST_WARNING_OBJECT (trainer,
-        "Training is completed, buffer is dropped, please chagne state of pipeline");
+        "Training is completed, buffer is dropped, please change state of pipeline");
     return GST_FLOW_OK;
   }
 

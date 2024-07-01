@@ -67,7 +67,7 @@ file_exists (const std::string &name)
   return fhandle.good ();
 }
 
-/** @brief define the data type for NDArray, aliged with the definition in mshadow/base.h */
+/** @brief define the data type for NDArray, aligned with the definition in mshadow/base.h */
 enum TypeFlag {
   kFloat32 = 0,
   kFloat64 = 1,
@@ -155,7 +155,7 @@ Predictor::Predictor (const std::string &model_json_file, const std::string &mod
   }
   // Load the model
   LoadModel (model_json_file);
-  // Initilize the parameters
+  // Initialize the parameters
   LoadParameters (model_params_file);
 
   int dtype = GetDataLayerType ();
@@ -311,7 +311,7 @@ Predictor::LoadParameters (const std::string &model_parameters_file)
 }
 
 /**
- * @brief split loaded param map into arg parm and aux param with target context
+ * @brief split loaded param map into arg param and aux param with target context
  */
 void
 Predictor::SplitParamMap (const std::map<std::string, NDArray> &paramMap,

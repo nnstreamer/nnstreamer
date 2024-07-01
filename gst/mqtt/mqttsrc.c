@@ -161,7 +161,7 @@ _is_gst_buffer_timestamp_valid (GstBuffer * buf)
   return TRUE;
 }
 
-/** Function defintions */
+/** Function definitions */
 /**
  * @brief Initialize GstMqttSrc object
  */
@@ -748,7 +748,7 @@ gst_mqtt_src_create (GstBaseSrc * basesrc, guint64 offset, guint size,
       GstClockTime ulatency = GST_CLOCK_TIME_NONE;
       GstClock *clock;
 
-      /** This buffer is comming from the past. Drop it */
+      /** This buffer is coming from the past. Drop it. */
       if (!_is_gst_buffer_timestamp_valid (*buf)) {
         if (self->debug) {
           GST_DEBUG_OBJECT (self,

@@ -236,7 +236,7 @@ gst_tensor_repo_check_changed (guint nth, guint * newid, gboolean is_sink)
   g_return_val_if_fail (data != NULL, FALSE);
 
   if (DBG)
-    GST_DEBUG ("%dth RepoData : sink_chaned %d, src_changed %d\n", nth,
+    GST_DEBUG ("%dth RepoData : sink_changed %d, src_changed %d\n", nth,
         data->sink_changed, data->src_changed);
 
   if (is_sink) {

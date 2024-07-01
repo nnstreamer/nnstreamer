@@ -204,7 +204,7 @@ _mvncsdk2_open (const GstTensorFilterProperties * prop, void **private_data)
   }
 
   /**
-   * 5. Get the tensor desciptions for input and output form allocated model
+   * 5. Get the tensor descriptions for input and output form allocated model
    */
   len = (guint32) sizeof (tensor_desc_input);
   ret_code =

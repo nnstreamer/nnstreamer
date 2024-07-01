@@ -91,7 +91,7 @@ switch_slot_index (GstElement * tensor_repo)
 
 
 /**
- * @brief Main function to evalute tensor_repo dynamicity
+ * @brief Main function to evaluate tensor_repo dynamicity
  */
 int
 main (int argc, char *argv[])

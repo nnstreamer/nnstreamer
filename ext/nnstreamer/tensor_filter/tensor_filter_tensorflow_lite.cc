@@ -259,7 +259,7 @@ class TFLiteCore
   /** @brief callback method to delete interpreter for shared model */
   friend void free_interpreter (void *instance);
   /** @brief callback method to replace interpreter for shared model */
-  friend void replace_interpreter (void *instance, void *interperter);
+  friend void replace_interpreter (void *instance, void *interpreter);
 
   private:
   int num_threads;
@@ -304,7 +304,7 @@ TFLiteInterpreter::TFLiteInterpreter ()
 }
 
 /**
- * @brief TFLiteInterpreter desctructor
+ * @brief TFLiteInterpreter destructor
  */
 TFLiteInterpreter::~TFLiteInterpreter ()
 {
@@ -1162,10 +1162,10 @@ TFLiteCore::reloadInterpreter (TFLiteInterpreter *new_interpreter)
  * @brief callback method to replace interpreter for shared model
  */
 void
-replace_interpreter (void *instance, void *interperter)
+replace_interpreter (void *instance, void *interpreter)
 {
   TFLiteCore *core = reinterpret_cast<TFLiteCore *> (instance);
-  TFLiteInterpreter *interpreter_new = reinterpret_cast<TFLiteInterpreter *> (interperter);
+  TFLiteInterpreter *interpreter_new = reinterpret_cast<TFLiteInterpreter *> (interpreter);
   if (core->reloadInterpreter (interpreter_new) != 0)
     nns_loge ("Failed to replace interpreter");
 }
@@ -1470,7 +1470,7 @@ tflite_invoke (const GstTensorFilterProperties *prop, void **private_data,
  * @brief The optional callback for GstTensorFilterFramework
  * @param prop property of tensor_filter instance
  * @param private_data : tensorflow lite plugin's private data
- * @param[out] info The dimesions and types of input tensors
+ * @param[out] info The dimensions and types of input tensors
  */
 static int
 tflite_getInputDim (const GstTensorFilterProperties *prop, void **private_data,
@@ -1487,7 +1487,7 @@ tflite_getInputDim (const GstTensorFilterProperties *prop, void **private_data,
  * @brief The optional callback for GstTensorFilterFramework
  * @param prop property of tensor_filter instance
  * @param private_data : tensorflow lite plugin's private data
- * @param[out] info The dimesions and types of output tensors
+ * @param[out] info The dimensions and types of output tensors
  */
 static int
 tflite_getOutputDim (const GstTensorFilterProperties *prop, void **private_data,
@@ -1537,8 +1537,8 @@ recovery_fail:
  * @brief The optional callback for GstTensorFilterFramework
  * @param prop property of tensor_filter instance
  * @param private_data : tensorflow lite plugin's private data
- * @param in_info The dimesions and types of input tensors
- * @param[out] out_info The dimesions and types of output tensors
+ * @param in_info The dimensions and types of input tensors
+ * @param[out] out_info The dimensions and types of output tensors
  * @detail Output Tensor info is recalculated based on the set Input Tensor Info
  */
 static int
@@ -1590,7 +1590,7 @@ tflite_setInputDim (const GstTensorFilterProperties *prop, void **private_data,
   status = core->getOutputTensorDim (out_info);
   if (status != 0) {
     tflite_setInputDim_recovery (
-        core, &cur_in_info, "while retreiving update output tensor info", 2);
+        core, &cur_in_info, "while retrieving update output tensor info", 2);
     goto exit;
   }
 

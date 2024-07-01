@@ -59,7 +59,7 @@ namespace nnstreamer
  *         Unlike C-version, constructing an object will automatically
  *        register(probe) the subplugin for nnstreamer.
  *         Optional virtual functions (non pure virtual functions) may
- *        be kept un-overriden if you don't support such.
+ *        be kept un-overridden if you don't support such.
  *         For getInput/Output and setInput, return -EINVAL if you don't
  *        support it.
  *
@@ -68,7 +68,7 @@ namespace nnstreamer
 class tensor_filter_subplugin
 {
   private: /** Derived classes should NEVER access these */
-  const uint64_t sanity; /**< Checks if dlopened obejct is really tensor_filter_subplugin */
+  const uint64_t sanity; /**< Checks if dlopened object is really tensor_filter_subplugin */
 
   static const GstTensorFilterFramework
       fwdesc_template; /**< Template for fwdesc. Each subclass or object may
@@ -104,7 +104,7 @@ class tensor_filter_subplugin
    * @detail A derived class MUST register itself with this function in order
    *         to be available for nnstreamer pipelines, i.e., at its init().
    *         The derived class type should be the template typename.
-   * @retval Returns an "emptyInstnace" of the derived class. It is recommended
+   * @retval Returns an "emptyInstance" of the derived class. It is recommended
    *         to keep the object and feed to the unregister function.
    */
   template <typename T> static T *register_subplugin ()

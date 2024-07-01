@@ -197,7 +197,7 @@ typedef struct pose_metadata_s pose_metadata_t;
 static singleLineSprite_t singleLineSprite;
 
 /**
- * @brief Data structure for boundig box info.
+ * @brief Data structure for pose-estimation info.
  */
 typedef struct
 {
@@ -517,7 +517,7 @@ typedef struct
  * @brief Check if a value is within lower and upper bounds
  * @param value the value to check
  * @param lower_b the lower bound (inclusive)
- * @param upper_b the uppoer bound (exlcusive)
+ * @param upper_b the uppoer bound (exclusive)
  * @return TRUE if the value is within the bounds, otherwise FALSE
  */
 static gboolean
@@ -535,7 +535,7 @@ is_value_within(int value, int lower_b, int upper_b)
 /**
  * @brief Fill in pixel with PIXEL_VALUE at x,y position. Make thicker (x+1, y+1)
  * @param[out] out_info The output buffer (RGBA plain)
- * @param[in] bdata The bouding-box internal data.
+ * @param[in] bdata The pose-estimation internal data.
  * @param[in] coordinate of pixel
  */
 static void
@@ -559,7 +559,7 @@ setpixel (uint32_t * frame, pose_data * data, int x, int y)
 /**
  * @brief Draw line with dot at the end of line
  * @param[out] out_info The output buffer (RGBA plain)
- * @param[in] bdata The bouding-box internal data.
+ * @param[in] bdata The pose-estimation internal data.
  * @param[in] coordinate of two end point of line
  */
 static void
@@ -626,9 +626,9 @@ draw_line_with_dot (uint32_t * frame, pose_data * data, int x1, int y1, int x2,
 }
 
 /**
- * @brief Draw lable with the given results (pose) to the output buffer
+ * @brief Draw label with the given results (pose) to the output buffer
  * @param[out] out_info The output buffer (RGBA plain)
- * @param[in] bdata The bouding-box internal data.
+ * @param[in] bdata The pose-estimation internal data.
  * @param[in] results The final results to be drawn.
  */
 static void
@@ -674,7 +674,7 @@ draw_label (uint32_t * frame, pose_data * data, pose * xydata)
 /**
  * @brief Draw with the given results (pose) to the output buffer
  * @param[out] out_info The output buffer (RGBA plain)
- * @param[in] bdata The bouding-box internal data.
+ * @param[in] bdata The pose-estimation internal data.
  * @param[in] results The final results to be drawn.
  */
 static void

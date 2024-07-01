@@ -31,11 +31,11 @@ The TSC voting members are:
 ## TSC Meeting
 
 
-A TSC meeting is required to be publically announced (at least 10 days before the meeting) and publically accessible. A chairperson or its deputy, who is designated by a chairperson or the former chairperson, may announce and hold a TSC meeting. A deputy designated by a former resigning chairperson should hold a TSC meeting to elect a new chairperson and is relieved automatically by electing a new chairperson.
+A TSC meeting is required to be publicly announced (at least 10 days before the meeting) and publicly accessible. A chairperson or its deputy, who is designated by a chairperson or the former chairperson, may announce and hold a TSC meeting. A deputy designated by a former resigning chairperson should hold a TSC meeting to elect a new chairperson and is relieved automatically by electing a new chairperson.
 
 A TSC meeting should be announced via the nnstreamer-announce LFAI mailing list (the mailing list). Other media (GitHub issues, gitter.im, social media, LFAI event calendar, and so on) may also be used along with the mailing list.
 
-A TSC meeting should be held at a publically accessible place. A TSC meeting is, by default, held conventionally (offline meeting) in a place where the chairperson or its deputy has announced. However, alternatively, a TSC meeting may be held virtually (audio or video conference) with publically available media that are declared with the meeting announcement. A conventionally-held TSC meeting may include audio or video conferences to help those who cannot present physically.
+A TSC meeting should be held at a publicly accessible place. A TSC meeting is, by default, held conventionally (offline meeting) in a place where the chairperson or its deputy has announced. However, alternatively, a TSC meeting may be held virtually (audio or video conference) with publicly available media that are declared with the meeting announcement. A conventionally-held TSC meeting may include audio or video conferences to help those who cannot present physically.
 
 A TSC meeting is, by default, recorded or scripted for the general public. The URLs or the contents of the recordings or scripts should be available via the mailing list. Alternatively, a live video stream may be broadcasted via methods declared by the mailing list.
 

@@ -39,7 +39,7 @@ fi
 convertBMP2PNG
 
 PATH_TO_PLUGIN="../../build"
-# Check python libraies are built
+# Check python libraries are built
 if [[ -d $PATH_TO_PLUGIN ]]; then
     ini_path="${PATH_TO_PLUGIN}/ext/nnstreamer/tensor_converter"
     if [[ -d ${ini_path} ]]; then

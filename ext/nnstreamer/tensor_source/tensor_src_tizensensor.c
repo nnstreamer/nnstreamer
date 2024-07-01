@@ -180,7 +180,7 @@ G_DEFINE_TYPE (GstTensorSrcTIZENSENSOR, gst_tensor_src_tizensensor,
 #define GST_TYPE_TIZEN_SENSOR_TYPE (tizen_sensor_get_type ())
 /**
  * @brief Support GEnumValue array for Tizen sensor framework's sensor_type_e (sensor.h)
- * @todo We need an automated maintanence system for sensor.h's sensor_type_e, which makes a build error if it has been changed.
+ * @todo We need an automated maintenance system for sensor.h's sensor_type_e, which makes a build error if it has been changed.
  */
 static GType
 tizen_sensor_get_type (void)

@@ -315,7 +315,7 @@ nnfw_close (const GstTensorFilterProperties * prop, void **private_data)
  * @brief Convert from nnfw type to gst tensor type
  * @param[in] nnfw_type type given in nnfw format
  * @param[out] type container to receive type in gst tensor format
- * @return 0 on sucess, errno on error
+ * @return 0 on success, negative errno on error
  */
 static int
 nnfw_tensor_type_to_gst (const NNFW_TYPE nnfw_type, tensor_type * type)
@@ -348,7 +348,7 @@ nnfw_tensor_type_to_gst (const NNFW_TYPE nnfw_type, tensor_type * type)
  * @brief Convert from gst tensor type to NNFW type
  * @param[in] type type given in gst format
  * @param[out] nnfw_type container to receive type in nnfw tensor format
- * @return 0 on sucess, negative errno on error
+ * @return 0 on success, negative errno on error
  */
 static int
 nnfw_tensor_type_from_gst (const tensor_type type, NNFW_TYPE * nnfw_type)
@@ -697,7 +697,7 @@ error:
  * @param[in] mem Tensor memory containing input/output information
  * @param[in] info Tensor information in nnfw format
  * @param[in] is_input given memory is for input or output
- * @return 0 on sucess, negative errno on error
+ * @return 0 on success, negative errno on error
  */
 static int
 nnfw_tensor_memory_set (const nnfw_pdata * pdata, const GstTensorMemory * mem,

@@ -88,7 +88,7 @@ List of variables that needs to be provided are provided below...
 
 You can change the provided each variable on the go using a script, for example...
 ```sh
-$ sed s/@EXT_ABBRV@/cutom_plugin/g subplugin_unittest_template.cc.in > subplugin_unittest.cc
+$ sed s/@EXT_ABBRV@/custom_plugin/g subplugin_unittest_template.cc.in > subplugin_unittest.cc
 ```
 
 but preferably, using meson through `configure_data` and `configure_file`

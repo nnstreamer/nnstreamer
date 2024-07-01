@@ -18,7 +18,7 @@
 /**
  * SECTION: element-tensor_reposink
  *
- * Set elemnt to handle tensor repo
+ * Set element to handle tensor repo
  *
  * @file	gsttensor_reposink.c
  * @date	19 Nov 2018
@@ -153,7 +153,7 @@ gst_tensor_reposink_init (GstTensorRepoSink * self)
 
   gst_tensor_repo_init ();
 
-  GST_DEBUG_OBJECT (self, "GstTensorRepo is sucessfully initailzed");
+  GST_DEBUG_OBJECT (self, "GstTensorRepo is successfully initialized");
 
   self->silent = DEFAULT_SILENT;
   self->signal_rate = DEFAULT_SIGNAL_RATE;
