@@ -104,8 +104,7 @@ namespace nnstreamer
 namespace tensorfilter_mxnet
 {
 extern "C" {
-void init_filter_mxnet (void)
-    __attribute__ ((constructor)); /**< Dynamic library constructor */
+void init_filter_mxnet (void) __attribute__ ((constructor)); /**< Dynamic library constructor */
 void fini_filter_mxnet (void) __attribute__ ((destructor)); /**< Dynamic library destructor */
 }
 
