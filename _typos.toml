@@ -1,0 +1,5 @@
+[files]
+extend-exclude = ["tests/test_models/models/*", "tests/test_models/labels/*", "tests/test_models/data/*"]
+
+[default.extend-words]
+mosquitto = "mosquitto"
