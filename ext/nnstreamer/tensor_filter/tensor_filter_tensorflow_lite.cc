@@ -89,6 +89,14 @@
 #endif
 #endif
 
+#ifdef TFLITE_QNN_DELEGATE_SUPPORTED
+#include <QNN/TFLiteDelegate/QnnTFLiteDelegate.h>
+#endif
+
+#if defined(__ANDROID__)
+#include <jni.h>
+#endif
+
 #if !defined(TFLITE_SUBPLUGIN_NAME)
 #warning "The sub-plugin name for tensorflow-lite is not defined."
 #define TFLITE_SUBPLUGIN_NAME "tensorflow-lite"
@@ -117,9 +125,29 @@ typedef enum {
   TFLITE_DELEGATE_NNAPI,
   TFLITE_DELEGATE_XNNPACK,
   TFLITE_DELEGATE_EXTERNAL,
+  TFLITE_DELEGATE_QNN,
 
   TFLITE_DELEGATE_MAX
 } tflite_delegate_e;
+
+/**
+ * @brief Internal enum for QNN backend type.
+ */
+typedef enum QNNBackendType {
+  QNN_BACKEND_UNDEFINED = 0,
+  QNN_BACKEND_GPU,
+  QNN_BACKEND_HTP,
+  QNN_BACKEND_DSP
+} QNNBackendType;
+
+/**
+ * @brief Internal enum for QNN erformance mode.
+ */
+typedef enum QNNPerformanceMode {
+  QNN_PERFMODE_Default = 0,
+  QNN_PERFMODE_HighPerf,
+  QNN_PERFMODE_PowerSaver
+} QNNPerformanceMode;
 
 /**
  * @brief Option to open tf-lite model.
@@ -131,6 +159,8 @@ typedef struct {
   gint num_threads; /**< the number of threads */
   const gchar *ext_delegate_path; /**< path to external delegate lib */
   GHashTable *ext_delegate_kv_table; /**< external delegate key values options */
+  QNNBackendType qnn_backend_type; /**< QNN Delegate backend type */
+  QNNPerformanceMode qnn_performance_mode; /**< QNN Delegate performance mode */
 } tflite_option_s;
 
 /**
@@ -220,6 +250,8 @@ class TFLiteInterpreter
   bool is_xnnpack_delegated; /**< To check if XNNPACK delegate is used */
   char *ext_delegate_path; /**< path to external delegate lib */
   GHashTable *ext_delegate_kv_table; /**< external delegate key values options */
+  QNNBackendType qnn_backend_type; /**< QNN Delegate backend type */
+  QNNPerformanceMode qnn_performance_mode; /**< QNN Delegate performance mode */
 
   std::unique_ptr<tflite::Interpreter> interpreter;
   std::unique_ptr<tflite::FlatBufferModel> model;
@@ -234,6 +266,7 @@ class TFLiteInterpreter
   int setTensorProp (const std::vector<int> &tensor_idx_list, GstTensorsInfo *tensorMeta);
 
   tflite::Interpreter::TfLiteDelegatePtr delegate_ptr; /**< single delegate supported */
+  friend class TFLiteCore;
 };
 
 /**
@@ -276,7 +309,11 @@ class TFLiteCore
 };
 
 extern "C" {
+#if defined(__ANDROID__)
+void init_filter_tflite (JNIEnv *env, jobject context);
+#else
 void init_filter_tflite (void) __attribute__ ((constructor));
+#endif
 void fini_filter_tflite (void) __attribute__ ((destructor));
 }
 
@@ -293,6 +330,7 @@ TFLiteInterpreter::TFLiteInterpreter ()
   model_path = nullptr;
   ext_delegate_path = nullptr;
   ext_delegate_kv_table = nullptr;
+  qnn_backend_type = QNN_BACKEND_UNDEFINED;
 
   g_mutex_init (&mutex);
 
@@ -543,6 +581,64 @@ TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate_e)
         setDelegate (delegate, deleter);
 #else
         ml_logw ("NNStreamer was built without external delegate. Given delegate option external is ignored.");
+#endif
+        break;
+      }
+    case TFLITE_DELEGATE_QNN:
+      {
+#ifdef TFLITE_QNN_DELEGATE_SUPPORTED
+        QnnDelegateApiVersion qnn_delegate_api_version = TfLiteQnnDelegateGetApiVersion ();
+        nns_logi ("QNN Delegate API version: %u.%u.%u", qnn_delegate_api_version.major,
+            qnn_delegate_api_version.minor, qnn_delegate_api_version.patch);
+
+        TfLiteQnnDelegateOptions options = TfLiteQnnDelegateOptionsDefault ();
+
+        /* Set backend type (GPU, HTP, DSP) */
+        switch (qnn_backend_type) {
+          case QNN_BACKEND_GPU:
+            options.backend_type = kGpuBackend;
+            break;
+          case QNN_BACKEND_HTP:
+            options.backend_type = kHtpBackend;
+            break;
+          case QNN_BACKEND_DSP:
+            options.backend_type = kDspBackend;
+            break;
+          default:
+            ml_loge ("Please set proper QNN Backend option");
+            return -1;
+        }
+
+        /* Set performance mode (default, high performance, power saver) */
+        switch (qnn_performance_mode) {
+          case QNN_PERFMODE_HighPerf:
+            options.dsp_options.performance_mode = kDspHighPerformance;
+            options.htp_options.performance_mode = kHtpHighPerformance;
+            options.gpu_options.performance_mode = kGpuHigh;
+            break;
+          case QNN_PERFMODE_PowerSaver:
+            options.dsp_options.performance_mode = kDspPowerSaver;
+            options.htp_options.performance_mode = kHtpPowerSaver;
+            options.gpu_options.performance_mode = kGpuLow;
+            break;
+          case QNN_PERFMODE_Default:
+            // do nothing
+            break;
+          default:
+            break;
+        }
+
+        /* Set log level as Warn */
+        options.log_level = kLogLevelWarn;
+
+        delegate = TfLiteQnnDelegateCreate (&options);
+        void (*deleter) (TfLiteDelegate *) = [] (TfLiteDelegate *delegate_) {
+          TfLiteQnnDelegateDelete (delegate_);
+        };
+
+        setDelegate (delegate, deleter);
+#else
+        ml_logw ("NNStreamer was built without QNN delegate. Given delegate option QNN is ignored.");
 #endif
         break;
       }
@@ -983,6 +1079,8 @@ TFLiteCore::init (tflite_option_s *option)
 {
   interpreter->setModelPath (option->model_file);
   interpreter->setExtDelegate (option->ext_delegate_path, option->ext_delegate_kv_table);
+  interpreter->qnn_backend_type = option->qnn_backend_type;
+  interpreter->qnn_performance_mode = option->qnn_performance_mode;
   num_threads = option->num_threads;
   int err;
 
@@ -1282,6 +1380,8 @@ tflite_parseCustomOption (const GstTensorFilterProperties *prop, tflite_option_s
   option->num_threads = -1;
   option->ext_delegate_path = nullptr;
   option->ext_delegate_kv_table = nullptr;
+  option->qnn_backend_type = QNN_BACKEND_UNDEFINED;
+  option->qnn_performance_mode = QNN_PERFMODE_Default;
 
   if (prop->custom_properties) {
     gchar **strv;
@@ -1308,6 +1408,8 @@ tflite_parseCustomOption (const GstTensorFilterProperties *prop, tflite_option_s
             option->delegate = TFLITE_DELEGATE_XNNPACK;
           else if (g_ascii_strcasecmp (pair[1], "External") == 0)
             option->delegate = TFLITE_DELEGATE_EXTERNAL;
+          else if (g_ascii_strcasecmp (pair[1], "QNN") == 0)
+            option->delegate = TFLITE_DELEGATE_QNN;
           else
             ml_logw ("Unknown option to set tensorflow-lite delegate (%s).", pair[1]);
         } else if (g_ascii_strcasecmp (pair[0], "ExtDelegateLib") == 0) {
@@ -1335,6 +1437,27 @@ tflite_parseCustomOption (const GstTensorFilterProperties *prop, tflite_option_s
             g_strfreev (kv);
           }
           g_strfreev (kvpairs);
+        } else if (g_ascii_strcasecmp (pair[0], "QNNBackend") == 0) {
+          /* parse QNN Delegate Backend custom options */
+          if (g_ascii_strcasecmp (pair[1], "HTP") == 0)
+            option->qnn_backend_type = QNN_BACKEND_HTP;
+          else if (g_ascii_strcasecmp (pair[1], "DSP") == 0)
+            option->qnn_backend_type = QNN_BACKEND_DSP;
+          else if (g_ascii_strcasecmp (pair[1], "GPU") == 0)
+            option->qnn_backend_type = QNN_BACKEND_GPU;
+          else
+            ml_logw ("Unknown QNN backend option (%s).", pair[1]);
+        } else if (g_ascii_strcasecmp (pair[0], "QNNPerformanceMode") == 0) {
+          /* parse QNN Delegate Performance mode custom options */
+          if (g_ascii_strcasecmp (pair[1], "default") == 0)
+            option->qnn_performance_mode = QNN_PERFMODE_Default;
+          else if (g_ascii_strcasecmp (pair[1], "highperformance") == 0)
+            option->qnn_performance_mode = QNN_PERFMODE_HighPerf;
+          else if (g_ascii_strcasecmp (pair[1], "powersaver") == 0)
+            option->qnn_performance_mode = QNN_PERFMODE_PowerSaver;
+          else
+            ml_logw ("Unknown option for QNN perf mode: %s. Please set one of { \"default\", \"highperformance\", \"powersaver\" }",
+                pair[1]);
         } else {
           ml_logw ("Unknown option (%s).", strv[i]);
         }
@@ -1656,6 +1779,134 @@ static GstTensorFilterFramework NNS_support_tensorflow_lite
               .allocateInInvoke = nullptr,
           } } };
 
+#if defined(__ANDROID__)
+/**
+ * @brief Set additional environment (ADSP_LIBRARY_PATH) for tflite
+ */
+static gboolean
+_tflite_set_env (JNIEnv *env, jobject context)
+{
+  gboolean tflite_failed = TRUE;
+  jclass context_class = NULL;
+  jmethodID get_application_info_method_id = NULL;
+  jobject application_info_object = NULL;
+  jclass application_info_object_class = NULL;
+  jfieldID native_library_dir_field_id = NULL;
+  jstring native_library_dir_path = NULL;
+
+  const gchar *native_library_dir_path_str;
+  gchar *new_path;
+
+  g_return_val_if_fail (env != NULL, FALSE);
+  g_return_val_if_fail (context != NULL, FALSE);
+
+  context_class = env->GetObjectClass (context);
+  if (!context_class) {
+    nns_loge ("Failed to get context class.");
+    goto done;
+  }
+
+  get_application_info_method_id = env->GetMethodID (context_class,
+      "getApplicationInfo", "()Landroid/content/pm/ApplicationInfo;");
+  if (!get_application_info_method_id) {
+    nns_loge ("Failed to get method ID for `ApplicationInfo()`.");
+    goto done;
+  }
+
+  application_info_object = env->CallObjectMethod (context, get_application_info_method_id);
+  if (env->ExceptionCheck ()) {
+    env->ExceptionDescribe ();
+    env->ExceptionClear ();
+    nns_loge ("Failed to call method `ApplicationInfo()`.");
+    goto done;
+  }
+
+  application_info_object_class = env->GetObjectClass (application_info_object);
+  if (!application_info_object_class) {
+    nns_loge ("Failed to get `ApplicationInfo` object class");
+    goto done;
+  }
+
+  native_library_dir_field_id = env->GetFieldID (
+      application_info_object_class, "nativeLibraryDir", "Ljava/lang/String;");
+  if (!native_library_dir_field_id) {
+    nns_loge ("Failed to get field ID for `nativeLibraryDir`.");
+    goto done;
+  }
+
+  native_library_dir_path = static_cast<jstring> (
+      env->GetObjectField (application_info_object, native_library_dir_field_id));
+  if (!native_library_dir_path) {
+    nns_loge ("Failed to get field `nativeLibraryDir`.");
+    goto done;
+  }
+  gchar *ls_cmd;
+
+  native_library_dir_path_str = env->GetStringUTFChars (native_library_dir_path, NULL);
+  if (env->ExceptionCheck ()) {
+    env->ExceptionDescribe ();
+    env->ExceptionClear ();
+    nns_loge ("Failed to get string `nativeLibraryDir`");
+    goto done;
+  }
+
+  new_path = g_strconcat (native_library_dir_path_str,
+      ";/system/lib/rfsa/adsp;/system/vendor/lib/rfsa/adsp;/dsp", NULL);
+
+  /**
+   * See https://docs.qualcomm.com/bundle/publicresource/topics/80-63442-2/dsp_runtime.html for details
+   */
+  nns_logi ("Set env ADSP_LIBRARY_PATH for TFLite QNN Delegate: %s", new_path);
+  g_setenv ("ADSP_LIBRARY_PATH", new_path, TRUE);
+
+  g_free (new_path);
+  env->ReleaseStringUTFChars (native_library_dir_path, native_library_dir_path_str);
+
+  tflite_failed = FALSE;
+
+done:
+
+  if (native_library_dir_path) {
+    env->DeleteLocalRef (native_library_dir_path);
+  }
+
+  if (application_info_object_class) {
+    env->DeleteLocalRef (application_info_object_class);
+  }
+
+  if (application_info_object) {
+    env->DeleteLocalRef (application_info_object);
+  }
+
+  if (context_class) {
+    env->DeleteLocalRef (context_class);
+  }
+
+  return !(tflite_failed);
+}
+
+/**
+ * @brief Register the sub-plugin for tflite in Android.
+ */
+void
+init_filter_tflite (JNIEnv *env, jobject context)
+{
+  if (!_tflite_set_env (env, context)) {
+    nns_loge ("Failed to set extra env");
+    return;
+  }
+
+  nnstreamer_filter_probe (&NNS_support_tensorflow_lite);
+  nnstreamer_filter_set_custom_property_desc (NNS_support_tensorflow_lite.v0.name,
+      "NumThreads", "Number of threads. Set 0 for default behaviors.", "Delegate",
+      "TF-Lite delegation options: {'NNAPI', 'GPU', 'XNNPACK', 'External', 'QNN'}."
+      " Do not specify to disable delegation.",
+      "ExtDelegateLib", "Path to external delegate shared library", "ExtDelegateKeyVal",
+      "key/values pairs optional parameters for delegate."
+      " Format ExtDelegateKeyVal=key1#value1;key2#value2...",
+      NULL);
+}
+#else
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void
 init_filter_tflite (void)
@@ -1670,6 +1921,7 @@ init_filter_tflite (void)
       " Format ExtDelegateKeyVal=key1#value1;key2#value2...",
       NULL);
 }
+#endif /* defined(__ANDROID__) */
 
 /** @brief Destruct the subplugin */
 void
