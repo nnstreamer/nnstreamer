@@ -96,8 +96,9 @@ class tensor_filter_cpp
   const GstTensorFilterProperties *prop;
 
   public:
-  tensor_filter_cpp (const char *modelName); /**< modelName is the model property of tensor_filter,
-                                                which could be the path to the model file (requires proper extension name) or the registered model name at runtime. */
+  tensor_filter_cpp (
+      const char *modelName); /**< modelName is the model property of tensor_filter,
+                                 which could be the path to the model file (requires proper extension name) or the registered model name at runtime. */
   virtual ~tensor_filter_cpp ();
 
   /** C++ plugin writers need to fill {getInput/Output} inclusive-or {setInput} */
