@@ -527,6 +527,10 @@ features = {
     'extra_deps': [ ncnn_dep ],
     'project_args': { 'ENABLE_NCNN' : 1 }
   },
+  'executorch-support': {
+    'target': 'executorch',
+    'project_args': { 'ENABLE_EXECUTORCH' : 1 }
+  },
   'datarepo-support': {
     'extra_deps': [ json_glib_dep ],
   },

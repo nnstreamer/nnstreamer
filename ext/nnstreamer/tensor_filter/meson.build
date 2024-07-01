@@ -815,6 +815,29 @@ if ncnn_support_is_available
   )
 endif
 
+if executorch_support_is_available
+  filter_sub_executorch_sources = ['tensor_filter_executorch.cc']
+
+  ignore_sign_compare = declare_dependency(compile_args: ['-Wno-sign-compare'])
+  executorch_support_deps+= ignore_sign_compare
+
+  nnstreamer_filter_executorch_deps = [executorch_support_deps, glib_dep, nnstreamer_single_dep]
+
+  shared_library('nnstreamer_filter_executorch',
+    filter_sub_executorch_sources,
+    dependencies: nnstreamer_filter_executorch_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_executorch',
+    filter_sub_executorch_sources,
+    dependencies: nnstreamer_filter_executorch_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+endif
+
 if onnxruntime_support_is_available
   filter_sub_onnxruntime_sources = ['tensor_filter_onnxruntime.cc']
 
