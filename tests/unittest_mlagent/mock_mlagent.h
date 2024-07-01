@@ -183,11 +183,17 @@ struct MockModel {
   guint version_{ 0U };
 };
 
+/**
+ * @brief Class for mock MLAgent object
+ */
 struct MockMLAgent {
   MockMLAgent ()
   {
   }
 
+/**
+ * @brief Add mock model to model repo.
+ */
   bool add_model (MockModel model)
   {
     std::string key = model.name ();
@@ -206,6 +212,9 @@ struct MockMLAgent {
     return true;
   }
 
+/**
+ * @brief Get mock model from model repo.
+ */
   MockModel *get_model (const gchar *name, guint version)
   {
     std::string key{ name };
