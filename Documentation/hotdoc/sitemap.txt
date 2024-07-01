@@ -17,6 +17,7 @@ index.md
 		coding-convention.md
 		component-description.md
 		doxygen-documentation.md
+		AI-integration-on-Tizen.md
 		edge-ai.md
 		features-per-distro.md
 		profiling-android-pipeline.md
