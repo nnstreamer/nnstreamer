@@ -10,7 +10,7 @@
  *         which converts to tensors using python.
  * @see		https://github.com/nnstreamer/nnstreamer
  * @author	Gichan Jang <gichan2.jang@samsung.com>
- * @bug		python converter with Python3.9.10 is stucked during Py_Finalize().
+ * @bug		python converter with Python3.9.10 is stuck during Py_Finalize().
  */
 
 #include <nnstreamer_plugin_api.h>
@@ -297,7 +297,7 @@ py_open (const gchar *path, void **priv_data)
 
   if (core->init () != 0) {
     delete core;
-    Py_ERRMSG ("failed to initailize the object or the python script is invalid: Python\n");
+    Py_ERRMSG ("failed to initialize the object or the python script is invalid: Python\n");
     ret = -EINVAL;
     goto done;
   }

@@ -191,7 +191,7 @@ struct _GstTensorTransform
 /**
  * @brief GstTensorTransformClass inherits GstBaseTransformClass.
  *
- * Referring another child (sibiling), GstVideoFilter (abstract class) and
+ * Referring another child (sibling), GstVideoFilter (abstract class) and
  * its child (concrete class) GstVideoTransform.
  * Note that GstTensorTransformClass is a concrete class; thus we need to look at both.
  */

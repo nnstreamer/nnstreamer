@@ -137,7 +137,7 @@ _parse_bool_string (const gchar * strval, gboolean def)
  *        Otherwise, NULL
  *
  * @retval strdup-ed env-var value
- * @param[in] name Environmetal variable name
+ * @param[in] name Environmental variable name
  */
 static gchar *
 _strdup_getenv (const gchar * name)

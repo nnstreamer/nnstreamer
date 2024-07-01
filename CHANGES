@@ -174,7 +174,7 @@
 		- Join, a new element. It merges output sinks from src pads of different elements with the same GST-Cap.
 		- Tensor-rate, a new element. It allows throttling by generating QoS messages.
 		- TensorRT support
-		- TF1-lite and TF2-lite coexistance
+		- TF1-lite and TF2-lite coexistence
 		- TFx-lite NNAPI, GPU Delegation
 
 	- Minor features
@@ -257,7 +257,7 @@
 	- Semantics of hardware-acceleration options for tensor-filter re-worked.
 	- API/Android: nnfw-runtime (neurun) and SNPE support
 	- API/Android: usability update.
-	- API/Android: less invokation latency. (more optimization coming in next versions)
+	- API/Android: less invocation latency. (more optimization coming in next versions)
 	- API/C: bugfixes, architectural upgrade, latency reduction.
 	- tensor-filter has latency and throughput performance monitors.
 	- tensor-sink is by default "sync=false". If appsink or tensor_sink in NNStreamer Pipeline API's pipeline has sync=true, emit warning messages.
@@ -320,7 +320,7 @@
 	- Updated env-var handling logic for non-Tizen devices.
 	- Unit test: higher visibility & behavior correctness fixes.
 	- Auto-generated test cases for tensor-filter sub-plugins (extensions).
-	- Android/Java support with more convinient methods.
+	- Android/Java support with more convenient methods.
 	- Support gcc9.
 	- Support openVino as a tensor-filter, allowing to accelerate with Intel NCS/Myriad.
 	- Support NCSDK as a tensor-filter.
@@ -402,7 +402,7 @@
 0.1.0 -> 0.1.1:
 	- Full "Plug & Play" capability of subplugins. (tensor_filter, tensor_filter::custom, tensor_decoder)
 		- Fully configurable subplugin locations.
-		- Capability to build subplungins wihtout the dependencies on nnstreamer sources.
+		- Capability to build subplungins without the dependencies on nnstreamer sources.
 	- Revert Tensorflow input-memcpy-less-ness for multi-tensor support. (Will support memcpy-less-ness later)
 	- Support "String" type of tensors.
 	- API sets updated. (still not "stable")

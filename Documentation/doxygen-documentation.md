@@ -110,7 +110,7 @@ int RingBuffer_Init(RINGBUFF_T *RingBuff, void *buffer, int itemSize, int count)
 typedef struct {
     void *memBuf; /**<A void * pointing to memory of size bufSize.*/
     size_t filePos; /**<Current position inside the file.*/
-    size_t bufPos; /**<Curent position inside the buffer.*/
+    size_t bufPos; /**<Current position inside the buffer.*/
     size_t bufSize; /**<The size of the buffer.*/
     size_t bufLen; /**<The actual size of the buffer used.*/
     enum bigWigFile_type_enum type; /**<The connection type*/

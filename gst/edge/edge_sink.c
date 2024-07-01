@@ -125,7 +125,7 @@ gst_edgesink_class_init (GstEdgeSinkClass * klass)
           FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_CONNECTION_TIMEOUT,
       g_param_spec_uint64 ("connection-timeout",
-          "Timeout for wating a connection",
+          "Timeout for waiting a connection",
           "The timeout (in milliseconds) for waiting a connection to receiver. "
           "0 timeout (default) means infinite wait.", 0, G_MAXUINT64, 0,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));

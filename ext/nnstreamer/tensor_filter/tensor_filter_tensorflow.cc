@@ -665,7 +665,7 @@ tf_loadModelFile (const GstTensorFilterProperties *prop, void **private_data)
     *private_data = NULL;
     delete core;
 
-    g_printerr ("failed to initailize the object: tensorflow\n");
+    g_printerr ("failed to initialize the object: tensorflow\n");
     return -2;
   }
 
@@ -709,7 +709,7 @@ tf_run (const GstTensorFilterProperties *prop, void **private_data,
  * @brief The optional callback for GstTensorFilterFramework
  * @param prop: property of tensor_filter instance
  * @param private_data : tensorflow plugin's private data
- * @param[out] info The dimesions and types of input tensors
+ * @param[out] info The dimensions and types of input tensors
  */
 static int
 tf_getInputDim (const GstTensorFilterProperties *prop, void **private_data, GstTensorsInfo *info)
@@ -725,7 +725,7 @@ tf_getInputDim (const GstTensorFilterProperties *prop, void **private_data, GstT
  * @brief The optional callback for GstTensorFilterFramework
  * @param prop: property of tensor_filter instance
  * @param private_data : tensorflow plugin's private data
- * @param[out] info The dimesions and types of output tensors
+ * @param[out] info The dimensions and types of output tensors
  */
 static int
 tf_getOutputDim (const GstTensorFilterProperties *prop, void **private_data,

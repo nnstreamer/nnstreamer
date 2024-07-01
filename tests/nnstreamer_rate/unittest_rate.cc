@@ -267,7 +267,7 @@ TEST_F (NNSRateTest, setProperty)
 /**
  * @brief Test tensor_rate set property stats (negative)
  */
-TEST_F (NNSRateTest, setProperyStats_n)
+TEST_F (NNSRateTest, setPropertyStats_n)
 {
   guint64 in, out, dup, drop;
 
@@ -294,9 +294,9 @@ TEST_F (NNSRateTest, setProperyStats_n)
 }
 
 /**
- * @brief Test tensor_rate set invalide framerate (negative)
+ * @brief Test tensor_rate set invalid framerate (negative)
  */
-TEST_F (NNSRateTest, setProperyInvalidFramerate_n)
+TEST_F (NNSRateTest, setPropertyInvalidFramerate_n)
 {
   gchar *framerate;
 

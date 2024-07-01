@@ -186,7 +186,7 @@ gst_tensor_mux_class_init (GstTensorMuxClass * klass)
 /**
  * @brief initialize the new element
  * instantiate pads and add them to element
- * set pad calback functions
+ * set pad callback functions
  * initialize instance structure
  */
 static void
@@ -359,7 +359,7 @@ gst_tensor_mux_sink_event (GstCollectPads * pads, GstCollectData * data,
 }
 
 /**
- * @brief Looping to generete outbut buffer for srcpad
+ * @brief Looping to generete output buffer for srcpad
  * @param tensor_mux tensor muxer
  * @param tensors_buf output buffer for srcpad
  * @param is_eos boolean EOS ( End of Stream )

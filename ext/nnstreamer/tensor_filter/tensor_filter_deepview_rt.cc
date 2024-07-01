@@ -71,7 +71,7 @@ class dvrt_subplugin final : public tensor_filter_subplugin
 
   GstTensorsInfo inputInfo; /**< The tensor info of input tensors */
   GstTensorsInfo outputInfo; /**< The tensor info of output tensors */
-  GMappedFile *modelMap; /**< Model file mmaped to memory */
+  GMappedFile *modelMap; /**< Model file mapped to memory */
 
   NNContext *context; /**< Context for model load and runtime */
   NNEngine *engine; /**< Engine path for context acceleration */
@@ -310,7 +310,7 @@ dvrt_subplugin::getTensorDim (gsize index, tensor_dim dim)
 }
 
 /**
- * @brief fetch and setup input/ouput tensors metadata
+ * @brief fetch and setup input/output tensors metadata
  * @return 0 if OK. non-zero if error.
  */
 int
@@ -367,7 +367,7 @@ dvrt_subplugin::setTensorProp (gint isInput)
 }
 
 /**
- * @brief fetch and setup ouput tensors metadata
+ * @brief fetch and setup output tensors metadata
  * @return 0 if OK. non-zero if error.
  */
 int

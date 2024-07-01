@@ -59,7 +59,7 @@
  *     Supported props:
  *       input_rank: (mandatory)
  *            Rank of each input tensors.
- *            Each ranks are separeted by ':'.
+ *            Each ranks are separated by ':'.
  *            The number of ranks must be the same as the number of input
  *            tensors.
  *       enable_tensorrt: (optional)
@@ -105,8 +105,8 @@ namespace tensorfilter_mxnet
 {
 extern "C" {
 void init_filter_mxnet (void)
-    __attribute__ ((constructor)); /**< Dynamic library contstructor */
-void fini_filter_mxnet (void) __attribute__ ((destructor)); /**< Dynamic library desctructor */
+    __attribute__ ((constructor)); /**< Dynamic library constructor */
+void fini_filter_mxnet (void) __attribute__ ((destructor)); /**< Dynamic library destructor */
 }
 
 /**
@@ -115,8 +115,8 @@ void fini_filter_mxnet (void) __attribute__ ((destructor)); /**< Dynamic library
 class TensorFilterMXNet final : public tensor_filter_subplugin
 {
   public:
-  static void init_filter (); /**< Dynamic library contstructor helper */
-  static void fini_filter (); /**< Dynamic library desctructor helper */
+  static void init_filter (); /**< Dynamic library constructor helper */
+  static void fini_filter (); /**< Dynamic library destructor helper */
 
   TensorFilterMXNet ();
   ~TensorFilterMXNet ();
@@ -152,7 +152,7 @@ class TensorFilterMXNet final : public tensor_filter_subplugin
   int output_ranks_[NNS_TENSOR_RANK_LIMIT]; /**< Rank info of output tensor */
 
   std::string model_symbol_path_; /**< The model symbol .json file */
-  std::string model_params_path_; /**< The model paremeters .params file */
+  std::string model_params_path_; /**< The model parameters .params file */
 
   Symbol net_; /**< Model symbol */
   std::unique_ptr<Executor> executor_; /**< Model executor */

@@ -122,7 +122,7 @@ OVDetection::checkCompatible (const GstTensorsConfig *config)
     return FALSE;
 
   /**
-   * The shape of the ouput tensor is [7, N, 1, 1], where N is the maximum
+   * The shape of the output tensor is [7, N, 1, 1], where N is the maximum
    * number (i.e., 200) of detected bounding boxes.
    */
   dim = config->info.info[0].dimension;

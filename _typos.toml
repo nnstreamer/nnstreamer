@@ -3,3 +3,13 @@ extend-exclude = ["tests/test_models/models/*", "tests/test_models/labels/*", "t
 
 [default.extend-words]
 mosquitto = "mosquitto"
+iy = "iy"
+addd = "addd"
+ND = "ND"
+thr = "thr"
+wth = "wth"
+ot = "ot"
+FORAMT = "FORAMT" # Fix later (This is related with flatbuf and protobuf schema)
+Seeked = "Seeked"
+ba = "ba"
+splitted = "splitted"

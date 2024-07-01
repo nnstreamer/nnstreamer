@@ -292,7 +292,7 @@ gst_tensor_transform_class_init (GstTensorTransformClass * klass)
 /**
  * @brief initialize the new element (G_DEFINE_TYPE requires this)
  * instantiate pads and add them to element
- * set pad calback functions
+ * set pad callback functions
  * initialize instance structure
  */
 static void
@@ -348,7 +348,7 @@ static void
 float16_not_supported (void)
 {
   ml_loge
-      ("Tensor_tranform does not support float16 operators. Apply -Denable-float16=true for meson build option if your architecture support float16. Note that tensor-transform's float16 is adhoc and does NOT perform good (slow!).\n");
+      ("Tensor_transform does not support float16 operators. Apply -Denable-float16=true for meson build option if your architecture support float16. Note that tensor-transform's float16 is adhoc and does NOT perform good (slow!).\n");
   g_assert (0);
 }
 #endif
@@ -1185,7 +1185,7 @@ gst_tensor_transform_finalize (GObject * object)
 }
 
 /**
- * @brief subrouting for tensor-tranform, "dimchg" case.
+ * @brief subrouting for tensor-transform, "dimchg" case.
  * @param[in/out] filter "this" pointer
  * @param[in] in_info input tensor info
  * @param[in] out_info output tensor info
@@ -1280,7 +1280,7 @@ gst_tensor_transform_dimchg (GstTensorTransform * filter,
 }
 
 /**
- * @brief subrouting for tensor-tranform, "typecast" case.
+ * @brief subrouting for tensor-transform, "typecast" case.
  * @param[in/out] filter "this" pointer
  * @param[in] in_info input tensor info
  * @param[in] out_info output tensor info
@@ -1318,7 +1318,7 @@ gst_tensor_transform_typecast (GstTensorTransform * filter,
 }
 
 /**
- * @brief subrouting for tensor-tranform, "arithmetic" case.
+ * @brief subrouting for tensor-transform, "arithmetic" case.
  * @param[in/out] filter "this" pointer
  * @param[in] in_info input tensor info
  * @param[in] out_info output tensor info
@@ -1521,7 +1521,7 @@ gst_tensor_transform_arithmetic (GstTensorTransform * filter,
   } while(0);
 
 /**
- * @brief subrouting for tensor-tranform, "transpose" case.
+ * @brief subrouting for tensor-transform, "transpose" case.
  * @param[in/out] filter "this" pointer
  * @param[in] in_info input tensor info
  * @param[in] out_info output tensor info
@@ -1592,7 +1592,7 @@ gst_tensor_transform_transpose (GstTensorTransform * filter,
 }
 
 /**
- * @brief subrouting for tensor-tranform, "stand" case.
+ * @brief subrouting for tensor-transform, "stand" case.
  *        : pixel = abs((pixel - average(tensor))/(std(tensor) + val))
  * @param[in/out] filter "this" pointer
  * @param[in] in_info input tensor info
@@ -1711,7 +1711,7 @@ gst_tensor_transform_stand (GstTensorTransform * filter,
 }
 
 /**
- * @brief subrouting for tensor-tranform, "clamp" case.
+ * @brief subrouting for tensor-transform, "clamp" case.
  *        : pixel = if (pixel > max) ? max :
  *                  if (pixel < min) ? min : pixel
  * @param[in/out] filter "this" pointer
@@ -1750,7 +1750,7 @@ gst_tensor_transform_clamp (GstTensorTransform * filter,
 }
 
 /**
- * @brief subrouting for tensor-tranform, "padding" case.
+ * @brief subrouting for tensor-transform, "padding" case.
  * @param[in/out] filter "this" pointer
  * @param[in] in_info input tensor info
  * @param[in] out_info output tensor info

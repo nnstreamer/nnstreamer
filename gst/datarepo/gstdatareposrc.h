@@ -96,7 +96,7 @@ struct _GstDataRepoSrc {
  * @brief GstDataRepoSrcClass data structure.
  */
 struct _GstDataRepoSrcClass {
-  GstPushSrcClass parent_calss;
+  GstPushSrcClass parent_class;
 };
 
 GType gst_data_repo_src_get_type (void);

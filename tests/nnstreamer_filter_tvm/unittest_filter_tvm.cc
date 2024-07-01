@@ -345,7 +345,7 @@ TEST_F (NNStreamerFilterTVMTest, invoke02_n)
 
   output.size = input.size = sizeof (float) * 1;
 
-  /* Test: unsucessful invoke */
+  /* Test: unsuccessful invoke */
   ret = sp->invoke (NULL, NULL, NULL, &input, &output);
   EXPECT_NE (ret, 0);
 

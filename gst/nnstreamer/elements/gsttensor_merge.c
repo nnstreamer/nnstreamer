@@ -202,7 +202,7 @@ gst_tensor_merge_class_init (GstTensorMergeClass * klass)
 /**
  * @brief initialize the new element
  * instantiate pads and add them to element
- * set pad calback functions
+ * set pad callback functions
  * initialize instance structure
  */
 static void
@@ -427,7 +427,7 @@ gst_tensor_merge_get_merged_config (GstTensorMerge * tensor_merge,
 }
 
 /**
- * @brief Looping to generete outbut buffer for srcpad
+ * @brief Looping to generete output buffer for srcpad
  * @param tensor_merge tensor merger
  * @param tensor_buf output buffer for srcpad
  * @param is_eos boolean EOS ( End of Stream )

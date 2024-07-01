@@ -143,11 +143,11 @@ extern _Element *
 nnstparser_element_from_uri (const _URIType type, const gchar *uri,
     const gchar * elementname, void **error);
 
-/** @brief gst_object_unref for psuedo element */
+/** @brief gst_object_unref for pseudo element */
 extern _Element *
 nnstparser_element_unref (_Element * element);
 
-/** @brief gst_object_ref for psuedo element */
+/** @brief gst_object_ref for pseudo element */
 extern _Element *
 nnstparser_element_ref (_Element * element);
 

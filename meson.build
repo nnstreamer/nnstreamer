@@ -88,7 +88,7 @@ foreach extra_arg : warning_c_flags
   endif
 endforeach
 
-gst_api_verision = '1.0'
+gst_api_version = '1.0'
 
 # Set install path
 nnstreamer_prefix = get_option('prefix')
@@ -99,7 +99,7 @@ nnstreamer_inidir = join_paths(nnstreamer_prefix, get_option('sysconfdir'))
 # join_paths drops first arg if second arg is absolute path.
 
 # nnstreamer plugins path
-plugins_install_dir = join_paths(nnstreamer_libdir, 'gstreamer-' + gst_api_verision)
+plugins_install_dir = join_paths(nnstreamer_libdir, 'gstreamer-' + gst_api_version)
 
 # nnstreamer sub-plugins path
 if get_option('subplugindir') == ''
@@ -142,13 +142,13 @@ endif
 gobject_dep = dependency('gobject-2.0')
 gmodule_dep = dependency('gmodule-2.0')
 gio_dep = dependency('gio-2.0')
-gst_dep = dependency('gstreamer-' + gst_api_verision)
-gst_base_dep = dependency('gstreamer-base-' + gst_api_verision)
-gst_controller_dep = dependency('gstreamer-controller-' + gst_api_verision)
-gst_video_dep = dependency('gstreamer-video-' + gst_api_verision)
-gst_audio_dep = dependency('gstreamer-audio-' + gst_api_verision)
-gst_app_dep = dependency('gstreamer-app-' + gst_api_verision)
-gst_check_dep = dependency('gstreamer-check-' + gst_api_verision)
+gst_dep = dependency('gstreamer-' + gst_api_version)
+gst_base_dep = dependency('gstreamer-base-' + gst_api_version)
+gst_controller_dep = dependency('gstreamer-controller-' + gst_api_version)
+gst_video_dep = dependency('gstreamer-video-' + gst_api_version)
+gst_audio_dep = dependency('gstreamer-audio-' + gst_api_version)
+gst_app_dep = dependency('gstreamer-app-' + gst_api_version)
+gst_check_dep = dependency('gstreamer-check-' + gst_api_version)
 
 libm_dep = cc.find_library('m') # cmath library
 libdl_dep = cc.find_library('dl') # DL library
@@ -743,7 +743,7 @@ if get_option('enable-float16')
 
     if (has_avx512fp16)
       add_project_arguments(['-mavx512fp16'], language: ['c', 'cpp'])
-      message ('Float16 for x86_64 enabled. Modern gcc-x64 genrally supports float16 with _Float16. -mavx512fp16 added for hardware acceleration')
+      message ('Float16 for x86_64 enabled. Modern gcc-x64 generally supports float16 with _Float16. -mavx512fp16 added for hardware acceleration')
     else
       warning ('Float16 for x86_64 enabled. However, software emulation is applied for fp16, making it slower and inconsistent. Use GCC 12+ for AVX512 FP16 support. This build will probably fail unless you bring a compiler that supports fp16 for x64.')
     endif
@@ -759,7 +759,7 @@ if not cc.has_header('execinfo.h')
 endif
 
 # See if src-iio can be built or not
-gst18_dep = dependency('gstreamer-' + gst_api_verision, version : '>=1.8', required : false)
+gst18_dep = dependency('gstreamer-' + gst_api_version, version : '>=1.8', required : false)
 tensor_src_iio_build = false
 if gst18_dep.found() and build_platform != 'macos'
   add_project_arguments('-D_ENABLE_SRC_IIO', language: ['c', 'cpp'])

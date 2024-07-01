@@ -168,7 +168,7 @@ gst_tensor_demux_class_init (GstTensorDemuxClass * klass)
 /**
  * @brief initialize the new element
  * instantiate pads and add them to element
- * set pad calback functions
+ * set pad callback functions
  * initialize instance structure
  */
 static void
@@ -227,8 +227,8 @@ gst_tensor_demux_dispose (GObject * object)
 
 /**
  * @brief Parse caps and configure tensors info.
- * @param tensor_demux GstTensorDemux Ojbect
- * @param caps incomming capablity
+ * @param tensor_demux GstTensorDemux object
+ * @param caps incoming capability
  * @return TRUE/FALSE (if successfully configured, return TRUE)
  */
 static gboolean
@@ -284,7 +284,7 @@ gst_tensor_demux_event (GstPad * pad, GstObject * parent, GstEvent * event)
  * @param config tensor config to be filled
  * @param nth source ordering
  * @param total number of tensors
- * @return TRUE if succesfully configured
+ * @return TRUE if successfully configured
  */
 static gboolean
 gst_tensor_demux_get_tensor_config (GstTensorDemux * tensor_demux,
@@ -293,14 +293,14 @@ gst_tensor_demux_get_tensor_config (GstTensorDemux * tensor_demux,
   gst_tensors_config_init (config);
 
   if (tensor_demux->tensorpick != NULL) {
-    gchar *seleted_tensor;
+    gchar *selected_tensor;
     gchar **strv;
     guint i, num, idx;
 
     g_assert (g_list_length (tensor_demux->tensorpick) >= nth);
 
-    seleted_tensor = (gchar *) g_list_nth_data (tensor_demux->tensorpick, nth);
-    strv = g_strsplit_set (seleted_tensor, ":+", -1);
+    selected_tensor = (gchar *) g_list_nth_data (tensor_demux->tensorpick, nth);
+    strv = g_strsplit_set (selected_tensor, ":+", -1);
     num = g_strv_length (strv);
 
     for (i = 0; i < num; i++) {
@@ -372,7 +372,7 @@ gst_tensor_demux_get_tensor_pad (GstTensorDemux * tensor_demux,
 
   tensorpad = g_new0 (GstTensorPad, 1);
   g_assert (tensorpad != NULL);
-  GST_DEBUG_OBJECT (tensor_demux, "createing pad: %d(%dth)",
+  GST_DEBUG_OBJECT (tensor_demux, "creating pad: %d(%dth)",
       tensor_demux->num_srcpads, nth);
 
   name = g_strdup_printf ("src_%u", tensor_demux->num_srcpads);

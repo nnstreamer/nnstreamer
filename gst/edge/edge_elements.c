@@ -39,6 +39,6 @@ plugin_init (GstPlugin * plugin)
 #endif
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR, GST_VERSION_MINOR, edge,
-    "A collcetion of GStreamer plugins to support Edge",
+    "A collection of GStreamer plugins to support NNStreamer edge feature",
     plugin_init, VERSION, "LGPL", PACKAGE,
     "https://github.com/nnstreamer/nnstreamer")

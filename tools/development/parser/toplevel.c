@@ -96,7 +96,7 @@ main (int argc, char *argv[])
   _Element *pipeline;
 
   context =
-      g_option_context_new ("- Prototxt to/from GStreamer Pipeline Converver");
+      g_option_context_new ("- Prototxt to/from GStreamer Pipeline Converter");
   g_option_context_add_main_entries (context, entries, NULL);
   if (!g_option_context_parse (context, &argc, &argv, &error)) {
     g_printerr ("Option parsing failed: %s\n", error->message);

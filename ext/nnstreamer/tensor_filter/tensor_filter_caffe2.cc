@@ -548,7 +548,7 @@ caffe2_run (const GstTensorFilterProperties *prop, void **private_data,
  * @brief The optional callback for GstTensorFilterFramework
  * @param prop property of tensor_filter instance
  * @param private_data : caffe2 plugin's private data
- * @param[out] info The dimesions and types of input tensors
+ * @param[out] info The dimensions and types of input tensors
  */
 static int
 caffe2_getInputDim (const GstTensorFilterProperties *prop, void **private_data,
@@ -565,7 +565,7 @@ caffe2_getInputDim (const GstTensorFilterProperties *prop, void **private_data,
  * @brief The optional callback for GstTensorFilterFramework
  * @param prop property of tensor_filter instance
  * @param private_data : caffe2 plugin's private data
- * @param[out] info The dimesions and types of output tensors
+ * @param[out] info The dimensions and types of output tensors
  */
 static int
 caffe2_getOutputDim (const GstTensorFilterProperties *prop, void **private_data,

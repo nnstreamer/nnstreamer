@@ -106,7 +106,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_src_iio_debug);
 #define PROCESS_SCANNED_DATA(DTYPE_UNSIGNED, DTYPE_SIGNED) \
 /**
  * @brief process scanned data to float based on type info from channel
- * @param[in] prop Proprty of the channel whose data is processed
+ * @param[in] prop Property of the channel whose data is processed
  * @param[in] value Raw value scanned from the channel
  * @returns processed value in float
  */ \

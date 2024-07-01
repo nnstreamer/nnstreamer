@@ -62,7 +62,7 @@
  *
  * - Used model is deeplabv3_257_mv_gpu.tflite.
  * - Resize image into 257:257 at the first videoscale.
- * - Transfrom RGB value into float32 in range [0,1] at tensor_transform.
+ * - Transform RGB value into float32 in range [0,1] at tensor_transform.
  *
  * gst-launch-1.0 -v \
  *    filesrc location=cat.png ! decodebin ! videoconvert ! videoscale ! imagefreeze !\
@@ -239,7 +239,7 @@ is_setOption (void **pdata, int op_num, const char *param)
       idata->max_labels = (guint) max_labels_64;
   }
 
-  GST_WARNING ("mode-option-\"%d\" is not definded.", op_num);
+  GST_WARNING ("mode-option-\"%d\" is not defined.", op_num);
   return TRUE;
 }
 

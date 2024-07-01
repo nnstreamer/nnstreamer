@@ -383,7 +383,7 @@ check_tensors (const GstTensorsConfig *config, const unsigned int limit)
         limit, config->info.num_tensors);
   }
 
-  /* tensor-type of the tensors shoule be the same */
+  /* tensor-type of the tensors should be the same */
   for (i = 1; i < config->info.num_tensors; ++i) {
     g_return_val_if_fail (config->info.info[i - 1].type == config->info.info[i].type, FALSE);
   }
@@ -669,7 +669,7 @@ BoundingBox::draw (GstMapInfo *out_info, GArray *results)
           pos2 += width;
         }
         x1 += 9;
-        pos1 += 9; /* charater width + 1px */
+        pos1 += 9; /* character width + 1px */
       }
     }
   }

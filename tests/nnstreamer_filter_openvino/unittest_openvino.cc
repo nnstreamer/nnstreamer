@@ -994,7 +994,7 @@ TEST (tensorFilterOpenvino, getTensorDim3_n)
 TEST (tensorFilterOpenvino, convertFromIETypeStr0)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
-  const std::vector<std::string> ie_suport_type_strs = {
+  const std::vector<std::string> ie_support_type_strs = {
     "I8",
     "I16",
     "I32",
@@ -1032,10 +1032,10 @@ TEST (tensorFilterOpenvino, convertFromIETypeStr0)
   {
     TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml),
         str_test_model.assign (test_model_bin));
-    for (size_t i = 0; i < ie_suport_type_strs.size (); ++i) {
+    for (size_t i = 0; i < ie_support_type_strs.size (); ++i) {
       tensor_type ret_type;
 
-      ret_type = tfOvTest.convertFromIETypeStr (ie_suport_type_strs[i]);
+      ret_type = tfOvTest.convertFromIETypeStr (ie_support_type_strs[i]);
       EXPECT_EQ (ret_type, nns_support_types[i]);
     }
   }
@@ -1050,7 +1050,7 @@ TEST (tensorFilterOpenvino, convertFromIETypeStr0)
 TEST (tensorFilterOpenvino, convertFromIETypeStr0_n)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
-  const std::vector<std::string> ie_not_suport_type_strs = {
+  const std::vector<std::string> ie_not_support_type_strs = {
     "F64",
   };
   const std::vector<tensor_type> nns_support_types = {
@@ -1078,9 +1078,9 @@ TEST (tensorFilterOpenvino, convertFromIETypeStr0_n)
   {
     TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml),
         str_test_model.assign (test_model_bin));
-    for (size_t i = 0; i < ie_not_suport_type_strs.size (); ++i) {
+    for (size_t i = 0; i < ie_not_support_type_strs.size (); ++i) {
       tensor_type ret_type;
-      ret_type = tfOvTest.convertFromIETypeStr (ie_not_suport_type_strs[i]);
+      ret_type = tfOvTest.convertFromIETypeStr (ie_not_support_type_strs[i]);
       EXPECT_NE (ret_type, nns_support_types[i]);
     }
   }
@@ -1095,7 +1095,7 @@ TEST (tensorFilterOpenvino, convertFromIETypeStr0_n)
 TEST (tensorFilterOpenvino, convertFromIETypeStr1_n)
 {
   const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
-  const std::string ie_suport_type_str ("Q78");
+  const std::string ie_support_type_str ("Q78");
   std::string str_test_model;
   gchar *test_model_xml;
   gchar *test_model_bin;
@@ -1120,7 +1120,7 @@ TEST (tensorFilterOpenvino, convertFromIETypeStr1_n)
         str_test_model.assign (test_model_bin));
     tensor_type ret_type;
 
-    ret_type = tfOvTest.convertFromIETypeStr (ie_suport_type_str);
+    ret_type = tfOvTest.convertFromIETypeStr (ie_support_type_str);
     EXPECT_EQ (_NNS_END, ret_type);
   }
 

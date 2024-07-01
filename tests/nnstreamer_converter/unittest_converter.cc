@@ -254,7 +254,7 @@ free_default_external_converter (NNStreamerExternalConverter *sub)
 /**
  * @brief Test for plugin registration
  */
-TEST (tensorConverter, subpluginNoraml)
+TEST (tensorConverter, subpluginNormal)
 {
   NNStreamerExternalConverter *sub = get_default_external_converter ("mode");
 
@@ -344,14 +344,14 @@ TEST (tensorConverter, subpluginFindInvalidParam_n)
 }
 
 /**
- * @brief Test data for tensor_conveter::flexbuf (dimension 24:1:1:1)
+ * @brief Test data for tensor_converter::flexbuf (dimension 24:1:1:1)
  */
 const gint _test_frames1[24]
     = { 1101, 1102, 1103, 1104, 1105, 1106, 1107, 1108, 1109, 1110, 1111, 1112,
         1113, 1114, 1115, 1116, 1117, 1118, 1119, 1120, 1121, 1122, 1123, 1124 };
 
 /**
- * @brief Test data for tensor_conveter::flexbuf  (dimension 48:1:1:1)
+ * @brief Test data for tensor_converter::flexbuf  (dimension 48:1:1:1)
  */
 const gint _test_frames2[48] = { 1101, 1102, 1103, 1104, 1105, 1106, 1107, 1108,
   1109, 1110, 1111, 1112, 1113, 1114, 1115, 1116, 1117, 1118, 1119, 1120, 1121,

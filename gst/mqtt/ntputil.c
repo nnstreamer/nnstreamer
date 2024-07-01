@@ -9,7 +9,7 @@
  * @see     https://github.com/nnstreamer/nnstreamer
  * @author  Wook Song <wook16.song@samsung.com>
  * @bug     No known bugs except for NYI items
- * @todo    Need to support cacheing and polling timer mechanism
+ * @todo    Need to support caching and polling timer mechanism
  */
 
 #include <errno.h>
@@ -202,7 +202,7 @@ ntputil_get_epoch (uint32_t hnums, char **hnames, uint16_t * ports)
       goto ret_close_sockfd;
     }
 
-    /* Recieve */
+    /* Receive */
     n = read (sockfd, &packet, sizeof (packet));
     if (n < 0) {
       ret = -errno;

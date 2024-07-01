@@ -142,7 +142,7 @@ typedef struct _GstTensorFilterCombination
 typedef struct {
   void *shared_interpreter; /**< the model representation for each sub-plugins */
   GList *referred_list; /**< the referred list about the instances sharing the same key */
-} GstTensorFilterSharedModelRepresenatation;
+} GstTensorFilterSharedModelRepresentation;
 
 /**
  * @brief Structure definition for common tensor-filter properties.

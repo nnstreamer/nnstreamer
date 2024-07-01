@@ -120,7 +120,7 @@ _callCompareTest raw5_3_2.log result5_3_2.log 5-9 "Compare 5-9" 1 0
 kill -9 $pid &> /dev/null
 wait $pid
 
-# Sever src cap: Video, Server sink cap: Viedo test
+# Sever src cap: Video, Server sink cap: Video test
 PORT=`python3 ../../get_available_port.py`
 gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_query_serversrc port=${PORT} ! video/x-raw,width=300,height=300,format=RGB,framerate=0/1 ! tensor_query_serversink async=false" 6-1 1 0 30
 pid=$!

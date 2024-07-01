@@ -1042,9 +1042,9 @@ TEST (commonTensorsConfig, validateInvalidParam2_n)
 }
 
 /**
- * @brief Test for getting config from strucrure with invalid param.
+ * @brief Test for getting config from structure with invalid param.
  */
-TEST (commonTensorsConfig, fromStructreInvalidParam0_n)
+TEST (commonTensorsConfig, fromStructureInvalidParam0_n)
 {
   GstStructure structure = { 0 };
 
@@ -1052,9 +1052,9 @@ TEST (commonTensorsConfig, fromStructreInvalidParam0_n)
 }
 
 /**
- * @brief Test for getting config from strucrure with invalid param.
+ * @brief Test for getting config from structure with invalid param.
  */
-TEST (commonTensorsConfig, fromStructreInvalidParam1_n)
+TEST (commonTensorsConfig, fromStructureInvalidParam1_n)
 {
   GstTensorsConfig conf;
   gst_tensors_config_init (&conf);

@@ -56,7 +56,7 @@ Looper::Looper ()
 }
 
 /**
- * @brief Looper desctructor
+ * @brief Looper destructor
  */
 Looper::~Looper ()
 {
