@@ -287,15 +287,13 @@ if not get_option('tensorrt-support').disabled() or not get_option('tensorrt10-s
 endif
 
 # tensorrt
-tensorrt_version_str = ''
+tensorrt_version_str = run_command(find_program('tools/tensorrt-version.sh'), check: true).stdout().strip()
 tensorrt_major = 0
 tensorrt_minor = 0
 nvinfer_dep = dependency('', required: false)
 nvuffparsers_dep = dependency('', required: false)
 nvonnxparser_dep = dependency('', required: false)
-if cuda_major > 0 and (not get_option('tensorrt-support').disabled() or not get_option('tensorrt10-support').disabled())
-
-  tensorrt_version_str = run_command(find_program('tools/tensorrt-version.sh'), check: true).stdout().strip()
+if tensorrt_version_str != '' and cuda_major > 0 and (not get_option('tensorrt-support').disabled() or not get_option('tensorrt10-support').disabled())
   message('$tensorrt_version_str: @0@'.format(tensorrt_version_str))
 
   tensorrt_versions = tensorrt_version_str.split('.')
