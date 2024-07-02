@@ -226,8 +226,11 @@ if tflite2_support_is_available
   ## nnapi delegate
   if cxx.links('''
         #include "tensorflow/lite/delegates/nnapi/nnapi_delegate.h"
-        tflite::StatefulNnApiDelegate::StatefulNnApiDelegate ();
-        int main() {return 0;}
+        int main() {
+          tflite::StatefulNnApiDelegate *nnapi_delegate = new tflite::StatefulNnApiDelegate ();
+          delete nnapi_delegate;
+          return 0;
+        }
       ''', dependencies : [tflite2_support_deps], name : 'nnapi delegate')
     tflite2_compile_args += '-DTFLITE_NNAPI_DELEGATE_SUPPORTED'
   endif
