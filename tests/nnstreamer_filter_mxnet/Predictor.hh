@@ -153,9 +153,9 @@ Predictor::Predictor (const std::string &model_json_file, const std::string &mod
   if (use_gpu) {
     global_ctx_ = Context::gpu ();
   }
-  // Load the model
+  /* Load the model */
   LoadModel (model_json_file);
-  // Initialize the parameters
+  /* Initialize the parameters */
   LoadParameters (model_params_file);
 
   int dtype = GetDataLayerType ();
@@ -170,12 +170,12 @@ Predictor::Predictor (const std::string &model_json_file, const std::string &mod
   std::vector<OpReqType> grad_reqs;
   std::vector<NDArray> aux_arrays;
 
-  // infer and create ndarrays according to the given input ndarrays.
+  /* infer and create ndarrays according to the given input ndarrays. */
   net_.InferExecutorArrays (global_ctx_, &arg_arrays, &grad_arrays, &grad_reqs,
       &aux_arrays, args_map_, std::map<std::string, NDArray> (),
       std::map<std::string, OpReqType> (), aux_map_);
 
-  // Create an executor after binding the model to input parameters.
+  /* Create an executor after binding the model to input parameters. */
   executor_ = new Executor (net_, global_ctx_, arg_arrays, grad_arrays, grad_reqs, aux_arrays);
 }
 
@@ -231,21 +231,21 @@ Predictor::CreateImageRecordIter (const std::string &dataset,
     shape_vec.push_back (input_shape[i]);
   mxnet::TShape data_shape (shape_vec.begin (), shape_vec.end ());
 
-  // set image record parser parameters
+  /* set image record parser parameters */
   val_iter->SetParam ("path_imgrec", dataset);
   val_iter->SetParam ("label_width", 1);
   val_iter->SetParam ("data_shape", data_shape);
   val_iter->SetParam ("preprocess_threads", data_nthreads);
   val_iter->SetParam ("shuffle_chunk_seed", shuffle_chunk_seed);
 
-  // set Batch parameters
+  /* set Batch parameters */
   val_iter->SetParam ("batch_size", input_shape[0]);
 
-  // image record parameters
+  /* image record parameters */
   val_iter->SetParam ("shuffle", true);
   val_iter->SetParam ("seed", seed);
 
-  // set normalize parameters
+  /* set normalize parameters */
   val_iter->SetParam ("mean_r", rgb_mean[0]);
   val_iter->SetParam ("mean_g", rgb_mean[1]);
   val_iter->SetParam ("mean_b", rgb_mean[2]);
@@ -253,7 +253,7 @@ Predictor::CreateImageRecordIter (const std::string &dataset,
   val_iter->SetParam ("std_g", rgb_std[1]);
   val_iter->SetParam ("std_b", rgb_std[2]);
 
-  // set prefetcher parameters
+  /* set prefetcher parameters */
   if (use_gpu) {
     val_iter->SetParam ("ctx", "gpu");
   } else {
@@ -348,7 +348,7 @@ void
 Predictor::LogInferenceResult (std::vector<mx_float> &log_vector, int num_inference_batches)
 {
   log_vector.reserve (num_inference_batches);
-  // Create metrics
+  /* Create metrics */
   Accuracy val_acc;
 
   val_iter_->Reset ();
@@ -361,19 +361,19 @@ Predictor::LogInferenceResult (std::vector<mx_float> &log_vector, int num_infere
     data_batch.data.CopyTo (&args_map_["data"]);
     NDArray::WaitAll ();
 
-    // running on forward pass
+    /* running on forward pass */
     executor_->Forward (false);
     NDArray::WaitAll ();
     NDArray result;
     Operator ("argmax_channel") (executor_->outputs[0]).Invoke (result);
 
-    // Write to the log file
+    /* Write to the log file */
     mx_uint len = result.GetShape ()[0];
     std::vector<mx_float> data_vector (len);
     result.SyncCopyToCPU (&data_vector, len);
     log_vector.push_back (data_vector[0]);
 
-    // Update score
+    /* Update score */
     val_acc.Update (data_batch.label, executor_->outputs[0]);
     if (++nBatch >= num_inference_batches) {
       break;
