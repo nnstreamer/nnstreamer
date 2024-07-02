@@ -392,7 +392,7 @@ TEST (datareposrc, invalidJsonPath0_n)
   /* set invalid param */
   g_object_set (GST_OBJECT (datareposrc), "json", NULL, NULL);
 
-  /* state chagne failure is expected */
+  /* state change failure is expected */
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_element_set_state (pipeline, GST_STATE_NULL);
@@ -418,7 +418,7 @@ TEST (datareposrc, invalidJsonPath1_n)
   /* set invalid param */
   g_object_set (GST_OBJECT (datareposrc), "json", "no_search_file", NULL);
 
-  /* state chagne failure is expected */
+  /* state change failure is expected */
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
@@ -446,7 +446,7 @@ TEST (datareposrc, invalidFilePath0_n)
   /* set invalid param */
   g_object_set (GST_OBJECT (datareposrc), "location", NULL, NULL);
 
-  /* state chagne failure is expected */
+  /* state change failure is expected */
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_element_set_state (pipeline, GST_STATE_NULL);
@@ -472,7 +472,7 @@ TEST (datareposrc, invalidFilePath1_n)
   /* set invalid param */
   g_object_set (GST_OBJECT (datareposrc), "location", "no_search_file", NULL);
 
-  /* state chagne failure is expected */
+  /* state change failure is expected */
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_element_set_state (pipeline, GST_STATE_NULL);
@@ -498,7 +498,7 @@ TEST (datareposrc, invalidCapsWithoutJSON_n)
   /* set invalid param */
   g_object_set (GST_OBJECT (datareposrc), "caps", NULL, NULL);
 
-  /* state chagne failure is expected */
+  /* state change failure is expected */
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_element_set_state (pipeline, GST_STATE_NULL);
@@ -843,7 +843,7 @@ TEST (datareposrc, invalidStartSampleIndex0_n)
   /* set invalid param */
   g_object_set (GST_OBJECT (datareposrc), "start-sample-index", idx_out_of_range, NULL);
 
-  /* state chagne failure is expected */
+  /* state change failure is expected */
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_element_set_state (pipeline, GST_STATE_NULL);
@@ -906,7 +906,7 @@ TEST (datareposrc, invalidStopSampleIndex0_n)
 
   g_object_set (GST_OBJECT (datareposrc), "stop-sample-index", idx_out_of_range, NULL);
 
-  /* state chagne failure is expected */
+  /* state change failure is expected */
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_element_set_state (pipeline, GST_STATE_NULL);
@@ -1001,7 +1001,7 @@ TEST (datareposrc, invalidEpochs1_n)
   /* set invalid param */
   g_object_set (GST_OBJECT (datareposrc), "epochs", invalid_epochs, NULL);
 
-  /* state chagne failure is expected */
+  /* state change failure is expected */
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_element_set_state (pipeline, GST_STATE_NULL);
@@ -1031,7 +1031,7 @@ TEST (datareposrc, invalidTensorsSequence0_n)
   /* set invalid param */
   g_object_set (GST_OBJECT (datareposrc), "tensors-sequence", "1,0,2", NULL);
 
-  /* state chagne failure is expected */
+  /* state change failure is expected */
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_element_set_state (pipeline, GST_STATE_NULL);

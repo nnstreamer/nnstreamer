@@ -660,7 +660,7 @@ main (int argc, char **argv)
 
     result = RUN_ALL_TESTS ();
   } catch (...) {
-    g_warning ("Catched exception, GTest failed.");
+    g_warning ("Caught exception, GTest failed.");
   }
 
   return result;

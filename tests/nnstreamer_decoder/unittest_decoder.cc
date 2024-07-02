@@ -232,7 +232,7 @@ free_default_decoder (GstTensorDecoderDef *sub)
 /**
  * @brief Test for plugin registration
  */
-TEST (tensorDecoder, subpluginNoraml)
+TEST (tensorDecoder, subpluginNormal)
 {
   GstTensorDecoderDef *sub = get_default_decoder ("mode");
 

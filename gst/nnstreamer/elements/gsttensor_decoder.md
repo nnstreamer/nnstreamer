@@ -11,9 +11,9 @@ With given properties from users or pipeline developers, support the following c
 | Mode | Main property (input tensor semantics) | Additional & mandatory property | Output |
 | -| - | - | - |
 | directvideo | other/tensors | N/A | video/x-raw |
-| bounding_boxes | Bounding boxes (other/tensor) | File path to labels, decoding schems, out dim, in dim | video/x-raw |
+| bounding_boxes | Bounding boxes (other/tensor) | File path to labels, decoding schemes, out dim, in dim | video/x-raw |
 | image_labeling | Image label (other/tensor) | File path to labels | text/x-raw |
-| image_segment | segmentaion info | expected model | video/x-raw |
+| image_segment | segmentation info | expected model | video/x-raw |
 | pose_estimation | pose info | out dim, in dim,  File path to labels, mode | video/x-raw |
 | flatbuf | other/tensors | N/A | flatbuffers |
 | protobuf | other/tensors | N/A | protocol buffers |
@@ -111,12 +111,12 @@ This is an example of a python script.
 # @file custom_decoder_example.py
 ## @brief  User-defined custom decoder
 class CustomDecoder(object):
-## @breif  Python callback: getOutCaps
+## @brief  Python callback: getOutCaps
   def getOutCaps (self):
     # Write capability of the media type.
     return bytes('@CAPS_STRING@', 'UTF-8')
 
-## @breif  Python callback: decode
+## @brief  Python callback: decode
   def decode (self, raw_data, in_info, rate_n, rate_d):
     # return decoded raw data as `bytes` type.
     return data

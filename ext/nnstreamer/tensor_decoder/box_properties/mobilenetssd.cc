@@ -61,7 +61,7 @@ class MobilenetSSD : public BoxProperties
 
 /**
  * @brief C++-Template-like box location calculation for box-priors
- * @bug This is not macro-argument safe. Use paranthesis!
+ * @bug This is not macro-argument safe. Use parenthesis!
  * @param[in] bb The configuration, "bounding_boxes"
  * @param[in] index The index (3rd dimension of BOX_SIZE:1:DETECTION_MAX:1)
  * @param[in] total_labels The count of total labels. We can get this from input tensor info. (1st dimension of LABEL_SIZE:DETECTION_MAX:1:1)

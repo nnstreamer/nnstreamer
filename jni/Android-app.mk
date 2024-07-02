@@ -4,7 +4,7 @@ LOCAL_PATH := $(call my-dir)
 # This configuration file is to compile a test application
 # using Gstreamer + NNstreamer library.
 #
-# Step1: Build a test appliation based on nnstreamer for Android platform
+# Step1: Build a test application based on nnstreamer for Android platform
 # ndk-build NDK_PROJECT_PATH=. APP_BUILD_SCRIPT=./Android-app.mk NDK_APPLICATION_MK=./Application.mk -j$(nproc)
 #
 # Step2: Install a test application into Android target device

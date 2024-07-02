@@ -95,7 +95,7 @@ TensorFilterOpenvino::convertFromIETypeStr (std::string type)
 /**
  * @brief Convert a tensor container in NNS to a tensor container in IE
  * @param tensorDesc the class that defines a Tensor description to be converted from a GstTensorMemory
- * @param gstTensor the container of a tensor in NNS to be coverted to a tensor container in IE
+ * @param gstTensor the container of a tensor in NNS to be converted to a tensor container in IE
  * @return a pointer to the Blob which is a container of a tensor in IE if OK, otherwise nullptr
  */
 InferenceEngine::Blob::Ptr
@@ -253,7 +253,7 @@ TensorFilterOpenvino::isModelLoaded ()
 
 /**
  * @brief	Get the information about the dimensions of input tensors from the given model
- * @param[out] info metadata containing the dimesions and types information of the input tensors
+ * @param[out] info metadata containing the dimensions and types information of the input tensors
  * @return 0 (TensorFilterOpenvino::RetSuccess) if OK, negative values if error
  */
 int
@@ -327,7 +327,7 @@ failed:
 
 /**
  * @brief	Get the information about the dimensions of output tensors from the given model
- * @param[out] info metadata containing the dimesions and types information of the output tensors
+ * @param[out] info metadata containing the dimensions and types information of the output tensors
  * @return 0 (TensorFilterOpenvino::RetSuccess) if OK, negative values if error
  */
 int
@@ -470,7 +470,7 @@ ov_invoke (const GstTensorFilterProperties *prop, void **private_data,
  * @brief The optional callback for GstTensorFilterFramework
  * @param prop property of tensor_filter instance
  * @param private_data TensorFilterOpenvino plugin's private data
- * @param[out] info the dimesions and types of input tensors
+ * @param[out] info the dimensions and types of input tensors
  * @return 0 (TensorFilterOpenvino::RetSuccess) if OK, negative values if error
  */
 static int
@@ -488,7 +488,7 @@ ov_getInputDim (const GstTensorFilterProperties *prop, void **private_data, GstT
  * @brief The optional callback for GstTensorFilterFramework
  * @param prop property of tensor_filter instance
  * @param private_data TensorFilterOpenvino plugin's private data
- * @param[out] info The dimesions and types of output tensors
+ * @param[out] info The dimensions and types of output tensors
  * @return 0 (TensorFilterOpenvino::RetSuccess) if OK, negative values if error
  */
 static int

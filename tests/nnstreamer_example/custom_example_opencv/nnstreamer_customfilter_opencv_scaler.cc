@@ -13,7 +13,7 @@
  * @see  nnstreamer_customfilter_example_scaler_allocator.c
  *
  * This example scales an input tensor of [N][input_h][input_w][M]
- * to an ouput tensor of [N][output_h][output_w][M].
+ * to an output tensor of [N][output_h][output_w][M].
  *
  * The custom property is to be given as, "custom=[new-x]x[new-y]", where new-x
  * and new-y are unsigned integers. E.g., custom=640x480

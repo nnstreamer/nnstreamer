@@ -457,7 +457,7 @@ TEST (datareposink, invalidJsonPath0_n)
   /* set invalid param */
   g_object_set (GST_OBJECT (datareposink), "json", NULL, NULL);
 
-  /* state chagne failure is expected */
+  /* state change failure is expected */
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (datareposink);
@@ -484,7 +484,7 @@ TEST (datareposink, invalidFilePath0_n)
   /* set invalid param */
   g_object_set (GST_OBJECT (datareposink), "location", NULL, NULL);
 
-  /* state chagne failure is expected */
+  /* state change failure is expected */
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (datareposink);

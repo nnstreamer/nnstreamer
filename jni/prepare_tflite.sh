@@ -14,7 +14,7 @@ if [ ! -d "tensorflow-${VERSION}" ]; then
 fi
 
 if [ ! -d "tensorflow-${VERSION}/tensorflow/contrib/lite/downloads" ]; then
-#Download Dependencys
+#Download Dependencies
     pushd "tensorflow-${VERSION}"
     echo "[TENSORFLOW-LITE] Download external libraries of tensorflow-${VERSION}\n"
     sed -i "s|flatbuffers/archive/master.zip|flatbuffers/archive/v1.8.0.zip|g" tensorflow/contrib/lite/download_dependencies.sh

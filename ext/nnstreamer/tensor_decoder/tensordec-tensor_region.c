@@ -397,7 +397,7 @@ typedef struct {
  * @brief transfer crop region info with the given results to the output buffer
  * @param[out] out_info The output buffer
  * @param[in] data The Tensor_region internal data.
- * @param[in] results The final results to be transfered.
+ * @param[in] results The final results to be transferred.
  */
 static void
 gst_tensor_top_detectedObjects_cropInfo (GstMapInfo *out_info, const tensor_region *data, GArray *results)
@@ -424,7 +424,7 @@ gst_tensor_top_detectedObjects_cropInfo (GstMapInfo *out_info, const tensor_regi
 
 /**
  * @brief C++-Template-like box location calculation for box-priors
- * @bug This is not macro-argument safe. Use paranthesis!
+ * @bug This is not macro-argument safe. Use parenthesis!
  * @param[in] bb The configuration, "tensor region"
  * @param[in] index The index (3rd dimension of BOX_SIZE:1:MOBILENET_SSD_DETECTION_MAX:1)
  * @param[in] total_labels The count of total labels. We can get this from input tensor info. (1st dimension of LABEL_SIZE:MOBILENET_SSD_DETECTION_MAX:1:1)

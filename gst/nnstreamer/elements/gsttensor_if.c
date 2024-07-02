@@ -253,7 +253,7 @@ gst_tensor_if_class_init (GstTensorIfClass * klass)
 /**
  * @brief initialize the new element (GST Standard)
  * instantiate pads and add them to element
- * set pad calback functions
+ * set pad callback functions
  * initialize instance structure
  */
 static void
@@ -339,7 +339,7 @@ gst_tensor_if_set_property_glist (const GValue * value, GList ** prop_list,
   for (i = 0; i < num; i++) {
     val = g_ascii_strtoll (strv[i], NULL, 10);
     if (errno == ERANGE) {
-      ml_loge ("Overflow occured during converting %s to a gint64 value",
+      ml_loge ("Overflow occurred during converting %s to a gint64 value",
           strv[i]);
     }
     *prop_list = g_list_append (*prop_list, GINT_TO_POINTER (val));
@@ -384,7 +384,7 @@ gst_tensor_if_set_property_cv_option (const GValue * value, GList ** prop_list)
 
     val = g_ascii_strtoll (strv[1], NULL, 10);
     if (errno == ERANGE) {
-      ml_loge ("Overflow occured during converting %s to a gint64 value",
+      ml_loge ("Overflow occurred during converting %s to a gint64 value",
           strv[1]);
     }
     *prop_list = g_list_append (*prop_list, GINT_TO_POINTER (val));
@@ -671,8 +671,8 @@ gst_tensor_if_install_properties (GObjectClass * gobject_class)
 
 /**
  * @brief Parse caps and configure tensors info.
- * @param tensor_if GstTensorIf Ojbect
- * @param caps incomming capablity
+ * @param tensor_if GstTensorIf object
+ * @param caps incoming capability
  * @return TRUE/FALSE (if successfully configured, return TRUE)
  */
 static gboolean
@@ -747,7 +747,7 @@ gst_tensor_if_get_tensor_pad (GstTensorIf * tensor_if,
 
   tensorpad = g_new0 (GstTensorPad, 1);
   g_assert (tensorpad != NULL);
-  GST_DEBUG_OBJECT (tensor_if, "createing pad: %d(%dth)",
+  GST_DEBUG_OBJECT (tensor_if, "creating pad: %d(%dth)",
       tensor_if->num_srcpads, nth);
 
   name = g_strdup_printf ("src_%d", nth);

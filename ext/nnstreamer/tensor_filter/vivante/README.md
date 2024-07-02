@@ -19,7 +19,7 @@ The entire procedure is as follows:
  * http://www.vivantecorp.com/
  * https://www.khadas.com/product-page/vim3 (Amlogic A311D with 5.0 TOPS NPU)
 
-## How to buid
+## How to build
 First of all, you must generate a library of a model (e.g., libvivantev3.so, libyolov3.so) to use NNStreamer tensor filter.
 For more details, please refer to the below repository.
  * https://www.github.com/nnstreamer/reference-models (TODO) - Press 'models' folder.

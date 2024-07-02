@@ -54,7 +54,7 @@
  * When 'tensor_filter' receives a throttling QoS event from the 'tensor_rate' element,
  * it compares the average processing latency and throttling delay, and takes the
  * maximum value as the threshold to drop incoming frames by checking a buffer timestamp.
- * In this way, 'tensor filter' can avoid unncessary calculation and adjust a framerate,
+ * In this way, 'tensor filter' can avoid unnecessary calculation and adjust a framerate,
  * effectively reducing resource utilizations.
  * Even in the case of receiving QoS events from multiple downstream pipelines (e.g., tee),
  * 'tensor_filter' takes the minimum value as the throttling delay for downstream pipeline
@@ -212,7 +212,7 @@ gst_tensor_filter_class_init (GstTensorFilterClass * klass)
 /**
  * @brief initialize the new element
  * instantiate pads and add them to element
- * set pad calback functions
+ * set pad callback functions
  * initialize instance structure
  */
 static void
@@ -267,7 +267,7 @@ gst_tensor_filter_get_tensor_size (GstTensorFilter * self, guint index,
   /* Internal Logic Error: out of bound */
   if (index >= info->num_tensors) {
     GST_ELEMENT_ERROR_BTRACE (self, STREAM, FAILED,
-        ("tensor_filter's core has inconsistent data. Please report to https://github.com/nnstreamer/nnstreamer/issues . The index argeument (%u) of tensors is greater-than or equal-to the number of tensors (%u)",
+        ("tensor_filter's core has inconsistent data. Please report to https://github.com/nnstreamer/nnstreamer/issues . The index argument (%u) of tensors is greater-than or equal-to the number of tensors (%u)",
             index, info->num_tensors));
     return 0;
   }
@@ -564,7 +564,7 @@ gst_tensor_filter_check_throttling_delay (GstBaseTransform * trans,
 }
 
 /**
- * @brief Check input paramters for gst_tensor_filter_transform ();
+ * @brief Check input parameters for gst_tensor_filter_transform ();
  */
 static GstFlowReturn
 _gst_tensor_filter_transform_validate (GstBaseTransform * trans,
@@ -629,7 +629,7 @@ _gst_tensor_filter_transform_validate (GstBaseTransform * trans,
   }
   if (gst_buffer_get_size (outbuf) != 0) {
     GST_ELEMENT_ERROR_BTRACE (self, STREAM, FAILED,
-        ("The output buffer for the isntance of tensor-filter subplugin (%s / %s) already has a content (buffer size = %zu). It should be 0.",
+        ("The output buffer for the instance of tensor-filter subplugin (%s / %s) already has a content (buffer size = %zu). It should be 0.",
             prop->fwname, TF_MODELNAME (prop), gst_buffer_get_size (outbuf)));
     return GST_FLOW_ERROR;
   }

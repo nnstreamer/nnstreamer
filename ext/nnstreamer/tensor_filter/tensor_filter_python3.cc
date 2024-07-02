@@ -213,7 +213,7 @@ PYCore::init (const GstTensorFilterProperties *prop)
   Py_LOCK ();
   PyObject *api_module = PyImport_ImportModule ("nnstreamer_python");
   if (api_module == NULL) {
-    Py_ERRMSG ("Cannt find `nnstreamer_python` module");
+    Py_ERRMSG ("Cannot find `nnstreamer_python` module");
     goto exit;
   }
 
@@ -293,7 +293,7 @@ PYCore::loadScript ()
         core_obj = PyObject_CallObject (cls, NULL);
 
       if (core_obj) {
-        /** check whther either setInputDim or getInputDim/getOutputDim are
+        /** check whether either setInputDim or getInputDim/getOutputDim are
          * defined */
         if (PyObject_HasAttrString (core_obj, (char *) "setInputDim"))
           callback_type = cb_type::CB_SETDIM;
@@ -693,7 +693,7 @@ TensorFilterPython::configure_instance (const GstTensorFilterProperties *prop)
 
   /**
    * prop->model_files[0] contains the path of a python script
-   * prop->custom contains its arguments seperated by ' '
+   * prop->custom contains its arguments separated by ' '
    */
   script_path = prop->model_files[0];
 
@@ -716,7 +716,7 @@ TensorFilterPython::configure_instance (const GstTensorFilterProperties *prop)
 
   if (core->init (prop) != 0) {
     delete core;
-    g_printerr ("failed to initailize the object: Python\n");
+    g_printerr ("failed to initialize the object: Python\n");
     PyGILState_Release (gstate);
     throw std::runtime_error ("Python is not initialize");
   }

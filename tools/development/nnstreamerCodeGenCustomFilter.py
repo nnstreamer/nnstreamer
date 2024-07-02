@@ -230,7 +230,7 @@ invoke_allocate = """
  * @param[out] output The output tensors.
  * @return 0 if success. Non-zero if failed
  *
- * @note The intput / output dimensions, required for interpreting input/output
+ * @note The input / output dimensions, required for interpreting input/output
  *       pointers, are stored in prop.
  */
 static int

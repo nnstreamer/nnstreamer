@@ -82,7 +82,7 @@ if gtest_dep.found()
   test('unittest_common', unittest_common, env: testenv)
 
   # Run unittest_sink
-  gst18_dep = dependency('gstreamer-' + gst_api_verision, version : '>=1.8', required : false)
+  gst18_dep = dependency('gstreamer-' + gst_api_version, version : '>=1.8', required : false)
   if gst18_dep.found()
     unittest_sink = executable('unittest_sink',
       join_paths('nnstreamer_sink', 'unittest_sink.cc'),

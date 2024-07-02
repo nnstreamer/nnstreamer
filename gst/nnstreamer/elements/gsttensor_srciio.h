@@ -124,7 +124,7 @@ struct _GstTensorSrcIIO
   gboolean merge_channels_data; /**< merge channel data with same type/size */
   gboolean is_tensor; /**< False if tensors is used for data */
   guint buffer_capacity; /**< size of the buffer */
-  guint64 sampling_frequency; /**< sampling frequncy for the device */
+  guint64 sampling_frequency; /**< sampling frequency for the device */
 
   guint64 default_sampling_frequency; /**< default set value of sampling frequency */
   guint default_buffer_capacity; /**< size of the buffer */

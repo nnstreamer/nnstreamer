@@ -209,8 +209,8 @@ $ hawktracer-to-json --source file_name.htdump --output output_file.json
 
 #### Analyzing the data
 * First of all, install google-chrome (or chromium-brwser) in you own PC. 
-* Open **chrome://tracing/ webapge after running the browser.
-* Click load buttong. Then, open  file output_file.json
+* Open **chrome://tracing/ webpage after running the browser.
+* Click load button. Then, open  file output_file.json
 * You should see a callstack with timing
 
 <img src=hawktracer-chrome-tracing-out.png border=0></img>

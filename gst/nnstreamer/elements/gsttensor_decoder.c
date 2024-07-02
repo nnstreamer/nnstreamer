@@ -373,7 +373,7 @@ gst_tensordec_class_init (GstTensorDecoderClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_CONFIG,
       g_param_spec_string ("config-file", "Configuration-file",
-          "Path to configuraion file which contains plugins properties", "",
+          "Path to configuration file which contains plugins properties", "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_set_details_simple (gstelement_class,
@@ -409,7 +409,7 @@ gst_tensordec_class_init (GstTensorDecoderClass * klass)
 /**
  * @brief initialize the new element
  * instantiate pads and add them to element
- * set pad calback functions
+ * set pad callback functions
  * initialize instance structure
  */
 static void
@@ -499,7 +499,7 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
         if (decoder == self->decoder) {
           /* Already configured??? */
           GST_WARNING_OBJECT (self,
-              "nnstreamer tensor_decoder %s is already confgured.\n",
+              "nnstreamer tensor_decoder %s is already configured.\n",
               mode_string);
         } else {
           /* Changing decoder. Deallocate the previous */
@@ -508,7 +508,7 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
         }
 
         if (0 == self->decoder->init (&self->plugin_data)) {
-          ml_loge ("Failed to intialize a decode subplugin, \"%s\".\n",
+          ml_loge ("Failed to initialize a decode subplugin, \"%s\".\n",
               mode_string);
           break;
         }
@@ -717,7 +717,7 @@ gst_tensordec_transform (GstBaseTransform * trans,
       self->tensor_config.info.num_tensors = num_mems;
     }
     num_tensors = self->tensor_config.info.num_tensors;
-    /** Internal logic error. Negotation process should prevent this! */
+    /** Internal logic error. Negotiation process should prevent this! */
     g_assert (num_mems == num_tensors);
 
     for (i = 0; i < num_tensors; i++) {

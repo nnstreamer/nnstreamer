@@ -63,10 +63,10 @@ Interface: [/gst/nnstreamer/include/nnstreamer_plugin_api_filter.h]
 If the framework or backend/runtime library has C APIs and you want to write the subplugin in C, use ```#include <nnstreamer_plugin_api_filter.h>```.
 Your C subplugin is supposed to fill in ```GstTensorFilterFramework``` struct and register the struct with ```nnstreamer_filter_probe (GstTensorFilterFrameworkEventData *)``` function, which is supposed to be called with ```((constructor))``` initializer (```init_filter_nnfw (void)``` function in the reference).
 If your subplugin has custom properties to be supplied by users, describe their usages with ```nnstreamer_filter_set_custom_property_desc ()``` function.
-Then, call ```nnstreamer_filter_exit ()``` function with ```((desctructor))``` terminator (```fini_filter_nnfw (void)``` function in the reference).
+Then, call ```nnstreamer_filter_exit ()``` function with ```((destructor))``` terminator (```fini_filter_nnfw (void)``` function in the reference).
 
 
-In ```GstTensorFilterFramework```, there are two different ways, ```v0 (version == GST_TENSOR_FILTER_FRAMEWORK_V0)``` and ```v1 (version == GST_TENSOR_FILTER_FRAMEWORK_V1)```. In the struct, there is a ```union``` of ```v0``` and ```v1```, and it is recommended to use ```v1``` and ```set version = GST_TENSOR_FILTER_FRAMEWORK_V1``` (v1). ```v0``` is supposed to be used by old subplugins for backward compatibilty and any new subplugins should use ```v1```, which is simpler and richers in features.
+In ```GstTensorFilterFramework```, there are two different ways, ```v0 (version == GST_TENSOR_FILTER_FRAMEWORK_V0)``` and ```v1 (version == GST_TENSOR_FILTER_FRAMEWORK_V1)```. In the struct, there is a ```union``` of ```v0``` and ```v1```, and it is recommended to use ```v1``` and ```set version = GST_TENSOR_FILTER_FRAMEWORK_V1``` (v1). ```v0``` is supposed to be used by old subplugins for backward compatibility and any new subplugins should use ```v1```, which is simpler and richers in features.
 
 
 However, note that if you are going to use framework/library with C++ APIs, please do not use ```nnstreamer_plugin_api_filter.h```, but use the base tensor-filter-subplugin C++ class as in the next section.

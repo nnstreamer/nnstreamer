@@ -56,7 +56,7 @@ endif
 
 override_dh_auto_build:
 	ninja -C ${BUILDDIR}
-	# A few modules are not avaiable in Ubuntu 22.04. Don't try to create them if not available.
+	# A few modules are not available in Ubuntu 22.04. Don't try to create them if not available.
 	if [ -f './build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_nnfw.so' ]; then echo "NNFW exists" ; else rm debian/nnstreamer-nnfw.install; fi
 	if [ -f './build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_pytorch.so' ]; then echo "pytorch exists" ; else rm debian/nnstreamer-pytorch.install; fi
 	if [ -f './build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_caffe2.so' ]; then echo "caffe2 exists" ; else rm debian/nnstreamer-caffe2.install; fi

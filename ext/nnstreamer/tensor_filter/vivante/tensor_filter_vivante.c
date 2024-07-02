@@ -336,7 +336,7 @@ vivante_open (const GstTensorFilterProperties * prop, void **private_data)
   gst_tensors_info_init (&pdata->output_tensor);
 
   /** Note that we must use vsi_nn_GetTensor() to get a meta data
-   * (e.g., input tensor and outout tensor).
+   * (e.g., input tensor and output tensor).
    * ./linux_sdk/acuity-ovxlib-dev/lib/libovxlib.so
    * ./linux_sdk/acuity-ovxlib-dev/include/vsi_nn_graph.h
    * ./linux_sdk/acuity-ovxlib-dev/include/vsi_nn_tensor.h

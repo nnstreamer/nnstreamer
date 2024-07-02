@@ -213,7 +213,7 @@ PYDecoderCore::getOutCaps (const GstTensorsConfig *config)
   Py_LOCK ();
   if (!PyObject_HasAttrString (core_obj, (char *) "getOutCaps")) {
     ml_loge ("Cannot find 'getOutCaps'");
-    ml_loge ("defualt caps is `application/octet-stream`");
+    ml_loge ("default caps is `application/octet-stream`");
     caps = gst_caps_from_string ("application/octet-stream");
     goto done;
   }
@@ -324,7 +324,7 @@ decoder_py_setOption (void **pdata, int opNum, const char *param)
 
     if (core->init () != 0) {
       delete core;
-      ml_loge ("failed to initailize the object: Python3\n");
+      ml_loge ("failed to initialize the object: Python3\n");
       goto done;
     }
 

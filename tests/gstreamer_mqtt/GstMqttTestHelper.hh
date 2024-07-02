@@ -39,7 +39,7 @@ class GstMqttTestHelper
   ~GstMqttTestHelper (){};
 
   /**
-   * @brief Initialize this class instead of explcit constuctors
+   * @brief Initialize this class instead of explicit constructors
    */
   void init (void *ctx)
   {
@@ -170,7 +170,7 @@ class GstMqttTestHelper
   }
 
   private:
-  /* Variables for instance mangement */
+  /* Variables for instance management */
   static std::unique_ptr<GstMqttTestHelper> mInstance;
   static std::once_flag mOnceFlag;
 

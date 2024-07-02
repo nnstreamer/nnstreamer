@@ -463,7 +463,7 @@ gst_data_repo_sink_write_multi_images (GstDataRepoSink * sink,
 }
 
 /**
- * @brief Called when a buffer should be presented or ouput.
+ * @brief Called when a buffer should be presented or output.
  */
 static GstFlowReturn
 gst_data_repo_sink_render (GstBaseSink * bsink, GstBuffer * buffer)

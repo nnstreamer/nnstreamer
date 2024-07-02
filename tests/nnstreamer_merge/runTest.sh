@@ -143,7 +143,7 @@ callCompareTest testsynch05_7.golden testsynch06_7.log 17-8 "Compare 17-8" 1 0
 callCompareTest testsynch05_8.golden testsynch06_8.log 17-9 "Compare 17-9" 1 0
 callCompareTest testsynch05_9.golden testsynch06_9.log 17-10 "Compare 17-10" 1 0
 
-# Test Case for sync-option=0 without duration. If it does not set, then it use pts(n+1) - pts(n) as base duration. If there are pts(n-1) and pts(n) avaiable within duration condition, it always take pts(n).
+# Test Case for sync-option=0 without duration. If it does not set, then it use pts(n+1) - pts(n) as base duration. If there are pts(n-1) and pts(n) available within duration condition, it always take pts(n).
 # For this test case, outputs are generated every 1000000000 nsec, and they are [0,0],[1000000000,133333332], [2000000000,2333333332], [3000000000,2999999997]. The reason last one is 2999999997 instead of  3333333332 is EOS of basepad.
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_merge name=merge mode=linear option=2 silent=true sync-mode=basepad sync-option=0 ! multifilesink location=testsynch07_%1d.log multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)10/1\" ! pngdec ! tensor_converter ! merge.sink_0 multifilesrc location=\"testsequence03_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! merge.sink_1" 18 0 0 $PERFORMANCE

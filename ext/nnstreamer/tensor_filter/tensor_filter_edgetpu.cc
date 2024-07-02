@@ -408,7 +408,7 @@ edgetpu_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output
     }
 
     std::cerr << "Failed to invoke tensorflow-lite + edge-tpu." << std::endl;
-    throw std::runtime_error ("Invoking tensorflow-lite with edge-tpu delgation failed.");
+    throw std::runtime_error ("Invoking tensorflow-lite with edge-tpu delegation failed.");
   }
 }
 

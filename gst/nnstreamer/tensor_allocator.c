@@ -81,7 +81,7 @@ gst_tensor_allocator_class_init (GstTensorAllocatorClass * klass)
 }
 
 /**
- * @brief initialzation for GstTensorAllocator
+ * @brief initialization for GstTensorAllocator
  */
 static void
 gst_tensor_allocator_init (GstTensorAllocator * allocator)

@@ -179,7 +179,7 @@ onnxruntime_subplugin::convertTensorDim (std::vector<int64_t> &shapes, tensor_di
 
   /* the order of dimension is reversed at CAPS negotiation */
   for (i = 0; i < rank; i++) {
-    /* free dimensions are treated as 1 if not overriden */
+    /* free dimensions are treated as 1 if not overridden */
     shapes[rank - i - 1] = (shapes[rank - i - 1] > 0) ? shapes[rank - i - 1] : 1;
     dim[i] = shapes[rank - i - 1];
   }

@@ -214,7 +214,7 @@ tensorrt_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 void
 tensorrt_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
-  /* If internal _inputBuffer is nullptr, tne allocate GPU memory */
+  /* If internal _inputBuffer is nullptr, then allocate GPU memory */
   if (!_inputBuffer) {
     if (allocBuffer (&_inputBuffer, input->size) != 0) {
       ml_loge ("Failed to allocate GPU memory for input");
@@ -352,7 +352,7 @@ tensorrt_subplugin::loadModel (const GstTensorFilterProperties *prop)
     return -1;
   }
 
-  /* Create ExecutionContext obejct */
+  /* Create ExecutionContext object */
   _Context = makeUnique (_Engine->createExecutionContext ());
   if (!_Context) {
     ml_loge ("Failed to create the TensorRT ExecutionContext object");

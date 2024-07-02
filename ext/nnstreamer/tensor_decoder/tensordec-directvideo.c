@@ -22,7 +22,7 @@
  *
  * @see		https://github.com/nnstreamer/nnstreamer
  * @author	Jijoong Moon <jijoong.moon@samsung.com>
- * @bug		If the elment size is 2 or larger, padding won't work.
+ * @bug		If the element size is 2 or larger, padding won't work.
  *              GRAY16 types has size of 2 and if you have padding, it won't work.
  *              To correct this, dv_decode() should be fixed.
  */

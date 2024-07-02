@@ -144,7 +144,7 @@
   } while (0)
 
 /**
- * @brief Macro for check errorneous pipeline
+ * @brief Macro for check erroneous pipeline
  */
 #define TEST_TENSOR_FILTER_AUTO_OPTION_N(gstpipe, fw_name)                  \
   do {                                                                      \
@@ -5673,7 +5673,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, reloadTFliteSameModelWrongDims_n)
 }
 
 /**
- * @brief Test framework auto detecion option in tensor-filter.
+ * @brief Test framework auto detection option in tensor-filter.
  */
 TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoExtTFlite01)
 {
@@ -5694,7 +5694,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoExtTFlite01)
 }
 
 /**
- * @brief Test framework auto detecion option in tensor-filter.
+ * @brief Test framework auto detection option in tensor-filter.
  * @details The order of tensor filter options has changed.
  */
 TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoExtTFlite02)
@@ -5716,7 +5716,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoExtTFlite02)
 }
 
 /**
- * @brief Test framework auto detecion option in tensor-filter.
+ * @brief Test framework auto detection option in tensor-filter.
  * @details Test if options are insensitive to the case
  */
 TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoExtTFlite03)
@@ -5738,7 +5738,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoExtTFlite03)
 }
 
 /**
- * @brief Test framework auto detecion option in tensor-filter.
+ * @brief Test framework auto detection option in tensor-filter.
  * @details Negative case when model file does not exist
  */
 TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoExtTFliteModelNotFound_n)
@@ -5767,7 +5767,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoExtTFliteModelNotFound_n)
 }
 
 /**
- * @brief Test framework auto detecion option in tensor-filter.
+ * @brief Test framework auto detection option in tensor-filter.
  * @details Negative case with not supported extension
  */
 TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoExtTFliteNotSupportedExt_n)
@@ -5790,7 +5790,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoExtTFliteNotSupportedExt_n)
 }
 
 /**
- * @brief Test framework auto detecion option in tensor-filter.
+ * @brief Test framework auto detection option in tensor-filter.
  * @details Negative case when permission of model file is not given.
  */
 TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoExtTFliteNoPermission_n)
@@ -5825,7 +5825,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoExtTFliteNoPermission_n)
 }
 
 /**
- * @brief Test framework auto detecion option in tensor-filter.
+ * @brief Test framework auto detection option in tensor-filter.
  * @details Negative case with invalid framework name
  */
 TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoExtTFliteInvalidFWName_n)
@@ -5848,7 +5848,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoExtTFliteInvalidFWName_n)
 }
 
 /**
- * @brief Test framework auto detecion option in tensor-filter.
+ * @brief Test framework auto detection option in tensor-filter.
  * @details Negative case with invalid dimension of tensor filter
  */
 TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoExtTFliteWrongDimension_n)
@@ -5871,7 +5871,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoExtTFliteWrongDimension_n)
 }
 
 /**
- * @brief Test framework auto detecion option in tensor-filter.
+ * @brief Test framework auto detection option in tensor-filter.
  * @details Negative case with invalid input type of tensor filter
  */
 TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoExtTFliteWrongInputType_n)
@@ -5894,7 +5894,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoExtTFliteWrongInputType_n)
 }
 
 /**
- * @brief Test framework auto detecion without specifying the option in tensor-filter.
+ * @brief Test framework auto detection without specifying the option in tensor-filter.
  */
 TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoNoFw)
 {
@@ -5915,7 +5915,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoNoFw)
 }
 
 /**
- * @brief Test framework auto detecion option in tensor-filter.
+ * @brief Test framework auto detection option in tensor-filter.
  * @details Negative case when model file does not exist
  */
 TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoNoFwModelNotFound_n)
@@ -5944,7 +5944,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoNoFwModelNotFound_n)
 }
 
 /**
- * @brief Test framework auto detecion without specifying the option in tensor-filter.
+ * @brief Test framework auto detection without specifying the option in tensor-filter.
  * @details Negative case with not supported extension
  */
 TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoNoFwNotSupportedExt_n)
@@ -5967,7 +5967,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoNoFwNotSupportedExt_n)
 }
 
 /**
- * @brief Test framework auto detecion without specifying the option in tensor-filter.
+ * @brief Test framework auto detection without specifying the option in tensor-filter.
  * @details Negative case when permission of model file is not given.
  */
 TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoNoFwNoPermission_n)
@@ -6004,7 +6004,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, frameworkAutoNoFwNoPermission_n)
 #if !defined(ENABLE_TENSORFLOW_LITE) && !defined(ENABLE_TENSORFLOW2_LITE) \
     && defined(ENABLE_NNFW_RUNTIME)
 /**
- * @brief Test framework auto detecion option in tensor-filter.
+ * @brief Test framework auto detection option in tensor-filter.
  * @details Check if nnfw (second priority) is detected automatically
  */
 TEST (testTensorFilter, frameworkAutoExtTfliteNnfw04)
@@ -6026,7 +6026,7 @@ TEST (testTensorFilter, frameworkAutoExtTfliteNnfw04)
 }
 
 /**
- * @brief Test framework auto detecion without specifying the option in tensor-filter.
+ * @brief Test framework auto detection without specifying the option in tensor-filter.
  * @details Check if nnfw (second priority) is detected automatically
  */
 TEST (testTensorFilter, frameworkAutoWoOptExtTfliteNnfw)
@@ -6051,7 +6051,7 @@ TEST (testTensorFilter, frameworkAutoWoOptExtTfliteNnfw)
 
 #ifdef ENABLE_TENSORFLOW
 /**
- * @brief Test framework auto detecion option in tensor-filter.
+ * @brief Test framework auto detection option in tensor-filter.
  * @details Check if tensoflow is detected automatically
  */
 TEST (testTensorFilter, frameworkAutoExtPb01)
@@ -6083,7 +6083,7 @@ TEST (testTensorFilter, frameworkAutoExtPb01)
 }
 
 /**
- * @brief Test framework auto detecion without specifying the option in tensor-filter.
+ * @brief Test framework auto detection without specifying the option in tensor-filter.
  * @details Check if tensoflow is detected automatically
  */
 TEST (testTensorFilter, frameworkAutoWoOptExtPb)
@@ -6115,7 +6115,7 @@ TEST (testTensorFilter, frameworkAutoWoOptExtPb)
 }
 #else
 /**
- * @brief Test framework auto detecion option in tensor-filter.
+ * @brief Test framework auto detection option in tensor-filter.
  * @details Negative case whtn tensorflow is not enabled
  */
 TEST (testTensorFilter, frameworkAutoExtPbTfDisabled_n)
@@ -6148,7 +6148,7 @@ TEST (testTensorFilter, frameworkAutoExtPbTfDisabled_n)
 }
 
 /**
- * @brief Test framework auto detecion without specifying the option in tensor-filter.
+ * @brief Test framework auto detection without specifying the option in tensor-filter.
  * @details Negative case whtn tensorflow is not enabled
  */
 TEST (testTensorFilter, frameworkAutoWoOptExtPbTfDisabled_n)
@@ -6183,7 +6183,7 @@ TEST (testTensorFilter, frameworkAutoWoOptExtPbTfDisabled_n)
 
 #ifdef ENABLE_CAFFE2
 /**
- * @brief Test framework auto detecion option in tensor-filter.
+ * @brief Test framework auto detection option in tensor-filter.
  * @details Check if caffe2 is detected automatically
  */
 TEST (testTensorFilter, frameworkAutoExtPb03)
@@ -6220,7 +6220,7 @@ TEST (testTensorFilter, frameworkAutoExtPb03)
 
 #else
 /**
- * @brief Test framework auto detecion option in tensor-filter.
+ * @brief Test framework auto detection option in tensor-filter.
  * @details Check if caffe2 is not enabled
  */
 TEST (testTensorFilter, frameworkAutoExtPbCaffe2Disabled_n)
@@ -6259,7 +6259,7 @@ TEST (testTensorFilter, frameworkAutoExtPbCaffe2Disabled_n)
 
 #ifdef ENABLE_PYTORCH
 /**
- * @brief Test framework auto detecion option in tensor-filter.
+ * @brief Test framework auto detection option in tensor-filter.
  * @details Check if pytorch is detected automatically
  */
 TEST (testTensorFilter, frameworkAutoExtPt01)
@@ -6291,7 +6291,7 @@ TEST (testTensorFilter, frameworkAutoExtPt01)
 }
 
 /**
- * @brief Test framework auto detecion without specifying the option in tensor-filter.
+ * @brief Test framework auto detection without specifying the option in tensor-filter.
  * @details Check if pytorch is detected automatically
  */
 TEST (testTensorFilter, frameworkAutoWoOptExtPt01)
@@ -6325,7 +6325,7 @@ TEST (testTensorFilter, frameworkAutoWoOptExtPt01)
 
 #else
 /**
- * @brief Test framework auto detecion option in tensor-filter.
+ * @brief Test framework auto detection option in tensor-filter.
  * @details Check if pytorch is not enabled
  */
 TEST (testTensorFilter, frameworkAutoExtPtPytorchDisabled_n)
@@ -6359,7 +6359,7 @@ TEST (testTensorFilter, frameworkAutoExtPtPytorchDisabled_n)
 }
 
 /**
- * @brief Test framework auto detecion without specifying the option in tensor-filter.
+ * @brief Test framework auto detection without specifying the option in tensor-filter.
  * @details Check if pytorch is not enabled
  */
 TEST (testTensorFilter, frameworkAutoWoOptExtPtPytorchDisabled_n)

@@ -112,16 +112,16 @@ typedef tensor_layout tensors_layout[NNS_TENSOR_SIZE_LIMIT];
 typedef struct _GstTensorFilterProperties
 {
   const char *fwname; /**< The name of NN Framework */
-  int fw_opened; /**< TRUE IF open() is called or tried. Use int instead of gboolean because this is refered by custom plugins. */
+  int fw_opened; /**< TRUE IF open() is called or tried. Use int instead of gboolean because this is referred by custom plugins. */
   const char **model_files; /**< File path to the model file (as an argument for NNFW). char instead of gchar for non-glib custom plugins */
   int num_models; /**< number of model files. Some frameworks need multiple model files to initialize the graph (caffe, caffe2) */
 
-  int input_configured; /**< TRUE if input tensor is configured. Use int instead of gboolean because this is refered by custom plugins. */
+  int input_configured; /**< TRUE if input tensor is configured. Use int instead of gboolean because this is referred by custom plugins. */
   GstTensorsInfo input_meta; /**< configured input tensor info */
   tensors_layout input_layout; /**< data layout info provided as a property to tensor_filter for the input, defaults to _NNS_LAYOUT_ANY for all the tensors */
   unsigned int input_ranks[NNS_TENSOR_SIZE_LIMIT];  /**< the rank list of input tensors, it is calculated based on the dimension string. */
 
-  int output_configured; /**< TRUE if output tensor is configured. Use int instead of gboolean because this is refered by custom plugins. */
+  int output_configured; /**< TRUE if output tensor is configured. Use int instead of gboolean because this is referred by custom plugins. */
   GstTensorsInfo output_meta; /**< configured output tensor info */
   tensors_layout output_layout; /**< data layout info provided as a property to tensor_filter for the output, defaults to _NNS_LAYOUT_ANY for all the tensors */
   unsigned int output_ranks[NNS_TENSOR_SIZE_LIMIT];  /**< the rank list of output tensors, it is calculated based on the dimension string. */

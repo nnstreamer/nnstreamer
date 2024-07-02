@@ -181,7 +181,7 @@ stop_loop (GMainLoop * loop)
 }
 
 /**
- * @brief Main function to evalute tensor_filter's model reload functionality
+ * @brief Main function to evaluate tensor_filter's model reload functionality
  * @note feed the same input image to the tensor filter; So, even if a detection model
  * is updated (mobilenet v1 <-> v2), the output should be the same for all frames.
  */

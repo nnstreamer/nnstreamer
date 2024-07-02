@@ -17,12 +17,12 @@
 
 #include <mutex>
 
-enum _contants {
+enum _constants {
   TENSOR_RANK_LIMIT = 4,
   SUPPORT_MAX_NUMS_DEVICES = 8,
 };
 
-/* Dimension inforamtion of Google LeNet */
+/* Dimension information of Google LeNet */
 enum _google_lenet {
   GOOGLE_LENET_IN_DIM_C = 3,
   GOOGLE_LENET_IN_DIM_W = 224,
@@ -130,7 +130,7 @@ class NCSDKTensorFilterTestHelper
   ncStatus_t ncFifoRemoveElem (struct ncFifoHandle_t *fifoHandle); /* not supported yet */
 
   private:
-  /* Variables for instance mangement */
+  /* Variables for instance management */
   static std::unique_ptr<NCSDKTensorFilterTestHelper> mInstance;
   static std::once_flag mOnceFlag;
 

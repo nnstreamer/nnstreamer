@@ -143,7 +143,7 @@ typedef enum {
   TEST_TYPE_ISSUE739_MERGE_PARALLEL_4, /**< pipeline to test Merge/Parallel case in #739 */
   TEST_TYPE_DECODER_PROPERTY, /**< pipeline to test get/set_property of decoder */
   TEST_CUSTOM_EASY_ICF_01, /**< pipeline to test easy-custom in code func */
-  TEST_TYPE_UNKNOWN /**< unknonwn */
+  TEST_TYPE_UNKNOWN /**< unknown */
 } TestType;
 
 /**
@@ -952,28 +952,28 @@ _setup_pipeline (TestOption &option)
           option.num_buffers, option.num_buffers, option.num_buffers);
       break;
     case TEST_TYPE_TENSOR_CAP_1:
-      /** other/tensor out, caps are specifed*/
+      /** other/tensor out, caps are specified*/
       str_pipeline = g_strdup_printf (
           "videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)%lu/1 ! "
           "tensor_converter ! other/tensor,format=static ! tensor_sink name=test_sink async=false",
           option.num_buffers, fps);
       break;
     case TEST_TYPE_TENSOR_CAP_2:
-      /** other/tensor out, caps are not specifed (other/tensor or other/tensors) */
+      /** other/tensor out, caps are not specified (other/tensor or other/tensors) */
       str_pipeline = g_strdup_printf (
           "videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)%lu/1 ! "
           "tensor_converter ! tensor_sink name=test_sink async=false",
           option.num_buffers, fps);
       break;
     case TEST_TYPE_TENSORS_CAP_1:
-      /** other/tensors, caps are specifed (num_tensors is 1) */
+      /** other/tensors, caps are specified (num_tensors is 1) */
       str_pipeline = g_strdup_printf (
           "videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)%lu/1 ! "
           "tensor_converter ! other/tensors,format=static ! tensor_sink name=test_sink async=false",
           option.num_buffers, fps);
       break;
     case TEST_TYPE_TENSORS_CAP_2:
-      /** other/tensors, caps are not specifed (num_tensors is 3) */
+      /** other/tensors, caps are not specified (num_tensors is 3) */
       str_pipeline = g_strdup_printf (
           "tensor_mux name=mux ! tensor_sink name=test_sink "
           "videotestsrc num-buffers=%d ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)30/1 ! tensor_converter ! mux.sink_0 "

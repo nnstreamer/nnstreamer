@@ -179,7 +179,7 @@ gst_tensor_src_grpc_class_init (GstTensorSrcGRPCClass * klass)
 
   gst_element_class_set_static_metadata (gstelement_class,
       "TensorSrcGRPC", "Source/Network",
-      "Receive nnstreamer protocal buffers as a gRPC server/client",
+      "Receive nnstreamer protocol buffers as a gRPC server/client",
       "Dongju Chae <dongju.chae@samsung.com>");
 
   /* GstBasrSrcClass */
@@ -194,7 +194,7 @@ gst_tensor_src_grpc_class_init (GstTensorSrcGRPCClass * klass)
 
   GST_DEBUG_CATEGORY_INIT (gst_tensor_src_grpc_debug,
       "tensor_src_grpc", 0,
-      "src element to support protocal buffers as a gRPC server/client");
+      "src element to support protocol buffers as a gRPC server/client");
 }
 
 /**

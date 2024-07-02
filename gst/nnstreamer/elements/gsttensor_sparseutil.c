@@ -92,7 +92,7 @@ gst_tensor_sparse_to_dense (GstTensorMetaInfo * meta, GstMemory * mem)
         ((uint64_t *) output)[indices[i]] = ((uint64_t *) input)[i];
         break;
       default:
-        nns_loge ("Error occured during get tensor value");
+        nns_loge ("Error occurred during get tensor value");
         g_free (output);
         goto done;
     }
@@ -219,7 +219,7 @@ gst_tensor_sparse_from_dense (GstTensorMetaInfo * meta, GstMemory * mem)
         }
         break;
       default:
-        nns_loge ("Error occured during get tensor value");
+        nns_loge ("Error occurred during get tensor value");
         g_free (values);
         g_free (indices);
         goto done;

@@ -153,7 +153,7 @@ gst_tensor_split_class_init (GstTensorSplitClass * klass)
 /**
  * @brief initialize the new element
  * instantiate pads and add them to element
- * set pad calback functions
+ * set pad callback functions
  * initialize instance structure
  */
 static void
@@ -212,8 +212,8 @@ gst_tensor_split_finalize (GObject * object)
 
 /**
  * @brief Set Caps in pad.
- * @param split GstTensorSplit Ojbect
- * @param caps incomming capablity
+ * @param split GstTensorSplit object
+ * @param caps incoming capability
  * @return TRUE/FALSE (if successfully generate & set cap, return TRUE)
  */
 static gboolean
@@ -302,7 +302,7 @@ gst_tensor_split_get_tensor_pad (GstTensorSplit * split, GstBuffer * inbuf,
 
   tensorpad = g_new0 (GstTensorPad, 1);
   g_assert (tensorpad != NULL);
-  GST_DEBUG_OBJECT (split, "createing pad: %d(%dth)", split->num_srcpads, nth);
+  GST_DEBUG_OBJECT (split, "creating pad: %d(%dth)", split->num_srcpads, nth);
 
   name = g_strdup_printf ("src_%u", split->num_srcpads);
   pad = gst_pad_new_from_static_template (&src_templ, name);
@@ -404,14 +404,14 @@ done:
 }
 
 /**
- * @brief Make Splited Tensor
- * @param split TensorSplit Object
+ * @brief Make splitted tensor
+ * @param split TensorSplit object
  * @param buffer gstbuffer form src
  * @param nth orther of tensor
- * @return return GstMemory for splited tensor
+ * @return return GstMemory for splitted tensor
  */
 static GstMemory *
-gst_tensor_split_get_splited (GstTensorSplit * split, GstBuffer * buffer,
+gst_tensor_split_get_splitted (GstTensorSplit * split, GstBuffer * buffer,
     gint nth)
 {
   GstMemory *mem;
@@ -493,7 +493,7 @@ gst_tensor_split_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     srcpad = gst_tensor_split_get_tensor_pad (split, buf, &created, i);
 
     outbuf = gst_buffer_new ();
-    mem = gst_tensor_split_get_splited (split, buf, i);
+    mem = gst_tensor_split_get_splitted (split, buf, i);
     gst_buffer_append_memory (outbuf, mem);
     ts = GST_BUFFER_TIMESTAMP (buf);
 

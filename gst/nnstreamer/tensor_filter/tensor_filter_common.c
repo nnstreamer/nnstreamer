@@ -1022,7 +1022,7 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
           FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_CONFIG,
       g_param_spec_string ("config-file", "Configuration-file",
-          "Path to configuraion file which contains plugins properties", "",
+          "Path to configuration file which contains plugins properties", "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 }
 
@@ -1089,11 +1089,11 @@ gst_tensor_filter_common_free_property (GstTensorFilterPrivate * priv)
 
   G_LOCK (shared_model_table);
   if (shared_model_table) {
-    GstTensorFilterSharedModelRepresenatation *rep;
+    GstTensorFilterSharedModelRepresentation *rep;
     GList *value = g_hash_table_get_values (shared_model_table);
 
     while (value) {
-      rep = (GstTensorFilterSharedModelRepresenatation *) value->data;
+      rep = (GstTensorFilterSharedModelRepresentation *) value->data;
       g_list_free (rep->referred_list);
       value = g_list_next (value);
     }
@@ -1396,7 +1396,7 @@ _gtfc_setprop_FRAMEWORK (GstTensorFilterPrivate * priv,
   status = _gtfc_setprop_IS_UPDATABLE (priv, prop, &val);
   g_value_unset (&val);
   if (status != 0) {
-    ml_logw ("Set propery is-updatable failed with error: %d", status);
+    ml_logw ("Set property is-updatable failed with error: %d", status);
     return status;
   }
 
@@ -1407,7 +1407,7 @@ _gtfc_setprop_FRAMEWORK (GstTensorFilterPrivate * priv,
     status = _gtfc_setprop_ACCELERATOR (priv, prop, &val);
     g_value_unset (&val);
     if (status != 0) {
-      ml_logw ("Set propery accelerator failed with error: %d", status);
+      ml_logw ("Set property accelerator failed with error: %d", status);
       return status;
     }
   }
@@ -1799,7 +1799,7 @@ _gtfc_setprop_LATENCY (GstTensorFilterPrivate * priv,
 
   latency_mode = g_value_get_int (value);
   if (latency_mode != 0 && latency_mode != 1) {
-    ml_logw ("Invalid argument, nither 0 (OFF) nor 1 (ON).");
+    ml_logw ("Invalid argument, neither 0 (OFF) nor 1 (ON).");
     return 0;
   }
 
@@ -1821,7 +1821,7 @@ _gtfc_setprop_THROUGHPUT (GstTensorFilterPrivate * priv,
 
   throughput_mode = g_value_get_int (value);
   if (throughput_mode != 0 && throughput_mode != 1) {
-    ml_logw ("Invalid argument, nither 0 (OFF) nor 1 (ON).");
+    ml_logw ("Invalid argument, neither 0 (OFF) nor 1 (ON).");
     return 0;
   }
 
@@ -2854,7 +2854,7 @@ accl_hw_get_type (void)
       {ACCL_AUTO, ACCL_AUTO_STR, ACCL_AUTO_STR},
       {ACCL_CPU, ACCL_CPU_STR, ACCL_CPU_STR},
 #if defined(__aarch64__) || defined(__arm__)
-      /** Retreive NEON_STR when searching for SIMD/NEON on arm architectures */
+      /** Retrieve NEON_STR when searching for SIMD/NEON on arm architectures */
       {ACCL_CPU_NEON, ACCL_CPU_NEON_STR, ACCL_CPU_NEON_STR},
 #endif
       {ACCL_CPU_SIMD, ACCL_CPU_SIMD_STR, ACCL_CPU_SIMD_STR},
@@ -2893,7 +2893,7 @@ gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw,
   const GstTensorFilterFramework *fw;
 
   if (!name) {
-    nns_logw ("Cannot check hw availability, given framwork name is NULL.");
+    nns_logw ("Cannot check hw availability, given framework name is NULL.");
     return FALSE;
   }
   if ((fw = nnstreamer_filter_find (name)) == NULL) {
@@ -2955,7 +2955,7 @@ gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw,
 void *
 nnstreamer_filter_shared_model_get (void *instance, const char *key)
 {
-  GstTensorFilterSharedModelRepresenatation *model_rep = NULL;
+  GstTensorFilterSharedModelRepresentation *model_rep = NULL;
 
   G_LOCK (shared_model_table);
   if (!shared_model_table) {
@@ -2989,7 +2989,7 @@ void *
 nnstreamer_filter_shared_model_insert_and_get (void *instance, char *key,
     void *interpreter)
 {
-  GstTensorFilterSharedModelRepresenatation *model_rep;
+  GstTensorFilterSharedModelRepresentation *model_rep;
 
   /* validate arguments */
   if (!instance) {
@@ -3019,8 +3019,8 @@ nnstreamer_filter_shared_model_insert_and_get (void *instance, char *key,
     interpreter = NULL;
     goto done;
   }
-  model_rep = (GstTensorFilterSharedModelRepresenatation *)
-      g_malloc0 (sizeof (GstTensorFilterSharedModelRepresenatation));
+  model_rep = (GstTensorFilterSharedModelRepresentation *)
+      g_malloc0 (sizeof (GstTensorFilterSharedModelRepresentation));
   model_rep->shared_interpreter = interpreter;
   model_rep->referred_list = g_list_append (model_rep->referred_list, instance);
   g_hash_table_insert (shared_model_table, g_strdup (key),
@@ -3044,7 +3044,7 @@ int
 nnstreamer_filter_shared_model_remove (void *instance, const char *key,
     void (*free_callback) (void *))
 {
-  GstTensorFilterSharedModelRepresenatation *model_rep;
+  GstTensorFilterSharedModelRepresentation *model_rep;
   int ret = FALSE;
 
   /* search the table with key */
@@ -3092,7 +3092,7 @@ nnstreamer_filter_shared_model_replace (void *instance, const char *key,
     void *new_interpreter, void (*replace_callback) (void *, void *),
     void (*free_callback) (void *))
 {
-  GstTensorFilterSharedModelRepresenatation *model_rep;
+  GstTensorFilterSharedModelRepresentation *model_rep;
   GList *itr;
   UNUSED (instance);
 

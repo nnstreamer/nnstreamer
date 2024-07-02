@@ -390,7 +390,7 @@ addToSysPath (const gchar *path)
 
 /**
  * @brief parse the converting result to feed output tensors
- * @param[result] Python object retunred by convert
+ * @param[result] Python object returned by convert
  * @param[info] info Structure for output tensors info
  * @return 0 if no error, otherwise negative errno
  */

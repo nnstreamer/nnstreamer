@@ -56,5 +56,5 @@ adb shell
 android# cd /data
 android# tar xvf *.tar
 android# cd /data/nnstreamer
-android# {your_nnstreamer_applicaiton}
+android# {your_nnstreamer_application}
 ```
