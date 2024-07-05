@@ -3,7 +3,6 @@
 [![Gitter][gitter-image]][gitter-url]
 [![DailyBuild](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/badge/daily_build_badge.svg)](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/build_result/)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4401/badge)](https://bestpractices.coreinfrastructure.org/projects/4401)
-[![Total alerts](https://img.shields.io/lgtm/alerts/g/nnstreamer/nnstreamer.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/nnstreamer/nnstreamer/alerts/)
 [![Code Coverage](http://ci.nnstreamer.ai/nnstreamer/ci/badge/codecoverage.svg)](http://ci.nnstreamer.ai/nnstreamer/ci/gcov_html/index.html)
 <a href="https://scan.coverity.com/projects/nnstreamer-nnstreamer">
 <img alt="Coverity Scan Defect Status" src="https://scan.coverity.com/projects/22501/badge.svg"/>
