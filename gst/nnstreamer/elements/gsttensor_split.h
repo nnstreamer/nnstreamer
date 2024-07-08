@@ -45,7 +45,7 @@ typedef struct _GstTensorSplit GstTensorSplit;
 typedef struct _GstTensorSplitClass GstTensorSplitClass;
 
 /**
- * @brief Tensor Spliter data structure
+ * @brief Tensor Split data structure
  */
 struct _GstTensorSplit
 {
