@@ -20,24 +20,11 @@
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_util.h>
-
-#include <iostream>
-#include <memory>
 #include <vector>
 
-#include <executorch/runtime/kernel/kernel_includes.h>
-#include <executorch/extension/data_loader/file_data_loader.h>
-#include <executorch/extension/evalue_util/print_evalue.h>
-#include <executorch/extension/runner_util/inputs.h>
-#include <executorch/runtime/executor/method.h>
-#include <executorch/runtime/executor/program.h>
-#include <executorch/runtime/platform/log.h>
-#include <executorch/runtime/platform/runtime.h>
-
-static uint8_t method_allocator_pool[4 * 1024U * 1024U]; // 4 MB
+#include <executorch/extension/module/module.h>
 
 using namespace torch::executor;
-using torch::executor::util::FileDataLoader;
 
 namespace nnstreamer
 {
@@ -68,16 +55,8 @@ class executorch_subplugin final : public tensor_filter_subplugin
   GstTensorsInfo outputInfo; /**< Output tensors metadata */
 
   /** executorch */
-  std::unique_ptr<Result<FileDataLoader>> loader;
-  std::unique_ptr<Result<Program>> program;
-  std::unique_ptr<Result<Method>> method;
-  const char *method_name;
-  MemoryManager *memory_manager;
-  MemoryAllocator *method_allocator;
-  HierarchicalAllocator *planned_memory;
-  std::vector<std::unique_ptr<uint8_t[]>> planned_buffers;
-  std::vector<Span<uint8_t>> planned_spans;
-  Error fill_data (Tensor tensor, void *data);
+  std::unique_ptr<Module> module; /**< model module */
+  std::vector<TensorImpl> input_tensor_impl; /**< vector for input tensors */
 
   public:
   static void init_filter_executorch ();
@@ -111,7 +90,8 @@ const GstTensorFilterFrameworkInfo executorch_subplugin::framework_info = { .nam
 /**
  * @brief Constructor for executorch subplugin.
  */
-executorch_subplugin::executorch_subplugin () : tensor_filter_subplugin ()
+executorch_subplugin::executorch_subplugin ()
+    : tensor_filter_subplugin (), configured (false), model_path (nullptr)
 {
   gst_tensors_info_init (std::addressof (inputInfo));
   gst_tensors_info_init (std::addressof (outputInfo));
@@ -149,11 +129,7 @@ executorch_subplugin::cleanup ()
   gst_tensors_info_free (std::addressof (inputInfo));
   gst_tensors_info_free (std::addressof (outputInfo));
 
-  method_name = nullptr;
   configured = false;
-  delete method_allocator;
-  delete planned_memory;
-  delete memory_manager;
 }
 
 /**
@@ -162,10 +138,6 @@ executorch_subplugin::cleanup ()
 void
 executorch_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 {
-  /* get input / output info from properties */
-  gst_tensors_info_copy (std::addressof (inputInfo), std::addressof (prop->input_meta));
-  gst_tensors_info_copy (std::addressof (outputInfo), std::addressof (prop->output_meta));
-
   try {
     /* Load network (.pte file) */
     if (!g_file_test (prop->model_files[0], G_FILE_TEST_IS_REGULAR)) {
@@ -176,61 +148,73 @@ executorch_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 
     model_path = g_strdup (prop->model_files[0]);
 
-    // Create a loader to get the data of the program file.
-    loader = std::make_unique<Result<FileDataLoader>> (FileDataLoader::from (model_path));
-    ET_CHECK_MSG (loader->ok (), "FileDataLoader::from() failed: 0x%" PRIx32,
-        (uint32_t) loader->error ());
-
-    // Parse the program file.
-    program = std::make_unique<Result<Program>> (Program::load (&loader->get ()));
-    if (!program->ok ()) {
-      ET_LOG (Error, "Failed to parse model file %s", model_path);
-      return;
+    module = std::make_unique<Module> (model_path, Module::MlockConfig::NoMlock);
+    if (module->load () != Error::Ok) {
+      const std::string err_msg
+          = "Failed to load module with Given file " + (std::string) model_path;
+      throw std::invalid_argument (err_msg);
     }
-    ET_LOG (Info, "Model file %s is loaded.", model_path);
 
-    // Use the first method in the program.
-    const auto method_name_result = program->get ().get_method_name (0);
-    ET_CHECK_MSG (method_name_result.ok (), "Program has no methods");
-    method_name = *method_name_result;
-    ET_LOG (Info, "Using method %s", method_name);
+    ET_CHECK_MSG (module->is_loaded (), "Making module failed");
 
-    // MethodMeta describes the memory requirements of the method.
-    Result<MethodMeta> method_meta = program->get ().method_meta (method_name);
-    ET_CHECK_MSG (method_meta.ok (), "Failed to get method_meta for %s: 0x%" PRIx32,
-        method_name, (uint32_t) method_meta.error ());
+    const auto forward_method_meta = module->method_meta ("forward");
+    ET_CHECK_MSG (forward_method_meta.ok (), "Getting method meta failed");
 
-    method_allocator
-        = new MemoryAllocator (sizeof (method_allocator_pool), method_allocator_pool);
+    /** @todo support more data types */
+    auto convertType = [] (ScalarType type) {
+      switch (type) {
+        case ScalarType::Float:
+          return _NNS_FLOAT32;
+        default:
+          return _NNS_END;
+      }
+    };
 
+    // parse input tensors info
+    size_t num_inputs = forward_method_meta->num_inputs ();
+    inputInfo.num_tensors = num_inputs;
+    for (size_t i = 0; i < num_inputs; ++i) {
+      const auto input_meta = forward_method_meta->input_tensor_meta (i);
+      GstTensorInfo *info
+          = gst_tensors_info_get_nth_info (std::addressof (inputInfo), i);
 
-    size_t num_memory_planned_buffers = method_meta->num_memory_planned_buffers ();
-    for (size_t id = 0; id < num_memory_planned_buffers; ++id) {
-      // .get() will always succeed because id < num_memory_planned_buffers.
-      size_t buffer_size = static_cast<size_t> (
-          method_meta->memory_planned_buffer_size (id).get ());
-      ET_LOG (Info, "Setting up planned buffer %zu, size %zu.", id, buffer_size);
-      planned_buffers.push_back (std::make_unique<uint8_t[]> (buffer_size));
-      planned_spans.push_back ({ planned_buffers.back ().get (), buffer_size });
+      // get tensor data type
+      ScalarType type = input_meta->scalar_type ();
+      info->type = convertType (type);
+
+      // get tensor dimension
+      auto sizes = input_meta->sizes ();
+      const size_t rank = sizes.size ();
+      for (size_t d = 0; d < rank; ++d) {
+        const int dim = input_meta->sizes ()[d];
+        info->dimension[rank - 1 - d] = (uint32_t) dim;
+      }
+
+      // set tensor impl
+      input_tensor_impl.push_back (TensorImpl (type, rank,
+          const_cast<TensorImpl::SizesType *> (sizes.data ()), nullptr));
     }
-    planned_memory = new HierarchicalAllocator (
-        { planned_spans.data (), planned_spans.size () });
 
-    // Assemble all of the allocators into the MemoryManager that the Executor
-    // will use.
-    memory_manager = new MemoryManager (method_allocator, planned_memory);
+    // parse output tensors info
+    size_t num_outputs = forward_method_meta->num_outputs ();
+    outputInfo.num_tensors = num_outputs;
+    for (size_t i = 0; i < num_outputs; ++i) {
+      const auto output_meta = forward_method_meta->output_tensor_meta (i);
+      GstTensorInfo *info
+          = gst_tensors_info_get_nth_info (std::addressof (outputInfo), i);
 
-    //
-    // Load the method from the program, using the provided allocators. Running
-    // the method can mutate the memory-planned buffers, so the method should
-    // only be used by a single thread at at time, but it can be reused.
-    //
+      // get tensor data type
+      ScalarType type = output_meta->scalar_type ();
+      info->type = convertType (type);
 
-    method = std::make_unique<Result<Method>> (
-        program->get ().load_method (method_name, memory_manager));
-    ET_CHECK_MSG (method->ok (), "Loading of method %s failed with status 0x%" PRIx32,
-        method_name, (uint32_t) method->error ());
-    ET_LOG (Info, "Method loaded.");
+      // get tensor dimension
+      auto sizes = output_meta->sizes ();
+      const size_t rank = sizes.size ();
+      for (size_t d = 0; d < rank; ++d) {
+        const int dim = output_meta->sizes ()[d];
+        info->dimension[rank - 1 - d] = (uint32_t) dim;
+      }
+    }
 
     configured = true;
   } catch (const std::exception &e) {
@@ -251,75 +235,21 @@ executorch_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *out
   if (!output)
     throw std::runtime_error ("Invalid output buffer, it is NULL.");
 
-  if (!method->ok ()) {
-    throw std::runtime_error ("Method is not properly initialized.");
+  std::vector<EValue> input_values;
+  for (size_t i = 0; i < inputInfo.num_tensors; ++i) {
+    TensorImpl &impl = input_tensor_impl[i];
+    impl.set_data (input[i].data);
+    input_values.push_back (Tensor (&impl));
   }
 
-  Method &method_ref = method->get ();
+  const auto result = module->forward (input_values);
+  ET_CHECK_MSG (result.ok (), "Failed to execute the model");
 
-  // Set inputs
-  MethodMeta method_meta = method_ref.method_meta ();
-  size_t num_allocated = 0;
-  void **inputs = (void **) malloc (sizeof (void *));
-
-  Result<TensorInfo> tensor_meta = method_meta.input_tensor_meta (0);
-
-  void *data_ptr = malloc (tensor_meta->nbytes ());
-  inputs[0] = data_ptr;
-
-  TensorImpl impl = TensorImpl (tensor_meta->scalar_type (),
-      tensor_meta->sizes ().size (),
-      const_cast<TensorImpl::SizesType *> (tensor_meta->sizes ().data ()), data_ptr,
-      const_cast<TensorImpl::DimOrderType *> (tensor_meta->dim_order ().data ()));
-  Tensor t (&impl);
-
-  Error err = fill_data (t, input->data);
-  if (err == Error::InvalidArgument) {
-    throw std::runtime_error ("Unsupported data type");
+  /** @todo Remove memcpy of output tensor */
+  for (size_t i = 0; i < outputInfo.num_tensors; ++i) {
+    const auto result_tensor = result->at (i).toTensor ();
+    std::memcpy (output[i].data, result_tensor.const_data_ptr (), result_tensor.nbytes ());
   }
-
-  Error set_input_error = method_ref.set_input (t, 0);
-  assert (set_input_error == Error::Ok);
-
-  Result<util::BufferCleanup> inputs_prepared
-      = util::BufferCleanup ({ inputs, num_allocated });
-  ET_CHECK_MSG (inputs_prepared.ok (), "Could not prepare inputs: 0x%" PRIx32,
-      (uint32_t) inputs_prepared.error ());
-  ET_LOG (Info, "Inputs prepared.");
-
-  // Execute the method
-  Error status = method_ref.execute ();
-  ET_CHECK_MSG (status == Error::Ok, "Execution of method %s failed with status 0x%" PRIx32,
-      method_name, (uint32_t) status);
-  ET_LOG (Info, "Model executed successfully.");
-
-  // Get outputs
-  std::vector<EValue> outputs (method_ref.outputs_size ());
-  status = method_ref.get_outputs (outputs.data (), outputs.size ());
-  ET_CHECK (status == Error::Ok);
-  const auto &output_tensor = outputs[0].toTensor ();
-  size_t output_tensor_size = output_tensor.nbytes ();
-  std::memcpy (output->data, output_tensor.const_data_ptr (), output_tensor_size);
-}
-
-Error
-executorch_subplugin::fill_data (Tensor tensor, void *data)
-{
-  switch (tensor.scalar_type ()) {
-#define FILL_CASE(T, n)                                                      \
-  case (torch::executor::ScalarType::n):                                     \
-    {                                                                        \
-      T *ptr = static_cast<T *> (data);                                      \
-      std::copy (ptr, ptr + tensor.numel (), tensor.mutable_data_ptr<T> ()); \
-      break;                                                                 \
-    }
-    ET_FORALL_REAL_TYPES_AND (Bool, FILL_CASE)
-    default:
-      ET_LOG (Error, "Unsupported scalar type %d", (int) tensor.scalar_type ());
-      return Error::InvalidArgument;
-  }
-#undef FILL_CASE
-  return Error::Ok;
 }
 
 /**
@@ -365,7 +295,6 @@ executorch_subplugin *executorch_subplugin::registeredRepresentation = nullptr;
 void
 executorch_subplugin::init_filter_executorch (void)
 {
-  runtime_init ();
   registeredRepresentation
       = tensor_filter_subplugin::register_subplugin<executorch_subplugin> ();
 }

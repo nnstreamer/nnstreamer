@@ -821,9 +821,6 @@ endif
 if executorch_support_is_available
   filter_sub_executorch_sources = ['tensor_filter_executorch.cc']
 
-  ignore_sign_compare = declare_dependency(compile_args: ['-Wno-sign-compare'])
-  executorch_support_deps+= ignore_sign_compare
-
   nnstreamer_filter_executorch_deps = [executorch_support_deps, glib_dep, nnstreamer_single_dep]
 
   shared_library('nnstreamer_filter_executorch',
