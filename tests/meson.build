@@ -475,6 +475,9 @@ if get_option('install-test')
   if mxnet_support_is_available
     install_subdir('unittest_filter_mxnet', install_dir: unittest_install_dir)
   endif
+  if executorch_support_is_available
+    install_subdir('nnstreamer_filter_executorch', install_dir: unittest_install_dir)
+  endif
   install_subdir('nnstreamer_mux', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_rate', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_repo', install_dir: unittest_install_dir)
