@@ -25,11 +25,10 @@
 #include <memory>
 #include <vector>
 
-#include <executorch/cmake-out/kernels/portable/portable_ops_lib/RegisterCodegenUnboxedKernelsEverything.cpp>
+#include <executorch/runtime/kernel/kernel_includes.h>
 #include <executorch/extension/data_loader/file_data_loader.h>
 #include <executorch/extension/evalue_util/print_evalue.h>
 #include <executorch/extension/runner_util/inputs.h>
-#include <executorch/kernels/prim_ops/register_prim_ops.cpp>
 #include <executorch/runtime/executor/method.h>
 #include <executorch/runtime/executor/program.h>
 #include <executorch/runtime/platform/log.h>
