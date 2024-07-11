@@ -61,40 +61,41 @@ class MobilenetSSDPP : public BoxProperties
  * @param[in] config Tensor configs of the input tensors
  * @param[out] results The object returned. (GArray with detectedObject)
  */
-#define _get_objects_mobilenet_ssd_pp(_type, typename, numinput, classinput,       \
-    scoreinput, boxesinput, config, results, i_width, i_height)                    \
-  case typename:                                                                   \
-    {                                                                              \
-      int d, num;                                                                  \
-      size_t boxbpi;                                                               \
-      _type *num_detection_ = (_type *) numinput;                                  \
-      _type *classes_ = (_type *) classinput;                                      \
-      _type *scores_ = (_type *) scoreinput;                                       \
-      _type *boxes_ = (_type *) boxesinput;                                        \
-      int locations_idx                                                            \
-          = get_mobilenet_ssd_pp_tensor_idx (MOBILENET_SSD_PP_BBOX_IDX_LOCATIONS); \
-      num = (int) num_detection_[0];                                               \
-      results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), num);     \
-      boxbpi = config->info.info[locations_idx].dimension[0];                      \
-      for (d = 0; d < num; d++) {                                                  \
-        _type x1, x2, y1, y2;                                                      \
-        detectedObject object;                                                     \
-        if (scores_[d] < threshold)                                                \
-          continue;                                                                \
-        object.valid = TRUE;                                                       \
-        object.class_id = (int) classes_[d];                                       \
-        x1 = MIN (MAX (boxes_[d * boxbpi + 1], 0), 1);                             \
-        y1 = MIN (MAX (boxes_[d * boxbpi], 0), 1);                                 \
-        x2 = MIN (MAX (boxes_[d * boxbpi + 3], 0), 1);                             \
-        y2 = MIN (MAX (boxes_[d * boxbpi + 2], 0), 1);                             \
-        object.x = (int) (x1 * i_width);                                           \
-        object.y = (int) (y1 * i_height);                                          \
-        object.width = (int) ((x2 - x1) * i_width);                                \
-        object.height = (int) ((y2 - y1) * i_height);                              \
-        object.prob = scores_[d];                                                  \
-        g_array_append_val (results, object);                                      \
-      }                                                                            \
-    }                                                                              \
+#define _get_objects_mobilenet_ssd_pp(_type, typename, numinput, classinput,                  \
+    scoreinput, boxesinput, config, results, i_width, i_height)                               \
+  case typename:                                                                              \
+    {                                                                                         \
+      int d, num;                                                                             \
+      size_t boxbpi;                                                                          \
+      _type *num_detection_ = (_type *) numinput;                                             \
+      _type *classes_ = (_type *) classinput;                                                 \
+      _type *scores_ = (_type *) scoreinput;                                                  \
+      _type *boxes_ = (_type *) boxesinput;                                                   \
+      int locations_idx                                                                       \
+          = get_mobilenet_ssd_pp_tensor_idx (MOBILENET_SSD_PP_BBOX_IDX_LOCATIONS);            \
+      num = (int) num_detection_[0];                                                          \
+      results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), num);                \
+      info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, locations_idx); \
+      boxbpi = info->dimension[0];                                                            \
+      for (d = 0; d < num; d++) {                                                             \
+        _type x1, x2, y1, y2;                                                                 \
+        detectedObject object;                                                                \
+        if (scores_[d] < threshold)                                                           \
+          continue;                                                                           \
+        object.valid = TRUE;                                                                  \
+        object.class_id = (int) classes_[d];                                                  \
+        x1 = MIN (MAX (boxes_[d * boxbpi + 1], 0), 1);                                        \
+        y1 = MIN (MAX (boxes_[d * boxbpi], 0), 1);                                            \
+        x2 = MIN (MAX (boxes_[d * boxbpi + 3], 0), 1);                                        \
+        y2 = MIN (MAX (boxes_[d * boxbpi + 2], 0), 1);                                        \
+        object.x = (int) (x1 * i_width);                                                      \
+        object.y = (int) (y1 * i_height);                                                     \
+        object.width = (int) ((x2 - x1) * i_width);                                           \
+        object.height = (int) ((y2 - y1) * i_height);                                         \
+        object.prob = scores_[d];                                                             \
+        g_array_append_val (results, object);                                                 \
+      }                                                                                       \
+    }                                                                                         \
     break
 
 /** @brief Macro to simplify calling _get_objects_mobilenet_ssd_pp */
@@ -190,6 +191,7 @@ MobilenetSSDPP::checkCompatible (const GstTensorsConfig *config)
 {
   const uint32_t *dim1, *dim2, *dim3, *dim4;
   int locations_idx, classes_idx, scores_idx, num_idx, i;
+  GstTensorInfo *info = nullptr;
 
   if (!check_tensors (config, MAX_TENSORS))
     return FALSE;
@@ -200,14 +202,17 @@ MobilenetSSDPP::checkCompatible (const GstTensorsConfig *config)
   num_idx = get_mobilenet_ssd_pp_tensor_idx (NUM_IDX);
 
   /* Check if the number of detections tensor is compatible */
-  dim1 = config->info.info[num_idx].dimension;
+  info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, num_idx);
+  dim1 = info->dimension;
   g_return_val_if_fail (dim1[0] == 1, FALSE);
   for (i = 1; i < NNS_TENSOR_RANK_LIMIT; ++i)
     g_return_val_if_fail (dim1[i] == 0 || dim1[i] == 1, FALSE);
 
   /* Check if the classes & scores tensors are compatible */
-  dim2 = config->info.info[classes_idx].dimension;
-  dim3 = config->info.info[scores_idx].dimension;
+  info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, classes_idx);
+  dim2 = info->dimension;
+  info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, scores_idx);
+  dim3 = info->dimension;
   g_return_val_if_fail (dim3[0] == dim2[0], FALSE);
   for (i = 1; i < NNS_TENSOR_RANK_LIMIT; ++i) {
     g_return_val_if_fail (dim2[i] == 0 || dim2[i] == 1, FALSE);
@@ -215,7 +220,8 @@ MobilenetSSDPP::checkCompatible (const GstTensorsConfig *config)
   }
 
   /* Check if the bbox locations tensor is compatible */
-  dim4 = config->info.info[locations_idx].dimension;
+  info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, locations_idx);
+  dim4 = info->dimension;
   g_return_val_if_fail (BOX_SIZE == dim4[0], FALSE);
   g_return_val_if_fail (dim2[0] == dim4[1], FALSE);
   for (i = 2; i < NNS_TENSOR_RANK_LIMIT; ++i)
@@ -249,6 +255,7 @@ MobilenetSSDPP::decode (const GstTensorsConfig *config, const GstTensorMemory *i
   int locations_idx, classes_idx, scores_idx, num_idx;
   GArray *results = NULL;
   const guint num_tensors = config->info.num_tensors;
+  GstTensorInfo *info = nullptr;
 
   /* Already checked with getOutCaps. Thus, this is an internal bug */
   g_assert (num_tensors >= MAX_TENSORS);
@@ -262,8 +269,8 @@ MobilenetSSDPP::decode (const GstTensorsConfig *config, const GstTensorMemory *i
   mem_classes = &input[classes_idx];
   mem_scores = &input[scores_idx];
   mem_boxes = &input[locations_idx];
-
-  switch (config->info.info[num_idx].type) {
+  info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, num_idx);
+  switch (info->type) {
     _get_objects_mobilenet_ssd_pp_ (uint8_t, _NNS_UINT8);
     _get_objects_mobilenet_ssd_pp_ (int8_t, _NNS_INT8);
     _get_objects_mobilenet_ssd_pp_ (uint16_t, _NNS_UINT16);

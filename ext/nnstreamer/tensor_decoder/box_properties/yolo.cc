@@ -121,9 +121,12 @@ YoloV5::setOptionInternal (const char *param)
 int
 YoloV5::checkCompatible (const GstTensorsConfig *config)
 {
-  const guint *dim = config->info.info[0].dimension;
+  GstTensorInfo *info = nullptr;
+  const guint *dim;
   int i;
 
+  info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, 0);
+  dim = info->dimension;
   if (!check_tensors (config, 1U))
     return FALSE;
 
@@ -152,6 +155,7 @@ YoloV5::decode (const GstTensorsConfig *config, const GstTensorMemory *input)
   int cIdx, numTotalClass, cStartIdx, cIdxMax;
   float *boxinput;
   int is_output_scaled = scaled_output;
+  GstTensorInfo *info = nullptr;
 
   numTotalBox = max_detection;
   numTotalClass = total_labels;
@@ -162,7 +166,9 @@ YoloV5::decode (const GstTensorsConfig *config, const GstTensorMemory *input)
   boxinput = (float *) input[0].data;
 
   /** Only support for float type model */
-  g_assert (config->info.info[0].type == _NNS_FLOAT32);
+
+  info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, 0);
+  g_assert (info->type == _NNS_FLOAT32);
 
   results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), numTotalBox);
   for (bIdx = 0; bIdx < numTotalBox; ++bIdx) {

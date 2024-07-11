@@ -385,7 +385,11 @@ check_tensors (const GstTensorsConfig *config, const unsigned int limit)
 
   /* tensor-type of the tensors should be the same */
   for (i = 1; i < config->info.num_tensors; ++i) {
-    g_return_val_if_fail (config->info.info[i - 1].type == config->info.info[i].type, FALSE);
+    g_return_val_if_fail (
+        gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, i - 1)->type
+            == gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, i)
+                   ->type,
+        FALSE);
   }
   return TRUE;
 }

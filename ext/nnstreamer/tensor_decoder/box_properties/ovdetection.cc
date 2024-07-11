@@ -116,6 +116,7 @@ OVDetection::checkCompatible (const GstTensorsConfig *config)
 {
   const guint *dim;
   int i;
+  GstTensorInfo *info = nullptr;
   UNUSED (total_labels);
 
   if (!check_tensors (config, DEFAULT_MAX_TENSORS))
@@ -125,7 +126,8 @@ OVDetection::checkCompatible (const GstTensorsConfig *config)
    * The shape of the output tensor is [7, N, 1, 1], where N is the maximum
    * number (i.e., 200) of detected bounding boxes.
    */
-  dim = config->info.info[0].dimension;
+  info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, 0);
+  dim = info->dimension;
   g_return_val_if_fail (dim[0] == DEFAULT_SIZE_DETECTION_DESC, FALSE);
   g_return_val_if_fail (dim[1] == DETECTION_MAX, FALSE);
   for (i = 2; i < NNS_TENSOR_RANK_LIMIT; ++i)
@@ -144,12 +146,14 @@ OVDetection::decode (const GstTensorsConfig *config, const GstTensorMemory *inpu
 {
   GArray *results = NULL;
   const guint num_tensors = config->info.num_tensors;
+  GstTensorInfo *info = nullptr;
 
   /* Already checked with getOutCaps. Thus, this is an internal bug */
   g_assert (num_tensors >= DEFAULT_MAX_TENSORS);
 
   results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), DETECTION_MAX);
-  switch (config->info.info[0].type) {
+  info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, 0);
+  switch (info->type) {
     _get_persons_ov (uint8_t, input[0].data, _NNS_UINT8, results);
     _get_persons_ov (int8_t, input[0].data, _NNS_INT8, results);
     _get_persons_ov (uint16_t, input[0].data, _NNS_UINT16, results);
