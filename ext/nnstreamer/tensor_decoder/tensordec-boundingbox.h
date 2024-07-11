@@ -109,6 +109,7 @@
 #include <math.h> /* expf */
 #include <nnstreamer_log.h>
 #include <nnstreamer_util.h>
+#include <nnstreamer_plugin_api_util.h>
 #include "tensordecutil.h"
 
 #define PIXEL_VALUE (0xFF0000FF) /* RED 100% in RGBA */

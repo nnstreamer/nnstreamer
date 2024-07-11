@@ -124,9 +124,11 @@ class MobilenetSSD : public BoxProperties
     {                                                                                                        \
       int d;                                                                                                 \
       _type *boxinput_ = (_type *) boxinput;                                                                 \
-      size_t boxbpi = config->info.info[0].dimension[0];                                                     \
+      info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, 0);                            \
+      size_t boxbpi = info->dimension[0];                                                                    \
       _type *detinput_ = (_type *) detinput;                                                                 \
-      size_t detbpi = config->info.info[1].dimension[0];                                                     \
+      info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, 1);                            \
+      size_t detbpi = info->dimension[0];                                                                    \
       int num = (DETECTION_MAX > max_detection) ? max_detection : DETECTION_MAX;                             \
       detectedObject object = {                                                                              \
         .valid = FALSE, .class_id = 0, .x = 0, .y = 0, .width = 0, .height = 0, .prob = .0, .tracking_id = 0 \
@@ -319,12 +321,15 @@ MobilenetSSD::checkCompatible (const GstTensorsConfig *config)
   const uint32_t *dim1, *dim2;
   int i;
   guint max_label;
+  GstTensorInfo *info = nullptr;
 
   if (!check_tensors (config, MAX_TENSORS))
     return FALSE;
 
   /* Check if the first tensor is compatible */
-  dim1 = config->info.info[0].dimension;
+  info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, 0);
+  dim1 = info->dimension;
+
   g_return_val_if_fail (dim1[0] == BOX_SIZE, FALSE);
   g_return_val_if_fail (dim1[1] == 1, FALSE);
   g_return_val_if_fail (dim1[2] > 0, FALSE);
@@ -334,7 +339,8 @@ MobilenetSSD::checkCompatible (const GstTensorsConfig *config)
     g_return_val_if_fail (dim1[i] == 0 || dim1[i] == 1, FALSE);
 
   /* Check if the second tensor is compatible */
-  dim2 = config->info.info[1].dimension;
+  info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, 1);
+  dim2 = info->dimension;
 
   max_label = dim2[0];
   g_return_val_if_fail (max_label <= total_labels, FALSE);
@@ -372,6 +378,7 @@ MobilenetSSD::decode (const GstTensorsConfig *config, const GstTensorMemory *inp
   const GstTensorMemory *boxes, *detections = NULL;
   GArray *results;
   const guint num_tensors = config->info.num_tensors;
+  GstTensorInfo *info = nullptr;
 
   /**
    * @todo 100 is a heuristic number of objects in a picture frame
@@ -385,8 +392,9 @@ MobilenetSSD::decode (const GstTensorsConfig *config, const GstTensorMemory *inp
 
   boxes = &input[0];
   detections = &input[1];
+  info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, 0);
 
-  switch (config->info.info[0].type) {
+  switch (info->type) {
     _get_objects_mobilenet_ssd_ (uint8_t, _NNS_UINT8);
     _get_objects_mobilenet_ssd_ (int8_t, _NNS_INT8);
     _get_objects_mobilenet_ssd_ (uint16_t, _NNS_UINT16);

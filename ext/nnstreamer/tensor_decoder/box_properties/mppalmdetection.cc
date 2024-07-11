@@ -77,7 +77,8 @@ class MpPalmDetection : public BoxProperties
       _type *scores_ = (_type *) scoreinput;                                            \
       _type *boxes_ = (_type *) boxesinput;                                             \
       int num_ = max_detection;                                                         \
-      size_t boxbpi_ = config->info.info[0].dimension[0];                               \
+      info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, 0);       \
+      size_t boxbpi_ = info->dimension[0];                                              \
       results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), num_);         \
       for (d_ = 0; d_ < num_; d_++) {                                                   \
         gfloat y_center, x_center, h, w;                                                \
@@ -288,12 +289,14 @@ MpPalmDetection::checkCompatible (const GstTensorsConfig *config)
 {
   const uint32_t *dim1, *dim2;
   int i;
+  GstTensorInfo *info = nullptr;
 
   if (!check_tensors (config, MAX_TENSORS))
     return FALSE;
 
   /* Check if the first tensor is compatible */
-  dim1 = config->info.info[0].dimension;
+  info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, 0);
+  dim1 = info->dimension;
 
   g_return_val_if_fail (dim1[0] == INFO_SIZE, FALSE);
   g_return_val_if_fail (dim1[1] > 0, FALSE);
@@ -302,7 +305,8 @@ MpPalmDetection::checkCompatible (const GstTensorsConfig *config)
     g_return_val_if_fail (dim1[i] == 0 || dim1[i] == 1, FALSE);
 
   /* Check if the second tensor is compatible */
-  dim2 = config->info.info[1].dimension;
+  info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, 1);
+  dim2 = info->dimension;
   g_return_val_if_fail (dim2[0] == 1, FALSE);
   g_return_val_if_fail (dim1[1] == dim2[1], FALSE);
   for (i = 2; i < NNS_TENSOR_RANK_LIMIT; i++)
@@ -335,6 +339,7 @@ MpPalmDetection::decode (const GstTensorsConfig *config, const GstTensorMemory *
   const GstTensorMemory *boxes = NULL;
   const GstTensorMemory *detections = NULL;
   const guint num_tensors = config->info.num_tensors;
+  GstTensorInfo *info = nullptr;
 
   /* Already checked with getOutCaps. Thus, this is an internal bug */
   g_assert (num_tensors >= MAX_TENSORS);
@@ -342,7 +347,9 @@ MpPalmDetection::decode (const GstTensorsConfig *config, const GstTensorMemory *
   /* results will be allocated by _get_objects_mp_palm_detection_ */
   boxes = &input[0];
   detections = &input[1];
-  switch (config->info.info[0].type) {
+  info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, 0);
+
+  switch (info->type) {
     _get_objects_mp_palm_detection_ (uint8_t, _NNS_UINT8);
     _get_objects_mp_palm_detection_ (int8_t, _NNS_INT8);
     _get_objects_mp_palm_detection_ (uint16_t, _NNS_UINT16);
