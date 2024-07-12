@@ -37,6 +37,7 @@
 %define		snpe_support 1
 %define		trix_engine_support 1
 %define		onnxruntime_support 1
+%define         tensorrt_support 0
 # Support AI offloading (tensor_query) using nnstreamer-edge interface
 %define		nnstreamer_edge_support 1
 %define		datarepo_support 1
@@ -286,6 +287,11 @@ BuildRequires:	pkgconfig(openvino)
 %if 0%{?vivante_support}
 BuildRequires:  pkgconfig(ovxlib)
 BuildRequires:  pkgconfig(amlogic-vsi-npu-sdk)
+%endif
+
+# TensorRT
+%if 0%{?tensorrt_support}
+BuildRequires: tensorrt-devel
 %endif
 
 %if 0%{?grpc_support}
@@ -679,6 +685,15 @@ Requires:	libedgetpu1
 Requires:	nnstreamer-single = %{version}-%{release}
 %description edgetpu
 You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML APIs.
+%endif
+
+%if 0%{?tensorrt_support}
+%package tensorrt
+Summary:        NNStreamer plugin for NVidia TensorRT
+Requires:       tensorrt
+Requires:       nnstreamer-single = %{version}-%{release}
+%description tensorrt
+You may enable this package to use NVidia TensorRT with NNStreamer and Tizen ML APIs.
 %endif
 
 %if 0%{?release_test}
@@ -1371,6 +1386,14 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %files test-devel
 %{_prefix}/%{nnstbindir}/unittest-nnstreamer/subplugin_unittest_template.cc.in
 %{_prefix}/%{nnstbindir}/unittest-nnstreamer/nnstreamer-test.ini.in
+%endif
+
+%if 0%{?tensorrt_support}
+%files tensorrt
+%manifest nnstreamer.manifest
+%defattr(-,root,root,-)
+%license LICENSE
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_tensorrt*.so
 %endif
 
 %changelog
