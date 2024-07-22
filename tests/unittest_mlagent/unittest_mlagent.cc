@@ -24,10 +24,10 @@ extern "C" {
 #include "mock_mlagent.h"
 
 static const std::vector<MockModel> default_models{
-  MockModel{ "MobileNet_v1", "/tmp/mobilenet_v1_0.tflite", "", false, "", 0U },
-  MockModel{ "MobileNet_v1", "/tmp/mobilenet_v1_1.tflite", "", false, "", 1U },
-  MockModel{ "ResNet50_v1", "/tmp/resnet50_v1_0.tflite", "", false, "", 0U },
-  MockModel{ "ResNet50_v1", "/tmp/resnet50_v1_1.tflite", "", false, "", 1U },
+  MockModel{ "MobileNet_v1", "/tmp/mobilenet_v1_0.tflite", "", true, "", 1U },
+  MockModel{ "MobileNet_v1", "/tmp/mobilenet_v1_1.tflite", "", false, "", 2U },
+  MockModel{ "ResNet50_v1", "/tmp/resnet50_v1_0.tflite", "", false, "", 1U },
+  MockModel{ "ResNet50_v1", "/tmp/resnet50_v1_1.tflite", "", true, "", 2U },
 };
 
 /**
