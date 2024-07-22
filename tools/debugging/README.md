@@ -3,7 +3,7 @@ title: Debugging tools
 ...
 
 ## Debugging
- GStreamer has a debugging feature that automatically generates pipeline graphs. 
+ GStreamer has a debugging feature that automatically generates pipeline graphs.
 * https://gstreamer.freedesktop.org/documentation/tutorials/basic/debugging-tools.html
 
 * Table of Contents
@@ -23,8 +23,8 @@ For more details, refer to https://gstreamer.freedesktop.org/documentation/tutor
 * 4 (INFO): Logs all informational messages.
 * 5 (DEBUG): Logs all debug messages.
 * 6 (LOG): Logs all log messages.
-* 7 (TRACE): Logs all trace messages. 
-* 9 (MEMDUMP): Log all memory dump messages. 
+* 7 (TRACE): Logs all trace messages.
+* 9 (MEMDUMP): Log all memory dump messages.
 
 #### How to use debug options
 The category_name can contain "*" as a wildcard. For example, setting GST_DEBUG to GST_AUTOPLUG:6,GST_ELEMENT_*:4, will cause the GST_AUTOPLUG category to be logged at full LOG level, while all categories starting with GST_ELEMENT_ will be logged at INFO level. To get all possible debug output, set GST_DEBUG to *:9. For debugging purposes a *:6 debug log is usually the most useful, as it contains all important information, but hides a lot of noise such as refs/unrefs. For bug reporting purposes, a *:6 log is also what will be requested usually. It's often also worth running with *:3 to see if there are any non-fatal errors or warnings that might be related to the problem at hand. Since GStreamer 1.2 it is also possible to specify debug levels by name, e.g. GST_DEBUG=*:WARNING,*audio*:LOG
@@ -32,12 +32,12 @@ The category_name can contain "*" as a wildcard. For example, setting GST_DEBUG 
 $ export GST_DEBUG=[Level]
 ```
 
-Use gst-launch-1.0 --gst-debug-help to obtain the list of all registered categories. 
+Use gst-launch-1.0 --gst-debug-help to obtain the list of all registered categories.
 ```bash
 $ gst-launch-1.0 --gst-debug-help
 ```
 
-#### Case study 1: Tracing Gstreamer plugins with GST_DEBUG
+#### Case study 1: Tracing GStreamer plugins with GST_DEBUG
 Traces for buffer flow, events and messages in TRACE level.
 ```bash
 $ GST_DEBUG="GST_TRACER:7,GST_BUFFER*:7,GST_EVENT:7,GST_MESSAGE:7" \
@@ -61,7 +61,7 @@ GST_DEBUG_FILE=trace.log /usr/bin/gst-play-1.0 ./your_movie.mp4 && \
 
 Print processing latencies.
 ```bash
-$ GST_DEBUG="GST_TRACER:7" GST_TRACERS=latency gst-launch-1.0  \
+$ GST_DEBUG="GST_TRACER:7" GST_TRACERS=latency gst-launch-1.0 \
 audiotestsrc num-buffers=10 ! audioconvert ! volume volume=0.7 ! autoaudiosink
 ```
 
@@ -102,7 +102,7 @@ $ sudo apt -y install graphviz libgstreamer1.0-dev
 $ sudo apt -y install xdot gsteamer1.0-tools
 ```
 
-#### Gstreamer application macros for custom GSteamer application
+#### GStreamer application macros for custom GSteamer application
 
 If you're using a custom GStreamer application, you'll need to use GStreamer debug macros to trigger pipeline generation.
 For instance, to see a complete pipeline graph, add the following macro invocation at the point in your application where your pipeline elements have been created and linked:
@@ -128,7 +128,7 @@ $ ls -al ./tracing/
   0.00.05.104625000-gst-launch.PAUSED_READY.dot
 ```
 
-#### How to convert a pipeling dot file to pdf
+#### How to convert a pipeline dot file to pdf
 
 XDot is an interactive viewer for graphs written in Graphviz's dot language. You can view the pipeline graph graphically with XDot.
 ```bash
@@ -138,8 +138,8 @@ $ xdot 0.00.00.328088000-gst-launch.NULL_READY.dot
 <img src=gst-debug-dump-dot-dir-xot.png border=0></img>
 
 
-If you want to get a PDF format file from .dot file, You need to convert the to a graphical format with dot command.
-The below exampe shows how to render PAUSED_READY.dot pipeline.
+If you want to get a PDF format file from .dot file, you need to convert the to a graphical format with dot command.
+The below example shows how to render PAUSED_READY.dot pipeline.
 ```bash
 * Case 1: Convert .dot to .pdf
 $ dot -Tpdf 0.00.05.104625000-gst-launch.PAUSED_READY.dot > pipeline_PAUSED_READY.pdf
@@ -149,13 +149,13 @@ $ dot -Tpng 0.00.05.104625000-gst-launch.PAUSED_READY.dot > pipeline_PAUSED_READ
 $ eog pipeline_PaUSED_READY.png
 ```
 
-#### Case study: Test case in NNstreamer
+#### Case study: Test case in NNStreamer
 
 First of all, try to build NNStreamer source code with cmake in nnstreamer/build folder.
 
 ```bash
 nnstreamer/test$ ./testAll.sh 1
-nnstreamer/test$ cd performance/debug/tensor_convertor
+nnstreamer/test$ cd performance/debug/tensor_converter
 $ eog ${number_of_test_case}.png
 ```
 
@@ -163,7 +163,7 @@ And then, you can see elements and caps graph in a pipeline.
 
 
 ### Debugging remotely with gst-debugger
-gst-debugger (a.k.a Gstreamer Debugger) toolset allows to introspect gst-pipeline remotely. It provides graphical client, and GStreamer's plugin.
+gst-debugger (a.k.a GStreamer Debugger) toolset allows to introspect gst-pipeline remotely. It provides graphical client, and GStreamer's plugin.
 This guide is written on Ubuntu 16.04 X86_64 distribution.
 
 #### Build the source code

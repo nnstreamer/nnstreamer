@@ -101,7 +101,7 @@ mlagent_get_model_path_from (const GValue * val)
 
       if (rcode != 0) {
         nns_loge
-            ("Failed to get the stringied JSON using the given URI(%s)", uri);
+            ("Failed to get the stringified JSON using the given URI(%s)", uri);
         goto fallback;
       }
 

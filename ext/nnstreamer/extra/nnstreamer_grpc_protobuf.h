@@ -123,6 +123,6 @@ class AsyncCallData {
     Empty rpc_empty_;
 };
 
-}; // namespace grpc
+}; /* namespace grpc */
 
 #endif /* __NNS_GRPC_PROTOBUF_H__ */

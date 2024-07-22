@@ -510,7 +510,6 @@ gst_tensor_trainer_dummy_data_generation_func (GstTensorTrainer * trainer)
   return NULL;
 }
 
-
 /**
  * @brief Change state of tensor_trainsink.
  */
@@ -1286,9 +1285,11 @@ static void
 gst_tensor_trainer_stop_model_training (GstTensorTrainer * trainer)
 {
   gint ret = -1;
+
   g_return_if_fail (trainer != NULL);
   g_return_if_fail (trainer->fw != NULL);
   g_return_if_fail (trainer->fw->stop != NULL);
+
   GST_DEBUG_OBJECT (trainer, "Stop model training");
   ret = trainer->fw->stop (trainer->fw, &trainer->prop, &trainer->privateData);
   if (ret != 0) {

@@ -89,7 +89,6 @@ switch_slot_index (GstElement * tensor_repo)
   return (GST_STATE (GST_ELEMENT (tensor_repo)) == GST_STATE_PLAYING);
 }
 
-
 /**
  * @brief Main function to evaluate tensor_repo dynamicity
  */
@@ -183,7 +182,6 @@ main (int argc, char *argv[])
 
   g_timeout_add (100, (GSourceFunc) switch_slot_index, tensor_reposink);
   g_timeout_add (100, (GSourceFunc) switch_slot_index, tensor_reposrc);
-
 
   g_main_loop_run (loop);
 

@@ -952,7 +952,7 @@ _setup_pipeline (TestOption &option)
           option.num_buffers, option.num_buffers, option.num_buffers);
       break;
     case TEST_TYPE_TENSOR_CAP_1:
-      /** other/tensor out, caps are specified*/
+      /** other/tensor out, caps are specified */
       str_pipeline = g_strdup_printf (
           "videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGB,framerate=(fraction)%lu/1 ! "
           "tensor_converter ! other/tensor,format=static ! tensor_sink name=test_sink async=false",

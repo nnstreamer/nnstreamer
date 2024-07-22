@@ -2,7 +2,7 @@
 title: Development tools
 ...
 
-## Development 
+## Development
 
 ### getTestModels.sh
 Get network model for evaluation
