@@ -126,8 +126,8 @@ class ring_cache
   public:
 
     /**
-     * An enum type. 
-     * The documentation block cannot be put after the enum! 
+     * An enum type.
+     * The documentation block cannot be put after the enum!
      */
     enum EnumType
     {
@@ -139,7 +139,7 @@ class ring_cache
      * a member function.
      */
     void member();
-    
+
   protected:
     int value;       /**< an integer value */
 };

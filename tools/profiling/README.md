@@ -13,8 +13,8 @@ The [gst-instruments](https://github.com/kirushyk/gst-instruments) tool is an ea
 This guide is experimented on Ubuntu 16.04 x86_64 distribution.
 * gst-top displays performance report in real time such as top and perf-top utility.
 * gst-report-1.0 generates the trace file the below two goals as following:
-   * It display CPU usage, time usage, and execution time amon the elements. We can easily profile who spends CPU resource mostly.
-   * It generate a performance graph from a GStreamer pipeline. The graph shows a transfer size as well as CPU usage, time usage, and execution time.
+   * It displays CPU usage, time usage, and execution time among the elements. We can easily profile who spends CPU resource mostly.
+   * It generates a performance graph from a GStreamer pipeline. The graph shows a transfer size as well as CPU usage, time usage, and execution time.
 
 #### Prerequisite
 ```bash
@@ -75,13 +75,13 @@ pipeline0        0.0    0.0      0 ns
 
 #### gst-report
 
-##### How to display a performanc report with a trace file
+##### How to display a performance report with a trace file
 ```bash
 $ LD_PRELOAD=/usr/local/lib/libgstintercept.so \
     GST_DEBUG_DUMP_TRACE_DIR=. \
     gst-launch-1.0 audiotestsrc num-buffers=1000 ! vorbisenc ! vorbisdec ! fakesink
 $ ls -al *.gsttrace
-$ gst-report-1.0  pipeline0.gsttrace
+$ gst-report-1.0 pipeline0.gsttrace
 ELEMENT        %CPU   %TIME   TIME
 vorbisenc0      59.8   86.6    200 ms
 vorbisdec0       8.2   11.9   27.5 ms
@@ -92,7 +92,7 @@ audiotestsrc0    0.0    0.0      0 ns
 
 ##### How to generate an instrumentation graph
 ```bash
-$ gst-report-1.0  --dot pipeline0.gsttrace | dot -Tpng > perf.png
+$ gst-report-1.0 --dot pipeline0.gsttrace | dot -Tpng > perf.png
 $ eog ./perf.png
 ```
 <img src=gst-instruments-perf.png border=0></img>
@@ -102,7 +102,7 @@ $ eog ./perf.png
 
 ```bash
 nnstreamer/test$ ./testAll.sh 1
-nnstreamer/test$ cd performance/profile/tensor_convertor
+nnstreamer/test$ cd performance/profile/tensor_converter
 $ eog ${number_of_test_case}.svg
 ```
 
@@ -156,7 +156,7 @@ HawkTracer library provides pkg-config file which can be used to find required l
 $ g++ my_project.cpp $(pkg-config --cflags --libs hawktracer)
 ```
 
-#### Initialize  HawkTracer library
+#### Initialize HawkTracer library
 There are 2 functions which always have to be called in projects profiled by HawkTracer: ht_init and ht_deinit. Additionally, you need to specify an event listener. HawkTracer currently provides 2 listeners:
 * TCP listener, which streams events over the network
 * File dump listener, which saves events to a file.
@@ -208,9 +208,9 @@ $ hawktracer-to-json --source file_name.htdump --output output_file.json
 ```
 
 #### Analyzing the data
-* First of all, install google-chrome (or chromium-brwser) in you own PC.
+* First of all, install google-chrome (or chromium-browser) in your own PC.
 * Open **chrome://tracing/ webpage after running the browser.
-* Click load button. Then, open  file output_file.json
+* Click load button. Then, open file output_file.json
 * You should see a callstack with timing
 
 <img src=hawktracer-chrome-tracing-out.png border=0></img>

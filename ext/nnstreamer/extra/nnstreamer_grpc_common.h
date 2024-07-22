@@ -101,6 +101,6 @@ class NNStreamerRPC {
     static void _data_queue_item_free (GstDataQueueItem * item);
 };
 
-}; // namespace grpc
+}; /* namespace grpc */
 
 #endif /* __NNS_GRPC_COMMON_H__ */

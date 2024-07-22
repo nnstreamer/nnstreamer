@@ -125,6 +125,6 @@ Note that the registering structure may be updated later. (We may follow what ``
 This should fill in ```GstTensor_Filter_Framework``` supporting tensorflow_lite.  
 
 ### Custom function support, ```tensor_filter_custom.c```
-Neural network and streameline developers may define their own tensor postprocessing operations with tensor_filter_custom.  
-With ```nnstreamer-devel``` package installed at build time (e.g., ```BuildRequires: pkgconfig(nnstreamer)``` in .spec file), develerops can implement their own functions and expose their functions via ```NNStreamer_custom_class``` defined in ```tensor_filter_custom.h```.  
-The resulting custom developer plugin should exist as a shared library (.so) with the symbol NNStreamer_custom exposed with all the func defined in NNStreamer_custom_class.  
+Neural network and streamline developers may define their own tensor postprocessing operations with tensor_filter_custom.  
+With ```nnstreamer-devel``` package installed at build time (e.g., ```BuildRequires: pkgconfig(nnstreamer)``` in .spec file), developers can implement their own functions and expose their functions via ```NNStreamer_custom_class``` defined in ```tensor_filter_custom.h```.  
+The resulting custom developer plugin should exist as a shared library (.so) with the symbol NNStreamer_custom exposed with all the functions defined in NNStreamer_custom_class.  

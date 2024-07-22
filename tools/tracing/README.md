@@ -17,7 +17,7 @@ For technical questions, please send an email to support@ridgerun.com.
 * https://github.com/RidgeRun/gst-shark/
 
 #### How to compile the GstShark code
-In this section, We assume that you use Ubuntu linux distribution. This guide is written on Ubuntu 16.04 distribution.
+In this section, we assume that you use Ubuntu linux distribution. This guide is written on Ubuntu 16.04 distribution.
 ```bash
 $ sudo apt install libgstreamer1.0-dev
 $ sudo apt install graphviz libgraphviz-dev
@@ -25,7 +25,7 @@ $ sudo apt install octave epstool babeltrace
 $ git clone https://github.com/RidgeRun/gst-shark/
 $ cd gst-shark
 $ git checkout -b v0.5.3 v0.5.3
-$ ./autogen.sh  --disable-gtk-doc  --prefix /usr/ --libdir /usr/lib/x86_64-linux-gnu/
+$ ./autogen.sh --disable-gtk-doc --prefix /usr/ --libdir /usr/lib/x86_64-linux-gnu/
 $ make -j`nproc`
 $ sudo make install
 ```
@@ -102,7 +102,7 @@ The CPU usage tracer measures the load on the CPU at the time of running a deter
 
 The CPU usage tracer has the capability of measuring every core of the system. In a multiprocessor system, the output log will include the load of each individual core, giving an idea of the effect that the pipeline has on the total CPU consumption on the system.
 
-Currently this tracer is only available for GNU/Linux based systems, since the method used to determine the load on every core available is by reading the /proc/stat file. 
+Currently this tracer is only available for GNU/Linux based systems, since the method used to determine the load on every core available is by reading the /proc/stat file.
 
 ```bash
 $ cd ./scripts/graphics
@@ -120,7 +120,7 @@ $ GST_DEBUG="GST_TRACER:7" GST_TRACERS="graphic;cpuusage;framerate" gst-launch-1
 'video/x-raw, format=(string)YUY2, width=(int)640, height=(int)480, framerate=(fraction)30/1' ! \
 videorate max-rate=30 ! videoconvert ! queue ! avenc_h263p ! queue ! avimux ! fakesink sync=true
 $ ls -al ./graphic/
-$ xdot  ./graphic/pipeline.dot
+$ xdot ./graphic/pipeline.dot
 ```
 <img src=gstshark_graphic_tracer.png border=0></img>
 
@@ -161,7 +161,7 @@ $ GST_DEBUG="GST_TRACER:7" GST_TRACERS="buffer" gst-launch-1.0 videotestsrc ! fa
 #### gstshark-plot (Experimental/Unstable)
 gstshark-plot is a set of [Octave](https://www.gnu.org/software/octave/) scripts included with GstShark. The gstshark-plot scripts are located in scripts/graphics directory, inside the repository. The main script that processes the data is the gstshark-plot script. Currently, the scripts need to be run on this directory, but on upcoming releases the scripts will be accessible from any path. Make sure the GST_SHARK_CTF_DISABLE environment variable is unset, to enable the generation of the full traces.
 Note that you have to run "unset GST_SHARK_LOCATION" statement in order to archive output date into CTF (Common Trace Format, ./gstshark_yyyy-mm-dd_hh:mm:ss/) folder.
-* CTF (Common Trace Format) file: Directory with date and time with the traces of the latest session. 
+* CTF (Common Trace Format) file: Directory with date and time with the traces of the latest session.
 ```bash
 $ unset GST_SHARK_LOCATION
 $ unset GST_SHARK_CTF_DISABLE
@@ -170,7 +170,7 @@ $ GST_DEBUG="GST_TRACER:7" GST_TRACERS="proctime" gst-launch-1.0 videotestsrc nu
 tee name=tee0 tee0. ! queue ! identity sleep-time=10000 ! fakesink tee0. ! queue ! \
 identity sleep-time=30000 ! fakesink tee0. ! queue ! identity sleep-time=50000 ! fakesink
 $
-$ $ tree  ./gstshark_2018-11-20_18\:37\:54/
+$ $ tree ./gstshark_2018-11-20_18\:37\:54/
 ./gstshark_2018-11-20_18:37:54/
 |-- datastream
 |-- graphic
@@ -182,5 +182,5 @@ $ ./gstshark-plot {path-of-CTF-output-folder} -s trace.{pdf|png}
 Then, The GNU plot graph will be automatically appeared on a pop-up window.
 ```
 
-As an alternative method, you can also try to use the experiental Eclipse plug-in at the below webpage.
+As an alternative method, you can also try to use the experimental Eclipse plug-in at the below webpage.
 * https://developer.ridgerun.com/wiki/index.php?title=GstShark_-_Install_Eclipse_plugin

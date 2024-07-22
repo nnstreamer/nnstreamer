@@ -19,7 +19,7 @@
 extern "C" {
 #include "ml_agent.h"
 }
-#endif //__cplusplus
+#endif /* __cplusplus */
 
 #include "mock_mlagent.h"
 
@@ -57,7 +57,7 @@ TEST (testMLAgent, GetActivatedModelValidURIs_p)
 {
   _init ();
 
-  // Test the valid URI cases
+  /* Test the valid URI cases */
   GValue val = G_VALUE_INIT;
   g_value_init (&val, G_TYPE_STRING);
   const std::vector<MockModel> &models = default_models;
@@ -87,7 +87,7 @@ TEST (testMLAgent, GetModelValidURIs_p)
 {
   _init ();
 
-  // Test the valid URI cases
+  /* Test the valid URI cases */
   GValue val = G_VALUE_INIT;
   g_value_init (&val, G_TYPE_STRING);
   const std::vector<MockModel> &models = default_models;
@@ -140,10 +140,10 @@ TEST (testMLAgent, GetModelInvalidURIFormats_n)
  */
 TEST (testMLAgent, GetModelInvalidModel_n)
 {
-  // Clear the MLAgentMock instance
+  /* Clear the MLAgentMock instance */
   _init ();
 
-  // Test the valid URIs
+  /* Test the valid URIs */
   GValue val = G_VALUE_INIT;
   g_value_init (&val, G_TYPE_STRING);
 

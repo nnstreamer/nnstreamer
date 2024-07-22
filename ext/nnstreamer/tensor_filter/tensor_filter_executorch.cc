@@ -11,9 +11,7 @@
  * This is the executorch plugin for tensor_filter.
  *
  * @note Currently only skeleton
- *
- **/
-
+ */
 
 #include <glib.h>
 #include <nnstreamer_cppplugin_api_filter.hh>
@@ -41,7 +39,6 @@ G_END_DECLS
 /**
  * @brief tensor-filter-subplugin concrete class for ExecuTorch
  */
-
 class executorch_subplugin final : public tensor_filter_subplugin
 {
   private:
@@ -54,7 +51,7 @@ class executorch_subplugin final : public tensor_filter_subplugin
   GstTensorsInfo inputInfo; /**< Input tensors metadata */
   GstTensorsInfo outputInfo; /**< Output tensors metadata */
 
-  /** executorch */
+  /* executorch */
   std::unique_ptr<Module> module; /**< model module */
   std::vector<TensorImpl> input_tensor_impl; /**< vector for input tensors */
 
@@ -170,7 +167,7 @@ executorch_subplugin::configure_instance (const GstTensorFilterProperties *prop)
       }
     };
 
-    // parse input tensors info
+    /* parse input tensors info */
     size_t num_inputs = forward_method_meta->num_inputs ();
     inputInfo.num_tensors = num_inputs;
     for (size_t i = 0; i < num_inputs; ++i) {
@@ -178,11 +175,11 @@ executorch_subplugin::configure_instance (const GstTensorFilterProperties *prop)
       GstTensorInfo *info
           = gst_tensors_info_get_nth_info (std::addressof (inputInfo), i);
 
-      // get tensor data type
+      /* get tensor data type */
       ScalarType type = input_meta->scalar_type ();
       info->type = convertType (type);
 
-      // get tensor dimension
+      /* get tensor dimension */
       auto sizes = input_meta->sizes ();
       const size_t rank = sizes.size ();
       for (size_t d = 0; d < rank; ++d) {
@@ -190,12 +187,12 @@ executorch_subplugin::configure_instance (const GstTensorFilterProperties *prop)
         info->dimension[rank - 1 - d] = (uint32_t) dim;
       }
 
-      // set tensor impl
+      /* set tensor impl */
       input_tensor_impl.push_back (TensorImpl (type, rank,
           const_cast<TensorImpl::SizesType *> (sizes.data ()), nullptr));
     }
 
-    // parse output tensors info
+    /* parse output tensors info */
     size_t num_outputs = forward_method_meta->num_outputs ();
     outputInfo.num_tensors = num_outputs;
     for (size_t i = 0; i < num_outputs; ++i) {
@@ -203,11 +200,11 @@ executorch_subplugin::configure_instance (const GstTensorFilterProperties *prop)
       GstTensorInfo *info
           = gst_tensors_info_get_nth_info (std::addressof (outputInfo), i);
 
-      // get tensor data type
+      /* get tensor data type */
       ScalarType type = output_meta->scalar_type ();
       info->type = convertType (type);
 
-      // get tensor dimension
+      /* get tensor dimension */
       auto sizes = output_meta->sizes ();
       const size_t rank = sizes.size ();
       for (size_t d = 0; d < rank; ++d) {
@@ -325,6 +322,5 @@ fini_filter_executorch ()
   executorch_subplugin::fini_filter_executorch ();
 }
 
-
-} // namespace tensorfilter_executorch
-} // namespace nnstreamer
+} /* namespace tensorfilter_executorch */
+} /* namespace nnstreamer */

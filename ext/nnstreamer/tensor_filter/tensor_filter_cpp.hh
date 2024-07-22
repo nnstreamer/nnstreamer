@@ -156,5 +156,4 @@ class tensor_filter_cpp
 };
 
 #endif /* __cplusplus */
-
 #endif /* __NNS_TENSOR_FILTER_CPP_H__ */

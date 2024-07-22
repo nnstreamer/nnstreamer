@@ -182,7 +182,7 @@ if (pb_comp.found())
   pb_comp_dep = declare_dependency()
 endif
 
-#orc
+# ORC
 pg_orcc = find_program('orcc', required: get_option('orcc-support'))
 pg_orcc_dep = disabler()
 if (pg_orcc.found())
@@ -190,7 +190,7 @@ if (pg_orcc.found())
 endif
 orc_dep = dependency('orc-0.4', version: '>= 0.4.17', required: get_option('orcc-support'))
 
-## nnfw
+# nnfw
 nnfw_dep = dependency('', required: false)
 if not get_option('nnfw-runtime-support').disabled()
   nnfw_dep = dependency('nnfw', required: false)
@@ -572,7 +572,6 @@ foreach feature_name, data : features
   endif
   _deps += data.get('extra_deps', [])
 
-
   foreach dep : _deps
     if not dep.found()
       _available = false
@@ -598,10 +597,9 @@ foreach feature_name, data : features
   foreach name, value : data.get('extra_args', {})
     set_variable(variable_name + '_' + name, value)
   endforeach
-
 endforeach
 
-#Definitions enabled by meson_options.txt
+# Definitions enabled by meson_options.txt
 message('Following project_args are going to be included')
 message(project_args)
 foreach name, value: project_args

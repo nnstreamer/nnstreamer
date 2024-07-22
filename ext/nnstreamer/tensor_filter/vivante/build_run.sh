@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # @Author: Geunsik Lim <geunsik.lim@samsung.com>
-# @brief: The simple script is to build and run the VIM3/Vivante fiflter 
+# @brief: The simple script is to build and run the VIM3/Vivante filter.
 # This script has been evaluated on the Ubuntu 18.04 (arm64) + VIM3/Vivante board.
 # @note Please install the below package to enable nnstreamer on a Tizen board
 #   zypper clean; zypper refresh
@@ -16,7 +16,7 @@
 #
 # @note You must install the below packages to use 'zypper' command.
 #   augeas-libs, bzip2, libsolv, libsolv-tools, libzypp, pacrunner-libproxy, zypper
-# 
+#
 #################### Configuration setting ################################
 # Specify the test items that you want to execute for the .so of Vivante model.
 BUILD=1
@@ -31,20 +31,20 @@ export VSI_NN_LOG_LEVEL=5
 #################### Build ################################################
 if [[ $BUILD == 1 ]]; then
     echo -e "Compiling source .........."
-    rm -rf ./build 
-    meson  -Denable-vivante=true  build 
-    ninja -C build  
-    
+    rm -rf ./build
+    meson  -Denable-vivante=true  build
+    ninja -C build
+
     if [[ $? != 0 ]]; then
         echo -e "Ooops. The compilation task is failed. Please fix the source code."
         exit 1;
     fi
-    
+
     filter_dir="/usr/lib/nnstreamer/filters/"
     echo -e "Copying a Vivante tensor filter to $filter_dir .........."
-    echo -e "Location: $filter_dir " 
+    echo -e "Location: $filter_dir "
     cp ./build/ext/nnstreamer/tensor_filter/vivante/libnnstreamer_filter_vivante.so  $filter_dir
-    
+
     # gst-inspect-1.0 tensor_filter
 else
     echo -e "Skipping a task for compiling source code .........."
