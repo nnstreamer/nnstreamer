@@ -55,7 +55,7 @@ mlagent_get_model_path_from (const GValue * val)
   /**
    * @note Only for the following URI formats to get the file path of
    *       the matching models are currently supported.
-   *       mlagent://model/name/version or mlagent://model/name/version
+   *       mlagent://model/name or mlagent://model/name/version
    *
    *       It is required to be revised to support more scenarios
    *       that exploit the ML Agent.
@@ -69,7 +69,6 @@ mlagent_get_model_path_from (const GValue * val)
       MODEL_VERSION_MIN = 1,
       MODEL_VERSION_MAX = 255,
     };
-
     const size_t NUM_PARTS_MODEL = 3;
     size_t num_parts;
 
@@ -78,20 +77,28 @@ mlagent_get_model_path_from (const GValue * val)
       goto fallback;
     }
 
-    if (!g_strcmp0 (parts[0], URI_KEYWORD_MODEL)
-        && num_parts >= NUM_PARTS_MODEL) {
+    if (!g_strcmp0 (parts[0], URI_KEYWORD_MODEL)) {
       /** Convert the given URI for a model to the file path */
       g_autofree gchar *name = g_strdup (parts[MODEL_PART_IDX_NAME]);
-      guint version = strtoul (parts[MODEL_PART_IDX_VERSION], NULL, 10);
       g_autofree gchar *stringified_json = NULL;
       g_autoptr (JsonParser) json_parser = NULL;
       gint rcode;
+
+      if (num_parts < NUM_PARTS_MODEL - 1) {
+        goto fallback;
+      }
 
       /**
        * @todo The specification of the data layout filled in the third
        *       argument (i.e., stringified_json) by the callee is not fully decided.
        */
-      rcode = ml_agent_model_get (name, version, &stringified_json);
+      if (num_parts == NUM_PARTS_MODEL - 1) {
+        rcode = ml_agent_model_get_activated (name, &stringified_json);
+      } else {
+        guint version = strtoul (parts[MODEL_PART_IDX_VERSION], NULL, 10);
+        rcode = ml_agent_model_get (name, version, &stringified_json);
+      }
+
       if (rcode != 0) {
         nns_loge
             ("Failed to get the stringied JSON using the given URI(%s)", uri);
