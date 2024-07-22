@@ -46,8 +46,39 @@ _init (const std::vector<MockModel> &models = default_models)
   }
 }
 
+constexpr gchar valid_activated_uri_format_literal[] = "mlagent://model/%s";
 constexpr gchar valid_uri_format_literal[] = "mlagent://model/%s/%u";
 constexpr gchar invalid_uri_format_literal[] = "ml-agent://model/%s/%u";
+
+/**
+ * @brief tests of getting activated model path with valid URIs
+ */
+TEST (testMLAgent, GetActivatedModelValidURIs_p)
+{
+  _init ();
+
+  // Test the valid URI cases
+  GValue val = G_VALUE_INIT;
+  g_value_init (&val, G_TYPE_STRING);
+  const std::vector<MockModel> &models = default_models;
+
+  for (auto iter = models.begin (); iter != models.end (); ++iter) {
+    g_autofree gchar *uri = g_strdup_printf (
+        valid_activated_uri_format_literal, iter->name ().c_str ());
+    g_autofree gchar *path = NULL;
+
+    g_value_set_string (&val, uri);
+
+    path = mlagent_get_model_path_from (&val);
+
+    if (iter->is_activated ())
+      EXPECT_STREQ (path, iter->path ().c_str ());
+    else
+      EXPECT_STRNE (path, iter->path ().c_str ());
+
+    g_value_reset (&val);
+  }
+}
 
 /**
  * @brief tests of getting model paths with valid URIs
