@@ -40,7 +40,7 @@ _init (const std::vector<MockModel> &models = default_models)
   ml_agent_mock_init ();
 
   for (auto iter = models.begin (); iter != models.end (); ++iter) {
-    ml_agent_mock_add_model (iter->name ().c_str (), iter->path ().c_str (),
+    ml_agent_mock_model_add (iter->name ().c_str (), iter->path ().c_str (),
         iter->app_info ().c_str (), iter->is_activated (),
         iter->desc ().c_str (), iter->version ());
   }
