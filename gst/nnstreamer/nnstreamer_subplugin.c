@@ -226,6 +226,7 @@ register_subplugin (subpluginType type, const char *name, const void *data)
 {
   /** @todo data out of scope at add */
   subpluginData *spdata = NULL;
+  gchar *sp_name = NULL;
   gboolean ret;
 
   g_return_val_if_fail (name, FALSE);
@@ -271,7 +272,13 @@ register_subplugin (subpluginType type, const char *name, const void *data)
   g_datalist_init (&spdata->custom_dlist);
 
   G_LOCK (splock);
-  ret = g_hash_table_insert (subplugins[type], g_strdup (name), spdata);
+  sp_name = g_strdup (name);
+  ret = g_hash_table_insert (subplugins[type], sp_name, spdata);
+  if (!ret) {
+    _spdata_destroy (spdata);
+    g_free (sp_name);
+    ml_loge ("Failed to add subplugin data into the table.");
+  }
   G_UNLOCK (splock);
 
   return ret;

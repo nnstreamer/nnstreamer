@@ -98,6 +98,10 @@ gst_tensor_query_server_add_data (const guint id)
 
   G_LOCK (query_server_table);
   ret = g_hash_table_insert (_qs_table, GUINT_TO_POINTER (id), data);
+  if (!ret) {
+    _release_server_data (data);
+    nns_loge ("Failed to add tensor query server data into the table.");
+  }
   G_UNLOCK (query_server_table);
 
   return ret;

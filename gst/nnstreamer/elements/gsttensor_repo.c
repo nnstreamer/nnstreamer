@@ -43,6 +43,29 @@ static GstTensorRepo _repo = {.num_data = 0,.initialized = FALSE };
 #define GST_REPO_BROADCAST() (g_cond_broadcast (&_repo.repo_cond))
 
 /**
+ * @brief Internal function to release repo data.
+ */
+static void
+gst_tensor_repo_release_repodata (gpointer data)
+{
+  GstTensorRepoData *_data = (GstTensorRepoData *) data;
+  g_return_if_fail (_data != NULL);
+
+  g_mutex_lock (&_data->lock);
+  if (_data->buffer)
+    gst_buffer_unref (_data->buffer);
+  if (_data->caps)
+    gst_caps_unref (_data->caps);
+  g_mutex_unlock (&_data->lock);
+
+  g_mutex_clear (&_data->lock);
+  g_cond_clear (&_data->cond_pull);
+  g_cond_clear (&_data->cond_push);
+
+  g_free (_data);
+}
+
+/**
  * @brief Getter to get nth GstTensorRepoData.
  */
 GstTensorRepoData *
@@ -153,6 +176,7 @@ gst_tensor_repo_add_repodata (guint nth, gboolean is_sink)
     if (DBG)
       GST_DEBUG ("Successfully added in hash table with key[%d]", nth);
   } else {
+    gst_tensor_repo_release_repodata (data);
     ml_logf ("The key[%d] is duplicated. Cannot proceed.\n", nth);
   }
 
@@ -345,19 +369,6 @@ gst_tensor_repo_remove_repodata (guint nth)
       _repo.num_data--;
       if (DBG)
         GST_DEBUG ("key[%d] is removed\n", nth);
-
-      g_mutex_lock (&data->lock);
-      if (data->buffer)
-        gst_buffer_unref (data->buffer);
-      if (data->caps)
-        gst_caps_unref (data->caps);
-      g_mutex_unlock (&data->lock);
-
-      g_mutex_clear (&data->lock);
-      g_cond_clear (&data->cond_pull);
-      g_cond_clear (&data->cond_push);
-
-      g_free (data);
     }
 
     GST_REPO_UNLOCK ();
@@ -379,7 +390,8 @@ gst_tensor_repo_init (void)
   g_cond_init (&_repo.repo_cond);
   GST_REPO_LOCK ();
   _repo.num_data = 0;
-  _repo.hash = g_hash_table_new (g_direct_hash, g_direct_equal);
+  _repo.hash = g_hash_table_new_full (g_direct_hash, g_direct_equal, NULL,
+      gst_tensor_repo_release_repodata);
   _repo.initialized = TRUE;
   GST_REPO_BROADCAST ();
   GST_REPO_UNLOCK ();
