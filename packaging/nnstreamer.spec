@@ -40,6 +40,7 @@
 # Support AI offloading (tensor_query) using nnstreamer-edge interface
 %define		nnstreamer_edge_support 1
 %define		datarepo_support 1
+%define		ml_agent_support 1
 
 %define		check_test 1
 %define		release_test 1
