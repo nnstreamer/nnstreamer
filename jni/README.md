@@ -1,28 +1,30 @@
-# How to build C/C++ source code with nkd-build 
+# How to build C/C++ source code with ndk-build
 
 This manual is to describe how to generate the .so files from native C/C++
 source code. In general, these .so files are used as a low-level library
 for Android Application framework. Then, These files have been enabled by
 Android application via JNI interface.
 The libnnstreamer.so file is to be used as a native libraries on Android devices.
- * Host PC: Ubuntu 16.04 x86_64 LTS
+ * Host PC: Ubuntu 22.04 x86_64 LTS
  * CPU Architecture: ARM 64bit (aarch64)
- * Android platform: 7.0 (Nougat)
- * Android NDK: r12b
- * Android API level: 24
+ * Android platform: 14
+ * Android NDK: r25c
+ * Android API level: 34
+
+This [workflow](../.github/workflows/android.yml) can help with ndk-build
 
 ## Set-up Android NDK
 ```bash
 cd ~/android/
-wget https://dl.google.com/android/repository/android-ndk-r12b-linux-x86_64.zip
+wget https://dl.google.com/android/repository/android-ndk-r25c-linux.zip
 vi ~/.bashrc
-export ANDROID_NDK=~/android/android-ndk-r12b
+export ANDROID_NDK=~/android/android-ndk-r25c
 export PATH=$ANDROID_NDK:$PATH
 ```
 
 ## Download prebuilt Android-Gstreamer libraries
-Please download required files such as "*.tar.bz2" from http://ci.nnstreamer.ai/warehouse/.
- * Dir: gstreamer-prebuilts-for-android-device/gst_root_android-custom-1.12.4-ndkr12b-20190213-0900/
+Please download required files such as "*.tar.xz" from https://gstreamer.freedesktop.org/pkg/.
+ * Dir: android/1.24.0/gstreamer-1.0-android-universal-1.24.0.tar.xz/
 ```bash
 vi ~/.bashrc
 export GSTREAMER_ROOT_ANDROID=~/android/gst_root_android
