@@ -584,7 +584,10 @@ nnstreamer_python_status_check ()
     return -EINVAL;
   }
 
-  assert (Py_IsInitialized ());
+  if (!Py_IsInitialized ()) {
+    fprintf (stderr, "Py_IsInitialized () is FALSE. If nnstreamer is called by python context, please ignore this error.");
+    return -EINVAL;
+  }
   return 0;
 }
 
