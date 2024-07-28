@@ -331,6 +331,7 @@ TFLiteInterpreter::TFLiteInterpreter ()
   ext_delegate_path = nullptr;
   ext_delegate_kv_table = nullptr;
   qnn_backend_type = QNN_BACKEND_UNDEFINED;
+  qnn_performance_mode = QNN_PERFMODE_Default;
 
   g_mutex_init (&mutex);
 
@@ -966,6 +967,9 @@ TFLiteCore::TFLiteCore (const GstTensorFilterProperties *prop)
       interpreter = new TFLiteInterpreter ();
   } else
     interpreter = new TFLiteInterpreter ();
+
+  if (interpreter == NULL)
+    nns_logd ("Failed to allocate memory for interpreter");
 }
 
 /**
@@ -1526,12 +1530,6 @@ tflite_loadModelFile (const GstTensorFilterProperties *prop, void **private_data
   }
 
   core = new TFLiteCore (prop);
-  if (core == NULL) {
-    g_printerr ("Failed to allocate memory for filter subplugin.");
-    ret = -1;
-    goto done;
-  }
-
   if (core->init (&option) != 0) {
     *private_data = NULL;
     delete core;
