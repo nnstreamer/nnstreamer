@@ -1417,6 +1417,10 @@ gst_tensor_converter_video_stride (GstVideoFormat format, gint width)
     case GST_VIDEO_FORMAT_RGB:
     case GST_VIDEO_FORMAT_BGR:
     case GST_VIDEO_FORMAT_I420:
+#if GST_CHECK_VERSION(1, 20, 0)
+    case GST_VIDEO_FORMAT_RGBP:
+    case GST_VIDEO_FORMAT_BGRP:
+#endif
       if (width % 4) {
         return TRUE;
       }
@@ -1482,16 +1486,22 @@ gst_tensor_converter_parse_video (GstTensorConverter * self,
     case GST_VIDEO_FORMAT_GRAY8:
       config->info.info[0].type = _NNS_UINT8;
       config->info.info[0].dimension[0] = 1;
+      config->info.info[0].dimension[1] = width;
+      config->info.info[0].dimension[2] = height;
       break;
     case GST_VIDEO_FORMAT_GRAY16_BE:
     case GST_VIDEO_FORMAT_GRAY16_LE:
       config->info.info[0].type = _NNS_UINT16;
       config->info.info[0].dimension[0] = 1;
+      config->info.info[0].dimension[1] = width;
+      config->info.info[0].dimension[2] = height;
       break;
     case GST_VIDEO_FORMAT_RGB:
     case GST_VIDEO_FORMAT_BGR:
       config->info.info[0].type = _NNS_UINT8;
       config->info.info[0].dimension[0] = 3;
+      config->info.info[0].dimension[1] = width;
+      config->info.info[0].dimension[2] = height;
       break;
     case GST_VIDEO_FORMAT_RGBx:
     case GST_VIDEO_FORMAT_BGRx:
@@ -1503,16 +1513,24 @@ gst_tensor_converter_parse_video (GstTensorConverter * self,
     case GST_VIDEO_FORMAT_ABGR:
       config->info.info[0].type = _NNS_UINT8;
       config->info.info[0].dimension[0] = 4;
+      config->info.info[0].dimension[1] = width;
+      config->info.info[0].dimension[2] = height;
       break;
+#if GST_CHECK_VERSION(1, 20, 0)
+    case GST_VIDEO_FORMAT_RGBP:
+    case GST_VIDEO_FORMAT_BGRP:
+      config->info.info[0].type = _NNS_UINT8;
+      config->info.info[0].dimension[0] = width;
+      config->info.info[0].dimension[1] = height;
+      config->info.info[0].dimension[2] = 3;
+      break;
+#endif
     default:
       GST_WARNING_OBJECT (self,
-          "The given video caps with format \"%s\" is not supported. Please use GRAY8, GRAY16_LE, GRAY16_BE, RGB, BGR, RGBx, BGRx, xRGB, xBGR, RGBA, BGRA, ARGB, or ABGR.\n",
+          "The given video caps with format \"%s\" is not supported. Please use " NNS_VIDEO_FORMAT,
           GST_STR_NULL (gst_video_format_to_string (format)));
       break;
   }
-
-  config->info.info[0].dimension[1] = width;
-  config->info.info[0].dimension[2] = height;
 
   /* Supposed 1 frame in tensor, change dimension[3] if tensor contains N frames. */
   config->info.info[0].dimension[3] = 1;
@@ -1529,6 +1547,17 @@ gst_tensor_converter_parse_video (GstTensorConverter * self,
   if (gst_tensor_converter_video_stride (format, width)) {
     self->remove_padding = TRUE;
     silent_debug (self, "Set flag to remove padding, width = %d", width);
+
+#if GST_CHECK_VERSION(1, 20, 0)
+    if (format == GST_VIDEO_FORMAT_RGBP || format == GST_VIDEO_FORMAT_BGRP) {
+      if (self->remove_padding) {
+        GST_ERROR_OBJECT (self,
+            "Padding removal is not supported for RGBP and BGRP formats. Please use width as multiple of 4. Given width: %d",
+            width);
+        return FALSE;
+      }
+    }
+#endif
 
     /** @todo need rewrite. */
     GST_WARNING_OBJECT (self,
@@ -1969,6 +1998,9 @@ gst_tensor_converter_get_possible_media_caps (GstTensorConverter * self)
             gint colorspace, width, height;
 
             colorspace = config.info.info[0].dimension[0];
+            width = config.info.info[0].dimension[1];
+            height = config.info.info[0].dimension[2];
+
             switch (colorspace) {
               case 1:
                 gst_tensor_converter_get_format_list (&supported_formats,
@@ -1994,11 +2026,11 @@ gst_tensor_converter_get_possible_media_caps (GstTensorConverter * self)
             }
             g_value_unset (&supported_formats);
 
-            if ((width = config.info.info[0].dimension[1]) > 0) {
+            if (width > 0) {
               gst_structure_set (st, "width", G_TYPE_INT, width, NULL);
             }
 
-            if ((height = config.info.info[0].dimension[2]) > 0) {
+            if (height > 0) {
               gst_structure_set (st, "height", G_TYPE_INT, height, NULL);
             }
 
@@ -2006,6 +2038,36 @@ gst_tensor_converter_get_possible_media_caps (GstTensorConverter * self)
               gst_structure_set (st, "framerate", GST_TYPE_FRACTION,
                   config.rate_n, config.rate_d, NULL);
             }
+
+            /* add new structure for NCHW formats */
+#if GST_CHECK_VERSION(1, 20, 0)
+            width = config.info.info[0].dimension[0];
+            height = config.info.info[0].dimension[1];
+            colorspace = config.info.info[0].dimension[2];
+
+            if (colorspace == 3) {
+              GValue nchw_format = G_VALUE_INIT;
+              GstStructure *nchw_st = gst_structure_copy (st);
+
+              gst_tensor_converter_get_format_list (&nchw_format,
+                  "RGBP", "BGRP", NULL);
+
+              if (G_VALUE_TYPE (&nchw_format) == GST_TYPE_LIST &&
+                  gst_value_list_get_size (&nchw_format) > 0) {
+                gst_structure_set_value (nchw_st, "format", &nchw_format);
+              }
+              g_value_unset (&nchw_format);
+
+              if (width > 0) {
+                gst_structure_set (nchw_st, "width", G_TYPE_INT, width, NULL);
+              }
+
+              if (height > 0) {
+                gst_structure_set (nchw_st, "height", G_TYPE_INT, height, NULL);
+              }
+              gst_caps_append_structure (media_caps, nchw_st);
+            }
+  #endif
           }
           break;
         case _NNS_AUDIO:
