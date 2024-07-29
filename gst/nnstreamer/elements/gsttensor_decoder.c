@@ -866,7 +866,7 @@ gst_tensordec_fixate_caps (GstBaseTransform * trans,
 
   /**
    * In gst_tensordec_transform_caps, we have refused to specify caps
-   * if the direction is GST_PAD_SRC. Thus, gstreamer sholdn't fixate
+   * if the direction is GST_PAD_SRC. Thus, gstreamer shouldn't fixate
    * it with GST_PAD_SRC. If this happens, it's either internal logic
    * error or GST bUG.
    */
