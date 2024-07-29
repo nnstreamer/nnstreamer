@@ -13,7 +13,7 @@ The [gst-instruments](https://github.com/kirushyk/gst-instruments) tool is an ea
 This guide is experimented on Ubuntu 16.04 x86_64 distribution.
 * gst-top displays performance report in real time such as top and perf-top utility.
 * gst-report-1.0 generates the trace file the below two goals as following:
-   * It display CPU usage, time usage, and execution time amon the elements. We can easily profile who spends CPU resource mostly. 
+   * It display CPU usage, time usage, and execution time amon the elements. We can easily profile who spends CPU resource mostly.
    * It generate a performance graph from a GStreamer pipeline. The graph shows a transfer size as well as CPU usage, time usage, and execution time.
 
 #### Prerequisite
@@ -25,7 +25,7 @@ $ sudo apt install autoreconf pkg-config automake libtool
 ```bash
 $ git clone https://github.com/kirushyk/gst-instruments.git
 $ cd gst-instruments
-$ git checkout -v 0.2.3 0.2.3
+$ git checkout -b 0.2.3 0.2.3
 $ vi ./autogen.sh
 --------------- patch: start ----------------------------------
 @@ -19,7 +19,7 @@ which "aclocal" 2>/dev/null || {
@@ -38,10 +38,10 @@ $ vi ./autogen.sh
    exit 1
  }
 --------------- patch: end   ----------------------------------
-$ ./autodgen.sh
+$ ./autogen.sh
 $ ./configure
 $ make -j`nproc`
-$ sudo make install 
+$ sudo make install
 $ ls /usr/local/lib/libgstintercept.* -al
 -rw-r--r-- 1 root root 232492 Nov 21 11:49 /usr/local/lib/libgstintercept.a
 -rwxr-xr-x 1 root root   1039 Nov 21 11:49 /usr/local/lib/libgstintercept.la
@@ -93,7 +93,7 @@ audiotestsrc0    0.0    0.0      0 ns
 ##### How to generate an instrumentation graph
 ```bash
 $ gst-report-1.0  --dot pipeline0.gsttrace | dot -Tpng > perf.png
-$ eog ./perf.png 
+$ eog ./perf.png
 ```
 <img src=gst-instruments-perf.png border=0></img>
 
@@ -170,7 +170,7 @@ int main(int argc, char** argv)
   ht_timeline_register_listener(timeline, ht_file_dump_listener_callback, listener); // register listener to a timeline
 
   // your code goes here...
-  
+
   ht_timeline_flush(timeline); // flush all remaining events from timeline
   ht_timeline_unregister_all_listeners(timeline); // unregister listeners from timeline
   ht_file_dump_listener_destroy(listener); // deinitialize listener
@@ -208,7 +208,7 @@ $ hawktracer-to-json --source file_name.htdump --output output_file.json
 ```
 
 #### Analyzing the data
-* First of all, install google-chrome (or chromium-brwser) in you own PC. 
+* First of all, install google-chrome (or chromium-brwser) in you own PC.
 * Open **chrome://tracing/ webpage after running the browser.
 * Click load button. Then, open  file output_file.json
 * You should see a callstack with timing
