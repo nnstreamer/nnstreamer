@@ -25,8 +25,14 @@
 /**
  * @brief Caps string for supported video format
  */
+#if GST_CHECK_VERSION(1, 20, 0)
+#define NNS_VIDEO_FORMAT "{ RGB, BGR, RGBx, BGRx, xRGB, xBGR, RGBA, BGRA, ARGB, ABGR, GRAY8, GRAY16_BE, GRAY16_LE, RGBP, BGRP }"
+#else
+#define NNS_VIDEO_FORMAT "{ RGB, BGR, RGBx, BGRx, xRGB, xBGR, RGBA, BGRA, ARGB, ABGR, GRAY8, GRAY16_BE, GRAY16_LE }"
+#endif
+
 #define VIDEO_CAPS_STR \
-    GST_VIDEO_CAPS_MAKE ("{ RGB, BGR, RGBx, BGRx, xRGB, xBGR, RGBA, BGRA, ARGB, ABGR, GRAY8, GRAY16_BE, GRAY16_LE }") \
+    GST_VIDEO_CAPS_MAKE (NNS_VIDEO_FORMAT) \
     ", interlace-mode = (string) progressive"
 
 #define append_video_caps_template(caps) \
