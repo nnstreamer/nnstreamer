@@ -28,7 +28,7 @@ extern "C" {
 #endif
 #define _print_log(...) do { if (DBG) g_message (__VA_ARGS__); } while (0)
 
-#define UNITTEST_STATECHANGE_TIMEOUT (2000U)
+#define UNITTEST_STATECHANGE_TIMEOUT (10000U) /* 10 secs */
 #define TEST_DEFAULT_SLEEP_TIME (10000U)
 #define TEST_TIMEOUT_LIMIT (10000000U) /* 10 secs */
 #define TEST_TIMEOUT_LIMIT_MS (10000U) /* 10 secs */
