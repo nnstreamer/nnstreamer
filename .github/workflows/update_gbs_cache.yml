@@ -34,8 +34,8 @@ jobs:
       run: |
         echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
 
-    - name: run GBS
-      run: gbs build --skip-srcrpm --define "_skip_debug_rpm 1" -A ${{ matrix.gbs_build_arch }}
+    - name: build and tests on GBS
+      run: gbs build --define "unit_test 1" --define "_skip_debug_rpm 1" -A ${{ matrix.gbs_build_arch }}
 
     - name: save gbs cache
       uses: actions/cache/save@v4
@@ -43,3 +43,11 @@ jobs:
       with:
         path: ~/GBS-ROOT/local/cache
         key: gbs-cache-${{ matrix.gbs_build_arch }}-${{ steps.get-date.outputs.date }}
+
+    - name: Release daily build result
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_S3_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_S3_SECRET_ACCESS_KEY }}
+        AWS_EC2_METADATA_DISABLED: true
+      run: |
+        aws s3 cp --recursive --region ap-northeast-2 ~/GBS-ROOT/local/repos/tizen/${{ matrix.gbs_build_arch }}/RPMS/ s3://nnstreamer-release/${{ steps.get-date.outputs.date }}/RPMS/
