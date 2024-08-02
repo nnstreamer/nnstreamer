@@ -62,8 +62,13 @@ Obviously, you could/should finetune the model with your own data!
     ```python
     import ai_edge_torch
 
-    edge_model = ai_edge_torch.convert(torch_model, (sample_input,)) # convert the model
-    edge_model_output = edge_model(sample_input) # run the model
+    # PyTorch uses NCHW format only, and TFLite uses NHWC format for default.
+    # We can convert the model to use NHWC format.
+    # This is optional and can be skipped if you don't need it (performance should be tested for both cases).
+    nhwc_torch_model = ai_edge_torch.to_channel_last_io(torch_model, args=[0]) # convert the 0-th input tensor to channel_last (NHWC) format
+    sample_nhwc_input = sample_input.permute(0, 2, 3, 1) # NCHW [1, 3, 224, 224] -> NHWC [1, 224, 224, 3]
+    edge_model = ai_edge_torch.convert(nhwc_torch_model, (sample_nhwc_input,)) # convert the model
+    edge_model_output = edge_model(sample_nhwc_input) # run the model
     edge_model_output.shape # (1, 1000)
     edge_model.export("mobilenet_v3_small.tflite") # save as tflite model file
     ```
@@ -82,8 +87,8 @@ Obviously, you could/should finetune the model with your own data!
     input_details = interpreter.get_input_details()
     #  'name': 'serving_default_args_0:0',
     #  'index': 0,
-    #  'shape': array([  1,   3, 224, 224], dtype=int32),
-    #  'shape_signature': array([  1,   3, 224, 224], dtype=int32),
+    #  'shape': array([  1, 224, 224,   3], dtype=int32),
+    #  'shape_signature': array([  1, 224, 224,   3], dtype=int32),
     #  'dtype': numpy.float32,
     #  'quantization': (0.0, 0),
     #  'quantization_parameters': {'scales': array([], dtype=float32),
@@ -105,6 +110,7 @@ Obviously, you could/should finetune the model with your own data!
     #  'sparsity_parameters': {}
 
     # Test the model on random input data.
+    input_shape = input_details[0]['shape']
     input_data = np.array(np.random.random_sample(input_shape), dtype=np.float32)
     interpreter.set_tensor(input_details[0]['index'], input_data)
     interpreter.invoke()
@@ -131,7 +137,7 @@ A conf file `mobilenet.conf` should be something like this:
     "input_info" : [
       {
         "type" : "float32",
-        "dimension" : "224:224:3:1"
+        "dimension" : "3:224:224:1"
       }
     ],
     "output_info" : [
@@ -174,9 +180,9 @@ ml_service_get_input_information (mls, NULL, &input_info);
 - tensor[0]
   - name: serving_default_args_0:0
   - type: 7
-  - dimension[0]: 224
+  - dimension[0]: 3
   - dimension[1]: 224
-  - dimension[2]: 3
+  - dimension[2]: 224
   - dimension[3]: 1
   - size: 150528 byte
 */
