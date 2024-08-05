@@ -81,6 +81,10 @@ typedef enum {
   TEST_TYPE_VIDEO_GRAY8_3F_PADDING, /**< pipeline for video (GRAY8) 3 frames, remove padding */
   TEST_TYPE_VIDEO_GRAY16_BE, /**< pipeline for video (GRAY16_BE) */
   TEST_TYPE_VIDEO_GRAY16_LE, /**< pipeline for video (GRAY16_LE) */
+#if GST_CHECK_VERSION(1, 20, 0)
+  TEST_TYPE_VIDEO_RGBP, /**< pipeline for video (RGBP) */
+  TEST_TYPE_VIDEO_BGRP, /**< pipeline for video (BGRP) */
+#endif
   TEST_TYPE_AUDIO_S8, /**< pipeline for audio (S8) */
   TEST_TYPE_AUDIO_U8_100F, /**< pipeline for audio (U8) 100 frames */
   TEST_TYPE_AUDIO_S16, /**< pipeline for audio (S16) */
@@ -678,6 +682,20 @@ _setup_pipeline (TestOption &option)
                                       "tensor_converter ! tensor_sink name=test_sink",
           option.num_buffers, fps);
       break;
+#if GST_CHECK_VERSION(1, 20, 0)
+    case TEST_TYPE_VIDEO_RGBP:
+      /** video 160x120 RGBP */
+      str_pipeline = g_strdup_printf ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=RGBP,framerate=(fraction)%lu/1 ! "
+                                      "tensor_converter ! tensor_sink name=test_sink",
+          option.num_buffers, fps);
+      break;
+    case TEST_TYPE_VIDEO_BGRP:
+      /** video 160x120 BGRP */
+      str_pipeline = g_strdup_printf ("videotestsrc num-buffers=%d ! videoconvert ! video/x-raw,width=160,height=120,format=BGRP,framerate=(fraction)%lu/1 ! "
+                                      "tensor_converter ! tensor_sink name=test_sink",
+          option.num_buffers, fps);
+      break;
+#endif
     case TEST_TYPE_AUDIO_S8:
       /** audio sample rate 16000 (8 bits, signed, little endian) */
       str_pipeline = g_strdup_printf (
@@ -2656,6 +2674,90 @@ TEST (tensorStreamTest, videoGray16LE)
   EXPECT_FALSE (g_test_data.test_failed);
   _free_test_data (option);
 }
+
+#if GST_CHECK_VERSION(1, 20, 0)
+/**
+ * @brief Test for video format RGBP.
+ */
+TEST (tensorStreamTest, videoRGBP)
+{
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_VIDEO_RGBP };
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers and signals */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.mem_blocks, 1U);
+  EXPECT_EQ (g_test_data.received_size, 160U * 120 * 3);
+
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  /** check tensor config for video */
+  EXPECT_TRUE (gst_tensors_config_validate (&g_test_data.tensors_config));
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 160U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 120U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 3U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_EQ (g_test_data.tensors_config.rate_n, (int) fps);
+  EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data (option);
+}
+
+/**
+ * @brief Test for video format BGRP.
+ */
+TEST (tensorStreamTest, videoBGRP)
+{
+  const guint num_buffers = 5;
+  TestOption option = { num_buffers, TEST_TYPE_VIDEO_BGRP };
+
+  ASSERT_TRUE (_setup_pipeline (option));
+
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_PLAYING);
+  g_main_loop_run (g_test_data.loop);
+
+  EXPECT_TRUE (_wait_pipeline_process_buffers (num_buffers));
+  gst_element_set_state (g_test_data.pipeline, GST_STATE_NULL);
+
+  /** check eos message */
+  EXPECT_EQ (g_test_data.status, TEST_EOS);
+
+  /** check received buffers and signals */
+  EXPECT_EQ (g_test_data.received, num_buffers);
+  EXPECT_EQ (g_test_data.mem_blocks, 1U);
+  EXPECT_EQ (g_test_data.received_size, 160U * 120 * 3);
+
+  /** check timestamp */
+  EXPECT_FALSE (g_test_data.invalid_timestamp);
+
+  /** check tensor config for video */
+  EXPECT_TRUE (gst_tensors_config_validate (&g_test_data.tensors_config));
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].type, _NNS_UINT8);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[0], 160U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[1], 120U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[2], 3U);
+  EXPECT_EQ (g_test_data.tensors_config.info.info[0].dimension[3], 1U);
+  EXPECT_EQ (g_test_data.tensors_config.rate_n, (int) fps);
+  EXPECT_EQ (g_test_data.tensors_config.rate_d, 1);
+
+  EXPECT_FALSE (g_test_data.test_failed);
+  _free_test_data (option);
+}
+#endif
 
 /**
  * @brief Test for audio format S8.
