@@ -15,11 +15,12 @@ jobs:
     - uses: actions/setup-python@v4
       with:
         python-version: "3.10"
-    - name: Install packages
+    - name: Install packages for hotdoc
       run: |
         sudo apt-get install python3-dev libxml2-dev libxslt1-dev cmake libyaml-dev libclang-dev llvm-dev libglib2.0-dev libjson-glib-dev flex
         python -m pip install --upgrade pip
         pip install hotdoc
+
     - name: Generate doc using hotdoc
       run: |
         bash Documentation/hotdoc/gen-hotdoc.sh
@@ -40,3 +41,29 @@ jobs:
         git commit -s -m "${{ steps.get-date.outputs.date }} : Update nnstreamer.github.io"
         git push origin main -f
         popd
+
+  generate_doxybook:
+  # reference: https://github.com/nnstreamer/TAOS-CI/tree/main/ci/doxybook
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install packages for doxygen
+      run: sudo apt-get install doxygen graphviz texlive-latex-base texlive-fonts-recommended texlive-fonts-extra texlive-latex-extra
+    - name: Generate doxygen
+      run: |
+        doxygen .github/workflows/static.check.scripts/Doxyfile.prj
+        pushd latex
+        make  -j`nproc`
+        mv refman.pdf nnstreamer-book.pdf
+        popd
+    - name: get date
+      id: get-date
+      run: |
+        echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+    - name: Release daily build result
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_S3_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_S3_SECRET_ACCESS_KEY }}
+        AWS_EC2_METADATA_DISABLED: true
+      run: |
+        aws s3 cp --region ap-northeast-2 latex/nnstreamer-book.pdf s3://nnstreamer-release/${{ steps.get-date.outputs.date }}/doc/nnstreamer-book.pdf
