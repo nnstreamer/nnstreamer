@@ -1,0 +1,42 @@
+name: Publish docs
+
+on:
+  schedule:
+    # 04:30 AM (KST) Mon-Fri
+    - cron: "30 19 * * 0-4"
+
+  workflow_dispatch:
+
+jobs:
+  generate_github.io:
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v4
+      with:
+        python-version: "3.10"
+    - name: Install packages
+      run: |
+        sudo apt-get install python3-dev libxml2-dev libxslt1-dev cmake libyaml-dev libclang-dev llvm-dev libglib2.0-dev libjson-glib-dev flex
+        python -m pip install --upgrade pip
+        pip install hotdoc
+    - name: Generate doc using hotdoc
+      run: |
+        bash Documentation/hotdoc/gen-hotdoc.sh
+
+    - name: get date
+      id: get-date
+      run: |
+        echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
+    - name: Update github.io
+      run: |
+        git clone https://${{ secrets.TAOS_ACCOUNT }}:${{ secrets.TAOS_ACCOUNT_TOKEN }}@github.com/nnstreamer/nnstreamer.github.io.git
+        cp -r Documentation/NNStreamer-doc/html/* nnstreamer.github.io/
+        pushd nnstreamer.github.io
+        git config user.email "nnsuite@samsung.com"
+        git config user.name "nnsuite"
+        git add *
+        git commit -s -m "${{ steps.get-date.outputs.date }} : Update nnstreamer.github.io"
+        git push origin main -f
+        popd
