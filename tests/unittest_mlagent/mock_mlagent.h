@@ -211,7 +211,7 @@ struct MockMLAgent {
   /**
    * @brief Add mock model to model repo.
    */
-  bool model_add (MockModel model)
+  bool model_add (MockModel &model)
   {
     std::string key = model.name ();
 
