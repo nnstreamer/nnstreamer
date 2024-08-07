@@ -2067,7 +2067,7 @@ gst_tensor_converter_get_possible_media_caps (GstTensorConverter * self)
               }
               gst_caps_append_structure (media_caps, nchw_st);
             }
-  #endif
+#endif
           }
           break;
         case _NNS_AUDIO:

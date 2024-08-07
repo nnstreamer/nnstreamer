@@ -47,7 +47,7 @@ MockModel::to_cstr_json ()
   g_autoptr (JsonGenerator) gen = NULL;
 
   json_builder_begin_object (builder);
-  for (auto iter : json_mem_to_cb_map) {
+  for (const auto &iter : json_mem_to_cb_map) {
     json_builder_set_member_name (builder, iter.first.c_str ());
     json_builder_add_string_value (builder, iter.second ().c_str ());
   }

@@ -52,6 +52,8 @@ gst_tensor_repo_release_repodata (gpointer data)
   g_return_if_fail (_data != NULL);
 
   g_mutex_lock (&_data->lock);
+  g_cond_signal (&_data->cond_pull);
+  g_cond_signal (&_data->cond_push);
   if (_data->buffer)
     gst_buffer_unref (_data->buffer);
   if (_data->caps)

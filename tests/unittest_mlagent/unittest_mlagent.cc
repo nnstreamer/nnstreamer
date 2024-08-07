@@ -15,12 +15,7 @@
 
 #include <iostream>
 
-#ifdef __cplusplus
-extern "C" {
 #include "ml_agent.h"
-}
-#endif /* __cplusplus */
-
 #include "mock_mlagent.h"
 
 static const std::vector<MockModel> default_models{
