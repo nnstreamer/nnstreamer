@@ -250,7 +250,7 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 
     /* assign user_buffermap */
     size_t bufsize = gst_tensor_info_get_size (info);
-    Snpe_UserBufferEncoding_Handle_t ube_h;
+    Snpe_UserBufferEncoding_Handle_t ube_h = NULL;
     if (type == SNPE_USERBUFFERENCODING_ELEMENTTYPE_TF8) {
       Snpe_IBufferAttributes_Handle_t bufferAttributesOpt
           = Snpe_SNPE_GetInputOutputBufferAttributes (snpe_h, tensorName);
