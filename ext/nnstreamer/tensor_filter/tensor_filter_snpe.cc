@@ -189,6 +189,8 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   Snpe_SNPEBuilder_Handle_t snpebuilder_h = NULL;
   Snpe_StringList_Handle_t inputstrListHandle = NULL;
   Snpe_StringList_Handle_t outputstrListHandle = NULL;
+  std::vector<Snpe_UserBufferEncoding_ElementType_t> inputTypeVec;
+  std::vector<Snpe_UserBufferEncoding_ElementType_t> outputTypeVec;
 
   auto _clean_handles = [&] () {
     if (lib_version_h)
@@ -210,20 +212,37 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 
   /* lambda function to handle tensor */
   auto handleTensor = [&] (const char *tensorName, GstTensorInfo *info,
-                          Snpe_UserBufferMap_Handle_t bufferMapHandle) {
+                          Snpe_UserBufferMap_Handle_t bufferMapHandle,
+                          Snpe_UserBufferEncoding_ElementType_t type) {
     Snpe_IBufferAttributes_Handle_t bufferAttributesOpt
         = Snpe_SNPE_GetInputOutputBufferAttributes (snpe_h, tensorName);
     if (!bufferAttributesOpt)
       throw std::runtime_error ("Error obtaining buffer attributes");
 
-    /* parse tensor data type */
-    auto type = Snpe_IBufferAttributes_GetEncodingType (bufferAttributesOpt);
+    auto default_type = Snpe_IBufferAttributes_GetEncodingType (bufferAttributesOpt);
+
+    /* parse tensor data type with user given element type */
     switch (type) {
+      case SNPE_USERBUFFERENCODING_ELEMENTTYPE_UNKNOWN:
+        /* If the type is not provided by user, use default type */
+        type = default_type;
+        if (default_type == SNPE_USERBUFFERENCODING_ELEMENTTYPE_FLOAT) {
+          info->type = _NNS_FLOAT32;
+        } else if (default_type == SNPE_USERBUFFERENCODING_ELEMENTTYPE_TF8) {
+          info->type = _NNS_UINT8;
+        } else {
+          throw std::invalid_argument ("Unsupported data type");
+        }
+        break;
       case SNPE_USERBUFFERENCODING_ELEMENTTYPE_FLOAT:
         info->type = _NNS_FLOAT32;
         break;
       case SNPE_USERBUFFERENCODING_ELEMENTTYPE_TF8:
         info->type = _NNS_UINT8;
+        if (default_type == SNPE_USERBUFFERENCODING_ELEMENTTYPE_FLOAT) {
+          throw std::invalid_argument (
+              "ERROR: Quantization parameters are not present in model. Use TF8 type.");
+        }
         break;
       default:
         throw std::invalid_argument ("Unsupported data type");
@@ -274,7 +293,8 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     ret = Snpe_UserBufferMap_Add (bufferMapHandle, tensorName, iub);
   };
 
-  auto parse_custom_prop = [&runtime, &outputstrListHandle] (const char *custom_prop) {
+  auto parse_custom_prop = [&runtime, &outputstrListHandle, &inputTypeVec,
+                               &outputTypeVec] (const char *custom_prop) {
     if (!custom_prop)
       return;
 
@@ -320,6 +340,32 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
           }
           g_free (_ot_str);
           g_strfreev (names);
+        } else if (g_ascii_strcasecmp (option[0], "OutputType") == 0) {
+          gchar **types = g_strsplit (option[1], ";", -1);
+          guint num_types = g_strv_length (types);
+          for (guint i = 0; i < num_types; ++i) {
+            if (g_ascii_strcasecmp (types[i], "FLOAT32") == 0) {
+              outputTypeVec.push_back (SNPE_USERBUFFERENCODING_ELEMENTTYPE_FLOAT);
+            } else if (g_ascii_strcasecmp (types[i], "TF8") == 0) {
+              outputTypeVec.push_back (SNPE_USERBUFFERENCODING_ELEMENTTYPE_TF8);
+            } else {
+              nns_logw ("Ignore unknown output type (%s)", types[i]);
+            }
+          }
+          g_strfreev (types);
+        } else if (g_ascii_strcasecmp (option[0], "InputType") == 0) {
+          gchar **types = g_strsplit (option[1], ";", -1);
+          guint num_types = g_strv_length (types);
+          for (guint i = 0; i < num_types; ++i) {
+            if (g_ascii_strcasecmp (types[i], "FLOAT32") == 0) {
+              inputTypeVec.push_back (SNPE_USERBUFFERENCODING_ELEMENTTYPE_FLOAT);
+            } else if (g_ascii_strcasecmp (types[i], "TF8") == 0) {
+              inputTypeVec.push_back (SNPE_USERBUFFERENCODING_ELEMENTTYPE_TF8);
+            } else {
+              nns_logw ("Ignore unknown input type (%s)", types[i]);
+            }
+          }
+          g_strfreev (types);
         } else {
           nns_logw ("Unknown option (%s).", options[op]);
         }
@@ -403,7 +449,12 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
       const char *inputName = Snpe_StringList_At (inputstrListHandle, i);
       info->name = g_strdup (inputName);
 
-      handleTensor (inputName, info, inputMap_h);
+      auto inputType = SNPE_USERBUFFERENCODING_ELEMENTTYPE_UNKNOWN;
+
+      /* set input type from custom prop if it is provided */
+      if (inputTypeVec.size () > i)
+        inputType = inputTypeVec[i];
+      handleTensor (inputName, info, inputMap_h, inputType);
     }
 
     /* set outputTensorsInfo and outputMap */
@@ -423,7 +474,12 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
       const char *outputName = Snpe_StringList_At (outputstrListHandle, i);
       info->name = g_strdup (outputName);
 
-      handleTensor (outputName, info, outputMap_h);
+      /* set output type from custom prop if it is provided */
+      auto outputType = SNPE_USERBUFFERENCODING_ELEMENTTYPE_UNKNOWN;
+      if (outputTypeVec.size () > i) {
+        outputType = outputTypeVec[i];
+      }
+      handleTensor (outputName, info, outputMap_h, outputType);
     }
 
     _clean_handles ();
