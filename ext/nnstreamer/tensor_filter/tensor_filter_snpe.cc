@@ -274,7 +274,7 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     ret = Snpe_UserBufferMap_Add (bufferMapHandle, tensorName, iub);
   };
 
-  auto parse_custom_prop = [&runtime] (const char *custom_prop) {
+  auto parse_custom_prop = [&runtime, &outputstrListHandle] (const char *custom_prop) {
     if (!custom_prop)
       return;
 
@@ -300,6 +300,26 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
           } else {
             nns_logw ("Unknown runtime (%s), set CPU as default.", options[op]);
           }
+        } else if (g_ascii_strcasecmp (option[0], "OutputTensor") == 0) {
+          /* the tensor name may contain ':' */
+          gchar *_ot_str = g_strjoinv (":", &option[1]);
+          gchar **names = g_strsplit (_ot_str, ";", -1);
+          guint num_names = g_strv_length (names);
+          outputstrListHandle = Snpe_StringList_Create ();
+          for (guint i = 0; i < num_names; ++i) {
+            if (g_strcmp0 (names[i], "") == 0) {
+              throw std::invalid_argument ("Given tensor name is invalid.");
+            }
+
+            nns_logi ("Add output tensor name of %s", names[i]);
+            if (Snpe_StringList_Append (outputstrListHandle, names[i]) != SNPE_SUCCESS) {
+              const std::string err_msg = "Failed to append output tensor name: "
+                                          + (const std::string) names[i];
+              throw std::runtime_error (err_msg);
+            }
+          }
+          g_free (_ot_str);
+          g_strfreev (names);
         } else {
           nns_logw ("Unknown option (%s).", options[op]);
         }
@@ -359,6 +379,13 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     if (Snpe_SNPEBuilder_SetUseUserSuppliedBuffers (snpebuilder_h, true) != SNPE_SUCCESS)
       throw std::runtime_error ("Failed to set use user supplied buffers");
 
+    /* Set Output Tensors (if given by custom prop) */
+    if (outputstrListHandle) {
+      if (Snpe_SNPEBuilder_SetOutputTensors (snpebuilder_h, outputstrListHandle) != SNPE_SUCCESS) {
+        throw std::runtime_error ("Failed to set output tensors");
+      }
+    }
+
     snpe_h = Snpe_SNPEBuilder_Build (snpebuilder_h);
     if (!snpe_h)
       throw std::runtime_error ("Failed to build SNPE handle");
@@ -381,7 +408,11 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 
     /* set outputTensorsInfo and outputMap */
     outputMap_h = Snpe_UserBufferMap_Create ();
-    outputstrListHandle = Snpe_SNPE_GetOutputTensorNames (snpe_h);
+
+    /* Get default output tensor names (if not provided by custom prop) */
+    if (outputstrListHandle == NULL)
+      outputstrListHandle = Snpe_SNPE_GetOutputTensorNames (snpe_h);
+
     if (!outputMap_h || !outputstrListHandle)
       throw std::runtime_error ("Error while setting Output tensors");
 
