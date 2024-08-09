@@ -389,8 +389,8 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
     data = (GstCollectData *) walk->data;
     pad = (GstTensorCollectPadData *) data;
 
-    if (gst_pad_has_current_caps (pad->pad)) {
-      GstCaps *caps = gst_pad_get_current_caps (pad->pad);
+    if (gst_pad_has_current_caps (data->pad)) {
+      GstCaps *caps = gst_pad_get_current_caps (data->pad);
       GstStructure *s = gst_caps_get_structure (caps, 0);
 
       if (gst_tensors_config_validate (&in_configs))
