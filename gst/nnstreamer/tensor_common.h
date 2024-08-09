@@ -94,7 +94,6 @@ typedef struct
 {
   GstCollectData collect;
   GstBuffer *buffer;
-  GstPad *pad;
 } GstTensorCollectPadData;
 
 /**
@@ -120,7 +119,7 @@ typedef struct
  * @note The responsibility of managing the memory of the GObject passed as a parameter
  *       lies outside this function.
  */
-extern void 
+extern void
 gst_tensor_parse_config_file (const gchar *config_path, const GObject *object);
 
 /**

@@ -319,7 +319,6 @@ gst_tensor_merge_request_new_pad (GstElement * element, GstPadTemplate * templ,
         gst_collect_pads_add_pad (tensor_merge->collect, newpad,
         sizeof (GstTensorCollectPadData), NULL, TRUE);
 
-    tensormergepad->pad = newpad;
     gst_pad_set_element_private (newpad, tensormergepad);
     gst_element_add_pad (element, newpad);
   } else {
