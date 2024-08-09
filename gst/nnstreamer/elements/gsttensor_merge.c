@@ -673,17 +673,20 @@ gst_tensor_merge_collected (GstCollectPads * pads,
   GstFlowReturn ret = GST_FLOW_OK;
   GstBuffer *tensors_buf, *tensor_buf;
   gboolean isEOS = FALSE;
-  UNUSED (pads);
 
   GST_DEBUG_OBJECT (tensor_merge, " all pads are collected ");
 
   if (tensor_merge->need_stream_start) {
+    /**
+     * Cannot use gst-pad util to get stream ID (multiple sink pads).
+     * Create stream ID using first sink pad.
+     */
+    GstCollectData *data = (GstCollectData *) pads->data->data;
+    g_autofree gchar *sink_sid = gst_pad_get_stream_id (data->pad);
     g_autofree gchar *element_name = gst_element_get_name (tensor_merge);
     g_autofree gchar *pad_name = gst_pad_get_name (tensor_merge->srcpad);
-    g_autofree gchar *sid =
-        gst_pad_create_stream_id_printf (tensor_merge->srcpad,
-        GST_ELEMENT_CAST (tensor_merge), "%s-nnsmerge-%s", element_name,
-        pad_name);
+    g_autofree gchar *sid = g_strdup_printf ("%s-%s-nnsmerge-%s-%08x",
+        GST_STR_NULL (sink_sid), element_name, pad_name, g_random_int ());
 
     gst_pad_push_event (tensor_merge->srcpad, gst_event_new_stream_start (sid));
     tensor_merge->need_stream_start = FALSE;

@@ -444,10 +444,15 @@ gst_tensor_crop_negotiate (GstTensorCrop * self)
     GSList *walk;
 
     if (self->send_stream_start) {
+      /**
+       * Cannot use gst-pad util to get stream ID (multiple sink pads).
+       * Create stream ID using first sink pad.
+       */
+      g_autofree gchar *sink_sid = gst_pad_get_stream_id (self->sinkpad_raw);
       g_autofree gchar *element_name = gst_element_get_name (self);
       g_autofree gchar *pad_name = gst_pad_get_name (self->srcpad);
-      g_autofree gchar *sid = gst_pad_create_stream_id_printf (self->srcpad,
-          GST_ELEMENT_CAST (self), "%s-nnscrop-%s", element_name, pad_name);
+      g_autofree gchar *sid = g_strdup_printf ("%s-%s-nnscrop-%s-%08x",
+          GST_STR_NULL (sink_sid), element_name, pad_name, g_random_int ());
 
       gst_pad_push_event (self->srcpad, gst_event_new_stream_start (sid));
       self->send_stream_start = FALSE;

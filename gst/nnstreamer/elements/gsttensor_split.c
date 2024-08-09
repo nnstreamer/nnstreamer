@@ -276,6 +276,8 @@ static GstTensorPad *
 gst_tensor_split_get_tensor_pad (GstTensorSplit * split, GstBuffer * inbuf,
     gboolean * created, guint nth)
 {
+  GstElement *element = GST_ELEMENT_CAST (split);
+  g_autofree gchar *element_name = gst_element_get_name (element);
   GSList *walk;
   GstPad *pad;
   GstTensorPad *tensorpad;
@@ -306,6 +308,8 @@ gst_tensor_split_get_tensor_pad (GstTensorSplit * split, GstBuffer * inbuf,
 
   name = g_strdup_printf ("src_%u", split->num_srcpads);
   pad = gst_pad_new_from_static_template (&src_templ, name);
+  stream_id = gst_pad_create_stream_id_printf (pad, element,
+      "%s-nnssplit-%s-%08x", element_name, name, g_random_int ());
   g_free (name);
 
   tensorpad->pad = pad;
@@ -332,9 +336,6 @@ gst_tensor_split_get_tensor_pad (GstTensorSplit * split, GstBuffer * inbuf,
       split->group_id = gst_util_group_id_next ();
     }
   }
-
-  stream_id = gst_pad_create_stream_id (pad, GST_ELEMENT_CAST (split),
-      NNS_MIMETYPE_TENSOR);
 
   event = gst_event_new_stream_start (stream_id);
   if (split->have_group_id)
