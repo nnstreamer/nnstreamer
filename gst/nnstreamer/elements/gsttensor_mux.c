@@ -288,7 +288,6 @@ gst_tensor_mux_request_new_pad (GstElement * element, GstPadTemplate * templ,
     gst_collect_pads_set_waiting (tensor_mux->collect,
         (GstCollectData *) tensormuxpad, waiting);
 
-    tensormuxpad->pad = newpad;
     gst_pad_set_element_private (newpad, tensormuxpad);
     gst_element_add_pad (element, newpad);
   } else {
