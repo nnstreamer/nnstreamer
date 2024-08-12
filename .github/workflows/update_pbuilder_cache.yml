@@ -77,4 +77,5 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_S3_SECRET_ACCESS_KEY }}
           AWS_EC2_METADATA_DISABLED: true
         run: |
-          aws s3 cp --recursive --region ap-northeast-2 ~/daily_build/ubuntu/ s3://nnstreamer-release/${{ steps.get-date.outputs.date }}/ubuntu/
+          aws s3 cp --recursive --region ap-northeast-2 ~/daily_build/ubuntu/ s3://nnstreamer-release/nnstreamer/${{ steps.get-date.outputs.date }}/ubuntu/
+          aws s3 cp --recursive --region ap-northeast-2 ~/daily_build/ubuntu/ s3://nnstreamer-release/nnstreamer/latest/ubuntu/

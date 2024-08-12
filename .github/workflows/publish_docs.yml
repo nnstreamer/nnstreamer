@@ -66,4 +66,5 @@ jobs:
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_S3_SECRET_ACCESS_KEY }}
         AWS_EC2_METADATA_DISABLED: true
       run: |
-        aws s3 cp --region ap-northeast-2 latex/nnstreamer-book.pdf s3://nnstreamer-release/${{ steps.get-date.outputs.date }}/doc/nnstreamer-book.pdf
+        aws s3 cp --region ap-northeast-2 latex/nnstreamer-book.pdf s3://nnstreamer-release/nnstreamer/${{ steps.get-date.outputs.date }}/doc/nnstreamer-book.pdf
+        aws s3 cp --region ap-northeast-2 latex/nnstreamer-book.pdf s3://nnstreamer-release/nnstreamer/latest/doc/nnstreamer-book.pdf
