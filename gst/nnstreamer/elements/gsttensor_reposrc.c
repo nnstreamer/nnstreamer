@@ -303,17 +303,16 @@ gst_tensor_reposrc_gen_dummy_buffer (GstTensorRepoSrc * self)
     _info = gst_tensors_info_get_nth_info (&self->config.info, i);
     size = gst_tensor_info_get_size (_info);
     mem = gst_allocator_alloc (NULL, size, NULL);
+    gst_tensor_buffer_append_memory (buf, mem, _info);
 
     if (!gst_memory_map (mem, &map, GST_MAP_WRITE)) {
-      gst_allocator_free (NULL, mem);
       gst_buffer_unref (buf);
-      ml_logf ("Cannot mep gst memory (tensor-repo-src)\n");
+      ml_logf ("Cannot map gst memory (tensor-repo-src).");
       return NULL;
     }
+
     memset (map.data, 0, map.size);
     gst_memory_unmap (mem, &map);
-
-    gst_tensor_buffer_append_memory (buf, mem, _info);
   }
 
   return buf;

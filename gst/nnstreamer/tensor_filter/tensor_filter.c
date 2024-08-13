@@ -831,7 +831,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     for (i = 0; i < prop->output_meta.num_tensors; i++) {
       gst_memory_unmap (out_mem[i], &out_info[i]);
       if (ret != 0)
-        gst_allocator_free (out_mem[i]->allocator, out_mem[i]);
+        gst_memory_unref (out_mem[i]);
     }
   }
 
@@ -884,7 +884,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
         if (allocate_in_invoke) {
           gst_tensor_filter_destroy_notify_util (priv, out_tensors[i].data);
         } else {
-          gst_allocator_free (out_mem[i]->allocator, out_mem[i]);
+          gst_memory_unref (out_mem[i]);
         }
 
         continue;
@@ -937,7 +937,7 @@ mem_map_error:
     for (i = 0; i < prop->output_meta.num_tensors; i++) {
       if (out_mem[i]) {
         gst_memory_unmap (out_mem[i], &out_info[i]);
-        gst_allocator_free (out_mem[i]->allocator, out_mem[i]);
+        gst_memory_unref (out_mem[i]);
       }
     }
   }

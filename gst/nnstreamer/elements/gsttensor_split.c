@@ -427,11 +427,13 @@ gst_tensor_split_get_splitted (GstTensorSplit * split, GstBuffer * buffer,
   mem = gst_allocator_alloc (NULL, size, NULL);
   if (!gst_memory_map (mem, &dest_info, GST_MAP_WRITE)) {
     ml_logf ("Cannot map memory for destination buffer.\n");
+    gst_memory_unref (mem);
     return NULL;
   }
   if (!gst_buffer_map (buffer, &src_info, GST_MAP_READ)) {
     ml_logf ("Cannot map src-memory to gst buffer at tensor-split.\n");
     gst_memory_unmap (mem, &dest_info);
+    gst_memory_unref (mem);
     return NULL;
   }
 

@@ -577,6 +577,7 @@ _gen_dummy_mqtt_msg (MQTTAsync_message *msg, GstMQTTMessageHdr *hdr, const gsize
   memcpy (&((guint8 *) msg->payload)[GST_MQTT_LEN_MSG_HDR], map.data, len_buf);
 
   gst_memory_unmap (mem, &map);
+  gst_memory_unref (mem);
   gst_buffer_unref (buf);
 }
 

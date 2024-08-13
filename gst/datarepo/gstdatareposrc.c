@@ -1041,6 +1041,7 @@ gst_data_repo_src_read_others (GstDataRepoSrc * src, GstBuffer ** buffer)
 
   if (!gst_memory_map (mem, &info, GST_MAP_WRITE)) {
     GST_ERROR_OBJECT (src, "Could not map GstMemory");
+    gst_memory_unref (mem);
     return GST_FLOW_ERROR;
   }
 
