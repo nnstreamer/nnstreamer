@@ -371,7 +371,7 @@ dv_decode (void **pdata, const GstTensorsConfig * config,
   if (gst_buffer_get_size (outbuf) == 0)
     gst_buffer_append_memory (outbuf, out_mem);
   else
-    gst_memory_unref (out_mem);
+    gst_buffer_replace_all_memory (outbuf, out_mem);
 
   /** @todo Caller of dv_decode in tensordec.c should call gst_memory_unmap to inbuf */
 

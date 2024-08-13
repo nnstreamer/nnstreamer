@@ -932,7 +932,7 @@ BoundingBox::decode (const GstTensorsConfig *config,
   if (need_output_alloc)
     gst_buffer_append_memory (outbuf, out_mem);
   else
-    gst_memory_unref (out_mem);
+    gst_buffer_replace_all_memory (outbuf, out_mem);
 
   return GST_FLOW_OK;
 

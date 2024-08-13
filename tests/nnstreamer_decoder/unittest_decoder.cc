@@ -90,7 +90,7 @@ tensor_decoder_custom_cb (const GstTensorMemory *input,
   if (need_alloc)
     gst_buffer_append_memory (out_buf, out_mem);
   else
-    gst_memory_unref (out_mem);
+    gst_buffer_replace_all_memory (out_buf, out_mem);
 
   return GST_FLOW_OK;
 }
