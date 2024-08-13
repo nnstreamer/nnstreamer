@@ -433,11 +433,17 @@ static int
 _check_tensors (const GstTensorsConfig * config)
 {
   unsigned int i;
+  GstTensorsInfo *info;
+  GstTensorInfo *first, *current;
+
   g_return_val_if_fail (config != NULL, FALSE);
 
+  info = (GstTensorsInfo *) &config->info;
+  first = gst_tensors_info_get_nth_info (info, 0);
+
   for (i = 1; i < config->info.num_tensors; ++i) {
-    g_return_val_if_fail (config->info.info[i - 1].type ==
-        config->info.info[i].type, FALSE);
+    current = gst_tensors_info_get_nth_info (info, i);
+    g_return_val_if_fail (first->type == current->type, FALSE);
   }
   return TRUE;
 }
