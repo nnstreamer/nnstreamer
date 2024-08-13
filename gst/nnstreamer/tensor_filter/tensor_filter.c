@@ -647,6 +647,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   GstTensorFilter *self = GST_TENSOR_FILTER_CAST (trans);
   GstTensorFilterPrivate *priv = &self->priv;
   GstTensorFilterProperties *prop = &priv->prop;
+  GstTensorInfo *_info;
 
   /* TODO: Consider malloc in_mem, in_info, etc. rather than take the stack */
   GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
@@ -854,8 +855,8 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
 
       if (!in_flexible && out_flexible) {
         /* append header */
-        gst_tensor_info_convert_to_meta (&priv->in_config.info.info[i],
-            &in_meta[i]);
+        _info = gst_tensors_info_get_nth_info (&priv->in_config.info, i);
+        gst_tensor_info_convert_to_meta (_info, &in_meta[i]);
         mem = gst_tensor_meta_info_append_header (&in_meta[i], in_mem[i]);
       } else if (in_flexible && !out_flexible) {
         /* remove header */

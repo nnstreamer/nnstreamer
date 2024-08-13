@@ -379,6 +379,8 @@ static gboolean
 gst_tensor_merge_get_merged_config (GstTensorMerge * tensor_merge,
     const GstTensorsConfig * in_config, GstTensorsConfig * out_config)
 {
+  GstTensorsInfo *in_info;
+  GstTensorInfo *_info;
   gboolean ret = FALSE;
   guint i;
   gint j;
@@ -387,11 +389,16 @@ gst_tensor_merge_get_merged_config (GstTensorMerge * tensor_merge,
 
   gst_tensors_config_init (out_config);
 
-  type = in_config->info.info[0].type;
-  memcpy (&dim, &in_config->info.info[0].dimension, sizeof (tensor_dim));
+  in_info = (GstTensorsInfo *) &in_config->info;
+  _info = gst_tensors_info_get_nth_info (in_info, 0);
+
+  type = _info->type;
+  memcpy (&dim, &_info->dimension, sizeof (tensor_dim));
 
   for (i = 1; i < in_config->info.num_tensors; i++) {
-    if (type != in_config->info.info[i].type)
+    _info = gst_tensors_info_get_nth_info (in_info, i);
+
+    if (type != _info->type)
       GST_ELEMENT_ERROR (tensor_merge, CORE, NEGOTIATION, (NULL), (NULL));
   }
 
@@ -400,21 +407,26 @@ gst_tensor_merge_get_merged_config (GstTensorMerge * tensor_merge,
     {
       int targetIdx = tensor_merge->data_linear.direction;
       for (i = 1; i < in_config->info.num_tensors; i++) {
+        _info = gst_tensors_info_get_nth_info (in_info, i);
+
         for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
           if (j == targetIdx) {
-            dim[j] += in_config->info.info[i].dimension[j];
+            dim[j] += _info->dimension[j];
           } else {
-            if (dim[j] != in_config->info.info[i].dimension[j])
+            if (dim[j] != _info->dimension[j])
               GST_ELEMENT_ERROR (tensor_merge, CORE, NEGOTIATION, (NULL),
                   (NULL));
           }
         }
       }
+
       out_config->info.num_tensors = 1;
-      out_config->info.info[0].type = type;
-      memcpy (&out_config->info.info[0].dimension, &dim, sizeof (tensor_dim));
       out_config->rate_d = in_config->rate_d;
       out_config->rate_n = in_config->rate_n;
+
+      _info = gst_tensors_info_get_nth_info (&out_config->info, 0);
+      _info->type = type;
+      memcpy (&_info->dimension, &dim, sizeof (tensor_dim));
       ret = TRUE;
     }
       break;
@@ -470,6 +482,8 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
   GstMemory *outMem;
   uint8_t *inptr, *outptr;
   guint num_mem = tensor_merge->tensors_config.info.num_tensors;
+  GstTensorsInfo *info;
+  GstTensorInfo *_info;
   guint i, j, k, l;
   size_t c, s;
   gsize outSize = 0;
@@ -477,9 +491,11 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
   tensor_dim dim;
   tensor_type type;
 
-  memcpy (&dim, &tensor_merge->tensors_config.info.info[0].dimension,
-      sizeof (tensor_dim));
-  type = tensor_merge->tensors_config.info.info[0].type;
+  info = &tensor_merge->tensors_config.info;
+  _info = gst_tensors_info_get_nth_info (info, 0);
+
+  memcpy (&dim, &_info->dimension, sizeof (tensor_dim));
+  type = _info->type;
   element_size = gst_tensor_get_element_size (type);
 
   for (i = 0; i < num_mem; i++) {
@@ -513,7 +529,9 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
             for (i = 0; i < dim[2]; i++) {
               for (j = 0; j < dim[1]; j++) {
                 for (k = 0; k < num_mem; k++) {
-                  c = tensor_merge->tensors_config.info.info[k].dimension[0];
+                  _info = gst_tensors_info_get_nth_info (info, k);
+
+                  c = _info->dimension[0];
                   s = element_size * c;
                   inptr =
                       mInfo[k].data + (l * dim[2] * dim[1] + i * dim[1] +
@@ -531,9 +549,11 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
           for (l = 0; l < dim[3]; l++) {
             for (i = 0; i < dim[2]; i++) {
               for (k = 0; k < num_mem; k++) {
+                _info = gst_tensors_info_get_nth_info (info, k);
+
                 c = 1;
                 for (j = 0; j < LINEAR_SECOND + 1; j++)
-                  c *= tensor_merge->tensors_config.info.info[k].dimension[j];
+                  c *= _info->dimension[j];
 
                 s = element_size * c;
 
@@ -550,9 +570,11 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
         {
           for (l = 0; l < dim[3]; l++) {
             for (k = 0; k < num_mem; k++) {
+              _info = gst_tensors_info_get_nth_info (info, k);
+
               c = 1;
               for (j = 0; j < LINEAR_THIRD + 1; j++)
-                c *= tensor_merge->tensors_config.info.info[k].dimension[j];
+                c *= _info->dimension[j];
 
               s = element_size * c;
 
@@ -567,9 +589,11 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
         case LINEAR_FOURTH:
         {
           for (k = 0; k < num_mem; k++) {
+            _info = gst_tensors_info_get_nth_info (info, k);
+
             c = 1;
             for (j = 0; j < LINEAR_FOURTH + 1; j++)
-              c *= tensor_merge->tensors_config.info.info[k].dimension[j];
+              c *= _info->dimension[j];
 
             s = element_size * c;
 
