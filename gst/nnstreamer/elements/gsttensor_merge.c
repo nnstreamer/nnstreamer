@@ -496,7 +496,7 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
 
   outMem = gst_allocator_alloc (NULL, outSize, NULL);
   if (!gst_memory_map (outMem, &outInfo, GST_MAP_WRITE)) {
-    gst_allocator_free (NULL, outMem);
+    gst_memory_unref (outMem);
     ml_logf ("Cannot map output memory buffer\n");
     ret = GST_FLOW_ERROR;
     goto error_ret;

@@ -862,7 +862,7 @@ error:
   for (i = 0; i < trainer->output_meta.num_tensors; i++) {
     if (out_mem[i]) {
       gst_memory_unmap (out_mem[i], &out_info[i]);
-      gst_allocator_free (out_mem[i]->allocator, out_mem[i]);
+      gst_memory_unref (out_mem[i]);
     }
   }
 
