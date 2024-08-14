@@ -118,9 +118,20 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov8_decode
 
 callCompareTest yolov8_result_golden.raw yolov8_result_0.log "8 diff" "yolov8 golden" 0
 
+# yolov10 decoder test
+## wrong tensor dimension
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov10_decoder_input.raw caps=application/octet-stream start-index=0 stop-index=0 ! tensor_converter input-dim=4:300:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov10 option2=coco-80.txt option3=0:0.25:0.45 option4=320:320 option5=320:320 option6=0 option7=1 ! fakesink" "9 yolov10 decoder dim_n" 0 1
+
+## wrong tensor type
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov10_decoder_input.raw caps=application/octet-stream start-index=0 stop-index=0 ! tensor_converter input-dim=6:300:1 input-type=float32 ! tensor_transform mode=typecast option=int32 ! tensor_decoder mode=bounding_boxes option1=yolov10 option2=coco-80.txt option3=0:0.25:0.45 option4=320:320 option5=320:320 ! fakesink" "9 yolov10 decoder type_n" 0 1
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov10_decoder_input.raw caps=application/octet-stream start-index=0 stop-index=0 ! tensor_converter input-dim=6:300:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov10 option2=coco-80.txt option3=0:0.25 option4=320:320 option5=320:320 option6=0 option7=1 ! videoconvert ! video/x-raw,format=RGBA ! multifilesink location=yolov10_result_%1d.log" "9 yolov10 decoder" 0 0
+
+callCompareTest yolov10_result_golden.raw yolov10_result_0.log "9 diff" "yolov10 golden" 0
+
 # negative case for box properties
 
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=10 ! video/x-raw,format=RGB,width=224,height=224,framerate=0/1 ! videoconvert ! tensor_converter ! tensor_decoder mode=bounding_boxes option1=wrong_mode_name ! fakesink " 9_n 0 1
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=10 ! video/x-raw,format=RGB,width=224,height=224,framerate=0/1 ! videoconvert ! tensor_converter ! tensor_decoder mode=bounding_boxes option1=wrong_mode_name ! fakesink " 10_n 0 1
 
 rm yolov*.log
 
