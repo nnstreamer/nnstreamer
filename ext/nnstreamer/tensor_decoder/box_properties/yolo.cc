@@ -60,8 +60,25 @@ class YoloV8 : public BoxProperties
   gfloat iou_threshold;
 };
 
+/**
+ * @brief Class for YoloV10 box properties
+ */
+class YoloV10 : public BoxProperties
+{
+  public:
+  YoloV10 ();
+  ~YoloV10 ();
+  int setOptionInternal (const char *param);
+  int checkCompatible (const GstTensorsConfig *config);
+  GArray *decode (const GstTensorsConfig *config, const GstTensorMemory *input);
+
+  private:
+  gfloat conf_threshold;
+};
+
 static BoxProperties *yolo5 = nullptr;
 static BoxProperties *yolo8 = nullptr;
+static BoxProperties *yolo10 = nullptr;
 
 #ifdef __cplusplus
 extern "C" {
@@ -71,6 +88,9 @@ void fini_properties_yolo5 (void) __attribute__ ((destructor));
 
 void init_properties_yolo8 (void) __attribute__ ((constructor));
 void fini_properties_yolo8 (void) __attribute__ ((destructor));
+
+void init_properties_yolo10 (void) __attribute__ ((constructor));
+void fini_properties_yolo10 (void) __attribute__ ((destructor));
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
@@ -359,6 +379,146 @@ YoloV8::decode (const GstTensorsConfig *config, const GstTensorMemory *input)
   return results;
 }
 
+/** @brief Constructor of YoloV10 */
+YoloV10::YoloV10 ()
+{
+  conf_threshold = YOLO_DETECTION_CONF_THRESHOLD;
+  name = g_strdup_printf ("yolov10");
+}
+
+/** @brief Destructor of YoloV10 */
+YoloV10::~YoloV10 ()
+{
+  g_free (name);
+}
+
+/** @brief Set internal option of YoloV10 */
+int
+YoloV10::setOptionInternal (const char *param)
+{
+  gchar **options;
+  int noptions;
+
+  options = g_strsplit (param, ":", -1);
+  noptions = g_strv_length (options);
+
+  if (noptions > 1)
+    conf_threshold = (gfloat) g_ascii_strtod (options[1], NULL);
+
+  nns_logi ("Setting YOLOV10 decoder as conf_threshold: %.2f", conf_threshold);
+
+  g_strfreev (options);
+  return TRUE;
+}
+
+/** @brief Check compatibility of given tensors config */
+int
+YoloV10::checkCompatible (const GstTensorsConfig *config)
+{
+  const guint *dim = config->info.info[0].dimension;
+  g_autofree gchar *info_str = NULL;
+  int i;
+
+  if (!check_tensors (config, 1U)) {
+    info_str = gst_tensors_info_to_string (&config->info);
+    nns_loge ("YoloV10 bounding-box decoder needs at least 1 valid tensor. The given input tensor is: %s.",
+        info_str);
+    return FALSE;
+  }
+
+  /** Only support for float type model */
+  if (config->info.info[0].type != _NNS_FLOAT32) {
+    info_str = gst_tensors_info_to_string (&config->info);
+    nns_loge ("YoloV10 bounding-box decoder accepts float32 input tensors only. The given input tensor is: %s.",
+        info_str);
+    return FALSE;
+  }
+
+  /* Expected shape is 6:#MAX_DET:1 */
+  if (dim[0] != 6U) {
+    nns_loge ("YoloV10 boundingbox decoder requires the input shape to be 6:#MAX_DET:1. But given shape is %u:%u:1. Check the output shape of yolov10 model.",
+        dim[0], dim[1]);
+    return FALSE;
+  }
+
+  max_detection = dim[1];
+
+  for (i = 2; i < NNS_TENSOR_RANK_LIMIT; ++i) {
+    if (dim[i] != 0 && dim[i] != 1) {
+      info_str = gst_tensors_info_to_string (&config->info);
+      nns_loge ("YoloV10 bounding-box decoder accepts RANK=2 tensors (3rd and later dimensions should be 1 or 0). The given input tensor is: %s.",
+          info_str);
+
+      return FALSE;
+    }
+  }
+
+  return TRUE;
+}
+
+/**
+ * @brief Decode input memory to out buffer
+ * @param[in] config The structure of input tensor info.
+ * @param[in] input The array of input tensor data.
+ */
+GArray *
+YoloV10::decode (const GstTensorsConfig *config, const GstTensorMemory *input)
+{
+  GArray *results = NULL;
+  guint bIdx;
+  float *boxinput;
+  UNUSED (config);
+
+  /* boxinput[MAX_DET][6] */
+  boxinput = (float *) input[0].data;
+
+  results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), max_detection);
+  for (bIdx = 0; bIdx < max_detection; ++bIdx) {
+    detectedObject object;
+    float x1, x2, y1, y2, confidence, class_index;
+
+    /* parse output of yolov10 */
+    x1 = boxinput[bIdx * 6 + 0];
+    y1 = boxinput[bIdx * 6 + 1];
+    x2 = boxinput[bIdx * 6 + 2];
+    y2 = boxinput[bIdx * 6 + 3];
+    confidence = boxinput[bIdx * 6 + 4];
+    class_index = boxinput[bIdx * 6 + 5];
+
+    /* output of yolov10 is sorted */
+    if (confidence < conf_threshold) {
+      /* break once confidence value falls */
+      break;
+    }
+
+    /* scale to given width and height */
+    y1 *= (float) i_height;
+    x1 *= (float) i_width;
+    x2 *= (float) i_width;
+    y2 *= (float) i_height;
+
+    object.x = (int) (MAX (0.f, x1));
+    object.y = (int) (MAX (0.f, y1));
+    object.width = (int) (MIN ((float) i_width, x2 - x1));
+    object.height = (int) (MIN ((float) i_height, y2 - y1));
+    object.class_id = (int) class_index;
+    object.prob = confidence;
+
+    object.tracking_id = 0;
+    object.valid = TRUE;
+
+    if (object.class_id >= (int) total_labels) {
+      nns_logw ("Class id %d is out of range (%u). Skip this object.",
+          object.class_id, total_labels);
+      continue;
+    }
+
+    g_array_append_val (results, object);
+  }
+
+  return results;
+}
+
 /** @brief Initialize this object for tensor decoder bounding box */
 void
 init_properties_yolo5 ()
@@ -387,4 +547,19 @@ void
 fini_properties_yolo8 ()
 {
   delete yolo8;
+}
+
+/** @brief Initialize this object for tensor decoder bounding box */
+void
+init_properties_yolo10 ()
+{
+  yolo10 = new YoloV10 ();
+  BoundingBox::addProperties (yolo10);
+}
+
+/** @brief Destruct this object for tensor decoder bounding box */
+void
+fini_properties_yolo10 ()
+{
+  delete yolo10;
 }
