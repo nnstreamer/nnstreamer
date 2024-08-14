@@ -256,20 +256,19 @@ int
 YoloV8::checkCompatible (const GstTensorsConfig *config)
 {
   const guint *dim = config->info.info[0].dimension;
+  g_autofree gchar *info_str = NULL;
   int i;
   if (!check_tensors (config, 1U)) {
-    gchar *typestr = gst_tensors_info_to_string (&config->info);
+    info_str = gst_tensors_info_to_string (&config->info);
     nns_loge ("Yolov8 bounding-box decoder needs at least 1 valid tensor. The given input tensor is: %s.",
-        typestr);
-    g_free (typestr);
+        info_str);
     return FALSE;
   }
   /** Only support for float type model */
   if (config->info.info[0].type != _NNS_FLOAT32) {
-    gchar *typestr = gst_tensors_info_to_string (&config->info);
+    info_str = gst_tensors_info_to_string (&config->info);
     nns_loge ("Yolov8 bounding-box decoder accepts float32 input tensors only. The given input tensor is: %s.",
-        typestr);
-    g_free (typestr);
+        info_str);
     return FALSE;
   }
 
@@ -284,10 +283,9 @@ YoloV8::checkCompatible (const GstTensorsConfig *config)
 
   for (i = 2; i < NNS_TENSOR_RANK_LIMIT; ++i)
     if (dim[i] != 0 && dim[i] != 1) {
-      gchar *typestr = gst_tensors_info_to_string (&config->info);
+      info_str = gst_tensors_info_to_string (&config->info);
       nns_loge ("Yolov8 bounding-box decoder accepts RANK=2 tensors (3rd and later dimensions should be 1 or 0). The given input tensor is: %s.",
-          typestr);
-      g_free (typestr);
+          info_str);
       return FALSE;
     }
   return TRUE;
