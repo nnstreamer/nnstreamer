@@ -427,6 +427,9 @@ BoundingBox::~BoundingBox ()
   if (label_path)
     g_free (label_path);
 
+  g_array_free (centroids, TRUE);
+  g_array_free (distanceArray, TRUE);
+
   G_LOCK (box_properties_table);
   g_hash_table_destroy (properties_table);
   properties_table = nullptr;
