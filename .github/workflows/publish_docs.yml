@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  generate_github.io:
+  generate_hotdoc:
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v4
