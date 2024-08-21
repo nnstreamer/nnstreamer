@@ -562,6 +562,11 @@ features = {
     'extra_deps': [ snpe_dep ],
     'project_args': { 'ENABLE_SNPE' : 1, 'SNPE_VERSION_MAJOR' : snpe_api_version },
   },
+  'qnn-support': {
+    # Assume that qnn.pc file is given.
+    'target': 'qnn',
+    'project_args': { 'ENABLE_QNN' : 1 },
+  },
   'flatbuf-support': {
     'extra_deps': [ flatc_dep, flatbuf_dep, flatbuf_version_check_dep ],
     'project_args': { 'ENABLE_FLATBUF': 1 }

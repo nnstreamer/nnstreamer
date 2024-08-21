@@ -666,6 +666,27 @@ if snpe_support_is_available
   )
 endif
 
+if qnn_support_is_available
+  filter_sub_qnn_sources = ['tensor_filter_qnn.cc']
+
+  qnn_support_deps += declare_dependency(compile_args: ['-Wno-missing-braces'])
+  nnstreamer_filter_qnn_deps = [glib_dep, nnstreamer_single_dep, qnn_support_deps]
+
+  shared_library('nnstreamer_filter_qnn',
+    filter_sub_qnn_sources,
+    dependencies: nnstreamer_filter_qnn_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_qnn',
+    filter_sub_qnn_sources,
+    dependencies: nnstreamer_filter_qnn_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+endif
+
 if tensorrt_support_is_available
   filter_sub_tensorrt_sources = ['tensor_filter_tensorrt.cc']
 
