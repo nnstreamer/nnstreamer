@@ -182,7 +182,6 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   if (configured)
     cleanup ();
 
-  Snpe_ErrorCode_t ret = SNPE_SUCCESS;
   Snpe_DlVersion_Handle_t lib_version_h = NULL;
   Snpe_RuntimeList_Handle_t runtime_list_h = NULL;
   Snpe_DlContainer_Handle_t container_h = NULL;
@@ -280,17 +279,20 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
           = Snpe_UserBufferEncodingTfN_GetQuantizedStepSize (ubeTfNHandle);
       ube_h = Snpe_UserBufferEncodingTfN_Create (stepEquivalentTo0, quantizedStepSize, 8);
       Snpe_IBufferAttributes_Delete (bufferAttributesOpt);
-      Snpe_UserBufferEncoding_Delete (ubeTfNHandle);
+      Snpe_UserBufferEncodingTfN_Delete (ubeTfNHandle);
     } else if (type == SNPE_USERBUFFERENCODING_ELEMENTTYPE_FLOAT) {
       ube_h = Snpe_UserBufferEncodingFloat_Create ();
     }
     auto iub = Snpe_Util_CreateUserBuffer (NULL, bufsize, stride_h, ube_h);
     this->user_buffers.push_back (iub);
 
-    Snpe_UserBufferEncoding_Delete (ube_h);
+    if (type == SNPE_USERBUFFERENCODING_ELEMENTTYPE_TF8)
+      Snpe_UserBufferEncodingTfN_Delete (ube_h);
+    else if (type == SNPE_USERBUFFERENCODING_ELEMENTTYPE_FLOAT)
+      Snpe_UserBufferEncodingFloat_Delete (ube_h);
     Snpe_TensorShape_Delete (stride_h);
 
-    ret = Snpe_UserBufferMap_Add (bufferMapHandle, tensorName, iub);
+    Snpe_UserBufferMap_Add (bufferMapHandle, tensorName, iub);
   };
 
   auto parse_custom_prop = [&runtime, &outputstrListHandle, &inputTypeVec,
