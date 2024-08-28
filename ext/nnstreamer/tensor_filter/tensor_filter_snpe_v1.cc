@@ -381,37 +381,52 @@ snpe_subplugin::configure_option (const GstTensorFilterProperties *prop)
 void
 snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 {
-  nns_logi ("SNPE Version: %s",
-      zdl::SNPE::SNPEFactory::getLibraryVersion ().asString ().c_str ());
+  zdl::DlSystem::Version_t ver = zdl::SNPE::SNPEFactory::getLibraryVersion ();
+
+  nns_logi ("SNPE Version: %s", ver.asString ().c_str ());
+
+  if (ver.Major != 1) {
+    cleanup ();
+
+    const std::string err_msg = "Invalid SNPE version, version 1.x is supported but has "
+                                + std::to_string (ver.Major) + ".x.";
+    nns_loge ("%s", err_msg.c_str ());
+    throw std::runtime_error (err_msg);
+  }
 
   if (!set_output_tensor_names (&prop->output_meta)) {
-    nns_loge ("Failed to set output tensor names");
     cleanup ();
-    return;
+
+    const std::string err_msg = "Failed to set output tensor names.";
+    nns_loge ("%s", err_msg.c_str ());
+    throw std::invalid_argument (err_msg);
   }
 
   if (!configure_option (prop)) {
     cleanup ();
-    throw std::invalid_argument ("Failed to configure SNPE option.");
-    return;
+
+    const std::string err_msg = "Failed to configure SNPE option.";
+    nns_loge ("%s", err_msg.c_str ());
+    throw std::invalid_argument (err_msg);
   }
 
   if (!empty_model) {
-    /* Already opened */
+    /* Already opened, clear old model. */
+    cleanup ();
 
     if (!prop->model_files[0] || prop->model_files[0][0] == '\0') {
-      std::cerr << "Model path is not given." << std::endl;
-      throw std::invalid_argument ("Model path is not given.");
+      const std::string err_msg = "SNPE model path is not given.";
+      nns_loge ("%s", err_msg.c_str ());
+      throw std::invalid_argument (err_msg);
     }
-
-    cleanup ();
   }
 
   if (!g_file_test (prop->model_files[0], G_FILE_TEST_IS_REGULAR)) {
-    const std::string err_msg
-        = "Given file " + (std::string) prop->model_files[0] + " is not valid";
-    std::cerr << err_msg << std::endl;
     cleanup ();
+
+    const std::string err_msg
+        = "Given file " + std::string (prop->model_files[0]) + " is not valid.";
+    nns_loge ("%s", err_msg.c_str ());
     throw std::invalid_argument (err_msg);
   }
 
@@ -432,7 +447,10 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   snpe = snpe_builder.build ();
   if (snpe == nullptr) {
     cleanup ();
-    throw std::runtime_error ("fail to build snpe");
+
+    const std::string err_msg = "Failed to build SNPE.";
+    nns_loge ("%s", err_msg.c_str ());
+    throw std::runtime_error (err_msg);
   }
 
   /** configure input and output tensor names */
@@ -448,7 +466,10 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   if (use_user_buffer) {
     if (input_data_type != _NNS_FLOAT32 || output_data_type != _NNS_FLOAT32) {
       cleanup ();
-      throw std::invalid_argument ("user buffer mode only support float32 type");
+
+      const std::string err_msg = "User buffer mode only supports float32 type.";
+      nns_loge ("%s", err_msg.c_str ());
+      throw std::invalid_argument (err_msg);
     }
 
     /* Configure input and output */

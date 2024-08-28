@@ -388,6 +388,14 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 
     nns_logi ("SNPE Version: %s", Snpe_DlVersion_ToString (lib_version_h));
 
+    int32_t ver_major = Snpe_DlVersion_GetMajor (lib_version_h);
+    if (ver_major < 2) {
+      const std::string err_msg = "Invalid SNPE version, version 2.x is supported but has "
+                                  + std::to_string (ver_major) + ".x.";
+      nns_loge ("%s", err_msg.c_str ());
+      throw std::runtime_error (err_msg);
+    }
+
     /* parse custom properties */
     parse_custom_prop (prop->custom_properties);
 
