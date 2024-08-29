@@ -10,6 +10,7 @@
  * @author	Yelin Jeong <yelini.jeong@samsung.com>
  * @bug		No known bugs except for NYI items
  * @see     https://github.com/karpathy/llama2.c
+ * @note    The output is bundled into one and not by token unit.
  */
 
 #include <stdio.h>
@@ -29,6 +30,9 @@
 #define TEMPERATURE 1.0f // 0.0 = greedy deterministic. 1.0 = original. don't set higher
 #define TOPP 0.9f // top-p in nucleus sampling. 1.0 = off. 0.9 works well, but slower
 #define RNG_SEED 0ULL // seed rng with time by default
+
+// TODO: Find the appropriate length
+#define PROMPT_LENGTH 2048
 
 // ----------------------------------------------------------------------------
 // Transformer model
@@ -458,7 +462,7 @@ static char* decode(Tokenizer* t, int prev_token, int token) {
     return piece;
 }
 
-static void safe_printf(char *piece) {
+static void safe_save(char *piece, char *result) {
     // piece might be a raw byte token, and we only want to print printable chars or whitespace
     // because some of the other bytes can be various control codes, backspace, etc.
     if (piece == NULL) { return; }
@@ -469,7 +473,9 @@ static void safe_printf(char *piece) {
             return; // bad byte, don't print it
         }
     }
-    printf("%s", piece);
+
+  // TODO: reduce memcpy
+  strncat (result, piece, PROMPT_LENGTH);
 }
 
 static int str_lookup(char *str, TokenIndex *sorted_vocab, int vocab_size) {
@@ -765,7 +771,7 @@ static long time_in_ms(void) {
 // ----------------------------------------------------------------------------
 // generation loop
 
-static void generate(Transformer *transformer, Tokenizer *tokenizer, Sampler *sampler, char *prompt, int steps) {
+static void generate(Transformer *transformer, Tokenizer *tokenizer, Sampler *sampler, char *prompt, int steps, char *result) {
     int next, token, pos, num_prompt_tokens = 0, *prompt_tokens;
     long start;
     const char *empty_prompt = "";
@@ -803,7 +809,7 @@ static void generate(Transformer *transformer, Tokenizer *tokenizer, Sampler *sa
 
         // print the token as string, decode it with the Tokenizer object
         piece = decode(tokenizer, token, next);
-        safe_printf(piece); // same as printf("%s", piece), but skips "unsafe" bytes
+        safe_save(piece, result); // skips "unsafe" bytes
         fflush(stdout);
         token = next;
 
@@ -830,6 +836,8 @@ typedef struct _pt_data {
   Sampler* sampler;
   char *prompt; // prompt string
   int steps; // number of steps to run for
+
+  GstTensorsInfo info;
 } pt_data;
 
 /**
@@ -841,6 +849,12 @@ llama_init (const GstTensorFilterProperties * prop)
   pt_data *data = (pt_data *) malloc (sizeof (pt_data));
   Config* config;
   UNUSED (prop);
+
+  gst_tensors_info_init (&data->info);
+
+  data->info.num_tensors = 1;
+  data->info.info[0].type = _NNS_UINT8;
+  data->info.info[0].dimension[0] = PROMPT_LENGTH;
 
   data->transformer = (Transformer *) malloc (sizeof (Transformer));
 
@@ -873,6 +887,7 @@ llama_exit (void *private_data, const GstTensorFilterProperties * prop)
   pt_data *data = private_data;
   UNUSED (prop);
 
+  gst_tensors_info_free (&data->info);
   free_transformer(data->transformer);
   free_tokenizer(data->tokenizer);
   free_sampler(data->sampler);
@@ -890,9 +905,10 @@ static int
 get_inputDim (void *private_data, const GstTensorFilterProperties * prop,
     GstTensorsInfo * info)
 {
-  UNUSED (private_data);
+  pt_data *data = private_data;
   UNUSED (prop);
-  UNUSED (info);
+
+  gst_tensors_info_copy(info, &data->info);
   return 0;
 }
 
@@ -903,9 +919,10 @@ static int
 get_outputDim (void *private_data, const GstTensorFilterProperties * prop,
     GstTensorsInfo * info)
 {
-  UNUSED (private_data);
+  pt_data *data = private_data;
   UNUSED (prop);
-  UNUSED (info);
+
+  gst_tensors_info_copy(info, &data->info);
   return 0;
 }
 
@@ -917,11 +934,24 @@ llama_invoke (void *private_data, const GstTensorFilterProperties * prop,
     const GstTensorMemory * input, GstTensorMemory * output)
 {
   pt_data *data = private_data;
+  char *result = (char *) malloc (PROMPT_LENGTH);
+  char *prompt = (char *) input[0].data;
+  int len;
   UNUSED (prop);
-  UNUSED (output);
 
-  generate (data->transformer, data->tokenizer, data->sampler, (char*) input[0].data, data->steps);
+  len = strlen(prompt);
+  if (len > 1) {
+    prompt[strlen(prompt)-1] = ' '; // Remove new line from text file
+  } else {
+    prompt = NULL;
+  }
 
+  output->size = PROMPT_LENGTH;
+
+  generate (data->transformer, data->tokenizer, data->sampler, prompt, data->steps, result);
+  memcpy (output[0].data, result, PROMPT_LENGTH);
+
+  free (result);
   return 0;
 }
 
