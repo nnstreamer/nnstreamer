@@ -628,7 +628,7 @@ encode (Tokenizer *t, char *text, int8_t bos, int8_t eos, int *tokens, int *n_to
     str_buffer[str_len] = '\0';
 
     // while the next character is a continuation byte, continue appending
-    // but if there are too many of them, just stop to avoid overruning str_buffer size.
+    // but if there are too many of them, just stop to avoid overrunning str_buffer size.
     if ((*(c + 1) & 0xC0) == 0x80 && str_len < 4) {
       continue;
     }
