@@ -294,6 +294,7 @@ QnnManager::init (const char *model_path, const char *backend_path)
 
   /* Create Context */
   QnnContext_Config_t qnn_context_config = QNN_CONTEXT_CONFIG_INIT;
+  qnn_context_config.option = QNN_CONTEXT_CONFIG_OPTION_PRIORITY;
   qnn_context_config.priority = QNN_PRIORITY_NORMAL;
   const QnnContext_Config_t *context_configs[] = { &qnn_context_config, nullptr };
 
