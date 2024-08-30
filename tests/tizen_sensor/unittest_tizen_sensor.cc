@@ -55,7 +55,7 @@ TEST (tizensensorAsSource, virtualSensorCreate01)
   value.timestamp = 0U;
   value.value_count = 1;
   value.values[0] = 0.01;
-  EXPECT_EQ (dummy_publish (sensor, value), 0);
+  EXPECT_EQ (dummy_publish (sensor, &value), 0);
 
   /* Create a nnstreamer pipeline */
   pipeline = g_strdup_printf (
@@ -96,7 +96,7 @@ TEST (tizensensorAsSource, virtualSensorCreate02)
   value.timestamp = 0U;
   value.value_count = 1;
   value.values[0] = 0.01;
-  EXPECT_EQ (dummy_publish (sensor, value), 0);
+  EXPECT_EQ (dummy_publish (sensor, &value), 0);
 
   /* Create a nnstreamer pipeline */
   pipeline = g_strdup_printf (
@@ -183,7 +183,7 @@ TEST (tizensensorAsSource, virtualSensorFlow03)
   value.timestamp = 0U;
   value.value_count = 1;
   value.values[0] = 0.01;
-  EXPECT_EQ (dummy_publish (sensor, value), 0);
+  EXPECT_EQ (dummy_publish (sensor, &value), 0);
 
   data.checked = 0;
   data.dim0 = 1;
@@ -211,7 +211,7 @@ TEST (tizensensorAsSource, virtualSensorFlow03)
 
   g_usleep (10000); /* Let a frame or more flow */
   value.values[0] = 1.01;
-  EXPECT_EQ (dummy_publish (sensor, value), 0);
+  EXPECT_EQ (dummy_publish (sensor, &value), 0);
 
   EXPECT_TRUE (wait_pipeline_process_buffers (&data.checked, 2, TEST_TIME_OUT_TIZEN_SENSOR_MS));
 
@@ -244,7 +244,7 @@ TEST (tizensensorAsSource, virtualSensorFlow04)
   value.timestamp = 0U;
   value.value_count = 1;
   value.values[0] = 0.01;
-  EXPECT_EQ (dummy_publish (sensor, value), 0);
+  EXPECT_EQ (dummy_publish (sensor, &value), 0);
 
   data.checked = 0;
   data.dim0 = 1;
@@ -272,7 +272,7 @@ TEST (tizensensorAsSource, virtualSensorFlow04)
 
   g_usleep (10000); /* Let a frame or more flow */
   value.values[0] = 1.01;
-  EXPECT_EQ (dummy_publish (sensor, value), 0);
+  EXPECT_EQ (dummy_publish (sensor, &value), 0);
 
   EXPECT_TRUE (wait_pipeline_process_buffers (&data.checked, 2, TEST_TIME_OUT_TIZEN_SENSOR_MS));
 
@@ -304,16 +304,16 @@ TEST (tizensensorAsSource, virtualSensorFlow05_n)
   value.timestamp = 0U;
   value.value_count = 1;
   value.values[0] = 0.00;
-  EXPECT_EQ (dummy_publish (sensor_list[0], value), 0);
-  EXPECT_EQ (dummy_publish (sensor_list[1], value), 0);
-  EXPECT_EQ (dummy_publish (sensor_list[2], value), 0);
+  EXPECT_EQ (dummy_publish (sensor_list[0], &value), 0);
+  EXPECT_EQ (dummy_publish (sensor_list[1], &value), 0);
+  EXPECT_EQ (dummy_publish (sensor_list[2], &value), 0);
   g_free (sensor_list);
 
   value.accuracy = 1;
   value.timestamp = 0U;
   value.value_count = 1;
   value.values[0] = 0.01;
-  EXPECT_EQ (dummy_publish (sensor, value), 0);
+  EXPECT_EQ (dummy_publish (sensor, &value), 0);
 
   data.checked = 0;
   data.dim0 = 1;
@@ -341,7 +341,7 @@ TEST (tizensensorAsSource, virtualSensorFlow05_n)
 
   g_usleep (10000); /* Let a frame or more flow */
   value.values[0] = 1.01;
-  EXPECT_EQ (dummy_publish (sensor, value), 0);
+  EXPECT_EQ (dummy_publish (sensor, &value), 0);
 
   EXPECT_TRUE (wait_pipeline_process_buffers (&data.checked, 2, TEST_TIME_OUT_TIZEN_SENSOR_MS));
 

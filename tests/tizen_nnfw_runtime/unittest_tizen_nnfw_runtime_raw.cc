@@ -254,6 +254,9 @@ TEST (nnstreamerNnfwRuntimeRawFunctions, invoke)
   EXPECT_FLOAT_EQ (*((float *) output.data), 3.0);
 
   sp->close (&prop, &data);
+
+  g_free (input.data);
+  g_free (output.data);
   g_free (model_file);
 }
 
