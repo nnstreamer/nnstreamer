@@ -165,7 +165,7 @@ sensor_listener_read_data_list (sensor_listener_h listener, sensor_event_s ** ev
 
 /* publish data */
 extern int
-dummy_publish (sensor_h sensor, sensor_event_s value);
+dummy_publish (sensor_h sensor, sensor_event_s * value);
 
 #ifdef __cplusplus
 }
