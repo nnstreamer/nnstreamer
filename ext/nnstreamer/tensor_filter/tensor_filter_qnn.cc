@@ -308,7 +308,7 @@ QnnManager::init (const char *model_path, const char *backend_path)
   /* Prepare graphs from model.so */
   model_module = g_module_open (model_path, G_MODULE_BIND_LOCAL);
   if (!model_module) {
-    g_warning ("Failed to open module: %s", g_module_error ());
+    nns_loge ("Failed to open module: %s", g_module_error ());
     return false;
   }
 
