@@ -115,6 +115,10 @@ NNSTREAMER_FILTER_SNPE_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_snpe_v1.cc
 endif
 
+# filter qnn
+NNSTREAMER_FILTER_QNN_SRCS := \
+    $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_qnn.cc
+
 # filter snap
 NNSTREAMER_FILTER_SNAP_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_snap.cc
