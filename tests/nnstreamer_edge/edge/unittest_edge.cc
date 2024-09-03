@@ -16,7 +16,7 @@
 #include "unittest_util.h"
 
 static int data_received;
-static const char *CUSTOM_LIB_PATH = "./libnnstreamer-edge-custom-test.so";
+static const char *CUSTOM_LIB_PATH = "libnnstreamer-edge-custom-test.so";
 
 /**
  * @brief Test for edgesink get and set properties.
@@ -181,7 +181,6 @@ new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
   gint *output, i;
   gboolean ret;
 
-  g_critical ("[DEBUG] NEW DATA RECEIVED!");
   data_received++;
   mem_res = gst_buffer_get_memory (buffer, 0);
   ret = gst_memory_map (mem_res, &info_res, GST_MAP_READ);
@@ -275,9 +274,6 @@ TEST (edgeSinkSrc, runNormal)
  */
 TEST (edgeCustom, sinkNormal)
 {
-  /** @todo TDD: Enable this test later. */
-  GTEST_SKIP ();
-
   gchar *pipeline = nullptr;
   GstElement *gstpipe = nullptr;
 
@@ -305,9 +301,6 @@ TEST (edgeCustom, sinkNormal)
  */
 TEST (edgeCustom, sinkInvalidProp_n)
 {
-  /** @todo TDD: Enable this test later. */
-  GTEST_SKIP ();
-
   gchar *pipeline = nullptr;
   GstElement *gstpipe = nullptr;
 
@@ -331,9 +324,6 @@ TEST (edgeCustom, sinkInvalidProp_n)
  */
 TEST (edgeCustom, sinkInvalidProp2_n)
 {
-  /** @todo TDD: Enable this test later. */
-  GTEST_SKIP ();
-
   gchar *pipeline = nullptr;
   GstElement *gstpipe = nullptr;
 
@@ -357,9 +347,6 @@ TEST (edgeCustom, sinkInvalidProp2_n)
  */
 TEST (edgeCustom, srcNormal)
 {
-  /** @todo TDD: Enable this test later. */
-  GTEST_SKIP ();
-
   gchar *pipeline = nullptr;
   GstElement *gstpipe = nullptr;
 
@@ -386,9 +373,6 @@ TEST (edgeCustom, srcNormal)
  */
 TEST (edgeCustom, srcInvalidProp_n)
 {
-  /** @todo TDD: Enable this test later. */
-  GTEST_SKIP ();
-
   gchar *pipeline = nullptr;
   GstElement *gstpipe = nullptr;
 
@@ -411,9 +395,6 @@ TEST (edgeCustom, srcInvalidProp_n)
  */
 TEST (edgeCustom, srcInvalidProp2_n)
 {
-  /** @todo TDD: Enable this test later. */
-  GTEST_SKIP ();
-
   gchar *pipeline = nullptr;
   GstElement *gstpipe = nullptr;
 

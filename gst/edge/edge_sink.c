@@ -42,6 +42,7 @@ enum
   PROP_TOPIC,
   PROP_WAIT_CONNECTION,
   PROP_CONNECTION_TIMEOUT,
+  PROP_CUSTOM_LIB,
 
   PROP_LAST
 };
@@ -60,6 +61,7 @@ static void gst_edgesink_get_property (GObject * object,
 static void gst_edgesink_finalize (GObject * object);
 
 static gboolean gst_edgesink_start (GstBaseSink * basesink);
+static gboolean gst_edgesink_stop (GstBaseSink * basesink);
 static GstFlowReturn gst_edgesink_render (GstBaseSink * basesink,
     GstBuffer * buffer);
 static gboolean gst_edgesink_set_caps (GstBaseSink * basesink, GstCaps * caps);
@@ -128,6 +130,10 @@ gst_edgesink_class_init (GstEdgeSinkClass * klass)
           "The timeout (in milliseconds) for waiting a connection to receiver. "
           "0 timeout (default) means infinite wait.", 0, G_MAXUINT64, 0,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_CUSTOM_LIB,
+      g_param_spec_string ("custom-lib", "Custom connection lib path",
+          "User defined custom connection lib path.",
+          "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&sinktemplate));
@@ -137,6 +143,7 @@ gst_edgesink_class_init (GstEdgeSinkClass * klass)
       "Publish incoming streams", "Samsung Electronics Co., Ltd.");
 
   gstbasesink_class->start = gst_edgesink_start;
+  gstbasesink_class->stop = gst_edgesink_stop;
   gstbasesink_class->render = gst_edgesink_render;
   gstbasesink_class->set_caps = gst_edgesink_set_caps;
 
@@ -158,6 +165,7 @@ gst_edgesink_init (GstEdgeSink * self)
   self->connect_type = DEFAULT_CONNECT_TYPE;
   self->wait_connection = FALSE;
   self->connection_timeout = 0;
+  self->custom_lib = NULL;
 }
 
 /**
@@ -204,6 +212,10 @@ gst_edgesink_set_property (GObject * object, guint prop_id,
     case PROP_CONNECTION_TIMEOUT:
       self->connection_timeout = g_value_get_uint64 (value);
       break;
+    case PROP_CUSTOM_LIB:
+      g_free (self->custom_lib);
+      self->custom_lib = g_value_dup_string (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -244,6 +256,9 @@ gst_edgesink_get_property (GObject * object, guint prop_id, GValue * value,
     case PROP_CONNECTION_TIMEOUT:
       g_value_set_uint64 (value, self->connection_timeout);
       break;
+    case PROP_CUSTOM_LIB:
+      g_value_set_string (value, self->custom_lib);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -267,6 +282,9 @@ gst_edgesink_finalize (GObject * object)
   g_free (self->topic);
   self->topic = NULL;
 
+  g_free (self->custom_lib);
+  self->custom_lib = NULL;
+
   if (self->edge_h) {
     nns_edge_release_handle (self->edge_h);
     self->edge_h = NULL;
@@ -286,9 +304,17 @@ gst_edgesink_start (GstBaseSink * basesink)
   int ret;
   char *port = NULL;
 
-  ret =
-      nns_edge_create_handle (NULL, self->connect_type,
-      NNS_EDGE_NODE_TYPE_PUB, &self->edge_h);
+  if (NNS_EDGE_CONNECT_TYPE_CUSTOM != self->connect_type) {
+    ret = nns_edge_create_handle (NULL, self->connect_type,
+        NNS_EDGE_NODE_TYPE_PUB, &self->edge_h);
+  } else {
+    if (!self->custom_lib) {
+      nns_loge ("Failed to start edgesink. Custom library is not set.");
+      return FALSE;
+    }
+    ret = nns_edge_custom_create_handle (NULL, self->custom_lib,
+        NNS_EDGE_NODE_TYPE_PUB, &self->edge_h);
+  }
 
   if (NNS_EDGE_ERROR_NONE != ret) {
     nns_loge ("Failed to get nnstreamer edge handle.");
@@ -345,6 +371,24 @@ gst_edgesink_start (GstBaseSink * basesink)
           self->connection_timeout);
       return FALSE;
     }
+  }
+
+  return TRUE;
+}
+
+/**
+ * @brief Stop processing of edgesink
+ */
+static gboolean
+gst_edgesink_stop (GstBaseSink * basesink)
+{
+  GstEdgeSink *self = GST_EDGESINK (basesink);
+  int ret;
+
+  ret = nns_edge_stop (self->edge_h);
+  if (NNS_EDGE_ERROR_NONE != ret) {
+    nns_loge ("Failed to stop edge. error code(%d)", ret);
+    return FALSE;
   }
 
   return TRUE;

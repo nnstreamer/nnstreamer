@@ -52,6 +52,8 @@ struct _GstEdgeSrc
   GAsyncQueue *msg_queue;
 
   gboolean playing;
+
+  gchar* custom_lib;
 };
 
 /**

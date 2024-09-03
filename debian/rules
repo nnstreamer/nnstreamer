@@ -26,7 +26,6 @@ export NNSTREAMER_DECODERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_d
 export NNSTREAMER_CONVERTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_converter
 export NNSTREAMER_TRAINERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_trainer
 export PYTHONIOENCODING=utf-8
-
 ifeq ($(DEB_BUILD_ARCH_CPU), arm)
 FLOAT16 := -Denable-float16=true
 endif
@@ -63,7 +62,7 @@ override_dh_auto_build:
 
 override_dh_auto_test:
 	./packaging/run_unittests_binaries.sh ./tests
-	./packaging/run_unittests_binaries.sh ./tests/nnstreamer_edge
+	LD_LIBRARY_PATH=${NNSTREAMER_BUILD_ROOT_PATH}/tests/nnstreamer_edge ./packaging/run_unittests_binaries.sh ./tests/nnstreamer_edge
 	./packaging/run_unittests_binaries.sh ./tests/nnstreamer_datarepo
 ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes), yes)
 ifeq ($(DEB_HOST_ARCH), amd64)
