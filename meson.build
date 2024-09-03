@@ -208,13 +208,13 @@ if not get_option('snpe-support').disabled()
   if (not snpe_dep.found())
     # TODO: support various arch.
     if host_machine.system() != 'linux' or host_machine.cpu_family() != 'x86_64'
-      message('Not Supported System & Architecture. Linux x86_64 is required for snpe sub-plugin')
+      message('Not supported system & architecture. Linux x86_64 is required for SNPE sub-plugin.')
     else
-      # Check whether $SNPE_ROOT (where SNPE SDK is located) is set.
+      # Check whether SNPE_ROOT (where SNPE SDK is located) is set.
       cmd = run_command('sh', '-c', 'echo $SNPE_ROOT', check : true)
       SNPE_ROOT = cmd.stdout().strip()
       if SNPE_ROOT != ''
-        message('Got $SNPE_ROOT: @0@'.format(SNPE_ROOT))
+        message('Got SNPE_ROOT: @0@'.format(SNPE_ROOT))
         # TODO: This is not a portable way to check if a directory exists
         # After bumping up to 0.53.0, the following line can be replaced with one that uses FS module
         snpe_dir_not_exist = run_command('[', '-d', SNPE_ROOT, ']', check : false).returncode()
@@ -227,33 +227,48 @@ if not get_option('snpe-support').disabled()
           required: true
         )
 
-        # SNPE 1 and 2 has different include paths
-        # Use this to check which version of snpe is provided
+        # SNPE may have different include paths for each version
         snpe_include_path = ''
-        snpe_1_include_path = join_paths(SNPE_ROOT, 'include', 'zdl')
-        if run_command('[', '-d', snpe_1_include_path, ']', check : false).returncode() == 0
-          snpe_api_version = 1
-          snpe_include_path = snpe_1_include_path
-        endif
+        snpe_include_dirs = [
+          join_paths(SNPE_ROOT, 'include', 'zdl'),
+          join_paths(SNPE_ROOT, 'include', 'SNPE')
+        ]
 
-        snpe_2_include_path = join_paths(SNPE_ROOT, 'include', 'SNPE')
-        if run_command('[', '-d', snpe_2_include_path, ']', check : false).returncode() == 0
-          snpe_api_version = 2
-          snpe_include_path = snpe_2_include_path
-        endif
+        foreach snpe_include_dir : snpe_include_dirs
+          if run_command('[', '-d', snpe_include_dir, ']').returncode() == 0
+            snpe_include_path = snpe_include_dir
+            break
+          endif
+        endforeach
 
         if snpe_include_path == ''
-          error('SNPE header files are not found in your $SNPE_ROOT path')
+          error('SNPE header files are not found in your SNPE_ROOT path.')
         endif
 
         snpe_incdir = include_directories(snpe_include_path)
+
+        snpe_ver_check_code = '''
+        #include <SNPE/SNPEUtil.h>
+        int main() {
+          Snpe_DlVersion_Handle_t handle = Snpe_Util_GetLibraryVersion();
+          int major = Snpe_DlVersion_GetMajor(handle);
+          Snpe_DlVersion_Delete(handle);
+          return 0;
+        }
+        '''
+
+        if cxx.compiles(snpe_ver_check_code, dependencies: snpe_lib, include_directories: snpe_incdir)
+          snpe_api_version = 2
+        else
+          snpe_api_version = 1
+        endif
 
         snpe_dep = declare_dependency(
           dependencies: snpe_lib,
           include_directories: snpe_incdir
         )
       else
-        message('If you want to build SNPE tensor_filter, provide $SNPE_ROOT as the path of SNPE SDK')
+        message('If you want to build SNPE sub-plugin, provide SNPE_ROOT as the path of SNPE SDK.')
       endif
     endif
   else # snpe found via pkg-config or cmake
@@ -281,7 +296,7 @@ if not get_option('tensorrt-support').disabled() or \
       message('ERROR: tools/cuda-version.sh exited with exit code: @0@, tensorrt10-support and/or dali-support will be disabled.'.format(cuda_version_cmd.returncode()))
     else
       cuda_version_str = cuda_version_cmd.stdout().strip()
-      message('$cuda_version_str: @0@'.format(cuda_version_str))
+      message('cuda_version_str: @0@'.format(cuda_version_str))
 
       cuda_versions = cuda_version_str.split('.')
       cuda_major = cuda_versions[0].to_int()
@@ -307,7 +322,7 @@ if cuda_major > 0 and (not get_option('tensorrt-support').disabled() or not get_
     message('ERROR: tools/tensorrt-version.sh exited with exit code: @0@, tensorrt10-support will be disabled.'.format(tensorrt_version_cmd.returncode()))
   else
     tensorrt_version_str = tensorrt_version_cmd.stdout().strip()
-    message('$tensorrt_version_str: @0@'.format(tensorrt_version_str))
+    message('tensorrt_version_str: @0@'.format(tensorrt_version_str))
 
     tensorrt_versions = tensorrt_version_str.split('.')
     tensorrt_major = tensorrt_versions[0].to_int()

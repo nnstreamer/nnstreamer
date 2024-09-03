@@ -45,6 +45,9 @@ static sensor_s sensors[][3] = {
 int
 sensor_is_supported (sensor_type_e type, bool * supported)
 {
+  if (NULL == supported)
+    return -EINVAL;
+
   if (type == SENSOR_ACCELEROMETER || type == SENSOR_LIGHT)
     *supported = true;
   else
@@ -59,6 +62,9 @@ int
 sensor_get_default_sensor (sensor_type_e type, sensor_h * sensor)
 {
   bool supported;
+
+  if (NULL == sensor)
+    return -EINVAL;
 
   sensor_is_supported (type, &supported);
   if (supported == false) {
@@ -77,6 +83,9 @@ sensor_get_sensor_list (sensor_type_e type, sensor_h ** list, int *sensor_count)
 {
   bool supported;
   int i;
+
+  if (NULL == list || NULL == sensor_count)
+    return -EINVAL;
 
   sensor_is_supported (type, &supported);
   if (supported == false) {
@@ -99,12 +108,16 @@ sensor_get_sensor_list (sensor_type_e type, sensor_h ** list, int *sensor_count)
 int
 sensor_get_type (sensor_h sensor, sensor_type_e * type)
 {
-  sensor_s *ptr = sensor;
+  sensor_s *s;
   bool supported;
 
-  sensor_is_supported (ptr->type, &supported);
+  if (NULL == sensor || NULL == type)
+    return -EINVAL;
+
+  s = sensor;
+  sensor_is_supported (s->type, &supported);
   if (supported)
-    *type = ptr->type;
+    *type = s->type;
   else
     return -EINVAL;
 
@@ -117,16 +130,21 @@ sensor_get_type (sensor_h sensor, sensor_type_e * type)
 int
 sensor_create_listener (sensor_h sensor, sensor_listener_h * listener)
 {
-  sensor_listener_s *ptr = g_new0 (sensor_listener_s, 1);
+  sensor_listener_s *ptr;
+  sensor_s *s;
   sensor_type_e type;
   GHashTable *table;
 
+  if (NULL == sensor || NULL == listener)
+    return -EINVAL;
+
+  s = sensor;
+  if (sensor_get_type (sensor, &type) < 0 || s->id > 3)
+    return -EINVAL;
+
+  ptr = g_new0 (sensor_listener_s, 1);
   ptr->is_listening = 0;
   ptr->listening = sensor;
-
-  if (NULL == sensor || sensor_get_type (sensor, &type) < 0 ||
-      ptr->listening->id > 3)
-    return -EINVAL;
 
   if (NULL == ptr->listening->listeners) {
     ptr->listening->listeners = g_hash_table_new (NULL, NULL);
@@ -238,16 +256,16 @@ sensor_listener_read_data_list (sensor_listener_h listener,
  * @brief Dummy Tizen Sensor.
  */
 int
-dummy_publish (sensor_h sensor, sensor_event_s value)
+dummy_publish (sensor_h sensor, sensor_event_s * value)
 {
   sensor_s *s;
 
-  if (NULL == sensor)
+  if (NULL == sensor || NULL == value)
     return -EINVAL;
 
   s = sensor;
 
-  memcpy (&(s->last_recorded), &value, sizeof (sensor_event_s));
+  memcpy (&(s->last_recorded), value, sizeof (sensor_event_s));
 
   if (s->last_recorded.timestamp == 0) {
     struct timespec t;

@@ -33,10 +33,6 @@
 #include <SNPE/SNPEBuilder.hpp>
 #include <SNPE/SNPEFactory.hpp>
 
-#if defined(__ANDROID__)
-#include <jni.h>
-#endif
-
 /**
  * @brief Macro for debug mode.
  */
@@ -48,13 +44,8 @@ namespace nnstreamer
 {
 namespace tensor_filter_snpe
 {
-
 extern "C" {
-#if defined(__ANDROID__)
-void init_filter_snpe (JNIEnv *env, jobject context);
-#else
 void init_filter_snpe (void) __attribute__ ((constructor));
-#endif
 void fini_filter_snpe (void) __attribute__ ((destructor));
 }
 
@@ -381,37 +372,52 @@ snpe_subplugin::configure_option (const GstTensorFilterProperties *prop)
 void
 snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 {
-  nns_logi ("SNPE Version: %s",
-      zdl::SNPE::SNPEFactory::getLibraryVersion ().asString ().c_str ());
+  zdl::DlSystem::Version_t ver = zdl::SNPE::SNPEFactory::getLibraryVersion ();
+
+  nns_logi ("SNPE Version: %s", ver.asString ().c_str ());
+
+  if (ver.Major != 1) {
+    cleanup ();
+
+    const std::string err_msg = "Invalid SNPE version, version 1.x is supported but has "
+                                + std::to_string (ver.Major) + ".x.";
+    nns_loge ("%s", err_msg.c_str ());
+    throw std::runtime_error (err_msg);
+  }
 
   if (!set_output_tensor_names (&prop->output_meta)) {
-    nns_loge ("Failed to set output tensor names");
     cleanup ();
-    return;
+
+    const std::string err_msg = "Failed to set output tensor names.";
+    nns_loge ("%s", err_msg.c_str ());
+    throw std::invalid_argument (err_msg);
   }
 
   if (!configure_option (prop)) {
     cleanup ();
-    throw std::invalid_argument ("Failed to configure SNPE option.");
-    return;
+
+    const std::string err_msg = "Failed to configure SNPE option.";
+    nns_loge ("%s", err_msg.c_str ());
+    throw std::invalid_argument (err_msg);
   }
 
   if (!empty_model) {
-    /* Already opened */
+    /* Already opened, clear old model. */
+    cleanup ();
 
     if (!prop->model_files[0] || prop->model_files[0][0] == '\0') {
-      std::cerr << "Model path is not given." << std::endl;
-      throw std::invalid_argument ("Model path is not given.");
+      const std::string err_msg = "SNPE model path is not given.";
+      nns_loge ("%s", err_msg.c_str ());
+      throw std::invalid_argument (err_msg);
     }
-
-    cleanup ();
   }
 
   if (!g_file_test (prop->model_files[0], G_FILE_TEST_IS_REGULAR)) {
-    const std::string err_msg
-        = "Given file " + (std::string) prop->model_files[0] + " is not valid";
-    std::cerr << err_msg << std::endl;
     cleanup ();
+
+    const std::string err_msg
+        = "Given file " + std::string (prop->model_files[0]) + " is not valid.";
+    nns_loge ("%s", err_msg.c_str ());
     throw std::invalid_argument (err_msg);
   }
 
@@ -432,7 +438,10 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   snpe = snpe_builder.build ();
   if (snpe == nullptr) {
     cleanup ();
-    throw std::runtime_error ("fail to build snpe");
+
+    const std::string err_msg = "Failed to build SNPE.";
+    nns_loge ("%s", err_msg.c_str ());
+    throw std::runtime_error (err_msg);
   }
 
   /** configure input and output tensor names */
@@ -448,7 +457,10 @@ snpe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   if (use_user_buffer) {
     if (input_data_type != _NNS_FLOAT32 || output_data_type != _NNS_FLOAT32) {
       cleanup ();
-      throw std::invalid_argument ("user buffer mode only support float32 type");
+
+      const std::string err_msg = "User buffer mode only supports float32 type.";
+      nns_loge ("%s", err_msg.c_str ());
+      throw std::invalid_argument (err_msg);
     }
 
     /* Configure input and output */
@@ -707,130 +719,6 @@ snpe_subplugin::fini_filter_snpe (void)
   tensor_filter_subplugin::unregister_subplugin (registeredRepresentation);
 }
 
-#if defined(__ANDROID__)
-/**
- * @brief Set additional environment (ADSP_LIBRARY_PATH) for snpe
- */
-static gboolean
-_snpe_set_env (JNIEnv *env, jobject context)
-{
-  gboolean snpe_failed = TRUE;
-  jclass context_class = NULL;
-  jmethodID get_application_info_method_id = NULL;
-  jobject application_info_object = NULL;
-  jclass application_info_object_class = NULL;
-  jfieldID native_library_dir_field_id = NULL;
-  jstring native_library_dir_path = NULL;
-
-  const gchar *native_library_dir_path_str;
-  gchar *new_path;
-
-  g_return_val_if_fail (env != NULL, FALSE);
-  g_return_val_if_fail (context != NULL, FALSE);
-
-  context_class = env->GetObjectClass (context);
-  if (!context_class) {
-    nns_loge ("Failed to get context class.");
-    goto done;
-  }
-
-  get_application_info_method_id = env->GetMethodID (context_class,
-      "getApplicationInfo", "()Landroid/content/pm/ApplicationInfo;");
-  if (!get_application_info_method_id) {
-    nns_loge ("Failed to get method ID for `ApplicationInfo()`.");
-    goto done;
-  }
-
-  application_info_object = env->CallObjectMethod (context, get_application_info_method_id);
-  if (env->ExceptionCheck ()) {
-    env->ExceptionDescribe ();
-    env->ExceptionClear ();
-    nns_loge ("Failed to call method `ApplicationInfo()`.");
-    goto done;
-  }
-
-  application_info_object_class = env->GetObjectClass (application_info_object);
-  if (!application_info_object_class) {
-    nns_loge ("Failed to get `ApplicationInfo` object class");
-    goto done;
-  }
-
-  native_library_dir_field_id = env->GetFieldID (
-      application_info_object_class, "nativeLibraryDir", "Ljava/lang/String;");
-  if (!native_library_dir_field_id) {
-    nns_loge ("Failed to get field ID for `nativeLibraryDir`.");
-    goto done;
-  }
-
-  native_library_dir_path = static_cast<jstring> (
-      env->GetObjectField (application_info_object, native_library_dir_field_id));
-  if (!native_library_dir_path) {
-    nns_loge ("Failed to get field `nativeLibraryDir`.");
-    goto done;
-  }
-
-  native_library_dir_path_str = env->GetStringUTFChars (native_library_dir_path, NULL);
-  if (env->ExceptionCheck ()) {
-    env->ExceptionDescribe ();
-    env->ExceptionClear ();
-    nns_loge ("Failed to get string `nativeLibraryDir`");
-    goto done;
-  }
-
-  new_path = g_strconcat (native_library_dir_path_str,
-      ";/system/lib/rfsa/adsp;/system/vendor/lib/rfsa/adsp;/dsp", NULL);
-
-  /**
-   * See https://developer.qualcomm.com/docs/snpe/dsp_runtime.html for details
-   */
-  nns_logi ("Set env ADSP_LIBRARY_PATH for snpe DSP/AIP runtime: %s", new_path);
-  g_setenv ("ADSP_LIBRARY_PATH", new_path, TRUE);
-
-  g_free (new_path);
-  env->ReleaseStringUTFChars (native_library_dir_path, native_library_dir_path_str);
-
-  snpe_failed = FALSE;
-
-done:
-
-  if (native_library_dir_path) {
-    env->DeleteLocalRef (native_library_dir_path);
-  }
-
-  if (application_info_object_class) {
-    env->DeleteLocalRef (application_info_object_class);
-  }
-
-  if (application_info_object) {
-    env->DeleteLocalRef (application_info_object);
-  }
-
-  if (context_class) {
-    env->DeleteLocalRef (context_class);
-  }
-
-  return !(snpe_failed);
-}
-
-/**
- * @brief Register the sub-plugin for SNPE in Android.
- */
-void
-init_filter_snpe (JNIEnv *env, jobject context)
-{
-  if (nnstreamer_filter_find ("snap")) {
-    nns_loge ("Cannot use SNPE and SNAP both. Won't register this SNPE subplugin.");
-    return;
-  }
-
-  if (!_snpe_set_env (env, context)) {
-    nns_loge ("Failed to set extra env");
-    return;
-  }
-
-  snpe_subplugin::init_filter_snpe ();
-}
-#else
 /**
  * @brief Register the sub-plugin for SNPE.
  */
@@ -839,7 +727,6 @@ init_filter_snpe ()
 {
   snpe_subplugin::init_filter_snpe ();
 }
-#endif
 
 /**
  * @brief Destruct the sub-plugin for SNPE.
