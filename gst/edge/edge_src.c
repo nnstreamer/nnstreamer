@@ -37,6 +37,7 @@ enum
   PROP_DEST_PORT,
   PROP_CONNECT_TYPE,
   PROP_TOPIC,
+  PROP_CUSTOM_LIB,
 
   PROP_LAST
 };
@@ -51,6 +52,7 @@ static void gst_edgesrc_get_property (GObject * object, guint prop_id,
 static void gst_edgesrc_class_finalize (GObject * object);
 
 static gboolean gst_edgesrc_start (GstBaseSrc * basesrc);
+static gboolean gst_edgesrc_stop (GstBaseSrc * basesrc);
 static GstFlowReturn gst_edgesrc_create (GstBaseSrc * basesrc, guint64 offset,
     guint size, GstBuffer ** out_buf);
 
@@ -109,6 +111,10 @@ gst_edgesrc_class_init (GstEdgeSrcClass * klass)
           "The main topic of the host and option if necessary. "
           "(topic)/(optional topic for main topic).", "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_CUSTOM_LIB,
+      g_param_spec_string ("custom-lib", "Custom connection lib path",
+          "User defined custom connection lib path.",
+          "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&srctemplate));
@@ -118,6 +124,7 @@ gst_edgesrc_class_init (GstEdgeSrcClass * klass)
       "Subscribe and push incoming streams", "Samsung Electronics Co., Ltd.");
 
   gstbasesrc_class->start = gst_edgesrc_start;
+  gstbasesrc_class->stop = gst_edgesrc_stop;
   gstbasesrc_class->create = gst_edgesrc_create;
   gstelement_class->change_state = gst_edgesrc_change_state;
 
@@ -142,6 +149,7 @@ gst_edgesrc_init (GstEdgeSrc * self)
   self->msg_queue = g_async_queue_new ();
   self->connect_type = DEFAULT_CONNECT_TYPE;
   self->playing = FALSE;
+  self->custom_lib = NULL;
 }
 
 /**
@@ -177,6 +185,10 @@ gst_edgesrc_set_property (GObject * object, guint prop_id, const GValue * value,
       g_free (self->topic);
       self->topic = g_value_dup_string (value);
       break;
+    case PROP_CUSTOM_LIB:
+      g_free (self->custom_lib);
+      self->custom_lib = g_value_dup_string (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -211,6 +223,9 @@ gst_edgesrc_get_property (GObject * object, guint prop_id, GValue * value,
     case PROP_TOPIC:
       g_value_set_string (value, self->topic);
       break;
+    case PROP_CUSTOM_LIB:
+      g_value_set_string (value, self->custom_lib);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -232,6 +247,9 @@ gst_edgesrc_class_finalize (GObject * object)
 
   g_free (self->topic);
   self->topic = NULL;
+
+  g_free (self->custom_lib);
+  self->custom_lib = NULL;
 
   if (self->msg_queue) {
     while ((data_h = g_async_queue_try_pop (self->msg_queue))) {
@@ -290,6 +308,7 @@ _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
   int ret = NNS_EDGE_ERROR_NONE;
 
   GstEdgeSrc *self = GST_EDGESRC (user_data);
+
   if (0 != nns_edge_event_get_type (event_h, &event_type)) {
     nns_loge ("Failed to get event type!");
     return NNS_EDGE_ERROR_UNKNOWN;
@@ -327,9 +346,17 @@ gst_edgesrc_start (GstBaseSrc * basesrc)
   int ret;
   char *port = NULL;
 
-  ret =
-      nns_edge_create_handle (NULL, self->connect_type,
+  if (NNS_EDGE_CONNECT_TYPE_CUSTOM != self->connect_type) {
+    ret = nns_edge_create_handle (NULL, self->connect_type,
       NNS_EDGE_NODE_TYPE_SUB, &self->edge_h);
+  } else {
+    if (!self->custom_lib) {
+      nns_loge ("Failed to create custom handle. custom-lib path is not set.");
+      return FALSE;
+    }
+    ret = nns_edge_custom_create_handle (NULL, self->custom_lib,
+      NNS_EDGE_NODE_TYPE_SUB, &self->edge_h);
+  }
 
   if (NNS_EDGE_ERROR_NONE != ret) {
     nns_loge ("Failed to get nnstreamer edge handle.");
@@ -365,6 +392,26 @@ gst_edgesrc_start (GstBaseSrc * basesrc)
     return FALSE;
   }
   self->playing = TRUE;
+
+  return TRUE;
+}
+
+/**
+ * @brief Stop edgesrc, called when state changed ready to null
+ */
+static gboolean
+gst_edgesrc_stop (GstBaseSrc * basesrc)
+{
+  GstEdgeSrc *self = GST_EDGESRC (basesrc);
+  int ret;
+
+  self->playing = FALSE;
+  ret = nns_edge_stop (self->edge_h);
+
+  if (NNS_EDGE_ERROR_NONE != ret) {
+    nns_loge ("Failed to stop edgesrc. error code(%d)", ret);
+    return FALSE;
+  }
 
   return TRUE;
 }

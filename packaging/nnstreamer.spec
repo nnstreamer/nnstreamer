@@ -989,7 +989,7 @@ export ORC_DEBUG=2
     bash %{test_script} ./tests/nnstreamer_datarepo
 %endif
 %if 0%{?nnstreamer_edge_support}
-    bash %{test_script} ./tests/nnstreamer_edge
+    LD_LIBRARY_PATH=./tests/nnstreamer_edge bash %{test_script} ./tests/nnstreamer_edge
 %endif
 %if 0%{mvncsdk2_support}
     LD_LIBRARY_PATH=${NNSTREAMER_BUILD_ROOT_PATH}/tests/nnstreamer_filter_mvncsdk2:. bash %{test_script} ./tests/nnstreamer_filter_mvncsdk2/unittest_filter_mvncsdk2

@@ -53,6 +53,8 @@ struct _GstEdgeSink
   nns_edge_h edge_h;
   gboolean wait_connection;
   guint64 connection_timeout;
+
+  gchar *custom_lib;
 };
 
 /**
