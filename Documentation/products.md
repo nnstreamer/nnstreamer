@@ -31,6 +31,7 @@ Reports and tips welcomed!
 | [PrintNanny](https://printnanny.ai) | ![printnanny.demo.printer](media/PrintNanny.webp) | 3D printer monitoring service |
 | [NXP](https://nxp.com) | ![nxp.example.pose](https://github.com/NXPmicro/nxp-nnstreamer-examples/raw/main/pose/pose_demo.webp)<br />[NXP nnstreamer example](https://github.com/NXPmicro/nxp-nnstreamer-examples)<br />[i.MX Machine Learning User's Guide](https://www.nxp.com/docs/en/user-guide/IMX-MACHINE-LEARNING-UG.pdf) | Vision pipeline with NNStreamer |
 | [LG] | ![lg.gstreamer.conference.talk](https://gstconf.ubicast.tv/public/videos/v12666129e959phdk0477svdnli8ma/thumb_catalog.jpg) | [GStreamer Conference 2023](https://gstconf.ubicast.tv/videos/playing-around-with-artistic-style-transfer-with-gstreamer-nnstreamer/) |
+| [MediaTek](https://www.mediatek.com/) | [![mediatek.sw.stack](https://mediatek.gitlab.io/aiot/doc/aiot-dev-guide/master/_images/tools_nnstreamer_software-stack.png)](https://mediatek.gitlab.io/aiot/doc/aiot-dev-guide/master/tools/nnstreamer.html) | [MediaTek Genio](https://www.mediatek.com/iot/home) |
 
 - (TBU): Eyepop.ai's nnstreamer usages
 
