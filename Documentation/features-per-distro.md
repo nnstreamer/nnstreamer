@@ -29,7 +29,6 @@ This document reflects the status of 2022-07-14 (2.1.1 devel)
         - SNPE
         - grpc
         - MQTT
-        - AITT (Since Tizen 7.0 M2)
         - flexbuf (converter/decoder)
         - flatbuf (converter/decoder)
         - protobuf (converter/decoder)
