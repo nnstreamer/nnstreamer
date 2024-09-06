@@ -64,7 +64,6 @@ Please try to stick with the same indentation rules (2 spaces) and refer to .cla
 - [TAOS-CI, CI Service for On-Device AI Systems](https://github.com/nnstreamer/TAOS-CI)
 - [Machine Learning APIs](https://github.com/nnstreamer/api)
 - [NNStreamer-Edge, among-device AI support](https://github.com/nnstreamer/nnstreamer-edge)
-- [AITT, an AI service oriented wrapper for MQTT](https://github.com/nnstreamer/aitt)
 - [NNStreamer ROS (Robot OS) Support](https://github.com/nnstreamer/nnstreamer-ros)
 - [NNStreamer Android Build Resource](https://github.com/nnstreamer/nnstreamer-android-resource): additional files required by Android builds.
 - [NNStreamer Yocto/OpenEmbedded Layer](https://github.com/nnstreamer/meta-neural-network): refer to [Openembedded layer page](https://layers.openembedded.org/layerindex/branch/master/layer/meta-neural-network/)

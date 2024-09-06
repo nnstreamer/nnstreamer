@@ -213,32 +213,6 @@ callCompareTestIfExist raw6_$((num+2)).log result6_0_2.log 6-6 "Compare 6-6" 1 0
 kill -9 $pid &> /dev/null
 wait $pid
 
-# Check AITT lib is exist or not.
-/sbin/ldconfig -p | grep libaitt-enable-later.so >/dev/null 2>&1
-if [[ "$?" != 0 ]]; then
-    echo "AITT-SES lib is not installed. Skip AITT test."
-else
-    # Data publishing via AITT
-    gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} \
-        videotestsrc is-live=true ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB ! tee name=t \
-            t. ! queue ! multifilesink location=raw7_%1d.log \
-            t. ! queue ! edgesink port=0 connect-type=AITT dest-host=127.0.0.1 dest-port=${PORT} topic=tempTopic async=false" 7-1 1 0 30
-    gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
-        edgesrc port=0 connect-type=AITT dest-host=127.0.0.1 dest-port=${PORT} topic=tempTopic num-buffers=10 ! multifilesink location=result7_0_%1d.log" 7-2 0 0 $PERFORMANCE
-    gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
-        edgesrc port=0 connect-type=AITT dest-host=127.0.0.1 dest-port=${PORT} topic=tempTopic num-buffers=10 ! multifilesink location=result7_1_%1d.log" 7-3 0 0 $PERFORMANCE
-    findFirstMatchedFileNumber "raw7_" ".log" "result7_0_0.log" 7-4
-    callCompareTestIfExist raw7_$((num+0)).log result7_0_0.log 7-4 "Compare 7-4" 1 0
-    callCompareTestIfExist raw7_$((num+1)).log result7_0_1.log 7-5 "Compare 7-5" 1 0
-    callCompareTestIfExist raw7_$((num+2)).log result7_0_2.log 7-6 "Compare 7-6" 1 0
-    findFirstMatchedFileNumber "raw7_" ".log" "result7_1_0.log" 7-7
-    callCompareTestIfExist raw7_$((num+0)).log result7_1_0.log 7-7 "Compare 7-7" 1 0
-    callCompareTestIfExist raw7_$((num+1)).log result7_1_1.log 7-8 "Compare 7-8" 1 0
-    callCompareTestIfExist raw7_$((num+2)).log result7_1_2.log 7-9 "Compare 7-9" 1 0
-    kill -9 $pid &> /dev/null
-    wait $pid
-fi
-
 # Data publishing via MQTT
 kill -9 $mospid &> /dev/null
 PORT=`python3 ../../get_available_port.py`
