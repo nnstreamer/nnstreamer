@@ -8,7 +8,7 @@ ifndef GSTREAMER_ROOT_ANDROID
 $(error GSTREAMER_ROOT_ANDROID is not defined!)
 endif
 
-NNSTREAMER_VERSION  := 2.4.1
+NNSTREAMER_VERSION  := 2.4.2
 NNSTREAMER_VERSION_MAJOR := $(word 1,$(subst ., ,${NNSTREAMER_VERSION}))
 NNSTREAMER_VERSION_MINOR := $(word 2,$(subst ., ,${NNSTREAMER_VERSION}))
 NNSTREAMER_VERSION_MICRO := $(word 3,$(subst ., ,${NNSTREAMER_VERSION}))
@@ -114,6 +114,10 @@ ifeq ($(shell test -d ${SNPE_ROOT}/include/zdl; echo $$?),0)
 NNSTREAMER_FILTER_SNPE_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_snpe_v1.cc
 endif
+
+# filter qnn
+NNSTREAMER_FILTER_QNN_SRCS := \
+    $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_qnn.cc
 
 # filter snap
 NNSTREAMER_FILTER_SNAP_SRCS := \

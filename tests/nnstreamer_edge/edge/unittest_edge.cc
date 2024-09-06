@@ -16,6 +16,7 @@
 #include "unittest_util.h"
 
 static int data_received;
+static const char *CUSTOM_LIB_PATH = "./libnnstreamer-edge-custom-test.so";
 
 /**
  * @brief Test for edgesink get and set properties.
@@ -358,6 +359,169 @@ TEST (edgeSinkSrc, runNormalAitt)
   g_free (sink_pipeline);
 }
 #endif
+
+/**
+ * @brief Test for edgesink custom connection.
+ */
+TEST (edgeCustom, sinkNormal)
+{
+  /** @todo TDD: Enable this test later. */
+  GTEST_SKIP ();
+
+  gchar *pipeline = nullptr;
+  GstElement *gstpipe = nullptr;
+
+  /* Create a nnstreamer pipeline */
+  pipeline = g_strdup_printf (
+      "gst-launch-1.0 videotestsrc ! videoconvert ! videoscale ! "
+      "video/x-raw,width=320,height=240,format=RGB,framerate=10/1 ! "
+      "tensor_converter ! edgesink connect-type=CUSTOM custom-lib=%s name=sinkx port=0",
+      CUSTOM_LIB_PATH);
+  gstpipe = gst_parse_launch (pipeline, nullptr);
+  EXPECT_NE (gstpipe, nullptr);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (1000000);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (100000);
+
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+}
+
+/**
+ * @brief Test for edgesink custom connection with invalid property.
+ */
+TEST (edgeCustom, sinkInvalidProp_n)
+{
+  /** @todo TDD: Enable this test later. */
+  GTEST_SKIP ();
+
+  gchar *pipeline = nullptr;
+  GstElement *gstpipe = nullptr;
+
+  /* Create a nnstreamer pipeline */
+  pipeline = g_strdup_printf (
+      "gst-launch-1.0 videotestsrc ! videoconvert ! videoscale ! "
+      "video/x-raw,width=320,height=240,format=RGB,framerate=10/1 ! "
+      "tensor_converter ! edgesink connect-type=CUSTOM name=sinkx port=0");
+  gstpipe = gst_parse_launch (pipeline, nullptr);
+  EXPECT_NE (gstpipe, nullptr);
+
+  EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (1000000);
+
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+}
+
+/**
+ * @brief Test for edgesink custom connection with invalid property.
+ */
+TEST (edgeCustom, sinkInvalidProp2_n)
+{
+  /** @todo TDD: Enable this test later. */
+  GTEST_SKIP ();
+
+  gchar *pipeline = nullptr;
+  GstElement *gstpipe = nullptr;
+
+  /* Create a nnstreamer pipeline */
+  pipeline = g_strdup_printf (
+      "gst-launch-1.0 videotestsrc ! videoconvert ! videoscale ! "
+      "video/x-raw,width=320,height=240,format=RGB,framerate=10/1 ! "
+      "tensor_converter ! edgesink connect-type=CUSTOM custom-lib=libINVALID.so name=sinkx port=0");
+  gstpipe = gst_parse_launch (pipeline, nullptr);
+  EXPECT_NE (gstpipe, nullptr);
+
+  EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (1000000);
+
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+}
+
+/**
+ * @brief Test for edgesrc custom connection.
+ */
+TEST (edgeCustom, srcNormal)
+{
+  /** @todo TDD: Enable this test later. */
+  GTEST_SKIP ();
+
+  gchar *pipeline = nullptr;
+  GstElement *gstpipe = nullptr;
+
+  /* Create a nnstreamer pipeline */
+  pipeline = g_strdup_printf ("gst-launch-1.0 edgesrc connect-type=CUSTOM custom-lib=%s name=srcx ! "
+                              "other/tensors,num_tensors=1,dimensions=3:320:240:1,types=uint8,format=static,framerate=30/1 ! "
+                              "tensor_sink",
+      CUSTOM_LIB_PATH);
+  gstpipe = gst_parse_launch (pipeline, nullptr);
+  EXPECT_NE (gstpipe, nullptr);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (1000000);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (100000);
+
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+}
+
+/**
+ * @brief Test for edgesrc custom connection with invalid property.
+ */
+TEST (edgeCustom, srcInvalidProp_n)
+{
+  /** @todo TDD: Enable this test later. */
+  GTEST_SKIP ();
+
+  gchar *pipeline = nullptr;
+  GstElement *gstpipe = nullptr;
+
+  /* Create a nnstreamer pipeline */
+  pipeline = g_strdup_printf ("gst-launch-1.0 edgesrc connect-type=CUSTOM name=srcx ! "
+                              "other/tensors,num_tensors=1,dimensions=3:320:240:1,types=uint8,format=static,framerate=30/1 ! "
+                              "tensor_sink");
+  gstpipe = gst_parse_launch (pipeline, nullptr);
+  EXPECT_NE (gstpipe, nullptr);
+
+  EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (1000000);
+
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+}
+
+/**
+ * @brief Test for edgesrc custom connection with invalid property.
+ */
+TEST (edgeCustom, srcInvalidProp2_n)
+{
+  /** @todo TDD: Enable this test later. */
+  GTEST_SKIP ();
+
+  gchar *pipeline = nullptr;
+  GstElement *gstpipe = nullptr;
+
+  /* Create a nnstreamer pipeline */
+  pipeline = g_strdup_printf (
+      "gst-launch-1.0 edgesrc connect-type=CUSTOM custom-lib=libINVALID.so name=srcx ! "
+      "other/tensors,num_tensors=1,dimensions=3:320:240:1,types=uint8,format=static,framerate=30/1 ! "
+      "tensor_sink");
+  gstpipe = gst_parse_launch (pipeline, nullptr);
+  EXPECT_NE (gstpipe, nullptr);
+
+  EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (1000000);
+
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+}
+
 /**
  * @brief Main GTest
  */

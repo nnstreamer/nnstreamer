@@ -308,7 +308,7 @@ QnnManager::init (const char *model_path, const char *backend_path)
   /* Prepare graphs from model.so */
   model_module = g_module_open (model_path, G_MODULE_BIND_LOCAL);
   if (!model_module) {
-    g_warning ("Failed to open module: %s", g_module_error ());
+    nns_loge ("Failed to open module: %s", g_module_error ());
     return false;
   }
 
@@ -321,7 +321,7 @@ QnnManager::init (const char *model_path, const char *backend_path)
 
   uint32_t graph_count = 0U;
   ModelError_t mrt = compose_graphs (backend_handle_, qnn_interface_, context_handle_,
-      nullptr, 1, &graphs_info_, &graph_count, false, nullptr, QNN_LOG_LEVEL_ERROR);
+      nullptr, 0U, &graphs_info_, &graph_count, false, nullptr, QNN_LOG_LEVEL_ERROR);
   if (mrt != MODEL_NO_ERROR) {
     nns_loge ("Failed to compose graphs. Error: %d", (int) mrt);
     return false;
@@ -344,6 +344,7 @@ QnnManager::init (const char *model_path, const char *backend_path)
       nns_loge ("Failed to copy tensor info.");
       return false;
     }
+    _t.v1.memType = QNN_TENSORMEMTYPE_RAW;
     _t.v1.clientBuf.dataSize = qnnTensorDataSize (&_t);
     input_tensors_.push_back (_t);
   }
@@ -357,6 +358,7 @@ QnnManager::init (const char *model_path, const char *backend_path)
       nns_loge ("Failed to copy tensor info.");
       return false;
     }
+    _t.v1.memType = QNN_TENSORMEMTYPE_RAW;
     _t.v1.clientBuf.dataSize = qnnTensorDataSize (&_t);
     output_tensors_.push_back (_t);
   }

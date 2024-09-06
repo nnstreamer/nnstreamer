@@ -186,7 +186,7 @@ Summary:	gstreamer plugins for neural networks
 # 2. Tizen  : ./packaging/nnstreamer.spec
 # 3. Android: ./jni/nnstreamer.mk
 # 4. Meson  : ./meson.build
-Version:	2.4.1
+Version:	2.4.2
 Release:	0
 Group:		Machine Learning/ML Framework
 Packager:	MyungJoo Ham <myungjoo.ham@samsung.com>
@@ -1397,6 +1397,9 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %endif
 
 %changelog
+* Mon Sep 02 2024 MyungJoo Ham <myungjoo.ham@samsung.com>
+- Release of 2.4.2, the new LTS version of 2024. (Tizen 9.0 M2)
+
 * Fri Sep 15 2023 MyungJoo Ham <myungjoo.ham@samsung.com>
 - Start development of 2.4.1 (2.4.2-RC1)
 
