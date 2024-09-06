@@ -650,6 +650,10 @@ features = {
   'onnxruntime-support': {
     'target': 'libonnxruntime',
     'project_args': { 'ENABLE_ONNXRUNTIME': 1 }
+  },
+  'llama2c-support': {
+    'target': 'llama2c',
+    'project_args': { 'ENABLE_LLAMA2C': 1 }
   }
 }
 
