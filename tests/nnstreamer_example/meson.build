@@ -103,3 +103,13 @@ if tensorrt_support_is_available
     install_dir: customfilter_install_dir
   )
 endif
+
+if llama2c_support_is_available
+  library('nnstreamer_customfilter_llama2',
+    join_paths('custom_example_llama2',
+        'nnstreamer_customfilter_llama2.c'),
+    dependencies: [glib_dep, gst_dep, nnstreamer_dep, llama2c_support_deps],
+    install: get_option('install-test'),
+    install_dir: customfilter_install_dir
+  )
+endif
