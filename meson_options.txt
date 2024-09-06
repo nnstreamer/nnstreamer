@@ -34,6 +34,7 @@ option('datarepo-support', type: 'feature', value: 'auto', description: 'Data re
 option('ml-agent-support', type: 'feature', value: 'auto')
 option('onnxruntime-support', type: 'feature', value: 'auto')
 option('dali-support', type: 'feature', value: 'auto')
+option('llama2c-support', type: 'feature', value: 'auto')
 
 # booleans & other options
 option('enable-test', type: 'boolean', value: true)
