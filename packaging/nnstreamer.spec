@@ -119,6 +119,7 @@
 %define		trix_engine_support 0
 %define		onnxruntime_support 0
 %define		nnstreamer_edge_support 0
+%define		ml_agent_support 0
 %endif
 
 # Disable a few features for movable device
