@@ -627,6 +627,71 @@ gst_tensor_trainer_epochs_is_complete (GstTensorTrainer * trainer)
 }
 
 /**
+ * @brief Check buffer drop conditions. If condition is met, drop the buffer.
+ */
+static gboolean
+gst_tensor_trainer_check_buffr_drop_conditions (GstTensorTrainer * trainer)
+{
+  if (trainer->is_training_complete == TRUE) {
+    /** app need to send gst_element_send_event(tensor_trainer, gst_event_new_eos())
+        after training_complete or set eos to datareposrc */
+    GST_WARNING_OBJECT (trainer,
+        "Training is completed, buffer is dropped, please change state of pipeline");
+    return TRUE;
+  }
+  return FALSE;
+}
+
+/**
+ * @brief  Check chain conditions. If all conditions are met, proceed to next step.
+ */
+static gboolean
+gst_tensor_trainer_check_chain_conditions (GstTensorTrainer * trainer,
+    guint num_tensors)
+{
+  if (!trainer->fw_created) {
+    if (!gst_tensor_trainer_check_invalid_param (trainer))
+      return FALSE;;
+    if (!gst_tensor_trainer_create_model (trainer))
+      return FALSE;
+  }
+
+  if (num_tensors >= NNS_TENSOR_SIZE_LIMIT)
+    return FALSE;
+
+  return TRUE;
+}
+
+/**
+ * @brief Get the size of tensor header.
+ */
+static gsize
+gst_tensor_trainer_get_header_size (GstTensorTrainer * trainer,
+    gboolean in_flexible, GstTensorInfo * info, GstTensorMetaInfo * meta,
+    void *data)
+{
+  gsize header_size = 0;
+
+  if (in_flexible) {
+    if (!gst_tensor_meta_info_parse_header (meta, data)) {
+      GST_ERROR_OBJECT (trainer, "Invalid Flexible tensors");
+      return 0;
+    }
+
+    header_size = gst_tensor_meta_info_get_header_size (meta);
+    info = gst_tensors_info_get_nth_info (&trainer->prop.input_meta, i);
+    if (info == NULL)
+      return 0;
+    gst_tensor_meta_info_convert (meta, info);
+    GST_INFO ("flexible header size:%zd", header_size);
+  } else {
+    GST_INFO ("not flexible header, size:%zd", header_size);
+  }
+
+  return header_size;
+}
+
+/**
  * @brief Chain function, this function does the actual processing.
  */
 static GstFlowReturn
@@ -658,23 +723,11 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
   in_flexible = gst_tensor_pad_caps_is_flexible (sinkpad);
   num_tensors = gst_tensor_buffer_get_count (inbuf);
 
-  if (!trainer->fw_created) {
-    if (!gst_tensor_trainer_check_invalid_param (trainer))
-      return GST_FLOW_ERROR;
-    if (!gst_tensor_trainer_create_model (trainer))
-      return GST_FLOW_ERROR;
-  }
-
-  if (num_tensors >= NNS_TENSOR_SIZE_LIMIT)
+  if (!gst_tensor_trainer_check_chain_conditions (trainer, num_tensors))
     return GST_FLOW_ERROR;
 
-  if (trainer->is_training_complete == TRUE) {
-    /** app need to send gst_element_send_event(tensor_trainer, gst_event_new_eos())
-        after training_complete or set eos to datareposrc */
-    GST_WARNING_OBJECT (trainer,
-        "Training is completed, buffer is dropped, please change state of pipeline");
+  if (gst_tensor_trainer_check_buffr_drop_conditions (trainer))
     return GST_FLOW_OK;
-  }
 
   for (i = 0; i < num_tensors; i++) {
     in_mem[i] = gst_tensor_buffer_get_nth_memory (inbuf, i);
@@ -683,23 +736,11 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
       goto error;
     }
 
-    /* Get header size */
-    header_size = 0;
-    if (in_flexible) {
-      if (!gst_tensor_meta_info_parse_header (&in_meta[i], in_info[i].data)) {
-        GST_ERROR_OBJECT (trainer, "Invalid Flexible tensors");
-        goto error;
-      }
-
-      header_size = gst_tensor_meta_info_get_header_size (&in_meta[i]);
-      info = gst_tensors_info_get_nth_info (&trainer->prop.input_meta, i);
-      if (info == NULL)
-        goto error;
-      gst_tensor_meta_info_convert (&in_meta[i], info);
-      GST_INFO ("flexible header size:%zd", header_size);
-    } else {
-      GST_INFO ("not flexible header, size:%zd", header_size);
-    }
+    header_size =
+        gst_tensor_get_header_size (trainer, in_flexible, info, &in_meta[i],
+        in_info[i].data);
+    if (in_flexible && header_size == 0)
+      goto error;
 
     in_tensors[i].data = in_info[i].data + header_size;
     in_tensors[i].size = in_info[i].size - header_size;
