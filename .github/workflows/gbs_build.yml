@@ -60,21 +60,3 @@ jobs:
       if: env.rebuild == '1'
       run: |
         gbs build --skip-srcrpm --define "_skip_debug_rpm 1" -A ${{ matrix.gbs_build_arch }} ${{ matrix.gbs_build_option }}
-        ## Skip nntrainer build test in aarch64. @todo We need #2430 and #2431 in nntrainer.git
-        if [[ "${{ matrix.gbs_build_arch }}" == "aarch64" ]]; then
-          echo "rebuild=0" >> "$GITHUB_ENV"
-        fi
-
-    - name: get nntrainer
-      if: env.rebuild == '1'
-      uses: actions/checkout@v4
-      with:
-        repository: nnstreamer/nntrainer
-        path: nntrainer
-
-    - name: run nntrainer GBS build
-      if: env.rebuild == '1'
-      run: |
-        pushd nntrainer
-        gbs build --skip-srcrpm -A ${{ matrix.gbs_build_arch }} ${{ matrix.gbs_build_option }} --define "_skip_debug_rpm 1"
-        popd
