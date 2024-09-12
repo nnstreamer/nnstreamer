@@ -1,4 +1,4 @@
-name: Update GBS cache once a day
+name: Update GBS cache once a day + nntrainer gbs build test
 
 on:
   schedule:
@@ -12,7 +12,15 @@ jobs:
   cache_gbs_build:
     strategy:
       matrix:
-        gbs_build_arch: [x86_64, i586, armv7l, aarch64]
+        include:
+          - gbs_build_arch: "x86_64"
+            gbs_build_option: "--define \"unit_test 1\""
+          - gbs_build_arch: "i586"
+            gbs_build_option: "--define \"unit_test 1\""
+          - gbs_build_arch: "armv7l"
+            gbs_build_option: "--define \"unit_test 0\""
+          - gbs_build_arch: "aarch64"
+            gbs_build_option: "--define \"unit_test 0\""
 
     runs-on: ubuntu-22.04
 
@@ -52,3 +60,15 @@ jobs:
       run: |
         aws s3 cp --recursive --region ap-northeast-2 ~/GBS-ROOT/local/repos/tizen/${{ matrix.gbs_build_arch }}/RPMS/ s3://nnstreamer-release/nnstreamer/${{ steps.get-date.outputs.date }}/RPMS/
         aws s3 cp --recursive --region ap-northeast-2 ~/GBS-ROOT/local/repos/tizen/${{ matrix.gbs_build_arch }}/RPMS/ s3://nnstreamer-release/nnstreamer/latest/RPMS/
+
+    - name: Get nntrainer
+      uses: actions/checkout@v4
+      with:
+        repository: nnstreamer/nntrainer
+        path: nntrainer
+
+    - name: Run nntrainer GBS build
+      run: |
+        pushd nntrainer
+        gbs build --skip-srcrpm -A ${{ matrix.gbs_build_arch }} ${{ matrix.gbs_build_option }} --define "_skip_debug_rpm 1"
+        popd
