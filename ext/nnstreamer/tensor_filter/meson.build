@@ -898,3 +898,23 @@ if dali_support_is_available
     install_dir: nnstreamer_libdir
   )
 endif
+
+if llama2c_support_is_available
+  filter_sub_llama2c_sources = ['tensor_filter_llama2.cc']
+
+  nnstreamer_filter_llama2c_deps = [glib_dep, nnstreamer_single_dep, llama2c_support_deps]
+
+  shared_library('nnstreamer_filter_llama2c',
+    filter_sub_llama2c_sources,
+    dependencies: nnstreamer_filter_llama2c_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_llama2c',
+    filter_sub_llama2c_sources,
+    dependencies: nnstreamer_filter_llama2c_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+endif
