@@ -12,7 +12,7 @@ if __name__ == "__main__":
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     # Bind to any available port
-    s.bind(('', 0))
+    s.bind(('127.0.0.1', 0))
     addr = s.getsockname()
     s.close()
 
