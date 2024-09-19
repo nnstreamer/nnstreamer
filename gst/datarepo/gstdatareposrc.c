@@ -339,7 +339,7 @@ gst_data_repo_src_parse_caps (GstDataRepoSrc * src, GstCaps * caps)
       channel = GST_AUDIO_INFO_CHANNELS (&audio_info);
       depth = GST_AUDIO_INFO_DEPTH (&audio_info);
 
-      src->sample_size = channel * (depth / 8) * rate;
+      src->sample_size = (gsize) channel * (depth / 8) * rate;
 
       GST_DEBUG_OBJECT (src,
           "format(%s), depth(%d), rate(%d), channel(%d): %zd bps",

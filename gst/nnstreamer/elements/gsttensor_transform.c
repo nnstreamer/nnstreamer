@@ -1767,9 +1767,9 @@ gst_tensor_transform_padding (GstTensorTransform * filter,
   guint i, j, k, left, top, front, loop_limit = 1;
   element_size = gst_tensor_get_element_size (in_info->type);
 
-  in_loop_size = in_info->dimension[2] * in_info->dimension[1]
+  in_loop_size = (gsize) in_info->dimension[2] * in_info->dimension[1]
       * in_info->dimension[0] * element_size;
-  out_loop_size = out_info->dimension[2] * out_info->dimension[1]
+  out_loop_size =(gsize) out_info->dimension[2] * out_info->dimension[1]
       * out_info->dimension[0] * element_size;
   copy_block_size = in_info->dimension[0] * element_size;
 
