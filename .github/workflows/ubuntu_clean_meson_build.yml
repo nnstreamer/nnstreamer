@@ -61,7 +61,7 @@ jobs:
           gdb ${ERROREXEC} -c coredump -batch -ex bt
           echo "::endgroup::"
         fi
-    - uses: actions/upload-artifact@v1
+    - uses: actions/upload-artifact@v3
       if: failure()
       with:
         name: Meson_Testlog
