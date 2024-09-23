@@ -166,6 +166,9 @@ gst_edgesink_init (GstEdgeSink * self)
   self->wait_connection = FALSE;
   self->connection_timeout = 0;
   self->custom_lib = NULL;
+  self->is_connected = FALSE;
+  g_mutex_init (&self->lock);
+  g_cond_init (&self->cond);
 }
 
 /**
@@ -284,6 +287,8 @@ gst_edgesink_finalize (GObject * object)
 
   g_free (self->custom_lib);
   self->custom_lib = NULL;
+  g_mutex_clear (&self->lock);
+  g_cond_clear (&self->cond);
 
   if (self->edge_h) {
     nns_edge_release_handle (self->edge_h);
@@ -291,6 +296,39 @@ gst_edgesink_finalize (GObject * object)
   }
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
+}
+
+
+/**
+ * @brief nnstreamer-edge event callback.
+ */
+static int
+_nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
+{
+  nns_edge_event_e event_type;
+  int ret = NNS_EDGE_ERROR_NONE;
+
+  GstEdgeSink *self = GST_EDGESINK (user_data);
+  ret = nns_edge_event_get_type (event_h, &event_type);
+  if (NNS_EDGE_ERROR_NONE != ret) {
+    nns_loge ("Failed to get event type!");
+    return ret;
+  }
+
+  switch (event_type) {
+    case NNS_EDGE_EVENT_CONNECTION_COMPLETED:
+    {
+      g_mutex_lock (&self->lock);
+      self->is_connected = TRUE;
+      g_cond_broadcast (&self->cond);
+      g_mutex_unlock (&self->lock);
+      break;
+    }
+    default:
+      break;
+  }
+
+  return ret;
 }
 
 /**
@@ -344,36 +382,45 @@ gst_edgesink_start (GstBaseSink * basesink)
   if (self->topic)
     nns_edge_set_info (self->edge_h, "TOPIC", self->topic);
 
+  nns_edge_set_event_callback (self->edge_h, _nns_edge_event_cb, self);
+
   if (0 != nns_edge_start (self->edge_h)) {
     nns_loge
         ("Failed to start NNStreamer-edge. Please check server IP and port");
     return FALSE;
   }
 
-  if (self->wait_connection) {
-    guint64 remaining = self->connection_timeout;
-    if (0 == remaining)
-      remaining = G_MAXUINT64;
+  return TRUE;
+}
 
-    while (remaining >= 10 &&
-        NNS_EDGE_ERROR_NONE != nns_edge_is_connected (self->edge_h)) {
-      if (!self->wait_connection) {
-        nns_logi
-            ("Waiting for connection to edgesrc was canceled by the user.");
-        return FALSE;
-      }
-      g_usleep (10000);
-      remaining -= 10;
-    }
+/**
+ * @brief If wait-connection is enabled, wait for connection until the connection is established or timeout occurs. Otherwise, return immediately.
+ */
+static gboolean
+_wait_connection (GstEdgeSink *sink)
+{
+  gint64 end_time;
 
-    if (NNS_EDGE_ERROR_NONE != nns_edge_is_connected (self->edge_h)) {
-      nns_loge ("Failed to connect to edgesrc within timeout: %ju ms",
-          self->connection_timeout);
-      return FALSE;
-    }
+  if (!sink->wait_connection)
+    return TRUE;
+
+  if (0 == sink->connection_timeout) {
+    end_time = G_MAXINT64;
+  } else {
+    end_time = g_get_monotonic_time ()
+        + sink->connection_timeout * G_TIME_SPAN_MILLISECOND;
   }
 
-  return TRUE;
+  g_mutex_lock (&sink->lock);
+  while (!sink->is_connected) {
+    if (!g_cond_wait_until (&sink->cond, &sink->lock, end_time)) {
+      nns_loge ("Failed to wait connection.");
+      break;
+    }
+  }
+  g_mutex_unlock (&sink->lock);
+
+  return sink->is_connected;
 }
 
 /**
@@ -409,6 +456,11 @@ gst_edgesink_render (GstBaseSink * basesink, GstBuffer * buffer)
   int ret;
   GstMemory *mem[NNS_TENSOR_SIZE_LIMIT];
   GstMapInfo map[NNS_TENSOR_SIZE_LIMIT];
+
+  if (!_wait_connection (self)) {
+    nns_loge ("Failed to send buffer.");
+    return GST_FLOW_ERROR;
+  }
 
   ret = nns_edge_data_create (&data_h);
   if (ret != NNS_EDGE_ERROR_NONE) {
