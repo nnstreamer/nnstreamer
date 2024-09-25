@@ -137,6 +137,7 @@ Although a framework may accelerate transparently as Tensorflow-GPU does, nnstre
 - ARMNN via armnn subplugin: Released
 - Verisilicon-Vivante via vivante subplugin: Released
 - Qualcomm SNPE via snpe subplugin: Released
+- Qualcomm AI Engine Direct (QNN) via qnn subplugin: Released
 - NVidia via TensorRT subplugin: Released
 - TRI-x NPUs: Released
 - NXP i.MX series: [via the vendor](https://www.nxp.com/docs/en/user-guide/IMX-MACHINE-LEARNING-UG.pdf)
