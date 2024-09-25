@@ -14,8 +14,7 @@ This document reflects the status of 2022-07-14 (2.1.1 devel)
     - ROS extensions are **not** released. You may build and deploy ROS extensions after building ROS packages.
 - Extra Elements and Subplugins
     - Enabled
-        - tensorflow-lite (1.13)
-        - tensorflow2-lite (2.3, 2.7.0, 2.8.1) w/ delegation supports (GPU, XNNPACK, NNAPI, ...) since 2.7.0
+        - tensorflow2-lite (2.3, 2.7.0, 2.8.1, 2.11.0, 2.15.0) w/ delegation supports (GPU, XNNPACK, NNAPI, ...) since 2.7.0
         - nnfw runtime (a.k.a. ONE-RT)
         - Trinity NPU (Samsung TV 2022+)
         - nntrainer (inference)
@@ -27,6 +26,7 @@ This document reflects the status of 2022-07-14 (2.1.1 devel)
         - ARMNN
         - TVM
         - SNPE
+        - onnxruntime
         - grpc
         - MQTT
         - flexbuf (converter/decoder)
@@ -54,16 +54,17 @@ This list shows a release corresponding to "full".
     - ROS extensions are **not** released.
 - Extra Elements and Subplugins
     - Enabled
-        - tensorflow2-lite (2.3, 2.7.0, 2.8.1) w/ delegation support (GPU, XNNPACK, NNAPI, ...) since 2.7.0
+        - tensorflow2-lite (2.8.1, 2.16.1) w/ delegation support (GPU, XNNPACK, NNAPI, QNN, ...)
         - nnfw runtime (a.k.a. ONERT)
         - (depending on options) snap / snpe (you cannot install both simultaneously)
+        - qnn
+        - pytorch
         - all trivial filter/converter/decoder subplugins.
     - Disabled
         - tensorflow
         - tensorflow2
         - armnn
         - verisilicon/vivante
-        - pytorch
         - caffe2
         - python filter
         - mvncsdk2
@@ -79,12 +80,9 @@ We limit the number of extra subplugins in Ubuntu PPA. However, users can easily
     - ROS extensions are **not** released. Users may build theirs with given ROS packages.
 - Extra Elements and Subplugins
     - Enabled
-        - tensorflow
-        - tensorflow-lite
         - tensorflow2-lite
         - protobuf
         - flatbuf
-        - caffe2
         - edgetpu
         - openvino
         - python3

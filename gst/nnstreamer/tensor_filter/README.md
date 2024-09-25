@@ -30,7 +30,7 @@ More launch line examples here: [nnstreamer example](https://github.com/nnstream
 - Framerate policies
 - Recurrent network support
 - Supported framework
-  - TensorFlow, TensorFlow-lite, NNFW(ONE), Caffe2, Python 3, PyTorch, OpenVINO, EdgeTPU, ArmNN, TensorRT, SNPE, SNAP
+  - TensorFlow, TensorFlow-lite, NNFW(ONE), Caffe2, Python 3, PyTorch, OpenVINO, EdgeTPU, ArmNN, TensorRT, SNPE, SNAP, QNN, ExecuTorch, MXNet, NCNN, ONNX Runtime, DeepViewRT, DALI.
 
 ## Planned Features
 - Timestamp handling

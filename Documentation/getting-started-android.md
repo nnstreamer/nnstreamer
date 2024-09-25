@@ -129,9 +129,11 @@ Run the build script in NNStreamer.
   3. Including sub-plugins: Default TensorFlow-Lite and NNFW enabled.
     To enable each neural network frameworks, you should download and set-up proper environment.
       - `--enable_tflite=yes` to build with TensorFlow-Lite.
+      - `--enable_tflite_qnn_delegate` to build with tflite QNN delegate.
       - `--enable_snpe=yes` to build with SNPE (Qualcomm Snapdragon Neural Processing Engine).
       - `--enable_nnfw=yes` to build with NNFW (Samsung on-device neural network inference framework).
       - `--enable_snap=yes` to build with SNAP (Samsung Neural Acceleration Platform).
+      - `--enable_qnn=yes` to build with QNN (Qualcomm® AI Engine Direct).
   4. Enabling tracing: Default no.
       - `--enable_tracing=yes` to build with tracing and Gst-Shark.
   5. Run test: Default no. `--run_test=yes` to run the instrumentation test.
