@@ -35,9 +35,14 @@
 #include <math.h>
 
 /**
- * @brief Default caps string for both sink and source pad.
+ * @brief Default caps string for sink
  */
-#define CAPS_STRING GST_TENSORS_CAP_MAKE ("{ static, flexible }")
+#define SINK_CAPS_STRING GST_TENSORS_CAP_MAKE ("{ static, flexible }")
+
+/**
+ * @brief Default caps string for src
+ */
+#define SRC_CAPS_STRING GST_TENSORS_CAP_MAKE ("{ static}")
 
 /**
  * @brief The capabilities of the sink pad
@@ -45,7 +50,7 @@
 static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (CAPS_STRING));
+    GST_STATIC_CAPS (SINK_CAPS_STRING));
 
 /**
  * @brief The capabilities of the src pad
@@ -53,7 +58,7 @@ static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
 static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (CAPS_STRING));
+    GST_STATIC_CAPS (SRC_CAPS_STRING));
 
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_trainer_debug);
 #define GST_CAT_DEFAULT gst_tensor_trainer_debug
@@ -638,7 +643,7 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
   gint ret = -1;
   guint num_tensors, i;
   gsize header_size, expected;
-  gboolean in_flexible, out_flexible;
+  gboolean in_flexible;
   GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
   GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT];
   GstMemory *out_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
@@ -646,7 +651,6 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
   GstTensorMemory in_tensors[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMetaInfo in_meta[NNS_TENSOR_SIZE_LIMIT];
-  GstTensorMetaInfo out_meta[NNS_TENSOR_SIZE_LIMIT];
   GstTensorInfo *info = NULL;
 
   double model_stats[MODEL_STATS_SIZE] =
@@ -766,20 +770,8 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
       out_tensors[i].size =
           gst_tensor_trainer_get_tensor_size (trainer, i, FALSE);
 
-      /* Get header size */
-      header_size = 0;
-      out_flexible = gst_tensor_pad_caps_is_flexible (trainer->srcpad);
-      if (out_flexible) {
-        gst_tensor_info_convert_to_meta (&trainer->output_meta.info[i],
-            &out_meta[i]);
-        header_size = gst_tensor_meta_info_get_header_size (&out_meta[i]);
-        GST_INFO ("flexible header size:%zd", header_size);
-      } else {
-        GST_INFO ("not flexible header size:%zd", header_size);
-      }
-
       out_mem[i] =
-          gst_allocator_alloc (NULL, out_tensors[i].size + header_size, NULL);
+          gst_allocator_alloc (NULL, out_tensors[i].size, NULL);
       if (!out_mem[i]) {
         GST_ERROR_OBJECT (trainer, "Failed to allocate memory");
         goto error;
@@ -790,16 +782,7 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
         goto error;
       }
 
-      out_tensors[i].data = out_info[i].data + header_size;
-
-      /* Append header */
-      if (out_flexible) {
-        if (!gst_tensor_meta_info_update_header (&out_meta[i],
-                out_info[i].data)) {
-          GST_ERROR_OBJECT (trainer, "Failed to update header ");
-          goto error;
-        }
-      }
+      out_tensors[i].data = out_info[i].data;
 
       ret =
           trainer->fw->getStatus (trainer->fw, &trainer->prop,
