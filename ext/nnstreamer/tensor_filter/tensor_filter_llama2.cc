@@ -149,13 +149,17 @@ TensorFilterLlama2c::invoke (const GstTensorMemory *input, GstTensorMemory *outp
   char *result = NULL, *prompt, *output_data;
   int len, string_idx = 0, i;
 
-  prompt = (char *) input[0].data;
+  prompt = (char *) malloc (input[0].size + 1);
+  memcpy (prompt, input[0].data, input[0].size);
+  prompt[input[0].size] = '\0';
+
   len = strlen (prompt);
 
-  if (len > 1) {
-    prompt[strlen (prompt) - 1] = ' '; // Remove new line from text file
-  } else {
-    prompt = NULL;
+  if (len > 0) {
+    /* Remove new line from text file */
+    char c = prompt[len - 1];
+    if (c == '\r' || c == '\n')
+      prompt[len - 1] = '\0';
   }
 
   result = get_tokens (transformer, tokenizer, sampler, prompt, steps);
@@ -173,6 +177,7 @@ TensorFilterLlama2c::invoke (const GstTensorMemory *input, GstTensorMemory *outp
   output[0].data = output_data;
 
   free (result);
+  free (prompt);
 }
 
 /**
