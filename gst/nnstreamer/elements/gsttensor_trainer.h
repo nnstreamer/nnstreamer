@@ -50,15 +50,9 @@ struct _GstTensorTrainer
   gchar *fw_name;
   gchar *output_dimensions;
   gchar *output_type;
-
-  gboolean input_configured;
-  gboolean output_configured;
-  gboolean inputtype_configured;
   gboolean fw_created;
   gboolean is_training_complete;
   gboolean is_epoch_complete;
-  unsigned int input_ranks[NNS_TENSOR_SIZE_LIMIT];
-  unsigned int output_ranks[NNS_TENSOR_SIZE_LIMIT];
 
   GstTensorMemory push_tensors[NNS_TENSOR_SIZE_LIMIT];
   GstTensorsInfo output_meta;

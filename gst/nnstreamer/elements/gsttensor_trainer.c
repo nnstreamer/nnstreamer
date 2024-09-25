@@ -291,9 +291,6 @@ gst_tensor_trainer_init (GstTensorTrainer * trainer)
   trainer->output_type = g_strdup (DEFAULT_STR_PROP_VALUE);
   trainer->fw = NULL;
   trainer->fw_created = FALSE;
-  trainer->input_configured = FALSE;
-  trainer->output_configured = FALSE;
-  trainer->inputtype_configured = FALSE;
   trainer->is_training_complete = FALSE;
   trainer->is_epoch_complete = FALSE;
   trainer->cur_epoch_data_cnt = 0;
@@ -1309,9 +1306,6 @@ gst_tensor_trainer_output_dimension (GstTensorTrainer * trainer)
   g_return_if_fail (trainer != NULL);
 
   info = &trainer->output_meta;
-  trainer->output_ranks[0] = 4;
-  trainer->output_configured = TRUE;
-
   info->info[0].dimension[0] = 1;
   info->info[0].dimension[1] = 1;
   info->info[0].dimension[2] = 4; /** loss, accuracy, val_loss, val_accuracy */
