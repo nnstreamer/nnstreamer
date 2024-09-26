@@ -58,3 +58,4 @@ debian/nnstreamer-dev/*
 bin/
 obj/
 .cache
+.idea/

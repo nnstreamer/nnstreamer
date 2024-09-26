@@ -28,6 +28,7 @@ pipeline {
 
         stage('Configure') {
             steps {
+                sh "sudo apt update && sudo apt install -y eyepop-tflite=2.4.1 eyepop-torchvision=2.4.1"
                 sh "meson -Dwerror=false -Donnxruntime-support=enabled -Dtf-support=enabled -Dcaffe2-support=disabled -Dpython3-support=disabled build/ -Denable-test=false"
             }
         }
