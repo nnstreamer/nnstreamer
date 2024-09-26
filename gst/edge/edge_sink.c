@@ -400,6 +400,7 @@ static gboolean
 _wait_connection (GstEdgeSink *sink)
 {
   gint64 end_time;
+  gboolean connected;
 
   if (!sink->wait_connection)
     return TRUE;
@@ -418,9 +419,10 @@ _wait_connection (GstEdgeSink *sink)
       break;
     }
   }
+  connected = sink->is_connected;
   g_mutex_unlock (&sink->lock);
 
-  return sink->is_connected;
+  return connected;
 }
 
 /**
