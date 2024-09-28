@@ -6,7 +6,6 @@ nnstreamer (2.4.2.0) unstable bionic focal jammy sid; urgency=medium
 
 nnstreamer (2.4.1+nmu4) UNRELEASED; urgency=medium
 
-  * Non-maintainer upload.
   * tensor_filter ONNX: allow accleration
 
  -- Torsten Schulz <torsten@eyepop.ai>  Sat, 28 Sep 2024 15:14:18 -0700
