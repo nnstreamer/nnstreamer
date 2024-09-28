@@ -26,6 +26,8 @@
 #include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_util.h>
 
+#define ORT_API_MANUAL_INIT 1
+
 #include <onnxruntime_cxx_api.h>
 
 namespace nnstreamer
@@ -36,6 +38,8 @@ extern "C" {
 void init_filter_onnxruntime (void) __attribute__ ((constructor));
 void fini_filter_onnxruntime (void) __attribute__ ((destructor));
 }
+
+static const gchar *onnx_accl_support[] = { ACCL_CPU_STR, ACCL_GPU_STR, NULL };
 
 /** @brief tensor-filter-subplugin concrete class for onnxruntime */
 class onnxruntime_subplugin final : public tensor_filter_subplugin
@@ -61,6 +65,15 @@ class onnxruntime_subplugin final : public tensor_filter_subplugin
   Ort::Env env;
   Ort::MemoryInfo memInfo;
 
+  bool has_cuda;
+  bool has_qnn;
+  bool has_rocm;
+  bool has_openvino;
+  accl_hw has_accelerator;
+
+  accl_hw use_accelerator;
+  bool use_gpu;
+
   onnx_node_info_s inputNode;
   onnx_node_info_s outputNode;
 
@@ -72,6 +85,7 @@ class onnxruntime_subplugin final : public tensor_filter_subplugin
   void convertTensorInfo (onnx_node_info_s &node, GstTensorsInfo &info);
   int convertTensorDim (std::vector<int64_t> &shapes, tensor_dim &dim);
   int convertTensorType (ONNXTensorElementDataType _type, tensor_type &type);
+  void setAccelerator (const char *accelerators);
 
   public:
   static void init_filter_onnxruntime ();
@@ -93,8 +107,27 @@ class onnxruntime_subplugin final : public tensor_filter_subplugin
  */
 onnxruntime_subplugin::onnxruntime_subplugin ()
     : configured{ false }, model_path{ nullptr }, session{ nullptr },
-      sessionOptions{ nullptr }, env{ nullptr }, memInfo{ nullptr }
+      sessionOptions{ nullptr }, env{ nullptr }, memInfo{ nullptr },
+      has_cuda{ false }, has_qnn{ false },
+      has_rocm{ false }, has_openvino{ false },
+      has_accelerator{ ACCL_NONE },
+      use_accelerator{ ACCL_NONE },
+      use_gpu{ false }
 {
+  std::vector<std::string> availableProviders = Ort::GetAvailableProviders();
+  for (auto provider_name : availableProviders) {
+    if (provider_name == "CUDAExecutionProvider") {
+      has_cuda = true;
+    } else if (provider_name == "ROCMExecutionProvider") {
+      has_rocm = true;
+    } else if (provider_name == "QNNExecutionProvider") {
+      has_qnn = true;
+    } else if (provider_name == "OpenVINOExecutionProvider") {
+      has_openvino = true;
+    }
+  }
+  nns_logw("onnxruntime provider: cuda=%d rocm=%d, qnn=%d, openvino=%d",
+      has_cuda, has_rocm, has_qnn, has_openvino);
 }
 
 /**
@@ -268,7 +301,11 @@ onnxruntime_subplugin::configure_instance (const GstTensorFilterProperties *prop
     }
     cleanup ();
   }
-
+  nns_logw("num_hw: %d acc string: %s", prop->num_hw, prop->accl_str);
+  for (int j = 0; j < prop->num_hw; j++) {
+    nns_logw("prop->hw_list[i]: %d", prop->hw_list[j]);
+  }
+  setAccelerator(prop->accl_str);
   if (!g_file_test (prop->model_files[0], G_FILE_TEST_IS_REGULAR)) {
     const std::string err_msg
         = "Given file " + (std::string) prop->model_files[0] + " is not valid";
@@ -340,6 +377,41 @@ onnxruntime_subplugin::configure_instance (const GstTensorFilterProperties *prop
 }
 
 /**
+ * @brief	Set the accelerator for the onnx
+ */
+void
+onnxruntime_subplugin::setAccelerator (const char *accelerators)
+{
+  use_gpu = TRUE;
+  use_accelerator = parse_accl_hw (accelerators, onnx_accl_support, NULL, NULL);
+  if ((use_accelerator & (ACCL_CPU)) != 0) {
+    use_gpu = FALSE;
+  } else {
+    sessionOptions = Ort::SessionOptions();
+    if (has_cuda) {
+      auto api = Ort::GetApi();
+      OrtCUDAProviderOptionsV2* options = nullptr;
+      Ort::ThrowOnError(api.CreateCUDAProviderOptions(&options));
+//      std::vector<const char*> keys{"enable_cuda_graph"};
+//      std::vector<const char*> values{"1"};
+//      Ort::ThrowOnError(api.UpdateCUDAProviderOptions(options, keys.data(), values.data(), 1));
+      sessionOptions.AppendExecutionProvider_CUDA_V2(*options);
+      api.ReleaseCUDAProviderOptions(options);
+    } else if (has_qnn) {
+      sessionOptions.AppendExecutionProvider("QNN");
+    } else if (has_rocm) {
+      auto api = Ort::GetApi();
+      OrtROCMProviderOptions* options = nullptr;
+      Ort::ThrowOnError(api.CreateROCMProviderOptions(&options));
+      sessionOptions.AppendExecutionProvider_ROCM(*options);
+      api.ReleaseROCMProviderOptions(options);
+    } else if (has_openvino) {
+      sessionOptions.AppendExecutionProvider("OpenVINO");
+    }
+  }
+}
+
+/**
  * @brief Method to execute the model.
  */
 void
@@ -393,6 +465,13 @@ onnxruntime_subplugin::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
   info.allocate_in_invoke = 0;
   info.run_without_model = 0;
   info.verify_model_path = 1;
+  if (has_cuda || has_qnn || has_openvino || has_rocm) {
+    has_accelerator = ACCL_GPU;
+    info.num_hw = 1;
+    info.hw_list = &has_accelerator;
+    info.accl_auto = has_accelerator;
+    info.accl_default = has_accelerator;
+  }
 }
 
 /**
@@ -436,6 +515,11 @@ onnxruntime_subplugin *onnxruntime_subplugin::registeredRepresentation = nullptr
 void
 onnxruntime_subplugin::init_filter_onnxruntime ()
 {
+  Ort::InitApi();
+  std::vector<std::string> availableProviders = Ort::GetAvailableProviders();
+  for (auto f : availableProviders) {
+    nns_logw("onnxruntime filter found provider: %s", f.c_str());
+  }
   registeredRepresentation
       = tensor_filter_subplugin::register_subplugin<onnxruntime_subplugin> ();
 }

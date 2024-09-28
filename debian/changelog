@@ -4,12 +4,19 @@ nnstreamer (2.4.2.0) unstable bionic focal jammy sid; urgency=medium
 
  -- MyungJoo Ham <myungjoo.ham@samsung.com>  Mon, 02 Sep 2024 11:00:00 +0900
 
-nnstreamer (2.4.1+nmu3) UNRELEASED; urgency=medium
+nnstreamer (2.4.1+nmu4) UNRELEASED; urgency=medium
+
+  * Non-maintainer upload.
+  * tensor_filter ONNX: allow accleration
+
+ -- Torsten Schulz <torsten@eyepop.ai>  Sat, 28 Sep 2024 15:14:18 -0700
+
+nnstreamer (2.4.1+nmu3) jammy; urgency=medium
 
   * Non-maintainer upload.
   * switch to eyepop-ml-dev 2.40 
 
- -- Torsten Schulz <torsten@eyepop.ai>  Wed, 25 Sep 2024 18:59:00 -0700
+ -- Torsten Schulz <torsten@eyepop.ai>  Sat, 28 Sep 2024 15:14:10 -0700
 
 nnstreamer (2.4.1+nmu2) jammy; urgency=medium
 
