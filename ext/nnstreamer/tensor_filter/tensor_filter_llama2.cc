@@ -22,7 +22,6 @@
 #include <assert.h>
 #include <errno.h>
 #include <nnstreamer_cppplugin_api_filter.hh>
-#include <nnstreamer_log.h>
 #include <nnstreamer_util.h>
 
 #define TEMPERATURE \
@@ -85,6 +84,8 @@ class TensorFilterLlama2c : public tensor_filter_subplugin
   static Config *config;
   char *prompt; // prompt string
   int steps; // number of steps to run for
+
+  static void *allocate (size_t size);
 };
 
 void init_filter_llama2c (void) __attribute__ ((constructor));
@@ -146,10 +147,10 @@ TensorFilterLlama2c::configure_instance (const GstTensorFilterProperties *prop)
 void
 TensorFilterLlama2c::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
-  char *result = NULL, *prompt, *output_data;
-  int len, string_idx = 0, i;
+  char *result, *prompt;
+  size_t len;
 
-  prompt = (char *) malloc (input[0].size + 1);
+  prompt = (char *) allocate (input[0].size + 1);
   memcpy (prompt, input[0].data, input[0].size);
   prompt[input[0].size] = '\0';
 
@@ -166,17 +167,15 @@ TensorFilterLlama2c::invoke (const GstTensorMemory *input, GstTensorMemory *outp
 
   /** @todo Make out_info flexible */
   output[0].size = tokenizer->max_token_length * steps;
-  output_data = (char *) malloc (output[0].size);
-  len = strlen (result);
-  for (i = 0; i < len; i++) {
-    output_data[string_idx++] = result[i];
-  }
-  for (i = string_idx; i < (int) output[0].size; i++) {
-    output_data[i] = '\0';
-  }
-  output[0].data = output_data;
+  output[0].data = allocate (output[0].size);
 
-  free (result);
+  if (result) {
+    len = strlen (result);
+    if (len > 0)
+      memcpy (output[0].data, result, len);
+    free (result);
+  }
+
   free (prompt);
 }
 
@@ -229,13 +228,30 @@ TensorFilterLlama2c::eventHandler (event_ops ops, GstTensorFilterFrameworkEventD
   return 0;
 }
 
+/**
+ * @brief Allocate new memory.
+ */
+void *
+TensorFilterLlama2c::allocate (size_t size)
+{
+  void *mem = nullptr;
+
+  if (size > 0)
+    mem = malloc (size);
+
+  assert (mem != nullptr);
+  memset (mem, 0, size);
+
+  return mem;
+}
+
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void
 TensorFilterLlama2c::init_filter_llama2c ()
 {
-  transformer = (Transformer *) malloc (sizeof (Transformer));
-  tokenizer = (Tokenizer *) malloc (sizeof (Tokenizer));
-  sampler = (Sampler *) malloc (sizeof (Sampler));
+  transformer = (Transformer *) allocate (sizeof (Transformer));
+  tokenizer = (Tokenizer *) allocate (sizeof (Tokenizer));
+  sampler = (Sampler *) allocate (sizeof (Sampler));
   registered = tensor_filter_subplugin::register_subplugin<TensorFilterLlama2c> ();
 }
 
