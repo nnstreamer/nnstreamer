@@ -825,7 +825,8 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   /* 4. Free map info and handle error case */
   for (i = 0; i < num_tensors; i++) {
     gst_memory_unmap (in_mem[i], &in_info[i]);
-    gst_memory_unref (in_mem[i]);
+    if (ret != 0)
+        gst_memory_unref (in_mem[i]);
   }
 
   if (!allocate_in_invoke) {
@@ -867,6 +868,12 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
       }
 
       gst_buffer_append_memory (outbuf, mem);
+    }
+  }
+
+  for (i = 0; i < num_tensors; i++) {
+    if (in_mem[i]) {
+      gst_memory_unref (in_mem[i]);
     }
   }
 
@@ -925,6 +932,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   }
 
   return GST_FLOW_OK;
+
 mem_map_error:
   num_tensors = gst_tensor_buffer_get_count (inbuf);
   for (i = 0; i < num_tensors; i++) {
