@@ -161,10 +161,13 @@ tensor_filter_subplugin::cpp_invoke (const GstTensorFilterFramework *tf,
 
   GET_TFSP_WITH_CHECKS (obj, private_data);
   UNUSED (tf);
-  UNUSED (prop);
 
   try {
-    obj->invoke (input, output);
+    if (prop && prop->invoke_dynamic) {
+      obj->invoke_dynamic (prop, input, output);
+    } else {
+      obj->invoke (input, output);
+    }
   } catch (const std::invalid_argument &e) {
     _RETURN_ERR_WITH_MSG (-EINVAL, e.what ());
   } catch (const std::system_error &e) {
