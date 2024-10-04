@@ -37,7 +37,9 @@
 #ifdef __cplusplus
 
 #include <assert.h>
+#include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api_filter.h>
+#include <nnstreamer_util.h>
 #include <stdexcept>
 #include <stdint.h>
 #include <string.h>
@@ -178,6 +180,20 @@ class tensor_filter_subplugin
   /**< Mandatory virtual method.  Invoke NN.
 
        Possible exceptions: ... @todo describe them!
+   */
+
+  virtual void invoke_dynamic (GstTensorFilterProperties *prop,
+      const GstTensorMemory *input, GstTensorMemory *output)
+  {
+    UNUSED (prop);
+    UNUSED (input);
+    UNUSED (output);
+
+    nns_loge ("Dynamic invoke is not supported with this subplugin.");
+    assert (0);
+  }
+  /**< Optional. Invoke with dynamic output.
+   * Must set proper output info in prop.
    */
 
   virtual void getFrameworkInfo (GstTensorFilterFrameworkInfo &info) = 0;
