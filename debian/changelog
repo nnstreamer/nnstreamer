@@ -4,6 +4,13 @@ nnstreamer (2.4.2.0) unstable bionic focal jammy sid; urgency=medium
 
  -- MyungJoo Ham <myungjoo.ham@samsung.com>  Mon, 02 Sep 2024 11:00:00 +0900
 
+nnstreamer (2.4.1+1.0.0) jammy; urgency=medium
+
+  * Add support for aarch64 builds
+  * Add more flexible build infrastructure across debuild and Jenkins
+
+ -- Tyler Stevens <tyler@eyepop.ai>  Fri, 04 Oct 2024 16:42:30 -0700
+
 nnstreamer (2.4.1+nmu4) UNRELEASED; urgency=medium
 
   * tensor_filter ONNX: allow accleration

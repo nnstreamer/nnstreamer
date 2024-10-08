@@ -26,6 +26,26 @@ export NNSTREAMER_DECODERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_d
 export NNSTREAMER_CONVERTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_converter
 export NNSTREAMER_TRAINERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_trainer
 export PYTHONIOENCODING=utf-8
+<<<<<<< HEAD
+=======
+
+VERSION:=$(shell dpkg-parsechangelog --show-field VERSION)
+
+EYEPOP_PLATFORM ?= linux-amd64-jammy-cuda
+
+ifeq ($(filter linux-amd64-jammy-cuda,$(DEB_BUILD_PROFILES)),linux-amd64-jammy-cuda)
+    EYEPOP_PLATFORM := linux-amd64-jammy-cuda
+endif
+
+ifeq ($(filter linux-amd64-jammy,$(DEB_BUILD_PROFILES)),linux-amd64-jammy)
+    EYEPOP_PLATFORM := linux-amd64-jammy
+endif
+
+ifeq ($(filter linux-aarch64-jammy,$(DEB_BUILD_PROFILES)),linux-aarch64-jammy)
+    EYEPOP_PLATFORM := linux-aarch64-jammy
+endif
+
+>>>>>>> 7cbc8f6d (Added aarch64 build and more flexible build infrastructure (#7))
 ifeq ($(DEB_BUILD_ARCH_CPU), arm)
 FLOAT16 := -Denable-float16=true
 endif
@@ -34,14 +54,24 @@ FLOAT16 := -Denable-float16=true
 endif
 
 %:
+ifeq ($(EYEPOP_PLATFORM),linux-aarch64-jammy)
+	dh $@ --parallel --package=nnstreamer --package=nnstreamer-core --package=nnstreamer-configuration --package=nnstreamer-single --package=nnstreamer-tensorflow2-lite --package=nnstreamer-dev --package=nnstreamer-dev-internal --package=nnstreamer-single-dev --package=nnstreamer-single-dev-internal --package=nnstreamer-test-dev --package=nnstreamer-util --package=nnstreamer-misc --package=nnstreamer-datarepo
+else
 	dh $@ --parallel
+endif
 
 override_dh_auto_clean:
 	rm -rf ${BUILDDIR}
 
 override_dh_auto_configure:
 	mkdir -p ${BUILDDIR}
-ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes), yes)
+ifeq ($(EYEPOP_PLATFORM),linux-aarch64-jammy)
+	meson --buildtype=plain --prefix=/usr --sysconfdir=/etc --libdir=lib/$(DEB_HOST_MULTIARCH) --bindir=lib/nnstreamer/bin --includedir=include \
+	-Denable-edgetpu=false -Denable-openvino=false -Dgrpc-support=disabled -Dmqtt-support=enabled \
+	-Ddatarepo-support=enabled \
+	-Dtf-support=disabled -Donnxruntime-support=disabled \
+	-Denable-tizen=false -Denable-test=true -Dinstall-test=true -Dsubplugindir=/usr/lib/nnstreamer $(FLOAT16) ${BUILDDIR}
+else ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes), yes)
 	meson --buildtype=plain --prefix=/usr --sysconfdir=/etc --libdir=lib/$(DEB_HOST_MULTIARCH) --bindir=lib/nnstreamer/bin --includedir=include \
 	-Denable-edgetpu=true -Denable-openvino=true -Dgrpc-support=disabled -Dmqtt-support=enabled \
 	-Ddatarepo-support=enabled \
@@ -56,10 +86,23 @@ endif
 
 override_dh_auto_build:
 	ninja -C ${BUILDDIR}
+<<<<<<< HEAD
 	# A few modules are not available in Ubuntu 22.04. Don't try to create them if not available.
 	if [ -f './build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_nnfw.so' ]; then echo "NNFW exists" ; else rm debian/nnstreamer-nnfw.install; fi
 	if [ -f './build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_pytorch.so' ]; then echo "pytorch exists" ; else rm debian/nnstreamer-pytorch.install; fi
 	if [ -f './build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_caffe2.so' ]; then echo "caffe2 exists" ; else rm debian/nnstreamer-caffe2.install; fi
+=======
+ifeq ($(EYEPOP_PLATFORM),linux-aarch64-jammy)
+	rm -f debian/nnstreamer-tensorflow.install
+	rm -f debian/nnstreamer-edgetpu.install
+	rm -f debian/nnstreamer-openvino.install
+	rm -f debian/nnstreamer-onnxruntime.install
+endif
+	# A few modules are not available in Ubuntu 22.04. Don't try to create them if not available.
+	if [ -f './build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_nnfw.so' ]; then echo "NNFW exists" ; else rm -f debian/nnstreamer-nnfw.install; fi
+	if [ -f './build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_pytorch.so' ]; then echo "pytorch exists" ; else rm -f debian/nnstreamer-pytorch.install; fi
+	if [ -f './build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_caffe2.so' ]; then echo "caffe2 exists" ; else rm -f debian/nnstreamer-caffe2.install; fi
+>>>>>>> 7cbc8f6d (Added aarch64 build and more flexible build infrastructure (#7))
 
 override_dh_auto_test:
 	./packaging/run_unittests_binaries.sh ./tests
@@ -77,8 +120,15 @@ endif
 override_dh_auto_install:
 	DESTDIR=$(CURDIR)/debian/tmp ninja -C ${BUILDDIR} install
 
+override_dh_gencontrol:
+	dh_gencontrol -- -v$(VERSION)~$(EYEPOP_PLATFORM)
+
 override_dh_install:
+ifeq ($(EYEPOP_PLATFORM),linux-aarch64-jammy)
+	dh_install --sourcedir=debian/tmp --list-missing --package=nnstreamer --package=nnstreamer-core --package=nnstreamer-configuration --package=nnstreamer-single --package=nnstreamer-tensorflow2-lite --package=nnstreamer-dev --package=nnstreamer-dev-internal --package=nnstreamer-single-dev --package=nnstreamer-single-dev-internal --package=nnstreamer-test-dev --package=nnstreamer-util --package=nnstreamer-misc --package=nnstreamer-datarepo
+else
 	dh_install --sourcedir=debian/tmp --list-missing
+endif
 # Add --fail-missing option after adding *.install files for all subpackages.
 
 

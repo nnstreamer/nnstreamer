@@ -350,8 +350,6 @@ else # no tflite2
   endif
 endif
 
-torchvision_dp = dependency('torchvision')
-
 if pytorch_support_is_available
   if cxx.get_id() != 'gcc'
     error('Pytorch headers (Array.h and reverse_iterator.h) require GCC for license issues. Use GCC or disable pytorch with -Dpytorch-support=disabled.')
@@ -360,7 +358,7 @@ if pytorch_support_is_available
     filter_sub_torch_sources = ['tensor_filter_pytorch.cc']
     # pytorch sources contain unused parameters
     ignore_unused_params = declare_dependency(compile_args: ['-Wno-unused-parameter'])
-    pytorch_support_deps += torchvision_dp
+    pytorch_support_deps += dependency('torchvision')
     pytorch_support_deps += ignore_unused_params
   endif
 

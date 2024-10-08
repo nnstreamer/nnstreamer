@@ -7,6 +7,7 @@ index.md
 			getting-started-tizen.md
 			getting-started-ubuntu-debuild.md
 			getting-started-ubuntu-ppa.md
+			getting-started-eyepop.md
 		tutorials.md
 			tutorial1_playing_video.md
 			tutorial2_object_detection.md

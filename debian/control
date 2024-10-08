@@ -11,7 +11,8 @@ Build-Depends: gcc-9 | gcc-8 | gcc-7 | gcc-6 | gcc-5 (>=5.4),
  libpaho-mqtt-dev,
  tensorflow2-lite-dev,
  pytorch | libtorch-dev | gcc,
- libedgetpu1-std (>=12), libedgetpu-dev (>=12),
+ libedgetpu1-std (>=12) <!linux-aarch64-jammy>,
+ libedgetpu-dev (>=12) <!linux-aarch64-jammy>,
  openvino-dev, openvino-cpu-mkldnn [amd64],
  nnfw-dev [amd64] | gcc
 Standards-Version: 3.9.6

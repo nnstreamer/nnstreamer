@@ -1,85 +1,196 @@
 pipeline {
 
-    agent {
-        label 'linux-amd64'
+    agent none
+
+    parameters {
+        booleanParam(name: 'ENABLE_DRY_RUN_COMPLETE', defaultValue: false, description: '"Runs" all stages (even conditional ones!) by printing out what would happen (ignores ENABLE_DEB_BUILD_WITHOUT_UPLOAD)')
+        booleanParam(name: 'ENABLE_DEB_BUILD_WITHOUT_UPLOAD', defaultValue: false, description: 'Enable the debian build (without uploading!) for test purposes')
+        string(name: 'GIT_BRANCH', defaultValue: '*/main', description: 'The name of the branch to check out. Remember to change the Jenkins pipeline configuration\'s "Branches to build"!')
     }
 
     stages {
-        stage('Clone sources') {
-            steps {
-                checkout scmGit(
-                    branches: [[name: '*/main']], 
-                    extensions: [
-                        submodule(parentCredentials: true,recursiveSubmodules: true, reference: ''),
-                        [$class: 'WipeWorkspace']
-                    ], 
-                    userRemoteConfigs: [
-                        [
-                            credentialsId: 'deploy_key_eyepop-nnstreamer_rsa', 
-                            url: 'git@github.com:eyepop-ai/eyepop-nnstreamer.git'
-                        ]
-                    ]
-                )
-                script {
-                    gitTag=sh(returnStdout: true, script: "git tag --contains | head -1").trim()
-                }   
-            }
-        }
+        stage('Parallel builds') {
+            parallel {
+                stage('Build for linux-amd64-jammy-cuda') {
+                    agent { label 'linux-amd64' }
+                    stages {
+                        stage('Clone sources') {
+                            steps {
+                                script {
+                                    if (params.ENABLE_DRY_RUN_COMPLETE) {
+                                        print "DRY RUN: Cloning sources from branch ${params.GIT_BRANCH}"
+                                    }
+                                    else {
+                                        checkout scmGit(
+                                            branches: [[name: "${GIT_BRANCH}"]], 
+                                            extensions: [
+                                                submodule(parentCredentials: true,recursiveSubmodules: true, reference: ''),
+                                                [$class: 'WipeWorkspace']
+                                            ], 
+                                            userRemoteConfigs: [
+                                                [
+                                                    credentialsId: 'deploy_key_eyepop-nnstreamer_rsa', 
+                                                    url: 'git@github.com:eyepop-ai/eyepop-nnstreamer.git'
+                                                ]
+                                            ]
+                                        )
+                                    }
+                                    
+                                    gitTag=sh(returnStdout: true, script: "git tag --contains | head -1").trim()
+                                }   
+                            }
+                        }
 
-        stage('Configure') {
-            steps {
-                sh "sudo apt update && sudo apt install -y eyepop-tflite=2.4.1 eyepop-torchvision=2.4.1"
-                sh "meson -Dwerror=false -Donnxruntime-support=enabled -Dtf-support=enabled -Dcaffe2-support=disabled -Dpython3-support=disabled build/ -Denable-test=false"
-            }
-        }
-    
-        stage('Build') {
-            steps {
-                sh "ninja -C build"        
-            }
-        }
-    
-        stage('Test') {
-            steps {
-                sh "ninja -C build/ test"        
-            }
-        }
-        stage('Debian build') {
-            when { 
-                 expression {
-                     return gitTag;
-                 }
-            }
-            steps {
-                sh 'uname -a && mkdir -p ./build.debian/linux_amd64/'
-                sh 'DEB_BUILD_OPTIONS="nocheck notest" debuild -us -uc'
-                sh 'mv ../nnstreamer*.deb ../nnstreamer*.ddeb ../nnstreamer*.dsc ../nnstreamer*.gz ../nnstreamer*.build ../nnstreamer*.buildinfo ../nnstreamer*.changes ./build.debian/linux_amd64/ && ls -la ./build.debian/linux_amd64/'
-            }
-        }
-        stage('Debian publish') {
-            when { 
-                 expression {
-                     return gitTag;
-                 }
-            }
-            steps {
-                withAWS(credentials:'repo-uploader', region: 'us-east-1') {
-                    script {
-                        sh "deb-s3 upload --bucket repo.dev.eyepop.xyz ./build.debian/linux_amd64/*.deb"
+                        stage('Configure') {
+                            steps {
+                                runShellCommand("sudo apt update && sudo apt install -y eyepop-tflite=3.0.0~linux-amd64-jammy-cuda eyepop-torchvision=3.0.0~linux-amd64-jammy-cuda")
+                                runShellCommand("meson -Dwerror=false -Donnxruntime-support=enabled -Dtf-support=enabled -Dcaffe2-support=disabled -Dpython3-support=disabled build/ -Denable-test=false")
+                            }
+                        }
+                    
+                        stage('Build') {
+                            steps {
+                                runShellCommand("ninja -C build")
+                            }
+                        }
+                    
+                        stage('Test') {
+                            steps {
+                                runShellCommand("ninja -C build/ test")   
+                            }
+                        }
+                        stage('Debian build') {
+                            when { 
+                                expression {
+                                    return gitTag || params.ENABLE_DRY_RUN_COMPLETE || params.ENABLE_DEB_BUILD_WITHOUT_UPLOAD;
+                                }
+                            }
+                            steps {
+                                runShellCommand('uname -a && mkdir -p ./build.debian/linux_amd64/')
+                                runShellCommand('DEB_BUILD_OPTIONS="nocheck notest" debuild -b -us -uc -Plinux-amd64-jammy')
+                                runShellCommand('mv ../nnstreamer*.deb ../nnstreamer*.ddeb ./build.debian/linux_amd64/ && ls -la ./build.debian/linux_amd64/')
+                            }
+                        }
+                        stage('Debian publish') {
+                            when { 
+                                expression {
+                                    return gitTag || params.ENABLE_DRY_RUN_COMPLETE;
+                                }
+                            }
+                            steps {
+                                withAWS(credentials:'repo-uploader', region: 'us-east-1') {
+                                    script {
+                                        runShellCommand("deb-s3 upload --bucket repo.dev.eyepop.xyz ./build.debian/linux_amd64/*.deb")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                stage('Build for linux-aarch64-jammy') {
+                    agent { label 'linux-aarch64' }
+                    stages {
+                        stage('Clone sources') {
+                            steps {
+                                script {
+                                    if (params.ENABLE_DRY_RUN_COMPLETE) {
+                                        print "DRY RUN: Cloning sources from branch ${params.GIT_BRANCH}"
+                                    }
+                                    else {
+                                        checkout scmGit(
+                                            branches: [[name: "${GIT_BRANCH}"]], 
+                                            extensions: [
+                                                submodule(parentCredentials: true,recursiveSubmodules: true, reference: ''),
+                                                [$class: 'WipeWorkspace']
+                                            ], 
+                                            userRemoteConfigs: [
+                                                [
+                                                    credentialsId: 'deploy_key_eyepop-nnstreamer_rsa', 
+                                                    url: 'git@github.com:eyepop-ai/eyepop-nnstreamer.git'
+                                                ]
+                                            ]
+                                        )
+                                    }
+                                    
+                                    gitTag=sh(returnStdout: true, script: "git tag --contains | head -1").trim()
+                                }   
+                            }
+                        }
+
+                        stage('Configure') {
+                            steps {
+                                runShellCommand("sudo apt update && sudo apt install -y eyepop-tflite=3.0.0~linux-aarch64-jammy libgtest-dev")
+                                runShellCommand("meson -Dwerror=false -Donnxruntime-support=disabled -Dtf-support=disabled -Dcaffe2-support=disabled -Dpython3-support=disabled build/ -Denable-test=false")
+                            }
+                        }
+                    
+                        stage('Build') {
+                            steps {
+                                runShellCommand("ninja -C build")
+                            }
+                        }
+                    
+                        stage('Test') {
+                            steps {
+                                runShellCommand("ninja -C build/ test")   
+                            }
+                        }
+                        stage('Debian build') {
+                            when { 
+                                expression {
+                                    return gitTag || params.ENABLE_DRY_RUN_COMPLETE || params.ENABLE_DEB_BUILD_WITHOUT_UPLOAD;
+                                }
+                            }
+                            steps {
+                                runShellCommand('uname -a && mkdir -p ./build.debian/linux_aarch64/')
+                                runShellCommand('DEB_BUILD_OPTIONS="nocheck notest" debuild -b -us -uc -Plinux-aarch64-jammy')
+                                runShellCommand('mv ../nnstreamer*.deb ../nnstreamer*.ddeb ./build.debian/linux_aarch64/ && ls -la ./build.debian/linux_aarch64/')
+                            }
+                        }
+                        stage('Debian publish') {
+                            when { 
+                                expression {
+                                    return gitTag || params.ENABLE_DRY_RUN_COMPLETE;
+                                }
+                            }
+                            steps {
+                                withAWS(credentials:'repo-uploader', region: 'us-east-1') {
+                                    script {
+                                        runShellCommand("deb-s3 upload --bucket repo.dev.eyepop.xyz ./build.debian/linux_aarch64/*.deb")
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
-   }
+    }
+
     post {
         success {
             script {
+                String baseDescription = "";
+                if (params.ENABLE_DRY_RUN_COMPLETE) {
+                    baseDescription = "DRY RUN: "
+                }
+                
                 if (gitTag) {
-                    currentBuild.description = "Release build version (gitTag="+gitTag+")"
+                    currentBuild.description = "${baseDescription}Release build version (gitTag="+gitTag+")"
                 } else {
-                    currentBuild.description = "Commit build version"
+                    currentBuild.description = "${baseDescription}Commit build version"
                 }
             }
         }
+    }
+}
+
+def runShellCommand(String command) {
+    if (params.ENABLE_DRY_RUN_COMPLETE) {
+        // In test mode, just echo the command
+        echo "DRY RUN: ${command}"
+    } else {
+        // In normal mode, execute the command
+        sh command
     }
 }

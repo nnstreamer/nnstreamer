@@ -79,6 +79,9 @@ Note that this project has just started and many of the components are in design
 In [Component Description](Documentation/component-description.md) page, we describe nnstreamer components of the following three categories: data type definitions, gstreamer elements (plugins), and other misc components.
 
 ## Getting Started
+
+For EyePop-specific notes and instructions, press [here](Documentation/getting-started-eyepop.md).
+
 For more details, please access the following manuals.
 * For Linux-like systems such as Tizen, Debian, and Ubuntu, press [here](Documentation/getting-started.md).
 * For macOS systems, press [here](Documentation/getting-started-macos.md).

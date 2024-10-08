@@ -48,6 +48,23 @@ debian/.debhelper/*
 debian/tmp/*
 debian/nnstreamer/*
 debian/nnstreamer-dev/*
+debian/nnstreamer-caffe2/
+debian/nnstreamer-configuration/
+debian/nnstreamer-core/
+debian/nnstreamer-datarepo/
+debian/nnstreamer-dev-internal/
+debian/nnstreamer-edgetpu/
+debian/nnstreamer-misc/
+debian/nnstreamer-onnxruntime/
+debian/nnstreamer-openvino/
+debian/nnstreamer-pytorch/
+debian/nnstreamer-single-dev-internal/
+debian/nnstreamer-single-dev/
+debian/nnstreamer-single/
+debian/nnstreamer-tensorflow/
+debian/nnstreamer-tensorflow2-lite/
+debian/nnstreamer-test-dev/
+debian/nnstreamer-util/
 
 # Visual Studio & csapi
 *.exe
