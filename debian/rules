@@ -120,9 +120,6 @@ endif
 override_dh_auto_install:
 	DESTDIR=$(CURDIR)/debian/tmp ninja -C ${BUILDDIR} install
 
-override_dh_gencontrol:
-	dh_gencontrol -- -v$(VERSION)~$(EYEPOP_PLATFORM)
-
 override_dh_install:
 ifeq ($(EYEPOP_PLATFORM),linux-aarch64-jammy)
 	dh_install --sourcedir=debian/tmp --list-missing --package=nnstreamer --package=nnstreamer-core --package=nnstreamer-configuration --package=nnstreamer-single --package=nnstreamer-tensorflow2-lite --package=nnstreamer-dev --package=nnstreamer-dev-internal --package=nnstreamer-single-dev --package=nnstreamer-single-dev-internal --package=nnstreamer-test-dev --package=nnstreamer-util --package=nnstreamer-misc --package=nnstreamer-datarepo
