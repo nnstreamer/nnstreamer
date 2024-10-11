@@ -34,7 +34,18 @@ jobs:
           /var/cache/yocto/sstate-cache
           /var/cache/yocto/persistent
         key: yocto-cache-yocto-5.0.3
-
+    - name: acquire some disk space
+      run: |
+          df -h
+          sudo apt-get update --fix-missing \
+            && sudo apt-get remove -y '^dotnet-.*' '^llvm-.*' '^mysql-server-core-.*' '^postgresql-.*' \
+            azure-cli google-chrome-stable google-cloud-cli firefox powershell microsoft-edge-stable mono-devel \
+            && sudo apt-get purge docker-ce docker-ce-cli \
+            && sudo apt-get autoremove -y \
+            && sudo rm -rf /usr/share/dotnet /usr/share/swift /usr/share/miniconda /usr/local/graalvm \
+              /usr/local/.ghcup /usr/local/share/powershell /usr/local/share/chromium /usr/local/lib/node_modules \
+              /var/lib/docker /var/lib/apt/lists
+          df -h
     - name: build
       if: github.ref == 'refs/heads/main' || env.rebuild == '1'
       run: |
@@ -77,6 +88,7 @@ jobs:
         cat tmp/work/core2-64-poky-linux/nnstreamer/*/temp/log.do_compile || true
         echo "::endgroup::"
 
+        sudo rm -rf tmp/
     - name: save yocto cache (main branch only)
       uses: actions/cache/save@v4
       if: always() && github.ref == 'refs/heads/main'
