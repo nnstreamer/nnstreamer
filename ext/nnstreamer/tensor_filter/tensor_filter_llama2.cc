@@ -15,13 +15,15 @@
  * @details Pipeline example
  *          gst-launch-1.0 filesrc location=input.txt ! application/octet-stream !
  *          tensor_converter ! other/tensors,format=flexible !
- *          tensor_filter framework=llama2c model=model.bin,tokenizer.bin !
- *          filesink location=output.txt
+ *          tensor_filter framework=llama2c model=model.bin,tokenizer.bin invoke-dynamic=TRUE !
+ *          other/tensors,format=flexible ! tensor_decoder mode=octet_stream !
+ *          application/octet-stream ! filesink location=output.txt
  */
 
 #include <assert.h>
 #include <errno.h>
 #include <nnstreamer_cppplugin_api_filter.hh>
+#include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_util.h>
 
 #define TEMPERATURE \
@@ -64,6 +66,8 @@ class TensorFilterLlama2c : public tensor_filter_subplugin
   tensor_filter_subplugin &getEmptyInstance ();
   void configure_instance (const GstTensorFilterProperties *prop);
   void invoke (const GstTensorMemory *input, GstTensorMemory *output);
+  void invoke_dynamic (GstTensorFilterProperties *prop,
+      const GstTensorMemory *input, GstTensorMemory *output);
   void getFrameworkInfo (GstTensorFilterFrameworkInfo &info);
   int getModelInfo (model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info);
   int eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data);
@@ -82,8 +86,7 @@ class TensorFilterLlama2c : public tensor_filter_subplugin
   static Tokenizer *tokenizer;
   static Sampler *sampler;
   static Config *config;
-  char *prompt; // prompt string
-  int steps; // number of steps to run for
+  int steps = 0; // number of steps to run for
 
   static void *allocate (size_t size);
 };
@@ -147,11 +150,24 @@ TensorFilterLlama2c::configure_instance (const GstTensorFilterProperties *prop)
 void
 TensorFilterLlama2c::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
-  char *result, *prompt;
+  UNUSED (input);
+  UNUSED (output);
+
+  throw std::runtime_error (
+      "llama2c only supports invoke-dynamic mode. Set `invoke-dynamic=true`");
+}
+
+/**
+ * @brief Invoke llama2c using input tensors
+ */
+void
+TensorFilterLlama2c::invoke_dynamic (GstTensorFilterProperties *prop,
+    const GstTensorMemory *input, GstTensorMemory *output)
+{
+  char *result = nullptr, *prompt;
   size_t len;
 
-  prompt = (char *) allocate (input[0].size + 1);
-  memcpy (prompt, input[0].data, input[0].size);
+  prompt = strndup ((char *) input[0].data, input[0].size);
   prompt[input[0].size] = '\0';
 
   len = strlen (prompt);
@@ -165,17 +181,30 @@ TensorFilterLlama2c::invoke (const GstTensorMemory *input, GstTensorMemory *outp
 
   result = get_tokens (transformer, tokenizer, sampler, prompt, steps);
 
-  /** @todo Make out_info flexible */
-  output[0].size = tokenizer->max_token_length * steps;
-  output[0].data = allocate (output[0].size);
-
-  if (result) {
-    len = strlen (result);
-    if (len > 0)
-      memcpy (output[0].data, result, len);
-    free (result);
+  if (!result) {
+    nns_loge ("Failed to get tokens from llama2c.");
+    goto free_prompt;
   }
 
+  len = strlen (result);
+
+  if (len == 0) {
+    nns_loge ("llama2c did not generate any text.");
+    goto free_result;
+  }
+
+  output[0].size = len;
+  output[0].data = strndup (result, len);
+  gst_tensors_info_init (&prop->output_meta);
+
+  prop->output_meta.num_tensors = 1;
+  prop->output_meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  prop->output_meta.info[0].type = _NNS_UINT8;
+  prop->output_meta.info[0].dimension[0] = len;
+
+free_result:
+  free (result);
+free_prompt:
   free (prompt);
 }
 
@@ -204,11 +233,8 @@ TensorFilterLlama2c::getModelInfo (
       in_info.num_tensors = 1;
       in_info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
 
-      /** @todo Make out_info flexible */
       out_info.num_tensors = 1;
-      out_info.format = _NNS_TENSOR_FORMAT_STATIC;
-      out_info.info[0].type = _NNS_UINT8;
-      out_info.info[0].dimension[0] = tokenizer->max_token_length * steps;
+      out_info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
       break;
     default:
       return -ENOENT;
@@ -225,7 +251,8 @@ TensorFilterLlama2c::eventHandler (event_ops ops, GstTensorFilterFrameworkEventD
 {
   UNUSED (ops);
   UNUSED (data);
-  return 0;
+
+  return -ENOENT;
 }
 
 /**
