@@ -145,7 +145,7 @@ executorch_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 
     model_path = g_strdup (prop->model_files[0]);
 
-    module = std::make_unique<Module> (model_path, Module::MlockConfig::NoMlock);
+    module = std::make_unique<Module> (model_path);
     if (module->load () != Error::Ok) {
       const std::string err_msg
           = "Failed to load module with Given file " + (std::string) model_path;
