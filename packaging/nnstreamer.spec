@@ -127,7 +127,6 @@
 %define		grpc_support 0
 %define		check_test 0
 %define		edgetpu_support 0
-%define		protobuf_support 0
 %define		python3_support 0
 %define		mvncsdk2_support 0
 %define		openvino_support 0
