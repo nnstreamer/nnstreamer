@@ -640,6 +640,10 @@ features = {
     'target': 'executorch',
     'project_args': { 'ENABLE_EXECUTORCH' : 1 }
   },
+  'executorch-llama-support': {
+    'target': 'executorch',
+    'project_args': { 'ENABLE_EXECUTORCH_LLAMA' : 1 }
+  },
   'datarepo-support': {
     'extra_deps': [ json_glib_dep ],
   },
