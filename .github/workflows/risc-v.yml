@@ -6,8 +6,8 @@ on:
 
 jobs:
   build_job:
-    runs-on: ubuntu-20.04
-    name: Build on Ubuntu 20.04 RISC-V 64
+    runs-on: ubuntu-22.04
+    name: Build on Ubuntu 22.04 RISC-V 64
     steps:
       - uses: actions/checkout@v4
         with:
@@ -22,7 +22,7 @@ jobs:
         id: Build
         with:
           arch: riscv64
-          distro: ubuntu20.04
+          distro: ubuntu22.04
           githubToken: ${{ github.token }}
           run: |
             apt-get -qy update
