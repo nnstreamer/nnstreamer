@@ -204,8 +204,7 @@ gst_data_repo_sink_finalize (GObject * object)
     sink->fd = 0;
   }
 
-  /* Check for gst-inspect log */
-  if (sink->fixed_caps)
+   if (sink->fixed_caps)
     gst_caps_unref (sink->fixed_caps);
 
   if (sink->sample_offset_array)
@@ -410,7 +409,6 @@ gst_data_repo_sink_get_image_filename (GstDataRepoSink * sink)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
 #endif
-  /* let's set value by property */
   filename = g_strdup_printf (sink->filename, sink->total_samples);
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
@@ -579,7 +577,6 @@ gst_data_repo_sink_open_file (GstDataRepoSink * sink)
   if (sink->filename == NULL || sink->filename[0] == '\0')
     goto no_filename;
 
-  /* for image, g_file_set_contents() is used in the write function */
   if (sink->data_type == GST_DATA_REPO_DATA_IMAGE) {
     return TRUE;
   }
@@ -589,12 +586,7 @@ gst_data_repo_sink_open_file (GstDataRepoSink * sink)
 
   GST_INFO_OBJECT (sink, "opening file %s", filename);
 
-  /** How about support file mode property ?
-     flags |= O_APPEND ("ab") */
-
   flags |= O_TRUNC;             /* "wb" */
-
-  /* open the file */
   sink->fd = g_open (filename, flags, 0644);
 
   if (sink->fd < 0)
@@ -604,7 +596,6 @@ gst_data_repo_sink_open_file (GstDataRepoSink * sink)
 
   return TRUE;
 
-  /* ERRORS */
 no_filename:
   {
     GST_ELEMENT_ERROR (sink, RESOURCE, NOT_FOUND,
@@ -643,7 +634,6 @@ gst_data_repo_sink_stop (GstBaseSink * basesink)
 
   sink = GST_DATA_REPO_SINK_CAST (basesink);
 
-  /* close the file */
   g_close (sink->fd, NULL);
   sink->fd = 0;
 
@@ -663,7 +653,6 @@ __write_json (JsonObject * object, const gchar * filename)
   g_return_val_if_fail (object != NULL, FALSE);
   g_return_val_if_fail (filename != NULL, FALSE);
 
-  /* Make it the root node */
   root = json_node_init_object (json_node_alloc (), object);
   generator = json_generator_new ();
   json_generator_set_root (generator, root);
@@ -673,7 +662,6 @@ __write_json (JsonObject * object, const gchar * filename)
     GST_ERROR ("Failed to write JSON to file %s", filename);
   }
 
-  /* Release everything */
   g_object_unref (generator);
   json_node_free (root);
 
