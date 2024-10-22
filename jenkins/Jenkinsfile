@@ -5,7 +5,7 @@ pipeline {
     parameters {
         booleanParam(name: 'ENABLE_DRY_RUN_COMPLETE', defaultValue: false, description: '"Runs" all stages (even conditional ones!) by printing out what would happen (ignores ENABLE_DEB_BUILD_WITHOUT_UPLOAD)')
         booleanParam(name: 'ENABLE_DEB_BUILD_WITHOUT_UPLOAD', defaultValue: false, description: 'Enable the debian build (without uploading!) for test purposes')
-        string(name: 'GIT_BRANCH', defaultValue: '*/main', description: 'The name of the branch to check out. Remember to change the Jenkins pipeline configuration\'s "Branches to build"!')
+        string(name: 'GIT_BRANCH', defaultValue: '*/main', description: 'The name of the branch to check out. May also be used in Jenkins pipeline configuration -- check before running!')
     }
 
     stages {
@@ -43,7 +43,7 @@ pipeline {
 
                         stage('Configure') {
                             steps {
-                                runShellCommand("sudo apt update && sudo apt install -y eyepop-tflite=3.0.0 eyepop-torchvision=3.0.0")
+                                runShellCommand("sudo apt update && sudo apt install -y eyepop-onnxruntime=3.1.0 eyepop-tflite=3.1.0 eyepop-torchvision=3.1.0")
                                 runShellCommand("meson -Dwerror=false -Donnxruntime-support=enabled -Dtf-support=enabled -Dcaffe2-support=disabled -Dpython3-support=disabled build/ -Denable-test=false")
                             }
                         }
@@ -119,8 +119,8 @@ pipeline {
 
                         stage('Configure') {
                             steps {
-                                runShellCommand("sudo apt update && sudo apt install -y eyepop-tflite=3.0.0 libgtest-dev")
-                                runShellCommand("meson -Dwerror=false -Donnxruntime-support=disabled -Dtf-support=disabled -Dcaffe2-support=disabled -Dpython3-support=disabled build/ -Denable-test=false")
+                                runShellCommand("sudo apt update && sudo apt install -y eyepop-onnxruntime=3.1.0 eyepop-tflite=3.1.0 libgtest-dev")
+                                runShellCommand("meson -Dwerror=false -Donnxruntime-support=enabled -Dtf-support=disabled -Dcaffe2-support=disabled -Dpython3-support=disabled build/ -Denable-test=false")
                             }
                         }
                     

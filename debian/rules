@@ -55,7 +55,7 @@ endif
 
 %:
 ifeq ($(EYEPOP_PLATFORM),linux-aarch64-jammy)
-	dh $@ --parallel --package=nnstreamer --package=nnstreamer-core --package=nnstreamer-configuration --package=nnstreamer-single --package=nnstreamer-tensorflow2-lite --package=nnstreamer-dev --package=nnstreamer-dev-internal --package=nnstreamer-single-dev --package=nnstreamer-single-dev-internal --package=nnstreamer-test-dev --package=nnstreamer-util --package=nnstreamer-misc --package=nnstreamer-datarepo
+	dh $@ --parallel --package=nnstreamer --package=nnstreamer-core --package=nnstreamer-configuration --package=nnstreamer-onnxruntime --package=nnstreamer-single --package=nnstreamer-tensorflow2-lite --package=nnstreamer-dev --package=nnstreamer-dev-internal --package=nnstreamer-single-dev --package=nnstreamer-single-dev-internal --package=nnstreamer-test-dev --package=nnstreamer-util --package=nnstreamer-misc --package=nnstreamer-datarepo
 else
 	dh $@ --parallel
 endif
@@ -69,7 +69,7 @@ ifeq ($(EYEPOP_PLATFORM),linux-aarch64-jammy)
 	meson --buildtype=plain --prefix=/usr --sysconfdir=/etc --libdir=lib/$(DEB_HOST_MULTIARCH) --bindir=lib/nnstreamer/bin --includedir=include \
 	-Denable-edgetpu=false -Denable-openvino=false -Dgrpc-support=disabled -Dmqtt-support=enabled \
 	-Ddatarepo-support=enabled \
-	-Dtf-support=disabled -Donnxruntime-support=disabled \
+	-Dtf-support=disabled -Donnxruntime-support=enabled \
 	-Denable-tizen=false -Denable-test=true -Dinstall-test=true -Dsubplugindir=/usr/lib/nnstreamer $(FLOAT16) ${BUILDDIR}
 else ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes), yes)
 	meson --buildtype=plain --prefix=/usr --sysconfdir=/etc --libdir=lib/$(DEB_HOST_MULTIARCH) --bindir=lib/nnstreamer/bin --includedir=include \
@@ -96,7 +96,6 @@ ifeq ($(EYEPOP_PLATFORM),linux-aarch64-jammy)
 	rm -f debian/nnstreamer-tensorflow.install
 	rm -f debian/nnstreamer-edgetpu.install
 	rm -f debian/nnstreamer-openvino.install
-	rm -f debian/nnstreamer-onnxruntime.install
 endif
 	# A few modules are not available in Ubuntu 22.04. Don't try to create them if not available.
 	if [ -f './build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_nnfw.so' ]; then echo "NNFW exists" ; else rm -f debian/nnstreamer-nnfw.install; fi
@@ -122,7 +121,7 @@ override_dh_auto_install:
 
 override_dh_install:
 ifeq ($(EYEPOP_PLATFORM),linux-aarch64-jammy)
-	dh_install --sourcedir=debian/tmp --list-missing --package=nnstreamer --package=nnstreamer-core --package=nnstreamer-configuration --package=nnstreamer-single --package=nnstreamer-tensorflow2-lite --package=nnstreamer-dev --package=nnstreamer-dev-internal --package=nnstreamer-single-dev --package=nnstreamer-single-dev-internal --package=nnstreamer-test-dev --package=nnstreamer-util --package=nnstreamer-misc --package=nnstreamer-datarepo
+	dh_install --sourcedir=debian/tmp --list-missing --package=nnstreamer --package=nnstreamer-core --package=nnstreamer-configuration --package=nnstreamer-onnxruntime --package=nnstreamer-single --package=nnstreamer-tensorflow2-lite --package=nnstreamer-dev --package=nnstreamer-dev-internal --package=nnstreamer-single-dev --package=nnstreamer-single-dev-internal --package=nnstreamer-test-dev --package=nnstreamer-util --package=nnstreamer-misc --package=nnstreamer-datarepo
 else
 	dh_install --sourcedir=debian/tmp --list-missing
 endif
