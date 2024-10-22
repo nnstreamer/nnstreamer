@@ -1,6 +1,11 @@
 # Find flex, configure lex generator
 flex_min_version='2.5.31'
-flex = find_program('flex', 'win_flex', version: '>=' + flex_min_version, required : false)
+if meson.version().version_compare('>=0.52.0')
+  flex = find_program('flex', 'win_flex', version: '>=' + flex_min_version, required : false)
+else
+  warning('flex/win_flex version check omitted. This might incur errors. Please make sure that flex/win_flex is >= 2.5.31')
+  flex = find_program('flex', 'win_flex', required : false)
+endif
 if not flex.found()
   if get_option('parser-support').enabled()
     error('flex is required if parser-support is enabled')
@@ -21,7 +26,12 @@ gen_lex = configure_file(input : 'gen_lex.py.in',
 
 # Find bison, configure grammar generator
 bison_min_version='2.4'
-bison = find_program('bison', 'win_bison', version: '>=' + bison_min_version, required : false)
+if meson.version().version_compare('>=0.52.0')
+  bison = find_program('bison', 'win_bison', version: '>=' + bison_min_version, required : false)
+else
+  warning('bison/win_bison version check omitted. This might incur errors. Please make sure that bison/win_vison is >= 2.4')
+  bison = find_program('bison', 'win_bison', required : false)
+endif
 if not bison.found()
   if get_option('parser-support').enabled()
     error('bison is required if parser-support is enabled')
