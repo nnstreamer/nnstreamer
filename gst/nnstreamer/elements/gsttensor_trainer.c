@@ -863,6 +863,12 @@ gst_tensor_trainer_create_output_tensors (GstTensorTrainer * trainer,
   double model_stats[MODEL_STATS_SIZE] =
       { -INFINITY, -INFINITY, -INFINITY, -INFINITY };
 
+  if (trainer->output_meta.num_tensors > NNS_TENSOR_SIZE_LIMIT) {
+    GST_ERROR_OBJECT (trainer, "The number of output tensors (%u) exceeds limit (%d)",
+        trainer->output_meta.num_tensors, NNS_TENSOR_SIZE_LIMIT);
+    return FALSE;
+  }
+
   for (i = 0; i < trainer->output_meta.num_tensors; i++) {
     out_tensors[i].data = NULL;
     out_tensors[i].size =
