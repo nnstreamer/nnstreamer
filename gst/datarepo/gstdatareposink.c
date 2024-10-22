@@ -109,8 +109,6 @@ static GstCaps *gst_data_repo_sink_get_caps (GstBaseSink * bsink,
     GstCaps * filter);
 static gboolean gst_data_repo_sink_set_caps (GstBaseSink * bsink,
     GstCaps * caps);
-static gboolean gst_data_repo_sink_event (GstBaseSink * bsink,
-    GstEvent * event);
 static gboolean gst_data_repo_sink_query (GstBaseSink * sink, GstQuery * query);
 
 /**
@@ -158,11 +156,10 @@ gst_data_repo_sink_class_init (GstDataRepoSinkClass * klass)
   gstbasesink_class->render = GST_DEBUG_FUNCPTR (gst_data_repo_sink_render);
   gstbasesink_class->get_caps = GST_DEBUG_FUNCPTR (gst_data_repo_sink_get_caps);
   gstbasesink_class->set_caps = GST_DEBUG_FUNCPTR (gst_data_repo_sink_set_caps);
-  gstbasesink_class->event = GST_DEBUG_FUNCPTR (gst_data_repo_sink_event);
   gstbasesink_class->query = GST_DEBUG_FUNCPTR (gst_data_repo_sink_query);
   gstbasesink_class->stop = GST_DEBUG_FUNCPTR (gst_data_repo_sink_stop);
 
-  /*A value of 8 typically indicates a 64-bit system.*/
+  /*A value of 8 typically indicates a 64-bit system. */
   if (sizeof (off_t) < 8) {
     GST_WARNING
         ("64-bit file support unavailable due to system limitations, sizeof (off_t) = %"
@@ -322,7 +319,8 @@ gst_data_repo_sink_write_flexible_or_sparse_tensors (GstDataRepoSink * sink,
     GstBuffer * buffer)
 {
   guint num_tensors, i;
-  gsize write_size = 0, total_write = 0, tensor_size;
+  gsize total_write = 0, tensor_size;
+  ssize_t write_size = 0;
   GstMapInfo info;
   GstMemory *mem = NULL;
   GstTensorMetaInfo meta;
@@ -361,13 +359,13 @@ gst_data_repo_sink_write_flexible_or_sparse_tensors (GstDataRepoSink * sink,
         (long long) sink->fd_offset + total_write);
 
     write_size = write (sink->fd, info.data, tensor_size);
-    if (write_size != tensor_size) {
-      GST_ERROR_OBJECT (sink, "Could not write data to file");
+    if ((write_size == -1) || (write_size != (ssize_t) tensor_size)) {
+      GST_ERROR_OBJECT (sink, "Error writing data to file");
       goto error;
     }
 
     json_array_add_int_element (sink->tensor_size_array, tensor_size);
-    total_write += write_size;
+    total_write += (gsize) write_size;
 
     gst_memory_unmap (mem, &info);
     gst_memory_unref (mem);
@@ -538,36 +536,6 @@ gst_data_repo_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
 
   GST_DEBUG_OBJECT (sink, "data type: %d", sink->data_type);
   return (sink->data_type != GST_DATA_REPO_DATA_UNKNOWN);
-}
-
-/**
- * @brief Receive Event on datareposink.
- */
-static gboolean
-gst_data_repo_sink_event (GstBaseSink * bsink, GstEvent * event)
-{
-  GstDataRepoSink *sink;
-  sink = GST_DATA_REPO_SINK (bsink);
-
-  GST_INFO_OBJECT (sink, "got event (%s)",
-      gst_event_type_get_name (GST_EVENT_TYPE (event)));
-
-  switch (GST_EVENT_TYPE (event)) {
-    case GST_EVENT_EOS:
-      GST_INFO_OBJECT (sink, "get GST_EVENT_EOS event..state is %d",
-          GST_STATE (sink));
-      break;
-    case GST_EVENT_FLUSH_START:
-      GST_INFO_OBJECT (sink, "get GST_EVENT_FLUSH_START event");
-      break;
-    case GST_EVENT_FLUSH_STOP:
-      GST_INFO_OBJECT (sink, "get GST_EVENT_FLUSH_STOP event");
-      break;
-    default:
-      break;
-  }
-
-  return GST_BASE_SINK_CLASS (parent_class)->event (bsink, event);
 }
 
 /**
