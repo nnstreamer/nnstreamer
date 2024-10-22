@@ -276,7 +276,7 @@ gst_data_repo_sink_get_property (GObject * object, guint prop_id,
 static GstFlowReturn
 gst_data_repo_sink_write_others (GstDataRepoSink * sink, GstBuffer * buffer)
 {
-  gsize write_size = 0;
+  ssize_t write_size = 0;
   GstMapInfo info;
   GstFlowReturn ret = GST_FLOW_OK;
 
@@ -298,8 +298,8 @@ gst_data_repo_sink_write_others (GstDataRepoSink * sink, GstBuffer * buffer)
 
   write_size = write (sink->fd, info.data, info.size);
 
-  if (write_size != info.size) {
-    GST_ERROR_OBJECT (sink, "Could not write data to file");
+  if ((write_size == -1) || (write_size != (ssize_t)info.size)) {
+    GST_ERROR_OBJECT (sink, "Error writing data to file");
     ret = GST_FLOW_ERROR;
   } else {
     sink->fd_offset += write_size;
