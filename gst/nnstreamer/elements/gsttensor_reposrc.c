@@ -47,7 +47,6 @@ enum
 {
   PROP_0,
   PROP_CAPS,
-  PROP_SLOT_ID,
   PROP_SILENT
 };
 
@@ -95,11 +94,6 @@ gst_tensor_reposrc_class_init (GstTensorRepoSrcClass * klass)
   g_object_class_install_property (gobject_class, PROP_SILENT,
       g_param_spec_boolean ("silent", "Silent", "Produce verbose output",
           DEFAULT_SILENT, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-
-  g_object_class_install_property (gobject_class, PROP_SLOT_ID,
-      g_param_spec_uint ("slot-index", "Slot Index", "repository slot index",
-          0, INVALID_INDEX - 1, DEFAULT_INDEX,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   basesrc_class->get_caps = gst_tensor_reposrc_getcaps;
   pushsrc_class->create = gst_tensor_reposrc_create;
@@ -207,21 +201,6 @@ gst_tensor_reposrc_set_property (GObject * object, guint prop_id,
     case PROP_SILENT:
       self->silent = g_value_get_boolean (value);
       break;
-    case PROP_SLOT_ID:
-      self->o_myid = self->myid;
-      self->myid = g_value_get_uint (value);
-      self->negotiation = FALSE;
-
-      gst_tensor_repo_add_repodata (self->myid, FALSE);
-
-      if (!self->set_startid) {
-        self->o_myid = self->myid;
-        self->set_startid = TRUE;
-      }
-
-      if (self->o_myid != self->myid)
-        gst_tensor_repo_set_changed (self->o_myid, self->myid, FALSE);
-      break;
     case PROP_CAPS:
     {
       GstStructure *st = NULL;
@@ -270,9 +249,6 @@ gst_tensor_reposrc_get_property (GObject * object, guint prop_id,
   switch (prop_id) {
     case PROP_SILENT:
       g_value_set_boolean (value, self->silent);
-      break;
-    case PROP_SLOT_ID:
-      g_value_set_uint (value, self->myid);
       break;
     case PROP_CAPS:
       gst_value_set_caps (value, self->caps);
