@@ -109,8 +109,6 @@ static GstCaps *gst_data_repo_sink_get_caps (GstBaseSink * bsink,
     GstCaps * filter);
 static gboolean gst_data_repo_sink_set_caps (GstBaseSink * bsink,
     GstCaps * caps);
-static gboolean gst_data_repo_sink_event (GstBaseSink * bsink,
-    GstEvent * event);
 static gboolean gst_data_repo_sink_query (GstBaseSink * sink, GstQuery * query);
 
 /**
@@ -158,13 +156,14 @@ gst_data_repo_sink_class_init (GstDataRepoSinkClass * klass)
   gstbasesink_class->render = GST_DEBUG_FUNCPTR (gst_data_repo_sink_render);
   gstbasesink_class->get_caps = GST_DEBUG_FUNCPTR (gst_data_repo_sink_get_caps);
   gstbasesink_class->set_caps = GST_DEBUG_FUNCPTR (gst_data_repo_sink_set_caps);
-  gstbasesink_class->event = GST_DEBUG_FUNCPTR (gst_data_repo_sink_event);
   gstbasesink_class->query = GST_DEBUG_FUNCPTR (gst_data_repo_sink_query);
   gstbasesink_class->stop = GST_DEBUG_FUNCPTR (gst_data_repo_sink_stop);
 
+  /*A value of 8 typically indicates a 64-bit system. */
   if (sizeof (off_t) < 8) {
-    GST_LOG ("No large file support, sizeof (off_t) = %" G_GSIZE_FORMAT "!",
-        sizeof (off_t));
+    GST_WARNING
+        ("64-bit file support unavailable due to system limitations, sizeof (off_t) = %"
+        G_GSIZE_FORMAT "!", sizeof (off_t));
   }
 }
 
@@ -205,7 +204,6 @@ gst_data_repo_sink_finalize (GObject * object)
     sink->fd = 0;
   }
 
-  /* Check for gst-inspect log */
   if (sink->fixed_caps)
     gst_caps_unref (sink->fixed_caps);
 
@@ -276,7 +274,7 @@ gst_data_repo_sink_get_property (GObject * object, guint prop_id,
 static GstFlowReturn
 gst_data_repo_sink_write_others (GstDataRepoSink * sink, GstBuffer * buffer)
 {
-  gsize write_size = 0;
+  ssize_t write_size = 0;
   GstMapInfo info;
   GstFlowReturn ret = GST_FLOW_OK;
 
@@ -298,8 +296,8 @@ gst_data_repo_sink_write_others (GstDataRepoSink * sink, GstBuffer * buffer)
 
   write_size = write (sink->fd, info.data, info.size);
 
-  if (write_size != info.size) {
-    GST_ERROR_OBJECT (sink, "Could not write data to file");
+  if ((write_size == -1) || (write_size != (ssize_t) info.size)) {
+    GST_ERROR_OBJECT (sink, "Error writing data to file");
     ret = GST_FLOW_ERROR;
   } else {
     sink->fd_offset += write_size;
@@ -320,7 +318,8 @@ gst_data_repo_sink_write_flexible_or_sparse_tensors (GstDataRepoSink * sink,
     GstBuffer * buffer)
 {
   guint num_tensors, i;
-  gsize write_size = 0, total_write = 0, tensor_size;
+  gsize total_write = 0, tensor_size;
+  ssize_t write_size = 0;
   GstMapInfo info;
   GstMemory *mem = NULL;
   GstTensorMetaInfo meta;
@@ -359,13 +358,13 @@ gst_data_repo_sink_write_flexible_or_sparse_tensors (GstDataRepoSink * sink,
         (long long) sink->fd_offset + total_write);
 
     write_size = write (sink->fd, info.data, tensor_size);
-    if (write_size != tensor_size) {
-      GST_ERROR_OBJECT (sink, "Could not write data to file");
+    if ((write_size == -1) || (write_size != (ssize_t) tensor_size)) {
+      GST_ERROR_OBJECT (sink, "Error writing data to file");
       goto error;
     }
 
     json_array_add_int_element (sink->tensor_size_array, tensor_size);
-    total_write += write_size;
+    total_write += (gsize) write_size;
 
     gst_memory_unmap (mem, &info);
     gst_memory_unref (mem);
@@ -410,7 +409,6 @@ gst_data_repo_sink_get_image_filename (GstDataRepoSink * sink)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
 #endif
-  /* let's set value by property */
   filename = g_strdup_printf (sink->filename, sink->total_samples);
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
@@ -478,12 +476,9 @@ gst_data_repo_sink_render (GstBaseSink * bsink, GstBuffer * buffer)
       return gst_data_repo_sink_write_others (sink, buffer);
     case GST_DATA_REPO_DATA_TENSOR:
     {
-      sink->is_static_tensors =
-          gst_tensor_pad_caps_is_static (GST_BASE_SINK_PAD (sink));
-      if (!sink->is_static_tensors)
-        return gst_data_repo_sink_write_flexible_or_sparse_tensors (sink,
-            buffer);
-      return gst_data_repo_sink_write_others (sink, buffer);
+      if (sink->is_static_tensors)
+        return gst_data_repo_sink_write_others (sink, buffer);
+      return gst_data_repo_sink_write_flexible_or_sparse_tensors (sink, buffer);
     }
     case GST_DATA_REPO_DATA_IMAGE:
       return gst_data_repo_sink_write_multi_images (sink, buffer);
@@ -502,22 +497,39 @@ gst_data_repo_sink_get_caps (GstBaseSink * bsink, GstCaps * filter)
   GstCaps *caps = NULL;
 
   GST_OBJECT_LOCK (sink);
-  caps = gst_pad_get_pad_template_caps (GST_BASE_SINK_PAD (bsink));
-  GST_OBJECT_UNLOCK (sink);
+  caps = sink->fixed_caps;
 
   GST_INFO_OBJECT (sink, "Got caps %" GST_PTR_FORMAT, caps);
-
-  if (caps && filter) {
-    GstCaps *intersection =
-        gst_caps_intersect_full (filter, caps, GST_CAPS_INTERSECT_FIRST);
-
-    gst_caps_unref (caps);
-    caps = intersection;
+  if (caps) {
+    if (filter)
+      caps = gst_caps_intersect_full (filter, caps, GST_CAPS_INTERSECT_FIRST);
+    else
+      caps = gst_caps_ref (caps);
   }
 
   GST_DEBUG_OBJECT (sink, "result get caps: %" GST_PTR_FORMAT, caps);
+  GST_OBJECT_UNLOCK (sink);
 
   return caps;
+}
+
+/**
+ * @brief Set whether the given pad caps are static or not.
+ */
+static void
+gst_data_repo_sink_set_is_static_tensors (GstDataRepoSink * sink)
+{
+  GstStructure *structure;
+  GstTensorsConfig config;
+
+  g_return_if_fail (sink != NULL);
+  g_return_if_fail (sink->fixed_caps != NULL);
+  g_return_if_fail (sink->data_type == GST_DATA_REPO_DATA_TENSOR);
+
+  structure = gst_caps_get_structure (sink->fixed_caps, 0);
+  gst_tensors_config_from_structure (&config, structure);
+  sink->is_static_tensors = gst_tensors_config_is_static (&config);
+  gst_tensors_config_free (&config);
 }
 
 /**
@@ -531,41 +543,18 @@ gst_data_repo_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
   sink = GST_DATA_REPO_SINK (bsink);
   GST_INFO_OBJECT (sink, "set caps %" GST_PTR_FORMAT, caps);
 
+  if (sink->fixed_caps) {
+    gst_caps_unref (sink->fixed_caps);
+    sink->fixed_caps = NULL;
+  }
+
   sink->data_type = gst_data_repo_get_data_type_from_caps (caps);
   sink->fixed_caps = gst_caps_copy (caps);
 
+  gst_data_repo_sink_set_is_static_tensors (sink);
+
   GST_DEBUG_OBJECT (sink, "data type: %d", sink->data_type);
   return (sink->data_type != GST_DATA_REPO_DATA_UNKNOWN);
-}
-
-/**
- * @brief Receive Event on datareposink.
- */
-static gboolean
-gst_data_repo_sink_event (GstBaseSink * bsink, GstEvent * event)
-{
-  GstDataRepoSink *sink;
-  sink = GST_DATA_REPO_SINK (bsink);
-
-  GST_INFO_OBJECT (sink, "got event (%s)",
-      gst_event_type_get_name (GST_EVENT_TYPE (event)));
-
-  switch (GST_EVENT_TYPE (event)) {
-    case GST_EVENT_EOS:
-      GST_INFO_OBJECT (sink, "get GST_EVENT_EOS event..state is %d",
-          GST_STATE (sink));
-      break;
-    case GST_EVENT_FLUSH_START:
-      GST_INFO_OBJECT (sink, "get GST_EVENT_FLUSH_START event");
-      break;
-    case GST_EVENT_FLUSH_STOP:
-      GST_INFO_OBJECT (sink, "get GST_EVENT_FLUSH_STOP event");
-      break;
-    default:
-      break;
-  }
-
-  return GST_BASE_SINK_CLASS (parent_class)->event (bsink, event);
 }
 
 /**
@@ -609,7 +598,6 @@ gst_data_repo_sink_open_file (GstDataRepoSink * sink)
   if (sink->filename == NULL || sink->filename[0] == '\0')
     goto no_filename;
 
-  /* for image, g_file_set_contents() is used in the write function */
   if (sink->data_type == GST_DATA_REPO_DATA_IMAGE) {
     return TRUE;
   }
@@ -619,12 +607,7 @@ gst_data_repo_sink_open_file (GstDataRepoSink * sink)
 
   GST_INFO_OBJECT (sink, "opening file %s", filename);
 
-  /** How about support file mode property ?
-     flags |= O_APPEND ("ab") */
-
   flags |= O_TRUNC;             /* "wb" */
-
-  /* open the file */
   sink->fd = g_open (filename, flags, 0644);
 
   if (sink->fd < 0)
@@ -634,7 +617,6 @@ gst_data_repo_sink_open_file (GstDataRepoSink * sink)
 
   return TRUE;
 
-  /* ERRORS */
 no_filename:
   {
     GST_ELEMENT_ERROR (sink, RESOURCE, NOT_FOUND,
@@ -673,7 +655,6 @@ gst_data_repo_sink_stop (GstBaseSink * basesink)
 
   sink = GST_DATA_REPO_SINK_CAST (basesink);
 
-  /* close the file */
   g_close (sink->fd, NULL);
   sink->fd = 0;
 
@@ -693,7 +674,6 @@ __write_json (JsonObject * object, const gchar * filename)
   g_return_val_if_fail (object != NULL, FALSE);
   g_return_val_if_fail (filename != NULL, FALSE);
 
-  /* Make it the root node */
   root = json_node_init_object (json_node_alloc (), object);
   generator = json_generator_new ();
   json_generator_set_root (generator, root);
@@ -703,7 +683,6 @@ __write_json (JsonObject * object, const gchar * filename)
     GST_ERROR ("Failed to write JSON to file %s", filename);
   }
 
-  /* Release everything */
   g_object_unref (generator);
   json_node_free (root);
 
@@ -789,7 +768,6 @@ gst_data_repo_sink_change_state (GstElement * element,
 
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
       GST_INFO_OBJECT (sink, "PAUSED_TO_PLAYING");
-
       if (!gst_data_repo_sink_open_file (sink))
         goto state_change_failed;
       break;
