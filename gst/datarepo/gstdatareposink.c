@@ -162,9 +162,11 @@ gst_data_repo_sink_class_init (GstDataRepoSinkClass * klass)
   gstbasesink_class->query = GST_DEBUG_FUNCPTR (gst_data_repo_sink_query);
   gstbasesink_class->stop = GST_DEBUG_FUNCPTR (gst_data_repo_sink_stop);
 
+  /*A value of 8 typically indicates a 64-bit system.*/
   if (sizeof (off_t) < 8) {
-    GST_LOG ("No large file support, sizeof (off_t) = %" G_GSIZE_FORMAT "!",
-        sizeof (off_t));
+    GST_WARNING
+        ("64-bit file support unavailable due to system limitations, sizeof (off_t) = %"
+        G_GSIZE_FORMAT "!", sizeof (off_t));
   }
 }
 
@@ -298,7 +300,7 @@ gst_data_repo_sink_write_others (GstDataRepoSink * sink, GstBuffer * buffer)
 
   write_size = write (sink->fd, info.data, info.size);
 
-  if ((write_size == -1) || (write_size != (ssize_t)info.size)) {
+  if ((write_size == -1) || (write_size != (ssize_t) info.size)) {
     GST_ERROR_OBJECT (sink, "Error writing data to file");
     ret = GST_FLOW_ERROR;
   } else {
