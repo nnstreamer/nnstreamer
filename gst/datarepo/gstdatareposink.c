@@ -204,7 +204,7 @@ gst_data_repo_sink_finalize (GObject * object)
     sink->fd = 0;
   }
 
-   if (sink->fixed_caps)
+  if (sink->fixed_caps)
     gst_caps_unref (sink->fixed_caps);
 
   if (sink->sample_offset_array)
@@ -476,12 +476,9 @@ gst_data_repo_sink_render (GstBaseSink * bsink, GstBuffer * buffer)
       return gst_data_repo_sink_write_others (sink, buffer);
     case GST_DATA_REPO_DATA_TENSOR:
     {
-      sink->is_static_tensors =
-          gst_tensor_pad_caps_is_static (GST_BASE_SINK_PAD (sink));
-      if (!sink->is_static_tensors)
-        return gst_data_repo_sink_write_flexible_or_sparse_tensors (sink,
-            buffer);
-      return gst_data_repo_sink_write_others (sink, buffer);
+      if (sink->is_static_tensors)
+        return gst_data_repo_sink_write_others (sink, buffer);
+      return gst_data_repo_sink_write_flexible_or_sparse_tensors (sink, buffer);
     }
     case GST_DATA_REPO_DATA_IMAGE:
       return gst_data_repo_sink_write_multi_images (sink, buffer);
@@ -723,6 +720,29 @@ gst_data_repo_sink_write_json_meta_file (GstDataRepoSink * sink)
 }
 
 /**
+ * @brief Check if the tensors are static or not
+ */
+static void
+gst_data_repo_sink_is_static_tensors (GstDataRepoSink * sink)
+{
+  GstStructure *structure;
+  GstTensorsConfig config;
+  tensor_format ret = _NNS_TENSOR_FORMAT_END;
+
+  g_return_if_fail (sink != NULL);
+  g_return_if_fail (sink->fixed_caps != NULL);
+
+  if (sink->data_type != GST_DATA_REPO_DATA_TENSOR)
+    return;
+
+  structure = gst_caps_get_structure (sink->fixed_caps, 0);
+  if (gst_tensors_config_from_structure (&config, structure)) {
+    ret = config.info.format;
+  }
+  sink->is_static_tensors = (ret == _NNS_TENSOR_FORMAT_STATIC);
+}
+
+/**
  * @brief Change state of datareposink.
  */
 static GstStateChangeReturn
@@ -747,7 +767,7 @@ gst_data_repo_sink_change_state (GstElement * element,
 
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
       GST_INFO_OBJECT (sink, "PAUSED_TO_PLAYING");
-
+      gst_data_repo_sink_is_static_tensors (sink);
       if (!gst_data_repo_sink_open_file (sink))
         goto state_change_failed;
       break;
