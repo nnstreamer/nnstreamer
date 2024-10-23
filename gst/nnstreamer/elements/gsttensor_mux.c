@@ -498,13 +498,13 @@ gst_tensor_mux_collected (GstCollectPads * pads, GstTensorMux * tensor_mux)
      * Create stream ID using first sink pad.
      */
     GstCollectData *data = (GstCollectData *) pads->data->data;
-    g_autofree gchar *sink_sid = gst_pad_get_stream_id (data->pad);
+    g_autofree gchar *sink_stream_id = gst_pad_get_stream_id (data->pad);
     g_autofree gchar *element_name = gst_element_get_name (tensor_mux);
     g_autofree gchar *pad_name = gst_pad_get_name (tensor_mux->srcpad);
-    g_autofree gchar *sid = g_strdup_printf ("%s-%s-nnsmux-%s-%08x",
-        GST_STR_NULL (sink_sid), element_name, pad_name, g_random_int ());
+    g_autofree gchar *stream_id = g_strdup_printf ("%s-%s-nnsmux-%s-%08x",
+        GST_STR_NULL (sink_stream_id), element_name, pad_name, g_random_int ());
 
-    gst_pad_push_event (tensor_mux->srcpad, gst_event_new_stream_start (sid));
+    gst_pad_push_event (tensor_mux->srcpad, gst_event_new_stream_start (stream_id));
     tensor_mux->need_stream_start = FALSE;
   }
 
