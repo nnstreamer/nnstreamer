@@ -146,8 +146,7 @@ static void gst_tensor_trainer_create_event_notifier (GstTensorTrainer *
 static void gst_tensor_trainer_start_model_training (GstTensorTrainer *
     trainer);
 static void gst_tensor_trainer_stop_model_training (GstTensorTrainer * trainer);
-static void gst_tensor_trainer_output_dimension (GstTensorTrainer * trainer);
-static void gst_tensor_trainer_output_type (GstTensorTrainer * trainer);
+static void gst_tensor_trainer_set_output_meta (GstTensorTrainer * trainer);
 
 /**
  * @brief initialize the tensor_trainer's class
@@ -307,8 +306,7 @@ gst_tensor_trainer_init (GstTensorTrainer * trainer)
   g_cond_init (&trainer->epoch_completion_cond);
   g_mutex_init (&trainer->epoch_completion_lock);
 
-  gst_tensor_trainer_output_dimension (trainer);
-  gst_tensor_trainer_output_type (trainer);
+  gst_tensor_trainer_set_output_meta (trainer);
 }
 
 /**
@@ -661,142 +659,107 @@ gst_tensor_trainer_check_chain_conditions (GstTensorTrainer * trainer,
 }
 
 /**
- * @brief Get the size of tensor header.
+ * @brief Convert tensor meta and get the size of tensor header.
  */
 static gsize
-gst_tensor_trainer_get_header_size (GstTensorTrainer * trainer,
-    gboolean in_flexible, GstTensorInfo * info, GstTensorMetaInfo * meta,
-    void *data, int i)
+gst_tensor_trainer_convert_meta (GstTensorTrainer * trainer,
+    GstTensorMetaInfo * meta, GstTensorInfo * info, void *data)
 {
   gsize header_size = 0;
 
-  if (in_flexible) {
-    if (!gst_tensor_meta_info_parse_header (meta, data)) {
-      GST_ERROR_OBJECT (trainer, "Invalid Flexible tensors");
-      return 0;
-    }
+  if (!gst_tensor_meta_info_parse_header (meta, data)) {
+    GST_ERROR_OBJECT (trainer, "Invalid Flexible tensors");
+    return 0;
+  }
 
+  if (gst_tensor_meta_info_convert (meta, info)) {
     header_size = gst_tensor_meta_info_get_header_size (meta);
-    info = gst_tensors_info_get_nth_info (&trainer->prop.input_meta, i);
-    if (info == NULL)
-      return 0;
-    gst_tensor_meta_info_convert (meta, info);
     GST_INFO ("flexible header size:%zd", header_size);
-  } else {
-    GST_INFO ("not flexible header, size:%zd", header_size);
   }
 
   return header_size;
 }
 
-
 /**
- * @brief Create input tensors from the buffer.
+ * @brief Create input tensors from the buffer and push it into trainer fw.
  */
 static gboolean
-gst_tensor_trainer_create_input_tensors (GstTensorTrainer * trainer,
-    GstBuffer * inbuf, GstMemory ** in_mem, GstMapInfo * in_info,
+gst_tensor_trainer_push_input (GstTensorTrainer * trainer, GstBuffer * inbuf,
     gboolean in_flexible)
 {
-  guint i;
-  GstTensorInfo *info = NULL;
+  guint i, n;
+  GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
+  GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT];
   GstTensorMetaInfo in_meta[NNS_TENSOR_SIZE_LIMIT];
-  guint num_tensors = 0;
-  gsize header_size;
+  GstTensorInfo *info;
+  gsize header_size = 0, expected;
+  gint ret = -1;
 
-  num_tensors = gst_tensor_buffer_get_count (inbuf);
+  n = gst_tensor_buffer_get_count (inbuf);
 
-  for (i = 0; i < num_tensors; i++) {
+  if (in_flexible)
+    trainer->prop.input_meta.num_tensors = n;
+  else {
+    GST_DEBUG_OBJECT (trainer, "num_tensors: %u",
+        trainer->prop.input_meta.num_tensors);
+    if (n != trainer->prop.input_meta.num_tensors) {
+      GST_ERROR_OBJECT (trainer,
+          "Invalid memory blocks (%u), number of input tensors may be (%u)",
+          n, trainer->prop.input_meta.num_tensors);
+      goto error;
+    }
+  }
+
+  for (i = 0; i < n; i++) {
     in_mem[i] = gst_tensor_buffer_get_nth_memory (inbuf, i);
     if (!gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
       GST_ERROR_OBJECT (trainer, "Could not map in_mem[%u] GstMemory", i);
-      return FALSE;
+      goto error;
     }
 
-    header_size =
-        gst_tensor_trainer_get_header_size (trainer, in_flexible, info,
-        &in_meta[i], in_info[i].data, i);
-    if (in_flexible && header_size == 0)
-      return FALSE;
+    if (in_flexible) {
+      info = gst_tensors_info_get_nth_info (&trainer->prop.input_meta, i);
+      header_size = gst_tensor_trainer_convert_meta (trainer,
+          &in_meta[i], info, in_info[i].data);
+      if (header_size == 0)
+        goto error;
+    }
 
     trainer->input_tensors[i].data = in_info[i].data + header_size;
     trainer->input_tensors[i].size = in_info[i].size - header_size;
     GST_INFO ("input_tensors[%u].size= %zd", i, trainer->input_tensors[i].size);
     GST_INFO ("input_tensors[%u].data: %p", i, trainer->input_tensors[i].data);
-  }
 
-  return TRUE;
-}
-
-/**
- * @brief Check the size of input tensors.
- */
-static gboolean
-gst_tensor_trainer_check_input_tensors_size (GstTensorTrainer * trainer,
-    guint num_tensors, gboolean in_flexible)
-{
-  guint32 i;
-  gsize expected;
-  GstTensorMemory *tensors = trainer->input_tensors;
-
-  if (in_flexible)
-    trainer->prop.input_meta.num_tensors = num_tensors;
-  else {
-    GST_DEBUG_OBJECT (trainer, "num_tensors: %u",
-        trainer->prop.input_meta.num_tensors);
-    if (num_tensors != trainer->prop.input_meta.num_tensors) {
-      GST_ERROR_OBJECT (trainer,
-          "Invalid memory blocks(%u), number of input tensors may be (%u)",
-          num_tensors, trainer->prop.input_meta.num_tensors);
-      return FALSE;
-    }
-  }
-
-  for (i = 0; i < trainer->prop.input_meta.num_tensors; i++) {
+    /* Check input tensor size */
     expected = gst_tensor_trainer_get_tensor_size (trainer, i, TRUE);
-    if (expected != tensors[i].size) {
+    if (expected != trainer->input_tensors[i].size) {
       GST_ERROR_OBJECT (trainer,
-          "Invalid tensor size (%u'th memory chunk: %zd)"
-          ", expected size (%zd)", i, tensors[i].size, expected);
-      return FALSE;
+          "Invalid tensor size (%u'th memory chunk: %zd), expected size (%zd)",
+          i, trainer->input_tensors[i].size, expected);
+      goto error;
     }
   }
 
-  return TRUE;
-}
+  ret = trainer->fw->push_data (trainer->fw, &trainer->prop,
+      trainer->privateData, trainer->input_tensors);
 
-/**
- * @brief Destroy input tensors.
- */
-static void
-gst_tensor_trainer_destroy_input_tensors (GstTensorTrainer * trainer,
-    GstMemory ** in_mem, GstMapInfo * in_info, guint num_tensors)
-{
-  guint i;
-  for (i = 0; i < num_tensors; i++) {
+  if (ret < 0)
+    GST_ERROR_OBJECT (trainer, "push error");
+  else
+    trainer->cur_epoch_data_cnt++;
+
+error:
+  for (i = 0; i < n; i++) {
     if (in_mem[i]) {
       gst_memory_unmap (in_mem[i], &in_info[i]);
       gst_memory_unref (in_mem[i]);
-      trainer->input_tensors[i].data = NULL;
-      trainer->input_tensors[i].size = 0;
     }
-  }
-}
 
-/**
- * @brief Destroy output tensors.
- */
-static void
-gst_tensor_trainer_destroy_output_tensors (GstMemory ** out_mem,
-    GstMapInfo * out_info, guint num_tensors)
-{
-  guint i;
-  for (i = 0; i < num_tensors; i++) {
-    if (out_mem[i]) {
-      gst_memory_unmap (out_mem[i], &out_info[i]);
-      gst_memory_unref (out_mem[i]);
-    }
+    trainer->input_tensors[i].data = NULL;
+    trainer->input_tensors[i].size = 0;
   }
+
+  return (ret == 0);
 }
 
 /**
@@ -836,71 +799,66 @@ gst_tensor_trainer_get_model_stats (GstTensorTrainer * trainer,
 }
 
 /**
- * @brief Append output tensors(out_mem) to outbuf.
- */
-static void
-gst_tensor_trainer_append_output_tensor_to_outbuf (GstBuffer * outbuf,
-    GstMemory ** out_mem, guint num_tensors)
-{
-  guint i;
-  for (i = 0; i < num_tensors; i++) {
-    /* append the memory block(output_tensors) to outbuf */
-    gst_buffer_append_memory (outbuf, out_mem[i]);
-  }
-  GST_INFO ("out_buffer size : %zd", gst_buffer_get_size (outbuf));
-}
-
-/**
  * @brief Create output tensors.
  */
-static gboolean
-gst_tensor_trainer_create_output_tensors (GstTensorTrainer * trainer,
-    GstMemory ** out_mem, GstMapInfo * out_info)
+static GstBuffer *
+gst_tensor_trainer_create_output (GstTensorTrainer * trainer)
 {
   guint i;
-  void *ptr;
-  GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT];
+  size_t data_size;
   double model_stats[MODEL_STATS_SIZE] =
       { -INFINITY, -INFINITY, -INFINITY, -INFINITY };
+  GstBuffer *outbuf;
+  GstMemory *out_mem;
+  GstMapInfo out_info;
+  GstTensorInfo *info;
+  gboolean created = FALSE;
 
   if (trainer->output_meta.num_tensors > NNS_TENSOR_SIZE_LIMIT) {
-    GST_ERROR_OBJECT (trainer, "The number of output tensors (%u) exceeds limit (%d)",
+    GST_ERROR_OBJECT (trainer,
+        "The number of output tensors (%u) exceeds limit (%d)",
         trainer->output_meta.num_tensors, NNS_TENSOR_SIZE_LIMIT);
-    return FALSE;
+    return NULL;
   }
 
+  outbuf = gst_buffer_new ();
+
   for (i = 0; i < trainer->output_meta.num_tensors; i++) {
-    out_tensors[i].data = NULL;
-    out_tensors[i].size =
-        gst_tensor_trainer_get_tensor_size (trainer, i, FALSE);
-
-    out_mem[i] = gst_allocator_alloc (NULL, out_tensors[i].size, NULL);
-    if (!out_mem[i]) {
-      GST_ERROR_OBJECT (trainer, "Failed to allocate memory");
-      return FALSE;
-    }
-
-    if (!gst_memory_map (out_mem[i], &out_info[i], GST_MAP_WRITE)) {
-      GST_ERROR_OBJECT (trainer, "Could not map in_mem[%u] GstMemory", i);
-      return FALSE;
-    }
-
-    out_tensors[i].data = out_info[i].data;
-
     if (!gst_tensor_trainer_get_model_stats (trainer, model_stats))
-      return FALSE;
+      goto error;
 
-    ptr = out_tensors[i].data;
-    memcpy (ptr, model_stats, sizeof (model_stats));
+    data_size = gst_tensor_trainer_get_tensor_size (trainer, i, FALSE);
+    info = gst_tensors_info_get_nth_info (&trainer->output_meta, i);
+
+    out_mem = gst_allocator_alloc (NULL, data_size, NULL);
+    if (!out_mem) {
+      GST_ERROR_OBJECT (trainer, "Failed to allocate memory");
+      goto error;
+    }
+
+    if (!gst_memory_map (out_mem, &out_info, GST_MAP_WRITE)) {
+      GST_ERROR_OBJECT (trainer, "Could not map out_mem[%u] GstMemory", i);
+      gst_memory_unref (out_mem);
+      goto error;
+    }
+
+    memcpy (out_info.data, model_stats, sizeof (model_stats));
+    gst_memory_unmap (out_mem, &out_info);
+
+    gst_tensor_buffer_append_memory (outbuf, out_mem, info);
   }
 
-  /* Unmap out_info */
-  for (i = 0; i < trainer->output_meta.num_tensors; i++) {
-    if (out_mem[i])
-      gst_memory_unmap (out_mem[i], &out_info[i]);
+  created = TRUE;
+
+error:
+  if (created) {
+    GST_INFO ("out_buffer size : %zd", gst_buffer_get_size (outbuf));
+  } else {
+    gst_buffer_unref (outbuf);
+    outbuf = NULL;
   }
 
-  return TRUE;
+  return outbuf;
 }
 
 /**
@@ -912,81 +870,46 @@ gst_tensor_trainer_chain (GstPad * sinkpad, GstObject * parent,
 {
   GstTensorTrainer *trainer;
   GstBuffer *outbuf = NULL;
-  gint ret = -1;
+  GstFlowReturn ret = GST_FLOW_ERROR;
   guint num_tensors;
   gboolean in_flexible;
-  GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
-  GstMapInfo in_info[NNS_TENSOR_SIZE_LIMIT];
-  GstMemory *out_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
-  GstMapInfo out_info[NNS_TENSOR_SIZE_LIMIT];
 
   trainer = GST_TENSOR_TRAINER (parent);
   in_flexible = gst_tensor_pad_caps_is_flexible (sinkpad);
   num_tensors = gst_tensor_buffer_get_count (inbuf);
 
   if (!gst_tensor_trainer_check_chain_conditions (trainer, num_tensors)) {
-    gst_buffer_unref (inbuf);
-    return GST_FLOW_ERROR;
+    goto error;
   }
 
   if (gst_tensor_trainer_check_buffer_drop_conditions (trainer)) {
-    gst_buffer_unref (inbuf);
-    return GST_FLOW_OK;
-  }
-
-  if (!gst_tensor_trainer_create_input_tensors (trainer, inbuf,
-          (GstMemory **) & in_mem, in_info, in_flexible))
-    goto error;
-
-  if (FALSE == gst_tensor_trainer_check_input_tensors_size (trainer,
-          num_tensors, in_flexible))
-    goto error;
-
-  ret =
-      trainer->fw->push_data (trainer->fw, &trainer->prop, trainer->privateData,
-      trainer->input_tensors);
-  trainer->cur_epoch_data_cnt++;
-
-  gst_tensor_trainer_destroy_input_tensors (trainer, (GstMemory **) & in_mem,
-      in_info, num_tensors);
-
-  if (ret < 0) {
-    GST_ERROR_OBJECT (trainer, "push error");
+    ret = GST_FLOW_OK;
     goto error;
   }
 
-  /** Update result if one of epochs is complete,
-      push one outbuf is necessary to change pipeline state.
-      Scheduling with subplugin does not work.
+  if (!gst_tensor_trainer_push_input (trainer, inbuf, in_flexible)) {
+    goto error;
+  }
+
+  /**
+   * Update result if one of epochs is complete,
+   * push one outbuf is necessary to change pipeline state.
+   * Scheduling with subplugin does not work.
    */
   if (trainer->cur_epoch_data_cnt == 1
       || gst_tensor_trainer_epochs_is_complete (trainer)) {
+    outbuf = gst_tensor_trainer_create_output (trainer);
 
-    if (!gst_tensor_trainer_create_output_tensors (trainer,
-            (GstMemory **) & out_mem, out_info))
-      goto error;
-
-    outbuf = gst_buffer_new ();
-    /* out_mem is output_tensor */
-    gst_tensor_trainer_append_output_tensor_to_outbuf (outbuf,
-        (GstMemory **) & out_mem, num_tensors);
-
-    gst_pad_push (trainer->srcpad, outbuf);
+    if (outbuf)
+      ret = gst_pad_push (trainer->srcpad, outbuf);
+  } else {
+    /* Run flow, need more data? */
+    ret = GST_FLOW_OK;
   }
 
-  gst_buffer_unref (inbuf);
-
-  return GST_FLOW_OK;
-
 error:
-  gst_tensor_trainer_destroy_input_tensors (trainer, (GstMemory **) & in_mem,
-      in_info, num_tensors);
-
-  gst_tensor_trainer_destroy_output_tensors ((GstMemory **) & out_mem, out_info,
-      num_tensors);
-
   gst_buffer_unref (inbuf);
-  return GST_FLOW_ERROR;
+  return ret;
 }
 
 /**
@@ -1421,37 +1344,22 @@ gst_tensor_trainer_stop_model_training (GstTensorTrainer * trainer)
  * @brief initialize the output tensor dimension
  */
 static void
-gst_tensor_trainer_output_dimension (GstTensorTrainer * trainer)
+gst_tensor_trainer_set_output_meta (GstTensorTrainer * trainer)
 {
-  GstTensorsInfo *info;
-  int i = 0;
+  GstTensorInfo *info;
 
   g_return_if_fail (trainer != NULL);
 
-  info = &trainer->output_meta;
+  gst_tensors_info_init (&trainer->output_meta);
+  info = gst_tensors_info_get_nth_info (&trainer->output_meta, 0);
 
-  info->info[0].dimension[0] = 1;
-  info->info[0].dimension[1] = 1;
-  info->info[0].dimension[2] = 4; /** loss, accuracy, val_loss, val_accuracy */
-  info->info[0].dimension[3] = 1;
+  info->type = _NNS_FLOAT64;
+  info->dimension[0] = 1;
+  info->dimension[1] = 1;
+  info->dimension[2] = 4; /** loss, accuracy, val_loss, val_accuracy */
+  info->dimension[3] = 1;
 
-  for (i = 4; i < NNS_TENSOR_RANK_LIMIT; i++)
-    info->info[0].dimension[i] = 0;
-
-  info->num_tensors = 1;
-}
-
-/**
- * @brief initialize the output tensor type
- */
-static void
-gst_tensor_trainer_output_type (GstTensorTrainer * trainer)
-{
-  GstTensorsInfo *info;
-  g_return_if_fail (trainer != NULL);
-
-  info = &trainer->output_meta;
-  info->info[0].type = _NNS_FLOAT64;
+  trainer->output_meta.num_tensors = 1;
 }
 
 /**
