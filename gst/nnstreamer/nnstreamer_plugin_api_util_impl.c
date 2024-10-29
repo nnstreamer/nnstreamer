@@ -787,31 +787,37 @@ gst_tensors_info_to_string (const GstTensorsInfo * info)
   unsigned int limit = info->num_tensors;
   GstTensorInfo *_info;
 
-  g_string_append_printf (gstr, "Num_Tensors = %u, Tensors = [",
-      info->num_tensors);
-  if (limit > NNS_TENSOR_SIZE_LIMIT) {
-    limit = NNS_TENSOR_SIZE_LIMIT;
-    g_string_append_printf (gstr,
-        "(Num_Tensors out of bound. Showing %d only)", limit);
+  g_string_append_printf (gstr, "Format = %s",
+      gst_tensor_get_format_string (info->format));
+  g_string_append_printf (gstr, ", Num_Tensors = %u", info->num_tensors);
+
+  if (info->format == _NNS_TENSOR_FORMAT_STATIC) {
+    g_string_append_printf (gstr, ", Tensors = [");
+    if (limit > NNS_TENSOR_SIZE_LIMIT) {
+      limit = NNS_TENSOR_SIZE_LIMIT;
+      g_string_append_printf (gstr,
+          "(Num_Tensors out of bound. Showing %d only)", limit);
+    }
+
+    for (i = 0; i < limit; i++) {
+      const gchar *name;
+      const gchar *type;
+      gchar *dim;
+
+      _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info, i);
+      name = _info->name;
+      type = gst_tensor_get_type_string (_info->type);
+      dim = gst_tensor_get_dimension_string (_info->dimension);
+
+      g_string_append_printf (gstr, "{\"%s\", %s, %s}%s",
+          name ? name : "", type, dim,
+          (i == info->num_tensors - 1) ? "" : ", ");
+
+      g_free (dim);
+    }
+
+    g_string_append_printf (gstr, "]");
   }
-
-  for (i = 0; i < limit; i++) {
-    const gchar *name;
-    const gchar *type;
-    gchar *dim;
-
-    _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info, i);
-    name = _info->name;
-    type = gst_tensor_get_type_string (_info->type);
-    dim = gst_tensor_get_dimension_string (_info->dimension);
-
-    g_string_append_printf (gstr, "{\"%s\", %s, %s}%s",
-        name ? name : "", type, dim, (i == info->num_tensors - 1) ? "" : ", ");
-
-    g_free (dim);
-  }
-
-  g_string_append_printf (gstr, "]");
 
   return g_string_free (gstr, FALSE);
 }
