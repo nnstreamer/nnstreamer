@@ -23,6 +23,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <nnstreamer_cppplugin_api_filter.hh>
+#include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_util.h>
 
