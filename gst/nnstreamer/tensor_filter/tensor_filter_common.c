@@ -1024,6 +1024,14 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
       g_param_spec_string ("config-file", "Configuration-file",
           "Path to configuration file which contains plugins properties", "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_SUSPEND,
+      g_param_spec_uint ("suspend",
+          "Timeout for unloading the framework",
+          "Unload the framework if there is no new data within the timeout (ms). "
+          "When the data arrives, load the framework and run the timer again. "
+          "The state of the pipeline does not change. "
+          "Default 0 means no suspend.", 0, G_MAXUINT32, 0,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 }
 
 /**
@@ -1936,6 +1944,18 @@ _gtfc_setprop_PROP_INVOKE_DYNAMIC (GstTensorFilterPrivate * priv,
 }
 
 /**
+ * @brief Handle "PROP_SUSPEND" for set-property
+ */
+static gint
+_gtfc_setprop_SUSPEND (GstTensorFilterPrivate * priv,
+    const GValue * value)
+{
+  priv->prop.suspend = g_value_get_uint (value);
+
+  return 0;
+}
+
+/**
  * @brief Set the properties for tensor_filter
  * @param[in] priv Struct containing the properties of the object
  * @param[in] prop_id Id for the property
@@ -2020,6 +2040,9 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
       break;
     case PROP_INVOKE_DYNAMIC:
       status = _gtfc_setprop_PROP_INVOKE_DYNAMIC (priv, value);
+      break;
+    case PROP_SUSPEND:
+      status = _gtfc_setprop_SUSPEND (priv, value);
       break;
     default:
       return FALSE;
@@ -2228,6 +2251,9 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
       break;
     case PROP_INVOKE_DYNAMIC:
       g_value_set_boolean (value, prop->invoke_dynamic);
+      break;
+    case PROP_SUSPEND:
+      g_value_set_uint (value, prop->suspend);
       break;
     default:
       /* unknown property */
@@ -2468,6 +2494,7 @@ gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv)
 
   if (!priv->prop.fw_opened && priv->fw) {
     gint64 start_time, end_time;
+
     start_time = g_get_monotonic_time ();
     if (priv->fw->open) {
       /* at least one model should be configured before opening fw */
@@ -2512,23 +2539,33 @@ gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv)
 }
 
 /**
- * @brief Close NN framework.
+ * @brief Unload NN framework.
  */
 void
-gst_tensor_filter_common_close_fw (GstTensorFilterPrivate * priv)
+gst_tensor_filter_common_unload_fw (GstTensorFilterPrivate * priv)
 {
   if (priv->prop.fw_opened) {
     if (priv->fw && priv->fw->close) {
       priv->fw->close (&priv->prop, &priv->privateData);
     }
-    priv->prop.input_configured = priv->prop.output_configured = FALSE;
     priv->prop.fw_opened = FALSE;
-    g_free_const (priv->prop.fwname);
-    priv->prop.fwname = NULL;
-    priv->fw = NULL;
     priv->privateData = NULL;
-    priv->configured = FALSE;
   }
+}
+
+/**
+ * @brief Close NN framework.
+ */
+void
+gst_tensor_filter_common_close_fw (GstTensorFilterPrivate * priv)
+{
+  gst_tensor_filter_common_unload_fw (priv);
+
+  priv->prop.input_configured = priv->prop.output_configured = FALSE;
+  g_free_const (priv->prop.fwname);
+  priv->prop.fwname = NULL;
+  priv->fw = NULL;
+  priv->configured = FALSE;
 }
 
 /**
