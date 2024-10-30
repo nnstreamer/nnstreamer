@@ -106,7 +106,8 @@ enum
   PROP_SHARED_TENSOR_FILTER_KEY,
   PROP_LATENCY_REPORT,
   PROP_INVOKE_DYNAMIC,
-  PROP_CONFIG
+  PROP_CONFIG,
+  PROP_SUSPEND
 };
 
 /**
@@ -169,6 +170,10 @@ typedef struct _GstTensorFilterPrivate
   gint64 latency_reported; /**< latency value reported (ns) in last LATENCY query */
 
   GstTensorFilterCombination combi;
+  GMainContext *main_context;
+  GMainLoop *main_loop;
+  GThread *thread;
+  GSource *source;
 } GstTensorFilterPrivate;
 
 /**
@@ -272,6 +277,11 @@ gst_tensor_filter_load_tensor_info (GstTensorFilterPrivate * priv);
  * @brief Open NN framework.
  */
 extern void gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv);
+
+/**
+ * @brief Unload NN framework.
+ */
+extern void gst_tensor_filter_common_unload_fw (GstTensorFilterPrivate * priv);
 
 /**
  * @brief Close NN framework.

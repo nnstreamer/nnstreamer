@@ -10,6 +10,7 @@
  */
 #include <gtest/gtest.h>
 #include <glib.h>
+#include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
 
 #include <nnstreamer_util.h>
@@ -362,6 +363,50 @@ TEST (nnstreamerFilterTensorFlow2Lite, manyInOutModel)
   EXPECT_EQ (10U, data_received);
 
   gst_object_unref (sink_handle);
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+  g_free (model_file);
+}
+
+/**
+ * @brief Test for suspend mode.
+ */
+TEST (nnstreamerFilterTensorFlow2Lite, suspend)
+{
+  gchar *pipeline;
+  GstElement *gstpipe;
+  GError *err = NULL;
+  gchar *model_file;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 0));
+
+  /* create a nnstreamer pipeline */
+  pipeline = g_strdup_printf ("appsrc name=srcx ! application/octet-stream ! tensor_converter input-dim=3:224:224 input-type=uint8 ! tensor_filter suspend=2000 framework=tensorflow2-lite model=\"%s\" ! tensor_sink name=sink async=false",
+      model_file);
+
+  gstpipe = gst_parse_launch (pipeline, &err);
+  ASSERT_TRUE (gstpipe != nullptr);
+
+  GstElement *src_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "srcx");
+  ASSERT_TRUE (src_handle != nullptr);
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  GstBuffer *buf = gst_buffer_new ();
+  GstMemory *mem = gst_allocator_alloc (NULL, 3 * 224 * 224, NULL);
+  gst_buffer_append_memory (buf, mem);
+
+  buf = gst_buffer_ref (buf);
+  EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (src_handle), buf), GST_FLOW_OK);
+
+  /** Wait for unloading the framework. */
+  g_usleep (5000000);
+
+  EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (src_handle), buf), GST_FLOW_OK);
+  g_usleep (1000000);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  gst_object_unref (src_handle);
   gst_object_unref (gstpipe);
   g_free (pipeline);
   g_free (model_file);
