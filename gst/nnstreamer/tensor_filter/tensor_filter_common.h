@@ -30,6 +30,7 @@
 #include <nnstreamer_subplugin.h>
 #include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_plugin_api_filter.h>
+#include "nnstreamer_watchdog.h"
 
 G_BEGIN_DECLS
 
@@ -170,10 +171,7 @@ typedef struct _GstTensorFilterPrivate
   gint64 latency_reported; /**< latency value reported (ns) in last LATENCY query */
 
   GstTensorFilterCombination combi;
-  GMainContext *main_context;
-  GMainLoop *main_loop;
-  GThread *thread;
-  GSource *source;
+  nns_watchdog_h watchdog_h; /**< Watchdog to monitor occasional inputs */;
 } GstTensorFilterPrivate;
 
 /**
