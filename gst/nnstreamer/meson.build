@@ -44,7 +44,8 @@ nnstreamer_single_sources = [
   'nnstreamer_conf.c',
   'nnstreamer_log.c',
   'nnstreamer_subplugin.c',
-  'nnstreamer_plugin_api_util_impl.c'
+  'nnstreamer_plugin_api_util_impl.c',
+  'nnstreamer_watchdog.c'
 ]
 
 if ml_agent_support_is_available

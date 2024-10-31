@@ -254,6 +254,13 @@ gst_tensor_filter_finalize (GObject * object)
   self = GST_TENSOR_FILTER (object);
   priv = &self->priv;
 
+  if (priv->prop.suspend != 0) {
+    GST_OBJECT_LOCK (self);
+    nnstreamer_watchdog_destroy (priv->watchdog_h);
+    priv->watchdog_h = NULL;
+    GST_OBJECT_UNLOCK (self);
+  }
+
   gst_tensor_filter_common_close_fw (priv);
   gst_tensor_filter_common_free_property (priv);
 
@@ -1069,49 +1076,18 @@ _gst_tensor_filter_transform_update_outbuf (GstBaseTransform * trans,
   }
 }
 
-/*
- * Called when there is no input within suspend time specified by the user.
+/**
+ * @brief Called when there is no input within suspend time specified by the user.
  */
 static gboolean
 gst_tensor_filter_watchdog_trigger (gpointer ptr)
 {
-  GstTensorFilter *self = (GstTensorFilter *) ptr;
-  GstTensorFilterPrivate *priv = &self->priv;
+  GstTensorFilterPrivate *priv = (GstTensorFilterPrivate *) ptr;
 
   ml_logd  ("Suspend watchdog triggered. Unload the NN framework.");
   gst_tensor_filter_common_unload_fw (priv);
 
   return FALSE;
-}
-
-/*
- * Release watchdog source. Call with OBJECT_LOCK.
- */
-static void
-gst_tensor_filter_watchdog_release (GstTensorFilter *self)
-{
-  GstTensorFilterPrivate *priv = &self->priv;
-  if (priv->source) {
-    g_source_destroy (priv->source);
-    g_source_unref (priv->source);
-    priv->source = NULL;
-  }
-}
-
-/*
- * Set watchdog timeout. Call with OBJECT_LOCK.
- */
-static void
-gst_tensor_filter_watchdog_feed (GstTensorFilter *self)
-{
-  GstTensorFilterPrivate *priv = &self->priv;
-
-  if (priv->main_context) {
-    priv->source = g_timeout_source_new (priv->prop.suspend);
-    g_source_set_callback (priv->source, gst_tensor_filter_watchdog_trigger,
-        self, NULL);
-    g_source_attach (priv->source, priv->main_context);
-  }
 }
 
 /**
@@ -1133,7 +1109,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
   /** Reset suspend timeout */
   if (priv->prop.suspend != 0) {
     GST_OBJECT_LOCK (self);
-    gst_tensor_filter_watchdog_release (self);
+    nnstreamer_watchdog_release (priv->watchdog_h);
     GST_OBJECT_UNLOCK (self);
     gst_tensor_filter_common_open_fw (priv);
   }
@@ -1207,7 +1183,10 @@ done:
   /** Set suspend timeout */
   if (retval == GST_FLOW_OK && priv->prop.suspend != 0) {
     GST_OBJECT_LOCK (self);
-    gst_tensor_filter_watchdog_feed (self);
+    if (!nnstreamer_watchdog_feed (priv->watchdog_h,
+        gst_tensor_filter_watchdog_trigger, priv->prop.suspend, priv)) {
+      ml_logw ("Failed to feed watchdog. Suspend mode is not working.");
+    }
     GST_OBJECT_UNLOCK (self);
   }
 
@@ -1814,17 +1793,6 @@ gst_tensor_filter_src_event (GstBaseTransform * trans, GstEvent * event)
   return GST_BASE_TRANSFORM_CLASS (parent_class)->src_event (trans, event);
 }
 
-static gpointer
-_gst_tensor_filter_watchdog_thread (gpointer user_data)
-{
-  GstTensorFilter *self = (GstTensorFilter *) user_data;
-  GstTensorFilterPrivate *priv = &self->priv;
-
-  g_main_loop_run (priv->main_loop);
-
-  return NULL;
-}
-
 /**
  * @brief Called when the element starts processing. optional vmethod of BaseTransform
  * @param trans "this" pointer
@@ -1844,10 +1812,15 @@ gst_tensor_filter_start (GstBaseTransform * trans)
 
   if (priv->prop.suspend != 0) {
     GST_OBJECT_LOCK (self);
-    priv->main_context = g_main_context_new ();
-    priv->main_loop = g_main_loop_new (priv->main_context, FALSE);
-    priv->thread = g_thread_new ("suspend_watchdog", _gst_tensor_filter_watchdog_thread, self);
-    gst_tensor_filter_watchdog_feed (self);
+    if (!nnstreamer_watchdog_create (&priv->watchdog_h)) {
+      ml_logw ("Failed to create watchdog. Suspend mode is not working.");
+      GST_OBJECT_UNLOCK (self);
+      return priv->prop.fw_opened;
+    }
+    if (!nnstreamer_watchdog_feed (priv->watchdog_h,
+        gst_tensor_filter_watchdog_trigger, priv->prop.suspend, priv)) {
+      ml_logw ("Failed to feed watchdog. Suspend mode is not working.");
+    }
     GST_OBJECT_UNLOCK (self);
   }
 
@@ -1869,17 +1842,8 @@ gst_tensor_filter_stop (GstBaseTransform * trans)
 
   if (priv->prop.suspend != 0) {
     GST_OBJECT_LOCK (self);
-    gst_tensor_filter_watchdog_release (self);
-
-    g_main_loop_quit (priv->main_loop);
-    g_thread_join (priv->thread);
-    priv->thread = NULL;
-
-    g_main_loop_unref (priv->main_loop);
-    priv->main_loop = NULL;
-
-    g_main_context_unref (priv->main_context);
-    priv->main_context = NULL;
+    nnstreamer_watchdog_destroy (priv->watchdog_h);
+    priv->watchdog_h = NULL;
     GST_OBJECT_UNLOCK (self);
   }
   gst_tensor_filter_common_close_fw (priv);
