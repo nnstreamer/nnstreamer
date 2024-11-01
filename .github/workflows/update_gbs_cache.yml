@@ -14,13 +14,13 @@ jobs:
       matrix:
         include:
           - gbs_build_arch: "x86_64"
-            gbs_build_option: "--define \"unit_test 1\""
+            gbs_build_option: "--define \"unit_test 1\" --define \"testcoverage 1\""
           - gbs_build_arch: "i586"
             gbs_build_option: "--define \"unit_test 1\""
           - gbs_build_arch: "armv7l"
-            gbs_build_option: "--define \"unit_test 0\""
+            gbs_build_option: "--define \"unit_test 1\""
           - gbs_build_arch: "aarch64"
-            gbs_build_option: "--define \"unit_test 0\""
+            gbs_build_option: "--define \"unit_test 1\""
 
     runs-on: ubuntu-22.04
 
@@ -43,7 +43,7 @@ jobs:
         echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
 
     - name: build and tests on GBS
-      run: gbs build --define "unit_test 1" --define "_skip_debug_rpm 1" -A ${{ matrix.gbs_build_arch }}
+      run: gbs build ${{ matrix.gbs_build_option }} --define "_skip_debug_rpm 1" -A ${{ matrix.gbs_build_arch }}
 
     - name: save gbs cache
       uses: actions/cache/save@v4
@@ -52,14 +52,30 @@ jobs:
         path: ~/GBS-ROOT/local/cache
         key: gbs-cache-${{ matrix.gbs_build_arch }}-${{ steps.get-date.outputs.date }}
 
-    - name: Release daily build result
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_S3_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_S3_SECRET_ACCESS_KEY }}
-        AWS_EC2_METADATA_DISABLED: true
+    - if: matrix.gbs_build_arch == 'x86_64'
+      name: extract test coverage result
       run: |
-        aws s3 cp --recursive --region ap-northeast-2 ~/GBS-ROOT/local/repos/tizen/${{ matrix.gbs_build_arch }}/RPMS/ s3://nnstreamer-release/nnstreamer/${{ steps.get-date.outputs.date }}/RPMS/
-        aws s3 cp --recursive --region ap-northeast-2 ~/GBS-ROOT/local/repos/tizen/${{ matrix.gbs_build_arch }}/RPMS/ s3://nnstreamer-release/nnstreamer/latest/RPMS/
+        pip install pybadges beautifulsoup4 setuptools
+        mkdir -p ~/testresult/
+        pushd ~/testresult/
+        cp ~/GBS-ROOT/local/repos/tizen/x86_64/RPMS/*-coverage*.rpm .
+        rpm2cpio *-coverage*.rpm | cpio -idv
+        popd
+        python3 .github/workflows/gen_coverage_badge.py ~/testresult/usr/share/nnstreamer/unittest/result/index.html ~/testresult/usr/share/nnstreamer/unittest/result/coverage_badge.svg
+
+    - if: matrix.gbs_build_arch == 'x86_64'
+      name: Update github.io
+      run: |
+        git clone https://${{ secrets.TAOS_ACCOUNT }}:${{ secrets.TAOS_ACCOUNT_TOKEN }}@github.com/nnstreamer/nnstreamer.github.io.git
+        pushd nnstreamer.github.io
+        mkdir -p testresult
+        cp -r ~/testresult/usr/share/nnstreamer/unittest/result/* testresult
+        git config user.email "nnsuite@samsung.com"
+        git config user.name "nnsuite"
+        git add *
+        git commit -s -m "${{ steps.get-date.outputs.date }} : Update unit test result."
+        git push origin main -f
+        popd
 
     - name: Get nntrainer
       uses: actions/checkout@v4
