@@ -112,6 +112,16 @@ if gtest_dep.found()
 
     test('unittest_plugins', unittest_plugins, env: testenv)
 
+    # Run unittest_watchdog
+    unittest_watchdog = executable('unittest_watchdog',
+      join_paths('nnstreamer_watchdog', 'unittest_watchdog.cc'),
+      dependencies: [nnstreamer_unittest_deps],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+
+    test('unittest_watchdog', unittest_watchdog, env: testenv)
+
     # Run unittest_if
     unittest_if = executable('unittest_if',
       join_paths('nnstreamer_if', 'unittest_if.cc'),
