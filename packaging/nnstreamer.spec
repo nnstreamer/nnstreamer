@@ -932,8 +932,10 @@ CXXFLAGS=`echo $CXXFLAGS | sed -e "s|-std=gnu++11||"`
 # To test coverage, disable optimizations (and should unset _FORTIFY_SOURCE to use -O0)
 CFLAGS=`echo $CFLAGS | sed -e "s|-O[1-9]|-O0|g"`
 CFLAGS=`echo $CFLAGS | sed -e "s|-Wp,-D_FORTIFY_SOURCE=[1-9]||g"`
+export CFLAGS+=" -fprofile-update=atomic"
 CXXFLAGS=`echo $CXXFLAGS | sed -e "s|-O[1-9]|-O0|g"`
 CXXFLAGS=`echo $CXXFLAGS | sed -e "s|-Wp,-D_FORTIFY_SOURCE=[1-9]||g"`
+export CXXFLAGS+=" -fprofile-update=atomic"
 # also, use the meson's base option, -Db_coverage, instead of --coverage/-fprofile-arcs and -ftest-coverage
 %define enable_test_coverage -Db_coverage=true
 %else
