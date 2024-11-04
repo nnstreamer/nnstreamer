@@ -44,7 +44,7 @@
 #endif
 
 #if TFLITE_VERSION_MAJOR >= 2 || TFLITE_VERSION_MINOR >= 13
-#if USE_TENSORFLOW2_HEADER_PATH
+#ifdef USE_TENSORFLOW2_HEADER_PATH
 #include <tensorflow2/lite/kernels/register.h>
 #include <tensorflow2/lite/model.h>
 #else
@@ -58,7 +58,7 @@
 
 /** control delegate headers */
 #ifdef TFLITE_XNNPACK_DELEGATE_SUPPORTED
-#if USE_TENSORFLOW2_HEADER_PATH
+#ifdef USE_TENSORFLOW2_HEADER_PATH
 #include <tensorflow2/lite/delegates/xnnpack/xnnpack_delegate.h>
 #else
 #include <tensorflow/lite/delegates/xnnpack/xnnpack_delegate.h>
@@ -66,7 +66,7 @@
 #endif
 
 #ifdef TFLITE_GPU_DELEGATE_SUPPORTED
-#if USE_TENSORFLOW2_HEADER_PATH
+#ifdef USE_TENSORFLOW2_HEADER_PATH
 #include <tensorflow2/lite/delegates/gpu/delegate.h>
 #else
 #include <tensorflow/lite/delegates/gpu/delegate.h>
@@ -74,7 +74,7 @@
 #endif
 
 #ifdef TFLITE_NNAPI_DELEGATE_SUPPORTED
-#if USE_TENSORFLOW2_HEADER_PATH
+#ifdef USE_TENSORFLOW2_HEADER_PATH
 #include <tensorflow2/lite/delegates/nnapi/nnapi_delegate.h>
 #else
 #include <tensorflow/lite/delegates/nnapi/nnapi_delegate.h>
@@ -82,7 +82,7 @@
 #endif
 
 #ifdef TFLITE_EXTERNAL_DELEGATE_SUPPORTED
-#if USE_TENSORFLOW2_HEADER_PATH
+#ifdef USE_TENSORFLOW2_HEADER_PATH
 #include <tensorflow2/lite/delegates/external/external_delegate.h>
 #else
 #include <tensorflow/lite/delegates/external/external_delegate.h>
@@ -483,7 +483,7 @@ TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate_e)
   switch (delegate_e) {
     case TFLITE_DELEGATE_XNNPACK:
       {
-#if TFLITE_XNNPACK_DELEGATE_SUPPORTED
+#ifdef TFLITE_XNNPACK_DELEGATE_SUPPORTED
         /* set xnnpack delegate */
         TfLiteXNNPackDelegateOptions xnnpack_options
             = TfLiteXNNPackDelegateOptionsDefault ();

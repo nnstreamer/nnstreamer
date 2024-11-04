@@ -6767,8 +6767,7 @@ TEST_REQUIRE_TFLITE (testTensorFilter, flexToFlex)
   gst_harness_teardown (h);
 }
 
-
-#if ENABLE_PROTOBUF && ENABLE_FLATBUF
+#if defined(ENABLE_PROTOBUF) && defined(ENABLE_FLATBUF)
 /**
  * @brief Test for flatbuf, flexbuf and protobuf (tensors -> serialized buf -> tensors)
  */
