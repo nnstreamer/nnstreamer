@@ -59,6 +59,7 @@ if gtest_dep.found()
     gtest_compile_args += '-Wno-maybe-uninitialized'
   endif
 
+  gtest_compile_args = cxx.get_supported_arguments(gtest_compile_args)
   lesser_code_quality_accepted_for_unittest_code = declare_dependency(compile_args: gtest_compile_args)
 
   nnstreamer_unittest_deps = [

@@ -356,11 +356,12 @@ if pytorch_support_is_available
   endif
 
   filter_sub_torch_sources = ['tensor_filter_pytorch.cc']
-  # pytorch sources contain unused parameters
-  ignore_unused_params = declare_dependency(compile_args: ['-Wno-unused-parameter'])
-  pytorch_support_deps += ignore_unused_params
 
-    nnstreamer_filter_torch_deps = [pytorch_support_deps, nnstreamer_single_dep]
+  nnstreamer_filter_torch_deps = [pytorch_support_deps, nnstreamer_single_dep]
+  if cxx.has_argument('-Wno-unused-parameter')
+    # pytorch sources contain unused parameters
+    nnstreamer_filter_torch_deps += declare_dependency(compile_args: ['-Wno-unused-parameter'])
+  endif
 
   shared_library('nnstreamer_filter_pytorch',
     filter_sub_torch_sources,
@@ -649,7 +650,10 @@ if snpe_support_is_available
     filter_sub_snpe_sources = ['tensor_filter_snpe_v1.cc']
   endif
 
-  nnstreamer_filter_snpe_deps = [glib_dep, nnstreamer_single_dep, snpe_support_deps, declare_dependency(compile_args: ['-Wno-deprecated-declarations'])]
+  nnstreamer_filter_snpe_deps = [glib_dep, nnstreamer_single_dep, snpe_support_deps]
+  if cxx.has_argument('-Wno-deprecated-declarations')
+    nnstreamer_filter_snpe_deps += declare_dependency(compile_args: ['-Wno-deprecated-declarations'])
+  endif
 
   shared_library('nnstreamer_filter_snpe',
     filter_sub_snpe_sources,
@@ -669,8 +673,10 @@ endif
 if qnn_support_is_available
   filter_sub_qnn_sources = ['tensor_filter_qnn.cc']
 
-  qnn_support_deps += declare_dependency(compile_args: ['-Wno-missing-braces'])
   nnstreamer_filter_qnn_deps = [glib_dep, nnstreamer_single_dep, qnn_support_deps]
+  if cxx.has_argument('-Wno-missing-braces')
+    nnstreamer_filter_qnn_deps += declare_dependency(compile_args: ['-Wno-missing-braces'])
+  endif
 
   shared_library('nnstreamer_filter_qnn',
     filter_sub_qnn_sources,
@@ -804,13 +810,15 @@ if mxnet_support_is_available
   ]
 
   nnstreamer_filter_mxnet_deps = [mxnet_support_deps, glib_dep, nnstreamer_single_dep, libdl_dep]
+  if cxx.has_argument('-Wno-non-virtual-dtor')
+    nnstreamer_filter_mxnet_deps += declare_dependency(compile_args: ['-Wno-non-virtual-dtor'])
+  endif
 
   nnstreamer_filter_mxnet_so_lib = shared_library('nnstreamer_filter_mxnet',
     filter_sub_mxnet_sources,
     dependencies: nnstreamer_filter_mxnet_deps,
     install: true,
-    install_dir: filter_subplugin_install_dir,
-    cpp_args: ['-Wno-non-virtual-dtor']
+    install_dir: filter_subplugin_install_dir
   )
 
   nnstreamer_filter_mxnet_dep = declare_dependency(
