@@ -1097,6 +1097,7 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
   GstBaseSrc *basesrc;
   GstMqttSrc *self;
   GstClock *clock;
+  GstCaps *recv_caps;
   gsize offset;
   guint i;
   UNUSED (topic_name);
@@ -1135,18 +1136,14 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
     goto ret_unref_received_mem;
   }
 
-  if (!self->caps) {
-    self->caps = gst_caps_from_string (mqtt_msg_hdr->gst_caps_str);
-    gst_mqtt_src_renegotiate (basesrc);
-  } else {
-    GstCaps *recv_caps = gst_caps_from_string (mqtt_msg_hdr->gst_caps_str);
-
-    if (recv_caps && !gst_caps_is_equal (self->caps, recv_caps)) {
+  recv_caps = gst_caps_from_string (mqtt_msg_hdr->gst_caps_str);
+  if (recv_caps) {
+    if (!self->caps || !gst_caps_is_equal (self->caps, recv_caps)) {
       gst_caps_replace (&self->caps, recv_caps);
       gst_mqtt_src_renegotiate (basesrc);
-    } else {
-      gst_caps_replace (&recv_caps, NULL);
     }
+
+    gst_caps_unref (recv_caps);
   }
 
   buffer = gst_buffer_new ();
