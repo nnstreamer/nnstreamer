@@ -1,9 +1,9 @@
 # NNStreamer <img align="right" src="Documentation/media/lfaidata-project-badge-incubation-black.svg" width="150"/>
 
 [![Gitter][gitter-image]][gitter-url]
-[![DailyBuild](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/badge/daily_build_badge.svg)](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/build_result/)
+[![DailyBuild](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/badge/daily_build_badge.svg)](https://release.nnstreamer.com/#nnstreamer/latest/)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4401/badge)](https://bestpractices.coreinfrastructure.org/projects/4401)
-[![Code Coverage](http://ci.nnstreamer.ai/nnstreamer/ci/badge/codecoverage.svg)](http://ci.nnstreamer.ai/nnstreamer/ci/gcov_html/index.html)
+[![Code Coverage](https://nnstreamer.github.io/testresult/coverage_badge.svg)](https://nnstreamer.github.io/testresult/)
 <a href="https://scan.coverity.com/projects/nnstreamer-nnstreamer">
 <img alt="Coverity Scan Defect Status" src="https://scan.coverity.com/projects/22501/badge.svg"/>
 </a>
@@ -40,7 +40,7 @@ neural network developers to manage neural network pipelines and their filters e
 
 - Ready: CI system ensures build-ability and unit-testing. Users may easily build and execute. However, we do not have automated release & deployment system for this instance.
 - Available: binary packages are released and deployed automatically and periodically along with CI tests.
-- [Daily Release](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/build_result/latest/)
+- [Daily Release](https://release.nnstreamer.com/#nnstreamer/latest/)
 - SDK Support: Tizen Studio (5.5 M2+) / Android Studio (JCenter, "nnstreamer")
 - [Enabled features of official releases](Documentation/features-per-distro.md)
 
