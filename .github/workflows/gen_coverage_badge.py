@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-
 ##
+# SPDX-License-Identifier: LGPL-2.1-only
 # Copyright (C) 2024 Samsung Electronics
-# License: Apache-2.0
 #
 # @file gen_github_badge_svg.py
 # @brief A tool for generating a github badge image in svg format
