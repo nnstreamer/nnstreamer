@@ -31,7 +31,7 @@ TEST (edgeSink, properties0)
   gchar *str_val;
 
   /* Create a nnstreamer pipeline */
-  pipeline = g_strdup_printf ("gst-launch-1.0 videotestsrc ! videoconvert ! videoscale ! "
+  pipeline = g_strdup_printf ("videotestsrc ! videoconvert ! videoscale ! "
                               "video/x-raw,width=320,height=240,format=RGB,framerate=10/1 ! "
                               "tensor_converter ! edgesink name=sinkx port=0");
   gstpipe = gst_parse_launch (pipeline, NULL);
@@ -83,7 +83,7 @@ TEST (edgeSink, properties2_n)
 
   /* Create a nnstreamer pipeline */
   pipeline = g_strdup_printf (
-      "gst-launch-1.0 videotestsrc ! videoconvert ! videoscale ! "
+      "videotestsrc ! videoconvert ! videoscale ! "
       "video/x-raw,width=320,height=240,format=RGB,framerate=10/1 ! "
       "tensor_converter ! edgesink host=f.a.i.l name=sinkx port=0");
   gstpipe = gst_parse_launch (pipeline, NULL);
@@ -108,7 +108,7 @@ TEST (edgeSrc, properties0)
   gchar *str_val;
 
   /* Create a nnstreamer pipeline */
-  pipeline = g_strdup_printf ("gst-launch-1.0 edgesrc name=srcx ! "
+  pipeline = g_strdup_printf ("edgesrc name=srcx ! "
                               "other/tensors,num_tensors=1,dimensions=3:320:240:1,types=uint8,format=static,framerate=30/1 ! "
                               "tensor_sink");
   gstpipe = gst_parse_launch (pipeline, NULL);
@@ -150,7 +150,7 @@ TEST (edgeSrc, properties2_n)
   GstElement *gstpipe;
 
   /* Create a nnstreamer pipeline */
-  pipeline = g_strdup_printf ("gst-launch-1.0 edgesrc host=f.a.i.l port=0 name=srcx ! "
+  pipeline = g_strdup_printf ("edgesrc host=f.a.i.l port=0 name=srcx ! "
                               "other/tensors,num_tensors=1,dimensions=3:320:240:1,types=uint8,format=static,framerate=30/1 ! "
                               "tensor_sink");
   gstpipe = gst_parse_launch (pipeline, NULL);
@@ -223,7 +223,7 @@ TEST (edgeSinkSrc, runNormal)
   appsrc_handle = gst_bin_get_by_name (GST_BIN (sink_gstpipe), "appsrc");
   EXPECT_NE (appsrc_handle, nullptr);
 
-  src_pipeline = g_strdup_printf ("gst-launch-1.0 edgesrc dest-port=%u name=srcx ! "
+  src_pipeline = g_strdup_printf ("edgesrc dest-port=%u name=srcx ! "
                                   "other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! "
                                   "tensor_sink name=sinkx async=false",
       port);
@@ -279,7 +279,7 @@ TEST (edgeCustom, sinkNormal)
 
   /* Create a nnstreamer pipeline */
   pipeline = g_strdup_printf (
-      "gst-launch-1.0 videotestsrc ! videoconvert ! videoscale ! "
+      "videotestsrc ! videoconvert ! videoscale ! "
       "video/x-raw,width=320,height=240,format=RGB,framerate=10/1 ! "
       "tensor_converter ! edgesink connect-type=CUSTOM custom-lib=%s name=sinkx port=0",
       CUSTOM_LIB_PATH);
@@ -306,7 +306,7 @@ TEST (edgeCustom, sinkInvalidProp_n)
 
   /* Create a nnstreamer pipeline */
   pipeline = g_strdup_printf (
-      "gst-launch-1.0 videotestsrc ! videoconvert ! videoscale ! "
+      "videotestsrc ! videoconvert ! videoscale ! "
       "video/x-raw,width=320,height=240,format=RGB,framerate=10/1 ! "
       "tensor_converter ! edgesink connect-type=CUSTOM name=sinkx port=0");
   gstpipe = gst_parse_launch (pipeline, nullptr);
@@ -329,7 +329,7 @@ TEST (edgeCustom, sinkInvalidProp2_n)
 
   /* Create a nnstreamer pipeline */
   pipeline = g_strdup_printf (
-      "gst-launch-1.0 videotestsrc ! videoconvert ! videoscale ! "
+      "videotestsrc ! videoconvert ! videoscale ! "
       "video/x-raw,width=320,height=240,format=RGB,framerate=10/1 ! "
       "tensor_converter ! edgesink connect-type=CUSTOM custom-lib=libINVALID.so name=sinkx port=0");
   gstpipe = gst_parse_launch (pipeline, nullptr);
@@ -351,7 +351,7 @@ TEST (edgeCustom, srcNormal)
   GstElement *gstpipe = nullptr;
 
   /* Create a nnstreamer pipeline */
-  pipeline = g_strdup_printf ("gst-launch-1.0 edgesrc connect-type=CUSTOM custom-lib=%s name=srcx ! "
+  pipeline = g_strdup_printf ("edgesrc connect-type=CUSTOM custom-lib=%s name=srcx ! "
                               "other/tensors,num_tensors=1,dimensions=3:320:240:1,types=uint8,format=static,framerate=30/1 ! "
                               "tensor_sink",
       CUSTOM_LIB_PATH);
@@ -377,7 +377,7 @@ TEST (edgeCustom, srcInvalidProp_n)
   GstElement *gstpipe = nullptr;
 
   /* Create a nnstreamer pipeline */
-  pipeline = g_strdup_printf ("gst-launch-1.0 edgesrc connect-type=CUSTOM name=srcx ! "
+  pipeline = g_strdup_printf ("edgesrc connect-type=CUSTOM name=srcx ! "
                               "other/tensors,num_tensors=1,dimensions=3:320:240:1,types=uint8,format=static,framerate=30/1 ! "
                               "tensor_sink");
   gstpipe = gst_parse_launch (pipeline, nullptr);
@@ -400,7 +400,7 @@ TEST (edgeCustom, srcInvalidProp2_n)
 
   /* Create a nnstreamer pipeline */
   pipeline = g_strdup_printf (
-      "gst-launch-1.0 edgesrc connect-type=CUSTOM custom-lib=libINVALID.so name=srcx ! "
+      "edgesrc connect-type=CUSTOM custom-lib=libINVALID.so name=srcx ! "
       "other/tensors,num_tensors=1,dimensions=3:320:240:1,types=uint8,format=static,framerate=30/1 ! "
       "tensor_sink");
   gstpipe = gst_parse_launch (pipeline, nullptr);

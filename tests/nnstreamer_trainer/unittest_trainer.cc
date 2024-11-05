@@ -70,7 +70,7 @@ TEST (tensor_trainer, SetParams)
   model_config_path = get_file_path (model_config);
 
   gchar *str_pipeline = g_strdup_printf (
-      "gst-launch-1.0 datareposrc location=%s json=%s "
+      "datareposrc location=%s json=%s "
       "start-sample-index=3 stop-sample-index=202 tensors-sequence=0,1 epochs=1 ! "
       "tensor_trainer name=tensor_trainer framework=nntrainer model-config=%s "
       "model-save-path=new_model.bin model-load-path=old_model.bin num-inputs=1 num-labels=1 "
@@ -145,7 +145,7 @@ TEST (tensor_trainer, invalidFramework0_n)
   model_config_path = get_file_path (model_config);
 
   gchar *str_pipeline = g_strdup_printf (
-      "gst-launch-1.0 datareposrc location=%s json=%s "
+      "datareposrc location=%s json=%s "
       "start-sample-index=3 stop-sample-index=202 tensors-sequence=0,1 epochs=5 ! "
       "tensor_trainer name=tensor_trainer model-config=%s "
       "model-save-path=model.bin num-inputs=1 num-labels=1 "
@@ -188,7 +188,7 @@ TEST (tensor_trainer, invalidFramework1_n)
   model_config_path = get_file_path (model_config);
 
   gchar *str_pipeline = g_strdup_printf (
-      "gst-launch-1.0 datareposrc location=%s json=%s "
+      "datareposrc location=%s json=%s "
       "start-sample-index=3 stop-sample-index=202 tensors-sequence=0,1 epochs=5 ! "
       "tensor_trainer name=tensor_trainer model-config=%s "
       "model-save-path=model.bin num-inputs=1 num-labels=1 "
@@ -229,7 +229,7 @@ TEST (tensor_trainer, invalidModelConfig0_n)
   json_path = get_file_path (json);
 
   gchar *str_pipeline = g_strdup_printf (
-      "gst-launch-1.0 datareposrc location=%s json=%s"
+      "datareposrc location=%s json=%s"
       "start-sample-index=3 stop-sample-index=202 tensors-sequence=0,1 epochs=5 ! "
       "tensor_trainer name=tensor_trainer framework=nntrainer"
       "model-save-path=model.bin num-inputs=1 num-labels=1 "
@@ -270,7 +270,7 @@ TEST (tensor_trainer, invalidModelConfig1_n)
   non_existent_path = get_file_path ("non_existent_file.ini");
 
   gchar *str_pipeline = g_strdup_printf (
-      "gst-launch-1.0 datareposrc location=%s json=%s"
+      "datareposrc location=%s json=%s"
       "start-sample-index=3 stop-sample-index=202 tensors-sequence=0,1 epochs=5 ! "
       "tensor_trainer name=tensor_trainer framework=nntrainer"
       "model-save-path=model.bin num-inputs=1 num-labels=1 "
@@ -312,7 +312,7 @@ TEST (tensor_trainer, invalidModelSavePath0_n)
   model_config_path = get_file_path (model_config);
 
   gchar *str_pipeline = g_strdup_printf (
-      "gst-launch-1.0 datareposrc location=%s json=%s "
+      "datareposrc location=%s json=%s "
       "start-sample-index=3 stop-sample-index=202 tensors-sequence=0,1 epochs=5 ! "
       "tensor_trainer name=tensor_trainer framework=nntrainer model-config=%s "
       "num-inputs=1 num-labels=1 num-training-samples=100 num-validation-samples=100 "
@@ -356,7 +356,7 @@ TEST (tensor_trainer, invalidModelNumTrainingSamples0_n)
   model_config_path = get_file_path (model_config);
 
   gchar *str_pipeline = g_strdup_printf (
-      "gst-launch-1.0 datareposrc location=%s json=%s "
+      "datareposrc location=%s json=%s "
       "start-sample-index=3 stop-sample-index=202 tensors-sequence=0,1 epochs=5 ! "
       "tensor_trainer name=tensor_trainer framework=nntrainer model-config=%s "
       "model-save-path=model.bin num-inputs=1 num-labels=1 "
@@ -402,7 +402,7 @@ TEST (tensor_trainer, invalidModelNumValidationSamples0_n)
   model_config_path = get_file_path (model_config);
 
   gchar *str_pipeline = g_strdup_printf (
-      "gst-launch-1.0 datareposrc location=%s json=%s "
+      "datareposrc location=%s json=%s "
       "start-sample-index=3 stop-sample-index=202 tensors-sequence=0,1 epochs=5 ! "
       "tensor_trainer name=tensor_trainer framework=nntrainer model-config=%s "
       "model-save-path=model.bin num-inputs=1 num-labels=1 "
@@ -448,7 +448,7 @@ TEST (tensor_trainer, invalidEpochs0_n)
   model_config_path = get_file_path (model_config);
 
   gchar *str_pipeline = g_strdup_printf (
-      "gst-launch-1.0 datareposrc location=%s json=%s "
+      "datareposrc location=%s json=%s "
       "start-sample-index=3 stop-sample-index=202 tensors-sequence=0,1 epochs=5 ! "
       "tensor_trainer name=tensor_trainer framework=nntrainer model-config=%s "
       "model-save-path=model.bin num-inputs=1 num-labels=1 "
@@ -494,7 +494,7 @@ TEST (tensor_trainer, invalidNumInputs0_n)
   model_config_path = get_file_path (model_config);
 
   gchar *str_pipeline = g_strdup_printf (
-      "gst-launch-1.0 datareposrc location=%s json=%s "
+      "datareposrc location=%s json=%s "
       "start-sample-index=3 stop-sample-index=202 tensors-sequence=0,1 epochs=5 ! "
       "tensor_trainer name=tensor_trainer framework=nntrainer model-config=%s "
       "model-save-path=model.bin num-labels=1 num-training-samples=100 "
@@ -540,7 +540,7 @@ TEST (tensor_trainer, invalidNumLabels0_n)
   model_config_path = get_file_path (model_config);
 
   gchar *str_pipeline = g_strdup_printf (
-      "gst-launch-1.0 datareposrc location=%s json=%s "
+      "datareposrc location=%s json=%s "
       "start-sample-index=3 stop-sample-index=202 tensors-sequence=0,1 epochs=5 ! "
       "tensor_trainer name=tensor_trainer framework=nntrainer model-config=%s"
       "model-save-path=model.bin num-inputs=1 num-validation-samples=100 epochs=5 ! "
