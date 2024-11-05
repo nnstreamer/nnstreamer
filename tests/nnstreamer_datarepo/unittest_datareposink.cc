@@ -66,7 +66,7 @@ create_image_test_file ()
 
   loop = g_main_loop_new (NULL, FALSE);
 
-  gchar *str_pipeline = g_strdup ("gst-launch-1.0 videotestsrc num-buffers=5 ! pngenc ! "
+  gchar *str_pipeline = g_strdup ("videotestsrc num-buffers=5 ! pngenc ! "
                                   "datareposink location=img_%02d.png json=img.json");
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
