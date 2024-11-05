@@ -36,6 +36,8 @@ _watchdog_trigger (gpointer ptr)
 
   if (received)
     (*received)++;
+  else
+    return FALSE;
 
   /** Trigger 10 times */
   return (*received) != 10;
