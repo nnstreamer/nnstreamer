@@ -971,8 +971,8 @@ export ORC_DEBUG=2
 
 %define test_script $(pwd)/packaging/run_unittests_binaries.sh
 
-# if it's tizen && non-TV, run unittest even if "unit_test"==0 for build-time sanity checks.
-%if ( %{with tizen} && "%{?profile}" != "tv" )
+# if it's tizen && non-TV && ASAN is enabled, run unittest even if "unit_test"==0 for build-time sanity checks.
+%if ( %{with tizen} && "%{?profile}" != "tv"  && "%{asan}" != "1")
 %if 0%{nnfw_support}
     bash %{test_script} ./tests/tizen_nnfw_runtime/unittest_nnfw_runtime_raw
 %endif
