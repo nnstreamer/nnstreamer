@@ -10,6 +10,11 @@ on:
 
 jobs:
   cache_gbs_build:
+    outputs:
+      x86_64: ${{ steps.gbs-result.outputs.x86_64 }}
+      i586: ${{ steps.gbs-result.outputs.i586 }}
+      armv7l: ${{ steps.gbs-result.outputs.armv7l }}
+      aarch64: ${{ steps.gbs-result.outputs.aarch64 }}
     strategy:
       fail-fast: false
       matrix:
@@ -44,7 +49,12 @@ jobs:
         echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
 
     - name: build and tests on GBS
+      id: gbs-build
       run: gbs build ${{ matrix.gbs_build_option }} --define "_skip_debug_rpm 1" -A ${{ matrix.gbs_build_arch }}
+
+    - name: report GBS build and test result
+      id: gbs-result
+      run: echo "${{ matrix.gbs_build_arch }}=${{ steps.gbs-build.outcome }}" >> $GITHUB_OUTPUT
 
     - name: save gbs cache
       uses: actions/cache/save@v4
@@ -61,6 +71,8 @@ jobs:
       run: |
         aws s3 cp --recursive --region ap-northeast-2 ~/GBS-ROOT/local/repos/tizen/${{ matrix.gbs_build_arch }}/RPMS/ s3://nnstreamer-release/nnstreamer/${{ steps.get-date.outputs.date }}/RPMS/
         aws s3 cp --recursive --region ap-northeast-2 ~/GBS-ROOT/local/repos/tizen/${{ matrix.gbs_build_arch }}/RPMS/ s3://nnstreamer-release/nnstreamer/latest/RPMS/
+        aws s3 cp --region ap-northeast-2 ~/GBS-ROOT/local/repos/tizen/${{ matrix.gbs_build_arch }}/logs/*/*/log.txt s3://nnstreamer-release/nnstreamer/${{ steps.get-date.outputs.date }}/logs/tizen_gbs_${{ matrix.gbs_build_arch }}_log.txt
+        aws s3 cp --region ap-northeast-2 ~/GBS-ROOT/local/repos/tizen/${{ matrix.gbs_build_arch }}/logs/*/*/log.txt s3://nnstreamer-release/nnstreamer/latest/logs/tizen_gbs_${{ matrix.gbs_build_arch }}_log.txt
 
     - if: matrix.gbs_build_arch == 'x86_64'
       name: extract test coverage result
@@ -98,3 +110,26 @@ jobs:
         pushd nntrainer
         gbs build --skip-srcrpm -A ${{ matrix.gbs_build_arch }} ${{ matrix.gbs_build_option }} --define "_skip_debug_rpm 1"
         popd
+
+  print_result:
+    runs-on: ubuntu-22.04
+    needs: [cache_gbs_build]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v1
+
+      - name: print-result
+        run: |
+          mkdir -p ~/testresult
+          pip install pybadges setuptools
+          echo '${{ toJSON( needs.cache_gbs_build.outputs) }}' > gbs_build_result.json
+          python3 .github/workflows/gen_gbs_result_badge.py gbs_build_result.json ~/testresult
+          git clone https://${{ secrets.TAOS_ACCOUNT }}:${{ secrets.TAOS_ACCOUNT_TOKEN }}@github.com/nnstreamer/nnstreamer.github.io.git
+          pushd nnstreamer.github.io
+          cp -r ~/testresult/*.svg testresult
+          git config user.email "nnsuite@samsung.com"
+          git config user.name "nnsuite"
+          git add *
+          git commit -s -m "Update unit test result badge."
+          git push origin main -f
+          popd
