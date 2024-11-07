@@ -1,0 +1,34 @@
+name: 'upload to release.nnstreamer.com'
+inputs:
+  source:
+    description: 'source path of the file or directory to be copied'
+    required: true
+  dest:
+    description: 'destination directory in release.nnstreamer.com repository'
+    required: true
+  s3_id:
+    required: true
+  s3_key:
+    required: true
+  s3_option:
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: get date
+      id: get-date
+      run: |
+        echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+      shell: bash
+
+    - name: update the result to s3
+      env:
+        AWS_ACCESS_KEY_ID: ${{ inputs.s3_id }}
+        AWS_SECRET_ACCESS_KEY: ${{ inputs.s3_key }}
+        AWS_EC2_METADATA_DISABLED: true
+      run: |
+        aws s3 cp --region ap-northeast-2  ${{ inputs.source }} s3://nnstreamer-release/nnstreamer/${{ steps.get-date.outputs.date }}/${{ inputs.dest }} ${{ inputs.s3_option }}
+        aws s3 cp --region ap-northeast-2 ${{ inputs.source }} s3://nnstreamer-release/nnstreamer/latest/${{ inputs.dest }} ${{ inputs.s3_option }}
+      shell: bash

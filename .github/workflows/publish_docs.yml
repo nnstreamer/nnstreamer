@@ -31,16 +31,13 @@ jobs:
         echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
 
     - name: Update github.io
-      run: |
-        git clone https://${{ secrets.TAOS_ACCOUNT }}:${{ secrets.TAOS_ACCOUNT_TOKEN }}@github.com/nnstreamer/nnstreamer.github.io.git
-        cp -r Documentation/NNStreamer-doc/html/* nnstreamer.github.io/
-        pushd nnstreamer.github.io
-        git config user.email "nnsuite@samsung.com"
-        git config user.name "nnsuite"
-        git add *
-        git commit -s -m "${{ steps.get-date.outputs.date }} : Update nnstreamer.github.io"
-        git push origin main -f
-        popd
+      uses: ./.github/actions/gitpush
+      with:
+        source: ${{ github.workspace }}/Documentation/NNStreamer-doc/html/*
+        dest: ./
+        message: "${{ steps.get-date.outputs.date }} : Update nnstreamer.github.io."
+        taos_account: ${{ secrets.TAOS_ACCOUNT }}
+        taos_account_token: ${{ secrets.TAOS_ACCOUNT_TOKEN }}
 
   generate_doxybook:
   # reference: https://github.com/nnstreamer/TAOS-CI/tree/main/ci/doxybook
@@ -60,11 +57,11 @@ jobs:
       id: get-date
       run: |
         echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
-    - name: Release daily build result
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_S3_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_S3_SECRET_ACCESS_KEY }}
-        AWS_EC2_METADATA_DISABLED: true
-      run: |
-        aws s3 cp --region ap-northeast-2 latex/nnstreamer-book.pdf s3://nnstreamer-release/nnstreamer/${{ steps.get-date.outputs.date }}/doc/nnstreamer-book.pdf
-        aws s3 cp --region ap-northeast-2 latex/nnstreamer-book.pdf s3://nnstreamer-release/nnstreamer/latest/doc/nnstreamer-book.pdf
+
+    - name: Release daily build result to release.nnstreamer.com
+      uses: ./.github/actions/s3_upload
+      with:
+        source: ${{ github.workspace }}/latex/nnstreamer-book.pdf
+        dest: doc/nnstreamer-book.pdf
+        s3_id: ${{ secrets.AWS_S3_ACCESS_KEY_ID }}
+        s3_key: ${{ secrets.AWS_S3_SECRET_ACCESS_KEY }}

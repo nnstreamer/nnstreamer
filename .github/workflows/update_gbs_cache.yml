@@ -63,16 +63,22 @@ jobs:
         path: ~/GBS-ROOT/local/cache
         key: gbs-cache-${{ matrix.gbs_build_arch }}-${{ steps.get-date.outputs.date }}
 
-    - name: Release daily build result
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_S3_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_S3_SECRET_ACCESS_KEY }}
-        AWS_EC2_METADATA_DISABLED: true
-      run: |
-        aws s3 cp --recursive --region ap-northeast-2 ~/GBS-ROOT/local/repos/tizen/${{ matrix.gbs_build_arch }}/RPMS/ s3://nnstreamer-release/nnstreamer/${{ steps.get-date.outputs.date }}/RPMS/
-        aws s3 cp --recursive --region ap-northeast-2 ~/GBS-ROOT/local/repos/tizen/${{ matrix.gbs_build_arch }}/RPMS/ s3://nnstreamer-release/nnstreamer/latest/RPMS/
-        aws s3 cp --region ap-northeast-2 ~/GBS-ROOT/local/repos/tizen/${{ matrix.gbs_build_arch }}/logs/*/*/log.txt s3://nnstreamer-release/nnstreamer/${{ steps.get-date.outputs.date }}/logs/tizen_gbs_${{ matrix.gbs_build_arch }}_log.txt
-        aws s3 cp --region ap-northeast-2 ~/GBS-ROOT/local/repos/tizen/${{ matrix.gbs_build_arch }}/logs/*/*/log.txt s3://nnstreamer-release/nnstreamer/latest/logs/tizen_gbs_${{ matrix.gbs_build_arch }}_log.txt
+    - name: Release daily build result to release.nnstreamer.com
+      uses: ./.github/actions/s3_upload
+      with:
+        source: ~/GBS-ROOT/local/repos/tizen/${{ matrix.gbs_build_arch }}/RPMS/
+        dest: RPMS/
+        s3_id: ${{ secrets.AWS_S3_ACCESS_KEY_ID }}
+        s3_key: ${{ secrets.AWS_S3_SECRET_ACCESS_KEY }}
+        s3_option: --recursive
+
+    - name: Release daily build log to release.nnstreamer.com
+      uses: ./.github/actions/s3_upload
+      with:
+        source: ~/GBS-ROOT/local/repos/tizen/${{ matrix.gbs_build_arch }}/logs/*/*/log.txt
+        dest: logs/tizen_gbs_${{ matrix.gbs_build_arch }}_log.txt
+        s3_id: ${{ secrets.AWS_S3_ACCESS_KEY_ID }}
+        s3_key: ${{ secrets.AWS_S3_SECRET_ACCESS_KEY }}
 
     - if: matrix.gbs_build_arch == 'x86_64'
       name: extract test coverage result
@@ -86,18 +92,14 @@ jobs:
         python3 .github/workflows/gen_coverage_badge.py ~/testresult/usr/share/nnstreamer/unittest/result/index.html ~/testresult/usr/share/nnstreamer/unittest/result/coverage_badge.svg
 
     - if: matrix.gbs_build_arch == 'x86_64'
-      name: Update github.io
-      run: |
-        git clone https://${{ secrets.TAOS_ACCOUNT }}:${{ secrets.TAOS_ACCOUNT_TOKEN }}@github.com/nnstreamer/nnstreamer.github.io.git
-        pushd nnstreamer.github.io
-        mkdir -p testresult
-        cp -r ~/testresult/usr/share/nnstreamer/unittest/result/* testresult
-        git config user.email "nnsuite@samsung.com"
-        git config user.name "nnsuite"
-        git add *
-        git commit -s -m "${{ steps.get-date.outputs.date }} : Update unit test result."
-        git push origin main -f
-        popd
+      name: update test coverage result to github.io
+      uses: ./.github/actions/gitpush
+      with:
+        source: ~/testresult/usr/share/nnstreamer/unittest/result/*
+        dest: testresult
+        message: "${{ steps.get-date.outputs.date }} : Update test coverage result."
+        taos_account: ${{ secrets.TAOS_ACCOUNT }}
+        taos_account_token: ${{ secrets.TAOS_ACCOUNT_TOKEN }}
 
     - name: Get nntrainer
       uses: actions/checkout@v4
@@ -124,12 +126,12 @@ jobs:
           pip install pybadges setuptools
           echo '${{ toJSON( needs.cache_gbs_build.outputs) }}' > gbs_build_result.json
           python3 .github/workflows/gen_gbs_result_badge.py gbs_build_result.json ~/testresult
-          git clone https://${{ secrets.TAOS_ACCOUNT }}:${{ secrets.TAOS_ACCOUNT_TOKEN }}@github.com/nnstreamer/nnstreamer.github.io.git
-          pushd nnstreamer.github.io
-          cp -r ~/testresult/*.svg testresult
-          git config user.email "nnsuite@samsung.com"
-          git config user.name "nnsuite"
-          git add *
-          git commit -s -m "Update unit test result badge."
-          git push origin main -f
-          popd
+
+      - name: update result badge to github.io
+        uses: ./.github/actions/gitpush
+        with:
+          source: ~/testresult/*.svg
+          dest: testresult
+          message: "Update unit test result badge."
+          taos_account: ${{ secrets.TAOS_ACCOUNT }}
+          taos_account_token: ${{ secrets.TAOS_ACCOUNT_TOKEN }}
