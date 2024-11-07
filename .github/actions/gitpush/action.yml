@@ -1,0 +1,40 @@
+name: 'Push to github.io'
+description: 'Update the github action result to nnstreamer.github.io'
+inputs:
+  source:
+    description: 'source path of the file or directory to be copied'
+    required: true
+  dest:
+    description: 'destination directory in nnstreamer.github.io repository'
+    required: true
+  message:
+    description: 'commit message'
+    required: false
+    default: 'Update the result from nnstreamer github action.'
+  taos_account:
+    required: true
+  taos_account_token:
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: update the result
+      run: |
+        git clone https://${{ inputs.taos_account }}:${{ inputs.taos_account_token }}@github.com/nnstreamer/nnstreamer.github.io.git
+        pushd nnstreamer.github.io
+        mkdir -p ${{ inputs.dest }}
+        cp -r ${{ inputs.source }} ${{ inputs.dest }}
+        git diff > git_diff.txt
+        DIFF_SIZE=$(stat -c%s git_diff.txt)
+        if [[ $DIFF_SIZE -ne 0 ]]; then
+          git config user.email "nnsuite@samsung.com"
+          git config user.name "nnsuite"
+          git add *
+          git commit -s -m "${{ inputs.message }}"
+          git push origin main -f
+        else
+          echo "Nothing to commit. Skip the push operation."
+        fi
+        popd
+      shell: bash
