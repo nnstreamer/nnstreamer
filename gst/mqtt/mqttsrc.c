@@ -624,50 +624,38 @@ static gboolean
 gst_mqtt_src_renegotiate (GstBaseSrc * basesrc)
 {
   GstMqttSrc *self = GST_MQTT_SRC (basesrc);
-  GstCaps *caps = NULL;
   GstCaps *peercaps = NULL;
   GstCaps *thiscaps;
   gboolean result = FALSE;
-  GstCaps *fixed_caps = NULL;
 
   if (self->caps == NULL || gst_caps_is_any (self->caps))
     goto no_nego_needed;
 
-  thiscaps = gst_pad_query_caps (GST_BASE_SRC_PAD (basesrc), NULL);
+  thiscaps = gst_pad_get_current_caps (GST_BASE_SRC_PAD (basesrc));
   if (thiscaps && gst_caps_is_equal (self->caps, thiscaps)) {
     gst_caps_unref (thiscaps);
     goto no_nego_needed;
   }
 
-  peercaps = gst_pad_peer_query_caps (GST_BASE_SRC_PAD (basesrc), self->caps);
-  if (peercaps && !gst_caps_is_empty (peercaps)) {
-    caps = gst_caps_ref (peercaps);
-    if (peercaps != self->caps)
-      gst_caps_unref (peercaps);
-  } else {
-    caps = gst_caps_ref (self->caps);
-  }
-
-  if (caps && !gst_caps_is_empty (caps)) {
-    if (gst_caps_is_any (caps)) {
-      result = TRUE;
-    } else {
-      fixed_caps = gst_caps_fixate (caps);
-      if (fixed_caps && gst_caps_is_fixed (fixed_caps)) {
-        result = gst_base_src_set_caps (basesrc, fixed_caps);
-        if (peercaps == self->caps)
-          gst_caps_unref (fixed_caps);
-      }
-    }
-    gst_caps_unref (caps);
-  } else {
-    result = FALSE;
-    if (caps && gst_caps_is_empty (caps))
-      gst_caps_unref (caps);
-  }
-
   if (thiscaps)
     gst_caps_unref (thiscaps);
+
+  peercaps = gst_pad_peer_query_caps (GST_BASE_SRC_PAD (basesrc), self->caps);
+  if (gst_caps_is_empty (peercaps) || peercaps == self->caps) {
+    gst_caps_unref (peercaps);
+    goto no_nego_needed;
+  }
+
+  if (gst_caps_is_any (peercaps)) {
+    result = TRUE;
+  } else {
+    peercaps = gst_caps_fixate (peercaps);
+    if (gst_caps_is_fixed (peercaps)) {
+      result = gst_base_src_set_caps (basesrc, peercaps);
+    }
+  }
+
+  gst_caps_unref (peercaps);
 
   return result;
 
