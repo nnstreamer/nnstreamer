@@ -59,12 +59,24 @@ jobs:
           echo "::endgroup"
 
       - name: run pdebuild
+        id: pdebuild
+        continue-on-error: true
         run: |
-          pdebuild --buildresult ~/daily_build/ubuntu --architecture ${{ matrix.arch }} -- --distribution ${{ matrix.distroname }}
+          mkdir -p ~/daily_build/ubuntu
+          pdebuild --logfile ~/daily_build/pdebuild_log.txt --buildresult ~/daily_build/ubuntu --architecture ${{ matrix.arch }} -- --distribution ${{ matrix.distroname }}
+
+      - name: generate badge
+        run: |
+          pip install pybadges setuptools
+          if [ '${{ steps.pdebuild.outcome }}' == 'success' ]; then
+            python3 -m pybadges --left-text=test --right-text=success --right-color=green > ~/daily_build/pdebuild_result.svg
+          else
+            python3 -m pybadges --left-text=test --right-text=failure --right-color=red > ~/daily_build/pdebuild_result.svg
+          fi
 
       - name: save pbuilder cache
         uses: actions/cache/save@v4
-        if: always()
+        if: always() && github.ref == 'refs/heads/main'
         with:
           path: |
             /var/cache/pbuilder/aptcache
@@ -72,6 +84,7 @@ jobs:
           key: pbuilder-cache-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('**/debian/control') }}-${{ steps.get-date.outputs.date }}
 
       - name: Release daily build result to release.nnstreamer.com
+        if: steps.pdebuild.outcome == 'success'
         uses: ./.github/actions/s3_upload
         with:
           source: ~/daily_build/ubuntu/
@@ -79,3 +92,20 @@ jobs:
           s3_id: ${{ secrets.AWS_S3_ACCESS_KEY_ID }}
           s3_key: ${{ secrets.AWS_S3_SECRET_ACCESS_KEY }}
           s3_option: --recursive
+
+      - name: Release daily build log to release.nnstreamer.com
+        uses: ./.github/actions/s3_upload
+        with:
+          source: ~/daily_build/pdebuild_log.txt
+          dest: logs/
+          s3_id: ${{ secrets.AWS_S3_ACCESS_KEY_ID }}
+          s3_key: ${{ secrets.AWS_S3_SECRET_ACCESS_KEY }}
+
+      - name: update daily result badge
+        uses: ./.github/actions/gitpush
+        with:
+          source: ~/daily_build/pdebuild_result.svg
+          dest: testresult
+          message: "${{ steps.get-date.outputs.date }} : Update ubuntu daily build result."
+          taos_account: ${{ secrets.TAOS_ACCOUNT }}
+          taos_account_token: ${{ secrets.TAOS_ACCOUNT_TOKEN }}

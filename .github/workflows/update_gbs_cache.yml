@@ -50,6 +50,7 @@ jobs:
 
     - name: build and tests on GBS
       id: gbs-build
+      continue-on-error: true
       run: gbs build ${{ matrix.gbs_build_option }} --define "_skip_debug_rpm 1" -A ${{ matrix.gbs_build_arch }}
 
     - name: report GBS build and test result
@@ -58,12 +59,13 @@ jobs:
 
     - name: save gbs cache
       uses: actions/cache/save@v4
-      if: always()
+      if: always() && github.ref == 'refs/heads/main'
       with:
         path: ~/GBS-ROOT/local/cache
         key: gbs-cache-${{ matrix.gbs_build_arch }}-${{ steps.get-date.outputs.date }}
 
     - name: Release daily build result to release.nnstreamer.com
+      if: steps.gbs-build.outcome == 'success'
       uses: ./.github/actions/s3_upload
       with:
         source: ~/GBS-ROOT/local/repos/tizen/${{ matrix.gbs_build_arch }}/RPMS/
@@ -80,7 +82,7 @@ jobs:
         s3_id: ${{ secrets.AWS_S3_ACCESS_KEY_ID }}
         s3_key: ${{ secrets.AWS_S3_SECRET_ACCESS_KEY }}
 
-    - if: matrix.gbs_build_arch == 'x86_64'
+    - if: matrix.gbs_build_arch == 'x86_64' && steps.gbs-build.outcome == 'success'
       name: extract test coverage result
       run: |
         pip install pybadges beautifulsoup4 setuptools
@@ -91,7 +93,7 @@ jobs:
         popd
         python3 .github/workflows/gen_coverage_badge.py ~/testresult/usr/share/nnstreamer/unittest/result/index.html ~/testresult/usr/share/nnstreamer/unittest/result/coverage_badge.svg
 
-    - if: matrix.gbs_build_arch == 'x86_64'
+    - if: matrix.gbs_build_arch == 'x86_64' && steps.gbs-build.outcome == 'success'
       name: update test coverage result to github.io
       uses: ./.github/actions/gitpush
       with:
