@@ -863,7 +863,7 @@ if executorch_support_is_available
     filter_sub_executorch_sources,
     dependencies: nnstreamer_filter_executorch_deps,
     install: true,
-    install_dir: filter_subplugin_install_dir
+    install_dir: nnstreamer_libdir
   )
 endif
 
@@ -889,7 +889,7 @@ if executorch_llama_support_is_available
     filter_sub_executorch_sources,
     dependencies: nnstreamer_filter_executorch_llama_deps,
     install: true,
-    install_dir: filter_subplugin_install_dir
+    install_dir: nnstreamer_libdir
   )
 endif
 
