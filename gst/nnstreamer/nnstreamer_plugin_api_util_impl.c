@@ -350,6 +350,11 @@ gst_tensors_info_free (GstTensorsInfo * info)
 
   g_return_if_fail (info != NULL);
 
+  if (info->format != _NNS_TENSOR_FORMAT_STATIC) {
+    gst_tensors_info_init (info);
+    return;
+  }
+
   for (i = 0; i < NNS_TENSOR_MEMORY_MAX; i++) {
     gst_tensor_info_free (&info->info[i]);
   }
