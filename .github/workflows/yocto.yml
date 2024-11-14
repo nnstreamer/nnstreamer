@@ -48,7 +48,7 @@ jobs:
         key: yocto-cache-yocto-5.0.3
 
     - name: acquire some disk space
-      if: steps.rebuild.outputs.rebuild == '1'
+      if: false # Enable this step when you need to make new cache.
       run: |
           df -h
           sudo apt-get update --fix-missing \
