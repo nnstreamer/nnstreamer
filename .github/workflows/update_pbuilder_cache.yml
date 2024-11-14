@@ -60,19 +60,9 @@ jobs:
 
       - name: run pdebuild
         id: pdebuild
-        continue-on-error: true
         run: |
           mkdir -p ~/daily_build/ubuntu
           pdebuild --logfile ~/daily_build/pdebuild_log.txt --buildresult ~/daily_build/ubuntu --architecture ${{ matrix.arch }} -- --distribution ${{ matrix.distroname }}
-
-      - name: generate badge
-        run: |
-          pip install pybadges setuptools
-          if [ '${{ steps.pdebuild.outcome }}' == 'success' ]; then
-            python3 -m pybadges --left-text=test --right-text=success --right-color=green > ~/daily_build/pdebuild_result.svg
-          else
-            python3 -m pybadges --left-text=test --right-text=failure --right-color=red > ~/daily_build/pdebuild_result.svg
-          fi
 
       - name: save pbuilder cache
         uses: actions/cache/save@v4
@@ -82,6 +72,15 @@ jobs:
             /var/cache/pbuilder/aptcache
             /var/cache/pbuilder/base.tgz
           key: pbuilder-cache-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('**/debian/control') }}-${{ steps.get-date.outputs.date }}
+
+      - name: generate badge
+        run: |
+          pip install pybadges setuptools
+          if [ '${{ steps.pdebuild.outcome }}' == 'success' ]; then
+            python3 -m pybadges --left-text=test --right-text=success --right-color=green > ~/daily_build/pdebuild_result.svg
+          else
+            python3 -m pybadges --left-text=test --right-text=failure --right-color=red > ~/daily_build/pdebuild_result.svg
+          fi
 
       - name: Release daily build result to release.nnstreamer.com
         if: steps.pdebuild.outcome == 'success'
