@@ -17,8 +17,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        ref: ${{ github.event.pull_request.head.sha }}
-        fetch-depth: -${{ github.event.pull_request.commits }}
+        fetch-depth: ${{ github.event.pull_request.commits }}
     - name: Check if rebuild required
       uses: ./.github/actions/check-rebuild
       with:
@@ -64,7 +63,6 @@ jobs:
     - name: build
       if: steps.rebuild.outputs.rebuild == '1'
       id: yocto-build
-      continue-on-error: true
       run: |
         echo "::group::apt-get install"
         sudo apt-get update
