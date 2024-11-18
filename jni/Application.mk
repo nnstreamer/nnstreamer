@@ -1,7 +1,7 @@
 # @note About Android NDK
-# Android NDK r12b supports API level as following:
-# - From 8 (Fryoyo, 2.2) to 24 (Nougat, 7.0)
-# - https://developer.android.com/ndk/guides/stable_apis#a24
+# Android NDK r25c supports API level as following:
+# - From 19 (Kitkat, 4.4) to 33
+# - https://developer.android.com/ndk/guides/stable_apis#a33
 #
 # @note About Application ABI
 # If you want to generate a binary file for all architectures, please append additional architech name

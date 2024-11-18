@@ -11,11 +11,11 @@ title: Android
 We assume that you already have experienced Android application developments with Android Studio.
 
  * Host PC:
-   * OS: Ubuntu 16.04 / 18.04 x86_64 LTS
+   * OS: Ubuntu 22.04 x86_64 LTS
    * Android Studio: Ubuntu version
    * Android SDK: Min version 28 (Pie)
-   * Android NDK: Use default ndk-bundle in Android Studio **( < 22.0 )**
-   * GStreamer: gstreamer-1.0-android-universal-1.20.0
+   * Android NDK: Use default ndk-bundle in Android Studio **( < 26.0 )**
+   * GStreamer: gstreamer-1.0-android-universal-1.24.0
 
 ## Build library
 
@@ -67,8 +67,8 @@ For example,
 $ firefox  https://developer.android.com/studio &
 Then, download the **Android Studio** IDE into the /opt folder as follows.
 $ cd /opt
-$ sudo curl -O https://r1---sn-n5hn0ob-pjoe.gvt1.com/edgedl/android/studio/ide-zips/3.6.3.0/android-studio-ide-192.6392135-linux.tar.gz
-$ sudo tar xvzf ./android-studio-ide-183.5452501-linux.tar.gz
+$ sudo curl -O https://redirector.gvt1.com/edgedl/android/studio/ide-zips/2023.3.1.20/android-studio-2023.3.1.20-linux.tar.gz
+$ sudo tar xvzf ./android-studio-2023.3.1.20-linux.tar.gz
 ```
 
 Now, run the **Android Studio** IDE as follows.
@@ -104,8 +104,8 @@ You can get the prebuilt GStreamer binaries from [here](https://gstreamer.freede
 For example,
 ```bash
 $ cd $ANDROID_DEV_ROOT/gstreamer-1.0
-$ curl -O https://gstreamer.freedesktop.org/data/pkg/android/1.20.0/gstreamer-1.0-android-universal-1.20.0.tar.xz
-$ tar xJf gstreamer-1.0-android-universal-1.20.0.tar.xz
+$ curl -O https://gstreamer.freedesktop.org/data/pkg/android/1.24.0/gstreamer-1.0-android-universal-1.24.0.tar.xz
+$ tar xJf gstreamer-1.0-android-universal-1.24.0.tar.xz
 ```
 
 ### Download NNStreamer source code and ML API source code
