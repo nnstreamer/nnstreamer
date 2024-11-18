@@ -30,7 +30,7 @@ neural network developers to manage neural network pipelines and their filters e
 
 |     | [Tizen](https://download.tizen.org/snapshots/TIZEN/Tizen/Tizen-Unified/latest/repos/standard/packages/) | [Ubuntu](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) | Android | [Yocto](https://github.com/nnstreamer/meta-neural-network) | macOS |
 | :-- | :--: | :--: | :--: | :--: | :--: |
-|     | 5.5M2 and later | ~~16.04~~/18.04/20.04/22.04 | 9/P | Kirkstone |   |
+|     | 5.5M2 and later | ~~16.04~~/18.04/20.04/22.04 | 13 | Kirkstone |   |
 | arm | [![armv7l badge](https://nnstreamer.github.io/testresult/armv7l_reuslt.svg)](https://nnstreamer-release.s3-ap-northeast-2.amazonaws.com/nnstreamer/latest/logs/tizen_gbs_armv7l_log.txt) | Available  | Available| Ready | N/A |
 | arm64 |  [![aarch64 badge](https://nnstreamer.github.io/testresult/aarch64_reuslt.svg)](https://nnstreamer-release.s3-ap-northeast-2.amazonaws.com/nnstreamer/latest/logs/tizen_gbs_aarch64_log.txt) | Available  | [![android badge](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/badge/android_result_badge.svg)](http://ci.nnstreamer.ai/nnstreamer/ci/daily-build/build_result/latest/log/) | [![yocto badge](https://nnstreamer.github.io/testresult/yocto_build_result.svg)](https://release.nnstreamer.com/#nnstreamer/latest/logs/) | N/A |
 | x64 | [![x64 badge](https://nnstreamer.github.io/testresult/x86_64_reuslt.svg)](https://nnstreamer-release.s3-ap-northeast-2.amazonaws.com/nnstreamer/latest/logs/tizen_gbs_x86_64_log.txt)  | [![ubuntu badge](https://nnstreamer.github.io/testresult/pdebuild_result.svg)](https://nnstreamer-release.s3-ap-northeast-2.amazonaws.com/nnstreamer/latest/logs/pdebuild_log.txt)  | Ready  | Ready | Available |
