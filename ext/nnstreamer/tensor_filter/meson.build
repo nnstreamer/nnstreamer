@@ -868,7 +868,7 @@ if executorch_support_is_available
 endif
 
 if executorch_llama_support_is_available
-  filter_sub_executorch_sources = ['tensor_filter_executorch_llama.cc']
+  filter_sub_executorch_llama_sources = ['tensor_filter_executorch_llama.cc']
   nnstreamer_filter_executorch_llama_deps = [executorch_llama_support_deps, glib_dep, nnstreamer_single_dep]
 
   executorch_llama_compile_args = cxx.get_supported_arguments([
@@ -879,14 +879,14 @@ if executorch_llama_support_is_available
   nnstreamer_filter_executorch_llama_deps += declare_dependency(compile_args: executorch_llama_compile_args)
 
   shared_library('nnstreamer_filter_executorch-llama',
-    filter_sub_executorch_sources,
+    filter_sub_executorch_llama_sources,
     dependencies: nnstreamer_filter_executorch_llama_deps,
     install: true,
     install_dir: filter_subplugin_install_dir
   )
 
   static_library('nnstreamer_filter_executorch-llama',
-    filter_sub_executorch_sources,
+    filter_sub_executorch_llama_sources,
     dependencies: nnstreamer_filter_executorch_llama_deps,
     install: true,
     install_dir: nnstreamer_libdir
