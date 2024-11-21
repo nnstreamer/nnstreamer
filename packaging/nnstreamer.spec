@@ -37,6 +37,8 @@
 %define		snpe_support 1
 %define		trix_engine_support 1
 %define		onnxruntime_support 1
+# Enable executorch_support when executorch package is ready.
+%define		executorch_support 0
 %define         tensorrt_support 0
 # Support AI offloading (tensor_query) using nnstreamer-edge interface
 %define		nnstreamer_edge_support 1
@@ -118,6 +120,7 @@
 %define		snpe_support 0
 %define		trix_engine_support 0
 %define		onnxruntime_support 0
+%define		executorch_support 0
 %define		nnstreamer_edge_support 0
 %define		ml_agent_support 0
 %endif
@@ -142,6 +145,7 @@
 %define		snpe_support 1
 %define		trix_engine_support 0
 %define		onnxruntime_support 0
+%define		executorch_support 0
 %endif
 
 # DA requested to remove unnecessary module builds
@@ -156,6 +160,7 @@
 %define		tvm_support 0
 %define		trix_engine_support 0
 %define		onnxruntime_support 0
+%define		executorch_support 0
 
 # Enable subplugins for specific profiles
 %if 0%{?_with_meson64}
@@ -338,6 +343,10 @@ BuildRequires:	npu-engine-devel
 
 %if 0%{?onnxruntime_support}
 BuildRequires: onnxruntime-devel
+%endif
+
+%if 0%{?executorch_support}
+BuildRequires: executorch-devel
 %endif
 
 # Unit Testing Uses SSAT (https://github.com/myungjoo/SSAT.git)
@@ -550,6 +559,16 @@ Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	onnxruntime
 %description onnxruntime
 NNStreamer's tensor_filter subplugin of onnxruntime
+%endif
+
+# for executorch
+%if 0%{?executorch_support}
+%package executorch
+Summary:	NNStreamer ExecuTorch Support
+Requires:	nnstreamer-single = %{version}-%{release}
+Requires:	executorch
+%description executorch
+NNStreamer's tensor_filter subplugin of executorch
 %endif
 
 %package devel
@@ -885,6 +904,13 @@ NNStreamer's datareposrc/sink plugins for reading and writing files in MLOps Dat
 %define enable_onnxruntime -Donnxruntime-support=disabled
 %endif
 
+# Support executorch
+%if 0%{?executorch_support}
+%define enable_executorch -Dexecutorch-support=enabled
+%else
+%define enable_executorch -Dexecutorch-support=disabled
+%endif
+
 # Framework priority for each file extension
 %define fw_priority_bin ''
 %define fw_priority_nb ''
@@ -950,7 +976,7 @@ meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir
 	%{enable_tf_lite} %{enable_tf2_lite} %{enable_tf} %{enable_pytorch} %{enable_caffe2} %{enable_python3} \
 	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_openvino} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} \
 	%{enable_flatbuf} %{enable_trix_engine} %{enable_datarepo} \
-	%{enable_tizen_sensor} %{enable_mqtt} %{enable_lua} %{enable_tvm} %{enable_onnxruntime} \
+	%{enable_tizen_sensor} %{enable_mqtt} %{enable_lua} %{enable_tvm} %{enable_onnxruntime} %{enable_executorch} \
         %{enable_test} %{enable_test_coverage} %{install_test} \
 	%{fp16_support} %{nnsedge} %{enable_ml_agent} \
 	%{builddir}
@@ -1235,6 +1261,15 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_onnxruntime.so
+%endif
+
+# for executorch
+%if 0%{?executorch_support}
+%files executorch
+%manifest nnstreamer.manifest
+%defattr(-,root,root,-)
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_executorch.so
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_executorch-llama.so
 %endif
 
 %files devel
