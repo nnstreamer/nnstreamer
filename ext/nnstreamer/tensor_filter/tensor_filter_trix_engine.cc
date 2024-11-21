@@ -34,6 +34,7 @@ TensorFilterTRIxEngine::TensorFilterTRIxEngine ()
     : dev_type_ (NPUCOND_CONN_UNKNOWN), dev_ (nullptr), model_path_ (nullptr),
       model_meta_ (nullptr), model_id_ (0), trix_in_info_ (), trix_out_info_ ()
 {
+  UNUSED (dev_type_);
   gst_tensors_info_init (addressof (nns_in_info_));
   gst_tensors_info_init (addressof (nns_out_info_));
 }
