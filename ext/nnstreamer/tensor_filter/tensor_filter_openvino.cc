@@ -204,7 +204,6 @@ TensorFilterOpenvino::loadModel (accl_hw hw)
 {
   std::string targetDevice;
   std::vector<std::string> strVector;
-  std::vector<std::string>::iterator strVectorIter;
 
   if (this->_isLoaded) {
     /** @todo Can OpenVino support to replace the loaded model with a new one? */
