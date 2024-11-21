@@ -131,7 +131,7 @@ class ntpUtilMockTest : public ::testing::Test
   /**
    * @brief tear down the base fixture
    */
-  void TearDown ()
+  void TearDown () override
   {
     g_free (host.h_name);
     g_free (host.h_aliases[0]);

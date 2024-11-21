@@ -64,14 +64,15 @@ class executorch_llama_subplugin final : public tensor_filter_subplugin
   executorch_llama_subplugin (){};
   ~executorch_llama_subplugin (){};
 
-  tensor_filter_subplugin &getEmptyInstance ();
-  void configure_instance (const GstTensorFilterProperties *prop);
-  void invoke (const GstTensorMemory *input, GstTensorMemory *output);
+  tensor_filter_subplugin &getEmptyInstance () override;
+  void configure_instance (const GstTensorFilterProperties *prop) override;
+  void invoke (const GstTensorMemory *input, GstTensorMemory *output) override;
   void invoke_dynamic (GstTensorFilterProperties *prop,
       const GstTensorMemory *input, GstTensorMemory *output) override;
-  void getFrameworkInfo (GstTensorFilterFrameworkInfo &info);
-  int getModelInfo (model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info);
-  int eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data);
+  void getFrameworkInfo (GstTensorFilterFrameworkInfo &info) override;
+  int getModelInfo (model_info_ops ops, GstTensorsInfo &in_info,
+      GstTensorsInfo &out_info) override;
+  int eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data) override;
 };
 
 const char *executorch_llama_subplugin::fw_name = "executorch-llama";
