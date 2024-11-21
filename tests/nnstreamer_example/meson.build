@@ -44,10 +44,15 @@ library('nnstreamer_customfilter_scaler_allocator',
 # custom_example_opencv
 opencv_dep = dependency('opencv', required: false)
 if opencv_dep.found()
+  extra_compile_arg = cxx.get_supported_arguments([
+    '-Wno-format-nonliteral'
+  ])
+  extra_dep = declare_dependency(compile_args: extra_compile_arg)
+
   library('nnstreamer_customfilter_opencv_scaler',
     join_paths('custom_example_opencv',
         'nnstreamer_customfilter_opencv_scaler.cc'),
-    dependencies: [glib_dep, gst_dep, nnstreamer_dep, opencv_dep],
+    dependencies: [glib_dep, gst_dep, nnstreamer_dep, opencv_dep, extra_dep],
     install: get_option('install-test'),
     install_dir: customfilter_install_dir
   )
@@ -55,7 +60,7 @@ if opencv_dep.found()
   library('nnstreamer_customfilter_opencv_average',
     join_paths('custom_example_opencv',
         'nnstreamer_customfilter_opencv_average.cc'),
-    dependencies: [glib_dep, gst_dep, nnstreamer_dep, opencv_dep],
+    dependencies: [glib_dep, gst_dep, nnstreamer_dep, opencv_dep, extra_dep],
     install: get_option('install-test'),
     install_dir: customfilter_install_dir
   )
