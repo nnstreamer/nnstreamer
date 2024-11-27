@@ -62,11 +62,13 @@
 %define		mvncsdk2_support 1
 %define		openvino_support 1
 %define		edgetpu_support 1
+%define		ncnn_support 1
 %else
 %define		tizen_sensor_support 0
 %define		mvncsdk2_support 0
 %define		openvino_support 0
 %define		edgetpu_support 0
+%define		ncnn_support 0
 %endif
 
 # tizen 6.0 (or less) backward-compatibility check
@@ -118,6 +120,7 @@
 %define		snpe_support 0
 %define		trix_engine_support 0
 %define		onnxruntime_support 0
+%define		ncnn_support 0
 %define		nnstreamer_edge_support 0
 %define		ml_agent_support 0
 %endif
@@ -156,12 +159,12 @@
 %define		tvm_support 0
 %define		trix_engine_support 0
 %define		onnxruntime_support 0
+%define		ncnn_support 0
 
 # Enable subplugins for specific profiles
 %if 0%{?_with_meson64}
 %define		vivante_support 1
 %endif
-
 %endif
 
 # Release unit test suite as a subpackage only if check_test is enabled.
@@ -338,6 +341,10 @@ BuildRequires:	npu-engine-devel
 
 %if 0%{?onnxruntime_support}
 BuildRequires: onnxruntime-devel
+%endif
+
+%if 0%{?ncnn_support} == 1
+BuildRequires: ncnn-devel
 %endif
 
 # Unit Testing Uses SSAT (https://github.com/myungjoo/SSAT.git)
@@ -552,6 +559,15 @@ Requires:	onnxruntime
 NNStreamer's tensor_filter subplugin of onnxruntime
 %endif
 
+# for ncnn
+%if 0%{?ncnn_support} == 1
+%package ncnn
+Summary:	NNStreamer ncnn Support
+Requires:	nnstreamer-single = %{version}-%{release}
+%description ncnn
+NNStreamer's tensor_filter subplugin of ncnn
+%endif
+
 %package devel
 Summary:	Development package for custom tensor operator developers (tensor_filter/custom)
 Requires:	nnstreamer = %{version}-%{release}
@@ -733,6 +749,7 @@ NNStreamer's datareposrc/sink plugins for reading and writing files in MLOps Dat
 %define enable_mvncsdk2 -Dmvncsdk2-support=disabled
 %define enable_openvino -Denable-openvino=false
 %define enable_nnfw_runtime -Dnnfw-runtime-support=disabled
+%define enable_ncnn -Dncnn-support=disabled
 %define element_restriction -Denable-element-restriction=false
 %define enable_test -Denable-test=true
 %define install_test -Dinstall-test=false
@@ -885,6 +902,11 @@ NNStreamer's datareposrc/sink plugins for reading and writing files in MLOps Dat
 %define enable_onnxruntime -Donnxruntime-support=disabled
 %endif
 
+# Support ncnn
+%if 0%{?ncnn_support} == 1
+%define enable_ncnn -Dncnn-support=enabled
+%endif
+
 # Framework priority for each file extension
 %define fw_priority_bin ''
 %define fw_priority_nb ''
@@ -951,7 +973,7 @@ meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir
 	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_openvino} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} \
 	%{enable_flatbuf} %{enable_trix_engine} %{enable_datarepo} \
 	%{enable_tizen_sensor} %{enable_mqtt} %{enable_lua} %{enable_tvm} %{enable_onnxruntime} \
-        %{enable_test} %{enable_test_coverage} %{install_test} \
+	%{enable_ncnn} %{enable_test} %{enable_test_coverage} %{install_test} \
 	%{fp16_support} %{nnsedge} %{enable_ml_agent} \
 	%{builddir}
 
@@ -1235,6 +1257,14 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_onnxruntime.so
+%endif
+
+# for ncnn
+%if 0%{?ncnn_support} == 1
+%files ncnn
+%manifest nnstreamer.manifest
+%defattr(-,root,root,-)
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_ncnn.so
 %endif
 
 %files devel
