@@ -12,7 +12,6 @@ jobs:
   cache_gbs_build:
     outputs:
       x86_64: ${{ steps.gbs-result.outputs.x86_64 }}
-      i586: ${{ steps.gbs-result.outputs.i586 }}
       armv7l: ${{ steps.gbs-result.outputs.armv7l }}
       aarch64: ${{ steps.gbs-result.outputs.aarch64 }}
     strategy:
@@ -21,8 +20,6 @@ jobs:
         include:
           - gbs_build_arch: "x86_64"
             gbs_build_option: "--define \"unit_test 1\" --define \"testcoverage 1\""
-          - gbs_build_arch: "i586"
-            gbs_build_option: "--define \"unit_test 1\""
           - gbs_build_arch: "armv7l"
             gbs_build_option: "--define \"unit_test 1\""
           - gbs_build_arch: "aarch64"
