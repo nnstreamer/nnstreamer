@@ -15,9 +15,17 @@ jobs:
     name: Build with Yocto / meta-neural-network on Ubuntu
     runs-on: ubuntu-22.04
     steps:
+    - name: get fetch depth
+      id: fetch_depth
+      run: |
+        if ${{ github.event_name == 'pull_request' }}; then
+          echo "depth=${{ github.event.pull_request.commits }}" >> $GITHUB_OUTPUT
+        else
+          echo "depth=1" >> $GITHUB_OUTPUT
+        fi
     - uses: actions/checkout@v4
       with:
-        fetch-depth: ${{ github.event.pull_request.commits }}
+        fetch-depth: steps.fetch_depth.outputs.depth
     - name: Check if rebuild required
       uses: ./.github/actions/check-rebuild
       with:
