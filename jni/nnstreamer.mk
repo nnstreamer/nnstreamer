@@ -72,6 +72,8 @@ NNSTREAMER_PLUGINS_SRCS := \
     $(NNSTREAMER_GST_HOME)/elements/gsttensor_transform.c \
     $(NNSTREAMER_GST_HOME)/tensor_filter/tensor_filter.c
 
+NNSTREAMER_ORC_SRC := $(NNSTREAMER_GST_HOME)/elements/nnstreamer-orc.orc
+
 # tensor-query element with nnstreamer-edge
 NNSTREAMER_QUERY_SRCS := \
     $(NNSTREAMER_GST_HOME)/tensor_query/tensor_query_common.c \
