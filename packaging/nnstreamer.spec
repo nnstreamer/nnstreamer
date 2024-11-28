@@ -182,6 +182,9 @@
 # If it is tizen, we can export Tizen API packages.
 %bcond_with tizen
 
+# Additional options for meson
+%define meson_options
+
 ###########################################################################
 # Package / sub-package definitions
 Name:		nnstreamer
@@ -248,10 +251,7 @@ BuildRequires: lcov
 
 %if %{with tizen}
 BuildRequires:	pkgconfig(dlog)
-# For tizen sensor support
-BuildRequires:	pkgconfig(sensor)
-BuildRequires:	capi-system-sensor-devel
-%endif  # tizen
+%endif  # tizen logging service
 
 # Unit Testing Uses SSAT (https://github.com/myungjoo/SSAT.git)
 %if 0%{?unit_test} || 0%{?edge_test}
@@ -317,6 +317,7 @@ NNStreamer's global configuration setup for the end user.
 %if 0%{?tensorflow_support}
 BuildRequires: tensorflow
 BuildRequires: tensorflow-devel
+%define meson_options %meson_options -Dtf-support=enabled
 
 %package tensorflow
 Summary:	NNStreamer TensorFlow Support
@@ -327,11 +328,14 @@ NNStreamer's tensor_filter subplugin of TensorFlow.
 It uses C-API of tensorflow, which is not yet stable as of 1.1x.
 Thus, the user needs to check the version of Tensorflow with the
 Tensorflow used for building this package.
+%else
+%define meson_options %meson_options -Dtf-support=disabled
 %endif
 
 ## Tensorflow Lite ###########################################################
 %if 0%{?tensorflow_lite_support}
 BuildRequires: tensorflow-lite-devel
+%define meson_options %{meson_options} -Dtflite-support=enabled
 
 %package tensorflow-lite
 Summary:	NNStreamer TensorFlow Lite Support
@@ -339,6 +343,8 @@ Requires:	nnstreamer-single = %{version}-%{release}
 # tensorflow-lite provides .a file and it's embedded into the subplugin. No dep to tflite.
 %description tensorflow-lite
 NNStreamer's tensor_filter subplugin of TensorFlow Lite.
+%else
+%define meson_options %{meson_options} -Dtflite-support=disabled
 %endif
 
 ## Tensorflow 2 Lite #########################################################
@@ -347,6 +353,7 @@ BuildRequires: tensorflow2-lite-devel
 # tensorflow2-lite-custom requires scripts for rpm >= 4.9
 BuildRequires: rpm >= 4.9
 %global __requires_exclude ^libtensorflow2-lite-custom.*$
+%define meson_options %{meson_options} -Dtflite2-support=enabled -Dtflite2-custom-support=disabled
 
 %package tensorflow2-lite
 Summary:	NNStreamer TensorFlow2 Lite Support
@@ -354,23 +361,29 @@ Requires:	nnstreamer-single = %{version}-%{release}
 # tensorflow2-lite provides .a file and it's embedded into the subplugin. No dep to tflite.
 %description tensorflow2-lite
 NNStreamer's tensor_filter subplugin of TensorFlow2 Lite.
+%else
+%define meson_options %{meson_options} -Dtflite2-support=disabled -Dtflite2-custom-support=disabled
 %endif
 
 ## Python3 Custom Filter #####################################################
 %if 0%{?python3_support}
 BuildRequires:	python3-devel
 BuildRequires:	python3-numpy-devel
+%define meson_options %{meson_options} -Dpython3-support=enabled
 
 %package python3
 Summary:  NNStreamer Python3 Custom Filter Support
 Requires: nnstreamer = %{version}-%{release}
 %description python3
 NNStreamer's tensor_filter subplugin of Python3.
+%else
+%define meson_options %{meson_options} -Dpython3-support=disabled
 %endif
 
 ## ARMNN #####################################################################
 %if 0%{?armnn_support}
 BuildRequires: armnn-devel
+%define meson_options %{meson_options} -Darmnn-support=enabled
 
 %package armnn
 Summary:	NNStreamer Arm NN support
@@ -378,21 +391,23 @@ Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	armnn
 %description armnn
 NNStreamer's tensor_filter subplugin of Arm NN Inference Engine.
+%else
+%define meson_options %{meson_options} -Darmnn-support=disabled
 %endif
 
 ## Vivante (Verisilicon's NPU) ###############################################
 %if 0%{?vivante_support}
 BuildRequires:  pkgconfig(ovxlib)
 BuildRequires:  pkgconfig(amlogic-vsi-npu-sdk)
+%define meson_options %{meson_options} -Denable-vivante=true
 
 %package vivante
 Summary:    NNStreamer subplugin for Verisilicon's Vivante
 Requires:   nnstreamer-single = %{version}-%{release}
 %description vivante
 NNStreamer filter subplugin for Verisilicon Vivante.
-%define enable_vivante -Denable-vivante=true
 %else
-%define enable_vivante -Denable-vivante=false
+%define meson_options %{meson_options} -Denable-vivante=false
 %endif
 
 ## Protobuf (converter/decoder support) ######################################
@@ -416,6 +431,7 @@ BuildRequires: flatbuffers-devel
 %if 0%{?unit_test}
 BuildRequires: flatbuffers-python
 %endif
+%define meson_options %{meson_options} -Dflatbuf-support=enabled
 
 %package    flatbuf
 Summary:	NNStreamer Flatbuf Support
@@ -423,11 +439,14 @@ Requires:	nnstreamer = %{version}-%{release}
 Requires:	flatbuffers
 %description flatbuf
 NNStreamer's tensor_converter and decoder subplugin of flatbuf.
+%else
+%define meson_options %{meson_options} -Dflatbuf-support=disabled
 %endif
 
 ## PyTorch ###################################################################
 %if 0%{?pytorch_support}
 BuildRequires:	pytorch-devel
+%define meson_options %{meson_options} -Dpytorch-support=enabled
 
 %package pytorch
 Summary:	NNStreamer PyTorch Support
@@ -435,11 +454,14 @@ Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	pytorch
 %description pytorch
 NNStreamer's tensor_filter subplugin of pytorch
+%else
+%define meson_options %{meson_options} -Dpytorch-support=disabled
 %endif
 
 ## Caffe2 (reuses pytorch package) ###########################################
 %if 0%{?caffe2_support}
 BuildRequires:	pytorch-devel
+%define meson_options %{meson_options} -Dcaffe2-support=enabled
 
 %package caffe2
 Summary:	NNStreamer caffe2 Support
@@ -447,11 +469,14 @@ Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	pytorch
 %description caffe2
 NNStreamer's tensor_filter subplugin of caffe2
+%else
+%define meson_options %{meson_options} -Dcaffe2-support=disabled
 %endif
 
 ## LUA (Script launguage support) ############################################
 %if 0%{?lua_support}
 BuildRequires:	lua-devel
+%define meson_options %{meson_options} -Dlua-support=enabled
 
 %package lua
 Summary:	NNStreamer lua Support
@@ -459,12 +484,14 @@ Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	lua
 %description lua
 NNStreamer's tensor_filter subplugin of lua
+%else
+%define meson_options %{meson_options} -Dlua-support=disabled
 %endif
-
 
 ## Apache TVM ################################################################
 %if 0%{?tvm_support}
 BuildRequires:	tvm-runtime-devel
+%define meson_options %{meson_options} -Dtvm-support=enabled
 
 %package tvm
 Summary:	NNStreamer TVM support
@@ -472,11 +499,14 @@ Requires:	nnstreamer = %{version}-%{release}
 Requires:	tvm
 %description tvm
 NNStreamer's tensor_filter subplugin of tvm
+%else
+%define meson_options %{meson_options} -Dtvm-support=disabled
 %endif
 
 ## Qualcomm SNPE #############################################################
 %if 0%{?snpe_support}
 BuildRequires:	snpe-devel
+%define meson_options %{meson_options} -Dsnpe-support=enabled
 
 %package snpe
 Summary:	NNStreamer snpe Support
@@ -484,11 +514,14 @@ Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	snpe
 %description snpe
 NNStreamer's tensor_filter subplugin of snpe
+%else
+%define meson_options %{meson_options} -Dsnpe-support=disabled
 %endif
 
 ## Samsung TRIx NPU ##########################################################
 %if 0%{?trix_engine_support}
 BuildRequires:	npu-engine-devel
+%define meson_options %{meson_options} -Dtrix-engine-support=enabled
 
 %package trix-engine
 Summary:	NNStreamer TRIx-Engine support
@@ -496,11 +529,14 @@ Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	trix-engine
 %description trix-engine
 NNStreamer's tensor_filter subplugin of trix-engine
+%else
+%define meson_options %{meson_options} -Donnxruntime-support=enabled
 %endif
 
 ## ONNX Runtime ##############################################################
 %if 0%{?onnxruntime_support}
 BuildRequires: onnxruntime-devel
+%define meson_options %{meson_options} -Donnxruntime-support=enabled
 
 %package onnxruntime
 Summary:	NNStreamer onnxruntime Support
@@ -508,11 +544,14 @@ Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	onnxruntime
 %description onnxruntime
 NNStreamer's tensor_filter subplugin of onnxruntime
+%else
+%define meson_options %{meson_options} -Donnxruntime-support=disabled
 %endif
 
 ## ExecuTorch ################################################################
 %if 0%{?executorch_support}
 BuildRequires: executorch-devel
+%define meson_options %{meson_options} -Dexecutorch-support=enabled -Dexecutorch-llama-support=enabled
 
 %package executorch
 Summary:	NNStreamer ExecuTorch Support
@@ -520,11 +559,14 @@ Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	executorch
 %description executorch
 NNStreamer's tensor_filter subplugin of executorch
+%else
+%define meson_options %{meson_options} -Dexecutorch-support=disabled -Dexecutorch-llama-support=disabled
 %endif
 
 ## NNFW (ONE) ################################################################
 %if 0%{?nnfw_support}
 BuildRequires:  nnfw-devel
+%define meson_options %{meson_options} -Dnnfw-runtime-support=enabled
 
 %package nnfw
 Summary:	NNStreamer Tizen-nnfw runtime support
@@ -533,11 +575,14 @@ Requires:	nnfw
 %description nnfw
 NNStreamer's tensor_filter subplugin of Tizen/NNFW ONE Runtime. (Tizen 5.5 M2 +)
 NNFW is developerd at https://github.com/Samsung/ONE
+%else
+%define meson_options %{meson_options} -Dnnfw-runtime-support=disabled
 %endif
 
 ## Intel MVNCSDK2 ############################################################
 %if 0%{?mvncsdk2_support}
 BuildRequires:	pkgconfig(libmvnc)
+%define meson_options %{meson_options} -Dmvncsdk2-support=enabled
 
 %package	ncsdk2
 Summary:	NNStreamer Intel Movidius NCSDK2 support
@@ -546,11 +591,15 @@ Group:		Machine Learning/ML Framework
 %description	ncsdk2
 NNStreamer's tensor_filter subplugin of Intel Movidius Neural Compute stick SDK2.
 https://movidius.github.io/ncsdk/
+%else
+%define meson_options %{meson_options} -Dmvncsdk2-support=disabled
 %endif # mvncsdk2_support
 
 ## Intel OpenVINO ############################################################
 %if 0%{openvino_support}
 BuildRequires:	pkgconfig(openvino)
+%define meson_options %{meson_options} -Denable-openvino=true
+%define fw_priority_bin 'openvino'
 
 %package	openvino
 Summary:	NNStreamer OpenVino support
@@ -560,6 +609,8 @@ Group:		Machine Learning/ML Framework
 %description	openvino
 NNStreamer's tensor_filter subplugin for OpenVINO support.
 https://www.intel.com/content/www/us/en/developer/tools/openvino-toolkit/overview.html
+%else
+%define meson_options %{meson_options} -Denable-openvino=false
 %endif # openvino_support
 
 ## GRPC source/sink elements #################################################
@@ -601,6 +652,7 @@ NNStreamer's gRPC IDL support for flatbuf
 ## Google Edge TPU ###########################################################
 %if 0%{?edgetpu_support}
 BuildRequires:	pkgconfig(edgetpu)
+%define meson_options %{meson_options} -Denable-edgetpu=true
 
 %package edgetpu
 Summary:	NNStreamer plugin for Google-Coral Edge TPU
@@ -608,11 +660,16 @@ Requires:	libedgetpu1
 Requires:	nnstreamer-single = %{version}-%{release}
 %description edgetpu
 You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML APIs.
+%else
+%define meson_options %{meson_options} -Denable-edgetpu=false
 %endif
 
 ## NVIDIA Tensor-RT ##########################################################
 %if 0%{?tensorrt_support}
 BuildRequires: tensorrt-devel
+## Keep tensorrt-support and tensorrt10-support "auto".
+## We do not sure which versions of tensorrt is available.
+## If none is available, files section will generate errors.
 
 %package tensorrt
 Summary:        NNStreamer plugin for NVidia TensorRT
@@ -622,15 +679,32 @@ Requires:       nnstreamer-single = %{version}-%{release}
 You may enable this package to use NVidia TensorRT with NNStreamer and Tizen ML APIs.
 %endif
 
-# Add Tizen's sensor framework API integration
-%if 0%{tizen_sensor_support}
+## Tizen Sensor Framework as Tensor-Source ###################################
+%if 0%{?tizen_sensor_support}
+BuildRequires:	pkgconfig(sensor)
+BuildRequires:	capi-system-sensor-devel
+%define meson_options %{meson_options} -Denable-tizen-sensor=true
+
 %package tizen-sensor
 Summary:	NNStreamer integration of tizen sensor framework (tensor_src_tizensensor)
 Requires:	nnstreamer = %{version}-%{release}
 Requires:	capi-system-sensor
 %description tizen-sensor
 You can include Tizen sensor framework nodes as source elements of GStreamer/NNStreamer pipelines with this package.
+%else
+%define meson_options %{meson_options} -Denable-tizen-sensor=false
 %endif # tizen_sensor_support
+
+## Data Repository Source/Sink Elements ######################################
+%if 0%{?datarepo_support}
+%package datarepo
+Summary: NNStreamer MLOps Data Repository plugin packages
+%description datarepo
+NNStreamer's datareposrc/sink plugins for reading and writing files in MLOps Data Repository
+%define meson_options %{meson_options} -Ddatarepo-support=enabled
+%else
+%define meson_options %{meson_options} -Ddatarepo-support=disabled
+%endif
 
 %package devel
 Summary:	Development package for custom tensor operator developers (tensor_filter/custom)
@@ -705,46 +779,19 @@ NNStreamer developer utilities include nnstreamer configuration checker.
 %package misc
 Summary:	NNStreamer extra packages
 %if 0%{?mqtt_support}
+%define meson_options %{meson_options} -Dmqtt-support=enabled
 BuildRequires:	pkgconfig(paho-mqtt-c)
+%else
+%define meson_options %{meson_options} -Dmqtt-support=disabled
 %endif
 %description misc
 Provides additional gstreamer plugins for nnstreamer pipelines
 
-%if 0%{?datarepo_support}
-%package datarepo
-Summary: NNStreamer MLOps Data Repository plugin packages
-%description datarepo
-NNStreamer's datareposrc/sink plugins for reading and writing files in MLOps Data Repository
-%define enable_datarepo -Ddatarepo-support=enabled
-%else
-%define enable_datarepo -Ddatarepo-support=disabled
-%endif
-
 ## Define build options ##
 %define enable_tizen -Denable-tizen=false
-%define enable_tizen_sensor -Denable-tizen-sensor=false
-%define enable_mvncsdk2 -Dmvncsdk2-support=disabled
-%define enable_openvino -Denable-openvino=false
-%define enable_nnfw_runtime -Dnnfw-runtime-support=disabled
 %define element_restriction -Denable-element-restriction=false
 %define enable_test -Denable-test=true
 %define install_test -Dinstall-test=false
-
-%if 0%{mvncsdk2_support}
-%define enable_mvncsdk2 -Dmvncsdk2-support=enabled
-%endif
-
-%if 0%{openvino_support}
-%define enable_openvino -Denable-openvino=true
-%endif
-
-%if 0%{?nnfw_support}
-%define enable_nnfw_runtime -Dnnfw-runtime-support=enabled
-%endif  # nnfw_support
-
-%if 0%{tizen_sensor_support}
-%define enable_tizen_sensor -Denable-tizen-sensor=true
-%endif
 
 %if !0%{?check_test}
 %define enable_test -Denable-test=false
@@ -773,116 +820,11 @@ NNStreamer's datareposrc/sink plugins for reading and writing files in MLOps Dat
 %define element_restriction -Denable-element-restriction=true -Dallowed-elements=%{allowed_element}
 %endif #if tizen
 
-# Support tensorflow
-%if 0%{?tensorflow_support}
-%define enable_tf -Dtf-support=enabled
-%else
-%define enable_tf -Dtf-support=disabled
-%endif
-
-# Support tensorflow-lite
-%if 0%{?tensorflow_lite_support}
-%define enable_tf_lite -Dtflite-support=enabled
-%else
-%define enable_tf_lite -Dtflite-support=disabled
-%endif
-
-# Support tensorflow2-lite
-%if 0%{?tensorflow2_lite_support}
-%define enable_tf2_lite -Dtflite2-support=enabled -Dtflite2-custom-support=disabled
-%else
-%define enable_tf2_lite -Dtflite2-support=disabled -Dtflite2-custom-support=disabled
-%endif
-
-# Support pytorch
-%if 0%{?pytorch_support}
-%define enable_pytorch -Dpytorch-support=enabled
-%else
-%define enable_pytorch -Dpytorch-support=disabled
-%endif
-
-# Support caffe2
-%if 0%{?caffe2_support}
-%define enable_caffe2 -Dcaffe2-support=enabled
-%else
-%define enable_caffe2 -Dcaffe2-support=disabled
-%endif
-
-# Support ArmNN
-%if 0%{?armnn_support}
-%define enable_armnn -Darmnn-support=enabled
-%else
-%define enable_armnn -Darmnn-support=disabled
-%endif
-
-# Support python
-%if 0%{?python3_support}
-%define enable_python3 -Dpython3-support=enabled
-%else
-%define enable_python3 -Dpython3-support=disabled
-%endif
-
-# Support edgetpu
-%if 0%{?edgetpu_support}
-%define enable_edgetpu -Denable-edgetpu=true
-%else
-%define enable_edgetpu -Denable-edgetpu=false
-%endif
-
-# Support flatbuffer
-%if 0%{?flatbuf_support}
-%define enable_flatbuf -Dflatbuf-support=enabled
-%else
-%define enable_flatbuf -Dflatbuf-support=disabled
-%endif
-
-# Support mqtt
-%if 0%{?mqtt_support}
-%define enable_mqtt -Dmqtt-support=enabled
-%else
-%define enable_mqtt -Dmqtt-support=disabled
-%endif
-
-# Support lua
-%if 0%{?lua_support}
-%define enable_lua -Dlua-support=enabled
-%else
-%define enable_lua -Dlua-support=disabled
-%endif
-
-# Support tvm
-%if 0%{?tvm_support}
-%define enable_tvm -Dtvm-support=enabled
-%else
-%define enable_tvm -Dtvm-support=disabled
-%endif
-
-# Support trix-engine
-%if 0%{?trix_engine_support}
-%define enable_trix_engine -Dtrix-engine-support=enabled
-%else
-%define enable_trix_engine -Dtrix-engine-support=disabled
-%endif
-
 # Support ml-agent
 %if 0%{?ml_agent_support}
 %define enable_ml_agent -Dml-agent-support=enabled
 %else
 %define enable_ml_agent -Dml-agent-support=disabled
-%endif
-
-# Support onnxruntime
-%if 0%{?onnxruntime_support}
-%define enable_onnxruntime -Donnxruntime-support=enabled
-%else
-%define enable_onnxruntime -Donnxruntime-support=disabled
-%endif
-
-# Support executorch
-%if 0%{?executorch_support}
-%define enable_executorch -Dexecutorch-support=enabled -Dexecutorch-llama-support=enabled
-%else
-%define enable_executorch -Dexecutorch-support=disabled -Dexecutorch-llama-support=disabled
 %endif
 
 # Framework priority for each file extension
@@ -892,10 +834,6 @@ NNStreamer's datareposrc/sink plugins for reading and writing files in MLOps Dat
 %if "%{?profile}" == "tv"
 %define fw_priority_bin 'vd_aifw'
 %define fw_priority_nb 'vd_aifw'
-%else
-%if 0%{openvino_support}
-%define fw_priority_bin 'openvino'
-%endif
 %endif
 
 %define fp16_enabled 0
@@ -947,12 +885,9 @@ mkdir -p %{builddir}
 meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_lib} \
 	--bindir=%{nnstbindir} --includedir=include -Dsubplugindir=%{_prefix}/lib/nnstreamer \
 	%{enable_tizen} %{element_restriction} %{fw_priority} -Denable-env-var=false -Denable-symbolic-link=false \
-	%{enable_tf_lite} %{enable_tf2_lite} %{enable_tf} %{enable_pytorch} %{enable_caffe2} %{enable_python3} \
-	%{enable_nnfw_runtime} %{enable_mvncsdk2} %{enable_openvino} %{enable_armnn} %{enable_edgetpu}  %{enable_vivante} \
-	%{enable_flatbuf} %{enable_trix_engine} %{enable_datarepo} \
-	%{enable_tizen_sensor} %{enable_mqtt} %{enable_lua} %{enable_tvm} %{enable_onnxruntime} %{enable_executorch} \
-        %{enable_test} %{enable_test_coverage} %{install_test} \
+    %{enable_test} %{enable_test_coverage} %{install_test} \
 	%{fp16_support} %{nnsedge} %{enable_ml_agent} \
+    %{meson_options} \
 	%{builddir}
 
 ninja -C %{builddir} %{?_smp_mflags}
