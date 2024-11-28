@@ -39,7 +39,7 @@
 %define		onnxruntime_support 1
 # Enable executorch_support when executorch package is ready.
 %define		executorch_support 0
-%define         tensorrt_support 0
+%define     tensorrt_support 0
 # Support AI offloading (tensor_query) using nnstreamer-edge interface
 %define		nnstreamer_edge_support 1
 %define		datarepo_support 1
@@ -199,6 +199,12 @@ License:	LGPL-2.1
 Source0:	nnstreamer-%{version}.tar
 Source1001:	nnstreamer.manifest
 
+## Define Packages ##
+%description
+NNStreamer is a set of gstreamer plugins to support general neural networks
+and their plugins in a gstreamer stream. NNStreamer is a meta package of
+nnstreamer-core and nnstreamer-configuration
+
 ## Define requirements ##
 Requires: nnstreamer-core = %{version}-%{release}
 Requires: nnstreamer-configuration = %{version}-%{release}
@@ -227,80 +233,17 @@ BuildRequires:	gtest-devel
 %if 0%{?check_test}
 BuildRequires:	python3
 %endif
-%if 0%{?python3_support}
-# for python3 custom filters
-BuildRequires:	python3-devel
-BuildRequires:	python3-numpy-devel
-%endif
 # Testcase requires bmp2png, which requires libpng
 BuildRequires:  pkgconfig(libpng)
-%if 0%{?flatbuf_support}
-# for flatbuffers
-BuildRequires: flatbuffers-devel
-%if 0%{?unit_test}
-BuildRequires: flatbuffers-python
-%endif
-%endif
-%if 0%{?tensorflow_lite_support}
-# for tensorflow-lite
-BuildRequires: tensorflow-lite-devel
-%endif
-%if 0%{?tensorflow2_lite_support}
-# for tensorflow2-lite
-BuildRequires: tensorflow2-lite-devel
-# tensorflow2-lite-custom requires scripts for rpm >= 4.9
-BuildRequires:  rpm >= 4.9
-%global __requires_exclude ^libtensorflow2-lite-custom.*$
-%endif
 # custom_example_opencv filter requires opencv-devel
 BuildRequires: opencv-devel
 # For './testAll.sh' time limit.
 BuildRequires: procps
-# for protobuf
-%if 0%{?protobuf_support}
-BuildRequires: protobuf-devel >= 3.4.0
-%endif
-# for tensorflow
-%if 0%{?tensorflow_support}
-BuildRequires: tensorflow
-BuildRequires: tensorflow-devel
-%endif
-# for armnn
-%if 0%{?armnn_support}
-BuildRequires: armnn-devel
-%endif
-
-%if 0%{?edgetpu_support}
-BuildRequires:	pkgconfig(edgetpu)
-%endif
 
 %if 0%{?testcoverage}
 # to be compatible with gcc-9, lcov should have a higher version than 1.14.1
 BuildRequires: lcov
 # BuildRequires:	taos-ci-unittest-coverage-assessment
-%endif
-
-%if 0%{mvncsdk2_support}
-BuildRequires:	pkgconfig(libmvnc)
-%endif
-
-%if 0%{openvino_support}
-BuildRequires:	pkgconfig(openvino)
-%endif
-
-# for Vivante
-%if 0%{?vivante_support}
-BuildRequires:  pkgconfig(ovxlib)
-BuildRequires:  pkgconfig(amlogic-vsi-npu-sdk)
-%endif
-
-# TensorRT
-%if 0%{?tensorrt_support}
-BuildRequires: tensorrt-devel
-%endif
-
-%if 0%{?grpc_support}
-BuildRequires:  grpc-devel
 %endif
 
 %if %{with tizen}
@@ -309,45 +252,6 @@ BuildRequires:	pkgconfig(dlog)
 BuildRequires:	pkgconfig(sensor)
 BuildRequires:	capi-system-sensor-devel
 %endif  # tizen
-
-%if 0%{?nnfw_support}
-# Tizen 5.5 M2+ support nn-runtime (nnfw)
-# As of 2019-09-24, unfortunately, nnfw does not support pkg-config
-BuildRequires:  nnfw-devel
-%endif
-
-%if 0%{?pytorch_support}
-BuildRequires:	pytorch-devel
-%endif
-
-# Caffe2 is merged to pytorch
-%if 0%{?caffe2_support}
-BuildRequires:	pytorch-devel
-%endif
-
-%if 0%{?lua_support}
-BuildRequires:	lua-devel
-%endif
-
-%if 0%{?tvm_support}
-BuildRequires:	tvm-runtime-devel
-%endif
-
-%if 0%{?snpe_support}
-BuildRequires:	snpe-devel
-%endif
-
-%if 0%{?trix_engine_support}
-BuildRequires:	npu-engine-devel
-%endif
-
-%if 0%{?onnxruntime_support}
-BuildRequires: onnxruntime-devel
-%endif
-
-%if 0%{?executorch_support}
-BuildRequires: executorch-devel
-%endif
 
 # Unit Testing Uses SSAT (https://github.com/myungjoo/SSAT.git)
 %if 0%{?unit_test} || 0%{?edge_test}
@@ -382,12 +286,6 @@ BuildRequires: pkgconfig(mlops-agent)
 %global __debug_install_post %{nil}
 %endif
 
-## Define Packages ##
-%description
-NNStreamer is a set of gstreamer plugins to support general neural networks
-and their plugins in a gstreamer stream. NNStreamer is a meta package of
-nnstreamer-core and nnstreamer-configuration
-
 %package core
 Requires: gstreamer >= 1.8.0
 %if 0%{?nnstreamer_edge_support}
@@ -410,8 +308,16 @@ Conflicts: nnstreamer-test-devel
 %description default-configuration
 NNStreamer's global configuration setup for the end user.
 
-# for tensorflow
+##############################################################################
+# Subplugin packages
+#   A few subplugins are built optionally depending on the hardware platforms.
+#   Related build-dependencies are declared with subplugin subpackage definitions.
+
+## Tensorflow ################################################################
 %if 0%{?tensorflow_support}
+BuildRequires: tensorflow
+BuildRequires: tensorflow-devel
+
 %package tensorflow
 Summary:	NNStreamer TensorFlow Support
 Requires:	nnstreamer-single = %{version}-%{release}
@@ -423,8 +329,10 @@ Thus, the user needs to check the version of Tensorflow with the
 Tensorflow used for building this package.
 %endif
 
-# for tensorflow-lite
+## Tensorflow Lite ###########################################################
 %if 0%{?tensorflow_lite_support}
+BuildRequires: tensorflow-lite-devel
+
 %package tensorflow-lite
 Summary:	NNStreamer TensorFlow Lite Support
 Requires:	nnstreamer-single = %{version}-%{release}
@@ -433,8 +341,13 @@ Requires:	nnstreamer-single = %{version}-%{release}
 NNStreamer's tensor_filter subplugin of TensorFlow Lite.
 %endif
 
-# for tensorflow2-lite
+## Tensorflow 2 Lite #########################################################
 %if 0%{?tensorflow2_lite_support}
+BuildRequires: tensorflow2-lite-devel
+# tensorflow2-lite-custom requires scripts for rpm >= 4.9
+BuildRequires: rpm >= 4.9
+%global __requires_exclude ^libtensorflow2-lite-custom.*$
+
 %package tensorflow2-lite
 Summary:	NNStreamer TensorFlow2 Lite Support
 Requires:	nnstreamer-single = %{version}-%{release}
@@ -443,7 +356,11 @@ Requires:	nnstreamer-single = %{version}-%{release}
 NNStreamer's tensor_filter subplugin of TensorFlow2 Lite.
 %endif
 
+## Python3 Custom Filter #####################################################
 %if 0%{?python3_support}
+BuildRequires:	python3-devel
+BuildRequires:	python3-numpy-devel
+
 %package python3
 Summary:  NNStreamer Python3 Custom Filter Support
 Requires: nnstreamer = %{version}-%{release}
@@ -451,7 +368,10 @@ Requires: nnstreamer = %{version}-%{release}
 NNStreamer's tensor_filter subplugin of Python3.
 %endif
 
+## ARMNN #####################################################################
 %if 0%{?armnn_support}
+BuildRequires: armnn-devel
+
 %package armnn
 Summary:	NNStreamer Arm NN support
 Requires:	nnstreamer-single = %{version}-%{release}
@@ -460,8 +380,11 @@ Requires:	armnn
 NNStreamer's tensor_filter subplugin of Arm NN Inference Engine.
 %endif
 
-# Support vivante subplugin
+## Vivante (Verisilicon's NPU) ###############################################
 %if 0%{?vivante_support}
+BuildRequires:  pkgconfig(ovxlib)
+BuildRequires:  pkgconfig(amlogic-vsi-npu-sdk)
+
 %package vivante
 Summary:    NNStreamer subplugin for Verisilicon's Vivante
 Requires:   nnstreamer-single = %{version}-%{release}
@@ -472,7 +395,11 @@ NNStreamer filter subplugin for Verisilicon Vivante.
 %define enable_vivante -Denable-vivante=false
 %endif
 
-# for protobuf
+## Protobuf (converter/decoder support) ######################################
+%if 0%{?protobuf_support}
+BuildRequires: protobuf-devel >= 3.4.0
+
+%endif
 %if 0%{?protobuf_support}
 %package    protobuf
 Summary:	NNStreamer Protobuf Support
@@ -482,8 +409,14 @@ Requires:	protobuf
 NNStreamer's tensor_converter and decoder subplugin of Protobuf.
 %endif
 
-# for flatbuf
+## Flatbuf (converter/decoder support) #######################################
 %if 0%{?flatbuf_support}
+# for flatbuffers
+BuildRequires: flatbuffers-devel
+%if 0%{?unit_test}
+BuildRequires: flatbuffers-python
+%endif
+
 %package    flatbuf
 Summary:	NNStreamer Flatbuf Support
 Requires:	nnstreamer = %{version}-%{release}
@@ -492,8 +425,10 @@ Requires:	flatbuffers
 NNStreamer's tensor_converter and decoder subplugin of flatbuf.
 %endif
 
-# for pytorch
+## PyTorch ###################################################################
 %if 0%{?pytorch_support}
+BuildRequires:	pytorch-devel
+
 %package pytorch
 Summary:	NNStreamer PyTorch Support
 Requires:	nnstreamer-single = %{version}-%{release}
@@ -502,8 +437,10 @@ Requires:	pytorch
 NNStreamer's tensor_filter subplugin of pytorch
 %endif
 
-# for caffe2
+## Caffe2 (reuses pytorch package) ###########################################
 %if 0%{?caffe2_support}
+BuildRequires:	pytorch-devel
+
 %package caffe2
 Summary:	NNStreamer caffe2 Support
 Requires:	nnstreamer-single = %{version}-%{release}
@@ -512,8 +449,10 @@ Requires:	pytorch
 NNStreamer's tensor_filter subplugin of caffe2
 %endif
 
-# for lua
+## LUA (Script launguage support) ############################################
 %if 0%{?lua_support}
+BuildRequires:	lua-devel
+
 %package lua
 Summary:	NNStreamer lua Support
 Requires:	nnstreamer-single = %{version}-%{release}
@@ -522,7 +461,11 @@ Requires:	lua
 NNStreamer's tensor_filter subplugin of lua
 %endif
 
+
+## Apache TVM ################################################################
 %if 0%{?tvm_support}
+BuildRequires:	tvm-runtime-devel
+
 %package tvm
 Summary:	NNStreamer TVM support
 Requires:	nnstreamer = %{version}-%{release}
@@ -531,8 +474,10 @@ Requires:	tvm
 NNStreamer's tensor_filter subplugin of tvm
 %endif
 
-# for snpe
+## Qualcomm SNPE #############################################################
 %if 0%{?snpe_support}
+BuildRequires:	snpe-devel
+
 %package snpe
 Summary:	NNStreamer snpe Support
 Requires:	nnstreamer-single = %{version}-%{release}
@@ -541,8 +486,10 @@ Requires:	snpe
 NNStreamer's tensor_filter subplugin of snpe
 %endif
 
-# for trix-engone
+## Samsung TRIx NPU ##########################################################
 %if 0%{?trix_engine_support}
+BuildRequires:	npu-engine-devel
+
 %package trix-engine
 Summary:	NNStreamer TRIx-Engine support
 Requires:	nnstreamer-single = %{version}-%{release}
@@ -551,8 +498,10 @@ Requires:	trix-engine
 NNStreamer's tensor_filter subplugin of trix-engine
 %endif
 
-# for onnxruntime
+## ONNX Runtime ##############################################################
 %if 0%{?onnxruntime_support}
+BuildRequires: onnxruntime-devel
+
 %package onnxruntime
 Summary:	NNStreamer onnxruntime Support
 Requires:	nnstreamer-single = %{version}-%{release}
@@ -561,8 +510,10 @@ Requires:	onnxruntime
 NNStreamer's tensor_filter subplugin of onnxruntime
 %endif
 
-# for executorch
+## ExecuTorch ################################################################
 %if 0%{?executorch_support}
+BuildRequires: executorch-devel
+
 %package executorch
 Summary:	NNStreamer ExecuTorch Support
 Requires:	nnstreamer-single = %{version}-%{release}
@@ -570,6 +521,116 @@ Requires:	executorch
 %description executorch
 NNStreamer's tensor_filter subplugin of executorch
 %endif
+
+## NNFW (ONE) ################################################################
+%if 0%{?nnfw_support}
+BuildRequires:  nnfw-devel
+
+%package nnfw
+Summary:	NNStreamer Tizen-nnfw runtime support
+Requires:	nnstreamer-single = %{version}-%{release}
+Requires:	nnfw
+%description nnfw
+NNStreamer's tensor_filter subplugin of Tizen/NNFW ONE Runtime. (Tizen 5.5 M2 +)
+NNFW is developerd at https://github.com/Samsung/ONE
+%endif
+
+## Intel MVNCSDK2 ############################################################
+%if 0%{?mvncsdk2_support}
+BuildRequires:	pkgconfig(libmvnc)
+
+%package	ncsdk2
+Summary:	NNStreamer Intel Movidius NCSDK2 support
+Requires:	nnstreamer-single = %{version}-%{release}
+Group:		Machine Learning/ML Framework
+%description	ncsdk2
+NNStreamer's tensor_filter subplugin of Intel Movidius Neural Compute stick SDK2.
+https://movidius.github.io/ncsdk/
+%endif # mvncsdk2_support
+
+## Intel OpenVINO ############################################################
+%if 0%{openvino_support}
+BuildRequires:	pkgconfig(openvino)
+
+%package	openvino
+Summary:	NNStreamer OpenVino support
+Requires:	nnstreamer-single = %{version}-%{release}
+Requires:	openvino
+Group:		Machine Learning/ML Framework
+%description	openvino
+NNStreamer's tensor_filter subplugin for OpenVINO support.
+https://www.intel.com/content/www/us/en/developer/tools/openvino-toolkit/overview.html
+%endif # openvino_support
+
+## GRPC source/sink elements #################################################
+%if 0%{grpc_support}
+BuildRequires:  grpc-devel
+
+%package grpc
+Summary:	NNStreamer gRPC support
+Requires:	nnstreamer = %{version}-%{release}
+%if %{with tizen}
+Recommends:	nnstreamer-grpc-protobuf = %{version}-%{release}
+Recommends:	nnstreamer-grpc-flatbuf = %{version}-%{release}
+%endif
+%description  grpc
+NNStreamer's tensor_source/sink plugins for gRPC support.
+
+## GRPC source/sink element extension for ProtoBuf ###########################
+%if 0%{protobuf_support}
+%package grpc-protobuf
+Summary:	NNStreamer gRPC/Protobuf support
+Requires:	nnstreamer-grpc = %{version}-%{release}
+Requires:	nnstreamer-protobuf = %{version}-%{release}
+%description  grpc-protobuf
+NNStreamer's gRPC IDL support for protobuf
+%endif
+
+## GRPC source/sink element extension for FlatBuf ############################
+%if 0%{flatbuf_support}
+%package grpc-flatbuf
+Summary:	NNStreamer gRPC/Flatbuf support
+Requires:	nnstreamer-grpc = %{version}-%{release}
+Requires:	nnstreamer-flatbuf = %{version}-%{release}
+%description  grpc-flatbuf
+NNStreamer's gRPC IDL support for flatbuf
+%endif
+
+%endif # grpc_support
+
+## Google Edge TPU ###########################################################
+%if 0%{?edgetpu_support}
+BuildRequires:	pkgconfig(edgetpu)
+
+%package edgetpu
+Summary:	NNStreamer plugin for Google-Coral Edge TPU
+Requires:	libedgetpu1
+Requires:	nnstreamer-single = %{version}-%{release}
+%description edgetpu
+You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML APIs.
+%endif
+
+## NVIDIA Tensor-RT ##########################################################
+%if 0%{?tensorrt_support}
+BuildRequires: tensorrt-devel
+
+%package tensorrt
+Summary:        NNStreamer plugin for NVidia TensorRT
+Requires:       tensorrt
+Requires:       nnstreamer-single = %{version}-%{release}
+%description tensorrt
+You may enable this package to use NVidia TensorRT with NNStreamer and Tizen ML APIs.
+%endif
+
+# Add Tizen's sensor framework API integration
+%if 0%{tizen_sensor_support}
+%package tizen-sensor
+Summary:	NNStreamer integration of tizen sensor framework (tensor_src_tizensensor)
+Requires:	nnstreamer = %{version}-%{release}
+Requires:	capi-system-sensor
+%description tizen-sensor
+You can include Tizen sensor framework nodes as source elements of GStreamer/NNStreamer pipelines with this package.
+%endif # tizen_sensor_support
 
 %package devel
 Summary:	Development package for custom tensor operator developers (tensor_filter/custom)
@@ -626,93 +687,6 @@ Also This package provides test templates to be used with.
 Summary:	NNStreamer UnitTest Coverage Analysis Result
 %description unittest-coverage
 HTML pages of lcov results of NNStreamer generated during rpmbuild
-%endif
-
-%if 0%{?nnfw_support}
-%package nnfw
-Summary:	NNStreamer Tizen-nnfw runtime support
-Requires:	nnstreamer-single = %{version}-%{release}
-Requires:	nnfw
-%description nnfw
-NNStreamer's tensor_filter subplugin of Tizen-NNFW Runtime. (5.5 M2 +)
-%endif
-
-%if 0%{?mvncsdk2_support}
-%package	ncsdk2
-Summary:	NNStreamer Intel Movidius NCSDK2 support
-Requires:	nnstreamer-single = %{version}-%{release}
-Group:		Machine Learning/ML Framework
-%description	ncsdk2
-NNStreamer's tensor_filter subplugin of Intel Movidius Neural Compute stick SDK2.
-%endif # mvncsdk2_support
-
-%if 0%{openvino_support}
-%package	openvino
-Summary:	NNStreamer OpenVino support
-Requires:	nnstreamer-single = %{version}-%{release}
-Requires:	openvino
-Group:		Machine Learning/ML Framework
-%description	openvino
-NNStreamer's tensor_filter subplugin for OpenVino support.
-%endif # openvino_support
-
-# Add Tizen's sensor framework API integration
-%if 0%{tizen_sensor_support}
-%package tizen-sensor
-Summary:	NNStreamer integration of tizen sensor framework (tensor_src_tizensensor)
-Requires:	nnstreamer = %{version}-%{release}
-Requires:	capi-system-sensor
-%description tizen-sensor
-You can include Tizen sensor framework nodes as source elements of GStreamer/NNStreamer pipelines with this package.
-%endif # tizen_sensor_support
-
-%if 0%{grpc_support}
-%package grpc
-Summary:	NNStreamer gRPC support
-Requires:	nnstreamer = %{version}-%{release}
-%if %{with tizen}
-Recommends:	nnstreamer-grpc-protobuf = %{version}-%{release}
-Recommends:	nnstreamer-grpc-flatbuf = %{version}-%{release}
-%endif
-%description  grpc
-NNStreamer's tensor_source/sink plugins for gRPC support.
-
-%if 0%{protobuf_support}
-%package grpc-protobuf
-Summary:	NNStreamer gRPC/Protobuf support
-Requires:	nnstreamer-grpc = %{version}-%{release}
-Requires:	nnstreamer-protobuf = %{version}-%{release}
-%description  grpc-protobuf
-NNStreamer's gRPC IDL support for protobuf
-%endif
-
-%if 0%{flatbuf_support}
-%package grpc-flatbuf
-Summary:	NNStreamer gRPC/Flatbuf support
-Requires:	nnstreamer-grpc = %{version}-%{release}
-Requires:	nnstreamer-flatbuf = %{version}-%{release}
-%description  grpc-flatbuf
-NNStreamer's gRPC IDL support for flatbuf
-%endif
-
-%endif # grpc_support
-
-%if 0%{?edgetpu_support}
-%package edgetpu
-Summary:	NNStreamer plugin for Google-Coral Edge TPU
-Requires:	libedgetpu1
-Requires:	nnstreamer-single = %{version}-%{release}
-%description edgetpu
-You may enable this package to use Google Edge TPU with NNStreamer and Tizen ML APIs.
-%endif
-
-%if 0%{?tensorrt_support}
-%package tensorrt
-Summary:        NNStreamer plugin for NVidia TensorRT
-Requires:       tensorrt
-Requires:       nnstreamer-single = %{version}-%{release}
-%description tensorrt
-You may enable this package to use NVidia TensorRT with NNStreamer and Tizen ML APIs.
 %endif
 
 %if 0%{?release_test}
@@ -906,9 +880,9 @@ NNStreamer's datareposrc/sink plugins for reading and writing files in MLOps Dat
 
 # Support executorch
 %if 0%{?executorch_support}
-%define enable_executorch -Dexecutorch-support=enabled
+%define enable_executorch -Dexecutorch-support=enabled -Dexecutorch-llama-support=enabled
 %else
-%define enable_executorch -Dexecutorch-support=disabled
+%define enable_executorch -Dexecutorch-support=disabled -Dexecutorch-llama-support=disabled
 %endif
 
 # Framework priority for each file extension
