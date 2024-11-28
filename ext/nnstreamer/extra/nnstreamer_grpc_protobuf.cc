@@ -211,9 +211,12 @@ SyncServiceImplProtobuf::start_client (std::string address)
       = grpc::CreateChannel (address, grpc::InsecureChannelCredentials ());
 
   /* connect the server */
-  client_stub_ = TensorService::NewStub (channel);
-  if (client_stub_.get () == nullptr)
+  try {
+    client_stub_ = TensorService::NewStub (channel);
+  } catch (...) {
+    ml_loge ("Failed to connect the server");
     return FALSE;
+  }
 
   worker_ = std::thread ([this] { this->_client_thread (); });
 
@@ -295,9 +298,12 @@ AsyncServiceImplProtobuf::start_client (std::string address)
       = grpc::CreateChannel (address, grpc::InsecureChannelCredentials ());
 
   /* connect the server */
-  client_stub_ = TensorService::NewStub (channel);
-  if (client_stub_.get () == nullptr)
+  try {
+    client_stub_ = TensorService::NewStub (channel);
+  } catch (...) {
+    ml_loge ("Failed to connect the server");
     return FALSE;
+  }
 
   worker_ = std::thread ([this] { this->_client_thread (); });
 
