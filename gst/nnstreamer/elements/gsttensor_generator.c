@@ -15,7 +15,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_generator_debug);
 static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK, GST_PAD_ALWAYS,
     GST_STATIC_CAPS (GST_TENSOR_CAP_DEFAULT ";"
-        GST_TENSORS_CAP_MAKE ("{ static, flexible }")));
+        GST_TENSORS_CAP_MAKE ("{ flexible }")));
 
 /**
  * @brief Template for src pad.
@@ -185,9 +185,35 @@ static gboolean
 gst_tensor_generator_sink_event (GstPad * pad, GstObject * parent,
     GstEvent * event)
 {
+  GstTensorGenerator *self;
   g_return_val_if_fail (event != NULL, FALSE);
+  self = GST_TENSOR_GENERATOR (parent);
 
   switch (GST_EVENT_TYPE (event)) {
+    case GST_EVENT_CAPS:
+    {
+      GstTensorsConfig config;
+      GstStructure *structure;
+      GstCaps *caps;
+
+      gst_event_parse_caps (event, &caps);
+      structure = gst_caps_get_structure (caps, 0);
+      gst_tensors_config_from_structure (&self->in_config, structure);
+      gst_event_unref (event);
+
+      gst_tensors_config_init (&config);
+
+      /* output tensor is always flexible */
+      config.info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+      config.info.num_tensors = self->in_config.info.num_tensors;
+      config.rate_d = self->in_config.rate_d;
+      config.rate_n = self->in_config.rate_n;
+      caps = gst_tensors_caps_from_config (&config);
+      gst_pad_set_caps (self->srcpad, caps);
+      gst_caps_unref (caps);
+
+      return TRUE;
+    }
     case GST_EVENT_SEEK:
       /* disable seeking */
       gst_event_unref (event);
@@ -203,11 +229,34 @@ static GstFlowReturn
 gst_tensor_generator_chain (GstPad * sinkpad, GstObject * parent,
     GstBuffer * inbuf)
 {
-  UNUSED (sinkpad);
-  UNUSED (parent);
-  UNUSED (inbuf);
+  GstTensorGenerator *self;
+  int count = 0;                /* Temporary variable to stop generating tensors */
 
-  ml_loge ("chain");
+  UNUSED (inbuf);
+  UNUSED (sinkpad);
+
+  self = GST_TENSOR_GENERATOR (parent);
+
+  /** FIXME: Temporary condition to stop generating tensors */
+  while (count++ < 10) {
+    GstBuffer *dummy;
+    GstMemory *mem;
+    guint8 *data;
+    GstCaps *caps;
+    gsize mem_size;
+    dummy = gst_buffer_new ();
+    mem_size = 100; /** FIXME: Get mem_size from property */
+    data = (guint8 *) g_malloc0 (mem_size);
+    mem = gst_memory_new_wrapped (0, data, mem_size, 0, mem_size, data, g_free);
+
+    gst_buffer_append_memory (dummy, mem);
+
+    caps = gst_tensors_caps_from_config (&self->in_config);
+
+    gst_pad_set_caps (self->srcpad, caps);
+    gst_caps_unref (caps);
+    gst_pad_push (self->srcpad, dummy);
+  }
 
   return GST_FLOW_OK;
 }
