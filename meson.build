@@ -664,6 +664,10 @@ features = {
   'llama2c-support': {
     'target': 'llama2c',
     'project_args': { 'ENABLE_LLAMA2C': 1 }
+  },
+  'llamacpp-support' : {
+    'target': 'llama',
+    'project_args': { 'ENABLE_LLAMACPP' : 1 }
   }
 }
 
