@@ -25,9 +25,7 @@ runs:
         pushd nnstreamer.github.io
         mkdir -p ${{ inputs.dest }}
         cp -r ${{ inputs.source }} ${{ inputs.dest }}
-        git diff > git_diff.txt
-        DIFF_SIZE=$(stat -c%s git_diff.txt)
-        if [[ $DIFF_SIZE -ne 0 ]]; then
+        if git diff --shortstat | grep -q changed; then
           git config user.email "nnsuite@samsung.com"
           git config user.name "nnsuite"
           git add *
