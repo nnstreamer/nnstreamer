@@ -933,6 +933,26 @@ if dali_support_is_available
   )
 endif
 
+if llamacpp_support_is_available
+  filter_sub_llamacpp_sources = ['tensor_filter_llamacpp.cc']
+  libggml_dep = cc.find_library('ggml')
+  nnstreamer_filter_llamacpp_deps = [glib_dep, nnstreamer_single_dep, llamacpp_support_deps, libggml_dep]
+
+  shared_library('nnstreamer_filter_llamacpp',
+    filter_sub_llamacpp_sources,
+    dependencies: nnstreamer_filter_llamacpp_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_llamacpp',
+    filter_sub_llamacpp_sources,
+    dependencies: nnstreamer_filter_llamacpp_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+endif
+
 if llama2c_support_is_available
   filter_sub_llama2c_sources = ['tensor_filter_llama2.cc']
 
