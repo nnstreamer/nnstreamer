@@ -60,6 +60,28 @@ convsbw t1, s1
 convswl d1, t1
 
 
+.function nns_orc_conv_s8_to_s64
+.dest 8 d1 int64_t
+.source 1 s1 int8_t
+.temp 2 t1
+.temp 4 t2
+
+convsbw t1, s1
+convswl t2, t1
+convslq d1, t2
+
+
+.function nns_orc_conv_s8_to_u64
+.dest 8 d1 uint64_t
+.source 1 s1 int8_t
+.temp 2 t1
+.temp 4 t2
+
+convsbw t1, s1
+convswl t2, t1
+convslq d1, t2
+
+
 .function nns_orc_conv_s8_to_f32
 .dest 4 d1 float
 .source 1 s1 int8_t
@@ -144,6 +166,28 @@ convubw t1, s1
 convuwl d1, t1
 
 
+.function nns_orc_conv_u8_to_s64
+.dest 8 d1 int64_t
+.source 1 s1 uint8_t
+.temp 2 t1
+.temp 4 t2
+
+convubw t1, s1
+convuwl t2, t1
+convulq d1, t2
+
+
+.function nns_orc_conv_u8_to_u64
+.dest 8 d1 uint64_t
+.source 1 s1 uint8_t
+.temp 2 t1
+.temp 4 t2
+
+convubw t1, s1
+convuwl t2, t1
+convulq d1, t2
+
+
 .function nns_orc_conv_u8_to_f32
 .dest 4 d1 float
 .source 1 s1 uint8_t
@@ -225,6 +269,24 @@ convswl d1, s1
 convswl d1, s1
 
 
+.function nns_orc_conv_s16_to_s64
+.dest 8 d1 int64_t
+.source 2 s1 int16_t
+.temp 4 t1
+
+convswl t1, s1
+convslq d1, t1
+
+
+.function nns_orc_conv_s16_to_u64
+.dest 8 d1 uint64_t
+.source 2 s1 int16_t
+.temp 4 t1
+
+convswl t1, s1
+convslq d1, t1
+
+
 .function nns_orc_conv_s16_to_f32
 .dest 4 d1 float
 .source 2 s1 int16_t
@@ -299,6 +361,24 @@ convuwl d1, s1
 .source 2 s1 uint16_t
 
 convuwl d1, s1
+
+
+.function nns_orc_conv_u16_to_s64
+.dest 8 d1 int64_t
+.source 2 s1 uint16_t
+.temp 4 t1
+
+convuwl t1, s1
+convulq d1, t1
+
+
+.function nns_orc_conv_u16_to_u64
+.dest 8 d1 uint64_t
+.source 2 s1 uint16_t
+.temp 4 t1
+
+convuwl t1, s1
+convulq d1, t1
 
 
 .function nns_orc_conv_u16_to_f32
@@ -382,6 +462,20 @@ copyl d1, s1
 copyl d1, s1
 
 
+.function nns_orc_conv_s32_to_s64
+.dest 8 d1 int64_t
+.source 4 s1 int32_t
+
+convslq d1, s1
+
+
+.function nns_orc_conv_s32_to_u64
+.dest 8 d1 uint64_t
+.source 4 s1 int32_t
+
+convslq d1, s1
+
+
 .function nns_orc_conv_s32_to_f32
 .dest 4 d1 float
 .source 4 s1 int32_t
@@ -458,6 +552,20 @@ copyl d1, s1
 copyl d1, s1
 
 
+.function nns_orc_conv_u32_to_s64
+.dest 8 d1 int64_t
+.source 4 s1 uint32_t
+
+convulq d1, s1
+
+
+.function nns_orc_conv_u32_to_u64
+.dest 8 d1 uint64_t
+.source 4 s1 uint32_t
+
+convulq d1, s1
+
+
 .function nns_orc_conv_u32_to_f32
 .dest 4 d1 float
 .source 4 s1 uint32_t
@@ -470,6 +578,214 @@ convlf d1, s1
 .source 4 s1 uint32_t
 
 convld d1, s1
+
+
+.function nns_orc_add_c_s64
+.dest 8 d1 int64_t
+.param 4 p1 int32_t
+.temp 8 t1
+
+convslq t1, p1
+addq d1, d1, t1
+
+
+.function nns_orc_mul_c_s64
+.dest 8 d1 int64_t
+.param 4 p1 int32_t
+.temp 4 t1
+
+convsssql t1, d1
+mulslq d1, t1, p1
+
+
+.function nns_orc_conv_s64_to_s8
+.dest 1 d1 int8_t
+.source 8 s1 int64_t
+.temp 4 t1
+.temp 2 t2
+
+convsssql t1, s1
+convssslw t2, t1
+convssswb d1, t2
+
+
+.function nns_orc_conv_s64_to_u8
+.dest 1 d1 uint8_t
+.source 8 s1 int64_t
+.temp 4 t1
+.temp 2 t2
+
+convql t1, s1
+convlw t2, t1
+convwb d1, t2
+
+
+.function nns_orc_conv_s64_to_s16
+.dest 2 d1 int16_t
+.source 8 s1 int64_t
+.temp 4 t1
+
+convsssql t1, s1
+convssslw d1, t1
+
+
+.function nns_orc_conv_s64_to_u16
+.dest 2 d1 uint16_t
+.source 8 s1 int64_t
+.temp 4 t1
+
+convsssql t1, s1
+convssslw d1, t1
+
+
+.function nns_orc_conv_s64_to_s32
+.dest 4 d1 int32_t
+.source 8 s1 int64_t
+
+convsssql d1, s1
+
+
+.function nns_orc_conv_s64_to_u32
+.dest 4 d1 uint32_t
+.source 8 s1 int64_t
+
+convsssql d1, s1
+
+
+.function nns_orc_conv_s64_to_s64
+.dest 8 d1 int64_t
+.source 8 s1 int64_t
+
+copyq d1, s1
+
+
+.function nns_orc_conv_s64_to_u64
+.dest 8 d1 uint64_t
+.source 8 s1 int64_t
+
+copyq d1, s1
+
+
+.function nns_orc_conv_s64_to_f32
+.dest 4 d1 float
+.source 8 s1 int64_t
+.temp 4 t1
+
+convsssql t1, s1
+convlf d1, t1
+
+
+.function nns_orc_conv_s64_to_f64
+.dest 8 d1 double
+.source 8 s1 int64_t
+.temp 4 t1
+
+convsssql t1, s1
+convld d1, t1
+
+
+.function nns_orc_add_c_u64
+.dest 8 d1 uint64_t
+.param 4 p1 uint32_t
+.temp 8 t1
+
+convulq t1, p1
+addq d1, d1, t1
+
+
+.function nns_orc_mul_c_u64
+.dest 8 d1 uint64_t
+.param 4 p1 uint32_t
+.temp 4 t1
+
+convsssql t1, d1
+mululq d1, t1, p1
+
+
+.function nns_orc_conv_u64_to_s8
+.dest 1 d1 int8_t
+.source 8 s1 uint64_t
+.temp 4 t1
+.temp 2 t2
+
+convql t1, s1
+convlw t2, t1
+convwb d1, t2
+
+
+.function nns_orc_conv_u64_to_u8
+.dest 1 d1 uint8_t
+.source 8 s1 uint64_t
+.temp 4 t1
+.temp 2 t2
+
+convql t1, s1
+convlw t2, t1
+convwb d1, t2
+
+
+.function nns_orc_conv_u64_to_s16
+.dest 2 d1 int16_t
+.source 8 s1 uint64_t
+.temp 4 t1
+
+convsssql t1, s1
+convssslw d1, t1
+
+
+.function nns_orc_conv_u64_to_u16
+.dest 2 d1 uint16_t
+.source 8 s1 uint64_t
+.temp 4 t1
+
+convql t1, s1
+convlw d1, t1
+
+
+.function nns_orc_conv_u64_to_s32
+.dest 4 d1 int32_t
+.source 8 s1 uint64_t
+
+convsssql d1, s1
+
+
+.function nns_orc_conv_u64_to_u32
+.dest 4 d1 uint32_t
+.source 8 s1 uint64_t
+
+convsssql d1, s1
+
+
+.function nns_orc_conv_u64_to_s64
+.dest 8 d1 int64_t
+.source 8 s1 uint64_t
+
+copyq d1, s1
+
+
+.function nns_orc_conv_u64_to_u64
+.dest 8 d1 uint64_t
+.source 8 s1 uint64_t
+
+copyq d1, s1
+
+
+.function nns_orc_conv_u64_to_f32
+.dest 4 d1 float
+.source 8 s1 uint64_t
+.temp 4 t1
+
+convql t1, s1
+convlf d1, t1
+
+
+.function nns_orc_conv_u64_to_f64
+.dest 8 d1 double
+.source 8 s1 uint64_t
+.temp 4 t1
+
+convql t1, s1
+convld d1, t1
 
 
 .function nns_orc_add_c_f32
@@ -545,6 +861,24 @@ convfl d1, s1
 .source 4 s1 float
 
 convfl d1, s1
+
+
+.function nns_orc_conv_f32_to_s64
+.dest 8 d1 int64_t
+.source 4 s1 float
+.temp 4 t1
+
+convfl t1, s1
+convslq d1, t1
+
+
+.function nns_orc_conv_f32_to_u64
+.dest 8 d1 uint64_t
+.source 4 s1 float
+.temp 4 t1
+
+convfl t1, s1
+convslq d1, t1
 
 
 .function nns_orc_conv_f32_to_f32
@@ -634,6 +968,24 @@ convdl d1, s1
 .source 8 s1 double
 
 convdl d1, s1
+
+
+.function nns_orc_conv_f64_to_s64
+.dest 8 d1 int64_t
+.source 8 s1 double
+.temp 4 t1
+
+convdl t1, s1
+convslq d1, t1
+
+
+.function nns_orc_conv_f64_to_u64
+.dest 8 d1 uint64_t
+.source 8 s1 double
+.temp 4 t1
+
+convdl t1, s1
+convslq d1, t1
 
 
 .function nns_orc_conv_f64_to_f32
