@@ -25,17 +25,6 @@
 #include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_util.h>
 
-#include <DlContainer/DlContainer.h>
-#include <DlSystem/DlEnums.h>
-#include <DlSystem/DlError.h>
-#include <DlSystem/DlVersion.h>
-#include <DlSystem/IUserBuffer.h>
-#include <DlSystem/RuntimeList.h>
-#include <DlSystem/UserBufferMap.h>
-#include <SNPE/SNPE.h>
-#include <SNPE/SNPEBuilder.h>
-#include <SNPE/SNPEUtil.h>
-
 #define SNPE_FRAMEWORK_NAME "snpe"
 
 #if SNPE_VERSION_MAJOR != 2
@@ -64,11 +53,10 @@ class snpe_subplugin final : public tensor_filter_subplugin
   GstTensorsInfo inputInfo; /**< Input tensors metadata */
   GstTensorsInfo outputInfo; /**< Output tensors metadata */
 
-  /** snpe handles */
-  Snpe_SNPE_Handle_t snpe_h;
-  Snpe_UserBufferMap_Handle_t inputMap_h;
-  Snpe_UserBufferMap_Handle_t outputMap_h;
-  std::vector<Snpe_IUserBuffer_Handle_t> user_buffers;
+  /** snpe internal data (including handles) */
+  char private_data[4096];
+  // Before: std::vector<Snpe_IUserBuffer_Handle_t> user_buffers;
+  std::vector<void *> user_buffers;
 
   public:
   static void init_filter_snpe ();
@@ -104,7 +92,7 @@ const GstTensorFilterFrameworkInfo snpe_subplugin::framework_info = { .name = SN
  */
 snpe_subplugin::snpe_subplugin ()
     : tensor_filter_subplugin (), configured (false), model_path (nullptr),
-      snpe_h (nullptr), inputMap_h (nullptr), outputMap_h (nullptr), user_buffers ()
+      user_buffers ()
 {
   gst_tensors_info_init (std::addressof (inputInfo));
   gst_tensors_info_init (std::addressof (outputInfo));
@@ -139,24 +127,13 @@ snpe_subplugin::cleanup ()
   if (!configured)
     return;
 
-  if (inputMap_h)
-    Snpe_UserBufferMap_Delete (inputMap_h);
-
-  if (outputMap_h)
-    Snpe_UserBufferMap_Delete (outputMap_h);
+  hal->custom_function[0] (private_data);
 
   for (auto &ub : user_buffers)
     if (ub)
-      Snpe_IUserBuffer_Delete (ub);
+      hal->custom_functions[1] (ub, 0, 0);
 
   user_buffers.clear ();
-
-  if (snpe_h)
-    Snpe_SNPE_Delete (snpe_h);
-
-  snpe_h = nullptr;
-  inputMap_h = nullptr;
-  outputMap_h = nullptr;
 
   gst_tensors_info_free (std::addressof (inputInfo));
   gst_tensors_info_free (std::addressof (outputInfo));
