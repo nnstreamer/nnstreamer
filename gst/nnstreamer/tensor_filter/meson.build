@@ -8,6 +8,7 @@ nnstreamer_single_sources += files(
 nnstreamer_headers += files('tensor_filter_single.h')
 
 nnstreamer_sources += files('tensor_filter.c')
+nnstreamer_sources += files('tensor_filter_llm.c')
 
 if get_option('enable-filter-cpp-class')
   nnstreamer_single_sources += files('tensor_filter_support_cc.cc')

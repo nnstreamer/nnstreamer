@@ -65,13 +65,13 @@
 #include <elements/gsttensor_split.h>
 #include <elements/gsttensor_transform.h>
 #include <elements/gsttensor_trainer.h>
-#include <elements/gsttensor_generator.h>
 
 #ifdef _ENABLE_SRC_IIO
 #include <elements/gsttensor_srciio.h>
 #endif
 
 #include <tensor_filter/tensor_filter.h>
+#include <tensor_filter/tensor_filter_llm.h>
 #if defined(ENABLE_NNSTREAMER_EDGE)
 #include <tensor_query/tensor_query_serversrc.h>
 #include <tensor_query/tensor_query_serversink.h>
@@ -111,7 +111,7 @@ gst_nnstreamer_init (GstPlugin * plugin)
   NNSTREAMER_INIT (plugin, if, IF);
   NNSTREAMER_INIT (plugin, rate, RATE);
   NNSTREAMER_INIT (plugin, trainer, TRAINER);
-  NNSTREAMER_INIT (plugin, generator, GENERATOR);
+  NNSTREAMER_INIT (plugin, filter_llm, FILTER_LLM);
 #if defined(ENABLE_NNSTREAMER_EDGE)
   NNSTREAMER_INIT (plugin, query_serversrc, QUERY_SERVERSRC);
   NNSTREAMER_INIT (plugin, query_serversink, QUERY_SERVERSINK);
