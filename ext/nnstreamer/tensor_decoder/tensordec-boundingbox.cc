@@ -333,7 +333,7 @@ iou (detectedObject *a, detectedObject *b)
  * @brief Apply NMS to the given results (objects[DETECTION_MAX])
  */
 void
-nms (GArray *results, gfloat threshold)
+nms (GArray *results, gfloat threshold, bounding_box_modes mode)
 {
   guint boxes_size;
   guint i, j;

@@ -308,4 +308,10 @@ class BoundingBox
   inline static GHashTable *properties_table;
 };
 
+/**
+ * @brief Apply NMS to the given results (objects[DETECTION_MAX])
+ * @param[in/out] results The results to be filtered with nms
+ */
+void nms (GArray *results, gfloat threshold, bounding_box_modes mode = BOUNDING_BOX_UNKNOWN);
+
 #endif /* _TENSORDECBB_H__ */
