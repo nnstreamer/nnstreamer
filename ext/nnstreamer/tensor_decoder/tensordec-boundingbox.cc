@@ -79,6 +79,7 @@ static const char *bb_modes[] = {
   [YOLOV5_BOUNDING_BOX] = "yolov5",
   [MP_PALM_DETECTION_BOUNDING_BOX] = "mp-palm-detection",
   [YOLOV8_BOUNDING_BOX] = "yolov8",
+  [YOLOV8_ORIENTED_BOUNDING_BOX] = "yolov8-obb",
   NULL,
 };
 
@@ -227,6 +228,15 @@ init_bb (void)
         "\t\t- the threshold of confidence (optional, default set to 0.25)\n"
         "\t\t- the threshold of IOU (optional, default set to 0.45)\n"
         "\t\tAn example of option3 is option3 = 0: 0.65:0.6 \n"
+        "\tfor yolov8 obb mode:\n"
+        "\t\tThe option3 requires up to 4 numbers, which tell\n"
+        "\t\t- whether the output values are scaled or not\n"
+        "\t\t   0: not scaled (default), 1: scaled (e.g., 0.0 ~ 1.0)\n"
+        "\t\t- the threshold of confidence (optional, default set to 0.25)\n"
+        "\t\t- the threshold of IOU (optional, default set to 0.45)\n"
+        "\t\t- whether to output oriented bounding boxes\n"
+        "\t\t   0: axis-aligned boxes, 1: oriented boxes (default)\n"
+        "\t\tAn example of option3 is option3=1:0.5:0.5:1\n"
         "\tfor mobilenet-ssd mode:\n"
         "\t\tThe option3 definition scheme is, in order, as follows\n"
         "\t\t- box priors location file (mandatory)\n"
@@ -330,6 +340,109 @@ iou (detectedObject *a, detectedObject *b)
 }
 
 /**
+ * @brief Calculate the corners using center position and angle
+ */
+void
+get_rotated_rect_corners (detectedObject *obj, Point corners[4])
+{
+  float cx = obj->x;
+  float cy = obj->y;
+  float angle = obj->angle;
+
+  // if angle is degree
+  /*
+  float angle_rad = angle * (M_PI / 180.0f);
+  float cos_a = cos(angle_rad);
+  float sin_a = sin(angle_rad);
+  */
+
+  float cos_a = cos (angle);
+  float sin_a = sin (angle);
+
+  float half_w = obj->width / 2;
+  float half_h = obj->height / 2;
+
+  float dx[4] = { -half_w, half_w, half_w, -half_w };
+  float dy[4] = { -half_h, -half_h, half_h, half_h };
+
+  for (int i = 0; i < 4; i++) {
+    corners[i].x = cx + dx[i] * cos_a - dy[i] * sin_a;
+    corners[i].y = cy + dx[i] * sin_a + dy[i] * cos_a;
+  }
+}
+
+/**
+ * @brief Check whether point is in the polygon
+ */
+bool
+is_point_inside (Point point, const Point *polygon, int n)
+{
+  int intersections = 0;
+
+  for (int i = 0; i < n; i++) {
+    Point p1 = polygon[i];
+    Point p2 = polygon[(i + 1) % n];
+
+    if ((p1.y > point.y) != (p2.y > point.y)) {
+      float intersect_x = p1.x + (point.y - p1.y) * (p2.x - p1.x) / (p2.y - p1.y);
+
+      if (intersect_x > point.x) {
+        intersections++;
+      }
+    }
+  }
+
+  return (intersections % 2 == 1);
+}
+
+/**
+ * @brief iou for obb
+ */
+float
+iou_obb (detectedObject *a, detectedObject *b)
+{
+  Point corners_a[4], corners_b[4];
+  get_rotated_rect_corners (a, corners_a);
+  get_rotated_rect_corners (b, corners_b);
+
+  float area_a = a->width * a->height;
+  float area_b = b->width * b->height;
+
+  Point *small_corners = (area_a < area_b) ? corners_a : corners_b;
+  float small_width = (area_a < area_b) ? a->width : b->width;
+  float small_height = (area_a < area_b) ? a->height : b->height;
+  float small_angle = (area_a < area_b) ? a->angle : b->angle;
+
+  int grid_x = 5, grid_y = 5;
+  int overlap_count = 0, total_count = 0;
+
+  float step_x = small_width / (grid_x + 1);
+  float step_y = small_height / (grid_y + 1);
+
+  for (int i = 0; i <= grid_x; i++) {
+    for (int j = 0; j <= grid_y; j++) {
+      Point test_point;
+      test_point.x = small_corners[0].x + (i + 0.5) * step_x * cos (small_angle)
+                     - (j + 0.5) * step_y * sin (small_angle);
+      test_point.y = small_corners[0].y + (i + 0.5) * step_x * sin (small_angle)
+                     + (j + 0.5) * step_y * cos (small_angle);
+
+      total_count++;
+
+      if (is_point_inside (test_point, corners_a, 4)
+          && is_point_inside (test_point, corners_b, 4)) {
+        overlap_count++;
+      }
+    }
+  }
+
+  float overlap_area = (float) overlap_count / total_count * small_width * small_height;
+  float union_area = area_a + area_b - overlap_area;
+
+  return overlap_area / union_area;
+}
+
+/**
  * @brief Apply NMS to the given results (objects[DETECTION_MAX])
  */
 void
@@ -350,7 +463,13 @@ nms (GArray *results, gfloat threshold, bounding_box_modes mode)
       for (j = i + 1; j < boxes_size; j++) {
         detectedObject *b = &g_array_index (results, detectedObject, j);
         if (b->valid == TRUE) {
-          if (iou (a, b) > threshold) {
+          float iou_value = 0.0f;
+          if (mode == YOLOV8_ORIENTED_BOUNDING_BOX) {
+            iou_value = iou_obb (a, b);
+          } else {
+            iou_value = iou (a, b);
+          }
+          if (iou_value > threshold) {
             b->valid = FALSE;
           }
         }
@@ -388,7 +507,7 @@ check_tensors (const GstTensorsConfig *config, const unsigned int limit)
     g_return_val_if_fail (
         gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, i - 1)->type
             == gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, i)
-                   ->type,
+              ->type,
         FALSE);
   }
   return TRUE;
@@ -591,6 +710,31 @@ BoundingBox::updateCentroids (GArray *boxes)
   }
 }
 
+void
+draw_line (uint32_t *frame, int width, int height, int x0, int y0, int x1, int y1, uint32_t color)
+{
+  int dx = abs (x1 - x0), sx = x0 < x1 ? 1 : -1;
+  int dy = -abs (y1 - y0), sy = y0 < y1 ? 1 : -1;
+  int err = dx + dy, e2;
+
+  while (1) {
+    if (x0 >= 0 && x0 < width && y0 >= 0 && y0 < height) {
+      frame[y0 * width + x0] = color;
+    }
+    if (x0 == x1 && y0 == y1)
+      break;
+    e2 = 2 * err;
+    if (e2 >= dy) {
+      err += dy;
+      x0 += sx;
+    }
+    if (e2 <= dx) {
+      err += dx;
+      y0 += sy;
+    }
+  }
+}
+
 /**
  * @brief Draw with the given results (objects[DETECTION_MAX]) to the output buffer
  * @param[out] out_info The output buffer (RGBA plain)
@@ -608,9 +752,6 @@ BoundingBox::draw (GstMapInfo *out_info, GArray *results)
   i_height = bdata->getInputHeight ();
 
   for (i = 0; i < results->len; i++) {
-    int x1, x2, y1, y2; /* Box positions on the output surface */
-    int j;
-    uint32_t *pos1, *pos2;
     detectedObject *a = &g_array_index (results, detectedObject, i);
 
     if ((flag_use_label)
@@ -620,63 +761,88 @@ BoundingBox::draw (GstMapInfo *out_info, GArray *results)
       continue;
     }
 
-    /* 1. Draw Boxes */
-    x1 = (width * a->x) / i_width;
-    x2 = MIN (width - 1, (width * (a->x + a->width)) / i_width);
-    y1 = (height * a->y) / i_height;
-    y2 = MIN (height - 1, (height * (a->y + a->height)) / i_height);
+    if (mode == YOLOV8_ORIENTED_BOUNDING_BOX) {
+      // For rotated boxes
+      Point corners[4];
+      get_rotated_rect_corners (a, corners);
 
-    /* 1-1. Horizontal */
-    pos1 = &frame[y1 * width + x1];
-    pos2 = &frame[y2 * width + x1];
-    for (j = x1; j <= x2; j++) {
-      *pos1 = PIXEL_VALUE;
-      *pos2 = PIXEL_VALUE;
-      pos1++;
-      pos2++;
-    }
-
-    /* 1-2. Vertical */
-    pos1 = &frame[(y1 + 1) * width + x1];
-    pos2 = &frame[(y1 + 1) * width + x2];
-    for (j = y1 + 1; j < y2; j++) {
-      *pos1 = PIXEL_VALUE;
-      *pos2 = PIXEL_VALUE;
-      pos1 += width;
-      pos2 += width;
-    }
-
-    /* 2. Write Labels + tracking ID */
-    if (flag_use_label) {
-      g_autofree gchar *label = NULL;
-      gsize k, label_len;
-
-      if (is_track != 0) {
-        label = g_strdup_printf ("%s-%d", labeldata.labels[a->class_id], a->tracking_id);
-      } else {
-        label = g_strdup_printf ("%s", labeldata.labels[a->class_id]);
+      // Scale the corners to output image size
+      for (int j = 0; j < 4; j++) {
+        corners[j].x = (width * corners[j].x) / i_width;
+        corners[j].y = (height * corners[j].y) / i_height;
       }
 
-      label_len = label ? strlen (label) : 0;
+      // Draw lines between the corners
+      for (int j = 0; j < 4; j++) {
+        int x_start = (int) corners[j].x;
+        int y_start = (int) corners[j].y;
+        int x_end = (int) corners[(j + 1) % 4].x;
+        int y_end = (int) corners[(j + 1) % 4].y;
 
-      /* x1 is the same: x1 = MAX (0, (width * a->x) / i_width); */
-      y1 = MAX (0, (y1 - 14));
+        draw_line (frame, width, height, x_start, y_start, x_end, y_end, PIXEL_VALUE);
+      }
+    } else {
+      int x1, x2, y1, y2; /* Box positions on the output surface */
+      int j;
+      uint32_t *pos1, *pos2;
+      /* 1. Draw Boxes */
+      x1 = (width * a->x) / i_width;
+      x2 = MIN (width - 1, (width * (a->x + a->width)) / i_width);
+      y1 = (height * a->y) / i_height;
+      y2 = MIN (height - 1, (height * (a->y + a->height)) / i_height);
+
+      /* 1-1. Horizontal */
       pos1 = &frame[y1 * width + x1];
-      for (k = 0; k < label_len; k++) {
-        unsigned int char_index = label[k];
-        if ((x1 + 8) > (int) width)
-          break; /* Stop drawing if it may overfill */
-        pos2 = pos1;
-        for (y2 = 0; y2 < 13; y2++) {
-          /* 13 : character height */
-          for (x2 = 0; x2 < 8; x2++) {
-            /* 8: character width */
-            *(pos2 + x2) = singleLineSprite[char_index][y2][x2];
-          }
-          pos2 += width;
+      pos2 = &frame[y2 * width + x1];
+      for (j = x1; j <= x2; j++) {
+        *pos1 = PIXEL_VALUE;
+        *pos2 = PIXEL_VALUE;
+        pos1++;
+        pos2++;
+      }
+
+      /* 1-2. Vertical */
+      pos1 = &frame[(y1 + 1) * width + x1];
+      pos2 = &frame[(y1 + 1) * width + x2];
+      for (j = y1 + 1; j < y2; j++) {
+        *pos1 = PIXEL_VALUE;
+        *pos2 = PIXEL_VALUE;
+        pos1 += width;
+        pos2 += width;
+      }
+
+      /* 2. Write Labels + tracking ID */
+      if (flag_use_label) {
+        g_autofree gchar *label = NULL;
+        gsize k, label_len;
+
+        if (is_track != 0) {
+          label = g_strdup_printf ("%s-%d", labeldata.labels[a->class_id], a->tracking_id);
+        } else {
+          label = g_strdup_printf ("%s", labeldata.labels[a->class_id]);
         }
-        x1 += 9;
-        pos1 += 9; /* character width + 1px */
+
+        label_len = label ? strlen (label) : 0;
+
+        /* x1 is the same: x1 = MAX (0, (width * a->x) / i_width); */
+        y1 = MAX (0, (y1 - 14));
+        pos1 = &frame[y1 * width + x1];
+        for (k = 0; k < label_len; k++) {
+          unsigned int char_index = label[k];
+          if ((x1 + 8) > (int) width)
+            break; /* Stop drawing if it may overfill */
+          pos2 = pos1;
+          for (y2 = 0; y2 < 13; y2++) {
+            /* 13 : character height */
+            for (x2 = 0; x2 < 8; x2++) {
+              /* 8: character width */
+              *(pos2 + x2) = singleLineSprite[char_index][y2][x2];
+            }
+            pos2 += width;
+          }
+          x1 += 9;
+          pos1 += 9; /* character width + 1px */
+        }
       }
     }
   }
@@ -694,11 +860,23 @@ BoundingBox::logBoxes (GArray *results)
       bdata->getInputWidth (), bdata->getInputHeight ());
   for (i = 0; i < results->len; i++) {
     detectedObject *b = &g_array_index (results, detectedObject, i);
-    if (labeldata.total_labels > 0)
-      nns_logi ("[%s] x:%d y:%d w:%d h:%d prob:%.4f",
-          labeldata.labels[b->class_id], b->x, b->y, b->width, b->height, b->prob);
-    else
-      nns_logi ("x:%d y:%d w:%d h:%d prob:%.4f", b->x, b->y, b->width, b->height, b->prob);
+    if (labeldata.total_labels > 0) {
+      if (mode == YOLOV8_ORIENTED_BOUNDING_BOX) {
+        nns_logi ("[%s] x:%d y:%d w:%d h:%d angle:%.2f prob:%.4f",
+            labeldata.labels[b->class_id], b->x, b->y, b->width, b->height,
+            b->angle, b->prob);
+      } else {
+        nns_logi ("[%s] x:%d y:%d w:%d h:%d prob:%.4f",
+            labeldata.labels[b->class_id], b->x, b->y, b->width, b->height, b->prob);
+      }
+    } else {
+      if (mode == YOLOV8_ORIENTED_BOUNDING_BOX) {
+        nns_logi ("x:%d y:%d w:%d h:%d angle:%.2f prob:%.4f", b->x, b->y,
+            b->width, b->height, b->angle, b->prob);
+      } else {
+        nns_logi ("x:%d y:%d w:%d h:%d prob:%.4f", b->x, b->y, b->width, b->height, b->prob);
+      }
+    }
   }
 }
 
@@ -724,7 +902,22 @@ BoundingBox::setBoxDecodingMode (const char *param)
     return FALSE;
   }
 
-  bdata = getProperties (updateDecodingMode (param));
+  const char *mode_name = updateDecodingMode (param);
+
+  if (g_strcmp0 (mode_name, "yolov8-obb") == 0) {
+    mode = YOLOV8_ORIENTED_BOUNDING_BOX;
+    bdata = getProperties (mode_name);
+  } else if (g_strcmp0 (mode_name, "yolov8") == 0) {
+    mode = YOLOV8_BOUNDING_BOX;
+    bdata = getProperties (mode_name);
+  } else if (g_strcmp0 (mode_name, "yolov5") == 0) {
+    mode = YOLOV5_BOUNDING_BOX;
+    bdata = getProperties (mode_name);
+  } else {
+    nns_loge ("Unsupported mode: %s", param);
+    return FALSE;
+  }
+
   if (bdata == nullptr) {
     nns_loge ("Could not find box properties name %s", param);
     return FALSE;
