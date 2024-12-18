@@ -229,7 +229,7 @@ YoloV5::decode (const GstTensorsConfig *config, const GstTensorMemory *input)
     }
   }
 
-  nms (results, iou_threshold);
+  nms (results, iou_threshold, YOLOV5_BOUNDING_BOX);
   return results;
 }
 
@@ -373,7 +373,7 @@ YoloV8::decode (const GstTensorsConfig *config, const GstTensorMemory *input)
     }
   }
 
-  nms (results, iou_threshold);
+  nms (results, iou_threshold, YOLOV8_BOUNDING_BOX);
   return results;
 }
 
