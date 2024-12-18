@@ -118,29 +118,37 @@ class MobilenetSSD : public BoxProperties
  * @param[in] config Tensor configs of the input tensors
  * @param[out] results The object returned. (GArray with detectedObject)
  */
-#define _get_objects_mobilenet_ssd(_type, typename, boxprior, boxinput,                                      \
-    detinput, config, results, i_width, i_height, max_detection)                                             \
-  case typename:                                                                                             \
-    {                                                                                                        \
-      int d;                                                                                                 \
-      _type *boxinput_ = (_type *) boxinput;                                                                 \
-      info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, 0);                            \
-      size_t boxbpi = info->dimension[0];                                                                    \
-      _type *detinput_ = (_type *) detinput;                                                                 \
-      info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, 1);                            \
-      size_t detbpi = info->dimension[0];                                                                    \
-      int num = (DETECTION_MAX > max_detection) ? max_detection : DETECTION_MAX;                             \
-      detectedObject object = {                                                                              \
-        .valid = FALSE, .class_id = 0, .x = 0, .y = 0, .width = 0, .height = 0, .prob = .0, .tracking_id = 0 \
-      };                                                                                                     \
-      for (d = 0; d < num; d++) {                                                                            \
-        _get_object_i_mobilenet_ssd (d, detbpi, boxprior, (boxinput_ + (d * boxbpi)),                        \
-            (detinput_ + (d * detbpi)), (&object), i_width, i_height);                                       \
-        if (object.valid == TRUE) {                                                                          \
-          g_array_append_val (results, object);                                                              \
-        }                                                                                                    \
-      }                                                                                                      \
-    }                                                                                                        \
+#define _get_objects_mobilenet_ssd(_type, typename, boxprior, boxinput,               \
+    detinput, config, results, i_width, i_height, max_detection)                      \
+  case typename:                                                                      \
+    {                                                                                 \
+      int d;                                                                          \
+      _type *boxinput_ = (_type *) boxinput;                                          \
+      info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, 0);     \
+      size_t boxbpi = info->dimension[0];                                             \
+      _type *detinput_ = (_type *) detinput;                                          \
+      info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, 1);     \
+      size_t detbpi = info->dimension[0];                                             \
+      int num = (DETECTION_MAX > max_detection) ? max_detection : DETECTION_MAX;      \
+      detectedObject object = {                                                       \
+        .valid = FALSE,                                                               \
+        .class_id = 0,                                                                \
+        .x = 0,                                                                       \
+        .y = 0,                                                                       \
+        .width = 0,                                                                   \
+        .height = 0,                                                                  \
+        .angle = 0,                                                                   \
+        .prob = .0,                                                                   \
+        .tracking_id = 0,                                                             \
+      };                                                                              \
+      for (d = 0; d < num; d++) {                                                     \
+        _get_object_i_mobilenet_ssd (d, detbpi, boxprior, (boxinput_ + (d * boxbpi)), \
+            (detinput_ + (d * detbpi)), (&object), i_width, i_height);                \
+        if (object.valid == TRUE) {                                                   \
+          g_array_append_val (results, object);                                       \
+        }                                                                             \
+      }                                                                               \
+    }                                                                                 \
     break
 
 
