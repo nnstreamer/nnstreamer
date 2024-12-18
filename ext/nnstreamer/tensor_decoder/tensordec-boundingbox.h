@@ -108,10 +108,11 @@
 #include <gst/gst.h>
 #include <math.h> /* expf */
 #include <nnstreamer_log.h>
-#include <nnstreamer_util.h>
 #include <nnstreamer_plugin_api_util.h>
+#include <nnstreamer_util.h>
 #include "tensordecutil.h"
 
+#define MAX_POLY_CORNERS 8
 #define PIXEL_VALUE (0xFF0000FF) /* RED 100% in RGBA */
 
 /**
@@ -147,6 +148,8 @@ typedef enum {
 
   YOLOV8_BOUNDING_BOX = 8,
 
+  YOLOV8_ORIENTED_BOUNDING_BOX = 9,
+
   BOUNDING_BOX_UNKNOWN,
 } bounding_box_modes;
 
@@ -180,6 +183,24 @@ typedef struct {
   float h;
 } anchor;
 
+/**
+ * @brief obb anchor data
+ */
+typedef struct {
+  float x_center;
+  float y_center;
+  float w;
+  float h;
+  float angle;
+} obb_anchor;
+
+/**
+ * @brief Point data structure
+ */
+typedef struct {
+  float x, y;
+} Point;
+
 /** @brief Represents a detect object */
 typedef struct {
   int valid;
@@ -188,17 +209,11 @@ typedef struct {
   int y;
   int width;
   int height;
+  float angle;
   gfloat prob;
 
   int tracking_id;
 } detectedObject;
-
-
-/**
- * @brief Apply NMS to the given results (objects[DETECTION_MAX])
- * @param[in/out] results The results to be filtered with nms
- */
-void nms (GArray *results, gfloat threshold);
 
 /**
  * @brief check the num_tensors is valid
@@ -207,6 +222,55 @@ void nms (GArray *results, gfloat threshold);
  * @return TRUE if tensors info is valid.
  */
 int check_tensors (const GstTensorsConfig *config, const unsigned int limit);
+
+/**
+ * @brief Get the corners of a rotated rectangle.
+ */
+void get_rotated_rect_corners (detectedObject *obj, Point corners[4]);
+
+/**
+ * @brief Clips a polygon with another polygon using Sutherland-Hodgman algorithm.
+ * @param subjectPolygon The polygon to be clipped.
+ * @param subjectSize Number of vertices in subjectPolygon.
+ * @param clipPolygon The clipping polygon.
+ * @param clipSize Number of vertices in clipPolygon.
+ * @param outPolygon The resulting clipped polygon.
+ * @return Number of vertices in the output polygon.
+ */
+int polygon_clip (const Point *subjectPolygon, int subjectSize,
+    const Point *clipPolygon, int clipSize, Point *outPolygon);
+
+/**
+ * @brief Computes the intersection point of two lines.
+ * @param line1Start Start point of the first line.
+ * @param line1End End point of the first line.
+ * @param line2Start Start point of the second line.
+ * @param line2End End point of the second line.
+ * @return The intersection point.
+ */
+Point compute_intersection (Point line1Start, Point line1End, Point line2Start, Point line2End);
+
+/**
+ * @brief Computes the area of a polygon.
+ * @param polygon The array of points defining the polygon.
+ * @param numPoints Number of points in the polygon.
+ * @return The area of the polygon.
+ */
+float polygon_area (const Point *polygon, int numPoints);
+
+/**
+ * @brief Draw a line on the frame buffer.
+ * @param frame The frame buffer.
+ * @param width The width of the frame.
+ * @param height The height of the frame.
+ * @param x0 Starting x coordinate.
+ * @param y0 Starting y coordinate.
+ * @param x1 Ending x coordinate.
+ * @param y1 Ending y coordinate.
+ * @param color The color to draw.
+ */
+void draw_line (uint32_t *frame, int width, int height, int x0, int y0, int x1,
+    int y1, uint32_t color);
 
 /**
  * @brief	Interface for Bounding box's properties
