@@ -134,6 +134,10 @@ NNSTREAMER_FILTER_MXNET_SRCS := \
 NNSTREAMER_FILTER_LLAMA2C_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_llama2.cc
 
+# filter llamacpp
+NNSTREAMER_FILTER_LLAMACPP_SRCS := \
+    $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_llamacpp.cc
+
 # converter flatbuffers
 NNSTREAMER_CONVERTER_FLATBUF_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_converter/tensor_converter_util.c \
