@@ -1054,7 +1054,7 @@ popd
 python3 tools/development/count_test_cases.py %{builddir} tests/summary.txt
 %else
 %if 0%{?edge_test} && 0%{?nnstreamer_edge_support}
-    bash %{test_script} tests/nnstreamer_edge
+    LD_LIBRARY_PATH=./tests/nnstreamer_edge bash %{test_script} ./tests/nnstreamer_edge
     pushd tests/nnstreamer_edge
     ssat -n -p=1 --summary summary.txt -cn _n
     popd
