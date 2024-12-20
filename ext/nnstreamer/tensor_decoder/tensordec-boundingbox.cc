@@ -507,7 +507,7 @@ check_tensors (const GstTensorsConfig *config, const unsigned int limit)
     g_return_val_if_fail (
         gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, i - 1)->type
             == gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, i)
-              ->type,
+                    ->type,
         FALSE);
   }
   return TRUE;
@@ -906,17 +906,8 @@ BoundingBox::setBoxDecodingMode (const char *param)
 
   if (g_strcmp0 (mode_name, "yolov8-obb") == 0) {
     mode = YOLOV8_ORIENTED_BOUNDING_BOX;
-    bdata = getProperties (mode_name);
-  } else if (g_strcmp0 (mode_name, "yolov8") == 0) {
-    mode = YOLOV8_BOUNDING_BOX;
-    bdata = getProperties (mode_name);
-  } else if (g_strcmp0 (mode_name, "yolov5") == 0) {
-    mode = YOLOV5_BOUNDING_BOX;
-    bdata = getProperties (mode_name);
-  } else {
-    nns_loge ("Unsupported mode: %s", param);
-    return FALSE;
   }
+  bdata = getProperties (mode_name);
 
   if (bdata == nullptr) {
     nns_loge ("Could not find box properties name %s", param);

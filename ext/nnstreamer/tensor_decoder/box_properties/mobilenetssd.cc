@@ -416,7 +416,7 @@ MobilenetSSD::decode (const GstTensorsConfig *config, const GstTensorMemory *inp
     default:
       g_assert (0);
   }
-  nms (results, params[IOU_THRESHOLD_IDX]);
+  nms (results, params[IOU_THRESHOLD_IDX], MOBILENET_SSD_BOUNDING_BOX);
   return results;
 }
 
