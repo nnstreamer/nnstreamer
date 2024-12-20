@@ -364,7 +364,7 @@ MpPalmDetection::decode (const GstTensorsConfig *config, const GstTensorMemory *
     default:
       g_assert (0);
   }
-  nms (results, 0.05f);
+  nms (results, 0.05f, MP_PALM_DETECTION_BOUNDING_BOX);
   return results;
 }
 
