@@ -222,32 +222,6 @@ gst_tensor_sparse_enc_get_property (GObject * object, guint prop_id,
 }
 
 /**
- * @brief Parse caps and set tensors config
- */
-static gboolean
-gst_tensor_sparse_enc_parse_caps (GstTensorSparseEnc * self,
-    const GstCaps * caps)
-{
-  GstStructure *structure;
-  GstTensorsConfig config;
-
-  g_return_val_if_fail (caps != NULL, FALSE);
-  g_return_val_if_fail (gst_caps_is_fixed (caps), FALSE);
-
-  structure = gst_caps_get_structure (caps, 0);
-
-  if (!gst_tensors_config_from_structure (&config, structure) ||
-      !gst_tensors_config_validate (&config)) {
-    /** not fully configured */
-    GST_ERROR_OBJECT (self, "Failed to configure tensors config.\n");
-    return FALSE;
-  }
-
-  self->in_config = config;
-  return TRUE;
-}
-
-/**
  * @brief This function handles sink pad event.
  */
 static gboolean
@@ -268,7 +242,7 @@ gst_tensor_sparse_enc_sink_event (GstPad * pad, GstObject * parent,
       gst_event_parse_caps (event, &caps);
       silent_debug_caps (self, caps, "caps");
 
-      ret = gst_tensor_sparse_enc_parse_caps (self, caps);
+      ret = gst_tensors_config_from_cap (&self->in_config, caps);
       gst_event_unref (event);
       return ret;
     }

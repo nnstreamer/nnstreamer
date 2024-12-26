@@ -670,25 +670,6 @@ gst_tensor_if_install_properties (GObjectClass * gobject_class)
 }
 
 /**
- * @brief Parse caps and configure tensors info.
- * @param tensor_if GstTensorIf object
- * @param caps incoming capability
- * @return TRUE/FALSE (if successfully configured, return TRUE)
- */
-static gboolean
-gst_tensor_if_parse_caps (GstTensorIf * tensor_if, GstCaps * caps)
-{
-  GstStructure *structure;
-  GstTensorsConfig *config;
-
-  config = &tensor_if->in_config;
-  structure = gst_caps_get_structure (caps, 0);
-  gst_tensors_config_from_structure (config, structure);
-
-  return gst_tensors_config_validate (config);
-}
-
-/**
  * @brief event function for sink (gst element vmethod)
  */
 static gboolean
@@ -702,8 +683,9 @@ gst_tensor_if_event (GstPad * pad, GstObject * parent, GstEvent * event)
     {
       GstCaps *caps;
       gst_event_parse_caps (event, &caps);
-      if (!gst_tensor_if_parse_caps (tensor_if, caps)) {
+      if (!gst_tensors_config_from_cap (&tensor_if->in_config, caps)) {
         GST_ERROR_OBJECT (tensor_if, "Failed to parse caps.\n");
+        gst_event_unref (event);
         return FALSE;
       }
       break;

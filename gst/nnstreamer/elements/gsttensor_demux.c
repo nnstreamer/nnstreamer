@@ -226,26 +226,6 @@ gst_tensor_demux_dispose (GObject * object)
 }
 
 /**
- * @brief Parse caps and configure tensors info.
- * @param tensor_demux GstTensorDemux object
- * @param caps incoming capability
- * @return TRUE/FALSE (if successfully configured, return TRUE)
- */
-static gboolean
-gst_tensor_demux_parse_caps (GstTensorDemux * tensor_demux, GstCaps * caps)
-{
-  GstStructure *structure;
-  GstTensorsConfig *config;
-
-  config = &tensor_demux->tensors_config;
-
-  structure = gst_caps_get_structure (caps, 0);
-  gst_tensors_config_from_structure (config, structure);
-
-  return gst_tensors_config_validate (config);
-}
-
-/**
  * @brief event function for sink (gst element vmethod)
  */
 static gboolean
@@ -259,7 +239,7 @@ gst_tensor_demux_event (GstPad * pad, GstObject * parent, GstEvent * event)
     {
       GstCaps *caps;
       gst_event_parse_caps (event, &caps);
-      gst_tensor_demux_parse_caps (tensor_demux, caps);
+      gst_tensors_config_from_cap (&tensor_demux->tensors_config, caps);
       break;
     }
     case GST_EVENT_EOS:
