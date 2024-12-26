@@ -211,22 +211,6 @@ gst_tensor_split_finalize (GObject * object)
 }
 
 /**
- * @brief Set Caps in pad.
- * @param split GstTensorSplit object
- * @param caps incoming capability
- * @return TRUE/FALSE (if successfully generate & set cap, return TRUE)
- */
-static gboolean
-gst_tensor_split_get_capsparam (GstTensorSplit * split, GstCaps * caps)
-{
-  GstStructure *st;
-
-  st = gst_caps_get_structure (caps, 0);
-
-  return gst_tensors_config_from_structure (&split->sink_tensor_conf, st);
-}
-
-/**
  * @brief event function for sink (gst element vmethod)
  */
 static gboolean
@@ -241,7 +225,7 @@ gst_tensor_split_event (GstPad * pad, GstObject * parent, GstEvent * event)
     {
       GstCaps *caps;
       gst_event_parse_caps (event, &caps);
-      if (!gst_tensor_split_get_capsparam (split, caps)) {
+      if (!gst_tensors_config_from_cap (&split->sink_tensor_conf, caps)) {
         GST_ELEMENT_ERROR (split, STREAM, WRONG_TYPE,
             ("This stream contains no valid type."), NULL);
       }

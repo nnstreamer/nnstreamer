@@ -399,15 +399,13 @@ gst_tensor_crop_sink_event (GstCollectPads * pads, GstCollectData * data,
     case GST_EVENT_CAPS:
     {
       GstCaps *caps;
-      GstStructure *structure;
-
+      gboolean ret;
       gst_event_parse_caps (event, &caps);
-      structure = gst_caps_get_structure (caps, 0);
 
-      gst_tensors_config_from_structure (&cpad->config, structure);
-
+      ret = gst_tensors_config_from_cap (&cpad->config, caps);
       gst_event_unref (event);
-      return gst_tensors_config_validate (&cpad->config);
+
+      return ret;
     }
     default:
       break;
