@@ -1078,6 +1078,50 @@ TEST (commonTensorsConfig, capInvalidParam1_n)
 }
 
 /**
+ * @brief Test for parsing tensor cap.
+ */
+TEST (commonTensorConfig, parseCapInvalidParam_p)
+{
+  GstTensorsConfig config;
+  GstCaps *caps = gst_caps_new_simple ("other/tensors", "format", G_TYPE_STRING,
+      "flexible", "framerate", GST_TYPE_FRACTION, 30, 1, NULL);
+  gst_tensors_config_init (&config);
+  EXPECT_TRUE (gst_tensors_config_from_cap (&config, caps));
+}
+
+/**
+ * @brief Test for parsing tensor cap with invalid param.
+ */
+TEST (commonTensorConfig, parseCapInvalidParam0_n)
+{
+  GstCaps *caps = gst_caps_new_simple ("other/tensor", "format", G_TYPE_STRING,
+      "flexible", "framerate", GST_TYPE_FRACTION, 30, 1, NULL);
+  EXPECT_FALSE (gst_tensors_config_from_cap (NULL, caps));
+}
+
+/**
+ * @brief Test for parsing tensor cap with invalid param.
+ */
+TEST (commonTensorConfig, parseCapInvalidParam1_n)
+{
+  GstTensorsConfig config;
+  gst_tensors_config_init (&config);
+  EXPECT_FALSE (gst_tensors_config_from_cap (&config, NULL));
+}
+
+/**
+ * @brief Test for parsing tensor cap with unfixed caps.
+ */
+TEST (commonTensorConfig, parseUnfixedCaps_n)
+{
+  GstTensorsConfig config;
+  GstCaps *caps = gst_caps_new_simple ("other/tensor", "format", G_TYPE_STRING,
+      "static", "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT, 1, NULL);
+  gst_tensors_config_init (&config);
+  EXPECT_FALSE (gst_tensors_config_from_cap (&config, caps));
+}
+
+/**
  * @brief Test for dimensions string in tensors info.
  */
 TEST (commonTensorsInfoString, dimensions)

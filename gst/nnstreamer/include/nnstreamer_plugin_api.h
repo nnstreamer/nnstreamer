@@ -50,6 +50,15 @@ gst_tensors_config_from_structure (GstTensorsConfig *config,
     const GstStructure *structure);
 
 /**
+ * @brief Parse caps and set tensors config (for other/tensors)
+ * @param[out] config tensors config structure to be filled
+ * @param[in] caps incoming capability
+ * @return TRUE/FALSE (if successfully configured, return TRUE)
+ */
+extern gboolean
+gst_tensors_config_from_cap (GstTensorsConfig *config, const GstCaps * caps);
+
+/**
  * @brief Parse caps from peer pad and set tensors config.
  * @param pad GstPad to get the capabilities
  * @param config tensors config structure to be filled

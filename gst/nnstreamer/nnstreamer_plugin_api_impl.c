@@ -1500,6 +1500,28 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
 }
 
 /**
+ * @brief Parse caps and set tensors config (for other/tensors)
+ * @param[out] config tensors config structure to be filled
+ * @param[in] caps incoming capability
+ * @return TRUE/FALSE (if successfully configured, return TRUE)
+ */
+gboolean
+gst_tensors_config_from_cap (GstTensorsConfig * config, const GstCaps * caps)
+{
+  GstStructure *structure;
+
+  if (!gst_caps_is_fixed (caps)) {
+    nns_logw ("GstCaps is not fixed");
+    return FALSE;
+  }
+
+  structure = gst_caps_get_structure (caps, 0);
+
+  return gst_tensors_config_from_structure (config, structure)
+         && gst_tensors_config_validate (config);
+}
+
+/**
  * @brief Parse memory and fill the tensor meta.
  * @param[out] meta tensor meta structure to be filled
  * @param[in] mem pointer to GstMemory to be parsed
