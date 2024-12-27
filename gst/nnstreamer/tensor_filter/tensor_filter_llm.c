@@ -100,6 +100,11 @@ gst_tensor_filter_llm_init (GstTensorFilterLLM * self)
 static void
 gst_tensor_filter_llm_finalize (GObject * object)
 {
+  GstTensorFilterLLM *self;
+  self = GST_TENSOR_FILTER_LLM (object);
+
+  gst_tensors_config_free (&self->in_config);
+
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
@@ -195,11 +200,16 @@ gst_tensor_filter_llm_sink_event (GstPad * pad, GstObject * parent,
       GstTensorsConfig config;
       GstStructure *structure;
       GstCaps *caps;
+      gboolean ret;
 
       gst_event_parse_caps (event, &caps);
-      structure = gst_caps_get_structure (caps, 0);
-      gst_tensors_config_from_structure (&self->in_config, structure);
+      ret = gst_tensors_config_from_cap (&self->in_config, caps);
       gst_event_unref (event);
+
+      if (!ret) {
+        ml_loge("Failted to parse caps from the event");
+        return ret;
+      }
 
       gst_tensors_config_init (&config);
 
