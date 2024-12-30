@@ -175,7 +175,7 @@ TensorFilterLlamaCpp::invoke_dynamic (GstTensorFilterProperties *prop,
     const GstTensorMemory *input, GstTensorMemory *output)
 {
   /** @todo: Get n_predict value from prop */
-  int n_prompt, n_pos, n_predict = 32, n_decode = 0;
+  int n_prompt, n_pos, n_predict = 32;
   llama_token new_token_id;
   llama_batch batch;
   std::string prompt, result = "";
@@ -243,8 +243,6 @@ TensorFilterLlamaCpp::invoke_dynamic (GstTensorFilterProperties *prop,
 
       /** prepare the next batch with the sampled token */
       batch = llama_batch_get_one (&new_token_id, 1);
-
-      n_decode += 1;
     }
   }
 
