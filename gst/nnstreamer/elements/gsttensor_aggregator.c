@@ -171,7 +171,7 @@ gst_tensor_aggregator_class_init (GstTensorAggregatorClass * klass)
    * GstTensorAggregator::frames-in:
    *
    * The number of frames in incoming buffer.
-   * GstTensorAggregator itself cannot get the frames in buffer. (buffer is a sinle tensor instance)
+   * GstTensorAggregator itself cannot get the frames in buffer. (buffer is a single tensor instance)
    * GstTensorAggregator calculates the size of single frame with this property.
    */
   g_object_class_install_property (object_class, PROP_FRAMES_IN,
@@ -182,7 +182,7 @@ gst_tensor_aggregator_class_init (GstTensorAggregatorClass * klass)
   /**
    * GstTensorAggregator::frames-out:
    *
-   * The number of frames in outgoing buffer. (buffer is a sinle tensor instance)
+   * The number of frames in outgoing buffer. (buffer is a single tensor instance)
    * GstTensorAggregator calculates the size of outgoing frames and pushes a buffer to source pad.
    */
   g_object_class_install_property (object_class, PROP_FRAMES_OUT,
