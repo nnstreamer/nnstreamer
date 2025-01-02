@@ -14,13 +14,15 @@
  * @details Pipeline example
  *          gst-launch-1.0 filesrc location=input.txt ! application/octet-stream !
  *          tensor_converter ! other/tensors,format=flexible !
- *          tensor_filter framework=llamacpp model=llama-2-7b-chat.Q2_K.gguf invoke-dynamic=TRUE !
- *          other/tensors,format=flexible ! tensor_decoder mode=octet_stream !
+ *          tensor_filter framework=llamacpp model=llama-2-7b-chat.Q2_K.gguf invoke-dynamic=TRUE
+ *          custom=num_predict:32 ! other/tensors,format=flexible ! tensor_decoder mode=octet_stream !
  *          application/octet-stream ! filesink location=output.txt
  */
 
 #include <assert.h>
 #include <errno.h>
+#include <functional>
+#include <memory>
 #include <nnstreamer_cppplugin_api_filter.hh>
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api_util.h>
@@ -77,6 +79,11 @@ class TensorFilterLlamaCpp : public tensor_filter_subplugin
   llama_model_params model_params;
   llama_sampler_chain_params sampler_params;
   llama_context_params ctx_params;
+
+  int n_gpu_layers = 99;
+  int n_predict = 32;
+
+  void parseCustomProperties (const GstTensorFilterProperties *prop);
 };
 
 void init_filter_llama (void) __attribute__ ((constructor));
@@ -119,23 +126,63 @@ TensorFilterLlamaCpp::getEmptyInstance ()
 }
 
 /**
+ * @brief Parse custom prop and set instance options accordingly.
+ */
+void
+TensorFilterLlamaCpp::parseCustomProperties (const GstTensorFilterProperties *prop)
+{
+  using uniq_g_strv = std::unique_ptr<gchar *, std::function<void (gchar **)>>;
+  guint len, i;
+
+  if (!prop->custom_properties)
+    return;
+
+  uniq_g_strv options (g_strsplit (prop->custom_properties, ",", -1), g_strfreev);
+  len = g_strv_length (options.get ());
+
+  for (i = 0; i < len; ++i) {
+    uniq_g_strv option (g_strsplit (options.get ()[i], ":", -1), g_strfreev);
+
+    if (g_strv_length (option.get ()) > 1) {
+      g_strstrip (option.get ()[0]);
+      g_strstrip (option.get ()[1]);
+
+      if (g_ascii_strcasecmp (option.get ()[0], "num_gpu_layers") == 0) {
+        n_gpu_layers = (int) g_ascii_strtoull (option.get ()[1], NULL, 10);
+      } else if (g_ascii_strcasecmp (option.get ()[0], "num_predict") == 0) {
+        n_predict = (int) g_ascii_strtoull (option.get ()[1], NULL, 10);
+      } else {
+        throw std::invalid_argument (
+            "Unknown custom property " + std::string (option.get ()[0]));
+      }
+    }
+  }
+
+  return;
+}
+
+/**
  * @brief Configure llamacpp instance
  */
 void
 TensorFilterLlamaCpp::configure_instance (const GstTensorFilterProperties *prop)
 {
-  /** @todo: Get ngl value from prop */
-  int ngl = 99;
-
   if (!prop->invoke_dynamic) {
     throw std::invalid_argument (
         "llamacpp only supports invoke-dynamic mode. Set `invoke-dynamic=true`");
   }
 
+  try {
+    parseCustomProperties (prop);
+  } catch (const std::invalid_argument &e) {
+    throw std::invalid_argument ("Failed to parse \"custom\" prop:"
+                                 + std::string (e.what ()) + "\n\tReference: " + __FILE__);
+  }
+
   /** load dynamic backends */
   ggml_backend_load_all ();
   model_params = llama_model_default_params ();
-  model_params.n_gpu_layers = ngl;
+  model_params.n_gpu_layers = n_gpu_layers;
 
   model = llama_load_model_from_file ((char *) prop->model_files[0], model_params);
   if (model == nullptr) {
@@ -174,8 +221,7 @@ void
 TensorFilterLlamaCpp::invoke_dynamic (GstTensorFilterProperties *prop,
     const GstTensorMemory *input, GstTensorMemory *output)
 {
-  /** @todo: Get n_predict value from prop */
-  int n_prompt, n_pos, n_predict = 32;
+  int n_prompt, n_pos;
   llama_token new_token_id;
   llama_batch batch;
   std::string prompt, result = "";
@@ -310,6 +356,8 @@ void
 TensorFilterLlamaCpp::init_filter_llama ()
 {
   registered = tensor_filter_subplugin::register_subplugin<TensorFilterLlamaCpp> ();
+  nnstreamer_filter_set_custom_property_desc (name, "num_predict", "Number of tokens to predict",
+      "num_gpu_layers", "Number of layers to offload to the GPU", NULL);
 }
 
 /** @brief Destruct the subplugin */
