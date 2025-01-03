@@ -694,7 +694,6 @@ Requires:	nnstreamer-flatbuf = %{version}-%{release}
 %description  grpc-flatbuf
 NNStreamer's gRPC IDL support for flatbuf
 %endif
-
 %endif # grpc_support
 
 %if 0%{?edgetpu_support}
@@ -1145,6 +1144,8 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %if 0%{?nnstreamer_edge_support}
 %{gstlibdir}/libgstedge.so
 %endif
+%{_libdir}/libnnstreamer-converter-util.so
+%{_libdir}/libnnstreamer-decoder-util.so
 %{_libdir}/libnnstreamer.so
 
 %files single
@@ -1354,6 +1355,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %defattr(-,root,root,-)
 %manifest nnstreamer.manifest
 %license LICENSE
+%{_libdir}/libnnstreamer-grpc-util.so
 %{gstlibdir}/libnnstreamer-grpc.so
 
 %if 0%{?protobuf_support}
@@ -1371,7 +1373,6 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %license LICENSE
 %{_libdir}/libnnstreamer_grpc_flatbuf.so
 %endif
-
 %endif  # grpc_support
 
 %if 0%{?edgetpu_support}

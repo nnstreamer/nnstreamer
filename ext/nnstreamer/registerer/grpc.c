@@ -19,8 +19,8 @@
 
 #include <gst/gst.h>
 
-#include <tensor_source/tensor_src_grpc.h>
-#include <tensor_sink/tensor_sink_grpc.h>
+#include <tensor_src_grpc.h>
+#include <tensor_sink_grpc.h>
 
 #define NNSTREAMER_GRPC_INIT(plugin,name,type) \
   do { \
