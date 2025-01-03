@@ -2,3 +2,4 @@
 /usr/lib/nnstreamer/decoders/libnnstreamer_decoder_flatbuf.so
 /usr/lib/nnstreamer/decoders/libnnstreamer_decoder_flexbuf.so
 /usr/lib/nnstreamer/converters/libnnstreamer_converter_flexbuf.so
+/usr/lib/*/libnnstreamer_flatbuf.so

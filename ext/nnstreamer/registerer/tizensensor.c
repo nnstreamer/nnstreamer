@@ -29,7 +29,7 @@
 
 #include <gst/gst.h>
 
-#include <tensor_source/tensor_src_tizensensor.h>
+#include <tensor_src_tizensensor.h>
 
 #define NNSTREAMER_TIZEN_SENSOR_INIT(plugin,name,type) \
   do { \
