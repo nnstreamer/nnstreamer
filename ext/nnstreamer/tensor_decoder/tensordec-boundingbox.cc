@@ -340,7 +340,8 @@ iou (detectedObject *a, detectedObject *b)
 }
 
 /**
- * @brief Calculate the corners using center position and angle
+ * @brief Calculate the corners using center position and angle.
+ * @note The angle (obj->angle) must be radian.
  */
 void
 get_rotated_rect_corners (detectedObject *obj, Point corners[4])
@@ -348,13 +349,6 @@ get_rotated_rect_corners (detectedObject *obj, Point corners[4])
   float cx = obj->x;
   float cy = obj->y;
   float angle = obj->angle;
-
-  // if angle is degree
-  /*
-  float angle_rad = angle * (M_PI / 180.0f);
-  float cos_a = cos(angle_rad);
-  float sin_a = sin(angle_rad);
-  */
 
   float cos_a = cos (angle);
   float sin_a = sin (angle);
