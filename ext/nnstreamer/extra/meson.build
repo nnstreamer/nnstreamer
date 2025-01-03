@@ -1,48 +1,61 @@
+# Don't generate protobuf/flatbuf files twice
 if protobuf_support_is_available
-  # Don't generate proto files twice
-  nns_protobuf_lib = shared_library('nnstreamer_protobuf',
-    sources: pb_gen_src,
-    dependencies: protobuf_dep,
+  protobuf_util_deps = [nnstreamer_dep, glib_dep, gst_dep, protobuf_dep]
+  protobuf_util_lib = shared_library('nnstreamer_protobuf',
+    sources: [pb_gen_src, 'nnstreamer_protobuf.cc'],
+    dependencies: protobuf_util_deps,
     install: true,
     install_dir: nnstreamer_libdir
   )
-  nns_protobuf_dep = declare_dependency(
-    link_with: nns_protobuf_lib,
-    dependencies: protobuf_dep,
-    include_directories: nns_protobuf_lib.private_dir_include()
-  )
-
-  protobuf_util_sources = ['nnstreamer_protobuf.cc']
-  protobuf_util_deps = [nnstreamer_dep, glib_dep, gst_dep, nns_protobuf_dep]
 
   protobuf_util_dep = declare_dependency(
-    sources: protobuf_util_sources,
+    link_with: protobuf_util_lib,
     dependencies: protobuf_util_deps,
-    include_directories: include_directories('.')
+    include_directories: [include_directories('.'), protobuf_util_lib.private_dir_include()]
+  )
+endif
+
+if flatbuf_support_is_available
+  flatbuf_util_deps = [nnstreamer_dep, glib_dep, gst_dep, flatbuf_dep]
+  flatbuf_util_lib = shared_library('nnstreamer_flatbuf',
+    sources: [fb_gen_src],
+    dependencies: flatbuf_util_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+
+  flatbuf_util_dep = declare_dependency(
+    link_with: flatbuf_util_lib,
+    dependencies: flatbuf_util_deps,
+    include_directories: [include_directories('.'), flatbuf_util_lib.private_dir_include()]
   )
 endif
 
 if grpc_support_is_available
-  grpc_common_src = ['nnstreamer_grpc_common.cc']
-
-  grpc_util_deps = [nnstreamer_dep, glib_dep, gst_dep, libdl_dep, grpc_support_deps]
+  # Do NOT add grpc_support_deps to avoid error while compiling .c files (-Wnon-virtual-dtor)
+  grpc_util_deps = [nnstreamer_dep, glib_dep, gst_dep]
   if cxx.has_argument('-Wno-unused-parameter')
     grpc_util_deps += declare_dependency(compile_args: ['-Wno-unused-parameter'])
   endif
 
+  grpc_util_lib = shared_library('nnstreamer_grpc',
+    sources: ['nnstreamer_grpc_common.cc'],
+    dependencies: [grpc_util_deps, grpc_support_deps],
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+
   grpc_util_dep = declare_dependency(
-    sources: grpc_common_src,
+    link_with: grpc_util_lib,
     dependencies: grpc_util_deps,
     include_directories: include_directories('.')
   )
 
+  # Don't generate protobuf/flatbuf files twice
   if protobuf_support_is_available
-    nns_protobuf_grpc_src = ['nnstreamer_grpc_protobuf.cc']
-
-    # Don't generate proto files twice
     nns_protobuf_grpc_lib = shared_library ('nnstreamer_grpc_protobuf',
-      sources : [grpc_pb_gen_src, nns_protobuf_grpc_src],
-      dependencies : [grpc_util_dep, nns_protobuf_dep],
+      sources : [grpc_pb_gen_src, 'nnstreamer_grpc_protobuf.cc'],
+      dependencies : [grpc_util_dep, grpc_support_deps, protobuf_util_dep],
       install: true,
       install_dir: nnstreamer_libdir
     )
@@ -51,11 +64,9 @@ if grpc_support_is_available
   endif
 
   if flatbuf_support_is_available
-    nns_flatbuf_grpc_src = ['nnstreamer_grpc_flatbuf.cc']
-
     nns_flatbuf_grpc_lib = shared_library ('nnstreamer_grpc_flatbuf',
-      sources : [grpc_fb_gen_src, nns_flatbuf_grpc_src],
-      dependencies : [grpc_util_dep, flatbuf_dep],
+      sources : [grpc_fb_gen_src, 'nnstreamer_grpc_flatbuf.cc'],
+      dependencies : [grpc_util_dep, grpc_support_deps, flatbuf_util_dep],
       install: true,
       install_dir: nnstreamer_libdir
     )
