@@ -3,6 +3,7 @@
 
 #include <gst/gst.h>
 #include <tensor_common.h>
+#include "tensor_filter_common.h"
 
 G_BEGIN_DECLS
 #define GST_TYPE_TENSOR_FILTER_LLM (gst_tensor_filter_llm_get_type ())
@@ -27,6 +28,7 @@ struct _GstTensorFilterLLM
   GstPad *sinkpad; /**< sink pad */
   GstPad *srcpad; /**< src pad */
   GstTensorsConfig in_config; /**< input tensors config */
+  GstTensorFilterPrivate priv; /**< Internal properties for tensor-filter */
 };
 
 /**

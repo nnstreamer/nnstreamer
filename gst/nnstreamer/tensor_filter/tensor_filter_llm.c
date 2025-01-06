@@ -60,6 +60,8 @@ gst_tensor_filter_llm_class_init (GstTensorFilterLLMClass * klass)
   object_class->get_property = gst_tensor_filter_llm_get_property;
   object_class->finalize = gst_tensor_filter_llm_finalize;
 
+  gst_tensor_filter_install_properties (object_class);
+
   element_class->change_state =
       GST_DEBUG_FUNCPTR (gst_tensor_filter_llm_change_state);
 
@@ -79,6 +81,8 @@ gst_tensor_filter_llm_class_init (GstTensorFilterLLMClass * klass)
 static void
 gst_tensor_filter_llm_init (GstTensorFilterLLM * self)
 {
+  GstTensorFilterPrivate *priv = &self->priv;
+
   /* setup sink pad */
   self->sinkpad = gst_pad_new_from_static_template (&sink_template, "sink");
   gst_pad_set_event_function (self->sinkpad,
@@ -92,6 +96,11 @@ gst_tensor_filter_llm_init (GstTensorFilterLLM * self)
   gst_element_add_pad (GST_ELEMENT (self), self->srcpad);
   gst_pad_set_chain_function (self->sinkpad,
       GST_DEBUG_FUNCPTR (gst_tensor_filter_llm_chain));
+
+  gst_tensor_filter_common_init_property (priv);
+  /* If it is not configured properly, don't allow to start! */
+  if (priv->fw != NULL)
+    gst_tensor_filter_common_open_fw (priv);
 }
 
 /**
@@ -115,12 +124,23 @@ static void
 gst_tensor_filter_llm_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
-  UNUSED (value);
-  switch (prop_id) {
-    default:
-      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
-      break;
+  GstTensorFilterLLM *self;
+  GstTensorFilterPrivate *priv;
+
+  self = GST_TENSOR_FILTER_LLM (object);
+  priv = &self->priv;
+
+  silent_debug (self, "Setting property for prop %d.\n", prop_id);
+
+  if (prop_id == PROP_CONFIG) {
+    g_free (priv->config_path);
+    priv->config_path = g_strdup (g_value_get_string (value));
+    gst_tensor_parse_config_file (priv->config_path, object);
+    return;
   }
+
+  if (!gst_tensor_filter_common_set_property (priv, prop_id, value, pspec))
+    G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
 }
 
 /**
@@ -198,7 +218,6 @@ gst_tensor_filter_llm_sink_event (GstPad * pad, GstObject * parent,
     case GST_EVENT_CAPS:
     {
       GstTensorsConfig config;
-      GstStructure *structure;
       GstCaps *caps;
       gboolean ret;
 
@@ -240,12 +259,18 @@ gst_tensor_filter_llm_chain (GstPad * sinkpad, GstObject * parent,
     GstBuffer * inbuf)
 {
   GstTensorFilterLLM *self;
+  GstTensorFilterPrivate *priv;
+  GstTensorFilterFrameworkEventData event_data;
   int count = 0;                /* Temporary variable to stop generating tensors */
 
   UNUSED (inbuf);
   UNUSED (sinkpad);
 
   self = GST_TENSOR_FILTER_LLM (parent);
+  priv = &self->priv;
+
+  if (priv->fw != NULL)
+    gst_tensor_filter_common_open_fw (priv);
 
   /** FIXME: Temporary condition to stop generating tensors */
   while (count++ < 10) {
@@ -254,13 +279,18 @@ gst_tensor_filter_llm_chain (GstPad * sinkpad, GstObject * parent,
     guint8 *data;
     GstCaps *caps;
     gsize mem_size;
+    int status;
     dummy = gst_buffer_new ();
     mem_size = 100; /** FIXME: Get mem_size from property */
     data = (guint8 *) g_malloc0 (mem_size);
     mem = gst_memory_new_wrapped (0, data, mem_size, 0, mem_size, data, g_free);
 
     gst_buffer_append_memory (dummy, mem);
-
+    if (GST_TF_FW_V1 (priv->fw)) {
+      status = priv->fw->eventHandler
+          (priv->fw, &priv->prop, priv->privateData, GET_TOKENS, &event_data);
+      ml_loge("%d", status);
+    }
     caps = gst_tensors_caps_from_config (&self->in_config);
 
     gst_pad_set_caps (self->srcpad, caps);

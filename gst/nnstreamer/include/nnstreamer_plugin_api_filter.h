@@ -183,6 +183,7 @@ typedef enum
   SET_OUTPUT_PROP,  /**< Update output tensor info and layout */
   SET_ACCELERATOR,  /**< Update accelerator of the subplugin to be used as backend */
   CHECK_HW_AVAILABILITY, /**< Check the hw availability with custom option */
+  GET_TOKENS,
 } event_ops;
 
 /**
