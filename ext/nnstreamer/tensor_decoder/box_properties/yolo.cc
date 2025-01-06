@@ -544,6 +544,7 @@ YoloV10::decode (const GstTensorsConfig *config, const GstTensorMemory *input)
 /** @brief Constructor of YoloV8-OBB */
 YoloV8_OBB::YoloV8_OBB ()
 {
+  scaled_output = 0;
   conf_threshold = YOLO_DETECTION_CONF_THRESHOLD;
   iou_threshold = YOLO_DETECTION_IOU_THRESHOLD;
   name = g_strdup_printf ("yolov8-obb");
