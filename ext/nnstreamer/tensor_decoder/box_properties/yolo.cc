@@ -636,7 +636,7 @@ YoloV8_OBB::decode (const GstTensorsConfig *config, const GstTensorMemory *input
   GArray *results = NULL;
   int bIdx, numTotalBox;
   int cIdx, numTotalClass, cStartIdx, cIdxMax;
-  float *boxinput; // boxinput = [x,y,w,h,...class...,theta]
+  float *boxinput; /* boxinput = [x,y,w,h,...class...,theta] */
   int is_output_scaled = scaled_output;
   UNUSED (config);
 
