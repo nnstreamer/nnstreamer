@@ -151,7 +151,6 @@ class MobilenetSSD : public BoxProperties
     }                                                                                 \
     break
 
-
 /** @brief Macro to simplify calling _get_objects_mobilenet_ssd */
 #define _get_objects_mobilenet_ssd_(type, typename)                      \
   _get_objects_mobilenet_ssd (type, typename, box_priors, (boxes->data), \

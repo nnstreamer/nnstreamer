@@ -43,9 +43,7 @@
  * @todo Remove duplicate codes*
  * @todo give support for other models*
  */
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
+
 #include <glib.h>
 #include <gst/gst.h>
 #include <math.h> /** expf */

@@ -28,10 +28,6 @@
  * @bug         No known bugs except for NYI items
  */
 
-/** @todo _GNU_SOURCE fix build warning expf (nested-externs). remove this later. */
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
 #include <glib.h>
 
 #include <nnstreamer_plugin_api.h>
@@ -343,7 +339,7 @@ iou (detectedObject *a, detectedObject *b)
  * @brief Calculate the corners using center position and angle.
  * @note The angle (obj->angle) must be radian.
  */
-void
+static void
 get_rotated_rect_corners (detectedObject *obj, Point corners[4])
 {
   float cx = obj->x;
@@ -368,7 +364,7 @@ get_rotated_rect_corners (detectedObject *obj, Point corners[4])
 /**
  * @brief Check whether point is in the polygon
  */
-bool
+static bool
 is_point_inside (Point point, const Point *polygon, int n)
 {
   int intersections = 0;
@@ -392,7 +388,7 @@ is_point_inside (Point point, const Point *polygon, int n)
 /**
  * @brief iou for obb
  */
-float
+static float
 iou_obb (detectedObject *a, detectedObject *b)
 {
   Point corners_a[4], corners_b[4];
@@ -488,8 +484,11 @@ int
 check_tensors (const GstTensorsConfig *config, const unsigned int limit)
 {
   unsigned int i;
+  GstTensorInfo *_info, *_base;
+
   g_return_val_if_fail (config != NULL, FALSE);
   g_return_val_if_fail (config->info.num_tensors >= limit, FALSE);
+
   if (config->info.num_tensors > limit) {
     GST_WARNING ("tensor-decoder:boundingbox accepts %d or less tensors. "
                  "You are wasting the bandwidth by supplying %d tensors.",
@@ -497,13 +496,15 @@ check_tensors (const GstTensorsConfig *config, const unsigned int limit)
   }
 
   /* tensor-type of the tensors should be the same */
-  for (i = 1; i < config->info.num_tensors; ++i) {
-    g_return_val_if_fail (
-        gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, i - 1)->type
-            == gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, i)
-                   ->type,
-        FALSE);
+  if (config->info.num_tensors > 0) {
+    _base = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, 0);
+
+    for (i = 1; i < config->info.num_tensors; ++i) {
+      _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, i);
+      g_return_val_if_fail (_base->type == _info->type, FALSE);
+    }
   }
+
   return TRUE;
 }
 
@@ -704,7 +705,10 @@ BoundingBox::updateCentroids (GArray *boxes)
   }
 }
 
-void
+/**
+ * @brief Draw a line on the frame buffer.
+ */
+static void
 draw_line (uint32_t *frame, int width, int height, int x0, int y0, int x1, int y1, uint32_t color)
 {
   int dx = abs (x1 - x0), sx = x0 < x1 ? 1 : -1;
@@ -756,17 +760,17 @@ BoundingBox::draw (GstMapInfo *out_info, GArray *results)
     }
 
     if (mode == YOLOV8_ORIENTED_BOUNDING_BOX) {
-      // For rotated boxes
+      /* For rotated boxes */
       Point corners[4];
       get_rotated_rect_corners (a, corners);
 
-      // Scale the corners to output image size
+      /* Scale the corners to output image size */
       for (int j = 0; j < 4; j++) {
         corners[j].x = (width * corners[j].x) / i_width;
         corners[j].y = (height * corners[j].y) / i_height;
       }
 
-      // Draw lines between the corners
+      /* Draw lines between the corners */
       for (int j = 0; j < 4; j++) {
         int x_start = (int) corners[j].x;
         int y_start = (int) corners[j].y;

@@ -80,7 +80,8 @@ class MobilenetSSDPP : public BoxProperties
       for (d = 0; d < num; d++) {                                                             \
         _type x1, x2, y1, y2;                                                                 \
         detectedObject object;                                                                \
-        if (scores_[d] < threshold)                                                           \
+        gfloat score = (gfloat) scores_[d];                                                   \
+        if (score < threshold)                                                                \
           continue;                                                                           \
         object.valid = TRUE;                                                                  \
         object.class_id = (int) classes_[d];                                                  \
@@ -92,7 +93,7 @@ class MobilenetSSDPP : public BoxProperties
         object.y = (int) (y1 * i_height);                                                     \
         object.width = (int) ((x2 - x1) * i_width);                                           \
         object.height = (int) ((y2 - y1) * i_height);                                         \
-        object.prob = scores_[d];                                                             \
+        object.prob = score;                                                                  \
         g_array_append_val (results, object);                                                 \
       }                                                                                       \
     }                                                                                         \
@@ -125,7 +126,6 @@ typedef enum {
   MOBILENET_SSD_PP_BBOX_IDX_UNKNOWN
 } mobilenet_ssd_pp_bbox_idx_t;
 
-
 /** @brief Constructor of MobilenetSSDPP */
 MobilenetSSDPP::MobilenetSSDPP ()
 {
@@ -137,7 +137,6 @@ MobilenetSSDPP::MobilenetSSDPP ()
   threshold = THRESHOLD_DEFAULT;
   name = g_strdup_printf ("mobilenet-ssd-postprocess");
 }
-
 
 /** @brief Destructor of MobilenetSSDPP */
 MobilenetSSDPP::~MobilenetSSDPP ()

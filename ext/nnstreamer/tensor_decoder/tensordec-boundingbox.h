@@ -198,7 +198,8 @@ typedef struct {
  * @brief Point data structure
  */
 typedef struct {
-  float x, y;
+  float x;
+  float y;
 } Point;
 
 /** @brief Represents a detect object */
@@ -210,7 +211,7 @@ typedef struct {
   int width;
   int height;
   float angle;
-  gfloat prob;
+  float prob;
 
   int tracking_id;
 } detectedObject;
@@ -224,53 +225,10 @@ typedef struct {
 int check_tensors (const GstTensorsConfig *config, const unsigned int limit);
 
 /**
- * @brief Get the corners of a rotated rectangle.
+ * @brief Apply NMS to the given results (objects[DETECTION_MAX])
+ * @param[in/out] results The results to be filtered with nms
  */
-void get_rotated_rect_corners (detectedObject *obj, Point corners[4]);
-
-/**
- * @brief Clips a polygon with another polygon using Sutherland-Hodgman algorithm.
- * @param subjectPolygon The polygon to be clipped.
- * @param subjectSize Number of vertices in subjectPolygon.
- * @param clipPolygon The clipping polygon.
- * @param clipSize Number of vertices in clipPolygon.
- * @param outPolygon The resulting clipped polygon.
- * @return Number of vertices in the output polygon.
- */
-int polygon_clip (const Point *subjectPolygon, int subjectSize,
-    const Point *clipPolygon, int clipSize, Point *outPolygon);
-
-/**
- * @brief Computes the intersection point of two lines.
- * @param line1Start Start point of the first line.
- * @param line1End End point of the first line.
- * @param line2Start Start point of the second line.
- * @param line2End End point of the second line.
- * @return The intersection point.
- */
-Point compute_intersection (Point line1Start, Point line1End, Point line2Start, Point line2End);
-
-/**
- * @brief Computes the area of a polygon.
- * @param polygon The array of points defining the polygon.
- * @param numPoints Number of points in the polygon.
- * @return The area of the polygon.
- */
-float polygon_area (const Point *polygon, int numPoints);
-
-/**
- * @brief Draw a line on the frame buffer.
- * @param frame The frame buffer.
- * @param width The width of the frame.
- * @param height The height of the frame.
- * @param x0 Starting x coordinate.
- * @param y0 Starting y coordinate.
- * @param x1 Ending x coordinate.
- * @param y1 Ending y coordinate.
- * @param color The color to draw.
- */
-void draw_line (uint32_t *frame, int width, int height, int x0, int y0, int x1,
-    int y1, uint32_t color);
+void nms (GArray *results, gfloat threshold, bounding_box_modes mode = BOUNDING_BOX_UNKNOWN);
 
 /**
  * @brief	Interface for Bounding box's properties
@@ -371,11 +329,4 @@ class BoundingBox
   /* Table for box properties data */
   inline static GHashTable *properties_table;
 };
-
-/**
- * @brief Apply NMS to the given results (objects[DETECTION_MAX])
- * @param[in/out] results The results to be filtered with nms
- */
-void nms (GArray *results, gfloat threshold, bounding_box_modes mode = BOUNDING_BOX_UNKNOWN);
-
 #endif /* _TENSORDECBB_H__ */
