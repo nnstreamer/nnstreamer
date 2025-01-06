@@ -105,10 +105,10 @@ static int
 bb_init (void **pdata)
 {
   /** @todo check if we need to ensure plugin_data is not yet allocated */
-  BoundingBox *bdata = new BoundingBox ();
-  *pdata = bdata;
-
-  if (bdata == NULL) {
+  try {
+    BoundingBox *bdata = new BoundingBox ();
+    *pdata = bdata;
+  } catch (...) {
     GST_ERROR ("Failed to allocate memory for decoder subplugin.");
     return FALSE;
   }
@@ -353,8 +353,8 @@ get_rotated_rect_corners (detectedObject *obj, Point corners[4])
   float cos_a = cos (angle);
   float sin_a = sin (angle);
 
-  float half_w = obj->width / 2;
-  float half_h = obj->height / 2;
+  float half_w = static_cast<float> (obj->width) / 2;
+  float half_h = static_cast<float> (obj->height) / 2;
 
   float dx[4] = { -half_w, half_w, half_w, -half_w };
   float dy[4] = { -half_h, -half_h, half_h, half_h };
