@@ -31,10 +31,14 @@ jobs:
       with:
         mode: build
 
+    - name: Get the number of new commits in 24 hours
+      run: echo "NEW_COMMIT_COUNTS=$(git log --oneline --since 24.hours | wc -l)" >> $GITHUB_ENV
     - name: Check trigger event
       id: rebuild
       run: |
-        if ${{ env.rebuild == '1' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}; then
+        if ${{ env.rebuild == '1' || github.event_name == 'workflow_dispatch' }}; then
+          echo "rebuild=1" >> $GITHUB_OUTPUT
+        elif ${{ github.event_name == 'schedule' && env.NEW_COMMIT_COUNTS > 0 }}; then
           echo "rebuild=1" >> $GITHUB_OUTPUT
         else
           echo "rebuild=0" >> $GITHUB_OUTPUT
