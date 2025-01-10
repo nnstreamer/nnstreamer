@@ -13,6 +13,7 @@
  */
 
 #include <errno.h>
+#include <arpa/inet.h>
 #include <netdb.h>
 #include <stdint.h>
 #include <stdio.h>
