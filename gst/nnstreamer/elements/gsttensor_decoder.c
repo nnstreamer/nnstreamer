@@ -868,7 +868,7 @@ gst_tensordec_fixate_caps (GstBaseTransform * trans,
    * In gst_tensordec_transform_caps, we have refused to specify caps
    * if the direction is GST_PAD_SRC. Thus, gstreamer shouldn't fixate
    * it with GST_PAD_SRC. If this happens, it's either internal logic
-   * error or GST bUG.
+   * error or GST bug.
    */
   if (direction != GST_PAD_SINK) {
     ml_logf_stacktrace ("Invalid direction for tensor-decoder fixate caps.\n");
