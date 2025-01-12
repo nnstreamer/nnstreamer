@@ -51,7 +51,7 @@
  * raster[ch][12] is the top pixels
  * raster[ch][0] is the bottom pixels
  * raster[ch][height] & 0xF0 is the left-hand side
- * raster[ch][height] & 0x0F is the right-hand size
+ * raster[ch][height] & 0x0F is the right-hand side
  */
 uint8_t rasters[][13] = {
 {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
