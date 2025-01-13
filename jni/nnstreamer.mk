@@ -74,6 +74,9 @@ NNSTREAMER_PLUGINS_SRCS := \
 
 NNSTREAMER_ORC_SRC := $(NNSTREAMER_GST_HOME)/elements/nnstreamer-orc.orc
 
+# code for ml-agent
+NNSTREAMER_AGENT_SRCS := $(NNSTREAMER_GST_HOME)/ml_agent.c
+
 # tensor-query element with nnstreamer-edge
 NNSTREAMER_QUERY_SRCS := \
     $(NNSTREAMER_GST_HOME)/tensor_query/tensor_query_common.c \
