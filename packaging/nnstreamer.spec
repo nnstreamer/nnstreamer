@@ -45,6 +45,9 @@
 %define		datarepo_support 1
 %define		ml_agent_support 1
 
+# Support Tizen HAL ML for Tizen 10.0+
+%define		tizen_hal_support 1
+
 %define		check_test 1
 %define		release_test 1
 
@@ -374,6 +377,11 @@ BuildRequires: pkgconfig(json-glib-1.0)
 BuildRequires: pkgconfig(mlops-agent)
 %endif
 
+# For tizen-hal
+%if 0%{?tizen_hal_support}
+BuildRequires: pkgconfig(hal-api-ml)
+%endif
+
 # Note that debug packages generate an additional build and storage cost.
 # If you do not need debug packages, run '$ gbs -c .TAOS-CI/.gbs.conf build ... --define "_skip_debug_rpm 1"'.
 
@@ -569,6 +577,16 @@ Requires:	nnstreamer-single = %{version}-%{release}
 Requires:	executorch
 %description executorch
 NNStreamer's tensor_filter subplugin of executorch
+%endif
+
+# for tizen-hal
+%if 0%{?tizen_hal_support}
+%package tizen-hal
+Summary:	NNStreamer tizen-hal Support
+Requires:	nnstreamer-single = %{version}-%{release}
+Requires:	hal-api-ml
+%description tizen-hal
+NNStreamer's tensor_filter subplugin of tizen-hal
 %endif
 
 %package devel
@@ -798,6 +816,13 @@ NNStreamer's datareposrc/sink plugins for reading and writing files in MLOps Dat
 %define element_restriction -Denable-element-restriction=true -Dallowed-elements=%{allowed_element}
 %endif #if tizen
 
+# Support tizen-hal
+%if 0%{?tizen_hal_support}
+%define enable_tizen_hal -Dtizen-hal-support=enabled
+%else
+%define enable_tizen_hal -Dtizen-hal-support=disabled
+%endif
+
 # Support tensorflow
 %if 0%{?tensorflow_support}
 %define enable_tf -Dtf-support=enabled
@@ -977,7 +1002,7 @@ meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir
 	%{enable_flatbuf} %{enable_trix_engine} %{enable_datarepo} \
 	%{enable_tizen_sensor} %{enable_mqtt} %{enable_lua} %{enable_tvm} %{enable_onnxruntime} %{enable_executorch} \
         %{enable_test} %{enable_test_coverage} %{install_test} \
-	%{fp16_support} %{nnsedge} %{enable_ml_agent} \
+	%{fp16_support} %{nnsedge} %{enable_ml_agent} %{enable_tizen_hal} \
 	%{builddir}
 
 ninja -C %{builddir} %{?_smp_mflags}
@@ -1241,6 +1266,14 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_tvm.so
+%endif
+
+%if 0%{?tizen_hal_support}
+%files tizen-hal
+%manifest nnstreamer.manifest
+%defattr(-,root,root,-)
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_snpe.so
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_vivante.so
 %endif
 
 # for snpe
