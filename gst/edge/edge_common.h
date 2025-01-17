@@ -18,7 +18,7 @@
 #include <nnstreamer-edge.h>
 
 #ifndef GST_EDGE_PACKAGE
-#define GST_EDGE_PACKAGE "GStreamer Edge Plugins"
+#define GST_EDGE_PACKAGE "edge"
 #endif /* GST_EDGE_PACKAGE */
 #define GST_EDGE_ELEM_NAME_SINK "edgesink"
 #define GST_EDGE_ELEM_NAME_SRC "edgesrc"
