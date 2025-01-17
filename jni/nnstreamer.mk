@@ -85,6 +85,13 @@ NNSTREAMER_QUERY_SRCS := \
     $(NNSTREAMER_GST_HOME)/tensor_query/tensor_query_serversrc.c \
     $(NNSTREAMER_GST_HOME)/tensor_query/tensor_query_server.c
 
+# edge element with nnstreamer-edge
+NNSTREAMER_ELEM_EDGE_SRCS := \
+    $(NNSTREAMER_ROOT)/gst/edge/edge_common.c \
+    $(NNSTREAMER_ROOT)/gst/edge/edge_elements.c \
+    $(NNSTREAMER_ROOT)/gst/edge/edge_sink.c \
+    $(NNSTREAMER_ROOT)/gst/edge/edge_src.c
+
 # source AMC (Android MediaCodec)
 NNSTREAMER_SOURCE_AMC_SRCS := \
     $(NNSTREAMER_EXT_HOME)/android_source/gstamcsrc.c \
