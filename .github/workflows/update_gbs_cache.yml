@@ -81,7 +81,7 @@ jobs:
     - if: matrix.gbs_build_arch == 'x86_64' && steps.gbs-build.outcome == 'success'
       name: extract test coverage result
       run: |
-        pip install pybadges beautifulsoup4 setuptools
+        pip install pybadges beautifulsoup4 setuptools standard-imghdr
         mkdir -p ~/testresult/
         pushd ~/testresult/
         cp ~/GBS-ROOT/local/repos/tizen/x86_64/RPMS/*-coverage*.rpm .
