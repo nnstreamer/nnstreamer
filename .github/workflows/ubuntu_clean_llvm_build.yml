@@ -41,7 +41,7 @@ jobs:
       if: env.rebuild == '1'
     - run: meson test -C build/ -v
       if: env.rebuild == '1'
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       if: failure()
       with:
         name: Meson_LLVM_Testlog

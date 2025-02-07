@@ -47,7 +47,7 @@ jobs:
       env:
         CC: gcc
     - name: Upload core if something went wrong
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: ${{ failure() }}
       with:
         name: cores
@@ -61,7 +61,7 @@ jobs:
           gdb ${ERROREXEC} -c coredump -batch -ex bt
           echo "::endgroup::"
         fi
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       if: failure()
       with:
         name: Meson_Testlog
