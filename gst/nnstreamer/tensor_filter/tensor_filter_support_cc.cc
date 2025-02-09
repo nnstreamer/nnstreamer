@@ -59,6 +59,9 @@ namespace nnstreamer
 
 #define GET_TFSP_WITH_CHECKS(obj, private_data)                         \
   do {                                                                  \
+    if (private_data == nullptr) {                                      \
+      return -EINVAL;                                                   \
+    }                                                                   \
     try {                                                               \
       obj = get_tfsp_with_checks (private_data);                        \
     } catch (const std::exception &e) {                                 \

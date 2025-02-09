@@ -84,8 +84,8 @@ static const gchar *regex_accl_elem_utils[] = {
 /**
  * @brief Free memory
  */
-#define g_free_const(x) g_free((void*)(long)(x))
-#define g_strfreev_const(x) g_strfreev((void*)(long)(x))
+#define g_free_const(x) g_free((void*)x)
+#define g_strfreev_const(x) g_strfreev((void*)x)
 
 static GType accl_hw_get_type (void);
 static GList *parse_accl_hw_all (const gchar * accelerators,
