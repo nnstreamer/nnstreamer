@@ -14,6 +14,7 @@
 #define __NNSTREAMER_INTERNAL_H__
 
 #include <glib.h>
+#include <nnstreamer_api.h>
 #include <nnstreamer_plugin_api_filter.h>
 
 G_BEGIN_DECLS
@@ -34,7 +35,7 @@ G_BEGIN_DECLS
  * @param[in] key The key name, key = value, in .ini file.
  * @return The newly allocated string. A caller must free it. NULL if it's not available.
  */
-extern gchar *
+extern NNS_API gchar *
 nnsconf_get_custom_value_string (const gchar * group, const gchar * key);
 
 /**
@@ -54,7 +55,7 @@ nnsconf_get_custom_value_string (const gchar * group, const gchar * key);
  * @param[in] def The default return value in case there is no value available.
  * @return The value interpreted as TRUE/FALSE.
  */
-extern gboolean
+extern NNS_API gboolean
 nnsconf_get_custom_value_bool (const gchar * group, const gchar * key, gboolean def);
 
 /**
@@ -64,7 +65,7 @@ nnsconf_get_custom_value_bool (const gchar * group, const gchar * key, gboolean 
  * @param[in] load_conf flag to load configuration for the priority of framework
  * @return Possible framework name (NULL if it fails to detect automatically). Caller should free returned value using g_free().
  */
-extern gchar *
+extern NNS_API gchar *
 gst_tensor_filter_detect_framework (const gchar * const *model_files, const guint num_models, const gboolean load_conf);
 
 /**
@@ -74,7 +75,7 @@ gst_tensor_filter_detect_framework (const gchar * const *model_files, const guin
  * @param[in] custom User-defined string to handle detailed hardware option.
  * @return TRUE if given hw is available.
  */
-extern gboolean
+extern NNS_API gboolean
 gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw, const char *custom);
 
 G_END_DECLS

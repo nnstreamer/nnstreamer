@@ -21,6 +21,13 @@ nnstreamer_sources += files(
   'gsttensor_trainer.c'
 )
 
+if build_platform == 'windows'
+  nnstreamer_sources += files(
+    'windows/nnstreamer-orc.c',
+    'windows/nnstreamer-orc.h'
+  )
+endif
+
 # gsttensorsrc
 if tensor_src_iio_build
   nnstreamer_sources += files('gsttensor_srciio.c')
@@ -28,25 +35,28 @@ endif
 
 # gsttensortransform
 if orcc_support_is_available
-  # tensor_transform does not need to generate -dist files.
-  orcsrc = 'nnstreamer-orc'
+  if build_platform == 'windows'
+    nnstreamer_internal_deps += declare_dependency(sources: ['windows/nnstreamer-orc.h'])
+  else
+    # tensor_transform does not need to generate -dist files.
+    orcsrc = 'nnstreamer-orc'
 
-  orc_h = custom_target(orcsrc + '.h',
-    input: orcsrc + '.orc',
-    output: orcsrc + '.h',
-    command: orcc_support_orcc_args + ['--header', '-o', '@OUTPUT@', '@INPUT@'])
-  orc_c_org = custom_target(orcsrc + '.c.in',
-    input: orcsrc + '.orc',
-    output: orcsrc + '.c.in',
-    command: orcc_support_orcc_args + ['--implementation', '-o', '@OUTPUT@', '@INPUT@'])
+    orc_h = custom_target(orcsrc + '.h',
+      input: orcsrc + '.orc',
+      output: orcsrc + '.h',
+      command: orcc_support_orcc_args + ['--header', '-o', '@OUTPUT@', '@INPUT@'])
+    orc_c_org = custom_target(orcsrc + '.c.in',
+      input: orcsrc + '.orc',
+      output: orcsrc + '.c.in',
+      command: orcc_support_orcc_args + ['--implementation', '-o', '@OUTPUT@', '@INPUT@'])
 
-  # ORC generated codes incur a few warnings. Ignore warnings of generated files.
-  script = find_program('ignore_warning.sh')
-  orc_c = custom_target(orcsrc + '.c',
-    input: orc_c_org,
-    output: orcsrc + '.c',
-    command: [ script, '@INPUT@', '@OUTPUT@' ])
+    # ORC generated codes incur a few warnings. Ignore warnings of generated files.
+    script = find_program('ignore_warning.sh')
+    orc_c = custom_target(orcsrc + '.c',
+      input: orc_c_org,
+      output: orcsrc + '.c',
+      command: [ script, '@INPUT@', '@OUTPUT@' ])
 
-  nnstreamer_sources += [orc_c, orc_h]
-  nnstreamer_internal_deps += declare_dependency(sources: orc_h)
+    nnstreamer_sources += [orc_c, orc_h]
+  endif
 endif

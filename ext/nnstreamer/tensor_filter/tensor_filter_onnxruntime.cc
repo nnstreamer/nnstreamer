@@ -58,7 +58,12 @@ class onnxruntime_subplugin final : public tensor_filter_subplugin
   } onnx_node_info_s;
 
   bool configured;
+
+#if (defined(_WIN32) || defined(__CYGWIN__))
+  ORTCHAR_T *model_path; /**< The model *.onnx file */
+#else
   char *model_path; /**< The model *.onnx file */
+#endif
 
   Ort::Session session;
   Ort::SessionOptions sessionOptions;
@@ -313,7 +318,19 @@ onnxruntime_subplugin::configure_instance (const GstTensorFilterProperties *prop
     throw std::runtime_error (err_msg);
   }
 
+  // Handle Windows path conversion
+#if (defined(_WIN32) || defined(__CYGWIN__))
+  // TODO: add error checking and check type of model_files
+  char *model_path_char = g_strdup (prop->model_files[0]);
+
+  int wlen = mbstowcs(NULL, model_path_char, 0);
+  model_path = (wchar_t*) malloc((wlen + 1) * sizeof(wchar_t));
+
+  mbstowcs(model_path, model_path_char, wlen + 1);
+  g_free(model_path_char);
+#else
   model_path = g_strdup (prop->model_files[0]);
+#endif
 
   /* Read a model */
   env = Ort::Env (ORT_LOGGING_LEVEL_WARNING, "nnstreamer_onnxruntime");
@@ -398,7 +415,13 @@ onnxruntime_subplugin::setAccelerator (const char *accelerators)
       sessionOptions.AppendExecutionProvider_CUDA_V2(*options);
       api.ReleaseCUDAProviderOptions(options);
     } else if (has_qnn) {
+#if (defined(_WIN32) || defined(__CYGWIN__))
+      std::unordered_map<std::string, std::string> provider_options;
+      provider_options["backend_path"] = "QnnHtp.dll";
+      sessionOptions.AppendExecutionProvider("QNN", provider_options);
+#else
       sessionOptions.AppendExecutionProvider("QNN");
+#endif
     } else if (has_rocm) {
       auto api = Ort::GetApi();
       OrtROCMProviderOptions* options = nullptr;

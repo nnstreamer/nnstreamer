@@ -27,6 +27,7 @@
 
 #include <glib-object.h>
 #include <errno.h>
+#include <nnstreamer_api.h>
 #include <nnstreamer_subplugin.h>
 #include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_plugin_api_filter.h>
@@ -180,7 +181,7 @@ typedef struct _GstTensorFilterPrivate
  * @param[in] info2 The tensors to be shown on the right hand side
  * @return The printout string allocated. Caller should free the value.
  */
-extern gchar *
+extern NNS_API gchar *
 gst_tensorsinfo_compare_to_string (const GstTensorsInfo * info,
     const GstTensorsInfo * info2);
 /**
@@ -189,7 +190,7 @@ gst_tensorsinfo_compare_to_string (const GstTensorsInfo * info,
  * @param[in] info2 The tensors to be shown on the right hand side
  * @todo If this is going to be used by other elements, move this to nnstreamer/tensor_common.
  */
-extern void
+extern NNS_API void
 gst_tensorsinfo_compare_print (const GstTensorsInfo * info1,
     const GstTensorsInfo * info2);
 
@@ -198,25 +199,25 @@ gst_tensorsinfo_compare_print (const GstTensorsInfo * info1,
  * @param[in] priv Struct containing the properties of the object
  * @return TRUE if valid, FALSE on error
  */
-extern gboolean
+extern NNS_API gboolean
 gst_tensor_filter_allocate_in_invoke (GstTensorFilterPrivate * priv);
 
 /**
  * @brief Installs all the properties for tensor_filter
  * @param[in] gobject_class Glib object class whose properties will be set
  */
-extern void gst_tensor_filter_install_properties (GObjectClass * gobject_class);
+extern NNS_API void gst_tensor_filter_install_properties (GObjectClass * gobject_class);
 
 /**
  * @brief Initialize the properties for tensor-filter.
  */
-extern void
+extern NNS_API void
 gst_tensor_filter_common_init_property (GstTensorFilterPrivate * priv);
 
 /**
  * @brief Free the properties for tensor-filter.
  */
-extern void
+extern NNS_API void
 gst_tensor_filter_common_free_property (GstTensorFilterPrivate * priv);
 
 /**
@@ -227,7 +228,7 @@ gst_tensor_filter_common_free_property (GstTensorFilterPrivate * priv);
  * @param[in] pspec Metadata to specify the parameter
  * @return TRUE if prop_id is value, else FALSE
  */
-extern gboolean
+extern NNS_API gboolean
 gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
     guint prop_id, const GValue * value, GParamSpec * pspec);
 
@@ -239,28 +240,28 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
  * @param[in] pspec Metadata to specify the parameter
  * @return TRUE if prop_id is value, else FALSE
  */
-extern gboolean
+extern NNS_API gboolean
 gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
     guint prop_id, GValue * value, GParamSpec * pspec);
 
 /**
  * @brief Configure input tensor info with combi option.
  */
-extern gboolean
+extern NNS_API gboolean
 gst_tensor_filter_common_get_combined_in_info (GstTensorFilterPrivate * priv,
     const GstTensorsInfo * in, GstTensorsInfo * combined);
 
 /**
  * @brief Configure output tensor info with combi option.
  */
-extern gboolean
+extern NNS_API gboolean
 gst_tensor_filter_common_get_combined_out_info (GstTensorFilterPrivate * priv,
     const GstTensorsInfo * in, const GstTensorsInfo * out, GstTensorsInfo * combined);
 
 /**
  * @brief Get output tensor info from NN model with given input info.
  */
-extern gboolean
+extern NNS_API gboolean
 gst_tensor_filter_common_get_out_info (GstTensorFilterPrivate * priv,
     GstTensorsInfo * in, GstTensorsInfo * out);
 
@@ -268,13 +269,13 @@ gst_tensor_filter_common_get_out_info (GstTensorFilterPrivate * priv,
  * @brief Load tensor info from NN model.
  * (both input and output tensor)
  */
-extern void
+extern NNS_API void
 gst_tensor_filter_load_tensor_info (GstTensorFilterPrivate * priv);
 
 /**
  * @brief Open NN framework.
  */
-extern void gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv);
+extern NNS_API void gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv);
 
 /**
  * @brief Unload NN framework.
@@ -284,7 +285,7 @@ extern void gst_tensor_filter_common_unload_fw (GstTensorFilterPrivate * priv);
 /**
  * @brief Close NN framework.
  */
-extern void gst_tensor_filter_common_close_fw (GstTensorFilterPrivate * priv);
+extern NNS_API void gst_tensor_filter_common_close_fw (GstTensorFilterPrivate * priv);
 
 /**
  * @brief Get neural network framework name from given model file. This does not guarantee the framework is available on the target device.
@@ -293,7 +294,7 @@ extern void gst_tensor_filter_common_close_fw (GstTensorFilterPrivate * priv);
  * @param[in] load_conf flag to load configuration for the priority of framework
  * @return Possible framework name (NULL if it fails to detect automatically). Caller should free returned value using g_free().
  */
-extern gchar *
+extern NNS_API gchar *
 gst_tensor_filter_detect_framework (const gchar * const *model_files, const guint num_models, const gboolean load_conf);
 
 /**
@@ -303,13 +304,13 @@ gst_tensor_filter_detect_framework (const gchar * const *model_files, const guin
  * @param[in] custom User-defined string to handle detailed hardware option.
  * @return TRUE if given hw is available.
  */
-extern gboolean
+extern NNS_API gboolean
 gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw, const char *custom);
 
 /**
  * @brief Free the data allocated for tensor filter output
  */
-extern void
+extern NNS_API void
 gst_tensor_filter_destroy_notify_util (GstTensorFilterPrivate *priv, void *data);
 
 G_END_DECLS

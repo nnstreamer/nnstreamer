@@ -18,6 +18,7 @@
 #include <glib.h>
 #include <gst/gst.h>
 #include <tensor_typedef.h>
+#include <nnstreamer_api.h>
 #include <nnstreamer_version.h>
 #include <nnstreamer_plugin_api_util.h>
 
@@ -28,7 +29,7 @@ G_BEGIN_DECLS
  * @param structure structure to be interpreted
  * @return TRUE if mimetype is tensor stream
  */
-extern gboolean
+extern NNS_API gboolean
 gst_structure_is_tensor_stream (const GstStructure * structure);
 
 /**
@@ -36,7 +37,7 @@ gst_structure_is_tensor_stream (const GstStructure * structure);
  * @param structure structure to be interpreted
  * @return corresponding media type (returns _NNS_MEDIA_INVALID for unsupported type)
  */
-extern media_type
+extern NNS_API media_type
 gst_structure_get_media_type (const GstStructure * structure);
 
 /**
@@ -45,7 +46,7 @@ gst_structure_get_media_type (const GstStructure * structure);
  * @param structure structure to be interpreted
  * @return TRUE if no error
  */
-extern gboolean
+extern NNS_API gboolean
 gst_tensors_config_from_structure (GstTensorsConfig *config,
     const GstStructure *structure);
 
@@ -65,7 +66,7 @@ gst_tensors_config_from_cap (GstTensorsConfig *config, const GstCaps * caps);
  * @param is_fixed flag to be updated when peer caps is fixed (not mandatory, do nothing when the param is null)
  * @return TRUE if successfully configured from peer
  */
-extern gboolean
+extern NNS_API gboolean
 gst_tensors_config_from_peer (GstPad * pad, GstTensorsConfig * config,
     gboolean * is_fixed);
 
@@ -74,7 +75,7 @@ gst_tensors_config_from_peer (GstPad * pad, GstTensorsConfig * config,
  * @param config tensors config info
  * @return caps for given config
  */
-extern GstCaps *
+extern NNS_API GstCaps *
 gst_tensor_caps_from_config (const GstTensorsConfig * config);
 
 /**
@@ -82,14 +83,14 @@ gst_tensor_caps_from_config (const GstTensorsConfig * config);
  * @param config tensors config info
  * @return caps for given config
  */
-extern GstCaps *
+extern NNS_API GstCaps *
 gst_tensors_caps_from_config (const GstTensorsConfig * config);
 
 /**
  * @brief set alignment that default allocator would align to
  * @param alignment bytes of alignment
  */
-extern void
+extern NNS_API void
 gst_tensor_alloc_init (gsize alignment);
 
 /**
@@ -98,7 +99,7 @@ gst_tensor_alloc_init (gsize alignment);
  * @param[in] mem pointer to GstMemory to be parsed
  * @return TRUE if successfully set the meta
  */
-extern gboolean
+extern NNS_API gboolean
 gst_tensor_meta_info_parse_memory (GstTensorMetaInfo * meta, GstMemory * mem);
 
 /**
@@ -107,7 +108,7 @@ gst_tensor_meta_info_parse_memory (GstTensorMetaInfo * meta, GstMemory * mem);
  * @param[in] mem pointer to GstMemory
  * @return Newly allocated GstMemory (Caller should free returned memory using gst_memory_unref())
  */
-extern GstMemory *
+extern NNS_API GstMemory *
 gst_tensor_meta_info_append_header (GstTensorMetaInfo * meta, GstMemory * mem);
 
 /**
@@ -115,7 +116,7 @@ gst_tensor_meta_info_append_header (GstTensorMetaInfo * meta, GstMemory * mem);
  * @param caps caps to compare and update
  * @param filter caps to compare
  */
-extern void
+extern NNS_API void
 gst_tensor_caps_update_dimension (GstCaps *caps, GstCaps *filter);
 
 /**
@@ -124,7 +125,7 @@ gst_tensor_caps_update_dimension (GstCaps *caps, GstCaps *filter);
  * @param caps2 a GstCaps to intersect
  * @return TRUE if intersection would be not empty.
  */
-extern gboolean
+extern NNS_API gboolean
 gst_tensor_caps_can_intersect (GstCaps *caps1, GstCaps *caps2);
 
 /**
@@ -133,7 +134,7 @@ gst_tensor_caps_can_intersect (GstCaps *caps1, GstCaps *caps2);
  * @param[in] index Index of GstMemory to be returned.
  * @return GstMemory if found, otherwise NULL (Caller should free returned memory using gst_memory_unref()).
  */
-extern GstMemory *
+extern NNS_API GstMemory *
 gst_tensor_buffer_get_nth_memory (GstBuffer * buffer, const guint index);
 
 /**
@@ -143,13 +144,13 @@ gst_tensor_buffer_get_nth_memory (GstBuffer * buffer, const guint index);
  * @param[in] info GstTensorInfo of given @a memory.
  * @return TRUE if successfully appended, otherwise FALSE.
  */
-extern gboolean
+extern NNS_API gboolean
 gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory, const GstTensorInfo * info);
 
 /**
  * @brief Get the number of tensors in the buffer.
  */
-extern guint
+extern NNS_API guint
 gst_tensor_buffer_get_count (GstBuffer * buffer);
 
 G_END_DECLS

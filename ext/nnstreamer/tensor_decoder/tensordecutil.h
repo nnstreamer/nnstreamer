@@ -19,6 +19,7 @@ extern "C" {
 #include <stdint.h>
 #include <glib.h>
 #include <gst/gstcaps.h>
+#include <nnstreamer_api.h>
 #include <tensor_typedef.h>
 
 typedef uint32_t singleLineSprite_t[256][13][8];
@@ -30,15 +31,15 @@ typedef struct {
   gsize max_word_length; /**< The max size of labels */
 } imglabel_t;
 
-extern void
+extern NNS_API void
 loadImageLabels (const char * label_path, imglabel_t *l);
 
-extern void
+extern NNS_API void
 initSingleLineSprite (singleLineSprite_t v, rasters_t r, uint32_t pv);
 
-extern void _free_labels (imglabel_t *data);
+extern NNS_API void _free_labels (imglabel_t *data);
 
-extern void setFramerateFromConfig  (GstCaps *caps, const GstTensorsConfig * config);
+extern NNS_API void setFramerateFromConfig  (GstCaps *caps, const GstTensorsConfig * config);
 
 #ifdef __cplusplus
 }

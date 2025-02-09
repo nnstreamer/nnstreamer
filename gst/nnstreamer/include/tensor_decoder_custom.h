@@ -18,6 +18,7 @@
 
 #include <glib.h>
 #include <gst/gst.h>
+#include "nnstreamer_api.h"
 #include "tensor_typedef.h"
 
 G_BEGIN_DECLS
@@ -39,7 +40,7 @@ typedef int (* tensor_decoder_custom) (const GstTensorMemory *input,
  * @param[in/out] data The internal data for the function
  * @return 0 if success. -ERRNO if error.
  */
-extern int
+extern NNS_API int
 nnstreamer_decoder_custom_register (const gchar *name, tensor_decoder_custom func, void *data);
 
 /**
@@ -47,7 +48,7 @@ nnstreamer_decoder_custom_register (const gchar *name, tensor_decoder_custom fun
  * @param[in] name The registered name of tensor_decoder custom callback function.
  * @return 0 if success. -ERRNO if error.
  */
-extern int
+extern NNS_API int
 nnstreamer_decoder_custom_unregister (const gchar *name);
 
 G_END_DECLS

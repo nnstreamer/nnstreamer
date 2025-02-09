@@ -24,6 +24,7 @@
 #ifndef __NNS_PLUGIN_API_CONVERTER_H__
 #define __NNS_PLUGIN_API_CONVERTER_H__
 
+#include "nnstreamer_api.h"
 #include "tensor_typedef.h"
 #include <gst/gst.h>
 
@@ -90,7 +91,7 @@ typedef struct _NNStreamerExternalConverter
  * @return NNStreamerExternalConverter if subplugin is found.
  *         NULL if not found or the sub-plugin object has an error.
  */
-extern const NNStreamerExternalConverter *
+extern NNS_API const NNStreamerExternalConverter *
 nnstreamer_converter_find (const char *name);
 
 /**
@@ -98,18 +99,18 @@ nnstreamer_converter_find (const char *name);
  * @param[in] ex Converter sub-plugin to be registered.
  * @return TRUE if registered. FALSE is failed or duplicated.
  */
-extern int registerExternalConverter (NNStreamerExternalConverter * ex);
+extern NNS_API int registerExternalConverter (NNStreamerExternalConverter * ex);
 
 /**
  * @brief Converter's sub-plugin may call this to unregister itself.
  * @param[in] prefix The name of converter sub-plugin.
  */
-extern void unregisterExternalConverter (const char *prefix);
+extern NNS_API void unregisterExternalConverter (const char *prefix);
 
 /**
  * @brief set custom property description for tensor converter sub-plugin
  */
-extern void
+extern NNS_API void
 nnstreamer_converter_set_custom_property_desc (const char *name, const char *prop, ...);
 
 #ifdef __cplusplus

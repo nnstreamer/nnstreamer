@@ -25,6 +25,7 @@
 #define __NNSTREAMER_LOG_H__
 
 #include <stdlib.h>
+#include <nnstreamer_api.h>
 #define TAG_NAME "nnstreamer"
 
 #if defined(__TIZEN__)
@@ -88,7 +89,7 @@ extern "C" {
  * @brief stack trace as a string for error messages
  * @return a string of stacktrace result. caller should free it.
  */
-extern char *
+extern NNS_API char *
 _backtrace_to_string (void);
 
 #define GST_ELEMENT_ERROR_BTRACE(s, errtype, errcode, mesg) do { \
@@ -122,19 +123,19 @@ _backtrace_to_string (void);
  * @brief return the last internal error string and clean it.
  * @return a string of error. Do not free the returned string.
  */
-extern const char *
+extern NNS_API const char *
 _nnstreamer_error (void);
 
 /**
  * @brief overwrites the error message buffer with the new message.
  */
-extern void
+extern NNS_API void
 _nnstreamer_error_write (const char *fmt, ...);
 
 /**
  * @brief cleans up the error message buffer.
  */
-extern void
+extern NNS_API void
 _nnstreamer_error_clean (void);
 
 #define nns_logi ml_logi

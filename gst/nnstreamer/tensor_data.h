@@ -14,6 +14,7 @@
 #define __NNS_TENSOR_DATA_H__
 
 #include <glib.h>
+#include <nnstreamer_api.h>
 #include <tensor_typedef.h>
 
 G_BEGIN_DECLS
@@ -33,7 +34,7 @@ typedef struct
  * @param value pointer of tensor element value
  * @return TRUE if no error
  */
-extern gboolean
+extern NNS_API gboolean
 gst_tensor_data_set (tensor_data_s * td, tensor_type type, gpointer value);
 
 /**
@@ -42,7 +43,7 @@ gst_tensor_data_set (tensor_data_s * td, tensor_type type, gpointer value);
  * @param value pointer of tensor element value
  * @return TRUE if no error
  */
-extern gboolean
+extern NNS_API gboolean
 gst_tensor_data_get (tensor_data_s * td, gpointer value);
 
 /**
@@ -51,7 +52,7 @@ gst_tensor_data_get (tensor_data_s * td, gpointer value);
  * @param type tensor type to be transformed
  * @return TRUE if no error
  */
-extern gboolean
+extern NNS_API gboolean
 gst_tensor_data_typecast (tensor_data_s * td, tensor_type type);
 
 /**
@@ -62,7 +63,7 @@ gst_tensor_data_typecast (tensor_data_s * td, tensor_type type);
  * @param out_type output tensor type
  * @return TRUE if no error
  */
-extern gboolean
+extern NNS_API gboolean
 gst_tensor_data_raw_typecast (gpointer input, tensor_type in_type,
     gpointer output, tensor_type out_type);
 
@@ -74,7 +75,7 @@ gst_tensor_data_raw_typecast (gpointer input, tensor_type in_type,
  * @param result double pointer for average value of given tensor. Caller should release allocated memory.
  * @return TRUE if no error
  */
-extern gboolean
+extern NNS_API gboolean
 gst_tensor_data_raw_average (gpointer raw, gsize length, tensor_type type,
     gdouble ** result);
 
@@ -87,7 +88,7 @@ gst_tensor_data_raw_average (gpointer raw, gsize length, tensor_type type,
  * @param results double array contains average values of each channel. Caller should release allocated array.
  * @return TRUE if no error
  */
-extern gboolean
+extern NNS_API gboolean
 gst_tensor_data_raw_average_per_channel (gpointer raw, gsize length,
     tensor_type type, tensor_dim dim, gdouble ** results);
 
@@ -100,7 +101,7 @@ gst_tensor_data_raw_average_per_channel (gpointer raw, gsize length,
  * @param result double pointer for standard deviation of given tensor. Caller should release allocated memory.
  * @return TRUE if no error
  */
-extern gboolean
+extern NNS_API gboolean
 gst_tensor_data_raw_std (gpointer raw, gsize length, tensor_type type,
     gdouble * average, gdouble ** result);
 
@@ -114,7 +115,7 @@ gst_tensor_data_raw_std (gpointer raw, gsize length, tensor_type type,
  * @param results double array contains standard deviation of each channel. Caller should release allocated array.
  * @return TRUE if no error
  */
-extern gboolean
+extern NNS_API gboolean
 gst_tensor_data_raw_std_per_channel (gpointer raw, gsize length, 
     tensor_type type, tensor_dim dim, gdouble * averages, gdouble ** results);
 

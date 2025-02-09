@@ -49,6 +49,7 @@
 
 #include <glib.h>
 #include <gst/gst.h>
+#include "nnstreamer_api.h"
 #include "tensor_typedef.h"
 
 G_BEGIN_DECLS
@@ -73,7 +74,7 @@ typedef gboolean (* tensor_if_custom) (const GstTensorsInfo *info,
  *       e.g.,) pipeline description: ... ! tensor_if name=tif (... properties ...) ! ...
  *       GstElement *tensor_if_h = gst_bin_get_by_name (GST_BIN (pipeline), "tif");
  */
-extern int
+extern NNS_API int
 nnstreamer_if_custom_register (const gchar *name, tensor_if_custom func, void *data);
 
 /**
@@ -81,7 +82,7 @@ nnstreamer_if_custom_register (const gchar *name, tensor_if_custom func, void *d
  * @param[in] name The registered name of tensor_if custom callback function.
  * @return 0 if success. -ERRNO if error.
  */
-extern int
+extern NNS_API int
 nnstreamer_if_custom_unregister (const gchar *name);
 
 G_END_DECLS

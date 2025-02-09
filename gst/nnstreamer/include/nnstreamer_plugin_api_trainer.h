@@ -14,6 +14,7 @@
 #ifndef __NNS_PLUGIN_API_TRAINER_H__
 #define __NNS_PLUGIN_API_TRAINER_H__
 
+#include "nnstreamer_api.h"
 #include "tensor_typedef.h"
 
 #define GST_TENSOR_TRAINER_FRAMEWORK_BASE (0xDEAFDEAD00000000ULL)
@@ -172,7 +173,7 @@ struct _GstTensorTrainerFramework
  *
  * @note Do not change the subplugins callbacks after probing the filter.
  */
-extern int
+extern NNS_API int
 nnstreamer_trainer_probe (GstTensorTrainerFramework * ttsp);
 
 /**
@@ -181,7 +182,7 @@ nnstreamer_trainer_probe (GstTensorTrainerFramework * ttsp);
  * @return TRUE if unregistered. FALSE is failed.
  */
 
-extern int
+extern NNS_API int
 nnstreamer_trainer_exit (GstTensorTrainerFramework * ttsp);
 
 /**
@@ -191,7 +192,7 @@ nnstreamer_trainer_exit (GstTensorTrainerFramework * ttsp);
  * @param type Event types that subplugins must send to tensor_trainer
  * @param data Optional data for the event
  */
-extern void
+extern NNS_API void
 nnstreamer_trainer_notify_event (GstTensorTrainerEventNotifier * notifier,
     GstTensorTrainerEventType type, void *data);
 

@@ -14,6 +14,7 @@
 #ifndef __NNS_PLUGIN_API_FILTER_H__
 #define __NNS_PLUGIN_API_FILTER_H__
 
+#include "nnstreamer_api.h"
 #include "tensor_typedef.h"
 
 /** Macros for accelerator types */
@@ -478,14 +479,14 @@ struct _GstTensorFilterFramework
  *
  * @note Do not change the subplugins callbacks after probing the filter.
  */
-extern int
+extern NNS_API int
 nnstreamer_filter_probe (GstTensorFilterFramework * tfsp);
 
 /**
  * @brief Filter's sub-plugin may call this to unregister itself.
  * @param[in] name The name of filter sub-plugin.
  */
-extern void
+extern NNS_API void
 nnstreamer_filter_exit (const char *name);
 
 /**
@@ -493,25 +494,25 @@ nnstreamer_filter_exit (const char *name);
  * @param[in] name The name of filter sub-plugin.
  * @return NULL if not found or the sub-plugin object has an error.
  */
-extern const GstTensorFilterFramework *
+extern NNS_API const GstTensorFilterFramework *
 nnstreamer_filter_find (const char *name);
 
 /**
  * @brief set custom property description for tensor filter sub-plugin
  */
-extern void
+extern NNS_API void
 nnstreamer_filter_set_custom_property_desc (const char *name, const char *prop, ...);
 
 /**
  * @brief return accl_hw type from string
  */
-extern accl_hw
+extern NNS_API accl_hw
 get_accl_hw_type (const char * str);
 
 /**
  * @brief return string based on accl_hw type
  */
-extern const char *
+extern NNS_API const char *
 get_accl_hw_str (const accl_hw key);
 
 /**
@@ -536,7 +537,7 @@ typedef struct {
  *       - auto_accl: auto accelerator (optional)
  *       - def_accl: default accelerator (optional)
  */
-extern accl_hw parse_accl_hw_fill (parse_accl_args accl_args);
+extern NNS_API accl_hw parse_accl_hw_fill (parse_accl_args accl_args);
 
 /**
  * @brief workaround to provide default arguments
@@ -550,7 +551,7 @@ extern accl_hw parse_accl_hw_fill (parse_accl_args accl_args);
  * @param[in] key The key to find the matched shared representation.
  * @return The model interpreter. NULL if it does not exist.
  */
-void *
+extern NNS_API void *
 nnstreamer_filter_shared_model_get (void *instance, const char *key);
 
 /* extern functions for shared model representation */
@@ -561,7 +562,7 @@ nnstreamer_filter_shared_model_get (void *instance, const char *key);
  * @param[in] interpreter The interpreter to be shared.
  * @return The model interpreter inserted. NULL if it is already inserted.
  */
-extern void *
+extern NNS_API void *
 nnstreamer_filter_shared_model_insert_and_get (void *instance, char *key, void *interpreter);
 
 /* extern functions for shared model representation */
@@ -573,7 +574,7 @@ nnstreamer_filter_shared_model_insert_and_get (void *instance, char *key, void *
  * @param[in] free_callback The callback function to destroy the interpreter, which takes the interpreter as arg.
  * @return TRUE if the instance is removed. FALSE if failed to remove it.
  */
-extern int
+extern NNS_API int
 nnstreamer_filter_shared_model_remove (void *instance, const char *key,
     void (*free_callback) (void *));
 
@@ -587,7 +588,7 @@ nnstreamer_filter_shared_model_remove (void *instance, const char *key,
  * @param[in] replace_callback The callback function to replace with new interpreter.
  * @param[in] free_callback The callback function to destroy the old interpreter.
  */
-extern void
+extern NNS_API void
 nnstreamer_filter_shared_model_replace (void *instance, const char *key,
     void *new_interpreter, void (*replace_callback) (void *, void *), void (*free_callback) (void*));
 

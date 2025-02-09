@@ -37,6 +37,7 @@
 #ifdef __cplusplus
 
 #include <assert.h>
+#include <nnstreamer_api.h>
 #include <nnstreamer_plugin_api_filter.h>
 #include <stdexcept>
 #include <stdint.h>
@@ -65,7 +66,7 @@ namespace nnstreamer
  *
  *         We support tensor_filter_subplugin V1 only. (NNStreamer 1.5.1 or higher)
  **/
-class tensor_filter_subplugin
+class NNS_API tensor_filter_subplugin
 {
   private: /** Derived classes should NEVER access these */
   const uint64_t sanity; /**< Checks if dlopened object is really tensor_filter_subplugin */

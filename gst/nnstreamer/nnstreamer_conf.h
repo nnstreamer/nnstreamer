@@ -34,6 +34,7 @@
 #define __GST_NNSTREAMER_CONF_H__
 
 #include <glib.h>
+#include <nnstreamer_api.h>
 G_BEGIN_DECLS
 
 /* Hard-coded system-dependent root path prefix */
@@ -47,8 +48,10 @@ G_BEGIN_DECLS
  * Hard-coded system-dependent file extension string of shared
  * (dynamic loadable) object
  */
-#ifdef __MACOS__
+#if defined(__MACOS__)
 #define NNSTREAMER_SO_FILE_EXTENSION	".dylib"
+#elif (defined(_WIN32) || defined(__CYGWIN__))
+#define NNSTREAMER_SO_FILE_EXTENSION  ".dll"
 #else
 #define NNSTREAMER_SO_FILE_EXTENSION	".so"
 #endif
@@ -83,7 +86,7 @@ typedef struct
  * @param[in] force_reload TRUE if you want to clean up and load conf again.
  * @return TRUE if successful or skipped. FALSE if error reading something.
  */
-extern gboolean
+extern NNS_API gboolean
 nnsconf_loadconf (gboolean force_reload);
 
 /**
@@ -95,7 +98,7 @@ nnsconf_loadconf (gboolean force_reload);
  *
  * This is mainly supposed to be used by CUSTOM_FILTERS
  */
-extern const gchar *
+extern NNS_API const gchar *
 nnsconf_get_fullpath (const gchar * subpluginname, nnsconf_type_path type);
 
 /**
@@ -104,7 +107,7 @@ nnsconf_get_fullpath (const gchar * subpluginname, nnsconf_type_path type);
  * @param[in] fullpath The full path to the file.
  * @return True if the file is regular and can be added to the list.
  */
-extern gboolean
+extern NNS_API gboolean
 nnsconf_validate_file (nnsconf_type_path type, const gchar * fullpath);
 
 /**
@@ -112,7 +115,7 @@ nnsconf_validate_file (nnsconf_type_path type, const gchar * fullpath);
  * @param[in] type The type (FILTERS/DECODERS/CUSTOM_FILTERS)
  * @return Predefined prefix string for given type.
  */
-extern const gchar *
+extern NNS_API const gchar *
 nnsconf_get_subplugin_name_prefix (nnsconf_type_path type);
 
 /**
@@ -122,7 +125,7 @@ nnsconf_get_subplugin_name_prefix (nnsconf_type_path type);
  * @return total number of sub-plugins for given type
  * @note DO NOT free sub-plugins info
  */
-extern guint
+extern NNS_API guint
 nnsconf_get_subplugin_info (nnsconf_type_path type, subplugin_info_s * info);
 
 /**
@@ -141,7 +144,7 @@ nnsconf_get_subplugin_info (nnsconf_type_path type, subplugin_info_s * info);
  * @param[in] key The key name, key = value, in .ini file.
  * @return The newly allocated string. A caller must free it. NULL if it's not available.
  */
-extern gchar *
+extern NNS_API gchar *
 nnsconf_get_custom_value_string (const gchar * group, const gchar * key);
 
 /**
@@ -161,7 +164,7 @@ nnsconf_get_custom_value_string (const gchar * group, const gchar * key);
  * @param[in] def The default return value in case there is no value available.
  * @return The value interpreted as TRUE/FALSE.
  */
-extern gboolean
+extern NNS_API gboolean
 nnsconf_get_custom_value_bool (const gchar * group, const gchar * key, gboolean def);
 
 /**
@@ -169,10 +172,10 @@ nnsconf_get_custom_value_bool (const gchar * group, const gchar * key, gboolean 
  * @param[out] str Preallocated string for the output (dump).
  * @param[in] size The size of given str.
  */
-extern void
+extern NNS_API void
 nnsconf_dump (gchar * str, gulong size);
 
-extern void
+extern NNS_API void
 nnsconf_subplugin_dump (gchar * str, gulong size);
 
 G_END_DECLS

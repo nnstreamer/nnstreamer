@@ -33,6 +33,7 @@
 #define __GST_NNSTREAMER_SUBPLUGIN_H__
 
 #include <stdint.h>
+#include "nnstreamer_api.h"
 #include "nnstreamer_conf.h"
 
 G_BEGIN_DECLS
@@ -58,7 +59,7 @@ typedef enum {
  * @param[in] name Subplugin Name. The filename should be libnnstreamer_${type}_${name}.so
  * @return The registered data
  */
-extern const void *
+extern NNS_API const void *
 get_subplugin (subpluginType type, const char *name);
 
 /**
@@ -67,7 +68,7 @@ get_subplugin (subpluginType type, const char *name);
  * @return The list of subplugin name
  * @note Caller should free the returned value using g_strfreev()
  */
-extern gchar **
+extern NNS_API gchar **
 get_all_subplugins (subpluginType type);
 
 /**
@@ -77,7 +78,7 @@ get_all_subplugins (subpluginType type);
  * @param[in] data The registered data
  * @return TRUE if registered as new. FALSE if duplicated (overwritten/updated).
  */
-extern gboolean
+extern NNS_API gboolean
 register_subplugin (subpluginType type, const char *name, const void *data);
 
 /**
@@ -88,14 +89,14 @@ register_subplugin (subpluginType type, const char *name, const void *data);
  *
  * @warning Subplugins checked out with get_subplugins can still be used after unregister.
  */
-extern gboolean
+extern NNS_API gboolean
 unregister_subplugin (subpluginType type, const char *name);
 
-extern void
+extern NNS_API void
 subplugin_set_custom_property_desc (subpluginType type, const char *name,
     const gchar * prop, va_list varargs);
 
-extern GData *
+extern NNS_API GData *
 subplugin_get_custom_property_desc (subpluginType type, const char *name);
 
 G_END_DECLS

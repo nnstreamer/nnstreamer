@@ -45,6 +45,7 @@
 #define __NNS_TENSOR_FILTER_CUSTOM_EASY_H__
 
 #include <stdint.h>
+#include "nnstreamer_api.h"
 #include "tensor_typedef.h"
 #include "tensor_filter_custom.h"
 
@@ -59,7 +60,7 @@ G_BEGIN_DECLS
  * @note NNS_custom_invoke defined in tensor_filter_custom.h
  *       Output buffers for func are preallocated.
  */
-extern int NNS_custom_easy_register (const char * modelname,
+extern NNS_API int NNS_custom_easy_register (const char * modelname,
     NNS_custom_invoke func, void *data,
     const GstTensorsInfo * in_info, const GstTensorsInfo * out_info);
 
@@ -85,7 +86,7 @@ typedef int (*NNS_custom_invoke_dynamic) (void *private_data, const GstTensorsIn
  * @note NNS_custom_invoke_dynamic defined in tensor_filter_custom.h
  *       Output buffers should be allocated in the invoke function.
  */
-extern int NNS_custom_easy_dynamic_register (const char * modelname,
+extern NNS_API int NNS_custom_easy_dynamic_register (const char * modelname,
     NNS_custom_invoke_dynamic func, void *data, const GstTensorsInfo * in_info);
 
 /**
@@ -93,7 +94,7 @@ extern int NNS_custom_easy_dynamic_register (const char * modelname,
  * @param[in] modelname The registered name of custom-easy tensor function.
  * @return 0 if success, non-zero if error
  */
-extern int NNS_custom_easy_unregister (const char * modelname);
+extern NNS_API int NNS_custom_easy_unregister (const char * modelname);
 
 G_END_DECLS
 #endif /*__NNS_TENSOR_FILTER_CUSTOM_EASY_H__*/

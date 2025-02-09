@@ -16,6 +16,7 @@
 #define __GST_TENSOR_SPARSE_UTIL_H__
 
 #include <gst/gst.h>
+#include <nnstreamer_api.h>
 #include <tensor_typedef.h>
 
 G_BEGIN_DECLS
@@ -26,7 +27,7 @@ G_BEGIN_DECLS
  * @param[in] mem gst-memory of sparse tensor data
  * @return pointer of GstMemory with dense tensor data or NULL on error. Caller should handle this newly allocated memory.
  */
-extern GstMemory *
+extern NNS_API GstMemory *
 gst_tensor_sparse_to_dense (GstTensorMetaInfo * meta, GstMemory * mem);
 
 /**
@@ -35,7 +36,7 @@ gst_tensor_sparse_to_dense (GstTensorMetaInfo * meta, GstMemory * mem);
  * @param[in] mem gst-memory of dense tensor data
  * @return pointer of GstMemory with sparse tensor data or NULL on error. Caller should handle this newly allocated memory.
  */
-extern GstMemory *
+extern NNS_API GstMemory *
 gst_tensor_sparse_from_dense (GstTensorMetaInfo * meta, GstMemory * mem);
 
 G_END_DECLS

@@ -75,10 +75,15 @@ library('dummyRNN',
   install_dir: customfilter_install_dir
 )
 
+dummy_lstm_deps_list = [glib_dep, nnstreamer_dep]
+if build_platform != 'windows'
+  dummy_lstm_deps_list += libm_dep
+endif
+
 # custom_example_LSTM
 library('dummyLSTM',
   join_paths('custom_example_LSTM', 'dummy_LSTM.c'),
-  dependencies: [libm_dep, glib_dep, nnstreamer_dep],
+  dependencies: dummy_lstm_deps_list,
   include_directories: nnstreamer_inc,
   install: get_option('install-test'),
   install_dir: customfilter_install_dir

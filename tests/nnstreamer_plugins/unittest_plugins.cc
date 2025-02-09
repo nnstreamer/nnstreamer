@@ -3673,7 +3673,11 @@ TEST (testTensorConverter, flexToStaticInvalidBuffer2_n)
 }
 
 #ifdef HAVE_ORC
+#if (defined(_WIN32) || defined(__CYGWIN__))
+#include "windows/nnstreamer-orc.h"
+#else
 #include "nnstreamer-orc.h"
+#endif
 
 /**
  * @brief Test for tensor_transform orc functions (add constant value)

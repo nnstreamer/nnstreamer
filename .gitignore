@@ -76,3 +76,5 @@ bin/
 obj/
 .cache
 .idea/
+
+.venv/

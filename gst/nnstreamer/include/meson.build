@@ -6,6 +6,7 @@ nnstreamer_headers += files(
   'tensor_filter_custom_easy.h',
   'tensor_converter_custom.h',
   'tensor_decoder_custom.h',
+  'nnstreamer_api.h',
   'nnstreamer_plugin_api_filter.h',
   'nnstreamer_plugin_api_trainer.h',
   'nnstreamer_plugin_api_decoder.h',
