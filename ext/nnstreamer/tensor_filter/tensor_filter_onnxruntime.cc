@@ -58,12 +58,7 @@ class onnxruntime_subplugin final : public tensor_filter_subplugin
   } onnx_node_info_s;
 
   bool configured;
-
-#if (defined(_WIN32) || defined(__CYGWIN__))
   ORTCHAR_T *model_path; /**< The model *.onnx file */
-#else
-  char *model_path; /**< The model *.onnx file */
-#endif
 
   Ort::Session session;
   Ort::SessionOptions sessionOptions;
