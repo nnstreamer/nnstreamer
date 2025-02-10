@@ -1,8 +1,15 @@
+nnstreamer (2.4.2.0-1.0.0) UNRELEASED; urgency=medium
+
+  * Rebased from upstream 
+
+ -- Torsten Schulz <torsten@eyepop.ai>  Sat, 15 Feb 2025 15:11:27 -0800
+
 nnstreamer (2.4.2.0) unstable bionic focal jammy sid; urgency=medium
 
+  [ MyungJoo Ham ]
   * 2.4.2 Release (LTS for Tizen 9.0 M2 Release)
 
- -- MyungJoo Ham <myungjoo.ham@samsung.com>  Mon, 02 Sep 2024 11:00:00 +0900
+ -- Torsten Schulz <torsten@eyepop.ai>  Sat, 15 Feb 2025 15:11:13 -0800
 
 nnstreamer (2.4.1-1.2.0) UNRELEASED; urgency=medium
 

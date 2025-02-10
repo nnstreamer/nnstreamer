@@ -59,31 +59,27 @@ static_library('nnstreamer_decoder_image_labeling',
 # bounding boxes
 decoder_sub_bounding_boxes_sources = files('tensordec-boundingbox.cc')
 
-<<<<<<< HEAD
-subdir('box_properties')
-shared_library('nnstreamer_decoder_bounding_boxes',
-  decoder_sub_bounding_boxes_sources,
-  dependencies: [decoder_util_shared_dep, libm_dep],
-=======
-nnstreamer_decoder_bounding_boxes_deps = [nnstreamer_dep, glib_dep, gst_dep]
+nnstreamer_decoder_bounding_boxes_deps = [decoder_util_shared_dep]
 if build_platform != 'windows'
   nnstreamer_decoder_bounding_boxes_deps += libm_dep
 endif
 
+subdir('box_properties')
 shared_library('nnstreamer_decoder_bounding_boxes',
   decoder_sub_bounding_boxes_sources,
-  dependencies: nnstreamer_decoder_bounding_boxes_deps,
->>>>>>> f4f5e177 (Windows-specific changes for Windows on ARM support)
+  dependencies: [nnstreamer_decoder_bounding_boxes_deps, libm_dep],
   install: true,
   install_dir: decoder_subplugin_install_dir
 )
+
+nnstreamer_decoder_bounding_boxes_static_deps = [decoder_util_static_dep]
+if build_platform != 'windows'
+  nnstreamer_decoder_bounding_boxes_static_deps += libm_dep
+endif
+
 static_library('nnstreamer_decoder_bounding_boxes',
   decoder_sub_bounding_boxes_sources,
-<<<<<<< HEAD
-  dependencies: [decoder_util_static_dep, libm_dep],
-=======
   dependencies: nnstreamer_decoder_bounding_boxes_deps,
->>>>>>> f4f5e177 (Windows-specific changes for Windows on ARM support)
   install: true,
   install_dir: nnstreamer_libdir
 )

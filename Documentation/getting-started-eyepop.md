@@ -198,7 +198,6 @@ In general, the following strategies have been used to keep Windows code separat
   `meson.build`
 * Consider replacing `NNS_API_IMPORTS` with `NNS_API_EXPORTS` and setting that on all libraries (see
   `nnstreamer.api.h`)
-* Fix orc generation rather than relying on the cached `windows/nnstreamer-orc.h`/`.cpp`
 * Add proper error handling for `char*` to `wchar_t*` conversions
 * Make `nnstreamer` tests work
 
