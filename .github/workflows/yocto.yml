@@ -9,6 +9,14 @@ on:
     - cron: "30 19 * * 0-4"
 
   workflow_dispatch:
+    inputs:
+      acquire-space:
+        required: false
+        type: choice
+        description: Acquire more space (enable when there is no cache)
+        options:
+          - disable
+          - enable
 
 jobs:
   build:
@@ -59,7 +67,7 @@ jobs:
         key: yocto-cache-yocto-5.0.3
 
     - name: acquire some disk space
-      if: false # Enable this step when you need to make new cache.
+      if: inputs.acquire-space == 'enable'
       run: |
           df -h
           sudo apt-get update --fix-missing \
