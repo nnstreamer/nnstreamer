@@ -59,7 +59,6 @@ jobs:
         key: yocto-cache-yocto-5.0.3
 
     - name: acquire some disk space
-      if: false # Enable this step when you need to make new cache.
       run: |
           df -h
           sudo apt-get update --fix-missing \
@@ -126,7 +125,6 @@ jobs:
 
     - name: save yocto cache (main branch only)
       uses: actions/cache/save@v4
-      if: always() && github.ref == 'refs/heads/main'
       with:
         path: |
           /var/cache/yocto/downloads
