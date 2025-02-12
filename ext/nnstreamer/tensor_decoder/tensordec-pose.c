@@ -110,7 +110,7 @@
 #include "tensordecutil.h"
 
 void init_pose (void) __attribute__ ((constructor));
-void finish_pose (void) __attribute__ ((destructor));
+void fini_pose (void) __attribute__ ((destructor));
 
 /* font.c */
 extern uint8_t rasters[][13];
@@ -847,7 +847,7 @@ init_pose (void)
 
 /** @brief Destruct this object for tensordec-plugin */
 void
-finish_pose (void)
+fini_pose (void)
 {
   nnstreamer_decoder_exit (poseEstimation.modename);
 }
