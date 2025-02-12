@@ -1,6 +1,7 @@
 # features
 option('video-support', type: 'feature', value: 'enabled')
 option('audio-support', type: 'feature', value: 'enabled')
+option('tizen-hal-support', type: 'feature', value: 'auto')
 option('tf-support', type: 'feature', value: 'auto')
 option('tflite-support', type: 'feature', value: 'auto')
 option('tflite2-support', type: 'feature', value: 'auto')

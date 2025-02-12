@@ -668,7 +668,11 @@ features = {
   'llamacpp-support' : {
     'target': 'llama',
     'project_args': { 'ENABLE_LLAMACPP' : 1 }
-  }
+  },
+  'tizen-hal-support': {
+    'target': 'hal-api-ml',
+    'project_args': { 'ENABLE_TIZEN_HAL' : 1 }
+  },
 }
 
 project_args = {}
