@@ -488,7 +488,7 @@ gst_tensor_mux_chain_flex_tensor (GstTensorMux * tensor_mux, GstBuffer * buf)
  * @return GstFlowReturn
  */
 static GstFlowReturn
-gst_tensor_mux_collected (GstCollectPads * pads, GstTensorMux * tensor_mux)
+gst_tensor_mux_collected (__attribute__((unused)) GstCollectPads * pads, GstTensorMux * tensor_mux)
 {
   GstFlowReturn ret = GST_FLOW_OK;
   GstBuffer *tensors_buf;

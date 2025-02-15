@@ -9,11 +9,10 @@ Build-Depends: gcc-9 | gcc-8 | gcc-7 | gcc-6 | gcc-5 (>=5.4),
  libgtest-dev, libpng-dev, libopencv-dev, liborc-0.4-dev, flex, bison,
  python3, python3-dev, pkg-config,
  libpaho-mqtt-dev,
- tensorflow2-lite-dev,
  pytorch | libtorch-dev | gcc,
  libedgetpu1-std (>=12) <!linux-aarch64-jammy>,
  libedgetpu-dev (>=12) <!linux-aarch64-jammy>,
- openvino-dev, openvino-cpu-mkldnn [amd64],
+ openvino-dev [amd64], openvino-cpu-mkldnn [amd64],
  nnfw-dev [amd64] | gcc
 Standards-Version: 3.9.6
 Homepage: https://github.com/nnstreamer/nnstreamer

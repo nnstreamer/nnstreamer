@@ -2541,7 +2541,7 @@ gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv)
 /**
  * @brief Unload NN framework.
  */
-void
+void NNS_API
 gst_tensor_filter_common_unload_fw (GstTensorFilterPrivate * priv)
 {
   if (priv->prop.fw_opened) {

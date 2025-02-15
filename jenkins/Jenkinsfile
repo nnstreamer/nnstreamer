@@ -44,7 +44,7 @@ pipeline {
                         stage('Configure') {
                             steps {
                                 runShellCommand("sudo apt update && sudo apt install -y eyepop-onnxruntime=3.2.0 eyepop-tflite=3.2.0 eyepop-torchvision=3.2.0")
-                                runShellCommand("meson -Dwerror=false -Donnxruntime-support=enabled -Dtf-support=enabled -Dcaffe2-support=disabled -Dpython3-support=disabled build/ -Denable-test=false")
+                                runShellCommand("meson -Dwerror=false -Donnxruntime-support=enabled -Dtf-support=enabled -Dpytorch-support=enabled -Dcaffe2-support=disabled -Dpython3-support=disabled build/ -Denable-test=false")
                             }
                         }
                     

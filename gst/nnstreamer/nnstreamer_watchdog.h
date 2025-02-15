@@ -17,6 +17,7 @@
 #define __NNSTREAMER_WATCHDOG_H__
 
 #include <glib.h>
+#include "nnstreamer_api.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,22 +28,22 @@ typedef void *nns_watchdog_h;
 /**
  * @brief Create nnstreamer watchdog. Recommended using watchdog handle with proper lock (e.g., GST_OBJECT_LOCK())
  */
-gboolean nnstreamer_watchdog_create (nns_watchdog_h *watchdog_h);
+gboolean NNS_API nnstreamer_watchdog_create (nns_watchdog_h *watchdog_h);
 
 /**
  * @brief Destroy nnstreamer watchdog. Recommended using watchdog handle with proper lock (e.g., GST_OBJECT_LOCK())
  */
-void nnstreamer_watchdog_destroy (nns_watchdog_h watchdog_h);
+void NNS_API nnstreamer_watchdog_destroy (nns_watchdog_h watchdog_h);
 
 /**
  * @brief Release watchdog source. Recommended using watchdog handle with proper lock (e.g., GST_OBJECT_LOCK())
  */
-void nnstreamer_watchdog_release (nns_watchdog_h watchdog_h);
+void NNS_API nnstreamer_watchdog_release (nns_watchdog_h watchdog_h);
 
 /**
  * @brief Set watchdog timeout. Recommended using watchdog handle with proper lock (e.g., GST_OBJECT_LOCK())
  */
-gboolean nnstreamer_watchdog_feed (nns_watchdog_h watchdog_h, GSourceFunc func, guint interval, void *user_data);
+gboolean NNS_API nnstreamer_watchdog_feed (nns_watchdog_h watchdog_h, GSourceFunc func, guint interval, void *user_data);
 
 #ifdef __cplusplus
 }

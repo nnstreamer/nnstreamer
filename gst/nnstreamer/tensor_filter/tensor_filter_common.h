@@ -280,7 +280,7 @@ extern NNS_API void gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * p
 /**
  * @brief Unload NN framework.
  */
-extern void gst_tensor_filter_common_unload_fw (GstTensorFilterPrivate * priv);
+extern NNS_API void gst_tensor_filter_common_unload_fw (GstTensorFilterPrivate * priv);
 
 /**
  * @brief Close NN framework.

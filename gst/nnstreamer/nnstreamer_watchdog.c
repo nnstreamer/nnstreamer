@@ -68,7 +68,7 @@ _nnstreamer_watchdog_thread (gpointer ptr)
 /**
  * @brief Create nnstreamer watchdog. Recommended using watchdog handle with proper lock (e.g., GST_OBJECT_LOCK())
  */
-gboolean
+gboolean NNS_API
 nnstreamer_watchdog_create (nns_watchdog_h * watchdog_h)
 {
   gint64 end_time;
@@ -129,7 +129,7 @@ done:
 /**
  * @brief Destroy watchdog source. Recommended using watchdog handle with proper lock (e.g., GST_OBJECT_LOCK())
  */
-void
+void NNS_API
 nnstreamer_watchdog_destroy (nns_watchdog_h watchdog_h)
 {
   NnstWatchdog *watchdog = (NnstWatchdog *) watchdog_h;
@@ -153,7 +153,7 @@ nnstreamer_watchdog_destroy (nns_watchdog_h watchdog_h)
 /**
  * @brief Release watchdog source. Recommended using watchdog handle with proper lock (e.g., GST_OBJECT_LOCK())
  */
-void
+void NNS_API
 nnstreamer_watchdog_release (nns_watchdog_h watchdog_h)
 {
   NnstWatchdog *watchdog = (NnstWatchdog *) watchdog_h;
@@ -167,7 +167,7 @@ nnstreamer_watchdog_release (nns_watchdog_h watchdog_h)
 /**
  * @brief Set watchdog timeout. Recommended using watchdog handle with proper lock (e.g., GST_OBJECT_LOCK())
  */
-gboolean
+gboolean NNS_API
 nnstreamer_watchdog_feed (nns_watchdog_h watchdog_h, GSourceFunc func,
     guint interval, void *user_data)
 {

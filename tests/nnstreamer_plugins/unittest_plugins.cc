@@ -3673,7 +3673,7 @@ TEST (testTensorConverter, flexToStaticInvalidBuffer2_n)
 }
 
 #ifdef HAVE_ORC
-#include "nnstreamer-orc.h"
+#include "elements/nnstreamer-orc.h"
 #endif
 
 /**
@@ -5638,7 +5638,6 @@ error:
 
   ASSERT_TRUE (ret);
 }
-#endif /* HAVE_ORC */
 
 /**
  * @brief caps negotiation with tensor-filter.

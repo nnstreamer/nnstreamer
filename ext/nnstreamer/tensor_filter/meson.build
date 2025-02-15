@@ -362,6 +362,10 @@ if pytorch_support_is_available
     pytorch_support_deps += ignore_unused_params
   endif
 
+  if cxx.has_argument('-Wno-missing-braces')
+    pytorch_support_deps += declare_dependency(compile_args: ['-Wno-missing-braces'])
+  endif
+
   filter_sub_torch_sources = ['tensor_filter_pytorch.cc']
 
   nnstreamer_filter_torch_deps = [pytorch_support_deps, nnstreamer_single_dep]

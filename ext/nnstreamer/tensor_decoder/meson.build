@@ -67,7 +67,7 @@ endif
 subdir('box_properties')
 shared_library('nnstreamer_decoder_bounding_boxes',
   decoder_sub_bounding_boxes_sources,
-  dependencies: [nnstreamer_decoder_bounding_boxes_deps, libm_dep],
+  dependencies: nnstreamer_decoder_bounding_boxes_deps,
   install: true,
   install_dir: decoder_subplugin_install_dir
 )
