@@ -1,8 +1,14 @@
-nnstreamer (2.4.2.0-1.0.0) UNRELEASED; urgency=medium
+nnstreamer (2.4.2.0-1.0.1) UNRELEASED; urgency=medium
+
+  * Include all headers
+
+ -- Torsten Schulz <torsten@eyepop.ai>  Mon, 03 Mar 2025 15:40:45 -0800
+
+nnstreamer (2.4.2.0-1.0.0) jammy; urgency=medium
 
   * Rebased from upstream 
 
- -- Torsten Schulz <torsten@eyepop.ai>  Sat, 15 Feb 2025 15:11:27 -0800
+ -- Torsten Schulz <torsten@eyepop.ai>  Mon, 03 Mar 2025 15:40:24 -0800
 
 nnstreamer (2.4.2.0) unstable bionic focal jammy sid; urgency=medium
 
