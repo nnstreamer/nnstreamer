@@ -102,7 +102,7 @@ TEST (tensorDecoderCustom, normal0)
 {
   gchar *content1 = NULL;
   gchar *content2 = NULL;
-  gsize len1, len2;
+  gsize len1 = 0, len2 = 0;
   char *tmp_flex_default = getTempFilename ();
   char *tmp_flex_custom = getTempFilename ();
 
@@ -128,7 +128,7 @@ TEST (tensorDecoderCustom, normal0)
 
   _wait_pipeline_save_files (tmp_flex_default, content1, len1, 230522, TEST_TIMEOUT_MS);
   _wait_pipeline_save_files (tmp_flex_custom, content2, len2, 230522, TEST_TIMEOUT_MS);
-  EXPECT_EQ (len1, len2);
+  EXPECT_TRUE (len1 > 0 && len1 == len2);
   EXPECT_EQ (memcmp (content1, content2, len1), 0);
   g_free (content1);
   g_free (content2);

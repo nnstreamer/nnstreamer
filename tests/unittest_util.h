@@ -88,6 +88,7 @@ get_available_port (void);
       tick = 1;                                                            \
     do {                                                                   \
       g_usleep (TEST_DEFAULT_SLEEP_TIME);                                  \
+      len = 0;                                                             \
       if (!g_file_get_contents (file, &content, &len, NULL)) {             \
         if (load_failed)                                                   \
           break;                                                           \

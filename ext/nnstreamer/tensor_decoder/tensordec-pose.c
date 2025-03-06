@@ -251,18 +251,18 @@ typedef struct
 static gboolean
 pose_load_metadata_from_file (pose_data * pd, const gchar * file_path)
 {
-  size_t len;
+  gsize len = 0;
   GError *err = NULL;
   gchar *contents = NULL;
   gchar **lines;
-  guint i;
+  guint i, j;
 
   if (!g_file_test (file_path, G_FILE_TEST_EXISTS)) {
     GST_WARNING ("Labels file %s does not exist !", file_path);
     return FALSE;
   }
 
-  if (!g_file_get_contents (file_path, &contents, &len, &err)) {
+  if (!g_file_get_contents (file_path, &contents, &len, &err) || len <= 0) {
     ml_loge ("Unable to read file %s with error %s.", file_path, err->message);
     g_clear_error (&err);
     return FALSE;
@@ -276,21 +276,20 @@ pose_load_metadata_from_file (pose_data * pd, const gchar * file_path)
   pd->metadata = g_new0 (pose_metadata_t, pd->total_labels);
 
   for (i = 0; i < pd->total_labels; i++) {
-    guint j;
-    guint len;
+    guint n_tokens;
     gchar **tokens;
 
     g_strstrip (lines[i]);
     tokens = g_strsplit (lines[i], " ", -1);
-    len = g_strv_length (tokens);
-    if (len > POSE_MD_MAX_CONNECTIONS_SZ) {
+    n_tokens = g_strv_length (tokens);
+    if (n_tokens > POSE_MD_MAX_CONNECTIONS_SZ) {
       GST_WARNING ("Too many connections (%d) declared, clamping (%d)\n",
-          len, POSE_MD_MAX_CONNECTIONS_SZ);
-      len = POSE_MD_MAX_CONNECTIONS_SZ;
+          n_tokens, POSE_MD_MAX_CONNECTIONS_SZ);
+      n_tokens = POSE_MD_MAX_CONNECTIONS_SZ;
     }
     g_strlcpy (pd->metadata[i].label, tokens[0], POSE_MD_MAX_LABEL_SZ);
-    pd->metadata[i].num_connections = len - 1;
-    for (j = 1; j < len; j++)
+    pd->metadata[i].num_connections = n_tokens - 1;
+    for (j = 1; j < n_tokens; j++)
       pd->metadata[i].connections[j - 1] =
           (gint) g_ascii_strtoll (tokens[j], NULL, 10);
 

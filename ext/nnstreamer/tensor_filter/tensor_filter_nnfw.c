@@ -576,7 +576,8 @@ nnfw_invoke_dummy (const nnfw_pdata * pdata, const nnfw_tinfo_s * in_info,
   if (nnfw_convert_to_gst_info (in_info, &gst_in_info) != 0 ||
       nnfw_convert_to_gst_info (out_info, &gst_out_info) != 0) {
     nns_loge ("Failed to convert nnfw info.");
-    return FALSE;
+    failed = TRUE;
+    goto done;
   }
 
   for (i = 0; i < gst_in_info.num_tensors; ++i) {
@@ -621,6 +622,9 @@ nnfw_invoke_dummy (const nnfw_pdata * pdata, const nnfw_tinfo_s * in_info,
     output[i].data = NULL;
   }
 
+done:
+  gst_tensors_info_free (&gst_in_info);
+  gst_tensors_info_free (&gst_out_info);
   return !failed;
 }
 
@@ -659,7 +663,14 @@ nnfw_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
     goto error;
 
   err = nnfw_convert_to_gst_info (&nnfw_in_info, &gst_in_info);
-  if (err || !gst_tensors_info_is_equal (in_info, &gst_in_info))
+  if (err == 0) {
+    if (!gst_tensors_info_is_equal (in_info, &gst_in_info)) {
+      err = -EINVAL;
+    }
+  }
+
+  gst_tensors_info_free (&gst_in_info);
+  if (err)
     goto error;
 
   /* Invoke with dummy. NNFW updates output info after the invoke is done. */
