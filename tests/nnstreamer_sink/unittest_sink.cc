@@ -5636,7 +5636,8 @@ TEST (tensorStreamTest, issue739MuxParallel1)
   /** @todo Check contents in the sink */
   if (option.tmpfile) {
     gchar *data = NULL;
-    gsize read, i;
+    gsize read = 0;
+    guint i;
 
     if (g_file_get_contents (option.tmpfile, &data, &read, NULL)) {
       read /= 4;
@@ -5694,7 +5695,8 @@ TEST (tensorStreamTest, issue739MuxParallel2)
   /** @todo Check contents in the sink */
   if (option.tmpfile) {
     gchar *data = NULL;
-    gsize read, i;
+    gsize read = 0;
+    guint i;
 
     if (g_file_get_contents (option.tmpfile, &data, &read, NULL)) {
       read /= 4;
@@ -5753,13 +5755,13 @@ TEST (tensorStreamTest, issue739MuxParallel3)
   /** @todo Check contents in the sink */
   if (option.tmpfile) {
     gchar *data = NULL;
-    gsize read, i;
+    gsize read = 0, i;
     uint32_t lastval;
 
     if (g_file_get_contents (option.tmpfile, &data, &read, NULL)) {
       read /= 4;
-      EXPECT_TRUE (read >= (num_buffers * 25 - 1));
-      EXPECT_TRUE (read <= (num_buffers * 25));
+      EXPECT_TRUE (read > 0 && read >= (num_buffers * 25 - 1));
+      EXPECT_TRUE (read > 0 && read <= (num_buffers * 25));
 
       lastval = 0;
       for (i = 0; i < read; i++) {
@@ -5820,7 +5822,8 @@ TEST (tensorStreamTest, issue739MergeParallel1)
   /** @todo Check contents in the sink */
   if (option.tmpfile) {
     gchar *data = NULL;
-    gsize read, i;
+    gsize read = 0;
+    guint i;
 
     if (g_file_get_contents (option.tmpfile, &data, &read, NULL)) {
       read /= 4;
@@ -5878,7 +5881,8 @@ TEST (tensorStreamTest, issue739MergeParallel2)
   /** @todo Check contents in the sink */
   if (option.tmpfile) {
     gchar *data = NULL;
-    gsize read, i;
+    gsize read = 0;
+    guint i;
 
     if (g_file_get_contents (option.tmpfile, &data, &read, NULL)) {
       read /= 4;
@@ -5937,7 +5941,7 @@ TEST (tensorStreamTest, issue739MergeParallel3)
   /** @todo Check contents in the sink */
   if (option.tmpfile) {
     gchar *data = NULL;
-    gsize read, i;
+    gsize read = 0, i;
     uint32_t lastval;
 
     if (g_file_get_contents (option.tmpfile, &data, &read, NULL)) {

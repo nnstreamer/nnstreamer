@@ -43,7 +43,7 @@ class NNSFilterSingleTest : public ::testing::Test
   {
     g_autofree gchar *model_file = nullptr;
     g_autofree gchar *data_file = nullptr;
-    gsize length;
+    gsize length = 0;
     const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
 
     input.size = 3U * 224 * 224;
@@ -63,7 +63,7 @@ class NNSFilterSingleTest : public ::testing::Test
     data_file = g_build_filename (
         root_path, "tests", "test_models", "data", "orange.raw", NULL);
     ASSERT_TRUE (g_file_get_contents (data_file, (gchar **) &input.data, &length, NULL));
-    ASSERT_TRUE (length == input.size);
+    ASSERT_TRUE (length > 0 && length == input.size);
 
     g_object_set (G_OBJECT (single), "framework", "tensorflow-lite", "model",
         model_file, NULL);

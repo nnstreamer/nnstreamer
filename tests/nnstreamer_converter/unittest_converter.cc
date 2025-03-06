@@ -99,7 +99,7 @@ TEST (tensorConverterCustom, normal0)
 {
   gchar *content1 = NULL;
   gchar *content2 = NULL;
-  gsize len1, len2;
+  gsize len1 = 0, len2 = 0;
   char *tmp_tensor_raw = getTempFilename ();
   char *tmp_flex_raw = getTempFilename ();
   char *tmp_flex_to_tensor = getTempFilename ();

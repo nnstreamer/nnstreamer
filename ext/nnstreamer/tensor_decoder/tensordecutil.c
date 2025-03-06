@@ -28,13 +28,13 @@ loadImageLabels (const char *label_path, imglabel_t * l)
   GError *err = NULL;
   gchar **_labels;
   gchar *contents = NULL;
-  gsize len;
+  gsize len = 0;
   guint i;
 
   _free_labels (l);
 
   /* Read file contents */
-  if (!g_file_get_contents (label_path, &contents, &len, &err)) {
+  if (!g_file_get_contents (label_path, &contents, &len, &err) || len <= 0) {
     ml_loge ("Unable to read file %s with error %s.", label_path, err->message);
     g_clear_error (&err);
     return;
