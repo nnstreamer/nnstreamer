@@ -573,6 +573,9 @@ nnfw_invoke_dummy (const nnfw_pdata * pdata, const nnfw_tinfo_s * in_info,
   guint i, retry;
   int err;
 
+  gst_tensors_info_init (&gst_in_info);
+  gst_tensors_info_init (&gst_out_info);
+
   if (nnfw_convert_to_gst_info (in_info, &gst_in_info) != 0 ||
       nnfw_convert_to_gst_info (out_info, &gst_out_info) != 0) {
     nns_loge ("Failed to convert nnfw info.");
@@ -636,9 +639,9 @@ nnfw_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
     const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
 {
   nnfw_pdata *pdata;
-  int err;
+  int err = 0;
   guint idx;
-  nnfw_tinfo_s nnfw_in_info, nnfw_out_info;
+  nnfw_tinfo_s *nnfw_in_info, *nnfw_out_info;
   GstTensorsInfo gst_in_info;
   UNUSED (prop);
 
@@ -652,17 +655,20 @@ nnfw_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
   if (in_info->num_tensors != pdata->in_info.num_tensors)
     return -EPERM;
 
+  nnfw_in_info = g_new0 (nnfw_tinfo_s, 1);
+  nnfw_out_info = g_new0 (nnfw_tinfo_s, 1);
+
   for (idx = 0; idx < pdata->in_info.num_tensors; idx++) {
     err = nnfw_tensor_info_set (pdata, in_info, idx);
     if (err)
       goto error;
   }
 
-  err = nnfw_tensors_info_get (pdata, TRUE, &nnfw_in_info);
+  err = nnfw_tensors_info_get (pdata, TRUE, nnfw_in_info);
   if (err)
     goto error;
 
-  err = nnfw_convert_to_gst_info (&nnfw_in_info, &gst_in_info);
+  err = nnfw_convert_to_gst_info (nnfw_in_info, &gst_in_info);
   if (err == 0) {
     if (!gst_tensors_info_is_equal (in_info, &gst_in_info)) {
       err = -EINVAL;
@@ -674,31 +680,33 @@ nnfw_setInputDim (const GstTensorFilterProperties * prop, void **private_data,
     goto error;
 
   /* Invoke with dummy. NNFW updates output info after the invoke is done. */
-  if (!nnfw_invoke_dummy (pdata, &nnfw_in_info, &pdata->out_info)) {
+  if (!nnfw_invoke_dummy (pdata, nnfw_in_info, &pdata->out_info)) {
     nns_loge ("Failed to invoke the model with changed input info.");
     goto error;
   }
 
-  err = nnfw_tensors_info_get (pdata, FALSE, &nnfw_out_info);
+  err = nnfw_tensors_info_get (pdata, FALSE, nnfw_out_info);
   if (err)
     goto error;
 
   /* Fill output info and update it in pdata. */
-  err = nnfw_convert_to_gst_info (&nnfw_out_info, out_info);
-  if (err)
-    goto error;
-
-  memcpy (&pdata->in_info, &nnfw_in_info, sizeof (nnfw_tinfo_s));
-  memcpy (&pdata->out_info, &nnfw_out_info, sizeof (nnfw_tinfo_s));
-  return 0;
+  err = nnfw_convert_to_gst_info (nnfw_out_info, out_info);
 
 error:
-  nns_loge ("Unable to set the provided input tensor info\n");
-  /** Reset input dimensions */
-  for (idx = 0; idx < pdata->in_info.num_tensors; idx++)
-    nnfw_set_input_info (pdata, idx, &pdata->in_info.info[idx]);
+  if (err) {
+    nns_loge ("Unable to set the provided input tensor info.");
+    /* Reset input dimensions */
+    for (idx = 0; idx < pdata->in_info.num_tensors; idx++)
+      nnfw_set_input_info (pdata, idx, &pdata->in_info.info[idx]);
 
-  nnfw_invoke_dummy (pdata, &pdata->in_info, &pdata->out_info);
+    nnfw_invoke_dummy (pdata, &pdata->in_info, &pdata->out_info);
+  } else {
+    memcpy (&pdata->in_info, nnfw_in_info, sizeof (nnfw_tinfo_s));
+    memcpy (&pdata->out_info, nnfw_out_info, sizeof (nnfw_tinfo_s));
+  }
+
+  g_free (nnfw_in_info);
+  g_free (nnfw_out_info);
   return err;
 }
 
