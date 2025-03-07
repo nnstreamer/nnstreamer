@@ -838,10 +838,10 @@ _append_prev_caps (const GstTensorsConfig * config)
 static GstCaps *
 _get_tensor_caps (const GstTensorsConfig * config)
 {
-  GstCaps *caps;
-  GstStructure *structure = NULL;
+  GstCaps *caps, *prev;
   GstTensorsInfo *info;
   GstTensorInfo *_info;
+  gboolean append_prev;
 
   g_return_val_if_fail (config != NULL, NULL);
 
@@ -852,24 +852,24 @@ _get_tensor_caps (const GstTensorsConfig * config)
   caps = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT);
   _info = gst_tensors_info_get_nth_info (info, 0);
 
-  /* structure for backward compatibility */
-  if (_append_prev_caps (config))
-    structure = gst_structure_new_empty (NNS_MIMETYPE_TENSOR);
+  /* caps for backward compatibility */
+  prev = NULL;
+  append_prev = _append_prev_caps (config);
+  if (append_prev)
+    prev = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT);
 
   if (gst_tensor_dimension_is_valid (_info->dimension)) {
-    {
-      g_autofree gchar *dim_str =
-          gst_tensor_get_dimension_string (_info->dimension);
+    g_autofree gchar *dim_str =
+        gst_tensor_get_dimension_string (_info->dimension);
 
-      gst_caps_set_simple (caps, "dimension", G_TYPE_STRING, dim_str, NULL);
-    }
+    gst_caps_set_simple (caps, "dimension", G_TYPE_STRING, dim_str, NULL);
 
-    if (structure) {
-      g_autofree gchar *dim_str =
+    if (append_prev) {
+      g_autofree gchar *dim_prev =
           gst_tensor_get_rank_dimension_string (_info->dimension,
           NNS_TENSOR_RANK_LIMIT_PREV);
 
-      gst_structure_set (structure, "dimension", G_TYPE_STRING, dim_str, NULL);
+      gst_caps_set_simple (prev, "dimension", G_TYPE_STRING, dim_prev, NULL);
     }
   }
 
@@ -878,21 +878,21 @@ _get_tensor_caps (const GstTensorsConfig * config)
 
     gst_caps_set_simple (caps, "type", G_TYPE_STRING, type_str, NULL);
 
-    if (structure)
-      gst_structure_set (structure, "type", G_TYPE_STRING, type_str, NULL);
+    if (append_prev)
+      gst_caps_set_simple (prev, "type", G_TYPE_STRING, type_str, NULL);
   }
 
   if (config->rate_n >= 0 && config->rate_d > 0) {
     gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION,
         config->rate_n, config->rate_d, NULL);
 
-    if (structure)
-      gst_structure_set (structure, "framerate", GST_TYPE_FRACTION,
+    if (append_prev)
+      gst_caps_set_simple (prev, "framerate", GST_TYPE_FRACTION,
           config->rate_n, config->rate_d, NULL);
   }
 
-  if (structure)
-    gst_caps_append_structure (caps, structure);
+  if (append_prev)
+    caps = gst_caps_merge (caps, prev);
 
   return caps;
 }
@@ -903,42 +903,39 @@ _get_tensor_caps (const GstTensorsConfig * config)
 static GstCaps *
 _get_tensors_caps (const GstTensorsConfig * config)
 {
-  GstCaps *caps;
-  GstStructure *structure = NULL;
+  GstCaps *caps, *prev;
+  gboolean append_prev;
 
   g_return_val_if_fail (config != NULL, NULL);
 
   caps = gst_caps_from_string (GST_TENSORS_CAP_DEFAULT);
 
-  /* structure for backward compatibility */
-  if (_append_prev_caps (config))
-    structure = gst_structure_new_empty (NNS_MIMETYPE_TENSORS);
+  /* caps for backward compatibility */
+  prev = NULL;
+  append_prev = _append_prev_caps (config);
+  if (append_prev)
+    prev = gst_caps_from_string (GST_TENSORS_CAP_DEFAULT);
 
   if (config->info.num_tensors > 0) {
     g_autofree gchar *type_str =
         gst_tensors_info_get_types_string (&config->info);
+    g_autofree gchar *dim_str =
+        gst_tensors_info_get_dimensions_string (&config->info);
 
-    /* Set GstCaps */
-    {
-      g_autofree gchar *dim_str =
-          gst_tensors_info_get_dimensions_string (&config->info);
+    gst_caps_set_simple (caps, "num_tensors", G_TYPE_INT,
+        config->info.num_tensors, NULL);
+    gst_caps_set_simple (caps, "dimensions", G_TYPE_STRING, dim_str, NULL);
+    gst_caps_set_simple (caps, "types", G_TYPE_STRING, type_str, NULL);
 
-      gst_caps_set_simple (caps, "num_tensors", G_TYPE_INT,
-          config->info.num_tensors, NULL);
-      gst_caps_set_simple (caps, "dimensions", G_TYPE_STRING, dim_str, NULL);
-      gst_caps_set_simple (caps, "types", G_TYPE_STRING, type_str, NULL);
-    }
-
-    /* Set GstStructure */
-    if (structure) {
-      g_autofree gchar *dim_str =
+    if (append_prev) {
+      g_autofree gchar *dim_prev =
           gst_tensors_info_get_rank_dimensions_string (&config->info,
           NNS_TENSOR_RANK_LIMIT_PREV);
 
-      gst_structure_set (structure, "num_tensors", G_TYPE_INT,
+      gst_caps_set_simple (prev, "num_tensors", G_TYPE_INT,
           config->info.num_tensors, NULL);
-      gst_structure_set (structure, "dimensions", G_TYPE_STRING, dim_str, NULL);
-      gst_structure_set (structure, "types", G_TYPE_STRING, type_str, NULL);
+      gst_caps_set_simple (prev, "dimensions", G_TYPE_STRING, dim_prev, NULL);
+      gst_caps_set_simple (prev, "types", G_TYPE_STRING, type_str, NULL);
     }
   }
 
@@ -946,13 +943,13 @@ _get_tensors_caps (const GstTensorsConfig * config)
     gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION,
         config->rate_n, config->rate_d, NULL);
 
-    if (structure)
-      gst_structure_set (structure, "framerate", GST_TYPE_FRACTION,
+    if (append_prev)
+      gst_caps_set_simple (prev, "framerate", GST_TYPE_FRACTION,
           config->rate_n, config->rate_d, NULL);
   }
 
-  if (structure)
-    gst_caps_append_structure (caps, structure);
+  if (append_prev)
+    caps = gst_caps_merge (caps, prev);
 
   return caps;
 }
