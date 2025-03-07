@@ -571,7 +571,7 @@ if get_option('enable-openvino')
   )
 endif
 
-if get_option('enable-vivante')
+if get_option('enable-vivante') and not tizen_hal_support_is_available
   subdir('vivante')
 endif
 
@@ -642,7 +642,7 @@ if get_option('enable-mediapipe')
   )
 endif
 
-if snpe_support_is_available
+if snpe_support_is_available and not tizen_hal_support_is_available
   # Decide source code file wrt snpe api version.
   if snpe_api_version == 2
     filter_sub_snpe_sources = ['tensor_filter_snpe.cc']
@@ -968,6 +968,44 @@ if llama2c_support_is_available
   static_library('nnstreamer_filter_llama2c',
     filter_sub_llama2c_sources,
     dependencies: nnstreamer_filter_llama2c_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+endif
+
+if tizen_hal_support_is_available
+  # build snpe tizen hal filter
+  filter_sub_tizen_hal_snpe_srcs = ['tensor_filter_tizen_hal_snpe.cc']
+  nnstreamer_filter_tizen_hal_pass_deps = [glib_dep, nnstreamer_single_dep, tizen_hal_support_deps]
+
+  shared_library('nnstreamer_filter_snpe',
+    filter_sub_tizen_hal_snpe_srcs,
+    dependencies: nnstreamer_filter_tizen_hal_pass_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_snpe',
+    filter_sub_tizen_hal_snpe_srcs,
+    dependencies: nnstreamer_filter_tizen_hal_pass_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+
+  # build vivante tizen hal filter
+  filter_sub_tizen_hal_vivante_srcs = ['tensor_filter_tizen_hal_vivante.cc']
+  nnstreamer_filter_tizen_hal_pass_deps = [glib_dep, nnstreamer_single_dep, tizen_hal_support_deps]
+
+  shared_library('nnstreamer_filter_vivante',
+    filter_sub_tizen_hal_vivante_srcs,
+    dependencies: nnstreamer_filter_tizen_hal_pass_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_vivante',
+    filter_sub_tizen_hal_vivante_srcs,
+    dependencies: nnstreamer_filter_tizen_hal_pass_deps,
     install: true,
     install_dir: nnstreamer_libdir
   )
