@@ -143,7 +143,7 @@ jobs:
         key: yocto-cache-yocto-5.0.3
 
     - name: generate badge
-      if: contains(fromJSON('["schedule", "workflow_dispatch"]'), github.event_name)
+      if: contains(fromJSON('["schedule", "workflow_dispatch"]'), github.event_name) && steps.yocto-build.outcome != 'skipped'
       run: |
         pip install pybadges setuptools
         if [ '${{ steps.yocto-build.outcome }}' == 'success' ]; then
@@ -163,7 +163,7 @@ jobs:
         s3_option: --recursive
 
     - name: Release daily build log to release.nnstreamer.com
-      if: contains(fromJSON('["schedule", "workflow_dispatch"]'), github.event_name)
+      if: contains(fromJSON('["schedule", "workflow_dispatch"]'), github.event_name) && steps.yocto-build.outcome != 'skipped'
       uses: ./.github/actions/s3_upload
       with:
         source: ~/daily_build/logs
@@ -173,7 +173,7 @@ jobs:
         s3_option: --recursive
 
     - name: update daily result badge
-      if: contains(fromJSON('["schedule", "workflow_dispatch"]'), github.event_name)
+      if: contains(fromJSON('["schedule", "workflow_dispatch"]'), github.event_name) && steps.yocto-build.outcome != 'skipped'
       uses: ./.github/actions/gitpush
       with:
         source: ~/daily_build/yocto_build_result.svg
