@@ -6942,6 +6942,148 @@ TEST (extraTensors, demux)
   gst_object_unref (pipeline);
 }
 
+#if defined(ENABLE_TENSORFLOW_LITE) || defined(ENABLE_TENSORFLOW2_LITE)
+/**
+ * @brief Callback for tensor sink signal.
+ */
+static void
+_nego_test_new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
+{
+  GstMapInfo map;
+  gfloat *output;
+  guint *data_received = (guint32 *) user_data;
+
+  ASSERT_TRUE (gst_buffer_map (buffer, &map, GST_MAP_READ));
+
+  output = (gfloat *) map.data;
+  EXPECT_EQ (*output, (gfloat) (*data_received + 2));
+
+  gst_buffer_unmap (buffer, &map);
+
+  (*data_received)++;
+}
+
+/**
+ * @brief Test for various dimension format.
+ */
+static void
+_nego_test_run (const gchar *description, const gchar *dimension)
+{
+  GstElement *pipeline = NULL;
+  GstElement *appsrc = NULL;
+  GstElement *tsink = NULL;
+  GstCaps *caps;
+  GstPad *pad;
+  GstTensorsConfig config;
+  gchar *dim_str = NULL;
+  guint i, received = 0U;
+
+  gst_tensors_config_init (&config);
+
+  pipeline = gst_parse_launch (description, NULL);
+  _check_cond_err (pipeline != NULL);
+
+  appsrc = gst_bin_get_by_name (GST_BIN (pipeline), "appsrc");
+  _check_cond_err (appsrc != NULL);
+  tsink = gst_bin_get_by_name (GST_BIN (pipeline), "tsink");
+  _check_cond_err (tsink != NULL);
+
+  g_signal_connect (tsink, "new-data", (GCallback) _nego_test_new_data_cb, &received);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (1000000);
+
+  /* Push input data */
+  for (i = 0; i < 3; i++) {
+    GstBuffer *buffer = gst_buffer_new_allocate (NULL, sizeof (gfloat), NULL);
+    GstMapInfo map;
+
+    ASSERT_TRUE (gst_buffer_map (buffer, &map, GST_MAP_WRITE));
+    *((gfloat *) map.data) = (gfloat) i;
+    gst_buffer_unmap (buffer, &map);
+
+    EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc), buffer), GST_FLOW_OK);
+
+    g_usleep (50000); /* 50ms. Wait a bit. */
+  }
+
+  /* Get current caps to check dimension */
+  pad = gst_element_get_static_pad (appsrc, "src");
+  caps = gst_pad_get_current_caps (pad);
+  if (!caps) {
+    caps = gst_pad_get_allowed_caps (pad);
+  }
+
+  EXPECT_TRUE (gst_tensors_config_from_caps (&config, caps));
+  gst_caps_unref (caps);
+  gst_object_unref (pad);
+
+error:
+  if (appsrc) {
+    gst_object_unref (appsrc);
+  }
+
+  if (tsink) {
+    gst_object_unref (tsink);
+  }
+
+  if (pipeline) {
+    EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+    g_usleep (1000000);
+
+    gst_object_unref (pipeline);
+  }
+
+  dim_str = gst_tensors_info_get_dimensions_string (&config.info);
+  EXPECT_TRUE (g_ascii_strcasecmp (dim_str, dimension) == 0);
+  EXPECT_TRUE (received > 0);
+
+  gst_tensors_config_free (&config);
+  g_free (dim_str);
+}
+
+/**
+ * @brief Test for caps negotiation.
+ */
+TEST (tensorStreamTest, capsNegotiation)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  const gchar *caps_str[][2] = { { "! other/tensor,dimension=(string)1,type=(string)float32", "1" },
+    { "! other/tensor,dimension=(string)1:1:1:1,type=(string)float32", "1:1:1:1" },
+    { "! other/tensors,format=(string)static,num_tensors=(int)1,dimensions=(string)1,types=(string)float32",
+        "1" },
+    { "! other/tensors,format=(string)static,num_tensors=(int)1,dimensions=(string)1:1:1:1,types=(string)float32",
+        "1:1:1:1" },
+    { "caps=other/tensor,dimension=(string)1,type=(string)float32", "1" },
+    { "caps=other/tensor,dimension=(string)1:1:1:1,type=(string)float32", "1:1:1:1" },
+    { "caps=other/tensors,format=(string)static,num_tensors=(int)1,dimensions=(string)1,types=(string)float32",
+        "1" },
+    { "caps=other/tensors,format=(string)static,num_tensors=(int)1,dimensions=(string)1:1:1:1,types=(string)float32",
+        "1:1:1:1" } };
+  gchar *model, *description;
+  guint i;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  model = g_build_filename (root_path, "tests", "test_models", "models", "add.tflite", NULL);
+  ASSERT_TRUE (g_file_test (model, G_FILE_TEST_EXISTS));
+
+  for (i = 0; i < sizeof (caps_str) / sizeof (gchar *[2]); i++) {
+    description = g_strdup_printf (
+        "appsrc name=appsrc %s,framerate=(fraction)0/1 ! "
+        "tensor_filter framework=tensorflow-lite model=%s ! tensor_sink name=tsink async=false",
+        caps_str[i][0], model);
+
+    _nego_test_run (description, caps_str[i][1]);
+    g_free (description);
+  }
+
+  g_free (model);
+}
+#endif
+
 /**
  * @brief Main function for unit test.
  */
