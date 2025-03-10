@@ -32,7 +32,7 @@ if [[ -z $PATH_TO_PLUGIN ]]; then
 fi
 
 if [[ -d $PATH_TO_PLUGIN ]]; then
-    ini_path="${PATH_TO_PLUGIN}/ext/nnstreamer"
+    ini_path="${PATH_TO_PLUGIN}/ext/nnstreamer/registerer"
     if [[ -d ${ini_path} ]]; then
         check=$(ls ${ini_path} | grep nnstreamer-grpc.${SO_EXT})
         if [[ ! $check ]]; then
