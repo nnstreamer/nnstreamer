@@ -1,9 +1,6 @@
 name: Docker build and deploy
 
 on:
-  schedule:
-    # Daily at 1:15 am
-    - cron: '15 01 * * *'
   workflow_dispatch:
 
 jobs:
