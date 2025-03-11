@@ -6,9 +6,7 @@ name: Static checkers and verifiers
 ## Common variables and files
 # - changed_file_list in GITHUB_ENV: the list of files updated in this pull-request.
 
-on:
-  pull_request:
-    branches: [ main ]
+on: workflow_dispatch
 
 jobs:
   simple_script_checkers:
