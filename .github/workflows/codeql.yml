@@ -10,13 +10,8 @@
 # supported CodeQL languages.
 #
 name: "CodeQL Advanced"
-on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
-  schedule:
-    - cron: '34 18 * * 5'
+on: workflow_dispatch
+
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})

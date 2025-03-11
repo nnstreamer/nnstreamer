@@ -1,13 +1,6 @@
 name: Build test / Yocto-5.0.3 (scarthgap-5.0.3)
 
 on:
-  pull_request:
-    branches: [ main ]
-
-  schedule:
-    # 04:30 AM (KST) Mon-Fri
-    - cron: "30 19 * * 0-4"
-
   workflow_dispatch:
     inputs:
       acquire-space:

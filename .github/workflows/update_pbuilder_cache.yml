@@ -1,10 +1,6 @@
 name: Update pbuilder cache once a day
 
 on:
-  schedule:
-    # 04:00 AM (KST) Mon-Fri
-    - cron: "00 19 * * 0-4"
-
   # Allow manually triggering the workflow
   workflow_dispatch:
 
