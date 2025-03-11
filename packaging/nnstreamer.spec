@@ -184,6 +184,12 @@
 %define		snpe_support 0
 %endif
 
+# HAL check. If HAL is enabled, only hal tensor filters should be built.
+%if 0%{?tizen_hal_support}
+%define		vivante_support 0
+%define		snpe_support 0
+%endif
+
 # If it is tizen, we can export Tizen API packages.
 %bcond_with tizen
 
