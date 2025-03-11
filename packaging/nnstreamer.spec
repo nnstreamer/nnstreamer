@@ -126,6 +126,7 @@
 %define		executorch_support 0
 %define		nnstreamer_edge_support 0
 %define		ml_agent_support 0
+%define		tizen_hal_support 0
 %endif
 
 # Disable a few features for movable device
@@ -149,6 +150,7 @@
 %define		trix_engine_support 0
 %define		onnxruntime_support 0
 %define		executorch_support 0
+%define		tizen_hal_support 0
 %endif
 
 # DA requested to remove unnecessary module builds
