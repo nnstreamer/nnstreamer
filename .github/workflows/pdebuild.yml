@@ -5,10 +5,8 @@ name: Build and unit test/ Pdebuild Ubuntu 22.04
 
 ## @todo apply "cache" to pdebuilder cache, or create docker images ready for pdebuild
 
-on:
-  pull_request:
-    branches: [ main ]
-
+on: workflow_dispatch
+  
 jobs:
   build:
     name: Ubuntu pdebuild on Ubuntu
