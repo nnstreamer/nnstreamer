@@ -43,6 +43,7 @@ enum
   PROP_WAIT_CONNECTION,
   PROP_CONNECTION_TIMEOUT,
   PROP_CUSTOM_LIB,
+  PROP_CUSTOM_PROPS,
 
   PROP_LAST
 };
@@ -134,6 +135,10 @@ gst_edgesink_class_init (GstEdgeSinkClass * klass)
       g_param_spec_string ("custom-lib", "Custom connection lib path",
           "User defined custom connection lib path.",
           "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_CUSTOM_PROPS,
+      g_param_spec_string ("custom-props", "Custom connection props",
+          "User defined custom connection properties. Set the options in key:value form and divide them by , for multiple options.",
+          "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&sinktemplate));
@@ -166,6 +171,7 @@ gst_edgesink_init (GstEdgeSink * self)
   self->wait_connection = FALSE;
   self->connection_timeout = 0;
   self->custom_lib = NULL;
+  self->custom_props = NULL;
   self->is_connected = FALSE;
   g_mutex_init (&self->lock);
   g_cond_init (&self->cond);
@@ -219,6 +225,12 @@ gst_edgesink_set_property (GObject * object, guint prop_id,
       g_free (self->custom_lib);
       self->custom_lib = g_value_dup_string (value);
       break;
+    case PROP_CUSTOM_PROPS:
+    {
+      g_free (self->custom_props);
+      self->custom_props = g_value_dup_string (value);
+      break;
+    }
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -262,6 +274,9 @@ gst_edgesink_get_property (GObject * object, guint prop_id, GValue * value,
     case PROP_CUSTOM_LIB:
       g_value_set_string (value, self->custom_lib);
       break;
+    case PROP_CUSTOM_PROPS:
+      g_value_set_string (value, self->custom_props);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -287,6 +302,9 @@ gst_edgesink_finalize (GObject * object)
 
   g_free (self->custom_lib);
   self->custom_lib = NULL;
+  g_free (self->custom_props);
+  self->custom_props = NULL;
+
   g_mutex_clear (&self->lock);
   g_cond_clear (&self->cond);
 
@@ -329,6 +347,23 @@ _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
   }
 
   return ret;
+}
+
+/**
+ * @brief Parse edge custom properties.
+ */
+static void
+_edgesink_parse_custom_props (GstEdgeSink *self)
+{
+  gchar **str_ops = g_strsplit_set (self->custom_props, ",", -1);
+  guint i, num = g_strv_length (str_ops);
+
+  for (i = 0; i < num; i++) {
+    gchar **str_op = g_strsplit (str_ops[i], ":", -1);
+    nns_edge_set_info (self->edge_h, str_op[0], str_op[1]);
+    g_strfreev (str_op);
+  }
+  g_strfreev (str_ops);
 }
 
 /**
@@ -382,11 +417,19 @@ gst_edgesink_start (GstBaseSink * basesink)
   if (self->topic)
     nns_edge_set_info (self->edge_h, "TOPIC", self->topic);
 
+  if (self->custom_props)
+    _edgesink_parse_custom_props (self);
+
   nns_edge_set_event_callback (self->edge_h, _nns_edge_event_cb, self);
 
   if (0 != nns_edge_start (self->edge_h)) {
     nns_loge
         ("Failed to start NNStreamer-edge. Please check server IP and port");
+    return FALSE;
+  }
+
+  if (0 != nns_edge_connect (self->edge_h, self->dest_host, self->dest_port)) {
+    nns_loge ("Failed to connect to edge device!");
     return FALSE;
   }
 

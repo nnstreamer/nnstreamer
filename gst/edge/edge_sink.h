@@ -55,6 +55,7 @@ struct _GstEdgeSink
   guint64 connection_timeout;
 
   gchar *custom_lib;
+  gchar *custom_props;
   gboolean is_connected;
   GMutex lock;
   GCond cond;
