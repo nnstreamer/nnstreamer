@@ -1280,6 +1280,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %files tizen-hal
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
+%{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_tizen-hal.so
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_snpe.so
 %{_prefix}/lib/nnstreamer/filters/libnnstreamer_filter_vivante.so
 %endif
