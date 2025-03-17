@@ -661,20 +661,21 @@ gchar *
 gst_tensors_info_get_dimensions_string (const GstTensorsInfo * info)
 {
   return gst_tensors_info_get_rank_dimensions_string (info,
-      NNS_TENSOR_RANK_LIMIT);
+      NNS_TENSOR_RANK_LIMIT, FALSE);
 }
 
 /**
  * @brief Get the string of dimensions in tensors info and rank count
  * @param info tensors info structure
  * @param rank rank count of given tensor dimension
+ * @param padding fill 1 if actual rank is smaller than rank
  * @return Formatted string of given dimension
  * @note If rank count is 3, then returned string is 'd1:d2:d3`.
  * The returned value should be freed with g_free()
  */
 gchar *
 gst_tensors_info_get_rank_dimensions_string (const GstTensorsInfo * info,
-    const unsigned int rank)
+    const unsigned int rank, const gboolean padding)
 {
   gchar *dim_str = NULL;
   GstTensorInfo *_info;
@@ -687,7 +688,8 @@ gst_tensors_info_get_rank_dimensions_string (const GstTensorsInfo * info,
 
     for (i = 0; i < info->num_tensors; i++) {
       _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info, i);
-      dim_str = gst_tensor_get_rank_dimension_string (_info->dimension, rank);
+      dim_str = gst_tensor_get_rank_dimension_string (_info->dimension,
+          rank, padding);
 
       g_string_append (dimensions, dim_str);
 
@@ -1083,7 +1085,7 @@ gchar *
 gst_tensor_get_dimension_string (const tensor_dim dim)
 {
   gchar *res =
-      gst_tensor_get_rank_dimension_string (dim, NNS_TENSOR_RANK_LIMIT);
+      gst_tensor_get_rank_dimension_string (dim, NNS_TENSOR_RANK_LIMIT, FALSE);
 
   if (!res)
     return NULL;
@@ -1099,13 +1101,14 @@ gst_tensor_get_dimension_string (const tensor_dim dim)
  * @brief Get dimension string from given tensor dimension and rank count.
  * @param dim tensor dimension
  * @param rank rank count of given tensor dimension
+ * @param padding fill 1 if actual rank is smaller than rank
  * @return Formatted string of given dimension
  * @note If rank count is 3, then returned string is 'd1:d2:d3`.
  * The returned value should be freed with g_free().
  */
 gchar *
 gst_tensor_get_rank_dimension_string (const tensor_dim dim,
-    const unsigned int rank)
+    const unsigned int rank, const gboolean padding)
 {
   guint i;
   GString *dim_str;
@@ -1126,6 +1129,15 @@ gst_tensor_get_rank_dimension_string (const tensor_dim dim,
 
     if (i < actual_rank - 1 && dim[i + 1] > 0) {
       g_string_append (dim_str, ":");
+    }
+  }
+
+  if (rank > 0 && padding) {
+    guint real_rank = gst_tensor_dimension_get_rank (dim);
+
+    if (real_rank < rank) {
+      for (; i < rank; i++)
+        g_string_append (dim_str, ":1");
     }
   }
 
