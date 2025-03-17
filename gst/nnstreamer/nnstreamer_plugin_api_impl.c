@@ -810,7 +810,7 @@ _append_prev_caps (const GstTensorsConfig * config)
 {
   GstTensorsInfo *info;
   GstTensorInfo *_info;
-  guint i, rank, min_rank;
+  guint i, min_rank;
 
   g_return_val_if_fail (config != NULL, FALSE);
 
@@ -821,11 +821,9 @@ _append_prev_caps (const GstTensorsConfig * config)
   for (i = 0; i < info->num_tensors; i++) {
     _info = gst_tensors_info_get_nth_info (info, i);
 
-    rank = gst_tensor_dimension_get_rank (_info->dimension);
     min_rank = gst_tensor_dimension_get_min_rank (_info->dimension);
 
-    if (rank <= NNS_TENSOR_RANK_LIMIT_PREV ||
-        min_rank > NNS_TENSOR_RANK_LIMIT_PREV)
+    if (min_rank > NNS_TENSOR_RANK_LIMIT_PREV)
       return FALSE;
   }
 
@@ -838,7 +836,7 @@ _append_prev_caps (const GstTensorsConfig * config)
 static GstCaps *
 _get_tensor_caps (const GstTensorsConfig * config)
 {
-  GstCaps *caps, *prev;
+  GstCaps *caps, *prev1, *prev2;
   GstTensorsInfo *info;
   GstTensorInfo *_info;
   gboolean append_prev;
@@ -853,10 +851,12 @@ _get_tensor_caps (const GstTensorsConfig * config)
   _info = gst_tensors_info_get_nth_info (info, 0);
 
   /* caps for backward compatibility */
-  prev = NULL;
+  prev1 = prev2 = NULL;
   append_prev = _append_prev_caps (config);
-  if (append_prev)
-    prev = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT);
+  if (append_prev) {
+    prev1 = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT);
+    prev2 = gst_caps_from_string (GST_TENSOR_CAP_DEFAULT);
+  }
 
   if (gst_tensor_dimension_is_valid (_info->dimension)) {
     g_autofree gchar *dim_str =
@@ -865,11 +865,15 @@ _get_tensor_caps (const GstTensorsConfig * config)
     gst_caps_set_simple (caps, "dimension", G_TYPE_STRING, dim_str, NULL);
 
     if (append_prev) {
-      g_autofree gchar *dim_prev =
+      g_autofree gchar *dim_prev1 =
           gst_tensor_get_rank_dimension_string (_info->dimension,
-          NNS_TENSOR_RANK_LIMIT_PREV);
+          NNS_TENSOR_RANK_LIMIT_PREV, FALSE);
+      g_autofree gchar *dim_prev2 =
+          gst_tensor_get_rank_dimension_string (_info->dimension,
+          NNS_TENSOR_RANK_LIMIT_PREV, TRUE);
 
-      gst_caps_set_simple (prev, "dimension", G_TYPE_STRING, dim_prev, NULL);
+      gst_caps_set_simple (prev1, "dimension", G_TYPE_STRING, dim_prev1, NULL);
+      gst_caps_set_simple (prev2, "dimension", G_TYPE_STRING, dim_prev2, NULL);
     }
   }
 
@@ -878,21 +882,26 @@ _get_tensor_caps (const GstTensorsConfig * config)
 
     gst_caps_set_simple (caps, "type", G_TYPE_STRING, type_str, NULL);
 
-    if (append_prev)
-      gst_caps_set_simple (prev, "type", G_TYPE_STRING, type_str, NULL);
+    if (append_prev) {
+      gst_caps_set_simple (prev1, "type", G_TYPE_STRING, type_str, NULL);
+      gst_caps_set_simple (prev2, "type", G_TYPE_STRING, type_str, NULL);
+    }
   }
 
   if (config->rate_n >= 0 && config->rate_d > 0) {
     gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION,
         config->rate_n, config->rate_d, NULL);
 
-    if (append_prev)
-      gst_caps_set_simple (prev, "framerate", GST_TYPE_FRACTION,
+    if (append_prev) {
+      gst_caps_set_simple (prev1, "framerate", GST_TYPE_FRACTION,
           config->rate_n, config->rate_d, NULL);
+      gst_caps_set_simple (prev2, "framerate", GST_TYPE_FRACTION,
+          config->rate_n, config->rate_d, NULL);
+    }
   }
 
   if (append_prev)
-    caps = gst_caps_merge (caps, prev);
+    caps = gst_caps_merge (caps, gst_caps_merge (prev1, prev2));
 
   return caps;
 }
@@ -903,7 +912,7 @@ _get_tensor_caps (const GstTensorsConfig * config)
 static GstCaps *
 _get_tensors_caps (const GstTensorsConfig * config)
 {
-  GstCaps *caps, *prev;
+  GstCaps *caps, *prev1, *prev2;
   gboolean append_prev;
 
   g_return_val_if_fail (config != NULL, NULL);
@@ -911,10 +920,12 @@ _get_tensors_caps (const GstTensorsConfig * config)
   caps = gst_caps_from_string (GST_TENSORS_CAP_DEFAULT);
 
   /* caps for backward compatibility */
-  prev = NULL;
+  prev1 = prev2 = NULL;
   append_prev = _append_prev_caps (config);
-  if (append_prev)
-    prev = gst_caps_from_string (GST_TENSORS_CAP_DEFAULT);
+  if (append_prev) {
+    prev1 = gst_caps_from_string (GST_TENSORS_CAP_DEFAULT);
+    prev2 = gst_caps_from_string (GST_TENSORS_CAP_DEFAULT);
+  }
 
   if (config->info.num_tensors > 0) {
     g_autofree gchar *type_str =
@@ -928,14 +939,22 @@ _get_tensors_caps (const GstTensorsConfig * config)
     gst_caps_set_simple (caps, "types", G_TYPE_STRING, type_str, NULL);
 
     if (append_prev) {
-      g_autofree gchar *dim_prev =
+      g_autofree gchar *dim_prev1 =
           gst_tensors_info_get_rank_dimensions_string (&config->info,
-          NNS_TENSOR_RANK_LIMIT_PREV);
+          NNS_TENSOR_RANK_LIMIT_PREV, FALSE);
+      g_autofree gchar *dim_prev2 =
+          gst_tensors_info_get_rank_dimensions_string (&config->info,
+          NNS_TENSOR_RANK_LIMIT_PREV, TRUE);
 
-      gst_caps_set_simple (prev, "num_tensors", G_TYPE_INT,
+      gst_caps_set_simple (prev1, "num_tensors", G_TYPE_INT,
           config->info.num_tensors, NULL);
-      gst_caps_set_simple (prev, "dimensions", G_TYPE_STRING, dim_prev, NULL);
-      gst_caps_set_simple (prev, "types", G_TYPE_STRING, type_str, NULL);
+      gst_caps_set_simple (prev1, "dimensions", G_TYPE_STRING, dim_prev1, NULL);
+      gst_caps_set_simple (prev1, "types", G_TYPE_STRING, type_str, NULL);
+
+      gst_caps_set_simple (prev2, "num_tensors", G_TYPE_INT,
+          config->info.num_tensors, NULL);
+      gst_caps_set_simple (prev2, "dimensions", G_TYPE_STRING, dim_prev2, NULL);
+      gst_caps_set_simple (prev2, "types", G_TYPE_STRING, type_str, NULL);
     }
   }
 
@@ -943,13 +962,16 @@ _get_tensors_caps (const GstTensorsConfig * config)
     gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION,
         config->rate_n, config->rate_d, NULL);
 
-    if (append_prev)
-      gst_caps_set_simple (prev, "framerate", GST_TYPE_FRACTION,
+    if (append_prev) {
+      gst_caps_set_simple (prev1, "framerate", GST_TYPE_FRACTION,
           config->rate_n, config->rate_d, NULL);
+      gst_caps_set_simple (prev2, "framerate", GST_TYPE_FRACTION,
+          config->rate_n, config->rate_d, NULL);
+    }
   }
 
   if (append_prev)
-    caps = gst_caps_merge (caps, prev);
+    caps = gst_caps_merge (caps, gst_caps_merge (prev1, prev2));
 
   return caps;
 }

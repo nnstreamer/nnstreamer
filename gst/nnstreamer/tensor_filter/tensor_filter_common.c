@@ -273,12 +273,13 @@ gst_tensor_filter_get_dimension_string (const GstTensorFilterProperties * prop,
 
   if (tinfo->num_tensors > 0) {
     guint i;
+    GstTensorInfo *_info;
     GString *dimensions = g_string_new (NULL);
 
     for (i = 0; i < tinfo->num_tensors; ++i) {
-      dim_str =
-          gst_tensor_get_rank_dimension_string (gst_tensors_info_get_nth_info (
-              (GstTensorsInfo *) tinfo, i)->dimension, *(_rank + i));
+      _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) tinfo, i);
+      dim_str = gst_tensor_get_rank_dimension_string (_info->dimension,
+          *(_rank + i), FALSE);
       g_string_append (dimensions, dim_str);
 
       if (i < tinfo->num_tensors - 1) {

@@ -169,12 +169,14 @@ gst_tensors_info_get_dimensions_string (const GstTensorsInfo * info);
  * @brief Get the string of dimensions in tensors info and rank count
  * @param info tensors info structure
  * @param rank rank count of given tensor dimension
+ * @param padding fill 1 if actual rank is smaller than rank
  * @return Formatted string of given dimension
  * @note If rank count is 3, then returned string is 'd1:d2:d3`.
  * The returned value should be freed with g_free()
  */
 extern gchar *
-gst_tensors_info_get_rank_dimensions_string (const GstTensorsInfo * info, const unsigned int rank);
+gst_tensors_info_get_rank_dimensions_string (const GstTensorsInfo * info,
+    const unsigned int rank, const gboolean padding);
 
 /**
  * @brief Get the string of types in tensors info
@@ -337,12 +339,14 @@ gst_tensor_get_dimension_string (const tensor_dim dim);
  * @brief Get dimension string from given tensor dimension and rank count.
  * @param dim tensor dimension
  * @param rank rank count of given tensor dimension
+ * @param padding fill 1 if actual rank is smaller than rank
  * @return Formatted string of given dimension
  * @note If rank count is 3, then returned string is 'd1:d2:d3`.
  * The returned value should be freed with g_free().
  */
 extern gchar *
-gst_tensor_get_rank_dimension_string (const tensor_dim dim, const unsigned int rank);
+gst_tensor_get_rank_dimension_string (const tensor_dim dim,
+    const unsigned int rank, const gboolean padding);
 
 /**
  * @brief Compare dimension strings
