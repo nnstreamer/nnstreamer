@@ -235,6 +235,10 @@ typedef struct _GstTensorFilterFrameworkEventData
       accl_hw hw; /**< accelerator to check availability */
       const char *custom; /**< custom option for hardware detection */
     };
+
+    struct {
+      const GstTensorMemory *input;
+    };
   };
 } GstTensorFilterFrameworkEventData;
 

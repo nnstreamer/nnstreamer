@@ -261,8 +261,7 @@ gst_tensor_filter_llm_chain (GstPad * sinkpad, GstObject * parent,
   GstTensorFilterLLM *self;
   GstTensorFilterPrivate *priv;
   GstTensorFilterFrameworkEventData event_data;
-  int count = 0;                /* Temporary variable to stop generating tensors */
-
+  int status = 0;
   UNUSED (inbuf);
   UNUSED (sinkpad);
 
@@ -273,13 +272,12 @@ gst_tensor_filter_llm_chain (GstPad * sinkpad, GstObject * parent,
     gst_tensor_filter_common_open_fw (priv);
 
   /** FIXME: Temporary condition to stop generating tensors */
-  while (count++ < 10) {
+  while (status != 1) {
     GstBuffer *dummy;
     GstMemory *mem;
     guint8 *data;
     GstCaps *caps;
     gsize mem_size;
-    int status;
     dummy = gst_buffer_new ();
     mem_size = 100; /** FIXME: Get mem_size from property */
     data = (guint8 *) g_malloc0 (mem_size);
