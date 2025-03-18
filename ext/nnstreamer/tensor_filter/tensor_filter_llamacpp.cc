@@ -79,11 +79,20 @@ class TensorFilterLlamaCpp : public tensor_filter_subplugin
   llama_model_params model_params;
   llama_sampler_chain_params sampler_params;
   llama_context_params ctx_params;
+  llama_batch batch;
+
+  std::vector<llama_token> prompt_tokens;
 
   int n_gpu_layers = 99;
   int n_predict = 32;
 
   void parseCustomProperties (const GstTensorFilterProperties *prop);
+  void prepare(std::string prompt);
+  llama_token next_token(int * n_pos);
+
+  gboolean running = FALSE;
+  int n_pos;
+  int n_prompt;
 };
 
 void init_filter_llama (void) __attribute__ ((constructor));
@@ -221,19 +230,59 @@ void
 TensorFilterLlamaCpp::invoke_dynamic (GstTensorFilterProperties *prop,
     const GstTensorMemory *input, GstTensorMemory *output)
 {
-  int n_prompt, n_pos;
   llama_token new_token_id;
-  llama_batch batch;
-  std::string prompt, result = "";
+  std::string result;
 
-  UNUSED (prop);
+  result.assign ((char *) input[0].data, input[0].size);
+  result.erase (result.find_last_not_of (" \t\n\r\f\v") + 1);
 
-  prompt.assign ((char *) input[0].data, input[0].size);
-  prompt.erase (prompt.find_last_not_of (" \t\n\r\f\v") + 1);
+  prepare(result);
 
+  while(1) {
+    new_token_id = next_token(&n_pos);
+
+    if (new_token_id < 0) {
+      break;
+    }
+
+    char buf[128];
+    int n = llama_token_to_piece (model, new_token_id, buf, sizeof (buf), 0, true);
+    if (n < 0) {
+      throw std::invalid_argument ("Failed to convert token to piece");
+    }
+
+    std::string s (buf, n);
+
+    ml_loge("%s", s.c_str());
+    result += s;
+
+    /** prepare the next batch with the sampled token */
+    batch = llama_batch_get_one (&new_token_id, 1);
+
+    if (n_pos + batch.n_tokens >= n_prompt + n_predict)
+      break;
+  }
+
+  output[0].size = result.length ();
+  output[0].data = strndup (result.c_str (), result.length ());
+  gst_tensors_info_init (&prop->output_meta);
+  prop->output_meta.num_tensors = 1;
+  prop->output_meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  prop->output_meta.info[0].type = _NNS_UINT8;
+  prop->output_meta.info[0].dimension[0] = output[0].size;
+
+  llama_free (ctx);
+  ctx = nullptr;
+}
+
+void
+TensorFilterLlamaCpp::prepare(std::string prompt)
+{
+  n_pos = 0;
   n_prompt = -llama_tokenize (model, prompt.c_str (), prompt.size (), NULL, 0, true, true);
 
-  std::vector<llama_token> prompt_tokens (n_prompt);
+  prompt_tokens.resize(n_prompt);
+
   if (llama_tokenize (model, prompt.c_str (), prompt.size (),
           prompt_tokens.data (), prompt_tokens.size (), true, true)
       < 0) {
@@ -241,6 +290,7 @@ TensorFilterLlamaCpp::invoke_dynamic (GstTensorFilterProperties *prop,
   }
 
   ctx_params.n_ctx = n_prompt + n_predict - 1;
+
   /** n_batch is the maximum number of tokens that can be processed in a single call to llama_decode */
   ctx_params.n_batch = n_prompt;
 
@@ -257,53 +307,32 @@ TensorFilterLlamaCpp::invoke_dynamic (GstTensorFilterProperties *prop,
       throw std::invalid_argument ("Failed to convert token to piece");
     }
     std::string s (buf, n);
-    result += s;
+    // result += s;
   }
 
   batch = llama_batch_get_one (prompt_tokens.data (), prompt_tokens.size ());
-
-  for (n_pos = 0; n_pos + batch.n_tokens < n_prompt + n_predict;) {
-    /** evaluate the current batch with the transformer model */
-    if (llama_decode (ctx, batch)) {
-      throw std::invalid_argument ("Failed to eval");
-    }
-
-    n_pos += batch.n_tokens;
-
-    /** sample the next token */
-    {
-      new_token_id = llama_sampler_sample (smpl, ctx, -1);
-
-      /** is it an end of generation? */
-      if (llama_token_is_eog (model, new_token_id)) {
-        break;
-      }
-
-      char buf[128];
-      int n = llama_token_to_piece (model, new_token_id, buf, sizeof (buf), 0, true);
-      if (n < 0) {
-        throw std::invalid_argument ("Failed to convert token to piece");
-      }
-      std::string s (buf, n);
-      result += s;
-
-      /** prepare the next batch with the sampled token */
-      batch = llama_batch_get_one (&new_token_id, 1);
-    }
-  }
-
-  output[0].size = result.length ();
-  output[0].data = strndup (result.c_str (), result.length ());
-  gst_tensors_info_init (&prop->output_meta);
-  prop->output_meta.num_tensors = 1;
-  prop->output_meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
-  prop->output_meta.info[0].type = _NNS_UINT8;
-  prop->output_meta.info[0].dimension[0] = output[0].size;
-
-  llama_free (ctx);
-  ctx = nullptr;
 }
 
+llama_token
+TensorFilterLlamaCpp::next_token(int * n_pos)
+{
+  llama_token new_token_id;
+
+  /** evaluate the current batch with the transformer model */
+  if (llama_decode (ctx, batch)) {
+    throw std::invalid_argument ("Failed to eval");
+  }
+
+  *n_pos += batch.n_tokens;
+  new_token_id = llama_sampler_sample (smpl, ctx, -1);
+
+  if (llama_token_is_eog (model, new_token_id)) {
+    ml_loge("end of generation");
+    return -1;
+  }
+
+  return new_token_id;
+}
 
 /**
  * @brief Get llama framework info.
@@ -348,6 +377,41 @@ TensorFilterLlamaCpp::eventHandler (event_ops ops, GstTensorFilterFrameworkEvent
 {
   UNUSED (ops);
   UNUSED (data);
+
+  if (ops == GET_TOKENS) {
+    ml_loge("get tokens");
+    if (!running) {
+      std::string prompt = "Hello my name is";
+
+      prepare(prompt);
+
+      running = TRUE;
+    }
+
+    llama_token new_token_id = next_token(&n_pos);
+
+    if (new_token_id < 0) {
+      ml_loge("new");
+      return -1;
+    }
+
+    char buf[128];
+    int n = llama_token_to_piece (model, new_token_id, buf, sizeof (buf), 0, true);
+    if (n < 0) {
+      throw std::invalid_argument ("Failed to convert token to piece");
+    }
+
+    std::string s (buf, n);
+
+    ml_loge("%s", s.c_str());
+
+    /** prepare the next batch with the sampled token */
+    llama_batch batch = llama_batch_get_one (&new_token_id, 1);
+
+    if (n_pos + batch.n_tokens >= n_prompt + n_predict)
+      return 1;
+  }
+
   return 0;
 }
 
