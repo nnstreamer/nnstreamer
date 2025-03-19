@@ -242,7 +242,7 @@ gst_tensor_sparse_enc_sink_event (GstPad * pad, GstObject * parent,
       gst_event_parse_caps (event, &caps);
       silent_debug_caps (self, caps, "caps");
 
-      ret = gst_tensors_config_from_cap (&self->in_config, caps);
+      ret = gst_tensors_config_from_caps (&self->in_config, caps);
       gst_event_unref (event);
       return ret;
     }

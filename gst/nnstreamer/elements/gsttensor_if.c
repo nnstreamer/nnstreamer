@@ -683,7 +683,7 @@ gst_tensor_if_event (GstPad * pad, GstObject * parent, GstEvent * event)
     {
       GstCaps *caps;
       gst_event_parse_caps (event, &caps);
-      if (!gst_tensors_config_from_cap (&tensor_if->in_config, caps)) {
+      if (!gst_tensors_config_from_caps (&tensor_if->in_config, caps)) {
         GST_ERROR_OBJECT (tensor_if, "Failed to parse caps.\n");
         gst_event_unref (event);
         return FALSE;

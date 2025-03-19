@@ -402,7 +402,7 @@ gst_tensor_crop_sink_event (GstCollectPads * pads, GstCollectData * data,
       gboolean ret;
       gst_event_parse_caps (event, &caps);
 
-      ret = gst_tensors_config_from_cap (&cpad->config, caps);
+      ret = gst_tensors_config_from_caps (&cpad->config, caps);
       gst_event_unref (event);
 
       return ret;

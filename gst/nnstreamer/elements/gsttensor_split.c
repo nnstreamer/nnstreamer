@@ -224,8 +224,9 @@ gst_tensor_split_event (GstPad * pad, GstObject * parent, GstEvent * event)
     case GST_EVENT_CAPS:
     {
       GstCaps *caps;
+
       gst_event_parse_caps (event, &caps);
-      if (!gst_tensors_config_from_cap (&split->sink_tensor_conf, caps)) {
+      if (!gst_tensors_config_from_caps (&split->sink_tensor_conf, caps)) {
         GST_ELEMENT_ERROR (split, STREAM, WRONG_TYPE,
             ("This stream contains no valid type."), NULL);
       }
