@@ -1503,7 +1503,7 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
  * @return TRUE/FALSE (if successfully configured, return TRUE)
  */
 gboolean
-gst_tensors_config_from_cap (GstTensorsConfig * config, const GstCaps * caps)
+gst_tensors_config_from_caps (GstTensorsConfig * config, const GstCaps * caps)
 {
   GstStructure *structure;
 

@@ -1086,7 +1086,7 @@ TEST (commonTensorConfig, parseCapInvalidParam_p)
   GstCaps *caps = gst_caps_new_simple ("other/tensors", "format", G_TYPE_STRING,
       "flexible", "framerate", GST_TYPE_FRACTION, 30, 1, NULL);
   gst_tensors_config_init (&config);
-  EXPECT_TRUE (gst_tensors_config_from_cap (&config, caps));
+  EXPECT_TRUE (gst_tensors_config_from_caps (&config, caps));
 }
 
 /**
@@ -1096,7 +1096,7 @@ TEST (commonTensorConfig, parseCapInvalidParam0_n)
 {
   GstCaps *caps = gst_caps_new_simple ("other/tensor", "format", G_TYPE_STRING,
       "flexible", "framerate", GST_TYPE_FRACTION, 30, 1, NULL);
-  EXPECT_FALSE (gst_tensors_config_from_cap (NULL, caps));
+  EXPECT_FALSE (gst_tensors_config_from_caps (NULL, caps));
 }
 
 /**
@@ -1106,7 +1106,7 @@ TEST (commonTensorConfig, parseCapInvalidParam1_n)
 {
   GstTensorsConfig config;
   gst_tensors_config_init (&config);
-  EXPECT_FALSE (gst_tensors_config_from_cap (&config, NULL));
+  EXPECT_FALSE (gst_tensors_config_from_caps (&config, NULL));
 }
 
 /**
@@ -1118,7 +1118,7 @@ TEST (commonTensorConfig, parseUnfixedCaps_n)
   GstCaps *caps = gst_caps_new_simple ("other/tensor", "format", G_TYPE_STRING,
       "static", "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT, 1, NULL);
   gst_tensors_config_init (&config);
-  EXPECT_FALSE (gst_tensors_config_from_cap (&config, caps));
+  EXPECT_FALSE (gst_tensors_config_from_caps (&config, caps));
 }
 
 /**
