@@ -989,11 +989,14 @@ _gst_tensor_filter_transform_update_outbuf (GstBaseTransform * trans,
   /* If output combination is defined, append input tensors first */
   if (priv->combi.out_combi_i_defined) {
     for (list = priv->combi.out_combi_i; list != NULL; list = list->next) {
+      GstTensorInfo combi_info;
       i = GPOINTER_TO_UINT (list->data);
+
+      gst_tensor_info_init (&combi_info);
+      _info = gst_tensors_info_get_nth_info (&priv->in_config.info, i);
 
       if (!in_trans_data->is_flexible && out_trans_data->is_flexible) {
         /* append header */
-        _info = gst_tensors_info_get_nth_info (&priv->in_config.info, i);
         gst_tensor_info_convert_to_meta (_info, &in_trans_data->meta[i]);
         mem =
             gst_tensor_meta_info_append_header (&in_trans_data->meta[i],
@@ -1002,11 +1005,13 @@ _gst_tensor_filter_transform_update_outbuf (GstBaseTransform * trans,
         /* remove header */
         hsize = gst_tensor_meta_info_get_header_size (&in_trans_data->meta[i]);
         mem = gst_memory_share (in_trans_data->mem[i], hsize, -1);
+        gst_tensor_meta_info_convert (&in_trans_data->meta[i], &combi_info);
+        _info = &combi_info;
       } else {
         mem = gst_memory_ref (in_trans_data->mem[i]);
       }
-
-      gst_buffer_append_memory (outbuf, mem);
+      gst_tensor_buffer_append_memory (outbuf, mem, _info);
+      gst_tensor_info_free (&combi_info);
     }
   }
 
