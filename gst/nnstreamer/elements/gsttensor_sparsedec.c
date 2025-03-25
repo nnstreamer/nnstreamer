@@ -321,14 +321,12 @@ gst_tensor_sparse_dec_sink_event (GstPad * pad, GstObject * parent,
     case GST_EVENT_CAPS:
     {
       GstCaps *caps, *out_caps;
-      GstStructure *structure;
 
       gst_event_parse_caps (event, &caps);
       silent_debug_caps (self, caps, "caps");
 
       /* set in_config */
-      structure = gst_caps_get_structure (caps, 0);
-      gst_tensors_config_from_structure (&self->in_config, structure);
+      gst_tensors_config_from_caps (&self->in_config, caps, TRUE);
 
       /* set out_config as srcpad's peer */
       gst_tensors_config_from_peer (self->srcpad, &self->out_config, NULL);

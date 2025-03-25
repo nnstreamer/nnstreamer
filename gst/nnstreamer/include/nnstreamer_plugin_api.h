@@ -53,10 +53,12 @@ gst_tensors_config_from_structure (GstTensorsConfig *config,
  * @brief Parse caps and set tensors config (for other/tensors)
  * @param[out] config tensors config structure to be filled
  * @param[in] caps incoming capability
+ * @param[in] validate TRUE to validate configuration
  * @return TRUE/FALSE (if successfully configured, return TRUE)
  */
 extern gboolean
-gst_tensors_config_from_caps (GstTensorsConfig *config, const GstCaps *caps);
+gst_tensors_config_from_caps (GstTensorsConfig *config, const GstCaps *caps,
+    const gboolean validate);
 
 /**
  * @brief Parse caps from peer pad and set tensors config.

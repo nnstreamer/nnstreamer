@@ -160,36 +160,36 @@ static GstCaps *
 gst_tensor_reposrc_getcaps (GstBaseSrc * src, GstCaps * filter)
 {
   GstTensorRepoSrc *self = GST_TENSOR_REPOSRC (src);
-  GstCaps *cap, *check, *result;
-  GstStructure *st = NULL;
+  GstCaps *caps, *check, *result;
 
   GST_DEBUG_OBJECT (self, "returning %" GST_PTR_FORMAT, self->caps);
 
   if (self->caps) {
     if (filter) {
-      cap = gst_caps_intersect_full (filter, self->caps,
+      caps = gst_caps_intersect_full (filter, self->caps,
           GST_CAPS_INTERSECT_FIRST);
-    } else
-      cap = gst_caps_ref (self->caps);
+    } else {
+      caps = gst_caps_ref (self->caps);
+    }
   } else {
     if (filter) {
-      cap = gst_caps_ref (filter);
-    } else
-      cap = gst_caps_new_any ();
+      caps = gst_caps_ref (filter);
+    } else {
+      caps = gst_caps_new_any ();
+    }
   }
 
   check = gst_caps_from_string (CAPS_STRING);
-  result = gst_caps_intersect_full (cap, check, GST_CAPS_INTERSECT_FIRST);
+  result = gst_caps_intersect_full (caps, check, GST_CAPS_INTERSECT_FIRST);
+  gst_caps_unref (check);
+  gst_caps_unref (caps);
 
-  if (!result) {
+  if (!gst_tensors_config_from_caps (&self->config, result, TRUE)) {
     GST_ELEMENT_ERROR (GST_ELEMENT (self), STREAM, WRONG_TYPE,
         ("Only Tensor/Tensors MIME are supported for now"), (NULL));
-  }
-  gst_caps_unref (check);
-  gst_caps_unref (cap);
 
-  st = gst_caps_get_structure (result, 0);
-  gst_tensors_config_from_structure (&self->config, st);
+    g_clear_pointer (&result, gst_caps_unref);
+  }
 
   return result;
 }

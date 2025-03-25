@@ -174,7 +174,7 @@ gst_tensor_split_init (GstTensorSplit * split)
   split->have_group_id = FALSE;
   split->group_id = G_MAXUINT;
   split->srcpads = NULL;
-  gst_tensors_config_init (&split->sink_tensor_conf);
+  gst_tensors_config_init (&split->in_config);
 }
 
 /**
@@ -192,7 +192,7 @@ gst_tensor_split_remove_src_pads (GstTensorSplit * split)
   split->srcpads = NULL;
   split->num_tensors = 0;
   split->num_srcpads = 0;
-  gst_tensors_config_free (&split->sink_tensor_conf);
+  gst_tensors_config_free (&split->in_config);
 }
 
 /**
@@ -226,7 +226,7 @@ gst_tensor_split_event (GstPad * pad, GstObject * parent, GstEvent * event)
       GstCaps *caps;
 
       gst_event_parse_caps (event, &caps);
-      if (!gst_tensors_config_from_caps (&split->sink_tensor_conf, caps)) {
+      if (!gst_tensors_config_from_caps (&split->in_config, caps, TRUE)) {
         GST_ELEMENT_ERROR (split, STREAM, WRONG_TYPE,
             ("This stream contains no valid type."), NULL);
       }
@@ -336,9 +336,9 @@ gst_tensor_split_get_tensor_pad (GstTensorSplit * split, GstBuffer * inbuf,
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
     pad_config.info.info[0].dimension[i] = (*dim)[i];
   }
-  pad_config.info.info[0].type = split->sink_tensor_conf.info.info[0].type;
-  pad_config.rate_n = split->sink_tensor_conf.rate_n;
-  pad_config.rate_d = split->sink_tensor_conf.rate_d;
+  pad_config.info.info[0].type = split->in_config.info.info[0].type;
+  pad_config.rate_n = split->in_config.rate_n;
+  pad_config.rate_d = split->in_config.rate_d;
 
   caps = gst_tensor_pad_caps_from_config (pad, &pad_config);
 
@@ -408,7 +408,7 @@ gst_tensor_split_get_splitted (GstTensorSplit * split, GstBuffer * buffer,
 
   dim = g_array_index (split->tensorseg, tensor_dim *, nth);
   size = gst_tensor_get_element_count (*dim) *
-      gst_tensor_get_element_size (split->sink_tensor_conf.info.info[0].type);
+      gst_tensor_get_element_size (split->in_config.info.info[0].type);
 
   mem = gst_allocator_alloc (NULL, size, NULL);
   if (!gst_memory_map (mem, &dest_info, GST_MAP_WRITE)) {
@@ -427,7 +427,7 @@ gst_tensor_split_get_splitted (GstTensorSplit * split, GstBuffer * buffer,
   for (i = 0; i < nth; i++) {
     dim = g_array_index (split->tensorseg, tensor_dim *, i);
     offset += gst_tensor_get_element_count (*dim) *
-        gst_tensor_get_element_size (split->sink_tensor_conf.info.info[0].type);
+        gst_tensor_get_element_size (split->in_config.info.info[0].type);
   }
 
   nns_memcpy (dest_info.data, src_info.data + offset, size);

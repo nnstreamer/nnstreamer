@@ -400,9 +400,10 @@ gst_tensor_crop_sink_event (GstCollectPads * pads, GstCollectData * data,
     {
       GstCaps *caps;
       gboolean ret;
+
       gst_event_parse_caps (event, &caps);
 
-      ret = gst_tensors_config_from_caps (&cpad->config, caps);
+      ret = gst_tensors_config_from_caps (&cpad->config, caps, TRUE);
       gst_event_unref (event);
 
       return ret;
@@ -496,7 +497,6 @@ gst_tensor_crop_prepare_out_meta (GstTensorCrop * self, gpointer buffer,
     GstTensorMetaInfo * meta, GstTensorInfo * info, gboolean * is_flexible)
 {
   GstCaps *caps;
-  GstStructure *structure;
   GstTensorsConfig config;
   GstTensorInfo *_info;
   gboolean ret = FALSE;
@@ -505,9 +505,8 @@ gst_tensor_crop_prepare_out_meta (GstTensorCrop * self, gpointer buffer,
   gst_tensor_info_init (info);
 
   caps = gst_pad_get_current_caps (self->sinkpad_raw);
-  structure = gst_caps_get_structure (caps, 0);
 
-  if (!gst_tensors_config_from_structure (&config, structure)) {
+  if (!gst_tensors_config_from_caps (&config, caps, TRUE)) {
     GST_ERROR_OBJECT (self, "Failed to get the config from caps.");
     goto done;
   }

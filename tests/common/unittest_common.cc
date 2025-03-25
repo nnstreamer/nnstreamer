@@ -23,6 +23,65 @@
 #include <unittest_util.h>
 
 /**
+ * @brief Internal function to update tensors info.
+ */
+static void
+fill_tensors_info_for_test (GstTensorsInfo *info1, GstTensorsInfo *info2)
+{
+  GstTensorInfo *_info1, *_info2;
+
+  g_assert (info1 != NULL && info2 != NULL);
+
+  gst_tensors_info_init (info1);
+  gst_tensors_info_init (info2);
+
+  info1->num_tensors = info2->num_tensors = 2;
+
+  _info1 = gst_tensors_info_get_nth_info (info1, 0);
+  _info2 = gst_tensors_info_get_nth_info (info2, 0);
+
+  _info1->type = _info2->type = _NNS_INT64;
+  _info1->dimension[0] = _info2->dimension[0] = 2;
+  _info1->dimension[1] = _info2->dimension[1] = 3;
+  _info1->dimension[2] = _info2->dimension[2] = 1;
+  _info1->dimension[3] = _info2->dimension[3] = 1;
+  _info1->dimension[4] = _info2->dimension[4] = 2;
+  _info1->dimension[5] = _info2->dimension[5] = 3;
+  _info1->dimension[6] = _info2->dimension[6] = 1;
+  _info1->dimension[7] = _info2->dimension[7] = 1;
+
+  _info1 = gst_tensors_info_get_nth_info (info1, 1);
+  _info2 = gst_tensors_info_get_nth_info (info2, 1);
+
+  _info1->type = _info2->type = _NNS_FLOAT64;
+  _info1->dimension[0] = _info2->dimension[0] = 5;
+  _info1->dimension[1] = _info2->dimension[1] = 5;
+  _info1->dimension[2] = _info2->dimension[2] = 1;
+  _info1->dimension[3] = _info2->dimension[3] = 1;
+  _info1->dimension[4] = _info2->dimension[4] = 5;
+  _info1->dimension[5] = _info2->dimension[5] = 5;
+  _info1->dimension[6] = _info2->dimension[6] = 1;
+  _info1->dimension[7] = _info2->dimension[7] = 1;
+}
+
+/**
+ * @brief Internal function to update tensors info.
+ */
+static void
+fill_tensors_config_for_test (GstTensorsConfig *conf1, GstTensorsConfig *conf2)
+{
+  g_assert (conf1 != NULL && conf2 != NULL);
+
+  gst_tensors_config_init (conf1);
+  gst_tensors_config_init (conf2);
+
+  conf1->rate_n = conf2->rate_n = 1;
+  conf1->rate_d = conf2->rate_d = 2;
+
+  fill_tensors_info_for_test (&conf1->info, &conf2->info);
+}
+
+/**
  * @brief Test for int32 type string.
  */
 TEST (commonGetTensorType, failure_n)
@@ -505,58 +564,6 @@ TEST (commonTensorInfo, copyTensors)
 
   gst_tensors_info_free (&dest);
   g_free (test_name);
-}
-
-/**
- * @brief Internal function to update tensors info.
- */
-static void
-fill_tensors_info_for_test (GstTensorsInfo *info1, GstTensorsInfo *info2)
-{
-  g_assert (info1 != NULL && info2 != NULL);
-
-  gst_tensors_info_init (info1);
-  gst_tensors_info_init (info2);
-
-  info1->num_tensors = info2->num_tensors = 2;
-
-  info1->info[0].type = info2->info[0].type = _NNS_INT64;
-  info1->info[1].type = info2->info[1].type = _NNS_FLOAT64;
-
-  info1->info[0].dimension[0] = info2->info[0].dimension[0] = 2;
-  info1->info[0].dimension[1] = info2->info[0].dimension[1] = 3;
-  info1->info[0].dimension[2] = info2->info[0].dimension[2] = 1;
-  info1->info[0].dimension[3] = info2->info[0].dimension[3] = 1;
-  info1->info[0].dimension[4] = info2->info[0].dimension[4] = 2;
-  info1->info[0].dimension[5] = info2->info[0].dimension[5] = 3;
-  info1->info[0].dimension[6] = info2->info[0].dimension[6] = 1;
-  info1->info[0].dimension[7] = info2->info[0].dimension[7] = 1;
-
-  info1->info[1].dimension[0] = info2->info[1].dimension[0] = 5;
-  info1->info[1].dimension[1] = info2->info[1].dimension[1] = 5;
-  info1->info[1].dimension[2] = info2->info[1].dimension[2] = 1;
-  info1->info[1].dimension[3] = info2->info[1].dimension[3] = 1;
-  info1->info[1].dimension[4] = info2->info[1].dimension[4] = 5;
-  info1->info[1].dimension[5] = info2->info[1].dimension[5] = 5;
-  info1->info[1].dimension[6] = info2->info[1].dimension[6] = 1;
-  info1->info[1].dimension[7] = info2->info[1].dimension[7] = 1;
-}
-
-/**
- * @brief Internal function to update tensors info.
- */
-static void
-fill_tensors_config_for_test (GstTensorsConfig *conf1, GstTensorsConfig *conf2)
-{
-  g_assert (conf1 != NULL && conf2 != NULL);
-
-  gst_tensors_config_init (conf1);
-  gst_tensors_config_init (conf2);
-
-  conf1->rate_n = conf2->rate_n = 1;
-  conf1->rate_d = conf2->rate_d = 2;
-
-  fill_tensors_info_for_test (&conf1->info, &conf2->info);
 }
 
 /**
@@ -1064,7 +1071,7 @@ TEST (commonTensorsConfig, fromStructureInvalidParam1_n)
 /**
  * @brief Test for getting tensor cap with invalid param.
  */
-TEST (commonTensorConfig, capInvalidParam0_n)
+TEST (commonTensorsConfig, capsInvalidParam0_n)
 {
   EXPECT_FALSE (gst_tensor_caps_from_config (NULL));
 }
@@ -1072,7 +1079,7 @@ TEST (commonTensorConfig, capInvalidParam0_n)
 /**
  * @brief Test for getting tensor cap with invalid param.
  */
-TEST (commonTensorsConfig, capInvalidParam1_n)
+TEST (commonTensorsConfig, capsInvalidParam1_n)
 {
   EXPECT_FALSE (gst_tensors_caps_from_config (NULL));
 }
@@ -1080,45 +1087,48 @@ TEST (commonTensorsConfig, capInvalidParam1_n)
 /**
  * @brief Test for parsing tensor cap.
  */
-TEST (commonTensorConfig, parseCapInvalidParam_p)
+TEST (commonTensorsConfig, parseCapsFlexible_p)
 {
   GstTensorsConfig config;
   GstCaps *caps = gst_caps_new_simple ("other/tensors", "format", G_TYPE_STRING,
       "flexible", "framerate", GST_TYPE_FRACTION, 30, 1, NULL);
-  gst_tensors_config_init (&config);
-  EXPECT_TRUE (gst_tensors_config_from_caps (&config, caps));
+
+  EXPECT_TRUE (gst_tensors_config_from_caps (&config, caps, TRUE));
+  gst_tensors_config_free (&config);
 }
 
 /**
  * @brief Test for parsing tensor cap with invalid param.
  */
-TEST (commonTensorConfig, parseCapInvalidParam0_n)
+TEST (commonTensorsConfig, parseCapsInvalidParam0_n)
 {
   GstCaps *caps = gst_caps_new_simple ("other/tensor", "format", G_TYPE_STRING,
       "flexible", "framerate", GST_TYPE_FRACTION, 30, 1, NULL);
-  EXPECT_FALSE (gst_tensors_config_from_caps (NULL, caps));
+
+  EXPECT_FALSE (gst_tensors_config_from_caps (NULL, caps, TRUE));
 }
 
 /**
  * @brief Test for parsing tensor cap with invalid param.
  */
-TEST (commonTensorConfig, parseCapInvalidParam1_n)
+TEST (commonTensorsConfig, parseCapsInvalidParam1_n)
 {
   GstTensorsConfig config;
-  gst_tensors_config_init (&config);
-  EXPECT_FALSE (gst_tensors_config_from_caps (&config, NULL));
+
+  EXPECT_FALSE (gst_tensors_config_from_caps (&config, NULL, TRUE));
 }
 
 /**
  * @brief Test for parsing tensor cap with unfixed caps.
  */
-TEST (commonTensorConfig, parseUnfixedCaps_n)
+TEST (commonTensorsConfig, parseUnfixedCaps_n)
 {
   GstTensorsConfig config;
   GstCaps *caps = gst_caps_new_simple ("other/tensor", "format", G_TYPE_STRING,
       "static", "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT, 1, NULL);
-  gst_tensors_config_init (&config);
-  EXPECT_FALSE (gst_tensors_config_from_caps (&config, caps));
+
+  EXPECT_TRUE (gst_tensors_config_from_caps (&config, caps, FALSE));
+  EXPECT_FALSE (gst_tensors_config_from_caps (&config, caps, TRUE));
 }
 
 /**

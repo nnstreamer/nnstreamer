@@ -391,15 +391,12 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
 
     if (gst_pad_has_current_caps (data->pad)) {
       GstCaps *caps = gst_pad_get_current_caps (data->pad);
-      GstStructure *s = gst_caps_get_structure (caps, 0);
 
       if (gst_tensors_config_validate (&in_configs))
         gst_tensors_config_free (&in_configs);
 
-      gst_tensors_config_from_structure (&in_configs, s);
+      configured = gst_tensors_config_from_caps (&in_configs, caps, TRUE);
       gst_caps_unref (caps);
-
-      configured = gst_tensors_config_validate (&in_configs);
     }
 
     /**
@@ -1368,11 +1365,9 @@ gst_tensor_pad_get_format (GstPad * pad)
 
   caps = gst_pad_get_current_caps (pad);
   if (caps) {
-    GstStructure *structure;
     GstTensorsConfig config;
 
-    structure = gst_caps_get_structure (caps, 0);
-    if (gst_tensors_config_from_structure (&config, structure)) {
+    if (gst_tensors_config_from_caps (&config, caps, TRUE)) {
       ret = config.info.format;
     }
     gst_caps_unref (caps);
@@ -1522,22 +1517,35 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
  * @brief Parse caps and set tensors config (for other/tensors)
  * @param[out] config tensors config structure to be filled
  * @param[in] caps incoming capability
+ * @param[in] validate TRUE to validate configuration
  * @return TRUE/FALSE (if successfully configured, return TRUE)
  */
 gboolean
-gst_tensors_config_from_caps (GstTensorsConfig * config, const GstCaps * caps)
+gst_tensors_config_from_caps (GstTensorsConfig * config, const GstCaps * caps,
+    const gboolean validate)
 {
   GstStructure *structure;
+  gboolean ret = FALSE;
 
-  if (!gst_caps_is_fixed (caps)) {
-    nns_logw ("GstCaps is not fixed");
+  gst_tensors_config_init (config);
+
+  if (validate && !gst_caps_is_fixed (caps)) {
+    nns_logw ("GstCaps is not fixed.");
     return FALSE;
   }
 
   structure = gst_caps_get_structure (caps, 0);
+  ret = gst_tensors_config_from_structure (config, structure);
 
-  return gst_tensors_config_from_structure (config, structure)
-         && gst_tensors_config_validate (config);
+  if (ret && validate) {
+    ret = gst_tensors_config_validate (config);
+  }
+
+  if (!ret) {
+    gst_tensors_config_free (config);
+  }
+
+  return ret;
 }
 
 /**

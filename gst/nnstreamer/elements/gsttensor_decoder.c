@@ -214,7 +214,7 @@ nnstreamer_decoder_set_custom_property_desc (const char *name, const char *prop,
  * @return caps for media type
  */
 static GstCaps *
-gst_tensordec_media_caps_from_tensor (GstTensorDecoder * self,
+gst_tensordec_get_media_caps_from_config (GstTensorDecoder * self,
     const GstTensorsConfig * config)
 {
   g_return_val_if_fail (config != NULL, NULL);
@@ -237,19 +237,18 @@ gst_tensordec_media_caps_from_tensor (GstTensorDecoder * self,
 }
 
 /**
- * @brief Parse structure and return media caps
+ * @brief Parse tensor caps and return media caps
  * @param self "this" pointer
- * @param structure structure to be interpreted
+ * @param caps tensor caps to be interpreted
  */
 static GstCaps *
-gst_tensordec_media_caps_from_structure (GstTensorDecoder * self,
-    const GstStructure * structure)
+gst_tensordec_get_media_caps (GstTensorDecoder * self, const GstCaps * caps)
 {
   GstTensorsConfig config;
   GstCaps *result = NULL;
 
-  if (gst_tensors_config_from_structure (&config, structure)) {
-    result = gst_tensordec_media_caps_from_tensor (self, &config);
+  if (gst_tensors_config_from_caps (&config, caps, TRUE)) {
+    result = gst_tensordec_get_media_caps_from_config (self, &config);
   }
 
   if (result == NULL) {
@@ -641,24 +640,15 @@ static gboolean
 gst_tensordec_configure (GstTensorDecoder * self, const GstCaps * in_caps,
     const GstCaps * out_caps)
 {
-  GstStructure *structure;
   GstTensorsConfig config;
-
-  /** This caps is coming from tensor */
-  structure = gst_caps_get_structure (in_caps, 0);
-
-  if (!gst_tensors_config_from_structure (&config, structure)) {
-    GST_ERROR_OBJECT (self, "Cannot configure tensor from structure");
-    return FALSE;
-  }
-
-  if (!gst_tensors_config_validate (&config)) {
-    GST_ERROR_OBJECT (self, "Not configured yet");
-    return FALSE;
-  }
 
   if (self->decoder == NULL && !self->is_custom) {
     GST_ERROR_OBJECT (self, "Decoder plugin is not yet configured.");
+    return FALSE;
+  }
+
+  if (!gst_tensors_config_from_caps (&config, in_caps, TRUE)) {
+    GST_ERROR_OBJECT (self, "Cannot configure tensor from in-caps.");
     return FALSE;
   }
 
@@ -670,7 +660,7 @@ gst_tensordec_configure (GstTensorDecoder * self, const GstCaps * in_caps,
     GstCaps *supposed;
     gboolean compatible;
 
-    supposed = gst_tensordec_media_caps_from_tensor (self, &config);
+    supposed = gst_tensordec_get_media_caps_from_config (self, &config);
     compatible = gst_caps_is_always_compatible (out_caps, supposed);
     gst_caps_unref (supposed);
 
@@ -817,8 +807,7 @@ gst_tensordec_transform_caps (GstBaseTransform * trans,
 
   if (direction == GST_PAD_SINK) {
     /** caps = sinkpad (other/tensor) return = srcpad (media) */
-    GstStructure *s = gst_caps_get_structure (caps, 0);
-    result = gst_tensordec_media_caps_from_structure (self, s);
+    result = gst_tensordec_get_media_caps (self, caps);
   } else if (direction == GST_PAD_SRC) {
     /** caps = srcpad (media) return = sinkpad (other/tensor) */
     /** @todo We may do more specific actions here */
@@ -877,10 +866,9 @@ gst_tensordec_fixate_caps (GstBaseTransform * trans,
 
   if (gst_tensordec_configure (self, caps, othercaps)) {
     supposed =
-        gst_tensordec_media_caps_from_tensor (self, &self->tensor_config);
+        gst_tensordec_get_media_caps_from_config (self, &self->tensor_config);
   } else {
-    GstStructure *s = gst_caps_get_structure (caps, 0);
-    supposed = gst_tensordec_media_caps_from_structure (self, s);
+    supposed = gst_tensordec_get_media_caps (self, caps);
   }
 
   result = gst_caps_intersect (othercaps, supposed);
@@ -919,7 +907,7 @@ gst_tensordec_set_caps (GstBaseTransform * trans,
   silent_debug_caps (self, outcaps, "from outcaps");
 
   if (gst_tensordec_configure (self, incaps, outcaps)) {
-    GstCaps *supposed = gst_tensordec_media_caps_from_tensor (self,
+    GstCaps *supposed = gst_tensordec_get_media_caps_from_config (self,
         &self->tensor_config);
 
     /** Check if outcaps ==equivalent== supposed */
