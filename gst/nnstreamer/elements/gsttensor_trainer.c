@@ -998,17 +998,13 @@ gst_tensor_trainer_sink_event (GstPad * sinkpad, GstObject * parent,
     {
       GstCaps *in_caps;
       GstCaps *out_caps;
-      GstStructure *structure;
       GstTensorsConfig config;
       gboolean ret = FALSE;
 
       gst_event_parse_caps (event, &in_caps);
       GST_INFO_OBJECT (trainer, "[in-caps] : %" GST_PTR_FORMAT, in_caps);
 
-      structure = gst_caps_get_structure (in_caps, 0);
-      if (!gst_tensors_config_from_structure (&config, structure) ||
-          !gst_tensors_config_validate (&config)) {
-        gst_tensors_config_free (&config);
+      if (!gst_tensors_config_from_caps (&config, in_caps, TRUE)) {
         gst_event_unref (event);
         return FALSE;
       }

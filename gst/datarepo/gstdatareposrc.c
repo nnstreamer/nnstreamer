@@ -322,7 +322,7 @@ gst_data_repo_src_parse_caps (GstDataRepoSrc * src, GstCaps * caps)
       src->sample_size = (guint) GST_VIDEO_INFO_SIZE (&video_info);
 
       GST_DEBUG_OBJECT (src, "format(%s), width(%d), height(%d): %zd byte/frame",
-          gst_structure_get_string (s, "format"),
+          gst_video_format_to_string (GST_VIDEO_INFO_FORMAT (&video_info)),
           GST_VIDEO_INFO_WIDTH (&video_info),
           GST_VIDEO_INFO_HEIGHT (&video_info), src->sample_size);
       break;
@@ -343,8 +343,8 @@ gst_data_repo_src_parse_caps (GstDataRepoSrc * src, GstCaps * caps)
 
       GST_DEBUG_OBJECT (src,
           "format(%s), depth(%d), rate(%d), channel(%d): %zd bps",
-          gst_structure_get_string (s, "format"), depth, rate, channel,
-          src->sample_size);
+          gst_audio_format_to_string (GST_AUDIO_INFO_FORMAT (&audio_info)),
+          depth, rate, channel, src->sample_size);
       break;
     }
     case GST_DATA_REPO_DATA_TENSOR:
@@ -354,7 +354,7 @@ gst_data_repo_src_parse_caps (GstDataRepoSrc * src, GstCaps * caps)
 
       /* Set current tensors information if given data type is tensor. */
       gst_tensors_config_free (&src->config);
-      gst_tensors_config_from_structure (&src->config, s);
+      gst_tensors_config_from_caps (&src->config, caps, TRUE);
       src->sample_size = 0;
 
       for (i = 0; i < src->config.info.num_tensors; i++) {
@@ -1325,7 +1325,6 @@ gst_data_repo_src_stop (GstBaseSrc * basesrc)
 static gboolean
 gst_data_repo_get_caps_by_tensors_sequence (GstDataRepoSrc * src)
 {
-  GstStructure *s;
   GstTensorsConfig src_config, dst_config;
   GstTensorInfo *_src_info, *_dst_info;
   guint i;
@@ -1335,8 +1334,7 @@ gst_data_repo_get_caps_by_tensors_sequence (GstDataRepoSrc * src)
   g_return_val_if_fail (src != NULL, FALSE);
   g_return_val_if_fail (src->caps != NULL, FALSE);
 
-  s = gst_caps_get_structure (src->caps, 0);
-  if (!gst_tensors_config_from_structure (&src_config, s))
+  if (!gst_tensors_config_from_caps (&src_config, src->caps, TRUE))
     return FALSE;
 
   gst_tensors_config_init (&dst_config);

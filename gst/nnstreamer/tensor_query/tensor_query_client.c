@@ -438,7 +438,8 @@ _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
   int ret = NNS_EDGE_ERROR_NONE;
   GstTensorQueryClient *self = (GstTensorQueryClient *) user_data;
 
-  if (NNS_EDGE_ERROR_NONE != nns_edge_event_get_type (event_h, &event_type)) {
+  ret = nns_edge_event_get_type (event_h, &event_type);
+  if (NNS_EDGE_ERROR_NONE != ret) {
     nns_loge ("Failed to get event type!");
     return NNS_EDGE_ERROR_NOT_SUPPORTED;
   }
@@ -447,14 +448,14 @@ _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
     case NNS_EDGE_EVENT_CAPABILITY:
     {
       GstCaps *server_caps, *client_caps;
-      GstStructure *server_st, *client_st;
+      GstStructure *server_st;
       gboolean result = FALSE;
       gchar *ret_str, *caps_str;
 
       nns_edge_event_parse_capability (event_h, &caps_str);
       ret_str = _nns_edge_parse_caps (caps_str, TRUE);
       nns_logd ("Received server-src caps: %s", GST_STR_NULL (ret_str));
-      client_caps = gst_caps_from_string ((gchar *) self->in_caps_str);
+      client_caps = gst_caps_from_string (self->in_caps_str);
       server_caps = gst_caps_from_string (ret_str);
       g_free (ret_str);
 
@@ -465,13 +466,12 @@ _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
           NULL);
 
       server_st = gst_caps_get_structure (server_caps, 0);
-      client_st = gst_caps_get_structure (client_caps, 0);
 
       if (gst_structure_is_tensor_stream (server_st)) {
         GstTensorsConfig server_config, client_config;
 
-        gst_tensors_config_from_structure (&server_config, server_st);
-        gst_tensors_config_from_structure (&client_config, client_st);
+        gst_tensors_config_from_caps (&server_config, server_caps, TRUE);
+        gst_tensors_config_from_caps (&client_config, client_caps, TRUE);
 
         result = gst_tensors_config_is_equal (&server_config, &client_config);
 

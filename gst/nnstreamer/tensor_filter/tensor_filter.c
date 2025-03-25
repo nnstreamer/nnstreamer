@@ -1214,7 +1214,6 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
 {
   GstTensorFilterPrivate *priv;
   GstTensorFilterProperties *prop;
-  GstStructure *structure;
   GstTensorsConfig in_config, out_config;
   GstTensorsInfo in_info, out_info;
   gboolean flexible;
@@ -1235,31 +1234,11 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
    */
   gst_tensor_filter_load_tensor_info (&self->priv);
 
-  structure = gst_caps_get_structure (incaps, 0);
-  if (G_UNLIKELY (!structure)) {
-    gchar *capstr = gst_caps_to_string (incaps);
-    GST_ELEMENT_ERROR_BTRACE (self, STREAM, WRONG_TYPE,
-        ("%s:%u The input stream padcap is not appropriate. Cannot get structured information from the given padcap: '%s' (gst_caps_get_structure() has returned NULL.). Please check if the caps you've given is correct especially if you have applied caps-filter in front of tensor-filter (%s:%s).",
-            __func__, __LINE__, capstr, GST_STR_NULL (prop->fwname),
-            TF_MODELNAME (prop)));
-    g_free (capstr);
-    goto done;
-  }
-  if (G_UNLIKELY (!gst_tensors_config_from_structure (&in_config, structure))) {
-    gchar *capstr = gst_caps_to_string (incaps);
-    GST_ELEMENT_ERROR_BTRACE (self, STREAM, WRONG_TYPE,
-        ("%s:%u The input stream padcap is not appropriate. It is not a valid tensor stream (other/tensors) or a tensor stream with a few required entries missing. For example, dimesion and type are missing for a static tensor (format=static or other/tensor (single tensor)). The given padcap is '%s' for tensor-filter (%s:%s).",
-            __func__, __LINE__, capstr, GST_STR_NULL (prop->fwname),
-            TF_MODELNAME (prop)));
-    g_free (capstr);
-    goto done;
-  }
-
   /**
    * Check configuration from caps.
    * If true, fully configured tensor info from caps.
    */
-  if (!gst_tensors_config_validate (&in_config)) {
+  if (!gst_tensors_config_from_caps (&in_config, incaps, TRUE)) {
     gchar *capstr = gst_caps_to_string (incaps);
     GST_ELEMENT_ERROR_BTRACE (self, STREAM, WRONG_TYPE,
         ("%s:%u The input stream padcaps cannot be validated. It is not a valid tensor stream for tensor_filter element. Input stream type for tensor_filter (%s:%s) is %s. tensor-filter could get config from the input padcap; however, it cannot be validated: framerate or format is not valid. Try a static tensor stream with a valid (0/1 is also valid!) framerate.",
@@ -1416,7 +1395,6 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
   GstTensorsConfig in_config, out_config;
   GstPad *pad;
   GstCaps *result;
-  GstStructure *structure;
   gboolean configured = FALSE;
 
   self = GST_TENSOR_FILTER_CAST (trans);
@@ -1448,8 +1426,7 @@ gst_tensor_filter_transform_caps (GstBaseTransform * trans,
    */
   gst_tensor_filter_load_tensor_info (&self->priv);
 
-  structure = gst_caps_get_structure (caps, 0);
-  gst_tensors_config_from_structure (&in_config, structure);
+  gst_tensors_config_from_caps (&in_config, caps, FALSE);
 
   /* set framerate from input config */
   out_config.rate_n = in_config.rate_n;
@@ -1570,7 +1547,6 @@ gst_tensor_filter_set_caps (GstBaseTransform * trans,
 {
   GstTensorFilter *self;
   GstTensorFilterPrivate *priv;
-  GstStructure *structure;
   GstTensorsConfig config;
 
   self = GST_TENSOR_FILTER_CAST (trans);
@@ -1600,9 +1576,14 @@ gst_tensor_filter_set_caps (GstBaseTransform * trans,
     return FALSE;
   }
 
-  /** compare output tensor */
-  structure = gst_caps_get_structure (outcaps, 0);
-  gst_tensors_config_from_structure (&config, structure);
+  /* compare output tensor */
+  if (!gst_tensors_config_from_caps (&config, outcaps, TRUE)) {
+    GST_ELEMENT_ERROR_BTRACE (self, STREAM, WRONG_TYPE,
+        ("Failed to parse output tensor from caps. Please refer to the error log of gst_tensors_config_validate(): %s",
+            GST_STR_NULL (_nnstreamer_error ())));
+    return FALSE;
+  }
+
   if (gst_tensors_config_is_flexible (&config)) {
     GST_INFO_OBJECT (self, "Output tensor is flexible.");
   } else if (!gst_tensors_config_is_equal (&priv->out_config, &config)) {

@@ -60,7 +60,7 @@ struct _GstTensorSplit
   GArray *tensorseg;
   gboolean have_group_id;
   guint group_id;
-  GstTensorsConfig sink_tensor_conf;
+  GstTensorsConfig in_config;
 };
 
 /**

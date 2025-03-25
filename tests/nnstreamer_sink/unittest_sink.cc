@@ -7014,7 +7014,7 @@ _nego_test_run (const gchar *description, const gchar *dimension)
     caps = gst_pad_get_allowed_caps (pad);
   }
 
-  EXPECT_TRUE (gst_tensors_config_from_caps (&config, caps));
+  EXPECT_TRUE (gst_tensors_config_from_caps (&config, caps, TRUE));
   gst_caps_unref (caps);
   gst_object_unref (pad);
 

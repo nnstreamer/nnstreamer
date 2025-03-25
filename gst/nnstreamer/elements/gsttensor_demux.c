@@ -238,8 +238,9 @@ gst_tensor_demux_event (GstPad * pad, GstObject * parent, GstEvent * event)
     case GST_EVENT_CAPS:
     {
       GstCaps *caps;
+
       gst_event_parse_caps (event, &caps);
-      gst_tensors_config_from_caps (&tensor_demux->tensors_config, caps);
+      gst_tensors_config_from_caps (&tensor_demux->tensors_config, caps, TRUE);
       break;
     }
     case GST_EVENT_EOS:

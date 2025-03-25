@@ -441,20 +441,20 @@ static gboolean
 gst_tensor_src_grpc_set_caps (GstBaseSrc * src, GstCaps * caps)
 {
   GstTensorSrcGRPC *self;
-  GstStructure *structure;
+  gboolean ret;
 
   self = GST_TENSOR_SRC_GRPC (src);
 
   GST_OBJECT_LOCK (self);
 
-  structure = gst_caps_get_structure (caps, 0);
-  gst_tensors_config_from_structure (&self->config, structure);
-
-  GST_OBJECT_FLAG_SET (self, GST_TENSOR_SRC_GRPC_CONFIGURED);
+  ret = gst_tensors_config_from_caps (&self->config, caps, TRUE);
+  if (ret) {
+    GST_OBJECT_FLAG_SET (self, GST_TENSOR_SRC_GRPC_CONFIGURED);
+  }
 
   GST_OBJECT_UNLOCK (self);
 
-  return gst_tensors_config_validate (&self->config);
+  return ret;
 }
 
 /**

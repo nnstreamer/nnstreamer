@@ -1974,31 +1974,6 @@ done:
 }
 
 /**
- * @brief Read cap, parse tensor configuration (dim/type) from the cap.
- * @param[in] filter "this" pointer
- * @param[in] caps The input caps to be read
- * @param[out] config configured tensor info
- * @return TRUE if successful (both dim/type read). FALSE if not.
- */
-static gboolean
-gst_tensor_transform_read_caps (GstTensorTransform * filter,
-    const GstCaps * caps, GstTensorsConfig * config)
-{
-  GstStructure *structure;
-  g_return_val_if_fail (config != NULL, FALSE);
-
-  structure = gst_caps_get_structure (caps, 0);
-
-  if (!gst_tensors_config_from_structure (config, structure)) {
-    GST_WARNING_OBJECT (filter, "caps is not tensor %s\n",
-        gst_structure_get_name (structure));
-    return FALSE;
-  }
-
-  return gst_tensors_config_validate (config);
-}
-
-/**
  * @brief Dimension conversion calculation
  * @param[in] filter "this" pointer
  * @param[in] direction GST_PAD_SINK if input->output conv
@@ -2269,12 +2244,12 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
   silent_debug_caps (filter, incaps, "incaps");
   silent_debug_caps (filter, outcaps, "outcaps");
 
-  if (!gst_tensor_transform_read_caps (filter, incaps, &in_config)) {
+  if (!gst_tensors_config_from_caps (&in_config, incaps, TRUE)) {
     GST_ERROR_OBJECT (filter, "Cannot read cap of incaps\n");
     goto error;
   }
 
-  if (!gst_tensor_transform_read_caps (filter, outcaps, &out_config)) {
+  if (!gst_tensors_config_from_caps (&out_config, outcaps, TRUE)) {
     GST_ERROR_OBJECT (filter, "Cannot read cap of outcaps\n");
     goto error;
   }

@@ -1026,7 +1026,6 @@ static gboolean
 gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
     const GstCaps * caps)
 {
-  GstStructure *structure;
   GstTensorsConfig config;
   GstTensorInfo *_info;
   uint32_t per_frame;
@@ -1035,10 +1034,7 @@ gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
   g_return_val_if_fail (caps != NULL, FALSE);
   g_return_val_if_fail (gst_caps_is_fixed (caps), FALSE);
 
-  structure = gst_caps_get_structure (caps, 0);
-
-  if (!gst_tensors_config_from_structure (&config, structure) ||
-      !gst_tensors_config_validate (&config)) {
+  if (!gst_tensors_config_from_caps (&config, caps, TRUE)) {
     GST_ERROR_OBJECT (self, "Cannot configure tensor info");
     return FALSE;
   }
@@ -1056,7 +1052,7 @@ gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
 
   self->in_config = config;
   /* tensor-aggregator now handles single tensor. */
-  _info = &config.info.info[0];
+  _info = gst_tensors_info_get_nth_info (&config.info, 0);
 
   /**
    * update dimension in output tensor.

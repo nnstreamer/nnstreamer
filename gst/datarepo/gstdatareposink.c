@@ -519,17 +519,16 @@ gst_data_repo_sink_get_caps (GstBaseSink * bsink, GstCaps * filter)
 static void
 gst_data_repo_sink_set_is_static_tensors (GstDataRepoSink * sink)
 {
-  GstStructure *structure;
   GstTensorsConfig config;
 
   g_return_if_fail (sink != NULL);
   g_return_if_fail (sink->fixed_caps != NULL);
   g_return_if_fail (sink->data_type == GST_DATA_REPO_DATA_TENSOR);
 
-  structure = gst_caps_get_structure (sink->fixed_caps, 0);
-  gst_tensors_config_from_structure (&config, structure);
-  sink->is_static_tensors = gst_tensors_config_is_static (&config);
-  gst_tensors_config_free (&config);
+  if (gst_tensors_config_from_caps (&config, sink->fixed_caps, TRUE)) {
+    sink->is_static_tensors = gst_tensors_config_is_static (&config);
+    gst_tensors_config_free (&config);
+  }
 }
 
 /**

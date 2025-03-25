@@ -424,11 +424,11 @@ gst_edgesrc_create (GstBaseSrc * basesrc, guint64 offset, guint size,
     GstBuffer ** out_buf)
 {
   GstEdgeSrc *self = GST_EDGESRC (basesrc);
+  GstPad *pad = GST_BASE_SRC_PAD (basesrc);
   nns_edge_data_h data_h = NULL;
   GstBuffer *buffer = NULL;
   GstMemory *mem;
   GstCaps *caps = NULL;
-  GstStructure *structure;
   GstTensorsConfig config;
   GstTensorInfo *_info;
   gboolean is_tensor = FALSE;
@@ -455,14 +455,12 @@ gst_edgesrc_create (GstBaseSrc * basesrc, guint64 offset, guint size,
   }
 
   /* Check current caps and max memory. */
-  caps = gst_pad_get_current_caps (GST_BASE_SRC_PAD (basesrc));
+  caps = gst_pad_get_current_caps (pad);
+  if (!caps)
+    caps = gst_pad_get_allowed_caps (pad);
+
   if (caps) {
-    structure = gst_caps_get_structure (caps, 0);
-    is_tensor = gst_structure_is_tensor_stream (structure);
-
-    if (is_tensor)
-      gst_tensors_config_from_structure (&config, structure);
-
+    is_tensor = gst_tensors_config_from_caps (&config, caps, TRUE);
     gst_caps_unref (caps);
   }
 
