@@ -418,8 +418,9 @@ gst_tensor_meta_info_init (GstTensorMetaInfo * meta);
  * @param[in] meta tensor meta structure
  * @param[out] major pointer to get the major version number
  * @param[out] minor pointer to get the minor version number
+ * @return TRUE if successfully get the version
  */
-extern void
+extern gboolean
 gst_tensor_meta_info_get_version (GstTensorMetaInfo * meta, guint * major, guint * minor);
 
 /**
