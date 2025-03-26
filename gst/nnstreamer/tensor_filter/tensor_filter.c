@@ -1273,7 +1273,7 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
     } else if (!gst_tensors_info_is_equal (&in_info, &prop->input_meta)) {
       gchar *capstr = gst_caps_to_string (incaps);
       gchar *compare =
-          gst_tensorsinfo_compare_to_string (&in_info, &prop->input_meta);
+          gst_tensors_info_compare_to_string (&in_info, &prop->input_meta);
       GST_ELEMENT_ERROR_BTRACE (self, STREAM, WRONG_TYPE,
           ("%s:%u The input tensor of tensor_filter (%s:%s) is not compatible with the configured input information. Please check tensor-filter properties if you have given input dimensions explicitly; or the model properties if you have not given them. Check the input stream caps and related caps-filters, too. The given gstcap is %s, which is not compatible: %s",
               __func__, __LINE__, GST_STR_NULL (prop->fwname),
@@ -1312,7 +1312,7 @@ gst_tensor_filter_configure_tensor (GstTensorFilter * self,
       /** if set-property called and already has info, verify it! */
       if (prop->output_meta.num_tensors > 0) {
         if (!gst_tensors_info_is_equal (&out_info, &prop->output_meta)) {
-          gchar *cmpstr = gst_tensorsinfo_compare_to_string (&out_info,
+          gchar *cmpstr = gst_tensors_info_compare_to_string (&out_info,
               &prop->output_meta);
           GST_ELEMENT_ERROR_BTRACE (self, STREAM, WRONG_TYPE,
               ("%s:%u The output tensor is not compatible with the configured tensor information. The configuration is usually set by tensor-filter properties declared by users or the given neural network itself. The following two tensor metadata are not compatible: %s.\n",
@@ -1588,7 +1588,7 @@ gst_tensor_filter_set_caps (GstBaseTransform * trans,
     GST_INFO_OBJECT (self, "Output tensor is flexible.");
   } else if (!gst_tensors_config_is_equal (&priv->out_config, &config)) {
     GstTensorFilterProperties *prop = &priv->prop;
-    gchar *compare = gst_tensorsinfo_compare_to_string (&priv->out_config.info,
+    gchar *compare = gst_tensors_info_compare_to_string (&priv->out_config.info,
         &config.info);
     GST_ELEMENT_ERROR_BTRACE (self, STREAM, WRONG_TYPE,
         ("Set-caps failed. Invalid output config (padcaps) for tensor-filter (%s:%s): its format is static, but not equal to the internal configuration: %s\nThis might be an internal error. Please report to https://github.com/nnstreamer/nnstreamer/issues .",
