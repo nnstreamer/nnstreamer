@@ -17,7 +17,7 @@ jobs:
         python-version: "3.10"
     - name: Install packages for hotdoc
       run: |
-        sudo apt-get install python3-dev libxml2-dev libxslt1-dev cmake libyaml-dev libclang-dev llvm-dev libglib2.0-dev libjson-glib-dev flex
+        sudo apt-get update && sudo apt-get install -y python3-dev libxml2-dev libxslt1-dev cmake libyaml-dev libclang-dev llvm-dev libglib2.0-dev libjson-glib-dev flex
         python -m pip install --upgrade pip
         pip install hotdoc
 
@@ -45,7 +45,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Install packages for doxygen
-      run: sudo apt-get install doxygen graphviz texlive-latex-base texlive-fonts-recommended texlive-fonts-extra texlive-latex-extra
+      run: sudo apt-get update && sudo apt-get install -y doxygen graphviz texlive-latex-base texlive-fonts-recommended texlive-fonts-extra texlive-latex-extra
     - name: Generate doxygen
       run: |
         doxygen .github/workflows/static.check.scripts/Doxyfile.prj
