@@ -108,7 +108,7 @@ jobs:
     - name: Run nntrainer GBS build
       run: |
         pushd nntrainer
-        gbs build --skip-srcrpm -A ${{ matrix.gbs_build_arch }} ${{ matrix.gbs_build_option }} --define "_skip_debug_rpm 1"
+        gbs build --skip-srcrpm -A ${{ matrix.gbs_build_arch }} ${{ matrix.gbs_build_arch == 'x86_64' && '--define "unit_test 1"' || '' }}
         popd
 
   print_result:
