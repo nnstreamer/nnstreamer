@@ -21,7 +21,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - name: make cache dir for pbuilder
         ## prevent permission error
         run: sudo mkdir --mode a=rwx --parents /var/cache/pbuilder
