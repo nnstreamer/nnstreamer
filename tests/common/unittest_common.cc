@@ -1,16 +1,12 @@
 /**
- * @file unittest_common.cc
- * @date 31 May 2018
- * @author MyungJoo Ham <myungjoo.ham@samsung.com>
- * @brief Unit test module for NNStreamer common library
+ * Copyright (C) 2018 Samsung Electronics Co., Ltd.
+ *
+ * @file	unittest_common.cc
+ * @date	31 May 2018
+ * @author	MyungJoo Ham <myungjoo.ham@samsung.com>
+ * @brief	Unit test module for NNStreamer common library
  * @see		https://github.com/nnstreamer/nnstreamer
- * @bug		No known bugs.
- *
- *  @brief Unit test module for NNStreamer common library
- *  @bug	No known bugs except for NYI items
- *
- *  Copyright 2018 Samsung Electronics
- *
+ * @bug		No known bugs except for NYI items.
  */
 
 #include <gtest/gtest.h>
@@ -726,6 +722,31 @@ TEST (commonTensorsInfo, validateInvalidParam_n)
 }
 
 /**
+ * @brief Test for validating of the tensors info with invalid format.
+ */
+TEST (commonTensorsInfo, validateInvalidFormat_n)
+{
+  GstTensorsInfo info;
+
+  gst_tensors_info_init (&info);
+
+  info.format = _NNS_TENSOR_FORMAT_END;
+  EXPECT_FALSE (gst_tensors_info_validate (&info));
+}
+
+/**
+ * @brief Test for getting nth info with invalid index.
+ */
+TEST (commonTensorsInfo, getNthInfoInvalidIndex_n)
+{
+  GstTensorsInfo info;
+
+  gst_tensors_info_init (&info);
+
+  EXPECT_EQ (NULL, gst_tensors_info_get_nth_info (&info, NNS_TENSOR_SIZE_LIMIT));
+}
+
+/**
  * @brief Test for comparing two tensor info with invalid param.
  */
 TEST (commonTensorInfo, equalInvalidParam0_n)
@@ -1013,6 +1034,23 @@ TEST (commonTensorsConfig, equal10_n)
 
   /* change format, this should not be compatible */
   conf2.info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+  EXPECT_FALSE (gst_tensors_config_is_equal (&conf1, &conf2));
+}
+
+/**
+ * @brief Test for same tensors config.
+ */
+TEST (commonTensorsConfig, equal11_n)
+{
+  GstTensorsConfig conf1, conf2;
+
+  fill_tensors_config_for_test (&conf1, &conf2);
+
+  /* change framerate, this should not be compatible */
+  conf1.rate_n = 20;
+  conf2.rate_n = 10;
+  conf1.rate_d = conf2.rate_d = 1;
 
   EXPECT_FALSE (gst_tensors_config_is_equal (&conf1, &conf2));
 }
@@ -1351,8 +1389,36 @@ TEST (commonMetaInfo, initDefaultValue)
     EXPECT_EQ (meta.dimension[i], 0U);
 
   /* current version after init */
-  gst_tensor_meta_info_get_version (&meta, &major, &minor);
+  EXPECT_TRUE (gst_tensor_meta_info_get_version (&meta, &major, &minor));
   EXPECT_TRUE (major > 0 || minor > 0);
+}
+
+/**
+ * @brief Test for tensor meta info (version with invalid param).
+ */
+TEST (commonMetaInfo, versionInvalidParam01_n)
+{
+  guint major, minor;
+
+  major = minor = 0;
+
+  EXPECT_FALSE (gst_tensor_meta_info_get_version (NULL, &major, &minor));
+}
+
+/**
+ * @brief Test for tensor meta info (version with invalid param).
+ */
+TEST (commonMetaInfo, versionInvalidParam02_n)
+{
+  GstTensorMetaInfo meta;
+  guint major, minor;
+
+  major = minor = 0;
+  gst_tensor_meta_info_init (&meta);
+
+  /* invalid magic */
+  meta.magic = 0;
+  EXPECT_FALSE (gst_tensor_meta_info_get_version (&meta, &major, &minor));
 }
 
 /**
@@ -2303,6 +2369,49 @@ TEST (commonUtil, tensorDimensionIsEqualInvalid_n)
   }
 
   EXPECT_FALSE (gst_tensor_dimension_is_equal (dim1, dim2));
+}
+
+/**
+ * @brief Test for parsing tensor dimension.
+ */
+TEST (commonUtil, tensorDimensionParseInvalidParam01_n)
+{
+  tensor_dim dim = { 0 };
+
+  EXPECT_EQ (0U, gst_tensor_parse_dimension (NULL, dim));
+}
+
+/**
+ * @brief Test for dimension rank utils.
+ */
+TEST (commonUtil, tensorDimensionGetRank)
+{
+  tensor_dim dim = { 0 };
+
+  EXPECT_EQ (0U, gst_tensor_dimension_get_min_rank (dim));
+
+  dim[0] = dim[1] = dim[2] = 3;
+  dim[3] = 1;
+
+  EXPECT_EQ (4U, gst_tensor_dimension_get_rank (dim));
+  EXPECT_EQ (3U, gst_tensor_dimension_get_min_rank (dim));
+}
+
+/**
+ * @brief Test for error util.
+ */
+TEST (commonUtil, errorMessage)
+{
+  const gchar err_message[] = "Adding error message for test";
+
+  /* error message */
+  _nnstreamer_error_clean ();
+  _nnstreamer_error_write (err_message);
+
+  EXPECT_STREQ (err_message, _nnstreamer_error ());
+
+  _nnstreamer_error_clean ();
+  EXPECT_EQ (NULL, _nnstreamer_error ());
 }
 
 /**
