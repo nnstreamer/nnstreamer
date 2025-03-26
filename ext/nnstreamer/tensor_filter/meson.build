@@ -935,8 +935,8 @@ endif
 
 if llamacpp_support_is_available
   filter_sub_llamacpp_sources = ['tensor_filter_llamacpp.cc']
-  libggml_dep = cc.find_library('ggml')
-  nnstreamer_filter_llamacpp_deps = [glib_dep, nnstreamer_single_dep, llamacpp_support_deps, libggml_dep]
+
+  nnstreamer_filter_llamacpp_deps = [glib_dep, nnstreamer_single_dep, llamacpp_support_deps]
 
   shared_library('nnstreamer_filter_llamacpp',
     filter_sub_llamacpp_sources,
