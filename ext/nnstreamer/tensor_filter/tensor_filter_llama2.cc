@@ -92,9 +92,6 @@ class TensorFilterLlama2c : public tensor_filter_subplugin
   static void *allocate (size_t size);
 };
 
-void init_filter_llama2c (void) __attribute__ ((constructor));
-void fini_filter_llama2c (void) __attribute__ ((destructor));
-
 TensorFilterLlama2c *TensorFilterLlama2c::registered = nullptr;
 const char *TensorFilterLlama2c::name = "llama2c";
 Transformer *TensorFilterLlama2c::transformer = nullptr;
