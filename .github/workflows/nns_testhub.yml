@@ -1,0 +1,88 @@
+name: nnstreamer with TestHub
+
+on:
+    schedule:
+      # 08:00 AM (KST) Mon-Fri
+      - cron: "00 23 * * 0-4"
+
+    # Allow manually triggering the workflow
+    workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: [ code-linux, code-large ]
+    if: github.repository_owner == 'OASIS'
+    # Runs an action only if org is OASIS
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Prepare nnstreamer gbs build
+      run: |
+        ubuntu_version=`lsb_release -rs`
+        echo "deb [trusted=yes] http://download.tizen.org/tools/latest-release/Ubuntu_$ubuntu_version/ /" | sudo tee /etc/apt/sources.list.d/tizen.list
+        sudo apt-get update && sudo apt-get install -y gbs rpm2cpio cpio
+        cp .github/workflows/tizen.gbs.conf ~/.gbs.conf
+
+    - name: Run nnstreamer gbs build
+      run: |
+        gbs build --define "unit_test 1" --define "testcoverage 1" --include-all > ~/gbs_log.txt
+
+    - name: Parse coverage result
+      run: |
+        mkdir -p rpms
+        mv ~/GBS-ROOT/local/repos/tizen/*/RPMS/*coverage*.rpm rpms
+        rpm2cpio rpms/*coverage*.rpm | cpio -idumv
+        mkdir -p gcov_html
+        mkdir -p unittest_result
+        mv -f usr/share/nnstreamer/unittest/result/* gcov_html
+
+        test_flag=0
+        while IFS='' read -r line || [[ -n "$line" ]]; do
+            if [[ $line =~  "./tests/unittest_common" ]]; then
+                test_flag=1
+            fi
+
+            if [[ $line =~ "+ ssat" ]]; then
+                test_flag=2
+                mv result.txt unittest_result/unit_test_common_result.txt
+            fi
+
+            if [[ $line =~ "popd" ]]; then
+                test_flag=0
+            fi
+
+            if [[ $test_flag -ne 0 ]]; then
+                echo "$line" >> result.txt
+            fi
+        done < ~/gbs_log.txt
+
+        cp ~/GBS-ROOT/local/BUILD-ROOTS/scratch.*/home/abuild/rpmbuild/BUILD/nnstreamer-*/build/*.xml unittest_result
+        mv result.txt unittest_result/ssat_result.txt
+        timestamp=`head -n 2 unittest_result/unittest_common.xml | grep -Po '.*timestamp="\K.*?(?=".*)'`
+        python3 .github/workflows/parse_ssat.py ssat_result.txt unittest_ssat.xml $timestamp
+
+
+    - name: upload artifacts (gcov_html)
+      uses: CODE-Actions/upload-artifact@v2
+      with:
+        name: gcov_html     # name of stored artifact
+        path: gcov_html     # target directory or file to store
+
+    - name: upload artifacts (coverage_results)
+      uses: CODE-Actions/upload-artifact@v2
+      with:
+        name: unittest_result           # name of stored artifact
+        path: unittest_result           # target directory or file to store
+
+  testhub:
+    runs-on: [ code-linux ]
+    needs: build
+    steps:
+      - name: Send to TestHub
+        uses: CODE-Actions/testhub@v1
+        with:
+          test-tool: gtest
+          test-artifact-name: unittest_result
+          coverage-tool: gcov
+          coverage-artifact-name: gcov_html
