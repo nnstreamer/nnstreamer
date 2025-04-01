@@ -85,9 +85,6 @@ class TensorFilterLlamaCpp : public tensor_filter_subplugin
   void parseCustomProperties (const GstTensorFilterProperties *prop);
 };
 
-void init_filter_llama (void) __attribute__ ((constructor));
-void fini_filter_llama (void) __attribute__ ((destructor));
-
 TensorFilterLlamaCpp *TensorFilterLlamaCpp::registered = nullptr;
 const char *TensorFilterLlamaCpp::name = "llamacpp";
 
