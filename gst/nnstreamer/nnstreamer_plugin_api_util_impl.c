@@ -290,6 +290,34 @@ gst_tensor_info_get_rank (const GstTensorInfo * info)
 }
 
 /**
+ * @brief GstTensorInfo represented as a string.
+ * @param info GstTensorInfo structure.
+ * @return The newly allocated string representing the tensor info. Caller should free the value using g_free().
+ */
+gchar *
+gst_tensor_info_to_string (const GstTensorInfo * info)
+{
+  GString *gstr;
+  const gchar *type;
+  gchar *dim;
+
+  g_return_val_if_fail (info != NULL, NULL);
+
+  gstr = g_string_new (NULL);
+
+  if (info->name)
+    g_string_append_printf (gstr, "'%s' ", info->name);
+
+  type = gst_tensor_get_type_string (info->type);
+  dim = gst_tensor_get_dimension_string (info->dimension);
+
+  g_string_append_printf (gstr, "%s (%s)", type, dim);
+
+  g_free (dim);
+  return g_string_free (gstr, FALSE);
+}
+
+/**
  * @brief Get the pointer of nth tensor information.
  */
 GstTensorInfo *
@@ -777,48 +805,100 @@ gst_tensors_info_get_names_string (const GstTensorsInfo * info)
 }
 
 /**
- * @brief GstTensorsInfo represented as a string. Caller should free it.
- * @param info GstTensorsInfo structure
- * @return The newly allocated string representing the tensors info. Free after use.
+ * @brief GstTensorsInfo represented as a string.
+ * @param info GstTensorsInfo structure.
+ * @return The newly allocated string representing the tensors info. Caller should free the value using g_free().
  */
 gchar *
 gst_tensors_info_to_string (const GstTensorsInfo * info)
 {
-  GString *gstr = g_string_new (NULL);
-  unsigned int i;
-  unsigned int limit = info->num_tensors;
+  GString *gstr;
+  unsigned int i, limit;
   GstTensorInfo *_info;
+  const gchar *format_str;
+  gchar *info_str;
 
+  g_return_val_if_fail (info != NULL, NULL);
+
+  gstr = g_string_new (NULL);
+
+  format_str = gst_tensor_get_format_string (info->format);
   g_string_append_printf (gstr, "Format = %s",
-      gst_tensor_get_format_string (info->format));
-  g_string_append_printf (gstr, ", Num_Tensors = %u", info->num_tensors);
+      format_str ? format_str : "unknown");
 
   if (info->format == _NNS_TENSOR_FORMAT_STATIC) {
-    g_string_append_printf (gstr, ", Tensors = [");
+    g_string_append_printf (gstr, ", Num_Tensors = %u", info->num_tensors);
+
+    limit = info->num_tensors;
     if (limit > NNS_TENSOR_SIZE_LIMIT) {
       limit = NNS_TENSOR_SIZE_LIMIT;
+
       g_string_append_printf (gstr,
-          "(Num_Tensors out of bound. Showing %d only)", limit);
+          " (Num_Tensors out of bound, showing %d only.)", limit);
     }
 
-    for (i = 0; i < limit; i++) {
-      const gchar *name;
-      const gchar *type;
-      gchar *dim;
+    if (limit > 0) {
+      g_string_append_printf (gstr, ", Tensors = [");
 
-      _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info, i);
-      name = _info->name;
-      type = gst_tensor_get_type_string (_info->type);
-      dim = gst_tensor_get_dimension_string (_info->dimension);
+      for (i = 0; i < limit; i++) {
+        _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info, i);
+        info_str = gst_tensor_info_to_string (_info);
 
-      g_string_append_printf (gstr, "{\"%s\", %s, %s}%s",
-          name ? name : "", type, dim,
-          (i == info->num_tensors - 1) ? "" : ", ");
+        g_string_append_printf (gstr, "{ %s }%s", info_str,
+            (i == info->num_tensors - 1) ? "" : ", ");
 
-      g_free (dim);
+        g_free (info_str);
+      }
+
+      g_string_append_printf (gstr, "]");
+    }
+  }
+
+  return g_string_free (gstr, FALSE);
+}
+
+/**
+ * @brief Printout the comparison results of two tensors as a string.
+ * @param[in] info1 The tensors to be shown on the left hand side.
+ * @param[in] info2 The tensors to be shown on the right hand side.
+ * @return The printout string allocated. Caller should free the value using g_free().
+ */
+gchar *
+gst_tensors_info_compare_to_string (const GstTensorsInfo * info1,
+    const GstTensorsInfo * info2)
+{
+  GString *gstr;
+  GstTensorInfo *_info;
+  gchar *left, *right;
+  guint i;
+
+  g_return_val_if_fail (info1 != NULL && info2 != NULL, NULL);
+
+  gstr = g_string_new (NULL);
+
+  for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
+    if (info1->num_tensors <= i && info2->num_tensors <= i)
+      break;
+
+    if (info1->num_tensors > i) {
+      _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info1, i);
+      left = gst_tensor_info_to_string (_info);
+    } else {
+      left = g_strdup ("None");
     }
 
-    g_string_append_printf (gstr, "]");
+    if (info2->num_tensors > i) {
+      _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) info2, i);
+      right = gst_tensor_info_to_string (_info);
+    } else {
+      right = g_strdup ("None");
+    }
+
+    g_string_append_printf (gstr, "%3d : %s | %s %s\n", i, left, right,
+        g_str_equal (left, right) ? "" : "Not equal");
+
+    g_free (left);
+    g_free (right);
   }
 
   return g_string_free (gstr, FALSE);
@@ -914,22 +994,25 @@ gst_tensors_config_copy (GstTensorsConfig * dest, const GstTensorsConfig * src)
 }
 
 /**
- * @brief Tensor config represented as a string. Caller should free it.
- * @param config tensor config structure
- * @return The newly allocated string representing the config. Free after use.
+ * @brief Tensor config represented as a string.
+ * @param config tensor config structure.
+ * @return The newly allocated string representing the config. Caller should free the value using g_free().
  */
 gchar *
 gst_tensors_config_to_string (const GstTensorsConfig * config)
 {
-  GString *gstr = g_string_new (NULL);
-  const gchar *fmt = gst_tensor_get_format_string (config->info.format);
-  g_string_append_printf (gstr, "Format = %s, Framerate = %d/%d",
-      fmt, config->rate_n, config->rate_d);
-  if (config->info.format == _NNS_TENSOR_FORMAT_STATIC) {
-    gchar *infostr = gst_tensors_info_to_string (&config->info);
-    g_string_append_printf (gstr, ", %s", infostr);
-    g_free (infostr);
-  }
+  GString *gstr;
+  gchar *info_str;
+
+  g_return_val_if_fail (config != NULL, NULL);
+
+  gstr = g_string_new (NULL);
+  info_str = gst_tensors_info_to_string (&config->info);
+
+  g_string_append_printf (gstr, "%s, Framerate = %d/%d", info_str,
+      config->rate_n, config->rate_d);
+
+  g_free (info_str);
   return g_string_free (gstr, FALSE);
 }
 
