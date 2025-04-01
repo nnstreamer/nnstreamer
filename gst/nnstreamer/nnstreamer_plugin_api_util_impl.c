@@ -1087,9 +1087,7 @@ gst_tensor_get_dimension_string (const tensor_dim dim)
   gchar *res =
       gst_tensor_get_rank_dimension_string (dim, NNS_TENSOR_RANK_LIMIT, FALSE);
 
-  if (!res)
-    return NULL;
-  if (*res == '\0') {
+  if (!res || *res == '\0') {
     g_free (res);
     return NULL;
   }
@@ -1400,21 +1398,21 @@ gst_tensor_meta_info_init (GstTensorMetaInfo * meta)
  * @param[in] meta tensor meta structure
  * @param[out] major pointer to get the major version number
  * @param[out] minor pointer to get the minor version number
+ * @return TRUE if successfully get the version
  */
-void
+gboolean
 gst_tensor_meta_info_get_version (GstTensorMetaInfo * meta,
     guint * major, guint * minor)
 {
-  g_return_if_fail (meta != NULL);
-
-  if (!GST_TENSOR_META_IS_VALID (meta))
-    return;
+  g_return_val_if_fail (GST_TENSOR_META_IS_VALID (meta), FALSE);
 
   if (major)
     *major = (meta->version & 0x00FFF000) >> 12;
 
   if (minor)
     *minor = (meta->version & 0x00000FFF);
+
+  return TRUE;
 }
 
 /**
@@ -1425,10 +1423,7 @@ gst_tensor_meta_info_get_version (GstTensorMetaInfo * meta,
 gboolean
 gst_tensor_meta_info_validate (GstTensorMetaInfo * meta)
 {
-  g_return_val_if_fail (meta != NULL, FALSE);
-
-  if (!GST_TENSOR_META_IS_VALID (meta))
-    return FALSE;
+  g_return_val_if_fail (GST_TENSOR_META_IS_VALID (meta), FALSE);
 
   if (meta->type >= _NNS_END) {
     nns_logd ("Failed to validate tensor meta info. type: %s. ",
@@ -1467,10 +1462,7 @@ gst_tensor_meta_info_validate (GstTensorMetaInfo * meta)
 gsize
 gst_tensor_meta_info_get_header_size (GstTensorMetaInfo * meta)
 {
-  g_return_val_if_fail (meta != NULL, 0);
-
-  if (!GST_TENSOR_META_IS_VALID (meta))
-    return 0;
+  g_return_val_if_fail (GST_TENSOR_META_IS_VALID (meta), 0);
 
   /* return fixed size for meta version */
   if (GST_TENSOR_META_IS_V1 (meta->version)) {
@@ -1490,10 +1482,7 @@ gst_tensor_meta_info_get_data_size (GstTensorMetaInfo * meta)
 {
   gsize dsize;
 
-  g_return_val_if_fail (meta != NULL, 0);
-
-  if (!GST_TENSOR_META_IS_VALID (meta))
-    return 0;
+  g_return_val_if_fail (GST_TENSOR_META_IS_VALID (meta), 0);
 
   dsize = gst_tensor_get_element_size (meta->type);
 
