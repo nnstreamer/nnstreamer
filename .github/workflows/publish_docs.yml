@@ -19,7 +19,7 @@ jobs:
       run: |
         sudo apt-get update && sudo apt-get install -y python3-dev libxml2-dev libxslt1-dev cmake libyaml-dev libclang-dev llvm-dev libglib2.0-dev libjson-glib-dev flex
         python -m pip install --upgrade pip
-        pip install hotdoc
+        pip install hotdoc cmake==3.22
 
     - name: Generate doc using hotdoc
       run: |
