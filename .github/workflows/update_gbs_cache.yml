@@ -29,7 +29,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - uses: actions/setup-python@v1
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
 
     - name: prepare deb sources for GBS
       run: echo "deb [trusted=yes] http://download.tizen.org/tools/latest-release/Ubuntu_22.04/ /" | sudo tee /etc/apt/sources.list.d/tizen.list
@@ -81,7 +83,7 @@ jobs:
     - if: matrix.gbs_build_arch == 'x86_64' && steps.gbs-build.outcome == 'success'
       name: extract test coverage result
       run: |
-        pip install pybadges beautifulsoup4 setuptools standard-imghdr
+        pip install pybadges beautifulsoup4 setuptools
         mkdir -p ~/testresult/
         pushd ~/testresult/
         cp ~/GBS-ROOT/local/repos/tizen/x86_64/RPMS/*-coverage*.rpm .
@@ -116,7 +118,9 @@ jobs:
     needs: [cache_gbs_build]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
       - name: print-result
         run: |
