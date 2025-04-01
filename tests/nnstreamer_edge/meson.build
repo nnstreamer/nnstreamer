@@ -13,6 +13,9 @@ unittest_edge = executable('unittest_edge',
   install_dir: unittest_install_dir
 )
 
+# Let the test lib for custom connection be loaded runtime.
+testenv.append('LD_LIBRARY_PATH', meson.current_build_dir())
+
 test('unittest_edge', unittest_edge, env: testenv)
 
 # Run unittest_query
