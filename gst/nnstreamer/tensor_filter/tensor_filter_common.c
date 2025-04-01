@@ -803,85 +803,6 @@ gst_tensor_filter_destroy_notify_util (GstTensorFilterPrivate * priv,
 }
 
 /**
- * @brief Printout the comparison results of two tensors as a string.
- * @param[in] info1 The tensors to be shown on the left hand side
- * @param[in] info2 The tensors to be shown on the right hand side
- * @return The printout string allocated. Caller should free the value.
- */
-gchar *
-gst_tensorsinfo_compare_to_string (const GstTensorsInfo * info1,
-    const GstTensorsInfo * info2)
-{
-  gchar *result = NULL;
-  gchar *line, *tmp, *left, *right;
-  guint i;
-
-  g_return_val_if_fail (info1 != NULL && info2 != NULL, NULL);
-
-  for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
-    if (info1->num_tensors <= i && info2->num_tensors <= i)
-      break;
-
-    if (info1->num_tensors > i) {
-      GstTensorInfo *info1_i =
-          gst_tensors_info_get_nth_info ((GstTensorsInfo *) info1, i);
-      tmp = gst_tensor_get_dimension_string (info1_i->dimension);
-      left =
-          g_strdup_printf ("%s [%s]",
-          gst_tensor_get_type_string (info1_i->type), tmp);
-      g_free (tmp);
-    } else {
-      left = g_strdup ("None");
-    }
-
-    if (info2->num_tensors > i) {
-      GstTensorInfo *info2_i =
-          gst_tensors_info_get_nth_info ((GstTensorsInfo *) info2, i);
-      tmp = gst_tensor_get_dimension_string (info2_i->dimension);
-      right =
-          g_strdup_printf ("%s [%s]",
-          gst_tensor_get_type_string (info2_i->type), tmp);
-      g_free (tmp);
-    } else {
-      right = g_strdup ("None");
-    }
-
-    line = g_strdup_printf ("%2d : %s | %s %s\n", i, left, right,
-        g_str_equal (left, right) ? "" : "Not equal");
-
-    g_free (left);
-    g_free (right);
-
-    if (result) {
-      tmp = g_strdup_printf ("%s%s", result, line);
-      g_free (result);
-      g_free (line);
-
-      result = tmp;
-    } else {
-      result = line;
-    }
-  }
-
-  return result;
-}
-
-/**
- * @brief Printout the comparison results of two tensors.
- * @param[in] info1 The tensors to be shown on the left hand side
- * @param[in] info2 The tensors to be shown on the right hand side
- */
-void
-gst_tensorsinfo_compare_print (const GstTensorsInfo * info1,
-    const GstTensorsInfo * info2)
-{
-  gchar *result = gst_tensorsinfo_compare_to_string (info1, info2);
-  nns_logi ("%s\n", (result == NULL) ?
-      "cannot compare NULL metadata(GstTensorsInfo) with others" : result);
-  g_free (result);
-}
-
-/**
  * @brief Installs all the properties for tensor_filter
  * @param[in] gobject_class Glib object class whose properties will be set
  */
@@ -2439,7 +2360,7 @@ gst_tensor_filter_load_tensor_info (GstTensorFilterPrivate * priv)
     if (prop->input_meta.num_tensors > 0) {
       if (!gst_tensors_info_is_equal (&in_info, &prop->input_meta)) {
         gchar *cmpstr =
-            gst_tensorsinfo_compare_to_string (&in_info, &prop->input_meta);
+            gst_tensors_info_compare_to_string (&in_info, &prop->input_meta);
         ml_loge
             ("The input tensor is not compatible with the configuration of the model or tensor-filter property. The two tensor meta (GstTensorsInfo) are not compatible: %s\n",
             cmpstr);
@@ -2465,7 +2386,7 @@ gst_tensor_filter_load_tensor_info (GstTensorFilterPrivate * priv)
     if (prop->output_meta.num_tensors > 0) {
       if (!gst_tensors_info_is_equal (&out_info, &prop->output_meta)) {
         gchar *cmpstr =
-            gst_tensorsinfo_compare_to_string (&out_info, &prop->output_meta);
+            gst_tensors_info_compare_to_string (&out_info, &prop->output_meta);
         ml_logw
             ("The output tensor is not compatible with the configuration of the model or tensor-filter property. The two tensor meta (GstTensorsInfo) are not compatible: %s\n",
             cmpstr);

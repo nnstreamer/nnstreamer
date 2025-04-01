@@ -19,6 +19,25 @@
 #include <unittest_util.h>
 
 /**
+ * @brief Internal util function to get the number of key in the string.
+ */
+static guint
+count_key_string (const gchar *string, const gchar *key)
+{
+  const gchar *pos = string;
+  guint count = 0;
+
+  g_assert (string != NULL && key != NULL);
+
+  while ((pos = g_strstr_len (pos, -1, key)) != NULL) {
+    pos += strlen (key);
+    count++;
+  }
+
+  return count;
+}
+
+/**
  * @brief Internal function to update tensors info.
  */
 static void
@@ -795,6 +814,14 @@ TEST (commonTensorInfo, getrankInvalidParam0_n)
 }
 
 /**
+ * @brief Test for printing tensor info.
+ */
+TEST (commonTensorInfo, printInvalidParam_n)
+{
+  EXPECT_EQ (NULL, gst_tensor_info_to_string (NULL));
+}
+
+/**
  * @brief Test for parsing dimension with invalid param.
  */
 TEST (commonTensorsInfo, parsingDimInvalidParam0_n)
@@ -906,6 +933,104 @@ TEST (commonTensorsInfo, getNameInvalidParam1_n)
   gst_tensors_info_init (&info);
   info.num_tensors = 0;
   EXPECT_EQ (0U, gst_tensors_info_get_names_string (&info));
+}
+
+/**
+ * @brief Test for printing tensors info with invalid param.
+ */
+TEST (commonTensorsInfo, printInvalidParam_n)
+{
+  EXPECT_EQ (NULL, gst_tensors_info_to_string (NULL));
+}
+
+/**
+ * @brief Test for printing tensors info with invalid index.
+ */
+TEST (commonTensorsInfo, printInvalidIndex_n)
+{
+  GstTensorsInfo info;
+  gchar *str;
+
+  gst_tensors_info_init (&info);
+  info.num_tensors = NNS_TENSOR_SIZE_LIMIT + 1;
+
+  str = gst_tensors_info_to_string (&info);
+
+  EXPECT_EQ (1U, count_key_string (str, "out of bound"));
+
+  g_free (str);
+}
+
+/**
+ * @brief Test for printing tensors info comparison.
+ */
+TEST (commonTensorsInfo, compareString)
+{
+  GstTensorsInfo info1, info2;
+  GstTensorInfo *_info1, *_info2;
+  gchar *str;
+
+  fill_tensors_info_for_test (&info1, &info2);
+
+  /* same info */
+  str = gst_tensors_info_compare_to_string (&info1, &info2);
+
+  EXPECT_EQ (0U, count_key_string (str, "Not equal"));
+
+  g_free (str);
+
+  /* change number of tensors */
+  _info1 = gst_tensors_info_get_nth_info (&info1, info1.num_tensors);
+  _info1->type = _NNS_INT32;
+  _info1->dimension[0] = 1;
+  info1.num_tensors++;
+
+  str = gst_tensors_info_compare_to_string (&info1, &info2);
+
+  EXPECT_EQ (1U, count_key_string (str, "Not equal"));
+
+  info1.num_tensors--;
+  g_free (str);
+
+  _info1 = gst_tensors_info_get_nth_info (&info2, 0);
+  _info2 = gst_tensors_info_get_nth_info (&info2, 1);
+
+  /* change tensor name */
+  _info1->name = g_strdup ("test-tensor1");
+  _info2->name = g_strdup ("test-tensor2");
+
+  str = gst_tensors_info_compare_to_string (&info1, &info2);
+
+  EXPECT_EQ (2U, count_key_string (str, "Not equal"));
+  EXPECT_EQ (1U, count_key_string (str, "test-tensor1"));
+  EXPECT_EQ (1U, count_key_string (str, "test-tensor2"));
+
+  g_clear_pointer (&_info1->name, g_free);
+  g_clear_pointer (&_info2->name, g_free);
+  g_free (str);
+
+  /* change tensor type */
+  _info1->type = _NNS_UINT8;
+  _info2->type = _NNS_INT16;
+
+  str = gst_tensors_info_compare_to_string (&info1, &info2);
+
+  EXPECT_EQ (2U, count_key_string (str, "Not equal"));
+  EXPECT_EQ (1U, count_key_string (str, "uint8"));
+  EXPECT_EQ (1U, count_key_string (str, "int16"));
+
+  g_free (str);
+
+  gst_tensors_info_free (&info1);
+  gst_tensors_info_free (&info2);
+}
+
+/**
+ * @brief Test for printing tensors info comparison.
+ */
+TEST (commonTensorsInfo, compareInvalidParam_n)
+{
+  EXPECT_EQ (NULL, gst_tensors_info_compare_to_string (NULL, NULL));
 }
 
 /**
@@ -1167,6 +1292,47 @@ TEST (commonTensorsConfig, parseUnfixedCaps_n)
 
   EXPECT_TRUE (gst_tensors_config_from_caps (&config, caps, FALSE));
   EXPECT_FALSE (gst_tensors_config_from_caps (&config, caps, TRUE));
+}
+
+/**
+ * @brief Test for printing tensors config.
+ */
+TEST (commonTensorsConfig, printConfig)
+{
+  GstTensorsConfig config;
+  gchar *str;
+
+  gst_tensors_config_init (&config);
+
+  config.info.num_tensors = 2;
+  config.info.info[0] = { g_strdup ("test-tensor1"), _NNS_INT32, { 1, 2, 3, 4 } };
+  config.info.info[1] = { g_strdup ("test-tensor2"), _NNS_FLOAT32, { 5, 6, 7, 8 } };
+  config.rate_n = 30;
+  config.rate_d = 1;
+
+  str = gst_tensors_config_to_string (&config);
+
+  /* tensor info */
+  EXPECT_EQ (1U, count_key_string (str, "test-tensor1"));
+  EXPECT_EQ (1U, count_key_string (str, "test-tensor2"));
+  EXPECT_EQ (1U, count_key_string (str, "int32"));
+  EXPECT_EQ (1U, count_key_string (str, "float32"));
+  EXPECT_EQ (1U, count_key_string (str, "1:2:3:4"));
+  EXPECT_EQ (1U, count_key_string (str, "5:6:7:8"));
+
+  /* framerate */
+  EXPECT_EQ (1U, count_key_string (str, "30/1"));
+
+  g_free (str);
+  gst_tensors_config_free (&config);
+}
+
+/**
+ * @brief Test for printing tensors config.
+ */
+TEST (commonTensorsConfig, printInvalidParam_n)
+{
+  EXPECT_EQ (NULL, gst_tensors_config_to_string (NULL));
 }
 
 /**

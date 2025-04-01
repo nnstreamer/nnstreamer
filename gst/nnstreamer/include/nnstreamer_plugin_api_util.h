@@ -95,6 +95,14 @@ extern guint
 gst_tensor_info_get_rank (const GstTensorInfo * info);
 
 /**
+ * @brief GstTensorInfo represented as a string.
+ * @param info GstTensorInfo structure.
+ * @return The newly allocated string representing the tensor info. Caller should free the value using g_free().
+ */
+extern gchar *
+gst_tensor_info_to_string (const GstTensorInfo * info);
+
+/**
  * @brief Get the pointer of nth tensor information.
  * @param info tensors info structure
  * @param index the index of tensor to be fetched
@@ -219,12 +227,21 @@ extern void
 gst_tensors_info_copy (GstTensorsInfo * dest, const GstTensorsInfo * src);
 
 /**
- * @brief GstTensorsInfo represented as a string. Caller should free it.
- * @param info GstTensorsInfo structure
- * @return The newly allocated string representing the tensors info. Free after use.
+ * @brief GstTensorsInfo represented as a string.
+ * @param info GstTensorsInfo structure.
+ * @return The newly allocated string representing the tensors info. Caller should free the value using g_free().
  */
 extern gchar *
 gst_tensors_info_to_string (const GstTensorsInfo * info);
+
+/**
+ * @brief Printout the comparison results of two tensors as a string.
+ * @param[in] info1 The tensors to be shown on the left hand side.
+ * @param[in] info2 The tensors to be shown on the right hand side.
+ * @return The printout string allocated. Caller should free the value using g_free().
+ */
+extern gchar *
+gst_tensors_info_compare_to_string (const GstTensorsInfo * info1, const GstTensorsInfo * info2);
 
 /**
  * @brief Initialize the tensors config info structure (for other/tensors)
@@ -263,9 +280,9 @@ extern void
 gst_tensors_config_copy (GstTensorsConfig * dest, const GstTensorsConfig * src);
 
 /**
- * @brief Tensor config represented as a string. Caller should free it.
- * @param config tensor config structure
- * @return The newly allocated string representing the config. Free after use.
+ * @brief Tensor config represented as a string.
+ * @param config tensor config structure.
+ * @return The newly allocated string representing the config. Caller should free the value using g_free().
  */
 extern gchar *
 gst_tensors_config_to_string (const GstTensorsConfig * config);
