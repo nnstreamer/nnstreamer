@@ -31,7 +31,9 @@ jobs:
       uses: ./.github/actions/check-rebuild
       with:
         mode: gbs
-    - uses: actions/setup-python@v1
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
 
     - name: prepare GBS
       if: env.rebuild == '1'

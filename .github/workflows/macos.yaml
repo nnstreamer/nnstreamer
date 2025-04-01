@@ -17,9 +17,9 @@ jobs:
       uses: ./.github/actions/check-rebuild
       with:
         mode: rebuild
-    - uses: actions/setup-python@v4
+    - uses: actions/setup-python@v5
       with:
-        python-version: "3.10"
+        python-version: '3.11'
     - name: homebrew
       if: env.rebuild == '1'
       run: |
