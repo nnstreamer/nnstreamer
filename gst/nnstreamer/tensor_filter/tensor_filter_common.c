@@ -227,15 +227,16 @@ gst_tensor_filter_get_rank_string (const GstTensorFilterProperties * prop,
   }
 
   if (_meta->num_tensors > 0) {
+    GstTensorInfo *_info;
     GString *rank = g_string_new (NULL);
 
     for (i = 0; i < _meta->num_tensors; ++i) {
-      if (_ranks[i] != 0)
+      if (_ranks[i] != 0) {
         g_string_append_printf (rank, "%u", _ranks[i]);
-      else
-        g_string_append_printf (rank, "%u",
-            gst_tensor_info_get_rank (gst_tensors_info_get_nth_info (
-                    (GstTensorsInfo *) _meta, i)));
+      } else {
+        _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) _meta, i);
+        g_string_append_printf (rank, "%u", gst_tensor_info_get_rank (_info));
+      }
 
       if (i < _meta->num_tensors - 1)
         g_string_append_printf (rank, ",");
@@ -1414,6 +1415,7 @@ _gtfc_setprop_DIMENSION (GstTensorFilterPrivate * priv,
 {
   GstTensorFilterProperties *prop;
   GstTensorsInfo *info;
+  GstTensorInfo *_info;
   unsigned int *rank;
   int configured;
 
@@ -1445,8 +1447,8 @@ _gtfc_setprop_DIMENSION (GstTensorFilterPrivate * priv,
     }
 
     for (i = 0; i < num_dims; ++i) {
-      rank[i] = gst_tensor_parse_dimension (str_dims[i],
-          gst_tensors_info_get_nth_info (info, i)->dimension);
+      _info = gst_tensors_info_get_nth_info (info, i);
+      rank[i] = gst_tensor_parse_dimension (str_dims[i], _info->dimension);
     }
     g_strfreev (str_dims);
 

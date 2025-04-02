@@ -189,7 +189,7 @@ gst_edgesink_set_property (GObject * object, guint prop_id,
       break;
     case PROP_DEST_HOST:
       if (!g_value_get_string (value)) {
-        nns_logw ("dest host property cannot be NULL");
+        nns_logw ("dest host property cannot be NULL.");
         break;
       }
       g_free (self->dest_host);
@@ -386,7 +386,7 @@ gst_edgesink_start (GstBaseSink * basesink)
 
   if (0 != nns_edge_start (self->edge_h)) {
     nns_loge
-        ("Failed to start NNStreamer-edge. Please check server IP and port");
+        ("Failed to start NNStreamer-edge. Please check server IP and port.");
     return FALSE;
   }
 
@@ -436,7 +436,7 @@ gst_edgesink_stop (GstBaseSink * basesink)
 
   ret = nns_edge_stop (self->edge_h);
   if (NNS_EDGE_ERROR_NONE != ret) {
-    nns_loge ("Failed to stop edge. error code(%d)", ret);
+    nns_loge ("Failed to stop edge (error code: %d).", ret);
     return FALSE;
   }
 
@@ -466,7 +466,7 @@ gst_edgesink_render (GstBaseSink * basesink, GstBuffer * buffer)
 
   ret = nns_edge_data_create (&data_h);
   if (ret != NNS_EDGE_ERROR_NONE) {
-    nns_loge ("Failed to create data handle in edgesink");
+    nns_loge ("Failed to create data handle in edgesink.");
     return GST_FLOW_ERROR;
   }
 
@@ -495,7 +495,7 @@ gst_edgesink_render (GstBaseSink * basesink, GstBuffer * buffer)
 
     ret = nns_edge_data_add (data_h, map[i].data, map[i].size, NULL);
     if (ret != NNS_EDGE_ERROR_NONE) {
-      nns_loge ("Failed to append %u-th memory into edge data.", i);
+      nns_loge ("Failed to append %uth memory into edge data.", i);
       num_mems = i + 1;
       goto done;
     }

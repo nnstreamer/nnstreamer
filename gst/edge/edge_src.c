@@ -163,10 +163,10 @@ gst_edgesrc_set_property (GObject * object, guint prop_id, const GValue * value,
 
   switch (prop_id) {
     case PROP_HOST:
-      nns_logw ("host property is deprecated");
+      nns_logw ("host property is deprecated.");
       break;
     case PROP_PORT:
-      nns_logw ("port property is deprecated");
+      nns_logw ("port property is deprecated.");
       break;
     case PROP_DEST_HOST:
       gst_edgesrc_set_dest_host (self, g_value_get_string (value));
@@ -206,10 +206,10 @@ gst_edgesrc_get_property (GObject * object, guint prop_id, GValue * value,
 
   switch (prop_id) {
     case PROP_HOST:
-      nns_logw ("host property is deprecated");
+      nns_logw ("host property is deprecated.");
       break;
     case PROP_PORT:
-      nns_logw ("port property is deprecated");
+      nns_logw ("port property is deprecated.");
       break;
     case PROP_DEST_HOST:
       g_value_set_string (value, gst_edgesrc_get_dest_host (self));
@@ -351,7 +351,7 @@ gst_edgesrc_start (GstBaseSrc * basesrc)
       NNS_EDGE_NODE_TYPE_SUB, &self->edge_h);
   } else {
     if (!self->custom_lib) {
-      nns_loge ("Failed to create custom handle. custom-lib path is not set.");
+      nns_loge ("Failed to create custom handle. Custom library is not set.");
       return FALSE;
     }
     ret = nns_edge_custom_create_handle (NULL, self->custom_lib,
@@ -383,7 +383,7 @@ gst_edgesrc_start (GstBaseSrc * basesrc)
 
   if (0 != nns_edge_start (self->edge_h)) {
     nns_loge
-        ("Failed to start NNStreamer-edge. Please check server IP and port");
+        ("Failed to start NNStreamer-edge. Please check server IP and port.");
     return FALSE;
   }
 
@@ -409,7 +409,7 @@ gst_edgesrc_stop (GstBaseSrc * basesrc)
   ret = nns_edge_stop (self->edge_h);
 
   if (NNS_EDGE_ERROR_NONE != ret) {
-    nns_loge ("Failed to stop edgesrc. error code(%d)", ret);
+    nns_loge ("Failed to stop edgesrc (error code: %d).", ret);
     return FALSE;
   }
 
@@ -450,7 +450,7 @@ gst_edgesrc_create (GstBaseSrc * basesrc, guint64 offset, guint size,
 
   ret = nns_edge_data_get_count (data_h, &num_data);
   if (ret != NNS_EDGE_ERROR_NONE || num_data == 0) {
-    nns_loge ("Failed to get the number of memories of the edge data.");
+    nns_loge ("Failed to get the number of memories in the edge data.");
     goto done;
   }
 
