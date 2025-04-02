@@ -1044,12 +1044,13 @@ _gst_tensor_filter_transform_update_outbuf (GstBaseTransform * trans,
       }
     }
 
+    _info = gst_tensors_info_get_nth_info (&prop->output_meta, i);
+
     if (prop->invoke_dynamic) {
       GstTensorMetaInfo meta;
       GstMemory *flex_mem;
 
       /* Convert to flexible tensors */
-      _info = gst_tensors_info_get_nth_info (&prop->output_meta, i);
       gst_tensor_info_convert_to_meta (_info, &meta);
       meta.media_type = _NNS_TENSOR;
       meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
@@ -1076,8 +1077,7 @@ _gst_tensor_filter_transform_update_outbuf (GstBaseTransform * trans,
     }
 
     /* append the memory block to outbuf */
-    gst_tensor_buffer_append_memory (outbuf, out_trans_data->mem[i],
-        gst_tensors_info_get_nth_info (&prop->output_meta, i));
+    gst_tensor_buffer_append_memory (outbuf, out_trans_data->mem[i], _info);
   }
 }
 

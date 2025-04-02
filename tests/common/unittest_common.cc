@@ -554,15 +554,15 @@ TEST (commonTensorInfo, copyTensor)
 TEST (commonTensorInfo, copyTensors)
 {
   GstTensorsInfo src, dest;
-  gchar *test_name = g_strdup ("test-tensors");
+  const gchar test_name[] = "test-tensors";
   guint i;
 
   gst_tensors_info_init (&src);
   gst_tensors_info_init (&dest);
 
   src.num_tensors = 2;
-  src.info[0] = { test_name, _NNS_INT32, { 1, 2, 3, 4 } };
-  src.info[1] = { test_name, _NNS_FLOAT32, { 5, 6, 7, 8 } };
+  src.info[0] = { g_strdup (test_name), _NNS_INT32, { 1, 2, 3, 4 } };
+  src.info[1] = { g_strdup (test_name), _NNS_FLOAT32, { 5, 6, 7, 8 } };
   gst_tensors_info_copy (&dest, &src);
 
   EXPECT_EQ (dest.num_tensors, src.num_tensors);
@@ -577,8 +577,8 @@ TEST (commonTensorInfo, copyTensors)
     EXPECT_EQ (dest.info[i].dimension[3], src.info[i].dimension[3]);
   }
 
+  gst_tensors_info_free (&src);
   gst_tensors_info_free (&dest);
-  g_free (test_name);
 }
 
 /**
@@ -593,7 +593,8 @@ TEST (commonTensorInfo, size01_p)
 
   fill_tensors_info_for_test (&info1, &info2);
 
-  size1 = gst_tensor_info_get_size (&info1.info[0]);
+  _info = gst_tensors_info_get_nth_info (&info1, 0);
+  size1 = gst_tensor_info_get_size (_info);
   size2 = gst_tensors_info_get_size (&info1, 0);
 
   EXPECT_TRUE (size1 == size2);
@@ -607,6 +608,9 @@ TEST (commonTensorInfo, size01_p)
   size2 = gst_tensors_info_get_size (&info2, -1);
 
   EXPECT_TRUE (size1 == size2);
+
+  gst_tensors_info_free (&info1);
+  gst_tensors_info_free (&info2);
 }
 
 /**
@@ -625,6 +629,9 @@ TEST (commonTensorInfo, size02_n)
   size1 = gst_tensors_info_get_size (NULL, index);
 
   EXPECT_TRUE (size1 == 0);
+
+  gst_tensors_info_free (&info1);
+  gst_tensors_info_free (&info2);
 }
 
 /**
@@ -643,6 +650,9 @@ TEST (commonTensorInfo, size03_n)
   size1 = gst_tensors_info_get_size (&info1, index);
 
   EXPECT_TRUE (size1 == 0);
+
+  gst_tensors_info_free (&info1);
+  gst_tensors_info_free (&info2);
 }
 
 /**
@@ -655,6 +665,9 @@ TEST (commonTensorInfo, equal01_p)
   fill_tensors_info_for_test (&info1, &info2);
 
   EXPECT_TRUE (gst_tensors_info_is_equal (&info1, &info2));
+
+  gst_tensors_info_free (&info1);
+  gst_tensors_info_free (&info2);
 }
 
 /**
@@ -684,6 +697,9 @@ TEST (commonTensorInfo, equal03_n)
   info1.num_tensors = 1;
 
   EXPECT_FALSE (gst_tensors_info_is_equal (&info1, &info2));
+
+  gst_tensors_info_free (&info1);
+  gst_tensors_info_free (&info2);
 }
 
 /**
@@ -699,6 +715,9 @@ TEST (commonTensorInfo, equal04_n)
   info1.info[0].type = _NNS_UINT64;
 
   EXPECT_FALSE (gst_tensors_info_is_equal (&info1, &info2));
+
+  gst_tensors_info_free (&info1);
+  gst_tensors_info_free (&info2);
 }
 
 /**
@@ -714,6 +733,9 @@ TEST (commonTensorInfo, equal05_n)
   info2.info[1].dimension[0] = 10;
 
   EXPECT_FALSE (gst_tensors_info_is_equal (&info1, &info2));
+
+  gst_tensors_info_free (&info1);
+  gst_tensors_info_free (&info2);
 }
 
 /**
@@ -763,6 +785,8 @@ TEST (commonTensorsInfo, getNthInfoInvalidIndex_n)
   gst_tensors_info_init (&info);
 
   EXPECT_EQ (NULL, gst_tensors_info_get_nth_info (&info, NNS_TENSOR_SIZE_LIMIT));
+
+  gst_tensors_info_free (&info);
 }
 
 /**
@@ -1043,6 +1067,9 @@ TEST (commonTensorsConfig, equal01_p)
   fill_tensors_config_for_test (&conf1, &conf2);
 
   EXPECT_TRUE (gst_tensors_config_is_equal (&conf1, &conf2));
+
+  gst_tensors_config_free (&conf1);
+  gst_tensors_config_free (&conf2);
 }
 
 /**
@@ -1057,6 +1084,9 @@ TEST (commonTensorsConfig, equal02_p)
   conf1.rate_d *= 2;
 
   EXPECT_TRUE (gst_tensors_config_is_equal (&conf1, &conf2));
+
+  gst_tensors_config_free (&conf1);
+  gst_tensors_config_free (&conf2);
 }
 
 /**
@@ -1071,6 +1101,9 @@ TEST (commonTensorsConfig, equal03_p)
   conf2.rate_n *= 0;
 
   EXPECT_TRUE (gst_tensors_config_is_equal (&conf1, &conf2));
+
+  gst_tensors_config_free (&conf1);
+  gst_tensors_config_free (&conf2);
 }
 
 /**
@@ -1084,6 +1117,9 @@ TEST (commonTensorsConfig, equal04_n)
   gst_tensors_config_init (&conf2);
 
   EXPECT_FALSE (gst_tensors_config_is_equal (&conf1, &conf2));
+
+  gst_tensors_config_free (&conf1);
+  gst_tensors_config_free (&conf2);
 }
 
 /**
@@ -1098,6 +1134,9 @@ TEST (commonTensorsConfig, equal05_n)
   conf1.rate_d *= 4;
 
   EXPECT_FALSE (gst_tensors_config_is_equal (&conf1, &conf2));
+
+  gst_tensors_config_free (&conf1);
+  gst_tensors_config_free (&conf2);
 }
 
 /**
@@ -1111,6 +1150,9 @@ TEST (commonTensorsConfig, equal06_n)
   conf1.rate_d *= 0;
 
   EXPECT_FALSE (gst_tensors_config_is_equal (&conf1, &conf2));
+
+  gst_tensors_config_free (&conf1);
+  gst_tensors_config_free (&conf2);
 }
 
 /**
@@ -1146,6 +1188,9 @@ TEST (commonTensorsConfig, equal09_p)
   conf1.info.format = conf2.info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
 
   EXPECT_TRUE (gst_tensors_config_is_equal (&conf1, &conf2));
+
+  gst_tensors_config_free (&conf1);
+  gst_tensors_config_free (&conf2);
 }
 
 /**
@@ -1161,6 +1206,9 @@ TEST (commonTensorsConfig, equal10_n)
   conf2.info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
 
   EXPECT_FALSE (gst_tensors_config_is_equal (&conf1, &conf2));
+
+  gst_tensors_config_free (&conf1);
+  gst_tensors_config_free (&conf2);
 }
 
 /**
@@ -1178,6 +1226,9 @@ TEST (commonTensorsConfig, equal11_n)
   conf1.rate_d = conf2.rate_d = 1;
 
   EXPECT_FALSE (gst_tensors_config_is_equal (&conf1, &conf2));
+
+  gst_tensors_config_free (&conf1);
+  gst_tensors_config_free (&conf2);
 }
 
 /**
@@ -1194,10 +1245,11 @@ TEST (commonTensorsConfig, validateInvalidParam0_n)
 TEST (commonTensorsConfig, validateInvalidParam1_n)
 {
   GstTensorsConfig conf;
+
   gst_tensors_config_init (&conf);
   conf.rate_n = 1;
 
-  EXPECT_FALSE (gst_tensors_config_validate (NULL));
+  EXPECT_FALSE (gst_tensors_config_validate (&conf));
 }
 
 /**
@@ -1206,9 +1258,11 @@ TEST (commonTensorsConfig, validateInvalidParam1_n)
 TEST (commonTensorsConfig, validateInvalidParam2_n)
 {
   GstTensorsConfig conf;
+
   gst_tensors_config_init (&conf);
   conf.rate_d = 1;
-  EXPECT_FALSE (gst_tensors_config_validate (NULL));
+
+  EXPECT_FALSE (gst_tensors_config_validate (&conf));
 }
 
 /**
@@ -1257,7 +1311,9 @@ TEST (commonTensorsConfig, parseCapsFlexible_p)
       "flexible", "framerate", GST_TYPE_FRACTION, 30, 1, NULL);
 
   EXPECT_TRUE (gst_tensors_config_from_caps (&config, caps, TRUE));
+
   gst_tensors_config_free (&config);
+  gst_caps_unref (caps);
 }
 
 /**
@@ -1269,6 +1325,8 @@ TEST (commonTensorsConfig, parseCapsInvalidParam0_n)
       "flexible", "framerate", GST_TYPE_FRACTION, 30, 1, NULL);
 
   EXPECT_FALSE (gst_tensors_config_from_caps (NULL, caps, TRUE));
+
+  gst_caps_unref (caps);
 }
 
 /**
@@ -1279,6 +1337,8 @@ TEST (commonTensorsConfig, parseCapsInvalidParam1_n)
   GstTensorsConfig config;
 
   EXPECT_FALSE (gst_tensors_config_from_caps (&config, NULL, TRUE));
+
+  gst_tensors_config_free (&config);
 }
 
 /**
@@ -1291,7 +1351,12 @@ TEST (commonTensorsConfig, parseUnfixedCaps_n)
       "static", "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT, 1, NULL);
 
   EXPECT_TRUE (gst_tensors_config_from_caps (&config, caps, FALSE));
+  gst_tensors_config_free (&config);
+
   EXPECT_FALSE (gst_tensors_config_from_caps (&config, caps, TRUE));
+  gst_tensors_config_free (&config);
+
+  gst_caps_unref (caps);
 }
 
 /**
@@ -1506,7 +1571,6 @@ TEST (commonTensorsInfoString, names)
   gst_tensors_info_free (&info);
 
   /* extra */
-  gst_tensors_info_init (&info);
   num_names = gst_tensors_info_parse_names_string (&info,
       "t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, "
       "t16, t17, t18, t19, t20, t21, t22, t23, t24, t25, t26, t27, t28");
@@ -2020,9 +2084,9 @@ create_null_file (const gchar *dir, const gchar *file)
   if (fp) {
     fclose (fp);
   } else {
-    g_free (fullpath);
-    return NULL;
+    g_clear_pointer (&fullpath, g_free);
   }
+
   return fullpath;
 }
 
@@ -2293,6 +2357,7 @@ TEST (commonUtil, createStaticTensorBuffer)
   }
 
   gst_buffer_unref (out);
+  gst_tensors_config_free (&config);
 }
 
 /**
@@ -2358,6 +2423,7 @@ TEST (commonUtil, createFlexTensorBuffer)
   }
 
   gst_buffer_unref (out);
+  gst_tensors_config_free (&config);
 }
 
 /**
@@ -2375,6 +2441,7 @@ TEST (commonUtil, createTensorBufferInvalidConfig_n)
   EXPECT_FALSE (out != NULL);
 
   gst_buffer_unref (out);
+  gst_tensors_config_free (&config);
 }
 
 /**
@@ -2406,6 +2473,7 @@ TEST (commonUtil, createTensorBufferNullParam_n)
   EXPECT_FALSE (out != NULL);
 
   gst_buffer_unref (out);
+  gst_tensors_config_free (&config);
 }
 
 /**
@@ -2431,6 +2499,7 @@ TEST (commonUtil, createTensorBufferInvalidSize_n)
   EXPECT_FALSE (out != NULL);
 
   gst_buffer_unref (out);
+  gst_tensors_config_free (&config);
 }
 
 /**

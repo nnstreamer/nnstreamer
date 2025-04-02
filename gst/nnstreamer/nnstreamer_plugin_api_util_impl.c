@@ -386,8 +386,7 @@ gst_tensors_info_free (GstTensorsInfo * info)
     for (i = 0; i < NNS_TENSOR_SIZE_EXTRA_LIMIT; ++i)
       gst_tensor_info_free (&info->extra[i]);
 
-    g_free (info->extra);
-    info->extra = NULL;
+    g_clear_pointer (&info->extra, g_free);
   }
 
   /* Init default */
@@ -663,8 +662,7 @@ gst_tensors_info_parse_names_string (GstTensorsInfo * info,
       gchar *str_name;
 
       _info = gst_tensors_info_get_nth_info (info, i);
-      g_free (_info->name);
-      _info->name = NULL;
+      g_clear_pointer (&_info->name, g_free);
 
       str_name = g_strstrip (g_strdup (str_names[i]));
       if (str_name && strlen (str_name))
@@ -1344,6 +1342,7 @@ gst_tensor_get_type (const gchar * typestr)
         break;
       case 64:
         type = _NNS_UINT64;
+        break;
     }
   } else if (g_regex_match_simple ("^int(8|16|32|64)$",
           type_string, G_REGEX_CASELESS, 0)) {
@@ -1361,6 +1360,7 @@ gst_tensor_get_type (const gchar * typestr)
         break;
       case 64:
         type = _NNS_INT64;
+        break;
     }
   } else if (g_regex_match_simple ("^float(16|32|64)$",
           type_string, G_REGEX_CASELESS, 0)) {
@@ -1375,6 +1375,7 @@ gst_tensor_get_type (const gchar * typestr)
         break;
       case 64:
         type = _NNS_FLOAT64;
+        break;
     }
   }
 
@@ -1682,7 +1683,8 @@ find_key_strv (const gchar ** strv, const gchar * key)
     cursor++;
   }
 
-  return -1;                    /* Not Found */
+  /* Not found */
+  return -1;
 }
 
 /**

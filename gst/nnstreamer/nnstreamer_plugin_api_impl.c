@@ -392,10 +392,9 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
     if (gst_pad_has_current_caps (data->pad)) {
       GstCaps *caps = gst_pad_get_current_caps (data->pad);
 
-      if (gst_tensors_config_validate (&in_configs))
-        gst_tensors_config_free (&in_configs);
-
+      gst_tensors_config_free (&in_configs);
       configured = gst_tensors_config_from_caps (&in_configs, caps, TRUE);
+
       gst_caps_unref (caps);
     }
 
@@ -1409,6 +1408,7 @@ GstCaps *
 gst_tensor_caps_from_config (const GstTensorsConfig * config)
 {
   GstCaps *caps;
+
   g_return_val_if_fail (config != NULL, NULL);
 
   caps = _get_tensor_caps (config);
@@ -1822,8 +1822,7 @@ gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
      * Free the name string, cause it does not freed by gstreamer.
      * @todo Make custom gst_allocator later?
      */
-    g_free (extra_info->infos[new_mem_index].name);
-    extra_info->infos[new_mem_index].name = NULL;
+    g_clear_pointer (&extra_info->infos[new_mem_index].name, g_free);
   } else {
     gst_tensor_meta_info_convert (&meta, &extra_info->infos[new_mem_index]);
   }
@@ -1912,6 +1911,7 @@ set_property_value (GValue * prop_value, const GParamSpec * param_spec,
     const gchar * property_value)
 {
   GType value_type = G_PARAM_SPEC_VALUE_TYPE (param_spec);
+
   g_value_init (prop_value, value_type);
 
   if (value_type == G_TYPE_BOOLEAN) {
@@ -1946,7 +1946,6 @@ set_property_value (GValue * prop_value, const GParamSpec * param_spec,
  * @note The responsibility of managing the memory of the GObject passed as a parameter
  *       lies outside this function.
  */
-
 void
 gst_tensor_parse_config_file (const gchar * config_path, const GObject * object)
 {
