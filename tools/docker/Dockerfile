@@ -24,7 +24,6 @@ RUN set -x && \
     apt-get update && \
     apt-get install software-properties-common gpg-agent && \
     add-apt-repository ppa:nnstreamer/ppa -u && \
-    add-apt-repository ppa:one-runtime/ppa -u && \
     apt-get install \
         git \
         build-essential \
@@ -83,7 +82,6 @@ RUN set -x && \
     apt-get update && \
     apt-get install software-properties-common gpg-agent && \
     add-apt-repository ppa:nnstreamer/ppa -u && \
-    add-apt-repository ppa:one-runtime/ppa -u && \
     apt-get install \
             gstreamer1.0-plugins-base \
             gstreamer1.0-tools && \
