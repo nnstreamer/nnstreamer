@@ -196,15 +196,6 @@ if (pg_orcc.found())
 endif
 orc_dep = dependency('orc-0.4', version: '>= 0.4.17', required: get_option('orcc-support'))
 
-# nnfw
-nnfw_dep = dependency('', required: false)
-if not get_option('nnfw-runtime-support').disabled()
-  nnfw_dep = dependency('nnfw', required: false)
-  if not nnfw_dep.found()
-    nnfw_dep = cc.find_library('nnfw-dev', required: get_option('nnfw-runtime-support'))
-  endif
-endif
-
 # snpe
 snpe_dep = dependency('', required: false)
 snpe_api_version = 0 # Check whether the snpe api version is 1 or 2
@@ -566,7 +557,8 @@ features = {
     'project_args': { 'ENABLE_MOVIDIUS_NCSDK2' : 1}
   },
   'nnfw-runtime-support': {
-    'extra_deps': [ nnfw_dep ],
+    'target': 'onert',
+    'target_alt': 'nnfw',
     'project_args': { 'ENABLE_NNFW_RUNTIME': 1 }
   },
   'armnn-support': {
