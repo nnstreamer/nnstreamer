@@ -1487,7 +1487,9 @@ gboolean
 gst_tensor_meta_info_get_version (GstTensorMetaInfo * meta,
     guint * major, guint * minor)
 {
-  g_return_val_if_fail (GST_TENSOR_META_IS_VALID (meta), FALSE);
+  if (!GST_TENSOR_META_IS_VALID (meta)) {
+    return FALSE;
+  }
 
   if (major)
     *major = (meta->version & 0x00FFF000) >> 12;
@@ -1506,7 +1508,9 @@ gst_tensor_meta_info_get_version (GstTensorMetaInfo * meta,
 gboolean
 gst_tensor_meta_info_validate (GstTensorMetaInfo * meta)
 {
-  g_return_val_if_fail (GST_TENSOR_META_IS_VALID (meta), FALSE);
+  if (!GST_TENSOR_META_IS_VALID (meta)) {
+    return FALSE;
+  }
 
   if (meta->type >= _NNS_END) {
     nns_logd ("Failed to validate tensor meta info. type: %s. ",
@@ -1545,7 +1549,9 @@ gst_tensor_meta_info_validate (GstTensorMetaInfo * meta)
 gsize
 gst_tensor_meta_info_get_header_size (GstTensorMetaInfo * meta)
 {
-  g_return_val_if_fail (GST_TENSOR_META_IS_VALID (meta), 0);
+  if (!GST_TENSOR_META_IS_VALID (meta)) {
+    return 0;
+  }
 
   /* return fixed size for meta version */
   if (GST_TENSOR_META_IS_V1 (meta->version)) {
@@ -1565,7 +1571,9 @@ gst_tensor_meta_info_get_data_size (GstTensorMetaInfo * meta)
 {
   gsize dsize;
 
-  g_return_val_if_fail (GST_TENSOR_META_IS_VALID (meta), 0);
+  if (!GST_TENSOR_META_IS_VALID (meta)) {
+    return 0;
+  }
 
   dsize = gst_tensor_get_element_size (meta->type);
 
