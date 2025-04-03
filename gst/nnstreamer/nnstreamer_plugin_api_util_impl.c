@@ -330,15 +330,16 @@ gst_tensors_info_get_nth_info (GstTensorsInfo * info, guint index)
   if (index < NNS_TENSOR_MEMORY_MAX)
     return &info->info[index];
 
-  if (!info->extra) {
-    info->extra = g_new0 (GstTensorInfo, NNS_TENSOR_SIZE_EXTRA_LIMIT);
+  if (index < NNS_TENSOR_SIZE_LIMIT) {
+    if (!info->extra) {
+      info->extra = g_new0 (GstTensorInfo, NNS_TENSOR_SIZE_EXTRA_LIMIT);
 
-    for (i = 0; i < NNS_TENSOR_SIZE_EXTRA_LIMIT; ++i)
-      gst_tensor_info_init (&info->extra[i]);
-  }
+      for (i = 0; i < NNS_TENSOR_SIZE_EXTRA_LIMIT; ++i)
+        gst_tensor_info_init (&info->extra[i]);
+    }
 
-  if (index < NNS_TENSOR_SIZE_LIMIT)
     return &info->extra[index - NNS_TENSOR_MEMORY_MAX];
+  }
 
   nns_loge ("Failed to get the information, invalid index %u (max %d).",
       index, NNS_TENSOR_SIZE_LIMIT);
