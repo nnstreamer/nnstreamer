@@ -54,6 +54,7 @@ struct _GstEdgeSrc
   gboolean playing;
 
   gchar* custom_lib;
+  gchar* custom_props;
 };
 
 /**

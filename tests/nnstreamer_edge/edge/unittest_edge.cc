@@ -68,6 +68,11 @@ TEST (edgeSink, properties0)
   EXPECT_STREQ ("TEMP_TEST_TOPIC", str_val);
   g_free (str_val);
 
+  g_object_set (edge_handle, "custom-props", "custom1:prop1,custom2:prop2", NULL);
+  g_object_get (edge_handle, "custom-props", &str_val, NULL);
+  EXPECT_STREQ ("custom1:prop1,custom2:prop2", str_val);
+  g_free (str_val);
+
   gst_object_unref (edge_handle);
   gst_object_unref (gstpipe);
   g_free (pipeline);
@@ -134,6 +139,11 @@ TEST (edgeSrc, properties0)
   g_object_set (edge_handle, "topic", "TEMP_TEST_TOPIC", NULL);
   g_object_get (edge_handle, "topic", &str_val, NULL);
   EXPECT_STREQ ("TEMP_TEST_TOPIC", str_val);
+  g_free (str_val);
+
+  g_object_set (edge_handle, "custom-props", "custom1:prop1,custom2:prop2", NULL);
+  g_object_get (edge_handle, "custom-props", &str_val, NULL);
+  EXPECT_STREQ ("custom1:prop1,custom2:prop2", str_val);
   g_free (str_val);
 
   gst_object_unref (edge_handle);
