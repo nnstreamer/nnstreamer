@@ -129,9 +129,40 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov10_decod
 
 callCompareTest yolov10_result_golden.raw yolov10_result_0.log "9 diff" "yolov10 golden" 0
 
+# yolov8-obb decoder test
+
+## create label file
+echo "plane
+ship
+storage tank
+baseball diamond
+tennis court
+basketball court
+ground track field
+harbor
+bridge
+large vehicle
+small vehicle
+helicopter
+roundabout
+soccer ball field
+swimming pool" > dota8-obb-label.txt
+
+## wrong tensor dimension
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov8_obb_decoder_input.raw caps=application/octet-stream num-buffers=1 ! tensor_converter input-dim=22:8400:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov8-obb option2=dota8-obb-label.txt option4=640:640 option5=640:640 ! fakesink" "10 yolov8-obb inputdim_n" 0 1
+## wrong tensor type
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov8_obb_decoder_input.raw caps=application/octet-stream num-buffers=1 ! tensor_converter input-dim=20:8400:1 input-type=uint8 ! tensor_decoder mode=bounding_boxes option1=yolov8-obb option2=dota8-obb-label.txt option4=640:640 option5=640:640 ! fakesink" "10 yolov8-obb inputtype_n" 0 1
+
+## golden test
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov8_obb_decoder_input.raw caps=application/octet-stream num-buffers=1 ! tensor_converter input-dim=20:8400:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov8-obb option2=dota8-obb-label.txt option3=0:0.25:0.45 option4=640:640 option5=640:640 ! video/x-raw,format=RGBA ! filesink location=yolo11n-obb_result.log" "10 yolov8-obb" 0 0
+
+callCompareTest yolov8_obb_decoder_result_golden.raw yolo11n-obb_result.log "10 yolov8-obb diff" "diff with golden" 0
+
+rm dota8-obb-label.txt
+
 # negative case for box properties
 
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=10 ! video/x-raw,format=RGB,width=224,height=224,framerate=0/1 ! videoconvert ! tensor_converter ! tensor_decoder mode=bounding_boxes option1=wrong_mode_name ! fakesink " 10_n 0 1
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=10 ! video/x-raw,format=RGB,width=224,height=224,framerate=0/1 ! videoconvert ! tensor_converter ! tensor_decoder mode=bounding_boxes option1=wrong_mode_name ! fakesink " 11_n 0 1
 
 rm yolov*.log
 
