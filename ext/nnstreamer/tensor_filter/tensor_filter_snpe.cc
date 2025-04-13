@@ -564,6 +564,11 @@ snpe_subplugin::init_filter_snpe (void)
 {
   registeredRepresentation
       = tensor_filter_subplugin::register_subplugin<snpe_subplugin> ();
+  nnstreamer_filter_set_custom_property_desc (SNPE_FRAMEWORK_NAME, "Runtime",
+      "Designate hardware resource {'CPU' (default), 'GPU', 'DSP', 'NPU', 'AIP'}",
+      "OutputTensor", "Tensor names for the output, separated by ';'. E.g., 'concat:0;concat_1:0'",
+      "InputType", "Set the data type of the input {'float32 (default)', 'tf8'}", "OutputType",
+      "Set the data type of the output {'float32 (default)', 'tf8'}", NULL);
 }
 
 /** @brief Destruct the subplugin */
