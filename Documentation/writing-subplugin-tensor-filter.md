@@ -20,8 +20,8 @@ Then, you can register the derived class, usually by calling ```tensor_filter_su
 
 ## A tensor\_filter subplugin C++ class
 
-Interface: [/gst/nnstreamer/include/nnstreamer_cppplugin_api_filter.hh]
-Reference (example): [/ext/nnstreamer/tensor_filter/tensor_filter_snap.cc]
+- Interface: [/gst/nnstreamer/include/nnstreamer_cppplugin_api_filter.hh](../gst/nnstreamer/include/nnstreamer_cppplugin_api_filter.hh)
+- Reference (example): [/ext/nnstreamer/tensor_filter/tensor_filter_snap.cc](../ext/nnstreamer/tensor_filter/tensor_filter_snap.cc)
 
 You may also find other subplugins inheriting the ```tensor_filter_subplugin``` class in [/ext/nnstreamer/tensor_filter] that can be used as examples.
 
@@ -42,8 +42,8 @@ Note that C++ subplugin is simpler and easy-to-maintain compared to C subplugin.
 
 ## A tensor\_filter subplugin in C
 
-Interface: [/gst/nnstreamer/include/nnstreamer_plugin_api_filter.h]
-Reference (example): [/ext/nnstreamer/tensor_filter/tensor_filter_nnfw.c]
+- Interface: [/gst/nnstreamer/include/nnstreamer_plugin_api_filter.h](../gst/nnstreamer/include/nnstreamer_plugin_api_filter.h)
+- Reference (example): [/ext/nnstreamer/tensor_filter/tensor_filter_nnfw.c](../ext/nnstreamer/tensor_filter/tensor_filter_nnfw.c)
 
 
 If the framework or backend/runtime library has C APIs and you want to write the subplugin in C, use ```#include <nnstreamer_plugin_api_filter.h>```.
@@ -55,7 +55,7 @@ Then, call ```nnstreamer_filter_exit ()``` function with ```((destructor))``` te
 In ```GstTensorFilterFramework```, there are two different ways, ```v0 (version == GST_TENSOR_FILTER_FRAMEWORK_V0)``` and ```v1 (version == GST_TENSOR_FILTER_FRAMEWORK_V1)```. In the struct, there is a ```union``` of ```v0``` and ```v1```, and it is recommended to use ```v1``` and ```set version = GST_TENSOR_FILTER_FRAMEWORK_V1``` (v1). ```v0``` is supposed to be used by old subplugins for backward compatibility and any new subplugins should use ```v1```, which is simpler and richer in features.
 
 
-However, note that if you are going to use framework/library with C++ APIs, please do not use ```nnstreamer_plugin_api_filter.h```, but use the base tensor-filter-subplugin C++ class as in the next section.
+However, note that if you are going to use framework/library with C++ APIs, please do not use ```nnstreamer_plugin_api_filter.h```, but use the base tensor-filter-subplugin C++ class as described in the previous section.
 
 
 
