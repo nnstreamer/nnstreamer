@@ -19,7 +19,6 @@
  *   and store it in /tmp/<modelfilename>.engine.
  *
  * @todo:
- *  - Add option parameter for device_id.
  *  - Add option parameter for generated .engine file (now default in /tmp).
  *  - Add support for model builder parameters.
  *  - Add support for optimization profile(s).
