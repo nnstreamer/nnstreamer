@@ -29,6 +29,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <memory>
 #include <stdexcept>
 #include <vector>
@@ -168,6 +169,7 @@ class tensorrt10_subplugin final : public tensor_filter_subplugin
   void constructNetwork (NvInferUniquePtr<nvonnxparser::IParser> &parser) const;
   void buildSaveEngine () const;
   void loadEngine ();
+  void parseCustomProperties (const GstTensorFilterProperties *prop);
 };
 
 const char *tensorrt10_subplugin::name = "tensorrt10";
@@ -224,6 +226,40 @@ tensorrt10_subplugin::getEmptyInstance ()
 }
 
 /**
+ * @brief Parse custom properties and set instance options accordingly.
+ */
+void
+tensorrt10_subplugin::parseCustomProperties (const GstTensorFilterProperties *prop)
+{
+  if (!prop->custom_properties) {
+    ml_logd ("No custom properties provided");
+    return;
+  }
+  using uniq_g_strv = std::unique_ptr<gchar *, std::function<void (gchar **)>>;
+  guint len, i;
+
+  uniq_g_strv options (g_strsplit (prop->custom_properties, ",", -1), g_strfreev);
+  len = g_strv_length (options.get ());
+
+  for (i = 0; i < len; ++i) {
+    uniq_g_strv option (g_strsplit (options.get ()[i], ":", -1), g_strfreev);
+
+    if (g_strv_length (option.get ()) > 1) {
+      g_strstrip (option.get ()[0]);
+      g_strstrip (option.get ()[1]);
+
+      if (g_ascii_strcasecmp (option.get ()[0], "DeviceId") == 0) {
+        _device_id = static_cast<int> (g_ascii_strtoull (option.get ()[1], NULL, 10));
+      } else {
+        ml_loge ("Unknown custom property: %s", option.get ()[0]);
+        throw std::invalid_argument (
+            "Unknown custom property: " + std::string (option.get ()[0]));
+      }
+    }
+  }
+}
+
+/**
  * @brief Configure the instance of the tensorrt10_subplugin.
  * @param[in] prop property of tensor_filter instance
  */
@@ -237,6 +273,14 @@ tensorrt10_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   }
   assert (_model_path == nullptr);
   _model_path = g_strdup (prop->model_files[0]);
+
+  try {
+    parseCustomProperties (prop);
+  } catch (const std::invalid_argument &e) {
+    ml_loge ("Failed to parse custom property: %s", e.what ());
+    throw std::invalid_argument (
+        "Failed to parse custom property: " + std::string (e.what ()));
+  }
 
   /* Make a TensorRT engine */
   loadModel (prop);
@@ -451,11 +495,10 @@ tensorrt10_subplugin::loadEngine ()
 void
 tensorrt10_subplugin::loadModel (const GstTensorFilterProperties *prop)
 {
-  // GstTensorInfo *_info;
-
   UNUSED (prop);
 
   // Set the device index
+  ml_logd ("Loading model on device index: %d", _device_id);
   auto ret = cudaSetDevice (_device_id);
   if (ret != 0) {
     int num_gpus;
@@ -745,6 +788,8 @@ tensorrt10_subplugin::init_filter_tensorrt10 (void)
 {
   registeredRepresentation
       = tensor_filter_subplugin::register_subplugin<tensorrt10_subplugin> ();
+  nnstreamer_filter_set_custom_property_desc (
+      name, "DeviceId", "Set the GPU device ID to use (default: 0)", NULL);
 }
 
 /**
