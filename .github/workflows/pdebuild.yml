@@ -15,30 +15,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        #os: [ ubuntu-20.04, ubuntu-22.04 ]
-        ## ppa/nnstreamer's ubuntu 20.04 has gpgv error:
-        # E: Release signed by unknown key (key id CADA0F77901522B3)
-        #    The specified keyring /usr/share/keyrings/ubuntu-archive-keyring.gpg may be incorrect or out of date.
-        #    You can find the latest Debian release key at https://ftp-master.debian.org/keys.html
-        # E: debootstrap failed
-        # E: Tail of debootstrap.log:
-        # amd64: ok
-        # 2024-01-24 15:01:58 URL:http://ppa.launchpad.net/nnstreamer/ppa/ubuntu/dists/focal/InRelease [18035/18035] -> "/var/cache/pbuilder/build/10399/var/lib/apt/lists/partial/ppa.launchpad.net_nnstreamer_ppa_ubuntu_dists_focal_InRelease" [1]
-        # gpgv: Signature made Wed Jan 24 09:12:55 2024 UTC
-        # gpgv:                using RSA key 373A37D40E480F96524A4027CADA0F77901522B3
-        # gpgv: Can't check signature: No public key
-        # E: End of debootstrap.log
-        # W: Aborting with an error
         os: [ ubuntu-22.04 ]
-        #arch: [ amd64, arm64 ]
-        ## pdebuild with `--architecture arm64` is meaningless
-        ## pbuilder create --architecture arm64 currently fails
         arch: [ amd64 ]
         include:
           - distroname: jammy
             os: ubuntu-22.04
-        #  - distroname: focal
-        #    os: ubuntu-20.04
 
     steps:
     - uses: actions/checkout@v4
