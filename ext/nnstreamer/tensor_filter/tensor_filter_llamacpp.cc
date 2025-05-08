@@ -28,6 +28,7 @@
 #include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_util.h>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "ggml.h"
@@ -61,9 +62,12 @@ class TensorFilterLlamaCpp : public tensor_filter_subplugin
   void invoke (const GstTensorMemory *input, GstTensorMemory *output);
   void invoke_dynamic (GstTensorFilterProperties *prop,
       const GstTensorMemory *input, GstTensorMemory *output);
+  void invokeCallback(const char* buf, int n, GstTensorFilterProperties *prop);
   void getFrameworkInfo (GstTensorFilterFrameworkInfo &info);
   int getModelInfo (model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info);
   int eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data);
+  void (*async_output_callback) (void *cb_data, GstTensorMemory *output); /**< Callback function to handle multiple async outputs */
+  void invokeThread (GstTensorFilterProperties *prop, std::string&& prompt);
 
   /* static methods */
   static void init_filter_llama ();
@@ -78,11 +82,26 @@ class TensorFilterLlamaCpp : public tensor_filter_subplugin
   llama_model_params model_params;
   llama_sampler_chain_params sampler_params;
   llama_context_params ctx_params;
+  llama_context *ctx {nullptr};
 
   int n_gpu_layers = 99;
   int n_predict = 32;
 
+  std::thread output_thread; /* thread for async output */
+  void *cb_data {nullptr}; /* callback data for async_output_callback */
   void parseCustomProperties (const GstTensorFilterProperties *prop);
+
+  /**
+   * @brief get cb_data
+   */
+  void *getCbData() { return cb_data; }
+
+  /**
+   * @brief set cb_data
+   */
+  void setCbData (void *value) {
+    cb_data = value;
+  }
 };
 
 TensorFilterLlamaCpp *TensorFilterLlamaCpp::registered = nullptr;
@@ -101,14 +120,23 @@ TensorFilterLlamaCpp::TensorFilterLlamaCpp ()
  */
 TensorFilterLlamaCpp::~TensorFilterLlamaCpp ()
 {
-  if (model) {
-    llama_model_free (model);
-    model = nullptr;
+  if (output_thread.joinable()) {
+    output_thread.join();
   }
 
   if (sampler) {
     llama_sampler_free (sampler);
     sampler = nullptr;
+  }
+
+  if(ctx) {
+    llama_free (ctx);
+    ctx = nullptr;
+  }
+
+  if (model) {
+    llama_model_free (model);
+    model = nullptr;
   }
 }
 
@@ -214,26 +242,37 @@ TensorFilterLlamaCpp::invoke (const GstTensorMemory *input, GstTensorMemory *out
 }
 
 /**
+ * @brief Processes the given buffer data and sends output via a callback.
+ */
+void TensorFilterLlamaCpp:: invokeCallback(const char* buf, int n, GstTensorFilterProperties *prop) {
+  GstTensorMemory *output = g_new0 (GstTensorMemory, 1);
+
+  std::string s(buf, n);
+  output[0].size = s.length();
+  output[0].data = strndup(s.c_str(), s.length());
+
+  gst_tensors_info_free(&prop->output_meta);
+  prop->output_meta.num_tensors = 1;
+  prop->output_meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  prop->output_meta.info[0].type = _NNS_UINT8;
+  prop->output_meta.info[0].dimension[0] = output[0].size;
+  void* cb_data = getCbData();
+
+  async_output_callback(cb_data, output);
+}
+
+/**
  * @brief Invoke llamacpp using input tensors
  */
 void
-TensorFilterLlamaCpp::invoke_dynamic (GstTensorFilterProperties *prop,
-    const GstTensorMemory *input, GstTensorMemory *output)
-{
+TensorFilterLlamaCpp::invokeThread(GstTensorFilterProperties *prop, std::string&& prompt) {
   const llama_vocab *vocab = llama_model_get_vocab (model);
-  llama_context *ctx = nullptr;
   int n_prompt, n_pos, n;
   llama_token new_token_id;
   llama_batch batch;
-  std::string prompt, result = "";
-
-  UNUSED (prop);
-
-  prompt.assign ((char *) input[0].data, input[0].size);
-  prompt.erase (prompt.find_last_not_of (" \t\n\r\f\v") + 1);
+  std::string result = "";
 
   n_prompt = -llama_tokenize (vocab, prompt.c_str (), prompt.size (), NULL, 0, true, true);
-
   std::vector<llama_token> prompt_tokens (n_prompt);
   n = llama_tokenize (vocab, prompt.c_str (), prompt.size (),
       prompt_tokens.data (), prompt_tokens.size (), true, true);
@@ -257,8 +296,7 @@ TensorFilterLlamaCpp::invoke_dynamic (GstTensorFilterProperties *prop,
     if (n < 0) {
       throw std::invalid_argument ("Failed to convert token to piece");
     }
-    std::string s (buf, n);
-    result += s;
+    invokeCallback(buf, n, prop);
   }
 
   batch = llama_batch_get_one (prompt_tokens.data (), prompt_tokens.size ());
@@ -286,26 +324,30 @@ TensorFilterLlamaCpp::invoke_dynamic (GstTensorFilterProperties *prop,
       if (n < 0) {
         throw std::invalid_argument ("Failed to convert token to piece");
       }
-      std::string s (buf, n);
-      result += s;
-
-      /* prepare the next batch with the sampled token */
+      invokeCallback(buf, n, prop);
       batch = llama_batch_get_one (&new_token_id, 1);
     }
   }
+}
 
-  /* set output info */
-  output[0].size = result.length ();
-  output[0].data = strndup (result.c_str (), result.length ());
+/**
+ * @brief Invoke llamacpp using input tensors
+ */
+void
+TensorFilterLlamaCpp::invoke_dynamic (GstTensorFilterProperties *prop,
+    const GstTensorMemory *input, GstTensorMemory *output)
+{
+  UNUSED(output);
+  std::string prompt;
 
-  gst_tensors_info_free (&prop->output_meta);
-  prop->output_meta.num_tensors = 1;
-  prop->output_meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
-  prop->output_meta.info[0].type = _NNS_UINT8;
-  prop->output_meta.info[0].dimension[0] = output[0].size;
+  if (output_thread.joinable ()) {
+    output_thread.join();
+  }
+  /* The part that fills in the prompt value was moved out of the thread, because input is freed when the invoke_dynamic function returns.*/
+  prompt.assign ((char *) input[0].data, input[0].size);
+  prompt.erase (prompt.find_last_not_of (" \t\n\r\f\v") + 1);
 
-  llama_free (ctx);
-  ctx = nullptr;
+  output_thread = std::thread(&TensorFilterLlamaCpp::invokeThread, this, prop, std::move(prompt));
 }
 
 /**
@@ -349,9 +391,12 @@ TensorFilterLlamaCpp::getModelInfo (
 int
 TensorFilterLlamaCpp::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data)
 {
-  UNUSED (ops);
-  UNUSED (data);
-  return 0;
+  if (ops == SET_ASYNC_OUTPUT_CALLBACK && data.cb_data != nullptr && data.async_output_callback != nullptr) {
+    async_output_callback = data.async_output_callback;
+    setCbData(data.cb_data);
+    return 0;
+  }
+  return -ENOENT;
 }
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
