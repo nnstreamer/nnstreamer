@@ -1015,9 +1015,11 @@ _gst_tensor_filter_transform_update_outbuf (GstBaseTransform * trans,
     }
   }
 
-  for (i = 0; i < in_trans_data->num_tensors; i++) {
-    if (in_trans_data->mem[i]) {
-      gst_memory_unref (in_trans_data->mem[i]);
+  if (in_trans_data) {
+    for (i = 0; i < in_trans_data->num_tensors; i++) {
+      if (in_trans_data->mem[i]) {
+        gst_memory_unref (in_trans_data->mem[i]);
+      }
     }
   }
 
@@ -1713,6 +1715,8 @@ gst_tensor_filter_sink_event (GstBaseTransform * trans, GstEvent * event)
   self = GST_TENSOR_FILTER_CAST (trans);
   priv = &self->priv;
   switch (GST_EVENT_TYPE (event)) {
+    case GST_EVENT_EOS:
+      break;
     case GST_EVENT_CUSTOM_DOWNSTREAM:
     {
       const GstStructure *structure = gst_event_get_structure (event);
@@ -1810,6 +1814,9 @@ gst_tensor_filter_start (GstBaseTransform * trans)
     GST_OBJECT_UNLOCK (self);
   }
 
+  /* Property conditions are required for setting */
+  gst_tensor_filter_set_async_output_callback_notify_util (priv, self, nnstreamer_filter_async_output_callback);
+
   return priv->prop.fw_opened;
 }
 
@@ -1835,4 +1842,60 @@ gst_tensor_filter_stop (GstBaseTransform * trans)
   gst_tensor_filter_common_close_fw (priv);
 
   return TRUE;
+}
+
+/**
+ * @brief Callback function for handling asynchronous outputs from sub-plugins.
+ * @details
+ * This callback function is invoked by a sub-plugin when it generates one or more outputs
+ * asynchronously. It allows sub-plugins to send tensor data back to the main pipeline.
+ * This should be called whenever a sub-plugin has processed its input
+ * data and has generated output tensor(s).
+ * This function processes the given tensor memory (`output`), generates a GstBuffer from it,
+ * and pushes the GStreamer buffer to the next element in the pipeline for further processing.
+ *
+ * @param[in] cb_data  Data to be passed to the callback.
+ * @param[in] output A GstTensorMemory structure that contains the generated
+ *                   tensor(s) as output.
+ */
+void
+nnstreamer_filter_async_output_callback (void *cb_data, GstTensorMemory *output)
+{
+  guint i;
+  GstTensorFilter *self;
+  GstBaseTransform *trans;
+  GstTensorFilterPrivate *priv;
+  FilterTransformData *out_trans_data = NULL;
+  GstTensorFilterProperties *prop;
+  GstBuffer *outbuf;
+
+  g_return_if_fail (output != NULL || cb_data != NULL);
+
+  outbuf = gst_buffer_new ();
+  if (!outbuf) {
+    ml_loge ("Failed to allocate GstBuffer.");
+    return;
+  }
+
+  self = GST_TENSOR_FILTER_CAST (cb_data);
+  trans = GST_BASE_TRANSFORM_CAST (self);
+  priv = &self->priv;
+  prop = &priv->prop;
+
+  out_trans_data = _gst_tensor_filter_transform_get_output_data (trans);
+
+  for (i = 0; i < prop->output_meta.num_tensors; i++) {
+    if (!output[i].data) {
+      ml_loge ("Invalid tensor memory at index %d", i);
+      return;
+    }
+    out_trans_data->tensors[i].data = output[i].data;
+    out_trans_data->tensors[i].size = output[i].size;
+  }
+
+  _gst_tensor_filter_transform_update_outbuf (trans, NULL, out_trans_data, outbuf);
+  g_free (out_trans_data);
+  out_trans_data = NULL;
+
+  gst_pad_push (trans->srcpad, outbuf);
 }
