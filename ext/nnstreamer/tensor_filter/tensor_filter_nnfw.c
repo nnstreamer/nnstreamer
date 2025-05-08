@@ -211,7 +211,7 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
 
   pdata = *private_data = g_new0 (nnfw_pdata, 1);
   if (pdata == NULL) {
-    nns_loge ("Failed to allocate memory for filter subplugin.\n");
+    nns_loge ("Failed to allocate memory for filter subplugin.");
     return -ENOMEM;
   }
 
@@ -220,7 +220,7 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
   status = nnfw_create_session (&pdata->session);
   if (status != NNFW_STATUS_NO_ERROR) {
     err = -EINVAL;
-    nns_loge ("Cannot create nnfw-runtime session\n");
+    nns_loge ("Cannot create nnfw-runtime session.");
     goto error_exit;
   }
 
@@ -236,34 +236,34 @@ nnfw_open (const GstTensorFilterProperties * prop, void **private_data)
 
   if (status != NNFW_STATUS_NO_ERROR) {
     err = -EINVAL;
-    nns_loge ("Cannot load the model file: %s\n", prop->model_files[0]);
+    nns_loge ("Cannot load the model file '%s'.", prop->model_files[0]);
     goto error_exit;
   }
 
   status = nnfw_set_available_backends (pdata->session, pdata->accelerator);
   if (status != NNFW_STATUS_NO_ERROR) {
     err = -EINVAL;
-    nns_loge ("Cannot set nnfw-runtime backend to %s\n", pdata->accelerator);
+    nns_loge ("Cannot set nnfw-runtime backend to '%s'.", pdata->accelerator);
     goto error_exit;
   }
 
   status = nnfw_prepare (pdata->session);
   if (status != NNFW_STATUS_NO_ERROR) {
     err = -EINVAL;
-    nns_loge ("nnfw-runtime cannot prepare the session for %s\n",
+    nns_loge ("Cannot prepare the session for model '%s'.",
         prop->model_files[0]);
     goto error_exit;
   }
 
   err = nnfw_tensors_info_get (pdata, TRUE, &pdata->in_info);
   if (err) {
-    nns_loge ("Error retrieving input info from nnfw-runtime.\n");
+    nns_loge ("Error retrieving input info from nnfw-runtime.");
     goto error_exit;
   }
 
   err = nnfw_tensors_info_get (pdata, FALSE, &pdata->out_info);
   if (err) {
-    nns_loge ("Error retrieving output info from nnfw-runtime.\n");
+    nns_loge ("Error retrieving output info from nnfw-runtime.");
     goto error_exit;
   }
 
@@ -294,7 +294,7 @@ nnfw_close (const GstTensorFilterProperties * prop, void **private_data)
     NNFW_STATUS status = nnfw_close_session (pdata->session);
 
     if (status != NNFW_STATUS_NO_ERROR) {
-      nns_loge ("cannot close nnfw-runtime session for %s\n",
+      nns_loge ("cannot close nnfw-runtime session for model '%s'.",
           pdata->model_file);
     }
 
@@ -320,8 +320,6 @@ nnfw_close (const GstTensorFilterProperties * prop, void **private_data)
 static int
 nnfw_tensor_type_to_gst (const NNFW_TYPE nnfw_type, tensor_type * type)
 {
-  int err = 0;
-
   switch (nnfw_type) {
     case NNFW_TYPE_TENSOR_FLOAT32:
       *type = _NNS_FLOAT32;
@@ -338,10 +336,11 @@ nnfw_tensor_type_to_gst (const NNFW_TYPE nnfw_type, tensor_type * type)
       break;
     default:
       *type = _NNS_END;
-      err = -EINVAL;
+      nns_loge ("Cannot convert nnfw type '%d' to gst format.", nnfw_type);
+      return -EINVAL;
   }
 
-  return err;
+  return 0;
 }
 
 /**
@@ -353,8 +352,6 @@ nnfw_tensor_type_to_gst (const NNFW_TYPE nnfw_type, tensor_type * type)
 static int
 nnfw_tensor_type_from_gst (const tensor_type type, NNFW_TYPE * nnfw_type)
 {
-  int err = 0;
-
   switch (type) {
     case _NNS_FLOAT32:
       *nnfw_type = NNFW_TYPE_TENSOR_FLOAT32;
@@ -370,10 +367,12 @@ nnfw_tensor_type_from_gst (const tensor_type type, NNFW_TYPE * nnfw_type)
       *nnfw_type = NNFW_TYPE_TENSOR_QUANT8_ASYMM;
       break;
     default:
-      err = -EINVAL;
+      nns_loge ("Cannot convert gst format '%s' to nnfw type.",
+          gst_tensor_get_type_string (type));
+      return -EINVAL;
   }
 
-  return err;
+  return 0;
 }
 
 /**
@@ -412,7 +411,6 @@ nnfw_convert_to_gst_info (const nnfw_tinfo_s * nnfw_info,
 
 /**
  * @brief Internal function to set input tensor info.
- * @todo nnfw_apply_tensorinfo() will be deprecated. Use nnfw_set_input_tensorinfo() later (nnfw ver >= 1.6.0).
  */
 static int
 nnfw_set_input_info (const nnfw_pdata * pdata, guint idx,
@@ -420,11 +418,7 @@ nnfw_set_input_info (const nnfw_pdata * pdata, guint idx,
 {
   NNFW_STATUS status;
 
-#if defined (NNFW_USE_OLD_API)
-  status = nnfw_apply_tensorinfo (pdata->session, idx, *info);
-#else
   status = nnfw_set_input_tensorinfo (pdata->session, idx, info);
-#endif
 
   return (status != NNFW_STATUS_NO_ERROR) ? -EPERM : 0;
 }
@@ -440,7 +434,7 @@ static int
 nnfw_tensor_info_set (const nnfw_pdata * pdata,
     const GstTensorsInfo * tensors_info, guint tensor_idx)
 {
-  struct nnfw_tensorinfo nnfw_info;
+  nnfw_tensorinfo nnfw_info;
   gint err;
   gint idx;
   GstTensorInfo *info;
@@ -569,7 +563,7 @@ nnfw_invoke_dummy (const nnfw_pdata * pdata, const nnfw_tinfo_s * in_info,
   GstTensorInfo *_info;
   GstTensorMemory input[NNS_TENSOR_SIZE_LIMIT] = { {0} };
   GstTensorMemory output[NNS_TENSOR_SIZE_LIMIT] = { {0} };
-  gboolean failed = FALSE;
+  gboolean invoked = FALSE;
   guint i, retry;
   int err;
 
@@ -579,7 +573,6 @@ nnfw_invoke_dummy (const nnfw_pdata * pdata, const nnfw_tinfo_s * in_info,
   if (nnfw_convert_to_gst_info (in_info, &gst_in_info) != 0 ||
       nnfw_convert_to_gst_info (out_info, &gst_out_info) != 0) {
     nns_loge ("Failed to convert nnfw info.");
-    failed = TRUE;
     goto done;
   }
 
@@ -602,12 +595,10 @@ nnfw_invoke_dummy (const nnfw_pdata * pdata, const nnfw_tinfo_s * in_info,
   while ((err = nnfw_invoke_internal (pdata, in_info, out_info, input, output)) != 0) {
     if (err != -EAGAIN) {
       nns_loge ("Invoke failed, cannot update input info.");
-      failed = TRUE;
-      break;
+      goto done;
     }
 
-    nns_logw ("Invoke failed, reallocate output tensors and retry (%u).",
-        ++retry);
+    nns_logw ("Invoke failed, reallocate output tensors and retry (%u).", ++retry);
 
     for (i = 0; i < gst_out_info.num_tensors; ++i) {
       output[i].size *= 2;
@@ -616,6 +607,9 @@ nnfw_invoke_dummy (const nnfw_pdata * pdata, const nnfw_tinfo_s * in_info,
     }
   }
 
+  invoked = TRUE;
+
+done:
   for (i = 0; i < gst_in_info.num_tensors; ++i) {
     g_free (input[i].data);
     input[i].data = NULL;
@@ -625,10 +619,9 @@ nnfw_invoke_dummy (const nnfw_pdata * pdata, const nnfw_tinfo_s * in_info,
     output[i].data = NULL;
   }
 
-done:
   gst_tensors_info_free (&gst_in_info);
   gst_tensors_info_free (&gst_out_info);
-  return !failed;
+  return invoked;
 }
 
 /**
