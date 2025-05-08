@@ -22,9 +22,6 @@
  * @bug		No known bugs except for NYI items
  *
  * This is the per-NN-framework plugin (Tizen nnfw) for tensor_filter.
- *
- * @todo NYI: support quant8,bool type
- *
  */
 
 #include <string.h>
@@ -333,8 +330,15 @@ nnfw_tensor_type_to_gst (const NNFW_TYPE nnfw_type, tensor_type * type)
       *type = _NNS_INT64;
       break;
     case NNFW_TYPE_TENSOR_QUANT8_ASYMM:
-      /** @todo: update this to NNFW_TYPE_TENSOR_UINT8 type once nnfw is updated */
+    case NNFW_TYPE_TENSOR_BOOL:
+    case NNFW_TYPE_TENSOR_UINT8:
       *type = _NNS_UINT8;
+      break;
+    case NNFW_TYPE_TENSOR_QUANT8_ASYMM_SIGNED:
+      *type = _NNS_INT8;
+      break;
+    case NNFW_TYPE_TENSOR_QUANT16_SYMM_SIGNED:
+      *type = _NNS_INT16;
       break;
     default:
       *type = _NNS_END;
@@ -347,11 +351,13 @@ nnfw_tensor_type_to_gst (const NNFW_TYPE nnfw_type, tensor_type * type)
 /**
  * @brief Convert from gst tensor type to NNFW type
  * @param[in] type type given in gst format
+ * @param[in] cur_type current nnfw_type after loading a model
  * @param[out] nnfw_type container to receive type in nnfw tensor format
  * @return 0 on success, negative errno on error
  */
 static int
-nnfw_tensor_type_from_gst (const tensor_type type, NNFW_TYPE * nnfw_type)
+nnfw_tensor_type_from_gst (const tensor_type type, const NNFW_TYPE cur_type,
+    NNFW_TYPE * nnfw_type)
 {
   int err = 0;
 
@@ -366,11 +372,27 @@ nnfw_tensor_type_from_gst (const tensor_type type, NNFW_TYPE * nnfw_type)
       *nnfw_type = NNFW_TYPE_TENSOR_INT64;
       break;
     case _NNS_UINT8:
-      /** @todo: update this to NNFW_TYPE_TENSOR_UINT8 type once nnfw is updated */
-      *nnfw_type = NNFW_TYPE_TENSOR_QUANT8_ASYMM;
+      if (cur_type == NNFW_TYPE_TENSOR_QUANT8_ASYMM ||
+          cur_type == NNFW_TYPE_TENSOR_BOOL ||
+          cur_type == NNFW_TYPE_TENSOR_UINT8) {
+        *nnfw_type = cur_type;
+      } else {
+        /* Set default value, we cannot assure the data type of nnfw here. */
+        *nnfw_type = NNFW_TYPE_TENSOR_QUANT8_ASYMM;
+      }
+      break;
+    case _NNS_INT8:
+      *nnfw_type = NNFW_TYPE_TENSOR_QUANT8_ASYMM_SIGNED;
+      break;
+    case _NNS_INT16:
+      *nnfw_type = NNFW_TYPE_TENSOR_QUANT16_SYMM_SIGNED;
       break;
     default:
       err = -EINVAL;
+  }
+
+  if (*nnfw_type != cur_type) {
+    nns_logw ("Tried to convert different data type.");
   }
 
   return err;
@@ -450,7 +472,8 @@ nnfw_tensor_info_set (const nnfw_pdata * pdata,
   if (!info)
     return -EINVAL;
 
-  err = nnfw_tensor_type_from_gst (info->type, &nnfw_info.dtype);
+  err = nnfw_tensor_type_from_gst (info->type,
+      pdata->in_info.info[tensor_idx].dtype, &nnfw_info.dtype);
   if (err)
     return err;
 
