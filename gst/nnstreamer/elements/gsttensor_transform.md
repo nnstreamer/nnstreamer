@@ -9,7 +9,7 @@ title: tensor_transform
 - Transformation the shape, data values (arithmetics or normalization), or data type of ```other/tensor``` stream.
 - If possible, the tensor_transform element exploits [ORC: Optimized inner Loop Runtime Compiler](https://gitlab.freedesktop.org/gstreamer/orc) to accelerate the supported operations.
 - Aggregate multiple operators into a single transform instance for performance optimization.
-  - E.g., ```tensor_transform mode=typecast option=uint8 ! tensor_transform mode=arithmetic option=mul:4 ! tensor_transform mode=arithmetic option=add:25 can be optimized by tensor_transform mode=arithmetic option=typecast:uint8,mul:8,add:25```
+  - E.g., ```tensor_transform mode=typecast option=uint8 ! tensor_transform mode=arithmetic option=mul:4 ! tensor_transform mode=arithmetic option=add:25 can be optimized by tensor_transform mode=arithmetic option=typecast:uint8,mul:4,add:25```
 
 ## Planned Features
 

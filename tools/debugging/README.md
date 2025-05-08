@@ -168,7 +168,7 @@ This guide is written on Ubuntu 16.04 X86_64 distribution.
 
 #### Build the source code
 ```bash
-$ git clone https://github.com/GNOME/gst-debugger.git
+$ git clone https://gitlab.gnome.org/Archive/gst-debugger.git
 $ cd gst-debugger
 $ git checkout 0.90.0
 $ ./autogen.sh
