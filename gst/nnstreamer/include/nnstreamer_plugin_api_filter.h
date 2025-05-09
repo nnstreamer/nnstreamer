@@ -135,6 +135,7 @@ typedef struct _GstTensorFilterProperties
   int latency; /**< The average latency over the recent 10 inferences in microseconds */
   int throughput; /**< The average throughput in the number of outputs per second */
   int invoke_dynamic; /**< True for supporting invoke with flexible output. */
+  int use_async_invoke_cb; /**< True for using asynchronous invoke callback. */
 
   uint32_t suspend; /**< Timeout (ms) for suspend. (Unload the framework) */
 } GstTensorFilterProperties;

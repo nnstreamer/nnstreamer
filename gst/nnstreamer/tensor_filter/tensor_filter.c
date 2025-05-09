@@ -1715,8 +1715,6 @@ gst_tensor_filter_sink_event (GstBaseTransform * trans, GstEvent * event)
   self = GST_TENSOR_FILTER_CAST (trans);
   priv = &self->priv;
   switch (GST_EVENT_TYPE (event)) {
-    case GST_EVENT_EOS:
-      break;
     case GST_EVENT_CUSTOM_DOWNSTREAM:
     {
       const GstStructure *structure = gst_event_get_structure (event);
@@ -1814,8 +1812,8 @@ gst_tensor_filter_start (GstBaseTransform * trans)
     GST_OBJECT_UNLOCK (self);
   }
 
-  /* Property conditions are required for setting */
-  gst_tensor_filter_set_async_output_callback_notify_util (priv, self, nnstreamer_filter_async_output_callback);
+  if (priv->prop.use_async_invoke_cb)
+    gst_tensor_filter_set_async_output_callback_notify_util (priv, self, nnstreamer_filter_async_output_callback);
 
   return priv->prop.fw_opened;
 }
