@@ -943,6 +943,11 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
           "input and output of the tensor filter. "
           "With this option, the output caps is always in the format of flexible tensors.",
           FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_USE_ASYNC_INVOKE_CALLBACK,
+      g_param_spec_boolean ("use-async-invoke-callback", "Enable asynchronous invoke callback",
+          "When enabled, the sub-plugin will call tensor_filter's callback to "
+          "asynchronously deliver inference results to the framework after invoke.",
+          FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_CONFIG,
       g_param_spec_string ("config-file", "Configuration-file",
           "Path to configuration file which contains plugins properties", "",
@@ -977,6 +982,8 @@ gst_tensor_filter_common_init_property (GstTensorFilterPrivate * priv)
   /* init internal properties */
   priv->silent = TRUE;
   priv->prop.invoke_dynamic = FALSE;
+  priv->prop.use_async_invoke_cb = FALSE;
+
   gst_tensors_config_init (&priv->in_config);
   gst_tensors_config_init (&priv->out_config);
 }
@@ -1868,6 +1875,18 @@ _gtfc_setprop_PROP_INVOKE_DYNAMIC (GstTensorFilterPrivate * priv,
 }
 
 /**
+ * @brief Handle "PROP_USE_ASYNC_INVOKE_CALLBACK" for set-property
+ */
+static gint
+_gtfc_setprop_PROP_USE_ASYNC_INVOKE_CALLBACK (GstTensorFilterPrivate * priv,
+    const GValue * value)
+{
+  priv->prop.use_async_invoke_cb = g_value_get_boolean (value);
+
+  return 0;
+}
+
+/**
  * @brief Handle "PROP_SUSPEND" for set-property
  */
 static gint
@@ -1964,6 +1983,9 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
       break;
     case PROP_INVOKE_DYNAMIC:
       status = _gtfc_setprop_PROP_INVOKE_DYNAMIC (priv, value);
+      break;
+    case PROP_USE_ASYNC_INVOKE_CALLBACK:
+      status = _gtfc_setprop_PROP_USE_ASYNC_INVOKE_CALLBACK (priv, value);
       break;
     case PROP_SUSPEND:
       status = _gtfc_setprop_SUSPEND (priv, value);
@@ -2175,6 +2197,9 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
       break;
     case PROP_INVOKE_DYNAMIC:
       g_value_set_boolean (value, prop->invoke_dynamic);
+      break;
+    case PROP_USE_ASYNC_INVOKE_CALLBACK:
+      g_value_set_boolean (value, priv->prop.use_async_invoke_cb);
       break;
     case PROP_SUSPEND:
       g_value_set_uint (value, prop->suspend);
@@ -3082,4 +3107,33 @@ nnstreamer_filter_shared_model_replace (void *instance, const char *key,
 
 done:
   G_UNLOCK (shared_model_table);
+}
+
+/**
+ * @brief Sets a callback function to handle asynchronous output.
+ *
+ * This utility function registers a callback that will be invoked by the
+ * sub-plugin (framework) whenever it produces asynchronous output.
+ * The callback function is used to process or handle the generated `GstTensorMemory`
+ * output.
+ *
+ * @param priv      Pointer to the GstTensorFilterPrivate structure.
+ * @param cb_data   Data to be passed to the callback.
+ *                  function as its first parameter. This can be used to provide context
+ *                  or additional arguments required by the callback.
+ * @param callback  Callback function that will be invoked whenever the framework emits
+ *                  an asynchronous output.
+ */
+void
+gst_tensor_filter_set_async_output_callback_notify_util (GstTensorFilterPrivate * priv, void *cb_data, void (*callback)(void *, GstTensorMemory *))
+{
+  GstTensorFilterFrameworkEventData event_data;
+
+  if (GST_TF_FW_V1 (priv->fw) && callback!= NULL && priv->fw->eventHandler!= NULL) {
+    event_data.async_output_callback = callback;
+    event_data.cb_data = cb_data;
+    if (priv->fw->eventHandler (priv->fw, &priv->prop, priv->privateData, SET_ASYNC_OUTPUT_CALLBACK, &event_data) != -ENOENT)
+      return;
+  }
+  ml_loge ("Failed to set async output callback");
 }

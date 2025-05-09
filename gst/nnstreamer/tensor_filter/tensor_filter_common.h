@@ -107,6 +107,7 @@ enum
   PROP_SHARED_TENSOR_FILTER_KEY,
   PROP_LATENCY_REPORT,
   PROP_INVOKE_DYNAMIC,
+  PROP_USE_ASYNC_INVOKE_CALLBACK,
   PROP_CONFIG,
   PROP_SUSPEND
 };
@@ -292,6 +293,12 @@ gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw, c
  */
 extern void
 gst_tensor_filter_destroy_notify_util (GstTensorFilterPrivate *priv, void *data);
+
+/**
+ * @brief set async output callback util
+ */
+extern void
+gst_tensor_filter_set_async_output_callback_notify_util (GstTensorFilterPrivate *priv, void *cb_data, void (*callback)(void *, GstTensorMemory *));
 
 G_END_DECLS
 #endif /* __G_TENSOR_FILTER_COMMON_H__ */
