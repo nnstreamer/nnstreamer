@@ -78,9 +78,6 @@
 GST_DEBUG_CATEGORY_STATIC (gst_tensor_filter_debug);
 #define GST_CAT_DEFAULT gst_tensor_filter_debug
 
-#define TF_MODELNAME(prop) \
-    ((prop)->model_files ? ((prop)->model_files[0]) : "[No Model File]")
-
 /**
  * @brief Default caps string for both sink and source pad.
  */
@@ -1116,7 +1113,9 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     GST_OBJECT_LOCK (self);
     nnstreamer_watchdog_release (priv->watchdog_h);
     GST_OBJECT_UNLOCK (self);
-    gst_tensor_filter_common_open_fw (priv);
+
+    if (!gst_tensor_filter_common_open_fw (priv))
+      return GST_FLOW_ERROR;
   }
 
   /* 0. Check all properties. */
@@ -1791,19 +1790,16 @@ gst_tensor_filter_start (GstBaseTransform * trans)
   GstTensorFilterPrivate *priv;
   self = GST_TENSOR_FILTER_CAST (trans);
   priv = &self->priv;
+
   /* If it is not configured properly, don't allow to start! */
-  if (priv->fw == NULL)
+  if (!gst_tensor_filter_common_open_fw (priv))
     return FALSE;
-  gst_tensor_filter_common_open_fw (priv);
 
   if (priv->prop.suspend != 0) {
     GST_OBJECT_LOCK (self);
     if (!nnstreamer_watchdog_create (&priv->watchdog_h)) {
       ml_logw ("Failed to create watchdog. Suspend mode is not working.");
-      GST_OBJECT_UNLOCK (self);
-      return priv->prop.fw_opened;
-    }
-    if (!nnstreamer_watchdog_feed (priv->watchdog_h,
+    } else if (!nnstreamer_watchdog_feed (priv->watchdog_h,
         gst_tensor_filter_watchdog_trigger, priv->prop.suspend, priv)) {
       ml_logw ("Failed to feed watchdog. Suspend mode is not working.");
     }
