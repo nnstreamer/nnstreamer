@@ -340,9 +340,15 @@ TensorFilterLlamaCpp::invoke_dynamic (GstTensorFilterProperties *prop,
   UNUSED(output);
   std::string prompt;
 
+  if (!prop->use_async_invoke_cb) {
+    throw std::runtime_error (
+      "llamacpp must use asynchronous invoke callbacks. Set `use-async-invoke-callback=true`");
+  }
+
   if (output_thread.joinable ()) {
     output_thread.join();
   }
+
   /* The part that fills in the prompt value was moved out of the thread, because input is freed when the invoke_dynamic function returns.*/
   prompt.assign ((char *) input[0].data, input[0].size);
   prompt.erase (prompt.find_last_not_of (" \t\n\r\f\v") + 1);
