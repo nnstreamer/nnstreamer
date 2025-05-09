@@ -3083,3 +3083,32 @@ nnstreamer_filter_shared_model_replace (void *instance, const char *key,
 done:
   G_UNLOCK (shared_model_table);
 }
+
+/**
+ * @brief Sets a callback function to handle asynchronous output.
+ *
+ * This utility function registers a callback that will be invoked by the
+ * sub-plugin (framework) whenever it produces asynchronous output.
+ * The callback function is used to process or handle the generated `GstTensorMemory`
+ * output.
+ *
+ * @param priv      Pointer to the GstTensorFilterPrivate structure.
+ * @param cb_data   Data to be passed to the callback.
+ *                  function as its first parameter. This can be used to provide context
+ *                  or additional arguments required by the callback.
+ * @param callback  Callback function that will be invoked whenever the framework emits
+ *                  an asynchronous output.
+ */
+void
+gst_tensor_filter_set_async_output_callback_notify_util (GstTensorFilterPrivate * priv, void *cb_data, void (*callback)(void *, GstTensorMemory *))
+{
+  GstTensorFilterFrameworkEventData event_data;
+
+  if (GST_TF_FW_V1 (priv->fw) && callback!= NULL && priv->fw->eventHandler!= NULL) {
+    event_data.async_output_callback = callback;
+    event_data.cb_data = cb_data;
+    if (priv->fw->eventHandler (priv->fw, &priv->prop, priv->privateData, SET_ASYNC_OUTPUT_CALLBACK, &event_data) != -ENOENT)
+      return;
+  }
+  ml_loge ("Failed to set async output callback");
+}

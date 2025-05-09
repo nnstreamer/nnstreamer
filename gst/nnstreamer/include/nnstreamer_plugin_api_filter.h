@@ -183,6 +183,7 @@ typedef enum
   SET_OUTPUT_PROP,  /**< Update output tensor info and layout */
   SET_ACCELERATOR,  /**< Update accelerator of the subplugin to be used as backend */
   CHECK_HW_AVAILABILITY, /**< Check the hw availability with custom option */
+  SET_ASYNC_OUTPUT_CALLBACK /**< Set a callback to handle multiple async outputs for a single input */
 } event_ops;
 
 /**
@@ -233,6 +234,12 @@ typedef struct _GstTensorFilterFrameworkEventData
     struct {
       accl_hw hw; /**< accelerator to check availability */
       const char *custom; /**< custom option for hardware detection */
+    };
+
+    /** for SET ASYNC_OUTPUT_CALLBACK event */
+    struct {
+      void (*async_output_callback) (void* cb_data, GstTensorMemory *output); /**< Callback function to handle multiple async outputs */
+      void *cb_data; /**< data to be passed to the callback */
     };
   };
 } GstTensorFilterFrameworkEventData;
@@ -590,6 +597,30 @@ nnstreamer_filter_shared_model_remove (void *instance, const char *key,
 extern void
 nnstreamer_filter_shared_model_replace (void *instance, const char *key,
     void *new_interpreter, void (*replace_callback) (void *, void *), void (*free_callback) (void*));
+
+/* External functions for asynchronous output callback */
+/**
+ * @brief Callback function for handling asynchronous outputs from sub-plugins.
+ * @details
+ * This callback function is invoked by a sub-plugin when it generates one or more outputs
+ * asynchronously. It allows sub-plugins to send tensor data back to the main pipeline.
+ * This should be called whenever a sub-plugin has processed its input
+ * data and has generated output tensor(s).
+ * This function processes the given tensor memory (`output`), generates a GstBuffer from it,
+ * and pushes the GStreamer buffer to the next element in the pipeline for further processing.
+ *
+ * @param[in] cb_data  Data to be passed to the callback.
+ * @param[in] output A GstTensorMemory structure that contains the generated
+ *                   tensor(s) as output.
+ * @note 
+ * - It is the responsibility of the sub-plugin to manage and allocate the `GstTensorMemory`.
+ * - API users must ensure proper synchronization if needed, as this function may be
+ *   called in an asynchronous context.
+ * - After processing is complete. The sub-plugin must not attempt to free `output` after invoking 
+ *   this callback.
+ */
+extern void
+nnstreamer_filter_async_output_callback (void *cb_data, GstTensorMemory *output);
 
 #ifdef __cplusplus
 }
