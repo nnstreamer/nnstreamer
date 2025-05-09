@@ -255,9 +255,7 @@ g_tensor_filter_single_start (GTensorFilterSingle * self)
   if (G_UNLIKELY (priv->fw == NULL))
     return FALSE;
 
-  gst_tensor_filter_common_open_fw (priv);
-
-  if (G_UNLIKELY (!priv->prop.fw_opened))
+  if (!gst_tensor_filter_common_open_fw (priv))
     return FALSE;
 
   gst_tensor_filter_load_tensor_info (priv);
