@@ -1877,8 +1877,9 @@ gst_tensor_filter_start (GstBaseTransform * trans)
     GST_OBJECT_UNLOCK (self);
   }
 
-  gst_tensor_filter_enable_invoke_async
-      (nnstreamer_filter_async_output_callback, &priv->prop, self);
+  if (priv->prop.invoke_async)
+    gst_tensor_filter_enable_invoke_async
+        (nnstreamer_filter_async_output_callback, &priv->prop, self);
 
   return priv->prop.fw_opened;
 }
@@ -1903,7 +1904,9 @@ gst_tensor_filter_stop (GstBaseTransform * trans)
     GST_OBJECT_UNLOCK (self);
   }
 
-  gst_tensor_filter_disable_invoke_async (&priv->prop);
+  if (priv->prop.invoke_async)
+    gst_tensor_filter_disable_invoke_async (&priv->prop);
+
   gst_tensor_filter_common_close_fw (priv);
 
   return TRUE;
