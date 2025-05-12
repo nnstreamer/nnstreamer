@@ -351,6 +351,11 @@ TensorFilterLlamaCpp::invoke_dynamic (GstTensorFilterProperties *prop,
   if (!input || !input[0].data || input[0].size == 0) {
     throw std::invalid_argument ("Invalid input tensor data");
   }
+  if (!prop->invoke_async) {
+    throw std::runtime_error (
+        "llamacpp must invoke output asynchronously. Set `invoke_async=true`");
+  }
+
   if (output_thread.joinable ()) {
     output_thread.join ();
   }
