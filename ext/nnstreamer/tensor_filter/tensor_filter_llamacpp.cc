@@ -20,6 +20,8 @@
  */
 
 #include <assert.h>
+#include <atomic>
+#include <condition_variable>
 #include <errno.h>
 #include <functional>
 #include <memory>
@@ -27,7 +29,10 @@
 #include <nnstreamer_log.h>
 #include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_util.h>
+#include <queue>
 #include <string>
+#include <thread>
+#include <tuple>
 #include <vector>
 
 #include "ggml.h"
@@ -78,11 +83,22 @@ class TensorFilterLlamaCpp : public tensor_filter_subplugin
   llama_model_params model_params;
   llama_sampler_chain_params sampler_params;
   llama_context_params ctx_params;
+  llama_context *ctx{ nullptr };
 
   int n_gpu_layers = 99;
   int n_predict = 32;
 
+  std::thread output_thread; /* thread for async output */
+  std::queue<std::tuple<GstTensorFilterProperties *, std::string, GstTensorMemory *>> input_queue;
+  std::mutex queue_mutex;
+  std::condition_variable queue_cv;
+  std::atomic<bool> stop_thread{ false }; /* flag to stop the thread */
   void parseCustomProperties (const GstTensorFilterProperties *prop);
+  void generateTokens (GstTensorFilterProperties *prop, std::string &&prompt,
+      GstTensorMemory *output);
+  void createOutputTensor (const char *buf, int n, GstTensorMemory *output,
+      GstTensorFilterProperties *prop);
+  void outputThreadLoop ();
 };
 
 TensorFilterLlamaCpp *TensorFilterLlamaCpp::registered = nullptr;
@@ -101,14 +117,25 @@ TensorFilterLlamaCpp::TensorFilterLlamaCpp ()
  */
 TensorFilterLlamaCpp::~TensorFilterLlamaCpp ()
 {
-  if (model) {
-    llama_model_free (model);
-    model = nullptr;
+  stop_thread = true;
+  queue_cv.notify_one ();
+  if (output_thread.joinable ()) {
+    output_thread.join ();
   }
 
   if (sampler) {
     llama_sampler_free (sampler);
     sampler = nullptr;
+  }
+
+  if (ctx) {
+    llama_free (ctx);
+    ctx = nullptr;
+  }
+
+  if (model) {
+    llama_model_free (model);
+    model = nullptr;
   }
 }
 
@@ -198,6 +225,9 @@ TensorFilterLlamaCpp::configure_instance (const GstTensorFilterProperties *prop)
 
   sampler = llama_sampler_chain_init (sampler_params);
   llama_sampler_chain_add (sampler, llama_sampler_init_greedy ());
+
+  stop_thread = false;
+  output_thread = std::thread (&TensorFilterLlamaCpp::outputThreadLoop, this);
 }
 
 /**
@@ -214,26 +244,50 @@ TensorFilterLlamaCpp::invoke (const GstTensorMemory *input, GstTensorMemory *out
 }
 
 /**
- * @brief Invoke llamacpp using input tensors
+ * @brief Create output tensor
+ *
+ * The memory allocated for the output tensor data using strndup
+ * must be freed by the caller of this function to avoid memory leaks.
  */
 void
-TensorFilterLlamaCpp::invoke_dynamic (GstTensorFilterProperties *prop,
-    const GstTensorMemory *input, GstTensorMemory *output)
+TensorFilterLlamaCpp::createOutputTensor (const char *buf, int n,
+    GstTensorMemory *output, GstTensorFilterProperties *prop)
+{
+  if (buf == nullptr || n <= 0 || output == nullptr || prop == nullptr) {
+    throw std::invalid_argument ("Invalid arguments passed to createOutputTensor");
+  }
+
+  std::string s (buf, n);
+  output[0].size = s.length ();
+  output[0].data = strndup (s.c_str (), s.length ());
+
+  if (output[0].data == nullptr) {
+    throw std::bad_alloc ();
+  }
+
+  gst_tensors_info_free (&prop->output_meta);
+  prop->output_meta.num_tensors = 1;
+  prop->output_meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  prop->output_meta.info[0].type = _NNS_UINT8;
+  prop->output_meta.info[0].dimension[0] = output[0].size;
+}
+
+/**
+ * @brief Generates output tokens based on the provided input prompt using the
+ * llamacpp and dispatches the generated tokens to tensor_filter asynchronously.
+ * nnstreamer frees GstTensorMemory output after use. Do not free it.
+ */
+void
+TensorFilterLlamaCpp::generateTokens (GstTensorFilterProperties *prop,
+    std::string &&prompt, GstTensorMemory *output)
 {
   const llama_vocab *vocab = llama_model_get_vocab (model);
-  llama_context *ctx = nullptr;
   int n_prompt, n_pos, n;
   llama_token new_token_id;
   llama_batch batch;
-  std::string prompt, result = "";
-
-  UNUSED (prop);
-
-  prompt.assign ((char *) input[0].data, input[0].size);
-  prompt.erase (prompt.find_last_not_of (" \t\n\r\f\v") + 1);
+  UNUSED (output);
 
   n_prompt = -llama_tokenize (vocab, prompt.c_str (), prompt.size (), NULL, 0, true, true);
-
   std::vector<llama_token> prompt_tokens (n_prompt);
   n = llama_tokenize (vocab, prompt.c_str (), prompt.size (),
       prompt_tokens.data (), prompt_tokens.size (), true, true);
@@ -252,13 +306,16 @@ TensorFilterLlamaCpp::invoke_dynamic (GstTensorFilterProperties *prop,
 
   for (auto id : prompt_tokens) {
     char buf[128] = { 0 };
+    GstTensorMemory *output = nullptr;
 
     n = llama_token_to_piece (vocab, id, buf, sizeof (buf), 0, true);
     if (n < 0) {
       throw std::invalid_argument ("Failed to convert token to piece");
     }
-    std::string s (buf, n);
-    result += s;
+    output = g_new0 (GstTensorMemory, 1);
+    createOutputTensor (buf, n, output, prop);
+    /* nnstreamer frees GstTensorMemory output after use. Do not free it. */
+    nnstreamer_filter_dispatch_output_async (prop, output);
   }
 
   batch = llama_batch_get_one (prompt_tokens.data (), prompt_tokens.size ());
@@ -274,6 +331,7 @@ TensorFilterLlamaCpp::invoke_dynamic (GstTensorFilterProperties *prop,
     /* sample the next token */
     {
       char buf[128] = { 0 };
+      GstTensorMemory *output;
 
       new_token_id = llama_sampler_sample (sampler, ctx, -1);
 
@@ -286,26 +344,68 @@ TensorFilterLlamaCpp::invoke_dynamic (GstTensorFilterProperties *prop,
       if (n < 0) {
         throw std::invalid_argument ("Failed to convert token to piece");
       }
-      std::string s (buf, n);
-      result += s;
 
-      /* prepare the next batch with the sampled token */
+      output = g_new0 (GstTensorMemory, 1);
+      createOutputTensor (buf, n, output, prop);
+      /* nnstreamer frees GstTensorMemory output after use. Do not free it. */
+      nnstreamer_filter_dispatch_output_async (prop, output);
+
       batch = llama_batch_get_one (&new_token_id, 1);
     }
   }
+}
 
-  /* set output info */
-  output[0].size = result.length ();
-  output[0].data = strndup (result.c_str (), result.length ());
+/**
+ * @brief Asynchronous output thread loop. This thread generates tokens
+ */
+void
+TensorFilterLlamaCpp::outputThreadLoop ()
+{
+  while (!stop_thread) {
+    std::unique_lock<std::mutex> lock (queue_mutex);
 
-  gst_tensors_info_free (&prop->output_meta);
-  prop->output_meta.num_tensors = 1;
-  prop->output_meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
-  prop->output_meta.info[0].type = _NNS_UINT8;
-  prop->output_meta.info[0].dimension[0] = output[0].size;
+    queue_cv.wait (lock, [this] () {
+      return !input_queue.empty () || stop_thread;
+    }); /*wait when condition is false*/
 
-  llama_free (ctx);
-  ctx = nullptr;
+    if (stop_thread && input_queue.empty ())
+      break;
+
+    auto [prop, prompt, output] = std::move (input_queue.front ());
+    input_queue.pop ();
+    lock.unlock ();
+    try {
+      this->generateTokens (prop, std::move (prompt), output);
+    } catch (const std::exception &e) {
+      /* thread exception */
+      g_critical ("Exception occurred during token generation: %s", e.what ());
+    }
+  }
+}
+
+/**
+ * @brief Invoke llamacpp using input tensors
+ */
+void
+TensorFilterLlamaCpp::invoke_dynamic (GstTensorFilterProperties *prop,
+    const GstTensorMemory *input, GstTensorMemory *output)
+{
+  UNUSED (output);
+  std::string prompt;
+
+  if (!input || !input[0].data || input[0].size == 0) {
+    throw std::invalid_argument ("Invalid input tensor data");
+  }
+
+  /* The part that fills in the prompt value was moved out of the thread, because input is freed when the invoke_dynamic function returns.*/
+  prompt.assign ((char *) input[0].data, input[0].size);
+  prompt.erase (prompt.find_last_not_of (" \t\n\r\f\v") + 1);
+
+  {
+    std::lock_guard<std::mutex> lock (queue_mutex);
+    input_queue.push (std::make_tuple (prop, std::move (prompt), output));
+  }
+  queue_cv.notify_one (); /* notify waiting thread */
 }
 
 /**
