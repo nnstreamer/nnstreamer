@@ -955,6 +955,12 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
           "input and output of the tensor filter. "
           "With this option, the output caps is always in the format of flexible tensors.",
           FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_INVOKE_ASYNC,
+      g_param_spec_boolean ("invoke-async", "Enable asynchronous invoke",
+          "The sub-plugin must support asynchronous output to use this option. "
+          "If set to TRUE, the sub-plugin can generate multiple outputs asynchronously per single input. "
+          "Otherwise, only synchronous single-output is expected and async callback/handle are ignored.",
+          FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_CONFIG,
       g_param_spec_string ("config-file", "Configuration-file",
           "Path to configuration file which contains plugins properties", "",
@@ -989,6 +995,7 @@ gst_tensor_filter_common_init_property (GstTensorFilterPrivate * priv)
   /* init internal properties */
   priv->silent = TRUE;
   priv->prop.invoke_dynamic = FALSE;
+  priv->prop.invoke_async = FALSE;
   gst_tensors_config_init (&priv->in_config);
   gst_tensors_config_init (&priv->out_config);
 }
@@ -1882,6 +1889,18 @@ _gtfc_setprop_PROP_INVOKE_DYNAMIC (GstTensorFilterPrivate * priv,
 }
 
 /**
+ * @brief Handle "PROP_INVOKE_ASYNC" for set-property
+ */
+static gint
+_gtfc_setprop_PROP_INVOKE_ASYNC (GstTensorFilterPrivate * priv,
+    const GValue * value)
+{
+  priv->prop.invoke_async = g_value_get_boolean (value);
+
+  return 0;
+}
+
+/**
  * @brief Handle "PROP_SUSPEND" for set-property
  */
 static gint
@@ -1977,6 +1996,9 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
       break;
     case PROP_INVOKE_DYNAMIC:
       status = _gtfc_setprop_PROP_INVOKE_DYNAMIC (priv, value);
+      break;
+    case PROP_INVOKE_ASYNC:
+      status = _gtfc_setprop_PROP_INVOKE_ASYNC (priv, value);
       break;
     case PROP_SUSPEND:
       status = _gtfc_setprop_SUSPEND (priv, value);
@@ -2188,6 +2210,9 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
       break;
     case PROP_INVOKE_DYNAMIC:
       g_value_set_boolean (value, prop->invoke_dynamic);
+      break;
+    case PROP_INVOKE_ASYNC:
+      g_value_set_boolean (value, priv->prop.invoke_async);
       break;
     case PROP_SUSPEND:
       g_value_set_uint (value, prop->suspend);
