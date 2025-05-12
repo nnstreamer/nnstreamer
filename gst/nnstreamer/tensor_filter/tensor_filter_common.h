@@ -300,5 +300,27 @@ gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw, c
 extern void
 gst_tensor_filter_destroy_notify_util (GstTensorFilterPrivate *priv, void *data);
 
+/**
+ * @brief Enables tensor_filter to use asynchronous invoke.
+ *        Sets callback and the handle for asynchronous operations.
+ *
+ * This function is used when the sub-plugin receives an input and generates multiple outputs asynchronously.
+ *
+ * @param[in] callback The callback function to be invoked during async operations.
+ * @param[in] prop GstTensorFilterProperties object.
+ * @param[in] handle The handle associated with async operations.
+ */
+extern void
+gst_tensor_filter_enable_invoke_async (NNSFilterInvokeAsyncCallback callback, GstTensorFilterProperties * prop, void *handle);
+
+/**
+ * @brief Disable the asynchronous invoke for tensor_filter.
+ *        Resets callback and handle to disable asynchronous operations.
+ *
+ * @param[in] prop GstTensorFilterProperties object.
+ */
+extern void
+gst_tensor_filter_disable_invoke_async (GstTensorFilterProperties * prop);
+
 G_END_DECLS
 #endif /* __G_TENSOR_FILTER_COMMON_H__ */

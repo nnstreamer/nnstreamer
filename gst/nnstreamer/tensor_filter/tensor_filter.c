@@ -983,38 +983,39 @@ _gst_tensor_filter_transform_update_outbuf (GstBaseTransform * trans,
   GstTensorInfo *_info;
   gsize hsize;
 
-  /* If output combination is defined, append input tensors first */
-  if (priv->combi.out_combi_i_defined) {
-    for (list = priv->combi.out_combi_i; list != NULL; list = list->next) {
-      GstTensorInfo combi_info;
-      i = GPOINTER_TO_UINT (list->data);
+  if (in_trans_data) {
+    /* If output combination is defined, append input tensors first */
+    if (priv->combi.out_combi_i_defined) {
+      for (list = priv->combi.out_combi_i; list != NULL; list = list->next) {
+        GstTensorInfo combi_info;
+        i = GPOINTER_TO_UINT (list->data);
 
-      gst_tensor_info_init (&combi_info);
-      _info = gst_tensors_info_get_nth_info (&priv->in_config.info, i);
+        gst_tensor_info_init (&combi_info);
+        _info = gst_tensors_info_get_nth_info (&priv->in_config.info, i);
 
-      if (!in_trans_data->is_flexible && out_trans_data->is_flexible) {
-        /* append header */
-        gst_tensor_info_convert_to_meta (_info, &in_trans_data->meta[i]);
-        mem =
-            gst_tensor_meta_info_append_header (&in_trans_data->meta[i],
-            in_trans_data->mem[i]);
-      } else if (in_trans_data->is_flexible && !out_trans_data->is_flexible) {
-        /* remove header */
-        hsize = gst_tensor_meta_info_get_header_size (&in_trans_data->meta[i]);
-        mem = gst_memory_share (in_trans_data->mem[i], hsize, -1);
-        gst_tensor_meta_info_convert (&in_trans_data->meta[i], &combi_info);
-        _info = &combi_info;
-      } else {
-        mem = gst_memory_ref (in_trans_data->mem[i]);
+        if (!in_trans_data->is_flexible && out_trans_data->is_flexible) {
+          /* append header */
+          gst_tensor_info_convert_to_meta (_info, &in_trans_data->meta[i]);
+          mem =
+              gst_tensor_meta_info_append_header (&in_trans_data->meta[i],
+              in_trans_data->mem[i]);
+        } else if (in_trans_data->is_flexible && !out_trans_data->is_flexible) {
+          /* remove header */
+          hsize = gst_tensor_meta_info_get_header_size (&in_trans_data->meta[i]);
+          mem = gst_memory_share (in_trans_data->mem[i], hsize, -1);
+          gst_tensor_meta_info_convert (&in_trans_data->meta[i], &combi_info);
+          _info = &combi_info;
+        } else {
+          mem = gst_memory_ref (in_trans_data->mem[i]);
+        }
+        gst_tensor_buffer_append_memory (outbuf, mem, _info);
+        gst_tensor_info_free (&combi_info);
       }
-      gst_tensor_buffer_append_memory (outbuf, mem, _info);
-      gst_tensor_info_free (&combi_info);
     }
-  }
-
-  for (i = 0; i < in_trans_data->num_tensors; i++) {
-    if (in_trans_data->mem[i]) {
-      gst_memory_unref (in_trans_data->mem[i]);
+    for (i = 0; i < in_trans_data->num_tensors; i++) {
+      if (in_trans_data->mem[i]) {
+        gst_memory_unref (in_trans_data->mem[i]);
+      }
     }
   }
 
@@ -1086,10 +1087,80 @@ gst_tensor_filter_watchdog_trigger (gpointer ptr)
 {
   GstTensorFilterPrivate *priv = (GstTensorFilterPrivate *) ptr;
 
-  ml_logd  ("Suspend watchdog triggered. Unload the NN framework.");
+  ml_logd ("Suspend watchdog triggered. Unload the NN framework.");
   gst_tensor_filter_common_unload_fw (priv);
 
   return FALSE;
+}
+
+/**
+ * @brief Callback function invoked for asynchronous output of sub-plugins.
+ *
+ * This callback function is registered with the gst_tensor_filter_enable_invoke_async()
+ * and is called when nnstreamer_filter_dispatch_invoke_async() is called
+ * when output is produced from the sub-plugin.
+ */
+static void
+nnstreamer_filter_async_output_callback (void *async_handle,
+    GstTensorMemory * output)
+{
+  guint i;
+  GstTensorFilter *self;
+  GstBaseTransform *trans;
+  GstTensorFilterPrivate *priv = NULL;
+  FilterTransformData *out_trans_data = NULL;
+  GstTensorFilterProperties *prop = NULL;
+  GstBuffer *outbuf = NULL;
+
+  g_return_if_fail (output != NULL);
+  g_return_if_fail (async_handle != NULL);
+
+  outbuf = gst_buffer_new ();
+  if (!outbuf) {
+    ml_loge ("Failed to allocate GstBuffer.");
+    goto error;
+  }
+
+  self = GST_TENSOR_FILTER_CAST (async_handle);
+  trans = GST_BASE_TRANSFORM_CAST (self);
+  priv = &self->priv;
+  prop = &priv->prop;
+
+  out_trans_data = _gst_tensor_filter_transform_get_output_data (trans);
+  if (!out_trans_data) {
+    ml_loge ("Failed to get output transform data.");
+    goto error;
+  }
+
+  for (i = 0; i < prop->output_meta.num_tensors; i++) {
+    if (!output[i].data) {
+      ml_loge ("Invalid tensor memory at index %d", i);
+      goto error;
+    }
+    out_trans_data->tensors[i].data = output[i].data;
+    out_trans_data->tensors[i].size = output[i].size;
+  }
+
+  _gst_tensor_filter_transform_update_outbuf (trans, NULL, out_trans_data,
+      outbuf);
+  g_free (out_trans_data);
+  out_trans_data = NULL;
+
+  gst_pad_push (trans->srcpad, outbuf);
+
+  return;
+
+error:
+  for (i = 0; i < prop->output_meta.num_tensors; i++)
+    g_free (output[i].data);
+
+  if (outbuf)
+    gst_buffer_unref (outbuf);
+
+  if (out_trans_data) {
+    g_free (out_trans_data);
+    out_trans_data = NULL;
+  }
 }
 
 /**
@@ -1806,6 +1877,9 @@ gst_tensor_filter_start (GstBaseTransform * trans)
     GST_OBJECT_UNLOCK (self);
   }
 
+  gst_tensor_filter_enable_invoke_async
+      (nnstreamer_filter_async_output_callback, &priv->prop, self);
+
   return priv->prop.fw_opened;
 }
 
@@ -1828,6 +1902,8 @@ gst_tensor_filter_stop (GstBaseTransform * trans)
     priv->watchdog_h = NULL;
     GST_OBJECT_UNLOCK (self);
   }
+
+  gst_tensor_filter_disable_invoke_async (&priv->prop);
   gst_tensor_filter_common_close_fw (priv);
 
   return TRUE;

@@ -104,6 +104,15 @@ typedef enum
 typedef tensor_layout tensors_layout[NNS_TENSOR_SIZE_LIMIT];
 
 /**
+ * @brief Type definition for an asynchronous callback function signature.
+ * - `async_handle` data pointer for the callback.
+ * - `output` contains the result of the asynchronous operation in the form of a
+ *   GstTensorMemory structure
+ */
+typedef void (*NNSFilterInvokeAsyncCallback)(void *async_handle, GstTensorMemory *output);
+
+
+/**
  * @brief GstTensorFilter's properties for NN framework (internal data structure)
  *
  * Because custom filters of tensor_filter may need to access internal data
@@ -135,8 +144,10 @@ typedef struct _GstTensorFilterProperties
   int latency; /**< The average latency over the recent 10 inferences in microseconds */
   int throughput; /**< The average throughput in the number of outputs per second */
   int invoke_dynamic; /**< True for supporting invoke with flexible output. */
-
   uint32_t suspend; /**< Timeout (ms) for suspend. (Unload the framework) */
+
+  NNSFilterInvokeAsyncCallback invoke_async_callback;
+  void *async_handle; /**< handle of Framework */
 } GstTensorFilterProperties;
 
 /**
@@ -590,6 +601,23 @@ nnstreamer_filter_shared_model_remove (void *instance, const char *key,
 extern void
 nnstreamer_filter_shared_model_replace (void *instance, const char *key,
     void *new_interpreter, void (*replace_callback) (void *, void *), void (*free_callback) (void*));
+
+/**
+ * @brief Dispatches the asynchronously generated output to the registered callback.
+ *
+ * This function is used by the sub-plugin to dispatch the output that has been generated asynchronously.
+ * It invokes the callback function registered with `gst_tensor_filter_enable_invoke_async` 
+ * to handle the output data.
+ *
+ * Note:
+ * Before calling this function, you must enable asynchronous invocation by calling `gst_tensor_filter_enable_invoke_async()`.
+ * Failure to do so will result in undefined behavior, as no callback and handle will be registered.
+ *
+ * @param[in] prop GstTensorFilterProperties object.
+ * @param[in] output The GstTensorMemory holding the asynchronously generated output.
+ */
+extern void
+nnstreamer_filter_dispatch_output_async (GstTensorFilterProperties * prop, GstTensorMemory * output);
 
 #ifdef __cplusplus
 }
