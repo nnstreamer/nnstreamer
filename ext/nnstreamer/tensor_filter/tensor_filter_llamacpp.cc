@@ -96,7 +96,7 @@ class TensorFilterLlamaCpp : public tensor_filter_subplugin
   void parseCustomProperties (const GstTensorFilterProperties *prop);
   void generateTokens (GstTensorFilterProperties *prop, std::string &&prompt,
       GstTensorMemory *output);
-  void createOutputTensor (const char *buf, int n, GstTensorMemory *output,
+  void createOutputTensor (const std::string &buf, GstTensorMemory *output,
       GstTensorFilterProperties *prop);
   void outputThreadLoop ();
 };
@@ -250,17 +250,16 @@ TensorFilterLlamaCpp::invoke (const GstTensorMemory *input, GstTensorMemory *out
  * must be freed by the caller of this function to avoid memory leaks.
  */
 void
-TensorFilterLlamaCpp::createOutputTensor (const char *buf, int n,
+TensorFilterLlamaCpp::createOutputTensor (const std::string &buf,
     GstTensorMemory *output, GstTensorFilterProperties *prop)
 {
-  if (buf == nullptr || n <= 0 || output == nullptr || prop == nullptr) {
+  if (buf.empty () || output == nullptr || prop == nullptr) {
     throw std::invalid_argument ("Invalid arguments passed to createOutputTensor");
   }
 
-  std::string s (buf, n);
-  output[0].size = s.length ();
-  output[0].data = strndup (s.c_str (), s.length ());
-
+  output[0].size = buf.length ();
+  output[0].data = strndup (buf.c_str (), buf.length ());
+  g_print ("%s", buf.c_str ());
   if (output[0].data == nullptr) {
     throw std::bad_alloc ();
   }
@@ -285,7 +284,7 @@ TensorFilterLlamaCpp::generateTokens (GstTensorFilterProperties *prop,
   int n_prompt, n_pos, n;
   llama_token new_token_id;
   llama_batch batch;
-  UNUSED (output);
+  std::string output_accumulated;
 
   n_prompt = -llama_tokenize (vocab, prompt.c_str (), prompt.size (), NULL, 0, true, true);
   std::vector<llama_token> prompt_tokens (n_prompt);
@@ -312,10 +311,15 @@ TensorFilterLlamaCpp::generateTokens (GstTensorFilterProperties *prop,
     if (n < 0) {
       throw std::invalid_argument ("Failed to convert token to piece");
     }
-    output = g_new0 (GstTensorMemory, 1);
-    createOutputTensor (buf, n, output, prop);
-    /* nnstreamer frees GstTensorMemory output after use. Do not free it. */
-    nnstreamer_filter_dispatch_output_async (prop, output);
+
+    if (prop->invoke_async) {
+      output = g_new0 (GstTensorMemory, 1);
+      createOutputTensor (std::string (buf, n), output, prop);
+      /* nnstreamer frees GstTensorMemory output after use. Do not free it. */
+      nnstreamer_filter_dispatch_output_async (prop, output);
+    } else {
+      output_accumulated.append (buf, n);
+    }
   }
 
   batch = llama_batch_get_one (prompt_tokens.data (), prompt_tokens.size ());
@@ -345,13 +349,21 @@ TensorFilterLlamaCpp::generateTokens (GstTensorFilterProperties *prop,
         throw std::invalid_argument ("Failed to convert token to piece");
       }
 
-      output = g_new0 (GstTensorMemory, 1);
-      createOutputTensor (buf, n, output, prop);
-      /* nnstreamer frees GstTensorMemory output after use. Do not free it. */
-      nnstreamer_filter_dispatch_output_async (prop, output);
+      if (prop->invoke_async) {
+        output = g_new0 (GstTensorMemory, 1);
+        createOutputTensor (std::string (buf, n), output, prop);
+        /* nnstreamer frees GstTensorMemory output after use. Do not free it. */
+        nnstreamer_filter_dispatch_output_async (prop, output);
+      } else {
+        output_accumulated.append (buf, n);
+      }
 
       batch = llama_batch_get_one (&new_token_id, 1);
     }
+  }
+
+  if (!prop->invoke_async) {
+    createOutputTensor (output_accumulated, output, prop);
   }
 }
 
@@ -401,11 +413,20 @@ TensorFilterLlamaCpp::invoke_dynamic (GstTensorFilterProperties *prop,
   prompt.assign ((char *) input[0].data, input[0].size);
   prompt.erase (prompt.find_last_not_of (" \t\n\r\f\v") + 1);
 
-  {
-    std::lock_guard<std::mutex> lock (queue_mutex);
-    input_queue.push (std::make_tuple (prop, std::move (prompt), output));
+  if (prop->invoke_async) {
+    {
+      std::lock_guard<std::mutex> lock (queue_mutex);
+      input_queue.push (std::make_tuple (prop, std::move (prompt), output));
+    }
+    queue_cv.notify_one (); /* notify waiting thread */
+  } else {
+    try {
+      generateTokens (prop, std::move (prompt), output);
+    } catch (const std::exception &e) {
+      /* thread exception */
+      g_critical ("Exception occurred during token generation: %s", e.what ());
+    }
   }
-  queue_cv.notify_one (); /* notify waiting thread */
 }
 
 /**
