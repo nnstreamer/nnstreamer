@@ -16,13 +16,10 @@ NNSTREAMER_VERSION_MICRO := $(word 3,$(subst ., ,${NNSTREAMER_VERSION}))
 NNSTREAMER_GST_HOME := $(NNSTREAMER_ROOT)/gst/nnstreamer
 NNSTREAMER_EXT_HOME := $(NNSTREAMER_ROOT)/ext/nnstreamer
 
-CMDRESULT1 := $(shell sed "s/@__NNSTREAMER_VERSION_MAJOR__@/${NNSTREAMER_VERSION_MAJOR}/" ${NNSTREAMER_GST_HOME}/include/nnstreamer_version.h.in > ${NNSTREAMER_GST_HOME}/include/nnstreamer_version.h && echo "Processed sed 1")
-CMDRESULT2 := $(shell sed -i "s/@__NNSTREAMER_VERSION_MINOR__@/${NNSTREAMER_VERSION_MINOR}/" ${NNSTREAMER_GST_HOME}/include/nnstreamer_version.h && echo "Processed sed 2")
-CMDRESULT3 := $(shell sed -i "s/@__NNSTREAMER_VERSION_MICRO__@/${NNSTREAMER_VERSION_MICRO}/" ${NNSTREAMER_GST_HOME}/include/nnstreamer_version.h && echo "Processed sed 3")
-
-$(info ${CMDRESULT1})
-$(info ${CMDRESULT2})
-$(info ${CMDRESULT3})
+# generate header for nnstreamer version
+$(shell sed "s/@__NNSTREAMER_VERSION_MAJOR__@/${NNSTREAMER_VERSION_MAJOR}/" ${NNSTREAMER_GST_HOME}/include/nnstreamer_version.h.in > ${LOCAL_PATH}/nnstreamer_version.h)
+$(shell sed -i "s/@__NNSTREAMER_VERSION_MINOR__@/${NNSTREAMER_VERSION_MINOR}/" ${LOCAL_PATH}/nnstreamer_version.h)
+$(shell sed -i "s/@__NNSTREAMER_VERSION_MICRO__@/${NNSTREAMER_VERSION_MICRO}/" ${LOCAL_PATH}/nnstreamer_version.h)
 
 # nnstreamer common headers
 NNSTREAMER_INCLUDES := \
