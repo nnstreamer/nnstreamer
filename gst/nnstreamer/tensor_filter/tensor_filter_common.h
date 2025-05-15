@@ -41,6 +41,9 @@ G_BEGIN_DECLS
 #define DBG (!priv->silent)
 #endif
 
+#define TF_MODELNAME(prop) \
+    ((prop)->model_files ? ((prop)->model_files[0]) : "[No Model File]")
+
 /** Check tensor_filter framework version */
 #define GST_TF_FW_VN(fw, vn) \
     (fw && checkGstTensorFilterFrameworkVersion (fw->version, vn))
@@ -51,17 +54,17 @@ G_BEGIN_DECLS
  * @brief Invoke callbacks of nn framework. Guarantees calling open for the first call.
  */
 #define gst_tensor_filter_v0_call(priv,ret,funcname,...) do { \
-      gst_tensor_filter_common_open_fw (priv); \
-      ret = -1; \
-      if ((priv)->prop.fw_opened && (priv)->fw && (priv)->fw->funcname) { \
+      if (!gst_tensor_filter_common_open_fw (priv) || !(priv)->fw->funcname) { \
+        ret = -1; \
+      } else { \
         ret = (priv)->fw->funcname (&(priv)->prop, &(priv)->privateData, __VA_ARGS__); \
       } \
     } while (0)
 
 #define gst_tensor_filter_v1_call(priv,ret,funcname,...) do { \
-      gst_tensor_filter_common_open_fw (priv); \
-      ret = -1; \
-      if ((priv)->prop.fw_opened && (priv)->fw && (priv)->fw->funcname) { \
+      if (!gst_tensor_filter_common_open_fw (priv) || !(priv)->fw->funcname) { \
+        ret = -1; \
+      } else { \
         ret = (priv)->fw->funcname ((priv)->fw, &(priv)->prop, (priv)->privateData, __VA_ARGS__); \
       } \
     } while (0)
@@ -186,7 +189,8 @@ gst_tensor_filter_allocate_in_invoke (GstTensorFilterPrivate * priv);
  * @brief Installs all the properties for tensor_filter
  * @param[in] gobject_class Glib object class whose properties will be set
  */
-extern void gst_tensor_filter_install_properties (GObjectClass * gobject_class);
+extern void
+gst_tensor_filter_install_properties (GObjectClass * gobject_class);
 
 /**
  * @brief Initialize the properties for tensor-filter.
@@ -255,17 +259,20 @@ gst_tensor_filter_load_tensor_info (GstTensorFilterPrivate * priv);
 /**
  * @brief Open NN framework.
  */
-extern void gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv);
+extern gboolean
+gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv);
 
 /**
  * @brief Unload NN framework.
  */
-extern void gst_tensor_filter_common_unload_fw (GstTensorFilterPrivate * priv);
+extern void
+gst_tensor_filter_common_unload_fw (GstTensorFilterPrivate * priv);
 
 /**
  * @brief Close NN framework.
  */
-extern void gst_tensor_filter_common_close_fw (GstTensorFilterPrivate * priv);
+extern void
+gst_tensor_filter_common_close_fw (GstTensorFilterPrivate * priv);
 
 /**
  * @brief Get neural network framework name from given model file. This does not guarantee the framework is available on the target device.

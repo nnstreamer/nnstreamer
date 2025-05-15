@@ -34,17 +34,9 @@
 
 #define silent_debug_info(i,msg) do { \
   if (DBG) { \
-    guint info_idx; \
-    gchar *dim_str; \
-    ml_logd (msg " total %d", (i)->num_tensors); \
-    for (info_idx = 0; info_idx < (i)->num_tensors; info_idx++) { \
-      GstTensorInfo *nth = gst_tensors_info_get_nth_info (i, info_idx); \
-      if (nth) { \
-        dim_str = gst_tensor_get_dimension_string (nth->dimension); \
-        ml_logd ("[%d] type=%d dim=%s", info_idx, nth->type, dim_str); \
-        g_free (dim_str); \
-      } \
-    } \
+    gchar *info_str = gst_tensors_info_to_string (i); \
+    ml_logd (msg ": %s", info_str); \
+    g_free (info_str); \
   } \
 } while (0)
 
@@ -475,8 +467,7 @@ static inline gboolean
 verify_model_path (const GstTensorFilterPrivate * priv)
 {
   const GstTensorFilterProperties *prop;
-  gboolean ret = TRUE;
-  int verify_model_path = 0, i;
+  int run_without_model, verify_model_path, i;
 
   if (priv == NULL)
     return FALSE;
@@ -486,23 +477,35 @@ verify_model_path (const GstTensorFilterPrivate * priv)
   if (g_strcmp0 (prop->fwname, "custom-easy") == 0)
     return TRUE;
 
+  run_without_model = verify_model_path = 0;
+
   if (GST_TF_FW_V0 (priv->fw)) {
+    run_without_model = priv->fw->run_without_model;
     verify_model_path = priv->fw->verify_model_path;
   } else if (GST_TF_FW_V1 (priv->fw)) {
+    run_without_model = priv->info.run_without_model;
     verify_model_path = priv->info.verify_model_path;
+  } else {
+    /* Invalid version, internal error? */
+    return FALSE;
   }
 
-  if ((prop->model_files != NULL) && (verify_model_path == TRUE)) {
+  if (!run_without_model && verify_model_path) {
+    /* At least one model should be configured before opening fw. */
+    if (prop->num_models <= 0) {
+      ml_loge ("Set proper model file for filter %s.", prop->fwname);
+      return FALSE;
+    }
+
     for (i = 0; i < prop->num_models; i++) {
       if (!g_file_test (prop->model_files[i], G_FILE_TEST_IS_REGULAR)) {
-        ml_loge ("Cannot find the model file [%d]: %s\n",
-            i, prop->model_files[i]);
-        ret = FALSE;
+        ml_loge ("Cannot find the model file[%d] %s", i, prop->model_files[i]);
+        return FALSE;
       }
     }
   }
 
-  return ret;
+  return TRUE;
 }
 
 /**
@@ -2411,55 +2414,47 @@ done:
 /**
  * @brief Open NN framework.
  */
-void
+gboolean
 gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv)
 {
-  int run_without_model = 0;
+  int ret;
 
-  if (!priv->prop.fw_opened && priv->fw) {
+  g_return_val_if_fail (priv->fw != NULL, FALSE);
+
+  if (!priv->prop.fw_opened) {
     gint64 start_time, end_time;
 
     start_time = g_get_monotonic_time ();
     if (priv->fw->open) {
-      /* at least one model should be configured before opening fw */
-      if (GST_TF_FW_V0 (priv->fw)) {
-        run_without_model = priv->fw->run_without_model;
-      } else if (GST_TF_FW_V1 (priv->fw)) {
-        run_without_model = priv->info.run_without_model;
-      }
-
-      if (G_UNLIKELY (!run_without_model) &&
-          G_UNLIKELY (!(priv->prop.model_files &&
-                  priv->prop.num_models > 0 && priv->prop.model_files[0]))) {
-        return;
-      }
       /* 0 if successfully loaded. 1 if skipped (already loaded). */
       if (verify_model_path (priv)) {
-        if (priv->fw->open (&priv->prop, &priv->privateData) >= 0)
-          priv->prop.fw_opened = TRUE;
+        ret = priv->fw->open (&priv->prop, &priv->privateData);
+        priv->prop.fw_opened = (ret >= 0);
       }
     } else {
       priv->prop.fw_opened = TRUE;
     }
 
     if (priv->prop.fw_opened) {
-      /* Update the framework info once it has been opened */
-      if (GST_TF_FW_V1 (priv->fw) &&
-          priv->fw->getFrameworkInfo (priv->fw, &priv->prop, priv->privateData,
-              &priv->info) != 0) {
-        priv->fw->close (&priv->prop, &priv->privateData);
-        priv->prop.fw_opened = FALSE;
+      if (GST_TF_FW_V1 (priv->fw)) {
+        /* Update the framework info once it has been opened. */
+        ret = priv->fw->getFrameworkInfo (priv->fw, &priv->prop,
+            priv->privateData, &priv->info);
+        if (ret != 0) {
+          gst_tensor_filter_common_unload_fw (priv);
+        }
       }
     }
 
     end_time = g_get_monotonic_time ();
-    if (priv->prop.fw_opened == TRUE &&
-        priv->prop.fwname && priv->prop.model_files) {
+    if (priv->prop.fw_opened) {
       ml_logi ("Filter %s with model file %s is opened. It took %"
-          G_GINT64_FORMAT " us", priv->prop.fwname, priv->prop.model_files[0],
+          G_GINT64_FORMAT " us", priv->prop.fwname, TF_MODELNAME (&priv->prop),
           end_time - start_time);
     }
   }
+
+  return priv->prop.fw_opened;
 }
 
 /**
@@ -2806,7 +2801,7 @@ parse_accl_hw_fill (parse_accl_args accl_args)
 static GType
 accl_hw_get_type (void)
 {
-  static gsize g_accl_hw_type_id_store = 0;
+  static GType g_accl_hw_type_id_store = 0;
 
   if (g_once_init_enter (&g_accl_hw_type_id_store)) {
     static const GEnumValue values[] = {
