@@ -126,7 +126,7 @@ onnxruntime_subplugin::onnxruntime_subplugin ()
       has_openvino = true;
     }
   }
-  nns_logw("onnxruntime provider: cuda=%d rocm=%d, qnn=%d, openvino=%d",
+  nns_logi("onnxruntime provider: cuda=%d rocm=%d, qnn=%d, openvino=%d",
       has_cuda, has_rocm, has_qnn, has_openvino);
 }
 
@@ -301,9 +301,9 @@ onnxruntime_subplugin::configure_instance (const GstTensorFilterProperties *prop
     }
     cleanup ();
   }
-  nns_logw("num_hw: %d acc string: %s", prop->num_hw, prop->accl_str);
+  nns_logi("num_hw: %d acc string: %s", prop->num_hw, prop->accl_str);
   for (int j = 0; j < prop->num_hw; j++) {
-    nns_logw("prop->hw_list[i]: %d", prop->hw_list[j]);
+    nns_logi("prop->hw_list[i]: %d", prop->hw_list[j]);
   }
   setAccelerator(prop->accl_str);
   if (!g_file_test (prop->model_files[0], G_FILE_TEST_IS_REGULAR)) {
@@ -536,7 +536,7 @@ onnxruntime_subplugin::init_filter_onnxruntime ()
   Ort::InitApi();
   std::vector<std::string> availableProviders = Ort::GetAvailableProviders();
   for (auto f : availableProviders) {
-    nns_logw("onnxruntime filter found provider: %s", f.c_str());
+    nns_logi("onnxruntime filter found provider: %s", f.c_str());
   }
   registeredRepresentation
       = tensor_filter_subplugin::register_subplugin<onnxruntime_subplugin> ();

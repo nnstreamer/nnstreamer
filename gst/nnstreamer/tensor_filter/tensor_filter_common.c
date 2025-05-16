@@ -1139,7 +1139,7 @@ gst_tensor_filter_parse_accelerator (GstTensorFilterPrivate * priv,
   gst_tensor_filter_framework_info_init (&info);
   status = priv->fw->getFrameworkInfo (priv->fw, prop, NULL, &info);
   if (status != 0 || info.hw_list == NULL || info.num_hw <= 0) {
-    ml_logw ("Unable to fetch accelerators supported by the framework.");
+    ml_logi ("Unable to fetch accelerators supported by the framework.");
     return;
   }
 

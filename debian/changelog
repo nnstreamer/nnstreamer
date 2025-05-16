@@ -1,8 +1,14 @@
-nnstreamer (2.4.2.0-1.0.1) UNRELEASED; urgency=medium
+nnstreamer (2.4.2.0-1.0.2) UNRELEASED; urgency=medium
+
+  * reduce warnings to run clean unit tests upstream  
+
+ -- Torsten Schulz <torsten@eyepop.ai>  Thu, 15 May 2025 20:12:53 -0700
+
+nnstreamer (2.4.2.0-1.0.1) jammy; urgency=medium
 
   * Include all headers
 
- -- Torsten Schulz <torsten@eyepop.ai>  Mon, 03 Mar 2025 15:40:45 -0800
+ -- Torsten Schulz <torsten@eyepop.ai>  Thu, 15 May 2025 20:12:45 -0700
 
 nnstreamer (2.4.2.0-1.0.0) jammy; urgency=medium
 
