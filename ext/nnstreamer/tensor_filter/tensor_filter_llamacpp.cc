@@ -356,6 +356,10 @@ TensorFilterLlamaCpp::invoke_dynamic (GstTensorFilterProperties *prop,
         "llamacpp must invoke output asynchronously. Set `invoke_async=true`");
   }
 
+  if (prop->invoke_async_callback == nullptr) {
+    throw std::invalid_argument ("invoke_async_callback is null");
+  }
+
   if (output_thread.joinable ()) {
     output_thread.join ();
   }
