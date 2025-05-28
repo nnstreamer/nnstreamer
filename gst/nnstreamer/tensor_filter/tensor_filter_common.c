@@ -946,6 +946,10 @@ gst_tensor_filter_install_properties (GObjectClass * gobject_class)
           "input and output of the tensor filter. "
           "With this option, the output caps is always in the format of flexible tensors.",
           FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_INVOKE_ASYNC,
+      g_param_spec_boolean ("invoke-async", "Enable asynchronous invoke",
+          "Use this when the sub-plugin receives an input and generates multiple outputs asynchronously.",
+          FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_CONFIG,
       g_param_spec_string ("config-file", "Configuration-file",
           "Path to configuration file which contains plugins properties", "",
@@ -980,6 +984,7 @@ gst_tensor_filter_common_init_property (GstTensorFilterPrivate * priv)
   /* init internal properties */
   priv->silent = TRUE;
   priv->prop.invoke_dynamic = FALSE;
+  priv->prop.invoke_async = FALSE;
   gst_tensors_config_init (&priv->in_config);
   gst_tensors_config_init (&priv->out_config);
 }
@@ -1871,11 +1876,22 @@ _gtfc_setprop_PROP_INVOKE_DYNAMIC (GstTensorFilterPrivate * priv,
 }
 
 /**
+ * @brief Handle "PROP_INVOKE_ASYNC" for set-property
+ */
+static gint
+_gtfc_setprop_PROP_INVOKE_ASYNC (GstTensorFilterPrivate * priv,
+    const GValue * value)
+{
+  priv->prop.invoke_async = g_value_get_boolean (value);
+
+  return 0;
+}
+
+/**
  * @brief Handle "PROP_SUSPEND" for set-property
  */
 static gint
-_gtfc_setprop_SUSPEND (GstTensorFilterPrivate * priv,
-    const GValue * value)
+_gtfc_setprop_SUSPEND (GstTensorFilterPrivate * priv, const GValue * value)
 {
   priv->prop.suspend = g_value_get_uint (value);
 
@@ -1967,6 +1983,9 @@ gst_tensor_filter_common_set_property (GstTensorFilterPrivate * priv,
       break;
     case PROP_INVOKE_DYNAMIC:
       status = _gtfc_setprop_PROP_INVOKE_DYNAMIC (priv, value);
+      break;
+    case PROP_INVOKE_ASYNC:
+      status = _gtfc_setprop_PROP_INVOKE_ASYNC (priv, value);
       break;
     case PROP_SUSPEND:
       status = _gtfc_setprop_SUSPEND (priv, value);
@@ -2178,6 +2197,9 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
       break;
     case PROP_INVOKE_DYNAMIC:
       g_value_set_boolean (value, prop->invoke_dynamic);
+      break;
+    case PROP_INVOKE_ASYNC:
+      g_value_set_boolean (value, priv->prop.invoke_async);
       break;
     case PROP_SUSPEND:
       g_value_set_uint (value, prop->suspend);
@@ -3077,4 +3099,68 @@ nnstreamer_filter_shared_model_replace (void *instance, const char *key,
 
 done:
   G_UNLOCK (shared_model_table);
+}
+
+/**
+ * @brief Enables nnstreamer_filter to use asynchronous invoke.
+ *        Sets the callback and the handle for asynchronous operations.
+ *
+ * This function is used when the sub-plugin receives an input and generates multiple outputs asynchronously.
+ *
+ * @param[in] callback The callback function to be invoked during async operations.
+ * @param[in] prop GstTensorFilterProperties object.
+ * @param[in] handle The handle associated with async operations.
+ */
+void
+nnstreamer_filter_enable_invoke_async (NNSFilterInvokeAsyncCallback callback,
+    GstTensorFilterProperties * prop, void *handle)
+{
+  g_return_if_fail (callback != NULL);
+  g_return_if_fail (prop != NULL);
+  g_return_if_fail (handle != NULL);
+
+  prop->async_handle = handle;
+  prop->invoke_async_callback = callback;
+}
+
+/**
+ * @brief Disable the asynchronous invoke for nnstreamer_filter.
+ *        Resets the callback and handle to disable asynchronous operations.
+ *
+ * @param[in] prop GstTensorFilterProperties object.
+ */
+void
+nnstreamer_filter_disable_invoke_async (GstTensorFilterProperties * prop)
+{
+  g_return_if_fail (prop != NULL);
+  g_return_if_fail (prop->async_handle != NULL);
+  g_return_if_fail (prop->invoke_async_callback != NULL);
+
+  prop->async_handle = NULL;
+  prop->invoke_async_callback = NULL;
+}
+
+/**
+ * @brief Dispatches the asynchronously generated output to the registered callback.
+ *
+ * This function is used by the sub-plugin to dispatches the output that has been generated asynchronously.
+ * It invokes the callback function registered with `nnstreamer_filter_enable_invoke_async`
+ * to handle the output data.
+ *
+ * @param[in] prop GstTensorFilterProperties object.
+ * @param[in] output The GstTensorMemory holding the asynchronously generated output.
+ */
+void
+nnstreamer_filter_dispatch_output_async (GstTensorFilterProperties * prop,
+    GstTensorMemory * output)
+{
+  g_return_if_fail (prop != NULL);
+  g_return_if_fail (output != NULL);
+
+  if (!prop->invoke_async_callback) {
+    ml_loge ("Callback function is NULL. Unable to dispatch output");
+    return;
+  }
+
+  prop->invoke_async_callback (prop->async_handle, output);
 }
