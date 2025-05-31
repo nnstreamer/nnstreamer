@@ -1452,7 +1452,7 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
       }
     }
 
-    if (config->info.format == _NNS_TENSOR_FORMAT_STATIC) {
+    if (config->info.format == _NNS_TENSOR_FORMAT_STATIC || config->info.format == _NNS_TENSOR_FORMAT_FLEXIBLE) {
       gst_structure_get_int (structure, "num_tensors",
           (gint *) (&config->info.num_tensors));
 

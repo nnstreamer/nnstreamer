@@ -1419,14 +1419,14 @@ gst_tensor_meta_info_validate (GstTensorMetaInfo * meta)
     return FALSE;
 
   if (meta->type >= _NNS_END) {
-    nns_logd ("Failed to validate tensor meta info. type: %s. ",
+    nns_loge ("Failed to validate tensor meta info. type: %s. ",
         _STR_NULL (gst_tensor_get_type_string (meta->type)));
     return FALSE;
   }
 
   if (!gst_tensor_dimension_is_valid (meta->dimension)) {
     gchar *dim_str = gst_tensor_get_dimension_string (meta->dimension);
-    nns_logd ("Failed to validate tensor meta info. Given dimension: %s",
+    nns_loge ("Failed to validate tensor meta info. Given dimension: %s",
         dim_str);
     g_free (dim_str);
     return FALSE;

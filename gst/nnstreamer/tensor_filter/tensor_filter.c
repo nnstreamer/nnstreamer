@@ -72,6 +72,11 @@
 
 #include "tensor_filter.h"
 
+#ifdef G_LOG_DOMAIN
+#undef G_LOG_DOMAIN
+#endif
+#define G_LOG_DOMAIN "nnstreamer-filter"
+
 /** @todo rename & move this to better location */
 #define EVENT_NAME_UPDATE_MODEL "evt_update_model"
 
@@ -1147,6 +1152,7 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
       priv->latency_reporting);
   if (need_profiling)
     prepare_statistics (priv);
+
 
   GST_TF_FW_INVOKE_COMPAT (priv, invoke_res, invoke_tensors,
       out_trans_data->tensors);
