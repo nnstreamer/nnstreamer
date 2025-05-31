@@ -1,8 +1,8 @@
-nnstreamer (2.4.2.0-1.1.0) UNRELEASED; urgency=medium
+nnstreamer (2.4.2.0-1.1.1) UNRELEASED; urgency=medium
 
-  * Dynamic in- and output tensors for onnxruntime
+  * Dynamic in- and output tensors for onnxruntime 
 
- -- Torsten Schulz <torsten@eyepop.ai>  Sat, 31 May 2025 08:59:04 -0700
+ -- Torsten Schulz <torsten@eyepop.ai>  Sat, 31 May 2025 10:51:22 -0700
 
 nnstreamer (2.4.2.0-1.0.2) jammy; urgency=medium
 

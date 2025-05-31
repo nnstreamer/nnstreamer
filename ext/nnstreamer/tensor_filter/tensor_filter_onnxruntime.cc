@@ -229,7 +229,6 @@ onnxruntime_subplugin::convertTensorDim (std::vector<int64_t> &shapes, tensor_di
     } else {
       dim[i] = shapes[rank - i - 1];
     }
-//    shapes[rank - i - 1] = (shapes[rank - i - 1] > 0) ? shapes[rank - i - 1] : 1;
   }
 
   /* fill remaining entries with 0 */
@@ -526,11 +525,12 @@ onnxruntime_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
     for (i = 0; i < prop->input_meta.num_tensors; i++) {
       auto element_data_type = ONNX_TENSOR_ELEMENT_DATA_TYPE_UNDEFINED;
       std::vector<int64_t> shape;
-      for (auto j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
+      /* revert order between onnxruntime <> nnstreamer dimensions */
+      for (auto j = NNS_TENSOR_RANK_LIMIT-1; j >= 0 ; j--) {
         if (prop->input_meta.info[i].dimension[j] > 0) {
-          shape.push_back (prop->input_meta.info[i].dimension[j]);
+          shape.push_back(prop->input_meta.info[i].dimension[j]);
         } else {
-          break;
+          continue;
         }
       }
       convertElementDataType (
@@ -585,10 +585,12 @@ onnxruntime_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
         if (convertTensorType (outputInfo.GetElementType(), prop->output_meta.info[i].type) != 0) {
           throw std::runtime_error ("Failed to convert ONNX data type.");
         }
-        for (unsigned int shapeI = 0; shapeI < outputInfo.GetShape().size(); shapeI++) {
-          std::cout << outputInfo.GetShape()[shapeI] << ", ";
-          prop->output_meta.info[i].dimension[shapeI] = outputInfo.GetShape()[shapeI];
-          scalar_count *= prop->output_meta.info[i].dimension[shapeI];
+        /* revert order between onnxruntime <> nnstreamer dimensions */
+        auto rank = outputInfo.GetShape().size();
+        for (unsigned int shapeI = rank; shapeI > 0 ; shapeI--) {
+          auto dim = outputInfo.GetShape()[shapeI - 1];
+          prop->output_meta.info[i].dimension[rank - shapeI] = dim;
+          scalar_count *= dim;
         }
         output[i].size = scalar_count * gst_tensor_get_element_size(prop->output_meta.info[i].type);
         output[i].data = g_memdup2(outputTensors[i].GetTensorRawData(), output[i].size);
