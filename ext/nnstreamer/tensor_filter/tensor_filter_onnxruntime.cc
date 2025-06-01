@@ -19,6 +19,8 @@
  */
 
 #include <iostream>
+#include <set>
+#include <string>
 
 #include <glib.h>
 #include <nnstreamer_cppplugin_api_filter.hh>
@@ -416,7 +418,7 @@ onnxruntime_subplugin::configure_instance (const GstTensorFilterProperties *prop
   Ort::AllocatorWithDefaultOptions allocator;
 
   /* Initialize input info */
-  inputNode.count = num_inputs;
+  inputNode.count = 0;
 
   for (i = 0; i < num_inputs; i++) {
     /* Get input name */
@@ -429,14 +431,29 @@ onnxruntime_subplugin::configure_instance (const GstTensorFilterProperties *prop
     auto tensor_info = type_info.GetTensorTypeAndShapeInfo ();
     inputNode.types.push_back (tensor_info.GetElementType ());
     inputNode.shapes.push_back (tensor_info.GetShape ());
+
+    inputNode.count++;
   }
 
   /* Initialize output info */
-  outputNode.count = num_outputs;
-
+  outputNode.count = 0;
+  auto output_names = std::set<std::string>();
+  for (i = 0; i < prop->output_meta.num_tensors; i++) {
+    if (prop->output_meta.info[i].name) {
+      output_names.insert (prop->output_meta.info[i].name);
+    }
+  }
   for (i = 0; i < num_outputs; i++) {
     /* Get output name */
     auto output_name = session.GetOutputNameAllocated (i, allocator);
+    if (!output_names.empty() && output_names.count(output_name.get()) == 0) {
+      g_info("skipping model output tensor %s, not pre-configured", output_name.get());
+      continue;
+    }
+    if (outputNode.count == NNS_TENSOR_SIZE_LIMIT) {
+      g_info("skipping model output tensor %s, max reached", output_name.get());
+      continue;
+    }
     outputNode.names_allocated_strings.push_back (std::move (output_name));
     outputNode.names.push_back (outputNode.names_allocated_strings.back ().get ());
 
@@ -445,6 +462,8 @@ onnxruntime_subplugin::configure_instance (const GstTensorFilterProperties *prop
     auto tensor_info = type_info.GetTensorTypeAndShapeInfo ();
     outputNode.types.push_back (tensor_info.GetElementType ());
     outputNode.shapes.push_back (tensor_info.GetShape ());
+
+    outputNode.count++;
   }
 
   memInfo = Ort::MemoryInfo::CreateCpu (
@@ -516,9 +535,15 @@ onnxruntime_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
   if (prop == nullptr || prop->input_meta.format == _NNS_TENSOR_FORMAT_STATIC) {
     /* Set input to tensor */
     for (i = 0; i < inputNode.count; ++i) {
-      inputNode.tensors.emplace_back (Ort::Value::CreateTensor (memInfo,
-          input[i].data, input[i].size, inputNode.shapes[i].data (),
-          inputNode.shapes[i].size (), inputNode.types[i]));
+      auto shape = inputNode.shapes[i].data ();
+      auto shape_size = inputNode.shapes[i].size ();
+      inputNode.tensors.emplace_back (Ort::Value::CreateTensor (
+          memInfo,
+          input[i].data,
+          input[i].size,
+          shape,
+          shape_size,
+          inputNode.types[i]));
     }
   } else if (prop->input_meta.format == _NNS_TENSOR_FORMAT_FLEXIBLE) {
     inputNode.count = prop->input_meta.num_tensors;
@@ -578,9 +603,8 @@ onnxruntime_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
       prop->output_meta.num_tensors = outputTensors.size();
       prop->output_meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
 
-      size_t scalar_count = 1;
-
       for (i = 0; i < outputTensors.size(); i++) {
+        size_t scalar_count = 1;
         auto outputInfo = outputTensors[i].GetTensorTypeAndShapeInfo();
         if (convertTensorType (outputInfo.GetElementType(), prop->output_meta.info[i].type) != 0) {
           throw std::runtime_error ("Failed to convert ONNX data type.");
