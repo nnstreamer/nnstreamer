@@ -190,8 +190,8 @@ onnxruntime_subplugin::convertTensorInfo (onnx_node_info_s &node, GstTensorsInfo
   GstTensorInfo *_info;
   gst_tensors_info_init (std::addressof (info));
   info.num_tensors = (unsigned int) node.count;
-  bool is_dynamic = false;
   for (guint i = 0; i < info.num_tensors; ++i) {
+    bool is_dynamic = false;
     _info = gst_tensors_info_get_nth_info (std::addressof (info), i);
 
     if (convertTensorType (node.types[i], _info->type) != 0)
@@ -201,9 +201,9 @@ onnxruntime_subplugin::convertTensorInfo (onnx_node_info_s &node, GstTensorsInfo
       throw std::runtime_error ("Failed to convert ONNX shape.");
 
     _info->name = g_strdup (node.names[i]);
-  }
-  if (is_dynamic) {
-    info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+    if (is_dynamic) {
+      info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+    }
   }
 }
 
