@@ -110,10 +110,10 @@ For more details, please access the following manuals.
   <img src="Documentation/media/PrintNanny.webp" height=180>
 </a>
 <a href="https://github.com/NXPmicro/nxp-nnstreamer-examples">
-  <img src="https://github.com/NXPmicro/nxp-nnstreamer-examples/raw/main/segmentation/segmentation_demo.webp" height=180>
+  <img src="https://github.com/NXPmicro/nxp-nnstreamer-examples/raw/main/tasks/semantic-segmentation/segmentation_demo.webp" height=180>
 </a>
 <a href="https://github.com/NXPmicro/nxp-nnstreamer-examples">
-  <img src="https://github.com/NXPmicro/nxp-nnstreamer-examples/raw/main/pose/pose_demo.webp" height=180>
+  <img src="https://github.com/NXPmicro/nxp-nnstreamer-examples/raw/main/tasks/pose-estimation/pose_demo.webp" height=180>
 </a>
 
 
