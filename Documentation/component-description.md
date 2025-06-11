@@ -100,7 +100,7 @@ In this page, we focus on the status of each elements. For requirements and desi
 - [tensor\_sink](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_sink.md) (stable)
   - ```appsink```-like element, which is specialized for ```other/tensors```. You may use appsink with capsfilter instead.
 - [tensor\_merge](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_merge.c) (stable)
-  - This combines multiple single-tensored (```other/tensors,num_tensors=1```) streams into a single-tensored stream by merging dimensions of incoming tensor streams. For example, it may merge two ```dimensions=640:480``` streams into ```dimensons=1280:480```, ```dimensions=640:960```, or ```dimensions=640:480:2```, according to a given configuration.
+  - This combines multiple single-tensored (```other/tensors,num_tensors=1```) streams into a single-tensored stream by merging dimensions of incoming tensor streams. For example, it may merge two ```dimensions=640:480``` streams into ```dimensions=1280:480```, ```dimensions=640:960```, or ```dimensions=640:480:2```, according to a given configuration.
   - Users can adjust sync-mode and sync-option to change its behaviors of when to create output tensors and how to choose input tensors.
   - Users can adjust how dimensions are merged (the rank merged, the order of merged streams).
 - [tensor\_split](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_split.c) (stable)
