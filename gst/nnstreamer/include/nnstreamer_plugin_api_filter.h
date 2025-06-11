@@ -104,6 +104,15 @@ typedef enum
 typedef tensor_layout tensors_layout[NNS_TENSOR_SIZE_LIMIT];
 
 /**
+ * @brief Type definition for an asynchronous callback function signature.
+ * - `async_handle` data pointer for the callback.
+ * - `output` contains the result of the asynchronous operation in the form of a
+ *   GstTensorMemory structure
+ */
+typedef void (*NNSFilterInvokeAsyncCallback)(void *async_handle, GstTensorMemory *output);
+
+
+/**
  * @brief GstTensorFilter's properties for NN framework (internal data structure)
  *
  * Because custom filters of tensor_filter may need to access internal data
@@ -135,8 +144,11 @@ typedef struct _GstTensorFilterProperties
   int latency; /**< The average latency over the recent 10 inferences in microseconds */
   int throughput; /**< The average throughput in the number of outputs per second */
   int invoke_dynamic; /**< True for supporting invoke with flexible output. */
-
+  int invoke_async; /**< Use this when the sub-plugin receives an input and generates multiple outputs asynchronously. */
   uint32_t suspend; /**< Timeout (ms) for suspend. (Unload the framework) */
+
+  NNSFilterInvokeAsyncCallback invoke_async_callback;
+  void *async_handle; /**< handle of Framework */
 } GstTensorFilterProperties;
 
 /**
@@ -590,6 +602,45 @@ nnstreamer_filter_shared_model_remove (void *instance, const char *key,
 extern void
 nnstreamer_filter_shared_model_replace (void *instance, const char *key,
     void *new_interpreter, void (*replace_callback) (void *, void *), void (*free_callback) (void*));
+
+/**
+ * @brief Enables nnstreamer_filter to use asynchronous invoke.
+ *        Sets callback and the handle for asynchronous operations.
+ *
+ * This function is used when the sub-plugin receives an input and generates multiple outputs asynchronously.
+ *
+ * @param[in] callback The callback function to be invoked during async operations.
+ * @param[in] prop GstTensorFilterProperties object.
+ * @param[in] handle The handle associated with async operations.
+ */
+extern void
+nnstreamer_filter_enable_invoke_async (NNSFilterInvokeAsyncCallback callback, GstTensorFilterProperties * prop, void *handle);
+
+/**
+ * @brief Disable the asynchronous invoke for nnstreamer_filter.
+ *        Resets callback and handle to disable asynchronous operations.
+ *
+ * @param[in] prop GstTensorFilterProperties object.
+ */
+extern void
+nnstreamer_filter_disable_invoke_async (GstTensorFilterProperties * prop);
+
+/**
+ * @brief Dispatches the asynchronously generated output to the registered callback.
+ *
+ * This function is used by the sub-plugin to dispatches the output that has been generated asynchronously.
+ * It invokes the callback function registered with `nnstreamer_filter_enable_invoke_async` 
+ * to handle the output data.
+ *
+ * Note:
+ * Before calling this function, you must enable asynchronous invocation by calling `nnstreamer_filter_enable_invoke_async()`.
+ * Failure to do so will result in undefined behavior, as no callback and handle will be registered.
+ *
+ * @param[in] prop GstTensorFilterProperties object.
+ * @param[in] output The GstTensorMemory holding the asynchronously generated output.
+ */
+extern void
+nnstreamer_filter_dispatch_output_async (GstTensorFilterProperties * prop, GstTensorMemory * output);
 
 #ifdef __cplusplus
 }
