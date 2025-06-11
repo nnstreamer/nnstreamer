@@ -146,8 +146,8 @@ typedef struct _GstTensorFilterProperties
   int invoke_dynamic; /**< True for supporting invoke with flexible output. */
   uint32_t suspend; /**< Timeout (ms) for suspend. (Unload the framework) */
 
-  NNSFilterInvokeAsyncCallback invoke_async_callback;
-  void *async_handle; /**< handle of Framework */
+  NNSFilterInvokeAsyncCallback invoke_async_callback; /**< If a filter is configured to emit output frames asynchronously (e.g., N output frames for 1 input frame), tensor_filter framework implementation sets and uses this. */
+  void *async_handle; /**< Internal data structure for invoke_async_callback, configured by tensor_filter framework */
 } GstTensorFilterProperties;
 
 /**
