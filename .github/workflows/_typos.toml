@@ -1,5 +1,5 @@
 [files]
-extend-exclude = ["tests/test_models/models/*", "tests/test_models/labels/*", "tests/test_models/data/*"]
+extend-exclude = ["tests/test_models/models/*", "tests/test_models/labels/*", "tests/test_models/data/*", "tests/nnstreamer_decoder_boundingbox/*"]
 
 [default.extend-words]
 mosquitto = "mosquitto"
