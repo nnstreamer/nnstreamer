@@ -116,8 +116,6 @@ tizen_hal_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 
       if (g_ascii_strcasecmp (option[0], "backend") == 0) {
         backend_name = g_strdup (option[1]);
-      } else {
-        nns_logw ("Unknown option '%s' in custom properties.", options[op]);
       }
     }
 
