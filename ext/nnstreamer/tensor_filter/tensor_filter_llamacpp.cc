@@ -452,6 +452,10 @@ TensorFilterLlamaCpp::invoke_dynamic (GstTensorFilterProperties *prop,
   prompt.erase (prompt.find_last_not_of (" \t\n\r\f\v") + 1);
 
   if (prop->invoke_async) {
+
+    if (prop->invoke_async_callback == nullptr) {
+      throw std::invalid_argument ("invoke_async_callback is null");
+    }
     {
       std::lock_guard<std::mutex> lock (queue_mutex);
       input_queue.push (std::make_pair (prop, std::move (prompt)));

@@ -1233,6 +1233,8 @@ gst_tensor_filter_detect_framework (const gchar * const *model_files,
       detected_fw = g_strdup ("trix-engine");
     else if (g_str_equal (ext[0], ".nb"))
       detected_fw = g_strdup ("vivante");
+    else if (g_str_equal (ext[0], ".gguf"))
+      detected_fw = g_strdup ("llamacpp");
   } else if (num_models == 2) {
     if (g_str_equal (ext[0], ".pb") && g_str_equal (ext[1], ".pb") &&
         !g_str_equal (model_files[0], model_files[1]))
