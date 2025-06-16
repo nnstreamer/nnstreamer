@@ -514,6 +514,156 @@ TEST (testTensorFilterSingle, invokeUnknownFW_n)
   g_free (out.data);
 }
 
+#ifdef ENABLE_LLAMACPP
+/**
+ * @brief Test Fixture class for a tensor-filter single invoke async functionality.
+ */
+class NNSFilterSingleInvokeAsyncTest : public ::testing::Test
+{
+  protected:
+  GTensorFilterSingle *single;
+  GTensorFilterSingleClass *klass;
+  GstTensorMemory input;
+  GstTensorMemory output;
+  gboolean loaded;
+  gboolean skip_test;
+
+  public:
+  /**
+   * @brief Construct a new NNSFilterSingleInvokeAsyncTest object
+   */
+  NNSFilterSingleInvokeAsyncTest ()
+      : single (nullptr), klass (nullptr), loaded (FALSE)
+  {
+    input.data = output.data = nullptr;
+    input.size = output.size = 0;
+    skip_test = FALSE;
+  }
+
+  /**
+   * @brief SetUp method for each test case
+   */
+  void SetUp () override
+  {
+    g_autofree gchar *model_file = nullptr;
+    g_autofree gchar *data_file = nullptr;
+    gsize length = 0;
+    const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+
+    single = (GTensorFilterSingle *) g_object_new (G_TYPE_TENSOR_FILTER_SINGLE, NULL);
+    klass = (GTensorFilterSingleClass *) g_type_class_ref (G_TYPE_TENSOR_FILTER_SINGLE);
+
+    /* supposed to run test in build directory */
+    if (root_path == NULL)
+      root_path = "..";
+
+    model_file = g_build_filename (root_path, "tests", "test_models", "models",
+        "llama-2-7b-chat.Q2_K.gguf", NULL);
+    if (!g_file_test (model_file, G_FILE_TEST_EXISTS)) {
+      g_critical ("Skipping invokeAsync_p test due to missing model file. "
+                  "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF");
+      skip_test = TRUE;
+      return;
+    }
+
+    data_file = g_build_filename (
+        root_path, "tests", "test_models", "data", "input.txt", NULL);
+    ASSERT_TRUE (g_file_get_contents (data_file, (gchar **) &input.data, &length, NULL));
+    input.size = length;
+    g_object_set (G_OBJECT (single), "framework", "llamacpp", "model", model_file,
+        "invoke-dynamic", TRUE, "invoke-async", TRUE, "custom", "num_predict:10", NULL);
+    loaded = TRUE;
+  }
+
+  /**
+   * @brief TearDown method for each test case
+   */
+  void TearDown () override
+  {
+    g_type_class_unref (klass);
+    g_object_unref (single);
+    g_free (input.data);
+  }
+};
+
+/* Static variable to track the number of async callback invocations. */
+static int callback_count = 0;
+
+/**
+ * @brief Callback function invoked for asynchronous output
+ *
+ * This callback function is registered with the gst_tensor_filter_enable_invoke_async()
+ * and is called when nnstreamer_filter_dispatch_invoke_async() is called
+ * when output is produced from the sub-plugin.
+ */
+static void
+_invoke_async_callback (void *async_handle, GstTensorMemory *output)
+{
+  callback_count++;
+  g_print ("%s", (char *) output->data);
+  g_free (output->data);
+}
+
+/**
+ * @brief Test to invoke async with callback.
+ */
+TEST_F (NNSFilterSingleInvokeAsyncTest, invokeAsync_p)
+{
+  if (skip_test) {
+    GTEST_SKIP () << "Skipping invokeAsync_p test due to missing model file. "
+                     "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
+  }
+
+  ASSERT_TRUE (this->loaded);
+  callback_count = 0;
+
+  EXPECT_TRUE (klass->set_invoke_async_callback (single, _invoke_async_callback, klass));
+  EXPECT_TRUE (klass->invoke (single, &input, &output, TRUE));
+  /* Wait for the test to end until all tokens have been invoked.*/
+  g_usleep (3000000);
+  /* Verify the number of times the callback was called */
+  EXPECT_GT (callback_count, 10) << "Callback was not invoked even once.";
+}
+
+/**
+ * @brief Test to invoke async with a null callback.
+ */
+TEST_F (NNSFilterSingleInvokeAsyncTest, invokeAsyncNullCallback_n)
+{
+  if (skip_test) {
+    GTEST_SKIP ()
+        << "Skipping invokeAsyncNullCallback_n test due to missing model file. "
+           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
+  }
+
+  ASSERT_TRUE (this->loaded);
+
+  // Pass null as the callback
+  EXPECT_FALSE (klass->set_invoke_async_callback (single, nullptr, klass));
+  EXPECT_FALSE (klass->invoke (single, &input, &output, TRUE));
+  g_usleep (1000000);
+}
+
+/**
+ * @brief Test to invoke async with a null handler.
+ */
+TEST_F (NNSFilterSingleInvokeAsyncTest, invokeAsyncNullHandler_n)
+{
+  if (skip_test) {
+    GTEST_SKIP ()
+        << "Skipping invokeAsyncNullHandler_n test due to missing model file. "
+           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
+  }
+
+  ASSERT_TRUE (this->loaded);
+
+  // Pass null handle
+  EXPECT_FALSE (klass->set_invoke_async_callback (nullptr, _invoke_async_callback, klass));
+  EXPECT_FALSE (klass->invoke (single, &input, &output, TRUE));
+  g_usleep (1000000);
+}
+
+#endif
 /**
  * @brief Main GTest.
  */

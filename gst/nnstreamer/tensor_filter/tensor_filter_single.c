@@ -81,6 +81,9 @@ static void g_tensor_filter_destroy_notify (GTensorFilterSingle * self,
 static gboolean g_tensor_filter_allocate_in_invoke (GTensorFilterSingle * self);
 static gboolean g_tensor_filter_single_start (GTensorFilterSingle * self);
 static gboolean g_tensor_filter_single_stop (GTensorFilterSingle * self);
+static gboolean
+g_tensor_filter_single_set_invoke_async_callback (GTensorFilterSingle * self,
+    invoke_async_callback callback, void *handle);
 
 /**
  * @brief initialize the tensor_filter's class
@@ -106,6 +109,8 @@ g_tensor_filter_single_class_init (GTensorFilterSingleClass * klass)
   klass->set_input_info = g_tensor_filter_set_input_info;
   klass->destroy_notify = g_tensor_filter_destroy_notify;
   klass->allocate_in_invoke = g_tensor_filter_allocate_in_invoke;
+  klass->set_invoke_async_callback =
+      g_tensor_filter_single_set_invoke_async_callback;
 }
 
 /**
@@ -235,6 +240,31 @@ g_tensor_filter_allocate_in_invoke (GTensorFilterSingle * self)
   spriv = G_TENSOR_FILTER_SINGLE_PRIV (self);
 
   return spriv->allocate_in_invoke;
+}
+
+/**
+ * @brief Set invoke async callback function for async invoke
+ * @param self "this" pointer
+ * @param callback callback function to be called when output is ready
+ * @param async_handle handle to be passed to the callback function
+ */
+static gboolean
+g_tensor_filter_single_set_invoke_async_callback (GTensorFilterSingle * self,
+    invoke_async_callback callback, void *handle)
+{
+  GTensorFilterSinglePrivate *spriv;
+  GstTensorFilterPrivate *priv;
+
+  g_return_val_if_fail (self != NULL, FALSE);
+  g_return_val_if_fail (callback != NULL, FALSE);
+
+  spriv = G_TENSOR_FILTER_SINGLE_PRIV (self);
+  g_return_val_if_fail (spriv != NULL, FALSE);
+
+  priv = &spriv->filter_priv;
+  gst_tensor_filter_enable_invoke_async (callback, &priv->prop, handle);
+
+  return TRUE;
 }
 
 /**

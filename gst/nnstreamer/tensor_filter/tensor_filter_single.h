@@ -57,6 +57,14 @@ struct _GTensorFilterSingle
 };
 
 /**
+ * @brief Type definition for an asynchronous callback function signature.
+ * - `handle` user-defined data pointer for the callback.
+ * - `output` contains the result of the asynchronous operation in the form of a
+ *   GstTensorMemory structure, It must be freed after use.
+ */
+typedef void (*invoke_async_callback) (void *handle, GstTensorMemory * output);
+
+/**
  * @brief GTensorFilterSingleClass inherits GObjectClass.
  */
 struct _GTensorFilterSingleClass
@@ -81,6 +89,10 @@ struct _GTensorFilterSingleClass
   gboolean (*allocate_in_invoke) (GTensorFilterSingle * self);
   /** Free the data allocated by the tensor filter in invoke */
   void (*destroy_notify) (GTensorFilterSingle * self, GstTensorMemory * mem);
+  /** Callback function to handle multiple async outputs */
+  gboolean (*set_invoke_async_callback) (GTensorFilterSingle * self, invoke_async_callback callback, void *handle);
+  /** handle of Framework */
+  void *handle;
 };
 
 /**
