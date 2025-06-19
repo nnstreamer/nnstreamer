@@ -511,8 +511,12 @@ gst_tensors_info_copy (GstTensorsInfo * dest, const GstTensorsInfo * src)
   num = dest->num_tensors = src->num_tensors;
   dest->format = src->format;
 
-  if (src->format != _NNS_TENSOR_FORMAT_STATIC)
-    return;
+  /** TODO: experimental support for 0-size dimensions amd "expandable"
+   * tensors, i.e. some dimensions are static others flexible, we can't
+   * bail out here, but need to copy all the info we have even if it
+   * is incomplete. */
+//  if (src->format != _NNS_TENSOR_FORMAT_STATIC)
+//    return;
 
   for (i = 0; i < num; i++) {
     _dest = gst_tensors_info_get_nth_info (dest, i);
@@ -1064,8 +1068,16 @@ gst_tensor_parse_dimension (const gchar * dimstr, tensor_dim dim)
       break;
 
     val = g_ascii_strtoull (strv[i], NULL, 10);
-    dim[i] = (uint32_t) val;
-    rank = i + 1;
+    if (val == 0) {
+      dim[i] = NNS_DIMENSION_ZERO_SIZE;
+    } else {
+      dim[i] = (uint32_t) val;
+      rank = i + 1;
+    }
+  }
+
+  for (i = NNS_TENSOR_RANK_LIMIT; i > rank; i--) {
+    dim[i-1] = 0;
   }
 
   g_strfreev (strv);
@@ -1121,8 +1133,11 @@ gst_tensor_get_rank_dimension_string (const tensor_dim dim,
   for (i = 0; i < actual_rank; i++) {
     if (dim[i] == 0)
       break;
-
-    g_string_append_printf (dim_str, "%u", dim[i]);
+    if (dim[i] == NNS_DIMENSION_ZERO_SIZE) {
+      g_string_append_printf (dim_str, "%u", 0);
+    } else {
+      g_string_append_printf (dim_str, "%u", dim[i]);
+    }
 
     if (i < actual_rank - 1 && dim[i + 1] > 0) {
       g_string_append (dim_str, ":");
@@ -1191,8 +1206,11 @@ gst_tensor_get_element_count (const tensor_dim dim)
   for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
     if (dim[i] == 0)
       break;
-
-    count *= dim[i];
+    if (dim[i] == NNS_DIMENSION_ZERO_SIZE) {
+      count = 0;
+    } else {
+      count *= dim[i];
+    }
   }
 
   return (i > 0) ? count : 0;

@@ -34,6 +34,11 @@
 #define NNS_TENSOR_RANK_LIMIT	(16)
 
 /**
+ * Experimental support for 0-sized dimensions, not fully implemented.
+ */
+#define NNS_DIMENSION_ZERO_SIZE (G_MAXINT32)
+
+/**
  * @brief The number of tensors NNStreamer supports is 256.
  * The max memories of gst-buffer is 16 (See NNS_TENSOR_MEMORY_MAX).
  * Internally NNStreamer handles the memories as tensors.

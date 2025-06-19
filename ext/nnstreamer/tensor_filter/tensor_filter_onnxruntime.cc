@@ -553,7 +553,11 @@ onnxruntime_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
       /* revert order between onnxruntime <> nnstreamer dimensions */
       for (auto j = NNS_TENSOR_RANK_LIMIT-1; j >= 0 ; j--) {
         if (prop->input_meta.info[i].dimension[j] > 0) {
-          shape.push_back(prop->input_meta.info[i].dimension[j]);
+          if (prop->input_meta.info[i].dimension[j] == NNS_DIMENSION_ZERO_SIZE) {
+            shape.push_back(0);
+          } else {
+            shape.push_back (prop->input_meta.info[i].dimension[j]);
+          }
         } else {
           continue;
         }
@@ -613,7 +617,11 @@ onnxruntime_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
         auto rank = outputInfo.GetShape().size();
         for (unsigned int shapeI = rank; shapeI > 0 ; shapeI--) {
           auto dim = outputInfo.GetShape()[shapeI - 1];
-          prop->output_meta.info[i].dimension[rank - shapeI] = dim;
+          if (dim == 0) {
+            prop->output_meta.info[i].dimension[rank - shapeI] = NNS_DIMENSION_ZERO_SIZE;
+          } else {
+            prop->output_meta.info[i].dimension[rank - shapeI] = dim;
+          }
           scalar_count *= dim;
         }
         output[i].size = scalar_count * gst_tensor_get_element_size(prop->output_meta.info[i].type);

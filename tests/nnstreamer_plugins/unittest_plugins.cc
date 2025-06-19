@@ -3087,7 +3087,7 @@ TEST (testTensorConverter, bytesToMultiInvalidDim02_n)
 
   h = gst_harness_new ("tensor_converter");
 
-  g_object_set (h->element, "input-dim", "2:2:2:2,2:0:1", "input-type",
+  g_object_set (h->element, "input-dim", "2:2:2:2,0:0:0", "input-type",
       "int32,float32", NULL);
 
   /* in/out caps and tensors info */

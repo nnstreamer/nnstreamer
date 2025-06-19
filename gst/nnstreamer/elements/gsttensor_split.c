@@ -678,7 +678,7 @@ gst_tensor_split_get_property (GObject * object, guint prop_id,
 
           dim = g_array_index (split->tensorseg, tensor_dim *, i);
           for (j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
-            g_ptr_array_add (arr, g_strdup_printf ("%i", (*dim)[j]));
+            g_ptr_array_add (arr, g_strdup_printf ("%i", (*dim)[j] == NNS_DIMENSION_ZERO_SIZE? 0: (*dim)[j]));
           }
           g_ptr_array_add (arr, NULL);
           strings = (gchar **) g_ptr_array_free (arr, FALSE);
