@@ -88,13 +88,13 @@ create_sparse_tensors_test_file (gint file_index)
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
   ASSERT_NE (bus, nullptr);
   gst_bus_add_watch (bus, bus_callback, loop);
-  gst_object_unref (bus);
+  g_clear_pointer (&bus, gst_object_unref);
 
   setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
   g_main_loop_run (loop);
 
   setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
-  gst_object_unref (pipeline);
+  g_clear_pointer (&pipeline, gst_object_unref);
   g_main_loop_unref (loop);
 }
 
@@ -125,13 +125,13 @@ create_flexible_tensors_test_file (gint fps, gint file_index)
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
   ASSERT_NE (bus, nullptr);
   gst_bus_add_watch (bus, bus_callback, loop);
-  gst_object_unref (bus);
+  g_clear_pointer (&bus, gst_object_unref);
 
   setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
   g_main_loop_run (loop);
 
   setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
-  gst_object_unref (pipeline);
+  g_clear_pointer (&pipeline, gst_object_unref);
   g_main_loop_unref (loop);
 }
 
@@ -153,13 +153,13 @@ create_video_test_file ()
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
   ASSERT_NE (bus, nullptr);
   gst_bus_add_watch (bus, bus_callback, loop);
-  gst_object_unref (bus);
+  g_clear_pointer (&bus, gst_object_unref);
 
   setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
   g_main_loop_run (loop);
 
   setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
-  gst_object_unref (pipeline);
+  g_clear_pointer (&pipeline, gst_object_unref);
   g_main_loop_unref (loop);
 }
 
@@ -184,13 +184,13 @@ create_audio_test_file (gint file_index)
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
   ASSERT_NE (bus, nullptr);
   gst_bus_add_watch (bus, bus_callback, loop);
-  gst_object_unref (bus);
+  g_clear_pointer (&bus, gst_object_unref);
 
   setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
   g_main_loop_run (loop);
 
   setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
-  gst_object_unref (pipeline);
+  g_clear_pointer (&pipeline, gst_object_unref);
   g_main_loop_unref (loop);
 }
 
@@ -212,13 +212,13 @@ create_image_test_file ()
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
   ASSERT_NE (bus, nullptr);
   gst_bus_add_watch (bus, bus_callback, loop);
-  gst_object_unref (bus);
+  g_clear_pointer (&bus, gst_object_unref);
 
   setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
   g_main_loop_run (loop);
 
   setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
-  gst_object_unref (pipeline);
+  g_clear_pointer (&pipeline, gst_object_unref);
   g_main_loop_unref (loop);
 }
 
@@ -248,7 +248,7 @@ TEST (datareposrc, readImageFiles)
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
   ASSERT_NE (bus, nullptr);
   gst_bus_add_watch (bus, bus_callback, loop);
-  gst_object_unref (bus);
+  g_clear_pointer (&bus, gst_object_unref);
 
   setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
   g_main_loop_run (loop);
@@ -258,8 +258,8 @@ TEST (datareposrc, readImageFiles)
   EXPECT_NE (buffer_count, 0);
   handler = NULL;
 
-  gst_object_unref (tensor_sink);
-  gst_object_unref (pipeline);
+  g_clear_pointer (&tensor_sink, gst_object_unref);
+  g_clear_pointer (&pipeline, gst_object_unref);
   g_main_loop_unref (loop);
 
   for (i = 0; i < 5; i++) {
@@ -293,7 +293,7 @@ TEST (datareposrc, readVideoRaw)
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
   ASSERT_NE (bus, nullptr);
   gst_bus_add_watch (bus, bus_callback, loop);
-  gst_object_unref (bus);
+  g_clear_pointer (&bus, gst_object_unref);
 
   setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
   g_main_loop_run (loop);
@@ -302,8 +302,8 @@ TEST (datareposrc, readVideoRaw)
   EXPECT_NE (buffer_count, 0);
   handler = NULL;
 
-  gst_object_unref (tensor_sink);
-  gst_object_unref (pipeline);
+  g_clear_pointer (&tensor_sink, gst_object_unref);
+  g_clear_pointer (&pipeline, gst_object_unref);
   g_main_loop_unref (loop);
 
   g_remove ("video1.json");
@@ -334,14 +334,14 @@ TEST (datareposrc, readAudioRaw)
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
   ASSERT_NE (bus, nullptr);
   gst_bus_add_watch (bus, bus_callback, loop);
-  gst_object_unref (bus);
+  g_clear_pointer (&bus, gst_object_unref);
 
   setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
   g_main_loop_run (loop);
 
   setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
 
-  gst_object_unref (pipeline);
+  g_clear_pointer (&pipeline, gst_object_unref);
   g_main_loop_unref (loop);
 
   if (!g_file_get_contents ("aduio1.raw", &data_1, &size_1, NULL)) {
@@ -352,9 +352,8 @@ TEST (datareposrc, readAudioRaw)
     goto error;
   }
   EXPECT_EQ (size_1, size_2);
-  g_free (data_1);
-  g_free (data_2);
-  data_1 = data_2 = NULL;
+  g_clear_pointer (&data_1, g_free);
+  g_clear_pointer (&data_2, g_free);
 
   if (!g_file_get_contents ("audio1.json", &data_1, &size_1, NULL)) {
     goto error;
@@ -366,8 +365,8 @@ TEST (datareposrc, readAudioRaw)
   ret = g_strcmp0 (data_1, data_2);
   EXPECT_EQ (ret, 0);
 error:
-  g_free (data_1);
-  g_free (data_2);
+  g_clear_pointer (&data_1, g_free);
+  g_clear_pointer (&data_2, g_free);
   g_remove ("audio1.json");
   g_remove ("audio1.raw");
   g_remove ("result.json");
@@ -396,8 +395,8 @@ TEST (datareposrc, invalidJsonPath0_n)
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_element_set_state (pipeline, GST_STATE_NULL);
-  gst_object_unref (datareposrc);
-  gst_object_unref (pipeline);
+  g_clear_pointer (&datareposrc, gst_object_unref);
+  g_clear_pointer (&pipeline, gst_object_unref);
 }
 
 /**
@@ -424,8 +423,8 @@ TEST (datareposrc, invalidJsonPath1_n)
   setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
 
   gst_element_set_state (pipeline, GST_STATE_NULL);
-  gst_object_unref (datareposrc);
-  gst_object_unref (pipeline);
+  g_clear_pointer (&datareposrc, gst_object_unref);
+  g_clear_pointer (&pipeline, gst_object_unref);
 }
 
 /**
@@ -450,8 +449,8 @@ TEST (datareposrc, invalidFilePath0_n)
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_element_set_state (pipeline, GST_STATE_NULL);
-  gst_object_unref (datareposrc);
-  gst_object_unref (pipeline);
+  g_clear_pointer (&datareposrc, gst_object_unref);
+  g_clear_pointer (&pipeline, gst_object_unref);
 }
 
 /**
@@ -476,8 +475,8 @@ TEST (datareposrc, invalidFilePath1_n)
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_element_set_state (pipeline, GST_STATE_NULL);
-  gst_object_unref (datareposrc);
-  gst_object_unref (pipeline);
+  g_clear_pointer (&datareposrc, gst_object_unref);
+  g_clear_pointer (&pipeline, gst_object_unref);
 }
 
 /**
@@ -502,8 +501,8 @@ TEST (datareposrc, invalidCapsWithoutJSON_n)
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_element_set_state (pipeline, GST_STATE_NULL);
-  gst_object_unref (datareposrc);
-  gst_object_unref (pipeline);
+  g_clear_pointer (&datareposrc, gst_object_unref);
+  g_clear_pointer (&pipeline, gst_object_unref);
 }
 
 /**
@@ -538,19 +537,19 @@ TEST (datareposrc, readTensors)
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
   ASSERT_NE (bus, nullptr);
   gst_bus_add_watch (bus, bus_callback, loop);
-  gst_object_unref (bus);
+  g_clear_pointer (&bus, gst_object_unref);
 
   g_object_get (datareposrc, "location", &get_str, NULL);
   EXPECT_STREQ (get_str, file_path);
-  g_free (get_str);
+  g_clear_pointer (&get_str, g_free);
 
   g_object_get (datareposrc, "json", &get_str, NULL);
   EXPECT_STREQ (get_str, json_path);
-  g_free (get_str);
+  g_clear_pointer (&get_str, g_free);
 
   g_object_get (datareposrc, "tensors-sequence", &get_str, NULL);
   EXPECT_STREQ (get_str, "0,1");
-  g_free (get_str);
+  g_clear_pointer (&get_str, g_free);
 
   g_object_get (datareposrc, "is-shuffle", &get_value, NULL);
   ASSERT_EQ (get_value, 1U);
@@ -561,8 +560,8 @@ TEST (datareposrc, readTensors)
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
-  gst_object_unref (datareposrc);
-  gst_object_unref (pipeline);
+  g_clear_pointer (&datareposrc, gst_object_unref);
+  g_clear_pointer (&pipeline, gst_object_unref);
   g_main_loop_unref (loop);
 }
 
@@ -591,14 +590,14 @@ TEST (datareposrc, readFlexibleTensors)
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
   ASSERT_NE (bus, nullptr);
   gst_bus_add_watch (bus, bus_callback, loop);
-  gst_object_unref (bus);
+  g_clear_pointer (&bus, gst_object_unref);
 
   setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
   g_main_loop_run (loop);
 
   setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
 
-  gst_object_unref (pipeline);
+  g_clear_pointer (&pipeline, gst_object_unref);
   g_main_loop_unref (loop);
 
   if (!g_file_get_contents ("flexible.raw", &data_1, &size_1, NULL)) {
@@ -609,9 +608,8 @@ TEST (datareposrc, readFlexibleTensors)
     goto error;
   }
   EXPECT_EQ (size_1, size_2);
-  g_free (data_1);
-  g_free (data_2);
-  data_1 = data_2 = NULL;
+  g_clear_pointer (&data_1, g_free);
+  g_clear_pointer (&data_2, g_free);
 
   if (!g_file_get_contents ("flexible.json", &data_1, &size_1, NULL)) {
     goto error;
@@ -623,8 +621,8 @@ TEST (datareposrc, readFlexibleTensors)
   ret = g_strcmp0 (data_1, data_2);
   EXPECT_EQ (ret, 0);
 error:
-  g_free (data_1);
-  g_free (data_2);
+  g_clear_pointer (&data_1, g_free);
+  g_clear_pointer (&data_2, g_free);
   g_remove ("flexible0.json");
   g_remove ("flexible0.data");
   g_remove ("result.json");
@@ -655,7 +653,7 @@ TEST (datareposrc, fps30ReadFlexibleTensors)
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
   ASSERT_NE (bus, nullptr);
   gst_bus_add_watch (bus, bus_callback, loop);
-  gst_object_unref (bus);
+  g_clear_pointer (&bus, gst_object_unref);
 
   start_time = g_get_monotonic_time ();
 
@@ -669,7 +667,7 @@ TEST (datareposrc, fps30ReadFlexibleTensors)
   g_print ("Elapsed time: %.6f second\n", elapsed_time);
   EXPECT_LT (0.8, elapsed_time);
 
-  gst_object_unref (pipeline);
+  g_clear_pointer (&pipeline, gst_object_unref);
   g_main_loop_unref (loop);
 
   pipeline = gst_parse_launch (str_pipeline, NULL);
@@ -679,7 +677,7 @@ TEST (datareposrc, fps30ReadFlexibleTensors)
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
   ASSERT_NE (bus, nullptr);
   gst_bus_add_watch (bus, bus_callback, loop);
-  gst_object_unref (bus);
+  g_clear_pointer (&bus, gst_object_unref);
 
   tensor_sink = gst_bin_get_by_name (GST_BIN (pipeline), "tensor_sink0");
   g_object_set (GST_OBJECT (tensor_sink), "sync", FALSE, NULL);
@@ -696,8 +694,8 @@ TEST (datareposrc, fps30ReadFlexibleTensors)
   g_print ("Elapsed time: %.6f second\n", elapsed_time);
   EXPECT_LT (elapsed_time, 0.05);
 
-  gst_object_unref (tensor_sink);
-  gst_object_unref (pipeline);
+  g_clear_pointer (&tensor_sink, gst_object_unref);
+  g_clear_pointer (&pipeline, gst_object_unref);
   g_main_loop_unref (loop);
 
   g_remove ("flexible1.json");
@@ -738,7 +736,7 @@ TEST (datareposrc, readSparseTensors)
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
   ASSERT_NE (bus, nullptr);
   gst_bus_add_watch (bus, bus_callback, loop);
-  gst_object_unref (bus);
+  g_clear_pointer (&bus, gst_object_unref);
 
   setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
   g_main_loop_run (loop);
@@ -747,8 +745,8 @@ TEST (datareposrc, readSparseTensors)
   EXPECT_NE (buffer_count, 0);
   handler = NULL;
 
-  gst_object_unref (tensor_sink);
-  gst_object_unref (pipeline);
+  g_clear_pointer (&tensor_sink, gst_object_unref);
+  g_clear_pointer (&pipeline, gst_object_unref);
   g_main_loop_unref (loop);
 
   if (!g_file_get_contents ("sparse.data", &sparse_data, &size, NULL)) {
@@ -795,15 +793,15 @@ TEST (datareposrc, readTensorsNoJSONWithCapsParam)
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
   ASSERT_NE (bus, nullptr);
   gst_bus_add_watch (bus, bus_callback, loop);
-  gst_object_unref (bus);
+  g_clear_pointer (&bus, gst_object_unref);
 
   g_object_get (datareposrc, "location", &get_str, NULL);
   EXPECT_STREQ (get_str, file_path);
-  g_free (get_str);
+  g_clear_pointer (&get_str, g_free);
 
   g_object_get (datareposrc, "tensors-sequence", &get_str, NULL);
   EXPECT_STREQ (get_str, "0,1");
-  g_free (get_str);
+  g_clear_pointer (&get_str, g_free);
 
   g_object_get (datareposrc, "is-shuffle", &get_value, NULL);
   ASSERT_EQ (get_value, 1U);
@@ -815,8 +813,8 @@ TEST (datareposrc, readTensorsNoJSONWithCapsParam)
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_element_set_state (pipeline, GST_STATE_NULL);
-  gst_object_unref (datareposrc);
-  gst_object_unref (pipeline);
+  g_clear_pointer (&datareposrc, gst_object_unref);
+  g_clear_pointer (&pipeline, gst_object_unref);
   g_main_loop_unref (loop);
 }
 
@@ -847,8 +845,8 @@ TEST (datareposrc, invalidStartSampleIndex0_n)
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_element_set_state (pipeline, GST_STATE_NULL);
-  gst_object_unref (datareposrc);
-  gst_object_unref (pipeline);
+  g_clear_pointer (&datareposrc, gst_object_unref);
+  g_clear_pointer (&pipeline, gst_object_unref);
 }
 
 /**
@@ -880,8 +878,8 @@ TEST (datareposrc, invalidStartSampleIndex1_n)
   EXPECT_EQ (get_value, 0U);
 
   gst_element_set_state (pipeline, GST_STATE_NULL);
-  gst_object_unref (datareposrc);
-  gst_object_unref (pipeline);
+  g_clear_pointer (&datareposrc, gst_object_unref);
+  g_clear_pointer (&pipeline, gst_object_unref);
 }
 
 /**
@@ -910,8 +908,8 @@ TEST (datareposrc, invalidStopSampleIndex0_n)
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_element_set_state (pipeline, GST_STATE_NULL);
-  gst_object_unref (datareposrc);
-  gst_object_unref (pipeline);
+  g_clear_pointer (&datareposrc, gst_object_unref);
+  g_clear_pointer (&pipeline, gst_object_unref);
 }
 
 /**
@@ -943,8 +941,8 @@ TEST (datareposrc, invalidStopSampleIndex1_n)
   EXPECT_EQ (get_value, 0U);
 
   gst_element_set_state (pipeline, GST_STATE_NULL);
-  gst_object_unref (datareposrc);
-  gst_object_unref (pipeline);
+  g_clear_pointer (&datareposrc, gst_object_unref);
+  g_clear_pointer (&pipeline, gst_object_unref);
 }
 
 /**
@@ -975,8 +973,8 @@ TEST (datareposrc, invalidEpochs0_n)
   EXPECT_EQ (get_value, 1U);
 
   gst_element_set_state (pipeline, GST_STATE_NULL);
-  gst_object_unref (datareposrc);
-  gst_object_unref (pipeline);
+  g_clear_pointer (&datareposrc, gst_object_unref);
+  g_clear_pointer (&pipeline, gst_object_unref);
 }
 
 /**
@@ -1005,8 +1003,8 @@ TEST (datareposrc, invalidEpochs1_n)
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_element_set_state (pipeline, GST_STATE_NULL);
-  gst_object_unref (datareposrc);
-  gst_object_unref (pipeline);
+  g_clear_pointer (&datareposrc, gst_object_unref);
+  g_clear_pointer (&pipeline, gst_object_unref);
 }
 
 /**
@@ -1035,8 +1033,8 @@ TEST (datareposrc, invalidTensorsSequence0_n)
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_element_set_state (pipeline, GST_STATE_NULL);
-  gst_object_unref (datareposrc);
-  gst_object_unref (pipeline);
+  g_clear_pointer (&datareposrc, gst_object_unref);
+  g_clear_pointer (&pipeline, gst_object_unref);
 }
 
 /**
@@ -1069,7 +1067,7 @@ TEST (datareposrc, readInvalidFlexibleTensors_n)
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
   ASSERT_NE (bus, nullptr);
   gst_bus_add_watch (bus, bus_callback, loop);
-  gst_object_unref (bus);
+  g_clear_pointer (&bus, gst_object_unref);
 
   /* EXPECT_EQ not checked due to internal data stream error */
   setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
@@ -1081,8 +1079,8 @@ TEST (datareposrc, readInvalidFlexibleTensors_n)
   EXPECT_EQ (buffer_count, 0);
   handler = NULL;
 
-  gst_object_unref (tensor_sink);
-  gst_object_unref (pipeline);
+  g_clear_pointer (&tensor_sink, gst_object_unref);
+  g_clear_pointer (&pipeline, gst_object_unref);
   g_main_loop_unref (loop);
 
   g_remove ("audio2.json");
@@ -1120,7 +1118,7 @@ TEST (datareposrc, readInvalidSparseTensors_n)
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
   ASSERT_NE (bus, nullptr);
   gst_bus_add_watch (bus, bus_callback, loop);
-  gst_object_unref (bus);
+  g_clear_pointer (&bus, gst_object_unref);
 
   /* EXPECT_EQ not checked due to internal data stream error */
   setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
@@ -1132,8 +1130,8 @@ TEST (datareposrc, readInvalidSparseTensors_n)
   EXPECT_EQ (buffer_count, 0);
   handler = NULL;
 
-  gst_object_unref (tensor_sink);
-  gst_object_unref (pipeline);
+  g_clear_pointer (&tensor_sink, gst_object_unref);
+  g_clear_pointer (&pipeline, gst_object_unref);
   g_main_loop_unref (loop);
 
   g_remove ("audio3.json");

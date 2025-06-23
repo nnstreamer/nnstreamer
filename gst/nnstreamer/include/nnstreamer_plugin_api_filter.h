@@ -111,7 +111,6 @@ typedef tensor_layout tensors_layout[NNS_TENSOR_SIZE_LIMIT];
  */
 typedef void (*NNSFilterInvokeAsyncCallback)(void *async_handle, GstTensorMemory *output);
 
-
 /**
  * @brief GstTensorFilter's properties for NN framework (internal data structure)
  *
