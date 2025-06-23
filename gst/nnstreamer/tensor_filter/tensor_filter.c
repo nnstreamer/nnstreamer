@@ -1115,16 +1115,16 @@ nnstreamer_filter_async_output_callback (void *async_handle,
   g_return_if_fail (output != NULL);
   g_return_if_fail (async_handle != NULL);
 
+  self = GST_TENSOR_FILTER_CAST (async_handle);
+  trans = GST_BASE_TRANSFORM_CAST (self);
+  priv = &self->priv;
+  prop = &priv->prop;
+
   outbuf = gst_buffer_new ();
   if (!outbuf) {
     ml_loge ("Failed to allocate GstBuffer.");
     goto error;
   }
-
-  self = GST_TENSOR_FILTER_CAST (async_handle);
-  trans = GST_BASE_TRANSFORM_CAST (self);
-  priv = &self->priv;
-  prop = &priv->prop;
 
   out_trans_data = _gst_tensor_filter_transform_get_output_data (trans);
   if (!out_trans_data) {
@@ -1143,24 +1143,22 @@ nnstreamer_filter_async_output_callback (void *async_handle,
 
   _gst_tensor_filter_transform_update_outbuf (trans, NULL, out_trans_data,
       outbuf);
-  g_free (out_trans_data);
-  out_trans_data = NULL;
+  g_clear_pointer (&out_trans_data, g_free);
 
-  gst_pad_push (trans->srcpad, outbuf);
+  if (gst_pad_push (trans->srcpad, outbuf) != GST_FLOW_OK) {
+    ml_loge ("Failed to push output buffer at tensor-filter async callback.");
+  }
 
   return;
 
 error:
   for (i = 0; i < prop->output_meta.num_tensors; i++)
-    g_free (output[i].data);
+    g_clear_pointer (&output[i].data, g_free);
 
   if (outbuf)
     gst_buffer_unref (outbuf);
 
-  if (out_trans_data) {
-    g_free (out_trans_data);
-    out_trans_data = NULL;
-  }
+  g_clear_pointer (&out_trans_data, g_free);
 }
 
 /**

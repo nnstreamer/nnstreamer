@@ -2570,6 +2570,11 @@ gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset, guint size,
     for (channels = self->channels, ch_idx = 0;
         ch_idx < self->num_channels_enabled;
         ch_idx++, channels = channels->next) {
+      if (!channels) {
+        GST_ERROR_OBJECT (self, "Failed to process data, channel is null.");
+        goto error_data_free;
+      }
+
       if (self->tensors_config->info.num_tensors == 1) {
         /** for other/tensor, only 1 map exist as there is only 1 mem */
         map_data_float =

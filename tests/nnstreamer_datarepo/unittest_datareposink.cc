@@ -70,7 +70,7 @@ create_image_test_file ()
                                   "datareposink location=img_%02d.png json=img.json");
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
-  g_free (str_pipeline);
+  g_clear_pointer (&str_pipeline, g_free);
   ASSERT_NE (pipeline, nullptr);
 
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
@@ -121,26 +121,26 @@ TEST (datareposink, writeImageFiles)
   for (i = 0; i < 5; i++) {
     filename = g_strdup_printf ("image_%02d.png", i);
     file = g_file_new_for_path (filename);
-    g_free (filename);
+    g_clear_pointer (&filename, g_free);
 
     ret = g_file_load_contents (file, NULL, &contents, NULL, NULL, NULL);
-    g_free (contents);
-    g_object_unref (file);
+    g_clear_pointer (&contents, g_free);
+    g_clear_pointer (&file, g_object_unref);
     ASSERT_EQ (ret, TRUE);
   }
 
   /* Confirm file creation */
   file = g_file_new_for_path ("image.json");
   ret = g_file_load_contents (file, NULL, &contents, NULL, NULL, NULL);
-  g_object_unref (file);
-  g_free (contents);
+  g_clear_pointer (&contents, g_free);
+  g_clear_pointer (&file, g_object_unref);
   ASSERT_EQ (ret, TRUE);
 
   g_remove ("image.json");
   for (i = 0; i < 5; i++) {
     filename = g_strdup_printf ("image_%02d.png", i);
     g_remove (filename);
-    g_free (filename);
+    g_clear_pointer (&filename, g_free);
   }
 }
 
@@ -178,15 +178,15 @@ TEST (datareposink, writeAudioRaw)
   /* Confirm file creation */
   file = g_file_new_for_path ("audio.raw");
   ret = g_file_load_contents (file, NULL, &contents, NULL, NULL, NULL);
-  g_object_unref (file);
-  g_free (contents);
+  g_clear_pointer (&contents, g_free);
+  g_clear_pointer (&file, g_object_unref);
   ASSERT_EQ (ret, TRUE);
 
   /* Confirm file creation */
   file = g_file_new_for_path ("audio.json");
   ret = g_file_load_contents (file, NULL, &contents, NULL, NULL, NULL);
-  g_object_unref (file);
-  g_free (contents);
+  g_clear_pointer (&contents, g_free);
+  g_clear_pointer (&file, g_object_unref);
   ASSERT_EQ (ret, TRUE);
 
   g_remove ("audio.json");
@@ -225,15 +225,15 @@ TEST (datareposink, writeVideoRaw)
   /* Confirm file creation */
   file = g_file_new_for_path ("video.raw");
   ret = g_file_load_contents (file, NULL, &contents, NULL, NULL, NULL);
-  g_object_unref (file);
-  g_free (contents);
+  g_clear_pointer (&contents, g_free);
+  g_clear_pointer (&file, g_object_unref);
   ASSERT_EQ (ret, TRUE);
 
   /* Confirm file creation */
   file = g_file_new_for_path ("video.json");
   ret = g_file_load_contents (file, NULL, &contents, NULL, NULL, NULL);
-  g_object_unref (file);
-  g_free (contents);
+  g_clear_pointer (&contents, g_free);
+  g_clear_pointer (&file, g_object_unref);
   ASSERT_EQ (ret, TRUE);
 
   g_remove ("video.raw");
@@ -266,7 +266,9 @@ TEST (datareposink, writeTensors)
       file_path, json_path);
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
-  g_free (str_pipeline);
+  g_clear_pointer (&str_pipeline, g_free);
+  g_clear_pointer (&file_path, g_free);
+  g_clear_pointer (&json_path, g_free);
   ASSERT_NE (pipeline, nullptr);
 
   datareposink = gst_bin_get_by_name (GST_BIN (pipeline), "datareposink");
@@ -274,11 +276,11 @@ TEST (datareposink, writeTensors)
 
   g_object_get (datareposink, "location", &get_str, NULL);
   EXPECT_STREQ (get_str, "mnist.data");
-  g_free (get_str);
+  g_clear_pointer (&get_str, g_free);
 
   g_object_get (datareposink, "json", &get_str, NULL);
   EXPECT_STREQ (get_str, "mnist.json");
-  g_free (get_str);
+  g_clear_pointer (&get_str, g_free);
   gst_object_unref (datareposink);
 
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
@@ -296,17 +298,15 @@ TEST (datareposink, writeTensors)
   /* Confirm file creation */
   file = g_file_new_for_path ("mnist.data");
   ret = g_file_load_contents (file, NULL, &contents, NULL, NULL, NULL);
-  g_object_unref (file);
-  g_free (contents);
+  g_clear_pointer (&contents, g_free);
+  g_clear_pointer (&file, g_object_unref);
   ASSERT_EQ (ret, TRUE);
 
   /* Confirm file creation */
   file = g_file_new_for_path ("mnist.json");
   ret = g_file_load_contents (file, NULL, &contents, NULL, NULL, NULL);
-  g_free (contents);
-  g_object_unref (file);
-  g_free (file_path);
-  g_free (json_path);
+  g_clear_pointer (&contents, g_free);
+  g_clear_pointer (&file, g_object_unref);
   ASSERT_EQ (ret, TRUE);
 
   g_remove ("mnist.data");
@@ -352,15 +352,15 @@ TEST (datareposink, writeFlexibleTensors)
   /* Confirm file creation */
   file = g_file_new_for_path ("flexible.data");
   ret = g_file_load_contents (file, NULL, &contents, NULL, NULL, NULL);
-  g_object_unref (file);
-  g_free (contents);
+  g_clear_pointer (&contents, g_free);
+  g_clear_pointer (&file, g_object_unref);
   ASSERT_EQ (ret, TRUE);
 
   /* Confirm file creation */
   file = g_file_new_for_path ("flexible.json");
   ret = g_file_load_contents (file, NULL, &contents, NULL, NULL, NULL);
-  g_object_unref (file);
-  g_free (contents);
+  g_clear_pointer (&contents, g_free);
+  g_clear_pointer (&file, g_object_unref);
   ASSERT_EQ (ret, TRUE);
 
   g_remove ("flexible.data");
@@ -395,7 +395,9 @@ TEST (datareposink, writeSparseTensors)
       file_path, json_path);
 
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
-  g_free (str_pipeline);
+  g_clear_pointer (&str_pipeline, g_free);
+  g_clear_pointer (&file_path, g_free);
+  g_clear_pointer (&json_path, g_free);
   ASSERT_NE (pipeline, nullptr);
 
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
@@ -413,10 +415,8 @@ TEST (datareposink, writeSparseTensors)
   /* Confirm file creation */
   file = g_file_new_for_path ("sparse.json");
   ret = g_file_load_contents (file, NULL, &contents, NULL, NULL, NULL);
-  g_free (contents);
-  g_object_unref (file);
-  g_free (file_path);
-  g_free (json_path);
+  g_clear_pointer (&contents, g_free);
+  g_clear_pointer (&file, g_object_unref);
   ASSERT_EQ (ret, TRUE);
 
   /* Confirm file creation */
@@ -425,9 +425,9 @@ TEST (datareposink, writeSparseTensors)
   info = g_file_query_info (
       file, G_FILE_ATTRIBUTE_STANDARD_SIZE, G_FILE_QUERY_INFO_NONE, NULL, NULL);
   size = g_file_info_get_size (info);
-  g_object_unref (file);
-  g_object_unref (info);
-  g_free (contents);
+  g_clear_pointer (&contents, g_free);
+  g_clear_pointer (&file, g_object_unref);
+  g_clear_pointer (&info, g_object_unref);
   ASSERT_EQ (ret, TRUE);
 
   /* The size of one mnist sample is 3176 bytes, the number of samples for test is 10. */
@@ -571,13 +571,13 @@ TEST (datareposink, writeFlexibleTensors_n)
   ASSERT_NE (file_info, nullptr);
   size = g_file_info_get_size (file_info);
   ASSERT_EQ (size, 0);
-  g_object_unref (file_info);
-  g_object_unref (file);
+  g_clear_pointer (&file_info, g_object_unref);
+  g_clear_pointer (&file, g_object_unref);
 
   for (i = 0; i < 5; i++) {
     filename = g_strdup_printf ("img_%02d.png", i);
     g_remove (filename);
-    g_free (filename);
+    g_clear_pointer (&filename, g_free);
   }
 
   g_remove ("img.json");
@@ -630,13 +630,13 @@ TEST (datareposink, writeSparseTensors_n)
   ASSERT_NE (file_info, nullptr);
   size = g_file_info_get_size (file_info);
   ASSERT_EQ (size, 0);
-  g_object_unref (file_info);
-  g_object_unref (file);
+  g_clear_pointer (&file_info, g_object_unref);
+  g_clear_pointer (&file, g_object_unref);
 
   for (i = 0; i < 5; i++) {
     filename = g_strdup_printf ("img_%02d.png", i);
     g_remove (filename);
-    g_free (filename);
+    g_clear_pointer (&filename, g_free);
   }
 
   g_remove ("img.json");
