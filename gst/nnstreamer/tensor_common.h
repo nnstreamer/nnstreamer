@@ -245,10 +245,10 @@ gst_tensor_aggregation_init (void);
 /**
  * @brief Clears buffers from adapter.
  * @param table a hash table instance initialized with gst_tensor_aggregation_init()
- * @param key the key to look up (set null to get default adapter)
+ * @param key the key to look up (set 0 to get default adapter)
  */
 extern void
-gst_tensor_aggregation_clear (GHashTable * table, const guint32 key);
+gst_tensor_aggregation_clear (GHashTable * table, const gint64 key);
 
 /**
  * @brief Clears buffers from all adapters in hash table.
@@ -260,11 +260,11 @@ gst_tensor_aggregation_clear_all (GHashTable * table);
 /**
  * @brief Gets adapter from hash table.
  * @param table a hash table instance initialized with gst_tensor_aggregation_init()
- * @param key the key to look up (set null to get default adapter)
+ * @param key the key to look up (set 0 to get default adapter)
  * @return gst-adapter instance. DO NOT release this instance.
  */
 extern GstAdapter *
-gst_tensor_aggregation_get_adapter (GHashTable * table, const guint32 key);
+gst_tensor_aggregation_get_adapter (GHashTable * table, const gint64 key);
 
 /******************************************************
  ************ Commonly used debugging macros **********

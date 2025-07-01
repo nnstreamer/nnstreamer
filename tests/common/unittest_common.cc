@@ -2029,8 +2029,8 @@ TEST (commonMetaInfo, convertMetaInvalidParam02_n)
  */
 TEST (commonAggregationUtil, clearData)
 {
-  const guint32 key1 = 0U;
-  const guint32 key2 = 100U;
+  const gint64 key1 = 0;
+  const gint64 key2 = 100;
   GHashTable *table;
 
   table = gst_tensor_aggregation_init ();
@@ -2068,7 +2068,7 @@ TEST (commonAggregationUtil, nullParam_n)
 {
   GstAdapter *adapter;
 
-  adapter = gst_tensor_aggregation_get_adapter (NULL, 0U);
+  adapter = gst_tensor_aggregation_get_adapter (NULL, 0);
   EXPECT_FALSE (adapter != NULL);
 }
 
