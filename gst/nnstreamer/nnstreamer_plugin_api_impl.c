@@ -655,8 +655,6 @@ typedef struct
   GstAdapter *adapter;
 } gst_tensor_aggregation_data_s;
 
-#define AGGREGATION_DEFAULT_KEY 0xC0FFEEU
-
 /**
  * @brief Internal function to free aggregation data.
  */
@@ -678,20 +676,20 @@ gst_tensor_aggregation_free_data (gpointer data)
  * @brief Internal function to add new aggregation data.
  */
 static gst_tensor_aggregation_data_s *
-gst_tensor_aggregation_add_data (GHashTable * table, const guint32 key)
+gst_tensor_aggregation_add_data (GHashTable * table, const gint64 key)
 {
   gst_tensor_aggregation_data_s *aggr;
-  guint32 hashkey;
+  gint64 *hashkey;
 
   g_return_val_if_fail (table != NULL, NULL);
-  if (key == 0)
-    hashkey = AGGREGATION_DEFAULT_KEY;
-  else
-    hashkey = key;
+
+  hashkey = g_new (gint64, 1);
+  *hashkey = key;
+
   aggr = g_new0 (gst_tensor_aggregation_data_s, 1);
   aggr->adapter = gst_adapter_new ();
 
-  g_hash_table_insert (table, GINT_TO_POINTER (hashkey), aggr);
+  g_hash_table_insert (table, hashkey, aggr);
   return aggr;
 }
 
@@ -699,12 +697,11 @@ gst_tensor_aggregation_add_data (GHashTable * table, const guint32 key)
  * @brief Internal function to get aggregation data.
  */
 static gst_tensor_aggregation_data_s *
-gst_tensor_aggregation_get_data (GHashTable * table, const guint32 key)
+gst_tensor_aggregation_get_data (GHashTable * table, const gint64 key)
 {
   g_return_val_if_fail (table != NULL, NULL);
 
-  return (gst_tensor_aggregation_data_s *) g_hash_table_lookup (table,
-      GINT_TO_POINTER (key == 0 ? AGGREGATION_DEFAULT_KEY : key));
+  return (gst_tensor_aggregation_data_s *) g_hash_table_lookup (table, &key);
 }
 
 /**
@@ -734,7 +731,7 @@ gst_tensor_aggregation_init (void)
 {
   GHashTable *table;
 
-  table = g_hash_table_new_full (g_direct_hash, g_direct_equal, NULL,
+  table = g_hash_table_new_full (g_int64_hash, g_int64_equal, g_free,
       gst_tensor_aggregation_free_data);
 
   /**
@@ -745,7 +742,7 @@ gst_tensor_aggregation_init (void)
    * However, on normal pipeline, gst-buffer does not contain tensor-meta,
    * then the element may request adapter with null key string.
    */
-  gst_tensor_aggregation_add_data (table, AGGREGATION_DEFAULT_KEY);
+  gst_tensor_aggregation_add_data (table, 0);
 
   return table;
 }
@@ -753,14 +750,15 @@ gst_tensor_aggregation_init (void)
 /**
  * @brief Clears buffers from adapter.
  * @param table a hash table instance initialized with gst_tensor_aggregation_init()
- * @param key the key to look up (set null to get default adapter)
+ * @param key the key to look up (set 0 to get default adapter)
  */
 void
-gst_tensor_aggregation_clear (GHashTable * table, const guint32 key)
+gst_tensor_aggregation_clear (GHashTable * table, const gint64 key)
 {
   gst_tensor_aggregation_data_s *aggr;
 
   g_return_if_fail (table != NULL);
+  g_return_if_fail (key >= 0);
 
   aggr = gst_tensor_aggregation_get_data (table, key);
   gst_tensor_aggregation_clear_internal (NULL, aggr, NULL);
@@ -779,15 +777,16 @@ gst_tensor_aggregation_clear_all (GHashTable * table)
 /**
  * @brief Gets adapter from hash table.
  * @param table a hash table instance initialized with gst_tensor_aggregation_init()
- * @param key the key to look up (set null to get default adapter)
+ * @param key the key to look up (set 0 to get default adapter)
  * @return gst-adapter instance. DO NOT release this instance.
  */
 GstAdapter *
-gst_tensor_aggregation_get_adapter (GHashTable * table, const guint32 key)
+gst_tensor_aggregation_get_adapter (GHashTable * table, const gint64 key)
 {
   gst_tensor_aggregation_data_s *aggr;
 
   g_return_val_if_fail (table != NULL, NULL);
+  g_return_val_if_fail (key >= 0, NULL);
 
   aggr = gst_tensor_aggregation_get_data (table, key);
   if (!aggr) {

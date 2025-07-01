@@ -706,7 +706,7 @@ static GstAdapter *
 gst_tensor_converter_get_adapter (GstTensorConverter * self, GstBuffer * buf)
 {
   GstMetaQuery *meta;
-  guint32 key = 0;
+  gint64 key = 0;
 
   meta = gst_buffer_get_meta_query (buf);
   if (meta)
