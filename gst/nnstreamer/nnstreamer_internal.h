@@ -75,7 +75,7 @@ gst_tensor_filter_detect_framework (const gchar * const *model_files, const guin
  * @return TRUE if given hw is available.
  */
 extern gboolean
-gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw, const char *custom);
+gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw, const gchar * custom);
 
 G_END_DECLS
 #endif /* __NNSTREAMER_INTERNAL_H__ */

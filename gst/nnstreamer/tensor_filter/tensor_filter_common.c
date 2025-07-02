@@ -544,7 +544,7 @@ gst_tensor_filter_framework_info_init (GstTensorFilterFrameworkInfo * info)
 }
 
 /**
- * @brief Initialize the GstTensorFilterFrameworkInfo object
+ * @brief Initialize the GstTensorFilterStatistics object
  */
 static void
 gst_tensor_filter_statistics_init (GstTensorFilterStatistics * stat)
@@ -2841,7 +2841,7 @@ accl_hw_get_type (void)
  */
 gboolean
 gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw,
-    const char *custom)
+    const gchar * custom)
 {
   gint idx = 0;
   gboolean available = FALSE;
