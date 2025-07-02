@@ -147,6 +147,7 @@ class tensor_filter_subplugin
 #endif
     assert (emptyInstance);
 
+    memset (&info, 0, sizeof (GstTensorFilterFrameworkInfo));
     emptyInstance->getFrameworkInfo (info);
     nnstreamer_filter_exit (info.name);
 

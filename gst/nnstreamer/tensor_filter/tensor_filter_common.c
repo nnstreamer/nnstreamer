@@ -532,14 +532,17 @@ gst_tensor_filter_properties_init (GstTensorFilterProperties * prop)
 static void
 gst_tensor_filter_framework_info_init (GstTensorFilterFrameworkInfo * info)
 {
+  memset (info, 0, sizeof (GstTensorFilterFrameworkInfo));
+
   info->name = NULL;
   info->allow_in_place = 0;
   info->allocate_in_invoke = 0;
   info->run_without_model = 0;
   info->verify_model_path = 0;
   info->hw_list = NULL;
-  info->accl_auto = -1;
-  info->accl_default = -1;
+  info->num_hw = 0;
+  info->accl_auto = ACCL_NONE;
+  info->accl_default = ACCL_NONE;
   info->statistics = NULL;
 }
 
@@ -549,6 +552,8 @@ gst_tensor_filter_framework_info_init (GstTensorFilterFrameworkInfo * info)
 static void
 gst_tensor_filter_statistics_init (GstTensorFilterStatistics * stat)
 {
+  memset (stat, 0, sizeof (GstTensorFilterStatistics));
+
   stat->total_invoke_num = 0;
   stat->total_invoke_latency = 0;
   stat->old_total_invoke_num = 0;
@@ -591,6 +596,8 @@ nnstreamer_filter_validate (const GstTensorFilterFramework * tfsp)
     }
 
     gst_tensor_filter_properties_init (&prop);
+    gst_tensor_filter_framework_info_init (&info);
+
     if (tfsp->getFrameworkInfo (tfsp, &prop, NULL, &info) != 0) {
       /* unable to get framework info */
       return FALSE;
@@ -625,6 +632,8 @@ nnstreamer_filter_probe (GstTensorFilterFramework * tfsp)
     name = tfsp->name;
   } else if (GST_TF_FW_V1 (tfsp)) {
     gst_tensor_filter_properties_init (&prop);
+    gst_tensor_filter_framework_info_init (&info);
+
     if (0 != tfsp->getFrameworkInfo (tfsp, &prop, NULL, &info)) {
       ml_loge ("getFrameworkInfo() failed.\n");
       return FALSE;
@@ -2858,9 +2867,6 @@ gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw,
     return FALSE;
   }
 
-  if (GST_TF_FW_V1 (fw))
-    gst_tensor_filter_properties_init (&prop);
-
   /** Only check for specific HW, DEFAULT/AUTO are always supported */
   if (hw == ACCL_AUTO || hw == ACCL_DEFAULT) {
     available = TRUE;
@@ -2868,6 +2874,9 @@ gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw,
     if (fw->checkAvailability && fw->checkAvailability (hw) == 0)
       available = TRUE;
   } else if (GST_TF_FW_V1 (fw)) {
+    gst_tensor_filter_properties_init (&prop);
+    gst_tensor_filter_framework_info_init (&info);
+
     if (fw->getFrameworkInfo (fw, &prop, NULL, &info) == 0) {
       for (idx = 0; idx < info.num_hw; idx++) {
         if (info.hw_list[idx] == hw) {

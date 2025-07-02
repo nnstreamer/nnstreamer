@@ -1373,6 +1373,7 @@ nnstreamer_trainer_probe (GstTensorTrainerFramework * ttsp)
 
   g_return_val_if_fail (ttsp != NULL, 0);
 
+  memset (&info, 0, sizeof (GstTensorTrainerFrameworkInfo));
   memset (&prop, 0, sizeof (GstTensorTrainerProperties));
   gst_tensors_info_init (&prop.input_meta);
 
@@ -1400,6 +1401,7 @@ nnstreamer_trainer_exit (GstTensorTrainerFramework * ttsp)
 
   g_return_val_if_fail (ttsp != NULL, 0);
 
+  memset (&info, 0, sizeof (GstTensorTrainerFrameworkInfo));
   memset (&prop, 0, sizeof (GstTensorTrainerProperties));
   gst_tensors_info_init (&prop.input_meta);
 
