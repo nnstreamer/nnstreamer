@@ -152,6 +152,17 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! video/
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! video/x-raw,format=RGB,width=4,height=4 ! tensor_converter ! tensor_transform mode=typecast option=float32 ! other/tensor,types=float32,dimensions=3:4:4 ! fakesink" 20-2 0 0 $PERFORMANCE
 
+
+# Flexible-to-Flextible transform from #4740
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! video/x-raw,format=RGB,width=4,height=4 ! tensor_converter ! other/tensors,format=flexible ! tensor_transform mode=typecast option=float32 ! other/tensors,format=flexible ! fakesink" 21 0 0 $PERFORMANCE
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! video/x-raw,format=RGB,width=4,height=4 ! tensor_converter ! other/tensors,format=flexible ! tensor_transform mode=typecast option=float32 ! other/tensors,format=static ! fakesink" 22_n 0 1 $PERFORMANCE
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! video/x-raw,format=RGB,width=4,height=4 ! tensor_converter ! other/tensors,format=static ! tensor_transform mode=typecast option=float32 ! other/tensors,format=flexible ! fakesink" 23_n 0 1 $PERFORMANCE
+
+# when there is a type in format
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! video/x-raw,format=RGB,width=4,height=4 ! tensor_converter ! other/tensors,format=flexibler ! tensor_transform mode=typecast option=float32 ! other/tensors,format=flexible ! fakesink" 24_n 0 1 $PERFORMANCE
+
 rm *.log *.bmp *.png *.golden *.raw *.dat
 
 report

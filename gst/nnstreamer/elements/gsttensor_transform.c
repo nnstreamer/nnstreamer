@@ -2153,7 +2153,7 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
           * static->flexible transform.
           */
         gst_caps_append (result, gst_static_pad_template_get_caps (
-            (direction == GST_PAD_SRC) ? &src_factory : &sink_factory));
+            (direction == GST_PAD_SRC) ? &sink_factory : &src_factory));
         gst_tensors_config_free (&in_config);
         gst_tensors_config_free (&out_config);
         continue;
