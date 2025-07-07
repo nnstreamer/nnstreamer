@@ -56,6 +56,7 @@ class tvm_subplugin final : public tensor_filter_subplugin
 
   static const char *name;
   static const accl_hw hw_list[];
+  static const int num_hw = 2;
   static tvm_subplugin *registeredRepresentation;
 
   bool parse_custom_prop (const char *custom_prop);
@@ -249,7 +250,7 @@ tvm_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 
   for (i = 0; i < inputInfo.num_tensors; ++i) {
     arr = getInput (i);
-    dt = arr.operator-> ();
+    dt = arr.operator->();
     input_tensor_list.push_back (*dt);
 
     _info = gst_tensors_info_get_nth_info (&inputInfo, i);
@@ -268,7 +269,7 @@ tvm_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 
   for (i = 0; i < outputInfo.num_tensors; ++i) {
     arr = getOutput (i);
-    dt = arr.operator-> ();
+    dt = arr.operator->();
     output_tensor_list.push_back (*dt);
 
     _info = gst_tensors_info_get_nth_info (&outputInfo, i);
@@ -419,6 +420,10 @@ tvm_subplugin::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
   info.allocate_in_invoke = 0;
   info.run_without_model = 0;
   info.verify_model_path = 1;
+  info.hw_list = hw_list;
+  info.num_hw = num_hw;
+  info.accl_auto = ACCL_CPU;
+  info.accl_default = ACCL_CPU;
 }
 
 /**

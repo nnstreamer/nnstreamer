@@ -430,7 +430,9 @@ class qnn_subplugin final : public tensor_filter_subplugin
 {
   private:
   static qnn_subplugin *registeredRepresentation;
-  static const GstTensorFilterFrameworkInfo framework_info;
+  static const char *name;
+  static const accl_hw hw_list[];
+  static const int num_hw = 1;
 
   bool configured;
   void cleanup ();
@@ -452,20 +454,6 @@ class qnn_subplugin final : public tensor_filter_subplugin
   int getModelInfo (model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info);
   int eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data);
 };
-
-/**
- * @brief Describe framework information.
- */
-const GstTensorFilterFrameworkInfo qnn_subplugin::framework_info = { .name = "qnn",
-  .allow_in_place = FALSE,
-  .allocate_in_invoke = FALSE,
-  .run_without_model = FALSE,
-  .verify_model_path = TRUE,
-  .hw_list = (const accl_hw[]){ ACCL_CPU },
-  .num_hw = 1,
-  .accl_auto = ACCL_CPU,
-  .accl_default = ACCL_CPU,
-  .statistics = nullptr };
 
 /**
  * @brief Constructor for qnn_subplugin.
@@ -609,7 +597,15 @@ qnn_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 void
 qnn_subplugin::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
 {
-  info = framework_info;
+  info.name = name;
+  info.allow_in_place = FALSE;
+  info.allocate_in_invoke = FALSE;
+  info.run_without_model = FALSE;
+  info.verify_model_path = TRUE;
+  info.hw_list = hw_list;
+  info.num_hw = num_hw;
+  info.accl_auto = ACCL_CPU;
+  info.accl_default = ACCL_CPU;
 }
 
 /**
@@ -640,6 +636,8 @@ qnn_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &d
 }
 
 qnn_subplugin *qnn_subplugin::registeredRepresentation = nullptr;
+const char *qnn_subplugin::name = "qnn";
+const accl_hw qnn_subplugin::hw_list[] = { ACCL_CPU };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void

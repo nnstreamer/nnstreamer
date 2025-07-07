@@ -404,7 +404,7 @@ dali_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &
 
   UNUSED (ops);
   UNUSED (data);
-  return 0;
+  return -ENOENT;
 }
 
 std::vector<std::int64_t>

@@ -87,12 +87,14 @@ class ncnn_subplugin final : public tensor_filter_subplugin
 
   private:
   bool empty_model; /**< Empty (not initialized) model flag */
-  static const GstTensorFilterFrameworkInfo info; /**< Framework info */
   GstTensorsInfo inputInfo; /**< Input tensors metadata */
   GstTensorsInfo outputInfo; /**< Output tensors metadata */
   bool use_yolo_decoder; /**< Yolo decoder flag to fix output dimension */
 
   static ncnn_subplugin *registeredRepresentation;
+  static const char *name;
+  static const accl_hw hw_list[];
+  static const int num_hw = 2;
 
   ncnn::Net net; /**< Model symbol */
   std::vector<ncnn::Mat> input_mats; /**< Matrices of inputs */
@@ -104,20 +106,6 @@ class ncnn_subplugin final : public tensor_filter_subplugin
   static void extract_thread (ncnn::Extractor &ex, const int idx,
       ncnn::Mat &out, void *output_data, const uint32_t num_bytes);
 };
-
-/**
- * @brief Describe framework information.
- */
-const GstTensorFilterFrameworkInfo ncnn_subplugin::info = { .name = "ncnn",
-  .allow_in_place = FALSE,
-  .allocate_in_invoke = FALSE,
-  .run_without_model = FALSE,
-  .verify_model_path = TRUE,
-  .hw_list = (const accl_hw[]){ ACCL_CPU, ACCL_GPU },
-  .num_hw = 2,
-  .accl_auto = ACCL_CPU,
-  .accl_default = ACCL_CPU,
-  .statistics = nullptr };
 
 /**
  * @brief Construct a new ncnn subplugin::ncnn subplugin object
@@ -352,7 +340,15 @@ ncnn_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 void
 ncnn_subplugin::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
 {
-  info = ncnn_subplugin::info;
+  info.name = name;
+  info.allow_in_place = FALSE;
+  info.allocate_in_invoke = FALSE;
+  info.run_without_model = FALSE;
+  info.verify_model_path = TRUE;
+  info.hw_list = hw_list;
+  info.num_hw = num_hw;
+  info.accl_auto = ACCL_CPU;
+  info.accl_default = ACCL_CPU;
 }
 
 /**
@@ -463,6 +459,8 @@ ncnn_subplugin::extract_thread (ncnn::Extractor &ex, const int idx,
 }
 
 ncnn_subplugin *ncnn_subplugin::registeredRepresentation = nullptr;
+const char *ncnn_subplugin::name = "ncnn";
+const accl_hw ncnn_subplugin::hw_list[] = { ACCL_CPU, ACCL_GPU };
 
 /**
  * @brief Initialize the object for runtime register

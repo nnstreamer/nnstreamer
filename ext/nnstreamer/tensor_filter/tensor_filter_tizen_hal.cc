@@ -242,13 +242,17 @@ tizen_hal_subplugin::getModelInfo (
              != HAL_ML_ERROR_NONE) {
     hal_ml_param_destroy (param);
     nns_loge ("Failed to set parameters for getModelInfo");
-    return HAL_ML_ERROR_RUNTIME_ERROR;
+    return -1;
   }
 
   int ret = hal_ml_request (hal_handle, "get_model_info", param);
   hal_ml_param_destroy (param);
 
-  return ret;
+  if (ret != HAL_ML_ERROR_NONE) {
+    return (ret == HAL_ML_ERROR_NOT_SUPPORTED) ? -ENOENT : -1;
+  }
+
+  return 0;
 }
 
 /**
@@ -268,13 +272,17 @@ tizen_hal_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventD
       || hal_ml_param_set (param, "data", (void *) std::addressof (data)) != HAL_ML_ERROR_NONE) {
     hal_ml_param_destroy (param);
     nns_loge ("Failed to set parameters for event handler");
-    return HAL_ML_ERROR_RUNTIME_ERROR;
+    return -1;
   }
 
   int ret = hal_ml_request (hal_handle, "event_handler", param);
   hal_ml_param_destroy (param);
 
-  return ret;
+  if (ret != HAL_ML_ERROR_NONE) {
+    return (ret == HAL_ML_ERROR_NOT_SUPPORTED) ? -ENOENT : -1;
+  }
+
+  return 0;
 }
 
 tizen_hal_subplugin *tizen_hal_subplugin::registeredRepresentation = nullptr;

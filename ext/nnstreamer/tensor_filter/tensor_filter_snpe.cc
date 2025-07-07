@@ -56,7 +56,9 @@ class snpe_subplugin final : public tensor_filter_subplugin
 {
   private:
   static snpe_subplugin *registeredRepresentation;
-  static const GstTensorFilterFrameworkInfo framework_info;
+  static const char *name;
+  static const accl_hw hw_list[];
+  static const int num_hw = 1;
 
   bool configured;
   char *model_path; /**< The model *.dlc file */
@@ -84,20 +86,6 @@ class snpe_subplugin final : public tensor_filter_subplugin
   int getModelInfo (model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info);
   int eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data);
 };
-
-/**
- * @brief Describe framework information.
- */
-const GstTensorFilterFrameworkInfo snpe_subplugin::framework_info = { .name = SNPE_FRAMEWORK_NAME,
-  .allow_in_place = FALSE,
-  .allocate_in_invoke = FALSE,
-  .run_without_model = FALSE,
-  .verify_model_path = TRUE,
-  .hw_list = (const accl_hw[]){ ACCL_CPU },
-  .num_hw = 1,
-  .accl_auto = ACCL_CPU,
-  .accl_default = ACCL_CPU,
-  .statistics = nullptr };
 
 /**
  * @brief Constructor for snpe_subplugin.
@@ -525,7 +513,15 @@ snpe_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 void
 snpe_subplugin::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
 {
-  info = framework_info;
+  info.name = name;
+  info.allow_in_place = FALSE;
+  info.allocate_in_invoke = FALSE;
+  info.run_without_model = FALSE;
+  info.verify_model_path = TRUE;
+  info.hw_list = hw_list;
+  info.num_hw = num_hw;
+  info.accl_auto = ACCL_CPU;
+  info.accl_default = ACCL_CPU;
 }
 
 /**
@@ -557,6 +553,8 @@ snpe_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &
 }
 
 snpe_subplugin *snpe_subplugin::registeredRepresentation = nullptr;
+const char *snpe_subplugin::name = SNPE_FRAMEWORK_NAME;
+const accl_hw snpe_subplugin::hw_list[] = { ACCL_CPU };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void

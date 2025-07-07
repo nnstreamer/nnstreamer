@@ -142,7 +142,6 @@ class TensorFilterMXNet final : public tensor_filter_subplugin
       std::map<std::string, NDArray> *paramMapInTargetContext, Context targetContext);
 
   bool empty_model_; /**< Empty (not initialized) model flag */
-  static const GstTensorFilterFrameworkInfo info_; /**< Framework info */
   GstTensorsInfo inputs_info_; /**< Input tensors metadata */
   GstTensorsInfo outputs_info_; /**< Output tensors metadata */
 
@@ -161,24 +160,13 @@ class TensorFilterMXNet final : public tensor_filter_subplugin
   bool enable_tensorrt_; /**< Enable NVIDIA TensorRT flag */
 
   static TensorFilterMXNet *registeredRepresentation;
+  static const char *name;
+  static const accl_hw hw_list[];
+  static const int num_hw = 2;
 };
 
 const std::string TensorFilterMXNet::ext_symbol = ".json";
 const std::string TensorFilterMXNet::ext_params = ".params";
-
-/**
- * @brief Describe framework information.
- */
-const GstTensorFilterFrameworkInfo TensorFilterMXNet::info_ = { .name = "mxnet",
-  .allow_in_place = FALSE,
-  .allocate_in_invoke = FALSE,
-  .run_without_model = FALSE,
-  .verify_model_path = TRUE,
-  .hw_list = (const accl_hw[]){ ACCL_CPU, ACCL_GPU },
-  .num_hw = 2,
-  .accl_auto = ACCL_CPU,
-  .accl_default = ACCL_CPU,
-  .statistics = nullptr };
 
 /**
  * @brief mxnet class constructor.
@@ -366,7 +354,15 @@ TensorFilterMXNet::invoke (const GstTensorMemory *input, GstTensorMemory *output
 void
 TensorFilterMXNet::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
 {
-  info = info_;
+  info.name = name;
+  info.allow_in_place = FALSE;
+  info.allocate_in_invoke = FALSE;
+  info.run_without_model = FALSE;
+  info.verify_model_path = TRUE;
+  info.hw_list = hw_list;
+  info.num_hw = num_hw;
+  info.accl_auto = ACCL_CPU;
+  info.accl_default = ACCL_CPU;
 }
 
 /**
@@ -520,6 +516,8 @@ TensorFilterMXNet::convertParamMapToTargetContext (
 }
 
 TensorFilterMXNet *TensorFilterMXNet::registeredRepresentation = nullptr;
+const char *TensorFilterMXNet::name = "mxnet";
+const accl_hw TensorFilterMXNet::hw_list[] = { ACCL_CPU, ACCL_GPU };
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
 void

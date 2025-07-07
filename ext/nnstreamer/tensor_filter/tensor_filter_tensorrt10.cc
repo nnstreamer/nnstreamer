@@ -387,8 +387,11 @@ tensorrt10_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEvent
     if (data.data != nullptr) {
       cudaFree (data.data);
     }
+
+    return 0;
   }
-  return 0;
+
+  return -ENOENT;
 }
 
 /**

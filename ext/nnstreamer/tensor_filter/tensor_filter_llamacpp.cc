@@ -470,7 +470,7 @@ TensorFilterLlamaCpp::eventHandler (event_ops ops, GstTensorFilterFrameworkEvent
 {
   UNUSED (ops);
   UNUSED (data);
-  return 0;
+  return -ENOENT;
 }
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */
