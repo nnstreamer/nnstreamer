@@ -687,6 +687,7 @@ void
 TensorFilterPython::configure_instance (const GstTensorFilterProperties *prop)
 {
   const gchar *script_path;
+  cb_type cb;
 
   if (prop->num_models != 1)
     return;
@@ -722,7 +723,8 @@ TensorFilterPython::configure_instance (const GstTensorFilterProperties *prop)
   }
 
   /** check methods in python script */
-  if (core->getCbType () != cb_type::CB_SETDIM && core->getCbType () != cb_type::CB_GETDIM) {
+  cb = core->getCbType ();
+  if (cb != cb_type::CB_SETDIM && cb != cb_type::CB_GETDIM) {
     delete core;
     g_printerr ("Wrong callback type\n");
     goto done;
@@ -767,21 +769,26 @@ int
 TensorFilterPython::getModelInfo (
     model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info)
 {
-  UNUSED (ops);
-  int ret = 0;
-  if (core->getCbType () == cb_type::CB_END) {
-    ml_loge ("cb type wrong");
-    return -ENOENT;
-  }
-
+  int ret = -ENOENT;
   PyGILState_STATE gstate = PyGILState_Ensure ();
+  cb_type cb = core->getCbType ();
 
-  if (core->getCbType () == cb_type::CB_GETDIM) {
-    ret = core->getInputTensorDim (&in_info);
-    if (!ret)
-      ret = core->getOutputTensorDim (&out_info);
-  } else if (core->getCbType () == cb_type::CB_SETDIM) {
-    ret = core->setInputTensorDim (&in_info, &out_info);
+  switch (cb) {
+    case cb_type::CB_GETDIM:
+      if (ops == GET_IN_OUT_INFO) {
+        ret = core->getInputTensorDim (&in_info);
+        if (!ret)
+          ret = core->getOutputTensorDim (&out_info);
+      }
+      break;
+    case cb_type::CB_SETDIM:
+      if (ops == SET_INPUT_INFO) {
+        ret = core->setInputTensorDim (&in_info, &out_info);
+      }
+      break;
+    default:
+      ml_loge ("Wrong cb type.");
+      break;
   }
 
   PyGILState_Release (gstate);
@@ -800,8 +807,11 @@ TensorFilterPython::eventHandler (event_ops ops, GstTensorFilterFrameworkEventDa
       core->freeOutputTensors (data.data);
       PyGILState_Release (gstate);
     }
+
+    return 0;
   }
-  return 0;
+
+  return -ENOENT;
 }
 
 /** @brief Initialize this object for tensor_filter subplugin runtime register */

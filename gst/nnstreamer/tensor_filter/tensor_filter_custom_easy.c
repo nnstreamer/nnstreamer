@@ -33,7 +33,7 @@
 void init_filter_custom_easy (void) __attribute__((constructor));
 void fini_filter_custom_easy (void) __attribute__((destructor));
 
-const char *fw_name = "custom-easy";
+static const char fw_name_custom_easy[] = "custom-easy";
 
 /**
  * @brief internal_data
@@ -282,7 +282,7 @@ custom_getFrameworkInfo (const GstTensorFilterFramework * self,
   UNUSED (self);
   UNUSED (prop);
   UNUSED (private_data);
-  fw_info->name = fw_name;
+  fw_info->name = fw_name_custom_easy;
   fw_info->allow_in_place = 0;
   fw_info->allocate_in_invoke = 0;
   fw_info->run_without_model = 1;
@@ -304,12 +304,14 @@ custom_getModelInfo (const GstTensorFilterFramework * self,
   runtime_data *rd = private_data;
   UNUSED (self);
   UNUSED (prop);
-  UNUSED (ops);
 
-  gst_tensors_info_copy (in_info, &rd->model->in_info);
-  gst_tensors_info_copy (out_info, &rd->model->out_info);
+  if (ops == GET_IN_OUT_INFO) {
+    gst_tensors_info_copy (in_info, &rd->model->in_info);
+    gst_tensors_info_copy (out_info, &rd->model->out_info);
+    return 0;
+  }
 
-  return 0;
+  return -ENOENT;
 }
 
 /**
@@ -326,7 +328,7 @@ custom_eventHandler (const GstTensorFilterFramework * self,
   UNUSED (data);
   UNUSED (prop);
 
-  return 0;
+  return -ENOENT;
 }
 
 static GstTensorFilterFramework NNS_support_custom_easy = {
