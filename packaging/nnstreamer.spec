@@ -132,7 +132,6 @@
 # Disable a few features for movable device
 %if 0%{?mv_prj}
 %define		grpc_support 0
-%define		check_test 0
 %define		edgetpu_support 0
 %define		python3_support 0
 %define		mvncsdk2_support 0
@@ -422,7 +421,9 @@ Element to use general neural network framework directly without gstreamer pipel
 %package default-configuration
 Summary: NNStreamer global configuration
 Provides: nnstreamer-configuration = %{version}-%{release}
+%if 0%{?release_test}
 Conflicts: nnstreamer-test-devel
+%endif
 %description default-configuration
 NNStreamer's global configuration setup for the end user.
 
@@ -636,6 +637,7 @@ Requires:   nnstreamer-single-devel = %{version}-%{release}
 %description single-devel-static
 Static library package of nnstreamer-single-devel.
 
+%if 0%{?release_test}
 %package test-devel
 Summary: Development package to provide testable environment of a subplugin (tensor_filter/custom)
 Requires: nnstreamer-devel = %{version}-%{release}
@@ -646,6 +648,7 @@ Conflicts: nnstreamer-default-configuration
 Development package to provide testable environment of NNStreamer sub-plugin.
 This package enables testable environment of NNStreamer sub-plugin by making nnstreamer to recognize NNSTREAMER_CONF_PATH to steer a sub-plugin path to a custom path.
 Also This package provides test templates to be used with.
+%endif
 
 %if 0%{?testcoverage}
 %package unittest-coverage
