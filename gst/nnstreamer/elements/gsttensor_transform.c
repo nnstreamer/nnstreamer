@@ -2136,12 +2136,29 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
     GstTensorsConfig in_config, out_config;
     GstTensorInfo *in_info, *out_info;
     gboolean is_types_not_fixed = FALSE;
-    GstCaps *result_aux = gst_caps_new_empty ();
+    GstCaps *result_aux;
 
     gst_tensors_config_init (&out_config);
 
     structure = gst_caps_get_structure (caps, i);
     gst_tensors_config_from_structure (&in_config, structure);
+
+    if ((!gst_structure_has_field (structure, "format") ||
+        !gst_structure_get_string (structure, "format")) &&
+        !(in_config.info.num_tensors)) {
+        /** Because format is not determined or dual-state,
+          * gst_tensors_config_from_structure won't properly get format
+          * However, if there is any hint of setting inputs static,
+          * assume output is going to be static. UNLESS it start supporting
+          * static->flexible transform.
+          */
+        gst_caps_append (result, gst_static_pad_template_get_caps (
+            (direction == GST_PAD_SRC) ? &src_factory : &sink_factory));
+        gst_tensors_config_free (&in_config);
+        gst_tensors_config_free (&out_config);
+        continue;
+    }
+    result_aux = gst_caps_new_empty ();
 
     if (gst_tensors_config_is_flexible (&in_config)) {
       /* output caps is also flexible */
