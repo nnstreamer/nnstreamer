@@ -453,15 +453,24 @@ if not get_option('python3-support').disabled()
   if python3_dep.found()
     pg_pkgconfig = find_program('pkg-config')
 
+    # Numpy uses different paths per version (>=2.2: _core, <2.2: core)
+    numpy_version = run_command('python3', ['-c', 'import numpy as np; print(np.__version__)'], check : false).stdout().strip()
+    message ('numpy version: @0@'.format(numpy_version))
+
+    numpy_inc_path = '/numpy/core/include' # if it's < 2.2 or version-check has failed.
+    if numpy_version.version_compare('>=2.2')
+      numpy_inc_path = '/numpy/_core/include'
+    endif
+
     python3_inc_args = []
     python3_inc_args += run_command(pg_pkgconfig, ['python3', '--cflags'], check : true).stdout().strip().split()
-    python3_inc_args += run_command('python3', ['-c', 'import site\nfor i in site.getsitepackages(): print("-I" + i + "/numpy/core/include")'], check : true).stdout().strip().split()
+    python3_inc_args += run_command('python3', ['-c', 'import site\nfor i in site.getsitepackages(): print("-I" + i + "@0@")'.format(numpy_inc_path)], check : true).stdout().strip().split()
     r = run_command('python3', ['-m', 'site', '--user-site'], check : false)
     if r.returncode() == 0
-      python3_inc_args += '-I' + r.stdout().strip() + '/numpy/core/include'
+      python3_inc_args += '-I' + r.stdout().strip() + numpy_inc_path
     endif
-    python3_inc_valid_args = []
 
+    python3_inc_valid_args = []
     foreach python3_inc_arg : python3_inc_args
       if cxx.has_argument(python3_inc_arg) and \
           cxx.check_header('numpy/arrayobject.h', args : python3_inc_arg, dependencies : python3_dep)
