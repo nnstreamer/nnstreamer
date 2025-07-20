@@ -489,9 +489,12 @@ onnxruntime_subplugin::setAccelerator (const char *accelerators)
       auto api = Ort::GetApi();
       OrtCUDAProviderOptionsV2* options = nullptr;
       Ort::ThrowOnError(api.CreateCUDAProviderOptions(&options));
+
 //      std::vector<const char*> keys{"enable_cuda_graph"};
 //      std::vector<const char*> values{"1"};
-//      Ort::ThrowOnError(api.UpdateCUDAProviderOptions(options, keys.data(), values.data(), 1));
+      std::vector<const char*> keys{"cudnn_conv_use_max_workspace"};
+      std::vector<const char*> values{"1"};
+      Ort::ThrowOnError(api.UpdateCUDAProviderOptions(options, keys.data(), values.data(), 1));
       sessionOptions.AppendExecutionProvider_CUDA_V2(*options);
       api.ReleaseCUDAProviderOptions(options);
     } else if (has_qnn) {
