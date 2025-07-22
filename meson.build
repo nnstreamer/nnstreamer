@@ -823,8 +823,8 @@ if get_option('enable-float16')
     has_avx512fp16 = cc.has_argument('-mavx512fp16')
 
     if (has_avx512fp16)
-      add_project_arguments(['-mavx512fp16'], language: ['c', 'cpp'])
-      message ('Float16 for x86_64 enabled. Modern gcc-x64 generally supports float16 with _Float16. -mavx512fp16 added for hardware acceleration')
+#      add_project_arguments(['-mavx512fp16'], language: ['c', 'cpp'])
+      message ('Float16 for x86_64 enabled. TODO: Modern gcc-x64 generally supports float16 with _Float16. -mavx512fp16 added for hardware acceleration')
     else
       warning ('Float16 for x86_64 enabled. However, software emulation is applied for fp16, making it slower and inconsistent. Use GCC 12+ for AVX512 FP16 support. This build will probably fail unless you bring a compiler that supports fp16 for x64.')
     endif

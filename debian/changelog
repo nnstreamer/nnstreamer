@@ -1,8 +1,14 @@
-nnstreamer (2.4.2.0-1.2.0) UNRELEASED; urgency=medium
+nnstreamer (2.4.2.0-1.2.1) UNRELEASED; urgency=medium
+
+  * activate float16 support
+
+ -- Torsten Schulz <torsten@eyepop.ai>  Tue, 22 Jul 2025 11:11:35 -0700
+
+nnstreamer (2.4.2.0-1.2.0) jammy; urgency=medium
 
   * onnx and tflite upgrade
 
- -- Torsten Schulz <torsten@eyepop.ai>  Sun, 20 Jul 2025 09:14:21 -0700
+ -- Torsten Schulz <torsten@eyepop.ai>  Tue, 22 Jul 2025 11:11:32 -0700
 
 nnstreamer (2.4.2.0-1.1.4) jammy; urgency=medium
 
