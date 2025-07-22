@@ -1,10 +1,10 @@
-qnnstreamer (2.4.2.0-1.2.0) UNRELEASED; urgency=medium
+nnstreamer (2.4.2.0-1.2.0) UNRELEASED; urgency=medium
 
   * onnx and tflite upgrade
 
  -- Torsten Schulz <torsten@eyepop.ai>  Sun, 20 Jul 2025 09:14:21 -0700
 
-qnnstreamer (2.4.2.0-1.1.4) jammy; urgency=medium
+nnstreamer (2.4.2.0-1.1.4) jammy; urgency=medium
 
   * Experimental support for "expandable" tensor format and 0-size dimensions
 
