@@ -1278,16 +1278,14 @@ gst_tensor_pad_caps_from_config (GstPad * pad, const GstTensorsConfig * config)
 
 intersectable:
   if (!gst_caps_can_intersect (caps, templ)) {
-    gst_caps_unref (caps);
-    caps = NULL;
+    g_clear_pointer (&caps, gst_caps_unref);
   }
 
 done:
-  gst_caps_unref (templ);
-  if (peer_caps)
-    gst_caps_unref (peer_caps);
-  caps = gst_caps_truncate (caps);
-  return caps;
+  g_clear_pointer (&templ, gst_caps_unref);
+  g_clear_pointer (&peer_caps, gst_caps_unref);
+
+  return gst_caps_truncate (caps);
 }
 
 /**
@@ -1338,11 +1336,10 @@ gst_tensor_pad_possible_caps_from_config (GstPad * pad,
 
   /* if no possible caps for given config, return null. */
   if (gst_caps_is_empty (caps)) {
-    gst_caps_unref (caps);
-    caps = NULL;
+    g_clear_pointer (&caps, gst_caps_unref);
   }
 
-  gst_caps_unref (templ);
+  g_clear_pointer (&templ, gst_caps_unref);
   return caps;
 }
 
@@ -1427,7 +1424,6 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
     const GstStructure * structure)
 {
   const gchar *name;
-  tensor_format format = _NNS_TENSOR_FORMAT_STATIC;
 
   g_return_val_if_fail (config != NULL, FALSE);
   gst_tensors_config_init (config);
@@ -1450,6 +1446,8 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
       config->info.info[0].type = gst_tensor_get_type (type_str);
     }
   } else if (g_str_equal (name, NNS_MIMETYPE_TENSORS)) {
+    tensor_format format = _NNS_TENSOR_FORMAT_END;
+
     if (gst_structure_has_field (structure, "format")) {
       const gchar *format_str;
 
@@ -1458,12 +1456,16 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
 
       if (format == _NNS_TENSOR_FORMAT_END) {
         GST_INFO
-            ("Invalid format %s, it should be one of %s. Suppose tensor format is static.",
+            ("Invalid format %s, it should be one of %s. Suppose tensor format is unknown.",
             _STR_NULL (format_str), GST_TENSOR_FORMAT_ALL);
-      } else {
-        config->info.format = format;
       }
+    } else if (gst_structure_has_field (structure, "num_tensors")) {
+        GST_WARNING
+            ("Found 'num_tensors' field but format is not described. Suppose tensor format is static.");
+        format = _NNS_TENSOR_FORMAT_STATIC;
     }
+
+    config->info.format = format;
 
     if (config->info.format == _NNS_TENSOR_FORMAT_STATIC) {
       gst_structure_get_int (structure, "num_tensors",

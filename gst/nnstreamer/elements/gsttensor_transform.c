@@ -2136,7 +2136,7 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
     GstTensorsConfig in_config, out_config;
     GstTensorInfo *in_info, *out_info;
     gboolean is_types_not_fixed = FALSE;
-    GstCaps *result_aux;
+    GstCaps *out_caps;
 
     gst_tensors_config_init (&out_config);
 
@@ -2158,7 +2158,7 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
         gst_tensors_config_free (&out_config);
         continue;
     }
-    result_aux = gst_caps_new_empty ();
+    out_caps = gst_caps_new_empty ();
 
     if (gst_tensors_config_is_flexible (&in_config)) {
       /* output caps is also flexible */
@@ -2182,18 +2182,18 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
     out_config.info.num_tensors = in_config.info.num_tensors;
 
     if (gst_structure_has_name (structure, NNS_MIMETYPE_TENSOR)) {
-      gst_caps_append (result_aux, gst_tensor_caps_from_config (&out_config));
+      gst_caps_append (out_caps, gst_tensor_caps_from_config (&out_config));
     } else {
-      gst_caps_append (result_aux, gst_tensors_caps_from_config (&out_config));
+      gst_caps_append (out_caps, gst_tensors_caps_from_config (&out_config));
 
       /* remove `types` field from caps */
       if (is_types_not_fixed) {
-        GstStructure *s = gst_caps_get_structure (result_aux, 0);
+        GstStructure *s = gst_caps_get_structure (out_caps, 0);
         gst_structure_remove_field (s, "types");
       }
     }
 
-    gst_caps_append (result, result_aux);
+    gst_caps_append (result, out_caps);
 
     gst_tensors_config_free (&in_config);
     gst_tensors_config_free (&out_config);
