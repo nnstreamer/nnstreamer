@@ -49,6 +49,9 @@ endif
 ifeq ($(DEB_BUILD_ARCH_CPU), arm64)
 FLOAT16 := -Denable-float16=true
 endif
+ifeq ($(DEB_BUILD_ARCH_CPU), amd64)
+FLOAT16 := -Denable-float16=true
+endif
 
 %:
 ifeq ($(EYEPOP_PLATFORM),linux-aarch64-jammy)
