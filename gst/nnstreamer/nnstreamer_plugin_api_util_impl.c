@@ -1166,15 +1166,8 @@ gst_tensor_parse_dimension (const gchar * dimstr, tensor_dim dim)
 gchar *
 gst_tensor_get_dimension_string (const tensor_dim dim)
 {
-  gchar *res =
-      gst_tensor_get_rank_dimension_string (dim, NNS_TENSOR_RANK_LIMIT, FALSE);
-
-  if (!res || *res == '\0') {
-    g_free (res);
-    return NULL;
-  }
-
-  return res;
+  return gst_tensor_get_rank_dimension_string (dim,
+      NNS_TENSOR_RANK_LIMIT, FALSE);
 }
 
 /**

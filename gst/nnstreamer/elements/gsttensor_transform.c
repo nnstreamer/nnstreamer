@@ -2135,7 +2135,6 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
   for (i = 0; i < gst_caps_get_size (caps); i++) {
     GstTensorsConfig in_config, out_config;
     GstTensorInfo *in_info, *out_info;
-    gboolean is_types_not_fixed = FALSE;
     GstCaps *out_caps;
 
     gst_tensors_config_init (&out_config);
@@ -2170,10 +2169,6 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
 
         gst_tensor_transform_convert_dimension (filter, direction,
             j, in_info, out_info);
-        if (out_info->type == _NNS_END) {
-          /* types cannot be specified */
-          is_types_not_fixed = TRUE;
-        }
       }
     }
 
@@ -2185,12 +2180,6 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
       gst_caps_append (out_caps, gst_tensor_caps_from_config (&out_config));
     } else {
       gst_caps_append (out_caps, gst_tensors_caps_from_config (&out_config));
-
-      /* remove `types` field from caps */
-      if (is_types_not_fixed) {
-        GstStructure *s = gst_caps_get_structure (out_caps, 0);
-        gst_structure_remove_field (s, "types");
-      }
     }
 
     gst_caps_append (result, out_caps);

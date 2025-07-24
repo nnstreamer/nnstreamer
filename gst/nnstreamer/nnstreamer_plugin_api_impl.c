@@ -826,6 +826,36 @@ _append_prev_caps (const GstTensorsConfig * config)
 }
 
 /**
+ * @brief Internal function to check tensors-info string includes item (dimension, type, or name).
+ */
+static gboolean
+_is_empty_info_string (const gchar * str)
+{
+  gboolean is_empty = TRUE;
+
+  if (str) {
+    gchar **str_array;
+    guint i, num;
+
+    str_array = g_strsplit (str, ",", -1);
+    num = g_strv_length (str_array);
+
+    for (i = 0; i < num; i++) {
+      g_strstrip (str_array[i]);
+
+      if (str_array[i] && str_array[i][0] != '\0') {
+        is_empty = FALSE;
+        break;
+      }
+    }
+
+    g_strfreev (str_array);
+  }
+
+  return is_empty;
+}
+
+/**
  * @brief Internal function to get caps for single tensor from config.
  */
 static GstCaps *
@@ -927,29 +957,44 @@ _get_tensors_caps (const GstTensorsConfig * config)
         gst_tensors_info_get_types_string (&config->info);
     g_autofree gchar *dim_str =
         gst_tensors_info_get_dimensions_string (&config->info);
+    gboolean has_type = !_is_empty_info_string (type_str);
+    gboolean has_dim = !_is_empty_info_string (dim_str);
 
     gst_caps_set_simple (caps, "num_tensors", G_TYPE_INT,
         config->info.num_tensors, NULL);
-    gst_caps_set_simple (caps, "dimensions", G_TYPE_STRING, dim_str, NULL);
-    gst_caps_set_simple (caps, "types", G_TYPE_STRING, type_str, NULL);
+    if (has_dim) {
+      gst_caps_set_simple (caps, "dimensions", G_TYPE_STRING, dim_str, NULL);
+    }
+    if (has_type) {
+      gst_caps_set_simple (caps, "types", G_TYPE_STRING, type_str, NULL);
+    }
 
     if (append_prev) {
-      g_autofree gchar *dim_prev1 =
-          gst_tensors_info_get_rank_dimensions_string (&config->info,
-          NNS_TENSOR_RANK_LIMIT_PREV, FALSE);
-      g_autofree gchar *dim_prev2 =
-          gst_tensors_info_get_rank_dimensions_string (&config->info,
-          NNS_TENSOR_RANK_LIMIT_PREV, TRUE);
-
       gst_caps_set_simple (prev1, "num_tensors", G_TYPE_INT,
           config->info.num_tensors, NULL);
-      gst_caps_set_simple (prev1, "dimensions", G_TYPE_STRING, dim_prev1, NULL);
-      gst_caps_set_simple (prev1, "types", G_TYPE_STRING, type_str, NULL);
+      if (has_dim) {
+        g_autofree gchar *dimstr =
+            gst_tensors_info_get_rank_dimensions_string (&config->info,
+            NNS_TENSOR_RANK_LIMIT_PREV, FALSE);
+
+        gst_caps_set_simple (prev1, "dimensions", G_TYPE_STRING, dimstr, NULL);
+      }
+      if (has_type) {
+        gst_caps_set_simple (prev1, "types", G_TYPE_STRING, type_str, NULL);
+      }
 
       gst_caps_set_simple (prev2, "num_tensors", G_TYPE_INT,
           config->info.num_tensors, NULL);
-      gst_caps_set_simple (prev2, "dimensions", G_TYPE_STRING, dim_prev2, NULL);
-      gst_caps_set_simple (prev2, "types", G_TYPE_STRING, type_str, NULL);
+      if (has_dim) {
+        g_autofree gchar *dimstr =
+            gst_tensors_info_get_rank_dimensions_string (&config->info,
+            NNS_TENSOR_RANK_LIMIT_PREV, TRUE);
+
+        gst_caps_set_simple (prev2, "dimensions", G_TYPE_STRING, dimstr, NULL);
+      }
+      if (has_type) {
+        gst_caps_set_simple (prev2, "types", G_TYPE_STRING, type_str, NULL);
+      }
     }
   }
 
