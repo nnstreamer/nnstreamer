@@ -2123,6 +2123,7 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
   GstTensorTransform *filter;
   GstCaps *result = NULL;
   GstStructure *structure;
+  GstPad *pad;
   guint i, j;
 
   filter = GST_TENSOR_TRANSFORM_CAST (trans);
@@ -2131,58 +2132,42 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
   silent_debug_caps (filter, caps, "from");
   silent_debug_caps (filter, filtercap, "filter");
 
+  if (direction == GST_PAD_SRC) {
+    pad = GST_BASE_TRANSFORM_SINK_PAD (trans);
+  } else {
+    pad = GST_BASE_TRANSFORM_SRC_PAD (trans);
+  }
+
   result = gst_caps_new_empty ();
   for (i = 0; i < gst_caps_get_size (caps); i++) {
     GstTensorsConfig in_config, out_config;
     GstTensorInfo *in_info, *out_info;
     GstCaps *out_caps;
 
-    gst_tensors_config_init (&out_config);
-
     structure = gst_caps_get_structure (caps, i);
     gst_tensors_config_from_structure (&in_config, structure);
 
-    if ((!gst_structure_has_field (structure, "format") ||
-        !gst_structure_get_string (structure, "format")) &&
-        !(in_config.info.num_tensors)) {
-        /** Because format is not determined or dual-state,
-          * gst_tensors_config_from_structure won't properly get format
-          * However, if there is any hint of setting inputs static,
-          * assume output is going to be static. UNLESS it start supporting
-          * static->flexible transform.
-          */
-        gst_caps_append (result, gst_static_pad_template_get_caps (
-            (direction == GST_PAD_SRC) ? &sink_factory : &src_factory));
-        gst_tensors_config_free (&in_config);
-        gst_tensors_config_free (&out_config);
-        continue;
-    }
-    out_caps = gst_caps_new_empty ();
+    gst_tensors_config_copy (&out_config, &in_config);
 
-    if (gst_tensors_config_is_flexible (&in_config)) {
-      /* output caps is also flexible */
-      out_config.info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+    if (out_config.info.format == _NNS_TENSOR_FORMAT_END) {
+      out_caps = gst_pad_get_pad_template_caps (pad);
     } else {
-      for (j = 0; j < in_config.info.num_tensors; j++) {
-        in_info = gst_tensors_info_get_nth_info (&in_config.info, j);
-        out_info = gst_tensors_info_get_nth_info (&out_config.info, j);
+      if (gst_tensors_config_is_static (&out_config)) {
+        for (j = 0; j < in_config.info.num_tensors; j++) {
+          in_info = gst_tensors_info_get_nth_info (&in_config.info, j);
+          out_info = gst_tensors_info_get_nth_info (&out_config.info, j);
 
-        gst_tensor_transform_convert_dimension (filter, direction,
-            j, in_info, out_info);
+          gst_tensor_transform_convert_dimension (filter, direction,
+              j, in_info, out_info);
+        }
       }
+
+      out_caps = gst_tensor_pad_possible_caps_from_config (pad, &out_config);
     }
 
-    out_config.rate_d = in_config.rate_d;
-    out_config.rate_n = in_config.rate_n;
-    out_config.info.num_tensors = in_config.info.num_tensors;
-
-    if (gst_structure_has_name (structure, NNS_MIMETYPE_TENSOR)) {
-      gst_caps_append (out_caps, gst_tensor_caps_from_config (&out_config));
-    } else {
-      gst_caps_append (out_caps, gst_tensors_caps_from_config (&out_config));
+    if (out_caps) {
+      result = gst_caps_merge (result, out_caps);
     }
-
-    gst_caps_append (result, out_caps);
 
     gst_tensors_config_free (&in_config);
     gst_tensors_config_free (&out_config);
