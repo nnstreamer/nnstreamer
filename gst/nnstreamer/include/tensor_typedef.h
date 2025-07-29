@@ -325,4 +325,13 @@ typedef struct
 
 } GstTensorMetaInfo;
 
+/**
+ * @brief Type definition for a callback function of tensor data stream.
+ * @param data The array of tensor data.
+ * @param info The information of tensor data.
+ * @param user_data The private data for the callback.
+ * @return 0 on success. Otherwise a negative error value.
+ */
+typedef int (*GstTensorDataCallback) (GstTensorMemory *data, GstTensorsInfo *info, void *user_data);
+
 #endif /*__GST_TENSOR_TYPEDEF_H__*/

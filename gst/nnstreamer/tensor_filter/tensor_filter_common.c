@@ -3117,29 +3117,29 @@ done:
 }
 
 /**
- * @brief Enables nnstreamer_filter to use asynchronous invoke.
- *        Sets the callback and the handle for asynchronous operations.
+ * @brief Enables tensor_filter to use asynchronous invoke.
+ *        Sets callback and the private data for asynchronous operations.
  *
  * This function is used when the sub-plugin receives an input and generates multiple outputs asynchronously.
  *
- * @param[in] callback The callback function to be invoked during async operations.
  * @param[in] prop GstTensorFilterProperties object.
- * @param[in] handle The handle associated with async operations.
+ * @param[in] callback The callback function to be invoked during async operations.
+ * @param[in] user_data The private data to be passed to the callback function.
  */
 void
-gst_tensor_filter_enable_invoke_async (NNSFilterInvokeAsyncCallback callback,
-    GstTensorFilterProperties * prop, void *handle)
+gst_tensor_filter_enable_invoke_async (GstTensorFilterProperties * prop,
+    GstTensorDataCallback callback, void *user_data)
 {
-  g_return_if_fail (callback != NULL);
   g_return_if_fail (prop != NULL);
-  g_return_if_fail (handle != NULL);
+  g_return_if_fail (callback != NULL);
+  g_return_if_fail (prop->invoke_async);
 
-  prop->async_handle = handle;
-  prop->invoke_async_callback = callback;
+  prop->async_callback = callback;
+  prop->async_user_data = user_data;
 }
 
 /**
- * @brief Disable the asynchronous invoke for tensor_filter.
+ * @brief Disables the asynchronous invoke for tensor_filter.
  *        Resets the callback and handle to disable asynchronous operations.
  *
  * @param[in] prop GstTensorFilterProperties object.
@@ -3148,11 +3148,9 @@ void
 gst_tensor_filter_disable_invoke_async (GstTensorFilterProperties * prop)
 {
   g_return_if_fail (prop != NULL);
-  g_return_if_fail (prop->async_handle != NULL);
-  g_return_if_fail (prop->invoke_async_callback != NULL);
 
-  prop->async_handle = NULL;
-  prop->invoke_async_callback = NULL;
+  prop->async_callback = NULL;
+  prop->async_user_data = NULL;
 }
 
 /**
@@ -3172,10 +3170,10 @@ nnstreamer_filter_dispatch_output_async (GstTensorFilterProperties * prop,
   g_return_if_fail (prop != NULL);
   g_return_if_fail (output != NULL);
 
-  if (!prop->invoke_async_callback) {
-    ml_loge ("Callback function is NULL. Unable to dispatch output");
+  if (!prop->async_callback) {
+    ml_loge ("Callback function is NULL. Unable to dispatch output.");
     return;
   }
 
-  prop->invoke_async_callback (prop->async_handle, output);
+  prop->async_callback (output, &prop->output_meta, prop->async_user_data);
 }
