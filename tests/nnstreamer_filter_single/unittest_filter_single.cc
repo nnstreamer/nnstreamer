@@ -586,9 +586,6 @@ class NNSFilterSingleInvokeAsyncTest : public ::testing::Test
   }
 };
 
-/* Static variable to track the number of async callback invocations. */
-static int callback_count = 0;
-
 /**
  * @brief Callback function invoked for asynchronous output
  *
@@ -596,12 +593,18 @@ static int callback_count = 0;
  * and is called when nnstreamer_filter_dispatch_invoke_async() is called
  * when output is produced from the sub-plugin.
  */
-static void
-_invoke_async_callback (void *async_handle, GstTensorMemory *output)
+static int
+_invoke_async_callback (GstTensorMemory *data, GstTensorsInfo *info, void *user_data)
 {
-  callback_count++;
-  g_print ("%s", (char *) output->data);
-  g_free (output->data);
+  /* Track the number of async callback invocations. */
+  if (user_data) {
+    guint *callback_count = (guint *) user_data;
+    (*callback_count)++;
+  }
+
+  g_print ("%s", (char *) data->data);
+  g_free (data->data);
+  return 0;
 }
 
 /**
@@ -615,14 +618,17 @@ TEST_F (NNSFilterSingleInvokeAsyncTest, invokeAsync_p)
   }
 
   ASSERT_TRUE (this->loaded);
-  callback_count = 0;
 
-  EXPECT_TRUE (klass->set_invoke_async_callback (single, _invoke_async_callback, klass));
+  guint *count = g_new0 (guint, 1);
+
+  EXPECT_TRUE (klass->set_invoke_async_callback (single, _invoke_async_callback, count));
   EXPECT_TRUE (klass->invoke (single, &input, &output, TRUE));
   /* Wait for the test to end until all tokens have been invoked.*/
   g_usleep (3000000);
   /* Verify the number of times the callback was called */
-  EXPECT_GT (callback_count, 10) << "Callback was not invoked even once.";
+  EXPECT_GT (*count, 10) << "Callback was not invoked even once.";
+
+  g_free (count);
 }
 
 /**
@@ -638,8 +644,8 @@ TEST_F (NNSFilterSingleInvokeAsyncTest, invokeAsyncNullCallback_n)
 
   ASSERT_TRUE (this->loaded);
 
-  // Pass null as the callback
-  EXPECT_FALSE (klass->set_invoke_async_callback (single, nullptr, klass));
+  /* Pass null as the callback */
+  EXPECT_FALSE (klass->set_invoke_async_callback (single, nullptr, nullptr));
   EXPECT_FALSE (klass->invoke (single, &input, &output, TRUE));
   g_usleep (1000000);
 }
@@ -657,13 +663,13 @@ TEST_F (NNSFilterSingleInvokeAsyncTest, invokeAsyncNullHandler_n)
 
   ASSERT_TRUE (this->loaded);
 
-  // Pass null handle
-  EXPECT_FALSE (klass->set_invoke_async_callback (nullptr, _invoke_async_callback, klass));
+  /* Pass null handle */
+  EXPECT_FALSE (klass->set_invoke_async_callback (nullptr, _invoke_async_callback, nullptr));
   EXPECT_FALSE (klass->invoke (single, &input, &output, TRUE));
   g_usleep (1000000);
 }
+#endif /* ENABLE_LLAMACPP */
 
-#endif
 /**
  * @brief Main GTest.
  */
