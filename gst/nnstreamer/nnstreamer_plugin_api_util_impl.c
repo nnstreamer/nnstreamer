@@ -539,9 +539,7 @@ gst_tensors_info_copy (GstTensorsInfo * dest, const GstTensorsInfo * src)
   num = dest->num_tensors = src->num_tensors;
   dest->format = src->format;
 
-  if (src->format != _NNS_TENSOR_FORMAT_STATIC)
-    return;
-
+  /* Try to copy tensor info even if its format is not static. */
   for (i = 0; i < num; i++) {
     _dest = gst_tensors_info_get_nth_info (dest, i);
     _src = gst_tensors_info_get_nth_info ((GstTensorsInfo *) src, i);
