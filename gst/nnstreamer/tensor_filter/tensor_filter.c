@@ -1100,9 +1100,9 @@ gst_tensor_filter_watchdog_trigger (gpointer ptr)
  * and is called when nnstreamer_filter_dispatch_invoke_async() is called
  * when output is produced from the sub-plugin.
  */
-static void
-nnstreamer_filter_async_output_callback (void *async_handle,
-    GstTensorMemory * output)
+static int
+gst_tensor_filter_async_output_callback (GstTensorMemory * data,
+    GstTensorsInfo * info, void *user_data)
 {
   guint i;
   GstTensorFilter *self;
@@ -1112,13 +1112,19 @@ nnstreamer_filter_async_output_callback (void *async_handle,
   GstTensorFilterProperties *prop = NULL;
   GstBuffer *outbuf = NULL;
 
-  g_return_if_fail (output != NULL);
-  g_return_if_fail (async_handle != NULL);
+  g_return_val_if_fail (data != NULL, -EINVAL);
+  g_return_val_if_fail (info != NULL, -EINVAL);
+  g_return_val_if_fail (user_data != NULL, -EINVAL);
 
-  self = GST_TENSOR_FILTER_CAST (async_handle);
+  self = GST_TENSOR_FILTER_CAST (user_data);
   trans = GST_BASE_TRANSFORM_CAST (self);
   priv = &self->priv;
   prop = &priv->prop;
+
+  if (!prop->fw_opened) {
+    ml_loge ("Cannot handle the async output, NN framework is not opened.");
+    goto error;
+  }
 
   outbuf = gst_buffer_new ();
   if (!outbuf) {
@@ -1133,12 +1139,12 @@ nnstreamer_filter_async_output_callback (void *async_handle,
   }
 
   for (i = 0; i < prop->output_meta.num_tensors; i++) {
-    if (!output[i].data) {
+    if (!data[i].data) {
       ml_loge ("Invalid tensor memory at index %d", i);
       goto error;
     }
-    out_trans_data->tensors[i].data = output[i].data;
-    out_trans_data->tensors[i].size = output[i].size;
+    out_trans_data->tensors[i].data = data[i].data;
+    out_trans_data->tensors[i].size = data[i].size;
   }
 
   _gst_tensor_filter_transform_update_outbuf (trans, NULL, out_trans_data,
@@ -1149,16 +1155,15 @@ nnstreamer_filter_async_output_callback (void *async_handle,
     ml_loge ("Failed to push output buffer at tensor-filter async callback.");
   }
 
-  return;
+  return 0;
 
 error:
   for (i = 0; i < prop->output_meta.num_tensors; i++)
-    g_clear_pointer (&output[i].data, g_free);
+    g_clear_pointer (&data[i].data, g_free);
 
-  if (outbuf)
-    gst_buffer_unref (outbuf);
-
+  g_clear_pointer (&outbuf, gst_buffer_unref);
   g_clear_pointer (&out_trans_data, g_free);
+  return -1;
 }
 
 /**
@@ -1875,9 +1880,10 @@ gst_tensor_filter_start (GstBaseTransform * trans)
     GST_OBJECT_UNLOCK (self);
   }
 
-  if (priv->prop.invoke_async)
-    gst_tensor_filter_enable_invoke_async
-        (nnstreamer_filter_async_output_callback, &priv->prop, self);
+  if (priv->prop.invoke_async) {
+    gst_tensor_filter_enable_invoke_async (&priv->prop,
+        gst_tensor_filter_async_output_callback, self);
+  }
 
   return priv->prop.fw_opened;
 }
@@ -1902,7 +1908,6 @@ gst_tensor_filter_stop (GstBaseTransform * trans)
     GST_OBJECT_UNLOCK (self);
   }
 
-  gst_tensor_filter_disable_invoke_async (&priv->prop);
   gst_tensor_filter_common_close_fw (priv);
 
   return TRUE;

@@ -104,14 +104,6 @@ typedef enum
 typedef tensor_layout tensors_layout[NNS_TENSOR_SIZE_LIMIT];
 
 /**
- * @brief Type definition for an asynchronous callback function signature.
- * - `async_handle` data pointer for the callback.
- * - `output` contains the result of the asynchronous operation in the form of a
- *   GstTensorMemory structure
- */
-typedef void (*NNSFilterInvokeAsyncCallback)(void *async_handle, GstTensorMemory *output);
-
-/**
  * @brief GstTensorFilter's properties for NN framework (internal data structure)
  *
  * Because custom filters of tensor_filter may need to access internal data
@@ -143,11 +135,12 @@ typedef struct _GstTensorFilterProperties
   int latency; /**< The average latency over the recent 10 inferences in microseconds */
   int throughput; /**< The average throughput in the number of outputs per second */
   int invoke_dynamic; /**< True for supporting invoke with flexible output. */
+
   uint32_t suspend; /**< Timeout (ms) for suspend. (Unload the framework) */
 
-  NNSFilterInvokeAsyncCallback invoke_async_callback; /**< The callback function pointer to be called every time the sub-plugin generates a new output tensor asynchronously. */
-  void *async_handle; /**< Opaque handle to be passed as the first argument to the @invoke_async_callback. For 'tensor_filter', this should point to the GstTensorFilter instance. For 'tensor_filter_single', this should be the data pointer provided by the service API. */
-  int invoke_async; /**< The sub-plugin must support asynchronous output to use this option. If set to TRUE, the sub-plugin can generate multiple outputs asynchronously per single input. Otherwise, only synchronous single-output is expected and async callback/handle are ignored. */
+  int invoke_async; /**< The sub-plugin must support asynchronous output to use this option. If set to TRUE, the sub-plugin can generate multiple outputs asynchronously per single input. Otherwise, only synchronous single-output is expected and async callback is ignored. */
+  GstTensorDataCallback async_callback; /**< The callback function pointer to be called every time the sub-plugin generates a new output tensor asynchronously. Note that this is internal data for tensor-filter and DO NOT change this value. */
+  void *async_user_data; /**< The private data to be passed to tensor data callback of asynchronous invoke. Note that this is internal data for tensor-filter and DO NOT change this value. */
 } GstTensorFilterProperties;
 
 /**
@@ -606,11 +599,10 @@ nnstreamer_filter_shared_model_replace (void *instance, const char *key,
  * @brief Dispatches the asynchronously generated output to the registered callback.
  *
  * This function is used by the sub-plugin to dispatch the output that has been generated asynchronously.
- * It invokes the callback function registered with `gst_tensor_filter_enable_invoke_async`
- * to handle the output data.
+ * It invokes the internal callback function of tensor-filter to handle the output data.
  *
  * Note:
- * Before calling this function, you must enable asynchronous invocation by calling `gst_tensor_filter_enable_invoke_async()`.
+ * Before calling this function, you must enable asynchronous invocation by setting the property 'invoke-async' as true.
  * Failure to do so will result in undefined behavior, as no callback and handle will be registered.
  *
  * @param[in] prop GstTensorFilterProperties object.
