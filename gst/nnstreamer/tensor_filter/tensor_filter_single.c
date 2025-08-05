@@ -83,7 +83,7 @@ static gboolean g_tensor_filter_single_start (GTensorFilterSingle * self);
 static gboolean g_tensor_filter_single_stop (GTensorFilterSingle * self);
 static gboolean
 g_tensor_filter_single_set_invoke_async_callback (GTensorFilterSingle * self,
-    invoke_async_callback callback, void *handle);
+    GstTensorDataCallback callback, void *user_data);
 
 /**
  * @brief initialize the tensor_filter's class
@@ -246,23 +246,21 @@ g_tensor_filter_allocate_in_invoke (GTensorFilterSingle * self)
  * @brief Set invoke async callback function for async invoke
  * @param self "this" pointer
  * @param callback callback function to be called when output is ready
- * @param async_handle handle to be passed to the callback function
+ * @param user_data The private data to be passed to the callback function
  */
 static gboolean
 g_tensor_filter_single_set_invoke_async_callback (GTensorFilterSingle * self,
-    invoke_async_callback callback, void *handle)
+    GstTensorDataCallback callback, void *user_data)
 {
   GTensorFilterSinglePrivate *spriv;
   GstTensorFilterPrivate *priv;
 
-  g_return_val_if_fail (self != NULL, FALSE);
   g_return_val_if_fail (callback != NULL, FALSE);
 
   spriv = G_TENSOR_FILTER_SINGLE_PRIV (self);
-  g_return_val_if_fail (spriv != NULL, FALSE);
 
   priv = &spriv->filter_priv;
-  gst_tensor_filter_enable_invoke_async (callback, &priv->prop, handle);
+  gst_tensor_filter_enable_invoke_async (&priv->prop, callback, user_data);
 
   return TRUE;
 }
@@ -283,6 +281,9 @@ g_tensor_filter_single_start (GTensorFilterSingle * self)
 
   /** open framework, load model */
   if (G_UNLIKELY (priv->fw == NULL))
+    return FALSE;
+
+  if (priv->prop.invoke_async && !priv->prop.async_callback)
     return FALSE;
 
   if (!gst_tensor_filter_common_open_fw (priv))
