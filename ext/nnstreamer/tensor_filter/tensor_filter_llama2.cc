@@ -162,6 +162,7 @@ void
 TensorFilterLlama2c::invoke_dynamic (GstTensorFilterProperties *prop,
     const GstTensorMemory *input, GstTensorMemory *output)
 {
+  GstTensorInfo *_info;
   char *result = nullptr, *prompt;
   size_t len;
 
@@ -193,12 +194,15 @@ TensorFilterLlama2c::invoke_dynamic (GstTensorFilterProperties *prop,
 
   output[0].size = len;
   output[0].data = strndup (result, len);
-  gst_tensors_info_init (&prop->output_meta);
+
+  gst_tensors_info_free (&prop->output_meta);
 
   prop->output_meta.num_tensors = 1;
   prop->output_meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
-  prop->output_meta.info[0].type = _NNS_UINT8;
-  prop->output_meta.info[0].dimension[0] = len;
+
+  _info = gst_tensors_info_get_nth_info (&prop->output_meta, 0);
+  _info->type = _NNS_UINT8;
+  _info->dimension[0] = len;
 
 free_result:
   free (result);

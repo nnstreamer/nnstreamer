@@ -254,6 +254,8 @@ bool
 TensorFilterLlamaCpp::createOutputTensor (const std::string &buf,
     GstTensorMemory *output, GstTensorFilterProperties *prop)
 {
+  GstTensorInfo *_info;
+
   if (buf.empty () || output == nullptr || prop == nullptr) {
     ml_loge ("Invalid arguments passed to createOutputTensor");
     return false;
@@ -267,11 +269,14 @@ TensorFilterLlamaCpp::createOutputTensor (const std::string &buf,
     return false;
   }
 
-  gst_tensors_info_init (&prop->output_meta);
+  gst_tensors_info_free (&prop->output_meta);
+
   prop->output_meta.num_tensors = 1;
   prop->output_meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
-  prop->output_meta.info[0].type = _NNS_UINT8;
-  prop->output_meta.info[0].dimension[0] = output[0].size;
+
+  _info = gst_tensors_info_get_nth_info (&prop->output_meta, 0);
+  _info->type = _NNS_UINT8;
+  _info->dimension[0] = output[0].size;
 
   return true;
 }
@@ -452,10 +457,6 @@ TensorFilterLlamaCpp::invoke_dynamic (GstTensorFilterProperties *prop,
   prompt.erase (prompt.find_last_not_of (" \t\n\r\f\v") + 1);
 
   if (prop->invoke_async) {
-
-    if (prop->invoke_async_callback == nullptr) {
-      throw std::invalid_argument ("invoke_async_callback is null");
-    }
     {
       std::lock_guard<std::mutex> lock (queue_mutex);
       input_queue.push (std::make_pair (prop, std::move (prompt)));
