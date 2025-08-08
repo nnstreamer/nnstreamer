@@ -136,6 +136,8 @@ void
 executorch_llama_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
     const GstTensorMemory *input, GstTensorMemory *output)
 {
+  GstTensorInfo *_info;
+
   if (!input)
     throw std::runtime_error ("Invalid input buffer, it is NULL.");
   if (!output)
@@ -157,11 +159,14 @@ executorch_llama_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
   output[0].data = g_malloc0 (output[0].size);
   memcpy (output[0].data, result.c_str (), result.size ());
 
-  gst_tensors_info_init (&prop->output_meta);
+  gst_tensors_info_free (&prop->output_meta);
+
   prop->output_meta.num_tensors = 1;
   prop->output_meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
-  prop->output_meta.info[0].type = _NNS_UINT8;
-  prop->output_meta.info[0].dimension[0] = result.size ();
+
+  _info = gst_tensors_info_get_nth_info (&prop->output_meta, 0);
+  _info->type = _NNS_UINT8;
+  _info->dimension[0] = result.size ();
 }
 
 /**
