@@ -609,7 +609,6 @@ _invoke_async_callback (GstTensorMemory *data, GstTensorsInfo *info, void *user_
   EXPECT_TRUE (gst_tensors_info_get_size (info, 0) == data->size);
 
   g_print ("%s", (char *) data->data);
-  g_free (data->data);
   return 0;
 }
 
