@@ -1046,21 +1046,17 @@ _gst_tensor_filter_transform_update_outbuf (GstBaseTransform * trans,
 
     if (prop->invoke_dynamic) {
       GstTensorMetaInfo meta;
-      GstMemory *flex_mem;
 
       /* Convert to flexible tensors */
       gst_tensor_info_convert_to_meta (_info, &meta);
       meta.media_type = _NNS_TENSOR;
       meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
 
-      flex_mem = gst_memory_new_wrapped (0,
-          out_trans_data->tensors[i].data, out_trans_data->tensors[i].size, 0,
-          out_trans_data->tensors[i].size, out_trans_data->tensors[i].data,
-          g_free);
+      mem = gst_tensor_filter_get_wrapped_mem (self,
+          out_trans_data->tensors[i].data, out_trans_data->tensors[i].size);
 
-      out_trans_data->mem[i] =
-          gst_tensor_meta_info_append_header (&meta, flex_mem);
-      gst_memory_unref (flex_mem);
+      out_trans_data->mem[i] = gst_tensor_meta_info_append_header (&meta, mem);
+      gst_memory_unref (mem);
     } else if (out_trans_data->allocate_in_invoke) {
       /* prepare memory block if successfully done */
       out_trans_data->mem[i] = mem = gst_tensor_filter_get_wrapped_mem (self,
@@ -1158,8 +1154,10 @@ gst_tensor_filter_async_output_callback (GstTensorMemory * data,
   return 0;
 
 error:
-  for (i = 0; i < prop->output_meta.num_tensors; i++)
-    g_clear_pointer (&data[i].data, g_free);
+  for (i = 0; i < prop->output_meta.num_tensors; i++) {
+    gst_tensor_filter_destroy_notify_util (priv, data[i].data);
+    data[i].data = NULL;
+  }
 
   g_clear_pointer (&outbuf, gst_buffer_unref);
   g_clear_pointer (&out_trans_data, g_free);
