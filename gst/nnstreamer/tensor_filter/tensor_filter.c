@@ -1885,6 +1885,9 @@ gst_tensor_filter_start (GstBaseTransform * trans)
         gst_tensor_filter_async_output_callback, self);
   }
 
+  if (!gst_tensor_filter_validate_prop (priv))
+    return FALSE;
+
   return priv->prop.fw_opened;
 }
 

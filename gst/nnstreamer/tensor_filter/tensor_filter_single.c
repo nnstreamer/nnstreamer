@@ -280,21 +280,16 @@ g_tensor_filter_single_start (GTensorFilterSingle * self)
   priv = &spriv->filter_priv;
 
   /** open framework, load model */
-  if (G_UNLIKELY (priv->fw == NULL))
-    return FALSE;
-
-  if (priv->prop.invoke_async && !priv->prop.async_callback)
-    return FALSE;
-
   if (!gst_tensor_filter_common_open_fw (priv))
     return FALSE;
 
   gst_tensor_filter_load_tensor_info (priv);
+
   spriv->allocate_in_invoke = gst_tensor_filter_allocate_in_invoke (priv);
 
-  priv->configured = TRUE;
+  priv->configured = gst_tensor_filter_validate_prop (priv);
 
-  return TRUE;
+  return priv->configured;
 }
 
 /**
@@ -313,6 +308,7 @@ g_tensor_filter_single_stop (GTensorFilterSingle * self)
 
   /** close framework, unload model */
   gst_tensor_filter_common_close_fw (priv);
+
   return TRUE;
 }
 

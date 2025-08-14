@@ -251,8 +251,13 @@ gst_tensor_filter_common_get_out_info (GstTensorFilterPrivate * priv,
     GstTensorsInfo * in, GstTensorsInfo * out);
 
 /**
- * @brief Load tensor info from NN model.
- * (both input and output tensor)
+ * @brief Check the properties are valid.
+ */
+extern gboolean
+gst_tensor_filter_validate_prop (GstTensorFilterPrivate * priv);
+
+/**
+ * @brief Load tensor info from NN model (both input and output tensor).
  */
 extern void
 gst_tensor_filter_load_tensor_info (GstTensorFilterPrivate * priv);

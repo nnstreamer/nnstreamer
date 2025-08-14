@@ -1885,7 +1885,6 @@ _gtfc_setprop_PROP_INVOKE_DYNAMIC (GstTensorFilterPrivate * priv,
     const GValue * value)
 {
   priv->prop.invoke_dynamic = g_value_get_boolean (value);
-  priv->info.allocate_in_invoke = TRUE;
 
   return 0;
 }
@@ -2214,7 +2213,7 @@ gst_tensor_filter_common_get_property (GstTensorFilterPrivate * priv,
       g_value_set_boolean (value, prop->invoke_dynamic);
       break;
     case PROP_INVOKE_ASYNC:
-      g_value_set_boolean (value, priv->prop.invoke_async);
+      g_value_set_boolean (value, prop->invoke_async);
       break;
     case PROP_SUSPEND:
       g_value_set_uint (value, prop->suspend);
@@ -2366,8 +2365,29 @@ gst_tensor_filter_common_get_out_info (GstTensorFilterPrivate * priv,
 }
 
 /**
- * @brief Load tensor info from NN model.
- * (both input and output tensor)
+ * @brief Check the properties are valid.
+ */
+gboolean
+gst_tensor_filter_validate_prop (GstTensorFilterPrivate * priv)
+{
+  if (priv->prop.invoke_async) {
+    if (!priv->prop.async_callback) {
+      ml_loge ("Asynchronous invoke is enabled, but its callback is null.");
+      return FALSE;
+    }
+
+    if (priv->combi.out_combi_i_defined) {
+      ml_loge
+          ("NNStreamer does not support output-combination (passing input data) when asynchronous invoke is enabled.");
+      return FALSE;
+    }
+  }
+
+  return TRUE;
+}
+
+/**
+ * @brief Load tensor info from NN model (both input and output tensor).
  */
 void
 gst_tensor_filter_load_tensor_info (GstTensorFilterPrivate * priv)
