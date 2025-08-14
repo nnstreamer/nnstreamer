@@ -92,12 +92,12 @@ class TensorFilterLlamaCpp : public tensor_filter_subplugin
   std::condition_variable queue_cv;
   std::atomic<bool> stop_thread{ false }; /* flag to stop the thread */
   void parseCustomProperties (const GstTensorFilterProperties *prop);
-  void generateTokens (GstTensorFilterProperties *prop, std::string &&prompt,
-      GstTensorMemory *output);
-  bool createOutputTensor (const std::string &buf, GstTensorMemory *output,
-      GstTensorFilterProperties *prop);
-  GstTensorMemory *prepareOutputAsync (
-      const std::string &tokenStr, GstTensorFilterProperties *prop);
+  void generateTokens (GstTensorFilterProperties *prop, GstTensorMemory *output,
+      const std::string &prompt);
+  bool createOutputTensor (GstTensorFilterProperties *prop,
+      GstTensorMemory *output, const std::string &buf);
+  bool updateOutput (GstTensorFilterProperties *prop, llama_token &token,
+      std::string &accumulated);
   void outputThreadLoop ();
 };
 
@@ -212,7 +212,7 @@ TensorFilterLlamaCpp::configure_instance (const GstTensorFilterProperties *prop)
 
   model = llama_model_load_from_file ((char *) prop->model_files[0], model_params);
   if (model == nullptr) {
-    throw std::invalid_argument ("Failed to load model");
+    throw std::runtime_error ("Failed to load model");
   }
 
   /* context will be initialized in invoke callback */
@@ -251,8 +251,8 @@ TensorFilterLlamaCpp::invoke (const GstTensorMemory *input, GstTensorMemory *out
  * must be freed by the caller of this function to avoid memory leaks.
  */
 bool
-TensorFilterLlamaCpp::createOutputTensor (const std::string &buf,
-    GstTensorMemory *output, GstTensorFilterProperties *prop)
+TensorFilterLlamaCpp::createOutputTensor (GstTensorFilterProperties *prop,
+    GstTensorMemory *output, const std::string &buf)
 {
   GstTensorInfo *_info;
 
@@ -282,25 +282,36 @@ TensorFilterLlamaCpp::createOutputTensor (const std::string &buf,
 }
 
 /**
- * @brief Prepare output tensor for invoke_async
+ * @brief Update output string.
  */
-GstTensorMemory *
-TensorFilterLlamaCpp::prepareOutputAsync (
-    const std::string &tokenStr, GstTensorFilterProperties *prop)
+bool
+TensorFilterLlamaCpp::updateOutput (GstTensorFilterProperties *prop,
+    llama_token &token, std::string &accumulated)
 {
-  GstTensorMemory *output = g_try_new0 (GstTensorMemory, 1);
+  const llama_vocab *vocab = llama_model_get_vocab (model);
+  char buf[128] = { 0 };
+  int n = llama_token_to_piece (vocab, token, buf, sizeof (buf), 0, true);
 
-  if (!output) {
-    ml_loge ("Memory allocation failed");
-    return nullptr;
+  if (n < 0) {
+    ml_loge ("Failed to convert token to piece.");
+    return false;
   }
 
-  if (!createOutputTensor (tokenStr, output, prop)) {
-    g_free (output);
-    ml_loge ("Failed to create output tensor");
-    return nullptr;
+  /* Dispatch output data when invoke-async is enabled. */
+  if (prop->invoke_async) {
+    GstTensorMemory output;
+
+    if (!createOutputTensor (prop, &output, std::string (buf, n))) {
+      ml_loge ("Failed to create output tensor.");
+      return false;
+    }
+
+    nnstreamer_filter_dispatch_output_async (prop, &output);
+  } else {
+    accumulated.append (buf, n);
   }
-  return output;
+
+  return true;
 }
 
 /**
@@ -312,7 +323,7 @@ TensorFilterLlamaCpp::prepareOutputAsync (
  */
 void
 TensorFilterLlamaCpp::generateTokens (GstTensorFilterProperties *prop,
-    std::string &&prompt, GstTensorMemory *output)
+    GstTensorMemory *output, const std::string &prompt)
 {
   const llama_vocab *vocab = llama_model_get_vocab (model);
   int n_prompt, n_pos, n;
@@ -326,7 +337,7 @@ TensorFilterLlamaCpp::generateTokens (GstTensorFilterProperties *prop,
   n = llama_tokenize (vocab, prompt.c_str (), prompt.size (),
       prompt_tokens.data (), prompt_tokens.size (), true, true);
   if (n < 0) {
-    throw std::invalid_argument ("Failed to tokenize the prompt");
+    throw std::runtime_error ("Failed to tokenize the prompt");
   }
 
   ctx_params.n_ctx = n_prompt + n_predict - 1;
@@ -335,26 +346,12 @@ TensorFilterLlamaCpp::generateTokens (GstTensorFilterProperties *prop,
 
   ctx = llama_init_from_model (model, ctx_params);
   if (ctx == nullptr) {
-    throw std::invalid_argument ("Failed to create llama context");
+    throw std::runtime_error ("Failed to create llama context");
   }
 
   for (auto id : prompt_tokens) {
-    char buf[128] = { 0 };
-    GstTensorMemory *output_async = nullptr;
-
-    n = llama_token_to_piece (vocab, id, buf, sizeof (buf), 0, true);
-    if (n < 0) {
-      throw std::invalid_argument ("Failed to convert token to piece");
-    }
-
-    if (prop->invoke_async) {
-      output_async = prepareOutputAsync (std::string (buf, n), prop);
-      if (!output_async)
-        throw std::runtime_error (
-            "generateTokens: Failed to allocate GstTensorMemory for output_async");
-      nnstreamer_filter_dispatch_output_async (prop, output_async);
-    } else {
-      output_accumulated.append (buf, n);
+    if (!updateOutput (prop, id, output_accumulated)) {
+      throw std::runtime_error ("Failed to update output from prompt");
     }
   }
 
@@ -363,44 +360,29 @@ TensorFilterLlamaCpp::generateTokens (GstTensorFilterProperties *prop,
   for (n_pos = 0; n_pos + batch.n_tokens < n_prompt + n_predict;) {
     /* evaluate the current batch with the transformer model */
     if (llama_decode (ctx, batch)) {
-      throw std::invalid_argument ("Failed to eval");
+      throw std::runtime_error ("Failed to eval");
     }
 
     n_pos += batch.n_tokens;
 
     /* sample the next token */
-    {
-      char buf[128] = { 0 };
-      GstTensorMemory *output_async = nullptr;
+    new_token_id = llama_sampler_sample (sampler, ctx, -1);
 
-      new_token_id = llama_sampler_sample (sampler, ctx, -1);
-
-      /* is it an end of generation? */
-      if (llama_vocab_is_eog (vocab, new_token_id)) {
-        break;
-      }
-
-      n = llama_token_to_piece (vocab, new_token_id, buf, sizeof (buf), 0, true);
-      if (n < 0) {
-        throw std::runtime_error ("generateTokens: Failed to convert token to piece");
-      }
-
-      if (prop->invoke_async) {
-        output_async = prepareOutputAsync (std::string (buf, n), prop);
-        if (!output_async)
-          throw std::runtime_error (
-              "generateTokens: Failed to allocate GstTensorMemory for output_async");
-        nnstreamer_filter_dispatch_output_async (prop, output_async);
-      } else {
-        output_accumulated.append (buf, n);
-      }
-      batch = llama_batch_get_one (&new_token_id, 1);
+    /* is it an end of generation? */
+    if (llama_vocab_is_eog (vocab, new_token_id)) {
+      break;
     }
+
+    if (!updateOutput (prop, new_token_id, output_accumulated)) {
+      throw std::runtime_error ("Failed to update output from generated token");
+    }
+
+    batch = llama_batch_get_one (&new_token_id, 1);
   }
 
   if (!prop->invoke_async) {
     /* Final output for synchronous mode is created here. */
-    if (!createOutputTensor (output_accumulated, output, prop)) {
+    if (!createOutputTensor (prop, output, output_accumulated)) {
       throw std::runtime_error ("generateTokens: Failed to create output tensor");
     }
   }
@@ -431,7 +413,7 @@ TensorFilterLlamaCpp::outputThreadLoop ()
     input_queue.pop ();
     lock.unlock ();
     try {
-      this->generateTokens (prop, std::move (prompt), NULL);
+      this->generateTokens (prop, NULL, prompt);
     } catch (const std::exception &e) {
       /* thread exception */
       ml_loge ("Exception occurred during token generation: %s", e.what ());
@@ -463,12 +445,7 @@ TensorFilterLlamaCpp::invoke_dynamic (GstTensorFilterProperties *prop,
     }
     queue_cv.notify_one (); /* notify waiting thread */
   } else {
-    try {
-      generateTokens (prop, std::move (prompt), output);
-    } catch (const std::exception &e) {
-      /* thread exception */
-      ml_loge ("Exception occurred during token generation: %s", e.what ());
-    }
+    generateTokens (prop, output, prompt);
   }
 }
 
