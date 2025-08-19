@@ -53,7 +53,7 @@
 typedef struct _GTensorFilterSinglePrivate
 {
   GstTensorFilterPrivate filter_priv; /**< Internal properties for tensor-filter */
-  gboolean allocate_in_invoke;  /**< cached value after first invoke */
+  gboolean allocate_in_invoke; /**< cached value after first invoke */
 } GTensorFilterSinglePrivate;
 
 #define G_TENSOR_FILTER_SINGLE_PRIV(obj) ((GTensorFilterSinglePrivate *) (obj)->priv)
@@ -72,13 +72,16 @@ static void g_tensor_filter_single_get_property (GObject * object,
 /* GTensorFilterSingle method implementations */
 static gboolean g_tensor_filter_single_invoke (GTensorFilterSingle * self,
     const GstTensorMemory * input, GstTensorMemory * output, gboolean allocate);
-static gboolean g_tensor_filter_input_configured (GTensorFilterSingle * self);
-static gboolean g_tensor_filter_output_configured (GTensorFilterSingle * self);
-static gint g_tensor_filter_set_input_info (GTensorFilterSingle * self,
+static gboolean
+g_tensor_filter_single_input_configured (GTensorFilterSingle * self);
+static gboolean
+g_tensor_filter_single_output_configured (GTensorFilterSingle * self);
+static gint g_tensor_filter_single_set_input_info (GTensorFilterSingle * self,
     const GstTensorsInfo * in_info, GstTensorsInfo * out_info);
-static void g_tensor_filter_destroy_notify (GTensorFilterSingle * self,
+static void g_tensor_filter_single_destroy_notify (GTensorFilterSingle * self,
     GstTensorMemory * mem);
-static gboolean g_tensor_filter_allocate_in_invoke (GTensorFilterSingle * self);
+static gboolean
+g_tensor_filter_single_allocate_in_invoke (GTensorFilterSingle * self);
 static gboolean g_tensor_filter_single_start (GTensorFilterSingle * self);
 static gboolean g_tensor_filter_single_stop (GTensorFilterSingle * self);
 static gboolean
@@ -104,11 +107,11 @@ g_tensor_filter_single_class_init (GTensorFilterSingleClass * klass)
   klass->invoke = g_tensor_filter_single_invoke;
   klass->start = g_tensor_filter_single_start;
   klass->stop = g_tensor_filter_single_stop;
-  klass->input_configured = g_tensor_filter_input_configured;
-  klass->output_configured = g_tensor_filter_output_configured;
-  klass->set_input_info = g_tensor_filter_set_input_info;
-  klass->destroy_notify = g_tensor_filter_destroy_notify;
-  klass->allocate_in_invoke = g_tensor_filter_allocate_in_invoke;
+  klass->input_configured = g_tensor_filter_single_input_configured;
+  klass->output_configured = g_tensor_filter_single_output_configured;
+  klass->set_input_info = g_tensor_filter_single_set_input_info;
+  klass->destroy_notify = g_tensor_filter_single_destroy_notify;
+  klass->allocate_in_invoke = g_tensor_filter_single_allocate_in_invoke;
   klass->set_invoke_async_callback =
       g_tensor_filter_single_set_invoke_async_callback;
 }
@@ -202,7 +205,7 @@ g_tensor_filter_single_get_property (GObject * object, guint prop_id,
  * (both input and output tensor)
  */
 static gboolean
-g_tensor_filter_input_configured (GTensorFilterSingle * self)
+g_tensor_filter_single_input_configured (GTensorFilterSingle * self)
 {
   GTensorFilterSinglePrivate *spriv;
   GstTensorFilterPrivate *priv;
@@ -218,7 +221,7 @@ g_tensor_filter_input_configured (GTensorFilterSingle * self)
  * (both input and output tensor)
  */
 static gboolean
-g_tensor_filter_output_configured (GTensorFilterSingle * self)
+g_tensor_filter_single_output_configured (GTensorFilterSingle * self)
 {
   GTensorFilterSinglePrivate *spriv;
   GstTensorFilterPrivate *priv;
@@ -233,7 +236,7 @@ g_tensor_filter_output_configured (GTensorFilterSingle * self)
  * @brief Determine if this filter framework supports allocation in invoke
  */
 static inline gboolean
-g_tensor_filter_allocate_in_invoke (GTensorFilterSingle * self)
+g_tensor_filter_single_allocate_in_invoke (GTensorFilterSingle * self)
 {
   GTensorFilterSinglePrivate *spriv;
 
@@ -318,7 +321,7 @@ g_tensor_filter_single_stop (GTensorFilterSingle * self)
  * @param mem Memory wrapper for the allocated memory by the filter
  */
 static void
-g_tensor_filter_destroy_notify (GTensorFilterSingle * self,
+g_tensor_filter_single_destroy_notify (GTensorFilterSingle * self,
     GstTensorMemory * mem)
 {
   guint i;
@@ -397,7 +400,7 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
       for (i = 0; i < priv->prop.output_meta.num_tensors; i++)
         memcpy (output[i].data, _out[i].data, output[i].size);
 
-      g_tensor_filter_destroy_notify (self, _out);
+      g_tensor_filter_single_destroy_notify (self, _out);
     }
 
     return TRUE;
@@ -422,7 +425,7 @@ error:
  * @return 0 for success, -errno for failure.
  */
 static gint
-g_tensor_filter_set_input_info (GTensorFilterSingle * self,
+g_tensor_filter_single_set_input_info (GTensorFilterSingle * self,
     const GstTensorsInfo * in_info, GstTensorsInfo * out_info)
 {
   GTensorFilterSinglePrivate *spriv;
