@@ -83,8 +83,6 @@ struct _GTensorFilterSingleClass
   void (*destroy_notify) (GTensorFilterSingle * self, GstTensorMemory * mem);
   /** Callback function to handle multiple async outputs */
   gboolean (*set_invoke_async_callback) (GTensorFilterSingle * self, GstTensorDataCallback callback, void *user_data);
-  /** handle of Framework */
-  void *handle;
 };
 
 /**
