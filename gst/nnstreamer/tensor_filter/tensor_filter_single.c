@@ -54,6 +54,8 @@ typedef struct _GTensorFilterSinglePrivate
 {
   GstTensorFilterPrivate filter_priv; /**< Internal properties for tensor-filter */
   gboolean allocate_in_invoke; /**< cached value after first invoke */
+  GstTensorDataCallback async_cb; /**< The user callback for async invoke. */
+  void *async_pdata; /**< Private data for async invoke. */
 } GTensorFilterSinglePrivate;
 
 #define G_TENSOR_FILTER_SINGLE_PRIV(obj) ((GTensorFilterSinglePrivate *) (obj)->priv)
@@ -246,6 +248,32 @@ g_tensor_filter_single_allocate_in_invoke (GTensorFilterSingle * self)
 }
 
 /**
+ * @brief Internal callback for async invoke.
+ */
+static int
+g_tensor_filter_single_async_cb (GstTensorMemory *data, GstTensorsInfo *info,
+    void *user_data)
+{
+  GTensorFilterSingle *self;
+  GTensorFilterSinglePrivate *spriv;
+  int ret = 0;
+
+  g_return_val_if_fail (data != NULL, -EINVAL);
+  g_return_val_if_fail (info != NULL, -EINVAL);
+  g_return_val_if_fail (user_data != NULL, -EINVAL);
+
+  self = G_TENSOR_FILTER_SINGLE (user_data);
+  spriv = G_TENSOR_FILTER_SINGLE_PRIV (self);
+
+  if (spriv->async_cb) {
+    ret = spriv->async_cb (data, info, spriv->async_pdata);
+  }
+
+  g_tensor_filter_single_destroy_notify (self, data);
+  return ret;
+}
+
+/**
  * @brief Set invoke async callback function for async invoke
  * @param self "this" pointer
  * @param callback callback function to be called when output is ready
@@ -256,14 +284,13 @@ g_tensor_filter_single_set_invoke_async_callback (GTensorFilterSingle * self,
     GstTensorDataCallback callback, void *user_data)
 {
   GTensorFilterSinglePrivate *spriv;
-  GstTensorFilterPrivate *priv;
 
   g_return_val_if_fail (callback != NULL, FALSE);
 
   spriv = G_TENSOR_FILTER_SINGLE_PRIV (self);
 
-  priv = &spriv->filter_priv;
-  gst_tensor_filter_enable_invoke_async (&priv->prop, callback, user_data);
+  spriv->async_cb = callback;
+  spriv->async_pdata = user_data;
 
   return TRUE;
 }
@@ -290,6 +317,11 @@ g_tensor_filter_single_start (GTensorFilterSingle * self)
 
   spriv->allocate_in_invoke = gst_tensor_filter_allocate_in_invoke (priv);
 
+  if (spriv->async_cb) {
+    gst_tensor_filter_enable_invoke_async (&priv->prop,
+        g_tensor_filter_single_async_cb, self);
+  }
+
   priv->configured = gst_tensor_filter_validate_prop (priv);
 
   return priv->configured;
@@ -310,6 +342,7 @@ g_tensor_filter_single_stop (GTensorFilterSingle * self)
   priv = &spriv->filter_priv;
 
   /** close framework, unload model */
+  gst_tensor_filter_disable_invoke_async (&priv->prop);
   gst_tensor_filter_common_close_fw (priv);
 
   return TRUE;
