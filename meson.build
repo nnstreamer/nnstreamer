@@ -455,10 +455,10 @@ if not get_option('python3-support').disabled()
 
     python3_inc_args = []
     python3_inc_args += run_command(pg_pkgconfig, ['python3', '--cflags'], check : true).stdout().strip().split()
-    python3_inc_args += run_command('python3', ['-c', 'import site\nfor i in site.getsitepackages(): print("-I" + i + "/numpy/core/include")'], check : true).stdout().strip().split()
+    python3_inc_args += run_command('python3', ['-c', 'import site\nfor i in site.getsitepackages(): print("-I" + i + "/numpy/_core/include")'], check : true).stdout().strip().split()
     r = run_command('python3', ['-m', 'site', '--user-site'], check : false)
     if r.returncode() == 0
-      python3_inc_args += '-I' + r.stdout().strip() + '/numpy/core/include'
+      python3_inc_args += '-I' + r.stdout().strip() + '/numpy/_core/include'
     endif
     python3_inc_valid_args = []
 
