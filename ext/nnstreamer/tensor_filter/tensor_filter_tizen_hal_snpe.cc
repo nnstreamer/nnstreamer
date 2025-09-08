@@ -27,8 +27,6 @@
 
 #include <hal-ml.h>
 
-#define SNPE_FRAMEWORK_NAME "snpe"
-
 namespace nnstreamer
 {
 namespace tensor_filter_snpe_tizen_hal
@@ -72,7 +70,7 @@ snpe_tizen_hal_subplugin::snpe_tizen_hal_subplugin ()
     : tensor_filter_subplugin (), hal_handle (nullptr)
 {
   int ret = hal_ml_create ("snpe", &hal_handle);
-  if (ret == HAL_ML_ERROR_INVALID_PARAMETER) {
+  if (ret == HAL_ML_ERROR_NOT_SUPPORTED) {
     throw std::invalid_argument ("SNPE HAL is not supported");
   }
 

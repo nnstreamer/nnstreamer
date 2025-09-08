@@ -70,7 +70,7 @@ vivante_tizen_hal_subplugin::vivante_tizen_hal_subplugin ()
     : tensor_filter_subplugin (), hal_handle (nullptr)
 {
   int ret = hal_ml_create ("vivante", &hal_handle);
-  if (ret == HAL_ML_ERROR_INVALID_PARAMETER) {
+  if (ret == HAL_ML_ERROR_NOT_SUPPORTED) {
     throw std::invalid_argument ("Vivante is not supported");
   }
   if (ret != HAL_ML_ERROR_NONE) {
@@ -113,13 +113,13 @@ vivante_tizen_hal_subplugin::configure_instance (const GstTensorFilterProperties
   ret = hal_ml_param_set (param, "properties", (void *) prop);
   if (ret != HAL_ML_ERROR_NONE) {
     hal_ml_param_destroy (param);
-    throw std::runtime_error ("Failed to set 'properties' parameter for SNPE configuration");
+    throw std::runtime_error ("Failed to set 'properties' parameter for Vivante configuration");
   }
 
   ret = hal_ml_request (hal_handle, "configure_instance", param);
   if (ret != HAL_ML_ERROR_NONE) {
     hal_ml_param_destroy (param);
-    throw std::runtime_error ("Failed to configure SNPE instance");
+    throw std::runtime_error ("Failed to configure Vivante instance");
   }
 
   hal_ml_param_destroy (param);
