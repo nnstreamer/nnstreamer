@@ -509,6 +509,9 @@ onnxruntime_subplugin::configure_instance (const GstTensorFilterProperties *prop
       throw std::runtime_error (err_msg);
     }
   }
+
+  ioBinding = Ort::IoBinding(session);
+
   num_inputs = session.GetInputCount ();
   if (num_inputs <= 0 || num_inputs > NNS_TENSOR_SIZE_LIMIT) {
     cleanup ();
