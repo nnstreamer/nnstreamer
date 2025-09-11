@@ -780,7 +780,6 @@ onnxruntime_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
   }
   if (prop != nullptr && (prop->output_meta.format == _NNS_TENSOR_FORMAT_FLEXIBLE || prop->invoke_dynamic)) {
     gst_tensors_info_init (&prop->output_meta);
-
     auto outputTensors = ioBinding.GetOutputValues();
     prop->output_meta.num_tensors = outputTensors.size();
     prop->output_meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
@@ -809,6 +808,10 @@ onnxruntime_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
       } else {
         output[i].data = g_memdup2(outputTensors[i].GetTensorRawData (), output[i].size);
       }
+    }
+  } else if (use_gpu && has_cuda) {
+    for (i = 0; i < outputNode.tensors.size(); i++) {
+      cudaMemcpy_(output[i].data, outputNode.tensors[i].GetTensorRawData(), output[i].size, cudaMemcpyDeviceToHost_);
     }
   }
 }
