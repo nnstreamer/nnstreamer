@@ -661,6 +661,8 @@ onnxruntime_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
   if (!output)
     throw std::runtime_error ("Invalid output buffer, it is NULL.");
 
+  g_debug("before Ort::invoke_dynamic prep input for %s", model_path);
+
   if (prop == nullptr || prop->input_meta.format == _NNS_TENSOR_FORMAT_STATIC) {
     /* Set input to tensor */
     if (use_gpu && has_cuda) {
@@ -739,6 +741,8 @@ onnxruntime_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
 
   /* Set output to tensor */
 
+  g_debug("before Ort::invoke_dynamic prep output for %s", model_path);
+
   if (prop == nullptr || (prop->input_meta.format == _NNS_TENSOR_FORMAT_STATIC  && !prop->invoke_dynamic)) {
     /* Set input to tensor */
     if (use_gpu && has_cuda) {
@@ -772,7 +776,9 @@ onnxruntime_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
   }
   try {
     /* call Run() to fill in the GstTensorMemory *output data with the probabilities of each */
+    g_debug("before Ort::invoke_dynamic Run for %s", model_path);
     session.Run(Ort::RunOptions{ nullptr }, ioBinding);
+    g_debug("after Ort::invoke_dynamic Run for %s", model_path);
   } catch (const Ort::Exception &exception) {
     const std::string err_msg
         = "ERROR running model inference: " + (std::string) exception.what ();
@@ -814,6 +820,7 @@ onnxruntime_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
       cudaMemcpy_(output[i].data, outputNode.tensors[i].GetTensorRawData(), output[i].size, cudaMemcpyDeviceToHost_);
     }
   }
+  g_debug("after Ort::invoke_dynamic prep output for %s", model_path);
 }
 
 /**

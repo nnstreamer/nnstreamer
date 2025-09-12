@@ -112,6 +112,12 @@
 #define DBG FALSE
 #endif
 
+
+#ifdef G_LOG_DOMAIN
+#undef G_LOG_DOMAIN
+#endif
+#define G_LOG_DOMAIN "eyepop-ai"
+
 /**
  * @brief Possible tensorflow-lite delegates.
  */
@@ -446,12 +452,13 @@ TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate_e)
   gint64 start_time, stop_time;
   start_time = g_get_monotonic_time ();
 #endif
-
+  g_debug("before tflite::FlatBufferModel::BuildFromFile for %s", model_path);
   model = tflite::FlatBufferModel::BuildFromFile (model_path);
   if (!model) {
     ml_loge ("Failed to mmap model\n");
     return -1;
   }
+  g_debug("after tflite::FlatBufferModel::BuildFromFile for %s", model_path);
 
   /**
    * If got any trouble at model, active below code. It'll be help to analyze.
@@ -465,21 +472,26 @@ TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate_e)
 #else
   tflite::ops::builtin::BuiltinOpResolver resolver;
 #endif
+  g_debug("before tflite::InterpreterBuilder for %s", model_path);
   tflite::InterpreterBuilder (*model, resolver) (&interpreter);
   if (!interpreter) {
     ml_loge ("Failed to construct interpreter\n");
     return -2;
   }
+  g_debug("after tflite::InterpreterBuilder for %s", model_path);
 
   if (num_threads > 0) {
     int n = static_cast<int> (std::thread::hardware_concurrency ());
 
     num_threads = MIN (n, num_threads);
     ml_logi ("Set the number of threads (%d)", num_threads);
+    g_debug("before interpreter->SetNumThreads=%d for %s", num_threads, model_path);
     interpreter->SetNumThreads (num_threads);
+    g_debug("after interpreter->SetNumThreads=%d for %s", num_threads, model_path);
   }
 
   /** set delegate after the accelerator prop */
+  g_debug("before delegate %d for %s", delegate_e, model_path);
   switch (delegate_e) {
     case TFLITE_DELEGATE_XNNPACK:
       {
@@ -638,6 +650,7 @@ TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate_e)
     default:
       break;
   }
+  g_debug("after delegate %d for %s", delegate_e, model_path);
 
   delegate = getDelegate ();
   if (delegate != nullptr) {
