@@ -145,6 +145,7 @@ class onnxruntime_subplugin final : public tensor_filter_subplugin
     std::vector<std::vector<int64_t>> shapes;
     std::vector<ONNXTensorElementDataType> types;
     std::vector<Ort::Value> tensors;
+    std::vector<std::unique_ptr<void, CudaMemoryDeleter>> tensor_datas;
   } onnx_node_info_s;
 
   bool configured;
@@ -152,6 +153,8 @@ class onnxruntime_subplugin final : public tensor_filter_subplugin
 
   Ort::Session session;
   Ort::IoBinding ioBinding;
+  Ort::RunOptions runOptions;
+
   Ort::SessionOptions sessionOptions;
   Ort::SessionOptions fallbackSessionOptions;
   Ort::Env env;
@@ -207,6 +210,7 @@ onnxruntime_subplugin::onnxruntime_subplugin ()
     : configured{ false }, model_path{ nullptr },
       session{ nullptr },
       ioBinding{ nullptr },
+      runOptions{ nullptr },
       sessionOptions{ nullptr },
       fallbackSessionOptions{ nullptr },
       env{ nullptr },
@@ -251,6 +255,7 @@ onnxruntime_subplugin::cleanup ()
 
   session = Ort::Session{ nullptr };
   ioBinding = Ort::IoBinding{ nullptr };
+  runOptions = Ort::RunOptions{ nullptr };
   sessionOptions = Ort::SessionOptions{ nullptr };
   fallbackSessionOptions = Ort::SessionOptions{ nullptr };
   env = Ort::Env{ nullptr };
@@ -532,10 +537,14 @@ onnxruntime_subplugin::configure_instance (const GstTensorFilterProperties *prop
 
   if (has_cuda && use_gpu) {
     memInfo = Ort::MemoryInfo (
-        "Cuda", OrtAllocatorType::OrtDeviceAllocator, 0, OrtMemTypeDefault);
+        "Cuda", OrtAllocatorType::OrtArenaAllocator, 0, OrtMemTypeDefault);
+    runOptions = Ort::RunOptions();
+    runOptions.AddConfigEntry("gpu_graph_id", "1");
   } else {
     memInfo = Ort::MemoryInfo::CreateCpu (
         OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault);
+    runOptions = Ort::RunOptions{ nullptr };
+
   }
 
   /* Initialize input info */
@@ -606,7 +615,7 @@ onnxruntime_subplugin::setAccelerator (const char *accelerators)
         OrtCUDAProviderOptionsV2* options = nullptr;
         Ort::ThrowOnError(api.CreateCUDAProviderOptions(&options));
         std::vector<const char*> keys{"enable_cuda_graph", "cudnn_conv_use_max_workspace", "cudnn_conv_algo_search"};
-        std::vector<const char*> values{"1", "1", "DEFAULT"};
+        std::vector<const char*> values{"1", "1", "HEURISTIC"};
         Ort::ThrowOnError(api.UpdateCUDAProviderOptions(options, keys.data(), values.data(), 1));
         sessionOptions.AppendExecutionProvider_CUDA_V2(*options);
         api.ReleaseCUDAProviderOptions(options);
@@ -616,7 +625,7 @@ onnxruntime_subplugin::setAccelerator (const char *accelerators)
         OrtCUDAProviderOptionsV2* options = nullptr;
         Ort::ThrowOnError(api.CreateCUDAProviderOptions(&options));
         std::vector<const char*> keys{"enable_cuda_graph", "cudnn_conv_use_max_workspace", "cudnn_conv_algo_search"};
-        std::vector<const char*> values{"0", "1", "DEFAULT"};
+        std::vector<const char*> values{"0", "1", "HEURISTIC"};
         Ort::ThrowOnError(api.UpdateCUDAProviderOptions(options, keys.data(), values.data(), 1));
         fallbackSessionOptions.AppendExecutionProvider_CUDA_V2(*options);
         api.ReleaseCUDAProviderOptions(options);
@@ -671,12 +680,14 @@ onnxruntime_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
         for (i = 0; i < inputNode.count; ++i) {
           auto shape = inputNode.shapes[i].data ();
           auto shape_size = inputNode.shapes[i].size ();
-          auto input_data = std::unique_ptr<void, CudaMemoryDeleter>(allocator.Alloc(input[i].size), CudaMemoryDeleter(&allocator));
-          cudaMemcpy_(input_data.get(), input[i].data, input[i].size, cudaMemcpyHostToDevice_);
+          inputNode.tensor_datas.emplace_back(
+              std::unique_ptr<void, CudaMemoryDeleter>(
+                  allocator.Alloc(input[i].size), CudaMemoryDeleter(&allocator)));
+          cudaMemcpy_(inputNode.tensor_datas.back().get(), input[i].data, input[i].size, cudaMemcpyHostToDevice_);
           // Create an OrtValue tensor backed by data on CUDA memory
           inputNode.tensors.emplace_back(Ort::Value::CreateTensor(
               memInfo,
-              input_data.get(),
+              inputNode.tensor_datas.back().get(),
               input[i].size,
               shape,
               shape_size,
@@ -685,7 +696,7 @@ onnxruntime_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
         }
       } else {
         for (i = 0; i < inputNode.count; ++i) {
-          cudaMemcpy_(inputNode.tensors[i].GetTensorMutableRawData(), input[i].data, input[i].size, cudaMemcpyHostToDevice_);
+          cudaMemcpy_(inputNode.tensor_datas[i].get(), input[i].data, input[i].size, cudaMemcpyHostToDevice_);
         }
       }
     } else {
@@ -749,11 +760,13 @@ onnxruntime_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
       if (outputNode.tensors.size() != outputNode.count) {
         Ort::Allocator allocator(session, memInfo);
         for (i = 0; i < outputNode.count; ++i) {
-          auto output_data = std::unique_ptr<void, CudaMemoryDeleter>(allocator.Alloc(output->size), CudaMemoryDeleter(&allocator));
+          outputNode.tensor_datas.emplace_back(
+              std::unique_ptr<void, CudaMemoryDeleter>(
+                  allocator.Alloc(output->size), CudaMemoryDeleter(&allocator)));
           // Create an OrtValue tensor backed by data on CUDA memory
           outputNode.tensors.emplace_back(Ort::Value::CreateTensor(
               memInfo,
-              output_data.get(),
+              outputNode.tensor_datas.back().get(),
               output[i].size, outputNode.shapes[i].data (),
               outputNode.shapes[i].size (), outputNode.types[i]));
           ioBinding.BindOutput(outputNode.names[i], outputNode.tensors.back());
@@ -777,7 +790,7 @@ onnxruntime_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
   try {
     /* call Run() to fill in the GstTensorMemory *output data with the probabilities of each */
     g_debug("before Ort::invoke_dynamic Run for %s", model_path);
-    session.Run(Ort::RunOptions{ nullptr }, ioBinding);
+    session.Run(runOptions, ioBinding);
     g_debug("after Ort::invoke_dynamic Run for %s", model_path);
   } catch (const Ort::Exception &exception) {
     const std::string err_msg
@@ -817,7 +830,7 @@ onnxruntime_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
     }
   } else if (use_gpu && has_cuda) {
     for (i = 0; i < outputNode.tensors.size(); i++) {
-      cudaMemcpy_(output[i].data, outputNode.tensors[i].GetTensorRawData(), output[i].size, cudaMemcpyDeviceToHost_);
+      cudaMemcpy_(output[i].data, outputNode.tensor_datas[i].get(), output[i].size, cudaMemcpyDeviceToHost_);
     }
   }
   g_debug("after Ort::invoke_dynamic prep output for %s", model_path);
