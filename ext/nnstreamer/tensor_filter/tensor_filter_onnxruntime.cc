@@ -154,9 +154,9 @@ class onnxruntime_subplugin final : public tensor_filter_subplugin
   Ort::Session session;
   Ort::IoBinding ioBinding;
   Ort::RunOptions runOptions;
+  Ort::Allocator allocator;
 
   Ort::SessionOptions sessionOptions;
-  Ort::SessionOptions fallbackSessionOptions;
   Ort::Env env;
   Ort::MemoryInfo memInfo;
 
@@ -189,9 +189,6 @@ class onnxruntime_subplugin final : public tensor_filter_subplugin
   onnxruntime_subplugin ();
   ~onnxruntime_subplugin ();
 
-  void invoke_dynamic_cuda (GstTensorFilterProperties *prop,
-      const GstTensorMemory *input, GstTensorMemory *output);
-
   tensor_filter_subplugin &getEmptyInstance ();
   void configure_instance (const GstTensorFilterProperties *prop);
   void invoke (const GstTensorMemory *input, GstTensorMemory *output);
@@ -212,7 +209,7 @@ onnxruntime_subplugin::onnxruntime_subplugin ()
       ioBinding{ nullptr },
       runOptions{ nullptr },
       sessionOptions{ nullptr },
-      fallbackSessionOptions{ nullptr },
+      allocator{ nullptr },
       env{ nullptr },
       memInfo{ nullptr },
       has_cuda{ false }, has_qnn{ false },
@@ -253,15 +250,16 @@ onnxruntime_subplugin::cleanup ()
   if (!configured)
     return; /* Nothing to do if it is an empty model */
 
-  session = Ort::Session{ nullptr };
-  ioBinding = Ort::IoBinding{ nullptr };
-  runOptions = Ort::RunOptions{ nullptr };
-  sessionOptions = Ort::SessionOptions{ nullptr };
-  fallbackSessionOptions = Ort::SessionOptions{ nullptr };
-  env = Ort::Env{ nullptr };
-  memInfo = Ort::MemoryInfo{ nullptr };
   clearNodeInfo (inputNode);
   clearNodeInfo (outputNode);
+
+  allocator = Ort::Allocator{ nullptr };
+  ioBinding = Ort::IoBinding{ nullptr };
+  runOptions = Ort::RunOptions{ nullptr };
+  session = Ort::Session{ nullptr };
+  sessionOptions = Ort::SessionOptions{ nullptr };
+  env = Ort::Env{ nullptr };
+  memInfo = Ort::MemoryInfo{ nullptr };
 
   g_free (model_path);
   model_path = nullptr;
@@ -280,6 +278,7 @@ onnxruntime_subplugin::clearNodeInfo (onnx_node_info_s &node)
   node.shapes.clear ();
   node.types.clear ();
   node.tensors.clear ();
+  node.tensor_datas.clear ();
 }
 
 /**
@@ -319,7 +318,7 @@ onnxruntime_subplugin::convertTensorDim (std::vector<int64_t> &shapes, tensor_di
   is_dynamic = false;
   rank = shapes.size ();
   if (rank <= 0 || rank > NNS_TENSOR_RANK_LIMIT) {
-    nns_loge ("Invalid shape (rank %zu, max: %d)", rank, NNS_TENSOR_RANK_LIMIT);
+    nns_loge("Invalid shape (rank %zu, max: %d)", rank, NNS_TENSOR_RANK_LIMIT);
     return -EINVAL;
   }
 
@@ -497,22 +496,14 @@ onnxruntime_subplugin::configure_instance (const GstTensorFilterProperties *prop
 #endif
 
   /* Read a model */
-  env = Ort::Env (ORT_LOGGING_LEVEL_VERBOSE, "nnstreamer_onnxruntime");
-  g_debug("before Ort::Session for %s", model_path);
+  // use ORT_LOGGING_LEVEL_VERBOSE to debug ONNX/CUDA
+  env = Ort::Env (ORT_LOGGING_LEVEL_INFO, "nnstreamer_onnxruntime");
   try {
     session = Ort::Session (env, model_path, sessionOptions);
-    g_debug ("after Ort::Session %s", model_path);
   } catch (const Ort::Exception &exception) {
-    g_warning("Ort::Session for %s failed with: %s", model_path, exception.what());
-    if (fallbackSessionOptions) {
-      g_debug ("before Ort::Session for %s with default options", model_path);
-      session = Ort::Session (env, model_path, sessionOptions);
-      g_debug ("after Ort::Session %s with default options", model_path);
-    } else {
-      const std::string err_msg
-          = "ERROR running model inference: " + (std::string) exception.what ();
-      throw std::runtime_error (err_msg);
-    }
+    const std::string err_msg
+        = "ERROR running model inference: " + (std::string) exception.what ();
+    throw std::runtime_error (err_msg);
   }
 
   ioBinding = Ort::IoBinding(session);
@@ -533,8 +524,6 @@ onnxruntime_subplugin::configure_instance (const GstTensorFilterProperties *prop
         + std::string ("max: ") + NNS_TENSOR_SIZE_LIMIT_STR);
   }
 
-  Ort::AllocatorWithDefaultOptions allocator;
-
   if (has_cuda && use_gpu) {
     memInfo = Ort::MemoryInfo (
         "Cuda", OrtAllocatorType::OrtArenaAllocator, 0, OrtMemTypeDefault);
@@ -544,8 +533,9 @@ onnxruntime_subplugin::configure_instance (const GstTensorFilterProperties *prop
     memInfo = Ort::MemoryInfo::CreateCpu (
         OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault);
     runOptions = Ort::RunOptions{ nullptr };
-
   }
+
+  allocator = Ort::Allocator(session, memInfo);
 
   /* Initialize input info */
   inputNode.count = 0;
@@ -614,20 +604,10 @@ onnxruntime_subplugin::setAccelerator (const char *accelerators)
         sessionOptions = Ort::SessionOptions();
         OrtCUDAProviderOptionsV2* options = nullptr;
         Ort::ThrowOnError(api.CreateCUDAProviderOptions(&options));
-        std::vector<const char*> keys{"enable_cuda_graph", "cudnn_conv_use_max_workspace", "cudnn_conv_algo_search"};
-        std::vector<const char*> values{"1", "1", "HEURISTIC"};
+        std::vector<const char*> keys{"enable_cuda_graph", "has_user_compute_stream", "cudnn_conv_use_max_workspace", "cudnn_conv_algo_search"};
+        std::vector<const char*> values{"0", "1", "1", "HEURISTIC"};
         Ort::ThrowOnError(api.UpdateCUDAProviderOptions(options, keys.data(), values.data(), 1));
         sessionOptions.AppendExecutionProvider_CUDA_V2(*options);
-        api.ReleaseCUDAProviderOptions(options);
-      }
-      {
-        fallbackSessionOptions = Ort::SessionOptions();
-        OrtCUDAProviderOptionsV2* options = nullptr;
-        Ort::ThrowOnError(api.CreateCUDAProviderOptions(&options));
-        std::vector<const char*> keys{"enable_cuda_graph", "cudnn_conv_use_max_workspace", "cudnn_conv_algo_search"};
-        std::vector<const char*> values{"0", "1", "HEURISTIC"};
-        Ort::ThrowOnError(api.UpdateCUDAProviderOptions(options, keys.data(), values.data(), 1));
-        fallbackSessionOptions.AppendExecutionProvider_CUDA_V2(*options);
         api.ReleaseCUDAProviderOptions(options);
       }
     } else if (has_qnn) {
@@ -670,13 +650,10 @@ onnxruntime_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
   if (!output)
     throw std::runtime_error ("Invalid output buffer, it is NULL.");
 
-  g_debug("before Ort::invoke_dynamic prep input for %s", model_path);
-
   if (prop == nullptr || prop->input_meta.format == _NNS_TENSOR_FORMAT_STATIC) {
     /* Set input to tensor */
     if (use_gpu && has_cuda) {
       if (inputNode.tensors.size() != inputNode.count) {
-        Ort::Allocator allocator(session, memInfo);
         for (i = 0; i < inputNode.count; ++i) {
           auto shape = inputNode.shapes[i].data ();
           auto shape_size = inputNode.shapes[i].size ();
@@ -752,13 +729,10 @@ onnxruntime_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
 
   /* Set output to tensor */
 
-  g_debug("before Ort::invoke_dynamic prep output for %s", model_path);
-
   if (prop == nullptr || (prop->input_meta.format == _NNS_TENSOR_FORMAT_STATIC  && !prop->invoke_dynamic)) {
     /* Set input to tensor */
     if (use_gpu && has_cuda) {
       if (outputNode.tensors.size() != outputNode.count) {
-        Ort::Allocator allocator(session, memInfo);
         for (i = 0; i < outputNode.count; ++i) {
           outputNode.tensor_datas.emplace_back(
               std::unique_ptr<void, CudaMemoryDeleter>(
@@ -789,9 +763,7 @@ onnxruntime_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
   }
   try {
     /* call Run() to fill in the GstTensorMemory *output data with the probabilities of each */
-    g_debug("before Ort::invoke_dynamic Run for %s", model_path);
     session.Run(runOptions, ioBinding);
-    g_debug("after Ort::invoke_dynamic Run for %s", model_path);
   } catch (const Ort::Exception &exception) {
     const std::string err_msg
         = "ERROR running model inference: " + (std::string) exception.what ();
@@ -833,7 +805,6 @@ onnxruntime_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
       cudaMemcpy_(output[i].data, outputNode.tensor_datas[i].get(), output[i].size, cudaMemcpyDeviceToHost_);
     }
   }
-  g_debug("after Ort::invoke_dynamic prep output for %s", model_path);
 }
 
 /**
@@ -911,6 +882,7 @@ onnxruntime_subplugin::init_filter_onnxruntime ()
   for (auto f : availableProviders) {
     nns_logi("onnxruntime filter found provider: %s", f.c_str());
   }
+
   registeredRepresentation
       = tensor_filter_subplugin::register_subplugin<onnxruntime_subplugin> ();
 }

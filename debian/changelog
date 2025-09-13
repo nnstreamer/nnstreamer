@@ -1,9 +1,15 @@
-nnstreamer (2.4.2.0-1.2.2) UNRELEASED; urgency=medium
+nnstreamer (2.4.2.0-1.2.3) UNRELEASED; urgency=medium
+
+  * CUDA mem optimizations for ONNX
+
+ -- Torsten Schulz <torsten@eyepop.ai>  Sat, 13 Sep 2025 14:10:04 -0700
+
+nnstreamer (2.4.2.0-1.2.2) jammy; urgency=medium
 
   * activate float16 support
   * 
 
- -- Torsten Schulz <torsten@eyepop.ai>  Wed, 23 Jul 2025 16:35:20 -0700
+ -- Torsten Schulz <torsten@eyepop.ai>  Sat, 13 Sep 2025 14:09:47 -0700
 
 nnstreamer (2.4.2.0-1.2.0) jammy; urgency=medium
 
