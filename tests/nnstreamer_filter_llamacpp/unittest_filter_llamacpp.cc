@@ -52,6 +52,7 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
   gboolean skip_test;
 
   gchar *model;
+  gchar *lora_path; // LoRA adapter model path
   gchar *pipeline_str;
 
   public:
@@ -91,6 +92,17 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
       return;
     }
 
+    lora_path = g_build_filename (root_path, "tests", "test_models", "models",
+        "ggml-adapter-model.gguf", NULL);
+
+    if (!g_file_test (lora_path, G_FILE_TEST_EXISTS)) {
+      g_critical ("Skipping test due to missing LoRA model file: %s", lora_path);
+      skip_test = TRUE;
+      g_free (model);
+      model = NULL;
+      return;
+    }
+
     loaded = TRUE;
   }
 
@@ -109,7 +121,7 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
 
   /**
    * @brief Create pipeline with given model invoke-async and custom properties.
-   * @param model Model file path
+   * @param model Model file path (or comma-separated base model and LoRA adapter paths)
    * @param invoke_async Whether to use async mode
    * @param custom Custom properties string (e.g., "num_predict:10,top_k:40")
    *               If NULL, uses default "num_predict:32"
@@ -600,6 +612,60 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidContextLength_n)
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GE (new_sample_count, 0);
+}
+
+/**
+ * @brief Test case for tensor_filter llama-cpp plugin with LoRA adapter applied (positive test)
+ */
+TEST_F (NNStreamerFilterLlamaCppTest, applyLoraAdapter_p)
+{
+  gboolean invoke_async = FALSE; /* Use sync mode for simpler output verification */
+  if (skip_test) {
+    GTEST_SKIP ()
+        << "Skipping applyLoraAdapter_p test due to missing model or LoRA file."
+           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF "
+           "and ensure adapter_model.gguf is present in tests/test_models/models/";
+  }
+  ASSERT_TRUE (this->loaded);
+
+  new_sample_count = 0;
+  gchar *model_with_lora = g_strdup_printf ("%s,%s", model, lora_path);
+  create_pipeline (model_with_lora, invoke_async, "num_predict:40");
+  g_free (model_with_lora);
+
+  data_push ("Can you translate 'Hello world' into Korean?");
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (3000000); /* Wait for inference to complete */
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (new_sample_count, 1); /* In sync mode, expect one sample for the entire output */
+}
+
+/**
+ * @brief Test case for tensor_filter llama-cpp plugin with invalid LoRA adapter path (negative test)
+ */
+TEST_F (NNStreamerFilterLlamaCppTest, applyInvalidLoraAdapter_n)
+{
+  gboolean invoke_async = FALSE;
+  if (skip_test) {
+    GTEST_SKIP ()
+        << "Skipping applyLoraAdapter_p test due to missing model or LoRA file."
+           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF ";
+  }
+  ASSERT_TRUE (this->loaded);
+
+  new_sample_count = 0;
+  /* Intentionally use an invalid LoRA path */
+  const gchar *invalid_lora_path = "/invalid/path/to/adapter.gguf";
+  gchar *model_with_invalid_lora = g_strdup_printf ("%s,%s", model, invalid_lora_path);
+  create_pipeline (model_with_invalid_lora, invoke_async, "num_predict:20");
+  g_free (model_with_invalid_lora);
+
+  /* Pipeline state change to PLAYING should fail due to invalid LoRA path */
+  EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
+  EXPECT_EQ (new_sample_count, 0); /* No samples should be generated */
 }
 
 /**
