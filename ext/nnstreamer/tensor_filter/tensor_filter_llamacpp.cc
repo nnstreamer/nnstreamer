@@ -90,6 +90,7 @@ class TensorFilterLlamaCpp : public tensor_filter_subplugin
   llama_model_params model_params;
   llama_sampler_chain_params sampler_params;
   llama_context_params ctx_params;
+  llama_adapter_lora *lora_adapter;
 
   int n_processed = 0;
   int n_gpu_layers = 0;
@@ -113,6 +114,7 @@ class TensorFilterLlamaCpp : public tensor_filter_subplugin
   bool updateOutput (GstTensorFilterProperties *prop, llama_token &token,
       std::string &accumulated);
   void outputThreadLoop ();
+  void cleanupResources ();
 };
 
 TensorFilterLlamaCpp *TensorFilterLlamaCpp::registered = nullptr;
@@ -122,7 +124,8 @@ const char *TensorFilterLlamaCpp::name = "llamacpp";
  * @brief Construct a new llamacpp subplugin instance
  */
 TensorFilterLlamaCpp::TensorFilterLlamaCpp ()
-    : tensor_filter_subplugin (), model (nullptr), ctx (nullptr), sampler (nullptr)
+    : tensor_filter_subplugin (), model (nullptr), ctx (nullptr),
+      sampler (nullptr), lora_adapter (nullptr)
 {
 }
 
@@ -131,32 +134,7 @@ TensorFilterLlamaCpp::TensorFilterLlamaCpp ()
  */
 TensorFilterLlamaCpp::~TensorFilterLlamaCpp ()
 {
-  stop_thread = true;
-  queue_cv.notify_one ();
-  if (output_thread.joinable ()) {
-    output_thread.join ();
-  }
-
-  {
-    std::lock_guard<std::mutex> lock (queue_mutex);
-    while (!input_queue.empty ())
-      input_queue.pop ();
-  }
-
-  if (sampler) {
-    llama_sampler_free (sampler);
-    sampler = nullptr;
-  }
-
-  if (ctx) {
-    llama_free (ctx);
-    ctx = nullptr;
-  }
-
-  if (model) {
-    llama_model_free (model);
-    model = nullptr;
-  }
+  cleanupResources ();
 }
 
 /**
@@ -239,6 +217,7 @@ TensorFilterLlamaCpp::configure_instance (const GstTensorFilterProperties *prop)
 
   model = llama_model_load_from_file ((char *) prop->model_files[0], model_params);
   if (model == nullptr) {
+    cleanupResources ();
     throw std::runtime_error ("Failed to load model");
   }
 
@@ -251,7 +230,19 @@ TensorFilterLlamaCpp::configure_instance (const GstTensorFilterProperties *prop)
 
   ctx = llama_init_from_model (model, ctx_params);
   if (ctx == nullptr) {
+    cleanupResources ();
     throw std::runtime_error ("Failed to create llama context");
+  }
+
+  /* Check for LoRA adapter in model_files */
+  if (prop->model_files[1] != nullptr) {
+    lora_adapter = llama_adapter_lora_init (model, prop->model_files[1]);
+    if (lora_adapter == nullptr) {
+      cleanupResources ();
+      throw std::runtime_error ("Failed to load LoRA adapter");
+    }
+    llama_set_adapter_lora (ctx, lora_adapter, 1.0f);
+    ml_logd ("Successfully applied LoRA adapter to the context");
   }
 
   /* initialize sampler */
@@ -259,6 +250,10 @@ TensorFilterLlamaCpp::configure_instance (const GstTensorFilterProperties *prop)
   sampler_params.no_perf = false;
 
   sampler = llama_sampler_chain_init (sampler_params);
+  if (sampler == nullptr) {
+    cleanupResources ();
+    throw std::runtime_error ("Failed to initialize sampler");
+  }
 
   if (top_k > 0) {
     llama_sampler_chain_add (sampler, llama_sampler_init_top_k (top_k));
@@ -460,6 +455,45 @@ TensorFilterLlamaCpp::outputThreadLoop ()
       /* thread exception */
       ml_loge ("Exception occurred during token generation: %s", e.what ());
     }
+  }
+}
+
+/**
+ * @brief Clean up allocated resources
+ */
+void
+TensorFilterLlamaCpp::cleanupResources ()
+{
+  stop_thread = true;
+  queue_cv.notify_one ();
+  if (output_thread.joinable ()) {
+    output_thread.join ();
+  }
+
+  {
+    std::lock_guard<std::mutex> lock (queue_mutex);
+    while (!input_queue.empty ())
+      input_queue.pop ();
+  }
+
+  if (sampler) {
+    llama_sampler_free (sampler);
+    sampler = nullptr;
+  }
+
+  if (lora_adapter) {
+    llama_adapter_lora_free (lora_adapter);
+    lora_adapter = nullptr;
+  }
+
+  if (ctx) {
+    llama_free (ctx);
+    ctx = nullptr;
+  }
+
+  if (model) {
+    llama_model_free (model);
+    model = nullptr;
   }
 }
 
