@@ -23,6 +23,8 @@
 #include <atomic>
 #include <condition_variable>
 #include <errno.h>
+#include <filesystem>
+#include <fstream>
 #include <functional>
 #include <memory>
 #include <nnstreamer_cppplugin_api_filter.hh>
@@ -100,6 +102,9 @@ class TensorFilterLlamaCpp : public tensor_filter_subplugin
   float top_p = TOP_P_DISABLED;
   float typical_p = TYPICAL_P_DISABLED;
   float temperature = TEMPERATURE_DISABLED;
+  std::string lora_path;
+  std::string save_ctx_path;
+  std::string load_ctx_path;
 
   std::thread output_thread; /* thread for async output */
   std::queue<std::pair<GstTensorFilterProperties *, std::string>> input_queue;
@@ -115,6 +120,8 @@ class TensorFilterLlamaCpp : public tensor_filter_subplugin
       std::string &accumulated);
   void outputThreadLoop ();
   void cleanupResources ();
+  bool loadContextFromFile (const std::string &path);
+  bool saveContextToFile (const std::string &path);
 };
 
 TensorFilterLlamaCpp *TensorFilterLlamaCpp::registered = nullptr;
@@ -134,6 +141,12 @@ TensorFilterLlamaCpp::TensorFilterLlamaCpp ()
  */
 TensorFilterLlamaCpp::~TensorFilterLlamaCpp ()
 {
+  if (!save_ctx_path.empty () && ctx) {
+    if (!saveContextToFile (save_ctx_path)) {
+      ml_loge ("Failed to save context to %s", save_ctx_path.c_str ());
+    }
+  }
+
   cleanupResources ();
 }
 
@@ -180,6 +193,10 @@ TensorFilterLlamaCpp::parseCustomProperties (const GstTensorFilterProperties *pr
         typical_p = g_ascii_strtod (option.get ()[1], NULL);
       } else if (g_ascii_strcasecmp (option.get ()[0], "temperature") == 0) {
         temperature = g_ascii_strtod (option.get ()[1], NULL);
+      } else if (g_ascii_strcasecmp (option.get ()[0], "save_ctx") == 0) {
+        save_ctx_path = std::string (option.get ()[1]);
+      } else if (g_ascii_strcasecmp (option.get ()[0], "load_ctx") == 0) {
+        load_ctx_path = std::string (option.get ()[1]);
       } else {
         throw std::invalid_argument (
             "Unknown custom property " + std::string (option.get ()[0]));
@@ -243,6 +260,18 @@ TensorFilterLlamaCpp::configure_instance (const GstTensorFilterProperties *prop)
     }
     llama_set_adapter_lora (ctx, lora_adapter, 1.0f);
     ml_logd ("Successfully applied LoRA adapter to the context");
+  }
+
+  if (!load_ctx_path.empty ()) {
+    if (std::filesystem::exists (load_ctx_path)) {
+      if (!loadContextFromFile (load_ctx_path)) {
+        ml_loge ("Failed to load context from %s, continuing with fresh context",
+            load_ctx_path.c_str ());
+      }
+    } else {
+      ml_logi ("Context file %s not found, starting with fresh context",
+          load_ctx_path.c_str ());
+    }
   }
 
   /* initialize sampler */
@@ -498,6 +527,95 @@ TensorFilterLlamaCpp::cleanupResources ()
 }
 
 /**
+ * @brief Load context from file
+ */
+bool
+TensorFilterLlamaCpp::loadContextFromFile (const std::string &path)
+{
+  if (!ctx) {
+    ml_loge ("Context not initialized for loading state");
+    return false;
+  }
+
+  std::vector<uint8_t> ctx_data;
+  size_t ctx_size = 0;
+  std::ifstream file (path, std::ios::binary);
+  try {
+    file.exceptions (std::ifstream::failbit | std::ifstream::badbit);
+
+    file.seekg (0, std::ios::end);
+    ctx_size = file.tellg ();
+    file.seekg (0, std::ios::beg);
+
+    file.read (reinterpret_cast<char *> (ctx_data.data ()), ctx_size);
+    file.close ();
+
+  } catch (const std::exception &e) {
+    ml_loge ("Failed to read context file: %s (file: %s)", e.what (), path.c_str ());
+    file.close ();
+
+    return false;
+  }
+
+  if (llama_state_set_data (ctx, ctx_data.data (), ctx_size) != ctx_size) {
+    ml_loge ("Failed to set context data");
+    return false;
+  }
+
+  ml_logi ("Successfully loaded context from %s", path.c_str ());
+
+  return true;
+}
+
+/**
+ * @brief Save context to file
+ */
+bool
+TensorFilterLlamaCpp::saveContextToFile (const std::string &path)
+{
+  if (!ctx) {
+    ml_loge ("Context not initialized for saving state");
+    return false;
+  }
+
+  size_t ctx_size = llama_state_get_size (ctx);
+  if (ctx_size == 0) {
+    ml_loge ("Invalid state size");
+    return false;
+  }
+
+  std::vector<uint8_t> ctx_data (ctx_size);
+  size_t written_size = llama_state_get_data (ctx, ctx_data.data (), ctx_size);
+  if (written_size != ctx_size) {
+    ml_loge ("Failed to get context data");
+    return false;
+  }
+
+  std::ofstream file (path, std::ios::binary);
+  try {
+    file.exceptions (std::ofstream::failbit | std::ofstream::badbit);
+
+    if (!file.is_open ()) {
+      ml_loge ("Cannot create context file %s", path.c_str ());
+      file.close ();
+
+      return false;
+    }
+
+    file.write (reinterpret_cast<const char *> (ctx_data.data ()), ctx_size);
+    file.close ();
+
+  } catch (const std::exception &e) {
+    ml_loge ("Failed to write context file: %s (file: %s)", e.what (), path.c_str ());
+
+    return false;
+  }
+
+  ml_logi ("Successfully saved context to %s", path.c_str ());
+  return true;
+}
+
+/**
  * @brief Invoke llamacpp using input tensors
  */
 void
@@ -577,10 +695,12 @@ TensorFilterLlamaCpp::init_filter_llama ()
 {
   registered = tensor_filter_subplugin::register_subplugin<TensorFilterLlamaCpp> ();
   nnstreamer_filter_set_custom_property_desc (name, "num_predict",
-      "Number of tokens to predict", "n_ctx", "Context size for KV cache",
+      "Number of tokens to predict", "num_gpu_layers",
+      "Number of layers to offload to the GPU", "n_ctx", "Context size for KV cache",
       "top_k", "Top-K sampling parameter", "top_p", "Top-P sampling parameter",
       "typical_p", "Typical-P sampling parameter", "Temperature",
-      "Temperature sampling parameter", NULL);
+      "Temperature sampling parameter", "save_ctx", "Path to save llama context state",
+      "load_ctx", "Path to load llama context state", NULL);
 }
 
 /** @brief Destruct the subplugin */
