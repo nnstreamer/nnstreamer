@@ -615,6 +615,121 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidContextLength_n)
 }
 
 /**
+ * @brief Test case for context save and load functionality
+ */
+TEST_F (NNStreamerFilterLlamaCppTest, contextSaveLoad_p)
+{
+  gboolean invoke_async = FALSE;
+  if (skip_test) {
+    GTEST_SKIP () << "Skipping contextSaveLoad_p test due to missing model file"
+                     "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
+  }
+  ASSERT_TRUE (this->loaded);
+
+  const gchar *context_file = "./context.bin";
+
+  // First pipeline: save context
+  new_sample_count = 0;
+  gchar *custom_str1 = g_strdup_printf (
+      "num_predict:15,context_length:512,save_ctx:%s", context_file);
+  create_pipeline (model, invoke_async, custom_str1);
+  g_free (custom_str1);
+
+  data_push ("Hello my name is John. I like programming and artificial intelligence.");
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (3000000);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (new_sample_count, 1);
+
+  // Verify context file was created
+  EXPECT_TRUE (g_file_test (context_file, G_FILE_TEST_EXISTS));
+
+  // Second pipeline: load context
+  new_sample_count = 0;
+  gchar *custom_str2 = g_strdup_printf (
+      "num_predict:20,context_length:512,load_ctx:%s", context_file);
+  create_pipeline (model, invoke_async, custom_str2);
+  g_free (custom_str2);
+
+  data_push ("What did I just say about myself?");
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (3000000);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (new_sample_count, 1);
+
+  // Clean up test file
+  g_remove (context_file);
+}
+
+/**
+ * @brief Test case for loading non-existent context file
+ */
+TEST_F (NNStreamerFilterLlamaCppTest, contextFileNotFound_n)
+{
+  gboolean invoke_async = FALSE;
+  if (skip_test) {
+    GTEST_SKIP ()
+        << "Skipping contextFileNotFound_n test due to missing model file"
+           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
+  }
+  ASSERT_TRUE (this->loaded);
+
+  const gchar *nonexistent_file = "./invalid_context.bin";
+
+  // Ensure file doesn't exist
+  if (g_file_test (nonexistent_file, G_FILE_TEST_EXISTS)) {
+    g_remove (nonexistent_file);
+  }
+
+  // Try to load non-existent context file
+  new_sample_count = 0;
+  gchar *custom_str = g_strdup_printf (
+      "num_predict:10,context_length:512,load_ctx:%s", nonexistent_file);
+  create_pipeline (model, invoke_async, custom_str);
+  g_free (custom_str);
+
+  // Should work normally with fresh context
+  data_push ("Hello my name is John.");
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (3000000);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (new_sample_count, 1); // Should work with fresh context
+}
+
+/**
+ * @brief Test case for saving context to invalid path
+ */
+TEST_F (NNStreamerFilterLlamaCppTest, contextInvalidSavePath_n)
+{
+  gboolean invoke_async = FALSE;
+  if (skip_test) {
+    GTEST_SKIP ()
+        << "Skipping contextInvalidSavePath_n test due to missing model file"
+           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
+  }
+  ASSERT_TRUE (this->loaded);
+
+  const gchar *invalid_path = "./root/invalid_context.bin";
+
+  // Try to save context to invalid path
+  new_sample_count = 0;
+  gchar *custom_str = g_strdup_printf (
+      "num_predict:10,context_length:512,save_ctx:%s", invalid_path);
+  create_pipeline (model, invoke_async, custom_str);
+  g_free (custom_str);
+
+  // Should work normally even if save fails
+  data_push ("Hello my name is John.");
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (3000000);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (new_sample_count, 1); // Should work even if save fails
+
+  // Verify file was not created
+  EXPECT_FALSE (g_file_test (invalid_path, G_FILE_TEST_EXISTS));
+}
+
+/**
  * @brief Test case for tensor_filter llama-cpp plugin with LoRA adapter applied (positive test)
  */
 TEST_F (NNStreamerFilterLlamaCppTest, applyLoraAdapter_p)
@@ -667,6 +782,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, applyInvalidLoraAdapter_n)
   setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
   EXPECT_EQ (new_sample_count, 0); /* No samples should be generated */
 }
+
 
 /**
  * @brief Main gtest
