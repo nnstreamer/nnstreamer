@@ -60,6 +60,12 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
    */
   NNStreamerFilterLlamaCppTest ()
   {
+    pipeline = nullptr;
+    appsrc = nullptr;
+    appsink = nullptr;
+    tensor_filter = nullptr;
+    model = nullptr;
+    pipeline_str = nullptr;
     loaded = FALSE;
     skip_test = FALSE;
   }
@@ -93,17 +99,12 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
    */
   void TearDown () override
   {
-    if (appsrc)
-      gst_object_unref (appsrc);
-    if (appsink)
-      gst_object_unref (appsink);
-    if (tensor_filter)
-      gst_object_unref (tensor_filter);
-    if (pipeline)
-      gst_object_unref (pipeline);
-
-    g_free (pipeline_str);
-    g_free (model);
+    g_clear_pointer (&pipeline, gst_object_unref);
+    g_clear_pointer (&appsrc, gst_object_unref);
+    g_clear_pointer (&appsink, gst_object_unref);
+    g_clear_pointer (&tensor_filter, gst_object_unref);
+    g_clear_pointer (&pipeline_str, g_free);
+    g_clear_pointer (&model, g_free);
   }
 
   /**
