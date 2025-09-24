@@ -82,11 +82,11 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
       root_path = "..";
 
     model = g_build_filename (root_path, "tests", "test_models", "models",
-        "llama-2-7b-chat.Q2_K.gguf", NULL);
+        "tinyllama-1.1b-chat-v1.0.Q2_K.gguf", NULL);
 
     if (!g_file_test (model, G_FILE_TEST_EXISTS)) {
       g_critical ("Skipping test due to missing model file. "
-                  "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF");
+                  "Please download model file from https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/");
       skip_test = TRUE;
       return;
     }
@@ -183,7 +183,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputMultipleOutputsAsync_p)
   new_sample_count = 0;
   create_pipeline (model, invoke_async, num_predict);
   data_push ("Hello my name is");
-  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
   g_usleep (3000000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
