@@ -60,6 +60,12 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
    */
   NNStreamerFilterLlamaCppTest ()
   {
+    pipeline = nullptr;
+    appsrc = nullptr;
+    appsink = nullptr;
+    tensor_filter = nullptr;
+    model = nullptr;
+    pipeline_str = nullptr;
     loaded = FALSE;
     skip_test = FALSE;
   }
