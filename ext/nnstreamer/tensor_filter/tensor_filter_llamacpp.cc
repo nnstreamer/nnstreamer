@@ -23,6 +23,8 @@
 #include <atomic>
 #include <condition_variable>
 #include <errno.h>
+#include <filesystem>
+#include <fstream>
 #include <functional>
 #include <memory>
 #include <nnstreamer_cppplugin_api_filter.hh>
@@ -78,13 +80,24 @@ class TensorFilterLlamaCpp : public tensor_filter_subplugin
   static const char *name;
 
   llama_model *model;
+  llama_context *ctx;
   llama_sampler *sampler;
   llama_model_params model_params;
   llama_sampler_chain_params sampler_params;
   llama_context_params ctx_params;
+  llama_adapter_lora *lora_adapter;
 
+  int n_processed = 0;
   int n_gpu_layers = 99;
   int n_predict = 32;
+  int n_ctx = 2048;
+  int top_k = 0;
+  float top_p = 1.1f;
+  float typical_p = 1.1f;
+  float temperature = -1.0f;
+  std::string lora_path;
+  std::string save_ctx_path;
+  std::string load_ctx_path;
 
   std::thread output_thread; /* thread for async output */
   std::queue<std::pair<GstTensorFilterProperties *, std::string>> input_queue;
@@ -99,6 +112,9 @@ class TensorFilterLlamaCpp : public tensor_filter_subplugin
   bool updateOutput (GstTensorFilterProperties *prop, llama_token &token,
       std::string &accumulated);
   void outputThreadLoop ();
+  void cleanupResources ();
+  bool loadContextFromFile (const std::string &path);
+  bool saveContextToFile (const std::string &path);
 };
 
 TensorFilterLlamaCpp *TensorFilterLlamaCpp::registered = nullptr;
@@ -108,7 +124,8 @@ const char *TensorFilterLlamaCpp::name = "llamacpp";
  * @brief Construct a new llamacpp subplugin instance
  */
 TensorFilterLlamaCpp::TensorFilterLlamaCpp ()
-    : tensor_filter_subplugin (), model (nullptr), sampler (nullptr)
+    : tensor_filter_subplugin (), model (nullptr), ctx (nullptr),
+      sampler (nullptr), lora_adapter (nullptr)
 {
 }
 
@@ -117,27 +134,13 @@ TensorFilterLlamaCpp::TensorFilterLlamaCpp ()
  */
 TensorFilterLlamaCpp::~TensorFilterLlamaCpp ()
 {
-  stop_thread = true;
-  queue_cv.notify_one ();
-  if (output_thread.joinable ()) {
-    output_thread.join ();
+  if (!save_ctx_path.empty () && ctx) {
+    if (!saveContextToFile (save_ctx_path)) {
+      ml_loge ("Failed to save context to %s", save_ctx_path.c_str ());
+    }
   }
 
-  {
-    std::lock_guard<std::mutex> lock (queue_mutex);
-    while (!input_queue.empty ())
-      input_queue.pop ();
-  }
-
-  if (sampler) {
-    llama_sampler_free (sampler);
-    sampler = nullptr;
-  }
-
-  if (model) {
-    llama_model_free (model);
-    model = nullptr;
-  }
+  cleanupResources ();
 }
 
 /**
@@ -171,10 +174,26 @@ TensorFilterLlamaCpp::parseCustomProperties (const GstTensorFilterProperties *pr
       g_strstrip (option.get ()[0]);
       g_strstrip (option.get ()[1]);
 
-      if (g_ascii_strcasecmp (option.get ()[0], "num_gpu_layers") == 0) {
+      if (g_ascii_strcasecmp (option.get ()[0], "lora") == 0) {
+        lora_path = std::string (option.get ()[1]);
+      } else if (g_ascii_strcasecmp (option.get ()[0], "num_gpu_layers") == 0) {
         n_gpu_layers = (int) g_ascii_strtoull (option.get ()[1], NULL, 10);
       } else if (g_ascii_strcasecmp (option.get ()[0], "num_predict") == 0) {
         n_predict = (int) g_ascii_strtoull (option.get ()[1], NULL, 10);
+      } else if (g_ascii_strcasecmp (option.get ()[0], "context_length") == 0) {
+        n_ctx = (int) g_ascii_strtoull (option.get ()[1], NULL, 10);
+      } else if (g_ascii_strcasecmp (option.get ()[0], "top_k") == 0) {
+        top_k = (int) g_ascii_strtoull (option.get ()[1], NULL, 10);
+      } else if (g_ascii_strcasecmp (option.get ()[0], "top_p") == 0) {
+        top_p = g_ascii_strtod (option.get ()[1], NULL);
+      } else if (g_ascii_strcasecmp (option.get ()[0], "typical_p") == 0) {
+        typical_p = g_ascii_strtod (option.get ()[1], NULL);
+      } else if (g_ascii_strcasecmp (option.get ()[0], "temperature") == 0) {
+        temperature = g_ascii_strtod (option.get ()[1], NULL);
+      } else if (g_ascii_strcasecmp (option.get ()[0], "save_ctx") == 0) {
+        save_ctx_path = std::string (option.get ()[1]);
+      } else if (g_ascii_strcasecmp (option.get ()[0], "load_ctx") == 0) {
+        load_ctx_path = std::string (option.get ()[1]);
       } else {
         throw std::invalid_argument (
             "Unknown custom property " + std::string (option.get ()[0]));
@@ -212,19 +231,76 @@ TensorFilterLlamaCpp::configure_instance (const GstTensorFilterProperties *prop)
 
   model = llama_model_load_from_file ((char *) prop->model_files[0], model_params);
   if (model == nullptr) {
+    cleanupResources ();
     throw std::runtime_error ("Failed to load model");
   }
 
-  /* context will be initialized in invoke callback */
+  if (!lora_path.empty ()) {
+    if (!g_file_test (lora_path.c_str (), G_FILE_TEST_EXISTS)) {
+      /*tensor_filter_support can not process throw*/
+      cleanupResources ();
+      throw std::runtime_error ("LoRA adapter file does not exist: " + lora_path);
+    }
+    lora_adapter = llama_adapter_lora_init (model, lora_path.c_str ());
+    if (lora_adapter == nullptr) {
+      cleanupResources ();
+      throw std::runtime_error ("Filed to load LoRA adapter");
+    }
+  }
+
   ctx_params = llama_context_default_params ();
+  ctx_params.n_ctx = n_ctx;
+  /* n_batch is the maximum number of tokens that can be processed in a single call to llama_decode */
+  ctx_params.n_batch = n_ctx;
   /* enable performance counters */
   ctx_params.no_perf = false;
+
+  ctx = llama_init_from_model (model, ctx_params);
+  if (ctx == nullptr) {
+    cleanupResources ();
+    throw std::runtime_error ("Failed to create llama context");
+  }
+
+  if (!load_ctx_path.empty ()) {
+    if (std::filesystem::exists (load_ctx_path)) {
+      if (!loadContextFromFile (load_ctx_path)) {
+        ml_loge ("Failed to load context from %s, continuing with fresh context",
+            load_ctx_path.c_str ());
+      }
+    } else {
+      ml_logi ("Context file %s not found, starting with fresh context",
+          load_ctx_path.c_str ());
+    }
+  }
+
+  if (lora_adapter) {
+    llama_set_adapter_lora (ctx, lora_adapter, 1.0f);
+    ml_logd ("Successfully applied LoRA adapter to the context");
+  }
 
   /* initialize sampler */
   sampler_params = llama_sampler_chain_default_params ();
   sampler_params.no_perf = false;
 
   sampler = llama_sampler_chain_init (sampler_params);
+  if (sampler == nullptr) {
+    cleanupResources ();
+    throw std::runtime_error ("Failed to initialize sampler");
+  }
+
+  if (top_k > 0) {
+    llama_sampler_chain_add (sampler, llama_sampler_init_top_k (top_k));
+  }
+  if (top_p > 0.0f && top_p < 1.0f) {
+    llama_sampler_chain_add (sampler, llama_sampler_init_top_p (top_p, 1));
+  }
+  if (typical_p > 0.0f && typical_p < 1.0f) {
+    llama_sampler_chain_add (sampler, llama_sampler_init_typical (typical_p, 1));
+  }
+  if (temperature >= 0.0f) {
+    llama_sampler_chain_add (sampler, llama_sampler_init_temp (temperature));
+  }
+  /* if we use 'llama_sampler_init_greedy()' : Roulette based on probability */
   llama_sampler_chain_add (sampler, llama_sampler_init_greedy ());
 
   stop_thread = false;
@@ -326,47 +402,41 @@ TensorFilterLlamaCpp::generateTokens (GstTensorFilterProperties *prop,
     GstTensorMemory *output, const std::string &prompt)
 {
   const llama_vocab *vocab = llama_model_get_vocab (model);
-  int n_prompt, n_pos, n;
-  llama_context *ctx = nullptr;
+  int n;
   llama_token new_token_id;
   llama_batch batch;
   std::string output_accumulated;
 
-  n_prompt = -llama_tokenize (vocab, prompt.c_str (), prompt.size (), NULL, 0, true, true);
-  std::vector<llama_token> prompt_tokens (n_prompt);
+  std::vector<llama_token> prompt_tokens (prompt.length ());
   n = llama_tokenize (vocab, prompt.c_str (), prompt.size (),
-      prompt_tokens.data (), prompt_tokens.size (), true, true);
+      prompt_tokens.data (), prompt_tokens.size (), false, true);
   if (n < 0) {
     throw std::runtime_error ("Failed to tokenize the prompt");
   }
+  prompt_tokens.resize (n);
 
-  ctx_params.n_ctx = n_prompt + n_predict - 1;
-  /* n_batch is the maximum number of tokens that can be processed in a single call to llama_decode */
-  ctx_params.n_batch = n_prompt;
-
-  ctx = llama_init_from_model (model, ctx_params);
-  if (ctx == nullptr) {
-    throw std::runtime_error ("Failed to create llama context");
-  }
-
-  for (auto id : prompt_tokens) {
-    if (!updateOutput (prop, id, output_accumulated)) {
-      throw std::runtime_error ("Failed to update output from prompt");
-    }
+  if (n_processed + (int) prompt_tokens.size () > n_ctx) {
+    const int n_keep = n_ctx / 2;
+    ml_logd ("Context is full, trimming tokens to %d.", n_keep);
+    llama_memory_seq_rm (llama_get_memory (ctx), 0, n_keep, n_processed);
+    llama_memory_seq_add (
+        llama_get_memory (ctx), 0, n_keep, n_processed, -(n_processed - n_keep));
+    n_processed = n_keep;
   }
 
   batch = llama_batch_get_one (prompt_tokens.data (), prompt_tokens.size ());
+  /* Since batch.pos is NULL, context will use internal n_processed state */
+  if (llama_decode (ctx, batch)) {
+    throw std::runtime_error ("Failed to eval");
+  }
+  n_processed += prompt_tokens.size ();
 
-  for (n_pos = 0; n_pos + batch.n_tokens < n_prompt + n_predict;) {
+  int n_remain = n_predict;
+  while (n_remain > 0) {
     /* evaluate the current batch with the transformer model */
-    if (llama_decode (ctx, batch)) {
-      throw std::runtime_error ("Failed to eval");
-    }
-
-    n_pos += batch.n_tokens;
-
     /* sample the next token */
     new_token_id = llama_sampler_sample (sampler, ctx, -1);
+    llama_sampler_accept (sampler, new_token_id);
 
     /* is it an end of generation? */
     if (llama_vocab_is_eog (vocab, new_token_id)) {
@@ -376,8 +446,13 @@ TensorFilterLlamaCpp::generateTokens (GstTensorFilterProperties *prop,
     if (!updateOutput (prop, new_token_id, output_accumulated)) {
       throw std::runtime_error ("Failed to update output from generated token");
     }
+    n_remain--;
 
     batch = llama_batch_get_one (&new_token_id, 1);
+    if (llama_decode (ctx, batch)) {
+      throw std::runtime_error ("Failed to eval token");
+    }
+    n_processed++;
   }
 
   if (!prop->invoke_async) {
@@ -385,11 +460,6 @@ TensorFilterLlamaCpp::generateTokens (GstTensorFilterProperties *prop,
     if (!createOutputTensor (prop, output, output_accumulated)) {
       throw std::runtime_error ("generateTokens: Failed to create output tensor");
     }
-  }
-
-  if (ctx) {
-    llama_free (ctx);
-    ctx = nullptr;
   }
 }
 
@@ -419,6 +489,134 @@ TensorFilterLlamaCpp::outputThreadLoop ()
       ml_loge ("Exception occurred during token generation: %s", e.what ());
     }
   }
+}
+
+/**
+ * @brief Clean up allocated resources
+ */
+void
+TensorFilterLlamaCpp::cleanupResources ()
+{
+  stop_thread = true;
+  queue_cv.notify_one ();
+  if (output_thread.joinable ()) {
+    output_thread.join ();
+  }
+
+  {
+    std::lock_guard<std::mutex> lock (queue_mutex);
+    while (!input_queue.empty ())
+      input_queue.pop ();
+  }
+
+  if (sampler) {
+    llama_sampler_free (sampler);
+    sampler = nullptr;
+  }
+
+  if (lora_adapter) {
+    llama_adapter_lora_free (lora_adapter);
+    lora_adapter = nullptr;
+  }
+
+  if (ctx) {
+    llama_free (ctx);
+    ctx = nullptr;
+  }
+
+  if (model) {
+    llama_model_free (model);
+    model = nullptr;
+  }
+}
+
+/**
+ * @brief Load context from file
+ */
+bool
+TensorFilterLlamaCpp::loadContextFromFile (const std::string &path)
+{
+  if (!ctx) {
+    ml_loge ("Context not initialized for loading state");
+    return false;
+  }
+
+  std::vector<uint8_t> ctx_data;
+  size_t ctx_size = 0;
+  std::ifstream file (path, std::ios::binary);
+  try {
+    file.exceptions (std::ifstream::failbit | std::ifstream::badbit);
+
+    file.seekg (0, std::ios::end);
+    ctx_size = file.tellg ();
+    file.seekg (0, std::ios::beg);
+
+    file.read (reinterpret_cast<char *> (ctx_data.data ()), ctx_size);
+    file.close ();
+
+  } catch (const std::exception &e) {
+    ml_loge ("Failed to read context file: %s (file: %s)", e.what (), path.c_str ());
+    file.close ();
+
+    return false;
+  }
+
+  if (llama_state_set_data (ctx, ctx_data.data (), ctx_size) != ctx_size) {
+    ml_loge ("Failed to set context data");
+    return false;
+  }
+
+  ml_logi ("Successfully loaded context from %s", path.c_str ());
+
+  return true;
+}
+
+/**
+ * @brief Save context to file
+ */
+bool
+TensorFilterLlamaCpp::saveContextToFile (const std::string &path)
+{
+  if (!ctx) {
+    ml_loge ("Context not initialized for saving state");
+    return false;
+  }
+
+  size_t ctx_size = llama_state_get_size (ctx);
+  if (ctx_size == 0) {
+    ml_loge ("Invalid state size");
+    return false;
+  }
+
+  std::vector<uint8_t> ctx_data (ctx_size);
+  size_t written_size = llama_state_get_data (ctx, ctx_data.data (), ctx_size);
+  if (written_size != ctx_size) {
+    ml_loge ("Failed to get context data");
+    return false;
+  }
+
+  std::ofstream file (path, std::ios::binary);
+  try {
+    file.exceptions (std::ofstream::failbit | std::ofstream::badbit);
+
+    if (!file.is_open ()) {
+      ml_loge ("Cannot create context file %s", path.c_str ());
+      file.close ();
+
+      return false;
+    }
+
+    file.write (reinterpret_cast<const char *> (ctx_data.data ()), ctx_size);
+    file.close ();
+
+  } catch (const std::exception &e) {
+    ml_loge ("Failed to write context file: %s (file: %s)", e.what (), path.c_str ());
+
+    return false;
+  }
+
+  ml_logi ("Successfully saved context to %s", path.c_str ());
+  return true;
 }
 
 /**
@@ -500,8 +698,13 @@ void
 TensorFilterLlamaCpp::init_filter_llama ()
 {
   registered = tensor_filter_subplugin::register_subplugin<TensorFilterLlamaCpp> ();
-  nnstreamer_filter_set_custom_property_desc (name, "num_predict", "Number of tokens to predict",
-      "num_gpu_layers", "Number of layers to offload to the GPU", NULL);
+  nnstreamer_filter_set_custom_property_desc (name, "num_predict",
+      "Number of tokens to predict", "num_gpu_layers",
+      "Number of layers to offload to the GPU", "n_ctx", "Context size for KV cache",
+      "top_k", "Top-K sampling parameter", "top_p", "Top-P sampling parameter",
+      "typical_p", "Typical-P sampling parameter", "Temperature",
+      "Temperature sampling parameter", "save_ctx", "Path to save llama context state",
+      "load_ctx", "Path to load llama context state", NULL);
 }
 
 /** @brief Destruct the subplugin */
