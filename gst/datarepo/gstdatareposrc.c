@@ -132,7 +132,7 @@ gst_data_repo_src_class_init (GstDataRepoSrcClass * klass)
       g_param_spec_string ("location", "File Location",
           "Location of the file to read that is stored in MLOps Data Repository, "
           "if the files are images, write the index of filename name "
-          "like %04ld or %04lld (e.g., filenmae%04ld.png)",
+          "like %04ld or %04lld (e.g., filename%04ld.png)",
           NULL,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));

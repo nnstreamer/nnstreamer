@@ -140,7 +140,7 @@ TEST (tensorFilterCustom, flexibleInvoke_p)
   info_in.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
 
   ret = NNS_custom_easy_dynamic_register (
-      "flexbible_filter", _custom_easy_filter_dynamic, &data, &info_in);
+      "flexible_filter", _custom_easy_filter_dynamic, &data, &info_in);
   ASSERT_EQ (ret, 0);
 
   /* create a nnstreamer pipeline */
@@ -148,7 +148,7 @@ TEST (tensorFilterCustom, flexibleInvoke_p)
       "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=224,height=224,framerate=10/1 ! tensor_converter ! other/tensors,format=flexible ! j.sink_0 "
       "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=320,height=240,framerate=10/1 ! tensor_converter ! other/tensors,format=flexible ! j.sink_1 "
       "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=640,height=480,framerate=10/1 ! tensor_converter ! other/tensors,format=flexible ! j.sink_2 "
-      "join name=j ! other/tensors,format=flexible ! tensor_filter framework=custom-easy invoke-dynamic=TRUE model=flexbible_filter ! other/tensors,format=flexible ! tensor_sink name=sinkx sync=true");
+      "join name=j ! other/tensors,format=flexible ! tensor_filter framework=custom-easy invoke-dynamic=TRUE model=flexible_filter ! other/tensors,format=flexible ! tensor_sink name=sinkx sync=true");
 
   gstpipe = gst_parse_launch (pipeline, &err);
   ASSERT_TRUE (gstpipe != nullptr);
@@ -164,7 +164,7 @@ TEST (tensorFilterCustom, flexibleInvoke_p)
   g_usleep (1000000);
 
   /** cleanup registered custom_easy filter */
-  ret = NNS_custom_easy_unregister ("flexbible_filter");
+  ret = NNS_custom_easy_unregister ("flexible_filter");
   ASSERT_EQ (0, ret);
 
   gst_object_unref (sink_handle);
@@ -198,7 +198,7 @@ TEST (tensorFilterCustom, staticFlexibleInvoke_p)
   info_in.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
 
   ret = NNS_custom_easy_dynamic_register (
-      "flexbible_filter", _custom_easy_filter_dynamic, &data, &info_in);
+      "flexible_filter", _custom_easy_filter_dynamic, &data, &info_in);
   ASSERT_EQ (ret, 0);
 
   /* create a nnstreamer pipeline */
@@ -206,7 +206,7 @@ TEST (tensorFilterCustom, staticFlexibleInvoke_p)
       "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=224,height=224,framerate=10/1 ! tensor_converter ! j.sink_0 "
       "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=320,height=240,framerate=10/1 ! tensor_converter ! j.sink_1 "
       "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=640,height=480,framerate=10/1 ! tensor_converter ! j.sink_2 "
-      "join name=j ! other/tensors,format=flexible ! tensor_filter framework=custom-easy invoke-dynamic=TRUE model=flexbible_filter ! other/tensors,format=flexible ! tensor_sink name=sinkx sync=true");
+      "join name=j ! other/tensors,format=flexible ! tensor_filter framework=custom-easy invoke-dynamic=TRUE model=flexible_filter ! other/tensors,format=flexible ! tensor_sink name=sinkx sync=true");
 
   gstpipe = gst_parse_launch (pipeline, &err);
   ASSERT_TRUE (gstpipe != nullptr);
@@ -222,7 +222,7 @@ TEST (tensorFilterCustom, staticFlexibleInvoke_p)
   g_usleep (1000000);
 
   /** cleanup registered custom_easy filter */
-  ret = NNS_custom_easy_unregister ("flexbible_filter");
+  ret = NNS_custom_easy_unregister ("flexible_filter");
   ASSERT_EQ (0, ret);
 
   gst_object_unref (sink_handle);
@@ -256,7 +256,7 @@ TEST (tensorFilterCustom, flexibleInvokeInvalidProp_n)
   info_in.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
 
   ret = NNS_custom_easy_dynamic_register (
-      "flexbible_filter", _custom_easy_filter_dynamic, &data, &info_in);
+      "flexible_filter", _custom_easy_filter_dynamic, &data, &info_in);
   ASSERT_EQ (ret, 0);
 
   /* create a nnstreamer pipeline */
@@ -264,7 +264,7 @@ TEST (tensorFilterCustom, flexibleInvokeInvalidProp_n)
       "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=224,height=224,framerate=10/1 ! tensor_converter ! other/tensors,format=flexible ! j.sink_0 "
       "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=320,height=240,framerate=10/1 ! tensor_converter ! other/tensors,format=flexible ! j.sink_1 "
       "videotestsrc num-buffers=3 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=640,height=480,framerate=10/1 ! tensor_converter ! other/tensors,format=flexible ! j.sink_2 "
-      "join name=j ! other/tensors,format=flexible ! tensor_filter framework=custom-easy invoke-dynamic=FALSE model=flexbible_filter ! other/tensors,format=flexible ! tensor_sink name=sinkx sync=true");
+      "join name=j ! other/tensors,format=flexible ! tensor_filter framework=custom-easy invoke-dynamic=FALSE model=flexible_filter ! other/tensors,format=flexible ! tensor_sink name=sinkx sync=true");
 
   gstpipe = gst_parse_launch (pipeline, &err);
   ASSERT_TRUE (gstpipe != nullptr);
@@ -277,7 +277,7 @@ TEST (tensorFilterCustom, flexibleInvokeInvalidProp_n)
   EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   /** cleanup registered custom_easy filter */
-  ret = NNS_custom_easy_unregister ("flexbible_filter");
+  ret = NNS_custom_easy_unregister ("flexible_filter");
   ASSERT_EQ (0, ret);
 
   gst_object_unref (sink_handle);

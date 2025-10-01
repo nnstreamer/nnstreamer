@@ -133,7 +133,7 @@ gst_data_repo_sink_class_init (GstDataRepoSinkClass * klass)
       g_param_spec_string ("location", "File Location",
           "Location to write files to MLOps Data Repository. "
           "if the files are images, use placeholder in indexes for filename"
-          "(e.g., filenmae%04d.png).",
+          "(e.g., filename%04d.png).",
           NULL,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
           GST_PARAM_MUTABLE_READY));
@@ -756,7 +756,7 @@ gst_data_repo_sink_change_state (GstElement * element,
     case GST_STATE_CHANGE_NULL_TO_READY:
       GST_INFO_OBJECT (sink, "NULL_TO_READY");
       if (sink->filename == NULL || sink->json_filename == NULL) {
-        GST_ERROR_OBJECT (sink, "Set filenmae and json");
+        GST_ERROR_OBJECT (sink, "Set filename and json");
         goto state_change_failed;
       }
       break;

@@ -358,7 +358,7 @@ gst_tensor_mux_sink_event (GstCollectPads * pads, GstCollectData * data,
 }
 
 /**
- * @brief Looping to generete output buffer for srcpad
+ * @brief Looping to generate output buffer for srcpad
  * @param tensor_mux tensor muxer
  * @param tensors_buf output buffer for srcpad
  * @param is_eos boolean EOS ( End of Stream )
