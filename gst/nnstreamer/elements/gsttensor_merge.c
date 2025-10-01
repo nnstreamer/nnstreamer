@@ -438,7 +438,7 @@ gst_tensor_merge_get_merged_config (GstTensorMerge * tensor_merge,
 }
 
 /**
- * @brief Looping to generete output buffer for srcpad
+ * @brief Looping to generate output buffer for srcpad
  * @param tensor_merge tensor merger
  * @param tensor_buf output buffer for srcpad
  * @param is_eos boolean EOS ( End of Stream )

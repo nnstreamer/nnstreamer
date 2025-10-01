@@ -89,7 +89,7 @@ struct _GstTensorSrcTIZENSENSOR
   /**
    * Sensor node info (handle, context)
    * These are temporary values valid during a session of "configured"
-   * values should be cleared when confiured becomes FALSE
+   * values should be cleared when configured becomes FALSE
    */
   const GstTensorInfo *src_spec;
   unsigned int interval_ms;

@@ -235,8 +235,8 @@ gst_tensor_split_event (GstPad * pad, GstObject * parent, GstEvent * event)
     case GST_EVENT_EOS:
       if (!split->srcpads) {
         GST_ELEMENT_ERROR (split, STREAM, WRONG_TYPE,
-            ("This stream contains no valid stremas."),
-            ("Got EOS before adding any pads"));
+            ("This stream contains no valid streams."),
+            ("Got EOS before adding any pads."));
         gst_event_unref (event);
         return FALSE;
       }
