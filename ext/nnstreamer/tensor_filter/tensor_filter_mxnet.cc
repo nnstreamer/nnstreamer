@@ -330,7 +330,7 @@ TensorFilterMXNet::invoke (const GstTensorMemory *input, GstTensorMemory *output
   executor_->Forward (false);
   NDArray::WaitAll ();
 
-  /* Copy outpu. */
+  /* Copy output. */
   for (unsigned int i = 0; i < outputs_info_.num_tensors; i++) {
     GstTensorInfo *output_info = gst_tensors_info_get_nth_info (&outputs_info_, i);
     NDArray result;

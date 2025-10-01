@@ -166,20 +166,20 @@ TEST (pipelineMvncsdk2Filter, launchNormal)
 /** @brief Testing failure cases (in the case of wrong SDK version) */
 TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (0, fail_stage_t::WRONG_SDK_VER);
 
-/** @brief Testing failure cases (in the case of fialure in getting version information) */
+/** @brief Testing failure cases (in the case of failure in getting version information) */
 TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (1, fail_stage_t::FAIL_GLBL_GET_OPT);
 
-/** @brief Testing failure cases (in the case of fialure in handling device handles) */
+/** @brief Testing failure cases (in the case of failure in handling device handles) */
 TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (2, fail_stage_t::FAIL_DEV_CREATE);
 TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (3, fail_stage_t::FAIL_DEV_OPEN);
 
-/** @brief Testing failure cases (in the case of fialure in handling graph handles) */
+/** @brief Testing failure cases (in the case of failure in handling graph handles) */
 TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (4, fail_stage_t::FAIL_GRAPH_CREATE);
 TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (5, fail_stage_t::FAIL_GRAPH_ALLOC);
 TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (6, fail_stage_t::FAIL_GRAPH_GET_INPUT_TENSOR_DESC);
 TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (7, fail_stage_t::FAIL_GRAPH_GET_OUTPUT_TENSOR_DESC);
 
-/** @brief Testing failure cases (in the case of fialure in handling FIFO handles) */
+/** @brief Testing failure cases (in the case of failure in handling FIFO handles) */
 TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (8, fail_stage_t::FAIL_FIFO_CREATE_INPUT);
 TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (9, fail_stage_t::FAIL_FIFO_CREATE_OUTPUT);
 TEST_PIPELINE_LAUNCH_NORMAL_FAILURE (10, fail_stage_t::FAIL_FIFO_ALLOC_INPUT);

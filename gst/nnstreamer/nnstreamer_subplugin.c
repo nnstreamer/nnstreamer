@@ -247,7 +247,7 @@ register_subplugin (subpluginType type, const char *name, const void *data)
       return FALSE;
   }
 
-  /* check the sub-pugin name */
+  /* check the sub-plugin name */
   if (g_ascii_strcasecmp (name, "any") == 0 ||
       g_ascii_strcasecmp (name, "auto") == 0) {
     ml_loge ("Failed, the name %s is not allowed.", name);

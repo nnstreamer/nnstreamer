@@ -11,7 +11,7 @@
  *          https://github.com/nnsuite/llama2.c
  * @author  Yelin Jeong <yelini.jeong@samsung.com>
  * @bug     No known bugs except for NYI items
- * @todo    Use property to values like temperatrue, topp
+ * @todo    Use property to values like temperature, topp
  * @details Pipeline example
  *          gst-launch-1.0 filesrc location=input.txt ! application/octet-stream !
  *          tensor_converter ! other/tensors,format=flexible !
