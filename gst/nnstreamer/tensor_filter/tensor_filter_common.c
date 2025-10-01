@@ -2474,7 +2474,7 @@ done:
 gboolean
 gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv)
 {
-  int ret;
+  int ret = -ENOENT;
 
   g_return_val_if_fail (priv->fw != NULL, FALSE);
 
@@ -2498,7 +2498,7 @@ gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv)
         ret = priv->fw->getFrameworkInfo (priv->fw, &priv->prop,
             priv->privateData, &priv->info);
         if (ret != 0) {
-          gst_tensor_filter_common_unload_fw (priv);
+          gst_tensor_filter_common_unload_fw (priv, FALSE);
         }
       }
     }
@@ -2509,21 +2509,66 @@ gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv)
           G_GINT64_FORMAT " us", priv->prop.fwname, TF_MODELNAME (&priv->prop),
           end_time - start_time);
     }
+  } else if (priv->is_suspended) {
+    /* Send RESUME event. */
+    if (GST_TF_FW_V0 (priv->fw)) {
+      if (priv->fw->handleEvent) {
+        ret = priv->fw->handleEvent (RESUME, NULL);
+      }
+    } else if (GST_TF_FW_V1 (priv->fw)) {
+      if (priv->fw->eventHandler) {
+        ret = priv->fw->eventHandler (priv->fw, &priv->prop,
+            priv->privateData, RESUME, NULL);
+      }
+    }
+
+    if (ret == 0) {
+      priv->is_suspended = FALSE;
+    } else {
+      ml_loge ("Failed to resume the filter '%s' with model file '%s'.",
+          priv->prop.fwname, TF_MODELNAME (&priv->prop));
+    }
   }
 
-  return priv->prop.fw_opened;
+  return priv->prop.fw_opened && !priv->is_suspended;
 }
 
 /**
  * @brief Unload NN framework.
  */
 void
-gst_tensor_filter_common_unload_fw (GstTensorFilterPrivate * priv)
+gst_tensor_filter_common_unload_fw (GstTensorFilterPrivate * priv,
+    gboolean suspend)
 {
+  int ret = -ENOENT;
+
   if (priv->prop.fw_opened) {
-    if (priv->fw && priv->fw->close) {
-      priv->fw->close (&priv->prop, &priv->privateData);
+    if (priv->fw) {
+      if (suspend) {
+        /* Send SUSPEND event. */
+        if (GST_TF_FW_V0 (priv->fw)) {
+          if (priv->fw->handleEvent) {
+            ret = priv->fw->handleEvent (SUSPEND, NULL);
+          }
+        } else if (GST_TF_FW_V1 (priv->fw)) {
+          if (priv->fw->eventHandler) {
+            ret = priv->fw->eventHandler (priv->fw, &priv->prop,
+                priv->privateData, SUSPEND, NULL);
+          }
+        }
+
+        if (ret == 0) {
+          /* Suspended, skip closing the model. */
+          priv->is_suspended = TRUE;
+          return;
+        }
+      }
+
+      if (priv->fw->close) {
+        priv->fw->close (&priv->prop, &priv->privateData);
+      }
     }
+
     priv->prop.fw_opened = FALSE;
     priv->privateData = NULL;
   }
@@ -2535,7 +2580,7 @@ gst_tensor_filter_common_unload_fw (GstTensorFilterPrivate * priv)
 void
 gst_tensor_filter_common_close_fw (GstTensorFilterPrivate * priv)
 {
-  gst_tensor_filter_common_unload_fw (priv);
+  gst_tensor_filter_common_unload_fw (priv, FALSE);
 
   priv->prop.input_configured = priv->prop.output_configured = FALSE;
   g_free_const (priv->prop.fwname);
