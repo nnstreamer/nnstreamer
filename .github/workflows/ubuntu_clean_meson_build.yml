@@ -28,13 +28,106 @@ jobs:
       if: env.rebuild == '1'
       run: |
         sudo apt-get update && sudo apt-get install -y libglib2.0-dev libjson-glib-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libunwind-dev googletest gdb
-        sudo apt-get install -y liborc-0.4-dev flex bison libopencv-dev pkg-config python3-dev python3-numpy python3
+        sudo apt-get install -y liborc-0.4-dev flex bison libopencv-dev pkg-config python3-dev python3-numpy python3 libcurl4-openssl-dev
         sudo add-apt-repository -y ppa:nnstreamer/ppa && sudo apt-get update && sudo apt-get install -y ssat libpaho-mqtt-dev
         sudo apt-get install -y valgrind gstreamer1.0-tools gstreamer1.0-plugins-good gstreamer1.0-plugins-base libgtest-dev libpng-dev libc6-dbg binutils-x86-64-linux-gnu-dbg valgrind-dbg
         pip install meson ninja
+    - name: install llama.cpp pre-built binaries
+      if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
+      run: |
+        echo "Current directory: $(pwd)"
+        mkdir -p ./tests/test_models/models/
+        wget https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q2_K.gguf -O ./tests/test_models/models/tinyllama-1.1b-chat-v1.0.Q2_K.gguf
+
+        LLAMA_VERSION="b6569"
+        echo "Cloning and building llama.cpp version: ${LLAMA_VERSION}"
+
+        git clone https://github.com/ggerganov/llama.cpp.git
+        cd llama.cpp
+        git checkout ${LLAMA_VERSION}
+        
+        # cmake로 빌드하여 동적 라이브러리를 올바르게 생성
+        mkdir build
+        cd build
+        cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON
+        make -j
+
+        sudo make install
+        sudo ldconfig
+        
+        cd ../../
+        rm -rf llama.cpp
+
+        # FIXME: Prebuilt has a build issue and a runtime issue.
+        # To build nnstreamer with llama.cpp
+        # 1. Download the released library
+        # 2. Download the source file to get the header files.
+        # 3. Create llama.pc manually
+        # 4. but nnstreamer can not find -llama so. we need to modify llama.pc as follow => 'Libs: /usr/local/lib/libggml.so /usr/local/lib/libggml-base.so /usr/local/lib/libllama.so'
+        # 5. The build error was resolved, but a runtime error occurred.
+        # Error log
+        # stderr:
+        # llama_model_load_from_file_impl: no backends are loaded. hint: use ggml_backend_load() or ggml_backend_load_all() to load a backend before calling this function
+        # ** (unittest_filter_llamacpp:8385): CRITICAL **: 08:16:27.041: Failed to load model
+
+        # Way to use pre-built
+        #
+        # echo "Current directory: $(pwd)"
+        # mkdir -p ./tests/test_models/models/
+        # wget https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q2_K.gguf -O ./tests/test_models/models/tinyllama-1.1b-chat-v1.0.Q2_K.gguf
+
+        # LLAMA_VERSION="b6569"
+        # echo "Installing llama.cpp pre-built version: ${LLAMA_VERSION}"
+
+        # #Download Pre-built binary
+        # ZIP_FILENAME="llama-${LLAMA_VERSION}-bin-ubuntu-x64.zip"
+        # curl -L https://github.com/ggml-org/llama.cpp/releases/download/${LLAMA_VERSION}/${ZIP_FILENAME} -o llama-bin.zip
+        # unzip llama-bin.zip
+
+        # # Download source code for getting header
+        # curl -L https://github.com/ggml-org/llama.cpp/archive/refs/tags/${LLAMA_VERSION}.zip -o llama-src.zip
+        # unzip llama-src.zip
+        # sudo cp build/bin/*.so /usr/local/lib/
+        # sudo cp llama.cpp-${LLAMA_VERSION}/include/*.h /usr/local/include/
+        # sudo cp llama.cpp-${LLAMA_VERSION}/ggml/include/*.h /usr/local/include/
+        
+        # # Create pkg-config
+        # sudo mkdir -p /usr/local/lib/pkgconfig
+        # cat << EOF | sudo tee /usr/local/lib/pkgconfig/llama.pc
+        # prefix=/usr/local
+        # exec_prefix=/usr/local
+        # libdir=/usr/local/lib
+        # includedir=/usr/local/include
+        # Name: llama
+        # Description: Port of Facebook's LLaMA model in C/C++
+        # Version: 0.0.6569
+        # Libs: /usr/local/lib/libggml.so /usr/local/lib/libggml-base.so /usr/local/lib/libllama.so
+        # Cflags: -I\${includedir}
+        # EOF
+
+        # sudo ldconfig
+
+        # # For debugging
+        # echo "=== Installed library files ==="
+        # ls -la /usr/local/lib/libllama.so*
+        # echo "=== Library file details ==="
+        # file /usr/local/lib/libllama.so
+        # echo "=== pkg-config test ==="
+        # pkg-config --libs --cflags llama
+        # echo "=== ldconfig test ==="
+        # ldconfig -p | grep llama
+        # ls -la /usr/local/lib/libllama.so*
+        # file /usr/local/lib/libllama.so
+        # readelf -d /usr/local/lib/libllama.so | grep NEEDED
+        # ldd /usr/local/lib/libllama.so
+        # readelf -s /usr/local/lib/libllama.so | grep UND
+
+        # rm -rf llama-bin.zip llama-src.zip build/ llama.cpp-${LLAMA_VERSION}/
+
     - name: build and unit test
       if: env.rebuild == '1'
       run: |
+        export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
         meson setup build/
         meson compile -C build/
 
