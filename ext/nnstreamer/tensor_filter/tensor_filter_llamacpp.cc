@@ -85,17 +85,22 @@ class TensorFilterLlamaCpp : public tensor_filter_subplugin
       = -1.0f; /* Disable temperature sampling (valid range: 0.0 or greater) */
 
   llama_model *model;
+  llama_context *ctx;
   llama_sampler *sampler;
   llama_model_params model_params;
   llama_sampler_chain_params sampler_params;
   llama_context_params ctx_params;
+  llama_adapter_lora *lora_adapter;
 
+  int n_processed = 0;
   int n_gpu_layers = 0;
   int n_predict = 32;
+  int n_ctx = 2048;
   int top_k = 0;
   float top_p = TOP_P_DISABLED;
   float typical_p = TYPICAL_P_DISABLED;
   float temperature = TEMPERATURE_DISABLED;
+  std::string lora_path;
 
   std::thread output_thread; /* thread for async output */
   std::queue<std::pair<GstTensorFilterProperties *, std::string>> input_queue;
@@ -110,6 +115,7 @@ class TensorFilterLlamaCpp : public tensor_filter_subplugin
   bool updateOutput (GstTensorFilterProperties *prop, llama_token &token,
       std::string &accumulated);
   void outputThreadLoop ();
+  void cleanupResources ();
 };
 
 TensorFilterLlamaCpp *TensorFilterLlamaCpp::registered = nullptr;
@@ -119,7 +125,8 @@ const char *TensorFilterLlamaCpp::name = "llamacpp";
  * @brief Construct a new llamacpp subplugin instance
  */
 TensorFilterLlamaCpp::TensorFilterLlamaCpp ()
-    : tensor_filter_subplugin (), model (nullptr), sampler (nullptr)
+    : tensor_filter_subplugin (), model (nullptr), ctx (nullptr),
+      sampler (nullptr), lora_adapter (nullptr)
 {
 }
 
@@ -128,27 +135,7 @@ TensorFilterLlamaCpp::TensorFilterLlamaCpp ()
  */
 TensorFilterLlamaCpp::~TensorFilterLlamaCpp ()
 {
-  stop_thread = true;
-  queue_cv.notify_one ();
-  if (output_thread.joinable ()) {
-    output_thread.join ();
-  }
-
-  {
-    std::lock_guard<std::mutex> lock (queue_mutex);
-    while (!input_queue.empty ())
-      input_queue.pop ();
-  }
-
-  if (sampler) {
-    llama_sampler_free (sampler);
-    sampler = nullptr;
-  }
-
-  if (model) {
-    llama_model_free (model);
-    model = nullptr;
-  }
+  cleanupResources ();
 }
 
 /**
@@ -184,6 +171,8 @@ TensorFilterLlamaCpp::parseCustomProperties (const GstTensorFilterProperties *pr
 
       if (g_ascii_strcasecmp (option.get ()[0], "num_predict") == 0) {
         n_predict = (int) g_ascii_strtoull (option.get ()[1], NULL, 10);
+      } else if (g_ascii_strcasecmp (option.get ()[0], "context_length") == 0) {
+        n_ctx = (int) g_ascii_strtoull (option.get ()[1], NULL, 10);
       } else if (g_ascii_strcasecmp (option.get ()[0], "top_k") == 0) {
         top_k = (int) g_ascii_strtoull (option.get ()[1], NULL, 10);
       } else if (g_ascii_strcasecmp (option.get ()[0], "top_p") == 0) {
@@ -220,6 +209,11 @@ TensorFilterLlamaCpp::configure_instance (const GstTensorFilterProperties *prop)
                                  + std::string (e.what ()) + "\n\tReference: " + __FILE__);
   }
 
+  /* Check for LoRA adapter in model_files */
+  if (prop->num_models == 2) {
+    lora_path = std::string (prop->model_files[1]);
+  }
+
   /* load dynamic backends */
   ggml_backend_load_all ();
 
@@ -229,8 +223,65 @@ TensorFilterLlamaCpp::configure_instance (const GstTensorFilterProperties *prop)
 
   model = llama_model_load_from_file ((char *) prop->model_files[0], model_params);
   if (model == nullptr) {
+    cleanupResources ();
     throw std::runtime_error ("Failed to load model");
   }
+
+  if (!lora_path.empty ()) {
+    if (!g_file_test (lora_path.c_str (), G_FILE_TEST_EXISTS)) {
+      /*tensor_filter_support can not process throw*/
+      cleanupResources ();
+      throw std::runtime_error ("LoRA adapter file does not exist: " + lora_path);
+    }
+    lora_adapter = llama_adapter_lora_init (model, lora_path.c_str ());
+    if (lora_adapter == nullptr) {
+      cleanupResources ();
+      throw std::runtime_error ("Filed to load LoRA adapter");
+    }
+  }
+
+  ctx_params = llama_context_default_params ();
+  ctx_params.n_ctx = n_ctx;
+  /* n_batch is the maximum number of tokens that can be processed in a single call to llama_decode */
+  ctx_params.n_batch = n_ctx;
+  /* enable performance counters */
+  ctx_params.no_perf = false;
+
+  ctx = llama_init_from_model (model, ctx_params);
+  if (ctx == nullptr) {
+    cleanupResources ();
+    throw std::runtime_error ("Failed to create llama context");
+  }
+
+  if (lora_adapter) {
+    llama_set_adapter_lora (ctx, lora_adapter, 1.0f);
+    ml_logd ("Successfully applied LoRA adapter to the context");
+  }
+
+  /* initialize sampler */
+  sampler_params = llama_sampler_chain_default_params ();
+  sampler_params.no_perf = false;
+
+  sampler = llama_sampler_chain_init (sampler_params);
+  if (sampler == nullptr) {
+    cleanupResources ();
+    throw std::runtime_error ("Failed to initialize sampler");
+  }
+
+  if (top_k > 0) {
+    llama_sampler_chain_add (sampler, llama_sampler_init_top_k (top_k));
+  }
+  if (top_p > 0.0f && top_p < 1.0f) {
+    llama_sampler_chain_add (sampler, llama_sampler_init_top_p (top_p, 1));
+  }
+  if (typical_p > 0.0f && typical_p < 1.0f) {
+    llama_sampler_chain_add (sampler, llama_sampler_init_typical (typical_p, 1));
+  }
+  if (temperature >= 0.0f) {
+    llama_sampler_chain_add (sampler, llama_sampler_init_temp (temperature));
+  }
+  /* if we use 'llama_sampler_init_greedy()' : Roulette based on probability */
+  llama_sampler_chain_add (sampler, llama_sampler_init_greedy ());
 
   stop_thread = false;
   output_thread = std::thread (&TensorFilterLlamaCpp::outputThreadLoop, this);
@@ -331,72 +382,41 @@ TensorFilterLlamaCpp::generateTokens (GstTensorFilterProperties *prop,
     GstTensorMemory *output, const std::string &prompt)
 {
   const llama_vocab *vocab = llama_model_get_vocab (model);
-  int n_prompt, n_pos, n;
-  llama_context *ctx = nullptr;
+  int n;
   llama_token new_token_id;
   llama_batch batch;
   std::string output_accumulated;
-  size_t min_keep = 1;
 
-  n_prompt = -llama_tokenize (vocab, prompt.c_str (), prompt.size (), NULL, 0, true, true);
-  std::vector<llama_token> prompt_tokens (n_prompt);
+  std::vector<llama_token> prompt_tokens (prompt.length ());
   n = llama_tokenize (vocab, prompt.c_str (), prompt.size (),
-      prompt_tokens.data (), prompt_tokens.size (), true, true);
+      prompt_tokens.data (), prompt_tokens.size (), false, true);
   if (n < 0) {
     throw std::runtime_error ("Failed to tokenize the prompt");
   }
+  prompt_tokens.resize (n);
 
-  ctx_params = llama_context_default_params ();
-  ctx_params.n_ctx = n_prompt + n_predict - 1;
-  /* n_batch is the maximum number of tokens that can be processed in a single call to llama_decode */
-  ctx_params.n_batch = n_prompt;
-  /* enable performance counters */
-  ctx_params.no_perf = false;
-
-  ctx = llama_init_from_model (model, ctx_params);
-  if (ctx == nullptr) {
-    throw std::runtime_error ("Failed to create llama context");
-  }
-
-  /* initialize sampler */
-  sampler_params = llama_sampler_chain_default_params ();
-  sampler_params.no_perf = false;
-
-  sampler = llama_sampler_chain_init (sampler_params);
-
-  if (top_k > 0) {
-    llama_sampler_chain_add (sampler, llama_sampler_init_top_k (top_k));
-  }
-  if (top_p > 0.0f && top_p < 1.0f) {
-    llama_sampler_chain_add (sampler, llama_sampler_init_top_p (top_p, min_keep));
-  }
-  if (typical_p > 0.0f && typical_p < 1.0f) {
-    llama_sampler_chain_add (sampler, llama_sampler_init_typical (typical_p, min_keep));
-  }
-  if (temperature >= 0.0f) {
-    llama_sampler_chain_add (sampler, llama_sampler_init_temp (temperature));
-  }
-  /* if we use 'llama_sampler_init_greedy()' : Roulette based on probability */
-  llama_sampler_chain_add (sampler, llama_sampler_init_greedy ());
-
-  for (auto id : prompt_tokens) {
-    if (!updateOutput (prop, id, output_accumulated)) {
-      throw std::runtime_error ("Failed to update output from prompt");
-    }
+  if (n_processed + (int) prompt_tokens.size () > n_ctx) {
+    const int n_keep = n_ctx / 2;
+    ml_logd ("Context is full, trimming tokens to %d.", n_keep);
+    llama_memory_seq_rm (llama_get_memory (ctx), 0, n_keep, n_processed);
+    llama_memory_seq_add (
+        llama_get_memory (ctx), 0, n_keep, n_processed, -(n_processed - n_keep));
+    n_processed = n_keep;
   }
 
   batch = llama_batch_get_one (prompt_tokens.data (), prompt_tokens.size ());
+  /* Since batch.pos is NULL, context will use internal n_processed state */
+  if (llama_decode (ctx, batch)) {
+    throw std::runtime_error ("Failed to eval");
+  }
+  n_processed += prompt_tokens.size ();
 
-  for (n_pos = 0; n_pos + batch.n_tokens < n_prompt + n_predict;) {
+  int n_remain = n_predict;
+  while (n_remain > 0) {
     /* evaluate the current batch with the transformer model */
-    if (llama_decode (ctx, batch)) {
-      throw std::runtime_error ("Failed to eval");
-    }
-
-    n_pos += batch.n_tokens;
-
     /* sample the next token */
     new_token_id = llama_sampler_sample (sampler, ctx, -1);
+    llama_sampler_accept (sampler, new_token_id);
 
     /* is it an end of generation? */
     if (llama_vocab_is_eog (vocab, new_token_id)) {
@@ -406,8 +426,13 @@ TensorFilterLlamaCpp::generateTokens (GstTensorFilterProperties *prop,
     if (!updateOutput (prop, new_token_id, output_accumulated)) {
       throw std::runtime_error ("Failed to update output from generated token");
     }
+    n_remain--;
 
     batch = llama_batch_get_one (&new_token_id, 1);
+    if (llama_decode (ctx, batch)) {
+      throw std::runtime_error ("Failed to eval token");
+    }
+    n_processed++;
   }
 
   if (!prop->invoke_async) {
@@ -415,11 +440,6 @@ TensorFilterLlamaCpp::generateTokens (GstTensorFilterProperties *prop,
     if (!createOutputTensor (prop, output, output_accumulated)) {
       throw std::runtime_error ("generateTokens: Failed to create output tensor");
     }
-  }
-
-  if (ctx) {
-    llama_free (ctx);
-    ctx = nullptr;
   }
 }
 
@@ -448,6 +468,45 @@ TensorFilterLlamaCpp::outputThreadLoop ()
       /* thread exception */
       ml_loge ("Exception occurred during token generation: %s", e.what ());
     }
+  }
+}
+
+/**
+ * @brief Clean up allocated resources
+ */
+void
+TensorFilterLlamaCpp::cleanupResources ()
+{
+  stop_thread = true;
+  queue_cv.notify_one ();
+  if (output_thread.joinable ()) {
+    output_thread.join ();
+  }
+
+  {
+    std::lock_guard<std::mutex> lock (queue_mutex);
+    while (!input_queue.empty ())
+      input_queue.pop ();
+  }
+
+  if (sampler) {
+    llama_sampler_free (sampler);
+    sampler = nullptr;
+  }
+
+  if (lora_adapter) {
+    llama_adapter_lora_free (lora_adapter);
+    lora_adapter = nullptr;
+  }
+
+  if (ctx) {
+    llama_free (ctx);
+    ctx = nullptr;
+  }
+
+  if (model) {
+    llama_model_free (model);
+    model = nullptr;
   }
 }
 
@@ -531,9 +590,10 @@ TensorFilterLlamaCpp::init_filter_llama ()
 {
   registered = tensor_filter_subplugin::register_subplugin<TensorFilterLlamaCpp> ();
   nnstreamer_filter_set_custom_property_desc (name, "num_predict",
-      "Number of tokens to predict", "top_k", "Top-K sampling parameter", "top_p",
-      "Top-P sampling parameter", "typical_p", "Typical-P sampling parameter",
-      "Temperature", "Temperature sampling parameter", NULL);
+      "Number of tokens to predict", "n_ctx", "Context size for KV cache",
+      "top_k", "Top-K sampling parameter", "top_p", "Top-P sampling parameter",
+      "typical_p", "Typical-P sampling parameter", "Temperature",
+      "Temperature sampling parameter", NULL);
 }
 
 /** @brief Destruct the subplugin */
