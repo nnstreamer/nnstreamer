@@ -24,6 +24,7 @@
 #include <condition_variable>
 #include <errno.h>
 #include <functional>
+#include <map>
 #include <memory>
 #include <nnstreamer_cppplugin_api_filter.hh>
 #include <nnstreamer_log.h>
@@ -110,6 +111,10 @@ class TensorFilterLlamaCpp : public tensor_filter_subplugin
   bool updateOutput (GstTensorFilterProperties *prop, llama_token &token,
       std::string &accumulated);
   void outputThreadLoop ();
+
+  using PropertySetter = std::function<void (const gchar *)>;
+  std::map<std::string, PropertySetter> property_setters_;
+  void initializePropertySetters ();
 };
 
 TensorFilterLlamaCpp *TensorFilterLlamaCpp::registered = nullptr;
@@ -121,6 +126,7 @@ const char *TensorFilterLlamaCpp::name = "llamacpp";
 TensorFilterLlamaCpp::TensorFilterLlamaCpp ()
     : tensor_filter_subplugin (), model (nullptr), sampler (nullptr)
 {
+  initializePropertySetters ();
 }
 
 /**
@@ -161,6 +167,33 @@ TensorFilterLlamaCpp::getEmptyInstance ()
 }
 
 /**
+ * @brief Initialize the map of property setters with lambda functions.
+ */
+void
+TensorFilterLlamaCpp::initializePropertySetters ()
+{
+  property_setters_["num_predict"] = [this] (const gchar *value) {
+    this->n_predict = static_cast<int> (g_ascii_strtoull (value, NULL, 10));
+  };
+
+  property_setters_["top_k"] = [this] (const gchar *value) {
+    this->top_k = g_ascii_strtoull (value, NULL, 10);
+  };
+
+  property_setters_["top_p"] = [this] (const gchar *value) {
+    this->top_p = g_ascii_strtod (value, NULL);
+  };
+
+  property_setters_["typical_p"] = [this] (const gchar *value) {
+    this->typical_p = g_ascii_strtod (value, NULL);
+  };
+
+  property_setters_["temperature"] = [this] (const gchar *value) {
+    this->temperature = g_ascii_strtod (value, NULL);
+  };
+}
+
+/**
  * @brief Parse custom prop and set instance options accordingly.
  */
 void
@@ -182,16 +215,11 @@ TensorFilterLlamaCpp::parseCustomProperties (const GstTensorFilterProperties *pr
       g_strstrip (option.get ()[0]);
       g_strstrip (option.get ()[1]);
 
-      if (g_ascii_strcasecmp (option.get ()[0], "num_predict") == 0) {
-        n_predict = (int) g_ascii_strtoull (option.get ()[1], NULL, 10);
-      } else if (g_ascii_strcasecmp (option.get ()[0], "top_k") == 0) {
-        top_k = (int) g_ascii_strtoull (option.get ()[1], NULL, 10);
-      } else if (g_ascii_strcasecmp (option.get ()[0], "top_p") == 0) {
-        top_p = g_ascii_strtod (option.get ()[1], NULL);
-      } else if (g_ascii_strcasecmp (option.get ()[0], "typical_p") == 0) {
-        typical_p = g_ascii_strtod (option.get ()[1], NULL);
-      } else if (g_ascii_strcasecmp (option.get ()[0], "temperature") == 0) {
-        temperature = g_ascii_strtod (option.get ()[1], NULL);
+      std::string prop_name = g_ascii_strdown (option.get ()[0], -1);
+      auto it = property_setters_.find (prop_name);
+
+      if (it != property_setters_.end ()) {
+        it->second (option.get ()[1]);
       } else {
         throw std::invalid_argument (
             "Unknown custom property " + std::string (option.get ()[0]));
