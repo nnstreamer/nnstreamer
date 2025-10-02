@@ -968,6 +968,29 @@ if llama2c_support_is_available
   )
 endif
 
+if flare_support_is_available
+
+  filter_sub_flare_sources = ['tensor_filter_flare.cc']
+
+  flare_dep = dependency('flare', required: true)
+
+  nnstreamer_filter_flare_deps = [glib_dep, nnstreamer_single_dep, flare_dep]
+
+  shared_library('nnstreamer_filter_flare',
+    filter_sub_flare_sources,
+    dependencies: nnstreamer_filter_flare_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_flare',
+    filter_sub_flare_sources,
+    dependencies: nnstreamer_filter_flare_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+endif
+
 if tizen_hal_support_is_available
   # build general tizen hal filter
   filter_sub_tizen_hal_srcs = ['tensor_filter_tizen_hal.cc']
