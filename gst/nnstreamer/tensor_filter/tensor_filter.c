@@ -1084,7 +1084,7 @@ gst_tensor_filter_watchdog_trigger (gpointer ptr)
   GstTensorFilterPrivate *priv = (GstTensorFilterPrivate *) ptr;
 
   ml_logd ("Suspend watchdog triggered. Unload the NN framework.");
-  gst_tensor_filter_common_unload_fw (priv);
+  gst_tensor_filter_common_unload_fw (priv, TRUE);
 
   return FALSE;
 }
@@ -1909,7 +1909,7 @@ gst_tensor_filter_stop (GstBaseTransform * trans)
     GST_OBJECT_UNLOCK (self);
   }
 
-  gst_tensor_filter_common_close_fw (priv);
+  gst_tensor_filter_common_unload_fw (priv, TRUE);
 
   return TRUE;
 }

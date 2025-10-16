@@ -155,6 +155,7 @@ g_tensor_filter_single_finalize (GObject * object)
     g_tensor_filter_single_stop (self);
   }
 
+  gst_tensor_filter_common_close_fw (priv);
   gst_tensor_filter_common_free_property (priv);
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
@@ -343,7 +344,7 @@ g_tensor_filter_single_stop (GTensorFilterSingle * self)
 
   /** close framework, unload model */
   gst_tensor_filter_disable_invoke_async (&priv->prop);
-  gst_tensor_filter_common_close_fw (priv);
+  gst_tensor_filter_common_unload_fw (priv, TRUE);
 
   return TRUE;
 }

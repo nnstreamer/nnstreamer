@@ -176,6 +176,7 @@ typedef struct _GstTensorFilterPrivate
 
   GstTensorFilterCombination combi;
   nns_watchdog_h watchdog_h; /**< Watchdog to monitor occasional inputs */;
+  gboolean is_suspended; /**< True if framework suspends processing current model. */
 } GstTensorFilterPrivate;
 
 /**
@@ -272,7 +273,7 @@ gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv);
  * @brief Unload NN framework.
  */
 extern void
-gst_tensor_filter_common_unload_fw (GstTensorFilterPrivate * priv);
+gst_tensor_filter_common_unload_fw (GstTensorFilterPrivate * priv, gboolean suspend);
 
 /**
  * @brief Close NN framework.
