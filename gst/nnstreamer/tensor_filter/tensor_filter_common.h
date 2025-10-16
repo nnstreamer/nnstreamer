@@ -264,6 +264,14 @@ extern void
 gst_tensor_filter_load_tensor_info (GstTensorFilterPrivate * priv);
 
 /**
+ * @brief Send an event to NN framework.
+ */
+extern gint
+gst_tensor_filter_send_event (const GstTensorFilterFramework * fw,
+    const GstTensorFilterProperties * prop, void *private_data, event_ops ops,
+    GstTensorFilterFrameworkEventData * event_data);
+
+/**
  * @brief Open NN framework.
  */
 extern gboolean
