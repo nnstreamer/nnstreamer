@@ -82,7 +82,7 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
       root_path = "..";
 
     model = g_build_filename (root_path, "tests", "test_models", "models",
-        "llama-2-7b-chat.Q2_K.gguf", NULL);
+        "llama-2-7b-chat.Q4_K_M.gguf", NULL);
 
     if (!g_file_test (model, G_FILE_TEST_EXISTS)) {
       g_critical ("Skipping test due to missing model file. "
