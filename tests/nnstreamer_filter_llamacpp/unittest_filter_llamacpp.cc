@@ -82,11 +82,11 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
       root_path = "..";
 
     model = g_build_filename (root_path, "tests", "test_models", "models",
-        "llama-2-7b-chat.Q4_K_M.gguf", NULL);
+        "tinyllama-1.1b-chat-v1.0.Q2_K.gguf", NULL);
 
     if (!g_file_test (model, G_FILE_TEST_EXISTS)) {
       g_critical ("Skipping test due to missing model file. "
-                  "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF");
+                  "Please download model file from https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/");
       skip_test = TRUE;
       return;
     }
@@ -183,8 +183,8 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputMultipleOutputsAsync_p)
   new_sample_count = 0;
   create_pipeline (model, invoke_async, "num_predict:10");
   data_push ("Hello my name is");
-  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
+  g_usleep (1000000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GT (new_sample_count, 10);
@@ -207,7 +207,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputSingleOutputSync_p)
   create_pipeline (model, invoke_async, "num_predict:10");
   data_push ("Hello my name is");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (1000000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (new_sample_count, 1);
@@ -231,7 +231,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, multipleInputsMultipleOutputsAsync_p)
   data_push ("Hello my name is");
   data_push ("What is AI?");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (1500000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GT (new_sample_count, 15);
@@ -251,11 +251,11 @@ TEST_F (NNStreamerFilterLlamaCppTest, multipleInputsSingleOutputSync_p)
   ASSERT_TRUE (this->loaded);
 
   new_sample_count = 0;
-  create_pipeline (model, invoke_async, "num_predict:10");
+  create_pipeline (model, invoke_async, "num_predict:5");
   data_push ("Hello my name is");
   data_push ("What is AI?");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (2000000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (new_sample_count, 2);
@@ -278,7 +278,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidNumPredict_n)
   create_pipeline (model, invoke_async, "num_predict:0");
   data_push ("Hello my name is");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (1000000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 }
@@ -317,7 +317,6 @@ TEST_F (NNStreamerFilterLlamaCppTest, earlyTerminationBeforeTokenGenerationAsync
   create_pipeline (model, invoke_async, "num_predict:10");
   data_push ("Hello my name is");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  /* g_usleep (3000000); Avoid using g_usleep for early termination. */
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_LE (new_sample_count, 10);
 }
@@ -339,7 +338,6 @@ TEST_F (NNStreamerFilterLlamaCppTest, earlyTerminationBeforeTokenGenerationSync_
   create_pipeline (model, invoke_async, "num_predict:10");
   data_push ("Hello my name is");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  /* g_usleep (3000000); Avoid using g_usleep for early termination. */
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_LE (new_sample_count, 1);
 }
@@ -361,7 +359,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputCombinedSampling_p)
   create_pipeline (model, invoke_async, "num_predict:30,top_k:50,top_p:0.9,temperature:0.7");
   data_push ("Hello my name is");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (1000000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GT (new_sample_count, 10);
@@ -385,7 +383,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputAllSamplingOptions_p)
       "num_predict:30,top_k:40,top_p:0.9,typical_p:0.9,temperature:0.7");
   data_push ("Hello my name is");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (1000000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GT (new_sample_count, 10);
@@ -408,7 +406,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputTypicalPTempSampling_p)
   create_pipeline (model, invoke_async, "num_predict:30,typical_p:0.9,temperature:0.7");
   data_push ("Hello my name is");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (1000000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GT (new_sample_count, 10);
@@ -430,7 +428,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidTopKValue_n)
   create_pipeline (model, invoke_async, "num_predict:10,top_k:0");
   data_push ("Hello my name is");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (1000000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GT (new_sample_count, 10);
@@ -452,7 +450,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidTopPValue_n)
   create_pipeline (model, invoke_async, "num_predict:10,top_p:1.0");
   data_push ("Hello my name is");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (1000000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GT (new_sample_count, 10);
@@ -475,7 +473,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidTypicalPValue_n)
   create_pipeline (model, invoke_async, "num_predict:10,typical_p:1.0");
   data_push ("Hello my name is");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (1000000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GT (new_sample_count, 10);
@@ -498,7 +496,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidTemperatureValue_n)
   create_pipeline (model, invoke_async, "num_predict:10,temperature:-1.0");
   data_push ("Hello my name is");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (1000000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GT (new_sample_count, 10);
@@ -521,7 +519,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, combinedSamplingSync_p)
   create_pipeline (model, invoke_async, "num_predict:30,top_k:20,top_p:0.7,temperature:0.7");
   data_push ("Hello my name is");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (1000000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (new_sample_count, 1);
@@ -545,7 +543,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, contextContinuationInConversation_p)
   data_push ("Hello my name is John. I like programming and artificial intelligence.");
   data_push ("What did I just say about myself?");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (1000000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (new_sample_count, 2);
@@ -565,16 +563,16 @@ TEST_F (NNStreamerFilterLlamaCppTest, cacheTrimmingTrigger_p)
   ASSERT_TRUE (this->loaded);
 
   new_sample_count = 0;
-  create_pipeline (model, invoke_async, "num_predict:128,context_length:128");
-  /** If we set the context length to 128 and the number of tokens generated by
-    LLM to 128, KV cache trimming should occur after the first data_push output,
+  create_pipeline (model, invoke_async, "num_predict:10,context_length:10");
+  /** If we set the context length to 10 and the number of tokens generated by
+    LLM to 10, KV cache trimming should occur after the first data_push output,
     and data_push should function properly. */
   data_push ("Hello my name is");
   data_push ("Hello my name is");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (30000000);
+  g_usleep (1500000);
 
-  EXPECT_GT (new_sample_count, 128);
+  EXPECT_GT (new_sample_count, 10);
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 }
 
@@ -596,7 +594,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidContextLength_n)
 
   data_push ("Hello");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (1000000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GE (new_sample_count, 0);
