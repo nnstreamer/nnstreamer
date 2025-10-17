@@ -2469,6 +2469,76 @@ done:
 }
 
 /**
+ * @brief Send an event to NN framework.
+ */
+gint
+gst_tensor_filter_send_event (const GstTensorFilterFramework * fw,
+    const GstTensorFilterProperties * prop, void *private_data, event_ops ops,
+    GstTensorFilterFrameworkEventData * event_data)
+{
+  gint ret = -ENOENT;
+
+  if (GST_TF_FW_V0 (fw)) {
+    if (fw->handleEvent) {
+      ret = fw->handleEvent (ops, event_data);
+    }
+  } else if (GST_TF_FW_V1 (fw)) {
+    if (fw->eventHandler) {
+      ret = fw->eventHandler (fw, prop, private_data, ops, event_data);
+    }
+  }
+
+  return ret;
+}
+
+/**
+ * @brief Internal function to suspend the NN framework.
+ */
+static gboolean
+gst_tensor_filter_suspend (GstTensorFilterPrivate * priv)
+{
+  gint ret;
+
+  g_return_val_if_fail (priv->fw != NULL, FALSE);
+  g_return_val_if_fail (!priv->is_suspended, FALSE);
+
+  /* Send SUSPEND event to NN framework. */
+  ret = gst_tensor_filter_send_event (priv->fw, &priv->prop,
+      priv->privateData, SUSPEND, NULL);
+
+  if (ret == 0) {
+    priv->is_suspended = TRUE;
+  }
+
+  return (ret == 0);
+}
+
+/**
+ * @brief Internal function to resume the NN framework.
+ */
+static gboolean
+gst_tensor_filter_resume (GstTensorFilterPrivate * priv)
+{
+  gint ret;
+
+  g_return_val_if_fail (priv->fw != NULL, FALSE);
+  g_return_val_if_fail (priv->is_suspended, FALSE);
+
+  /* Send RESUME event to NN framework. */
+  ret = gst_tensor_filter_send_event (priv->fw, &priv->prop,
+      priv->privateData, RESUME, NULL);
+
+  if (ret == 0) {
+    priv->is_suspended = FALSE;
+  } else {
+    ml_loge ("Failed to resume the filter '%s' with model file '%s'.",
+        priv->prop.fwname, TF_MODELNAME (&priv->prop));
+  }
+
+  return (ret == 0);
+}
+
+/**
  * @brief Open NN framework.
  */
 gboolean
@@ -2498,7 +2568,7 @@ gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv)
         ret = priv->fw->getFrameworkInfo (priv->fw, &priv->prop,
             priv->privateData, &priv->info);
         if (ret != 0) {
-          gst_tensor_filter_common_unload_fw (priv);
+          gst_tensor_filter_common_unload_fw (priv, FALSE);
         }
       }
     }
@@ -2509,21 +2579,32 @@ gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv)
           G_GINT64_FORMAT " us", priv->prop.fwname, TF_MODELNAME (&priv->prop),
           end_time - start_time);
     }
+  } else if (priv->is_suspended) {
+    gst_tensor_filter_resume (priv);
   }
 
-  return priv->prop.fw_opened;
+  return priv->prop.fw_opened && !priv->is_suspended;
 }
 
 /**
  * @brief Unload NN framework.
  */
 void
-gst_tensor_filter_common_unload_fw (GstTensorFilterPrivate * priv)
+gst_tensor_filter_common_unload_fw (GstTensorFilterPrivate * priv,
+    gboolean suspend)
 {
   if (priv->prop.fw_opened) {
-    if (priv->fw && priv->fw->close) {
-      priv->fw->close (&priv->prop, &priv->privateData);
+    if (priv->fw) {
+      if (suspend && gst_tensor_filter_suspend (priv)) {
+        /* Suspended, skip closing the model. */
+        return;
+      }
+
+      if (priv->fw->close) {
+        priv->fw->close (&priv->prop, &priv->privateData);
+      }
     }
+
     priv->prop.fw_opened = FALSE;
     priv->privateData = NULL;
   }
@@ -2535,7 +2616,7 @@ gst_tensor_filter_common_unload_fw (GstTensorFilterPrivate * priv)
 void
 gst_tensor_filter_common_close_fw (GstTensorFilterPrivate * priv)
 {
-  gst_tensor_filter_common_unload_fw (priv);
+  gst_tensor_filter_common_unload_fw (priv, FALSE);
 
   priv->prop.input_configured = priv->prop.output_configured = FALSE;
   g_free_const (priv->prop.fwname);
@@ -2943,13 +3024,7 @@ gst_tensor_filter_check_hw_availability (const gchar * name, const accl_hw hw,
     edata.hw = hw;
     edata.custom = custom;
 
-    if (GST_TF_FW_V0 (fw)) {
-      if (fw->handleEvent)
-        ret = fw->handleEvent (evt, &edata);
-    } else if (GST_TF_FW_V1 (fw)) {
-      if (fw->eventHandler)
-        ret = fw->eventHandler (fw, &prop, NULL, evt, &edata);
-    }
+    ret = gst_tensor_filter_send_event (fw, &prop, NULL, evt, &edata);
 
     if (ret != 0 && ret != -ENOENT)
       available = FALSE;

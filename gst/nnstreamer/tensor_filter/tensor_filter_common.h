@@ -176,6 +176,7 @@ typedef struct _GstTensorFilterPrivate
 
   GstTensorFilterCombination combi;
   nns_watchdog_h watchdog_h; /**< Watchdog to monitor occasional inputs */;
+  gboolean is_suspended; /**< True if framework suspends processing current model. */
 } GstTensorFilterPrivate;
 
 /**
@@ -263,6 +264,14 @@ extern void
 gst_tensor_filter_load_tensor_info (GstTensorFilterPrivate * priv);
 
 /**
+ * @brief Send an event to NN framework.
+ */
+extern gint
+gst_tensor_filter_send_event (const GstTensorFilterFramework * fw,
+    const GstTensorFilterProperties * prop, void *private_data, event_ops ops,
+    GstTensorFilterFrameworkEventData * event_data);
+
+/**
  * @brief Open NN framework.
  */
 extern gboolean
@@ -272,7 +281,7 @@ gst_tensor_filter_common_open_fw (GstTensorFilterPrivate * priv);
  * @brief Unload NN framework.
  */
 extern void
-gst_tensor_filter_common_unload_fw (GstTensorFilterPrivate * priv);
+gst_tensor_filter_common_unload_fw (GstTensorFilterPrivate * priv, gboolean suspend);
 
 /**
  * @brief Close NN framework.
