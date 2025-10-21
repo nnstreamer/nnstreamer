@@ -161,6 +161,12 @@ nnfw_parse_custom_option (const GstTensorFilterProperties * prop,
          * Update description in init_filter_nnfw() when adding new custom option for nnfw.
          */
         if (g_ascii_strcasecmp (option[0], "Runtime") == 0) {
+          if (pdata->accelerator != NULL) {
+            nns_logw
+                ("Trying to set new runtime '%s', previous runtime '%s' is ignored.",
+                option[1], pdata->accelerator);
+            g_free (pdata->accelerator);
+          }
           pdata->accelerator = g_strdup (option[1]);
         } else {
           nns_logw ("Unknown option (%s).", options[i]);
