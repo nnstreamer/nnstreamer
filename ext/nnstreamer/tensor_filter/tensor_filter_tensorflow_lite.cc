@@ -1001,37 +1001,48 @@ TFLiteCore::~TFLiteCore ()
 gboolean
 TFLiteCore::checkSharedInterpreter (const GstTensorFilterProperties *prop)
 {
+  TFLiteInterpreter *temp_interpreter = nullptr;
+  gboolean result = FALSE;
+
   G_LOCK (slock);
-  interpreter = (TFLiteInterpreter *) nnstreamer_filter_shared_model_get (
+  temp_interpreter = (TFLiteInterpreter *) nnstreamer_filter_shared_model_get (
       this, shared_tensor_filter_key);
 
-  if (!interpreter) {
+  if (!temp_interpreter) {
     /* create new interpreter */
     TFLiteInterpreter *new_interpreter = new TFLiteInterpreter ();
-    interpreter = (TFLiteInterpreter *) nnstreamer_filter_shared_model_insert_and_get (
+    temp_interpreter = (TFLiteInterpreter *) nnstreamer_filter_shared_model_insert_and_get (
         this, shared_tensor_filter_key, new_interpreter);
-    if (!interpreter) {
-      G_UNLOCK (slock);
+    if (!temp_interpreter) {
       ml_loge ("Failed to insert the model representation!");
       g_free (shared_tensor_filter_key);
       shared_tensor_filter_key = NULL;
       delete new_interpreter;
-      return FALSE;
+      goto unlock_and_exit;
     }
   }
   /* shared model exists */
-  else if (g_strcmp0 (prop->model_files[0], interpreter->getModelPath ()) != 0) {
-    ml_logw ("The model paths are not equal, models are not shared.");
-    nnstreamer_filter_shared_model_remove (this, shared_tensor_filter_key, free_interpreter);
-    G_UNLOCK (slock);
-    g_free (shared_tensor_filter_key);
-    shared_tensor_filter_key = NULL;
-    return FALSE;
+  else {
+    if (g_strcmp0 (prop->model_files[0], temp_interpreter->getModelPath ()) != 0) {
+      ml_logw ("The model paths are not equal, models are not shared.");
+      nnstreamer_filter_shared_model_remove (this, shared_tensor_filter_key, free_interpreter);
+      g_free (shared_tensor_filter_key);
+      shared_tensor_filter_key = NULL;
+      goto unlock_and_exit;
+    }
   }
+  /* success */
+  interpreter = temp_interpreter;
+  result = TRUE;
+
+unlock_and_exit:
   G_UNLOCK (slock);
 
-  ml_logd ("The model representation is shared: key=[%s]", shared_tensor_filter_key);
-  return TRUE;
+  if (result) {
+    ml_logd ("The model representation is shared: key=[%s]", shared_tensor_filter_key);
+  }
+
+  return result;
 }
 
 /**
