@@ -643,6 +643,7 @@ TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate_e)
   if (delegate != nullptr) {
     if (interpreter->ModifyGraphWithDelegate (delegate) != kTfLiteOk) {
       ml_loge ("Failed to apply delegate\n");
+      setDelegate (nullptr, [] (TfLiteDelegate *) {});
       return -2;
     }
   }
