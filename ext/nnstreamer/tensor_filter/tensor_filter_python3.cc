@@ -50,6 +50,7 @@
 #include <nnstreamer_cppplugin_api_filter.hh>
 #include <nnstreamer_log.h>
 #include <nnstreamer_util.h>
+#include <vector>
 #include "nnstreamer_python3_helper.h"
 
 /**
@@ -542,6 +543,7 @@ PYCore::run (const GstTensorMemory *input, GstTensorMemory *output)
   GstTensorInfo *_info;
   int res = 0;
   PyObject *result;
+  std::vector<void *> newlyAddedItems;
 
 #if (DBG)
   gint64 start_time = g_get_real_time ();
@@ -588,13 +590,19 @@ PYCore::run (const GstTensorMemory *input, GstTensorMemory *output)
         output[i].data = PyArray_DATA (output_array);
         Py_XINCREF (output_array);
         outputArrayMap.insert (std::make_pair (output[i].data, output_array));
+        newlyAddedItems.push_back (output[i].data);
       } else {
         ml_loge ("Output tensor type/size is not matched\n");
         res = -2;
         break;
       }
     }
-
+    if (res != 0) {
+      /* Clean up only items added in this function call */
+      for (void *data : newlyAddedItems) {
+        freeOutputTensors (data);
+      }
+    }
     Py_SAFEDECREF (result);
   } else {
     Py_ERRMSG ("Fail to call 'invoke'");
