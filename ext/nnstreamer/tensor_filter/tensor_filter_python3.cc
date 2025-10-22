@@ -521,7 +521,7 @@ PYCore::freeOutputTensors (void *data)
   it = outputArrayMap.find (data);
   if (it != outputArrayMap.end ()) {
     Py_SAFEDECREF (it->second);
-    outputArrayMap.erase (it);
+    outputArrayMap.erase (it++);
   } else {
     ml_loge ("Cannot find output data: 0x%lx", (unsigned long) data);
   }
