@@ -235,11 +235,19 @@ tensorrt_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *outpu
   std::vector<void *> bindings = { _inputBuffer, output->data };
   if (!_Context->execute (1, bindings.data ())) {
     ml_loge ("Failed to execute the network");
+    cudaFree (output->data);
+    output->data = nullptr;
     throw std::runtime_error ("Failed to execute the network");
   }
 
   /* wait for GPU to finish the inference */
-  cudaDeviceSynchronize ();
+  cudaError_t status = cudaDeviceSynchronize ();
+  if (status != cudaSuccess) {
+    ml_loge ("Failed to synchronize device: %s", cudaGetErrorString (status));
+    cudaFree (output->data);
+    output->data = nullptr;
+    throw std::runtime_error ("Failed to synchronize device");
+  }
 }
 
 /**
