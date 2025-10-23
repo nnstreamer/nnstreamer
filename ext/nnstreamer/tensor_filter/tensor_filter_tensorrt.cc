@@ -149,8 +149,12 @@ tensorrt_subplugin::~tensorrt_subplugin ()
   gst_tensors_info_free (&_inputTensorMeta);
   gst_tensors_info_free (&_outputTensorMeta);
 
-  if (_inputBuffer != nullptr)
-    cudaFree (_inputBuffer);
+  if (_inputBuffer != nullptr) {
+    cudaError_t free_status = cudaFree (_inputBuffer);
+    if (free_status != cudaSuccess) {
+      ml_loge ("Failed to free input CUDA buffer: %s", cudaGetErrorString (free_status));
+    }
+  }
 
   if (_uff_path != nullptr)
     g_free (_uff_path);
@@ -241,12 +245,18 @@ tensorrt_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *outpu
   }
 
   /* wait for GPU to finish the inference */
-  cudaError_t status = cudaDeviceSynchronize ();
-  if (status != cudaSuccess) {
-    ml_loge ("Failed to synchronize device: %s", cudaGetErrorString (status));
-    cudaFree (output->data);
+  cudaError_t sync_status = cudaDeviceSynchronize ();
+  if (sync_status != cudaSuccess) {
+    ml_loge ("CUDA device synchronize failed: %s", cudaGetErrorString (sync_status));
+
+    cudaError_t free_status = cudaFree (output->data);
+    if (free_status != cudaSuccess) {
+      ml_loge ("Failed to free output CUDA buffer during error handling: %s",
+          cudaGetErrorString (free_status));
+    }
+
     output->data = nullptr;
-    throw std::runtime_error ("Failed to synchronize device");
+    throw std::runtime_error ("CUDA device synchronize failed");
   }
 }
 
@@ -290,7 +300,12 @@ tensorrt_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventDa
 {
   if (ops == DESTROY_NOTIFY) {
     if (data.data != nullptr) {
-      cudaFree (data.data);
+      cudaError_t free_status = cudaFree (data.data);
+      if (free_status != cudaSuccess) {
+        ml_loge ("Failed to free CUDA buffer in eventHandler: %s",
+            cudaGetErrorString (free_status));
+        return -1;
+      }
     }
 
     return 0;
@@ -385,8 +400,11 @@ tensorrt_subplugin::checkUnifiedMemory (void)
 {
   int version;
 
-  if (cudaRuntimeGetVersion (&version) != cudaSuccess)
+  cudaError_t status = cudaRuntimeGetVersion (&version);
+  if (status != cudaSuccess) {
+    ml_loge ("Failed to get Cuda version: %s", cudaGetErrorString (status));
     return -1;
+  }
 
   /* Unified memory requires at least CUDA-6 */
   if (version < 6000)
@@ -407,7 +425,7 @@ tensorrt_subplugin::allocBuffer (void **buffer, gsize size)
   cudaError_t status = cudaMallocManaged (buffer, size);
 
   if (status != cudaSuccess) {
-    ml_loge ("Failed to allocate Cuda memory");
+    ml_loge ("Failed to allocate Cuda memory: %s", cudaGetErrorString (status));
     return -1;
   }
 
