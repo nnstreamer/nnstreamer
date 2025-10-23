@@ -252,9 +252,8 @@ py_close (void **private_data)
 
   g_return_if_fail (core != NULL);
 
-  PyGILState_STATE gstate = PyGILState_Ensure ();
+  PyGILGuard gil_guard;
   delete core;
-  PyGILState_Release (gstate);
 
   *private_data = NULL;
 }
@@ -269,7 +268,6 @@ py_open (const gchar *path, void **priv_data)
 {
   int ret = 0;
   PYConverterCore *core;
-  PyGILState_STATE gstate;
 
   if (!Py_IsInitialized ())
     throw std::runtime_error ("Python is not initialize.");
@@ -286,8 +284,7 @@ py_open (const gchar *path, void **priv_data)
 
   /* init null */
   *priv_data = NULL;
-
-  gstate = PyGILState_Ensure ();
+  PyGILGuard gil_guard;
   core = new PYConverterCore (path);
   if (core == NULL) {
     Py_ERRMSG ("Failed to allocate memory for converter subplugin or path invalid: Python\n");
@@ -304,7 +301,6 @@ py_open (const gchar *path, void **priv_data)
 
   *priv_data = core;
 done:
-  PyGILState_Release (gstate);
   return ret;
 }
 
@@ -356,13 +352,11 @@ python_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
 {
   GstBuffer *ret;
   PYConverterCore *core = static_cast<PYConverterCore *> (priv_data);
-  PyGILState_STATE gstate;
   g_return_val_if_fail (in_buf, NULL);
   g_return_val_if_fail (config, NULL);
 
-  gstate = PyGILState_Ensure ();
+  PyGILGuard gil_guard;
   ret = core->convert (in_buf, config);
-  PyGILState_Release (gstate);
   return ret;
 }
 
