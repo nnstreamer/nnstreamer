@@ -278,9 +278,8 @@ decoder_py_exit (void **pdata)
   PYDecoderCore *core = static_cast<PYDecoderCore *> (*pdata);
 
   g_return_if_fail (core != NULL);
-  PyGILState_STATE gstate = PyGILState_Ensure ();
+  PyGILGuard gil_guard;
   delete core;
-  PyGILState_Release (gstate);
 
   *pdata = NULL;
 }
@@ -312,7 +311,7 @@ decoder_py_setOption (void **pdata, int opNum, const char *param)
     /* init null */
     *pdata = NULL;
 
-    PyGILState_STATE gstate = PyGILState_Ensure ();
+    PyGILGuard gil_guard;
 
     try {
       core = new PYDecoderCore (path);
@@ -332,7 +331,6 @@ decoder_py_setOption (void **pdata, int opNum, const char *param)
     ret = TRUE;
 
   done:
-    PyGILState_Release (gstate);
     return ret;
   }
 
@@ -347,9 +345,8 @@ decoder_py_getOutCaps (void **pdata, const GstTensorsConfig *config)
   GstCaps *caps;
   PYDecoderCore *core = static_cast<PYDecoderCore *> (*pdata);
 
-  PyGILState_STATE gstate = PyGILState_Ensure ();
+  PyGILGuard gil_guard;
   caps = core->getOutCaps (config);
-  PyGILState_Release (gstate);
   setFramerateFromConfig (caps, config);
   return caps;
 }
@@ -365,9 +362,8 @@ decoder_py_decode (void **pdata, const GstTensorsConfig *config,
   g_return_val_if_fail (input, GST_FLOW_ERROR);
   g_return_val_if_fail (outbuf, GST_FLOW_ERROR);
 
-  PyGILState_STATE gstate = PyGILState_Ensure ();
+  PyGILGuard gil_guard;
   ret = core->decode (config, input, outbuf);
-  PyGILState_Release (gstate);
   return ret;
 }
 

@@ -87,5 +87,27 @@ extern int nnstreamer_python_status_check ();
 
 #ifdef __cplusplus
 } /* extern "C" */
+
+/**
+ * @brief RAII wrapper for managing Python GIL.
+ */
+class PyGILGuard
+{
+  public:
+  PyGILState_STATE gstate;
+
+  PyGILGuard () : gstate (PyGILState_Ensure ())
+  {
+  }
+  ~PyGILGuard ()
+  {
+    PyGILState_Release (gstate);
+  }
+
+  // Prevent copying to ensure single ownership
+  PyGILGuard (const PyGILGuard &) = delete;
+  PyGILGuard &operator= (const PyGILGuard &) = delete;
+};
+
 #endif
 #endif /* __NNS_PYTHON_HELPER_H__ */

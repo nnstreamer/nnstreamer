@@ -192,13 +192,11 @@ PYCore::~PYCore ()
   gst_tensors_info_free (&inputTensorMeta);
   gst_tensors_info_free (&outputTensorMeta);
 
-  Py_LOCK ();
   Py_SAFEDECREF (core_obj);
   Py_SAFEDECREF (shape_cls);
-
   PyErr_Clear ();
-  Py_UNLOCK ();
 
+  g_mutex_clear (&py_mutex);
   dlclose (handle);
 }
 
@@ -674,9 +672,8 @@ TensorFilterPython::TensorFilterPython () : core (nullptr)
 TensorFilterPython::~TensorFilterPython ()
 {
   if (core != nullptr) {
-    PyGILState_STATE gstate = PyGILState_Ensure ();
+    PyGILGuard gil_guard;
     delete core;
-    PyGILState_Release (gstate);
   }
 }
 
@@ -712,22 +709,20 @@ TensorFilterPython::configure_instance (const GstTensorFilterProperties *prop)
       return; /* skipped */
     }
 
-    PyGILState_STATE gstate = PyGILState_Ensure ();
+    PyGILGuard gil_guard;
     delete core;
-    PyGILState_Release (gstate);
   }
 
-  PyGILState_STATE gstate = PyGILState_Ensure ();
+  PyGILGuard gil_guard;
   core = new PYCore (script_path, prop->custom_properties);
   if (core == nullptr) {
     g_printerr ("Failed to allocate memory for filter subplugin: Python\n");
-    goto done;
+    return;
   }
 
   if (core->init (prop) != 0) {
     delete core;
     g_printerr ("failed to initialize the object: Python\n");
-    PyGILState_Release (gstate);
     throw std::runtime_error ("Python is not initialize");
   }
 
@@ -736,11 +731,8 @@ TensorFilterPython::configure_instance (const GstTensorFilterProperties *prop)
   if (cb != cb_type::CB_SETDIM && cb != cb_type::CB_GETDIM) {
     delete core;
     g_printerr ("Wrong callback type\n");
-    goto done;
+    return;
   }
-
-done:
-  PyGILState_Release (gstate);
 }
 
 /**
@@ -749,9 +741,8 @@ done:
 void
 TensorFilterPython::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
-  PyGILState_STATE gstate = PyGILState_Ensure ();
+  PyGILGuard gil_guard;
   core->run (input, output);
-  PyGILState_Release (gstate);
 }
 
 /**
@@ -779,7 +770,7 @@ TensorFilterPython::getModelInfo (
     model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info)
 {
   int ret = -ENOENT;
-  PyGILState_STATE gstate = PyGILState_Ensure ();
+  PyGILGuard gil_guard;
   cb_type cb = core->getCbType ();
 
   switch (cb) {
@@ -800,7 +791,6 @@ TensorFilterPython::getModelInfo (
       break;
   }
 
-  PyGILState_Release (gstate);
   return ret;
 }
 
@@ -812,9 +802,8 @@ TensorFilterPython::eventHandler (event_ops ops, GstTensorFilterFrameworkEventDa
 {
   if (ops == DESTROY_NOTIFY) {
     if (core) {
-      PyGILState_STATE gstate = PyGILState_Ensure ();
+      PyGILGuard gil_guard;
       core->freeOutputTensors (data.data);
-      PyGILState_Release (gstate);
     }
 
     return 0;
