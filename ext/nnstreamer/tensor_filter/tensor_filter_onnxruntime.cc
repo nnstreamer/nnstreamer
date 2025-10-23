@@ -67,7 +67,7 @@ class onnxruntime_subplugin final : public tensor_filter_subplugin
   static const char *name;
   static onnxruntime_subplugin *registeredRepresentation;
 
-  void cleanup ();
+  void cleanup (bool force = false);
   void clearNodeInfo (onnx_node_info_s &node);
   void convertTensorInfo (onnx_node_info_s &node, GstTensorsInfo &info);
   int convertTensorDim (std::vector<int64_t> &shapes, tensor_dim &dim);
@@ -107,9 +107,12 @@ onnxruntime_subplugin::~onnxruntime_subplugin ()
 
 /** @brief cleanup resources used by onnxruntime subplugin */
 void
-onnxruntime_subplugin::cleanup ()
+onnxruntime_subplugin::cleanup (bool force)
 {
-  if (!configured)
+  g_free (model_path);
+  model_path = nullptr;
+
+  if (!force && !configured)
     return; /* Nothing to do if it is an empty model */
 
   session = Ort::Session{ nullptr };
@@ -120,8 +123,6 @@ onnxruntime_subplugin::cleanup ()
   clearNodeInfo (inputNode);
   clearNodeInfo (outputNode);
 
-  g_free (model_path);
-  model_path = nullptr;
   configured = false;
 }
 
@@ -298,45 +299,51 @@ onnxruntime_subplugin::configure_instance (const GstTensorFilterProperties *prop
         + std::string ("max: ") + NNS_TENSOR_SIZE_LIMIT_STR);
   }
 
-  Ort::AllocatorWithDefaultOptions allocator;
+  try {
+    Ort::AllocatorWithDefaultOptions allocator;
 
-  /* Initialize input info */
-  inputNode.count = num_inputs;
+    /* Initialize input info */
+    inputNode.count = num_inputs;
 
-  for (i = 0; i < num_inputs; i++) {
-    /* Get input name */
-    auto input_name = session.GetInputNameAllocated (i, allocator);
-    inputNode.names_allocated_strings.push_back (std::move (input_name));
-    inputNode.names.push_back (inputNode.names_allocated_strings.back ().get ());
+    for (i = 0; i < num_inputs; i++) {
+      /* Get input name */
+      auto input_name = session.GetInputNameAllocated (i, allocator);
+      inputNode.names_allocated_strings.push_back (std::move (input_name));
+      inputNode.names.push_back (inputNode.names_allocated_strings.back ().get ());
 
-    /* Get input type and shape */
-    Ort::TypeInfo type_info = session.GetInputTypeInfo (i);
-    auto tensor_info = type_info.GetTensorTypeAndShapeInfo ();
-    inputNode.types.push_back (tensor_info.GetElementType ());
-    inputNode.shapes.push_back (tensor_info.GetShape ());
+      /* Get input type and shape */
+      Ort::TypeInfo type_info = session.GetInputTypeInfo (i);
+      auto tensor_info = type_info.GetTensorTypeAndShapeInfo ();
+      inputNode.types.push_back (tensor_info.GetElementType ());
+      inputNode.shapes.push_back (tensor_info.GetShape ());
+    }
+
+    /* Initialize output info */
+    outputNode.count = num_outputs;
+
+    for (i = 0; i < num_outputs; i++) {
+      /* Get output name */
+      auto output_name = session.GetOutputNameAllocated (i, allocator);
+      outputNode.names_allocated_strings.push_back (std::move (output_name));
+      outputNode.names.push_back (outputNode.names_allocated_strings.back ().get ());
+
+      /* Get output type and shape */
+      Ort::TypeInfo type_info = session.GetOutputTypeInfo (i);
+      auto tensor_info = type_info.GetTensorTypeAndShapeInfo ();
+      outputNode.types.push_back (tensor_info.GetElementType ());
+      outputNode.shapes.push_back (tensor_info.GetShape ());
+    }
+
+    memInfo = Ort::MemoryInfo::CreateCpu (
+        OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault);
+
+    configured = true;
+    allocator = Ort::AllocatorWithDefaultOptions{ nullptr }; /* delete unique_ptr */
+
+  } catch (...) {
+    cleanup (true); /* Although it is not configured, call it with force = true to clean up memory. */
+    throw std::runtime_error ("Error during tensor info extraction");
   }
-
-  /* Initialize output info */
-  outputNode.count = num_outputs;
-
-  for (i = 0; i < num_outputs; i++) {
-    /* Get output name */
-    auto output_name = session.GetOutputNameAllocated (i, allocator);
-    outputNode.names_allocated_strings.push_back (std::move (output_name));
-    outputNode.names.push_back (outputNode.names_allocated_strings.back ().get ());
-
-    /* Get output type and shape */
-    Ort::TypeInfo type_info = session.GetOutputTypeInfo (i);
-    auto tensor_info = type_info.GetTensorTypeAndShapeInfo ();
-    outputNode.types.push_back (tensor_info.GetElementType ());
-    outputNode.shapes.push_back (tensor_info.GetShape ());
-  }
-
-  memInfo = Ort::MemoryInfo::CreateCpu (
-      OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault);
-
-  configured = true;
-  allocator = Ort::AllocatorWithDefaultOptions{ nullptr }; /* delete unique_ptr */
 }
 
 /**
