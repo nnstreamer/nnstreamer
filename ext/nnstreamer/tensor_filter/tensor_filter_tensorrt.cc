@@ -149,8 +149,19 @@ tensorrt_subplugin::~tensorrt_subplugin ()
   gst_tensors_info_free (&_inputTensorMeta);
   gst_tensors_info_free (&_outputTensorMeta);
 
-  if (_inputBuffer != nullptr)
-    cudaFree (_inputBuffer);
+  if (_inputBuffer != nullptr) {
+    /* Check CUDA context validity before freeing memory */
+    int deviceCount = 0;
+    cudaError_t status = cudaGetDeviceCount (&deviceCount);
+
+    if (status == cudaSuccess && deviceCount > 0) {
+      cudaError_t freeStatus = cudaFree (_inputBuffer);
+      if (freeStatus != cudaSuccess) {
+        ml_logw ("Failed to free CUDA buffer: %s", cudaGetErrorString (freeStatus));
+      }
+    }
+    _inputBuffer = nullptr;
+  }
 
   if (_uff_path != nullptr)
     g_free (_uff_path);
@@ -282,7 +293,21 @@ tensorrt_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventDa
 {
   if (ops == DESTROY_NOTIFY) {
     if (data.data != nullptr) {
-      cudaFree (data.data);
+      /* Check CUDA context validity before freeing memory */
+      int deviceCount = 0;
+      cudaError_t status = cudaGetDeviceCount (&deviceCount);
+
+      if (status == cudaSuccess && deviceCount > 0) {
+        cudaError_t freeStatus = cudaFree (data.data);
+        if (freeStatus != cudaSuccess) {
+          ml_logw ("Failed to free CUDA buffer in eventHandler: %s",
+              cudaGetErrorString (freeStatus));
+          return -1;
+        }
+      } else {
+        ml_logw ("CUDA context not available for buffer cleanup");
+        return -1;
+      }
     }
 
     return 0;
