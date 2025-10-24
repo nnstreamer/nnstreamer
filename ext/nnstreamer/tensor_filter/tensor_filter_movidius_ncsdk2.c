@@ -186,7 +186,7 @@ _mvncsdk2_open (const GstTensorFilterProperties * prop, void **private_data)
   if (file_model == NULL) {
     g_printerr ("Failed to g_mapped_file_new for the model file, \"%s\"\n",
         prop->model_files[0]);
-    goto err_destroy_graph_h;
+    goto err_close_device_h;
   }
 
   /* Warning: conversion unsigned long to unsigned int */
@@ -200,7 +200,7 @@ _mvncsdk2_open (const GstTensorFilterProperties * prop, void **private_data)
   g_mapped_file_unref (file_model);
   if (ret_code != NC_OK) {
     g_printerr ("Cannot send the model file to the device\n");
-    goto err_destroy_graph_h;
+    goto err_close_device_h;
   }
 
   /**
@@ -212,7 +212,7 @@ _mvncsdk2_open (const GstTensorFilterProperties * prop, void **private_data)
       &tensor_desc_input, &len);
   if (ret_code != NC_OK) {
     g_printerr ("Cannot get the tensor description for input\n");
-    goto err_destroy_graph_h;
+    goto err_close_device_h;
   }
 
   len = (guint32) sizeof (tensor_desc_output);
@@ -221,7 +221,7 @@ _mvncsdk2_open (const GstTensorFilterProperties * prop, void **private_data)
       &tensor_desc_output, &len);
   if (ret_code != NC_OK) {
     g_printerr ("Cannot get the tensor description for output\n");
-    goto err_destroy_graph_h;
+    goto err_close_device_h;
   }
   /**
    * 6. Create fifo handles for input and output tensors
@@ -230,14 +230,14 @@ _mvncsdk2_open (const GstTensorFilterProperties * prop, void **private_data)
       NC_FIFO_HOST_WO, &handle_fifo_input);
   if (ret_code != NC_OK) {
     g_printerr ("Cannot create FIFO handle for input tensor\n");
-    goto err_destroy_graph_h;
+    goto err_close_device_h;
   }
 
   ret_code = ncFifoCreate (NNS_MVNCSDK2_NAME_OUTPUT_FIFO,
       NC_FIFO_HOST_RO, &handle_fifo_output);
   if (ret_code != NC_OK) {
     g_printerr ("Cannot create FIFO handle for output tensor\n");
-    goto err_destroy_graph_h;
+    goto err_destroy_fifo_input_h;
   }
 
   /**
@@ -247,15 +247,14 @@ _mvncsdk2_open (const GstTensorFilterProperties * prop, void **private_data)
       &tensor_desc_input, NNS_MVNCSDK2_MAX_NUM_ELEM_IN_FIFO);
   if (ret_code != NC_OK) {
     g_printerr ("Cannot allocate FIFO in the device for input tensor\n");
-    goto err_destroy_graph_h;
+    goto err_destroy_fifo_h;
   }
 
   ret_code = ncFifoAllocate (handle_fifo_output, handle_device,
       &tensor_desc_output, NNS_MVNCSDK2_MAX_NUM_ELEM_IN_FIFO);
   if (ret_code != NC_OK) {
     g_printerr ("Cannot allocate FIFO in the device for output tensor\n");
-    ncFifoDestroy (&handle_fifo_input);
-    goto err_destroy_graph_h;
+    goto err_destroy_fifo_h;
   }
 
   /**
@@ -273,15 +272,22 @@ _mvncsdk2_open (const GstTensorFilterProperties * prop, void **private_data)
   pdata->handle_fifo_output = handle_fifo_output;
   pdata->tensor_desc_input = tensor_desc_input;
   pdata->tensor_desc_output = tensor_desc_output;
+  pdata->idx_device = idx_dev;
   *private_data = pdata;
 
   return 0;
 
 err_destroy_fifo_h:
   ncFifoDestroy (&handle_fifo_input);
+err_destroy_fifo_input_h:
   ncFifoDestroy (&handle_fifo_output);
+
+err_close_device_h:
+  ncDeviceClose (handle_device);
+
 err_destroy_graph_h:
   ncGraphDestroy (&handle_graph);
+
 err_destroy_device_h:
   ncDeviceDestroy (&handle_device);
 
