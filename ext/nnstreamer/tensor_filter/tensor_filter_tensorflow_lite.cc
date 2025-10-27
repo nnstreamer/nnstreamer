@@ -369,7 +369,14 @@ TFLiteInterpreter::invoke (const GstTensorMemory *input, GstTensorMemory *output
   if (is_xnnpack_delegated) {
     for (unsigned int i = 0; i < inputTensorMeta.num_tensors; ++i) {
       tensor_ptr = inputTensorPtr[i];
-      g_assert (tensor_ptr->bytes == input[i].size);
+
+      /* Replace g_assert with explicit error check for release builds */
+      if (tensor_ptr->bytes != input[i].size) {
+        ml_loge ("Tensor size mismatch for input tensor %u: expected %zu, got %zu",
+            i, tensor_ptr->bytes, input[i].size);
+        return -EINVAL;
+      }
+
       memcpy (tensor_ptr->data.raw, input[i].data, input[i].size);
     }
   } else {
@@ -398,7 +405,14 @@ TFLiteInterpreter::invoke (const GstTensorMemory *input, GstTensorMemory *output
   if (is_xnnpack_delegated || !is_cached_after_first_invoke) {
     for (unsigned int i = 0; i < outputTensorMeta.num_tensors; ++i) {
       tensor_ptr = outputTensorPtr[i];
-      g_assert (tensor_ptr->bytes == output[i].size);
+
+      /* Replace g_assert with explicit error check for release builds */
+      if (tensor_ptr->bytes != output[i].size) {
+        ml_loge ("Tensor size mismatch for output tensor %u: expected %zu, got %zu",
+            i, tensor_ptr->bytes, output[i].size);
+        return -EINVAL;
+      }
+
       memcpy (output[i].data, tensor_ptr->data.raw, output[i].size);
     }
   }
