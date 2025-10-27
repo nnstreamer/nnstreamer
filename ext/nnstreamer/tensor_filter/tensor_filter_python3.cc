@@ -481,6 +481,7 @@ PYCore::setInputTensorDim (const GstTensorsInfo *in_info, GstTensorsInfo *out_in
     _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) in_info, i);
     shape = PyTensorShape_New (shape_cls, _info);
     if (nullptr == shape) {
+      Py_SAFEDECREF (param);
       Py_UNLOCK ();
       throw std::runtime_error ("PyTensorShape_New(); has failed.");
     }
