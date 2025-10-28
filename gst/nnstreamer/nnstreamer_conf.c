@@ -268,7 +268,11 @@ static void
 _g_list_foreach_vstr_helper (gpointer data, gpointer user_data)
 {
   vstr_helper *helper = (vstr_helper *) user_data;
-  g_assert (helper->cursor < helper->size); /** library error? internal logic error? */
+  if (helper->cursor >= helper->size) {
+    ml_loge ("Array bounds overflow: cursor (%u) >= size (%u)",
+             helper->cursor, helper->size);
+    return;
+  }
   helper->vstr[helper->cursor] = data;
   helper->cursor++;
 }
@@ -303,9 +307,23 @@ _fill_in_vstr (gchar *** fullpath_vstr, gchar *** name_vstr,
   lstN = g_slist_reverse (lstN);
 
   *fullpath_vstr = g_malloc0_n (counter + 1, sizeof (gchar *));
-  g_assert (*fullpath_vstr != NULL);    /* This won't happen, but doesn't hurt either */
+  if (*fullpath_vstr == NULL) {
+    ml_loge ("Failed to allocate memory for fullpath_vstr.");
+    g_slist_free_full (lstF, g_free);
+    g_slist_free_full (lstN, g_free);
+    *name_vstr = NULL;
+    return;
+  }
+
   *name_vstr = g_malloc0_n (counter + 1, sizeof (gchar *));
-  g_assert (*name_vstr != NULL);        /* This won't happen, but doesn't hurt either */
+   if (*name_vstr == NULL) {
+    ml_loge ("Failed to allocate memory for name_vstr.");
+    g_free (*fullpath_vstr);
+    *fullpath_vstr = NULL;
+    g_slist_free_full (lstF, g_free);
+    g_slist_free_full (lstN, g_free);
+    return;
+  }
 
   vstrF.vstr = *fullpath_vstr;
   vstrN.vstr = *name_vstr;
@@ -407,7 +425,10 @@ nnsconf_loadconf (gboolean force_reload)
 
   if (conf.conffile) {
     key_file = g_key_file_new ();
-    g_assert (key_file != NULL); /** Internal lib error? out-of-memory? */
+    if (key_file == NULL) {
+      ml_loge ("Failed to create key file object");
+      return FALSE;
+    }
 
     /* Read the conf file. It's ok even if we cannot load it. */
     if (g_key_file_load_from_file (key_file, conf.conffile, G_KEY_FILE_NONE,
@@ -435,7 +456,10 @@ nnsconf_loadconf (gboolean force_reload)
     if (conf.extra_conffile) {
       if (g_file_test (conf.extra_conffile, G_FILE_TEST_IS_REGULAR)) {
         key_file = g_key_file_new ();
-        g_assert (key_file != NULL); /** Internal lib error? out-of-memory? */
+        if (key_file == NULL) {
+          ml_loge ("Failed to create key file object for extra config");
+          return FALSE;
+        }
 
         if (g_key_file_load_from_file (key_file, conf.extra_conffile,
                 G_KEY_FILE_NONE, NULL)) {
@@ -580,7 +604,10 @@ nnsconf_get_custom_value_string (const gchar * group, const gchar * key)
     if (NULL == value && conf.conffile) {
       g_autoptr (GKeyFile) key_file = g_key_file_new ();
 
-      g_assert (key_file != NULL); /** Internal lib error? out-of-memory? */
+      if (key_file == NULL) {
+        ml_loge ("Failed to create key file object for custom config");
+        return NULL;
+      }
 
       if (g_key_file_load_from_file (key_file, conf.conffile, G_KEY_FILE_NONE,
               NULL)) {
