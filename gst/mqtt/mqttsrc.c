@@ -139,6 +139,10 @@ static void cb_mqtt_on_unsubscribe (void *context,
     MQTTAsync_successData * response);
 static void cb_mqtt_on_unsubscribe_failure (void *context,
     MQTTAsync_failureData * response);
+static void cb_mqtt_on_disconnect (void *context,
+    MQTTAsync_successData * response);
+static void cb_mqtt_on_disconnect_failure (void *context,
+    MQTTAsync_failureData * response);
 
 static void cb_memory_wrapped_destroy (void *p);
 
@@ -206,6 +210,7 @@ gst_mqtt_src_init (GstMqttSrc * self)
   g_mutex_lock (&self->mqtt_src_mutex);
   self->is_connected = FALSE;
   self->is_subscribed = FALSE;
+  self->is_disconnect_finished = FALSE;
   self->latency = GST_CLOCK_TIME_NONE;
   g_mutex_unlock (&self->mqtt_src_mutex);
   self->base_time_epoch = GST_CLOCK_TIME_NONE;
@@ -409,11 +414,45 @@ gst_mqtt_src_class_finalize (GObject * object)
 {
   GstMqttSrc *self = GST_MQTT_SRC (object);
   GstBuffer *remained;
+  gint64 end_time;
 
+  g_mutex_lock (&self->mqtt_src_mutex);
+
+  /* Check if stop was already called and properly cleaned up */
   if (self->mqtt_client_handle) {
+    /** 
+     If stop wasn't called (element wasn't properly stopped),
+     we need to ensure safe cleanup here. */
+    if (GST_BASE_SRC_IS_STARTED (GST_BASE_SRC (self))) {
+      /* Element is still started, try to disconnect safely */
+      if (self->is_connected && !self->is_disconnect_finished) {
+        MQTTAsync_disconnectOptions opts = MQTTAsync_disconnectOptions_initializer;
+
+        opts.onSuccess = cb_mqtt_on_disconnect;
+        opts.onFailure = cb_mqtt_on_disconnect_failure;
+        opts.context = self;
+
+        MQTTAsync_disconnect (self->mqtt_client_handle, &opts);
+
+        /* Wait briefly for disconnect to complete */
+        end_time = g_get_monotonic_time () + 2 * G_TIME_SPAN_SECOND;
+        while (!self->is_disconnect_finished) {
+          if (!g_cond_wait_until (&self->mqtt_src_gcond, &self->mqtt_src_mutex,
+                  end_time)) {
+            GST_WARNING_OBJECT (self,
+                "Finalize disconnect timeout, forcing cleanup");
+            break;
+          }
+        }
+      }
+    }
+
+    /* Now safe to destroy the client handle */
     MQTTAsync_destroy (&self->mqtt_client_handle);
     self->mqtt_client_handle = NULL;
   }
+
+  g_mutex_unlock (&self->mqtt_src_mutex);
 
   g_free (self->mqtt_client_id);
   g_free (self->mqtt_host_address);
@@ -583,14 +622,64 @@ static gboolean
 gst_mqtt_src_stop (GstBaseSrc * basesrc)
 {
   GstMqttSrc *self = GST_MQTT_SRC (basesrc);
+  MQTTAsync_disconnectOptions opts = MQTTAsync_disconnectOptions_initializer;
+  gint64 end_time;
+  int ret;
 
-  /* todo */
-  MQTTAsync_disconnect (self->mqtt_client_handle, NULL);
+  if (!self->mqtt_client_handle) {
+    /* Already stopped or not started */
+    return TRUE;
+  }
+
+  GST_INFO_OBJECT (self, "Requesting MQTT disconnect...");
+
+  opts.onSuccess = cb_mqtt_on_disconnect;
+  opts.onFailure = cb_mqtt_on_disconnect_failure;
+  opts.context = self;
+
   g_mutex_lock (&self->mqtt_src_mutex);
-  self->is_connected = FALSE;
+  self->is_disconnect_finished = FALSE;
   g_mutex_unlock (&self->mqtt_src_mutex);
+
+  ret = MQTTAsync_disconnect (self->mqtt_client_handle, &opts);
+
+  if (ret != MQTTASYNC_SUCCESS) {
+    GST_ERROR_OBJECT (self, "Failed to send disconnect request: %d", ret);
+    /**
+     If disconnect request fails, we cannot wait, but we still need to
+     call destroy (in this case, race condition may occur, but there is
+     no alternative). */
+  } else {
+    /* Wait for disconnect callback (on_disconnect) to complete */
+    end_time = g_get_monotonic_time () + (5 * G_TIME_SPAN_SECOND); /* 5 second timeout */
+
+    g_mutex_lock (&self->mqtt_src_mutex);
+    while (!self->is_disconnect_finished) {
+      if (!g_cond_wait_until (&self->mqtt_src_gcond, &self->mqtt_src_mutex,
+              end_time)) {
+        GST_WARNING_OBJECT (self,
+            "Timeout waiting for MQTT disconnect. Forcing destroy.");
+        break;                  /* Timeout expired */
+      }
+    }
+    g_mutex_unlock (&self->mqtt_src_mutex);
+  }
+
+  /**
+   At this point, the Paho background thread has called
+   cb_mqtt_on_disconnect* or timeout has occurred.
+   Now it is much safer to call destroy than before. */
+  GST_INFO_OBJECT (self, "Destroying MQTT client handle.");
   MQTTAsync_destroy (&self->mqtt_client_handle);
   self->mqtt_client_handle = NULL;
+
+  /* Clean up flags */
+  g_mutex_lock (&self->mqtt_src_mutex);
+  self->is_connected = FALSE;
+  self->is_subscribed = FALSE;
+  self->is_disconnect_finished = FALSE;
+  g_mutex_unlock (&self->mqtt_src_mutex);
+
   return TRUE;
 }
 
@@ -893,6 +982,47 @@ gst_mqtt_src_set_is_live (GstMqttSrc * self, const gboolean flag)
 {
   self->is_live = flag;
   gst_base_src_set_live (GST_BASE_SRC (self), self->is_live);
+}
+
+
+/**
+ * @brief MQTTAsync_responseOptions's onSuccess callback for MQTTAsync_disconnect ()
+ */
+static void
+cb_mqtt_on_disconnect (void *context, MQTTAsync_successData * response)
+{
+  GstMqttSrc *self = GST_MQTT_SRC (context);
+  UNUSED (response);
+
+  g_mutex_lock (&self->mqtt_src_mutex);
+  GST_DEBUG_OBJECT (self, "MQTT disconnect successful.");
+  self->is_disconnect_finished = TRUE;
+  self->is_connected = FALSE;
+  self->is_subscribed = FALSE;
+  g_cond_broadcast (&self->mqtt_src_gcond);
+  g_mutex_unlock (&self->mqtt_src_mutex);
+}
+
+/**
+ * @brief MQTTAsync_responseOptions's onFailure callback for MQTTAsync_disconnect ()
+ */
+static void
+cb_mqtt_on_disconnect_failure (void *context, MQTTAsync_failureData * response)
+{
+  GstMqttSrc *self = GST_MQTT_SRC (context);
+
+  g_mutex_lock (&self->mqtt_src_mutex);
+  GST_WARNING_OBJECT (self, "MQTT disconnect failed: %s (%d)",
+      response->message ? response->message : "unknown", response->code);
+
+  /**
+   Even if it fails, we need to set the 'finished' flag to TRUE and signal
+   so that the 'stop' function can continue. */
+  self->is_disconnect_finished = TRUE;
+  self->is_connected = FALSE;
+  self->is_subscribed = FALSE;
+  g_cond_broadcast (&self->mqtt_src_gcond);
+  g_mutex_unlock (&self->mqtt_src_mutex);
 }
 
 /**
