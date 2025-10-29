@@ -139,6 +139,10 @@ static void cb_mqtt_on_unsubscribe (void *context,
     MQTTAsync_successData * response);
 static void cb_mqtt_on_unsubscribe_failure (void *context,
     MQTTAsync_failureData * response);
+static void cb_mqtt_on_disconnect (void *context,
+    MQTTAsync_successData * response);
+static void cb_mqtt_on_disconnect_failure (void *context,
+    MQTTAsync_failureData * response);
 
 static void cb_memory_wrapped_destroy (void *p);
 
@@ -148,6 +152,7 @@ static void _put_timestamp_on_gst_buf (GstMqttSrc * self,
     GstMQTTMessageHdr * hdr, GstBuffer * buf);
 static gboolean _subscribe (GstMqttSrc * self);
 static gboolean _unsubscribe (GstMqttSrc * self);
+static gboolean gst_mqtt_src_disconnect (GstMqttSrc * self, gint wait_time);
 
 /**
  * @brief A utility function to check whether the timestamp marked by _put_timestamp_on_gst_buf () is valid or not
@@ -206,6 +211,7 @@ gst_mqtt_src_init (GstMqttSrc * self)
   g_mutex_lock (&self->mqtt_src_mutex);
   self->is_connected = FALSE;
   self->is_subscribed = FALSE;
+  self->is_disconnect_finished = FALSE;
   self->latency = GST_CLOCK_TIME_NONE;
   g_mutex_unlock (&self->mqtt_src_mutex);
   self->base_time_epoch = GST_CLOCK_TIME_NONE;
@@ -410,11 +416,12 @@ gst_mqtt_src_class_finalize (GObject * object)
   GstMqttSrc *self = GST_MQTT_SRC (object);
   GstBuffer *remained;
 
-  if (self->mqtt_client_handle) {
-    MQTTAsync_destroy (&self->mqtt_client_handle);
-    self->mqtt_client_handle = NULL;
+  if (!gst_mqtt_src_disconnect (self, 2)) {
+    GST_WARNING_OBJECT (self, "Finalize MQTT disconnect failed, but continuing with cleanup");
   }
 
+
+  /* Cleanup other resources - no mutex needed for these */
   g_free (self->mqtt_client_id);
   g_free (self->mqtt_host_address);
   g_free (self->mqtt_host_port);
@@ -429,6 +436,7 @@ gst_mqtt_src_class_finalize (GObject * object)
   }
   g_clear_pointer (&self->aqueue, g_async_queue_unref);
 
+  /* Clear mutex last */
   g_mutex_clear (&self->mqtt_src_mutex);
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -584,13 +592,13 @@ gst_mqtt_src_stop (GstBaseSrc * basesrc)
 {
   GstMqttSrc *self = GST_MQTT_SRC (basesrc);
 
-  /* todo */
-  MQTTAsync_disconnect (self->mqtt_client_handle, NULL);
-  g_mutex_lock (&self->mqtt_src_mutex);
-  self->is_connected = FALSE;
-  g_mutex_unlock (&self->mqtt_src_mutex);
-  MQTTAsync_destroy (&self->mqtt_client_handle);
-  self->mqtt_client_handle = NULL;
+  GST_INFO_OBJECT (self, "Requesting MQTT disconnect...");
+
+  /* Safely disconnect and destroy with 5 second timeout */
+  if (!gst_mqtt_src_disconnect (self, 5)) {
+    GST_WARNING_OBJECT (self, "MQTT disconnect failed, but continuing with cleanup");
+  }
+
   return TRUE;
 }
 
@@ -893,6 +901,45 @@ gst_mqtt_src_set_is_live (GstMqttSrc * self, const gboolean flag)
 {
   self->is_live = flag;
   gst_base_src_set_live (GST_BASE_SRC (self), self->is_live);
+}
+
+
+/**
+ * @brief MQTTAsync_responseOptions's onSuccess callback for MQTTAsync_disconnect ()
+ */
+static void
+cb_mqtt_on_disconnect (void *context, MQTTAsync_successData * response)
+{
+  GstMqttSrc *self = GST_MQTT_SRC (context);
+  UNUSED (response);
+
+  GST_DEBUG_OBJECT (self, "MQTT disconnect successful.");
+
+  g_mutex_lock (&self->mqtt_src_mutex);
+  self->is_disconnect_finished = TRUE;
+  g_cond_broadcast (&self->mqtt_src_gcond);
+  g_mutex_unlock (&self->mqtt_src_mutex);
+}
+
+/**
+ * @brief MQTTAsync_responseOptions's onFailure callback for MQTTAsync_disconnect ()
+ */
+static void
+cb_mqtt_on_disconnect_failure (void *context, MQTTAsync_failureData * response)
+{
+  GstMqttSrc *self = GST_MQTT_SRC (context);
+
+  GST_WARNING_OBJECT (self, "MQTT disconnect failed: %s (%d)",
+      response->message ? response->message : "unknown", response->code);
+
+  g_mutex_lock (&self->mqtt_src_mutex);
+  /**
+   * Even if it fails, we need to set the 'finished' flag to TRUE and signal
+   * so that the 'stop' function can continue.
+   */
+  self->is_disconnect_finished = TRUE;
+  g_cond_broadcast (&self->mqtt_src_gcond);
+  g_mutex_unlock (&self->mqtt_src_mutex);
 }
 
 /**
@@ -1338,6 +1385,58 @@ _unsubscribe (GstMqttSrc * self)
   if (mqttasync_ret != MQTTASYNC_SUCCESS)
     return FALSE;
   return TRUE;
+}
+
+/**
+ * @brief Disconnect MQTT client and destroy handle.
+ * @param self GstMqttSrc instance
+ * @param wait_time Maximum time to wait for disconnect completion (seconds)
+ * @return TRUE if disconnect succeeded or timed out, FALSE on immediate failure
+ */
+static gboolean
+gst_mqtt_src_disconnect (GstMqttSrc * self, gint wait_time)
+{
+  MQTTAsync_disconnectOptions opts = MQTTAsync_disconnectOptions_initializer;
+  gint64 end_time = g_get_monotonic_time () + (wait_time * G_TIME_SPAN_SECOND);
+  int ret = MQTTASYNC_SUCCESS;
+
+  opts.onSuccess = cb_mqtt_on_disconnect;
+  opts.onFailure = cb_mqtt_on_disconnect_failure;
+  opts.context = self;
+
+  g_mutex_lock (&self->mqtt_src_mutex);
+  if (!self->mqtt_client_handle) {
+    /* Already disconnected or not started */
+    goto done;
+  }
+
+  ret = MQTTAsync_disconnect (self->mqtt_client_handle, &opts);
+  if (ret == MQTTASYNC_SUCCESS) {
+    /* Wait for disconnect callback to complete */
+    while (!self->is_disconnect_finished) {
+      if (!g_cond_wait_until (&self->mqtt_src_gcond, &self->mqtt_src_mutex, end_time)) {
+        GST_WARNING_OBJECT (self, "Timeout waiting for MQTT disconnect (%d seconds)", wait_time);
+        break;
+      }
+    }
+  } else {
+    GST_ERROR_OBJECT (self, "Failed to send disconnect request: %d", ret);
+  }
+
+done:
+  if (self->mqtt_client_handle) {
+    GST_INFO_OBJECT (self, "Destroying MQTT client handle.");
+    MQTTAsync_destroy (&self->mqtt_client_handle);
+    self->mqtt_client_handle = NULL;
+  }
+
+  /* Clean up flags */
+  self->is_connected = FALSE;
+  self->is_subscribed = FALSE;
+  self->is_disconnect_finished = FALSE;
+
+  g_mutex_unlock (&self->mqtt_src_mutex);
+  return (ret == MQTTASYNC_SUCCESS);
 }
 
 /**
