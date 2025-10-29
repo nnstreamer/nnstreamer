@@ -65,6 +65,7 @@ struct _GstMqttSrc {
   GCond mqtt_src_gcond;
   gboolean is_connected;
   gboolean is_subscribed;
+  gboolean is_disconnect_finished;
 
   MQTTAsync mqtt_client_handle;
   MQTTAsync_connectOptions mqtt_conn_opts;
