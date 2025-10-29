@@ -566,8 +566,15 @@ TEST (datareposink, writeFlexibleTensors_n)
   /* Confirm file creation */
   file = g_file_new_for_path ("flexible.data");
   ASSERT_NE (file, nullptr);
-  file_info = g_file_query_info (
-      file, G_FILE_ATTRIBUTE_STANDARD_SIZE, G_FILE_QUERY_INFO_NONE, NULL, NULL);
+
+  for (int retry_count = 0; retry_count < 5 && file_info == NULL; retry_count++) {
+    file_info = g_file_query_info (file, G_FILE_ATTRIBUTE_STANDARD_SIZE,
+        G_FILE_QUERY_INFO_NONE, NULL, NULL);
+    if (file_info == NULL) {
+      g_usleep (50000);
+    }
+  }
+
   ASSERT_NE (file_info, nullptr);
   size = g_file_info_get_size (file_info);
   ASSERT_EQ (size, 0);
@@ -625,8 +632,15 @@ TEST (datareposink, writeSparseTensors_n)
   /* Confirm file creation */
   file = g_file_new_for_path ("sparse.data");
   ASSERT_NE (file, nullptr);
-  file_info = g_file_query_info (
-      file, G_FILE_ATTRIBUTE_STANDARD_SIZE, G_FILE_QUERY_INFO_NONE, NULL, NULL);
+
+  for (int retry_count = 0; retry_count < 5 && file_info == NULL; retry_count++) {
+    file_info = g_file_query_info (file, G_FILE_ATTRIBUTE_STANDARD_SIZE,
+        G_FILE_QUERY_INFO_NONE, NULL, NULL);
+    if (file_info == NULL) {
+      g_usleep (50000);
+    }
+  }
+
   ASSERT_NE (file_info, nullptr);
   size = g_file_info_get_size (file_info);
   ASSERT_EQ (size, 0);
