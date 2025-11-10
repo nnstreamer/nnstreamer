@@ -264,6 +264,22 @@ gst_data_repo_src_init (GstDataRepoSrc * src)
 }
 
 /**
+ * @brief Safely close file descriptor with error handling
+ */
+static void
+gst_data_repo_src_safe_close_fd (GstDataRepoSrc * src)
+{
+  if (src->fd) {
+    if (!g_close (src->fd, NULL)) {
+      GST_WARNING_OBJECT (src, "Failed to close file descriptor %d: %s",
+          src->fd, g_strerror (errno));
+      return;
+    }
+    src->fd = 0;
+  }
+}
+
+/**
  * @brief Function to finalize instance.
  */
 static void
@@ -276,10 +292,7 @@ gst_data_repo_src_finalize (GObject * object)
   g_free (src->tensors_seq_str);
 
   /* close the file */
-  if (src->fd) {
-    g_close (src->fd, NULL);
-    src->fd = 0;
-  }
+  gst_data_repo_src_safe_close_fd (src);
 
   if (src->parser)
     g_object_unref (src->parser);
@@ -1152,8 +1165,7 @@ gst_data_repo_src_start (GstDataRepoSrc * src)
 
   if (src->data_type == GST_DATA_REPO_DATA_IMAGE) {
     /* no longer used */
-    g_close (src->fd, NULL);
-    src->fd = 0;
+    gst_data_repo_src_safe_close_fd (src);
   } else {
     /* set start offset and last offset */
     src->start_offset =
@@ -1212,8 +1224,7 @@ was_socket:
   }
 
 error_close:
-  g_close (src->fd, NULL);
-  src->fd = 0;
+  gst_data_repo_src_safe_close_fd (src);
 error_exit:
   return FALSE;
 }
@@ -1313,8 +1324,7 @@ gst_data_repo_src_stop (GstBaseSrc * basesrc)
   GstDataRepoSrc *src = GST_DATA_REPO_SRC (basesrc);
 
   /* close the file */
-  g_close (src->fd, NULL);
-  src->fd = 0;
+  gst_data_repo_src_safe_close_fd (src);
 
   return TRUE;
 }
