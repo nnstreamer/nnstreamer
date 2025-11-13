@@ -1,3 +1,22 @@
+2.4.4 -> 2.6.0
+        - LLM Support
+        - Bug fixes
+
+2.4.3 -> 2.4.4
+        - This is NNStreamer 2.4.4 Tizen 10.0 M2 release
+
+2.4.2 -> 2.4.3
+        - Bug fixes
+
+2.4.1 -> 2.4.2
+        - Tizen 9.0 M2 release
+
+2.4.0 -> 2.4.1
+        - Bug fixes
+
+2.3.0 -> 2.4.0
+        - Tizen 8.0 M2 release
+
 2.2.0 -> 2.3.0
         - 2.3.0 is a devel version for 2.4.0 release. Unstable and experimental features are welcomed in this version.
 
