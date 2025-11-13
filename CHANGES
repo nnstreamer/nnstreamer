@@ -1,3 +1,22 @@
+2.4.4 -> 2.6.0
+        - llama.cpp upgrades
+                - Added context save/restore, KV-cache trimming, LoRA adapters, token-by-token samplers, and safer teardown paths so on-device LLMs support long chats and tuning.
+
+        - Framework coordination
+                - New tensor_filter events can suspend frameworks mid-flight, and helper APIs propagate those events through pipelines.
+                - Python tensor_filter paths fixed GIL handling and reference leaks, preventing deadlocks with concurrent invocations.
+
+        - Reliability hardening
+                - Closed CUDA/file descriptor/device handle leaks, enforced array bounds, and patched resource cleanup races across filters and custom options.
+
+        - Data and HAL quality
+                - datareposink now queries file metadata with consistent timing, avoiding offset drift during large replays.
+                - SNPE/Vivante HAL code was cleaned up, removing stale stubs and ensuring error propagation.
+
+        - Build and tooling
+                - meson detects NumPy >= 2.2 header changes; XNNPACK delegate memory management issues were resolved.
+                - CODEOWNERS and documentation were updated to reflect the current maintainers and naming hygiene.
+
 2.4.2 -> 2.4.4
         - NNStreamer 2.4.4 is the Tizen 10.0 M2 LTS release with HAL integration, async inference, and on-device generative AI.
 
