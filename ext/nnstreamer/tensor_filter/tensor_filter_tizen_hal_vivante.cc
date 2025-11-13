@@ -14,10 +14,6 @@
  * This is the per-NN-framework plugin (Tizen HAL Vivante) for tensor_filter.
  */
 
-#include <iostream>
-#include <string>
-#include <vector>
-
 #include <glib.h>
 #include <nnstreamer_cppplugin_api_filter.hh>
 #include <nnstreamer_log.h>
@@ -42,7 +38,6 @@ class vivante_tizen_hal_subplugin final : public tensor_filter_subplugin
   private:
   static const char *fw_name;
   static vivante_tizen_hal_subplugin *registeredRepresentation;
-  static const GstTensorFilterFrameworkInfo framework_info;
 
   hal_ml_h hal_handle;
 
