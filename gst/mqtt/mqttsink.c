@@ -193,6 +193,7 @@ gst_mqtt_sink_init (GstMqttSink * self)
   g_cond_init (&self->mqtt_sink_gcond);
   self->mqtt_msg_buf = NULL;
   self->mqtt_msg_buf_size = 0;
+  self->is_static_sized_buf = FALSE;
   memset (&self->mqtt_msg_hdr, 0x0, sizeof (self->mqtt_msg_hdr));
   self->base_time_epoch = GST_CLOCK_TIME_NONE;
   self->in_caps = NULL;
@@ -751,7 +752,6 @@ static GstFlowReturn
 gst_mqtt_sink_render (GstBaseSink * basesink, GstBuffer * in_buf)
 {
   const gsize in_buf_size = gst_buffer_get_size (in_buf);
-  static gboolean is_static_sized_buf = FALSE;
   GstMqttSink *self = GST_MQTT_SINK (basesink);
   GstFlowReturn ret = GST_FLOW_ERROR;
   mqtt_sink_state_t cur_state;
@@ -797,7 +797,7 @@ gst_mqtt_sink_render (GstBaseSink * basesink, GstBuffer * in_buf)
     self->num_buffers -= 1;
   }
 
-  if ((!is_static_sized_buf) && (self->mqtt_msg_buf) &&
+  if ((!self->is_static_sized_buf) && (self->mqtt_msg_buf) &&
       (self->mqtt_msg_buf_size != 0) &&
       (self->mqtt_msg_buf_size < in_buf_size + GST_MQTT_LEN_MSG_HDR)) {
     g_free (self->mqtt_msg_buf);
@@ -818,7 +818,7 @@ gst_mqtt_sink_render (GstBaseSink * basesink, GstBuffer * in_buf)
         goto ret_with;
       }
       self->mqtt_msg_buf_size = self->max_msg_buf_size + GST_MQTT_LEN_MSG_HDR;
-      is_static_sized_buf = TRUE;
+      self->is_static_sized_buf = TRUE;
     }
 
     self->mqtt_msg_buf = g_try_malloc0 (self->mqtt_msg_buf_size);
