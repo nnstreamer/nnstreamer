@@ -13,9 +13,11 @@ import sys
 def main():
   try:
     import cv2
+    print("USE_CV2:True", __file__)
+    return 0
   except ImportError:
-    return 1
-
-  return 0
+    print("OpenCV is not available, but continuing...")
+    print("USE_CV2:False", __file__)
+    return 0
 
 sys.exit(main())
