@@ -87,6 +87,7 @@ struct _GstMqttSink {
   GstMQTTMessageHdr mqtt_msg_hdr;
   gpointer mqtt_msg_buf;
   gsize mqtt_msg_buf_size;
+  gboolean is_static_sized_buf;
 
   MQTTAsync mqtt_client_handle;
   MQTTAsync_connectOptions mqtt_conn_opts;
