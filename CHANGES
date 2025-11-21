@@ -1,3 +1,71 @@
+2.4.2 -> 2.4.4
+        - NNStreamer 2.4.4 is the Tizen 10.0 M2 LTS release with HAL integration, async inference, and on-device generative AI.
+
+        - Generative / Large Language Models
+                - Added tensor_filter subplugins for llama.cpp with streaming token emission, KV-cache trimming, LoRA adapter loading, and configurable samplers (top-k, top-p, typical-p, temperature) so pipelines can host on-device LLMs.
+                - Added Executorch-based filters (including executorch-llama) plus Android/JNI glue, allowing the same autoregressive graphs to run on Linux, Android, and CI runners.
+
+        - Asynchronous inference & observability
+                - tensor_filter and tensor_filter_single now expose invoke-async modes, callbacks, suspend/resume events, and watchdog hooks so pre/post-processing can overlap with framework execution.
+                - Added tensor data callbacks, flexible tensor copy utilities, and stricter caps negotiation to keep mixed static/flexible streams consistent across mux/demux/transform paths.
+
+        - Platform integration
+                - Introduced tensor_filter_tizen-hal and refreshed SNPE/Vivante HAL wrappers; packaging rules now trim non-HAL filters when HAL mode is enabled while preserving legacy behavior elsewhere.
+                - Updated snpe/vivante HAL filters, Android edge builds, Yocto/GitHub workflows (arm runners, testhub action, artifact handling), and dependency wiring to keep CI and product releases aligned.
+
+        - Vision decoders & tests
+                - Added the YOLOv8 oriented bounding-box decoder, refreshed Mobilenet/MP Palm decoders, and extended SSAT coverage (yolov8/yolov8-obb, llamacpp) to guard regression fixes.
+                - tensor_transform gained stable flexible-to-flexible conversions with dedicated tests so multi-branch graphs can renegotiate ranks without data loss.
+
+        - Reliability
+                - Hundreds of SVACE/Coverity fixes, improved resource guards (tensor repo, repo src/sink, mqtt, grpc), and better logging reduced leaks and race conditions uncovered during 2.4.4 stabilization.
+
+2.4.1 -> 2.4.2
+        - NNStreamer 2.4.2 is the 2024 LTS release for Tizen 9.0 M2.
+
+        - New inference runtimes and delegates
+                - Added ONNX Runtime, NCNN, Executorch (module API), and Qualcomm QNN tensor_filter subplugins with SSAT/gtest coverage so more off-the-shelf models run without external glue.
+                - TensorFlow Lite gained a QNN delegate path, TensorRT 10 support and CUDA probe scripts were refreshed, and SNPE/nnfw filters received runtime detection plus custom Input/Output tensor properties.
+
+        - Model management & orchestration
+                - Introduced ml-agent backed tensor_filter mode (activated-model handling, config helpers, unit tests) so products can push models OTA.
+                - Data-repository components now read/write flexible & sparse tensors, track sample indices/epochs, and stream deterministically for trainers and CI.
+                - Tensor query, nnstreamer-edge, and MQTT elements gained drop policies, reconnection fixes, and better error reporting to survive transient network faults.
+
+        - Vision & media features
+                - Added the YOLOv10 bounding-box decoder, refreshed YOLOv5/v8 parameter handling, and widened SSAT coverage for pose/bbox decoders.
+                - Converter/transform paths now understand RGBP/BGRP and DALi ingestion while documentation explains channel-last conversions for Tizen AI guides.
+
+        - Toolchain & packaging
+                - Upgraded builds to C++17 (core & Android), enabled clang/llvm CI, and added Ubuntu mantic/noble plus new Tizen feature profiles (vivante/mv, ml_agent_support).
+                - GitHub Actions now run valgrind/gtest/ssat (including riscv64) with shared pbuilder/GBS caches, which cut regression turnaround time significantly.
+
+2.4.0 -> 2.4.1
+        - 2.4.1 is the development (2.4.2-RC1) branch where aggressive runtime integrations, ML-Agent plumbing, and toolchain upgrades land before the 2024 LTS release. Expect experimental behavior until 2.4.2.
+
+2.3.0 -> 2.4.0
+        - NNStreamer 2.4.0 is the Tizen 8.0 M2 LTS release.
+
+        - Data repository pipeline components
+                - Added datareposrc and datareposink elements with JSON metadata handling, start/stop index & epoch properties, sparse/flexible tensor IO, and deterministic replay so datasets can drive pipelines and tests.
+                - Enabled datarepo by default in official builds to make dataset-driven regression testing first-class.
+
+        - Built-in model trainer
+                - Introduced the tensor_trainer element plus a public subplugin API (`nnstreamer_plugin_api_trainer.h`) so custom training loops can live inside GStreamer graphs.
+                - Added trainer properties (epochs, stop, load_model_path) and callbacks along with SSAT coverage, enabling continual/online training pipelines.
+
+        - Large tensor / multi-branch support
+                - Increased the tensor rank limit from 8 to 16, raised tensor_size_extra_limit, and added GstTensorExtraInfo headers so mux/demux, tensor_filter_single, converters, queries, and trainers can pass >16 tensors safely.
+                - Added flexible tensor helpers (validation, memory append, nth-info utilities) and updated python, sensor, edge, and datarepo components to use zero-initialized dimensions for clearer negotiation.
+
+        - Diagnostics and decoders
+                - Added the tensor_debug element, introduced the tensor_region decoder, refreshed YOLOv5/v8 bounding-box code, and expanded pose decoder validation to improve inspection and debugging.
+                - Added new tests for mux/demux, decoder configs, tensor_region, and sensor sources plus widespread SVACE/memory fixes uncovered during stabilization.
+
+        - Runtime/platform updates
+                - Deprecated TF-Lite v1 filter paths in favor of TF2-lite, added dynamic invoke support to tensor_filter, bumped the minimum supported PyTorch, and fixed SNPE/pytorch regressions reported by product teams.
+                - CI now covers riscv64/macos/clang runners, brew-based GitHub actions, and new leak sanitizers, preventing regressions before release.
+
 2.2.0 -> 2.3.0
         - 2.3.0 is a devel version for 2.4.0 release. Unstable and experimental features are welcomed in this version.
 
