@@ -82,6 +82,27 @@ enum class cb_type {
 };
 
 /**
+ * @brief RAII wrapper for managing Python GIL.
+ */
+class PyGILGuard
+{
+  public:
+  PyGILState_STATE gstate;
+
+  PyGILGuard () : gstate (PyGILState_Ensure ())
+  {
+  }
+  ~PyGILGuard ()
+  {
+    PyGILState_Release (gstate);
+  }
+
+  // Prevent copying to ensure single ownership
+  PyGILGuard (const PyGILGuard &) = delete;
+  PyGILGuard &operator= (const PyGILGuard &) = delete;
+};
+
+/**
  * @brief	Python embedding core structure
  */
 class PYCore
@@ -130,17 +151,6 @@ class PYCore
 
   int checkTensorSize (GstTensorMemory *output, PyArrayObject *array);
   int checkTensorType (int nns_type, int np_type);
-
-  /** @brief Lock python-related actions */
-  void Py_LOCK ()
-  {
-    g_mutex_lock (&py_mutex);
-  }
-  /** @brief Unlock python-related actions */
-  void Py_UNLOCK ()
-  {
-    g_mutex_unlock (&py_mutex);
-  }
 };
 
 /**
@@ -192,13 +202,12 @@ PYCore::~PYCore ()
   gst_tensors_info_free (&inputTensorMeta);
   gst_tensors_info_free (&outputTensorMeta);
 
-  Py_LOCK ();
-  Py_SAFEDECREF (core_obj);
-  Py_SAFEDECREF (shape_cls);
-
-  PyErr_Clear ();
-  Py_UNLOCK ();
-
+  {
+    PyGILGuard gil_guard;
+    Py_SAFEDECREF (core_obj);
+    Py_SAFEDECREF (shape_cls);
+    PyErr_Clear ();
+  }
   dlclose (handle);
 }
 
@@ -210,8 +219,9 @@ int
 PYCore::init (const GstTensorFilterProperties *prop)
 {
   int ret = -EINVAL;
+  PyGILGuard gil_guard;
+
   /** Find nnstreamer_api module */
-  Py_LOCK ();
   PyObject *api_module = PyImport_ImportModule ("nnstreamer_python");
   if (api_module == NULL) {
     Py_ERRMSG ("Cannot find `nnstreamer_python` module");
@@ -231,7 +241,6 @@ PYCore::init (const GstTensorFilterProperties *prop)
 
   ret = loadScript ();
 exit:
-  Py_UNLOCK ();
   return ret;
 }
 
@@ -405,7 +414,7 @@ PYCore::getInputTensorDim (GstTensorsInfo *info)
   if (nullptr == info)
     throw std::invalid_argument ("A null pointer is given to PYCore::getInputTensorDim().\n");
 
-  Py_LOCK ();
+  PyGILGuard gil_guard;
 
   PyObject *result = PyObject_CallMethod (core_obj, (char *) "getInputDim", NULL);
   if (result) {
@@ -415,8 +424,6 @@ PYCore::getInputTensorDim (GstTensorsInfo *info)
     Py_ERRMSG ("Fail to call 'getInputDim'");
     res = -1;
   }
-
-  Py_UNLOCK ();
 
   return res;
 }
@@ -435,7 +442,7 @@ PYCore::getOutputTensorDim (GstTensorsInfo *info)
   if (nullptr == info)
     throw std::invalid_argument ("A null pointer is given to PYCore::getOutputTensorDim().\n");
 
-  Py_LOCK ();
+  PyGILGuard gil_guard;
 
   PyObject *result = PyObject_CallMethod (core_obj, (char *) "getOutputDim", NULL);
   if (result) {
@@ -445,8 +452,6 @@ PYCore::getOutputTensorDim (GstTensorsInfo *info)
     Py_ERRMSG ("Fail to call 'getOutputDim'");
     res = -1;
   }
-
-  Py_UNLOCK ();
 
   return res;
 }
@@ -467,12 +472,11 @@ PYCore::setInputTensorDim (const GstTensorsInfo *in_info, GstTensorsInfo *out_in
   if (nullptr == in_info || nullptr == out_info)
     throw std::invalid_argument ("Null pointers are given to PYCore::setInputTensorDim().\n");
 
-  Py_LOCK ();
+  PyGILGuard gil_guard;
 
   /** to Python list object */
   PyObject *param = PyList_New (in_info->num_tensors);
   if (nullptr == param) {
-    Py_UNLOCK ();
     throw std::runtime_error ("PyList_New(); has failed.");
   }
 
@@ -482,8 +486,6 @@ PYCore::setInputTensorDim (const GstTensorsInfo *in_info, GstTensorsInfo *out_in
     _info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) in_info, i);
     shape = PyTensorShape_New (shape_cls, _info);
     if (nullptr == shape) {
-      Py_SAFEDECREF (param);
-      Py_UNLOCK ();
       throw std::runtime_error ("PyTensorShape_New(); has failed.");
     }
 
@@ -505,8 +507,6 @@ PYCore::setInputTensorDim (const GstTensorsInfo *in_info, GstTensorsInfo *out_in
     Py_ERRMSG ("Fail to call 'setInputDim'");
     res = -1;
   }
-
-  Py_UNLOCK ();
 
   return res;
 }
@@ -544,6 +544,7 @@ PYCore::run (const GstTensorMemory *input, GstTensorMemory *output)
   int res = 0;
   PyObject *result;
   std::vector<void *> newlyAddedItems;
+  PyGILGuard gil_guard;
 
 #if (DBG)
   gint64 start_time = g_get_real_time ();
@@ -551,8 +552,6 @@ PYCore::run (const GstTensorMemory *input, GstTensorMemory *output)
 
   if (nullptr == output || nullptr == input)
     throw std::invalid_argument ("Null pointers are given to PYCore::run().\n");
-
-  Py_LOCK ();
 
   PyObject *param = PyList_New (inputTensorMeta.num_tensors);
   for (unsigned int i = 0; i < inputTensorMeta.num_tensors; i++) {
@@ -611,7 +610,6 @@ PYCore::run (const GstTensorMemory *input, GstTensorMemory *output)
 
 exit_decref:
   Py_SAFEDECREF (param);
-  Py_UNLOCK ();
 
 #if (DBG)
   gint64 stop_time = g_get_real_time ();
@@ -674,9 +672,8 @@ TensorFilterPython::TensorFilterPython () : core (nullptr)
 TensorFilterPython::~TensorFilterPython ()
 {
   if (core != nullptr) {
-    PyGILState_STATE gstate = PyGILState_Ensure ();
+    PyGILGuard gil_guard;
     delete core;
-    PyGILState_Release (gstate);
   }
 }
 
@@ -712,22 +709,20 @@ TensorFilterPython::configure_instance (const GstTensorFilterProperties *prop)
       return; /* skipped */
     }
 
-    PyGILState_STATE gstate = PyGILState_Ensure ();
+    PyGILGuard gil_guard;
     delete core;
-    PyGILState_Release (gstate);
   }
 
-  PyGILState_STATE gstate = PyGILState_Ensure ();
+  PyGILGuard gil_guard;
   core = new PYCore (script_path, prop->custom_properties);
   if (core == nullptr) {
     g_printerr ("Failed to allocate memory for filter subplugin: Python\n");
-    goto done;
+    return;
   }
 
   if (core->init (prop) != 0) {
     delete core;
     g_printerr ("failed to initialize the object: Python\n");
-    PyGILState_Release (gstate);
     throw std::runtime_error ("Python is not initialize");
   }
 
@@ -736,11 +731,8 @@ TensorFilterPython::configure_instance (const GstTensorFilterProperties *prop)
   if (cb != cb_type::CB_SETDIM && cb != cb_type::CB_GETDIM) {
     delete core;
     g_printerr ("Wrong callback type\n");
-    goto done;
+    return;
   }
-
-done:
-  PyGILState_Release (gstate);
 }
 
 /**
@@ -749,9 +741,8 @@ done:
 void
 TensorFilterPython::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
-  PyGILState_STATE gstate = PyGILState_Ensure ();
+  PyGILGuard gil_guard;
   core->run (input, output);
-  PyGILState_Release (gstate);
 }
 
 /**
@@ -779,7 +770,7 @@ TensorFilterPython::getModelInfo (
     model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info)
 {
   int ret = -ENOENT;
-  PyGILState_STATE gstate = PyGILState_Ensure ();
+  PyGILGuard gil_guard;
   cb_type cb = core->getCbType ();
 
   switch (cb) {
@@ -800,7 +791,6 @@ TensorFilterPython::getModelInfo (
       break;
   }
 
-  PyGILState_Release (gstate);
   return ret;
 }
 
@@ -812,9 +802,8 @@ TensorFilterPython::eventHandler (event_ops ops, GstTensorFilterFrameworkEventDa
 {
   if (ops == DESTROY_NOTIFY) {
     if (core) {
-      PyGILState_STATE gstate = PyGILState_Ensure ();
+      PyGILGuard gil_guard;
       core->freeOutputTensors (data.data);
-      PyGILState_Release (gstate);
     }
 
     return 0;
