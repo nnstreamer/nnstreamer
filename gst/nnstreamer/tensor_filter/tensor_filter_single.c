@@ -389,6 +389,7 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
   GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT] = { {0} }; /** @todo refactor this local variable */
   guint i;
   gint status;
+  gint64 start_time, end_time;  /* variable for latency profiling */
 
   spriv = G_TENSOR_FILTER_SINGLE_PRIV (self);
   priv = &spriv->filter_priv;
@@ -427,7 +428,15 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
     }
   }
 
+  start_time = g_get_monotonic_time ();
   GST_TF_FW_INVOKE_COMPAT (priv, status, input, _out);
+  end_time = g_get_monotonic_time ();
+
+  /* check invoke latency when latency profiling is enabled */
+  if (priv->latency_mode > 0) {
+    ml_logi ("[%s] Invoke took %.3f ms", TF_MODELNAME (&(priv->prop)),
+        (end_time - start_time) / 1000.0f);
+  }
 
   if (status == 0) {
     if (_out != output) {
