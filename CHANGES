@@ -1,3 +1,6 @@
+2.6.0 -> 2.7.0
+	- 2.7.0 is a devel version for 2.8.0 release. Experimental features may be added to 2.7.x.
+
 2.4.4 -> 2.6.0
         - llama.cpp upgrades
                 - Added context save/restore, KV-cache trimming, LoRA adapters, token-by-token samplers, and safer teardown paths so on-device LLMs support long chats and tuning.
