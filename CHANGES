@@ -1,24 +1,42 @@
+2.4.4 -> 2.6.0
+        - llama.cpp upgrades
+                - Added context save/restore, KV-cache trimming, LoRA adapters, token-by-token samplers, and safer teardown paths so on-device LLMs support long chats and tuning.
+
+        - Framework coordination
+                - New tensor_filter events can suspend frameworks mid-flight, and helper APIs propagate those events through pipelines.
+                - Python tensor_filter paths fixed GIL handling and reference leaks, preventing deadlocks with concurrent invocations.
+
+        - Reliability hardening
+                - Closed CUDA/file descriptor/device handle leaks, enforced array bounds, and patched resource cleanup races across filters and custom options.
+
+        - Data and HAL quality
+                - datareposink now queries file metadata with consistent timing, avoiding offset drift during large replays.
+                - SNPE/Vivante HAL code was cleaned up, removing stale stubs and ensuring error propagation.
+
+        - Build and tooling
+                - meson detects NumPy >= 2.2 header changes; XNNPACK delegate memory management issues were resolved.
+                - CODEOWNERS and documentation were updated to reflect the current maintainers and naming hygiene.
+
 2.4.2 -> 2.4.4
-        - NNStreamer 2.4.4 is the Tizen 10.0 M2 LTS release with HAL integration, async inference, and on-device generative AI.
+        - On-device generative AI
+                - Added llama2/llamacpp/executorch-llama tensor_filter sub-plugins plus Android/Tizen build support so the same autoregressive graph runs across desktop, mobile, and CI builds.
+                - Enabled invoke-dynamic paths, memory safety guards, and streaming outputs for llama-based filters to handle long prompts reliably.
 
-        - Generative / Large Language Models
-                - Added tensor_filter subplugins for llama.cpp with streaming token emission, KV-cache trimming, LoRA adapter loading, and configurable samplers (top-k, top-p, typical-p, temperature) so pipelines can host on-device LLMs.
-                - Added Executorch-based filters (including executorch-llama) plus Android/JNI glue, allowing the same autoregressive graphs to run on Linux, Android, and CI runners.
+        - Asynchronous inference
+                - tensor_filter and tensor_filter_single now expose invoke-async properties, suspend/watchdog events, and callbacks, allowing frameworks to execute concurrently with pre/post-processing.
+                - Common utilities (tensor data callbacks, nth-info helpers) make custom sub-plugins consume asynchronous results safely.
 
-        - Asynchronous inference & observability
-                - tensor_filter and tensor_filter_single now expose invoke-async modes, callbacks, suspend/resume events, and watchdog hooks so pre/post-processing can overlap with framework execution.
-                - Added tensor data callbacks, flexible tensor copy utilities, and stricter caps negotiation to keep mixed static/flexible streams consistent across mux/demux/transform paths.
+        - HAL and runtime integration
+                - Introduced a generic Tizen HAL filter plus SNPE/Vivante improvements, while HAL builds can exclude non-HAL filters to optimize product profiles.
+                - TensorRT10, QNN, and ONE filters now ship additional properties, doc updates, and meson wiring for the latest device features.
 
-        - Platform integration
-                - Introduced tensor_filter_tizen-hal and refreshed SNPE/Vivante HAL wrappers; packaging rules now trim non-HAL filters when HAL mode is enabled while preserving legacy behavior elsewhere.
-                - Updated snpe/vivante HAL filters, Android edge builds, Yocto/GitHub workflows (arm runners, testhub action, artifact handling), and dependency wiring to keep CI and product releases aligned.
+        - Flexible tensors and caps
+                - tensor_transform officially supports static↔flexible and flexible↔flexible paths with new SSAT coverage.
+                - Caps/metadata helpers handle empty tensors, framerate templates, and string conversions so multi-branch pipelines renegotiate consistently.
 
-        - Vision decoders & tests
-                - Added the YOLOv8 oriented bounding-box decoder, refreshed Mobilenet/MP Palm decoders, and extended SSAT coverage (yolov8/yolov8-obb, llamacpp) to guard regression fixes.
-                - tensor_transform gained stable flexible-to-flexible conversions with dedicated tests so multi-branch graphs can renegotiate ranks without data loss.
-
-        - Reliability
-                - Hundreds of SVACE/Coverity fixes, improved resource guards (tensor repo, repo src/sink, mqtt, grpc), and better logging reduced leaks and race conditions uncovered during 2.4.4 stabilization.
+        - CI and packaging
+                - Edge/MQTT elements were refactored to remove leaks and timing bugs.
+                - GitHub Actions, Yocto, Docker, and Ubuntu builds were refreshed (24.04, riscv64, CodeQL, shared caches) to keep automation green.
 
 2.4.1 -> 2.4.2
         - NNStreamer 2.4.2 is the 2024 LTS release for Tizen 9.0 M2.
