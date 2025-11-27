@@ -1,3 +1,9 @@
+nnstreamer (2.7.0.0) unstable xenial bionic focal; urgency=medium
+
+  * 2.7.0 development starts
+
+ -- MyungJoo Ham <myungjoo.ham@samsung.com>  Thu, 28 Nov 2025 16:34:00 +0900
+
 nnstreamer (2.6.0.0) unstable xenial bionic focal; urgency=medium
 
   * 2.6.0 Release. NNStreamer Stable of 2025
