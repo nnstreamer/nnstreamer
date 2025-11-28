@@ -8,7 +8,7 @@ library('nnstreamer-edge-custom-test',
 
 unittest_edge = executable('unittest_edge',
   join_paths('edge', 'unittest_edge.cc'),
-  dependencies: [nnstreamer_unittest_deps],
+  dependencies: [nnstreamer_unittest_deps, gstedge_dep],
   install: get_option('install-test'),
   install_dir: unittest_install_dir
 )
