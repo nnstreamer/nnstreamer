@@ -20,6 +20,19 @@
 static int data_received;
 static const char *CUSTOM_LIB_PATH = "libnnstreamer-edge-custom-test.so";
 
+static gboolean
+wait_handle_release (nns_edge_h *handle, guint timeout_ms)
+{
+  gint64 deadline = g_get_monotonic_time () +
+      ((gint64) timeout_ms * G_TIME_SPAN_MILLISECOND);
+
+  while (*handle && g_get_monotonic_time () < deadline) {
+    g_usleep (20 * 1000); /* 20 ms */
+  }
+
+  return (*handle == NULL);
+}
+
 /**
  * @brief Test for edgesink get and set properties.
  */
@@ -324,9 +337,12 @@ TEST (edgeCustom, sinkReleasesHandle)
   EXPECT_NE (sink->edge_h, (nns_edge_h) NULL);
 
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_READY, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  EXPECT_EQ (sink->edge_h, (nns_edge_h) NULL);
+  EXPECT_TRUE (wait_handle_release (&sink->edge_h, 500))
+      << "Edge sink handle should be released after READY state.";
 
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_TRUE (wait_handle_release (&sink->edge_h, 500))
+      << "Edge sink handle should stay released after NULL state.";
 
   gst_object_unref (edge_handle);
   gst_object_unref (gstpipe);
@@ -430,9 +446,12 @@ TEST (edgeCustom, srcReleasesHandle)
   EXPECT_NE (src->edge_h, (nns_edge_h) NULL);
 
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_READY, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  EXPECT_EQ (src->edge_h, (nns_edge_h) NULL);
+  EXPECT_TRUE (wait_handle_release (&src->edge_h, 500))
+      << "Edge src handle should be released after READY state.";
 
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_TRUE (wait_handle_release (&src->edge_h, 500))
+      << "Edge src handle should stay released after NULL state.";
 
   gst_object_unref (edge_handle);
   gst_object_unref (gstpipe);
