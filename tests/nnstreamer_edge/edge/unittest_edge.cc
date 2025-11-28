@@ -12,11 +12,26 @@
 #include <glib.h>
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
+#include "../../../gst/edge/edge_sink.h"
+#include "../../../gst/edge/edge_src.h"
 #include "nnstreamer_log.h"
 #include "unittest_util.h"
 
 static int data_received;
 static const char *CUSTOM_LIB_PATH = "libnnstreamer-edge-custom-test.so";
+
+static gboolean
+wait_handle_release (nns_edge_h *handle, guint timeout_ms)
+{
+  gint64 deadline = g_get_monotonic_time () +
+      ((gint64) timeout_ms * G_TIME_SPAN_MILLISECOND);
+
+  while (*handle && g_get_monotonic_time () < deadline) {
+    g_usleep (20 * 1000); /* 20 ms */
+  }
+
+  return (*handle == NULL);
+}
 
 /**
  * @brief Test for edgesink get and set properties.
@@ -297,6 +312,44 @@ TEST (edgeCustom, sinkNormal)
 }
 
 /**
+ * @brief Ensure edgesink releases its handle after stop.
+ */
+TEST (edgeCustom, sinkReleasesHandle)
+{
+  gchar *pipeline = nullptr;
+  GstElement *gstpipe = nullptr;
+  GstElement *edge_handle = nullptr;
+  GstEdgeSink *sink = nullptr;
+
+  pipeline = g_strdup_printf (
+      "videotestsrc ! videoconvert ! videoscale ! "
+      "video/x-raw,width=320,height=240,format=RGB,framerate=10/1 ! "
+      "tensor_converter ! edgesink connect-type=CUSTOM custom-lib=%s name=sinkx port=0",
+      CUSTOM_LIB_PATH);
+  gstpipe = gst_parse_launch (pipeline, nullptr);
+  ASSERT_NE (gstpipe, nullptr);
+
+  edge_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "sinkx");
+  ASSERT_NE (edge_handle, nullptr);
+  sink = GST_EDGESINK (edge_handle);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_NE (sink->edge_h, (nns_edge_h) NULL);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_READY, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_TRUE (wait_handle_release (&sink->edge_h, 500))
+      << "Edge sink handle should be released after READY state.";
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_TRUE (wait_handle_release (&sink->edge_h, 500))
+      << "Edge sink handle should stay released after NULL state.";
+
+  gst_object_unref (edge_handle);
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+}
+
+/**
  * @brief Test for edgesink custom connection with invalid property.
  */
 TEST (edgeCustom, sinkInvalidProp_n)
@@ -364,6 +417,43 @@ TEST (edgeCustom, srcNormal)
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   g_usleep (100000);
 
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+}
+
+/**
+ * @brief Ensure edgesrc releases its handle after stop.
+ */
+TEST (edgeCustom, srcReleasesHandle)
+{
+  gchar *pipeline = nullptr;
+  GstElement *gstpipe = nullptr;
+  GstElement *edge_handle = nullptr;
+  GstEdgeSrc *src = nullptr;
+
+  pipeline = g_strdup_printf ("edgesrc connect-type=CUSTOM custom-lib=%s name=srcx ! "
+                              "other/tensors,num_tensors=1,dimensions=3:320:240:1,types=uint8,format=static,framerate=30/1 ! "
+                              "tensor_sink",
+      CUSTOM_LIB_PATH);
+  gstpipe = gst_parse_launch (pipeline, nullptr);
+  ASSERT_NE (gstpipe, nullptr);
+
+  edge_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "srcx");
+  ASSERT_NE (edge_handle, nullptr);
+  src = GST_EDGESRC (edge_handle);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_NE (src->edge_h, (nns_edge_h) NULL);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_READY, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_TRUE (wait_handle_release (&src->edge_h, 500))
+      << "Edge src handle should be released after READY state.";
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_TRUE (wait_handle_release (&src->edge_h, 500))
+      << "Edge src handle should stay released after NULL state.";
+
+  gst_object_unref (edge_handle);
   gst_object_unref (gstpipe);
   g_free (pipeline);
 }
