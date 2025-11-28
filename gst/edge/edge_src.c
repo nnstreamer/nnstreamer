@@ -150,6 +150,7 @@ gst_edgesrc_init (GstEdgeSrc * self)
   self->connect_type = DEFAULT_CONNECT_TYPE;
   self->playing = FALSE;
   self->custom_lib = NULL;
+  self->edge_h = NULL;
 }
 
 /**
@@ -336,6 +337,20 @@ _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
 }
 
 /**
+ * @brief Release nnstreamer-edge handle and reset the playing state.
+ */
+static void
+gst_edgesrc_release_handle (GstEdgeSrc * self)
+{
+  if (self->edge_h) {
+    nns_edge_release_handle (self->edge_h);
+    self->edge_h = NULL;
+  }
+
+  self->playing = FALSE;
+}
+
+/**
  * @brief start edgesrc, called when state changed null to ready
  */
 static gboolean
@@ -361,10 +376,7 @@ gst_edgesrc_start (GstBaseSrc * basesrc)
   if (NNS_EDGE_ERROR_NONE != ret) {
     nns_loge ("Failed to get nnstreamer edge handle.");
 
-    if (self->edge_h) {
-      nns_edge_release_handle (self->edge_h);
-      self->edge_h = NULL;
-    }
+    gst_edgesrc_release_handle (self);
 
     return FALSE;
   }
@@ -384,11 +396,13 @@ gst_edgesrc_start (GstBaseSrc * basesrc)
   if (0 != nns_edge_start (self->edge_h)) {
     nns_loge
         ("Failed to start NNStreamer-edge. Please check server IP and port.");
+    gst_edgesrc_release_handle (self);
     return FALSE;
   }
 
   if (0 != nns_edge_connect (self->edge_h, self->dest_host, self->dest_port)) {
     nns_loge ("Failed to connect to edge server!");
+    gst_edgesrc_release_handle (self);
     return FALSE;
   }
   self->playing = TRUE;
@@ -405,13 +419,19 @@ gst_edgesrc_stop (GstBaseSrc * basesrc)
   GstEdgeSrc *self = GST_EDGESRC (basesrc);
   int ret;
 
+  if (!self->edge_h)
+    return TRUE;
+
   self->playing = FALSE;
   ret = nns_edge_stop (self->edge_h);
 
   if (NNS_EDGE_ERROR_NONE != ret) {
     nns_loge ("Failed to stop edgesrc (error code: %d).", ret);
+    gst_edgesrc_release_handle (self);
     return FALSE;
   }
+
+  gst_edgesrc_release_handle (self);
 
   return TRUE;
 }
