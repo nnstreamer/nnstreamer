@@ -28,15 +28,74 @@ jobs:
       if: env.rebuild == '1'
       run: |
         sudo apt-get update && sudo apt-get install -y libglib2.0-dev libjson-glib-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libunwind-dev googletest gdb
-        sudo apt-get install -y liborc-0.4-dev flex bison libopencv-dev pkg-config python3-dev python3-numpy python3
+        sudo apt-get install -y liborc-0.4-dev flex bison libopencv-dev pkg-config python3-dev python3-numpy python3 curl
         sudo add-apt-repository -y ppa:nnstreamer/ppa && sudo apt-get update && sudo apt-get install -y ssat libpaho-mqtt-dev
         sudo apt-get install -y valgrind gstreamer1.0-tools gstreamer1.0-plugins-good gstreamer1.0-plugins-base libgtest-dev libpng-dev libc6-dbg binutils-x86-64-linux-gnu-dbg valgrind-dbg
         pip install meson ninja
+    - name: install llama.cpp pre-built binaries
+      if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
+      run: |
+        #Way to use pre-built
+        # We need to copy the ggml backends to the location of the llama.cpp TC executable
+        # In the ggml-org/ggml#1120 issue, the following issues were identified:
+        # 1. The requirement to extend GGML's dynamic backend search logic to comply with the Linux Filesystem Hierarchy Standard (FHS).
+        # 2. The requirement to have a separate developer package (dev package) containing header files, pkg-config, and CMake configuration files.
+        # 3. The requirement to enable backend search in the system standard library paths (/usr/lib, /lib) in addition to the executable path.
+
+        export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+        mkdir -p ./tests/test_models/models/
+        wget https://huggingface.co/tensorblock/TinyStories-656K-GGUF/resolve/main/TinyStories-656K-Q2_K.gguf -O ./tests/test_models/models/TinyStories-656K-Q2_K.gguf
+
+        LLAMA_VERSION="b6569"
+        echo "Installing llama.cpp pre-built version: ${LLAMA_VERSION}"
+
+        #Download Pre-built binary
+        ZIP_FILENAME="llama-${LLAMA_VERSION}-bin-ubuntu-x64.zip"
+        curl -L https://github.com/ggml-org/llama.cpp/releases/download/${LLAMA_VERSION}/${ZIP_FILENAME} -o llama-bin.zip
+        unzip llama-bin.zip
+
+        # Download source code for getting header
+        curl -L https://github.com/ggml-org/llama.cpp/archive/refs/tags/${LLAMA_VERSION}.zip -o llama-src.zip
+        unzip llama-src.zip
+        sudo cp build/bin/*.so /usr/local/lib/
+        sudo cp llama.cpp-${LLAMA_VERSION}/include/*.h /usr/local/include/
+        sudo cp llama.cpp-${LLAMA_VERSION}/ggml/include/*.h /usr/local/include/
+        
+        # To use llama.cpp TC
+        sudo mkdir -p ./temp_backends
+        sudo cp build/bin/libggml-*.so ./temp_backends/
+
+        # Create pkg-config
+        sudo mkdir -p /usr/local/lib/pkgconfig
+        cat << EOF | sudo tee /usr/local/lib/pkgconfig/llama.pc
+        prefix=/usr/local
+        exec_prefix=/usr/local
+        libdir=/usr/local/lib
+        includedir=/usr/local/include
+        Name: llama
+        Description: Port of Facebook's LLaMA model in C/C++
+        Version: 0.0.6569
+        Libs: -L\${libdir} -lggml -lggml-base -lllama
+        Cflags: -I\${includedir}
+        EOF
+
+        sudo ldconfig
+        lscpu | grep "Model name"
+        sudo ln -sf /usr/local/lib/libggml-cpu-x64.so /usr/local/lib/libggml-cpu.so
+        rm -rf llama-bin.zip llama-src.zip build/ llama.cpp-${LLAMA_VERSION}/
+
     - name: build and unit test
       if: env.rebuild == '1'
       run: |
+        export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
         meson setup build/
         meson compile -C build/
+
+        #To use llama.cpp TC
+        if [ "${{ matrix.os }}" == "ubuntu-22.04" ]; then
+          ls ./temp_backends/*.so
+          cp ./temp_backends/*.so ./build/tests/
+        fi
 
         sudo mkdir -m 777 /cores
         sudo bash -c 'echo "/cores/coredump" > /proc/sys/kernel/core_pattern'
