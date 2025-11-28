@@ -12,8 +12,8 @@
 #include <glib.h>
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
-#include "gst/edge/edge_sink.h"
-#include "gst/edge/edge_src.h"
+#include "../../../gst/edge/edge_sink.h"
+#include "../../../gst/edge/edge_src.h"
 #include "nnstreamer_log.h"
 #include "unittest_util.h"
 
