@@ -65,6 +65,7 @@ if gtest_dep.found()
   nnstreamer_unittest_deps = [
     unittest_util_dep,
     glib_dep,
+    gmodule_dep,
     gst_dep,
     gst_app_dep,
     gst_check_dep,

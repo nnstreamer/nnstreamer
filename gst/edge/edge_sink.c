@@ -341,6 +341,8 @@ gst_edgesink_start (GstBaseSink * basesink)
 
   int ret;
   char *port = NULL;
+  gboolean started = FALSE;
+  gboolean success = FALSE;
 
   if (NNS_EDGE_CONNECT_TYPE_CUSTOM != self->connect_type) {
     ret = nns_edge_create_handle (NULL, self->connect_type,
@@ -387,10 +389,22 @@ gst_edgesink_start (GstBaseSink * basesink)
   if (0 != nns_edge_start (self->edge_h)) {
     nns_loge
         ("Failed to start NNStreamer-edge. Please check server IP and port.");
-    return FALSE;
+    goto done;
+  }
+  started = TRUE;
+  success = TRUE;
+
+done:
+  if (!success) {
+    if (started)
+      nns_edge_stop (self->edge_h);
+    if (self->edge_h) {
+      nns_edge_release_handle (self->edge_h);
+      self->edge_h = NULL;
+    }
   }
 
-  return TRUE;
+  return success;
 }
 
 /**
@@ -458,6 +472,7 @@ gst_edgesink_render (GstBaseSink * basesink, GstBuffer * buffer)
   int ret;
   GstMemory *mem[NNS_TENSOR_SIZE_LIMIT];
   GstMapInfo map[NNS_TENSOR_SIZE_LIMIT];
+  GstFlowReturn flow_ret = GST_FLOW_OK;
 
   if (!_wait_connection (self)) {
     nns_loge ("Failed to send buffer.");
@@ -502,8 +517,10 @@ gst_edgesink_render (GstBaseSink * basesink, GstBuffer * buffer)
   }
 
   ret = nns_edge_send (self->edge_h, data_h);
-  if (ret != NNS_EDGE_ERROR_NONE)
+  if (ret != NNS_EDGE_ERROR_NONE) {
     nns_loge ("Failed to send edge data, connection lost or internal error.");
+    flow_ret = GST_FLOW_ERROR;
+  }
 
 done:
   if (data_h)
@@ -514,7 +531,7 @@ done:
     gst_memory_unref (mem[i]);
   }
 
-  return GST_FLOW_OK;
+  return flow_ret;
 }
 
 /**

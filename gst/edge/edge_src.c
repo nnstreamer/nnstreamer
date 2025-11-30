@@ -51,6 +51,15 @@ static void gst_edgesrc_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
 static void gst_edgesrc_class_finalize (GObject * object);
 
+typedef struct
+{
+  nns_edge_data_h data_h;
+  gint refcount;
+} EdgeSrcDataHolder;
+
+static EdgeSrcDataHolder * edge_src_data_holder_ref (EdgeSrcDataHolder *holder);
+static void edge_src_data_holder_unref (EdgeSrcDataHolder *holder);
+
 static gboolean gst_edgesrc_start (GstBaseSrc * basesrc);
 static gboolean gst_edgesrc_stop (GstBaseSrc * basesrc);
 static GstFlowReturn gst_edgesrc_create (GstBaseSrc * basesrc, guint64 offset,
@@ -69,6 +78,31 @@ static void gst_edgesrc_set_connect_type (GstEdgeSrc * self,
     const nns_edge_connect_type_e connect_type);
 static GstStateChangeReturn gst_edgesrc_change_state (GstElement * element,
     GstStateChange transition);
+
+static EdgeSrcDataHolder *
+edge_src_data_holder_new (nns_edge_data_h data_h)
+{
+  EdgeSrcDataHolder *holder = g_new0 (EdgeSrcDataHolder, 1);
+  holder->data_h = data_h;
+  holder->refcount = 1;
+  return holder;
+}
+
+static EdgeSrcDataHolder *
+edge_src_data_holder_ref (EdgeSrcDataHolder *holder)
+{
+  g_atomic_int_inc (&holder->refcount);
+  return holder;
+}
+
+static void
+edge_src_data_holder_unref (EdgeSrcDataHolder *holder)
+{
+  if (g_atomic_int_dec_and_test (&holder->refcount)) {
+    nns_edge_data_destroy (holder->data_h);
+    g_free (holder);
+  }
+}
 
 /**
  * @brief initialize the class
@@ -345,6 +379,8 @@ gst_edgesrc_start (GstBaseSrc * basesrc)
 
   int ret;
   char *port = NULL;
+  gboolean started = FALSE;
+  gboolean success = FALSE;
 
   if (NNS_EDGE_CONNECT_TYPE_CUSTOM != self->connect_type) {
     ret = nns_edge_create_handle (NULL, self->connect_type,
@@ -384,16 +420,30 @@ gst_edgesrc_start (GstBaseSrc * basesrc)
   if (0 != nns_edge_start (self->edge_h)) {
     nns_loge
         ("Failed to start NNStreamer-edge. Please check server IP and port.");
-    return FALSE;
+    goto done;
   }
+  started = TRUE;
 
   if (0 != nns_edge_connect (self->edge_h, self->dest_host, self->dest_port)) {
     nns_loge ("Failed to connect to edge server!");
-    return FALSE;
+    goto done;
   }
-  self->playing = TRUE;
 
-  return TRUE;
+  self->playing = TRUE;
+  success = TRUE;
+
+done:
+  if (!success) {
+    self->playing = FALSE;
+    if (started)
+      nns_edge_stop (self->edge_h);
+    if (self->edge_h) {
+      nns_edge_release_handle (self->edge_h);
+      self->edge_h = NULL;
+    }
+  }
+
+  return success;
 }
 
 /**
@@ -434,6 +484,7 @@ gst_edgesrc_create (GstBaseSrc * basesrc, guint64 offset, guint size,
   gboolean is_tensor = FALSE;
   guint i, num_data, max_mems;
   int ret;
+  EdgeSrcDataHolder *holder = NULL;
 
   UNUSED (offset);
   UNUSED (size);
@@ -472,16 +523,16 @@ gst_edgesrc_create (GstBaseSrc * basesrc, guint64 offset, guint size,
     goto done;
   }
 
+  holder = edge_src_data_holder_new (data_h);
   buffer = gst_buffer_new ();
   for (i = 0; i < num_data; i++) {
     void *data = NULL;
     nns_size_t data_len = 0;
-    gpointer new_data;
 
     nns_edge_data_get (data_h, i, &data, &data_len);
-    new_data = _g_memdup (data, data_len);
-    mem = gst_memory_new_wrapped (0, new_data, data_len, 0, data_len,
-        new_data, g_free);
+    mem = gst_memory_new_wrapped (0, data, data_len, 0, data_len,
+        edge_src_data_holder_ref (holder),
+        (GDestroyNotify) edge_src_data_holder_unref);
 
     if (is_tensor) {
       _info = gst_tensors_info_get_nth_info (&config.info, i);
@@ -492,8 +543,11 @@ gst_edgesrc_create (GstBaseSrc * basesrc, guint64 offset, guint size,
   }
 
 done:
-  if (data_h)
+  if (holder) {
+    edge_src_data_holder_unref (holder);
+  } else if (data_h) {
     nns_edge_data_destroy (data_h);
+  }
 
   gst_tensors_config_free (&config);
 

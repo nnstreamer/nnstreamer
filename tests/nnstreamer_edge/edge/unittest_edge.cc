@@ -8,15 +8,107 @@
  * @bug         No known bugs
  */
 
+#include <gmodule.h>
 #include <gtest/gtest.h>
 #include <glib.h>
 #include <gst/app/gstappsrc.h>
+#include <gst/app/gstappsink.h>
 #include <gst/gst.h>
 #include "nnstreamer_log.h"
 #include "unittest_util.h"
+#include "../nnstreamer-edge-custom-test-api.h"
 
 static int data_received;
 static const char *CUSTOM_LIB_PATH = "libnnstreamer-edge-custom-test.so";
+
+static GModule *
+edge_custom_get_module (void)
+{
+  static GModule *module = nullptr;
+  if (module == nullptr) {
+    module = g_module_open (EDGE_CUSTOM_TEST_LIB, G_MODULE_BIND_LAZY);
+    g_assert (module != nullptr);
+  }
+  return module;
+}
+
+static void
+edge_custom_set_fail_connect (gboolean fail)
+{
+  typedef void (*Func) (gboolean);
+  static Func func = nullptr;
+  if (func == nullptr) {
+    gpointer symbol = nullptr;
+    g_assert (g_module_symbol (edge_custom_get_module (),
+            "nns_edge_custom_test_set_fail_connect", &symbol));
+    func = (Func) symbol;
+  }
+  func (fail);
+}
+
+static void
+edge_custom_set_fail_send (gboolean fail)
+{
+  typedef void (*Func) (gboolean);
+  static Func func = nullptr;
+  if (func == nullptr) {
+    gpointer symbol = nullptr;
+    g_assert (g_module_symbol (edge_custom_get_module (),
+            "nns_edge_custom_test_set_fail_send", &symbol));
+    func = (Func) symbol;
+  }
+  func (fail);
+}
+
+static void
+edge_custom_set_payload_mode (edge_custom_payload_mode_e mode)
+{
+  typedef void (*Func) (edge_custom_payload_mode_e);
+  static Func func = nullptr;
+  if (func == nullptr) {
+    gpointer symbol = nullptr;
+    g_assert (g_module_symbol (edge_custom_get_module (),
+            "nns_edge_custom_test_set_payload_mode", &symbol));
+    func = (Func) symbol;
+  }
+  func (mode);
+}
+
+static gpointer
+edge_custom_get_static_payload (void)
+{
+  typedef gpointer (*Func) (void);
+  static Func func = nullptr;
+  if (func == nullptr) {
+    gpointer symbol = nullptr;
+    g_assert (g_module_symbol (edge_custom_get_module (),
+            "nns_edge_custom_test_get_static_payload", &symbol));
+    func = (Func) symbol;
+  }
+  return func ();
+}
+
+static gint
+edge_custom_get_active_handles (void)
+{
+  typedef gint (*Func) (void);
+  static Func func = nullptr;
+  if (func == nullptr) {
+    gpointer symbol = nullptr;
+    g_assert (g_module_symbol (edge_custom_get_module (),
+            "nns_edge_custom_test_get_active_handles", &symbol));
+    func = (Func) symbol;
+  }
+  return func ();
+}
+
+static void
+edge_custom_reset_controls (void)
+{
+  edge_custom_set_fail_connect (FALSE);
+  edge_custom_set_fail_send (FALSE);
+  edge_custom_set_payload_mode (EDGE_CUSTOM_PAYLOAD_MODE_DEFAULT);
+}
 
 /**
  * @brief Test for edgesink get and set properties.
@@ -169,6 +261,25 @@ const gint test_frames[48] = { 1101, 1102, 1103, 1104, 1105, 1106, 1107, 1108, 1
   1110, 1111, 1112, 1113, 1114, 1115, 1116, 1117, 1118, 1119, 1120, 1121, 1122,
   1123, 1124, 1201, 1202, 1203, 1204, 1205, 1206, 1207, 1208, 1209, 1210, 1211,
   1212, 1213, 1214, 1215, 1216, 1217, 1218, 1219, 1220, 1221, 1222, 1223, 1224 };
+
+static GstBuffer *
+create_test_tensor_buffer (void)
+{
+  GstBuffer *buf;
+  GstMemory *mem;
+  GstMapInfo info;
+  gboolean ret;
+
+  buf = gst_buffer_new ();
+  mem = gst_allocator_alloc (NULL, sizeof (test_frames), NULL);
+  ret = gst_memory_map (mem, &info, GST_MAP_WRITE);
+  g_assert (ret);
+  memcpy (info.data, test_frames, sizeof (test_frames));
+  gst_memory_unmap (mem, &info);
+  gst_buffer_append_memory (buf, mem);
+
+  return buf;
+}
 
 /**
  * @brief Callback for tensor sink signal.
@@ -409,6 +520,117 @@ TEST (edgeCustom, srcInvalidProp2_n)
   EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   g_usleep (1000000);
 
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+}
+
+/**
+ * @brief Test that start failure releases handles and allows immediate retry.
+ */
+TEST (edgeCustom, srcStartFailureReleasesHandle)
+{
+  gchar *pipeline = nullptr;
+  GstElement *gstpipe = nullptr;
+
+  pipeline = g_strdup_printf ("edgesrc connect-type=CUSTOM custom-lib=%s name=srcx ! "
+                              "other/tensors,num_tensors=1,dimensions=1:1:1:1,types=uint8,format=static,framerate=30/1 ! "
+                              "tensor_sink",
+      CUSTOM_LIB_PATH);
+  gstpipe = gst_parse_launch (pipeline, nullptr);
+  ASSERT_NE (gstpipe, nullptr);
+
+  edge_custom_reset_controls ();
+  edge_custom_set_fail_connect (TRUE);
+
+  EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (edge_custom_get_active_handles (), 0);
+
+  edge_custom_reset_controls ();
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+}
+
+/**
+ * @brief Test that edgesink propagates send failures upstream.
+ */
+TEST (edgeCustom, sinkPropagatesSendError)
+{
+  gchar *pipeline = nullptr;
+  GstElement *gstpipe = nullptr;
+  GstElement *appsrc_handle = nullptr;
+  GstBuffer *buf = nullptr;
+
+  pipeline = g_strdup_printf (
+      "appsrc name=appsrc is-live=true format=time ! "
+      "other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! "
+      "edgesink connect-type=CUSTOM custom-lib=%s wait-connection=true name=sinkx port=0 async=false",
+      CUSTOM_LIB_PATH);
+  gstpipe = gst_parse_launch (pipeline, nullptr);
+  ASSERT_NE (gstpipe, nullptr);
+
+  appsrc_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "appsrc");
+  ASSERT_NE (appsrc_handle, nullptr);
+
+  buf = create_test_tensor_buffer ();
+  edge_custom_reset_controls ();
+  edge_custom_set_fail_send (TRUE);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  EXPECT_NE (gst_app_src_push_buffer (GST_APP_SRC (appsrc_handle), gst_buffer_ref (buf)), GST_FLOW_OK);
+
+  setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
+  edge_custom_reset_controls ();
+
+  gst_buffer_unref (buf);
+  gst_object_unref (appsrc_handle);
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+}
+
+/**
+ * @brief Test that edgesrc shares payload memory without extra copies.
+ */
+TEST (edgeCustom, srcZeroCopyPayload)
+{
+  gchar *pipeline = nullptr;
+  GstElement *gstpipe = nullptr;
+  GstElement *appsink_handle = nullptr;
+  GstSample *sample = nullptr;
+  GstMemory *mem = nullptr;
+  GstMapInfo info;
+
+  pipeline = g_strdup_printf ("edgesrc connect-type=CUSTOM custom-lib=%s name=srcx ! "
+                              "other/tensor,dimension=(string)%u:1:1:1,type=(string)uint8,framerate=(fraction)0/1 ! "
+                              "appsink name=sinkx sync=false emit-signals=false max-buffers=1 drop=true",
+      CUSTOM_LIB_PATH, EDGE_CUSTOM_TEST_STATIC_PAYLOAD_SIZE);
+  gstpipe = gst_parse_launch (pipeline, nullptr);
+  ASSERT_NE (gstpipe, nullptr);
+
+  edge_custom_reset_controls ();
+  edge_custom_set_payload_mode (EDGE_CUSTOM_PAYLOAD_MODE_STATIC);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  appsink_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "sinkx");
+  ASSERT_NE (appsink_handle, nullptr);
+
+  sample = gst_app_sink_pull_sample (GST_APP_SINK (appsink_handle));
+  ASSERT_NE (sample, nullptr);
+  mem = gst_buffer_get_memory (gst_sample_get_buffer (sample), 0);
+  ASSERT_NE (mem, nullptr);
+  ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_READ));
+  EXPECT_EQ (info.size, EDGE_CUSTOM_TEST_STATIC_PAYLOAD_SIZE);
+  EXPECT_EQ ((gpointer) info.data, edge_custom_get_static_payload ());
+
+  gst_memory_unmap (mem, &info);
+  gst_memory_unref (mem);
+  gst_sample_unref (sample);
+
+  setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
+  edge_custom_reset_controls ();
+
+  gst_object_unref (appsink_handle);
   gst_object_unref (gstpipe);
   g_free (pipeline);
 }

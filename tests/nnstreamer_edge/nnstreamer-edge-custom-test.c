@@ -12,9 +12,11 @@
 
 #include "nnstreamer-edge.h"
 #include "nnstreamer-edge-custom.h"
+#include "nnstreamer-edge-custom-test-api.h"
 #include "nnstreamer_log.h"
 #include "nnstreamer_util.h"
 #include <glib.h>
+#include <gmodule.h>
 
 #define SAFE_FREE(p) do { if (p) { free (p); (p) = NULL; } } while (0)
 
@@ -25,6 +27,21 @@ typedef struct
   nns_edge_event_cb event_cb;
   void *user_data;
 } nns_edge_custom_test_s;
+
+static gint active_handles;
+static gint fail_connect;
+static gint fail_send;
+static edge_custom_payload_mode_e payload_mode = EDGE_CUSTOM_PAYLOAD_MODE_DEFAULT;
+static guint8 static_payload[EDGE_CUSTOM_TEST_STATIC_PAYLOAD_SIZE] = {
+  0, 1, 2, 3, 4, 5, 6, 7,
+  8, 9, 10, 11, 12, 13, 14, 15,
+  16, 17, 18, 19, 20, 21, 22, 23,
+  24, 25, 26, 27, 28, 29, 30, 31,
+  32, 33, 34, 35, 36, 37, 38, 39,
+  40, 41, 42, 43, 44, 45, 46, 47,
+  48, 49, 50, 51, 52, 53, 54, 55,
+  56, 57, 58, 59, 60, 61, 62, 63
+};
 
 static int
 nns_edge_custom_close (void *priv)
@@ -38,6 +55,7 @@ nns_edge_custom_close (void *priv)
 
   SAFE_FREE (custom_h->peer_address);
   SAFE_FREE (custom_h);
+  g_atomic_int_dec (&active_handles);
 
   return NNS_EDGE_ERROR_NONE;
 }
@@ -64,6 +82,7 @@ nns_edge_custom_create (void **priv)
   }
 
   *priv = custom_h;
+  g_atomic_int_inc (&active_handles);
 
   return NNS_EDGE_ERROR_NONE;
 }
@@ -101,7 +120,7 @@ nns_edge_custom_connect (void *priv)
 {
   nns_edge_custom_test_s *custom_h;
   nns_edge_data_h data_h;
-  gchar *raw_data;
+  gchar *raw_data = NULL;
   int ret = NNS_EDGE_ERROR_INVALID_PARAMETER;
 
   if (!priv) {
@@ -109,6 +128,9 @@ nns_edge_custom_connect (void *priv)
     return ret;
   }
   custom_h = (nns_edge_custom_test_s *) priv;
+  if (g_atomic_int_get (&fail_connect)) {
+    return NNS_EDGE_ERROR_CONNECTION_FAILURE;
+  }
   custom_h->is_connected = 1;
 
   /* Push dummy buffer to launch GstBaseSrc */
@@ -118,8 +140,13 @@ nns_edge_custom_connect (void *priv)
     return ret;
   }
 
-  raw_data = g_strdup ("Dummy data");
-  ret = nns_edge_data_add (data_h, raw_data, strlen (raw_data) + 1, g_free);
+  if (payload_mode == EDGE_CUSTOM_PAYLOAD_MODE_STATIC) {
+    ret = nns_edge_data_add (data_h, static_payload,
+        EDGE_CUSTOM_TEST_STATIC_PAYLOAD_SIZE, NULL);
+  } else {
+    raw_data = g_strdup ("Dummy data");
+    ret = nns_edge_data_add (data_h, raw_data, strlen (raw_data) + 1, g_free);
+  }
   if (ret != NNS_EDGE_ERROR_NONE) {
     nns_loge ("Failed to add edge data.");
     g_free (raw_data);
@@ -184,6 +211,10 @@ nns_edge_custom_send_data (void *priv, nns_edge_data_h data_h)
     return NNS_EDGE_ERROR_INVALID_PARAMETER;
   }
 
+  if (g_atomic_int_get (&fail_send)) {
+    return NNS_EDGE_ERROR_IO;
+  }
+
   return NNS_EDGE_ERROR_NONE;
 }
 
@@ -244,4 +275,34 @@ const nns_edge_custom_s *
 nns_edge_custom_get_instance (void)
 {
   return &edge_custom_h;
+}
+
+G_MODULE_EXPORT void
+nns_edge_custom_test_set_fail_connect (gboolean fail)
+{
+  g_atomic_int_set (&fail_connect, fail);
+}
+
+G_MODULE_EXPORT void
+nns_edge_custom_test_set_fail_send (gboolean fail)
+{
+  g_atomic_int_set (&fail_send, fail);
+}
+
+G_MODULE_EXPORT void
+nns_edge_custom_test_set_payload_mode (edge_custom_payload_mode_e mode)
+{
+  payload_mode = mode;
+}
+
+G_MODULE_EXPORT gpointer
+nns_edge_custom_test_get_static_payload (void)
+{
+  return static_payload;
+}
+
+G_MODULE_EXPORT gint
+nns_edge_custom_test_get_active_handles (void)
+{
+  return g_atomic_int_get (&active_handles);
 }
