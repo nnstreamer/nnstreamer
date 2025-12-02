@@ -13,7 +13,7 @@ if not flex.found()
   subdir_done()
 endif
 flex_cdata = configuration_data()
-flex_cdata.set('FLEX', flex.path())
+flex_cdata.set('FLEX', flex.full_path())
 if cc.get_id() == 'msvc'
   flex_cdata.set('FLEX_ARGS', '--nounistd')
 else
@@ -39,7 +39,7 @@ if not bison.found()
   subdir_done()
 endif
 bison_cdata = configuration_data()
-bison_cdata.set('BISON', bison.path())
+bison_cdata.set('BISON', bison.full_path())
 bison_cdata.set('BISON_ARGS', '')
 
 gen_grammar = configure_file(input : 'gen_grammar.py.in',

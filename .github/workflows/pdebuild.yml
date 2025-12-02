@@ -65,7 +65,7 @@ jobs:
         sudo apt-get update && sudo apt-get install -y pbuilder debootstrap curl ubuntu-dev-tools qemu-user-static debian-archive-keyring ubuntu-keyring debhelper
         echo "::endgroup::"
         echo "DISTRIBUTION=${{ matrix.distroname }}" > ~/.pbuilderrc
-        echo "OTHERMIRROR=\"deb [trusted=yes] http://archive.ubuntu.com/ubuntu ${{ matrix.distroname }}-backports universe |deb [trusted=yes] http://ppa.launchpad.net/nnstreamer/ppa/ubuntu ${{ matrix.distroname }} main\"" >> ~/.pbuilderrc
+        echo "OTHERMIRROR=\"deb [trusted=yes] http://archive.ubuntu.com/ubuntu ${{ matrix.distroname }}-backports universe |deb [trusted=yes] http://ppa.launchpad.net/nnstreamer/ppa/ubuntu ${{ matrix.distroname }} main |deb [trusted=yes] http://ppa.launchpad.net/kubuntu-ppa/backports-extra/ubuntu ${{ matrix.distroname }} main\"" >> ~/.pbuilderrc
         cat ~/.pbuilderrc
         sudo mkdir -p /root/
         sudo ln -s ~/.pbuilderrc /root/
