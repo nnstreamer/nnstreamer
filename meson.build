@@ -4,7 +4,7 @@
 project('nnstreamer', 'c', 'cpp',
   version: '2.7.0',
   license: ['LGPL-2.1'],
-  meson_version: '>=0.50.0',
+  meson_version: '>=0.62.0',
   default_options: [
     'werror=true',
     'warning_level=2',
@@ -23,6 +23,7 @@ cc = meson.get_compiler('c')
 cxx = meson.get_compiler('cpp')
 build_platform = ''
 so_ext = 'so'
+fs = import('fs')
 
 if get_option('enable-tizen')
   # Pass __TIZEN__ to the compiler
@@ -169,9 +170,8 @@ flatbuf_dep = disabler()
 flatbuf_version_check_dep = disabler()
 flatc_dep = disabler()
 if flatc.found()
-  # TODO: After bumping up meson version to 0.62.0, we can use flatc.version()
   # Please refer https://mesonbuild.com/Reference-manual_returned_external_program.html#external_programversion
-  flatc_ver = run_command(flatc, '--version', check : true).stdout().split()[2]
+  flatc_ver = flatc.version()
   flatbuf_dep = dependency('flatbuffers', version: flatc_ver,
       required : get_option('flatbuf-support'),
       not_found_message : 'flatbuffers version '+flatc_ver+' is required because flatc (flatbuf-compiler) '+flatc_ver+' is installed'
@@ -212,10 +212,7 @@ if not get_option('snpe-support').disabled()
       SNPE_ROOT = cmd.stdout().strip()
       if SNPE_ROOT != ''
         message('Got SNPE_ROOT: @0@'.format(SNPE_ROOT))
-        # TODO: This is not a portable way to check if a directory exists
-        # After bumping up to 0.53.0, the following line can be replaced with one that uses FS module
-        snpe_dir_not_exist = run_command('[', '-d', SNPE_ROOT, ']', check : false).returncode()
-        if snpe_dir_not_exist != 0
+        if not fs.is_dir(SNPE_ROOT)
           error('@0@ does not exists'.format(SNPE_ROOT))
         endif
 
@@ -232,7 +229,7 @@ if not get_option('snpe-support').disabled()
         ]
 
         foreach snpe_include_dir : snpe_include_dirs
-          if run_command('[', '-d', snpe_include_dir, ']').returncode() == 0
+          if fs.is_dir(snpe_include_dir)
             snpe_include_path = snpe_include_dir
             break
           endif
@@ -880,10 +877,10 @@ if get_option('enable-test')
     configuration: nnstreamer_test_conf
   )
 
-  path_gst_plugin = join_paths(meson.build_root(), 'gst')
-  path_ext_plugin = join_paths(meson.build_root(), 'ext')
-
-  path_nns_conf = join_paths(meson.build_root(), 'nnstreamer-test.ini')
+  path_gst_plugin = join_paths(meson.project_build_root(), 'gst')
+  path_ext_plugin = join_paths(meson.project_build_root(), 'ext')
+  # path_nns_conf is used for unittests
+  path_nns_conf = join_paths(meson.project_build_root(), 'nnstreamer-test.ini')
   path_nns_plugin_prefix = join_paths(path_ext_plugin, 'nnstreamer')
   path_nns_plugin_filters = join_paths(path_nns_plugin_prefix, 'tensor_filter')
   path_nns_plugin_decoders = join_paths(path_nns_plugin_prefix, 'tensor_decoder')
@@ -897,8 +894,8 @@ if get_option('enable-test')
   testenv.set('NNSTREAMER_DECODERS', path_nns_plugin_decoders)
   testenv.set('NNSTREAMER_CONVERTERS', path_nns_plugin_converters)
   testenv.set('NNSTREAMER_TRAINERS', path_nns_plugin_trainers)
-  testenv.set('NNSTREAMER_SOURCE_ROOT_PATH', meson.source_root())
-  testenv.set('NNSTREAMER_BUILD_ROOT_PATH', meson.build_root())
+  testenv.set('NNSTREAMER_SOURCE_ROOT_PATH', meson.project_source_root())
+  testenv.set('NNSTREAMER_BUILD_ROOT_PATH', meson.project_build_root())
   if have_python3
     py3_module_path = join_paths(meson.current_build_dir(), 'ext/nnstreamer/extra')
     run_command('ln', '-sf',

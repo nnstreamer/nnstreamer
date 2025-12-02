@@ -25,9 +25,7 @@ if grpc_support_is_available
         output: ['@BASENAME@.grpc.pb.h', '@BASENAME@.grpc.pb.cc'],
         arguments : [
           '--proto_path=@CURRENT_SOURCE_DIR@/include',
-          #FIXME: external_program.path() will be deprecated in 0.55.0
-          #      use external_program.full_path() instead.
-          '--plugin=protoc-gen-grpc=' + prog_grpc_cpp_plugin.path(),
+          '--plugin=protoc-gen-grpc=' + prog_grpc_cpp_plugin.full_path(),
           '--grpc_out=@BUILD_DIR@',
           '@INPUT@'
         ]

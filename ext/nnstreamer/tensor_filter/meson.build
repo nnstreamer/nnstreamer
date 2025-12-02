@@ -271,7 +271,6 @@ if tflite2_support_is_available
     ##       If the user has downloaded libtensorflow-lite manually, it may incur inconsistency.
     ## @todo This does not use pkgconfig or find_library/meson-dep info
     ##       because it does not allow querying libpath and static/shared of a dependency object.
-    ## @todo If we are allowed to use meson > 0.53, use "FS" module!
 
     filepaths = [
         join_paths(meson.current_source_dir(), 'libtensorflow2-lite.so'),
@@ -283,7 +282,7 @@ if tflite2_support_is_available
     ]
     filepath = ''
     foreach file : filepaths
-      if run_command('bash', '-c', '[ -f "' + file + '" ]', check : false).returncode() == 0
+      if fs.is_file(file)
         message('Found: ' + file)
         filepath = file
         configure_file (
@@ -308,7 +307,7 @@ if tflite2_support_is_available
       ]
 
       foreach file : filepaths
-        if run_command('bash', '-c', '[ -f "'+ file + '" ]', check : false).returncode() == 0
+        if fs.is_file(file)
           somake = run_command('gcc', '-shared', '-o', custom_tflite_lib, '-Wl,--whole-archive', file, '-Wl,--no-whole-archive', check : false)
           if somake.returncode() == 0
             message('Successfully created libtensorflow2-lite-custom.so from archive: ' + file)
@@ -515,7 +514,7 @@ if get_option('enable-edgetpu')
     This temporarily overrides the runtime dependency on edge tpu and
     it is removed after installation.
     '''
-    rpath_edgetpu_test_helper = join_paths(meson.build_root(), 'tests/nnstreamer_filter_edgetpu')
+    rpath_edgetpu_test_helper = join_paths(meson.project_build_root(), 'tests/nnstreamer_filter_edgetpu')
   endif
 
   shared_library('nnstreamer_filter_edgetpu',
@@ -583,10 +582,7 @@ if get_option('enable-mediapipe')
     error('MEDIAPIPE_HOME is not set')
   endif
   message('MEDIAPIPE_HOME: ' + MEDIAPIPE_HOME)
-  # TODO: This is not a portable way to check if a directory exists
-  # After bumping up to 0.53.0, the following line can be replaced with one that uses FS module
-  mediapipe_dir_exist = run_command('[', '-d', MEDIAPIPE_HOME, ']', check : false).returncode()
-  if mediapipe_dir_exist != 0
+  if not fs.is_dir(MEDIAPIPE_HOME)
     error('Cannot find MEDIAPIPE_HOME: ' + MEDIAPIPE_HOME)
   endif
 
@@ -597,7 +593,7 @@ if get_option('enable-mediapipe')
     join_paths(MEDIAPIPE_HOME, 'bazel-mediapipe/external/com_google_absl'),
   )
 
-  run_command('sh', '-c', meson.source_root() + '/tools/development/gen_mediapipe_libs.sh ' + nnstreamer_libdir, check : true)
+  run_command('sh', '-c', meson.project_source_root() + '/tools/development/gen_mediapipe_libs.sh ' + nnstreamer_libdir, check : true)
 
   mediapipe_internal_dep = cxx.find_library('mediapipe_internal', dirs: nnstreamer_libdir)
   mediapipe_external_dep = cxx.find_library('mediapipe_external', dirs: nnstreamer_libdir)

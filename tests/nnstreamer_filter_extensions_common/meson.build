@@ -9,7 +9,7 @@ tizen_apptest_deps = [
 # Format for adding subplugin into extensions -
 # [name, extension abbreviation, dependencies, model file name/folder path/file path, test name]
 extensions = []
-custom_filter_path = join_paths(meson.build_root(), 'tests', 'nnstreamer_example',
+custom_filter_path = join_paths(meson.project_build_root(), 'tests', 'nnstreamer_example',
     'libnnstreamer_customfilter_passthrough.' + so_ext)
 extensions += [['custom', 'custom', nnstreamer_unittest_deps, custom_filter_path, 'custom']]
 extensions += [['custom', 'custom', nnstreamer_unittest_deps, custom_filter_path, 'custom-set']]
