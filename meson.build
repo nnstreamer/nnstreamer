@@ -170,7 +170,6 @@ flatbuf_dep = disabler()
 flatbuf_version_check_dep = disabler()
 flatc_dep = disabler()
 if flatc.found()
-  # Please refer https://mesonbuild.com/Reference-manual_returned_external_program.html#external_programversion
   flatc_ver = flatc.version()
   flatbuf_dep = dependency('flatbuffers', version: flatc_ver,
       required : get_option('flatbuf-support'),
@@ -285,7 +284,8 @@ if not get_option('tensorrt-support').disabled() or \
   not get_option('dali-support').disabled()
   nvcc = find_program('nvcc', required: false)
   if nvcc.found()
-    cuda_version_cmd = run_command(find_program('tools/cuda-version.sh'), check: false)
+    cuda_version_sh = join_paths(meson.project_source_root(), 'tools', 'cuda-version.sh')
+    cuda_version_cmd = run_command(find_program(cuda_version_sh), check: false)
     if cuda_version_cmd.returncode() != 0
       message('ERROR: tools/cuda-version.sh exited with exit code: @0@, tensorrt10-support and/or dali-support will be disabled.'.format(cuda_version_cmd.returncode()))
     else
@@ -310,8 +310,8 @@ nvinfer_dep = dependency('', required: false)
 nvuffparsers_dep = dependency('', required: false)
 nvonnxparser_dep = dependency('', required: false)
 if cuda_major > 0 and (not get_option('tensorrt-support').disabled() or not get_option('tensorrt10-support').disabled())
-
-  tensorrt_version_cmd = run_command(find_program('tools/tensorrt-version.sh'), check: false)
+  tensorrt_version_sh = join_paths(meson.project_source_root(), 'tools', 'tensorrt-version.sh')
+  tensorrt_version_cmd = run_command(find_program(tensorrt_version_sh), check: false)
   if tensorrt_version_cmd.returncode() != 0
     message('ERROR: tools/tensorrt-version.sh exited with exit code: @0@, tensorrt10-support will be disabled.'.format(tensorrt_version_cmd.returncode()))
   else
@@ -452,7 +452,7 @@ if not get_option('python3-support').disabled()
 
     # Numpy uses different paths per version (>=2.2: _core, <2.2: core)
     numpy_version = run_command('python3', ['-c', 'import numpy as np; print(np.__version__)'], check : false).stdout().strip()
-    message ('numpy version: @0@'.format(numpy_version))
+    message('numpy version: @0@'.format(numpy_version))
 
     numpy_inc_path = '/numpy/core/include' # if it's < 2.2 or version-check has failed.
     if numpy_version.version_compare('>=2.2')
@@ -496,7 +496,8 @@ endif
 dali_dep = dependency('', required: false)
 if not get_option('dali-support').disabled() and have_python3
   # Read include folder, lib folder, compile args
-  dali_config_cmd = run_command(find_program('tools/dali-config.sh'), check: false)
+  dali_config_sh = join_paths(meson.project_source_root(), 'tools', 'dali-config.sh')
+  dali_config_cmd = run_command(find_program(dali_config_sh), check: false)
   if dali_config_cmd.returncode() != 0
     message('ERROR: tools/dali-config.sh exited with exit code: @0@, dali-support will be disabled.'.format(dali_config_cmd.returncode()))
   else
@@ -796,7 +797,8 @@ configure_file(input: 'nnstreamer-internal.pc.in', output: 'nnstreamer-internal.
 )
 
 # Check whether mqtt broker is running or not.
-check_mosquitto = run_command ('bash', './tests/check_broker.sh', check : true).stdout()
+check_mosquitto_sh = join_paths(meson.project_source_root(), 'tests', 'check_broker.sh')
+check_mosquitto = run_command ('bash', check_mosquitto_sh, check: true).stdout()
 if check_mosquitto != ''
   add_project_arguments('-D__MQTT_BROKER_ENABLED__=1', language: ['c', 'cpp'])
 endif
@@ -897,10 +899,11 @@ if get_option('enable-test')
   testenv.set('NNSTREAMER_SOURCE_ROOT_PATH', meson.project_source_root())
   testenv.set('NNSTREAMER_BUILD_ROOT_PATH', meson.project_build_root())
   if have_python3
-    py3_module_path = join_paths(meson.current_build_dir(), 'ext/nnstreamer/extra')
+    py3_module_path = join_paths(meson.current_build_dir(), 'ext', 'nnstreamer', 'extra')
     run_command('ln', '-sf',
-        py3_module_path + '/nnstreamer_python3.' + so_ext,
-        py3_module_path + '/nnstreamer_python.' + so_ext, check : true)
+        join_paths(py3_module_path, 'nnstreamer_python3.@0@'.format(so_ext)),
+        join_paths(py3_module_path, 'nnstreamer_python.@0@'.format(so_ext)),
+        check: true)
     testenv.set('PYTHONPATH', py3_module_path)
   endif
 

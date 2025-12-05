@@ -53,7 +53,7 @@ if grpc_support_is_available
 
   # Don't generate protobuf/flatbuf files twice
   if protobuf_support_is_available
-    nns_protobuf_grpc_lib = shared_library ('nnstreamer_grpc_protobuf',
+    shared_library ('nnstreamer_grpc_protobuf',
       sources : [grpc_pb_gen_src, 'nnstreamer_grpc_protobuf.cc'],
       dependencies : [grpc_util_dep, grpc_support_deps, protobuf_util_dep],
       install: true,
@@ -64,7 +64,7 @@ if grpc_support_is_available
   endif
 
   if flatbuf_support_is_available
-    nns_flatbuf_grpc_lib = shared_library ('nnstreamer_grpc_flatbuf',
+    shared_library ('nnstreamer_grpc_flatbuf',
       sources : [grpc_fb_gen_src, 'nnstreamer_grpc_flatbuf.cc'],
       dependencies : [grpc_util_dep, grpc_support_deps, flatbuf_util_dep],
       install: true,
