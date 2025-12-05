@@ -296,7 +296,6 @@ class TFLiteCore
   tflite_delegate_e delegate;
 
   TFLiteInterpreter *interpreter;
-  TFLiteInterpreter *interpreter_sub;
 
   gchar *shared_tensor_filter_key;
   gboolean checkSharedInterpreter (const GstTensorFilterProperties *prop);
@@ -964,7 +963,6 @@ TFLiteCore::TFLiteCore (const GstTensorFilterProperties *prop)
   num_threads = -1;
   accelerator = ACCL_NONE;
   delegate = TFLITE_DELEGATE_NONE;
-  interpreter_sub = nullptr;
   shared_tensor_filter_key = NULL;
 
   if (prop->shared_tensor_filter_key) {
@@ -1300,15 +1298,16 @@ replace_interpreter (void *instance, void *interpreter)
 int
 TFLiteCore::reloadModel (const char *_model_path)
 {
-  TFLiteInterpreter *interpreter_temp = interpreter;
-  const char *_ext_delegate_path;
-  GHashTable *_ext_delegate_kv;
-
   if (!g_file_test (_model_path, G_FILE_TEST_IS_REGULAR)) {
     ml_loge ("The path of model file(s), %s, to reload is invalid.", _model_path);
     return -EINVAL;
   }
-  interpreter_sub = new TFLiteInterpreter ();
+
+  TFLiteInterpreter *interpreter_temp = interpreter;
+  TFLiteInterpreter *interpreter_sub = new TFLiteInterpreter ();
+  const char *_ext_delegate_path;
+  GHashTable *_ext_delegate_kv;
+
   interpreter_sub->setModelPath (_model_path);
   interpreter->getExtDelegate (&_ext_delegate_path, &_ext_delegate_kv);
   interpreter_sub->setExtDelegate (_ext_delegate_path, _ext_delegate_kv);
