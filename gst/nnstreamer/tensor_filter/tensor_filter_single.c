@@ -389,7 +389,7 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
   GstTensorMemory out_tensors[NNS_TENSOR_SIZE_LIMIT] = { {0} }; /** @todo refactor this local variable */
   guint i;
   gint status;
-  gint64 start_time, end_time;  /* variable for latency profiling */
+  gint64 invoke_time; /* variable for latency profiling */
 
   spriv = G_TENSOR_FILTER_SINGLE_PRIV (self);
   priv = &spriv->filter_priv;
@@ -428,17 +428,22 @@ g_tensor_filter_single_invoke (GTensorFilterSingle * self,
     }
   }
 
-  start_time = g_get_monotonic_time ();
+  invoke_time = g_get_monotonic_time ();
   GST_TF_FW_INVOKE_COMPAT (priv, status, input, _out);
-  end_time = g_get_monotonic_time ();
-
-  /* check invoke latency when latency profiling is enabled */
-  if (priv->latency_mode > 0) {
-    ml_logi ("[%s] Invoke took %.3f ms", TF_MODELNAME (&(priv->prop)),
-        (end_time - start_time) / 1000.0f);
-  }
 
   if (status == 0) {
+    /* check invoke latency when latency profiling is enabled */
+    if (priv->latency_mode > 0) {
+      g_autofree gchar *model_file = NULL;
+
+      if (priv->prop.model_files)
+        model_file = g_path_get_basename (priv->prop.model_files[0]);
+
+      invoke_time = g_get_monotonic_time () - invoke_time;
+      ml_logi ("[%s][%s] Invoke took %.3f ms", priv->prop.fwname,
+          model_file ? model_file : "No model file", invoke_time / 1000.0f);
+    }
+
     if (_out != output) {
       for (i = 0; i < priv->prop.output_meta.num_tensors; i++)
         memcpy (output[i].data, _out[i].data, output[i].size);
