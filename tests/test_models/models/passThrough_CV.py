@@ -8,6 +8,7 @@
 
 import numpy as np
 import nnstreamer_python as nns
+import sys
 import threading
 import time
 import cv2
@@ -54,7 +55,6 @@ class CustomFilter(object):
 
 # ----------------------------------------------------------------------
 def main():
-    import sys
     cf = CustomFilter()
     print(cf)
     shape, dtype = [D1, D2, D3, D4], "uint8"
