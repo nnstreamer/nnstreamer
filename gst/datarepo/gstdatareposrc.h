@@ -41,7 +41,6 @@ typedef struct _GstDataRepoSrcClass GstDataRepoSrcClass;
 struct _GstDataRepoSrc {
 
   GstPushSrc parent;            /**< parent object */
-  GstPad *src_pad;
 
   gboolean is_start;            /**< check if datareposrc is started */
   gboolean successful_read;     /**< used for checking EOS when reading more than one images(multi-files) from a path */
