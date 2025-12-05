@@ -90,9 +90,6 @@ class TensorFilterLlamaCpp : public tensor_filter_subplugin
   llama_model *model;
   llama_context *ctx;
   llama_sampler *sampler;
-  llama_model_params model_params;
-  llama_sampler_chain_params sampler_params;
-  llama_context_params ctx_params;
   llama_adapter_lora *lora_adapter;
 
   int n_processed = 0;
@@ -103,7 +100,6 @@ class TensorFilterLlamaCpp : public tensor_filter_subplugin
   float top_p = TOP_P_DISABLED;
   float typical_p = TYPICAL_P_DISABLED;
   float temperature = TEMPERATURE_DISABLED;
-  std::string lora_path;
   std::string save_ctx_path;
   std::string load_ctx_path;
 
@@ -216,19 +212,18 @@ TensorFilterLlamaCpp::parseCustomProperties (const GstTensorFilterProperties *pr
     uniq_g_strv option (g_strsplit (options.get ()[i], ":", -1), g_strfreev);
 
     if (g_strv_length (option.get ()) > 1) {
-      g_strstrip (option.get ()[0]);
-      g_strstrip (option.get ()[1]);
+      gchar *key = g_strstrip (option.get ()[0]);
+      gchar *value = g_strstrip (option.get ()[1]);
 
-      std::string prop_name = option.get ()[0];
+      std::string prop_name (key);
       std::transform (prop_name.begin (), prop_name.end (), prop_name.begin (),
           [] (unsigned char c) { return std::tolower (c); });
       auto it = property_setters_.find (prop_name);
 
       if (it != property_setters_.end ()) {
-        it->second (option.get ()[1]);
+        it->second (value);
       } else {
-        throw std::invalid_argument (
-            "Unknown custom property " + std::string (option.get ()[0]));
+        throw std::invalid_argument ("Unknown custom property " + prop_name);
       }
     }
   }
@@ -258,7 +253,7 @@ TensorFilterLlamaCpp::configure_instance (const GstTensorFilterProperties *prop)
   ggml_backend_load_all ();
 
   /* initialize model */
-  model_params = llama_model_default_params ();
+  llama_model_params model_params = llama_model_default_params ();
   model_params.n_gpu_layers = n_gpu_layers;
 
   model = llama_model_load_from_file ((char *) prop->model_files[0], model_params);
@@ -267,7 +262,7 @@ TensorFilterLlamaCpp::configure_instance (const GstTensorFilterProperties *prop)
     throw std::runtime_error ("Failed to load model");
   }
 
-  ctx_params = llama_context_default_params ();
+  llama_context_params ctx_params = llama_context_default_params ();
   ctx_params.n_ctx = n_ctx;
   /* n_batch is the maximum number of tokens that can be processed in a single call to llama_decode */
   ctx_params.n_batch = n_ctx;
@@ -294,17 +289,17 @@ TensorFilterLlamaCpp::configure_instance (const GstTensorFilterProperties *prop)
   if (!load_ctx_path.empty ()) {
     if (std::filesystem::exists (load_ctx_path)) {
       if (!loadContextFromFile (load_ctx_path)) {
-        ml_loge ("Failed to load context from %s, continuing with fresh context",
+        ml_logw ("Failed to load context from %s, continuing with fresh context",
             load_ctx_path.c_str ());
       }
     } else {
-      ml_logi ("Context file %s not found, starting with fresh context",
+      ml_logw ("Context file %s not found, starting with fresh context",
           load_ctx_path.c_str ());
     }
   }
 
   /* initialize sampler */
-  sampler_params = llama_sampler_chain_default_params ();
+  llama_sampler_chain_params sampler_params = llama_sampler_chain_default_params ();
   sampler_params.no_perf = false;
 
   sampler = llama_sampler_chain_init (sampler_params);
@@ -483,7 +478,7 @@ TensorFilterLlamaCpp::generateTokens (GstTensorFilterProperties *prop,
   if (!prop->invoke_async) {
     /* Final output for synchronous mode is created here. */
     if (!createOutputTensor (prop, output, output_accumulated)) {
-      throw std::runtime_error ("generateTokens: Failed to create output tensor");
+      throw std::runtime_error ("Failed to create output tensor while generating tokens");
     }
   }
 }
@@ -636,6 +631,7 @@ TensorFilterLlamaCpp::saveContextToFile (const std::string &path)
 
   } catch (const std::exception &e) {
     ml_loge ("Failed to write context file: %s (file: %s)", e.what (), path.c_str ());
+    file.close ();
 
     return false;
   }
