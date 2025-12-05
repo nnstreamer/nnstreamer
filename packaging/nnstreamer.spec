@@ -1005,7 +1005,8 @@ export CXXFLAGS+=" -fprofile-update=atomic"
 
 mkdir -p %{builddir}
 
-meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_lib} \
+meson setup %{builddir} \
+	--buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir=%{_lib} \
 	--bindir=%{nnstbindir} --includedir=include -Dsubplugindir=%{_prefix}/lib/nnstreamer \
 	%{enable_tizen} %{element_restriction} %{fw_priority} -Denable-env-var=false -Denable-symbolic-link=false \
 	%{enable_tf_lite} %{enable_tf2_lite} %{enable_tf} %{enable_pytorch} %{enable_caffe2} %{enable_python3} \
@@ -1013,8 +1014,7 @@ meson --buildtype=plain --prefix=%{_prefix} --sysconfdir=%{_sysconfdir} --libdir
 	%{enable_flatbuf} %{enable_trix_engine} %{enable_datarepo} \
 	%{enable_tizen_sensor} %{enable_mqtt} %{enable_lua} %{enable_tvm} %{enable_onnxruntime} %{enable_executorch} \
         %{enable_test} %{enable_test_coverage} %{install_test} \
-	%{fp16_support} %{nnsedge} %{enable_ml_agent} %{enable_tizen_hal} \
-	%{builddir}
+	%{fp16_support} %{nnsedge} %{enable_ml_agent} %{enable_tizen_hal}
 
 ninja -C %{builddir} %{?_smp_mflags}
 

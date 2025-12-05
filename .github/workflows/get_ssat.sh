@@ -10,7 +10,7 @@ mkdir -p /tmp/bmp2png
 pushd /tmp/bmp2png
 wget https://raw.githubusercontent.com/myungjoo/SSAT/main/util/bmp2png.c
 wget https://raw.githubusercontent.com/myungjoo/SSAT/main/util/meson.build
-meson build
+meson setup build
 ninja -C build
 cp build/bmp2png /usr/bin
 popd
