@@ -307,21 +307,14 @@ _fill_in_vstr (gchar *** fullpath_vstr, gchar *** name_vstr,
   lstN = g_slist_reverse (lstN);
 
   *fullpath_vstr = g_malloc0_n (counter + 1, sizeof (gchar *));
-  if (*fullpath_vstr == NULL) {
-    ml_loge ("Failed to allocate memory for fullpath_vstr.");
-    g_slist_free_full (lstF, g_free);
-    g_slist_free_full (lstN, g_free);
-    *name_vstr = NULL;
-    return;
-  }
-
   *name_vstr = g_malloc0_n (counter + 1, sizeof (gchar *));
-   if (*name_vstr == NULL) {
-    ml_loge ("Failed to allocate memory for name_vstr.");
-    g_free (*fullpath_vstr);
-    *fullpath_vstr = NULL;
+
+  if (*fullpath_vstr == NULL || *name_vstr == NULL) {
+    ml_loge ("Failed to allocate memory for subplugins while loading config.");
     g_slist_free_full (lstF, g_free);
     g_slist_free_full (lstN, g_free);
+    g_clear_pointer (fullpath_vstr, g_free);
+    g_clear_pointer (name_vstr, g_free);
     return;
   }
 
@@ -580,7 +573,7 @@ static GHashTable *custom_table = NULL;
 gchar *
 nnsconf_get_custom_value_string (const gchar * group, const gchar * key)
 {
-  gchar *hashkey = g_strdup_printf ("[%s]%s", group, key);
+  g_autofree gchar *hashkey = g_strdup_printf ("[%s]%s", group, key);
   gchar *value = NULL;
 
   nnsconf_loadconf (FALSE);     /* Load .ini file path */
@@ -616,12 +609,8 @@ nnsconf_get_custom_value_string (const gchar * group, const gchar * key)
     }
 
     if (value) {
-      g_hash_table_insert (custom_table, hashkey, value);
-    } else {
-      g_free (hashkey);
+      g_hash_table_insert (custom_table, g_steal_pointer (&hashkey), value);
     }
-  } else {
-    g_free (hashkey);
   }
 
   return g_strdup (value);
