@@ -9,8 +9,6 @@
 # @brief Generate golden test results for test cases
 # @author Jijoong Moon <jijoong.moon@samsung.com>
 
-import sys
-import os
 import numpy as np
 import random
 from itertools import product

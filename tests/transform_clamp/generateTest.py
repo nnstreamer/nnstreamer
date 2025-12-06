@@ -9,8 +9,6 @@
 # @brief Generate golden test results for clamp test cases
 # @author Dongju Chae <dongju.chae@samsung.com>
 
-import sys
-import os
 import numpy as np
 
 

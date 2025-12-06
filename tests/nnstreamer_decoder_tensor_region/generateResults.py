@@ -10,9 +10,9 @@
 import gi
 gi.require_version('Gst', '1.0')
 from gi.repository import Gst
-from PIL import Image
 import numpy as np
 import sys
+
 
 def resize_and_crop_image(input_image, output_image, x, y, width, height, new_width, new_height):
     Gst.init(None)
@@ -56,6 +56,7 @@ def resize_and_crop_image(input_image, output_image, x, y, width, height, new_wi
     # Save the cropped image as output_image
     with open(output_image, "wb") as file:
         file.write(cropped_image.tobytes())
+
 
 # Example usage
 input_image = sys.argv[1]
