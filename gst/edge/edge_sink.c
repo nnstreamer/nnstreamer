@@ -276,17 +276,11 @@ gst_edgesink_finalize (GObject * object)
 {
   GstEdgeSink *self = GST_EDGESINK (object);
 
-  g_free (self->host);
-  self->host = NULL;
+  g_clear_pointer (&self->host, g_free);
+  g_clear_pointer (&self->dest_host, g_free);
+  g_clear_pointer (&self->topic, g_free);
+  g_clear_pointer (&self->custom_lib, g_free);
 
-  g_free (self->dest_host);
-  self->dest_host = NULL;
-
-  g_free (self->topic);
-  self->topic = NULL;
-
-  g_free (self->custom_lib);
-  self->custom_lib = NULL;
   g_mutex_clear (&self->lock);
   g_cond_clear (&self->cond);
 
@@ -305,10 +299,10 @@ gst_edgesink_finalize (GObject * object)
 static int
 _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
 {
+  GstEdgeSink *self = GST_EDGESINK (user_data);
   nns_edge_event_e event_type;
   int ret = NNS_EDGE_ERROR_NONE;
 
-  GstEdgeSink *self = GST_EDGESINK (user_data);
   ret = nns_edge_event_get_type (event_h, &event_type);
   if (NNS_EDGE_ERROR_NONE != ret) {
     nns_loge ("Failed to get event type!");
@@ -384,7 +378,8 @@ gst_edgesink_start (GstBaseSink * basesink)
 
   nns_edge_set_event_callback (self->edge_h, _nns_edge_event_cb, self);
 
-  if (0 != nns_edge_start (self->edge_h)) {
+  ret = nns_edge_start (self->edge_h);
+  if (NNS_EDGE_ERROR_NONE != ret) {
     nns_loge
         ("Failed to start NNStreamer-edge. Please check server IP and port.");
     return FALSE;
@@ -432,15 +427,16 @@ static gboolean
 gst_edgesink_stop (GstBaseSink * basesink)
 {
   GstEdgeSink *self = GST_EDGESINK (basesink);
-  int ret;
+  int ret = NNS_EDGE_ERROR_NONE;
 
-  ret = nns_edge_stop (self->edge_h);
-  if (NNS_EDGE_ERROR_NONE != ret) {
-    nns_loge ("Failed to stop edge (error code: %d).", ret);
-    return FALSE;
+  if (self->edge_h) {
+    ret = nns_edge_stop (self->edge_h);
+    if (NNS_EDGE_ERROR_NONE != ret) {
+      nns_loge ("Failed to stop edge (error code: %d).", ret);
+    }
   }
 
-  return TRUE;
+  return (ret == NNS_EDGE_ERROR_NONE);
 }
 
 /**

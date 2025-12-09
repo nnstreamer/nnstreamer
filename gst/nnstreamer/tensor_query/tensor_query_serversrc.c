@@ -177,17 +177,15 @@ gst_tensor_query_serversrc_finalize (GObject * object)
   GstTensorQueryServerSrc *src = GST_TENSOR_QUERY_SERVERSRC (object);
   nns_edge_data_h data_h;
 
-  g_free (src->host);
-  src->host = NULL;
-  g_free (src->dest_host);
-  src->dest_host = NULL;
-  g_free (src->topic);
-  src->topic = NULL;
+  g_clear_pointer (&src->host, g_free);
+  g_clear_pointer (&src->dest_host, g_free);
+  g_clear_pointer (&src->topic, g_free);
 
   while ((data_h = g_async_queue_try_pop (src->msg_queue))) {
     nns_edge_data_destroy (data_h);
   }
-  g_async_queue_unref (src->msg_queue);
+
+  g_clear_pointer (&src->msg_queue, g_async_queue_unref);
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -198,10 +196,10 @@ gst_tensor_query_serversrc_finalize (GObject * object)
 static int
 _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
 {
+  GstTensorQueryServerSrc *src = (GstTensorQueryServerSrc *) user_data;
   nns_edge_event_e event_type;
   int ret = NNS_EDGE_ERROR_NONE;
 
-  GstTensorQueryServerSrc *src = (GstTensorQueryServerSrc *) user_data;
   ret = nns_edge_event_get_type (event_h, &event_type);
   if (NNS_EDGE_ERROR_NONE != ret) {
     nns_loge ("Failed to get event type!");

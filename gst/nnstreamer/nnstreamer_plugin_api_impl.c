@@ -1024,6 +1024,8 @@ _get_flexible_caps (const GstTensorsConfig * config)
 {
   GstCaps *caps;
 
+  g_return_val_if_fail (config != NULL, NULL);
+
   caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
 
   if (config->rate_n >= 0 && config->rate_d > 0) {
@@ -1435,9 +1437,7 @@ gst_tensors_caps_from_config (const GstTensorsConfig * config)
     caps = _get_tensors_caps (config);
   }
 
-  caps = gst_caps_truncate (caps);
-
-  return caps;
+  return gst_caps_truncate (caps);
 }
 
 /**
@@ -1453,9 +1453,8 @@ gst_tensor_caps_from_config (const GstTensorsConfig * config)
   g_return_val_if_fail (config != NULL, NULL);
 
   caps = _get_tensor_caps (config);
-  caps = gst_caps_truncate (caps);
 
-  return caps;
+  return gst_caps_truncate (caps);
 }
 
 /**

@@ -420,7 +420,6 @@ gst_mqtt_src_class_finalize (GObject * object)
     GST_WARNING_OBJECT (self, "Finalize MQTT disconnect failed, but continuing with cleanup");
   }
 
-
   /* Cleanup other resources - no mutex needed for these */
   g_free (self->mqtt_client_id);
   g_free (self->mqtt_host_address);
@@ -902,7 +901,6 @@ gst_mqtt_src_set_is_live (GstMqttSrc * self, const gboolean flag)
   self->is_live = flag;
   gst_base_src_set_live (GST_BASE_SRC (self), self->is_live);
 }
-
 
 /**
  * @brief MQTTAsync_responseOptions's onSuccess callback for MQTTAsync_disconnect ()
