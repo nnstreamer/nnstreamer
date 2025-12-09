@@ -31,8 +31,8 @@ pipeline_str = """
 
 pipeline = Gst.parse_launch(pipeline_str)
 
-# Define callback function to process the tensor data
 
+# Define callback function to process the tensor data
 def process_tensor_data(appsink):
     sample = appsink.emit("pull-sample")
     buffer = sample.get_buffer()
@@ -52,8 +52,6 @@ def process_tensor_data(appsink):
     loop.quit()
 
     return Gst.FlowReturn.OK
-
-
 
 
 # Set up the appsink element to capture tensor data

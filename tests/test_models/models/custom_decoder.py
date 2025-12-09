@@ -12,7 +12,6 @@
 #       https://github.com/google/flatbuffers/blob/master/python/flatbuffers/flexbuffers.py.
 
 import numpy as np
-import nnstreamer_python as nns
 from flatbuffers import flexbuffers
 
 

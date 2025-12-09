@@ -10,8 +10,6 @@
 # @date   20 Aug 2021
 # @bug    No known bugs
 
-import sys
-import os
 from itertools import product
 from struct import pack
 

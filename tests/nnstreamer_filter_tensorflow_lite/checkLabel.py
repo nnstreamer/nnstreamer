@@ -11,7 +11,6 @@
 
 import sys
 import os
-import string
 
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 from test_utils import convert_to_bytes, read_file, read_label

@@ -10,8 +10,6 @@
 # @author Jijoong Moon <jijoong.moon@samsung.com>
 #
 
-from __future__ import print_function
-
 import sys
 import os
 

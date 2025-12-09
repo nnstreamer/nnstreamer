@@ -7,8 +7,11 @@
 # @date   1 Aug 2022
 # @brief Generate Random Text File
 #
+
+from argparse import ArgumentParser
 from random import choice, randint
 import string
+
 
 def generate_random_text(length: int,
                          file_name: str) -> None:
@@ -17,9 +20,8 @@ def generate_random_text(length: int,
     with open(file_name, "w") as f:
         f.write(text)
 
-if __name__ == "__main__":
-    from argparse import ArgumentParser
 
+if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument('--file_name', type=str, default="random_text.txt")
     parser.add_argument('--length', type=int, default=randint(1e3, 1e6))
