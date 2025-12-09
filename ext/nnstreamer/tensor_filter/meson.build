@@ -514,7 +514,7 @@ if get_option('enable-edgetpu')
     This temporarily overrides the runtime dependency on edge tpu and
     it is removed after installation.
     '''
-    rpath_edgetpu_test_helper = join_paths(meson.project_build_root(), 'tests/nnstreamer_filter_edgetpu')
+    rpath_edgetpu_test_helper = join_paths(meson.project_build_root(), 'tests', 'nnstreamer_filter_edgetpu')
   endif
 
   shared_library('nnstreamer_filter_edgetpu',
@@ -589,11 +589,12 @@ if get_option('enable-mediapipe')
   mediapipe_incdir = include_directories(
     MEDIAPIPE_HOME,
     join_paths(MEDIAPIPE_HOME, 'bazel-bin'),
-    join_paths(MEDIAPIPE_HOME, 'bazel-mediapipe/external/eigen_archive'),
-    join_paths(MEDIAPIPE_HOME, 'bazel-mediapipe/external/com_google_absl'),
+    join_paths(MEDIAPIPE_HOME, 'bazel-mediapipe', 'external', 'eigen_archive'),
+    join_paths(MEDIAPIPE_HOME, 'bazel-mediapipe', 'external', 'com_google_absl'),
   )
 
-  run_command('sh', '-c', meson.project_source_root() + '/tools/development/gen_mediapipe_libs.sh ' + nnstreamer_libdir, check : true)
+  gen_mediapipe_sh = join_paths(meson.project_source_root(), 'tools', 'development', 'gen_mediapipe_libs.sh')
+  run_command(find_program(gen_mediapipe_sh), nnstreamer_libdir, check: true)
 
   mediapipe_internal_dep = cxx.find_library('mediapipe_internal', dirs: nnstreamer_libdir)
   mediapipe_external_dep = cxx.find_library('mediapipe_external', dirs: nnstreamer_libdir)

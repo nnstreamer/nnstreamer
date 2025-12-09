@@ -1,13 +1,4 @@
-
-cc = meson.get_compiler('c')
-
 libovx_dep = cc.find_library('ovxlib') # ovxlib library
-
-base_deps = [
-  glib_dep,
-  gobject_dep,
-  nnstreamer_single_dep
-]
 
 sources = [
   'tensor_filter_vivante.c'
@@ -19,19 +10,16 @@ sources = [
 # - '/usr/include/vivante', '/usr/include/VX'
 # - https://docs.khadas.com/vim3/HowToUseNpu.html
 # - https://dl.khadas.com/repos/vim3/ (Ubuntu 18.04, aarch64, Bionic)
-vivante_todo_incs = []
-vivante_todo_incs += include_directories(
+vivante_incs = include_directories(
   '/usr/include/ovx',
   '/usr/include/amlogic-vsi-npu-sdk'
 )
 
-vflag = '-ldl'
-
-subplugin_shared = shared_library('nnstreamer_filter_vivante',
+shared_library('nnstreamer_filter_vivante',
   sources,
-  include_directories: vivante_todo_incs,
-  dependencies: [base_deps, libovx_dep, libdl_dep],
-  link_args : vflag,
+  include_directories: vivante_incs,
+  dependencies: [nnstreamer_single_dep, libovx_dep, libdl_dep],
+  link_args : '-ldl',
   install: true,
   install_dir: filter_subplugin_install_dir
 )
