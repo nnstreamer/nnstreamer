@@ -617,7 +617,6 @@ TensorFilterLlamaCpp::saveContextToFile (const std::string &path)
 
   std::ofstream file (path, std::ios::binary);
   try {
-    file.exceptions (std::ofstream::failbit | std::ofstream::badbit);
 
     if (!file.is_open ()) {
       ml_loge ("Cannot create context file %s", path.c_str ());
