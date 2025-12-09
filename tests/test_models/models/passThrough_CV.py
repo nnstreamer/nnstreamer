@@ -42,8 +42,7 @@ class CustomFilter(object):
                 test_image = np.zeros((240, 320, 3), dtype=np.uint8)
                 # Use a unique filename to avoid conflicts
                 filename = f"/tmp/x_{threading.get_ident()}_{int(time.time() * 1000)}.png"
-                success = cv2.imwrite(filename, test_image)
-                if not success:
+                if not cv2.imwrite(filename, test_image):
                     print(f"Warning: Failed to write image to {filename}")
                     raise
         except Exception as e:
@@ -54,13 +53,11 @@ class CustomFilter(object):
 
 # ----------------------------------------------------------------------
 def main():
-    import sys
     cf = CustomFilter()
     print(cf)
     shape, dtype = [D1, D2, D3, D4], "uint8"
-    if 1 :
-        input_dims = [nns.TensorShape(shape, dtype)]
-#        cf.setInputDim(input_dims) # callback
+    input_dims = [nns.TensorShape(shape, dtype)]
+    # cf.setInputDim(input_dims) # callback
     for idx in range(10) :
         in_ = np.ones(shape).astype(np.uint8)
         in_ = (np.random.random(shape) * 255).astype(np.uint8)
