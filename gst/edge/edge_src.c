@@ -242,21 +242,17 @@ gst_edgesrc_class_finalize (GObject * object)
   nns_edge_data_h data_h;
 
   self->playing = FALSE;
-  g_free (self->dest_host);
-  self->dest_host = NULL;
 
-  g_free (self->topic);
-  self->topic = NULL;
-
-  g_free (self->custom_lib);
-  self->custom_lib = NULL;
+  g_clear_pointer (&self->dest_host, g_free);
+  g_clear_pointer (&self->topic, g_free);
+  g_clear_pointer (&self->custom_lib, g_free);
 
   if (self->msg_queue) {
     while ((data_h = g_async_queue_try_pop (self->msg_queue))) {
       nns_edge_data_destroy (data_h);
     }
-    g_async_queue_unref (self->msg_queue);
-    self->msg_queue = NULL;
+
+    g_clear_pointer (&self->msg_queue, g_async_queue_unref);
   }
 
   if (self->edge_h) {
@@ -304,14 +300,14 @@ gst_edgesrc_change_state (GstElement * element, GstStateChange transition)
 static int
 _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
 {
+  GstEdgeSrc *self = GST_EDGESRC (user_data);
   nns_edge_event_e event_type;
   int ret = NNS_EDGE_ERROR_NONE;
 
-  GstEdgeSrc *self = GST_EDGESRC (user_data);
-
-  if (0 != nns_edge_event_get_type (event_h, &event_type)) {
+  ret = nns_edge_event_get_type (event_h, &event_type);
+  if (NNS_EDGE_ERROR_NONE != ret) {
     nns_loge ("Failed to get event type!");
-    return NNS_EDGE_ERROR_UNKNOWN;
+    return ret;
   }
 
   switch (event_type) {
@@ -319,8 +315,10 @@ _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
     {
       nns_edge_data_h data;
 
-      nns_edge_event_parse_new_data (event_h, &data);
-      g_async_queue_push (self->msg_queue, data);
+      ret = nns_edge_event_parse_new_data (event_h, &data);
+      if (NNS_EDGE_ERROR_NONE == ret) {
+        g_async_queue_push (self->msg_queue, data);
+      }
       break;
     }
     case NNS_EDGE_EVENT_CONNECTION_CLOSED:
@@ -381,18 +379,20 @@ gst_edgesrc_start (GstBaseSrc * basesrc)
 
   nns_edge_set_event_callback (self->edge_h, _nns_edge_event_cb, self);
 
-  if (0 != nns_edge_start (self->edge_h)) {
+  ret = nns_edge_start (self->edge_h);
+  if (NNS_EDGE_ERROR_NONE != ret) {
     nns_loge
         ("Failed to start NNStreamer-edge. Please check server IP and port.");
     return FALSE;
   }
 
-  if (0 != nns_edge_connect (self->edge_h, self->dest_host, self->dest_port)) {
+  ret = nns_edge_connect (self->edge_h, self->dest_host, self->dest_port);
+  if (NNS_EDGE_ERROR_NONE != ret) {
     nns_loge ("Failed to connect to edge server!");
     return FALSE;
   }
-  self->playing = TRUE;
 
+  self->playing = TRUE;
   return TRUE;
 }
 
@@ -403,17 +403,17 @@ static gboolean
 gst_edgesrc_stop (GstBaseSrc * basesrc)
 {
   GstEdgeSrc *self = GST_EDGESRC (basesrc);
-  int ret;
+  int ret = NNS_EDGE_ERROR_NONE;
 
-  self->playing = FALSE;
-  ret = nns_edge_stop (self->edge_h);
-
-  if (NNS_EDGE_ERROR_NONE != ret) {
-    nns_loge ("Failed to stop edgesrc (error code: %d).", ret);
-    return FALSE;
+  if (self->edge_h) {
+    ret = nns_edge_stop (self->edge_h);
+    if (NNS_EDGE_ERROR_NONE != ret) {
+      nns_loge ("Failed to stop edgesrc (error code: %d).", ret);
+    }
   }
 
-  return TRUE;
+  self->playing = FALSE;
+  return (ret == NNS_EDGE_ERROR_NONE);
 }
 
 /**

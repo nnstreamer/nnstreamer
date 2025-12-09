@@ -146,18 +146,19 @@ tensorrt_subplugin::tensorrt_subplugin ()
  */
 tensorrt_subplugin::~tensorrt_subplugin ()
 {
+  cudaError_t status;
+
   gst_tensors_info_free (&_inputTensorMeta);
   gst_tensors_info_free (&_outputTensorMeta);
 
   if (_inputBuffer != nullptr) {
-    cudaError_t free_status = cudaFree (_inputBuffer);
-    if (free_status != cudaSuccess) {
-      ml_loge ("Failed to free input CUDA buffer: %s", cudaGetErrorString (free_status));
+    status = cudaFree (_inputBuffer);
+    if (status != cudaSuccess) {
+      ml_loge ("Failed to free input CUDA buffer: %s", cudaGetErrorString (status));
     }
   }
 
-  if (_uff_path != nullptr)
-    g_free (_uff_path);
+  g_clear_pointer (&_uff_path, g_free);
 }
 
 /**
@@ -218,6 +219,8 @@ tensorrt_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 void
 tensorrt_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
+  cudaError_t status;
+
   /* If internal _inputBuffer is nullptr, then allocate GPU memory */
   if (!_inputBuffer) {
     if (allocBuffer (&_inputBuffer, input->size) != 0) {
@@ -239,20 +242,26 @@ tensorrt_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *outpu
   std::vector<void *> bindings = { _inputBuffer, output->data };
   if (!_Context->execute (1, bindings.data ())) {
     ml_loge ("Failed to execute the network");
-    cudaFree (output->data);
+
+    status = cudaFree (output->data);
+    if (status != cudaSuccess) {
+      ml_loge ("Failed to free output CUDA buffer during error handling: %s",
+          cudaGetErrorString (status));
+    }
+
     output->data = nullptr;
     throw std::runtime_error ("Failed to execute the network");
   }
 
   /* wait for GPU to finish the inference */
-  cudaError_t sync_status = cudaDeviceSynchronize ();
-  if (sync_status != cudaSuccess) {
-    ml_loge ("CUDA device synchronize failed: %s", cudaGetErrorString (sync_status));
+  status = cudaDeviceSynchronize ();
+  if (status != cudaSuccess) {
+    ml_loge ("CUDA device synchronize failed: %s", cudaGetErrorString (status));
 
-    cudaError_t free_status = cudaFree (output->data);
-    if (free_status != cudaSuccess) {
+    status = cudaFree (output->data);
+    if (status != cudaSuccess) {
       ml_loge ("Failed to free output CUDA buffer during error handling: %s",
-          cudaGetErrorString (free_status));
+          cudaGetErrorString (status));
     }
 
     output->data = nullptr;
@@ -298,12 +307,14 @@ tensorrt_subplugin::getModelInfo (
 int
 tensorrt_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data)
 {
+  cudaError_t status;
+
   if (ops == DESTROY_NOTIFY) {
     if (data.data != nullptr) {
-      cudaError_t free_status = cudaFree (data.data);
-      if (free_status != cudaSuccess) {
+      status = cudaFree (data.data);
+      if (status != cudaSuccess) {
         ml_loge ("Failed to free CUDA buffer in eventHandler: %s",
-            cudaGetErrorString (free_status));
+            cudaGetErrorString (status));
         return -1;
       }
     }
@@ -399,8 +410,8 @@ int
 tensorrt_subplugin::checkUnifiedMemory (void)
 {
   int version;
-
   cudaError_t status = cudaRuntimeGetVersion (&version);
+
   if (status != cudaSuccess) {
     ml_loge ("Failed to get Cuda version: %s", cudaGetErrorString (status));
     return -1;

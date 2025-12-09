@@ -663,7 +663,7 @@ const int TensorFilterPython::num_hw = 0;
 TensorFilterPython::TensorFilterPython () : core (nullptr)
 {
   if (!Py_IsInitialized ())
-    throw std::runtime_error ("Python is not initialize.");
+    throw std::runtime_error ("Python is not initialized.");
 }
 
 /**
@@ -716,21 +716,21 @@ TensorFilterPython::configure_instance (const GstTensorFilterProperties *prop)
   PyGILGuard gil_guard;
   core = new PYCore (script_path, prop->custom_properties);
   if (core == nullptr) {
-    g_printerr ("Failed to allocate memory for filter subplugin: Python\n");
+    g_printerr ("Failed to allocate memory for filter subplugin: Python");
     return;
   }
 
   if (core->init (prop) != 0) {
     delete core;
-    g_printerr ("failed to initialize the object: Python\n");
-    throw std::runtime_error ("Python is not initialize");
+    g_printerr ("Failed to initialize the object: Python");
+    throw std::runtime_error ("Failed to initialize the object: Python");
   }
 
   /** check methods in python script */
   cb = core->getCbType ();
   if (cb != cb_type::CB_SETDIM && cb != cb_type::CB_GETDIM) {
     delete core;
-    g_printerr ("Wrong callback type\n");
+    g_printerr ("Wrong callback type for filter subplugin: Python");
     return;
   }
 }

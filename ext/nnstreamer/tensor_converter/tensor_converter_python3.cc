@@ -270,7 +270,7 @@ py_open (const gchar *path, void **priv_data)
   PYConverterCore *core;
 
   if (!Py_IsInitialized ())
-    throw std::runtime_error ("Python is not initialize.");
+    throw std::runtime_error ("Python is not initialized.");
 
   /** Load python script file */
   core = static_cast<PYConverterCore *> (*priv_data);
@@ -284,17 +284,18 @@ py_open (const gchar *path, void **priv_data)
 
   /* init null */
   *priv_data = NULL;
+
   PyGILGuard gil_guard;
   core = new PYConverterCore (path);
   if (core == NULL) {
-    Py_ERRMSG ("Failed to allocate memory for converter subplugin or path invalid: Python\n");
+    Py_ERRMSG ("Failed to allocate memory for converter subplugin or path is invalid: Python\n");
     ret = -ENOMEM;
     goto done;
   }
 
   if (core->init () != 0) {
     delete core;
-    Py_ERRMSG ("failed to initialize the object or the python script is invalid: Python\n");
+    Py_ERRMSG ("Failed to initialize the object or the python script is invalid: Python\n");
     ret = -EINVAL;
     goto done;
   }

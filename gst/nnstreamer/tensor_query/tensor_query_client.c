@@ -215,23 +215,16 @@ gst_tensor_query_client_finalize (GObject * object)
   GstTensorQueryClient *self = GST_TENSOR_QUERY_CLIENT (object);
   nns_edge_data_h data_h;
 
-  g_free (self->host);
-  self->host = NULL;
-  g_free (self->dest_host);
-  self->dest_host = NULL;
-  g_free (self->topic);
-  self->topic = NULL;
-  g_free (self->in_caps_str);
-  self->in_caps_str = NULL;
+  g_clear_pointer (&self->host, g_free);
+  g_clear_pointer (&self->dest_host, g_free);
+  g_clear_pointer (&self->topic, g_free);
+  g_clear_pointer (&self->in_caps_str, g_free);
 
   while ((data_h = g_async_queue_try_pop (self->msg_queue))) {
     nns_edge_data_destroy (data_h);
   }
 
-  if (self->msg_queue) {
-    g_async_queue_unref (self->msg_queue);
-    self->msg_queue = NULL;
-  }
+  g_clear_pointer (&self->msg_queue, g_async_queue_unref);
 
   if (self->edge_h) {
     nns_edge_release_handle (self->edge_h);

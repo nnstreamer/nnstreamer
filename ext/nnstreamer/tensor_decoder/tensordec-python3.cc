@@ -278,6 +278,7 @@ decoder_py_exit (void **pdata)
   PYDecoderCore *core = static_cast<PYDecoderCore *> (*pdata);
 
   g_return_if_fail (core != NULL);
+
   PyGILGuard gil_guard;
   delete core;
 
@@ -296,7 +297,7 @@ decoder_py_setOption (void **pdata, int opNum, const char *param)
     PYDecoderCore *core;
 
     if (!Py_IsInitialized ())
-      throw std::runtime_error ("Python is not initialize.");
+      throw std::runtime_error ("Python is not initialized.");
 
     /** Load python script file */
     core = static_cast<PYDecoderCore *> (*pdata);
@@ -316,14 +317,14 @@ decoder_py_setOption (void **pdata, int opNum, const char *param)
     try {
       core = new PYDecoderCore (path);
     } catch (std::bad_alloc &exception) {
-      ml_loge ("Failed to allocate memory for decoder subplugin: python3\n");
+      ml_loge ("Failed to allocate memory for decoder subplugin: Python3\n");
       ml_loge ("%s", exception.what ());
       goto done;
     }
 
     if (core->init () != 0) {
       delete core;
-      ml_loge ("failed to initialize the object: Python3\n");
+      ml_loge ("Failed to initialize the object: Python3\n");
       goto done;
     }
 

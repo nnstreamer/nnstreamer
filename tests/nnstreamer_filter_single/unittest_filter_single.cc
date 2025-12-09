@@ -375,7 +375,6 @@ class NNSFilterSingleTestManyInOut : public ::testing::Test
         "simple_32_in_32_out.tflite", NULL);
     ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
 
-
     for (guint i = 0; i < num_tensors; i++) {
       input[i].size = 1 * sizeof (float);
       input[i].data = g_malloc0 (1 * sizeof (float));

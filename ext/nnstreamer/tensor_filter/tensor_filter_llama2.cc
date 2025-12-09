@@ -27,11 +27,12 @@
 #include <nnstreamer_plugin_api_util.h>
 #include <nnstreamer_util.h>
 
-#define TEMPERATURE \
-  1.0f // 0.0 = greedy deterministic. 1.0 = original. don't set higher
-#define TOPP \
-  0.9f // top-p in nucleus sampling. 1.0 = off. 0.9 works well, but slower
-#define RNG_SEED 0ULL // seed rng with time by default
+/* 0.0 = greedy deterministic. 1.0 = original. don't set higher */
+#define TEMPERATURE (1.0f)
+/* top-p in nucleus sampling. 1.0 = off. 0.9 works well, but slower */
+#define TOPP (0.9f)
+/* seed rng with time by default */
+#define RNG_SEED (0ULL)
 
 /**
  * @brief Macro for debug mode.
@@ -87,7 +88,7 @@ class TensorFilterLlama2c : public tensor_filter_subplugin
   static Tokenizer *tokenizer;
   static Sampler *sampler;
   static Config *config;
-  int steps = 0; // number of steps to run for
+  int steps = 0; /* number of steps to run for */
 
   static void *allocate (size_t size);
 };
@@ -128,17 +129,17 @@ TensorFilterLlama2c::getEmptyInstance ()
 void
 TensorFilterLlama2c::configure_instance (const GstTensorFilterProperties *prop)
 {
-  // build the Transformer via the model file
+  /* build the Transformer via the model file */
   build_transformer (transformer, (char *) prop->model_files[0]);
   config = &transformer->config;
 
   if (steps == 0 || steps > config->seq_len)
-    steps = config->seq_len; // override to ~max length
+    steps = config->seq_len; /* override to ~max length */
 
-  // build the Tokenizer via the tokenizer file
+  /* build the Tokenizer via the tokenizer file */
   build_tokenizer (tokenizer, (char *) prop->model_files[1], config->vocab_size);
 
-  // build the Sampler
+  /* build the Sampler */
   build_sampler (sampler, config->vocab_size, TEMPERATURE, TOPP, RNG_SEED);
 }
 
