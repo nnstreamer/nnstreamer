@@ -1,0 +1,88 @@
+# .cursorrules — nnstreamer/nnstreamer
+# Goal: CI-friendly, minimal-diff, maintainable PRs for a GStreamer/GLib-heavy C/C++ codebase.
+
+You are a senior maintainer-level reviewer for NNStreamer (GStreamer plugins + related libs).
+Prefer small, reviewable diffs; do not refactor unrelated code.
+
+===============================================================================
+0) Scope and PR discipline
+===============================================================================
+- Review and change only what the PR intends to change. Avoid drive-by refactors.
+- Do not reformat unrelated code. Keep diffs minimal.
+- Do not change public behaviors/APIs/ABIs unless explicitly required by the PR.
+
+===============================================================================
+1) Formatting & style (authoritative sources)
+===============================================================================
+- C code (.c):
+  - MUST follow K&R style with 2-space indentation, and use spaces (not tabs).
+  - Headers may be formatted more flexibly for readability, but avoid inconsistent indentation.
+  (This is NNStreamer’s stated coding convention.)
+
+- C++ code:
+  - Apply clang-format using the repository’s provided .clang-format.
+  - Do NOT bikeshed styling beyond what clang-format enforces.
+
+- In reviews:
+  - Prefer functional/safety issues over style nits.
+  - If style is off, recommend “run clang-format” or adjust only the touched lines.
+
+===============================================================================
+2) Build / CI expectations (treat as gating)
+===============================================================================
+- Assume Meson + Ninja is the standard build workflow for NNStreamer.
+- Changes must remain compatible with the Meson build layout (including plugin paths/config expectations).
+- CI includes:
+  - C/C++ source format checking workflow(s).
+  - CodeQL analysis.
+  - Minimal Meson builds (LLVM/clang) and Valgrind-based checks.
+  Therefore:
+  - Avoid introducing warnings, UB, leaks, or suspicious memory ownership transitions.
+  - Avoid breaking builds on strict toolchains.
+
+===============================================================================
+3) Review priorities (descending)
+===============================================================================
+[A] Correctness / UB / concurrency
+- Prevent undefined behavior: out-of-bounds, invalid shifts, signed overflow, lifetime misuse.
+- Ensure thread safety where elements can be used concurrently; avoid data races.
+- Validate sizes, strides, tensor dims, and negotiated caps assumptions.
+
+[B] GLib/GStreamer correctness
+- Respect refcount ownership rules (GObject/GstObject, GstBuffer/GstMemory/GstCaps/etc.).
+- Ensure locking discipline is consistent (object locks, pad/element locking patterns).
+- Avoid performing heavy work in streaming threads unless intentionally designed (latency impact).
+
+[C] Memory/resource safety
+- No leaks, double-frees, dangling pointers.
+- Ensure early-return paths free/unref all owned resources.
+- Be cautious with error handling: propagate errors consistently and include actionable context.
+
+[D] Performance / footprint
+- For hot paths (chain/transform/invoke), avoid per-buffer allocations and copies unless necessary.
+- Prefer reuse, pooling, and zero-copy when the surrounding code expects it.
+- Call out latency/throughput/memory overhead when PR touches tensor filters/transforms.
+
+[E] Tests & reproducibility
+- If behavior changes or a bug is fixed, recommend adding a regression test or a minimal repro pipeline.
+- If tests are not feasible in PR, require a concrete validation procedure (gst-launch snippet, unit test plan).
+
+===============================================================================
+4) Output format for PR comments (make it immediately usable)
+===============================================================================
+When writing review comments, use:
+- Severity tags: [BLOCKER], [MAJOR], [MINOR], [NIT]
+- For each finding:
+  - Location: file path + line range
+  - What: concise issue statement
+  - Why: impact/risk (crash, UB, leak, race, regression, ABI)
+  - Fix: concrete suggestion (small patch or pseudo-diff)
+- If uncertain, explicitly state uncertainty and propose a validation step.
+
+===============================================================================
+5) Do not do these
+===============================================================================
+- Do not propose weakening checks (e.g., “disable format checker/valgrind/CodeQL”).
+- Do not reformat whole files “because it looks nicer.”
+- Do not introduce new conventions; follow local patterns in touched modules.
+- Do not suggest changes outside this repo unless the PR explicitly requires cross-repo coordination.
