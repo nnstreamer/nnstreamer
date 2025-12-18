@@ -29,12 +29,12 @@
  * to adopt the code as LGPL-2.1 on 2018-07-13
  */
 
+#include <assert.h>
 #include <png.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
-#include <glib.h>
 
 typedef enum
 {
@@ -143,11 +143,11 @@ save_png_to_file (bitmap_t * bitmap, const char *path)
 
   /** Initialize rows of PNG. */
   row_pointers = png_malloc (png_ptr, bitmap->height * sizeof (png_byte *));
-  g_assert (row_pointers != NULL);
+  assert (row_pointers != NULL);
   for (y = 0; y < bitmap->height; y++) {
     png_byte *row =
         png_malloc (png_ptr, sizeof (uint8_t) * bitmap->width * pixel_size);
-    g_assert (row != NULL);
+    assert (row != NULL);
     row_pointers[y] = row;
     for (x = 0; x < bitmap->width; x++) {
       pixel_t *pixel = pixel_at (bitmap, x, y);
@@ -254,7 +254,7 @@ main (int argc, char *argv[])
   bmp.height = height;
 
   bmp.pixels = calloc (bmp.width * bmp.height, sizeof (pixel_t));
-  g_assert (bmp.pixels != NULL);
+  assert (bmp.pixels != NULL);
 
   for (y = (int) height - 1; y >= 0; y--) {
     for (x = 0; x < (int) width; x++) {
@@ -290,11 +290,12 @@ main (int argc, char *argv[])
   }
   fclose (bmpF);
 
-  pngfilename = g_strdup (argv[1]);
+  pngfilename = strdup (argv[1]);
 
   /** Assume the last 4 characters are ".bmp" */
   strncpy (pngfilename + strlen (argv[1]) - 4, ".png", 5);
   ret = save_png_to_file (&bmp, pngfilename);
+  free (pngfilename);
   free (bmp.pixels);
 
   return ret;
