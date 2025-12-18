@@ -40,6 +40,7 @@ jobs:
           pushd ~/android/gst_root_android/
           wget -q https://gstreamer.freedesktop.org/data/pkg/android/${gst_android_ver}/${gst_android_pkg}
           tar -xf ${gst_android_pkg}
+          rm ${gst_android_pkg}
           popd
           echo "::endgroup::"
         fi
