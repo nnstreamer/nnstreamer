@@ -115,6 +115,8 @@ tizen_hal_subplugin::configure_instance (const GstTensorFilterProperties *prop)
       g_strstrip (option[1]);
 
       if (g_ascii_strcasecmp (option[0], "backend") == 0) {
+        if (backend_name)
+          g_free (backend_name);
         backend_name = g_strdup (option[1]);
       }
     }
