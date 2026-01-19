@@ -34,6 +34,7 @@
 #include <nnstreamer_log.h>
 #include <string.h>
 
+#include <memory>
 #include <system_error>
 
 #define NO_ANONYMOUS_NESTED_STRUCT
@@ -85,15 +86,26 @@ tensor_filter_subplugin::cpp_open (const GstTensorFilterProperties *prop, void *
 
   /* 2. Spawn another empty object and configure the empty object */
   tensor_filter_subplugin &obj = sp->getEmptyInstance ();
+  /**
+   * NOTE:
+   * getEmptyInstance() is expected to return a heap-allocated object.
+   * If configure_instance() throws, cpp_open() must delete the object to avoid leaks
+   * when open() is repeatedly attempted with invalid properties.
+   */
+  tensor_filter_subplugin *obj_ptr = std::addressof (obj);
   try {
     obj.configure_instance (prop);
   } catch (const std::invalid_argument &e) {
+    delete obj_ptr;
     _RETURN_ERR_WITH_MSG (-EINVAL, e.what ());
   } catch (const std::system_error &e) {
+    delete obj_ptr;
     _RETURN_ERR_WITH_MSG (e.code ().value () * -1, e.what ());
   } catch (const std::runtime_error &e) {
+    delete obj_ptr;
     _RETURN_ERR_WITH_MSG (-EINVAL, e.what ());
   } catch (const std::exception &e) {
+    delete obj_ptr;
     _RETURN_ERR_WITH_MSG (-EINVAL, e.what ());
   }
 
@@ -103,9 +115,9 @@ tensor_filter_subplugin::cpp_open (const GstTensorFilterProperties *prop, void *
 
 /* 4. Save the object as *private_data */
 #if __GNUC__ < 5 || __cplusplus < 201103L
-  *private_data = &(obj);
+  *private_data = obj_ptr;
 #else /* It is safer w/ addressof, but old gcc doesn't appear to support it */
-  *private_data = std::addressof (obj);
+  *private_data = obj_ptr;
 #endif
 
   return 0;
