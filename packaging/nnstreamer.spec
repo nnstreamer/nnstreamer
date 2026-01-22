@@ -1046,7 +1046,7 @@ export ORC_DEBUG=2
 # Capture initial zero coverage data. This will be merged with actual coverage data later.
 # This is to prevent null gcda file error if the test is not performed (in case of gcov package generation mode).
 pushd build
-lcov -i -c -o unittest_base.info -d . -b $(pwd) --ignore-errors mismatch
+lcov -i -c -o unittest_base.info -d . -b $(pwd) --ignore-errors mismatch --exclude "unittest*"
 popd
 %endif # testcoverage
 
@@ -1144,8 +1144,8 @@ VCS=`cat ${RPM_SOURCE_DIR}/nnstreamer.spec | grep "^VCS:" | sed "s|VCS:\\W*\\(.*
 # Generate report and exclude generated files (e.g., Orc, Protobuf) and device-dependent filters.
 # Set different lcov options for Tizen/lcov versions.
 %if 0%{tizen_version_major} >= 9
-lcov -t 'NNStreamer Unit Test Coverage' -o unittest_test.info -c -d . -b %{builddir} --no-external --ignore-errors mismatch,empty
-lcov -a unittest_base.info -a unittest_test.info -o unittest_total.info --ignore-errors empty
+lcov -t 'NNStreamer Unit Test Coverage' -o unittest_test.info -c -d . -b %{builddir} --no-external --ignore-errors mismatch,empty --exclude "unittest*"
+lcov -a unittest_base.info -a unittest_test.info -o unittest_total.info --ignore-errors empty,missing,inconsistent
 lcov -r unittest_total.info "*/*-orc.*" "*/tests/*" "*/tools/*" "*/meson*/*" "*/*@sha/*" "*/*_openvino*" "*/*_edgetpu*" "*/*_movidius_ncsdk2*" "*/*.so.p/*" -o unittest-filtered.info --ignore-errors graph,unused
 %else
 lcov -t 'NNStreamer Unit Test Coverage' -o unittest.info -c -d . -b %{builddir} --no-external
