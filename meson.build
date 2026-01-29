@@ -668,6 +668,10 @@ features = {
     'target': 'llama',
     'project_args': { 'ENABLE_LLAMACPP' : 1 }
   },
+  'flare-support' : {
+   'target': 'flare',
+   'project_args': { 'ENABLE_FLARE' : 1 }
+  },
   'tizen-hal-support': {
     'target': 'hal-api-ml',
     'project_args': { 'ENABLE_TIZEN_HAL' : 1 }

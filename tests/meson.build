@@ -421,6 +421,18 @@ if gtest_dep.found()
     test('unittest_filter_llamacpp', unittest_filter_llamacpp, env: testenv)
   endif
 
+ # SFLARE unittest
+ if flare_support_is_available
+    unittest_filter_flare= executable('unittest_filter_flare',
+      join_paths('nnstreamer_filter_flare', 'unittest_filter_flare.cc'),
+      dependencies: [nnstreamer_unittest_deps],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+
+    test('unittest_filter_flare', unittest_filter_flare, env: testenv)
+endif
+
   # Run unittest_trainer
   unittest_trainer = executable('unittest_trainer',
     join_paths('nnstreamer_trainer', 'unittest_trainer.cc'),
