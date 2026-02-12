@@ -811,8 +811,13 @@ if get_option('enable-float16')
   if arch == 'aarch64'
     message ('Float16 for aarch64 enabled. Modern gcc-aarch64 generally supports float16 with __fp16. It uses IEEE 754-2008 format.')
   elif arch == 'arm'
-    add_project_arguments('-mfp16-format=ieee', language: ['c', 'cpp'])
-    message ('Float16 for arm (32b) enabled. Modern gcc-arm generally supports float16 with __fp16 by -mfp16-format=ieee for IEEE 754-2008 format.')
+    if cc.get_id() != 'clang'
+      add_project_arguments('-mfp16-format=ieee', language: ['c', 'cpp'])
+      message ('Float16 for arm (32b) enabled. Modern gcc-arm generally supports float16 with __fp16 by -mfp16-format=ieee for IEEE 754-2008 format.')
+    else
+      add_project_link_arguments('-rtlib=compiler-rt', '-unwindlib=libgcc', language: ['c', 'cpp'])
+      message ('Float16 for arm (32b) enabled(Clang default to enabled).')
+    endif
   elif arch == 'x86_64' or arch == 'x86'
     # GCC 12+ has fp16 avx512 support.
     has_avx512fp16 = cc.has_argument('-mavx512fp16')
