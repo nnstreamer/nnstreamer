@@ -13,3 +13,4 @@ GES = "GES" # GStreamer plugin definition (GSTREAMER_PLUGINS_GES) for Android bu
 Seeked = "Seeked"
 ba = "ba"
 splitted = "splitted"
+iz = "iz" # iz is used as variable
