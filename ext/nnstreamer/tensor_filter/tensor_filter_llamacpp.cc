@@ -90,7 +90,6 @@ class TensorFilterLlamaCpp : public tensor_filter_subplugin
   llama_model *model;
   llama_context *ctx;
   llama_sampler *sampler;
-  llama_adapter_lora *lora_adapter;
 
   int n_processed = 0;
   int n_gpu_layers = 0;
@@ -132,8 +131,7 @@ const char *TensorFilterLlamaCpp::name = "llamacpp";
  * @brief Construct a new llamacpp subplugin instance
  */
 TensorFilterLlamaCpp::TensorFilterLlamaCpp ()
-    : tensor_filter_subplugin (), model (nullptr), ctx (nullptr),
-      sampler (nullptr), lora_adapter (nullptr)
+    : tensor_filter_subplugin (), model (nullptr), ctx (nullptr), sampler (nullptr)
 {
   initializePropertySetters ();
 }
@@ -262,6 +260,18 @@ TensorFilterLlamaCpp::configure_instance (const GstTensorFilterProperties *prop)
     throw std::runtime_error ("Failed to load model");
   }
 
+  /**
+   * Check for LoRA adapter in model_files.
+   * Note that lora adapter must be loaded before creating context.
+   */
+  if (prop->model_files[1] != nullptr) {
+    llama_adapter_lora *lora = llama_adapter_lora_init (model, prop->model_files[1]);
+    if (lora == nullptr) {
+      cleanupResources ();
+      throw std::runtime_error ("Failed to load LoRA adapter");
+    }
+  }
+
   llama_context_params ctx_params = llama_context_default_params ();
   ctx_params.n_ctx = n_ctx;
   /* n_batch is the maximum number of tokens that can be processed in a single call to llama_decode */
@@ -273,17 +283,6 @@ TensorFilterLlamaCpp::configure_instance (const GstTensorFilterProperties *prop)
   if (ctx == nullptr) {
     cleanupResources ();
     throw std::runtime_error ("Failed to create llama context");
-  }
-
-  /* Check for LoRA adapter in model_files */
-  if (prop->model_files[1] != nullptr) {
-    lora_adapter = llama_adapter_lora_init (model, prop->model_files[1]);
-    if (lora_adapter == nullptr) {
-      cleanupResources ();
-      throw std::runtime_error ("Failed to load LoRA adapter");
-    }
-    llama_set_adapter_lora (ctx, lora_adapter, 1.0f);
-    ml_logd ("Successfully applied LoRA adapter to the context");
   }
 
   if (!load_ctx_path.empty ()) {
@@ -532,11 +531,6 @@ TensorFilterLlamaCpp::cleanupResources ()
   if (sampler) {
     llama_sampler_free (sampler);
     sampler = nullptr;
-  }
-
-  if (lora_adapter) {
-    llama_adapter_lora_free (lora_adapter);
-    lora_adapter = nullptr;
   }
 
   if (ctx) {
