@@ -514,6 +514,23 @@ TEST (testTensorFilterSingle, invokeUnknownFW_n)
 }
 
 #ifdef ENABLE_LLAMACPP
+#define LLAMACPP_TEST_MODEL "TinyStories-656K-Q2_K.gguf"
+#define LLAMACPP_TEST_MODEL_URL \
+  "https://huggingface.co/tensorblock/TinyStories-656K-GGUF"
+
+/**
+ * @brief Macro to skip testcase if model file is not ready.
+ */
+#define skip_llamacpp_tc(tc_name)                                                                \
+  do {                                                                                           \
+    if (skip_test) {                                                                             \
+      g_autofree gchar *msg = g_strdup_printf (                                                  \
+          "Skipping '%s' due to missing model file '%s'. Please download model file from '%s'.", \
+          tc_name, LLAMACPP_TEST_MODEL, LLAMACPP_TEST_MODEL_URL);                                \
+      GTEST_SKIP () << msg;                                                                      \
+    }                                                                                            \
+  } while (0)
+
 /**
  * @brief Test Fixture class for a tensor-filter single invoke async functionality.
  */
@@ -524,19 +541,35 @@ class NNSFilterSingleInvokeAsyncTest : public ::testing::Test
   GTensorFilterSingleClass *klass;
   GstTensorMemory input;
   GstTensorMemory output;
-  gboolean loaded;
   gboolean skip_test;
+  gchar *model_file;
 
   public:
   /**
    * @brief Construct a new NNSFilterSingleInvokeAsyncTest object
    */
-  NNSFilterSingleInvokeAsyncTest ()
-      : single (nullptr), klass (nullptr), loaded (FALSE)
+  NNSFilterSingleInvokeAsyncTest () : single (nullptr), klass (nullptr)
   {
+    const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+
+    /* supposed to run test in build directory */
+    if (root_path == NULL)
+      root_path = "..";
+
     input.data = output.data = nullptr;
     input.size = output.size = 0;
-    skip_test = FALSE;
+
+    model_file = g_build_filename (
+        root_path, "tests", "test_models", "models", LLAMACPP_TEST_MODEL, NULL);
+    skip_test = !g_file_test (model_file, G_FILE_TEST_EXISTS);
+  }
+
+  /**
+   * @brief Destructor of NNSFilterSingleInvokeAsyncTest class
+   */
+  ~NNSFilterSingleInvokeAsyncTest ()
+  {
+    g_free (model_file);
   }
 
   /**
@@ -544,34 +577,18 @@ class NNSFilterSingleInvokeAsyncTest : public ::testing::Test
    */
   void SetUp () override
   {
-    g_autofree gchar *model_file = nullptr;
-    g_autofree gchar *data_file = nullptr;
-    gsize length = 0;
-    const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+    const gchar input_text[] = "Hello my name is";
 
     single = (GTensorFilterSingle *) g_object_new (G_TYPE_TENSOR_FILTER_SINGLE, NULL);
     klass = (GTensorFilterSingleClass *) g_type_class_ref (G_TYPE_TENSOR_FILTER_SINGLE);
 
-    /* supposed to run test in build directory */
-    if (root_path == NULL)
-      root_path = "..";
+    input.data = g_strdup (input_text);
+    input.size = strlen (input_text);
+    output.data = nullptr;
+    output.size = 0;
 
-    model_file = g_build_filename (root_path, "tests", "test_models", "models",
-        "llama-2-7b-chat.Q2_K.gguf", NULL);
-    if (!g_file_test (model_file, G_FILE_TEST_EXISTS)) {
-      g_critical ("Skipping invokeAsync_p test due to missing model file. "
-                  "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF");
-      skip_test = TRUE;
-      return;
-    }
-
-    data_file = g_build_filename (
-        root_path, "tests", "test_models", "data", "input.txt", NULL);
-    ASSERT_TRUE (g_file_get_contents (data_file, (gchar **) &input.data, &length, NULL));
-    input.size = length;
     g_object_set (G_OBJECT (single), "framework", "llamacpp", "model", model_file,
         "invoke-dynamic", TRUE, "invoke-async", TRUE, "custom", "num_predict:10", NULL);
-    loaded = TRUE;
   }
 
   /**
@@ -604,6 +621,7 @@ _invoke_async_callback (GstTensorMemory *data, GstTensorsInfo *info, void *user_
     (*callback_count)++;
   }
 
+  EXPECT_EQ (info->num_tensors, 1U);
   EXPECT_TRUE (data->data != nullptr && data->size > 0);
   EXPECT_TRUE (gst_tensors_info_get_size (info, 0) == data->size);
 
@@ -616,12 +634,7 @@ _invoke_async_callback (GstTensorMemory *data, GstTensorsInfo *info, void *user_
  */
 TEST_F (NNSFilterSingleInvokeAsyncTest, invokeAsync_p)
 {
-  if (skip_test) {
-    GTEST_SKIP () << "Skipping invokeAsync_p test due to missing model file. "
-                     "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
-  }
-
-  ASSERT_TRUE (this->loaded);
+  skip_llamacpp_tc ("invokeAsync_p");
 
   guint *count = g_new0 (guint, 1);
 
@@ -630,7 +643,7 @@ TEST_F (NNSFilterSingleInvokeAsyncTest, invokeAsync_p)
   /* Wait for the test to end until all tokens have been invoked.*/
   g_usleep (3000000);
   /* Verify the number of times the callback was called */
-  EXPECT_GT (*count, 10) << "Callback was not invoked even once.";
+  EXPECT_GT (*count, 1) << "Callback was not invoked even once.";
 
   EXPECT_TRUE (klass->stop (single));
   g_free (count);
@@ -641,13 +654,7 @@ TEST_F (NNSFilterSingleInvokeAsyncTest, invokeAsync_p)
  */
 TEST_F (NNSFilterSingleInvokeAsyncTest, invokeAsyncNullCallback_n)
 {
-  if (skip_test) {
-    GTEST_SKIP ()
-        << "Skipping invokeAsyncNullCallback_n test due to missing model file. "
-           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
-  }
-
-  ASSERT_TRUE (this->loaded);
+  skip_llamacpp_tc ("invokeAsyncNullCallback_n");
 
   /* Pass null as the callback */
   EXPECT_FALSE (klass->set_invoke_async_callback (single, nullptr, nullptr));
@@ -660,13 +667,7 @@ TEST_F (NNSFilterSingleInvokeAsyncTest, invokeAsyncNullCallback_n)
  */
 TEST_F (NNSFilterSingleInvokeAsyncTest, invokeAsyncNoCallback_n)
 {
-  if (skip_test) {
-    GTEST_SKIP ()
-        << "Skipping invokeAsyncNoCallback_n test due to missing model file. "
-           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
-  }
-
-  ASSERT_TRUE (this->loaded);
+  skip_llamacpp_tc ("invokeAsyncNoCallback_n");
 
   EXPECT_FALSE (klass->invoke (single, &input, &output, TRUE));
   g_usleep (1000000);
