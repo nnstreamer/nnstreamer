@@ -95,7 +95,8 @@ class TensorFilterLlamaCpp : public tensor_filter_subplugin
   int n_processed = 0;
   int n_gpu_layers = 0;
   int n_predict = 32;
-  int n_ctx = 2048;
+  int n_ctx = 0;
+  int n_batch = 512;
   int top_k = 0;
   float top_p = TOP_P_DISABLED;
   float typical_p = TYPICAL_P_DISABLED;
@@ -168,22 +169,28 @@ void
 TensorFilterLlamaCpp::initializePropertySetters ()
 {
   property_setters_["num_predict"] = [this] (const gchar *value) {
-    this->n_predict = static_cast<int> (g_ascii_strtoull (value, NULL, 10));
+    this->n_predict = static_cast<int> (g_ascii_strtoll (value, NULL, 10));
+  };
+  property_setters_["num_gpu_layers"] = [this] (const gchar *value) {
+    this->n_gpu_layers = static_cast<int> (g_ascii_strtoll (value, NULL, 10));
   };
   property_setters_["context_length"] = [this] (const gchar *value) {
-    this->n_ctx = static_cast<int> (g_ascii_strtoull (value, NULL, 10));
+    this->n_ctx = static_cast<int> (g_ascii_strtoll (value, NULL, 10));
+  };
+  property_setters_["batch_size"] = [this] (const gchar *value) {
+    this->n_batch = static_cast<int> (g_ascii_strtoll (value, NULL, 10));
   };
   property_setters_["top_k"] = [this] (const gchar *value) {
-    this->top_k = static_cast<int> (g_ascii_strtoull (value, NULL, 10));
+    this->top_k = static_cast<int> (g_ascii_strtoll (value, NULL, 10));
   };
   property_setters_["top_p"] = [this] (const gchar *value) {
-    this->top_p = g_ascii_strtod (value, NULL);
+    this->top_p = static_cast<float> (g_ascii_strtod (value, NULL));
   };
   property_setters_["typical_p"] = [this] (const gchar *value) {
-    this->typical_p = g_ascii_strtod (value, NULL);
+    this->typical_p = static_cast<float> (g_ascii_strtod (value, NULL));
   };
   property_setters_["temperature"] = [this] (const gchar *value) {
-    this->temperature = g_ascii_strtod (value, NULL);
+    this->temperature = static_cast<float> (g_ascii_strtod (value, NULL));
   };
   property_setters_["save_ctx"] = [this] (const gchar *value) {
     this->save_ctx_path = std::string (value);
@@ -228,7 +235,13 @@ TensorFilterLlamaCpp::parseCustomProperties (const GstTensorFilterProperties *pr
     }
   }
 
-  return;
+  /* validate properties */
+  if (n_ctx < 0) {
+    throw std::invalid_argument ("Context length should be a positive value (or 0 from model).");
+  }
+  if (n_batch <= 0) {
+    throw std::invalid_argument ("Batch size should be a positive value.");
+  }
 }
 
 /**
@@ -256,7 +269,7 @@ TensorFilterLlamaCpp::configure_instance (const GstTensorFilterProperties *prop)
   llama_model_params model_params = llama_model_default_params ();
   model_params.n_gpu_layers = n_gpu_layers;
 
-  model = llama_model_load_from_file ((char *) prop->model_files[0], model_params);
+  model = llama_model_load_from_file (prop->model_files[0], model_params);
   if (model == nullptr) {
     cleanupResources ();
     throw std::runtime_error ("Failed to load model");
@@ -265,7 +278,7 @@ TensorFilterLlamaCpp::configure_instance (const GstTensorFilterProperties *prop)
   llama_context_params ctx_params = llama_context_default_params ();
   ctx_params.n_ctx = n_ctx;
   /* n_batch is the maximum number of tokens that can be processed in a single call to llama_decode */
-  ctx_params.n_batch = n_ctx;
+  ctx_params.n_batch = n_batch;
   /* enable performance counters */
   ctx_params.no_perf = false;
 
@@ -617,8 +630,6 @@ TensorFilterLlamaCpp::saveContextToFile (const std::string &path)
 
   std::ofstream file (path, std::ios::binary);
   try {
-    file.exceptions (std::ofstream::failbit | std::ofstream::badbit);
-
     if (!file.is_open ()) {
       ml_loge ("Cannot create context file %s", path.c_str ());
       file.close ();
@@ -719,11 +730,11 @@ void
 TensorFilterLlamaCpp::init_filter_llama ()
 {
   registered = tensor_filter_subplugin::register_subplugin<TensorFilterLlamaCpp> ();
-  nnstreamer_filter_set_custom_property_desc (name, "num_predict",
-      "Number of tokens to predict", "num_gpu_layers",
-      "Number of layers to offload to the GPU", "n_ctx", "Context size for KV cache",
+  nnstreamer_filter_set_custom_property_desc (name, "num_predict", "Number of tokens to predict",
+      "num_gpu_layers", "Number of layers to offload to the GPU", "context_length",
+      "Context size for KV cache", "batch_size", "Logical maximum batch size",
       "top_k", "Top-K sampling parameter", "top_p", "Top-P sampling parameter",
-      "typical_p", "Typical-P sampling parameter", "Temperature",
+      "typical_p", "Typical-P sampling parameter", "temperature",
       "Temperature sampling parameter", "save_ctx", "Path to save llama context state",
       "load_ctx", "Path to load llama context state", NULL);
 }
