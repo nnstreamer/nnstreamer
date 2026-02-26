@@ -225,6 +225,12 @@ BuildRequires:	gst-plugins-bad-devel
 BuildRequires:	glib2-devel
 BuildRequires:	meson >= 0.62.0
 
+%{?_toolchain:
+%if %{toolchain_is clang}
+BuildRequires:	compiler-rt
+%endif
+}
+
 # To run test cases, we need gst plugins
 BuildRequires:	gst-plugins-good
 %if 0%{tizen_version_major} >= 5
