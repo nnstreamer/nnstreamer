@@ -133,6 +133,20 @@ gst_edgesrc_class_init (GstEdgeSrcClass * klass)
 }
 
 /**
+ * @brief Release nnstreamer-edge handle and reset the playing state.
+ */
+static void
+gst_edgesrc_release_handle (GstEdgeSrc * self)
+{
+  if (self->edge_h) {
+    nns_edge_release_handle (self->edge_h);
+    self->edge_h = NULL;
+  }
+
+  self->playing = FALSE;
+}
+
+/**
  * @brief initialize edgesrc element
  */
 static void
@@ -150,6 +164,7 @@ gst_edgesrc_init (GstEdgeSrc * self)
   self->connect_type = DEFAULT_CONNECT_TYPE;
   self->playing = FALSE;
   self->custom_lib = NULL;
+  self->edge_h = NULL;
 }
 
 /**
@@ -241,8 +256,6 @@ gst_edgesrc_class_finalize (GObject * object)
   GstEdgeSrc *self = GST_EDGESRC (object);
   nns_edge_data_h data_h;
 
-  self->playing = FALSE;
-
   g_clear_pointer (&self->dest_host, g_free);
   g_clear_pointer (&self->topic, g_free);
   g_clear_pointer (&self->custom_lib, g_free);
@@ -255,10 +268,7 @@ gst_edgesrc_class_finalize (GObject * object)
     g_clear_pointer (&self->msg_queue, g_async_queue_unref);
   }
 
-  if (self->edge_h) {
-    nns_edge_release_handle (self->edge_h);
-    self->edge_h = NULL;
-  }
+  gst_edgesrc_release_handle (self);
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
@@ -358,12 +368,7 @@ gst_edgesrc_start (GstBaseSrc * basesrc)
 
   if (NNS_EDGE_ERROR_NONE != ret) {
     nns_loge ("Failed to get nnstreamer edge handle.");
-
-    if (self->edge_h) {
-      nns_edge_release_handle (self->edge_h);
-      self->edge_h = NULL;
-    }
-
+    gst_edgesrc_release_handle (self);
     return FALSE;
   }
 
@@ -383,12 +388,14 @@ gst_edgesrc_start (GstBaseSrc * basesrc)
   if (NNS_EDGE_ERROR_NONE != ret) {
     nns_loge
         ("Failed to start NNStreamer-edge. Please check server IP and port.");
+    gst_edgesrc_release_handle (self);
     return FALSE;
   }
 
   ret = nns_edge_connect (self->edge_h, self->dest_host, self->dest_port);
   if (NNS_EDGE_ERROR_NONE != ret) {
     nns_loge ("Failed to connect to edge server!");
+    gst_edgesrc_release_handle (self);
     return FALSE;
   }
 
@@ -412,8 +419,8 @@ gst_edgesrc_stop (GstBaseSrc * basesrc)
     }
   }
 
-  self->playing = FALSE;
-  return (ret == NNS_EDGE_ERROR_NONE);
+  gst_edgesrc_release_handle (self);
+  return TRUE;
 }
 
 /**
