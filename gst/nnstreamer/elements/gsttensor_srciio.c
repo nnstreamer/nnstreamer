@@ -2475,7 +2475,7 @@ gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset, guint size,
   gfloat *map_data_float;
   GstMemory *mem[NNS_TENSOR_SIZE_LIMIT];
   GstMapInfo map[NNS_TENSOR_SIZE_LIMIT];
-  guint64 time_to_end, cur_time;
+  gint64 time_to_end, cur_time;
   guint64 safe_multiply;
   GList *channels;
   UNUSED (offset);
@@ -2510,7 +2510,7 @@ gst_tensor_src_iio_fill (GstBaseSrc * src, guint64 offset, guint size,
   }
 
   /** wait for the data to arrive */
-  time_to_end = g_get_real_time () + self->poll_timeout * 1000;
+  time_to_end = g_get_real_time () + (gint64) self->poll_timeout * 1000;
   while (TRUE) {
     if (self->trigger.name != NULL) {
       status = poll (self->buffer_data_fp, 1, self->poll_timeout);

@@ -217,10 +217,10 @@ il_decode (void **pdata, const GstTensorsConfig * config,
 
   /* Ensure we have outbuf properly allocated */
   if (gst_buffer_get_size (outbuf) == 0) {
-    out_mem = gst_allocator_alloc (NULL, size, NULL);
+    out_mem = gst_allocator_alloc (NULL, size + 1, NULL);
   } else {
-    if (gst_buffer_get_size (outbuf) < size) {
-      gst_buffer_set_size (outbuf, size);
+    if (gst_buffer_get_size (outbuf) < size + 1) {
+      gst_buffer_set_size (outbuf, size + 1);
     }
     out_mem = gst_buffer_get_all_memory (outbuf);
   }
@@ -232,6 +232,7 @@ il_decode (void **pdata, const GstTensorsConfig * config,
   }
 
   memcpy (out_info.data, str, size);
+  out_info.data[size] = '\0';
 
   gst_memory_unmap (out_mem, &out_info);
 

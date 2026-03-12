@@ -671,7 +671,10 @@ gst_tensordec_configure (GstTensorDecoder * self, const GstCaps * in_caps,
     }
 
     gst_tensor_decoder_clean_plugin (self);
-    self->decoder->init (&self->plugin_data);
+    if (self->decoder) {
+      /* not custom code */
+      self->decoder->init (&self->plugin_data);
+    }
   }
 
   self->tensor_config = config;
