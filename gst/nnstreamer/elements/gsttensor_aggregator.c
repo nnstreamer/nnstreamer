@@ -45,10 +45,8 @@
 #define silent_debug_config(self,c,msg) do { \
   if (DBG) { \
     if (c) { \
-      gchar *dim_str; \
-      dim_str = gst_tensor_get_dimension_string ((c)->info.info[0].dimension); \
-      GST_DEBUG_OBJECT (self, msg " type=%d dim=%s rate=%d/%d", (c)->info.info[0].type, dim_str, (c)->rate_n, (c)->rate_d); \
-      g_free (dim_str); \
+      g_autofree gchar *info_str = gst_tensors_config_to_string (c); \
+      GST_DEBUG_OBJECT (self, msg " %s", info_str); \
     } \
   } \
 } while (0)
@@ -808,7 +806,8 @@ gst_tensor_aggregator_push (GstTensorAggregator * self, GstBuffer * outbuf,
   GstTensorInfo info;
 
   /** tensor info for one frame */
-  info = self->out_config.info.info[0];
+  info = *gst_tensors_info_get_nth_info (&self->out_config.info, 0);
+
   g_assert (self->frames_dim < NNS_TENSOR_RANK_LIMIT);
   info.dimension[self->frames_dim] /= self->frames_out;
 
@@ -1050,7 +1049,9 @@ gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
     return FALSE;
   }
 
-  self->in_config = config;
+  gst_tensors_config_free (&self->in_config);
+  gst_tensors_config_copy (&self->in_config, &config);
+
   /* tensor-aggregator now handles single tensor. */
   _info = gst_tensors_info_get_nth_info (&config.info, 0);
 
@@ -1065,12 +1066,14 @@ gst_tensor_aggregator_parse_caps (GstTensorAggregator * self,
     GST_ERROR_OBJECT (self, "Cannot update dimension in output tensor");
     return FALSE;
   }
+
   per_frame = _info->dimension[self->frames_dim] / self->frames_in;
-
   _info->dimension[self->frames_dim] = per_frame * self->frames_out;
-  self->out_config = config;
-  self->tensor_configured = TRUE;
 
+  gst_tensors_config_free (&self->out_config);
+  gst_tensors_config_copy (&self->out_config, &config);
+
+  self->tensor_configured = TRUE;
   silent_debug_config (self, &self->in_config, "in-tensor");
   silent_debug_config (self, &self->out_config, "out-tensor");
   return TRUE;
