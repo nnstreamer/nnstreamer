@@ -156,7 +156,7 @@ mediapipe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     std::cerr << "Model path is not given." << std::endl;
     throw std::invalid_argument ("Model path is not given.");
   }
-  assert (config_path == nullptr);
+  g_assert (config_path == nullptr);
   config_path = g_strdup (prop->model_files[0]);
 
   gst_tensors_info_copy (&inputInfo, &prop->input_meta);
@@ -198,7 +198,7 @@ mediapipe_subplugin::loadMediapipeGraph (const GstTensorFilterProperties *prop)
   GError *file_error = nullptr;
   mediapipe::Status status;
 
-  assert (config_path != nullptr);
+  g_assert (config_path != nullptr);
 
   if (!g_file_test (config_path, G_FILE_TEST_IS_REGULAR)) {
     ml_loge ("the file of config_path (%s) is not valid (not regular)\n", config_path);
@@ -361,7 +361,7 @@ _init_filter_mediapipe ()
 void
 mediapipe_subplugin::fini_filter_mediapipe (void)
 {
-  assert (registeredRepresentation != nullptr);
+  g_assert (registeredRepresentation != nullptr);
   tensor_filter_subplugin::unregister_subplugin (registeredRepresentation);
 }
 

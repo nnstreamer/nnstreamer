@@ -522,7 +522,7 @@ gst_data_repo_src_get_file_offset (GstDataRepoSrc * src, guint sample_index)
   g_return_val_if_fail (src->data_type != GST_DATA_REPO_DATA_IMAGE, 0);
   g_return_val_if_fail (src->fd != 0, 0);
 
-  offset = src->sample_size * sample_index;
+  offset = (guint64) src->sample_size * sample_index;
 
   return offset;
 }
@@ -943,8 +943,7 @@ gst_data_repo_src_read_multi_images (GstDataRepoSrc * src, GstBuffer ** buffer)
   gsize size;
   gchar *data;
   GstBuffer *buf;
-  gboolean read_size;
-  GError *error = NULL;
+  g_autoptr (GError) error = NULL;
 
   g_return_val_if_fail (src->shuffled_index_array != NULL, GST_FLOW_ERROR);
 
@@ -969,15 +968,16 @@ gst_data_repo_src_read_multi_images (GstDataRepoSrc * src, GstBuffer ** buffer)
   src->array_index++;
 
   /* Try to read one image */
-  read_size = g_file_get_contents (filename, &data, &size, &error);
-  if (!read_size) {
+  if (!g_file_get_contents (filename, &data, &size, &error)) {
     if (src->successful_read) {
       /* If we've read at least one buffer successfully, not finding the next file is EOS. */
-      if (error != NULL)
-        g_error_free (error);
       return GST_FLOW_EOS;
     }
-    goto handle_error;
+
+    GST_ELEMENT_ERROR (src, RESOURCE, READ,
+        ("Error while reading from file \"%s\".", filename),
+        ("%s", error ? error->message : g_strerror (errno)));
+    return GST_FLOW_ERROR;
   }
 
   /* Success reading on image */
@@ -991,21 +991,6 @@ gst_data_repo_src_read_multi_images (GstDataRepoSrc * src, GstBuffer ** buffer)
   *buffer = buf;
 
   return GST_FLOW_OK;
-
-handle_error:
-  {
-    if (error != NULL) {
-      GST_ELEMENT_ERROR (src, RESOURCE, READ,
-          ("Error while reading from file \"%s\".", filename),
-          ("%s", error->message));
-      g_error_free (error);
-    } else {
-      GST_ELEMENT_ERROR (src, RESOURCE, READ,
-          ("Error while reading from file \"%s\".", filename),
-          ("%s", g_strerror (errno)));
-    }
-    return GST_FLOW_ERROR;
-  }
 }
 
 /**

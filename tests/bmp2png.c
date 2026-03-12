@@ -291,6 +291,7 @@ main (int argc, char *argv[])
   fclose (bmpF);
 
   pngfilename = strdup (argv[1]);
+  assert (pngfilename != NULL);
 
   /** Assume the last 4 characters are ".bmp" */
   strncpy (pngfilename + strlen (argv[1]) - 4, ".png", 5);

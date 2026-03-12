@@ -343,7 +343,7 @@ TensorFilterLlamaCpp::invoke (const GstTensorMemory *input, GstTensorMemory *out
 /**
  * @brief Create output tensor
  *
- * The memory allocated for the output tensor data using strndup
+ * The memory allocated for the output tensor data using g_strndup()
  * must be freed by the caller of this function to avoid memory leaks.
  */
 bool
@@ -357,11 +357,11 @@ TensorFilterLlamaCpp::createOutputTensor (GstTensorFilterProperties *prop,
     return false;
   }
 
-  output[0].size = buf.length (); /* Stores string length, excluding NULL appended to the end of the string */
-  output[0].data = strndup (buf.c_str (), buf.length ());
+  output[0].size = buf.length () + 1; /* Stores string length, including the end of the string. */
+  output[0].data = g_strndup (buf.c_str (), buf.length ());
 
   if (output[0].data == nullptr) {
-    ml_loge ("createOutputTensor: strndup failed");
+    ml_loge ("createOutputTensor: g_strndup() failed");
     return false;
   }
 

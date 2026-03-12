@@ -167,8 +167,7 @@ TensorFilterLlama2c::invoke_dynamic (GstTensorFilterProperties *prop,
   char *result = nullptr, *prompt;
   size_t len;
 
-  prompt = strndup ((char *) input[0].data, input[0].size);
-  prompt[input[0].size] = '\0';
+  prompt = g_strndup ((gchar *) input[0].data, input[0].size);
 
   len = strlen (prompt);
 
@@ -193,8 +192,8 @@ TensorFilterLlama2c::invoke_dynamic (GstTensorFilterProperties *prop,
     goto free_result;
   }
 
-  output[0].size = len;
-  output[0].data = strndup (result, len);
+  output[0].size = len + 1;
+  output[0].data = g_strndup (result, len);
 
   gst_tensors_info_free (&prop->output_meta);
 
@@ -203,7 +202,7 @@ TensorFilterLlama2c::invoke_dynamic (GstTensorFilterProperties *prop,
 
   _info = gst_tensors_info_get_nth_info (&prop->output_meta, 0);
   _info->type = _NNS_UINT8;
-  _info->dimension[0] = len;
+  _info->dimension[0] = output[0].size;
 
 free_result:
   free (result);
