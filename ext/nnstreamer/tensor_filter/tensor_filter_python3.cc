@@ -695,8 +695,9 @@ TensorFilterPython::configure_instance (const GstTensorFilterProperties *prop)
   const gchar *script_path;
   cb_type cb;
 
-  if (prop->num_models != 1)
-    return;
+  if (prop->num_models != 1) {
+    throw std::invalid_argument ("Invalid model number for filter subplugin: Python");
+  }
 
   /**
    * prop->model_files[0] contains the path of a python script
@@ -704,25 +705,23 @@ TensorFilterPython::configure_instance (const GstTensorFilterProperties *prop)
    */
   script_path = prop->model_files[0];
 
+  PyGILGuard gil_guard;
   if (core != nullptr) {
     if (g_strcmp0 (script_path, core->getScriptPath ()) == 0) {
       return; /* skipped */
     }
 
-    PyGILGuard gil_guard;
     delete core;
   }
 
-  PyGILGuard gil_guard;
   core = new PYCore (script_path, prop->custom_properties);
   if (core == nullptr) {
-    g_printerr ("Failed to allocate memory for filter subplugin: Python");
-    return;
+    throw std::runtime_error ("Failed to allocate memory for filter subplugin: Python");
   }
 
   if (core->init (prop) != 0) {
     delete core;
-    g_printerr ("Failed to initialize the object: Python");
+    core = nullptr;
     throw std::runtime_error ("Failed to initialize the object: Python");
   }
 
@@ -730,8 +729,8 @@ TensorFilterPython::configure_instance (const GstTensorFilterProperties *prop)
   cb = core->getCbType ();
   if (cb != cb_type::CB_SETDIM && cb != cb_type::CB_GETDIM) {
     delete core;
-    g_printerr ("Wrong callback type for filter subplugin: Python");
-    return;
+    core = nullptr;
+    throw std::runtime_error ("Wrong callback type for filter subplugin: Python");
   }
 }
 
