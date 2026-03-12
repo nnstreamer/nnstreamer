@@ -451,12 +451,12 @@ if not get_option('python3-support').disabled()
     pg_pkgconfig = find_program('pkg-config')
 
     # Numpy uses different paths per version (>=2.2: _core, <2.2: core)
-    numpy_version = run_command('python3', ['-c', 'import numpy as np; print(np.__version__)'], check : false).stdout().strip()
+    numpy_version = run_command('python3', ['-c', 'import numpy as np\nprint(np.__version__)'], check : false).stdout().strip()
     message('numpy version: @0@'.format(numpy_version))
 
-    numpy_inc_path = '/numpy/core/include' # if it's < 2.2 or version-check has failed.
-    if numpy_version.version_compare('>=2.2')
-      numpy_inc_path = '/numpy/_core/include'
+    numpy_inc_path = '/numpy/_core/include' # if it's >= 2.2 or version-check has failed.
+    if numpy_version != '' and numpy_version.version_compare('<2.2')
+      numpy_inc_path = '/numpy/core/include'
     endif
 
     python3_inc_args = []
