@@ -152,6 +152,20 @@ gst_edgesink_class_init (GstEdgeSinkClass * klass)
 }
 
 /**
+ * @brief Release nnstreamer-edge handle and reset state.
+ */
+static void
+gst_edgesink_release_handle (GstEdgeSink * self)
+{
+  if (self->edge_h) {
+    nns_edge_release_handle (self->edge_h);
+    self->edge_h = NULL;
+  }
+
+  self->is_connected = FALSE;
+}
+
+/**
  * @brief initialize the new element
  */
 static void
@@ -167,6 +181,7 @@ gst_edgesink_init (GstEdgeSink * self)
   self->connection_timeout = 0;
   self->custom_lib = NULL;
   self->is_connected = FALSE;
+  self->edge_h = NULL;
   g_mutex_init (&self->lock);
   g_cond_init (&self->cond);
 }
@@ -284,11 +299,7 @@ gst_edgesink_finalize (GObject * object)
   g_mutex_clear (&self->lock);
   g_cond_clear (&self->cond);
 
-  if (self->edge_h) {
-    nns_edge_release_handle (self->edge_h);
-    self->edge_h = NULL;
-  }
-
+  gst_edgesink_release_handle (self);
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
@@ -350,12 +361,7 @@ gst_edgesink_start (GstBaseSink * basesink)
 
   if (NNS_EDGE_ERROR_NONE != ret) {
     nns_loge ("Failed to get nnstreamer edge handle.");
-
-    if (self->edge_h) {
-      nns_edge_release_handle (self->edge_h);
-      self->edge_h = NULL;
-    }
-
+    gst_edgesink_release_handle (self);
     return FALSE;
   }
 
@@ -382,6 +388,7 @@ gst_edgesink_start (GstBaseSink * basesink)
   if (NNS_EDGE_ERROR_NONE != ret) {
     nns_loge
         ("Failed to start NNStreamer-edge. Please check server IP and port.");
+    gst_edgesink_release_handle (self);
     return FALSE;
   }
 
@@ -436,7 +443,8 @@ gst_edgesink_stop (GstBaseSink * basesink)
     }
   }
 
-  return (ret == NNS_EDGE_ERROR_NONE);
+  gst_edgesink_release_handle (self);
+  return TRUE;
 }
 
 /**
