@@ -236,6 +236,7 @@ gst_data_repo_sink_set_property (GObject * object, guint prop_id,
       GST_INFO_OBJECT (sink, "filename: %s", sink->filename);
       break;
     case PROP_JSON:
+      g_free (sink->json_filename);
       sink->json_filename = g_value_dup_string (value);
       GST_INFO_OBJECT (sink, "JSON filename: %s", sink->json_filename);
       break;
