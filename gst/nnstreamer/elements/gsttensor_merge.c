@@ -860,6 +860,7 @@ gst_tensor_merge_set_property (GObject * object, guint prop_id,
       }
       break;
     case PROP_OPTION:
+      g_free (tensor_merge->option);
       tensor_merge->option = g_value_dup_string (value);
       if (!gst_tensor_merge_set_option_data (tensor_merge)) {
         tensor_merge->loaded = FALSE;
