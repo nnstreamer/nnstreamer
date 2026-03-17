@@ -633,6 +633,7 @@ gst_tensor_mux_set_property (GObject * object, guint prop_id,
       gst_tensor_time_sync_set_option_data (&tensor_mux->sync);
       break;
     case PROP_SYNC_OPTION:
+      g_free (tensor_mux->sync.option);
       tensor_mux->sync.option = g_value_dup_string (value);
       silent_debug (tensor_mux, "Option = %s\n", tensor_mux->sync.option);
       gst_tensor_time_sync_set_option_data (&tensor_mux->sync);
