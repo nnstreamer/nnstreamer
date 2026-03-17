@@ -878,6 +878,7 @@ gst_tensor_merge_set_property (GObject * object, guint prop_id,
       gst_tensor_time_sync_set_option_data (&tensor_merge->sync);
       break;
     case PROP_SYNC_OPTION:
+      g_free (tensor_merge->sync.option);
       tensor_merge->sync.option = g_value_dup_string (value);
       silent_debug (tensor_merge, "Option = %s\n", tensor_merge->sync.option);
       gst_tensor_time_sync_set_option_data (&tensor_merge->sync);
