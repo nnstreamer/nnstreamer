@@ -1155,7 +1155,7 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
           "%s: failed to wrap the raw data of received message in GstMemory: %s",
           __func__, g_strerror (ENODATA));
     }
-    return TRUE;
+    goto ret_unref_clock;
   }
 
   mqtt_msg_hdr = _extract_mqtt_msg_hdr_from (received_mem, &hdr_mem,
@@ -1201,8 +1201,6 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
           " and queue length is %d",
           GST_TIME_ARGS (gst_clock_get_time (clock) - base_time),
           g_async_queue_length (self->aqueue));
-
-      gst_object_unref (clock);
     }
   }
   _put_timestamp_on_gst_buf (self, mqtt_msg_hdr, buffer);
@@ -1213,6 +1211,10 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
 
 ret_unref_received_mem:
   gst_memory_unref (received_mem);
+
+ret_unref_clock:
+  if (clock)
+    gst_object_unref (clock);
 
   return TRUE;
 }
