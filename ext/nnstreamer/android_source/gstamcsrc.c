@@ -231,6 +231,7 @@ gst_wrapped_buf_unref (GstWrappedBuf * self)
 
     AMediaCodec_releaseOutputBuffer (priv->codec, self->idx, 0);
     gst_object_unref (self->amcsrc);
+    g_free (self);
   }
 }
 
