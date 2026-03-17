@@ -169,7 +169,7 @@ mediapipe_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 }
 
 /**
- * @brief	The mendatory delete function of mediapipe data pointer
+ * @brief	The mandatory delete function of mediapipe data pointer
  */
 void
 mediapipe_subplugin::inputPtrDeleter (uint8_t *a)
