@@ -430,6 +430,8 @@ endif
 
 # datarepo requires json-glib-1.0 in the name of json_glib_dep
 json_glib_dep = dependency('json-glib-1.0', required: false)
+# mlops-agent pulls libpkgmgr-info in Tizen and it requires libxml2 symbols.
+libxml2_dep = dependency('libxml-2.0', required: false)
 if get_option('datarepo-support').enabled() and not json_glib_dep.found()
   error('json-glib-1.0 is required for datarepo-support option.')
 endif
@@ -654,6 +656,7 @@ features = {
   },
   'ml-agent-support': {
     'target': 'mlops-agent',
+    'extra_deps': [ libxml2_dep ],
     'project_args': { 'ENABLE_ML_AGENT' : 1 }
   },
   'onnxruntime-support': {
