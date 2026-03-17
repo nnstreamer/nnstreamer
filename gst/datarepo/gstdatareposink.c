@@ -231,6 +231,7 @@ gst_data_repo_sink_set_property (GObject * object, guint prop_id,
 
   switch (prop_id) {
     case PROP_LOCATION:
+      g_free (sink->filename);
       sink->filename = g_value_dup_string (value);
       GST_INFO_OBJECT (sink, "filename: %s", sink->filename);
       break;
