@@ -395,6 +395,11 @@ BuildRequires: pkgconfig(mlops-agent)
 BuildRequires: pkgconfig(hal-api-ml)
 %endif
 
+# Tizen hal bug workaround
+%if 0%{?tizen_hal_support}
+BuildRequires: pkgconfig(libxml-2.0)
+%endif
+
 # Note that debug packages generate an additional build and storage cost.
 # If you do not need debug packages, run '$ gbs -c .TAOS-CI/.gbs.conf build ... --define "_skip_debug_rpm 1"'.
 
