@@ -17,10 +17,10 @@ This document assumes that you are using Ubuntu.
 
 ### Prerequisites
 The following dependencies are needed to compile/build/run.
-* gcc/g++ (C++14 if you want C++-class as filters)
+* gcc/g++ (C++17 for C++-class filters)
 * gstreamer 1.0 and its relatives
 * glib 2.0
-* meson >= 0.50
+* meson >= 0.62.0
 * ninja-build
 * Neural network frameworks or libraries for plugins (e.g., tensorflow) you want to use, including their pkgconfig files or mechanisms to allow meson to discover its headers and libraries. If you use development packages packaged by us for tensorflow/pytorch/openvino/..., you do not need to worry.
     * Possible frameworks for "extra" plugins: tensorflow, tensorflow-lite, pytorch, protobuf, flatbuf, openvino, ncsdk2, Verisilicon-Vivante, SNPE, TensorRT, mqtt, ...
@@ -119,7 +119,7 @@ $ DESTDIR=/home/me/somewhereelse/ ninja -C build install
 Then, it will install:
 - nnstreamer plugins to ```{libdir}/gstreamer-1.0/```
 - libraries to ```{libdir}/```
-- subplugins to ```{prefix}/lib/nnstreamer/PLUGIN-TYPE/```
+- subplugins to ```{libdir}/nnstreamer/PLUGIN-TYPE/``` (or ```{subplugindir}/PLUGIN-TYPE/``` when ```-Dsubplugindir``` is set)
 - common header files to ```{includedir}/```
 
 
