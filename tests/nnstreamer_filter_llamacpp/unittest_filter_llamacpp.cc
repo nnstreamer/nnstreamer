@@ -83,26 +83,17 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
       root_path = "..";
 
     model = g_build_filename (root_path, "tests", "test_models", "models",
-        "llama-2-7b-chat.Q4_K_M.gguf", NULL);
+        "TinyStories-656K-Q2_K.gguf", NULL);
 
     if (!g_file_test (model, G_FILE_TEST_EXISTS)) {
       g_critical ("Skipping test due to missing model file. "
-                  "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF");
+                  "Please download model file from https://huggingface.co/tensorblock/TinyStories-656K-GGUF/");
       skip_test = TRUE;
       return;
     }
 
-    lora_path = g_build_filename (root_path, "tests", "test_models", "models",
-        "ggml-adapter-model.gguf", NULL);
-
-    if (!g_file_test (lora_path, G_FILE_TEST_EXISTS)) {
-      g_critical ("Skipping test due to missing LoRA model file: %s", lora_path);
-      skip_test = TRUE;
-      g_free (model);
-      model = NULL;
-      return;
-    }
-
+    /* lora_path will be initialized in LoRA-specific test cases */
+    lora_path = NULL;
     loaded = TRUE;
   }
 
@@ -170,7 +161,65 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
 
     ASSERT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc), buffer), GST_FLOW_OK);
   }
+
+#ifdef RUN_LORA_TEST
+  /**
+   * @brief Structure to hold LoRA-related file paths
+   */
+  typedef struct {
+    gchar *adapter_path;
+    gchar *model_path;
+  } LoRAPaths;
+
+  /**
+   * @brief Get LoRA-related file paths, returns NULL if files don't exist
+   * @return LoRAPaths structure with file paths or NULL if not found
+   */
+  LoRAPaths *get_lora_paths ()
+  {
+    const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+
+    /* supposed to run test in build directory */
+    if (root_path == NULL)
+      root_path = "..";
+
+    LoRAPaths *paths = g_new0 (LoRAPaths, 1);
+
+    /* Get LoRA adapter path */
+    paths->adapter_path = g_build_filename (root_path, "tests", "test_models",
+        "models", "ggml-adapter-model.gguf", NULL);
+
+    /* Get LoRA-compatible model path */
+    paths->model_path = g_build_filename (root_path, "tests", "test_models",
+        "models", "llama-2-7b-chat.Q4_K_M.gguf", NULL);
+
+    /* Check if both files exist */
+    if (!g_file_test (paths->adapter_path, G_FILE_TEST_EXISTS)
+        || !g_file_test (paths->model_path, G_FILE_TEST_EXISTS)) {
+      g_free (paths->adapter_path);
+      g_free (paths->model_path);
+      g_free (paths);
+      return NULL;
+    }
+
+    return paths;
+  }
+
+  /**
+   * @brief Free LoRAPaths structure
+   * @param paths LoRAPaths structure to free
+   */
+  void free_lora_paths (LoRAPaths *paths)
+  {
+    if (paths) {
+      g_free (paths->adapter_path);
+      g_free (paths->model_path);
+      g_free (paths);
+    }
+  }
+#endif
 };
+
 
 /**
  * Note. Inference libraries like LLP and llama.cpp generally do not allow
@@ -187,8 +236,8 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputMultipleOutputsAsync_p)
   gboolean invoke_async = TRUE;
   if (skip_test) {
     GTEST_SKIP ()
-        << "Skipping singleInputMultipleOutputsAsync_p test due to missing model file"
-           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
+        << "Skipping singleInputMultipleOutputsAsync_p test due to missing model file. "
+           "Please download model file from https://huggingface.co/tensorblock/TinyStories-656K-GGUF";
   }
   ASSERT_TRUE (this->loaded);
 
@@ -196,7 +245,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputMultipleOutputsAsync_p)
   create_pipeline (model, invoke_async, "num_predict:10");
   data_push ("Hello my name is");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (100000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GT (new_sample_count, 10);
@@ -210,8 +259,8 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputSingleOutputSync_p)
   gboolean invoke_async = FALSE;
   if (skip_test) {
     GTEST_SKIP ()
-        << "Skipping singleInputSingleOutputSync_p test due to missing model file"
-           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
+        << "Skipping singleInputSingleOutputSync_p test due to missing model file. "
+           "Please download model file from https://huggingface.co/tensorblock/TinyStories-656K-GGUF";
   }
   ASSERT_TRUE (this->loaded);
 
@@ -219,7 +268,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputSingleOutputSync_p)
   create_pipeline (model, invoke_async, "num_predict:10");
   data_push ("Hello my name is");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (100000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (new_sample_count, 1);
@@ -233,8 +282,8 @@ TEST_F (NNStreamerFilterLlamaCppTest, multipleInputsMultipleOutputsAsync_p)
   gboolean invoke_async = TRUE;
   if (skip_test) {
     GTEST_SKIP ()
-        << "Skipping multipleInputsMultipleOutputsAsync_p test due to missing model file"
-           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
+        << "Skipping multipleInputsMultipleOutputsAsync_p test due to missing model file. "
+           "Please download model file from https://huggingface.co/tensorblock/TinyStories-656K-GGUF";
   }
   ASSERT_TRUE (this->loaded);
 
@@ -243,7 +292,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, multipleInputsMultipleOutputsAsync_p)
   data_push ("Hello my name is");
   data_push ("What is AI?");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (1500000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GT (new_sample_count, 15);
@@ -257,8 +306,8 @@ TEST_F (NNStreamerFilterLlamaCppTest, multipleInputsSingleOutputSync_p)
   gboolean invoke_async = FALSE;
   if (skip_test) {
     GTEST_SKIP ()
-        << "Skipping multipleInputsSingleOutputSync_p test due to missing model file"
-           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
+        << "Skipping multipleInputsSingleOutputSync_p test due to missing model file. "
+           "Please download model file from https://huggingface.co/tensorblock/TinyStories-656K-GGUF";
   }
   ASSERT_TRUE (this->loaded);
 
@@ -267,7 +316,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, multipleInputsSingleOutputSync_p)
   data_push ("Hello my name is");
   data_push ("What is AI?");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (1000000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (new_sample_count, 2);
@@ -281,8 +330,8 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidNumPredict_n)
   gboolean invoke_async = TRUE;
   if (skip_test) {
     GTEST_SKIP ()
-        << "Skipping invalidNumPredict_n test due to missing model file"
-           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
+        << "Skipping invalidNumPredict_n test due to missing model file. "
+           "Please download model file from https://huggingface.co/tensorblock/TinyStories-656K-GGUF";
   }
   ASSERT_TRUE (this->loaded);
 
@@ -290,7 +339,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidNumPredict_n)
   create_pipeline (model, invoke_async, "num_predict:0");
   data_push ("Hello my name is");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (100000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 }
@@ -302,8 +351,8 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidModel_n)
 {
   gboolean invoke_async = TRUE;
   if (skip_test) {
-    GTEST_SKIP () << "Skipping invalidModel_n test due to missing model file"
-                     "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
+    GTEST_SKIP () << "Skipping invalidModel_n test due to missing model file. "
+                     "Please download model file from https://huggingface.co/tensorblock/TinyStories-656K-GGUF";
   }
   ASSERT_TRUE (this->loaded);
 
@@ -320,8 +369,8 @@ TEST_F (NNStreamerFilterLlamaCppTest, earlyTerminationBeforeTokenGenerationAsync
   gboolean invoke_async = TRUE;
   if (skip_test) {
     GTEST_SKIP ()
-        << "Skipping earlyTerminationBeforeTokenGenerationAsync_n test due to missing model file"
-           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
+        << "Skipping earlyTerminationBeforeTokenGenerationAsync_n test due to missing model file. "
+           "Please download model file from https://huggingface.co/tensorblock/TinyStories-656K-GGUF";
   }
   ASSERT_TRUE (this->loaded);
 
@@ -329,7 +378,6 @@ TEST_F (NNStreamerFilterLlamaCppTest, earlyTerminationBeforeTokenGenerationAsync
   create_pipeline (model, invoke_async, "num_predict:10");
   data_push ("Hello my name is");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  /* g_usleep (3000000); Avoid using g_usleep for early termination. */
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_LE (new_sample_count, 10);
 }
@@ -342,8 +390,8 @@ TEST_F (NNStreamerFilterLlamaCppTest, earlyTerminationBeforeTokenGenerationSync_
   gboolean invoke_async = FALSE;
   if (skip_test) {
     GTEST_SKIP ()
-        << "Skipping earlyTerminationBeforeTokenGenerationSync_n test due to missing model file"
-           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
+        << "Skipping earlyTerminationBeforeTokenGenerationSync_n test due to missing model file. "
+           "Please download model file from https://huggingface.co/tensorblock/TinyStories-656K-GGUF";
   }
   ASSERT_TRUE (this->loaded);
 
@@ -351,7 +399,6 @@ TEST_F (NNStreamerFilterLlamaCppTest, earlyTerminationBeforeTokenGenerationSync_
   create_pipeline (model, invoke_async, "num_predict:10");
   data_push ("Hello my name is");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  /* g_usleep (3000000); Avoid using g_usleep for early termination. */
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_LE (new_sample_count, 1);
 }
@@ -364,8 +411,8 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputCombinedSampling_p)
   gboolean invoke_async = TRUE;
   if (skip_test) {
     GTEST_SKIP ()
-        << "Skipping singleInputCombinedSampling_p test due to missing model file"
-           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
+        << "Skipping singleInputCombinedSampling_p test due to missing model file. "
+           "Please download model file from https://huggingface.co/tensorblock/TinyStories-656K-GGUF";
   }
   ASSERT_TRUE (this->loaded);
 
@@ -373,7 +420,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputCombinedSampling_p)
   create_pipeline (model, invoke_async, "num_predict:30,top_k:50,top_p:0.9,temperature:0.7");
   data_push ("Hello my name is");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (100000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GT (new_sample_count, 10);
@@ -387,8 +434,8 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputAllSamplingOptions_p)
   gboolean invoke_async = TRUE;
   if (skip_test) {
     GTEST_SKIP ()
-        << "Skipping singleInputAllSamplingOptions_p test due to missing model file"
-           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
+        << "Skipping singleInputAllSamplingOptions_p test due to missing model file. "
+           "Please download model file from https://huggingface.co/tensorblock/TinyStories-656K-GGUF";
   }
   ASSERT_TRUE (this->loaded);
 
@@ -397,7 +444,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputAllSamplingOptions_p)
       "num_predict:30,top_k:40,top_p:0.9,typical_p:0.9,temperature:0.7");
   data_push ("Hello my name is");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (100000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GT (new_sample_count, 10);
@@ -411,8 +458,8 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputTypicalPTempSampling_p)
   gboolean invoke_async = TRUE;
   if (skip_test) {
     GTEST_SKIP ()
-        << "Skipping singleInputTypicalPTempSampling_p test due to missing model file"
-           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
+        << "Skipping singleInputTypicalPTempSampling_p test due to missing model file. "
+           "Please download model file from https://huggingface.co/tensorblock/TinyStories-656K-GGUF";
   }
   ASSERT_TRUE (this->loaded);
 
@@ -420,7 +467,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputTypicalPTempSampling_p)
   create_pipeline (model, invoke_async, "num_predict:30,typical_p:0.9,temperature:0.7");
   data_push ("Hello my name is");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (100000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GT (new_sample_count, 10);
@@ -433,8 +480,9 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidTopKValue_n)
 {
   gboolean invoke_async = TRUE;
   if (skip_test) {
-    GTEST_SKIP () << "Skipping invalidTopKValue_n test due to missing model file"
-                     "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
+    GTEST_SKIP ()
+        << "Skipping invalidTopKValue_n test due to missing model file. "
+           "Please download model file from https://huggingface.co/tensorblock/TinyStories-656K-GGUF";
   }
   ASSERT_TRUE (this->loaded);
 
@@ -442,7 +490,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidTopKValue_n)
   create_pipeline (model, invoke_async, "num_predict:10,top_k:0");
   data_push ("Hello my name is");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (100000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GT (new_sample_count, 10);
@@ -455,8 +503,9 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidTopPValue_n)
 {
   gboolean invoke_async = TRUE;
   if (skip_test) {
-    GTEST_SKIP () << "Skipping invalidTopPValue_n test due to missing model file"
-                     "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
+    GTEST_SKIP ()
+        << "Skipping invalidTopPValue_n test due to missing model file. "
+           "Please download model file from https://huggingface.co/tensorblock/TinyStories-656K-GGUF";
   }
   ASSERT_TRUE (this->loaded);
 
@@ -464,7 +513,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidTopPValue_n)
   create_pipeline (model, invoke_async, "num_predict:10,top_p:1.0");
   data_push ("Hello my name is");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (100000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GT (new_sample_count, 10);
@@ -478,8 +527,8 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidTypicalPValue_n)
   gboolean invoke_async = TRUE;
   if (skip_test) {
     GTEST_SKIP ()
-        << "Skipping invalidTypicalPValue_n test due to missing model file"
-           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
+        << "Skipping invalidTypicalPValue_n test due to missing model file. "
+           "Please download model file from https://huggingface.co/tensorblock/TinyStories-656K-GGUF";
   }
   ASSERT_TRUE (this->loaded);
 
@@ -487,7 +536,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidTypicalPValue_n)
   create_pipeline (model, invoke_async, "num_predict:10,typical_p:1.0");
   data_push ("Hello my name is");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (100000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GT (new_sample_count, 10);
@@ -501,8 +550,8 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidTemperatureValue_n)
   gboolean invoke_async = TRUE;
   if (skip_test) {
     GTEST_SKIP ()
-        << "Skipping invalidTemperatureValue_n test due to missing model file"
-           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
+        << "Skipping invalidTemperatureValue_n test due to missing model file. "
+           "Please download model file from https://huggingface.co/tensorblock/TinyStories-656K-GGUF";
   }
   ASSERT_TRUE (this->loaded);
 
@@ -510,7 +559,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidTemperatureValue_n)
   create_pipeline (model, invoke_async, "num_predict:10,temperature:-1.0");
   data_push ("Hello my name is");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (100000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GT (new_sample_count, 10);
@@ -524,8 +573,8 @@ TEST_F (NNStreamerFilterLlamaCppTest, combinedSamplingSync_p)
   gboolean invoke_async = FALSE;
   if (skip_test) {
     GTEST_SKIP ()
-        << "Skipping combinedSamplingSync_p test due to missing model file"
-           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
+        << "Skipping combinedSamplingSync_p test due to missing model file. "
+           "Please download model file from https://huggingface.co/tensorblock/TinyStories-656K-GGUF";
   }
   ASSERT_TRUE (this->loaded);
 
@@ -533,7 +582,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, combinedSamplingSync_p)
   create_pipeline (model, invoke_async, "num_predict:30,top_k:20,top_p:0.7,temperature:0.7");
   data_push ("Hello my name is");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (100000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (new_sample_count, 1);
@@ -547,8 +596,8 @@ TEST_F (NNStreamerFilterLlamaCppTest, contextContinuationInConversation_p)
   gboolean invoke_async = FALSE;
   if (skip_test) {
     GTEST_SKIP ()
-        << "Skipping contextContinuationInConversation_p test due to missing model file"
-           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
+        << "Skipping contextContinuationInConversation_p test due to missing model file. "
+           "Please download model file from https://huggingface.co/tensorblock/TinyStories-656K-GGUF";
   }
   ASSERT_TRUE (this->loaded);
 
@@ -557,7 +606,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, contextContinuationInConversation_p)
   data_push ("Hello my name is John. I like programming and artificial intelligence.");
   data_push ("What did I just say about myself?");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (100000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (new_sample_count, 2);
@@ -571,22 +620,22 @@ TEST_F (NNStreamerFilterLlamaCppTest, cacheTrimmingTrigger_p)
   gboolean invoke_async = TRUE;
   if (skip_test) {
     GTEST_SKIP ()
-        << "Skipping cacheTrimmingTrigger_p test due to missing model file"
-           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
+        << "Skipping cacheTrimmingTrigger_p test due to missing model file. "
+           "Please download model file from https://huggingface.co/tensorblock/TinyStories-656K-GGUF";
   }
   ASSERT_TRUE (this->loaded);
 
   new_sample_count = 0;
-  create_pipeline (model, invoke_async, "num_predict:128,context_length:128");
-  /** If we set the context length to 128 and the number of tokens generated by
-    LLM to 128, KV cache trimming should occur after the first data_push output,
+  create_pipeline (model, invoke_async, "num_predict:10,context_length:20");
+  /** If we set the context length to 20 and the number of tokens generated by
+    LLM to 20, KV cache trimming should occur after the first data_push output,
     and data_push should function properly. */
   data_push ("Hello my name is");
   data_push ("Hello my name is");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (30000000);
+  g_usleep (1000000);
 
-  EXPECT_GT (new_sample_count, 128);
+  EXPECT_GT (new_sample_count, 10);
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 }
 
@@ -598,8 +647,8 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidContextLength_n)
   gboolean invoke_async = TRUE;
   if (skip_test) {
     GTEST_SKIP ()
-        << "Skipping invalidContextLength_n test due to missing model file"
-           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
+        << "Skipping invalidContextLength_n test due to missing model file. "
+           "Please download model file from https://huggingface.co/tensorblock/TinyStories-656K-GGUF";
   }
   ASSERT_TRUE (this->loaded);
 
@@ -608,7 +657,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidContextLength_n)
 
   data_push ("Hello");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (100000);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GE (new_sample_count, 0);
@@ -621,8 +670,9 @@ TEST_F (NNStreamerFilterLlamaCppTest, contextSaveLoad_p)
 {
   gboolean invoke_async = FALSE;
   if (skip_test) {
-    GTEST_SKIP () << "Skipping contextSaveLoad_p test due to missing model file"
-                     "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
+    GTEST_SKIP ()
+        << "Skipping contextSaveLoad_p test due to missing model file. "
+           "Please download model file from https://huggingface.co/tensorblock/TinyStories-656K-GGUF";
   }
   ASSERT_TRUE (this->loaded);
 
@@ -637,7 +687,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, contextSaveLoad_p)
 
   data_push ("Hello my name is John. I like programming and artificial intelligence.");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (100000);
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (new_sample_count, 1);
 
@@ -653,7 +703,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, contextSaveLoad_p)
 
   data_push ("What did I just say about myself?");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (100000);
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (new_sample_count, 1);
 
@@ -669,8 +719,8 @@ TEST_F (NNStreamerFilterLlamaCppTest, contextFileNotFound_n)
   gboolean invoke_async = FALSE;
   if (skip_test) {
     GTEST_SKIP ()
-        << "Skipping contextFileNotFound_n test due to missing model file"
-           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
+        << "Skipping contextFileNotFound_n test due to missing model file. "
+           "Please download model file from https://huggingface.co/tensorblock/TinyStories-656K-GGUF";
   }
   ASSERT_TRUE (this->loaded);
 
@@ -691,7 +741,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, contextFileNotFound_n)
   // Should work normally with fresh context
   data_push ("Hello my name is John.");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (100000);
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (new_sample_count, 1); // Should work with fresh context
 }
@@ -704,8 +754,8 @@ TEST_F (NNStreamerFilterLlamaCppTest, contextInvalidSavePath_n)
   gboolean invoke_async = FALSE;
   if (skip_test) {
     GTEST_SKIP ()
-        << "Skipping contextInvalidSavePath_n test due to missing model file"
-           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF";
+        << "Skipping contextInvalidSavePath_n test due to missing model file. "
+           "Please download model file from https://huggingface.co/tensorblock/TinyStories-656K-GGUF";
   }
   ASSERT_TRUE (this->loaded);
 
@@ -721,7 +771,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, contextInvalidSavePath_n)
   // Should work normally even if save fails
   data_push ("Hello my name is John.");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000);
+  g_usleep (100000);
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (new_sample_count, 1); // Should work even if save fails
 
@@ -729,28 +779,40 @@ TEST_F (NNStreamerFilterLlamaCppTest, contextInvalidSavePath_n)
   EXPECT_FALSE (g_file_test (invalid_path, G_FILE_TEST_EXISTS));
 }
 
+#ifdef RUN_LORA_TEST
 /**
  * @brief Test case for tensor_filter llama-cpp plugin with LoRA adapter applied (positive test)
+ * Please refer to the PR(https://github.com/nnstreamer/nnstreamer/pull/4773) for creating a LoRa adapter.
  */
 TEST_F (NNStreamerFilterLlamaCppTest, applyLoraAdapter_p)
 {
   gboolean invoke_async = FALSE; /* Use sync mode for simpler output verification */
+
+  /* Get LoRA-related file paths */
+  LoRAPaths *lora_paths = get_lora_paths ();
+  if (lora_paths == NULL) {
+    GTEST_SKIP ()
+        << "Skipping applyLoraAdapter_p test due to missing LoRA files. "
+           "Please download llama-2-7b-chat.Q4_K_M.gguf model and generate LoRA adapter dependent on the model.";
+  }
+
   if (skip_test) {
     GTEST_SKIP ()
-        << "Skipping applyLoraAdapter_p test due to missing model or LoRA file."
-           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF "
-           "and ensure adapter_model.gguf is present in tests/test_models/models/";
+        << "Skipping applyLoraAdapter_p test due to missing model file. "
+           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF/";
   }
   ASSERT_TRUE (this->loaded);
 
   new_sample_count = 0;
-  gchar *model_with_lora = g_strdup_printf ("%s,%s", model, lora_path);
+  gchar *model_with_lora
+      = g_strdup_printf ("%s,%s", lora_paths->model_path, lora_paths->adapter_path);
   create_pipeline (model_with_lora, invoke_async, "num_predict:40");
   g_free (model_with_lora);
+  free_lora_paths (lora_paths);
 
   data_push ("Can you translate 'Hello world' into Korean?");
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (3000000); /* Wait for inference to complete */
+  g_usleep (1000000); /* Wait for inference to complete */
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (new_sample_count, 1); /* In sync mode, expect one sample for the entire output */
@@ -758,23 +820,35 @@ TEST_F (NNStreamerFilterLlamaCppTest, applyLoraAdapter_p)
 
 /**
  * @brief Test case for tensor_filter llama-cpp plugin with invalid LoRA adapter path (negative test)
+ * Please refer to the PR(https://github.com/nnstreamer/nnstreamer/pull/4773) for creating a LoRa adapter.
  */
 TEST_F (NNStreamerFilterLlamaCppTest, applyInvalidLoraAdapter_n)
 {
   gboolean invoke_async = FALSE;
+
+  /* Get LoRA-related file paths */
+  LoRAPaths *lora_paths = get_lora_paths ();
+  if (lora_paths == NULL) {
+    GTEST_SKIP ()
+        << "Skipping applyInvalidLoraAdapter_n test due to missing LoRA files. "
+           "Please download llama-2-7b-chat.Q4_K_M.gguf model and generate LoRA adapter dependent on the model.";
+  }
+
   if (skip_test) {
     GTEST_SKIP ()
-        << "Skipping applyLoraAdapter_p test due to missing model or LoRA file."
-           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF ";
+        << "Skipping applyInvalidLoraAdapter_n test due to missing model file. "
+           "Please download model file from https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF/";
   }
   ASSERT_TRUE (this->loaded);
 
   new_sample_count = 0;
   /* Intentionally use an invalid LoRA path */
   const gchar *invalid_lora_path = "/invalid/path/to/adapter.gguf";
-  gchar *model_with_invalid_lora = g_strdup_printf ("%s,%s", model, invalid_lora_path);
+  gchar *model_with_invalid_lora
+      = g_strdup_printf ("%s,%s", lora_paths->model_path, invalid_lora_path);
   create_pipeline (model_with_invalid_lora, invoke_async, "num_predict:20");
   g_free (model_with_invalid_lora);
+  free_lora_paths (lora_paths);
 
   /* Pipeline state change to PLAYING should fail due to invalid LoRA path */
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
@@ -782,6 +856,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, applyInvalidLoraAdapter_n)
   setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
   EXPECT_EQ (new_sample_count, 0); /* No samples should be generated */
 }
+#endif /* RUN_LORA_TEST */
 
 
 /**
