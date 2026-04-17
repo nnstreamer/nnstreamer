@@ -43,8 +43,8 @@ As of 2018/10/13, we support 16.04 and 18.04
 * [getting-started](getting-started.md)
 
 - Install related packages before building nnstreamer and examples.
-1. ninja-build, meson (>=0.50)
-2. liborc (>=0.4.25, optional)
+1. ninja-build, meson (>=0.62.0)
+2. liborc (>=0.4.17, optional)
 3. tensorflow, protobuf (>=3.6.1)
 4. tensorflow-lite
 
