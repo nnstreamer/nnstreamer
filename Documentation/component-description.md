@@ -55,7 +55,6 @@ In this page, we focus on the status of each elements. For requirements and desi
   - Caffe2 (stable)
   - PyTorch (stable)
   - TVM (stable)
-  - NNTrainer (stable. **maintained by its own community**)
   - TRIx NPU/Samsung (stable. **maintained by the manufacturer**)
   - Movidius-X NCS2/Intel (stable)
   - NNFW-Runtime/nnfw (stable)
@@ -97,6 +96,8 @@ In this page, we focus on the status of each elements. For requirements and desi
     - Protobuf (stable)
     - binary/octet-stream (stable)
   - Users can add plugins in run-time.
+- [tensor\_trainer](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_trainer.c) (stable)
+  - Trains models from tensor streams using a trainer subplugin selected by the ```framework``` property.
 - [tensor\_sink](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_sink.md) (stable)
   - ```appsink```-like element, which is specialized for ```other/tensors```. You may use appsink with capsfilter instead.
 - [tensor\_merge](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_merge.c) (stable)
@@ -106,7 +107,7 @@ In this page, we focus on the status of each elements. For requirements and desi
 - [tensor\_split](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_split.c) (stable)
   - This is the opposite of ```tensor_merge```. This splits a single-tensored (```other/tensors,num_tensors=1```) stream into multiple single-tensored streams. For example, a stream of ```dimensions=1920:1080``` may split into ```dimensions=1080:1080``` and ```dimensions=840:1080```.
   - Users can adjust how dimensions are split
-- [tensor\_mux](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/tensor_mux) (stable)
+- [tensor\_mux](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_mux.c) (stable)
   - This combines multiple ```other/tensor(s)``` streams into a single ```other/tensors``` stream while keeping the input stream dimensions. Thus, the number of tensors (```num_tensors```) increase accordingly without changing dimensions of incoming tensors. For example, merging the two tensor streams, ```num_tensors=1,dimensions=3:2``` and ```num_tensors=1,dimensions=4:4:4``` becomes ```num_tensors=2,dimensions=3:2,4:4:4```, combining frames from the two streams, enforcing synchronization.
   - Both merge and mux combine multiple streams into a stream; however, merge combines multiple tensors into a tensor, updating the dimensions while mux keep the tensors and combine them into a single container.
   - Users can adjust sync-mode and sync-option to change its behaviors of when to create output tensors and how to choose input tensors..
