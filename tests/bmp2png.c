@@ -195,11 +195,12 @@ int
 main (int argc, char *argv[])
 {
   const char option_gray[] = "--GRAY8";
+  const char *file_ext;
   FILE *bmpF;
   bitmap_t bmp;
   int x, y;
   uint16_t width, height, *ptr16;
-  size_t size, strn;
+  size_t size;
   char byte;
   char header[26];              /** gen24bBMP.py gives you 24B headered bmp file */
   int ret;
@@ -210,16 +211,15 @@ main (int argc, char *argv[])
     printf ("Usage: %s BMPfilename [OPTION:--GRAY8]\n\n", argv[0]);
     return 1;
   }
-  strn = strlen (argv[1]);
-  if (strn < 5 || argv[1][strn - 4] != '.' || argv[1][strn - 3] != 'b' ||
-      argv[1][strn - 2] != 'm' || argv[1][strn - 1] != 'p') {
+
+  file_ext = strrchr (argv[1], '.');
+  if (!file_ext || strcasecmp (file_ext, ".bmp")) {
     printf ("The BMPfilename must be ending with \".bmp\"\n\n");
     return 1;
   }
+
   /** Check the option, --GRAY8 */
-  strn = strlen (option_gray);
-  if ((argc == 3) && (strlen (argv[2]) == strn)
-      && (!strncmp (option_gray, argv[2], strn))) {
+  if ((argc == 3) && (!strcasecmp (option_gray, argv[2]))) {
     bmp.color_format = GRAY8;
   } else {
     bmp.color_format = RGB;

@@ -113,21 +113,10 @@ pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
     const GstTensorMemory * input, GstTensorMemory * output)
 {
   uint32_t c, x, y, z;
-
-  uint32_t ix = prop->input_meta.info[0].dimension[0];
-  uint32_t iy =
-      prop->input_meta.info[0].dimension[0] *
-      prop->input_meta.info[0].dimension[1];
-  uint32_t iz =
-      prop->input_meta.info[0].dimension[0] *
-      prop->input_meta.info[0].dimension[1] *
-      prop->input_meta.info[0].dimension[2];
-  uint32_t xy =
-      prop->input_meta.info[0].dimension[1] *
-      prop->input_meta.info[0].dimension[2];
-  (void) prop;
+  uint32_t ix, iy, iz, xy;
 
   assert (private_data);
+  assert (prop);
   assert (input);
   assert (output);
 
@@ -136,6 +125,20 @@ pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
   assert (prop->input_meta.info[0].dimension[3] ==
       prop->output_meta.info[0].dimension[3]);
   assert (prop->input_meta.info[0].type == prop->output_meta.info[0].type);
+  assert (input[0].data != output[0].data);
+
+  ix = prop->input_meta.info[0].dimension[0];
+  iy =
+      prop->input_meta.info[0].dimension[0] *
+      prop->input_meta.info[0].dimension[1];
+  iz =
+      prop->input_meta.info[0].dimension[0] *
+      prop->input_meta.info[0].dimension[1] *
+      prop->input_meta.info[0].dimension[2];
+  xy =
+      prop->input_meta.info[0].dimension[1] *
+      prop->input_meta.info[0].dimension[2];
+  assert (ix && iy && iz && xy);
 
   switch (prop->input_meta.info[0].type) {
     case _NNS_INT8:
@@ -171,7 +174,6 @@ pt_invoke (void *private_data, const GstTensorFilterProperties * prop,
     default:
       assert (0);               /* Type Mismatch */
   }
-  assert (input[0].data != output[0].data);
 
   return 0;
 }
