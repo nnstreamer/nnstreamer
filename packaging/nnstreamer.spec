@@ -35,7 +35,7 @@
 %define		lua_support 1
 %define		tvm_support 1
 %define		snpe_support 1
-%define		trix_engine_support 1
+%define		trix_engine_support 0
 %define		onnxruntime_support 1
 # Enable executorch_support when executorch package is ready.
 %define		executorch_support 0
