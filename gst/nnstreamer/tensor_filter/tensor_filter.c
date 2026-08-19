@@ -954,9 +954,23 @@ _gst_tensor_filter_transform_check_invoke_result (GstBaseTransform * trans,
   }
 
   if (invoke_res < 0) {
-    ml_loge_stacktrace
-        ("Calling invoke function (inference instance) of the tensor-filter subplugin (%s for %s) has failed with error code (%d).\n",
+    GstStructure *s;
+    GstMessage *m;
+    gchar *msg = g_strdup_printf
+        ("Calling invoke function (inference instance) of the tensor-filter subplugin (%s for %s) has failed with error code (%d).",
         prop->fwname, TF_MODELNAME (prop), invoke_res);
+
+    ml_loge_stacktrace ("%s", msg);
+
+    /* Post an error message (custom - application) when failed to invoke. */
+    s = gst_structure_new ("nnstreamer-message",
+                "element", G_TYPE_STRING, "tensor-filter",
+                "type", G_TYPE_STRING, "invoke-failure",
+                "message", G_TYPE_STRING, msg, NULL);
+    m = gst_message_new_custom (GST_MESSAGE_APPLICATION, GST_OBJECT (trans), s);
+
+    gst_element_post_message (GST_ELEMENT_CAST (trans), m);
+    g_free (msg);
     return GST_FLOW_ERROR;
   } else if (invoke_res > 0) {
     /* drop this buffer */
