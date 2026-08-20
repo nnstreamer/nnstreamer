@@ -273,6 +273,61 @@ if not get_option('snpe-support').disabled()
   endif
 endif
 
+# litert (LiteRT 2.x CompiledModel C API)
+litert_dep = dependency('', required: false)
+if not get_option('litert-support').disabled()
+  # Check pkg-config (litert.pc) first.
+  litert_dep = dependency('litert', required: false)
+  if not litert_dep.found()
+    # Check whether LITERT_ROOT (where the LiteRT SDK is located) is set.
+    # Expected layout: $LITERT_ROOT/lib/libLiteRt.so and
+    #                  $LITERT_ROOT/include/litert/c/litert_common.h
+    cmd = run_command('sh', '-c', 'echo $LITERT_ROOT', check : false)
+    LITERT_ROOT = cmd.returncode() == 0 ? cmd.stdout().strip() : ''
+    if LITERT_ROOT != ''
+      message('Got LITERT_ROOT: @0@'.format(LITERT_ROOT))
+      if not fs.is_dir(LITERT_ROOT)
+        error('@0@ does not exist'.format(LITERT_ROOT))
+      endif
+
+      litert_lib = cxx.find_library('LiteRt',
+        dirs: join_paths(LITERT_ROOT, 'lib'),
+        required: true
+      )
+
+      litert_include_path = join_paths(LITERT_ROOT, 'include')
+      if not fs.is_file(join_paths(litert_include_path, 'litert', 'c', 'litert_common.h'))
+        error('LiteRT header files are not found in your LITERT_ROOT path.')
+      endif
+
+      litert_dep = declare_dependency(
+        dependencies: litert_lib,
+        include_directories: include_directories(litert_include_path, is_system: true)
+      )
+    else
+      message('If you want to build the LiteRT sub-plugin, provide litert.pc or LITERT_ROOT as the path of the LiteRT SDK.')
+    endif
+  endif
+
+  if litert_dep.found()
+    litert_check_code = '''
+    #include <litert/c/litert_environment.h>
+    int main() {
+      LiteRtEnvironment env = 0;
+      LiteRtCreateEnvironment(0, 0, &env);
+      LiteRtDestroyEnvironment(env);
+      return 0;
+    }
+    '''
+    if not cxx.links(litert_check_code, dependencies: litert_dep, name: 'litert sanity')
+      if get_option('litert-support').enabled()
+        error('Cannot compile/link against the detected LiteRT SDK.')
+      endif
+      litert_dep = dependency('', required: false)
+    endif
+  endif
+endif
+
 # cuda
 cuda_version_str = ''
 cuda_major = 0
@@ -586,6 +641,10 @@ features = {
     # Assume that qnn.pc file is given.
     'target': 'qnn',
     'project_args': { 'ENABLE_QNN' : 1 },
+  },
+  'litert-support': {
+    'extra_deps': [ litert_dep ],
+    'project_args': { 'ENABLE_LITERT' : 1 },
   },
   'flatbuf-support': {
     'extra_deps': [ flatc_dep, flatbuf_dep, flatbuf_version_check_dep ],

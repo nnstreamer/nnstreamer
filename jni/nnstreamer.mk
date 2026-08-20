@@ -129,6 +129,10 @@ endif
 NNSTREAMER_FILTER_QNN_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_qnn.cc
 
+# filter litert (LiteRT 2.x CompiledModel API; requires libLiteRt.so and LiteRT C headers)
+NNSTREAMER_FILTER_LITERT_SRCS := \
+    $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_litert.cc
+
 # filter snap
 NNSTREAMER_FILTER_SNAP_SRCS := \
     $(NNSTREAMER_EXT_HOME)/tensor_filter/tensor_filter_snap.cc

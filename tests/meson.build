@@ -409,6 +409,18 @@ if gtest_dep.found()
     test('unittest_filter_onnxruntime', unittest_filter_onnxruntime, env: testenv)
   endif
 
+  # LiteRT unittest
+  if litert_support_is_available
+    unittest_filter_litert = executable('unittest_filter_litert',
+      join_paths('nnstreamer_filter_litert', 'unittest_filter_litert.cc'),
+      dependencies: [nnstreamer_unittest_deps],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+
+    test('unittest_filter_litert', unittest_filter_litert, env: testenv)
+  endif
+
   # LLAMACPP unittest
   if llamacpp_support_is_available
     unittest_filter_llamacpp = executable('unittest_filter_llamacpp',
