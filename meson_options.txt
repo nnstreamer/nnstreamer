@@ -6,6 +6,7 @@ option('tf-support', type: 'feature', value: 'auto')
 option('tflite-support', type: 'feature', value: 'auto')
 option('tflite2-support', type: 'feature', value: 'auto')
 option('tflite2-custom-support', type: 'feature', value: 'disabled') # requires tflite2-support. disabled due to incompleteness.
+option('litert-support', type: 'feature', value: 'auto') # LiteRT 2.x CompiledModel API. Provide litert.pc or LITERT_ROOT.
 option('pytorch-support', type: 'feature', value: 'auto')
 option('caffe2-support', type: 'feature', value: 'auto')
 option('deepview-rt-support', type: 'feature', value: 'auto')

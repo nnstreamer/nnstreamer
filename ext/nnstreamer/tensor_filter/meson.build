@@ -725,6 +725,32 @@ if tensorrt10_support_is_available
   )
 endif
 
+if litert_support_is_available
+  filter_sub_litert_sources = ['tensor_filter_litert.cc']
+
+  nnstreamer_filter_litert_deps = [glib_dep, nnstreamer_single_dep, litert_support_deps]
+
+  # The upstream LiteRT C headers carry redundant redeclarations; do not let
+  # them break -Werror builds regardless of how the SDK include path is given.
+  litert_extra_args = cxx.get_supported_arguments(['-Wno-redundant-decls'])
+
+  shared_library('nnstreamer_filter_litert',
+    filter_sub_litert_sources,
+    cpp_args: litert_extra_args,
+    dependencies: nnstreamer_filter_litert_deps,
+    install: true,
+    install_dir: filter_subplugin_install_dir
+  )
+
+  static_library('nnstreamer_filter_litert',
+    filter_sub_litert_sources,
+    cpp_args: litert_extra_args,
+    dependencies: nnstreamer_filter_litert_deps,
+    install: true,
+    install_dir: nnstreamer_libdir
+  )
+endif
+
 if lua_support_is_available
   if lua_support_deps[0].version().version_compare('>=5.3')
     message ('tensor-filter::lua does not support Lua >= 5.3, yet. Fix #3531 first.')
