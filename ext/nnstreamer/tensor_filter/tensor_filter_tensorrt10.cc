@@ -158,7 +158,6 @@ class tensorrt10_subplugin final : public tensor_filter_subplugin
   void cleanup ();
   void allocBuffer (void **buffer, gsize size);
   void loadModel (const GstTensorFilterProperties *prop);
-  void checkUnifiedMemory () const;
   void convertTensorsInfo (const std::vector<NvInferTensorInfo> &tensorrt10_tensor_infos,
       GstTensorsInfo &info) const;
   std::size_t getVolume (const nvinfer1::Dims &shape) const;
@@ -207,6 +206,11 @@ tensorrt10_subplugin::cleanup ()
     tensorrt10_tensor_info.buffer = nullptr;
   }
   _tensorrt10_input_tensor_infos.clear ();
+
+  for (auto &tensorrt10_tensor_info : _tensorrt10_output_tensor_infos) {
+    cudaFree (tensorrt10_tensor_info.buffer);
+    tensorrt10_tensor_info.buffer = nullptr;
+  }
 
   if (_model_path != nullptr) {
     g_free (_model_path);
@@ -300,7 +304,7 @@ tensorrt10_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 void
 tensorrt10_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
-  ml_logi ("tensorrt10_subplugin::invoke");
+  ml_logd ("tensorrt10_subplugin::invoke");
   g_assert (_configured);
 
   if (!input)
@@ -309,9 +313,10 @@ tensorrt10_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *out
     throw std::runtime_error ("Invalid output buffer, it is NULL.");
 
   cudaError_t status;
+  std::size_t i;
 
   /* Copy input data to Cuda memory space */
-  for (std::size_t i = 0; i < _tensorrt10_input_tensor_infos.size (); ++i) {
+  for (i = 0; i < _tensorrt10_input_tensor_infos.size (); ++i) {
     const auto &tensorrt10_tensor_info = _tensorrt10_input_tensor_infos[i];
     g_assert (tensorrt10_tensor_info.buffer_size == input[i].size);
 
@@ -324,29 +329,54 @@ tensorrt10_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *out
     }
   }
 
-  for (std::size_t i = 0; i < _tensorrt10_output_tensor_infos.size (); ++i) {
+  /* Allocate plain host memory for the output tensors.
+   * The buffers handed over to the pipeline MUST be ordinary host memory:
+   * downstream elements may read them from another thread (e.g., after a
+   * queue) while this filter is already running the next inference. CPU
+   * access to CUDA managed memory while the GPU is active is invalid on
+   * systems without concurrentManagedAccess (e.g., Windows/WSL2 and
+   * pre-Pascal GPUs) and causes SIGSEGV; device memory is not CPU-visible
+   * at all. The core releases these buffers with g_free() since the
+   * eventHandler does not handle DESTROY_NOTIFY.
+   */
+  for (i = 0; i < _tensorrt10_output_tensor_infos.size (); ++i) {
     const auto &tensorrt10_tensor_info = _tensorrt10_output_tensor_infos[i];
     g_assert (tensorrt10_tensor_info.buffer_size == output[i].size);
-    allocBuffer (&output[i].data, output[i].size);
-    if (!_Context->setOutputTensorAddress (
-            tensorrt10_tensor_info.name, output[i].data)) {
-      ml_loge ("Unable to set output tensor address");
-      throw std::runtime_error ("Unable to set output tensor address");
+    output[i].data = g_malloc (output[i].size);
+  }
+
+  try {
+    /* Execute the network */
+    if (!_Context->enqueueV3 (_stream)) {
+      ml_loge ("Failed to execute the network");
+      throw std::runtime_error ("Failed to execute the network");
     }
-  }
 
-  /* Execute the network */
-  if (!_Context->enqueueV3 (_stream)) {
-    ml_loge ("Failed to execute the network");
-    throw std::runtime_error ("Failed to execute the network");
-  }
+    /* Copy the results from the persistent device buffers to host memory */
+    for (i = 0; i < _tensorrt10_output_tensor_infos.size (); ++i) {
+      const auto &tensorrt10_tensor_info = _tensorrt10_output_tensor_infos[i];
+      status = cudaMemcpyAsync (output[i].data, tensorrt10_tensor_info.buffer,
+          output[i].size, cudaMemcpyDeviceToHost, _stream);
 
-  /* Wait for GPU to finish the inference */
-  status = cudaStreamSynchronize (_stream);
+      if (status != cudaSuccess) {
+        ml_loge ("Failed to copy from cuda output buffer");
+        throw std::runtime_error ("Failed to copy from cuda output buffer");
+      }
+    }
 
-  if (status != cudaSuccess) {
-    ml_loge ("Failed to synchronize the cuda stream");
-    throw std::runtime_error ("Failed to synchronize the cuda stream");
+    /* Wait for GPU to finish the inference and the output copies */
+    status = cudaStreamSynchronize (_stream);
+
+    if (status != cudaSuccess) {
+      ml_loge ("Failed to synchronize the cuda stream");
+      throw std::runtime_error ("Failed to synchronize the cuda stream");
+    }
+  } catch (...) {
+    for (i = 0; i < _tensorrt10_output_tensor_infos.size (); ++i) {
+      g_free (output[i].data);
+      output[i].data = nullptr;
+    }
+    throw;
   }
 }
 
@@ -383,19 +413,15 @@ tensorrt10_subplugin::getModelInfo (
 }
 
 /**
- * @brief Override eventHandler to free Cuda data buffer.
+ * @brief Event handler. Output buffers are plain host memory allocated with
+ * g_malloc() in invoke(); returning -ENOENT for DESTROY_NOTIFY lets the
+ * core release them with g_free().
  */
 int
 tensorrt10_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data)
 {
-  if (ops == DESTROY_NOTIFY) {
-    if (data.data != nullptr) {
-      cudaFree (data.data);
-    }
-
-    return 0;
-  }
-
+  UNUSED (ops);
+  UNUSED (data);
   return -ENOENT;
 }
 
@@ -515,8 +541,6 @@ tensorrt10_subplugin::loadModel (const GstTensorFilterProperties *prop)
     throw std::runtime_error ("Unable to set GPU device index");
   }
 
-  checkUnifiedMemory ();
-
   // Parse model from .onnx and create .engine if necessary
   std::filesystem::path model_fs_path (_model_path);
   if (".onnx" == model_fs_path.extension ()) {
@@ -598,7 +622,6 @@ tensorrt10_subplugin::loadModel (const GstTensorFilterProperties *prop)
         throw std::runtime_error ("Unable to set input shape");
       }
 
-      // Allocate only for input, memory for output is allocated in the invoke method.
       allocBuffer (&tensorrt10_tensor_info.buffer, tensorrt10_tensor_info.buffer_size);
 
       // Register the buffer before any call that may throw so that
@@ -612,6 +635,15 @@ tensorrt10_subplugin::loadModel (const GstTensorFilterProperties *prop)
       }
 
     } else if (tensorrt10_tensor_info.mode == nvinfer1::TensorIOMode::kOUTPUT) {
+
+      /* Persistent device buffer for the output; invoke() copies the result
+       * into per-frame host memory before handing it to the pipeline. */
+      allocBuffer (&tensorrt10_tensor_info.buffer, tensorrt10_tensor_info.buffer_size);
+      if (!_Context->setOutputTensorAddress (
+              tensorrt10_tensor_info.name, tensorrt10_tensor_info.buffer)) {
+        ml_loge ("Unable to set output tensor address");
+        throw std::runtime_error ("Unable to set output tensor address");
+      }
 
       _tensorrt10_output_tensor_infos.push_back (tensorrt10_tensor_info);
 
@@ -658,53 +690,17 @@ tensorrt10_subplugin::convertTensorsInfo (
 }
 
 /**
- * @brief Return whether Unified Memory is supported or not.
- * @note After Cuda version 6, logical Unified Memory is supported in
- * programming language level. However, if the target device is not supported,
- * then cudaMemcpy() internally occurs and it makes performance degradation.
- */
-void
-tensorrt10_subplugin::checkUnifiedMemory () const
-{
-  int version;
-
-  if (cudaRuntimeGetVersion (&version) != cudaSuccess) {
-    ml_loge ("Unable to get cuda runtime version");
-    throw std::runtime_error ("Unable to get cuda runtime version");
-  }
-
-  /* Unified memory requires at least CUDA-6 */
-  if (version < 6000) {
-    ml_loge ("Unified memory requires at least CUDA-6");
-    throw std::runtime_error ("Unified memory requires at least CUDA-6");
-  }
-
-  // Get device properties
-  cudaDeviceProp prop;
-  cudaGetDeviceProperties (&prop, _device_id);
-  if (prop.managedMemory == 0) {
-    ml_loge ("The current device does not support managedmemory");
-    throw std::runtime_error ("The current device does not support managedmemory");
-  }
-
-  // The cuda programming guide specifies at least compute capability version 5
-  //  https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#unified-memory-programming
-  if (prop.major < 5) {
-    ml_loge ("The minimum required compute capability for unified memory is version 5");
-    throw std::runtime_error (
-        "The minimum required compute capability for unified memory is version 5");
-  }
-}
-
-/**
- * @brief Allocates a GPU buffer memory
+ * @brief Allocates a GPU device buffer memory
  * @param[out] buffer : pointer to allocated memory
  * @param[in] size : allocation size in bytes
+ * @note Plain device memory is used instead of managed (unified) memory:
+ * these buffers are only accessed by the GPU and via cudaMemcpyAsync(),
+ * and managed memory must never leak into the pipeline (see invoke()).
  */
 void
 tensorrt10_subplugin::allocBuffer (void **buffer, gsize size)
 {
-  cudaError_t status = cudaMallocManaged (buffer, size);
+  cudaError_t status = cudaMalloc (buffer, size);
 
   if (status != cudaSuccess) {
     ml_loge ("Failed to allocate Cuda memory");
