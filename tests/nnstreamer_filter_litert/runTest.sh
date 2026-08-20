@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+##
+## SPDX-License-Identifier: LGPL-2.1-only
+##
+## @file runTest.sh
+## @author MyungJoo Ham <myungjoo.ham@samsung.com>
+## @date Aug 20 2026
+## @brief SSAT Test Cases for the LiteRT (CompiledModel API) tensor filter sub-plugin
+##
+
+if [[ "$SSATAPILOADED" != "1" ]]; then
+    SILENT=0
+    INDEPENDENT=1
+    search="ssat-api.sh"
+    source $search
+    printf "${Blue}Independent Mode${NC}"
+fi
+
+# This is compatible with SSAT (https://github.com/myungjoo/SSAT)
+testInit $1
+
+# NNStreamer and plugins path for test
+PATH_TO_PLUGIN="../../build"
+
+if [[ -d $PATH_TO_PLUGIN ]]; then
+    ini_path="${PATH_TO_PLUGIN}/ext/nnstreamer/tensor_filter"
+    if [[ -d ${ini_path} ]]; then
+        check=$(ls ${ini_path} | grep litert.so)
+        if [[ ! $check ]]; then
+            echo "Cannot find litert shared lib"
+            report
+            exit
+        fi
+    else
+        echo "Cannot find ${ini_path}"
+    fi
+else
+    ini_file="/etc/nnstreamer.ini"
+    if [[ -f ${ini_file} ]]; then
+        path=$(grep "^filters" ${ini_file})
+        key=${path%=*}
+        value=${path##*=}
+
+        if [[ $key != "filters" ]]; then
+            echo "String Error"
+            report
+            exit
+        fi
+
+        if [[ -d ${value} ]]; then
+            check=$(ls ${value} | grep litert.so)
+            if [[ ! $check ]]; then
+                echo "Cannot find litert lib"
+                report
+                exit
+            fi
+        else
+            echo "Cannot find ${value}"
+            report
+            exit
+        fi
+    else
+        echo "Cannot identify nnstreamer.ini"
+        report
+        exit
+    fi
+fi
+
+PATH_TO_MODEL="../test_models/models/mobilenet_v1_1.0_224_quant.tflite"
+PATH_TO_LABEL="../test_models/labels/labels.txt"
+PATH_TO_IMAGE="../test_models/data/orange.png"
+PATH_TO_CLASS="class.out.log"
+
+# Test 1: Positive. Golden classification result, same model and golden label
+# as the tensorflow2-lite SSAT tests; cross-runtime divergence fails here.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=224,height=224,framerate=0/1 ! tensor_converter ! tensor_filter framework=litert model=${PATH_TO_MODEL} ! tensor_decoder mode=image_labeling option1=${PATH_TO_LABEL} ! filesink location=${PATH_TO_CLASS}" 1 0 0 $PERFORMANCE
+class=$(cat ${PATH_TO_CLASS})
+[ "$class" = "orange" ]
+testResult $? 1 "Golden test comparison" 0 1
+
+# Test 2: Positive. Explicit cpu accelerator custom property.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=224,height=224,framerate=0/1 ! tensor_converter ! tensor_filter framework=litert model=${PATH_TO_MODEL} custom=Accelerators:cpu ! tensor_decoder mode=image_labeling option1=${PATH_TO_LABEL} ! filesink location=${PATH_TO_CLASS}" 2 0 0 $PERFORMANCE
+class=$(cat ${PATH_TO_CLASS})
+[ "$class" = "orange" ]
+testResult $? 2 "Golden test comparison with Accelerators:cpu" 0 1
+
+# Test 3: Negative. Mismatched input dimensions must fail.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=42,height=42,framerate=0/1 ! tensor_converter ! tensor_filter framework=litert model=${PATH_TO_MODEL} ! fakesink" 3_n 0 1 $PERFORMANCE
+
+# Test 4: Negative. Invalid model path must fail.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=224,height=224 ! tensor_converter ! tensor_filter framework=litert model=invalid_model_path.tflite ! fakesink" 4_n 0 1 $PERFORMANCE
+
+# Test 5: Negative. Unknown accelerator custom property must fail.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=224,height=224,framerate=0/1 ! tensor_converter ! tensor_filter framework=litert model=${PATH_TO_MODEL} custom=Accelerators:tpu ! fakesink" 5_n 0 1 $PERFORMANCE
+
+report

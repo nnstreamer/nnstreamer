@@ -84,6 +84,25 @@ jobs:
         curl -fsSL -o tests/test_models/models/TinyStories-656K-Q2_K.gguf \
           "https://huggingface.co/tensorblock/TinyStories-656K-GGUF/resolve/main/TinyStories-656K-Q2_K.gguf"
         echo "5a798ebc1cad921e0ce639b2f10c4bcce492654a79d4b4ca52bd0268416f6b87  tests/test_models/models/TinyStories-656K-Q2_K.gguf" | sha256sum -c
+    - name: install LiteRT SDK (x86_64 only)
+      if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
+      run: |
+        LITERT_VER=2.2.0
+        LITERT_ROOT=$HOME/litert-sdk
+        mkdir -p $LITERT_ROOT/lib $LITERT_ROOT/include/litert/build_common
+        wget -q https://github.com/google-ai-edge/LiteRT/releases/download/v${LITERT_VER}/litert_cc_sdk.zip
+        unzip -q litert_cc_sdk.zip -d /tmp/litert-cc-sdk
+        cp -r /tmp/litert-cc-sdk/litert_cc_sdk/litert/c $LITERT_ROOT/include/litert/
+        # generate build_config.h (all optional features on; runtime .so decides)
+        sed -e 's/#cmakedefine01 \(.*\)/#define \1 0/' \
+          /tmp/litert-cc-sdk/litert_cc_sdk/litert/build_common/build_config.h.in \
+          > $LITERT_ROOT/include/litert/build_common/build_config.h
+        # take the prebuilt runtime library from the official pip wheel
+        pip download ai-edge-litert==${LITERT_VER} --no-deps -q -d /tmp/litert-wheel
+        unzip -q -o /tmp/litert-wheel/*.whl 'ai_edge_litert/libLiteRt.so' -d /tmp/litert-wheel/x
+        cp /tmp/litert-wheel/x/ai_edge_litert/libLiteRt.so $LITERT_ROOT/lib/
+        echo "LITERT_ROOT=$LITERT_ROOT" >> $GITHUB_ENV
+        echo "LD_LIBRARY_PATH=$LITERT_ROOT/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
     - name: build and unit test
       if: env.rebuild == '1'
       run: |
@@ -128,6 +147,9 @@ jobs:
     - name: SSAT run with Valgrind on decoder-bounding-box
       if: env.rebuild == '1'
       run: if [ '${{ matrix.os }}' == 'ubuntu-22.04' ]; then export NNSTREAMER_BUILD_ROOT_PATH=`pwd`/build && export NNSTREAMER_FILTERS=`pwd`/build/ext/nnstreamer/tensor_filter && export NNSTREAMER_DECODERS=`pwd`/build/ext/nnstreamer/tensor_decoder && export NNSTREAMER_CONVERTERS=`pwd`/build/ext/nnstreamer/tensor_converter && export GST_PLUGIN_PATH=`pwd`/build/gst && export NNSTREAMER_CONF=`pwd`/build/nnstreamer-test.ini && pushd tests/nnstreamer_decoder_boundingbox && G_SLICE=always-malloc G_DEBUG=gc-friendly ssat -n -p=1 --enable-valgrind --valgrind-suppression ../../tools/debugging/valgrind_suppression --summary summary.txt -cn _n && popd; fi
+    - name: SSAT run on filter-litert
+      if: env.rebuild == '1'
+      run: if [ '${{ matrix.os }}' == 'ubuntu-22.04' ] && [ -n "$LITERT_ROOT" ]; then export NNSTREAMER_BUILD_ROOT_PATH=`pwd`/build && export NNSTREAMER_FILTERS=`pwd`/build/ext/nnstreamer/tensor_filter && export NNSTREAMER_DECODERS=`pwd`/build/ext/nnstreamer/tensor_decoder && export NNSTREAMER_CONVERTERS=`pwd`/build/ext/nnstreamer/tensor_converter && export GST_PLUGIN_PATH=`pwd`/build/gst && export NNSTREAMER_CONF=`pwd`/build/nnstreamer-test.ini && pushd tests/nnstreamer_filter_litert && ssat -n -p=1 --summary summary.txt && popd; fi
     - name: GTEST run with Valgrind on a case
       if: env.rebuild == '1'
       run: if [ '${{ matrix.os }}' == 'ubuntu-22.04' ]; then export NNSTREAMER_BUILD_ROOT_PATH=`pwd`/build && export NNSTREAMER_FILTERS=`pwd`/build/ext/nnstreamer/tensor_filter && export NNSTREAMER_DECODERS=`pwd`/build/ext/nnstreamer/tensor_decoder && export NNSTREAMER_CONVERTERS=`pwd`/build/ext/nnstreamer/tensor_converter && export GST_PLUGIN_PATH=`pwd`/build/gst && export NNSTREAMER_CONF=`pwd`/build/nnstreamer-test.ini && G_SLICE=always-malloc G_DEBUG=gc-friendly ./packaging/run_unittests_binaries.sh --valgrind ./tests/ || echo "There are Valgrind errors. Please fix it. As we have a lot of Valgrind errors from different libraries and possible from nnstreamer itself, we are not halting the build with Valgrind errors until we get them all."; fi
