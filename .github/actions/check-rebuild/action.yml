@@ -14,7 +14,10 @@ runs:
         tmpfile=$(mktemp)
         git show --pretty="format:" --name-only --diff-filter=AMRC ${{ github.event.pull_request.head.sha}} -${{ github.event.pull_request.commits }} | sort | uniq | awk NF > ${tmpfile}
         echo "changed_file_list=${tmpfile}" >> "$GITHUB_ENV"
-        rebuild=`bash .github/actions/check-rebuild/check_if_rebuild_requires.sh ${tmpfile} ${{ inputs.mode }} | grep "REBUILD=YES" | wc -l`
+        # Use grep -c instead of "grep | wc -l": the BSD wc on macOS pads its
+        # output with leading spaces, which made `env.rebuild == '1'` always
+        # false there (macOS jobs silently skipped every build step).
+        rebuild=`bash .github/actions/check-rebuild/check_if_rebuild_requires.sh ${tmpfile} ${{ inputs.mode }} | grep -c "REBUILD=YES" || true`
         echo "Rebuild required: ${rebuild}"
         echo "rebuild=${rebuild}" >> "$GITHUB_ENV"
       shell: sh
