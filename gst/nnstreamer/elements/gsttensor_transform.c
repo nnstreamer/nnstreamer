@@ -1309,6 +1309,8 @@ gst_tensor_transform_typecast (GstTensorTransform * filter,
     orc_typecast (inptr, outptr, num, in_info->type, out_info->type);
     return GST_FLOW_OK;
   }
+#else
+  UNUSED (filter);
 #endif
 
   in_element_size = gst_tensor_get_element_size (in_info->type);
