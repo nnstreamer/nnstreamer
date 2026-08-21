@@ -756,7 +756,15 @@ int
 TFLiteInterpreter::setTensorProp (
     const std::vector<int> &tensor_idx_list, GstTensorsInfo *tensorMeta)
 {
-  tensorMeta->num_tensors = tensor_idx_list.size ();
+  unsigned int num = tensor_idx_list.size ();
+
+  if (num < 1 || num > NNS_TENSOR_SIZE_LIMIT) {
+    ml_loge ("The number of tensors is %u and it should be between 1 and %d.",
+        num, NNS_TENSOR_SIZE_LIMIT);
+    return -1;
+  }
+
+  tensorMeta->num_tensors = num;
 
   for (unsigned int i = 0; i < tensorMeta->num_tensors; ++i) {
     int idx = tensor_idx_list[i];

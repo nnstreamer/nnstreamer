@@ -776,6 +776,21 @@ TEST (commonTensorsInfo, validateInvalidFormat_n)
 }
 
 /**
+ * @brief Test for validating of the tensors info with invalid number of tensors.
+ */
+TEST (commonTensorsInfo, validateInvalidNum_n)
+{
+  GstTensorsInfo info;
+
+  gst_tensors_info_init (&info);
+
+  info.num_tensors = 0;
+  EXPECT_FALSE (gst_tensors_info_validate (&info));
+  info.num_tensors = NNS_TENSOR_SIZE_LIMIT + 1;
+  EXPECT_FALSE (gst_tensors_info_validate (&info));
+}
+
+/**
  * @brief Test for getting nth info with invalid index.
  */
 TEST (commonTensorsInfo, getNthInfoInvalidIndex_n)

@@ -454,13 +454,13 @@ gst_tensors_info_validate (const GstTensorsInfo * info)
     return TRUE;
   }
 
-  if (info->num_tensors < 1) {
+  if (info->num_tensors < 1 || info->num_tensors > NNS_TENSOR_SIZE_LIMIT) {
     nns_logd
-        ("Failed to validate tensors info. the number of tensors: %d. the number of tensors should be greater than 0.",
-        info->num_tensors);
+        ("Failed to validate tensors info. The number of tensors is %u and it should be between 1 and %d.",
+        info->num_tensors, NNS_TENSOR_SIZE_LIMIT);
     _nnstreamer_error_write
-        ("Failed to validate tensors info. the number of tensors: %d. the number of tensors should be greater than 0.",
-        info->num_tensors);
+        ("Failed to validate tensors info. The number of tensors is %u and it should be between 1 and %d.",
+        info->num_tensors, NNS_TENSOR_SIZE_LIMIT);
     return FALSE;
   }
 
