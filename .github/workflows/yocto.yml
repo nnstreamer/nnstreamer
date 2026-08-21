@@ -1,4 +1,4 @@
-name: Build test / Yocto-5.0.3 (scarthgap-5.0.3)
+name: Build test / Yocto-5.0.19 (scarthgap-5.0.19)
 
 on:
   pull_request:
@@ -64,12 +64,20 @@ jobs:
           /var/cache/yocto/downloads
           /var/cache/yocto/sstate-cache
           /var/cache/yocto/persistent
-        key: yocto-cache-yocto-5.0.3
+        key: yocto-cache-yocto-5.0.19
 
     - name: acquire some disk space
-      if: inputs.acquire-space == 'enable'
+      # Also run on pull requests: when the sstate cache is cold (e.g., the
+      # nightly cache refresh failed), a from-scratch build exhausts the
+      # runner disk. The step exits early when there is already enough room.
+      if: inputs.acquire-space == 'enable' || github.event_name == 'pull_request'
       run: |
           df -h
+          avail_gb=$(df --output=avail -BG / | tail -1 | tr -dc '0-9')
+          if [ "${{ inputs.acquire-space }}" != "enable" ] && [ "$avail_gb" -gt 40 ]; then
+            echo "Enough free disk space (${avail_gb}G); skipping cleanup."
+            exit 0
+          fi
           sudo apt-get update --fix-missing \
             && sudo apt-get remove -y '^dotnet-.*' '^llvm-.*' '^mysql-server-core-.*' '^postgresql-.*' '^temurin-.*' \
             azure-cli google-chrome-stable google-cloud-cli firefox powershell microsoft-edge-stable mono-devel \
@@ -92,7 +100,12 @@ jobs:
         echo "::endgroup::"
 
         echo "::group::Prepare poky and meta-neural-network"
-        git clone git://git.yoctoproject.org/poky -b yocto-5.0.3 && cd poky
+        # Prefer the official repository; fall back to the GitHub mirror when
+        # git.yoctoproject.org is unreachable (it intermittently drops
+        # connections from GitHub-hosted runners).
+        git clone git://git.yoctoproject.org/poky -b yocto-5.0.19 \
+          || { rm -rf poky; git clone https://github.com/yoctoproject/poky -b yocto-5.0.19; }
+        cd poky
         git clone https://github.com/nnstreamer/meta-neural-network -b scarthgap
         echo 'SRC_URI = "git://${{ github.workspace }}/;protocol=file;usehead=1;nobranch=1"' >> meta-neural-network/recipes-nnstreamer/nnstreamer/nnstreamer_%.bbappend
         source oe-init-build-env
@@ -140,7 +153,7 @@ jobs:
           /var/cache/yocto/downloads
           /var/cache/yocto/sstate-cache
           /var/cache/yocto/persistent
-        key: yocto-cache-yocto-5.0.3
+        key: yocto-cache-yocto-5.0.19
 
     - name: generate badge
       if: contains(fromJSON('["schedule", "workflow_dispatch"]'), github.event_name) && steps.yocto-build.outcome != 'skipped'
