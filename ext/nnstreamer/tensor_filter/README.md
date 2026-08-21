@@ -33,6 +33,17 @@ If you want to use tensorflow-lite custom operators with your own tensorflow-lit
 
 By default, this subplugin loads ```./libtensorflow2-lite-custom.so```, which is the user's custom tensorflow-lite binary.
 
+### LiteRT
+- subplugin name: 'litert'
+
+This subplugin targets the LiteRT 2.x "CompiledModel" C API, the successor line of TensorFlow-Lite. It consumes the standard ```.tflite``` flatbuffer model and may coexist with the classic-Interpreter-API ```tensorflow2-lite``` subplugin, so the two runtimes can be compared on the same model in one pipeline.
+
+Custom properties (```custom=Key1:Value1,Key2:Value2```):
+- ```Accelerators```: hardware accelerators to enable: cpu, gpu, npu; combinable with '+' (e.g., ```Accelerators:npu+cpu```). Default: cpu. The standard ```accelerator``` property is also honored.
+- ```Signature```: the key of the model signature to run. Default: the first signature.
+
+To build, provide the LiteRT SDK via pkg-config (```litert.pc```) or the ```LITERT_ROOT``` environment variable (expecting ```$LITERT_ROOT/lib/libLiteRt.so``` and ```$LITERT_ROOT/include/litert/c/*.h```), and use the ```litert-support``` meson option. The "install LiteRT SDK" steps in ```.github/workflows/ubuntu_clean_meson_build.yml``` and ```.github/workflows/macos.yaml``` are working examples that assemble the SDK from the official LiteRT releases (headers from ```litert_cc_sdk.zip```, the runtime library from the ```ai-edge-litert``` wheel).
+
 ### SNAP
 ### NCNN
 - subplugin name: 'ncnn'
