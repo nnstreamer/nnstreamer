@@ -28,12 +28,64 @@ jobs:
           brew install cask
     - name: install minimal requirements
       if: env.rebuild == '1'
-      run: brew install meson ninja pkg-config cmake libffi glib gstreamer numpy json-glib
-    - uses: BSFishy/meson-build@v1.0.3
+      run: brew install meson ninja pkg-config cmake libffi glib gstreamer numpy json-glib googletest
+    - name: install LiteRT SDK
       if: env.rebuild == '1'
-      with:
-        action: build
+      run: |
+        LITERT_VER=2.2.0
+        LITERT_ROOT=$HOME/litert-sdk
+        mkdir -p $LITERT_ROOT/lib $LITERT_ROOT/include/litert/build_common
+        curl -sL -o litert_cc_sdk.zip https://github.com/google-ai-edge/LiteRT/releases/download/v${LITERT_VER}/litert_cc_sdk.zip
+        unzip -q litert_cc_sdk.zip -d /tmp/litert-cc-sdk
+        cp -r /tmp/litert-cc-sdk/litert_cc_sdk/litert/c $LITERT_ROOT/include/litert/
+        # generate build_config.h (all optional features on; runtime dylib decides)
+        sed -e 's/#cmakedefine01 \(.*\)/#define \1 0/' \
+          /tmp/litert-cc-sdk/litert_cc_sdk/litert/build_common/build_config.h.in \
+          > $LITERT_ROOT/include/litert/build_common/build_config.h
+        # take the prebuilt runtime library from the official pip wheel (macosx arm64)
+        pip download ai-edge-litert==${LITERT_VER} --no-deps -q -d /tmp/litert-wheel
+        unzip -q -o /tmp/litert-wheel/*.whl 'ai_edge_litert/*.dylib' -d /tmp/litert-wheel/x
+        cp /tmp/litert-wheel/x/ai_edge_litert/libLiteRt.dylib $LITERT_ROOT/lib/
+        cp /tmp/litert-wheel/x/ai_edge_litert/libLiteRtMetalAccelerator.dylib $LITERT_ROOT/lib/ || true
+        # pin the install name to an absolute path so that linked binaries do
+        # not depend on DYLD_LIBRARY_PATH (which macOS SIP strips from the
+        # environment of protected processes such as the CI step shell)
+        install_name_tool -id $LITERT_ROOT/lib/libLiteRt.dylib $LITERT_ROOT/lib/libLiteRt.dylib
+        codesign -f -s - $LITERT_ROOT/lib/libLiteRt.dylib
+        echo "LITERT_ROOT=$LITERT_ROOT" >> $GITHUB_ENV
+    - name: meson build
+      if: env.rebuild == '1'
+      # orcc-support is disabled: the orc test code in unittest_plugins.cc
+      # does not compile on macOS (orc_int64 is long while int64_t is
+      # long long); it never has, hidden until now by the check-rebuild bug
+      # that skipped every step of this job.
+      run: |
+        meson setup build -Dorcc-support=disabled
+        meson compile -C build
+    - name: check litert subplugin built
+      if: env.rebuild == '1'
+      run: |
+        ls build/ext/nnstreamer/tensor_filter/ | grep litert
+        test -f build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_litert.dylib || test -f build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_litert.so
+    - name: run litert unit tests
+      if: env.rebuild == '1'
+      run: |
+        export DYLD_LIBRARY_PATH=$LITERT_ROOT/lib
+        meson test -C build unittest_filter_litert -v
+    - name: SSAT run on filter-litert
+      if: env.rebuild == '1'
+      run: |
+        git clone --depth 1 https://github.com/myungjoo/SSAT.git $HOME/ssat
+        export PATH=$PATH:$HOME/ssat
+        export DYLD_LIBRARY_PATH=$LITERT_ROOT/lib
+        export NNSTREAMER_BUILD_ROOT_PATH=`pwd`/build
+        export NNSTREAMER_FILTERS=`pwd`/build/ext/nnstreamer/tensor_filter
+        export NNSTREAMER_DECODERS=`pwd`/build/ext/nnstreamer/tensor_decoder
+        export NNSTREAMER_CONVERTERS=`pwd`/build/ext/nnstreamer/tensor_converter
+        export GST_PLUGIN_PATH=`pwd`/build/gst
+        export NNSTREAMER_CONF=`pwd`/build/nnstreamer-test.ini
+        cd tests/nnstreamer_filter_litert
+        bash runTest.sh
 
 # TODO: add more subplugins to be built
-# TODO: add unit testing
 # TODO: add valgrind testing
