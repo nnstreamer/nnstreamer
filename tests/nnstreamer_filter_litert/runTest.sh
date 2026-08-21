@@ -25,7 +25,7 @@ PATH_TO_PLUGIN="../../build"
 if [[ -d $PATH_TO_PLUGIN ]]; then
     ini_path="${PATH_TO_PLUGIN}/ext/nnstreamer/tensor_filter"
     if [[ -d ${ini_path} ]]; then
-        check=$(ls ${ini_path} | grep litert.so)
+        check=$(ls ${ini_path} | grep -E 'litert\.(so|dylib)')
         if [[ ! $check ]]; then
             echo "Cannot find litert shared lib"
             report
@@ -48,7 +48,7 @@ else
         fi
 
         if [[ -d ${value} ]]; then
-            check=$(ls ${value} | grep litert.so)
+            check=$(ls ${value} | grep -E 'litert\.(so|dylib)')
             if [[ ! $check ]]; then
                 echo "Cannot find litert lib"
                 report
