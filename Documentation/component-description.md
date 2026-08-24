@@ -55,6 +55,7 @@ In this page, we focus on the status of each elements. For requirements and desi
   - Caffe2 (stable)
   - PyTorch (stable)
   - TVM (stable)
+  - NNTrainer (stable. **maintained by its own community**)
   - TRIx NPU/Samsung (stable. **maintained by the manufacturer**)
   - Movidius-X NCS2/Intel (stable)
   - NNFW-Runtime/nnfw (stable)
