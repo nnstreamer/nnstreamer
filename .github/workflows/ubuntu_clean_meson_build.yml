@@ -87,18 +87,29 @@ jobs:
     - name: install LiteRT SDK (x86_64 only)
       if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
       run: |
+        # When bumping LITERT_VER, refresh the pinned hashes below:
+        # the zip hash from the release asset, the wheel hashes from
+        # https://pypi.org/pypi/ai-edge-litert/<ver>/json (digests.sha256).
+        # The wheel hash is per python tag: this job pins python 3.11 above,
+        # so the cp311 manylinux_2_27_x86_64 wheel is the one downloaded.
         LITERT_VER=2.2.0
+        LITERT_SDK_ZIP_SHA256=0aa619d80aef27303ad9c6e3759a20110f77e7b11ade9b68061b8c6e5904b0c6
+        LITERT_WHEEL_SHA256=0171f556fffa335281acd7d468de999fd4de32f6bf1a5f14e680676591cef764
         LITERT_ROOT=$HOME/litert-sdk
         mkdir -p $LITERT_ROOT/lib $LITERT_ROOT/include/litert/build_common
         wget -q https://github.com/google-ai-edge/LiteRT/releases/download/v${LITERT_VER}/litert_cc_sdk.zip
+        echo "${LITERT_SDK_ZIP_SHA256}  litert_cc_sdk.zip" | sha256sum -c -
         unzip -q litert_cc_sdk.zip -d /tmp/litert-cc-sdk
         cp -r /tmp/litert-cc-sdk/litert_cc_sdk/litert/c $LITERT_ROOT/include/litert/
         # generate build_config.h (all optional features on; runtime .so decides)
         sed -e 's/#cmakedefine01 \(.*\)/#define \1 0/' \
           /tmp/litert-cc-sdk/litert_cc_sdk/litert/build_common/build_config.h.in \
           > $LITERT_ROOT/include/litert/build_common/build_config.h
-        # take the prebuilt runtime library from the official pip wheel
-        pip download ai-edge-litert==${LITERT_VER} --no-deps -q -d /tmp/litert-wheel
+        # take the prebuilt runtime library from the official pip wheel,
+        # with the expected wheel content pinned by hash
+        printf 'ai-edge-litert==%s --hash=sha256:%s\n' \
+          "$LITERT_VER" "$LITERT_WHEEL_SHA256" > /tmp/litert-req.txt
+        pip download --require-hashes --no-deps -q -r /tmp/litert-req.txt -d /tmp/litert-wheel
         unzip -q -o /tmp/litert-wheel/*.whl 'ai_edge_litert/libLiteRt.so' -d /tmp/litert-wheel/x
         cp /tmp/litert-wheel/x/ai_edge_litert/libLiteRt.so $LITERT_ROOT/lib/
         echo "LITERT_ROOT=$LITERT_ROOT" >> $GITHUB_ENV

@@ -32,18 +32,29 @@ jobs:
     - name: install LiteRT SDK
       if: env.rebuild == '1'
       run: |
+        # When bumping LITERT_VER, refresh the pinned hashes below:
+        # the zip hash from the release asset, the wheel hashes from
+        # https://pypi.org/pypi/ai-edge-litert/<ver>/json (digests.sha256).
+        # The wheel hash is per python tag: this job pins python 3.11 above,
+        # so the cp311 macosx_12_0_arm64 wheel is the one downloaded.
         LITERT_VER=2.2.0
+        LITERT_SDK_ZIP_SHA256=0aa619d80aef27303ad9c6e3759a20110f77e7b11ade9b68061b8c6e5904b0c6
+        LITERT_WHEEL_SHA256=60831e57ce2887db83783bcff2cd5e33b24e3b37b23ff29d7b68c511e20f6a5b
         LITERT_ROOT=$HOME/litert-sdk
         mkdir -p $LITERT_ROOT/lib $LITERT_ROOT/include/litert/build_common
         curl -sL -o litert_cc_sdk.zip https://github.com/google-ai-edge/LiteRT/releases/download/v${LITERT_VER}/litert_cc_sdk.zip
+        echo "${LITERT_SDK_ZIP_SHA256}  litert_cc_sdk.zip" | shasum -a 256 -c -
         unzip -q litert_cc_sdk.zip -d /tmp/litert-cc-sdk
         cp -r /tmp/litert-cc-sdk/litert_cc_sdk/litert/c $LITERT_ROOT/include/litert/
         # generate build_config.h (all optional features on; runtime dylib decides)
         sed -e 's/#cmakedefine01 \(.*\)/#define \1 0/' \
           /tmp/litert-cc-sdk/litert_cc_sdk/litert/build_common/build_config.h.in \
           > $LITERT_ROOT/include/litert/build_common/build_config.h
-        # take the prebuilt runtime library from the official pip wheel (macosx arm64)
-        pip download ai-edge-litert==${LITERT_VER} --no-deps -q -d /tmp/litert-wheel
+        # take the prebuilt runtime library from the official pip wheel
+        # (macosx arm64), with the expected wheel content pinned by hash
+        printf 'ai-edge-litert==%s --hash=sha256:%s\n' \
+          "$LITERT_VER" "$LITERT_WHEEL_SHA256" > /tmp/litert-req.txt
+        pip download --require-hashes --no-deps -q -r /tmp/litert-req.txt -d /tmp/litert-wheel
         unzip -q -o /tmp/litert-wheel/*.whl 'ai_edge_litert/*.dylib' -d /tmp/litert-wheel/x
         cp /tmp/litert-wheel/x/ai_edge_litert/libLiteRt.dylib $LITERT_ROOT/lib/
         cp /tmp/litert-wheel/x/ai_edge_litert/libLiteRtMetalAccelerator.dylib $LITERT_ROOT/lib/ || true
@@ -51,6 +62,8 @@ jobs:
         # not depend on DYLD_LIBRARY_PATH (which macOS SIP strips from the
         # environment of protected processes such as the CI step shell)
         install_name_tool -id $LITERT_ROOT/lib/libLiteRt.dylib $LITERT_ROOT/lib/libLiteRt.dylib
+        # modifying the install name invalidates the existing code signature;
+        # re-sign ad-hoc so the (hash-verified, see above) dylib stays loadable
         codesign -f -s - $LITERT_ROOT/lib/libLiteRt.dylib
         echo "LITERT_ROOT=$LITERT_ROOT" >> $GITHUB_ENV
     - name: meson build
