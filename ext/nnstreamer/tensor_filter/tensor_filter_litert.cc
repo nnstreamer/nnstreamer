@@ -33,6 +33,9 @@
  *
  * @todo Zero-copy invoke by wrapping GstTensorMemory with
  *       LiteRtCreateTensorBufferFromHostMemory when alignment permits.
+ * @todo Share one LiteRtEnvironment across instances. Each filter instance
+ *       currently creates its own environment; with GPU/NPU accelerators
+ *       that may mean one device context per instance.
  * @todo Support dynamic input dimensions (invoke_dynamic).
  * @todo Expose accelerator-specific opaque options (GPU precision, NPU
  *       compiler plugin paths, etc.).
@@ -123,6 +126,8 @@ class litert_subplugin final : public tensor_filter_subplugin
 
   std::vector<LiteRtTensorBuffer> input_buffers{}; /**< managed, reused per invoke */
   std::vector<LiteRtTensorBuffer> output_buffers{}; /**< managed, reused per invoke */
+  std::vector<size_t> input_buffer_sizes{}; /**< actual LiteRT buffer sizes */
+  std::vector<size_t> output_buffer_sizes{}; /**< actual LiteRT buffer sizes */
 
   void cleanup ();
   void parseCustomProperties (const GstTensorFilterProperties *prop);
@@ -166,9 +171,11 @@ litert_subplugin::cleanup ()
   for (auto &buf : input_buffers)
     LiteRtDestroyTensorBuffer (buf);
   input_buffers.clear ();
+  input_buffer_sizes.clear ();
   for (auto &buf : output_buffers)
     LiteRtDestroyTensorBuffer (buf);
   output_buffers.clear ();
+  output_buffer_sizes.clear ();
 
   if (compiled_model != nullptr) {
     LiteRtDestroyCompiledModel (compiled_model);
@@ -213,6 +220,11 @@ litert_subplugin::parseAcceleratorValue (const gchar *value)
 
   for (guint i = 0; entries[i] != nullptr; ++i) {
     const gchar *entry = entries[i];
+
+    if (entry[0] == '\0') {
+      /* tolerate empty entries from consecutive/trailing delimiters ("cpu++gpu") */
+      continue;
+    }
 
     if (g_ascii_strcasecmp (entry, "cpu") == 0) {
       set |= kLiteRtHwAcceleratorCpu;
@@ -320,7 +332,7 @@ litert_subplugin::convertElementType (LiteRtElementType type)
     case kLiteRtElementTypeInt64:
       return _NNS_INT64;
     case kLiteRtElementTypeUInt8:
-    case kLiteRtElementTypeBool:
+    case kLiteRtElementTypeBool: /* nnstreamer has no bool; both are 1-byte */
       return _NNS_UINT8;
     case kLiteRtElementTypeUInt16:
       return _NNS_UINT16;
@@ -348,6 +360,10 @@ litert_subplugin::convertLayout (const LiteRtLayout &layout, tensor_dim dim)
   if (rank > NNS_TENSOR_RANK_LIMIT)
     throw std::invalid_argument (std::string ("Tensor rank ") + std::to_string (rank) + " exceeds the limit ("
                                  + std::to_string (NNS_TENSOR_RANK_LIMIT) + ").");
+
+  if (layout.has_strides)
+    throw std::invalid_argument (
+        "Strided (non-contiguous) tensor layouts are not supported yet by the litert subplugin.");
 
   if (rank == 0) {
     /* scalar; represent as a single-element tensor */
@@ -414,16 +430,23 @@ litert_subplugin::setTensorMeta (LiteRtSignature sig, bool is_input, GstTensorsI
     LITERT_CHECK (LiteRtGetNumSignatureInputs (sig, &num_tensors));
   } else {
     LITERT_CHECK (LiteRtGetNumSignatureOutputs (sig, &num_tensors));
-    out_layouts.resize (num_tensors);
-    LITERT_CHECK (LiteRtGetCompiledModelOutputTensorLayouts (compiled_model,
-        signature_index, num_tensors, out_layouts.data (), false));
   }
+
+  if (num_tensors == 0)
+    throw std::invalid_argument (std::string ("The model signature has no ")
+                                 + (is_input ? "input" : "output") + " tensor.");
 
   if (num_tensors > NNS_TENSOR_SIZE_LIMIT)
     throw std::invalid_argument (
         std::string ("The number of ") + (is_input ? "input" : "output")
         + " tensors (" + std::to_string (num_tensors) + ") exceeds the limit ("
         + std::to_string (NNS_TENSOR_SIZE_LIMIT) + ").");
+
+  if (!is_input) {
+    out_layouts.resize (num_tensors);
+    LITERT_CHECK (LiteRtGetCompiledModelOutputTensorLayouts (compiled_model,
+        signature_index, num_tensors, out_layouts.data (), false));
+  }
 
   meta->num_tensors = (unsigned int) num_tensors;
 
@@ -491,6 +514,17 @@ litert_subplugin::createTensorBuffers ()
     LITERT_CHECK (LiteRtCreateManagedTensorBufferFromRequirements (
         env, &ranked_type, reqs, &buf));
     input_buffers.push_back (buf);
+
+    /* the buffer LiteRT allocated must be able to hold the whole tensor */
+    size_t buf_size = 0;
+    LITERT_CHECK (LiteRtGetTensorBufferSize (buf, &buf_size));
+    gsize nns_size
+        = gst_tensors_info_get_size (std::addressof (inputTensorMeta), (gint) i);
+    if (buf_size < (size_t) nns_size)
+      throw std::runtime_error ("LiteRT input buffer " + std::to_string (i) + " is smaller ("
+                                + std::to_string (buf_size) + " B) than the tensor ("
+                                + std::to_string (nns_size) + " B).");
+    input_buffer_sizes.push_back (buf_size);
   }
 
   for (i = 0; i < outputTensorMeta.num_tensors; ++i) {
@@ -507,6 +541,16 @@ litert_subplugin::createTensorBuffers ()
     LITERT_CHECK (LiteRtCreateManagedTensorBufferFromRequirements (
         env, &ranked_type, reqs, &buf));
     output_buffers.push_back (buf);
+
+    size_t buf_size = 0;
+    LITERT_CHECK (LiteRtGetTensorBufferSize (buf, &buf_size));
+    gsize nns_size
+        = gst_tensors_info_get_size (std::addressof (outputTensorMeta), (gint) i);
+    if (buf_size < (size_t) nns_size)
+      throw std::runtime_error ("LiteRT output buffer " + std::to_string (i) + " is smaller ("
+                                + std::to_string (buf_size) + " B) than the tensor ("
+                                + std::to_string (nns_size) + " B).");
+    output_buffer_sizes.push_back (buf_size);
   }
 }
 
@@ -599,6 +643,12 @@ litert_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
     if (input[i].data == nullptr)
       throw std::invalid_argument ("Input tensor memory is null.");
 
+    /* never write past the buffer LiteRT actually allocated */
+    if (input[i].size > input_buffer_sizes[i])
+      throw std::invalid_argument ("Input tensor " + std::to_string (i) + " ("
+                                   + std::to_string (input[i].size) + " B) exceeds the LiteRT buffer ("
+                                   + std::to_string (input_buffer_sizes[i]) + " B).");
+
     LITERT_CHECK (LiteRtLockTensorBuffer (
         input_buffers[i], &host_mem, kLiteRtTensorBufferLockModeWrite));
     std::memcpy (host_mem, input[i].data, input[i].size);
@@ -615,6 +665,12 @@ litert_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 
     if (output[i].data == nullptr)
       throw std::invalid_argument ("Output tensor memory is null.");
+
+    /* never read past the buffer LiteRT actually allocated */
+    if (output[i].size > output_buffer_sizes[i])
+      throw std::invalid_argument ("Output tensor " + std::to_string (i) + " ("
+                                   + std::to_string (output[i].size) + " B) exceeds the LiteRT buffer ("
+                                   + std::to_string (output_buffer_sizes[i]) + " B).");
 
     LITERT_CHECK (LiteRtLockTensorBuffer (
         output_buffers[i], &host_mem, kLiteRtTensorBufferLockModeRead));

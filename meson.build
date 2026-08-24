@@ -282,28 +282,47 @@ if not get_option('litert-support').disabled()
     # Check whether LITERT_ROOT (where the LiteRT SDK is located) is set.
     # Expected layout: $LITERT_ROOT/lib/libLiteRt.so and
     #                  $LITERT_ROOT/include/litert/c/litert_common.h
+    # A stale or partial LITERT_ROOT must not break unrelated builds:
+    # unless litert-support is explicitly enabled, every failure below
+    # degrades to "feature off" instead of aborting.
+    litert_enabled = get_option('litert-support').enabled()
     cmd = run_command('sh', '-c', 'echo $LITERT_ROOT', check : false)
     LITERT_ROOT = cmd.returncode() == 0 ? cmd.stdout().strip() : ''
     if LITERT_ROOT != ''
       message('Got LITERT_ROOT: @0@'.format(LITERT_ROOT))
-      if not fs.is_dir(LITERT_ROOT)
-        error('@0@ does not exist'.format(LITERT_ROOT))
-      endif
+      litert_root_ok = true
 
-      litert_lib = cxx.find_library('LiteRt',
-        dirs: join_paths(LITERT_ROOT, 'lib'),
-        required: true
-      )
+      if not fs.is_dir(LITERT_ROOT)
+        if litert_enabled
+          error('LITERT_ROOT (@0@) does not exist.'.format(LITERT_ROOT))
+        endif
+        message('LITERT_ROOT (@0@) does not exist; ignoring it.'.format(LITERT_ROOT))
+        litert_root_ok = false
+      endif
 
       litert_include_path = join_paths(LITERT_ROOT, 'include')
-      if not fs.is_file(join_paths(litert_include_path, 'litert', 'c', 'litert_common.h'))
-        error('LiteRT header files are not found in your LITERT_ROOT path.')
+      if litert_root_ok and not fs.is_file(join_paths(litert_include_path, 'litert', 'c', 'litert_common.h'))
+        if litert_enabled
+          error('LiteRT header files are not found in your LITERT_ROOT path.')
+        endif
+        message('LiteRT header files are not found in LITERT_ROOT; ignoring it.')
+        litert_root_ok = false
       endif
 
-      litert_dep = declare_dependency(
-        dependencies: litert_lib,
-        include_directories: include_directories(litert_include_path, is_system: true)
-      )
+      if litert_root_ok
+        litert_lib = cxx.find_library('LiteRt',
+          dirs: join_paths(LITERT_ROOT, 'lib'),
+          required: litert_enabled
+        )
+        if litert_lib.found()
+          litert_dep = declare_dependency(
+            dependencies: litert_lib,
+            include_directories: include_directories(litert_include_path, is_system: true)
+          )
+        else
+          message('libLiteRt is not found in LITERT_ROOT; ignoring it.')
+        endif
+      endif
     else
       message('If you want to build the LiteRT sub-plugin, provide litert.pc or LITERT_ROOT as the path of the LiteRT SDK.')
     endif
