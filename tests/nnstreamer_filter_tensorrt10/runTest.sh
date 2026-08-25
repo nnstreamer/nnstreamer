@@ -50,7 +50,7 @@ else
         if [[ -d ${value} ]]; then
             check=$(ls ${value} | grep tensorrt10.so)
             if [[ ! $check ]]; then
-                echo "Cannot find TensorRT10 lib"
+                echo "Cannot find TensorRT10 shared lib"
                 report
                 exit
             fi
