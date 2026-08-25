@@ -467,8 +467,13 @@ size_t
 get_argmax (T *array, size_t size)
 {
   size_t idx, max_idx = 0;
-  T max_value = 0;
-  for (idx = 0; idx < size; idx++) {
+  T max_value;
+
+  if (size == 0)
+    return 0;
+
+  max_value = array[0];
+  for (idx = 1; idx < size; idx++) {
     if (max_value < array[idx]) {
       max_idx = idx;
       max_value = array[idx];
