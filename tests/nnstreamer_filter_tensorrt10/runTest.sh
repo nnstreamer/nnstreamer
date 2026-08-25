@@ -25,9 +25,9 @@ PATH_TO_PLUGIN="../../build"
 if [[ -d $PATH_TO_PLUGIN ]]; then
     ini_path="${PATH_TO_PLUGIN}/ext/nnstreamer/tensor_filter"
     if [[ -d ${ini_path} ]]; then
-        check=$(ls ${ini_path} | grep tensorrt.so)
+        check=$(ls ${ini_path} | grep tensorrt10.so)
         if [[ ! $check ]]; then
-            echo "Cannot find TensorRT shared lib"
+            echo "Cannot find TensorRT10 shared lib"
             report
             exit
         fi
@@ -48,9 +48,9 @@ else
         fi
 
         if [[ -d ${value} ]]; then
-            check=$(ls ${value} | grep tensorrt.so)
+            check=$(ls ${value} | grep tensorrt10.so)
             if [[ ! $check ]]; then
-                echo "Cannot find TensorRT lib"
+                echo "Cannot find TensorRT10 lib"
                 report
                 exit
             fi
@@ -88,5 +88,25 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
 
 # Cleanup
 rm yolov5nu_result_*.log*
+
+## @brief Regression test for issue #4850: reading tensor_filter outputs across a
+##        queue boundary (fakesink dump=true maps and reads the buffer contents in
+##        the sink thread while the filter runs the next inference) segfaulted when
+##        the subplugin handed CUDA managed memory downstream. Multiple buffers are
+##        required to overlap downstream CPU reads with an active GPU inference.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
+    filesrc location=${PATH_TO_IMAGE} ! \
+    pngdec ! \
+    videoscale ! \
+    imagefreeze num-buffers=8 ! \
+    videoconvert ! \
+    video/x-raw,width=224,height=224,format=RGB,framerate=30/1 ! \
+    tensor_converter ! \
+    tensor_transform mode=transpose option=1:2:0:3 ! \
+    tensor_transform mode=arithmetic option=typecast:float32,div:255 ! \
+    tensor_filter framework=tensorrt10 model=${PATH_TO_MODEL} ! \
+    queue ! \
+    fakesink dump=true sync=false" \
+    2 0 0 $PERFORMANCE
 
 report
