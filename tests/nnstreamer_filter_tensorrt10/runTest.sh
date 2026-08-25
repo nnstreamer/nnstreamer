@@ -86,6 +86,30 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
     multifilesink location=yolov5nu_result_%1d.log" \
     1 0 0 $PERFORMANCE
 
+# Negative test: unsupported model file extension.
+# configure_instance() throws in loadModel() after partial allocation;
+# the instance must be cleaned up gracefully without crash or leak.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
+    videotestsrc num_buffers=1 ! \
+    videoconvert ! \
+    video/x-raw,width=224,height=224,format=RGB,framerate=0/1 ! \
+    tensor_converter ! \
+    tensor_filter framework=tensorrt10 model=${PATH_TO_LABEL} ! \
+    fakesink" \
+    2_n 0 1 $PERFORMANCE
+
+# Negative test: invalid custom property.
+# configure_instance() throws before loadModel(); the partially
+# configured instance must be cleaned up gracefully.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
+    videotestsrc num_buffers=1 ! \
+    videoconvert ! \
+    video/x-raw,width=224,height=224,format=RGB,framerate=0/1 ! \
+    tensor_converter ! \
+    tensor_filter framework=tensorrt10 model=${PATH_TO_MODEL} custom=InvalidProp:1 ! \
+    fakesink" \
+    3_n 0 1 $PERFORMANCE
+
 # Cleanup
 rm yolov5nu_result_*.log*
 
