@@ -55,7 +55,6 @@ jobs:
         sudo cp llama-prebuilt/build/bin/*.so /usr/local/lib/
         sudo cp llama-prebuilt/llama.cpp-${LLAMA_VERSION}/include/*.h /usr/local/include/
         sudo cp llama-prebuilt/llama.cpp-${LLAMA_VERSION}/ggml/include/*.h /usr/local/include/
-        sudo ln -sf /usr/local/lib/libggml-cpu-x64.so /usr/local/lib/libggml-cpu.so
 
         mkdir -p ~/llama-backends
         cp llama-prebuilt/build/bin/libggml-*.so ~/llama-backends/
