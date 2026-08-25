@@ -353,6 +353,7 @@ tensorrt10_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *out
     }
 
     /* Copy the results from the persistent device buffers to host memory */
+    /** @todo pageable dst makes this copy synchronous; pin it if it matters */
     for (i = 0; i < _tensorrt10_output_tensor_infos.size (); ++i) {
       const auto &tensorrt10_tensor_info = _tensorrt10_output_tensor_infos[i];
       status = cudaMemcpyAsync (output[i].data, tensorrt10_tensor_info.buffer,
