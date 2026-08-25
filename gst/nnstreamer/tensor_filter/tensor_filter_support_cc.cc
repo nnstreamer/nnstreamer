@@ -62,7 +62,7 @@ namespace nnstreamer
   do {                                                                  \
     try {                                                               \
       obj = get_tfsp_with_checks (private_data);                        \
-    } catch (const std::exception &e) {                                 \
+    } catch (...) {                                                     \
       /** @todo Write exception handlers. */                            \
       return -EINVAL;                                                   \
       /** @todo return different error codes according to exceptions */ \
@@ -84,9 +84,7 @@ tensor_filter_subplugin::cpp_open (const GstTensorFilterProperties *prop, void *
   tensor_filter_subplugin *sp = (tensor_filter_subplugin *) tfsp->v1.subplugin_data;
   assert (sp->sanity == _SANITY_CHECK); /** tfsp is using me! */
 
-  /* 2. Spawn another empty object and configure the empty object.
-   * If configure_instance() throws, obj_ptr deletes the object; see the
-   * ownership contract of getEmptyInstance() in nnstreamer_cppplugin_api_filter.hh */
+  /* 2. Spawn another empty object and configure it; obj_ptr deletes it if configure_instance() throws */
   tensor_filter_subplugin &obj = sp->getEmptyInstance ();
   std::unique_ptr<tensor_filter_subplugin> obj_ptr (std::addressof (obj));
   try {
@@ -178,6 +176,8 @@ tensor_filter_subplugin::cpp_invoke (const GstTensorFilterFramework *tf,
     _RETURN_ERR_WITH_MSG (-EINVAL, e.what ());
   } catch (const std::exception &e) {
     _RETURN_ERR_WITH_MSG (-EINVAL, e.what ());
+  } catch (...) {
+    _RETURN_ERR_WITH_MSG (-EINVAL, "Unknown exception from invoke()");
   }
 
   return 0;
@@ -213,6 +213,8 @@ tensor_filter_subplugin::cpp_getFrameworkInfo (const GstTensorFilterFramework *t
   } catch (const std::exception &e) {
     /** @todo Write exception handlers. */
     _RETURN_ERR_WITH_MSG (-EINVAL, e.what ());
+  } catch (...) {
+    _RETURN_ERR_WITH_MSG (-EINVAL, "Unknown exception from getFrameworkInfo()");
   }
   return 0;
 }
@@ -231,7 +233,13 @@ tensor_filter_subplugin::cpp_getModelInfo (const GstTensorFilterFramework *tf,
   UNUSED (tf);
   UNUSED (prop);
 
-  return obj->getModelInfo (ops, *in_info, *out_info);
+  try {
+    return obj->getModelInfo (ops, *in_info, *out_info);
+  } catch (const std::exception &e) {
+    _RETURN_ERR_WITH_MSG (-EINVAL, e.what ());
+  } catch (...) {
+    _RETURN_ERR_WITH_MSG (-EINVAL, "Unknown exception from getModelInfo()");
+  }
 }
 
 /**
@@ -248,7 +256,13 @@ tensor_filter_subplugin::cpp_eventHandler (const GstTensorFilterFramework *tf,
   UNUSED (tf);
   UNUSED (prop);
 
-  return obj->eventHandler (ops, *data);
+  try {
+    return obj->eventHandler (ops, *data);
+  } catch (const std::exception &e) {
+    _RETURN_ERR_WITH_MSG (-EINVAL, e.what ());
+  } catch (...) {
+    _RETURN_ERR_WITH_MSG (-EINVAL, "Unknown exception from eventHandler()");
+  }
 }
 
 /**
