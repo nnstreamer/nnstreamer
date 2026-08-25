@@ -484,6 +484,18 @@ get_argmax (T *array, size_t size)
 }
 
 /**
+ * @brief Test get_argmax with all-negative values (e.g. raw logits)
+ */
+TEST (nnstreamerFilterArmnn, argmaxAllNegative)
+{
+  float values[] = { -3.0f, -1.5f, -0.25f, -2.0f };
+
+  EXPECT_EQ (get_argmax<float> (values, 4), 2U);
+  EXPECT_EQ (get_argmax<float> (values, 2), 1U);
+  EXPECT_EQ (get_argmax<float> (values, 0), 0U);
+}
+
+/**
  * @brief Test armnn subplugin with successful invoke for tflite advanced model
  */
 TEST (nnstreamerFilterArmnn, invokeAdvanced)
