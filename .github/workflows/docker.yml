@@ -23,6 +23,6 @@ jobs:
       uses: docker/build-push-action@v5
       with:
         context: .
-        file: tools/docker/Dockerfile
+        file: tools/docker/UbuntuBuild/Dockerfile
         push: true
         tags: ${{ secrets.DOCKERHUB_USERNAME }}/nnstreamer:latest
