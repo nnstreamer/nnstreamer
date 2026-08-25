@@ -41,6 +41,11 @@ jobs:
       if: env.rebuild == '1'
     - run: meson test -C build/ -v
       if: env.rebuild == '1'
+    - name: build with orcc-support disabled
+      if: env.rebuild == '1'
+      run: |
+        meson setup build-noorc/ -Dorcc-support=disabled
+        meson compile -C build-noorc/
     - uses: actions/upload-artifact@v4
       if: failure()
       with:

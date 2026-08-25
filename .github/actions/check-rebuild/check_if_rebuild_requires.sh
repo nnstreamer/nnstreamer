@@ -15,8 +15,8 @@
 #                  android: check if jni rebuild is required
 #                  build (default): check if general meson rebuild is required.
 
-if [ -z $1 ]; then
-  echo "::error The argument (file path) is not given."
+if [ ! -f "$1" ]; then
+  echo "::error The argument (file path) is not given or is not a file."
   exit 1
 fi
 
