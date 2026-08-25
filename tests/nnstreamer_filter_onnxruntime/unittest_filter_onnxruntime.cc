@@ -24,16 +24,36 @@
  * @brief internal function to get model filename
  */
 static gboolean
-_GetModelFilePath (gchar **model_file)
+_GetModelFilePathByName (gchar **model_file, const gchar *model_name)
 {
   const gchar *src_root = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
   g_autofree gchar *root_path = src_root ? g_strdup (src_root) : g_get_current_dir ();
-  std::string model_name = "mobilenet_v2_quant.onnx";
 
   *model_file = g_build_filename (
-      root_path, "tests", "test_models", "models", model_name.c_str (), NULL);
+      root_path, "tests", "test_models", "models", model_name, NULL);
 
   return g_file_test (*model_file, G_FILE_TEST_EXISTS);
+}
+
+/**
+ * @brief internal function to get the quantized mobilenet v2 model
+ */
+static gboolean
+_GetModelFilePath (gchar **model_file)
+{
+  return _GetModelFilePathByName (model_file, "mobilenet_v2_quant.onnx");
+}
+
+/**
+ * @brief internal function to get the float mobilenet v2 model
+ * @note Use this model to verify inference results. Results of the quantized
+ *       model depend on CPU features (e.g., AVX2 w/o VNNI saturates in
+ *       onnxruntime kernels), giving a different argmax per machine.
+ */
+static gboolean
+_GetFloatModelFilePath (gchar **model_file)
+{
+  return _GetModelFilePathByName (model_file, "mobilenet_v2_float.onnx");
 }
 
 /**
@@ -349,7 +369,7 @@ TEST (nnstreamerFilterOnnxRuntime, floatModelResult)
   g_autofree gchar *model_file = NULL;
   g_autofree gchar *input_file = NULL;
 
-  ASSERT_TRUE (_GetModelFilePath (&model_file));
+  ASSERT_TRUE (_GetFloatModelFilePath (&model_file));
   ASSERT_TRUE (_GetOrangePngFilePath (&input_file));
 
   /* create a nnstreamer pipeline */
@@ -372,6 +392,58 @@ TEST (nnstreamerFilterOnnxRuntime, floatModelResult)
       0);
 
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  gst_object_unref (sink_handle);
+  gst_object_unref (gstpipe);
+}
+
+/**
+ * @brief Signal to count invocations of tensor_sink
+ */
+static void
+count_output (GstElement *element, GstBuffer *buffer, gpointer user_data)
+{
+  guint *count = (guint *) user_data;
+  UNUSED (element);
+  UNUSED (buffer);
+  (*count)++;
+}
+
+/**
+ * @brief Positive case to launch gst pipeline with the quantized model
+ * @note The output value is not verified; quantized results are CPU-dependent.
+ */
+TEST (nnstreamerFilterOnnxRuntime, quantModelLaunch00)
+{
+  GstElement *gstpipe;
+  GError *err = NULL;
+  g_autofree gchar *model_file = NULL;
+  g_autofree gchar *input_file = NULL;
+  guint count = 0U;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file));
+  ASSERT_TRUE (_GetOrangePngFilePath (&input_file));
+
+  /* create a nnstreamer pipeline */
+  g_autofree gchar *pipeline = g_strdup_printf (
+      "filesrc location=\"%s\" ! pngdec ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=224,height=224,framerate=0/1 ! tensor_converter ! tensor_transform mode=transpose option=1:2:0:3 ! tensor_transform mode=arithmetic option=typecast:float32,div:127.5,add:-1.0 ! tensor_filter framework=onnxruntime model=\"%s\" ! tensor_sink name=sink",
+      input_file, model_file);
+
+  gstpipe = gst_parse_launch (pipeline, &err);
+  ASSERT_TRUE (gstpipe != nullptr);
+
+  GstElement *sink_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "sink");
+
+  ASSERT_TRUE (sink_handle != nullptr);
+
+  g_signal_connect (sink_handle, "new-data", (GCallback) count_output, &count);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT * 10),
+      0);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  EXPECT_GE (count, 1U);
 
   gst_object_unref (sink_handle);
   gst_object_unref (gstpipe);
