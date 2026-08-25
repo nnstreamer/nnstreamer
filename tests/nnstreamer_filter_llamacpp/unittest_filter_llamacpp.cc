@@ -213,6 +213,30 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
     ret = gst_app_src_push_buffer (GST_APP_SRC (appsrc), buffer);
     return (ret == GST_FLOW_OK);
   }
+
+  /**
+   * @brief Wait until the appsink has received the expected number of samples.
+   *        After the count is reached, a short grace period lets unexpected
+   *        extra samples arrive so that exact-count assertions can catch them.
+   * @param expected Number of samples to wait for.
+   * @param timeout_ms Maximum wait time in milliseconds.
+   * @return TRUE if the expected count was reached before the timeout.
+   */
+  gboolean wait_for_samples (guint expected, guint timeout_ms = 10000U)
+  {
+    guint waited_ms = 0;
+
+    while (*new_sample_count < expected && waited_ms < timeout_ms) {
+      g_usleep (10000);
+      waited_ms += 10;
+    }
+
+    if (*new_sample_count < expected)
+      return FALSE;
+
+    g_usleep (100000);
+    return TRUE;
+  }
 };
 
 /**
@@ -232,7 +256,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputMultipleOutputsAsync_p)
   ASSERT_TRUE (create_pipeline (model, TRUE, "num_predict:10"));
   EXPECT_TRUE (data_push ("Hello my name is"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (100000);
+  EXPECT_TRUE (wait_for_samples (11));
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GT (*new_sample_count, 10);
@@ -248,7 +272,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputSingleOutputSync_p)
   ASSERT_TRUE (create_pipeline (model, FALSE, "num_predict:10"));
   EXPECT_TRUE (data_push ("Hello my name is"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (100000);
+  EXPECT_TRUE (wait_for_samples (1));
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (*new_sample_count, 1);
@@ -265,7 +289,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, multipleInputsMultipleOutputsAsync_p)
   EXPECT_TRUE (data_push ("Hello my name is"));
   EXPECT_TRUE (data_push ("What is AI?"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (1500000);
+  EXPECT_TRUE (wait_for_samples (16));
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GT (*new_sample_count, 15);
@@ -282,7 +306,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, multipleInputsSingleOutputSync_p)
   EXPECT_TRUE (data_push ("Hello my name is"));
   EXPECT_TRUE (data_push ("What is AI?"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (1000000);
+  EXPECT_TRUE (wait_for_samples (2));
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (*new_sample_count, 2);
@@ -352,7 +376,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputCombinedSampling_p)
   ASSERT_TRUE (create_pipeline (model, TRUE, "num_predict:30,top_k:50,top_p:0.9,temperature:0.7"));
   EXPECT_TRUE (data_push ("Hello my name is"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (100000);
+  EXPECT_TRUE (wait_for_samples (11));
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GT (*new_sample_count, 10);
@@ -369,7 +393,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputAllSamplingOptions_p)
       "num_predict:30,top_k:40,top_p:0.9,typical_p:0.9,temperature:0.7"));
   EXPECT_TRUE (data_push ("Hello my name is"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (100000);
+  EXPECT_TRUE (wait_for_samples (11));
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GT (*new_sample_count, 10);
@@ -385,7 +409,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputTypicalPTempSampling_p)
   ASSERT_TRUE (create_pipeline (model, TRUE, "num_predict:30,typical_p:0.9,temperature:0.7"));
   EXPECT_TRUE (data_push ("Hello my name is"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (100000);
+  EXPECT_TRUE (wait_for_samples (11));
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GT (*new_sample_count, 10);
@@ -401,7 +425,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidTopKValue_n)
   ASSERT_TRUE (create_pipeline (model, TRUE, "num_predict:10,top_k:0"));
   EXPECT_TRUE (data_push ("Hello my name is"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (100000);
+  EXPECT_TRUE (wait_for_samples (11));
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GT (*new_sample_count, 10);
@@ -417,7 +441,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidTopPValue_n)
   ASSERT_TRUE (create_pipeline (model, TRUE, "num_predict:10,top_p:1.0"));
   EXPECT_TRUE (data_push ("Hello my name is"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (100000);
+  EXPECT_TRUE (wait_for_samples (11));
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GT (*new_sample_count, 10);
@@ -433,7 +457,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidTypicalPValue_n)
   ASSERT_TRUE (create_pipeline (model, TRUE, "num_predict:10,typical_p:1.0"));
   EXPECT_TRUE (data_push ("Hello my name is"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (100000);
+  EXPECT_TRUE (wait_for_samples (11));
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GT (*new_sample_count, 10);
@@ -449,7 +473,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidTemperatureValue_n)
   ASSERT_TRUE (create_pipeline (model, TRUE, "num_predict:10,temperature:-1.0"));
   EXPECT_TRUE (data_push ("Hello my name is"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (100000);
+  EXPECT_TRUE (wait_for_samples (11));
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GT (*new_sample_count, 10);
@@ -465,7 +489,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, combinedSamplingSync_p)
   ASSERT_TRUE (create_pipeline (model, FALSE, "num_predict:30,top_k:20,top_p:0.7,temperature:0.7"));
   EXPECT_TRUE (data_push ("Hello my name is"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (100000);
+  EXPECT_TRUE (wait_for_samples (1));
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (*new_sample_count, 1);
@@ -482,7 +506,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, contextContinuationInConversation_p)
   EXPECT_TRUE (data_push ("Hello my name is John. I like programming and AI."));
   EXPECT_TRUE (data_push ("What did I just say about myself?"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (100000);
+  EXPECT_TRUE (wait_for_samples (2));
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (*new_sample_count, 2);
@@ -503,7 +527,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, cacheTrimmingTrigger_p)
   EXPECT_TRUE (data_push ("Hello my name is"));
   EXPECT_TRUE (data_push ("What is AI?"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (1000000);
+  EXPECT_TRUE (wait_for_samples (11));
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_GT (*new_sample_count, 10);
@@ -547,7 +571,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, contextSaveLoad_p)
 
   EXPECT_TRUE (data_push ("Hello my name is John. I like programming and AI."));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (100000);
+  EXPECT_TRUE (wait_for_samples (1));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (*new_sample_count, 1);
 
@@ -564,7 +588,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, contextSaveLoad_p)
 
   EXPECT_TRUE (data_push ("What did I just say about myself?"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (100000);
+  EXPECT_TRUE (wait_for_samples (1));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (*new_sample_count, 1);
 
@@ -594,7 +618,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, contextFileNotFound_n)
   /* Should work normally with fresh context */
   EXPECT_TRUE (data_push ("Hello my name is John."));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (100000);
+  EXPECT_TRUE (wait_for_samples (1));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (*new_sample_count, 1); /* Should work with fresh context */
 }
@@ -616,7 +640,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, contextInvalidSavePath_n)
   /* Should work normally even if save fails */
   EXPECT_TRUE (data_push ("Hello my name is John."));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (100000);
+  EXPECT_TRUE (wait_for_samples (1));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (*new_sample_count, 1); /* Should work even if save fails */
 
@@ -638,7 +662,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, applyLoraAdapter_p)
 
   EXPECT_TRUE (data_push ("Can you translate 'Hello world' into Korean?"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (1000000); /* Wait for inference to complete */
+  EXPECT_TRUE (wait_for_samples (1));
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (*new_sample_count, 1); /* In sync mode, expect one sample for the entire output */
