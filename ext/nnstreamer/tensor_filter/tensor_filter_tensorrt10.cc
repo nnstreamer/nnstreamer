@@ -329,7 +329,7 @@ tensorrt10_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *out
     }
   }
 
-  /* Allocate plain host memory for the output tensors.
+  /** Allocate plain host memory for the output tensors.
    * The buffers handed over to the pipeline MUST be ordinary host memory:
    * downstream elements may read them from another thread (e.g., after a
    * queue) while this filter is already running the next inference. CPU
@@ -636,7 +636,7 @@ tensorrt10_subplugin::loadModel (const GstTensorFilterProperties *prop)
 
     } else if (tensorrt10_tensor_info.mode == nvinfer1::TensorIOMode::kOUTPUT) {
 
-      /* Persistent device buffer for the output; invoke() copies the result
+      /** Persistent device buffer for the output; invoke() copies the result
        * into per-frame host memory before handing it to the pipeline. */
       allocBuffer (&tensorrt10_tensor_info.buffer, tensorrt10_tensor_info.buffer_size);
       if (!_Context->setOutputTensorAddress (
