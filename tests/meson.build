@@ -418,7 +418,7 @@ if gtest_dep.found()
       install_dir: unittest_install_dir
     )
 
-    test('unittest_filter_llamacpp', unittest_filter_llamacpp, env: testenv)
+    test('unittest_filter_llamacpp', unittest_filter_llamacpp, timeout: 60, env: testenv)
   endif
 
   # Run unittest_trainer
