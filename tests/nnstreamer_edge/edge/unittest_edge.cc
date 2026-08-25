@@ -12,8 +12,8 @@
 #include <glib.h>
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
-#include "../../../gst/edge/edge_sink.h"
-#include "../../../gst/edge/edge_src.h"
+#include "edge_sink.h"
+#include "edge_src.h"
 #include "nnstreamer_log.h"
 #include "unittest_util.h"
 
@@ -342,6 +342,7 @@ TEST (edgeCustom, sinkInvalidProp_n)
 {
   gchar *pipeline = nullptr;
   GstElement *gstpipe = nullptr;
+  GstElement *edge_handle = nullptr;
 
   /* Create a nnstreamer pipeline */
   pipeline = g_strdup_printf (
@@ -354,6 +355,11 @@ TEST (edgeCustom, sinkInvalidProp_n)
   EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   g_usleep (1000000);
 
+  edge_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "sinkx");
+  ASSERT_NE (edge_handle, nullptr);
+  EXPECT_EQ (GST_EDGESINK (edge_handle)->edge_h, (nns_edge_h) NULL);
+  gst_object_unref (edge_handle);
+
   gst_object_unref (gstpipe);
   g_free (pipeline);
 }
@@ -365,6 +371,7 @@ TEST (edgeCustom, sinkInvalidProp2_n)
 {
   gchar *pipeline = nullptr;
   GstElement *gstpipe = nullptr;
+  GstElement *edge_handle = nullptr;
 
   /* Create a nnstreamer pipeline */
   pipeline = g_strdup_printf (
@@ -376,6 +383,11 @@ TEST (edgeCustom, sinkInvalidProp2_n)
 
   EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   g_usleep (1000000);
+
+  edge_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "sinkx");
+  ASSERT_NE (edge_handle, nullptr);
+  EXPECT_EQ (GST_EDGESINK (edge_handle)->edge_h, (nns_edge_h) NULL);
+  gst_object_unref (edge_handle);
 
   gst_object_unref (gstpipe);
   g_free (pipeline);
@@ -450,6 +462,7 @@ TEST (edgeCustom, srcInvalidProp_n)
 {
   gchar *pipeline = nullptr;
   GstElement *gstpipe = nullptr;
+  GstElement *edge_handle = nullptr;
 
   /* Create a nnstreamer pipeline */
   pipeline = g_strdup_printf ("edgesrc connect-type=CUSTOM name=srcx ! "
@@ -460,6 +473,11 @@ TEST (edgeCustom, srcInvalidProp_n)
 
   EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   g_usleep (1000000);
+
+  edge_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "srcx");
+  ASSERT_NE (edge_handle, nullptr);
+  EXPECT_EQ (GST_EDGESRC (edge_handle)->edge_h, (nns_edge_h) NULL);
+  gst_object_unref (edge_handle);
 
   gst_object_unref (gstpipe);
   g_free (pipeline);
@@ -472,6 +490,7 @@ TEST (edgeCustom, srcInvalidProp2_n)
 {
   gchar *pipeline = nullptr;
   GstElement *gstpipe = nullptr;
+  GstElement *edge_handle = nullptr;
 
   /* Create a nnstreamer pipeline */
   pipeline = g_strdup_printf (
@@ -483,6 +502,11 @@ TEST (edgeCustom, srcInvalidProp2_n)
 
   EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   g_usleep (1000000);
+
+  edge_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "srcx");
+  ASSERT_NE (edge_handle, nullptr);
+  EXPECT_EQ (GST_EDGESRC (edge_handle)->edge_h, (nns_edge_h) NULL);
+  gst_object_unref (edge_handle);
 
   gst_object_unref (gstpipe);
   g_free (pipeline);
