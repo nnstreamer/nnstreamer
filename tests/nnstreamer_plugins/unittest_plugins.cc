@@ -13,10 +13,12 @@
 #include <gst/check/gstharness.h>
 #include <gst/check/gsttestclock.h>
 #include <gst/gst.h>
+#include <nnstreamer_cppplugin_api_filter.hh>
 #include <nnstreamer_plugin_api_converter.h>
 #include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_plugin_api_filter.h>
 #include <nnstreamer_subplugin.h>
+#include <nnstreamer_util.h>
 #include <string.h>
 #include <tensor_common.h>
 #include <tensor_meta.h>
@@ -5923,6 +5925,161 @@ TEST_REQUIRE_TFLITE (testTensorFilter, reopenTFlite02)
 
   g_free (prop);
   g_free (test_model);
+}
+
+/**
+ * @brief Mock C++ subplugin (tensor_filter_subplugin) to test open/close paths
+ *        of the C++ subplugin API wrapper (tensor_filter_support_cc.cc).
+ */
+class cpp_mock_subplugin : public nnstreamer::tensor_filter_subplugin
+{
+  public:
+  static const char *mock_name;
+  static cpp_mock_subplugin *registered;
+  static guint instances_alive;
+  static bool throw_on_configure;
+
+  /** @brief Count a live instance */
+  cpp_mock_subplugin ()
+  {
+    instances_alive++;
+  }
+
+  /** @brief Discount a live instance */
+  ~cpp_mock_subplugin ()
+  {
+    instances_alive--;
+  }
+
+  /** @brief mandatory method */
+  tensor_filter_subplugin &getEmptyInstance () override
+  {
+    return *(new cpp_mock_subplugin ());
+  }
+
+  /** @brief mandatory method. throws if throw_on_configure is set */
+  void configure_instance (const GstTensorFilterProperties *prop) override
+  {
+    UNUSED (prop);
+    if (throw_on_configure)
+      throw std::invalid_argument ("Configuration failure for testing");
+  }
+
+  /** @brief mandatory method */
+  void invoke (const GstTensorMemory *input, GstTensorMemory *output) override
+  {
+    UNUSED (input);
+    UNUSED (output);
+  }
+
+  /** @brief mandatory method */
+  void getFrameworkInfo (GstTensorFilterFrameworkInfo &info) override
+  {
+    info.name = mock_name;
+    info.allow_in_place = FALSE;
+    info.allocate_in_invoke = FALSE;
+    info.run_without_model = TRUE;
+    info.verify_model_path = FALSE;
+    info.hw_list = nullptr;
+    info.num_hw = 0;
+  }
+
+  /** @brief mandatory method */
+  int getModelInfo (model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info) override
+  {
+    UNUSED (ops);
+    UNUSED (in_info);
+    UNUSED (out_info);
+    return -ENOENT;
+  }
+
+  /** @brief register this mock subplugin */
+  static void init ()
+  {
+    registered = register_subplugin<cpp_mock_subplugin> ();
+  }
+
+  /** @brief unregister this mock subplugin */
+  static void fini ()
+  {
+    unregister_subplugin<cpp_mock_subplugin> (registered);
+    registered = nullptr;
+  }
+};
+
+const char *cpp_mock_subplugin::mock_name = "cpp_mock_subplugin";
+cpp_mock_subplugin *cpp_mock_subplugin::registered = nullptr;
+guint cpp_mock_subplugin::instances_alive = 0;
+bool cpp_mock_subplugin::throw_on_configure = false;
+
+/**
+ * @brief Test C++ subplugin open: when configure_instance() throws, repeated
+ *        open attempts must neither crash nor leak the instance spawned by
+ *        getEmptyInstance().
+ */
+TEST (testTensorFilterCppSubplugin, openFailNoLeak)
+{
+  const GstTensorFilterFramework *fw;
+  GstTensorFilterProperties prop;
+  gpointer private_data;
+  guint i;
+
+  cpp_mock_subplugin::init ();
+  cpp_mock_subplugin::throw_on_configure = true;
+
+  fw = nnstreamer_filter_find (cpp_mock_subplugin::mock_name);
+  ASSERT_TRUE (fw && fw->open && fw->close);
+
+  memset (&prop, 0, sizeof (prop));
+  prop.fwname = cpp_mock_subplugin::mock_name;
+
+  /* Only the representative instance from register_subplugin() is alive. */
+  EXPECT_EQ (cpp_mock_subplugin::instances_alive, 1U);
+
+  for (i = 0; i < 100U; i++) {
+    private_data = nullptr;
+    EXPECT_EQ (fw->open (&prop, &private_data), -EINVAL);
+    EXPECT_TRUE (private_data == nullptr);
+    /* The instance spawned for this failed attempt must have been deleted. */
+    EXPECT_EQ (cpp_mock_subplugin::instances_alive, 1U);
+  }
+
+  cpp_mock_subplugin::fini ();
+  EXPECT_EQ (cpp_mock_subplugin::instances_alive, 0U);
+}
+
+/**
+ * @brief Test C++ subplugin open/close: on success, the ownership of the
+ *        configured instance is transferred to *private_data and the
+ *        instance is deleted by close.
+ */
+TEST (testTensorFilterCppSubplugin, openCloseOwnership)
+{
+  const GstTensorFilterFramework *fw;
+  GstTensorFilterProperties prop;
+  gpointer private_data = nullptr;
+
+  cpp_mock_subplugin::init ();
+  cpp_mock_subplugin::throw_on_configure = false;
+
+  fw = nnstreamer_filter_find (cpp_mock_subplugin::mock_name);
+  ASSERT_TRUE (fw && fw->open && fw->close);
+
+  memset (&prop, 0, sizeof (prop));
+  prop.fwname = cpp_mock_subplugin::mock_name;
+
+  EXPECT_EQ (cpp_mock_subplugin::instances_alive, 1U);
+
+  EXPECT_EQ (fw->open (&prop, &private_data), 0);
+  EXPECT_TRUE (private_data != nullptr);
+  /* The configured instance is alive, owned via *private_data. */
+  EXPECT_EQ (cpp_mock_subplugin::instances_alive, 2U);
+
+  fw->close (&prop, &private_data);
+  EXPECT_EQ (cpp_mock_subplugin::instances_alive, 1U);
+
+  cpp_mock_subplugin::fini ();
+  EXPECT_EQ (cpp_mock_subplugin::instances_alive, 0U);
 }
 
 /**
