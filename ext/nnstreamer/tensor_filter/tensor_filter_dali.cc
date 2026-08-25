@@ -199,17 +199,18 @@ dali_subplugin::~dali_subplugin ()
 void
 dali_subplugin::cleanup ()
 {
-  if (!configured) {
-    return;
-  }
-
   if (_pipeline_handle) {
     daliDeletePipeline (&_pipeline_handle);
     _pipeline_handle = nullptr;
   }
 
+  g_free (_pipeline_path);
+  _pipeline_path = nullptr;
+
   gst_tensors_info_free (&_inputTensorMeta);
   gst_tensors_info_free (&_outputTensorMeta);
+  _nns_input_name = nullptr;
+  _nns_output_name = nullptr;
 
   configured = false;
 }
