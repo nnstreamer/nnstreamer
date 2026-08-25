@@ -8,26 +8,21 @@
 # @see      https://github.com/nnstreamer/nnstreamer
 # @author   MyungJoo Ham <myungjoo.ham@samsung.com>
 #
-# Runs the same "out=$(...) || exit; grep -c ... || true" pattern as
-# .github/actions/check-rebuild/action.yml under "sh -e", which is how GitHub
-# executes composite "shell: sh" steps. This keeps the REBUILD=NO path and the
-# fail-closed error path exercised by CI on every PR.
+# Runs get_rebuild_flag.sh -- the same script action.yml invokes -- under
+# "sh -e", which is how GitHub executes composite "shell: sh" steps. This
+# keeps the REBUILD=NO path and the fail-closed error path exercised by CI
+# on every PR.
 
 set -u
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
-CHECKER="${SCRIPT_DIR}/check_if_rebuild_requires.sh"
+FLAG_SCRIPT="${SCRIPT_DIR}/get_rebuild_flag.sh"
 failed=0
 
 # run_step <file-list-path> <mode>: emulate the action.yml step under sh -e.
 run_step() {
-  sh -ec '
-    out=$(bash "$1" "$2" "$3") || {
-      echo "::error::check_if_rebuild_requires.sh failed" >&2
-      exit 1
-    }
-    printf "%s\n" "$out" | grep -c "REBUILD=YES" || true
-  ' sh "$CHECKER" "$1" "$2"
+  sh -ec 'rebuild=$(bash "$1" "$2" "$3"); printf "%s\n" "$rebuild"' \
+    sh "$FLAG_SCRIPT" "$1" "$2"
 }
 
 # expect_rebuild <expected 0|1> <mode> <changed-file>...

@@ -14,16 +14,11 @@ runs:
         tmpfile=$(mktemp)
         git show --pretty="format:" --name-only --diff-filter=AMRC ${{ github.event.pull_request.head.sha}} -${{ github.event.pull_request.commits }} | sort | uniq | awk NF > ${tmpfile}
         echo "changed_file_list=${tmpfile}" >> "$GITHUB_ENV"
-        # Use grep -c instead of "grep | wc -l": the BSD wc on macOS pads its
-        # output with leading spaces, which made `env.rebuild == '1'` always
-        # false there (macOS jobs silently skipped every build step).
-        # Check the script status separately: a script failure must fail this
-        # step instead of silently producing rebuild=0 and skipping the job.
-        out=$(bash .github/actions/check-rebuild/check_if_rebuild_requires.sh ${tmpfile} ${{ inputs.mode }}) || {
-          echo "::error::check_if_rebuild_requires.sh failed"
-          exit 1
-        }
-        rebuild=$(printf '%s\n' "$out" | grep -c "REBUILD=YES" || true)
+        # get_rebuild_flag.sh prints 0 or 1 and exits nonzero on checker
+        # failure, which fails this "sh -e" step instead of silently
+        # skipping the job. It is also exercised by
+        # test_check_if_rebuild_requires.sh in the Static checks workflow.
+        rebuild=$(bash .github/actions/check-rebuild/get_rebuild_flag.sh ${tmpfile} ${{ inputs.mode }})
         echo "Rebuild required: ${rebuild}"
         echo "rebuild=${rebuild}" >> "$GITHUB_ENV"
       shell: sh
