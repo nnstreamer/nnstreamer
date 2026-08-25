@@ -598,13 +598,16 @@ tensorrt10_subplugin::loadModel (const GstTensorFilterProperties *prop)
 
       // Allocate only for input, memory for output is allocated in the invoke method.
       allocBuffer (&tensorrt10_tensor_info.buffer, tensorrt10_tensor_info.buffer_size);
+
+      // Register the buffer before any call that may throw so that
+      // cleanup() can release it on a partial-configuration failure.
+      _tensorrt10_input_tensor_infos.push_back (tensorrt10_tensor_info);
+
       if (!_Context->setInputTensorAddress (
               tensorrt10_tensor_info.name, tensorrt10_tensor_info.buffer)) {
         ml_loge ("Unable to set input tensor address");
         throw std::runtime_error ("Unable to set input tensor address");
       }
-
-      _tensorrt10_input_tensor_infos.push_back (tensorrt10_tensor_info);
 
     } else if (tensorrt10_tensor_info.mode == nvinfer1::TensorIOMode::kOUTPUT) {
 
