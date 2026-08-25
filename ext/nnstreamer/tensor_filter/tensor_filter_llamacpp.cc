@@ -298,6 +298,10 @@ TensorFilterLlamaCpp::configure_instance (const GstTensorFilterProperties *prop)
     throw std::runtime_error ("Failed to create llama context");
   }
 
+  /* n_ctx 0 means the model default; sync it for the trimming guard in generateTokens() */
+  if (n_ctx == 0)
+    n_ctx = (int) llama_n_ctx (ctx);
+
   if (!load_ctx_path.empty ()) {
     if (std::filesystem::exists (load_ctx_path)) {
       if (!loadContextFromFile (load_ctx_path)) {
