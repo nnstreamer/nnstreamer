@@ -442,7 +442,9 @@ tensor_filter_ext_enabled = tflite_support_is_available or \
     mvncsdk2_support_is_available or get_option('enable-openvino') or \
     mxnet_support_is_available
 if get_option('install-test') and tensor_filter_ext_enabled
-  install_subdir('test_models', install_dir: unittest_install_dir)
+  # host-only model generator scripts are not needed on target devices
+  install_subdir('test_models', install_dir: unittest_install_dir,
+    exclude_files: ['models/gen_mobilenet_v2_float.py'])
 endif
 
 
