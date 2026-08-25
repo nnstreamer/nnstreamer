@@ -46,8 +46,13 @@ jobs:
       run: |
         meson setup build-noorc/ -Dorcc-support=disabled
         meson compile -C build-noorc/
+      env:
+        CC: clang
+        CXX: clang++
     - uses: actions/upload-artifact@v4
       if: failure()
       with:
         name: Meson_LLVM_Testlog
-        path: build/meson-logs/testlog.txt
+        path: |
+          build/meson-logs/testlog.txt
+          build-noorc/meson-logs/meson-log.txt

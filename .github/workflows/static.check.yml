@@ -144,6 +144,9 @@ jobs:
         # Originally from "pr-prebuild-signed-off-by"
         run: |
           bash .github/workflows/static.check.scripts/signed-off-by.sh ${{ github.event.pull_request.commits }}
+      - name: /Checker/ check-rebuild action self-test
+        run: |
+          bash .github/actions/check-rebuild/test_check_if_rebuild_requires.sh
       - name: /Checker/ shellcheck for shell scripts
         # Originally from "pr-prebuild-shellcheck"
         run: |
