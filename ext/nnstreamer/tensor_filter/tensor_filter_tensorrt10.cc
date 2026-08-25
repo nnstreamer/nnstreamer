@@ -179,6 +179,8 @@ const accl_hw tensorrt10_subplugin::hw_list[] = {};
  */
 tensorrt10_subplugin::tensorrt10_subplugin () : tensor_filter_subplugin ()
 {
+  gst_tensors_info_init (std::addressof (_inputTensorMeta));
+  gst_tensors_info_init (std::addressof (_outputTensorMeta));
 }
 
 /**
@@ -189,13 +191,14 @@ tensorrt10_subplugin::~tensorrt10_subplugin ()
   cleanup ();
 }
 
+/**
+ * @brief Release the resources allocated by this instance.
+ * @note Safe to call on a partially configured instance; every resource
+ *       released here is either initialized in the constructor or guarded.
+ */
 void
 tensorrt10_subplugin::cleanup ()
 {
-  if (!_configured) {
-    return;
-  }
-
   gst_tensors_info_free (&_inputTensorMeta);
   gst_tensors_info_free (&_outputTensorMeta);
 
