@@ -32,11 +32,61 @@ jobs:
         sudo add-apt-repository -y ppa:nnstreamer/ppa && sudo apt-get update && sudo apt-get install -y ssat libpaho-mqtt-dev
         sudo apt-get install -y valgrind gstreamer1.0-tools gstreamer1.0-plugins-good gstreamer1.0-plugins-base libgtest-dev libpng-dev libc6-dbg binutils-x86-64-linux-gnu-dbg valgrind-dbg
         pip install meson ninja
+    - name: install llama.cpp for the llamacpp tensor-filter
+      if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
+      run: |
+        # Install a pinned prebuilt llama.cpp release (x64 only) so that the
+        # llamacpp tensor-filter and its unit tests are built and run here.
+        # llama.cpp does not ship a dev package or pkg-config file, and ggml
+        # searches dynamic backends relative to the executable rather than
+        # FHS paths (ggml-org/ggml#1120); hence the hand-written llama.pc
+        # here and the backend copy into build/tests/ after the build.
+        LLAMA_VERSION="b6569"
+        curl -fsSL -o llama-bin.zip "https://github.com/ggml-org/llama.cpp/releases/download/${LLAMA_VERSION}/llama-${LLAMA_VERSION}-bin-ubuntu-x64.zip"
+        curl -fsSL -o llama-src.zip "https://github.com/ggml-org/llama.cpp/archive/refs/tags/${LLAMA_VERSION}.zip"
+        unzip -q llama-bin.zip -d llama-prebuilt
+        unzip -q llama-src.zip -d llama-prebuilt
+
+        sudo cp llama-prebuilt/build/bin/*.so /usr/local/lib/
+        sudo cp llama-prebuilt/llama.cpp-${LLAMA_VERSION}/include/*.h /usr/local/include/
+        sudo cp llama-prebuilt/llama.cpp-${LLAMA_VERSION}/ggml/include/*.h /usr/local/include/
+        sudo ln -sf /usr/local/lib/libggml-cpu-x64.so /usr/local/lib/libggml-cpu.so
+
+        mkdir -p ~/llama-backends
+        cp llama-prebuilt/build/bin/libggml-*.so ~/llama-backends/
+
+        sudo mkdir -p /usr/local/lib/pkgconfig
+        cat << 'EOF' | sudo tee /usr/local/lib/pkgconfig/llama.pc
+        prefix=/usr/local
+        exec_prefix=${prefix}
+        libdir=${prefix}/lib
+        includedir=${prefix}/include
+
+        Name: llama
+        Description: C/C++ inference of LLaMA-family models
+        Version: 0.0.6569
+        Libs: -L${libdir} -lggml -lggml-base -lllama
+        Cflags: -I${includedir}
+        EOF
+        sudo ldconfig
+        rm -rf llama-bin.zip llama-src.zip llama-prebuilt/
+
+        mkdir -p tests/test_models/models
+        curl -fsSL -o tests/test_models/models/TinyStories-656K-Q2_K.gguf \
+          "https://huggingface.co/tensorblock/TinyStories-656K-GGUF/resolve/main/TinyStories-656K-Q2_K.gguf"
+        echo "5a798ebc1cad921e0ce639b2f10c4bcce492654a79d4b4ca52bd0268416f6b87  tests/test_models/models/TinyStories-656K-Q2_K.gguf" | sha256sum -c
     - name: build and unit test
       if: env.rebuild == '1'
       run: |
         meson setup build/
         meson compile -C build/
+
+        if [ '${{ matrix.os }}' == 'ubuntu-22.04' ]; then
+          # Fail loudly if meson stopped detecting llama.cpp; otherwise the
+          # llamacpp tests would silently vanish from this job.
+          test -f build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_llamacpp.so
+          cp ~/llama-backends/libggml-*.so build/tests/
+        fi
 
         sudo mkdir -m 777 /cores
         sudo bash -c 'echo "/cores/coredump" > /proc/sys/kernel/core_pattern'
