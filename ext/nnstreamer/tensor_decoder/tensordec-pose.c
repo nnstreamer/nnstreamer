@@ -773,7 +773,7 @@ pose_decode (void **pdata, const GstTensorsConfig * config,
   for (index = 0; index < pose_size; index++) {
     int maxX = 0;
     int maxY = 0;
-    float max = G_MINFLOAT;
+    float max = -G_MAXFLOAT;
     pose p;
     for (j = 0; j < grid_ysize; j++) {
       for (i = 0; i < grid_xsize; i++) {
