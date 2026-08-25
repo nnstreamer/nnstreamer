@@ -69,6 +69,25 @@ _GetOrangePngFilePath (gchar **input_file)
 }
 
 /**
+ * @brief internal function to find the index of the maximum float value
+ */
+static guint
+_argmax_float (const gfloat *values, guint num)
+{
+  guint idx, max_idx = 0U;
+  gfloat max_value = -G_MAXFLOAT;
+
+  for (idx = 0; idx < num; ++idx) {
+    if (values[idx] > max_value) {
+      max_value = values[idx];
+      max_idx = idx;
+    }
+  }
+
+  return max_idx;
+}
+
+/**
  * @brief Signal to validate the result in tensor_sink
  */
 static void
@@ -84,7 +103,7 @@ check_output (GstElement *element, GstBuffer *buffer, gpointer user_data)
   ASSERT_TRUE (mapped);
 
   gint is_float = (gint) * ((guint8 *) user_data);
-  guint idx, max_idx = -1;
+  guint idx, max_idx = 0U;
 
   if (is_float == 0) {
     guint8 *output = (guint8 *) info_res.data;
@@ -98,14 +117,8 @@ check_output (GstElement *element, GstBuffer *buffer, gpointer user_data)
     }
   } else if (is_float == 1) {
     gfloat *output = (gfloat *) info_res.data;
-    gfloat max_value = G_MINFLOAT;
 
-    for (idx = 0; idx < (info_res.size / sizeof (gfloat)); ++idx) {
-      if (output[idx] > max_value) {
-        max_value = output[idx];
-        max_idx = idx;
-      }
-    }
+    max_idx = _argmax_float (output, info_res.size / sizeof (gfloat));
   } else {
     ASSERT_TRUE (1 == 0);
   }
@@ -114,6 +127,17 @@ check_output (GstElement *element, GstBuffer *buffer, gpointer user_data)
 
   gst_memory_unmap (mem_res, &info_res);
   gst_memory_unref (mem_res);
+}
+
+/**
+ * @brief Test _argmax_float with all-negative values (e.g. raw logits)
+ */
+TEST (nnstreamerFilterTensorFlow2Lite, argmaxFloatAllNegative)
+{
+  const gfloat values[] = { -3.0f, -1.5f, -0.25f, -2.0f };
+
+  EXPECT_EQ (_argmax_float (values, 4), 2U);
+  EXPECT_EQ (_argmax_float (values, 2), 1U);
 }
 
 /**

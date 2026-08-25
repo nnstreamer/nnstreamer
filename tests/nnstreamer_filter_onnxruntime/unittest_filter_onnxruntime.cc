@@ -86,6 +86,25 @@ _SetFilterProp (GstTensorFilterProperties *prop, const gchar *name, const gchar 
 }
 
 /**
+ * @brief internal function to find the index of the maximum float value
+ */
+static guint
+_argmax_float (const gfloat *values, guint num)
+{
+  guint idx, max_idx = 0U;
+  gfloat max_value = -G_MAXFLOAT;
+
+  for (idx = 0; idx < num; ++idx) {
+    if (values[idx] > max_value) {
+      max_value = values[idx];
+      max_idx = idx;
+    }
+  }
+
+  return max_idx;
+}
+
+/**
  * @brief Signal to validate the result in tensor_sink
  */
 static void
@@ -115,20 +134,25 @@ check_output (GstElement *element, GstBuffer *buffer, gpointer user_data)
     }
   } else if (is_float == 1) {
     gfloat *output = (gfloat *) info_res.data;
-    gfloat max_value = G_MINFLOAT;
 
-    for (idx = 0; idx < (info_res.size / sizeof (gfloat)); ++idx) {
-      if (output[idx] > max_value) {
-        max_value = output[idx];
-        max_idx = idx;
-      }
-    }
+    max_idx = _argmax_float (output, info_res.size / sizeof (gfloat));
   }
 
   gst_memory_unmap (mem_res, &info_res);
   gst_memory_unref (mem_res);
 
   EXPECT_EQ (max_idx, 951U);
+}
+
+/**
+ * @brief Test _argmax_float with all-negative values (e.g. raw logits)
+ */
+TEST (nnstreamerFilterOnnxRuntime, argmaxFloatAllNegative)
+{
+  const gfloat values[] = { -3.0f, -1.5f, -0.25f, -2.0f };
+
+  EXPECT_EQ (_argmax_float (values, 4), 2U);
+  EXPECT_EQ (_argmax_float (values, 2), 1U);
 }
 
 /**
