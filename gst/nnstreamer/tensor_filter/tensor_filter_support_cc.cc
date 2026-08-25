@@ -88,24 +88,21 @@ tensor_filter_subplugin::cpp_open (const GstTensorFilterProperties *prop, void *
   tensor_filter_subplugin &obj = sp->getEmptyInstance ();
   /**
    * NOTE:
-   * getEmptyInstance() is expected to return a heap-allocated object.
-   * If configure_instance() throws, cpp_open() must delete the object to avoid leaks
-   * when open() is repeatedly attempted with invalid properties.
+   * getEmptyInstance() must return a heap-allocated, singly-owned object.
+   * If configure_instance() throws, obj_ptr deletes the object to avoid
+   * leaks when open() is repeatedly attempted with invalid properties.
+   * On success, ownership is transferred to *private_data via release().
    */
-  tensor_filter_subplugin *obj_ptr = std::addressof (obj);
+  std::unique_ptr<tensor_filter_subplugin> obj_ptr (std::addressof (obj));
   try {
     obj.configure_instance (prop);
   } catch (const std::invalid_argument &e) {
-    delete obj_ptr;
     _RETURN_ERR_WITH_MSG (-EINVAL, e.what ());
   } catch (const std::system_error &e) {
-    delete obj_ptr;
     _RETURN_ERR_WITH_MSG (e.code ().value () * -1, e.what ());
   } catch (const std::runtime_error &e) {
-    delete obj_ptr;
     _RETURN_ERR_WITH_MSG (-EINVAL, e.what ());
   } catch (const std::exception &e) {
-    delete obj_ptr;
     _RETURN_ERR_WITH_MSG (-EINVAL, e.what ());
   }
 
@@ -113,12 +110,8 @@ tensor_filter_subplugin::cpp_open (const GstTensorFilterProperties *prop, void *
    * nnstreamer_filter_find) empty object */
   obj.fwdesc.v1.subplugin_data = nullptr;
 
-/* 4. Save the object as *private_data */
-#if __GNUC__ < 5 || __cplusplus < 201103L
-  *private_data = obj_ptr;
-#else /* It is safer w/ addressof, but old gcc doesn't appear to support it */
-  *private_data = obj_ptr;
-#endif
+  /* 4. Save the object as *private_data */
+  *private_data = obj_ptr.release ();
 
   return 0;
 }

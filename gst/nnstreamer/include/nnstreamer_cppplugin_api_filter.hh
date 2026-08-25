@@ -164,11 +164,25 @@ class tensor_filter_subplugin
     */
 
   virtual tensor_filter_subplugin &getEmptyInstance () = 0;
-  /**< Return a newly created "empty" object of the derived class. */
+  /**< Return a newly created "empty" object of the derived class.
+
+       The returned object MUST be heap-allocated and singly owned by
+       the framework: the framework deletes it (via the virtual
+       destructor) when the filter is closed, or immediately if
+       configure_instance() throws. Do not return a reference to a
+       static, pooled, or otherwise shared instance, and do not retain
+       a reference to the returned object inside the subplugin.
+   */
 
   virtual void configure_instance (const GstTensorFilterProperties *prop) = 0;
   /**< Configure a non-functional "empty" object as a
        functional "filled" object ready to be invoked.
+
+       If this method throws, the framework immediately deletes the
+       object. Thus, before throwing, it must clean up any external
+       references to "this" (e.g., entries in a global registry), and
+       the destructor of the derived class must be safe to run on a
+       partially-configured (or never-configured) instance.
 
        Possible exceptions: ... @todo describe them!
    */
