@@ -233,13 +233,16 @@ tensor_filter_subplugin::cpp_getModelInfo (const GstTensorFilterFramework *tf,
   UNUSED (tf);
   UNUSED (prop);
 
+  int ret;
   try {
-    return obj->getModelInfo (ops, *in_info, *out_info);
+    ret = obj->getModelInfo (ops, *in_info, *out_info);
   } catch (const std::exception &e) {
     _RETURN_ERR_WITH_MSG (-EINVAL, e.what ());
   } catch (...) {
     _RETURN_ERR_WITH_MSG (-EINVAL, "Unknown exception from getModelInfo()");
   }
+
+  return ret;
 }
 
 /**
@@ -256,13 +259,16 @@ tensor_filter_subplugin::cpp_eventHandler (const GstTensorFilterFramework *tf,
   UNUSED (tf);
   UNUSED (prop);
 
+  int ret;
   try {
-    return obj->eventHandler (ops, *data);
+    ret = obj->eventHandler (ops, *data);
   } catch (const std::exception &e) {
     _RETURN_ERR_WITH_MSG (-EINVAL, e.what ());
   } catch (...) {
     _RETURN_ERR_WITH_MSG (-EINVAL, "Unknown exception from eventHandler()");
   }
+
+  return ret;
 }
 
 /**
