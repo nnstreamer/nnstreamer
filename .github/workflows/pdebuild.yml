@@ -60,9 +60,22 @@ jobs:
       if: env.rebuild == '1'
       run: |
         echo "Installing build tools"
+        # The GitHub-hosted runner image ships apt sources for packages.microsoft.com
+        # (azure-cli and ubuntu/<ver>/prod), which nnstreamer does not use. That host
+        # intermittently answers 403 to runners and then "apt-get update" fails for a
+        # reason unrelated to this build; drop those sources before touching apt.
+        echo "::group::drop unused third-party apt sources"
+        sudo grep -rl 'packages\.microsoft\.com' /etc/apt/sources.list.d/ | sudo xargs -r rm -fv
+        echo "::endgroup::"
         sudo add-apt-repository ppa:nnstreamer/ppa
-        echo "::group::apt-get update && apt-get install"
-        sudo apt-get update && sudo apt-get install -y pbuilder debootstrap curl ubuntu-dev-tools qemu-user-static debian-archive-keyring ubuntu-keyring debhelper
+        # Keep update and install as separate statements. In an "A && B" list, a
+        # failing A does not trigger errexit, so a broken apt-get update used to leave
+        # the step green and surface as "sudo: pbuilder: command not found" later on.
+        echo "::group::apt-get update"
+        sudo apt-get update
+        echo "::endgroup::"
+        echo "::group::apt-get install"
+        sudo apt-get install -y pbuilder debootstrap curl ubuntu-dev-tools qemu-user-static debian-archive-keyring ubuntu-keyring debhelper
         echo "::endgroup::"
         echo "DISTRIBUTION=${{ matrix.distroname }}" > ~/.pbuilderrc
         echo "OTHERMIRROR=\"deb [trusted=yes] http://archive.ubuntu.com/ubuntu ${{ matrix.distroname }}-backports universe |deb [trusted=yes] http://ppa.launchpad.net/nnstreamer/ppa/ubuntu ${{ matrix.distroname }} main |deb [trusted=yes] http://ppa.launchpad.net/kubuntu-ppa/backports-extra/ubuntu ${{ matrix.distroname }} main\"" >> ~/.pbuilderrc
