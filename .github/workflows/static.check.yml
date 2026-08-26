@@ -146,11 +146,12 @@ jobs:
           bash .github/workflows/static.check.scripts/signed-off-by.sh ${{ github.event.pull_request.commits }}
       - name: /Checker/ check-rebuild action self-test
         # The step list comes from the merge ref while the checkout above is
-        # the PR head, so a branch older than this script would fail with
-        # "No such file or directory". Skip in that case: the head tree then
-        # has no self-test target to verify. Any future step that runs a
-        # repository script unrelated to $changed_file_list needs the same
-        # existence guard.
+        # the PR head, so a tree that lacks this script - whether the branch
+        # predates it or a rename/deletion left it out without updating this
+        # step - would fail with "No such file or directory". Skip only when
+        # this PR did not remove it (see the elif below); any future step
+        # that runs a repository script unrelated to $changed_file_list
+        # needs the same guard.
         run: |
           selftest=.github/actions/check-rebuild/test_check_if_rebuild_requires.sh
           if [ -f "$selftest" ]; then
