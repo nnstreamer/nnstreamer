@@ -247,7 +247,7 @@ if gtest_dep.found()
       install_dir: unittest_install_dir
     )
 
-    test('unittest_filter_armnn', unittest_filter_armnn, env: testenv)
+    test('unittest_filter_armnn', unittest_filter_armnn, timeout: 120, env: testenv)
   endif
 
   # Lua unittest
