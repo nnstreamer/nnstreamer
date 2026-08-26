@@ -204,6 +204,130 @@ TEST (join, prop1_n)
 }
 
 /**
+ * @brief Pipeline description shared by the join test cases.
+ */
+static const gchar *join_pipeline_desc
+    = "appsrc name=appsrc_0 ! other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! join.sink_0 "
+      "appsrc name=appsrc_1 ! other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! join.sink_1 "
+      "join name=join ! other/tensor,dimension=(string)3:4:2:2, type=(string)int32, framerate=(fraction)0/1 ! "
+      "tensor_sink name=sinkx async=false";
+
+/**
+ * @brief Wait for EOS or ERROR on the pipeline bus.
+ * @return the message type received, or GST_MESSAGE_UNKNOWN on timeout.
+ */
+static GstMessageType
+pop_eos_or_error (GstElement *pipeline, guint timeout_ms)
+{
+  GstBus *bus = gst_element_get_bus (pipeline);
+  GstMessage *msg;
+  GstMessageType type = GST_MESSAGE_UNKNOWN;
+
+  msg = gst_bus_timed_pop_filtered (bus, timeout_ms * GST_MSECOND,
+      (GstMessageType) (GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+  if (msg) {
+    type = GST_MESSAGE_TYPE (msg);
+    gst_message_unref (msg);
+  }
+  gst_object_unref (bus);
+
+  return type;
+}
+
+/**
+ * @brief Feed one buffer to each source and end both streams, checking that
+ *        EOS is posted only after the last stream ends.
+ */
+static void
+run_eos_cycle (GstElement *pipeline, GstElement *appsrc_0, GstElement *appsrc_1, gint *idx)
+{
+  ASSERT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  *idx = 0;
+  ASSERT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc_0),
+                 gst_buffer_new_wrapped (_g_memdup (test_frames[0], 192), 192)),
+      GST_FLOW_OK);
+  g_usleep (100000);
+
+  EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (appsrc_0)), GST_FLOW_OK);
+  EXPECT_EQ (pop_eos_or_error (pipeline, 300), GST_MESSAGE_UNKNOWN);
+
+  *idx = 1;
+  ASSERT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc_1),
+                 gst_buffer_new_wrapped (_g_memdup (test_frames[1], 192), 192)),
+      GST_FLOW_OK);
+  g_usleep (100000);
+
+  EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (appsrc_1)), GST_FLOW_OK);
+  EXPECT_EQ (pop_eos_or_error (pipeline, UNITTEST_STATECHANGE_TIMEOUT), GST_MESSAGE_EOS);
+}
+
+/**
+ * @brief Test that join forwards EOS only after every sink pad received it.
+ */
+TEST (join, eosAfterAllPads)
+{
+  GstElement *appsrc_0, *appsrc_1, *sink_handle;
+  gint idx = 0;
+
+  GstElement *pipeline = gst_parse_launch (join_pipeline_desc, NULL);
+  ASSERT_NE (pipeline, nullptr);
+
+  appsrc_0 = gst_bin_get_by_name (GST_BIN (pipeline), "appsrc_0");
+  ASSERT_NE (appsrc_0, nullptr);
+  appsrc_1 = gst_bin_get_by_name (GST_BIN (pipeline), "appsrc_1");
+  ASSERT_NE (appsrc_1, nullptr);
+  sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  ASSERT_NE (sink_handle, nullptr);
+  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, (gpointer) &idx);
+
+  data_received = 0;
+  run_eos_cycle (pipeline, appsrc_0, appsrc_1, &idx);
+  EXPECT_EQ (2, data_received);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  gst_object_unref (sink_handle);
+  gst_object_unref (appsrc_1);
+  gst_object_unref (appsrc_0);
+  gst_object_unref (pipeline);
+}
+
+/**
+ * @brief Test that join tracks EOS again after the pipeline is restarted.
+ */
+TEST (join, eosAfterRestart)
+{
+  GstElement *appsrc_0, *appsrc_1, *sink_handle;
+  gint idx = 0;
+
+  GstElement *pipeline = gst_parse_launch (join_pipeline_desc, NULL);
+  ASSERT_NE (pipeline, nullptr);
+
+  appsrc_0 = gst_bin_get_by_name (GST_BIN (pipeline), "appsrc_0");
+  ASSERT_NE (appsrc_0, nullptr);
+  appsrc_1 = gst_bin_get_by_name (GST_BIN (pipeline), "appsrc_1");
+  ASSERT_NE (appsrc_1, nullptr);
+  sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  ASSERT_NE (sink_handle, nullptr);
+  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, (gpointer) &idx);
+
+  data_received = 0;
+  run_eos_cycle (pipeline, appsrc_0, appsrc_1, &idx);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  run_eos_cycle (pipeline, appsrc_0, appsrc_1, &idx);
+  EXPECT_EQ (4, data_received);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  gst_object_unref (sink_handle);
+  gst_object_unref (appsrc_1);
+  gst_object_unref (appsrc_0);
+  gst_object_unref (pipeline);
+}
+
+/**
  * @brief Main GTest
  */
 int
