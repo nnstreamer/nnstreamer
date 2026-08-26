@@ -641,13 +641,14 @@ tensorrt10_subplugin::loadModel (const GstTensorFilterProperties *prop)
       /** Persistent device buffer for the output; invoke() copies the result
        * into per-frame host memory before handing it to the pipeline. */
       allocBuffer (&tensorrt10_tensor_info.buffer, tensorrt10_tensor_info.buffer_size);
+      /* Register the buffer first so cleanup() can free it on failure */
+      _tensorrt10_output_tensor_infos.push_back (tensorrt10_tensor_info);
+
       if (!_Context->setOutputTensorAddress (
               tensorrt10_tensor_info.name, tensorrt10_tensor_info.buffer)) {
         ml_loge ("Unable to set output tensor address");
         throw std::runtime_error ("Unable to set output tensor address");
       }
-
-      _tensorrt10_output_tensor_infos.push_back (tensorrt10_tensor_info);
 
     } else {
       ml_loge ("TensorIOMode not supported");
