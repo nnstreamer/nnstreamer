@@ -5,14 +5,27 @@ on:
     # Daily at 1:15 am
     - cron: '15 01 * * *'
   workflow_dispatch:
+  # Build-only on pull requests touching the image or this workflow, so a
+  # broken dockerfile or path is caught before it reaches the nightly push.
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'tools/docker/UbuntuBuild/**'
+      - '.github/workflows/docker.yml'
+
+permissions:
+  contents: read
 
 jobs:
   build:
+    name: Ubuntu docker image build
     runs-on: ubuntu-22.04
+    timeout-minutes: 45
     steps:
     - name: Checkout
       uses: actions/checkout@v4
     - name: Login to Docker Hub
+      if: github.event_name != 'pull_request'
       uses: docker/login-action@v3
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -24,5 +37,6 @@ jobs:
       with:
         context: .
         file: tools/docker/UbuntuBuild/Dockerfile
-        push: true
-        tags: ${{ secrets.DOCKERHUB_USERNAME }}/nnstreamer:latest
+        push: ${{ github.event_name != 'pull_request' }}
+        # secrets are unavailable on fork pull requests; use a local tag there
+        tags: ${{ github.event_name == 'pull_request' && 'nnstreamer/nnstreamer:build-test' || format('{0}/nnstreamer:latest', secrets.DOCKERHUB_USERNAME) }}

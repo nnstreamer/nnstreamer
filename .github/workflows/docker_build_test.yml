@@ -1,0 +1,94 @@
+name: Docker Tizen App Build Test
+
+# Build the Tizen Studio docker image and build-test Tizen native apps
+# with it: a smoke-test app compiled against this repository's devel
+# headers (overlaid onto the platform rootstrap from a GBS build of this
+# tree) and a real example app from nnstreamer-example. This catches
+# changes in this repository that would break nnstreamer-based Tizen
+# apps. The job triggers on changes to the image, this workflow, or the
+# public devel headers, so ordinary pull requests are unaffected; the
+# weekly schedule surfaces upstream drift (Tizen Studio, platform
+# packages, PPAs) on its own.
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/docker_build_test.yml'
+      - 'tools/docker/TizenAppBuild/**'
+      - 'gst/nnstreamer/include/**'
+      # devel headers shipped from outside gst/nnstreamer/include
+      - 'ext/nnstreamer/tensor_filter/tensor_filter_cpp.hh'
+      - 'gst/nnstreamer/nnstreamer_internal.h'
+      - 'gst/nnstreamer/tensor_filter/tensor_filter_single.h'
+      - 'packaging/nnstreamer.spec'
+  schedule:
+    # Weekly, Monday 02:30 UTC
+    - cron: '30 2 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Tizen app build test
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: prepare GBS
+      run: |
+        echo "deb [trusted=yes] http://download.tizen.org/tools/latest-release/Ubuntu_22.04/ /" | sudo tee /etc/apt/sources.list.d/tizen.list
+        sudo apt-get update && sudo apt-get install -y gbs
+        cp .github/workflows/tizen.gbs.conf ~/.gbs.conf
+
+    - name: get date
+      id: get-date
+      run: |
+        echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
+    - name: restore gbs cache from main branch
+      uses: actions/cache/restore@v4
+      with:
+        path: ~/GBS-ROOT/local/cache
+        key: gbs-cache-armv7l-${{ steps.get-date.outputs.date }}
+        restore-keys: |
+          gbs-cache-armv7l-
+
+    - name: run GBS (armv7l)
+      run: |
+        gbs build --skip-srcrpm --define "_skip_debug_rpm 1" -A armv7l --define "unit_test 0"
+
+    - name: collect nnstreamer devel RPMs
+      run: |
+        mkdir -p gbs-rpms
+        cp ~/GBS-ROOT/local/repos/*/armv7l/RPMS/nnstreamer*devel*.armv7l.rpm gbs-rpms/
+        ls -la gbs-rpms
+
+    - name: checkout nnstreamer-example (PipelineSample)
+      uses: actions/checkout@v4
+      with:
+        repository: nnstreamer/nnstreamer-example
+        # Pull-request gating builds a pinned revision so an unrelated
+        # commit in nnstreamer-example cannot turn this repository's PRs
+        # red; the weekly schedule and manual dispatch follow main so
+        # example rot still surfaces. Bump the pin deliberately.
+        ref: ${{ github.event_name == 'pull_request' && 'a00caa6c4e6a47f13fe640e37431da38ce78dbd9' || 'main' }}
+        path: nnstreamer-example
+        sparse-checkout: Tizen.native/PipelineSample
+
+    - name: Build the Tizen app build docker image
+      run: docker build -t nnstreamer/tizen-app-build tools/docker/TizenAppBuild
+
+    - name: Build Tizen native apps with the image
+      run: |
+        docker run --rm \
+          -e NNS_RPM_DIR=/home/sdk/gbs-rpms \
+          -e NNS_EXAMPLE_DIR=/home/sdk/example/PipelineSample \
+          -v ${{ github.workspace }}/gbs-rpms:/home/sdk/gbs-rpms:ro \
+          -v ${{ github.workspace }}/nnstreamer-example/Tizen.native/PipelineSample:/home/sdk/example/PipelineSample:ro \
+          nnstreamer/tizen-app-build ./tizen-build-test.sh
