@@ -1,4 +1,4 @@
-name: NNStreamer + NNTrainer gbs build daily test.
+name: NNStreamer + NNTrainer + ML API gbs build daily test.
 
 on:
   schedule:
@@ -111,6 +111,32 @@ jobs:
       run: |
         pushd nntrainer
         gbs build --skip-srcrpm -A ${{ matrix.gbs_build_arch }} ${{ matrix.gbs_build_arch == 'x86_64' && '--define "unit_test 1"' || '' }}
+        popd
+
+    - name: Get ML API
+      uses: actions/checkout@v4
+      with:
+        repository: nnstreamer/api
+        path: api
+
+    - name: Run ML API GBS build
+      run: |
+        pushd api
+        gbs build --skip-srcrpm --define "_skip_debug_rpm 1" -A ${{ matrix.gbs_build_arch }} ${{ matrix.gbs_build_arch == 'x86_64' && '--define "unit_test 1"' || '' }}
+        popd
+
+    - name: Get ML Agent
+      uses: actions/checkout@v4
+      with:
+        repository: nnstreamer/deviceMLOps.MLAgent
+        path: mlops-agent
+
+    # mlops-agent.spec defines unit_test 1 itself, so its unit tests run on
+    # every arch regardless of a --define on the command line.
+    - name: Run ML Agent GBS build
+      run: |
+        pushd mlops-agent
+        gbs build --skip-srcrpm --define "_skip_debug_rpm 1" -A ${{ matrix.gbs_build_arch }}
         popd
 
   print_result:
