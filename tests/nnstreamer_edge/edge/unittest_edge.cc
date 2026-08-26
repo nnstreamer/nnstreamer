@@ -407,6 +407,83 @@ TEST (edgeCustom, sinkInvalidProp2_n)
 }
 
 /**
+ * @brief Ensure custom-props values reach the edge handle when edgesink starts.
+ */
+TEST (edgeCustom, sinkCustomProps)
+{
+  gchar *pipeline = nullptr;
+  GstElement *gstpipe = nullptr;
+  GstElement *edge_handle = nullptr;
+  GstEdgeSink *sink = nullptr;
+  char *val = nullptr;
+
+  /* Value with ':' and whitespace around tokens: split on the first ':' only, then strip. */
+  pipeline = g_strdup_printf (
+      "videotestsrc ! videoconvert ! videoscale ! "
+      "video/x-raw,width=320,height=240,format=RGB,framerate=10/1 ! "
+      "tensor_converter ! edgesink connect-type=CUSTOM custom-lib=%s "
+      "custom-props=\" PEER_ADDRESS : tcp://127.0.0.1:1883 , QUEUE_SIZE:5:OLD\" name=sinkx port=0",
+      CUSTOM_LIB_PATH);
+  gstpipe = gst_parse_launch (pipeline, nullptr);
+  ASSERT_NE (gstpipe, nullptr);
+
+  edge_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "sinkx");
+  ASSERT_NE (edge_handle, nullptr);
+  sink = GST_EDGESINK_CAST (edge_handle);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  ASSERT_NE (sink->edge_h, (nns_edge_h) NULL);
+
+  EXPECT_EQ (nns_edge_get_info (sink->edge_h, "PEER_ADDRESS", &val), NNS_EDGE_ERROR_NONE);
+  EXPECT_STREQ ("tcp://127.0.0.1:1883", val);
+  g_free (val);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  gst_object_unref (edge_handle);
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+}
+
+/**
+ * @brief Malformed custom-props tokens must be skipped without crash and must not block start.
+ */
+TEST (edgeSink, customPropsMalformed_n)
+{
+  gchar *pipeline = nullptr;
+  GstElement *gstpipe = nullptr;
+  GstElement *edge_handle = nullptr;
+  GstEdgeSink *sink = nullptr;
+  char *val = nullptr;
+
+  /* Colon-less token, empty tokens, empty key, and empty value with a trailing comma. */
+  pipeline = g_strdup_printf (
+      "videotestsrc ! videoconvert ! videoscale ! "
+      "video/x-raw,width=320,height=240,format=RGB,framerate=10/1 ! "
+      "tensor_converter ! edgesink custom-props=\"foo,,topic:test_topic, : ,c:,:v,\" name=sinkx port=0");
+  gstpipe = gst_parse_launch (pipeline, nullptr);
+  ASSERT_NE (gstpipe, nullptr);
+
+  edge_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "sinkx");
+  ASSERT_NE (edge_handle, nullptr);
+  sink = GST_EDGESINK_CAST (edge_handle);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  ASSERT_NE (sink->edge_h, (nns_edge_h) NULL);
+
+  /* The valid token amid the malformed ones must still be applied. */
+  EXPECT_EQ (nns_edge_get_info (sink->edge_h, "TOPIC", &val), NNS_EDGE_ERROR_NONE);
+  EXPECT_STREQ ("test_topic", val);
+  g_free (val);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  gst_object_unref (edge_handle);
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+}
+
+/**
  * @brief Test for edgesrc custom connection.
  */
 TEST (edgeCustom, srcNormal)
@@ -427,6 +504,66 @@ TEST (edgeCustom, srcNormal)
 
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   g_usleep (100000);
+
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+}
+
+/**
+ * @brief Ensure custom-props values reach the edge handle when edgesrc starts.
+ */
+TEST (edgeCustom, srcCustomProps)
+{
+  gchar *pipeline = nullptr;
+  GstElement *gstpipe = nullptr;
+  GstElement *edge_handle = nullptr;
+  GstEdgeSrc *src = nullptr;
+  char *val = nullptr;
+
+  pipeline = g_strdup_printf ("edgesrc connect-type=CUSTOM custom-lib=%s "
+                              "custom-props=\" PEER_ADDRESS : tcp://127.0.0.1:1883 , QUEUE_SIZE:5:OLD\" name=srcx ! "
+                              "other/tensors,num_tensors=1,dimensions=3:320:240:1,types=uint8,format=static,framerate=30/1 ! "
+                              "tensor_sink",
+      CUSTOM_LIB_PATH);
+  gstpipe = gst_parse_launch (pipeline, nullptr);
+  ASSERT_NE (gstpipe, nullptr);
+
+  edge_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "srcx");
+  ASSERT_NE (edge_handle, nullptr);
+  src = GST_EDGESRC_CAST (edge_handle);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  ASSERT_NE (src->edge_h, (nns_edge_h) NULL);
+
+  EXPECT_EQ (nns_edge_get_info (src->edge_h, "PEER_ADDRESS", &val), NNS_EDGE_ERROR_NONE);
+  EXPECT_STREQ ("tcp://127.0.0.1:1883", val);
+  g_free (val);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  gst_object_unref (edge_handle);
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+}
+
+/**
+ * @brief Malformed custom-props tokens must be skipped without crash and must not block start.
+ */
+TEST (edgeCustom, srcCustomPropsMalformed_n)
+{
+  gchar *pipeline = nullptr;
+  GstElement *gstpipe = nullptr;
+
+  pipeline = g_strdup_printf ("edgesrc connect-type=CUSTOM custom-lib=%s "
+                              "custom-props=\"foo,,topic:test_topic, : ,c:,:v,\" name=srcx ! "
+                              "other/tensors,num_tensors=1,dimensions=3:320:240:1,types=uint8,format=static,framerate=30/1 ! "
+                              "tensor_sink",
+      CUSTOM_LIB_PATH);
+  gstpipe = gst_parse_launch (pipeline, nullptr);
+  ASSERT_NE (gstpipe, nullptr);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (gstpipe);
   g_free (pipeline);
