@@ -31,17 +31,14 @@ jobs:
       - name: prepare pdebuild
         run: |
           echo "Installing build tools"
-          # The GitHub-hosted runner image ships apt sources for packages.microsoft.com
-          # (azure-cli and ubuntu/<ver>/prod), which nnstreamer does not use. That host
-          # intermittently answers 403 to runners and then "apt-get update" fails for a
-          # reason unrelated to this build; drop those sources before touching apt.
+          # Drop the runner image's packages.microsoft.com sources: this build does not
+          # use them and that host intermittently answers 403, failing apt-get update.
           echo "::group::drop unused third-party apt sources"
-          sudo grep -rl 'packages\.microsoft\.com' /etc/apt/sources.list.d/ | sudo xargs -r rm -fv
+          # grep exits 1 when there is nothing to remove, which is not a failure here.
+          { sudo grep -rlZ 'packages\.microsoft\.com' /etc/apt/sources.list.d/ || true; } | sudo xargs -0r rm -fv
           echo "::endgroup::"
           sudo add-apt-repository ppa:nnstreamer/ppa
-          # Keep update and install as separate statements. In an "A && B" list, a
-          # failing A does not trigger errexit, so a broken apt-get update used to leave
-          # the step green and surface as "sudo: pbuilder: command not found" later on.
+          # Keep update and install separate: errexit ignores a failure before "&&".
           echo "::group::apt-get update"
           sudo apt-get update
           echo "::endgroup::"
