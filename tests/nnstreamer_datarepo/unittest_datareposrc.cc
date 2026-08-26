@@ -636,8 +636,10 @@ error:
 TEST (datareposrc, fps30ReadFlexibleTensors)
 {
   gint fps = 30;
+  gint sync_count = 0, no_sync_count = 0;
+  GCallback handler = G_CALLBACK (new_data_cb);
   guint64 start_time, end_time;
-  gdouble elapsed_time;
+  gdouble sync_time, no_sync_time;
   GstElement *tensor_sink;
   GstBus *bus;
   GMainLoop *loop;
@@ -648,6 +650,10 @@ TEST (datareposrc, fps30ReadFlexibleTensors)
   create_flexible_tensors_test_file (fps, file_index);
   GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
   ASSERT_NE (pipeline, nullptr);
+
+  tensor_sink = gst_bin_get_by_name (GST_BIN (pipeline), "tensor_sink0");
+  ASSERT_NE (tensor_sink, nullptr);
+  g_signal_connect (tensor_sink, "new-data", (GCallback) handler, &sync_count);
 
   loop = g_main_loop_new (NULL, FALSE);
   bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
@@ -662,11 +668,9 @@ TEST (datareposrc, fps30ReadFlexibleTensors)
 
   setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
   end_time = g_get_monotonic_time ();
-  elapsed_time = (end_time - start_time) / (double) G_USEC_PER_SEC;
+  sync_time = (end_time - start_time) / (double) G_USEC_PER_SEC;
 
-  g_print ("Elapsed time: %.6f second\n", elapsed_time);
-  EXPECT_LT (0.8, elapsed_time);
-
+  g_clear_pointer (&tensor_sink, gst_object_unref);
   g_clear_pointer (&pipeline, gst_object_unref);
   g_main_loop_unref (loop);
 
@@ -680,7 +684,9 @@ TEST (datareposrc, fps30ReadFlexibleTensors)
   g_clear_pointer (&bus, gst_object_unref);
 
   tensor_sink = gst_bin_get_by_name (GST_BIN (pipeline), "tensor_sink0");
+  ASSERT_NE (tensor_sink, nullptr);
   g_object_set (GST_OBJECT (tensor_sink), "sync", FALSE, NULL);
+  g_signal_connect (tensor_sink, "new-data", (GCallback) handler, &no_sync_count);
 
   start_time = g_get_monotonic_time ();
 
@@ -689,10 +695,7 @@ TEST (datareposrc, fps30ReadFlexibleTensors)
 
   setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
   end_time = g_get_monotonic_time ();
-  elapsed_time = (end_time - start_time) / (double) G_USEC_PER_SEC;
-
-  g_print ("Elapsed time: %.6f second\n", elapsed_time);
-  EXPECT_LT (elapsed_time, 0.05);
+  no_sync_time = (end_time - start_time) / (double) G_USEC_PER_SEC;
 
   g_clear_pointer (&tensor_sink, gst_object_unref);
   g_clear_pointer (&pipeline, gst_object_unref);
@@ -700,6 +703,23 @@ TEST (datareposrc, fps30ReadFlexibleTensors)
 
   g_remove ("flexible1.json");
   g_remove ("flexible1.data");
+
+  g_print ("Elapsed time: %.6f second (sync, %d frames), %.6f second (no sync, %d frames)\n",
+      sync_time, sync_count, no_sync_time, no_sync_count);
+
+  /**
+   * The number of frames in the test file is not fixed: the join element feeding
+   * datareposink forwards EOS from the pad that delivered the last buffer, so the
+   * remaining sources are cut off at a point that depends on scheduling. Derive
+   * the expected duration from the frames actually read.
+   */
+  ASSERT_GT (sync_count, 0);
+  ASSERT_GT (no_sync_count, 0);
+
+  /* sync=true paces the playback with the framerate stored in the json file */
+  EXPECT_GT (sync_time, (sync_count / (gdouble) fps) * 0.7);
+  /* sync=false reads the same frames without waiting for the clock */
+  EXPECT_LT (no_sync_time * 3, sync_time);
 }
 
 /**
