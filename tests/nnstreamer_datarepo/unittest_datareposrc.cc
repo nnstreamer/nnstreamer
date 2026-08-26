@@ -714,7 +714,7 @@ TEST (datareposrc, fps30ReadFlexibleTensors)
    * the expected duration from the frames actually read.
    */
   ASSERT_GT (sync_count, 0);
-  ASSERT_GT (no_sync_count, 0);
+  EXPECT_EQ (sync_count, no_sync_count);
 
   /* sync=true paces the playback with the framerate stored in the json file */
   EXPECT_GT (sync_time, (sync_count / (gdouble) fps) * 0.7);
