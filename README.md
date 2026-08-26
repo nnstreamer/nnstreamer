@@ -40,7 +40,7 @@ neural network developers to manage neural network pipelines and their filters e
 - Ready: CI system ensures build-ability and unit-testing. Users may easily build and execute. However, we do not have automated release & deployment system for this instance.
 - Available: binary packages are released and deployed automatically and periodically along with CI tests.
 - [Daily Release](https://release.nnstreamer.com/#nnstreamer/latest/)
-- SDK Support: Tizen Studio (5.5 M2+) / Android Studio (JCenter, "nnstreamer")
+- SDK Support: Tizen Studio (5.5 M2+) / Android Studio (`nnstreamer.aar` from [Daily Release](https://release.nnstreamer.com/#nnstreamer/latest/android/))
 - [Enabled features of official releases](Documentation/features-per-distro.md)
 
 
