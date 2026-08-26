@@ -35,6 +35,7 @@ jobs:
         sudo apt-get install -y libarmnn-dev libarmnntfliteparser-dev libarmnn-cpuref-backend22
         # The armnn subplugin auto-selects the NEON-accelerated CpuAcc backend on arm.
         if [ "$(dpkg --print-architecture)" = "arm64" ]; then sudo apt-get install -y libarmnn-cpuacc-backend22; fi
+        if [ '${{ matrix.os }}' == 'ubuntu-22.04' ]; then sudo apt-get install -y tigervnc-standalone-server python3-gi python3-gi-cairo coreutils procps; fi
         pip install meson ninja
     - name: build and unit test
       if: env.rebuild == '1'
@@ -76,6 +77,163 @@ jobs:
     - name: GTEST run with Valgrind on a case
       if: env.rebuild == '1'
       run: if [ '${{ matrix.os }}' == 'ubuntu-22.04' ]; then export NNSTREAMER_BUILD_ROOT_PATH=`pwd`/build && export NNSTREAMER_FILTERS=`pwd`/build/ext/nnstreamer/tensor_filter && export NNSTREAMER_DECODERS=`pwd`/build/ext/nnstreamer/tensor_decoder && export NNSTREAMER_CONVERTERS=`pwd`/build/ext/nnstreamer/tensor_converter && export GST_PLUGIN_PATH=`pwd`/build/gst && export NNSTREAMER_CONF=`pwd`/build/nnstreamer-test.ini && G_SLICE=always-malloc G_DEBUG=gc-friendly ./packaging/run_unittests_binaries.sh --valgrind ./tests/ || echo "There are Valgrind errors. Please fix it. As we have a lot of Valgrind errors from different libraries and possible from nnstreamer itself, we are not halting the build with Valgrind errors until we get them all."; fi
+    - name: get NNStreamer example apps
+      if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
+      uses: actions/checkout@v4
+      with:
+        repository: nnstreamer/nnstreamer-example
+        path: examples
+    - name: get V4L2 loopback
+      if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
+      uses: actions/checkout@v4
+      with:
+        repository: umlaeute/v4l2loopback
+        ref: 0f9ee86760b7f2bea174b7e3e7a1d38845da0ab4  # v0.15.4
+        path: v4l2loopback
+    - name: NNStreamer example app test
+      if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
+      timeout-minutes: 30
+      run: |
+        # Enable the tflite subplugin only for this app test; installing it
+        # before "build and unit test" would pull tflite unit tests into
+        # meson test, changing the coverage this minimal workflow has today.
+        echo "::group::Rebuild with the tensorflow2-lite subplugin"
+        sudo apt-get install -y tensorflow2-lite-dev
+        meson setup --reconfigure build/
+        meson compile -C build/
+        echo "::endgroup::"
+        export GST_PLUGIN_PATH=$(pwd)/build/gst/nnstreamer
+        currentpath=$(pwd)
+        sed "s|@SUBPLUGIN_INSTALL_PREFIX@|${currentpath}|" .github/workflows/ubuntu_clean_meson_build.nnstreamer.ini > "${RUNNER_TEMP}/nnstreamer.ini"
+        sudo cp "${RUNNER_TEMP}/nnstreamer.ini" /etc/nnstreamer.ini
+        pushd examples
+        # The example apps log through _print_log() and always exit 0, even on
+        # failure; turn DBG on so the assertions below can observe the logs.
+        sed -i "s|#define DBG FALSE|#define DBG TRUE|" \
+          native/example_sink/nnstreamer_sink_example.c \
+          native/example_sink/nnstreamer_sink_example_play.c \
+          native/example_cam/nnstreamer_example_cam.c \
+          native/example_image_classification_tflite/nnstreamer_example_image_classification_tflite.c
+        echo "::group::Build example apps"
+        meson setup --prefix=$(pwd) --sysconfdir=$(pwd) --libdir=lib --bindir=bin --includedir=include build
+        ninja -C build install
+        echo "::endgroup::"
+        pushd bin
+        echo "::group::Fetch an image classification model"
+        bash get-model-image-classification-tflite.sh
+        echo "::endgroup::"
+        popd
+        popd
+
+        echo "Install a V4L2 cam with videotestsrc"
+        declare -i xvnc_port=31
+        if [[ ! -e /dev/video0 ]]; then
+          pushd v4l2loopback
+          make clean
+          make
+          if [[ ! -f "/lib/modules/`uname -r`/kernel/drivers/media/media.ko" ]]; then
+            echo "installing media.ko and videodev.ko with linux-modules-extra-`uname -r`"
+            sudo apt-get install -y linux-modules-extra-`uname -r`
+          fi
+          sudo modprobe media || echo "media.ko not in extra?"
+          sudo modprobe videodev || echo "videodev.ko not in extra?"
+          sudo insmod ./v4l2loopback.ko
+          popd
+        fi
+        # insmod returns before udev applies its rule (root:video 0660), which
+        # would silently undo the chmod below; wait for udev first.
+        sudo udevadm settle
+        sudo chmod a+rw /dev/video0
+        ls -la /dev/video0
+        if [[ ! -f ~/.Xauthority ]]; then
+          touch ~/.Xauthority
+        fi
+
+        declare -i xvnc_pid=0
+        if [[ `ps -A -o pid,cmd | grep "[\:]${xvnc_port}" | wc -l` == "1" ]]; then
+          xvnc_pid=$(ps -A -o pid,cmd | grep "[\:]${xvnc_port}" | awk '{printf $1}')
+          if [[ $xvnc_pid -ne 0 ]]; then
+            kill $xvnc_pid
+            echo "killed a stale xvnc"
+          fi
+        fi
+
+        echo "Launching Xtigervnc at port ${xvnc_port}"
+        Xtigervnc :${xvnc_port} &
+        export DISPLAY=:${xvnc_port}
+        declare -i producer_id=0
+
+        # identity drop-allocation=true keeps v4l2sink from importing the
+        # loopback device's buffers, which fails on v4l2loopback.
+        gst-launch-1.0 videotestsrc ! video/x-raw,format=YUY2,width=640,height=480,framerate=30/1 ! identity drop-allocation=true ! v4l2sink device=/dev/video0 &
+        producer_id=$!
+        sleep 5
+        echo "V4L2 loopback producer is = ${producer_id}"
+        if ! kill -0 ${producer_id} 2>/dev/null; then
+          echo "::error::The v4l2loopback producer pipeline has died."
+          exit 1
+        fi
+
+        echo "::group::Simple gstreamer pipeline"
+        timeout 2 gst-launch-1.0 v4l2src device=/dev/video0 ! videoconvert ! ximagesink || if [[ "124" != "$?" ]]; then exit 1; fi
+        echo "::endgroup::"
+
+        pushd examples/bin
+
+        # Run one example app and assert on its logs, not its exit code: the
+        # apps return 0 even when they bail out on an error.
+        run_example () {
+          name="$1"; marker="$2"; shift 2
+          echo "::group::${name}"
+          applog=$(mktemp)
+          timeout 2 "$@" > "${applog}" 2>&1 || if [[ "124" != "$?" ]]; then
+            cat "${applog}"
+            echo "::error::${name} exited abnormally."
+            exit 1
+          fi
+          cat "${applog}"
+          if grep -q "app failed" "${applog}"; then
+            echo "::error::${name} reported an internal failure."
+            exit 1
+          fi
+          if ! grep -q "${marker}" "${applog}"; then
+            echo "::error::${name} did not log '${marker}'."
+            exit 1
+          fi
+          echo "::endgroup::"
+        }
+
+        run_example "V4L2Cam --> Image Classification (C/GStreamer)" \
+          "receiving new data" ./nnstreamer_example_image_classification_tflite
+
+        echo "::group::V4L2Cam --> Image Classification (Python/GStreamer)"
+        # The system python has the apt-installed gi module; the job's default
+        # python3 is from setup-python and does not.
+        pylog=$(mktemp)
+        timeout 2 /usr/bin/python3 nnstreamer_example_image_classification_tflite.py > "${pylog}" 2>&1 || if [[ "124" != "$?" ]]; then
+          cat "${pylog}"
+          echo "::error::The python example exited abnormally."
+          exit 1
+        fi
+        cat "${pylog}"
+        if grep -qE "ERROR|Traceback" "${pylog}"; then
+          echo "::error::The python example logged an error."
+          exit 1
+        fi
+        echo "::endgroup::"
+
+        run_example "V4L2Cam --> Tensor Stream Path Manipulators (C/GStreamer)" \
+          "received start message" ./nnstreamer_example_cam
+
+        run_example "Sink examples (C/GStreamer, videotestsrc)" \
+          "total received" ./nnstreamer_sink_example
+
+        run_example "Sink examples with more tensor paths (C/GStreamer, videotestsrc)" \
+          "received start message" ./nnstreamer_sink_example_play
+
+        kill ${producer_id} || true
+
+        popd
 
 # TODO: add more subplugins to be built
 # TODO: add unit testing
