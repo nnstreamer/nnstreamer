@@ -32,9 +32,6 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num_buffers=4 ! videoc
 # TEST WITH MORE BUFFERS
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num_buffers=20 ! videoconvert ! videoscale ! video/x-raw,width=14,height=14,format=RGB ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:128,div:255 ! tensor_split name=a tensorseg=1:14:14:1,2:14:14:1 a.src_0 ! tensor_transform mode=transpose option=1:2:0:3 ! tensor_decoder mode=pose_estimation option1=320:240 option2=14:14 ! fakesink" 2 0 0 $PERFORMANCE
 
-# TEST WITH ALL-NEGATIVE HEATMAP VALUES (the max-score search should still work)
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num_buffers=4 ! videoconvert ! videoscale ! video/x-raw,width=14,height=14,format=RGB ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-256,div:255 ! tensor_split name=a tensorseg=1:14:14:1,2:14:14:1 a.src_0 ! tensor_transform mode=transpose option=1:2:0:3 ! tensor_decoder mode=pose_estimation option1=320:240 option2=14:14 ! fakesink" 4 0 0 $PERFORMANCE
-
 echo "nose 1 2 3 4
 leftEye 0 2 3
 rightEye 0 1 4
@@ -57,5 +54,9 @@ rightAnkle 14" > pose_label.txt
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num_buffers=20 ! videoconvert ! videoscale ! video/x-raw,width=17,height=17,format=RGB ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:128,div:255 ! tensor_split name=a tensorseg=1:17:17:1,2:17:17:1 a.src_0 ! tensor_transform mode=transpose option=1:2:0:3 ! tensor_decoder mode=pose_estimation option1=320:240 option2=17:17 option3=pose_label.txt option4=heatmap-only option5=ignored ! fakesink" 3 0 0 $PERFORMANCE
 
 rm pose_label.txt
+
+# TEST WITH ALL-NEGATIVE HEATMAP VALUES (path exercise only: the output is
+# not verified since keypoints with prob < 0.5 are never drawn)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num_buffers=4 ! videoconvert ! videoscale ! video/x-raw,width=14,height=14,format=RGB ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-256,div:255 ! tensor_split name=a tensorseg=1:14:14:1,2:14:14:1 a.src_0 ! tensor_transform mode=transpose option=1:2:0:3 ! tensor_decoder mode=pose_estimation option1=320:240 option2=14:14 ! fakesink" 4 0 0 $PERFORMANCE
 
 report
