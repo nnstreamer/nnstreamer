@@ -49,6 +49,10 @@ jobs:
         LLAMA_VERSION="b6569"
         curl -fsSL -o llama-bin.zip "https://github.com/ggml-org/llama.cpp/releases/download/${LLAMA_VERSION}/llama-${LLAMA_VERSION}-bin-ubuntu-x64.zip"
         curl -fsSL -o llama-src.zip "https://github.com/ggml-org/llama.cpp/archive/refs/tags/${LLAMA_VERSION}.zip"
+        echo "52cc91b7b0a0d8e40bc79f7049a0b03c9055ac90ddcdf9f1f7307c5f3939634e  llama-bin.zip" | sha256sum -c
+        # Auto-generated source archive: its checksum is stable in practice but
+        # not permanently guaranteed by GitHub; update the hash if it changes.
+        echo "25c8a7c5f5f8411659ccfa7c24caacc5f7d7a36ea758d120e2429a888612d447  llama-src.zip" | sha256sum -c
         unzip -q llama-bin.zip -d llama-prebuilt
         unzip -q llama-src.zip -d llama-prebuilt
 
@@ -68,10 +72,11 @@ jobs:
 
         Name: llama
         Description: C/C++ inference of LLaMA-family models
-        Version: 0.0.6569
+        Version: 0.0.0
         Libs: -L${libdir} -lggml -lggml-base -lllama
         Cflags: -I${includedir}
         EOF
+        sudo sed -i "s/^Version: .*/Version: 0.0.${LLAMA_VERSION#b}/" /usr/local/lib/pkgconfig/llama.pc
         sudo ldconfig
         rm -rf llama-bin.zip llama-src.zip llama-prebuilt/
 
