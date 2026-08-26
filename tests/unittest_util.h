@@ -76,6 +76,31 @@ extern guint
 get_available_port (void);
 
 /**
+ * @brief Find the index of the maximum value in a float array.
+ * Seeded with the first element so that all-negative arrays are handled.
+ * @return The index of the maximum value. 0 if num is 0.
+ */
+static inline guint
+argmax_float (const gfloat * values, guint num)
+{
+  guint idx, max_idx = 0U;
+  gfloat max_value;
+
+  if (num == 0U)
+    return 0U;
+
+  max_value = values[0];
+  for (idx = 1U; idx < num; ++idx) {
+    if (values[idx] > max_value) {
+      max_value = values[idx];
+      max_idx = idx;
+    }
+  }
+
+  return max_idx;
+}
+
+/**
  * @brief Wait until the pipeline saving the file
  * @return TRUE on success, FALSE when a time-out occurs
  */
