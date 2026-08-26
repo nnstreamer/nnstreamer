@@ -72,3 +72,43 @@ jobs:
         ndk-build NDK_PROJECT_PATH=. APP_BUILD_SCRIPT=./Android-app.mk NDK_APPLICATION_MK=./Application.mk -j$(nproc)
         echo "::endgroup::"
         cd ..
+    - name: get ML API
+      if: env.rebuild == '1'
+      uses: actions/checkout@v4
+      with:
+        repository: nnstreamer/api
+        path: api
+    - name: get nnstreamer-edge
+      if: env.rebuild == '1'
+      uses: actions/checkout@v4
+      with:
+        repository: nnstreamer/nnstreamer-edge
+        path: nnstreamer-edge
+    - name: get nnstreamer-android-resource
+      if: env.rebuild == '1'
+      uses: actions/checkout@v4
+      with:
+        repository: nnstreamer/nnstreamer-android-resource
+        path: nnstreamer-android-resource
+    - name: get ML Agent
+      if: env.rebuild == '1'
+      uses: actions/checkout@v4
+      with:
+        repository: nnstreamer/deviceMLOps.MLAgent
+        path: deviceMLOps.MLAgent
+    - name: Setup Java
+      if: env.rebuild == '1'
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: 17
+    - name: Build ML Java API with this NNStreamer
+      if: env.rebuild == '1'
+      run: |
+        export GSTREAMER_ROOT_ANDROID=~/android/gst_root_android/
+        export NNSTREAMER_ROOT=$(pwd)
+        export NNSTREAMER_EDGE_ROOT=$(pwd)/nnstreamer-edge
+        export NNSTREAMER_ANDROID_RESOURCE=$(pwd)/nnstreamer-android-resource
+        export MLOPS_AGENT_ROOT=$(pwd)/deviceMLOps.MLAgent
+        export ML_API_ROOT=$(pwd)/api
+        bash api/java/build-nnstreamer-android.sh --target_abi=arm64-v8a --enable_nnfw=yes --build_type=all --enable_mqtt=yes --enable_ml_offloading=yes --enable_ml_service=yes --enable_llamacpp=yes
