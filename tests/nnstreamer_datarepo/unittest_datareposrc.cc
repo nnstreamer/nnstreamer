@@ -704,14 +704,14 @@ TEST (datareposrc, fps30ReadFlexibleTensors)
   g_remove ("flexible1.json");
   g_remove ("flexible1.data");
 
-  g_print ("Elapsed time: %.6f second (sync, %d frames), %.6f second (no sync, %d frames)\n",
-      sync_time, sync_count, no_sync_time, no_sync_count);
+  g_print ("Elapsed time: %.6f s (sync), %.6f s (no sync), %d frames\n",
+      sync_time, no_sync_time, sync_count);
 
   /**
-   * The number of frames in the test file is not fixed: the join element feeding
-   * datareposink forwards EOS from the pad that delivered the last buffer, so the
-   * remaining sources are cut off at a point that depends on scheduling. Derive
-   * the expected duration from the frames actually read.
+   * The number of frames in the test file is not fixed: the join element
+   * feeding datareposink forwards EOS from the pad that delivered the last
+   * buffer, so the remaining sources are cut off at a point that depends on
+   * scheduling. Derive the expected duration from the frames actually read.
    */
   ASSERT_GT (sync_count, 0);
   EXPECT_EQ (sync_count, no_sync_count);
