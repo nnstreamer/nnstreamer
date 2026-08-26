@@ -87,8 +87,8 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
     1 0 0 $PERFORMANCE
 
 # Negative test: unsupported model file extension.
-# configure_instance() throws in loadModel() after partial allocation;
-# the instance must be cleaned up gracefully without crash or leak.
+# configure_instance() throws in loadModel() before the cuda stream and
+# input buffers are allocated; exercises the _model_path cleanup path.
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
     videotestsrc num_buffers=1 ! \
     videoconvert ! \

@@ -206,6 +206,7 @@ tensorrt10_subplugin::cleanup ()
     cudaFree (tensorrt10_tensor_info.buffer);
     tensorrt10_tensor_info.buffer = nullptr;
   }
+  _tensorrt10_input_tensor_infos.clear ();
 
   if (_model_path != nullptr) {
     g_free (_model_path);
@@ -214,6 +215,7 @@ tensorrt10_subplugin::cleanup ()
 
   if (_stream) {
     cudaStreamDestroy (_stream);
+    _stream = nullptr;
   }
 }
 
