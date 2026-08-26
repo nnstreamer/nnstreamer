@@ -6033,7 +6033,8 @@ const char *cpp_mock_subplugin::mock_name = "cpp_mock_subplugin";
 cpp_mock_subplugin *cpp_mock_subplugin::registered = nullptr;
 guint cpp_mock_subplugin::instances_alive = 0;
 guint cpp_mock_subplugin::resources_alive = 0;
-cpp_mock_subplugin::throw_point_t cpp_mock_subplugin::throw_point = cpp_mock_subplugin::THROW_NONE;
+cpp_mock_subplugin::throw_point_t cpp_mock_subplugin::throw_point
+    = cpp_mock_subplugin::THROW_NONE;
 
 /**
  * @brief Test fixture registering/unregistering the mock C++ subplugin.
@@ -6071,9 +6072,8 @@ TEST_F (testTensorFilterCppSubplugin, openFailNoLeak_n)
   GstTensorFilterProperties prop;
   gpointer private_data;
   guint i;
-  const cpp_mock_subplugin::throw_point_t points[]
-      = { cpp_mock_subplugin::THROW_BEFORE_ACQUIRE,
-          cpp_mock_subplugin::THROW_AFTER_ACQUIRE, cpp_mock_subplugin::THROW_AFTER_RELEASE };
+  const cpp_mock_subplugin::throw_point_t points[] = { cpp_mock_subplugin::THROW_BEFORE_ACQUIRE,
+    cpp_mock_subplugin::THROW_AFTER_ACQUIRE, cpp_mock_subplugin::THROW_AFTER_RELEASE };
 
   fw = nnstreamer_filter_find (cpp_mock_subplugin::mock_name);
   ASSERT_TRUE (fw && fw->open && fw->close);
