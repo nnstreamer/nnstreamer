@@ -85,8 +85,16 @@ tensor_filter_subplugin::cpp_open (const GstTensorFilterProperties *prop, void *
   assert (sp->sanity == _SANITY_CHECK); /** tfsp is using me! */
 
   /* 2. Spawn another empty object and configure it; obj_ptr deletes it if configure_instance() throws */
-  tensor_filter_subplugin &obj = sp->getEmptyInstance ();
-  std::unique_ptr<tensor_filter_subplugin> obj_ptr (std::addressof (obj));
+  tensor_filter_subplugin *obj_raw;
+  try {
+    obj_raw = std::addressof (sp->getEmptyInstance ());
+  } catch (const std::exception &e) {
+    _RETURN_ERR_WITH_MSG (-EINVAL, e.what ());
+  } catch (...) {
+    _RETURN_ERR_WITH_MSG (-EINVAL, "Unknown exception from getEmptyInstance()");
+  }
+  std::unique_ptr<tensor_filter_subplugin> obj_ptr (obj_raw);
+  tensor_filter_subplugin &obj = *obj_ptr;
   try {
     obj.configure_instance (prop);
   } catch (const std::invalid_argument &e) {

@@ -5934,11 +5934,18 @@ TEST_REQUIRE_TFLITE (testTensorFilter, reopenTFlite02)
 class cpp_mock_subplugin : public nnstreamer::tensor_filter_subplugin
 {
   public:
+  enum throw_point_t {
+    THROW_NONE = 0,
+    THROW_BEFORE_ACQUIRE,
+    THROW_AFTER_ACQUIRE,
+    THROW_AFTER_RELEASE,
+  };
+
   static const char *mock_name;
   static cpp_mock_subplugin *registered;
   static guint instances_alive;
   static guint resources_alive;
-  static bool throw_on_configure;
+  static throw_point_t throw_point;
 
   /** @brief constructor */
   cpp_mock_subplugin ()
@@ -5960,14 +5967,21 @@ class cpp_mock_subplugin : public nnstreamer::tensor_filter_subplugin
     return *(new cpp_mock_subplugin ());
   }
 
-  /** @brief mandatory method; acquires a resource, then throws if throw_on_configure */
+  /** @brief mandatory method; acquires a resource and throws at the point set by throw_point */
   void configure_instance (const GstTensorFilterProperties *prop) override
   {
     UNUSED (prop);
+    if (throw_point == THROW_BEFORE_ACQUIRE)
+      throw std::invalid_argument ("Configuration failure for testing");
     resources_alive++;
     resource_held = true;
-    if (throw_on_configure)
+    if (throw_point == THROW_AFTER_ACQUIRE)
       throw std::invalid_argument ("Configuration failure for testing");
+    if (throw_point == THROW_AFTER_RELEASE) {
+      resources_alive--;
+      resource_held = false;
+      throw std::invalid_argument ("Configuration failure for testing");
+    }
   }
 
   /** @brief mandatory method */
@@ -6019,7 +6033,7 @@ const char *cpp_mock_subplugin::mock_name = "cpp_mock_subplugin";
 cpp_mock_subplugin *cpp_mock_subplugin::registered = nullptr;
 guint cpp_mock_subplugin::instances_alive = 0;
 guint cpp_mock_subplugin::resources_alive = 0;
-bool cpp_mock_subplugin::throw_on_configure = false;
+cpp_mock_subplugin::throw_point_t cpp_mock_subplugin::throw_point = cpp_mock_subplugin::THROW_NONE;
 
 /**
  * @brief Test fixture registering/unregistering the mock C++ subplugin.
@@ -6027,16 +6041,19 @@ bool cpp_mock_subplugin::throw_on_configure = false;
 class testTensorFilterCppSubplugin : public ::testing::Test
 {
   protected:
-  /** @brief register the mock subplugin */
+  /** @brief reset counters and register the mock subplugin */
   void SetUp () override
   {
+    cpp_mock_subplugin::instances_alive = 0;
+    cpp_mock_subplugin::resources_alive = 0;
+    cpp_mock_subplugin::throw_point = cpp_mock_subplugin::THROW_NONE;
     cpp_mock_subplugin::init ();
   }
 
   /** @brief unregister the mock subplugin and verify no instance leaks */
   void TearDown () override
   {
-    cpp_mock_subplugin::throw_on_configure = false;
+    cpp_mock_subplugin::throw_point = cpp_mock_subplugin::THROW_NONE;
     cpp_mock_subplugin::fini ();
     EXPECT_EQ (cpp_mock_subplugin::instances_alive, 0U);
     EXPECT_EQ (cpp_mock_subplugin::resources_alive, 0U);
@@ -6044,18 +6061,19 @@ class testTensorFilterCppSubplugin : public ::testing::Test
 };
 
 /**
- * @brief Test C++ subplugin open: when configure_instance() throws, repeated
- *        open attempts must neither crash nor leak the spawned instance and
- *        the resources it acquired before throwing.
+ * @brief Test C++ subplugin open: when configure_instance() throws at any
+ *        point, repeated open attempts must neither crash nor leak the
+ *        spawned instance and the resources it acquired before throwing.
  */
-TEST_F (testTensorFilterCppSubplugin, openFailNoLeak)
+TEST_F (testTensorFilterCppSubplugin, openFailNoLeak_n)
 {
   const GstTensorFilterFramework *fw;
   GstTensorFilterProperties prop;
   gpointer private_data;
   guint i;
-
-  cpp_mock_subplugin::throw_on_configure = true;
+  const cpp_mock_subplugin::throw_point_t points[]
+      = { cpp_mock_subplugin::THROW_BEFORE_ACQUIRE,
+          cpp_mock_subplugin::THROW_AFTER_ACQUIRE, cpp_mock_subplugin::THROW_AFTER_RELEASE };
 
   fw = nnstreamer_filter_find (cpp_mock_subplugin::mock_name);
   ASSERT_TRUE (fw && fw->open && fw->close);
@@ -6065,12 +6083,15 @@ TEST_F (testTensorFilterCppSubplugin, openFailNoLeak)
 
   EXPECT_EQ (cpp_mock_subplugin::instances_alive, 1U);
 
-  for (i = 0; i < 100U; i++) {
-    private_data = nullptr;
-    EXPECT_EQ (fw->open (&prop, &private_data), -EINVAL);
-    EXPECT_TRUE (private_data == nullptr);
-    ASSERT_EQ (cpp_mock_subplugin::instances_alive, 1U);
-    ASSERT_EQ (cpp_mock_subplugin::resources_alive, 0U);
+  for (cpp_mock_subplugin::throw_point_t point : points) {
+    cpp_mock_subplugin::throw_point = point;
+    for (i = 0; i < 100U; i++) {
+      private_data = nullptr;
+      EXPECT_EQ (fw->open (&prop, &private_data), -EINVAL);
+      EXPECT_TRUE (private_data == nullptr);
+      ASSERT_EQ (cpp_mock_subplugin::instances_alive, 1U);
+      ASSERT_EQ (cpp_mock_subplugin::resources_alive, 0U);
+    }
   }
 }
 
@@ -6079,7 +6100,7 @@ TEST_F (testTensorFilterCppSubplugin, openFailNoLeak)
  *        configured instance is transferred to *private_data and the
  *        instance is deleted by close.
  */
-TEST_F (testTensorFilterCppSubplugin, openCloseOwnership)
+TEST_F (testTensorFilterCppSubplugin, openCloseOwnership_p)
 {
   const GstTensorFilterFramework *fw;
   GstTensorFilterProperties prop;

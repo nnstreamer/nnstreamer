@@ -35,6 +35,15 @@ As in C subplugin, the derived (concrete) class should be registered at init and
 Subplugin writers are supposed to use the static methods of the base class, ```register_subplugin()``` and ```unregister_subplugin()```; refer to the function ```init_filter_snap()``` and ```fini_filter_snap()``` in the reference example.
 
 
+### Object ownership and exception rules
+
+```getEmptyInstance()``` must return a heap-allocated object that is singly owned by the framework: the framework deletes it (through the virtual destructor) when the filter is closed, or immediately if ```configure_instance()``` throws.
+Do not return a reference to a static, pooled, or otherwise shared instance, and do not retain a reference to the returned object inside the subplugin.
+
+If ```configure_instance()``` throws, clean up any external references to the object (e.g., entries in a global registry) before throwing, because the framework deletes the object right away.
+Consequently, the destructor of the derived class must be safe to run on a partially-configured (or never-configured) instance; the recommended pattern is an idempotent cleanup method that releases only what has been acquired and is null-safe for the rest.
+
+
 
 Note that C++ subplugin is simpler and easy-to-maintain compared to C subplugin. Unless you really need to write your subplugin in C, we recommend to use the ```nnstreamer::tensor_filter_subplugin``` base class.
 
