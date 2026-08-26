@@ -187,7 +187,7 @@ Note that test elements in /tests/ are not elements for applications. They exist
   - Tizen (since 5.5 M1) [Package Download](https://download.tizen.org/snapshots/TIZEN/Tizen/Tizen-Unified/latest/repos/standard/packages/) [Build & Release Infra](https://build.tizen.org/project/show/Tizen:Unified)
   - Ubuntu [Launchpad PPA](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa)
   - Yocto/OpenEmbedded [OpenEmbedded Layer, "meta-neural-network"](https://layers.openembedded.org/layerindex/branch/master/layer/meta-neural-network/)
-  - Android WIP: JCenter Repository & Daily Build Release
+  - Android [Daily Build Release](https://release.nnstreamer.com/#nnstreamer/latest/android/)
   - macOS WIP: Daily Build Release
 - [Test cases](https://github.com/nnstreamer/nnstreamer/tree/main/tests/): Mandatory unit test cases required to pass for each PR.
   - Used [SSAT](https://github.com/myungjoo/SSAT).

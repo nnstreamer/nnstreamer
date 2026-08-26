@@ -51,7 +51,7 @@ Note that this supports SingleShot/Pipeline subdomains and do not include traini
 - [Android sample app](https://github.com/nnstreamer/nnstreamer-example/tree/master/android/example_app/api-sample) uses JAVA APIs to implement Android-NNStreamer apps.
     - Note that the Android Sample Applications published via Google Play Store, [Source Code](https://github.com/nnstreamer/nnstreamer-example/tree/main/android/example_app), are developed before NNStreamer Java API. They use GStreamer functions.
 - [Implementation](https://github.com/nnstreamer/api/tree/main/java) (stable)
-- [Available at JCenter](https://bintray.com/beta/#/nnsuite/nnstreamer?tab=packages)
+- [Available at Daily Build Release](https://release.nnstreamer.com/#nnstreamer/latest/android/) (`nnstreamer.aar`)
 
 
 ### Python API is planned
