@@ -98,6 +98,7 @@ struct _GstJoinPad
 
   GstSegment segment;           /* the current segment on the pad */
   guint32 segment_seqnum;       /* sequence number of the current segment */
+  gboolean eos;                 /* TRUE if EOS is received on this pad */
 };
 
 /**
@@ -162,6 +163,7 @@ gst_join_pad_reset (GstJoinPad * pad)
 {
   GST_OBJECT_LOCK (pad);
   gst_segment_init (&pad->segment, GST_FORMAT_UNDEFINED);
+  pad->eos = FALSE;
   GST_OBJECT_UNLOCK (pad);
 }
 
@@ -227,6 +229,31 @@ forward_sticky_events (GstPad * sinkpad, GstEvent ** event, gpointer user_data)
 }
 
 /**
+ * @brief Check whether every linked sink pad has received EOS.
+ * @note must be called with the JOIN_LOCK. Unlinked pads are ignored, as no
+ *       stream can ever end on them.
+ */
+static gboolean
+gst_join_all_sinkpads_eos (GstJoin * sel)
+{
+  GList *l;
+  gboolean eos = TRUE;
+
+  GST_OBJECT_LOCK (sel);
+  for (l = GST_ELEMENT_CAST (sel)->sinkpads; l; l = l->next) {
+    GstJoinPad *selpad = GST_JOIN_PAD_CAST (l->data);
+
+    if (!selpad->eos && GST_PAD_IS_LINKED (GST_PAD_CAST (selpad))) {
+      eos = FALSE;
+      break;
+    }
+  }
+  GST_OBJECT_UNLOCK (sel);
+
+  return eos;
+}
+
+/**
  * @brief event function for sink pad
  */
 static gboolean
@@ -284,6 +311,14 @@ gst_join_pad_event (GstPad * pad, GstObject * parent, GstEvent * event)
           &selpad->segment);
       break;
     }
+    case GST_EVENT_EOS:
+      selpad->eos = TRUE;
+      forward = gst_join_all_sinkpads_eos (sel);
+      GST_DEBUG_OBJECT (pad, "received EOS, forward %d", forward);
+      break;
+    case GST_EVENT_FLUSH_STOP:
+      selpad->eos = FALSE;
+      break;
     default:
       break;
   }
@@ -424,6 +459,8 @@ static void gst_join_get_property (GObject * object,
     guint prop_id, GValue * value, GParamSpec * pspec);
 static GstPad *gst_join_request_new_pad (GstElement * element,
     GstPadTemplate * templ, const gchar * unused, const GstCaps * caps);
+static GstStateChangeReturn gst_join_change_state (GstElement * element,
+    GstStateChange transition);
 
 #define gst_join_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstJoin, gst_join, GST_TYPE_ELEMENT,
@@ -465,6 +502,28 @@ gst_join_class_init (GstJoinClass * klass)
       &gst_join_src_factory);
 
   gstelement_class->request_new_pad = gst_join_request_new_pad;
+  gstelement_class->change_state = gst_join_change_state;
+}
+
+/**
+ * @brief Clear the per-pad EOS flags so that a restarted pipeline starts clean.
+ */
+static GstStateChangeReturn
+gst_join_change_state (GstElement * element, GstStateChange transition)
+{
+  GstJoin *sel = GST_JOIN (element);
+  GList *l;
+
+  if (transition == GST_STATE_CHANGE_READY_TO_PAUSED) {
+    GST_JOIN_LOCK (sel);
+    GST_OBJECT_LOCK (sel);
+    for (l = element->sinkpads; l; l = l->next)
+      GST_JOIN_PAD_CAST (l->data)->eos = FALSE;
+    GST_OBJECT_UNLOCK (sel);
+    GST_JOIN_UNLOCK (sel);
+  }
+
+  return GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
 }
 
 /**
