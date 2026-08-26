@@ -1,4 +1,4 @@
-ARG UBUNTU_VER=22.04
+ARG UBUNTU_VER=24.04
 # If the value assigned to MIN_RUN_ENV is non-zero length,
 # only nnstreamer, nnstreamer-core, and nnstreamer-configuration packages are installed
 # in the container.
@@ -34,6 +34,7 @@ RUN set -x && \
         bison \
         meson \
         equivs \
+        fakeroot \
         devscripts && \
     useradd -ms /bin/bash ${USERNAME}
 
@@ -90,7 +91,13 @@ RUN set -x && \
 SHELL ["/bin/bash", "-c"]
 WORKDIR /root
 COPY --from=debuilder /home/${USERNAME}/*.deb /root/
-RUN if [ ! -n "${MIN_RUN_ENV}" ]; then \
+# The nnstreamer PPA does not publish pytorch for every Ubuntu release
+# (e.g., noble); skip the sub-plugins depending on it when it is not
+# installable.
+RUN if ! apt-get -s install pytorch > /dev/null 2>&1; then \
+        rm -f ./nnstreamer-pytorch_*.deb ./nnstreamer-caffe2_*.deb; \
+    fi && \
+    if [ ! -n "${MIN_RUN_ENV}" ]; then \
         apt-get -f install ./*.deb; \
     else \
         apt-get -f install ./nnstreamer_*.deb ./nnstreamer-core_*.deb ./nnstreamer-configuration_*.deb; \

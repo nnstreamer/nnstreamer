@@ -34,7 +34,7 @@ REPOSITORY                     TAG        IMAGE ID       CREATED         SIZE
 ...
 ```
 
-By default, the created image is based on Ubuntu 18.04 and all of the sub-plugins available for Ubuntu 18.04 are installed into the image. It will be addressed later section.
+By default, the created image is based on Ubuntu 24.04 and the sub-plugins available for Ubuntu 24.04 are installed into the image (the pytorch and caffe2 sub-plugins are excluded when the nnstreamer PPA does not provide pytorch for the base release, as is the case for 24.04). It will be addressed later section.
 
 To name and tag the created image, use the `-t` option with the [`build`](https://docs.docker.com/engine/reference/commandline/build/) sub-command.
 
