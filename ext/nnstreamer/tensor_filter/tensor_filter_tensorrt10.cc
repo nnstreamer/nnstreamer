@@ -314,20 +314,6 @@ tensorrt10_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *out
 
   cudaError_t status;
 
-  /* Copy input data to Cuda memory space */
-  for (std::size_t i = 0; i < _tensorrt10_input_tensor_infos.size (); ++i) {
-    const auto &tensorrt10_tensor_info = _tensorrt10_input_tensor_infos[i];
-    g_assert (tensorrt10_tensor_info.buffer_size == input[i].size);
-
-    status = cudaMemcpyAsync (tensorrt10_tensor_info.buffer, input[i].data,
-        input[i].size, cudaMemcpyHostToDevice, _stream);
-
-    if (status != cudaSuccess) {
-      ml_loge ("Failed to copy to cuda input buffer");
-      throw std::runtime_error ("Failed to copy to cuda input buffer");
-    }
-  }
-
   /** Allocate plain host memory for the output tensors.
    * The buffers handed over to the pipeline MUST be ordinary host memory:
    * downstream elements may read them from another thread (e.g., after a
@@ -345,6 +331,20 @@ tensorrt10_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *out
   }
 
   try {
+    /* Copy input data to Cuda memory space */
+    for (std::size_t i = 0; i < _tensorrt10_input_tensor_infos.size (); ++i) {
+      const auto &tensorrt10_tensor_info = _tensorrt10_input_tensor_infos[i];
+      g_assert (tensorrt10_tensor_info.buffer_size == input[i].size);
+
+      status = cudaMemcpyAsync (tensorrt10_tensor_info.buffer, input[i].data,
+          input[i].size, cudaMemcpyHostToDevice, _stream);
+
+      if (status != cudaSuccess) {
+        ml_loge ("Failed to copy to cuda input buffer");
+        throw std::runtime_error ("Failed to copy to cuda input buffer");
+      }
+    }
+
     /* Execute the network */
     if (!_Context->enqueueV3 (_stream)) {
       ml_loge ("Failed to execute the network");
@@ -372,7 +372,7 @@ tensorrt10_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *out
       throw std::runtime_error ("Failed to synchronize the cuda stream");
     }
   } catch (...) {
-    /* Drain pending D2H copies targeting output[] before freeing it */
+    /* Drain pending copies (H2D reads input[], D2H writes output[]) first */
     cudaStreamSynchronize (_stream);
     for (std::size_t i = 0; i < _tensorrt10_output_tensor_infos.size (); ++i) {
       g_free (output[i].data);
