@@ -115,7 +115,9 @@ check_output (GstElement *element, GstBuffer *buffer, gpointer user_data)
     }
   } else {
     gfloat *output = (gfloat *) info_res.data;
-    gfloat max_value = G_MINFLOAT;
+    /** -G_MAXFLOAT: G_MINFLOAT is the smallest positive normalized value,
+     *  which would break the max search for all-negative outputs */
+    gfloat max_value = -G_MAXFLOAT;
 
     for (idx = 0; idx < (info_res.size / sizeof (gfloat)); ++idx) {
       if (output[idx] > max_value) {
