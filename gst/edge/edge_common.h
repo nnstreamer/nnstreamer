@@ -40,9 +40,12 @@ GType gst_edge_get_connect_type (void);
  * @param[in] custom_props Comma-separated key:value pairs, e.g. "key1:val1,key2:val2".
  *            A value may contain ':' (e.g. "QUEUE_SIZE:10:OLD"); only the first
  *            ':' separates the key from the value. Whitespace around keys and
- *            values is trimmed and empty tokens are ignored.
- * @return TRUE if all non-empty tokens were parsed and set successfully.
- *         Malformed tokens or rejected keys are logged and skipped.
+ *            values is trimmed.
+ * @return TRUE if every token was applied. Empty or whitespace-only tokens
+ *         (e.g. from a trailing comma) are silently ignored and do not affect
+ *         the result. Tokens without ':', with an empty key or value, or
+ *         rejected by nns_edge_set_info() are logged, skipped, and make the
+ *         return value FALSE.
  */
 gboolean gst_edge_parse_custom_props (nns_edge_h edge_h, const gchar * custom_props);
 
