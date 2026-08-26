@@ -37,6 +37,7 @@
 %define		snpe_support 1
 %define		trix_engine_support 0
 %define		onnxruntime_support 1
+%define		ncnn_support 1
 # Enable executorch_support when executorch package is ready.
 %define		executorch_support 0
 %define         tensorrt_support 0
@@ -67,13 +68,11 @@
 %define		mvncsdk2_support 1
 %define		openvino_support 1
 %define		edgetpu_support 1
-%define		ncnn_support 1
 %else
 %define		tizen_sensor_support 0
 %define		mvncsdk2_support 0
 %define		openvino_support 0
 %define		edgetpu_support 0
-%define		ncnn_support 0
 %endif
 
 # tizen 6.0 (or less) backward-compatibility check
@@ -84,8 +83,10 @@
 %endif
 
 # Enable a few features from Tizen 9.0 release.
+# ncnn is available in the Tizen public repository from Tizen 9.0.
 %if 0%{tizen_version_major} < 9
 %define		onnxruntime_support 0
+%define		ncnn_support 0
 %endif
 
 # Disable e-TPU if it's not 64bit system
@@ -152,6 +153,7 @@
 %define		trix_engine_support 0
 %define		onnxruntime_support 0
 %define		executorch_support 0
+%define		ncnn_support 0
 %define		tizen_hal_support 0
 %endif
 
@@ -174,6 +176,7 @@
 %if 0%{?_with_meson64}
 %define		vivante_support 1
 %endif
+
 %endif
 
 # Release unit test suite as a subpackage only if check_test is enabled.
@@ -616,6 +619,7 @@ NNStreamer's tensor_filter subplugin of tizen-hal
 %package ncnn
 Summary:	NNStreamer ncnn Support
 Requires:	nnstreamer-single = %{version}-%{release}
+Requires:	ncnn
 %description ncnn
 NNStreamer's tensor_filter subplugin of ncnn
 %endif
