@@ -21,6 +21,36 @@ static int data_received;
 static const char *CUSTOM_LIB_PATH = "libnnstreamer-edge-custom-test.so";
 
 /**
+ * @brief Look for the warning that the given element posts for rejected custom-props options.
+ * @note Consumes the queued warning messages up to and including the matching one.
+ */
+static gboolean
+_pop_custom_props_warning (GstElement *gstpipe, const gchar *elem_name)
+{
+  GstBus *bus;
+  GstMessage *msg;
+  GError *err = nullptr;
+  gchar *debug = nullptr;
+  gboolean matched = FALSE;
+
+  bus = gst_element_get_bus (gstpipe);
+  while ((msg = gst_bus_pop_filtered (bus, GST_MESSAGE_WARNING)) != nullptr) {
+    gst_message_parse_warning (msg, &err, &debug);
+    matched = g_error_matches (err, GST_RESOURCE_ERROR, GST_RESOURCE_ERROR_SETTINGS)
+              && g_strcmp0 (GST_OBJECT_NAME (GST_MESSAGE_SRC (msg)), elem_name) == 0
+              && debug && g_strstr_len (debug, -1, "custom-props: ") != nullptr;
+    g_clear_error (&err);
+    g_clear_pointer (&debug, g_free);
+    gst_message_unref (msg);
+    if (matched)
+      break;
+  }
+  gst_object_unref (bus);
+
+  return matched;
+}
+
+/**
  * @brief Test for edgesink get and set properties.
  */
 TEST (edgeSink, properties0)
@@ -438,6 +468,9 @@ TEST (edgeCustom, sinkCustomProps)
   EXPECT_STREQ ("tcp://127.0.0.1:1883", val);
   g_free (val);
 
+  /* All options were valid, no warning should be posted. */
+  EXPECT_FALSE (_pop_custom_props_warning (gstpipe, "sinkx"));
+
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (edge_handle);
@@ -475,6 +508,9 @@ TEST (edgeSink, customPropsMalformed_n)
   EXPECT_EQ (nns_edge_get_info (sink->edge_h, "TOPIC", &val), NNS_EDGE_ERROR_NONE);
   EXPECT_STREQ ("test_topic", val);
   g_free (val);
+
+  /* Rejected options must be reported on the bus. */
+  EXPECT_TRUE (_pop_custom_props_warning (gstpipe, "sinkx"));
 
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
@@ -539,6 +575,9 @@ TEST (edgeCustom, srcCustomProps)
   EXPECT_STREQ ("tcp://127.0.0.1:1883", val);
   g_free (val);
 
+  /* All options were valid, no warning should be posted. */
+  EXPECT_FALSE (_pop_custom_props_warning (gstpipe, "srcx"));
+
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (edge_handle);
@@ -563,6 +602,10 @@ TEST (edgeCustom, srcCustomPropsMalformed_n)
   ASSERT_NE (gstpipe, nullptr);
 
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  /* Rejected options must be reported on the bus. */
+  EXPECT_TRUE (_pop_custom_props_warning (gstpipe, "srcx"));
+
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (gstpipe);
