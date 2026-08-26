@@ -19,6 +19,7 @@
  * N streams should not operate at the same time.
  * All capabilities (input stream i and output stream) should be the same.
  * For example, If one sinkpad is receiving buffer, the others should be stopped.
+ * EOS reaches the output pad only after every linked input stream has ended.
  * <refsect2>
  * <title>Example launch line</title>
  * gst-launch-1.0 ... (input stream 0) ! join.sink_0 \
