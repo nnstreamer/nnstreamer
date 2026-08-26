@@ -126,8 +126,8 @@ class litert_subplugin final : public tensor_filter_subplugin
 
   std::vector<LiteRtTensorBuffer> input_buffers{}; /**< managed, reused per invoke */
   std::vector<LiteRtTensorBuffer> output_buffers{}; /**< managed, reused per invoke */
-  std::vector<size_t> input_buffer_sizes{}; /**< actual LiteRT buffer sizes */
-  std::vector<size_t> output_buffer_sizes{}; /**< actual LiteRT buffer sizes */
+  std::vector<size_t> input_tensor_sizes{}; /**< nnstreamer tensor sizes; each is <= its LiteRT buffer */
+  std::vector<size_t> output_tensor_sizes{}; /**< nnstreamer tensor sizes; each is <= its LiteRT buffer */
 
   void cleanup ();
   void parseCustomProperties (const GstTensorFilterProperties *prop);
@@ -171,11 +171,11 @@ litert_subplugin::cleanup ()
   for (auto &buf : input_buffers)
     LiteRtDestroyTensorBuffer (buf);
   input_buffers.clear ();
-  input_buffer_sizes.clear ();
+  input_tensor_sizes.clear ();
   for (auto &buf : output_buffers)
     LiteRtDestroyTensorBuffer (buf);
   output_buffers.clear ();
-  output_buffer_sizes.clear ();
+  output_tensor_sizes.clear ();
 
   if (compiled_model != nullptr) {
     LiteRtDestroyCompiledModel (compiled_model);
@@ -195,6 +195,12 @@ litert_subplugin::cleanup ()
 
   g_free (model_path);
   model_path = nullptr;
+
+  /** restore the property defaults so a re-configured instance does not
+   *  inherit the previous model's accelerator or signature selection */
+  accel_set = kLiteRtHwAcceleratorCpu;
+  signature_key.clear ();
+  signature_index = 0;
 
   configured = false;
 }
@@ -524,7 +530,7 @@ litert_subplugin::createTensorBuffers ()
       throw std::runtime_error ("LiteRT input buffer " + std::to_string (i) + " is smaller ("
                                 + std::to_string (buf_size) + " B) than the tensor ("
                                 + std::to_string (nns_size) + " B).");
-    input_buffer_sizes.push_back (buf_size);
+    input_tensor_sizes.push_back ((size_t) nns_size);
   }
 
   for (i = 0; i < outputTensorMeta.num_tensors; ++i) {
@@ -550,7 +556,7 @@ litert_subplugin::createTensorBuffers ()
       throw std::runtime_error ("LiteRT output buffer " + std::to_string (i) + " is smaller ("
                                 + std::to_string (buf_size) + " B) than the tensor ("
                                 + std::to_string (nns_size) + " B).");
-    output_buffer_sizes.push_back (buf_size);
+    output_tensor_sizes.push_back ((size_t) nns_size);
   }
 }
 
@@ -643,11 +649,13 @@ litert_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
     if (input[i].data == nullptr)
       throw std::invalid_argument ("Input tensor memory is null.");
 
-    /* never write past the buffer LiteRT actually allocated */
-    if (input[i].size > input_buffer_sizes[i])
+    /** Reject any size mismatch: a larger input would overflow the LiteRT
+     *  buffer, and a smaller one would leave the tail of the reused buffer
+     *  holding the previous invoke's data (silently wrong inference). */
+    if (input[i].size != input_tensor_sizes[i])
       throw std::invalid_argument ("Input tensor " + std::to_string (i) + " ("
-                                   + std::to_string (input[i].size) + " B) exceeds the LiteRT buffer ("
-                                   + std::to_string (input_buffer_sizes[i]) + " B).");
+                                   + std::to_string (input[i].size) + " B) does not match the model tensor ("
+                                   + std::to_string (input_tensor_sizes[i]) + " B).");
 
     LITERT_CHECK (LiteRtLockTensorBuffer (
         input_buffers[i], &host_mem, kLiteRtTensorBufferLockModeWrite));
@@ -666,11 +674,12 @@ litert_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
     if (output[i].data == nullptr)
       throw std::invalid_argument ("Output tensor memory is null.");
 
-    /* never read past the buffer LiteRT actually allocated */
-    if (output[i].size > output_buffer_sizes[i])
+    /** Reject any size mismatch: a larger output would read past the LiteRT
+     *  buffer, and a smaller one would silently truncate the result. */
+    if (output[i].size != output_tensor_sizes[i])
       throw std::invalid_argument ("Output tensor " + std::to_string (i) + " ("
-                                   + std::to_string (output[i].size) + " B) exceeds the LiteRT buffer ("
-                                   + std::to_string (output_buffer_sizes[i]) + " B).");
+                                   + std::to_string (output[i].size) + " B) does not match the model tensor ("
+                                   + std::to_string (output_tensor_sizes[i]) + " B).");
 
     LITERT_CHECK (LiteRtLockTensorBuffer (
         output_buffers[i], &host_mem, kLiteRtTensorBufferLockModeRead));
