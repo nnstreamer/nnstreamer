@@ -9,6 +9,7 @@ jobs:
     name: Build with meson and test with Valgrind in Ubuntu
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ ubuntu-22.04, ubuntu-22.04-arm ]
 
@@ -32,6 +33,8 @@ jobs:
         sudo add-apt-repository -y ppa:nnstreamer/ppa && sudo apt-get update && sudo apt-get install -y ssat libpaho-mqtt-dev
         sudo apt-get install -y valgrind gstreamer1.0-tools gstreamer1.0-plugins-good gstreamer1.0-plugins-base libgtest-dev libpng-dev libc6-dbg binutils-x86-64-linux-gnu-dbg valgrind-dbg
         sudo apt-get install -y libarmnn-dev libarmnntfliteparser-dev libarmnn-cpuref-backend22
+        # The armnn subplugin auto-selects the NEON-accelerated CpuAcc backend on arm.
+        if [ "$(dpkg --print-architecture)" = "arm64" ]; then sudo apt-get install -y libarmnn-cpuacc-backend22; fi
         pip install meson ninja
     - name: build and unit test
       if: env.rebuild == '1'
