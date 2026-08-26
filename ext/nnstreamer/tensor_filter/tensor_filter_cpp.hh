@@ -70,6 +70,7 @@
 #include <atomic>
 #include <nnstreamer_plugin_api_filter.h>
 #include <stdint.h>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
