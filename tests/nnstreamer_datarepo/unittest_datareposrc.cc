@@ -636,6 +636,7 @@ error:
 TEST (datareposrc, fps30ReadFlexibleTensors)
 {
   gint fps = 30;
+  gint total_samples = 30;
   guint64 start_time, end_time;
   gdouble elapsed_time, stream_duration;
   GstElement *tensor_sink;
@@ -669,14 +670,9 @@ TEST (datareposrc, fps30ReadFlexibleTensors)
   end_time = g_get_monotonic_time ();
   elapsed_time = (end_time - start_time) / (double) G_USEC_PER_SEC;
 
-  /**
-   * @brief The writer pipeline does not store a fixed number of samples: join
-   * forwards EOS from the pad that delivered the last buffer, so the remaining
-   * sources are cut off at a point that depends on scheduling. Derive the
-   * expected play time from the samples that were actually read. Fewer than a
-   * third of the 30 samples means the writer, not the timing, is broken.
-   */
-  ASSERT_GE (buffer_count, 10);
+  /* join ends the stream only after every source does, so the writer stores
+     every sample and the play time the frame rate implies is exact. */
+  ASSERT_EQ (buffer_count, total_samples);
   stream_duration = (buffer_count - 1) / (gdouble) fps;
 
   g_print ("Elapsed time: %.6f second (%d buffers)\n", elapsed_time, buffer_count);
@@ -710,7 +706,7 @@ TEST (datareposrc, fps30ReadFlexibleTensors)
   elapsed_time = (end_time - start_time) / (double) G_USEC_PER_SEC;
 
   g_print ("Elapsed time: %.6f second (%d buffers)\n", elapsed_time, no_sync_count);
-  EXPECT_EQ (no_sync_count, buffer_count);
+  EXPECT_EQ (no_sync_count, total_samples);
   /* Without sync the same samples are read without waiting for the clock. */
   EXPECT_LT (elapsed_time, stream_duration * 0.5);
 

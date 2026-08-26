@@ -359,6 +359,8 @@ TEST (datareposink, writeFlexibleTensors)
   /* Confirm file creation */
   file = g_file_new_for_path ("flexible.json");
   ret = g_file_load_contents (file, NULL, &contents, NULL, NULL, NULL);
+  /* every buffer of the three sources should reach the sink */
+  EXPECT_TRUE (contents && g_strstr_len (contents, -1, "\"total_samples\" : 9"));
   g_clear_pointer (&contents, g_free);
   g_clear_pointer (&file, g_object_unref);
   ASSERT_EQ (ret, TRUE);
