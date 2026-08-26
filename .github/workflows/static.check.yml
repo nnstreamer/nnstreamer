@@ -152,8 +152,12 @@ jobs:
         # repository script unrelated to $changed_file_list needs the same
         # existence guard.
         run: |
-          if [ -f .github/actions/check-rebuild/test_check_if_rebuild_requires.sh ]; then
-            bash .github/actions/check-rebuild/test_check_if_rebuild_requires.sh
+          selftest=.github/actions/check-rebuild/test_check_if_rebuild_requires.sh
+          if [ -f "$selftest" ]; then
+            bash "$selftest"
+          elif git show --pretty="format:" --name-only --diff-filter=D ${{ github.event.pull_request.head.sha }} -${{ github.event.pull_request.commits }} | grep -qx "$selftest"; then
+            echo "::error::This PR deletes $selftest; remove its workflow step too or restore the script."
+            exit 1
           else
             echo "Skipped: this PR branch predates the check-rebuild self-test."
           fi
