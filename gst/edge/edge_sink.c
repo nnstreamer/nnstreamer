@@ -10,6 +10,22 @@
  * @bug     No known bugs
  *
  */
+
+/**
+ * SECTION:element-edgesink
+ *
+ * Publish incoming streams to the connected edge devices.
+ * <refsect2>
+ * <title>Example launch line</title>
+ * gst-launch-1.0 videotestsrc ! edgesink port=0
+ * gst-launch-1.0 videotestsrc ! edgesink port=0 custom-props="QUEUE_SIZE:10:OLD"
+ *
+ * The custom-props property passes comma-separated key:value options to the
+ * nnstreamer-edge handle, e.g. queue policy or options of a custom connection
+ * library given by custom-lib. Only the first ':' separates a key from its
+ * value, so a value itself may contain ':'.
+ * </refsect2>
+ */
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
@@ -241,11 +257,9 @@ gst_edgesink_set_property (GObject * object, guint prop_id,
       self->custom_lib = g_value_dup_string (value);
       break;
     case PROP_CUSTOM_PROPS:
-    {
       g_free (self->custom_props);
       self->custom_props = g_value_dup_string (value);
       break;
-    }
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -353,23 +367,6 @@ _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
 }
 
 /**
- * @brief Parse edge custom properties.
- */
-static void
-_edgesink_parse_custom_props (GstEdgeSink *self)
-{
-  gchar **str_ops = g_strsplit_set (self->custom_props, ",", -1);
-  guint i, num = g_strv_length (str_ops);
-
-  for (i = 0; i < num; i++) {
-    gchar **str_op = g_strsplit (str_ops[i], ":", -1);
-    nns_edge_set_info (self->edge_h, str_op[0], str_op[1]);
-    g_strfreev (str_op);
-  }
-  g_strfreev (str_ops);
-}
-
-/**
  * @brief start processing of edgesink
  */
 static gboolean
@@ -416,7 +413,7 @@ gst_edgesink_start (GstBaseSink * basesink)
     nns_edge_set_info (self->edge_h, "TOPIC", self->topic);
 
   if (self->custom_props)
-    _edgesink_parse_custom_props (self);
+    gst_edge_parse_custom_props (self->edge_h, self->custom_props);
 
   nns_edge_set_event_callback (self->edge_h, _nns_edge_event_cb, self);
 

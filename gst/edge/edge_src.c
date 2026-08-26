@@ -10,6 +10,22 @@
  * @bug     No known bugs
  *
  */
+
+/**
+ * SECTION:element-edgesrc
+ *
+ * Subscribe and receive streams from an edge device.
+ * <refsect2>
+ * <title>Example launch line</title>
+ * gst-launch-1.0 edgesrc dest-port=5001 ! fakesink
+ * gst-launch-1.0 edgesrc dest-port=5001 custom-props="QUEUE_SIZE:10:OLD" ! fakesink
+ *
+ * The custom-props property passes comma-separated key:value options to the
+ * nnstreamer-edge handle, e.g. queue policy or options of a custom connection
+ * library given by custom-lib. Only the first ':' separates a key from its
+ * value, so a value itself may contain ':'.
+ * </refsect2>
+ */
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
@@ -211,11 +227,9 @@ gst_edgesrc_set_property (GObject * object, guint prop_id, const GValue * value,
       self->custom_lib = g_value_dup_string (value);
       break;
     case PROP_CUSTOM_PROPS:
-    {
       g_free (self->custom_props);
       self->custom_props = g_value_dup_string (value);
       break;
-    }
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -360,23 +374,6 @@ _nns_edge_event_cb (nns_edge_event_h event_h, void *user_data)
 }
 
 /**
- * @brief Parse edge custom properties.
- */
-static void
-_edgesrc_parse_custom_props (GstEdgeSrc *self)
-{
-  gchar **str_ops = g_strsplit_set (self->custom_props, ",", -1);
-  guint i, num = g_strv_length (str_ops);
-
-  for (i = 0; i < num; i++) {
-    gchar **str_op = g_strsplit (str_ops[i], ":", -1);
-    nns_edge_set_info (self->edge_h, str_op[0], str_op[1]);
-    g_strfreev (str_op);
-  }
-  g_strfreev (str_ops);
-}
-
-/**
  * @brief start edgesrc, called when state changed null to ready
  */
 static gboolean
@@ -414,9 +411,8 @@ gst_edgesrc_start (GstBaseSrc * basesrc)
   }
   if (self->topic)
     nns_edge_set_info (self->edge_h, "TOPIC", self->topic);
-  if (self->custom_props) {
-    _edgesrc_parse_custom_props (self);
-  }
+  if (self->custom_props)
+    gst_edge_parse_custom_props (self->edge_h, self->custom_props);
 
   nns_edge_set_event_callback (self->edge_h, _nns_edge_event_cb, self);
 

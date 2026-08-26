@@ -34,5 +34,17 @@ G_BEGIN_DECLS
  */
 GType gst_edge_get_connect_type (void);
 
+/**
+ * @brief Parse custom properties and set them on the edge handle.
+ * @param[in] edge_h The edge handle to set the parsed options on.
+ * @param[in] custom_props Comma-separated key:value pairs, e.g. "key1:val1,key2:val2".
+ *            A value may contain ':' (e.g. "QUEUE_SIZE:10:OLD"); only the first
+ *            ':' separates the key from the value. Whitespace around keys and
+ *            values is trimmed and empty tokens are ignored.
+ * @return TRUE if all non-empty tokens were parsed and set successfully.
+ *         Malformed tokens or rejected keys are logged and skipped.
+ */
+gboolean gst_edge_parse_custom_props (nns_edge_h edge_h, const gchar * custom_props);
+
 G_END_DECLS
 #endif /* __GST_EDGE_H__ */
