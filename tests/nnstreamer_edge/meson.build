@@ -6,11 +6,14 @@ library('nnstreamer-edge-custom-test',
   install_dir: unittest_install_dir
 )
 
-# Headers only: linking the gstedge plugin module would leave the installed
-# test binary unable to resolve libgstedge.so (plugin dir is not in the loader path).
+# Headers only for the plugin: linking the gstedge plugin module would leave the
+# installed test binary unable to resolve libgstedge.so (plugin dir is not in the
+# loader path). libnnstreamer-edge itself is a regular library and is linked to
+# query edge handle info in the tests.
 unittest_edge = executable('unittest_edge',
   join_paths('edge', 'unittest_edge.cc'),
   dependencies: [nnstreamer_unittest_deps,
+    nnstreamer_edge_support_deps,
     gstedge_dep.partial_dependency(includes: true, compile_args: true)],
   install: get_option('install-test'),
   install_dir: unittest_install_dir
