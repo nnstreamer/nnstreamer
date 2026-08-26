@@ -46,7 +46,8 @@ jobs:
         echo "${LITERT_SDK_ZIP_SHA256}  litert_cc_sdk.zip" | shasum -a 256 -c -
         unzip -q litert_cc_sdk.zip -d /tmp/litert-cc-sdk
         cp -r /tmp/litert-cc-sdk/litert_cc_sdk/litert/c $LITERT_ROOT/include/litert/
-        # generate build_config.h (all optional features on; runtime dylib decides)
+        # generate build_config.h (all optional features off at compile time;
+        # the prebuilt runtime dylib ships its own feature set)
         sed -e 's/#cmakedefine01 \(.*\)/#define \1 0/' \
           /tmp/litert-cc-sdk/litert_cc_sdk/litert/build_common/build_config.h.in \
           > $LITERT_ROOT/include/litert/build_common/build_config.h
