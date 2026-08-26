@@ -371,7 +371,7 @@ BuildRequires: onnxruntime-devel
 BuildRequires: executorch-devel
 %endif
 
-%if 0%{?ncnn_support} == 1
+%if 0%{?ncnn_support}
 BuildRequires: ncnn-devel
 %endif
 
@@ -615,7 +615,7 @@ NNStreamer's tensor_filter subplugin of tizen-hal
 %endif
 
 # for ncnn
-%if 0%{?ncnn_support} == 1
+%if 0%{?ncnn_support}
 %package ncnn
 Summary:	NNStreamer ncnn Support
 Requires:	nnstreamer-single = %{version}-%{release}
@@ -974,7 +974,7 @@ NNStreamer's datareposrc/sink plugins for reading and writing files in MLOps Dat
 %endif
 
 # Support ncnn
-%if 0%{?ncnn_support} == 1
+%if 0%{?ncnn_support}
 %define enable_ncnn -Dncnn-support=enabled
 %endif
 
@@ -1355,7 +1355,7 @@ cp -r result %{buildroot}%{_datadir}/nnstreamer/unittest/
 %endif
 
 # for ncnn
-%if 0%{?ncnn_support} == 1
+%if 0%{?ncnn_support}
 %files ncnn
 %manifest nnstreamer.manifest
 %defattr(-,root,root,-)
