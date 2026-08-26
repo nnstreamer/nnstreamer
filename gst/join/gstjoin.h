@@ -42,6 +42,8 @@ struct _GstJoin
   GstPad *active_sinkpad;
   guint n_pads;                 /* number of pads */
   guint padcount;               /* sequence number for pads */
+  guint eos_count;              /* number of sink pads that have received EOS */
+  gboolean eos_sent;            /* TRUE if EOS has been forwarded downstream */
 
   gboolean have_group_id;
 

@@ -19,6 +19,9 @@
  * N streams should not operate at the same time.
  * All capabilities (input stream i and output stream) should be the same.
  * For example, If one sinkpad is receiving buffer, the others should be stopped.
+ * As an N-to-1 element, join ends its output stream only after every sinkpad
+ * has received EOS, so a sinkpad that is never linked keeps the output stream
+ * alive.
  * <refsect2>
  * <title>Example launch line</title>
  * gst-launch-1.0 ... (input stream 0) ! join.sink_0 \
@@ -98,6 +101,8 @@ struct _GstJoinPad
 
   GstSegment segment;           /* the current segment on the pad */
   guint32 segment_seqnum;       /* sequence number of the current segment */
+
+  gboolean eos;                 /* TRUE if the pad has received EOS */
 };
 
 /**
@@ -162,7 +167,40 @@ gst_join_pad_reset (GstJoinPad * pad)
 {
   GST_OBJECT_LOCK (pad);
   gst_segment_init (&pad->segment, GST_FORMAT_UNDEFINED);
+  pad->eos = FALSE;
   GST_OBJECT_UNLOCK (pad);
+}
+
+/**
+ * @brief Withdraw the EOS of the given sink pad from the collected EOS state.
+ * @note must be called with the JOIN_LOCK
+ */
+static void
+gst_join_pad_clear_eos (GstJoin * sel, GstJoinPad * pad)
+{
+  if (pad->eos) {
+    pad->eos = FALSE;
+    if (sel->eos_count > 0)
+      sel->eos_count--;
+  }
+}
+
+/**
+ * @brief Reset the EOS state of every sink pad.
+ * @note must be called with the JOIN_LOCK
+ */
+static void
+gst_join_reset (GstJoin * sel)
+{
+  GList *walk;
+
+  GST_OBJECT_LOCK (sel);
+  for (walk = GST_ELEMENT_CAST (sel)->sinkpads; walk; walk = walk->next)
+    gst_join_pad_reset (GST_JOIN_PAD_CAST (walk->data));
+  GST_OBJECT_UNLOCK (sel);
+
+  sel->eos_count = 0;
+  sel->eos_sent = FALSE;
 }
 
 /**
@@ -284,6 +322,33 @@ gst_join_pad_event (GstPad * pad, GstObject * parent, GstEvent * event)
           &selpad->segment);
       break;
     }
+    case GST_EVENT_EOS:
+    {
+      /**
+       * Join is an N-to-1 element, so the output stream ends only after every
+       * input stream has ended. Forwarding EOS as soon as the pad that happens
+       * to be active receives it makes the downstream elements discard the
+       * buffers that the other, still running, input streams are about to push.
+       */
+      if (!selpad->eos) {
+        selpad->eos = TRUE;
+        sel->eos_count++;
+      }
+
+      forward = (!sel->eos_sent && sel->eos_count >= sel->n_pads);
+      if (forward)
+        sel->eos_sent = TRUE;
+
+      GST_DEBUG_OBJECT (pad, "EOS received (%u of %u sink pads), %s",
+          sel->eos_count, sel->n_pads,
+          forward ? "forwarding" : "waiting for the other sink pads");
+      break;
+    }
+    case GST_EVENT_FLUSH_STOP:
+      /* The stream restarts after a flush, so drop the collected EOS state. */
+      gst_join_pad_clear_eos (sel, selpad);
+      sel->eos_sent = FALSE;
+      break;
     default:
       break;
   }
@@ -424,6 +489,9 @@ static void gst_join_get_property (GObject * object,
     guint prop_id, GValue * value, GParamSpec * pspec);
 static GstPad *gst_join_request_new_pad (GstElement * element,
     GstPadTemplate * templ, const gchar * unused, const GstCaps * caps);
+static void gst_join_release_pad (GstElement * element, GstPad * pad);
+static GstStateChangeReturn gst_join_change_state (GstElement * element,
+    GstStateChange transition);
 
 #define gst_join_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstJoin, gst_join, GST_TYPE_ELEMENT,
@@ -465,6 +533,8 @@ gst_join_class_init (GstJoinClass * klass)
       &gst_join_src_factory);
 
   gstelement_class->request_new_pad = gst_join_request_new_pad;
+  gstelement_class->release_pad = gst_join_release_pad;
+  gstelement_class->change_state = gst_join_change_state;
 }
 
 /**
@@ -482,6 +552,8 @@ gst_join_init (GstJoin * sel)
   sel->active_sinkpad = NULL;
   sel->padcount = 0;
   sel->have_group_id = TRUE;
+  sel->eos_count = 0;
+  sel->eos_sent = FALSE;
 
   g_mutex_init (&sel->lock);
   g_cond_init (&sel->cond);
@@ -679,6 +751,67 @@ gst_join_request_new_pad (GstElement * element, GstPadTemplate * templ,
   GST_JOIN_UNLOCK (sel);
 
   return sinkpad;
+}
+
+/**
+ * @brief release the given request sink pad
+ */
+static void
+gst_join_release_pad (GstElement * element, GstPad * pad)
+{
+  GstJoin *sel = GST_JOIN (element);
+  gboolean send_eos = FALSE;
+
+  GST_JOIN_LOCK (sel);
+  GST_LOG_OBJECT (sel, "Releasing pad %s:%s", GST_DEBUG_PAD_NAME (pad));
+
+  gst_join_pad_clear_eos (sel, GST_JOIN_PAD_CAST (pad));
+
+  if (sel->active_sinkpad == pad) {
+    gst_object_unref (sel->active_sinkpad);
+    sel->active_sinkpad = NULL;
+  }
+
+  if (sel->n_pads > 0)
+    sel->n_pads--;
+
+  /**
+   * The streams left behind may have ended already while this pad was still
+   * around; in that case this release is what completes the aggregation.
+   */
+  if (!sel->eos_sent && sel->n_pads > 0 && sel->eos_count >= sel->n_pads)
+    sel->eos_sent = send_eos = TRUE;
+
+  GST_JOIN_UNLOCK (sel);
+
+  gst_pad_set_active (pad, FALSE);
+  gst_element_remove_pad (element, pad);
+
+  if (send_eos) {
+    GST_DEBUG_OBJECT (sel, "All remaining sink pads are EOS, forwarding EOS");
+    gst_pad_push_event (sel->srcpad, gst_event_new_eos ());
+  }
+}
+
+/**
+ * @brief handle the state change of join element
+ */
+static GstStateChangeReturn
+gst_join_change_state (GstElement * element, GstStateChange transition)
+{
+  GstJoin *sel = GST_JOIN (element);
+
+  switch (transition) {
+    case GST_STATE_CHANGE_READY_TO_PAUSED:
+      GST_JOIN_LOCK (sel);
+      gst_join_reset (sel);
+      GST_JOIN_UNLOCK (sel);
+      break;
+    default:
+      break;
+  }
+
+  return GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
 }
 
 /**

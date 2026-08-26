@@ -148,6 +148,220 @@ TEST (join, normal0)
 }
 
 /**
+ * @brief Callback counting the buffers that reached the sink.
+ */
+static void
+count_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
+{
+  guint *received = (guint *) user_data;
+  (void) element;
+  (void) buffer;
+
+  (*received)++;
+}
+
+/**
+ * @brief Wait for the EOS (or an error) message of the given pipeline.
+ * @return TRUE if EOS was received before the time-out.
+ */
+static gboolean
+wait_pipeline_eos (GstElement *pipeline, guint timeout_ms)
+{
+  GstBus *bus = gst_element_get_bus (pipeline);
+  GstMessage *msg;
+  gboolean got_eos = FALSE;
+
+  if (bus == NULL)
+    return FALSE;
+
+  msg = gst_bus_timed_pop_filtered (bus, timeout_ms * GST_MSECOND,
+      (GstMessageType) (GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+  if (msg != NULL) {
+    got_eos = (GST_MESSAGE_TYPE (msg) == GST_MESSAGE_EOS);
+    gst_message_unref (msg);
+  }
+
+  gst_object_unref (bus);
+  return got_eos;
+}
+
+/**
+ * @brief Test that EOS of one sink pad does not cut off the other streams.
+ * @detail Join is an N-to-1 element, so the buffers of every input stream
+ *         should be forwarded until all of them have ended. Before the EOS
+ *         aggregation was added, the EOS of the sink pad that happened to be
+ *         active was forwarded right away and the downstream elements dropped
+ *         everything the remaining streams pushed afterwards.
+ */
+TEST (join, eosAggregation)
+{
+  guint received = 0;
+  guint i;
+  GstElement *pipeline, *appsrc_0, *appsrc_1, *sink_handle;
+  GstBuffer *buf;
+
+  gchar *str_pipeline = g_strdup (
+      "appsrc name=appsrc_0 ! other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! join.sink_0 "
+      "appsrc name=appsrc_1 ! other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! join.sink_1 "
+      "join name=join ! other/tensor,dimension=(string)3:4:2:2, type=(string)int32, framerate=(fraction)0/1 ! "
+      "tensor_sink name=sinkx async=false sync=false");
+
+  pipeline = gst_parse_launch (str_pipeline, NULL);
+  g_free (str_pipeline);
+  ASSERT_NE (pipeline, nullptr);
+
+  appsrc_0 = gst_bin_get_by_name (GST_BIN (pipeline), "appsrc_0");
+  ASSERT_NE (appsrc_0, nullptr);
+  appsrc_1 = gst_bin_get_by_name (GST_BIN (pipeline), "appsrc_1");
+  ASSERT_NE (appsrc_1, nullptr);
+  sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  ASSERT_NE (sink_handle, nullptr);
+
+  g_signal_connect (sink_handle, "new-data", (GCallback) count_data_cb, (gpointer) &received);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  /* sink_0 pushes first, so it becomes the active pad. */
+  buf = gst_buffer_new_wrapped (_g_memdup (test_frames[0], 192), 192);
+  EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc_0), buf), GST_FLOW_OK);
+  EXPECT_TRUE (wait_pipeline_process_buffers (&received, 1, TEST_TIMEOUT_LIMIT_MS));
+
+  /* The active pad ends first; the other stream must not be cut off. */
+  EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (appsrc_0)), GST_FLOW_OK);
+  EXPECT_FALSE (wait_pipeline_eos (pipeline, 200));
+
+  for (i = 0; i < 3; i++) {
+    buf = gst_buffer_new_wrapped (_g_memdup (test_frames[1], 192), 192);
+    EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc_1), buf), GST_FLOW_OK);
+  }
+  EXPECT_TRUE (wait_pipeline_process_buffers (&received, 4, TEST_TIMEOUT_LIMIT_MS));
+  EXPECT_EQ (4U, received);
+
+  /* Once every sink pad is EOS, EOS is forwarded downstream. */
+  EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (appsrc_1)), GST_FLOW_OK);
+  EXPECT_TRUE (wait_pipeline_eos (pipeline, TEST_TIMEOUT_LIMIT_MS));
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (4U, received);
+
+  gst_object_unref (sink_handle);
+  gst_object_unref (appsrc_0);
+  gst_object_unref (appsrc_1);
+  gst_object_unref (pipeline);
+}
+
+/**
+ * @brief Test that a join of N finite sources delivers every buffer downstream.
+ * @detail This is the pipeline shape used by the datarepo test fixtures. The
+ *         three branches run in their own streaming threads, so which sink pad
+ *         is active when the first branch ends is a race; no buffer may be lost
+ *         because of it.
+ */
+TEST (join, forwardAllBuffers)
+{
+  const guint num_srcs = 3;
+  const guint num_buffers = 10;
+  guint received = 0;
+  guint i;
+  GstElement *pipeline, *sink_handle;
+  GString *desc = g_string_new (NULL);
+
+  for (i = 0; i < num_srcs; i++) {
+    g_string_append_printf (desc,
+        "videotestsrc num-buffers=%u ! "
+        "video/x-raw,format=RGB,width=64,height=48,framerate=30/1 ! "
+        "tensor_converter ! queue ! join0.sink_%u ",
+        num_buffers, i);
+  }
+  /* qos=false: a late-buffer QoS event would make upstream drop frames. */
+  g_string_append (desc,
+      "join name=join0 ! tensor_sink name=sinkx sync=false qos=false async=false");
+
+  pipeline = gst_parse_launch (desc->str, NULL);
+  g_string_free (desc, TRUE);
+  ASSERT_NE (pipeline, nullptr);
+
+  sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  ASSERT_NE (sink_handle, nullptr);
+  g_signal_connect (sink_handle, "new-data", (GCallback) count_data_cb, (gpointer) &received);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_TRUE (wait_pipeline_eos (pipeline, TEST_TIMEOUT_LIMIT_MS));
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  EXPECT_EQ (num_srcs * num_buffers, received);
+
+  gst_object_unref (sink_handle);
+  gst_object_unref (pipeline);
+}
+
+/**
+ * @brief Test that releasing a sink pad completes the EOS aggregation.
+ * @detail A sink pad that is gone can no longer deliver EOS, so releasing the
+ *         last pad the join is still waiting for has to end the output stream.
+ */
+TEST (join, releasePadAfterEos)
+{
+  guint received = 0;
+  guint n_pads = 0;
+  GstElement *pipeline, *appsrc_0, *join_handle, *sink_handle;
+  GstBuffer *buf;
+  GstPad *sinkpad_1, *peer_1;
+
+  gchar *str_pipeline = g_strdup (
+      "appsrc name=appsrc_0 ! other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! join.sink_0 "
+      "appsrc name=appsrc_1 ! other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! join.sink_1 "
+      "join name=join ! other/tensor,dimension=(string)3:4:2:2, type=(string)int32, framerate=(fraction)0/1 ! "
+      "tensor_sink name=sinkx async=false sync=false");
+
+  pipeline = gst_parse_launch (str_pipeline, NULL);
+  g_free (str_pipeline);
+  ASSERT_NE (pipeline, nullptr);
+
+  appsrc_0 = gst_bin_get_by_name (GST_BIN (pipeline), "appsrc_0");
+  ASSERT_NE (appsrc_0, nullptr);
+  join_handle = gst_bin_get_by_name (GST_BIN (pipeline), "join");
+  ASSERT_NE (join_handle, nullptr);
+  sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  ASSERT_NE (sink_handle, nullptr);
+
+  g_signal_connect (sink_handle, "new-data", (GCallback) count_data_cb, (gpointer) &received);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  buf = gst_buffer_new_wrapped (_g_memdup (test_frames[0], 192), 192);
+  EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc_0), buf), GST_FLOW_OK);
+  EXPECT_TRUE (wait_pipeline_process_buffers (&received, 1, TEST_TIMEOUT_LIMIT_MS));
+
+  EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (appsrc_0)), GST_FLOW_OK);
+  EXPECT_FALSE (wait_pipeline_eos (pipeline, 200));
+
+  /* sink_1 never gets EOS; dropping the pad has to complete the aggregation. */
+  sinkpad_1 = gst_element_get_static_pad (join_handle, "sink_1");
+  ASSERT_NE (sinkpad_1, nullptr);
+  peer_1 = gst_pad_get_peer (sinkpad_1);
+  if (peer_1 != NULL) {
+    gst_pad_unlink (peer_1, sinkpad_1);
+    gst_object_unref (peer_1);
+  }
+  gst_element_release_request_pad (join_handle, sinkpad_1);
+  gst_object_unref (sinkpad_1);
+
+  EXPECT_TRUE (wait_pipeline_eos (pipeline, TEST_TIMEOUT_LIMIT_MS));
+
+  g_object_get (join_handle, "n-pads", &n_pads, NULL);
+  EXPECT_EQ (1U, n_pads);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (1U, received);
+
+  gst_object_unref (sink_handle);
+  gst_object_unref (join_handle);
+  gst_object_unref (appsrc_0);
+  gst_object_unref (pipeline);
+}
+
+/**
  * @brief Test get property with invalid parameter
  */
 TEST (join, prop0_n)
