@@ -128,12 +128,13 @@ TEST (nnstreamerFilterArmnn, getDimension)
   ret = sp->open (&prop, &data);
   EXPECT_EQ (ret, 0);
 
+  /** add.tflite tensors are rank 1; unused dimensions are reported as 0 */
   info.num_tensors = 1;
   info.info[0].type = _NNS_FLOAT32;
   info.info[0].dimension[0] = 1;
-  info.info[0].dimension[1] = 1;
-  info.info[0].dimension[2] = 1;
-  info.info[0].dimension[3] = 1;
+  info.info[0].dimension[1] = 0;
+  info.info[0].dimension[2] = 0;
+  info.info[0].dimension[3] = 0;
 
   /** get input/output dimension successfully */
   ret = sp->getInputDimension (&prop, &data, NULL);
@@ -544,12 +545,13 @@ TEST (nnstreamerFilterArmnn, invokeAdvanced)
   ret = sp->getOutputDimension (&prop, &data, &res);
   EXPECT_EQ (ret, 0);
 
+  /** the output tensor is rank 2; unused dimensions are reported as 0 */
   info.num_tensors = 1;
   info.info[0].type = _NNS_UINT8;
   info.info[0].dimension[0] = 1001;
   info.info[0].dimension[1] = 1;
-  info.info[0].dimension[2] = 1;
-  info.info[0].dimension[3] = 1;
+  info.info[0].dimension[2] = 0;
+  info.info[0].dimension[3] = 0;
 
   EXPECT_EQ (res.num_tensors, info.num_tensors);
   EXPECT_EQ (res.info[0].type, info.info[0].type);
