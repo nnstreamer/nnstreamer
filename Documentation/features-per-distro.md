@@ -27,6 +27,7 @@ This document reflects the status of 2022-07-14 (2.1.1 devel)
         - TVM
         - SNPE
         - onnxruntime
+        - ncnn (Tizen 9.0+)
         - grpc
         - MQTT
         - flexbuf (converter/decoder)
