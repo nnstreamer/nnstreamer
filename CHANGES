@@ -1,6 +1,10 @@
 2.6.0 -> 2.7.0
 	- 2.7.0 is a devel version for 2.8.0 release. Experimental features may be added to 2.7.x.
 
+	- C++ subplugin API (tensor_filter_subplugin) behavior change
+		- The framework now deletes the object returned by getEmptyInstance() when configure_instance() throws, instead of leaking it. The object must be heap-allocated and singly owned by the framework, and the derived destructor must be safe on a partially-configured instance.
+		- All in-tree subplugins conform. An out-of-tree subplugin whose getEmptyInstance() returns a static, pooled, or shared instance must be fixed to return a newly allocated object; see Documentation/writing-subplugin-tensor-filter.md.
+
 2.4.4 -> 2.6.0
         - llama.cpp upgrades
                 - Added context save/restore, KV-cache trimming, LoRA adapters, token-by-token samplers, and safer teardown paths so on-device LLMs support long chats and tuning.

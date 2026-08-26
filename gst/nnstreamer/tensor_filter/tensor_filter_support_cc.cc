@@ -88,6 +88,8 @@ tensor_filter_subplugin::cpp_open (const GstTensorFilterProperties *prop, void *
   tensor_filter_subplugin *obj_raw;
   try {
     obj_raw = std::addressof (sp->getEmptyInstance ());
+  } catch (const std::bad_alloc &e) {
+    _RETURN_ERR_WITH_MSG (-ENOMEM, e.what ());
   } catch (const std::exception &e) {
     _RETURN_ERR_WITH_MSG (-EINVAL, e.what ());
   } catch (...) {
@@ -97,6 +99,8 @@ tensor_filter_subplugin::cpp_open (const GstTensorFilterProperties *prop, void *
   tensor_filter_subplugin &obj = *obj_ptr;
   try {
     obj.configure_instance (prop);
+  } catch (const std::bad_alloc &e) {
+    _RETURN_ERR_WITH_MSG (-ENOMEM, e.what ());
   } catch (const std::invalid_argument &e) {
     _RETURN_ERR_WITH_MSG (-EINVAL, e.what ());
   } catch (const std::system_error &e) {
