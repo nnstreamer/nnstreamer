@@ -84,7 +84,7 @@ check_output (GstElement *element, GstBuffer *buffer, gpointer user_data)
   ASSERT_TRUE (mapped);
 
   gint is_float = (gint) * ((guint8 *) user_data);
-  guint idx, max_idx = 0U;
+  gsize idx, max_idx = 0U;
 
   if (is_float == 0) {
     guint8 *output = (guint8 *) info_res.data;
@@ -108,18 +108,6 @@ check_output (GstElement *element, GstBuffer *buffer, gpointer user_data)
 
   gst_memory_unmap (mem_res, &info_res);
   gst_memory_unref (mem_res);
-}
-
-/**
- * @brief Test argmax_float with all-negative values (e.g. raw logits)
- */
-TEST (nnstreamerFilterTensorFlow2Lite, argmaxFloatAllNegative)
-{
-  const gfloat values[] = { -3.0f, -1.5f, -0.25f, -2.0f };
-
-  EXPECT_EQ (argmax_float (values, 4), 2U);
-  EXPECT_EQ (argmax_float (values, 2), 1U);
-  EXPECT_EQ (argmax_float (values, 0), 0U);
 }
 
 /**

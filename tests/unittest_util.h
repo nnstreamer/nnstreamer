@@ -80,10 +80,10 @@ get_available_port (void);
  * Seeded with the first element so that all-negative arrays are handled.
  * @return The index of the maximum value. 0 if num is 0.
  */
-static inline guint
-argmax_float (const gfloat * values, guint num)
+static inline gsize
+argmax_float (const gfloat * values, gsize num)
 {
-  guint idx, max_idx = 0U;
+  gsize idx, max_idx = 0U;
   gfloat max_value;
 
   if (num == 0U)
