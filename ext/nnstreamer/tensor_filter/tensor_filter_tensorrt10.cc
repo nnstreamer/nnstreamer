@@ -313,10 +313,9 @@ tensorrt10_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *out
     throw std::runtime_error ("Invalid output buffer, it is NULL.");
 
   cudaError_t status;
-  std::size_t i;
 
   /* Copy input data to Cuda memory space */
-  for (i = 0; i < _tensorrt10_input_tensor_infos.size (); ++i) {
+  for (std::size_t i = 0; i < _tensorrt10_input_tensor_infos.size (); ++i) {
     const auto &tensorrt10_tensor_info = _tensorrt10_input_tensor_infos[i];
     g_assert (tensorrt10_tensor_info.buffer_size == input[i].size);
 
@@ -339,7 +338,7 @@ tensorrt10_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *out
    * at all. The core releases these buffers with g_free() since the
    * eventHandler does not handle DESTROY_NOTIFY.
    */
-  for (i = 0; i < _tensorrt10_output_tensor_infos.size (); ++i) {
+  for (std::size_t i = 0; i < _tensorrt10_output_tensor_infos.size (); ++i) {
     const auto &tensorrt10_tensor_info = _tensorrt10_output_tensor_infos[i];
     g_assert (tensorrt10_tensor_info.buffer_size == output[i].size);
     output[i].data = g_malloc (output[i].size);
@@ -354,7 +353,7 @@ tensorrt10_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *out
 
     /* Copy the results from the persistent device buffers to host memory */
     /** @todo pageable dst makes this copy synchronous; pin it if it matters */
-    for (i = 0; i < _tensorrt10_output_tensor_infos.size (); ++i) {
+    for (std::size_t i = 0; i < _tensorrt10_output_tensor_infos.size (); ++i) {
       const auto &tensorrt10_tensor_info = _tensorrt10_output_tensor_infos[i];
       status = cudaMemcpyAsync (output[i].data, tensorrt10_tensor_info.buffer,
           output[i].size, cudaMemcpyDeviceToHost, _stream);
@@ -373,7 +372,9 @@ tensorrt10_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *out
       throw std::runtime_error ("Failed to synchronize the cuda stream");
     }
   } catch (...) {
-    for (i = 0; i < _tensorrt10_output_tensor_infos.size (); ++i) {
+    /* Drain pending D2H copies targeting output[] before freeing it */
+    cudaStreamSynchronize (_stream);
+    for (std::size_t i = 0; i < _tensorrt10_output_tensor_infos.size (); ++i) {
       g_free (output[i].data);
       output[i].data = nullptr;
     }
