@@ -1633,6 +1633,10 @@ gst_tensor_meta_info_parse_memory (GstTensorMetaInfo * meta, GstMemory * mem)
  * @param[in] meta tensor meta structure
  * @param[in] mem pointer to GstMemory
  * @return Newly allocated GstMemory (Caller should free returned memory using gst_memory_unref())
+ * @note This does not take the ownership of @a mem; its content is copied into
+ *       the returned memory. If the caller owns a reference of @a mem (e.g., the
+ *       memory acquired by gst_tensor_buffer_get_nth_memory ()), the caller
+ *       should unref @a mem as well as the returned memory.
  */
 GstMemory *
 gst_tensor_meta_info_append_header (GstTensorMetaInfo * meta, GstMemory * mem)
