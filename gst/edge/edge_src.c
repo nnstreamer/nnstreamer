@@ -134,7 +134,7 @@ gst_edgesrc_class_init (GstEdgeSrcClass * klass)
           "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_CUSTOM_PROPS,
       g_param_spec_string ("custom-props", "Custom connection props",
-          "User defined custom connection properties. Set the options in key:value form and divide them by , for multiple options.",
+          "User defined custom connection properties. Set the options in key:value form and divide them by , for multiple options. The options are applied when the element starts.",
           "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   gst_element_class_add_pad_template (gstelement_class,
@@ -411,8 +411,13 @@ gst_edgesrc_start (GstBaseSrc * basesrc)
   }
   if (self->topic)
     nns_edge_set_info (self->edge_h, "TOPIC", self->topic);
-  if (self->custom_props)
-    gst_edge_parse_custom_props (self->edge_h, self->custom_props);
+  if (self->custom_props) {
+    if (!gst_edge_parse_custom_props (self->edge_h, self->custom_props)) {
+      GST_ELEMENT_WARNING (self, RESOURCE, SETTINGS,
+          ("Some custom-props options were not applied."),
+          ("custom-props: %s", self->custom_props));
+    }
+  }
 
   nns_edge_set_event_callback (self->edge_h, _nns_edge_event_cb, self);
 
