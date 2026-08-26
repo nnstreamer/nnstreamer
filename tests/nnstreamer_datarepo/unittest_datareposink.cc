@@ -665,6 +665,7 @@ int
 main (int argc, char **argv)
 {
   int result = -1;
+  gchar *work_dir;
 
   try {
     testing::InitGoogleTest (&argc, argv);
@@ -674,11 +675,17 @@ main (int argc, char **argv)
 
   gst_init (&argc, &argv);
 
+  /* These tests write fixed file names, which unittest_datareposrc also uses. */
+  /* Enter after InitGoogleTest, which anchors --gtest_output to the start directory. */
+  work_dir = enterPrivateWorkDir ();
+
   try {
     result = RUN_ALL_TESTS ();
   } catch (...) {
     g_warning ("catch `testing::internal::GoogleTestFailureException`");
   }
+
+  leavePrivateWorkDir (&work_dir);
 
   return result;
 }

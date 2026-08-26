@@ -51,6 +51,29 @@ extern gchar * getTempFilename (void);
 extern void removeTempFile (char **file_name);
 
 /**
+ * @brief Enter a private working directory for the calling test binary.
+ * @details meson runs test binaries in parallel with the build directory as
+ *          their working directory, so binaries that create files with fixed
+ *          names overwrite and delete each other's files. Call this before
+ *          running the tests to give the process a directory of its own.
+ *          NNSTREAMER_SOURCE_ROOT_PATH is made absolute first, so that test
+ *          data is still found after the move.
+ * @note Call this after testing::InitGoogleTest(), which resolves a relative
+ *       --gtest_output against the directory the test was started from.
+ *       Entering earlier would write the report into the private directory,
+ *       which leavePrivateWorkDir() then removes.
+ * @return the new working directory, or NULL if the move failed
+ *         (should be released with leavePrivateWorkDir)
+ */
+extern gchar * enterPrivateWorkDir (void);
+
+/**
+ * @brief Return to the directory enterPrivateWorkDir() was called from and
+ *        remove the private working directory with its contents.
+ */
+extern void leavePrivateWorkDir (gchar **work_dir);
+
+/**
  * @brief Wait until the pipeline processing the buffers
  * @return TRUE on success, FALSE when a time-out occurs
  */
