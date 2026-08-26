@@ -386,7 +386,7 @@ TEST (edgeCustom, sinkInvalidProp2_n)
   EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   g_usleep (1000000);
 
-  /* Handle creation precedes the libINVALID.so load failure; start() must clear the stale handle. */
+  /* On load failure the library frees the handle without clearing the out-param; start() must NULL it. */
   edge_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "sinkx");
   ASSERT_NE (edge_handle, nullptr);
   EXPECT_EQ (GST_EDGESINK_CAST (edge_handle)->edge_h, (nns_edge_h) NULL);
@@ -507,7 +507,7 @@ TEST (edgeCustom, srcInvalidProp2_n)
   EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   g_usleep (1000000);
 
-  /* Handle creation precedes the libINVALID.so load failure; start() must clear the stale handle. */
+  /* On load failure the library frees the handle without clearing the out-param; start() must NULL it. */
   edge_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "srcx");
   ASSERT_NE (edge_handle, nullptr);
   EXPECT_EQ (GST_EDGESRC_CAST (edge_handle)->edge_h, (nns_edge_h) NULL);
