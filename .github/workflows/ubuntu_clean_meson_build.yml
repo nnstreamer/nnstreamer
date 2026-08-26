@@ -31,11 +31,12 @@ jobs:
         sudo apt-get install -y liborc-0.4-dev flex bison libopencv-dev pkg-config python3-dev python3-numpy python3
         sudo add-apt-repository -y ppa:nnstreamer/ppa && sudo apt-get update && sudo apt-get install -y ssat libpaho-mqtt-dev
         sudo apt-get install -y valgrind gstreamer1.0-tools gstreamer1.0-plugins-good gstreamer1.0-plugins-base libgtest-dev libpng-dev libc6-dbg binutils-x86-64-linux-gnu-dbg valgrind-dbg
+        sudo apt-get install -y libarmnn-dev libarmnntfliteparser-dev libarmnn-cpuref-backend22
         pip install meson ninja
     - name: build and unit test
       if: env.rebuild == '1'
       run: |
-        meson setup build/
+        meson setup build/ -Darmnn-support=enabled
         meson compile -C build/
 
         sudo mkdir -m 777 /cores
