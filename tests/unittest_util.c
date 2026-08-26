@@ -92,6 +92,99 @@ void removeTempFile (char **file_name)
 }
 
 /**
+ * @brief Remove a directory with everything in it.
+ */
+static void
+removeDirRecursive (const gchar * path)
+{
+  GDir *dir;
+  const gchar *name;
+
+  dir = g_dir_open (path, 0, NULL);
+  if (dir == NULL)
+    return;
+
+  while ((name = g_dir_read_name (dir)) != NULL) {
+    gchar *child = g_build_filename (path, name, NULL);
+
+    if (g_file_test (child, G_FILE_TEST_IS_DIR)
+        && !g_file_test (child, G_FILE_TEST_IS_SYMLINK))
+      removeDirRecursive (child);
+    else
+      g_remove (child);
+
+    g_free (child);
+  }
+
+  g_dir_close (dir);
+  g_rmdir (path);
+}
+
+static gchar *private_work_dir_origin = NULL; /**< Directory to return to. */
+
+/**
+ * @brief Enter a private working directory for the calling test binary.
+ * @return the new working directory, or NULL if the move failed
+ */
+gchar *
+enterPrivateWorkDir (void)
+{
+  gchar *work_dir;
+  gchar *cwd = g_get_current_dir ();
+
+  /* Tests locate their data with this, falling back to a relative path. */
+  if (g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH") == NULL) {
+    gchar *root = g_build_filename (cwd, "..", NULL);
+
+    g_setenv ("NNSTREAMER_SOURCE_ROOT_PATH", root, TRUE);
+    g_free (root);
+  }
+
+  work_dir = g_dir_make_tmp ("nnstreamer_unittest_workdir_XXXXXX", NULL);
+  if (work_dir == NULL) {
+    g_warning ("failed to create a private working directory, "
+               "tests sharing file names may interfere with each other");
+    g_free (cwd);
+    return NULL;
+  }
+
+  if (g_chdir (work_dir) != 0) {
+    g_warning ("failed to enter the private working directory %s, "
+               "tests sharing file names may interfere with each other", work_dir);
+    g_rmdir (work_dir);
+    g_free (work_dir);
+    g_free (cwd);
+    return NULL;
+  }
+
+  g_free (private_work_dir_origin);
+  private_work_dir_origin = cwd;
+
+  return work_dir;
+}
+
+/**
+ * @brief Return to the entry directory and remove the private working directory.
+ */
+void
+leavePrivateWorkDir (gchar ** work_dir)
+{
+  if (work_dir == NULL || *work_dir == NULL)
+    return;
+
+  /* Move out of the directory before removing it; both steps are best effort. */
+  if (private_work_dir_origin != NULL)
+    (void) g_chdir (private_work_dir_origin);
+
+  removeDirRecursive (*work_dir);
+
+  g_free (private_work_dir_origin);
+  private_work_dir_origin = NULL;
+  g_free (*work_dir);
+  *work_dir = NULL;
+}
+
+/**
  * @brief Wait until the pipeline processing the buffers
  * @return TRUE on success, FALSE when a time-out occurs
  */

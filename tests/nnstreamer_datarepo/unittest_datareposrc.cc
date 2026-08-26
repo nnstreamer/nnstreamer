@@ -637,11 +637,12 @@ TEST (datareposrc, fps30ReadFlexibleTensors)
 {
   gint fps = 30;
   guint64 start_time, end_time;
-  gdouble elapsed_time;
+  gdouble elapsed_time, stream_duration;
   GstElement *tensor_sink;
   GstBus *bus;
   GMainLoop *loop;
   gint file_index = 1;
+  gint buffer_count = 0, no_sync_count = 0;
   const gchar *str_pipeline
       = "datareposrc location=flexible1.data json=flexible1.json ! queue ! tensor_sink name=tensor_sink0 sync=true";
 
@@ -655,6 +656,10 @@ TEST (datareposrc, fps30ReadFlexibleTensors)
   gst_bus_add_watch (bus, bus_callback, loop);
   g_clear_pointer (&bus, gst_object_unref);
 
+  tensor_sink = gst_bin_get_by_name (GST_BIN (pipeline), "tensor_sink0");
+  ASSERT_NE (tensor_sink, nullptr);
+  g_signal_connect (tensor_sink, "new-data", G_CALLBACK (new_data_cb), &buffer_count);
+
   start_time = g_get_monotonic_time ();
 
   setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
@@ -664,9 +669,20 @@ TEST (datareposrc, fps30ReadFlexibleTensors)
   end_time = g_get_monotonic_time ();
   elapsed_time = (end_time - start_time) / (double) G_USEC_PER_SEC;
 
-  g_print ("Elapsed time: %.6f second\n", elapsed_time);
-  EXPECT_LT (0.8, elapsed_time);
+  /**
+   * @brief The writer pipeline does not store a fixed number of samples: join
+   * forwards EOS from the pad that delivered the last buffer, so the remaining
+   * sources are cut off at a point that depends on scheduling. Derive the
+   * expected play time from the samples that were actually read. Fewer than a
+   * third of the 30 samples means the writer, not the timing, is broken.
+   */
+  ASSERT_GE (buffer_count, 10);
+  stream_duration = (buffer_count - 1) / (gdouble) fps;
 
+  g_print ("Elapsed time: %.6f second (%d buffers)\n", elapsed_time, buffer_count);
+  EXPECT_LT (stream_duration * 0.9, elapsed_time);
+
+  g_clear_pointer (&tensor_sink, gst_object_unref);
   g_clear_pointer (&pipeline, gst_object_unref);
   g_main_loop_unref (loop);
 
@@ -680,7 +696,9 @@ TEST (datareposrc, fps30ReadFlexibleTensors)
   g_clear_pointer (&bus, gst_object_unref);
 
   tensor_sink = gst_bin_get_by_name (GST_BIN (pipeline), "tensor_sink0");
+  ASSERT_NE (tensor_sink, nullptr);
   g_object_set (GST_OBJECT (tensor_sink), "sync", FALSE, NULL);
+  g_signal_connect (tensor_sink, "new-data", G_CALLBACK (new_data_cb), &no_sync_count);
 
   start_time = g_get_monotonic_time ();
 
@@ -691,8 +709,10 @@ TEST (datareposrc, fps30ReadFlexibleTensors)
   end_time = g_get_monotonic_time ();
   elapsed_time = (end_time - start_time) / (double) G_USEC_PER_SEC;
 
-  g_print ("Elapsed time: %.6f second\n", elapsed_time);
-  EXPECT_LT (elapsed_time, 0.05);
+  g_print ("Elapsed time: %.6f second (%d buffers)\n", elapsed_time, no_sync_count);
+  EXPECT_EQ (no_sync_count, buffer_count);
+  /* Without sync the same samples are read without waiting for the clock. */
+  EXPECT_LT (elapsed_time, stream_duration * 0.5);
 
   g_clear_pointer (&tensor_sink, gst_object_unref);
   g_clear_pointer (&pipeline, gst_object_unref);
@@ -1147,6 +1167,7 @@ int
 main (int argc, char **argv)
 {
   int result = -1;
+  gchar *work_dir;
 
   try {
     testing::InitGoogleTest (&argc, argv);
@@ -1156,11 +1177,17 @@ main (int argc, char **argv)
 
   gst_init (&argc, &argv);
 
+  /* These tests write fixed file names, which unittest_datareposink also uses. */
+  /* Enter after InitGoogleTest, which anchors --gtest_output to the start directory. */
+  work_dir = enterPrivateWorkDir ();
+
   try {
     result = RUN_ALL_TESTS ();
   } catch (...) {
     g_warning ("catch `testing::internal::GoogleTestFailureException`");
   }
+
+  leavePrivateWorkDir (&work_dir);
 
   return result;
 }
