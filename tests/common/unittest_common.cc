@@ -97,6 +97,18 @@ fill_tensors_config_for_test (GstTensorsConfig *conf1, GstTensorsConfig *conf2)
 }
 
 /**
+ * @brief Test argmax_float with all-negative values (e.g. raw logits)
+ */
+TEST (commonUtil, argmaxFloatAllNegative)
+{
+  const gfloat values[] = { -3.0f, -1.5f, -0.25f, -2.0f };
+
+  EXPECT_EQ (argmax_float (values, 4), 2U);
+  EXPECT_EQ (argmax_float (values, 2), 1U);
+  EXPECT_EQ (argmax_float (values, 0), 0U);
+}
+
+/**
  * @brief Test for int32 type string.
  */
 TEST (commonGetTensorType, failure_n)
