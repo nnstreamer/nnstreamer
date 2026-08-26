@@ -101,7 +101,8 @@ jobs:
         echo "${LITERT_SDK_ZIP_SHA256}  litert_cc_sdk.zip" | sha256sum -c -
         unzip -q litert_cc_sdk.zip -d /tmp/litert-cc-sdk
         cp -r /tmp/litert-cc-sdk/litert_cc_sdk/litert/c $LITERT_ROOT/include/litert/
-        # generate build_config.h (all optional features on; runtime .so decides)
+        # generate build_config.h (all optional features off at compile time;
+        # the prebuilt runtime .so ships its own feature set)
         sed -e 's/#cmakedefine01 \(.*\)/#define \1 0/' \
           /tmp/litert-cc-sdk/litert_cc_sdk/litert/build_common/build_config.h.in \
           > $LITERT_ROOT/include/litert/build_common/build_config.h
@@ -125,6 +126,10 @@ jobs:
           # llamacpp tests would silently vanish from this job.
           test -f build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_llamacpp.so
           cp ~/llama-backends/libggml-*.so build/tests/
+          # Same for litert: the feature degrades to "off" silently under auto
+          # detection and its SSAT script reports success with zero cases when
+          # the .so is absent; assert so a detection regression cannot go green.
+          test -f build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_litert.so
         fi
 
         sudo mkdir -m 777 /cores
