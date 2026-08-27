@@ -94,6 +94,7 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
   gchar *model;
   LoRAPaths *lora_paths;
   guint *new_sample_count;
+  gboolean pipeline_error;
   gboolean skip_test;
   gboolean skip_lora_test;
 
@@ -114,6 +115,7 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
     appsink = nullptr;
     tensor_filter = nullptr;
     new_sample_count = nullptr;
+    pipeline_error = FALSE;
 
     model = g_build_filename (
         root_path, "tests", "test_models", "models", LLAMACPP_TEST_MODEL, NULL);
@@ -147,6 +149,7 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
   {
     /* Track the number of async callback invocations. */
     new_sample_count = g_new0 (guint, 1);
+    pipeline_error = FALSE;
   }
 
   /**
@@ -215,9 +218,59 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
   }
 
   /**
+   * @brief Drain the pipeline bus and latch whether the pipeline has failed.
+   *
+   * A sub-plugin that fails to invoke makes tensor_filter post an
+   * "invoke-failure" application message and return GST_FLOW_ERROR, which
+   * appsrc turns into a bus error. Without this check such a failure is
+   * indistinguishable from a slow inference: both end up as a wait timeout.
+   *
+   * @return TRUE if the pipeline has posted an error so far.
+   */
+  gboolean poll_pipeline_error ()
+  {
+    GstBus *bus;
+    GstMessage *msg;
+
+    if (pipeline == nullptr)
+      return pipeline_error;
+
+    bus = gst_element_get_bus (pipeline);
+    if (bus == nullptr)
+      return pipeline_error;
+
+    while ((msg = gst_bus_pop_filtered (bus,
+                (GstMessageType) (GST_MESSAGE_ERROR | GST_MESSAGE_APPLICATION)))
+           != NULL) {
+      if (GST_MESSAGE_TYPE (msg) == GST_MESSAGE_ERROR) {
+        GError *err = NULL;
+
+        gst_message_parse_error (msg, &err, NULL);
+        g_printerr ("Pipeline error: %s\n", err ? err->message : "unknown");
+        g_clear_error (&err);
+        pipeline_error = TRUE;
+      } else {
+        const GstStructure *s = gst_message_get_structure (msg);
+
+        if (s && gst_structure_has_name (s, "nnstreamer-message")
+            && g_strcmp0 (gst_structure_get_string (s, "type"), "invoke-failure") == 0) {
+          g_printerr ("Invoke failure: %s\n",
+              GST_STR_NULL (gst_structure_get_string (s, "message")));
+          pipeline_error = TRUE;
+        }
+      }
+      gst_message_unref (msg);
+    }
+    gst_object_unref (bus);
+
+    return pipeline_error;
+  }
+
+  /**
    * @brief Wait until the appsink has received the expected number of samples.
    *        After the count is reached, a short grace period lets unexpected
    *        extra samples arrive so that exact-count assertions can catch them.
+   *        The wait is aborted early if the pipeline reports a failure.
    * @param expected Number of samples to wait for.
    * @param timeout_ms Maximum wait time in milliseconds.
    * @return TRUE if the expected count was reached before the timeout.
@@ -227,6 +280,8 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
     guint waited_ms = 0;
 
     while (*new_sample_count < expected && waited_ms < timeout_ms) {
+      if (poll_pipeline_error ())
+        break;
       g_usleep (10000);
       waited_ms += 10;
     }
@@ -235,6 +290,7 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
       return FALSE;
 
     g_usleep (100000);
+    poll_pipeline_error ();
     return TRUE;
   }
 };
@@ -307,6 +363,30 @@ TEST_F (NNStreamerFilterLlamaCppTest, multipleInputsSingleOutputSync_p)
   EXPECT_TRUE (data_push ("What is AI?"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_TRUE (wait_for_samples (2));
+  EXPECT_FALSE (pipeline_error);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (*new_sample_count, 2);
+}
+
+/**
+ * @brief Test case for a generation that produces no token at all.
+ *
+ * A zero-token generation is a valid result: the filter must still hand one
+ * (empty) output to the pipeline so that every input yields exactly one sample.
+ * This is the deterministic form of the intermittent stall where the model
+ * sampled end-of-generation as the very first token of the second prompt.
+ */
+TEST_F (NNStreamerFilterLlamaCppTest, zeroTokenGenerationSync_p)
+{
+  skip_llamacpp_tc ("zeroTokenGenerationSync_p");
+
+  ASSERT_TRUE (create_pipeline (model, FALSE, "num_predict:0"));
+  EXPECT_TRUE (data_push ("Hello my name is"));
+  EXPECT_TRUE (data_push ("What is AI?"));
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_TRUE (wait_for_samples (2));
+  EXPECT_FALSE (pipeline_error);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (*new_sample_count, 2);
@@ -507,6 +587,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, contextContinuationInConversation_p)
   EXPECT_TRUE (data_push ("What did I just say about myself?"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_TRUE (wait_for_samples (2));
+  EXPECT_FALSE (pipeline_error);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (*new_sample_count, 2);
