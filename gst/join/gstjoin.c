@@ -21,9 +21,10 @@
  * All capabilities (input stream i and output stream) should be the same.
  * EOS reaches the output pad only after every linked input stream has ended.
  * A sink pad that is unlinked or released is no longer waited for, since no
- * stream can end on it; the output would otherwise never see EOS. So an
- * application that unlinks a branch mid-stream should expect the output to
- * end once the branches still linked do, and relink before that happens.
+ * stream can end on it; the output would otherwise never see EOS. The set is
+ * only re-examined when a sink pad receives EOS or is released, so retiring a
+ * branch mid-stream means releasing its pad: unlinking alone drops it from the
+ * set without ending the output, and the output ends at whatever comes next.
  * <refsect2>
  * <title>Example launch line</title>
  * gst-launch-1.0 ... (input stream 0) ! join.sink_0 \
@@ -251,7 +252,7 @@ gst_join_all_sinkpads_eos (GstJoin * sel, gboolean * any_eos)
 
     if (selpad->eos)
       any = TRUE;
-    else if (GST_PAD_IS_LINKED (GST_PAD_CAST (selpad)))
+    else if (gst_pad_is_linked (GST_PAD_CAST (selpad)))
       all = FALSE;
   }
   GST_OBJECT_UNLOCK (sel);

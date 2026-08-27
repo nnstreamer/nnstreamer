@@ -502,7 +502,7 @@ run_pad_release_while_streaming (void)
   JoinFeeder feeder = { NULL, 0 };
   GThread *thread;
   guint received = 0, n_pads = 0;
-  gboolean released = FALSE;
+  gboolean released = FALSE, started = TRUE;
 
   GstElement *pipeline = gst_parse_launch (join_pipeline_desc, NULL);
   if (pipeline == NULL)
@@ -520,11 +520,13 @@ run_pad_release_while_streaming (void)
   }
   g_signal_connect (sink_handle, "new-data", (GCallback) count_data_cb, (gpointer) &received);
 
-  setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
+  if (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT) != 0)
+    started = FALSE;
 
   feeder.appsrc = appsrc_0;
   thread = g_thread_new ("join-feeder", join_feeder_thread, &feeder);
-  wait_pipeline_process_buffers (&received, 1, TEST_TIMEOUT_LIMIT_MS);
+  if (!wait_pipeline_process_buffers (&received, 1, TEST_TIMEOUT_LIMIT_MS))
+    started = FALSE;
 
   /* Released while still linked, so the feeder keeps sink_0 streaming. */
   sinkpad_0 = gst_element_get_static_pad (join_handle, "sink_0");
@@ -535,7 +537,7 @@ run_pad_release_while_streaming (void)
 
   g_object_get (join_handle, "active-pad", &active_pad, NULL);
   g_object_get (join_handle, "n-pads", &n_pads, NULL);
-  released = (active_pad != sinkpad_0) && (n_pads == 1U);
+  released = started && (active_pad != sinkpad_0) && (n_pads == 1U);
   g_clear_object (&active_pad);
   gst_object_unref (sinkpad_0);
 
