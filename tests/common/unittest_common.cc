@@ -2685,7 +2685,7 @@ bump_counter (gpointer user_data)
   guint *count = (guint *) user_data;
 
   g_usleep (TEST_DEFAULT_SLEEP_TIME * 3);
-  *count = 1U;
+  g_atomic_int_set (count, 1U);
 
   return NULL;
 }
