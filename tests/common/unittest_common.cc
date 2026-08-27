@@ -2677,6 +2677,70 @@ TEST (commonUtil, errorMessage)
 }
 
 /**
+ * @brief Thread body that bumps the counter after a short delay.
+ */
+static gpointer
+bump_counter (gpointer user_data)
+{
+  guint *count = (guint *) user_data;
+
+  g_usleep (TEST_DEFAULT_SLEEP_TIME * 3);
+  *count = 1U;
+
+  return NULL;
+}
+
+/**
+ * @brief Test that an already-satisfied count returns without waiting.
+ */
+TEST (commonUtil, waitPipelineProcessBuffers)
+{
+  guint count = 3U;
+  gint64 elapsed_us;
+  gint64 start_us = g_get_monotonic_time ();
+
+  EXPECT_TRUE (wait_pipeline_process_buffers (&count, 3U, TEST_TIMEOUT_LIMIT_MS));
+
+  elapsed_us = g_get_monotonic_time () - start_us;
+  EXPECT_LT (elapsed_us, (gint64) TEST_DEFAULT_SLEEP_TIME);
+}
+
+/**
+ * @brief Test that the count reached from another thread is observed.
+ */
+TEST (commonUtil, waitPipelineProcessBuffersAsync)
+{
+  guint count = 0U;
+  GThread *worker = g_thread_new ("bump", bump_counter, &count);
+
+  ASSERT_TRUE (worker != NULL);
+
+  EXPECT_TRUE (wait_pipeline_process_buffers (&count, 1U, TEST_TIMEOUT_LIMIT_MS));
+  EXPECT_GE (count, 1U);
+
+  g_thread_join (worker);
+}
+
+/**
+ * @brief Test that a count which is never reached fails on timeout.
+ * @note The filter unit tests rely on FALSE here to catch a buffer that never
+ *       arrives; a helper that reported success would make them vacuous again.
+ */
+TEST (commonUtil, waitPipelineProcessBuffers_n)
+{
+  guint count = 0U;
+  const guint timeout_ms = 100U;
+  gint64 elapsed_ms;
+  gint64 start_us = g_get_monotonic_time ();
+
+  EXPECT_FALSE (wait_pipeline_process_buffers (&count, 1U, timeout_ms));
+
+  elapsed_ms = (g_get_monotonic_time () - start_us) / 1000;
+  EXPECT_GE (elapsed_ms, (gint64) timeout_ms);
+  EXPECT_LT (elapsed_ms, (gint64) TEST_TIMEOUT_LIMIT_MS);
+}
+
+/**
  * @brief Main function for unit test.
  */
 int
