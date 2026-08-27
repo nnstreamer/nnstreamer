@@ -109,6 +109,13 @@ namespace
  * down an instance's LiteRT object graph has no documented thread-safety
  * contract, and before the environment was shared each instance built its own,
  * so those paths take it exclusively to keep that guarantee.
+ *
+ * The cost is that instances are no longer fully independent: configuring or
+ * tearing one down blocks invokes on all the others for the duration, and an
+ * invoke in flight delays another instance's setup. Both are bounded by a
+ * single model compile on a path that only runs at pipeline state changes,
+ * which is the cheaper side of the trade against unsynchronized access to a
+ * runtime whose internals cannot be audited.
  */
 std::shared_mutex litert_env_lock;
 LiteRtEnvironment litert_env = nullptr;
