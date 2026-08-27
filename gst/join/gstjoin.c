@@ -16,9 +16,9 @@
  * @note A join has reduced and changed input-selector's function.
  *
  * Connect recently arrived buffer from N input streams to the output pad.
- * N streams should not operate at the same time.
+ * The input streams are expected to take turns; if they overlap, the buffers
+ * are simply interleaved in arrival order.
  * All capabilities (input stream i and output stream) should be the same.
- * For example, If one sinkpad is receiving buffer, the others should be stopped.
  * EOS reaches the output pad only after every linked input stream has ended.
  * <refsect2>
  * <title>Example launch line</title>
@@ -231,27 +231,31 @@ forward_sticky_events (GstPad * sinkpad, GstEvent ** event, gpointer user_data)
 
 /**
  * @brief Check whether every linked sink pad has received EOS.
+ * @param[out] any_eos If not NULL, set to whether at least one sink pad is EOS.
  * @note must be called with the JOIN_LOCK. Unlinked pads are ignored, as no
  *       stream can ever end on them.
  */
 static gboolean
-gst_join_all_sinkpads_eos (GstJoin * sel)
+gst_join_all_sinkpads_eos (GstJoin * sel, gboolean * any_eos)
 {
   GList *l;
-  gboolean eos = TRUE;
+  gboolean all = TRUE, any = FALSE;
 
   GST_OBJECT_LOCK (sel);
   for (l = GST_ELEMENT_CAST (sel)->sinkpads; l; l = l->next) {
     GstJoinPad *selpad = GST_JOIN_PAD_CAST (l->data);
 
-    if (!selpad->eos && GST_PAD_IS_LINKED (GST_PAD_CAST (selpad))) {
-      eos = FALSE;
-      break;
-    }
+    if (selpad->eos)
+      any = TRUE;
+    else if (GST_PAD_IS_LINKED (GST_PAD_CAST (selpad)))
+      all = FALSE;
   }
   GST_OBJECT_UNLOCK (sel);
 
-  return eos;
+  if (any_eos)
+    *any_eos = any;
+
+  return all;
 }
 
 /**
@@ -314,7 +318,7 @@ gst_join_pad_event (GstPad * pad, GstObject * parent, GstEvent * event)
     }
     case GST_EVENT_EOS:
       selpad->eos = TRUE;
-      forward = gst_join_all_sinkpads_eos (sel);
+      forward = gst_join_all_sinkpads_eos (sel, NULL);
       GST_DEBUG_OBJECT (pad, "received EOS, forward %d", forward);
       break;
     case GST_EVENT_FLUSH_STOP:
@@ -460,6 +464,7 @@ static void gst_join_get_property (GObject * object,
     guint prop_id, GValue * value, GParamSpec * pspec);
 static GstPad *gst_join_request_new_pad (GstElement * element,
     GstPadTemplate * templ, const gchar * unused, const GstCaps * caps);
+static void gst_join_release_pad (GstElement * element, GstPad * pad);
 static GstStateChangeReturn gst_join_change_state (GstElement * element,
     GstStateChange transition);
 
@@ -503,6 +508,7 @@ gst_join_class_init (GstJoinClass * klass)
       &gst_join_src_factory);
 
   gstelement_class->request_new_pad = gst_join_request_new_pad;
+  gstelement_class->release_pad = gst_join_release_pad;
   gstelement_class->change_state = gst_join_change_state;
 }
 
@@ -739,6 +745,42 @@ gst_join_request_new_pad (GstElement * element, GstPadTemplate * templ,
   GST_JOIN_UNLOCK (sel);
 
   return sinkpad;
+}
+
+/**
+ * @brief release the given request sink pad
+ */
+static void
+gst_join_release_pad (GstElement * element, GstPad * pad)
+{
+  GstJoin *sel = GST_JOIN (element);
+  GstPad **active_pad_p;
+  gboolean send_eos, any_eos = FALSE;
+
+  GST_JOIN_LOCK (sel);
+  GST_LOG_OBJECT (sel, "Releasing pad %s:%s", GST_DEBUG_PAD_NAME (pad));
+
+  if (sel->active_sinkpad == pad) {
+    active_pad_p = &sel->active_sinkpad;
+    gst_object_replace ((GstObject **) active_pad_p, NULL);
+  }
+  if (sel->n_pads > 0)
+    sel->n_pads--;
+  GST_JOIN_UNLOCK (sel);
+
+  gst_pad_set_active (pad, FALSE);
+  gst_element_remove_pad (element, pad);
+
+  /* A released pad can no longer end its stream. */
+  GST_JOIN_LOCK (sel);
+  send_eos = !GST_PAD_IS_EOS (sel->srcpad)
+      && gst_join_all_sinkpads_eos (sel, &any_eos) && any_eos;
+  GST_JOIN_UNLOCK (sel);
+
+  if (send_eos) {
+    GST_DEBUG_OBJECT (sel, "last awaited sink pad released, forwarding EOS");
+    gst_pad_push_event (sel->srcpad, gst_event_new_eos ());
+  }
 }
 
 /**
