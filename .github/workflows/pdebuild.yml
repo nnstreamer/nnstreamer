@@ -69,7 +69,15 @@ jobs:
         sudo add-apt-repository ppa:nnstreamer/ppa
         # Keep update and install separate: errexit ignores a failure before "&&".
         echo "::group::apt-get update"
-        sudo apt-get update
+        # "&& break" leans on that same rule: a failed attempt must not abort the step.
+        for i in 1 2 3; do
+          sudo apt-get update && break
+          if [ "$i" = 3 ]; then
+            echo "::error::apt-get update failed after $i attempts"
+            exit 1
+          fi
+          sleep $((i * 10))
+        done
         echo "::endgroup::"
         echo "::group::apt-get install"
         sudo apt-get install -y pbuilder debootstrap curl ubuntu-dev-tools qemu-user-static debian-archive-keyring ubuntu-keyring debhelper
@@ -78,7 +86,7 @@ jobs:
         echo "OTHERMIRROR=\"deb [trusted=yes] http://archive.ubuntu.com/ubuntu ${{ matrix.distroname }}-backports universe |deb [trusted=yes] http://ppa.launchpad.net/nnstreamer/ppa/ubuntu ${{ matrix.distroname }} main |deb [trusted=yes] http://ppa.launchpad.net/kubuntu-ppa/backports-extra/ubuntu ${{ matrix.distroname }} main\"" >> ~/.pbuilderrc
         cat ~/.pbuilderrc
         sudo mkdir -p /root/
-        sudo ln -s ~/.pbuilderrc /root/
+        sudo ln -sf ~/.pbuilderrc /root/
 
     - name: make pbuilder base.tgz
       if: ${{ env.rebuild == '1' && steps.restore-pbuilder-cache.outputs.cache-hit != 'true' }}
