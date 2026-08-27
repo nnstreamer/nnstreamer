@@ -16,10 +16,12 @@
  * @note A join has reduced and changed input-selector's function.
  *
  * Connect recently arrived buffer from N input streams to the output pad.
- * The input streams are expected to take turns; if they overlap, the buffers
- * are simply interleaved in arrival order.
+ * The input streams are expected to take turns; when they do overlap, every
+ * buffer is still forwarded, in the order it arrived.
  * All capabilities (input stream i and output stream) should be the same.
  * EOS reaches the output pad only after every linked input stream has ended.
+ * Unlinking a sink pad does not end its stream; release the pad to take it out
+ * of the set that is waited for.
  * <refsect2>
  * <title>Example launch line</title>
  * gst-launch-1.0 ... (input stream 0) ! join.sink_0 \
@@ -754,27 +756,30 @@ static void
 gst_join_release_pad (GstElement * element, GstPad * pad)
 {
   GstJoin *sel = GST_JOIN (element);
-  GstPad **active_pad_p;
+  GstEvent *eos;
   gboolean send_eos, any_eos = FALSE;
 
-  GST_JOIN_LOCK (sel);
+  g_return_if_fail (GST_IS_JOIN_PAD (pad));
+
   GST_LOG_OBJECT (sel, "Releasing pad %s:%s", GST_DEBUG_PAD_NAME (pad));
 
-  if (sel->active_sinkpad == pad) {
-    active_pad_p = &sel->active_sinkpad;
-    gst_object_replace ((GstObject **) active_pad_p, NULL);
-  }
-  if (sel->n_pads > 0)
-    sel->n_pads--;
-  GST_JOIN_UNLOCK (sel);
-
+  /* Deactivate first: this stops the thread that would re-activate the pad. */
   gst_pad_set_active (pad, FALSE);
   gst_element_remove_pad (element, pad);
 
-  /* A released pad can no longer end its stream. */
   GST_JOIN_LOCK (sel);
-  send_eos = !GST_PAD_IS_EOS (sel->srcpad)
+  if (sel->active_sinkpad == pad) {
+    gst_object_unref (sel->active_sinkpad);
+    sel->active_sinkpad = NULL;
+  }
+  if (sel->n_pads > 0)
+    sel->n_pads--;
+
+  /* A released pad can no longer end its stream. */
+  eos = gst_pad_get_sticky_event (sel->srcpad, GST_EVENT_EOS, 0);
+  send_eos = (eos == NULL)
       && gst_join_all_sinkpads_eos (sel, &any_eos) && any_eos;
+  gst_event_replace (&eos, NULL);
   GST_JOIN_UNLOCK (sel);
 
   if (send_eos) {

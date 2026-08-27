@@ -388,19 +388,22 @@ TEST (join, forwardAllBuffers)
 /**
  * @brief Test that releasing a sink pad completes the EOS aggregation.
  * @detail A released pad can no longer end its stream, so releasing the pad the
- *         join is still waiting for has to end the output stream. sink_0 is the
- *         active pad here, so this also covers releasing the active pad.
+ *         join is still waiting for has to end the output stream. The pad
+ *         released here has streamed a buffer and is the active one, so the
+ *         release also has to stop referencing it as active.
  */
 TEST (join, eosAfterPadRelease)
 {
-  GstElement *appsrc_1, *join_handle, *sink_handle;
-  GstPad *sinkpad_0, *peer_0;
+  GstElement *appsrc_0, *appsrc_1, *join_handle, *sink_handle;
+  GstPad *sinkpad_0, *peer_0, *active_pad = NULL;
   guint n_pads = 0;
   gint idx = 1;
 
   GstElement *pipeline = gst_parse_launch (join_pipeline_desc, NULL);
   ASSERT_NE (pipeline, nullptr);
 
+  appsrc_0 = gst_bin_get_by_name (GST_BIN (pipeline), "appsrc_0");
+  ASSERT_NE (appsrc_0, nullptr);
   appsrc_1 = gst_bin_get_by_name (GST_BIN (pipeline), "appsrc_1");
   ASSERT_NE (appsrc_1, nullptr);
   join_handle = gst_bin_get_by_name (GST_BIN (pipeline), "join");
@@ -412,6 +415,7 @@ TEST (join, eosAfterPadRelease)
   data_received = 0;
   ASSERT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
+  idx = 1;
   ASSERT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc_1),
                  gst_buffer_new_wrapped (_g_memdup (test_frames[1], 192), 192)),
       GST_FLOW_OK);
@@ -420,28 +424,139 @@ TEST (join, eosAfterPadRelease)
   EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (appsrc_1)), GST_FLOW_OK);
   EXPECT_EQ (pop_eos_or_error (pipeline, 300), GST_MESSAGE_UNKNOWN);
 
+  /* sink_0 streams last, so it is the active pad when it is released. */
+  idx = 0;
+  ASSERT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc_0),
+                 gst_buffer_new_wrapped (_g_memdup (test_frames[0], 192), 192)),
+      GST_FLOW_OK);
+  g_usleep (100000);
+
   sinkpad_0 = gst_element_get_static_pad (join_handle, "sink_0");
   ASSERT_NE (sinkpad_0, nullptr);
+  g_object_get (join_handle, "active-pad", &active_pad, NULL);
+  EXPECT_EQ (sinkpad_0, active_pad);
+  g_clear_object (&active_pad);
+
   peer_0 = gst_pad_get_peer (sinkpad_0);
   if (peer_0) {
     gst_pad_unlink (peer_0, sinkpad_0);
     gst_object_unref (peer_0);
   }
   gst_element_release_request_pad (join_handle, sinkpad_0);
-  gst_object_unref (sinkpad_0);
 
   EXPECT_EQ (pop_eos_or_error (pipeline, UNITTEST_STATECHANGE_TIMEOUT), GST_MESSAGE_EOS);
 
+  g_object_get (join_handle, "active-pad", &active_pad, NULL);
+  EXPECT_NE (sinkpad_0, active_pad);
+  g_clear_object (&active_pad);
+  gst_object_unref (sinkpad_0);
+
   g_object_get (join_handle, "n-pads", &n_pads, NULL);
   EXPECT_EQ (1U, n_pads);
-  EXPECT_EQ (1, data_received);
+  EXPECT_EQ (2, data_received);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (sink_handle);
   gst_object_unref (join_handle);
   gst_object_unref (appsrc_1);
+  gst_object_unref (appsrc_0);
   gst_object_unref (pipeline);
+}
+
+/**
+ * @brief Shared state of the buffer feeding thread.
+ */
+typedef struct {
+  GstElement *appsrc;
+  gint stop;
+} JoinFeeder;
+
+/**
+ * @brief Push buffers into an appsrc until the caller asks it to stop.
+ */
+static gpointer
+join_feeder_thread (gpointer data)
+{
+  JoinFeeder *feeder = (JoinFeeder *) data;
+
+  while (!g_atomic_int_get (&feeder->stop)) {
+    GstBuffer *buf = gst_buffer_new_wrapped (_g_memdup (test_frames[0], 192), 192);
+
+    if (gst_app_src_push_buffer (GST_APP_SRC (feeder->appsrc), buf) != GST_FLOW_OK)
+      break;
+  }
+
+  return NULL;
+}
+
+/**
+ * @brief Release the sink pad a feeder thread is streaming into.
+ * @return TRUE if the released pad is no longer referenced as the active one.
+ */
+static gboolean
+run_pad_release_while_streaming (void)
+{
+  GstElement *appsrc_0, *join_handle, *sink_handle;
+  GstPad *sinkpad_0, *active_pad = NULL;
+  JoinFeeder feeder = { NULL, 0 };
+  GThread *thread;
+  guint received = 0, n_pads = 0;
+  gboolean released = FALSE;
+
+  GstElement *pipeline = gst_parse_launch (join_pipeline_desc, NULL);
+  if (pipeline == NULL)
+    return FALSE;
+
+  appsrc_0 = gst_bin_get_by_name (GST_BIN (pipeline), "appsrc_0");
+  join_handle = gst_bin_get_by_name (GST_BIN (pipeline), "join");
+  sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  g_signal_connect (sink_handle, "new-data", (GCallback) count_data_cb, (gpointer) &received);
+
+  setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
+
+  feeder.appsrc = appsrc_0;
+  thread = g_thread_new ("join-feeder", join_feeder_thread, &feeder);
+  wait_pipeline_process_buffers (&received, 1, TEST_TIMEOUT_LIMIT_MS);
+
+  /* Released while still linked, so the feeder keeps sink_0 streaming. */
+  sinkpad_0 = gst_element_get_static_pad (join_handle, "sink_0");
+  gst_element_release_request_pad (join_handle, sinkpad_0);
+
+  g_atomic_int_set (&feeder.stop, 1);
+  g_thread_join (thread);
+
+  g_object_get (join_handle, "active-pad", &active_pad, NULL);
+  g_object_get (join_handle, "n-pads", &n_pads, NULL);
+  released = (active_pad != sinkpad_0) && (n_pads == 1U);
+  g_clear_object (&active_pad);
+  gst_object_unref (sinkpad_0);
+
+  setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
+
+  gst_object_unref (sink_handle);
+  gst_object_unref (join_handle);
+  gst_object_unref (appsrc_0);
+  gst_object_unref (pipeline);
+
+  return released;
+}
+
+/**
+ * @brief Test that releasing a sink pad that is still streaming is safe.
+ * @detail The streaming thread of the pad makes it the active pad on every
+ *         buffer, so the release has to stop that thread before it drops the
+ *         element's reference. Otherwise active-pad is left pointing at a pad
+ *         that is no longer part of the element, and the events of the
+ *         surviving pads are silently dropped from then on. The window is a
+ *         few instructions wide, so the run is repeated.
+ */
+TEST (join, padReleaseWhileStreaming)
+{
+  guint i;
+
+  for (i = 0; i < 20; i++)
+    ASSERT_TRUE (run_pad_release_while_streaming ()) << "iteration " << i;
 }
 
 /**
