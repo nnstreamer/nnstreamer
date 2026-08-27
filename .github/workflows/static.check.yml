@@ -175,6 +175,20 @@ jobs:
           else
             echo "Skipped: $selftest is not in this branch's tree and this PR does not remove it."
           fi
+      - name: /Checker/ SSAT install list is in sync
+        # Same guard as the check-rebuild self-test above: the step list comes
+        # from the merge ref while the checkout is the PR head, so a branch that
+        # predates this script would fail with "No such file or directory".
+        run: |
+          checker=.github/workflows/static.check.scripts/ssat-install-list.sh
+          if [ -f "$checker" ]; then
+            bash "$checker"
+          elif git show --pretty="format:" --name-only --no-renames --diff-filter=D ${{ github.event.pull_request.head.sha }} -${{ github.event.pull_request.commits }} | grep -qxF "$checker"; then
+            echo "::error::This PR removes $checker; remove its workflow step too, or restore the script (also update this step if the script moved)."
+            exit 1
+          else
+            echo "Skipped: $checker is not in this branch's tree and this PR does not remove it."
+          fi
       - name: /Checker/ shellcheck for shell scripts
         # Originally from "pr-prebuild-shellcheck"
         run: |
