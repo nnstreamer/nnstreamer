@@ -20,8 +20,8 @@
  * buffer is still forwarded, in the order it arrived.
  * All capabilities (input stream i and output stream) should be the same.
  * EOS reaches the output pad only after every linked input stream has ended.
- * Unlinking a sink pad does not end its stream; release the pad to take it out
- * of the set that is waited for.
+ * A sink pad that is unlinked or released is no longer waited for, since no
+ * stream can end on it; the output would otherwise never see EOS.
  * <refsect2>
  * <title>Example launch line</title>
  * gst-launch-1.0 ... (input stream 0) ! join.sink_0 \
@@ -320,11 +320,13 @@ gst_join_pad_event (GstPad * pad, GstObject * parent, GstEvent * event)
     }
     case GST_EVENT_EOS:
       selpad->eos = TRUE;
-      forward = gst_join_all_sinkpads_eos (sel, NULL);
+      forward = !sel->eos_sent && gst_join_all_sinkpads_eos (sel, NULL);
+      sel->eos_sent |= forward;
       GST_DEBUG_OBJECT (pad, "received EOS, forward %d", forward);
       break;
     case GST_EVENT_FLUSH_STOP:
       selpad->eos = FALSE;
+      sel->eos_sent = FALSE;
       break;
     default:
       break;
@@ -528,6 +530,7 @@ gst_join_change_state (GstElement * element, GstStateChange transition)
     GST_OBJECT_LOCK (sel);
     for (l = element->sinkpads; l; l = l->next)
       GST_JOIN_PAD_CAST (l->data)->eos = FALSE;
+    sel->eos_sent = FALSE;
     GST_OBJECT_UNLOCK (sel);
     GST_JOIN_UNLOCK (sel);
   }
@@ -759,7 +762,6 @@ static void
 gst_join_release_pad (GstElement * element, GstPad * pad)
 {
   GstJoin *sel = GST_JOIN (element);
-  GstEvent *eos;
   gboolean send_eos, any_eos = FALSE;
 
   g_return_if_fail (GST_IS_JOIN_PAD (pad));
@@ -781,10 +783,9 @@ gst_join_release_pad (GstElement * element, GstPad * pad)
     sel->n_pads--;
 
   /* A released pad can no longer end its stream. */
-  eos = gst_pad_get_sticky_event (sel->srcpad, GST_EVENT_EOS, 0);
-  send_eos = (eos == NULL)
+  send_eos = !sel->eos_sent
       && gst_join_all_sinkpads_eos (sel, &any_eos) && any_eos;
-  gst_event_replace (&eos, NULL);
+  sel->eos_sent |= send_eos;
   GST_JOIN_UNLOCK (sel);
 
   gst_object_unref (pad);
