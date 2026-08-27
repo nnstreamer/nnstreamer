@@ -555,7 +555,7 @@ TEST (join, padReleaseWhileStreaming)
 {
   guint i;
 
-  for (i = 0; i < 20; i++)
+  for (i = 0; i < 100; i++)
     ASSERT_TRUE (run_pad_release_while_streaming ()) << "iteration " << i;
 }
 

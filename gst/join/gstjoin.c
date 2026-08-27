@@ -751,6 +751,9 @@ gst_join_request_new_pad (GstElement * element, GstPadTemplate * templ,
 
 /**
  * @brief release the given request sink pad
+ * @note Deactivating the pad takes its stream lock, so this blocks until the
+ *       streaming thread of the pad has left the chain function. That is what
+ *       keeps the pad from being made active again while it is removed.
  */
 static void
 gst_join_release_pad (GstElement * element, GstPad * pad)
@@ -760,10 +763,12 @@ gst_join_release_pad (GstElement * element, GstPad * pad)
   gboolean send_eos, any_eos = FALSE;
 
   g_return_if_fail (GST_IS_JOIN_PAD (pad));
+  g_return_if_fail (GST_PAD_PARENT (pad) == GST_ELEMENT_CAST (sel));
 
   GST_LOG_OBJECT (sel, "Releasing pad %s:%s", GST_DEBUG_PAD_NAME (pad));
 
-  /* Deactivate first: this stops the thread that would re-activate the pad. */
+  /* Keep the pad alive: the caller does not have to hold a reference. */
+  gst_object_ref (pad);
   gst_pad_set_active (pad, FALSE);
   gst_element_remove_pad (element, pad);
 
@@ -781,6 +786,8 @@ gst_join_release_pad (GstElement * element, GstPad * pad)
       && gst_join_all_sinkpads_eos (sel, &any_eos) && any_eos;
   gst_event_replace (&eos, NULL);
   GST_JOIN_UNLOCK (sel);
+
+  gst_object_unref (pad);
 
   if (send_eos) {
     GST_DEBUG_OBJECT (sel, "last awaited sink pad released, forwarding EOS");
