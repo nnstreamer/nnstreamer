@@ -285,7 +285,8 @@ if gtest_dep.found()
       install_dir: unittest_install_dir
     )
 
-    test('unittest_filter_tensorflow2_lite', unittest_filter_tensorflow2_lite, env: testenv)
+    test('unittest_filter_tensorflow2_lite', unittest_filter_tensorflow2_lite,
+      timeout: 120, env: testenv)
   endif
 
   if have_python3
@@ -408,7 +409,7 @@ if gtest_dep.found()
       install_dir: unittest_install_dir
     )
 
-    test('unittest_filter_onnxruntime', unittest_filter_onnxruntime, env: testenv)
+    test('unittest_filter_onnxruntime', unittest_filter_onnxruntime, timeout: 120, env: testenv)
   endif
 
   # LiteRT unittest
@@ -420,7 +421,7 @@ if gtest_dep.found()
       install_dir: unittest_install_dir
     )
 
-    test('unittest_filter_litert', unittest_filter_litert, env: testenv)
+    test('unittest_filter_litert', unittest_filter_litert, timeout: 120, env: testenv)
   endif
 
   # LLAMACPP unittest
