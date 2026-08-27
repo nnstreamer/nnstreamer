@@ -5,7 +5,8 @@ Guidance for AI coding agents (Claude Code and others) working on this repositor
 Supplementary documents — read them when the task touches their area:
 
 - [AGENTS.md](AGENTS.md): how to build, set up the runtime environment, run tests, and lint. Read it before building or running anything in this repo.
-- [CONTRIBUTING.md](CONTRIBUTING.md): general contribution rules (DCO sign-off, coding style, review process).
+- [Documentation/contributing.md](Documentation/contributing.md): coding convention, PR/review process, merge criteria, and DCO sign-off.
+- [CONTRIBUTING.md](CONTRIBUTING.md): project governance (TSC, committers, merging privilege).
 
 ## Branch and PR policy
 
@@ -36,6 +37,6 @@ Every functional change must come with test cases in the same PR:
 
 ## Code style
 
-- C: K&R style, 2-space indentation (checked by CI; see `.github/workflows/static.check.yml`).
-- C++: repo `.clang-format`.
+- C: K&R style, 2-space indentation (checked by CI; see `.github/workflows/static.check.yml`). Apply locally with `tools/development/gst-indent <file>` on changed C files.
+- C++: repo `.clang-format` (clang-format, not `indent` — the two checkers apply to different file extensions).
 - Match the style of surrounding code; do not reformat unrelated lines.
