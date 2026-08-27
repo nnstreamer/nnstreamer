@@ -39,7 +39,9 @@ class NNStreamerFilterTVMTest : public ::testing::Test
   const GstTensorFilterFramework *sp;
   const gchar *wrong_model_files[2];
   const gchar *proper_model_files[2];
+  const gchar *invalid_model_files[2];
   gchar *model_file;
+  gchar *invalid_model_file;
   gchar *pipeline;
   GstElement *gstpipe;
   GstElement *sink_handle;
@@ -47,16 +49,25 @@ class NNStreamerFilterTVMTest : public ::testing::Test
   GstTensorMemory output;
 
   /**
+   * @brief Get the absolute path of a file in tests/test_models
+   */
+  gchar *GetTestModelPath (const gchar *subdir, const gchar *filename)
+  {
+    const gchar *src_root = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+    g_autofree gchar *root_path = src_root ? g_strdup (src_root) : g_get_current_dir ();
+
+    return g_build_filename (root_path, "tests", "test_models", subdir, filename, NULL);
+  }
+
+  /**
    * @brief Set the model file for testing
    */
   gchar *SetModelFile ()
   {
-    const gchar *src_root = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
-    g_autofree gchar *root_path = src_root ? g_strdup (src_root) : g_get_current_dir ();
     g_autofree gchar *model_name
         = g_strdup_printf ("tvm_add_one_%s%s_", ARCH, NNSTREAMER_SO_FILE_EXTENSION);
 
-    return g_build_filename (root_path, "tests", "test_models", "models", model_name, NULL);
+    return GetTestModelPath ("models", model_name);
   }
 
   public:
@@ -64,13 +75,14 @@ class NNStreamerFilterTVMTest : public ::testing::Test
    * @brief Construct a new NNStreamerFilterTVMTest object
    */
   NNStreamerFilterTVMTest ()
-      : sp (nullptr), model_file (nullptr), pipeline (nullptr),
-        gstpipe (nullptr), sink_handle (nullptr)
+      : sp (nullptr), model_file (nullptr), invalid_model_file (nullptr),
+        pipeline (nullptr), gstpipe (nullptr), sink_handle (nullptr)
   {
     input.data = output.data = nullptr;
     input.size = output.size = 0;
     wrong_model_files[0] = wrong_model_files[1] = nullptr;
     proper_model_files[0] = proper_model_files[1] = nullptr;
+    invalid_model_files[0] = invalid_model_files[1] = nullptr;
   }
 
   /**
@@ -97,6 +109,10 @@ class NNStreamerFilterTVMTest : public ::testing::Test
     proper_model_files[0] = model_file;
     proper_model_files[1] = NULL;
 
+    invalid_model_file = GetTestModelPath ("labels", "labels.txt");
+    invalid_model_files[0] = invalid_model_file;
+    invalid_model_files[1] = NULL;
+
     input.size = output.size = 0;
     input.data = nullptr;
     output.data = nullptr;
@@ -110,6 +126,7 @@ class NNStreamerFilterTVMTest : public ::testing::Test
   void TearDown () override
   {
     g_free (model_file);
+    g_free (invalid_model_file);
     g_free (pipeline);
 
     g_clear_object (&gstpipe);
@@ -184,6 +201,28 @@ TEST_F (NNStreamerFilterTVMTest, openClose00)
   sp->close (&prop, &data);
 
   /* double close */
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief Negative case with a file that exists but is not a tvm module
+ */
+TEST_F (NNStreamerFilterTVMTest, openClose01_n)
+{
+  int ret;
+  void *data = NULL;
+  GstTensorFilterProperties prop;
+
+  ASSERT_TRUE (g_file_test (invalid_model_file, G_FILE_TEST_IS_REGULAR));
+  EXPECT_NE (sp, nullptr);
+
+  /* Test */
+  SetFilterProperty (&prop, invalid_model_files);
+  ret = sp->open (&prop, &data);
+  EXPECT_NE (ret, 0);
+  EXPECT_EQ (data, nullptr);
+
+  /* close after failed open */
   sp->close (&prop, &data);
 }
 

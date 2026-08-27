@@ -99,16 +99,17 @@ tvm_subplugin::tvm_subplugin ()
 void
 tvm_subplugin::cleanup () noexcept
 {
+  g_free (model_path);
+  model_path = nullptr;
+
   if (empty_model)
     return;
-  g_free (model_path);
 
   input_tensor_list.clear ();
   output_tensor_list.clear ();
   gst_tensors_info_free (std::addressof (inputInfo));
   gst_tensors_info_free (std::addressof (outputInfo));
 
-  model_path = nullptr;
   empty_model = true;
 }
 
