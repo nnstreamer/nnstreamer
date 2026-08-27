@@ -44,6 +44,7 @@ struct _GstJoin
   guint padcount;               /* sequence number for pads */
 
   gboolean have_group_id;
+  gboolean eos_sent;            /* TRUE once EOS was pushed downstream */
 
   GMutex lock;
   GCond cond;

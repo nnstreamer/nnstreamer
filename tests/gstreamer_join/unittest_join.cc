@@ -511,6 +511,13 @@ run_pad_release_while_streaming (void)
   appsrc_0 = gst_bin_get_by_name (GST_BIN (pipeline), "appsrc_0");
   join_handle = gst_bin_get_by_name (GST_BIN (pipeline), "join");
   sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  if (appsrc_0 == NULL || join_handle == NULL || sink_handle == NULL) {
+    g_clear_object (&appsrc_0);
+    g_clear_object (&join_handle);
+    g_clear_object (&sink_handle);
+    gst_object_unref (pipeline);
+    return FALSE;
+  }
   g_signal_connect (sink_handle, "new-data", (GCallback) count_data_cb, (gpointer) &received);
 
   setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
@@ -596,6 +603,52 @@ TEST (join, eosAfterFlush)
   /* sink_0 is no longer EOS, so ending sink_1 must not end the output stream. */
   EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (appsrc_1)), GST_FLOW_OK);
   EXPECT_EQ (pop_eos_or_error (pipeline, 300), GST_MESSAGE_UNKNOWN);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  gst_object_unref (sink_handle);
+  gst_object_unref (join_handle);
+  gst_object_unref (appsrc_1);
+  gst_object_unref (appsrc_0);
+  gst_object_unref (pipeline);
+}
+
+/**
+ * @brief Test that an unlinked sink pad does not hold the output stream open.
+ */
+TEST (join, eosAfterUnlink)
+{
+  GstElement *appsrc_0, *appsrc_1, *join_handle, *sink_handle;
+  GstPad *sinkpad_0, *srcpad_0;
+  gint idx = 0;
+
+  GstElement *pipeline = gst_parse_launch (join_pipeline_desc, NULL);
+  ASSERT_NE (pipeline, nullptr);
+
+  appsrc_0 = gst_bin_get_by_name (GST_BIN (pipeline), "appsrc_0");
+  ASSERT_NE (appsrc_0, nullptr);
+  appsrc_1 = gst_bin_get_by_name (GST_BIN (pipeline), "appsrc_1");
+  ASSERT_NE (appsrc_1, nullptr);
+  join_handle = gst_bin_get_by_name (GST_BIN (pipeline), "join");
+  ASSERT_NE (join_handle, nullptr);
+  sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  ASSERT_NE (sink_handle, nullptr);
+  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, (gpointer) &idx);
+
+  data_received = 0;
+  ASSERT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  sinkpad_0 = gst_element_get_static_pad (join_handle, "sink_0");
+  ASSERT_NE (sinkpad_0, nullptr);
+  srcpad_0 = gst_pad_get_peer (sinkpad_0);
+  ASSERT_NE (srcpad_0, nullptr);
+  EXPECT_TRUE (gst_pad_unlink (srcpad_0, sinkpad_0));
+  gst_object_unref (srcpad_0);
+  gst_object_unref (sinkpad_0);
+
+  /* No stream can end on the unlinked pad, so it must not be waited for. */
+  EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (appsrc_1)), GST_FLOW_OK);
+  EXPECT_EQ (pop_eos_or_error (pipeline, UNITTEST_STATECHANGE_TIMEOUT), GST_MESSAGE_EOS);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
