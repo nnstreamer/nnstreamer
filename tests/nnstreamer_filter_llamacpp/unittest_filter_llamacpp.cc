@@ -57,34 +57,6 @@ typedef struct {
   } while (0)
 
 /**
- * @brief Callback function for appsink element to pull sample and print the output text from llamacpp plugin
- */
-static GstFlowReturn
-new_sample_cb (GstElement *sink, gpointer user_data)
-{
-  GstSample *sample;
-  GstBuffer *buffer;
-  GstMapInfo map;
-
-  if (user_data) {
-    guint *count = (guint *) user_data;
-    (*count)++;
-  }
-
-  sample = gst_app_sink_pull_sample (GST_APP_SINK (sink));
-  if (sample) {
-    buffer = gst_sample_get_buffer (sample);
-    if (gst_buffer_map (buffer, &map, GST_MAP_READ)) {
-      g_print ("%.*s", (int) map.size, (char *) map.data);
-      gst_buffer_unmap (buffer, &map);
-    }
-    gst_sample_unref (sample);
-    return GST_FLOW_OK;
-  }
-  return GST_FLOW_ERROR;
-}
-
-/**
  * @brief Test fixture class for tensor_filter llama-cpp plugin unit tests.
  */
 class NNStreamerFilterLlamaCppTest : public ::testing::Test
@@ -94,6 +66,7 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
   gchar *model;
   LoRAPaths *lora_paths;
   guint *new_sample_count;
+  gsize max_sample_size;
   gboolean pipeline_error;
   gboolean skip_test;
   gboolean skip_lora_test;
@@ -115,6 +88,7 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
     appsink = nullptr;
     tensor_filter = nullptr;
     new_sample_count = nullptr;
+    max_sample_size = 0;
     pipeline_error = FALSE;
 
     model = g_build_filename (
@@ -149,6 +123,7 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
   {
     /* Track the number of async callback invocations. */
     new_sample_count = g_new0 (guint, 1);
+    max_sample_size = 0;
     pipeline_error = FALSE;
   }
 
@@ -159,6 +134,38 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
   {
     clear_pipeline ();
     g_clear_pointer (&new_sample_count, g_free);
+  }
+
+  /**
+   * @brief Callback for appsink to pull a sample, print the generated text and
+   *        record the sample count and the largest payload seen.
+   *
+   * The payload size matters because a zero-token generation is expected to
+   * arrive as a one-byte, terminator-only buffer rather than not at all.
+   */
+  static GstFlowReturn new_sample_cb (GstElement *sink, gpointer user_data)
+  {
+    NNStreamerFilterLlamaCppTest *self = (NNStreamerFilterLlamaCppTest *) user_data;
+    GstSample *sample;
+    GstBuffer *buffer;
+    GstMapInfo map;
+
+    if (self && self->new_sample_count)
+      (*self->new_sample_count)++;
+
+    sample = gst_app_sink_pull_sample (GST_APP_SINK (sink));
+    if (sample) {
+      buffer = gst_sample_get_buffer (sample);
+      if (gst_buffer_map (buffer, &map, GST_MAP_READ)) {
+        g_print ("%.*s", (int) map.size, (char *) map.data);
+        if (self && map.size > self->max_sample_size)
+          self->max_sample_size = map.size;
+        gst_buffer_unmap (buffer, &map);
+      }
+      gst_sample_unref (sample);
+      return GST_FLOW_OK;
+    }
+    return GST_FLOW_ERROR;
   }
 
   /**
@@ -189,7 +196,7 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
     g_return_val_if_fail (appsink != nullptr, FALSE);
 
     g_object_set (G_OBJECT (appsink), "emit-signals", TRUE, NULL);
-    g_signal_connect (appsink, "new-sample", G_CALLBACK (new_sample_cb), new_sample_count);
+    g_signal_connect (appsink, "new-sample", G_CALLBACK (new_sample_cb), this);
     return TRUE;
   }
 
@@ -333,6 +340,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputSingleOutputSync_p)
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (*new_sample_count, 1);
+  EXPECT_GT (max_sample_size, 1U);
 }
 
 /**
@@ -391,6 +399,8 @@ TEST_F (NNStreamerFilterLlamaCppTest, zeroTokenGenerationSync_p)
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (*new_sample_count, 2);
+  /* Both samples carry the string terminator and nothing else. */
+  EXPECT_EQ (max_sample_size, 1U);
 }
 
 /**
