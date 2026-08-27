@@ -33,9 +33,6 @@
  *
  * @todo Zero-copy invoke by wrapping GstTensorMemory with
  *       LiteRtCreateTensorBufferFromHostMemory when alignment permits.
- * @todo Share one LiteRtEnvironment across instances. Each filter instance
- *       currently creates its own environment; with GPU/NPU accelerators
- *       that may mean one device context per instance.
  * @todo Support dynamic input dimensions (invoke_dynamic).
  * @todo Expose accelerator-specific opaque options (GPU precision, NPU
  *       compiler plugin paths, etc.).
@@ -44,6 +41,7 @@
 #include <cerrno>
 #include <cstring>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -88,6 +86,62 @@ void _fini_filter_litert (void) __attribute__ ((destructor));
     }                                                                              \
   } while (0)
 
+namespace
+{
+/**
+ * @brief The process-wide LiteRtEnvironment shared by every filter instance.
+ *
+ * LiteRT binds accelerator device contexts (the GPU context, the dispatch and
+ * compiler-plugin libraries) to the environment, and upstream recommends
+ * sharing one environment when an application holds several compiled models.
+ * Nothing in it is per-instance here: accelerator selection is applied through
+ * LiteRtCreateOptions at compile time, not through the environment.
+ *
+ * It is reference counted rather than leaked as a create-once singleton
+ * because the environment must outlive every model and compiled model created
+ * from it, while instances open and close independently at pipeline state
+ * changes.
+ */
+std::mutex litert_env_lock;
+LiteRtEnvironment litert_env = nullptr;
+unsigned int litert_env_refs = 0;
+
+/**
+ * @brief Take a reference to the shared environment, creating it if needed.
+ * @return the shared environment; the caller must not destroy it
+ * @throw std::runtime_error if the environment cannot be created
+ */
+LiteRtEnvironment
+litert_env_ref ()
+{
+  std::lock_guard<std::mutex> guard (litert_env_lock);
+
+  if (litert_env_refs == 0) {
+    LiteRtEnvironment created = nullptr;
+    LITERT_CHECK (LiteRtCreateEnvironment (0, nullptr, &created));
+    litert_env = created;
+  }
+
+  ++litert_env_refs;
+  return litert_env;
+}
+
+/**
+ * @brief Drop a reference, destroying the environment along with the last one.
+ */
+void
+litert_env_unref ()
+{
+  std::lock_guard<std::mutex> guard (litert_env_lock);
+
+  if (litert_env_refs == 0 || --litert_env_refs > 0)
+    return;
+
+  LiteRtDestroyEnvironment (litert_env);
+  litert_env = nullptr;
+}
+} /* namespace */
+
 /** @brief litert subplugin class */
 class litert_subplugin final : public tensor_filter_subplugin
 {
@@ -117,7 +171,7 @@ class litert_subplugin final : public tensor_filter_subplugin
   std::string signature_key{}; /**< requested signature key; empty = default */
   LiteRtParamIndex signature_index{}; /**< resolved signature index */
 
-  LiteRtEnvironment env{};
+  LiteRtEnvironment env{}; /**< borrowed from the shared environment; never destroyed here */
   LiteRtModel model{};
   LiteRtCompiledModel compiled_model{};
 
@@ -186,7 +240,7 @@ litert_subplugin::cleanup ()
     model = nullptr;
   }
   if (env != nullptr) {
-    LiteRtDestroyEnvironment (env);
+    litert_env_unref ();
     env = nullptr;
   }
 
@@ -593,7 +647,7 @@ litert_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   }
 
   try {
-    LITERT_CHECK (LiteRtCreateEnvironment (0, nullptr, &env));
+    env = litert_env_ref ();
     LITERT_CHECK (LiteRtCreateModelFromFile (env, model_path, &model));
 
     signature_index = resolveSignature ();

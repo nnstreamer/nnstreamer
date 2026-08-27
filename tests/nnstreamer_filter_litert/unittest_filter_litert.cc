@@ -18,6 +18,10 @@
 #include <glib/gstdio.h>
 #include <gst/gst.h>
 
+#include <atomic>
+#include <thread>
+#include <vector>
+
 #include <nnstreamer_plugin_api_filter.h>
 #include <nnstreamer_util.h>
 #include <tensor_common.h>
@@ -790,6 +794,167 @@ TEST (nnstreamerFilterLiteRT, reopenDifferentModel)
   sp->close (&prop, &data);
   gst_tensors_info_free (&in_info);
   gst_tensors_info_free (&out_info);
+}
+
+/**
+ * @brief Positive case: a second instance must survive the first instance's close.
+ *
+ * Both instances share the process-wide LiteRtEnvironment. If close() on the
+ * first instance destroyed that shared environment (instead of merely
+ * dropping a reference), the second instance's still-open compiled model
+ * would be left operating on a freed environment and its next invoke()
+ * would fail or crash.
+ */
+TEST (nnstreamerFilterLiteRT, sharedEnvMultiInstance)
+{
+  int ret;
+  void *data1 = NULL, *data2 = NULL;
+  GstTensorMemory input, output;
+  g_autofree gchar *model_file = NULL;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 1));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop1, prop2;
+  _SetFilterProp (&prop1, "litert", model_files);
+  _SetFilterProp (&prop2, "litert", model_files);
+
+  input.size = sizeof (float) * 224 * 224 * 3;
+  output.size = sizeof (float) * 1001;
+  input.data = g_malloc0 (input.size);
+  output.data = g_malloc (output.size);
+
+  /* two independent instances held open at the same time */
+  ret = sp->open (&prop1, &data1);
+  ASSERT_EQ (ret, 0);
+  ret = sp->open (&prop2, &data2);
+  ASSERT_EQ (ret, 0);
+
+  EXPECT_EQ (sp->invoke (NULL, &prop1, data1, &input, &output), 0);
+  EXPECT_EQ (sp->invoke (NULL, &prop2, data2, &input, &output), 0);
+
+  /* dropping the first instance must not tear down the shared environment */
+  sp->close (&prop1, &data1);
+
+  EXPECT_EQ (sp->invoke (NULL, &prop2, data2, &input, &output), 0)
+      << "The second instance failed after the first instance closed; the "
+         "shared LiteRtEnvironment was likely destroyed prematurely.";
+
+  g_free (input.data);
+  g_free (output.data);
+  sp->close (&prop2, &data2);
+}
+
+/**
+ * @brief Positive case: the shared environment must be recreated after the
+ * refcount drops to zero and a new instance is opened.
+ */
+TEST (nnstreamerFilterLiteRT, sharedEnvReacquire)
+{
+  int ret;
+  void *data = NULL;
+  GstTensorMemory input, output;
+  g_autofree gchar *model_file = NULL;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 1));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+
+  input.size = sizeof (float) * 224 * 224 * 3;
+  output.size = sizeof (float) * 1001;
+  input.data = g_malloc0 (input.size);
+  output.data = g_malloc (output.size);
+
+  /* first instance: acquires, uses, and fully releases the shared env */
+  ret = sp->open (&prop, &data);
+  ASSERT_EQ (ret, 0);
+  EXPECT_EQ (sp->invoke (NULL, &prop, data, &input, &output), 0);
+  sp->close (&prop, &data);
+
+  /* second instance: must re-acquire (recreate) the shared env from scratch */
+  data = NULL;
+  ret = sp->open (&prop, &data);
+  ASSERT_EQ (ret, 0);
+  EXPECT_EQ (sp->invoke (NULL, &prop, data, &input, &output), 0)
+      << "Reopening after the refcount reached zero failed; the shared "
+         "LiteRtEnvironment was likely not recreated on re-acquire.";
+
+  g_free (input.data);
+  g_free (output.data);
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief Worker routine for sharedEnvConcurrentOpen: open, invoke, close once.
+ * @param[in] model_files NULL-terminated array with a single model path
+ * @param[out] ok set to true on success; read by the joining thread only
+ */
+static void
+_sharedEnvWorker (const gchar **model_files, std::atomic<bool> *ok)
+{
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  if (sp == nullptr) {
+    *ok = false;
+    return;
+  }
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+
+  GstTensorMemory input, output;
+  input.size = sizeof (float) * 224 * 224 * 3;
+  output.size = sizeof (float) * 1001;
+  input.data = g_malloc0 (input.size);
+  output.data = g_malloc (output.size);
+
+  void *data = NULL;
+  gboolean success = FALSE;
+
+  if (sp->open (&prop, &data) == 0) {
+    success = (sp->invoke (NULL, &prop, data, &input, &output) == 0);
+    sp->close (&prop, &data);
+  }
+
+  g_free (input.data);
+  g_free (output.data);
+
+  *ok = success;
+}
+
+/**
+ * @brief Positive case: concurrent open/invoke/close from multiple threads
+ * must not corrupt the mutex-guarded shared-environment refcount.
+ */
+TEST (nnstreamerFilterLiteRT, sharedEnvConcurrentOpen)
+{
+  const guint num_workers = 4U;
+  g_autofree gchar *model_file = NULL;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 1));
+
+  const gchar *model_files[] = { model_file, NULL };
+
+  std::vector<std::atomic<bool>> results (num_workers);
+  for (auto &r : results)
+    r = false;
+
+  std::vector<std::thread> workers;
+  for (guint i = 0; i < num_workers; ++i)
+    workers.emplace_back (_sharedEnvWorker, model_files, &results[i]);
+
+  for (auto &w : workers)
+    w.join ();
+
+  for (guint i = 0; i < num_workers; ++i)
+    EXPECT_TRUE (results[i].load ()) << "Worker " << i << " failed under concurrent open/close.";
 }
 
 /**
