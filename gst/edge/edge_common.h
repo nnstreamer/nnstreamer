@@ -45,7 +45,8 @@ GType gst_edge_get_connect_type (void);
  *         (e.g. from a trailing comma) are silently ignored and do not affect
  *         the result. Tokens without ':', with an empty key or value, or
  *         rejected by nns_edge_set_info() are logged, skipped, and make the
- *         return value FALSE.
+ *         return value FALSE. Option values may carry credentials of a custom
+ *         connection library, so only keys are logged.
  */
 gboolean gst_edge_parse_custom_props (nns_edge_h edge_h, const gchar * custom_props);
 

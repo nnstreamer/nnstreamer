@@ -30,17 +30,16 @@ _pop_custom_props_warning (GstElement *gstpipe, const gchar *elem_name)
   GstBus *bus;
   GstMessage *msg;
   GError *err = nullptr;
-  gchar *debug = nullptr;
   gboolean matched = FALSE;
 
   bus = gst_element_get_bus (gstpipe);
   while ((msg = gst_bus_pop_filtered (bus, GST_MESSAGE_WARNING)) != nullptr) {
-    gst_message_parse_warning (msg, &err, &debug);
+    gst_message_parse_warning (msg, &err, nullptr);
     matched = g_error_matches (err, GST_RESOURCE_ERROR, GST_RESOURCE_ERROR_SETTINGS)
               && g_strcmp0 (GST_OBJECT_NAME (GST_MESSAGE_SRC (msg)), elem_name) == 0
-              && debug && g_strstr_len (debug, -1, "custom-props: ") != nullptr;
+              && err->message
+              && g_strstr_len (err->message, -1, "custom-props") != nullptr;
     g_clear_error (&err);
-    g_clear_pointer (&debug, g_free);
     gst_message_unref (msg);
     if (matched)
       break;
@@ -481,7 +480,7 @@ TEST (edgeCustom, sinkCustomProps)
 /**
  * @brief Malformed custom-props tokens must be skipped without crash and must not block start.
  */
-TEST (edgeSink, customPropsMalformed_n)
+TEST (edgeCustom, sinkCustomPropsMalformed_n)
 {
   gchar *pipeline = nullptr;
   GstElement *gstpipe = nullptr;
@@ -493,7 +492,9 @@ TEST (edgeSink, customPropsMalformed_n)
   pipeline = g_strdup_printf (
       "videotestsrc ! videoconvert ! videoscale ! "
       "video/x-raw,width=320,height=240,format=RGB,framerate=10/1 ! "
-      "tensor_converter ! edgesink custom-props=\"foo,,topic:test_topic, : ,c:,:v,\" name=sinkx port=0");
+      "tensor_converter ! edgesink connect-type=CUSTOM custom-lib=%s "
+      "custom-props=\"foo,,topic:test_topic, : ,c:,:v,\" name=sinkx port=0",
+      CUSTOM_LIB_PATH);
   gstpipe = gst_parse_launch (pipeline, nullptr);
   ASSERT_NE (gstpipe, nullptr);
 
@@ -515,6 +516,32 @@ TEST (edgeSink, customPropsMalformed_n)
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   gst_object_unref (edge_handle);
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+}
+
+/**
+ * @brief A well-formed option that the edge library refuses must be reported too.
+ */
+TEST (edgeCustom, sinkCustomPropsRejected_n)
+{
+  gchar *pipeline = nullptr;
+  GstElement *gstpipe = nullptr;
+
+  /* ID is a valid key:value pair, but nnstreamer-edge does not allow updating it. */
+  pipeline = g_strdup_printf ("videotestsrc ! videoconvert ! videoscale ! "
+                              "video/x-raw,width=320,height=240,format=RGB,framerate=10/1 ! "
+                              "tensor_converter ! edgesink connect-type=CUSTOM custom-lib=%s "
+                              "custom-props=\"ID:not_allowed\" name=sinkx port=0",
+      CUSTOM_LIB_PATH);
+  gstpipe = gst_parse_launch (pipeline, nullptr);
+  ASSERT_NE (gstpipe, nullptr);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_TRUE (_pop_custom_props_warning (gstpipe, "sinkx"));
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
   gst_object_unref (gstpipe);
   g_free (pipeline);
 }
