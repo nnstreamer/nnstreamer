@@ -237,8 +237,11 @@ forward_sticky_events (GstPad * sinkpad, GstEvent ** event, gpointer user_data)
 /**
  * @brief Check whether every linked sink pad has received EOS.
  * @param[out] any_eos If not NULL, set to whether at least one sink pad is EOS.
- * @note must be called with the JOIN_LOCK. Unlinked pads are ignored, as no
- *       stream can ever end on them.
+ * @note must be called with the JOIN_LOCK, and with no sink pad's object lock
+ *       held: gst_pad_is_linked() takes it, on every sink pad in turn. A pad's
+ *       unlink function runs with that pad's object lock held, so calling this
+ *       from one deadlocks. Unlinked pads are ignored, as no stream can ever
+ *       end on them.
  */
 static gboolean
 gst_join_all_sinkpads_eos (GstJoin * sel, gboolean * any_eos)
