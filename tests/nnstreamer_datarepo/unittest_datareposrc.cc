@@ -670,8 +670,7 @@ TEST (datareposrc, fps30ReadFlexibleTensors)
   end_time = g_get_monotonic_time ();
   elapsed_time = (end_time - start_time) / (double) G_USEC_PER_SEC;
 
-  /* join ends the stream only after every source does, so the writer stores
-     every sample and the play time the frame rate implies is exact. */
+  /* join ends the stream only after every source does, so nothing is lost. */
   ASSERT_EQ (buffer_count, total_samples);
   stream_duration = (buffer_count - 1) / (gdouble) fps;
 
