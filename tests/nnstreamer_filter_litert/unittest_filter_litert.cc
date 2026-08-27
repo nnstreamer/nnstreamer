@@ -1000,9 +1000,10 @@ _sharedEnvChurn (const gchar **model_files, guint iterations,
  * distinction is dropped.
  *
  * The overlap is structural rather than timing-dependent: this thread keeps
- * invoking until the churn thread reports every cycle done, so the two are
- * guaranteed to run against the shared environment at the same time however
- * the scheduler interleaves them.
+ * invoking until the churn thread reports every cycle done, so the two run
+ * against the shared environment at the same time however the scheduler
+ * interleaves them. An invoke bound guards against a wedged churn thread; it
+ * is reported when reached, since it shortens the overlap.
  */
 TEST (nnstreamerFilterLiteRT, sharedEnvInvokeDuringConfigure)
 {
@@ -1044,6 +1045,14 @@ TEST (nnstreamerFilterLiteRT, sharedEnvInvokeDuringConfigure)
     }
     ++invokes;
   }
+
+  /** Report a short overlap instead of letting it pass as a full one. Not an
+   *  assertion: hitting the bound means invoke is fast relative to a model
+   *  compile, which is not a defect. */
+  if (invoke_ok && invokes >= max_invokes && cycles.load () < iterations)
+    g_message ("sharedEnvInvokeDuringConfigure: reached the %u invoke bound "
+               "after %u of %u churn cycles; overlap was partial.",
+        max_invokes, cycles.load (), iterations);
 
   churn.join ();
   EXPECT_TRUE (invoke_ok) << "Invoke " << invokes
