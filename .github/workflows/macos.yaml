@@ -28,7 +28,7 @@ jobs:
           brew install cask
     - name: install minimal requirements
       if: env.rebuild == '1'
-      run: brew install meson ninja pkg-config cmake libffi glib gstreamer numpy json-glib googletest
+      run: brew install meson ninja pkg-config cmake libffi glib gstreamer numpy json-glib googletest orc
     - name: install LiteRT SDK
       if: env.rebuild == '1'
       run: |
@@ -69,18 +69,30 @@ jobs:
         echo "LITERT_ROOT=$LITERT_ROOT" >> $GITHUB_ENV
     - name: meson build
       if: env.rebuild == '1'
-      # orcc-support is disabled: the orc test code in unittest_plugins.cc
-      # does not compile on macOS (orc_int64 is long while int64_t is
-      # long long); it never has, hidden until now by the check-rebuild bug
-      # that skipped every step of this job.
+      # orcc-support is required rather than auto-detected: building the orc
+      # paths here is what keeps the orc test code compiling on macOS, where
+      # int64_t is long long while orc_int64 is long. Auto-detection would
+      # silently drop that coverage if orc went missing from the image.
       run: |
-        meson setup build -Dorcc-support=disabled
+        meson setup build -Dorcc-support=enabled
         meson compile -C build
     - name: check litert subplugin built
       if: env.rebuild == '1'
       run: |
         ls build/ext/nnstreamer/tensor_filter/ | grep litert
         test -f build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_litert.dylib || test -f build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_litert.so
+    - name: run tensor_transform orc unit tests
+      if: env.rebuild == '1'
+      # the orc entry points directly, the typecast and arithmetic cases that
+      # route through them when acceleration is on, and properties01, which
+      # compares the element's acceleration default against the test's own
+      # HAVE_ORC and so catches the two being built with orc disagreeing
+      run: |
+        meson test -C build unittest_plugins -v --test-args='--gtest_filter=testTensorTransform.orc*:testTensorTransform.typecast_*_accel:testTensorTransform.arithmetic*Accel:testTensorTransform.properties01'
+        # a filter that matches nothing, or that quietly stops matching some of
+        # the cases, still exits 0; require the whole set to have run
+        ran=$(sed -nE 's/^\[  PASSED  \] ([0-9]+) tests?\.$/\1/p' build/meson-logs/testlog.txt | tail -1)
+        test "${ran:-0}" -ge 34
     - name: run litert unit tests
       if: env.rebuild == '1'
       run: |

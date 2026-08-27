@@ -3772,7 +3772,39 @@ TEST (testTensorConverter, flexToStaticInvalidBuffer2_n)
 }
 
 #ifdef HAVE_ORC
+#include <type_traits>
+
 #include "nnstreamer-orc.h"
+
+/**
+ * @brief Deduce the element type an orc constant-operand function works on.
+ *
+ * Declared only, and used in unevaluated context, to recover the buffer type
+ * from an orc prototype without spelling out its ORC_RESTRICT qualifier.
+ */
+template <typename T> T test_orc_elem_type (void (*orc_func) (T *, int, int));
+
+/**
+ * @brief Buffer element types for the 64-bit orc test cases.
+ *
+ * orcc emits its own orc_intNN typedefs, and their C99 branch is not taken in
+ * C++, where __STDC_VERSION__ is undefined, so on LP64 orc_int64 falls back to
+ * long. That is the same type as int64_t on Linux but not on macOS, where
+ * int64_t is long long; the two are distinct types to the compiler even though
+ * both are 64 bits wide, so buffers spelled int64_t cannot be passed to the orc
+ * entry points there. Taking the types from the prototypes themselves keeps
+ * these buffers correct under either convention by construction, rather than
+ * naming a type that only happens to match on one of them. New orc test code
+ * should use them too; int64_t/uint64_t buffers compile on Linux but break the
+ * macOS build.
+ */
+typedef decltype (test_orc_elem_type (nns_orc_add_c_s64)) orc_s64_elem;
+typedef decltype (test_orc_elem_type (nns_orc_add_c_u64)) orc_u64_elem;
+
+static_assert (sizeof (orc_s64_elem) == 8 && sizeof (orc_u64_elem) == 8,
+    "orc 64-bit buffers must be 64 bits wide");
+static_assert (std::is_signed<orc_s64_elem>::value && std::is_unsigned<orc_u64_elem>::value,
+    "orc 64-bit buffer signedness must match the s64/u64 prototypes");
 
 /**
  * @brief Test for tensor_transform orc functions (add constant value)
@@ -3903,7 +3935,7 @@ TEST (testTensorTransform, orcAdd)
   }
 
   /* add constant s64 */
-  int64_t data_s64[array_size] = {
+  orc_s64_elem data_s64[array_size] = {
     0,
   };
 
@@ -3928,7 +3960,7 @@ TEST (testTensorTransform, orcAdd)
   }
 
   /* add constant u64 */
-  uint64_t data_u64[array_size] = {
+  orc_u64_elem data_u64[array_size] = {
     0,
   };
 
@@ -4122,7 +4154,7 @@ TEST (testTensorTransform, orcMul)
   }
 
   /* mul constant s64 */
-  int64_t data_s64[array_size] = {
+  orc_s64_elem data_s64[array_size] = {
     0,
   };
 
@@ -4147,7 +4179,7 @@ TEST (testTensorTransform, orcMul)
   }
 
   /* mul constant u64 */
-  uint64_t data_u64[array_size] = {
+  orc_u64_elem data_u64[array_size] = {
     0,
   };
 
@@ -4354,7 +4386,7 @@ TEST (testTensorTransform, orcConvS8)
   }
 
   /* convert s64 */
-  int64_t res_s64[array_size] = {
+  orc_s64_elem res_s64[array_size] = {
     0,
   };
 
@@ -4365,7 +4397,7 @@ TEST (testTensorTransform, orcConvS8)
   }
 
   /* convert u64 */
-  uint64_t res_u64[array_size] = {
+  orc_u64_elem res_u64[array_size] = {
     0,
   };
 
@@ -4481,7 +4513,7 @@ TEST (testTensorTransform, orcConvU8)
   }
 
   /* convert s64 */
-  int64_t res_s64[array_size] = {
+  orc_s64_elem res_s64[array_size] = {
     0,
   };
 
@@ -4492,7 +4524,7 @@ TEST (testTensorTransform, orcConvU8)
   }
 
   /* convert u64 */
-  uint64_t res_u64[array_size] = {
+  orc_u64_elem res_u64[array_size] = {
     0,
   };
 
@@ -4608,7 +4640,7 @@ TEST (testTensorTransform, orcConvS16)
   }
 
   /* convert s64 */
-  int64_t res_s64[array_size] = {
+  orc_s64_elem res_s64[array_size] = {
     0,
   };
 
@@ -4619,7 +4651,7 @@ TEST (testTensorTransform, orcConvS16)
   }
 
   /* convert u64 */
-  uint64_t res_u64[array_size] = {
+  orc_u64_elem res_u64[array_size] = {
     0,
   };
 
@@ -4735,7 +4767,7 @@ TEST (testTensorTransform, orcConvU16)
   }
 
   /* convert s64 */
-  int64_t res_s64[array_size] = {
+  orc_s64_elem res_s64[array_size] = {
     0,
   };
 
@@ -4746,7 +4778,7 @@ TEST (testTensorTransform, orcConvU16)
   }
 
   /* convert u64 */
-  uint64_t res_u64[array_size] = {
+  orc_u64_elem res_u64[array_size] = {
     0,
   };
 
@@ -4862,7 +4894,7 @@ TEST (testTensorTransform, orcConvS32)
   }
 
   /* convert s64 */
-  int64_t res_s64[array_size] = {
+  orc_s64_elem res_s64[array_size] = {
     0,
   };
 
@@ -4873,7 +4905,7 @@ TEST (testTensorTransform, orcConvS32)
   }
 
   /* convert u64 */
-  uint64_t res_u64[array_size] = {
+  orc_u64_elem res_u64[array_size] = {
     0,
   };
 
@@ -4989,7 +5021,7 @@ TEST (testTensorTransform, orcConvU32)
   }
 
   /* convert s64 */
-  int64_t res_s64[array_size] = {
+  orc_s64_elem res_s64[array_size] = {
     0,
   };
 
@@ -5000,7 +5032,7 @@ TEST (testTensorTransform, orcConvU32)
   }
 
   /* convert u64 */
-  uint64_t res_u64[array_size] = {
+  orc_u64_elem res_u64[array_size] = {
     0,
   };
 
@@ -5041,7 +5073,7 @@ TEST (testTensorTransform, orcConvS64)
   const guint array_size = 10;
   guint i;
 
-  int64_t data_s64[array_size] = {
+  orc_s64_elem data_s64[array_size] = {
     0,
   };
 
@@ -5116,7 +5148,7 @@ TEST (testTensorTransform, orcConvS64)
   }
 
   /* convert s64 */
-  int64_t res_s64[array_size] = {
+  orc_s64_elem res_s64[array_size] = {
     0,
   };
 
@@ -5127,7 +5159,7 @@ TEST (testTensorTransform, orcConvS64)
   }
 
   /* convert u64 */
-  uint64_t res_u64[array_size] = {
+  orc_u64_elem res_u64[array_size] = {
     0,
   };
 
@@ -5168,7 +5200,7 @@ TEST (testTensorTransform, orcConvU64)
   const guint array_size = 10;
   guint i;
 
-  uint64_t data_u64[array_size] = {
+  orc_u64_elem data_u64[array_size] = {
     0,
   };
 
@@ -5243,7 +5275,7 @@ TEST (testTensorTransform, orcConvU64)
   }
 
   /* convert s64 */
-  int64_t res_s64[array_size] = {
+  orc_s64_elem res_s64[array_size] = {
     0,
   };
 
@@ -5254,7 +5286,7 @@ TEST (testTensorTransform, orcConvU64)
   }
 
   /* convert u64 */
-  uint64_t res_u64[array_size] = {
+  orc_u64_elem res_u64[array_size] = {
     0,
   };
 
@@ -5373,7 +5405,7 @@ TEST (testTensorTransform, orcConvF32)
   }
 
   /* convert s64 */
-  int64_t res_s64[array_size] = {
+  orc_s64_elem res_s64[array_size] = {
     0,
   };
 
@@ -5384,7 +5416,7 @@ TEST (testTensorTransform, orcConvF32)
   }
 
   /* convert u64 */
-  uint64_t res_u64[array_size] = {
+  orc_u64_elem res_u64[array_size] = {
     0,
   };
 
@@ -5504,7 +5536,7 @@ TEST (testTensorTransform, orcConvF64)
   }
 
   /* convert s64 */
-  int64_t res_s64[array_size] = {
+  orc_s64_elem res_s64[array_size] = {
     0,
   };
 
@@ -5515,7 +5547,7 @@ TEST (testTensorTransform, orcConvF64)
   }
 
   /* convert u64 */
-  uint64_t res_u64[array_size] = {
+  orc_u64_elem res_u64[array_size] = {
     0,
   };
 
