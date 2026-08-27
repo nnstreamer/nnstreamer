@@ -359,6 +359,9 @@ TensorFilterLlamaCpp::invoke (const GstTensorMemory *input, GstTensorMemory *out
 /**
  * @brief Create output tensor
  *
+ * An empty @a buf is a valid input; it yields a one-byte tensor holding the
+ * string terminator, which is how a zero-token generation is represented.
+ *
  * The memory allocated for the output tensor data using g_strndup()
  * must be freed by the caller of this function to avoid memory leaks.
  */
@@ -368,7 +371,7 @@ TensorFilterLlamaCpp::createOutputTensor (GstTensorFilterProperties *prop,
 {
   GstTensorInfo *_info;
 
-  if (buf.empty () || output == nullptr || prop == nullptr) {
+  if (output == nullptr || prop == nullptr) {
     ml_loge ("Invalid arguments passed to createOutputTensor");
     return false;
   }
@@ -432,6 +435,10 @@ TensorFilterLlamaCpp::updateOutput (GstTensorFilterProperties *prop,
  * If invoke_async is true, each token is dispatched asynchronously using
  * nnstreamer_filter_dispatch_output_async(); otherwise, the result is stored in
  * output. GstTensorMemory is freed by nnstreamer; do not free it manually.
+ *
+ * Generating no token at all (the first sampled token is end-of-generation, or
+ * num_predict is zero) is a valid result, not an error; in synchronous mode it
+ * produces an empty output so that every input still yields one output.
  */
 void
 TensorFilterLlamaCpp::generateTokens (GstTensorFilterProperties *prop,
@@ -492,6 +499,9 @@ TensorFilterLlamaCpp::generateTokens (GstTensorFilterProperties *prop,
   }
 
   if (!prop->invoke_async) {
+    if (output_accumulated.empty ())
+      ml_logd ("Generated no token for the given prompt (n_predict: %d).", n_predict);
+
     /* Final output for synchronous mode is created here. */
     if (!createOutputTensor (prop, output, output_accumulated)) {
       throw std::runtime_error ("Failed to create output tensor while generating tokens");
