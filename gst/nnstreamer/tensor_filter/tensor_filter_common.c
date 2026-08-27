@@ -1590,10 +1590,10 @@ _gtfc_setprop_CUSTOM (GstTensorFilterPrivate * priv,
           (priv->fw, prop, priv->privateData, CUSTOM_PROP, &data);
       if (status == 0) {
         g_free_const (prop->custom_properties);
-        prop->custom_properties = g_value_dup_string (value);
+        prop->custom_properties = data.custom_properties;
+      } else {
+        g_free_const (data.custom_properties);
       }
-
-      g_free_const (data.custom_properties);
     }
   }
 
