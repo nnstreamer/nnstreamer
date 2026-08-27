@@ -171,7 +171,9 @@ if gtest_dep.found()
       install_dir: unittest_install_dir
     )
 
-    test('unittest_join', unittest_join, env: testenv)
+    # join.padReleaseWhileStreaming has to win a race to be conclusive, so it
+    # runs on its own rather than competing with the rest of the suite.
+    test('unittest_join', unittest_join, env: testenv, is_parallel: false)
 
     # Run unittest_mqtt
     if mqtt_support_is_available
