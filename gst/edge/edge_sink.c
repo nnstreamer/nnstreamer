@@ -416,7 +416,7 @@ gst_edgesink_start (GstBaseSink * basesink)
     if (!gst_edge_parse_custom_props (self->edge_h, self->custom_props)) {
       GST_ELEMENT_WARNING (self, RESOURCE, SETTINGS,
           ("Some custom-props options were not applied."),
-          ("The rejected keys are in the debug log."));
+          ("The rejected options are in the debug log."));
     }
   }
 

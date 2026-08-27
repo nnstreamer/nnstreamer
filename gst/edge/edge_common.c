@@ -64,7 +64,7 @@ gst_edge_parse_custom_props (nns_edge_h edge_h, const gchar * custom_props)
       const gchar *value = g_strstrip (kv[1]);
 
       if (!*key) {
-        nns_logw ("Ignored a custom property with an empty key.");
+        nns_logw ("Ignored custom property #%u with an empty key.", i + 1);
         all_set = FALSE;
       } else if (!*value) {
         nns_logw ("Ignored custom property '%s' with an empty value.", key);
@@ -78,8 +78,8 @@ gst_edge_parse_custom_props (nns_edge_h edge_h, const gchar * custom_props)
         }
       }
     } else if (kv[0] && *g_strstrip (kv[0])) {
-      nns_logw ("Ignored malformed custom property '%s'. "
-          "Expected key:value form.", kv[0]);
+      nns_logw ("Ignored malformed custom property #%u. "
+          "Expected key:value form.", i + 1);
       all_set = FALSE;
     }
     g_strfreev (kv);
