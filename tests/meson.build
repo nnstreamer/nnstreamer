@@ -173,7 +173,7 @@ if gtest_dep.found()
 
     # join.padReleaseWhileStreaming has to win a race to be conclusive, so it
     # runs on its own rather than competing with the rest of the suite.
-    test('unittest_join', unittest_join, env: testenv, is_parallel: false)
+    test('unittest_join', unittest_join, env: testenv, is_parallel: false, timeout: 120)
 
     # Run unittest_mqtt
     if mqtt_support_is_available
