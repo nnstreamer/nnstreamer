@@ -111,6 +111,18 @@ check_output (GstElement *element, GstBuffer *buffer, gpointer user_data)
 }
 
 /**
+ * @brief Signal to count invocations of tensor_sink
+ */
+static void
+count_output (GstElement *element, GstBuffer *buffer, gpointer user_data)
+{
+  guint *count = (guint *) user_data;
+  UNUSED (element);
+  UNUSED (buffer);
+  (*count)++;
+}
+
+/**
  * @brief Negative case to launch gst pipeline: wrong dimension
  */
 TEST (nnstreamerFilterTensorFlow2Lite, launch0_n)
@@ -184,13 +196,19 @@ TEST (nnstreamerFilterTensorFlow2Lite, quantModelResult)
   ASSERT_TRUE (sink_handle != nullptr);
 
   guint8 *is_float = (guint8 *) g_malloc0 (1);
+  guint count = 0U;
   *is_float = 0;
   g_signal_connect (sink_handle, "new-data", (GCallback) check_output, is_float);
+  g_signal_connect (sink_handle, "new-data", (GCallback) count_output, &count);
 
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT * 10),
       0);
 
+  EXPECT_TRUE (wait_pipeline_process_buffers (&count, 1U, TEST_TIMEOUT_LIMIT_MS));
+
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  EXPECT_GE (count, 1U);
 
   gst_object_unref (sink_handle);
   gst_object_unref (gstpipe);
@@ -224,13 +242,19 @@ TEST (nnstreamerFilterTensorFlow2Lite, floatModelResult)
   ASSERT_TRUE (sink_handle != nullptr);
 
   guint8 *is_float = (guint8 *) g_malloc0 (1);
+  guint count = 0U;
   *is_float = 1;
   g_signal_connect (sink_handle, "new-data", (GCallback) check_output, is_float);
+  g_signal_connect (sink_handle, "new-data", (GCallback) count_output, &count);
 
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT * 10),
       0);
 
+  EXPECT_TRUE (wait_pipeline_process_buffers (&count, 1U, TEST_TIMEOUT_LIMIT_MS));
+
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  EXPECT_GE (count, 1U);
 
   gst_object_unref (sink_handle);
   gst_object_unref (gstpipe);
