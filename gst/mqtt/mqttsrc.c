@@ -449,10 +449,7 @@ gst_mqtt_src_change_state (GstElement * element, GstStateChange transition)
   GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
   GstMqttSrc *self = GST_MQTT_SRC (element);
   gboolean no_preroll = FALSE;
-  GstClock *elem_clock;
-  GstClockTime base_time;
-  GstClockTime cur_time;
-  GstClockTimeDiff diff;
+  GstClockTime cur;
 
   switch (transition) {
     case GST_STATE_CHANGE_NULL_TO_READY:
@@ -471,15 +468,11 @@ gst_mqtt_src_change_state (GstElement * element, GstStateChange transition)
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
       GST_INFO_OBJECT (self, "GST_STATE_CHANGE_PAUSED_TO_PLAYING");
       self->base_time_epoch = GST_CLOCK_TIME_NONE;
-      elem_clock = gst_element_get_clock (element);
-      if (!elem_clock)
-        break;
-      base_time = gst_element_get_base_time (element);
-      cur_time = gst_clock_get_time (elem_clock);
-      gst_object_unref (elem_clock);
-      diff = GST_CLOCK_DIFF (base_time, cur_time);
-      self->base_time_epoch =
-          g_get_real_time () * GST_US_TO_NS_MULTIPLIER - diff;
+      cur = gst_element_get_current_running_time (element);
+      if (GST_CLOCK_TIME_IS_VALID (cur)) {
+        self->base_time_epoch =
+            g_get_real_time () * GST_US_TO_NS_MULTIPLIER - cur;
+      }
 
       /** This handles the case when the state is changed to PLAYING again */
       if (GST_BASE_SRC_IS_STARTED (GST_BASE_SRC (self)) &&
@@ -739,9 +732,8 @@ gst_mqtt_src_create (GstBaseSrc * basesrc, guint64 offset, guint size,
     *buf = g_async_queue_timeout_pop (self->aqueue,
         DEFAULT_MQTT_SUB_TIMEOUT_MIN);
     if (*buf) {
-      GstClockTime base_time = gst_element_get_base_time (GST_ELEMENT (self));
-      GstClockTime ulatency = GST_CLOCK_TIME_NONE;
-      GstClock *clock;
+      GstClockTime latency = GST_CLOCK_TIME_NONE;
+      GstClockTime cur;
 
       /** This buffer is coming from the past. Drop it. */
       if (!_is_gst_buffer_timestamp_valid (*buf)) {
@@ -756,36 +748,19 @@ gst_mqtt_src_create (GstBaseSrc * basesrc, guint64 offset, guint size,
       }
 
       /** Update latency */
-      clock = gst_element_get_clock (GST_ELEMENT (self));
-      if (clock) {
-        GstClockTime cur_time = gst_clock_get_time (clock);
+      cur = gst_element_get_current_running_time (GST_ELEMENT (self));
+      if (GST_CLOCK_TIME_IS_VALID (cur)) {
         GstClockTime buf_ts = GST_BUFFER_TIMESTAMP (*buf);
-        GstClockTimeDiff latency = 0;
+        GstClockTime duration = GST_BUFFER_DURATION (*buf);
+        GstClockTimeDiff diff = GST_CLOCK_DIFF (buf_ts, cur);
 
-        if ((base_time != GST_CLOCK_TIME_NONE) &&
-            (cur_time != GST_CLOCK_TIME_NONE) &&
-            (buf_ts != GST_CLOCK_TIME_NONE)) {
-          GstClockTimeDiff now = GST_CLOCK_DIFF (base_time, cur_time);
-
-          latency = GST_CLOCK_DIFF (buf_ts, (GstClockTime) now);
+        if (diff > 0 && duration < (GstClockTime) diff) {
+          latency = (GstClockTime) diff;
         }
-
-        if (latency > 0) {
-          ulatency = (GstClockTime) latency;
-
-          if (GST_BUFFER_DURATION_IS_VALID (*buf)) {
-            GstClockTime duration = GST_BUFFER_DURATION (*buf);
-
-            if (duration >= ulatency) {
-              ulatency = GST_CLOCK_TIME_NONE;
-            }
-          }
-        }
-        gst_object_unref (clock);
       }
 
       g_mutex_lock (&self->mqtt_src_mutex);
-      self->latency = ulatency;
+      self->latency = latency;
       g_mutex_unlock (&self->mqtt_src_mutex);
       /**
        * @todo If the difference between new latency and old latency,
@@ -1129,7 +1104,6 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
   GstBuffer *buffer;
   GstBaseSrc *basesrc;
   GstMqttSrc *self;
-  GstClock *clock;
   GstCaps *recv_caps;
   gsize offset;
   guint i;
@@ -1146,7 +1120,7 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
   g_mutex_unlock (&self->mqtt_src_mutex);
 
   basesrc = GST_BASE_SRC (self);
-  clock = gst_element_get_clock (GST_ELEMENT (self));
+
   received_mem = gst_memory_new_wrapped (0, data, size, 0, size, message,
       (GDestroyNotify) cb_memory_wrapped_destroy);
   if (!received_mem) {
@@ -1155,7 +1129,7 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
           "%s: failed to wrap the raw data of received message in GstMemory: %s",
           __func__, g_strerror (ENODATA));
     }
-    goto ret_unref_clock;
+    return TRUE;
   }
 
   mqtt_msg_hdr = _extract_mqtt_msg_hdr_from (received_mem, &hdr_mem,
@@ -1193,16 +1167,17 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
 
   /** Timestamp synchronization */
   if (self->debug) {
-    GstClockTime base_time = gst_element_get_base_time (GST_ELEMENT (self));
+    GstClockTime cur;
 
-    if (clock) {
-      GST_DEBUG_OBJECT (self,
-          "A message has been arrived at %" GST_TIME_FORMAT
-          " and queue length is %d",
-          GST_TIME_ARGS (gst_clock_get_time (clock) - base_time),
-          g_async_queue_length (self->aqueue));
-    }
+    cur = gst_element_get_current_running_time (GST_ELEMENT (self));
+
+    GST_DEBUG_OBJECT (self,
+        "A message has been arrived at %" GST_TIME_FORMAT
+        " and queue length is %d",
+        GST_TIME_ARGS (cur),
+        g_async_queue_length (self->aqueue));
   }
+
   _put_timestamp_on_gst_buf (self, mqtt_msg_hdr, buffer);
   g_async_queue_push (self->aqueue, buffer);
 
@@ -1211,10 +1186,6 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
 
 ret_unref_received_mem:
   gst_memory_unref (received_mem);
-
-ret_unref_clock:
-  if (clock)
-    gst_object_unref (clock);
 
   return TRUE;
 }
@@ -1488,20 +1459,15 @@ _put_timestamp_on_gst_buf (GstMqttSrc * self, GstMQTTMessageHdr * hdr,
   buf->duration = hdr->duration;
 
   if (self->debug) {
-    GstClockTime base_time = gst_element_get_base_time (GST_ELEMENT (self));
-    GstClock *clock;
+    GstClockTime cur;
 
-    clock = gst_element_get_clock (GST_ELEMENT (self));
+    cur = gst_element_get_current_running_time (GST_ELEMENT (self));
 
-    if (clock) {
-      GST_DEBUG_OBJECT (self,
-          "%s diff %" GST_STIME_FORMAT " now %" GST_TIME_FORMAT " ts (%"
-          GST_TIME_FORMAT " -> %" GST_TIME_FORMAT ")", self->mqtt_topic,
-          GST_STIME_ARGS (diff_base_epoch),
-          GST_TIME_ARGS (gst_clock_get_time (clock) - base_time),
-          GST_TIME_ARGS (hdr->pts), GST_TIME_ARGS (buf->pts));
-
-      gst_object_unref (clock);
-    }
+    GST_DEBUG_OBJECT (self,
+        "%s diff %" GST_STIME_FORMAT " now %" GST_TIME_FORMAT " ts (%"
+        GST_TIME_FORMAT " -> %" GST_TIME_FORMAT ")", self->mqtt_topic,
+        GST_STIME_ARGS (diff_base_epoch),
+        GST_TIME_ARGS (cur),
+        GST_TIME_ARGS (hdr->pts), GST_TIME_ARGS (buf->pts));
   }
 }

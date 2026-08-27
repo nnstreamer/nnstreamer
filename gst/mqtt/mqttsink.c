@@ -493,10 +493,7 @@ gst_mqtt_sink_change_state (GstElement * element, GstStateChange transition)
 {
   GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
   GstMqttSink *self = GST_MQTT_SINK (element);
-  GstClock *elem_clock;
-  GstClockTime base_time;
-  GstClockTime cur_time;
-  GstClockTimeDiff diff;
+  GstClockTime cur;
 
   switch (transition) {
     case GST_STATE_CHANGE_NULL_TO_READY:
@@ -511,20 +508,16 @@ gst_mqtt_sink_change_state (GstElement * element, GstStateChange transition)
       GST_INFO_OBJECT (self, "GST_STATE_CHANGE_READY_TO_PAUSED");
       break;
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+      GST_INFO_OBJECT (self, "GST_STATE_CHANGE_PAUSED_TO_PLAYING");
       if (self->mqtt_ntp_sync)
         self->get_epoch_func = ntputil_get_epoch;
       self->base_time_epoch = GST_CLOCK_TIME_NONE;
-      elem_clock = gst_element_get_clock (element);
-      if (!elem_clock)
-        break;
-      base_time = gst_element_get_base_time (element);
-      cur_time = gst_clock_get_time (elem_clock);
-      gst_object_unref (elem_clock);
-      diff = GST_CLOCK_DIFF (base_time, cur_time);
-      self->base_time_epoch =
-          self->get_epoch_func (self->mqtt_ntp_num_srvs, self->mqtt_ntp_hnames,
-          self->mqtt_ntp_ports) * GST_US_TO_NS_MULTIPLIER - diff;
-      GST_INFO_OBJECT (self, "GST_STATE_CHANGE_PAUSED_TO_PLAYING");
+      cur = gst_element_get_current_running_time (element);
+      if (GST_CLOCK_TIME_IS_VALID (cur)) {
+        gint64 epoch_time = self->get_epoch_func (self->mqtt_ntp_num_srvs,
+            self->mqtt_ntp_hnames, self->mqtt_ntp_ports);
+        self->base_time_epoch = epoch_time * GST_US_TO_NS_MULTIPLIER - cur;
+      }
       break;
     default:
       break;
@@ -703,19 +696,16 @@ _put_timestamp_to_msg_buf_hdr (GstMqttSink * self, GstBuffer * gst_buf,
       GST_BUFFER_PTS (gst_buf) : GST_CLOCK_TIME_NONE;
 
   if (self->debug) {
-    GstClockTime base_time = gst_element_get_base_time (GST_ELEMENT (self));
-    GstClock *clock;
+    GstClockTime cur;
 
-    clock = gst_element_get_clock (GST_ELEMENT (self));
+    cur = gst_element_get_current_running_time (GST_ELEMENT (self));
 
     GST_DEBUG_OBJECT (self,
         "%s now %" GST_TIME_FORMAT " ts %" GST_TIME_FORMAT " sent %"
         GST_TIME_FORMAT, self->mqtt_topic,
-        GST_TIME_ARGS (gst_clock_get_time (clock) - base_time),
+        GST_TIME_ARGS (cur),
         GST_TIME_ARGS (hdr->pts),
         GST_TIME_ARGS (hdr->sent_time_epoch - hdr->base_time_epoch));
-
-    gst_object_unref (clock);
   }
 }
 

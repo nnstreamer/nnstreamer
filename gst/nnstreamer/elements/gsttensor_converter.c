@@ -789,7 +789,7 @@ _gst_tensor_converter_chain_timestamp (GstTensorConverter * self,
 {
   if (self->set_timestamp) {
     GstTensorsConfig *config;
-    GstClockTime pts, duration;
+    GstClockTime pts, duration, cur;
     gboolean have_framerate;
 
     config = &self->tensors_config;
@@ -819,19 +819,8 @@ _gst_tensor_converter_chain_timestamp (GstTensorConverter * self,
           pts = self->old_timestamp + duration;
         }
       } else {
-        GstClock *clock;
-
-        clock = gst_element_get_clock (GST_ELEMENT (self));
-
-        if (clock) {
-          GstClockTime now, base;
-
-          base = gst_element_get_base_time (GST_ELEMENT (self));
-          now = gst_clock_get_time (clock);
-
-          pts = (base < now) ? (now - base) : 0;
-          gst_object_unref (clock);
-        }
+        cur = gst_element_get_current_running_time (GST_ELEMENT (self));
+        pts = GST_CLOCK_TIME_IS_VALID (cur) ? cur : 0;
       }
 
       GST_BUFFER_TIMESTAMP (inbuf) = pts;
