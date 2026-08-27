@@ -328,6 +328,170 @@ TEST (join, eosAfterRestart)
 }
 
 /**
+ * @brief Callback counting the buffers that reached the sink.
+ */
+static void
+count_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
+{
+  guint *received = (guint *) user_data;
+  (void) element;
+  (void) buffer;
+
+  (*received)++;
+}
+
+/**
+ * @brief Test that a join of N finite sources delivers every buffer downstream.
+ * @detail This is the pipeline shape used by the datarepo fixtures. The
+ *         branches run in their own streaming threads, so which sink pad is
+ *         active when the first branch ends is a race; no buffer may be lost
+ *         because of it.
+ */
+TEST (join, forwardAllBuffers)
+{
+  const guint num_srcs = 3;
+  const guint num_buffers = 10;
+  guint received = 0;
+  guint i;
+  GstElement *pipeline, *sink_handle;
+  GString *desc = g_string_new (NULL);
+
+  for (i = 0; i < num_srcs; i++) {
+    g_string_append_printf (desc,
+        "videotestsrc num-buffers=%u ! "
+        "video/x-raw,format=RGB,width=64,height=48,framerate=30/1 ! "
+        "tensor_converter ! queue ! join0.sink_%u ",
+        num_buffers, i);
+  }
+  /* qos=false: a late-buffer QoS event would make upstream drop frames. */
+  g_string_append (desc,
+      "join name=join0 ! tensor_sink name=sinkx sync=false qos=false async=false");
+
+  pipeline = gst_parse_launch (desc->str, NULL);
+  g_string_free (desc, TRUE);
+  ASSERT_NE (pipeline, nullptr);
+
+  sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  ASSERT_NE (sink_handle, nullptr);
+  g_signal_connect (sink_handle, "new-data", (GCallback) count_data_cb, (gpointer) &received);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (pop_eos_or_error (pipeline, UNITTEST_STATECHANGE_TIMEOUT), GST_MESSAGE_EOS);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  EXPECT_EQ (num_srcs * num_buffers, received);
+
+  gst_object_unref (sink_handle);
+  gst_object_unref (pipeline);
+}
+
+/**
+ * @brief Test that releasing a sink pad completes the EOS aggregation.
+ * @detail A released pad can no longer end its stream, so releasing the pad the
+ *         join is still waiting for has to end the output stream. sink_0 is the
+ *         active pad here, so this also covers releasing the active pad.
+ */
+TEST (join, eosAfterPadRelease)
+{
+  GstElement *appsrc_1, *join_handle, *sink_handle;
+  GstPad *sinkpad_0, *peer_0;
+  guint n_pads = 0;
+  gint idx = 1;
+
+  GstElement *pipeline = gst_parse_launch (join_pipeline_desc, NULL);
+  ASSERT_NE (pipeline, nullptr);
+
+  appsrc_1 = gst_bin_get_by_name (GST_BIN (pipeline), "appsrc_1");
+  ASSERT_NE (appsrc_1, nullptr);
+  join_handle = gst_bin_get_by_name (GST_BIN (pipeline), "join");
+  ASSERT_NE (join_handle, nullptr);
+  sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  ASSERT_NE (sink_handle, nullptr);
+  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, (gpointer) &idx);
+
+  data_received = 0;
+  ASSERT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  ASSERT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc_1),
+                 gst_buffer_new_wrapped (_g_memdup (test_frames[1], 192), 192)),
+      GST_FLOW_OK);
+  g_usleep (100000);
+
+  EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (appsrc_1)), GST_FLOW_OK);
+  EXPECT_EQ (pop_eos_or_error (pipeline, 300), GST_MESSAGE_UNKNOWN);
+
+  sinkpad_0 = gst_element_get_static_pad (join_handle, "sink_0");
+  ASSERT_NE (sinkpad_0, nullptr);
+  peer_0 = gst_pad_get_peer (sinkpad_0);
+  if (peer_0) {
+    gst_pad_unlink (peer_0, sinkpad_0);
+    gst_object_unref (peer_0);
+  }
+  gst_element_release_request_pad (join_handle, sinkpad_0);
+  gst_object_unref (sinkpad_0);
+
+  EXPECT_EQ (pop_eos_or_error (pipeline, UNITTEST_STATECHANGE_TIMEOUT), GST_MESSAGE_EOS);
+
+  g_object_get (join_handle, "n-pads", &n_pads, NULL);
+  EXPECT_EQ (1U, n_pads);
+  EXPECT_EQ (1, data_received);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  gst_object_unref (sink_handle);
+  gst_object_unref (join_handle);
+  gst_object_unref (appsrc_1);
+  gst_object_unref (pipeline);
+}
+
+/**
+ * @brief Test that a flush withdraws the pad from the collected EOS state.
+ */
+TEST (join, eosAfterFlush)
+{
+  GstElement *appsrc_0, *appsrc_1, *join_handle, *sink_handle;
+  GstPad *sinkpad_0;
+  gint idx = 0;
+
+  GstElement *pipeline = gst_parse_launch (join_pipeline_desc, NULL);
+  ASSERT_NE (pipeline, nullptr);
+
+  appsrc_0 = gst_bin_get_by_name (GST_BIN (pipeline), "appsrc_0");
+  ASSERT_NE (appsrc_0, nullptr);
+  appsrc_1 = gst_bin_get_by_name (GST_BIN (pipeline), "appsrc_1");
+  ASSERT_NE (appsrc_1, nullptr);
+  join_handle = gst_bin_get_by_name (GST_BIN (pipeline), "join");
+  ASSERT_NE (join_handle, nullptr);
+  sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  ASSERT_NE (sink_handle, nullptr);
+  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, (gpointer) &idx);
+
+  data_received = 0;
+  ASSERT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (appsrc_0)), GST_FLOW_OK);
+  EXPECT_EQ (pop_eos_or_error (pipeline, 300), GST_MESSAGE_UNKNOWN);
+
+  sinkpad_0 = gst_element_get_static_pad (join_handle, "sink_0");
+  ASSERT_NE (sinkpad_0, nullptr);
+  EXPECT_TRUE (gst_pad_send_event (sinkpad_0, gst_event_new_flush_start ()));
+  EXPECT_TRUE (gst_pad_send_event (sinkpad_0, gst_event_new_flush_stop (TRUE)));
+  gst_object_unref (sinkpad_0);
+
+  /* sink_0 is no longer EOS, so ending sink_1 must not end the output stream. */
+  EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (appsrc_1)), GST_FLOW_OK);
+  EXPECT_EQ (pop_eos_or_error (pipeline, 300), GST_MESSAGE_UNKNOWN);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  gst_object_unref (sink_handle);
+  gst_object_unref (join_handle);
+  gst_object_unref (appsrc_1);
+  gst_object_unref (appsrc_0);
+  gst_object_unref (pipeline);
+}
+
+/**
  * @brief Main GTest
  */
 int
