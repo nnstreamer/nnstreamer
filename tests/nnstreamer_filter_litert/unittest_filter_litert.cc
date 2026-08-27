@@ -958,6 +958,83 @@ TEST (nnstreamerFilterLiteRT, sharedEnvConcurrentOpen)
 }
 
 /**
+ * @brief Churn routine for sharedEnvInvokeDuringConfigure: repeatedly build
+ * and tear down an instance on the shared environment.
+ * @param[in] model_files NULL-terminated array with a single model path
+ * @param[in] iterations how many open/close cycles to run
+ * @param[out] ok set to false if any cycle failed; read after join only
+ */
+static void
+_sharedEnvChurn (const gchar **model_files, guint iterations, std::atomic<bool> *ok)
+{
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  if (sp == nullptr) {
+    *ok = false;
+    return;
+  }
+
+  for (guint i = 0; i < iterations; ++i) {
+    GstTensorFilterProperties prop;
+    void *data = NULL;
+
+    _SetFilterProp (&prop, "litert", model_files);
+    if (sp->open (&prop, &data) != 0) {
+      *ok = false;
+      return;
+    }
+    sp->close (&prop, &data);
+  }
+}
+
+/**
+ * @brief Positive case: invoking one instance while other instances are built
+ * and torn down on the same shared environment must keep producing results.
+ *
+ * Configuration and teardown hold the environment lock exclusively while
+ * invoke holds it in shared mode; this is the case that regresses if that
+ * distinction is dropped.
+ */
+TEST (nnstreamerFilterLiteRT, sharedEnvInvokeDuringConfigure)
+{
+  const guint iterations = 10U;
+  int ret;
+  void *data = NULL;
+  GstTensorMemory input, output;
+  g_autofree gchar *model_file = NULL;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 1));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+
+  input.size = sizeof (float) * 224 * 224 * 3;
+  output.size = sizeof (float) * 1001;
+  input.data = g_malloc0 (input.size);
+  output.data = g_malloc (output.size);
+
+  ret = sp->open (&prop, &data);
+  ASSERT_EQ (ret, 0);
+
+  std::atomic<bool> churn_ok (true);
+  std::thread churn (_sharedEnvChurn, model_files, iterations, &churn_ok);
+
+  for (guint i = 0; i < iterations; ++i)
+    EXPECT_EQ (sp->invoke (NULL, &prop, data, &input, &output), 0)
+        << "Invoke " << i << " failed while another instance was being configured.";
+
+  churn.join ();
+  EXPECT_TRUE (churn_ok.load ()) << "Concurrent open/close churn failed.";
+
+  g_free (input.data);
+  g_free (output.data);
+  sp->close (&prop, &data);
+}
+
+/**
  * @brief Main gtest
  */
 int

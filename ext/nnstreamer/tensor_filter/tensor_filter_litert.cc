@@ -42,6 +42,7 @@
 #include <cstring>
 #include <memory>
 #include <mutex>
+#include <shared_mutex>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -101,8 +102,15 @@ namespace
  * because the environment must outlive every model and compiled model created
  * from it, while instances open and close independently at pipeline state
  * changes.
+ *
+ * The lock is shared/exclusive because the two access patterns differ. Running
+ * several compiled models off one environment is the pattern upstream
+ * recommends, so invoke() only takes it in shared mode. Building and tearing
+ * down an instance's LiteRT object graph has no documented thread-safety
+ * contract, and before the environment was shared each instance built its own,
+ * so those paths take it exclusively to keep that guarantee.
  */
-std::mutex litert_env_lock;
+std::shared_mutex litert_env_lock;
 LiteRtEnvironment litert_env = nullptr;
 unsigned int litert_env_refs = 0;
 
@@ -114,7 +122,7 @@ unsigned int litert_env_refs = 0;
 LiteRtEnvironment
 litert_env_ref ()
 {
-  std::lock_guard<std::mutex> guard (litert_env_lock);
+  std::lock_guard<std::shared_mutex> guard (litert_env_lock);
 
   if (litert_env_refs == 0) {
     LiteRtEnvironment created = nullptr;
@@ -132,7 +140,7 @@ litert_env_ref ()
 void
 litert_env_unref ()
 {
-  std::lock_guard<std::mutex> guard (litert_env_lock);
+  std::lock_guard<std::shared_mutex> guard (litert_env_lock);
 
   if (litert_env_refs == 0 || --litert_env_refs > 0)
     return;
@@ -222,23 +230,28 @@ litert_subplugin::~litert_subplugin ()
 void
 litert_subplugin::cleanup ()
 {
-  for (auto &buf : input_buffers)
-    LiteRtDestroyTensorBuffer (buf);
-  input_buffers.clear ();
-  input_tensor_sizes.clear ();
-  for (auto &buf : output_buffers)
-    LiteRtDestroyTensorBuffer (buf);
-  output_buffers.clear ();
-  output_tensor_sizes.clear ();
+  {
+    std::lock_guard<std::shared_mutex> guard (litert_env_lock);
 
-  if (compiled_model != nullptr) {
-    LiteRtDestroyCompiledModel (compiled_model);
-    compiled_model = nullptr;
+    for (auto &buf : input_buffers)
+      LiteRtDestroyTensorBuffer (buf);
+    input_buffers.clear ();
+    input_tensor_sizes.clear ();
+    for (auto &buf : output_buffers)
+      LiteRtDestroyTensorBuffer (buf);
+    output_buffers.clear ();
+    output_tensor_sizes.clear ();
+
+    if (compiled_model != nullptr) {
+      LiteRtDestroyCompiledModel (compiled_model);
+      compiled_model = nullptr;
+    }
+    if (model != nullptr) {
+      LiteRtDestroyModel (model);
+      model = nullptr;
+    }
   }
-  if (model != nullptr) {
-    LiteRtDestroyModel (model);
-    model = nullptr;
-  }
+
   if (env != nullptr) {
     litert_env_unref ();
     env = nullptr;
@@ -648,6 +661,11 @@ litert_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 
   try {
     env = litert_env_ref ();
+
+    /** Unwinding releases this before the handler below runs, so the
+     *  cleanup() there can take the lock again without deadlocking. */
+    std::lock_guard<std::shared_mutex> guard (litert_env_lock);
+
     LITERT_CHECK (LiteRtCreateModelFromFile (env, model_path, &model));
 
     signature_index = resolveSignature ();
@@ -695,6 +713,11 @@ litert_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 
   if (input == nullptr || output == nullptr)
     throw std::invalid_argument ("Invoke called with a null tensor memory.");
+
+  /** Shared: concurrent invokes on distinct compiled models are the pattern
+   *  upstream recommends. This only blocks while another instance is being
+   *  configured or torn down on the same environment. */
+  std::shared_lock<std::shared_mutex> guard (litert_env_lock);
 
   /* Fill input buffers */
   for (i = 0; i < inputTensorMeta.num_tensors; ++i) {
