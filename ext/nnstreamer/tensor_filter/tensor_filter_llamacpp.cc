@@ -498,10 +498,11 @@ TensorFilterLlamaCpp::generateTokens (GstTensorFilterProperties *prop,
     n_processed++;
   }
 
-  if (!prop->invoke_async) {
-    if (output_accumulated.empty ())
-      ml_logd ("Generated no token for the given prompt (n_predict: %d).", n_predict);
+  /* n_remain is untouched only when not a single token was emitted. */
+  if (n_remain == n_predict)
+    ml_logd ("Generated no token for the given prompt (n_predict: %d).", n_predict);
 
+  if (!prop->invoke_async) {
     /* Final output for synchronous mode is created here. */
     if (!createOutputTensor (prop, output, output_accumulated)) {
       throw std::runtime_error ("Failed to create output tensor while generating tokens");

@@ -329,6 +329,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputSingleOutputSync_p)
   EXPECT_TRUE (data_push ("Hello my name is"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_TRUE (wait_for_samples (1));
+  EXPECT_FALSE (pipeline_error);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (*new_sample_count, 1);
@@ -570,6 +571,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, combinedSamplingSync_p)
   EXPECT_TRUE (data_push ("Hello my name is"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_TRUE (wait_for_samples (1));
+  EXPECT_FALSE (pipeline_error);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (*new_sample_count, 1);
@@ -653,6 +655,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, contextSaveLoad_p)
   EXPECT_TRUE (data_push ("Hello my name is John. I like programming and AI."));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_TRUE (wait_for_samples (1));
+  EXPECT_FALSE (pipeline_error);
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (*new_sample_count, 1);
 
@@ -670,6 +673,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, contextSaveLoad_p)
   EXPECT_TRUE (data_push ("What did I just say about myself?"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_TRUE (wait_for_samples (1));
+  EXPECT_FALSE (pipeline_error);
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (*new_sample_count, 1);
 
@@ -700,6 +704,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, contextFileNotFound_n)
   EXPECT_TRUE (data_push ("Hello my name is John."));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_TRUE (wait_for_samples (1));
+  EXPECT_FALSE (pipeline_error);
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (*new_sample_count, 1); /* Should work with fresh context */
 }
@@ -722,6 +727,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, contextInvalidSavePath_n)
   EXPECT_TRUE (data_push ("Hello my name is John."));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_TRUE (wait_for_samples (1));
+  EXPECT_FALSE (pipeline_error);
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (*new_sample_count, 1); /* Should work even if save fails */
 
@@ -744,6 +750,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, applyLoraAdapter_p)
   EXPECT_TRUE (data_push ("Can you translate 'Hello world' into Korean?"));
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_TRUE (wait_for_samples (1));
+  EXPECT_FALSE (pipeline_error);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (*new_sample_count, 1); /* In sync mode, expect one sample for the entire output */
