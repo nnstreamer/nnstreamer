@@ -454,7 +454,10 @@ tensor_filter_ext_enabled = tflite_support_is_available or \
     pytorch_support_is_available or caffe2_support_is_available or \
     nnfw_runtime_support_is_available or get_option('enable-edgetpu') or \
     mvncsdk2_support_is_available or get_option('enable-openvino') or \
-    mxnet_support_is_available
+    mxnet_support_is_available or litert_support_is_available or \
+    onnxruntime_support_is_available or tensorrt_support_is_available or \
+    tensorrt10_support_is_available or tvm_support_is_available or \
+    lua_support_is_available
 if get_option('install-test') and tensor_filter_ext_enabled
   # host-only model generator scripts are not needed on target devices
   install_subdir('test_models', install_dir: unittest_install_dir,
@@ -464,13 +467,19 @@ endif
 
 # Install Unittest
 if get_option('install-test')
+  # tests/codegen is intentionally not installed: it runs tools/development/
+  # nnstreamerCodeGenCustomFilter.py and compiles against gst/nnstreamer via
+  # ../../ paths that exist only in the source tree.
   install_data('gen24bBMP.py', install_dir: unittest_install_dir)
   install_data('test_utils.py', install_dir: unittest_install_dir)
+  install_data('get_available_port.py', install_dir: unittest_install_dir)
+  install_subdir('gstreamer_join', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_converter', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_merge', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_decoder', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_decoder_boundingbox', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_decoder_pose', install_dir: unittest_install_dir)
+  install_subdir('nnstreamer_decoder_tensor_region', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_demux', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_filter_custom', install_dir: unittest_install_dir)
   if tflite_support_is_available or tflite2_support_is_available
@@ -511,11 +520,31 @@ if get_option('install-test')
   if protobuf_support_is_available
     install_subdir('nnstreamer_protobuf', install_dir: unittest_install_dir)
   endif
-  if mxnet_support_is_available
-    install_subdir('unittest_filter_mxnet', install_dir: unittest_install_dir)
-  endif
   if executorch_support_is_available
     install_subdir('nnstreamer_filter_executorch', install_dir: unittest_install_dir)
+  endif
+  if litert_support_is_available
+    install_subdir('nnstreamer_filter_litert', install_dir: unittest_install_dir)
+  endif
+  if lua_support_is_available
+    install_subdir('nnstreamer_filter_lua', install_dir: unittest_install_dir)
+    # nnstreamer_sparse builds its sparse tensors with the lua filter
+    install_subdir('nnstreamer_sparse', install_dir: unittest_install_dir)
+  endif
+  if onnxruntime_support_is_available
+    install_subdir('nnstreamer_filter_onnxruntime', install_dir: unittest_install_dir)
+  endif
+  if tensorrt_support_is_available
+    install_subdir('nnstreamer_filter_tensorrt', install_dir: unittest_install_dir)
+  endif
+  if tensorrt10_support_is_available
+    install_subdir('nnstreamer_filter_tensorrt10', install_dir: unittest_install_dir)
+  endif
+  if tvm_support_is_available
+    install_subdir('nnstreamer_filter_tvm', install_dir: unittest_install_dir)
+  endif
+  if grpc_support_is_available
+    install_subdir('nnstreamer_grpc', install_dir: unittest_install_dir)
   endif
   install_subdir('nnstreamer_mux', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_rate', install_dir: unittest_install_dir)
@@ -524,6 +553,7 @@ if get_option('install-test')
   install_subdir('nnstreamer_repo_lstm', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_repo_rnn', install_dir: unittest_install_dir)
   install_subdir('nnstreamer_split', install_dir: unittest_install_dir)
+  install_subdir('nnstreamer_octet_stream', install_dir: unittest_install_dir)
   install_subdir('transform_arithmetic', install_dir: unittest_install_dir)
   install_subdir('transform_clamp', install_dir: unittest_install_dir)
   install_subdir('transform_dimchg', install_dir: unittest_install_dir)
