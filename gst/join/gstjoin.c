@@ -21,7 +21,9 @@
  * All capabilities (input stream i and output stream) should be the same.
  * EOS reaches the output pad only after every linked input stream has ended.
  * A sink pad that is unlinked or released is no longer waited for, since no
- * stream can end on it; the output would otherwise never see EOS.
+ * stream can end on it; the output would otherwise never see EOS. So an
+ * application that unlinks a branch mid-stream should expect the output to
+ * end once the branches still linked do, and relink before that happens.
  * <refsect2>
  * <title>Example launch line</title>
  * gst-launch-1.0 ... (input stream 0) ! join.sink_0 \
