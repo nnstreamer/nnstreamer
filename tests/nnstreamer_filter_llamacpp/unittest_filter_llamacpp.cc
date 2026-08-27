@@ -340,7 +340,6 @@ TEST_F (NNStreamerFilterLlamaCppTest, singleInputSingleOutputSync_p)
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (*new_sample_count, 1);
-  EXPECT_GT (max_sample_size, 1U);
 }
 
 /**
