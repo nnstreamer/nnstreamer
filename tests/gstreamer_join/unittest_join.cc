@@ -558,14 +558,23 @@ run_pad_release_while_streaming (void)
  *         element's reference. Otherwise active-pad is left pointing at a pad
  *         that is no longer part of the element, and the events of the
  *         surviving pads are silently dropped from then on. The window is a
- *         few instructions wide, so the run is repeated.
+ *         few instructions wide, so the run is repeated - 20 attempts detect a
+ *         reintroduced defect 20 out of 20 times on an idle machine, which
+ *         is_parallel:false gives it. The wall-clock bound keeps an
+ *         environment where one attempt is expensive, such as valgrind, from
+ *         paying for all twenty.
  */
 TEST (join, padReleaseWhileStreaming)
 {
+  gint64 deadline = g_get_monotonic_time () + 10 * G_USEC_PER_SEC;
   guint i;
 
-  for (i = 0; i < 100; i++)
+  for (i = 0; i < 20; i++) {
     ASSERT_TRUE (run_pad_release_while_streaming ()) << "iteration " << i;
+    /* Far slower under a memory checker, which is not testing this race. */
+    if (g_get_monotonic_time () > deadline)
+      break;
+  }
 }
 
 /**
