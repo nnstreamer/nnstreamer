@@ -3,7 +3,7 @@
 ##
 # Copyright (c) 2026 Samsung Electronics Co., Ltd. All Rights Reserved.
 #
-# @file: test_prohibited_words.sh
+# @file     test_prohibited_words.sh
 # @brief    Self-test for prohibited-words.sh and its word list.
 # @see      https://github.com/nnstreamer/nnstreamer
 # @author   MyungJoo Ham <myungjoo.ham@samsung.com>
@@ -53,8 +53,9 @@ expect_checker() {
   fi
 }
 
-# Every listed word must actually fail the checker.
-while read -r word; do
+# Every listed word must actually fail the checker. The || [[ -n ]] guard keeps
+# a last line without a trailing newline from being skipped silently.
+while read -r word || [[ -n "$word" ]]; do
   word=${word%$'\r'}
   [[ -z "$word" ]] && continue
   expect_checker 1 "prohibited word ${word}" "A line that mentions ${word} inline."
