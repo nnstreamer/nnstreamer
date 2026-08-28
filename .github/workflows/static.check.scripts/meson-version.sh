@@ -26,13 +26,17 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 ROOT=${1:-$(cd "${SCRIPT_DIR}/../../.." && pwd)}
 failed=0
 
-# A declared requirement: meson, then >= with nothing but an optional bracket
-# between them, then a version. Every form in the tree fits - "meson (>=X)",
-# "meson >= X", "Meson >= X + Ninja". Keeping the gap this tight is what stops
-# prose such as "meson.build wants glib >= 2.60" from reading as a meson
-# requirement. Because the gap cannot contain a digit, the only digits in a
-# match belong to the version itself.
-DECL_RE='[Mm]eson[[:space:]]*\(?[[:space:]]*>=[[:space:]]*[0-9]+(\.[0-9]+)+'
+# A declared requirement: meson, then >=, then a version. The gap between them
+# may hold punctuation but no letter or digit, which is what separates a
+# declaration from prose: "meson (>=X)", "**meson** >= X" and "`meson` >= X"
+# all match, while "meson.build wants glib >= 2.60" does not, because another
+# package name stands in the way. Excluding digits from the gap also means the
+# only digits in a match belong to the version itself.
+#
+# Known limit: a markdown link, "[meson](https://example.com) >= X", puts
+# letters in the gap and is not recognised. Write the requirement outside the
+# link text.
+DECL_RE='meson(_version)?[^[:alnum:]]{0,12}>=[[:space:]]*[0-9]+(\.[0-9]+)+'
 
 ##
 # @brief Print a version padded to four components so 0.56 and 0.56.0 compare equal.
@@ -87,8 +91,8 @@ check_file() {
         echo "::error::${rel}:${lineno} requires meson ${found_raw}, but meson.build requires ${expected_raw}. Keep every declaration in step."
         failed=1
       fi
-    done < <(echo "$text" | grep -oE "$DECL_RE")
-  done < <(grep -nE "$DECL_RE" "$file")
+    done < <(echo "$text" | grep -oiE "$DECL_RE")
+  done < <(grep -niE "$DECL_RE" "$file")
 }
 
 while IFS= read -r rel; do
