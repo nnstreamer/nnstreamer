@@ -43,7 +43,7 @@ Ubuntu 22.04 (LTS) is currently supported.
 * [getting-started](getting-started.md)
 
 - Install related packages before building nnstreamer and examples.
-1. ninja-build, meson (>=0.62.0)
+1. ninja-build, meson (>=0.56.0)
 2. liborc (>=0.4.17, optional)
 3. tensorflow, protobuf (>=3.6.1)
 4. tensorflow-lite
