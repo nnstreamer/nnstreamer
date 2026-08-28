@@ -126,6 +126,12 @@ Build-Depends-Arch: ninja-build
 Build-Depends-Indep: doxygen
 Standards-Version: 3.9.6'
 
+expect_checker 1 "a field name is matched regardless of case" \
+'Source: nnstreamer
+build-depends: gcc-9 | gcc-8,
+ ninja-build
+Standards-Version: 3.9.6'
+
 expect_checker 0 "fields after Build-Depends are not scanned" \
 'Source: nnstreamer
 Build-Depends: gcc-9 | gcc
