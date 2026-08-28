@@ -111,7 +111,7 @@ class ncnn_subplugin final : public tensor_filter_subplugin
   void parseCustomProperties (const GstTensorFilterProperties *prop);
   void setInputInfo (const GstTensorsInfo &info);
   void inferOutputInfo (std::vector<ncnn::Mat> &mats, GstTensorsInfo &info);
-  static std::vector<ncnn::Mat> allocMats (const GstTensorsInfo &info);
+  static std::vector<ncnn::Mat> allocMats (GstTensorsInfo &info);
   static void normalizeInfo (GstTensorsInfo &info, size_t num_expected, const char *direction);
   static std::vector<int> getShape (const GstTensorInfo *info);
   static ncnn::Mat allocMat (const GstTensorInfo *info);
@@ -324,13 +324,12 @@ ncnn_subplugin::setInputInfo (const GstTensorsInfo &info)
  * @brief Allocate the matrices that the given tensors are fed through.
  */
 std::vector<ncnn::Mat>
-ncnn_subplugin::allocMats (const GstTensorsInfo &info)
+ncnn_subplugin::allocMats (GstTensorsInfo &info)
 {
   std::vector<ncnn::Mat> mats;
 
   for (guint i = 0; i < info.num_tensors; i++)
-    mats.push_back (allocMat (
-        gst_tensors_info_get_nth_info ((GstTensorsInfo *) std::addressof (info), i)));
+    mats.push_back (allocMat (gst_tensors_info_get_nth_info (std::addressof (info), i)));
 
   return mats;
 }
