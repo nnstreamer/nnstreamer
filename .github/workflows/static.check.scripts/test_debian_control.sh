@@ -107,6 +107,25 @@ Build-Depends: GCC-9 | GCC,
  ninja-build
 Standards-Version: 3.9.6'
 
+expect_checker 1 "a group in Build-Depends-Indep is not hidden by the field before it" \
+'Source: nnstreamer
+Build-Depends: ninja-build
+Build-Depends-Indep: gcc-9 | gcc-8
+Standards-Version: 3.9.6'
+
+expect_checker 1 "a group in Build-Depends is not hidden by the field after it" \
+'Source: nnstreamer
+Build-Depends: gcc-9 | gcc-8
+Build-Depends-Arch: ninja-build
+Standards-Version: 3.9.6'
+
+expect_checker 0 "several Build-Depends fields without a versioned-only group pass" \
+'Source: nnstreamer
+Build-Depends: gcc-9 | gcc
+Build-Depends-Arch: ninja-build
+Build-Depends-Indep: doxygen
+Standards-Version: 3.9.6'
+
 expect_checker 0 "fields after Build-Depends are not scanned" \
 'Source: nnstreamer
 Build-Depends: gcc-9 | gcc
