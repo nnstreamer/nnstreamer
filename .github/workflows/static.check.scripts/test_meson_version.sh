@@ -14,7 +14,10 @@
 # a requirement. Without the first the checker could accept any drift; without
 # the last it would fail on prose that is simply describing a release. The
 # repository's own tree is checked at the end so the shipped files stay
-# covered when no fixture changes.
+# covered when no fixture changes. Later fixtures pin the parts that were
+# got wrong once: the version must come out of the matched text and not the
+# rest of the line, and a path carrying a space must not fall out of the
+# file list.
 #
 # The checker is invoked with stdin closed, matching how GitHub runs it, so
 # that a future reader-of-stdin bug fails here instead of hanging.
@@ -87,6 +90,34 @@ $(printf 'AGENTS.md\tBuild system: **Meson >= 0.56 + Ninja**.')"
 expect_checker 0 "a version a distro ships is not read as a requirement" \
 "${MESON_BUILD}
 $(printf 'Documentation/getting-started-meson-build.md\tUbuntu 20.04 ships meson 0.53.2, which is too old.')"
+
+expect_checker 0 "a neighbouring constraint on the same line is not read as meson's" \
+"${MESON_BUILD}
+$(printf 'debian/control\tBuild-Depends: meson (>=0.56.0), debhelper (>=9.20), libfoo (>= 1.2.3)')"
+
+expect_checker 1 "a neighbouring constraint does not mask a stale meson" \
+"${MESON_BUILD}
+$(printf 'debian/control\tBuild-Depends: meson (>=0.49.0), debhelper (>=0.56.0)')"
+
+expect_checker 0 "another package's requirement near the word meson is ignored" \
+"${MESON_BUILD}
+$(printf 'Documentation/getting-started-meson-build.md\tmeson.build additionally wants glib >= 2.60 at configure time.')"
+
+expect_checker 1 "two declarations on one line are both checked" \
+"${MESON_BUILD}
+$(printf 'Documentation/how-to-run-examples.md\tUse meson >= 0.56.0 on Ubuntu and Meson >= 0.62.0 on Tizen.')"
+
+# A path with a space must not be skipped by word splitting.
+spaced_root="${workdir}/spaced"
+mkdir -p "${spaced_root}/Documentation"
+echo "project('nnstreamer', 'c', meson_version: '>=0.56.0')" > "${spaced_root}/meson.build"
+echo '* meson >= 0.62.0' > "${spaced_root}/Documentation/getting started.md"
+if bash "$CHECKER" "$spaced_root" > /dev/null 2>&1 < /dev/null; then
+  echo "FAIL: a path containing a space is silently skipped"
+  failed=1
+else
+  echo "PASS: a path containing a space is still checked (exit 1)"
+fi
 
 echo "Checking the tree shipped in this repository"
 if bash "$CHECKER" "$REPO_ROOT" < /dev/null; then
