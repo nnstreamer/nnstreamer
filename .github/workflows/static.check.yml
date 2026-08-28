@@ -189,6 +189,32 @@ jobs:
           else
             echo "Skipped: $checker is not in this branch's tree and this PR does not remove it."
           fi
+      - name: /Checker/ debian control build dependencies
+        # Checks debian/control* rather than $changed_file_list, so it needs
+        # the same merge-ref guard as the steps above.
+        run: |
+          checker=.github/workflows/static.check.scripts/debian-control.sh
+          if [ -f "$checker" ]; then
+            bash "$checker"
+          elif git show --pretty="format:" --name-only --no-renames --diff-filter=D ${{ github.event.pull_request.head.sha }} -${{ github.event.pull_request.commits }} | grep -qxF "$checker"; then
+            echo "::error::This PR removes $checker; remove its workflow step too, or restore the script (also update this step if the script moved)."
+            exit 1
+          else
+            echo "Skipped: $checker is not in this branch's tree and this PR does not remove it."
+          fi
+      - name: /Checker/ debian-control self-test
+        # Runs a repository script unrelated to $changed_file_list, so it
+        # needs the same merge-ref guard as the step above.
+        run: |
+          selftest=.github/workflows/static.check.scripts/test_debian_control.sh
+          if [ -f "$selftest" ]; then
+            bash "$selftest"
+          elif git show --pretty="format:" --name-only --no-renames --diff-filter=D ${{ github.event.pull_request.head.sha }} -${{ github.event.pull_request.commits }} | grep -qxF "$selftest"; then
+            echo "::error::This PR removes $selftest; remove its workflow step too, or restore the script (also update this step if the script moved)."
+            exit 1
+          else
+            echo "Skipped: $selftest is not in this branch's tree and this PR does not remove it."
+          fi
       - name: /Checker/ shellcheck for shell scripts
         # Originally from "pr-prebuild-shellcheck"
         run: |

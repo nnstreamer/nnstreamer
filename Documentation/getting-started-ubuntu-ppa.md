@@ -14,6 +14,21 @@ $ sudo apt-add-repository ppa:nnstreamer
 $ sudo apt install nnstreamer
 ```
 
+### Supported Ubuntu releases
+
+The PPA does not carry a build for every Ubuntu release. If `apt` reports
+
+```
+E: The repository '.../ppa/ubuntu <codename> Release' does not have a Release file.
+```
+
+then your release has no packages in the PPA. The
+[PPA page](https://launchpad.net/~nnstreamer/+archive/ubuntu/ppa) lists the
+series that are currently published; if the release you need is missing,
+please file an issue. In the meantime you may build the packages yourself with
+[Ubuntu: Pbuilder / Pdebuild](getting-started-ubuntu-debuild.md) or
+[Linux generic: build with meson and ninja](getting-started-meson-build.md).
+
 ### Additional plugins available
 
 * nnstreamer-caffe2 : Allows to use caffe2 models in a pipeline. (From pytorch 1.3.1 by default)
