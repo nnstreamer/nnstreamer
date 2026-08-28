@@ -107,6 +107,8 @@ expect_checker 1 "markdown emphasis does not hide a declaration" \
 "${MESON_BUILD}
 $(printf 'Documentation/getting-started-meson-build.md\tBuild system: **meson** >= 0.62.0 and ninja.')"
 
+# The backticks below are the markdown being tested, not a substitution.
+# shellcheck disable=SC2016
 expect_checker 1 "a code span does not hide a declaration" \
 "${MESON_BUILD}
 $(printf 'Documentation/getting-started-meson-build.md\tYou need `meson` >= 0.62.0 to configure.')"
