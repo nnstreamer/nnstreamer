@@ -684,6 +684,199 @@ TEST (join, eosAfterUnlink)
 }
 
 /**
+ * @brief Test that unlinking the sink pad the join is waiting for ends the
+ *        output stream.
+ * @detail The reverse order of join.eosAfterUnlink. sink_0 is still linked and
+ *         carrying a stream when the other branch ends, so that EOS has to
+ *         wait; nothing further arrives on any pad, which leaves the unlink as
+ *         the only thing that can complete the set.
+ */
+TEST (join, eosAfterUnlinkLast)
+{
+  GstElement *appsrc_0, *appsrc_1, *join_handle, *sink_handle;
+  GstPad *sinkpad_0, *srcpad_0;
+  gint idx = 0;
+
+  GstElement *pipeline = gst_parse_launch (join_pipeline_desc, NULL);
+  ASSERT_NE (pipeline, nullptr);
+
+  appsrc_0 = gst_bin_get_by_name (GST_BIN (pipeline), "appsrc_0");
+  ASSERT_NE (appsrc_0, nullptr);
+  appsrc_1 = gst_bin_get_by_name (GST_BIN (pipeline), "appsrc_1");
+  ASSERT_NE (appsrc_1, nullptr);
+  join_handle = gst_bin_get_by_name (GST_BIN (pipeline), "join");
+  ASSERT_NE (join_handle, nullptr);
+  sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  ASSERT_NE (sink_handle, nullptr);
+  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, (gpointer) &idx);
+
+  data_received = 0;
+  ASSERT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  idx = 0;
+  ASSERT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc_0),
+                 gst_buffer_new_wrapped (_g_memdup (test_frames[0], 192), 192)),
+      GST_FLOW_OK);
+  g_usleep (100000);
+
+  EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (appsrc_1)), GST_FLOW_OK);
+  EXPECT_EQ (pop_eos_or_error (pipeline, 300), GST_MESSAGE_UNKNOWN);
+
+  sinkpad_0 = gst_element_get_static_pad (join_handle, "sink_0");
+  ASSERT_NE (sinkpad_0, nullptr);
+  srcpad_0 = gst_pad_get_peer (sinkpad_0);
+  ASSERT_NE (srcpad_0, nullptr);
+  EXPECT_TRUE (gst_pad_unlink (srcpad_0, sinkpad_0));
+  gst_object_unref (srcpad_0);
+  gst_object_unref (sinkpad_0);
+
+  EXPECT_EQ (pop_eos_or_error (pipeline, UNITTEST_STATECHANGE_TIMEOUT), GST_MESSAGE_EOS);
+  EXPECT_EQ (1, data_received);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  gst_object_unref (sink_handle);
+  gst_object_unref (join_handle);
+  gst_object_unref (appsrc_1);
+  gst_object_unref (appsrc_0);
+  gst_object_unref (pipeline);
+}
+
+/**
+ * @brief Test that unlinking a sink pad does not end a stream that is running.
+ * @detail Unlinking retires a branch; it does not end the output on its own.
+ *         With no stream ended anywhere there is nothing to forward, and the
+ *         surviving branch has to keep streaming afterwards.
+ */
+TEST (join, noEosOnUnlinkWhileRunning)
+{
+  GstElement *appsrc_0, *appsrc_1, *join_handle, *sink_handle;
+  GstPad *sinkpad_0, *srcpad_0;
+  gint idx = 0;
+
+  GstElement *pipeline = gst_parse_launch (join_pipeline_desc, NULL);
+  ASSERT_NE (pipeline, nullptr);
+
+  appsrc_0 = gst_bin_get_by_name (GST_BIN (pipeline), "appsrc_0");
+  ASSERT_NE (appsrc_0, nullptr);
+  appsrc_1 = gst_bin_get_by_name (GST_BIN (pipeline), "appsrc_1");
+  ASSERT_NE (appsrc_1, nullptr);
+  join_handle = gst_bin_get_by_name (GST_BIN (pipeline), "join");
+  ASSERT_NE (join_handle, nullptr);
+  sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  ASSERT_NE (sink_handle, nullptr);
+  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, (gpointer) &idx);
+
+  data_received = 0;
+  ASSERT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  idx = 0;
+  ASSERT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc_0),
+                 gst_buffer_new_wrapped (_g_memdup (test_frames[0], 192), 192)),
+      GST_FLOW_OK);
+  g_usleep (100000);
+
+  sinkpad_0 = gst_element_get_static_pad (join_handle, "sink_0");
+  ASSERT_NE (sinkpad_0, nullptr);
+  srcpad_0 = gst_pad_get_peer (sinkpad_0);
+  ASSERT_NE (srcpad_0, nullptr);
+  EXPECT_TRUE (gst_pad_unlink (srcpad_0, sinkpad_0));
+  gst_object_unref (srcpad_0);
+  gst_object_unref (sinkpad_0);
+
+  EXPECT_EQ (pop_eos_or_error (pipeline, 300), GST_MESSAGE_UNKNOWN);
+
+  idx = 1;
+  ASSERT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc_1),
+                 gst_buffer_new_wrapped (_g_memdup (test_frames[1], 192), 192)),
+      GST_FLOW_OK);
+  g_usleep (100000);
+  EXPECT_EQ (2, data_received);
+
+  EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (appsrc_1)), GST_FLOW_OK);
+  EXPECT_EQ (pop_eos_or_error (pipeline, UNITTEST_STATECHANGE_TIMEOUT), GST_MESSAGE_EOS);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  gst_object_unref (sink_handle);
+  gst_object_unref (join_handle);
+  gst_object_unref (appsrc_1);
+  gst_object_unref (appsrc_0);
+  gst_object_unref (pipeline);
+}
+
+/**
+ * @brief Test that unlinking one of three sink pads does not end the output.
+ * @detail Three branches into one join is the shape the datarepo and
+ *         custom-easy filter fixtures use, where an output cut short would
+ *         silently truncate a recording. Retiring one branch has to leave the
+ *         join waiting for the one that is still linked and still running.
+ */
+TEST (join, noEosOnUnlinkWhileOthersRun)
+{
+  const gchar *desc
+      = "appsrc name=appsrc_0 ! other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! join.sink_0 "
+        "appsrc name=appsrc_1 ! other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! join.sink_1 "
+        "appsrc name=appsrc_2 ! other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! join.sink_2 "
+        "join name=join ! other/tensor,dimension=(string)3:4:2:2, type=(string)int32, framerate=(fraction)0/1 ! "
+        "tensor_sink name=sinkx async=false";
+  GstElement *appsrc[3], *join_handle, *sink_handle;
+  GstPad *sinkpad_0, *srcpad_0;
+  guint received = 0;
+  guint i;
+
+  GstElement *pipeline = gst_parse_launch (desc, NULL);
+  ASSERT_NE (pipeline, nullptr);
+
+  for (i = 0; i < 3; i++) {
+    gchar *name = g_strdup_printf ("appsrc_%u", i);
+    appsrc[i] = gst_bin_get_by_name (GST_BIN (pipeline), name);
+    g_free (name);
+    ASSERT_NE (appsrc[i], nullptr);
+  }
+  join_handle = gst_bin_get_by_name (GST_BIN (pipeline), "join");
+  ASSERT_NE (join_handle, nullptr);
+  sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  ASSERT_NE (sink_handle, nullptr);
+  g_signal_connect (sink_handle, "new-data", (GCallback) count_data_cb, (gpointer) &received);
+
+  ASSERT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  for (i = 0; i < 3; i++) {
+    ASSERT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc[i]),
+                   gst_buffer_new_wrapped (_g_memdup (test_frames[0], 192), 192)),
+        GST_FLOW_OK);
+    g_usleep (100000);
+  }
+
+  EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (appsrc[1])), GST_FLOW_OK);
+  EXPECT_EQ (pop_eos_or_error (pipeline, 300), GST_MESSAGE_UNKNOWN);
+
+  sinkpad_0 = gst_element_get_static_pad (join_handle, "sink_0");
+  ASSERT_NE (sinkpad_0, nullptr);
+  srcpad_0 = gst_pad_get_peer (sinkpad_0);
+  ASSERT_NE (srcpad_0, nullptr);
+  EXPECT_TRUE (gst_pad_unlink (srcpad_0, sinkpad_0));
+  gst_object_unref (srcpad_0);
+  gst_object_unref (sinkpad_0);
+
+  /* sink_2 is still linked and has not ended, so nothing may be forwarded. */
+  EXPECT_EQ (pop_eos_or_error (pipeline, 300), GST_MESSAGE_UNKNOWN);
+
+  EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (appsrc[2])), GST_FLOW_OK);
+  EXPECT_EQ (pop_eos_or_error (pipeline, UNITTEST_STATECHANGE_TIMEOUT), GST_MESSAGE_EOS);
+  EXPECT_EQ (3U, received);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  gst_object_unref (sink_handle);
+  gst_object_unref (join_handle);
+  for (i = 0; i < 3; i++)
+    gst_object_unref (appsrc[i]);
+  gst_object_unref (pipeline);
+}
+
+/**
  * @brief Main GTest
  */
 int

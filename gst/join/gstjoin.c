@@ -21,10 +21,9 @@
  * All capabilities (input stream i and output stream) should be the same.
  * EOS reaches the output pad only after every linked input stream has ended.
  * A sink pad that is unlinked or released is no longer waited for, since no
- * stream can end on it; the output would otherwise never see EOS. The set is
- * only re-examined when a sink pad receives EOS or is released, so retiring a
- * branch mid-stream means releasing its pad: unlinking alone drops it from the
- * set without ending the output, and the output ends at whatever comes next.
+ * stream can end on it; the output would otherwise never see EOS. Either one
+ * re-examines the set, so a branch may be retired mid-stream by unlinking it or
+ * by releasing its pad, in any order with respect to the other streams ending.
  * <refsect2>
  * <title>Example launch line</title>
  * gst-launch-1.0 ... (input stream 0) ! join.sink_0 \
@@ -240,7 +239,8 @@ forward_sticky_events (GstPad * sinkpad, GstEvent ** event, gpointer user_data)
  * @note must be called with the JOIN_LOCK, and with no sink pad's object lock
  *       held: gst_pad_is_linked() takes it, on every sink pad in turn. A pad's
  *       unlink function runs with that pad's object lock held, so calling this
- *       from one deadlocks. Unlinked pads are ignored, as no stream can ever
+ *       from one deadlocks; gst_join_sinkpad_unlinked() is where an unlink is
+ *       picked up instead. Unlinked pads are ignored, as no stream can ever
  *       end on them.
  */
 static gboolean
@@ -264,6 +264,35 @@ gst_join_all_sinkpads_eos (GstJoin * sel, gboolean * any_eos)
     *any_eos = any;
 
   return all;
+}
+
+/**
+ * @brief re-examine the EOS set once a sink pad has been unlinked
+ * @note Connected to the pad's "unlinked" signal rather than installed with
+ *       gst_pad_set_unlink_function(). gst_pad_unlink() calls the unlink
+ *       function while it still holds both pad object locks and before it
+ *       clears either peer, so a scan from there deadlocks on the pad it is
+ *       asked about and, once that is dodged, still reads the pad as linked.
+ *       The signal is emitted after both peers are cleared and both locks are
+ *       dropped, which is what gst_join_all_sinkpads_eos() needs.
+ */
+static void
+gst_join_sinkpad_unlinked (GstPad * pad, GstPad * peer, gpointer user_data)
+{
+  GstJoin *sel = GST_JOIN (user_data);
+  gboolean send_eos, any_eos = FALSE;
+  (void) peer;
+
+  GST_JOIN_LOCK (sel);
+  send_eos = !sel->eos_sent
+      && gst_join_all_sinkpads_eos (sel, &any_eos) && any_eos;
+  sel->eos_sent |= send_eos;
+  GST_JOIN_UNLOCK (sel);
+
+  if (send_eos) {
+    GST_DEBUG_OBJECT (pad, "last awaited sink pad unlinked, forwarding EOS");
+    gst_pad_push_event (sel->srcpad, gst_event_new_eos ());
+  }
 }
 
 /**
@@ -748,6 +777,8 @@ gst_join_request_new_pad (GstElement * element, GstPadTemplate * templ,
   gst_pad_set_chain_function (sinkpad, GST_DEBUG_FUNCPTR (gst_join_pad_chain));
   gst_pad_set_iterate_internal_links_function (sinkpad,
       GST_DEBUG_FUNCPTR (gst_join_pad_iterate_linked_pads));
+  g_signal_connect_object (sinkpad, "unlinked",
+      G_CALLBACK (gst_join_sinkpad_unlinked), sel, (GConnectFlags) 0);
 
   GST_OBJECT_FLAG_SET (sinkpad, GST_PAD_FLAG_PROXY_CAPS);
   GST_OBJECT_FLAG_SET (sinkpad, GST_PAD_FLAG_PROXY_ALLOCATION);
