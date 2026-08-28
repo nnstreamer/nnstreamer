@@ -4,7 +4,7 @@
 project('nnstreamer', 'c', 'cpp',
   version: '2.7.0',
   license: ['LGPL-2.1'],
-  meson_version: '>=0.62.0',
+  meson_version: '>=0.56.0',
   default_options: [
     'werror=true',
     'warning_level=2',
@@ -170,7 +170,8 @@ flatbuf_dep = disabler()
 flatbuf_version_check_dep = disabler()
 flatc_dep = disabler()
 if flatc.found()
-  flatc_ver = flatc.version()
+  # flatc.version() needs meson 0.62.0, which Ubuntu 22.04 does not ship.
+  flatc_ver = run_command(flatc, '--version', check : true).stdout().split()[2]
   flatbuf_dep = dependency('flatbuffers', version: flatc_ver,
       required : get_option('flatbuf-support'),
       not_found_message : 'flatbuffers version '+flatc_ver+' is required because flatc (flatbuf-compiler) '+flatc_ver+' is installed'
