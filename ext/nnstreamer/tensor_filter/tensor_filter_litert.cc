@@ -103,19 +103,32 @@ namespace
  * from it, while instances open and close independently at pipeline state
  * changes.
  *
- * The lock is shared/exclusive because the two access patterns differ. Running
- * several compiled models off one environment is the pattern upstream
- * recommends, so invoke() only takes it in shared mode. Building and tearing
- * down an instance's LiteRT object graph has no documented thread-safety
- * contract, and before the environment was shared each instance built its own,
- * so those paths take it exclusively to keep that guarantee.
+ * The lock is shared/exclusive because the two access patterns differ.
+ * Building and tearing down an instance's LiteRT object graph takes it
+ * exclusively: before the environment was shared each instance built its own,
+ * so those paths could not interact, and LiteRT documents no contract that
+ * lets them interact now. invoke() takes it in shared mode instead, so
+ * inference is not serialized across instances.
  *
- * The cost is that instances are no longer fully independent: configuring or
- * tearing one down blocks invokes on all the others for the duration, and an
- * invoke in flight delays another instance's setup. Both are bounded by a
- * single model compile on a path that only runs at pipeline state changes,
- * which is the cheaper side of the trade against unsynchronized access to a
- * runtime whose internals cannot be audited.
+ * Note what upstream does and does not say. litert/cc/litert_environment.h
+ * ("In a case of having multiple CompiledModels, it is recommended to share
+ * the same Environment") sanctions the structure, not concurrent calls into
+ * it, and litert/cc/litert_compiled_model.h requires only that the
+ * environment outlive the compiled model and any execution running on it.
+ * Neither states a thread-safety contract. Concurrent invoke is therefore a
+ * reasoned choice, not a documented guarantee: serializing every inference in
+ * the process would be a far worse regression, and libLiteRt.so is a prebuilt
+ * binary, so no sanitizer can settle the question either. If environment-level
+ * state ever does prove unsafe under concurrent use, it will show up on
+ * GPU/NPU rather than on the CPU path CI exercises, and this is the comment to
+ * come back to.
+ *
+ * The costs: instances are no longer fully independent, since configuring or
+ * tearing one down blocks invokes on all the others and an invoke in flight
+ * delays another instance's setup - both bounded by a single model compile on
+ * a path that only runs at pipeline state changes. Every instance in the
+ * process also shares this lock's cache line, so with enough of them even
+ * readers serialize on that atomic.
  */
 std::shared_mutex litert_env_lock;
 LiteRtEnvironment litert_env = nullptr;
@@ -149,7 +162,14 @@ litert_env_unref ()
 {
   std::lock_guard<std::shared_mutex> guard (litert_env_lock);
 
-  if (litert_env_refs == 0 || --litert_env_refs > 0)
+  if (litert_env_refs == 0) {
+    /** Defensive, but never legitimate: it means some path released a
+     *  reference it did not hold, so say so instead of absorbing it. */
+    ml_loge ("Unbalanced LiteRT environment release; this is a bug.");
+    return;
+  }
+
+  if (--litert_env_refs > 0)
     return;
 
   LiteRtDestroyEnvironment (litert_env);
@@ -721,9 +741,10 @@ litert_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
   if (input == nullptr || output == nullptr)
     throw std::invalid_argument ("Invoke called with a null tensor memory.");
 
-  /** Shared: concurrent invokes on distinct compiled models are the pattern
-   *  upstream recommends. This only blocks while another instance is being
-   *  configured or torn down on the same environment. */
+  /** Shared, so inference is never serialized across instances; see the
+   *  shared-environment comment for why concurrent invoke is a reasoned
+   *  choice rather than a documented guarantee. This only blocks while
+   *  another instance is being configured or torn down. */
   std::shared_lock<std::shared_mutex> guard (litert_env_lock);
 
   /* Fill input buffers */

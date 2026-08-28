@@ -957,6 +957,102 @@ TEST (nnstreamerFilterLiteRT, sharedEnvConcurrentOpen)
     EXPECT_TRUE (results[i].load ()) << "Worker " << i << " failed under concurrent open/close.";
 }
 
+static std::atomic<int> _unbalanced_release_count (0);
+
+/**
+ * @brief GLib log handler counting the subplugin's unbalanced-release error.
+ * @param[in] domain log domain, forwarded to the default handler
+ * @param[in] level log level, forwarded to the default handler
+ * @param[in] message the log message to inspect
+ * @param[in] user_data unused, forwarded to the default handler
+ */
+static void
+_countUnbalancedRelease (const gchar *domain, GLogLevelFlags level,
+    const gchar *message, gpointer user_data)
+{
+  if (message != NULL
+      && g_strstr_len (message, -1, "Unbalanced LiteRT environment release") != NULL)
+    ++_unbalanced_release_count;
+
+  g_log_default_handler (domain, level, message, user_data);
+}
+
+/**
+ * @brief Positive case: a failed configure must release exactly the reference
+ * it took, leaving an already-open instance usable.
+ *
+ * Both failures below throw after litert_env_ref() has succeeded, which is the
+ * only asymmetric path in the reference count.
+ *
+ * The reference count itself is what is checked, via the error the subplugin
+ * logs when a release finds no reference outstanding. Asserting on invoke()
+ * instead would not work: destroying a LiteRtEnvironment while a compiled
+ * model built from it is still alive leaves that model usable on the CPU path
+ * this runs on, so an over-release is invisible in the output of a pipeline.
+ * The invoke() checks below therefore assert the user-visible property (a
+ * failed open does not disturb an open instance), not the leak itself.
+ */
+TEST (nnstreamerFilterLiteRT, sharedEnvRefBalanceOnConfigureFailure)
+{
+  int ret;
+  void *data = NULL, *data_bad = NULL;
+  GstTensorMemory input, output;
+  g_autofree gchar *model_file = NULL;
+  g_autofree gchar *garbage_file = NULL;
+  gint fd;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 1));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop, prop_bad;
+  _SetFilterProp (&prop, "litert", model_files);
+
+  input.size = sizeof (float) * 224 * 224 * 3;
+  output.size = sizeof (float) * 1001;
+  input.data = g_malloc0 (input.size);
+  output.data = g_malloc (output.size);
+
+  ret = sp->open (&prop, &data);
+  ASSERT_EQ (ret, 0);
+
+  _unbalanced_release_count = 0;
+  GLogFunc prev_handler = g_log_set_default_handler (_countUnbalancedRelease, NULL);
+
+  /* fails in resolveSignature(), after the environment reference is taken */
+  _SetFilterProp (&prop_bad, "litert", model_files, "Signature:no_such_signature_key");
+  EXPECT_NE (sp->open (&prop_bad, &data_bad), 0);
+
+  EXPECT_EQ (sp->invoke (NULL, &prop, data, &input, &output), 0)
+      << "A failed signature lookup disturbed an already-open instance.";
+
+  /* fails in LiteRtCreateModelFromFile(), also after the reference is taken */
+  fd = g_file_open_tmp ("litert_garbage_XXXXXX.tflite", &garbage_file, NULL);
+  ASSERT_GE (fd, 0);
+  ASSERT_TRUE (g_file_set_contents (
+      garbage_file, "This is not a tflite flatbuffer at all.", -1, NULL));
+  g_close (fd, NULL);
+
+  const gchar *bad_model_files[] = { garbage_file, NULL };
+  data_bad = NULL;
+  _SetFilterProp (&prop_bad, "litert", bad_model_files);
+  EXPECT_NE (sp->open (&prop_bad, &data_bad), 0);
+
+  EXPECT_EQ (sp->invoke (NULL, &prop, data, &input, &output), 0)
+      << "A failed model load disturbed an already-open instance.";
+
+  g_log_set_default_handler (prev_handler, NULL);
+  EXPECT_EQ (_unbalanced_release_count.load (), 0)
+      << "A failed configure released an environment reference it did not hold.";
+
+  g_unlink (garbage_file);
+  g_free (input.data);
+  g_free (output.data);
+  sp->close (&prop, &data);
+}
+
 /**
  * @brief Churn routine for sharedEnvInvokeDuringConfigure: repeatedly build
  * and tear down an instance on the shared environment.

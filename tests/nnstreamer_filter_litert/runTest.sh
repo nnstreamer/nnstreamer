@@ -70,6 +70,7 @@ PATH_TO_MODEL="../test_models/models/mobilenet_v1_1.0_224_quant.tflite"
 PATH_TO_LABEL="../test_models/labels/labels.txt"
 PATH_TO_IMAGE="../test_models/data/orange.png"
 PATH_TO_CLASS="class.out.log"
+PATH_TO_CLASS1="class1.out.log"
 PATH_TO_CLASS2="class2.out.log"
 
 # Test 1: Positive. Golden classification result, same model and golden label
@@ -96,11 +97,14 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} !
 
 # Test 6: Positive. Two litert tensor_filter instances share the process-wide
 # LiteRtEnvironment; both branches, held open at the same time in the same
-# pipeline, must still produce the golden classification result.
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=224,height=224,framerate=0/1 ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=litert model=${PATH_TO_MODEL} ! tensor_decoder mode=image_labeling option1=${PATH_TO_LABEL} ! filesink location=${PATH_TO_CLASS} t. ! queue ! tensor_filter framework=litert model=${PATH_TO_MODEL} ! tensor_decoder mode=image_labeling option1=${PATH_TO_LABEL} ! filesink location=${PATH_TO_CLASS2}" 6 0 0 $PERFORMANCE
-class=$(cat ${PATH_TO_CLASS})
+# pipeline, must still produce the golden classification result. Both
+# branches write their own log, removed first, so no earlier case output
+# can stand in for a branch that produced nothing.
+rm -f ${PATH_TO_CLASS1} ${PATH_TO_CLASS2}
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! video/x-raw,format=RGB,width=224,height=224,framerate=0/1 ! tensor_converter ! tee name=t ! queue ! tensor_filter framework=litert model=${PATH_TO_MODEL} ! tensor_decoder mode=image_labeling option1=${PATH_TO_LABEL} ! filesink location=${PATH_TO_CLASS1} t. ! queue ! tensor_filter framework=litert model=${PATH_TO_MODEL} ! tensor_decoder mode=image_labeling option1=${PATH_TO_LABEL} ! filesink location=${PATH_TO_CLASS2}" 6 0 0 $PERFORMANCE
+class1=$(cat ${PATH_TO_CLASS1})
 class2=$(cat ${PATH_TO_CLASS2})
-[ "$class" = "orange" ] && [ "$class2" = "orange" ]
+[ "$class1" = "orange" ] && [ "$class2" = "orange" ]
 testResult $? 6 "Golden test comparison with two concurrent litert instances" 0 1
 
 report
