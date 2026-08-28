@@ -2707,8 +2707,8 @@ TEST (commonUtil, waitPipelineProcessBuffers)
     best_us = MIN (best_us, g_get_monotonic_time () - start_us);
   }
 
-  /* One un-preempted run is enough to show the helper checks before sleeping.
-     Widening the bound instead would hide the very tick it has to detect. */
+  /** One un-preempted run is enough to show the helper checks before sleeping.
+   *  Widening the bound instead would hide the very tick it has to detect. */
   EXPECT_LT (best_us, (gint64) TEST_DEFAULT_SLEEP_TIME);
 }
 
