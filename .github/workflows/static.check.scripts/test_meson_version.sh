@@ -103,6 +103,22 @@ expect_checker 0 "another package's requirement near the word meson is ignored" 
 "${MESON_BUILD}
 $(printf 'Documentation/getting-started-meson-build.md\tmeson.build additionally wants glib >= 2.60 at configure time.')"
 
+expect_checker 1 "markdown emphasis does not hide a declaration" \
+"${MESON_BUILD}
+$(printf 'Documentation/getting-started-meson-build.md\tBuild system: **meson** >= 0.62.0 and ninja.')"
+
+expect_checker 1 "a code span does not hide a declaration" \
+"${MESON_BUILD}
+$(printf 'Documentation/getting-started-meson-build.md\tYou need `meson` >= 0.62.0 to configure.')"
+
+expect_checker 1 "an upper case spelling does not hide a declaration" \
+"${MESON_BUILD}
+$(printf 'Documentation/getting-started-meson-build.md\tMESON >= 0.62.0 is required.')"
+
+expect_checker 1 "meson.build syntax quoted in a page is checked too" \
+"${MESON_BUILD}
+$(printf 'Documentation/getting-started-meson-build.md\tThe project declares meson_version: >=0.62.0 today.')"
+
 expect_checker 1 "two declarations on one line are both checked" \
 "${MESON_BUILD}
 $(printf 'Documentation/how-to-run-examples.md\tUse meson >= 0.56.0 on Ubuntu and Meson >= 0.62.0 on Tizen.')"
