@@ -32,7 +32,8 @@ if [[ -d $PATH_TO_PLUGIN ]]; then
         fi
     else
         echo "Cannot find ${ini_path}"
-        report exit
+        report
+        exit
     fi
 else
     echo "No build directory"

@@ -21,21 +21,27 @@ testInit $1
 
 PATH_TO_PLUGIN="../../build"
 # Check lua libraries are built. This test utilizes it for making "sparse" dense tensors.
-if [[ -d $PATH_TO_PLUGIN ]]; then
+if [[ -d ${PATH_TO_PLUGIN} ]]; then
     ini_path="${PATH_TO_PLUGIN}/ext/nnstreamer/tensor_filter"
-    if [[ -d ${ini_path} ]]; then
-        check=$(ls ${ini_path} | grep lua.so)
-        if [[ ! $check ]]; then
-            echo "Cannot find lua shared lib"
-            report
-            exit
-        fi
-    else
-        echo "Cannot find ${ini_path}"
-        report exit
-    fi
 else
-    echo "No build directory"
+    ini_file="/etc/nnstreamer.ini"
+    if [[ ! -f ${ini_file} ]]; then
+        echo "Cannot identify nnstreamer.ini"
+        report
+        exit
+    fi
+
+    sub_plugin_line=$(grep "^filters" ${ini_file})
+    if [[ ${sub_plugin_line%%=*} != "filters" ]]; then
+        echo "Cannot identify the sub-plugin path from ${ini_file}"
+        report
+        exit
+    fi
+    ini_path=${sub_plugin_line##*=}
+fi
+
+if [[ ! -d ${ini_path} ]] || [[ -z $(ls ${ini_path} | grep lua.so) ]]; then
+    echo "Cannot find lua shared lib"
     report
     exit
 fi

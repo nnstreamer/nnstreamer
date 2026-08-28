@@ -40,38 +40,45 @@ convertBMP2PNG
 
 PATH_TO_PLUGIN="../../build"
 # Check python libraries are built
-if [[ -d $PATH_TO_PLUGIN ]]; then
+if [[ -d ${PATH_TO_PLUGIN} ]]; then
     ini_path="${PATH_TO_PLUGIN}/ext/nnstreamer/tensor_decoder"
-    if [[ -d ${ini_path} ]]; then
-        check=$(ls ${ini_path} | grep python3.so)
-        if [[ ! $check ]]; then
-            echo "Cannot find python shared lib"
-            report
-            exit
-        fi
-    else
-        echo "Cannot find ${ini_path}"
+else
+    ini_file="/etc/nnstreamer.ini"
+    if [[ ! -f ${ini_file} ]]; then
+        echo "Cannot identify nnstreamer.ini"
         report
         exit
     fi
-else
-    echo "No build directory"
+
+    sub_plugin_line=$(grep "^decoders" ${ini_file})
+    if [[ ${sub_plugin_line%%=*} != "decoders" ]]; then
+        echo "Cannot identify the sub-plugin path from ${ini_file}"
+        report
+        exit
+    fi
+    ini_path=${sub_plugin_line##*=}
+fi
+
+if [[ ! -d ${ini_path} ]] || [[ -z $(ls ${ini_path} | grep python3.so) ]]; then
+    echo "Cannot find python shared lib"
     report
     exit
 fi
 
 FRAMEWORK="python3"
-# This symlink is necessary only for testcases; when installed, symlinks will be made
-pushd ../../build/ext/nnstreamer/tensor_decoder
-TEST_PYTHONPATH=$(pwd)/${FRAMEWORK}_pymodule
-mkdir -p ${TEST_PYTHONPATH}
-pushd ${TEST_PYTHONPATH}
-export PYTHONPATH=$(pwd):${PYTHONPATH}
-if [[ ! -f ./nnstreamer_python.so ]]; then
-  ln -s ../../extra/nnstreamer_${FRAMEWORK}.so nnstreamer_python.so
+if [[ -d ${PATH_TO_PLUGIN} ]]; then
+    # This symlink is necessary only for testcases; when installed, symlinks will be made
+    pushd ${PATH_TO_PLUGIN}/ext/nnstreamer/tensor_decoder
+    TEST_PYTHONPATH=$(pwd)/${FRAMEWORK}_pymodule
+    mkdir -p ${TEST_PYTHONPATH}
+    pushd ${TEST_PYTHONPATH}
+    export PYTHONPATH=$(pwd):${PYTHONPATH}
+    if [[ ! -f ./nnstreamer_python.so ]]; then
+      ln -s ../../extra/nnstreamer_${FRAMEWORK}.so nnstreamer_python.so
+    fi
+    popd
+    popd
 fi
-popd
-popd
 
 PATH_TO_SCRIPT="../test_models/models/custom_decoder.py"
 #
@@ -130,6 +137,9 @@ callCompareTest testsynch19_3.golden testsynch19_3.log 3-4 "Tensor mux Compare 3
 callCompareTest testsynch19_4.golden testsynch19_4.log 3-5 "Tensor mux Compare 3-5" 1 0
 
 rm *.golden *.log *.bmp *.png *.dat
-rm -r ${TEST_PYTHONPATH}
+# TEST_PYTHONPATH is only set when the symlink was made in a build tree.
+if [[ -n ${TEST_PYTHONPATH} ]]; then
+    rm -r ${TEST_PYTHONPATH}
+fi
 
 report

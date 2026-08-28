@@ -32,20 +32,27 @@ convertBMP2PNG
 
 PATH_TO_PLUGIN="../../build"
 
-if [[ -d $PATH_TO_PLUGIN ]]; then
+if [[ -d ${PATH_TO_PLUGIN} ]]; then
     ini_path="${PATH_TO_PLUGIN}/ext/nnstreamer/tensor_converter"
-    if [[ -d ${ini_path} ]]; then
-        check=$(ls ${ini_path} | grep flatbuf.so)
-        if [[ ! $check ]]; then
-            echo "Cannot find flatbuf shared lib"
-            report
-            exit
-        fi
-    else
-        echo "Cannot find ${ini_path}"
-    fi
 else
-    echo "No build directory"
+    ini_file="/etc/nnstreamer.ini"
+    if [[ ! -f ${ini_file} ]]; then
+        echo "Cannot identify nnstreamer.ini"
+        report
+        exit
+    fi
+
+    sub_plugin_line=$(grep "^converters" ${ini_file})
+    if [[ ${sub_plugin_line%%=*} != "converters" ]]; then
+        echo "Cannot identify the sub-plugin path from ${ini_file}"
+        report
+        exit
+    fi
+    ini_path=${sub_plugin_line##*=}
+fi
+
+if [[ ! -d ${ini_path} ]] || [[ -z $(ls ${ini_path} | grep flatbuf.so) ]]; then
+    echo "Cannot find flatbuf shared lib"
     report
     exit
 fi
