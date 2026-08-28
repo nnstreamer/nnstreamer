@@ -53,11 +53,11 @@ $ git clone https://github.com/nnstreamer/nnstreamer.git
 $ cd nnstreamer
 ```
 
-Optionally checkout a recent version more stable than the main branch, for 
-instance:
+Optionally checkout the most recent release, which is more stable than the
+main branch:
 
 ```bash
-$ git checkout v2.6.0
+$ git checkout $(git tag --sort=-v:refname --list 'v*' | head -n 1)
 ```
 
 Configure the build with [meson](https://mesonbuild.com):
