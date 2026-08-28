@@ -26,17 +26,21 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 ROOT=${1:-$(cd "${SCRIPT_DIR}/../../.." && pwd)}
 failed=0
 
-# A declared requirement: meson, then >=, then a version. The gap between them
-# may hold punctuation but no letter or digit, which is what separates a
-# declaration from prose: "meson (>=X)", "**meson** >= X" and "`meson` >= X"
-# all match, while "meson.build wants glib >= 2.60" does not, because another
-# package name stands in the way. Excluding digits from the gap also means the
-# only digits in a match belong to the version itself.
+# A declared requirement: meson, then >=, then a version, with a gap between
+# them that may hold decoration but nothing that means the sentence moved on.
+# Letters and digits are excluded, so a named neighbour breaks the match -
+# "meson.build wants glib >= 2.60" is prose about glib, not a meson
+# requirement - and so the only digits in a match belong to the version.
+# Comma, period and semicolon are excluded too, so an unnamed version further
+# along a sentence, as in "see meson, (>=5.0) elsewhere", is not attributed to
+# meson either. What is left through is decoration: "meson (>=X)",
+# "**meson** >= X", "`meson` >= X", "meson_version: >=X".
 #
-# Known limit: a markdown link, "[meson](https://example.com) >= X", puts
-# letters in the gap and is not recognised. Write the requirement outside the
-# link text.
-DECL_RE='meson(_version)?[^[:alnum:]]{0,12}>=[[:space:]]*[0-9]+(\.[0-9]+)+'
+# This is a heuristic over prose and is deliberately not grown any further. A
+# markdown link, "[meson](https://example.com) >= X", puts letters in the gap
+# and is not recognised. If some other phrasing escapes it, write the
+# requirement in one of the plain forms above rather than widening this.
+DECL_RE='meson(_version)?[^[:alnum:],.;]{0,12}>=[[:space:]]*[0-9]+(\.[0-9]+)+'
 
 ##
 # @brief Print a version padded to four components so 0.56 and 0.56.0 compare equal.

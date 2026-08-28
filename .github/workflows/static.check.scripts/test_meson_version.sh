@@ -121,6 +121,14 @@ expect_checker 1 "meson.build syntax quoted in a page is checked too" \
 "${MESON_BUILD}
 $(printf 'Documentation/getting-started-meson-build.md\tThe project declares meson_version: >=0.62.0 today.')"
 
+expect_checker 0 "a version further along a sentence is not attributed to meson" \
+"${MESON_BUILD}
+$(printf 'Documentation/getting-started-meson-build.md\tSee meson, (>=5.0) is the tool version we mean elsewhere.')"
+
+expect_checker 0 "an ellipsis breaks the association as well" \
+"${MESON_BUILD}
+$(printf 'Documentation/getting-started-meson-build.md\tAfter installing meson... (>=2024.1) support was added.')"
+
 expect_checker 1 "two declarations on one line are both checked" \
 "${MESON_BUILD}
 $(printf 'Documentation/how-to-run-examples.md\tUse meson >= 0.56.0 on Ubuntu and Meson >= 0.62.0 on Tizen.')"
