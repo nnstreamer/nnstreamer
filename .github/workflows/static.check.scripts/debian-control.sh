@@ -41,6 +41,9 @@ squeeze() {
 
 ##
 # @brief Print the Build-Depends* fields of a control file, one clause per line.
+#        A separator is emitted between fields because the last dependency of
+#        a field needs no trailing comma, and without it the field would run
+#        into the next one and hide a group inside the merged clause.
 # @param $1 path of the control file
 extract_clauses() {
   awk '
@@ -49,6 +52,8 @@ extract_clauses() {
     /^[A-Za-z0-9][A-Za-z0-9-]*:/ {
       collecting = ($0 ~ /^Build-Depends(-Arch|-Indep)?:/)
       if (!collecting) { next }
+      if (started) { printf "," }
+      started = 1
       sub(/^[^:]*:/, "")
     }
     collecting { printf "%s ", $0 }
