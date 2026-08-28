@@ -27,7 +27,8 @@ REPO_ROOT=$(cd "${SCRIPT_DIR}/../../.." && pwd)
 failed=0
 
 # Toolchain packages whose version-suffixed form leaves distro archives as
-# the compiler ages out.
+# the compiler ages out. Matched against the bare name, with any multiarch
+# qualifier such as :native already stripped.
 TOOLCHAIN_RE='^(gcc|g\+\+|cpp|clang|clang\+\+|llvm)-[0-9]+(\.[0-9]+)*$'
 PKGNAME_RE='^[a-z0-9][a-z0-9+.-]*$'
 
@@ -78,6 +79,7 @@ check_file() {
     alt_count=0
     while IFS= read -r alt; do
       name=$(echo "$alt" | awk '{print $1}')
+      name=${name%%:*}
       if [ -z "$name" ]; then
         continue
       fi
