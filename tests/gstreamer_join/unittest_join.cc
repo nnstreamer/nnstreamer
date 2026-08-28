@@ -491,6 +491,21 @@ join_feeder_thread (gpointer data)
 }
 
 /**
+ * @brief Attempts made at the pad release race.
+ * @detail Twenty detect a reintroduced ordering defect 20 out of 20 times on
+ *         an idle machine, which is_parallel:false gives this test.
+ */
+#define PAD_RELEASE_RACE_ATTEMPTS (20U)
+
+/**
+ * @brief Wall clock the pad release race attempts may spend altogether.
+ * @detail They cost about 250 ms together, and far more where a single attempt
+ *         is expensive - under a memory checker one attempt alone has taken
+ *         93 s. This stops such an environment from paying for all of them.
+ */
+#define PAD_RELEASE_RACE_BUDGET_US (10 * G_USEC_PER_SEC)
+
+/**
  * @brief Release the sink pad a feeder thread is streaming into.
  * @return TRUE if the released pad is no longer referenced as the active one.
  */
@@ -558,18 +573,16 @@ run_pad_release_while_streaming (void)
  *         element's reference. Otherwise active-pad is left pointing at a pad
  *         that is no longer part of the element, and the events of the
  *         surviving pads are silently dropped from then on. The window is a
- *         few instructions wide, so the run is repeated - 20 attempts detect a
- *         reintroduced defect 20 out of 20 times on an idle machine, which
- *         is_parallel:false gives it. The wall-clock bound keeps an
- *         environment where one attempt is expensive, such as valgrind, from
- *         paying for all twenty.
+ *         few instructions wide, so the run is repeated; see
+ *         PAD_RELEASE_RACE_ATTEMPTS and PAD_RELEASE_RACE_BUDGET_US for how
+ *         many times and for how long.
  */
 TEST (join, padReleaseWhileStreaming)
 {
-  gint64 deadline = g_get_monotonic_time () + 10 * G_USEC_PER_SEC;
+  gint64 deadline = g_get_monotonic_time () + PAD_RELEASE_RACE_BUDGET_US;
   guint i;
 
-  for (i = 0; i < 20; i++) {
+  for (i = 0; i < PAD_RELEASE_RACE_ATTEMPTS; i++) {
     ASSERT_TRUE (run_pad_release_while_streaming ()) << "iteration " << i;
     /* Far slower under a memory checker, which is not testing this race. */
     if (g_get_monotonic_time () > deadline)
