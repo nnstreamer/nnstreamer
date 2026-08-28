@@ -84,6 +84,24 @@ jobs:
         curl -fsSL -o tests/test_models/models/TinyStories-656K-Q2_K.gguf \
           "https://huggingface.co/tensorblock/TinyStories-656K-GGUF/resolve/main/TinyStories-656K-Q2_K.gguf"
         echo "5a798ebc1cad921e0ce639b2f10c4bcce492654a79d4b4ca52bd0268416f6b87  tests/test_models/models/TinyStories-656K-Q2_K.gguf" | sha256sum -c
+    - name: install ncnn for the ncnn tensor-filter
+      if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
+      run: |
+        # ncnn has no distro package; take the official prebuilt shared
+        # release, which ships the headers, libncnn.so and a relocatable
+        # ncnn.pc. Only ubuntu-2204 x64 assets are published, hence x86_64.
+        NCNN_VERSION="20260526"
+        curl -fsSL -o ncnn-bin.zip \
+          "https://github.com/Tencent/ncnn/releases/download/${NCNN_VERSION}/ncnn-${NCNN_VERSION}-ubuntu-2204-shared.zip"
+        echo "69174c845eaf0e7b592f1e032b700d1b0ffda2915ebf69ee98b2d87411578d30  ncnn-bin.zip" | sha256sum -c
+        unzip -q ncnn-bin.zip -d ncnn-prebuilt
+        NCNN_ROOT=ncnn-prebuilt/ncnn-${NCNN_VERSION}-ubuntu-2204-shared
+        sudo cp -r ${NCNN_ROOT}/include/ncnn /usr/local/include/
+        sudo cp -P ${NCNN_ROOT}/lib/libncnn.so* /usr/local/lib/
+        sudo mkdir -p /usr/local/lib/pkgconfig
+        sudo cp ${NCNN_ROOT}/lib/pkgconfig/ncnn.pc /usr/local/lib/pkgconfig/
+        sudo ldconfig
+        rm -rf ncnn-bin.zip ncnn-prebuilt/
     - name: install LiteRT SDK (x86_64 only)
       if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
       run: |
@@ -147,6 +165,9 @@ jobs:
           # detection and its SSAT script reports success with zero cases when
           # the .so is absent; assert so a detection regression cannot go green.
           test -f build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_litert.so
+          # Same for ncnn: its SSAT script reports success with zero cases when
+          # the .so is absent.
+          test -f build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_ncnn.so
         fi
 
         sudo mkdir -m 777 /cores
@@ -183,6 +204,9 @@ jobs:
     - name: SSAT run on filter-litert
       if: env.rebuild == '1'
       run: if [ '${{ matrix.os }}' == 'ubuntu-22.04' ] && [ -n "$LITERT_ROOT" ]; then export NNSTREAMER_BUILD_ROOT_PATH=`pwd`/build && export NNSTREAMER_FILTERS=`pwd`/build/ext/nnstreamer/tensor_filter && export NNSTREAMER_DECODERS=`pwd`/build/ext/nnstreamer/tensor_decoder && export NNSTREAMER_CONVERTERS=`pwd`/build/ext/nnstreamer/tensor_converter && export GST_PLUGIN_PATH=`pwd`/build/gst && export NNSTREAMER_CONF=`pwd`/build/nnstreamer-test.ini && pushd tests/nnstreamer_filter_litert && ssat -n -p=1 --summary summary.txt && popd; fi
+    - name: SSAT run on filter-ncnn
+      if: env.rebuild == '1'
+      run: if [ '${{ matrix.os }}' == 'ubuntu-22.04' ]; then export NNSTREAMER_BUILD_ROOT_PATH=`pwd`/build && export NNSTREAMER_FILTERS=`pwd`/build/ext/nnstreamer/tensor_filter && export NNSTREAMER_DECODERS=`pwd`/build/ext/nnstreamer/tensor_decoder && export NNSTREAMER_CONVERTERS=`pwd`/build/ext/nnstreamer/tensor_converter && export GST_PLUGIN_PATH=`pwd`/build/gst && export NNSTREAMER_CONF=`pwd`/build/nnstreamer-test.ini && pushd tests/nnstreamer_filter_ncnn && ssat -n -p=1 --summary summary.txt && popd; fi
     - name: GTEST run with Valgrind on a case
       if: env.rebuild == '1'
       run: if [ '${{ matrix.os }}' == 'ubuntu-22.04' ]; then export NNSTREAMER_BUILD_ROOT_PATH=`pwd`/build && export NNSTREAMER_FILTERS=`pwd`/build/ext/nnstreamer/tensor_filter && export NNSTREAMER_DECODERS=`pwd`/build/ext/nnstreamer/tensor_decoder && export NNSTREAMER_CONVERTERS=`pwd`/build/ext/nnstreamer/tensor_converter && export GST_PLUGIN_PATH=`pwd`/build/gst && export NNSTREAMER_CONF=`pwd`/build/nnstreamer-test.ini && G_SLICE=always-malloc G_DEBUG=gc-friendly ./packaging/run_unittests_binaries.sh --valgrind ./tests/ || echo "There are Valgrind errors. Please fix it. As we have a lot of Valgrind errors from different libraries and possible from nnstreamer itself, we are not halting the build with Valgrind errors until we get them all."; fi
