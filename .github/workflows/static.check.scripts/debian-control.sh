@@ -50,7 +50,7 @@ extract_clauses() {
     /^[[:space:]]*#/ { next }
     /^[[:space:]]*$/ { collecting = 0; next }
     /^[A-Za-z0-9][A-Za-z0-9-]*:/ {
-      collecting = ($0 ~ /^Build-Depends(-Arch|-Indep)?:/)
+      collecting = (tolower($0) ~ /^build-depends(-arch|-indep)?:/)
       if (!collecting) { next }
       if (started) { printf "," }
       started = 1
