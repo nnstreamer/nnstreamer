@@ -24,6 +24,9 @@ $ brew tap nnstreamer/neural-network
 $ brew install nnstreamer
 ```
 
+This installs the latest tagged release, not the `main` branch. Build from
+source if you need changes that are not in a release yet.
+
 ## Building from source
 
 Note that most frameworks will be disabled during the configuration, if you 
@@ -33,7 +36,7 @@ please provide a pull request with an update of this doc!
 Install the necessary dependencies:
 
 ```bash
-$ brew install meson ninja pkg-config cmake libffi glib \
+$ brew install meson ninja pkg-config cmake libffi glib json-glib \
     gstreamer gst-plugins-base gst-plugins-good numpy
 ```
 
@@ -54,20 +57,21 @@ Optionally checkout a recent version more stable than the main branch, for
 instance:
 
 ```bash
-$ git checkout v2.1.1
+$ git checkout v2.6.0
 ```
 
 Configure the build with [meson](https://mesonbuild.com):
 
 ```bash
-$ meson build \
-    --prefix=/usr/local \
+$ meson setup build \
+    --prefix=$(brew --prefix) \
     -Dwerror=false -Denable-test=false
 ```
 
-The target files will be installed in `/usr/local/lib/gstreamer-1.0`, 
-`/usr/local/lib/nnstreamer`, `/usr/local/include/nnstreamer` and 
-`/usr/local/etc/`.
+`brew --prefix` is `/opt/homebrew` on Apple silicon and `/usr/local` on Intel.
+The target files will be installed in `$(brew --prefix)/lib/gstreamer-1.0`, 
+`$(brew --prefix)/lib/nnstreamer`, `$(brew --prefix)/include/nnstreamer` and 
+`$(brew --prefix)/etc/`.
 
 Finally build and install using [ninja](https://ninja-build.org/):
 
