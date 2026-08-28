@@ -82,6 +82,18 @@ Build-Depends: gcc-13 | gcc,
  pytorch <!nocheck> | libtorch-dev | gcc
 Standards-Version: 3.9.6'
 
+expect_checker 1 "a multiarch qualifier does not hide a versioned-only group" \
+'Source: nnstreamer
+Build-Depends: gcc-13:native | gcc-12:native,
+ ninja-build
+Standards-Version: 3.9.6'
+
+expect_checker 0 "a multiarch qualifier on the fallback is accepted" \
+'Source: nnstreamer
+Build-Depends: gcc-13:native | gcc:native,
+ ninja-build
+Standards-Version: 3.9.6'
+
 expect_checker 0 "a comment inside the field does not terminate it" \
 'Source: nnstreamer
 Build-Depends: gcc-9 | gcc,
