@@ -73,10 +73,6 @@ typedef enum
 	                                             @n Privilege : http://tizen.org/privilege/healthinfo */
 	SENSOR_HUMAN_SLEEP_DETECTOR,            /**< Sleep detector (Since 3.0)
 	                                             @n Privilege : http://tizen.org/privilege/healthinfo */
-	SENSOR_HUMAN_STRESS_MONITOR,            /**< Stress monitor (Since 3.0)
-	                                             @n Privilege : http://tizen.org/privilege/healthinfo */
-	SENSOR_LAST,                            /**< End of sensor enum values (Deprecated since 3.0) */
-	SENSOR_CUSTOM = 0x2710,                 /**< Custom sensor (Deprecated since 3.0) */
 } sensor_type_e;
 
 /**

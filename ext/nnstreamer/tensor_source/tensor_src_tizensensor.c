@@ -60,7 +60,7 @@
  * @todo Add "power management" options (Tizen sensor f/w accepts such)
  *
  * @todo Some sensor types are privileged. We need privilege control.
- * Some sensor types are privileged. An application should have the privilege http://tizen.org/privilege/healthinfo to get handles for the following sensors: SENSOR_HRM, SENSOR_HRM_LED_GREEN, SENSOR_HRM_LED_IR, SENSOR_HRM_LED_RED, SENSOR_HUMAN_PEDOMETER, SENSOR_HUMAN_SLEEP_MONITOR, SENSOR_HUMAN_SLEEP_DETECTOR, and SENSOR_HUMAN_STRESS_MONITOR.
+ * Some sensor types are privileged. An application should have the privilege http://tizen.org/privilege/healthinfo to get handles for the following sensors: SENSOR_HRM, SENSOR_HRM_LED_GREEN, SENSOR_HRM_LED_IR, SENSOR_HRM_LED_RED, SENSOR_HUMAN_PEDOMETER, SENSOR_HUMAN_SLEEP_MONITOR, and SENSOR_HUMAN_SLEEP_DETECTOR.
  *
  * @todo Some sensor types appear to have mixed types (float32 & int32).
  * @todo Add a property to set output tensor type (float32/int32/...) along
@@ -222,10 +222,6 @@ tizen_sensor_get_type (void)
           "human_sleep_monitor"},
       {SENSOR_HUMAN_SLEEP_DETECTOR, "SENSOR_HUMAN_SLEEP_DETECTOR",
           "human_sleep_detector"},
-      {SENSOR_HUMAN_STRESS_MONITOR, "SENSOR_HUMAN_STRESS_MONITOR",
-          "human_stress_monitor"},
-      {SENSOR_LAST, "SENSOR_LAST", "last"},
-      {SENSOR_CUSTOM, "SENSOR_CUSTOM", "custom"},
       {0, NULL, NULL},
     };
     etype = g_enum_register_static ("sensor_type_e", values);
@@ -327,10 +323,6 @@ static TizenSensorSpec tizensensorspecs[] = {
   {.type = SENSOR_HUMAN_SLEEP_DETECTOR,.value_count = 1, /** @todo check! */
         .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
           .dimension = {1, 1, 0, }}},
-  {.type = SENSOR_HUMAN_STRESS_MONITOR,.value_count = 1, /** @todo check! */
-        .tinfo = {.name = NULL,.type = _NNS_FLOAT32,
-          .dimension = {1, 1, 0, }}},
-  {.type = SENSOR_LAST,.value_count = 0,.tinfo = {0,}},
 };
 
 #define GST_TYPE_TIZEN_SENSOR_MODE (tizen_sensor_get_mode ())
@@ -468,10 +460,12 @@ gst_tensor_src_tizensensor_init (GstTensorSrcTIZENSENSOR * self)
   gst_base_src_set_dynamic_size (GST_BASE_SRC (self), FALSE);
 
   if (NULL == tizensensors) {
-    int i, sensor_dim;
+    int i, n, sensor_dim;
+
+    n = G_N_ELEMENTS (tizensensorspecs);
     tizensensors = g_hash_table_new (g_direct_hash, g_direct_equal);
 
-    for (i = 0; tizensensorspecs[i].type != SENSOR_LAST; i++) {
+    for (i = 0; i < n; i++) {
       g_assert (g_hash_table_insert (tizensensors,
               GINT_TO_POINTER (tizensensorspecs[i].type),
               &tizensensorspecs[i].tinfo));
@@ -1259,7 +1253,7 @@ gst_tensor_src_tizensensor_fill (GstBaseSrc * src, guint64 offset,
     ret = sensor_listener_read_data_list (self->listener, &events, &count);
     if (ret != SENSOR_ERROR_NONE || count == 0) {
       GST_ERROR_OBJECT (self,
-          "Tizen sensor read failed: sensor_listener_read_data returned %d, count %d",
+          "Tizen sensor read failed: sensor_listener_read_data_list() returned %d, count %d",
           ret, count);
       retval = GST_FLOW_ERROR;
       goto exit_unmap;
