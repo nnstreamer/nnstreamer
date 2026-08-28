@@ -12,7 +12,7 @@
 # debian/control* files, packaging/nnstreamer.spec, AGENTS.md and two
 # Documentation pages. Nothing tied them together, so raising the floor in
 # 647b30e5 left debian/control.ubuntu.ppa and debian/control.debian behind at
-# 0.49 and the value that reaches the published .dsc disagreed with the value
+# 0.49, and the value that reaches the published .dsc disagreed with the value
 # the source build resolves against. meson.build is the authority here,
 # because it is the file meson itself enforces.
 #
@@ -26,16 +26,23 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 ROOT=${1:-$(cd "${SCRIPT_DIR}/../../.." && pwd)}
 failed=0
 
-# A declared requirement: the word meson, then >=, then a version. Plain
-# mentions of a version some distro happens to ship carry no >= and are left
-# alone.
-DECL_RE='[Mm]eson[^0-9]{0,24}>=[[:space:]]*[0-9]+(\.[0-9]+)+'
+# A declared requirement: meson, then >= with nothing but an optional bracket
+# between them, then a version. Every form in the tree fits - "meson (>=X)",
+# "meson >= X", "Meson >= X + Ninja". Keeping the gap this tight is what stops
+# prose such as "meson.build wants glib >= 2.60" from reading as a meson
+# requirement. Because the gap cannot contain a digit, the only digits in a
+# match belong to the version itself.
+DECL_RE='[Mm]eson[[:space:]]*\(?[[:space:]]*>=[[:space:]]*[0-9]+(\.[0-9]+)+'
 
 ##
-# @brief Print a version as major.minor.patch so 0.56 and 0.56.0 compare equal.
+# @brief Print a version padded to four components so 0.56 and 0.56.0 compare equal.
 # @param $1 version string
 normalize() {
-  echo "$1" | awk -F. '{ printf "%d.%d.%d\n", $1, ($2 == "" ? 0 : $2), ($3 == "" ? 0 : $3) }'
+  echo "$1" | awk -F. '{
+    for (i = 1; i <= 4; i++) {
+      printf "%d%s", ($i == "" ? 0 : $i), (i < 4 ? "." : "\n")
+    }
+  }'
 }
 
 if [ ! -f "${ROOT}/meson.build" ]; then
@@ -52,25 +59,46 @@ fi
 expected=$(normalize "$expected_raw")
 echo "meson.build declares meson_version >= ${expected_raw}"
 
-targets=$(cd "$ROOT" && ls -1 AGENTS.md packaging/nnstreamer.spec debian/control* 2>/dev/null; \
-          cd "$ROOT" && find Documentation -maxdepth 1 -type f -name '*.md' 2>/dev/null | sort)
+##
+# @brief Compare every declaration in one file against meson.build.
+# @param $1 path of the file relative to the repository root
+check_file() {
+  local rel=$1
+  local file="${ROOT}/${rel}"
+  local hit lineno text decl found_raw found
 
-for rel in $targets; do
-  file="${ROOT}/${rel}"
-  [ -f "$file" ] || continue
+  [ -f "$file" ] || return 0
+
   while IFS= read -r hit; do
     [ -z "$hit" ] && continue
     lineno=${hit%%:*}
-    found_raw=$(echo "${hit#*:}" | grep -oE '[0-9]+(\.[0-9]+)+' | tail -1)
-    found=$(normalize "$found_raw")
-    if [ "$found" = "$expected" ]; then
-      echo "  ok   ${rel}:${lineno} (${found_raw})"
-    else
-      echo "::error::${rel}:${lineno} requires meson ${found_raw}, but meson.build requires ${expected_raw}. Keep every declaration in step."
-      failed=1
-    fi
-  done < <(grep -nE "$DECL_RE" "$file" | grep -oE "^[0-9]+:.*")
-done
+    text=${hit#*:}
+    # One line may carry more than one declaration, and the version has to be
+    # read out of the matched text rather than the whole line: a neighbouring
+    # constraint such as "debhelper (>=9.20)" would otherwise be picked up as
+    # the meson requirement.
+    while IFS= read -r decl; do
+      [ -z "$decl" ] && continue
+      found_raw=$(echo "$decl" | grep -oE '[0-9]+(\.[0-9]+)+' | tail -1)
+      found=$(normalize "$found_raw")
+      if [ "$found" = "$expected" ]; then
+        echo "  ok   ${rel}:${lineno} (${found_raw})"
+      else
+        echo "::error::${rel}:${lineno} requires meson ${found_raw}, but meson.build requires ${expected_raw}. Keep every declaration in step."
+        failed=1
+      fi
+    done < <(echo "$text" | grep -oE "$DECL_RE")
+  done < <(grep -nE "$DECL_RE" "$file")
+}
+
+while IFS= read -r rel; do
+  [ -z "$rel" ] && continue
+  check_file "$rel"
+done < <(
+  cd "$ROOT" || exit 1
+  ls -1 AGENTS.md packaging/nnstreamer.spec debian/control* 2>/dev/null
+  find Documentation -maxdepth 1 -type f -name '*.md' 2>/dev/null | sort
+)
 
 if [ "$failed" -ne 0 ]; then
   echo "::error::The meson version declarations disagree."
