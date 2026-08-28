@@ -110,8 +110,8 @@ class ncnn_subplugin final : public tensor_filter_subplugin
 
   void parseCustomProperties (const GstTensorFilterProperties *prop);
   void setInputInfo (const GstTensorsInfo &info);
-  void allocInputMats ();
-  void inferOutputInfo ();
+  void inferOutputInfo (std::vector<ncnn::Mat> &mats, GstTensorsInfo &info);
+  static std::vector<ncnn::Mat> allocMats (const GstTensorsInfo &info);
   static void normalizeInfo (GstTensorsInfo &info, size_t num_expected, const char *direction);
   static std::vector<int> getShape (const GstTensorInfo *info);
   static ncnn::Mat allocMat (const GstTensorInfo *info);
@@ -212,24 +212,24 @@ ncnn_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 
   if (input_from_prop) {
     normalizeInfo (inputInfo, net.input_indexes ().size (), "input");
-    allocInputMats ();
+    input_mats = allocMats (inputInfo);
   }
   if (output_from_prop)
     normalizeInfo (outputInfo, net.output_indexes ().size (), "output");
 
   if (input_from_prop && !output_from_prop)
-    inferOutputInfo ();
+    inferOutputInfo (input_mats, outputInfo);
 
   empty_model = false;
 }
 
 /**
  * @brief Convert an nnstreamer tensor dimension into an ncnn matrix shape.
- * @details nnstreamer pads a dimension with trailing 1s up to its rank limit
- *          while an ncnn matrix carries only the significant axes, so the
- *          trailing 1s are dropped here. The axis order is kept as is, and an
- *          ncnn matrix reads it as (w), (w, h), (w, h, c) or (w, h, d, c)
- *          depending on how many axes are left.
+ * @details An nnstreamer dimension ends either at the first 0 or at explicit
+ *          trailing 1s, which pad-caps carry and which gst_tensor_dimension_is_equal
+ *          treats as equal to no axis at all. An ncnn matrix has no such padding,
+ *          so both are trimmed here. The axis order is kept as is, and an ncnn
+ *          matrix reads what is left as (w), (w, h), (w, h, c) or (w, h, d, c).
  */
 std::vector<int>
 ncnn_subplugin::getShape (const GstTensorInfo *info)
@@ -277,45 +277,62 @@ ncnn_subplugin::normalizeInfo (GstTensorsInfo &info, size_t num_expected, const 
 
 /**
  * @brief Set the input tensors metadata and update the output accordingly.
+ * @details Everything is prepared on the side and only swapped in once it has
+ *          all succeeded, so that a rejected candidate cannot leave the
+ *          instance holding an input shape that its output no longer matches.
  */
 void
 ncnn_subplugin::setInputInfo (const GstTensorsInfo &info)
 {
-  GstTensorsInfo given;
+  GstTensorsInfo given, inferred;
+  std::vector<ncnn::Mat> mats;
 
   gst_tensors_info_init (std::addressof (given));
+  gst_tensors_info_init (std::addressof (inferred));
   gst_tensors_info_copy (std::addressof (given), std::addressof (info));
 
   try {
     normalizeInfo (given, net.input_indexes ().size (), "input");
 
-    /* negotiation retries the same info, so keep the inference for a change */
-    if (!gst_tensors_info_is_equal (std::addressof (inputInfo), std::addressof (given))
-        || outputInfo.num_tensors == 0) {
-      gst_tensors_info_free (std::addressof (inputInfo));
-      gst_tensors_info_copy (std::addressof (inputInfo), std::addressof (given));
-      allocInputMats ();
-
-      if (!output_from_prop)
-        inferOutputInfo ();
+    /* negotiation retries the same info, so infer only on a change */
+    if (gst_tensors_info_is_equal (std::addressof (inputInfo), std::addressof (given))
+        && outputInfo.num_tensors > 0) {
+      gst_tensors_info_free (std::addressof (given));
+      return;
     }
+
+    mats = allocMats (given);
+    if (!output_from_prop)
+      inferOutputInfo (mats, inferred);
   } catch (...) {
     gst_tensors_info_free (std::addressof (given));
+    gst_tensors_info_free (std::addressof (inferred));
     throw;
   }
 
-  gst_tensors_info_free (std::addressof (given));
+  gst_tensors_info_free (std::addressof (inputInfo));
+  inputInfo = given;
+  input_mats = std::move (mats);
+
+  if (!output_from_prop) {
+    gst_tensors_info_free (std::addressof (outputInfo));
+    outputInfo = inferred;
+  }
 }
 
 /**
- * @brief Allocate the matrices that the input tensors are fed through.
+ * @brief Allocate the matrices that the given tensors are fed through.
  */
-void
-ncnn_subplugin::allocInputMats ()
+std::vector<ncnn::Mat>
+ncnn_subplugin::allocMats (const GstTensorsInfo &info)
 {
-  input_mats.clear ();
-  for (guint i = 0; i < inputInfo.num_tensors; i++)
-    input_mats.push_back (allocMat (gst_tensors_info_get_nth_info (&inputInfo, i)));
+  std::vector<ncnn::Mat> mats;
+
+  for (guint i = 0; i < info.num_tensors; i++)
+    mats.push_back (allocMat (
+        gst_tensors_info_get_nth_info ((GstTensorsInfo *) std::addressof (info), i)));
+
+  return mats;
 }
 
 /**
@@ -325,7 +342,7 @@ ncnn_subplugin::allocInputMats ()
  *          input instead. This runs at configuration time only.
  */
 void
-ncnn_subplugin::inferOutputInfo ()
+ncnn_subplugin::inferOutputInfo (std::vector<ncnn::Mat> &mats, GstTensorsInfo &info)
 {
   const std::vector<int> &input_indexes = net.input_indexes ();
   const std::vector<int> &output_indexes = net.output_indexes ();
@@ -341,27 +358,23 @@ ncnn_subplugin::inferOutputInfo ()
         + std::to_string (NNS_TENSOR_SIZE_LIMIT) + ".");
 
   ncnn::Extractor ex = net.create_extractor ();
-  for (guint i = 0; i < inputInfo.num_tensors; i++) {
-    input_mats.at (i).fill (0.0f);
-    ex.input (input_indexes.at (i), input_mats.at (i));
+  for (size_t i = 0; i < mats.size (); i++) {
+    mats[i].fill (0.0f);
+    ex.input (input_indexes.at (i), mats[i]);
   }
 
-  GstTensorsInfo inferred;
-  gst_tensors_info_init (std::addressof (inferred));
-  inferred.num_tensors = (unsigned int) output_indexes.size ();
+  info.num_tensors = (unsigned int) output_indexes.size ();
 
-  for (guint i = 0; i < inferred.num_tensors; i++) {
+  for (guint i = 0; i < info.num_tensors; i++) {
     ncnn::Mat out;
     GstTensorInfo *each;
 
-    if (ex.extract (output_indexes.at (i), out) != 0 || out.empty ()) {
-      gst_tensors_info_free (std::addressof (inferred));
+    if (ex.extract (output_indexes.at (i), out) != 0 || out.empty ())
       throw std::invalid_argument (
           "Failed to infer the shape of the output tensor " + std::to_string (i)
           + " from the model. Set the \"output\" and \"outputtype\" properties explicitly.");
-    }
 
-    each = gst_tensors_info_get_nth_info (std::addressof (inferred), i);
+    each = gst_tensors_info_get_nth_info (std::addressof (info), i);
     each->type = _NNS_FLOAT32;
     each->dimension[0] = (uint32_t) out.w;
     each->dimension[1] = (uint32_t) out.h;
@@ -370,10 +383,6 @@ ncnn_subplugin::inferOutputInfo ()
     if (out.dims == 4)
       each->dimension[3] = (uint32_t) out.c;
   }
-
-  gst_tensors_info_free (std::addressof (outputInfo));
-  gst_tensors_info_copy (std::addressof (outputInfo), std::addressof (inferred));
-  gst_tensors_info_free (std::addressof (inferred));
 }
 
 /**
