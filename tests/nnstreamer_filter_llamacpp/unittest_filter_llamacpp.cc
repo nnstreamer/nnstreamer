@@ -195,7 +195,15 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
     appsink = gst_bin_get_by_name (GST_BIN (pipeline), "appsink");
     g_return_val_if_fail (appsink != nullptr, FALSE);
 
-    g_object_set (G_OBJECT (appsink), "emit-signals", TRUE, NULL);
+    /**
+     * Do not gate rendering on the clock. tensor_converter timestamps a
+     * buffer that carries no PTS from the clock, and while the element's
+     * base time is still unset that yields an absolute clock time instead of
+     * a running time - a PTS minutes into the future. A synchronizing sink
+     * then holds the buffer and the sample never arrives. These tests measure
+     * generation, not playback, so clock synchronization has no place here.
+     */
+    g_object_set (G_OBJECT (appsink), "emit-signals", TRUE, "sync", FALSE, NULL);
     g_signal_connect (appsink, "new-sample", G_CALLBACK (new_sample_cb), this);
     return TRUE;
   }
