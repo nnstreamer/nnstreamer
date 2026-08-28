@@ -127,6 +127,10 @@ check_output (GstElement *element, GstBuffer *buffer, gpointer user_data)
 
 /**
  * @brief Signal to count invocations of tensor_sink
+ * @note Connect this after check_output. GObject runs same-stage handlers in
+ *       connection order, so a satisfied count implies the golden comparison
+ *       for that buffer has already run; connecting it first would let the
+ *       waiter tear the pipeline down before check_output had a say.
  */
 static void
 count_output (GstElement *element, GstBuffer *buffer, gpointer user_data)
@@ -134,7 +138,7 @@ count_output (GstElement *element, GstBuffer *buffer, gpointer user_data)
   guint *count = (guint *) user_data;
   UNUSED (element);
   UNUSED (buffer);
-  (*count)++;
+  g_atomic_int_inc (count);
 }
 
 /**

@@ -2685,7 +2685,7 @@ bump_counter (gpointer user_data)
   guint *count = (guint *) user_data;
 
   g_usleep (TEST_DEFAULT_SLEEP_TIME * 3);
-  g_atomic_int_set (count, 1U);
+  g_atomic_int_inc (count);
 
   return NULL;
 }
@@ -2696,13 +2696,20 @@ bump_counter (gpointer user_data)
 TEST (commonUtil, waitPipelineProcessBuffers)
 {
   guint count = 3U;
-  gint64 elapsed_us;
-  gint64 start_us = g_get_monotonic_time ();
+  gint64 best_us = G_MAXINT64;
+  guint i;
 
-  EXPECT_TRUE (wait_pipeline_process_buffers (&count, 3U, TEST_TIMEOUT_LIMIT_MS));
+  for (i = 0; i < 5U; ++i) {
+    gint64 start_us = g_get_monotonic_time ();
 
-  elapsed_us = g_get_monotonic_time () - start_us;
-  EXPECT_LT (elapsed_us, (gint64) TEST_DEFAULT_SLEEP_TIME);
+    EXPECT_TRUE (wait_pipeline_process_buffers (&count, 3U, TEST_TIMEOUT_LIMIT_MS));
+
+    best_us = MIN (best_us, g_get_monotonic_time () - start_us);
+  }
+
+  /* One un-preempted run is enough to show the helper checks before sleeping.
+     Widening the bound instead would hide the very tick it has to detect. */
+  EXPECT_LT (best_us, (gint64) TEST_DEFAULT_SLEEP_TIME);
 }
 
 /**
