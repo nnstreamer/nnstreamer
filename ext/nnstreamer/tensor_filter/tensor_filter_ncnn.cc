@@ -99,6 +99,7 @@ class ncnn_subplugin final : public tensor_filter_subplugin
   bool use_yolo_decoder; /**< Yolo decoder flag to fix output dimension */
   bool input_from_prop; /**< Input metadata came from the "input" property */
   bool output_from_prop; /**< Output metadata came from the "output" property */
+  bool yolo_rows_dropped; /**< Detections were already dropped and reported once */
 
   static ncnn_subplugin *registeredRepresentation;
   static const char *name;
@@ -124,7 +125,7 @@ class ncnn_subplugin final : public tensor_filter_subplugin
  */
 ncnn_subplugin::ncnn_subplugin ()
     : tensor_filter_subplugin (), empty_model (true), use_yolo_decoder (false),
-      input_from_prop (false), output_from_prop (false)
+      input_from_prop (false), output_from_prop (false), yolo_rows_dropped (false)
 {
   gst_tensors_info_init (std::addressof (inputInfo));
   gst_tensors_info_init (std::addressof (outputInfo));
@@ -486,6 +487,18 @@ ncnn_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
     const int label_count = gst_tensors_info_get_nth_info (&outputInfo, i)->dimension[0];
     const int max_rows = (int) (output[i].size / (label_count * sizeof (float)));
     float *output_data = (float *) output[i].data;
+
+    if (out.w < 6)
+      throw std::runtime_error ("The yolo decoder reads a label, a score and 4 corners out of every detection, "
+                                "but the model produced only "
+                                + std::to_string (out.w) + " values per row.");
+
+    if (out.h > max_rows && !yolo_rows_dropped) {
+      yolo_rows_dropped = true;
+      ml_logw ("The model detected %d objects while the output tensor holds %d of them. "
+               "Raise max_detection in the \"output\" property to keep them all.",
+          out.h, max_rows);
+    }
 
     memset (output_data, 0, output[i].size);
 
