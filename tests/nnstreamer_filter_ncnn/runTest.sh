@@ -69,6 +69,10 @@ PATH_TO_PARAM="../test_models/models/ncnn_models/squeezenet_v1.1.param"
 PATH_TO_BIN="../test_models/models/ncnn_models/squeezenet_v1.1.bin"
 PATH_TO_LABEL="../test_models/labels/squeezenet_labels.txt"
 PATH_TO_IMAGE="../test_models/data/orange.png"
+# A single Input layer, so the network hands its input straight back and the
+# shape of what the yolo decoder reads is whatever the pad caps carry.
+PATH_TO_PASSTHROUGH_PARAM="../test_models/models/ncnn_models/passthrough.param"
+PATH_TO_PASSTHROUGH_BIN="../test_models/models/ncnn_models/passthrough.bin"
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze num-buffers=2 ! videoconvert ! videoscale ! video/x-raw,width=227,height=227,format=BGR ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-127.5 ! tensor_transform mode=transpose option=1:2:0:3 ! tensor_filter framework=ncnn model=${PATH_TO_PARAM},${PATH_TO_BIN} input=227:227:3 inputtype=float32 output=1000:1 outputtype=float32 ! tensor_decoder mode=image_labeling option1=${PATH_TO_LABEL} ! filesink location=ncnn.out.log" 1 0 0 $PERFORMANCE
 # Both frames must be labeled; a stale or uninitialized output tensor would
@@ -127,6 +131,9 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} !
 
 # Fail test for the yolo decoder, which cannot infer its output shape
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! videoscale ! video/x-raw,width=227,height=227,format=BGR,framerate=0/1 ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-127.5 ! tensor_transform mode=transpose option=1:2:0:3 ! tensor_filter framework=ncnn model=${PATH_TO_PARAM},${PATH_TO_BIN} custom=use_yolo_decoder:true input=227:227:3 inputtype=float32 ! tensor_decoder mode=image_labeling option1=${PATH_TO_LABEL} ! filesink location=ncnn.out.log" 15_n 0 1 $PERFORMANCE
+
+# Fail test for a detection row narrower than the 6 values the yolo decoder reads
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=GRAY8,width=3,height=2,framerate=30/1 ! tensor_converter ! tensor_transform mode=typecast option=float32 ! tensor_filter framework=ncnn model=${PATH_TO_PASSTHROUGH_PARAM},${PATH_TO_PASSTHROUGH_BIN} custom=use_yolo_decoder:true output=10:5:1 outputtype=float32 ! fakesink" 16_n 0 1 $PERFORMANCE
 
 function run_pipeline() {
     gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! videoscale ! video/x-raw,width=227,height=227,format=BGR,framerate=0/1 ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-127.5 ! tensor_transform mode=transpose option=1:2:0:3 ! tensor_filter framework=ncnn model=${PATH_TO_PARAM},${PATH_TO_BIN} accelerator=$1 input=227:227:3 inputtype=float32 output=1000:1 outputtype=float32 ! tensor_decoder mode=image_labeling option1=${PATH_TO_LABEL} ! filesink location=ncnn.out.log 2>info
