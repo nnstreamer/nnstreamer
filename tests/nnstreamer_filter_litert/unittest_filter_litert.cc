@@ -991,6 +991,13 @@ _countUnbalancedRelease (const gchar *domain, GLogLevelFlags level,
  * this runs on, so an over-release is invisible in the output of a pipeline.
  * The invoke() checks below therefore assert the user-visible property (a
  * failed open does not disturb an open instance), not the leak itself.
+ *
+ * Do not reduce this to a single failing open: the repetition is what makes
+ * the log fire. An over-release on the first failure only walks the count
+ * down to zero, which is silent. It is the second failure, which finds the
+ * count at zero, builds a fresh environment, and then over-releases from one,
+ * that reaches a release with nothing outstanding. Verified by injecting a
+ * double release: two failures catch it, one does not.
  */
 TEST (nnstreamerFilterLiteRT, sharedEnvRefBalanceOnConfigureFailure)
 {
