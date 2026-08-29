@@ -24,6 +24,8 @@
  * stream can end on it; the output would otherwise never see EOS. Either one
  * re-examines the set, so a branch may be retired mid-stream by unlinking it or
  * by releasing its pad, in any order with respect to the other streams ending.
+ * Retiring every branch without any of them having ended leaves the output
+ * open, as there is then no EOS to forward.
  * <refsect2>
  * <title>Example launch line</title>
  * gst-launch-1.0 ... (input stream 0) ! join.sink_0 \
