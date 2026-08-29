@@ -1015,6 +1015,17 @@ TEST (nnstreamerFilterLiteRT, sharedEnvRefBalanceOnConfigureFailure)
   input.data = g_malloc0 (input.size);
   output.data = g_malloc (output.size);
 
+  /** Everything that can fail fatally is done before the log handler is
+   *  installed: a fatal assertion returns from the test on the spot, which
+   *  would leave the handler in place for every case that runs after. */
+  fd = g_file_open_tmp ("litert_garbage_XXXXXX.tflite", &garbage_file, NULL);
+  ASSERT_GE (fd, 0);
+  ASSERT_TRUE (g_file_set_contents (
+      garbage_file, "This is not a tflite flatbuffer at all.", -1, NULL));
+  g_close (fd, NULL);
+
+  const gchar *bad_model_files[] = { garbage_file, NULL };
+
   ret = sp->open (&prop, &data);
   ASSERT_EQ (ret, 0);
 
@@ -1029,13 +1040,6 @@ TEST (nnstreamerFilterLiteRT, sharedEnvRefBalanceOnConfigureFailure)
       << "A failed signature lookup disturbed an already-open instance.";
 
   /* fails in LiteRtCreateModelFromFile(), also after the reference is taken */
-  fd = g_file_open_tmp ("litert_garbage_XXXXXX.tflite", &garbage_file, NULL);
-  ASSERT_GE (fd, 0);
-  ASSERT_TRUE (g_file_set_contents (
-      garbage_file, "This is not a tflite flatbuffer at all.", -1, NULL));
-  g_close (fd, NULL);
-
-  const gchar *bad_model_files[] = { garbage_file, NULL };
   data_bad = NULL;
   _SetFilterProp (&prop_bad, "litert", bad_model_files);
   EXPECT_NE (sp->open (&prop_bad, &data_bad), 0);
