@@ -177,6 +177,8 @@ class wrapped_buffers final
 {
   public:
   wrapped_buffers () = default;
+
+  /** @brief Release every wrapper taken during this invoke. */
   ~wrapped_buffers ()
   {
     for (auto &buf : held)
@@ -290,7 +292,6 @@ class litert_subplugin final : public tensor_filter_subplugin
   LiteRtParamIndex resolveSignature () const;
   void setTensorMeta (LiteRtSignature sig, bool is_input, GstTensorsInfo *meta);
   void createTensorBuffers ();
-  static bool requirementsAllowHostMemory (LiteRtTensorBufferRequirements reqs);
 
   static tensor_type convertElementType (LiteRtElementType type);
   static void convertLayout (const LiteRtLayout &layout, tensor_dim dim);
@@ -722,41 +723,27 @@ litert_subplugin::createTensorBuffers ()
                                 + std::to_string (nns_size) + " B).");
     output_tensor_sizes.push_back ((size_t) nns_size);
 
+    LiteRtTensorBufferType buf_type;
+
     output_types.push_back (ranked_type);
 
-    /** A larger LiteRT buffer means it carries padding the caller's tensor has
-     *  no room for, so only an exact match may back the run directly. The size
+    /** Swap like for like. Asking whether the requirements *allow* host memory
+     *  is not the same question: with an accelerator enabled they can allow it
+     *  while LiteRT still picked a device buffer, and wrapping there would
+     *  force the output back to the host on every invoke, adding a transfer
+     *  the managed path never paid. So gate on the type LiteRT actually chose.
+     *
+     *  A larger LiteRT buffer carries padding the caller's tensor has no room
+     *  for, so only an exact match may back the run directly, and the size
      *  floor keeps the wrap off tensors whose copy is cheaper than it. */
     const bool wrappable = (buf_size == (size_t) nns_size)
                            && ((size_t) nns_size >= litert_wrap_min_bytes)
-                           && requirementsAllowHostMemory (reqs);
+                           && (LiteRtGetTensorBufferType (buf, &buf_type) == kLiteRtStatusOk)
+                           && (buf_type == kLiteRtTensorBufferTypeHostMemory);
     output_wrappable.push_back (wrappable ? 1 : 0);
   }
 
   invoke_outputs.resize (outputTensorMeta.num_tensors);
-}
-
-/**
- * @brief Whether a tensor's buffer requirements admit plain host memory.
- */
-bool
-litert_subplugin::requirementsAllowHostMemory (LiteRtTensorBufferRequirements reqs)
-{
-  int num_types = 0;
-
-  if (LiteRtGetNumTensorBufferRequirementsSupportedBufferTypes (reqs, &num_types) != kLiteRtStatusOk)
-    return false;
-
-  for (int i = 0; i < num_types; ++i) {
-    LiteRtTensorBufferType type;
-
-    if (LiteRtGetTensorBufferRequirementsSupportedTensorBufferType (reqs, i, &type) != kLiteRtStatusOk)
-      return false;
-    if (type == kLiteRtTensorBufferTypeHostMemory)
-      return true;
-  }
-
-  return false;
 }
 
 /**
@@ -849,7 +836,11 @@ litert_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
   /** Shared, so inference is never serialized across instances; see the
    *  shared-environment comment for why concurrent invoke is a reasoned
    *  choice rather than a documented guarantee. This only blocks while
-   *  another instance is being configured or torn down. */
+   *  another instance is being configured or torn down.
+   *
+   *  Across instances, not within one: invoke_outputs below is instance state
+   *  written before the run, so a single instance still expects the one
+   *  streaming thread the framework gives it. */
   std::shared_lock<std::shared_mutex> guard (litert_env_lock);
 
   /* Fill input buffers */
