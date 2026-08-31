@@ -31,14 +31,18 @@
  *      Select the model signature to run by its key string.
  *      Default: the first signature (index 0).
  *
- * @todo Zero-copy invoke by wrapping GstTensorMemory with
- *       LiteRtCreateTensorBufferFromHostMemory when alignment permits.
+ * @todo Zero-copy the input side too. Outputs already skip the copy when
+ *       LiteRT accepts the caller's memory, but inputs cannot: tensor_filter
+ *       maps them GST_MAP_READ and the memory may be shared with another
+ *       branch, so it would take a mapping change in the element plus a
+ *       statement from upstream that a run never writes to an input.
  * @todo Support dynamic input dimensions (invoke_dynamic).
  * @todo Expose accelerator-specific opaque options (GPU precision, NPU
  *       compiler plugin paths, etc.).
  */
 
 #include <cerrno>
+#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <mutex>
@@ -135,6 +139,45 @@ LiteRtEnvironment litert_env = nullptr;
 unsigned int litert_env_refs = 0;
 
 /**
+ * @brief Whether a pointer meets LiteRT's host memory buffer alignment.
+ */
+inline bool
+isHostMemoryAligned (const void *data)
+{
+  return (reinterpret_cast<uintptr_t> (data) % LITERT_HOST_MEMORY_BUFFER_ALIGNMENT) == 0;
+}
+
+/**
+ * @brief Destroys the tensor buffers that wrap caller memory for one invoke.
+ *
+ * The wrappers are created with a null deallocator, so this releases only the
+ * LiteRT objects and never the caller's memory. Holding them in a scope guard
+ * keeps a throw between creation and the run from leaking them.
+ */
+class wrapped_buffers final
+{
+  public:
+  wrapped_buffers () = default;
+  ~wrapped_buffers ()
+  {
+    for (auto &buf : held)
+      LiteRtDestroyTensorBuffer (buf);
+  }
+
+  wrapped_buffers (const wrapped_buffers &) = delete;
+  wrapped_buffers &operator= (const wrapped_buffers &) = delete;
+
+  /** @brief Take ownership of one wrapper. */
+  void hold (LiteRtTensorBuffer buf)
+  {
+    held.push_back (buf);
+  }
+
+  private:
+  std::vector<LiteRtTensorBuffer> held{};
+};
+
+/**
  * @brief Take a reference to the shared environment, creating it if needed.
  * @return the shared environment; the caller must not destroy it
  * @throw std::runtime_error if the environment cannot be created
@@ -218,12 +261,17 @@ class litert_subplugin final : public tensor_filter_subplugin
   std::vector<size_t> input_tensor_sizes{}; /**< nnstreamer tensor sizes; each is <= its LiteRT buffer */
   std::vector<size_t> output_tensor_sizes{}; /**< nnstreamer tensor sizes; each is <= its LiteRT buffer */
 
+  std::vector<LiteRtRankedTensorType> output_types{}; /**< to wrap caller memory per invoke */
+  std::vector<char> output_wrappable{}; /**< requirements allow host memory and the sizes match exactly */
+  std::vector<LiteRtTensorBuffer> invoke_outputs{}; /**< per-invoke argument array, storage reused */
+
   void cleanup ();
   void parseCustomProperties (const GstTensorFilterProperties *prop);
   void applyHwList (const GstTensorFilterProperties *prop);
   LiteRtParamIndex resolveSignature () const;
   void setTensorMeta (LiteRtSignature sig, bool is_input, GstTensorsInfo *meta);
   void createTensorBuffers ();
+  static bool requirementsAllowHostMemory (LiteRtTensorBufferRequirements reqs);
 
   static tensor_type convertElementType (LiteRtElementType type);
   static void convertLayout (const LiteRtLayout &layout, tensor_dim dim);
@@ -268,6 +316,9 @@ litert_subplugin::cleanup ()
       LiteRtDestroyTensorBuffer (buf);
     output_buffers.clear ();
     output_tensor_sizes.clear ();
+    output_types.clear ();
+    output_wrappable.clear ();
+    invoke_outputs.clear ();
 
     if (compiled_model != nullptr) {
       LiteRtDestroyCompiledModel (compiled_model);
@@ -651,7 +702,38 @@ litert_subplugin::createTensorBuffers ()
                                 + std::to_string (buf_size) + " B) than the tensor ("
                                 + std::to_string (nns_size) + " B).");
     output_tensor_sizes.push_back ((size_t) nns_size);
+
+    output_types.push_back (ranked_type);
+    /** A larger LiteRT buffer means it carries padding the caller's tensor has
+     *  no room for, so only an exact match may back the run directly. */
+    output_wrappable.push_back (
+        (buf_size == (size_t) nns_size && requirementsAllowHostMemory (reqs)) ? 1 : 0);
   }
+
+  invoke_outputs.resize (outputTensorMeta.num_tensors);
+}
+
+/**
+ * @brief Whether a tensor's buffer requirements admit plain host memory.
+ */
+bool
+litert_subplugin::requirementsAllowHostMemory (LiteRtTensorBufferRequirements reqs)
+{
+  int num_types = 0;
+
+  if (LiteRtGetNumTensorBufferRequirementsSupportedBufferTypes (reqs, &num_types) != kLiteRtStatusOk)
+    return false;
+
+  for (int i = 0; i < num_types; ++i) {
+    LiteRtTensorBufferType type;
+
+    if (LiteRtGetTensorBufferRequirementsSupportedTensorBufferType (reqs, i, &type) != kLiteRtStatusOk)
+      return false;
+    if (type == kLiteRtTensorBufferTypeHostMemory)
+      return true;
+  }
+
+  return false;
 }
 
 /**
@@ -768,14 +850,16 @@ litert_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
     LITERT_CHECK (LiteRtUnlockTensorBuffer (input_buffers[i]));
   }
 
-  LITERT_CHECK (LiteRtRunCompiledModel (compiled_model, signature_index,
-      input_buffers.size (), input_buffers.data (), output_buffers.size (),
-      output_buffers.data ()));
+  /** Let the run write straight into the caller's tensor where LiteRT will
+   *  accept it, which drops the read-back copy below for that tensor.
+   *
+   *  Only outputs. The input side is mapped GST_MAP_READ by tensor_filter and
+   *  its memory may be shared with another branch of the pipeline, so handing
+   *  it out as a writable buffer would rest on LiteRT never writing to an
+   *  input - which upstream does not state anywhere. */
+  wrapped_buffers wrappers;
 
-  /* Read back output buffers */
   for (i = 0; i < outputTensorMeta.num_tensors; ++i) {
-    void *host_mem = nullptr;
-
     if (output[i].data == nullptr)
       throw std::invalid_argument ("Output tensor memory is null.");
 
@@ -785,6 +869,29 @@ litert_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
       throw std::invalid_argument ("Output tensor " + std::to_string (i) + " ("
                                    + std::to_string (output[i].size) + " B) does not match the model tensor ("
                                    + std::to_string (output_tensor_sizes[i]) + " B).");
+
+    if (output_wrappable[i] && isHostMemoryAligned (output[i].data)) {
+      LiteRtTensorBuffer buf = nullptr;
+
+      LITERT_CHECK (LiteRtCreateTensorBufferFromHostMemory (
+          &output_types[i], output[i].data, output[i].size, nullptr, &buf));
+      wrappers.hold (buf);
+      invoke_outputs[i] = buf;
+    } else {
+      invoke_outputs[i] = output_buffers[i];
+    }
+  }
+
+  LITERT_CHECK (LiteRtRunCompiledModel (compiled_model, signature_index,
+      input_buffers.size (), input_buffers.data (), invoke_outputs.size (),
+      invoke_outputs.data ()));
+
+  /* Read back the outputs that the run could not write into directly */
+  for (i = 0; i < outputTensorMeta.num_tensors; ++i) {
+    void *host_mem = nullptr;
+
+    if (invoke_outputs[i] != output_buffers[i])
+      continue;
 
     LITERT_CHECK (LiteRtLockTensorBuffer (
         output_buffers[i], &host_mem, kLiteRtTensorBufferLockModeRead));

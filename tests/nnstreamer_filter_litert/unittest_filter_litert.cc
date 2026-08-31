@@ -19,6 +19,8 @@
 #include <gst/gst.h>
 
 #include <atomic>
+#include <cstdlib>
+#include <cstring>
 #include <thread>
 #include <vector>
 
@@ -487,6 +489,261 @@ TEST (nnstreamerFilterLiteRT, invoke01_n)
 
   g_free (input.data);
   g_free (output.data);
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief Positive case: invoke with a 64-byte aligned output buffer takes the
+ * zero-copy path; the result must still be correct.
+ */
+TEST (nnstreamerFilterLiteRT, zeroCopyAlignedOutput)
+{
+  int ret;
+  void *data = NULL;
+  GstTensorMemory input, output;
+  g_autofree gchar *model_file = NULL;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 1));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+
+  input.size = sizeof (float) * 224 * 224 * 3;
+  output.size = sizeof (float) * 1001;
+  input.data = g_malloc0 (input.size);
+  ASSERT_EQ (posix_memalign (&output.data, 64, output.size), 0);
+  memset (output.data, 0xAA, output.size); /* canary */
+
+  ret = sp->open (&prop, &data);
+  ASSERT_EQ (ret, 0);
+
+  ret = sp->invoke (NULL, &prop, data, &input, &output);
+  EXPECT_EQ (ret, 0);
+
+  gboolean changed = FALSE;
+  for (gsize i = 0; i < output.size; ++i) {
+    if (((guint8 *) output.data)[i] != 0xAA) {
+      changed = TRUE;
+      break;
+    }
+  }
+  EXPECT_TRUE (changed) << "invoke() succeeded but did not write the output buffer.";
+
+  g_free (input.data);
+  free (output.data);
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief Positive case: invoke with a deliberately misaligned output buffer
+ * takes the memcpy fallback path; the result must still be correct.
+ */
+TEST (nnstreamerFilterLiteRT, zeroCopyUnalignedOutput)
+{
+  int ret;
+  void *data = NULL;
+  void *base = NULL;
+  GstTensorMemory input, output;
+  g_autofree gchar *model_file = NULL;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 1));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+
+  input.size = sizeof (float) * 224 * 224 * 3;
+  output.size = sizeof (float) * 1001;
+  input.data = g_malloc0 (input.size);
+  /* 64-byte aligned block, offset by 8 B so output.data itself is not */
+  ASSERT_EQ (posix_memalign (&base, 64, output.size + 64), 0);
+  output.data = (guint8 *) base + 8;
+  memset (output.data, 0xAA, output.size); /* canary */
+
+  ret = sp->open (&prop, &data);
+  ASSERT_EQ (ret, 0);
+
+  ret = sp->invoke (NULL, &prop, data, &input, &output);
+  EXPECT_EQ (ret, 0);
+
+  gboolean changed = FALSE;
+  for (gsize i = 0; i < output.size; ++i) {
+    if (((guint8 *) output.data)[i] != 0xAA) {
+      changed = TRUE;
+      break;
+    }
+  }
+  EXPECT_TRUE (changed) << "invoke() succeeded but did not write the output buffer.";
+
+  g_free (input.data);
+  free (base);
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief Positive case: the zero-copy path and the memcpy fallback path must
+ * produce byte-identical output for the same input. This is the key safety
+ * property of routing some invocations directly into caller memory.
+ */
+TEST (nnstreamerFilterLiteRT, zeroCopyPathEquivalence)
+{
+  int ret;
+  void *data = NULL;
+  void *unaligned_base = NULL;
+  GstTensorMemory input, aligned_output, unaligned_output;
+  g_autofree gchar *model_file = NULL;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 1));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+
+  input.size = sizeof (float) * 224 * 224 * 3;
+  aligned_output.size = unaligned_output.size = sizeof (float) * 1001;
+  input.data = g_malloc (input.size);
+
+  /* a deterministic non-trivial input pattern */
+  for (gsize i = 0; i < input.size / sizeof (float); ++i)
+    ((float *) input.data)[i] = (float) (i % 255) / 255.0f - 0.5f;
+
+  ASSERT_EQ (posix_memalign (&aligned_output.data, 64, aligned_output.size), 0);
+  ASSERT_EQ (posix_memalign (&unaligned_base, 64, unaligned_output.size + 64), 0);
+  unaligned_output.data = (guint8 *) unaligned_base + 8;
+
+  ret = sp->open (&prop, &data);
+  ASSERT_EQ (ret, 0);
+
+  EXPECT_EQ (sp->invoke (NULL, &prop, data, &input, &aligned_output), 0);
+  EXPECT_EQ (sp->invoke (NULL, &prop, data, &input, &unaligned_output), 0);
+  EXPECT_EQ (memcmp (aligned_output.data, unaligned_output.data, aligned_output.size), 0)
+      << "The zero-copy path and the memcpy fallback path produced different output.";
+
+  g_free (input.data);
+  free (aligned_output.data);
+  free (unaligned_base);
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief Positive case: repeated invoke through the zero-copy path must not
+ * leak or corrupt state; every run must succeed and match the first result.
+ */
+TEST (nnstreamerFilterLiteRT, zeroCopyRepeatedInvoke)
+{
+  const guint iterations = 20U;
+  int ret;
+  void *data = NULL;
+  GstTensorMemory input, output;
+  g_autofree gchar *model_file = NULL;
+  g_autofree gchar *first_result = NULL;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 1));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+
+  input.size = sizeof (float) * 224 * 224 * 3;
+  output.size = sizeof (float) * 1001;
+  input.data = g_malloc0 (input.size);
+  ASSERT_EQ (posix_memalign (&output.data, 64, output.size), 0);
+  first_result = (gchar *) g_malloc (output.size);
+
+  ret = sp->open (&prop, &data);
+  ASSERT_EQ (ret, 0);
+
+  for (guint i = 0; i < iterations; ++i) {
+    /** Re-poison every round. Comparing one round against the next only shows
+     *  they agree, which an untouched buffer also does; the canary is what
+     *  says the run actually wrote through the wrapper each time. */
+    memset (output.data, 0xAA, output.size);
+
+    ret = sp->invoke (NULL, &prop, data, &input, &output);
+    EXPECT_EQ (ret, 0) << "invoke() failed on iteration " << i;
+    if (ret != 0)
+      break;
+
+    gboolean changed = FALSE;
+    for (gsize b = 0; b < output.size; ++b) {
+      if (((guint8 *) output.data)[b] != 0xAA) {
+        changed = TRUE;
+        break;
+      }
+    }
+    EXPECT_TRUE (changed) << "Iteration " << i << " left the output buffer untouched.";
+
+    if (i == 0) {
+      memcpy (first_result, output.data, output.size);
+    } else {
+      EXPECT_EQ (memcmp (first_result, output.data, output.size), 0)
+          << "Output diverged on iteration " << i;
+    }
+  }
+
+  g_free (input.data);
+  free (output.data);
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief Positive case: the zero-copy path also holds for a model with many
+ * output tensors, each individually 64-byte aligned.
+ */
+TEST (nnstreamerFilterLiteRT, zeroCopyManyOutputsAligned)
+{
+  const guint num_tensors = 32U;
+  int ret;
+  void *data = NULL;
+  GstTensorMemory input[32], output[32];
+  void *output_base[32] = { NULL };
+  g_autofree gchar *model_file = NULL;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 2));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+
+  for (guint i = 0; i < num_tensors; ++i) {
+    input[i].size = sizeof (float);
+    input[i].data = g_malloc0 (sizeof (float));
+    ((float *) input[i].data)[0] = 16.0f;
+
+    output[i].size = sizeof (float);
+    ASSERT_EQ (posix_memalign (&output_base[i], 64, output[i].size), 0);
+    output[i].data = output_base[i];
+  }
+
+  ret = sp->open (&prop, &data);
+  ASSERT_EQ (ret, 0);
+
+  ret = sp->invoke (NULL, &prop, data, input, output);
+  EXPECT_EQ (ret, 0);
+
+  for (guint i = 0; i < num_tensors; ++i)
+    EXPECT_FLOAT_EQ (((float *) output[i].data)[0], 17.0f);
+
+  for (guint i = 0; i < num_tensors; ++i) {
+    g_free (input[i].data);
+    free (output_base[i]);
+  }
   sp->close (&prop, &data);
 }
 
