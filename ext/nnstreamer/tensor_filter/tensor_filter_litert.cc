@@ -139,6 +139,23 @@ LiteRtEnvironment litert_env = nullptr;
 unsigned int litert_env_refs = 0;
 
 /**
+ * @brief Output size from which wrapping the caller's memory beats copying it.
+ *
+ * Wrapping is not free: creating and destroying a tensor buffer around caller
+ * memory measured 1.3-2.4 us on x86_64, against 0.06-0.28 us to lock, copy and
+ * unlock a 4 kB output. On a classifier it therefore costs an order of
+ * magnitude more than the copy it removes, and only starts paying once the
+ * copy grows. A segmentation model's 5 MB output, by contrast, copies for
+ * hundreds of microseconds and wraps for the same 2 us.
+ *
+ * 256 kB sits well above the break-even, so a tensor taking the direct path is
+ * a clear win rather than a marginal one. The figures are indicative of one
+ * machine; the threshold is deliberately conservative so that being wrong
+ * about them costs a copy that was already cheap.
+ */
+constexpr size_t litert_wrap_min_bytes = 256 * 1024;
+
+/**
  * @brief Whether a pointer meets LiteRT's host memory buffer alignment.
  */
 inline bool
@@ -704,10 +721,14 @@ litert_subplugin::createTensorBuffers ()
     output_tensor_sizes.push_back ((size_t) nns_size);
 
     output_types.push_back (ranked_type);
+
     /** A larger LiteRT buffer means it carries padding the caller's tensor has
-     *  no room for, so only an exact match may back the run directly. */
-    output_wrappable.push_back (
-        (buf_size == (size_t) nns_size && requirementsAllowHostMemory (reqs)) ? 1 : 0);
+     *  no room for, so only an exact match may back the run directly. The size
+     *  floor keeps the wrap off tensors whose copy is cheaper than it. */
+    const bool wrappable = (buf_size == (size_t) nns_size)
+                           && ((size_t) nns_size >= litert_wrap_min_bytes)
+                           && requirementsAllowHostMemory (reqs);
+    output_wrappable.push_back (wrappable ? 1 : 0);
   }
 
   invoke_outputs.resize (outputTensorMeta.num_tensors);

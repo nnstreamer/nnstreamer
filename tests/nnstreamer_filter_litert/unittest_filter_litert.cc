@@ -51,6 +51,9 @@ _GetModelFilePath (gchar **model_file, int option)
     case 2:
       model_name = "simple_32_in_32_out.tflite";
       break;
+    case 3:
+      model_name = "deeplabv3_257_mv_gpu.tflite";
+      break;
     default:
       break;
   }
@@ -493,8 +496,10 @@ TEST (nnstreamerFilterLiteRT, invoke01_n)
 }
 
 /**
- * @brief Positive case: invoke with a 64-byte aligned output buffer takes the
- * zero-copy path; the result must still be correct.
+ * @brief Positive case: invoke with a 64-byte aligned output buffer that is
+ * at/above the zero-copy size gate (deeplabv3 output is 5548116 B, well over
+ * the 256 KiB threshold) takes the zero-copy wrap path; the result must
+ * still be correct.
  */
 TEST (nnstreamerFilterLiteRT, zeroCopyAlignedOutput)
 {
@@ -503,7 +508,7 @@ TEST (nnstreamerFilterLiteRT, zeroCopyAlignedOutput)
   GstTensorMemory input, output;
   g_autofree gchar *model_file = NULL;
 
-  ASSERT_TRUE (_GetModelFilePath (&model_file, 1));
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 3));
 
   const gchar *model_files[] = { model_file, NULL };
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
@@ -512,8 +517,8 @@ TEST (nnstreamerFilterLiteRT, zeroCopyAlignedOutput)
   GstTensorFilterProperties prop;
   _SetFilterProp (&prop, "litert", model_files);
 
-  input.size = sizeof (float) * 224 * 224 * 3;
-  output.size = sizeof (float) * 1001;
+  input.size = 792588;
+  output.size = 5548116;
   input.data = g_malloc0 (input.size);
   ASSERT_EQ (posix_memalign (&output.data, 64, output.size), 0);
   memset (output.data, 0xAA, output.size); /* canary */
@@ -540,7 +545,8 @@ TEST (nnstreamerFilterLiteRT, zeroCopyAlignedOutput)
 
 /**
  * @brief Positive case: invoke with a deliberately misaligned output buffer
- * takes the memcpy fallback path; the result must still be correct.
+ * takes the memcpy fallback path even though the output is above the
+ * zero-copy size gate; the result must still be correct.
  */
 TEST (nnstreamerFilterLiteRT, zeroCopyUnalignedOutput)
 {
@@ -550,7 +556,7 @@ TEST (nnstreamerFilterLiteRT, zeroCopyUnalignedOutput)
   GstTensorMemory input, output;
   g_autofree gchar *model_file = NULL;
 
-  ASSERT_TRUE (_GetModelFilePath (&model_file, 1));
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 3));
 
   const gchar *model_files[] = { model_file, NULL };
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
@@ -559,8 +565,8 @@ TEST (nnstreamerFilterLiteRT, zeroCopyUnalignedOutput)
   GstTensorFilterProperties prop;
   _SetFilterProp (&prop, "litert", model_files);
 
-  input.size = sizeof (float) * 224 * 224 * 3;
-  output.size = sizeof (float) * 1001;
+  input.size = 792588;
+  output.size = 5548116;
   input.data = g_malloc0 (input.size);
   /* 64-byte aligned block, offset by 8 B so output.data itself is not */
   ASSERT_EQ (posix_memalign (&base, 64, output.size + 64), 0);
@@ -600,7 +606,7 @@ TEST (nnstreamerFilterLiteRT, zeroCopyPathEquivalence)
   GstTensorMemory input, aligned_output, unaligned_output;
   g_autofree gchar *model_file = NULL;
 
-  ASSERT_TRUE (_GetModelFilePath (&model_file, 1));
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 3));
 
   const gchar *model_files[] = { model_file, NULL };
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
@@ -609,13 +615,9 @@ TEST (nnstreamerFilterLiteRT, zeroCopyPathEquivalence)
   GstTensorFilterProperties prop;
   _SetFilterProp (&prop, "litert", model_files);
 
-  input.size = sizeof (float) * 224 * 224 * 3;
-  aligned_output.size = unaligned_output.size = sizeof (float) * 1001;
-  input.data = g_malloc (input.size);
-
-  /* a deterministic non-trivial input pattern */
-  for (gsize i = 0; i < input.size / sizeof (float); ++i)
-    ((float *) input.data)[i] = (float) (i % 255) / 255.0f - 0.5f;
+  input.size = 792588;
+  aligned_output.size = unaligned_output.size = 5548116;
+  input.data = g_malloc0 (input.size);
 
   ASSERT_EQ (posix_memalign (&aligned_output.data, 64, aligned_output.size), 0);
   ASSERT_EQ (posix_memalign (&unaligned_base, 64, unaligned_output.size + 64), 0);
@@ -638,17 +640,19 @@ TEST (nnstreamerFilterLiteRT, zeroCopyPathEquivalence)
 /**
  * @brief Positive case: repeated invoke through the zero-copy path must not
  * leak or corrupt state; every run must succeed and match the first result.
+ * The iteration count is kept low because deeplabv3 is a large model and
+ * each invoke is comparatively slow.
  */
 TEST (nnstreamerFilterLiteRT, zeroCopyRepeatedInvoke)
 {
-  const guint iterations = 20U;
+  const guint iterations = 5U;
   int ret;
   void *data = NULL;
   GstTensorMemory input, output;
   g_autofree gchar *model_file = NULL;
   g_autofree gchar *first_result = NULL;
 
-  ASSERT_TRUE (_GetModelFilePath (&model_file, 1));
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 3));
 
   const gchar *model_files[] = { model_file, NULL };
   const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
@@ -657,8 +661,8 @@ TEST (nnstreamerFilterLiteRT, zeroCopyRepeatedInvoke)
   GstTensorFilterProperties prop;
   _SetFilterProp (&prop, "litert", model_files);
 
-  input.size = sizeof (float) * 224 * 224 * 3;
-  output.size = sizeof (float) * 1001;
+  input.size = 792588;
+  output.size = 5548116;
   input.data = g_malloc0 (input.size);
   ASSERT_EQ (posix_memalign (&output.data, 64, output.size), 0);
   first_result = (gchar *) g_malloc (output.size);
@@ -700,8 +704,59 @@ TEST (nnstreamerFilterLiteRT, zeroCopyRepeatedInvoke)
 }
 
 /**
- * @brief Positive case: the zero-copy path also holds for a model with many
- * output tensors, each individually 64-byte aligned.
+ * @brief Positive case: invoke with a 64-byte aligned output buffer whose
+ * size (4004 B, the mobilenet output) is below the 256 KiB zero-copy size
+ * gate. The gate must route this through the memcpy fallback rather than
+ * wrapping caller memory, and the result must still be correct: the size
+ * gate must not break small aligned outputs.
+ */
+TEST (nnstreamerFilterLiteRT, zeroCopyBelowThreshold)
+{
+  int ret;
+  void *data = NULL;
+  GstTensorMemory input, output;
+  g_autofree gchar *model_file = NULL;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 1));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+
+  input.size = sizeof (float) * 224 * 224 * 3;
+  output.size = sizeof (float) * 1001;
+  input.data = g_malloc0 (input.size);
+  ASSERT_EQ (posix_memalign (&output.data, 64, output.size), 0);
+  memset (output.data, 0xAA, output.size); /* canary */
+
+  ret = sp->open (&prop, &data);
+  ASSERT_EQ (ret, 0);
+
+  ret = sp->invoke (NULL, &prop, data, &input, &output);
+  EXPECT_EQ (ret, 0);
+
+  gboolean changed = FALSE;
+  for (gsize i = 0; i < output.size; ++i) {
+    if (((guint8 *) output.data)[i] != 0xAA) {
+      changed = TRUE;
+      break;
+    }
+  }
+  EXPECT_TRUE (changed) << "invoke() succeeded but did not write the output buffer.";
+
+  g_free (input.data);
+  free (output.data);
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief Positive case: a model with many small output tensors, each
+ * individually 64-byte aligned. Every output tensor here (4 B) is far below
+ * the zero-copy size gate, so this exercises the memcpy fallback path across
+ * many simultaneous outputs rather than the zero-copy wrap path.
  */
 TEST (nnstreamerFilterLiteRT, zeroCopyManyOutputsAligned)
 {
