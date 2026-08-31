@@ -125,6 +125,11 @@ jobs:
         # have. Meson does say so, and only in a warning: the PPA build for a
         # distro carrying an older meson is where it turns into a failure, far
         # from here. Catch it on a required check instead.
+        #
+        # This sees only what this job configures. A block behind an SDK that
+        # is not installed here - SNPE, TensorRT, tensorflow, pytorch, ncnn,
+        # mvncsdk2 - is never visited, so it can still carry a construct newer
+        # than the floor.
         if grep -q 'uses feature introduced' build/meson-logs/meson-log.txt; then
           grep 'uses feature introduced' build/meson-logs/meson-log.txt
           echo "::error::This tree uses a meson feature newer than the meson_version floor in meson.build. Use an older construct, or raise the floor only if every distro that has to build this ships that meson."
