@@ -76,6 +76,10 @@ if [[ ! -f ${PATH_TO_MODEL} ]]; then
     exit
 fi
 
+# Drop the cached engine: the sub-plugin reuses /tmp/<stem>.engine unconditionally,
+# so a stale one would silently make the byte-exact comparisons verify the wrong model.
+rm -f /tmp/add_one_224.engine
+
 # add_one_224.onnx is an identity 1x1 convolution with a bias of 1.0: 3:224:224:1
 # float32 in and out. Every pixel is an integer in [0, 255] before the offset, so
 # +1.0 is exact even under the TF32 accumulation TensorRT enables by default, and
@@ -187,6 +191,6 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
     5_n 0 1 $PERFORMANCE
 
 # Cleanup
-rm -f *.log
+rm -f *.log /tmp/add_one_224.engine
 
 report
