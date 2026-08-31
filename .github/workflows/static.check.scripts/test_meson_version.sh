@@ -133,6 +133,18 @@ expect_checker 1 "two declarations on one line are both checked" \
 "${MESON_BUILD}
 $(printf 'Documentation/how-to-run-examples.md\tUse meson >= 0.56.0 on Ubuntu and Meson >= 0.62.0 on Tizen.')"
 
+expect_checker 0 "a spaced >= in meson.build is still read as the authority" \
+"$(printf 'meson.build\tproject(%s, %s, meson_version: %s)' "'nnstreamer'" "'c'" "'>= 0.56.0'")
+$(printf 'AGENTS.md\tBuild system: **Meson >= 0.56.0 + Ninja**.')"
+
+expect_checker 1 "a declaration in a file outside the old list is caught" \
+"${MESON_BUILD}
+$(printf 'README.md\tnnstreamer builds with meson >= 0.62.0.')"
+
+expect_checker 1 "a declaration in a Documentation subdirectory is caught" \
+"${MESON_BUILD}
+$(printf 'Documentation/tutorials/tutorial1.md\tInstall meson >= 0.62.0 first.')"
+
 # A path with a space must not be skipped by word splitting.
 spaced_root="${workdir}/spaced"
 mkdir -p "${spaced_root}/Documentation"
