@@ -16,6 +16,10 @@
 # the source build resolves against. meson.build is the authority here,
 # because it is the file meson itself enforces.
 #
+# Every tracked document and packaging file is scanned rather than a list of
+# the sites that happen to declare it today, so a ninth one cannot appear
+# unnoticed - which is the whole point of the check.
+#
 # Argument ($1): repository root to check. Defaults to the repository this
 #                script lives in.
 #
@@ -58,7 +62,7 @@ if [ ! -f "${ROOT}/meson.build" ]; then
   exit 1
 fi
 
-expected_raw=$(grep -oE "meson_version:[[:space:]]*'>=[0-9]+(\.[0-9]+)+'" "${ROOT}/meson.build" \
+expected_raw=$(grep -oE "meson_version:[[:space:]]*'>=[[:space:]]*[0-9]+(\.[0-9]+)+'" "${ROOT}/meson.build" \
   | head -1 | grep -oE '[0-9]+(\.[0-9]+)+')
 if [ -z "$expected_raw" ]; then
   echo "::error::meson.build does not declare meson_version."
@@ -104,8 +108,10 @@ while IFS= read -r rel; do
   check_file "$rel"
 done < <(
   cd "$ROOT" || exit 1
-  ls -1 AGENTS.md packaging/nnstreamer.spec debian/control* 2>/dev/null
-  find Documentation -maxdepth 1 -type f -name '*.md' 2>/dev/null | sort
+  {
+    find . -name .git -prune -o -type f \( -name '*.md' -o -name '*.spec' \) -print
+    ls -1 debian/control* 2>/dev/null
+  } | sed "s|^\./||" | sort -u
 )
 
 if [ "$failed" -ne 0 ]; then
