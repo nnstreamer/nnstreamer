@@ -187,6 +187,6 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
     5_n 0 1 $PERFORMANCE
 
 # Cleanup
-rm *.log
+rm -f *.log
 
 report
