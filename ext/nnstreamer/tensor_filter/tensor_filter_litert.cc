@@ -283,7 +283,7 @@ class litert_subplugin final : public tensor_filter_subplugin
   std::vector<size_t> output_tensor_sizes{}; /**< nnstreamer tensor sizes; each is <= its LiteRT buffer */
 
   std::vector<LiteRtRankedTensorType> output_types{}; /**< to wrap caller memory per invoke */
-  std::vector<char> output_wrappable{}; /**< requirements allow host memory and the sizes match exactly */
+  std::vector<char> output_wrappable{}; /**< LiteRT chose host memory, the sizes match exactly and it is worth wrapping */
   std::vector<LiteRtTensorBuffer> invoke_outputs{}; /**< per-invoke argument array, storage reused */
 
   void cleanup ();
@@ -741,6 +741,14 @@ litert_subplugin::createTensorBuffers ()
                            && (LiteRtGetTensorBufferType (buf, &buf_type) == kLiteRtStatusOk)
                            && (buf_type == kLiteRtTensorBufferTypeHostMemory);
     output_wrappable.push_back (wrappable ? 1 : 0);
+
+    /** Report the decision. It answers "why am I not seeing zero-copy" for a
+     *  user, and it is the only way the choice is visible from outside: both
+     *  branches return identical bytes, so nothing else would notice if a
+     *  future SDK stopped reporting host memory here and the direct path
+     *  quietly went dead. */
+    ml_logd ("litert output %u (%zu B) will be %s", i, (size_t) nns_size,
+        wrappable ? "written directly when aligned" : "copied");
   }
 
   invoke_outputs.resize (outputTensorMeta.num_tensors);

@@ -495,6 +495,68 @@ TEST (nnstreamerFilterLiteRT, invoke01_n)
   sp->close (&prop, &data);
 }
 
+static std::atomic<int> _direct_output_count (0);
+
+/**
+ * @brief GLib log handler counting outputs the subplugin elected to write directly.
+ * @param[in] domain log domain, forwarded to the default handler
+ * @param[in] level log level, forwarded to the default handler
+ * @param[in] message the log message to inspect
+ * @param[in] user_data unused, forwarded to the default handler
+ */
+static void
+_countDirectOutputs (const gchar *domain, GLogLevelFlags level,
+    const gchar *message, gpointer user_data)
+{
+  if (message != NULL && g_strstr_len (message, -1, "will be written directly") != NULL)
+    ++_direct_output_count;
+
+  g_log_default_handler (domain, level, message, user_data);
+}
+
+/**
+ * @brief Positive case: a large output must actually elect the direct path.
+ *
+ * The other cases here only prove both paths return the same bytes, which they
+ * would keep doing if the direct path stopped being chosen at all. The gate now
+ * turns on an answer LiteRT gives at runtime, so an SDK that stopped reporting
+ * host memory for the CPU path would silently disable the optimisation with
+ * every one of them still green. This reads the decision the subplugin logs
+ * and fails if a qualifying tensor no longer elects the wrap.
+ */
+TEST (nnstreamerFilterLiteRT, zeroCopyDirectPathElected)
+{
+  void *data = NULL;
+  g_autofree gchar *model_file = NULL;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 3));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+
+  /** the decision is logged at debug level, so it is dropped unless the
+   *  domain is enabled for this process */
+  g_setenv ("G_MESSAGES_DEBUG", "all", TRUE);
+  _direct_output_count = 0;
+  GLogFunc prev_handler = g_log_set_default_handler (_countDirectOutputs, NULL);
+
+  const int ret = sp->open (&prop, &data);
+
+  g_log_set_default_handler (prev_handler, NULL);
+  g_unsetenv ("G_MESSAGES_DEBUG");
+
+  ASSERT_EQ (ret, 0);
+  EXPECT_GT (_direct_output_count.load (), 0)
+      << "No output elected the direct path for a model whose output clears "
+         "the size gate; the zero-copy path is no longer reachable.";
+
+  sp->close (&prop, &data);
+}
+
 /**
  * @brief Positive case: invoke with a 64-byte aligned output buffer that is
  * at/above the zero-copy size gate (deeplabv3 output is 5548116 B, well over
