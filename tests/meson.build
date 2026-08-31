@@ -462,7 +462,7 @@ tensor_filter_ext_enabled = tflite_support_is_available or \
 if get_option('install-test') and tensor_filter_ext_enabled
   # host-only model generator scripts are not needed on target devices
   install_subdir('test_models', install_dir: unittest_install_dir,
-    exclude_files: ['models/gen_mobilenet_v2_float.py'])
+    exclude_files: ['models/gen_mobilenet_v2_float.py', 'models/gen_add_one_224.py'])
 endif
 
 
