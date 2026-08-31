@@ -538,16 +538,16 @@ TEST (nnstreamerFilterLiteRT, zeroCopyDirectPathElected)
   GstTensorFilterProperties prop;
   _SetFilterProp (&prop, "litert", model_files);
 
-  /** the decision is logged at debug level, so it is dropped unless the
-   *  domain is enabled for this process */
-  g_setenv ("G_MESSAGES_DEBUG", "all", TRUE);
+  /** G_MESSAGES_DEBUG is deliberately not touched. Level filtering happens
+   *  inside g_log_default_handler, so a handler installed in front of it sees
+   *  g_debug output either way - verified on glib 2.72 - and setting the
+   *  variable would only discard whatever the caller had exported. */
   _direct_output_count = 0;
   GLogFunc prev_handler = g_log_set_default_handler (_countDirectOutputs, NULL);
 
   const int ret = sp->open (&prop, &data);
 
   g_log_set_default_handler (prev_handler, NULL);
-  g_unsetenv ("G_MESSAGES_DEBUG");
 
   ASSERT_EQ (ret, 0);
   EXPECT_GT (_direct_output_count.load (), 0)

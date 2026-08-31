@@ -746,7 +746,11 @@ litert_subplugin::createTensorBuffers ()
      *  user, and it is the only way the choice is visible from outside: both
      *  branches return identical bytes, so nothing else would notice if a
      *  future SDK stopped reporting host memory here and the direct path
-     *  quietly went dead. */
+     *  quietly went dead.
+     *
+     *  zeroCopyDirectPathElected in unittest_filter_litert.cc matches on
+     *  "will be written directly", so reword that phrase and the test starts
+     *  failing as though the path were gone. Change both together. */
     ml_logd ("litert output %u (%zu B) will be %s", i, (size_t) nns_size,
         wrappable ? "written directly when aligned" : "copied");
   }
