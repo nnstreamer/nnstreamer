@@ -148,8 +148,10 @@ unsigned int litert_env_refs = 0;
  * copy grows. A segmentation model's 5 MB output, by contrast, copies for
  * hundreds of microseconds and wraps for the same 2 us.
  *
- * 256 kB sits well above the break-even, so a tensor taking the direct path is
- * a clear win rather than a marginal one. The figures are indicative of one
+ * Working the break-even back from the large case, where the copy is memory
+ * bound rather than cache resident, puts it near 26-49 kB. 256 kB therefore
+ * leaves five to ten times the margin, so a tensor taking the direct path
+ * wins clearly rather than marginally. The figures are indicative of one
  * machine; the threshold is deliberately conservative so that being wrong
  * about them costs a copy that was already cheap.
  */
