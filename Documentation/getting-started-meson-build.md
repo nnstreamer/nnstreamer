@@ -20,7 +20,7 @@ The following dependencies are needed to compile/build/run.
 * gcc/g++ (C++17 for C++-class filters)
 * gstreamer 1.0 and its relatives
 * glib 2.0
-* meson >= 0.56.0
+* meson >= 0.57.0
 * ninja-build
 * Neural network frameworks or libraries for plugins (e.g., tensorflow) you want to use, including their pkgconfig files or mechanisms to allow meson to discover its headers and libraries. If you use development packages packaged by us for tensorflow/pytorch/openvino/..., you do not need to worry.
     * Possible frameworks for "extra" plugins: tensorflow, tensorflow-lite, pytorch, protobuf, flatbuf, openvino, ncsdk2, Verisilicon-Vivante, SNPE, TensorRT, mqtt, ...

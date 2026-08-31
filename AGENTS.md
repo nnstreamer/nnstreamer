@@ -4,7 +4,7 @@
 
 ### Project Overview
 
-NNStreamer is a set of GStreamer plugins (C/C++) that integrate neural network inference into media streaming pipelines. Build system: **Meson >= 0.56.0 + Ninja**. See `Documentation/getting-started-meson-build.md` for full build instructions.
+NNStreamer is a set of GStreamer plugins (C/C++) that integrate neural network inference into media streaming pipelines. Build system: **Meson >= 0.57.0 + Ninja**. See `Documentation/getting-started-meson-build.md` for full build instructions.
 
 ### Build & Run
 

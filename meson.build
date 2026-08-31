@@ -4,7 +4,7 @@
 project('nnstreamer', 'c', 'cpp',
   version: '2.7.0',
   license: ['LGPL-2.1'],
-  meson_version: '>=0.56.0',
+  meson_version: '>=0.57.0',
   default_options: [
     'werror=true',
     'warning_level=2',

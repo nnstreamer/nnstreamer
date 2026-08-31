@@ -223,7 +223,7 @@ BuildRequires:	gstreamer-devel
 BuildRequires:	gst-plugins-base-devel
 BuildRequires:	gst-plugins-bad-devel
 BuildRequires:	glib2-devel
-BuildRequires:	meson >= 0.56.0
+BuildRequires:	meson >= 0.57.0
 
 %{?_toolchain:
 %if %{toolchain_is clang}
