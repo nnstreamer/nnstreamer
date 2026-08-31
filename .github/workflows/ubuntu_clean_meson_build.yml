@@ -119,6 +119,18 @@ jobs:
       if: env.rebuild == '1'
       run: |
         meson setup build/ -Darmnn-support=enabled
+
+        # This job installs the newest meson from PyPI, so it configures
+        # happily with a construct that the meson on a target distro does not
+        # have. Meson does say so, and only in a warning: the PPA build for a
+        # distro carrying an older meson is where it turns into a failure, far
+        # from here. Catch it on a required check instead.
+        if grep -q 'uses feature introduced' build/meson-logs/meson-log.txt; then
+          grep 'uses feature introduced' build/meson-logs/meson-log.txt
+          echo "::error::This tree uses a meson feature newer than the meson_version floor in meson.build. Use an older construct, or raise the floor only if every distro that has to build this ships that meson."
+          exit 1
+        fi
+
         meson compile -C build/
 
         if [ '${{ matrix.os }}' == 'ubuntu-22.04' ]; then
