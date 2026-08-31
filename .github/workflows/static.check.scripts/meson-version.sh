@@ -43,11 +43,16 @@ failed=0
 # meson either. What is left through is decoration: "meson (>=X)",
 # "**meson** >= X", "`meson` >= X", "meson_version: >=X".
 #
-# This is a heuristic over prose and is deliberately not grown any further. A
-# markdown link, "[meson](https://example.com) >= X", puts letters in the gap
-# and is not recognised. If some other phrasing escapes it, write the
-# requirement in one of the plain forms above rather than widening this.
-DECL_RE='meson(_version)?[^[:alnum:],.;]{0,12}>=[[:space:]]*[0-9]+(\.[0-9]+)+'
+# The gap is three characters because that is what the forms above need: one
+# for a space, two for a backtick or a bracket, three for "**meson** >=".
+# Anything longer is a sentence that has wandered, as in "see meson -- (>=9.0)
+# elsewhere", where the version belongs to something else entirely.
+#
+# This is a heuristic over prose and is deliberately not grown. A markdown
+# link, "[meson](https://example.com) >= X", puts letters in the gap and is
+# not recognised. If some other phrasing escapes it, write the requirement in
+# one of the plain forms above rather than widening this.
+DECL_RE='meson(_version)?[^[:alnum:],.;]{0,3}>=[[:space:]]*[0-9]+(\.[0-9]+)+'
 
 ##
 # @brief Print a version padded to four components so 0.56 and 0.56.0 compare equal.
