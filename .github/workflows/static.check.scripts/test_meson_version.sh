@@ -157,6 +157,37 @@ else
   echo "PASS: a path containing a space is still checked (exit 1)"
 fi
 
+# In a repository, only tracked files count: a document left in a build
+# directory belongs to nobody and must not fail the check. The fixture trees
+# above are not repositories, so they cover the find fallback instead.
+if command -v git > /dev/null 2>&1; then
+  git_root="${workdir}/tracked"
+  mkdir -p "${git_root}/build/vendor"
+  echo "project('nnstreamer', 'c', meson_version: '>=0.57.0')" > "${git_root}/meson.build"
+  echo 'Build system: **Meson >= 0.57.0 + Ninja**.' > "${git_root}/AGENTS.md"
+  echo '* meson >= 0.62.0' > "${git_root}/build/vendor/README.md"
+  (
+    cd "$git_root" || exit 1
+    git init -q .
+    git add meson.build AGENTS.md
+  ) > /dev/null 2>&1
+  if bash "$CHECKER" "$git_root" > /dev/null 2>&1 < /dev/null; then
+    echo "PASS: an untracked document is not checked (exit 0)"
+  else
+    echo "FAIL: an untracked document was checked"
+    failed=1
+  fi
+  (cd "$git_root" && git add build/vendor/README.md) > /dev/null 2>&1
+  if bash "$CHECKER" "$git_root" > /dev/null 2>&1 < /dev/null; then
+    echo "FAIL: tracking that document did not bring it under the check"
+    failed=1
+  else
+    echo "PASS: the same document is checked once tracked (exit 1)"
+  fi
+else
+  echo "SKIP: git is unavailable, tracked-file selection not covered"
+fi
+
 echo "Checking the tree shipped in this repository"
 if bash "$CHECKER" "$REPO_ROOT" < /dev/null; then
   echo "PASS: the repository declares meson consistently"

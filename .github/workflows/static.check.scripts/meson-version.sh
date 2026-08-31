@@ -18,7 +18,10 @@
 #
 # Every tracked document and packaging file is scanned rather than a list of
 # the sites that happen to declare it today, so a ninth one cannot appear
-# unnoticed - which is the whole point of the check.
+# unnoticed - which is the whole point of the check. Tracked, via git, so a
+# build directory or a vendored copy left in the tree cannot fail the check on
+# a file nobody owns; find is the fallback for a directory that is not a
+# repository, which is how the self-test drives this.
 #
 # Argument ($1): repository root to check. Defaults to the repository this
 #                script lives in.
@@ -109,8 +112,12 @@ while IFS= read -r rel; do
 done < <(
   cd "$ROOT" || exit 1
   {
-    find . -name .git -prune -o -type f \( -name '*.md' -o -name '*.spec' \) -print
-    ls -1 debian/control* 2>/dev/null
+    if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+      git ls-files -- '*.md' '*.spec' 'debian/control*'
+    else
+      find . -name .git -prune -o -type f \( -name '*.md' -o -name '*.spec' \) -print
+      ls -1 debian/control* 2>/dev/null
+    fi
   } | sed "s|^\./||" | sort -u
 )
 
