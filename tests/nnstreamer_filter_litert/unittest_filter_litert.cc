@@ -640,12 +640,16 @@ TEST (nnstreamerFilterLiteRT, zeroCopyPathEquivalence)
 /**
  * @brief Positive case: repeated invoke through the zero-copy path must not
  * leak or corrupt state; every run must succeed and match the first result.
- * The iteration count is kept low because deeplabv3 is a large model and
- * each invoke is comparatively slow.
+ *
+ * Three rounds, not more. The model has to sit above the size gate to reach
+ * the wrapped path at all, so it has to be deeplabv3, and each of its invokes
+ * costs about 42 s under the CI memcheck run. Three still gives two
+ * comparisons against the first result, which is what catches a wrapper going
+ * stale; a leak needs a sanitizer rather than more rounds.
  */
 TEST (nnstreamerFilterLiteRT, zeroCopyRepeatedInvoke)
 {
-  const guint iterations = 5U;
+  const guint iterations = 3U;
   int ret;
   void *data = NULL;
   GstTensorMemory input, output;
