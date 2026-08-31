@@ -704,11 +704,18 @@ TEST (nnstreamerFilterLiteRT, zeroCopyRepeatedInvoke)
 }
 
 /**
- * @brief Positive case: invoke with a 64-byte aligned output buffer whose
- * size (4004 B, the mobilenet output) is below the 256 KiB zero-copy size
- * gate. The gate must route this through the memcpy fallback rather than
- * wrapping caller memory, and the result must still be correct: the size
- * gate must not break small aligned outputs.
+ * @brief Positive case: an aligned output below the size gate stays correct.
+ *
+ * The mobilenet output is 4004 B, under litert_wrap_min_bytes, so the gate
+ * sends it through the copy even though its alignment would otherwise qualify
+ * it. What is pinned here is that the gate does not break such a tensor.
+ *
+ * It does not pin the gate itself, and no test does: which branch runs is a
+ * performance decision that produces identical bytes either way, so removing
+ * the size floor leaves this whole suite green. Guarding that would mean
+ * making the choice observable from outside the subplugin, which is not worth
+ * a constant this well commented. Anyone changing litert_wrap_min_bytes needs
+ * to re-measure rather than trust CI.
  */
 TEST (nnstreamerFilterLiteRT, zeroCopyBelowThreshold)
 {
