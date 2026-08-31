@@ -129,6 +129,18 @@ expect_checker 0 "an ellipsis breaks the association as well" \
 "${MESON_BUILD}
 $(printf 'Documentation/getting-started-meson-build.md\tAfter installing meson... (>=2024.1) support was added.')"
 
+expect_checker 0 "a bracketed aside does not carry a version to meson" \
+"${MESON_BUILD}
+$(printf 'Documentation/getting-started-meson-build.md\tSee meson [*] (>=5.0) for the other tool.')"
+
+expect_checker 0 "a dashed aside does not carry a version to meson" \
+"${MESON_BUILD}
+$(printf 'Documentation/getting-started-meson-build.md\tSee meson -- (>=9.0) for the other tool.')"
+
+expect_checker 0 "punctuation between the two does not carry a version either" \
+"${MESON_BUILD}
+$(printf 'Documentation/getting-started-meson-build.md\tReally, meson?! (>=5.0) is unrelated.')"
+
 expect_checker 1 "two declarations on one line are both checked" \
 "${MESON_BUILD}
 $(printf 'Documentation/how-to-run-examples.md\tUse meson >= 0.56.0 on Ubuntu and Meson >= 0.62.0 on Tizen.')"
