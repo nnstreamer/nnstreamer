@@ -117,6 +117,7 @@ class ncnn_subplugin final : public tensor_filter_subplugin
   void inferOutputInfo (std::vector<ncnn::Mat> &mats, GstTensorsInfo &info);
   static std::vector<ncnn::Mat> allocMats (GstTensorsInfo &info);
   static void normalizeInfo (GstTensorsInfo &info, size_t num_expected, const char *direction);
+  static void checkYoloOutputInfo (GstTensorsInfo &info);
   static std::vector<int> getShape (const GstTensorInfo *info);
   static ncnn::Mat allocMat (const GstTensorInfo *info);
   static void copyToMat (const void *src, ncnn::Mat &mat, size_t size);
@@ -218,8 +219,11 @@ ncnn_subplugin::configure_instance (const GstTensorFilterProperties *prop)
     normalizeInfo (inputInfo, net.input_indexes ().size (), "input");
     input_mats = allocMats (inputInfo);
   }
-  if (output_from_prop)
+  if (output_from_prop) {
     normalizeInfo (outputInfo, net.output_indexes ().size (), "output");
+    if (use_yolo_decoder)
+      checkYoloOutputInfo (outputInfo);
+  }
 
   if (input_from_prop && !output_from_prop)
     inferOutputInfo (input_mats, outputInfo);
@@ -276,6 +280,29 @@ ncnn_subplugin::normalizeInfo (GstTensorsInfo &info, size_t num_expected, const 
           + gst_tensor_get_type_string (each->type) + ".");
 
     getShape (each);
+  }
+}
+
+/**
+ * @brief Reject an output shape that the yolo decoder would write past.
+ * @details Each detection takes 5 box fields before the label slots, and the
+ *          rows are packed dimension[0] floats apart over a buffer of exactly
+ *          the declared size. Once the model fills every row, the last one
+ *          therefore runs off the end unless dimension[0] leaves room for the
+ *          5, which the label slot bound in invoke() cannot make up for.
+ */
+void
+ncnn_subplugin::checkYoloOutputInfo (GstTensorsInfo &info)
+{
+  for (guint i = 0; i < info.num_tensors; i++) {
+    const uint32_t label_count
+        = gst_tensors_info_get_nth_info (std::addressof (info), i)->dimension[0];
+
+    if (label_count < 5)
+      throw std::invalid_argument (
+          "use_yolo_decoder writes 5 box fields plus one slot per label into every "
+          "detection, so the first dimension of \"output\" must be at least 5, but tensor "
+          + std::to_string (i) + " declares " + std::to_string (label_count) + ".");
   }
 }
 
