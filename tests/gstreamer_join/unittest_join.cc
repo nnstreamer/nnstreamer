@@ -684,6 +684,45 @@ TEST (join, eosAfterUnlink)
 }
 
 /**
+ * @brief Buffer count, and the frame the buffers counted next must carry.
+ */
+typedef struct {
+  const gint *expected;
+  guint received;
+} JoinCounter;
+
+/**
+ * @brief Count a buffer once its payload matches the frame that was pushed.
+ * @note The count is raised last. A test that waits on it before setting the
+ *       next expected frame therefore cannot overwrite the frame while this
+ *       callback is still reading it, which is what made the plain index
+ *       shared with new_data_cb racy.
+ */
+static void
+count_checked_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
+{
+  JoinCounter *counter = (JoinCounter *) user_data;
+  GstMemory *mem_res;
+  GstMapInfo info_res;
+  gboolean mapped;
+  gint *output, i;
+  (void) element;
+
+  mem_res = gst_buffer_get_memory (buffer, 0);
+  mapped = gst_memory_map (mem_res, &info_res, GST_MAP_READ);
+  ASSERT_TRUE (mapped);
+  output = (gint *) info_res.data;
+
+  for (i = 0; i < 48; i++) {
+    EXPECT_EQ (counter->expected[i], output[i]);
+  }
+  gst_memory_unmap (mem_res, &info_res);
+  gst_memory_unref (mem_res);
+
+  counter->received++;
+}
+
+/**
  * @brief Test that unlinking the sink pad the join is waiting for ends the
  *        output stream.
  * @detail The reverse order of join.eosAfterUnlink. sink_0 is still linked and
@@ -695,7 +734,7 @@ TEST (join, eosAfterUnlinkLast)
 {
   GstElement *appsrc_0, *appsrc_1, *join_handle, *sink_handle;
   GstPad *sinkpad_0, *srcpad_0;
-  guint received = 0;
+  JoinCounter counter = { test_frames[0], 0 };
 
   GstElement *pipeline = gst_parse_launch (join_pipeline_desc, NULL);
   ASSERT_NE (pipeline, nullptr);
@@ -708,14 +747,15 @@ TEST (join, eosAfterUnlinkLast)
   ASSERT_NE (join_handle, nullptr);
   sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
   ASSERT_NE (sink_handle, nullptr);
-  g_signal_connect (sink_handle, "new-data", (GCallback) count_data_cb, (gpointer) &received);
+  g_signal_connect (sink_handle, "new-data", (GCallback) count_checked_data_cb,
+      (gpointer) &counter);
 
   ASSERT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   ASSERT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc_0),
                  gst_buffer_new_wrapped (_g_memdup (test_frames[0], 192), 192)),
       GST_FLOW_OK);
-  ASSERT_TRUE (wait_pipeline_process_buffers (&received, 1, TEST_TIMEOUT_LIMIT_MS));
+  ASSERT_TRUE (wait_pipeline_process_buffers (&counter.received, 1, TEST_TIMEOUT_LIMIT_MS));
 
   EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (appsrc_1)), GST_FLOW_OK);
   EXPECT_EQ (pop_eos_or_error (pipeline, 300), GST_MESSAGE_UNKNOWN);
@@ -729,7 +769,7 @@ TEST (join, eosAfterUnlinkLast)
   gst_object_unref (sinkpad_0);
 
   EXPECT_EQ (pop_eos_or_error (pipeline, UNITTEST_STATECHANGE_TIMEOUT), GST_MESSAGE_EOS);
-  EXPECT_EQ (1U, received);
+  EXPECT_EQ (1U, counter.received);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
@@ -750,7 +790,7 @@ TEST (join, noEosOnUnlinkWhileRunning)
 {
   GstElement *appsrc_0, *appsrc_1, *join_handle, *sink_handle;
   GstPad *sinkpad_0, *srcpad_0;
-  guint received = 0;
+  JoinCounter counter = { test_frames[0], 0 };
 
   GstElement *pipeline = gst_parse_launch (join_pipeline_desc, NULL);
   ASSERT_NE (pipeline, nullptr);
@@ -763,14 +803,15 @@ TEST (join, noEosOnUnlinkWhileRunning)
   ASSERT_NE (join_handle, nullptr);
   sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
   ASSERT_NE (sink_handle, nullptr);
-  g_signal_connect (sink_handle, "new-data", (GCallback) count_data_cb, (gpointer) &received);
+  g_signal_connect (sink_handle, "new-data", (GCallback) count_checked_data_cb,
+      (gpointer) &counter);
 
   ASSERT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   ASSERT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc_0),
                  gst_buffer_new_wrapped (_g_memdup (test_frames[0], 192), 192)),
       GST_FLOW_OK);
-  ASSERT_TRUE (wait_pipeline_process_buffers (&received, 1, TEST_TIMEOUT_LIMIT_MS));
+  ASSERT_TRUE (wait_pipeline_process_buffers (&counter.received, 1, TEST_TIMEOUT_LIMIT_MS));
 
   sinkpad_0 = gst_element_get_static_pad (join_handle, "sink_0");
   ASSERT_NE (sinkpad_0, nullptr);
@@ -782,10 +823,12 @@ TEST (join, noEosOnUnlinkWhileRunning)
 
   EXPECT_EQ (pop_eos_or_error (pipeline, 300), GST_MESSAGE_UNKNOWN);
 
+  /* The branch that survives the unlink, so this buffer must be its own. */
+  counter.expected = test_frames[1];
   ASSERT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc_1),
                  gst_buffer_new_wrapped (_g_memdup (test_frames[1], 192), 192)),
       GST_FLOW_OK);
-  ASSERT_TRUE (wait_pipeline_process_buffers (&received, 2, TEST_TIMEOUT_LIMIT_MS));
+  ASSERT_TRUE (wait_pipeline_process_buffers (&counter.received, 2, TEST_TIMEOUT_LIMIT_MS));
 
   EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (appsrc_1)), GST_FLOW_OK);
   EXPECT_EQ (pop_eos_or_error (pipeline, UNITTEST_STATECHANGE_TIMEOUT), GST_MESSAGE_EOS);
@@ -816,7 +859,7 @@ TEST (join, noEosOnUnlinkWhileOthersRun)
         "tensor_sink name=sinkx async=false";
   GstElement *appsrc[3], *join_handle, *sink_handle;
   GstPad *sinkpad_0, *srcpad_0;
-  guint received = 0;
+  JoinCounter counter = { test_frames[0], 0 };
   guint i;
 
   GstElement *pipeline = gst_parse_launch (desc, NULL);
@@ -832,7 +875,8 @@ TEST (join, noEosOnUnlinkWhileOthersRun)
   ASSERT_NE (join_handle, nullptr);
   sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
   ASSERT_NE (sink_handle, nullptr);
-  g_signal_connect (sink_handle, "new-data", (GCallback) count_data_cb, (gpointer) &received);
+  g_signal_connect (sink_handle, "new-data", (GCallback) count_checked_data_cb,
+      (gpointer) &counter);
 
   ASSERT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
@@ -841,7 +885,7 @@ TEST (join, noEosOnUnlinkWhileOthersRun)
                    gst_buffer_new_wrapped (_g_memdup (test_frames[0], 192), 192)),
         GST_FLOW_OK);
   }
-  ASSERT_TRUE (wait_pipeline_process_buffers (&received, 3, TEST_TIMEOUT_LIMIT_MS));
+  ASSERT_TRUE (wait_pipeline_process_buffers (&counter.received, 3, TEST_TIMEOUT_LIMIT_MS));
 
   EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (appsrc[1])), GST_FLOW_OK);
   EXPECT_EQ (pop_eos_or_error (pipeline, 300), GST_MESSAGE_UNKNOWN);
@@ -859,7 +903,7 @@ TEST (join, noEosOnUnlinkWhileOthersRun)
 
   EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (appsrc[2])), GST_FLOW_OK);
   EXPECT_EQ (pop_eos_or_error (pipeline, UNITTEST_STATECHANGE_TIMEOUT), GST_MESSAGE_EOS);
-  EXPECT_EQ (3U, received);
+  EXPECT_EQ (3U, counter.received);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
