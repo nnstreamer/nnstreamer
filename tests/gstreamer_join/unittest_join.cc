@@ -696,12 +696,15 @@ typedef struct {
  * @note Every expected frame is in place before the pipeline plays, so the
  *       streaming thread never reads a field the test thread writes. That is
  *       what the index shared with new_data_cb did, and it is also why this
- *       needs no ordering between the count and the frame it selects.
+ *       needs no ordering between the count and the frame it selects. A buffer
+ *       arriving past the frames a test named fails on the bound or on the
+ *       empty slot, rather than being compared against whatever is there.
  */
 static void
 count_checked_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
 {
   JoinCounter *counter = (JoinCounter *) user_data;
+  const gint *expected;
   GstMemory *mem_res;
   GstMapInfo info_res;
   gboolean mapped;
@@ -709,6 +712,8 @@ count_checked_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_dat
   (void) element;
 
   ASSERT_LT (counter->received, G_N_ELEMENTS (counter->expected));
+  expected = counter->expected[counter->received];
+  ASSERT_NE (expected, nullptr);
 
   mem_res = gst_buffer_get_memory (buffer, 0);
   mapped = gst_memory_map (mem_res, &info_res, GST_MAP_READ);
@@ -716,7 +721,7 @@ count_checked_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_dat
   output = (gint *) info_res.data;
 
   for (i = 0; i < 48; i++) {
-    EXPECT_EQ (counter->expected[counter->received][i], output[i]);
+    EXPECT_EQ (expected[i], output[i]);
   }
   gst_memory_unmap (mem_res, &info_res);
   gst_memory_unref (mem_res);
