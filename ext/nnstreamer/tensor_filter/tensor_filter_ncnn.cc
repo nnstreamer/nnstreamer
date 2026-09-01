@@ -44,6 +44,9 @@
  *        especially when dealing with variable output sizes (num_detection, 6).
  *        In such cases, you must also configure
  *        output=(5+num_labels, max_detection, 1) and outputtype=float32.
+ *        The decoder reads a label, a score and 4 corners out of every
+ *        detection, so a model whose output rows are narrower than those 6
+ *        values is rejected. Detections past max_detection are dropped.
  *        To calculate the max_detection for an input image of size (w, h),
  *        use the formula: (w/32)*(h/32) + (w/16)*(h/16) + (w/8)*(h/8)*3.
  *        See also: https://github.com/nnstreamer/nnstreamer/blob/main/ext/nnstreamer/tensor_decoder/box_properties/yolo.cc#L130
