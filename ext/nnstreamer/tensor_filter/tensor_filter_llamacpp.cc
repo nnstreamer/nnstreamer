@@ -234,6 +234,10 @@ TensorFilterLlamaCpp::parseCustomProperties (const GstTensorFilterProperties *pr
   }
 
   /* validate properties */
+  if (n_predict < 0) {
+    throw std::invalid_argument (
+        "Number of tokens to predict should not be negative (0 generates nothing).");
+  }
   if (n_ctx < 0) {
     throw std::invalid_argument ("Context length should be a positive value (or 0 from model).");
   }
