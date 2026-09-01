@@ -135,6 +135,11 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} !
 # Fail test for a detection row narrower than the 6 values the yolo decoder reads
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=GRAY8,width=3,height=2,framerate=30/1 ! tensor_converter ! tensor_transform mode=typecast option=float32 ! tensor_filter framework=ncnn model=${PATH_TO_PASSTHROUGH_PARAM},${PATH_TO_PASSTHROUGH_BIN} custom=use_yolo_decoder:true output=10:5:1 outputtype=float32 ! fakesink" 16_n 0 1 $PERFORMANCE
 
+# Fail test for a yolo output row with no room for the 5 box fields. The source
+# is shaped so that the model fills every row, which is when the last one would
+# be written past the end of the output tensor.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=8,height=2,framerate=30/1 ! tensor_converter ! tensor_transform mode=typecast option=float32 ! tensor_transform mode=transpose option=1:2:0:3 ! tensor_filter framework=ncnn model=${PATH_TO_PASSTHROUGH_PARAM},${PATH_TO_PASSTHROUGH_BIN} custom=use_yolo_decoder:true output=4:2:1 outputtype=float32 ! fakesink" 17_n 0 1 $PERFORMANCE
+
 function run_pipeline() {
     gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze ! videoconvert ! videoscale ! video/x-raw,width=227,height=227,format=BGR,framerate=0/1 ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-127.5 ! tensor_transform mode=transpose option=1:2:0:3 ! tensor_filter framework=ncnn model=${PATH_TO_PARAM},${PATH_TO_BIN} accelerator=$1 input=227:227:3 inputtype=float32 output=1000:1 outputtype=float32 ! tensor_decoder mode=image_labeling option1=${PATH_TO_LABEL} ! filesink location=ncnn.out.log 2>info
 }
