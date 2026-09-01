@@ -684,19 +684,19 @@ TEST (join, eosAfterUnlink)
 }
 
 /**
- * @brief Buffer count, and the frame the buffers counted next must carry.
+ * @brief Buffer count, and the frame each buffer must carry in arrival order.
  */
 typedef struct {
-  const gint *expected;
+  const gint *expected[3];
   guint received;
 } JoinCounter;
 
 /**
  * @brief Count a buffer once its payload matches the frame that was pushed.
- * @note The count is raised last. A test that waits on it before setting the
- *       next expected frame therefore cannot overwrite the frame while this
- *       callback is still reading it, which is what made the plain index
- *       shared with new_data_cb racy.
+ * @note Every expected frame is in place before the pipeline plays, so the
+ *       streaming thread never reads a field the test thread writes. That is
+ *       what the index shared with new_data_cb did, and it is also why this
+ *       needs no ordering between the count and the frame it selects.
  */
 static void
 count_checked_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
@@ -708,13 +708,15 @@ count_checked_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_dat
   gint *output, i;
   (void) element;
 
+  ASSERT_LT (counter->received, G_N_ELEMENTS (counter->expected));
+
   mem_res = gst_buffer_get_memory (buffer, 0);
   mapped = gst_memory_map (mem_res, &info_res, GST_MAP_READ);
   ASSERT_TRUE (mapped);
   output = (gint *) info_res.data;
 
   for (i = 0; i < 48; i++) {
-    EXPECT_EQ (counter->expected[i], output[i]);
+    EXPECT_EQ (counter->expected[counter->received][i], output[i]);
   }
   gst_memory_unmap (mem_res, &info_res);
   gst_memory_unref (mem_res);
@@ -734,7 +736,7 @@ TEST (join, eosAfterUnlinkLast)
 {
   GstElement *appsrc_0, *appsrc_1, *join_handle, *sink_handle;
   GstPad *sinkpad_0, *srcpad_0;
-  JoinCounter counter = { test_frames[0], 0 };
+  JoinCounter counter = { { test_frames[0], NULL, NULL }, 0 };
 
   GstElement *pipeline = gst_parse_launch (join_pipeline_desc, NULL);
   ASSERT_NE (pipeline, nullptr);
@@ -790,7 +792,8 @@ TEST (join, noEosOnUnlinkWhileRunning)
 {
   GstElement *appsrc_0, *appsrc_1, *join_handle, *sink_handle;
   GstPad *sinkpad_0, *srcpad_0;
-  JoinCounter counter = { test_frames[0], 0 };
+  /* Frame 1 is branch 1's, so the buffer after the unlink must be its own. */
+  JoinCounter counter = { { test_frames[0], test_frames[1], NULL }, 0 };
 
   GstElement *pipeline = gst_parse_launch (join_pipeline_desc, NULL);
   ASSERT_NE (pipeline, nullptr);
@@ -823,8 +826,6 @@ TEST (join, noEosOnUnlinkWhileRunning)
 
   EXPECT_EQ (pop_eos_or_error (pipeline, 300), GST_MESSAGE_UNKNOWN);
 
-  /* The branch that survives the unlink, so this buffer must be its own. */
-  counter.expected = test_frames[1];
   ASSERT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc_1),
                  gst_buffer_new_wrapped (_g_memdup (test_frames[1], 192), 192)),
       GST_FLOW_OK);
@@ -859,7 +860,7 @@ TEST (join, noEosOnUnlinkWhileOthersRun)
         "tensor_sink name=sinkx async=false";
   GstElement *appsrc[3], *join_handle, *sink_handle;
   GstPad *sinkpad_0, *srcpad_0;
-  JoinCounter counter = { test_frames[0], 0 };
+  JoinCounter counter = { { test_frames[0], test_frames[0], test_frames[0] }, 0 };
   guint i;
 
   GstElement *pipeline = gst_parse_launch (desc, NULL);
