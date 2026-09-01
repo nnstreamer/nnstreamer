@@ -141,6 +141,18 @@ expect_checker 0 "punctuation between the two does not carry a version either" \
 "${MESON_BUILD}
 $(printf 'Documentation/getting-started-meson-build.md\tReally, meson?! (>=5.0) is unrelated.')"
 
+expect_checker 1 "a bracketed bold form is recognised" \
+"${MESON_BUILD}
+$(printf 'Documentation/getting-started-meson-build.md\tBuild with **meson** (>= 0.62.0).')"
+
+expect_checker 0 "a space before the colon still yields the authority" \
+"$(printf 'meson.build\tproject(%s, %s, meson_version : %s)' "'nnstreamer'" "'c'" "'>=0.57.0'")
+$(printf 'AGENTS.md\tBuild system: **Meson >= 0.57.0 + Ninja**.')"
+
+expect_checker 1 "meson_version with a spaced colon is checked in a page" \
+"${MESON_BUILD}
+$(printf 'Documentation/how-to-run-examples.md\tIt declares meson_version : >=0.62.0 today.')"
+
 expect_checker 1 "two declarations on one line are both checked" \
 "${MESON_BUILD}
 $(printf 'Documentation/how-to-run-examples.md\tUse meson >= 0.56.0 on Ubuntu and Meson >= 0.62.0 on Tizen.')"

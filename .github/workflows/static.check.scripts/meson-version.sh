@@ -43,16 +43,24 @@ failed=0
 # meson either. What is left through is decoration: "meson (>=X)",
 # "**meson** >= X", "`meson` >= X", "meson_version: >=X".
 #
-# The gap is three characters because that is what the forms above need: one
-# for a space, two for a backtick or a bracket, three for "**meson** >=".
-# Anything longer is a sentence that has wandered, as in "see meson -- (>=9.0)
-# elsewhere", where the version belongs to something else entirely.
+# These are the accepted forms, and the gap of four characters is what the
+# longest of them needs:
+#
+#   meson >= X            meson (>= X)          **meson** >= X
+#   `meson` >= X          `meson` (>= X)        **meson** (>= X)
+#   meson_version: >= X   meson_version : >= X
+#
+# Comma, period, semicolon, question mark and exclamation mark are barred from
+# the gap because they end a clause: in "see meson -- (>=9.0) elsewhere" or
+# "really, meson?! (>=5.0)" the version belongs to something else. Letters and
+# digits are barred too, so a named neighbour such as "glib >= 2.60" breaks the
+# match, and the only digits left inside one belong to the version.
 #
 # This is a heuristic over prose and is deliberately not grown. A markdown
 # link, "[meson](https://example.com) >= X", puts letters in the gap and is
 # not recognised. If some other phrasing escapes it, write the requirement in
-# one of the plain forms above rather than widening this.
-DECL_RE='meson(_version)?[^[:alnum:],.;]{0,3}>=[[:space:]]*[0-9]+(\.[0-9]+)+'
+# one of the forms listed above rather than widening this.
+DECL_RE='meson(_version[[:space:]]*:)?[^[:alnum:],.;?!]{0,4}>=[[:space:]]*[0-9]+(\.[0-9]+)+'
 
 ##
 # @brief Print a version padded to four components so 0.56 and 0.56.0 compare equal.
@@ -70,7 +78,7 @@ if [ ! -f "${ROOT}/meson.build" ]; then
   exit 1
 fi
 
-expected_raw=$(grep -oE "meson_version:[[:space:]]*'>=[[:space:]]*[0-9]+(\.[0-9]+)+'" "${ROOT}/meson.build" \
+expected_raw=$(grep -oE "meson_version[[:space:]]*:[[:space:]]*'>=[[:space:]]*[0-9]+(\.[0-9]+)+'" "${ROOT}/meson.build" \
   | head -1 | grep -oE '[0-9]+(\.[0-9]+)+')
 if [ -z "$expected_raw" ]; then
   echo "::error::meson.build does not declare meson_version."
