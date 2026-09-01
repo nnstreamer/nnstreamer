@@ -416,9 +416,13 @@ TEST_F (NNStreamerFilterLlamaCppTest, zeroTokenGenerationSync_p)
  * @brief Test case for a zero-token generation in asynchronous mode.
  *
  * Asynchronous mode dispatches one sample per generated token, so generating
- * nothing must dispatch nothing: each input is left with only the output the
- * invoke itself produces. Pinning the count keeps a future change to the
- * dispatch path from silently emitting a sample per empty generation.
+ * nothing must dispatch nothing. Two inputs still yield exactly two samples:
+ * tensor_filter pushes one buffer per invoke_dynamic() call whatever the
+ * sub-plugin dispatches on top, which is the same structural invariant that
+ * makes singleInputMultipleOutputsAsync_p expect eleven samples for ten
+ * predicted tokens. The count is therefore an invariant, not a timing
+ * measurement, and pinning it keeps a future change to the dispatch path from
+ * silently emitting a sample per empty generation.
  */
 TEST_F (NNStreamerFilterLlamaCppTest, zeroTokenGenerationAsync_p)
 {
