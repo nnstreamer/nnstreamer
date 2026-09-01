@@ -65,7 +65,7 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
   GstElement *pipeline, *appsrc, *appsink, *tensor_filter;
   gchar *model;
   LoRAPaths *lora_paths;
-  guint *new_sample_count;
+  gint *new_sample_count;
   gsize max_sample_size;
   gboolean pipeline_error;
   gboolean skip_test;
@@ -122,7 +122,7 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
   void SetUp () override
   {
     /* Track the number of async callback invocations. */
-    new_sample_count = g_new0 (guint, 1);
+    new_sample_count = g_new0 (gint, 1);
     max_sample_size = 0;
     pipeline_error = FALSE;
   }
@@ -151,7 +151,7 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
     GstMapInfo map;
 
     if (self && self->new_sample_count)
-      (*self->new_sample_count)++;
+      g_atomic_int_inc (self->new_sample_count);
 
     sample = gst_app_sink_pull_sample (GST_APP_SINK (sink));
     if (sample) {
@@ -202,6 +202,8 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
      * a running time - a PTS minutes into the future. A synchronizing sink
      * then holds the buffer and the sample never arrives. These tests measure
      * generation, not playback, so clock synchronization has no place here.
+     * The converter behaviour itself is tracked as issue #4898; revisit this
+     * once that is fixed.
      */
     g_object_set (G_OBJECT (appsink), "emit-signals", TRUE, "sync", FALSE, NULL);
     g_signal_connect (appsink, "new-sample", G_CALLBACK (new_sample_cb), this);
@@ -294,14 +296,14 @@ class NNStreamerFilterLlamaCppTest : public ::testing::Test
   {
     guint waited_ms = 0;
 
-    while (*new_sample_count < expected && waited_ms < timeout_ms) {
+    while ((guint) g_atomic_int_get (new_sample_count) < expected && waited_ms < timeout_ms) {
       if (poll_pipeline_error ())
         break;
       g_usleep (10000);
       waited_ms += 10;
     }
 
-    if (*new_sample_count < expected)
+    if ((guint) g_atomic_int_get (new_sample_count) < expected)
       return FALSE;
 
     g_usleep (100000);
@@ -411,6 +413,29 @@ TEST_F (NNStreamerFilterLlamaCppTest, zeroTokenGenerationSync_p)
 }
 
 /**
+ * @brief Test case for a zero-token generation in asynchronous mode.
+ *
+ * Asynchronous mode dispatches one sample per generated token, so generating
+ * nothing must dispatch nothing: each input is left with only the output the
+ * invoke itself produces. Pinning the count keeps a future change to the
+ * dispatch path from silently emitting a sample per empty generation.
+ */
+TEST_F (NNStreamerFilterLlamaCppTest, zeroTokenGenerationAsync_p)
+{
+  skip_llamacpp_tc ("zeroTokenGenerationAsync_p");
+
+  ASSERT_TRUE (create_pipeline (model, TRUE, "num_predict:0"));
+  EXPECT_TRUE (data_push ("Hello my name is"));
+  EXPECT_TRUE (data_push ("What is AI?"));
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_TRUE (wait_for_samples (2));
+  EXPECT_FALSE (pipeline_error);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (*new_sample_count, 2);
+}
+
+/**
  * @brief Test case for tensor_filter llama-cpp plugin with invalidNumPredict_n
  */
 TEST_F (NNStreamerFilterLlamaCppTest, invalidNumPredict_n)
@@ -434,6 +459,29 @@ TEST_F (NNStreamerFilterLlamaCppTest, invalidModel_n)
 
   ASSERT_TRUE (create_pipeline (NULL, TRUE, "num_predict:10"));
   EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+}
+
+/**
+ * @brief Test case for a negative num_predict.
+ *
+ * llama.cpp spells "generate until the context is full" as -1, which this
+ * sub-plugin does not implement: the loop would simply never run. Since an
+ * empty generation is now a valid result rather than an error, such a
+ * misconfiguration would otherwise pass silently, so it is rejected up front.
+ */
+TEST_F (NNStreamerFilterLlamaCppTest, negativeNumPredict_n)
+{
+  skip_llamacpp_tc ("negativeNumPredict_n");
+
+  ASSERT_TRUE (create_pipeline (model, TRUE, "num_predict:-1"));
+  /**
+   * -ESTRPIPE, not merely non-zero: a pipeline that is never fed also fails to
+   * reach PLAYING, but with -ETIME once preroll times out. Only the stricter
+   * value distinguishes "the sub-plugin rejected the property" from "nothing
+   * ever arrived", so this stays a regression test for the rejection itself.
+   */
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT),
+      -ESTRPIPE);
 }
 
 /**
@@ -681,7 +729,7 @@ TEST_F (NNStreamerFilterLlamaCppTest, contextSaveLoad_p)
 
   /* Second pipeline: load context */
   clear_pipeline ();
-  *new_sample_count = 0;
+  g_atomic_int_set (new_sample_count, 0);
 
   g_autofree gchar *custom_str2 = g_strdup_printf (
       "num_predict:20,context_length:512,load_ctx:%s", context_file);
