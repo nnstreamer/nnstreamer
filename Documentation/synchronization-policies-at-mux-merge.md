@@ -5,7 +5,7 @@ title: Synchronization policies
 # Synchronization policies at Mux and Merge
 There are multiple synchronization policies for tensor_mux and tensor_merge.
 They are based on PTS ( presentation timestamp in nanoseconds (as a GstClockTime) ) and assume that every tensor buffer has PTS and can be accessed by GST_BUFFER_PTS(buf).  
-However, there is stream which does not have PTS such as application/octet-stream. In such cases, tensor_converter generates timestamp and set PTS. If framerate is given, tensor_converter generates proper PTS according to framerate and for the case without framerate, PTS is decided with running time which is calculated as absolute-time - base-time.  
+However, there is stream which does not have PTS such as application/octet-stream. In such cases, tensor_converter generates timestamp and set PTS. If framerate is given, tensor_converter generates proper PTS according to framerate and for the case without framerate, PTS is decided with running time (absolute-time - base-time) while the element is PLAYING; before that, the previous PTS (or the segment start) is reused.  
 Currently, three synchronization policies are implemented.
 
 # No synchronization
