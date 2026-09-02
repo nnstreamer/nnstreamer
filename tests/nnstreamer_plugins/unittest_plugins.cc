@@ -205,6 +205,28 @@ _harness_wait_for_output_buffer (GstHarness *h, guint expected)
 }
 
 /**
+ * @brief Log function collecting messages of the tensor_transform category
+ */
+static void
+_collect_transform_log (GstDebugCategory *category, GstDebugLevel level,
+    const gchar *file, const gchar *function, gint line, GObject *object,
+    GstDebugMessage *message, gpointer user_data)
+{
+  GString *log = (GString *) user_data;
+
+  UNUSED (level);
+  UNUSED (file);
+  UNUSED (function);
+  UNUSED (line);
+  UNUSED (object);
+
+  if (g_strcmp0 (gst_debug_category_get_name (category), "tensor_transform") == 0) {
+    g_string_append (log, gst_debug_message_get (message));
+    g_string_append (log, "\n");
+  }
+}
+
+/**
  * @brief Test for setting/getting properties of tensor_transform
  */
 TEST (testTensorTransform, properties01)
@@ -948,6 +970,208 @@ TEST (testTensorTransform, standProperties5_n)
 
   g_object_get (h->element, "option", &str, NULL);
   EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test set_caps failure when mode/option is never configured (#4103)
+ */
+TEST (testTensorTransform, setCapsNotConfigured_n)
+{
+  GstHarness *h;
+  GstTensorsConfig config;
+  GstBuffer *in_buf;
+  GString *log;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  log = g_string_new (NULL);
+  gst_debug_add_log_function (_collect_transform_log, log, NULL);
+  gst_debug_set_threshold_for_name ("tensor_transform", GST_LEVEL_WARNING);
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1U;
+  config.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+
+  in_buf = gst_harness_create_buffer (h, 5);
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_NOT_NEGOTIATED);
+
+  gst_debug_remove_log_function (_collect_transform_log);
+  gst_debug_unset_threshold_for_name ("tensor_transform");
+
+#ifndef GST_DISABLE_GST_DEBUG
+  EXPECT_TRUE (strstr (log->str, "Transform is not configured") != NULL);
+  EXPECT_TRUE (strstr (log->str, "mode=unknown") != NULL);
+#endif
+
+  gst_harness_teardown (h);
+  g_string_free (log, TRUE);
+}
+
+/**
+ * @brief Test set_caps failure when mode is set without option (#4103).
+ *        Before the fix, this case passed set_caps and crashed with a
+ *        CRITICAL assertion on the first buffer.
+ */
+TEST (testTensorTransform, setCapsModeWithoutOption_n)
+{
+  GstHarness *h;
+  GstTensorsConfig config;
+  GstBuffer *in_buf;
+  GString *log;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  g_object_set (h->element, "mode", GTT_TYPECAST, NULL);
+
+  log = g_string_new (NULL);
+  gst_debug_add_log_function (_collect_transform_log, log, NULL);
+  gst_debug_set_threshold_for_name ("tensor_transform", GST_LEVEL_WARNING);
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1U;
+  config.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+
+  in_buf = gst_harness_create_buffer (h, 5);
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_NOT_NEGOTIATED);
+
+  gst_debug_remove_log_function (_collect_transform_log);
+  gst_debug_unset_threshold_for_name ("tensor_transform");
+
+#ifndef GST_DISABLE_GST_DEBUG
+  EXPECT_TRUE (strstr (log->str, "Transform is not configured") != NULL);
+  EXPECT_TRUE (strstr (log->str, "mode=typecast") != NULL);
+#endif
+
+  gst_harness_teardown (h);
+  g_string_free (log, TRUE);
+}
+
+/**
+ * @brief Test set_caps failure when the given option fails to parse (#4103)
+ */
+TEST (testTensorTransform, setCapsInvalidOption_n)
+{
+  GstHarness *h;
+  GstTensorsConfig config;
+  GstBuffer *in_buf;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* "casttype" is a typo of "typecast"; the option fails to parse */
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option",
+      "casttype:uint64,mul:65535", NULL);
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1U;
+  config.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+
+  in_buf = gst_harness_create_buffer (h, 5);
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_NOT_NEGOTIATED);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test transform_caps warning when downstream caps are incompatible
+ *        with the configured mode/option (#4103)
+ */
+TEST (testTensorTransform, transformCapsIncompatibleDownstream_n)
+{
+  GstHarness *h;
+  GstTensorsConfig config;
+  GstBuffer *in_buf;
+  GString *log;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  g_object_set (h->element, "mode", GTT_TYPECAST, "option", "float32", NULL);
+
+  log = g_string_new (NULL);
+  gst_debug_add_log_function (_collect_transform_log, log, NULL);
+  gst_debug_set_threshold_for_name ("tensor_transform", GST_LEVEL_WARNING);
+
+  gst_harness_set_sink_caps_str (h, "other/tensors,format=static,num_tensors=1,types=uint8,"
+                                    "dimensions=5:1:1:1,framerate=0/1");
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1U;
+  config.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+
+  in_buf = gst_harness_create_buffer (h, 5);
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_NOT_NEGOTIATED);
+
+  gst_debug_remove_log_function (_collect_transform_log);
+  gst_debug_unset_threshold_for_name ("tensor_transform");
+
+#ifndef GST_DISABLE_GST_DEBUG
+  EXPECT_TRUE (strstr (log->str, "downstream element cannot accept") != NULL);
+  EXPECT_TRUE (strstr (log->str, "option=float32") != NULL);
+#endif
+
+  gst_harness_teardown (h);
+  g_string_free (log, TRUE);
+}
+
+/**
+ * @brief Positive control: configuring mode/option after the harness is
+ *        created and linked should still negotiate and transform (#4103)
+ */
+TEST (testTensorTransform, setCapsConfiguredAfterLink)
+{
+  GstHarness *h;
+  GstTensorsConfig config;
+  GstBuffer *in_buf, *out_buf;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  g_object_set (h->element, "mode", GTT_TYPECAST, "option", "float32", NULL);
+
+  gst_harness_set_sink_caps_str (h, "other/tensors,format=static,num_tensors=1,types=float32,"
+                                    "dimensions=5:1:1:1,framerate=0/1");
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1U;
+  config.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+
+  in_buf = gst_harness_create_buffer (h, 5);
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+  out_buf = gst_harness_pull (h);
+  ASSERT_TRUE (out_buf != NULL);
+  EXPECT_EQ (gst_buffer_get_size (out_buf), 5 * sizeof (float));
+  gst_buffer_unref (out_buf);
 
   gst_harness_teardown (h);
 }
