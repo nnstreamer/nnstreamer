@@ -100,6 +100,7 @@ for file in `cat $files`; do
               if [[ $advanced == 1 ]]; then
                   declare -i idx=0
                   brief=0
+                  in_comment=0
                   function_positions="" # Line number of functions.
                   structure_positions="" # Line number of structure.
                   mapfile -t file_lines < "$file"
@@ -148,11 +149,19 @@ for file in `cat $files`; do
                       # Find brief or copydoc tag in the comments between the codes.
                       if [[ $line =~  "@brief" || $line =~ "@copydoc" ]]; then
                           brief=1
-                      # Doxygen tags become zero in code section. A comment line
-                      # ('*', '/*', '//') keeps the pending tag; a code line that
-                      # merely contains '*' (a pointer) does not.
-                      elif [[ ! $line =~ ^[[:space:]]*(\*|/\*|//) && ( $line =~ ";" || $line =~ "}" || $line =~ "#") ]]; then
+                      # Doxygen tags become zero in code section. Lines inside a
+                      # block comment, or opening one, keep the pending tag; a
+                      # code line that merely contains '*' (a pointer) does not.
+                      elif [[ $in_comment -eq 0 && ! $line =~ ^[[:space:]]*(/\*|//) && ( $line =~ ";" || $line =~ "}" || $line =~ "#") ]]; then
                           brief=0
+                      fi
+
+                      # Track block comments so that their continuation lines are
+                      # never mistaken for code, whatever character they start with.
+                      if [[ $in_comment -eq 1 ]]; then
+                          [[ $line == *"*/"* ]] && in_comment=0
+                      elif [[ $line == *"/*"* && ${line##*/\*} != *"*/"* ]]; then
+                          in_comment=1
                       fi
 
                       # Check a comment statement that begins with '/*'.

@@ -194,6 +194,24 @@ void add_one (int *x);
 void add_two (int *x);'
 run_checker 1 "a brief does not carry over a pointer-typed declaration" pointer_line.h
 
+# A wrapped parameter list can put the '*' at the start of a line; that is
+# still code, not a comment continuation.
+write_fixture wrapped_pointer.h '/**
+ * @brief add one in place
+ */
+void add_one (int
+    *x);
+void add_two (int *x);'
+run_checker 1 "a brief does not carry over a wrapped pointer parameter" wrapped_pointer.h
+
+# The converse: a ';' inside the comment block must not clear the tag.
+write_fixture semicolon_in_comment.h '/**
+ * @brief add one in place; the caller owns x
+ * usage: add_one (&x);
+ */
+void add_one (int *x);'
+run_checker 0 "a semicolon inside the comment block keeps the brief" semicolon_in_comment.h
+
 write_fixture ends_in_brief.c '/**
  * @brief add one
  */
