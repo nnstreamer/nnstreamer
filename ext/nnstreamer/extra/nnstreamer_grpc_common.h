@@ -33,7 +33,9 @@ class NNStreamerRPC {
   public:
     static NNStreamerRPC * createInstance (const grpc_config *config);
 
+    /** @brief Construct from the config; the data queue is created here */
     NNStreamerRPC (const grpc_config *config);
+    /** @brief Free the data queue and drop any pending buffers */
     virtual ~NNStreamerRPC ();
 
     /** @brief start the gRPC service as a server or a client */

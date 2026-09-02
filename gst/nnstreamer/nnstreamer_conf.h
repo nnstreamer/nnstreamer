@@ -172,6 +172,9 @@ nnsconf_get_custom_value_bool (const gchar * group, const gchar * key, gboolean 
 extern void
 nnsconf_dump (gchar * str, gulong size);
 
+/**
+ * @brief Print out the information of registered sub-plugins
+ */
 extern void
 nnsconf_subplugin_dump (gchar * str, gulong size);
 
