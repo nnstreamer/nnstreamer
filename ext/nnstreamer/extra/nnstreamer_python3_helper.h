@@ -59,12 +59,19 @@ extern "C" {
 #define PyEval_InitThreads_IfGood()     do { PyEval_InitThreads(); } while (0)
 #endif
 
+/** @brief Get the NNStreamer tensor type matching the given numpy type */
 extern tensor_type getTensorType (NPY_TYPES npyType);
+/** @brief Get the numpy type matching the given NNStreamer tensor type */
 extern NPY_TYPES getNumpyType (tensor_type tType);
+/** @brief Import the python module and instantiate its class into core_obj */
 extern int loadScript (PyObject **core_obj, const gchar *module_name, const gchar *class_name);
+/** @brief dlopen the libpython shared object with RTLD_GLOBAL */
 extern int openPythonLib (void **handle);
+/** @brief Append the given path and "." to the python sys.path list */
 extern int addToSysPath (const gchar *path);
+/** @brief Fill tensors info from the tensor-shape list returned by python */
 extern int parseTensorsInfo (PyObject *result, GstTensorsInfo *info);
+/** @brief Create a python TensorShape object holding the given tensor info */
 extern PyObject * PyTensorShape_New (PyObject * shape_cls, const GstTensorInfo *info);
 
 /**
@@ -97,15 +104,17 @@ class PyGILGuard
   public:
   PyGILState_STATE gstate;
 
+  /** @brief Acquire the Python GIL for the current thread */
   PyGILGuard () : gstate (PyGILState_Ensure ())
   {
   }
+  /** @brief Release the Python GIL acquired by the constructor */
   ~PyGILGuard ()
   {
     PyGILState_Release (gstate);
   }
 
-  /* Prevent copying to ensure single ownership */
+  /** @brief Copy constructor is deleted to keep single GIL ownership */
   PyGILGuard (const PyGILGuard &) = delete;
   PyGILGuard &operator= (const PyGILGuard &) = delete;
 };

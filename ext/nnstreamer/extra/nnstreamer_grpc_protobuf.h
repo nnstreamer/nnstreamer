@@ -35,16 +35,21 @@ class ServiceImplProtobuf : public NNStreamerRPC
     ServiceImplProtobuf (const grpc_config * config);
 
     void parse_tensors (Tensors &tensors);
+    /** @brief pop a buffer from the queue and fill the protobuf tensors */
     gboolean fill_tensors (Tensors &tensors);
 
   protected:
+    /** @brief write queued tensors to the given gRPC writer until stopped */
     template <typename T>
     grpc::Status _write_tensors (T writer);
 
+    /** @brief read tensors from the given gRPC reader until the stream ends */
     template <typename T>
     grpc::Status _read_tensors (T reader);
 
+    /** @brief serialize a GstBuffer into a protobuf tensors message */
     void _get_tensors_from_buffer (GstBuffer *buffer, Tensors &tensors);
+    /** @brief build a GstBuffer from a protobuf tensors message */
     void _get_buffer_from_tensors (Tensors &tensors, GstBuffer **buffer);
 
     std::unique_ptr<nnstreamer::protobuf::TensorService::Stub> client_stub_;
@@ -69,6 +74,7 @@ class SyncServiceImplProtobuf final
     gboolean start_server (std::string address) override;
     gboolean start_client (std::string address) override;
 
+    /** @brief thread body streaming tensors to or from the sync server */
     void _client_thread ();
 };
 
@@ -91,7 +97,9 @@ class AsyncServiceImplProtobuf final
     gboolean start_server (std::string address) override;
     gboolean start_client (std::string address) override;
 
+    /** @brief thread body handling server events from the completion queue */
     void _server_thread ();
+    /** @brief thread body handling client events from the completion queue */
     void _client_thread ();
 
     AsyncCallData * last_call_;
