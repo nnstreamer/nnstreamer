@@ -8,9 +8,12 @@
 # @author  MyungJoo Ham <myungjoo.ham@samsung.com>
 #
 # The models are committed, so this only runs when a fixture has to be rebuilt.
-# That happened once already: the 2024 export stored its constants in the
-# inline constant_buffer, which ExecuTorch 1.x no longer accepts, and
-# Module::load rejected the file with Error::InvalidProgram.
+# That happened once already. Program::load takes the constant segment path
+# only when constant_segment.offsets is non-empty and otherwise falls back on
+# the inline constant_buffer, which ExecuTorch 1.x compiles out
+# (ET_ENABLE_DEPRECATED_CONSTANT_BUFFER=0) and answers with
+# Error::InvalidProgram. The 2024 export left constant_segment empty, so it
+# took that path whether or not the model had any constants to store.
 #
 # Needs the ExecuTorch python package and the torch release it pins:
 #   pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
