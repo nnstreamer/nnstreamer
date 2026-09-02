@@ -19,6 +19,15 @@
 #include <netinet/in.h>
 #include <gio/gio.h>
 
+/**
+ * @ref https://github.com/nnstreamer/nnstreamer/commit/7f38acb78c26f0f144b6d6fe7fb887b7431d395b
+ * @brief Defined here rather than in the .c so that callers comparing against
+ *        -ESTRPIPE see the same value setPipelineStateSync() returns.
+ */
+#if !defined(ESTRPIPE)
+#define ESTRPIPE EPIPE
+#endif /* !defined(ESTRPIPE) */
+
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */

@@ -8,6 +8,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <errno.h>
 #include <gst/app/gstappsink.h>
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
@@ -437,21 +438,6 @@ TEST_F (NNStreamerFilterLlamaCppTest, zeroTokenGenerationAsync_p)
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (*new_sample_count, 2);
-}
-
-/**
- * @brief Test case for tensor_filter llama-cpp plugin with invalidNumPredict_n
- */
-TEST_F (NNStreamerFilterLlamaCppTest, invalidNumPredict_n)
-{
-  skip_llamacpp_tc ("invalidNumPredict_n");
-
-  ASSERT_TRUE (create_pipeline (model, TRUE, "num_predict:0"));
-  EXPECT_TRUE (data_push ("Hello my name is"));
-  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
-  g_usleep (100000);
-
-  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 }
 
 /**

@@ -738,7 +738,8 @@ void
 TensorFilterLlamaCpp::init_filter_llama ()
 {
   registered = tensor_filter_subplugin::register_subplugin<TensorFilterLlamaCpp> ();
-  nnstreamer_filter_set_custom_property_desc (name, "num_predict", "Number of tokens to predict",
+  nnstreamer_filter_set_custom_property_desc (name, "num_predict",
+      "Number of tokens to predict, non-negative (0 generates nothing)",
       "num_gpu_layers", "Number of layers to offload to the GPU", "context_length",
       "Context size for KV cache", "batch_size", "Logical maximum batch size",
       "top_k", "Top-K sampling parameter", "top_p", "Top-P sampling parameter",
