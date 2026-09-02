@@ -497,7 +497,7 @@ if not get_option('ncnn-support').disabled()
   ncnn_dep = dependency('ncnn', required: false)
   if (not ncnn_dep.found())
     ncnn_lib = cxx.find_library('ncnn', required: false)
-    if (ncnn_lib.found() and cxx.check_header('ncnn/net.h'))
+    if (ncnn_lib.found() and cxx.check_header('ncnn/net.h') and cxx.check_header('ncnn/cpu.h'))
       ncnn_dep = declare_dependency(dependencies: [ ncnn_lib ])
     endif
   endif

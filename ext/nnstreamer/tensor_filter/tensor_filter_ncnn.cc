@@ -61,6 +61,7 @@
 #include <nnstreamer_util.h>
 #include <vector>
 
+#include <ncnn/cpu.h>
 #include <ncnn/net.h>
 
 namespace nnstreamer
@@ -181,6 +182,26 @@ ncnn_subplugin::configure_instance (const GstTensorFilterProperties *prop)
   } catch (const std::invalid_argument &e) {
     throw std::invalid_argument (
         "Failed to parse custom property : " + std::string (e.what ()));
+  }
+
+  /**
+   * ncnn counts physical CPUs by reading cpuN/topology/thread_siblings under
+   * /sys/devices/system/cpu, and where that is not mounted - a build chroot,
+   * for instance - it counts zero. Its convolution tile sizing multiplies
+   * TILE_M by min (nT, get_physical_cpu_count ()) and then divides by
+   * TILE_M, so the divide traps with SIGFPE while the model is still
+   * loading. That is any model with a convolution - in practice all of them -
+   * and the layer mix is unknown before load_param, so refuse them all. There
+   * is no way around it from here: the 1x1 case takes that path whatever
+   * opt.use_sgemm_convolution says. Refuse with a description instead of
+   * letting the process die on a signal.
+   */
+  if (ncnn::get_physical_cpu_count () < 1) {
+    throw std::runtime_error (
+        "ncnn reports no physical CPU on this host, which means it could not "
+        "read the CPU topology under /sys/devices/system/cpu. Loading a model "
+        "with a convolution would divide by zero inside ncnn's tile sizing and "
+        "abort the process, so the ncnn subplugin cannot be used here.");
   }
 
   /* decide use vulkan acceleration */
