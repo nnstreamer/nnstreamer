@@ -35,22 +35,33 @@ class TensorFilterTRIxEngine : public tensor_filter_subplugin
 {
   public:
   TensorFilterTRIxEngine ();
+  /** @brief Destruct the TRIx-Engine subplugin instance */
   ~TensorFilterTRIxEngine ();
 
   /* mandatory methods */
+  /** @brief Method to get an empty object */
   tensor_filter_subplugin &getEmptyInstance ();
+  /** @brief Configure TRIx-Engine instance */
   void configure_instance (const GstTensorFilterProperties *prop);
+  /** @brief Invoke TRIxEngine using input tensors */
   void invoke (const GstTensorMemory *input, GstTensorMemory *output);
+  /** @brief Get TRIxEngine framework info */
   void getFrameworkInfo (GstTensorFilterFrameworkInfo &info);
+  /** @brief Get TRIxEngine model info */
   int getModelInfo (model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info);
+  /** @brief Method to handle the event */
   int eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data);
 
   /* static methods */
+  /** @brief Register the subplugin */
   static void init_filter_trix_engine ();
+  /** @brief Destruct the subplugin */
   static void fini_filter_trix_engine ();
 
   private:
+  /** @brief Convert data layout (from NNStreamer to TRIx-Engine) */
   static data_layout convert_data_layout (const tensor_layout &layout);
+  /** @brief Convert data type (from NNStreamer to TRIx-Engine) */
   static data_type convert_data_type (const tensor_type &type);
 
   static TensorFilterTRIxEngine *registered;
@@ -58,8 +69,11 @@ class TensorFilterTRIxEngine : public tensor_filter_subplugin
   static const accl_hw hw_list[];
   static const int num_hw;
 
+  /** @brief Set data info of input/output tensors using metadata */
   void set_data_info (const GstTensorFilterProperties *prop);
+  /** @brief Feed the tensor data to input buffers before invoke() */
   void feed_input_data (const GstTensorMemory *input, input_buffers *input_buf);
+  /** @brief Extract the tensor data from output buffers after invoke() */
   void extract_output_data (const output_buffers *output_buf, GstTensorMemory *output);
 
   /* trix-engine vars */

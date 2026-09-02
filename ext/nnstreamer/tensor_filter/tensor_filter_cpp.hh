@@ -100,14 +100,19 @@ class tensor_filter_cpp
   tensor_filter_cpp (
       const char *modelName); /**< modelName is the model property of tensor_filter,
                                  which could be the path to the model file (requires proper extension name) or the registered model name at runtime. */
+  /** @brief Class destructor */
   virtual ~tensor_filter_cpp ();
 
   /** C++ plugin writers need to fill {getInput/Output} inclusive-or {setInput} */
+  /** @brief Fill info with the input tensors dimension of this filter */
   virtual int getInputDim (GstTensorsInfo *info) = 0;
+  /** @brief Fill info with the output tensors dimension of this filter */
   virtual int getOutputDim (GstTensorsInfo *info) = 0;
 
+  /** @brief Derive the output tensors dimension from the given input one */
   virtual int setInputDim (const GstTensorsInfo *in, GstTensorsInfo *out) = 0;
 
+  /** @brief Run the filter for a single frame, writing the result to out */
   virtual int invoke (const GstTensorMemory *in, GstTensorMemory *out) = 0;
 
   virtual bool isAllocatedBeforeInvoke () = 0;
@@ -143,16 +148,23 @@ class tensor_filter_cpp
   /**< Check if it's a valid filter_cpp object. Do not override. */
 
   /** Internal functions for tensor_filter main. Do not override */
+  /** @brief tensor_filter callback dispatching getInputDim to the instance */
   static int getInputDim (const GstTensorFilterProperties *prop,
       void **private_data, GstTensorsInfo *info);
+  /** @brief tensor_filter callback dispatching getOutputDim to the instance */
   static int getOutputDim (const GstTensorFilterProperties *prop,
       void **private_data, GstTensorsInfo *info);
+  /** @brief tensor_filter callback dispatching setInputDim to the instance */
   static int setInputDim (const GstTensorFilterProperties *prop,
       void **private_data, const GstTensorsInfo *in, GstTensorsInfo *out);
+  /** @brief tensor_filter callback dispatching invoke to the instance */
   static int invoke (const GstTensorFilterProperties *prop, void **private_data,
       const GstTensorMemory *input, GstTensorMemory *output);
+  /** @brief tensor_filter callback opening the filter given by model prop */
   static int open (const GstTensorFilterProperties *prop, void **private_data);
+  /** @brief tensor_filter callback releasing a reference to the filter */
   static void close (const GstTensorFilterProperties *prop, void **private_data);
+  /** @brief Call dlclose for all handles opened by open () */
   static void close_all_handles (void);
 };
 

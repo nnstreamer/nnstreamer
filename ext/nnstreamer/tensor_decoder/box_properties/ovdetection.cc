@@ -29,6 +29,7 @@ class OVDetection : public BoxProperties
   public:
   OVDetection ();
   ~OVDetection ();
+  /** @brief Accept and ignore the option string; this mode has no options */
   int setOptionInternal (const char *param)
   {
     UNUSED (param);

@@ -61,7 +61,9 @@ class executorch_llama_subplugin final : public tensor_filter_subplugin
   static void init_filter_executorch_llama ();
   static void fini_filter_executorch_llama ();
 
+  /** @brief Construct an unconfigured subplugin instance */
   executorch_llama_subplugin (){};
+  /** @brief Destruct the instance, releasing the Llama runner */
   ~executorch_llama_subplugin (){};
 
   tensor_filter_subplugin &getEmptyInstance () override;

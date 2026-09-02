@@ -94,6 +94,9 @@ struct NvInferDeleter {
 template <typename T>
 using NvInferUniquePtr = std::unique_ptr<T, NvInferDeleter>;
 
+/**
+ * @brief Wrap a raw TensorRT object pointer into a NvInferUniquePtr
+ */
 template <typename T>
 NvInferUniquePtr<T>
 makeNvInferUniquePtr (T *t)
@@ -443,7 +446,7 @@ tensorrt10_subplugin::constructNetwork (NvInferUniquePtr<nvonnxparser::IParser> 
 }
 
 /**
- * Builds and saves the .engine file.
+ * @brief Builds and saves the .engine file.
  */
 void
 tensorrt10_subplugin::buildSaveEngine () const
@@ -667,7 +670,7 @@ tensorrt10_subplugin::loadModel (const GstTensorFilterProperties *prop)
 }
 
 /**
- * Converts the NvInferTensorInfo's to the nnstreamer GstTensorsInfo.
+ * @brief Converts the NvInferTensorInfo's to the nnstreamer GstTensorsInfo.
  */
 void
 tensorrt10_subplugin::convertTensorsInfo (
