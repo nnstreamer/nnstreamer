@@ -32,6 +32,8 @@ if [[ -d $PATH_TO_PLUGIN ]]; then
         fi
     else
         echo "Cannot find ${ini_path}"
+        report
+        exit
     fi
 else
     ini_file="/etc/nnstreamer.ini"
