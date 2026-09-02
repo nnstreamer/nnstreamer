@@ -41,8 +41,9 @@ fi
 # @param $1 1-based line number where ctags placed the function
 # @return 0 when such a comment is found, 1 otherwise
 # Reads the global array file_lines (0-based). A declaration ends at the first
-# ';' outside braces, or at the '}' that closes an inline body; the comment may
-# follow on the next line.
+# ';' outside braces, or at the '}' that closes an inline body. The comment may
+# also open the next line; a "/**<" later on that line belongs to whatever is
+# declared there, not to this one.
 has_trailing_doc() {
   local -i i=$1-1
   local -i last=${#file_lines[@]}-1
@@ -55,7 +56,7 @@ has_trailing_doc() {
     closes=${l//[^\}]/}
     depth+=${#opens}-${#closes}
     if [[ $depth -le 0 && ( $l == *";"* || $l == *"}"* ) ]]; then
-      [[ $i -lt $last && ${file_lines[$i+1]} == *"/**<"* ]] && return 0
+      [[ $i -lt $last && ${file_lines[$i+1]} =~ ^[[:space:]]*/\*\*\< ]] && return 0
       return 1
     fi
     i+=1
@@ -147,8 +148,10 @@ for file in `cat $files`; do
                       # Find brief or copydoc tag in the comments between the codes.
                       if [[ $line =~  "@brief" || $line =~ "@copydoc" ]]; then
                           brief=1
-                      # Doxygen tags become zero in code section.
-                      elif [[ $line != *"*"*  && ( $line =~ ";" || $line =~ "}" || $line =~ "#") ]]; then
+                      # Doxygen tags become zero in code section. A comment line
+                      # ('*', '/*', '//') keeps the pending tag; a code line that
+                      # merely contains '*' (a pointer) does not.
+                      elif [[ ! $line =~ ^[[:space:]]*(\*|/\*|//) && ( $line =~ ";" || $line =~ "}" || $line =~ "#") ]]; then
                           brief=0
                       fi
 
