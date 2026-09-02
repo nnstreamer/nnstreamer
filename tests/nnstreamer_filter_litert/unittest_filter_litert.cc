@@ -1768,6 +1768,88 @@ TEST (nnstreamerFilterLiteRT, dynamicInvokeStaticModel_n)
   gst_tensors_info_free (&prop.input_meta);
   gst_tensors_info_free (&model_in_info);
   gst_tensors_info_free (&model_out_info);
+  gst_tensors_info_free (&prop.output_meta);
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief Positive case: a rejected reshape must leave the instance usable.
+ *
+ * Rejecting the only input happens before LiteRT changes anything, so the
+ * instance is still good at the shape it already had and the next invoke has
+ * to prove it. This is the reachable half of the reshape failure handling:
+ * once a resize has succeeded there is no way back, and the instance is
+ * dropped instead - which cannot be provoked from here, since the only model
+ * with a dynamic dimension has a single input.
+ */
+TEST (nnstreamerFilterLiteRT, dynamicInvokeRejectedReshapeKeepsInstance)
+{
+  void *data = NULL;
+  GstTensorMemory input, output;
+  GstTensorInfo *iinfo;
+  g_autofree gchar *model_file = NULL;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 4));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+  prop.invoke_dynamic = 1;
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  /** the last axis is fixed at 4, so asking for 5 is a shape the signature
+   *  does not admit and the strict resize refuses it */
+  gst_tensors_info_free (&prop.input_meta);
+  gst_tensors_info_init (&prop.input_meta);
+  prop.input_meta.num_tensors = 1;
+  iinfo = gst_tensors_info_get_nth_info (&prop.input_meta, 0);
+  iinfo->type = _NNS_FLOAT32;
+  iinfo->dimension[0] = 5;
+  iinfo->dimension[1] = 1;
+
+  input.size = sizeof (float) * 5;
+  input.data = g_malloc0 (input.size);
+  output.data = NULL;
+  output.size = 0;
+
+  EXPECT_NE (sp->invoke (NULL, &prop, data, &input, &output), 0)
+      << "The strict resize accepted a shape the model does not declare.";
+  g_free (input.data);
+  g_free (output.data);
+
+  /* nothing was resized, so the instance must still run at its own shape */
+  gst_tensors_info_free (&prop.input_meta);
+  gst_tensors_info_init (&prop.input_meta);
+  prop.input_meta.num_tensors = 1;
+  iinfo = gst_tensors_info_get_nth_info (&prop.input_meta, 0);
+  iinfo->type = _NNS_FLOAT32;
+  iinfo->dimension[0] = 4;
+  iinfo->dimension[1] = 1;
+
+  input.size = sizeof (float) * 4;
+  input.data = g_malloc (input.size);
+  for (guint k = 0; k < 4; ++k)
+    ((float *) input.data)[k] = (float) k;
+  output.data = NULL;
+  output.size = 0;
+
+  EXPECT_EQ (sp->invoke (NULL, &prop, data, &input, &output), 0)
+      << "A rejected reshape left the instance unusable.";
+  EXPECT_EQ (output.size, sizeof (float) * 4);
+  if (output.data != NULL) {
+    for (guint k = 0; k < 4; ++k) {
+      EXPECT_FLOAT_EQ (((float *) output.data)[k], (float) k + 1.0f);
+    }
+  }
+
+  g_free (input.data);
+  g_free (output.data);
+  gst_tensors_info_free (&prop.input_meta);
+  gst_tensors_info_free (&prop.output_meta);
   sp->close (&prop, &data);
 }
 
@@ -1819,6 +1901,7 @@ TEST (nnstreamerFilterLiteRT, dynamicInvokeTensorCountChange_n)
   g_free (output[0].data);
   g_free (output[1].data);
   gst_tensors_info_free (&prop.input_meta);
+  gst_tensors_info_free (&prop.output_meta);
   sp->close (&prop, &data);
 }
 

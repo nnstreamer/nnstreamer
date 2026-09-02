@@ -1003,6 +1003,8 @@ litert_subplugin::reshapeTo (const GstTensorsInfo *in_info)
                                  + std::to_string (inputTensorMeta.num_tensors) + " -> "
                                  + std::to_string (in_info->num_tensors) + ").");
 
+  bool any_resized = false;
+
   for (guint i = 0; i < in_info->num_tensors; ++i) {
     const GstTensorInfo *want
         = gst_tensors_info_get_nth_info (const_cast<GstTensorsInfo *> (in_info), i);
@@ -1020,6 +1022,13 @@ litert_subplugin::reshapeTo (const GstTensorsInfo *in_info)
     LiteRtStatus status = LiteRtCompiledModelResizeInputTensor (
         compiled_model, signature_index, i, dims.data (), dims.size ());
     if (status != kLiteRtStatusOk) {
+      /** Rejecting the first input leaves the model as it was, so the
+       *  instance keeps working at its current shape. Rejecting a later one
+       *  does not: the inputs before it are already resized and LiteRT gives
+       *  no way to put them back, so the instance is finished. */
+      if (any_resized)
+        configured = false;
+
       ml_loge ("Failed to resize LiteRT input %u (status %d).", i, (int) status);
       throw std::invalid_argument (
           "Input tensor " + std::to_string (i)
@@ -1027,6 +1036,8 @@ litert_subplugin::reshapeTo (const GstTensorsInfo *in_info)
             " shape the model signature declares dynamic, so a model with fixed"
             " input dimensions cannot be reshaped by invoke-dynamic.");
     }
+
+    any_resized = true;
   }
 
   /** There is no rolling back past a successful resize: LiteRT documents the
