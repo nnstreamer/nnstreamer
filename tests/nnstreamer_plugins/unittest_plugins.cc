@@ -1177,6 +1177,54 @@ TEST (testTensorTransform, setCapsConfiguredAfterLink)
 }
 
 /**
+ * @brief Caps negotiation through a chain of tensor_transform and
+ *        tensor_filter, both of which query their peers from transform_caps.
+ *        Guards against caps-query recursion between the two (#4103).
+ */
+TEST (testTensorTransform, negotiationChainWithFilter)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  gchar *model_file, *str_pipeline;
+  GstElement *pipeline;
+  GstBus *bus;
+  GstMessage *msg;
+
+  if (root_path == NULL)
+    root_path = "..";
+
+  model_file = g_build_filename (root_path, "build", "tests", "nnstreamer_example",
+      "libnnstreamer_customfilter_passthrough_variable.so", NULL);
+  ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_EXISTS));
+
+  str_pipeline = g_strdup_printf (
+      "videotestsrc num-buffers=3 ! video/x-raw,format=RGB,width=8,height=8,framerate=30/1 ! "
+      "tensor_converter ! tensor_transform mode=typecast option=float32 ! "
+      "tensor_filter framework=custom model=%s ! "
+      "tensor_transform mode=arithmetic option=add:1.0 ! "
+      "tensor_filter framework=custom model=%s ! "
+      "tensor_transform mode=typecast option=uint8 ! "
+      "other/tensors,format=static,num_tensors=1,types=uint8 ! fakesink",
+      model_file, model_file);
+  pipeline = gst_parse_launch (str_pipeline, NULL);
+  g_free (str_pipeline);
+  g_free (model_file);
+  ASSERT_TRUE (pipeline != nullptr);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  bus = gst_element_get_bus (pipeline);
+  msg = gst_bus_timed_pop_filtered (bus, 10 * GST_SECOND,
+      (GstMessageType) (GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+  ASSERT_TRUE (msg != nullptr);
+  EXPECT_EQ (GST_MESSAGE_TYPE (msg), GST_MESSAGE_EOS);
+  gst_message_unref (msg);
+  gst_object_unref (bus);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  gst_object_unref (pipeline);
+}
+
+/**
  * @brief Test for tensor_transform typecast (uint8 > uint32)
  */
 TEST_TRANSFORM_TYPECAST (typecast_1, 3U, 5U, uint8_t, _NNS_UINT8, uint32_t,
