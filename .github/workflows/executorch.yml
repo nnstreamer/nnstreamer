@@ -1,0 +1,83 @@
+name: Build and test the ExecuTorch tensor_filter
+
+# ExecuTorch has to be built from source (no distro package, no prebuilt
+# desktop binary, and its pip wheel is headers only), which is far too slow to
+# put on every pull request. The install tree is therefore cached, and the job
+# runs only when something that can break it changes -- plus daily, which also
+# keeps the cache from being evicted for inactivity.
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/executorch.yml'
+      - 'ext/nnstreamer/tensor_filter/tensor_filter_executorch.cc'
+      - 'ext/nnstreamer/tensor_filter/meson.build'
+      - 'meson.build'
+      - 'meson_options.txt'
+      - 'tests/nnstreamer_filter_executorch/**'
+      - 'tools/executorch-install.sh'
+  schedule:
+    # 04:00 AM (KST) Mon-Fri
+    - cron: "00 19 * * 0-4"
+  workflow_dispatch:
+
+env:
+  EXECUTORCH_VERSION: v1.4.1
+  EXECUTORCH_PREFIX: /home/runner/executorch-install
+
+jobs:
+  build:
+    name: Build against ExecuTorch and run its SSAT suite
+    runs-on: ubuntu-22.04
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: install requirements
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libglib2.0-dev libjson-glib-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libunwind-dev googletest
+        sudo apt-get install -y liborc-0.4-dev flex bison libopencv-dev pkg-config python3-dev python3-numpy python3
+        sudo apt-get install -y gstreamer1.0-tools gstreamer1.0-plugins-good gstreamer1.0-plugins-base libgtest-dev libpng-dev
+        sudo add-apt-repository -y ppa:nnstreamer/ppa && sudo apt-get update && sudo apt-get install -y ssat
+        # ubuntu-22.04 carries cmake 3.22, below the 3.24 ExecuTorch requires.
+        # numpy goes in with pip, not apt: setup-python puts its own python3
+        # first on PATH, where the apt package is not visible, and the SSAT
+        # script generates its test data with it.
+        pip install meson ninja cmake numpy
+
+    - name: restore the ExecuTorch install tree
+      id: cache-executorch
+      uses: actions/cache@v4
+      with:
+        path: ${{ env.EXECUTORCH_PREFIX }}
+        key: executorch-${{ runner.os }}-${{ runner.arch }}-${{ env.EXECUTORCH_VERSION }}-${{ hashFiles('tools/executorch-install.sh') }}
+
+    - name: build and install ExecuTorch
+      if: steps.cache-executorch.outputs.cache-hit != 'true'
+      run: bash tools/executorch-install.sh "${EXECUTORCH_PREFIX}" "${EXECUTORCH_VERSION}"
+
+    - name: build nnstreamer with the ExecuTorch subplugin
+      run: |
+        export PKG_CONFIG_PATH="${EXECUTORCH_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+        meson setup build/ -Dexecutorch-support=enabled
+        meson compile -C build/
+        # -Dexecutorch-support=enabled already fails the configure when the
+        # dependency is missing, but the subplugin can still be dropped from
+        # the build for other reasons, and the SSAT script below reports
+        # success with zero cases when the .so is absent.
+        test -f build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_executorch.so
+
+    - name: SSAT run on filter-executorch
+      run: |
+        export LD_LIBRARY_PATH="${EXECUTORCH_PREFIX}/lib:${LD_LIBRARY_PATH}"
+        export NNSTREAMER_BUILD_ROOT_PATH="$(pwd)/build"
+        export NNSTREAMER_FILTERS="$(pwd)/build/ext/nnstreamer/tensor_filter"
+        export NNSTREAMER_DECODERS="$(pwd)/build/ext/nnstreamer/tensor_decoder"
+        export NNSTREAMER_CONVERTERS="$(pwd)/build/ext/nnstreamer/tensor_converter"
+        export GST_PLUGIN_PATH="$(pwd)/build/gst"
+        export NNSTREAMER_CONF="$(pwd)/build/nnstreamer-test.ini"
+        cd tests/nnstreamer_filter_executorch && ssat -n -p=1 --summary summary.txt

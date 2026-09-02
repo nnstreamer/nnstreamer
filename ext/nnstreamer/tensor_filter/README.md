@@ -49,6 +49,13 @@ To build, provide the LiteRT SDK via pkg-config (```litert.pc```) or the ```LITE
 - subplugin name: 'ncnn'
 ### ExecuTorch
 - subplugin name: 'executorch'
+
+This subplugin runs PyTorch models exported to the ExecuTorch ```.pte``` format, through the ExecuTorch ```Module``` API.
+
+ExecuTorch has no distro package and publishes no prebuilt binaries for desktop Linux or macOS; its pip wheel carries headers but no runtime library. Build and install the runtime with ```tools/executorch-install.sh [install-prefix] [git-tag]``` first, then point ```PKG_CONFIG_PATH``` at ```<install-prefix>/lib/pkgconfig``` and use the ```executorch-support``` meson option. ```.github/workflows/executorch.yml``` is a working example.
+
+That script exists because the pkg-config file ExecuTorch generates links the runtime alone, without the operator kernels; a subplugin built against the stock file links cleanly and then fails on the first invoke with an unregistered operator.
+
 ### MXNET
 ### NNFW
 ### ONNX Runtime

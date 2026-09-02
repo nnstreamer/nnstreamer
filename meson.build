@@ -595,6 +595,19 @@ if not get_option('dali-support').disabled() and have_python3
   endif
 endif
 
+# executorch-llama needs the llama runner from the ExecuTorch examples tree,
+# which `cmake --install` does not install. Probing executorch.pc alone would
+# turn this subplugin on wherever the ExecuTorch runtime is present and then
+# fail the build on a missing header, so probe for the runner itself.
+executorch_llama_runner_dep = dependency('', required: false)
+if not get_option('executorch-llama-support').disabled()
+  executorch_probe_dep = dependency('executorch', required: false)
+  if executorch_probe_dep.found() and \
+    cxx.has_header('executorch/examples/models/llama/runner/runner.h', dependencies: executorch_probe_dep)
+    executorch_llama_runner_dep = declare_dependency()
+  endif
+endif
+
 # features registration to be controlled
 #
 # register feature as follows
@@ -726,6 +739,7 @@ features = {
   },
   'executorch-llama-support': {
     'target': 'executorch',
+    'extra_deps': [ executorch_llama_runner_dep ],
     'project_args': { 'ENABLE_EXECUTORCH_LLAMA' : 1 }
   },
   'datarepo-support': {
