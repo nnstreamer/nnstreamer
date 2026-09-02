@@ -12,11 +12,15 @@ on:
       - '.github/workflows/executorch.yml'
       - 'ext/nnstreamer/tensor_filter/tensor_filter_executorch.cc'
       - 'ext/nnstreamer/tensor_filter/meson.build'
-      # the tensor_filter API the subplugin is compiled against
+      # the tensor_filter API and core the subplugin is built against
       - 'gst/nnstreamer/include/**'
+      - 'gst/nnstreamer/tensor_filter/**'
       - 'meson.build'
       - 'meson_options.txt'
       - 'tests/nnstreamer_filter_executorch/**'
+      # the fixtures and the generator that SSAT suite runs on
+      - 'tests/nnstreamer_converter/generateTest.py'
+      - 'tests/test_models/models/*.pte'
       - 'tools/executorch-install.sh'
   schedule:
     # 04:00 AM (KST) Mon-Fri
@@ -67,8 +71,11 @@ jobs:
         # ExecuTorch generates its operator kernel registration with torchgen,
         # which ships inside the torch wheel. The CPU wheel is enough and is a
         # fraction of the size of the default one.
+        # torch is pinned to what ExecuTorch v1.4.1 itself pins in
+        # install_requirements.py. Unpinned it would already resolve to 2.14,
+        # which no repository change would account for.
         pip install pyyaml
-        pip install torch --index-url https://download.pytorch.org/whl/cpu
+        pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
 
     - name: build and install ExecuTorch
       id: build-executorch
@@ -80,7 +87,7 @@ jobs:
     # ExecuTorch from scratch. Guarded on the build itself having succeeded,
     # so a half-installed tree cannot be cached and then restored forever.
     - name: save the ExecuTorch install tree
-      if: always() && steps.build-executorch.outcome == 'success'
+      if: '!cancelled() && steps.build-executorch.outcome == ''success'''
       uses: actions/cache/save@v4
       with:
         path: ${{ env.EXECUTORCH_PREFIX }}

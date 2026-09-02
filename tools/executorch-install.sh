@@ -22,10 +22,24 @@ if [ -n "${EXECUTORCH_WORK_DIR}" ]; then
   mkdir -p "${WORK_DIR}"
 else
   # The source tree with its submodules runs to several GB, so a work directory
-  # we made ourselves is ours to remove again.
+  # we made ourselves is ours to remove again - but only once the build has
+  # worked, so that a failure is still there to be looked at.
   WORK_DIR=$(mktemp -d)
-  trap 'rm -rf "${WORK_DIR}"' EXIT
+  cleanup () {
+    status=$?
+    if [ "${status}" -eq 0 ] || [ ! -d "${SRC_DIR}" ]; then
+      rm -rf "${WORK_DIR}"
+    else
+      echo "Build tree left at ${WORK_DIR} for inspection."
+    fi
+  }
+  trap cleanup EXIT
 fi
+
+# ExecuTorch picks its interpreter with find_package(Python3), which need not
+# be the python3 on PATH once a virtualenv is in play. Pin cmake to the one
+# checked for torchgen below, or the check proves nothing.
+PYTHON=$(command -v python3)
 
 # ExecuTorch refuses to configure unless its source directory is named exactly
 # 'executorch' (pytorch/executorch#6475).
@@ -42,10 +56,10 @@ fi
 # Codegen.cmake ignores the result of its torchgen lookup, so without this
 # check the configure step succeeds and the build dies much later on a missing
 # tags.yaml.
-if ! python3 -c 'import torchgen, yaml' > /dev/null 2>&1; then
-  echo "::error::ExecuTorch kernel codegen needs torchgen and pyyaml. Install them with:"
+if ! "${PYTHON}" -c 'import torchgen, yaml' > /dev/null 2>&1; then
+  echo "::error::ExecuTorch kernel codegen needs torchgen and pyyaml in ${PYTHON}. Install them with:"
   echo "  pip install pyyaml"
-  echo "  pip install torch --index-url https://download.pytorch.org/whl/cpu"
+  echo "  pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu"
   exit 1
 fi
 
@@ -74,6 +88,8 @@ fi
 # the flat tensor reader and the named data map.
 cmake -B "${SRC_DIR}/cmake-out" -S "${SRC_DIR}" \
   -DCMAKE_INSTALL_PREFIX="${PREFIX}" \
+  -DCMAKE_INSTALL_LIBDIR=lib \
+  -DPYTHON_EXECUTABLE="${PYTHON}" \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
   -DEXECUTORCH_BUILD_SHARED=ON \
@@ -89,6 +105,9 @@ cmake -B "${SRC_DIR}/cmake-out" -S "${SRC_DIR}" \
 cmake --build "${SRC_DIR}/cmake-out" -j"$(nproc 2> /dev/null || sysctl -n hw.ncpu)"
 cmake --install "${SRC_DIR}/cmake-out"
 
+# 'lib' rather than the distro's libdir because the configure above pins
+# CMAKE_INSTALL_LIBDIR to it, which keeps the prefix layout the same
+# everywhere and matches what the README and the CI job point at.
 PC_FILE="${PREFIX}/lib/pkgconfig/executorch.pc"
 if [ ! -f "${PC_FILE}" ]; then
   echo "::error::${PC_FILE} was not installed; EXECUTORCH_BUILD_SHARED did not take effect."
