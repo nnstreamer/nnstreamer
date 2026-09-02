@@ -1031,7 +1031,10 @@ litert_subplugin::reshapeTo (const GstTensorsInfo *in_info)
        *  the rest report the resize itself failing with no way to ask what
        *  it left behind. Anything unclear costs a rebuild, not a wrong
        *  answer. */
-      if (any_resized || (status != kLiteRtStatusErrorInvalidArgument && status != kLiteRtStatusErrorUnsupported))
+      const bool refused_untouched = (status == kLiteRtStatusErrorInvalidArgument
+                                      || status == kLiteRtStatusErrorUnsupported);
+
+      if (any_resized || !refused_untouched)
         configured = false;
 
       ml_loge ("Failed to resize LiteRT input %u (status %d).", i, (int) status);
