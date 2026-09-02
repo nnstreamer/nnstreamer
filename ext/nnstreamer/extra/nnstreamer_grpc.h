@@ -86,19 +86,29 @@ enum
 extern "C" {
 #endif
 
+/** @brief Get the grpc_idl enum matching an IDL name such as "protobuf" */
 grpc_idl grpc_get_idl (const gchar *idl_str);
 
+/** @brief Create a gRPC service instance for the given configuration */
 void * grpc_new (const grpc_config * config);
+/** @brief Destroy a gRPC instance created by grpc_new () */
 void grpc_destroy (void * instance);
 
+/** @brief Start the gRPC server or client service of the instance */
 gboolean grpc_start (void * instance);
+/** @brief Stop the gRPC service and join its worker thread */
 void grpc_stop (void * instance);
 
+/** @brief Queue a buffer holding tensors to be sent over gRPC */
 gboolean grpc_send (void * instance, GstBuffer * buffer);
+/** @brief Get the server's listening port, or -EINVAL for a client instance */
 int grpc_get_listening_port (void * instance);
 
+/** @brief Check whether the string is "localhost" or an IP address */
 gboolean _check_hostname (gchar * str);
+/** @brief Handle set-property shared by the gRPC source and sink elements */
 void grpc_common_set_property (GObject * self, gboolean * silent, grpc_private * grpc, guint prop_id, const GValue * value, GParamSpec * pspec);
+/** @brief Handle get-property shared by the gRPC source and sink elements */
 void grpc_common_get_property (GObject * self, gboolean silent, guint out, grpc_private * grpc, guint prop_id, GValue * value, GParamSpec * pspec);
 
 #ifdef __cplusplus

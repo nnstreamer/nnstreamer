@@ -36,16 +36,21 @@ class ServiceImplFlatbuf : public NNStreamerRPC
     ServiceImplFlatbuf (const grpc_config * config);
 
     void parse_tensors (Message<Tensors> &tensors);
+    /** @brief pop a buffer from the queue and fill the flatbuf tensors */
     gboolean fill_tensors (Message<Tensors> &tensors);
 
   protected:
+    /** @brief write queued tensors to the given gRPC writer until stopped */
     template <typename T>
     grpc::Status _write_tensors (T writer);
 
+    /** @brief read tensors from the given gRPC reader until the stream ends */
     template <typename T>
     grpc::Status _read_tensors (T reader);
 
+    /** @brief serialize a GstBuffer into a flatbuf tensors message */
     void _get_tensors_from_buffer (GstBuffer *buffer, Message<Tensors> &tensors);
+    /** @brief build a GstBuffer from a flatbuf tensors message */
     void _get_buffer_from_tensors (Message<Tensors> &tensors, GstBuffer **buffer);
 
     std::unique_ptr<nnstreamer::flatbuf::TensorService::Stub> client_stub_;
@@ -70,6 +75,7 @@ class SyncServiceImplFlatbuf final
     gboolean start_server (std::string address) override;
     gboolean start_client (std::string address) override;
 
+    /** @brief thread body streaming tensors to or from the sync server */
     void _client_thread ();
 };
 
@@ -92,7 +98,9 @@ class AsyncServiceImplFlatbuf final
     gboolean start_server (std::string address) override;
     gboolean start_client (std::string address) override;
 
+    /** @brief thread body handling server events from the completion queue */
     void _server_thread ();
+    /** @brief thread body handling client events from the completion queue */
     void _client_thread ();
 
     AsyncCallData * last_call_;

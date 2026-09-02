@@ -47,17 +47,24 @@ struct looper_message {
 class Looper {
   public:
     Looper ();
+    /** @brief Flush pending messages and destroy the sync primitives */
     ~Looper ();
 
+    /** @brief Dispatch queued messages to the handler until exit is posted */
     void loop (void);
+    /** @brief Create the detached thread running the message loop */
     void start (void);
+    /** @brief Terminate the loop by posting a flushing exit message */
     void exit (void);
     void post (gint cmd, void *data, bool flush);
     void (*handle) (gint cmd, void *data);  /**< should be implemented */
 
   private:
+    /** @brief Thread entry point; runs loop () on the given Looper instance */
     static void *entry (void *data);
+    /** @brief Append a message to the queue, flushing pending ones if asked */
     void add_msg (looper_message *new_msg, bool flush);
+    /** @brief Drop and free every pending message in the queue */
     void flush_msg (void);
 
     pthread_t thread;
@@ -76,10 +83,15 @@ class Looper {
 extern "C"
 {
 #endif
+  /** @brief Create a Looper, start its thread, and return the opaque handle */
   void *Looper_new (void);
+  /** @brief Destroy a Looper created by Looper_new () */
   void Looper_delete (void *looper);
+  /** @brief Ask the looper thread to terminate */
   void Looper_exit (void *looper);
+  /** @brief Queue a command for the looper thread to handle */
   void Looper_post (void *looper, gint cmd, void *data, gboolean flush);
+  /** @brief Register the callback invoked for each queued command */
   void Looper_set_handle (void *looper, void (*handle) (gint, void*));
 #ifdef __cplusplus
 }

@@ -64,6 +64,9 @@ struct _GstAMCSrcClass
   GstPushSrcClass parent_class; /**< inherits class object */
 };
 
+/**
+ * @brief Get the GType of the amcsrc element, registering it if needed
+ */
 GST_EXPORT
 GType gst_amc_src_get_type (void);
 

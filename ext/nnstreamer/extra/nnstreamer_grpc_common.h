@@ -36,8 +36,11 @@ class NNStreamerRPC {
     NNStreamerRPC (const grpc_config *config);
     virtual ~NNStreamerRPC ();
 
+    /** @brief start the gRPC service as a server or a client */
     gboolean start ();
+    /** @brief stop the service, drain the queue and join the worker thread */
     void stop ();
+    /** @brief push a buffer holding tensors into the send queue */
     gboolean send (GstBuffer *buffer);
 
     /** @brief get gRPC listening port (server only) */
@@ -93,11 +96,15 @@ class NNStreamerRPC {
     /** @brief start gRPC client */
     virtual gboolean start_client (std::string address) { return FALSE; }
 
+    /** @brief build the listening address and start the server service */
     gboolean _start_server ();
+    /** @brief build the target address and start the client service */
     gboolean _start_client ();
 
+    /** @brief data queue callback; the queue is never considered full */
     static gboolean _data_queue_check_full_cb (GstDataQueue * queue,
         guint visible, guint bytes, guint64 time, gpointer checkdata);
+    /** @brief data queue callback; unref the buffer and free the item */
     static void _data_queue_item_free (GstDataQueueItem * item);
 };
 
