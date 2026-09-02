@@ -392,14 +392,11 @@ Predictor::LogInferenceResult (std::vector<mx_float> &log_vector, int num_infere
 
   ms = ms_now () - ms;
   auto args_name = net_.ListArguments ();
-  LG << "INFO:"
-     << "Finished inference with: " << nBatch * input_shape_[0] << " images ";
-  LG << "INFO:"
-     << "Batch size = " << input_shape_[0] << " for inference";
-  LG << "INFO:"
-     << "Accuracy: " << val_acc.Get ();
-  LG << "INFO:"
-     << "Throughput: " << (1000.0 * nBatch * input_shape_[0] / ms) << " images per second";
+  LG << "INFO:" << "Finished inference with: " << nBatch * input_shape_[0] << " images ";
+  LG << "INFO:" << "Batch size = " << input_shape_[0] << " for inference";
+  LG << "INFO:" << "Accuracy: " << val_acc.Get ();
+  LG << "INFO:" << "Throughput: " << (1000.0 * nBatch * input_shape_[0] / ms)
+     << " images per second";
 }
 
 /**
