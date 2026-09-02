@@ -1029,6 +1029,13 @@ litert_subplugin::reshapeTo (const GstTensorsInfo *in_info)
     }
   }
 
+  /** There is no rolling back past a successful resize: LiteRT documents the
+   *  buffer requirements as invalidated by it, so the previous shape's buffers
+   *  are gone whether or not the rebuild below succeeds. Drop the configured
+   *  flag across it so a failure leaves the instance plainly unusable instead
+   *  of half built, where the next invoke would run against empty buffers. */
+  configured = false;
+
   releaseTensorBuffers ();
   gst_tensors_info_free (std::addressof (inputTensorMeta));
   gst_tensors_info_free (std::addressof (outputTensorMeta));
@@ -1039,6 +1046,8 @@ litert_subplugin::reshapeTo (const GstTensorsInfo *in_info)
   setTensorMeta (sig, true, std::addressof (inputTensorMeta));
   setTensorMeta (sig, false, std::addressof (outputTensorMeta));
   createTensorBuffers ();
+
+  configured = true;
 }
 
 /**
