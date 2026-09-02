@@ -99,50 +99,7 @@ rm *.log *.golden *.dat
 
 report
 
-## those pte model files are made with this simple executorch python script:
-#
-# import torch
-# from torch._export import capture_pre_autograd_graph
-# from torch.export import export, ExportedProgram
-# from executorch import exir
-# from executorch.exir import ExecutorchBackendConfig, ExecutorchProgramManager
-# from executorch.exir.passes import MemoryPlanningPass
-#
-# Test model "sample_3x4_two_input_two_output.pte"
-# class MyCell(torch.nn.Module):
-#     def __init__(self):
-#         super(MyCell, self).__init__()
-#     def forward(self, x, y):
-#         new_x = x + 1.0
-#         new_y = y + 2.0
-#         return new_x, new_y
-# model = MyCell()
-# x, y = torch.rand(3, 4), torch.rand(3, 4)
-# example_args = (x,y,)
-#
-# Test model "sample_4x4x4x4x4_two_input_one_output.pte"
-# class MyCell(torch.nn.Module):
-#     def __init__(self):
-#         super(MyCell, self).__init__()
-#     def forward(self, x, y):
-#         z = x + y
-#         return z
-# model = MyCell()
-# x, y = torch.rand(4, 4, 4, 4, 4), torch.rand(4, 4, 4, 4, 4)
-# example_args = (x,y,)
-#
-# pre_autograd_aten_dialect = capture_pre_autograd_graph(model.eval(), example_args)
-# # Optionally do quantization:
-# # pre_autograd_aten_dialect = convert_pt2e(prepare_pt2e(pre_autograd_aten_dialect, CustomBackendQuantizer))
-# aten_dialect: ExportedProgram = export(pre_autograd_aten_dialect, example_args)
-# edge_program: exir.EdgeProgramManager = exir.to_edge(aten_dialect)
-# # Optionally do delegation:
-# # edge_program = edge_program.to_backend(CustomBackendPartitioner)
-# executorch_program: exir.ExecutorchProgramManager = edge_program.to_executorch(
-#     ExecutorchBackendConfig(
-#         passes=[],  # User-defined passes
-#     )
-# )
-#
-# with open("model_name.pte", "wb") as file:
-#     file.write(executorch_program.buffer)
+## The .pte fixtures under ../test_models/models are rebuilt by
+## generateModel.py in this directory. They are regenerated rather than
+## hand-edited: ExecuTorch 1.4 rejects the serialized form the 2024 exporter
+## produced with Error::InvalidProgram.
