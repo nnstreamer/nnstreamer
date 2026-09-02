@@ -16,7 +16,16 @@ set -e -o pipefail
 
 PREFIX=${1:-/usr/local}
 ET_TAG=${2:-v1.4.1}
-WORK_DIR=${EXECUTORCH_WORK_DIR:-$(mktemp -d)}
+
+if [ -n "${EXECUTORCH_WORK_DIR}" ]; then
+  WORK_DIR=${EXECUTORCH_WORK_DIR}
+  mkdir -p "${WORK_DIR}"
+else
+  # The source tree with its submodules runs to several GB, so a work directory
+  # we made ourselves is ours to remove again.
+  WORK_DIR=$(mktemp -d)
+  trap 'rm -rf "${WORK_DIR}"' EXIT
+fi
 
 # ExecuTorch refuses to configure unless its source directory is named exactly
 # 'executorch' (pytorch/executorch#6475).
@@ -27,6 +36,19 @@ if ! command -v cmake > /dev/null; then
   exit 1
 fi
 
+# Building the operator kernels runs ExecuTorch's codegen, which reads its
+# operator yaml out of an installed torchgen - that is, out of the torch wheel,
+# there being no usable standalone torchgen on PyPI. ExecuTorch's own
+# Codegen.cmake ignores the result of its torchgen lookup, so without this
+# check the configure step succeeds and the build dies much later on a missing
+# tags.yaml.
+if ! python3 -c 'import torchgen, yaml' > /dev/null 2>&1; then
+  echo "::error::ExecuTorch kernel codegen needs torchgen and pyyaml. Install them with:"
+  echo "  pip install pyyaml"
+  echo "  pip install torch --index-url https://download.pytorch.org/whl/cpu"
+  exit 1
+fi
+
 # ExecuTorch declares cmake_minimum_required(3.24); Ubuntu 22.04 ships 3.22 and
 # 24.04 ships 3.28, so a distro cmake may or may not do. Fail with the reason
 # rather than with a wall of cmake policy errors.
@@ -34,6 +56,11 @@ CMAKE_VER=$(cmake --version | head -1 | awk '{print $3}')
 if [ "$(printf '%s\n3.24.0\n' "${CMAKE_VER}" | sort -V | head -1)" != "3.24.0" ]; then
   echo "::error::ExecuTorch needs cmake 3.24 or newer, found ${CMAKE_VER}. Try 'pip install cmake'."
   exit 1
+fi
+
+if [ -d "${SRC_DIR}" ] && [ "$(git -C "${SRC_DIR}" describe --tags --exact-match 2> /dev/null)" != "${ET_TAG}" ]; then
+  echo "The source tree in ${SRC_DIR} is not at ${ET_TAG}; re-cloning."
+  rm -rf "${SRC_DIR}"
 fi
 
 if [ ! -d "${SRC_DIR}" ]; then
@@ -73,16 +100,24 @@ fi
 # links cleanly and then fails on the first invoke with an unregistered
 # operator. The kernels live in libexecutorch_portable_ops.so and are reached
 # only through static registrars, so --no-as-needed is required to keep the
-# linker from dropping a library whose symbols are never referenced.
-case "$(uname -s)" in
-  Darwin)
-    # The Mach-O linker has no --as-needed, and it keeps every library named on
-    # the command line.
-    sed -i '' 's|^Libs:.*|Libs: -L${libdir} -lexecutorch_portable_ops -lexecutorch|' "${PC_FILE}"
-    ;;
-  *)
-    sed -i 's|^Libs:.*|Libs: -L${libdir} -Wl,--no-as-needed -lexecutorch_portable_ops -Wl,--as-needed -lexecutorch|' "${PC_FILE}"
-    ;;
-esac
+# linker from dropping a library whose symbols are never referenced. The
+# Mach-O linker has neither flag and keeps every library it is given.
+if ! grep -q 'executorch_portable_ops' "${PC_FILE}"; then
+  case "$(uname -s)" in
+    Darwin) KERNEL_LIBS='-lexecutorch_portable_ops' ;;
+    *) KERNEL_LIBS='-Wl,--no-as-needed -lexecutorch_portable_ops -Wl,--as-needed' ;;
+  esac
+
+  # Insert after the -L so the kernels are still searched for in libdir, and
+  # keep whatever else upstream put on the line.
+  sed -i.bak 's|^\(Libs:.*-L${libdir}\)|\1 '"${KERNEL_LIBS}"'|' "${PC_FILE}"
+  rm -f "${PC_FILE}.bak"
+
+  if ! grep -q 'executorch_portable_ops' "${PC_FILE}"; then
+    echo "::error::Could not add the operator kernels to ${PC_FILE}; its Libs line is not in the expected form:"
+    grep '^Libs:' "${PC_FILE}"
+    exit 1
+  fi
+fi
 
 echo "ExecuTorch ${ET_TAG} installed under ${PREFIX}"

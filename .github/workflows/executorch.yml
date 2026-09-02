@@ -12,6 +12,8 @@ on:
       - '.github/workflows/executorch.yml'
       - 'ext/nnstreamer/tensor_filter/tensor_filter_executorch.cc'
       - 'ext/nnstreamer/tensor_filter/meson.build'
+      # the tensor_filter API the subplugin is compiled against
+      - 'gst/nnstreamer/include/**'
       - 'meson.build'
       - 'meson_options.txt'
       - 'tests/nnstreamer_filter_executorch/**'
@@ -29,6 +31,8 @@ jobs:
   build:
     name: Build against ExecuTorch and run its SSAT suite
     runs-on: ubuntu-22.04
+    # A cache miss rebuilds ExecuTorch from source; a cache hit is minutes.
+    timeout-minutes: 180
 
     steps:
     - uses: actions/checkout@v4
@@ -36,29 +40,51 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: install requirements
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libglib2.0-dev libjson-glib-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libunwind-dev googletest
-        sudo apt-get install -y liborc-0.4-dev flex bison libopencv-dev pkg-config python3-dev python3-numpy python3
-        sudo apt-get install -y gstreamer1.0-tools gstreamer1.0-plugins-good gstreamer1.0-plugins-base libgtest-dev libpng-dev
-        sudo add-apt-repository -y ppa:nnstreamer/ppa && sudo apt-get update && sudo apt-get install -y ssat
-        # ubuntu-22.04 carries cmake 3.22, below the 3.24 ExecuTorch requires.
-        # numpy goes in with pip, not apt: setup-python puts its own python3
-        # first on PATH, where the apt package is not visible, and the SSAT
-        # script generates its test data with it.
-        pip install meson ninja cmake numpy
-
     - name: restore the ExecuTorch install tree
       id: cache-executorch
-      uses: actions/cache@v4
+      uses: actions/cache/restore@v4
       with:
         path: ${{ env.EXECUTORCH_PREFIX }}
         key: executorch-${{ runner.os }}-${{ runner.arch }}-${{ env.EXECUTORCH_VERSION }}-${{ hashFiles('tools/executorch-install.sh') }}
 
+    - name: install requirements
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libglib2.0-dev libjson-glib-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libunwind-dev googletest
+        sudo apt-get install -y liborc-0.4-dev flex bison libopencv-dev pkg-config python3-dev python3
+        sudo apt-get install -y gstreamer1.0-tools gstreamer1.0-plugins-good gstreamer1.0-plugins-base libgtest-dev libpng-dev
+        sudo add-apt-repository -y ppa:nnstreamer/ppa && sudo apt-get update && sudo apt-get install -y ssat
+        # ubuntu-22.04 carries cmake 3.22; ExecuTorch wants at least 3.24 and
+        # caps itself below 4.0 in its own requirements-dev.txt.
+        # numpy goes in with pip, not apt: setup-python puts its own python3
+        # first on PATH, where the apt package is not visible, and the SSAT
+        # script generates its test data with it.
+        pip install meson ninja numpy 'cmake>=3.24,<4'
+
+    - name: install the ExecuTorch build-time python dependencies
+      if: steps.cache-executorch.outputs.cache-hit != 'true'
+      run: |
+        # ExecuTorch generates its operator kernel registration with torchgen,
+        # which ships inside the torch wheel. The CPU wheel is enough and is a
+        # fraction of the size of the default one.
+        pip install pyyaml
+        pip install torch --index-url https://download.pytorch.org/whl/cpu
+
     - name: build and install ExecuTorch
+      id: build-executorch
       if: steps.cache-executorch.outputs.cache-hit != 'true'
       run: bash tools/executorch-install.sh "${EXECUTORCH_PREFIX}" "${EXECUTORCH_VERSION}"
+
+    # Saved separately from the restore above, and even when a later step
+    # fails, so that a red run does not force the next one to rebuild
+    # ExecuTorch from scratch. Guarded on the build itself having succeeded,
+    # so a half-installed tree cannot be cached and then restored forever.
+    - name: save the ExecuTorch install tree
+      if: always() && steps.build-executorch.outcome == 'success'
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ env.EXECUTORCH_PREFIX }}
+        key: ${{ steps.cache-executorch.outputs.cache-primary-key }}
 
     - name: build nnstreamer with the ExecuTorch subplugin
       run: |
