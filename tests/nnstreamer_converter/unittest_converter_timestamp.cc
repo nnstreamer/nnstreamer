@@ -749,6 +749,98 @@ TEST (tensorConverterTimestampPipeline, aggregatorSyncSinkCompletes_p)
 }
 
 /**
+ * @brief Push a one-byte tensor with an explicit timestamp into an appsrc.
+ */
+static void
+pipeline_push_tensor (GstElement *appsrc, guint8 value, GstClockTime pts)
+{
+  GstBuffer *buffer = gst_buffer_new_allocate (NULL, 1, NULL);
+
+  gst_buffer_fill (buffer, 0, &value, 1);
+  GST_BUFFER_PTS (buffer) = pts;
+  EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc), buffer), GST_FLOW_OK);
+}
+
+/**
+ * @brief Feed a basepad-synchronized muxer two equal timestamps on its base
+ * pad, the pattern the converter emits while PAUSED, and check that the far
+ * frame on the other pad is held back every time.
+ */
+static void
+run_basepad_duplicate_timestamps (const gchar *muxer, guint mem_index, guint byte_index)
+{
+  const gchar *caps = "other/tensor,dimension=(string)1:1:1:1,type=(string)uint8,"
+                      "framerate=(fraction)0/1";
+  gchar *desc = g_strdup_printf ("appsrc name=src0 format=time ! %s ! mux.sink_0 "
+                                 "appsrc name=src1 format=time ! %s ! mux.sink_1 "
+                                 "%s name=mux sync-mode=basepad sync-option=0:50000000 ! "
+                                 "appsink name=sink sync=false",
+      caps, caps, muxer);
+  GstElement *pipeline = gst_parse_launch (desc, NULL);
+  GstElement *src0, *src1, *sink;
+  GstSample *sample;
+  guint received = 0;
+
+  g_free (desc);
+  ASSERT_TRUE (pipeline != NULL);
+  src0 = gst_bin_get_by_name (GST_BIN (pipeline), "src0");
+  src1 = gst_bin_get_by_name (GST_BIN (pipeline), "src1");
+  sink = gst_bin_get_by_name (GST_BIN (pipeline), "sink");
+  gst_element_set_state (pipeline, GST_STATE_PLAYING);
+
+  pipeline_push_tensor (src0, 0, 0);
+  pipeline_push_tensor (src0, 1, 0);
+  pipeline_push_tensor (src0, 2, 10 * GST_MSECOND);
+  EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (src0)), GST_FLOW_OK);
+  pipeline_push_tensor (src1, 100, 0);
+  pipeline_push_tensor (src1, 101, GST_SECOND);
+  EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (src1)), GST_FLOW_OK);
+
+  while ((sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), TEST_TIMEOUT_MS * GST_MSECOND))
+         != NULL) {
+    GstBuffer *buffer = gst_sample_get_buffer (sample);
+    GstMapInfo map;
+
+    EXPECT_GT (gst_buffer_n_memory (buffer), mem_index);
+    if (gst_buffer_map (buffer, &map, GST_MAP_READ)) {
+      EXPECT_GT (map.size, byte_index);
+      EXPECT_EQ (map.data[byte_index], 100U);
+      gst_buffer_unmap (buffer, &map);
+    } else {
+      ADD_FAILURE () << "cannot map the muxed buffer";
+    }
+    gst_sample_unref (sample);
+    received++;
+  }
+  EXPECT_EQ (received, 3U);
+  EXPECT_TRUE (gst_app_sink_is_eos (GST_APP_SINK (sink)));
+
+  gst_element_set_state (pipeline, GST_STATE_NULL);
+  gst_object_unref (src0);
+  gst_object_unref (src1);
+  gst_object_unref (sink);
+  gst_object_unref (pipeline);
+}
+
+/**
+ * @brief Positive: tensor_mux basepad sync keeps its tolerance across equal
+ * base-pad timestamps.
+ */
+TEST (tensorConverterTimestampPipeline, muxBasepadDuplicateTimestamps_p)
+{
+  run_basepad_duplicate_timestamps ("tensor_mux", 1, 1);
+}
+
+/**
+ * @brief Positive: tensor_merge basepad sync keeps its tolerance across equal
+ * base-pad timestamps.
+ */
+TEST (tensorConverterTimestampPipeline, mergeBasepadDuplicateTimestamps_p)
+{
+  run_basepad_duplicate_timestamps ("tensor_merge mode=linear option=0", 0, 1);
+}
+
+/**
  * @brief Negative: an octet stream without dimensions fails to negotiate.
  */
 TEST (tensorConverterTimestampPipeline, octetWithoutDimension_n)
