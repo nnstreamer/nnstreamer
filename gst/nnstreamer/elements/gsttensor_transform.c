@@ -305,9 +305,31 @@ gst_tensor_transform_init (GstTensorTransform * filter)
   filter->operators = NULL;
   filter->acceleration = DEFAULT_ACCELERATION;
   filter->apply = NULL;
+  filter->data_typecast.to = _NNS_END;
 
   gst_tensors_config_init (&filter->in_config);
   gst_tensors_config_init (&filter->out_config);
+}
+
+/**
+ * @brief Get the nickname of the given transform mode for log messages
+ * @param[in] mode transform mode
+ * @return nickname string owned by the enum class (do not free)
+ */
+static const gchar *
+gst_tensor_transform_get_mode_string (tensor_transform_mode mode)
+{
+  GEnumClass *klass;
+  GEnumValue *val;
+  const gchar *nick = "unknown";
+
+  klass = g_type_class_ref (GST_TYPE_TENSOR_TRANSFORM_MODE);
+  val = g_enum_get_value (klass, mode);
+  if (val)
+    nick = val->value_nick;
+  g_type_class_unref (klass);
+
+  return nick;
 }
 
 /**
@@ -1777,7 +1799,7 @@ gst_tensor_transform_padding (GstTensorTransform * filter,
 
   in_loop_size = (gsize) in_info->dimension[2] * in_info->dimension[1]
       * in_info->dimension[0] * element_size;
-  out_loop_size =(gsize) out_info->dimension[2] * out_info->dimension[1]
+  out_loop_size = (gsize) out_info->dimension[2] * out_info->dimension[1]
       * out_info->dimension[0] * element_size;
   copy_block_size = in_info->dimension[0] * element_size;
 
@@ -1839,7 +1861,14 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
 
   filter = GST_TENSOR_TRANSFORM_CAST (trans);
 
-  g_return_val_if_fail (filter->loaded, GST_FLOW_ERROR);
+  if (!filter->loaded) {
+    GST_ELEMENT_ERROR (filter, STREAM, FAILED, (NULL),
+        ("Transform is not configured (mode=%s, option=%s).",
+            gst_tensor_transform_get_mode_string (filter->mode),
+            GST_STR_NULL (filter->option)));
+    return GST_FLOW_ERROR;
+  }
+
   inbuf = gst_tensor_buffer_from_config (inbuf, &filter->in_config);
 
   in_flexible =
@@ -2181,8 +2210,49 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
     intersection =
         gst_caps_intersect_full (result, filtercap, GST_CAPS_INTERSECT_FIRST);
 
+    if (gst_caps_is_empty (intersection)) {
+      gchar *str_from = gst_caps_to_string (caps);
+      gchar *str_to = gst_caps_to_string (result);
+      gchar *str_filter = gst_caps_to_string (filtercap);
+
+      GST_WARNING_OBJECT (filter,
+          "mode=%s option=%s cannot produce %s caps compatible with [%s]: "
+          "input [%s] is transformed into [%s].",
+          gst_tensor_transform_get_mode_string (filter->mode),
+          GST_STR_NULL (filter->option),
+          (direction == GST_PAD_SINK) ? "src" : "sink", str_filter, str_from,
+          str_to);
+
+      g_free (str_from);
+      g_free (str_to);
+      g_free (str_filter);
+    }
+
     gst_caps_unref (result);
     result = intersection;
+  } else if (direction == GST_PAD_SINK && gst_caps_is_fixed (caps)
+      && !gst_caps_is_empty (result)) {
+    GstCaps *peercaps = gst_pad_peer_query_caps (pad, NULL);
+
+    if (peercaps) {
+      if (!gst_caps_can_intersect (result, peercaps)) {
+        gchar *str_from = gst_caps_to_string (caps);
+        gchar *str_to = gst_caps_to_string (result);
+        gchar *str_peer = gst_caps_to_string (peercaps);
+
+        GST_WARNING_OBJECT (filter,
+            "mode=%s option=%s transforms input [%s] into [%s], "
+            "which the downstream element cannot accept: [%s].",
+            gst_tensor_transform_get_mode_string (filter->mode),
+            GST_STR_NULL (filter->option), str_from, str_to, str_peer);
+
+        g_free (str_from);
+        g_free (str_to);
+        g_free (str_peer);
+      }
+
+      gst_caps_unref (peercaps);
+    }
   }
 
   silent_debug_caps (filter, result, "to");
@@ -2230,12 +2300,23 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
   gboolean in_flexible, out_flexible;
   gboolean allowed = FALSE;
   guint i;
+  const gchar *mode_str;
 
   filter = GST_TENSOR_TRANSFORM_CAST (trans);
 
   silent_debug (filter, "Calling SetCaps\n");
   silent_debug_caps (filter, incaps, "incaps");
   silent_debug_caps (filter, outcaps, "outcaps");
+
+  mode_str = gst_tensor_transform_get_mode_string (filter->mode);
+
+  if (!filter->loaded) {
+    GST_ERROR_OBJECT (filter,
+        "Transform is not configured (mode=%s, option=%s). "
+        "Set valid 'mode' and 'option' properties before negotiating caps.",
+        mode_str, GST_STR_NULL (filter->option));
+    goto error;
+  }
 
   if (!gst_tensors_config_from_caps (&in_config, incaps, TRUE)) {
     GST_ERROR_OBJECT (filter, "Cannot read cap of incaps\n");
@@ -2266,7 +2347,9 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
       if (!gst_tensor_transform_convert_dimension (filter, GST_PAD_SINK,
               i, in_info, out_info)) {
         GST_ERROR_OBJECT (filter,
-            "Tensor info is not matched with given properties.");
+            "Cannot derive the output info of tensor %u from the input caps "
+            "with mode=%s option=%s.", i, mode_str,
+            GST_STR_NULL (filter->option));
         goto error;
       }
     }
@@ -2279,8 +2362,16 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
     if (!in_flexible)
       out_config = config;
   } else if (!gst_tensors_config_is_equal (&out_config, &config)) {
+    gchar *cmp;
+
+    cmp = gst_tensors_info_compare_to_string (&config.info, &out_config.info);
     GST_ERROR_OBJECT (filter,
-        "Tensor info is not matched with given properties.\n");
+        "The output caps does not match the result of mode=%s option=%s "
+        "applied to the input caps. Framerate expected %d/%d, given %d/%d. "
+        "Tensors expected (left) vs given (right):\n%s",
+        mode_str, GST_STR_NULL (filter->option), config.rate_n, config.rate_d,
+        out_config.rate_n, out_config.rate_d, GST_STR_NULL (cmp));
+    g_free (cmp);
     goto error;
   }
 

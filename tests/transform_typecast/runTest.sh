@@ -163,6 +163,11 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! video/
 # when there is a typo in format
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! video/x-raw,format=RGB,width=4,height=4 ! tensor_converter ! other/tensors,format=flexibler ! tensor_transform mode=typecast option=float32 ! other/tensors,format=flexible ! fakesink" 24_n 0 1 $PERFORMANCE
 
+# tensor_transform without mode/option must fail negotiation instead of
+# crashing on the first buffer (#4103)
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! video/x-raw,format=RGB,width=4,height=4 ! tensor_converter ! tensor_transform ! fakesink" 25_n 0 1 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=3 ! video/x-raw,format=RGB,width=4,height=4 ! tensor_converter ! tensor_transform mode=typecast ! fakesink" 26_n 0 1 $PERFORMANCE
+
 rm *.log *.bmp *.png *.golden *.raw *.dat
 
 report
