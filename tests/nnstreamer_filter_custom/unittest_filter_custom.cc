@@ -87,7 +87,7 @@ new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
   /** Protect cbdata->* */
   g_mutex_lock (&cbdata->lock);
 
-  cbdata->sink_received = cbdata->sink_received + 1;
+  g_atomic_int_inc (&cbdata->sink_received);
   expected_size = sizeof (guint) * cbdata->sink_received;
 
   EXPECT_EQ (1U, gst_buffer_n_memory (buffer));
