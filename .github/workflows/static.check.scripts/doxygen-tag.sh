@@ -28,11 +28,40 @@ fi
 
 files=$1
 failed=0
+report_path=${report_path:-/dev/null}
 
 if [ ! -f $files ]; then
   echo "::error The file $files does not exists."
   exit 1
 fi
+
+##
+# @brief Tell whether the declaration starting at a line carries a trailing
+#        "/**<" Doxygen comment, on the declaration itself or right after it.
+# @param $1 1-based line number where ctags placed the function
+# @return 0 when such a comment is found, 1 otherwise
+# Reads the global array file_lines (0-based). A declaration ends at the first
+# ';' outside braces, or at the '}' that closes an inline body; the comment may
+# follow on the next line.
+has_trailing_doc() {
+  local -i i=$1-1
+  local -i last=${#file_lines[@]}-1
+  local -i depth=0
+  local l opens closes
+  while [[ $i -le $last ]]; do
+    l=${file_lines[$i]}
+    [[ $l == *"/**<"* ]] && return 0
+    opens=${l//[^\{]/}
+    closes=${l//[^\}]/}
+    depth+=${#opens}-${#closes}
+    if [[ $depth -le 0 && ( $l == *";"* || $l == *"}"* ) ]]; then
+      [[ $i -lt $last && ${file_lines[$i+1]} == *"/**<"* ]] && return 0
+      return 1
+    fi
+    i+=1
+  done
+  return 1
+}
 
 echo "::group::Doxygen tag check started"
 
@@ -69,14 +98,19 @@ for file in `cat $files`; do
               # Checking tags for each function
               if [[ $advanced == 1 ]]; then
                   declare -i idx=0
+                  brief=0
                   function_positions="" # Line number of functions.
                   structure_positions="" # Line number of structure.
+                  mapfile -t file_lines < "$file"
 
-                  local function_check_flag="f+p" # check document for function and prototype of the function
-
-                  if [[ $pr_doxygen_check_skip_function_definition == 1 && $file != *.h ]]; then
-                      function_check_flag="p" # check document for only prototypes of the function for non-header file
-                  fi
+                  # Definitions are checked everywhere. Prototypes are checked
+                  # only in headers, where the declaration is the documented
+                  # form; a forward declaration in a .c/.cc is documented at
+                  # its definition.
+                  case $file in
+                      *.h|*.hh|*.hpp ) function_check_flag="f+p" ;;
+                      * ) function_check_flag="f" ;;
+                  esac
 
                   # Find line number of functions using ctags, and append them.
                   while IFS='' read -r line || [[ -n "$line" ]]; do
@@ -97,7 +131,7 @@ for file in `cat $files`; do
                       # Check if a function has @brief tag or not.
                       # To pass correct line number not sub number, keep space " $idx ".
                       # ex) want to pass 143 not 14, 43, 1, 3, 4
-                      if [[ $function_positions =~ " $idx " && $brief -eq 0 ]]; then
+                      if [[ $function_positions =~ " $idx " && $brief -eq 0 ]] && ! has_trailing_doc $idx; then
                           echo "[ERROR] File name: $file, $idx line, `echo $line | cut -d ' ' -f1` function needs @brief tag "
                           failed=1
                       fi
