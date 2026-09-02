@@ -30,14 +30,18 @@ typedef struct {
   gsize max_word_length; /**< The max size of labels */
 } imglabel_t;
 
+/** @brief Load label file into the internal data */
 extern void
 loadImageLabels (const char * label_path, imglabel_t *l);
 
+/** @brief Initialize ASCII font sprite */
 extern void
 initSingleLineSprite (singleLineSprite_t v, rasters_t r, uint32_t pv);
 
+/** @brief Free image labels */
 extern void _free_labels (imglabel_t *data);
 
+/** @brief Copy framerate caps from tensor config */
 extern void setFramerateFromConfig  (GstCaps *caps, const GstTensorsConfig * config);
 
 #ifdef __cplusplus

@@ -91,6 +91,9 @@
 namespace
 {
 
+/**
+ * @brief Format a vector as a parenthesized, separator-joined string
+ */
 template <typename T>
 inline std::string
 to_string (const std::vector<T> &vec, const char sep = ',')
@@ -408,6 +411,9 @@ dali_subplugin::eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &
   return -ENOENT;
 }
 
+/**
+ * @brief Convert an nnstreamer tensor dimension into a reversed dali shape
+ */
 std::vector<std::int64_t>
 dali_subplugin::convertShape (const GstTensorInfo &tensor_info) const
 {
@@ -423,6 +429,9 @@ dali_subplugin::convertShape (const GstTensorInfo &tensor_info) const
   return shape;
 }
 
+/**
+ * @brief Get the dali pipeline output shape without its leading 1 dimension
+ */
 std::vector<std::int64_t>
 dali_subplugin::getDaliOutputShape ()
 {
@@ -442,6 +451,9 @@ dali_subplugin::getDaliOutputShape ()
   return dali_output_shape;
 }
 
+/**
+ * @brief Map an nnstreamer tensor type to the matching dali data type
+ */
 dali_data_type_t
 dali_subplugin::getDaliDataType (tensor_type nns_tensor_type) const
 {

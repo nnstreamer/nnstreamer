@@ -57,25 +57,41 @@ class TensorFilterOpenvino
     RetEOverFlow = -EOVERFLOW,
   };
 
+  /** @brief Convert an IE tensor data type string to a _nns_tensor_type */
   static tensor_type convertFromIETypeStr (std::string type);
+  /** @brief Convert a tensor container in NNS to a tensor container in IE */
   static InferenceEngine::Blob::Ptr convertGstTensorMemoryToBlobPtr (
       const InferenceEngine::TensorDesc tensorDesc,
       const GstTensorMemory *gstTensor, const tensor_type gstType);
+  /** @brief Check the given hw has a matching device in devsVector */
   static bool isAcclDevSupported (std::vector<std::string> &devsVector, accl_hw hw);
 
+  /** @brief Construct with the paths to the XML and bin model files */
   TensorFilterOpenvino (std::string path_model_xml, std::string path_model_bin);
+  /** @brief Destruct the instance */
   ~TensorFilterOpenvino ();
 
-  /** @todo Need to support other acceleration devices */
+  /**
+   * @brief Load the given neural network into the target device
+   * @todo Need to support other acceleration devices
+   */
   int loadModel (accl_hw hw);
+  /** @brief Check the neural network model is loaded */
   bool isModelLoaded ();
+  /** @brief Get the dimensions of the input tensors of the given model */
   int getInputTensorDim (GstTensorsInfo *info);
+  /** @brief Get the dimensions of the output tensors of the given model */
   int getOutputTensorDim (GstTensorsInfo *info);
+  /** @brief Do inference using Inference Engine of the OpenVino framework */
   int invoke (const GstTensorFilterProperties *prop,
       const GstTensorMemory *input, GstTensorMemory *output);
+  /** @brief Get the path where the model file in XML format is located */
   std::string getPathModelXml ();
+  /** @brief Set the path where the model file in XML format is located */
   void setPathModelXml (std::string pathXml);
+  /** @brief Get the path where the model file in bin format is located */
   std::string getPathModelBin ();
+  /** @brief Set the path where the model file in bin format is located */
   void setPathModelBin (std::string pathBin);
 
   static const std::string extBin;
@@ -86,6 +102,7 @@ class TensorFilterOpenvino
   InferenceEngine::OutputsDataMap _outputsDataMap;
 
   private:
+  /** @brief Hidden default constructor; the model paths are mandatory */
   TensorFilterOpenvino ();
 
   InferenceEngine::Core _ieCore;

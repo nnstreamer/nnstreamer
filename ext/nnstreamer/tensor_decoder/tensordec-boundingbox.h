@@ -239,27 +239,35 @@ class BoxProperties
   virtual ~BoxProperties () = default;
 
   /* mandatory methods */
+  /** @brief Parse the mode-specific option string into this instance */
   virtual int setOptionInternal (const char *param) = 0;
+  /** @brief Check whether the given tensors config is decodable by this mode */
   virtual int checkCompatible (const GstTensorsConfig *config) = 0;
+  /** @brief Decode the input tensors into a GArray of detectedObject */
   virtual GArray *decode (const GstTensorsConfig *config, const GstTensorMemory *input) = 0;
 
+  /** @brief Set the width of the model input image in pixels */
   void setInputWidth (guint width)
   {
     i_width = width;
   }
+  /** @brief Set the height of the model input image in pixels */
   void setInputHeight (guint height)
   {
     i_height = height;
   }
+  /** @brief Set the number of labels the model classifies boxes into */
   void setTotalLabels (guint labels)
   {
     total_labels = labels;
   }
 
+  /** @brief Get the width of the model input image in pixels */
   guint getInputWidth ()
   {
     return i_width;
   }
+  /** @brief Get the height of the model input image in pixels */
   guint getInputHeight ()
   {
     return i_height;
@@ -281,23 +289,37 @@ class BoundingBox
 {
   public:
   BoundingBox ();
+  /** @brief Free the label data, label path and tracking arrays */
   ~BoundingBox ();
 
+  /** @brief Check the label relevant properties are valid */
   gboolean checkLabelProps ();
+  /** @brief Select the box decoding mode from the option string */
   int setBoxDecodingMode (const char *param);
+  /** @brief Set the label file path and load the labels from it */
   int setLabelPath (const char *param);
+  /** @brief Set the output video width and height from the option string */
   int setVideoSize (const char *param);
+  /** @brief Set the model input width and height from the option string */
   int setInputModelSize (const char *param);
+  /** @brief Draw the decoded boxes and labels onto the output frame */
   void draw (GstMapInfo *out_info, GArray *results);
+  /** @brief Log the decoded boxes at the info level */
   void logBoxes (GArray *results);
+  /** @brief Match boxes to tracked centroids and assign tracking ids */
   void updateCentroids (GArray *boxes);
 
+  /** @brief Set the decoder option given by its option number */
   int setOption (BoundingBoxOption opNum, const char *param);
+  /** @brief Build the output video caps for the given tensors config */
   GstCaps *getOutCaps (const GstTensorsConfig *config);
+  /** @brief Decode the input tensors and render the boxes into outbuf */
   GstFlowReturn decode (const GstTensorsConfig *config,
       const GstTensorMemory *input, GstBuffer *outbuf);
 
+  /** @brief Look up registered box properties by mode name */
   static BoxProperties *getProperties (const gchar *properties_name);
+  /** @brief Register box properties into the mode name table */
   static gboolean addProperties (BoxProperties *boxProperties);
 
   private:
