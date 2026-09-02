@@ -793,7 +793,7 @@ run_basepad_duplicate_timestamps (const gchar *muxer, guint mem_index, guint byt
   pipeline_push_tensor (src0, 2, MSEC (10));
   EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (src0)), GST_FLOW_OK);
   pipeline_push_tensor (src1, 100, 0);
-  pipeline_push_tensor (src1, 101, GST_SECOND);
+  pipeline_push_tensor (src1, 101, SEC (1));
   EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (src1)), GST_FLOW_OK);
 
   while ((sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), MSEC (TEST_TIMEOUT_MS)))
