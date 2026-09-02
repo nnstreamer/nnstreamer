@@ -67,10 +67,40 @@ else
     fi
 fi
 
+##
 PATH_TO_PARAM="../test_models/models/ncnn_models/squeezenet_v1.1.param"
 PATH_TO_BIN="../test_models/models/ncnn_models/squeezenet_v1.1.bin"
 PATH_TO_LABEL="../test_models/labels/squeezenet_labels.txt"
 PATH_TO_IMAGE="../test_models/data/orange.png"
+
+##
+## ncnn counts physical CPUs by reading cpuN/topology/thread_siblings under
+## /sys/devices/system/cpu, and where those are not mounted - the GBS build
+## chroot, for instance - it counts zero. Its convolution tile sizing then
+## multiplies TILE_M by min (nT, get_physical_cpu_count ()) and divides by
+## TILE_M, so loading a model with a convolution raises SIGFPE. The 1x1
+## convolution path takes that route regardless of opt.use_sgemm_convolution,
+## so the subplugin cannot work around it and refuses to run instead. Test the
+## same file ncnn reads, so this check and that refusal agree. The inference
+## cases say nothing on such a host, so instead assert the one thing that
+## must hold there: the launch fails as a pipeline error, not on a signal.
+## The refusal's own message cannot be the check - on Tizen nns_loge goes to
+## dlog, so it never reaches stderr in a GBS build - so read the exit status.
+## gst-launch reports a failed state change with 255; a process killed by a
+## signal exits 128+signum (SIGABRT 134, SIGFPE 136, SIGSEGV 139), and a
+## parse error - an element missing from the chroot, say - exits 1, which
+## would prove nothing about the subplugin. Only 255 is the refusal.
+##
+if [[ ! -r /sys/devices/system/cpu/cpu0/topology/thread_siblings ]]; then
+    echo "Cannot read the CPU topology that ncnn needs; only checking that the subplugin refuses" >&2
+    gst-launch-1.0 --gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoscale ! imagefreeze num-buffers=2 ! videoconvert ! videoscale ! video/x-raw,width=227,height=227,format=BGR ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-127.5 ! tensor_transform mode=transpose option=1:2:0:3 ! tensor_filter framework=ncnn model=${PATH_TO_PARAM},${PATH_TO_BIN} input=227:227:3 inputtype=float32 output=1000:1 outputtype=float32 ! tensor_decoder mode=image_labeling option1=${PATH_TO_LABEL} ! filesink location=ncnn.out.log 2>/dev/null
+    rc=$?
+    [[ ${rc} -eq 255 ]]
+    testResult $? 18_n "ncnn refuses where it cannot read the CPU topology" 0 1
+    rm -f *.log
+    report
+    exit
+fi
 # A single Input layer, so the network hands its input straight back and the
 # shape of what the yolo decoder reads is whatever the pad caps carry.
 PATH_TO_PASSTHROUGH_PARAM="../test_models/models/ncnn_models/passthrough.param"
