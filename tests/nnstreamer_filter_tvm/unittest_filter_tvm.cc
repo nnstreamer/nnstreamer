@@ -159,21 +159,6 @@ class NNStreamerFilterTVMTest : public ::testing::Test
 
     gst_memory_unmap (mem_res, &info_res);
   }
-
-  /**
-   * @brief Signal handler to count invocations of tensor_sink
-   * @note Connect this after CheckOutput. GObject runs same-stage handlers in
-   *       connection order, so a satisfied count implies the golden comparison
-   *       for that buffer has already run; connecting it first would let the
-   *       waiter tear the pipeline down before CheckOutput had a say.
-   */
-  static void CountOutput (GstElement *element, GstBuffer *buffer, gpointer user_data)
-  {
-    guint *count = (guint *) user_data;
-    UNUSED (element);
-    UNUSED (buffer);
-    g_atomic_int_inc (count);
-  }
 };
 
 /**
@@ -454,8 +439,7 @@ TEST_F (NNStreamerFilterTVMTest, launch00)
   guint count = 0U;
   g_signal_connect (sink_handle, "new-data",
       (GCallback) NNStreamerFilterTVMTest::CheckOutput, NULL);
-  g_signal_connect (sink_handle, "new-data",
-      (GCallback) NNStreamerFilterTVMTest::CountOutput, &count);
+  g_signal_connect (sink_handle, "new-data", (GCallback) count_output, &count);
 
   /* Test */
   EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);

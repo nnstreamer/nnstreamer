@@ -2748,6 +2748,117 @@ TEST (commonUtil, waitPipelineProcessBuffers_n)
 }
 
 /**
+ * @brief Test that count_output bumps the counter it is handed, once per call.
+ */
+TEST (commonUtil, countOutput)
+{
+  guint count = 0U;
+
+  count_output (NULL, NULL, &count);
+  EXPECT_EQ (count, 1U);
+
+  count_output (NULL, NULL, &count);
+  count_output (NULL, NULL, &count);
+  EXPECT_EQ (count, 3U);
+}
+
+/**
+ * @brief Shared state for the count_output pipeline tests.
+ */
+typedef struct {
+  guint count;
+  guint checked;
+  guint out_of_order;
+} count_output_test_data;
+
+/**
+ * @brief Checking handler connected before count_output.
+ * @details Records whether count_output had already run for this buffer,
+ *          which is exactly what its connection-order note rules out.
+ */
+static void
+check_before_count (GstElement *element, GstBuffer *buffer, gpointer user_data)
+{
+  count_output_test_data *data = (count_output_test_data *) user_data;
+  (void) element;
+  (void) buffer;
+
+  if ((guint) g_atomic_int_get (&data->count) != data->checked)
+    data->out_of_order++;
+  data->checked++;
+}
+
+/**
+ * @brief Build a pipeline that delivers num_buffers tensors to a tensor_sink named sink.
+ */
+static GstElement *
+build_count_output_pipeline (guint num_buffers)
+{
+  gchar *desc = g_strdup_printf ("videotestsrc num-buffers=%u ! video/x-raw,width=16,height=16,format=RGB,framerate=30/1 ! tensor_converter ! tensor_sink name=sink",
+      num_buffers);
+  GstElement *pipeline = gst_parse_launch (desc, NULL);
+
+  g_free (desc);
+  return pipeline;
+}
+
+/**
+ * @brief Test count_output as a tensor_sink handler feeding wait_pipeline_process_buffers.
+ * @details Also pins the connection-order guarantee the helper's note relies on:
+ *          the handler connected first sees the count before it is bumped.
+ */
+TEST (commonUtil, countOutputPipeline)
+{
+  const guint num_buffers = 3U;
+  count_output_test_data data = { 0U, 0U, 0U };
+  GstElement *pipeline = build_count_output_pipeline (num_buffers);
+  GstElement *sink;
+
+  ASSERT_TRUE (pipeline != nullptr);
+  sink = gst_bin_get_by_name (GST_BIN (pipeline), "sink");
+  ASSERT_TRUE (sink != nullptr);
+
+  g_signal_connect (sink, "new-data", (GCallback) check_before_count, &data);
+  g_signal_connect (sink, "new-data", (GCallback) count_output, &data.count);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_TRUE (wait_pipeline_process_buffers (&data.count, num_buffers, TEST_TIMEOUT_LIMIT_MS));
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  EXPECT_EQ (data.count, num_buffers);
+  EXPECT_EQ (data.checked, num_buffers);
+  EXPECT_EQ (data.out_of_order, 0U);
+
+  gst_object_unref (sink);
+  gst_object_unref (pipeline);
+}
+
+/**
+ * @brief Test that a pipeline delivering no buffer leaves the count at zero and times out the waiter.
+ */
+TEST (commonUtil, countOutputPipelineNoBuffer_n)
+{
+  guint count = 0U;
+  GstElement *pipeline = build_count_output_pipeline (0U);
+  GstElement *sink;
+
+  ASSERT_TRUE (pipeline != nullptr);
+  sink = gst_bin_get_by_name (GST_BIN (pipeline), "sink");
+  ASSERT_TRUE (sink != nullptr);
+
+  g_signal_connect (sink, "new-data", (GCallback) count_output, &count);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_FALSE (wait_pipeline_process_buffers (&count, 1U, 200U));
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  EXPECT_EQ (count, 0U);
+
+  gst_object_unref (sink);
+  gst_object_unref (pipeline);
+}
+
+/**
  * @brief Main function for unit test.
  */
 int

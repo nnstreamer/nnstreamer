@@ -80,6 +80,25 @@ extern void leavePrivateWorkDir (gchar **work_dir);
 extern gboolean wait_pipeline_process_buffers (const guint * data_received, guint expected_num_buffers, guint timeout_ms);
 
 /**
+ * @brief tensor_sink new-data handler that counts the buffers it receives.
+ * @details Pass the address of a guint as user_data and hand the same address
+ *          to wait_pipeline_process_buffers(). The increment is atomic; the
+ *          handler runs on the streaming thread while the waiter polls from
+ *          the test thread.
+ * @note Connect this after the handler that checks the buffer. GObject runs
+ *       same-stage handlers in connection order, so a satisfied count implies
+ *       the check for that buffer has already run; connecting it first would
+ *       let the waiter tear the pipeline down before the check had a say.
+ */
+static inline void
+count_output (GstElement * element, GstBuffer * buffer, gpointer user_data)
+{
+  (void) element;
+  (void) buffer;
+  g_atomic_int_inc ((guint *) user_data);
+}
+
+/**
  * @brief Replaces string.
  * This function deallocates the input source string.
  * @param[in] source The input string. This will be freed when returning the replaced string.
