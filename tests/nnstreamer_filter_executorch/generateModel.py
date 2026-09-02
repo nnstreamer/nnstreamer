@@ -12,8 +12,9 @@
 # only when constant_segment.offsets is non-empty and otherwise falls back on
 # the inline constant_buffer, which ExecuTorch 1.x compiles out
 # (ET_ENABLE_DEPRECATED_CONSTANT_BUFFER=0) and answers with
-# Error::InvalidProgram. The 2024 export left constant_segment empty, so it
-# took that path whether or not the model had any constants to store.
+# Error::InvalidProgram. The 2024 exporter wrote a constant segment only when
+# there was something to put in it, so the model with no constants at all took
+# that path - which is why only one of the two fixtures had to be replaced.
 #
 # Needs the ExecuTorch python package and the torch release it pins:
 #   pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
