@@ -159,7 +159,7 @@ callback_nns (GstElement *element, GstBuffer *buffer, gpointer user_data)
     if (dataptr[0] == vdata->golden[vdata->cursor + 1][0])
       vdata->cursor += 1;
 
-    vdata->checked += 1;
+    g_atomic_int_inc (&vdata->checked);
     gst_memory_unmap (mem, &map_info);
   }
 }

@@ -359,15 +359,6 @@ const gint _test_frames2[48] = { 1101, 1102, 1103, 1104, 1105, 1106, 1107, 1108,
   1212, 1213, 1214, 1215, 1216, 1217, 1218, 1219, 1220, 1221, 1222, 1223, 1224 };
 
 /**
- * @brief Callback for tensor sink signal.
- */
-static void
-new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
-{
-  (*(guint *) user_data)++;
-}
-
-/**
  * @brief Test for dynamic dimension of the custom converter
  */
 TEST (tensorConverterPython, dynamicDimension)
@@ -405,7 +396,7 @@ TEST (tensorConverterPython, dynamicDimension)
   EXPECT_NE (sink_handle, nullptr);
 
   data_received = (guint *) g_malloc0 (sizeof (guint));
-  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, data_received);
+  g_signal_connect (sink_handle, "new-data", (GCallback) count_output, data_received);
 
   buf_0 = gst_buffer_new_wrapped (_g_memdup (_test_frames1, 96), 96);
   buf_1 = gst_buffer_new_wrapped (_g_memdup (_test_frames2, 192), 192);
@@ -486,7 +477,7 @@ new_data_cb_json (GstElement *element, GstBuffer *buffer, gpointer user_data)
   gboolean mapped;
   GstMemory *mem_res;
   gchar *output;
-  (*(guint *) user_data)++;
+  g_atomic_int_inc ((guint *) user_data);
 
   num_tensors = gst_buffer_n_memory (buffer);
   EXPECT_EQ (2U, num_tensors);

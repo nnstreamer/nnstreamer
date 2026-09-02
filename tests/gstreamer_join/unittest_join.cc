@@ -328,19 +328,6 @@ TEST (join, eosAfterRestart)
 }
 
 /**
- * @brief Callback counting the buffers that reached the sink.
- */
-static void
-count_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
-{
-  guint *received = (guint *) user_data;
-  (void) element;
-  (void) buffer;
-
-  (*received)++;
-}
-
-/**
  * @brief Test that a join of N finite sources delivers every buffer downstream.
  * @detail This is the pipeline shape used by the datarepo fixtures. The
  *         branches run in their own streaming threads, so which sink pad is
@@ -373,7 +360,7 @@ TEST (join, forwardAllBuffers)
 
   sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
   ASSERT_NE (sink_handle, nullptr);
-  g_signal_connect (sink_handle, "new-data", (GCallback) count_data_cb, (gpointer) &received);
+  g_signal_connect (sink_handle, "new-data", (GCallback) count_output, (gpointer) &received);
 
   EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
   EXPECT_EQ (pop_eos_or_error (pipeline, UNITTEST_STATECHANGE_TIMEOUT), GST_MESSAGE_EOS);
@@ -533,7 +520,7 @@ run_pad_release_while_streaming (void)
     gst_object_unref (pipeline);
     return FALSE;
   }
-  g_signal_connect (sink_handle, "new-data", (GCallback) count_data_cb, (gpointer) &received);
+  g_signal_connect (sink_handle, "new-data", (GCallback) count_output, (gpointer) &received);
 
   if (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT) != 0)
     started = FALSE;
@@ -726,7 +713,7 @@ count_checked_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_dat
   gst_memory_unmap (mem_res, &info_res);
   gst_memory_unref (mem_res);
 
-  counter->received++;
+  g_atomic_int_inc (&counter->received);
 }
 
 /**
