@@ -1022,11 +1022,16 @@ litert_subplugin::reshapeTo (const GstTensorsInfo *in_info)
     LiteRtStatus status = LiteRtCompiledModelResizeInputTensor (
         compiled_model, signature_index, i, dims.data (), dims.size ());
     if (status != kLiteRtStatusOk) {
-      /** Rejecting the first input leaves the model as it was, so the
-       *  instance keeps working at its current shape. Rejecting a later one
-       *  does not: the inputs before it are already resized and LiteRT gives
-       *  no way to put them back, so the instance is finished. */
-      if (any_resized)
+      /** Keep the instance only when nothing can have changed yet: no
+       *  earlier input resized, and the shape itself was refused rather
+       *  than the attempt going wrong. LiteRT documents no failure
+       *  semantics, so the second half is a reading of the status rather
+       *  than a guarantee - InvalidArgument and Unsupported describe the
+       *  request, which can only be judged before touching anything, while
+       *  the rest report the resize itself failing with no way to ask what
+       *  it left behind. Anything unclear costs a rebuild, not a wrong
+       *  answer. */
+      if (any_resized || (status != kLiteRtStatusErrorInvalidArgument && status != kLiteRtStatusErrorUnsupported))
         configured = false;
 
       ml_loge ("Failed to resize LiteRT input %u (status %d).", i, (int) status);
