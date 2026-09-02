@@ -35,6 +35,7 @@ class ServiceImplFlatbuf : public NNStreamerRPC
   public:
     ServiceImplFlatbuf (const grpc_config * config);
 
+    /** @brief Parse the flatbuf tensors and deliver the buffer via callback */
     void parse_tensors (Message<Tensors> &tensors);
     /** @brief pop a buffer from the queue and fill the flatbuf tensors */
     gboolean fill_tensors (Message<Tensors> &tensors);
@@ -88,7 +89,9 @@ class AsyncServiceImplFlatbuf final
   : public ServiceImplFlatbuf, public TensorService::AsyncService
 {
   public:
+    /** @brief Construct the async service with no call in flight */
     AsyncServiceImplFlatbuf (const grpc_config * config);
+    /** @brief Delete the last outstanding call, if any */
     ~AsyncServiceImplFlatbuf ();
 
     /** @brief set the last call data */

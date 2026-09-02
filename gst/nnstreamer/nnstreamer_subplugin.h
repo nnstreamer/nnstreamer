@@ -91,10 +91,16 @@ register_subplugin (subpluginType type, const char *name, const void *data);
 extern gboolean
 unregister_subplugin (subpluginType type, const char *name);
 
+/**
+ * @brief common interface to set custom property description of a sub-plugin.
+ */
 extern void
 subplugin_set_custom_property_desc (subpluginType type, const char *name,
     const gchar * prop, va_list varargs);
 
+/**
+ * @brief common interface to get custom property description of a sub-plugin.
+ */
 extern GData *
 subplugin_get_custom_property_desc (subpluginType type, const char *name);
 

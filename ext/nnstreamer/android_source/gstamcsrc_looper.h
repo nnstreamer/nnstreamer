@@ -56,6 +56,7 @@ class Looper {
     void start (void);
     /** @brief Terminate the loop by posting a flushing exit message */
     void exit (void);
+    /** @brief Queue a command for loop () to hand to the handler */
     void post (gint cmd, void *data, bool flush);
     void (*handle) (gint cmd, void *data);  /**< should be implemented */
 

@@ -75,7 +75,7 @@ class tensor_filter_subplugin
                           have different subplugin_data while the C callbacks
                           are identical. Thus, we copy C callbacks from this template to fwdesc and let each subplugin start customizing based on fwdesc, not on fwdesc_template */
 
-  /** Helper function */
+  /** @brief Cast ptr to a subplugin after checking its sanity marker */
   static inline tensor_filter_subplugin *get_tfsp_with_checks (void *ptr);
   /** tensor_filter/C wrapper functions */
   static int cpp_open (const GstTensorFilterProperties *prop, void **private_data); /**< C wrapper function, open */
