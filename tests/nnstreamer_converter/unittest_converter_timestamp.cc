@@ -23,7 +23,9 @@
   "video/x-raw,format=GRAY8,width=8,height=1,framerate=(fraction)10/1"
 #define CONVERTER_LAUNCH "tensor_converter input-dim=8 input-type=uint8"
 #define FAKESRC_LAUNCH "fakesrc num-buffers=5 sizetype=fixed sizemax=8"
-#define ONE_HOUR (3600 * GST_SECOND)
+#define MSEC(n) ((GstClockTime) (GST_MSECOND * (n)))
+#define SEC(n) ((GstClockTime) (GST_SECOND * (n)))
+#define ONE_HOUR SEC (3600)
 #define TEST_TIMEOUT_MS (10000U)
 #define IDENTITY_PADDING (40U)
 
@@ -97,8 +99,8 @@ TEST (tensorConverterTimestamp, playingRunningTime_p)
   GstHarness *h = harness_new (OCTET_CAPS);
   GstBuffer *out;
 
-  gst_harness_set_time (h, 10 * GST_SECOND);
-  gst_element_set_base_time (h->element, 10 * GST_SECOND);
+  gst_harness_set_time (h, SEC (10));
+  gst_element_set_base_time (h->element, SEC (10));
 
   out = harness_push_frame (h, GST_CLOCK_TIME_NONE, GST_CLOCK_TIME_NONE);
   ASSERT_TRUE (out != NULL);
@@ -106,11 +108,11 @@ TEST (tensorConverterTimestamp, playingRunningTime_p)
   EXPECT_FALSE (GST_BUFFER_DURATION_IS_VALID (out));
   gst_buffer_unref (out);
 
-  gst_harness_set_time (h, 10 * GST_SECOND + 500 * GST_MSECOND);
-  EXPECT_EQ (harness_push_get_pts (h), 500 * GST_MSECOND);
+  gst_harness_set_time (h, SEC (10) + MSEC (500));
+  EXPECT_EQ (harness_push_get_pts (h), MSEC (500));
 
-  gst_harness_set_time (h, 10 * GST_SECOND + 700 * GST_MSECOND);
-  EXPECT_EQ (harness_push_get_pts (h), 700 * GST_MSECOND);
+  gst_harness_set_time (h, SEC (10) + MSEC (700));
+  EXPECT_EQ (harness_push_get_pts (h), MSEC (700));
 
   gst_harness_teardown (h);
 }
@@ -122,8 +124,8 @@ TEST (tensorConverterTimestamp, playingClockBehindBaseTime_p)
 {
   GstHarness *h = harness_new (OCTET_CAPS);
 
-  gst_harness_set_time (h, 10 * GST_SECOND);
-  gst_element_set_base_time (h->element, 20 * GST_SECOND);
+  gst_harness_set_time (h, SEC (10));
+  gst_element_set_base_time (h->element, SEC (20));
 
   EXPECT_EQ (harness_push_get_pts (h), 0U);
 
@@ -149,8 +151,8 @@ TEST (tensorConverterTimestamp, pausedBeforeFirstPlaying_p)
   gst_element_set_base_time (h->element, ONE_HOUR);
   EXPECT_EQ (harness_push_get_pts (h), 0U);
 
-  gst_harness_set_time (h, ONE_HOUR + 50 * GST_MSECOND);
-  EXPECT_EQ (harness_push_get_pts (h), 50 * GST_MSECOND);
+  gst_harness_set_time (h, ONE_HOUR + MSEC (50));
+  EXPECT_EQ (harness_push_get_pts (h), MSEC (50));
 
   gst_harness_teardown (h);
 }
@@ -163,21 +165,21 @@ TEST (tensorConverterTimestamp, pausedAfterPlayingKeepsLast_p)
 {
   GstHarness *h = harness_new (OCTET_CAPS);
 
-  gst_element_set_base_time (h->element, 10 * GST_SECOND);
-  gst_harness_set_time (h, 10 * GST_SECOND + 500 * GST_MSECOND);
-  EXPECT_EQ (harness_push_get_pts (h), 500 * GST_MSECOND);
+  gst_element_set_base_time (h->element, SEC (10));
+  gst_harness_set_time (h, SEC (10) + MSEC (500));
+  EXPECT_EQ (harness_push_get_pts (h), MSEC (500));
 
   harness_set_state (h, GST_STATE_PAUSED);
   gst_harness_set_time (h, ONE_HOUR);
-  EXPECT_EQ (harness_push_get_pts (h), 500 * GST_MSECOND);
-  EXPECT_EQ (harness_push_get_pts (h), 500 * GST_MSECOND);
+  EXPECT_EQ (harness_push_get_pts (h), MSEC (500));
+  EXPECT_EQ (harness_push_get_pts (h), MSEC (500));
 
   harness_set_state (h, GST_STATE_PLAYING);
-  gst_element_set_base_time (h->element, ONE_HOUR - 500 * GST_MSECOND);
-  EXPECT_EQ (harness_push_get_pts (h), 500 * GST_MSECOND);
+  gst_element_set_base_time (h->element, ONE_HOUR - MSEC (500));
+  EXPECT_EQ (harness_push_get_pts (h), MSEC (500));
 
-  gst_harness_set_time (h, ONE_HOUR + 100 * GST_MSECOND);
-  EXPECT_EQ (harness_push_get_pts (h), 600 * GST_MSECOND);
+  gst_harness_set_time (h, ONE_HOUR + MSEC (100));
+  EXPECT_EQ (harness_push_get_pts (h), MSEC (600));
 
   gst_harness_teardown (h);
 }
@@ -191,17 +193,17 @@ TEST (tensorConverterTimestamp, pausedUsesSegmentStart_p)
   GstSegment segment;
 
   gst_segment_init (&segment, GST_FORMAT_TIME);
-  segment.start = segment.time = 2 * GST_SECOND;
+  segment.start = segment.time = SEC (2);
   EXPECT_TRUE (gst_harness_push_event (h, gst_event_new_segment (&segment)));
 
   harness_set_state (h, GST_STATE_PAUSED);
   gst_harness_set_time (h, ONE_HOUR);
-  EXPECT_EQ (harness_push_get_pts (h), 2 * GST_SECOND);
-  EXPECT_EQ (harness_push_get_pts (h), 2 * GST_SECOND);
+  EXPECT_EQ (harness_push_get_pts (h), SEC (2));
+  EXPECT_EQ (harness_push_get_pts (h), SEC (2));
 
   harness_set_state (h, GST_STATE_PLAYING);
   gst_element_set_base_time (h->element, ONE_HOUR);
-  EXPECT_LT (harness_push_get_pts (h), GST_SECOND);
+  EXPECT_LT (harness_push_get_pts (h), SEC (1));
 
   gst_harness_teardown (h);
 }
@@ -216,20 +218,20 @@ TEST (tensorConverterTimestamp, validInputTimestampUntouched_p)
 
   gst_harness_set_time (h, ONE_HOUR);
 
-  out = harness_push_frame (h, 42 * GST_MSECOND, 7 * GST_MSECOND);
+  out = harness_push_frame (h, MSEC (42), MSEC (7));
   ASSERT_TRUE (out != NULL);
-  EXPECT_EQ (GST_BUFFER_PTS (out), 42 * GST_MSECOND);
-  EXPECT_EQ (GST_BUFFER_DURATION (out), 7 * GST_MSECOND);
+  EXPECT_EQ (GST_BUFFER_PTS (out), MSEC (42));
+  EXPECT_EQ (GST_BUFFER_DURATION (out), MSEC (7));
   gst_buffer_unref (out);
 
   harness_set_state (h, GST_STATE_PAUSED);
-  out = harness_push_frame (h, 43 * GST_MSECOND, GST_CLOCK_TIME_NONE);
+  out = harness_push_frame (h, MSEC (43), GST_CLOCK_TIME_NONE);
   ASSERT_TRUE (out != NULL);
-  EXPECT_EQ (GST_BUFFER_PTS (out), 43 * GST_MSECOND);
+  EXPECT_EQ (GST_BUFFER_PTS (out), MSEC (43));
   EXPECT_FALSE (GST_BUFFER_DURATION_IS_VALID (out));
   gst_buffer_unref (out);
 
-  EXPECT_EQ (harness_push_get_pts (h), 43 * GST_MSECOND);
+  EXPECT_EQ (harness_push_get_pts (h), MSEC (43));
 
   gst_harness_teardown (h);
 }
@@ -243,15 +245,15 @@ TEST (tensorConverterTimestamp, setTimestampFalse_n)
   GstBuffer *out;
 
   gst_harness_set_time (h, ONE_HOUR);
-  gst_element_set_base_time (h->element, 10 * GST_SECOND);
+  gst_element_set_base_time (h->element, SEC (10));
   EXPECT_FALSE (GST_CLOCK_TIME_IS_VALID (harness_push_get_pts (h)));
 
   harness_set_state (h, GST_STATE_PAUSED);
   EXPECT_FALSE (GST_CLOCK_TIME_IS_VALID (harness_push_get_pts (h)));
 
-  out = harness_push_frame (h, 42 * GST_MSECOND, GST_CLOCK_TIME_NONE);
+  out = harness_push_frame (h, MSEC (42), GST_CLOCK_TIME_NONE);
   ASSERT_TRUE (out != NULL);
-  EXPECT_EQ (GST_BUFFER_PTS (out), 42 * GST_MSECOND);
+  EXPECT_EQ (GST_BUFFER_PTS (out), MSEC (42));
   gst_buffer_unref (out);
 
   gst_harness_teardown (h);
@@ -265,7 +267,7 @@ TEST (tensorConverterTimestamp, playingWithoutClock_p)
   GstHarness *h = harness_new (OCTET_CAPS);
 
   EXPECT_TRUE (gst_element_set_clock (h->element, NULL));
-  gst_element_set_base_time (h->element, 10 * GST_SECOND);
+  gst_element_set_base_time (h->element, SEC (10));
 
   EXPECT_EQ (harness_push_get_pts (h), 0U);
   EXPECT_EQ (harness_push_get_pts (h), 0U);
@@ -286,15 +288,15 @@ TEST (tensorConverterTimestamp, framerateIgnoresClock_p)
   out = harness_push_frame (h, GST_CLOCK_TIME_NONE, GST_CLOCK_TIME_NONE);
   ASSERT_TRUE (out != NULL);
   EXPECT_EQ (GST_BUFFER_PTS (out), 0U);
-  EXPECT_EQ (GST_BUFFER_DURATION (out), 100 * GST_MSECOND);
+  EXPECT_EQ (GST_BUFFER_DURATION (out), MSEC (100));
   gst_buffer_unref (out);
 
-  EXPECT_EQ (harness_push_get_pts (h), 100 * GST_MSECOND);
+  EXPECT_EQ (harness_push_get_pts (h), MSEC (100));
 
   harness_set_state (h, GST_STATE_PAUSED);
   gst_harness_set_time (h, 2 * ONE_HOUR);
-  EXPECT_EQ (harness_push_get_pts (h), 200 * GST_MSECOND);
-  EXPECT_EQ (harness_push_get_pts (h), 300 * GST_MSECOND);
+  EXPECT_EQ (harness_push_get_pts (h), MSEC (200));
+  EXPECT_EQ (harness_push_get_pts (h), MSEC (300));
 
   gst_harness_teardown (h);
 }
@@ -312,10 +314,10 @@ TEST (tensorConverterTimestamp, octetFramerate_p)
   out = harness_push_frame (h, GST_CLOCK_TIME_NONE, GST_CLOCK_TIME_NONE);
   ASSERT_TRUE (out != NULL);
   EXPECT_EQ (GST_BUFFER_PTS (out), 0U);
-  EXPECT_EQ (GST_BUFFER_DURATION (out), 200 * GST_MSECOND);
+  EXPECT_EQ (GST_BUFFER_DURATION (out), MSEC (200));
   gst_buffer_unref (out);
 
-  EXPECT_EQ (harness_push_get_pts (h), 200 * GST_MSECOND);
+  EXPECT_EQ (harness_push_get_pts (h), MSEC (200));
 
   gst_harness_teardown (h);
 }
@@ -328,9 +330,9 @@ TEST (tensorConverterTimestamp, flushResetsHistory_p)
   GstHarness *h = harness_new (OCTET_CAPS);
   GstSegment segment;
 
-  gst_element_set_base_time (h->element, 10 * GST_SECOND);
-  gst_harness_set_time (h, 10 * GST_SECOND + 500 * GST_MSECOND);
-  EXPECT_EQ (harness_push_get_pts (h), 500 * GST_MSECOND);
+  gst_element_set_base_time (h->element, SEC (10));
+  gst_harness_set_time (h, SEC (10) + MSEC (500));
+  EXPECT_EQ (harness_push_get_pts (h), MSEC (500));
 
   EXPECT_TRUE (gst_harness_push_event (h, gst_event_new_flush_start ()));
   EXPECT_TRUE (gst_harness_push_event (h, gst_event_new_flush_stop (TRUE)));
@@ -374,8 +376,8 @@ TEST (tensorConverterTimestamp, bytesSegmentConverted_p)
 
   harness_set_state (h, GST_STATE_PLAYING);
   gst_element_set_base_time (h->element, ONE_HOUR);
-  gst_harness_set_time (h, ONE_HOUR + 10 * GST_MSECOND);
-  EXPECT_EQ (harness_push_get_pts (h), 10 * GST_MSECOND);
+  gst_harness_set_time (h, ONE_HOUR + MSEC (10));
+  EXPECT_EQ (harness_push_get_pts (h), MSEC (10));
 
   gst_harness_teardown (h);
 }
@@ -388,17 +390,17 @@ TEST (tensorConverterTimestamp, framesPerTensorAggregation_p)
   GstHarness *h = harness_new_full (OCTET_CAPS, TRUE, 2);
   GstBuffer *out;
 
-  gst_element_set_base_time (h->element, 10 * GST_SECOND);
+  gst_element_set_base_time (h->element, SEC (10));
 
-  gst_harness_set_time (h, 10 * GST_SECOND + 100 * GST_MSECOND);
+  gst_harness_set_time (h, SEC (10) + MSEC (100));
   out = harness_push_frame (h, GST_CLOCK_TIME_NONE, GST_CLOCK_TIME_NONE);
   EXPECT_TRUE (out == NULL);
 
-  gst_harness_set_time (h, 10 * GST_SECOND + 200 * GST_MSECOND);
+  gst_harness_set_time (h, SEC (10) + MSEC (200));
   out = harness_push_frame (h, GST_CLOCK_TIME_NONE, GST_CLOCK_TIME_NONE);
   ASSERT_TRUE (out != NULL);
   EXPECT_EQ (gst_buffer_get_size (out), 2 * FRAME_SIZE);
-  EXPECT_EQ (GST_BUFFER_PTS (out), 100 * GST_MSECOND);
+  EXPECT_EQ (GST_BUFFER_PTS (out), MSEC (100));
   gst_buffer_unref (out);
 
   gst_harness_teardown (h);
@@ -411,9 +413,9 @@ TEST (tensorConverterTimestamp, readyResetsHistory_p)
 {
   GstHarness *h = harness_new (OCTET_CAPS);
 
-  gst_element_set_base_time (h->element, 10 * GST_SECOND);
-  gst_harness_set_time (h, 10 * GST_SECOND + 500 * GST_MSECOND);
-  EXPECT_EQ (harness_push_get_pts (h), 500 * GST_MSECOND);
+  gst_element_set_base_time (h->element, SEC (10));
+  gst_harness_set_time (h, SEC (10) + MSEC (500));
+  EXPECT_EQ (harness_push_get_pts (h), MSEC (500));
 
   harness_set_state (h, GST_STATE_READY);
   harness_set_state (h, GST_STATE_PAUSED);
@@ -435,7 +437,7 @@ wait_for_state (GstElement *pipeline, GstState state)
   GstState current = GST_STATE_VOID_PENDING;
   GstStateChangeReturn ret;
 
-  ret = gst_element_get_state (pipeline, &current, NULL, TEST_TIMEOUT_MS * GST_MSECOND);
+  ret = gst_element_get_state (pipeline, &current, NULL, MSEC (TEST_TIMEOUT_MS));
   return (ret == GST_STATE_CHANGE_SUCCESS && current == state);
 }
 
@@ -460,11 +462,9 @@ pipeline_pull_pts (GstElement *appsink, gboolean preroll)
   GstClockTime pts;
 
   if (preroll)
-    sample = gst_app_sink_try_pull_preroll (
-        GST_APP_SINK (appsink), TEST_TIMEOUT_MS * GST_MSECOND);
+    sample = gst_app_sink_try_pull_preroll (GST_APP_SINK (appsink), MSEC (TEST_TIMEOUT_MS));
   else
-    sample = gst_app_sink_try_pull_sample (
-        GST_APP_SINK (appsink), TEST_TIMEOUT_MS * GST_MSECOND);
+    sample = gst_app_sink_try_pull_sample (GST_APP_SINK (appsink), MSEC (TEST_TIMEOUT_MS));
 
   if (sample == NULL) {
     ADD_FAILURE () << "no sample";
@@ -515,23 +515,23 @@ TEST (tensorConverterTimestampPipeline, testClockRunningTime_p)
   EXPECT_EQ (pipeline_pull_pts (appsink, FALSE), 0U);
   EXPECT_EQ (gst_element_get_base_time (converter), ONE_HOUR);
 
-  gst_test_clock_advance_time (GST_TEST_CLOCK (clock), 300 * GST_MSECOND);
+  gst_test_clock_advance_time (GST_TEST_CLOCK (clock), MSEC (300));
   pipeline_push_frame (appsrc);
-  EXPECT_EQ (pipeline_pull_pts (appsink, FALSE), 300 * GST_MSECOND);
+  EXPECT_EQ (pipeline_pull_pts (appsink, FALSE), MSEC (300));
 
   gst_element_set_state (pipeline, GST_STATE_PAUSED);
-  gst_test_clock_advance_time (GST_TEST_CLOCK (clock), 5 * GST_SECOND);
+  gst_test_clock_advance_time (GST_TEST_CLOCK (clock), SEC (5));
   pipeline_push_frame (appsrc);
-  EXPECT_EQ (pipeline_pull_pts (appsink, TRUE), 300 * GST_MSECOND);
+  EXPECT_EQ (pipeline_pull_pts (appsink, TRUE), MSEC (300));
   ASSERT_TRUE (wait_for_state (pipeline, GST_STATE_PAUSED));
 
   gst_element_set_state (pipeline, GST_STATE_PLAYING);
   ASSERT_TRUE (wait_for_state (pipeline, GST_STATE_PLAYING));
-  EXPECT_EQ (pipeline_pull_pts (appsink, FALSE), 300 * GST_MSECOND);
+  EXPECT_EQ (pipeline_pull_pts (appsink, FALSE), MSEC (300));
 
-  gst_test_clock_advance_time (GST_TEST_CLOCK (clock), 100 * GST_MSECOND);
+  gst_test_clock_advance_time (GST_TEST_CLOCK (clock), MSEC (100));
   pipeline_push_frame (appsrc);
-  EXPECT_EQ (pipeline_pull_pts (appsink, FALSE), 400 * GST_MSECOND);
+  EXPECT_EQ (pipeline_pull_pts (appsink, FALSE), MSEC (400));
 
   EXPECT_EQ (gst_element_set_state (pipeline, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
   gst_object_unref (appsrc);
@@ -603,7 +603,7 @@ TEST (tensorConverterTimestampPipeline, clockWithoutBaseTime_p)
 
   ASSERT_EQ (gst_element_get_base_time (converter), 0U);
   EXPECT_TRUE (gst_element_set_clock (converter, clock));
-  EXPECT_GT (gst_clock_get_time (clock), GST_SECOND);
+  EXPECT_GT (gst_clock_get_time (clock), SEC (1));
 
   pipeline_push_frame (appsrc);
   ASSERT_TRUE (wait_for_probe (&data, 2));
@@ -634,7 +634,7 @@ run_pipeline_to_end (const gchar *description)
 
   bus = gst_element_get_bus (pipeline);
   gst_element_set_state (pipeline, GST_STATE_PLAYING);
-  message = gst_bus_timed_pop_filtered (bus, TEST_TIMEOUT_MS * GST_MSECOND,
+  message = gst_bus_timed_pop_filtered (bus, MSEC (TEST_TIMEOUT_MS),
       (GstMessageType) (GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
   if (message != NULL) {
     type = GST_MESSAGE_TYPE (message);
@@ -790,13 +790,13 @@ run_basepad_duplicate_timestamps (const gchar *muxer, guint mem_index, guint byt
 
   pipeline_push_tensor (src0, 0, 0);
   pipeline_push_tensor (src0, 1, 0);
-  pipeline_push_tensor (src0, 2, 10 * GST_MSECOND);
+  pipeline_push_tensor (src0, 2, MSEC (10));
   EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (src0)), GST_FLOW_OK);
   pipeline_push_tensor (src1, 100, 0);
   pipeline_push_tensor (src1, 101, GST_SECOND);
   EXPECT_EQ (gst_app_src_end_of_stream (GST_APP_SRC (src1)), GST_FLOW_OK);
 
-  while ((sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), TEST_TIMEOUT_MS * GST_MSECOND))
+  while ((sample = gst_app_sink_try_pull_sample (GST_APP_SINK (sink), MSEC (TEST_TIMEOUT_MS)))
          != NULL) {
     GstBuffer *buffer = gst_sample_get_buffer (sample);
     GstMapInfo map;
