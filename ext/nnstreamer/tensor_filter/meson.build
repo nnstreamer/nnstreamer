@@ -870,6 +870,12 @@ if executorch_support_is_available
 
   nnstreamer_filter_executorch_deps = [executorch_support_deps, glib_dep, nnstreamer_single_dep]
 
+  # ExecuTorch's own module.h touches its deprecated debug_buffer_ from inline
+  # members, so every translation unit that includes it warns - and -Werror
+  # then stops the build over a header we do not own.
+  executorch_compile_args = cxx.get_supported_arguments(['-Wno-deprecated-declarations'])
+  nnstreamer_filter_executorch_deps += declare_dependency(compile_args: executorch_compile_args)
+
   shared_library('nnstreamer_filter_executorch',
     filter_sub_executorch_sources,
     dependencies: nnstreamer_filter_executorch_deps,
