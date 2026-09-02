@@ -65,6 +65,9 @@ struct _GstEdgeSrcClass
   GstBaseSrcClass parent_class;
 };
 
+/**
+ * @brief Get the GType of the edgesrc element.
+ */
 GType gst_edgesrc_get_type (void);
 
 G_END_DECLS

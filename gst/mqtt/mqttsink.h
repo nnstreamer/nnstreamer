@@ -103,6 +103,9 @@ struct _GstMqttSinkClass {
   GstBaseSinkClass parent_class;
 };
 
+/**
+ * @brief Get the GType of the mqttsink element.
+ */
 GType gst_mqtt_sink_get_type (void);
 
 G_END_DECLS

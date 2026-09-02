@@ -81,6 +81,9 @@ struct _GstMqttSrcClass {
   GstBaseSrcClass parent_class;
 };
 
+/**
+ * @brief Get the GType of the mqttsrc element.
+ */
 GType gst_mqtt_src_get_type (void);
 
 G_END_DECLS

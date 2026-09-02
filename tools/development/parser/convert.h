@@ -18,6 +18,9 @@
 
 #include "types.h"
 
+/**
+ * @brief Print the parsed pipeline as a pbtxt-style element tree to stdout.
+ */
 void convert_to_pbtxt (_Element *pipeline);
 
 #endif

@@ -68,6 +68,9 @@ struct _GstDataRepoSinkClass
   GstBaseSinkClass parent_class;
 };
 
+/**
+ * @brief Get the GType of the datareposink element.
+ */
 GType gst_data_repo_sink_get_type (void);
 
 G_END_DECLS

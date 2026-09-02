@@ -98,6 +98,9 @@ struct _GstDataRepoSrcClass {
   GstPushSrcClass parent_class;
 };
 
+/**
+ * @brief Get the GType of the datareposrc element.
+ */
 GType gst_data_repo_src_get_type (void);
 
 G_END_DECLS
