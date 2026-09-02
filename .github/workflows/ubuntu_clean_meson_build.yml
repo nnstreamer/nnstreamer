@@ -145,7 +145,7 @@ jobs:
         # from here. Catch it on a required check instead.
         #
         # This sees only what this job configures. A block behind an SDK that
-        # is not installed here - SNPE, TensorRT, tensorflow, pytorch, ncnn,
+        # is not installed here - SNPE, TensorRT, tensorflow, pytorch,
         # mvncsdk2 - is never visited, so it can still carry a construct newer
         # than the floor.
         if grep -q 'uses feature introduced' build/meson-logs/meson-log.txt; then
