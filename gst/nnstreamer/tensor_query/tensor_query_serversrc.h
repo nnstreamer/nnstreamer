@@ -64,6 +64,9 @@ struct _GstTensorQueryServerSrcClass
   GstPushSrcClass parent_class; /**< parent class */
 };
 
+/**
+ * @brief Get the GType of the tensor_query_serversrc element.
+ */
 GType gst_tensor_query_serversrc_get_type (void);
 
 G_END_DECLS

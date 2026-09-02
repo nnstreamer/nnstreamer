@@ -57,6 +57,9 @@ struct _GstTensorQueryServerSinkClass
   GstBaseSinkClass parent_class; /**< parent class */
 };
 
+/**
+ * @brief Get the GType of the tensor_query_serversink element.
+ */
 GType gst_tensor_query_serversink_get_type (void);
 
 G_END_DECLS

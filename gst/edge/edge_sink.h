@@ -69,6 +69,9 @@ struct _GstEdgeSinkClass
   GstBaseSinkClass parent_class;   /**<parent class */
 };
 
+/**
+ * @brief Get the GType of the edgesink element.
+ */
 GType gst_edgesink_get_type (void);
 
 G_END_DECLS
