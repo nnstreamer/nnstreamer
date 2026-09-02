@@ -369,11 +369,14 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
 
     buf = gst_collect_pads_peek (collect, data);
     if (buf != NULL) {
-      if (pad->buffer != NULL)
-        base_time =
-            MIN ((GstClockTimeDiff) sync->data_basepad.duration,
-            ABS (GST_CLOCK_DIFF (GST_BUFFER_PTS (buf),
-                    GST_BUFFER_PTS (pad->buffer))) - 1);
+      if (pad->buffer != NULL) {
+        GstClockTimeDiff gap = ABS (GST_CLOCK_DIFF (GST_BUFFER_PTS (buf),
+                GST_BUFFER_PTS (pad->buffer)));
+
+        /* equal timestamps must not wrap the tolerance to G_MAXUINT64 */
+        base_time = MIN ((GstClockTimeDiff) sync->data_basepad.duration,
+            (gap > 0) ? (gap - 1) : 0);
+      }
       gst_buffer_unref (buf);
     }
   }
