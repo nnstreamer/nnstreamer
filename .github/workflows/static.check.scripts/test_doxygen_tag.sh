@@ -168,11 +168,31 @@ class adder
 };'
 run_checker 1 "declaration without any doc between documented ones fails" trailing_missing.hh
 
+write_fixture trailing_belongs_to_next.hh '/** @brief adder */
+class adder
+{
+  public:
+  /** @brief the class */
+  adder ();
+  int add_one (int x);
+  int count; /**< documents count, not add_one */
+};'
+run_checker 1 "a /**< on the next declaration does not cover this one" trailing_belongs_to_next.hh
+
 write_fixture undocumented_struct.h 'struct point
 {
   int x;
 };'
 run_checker 1 "undocumented struct fails" undocumented_struct.h
+
+# The tag must not survive a code line just because that line has a '*' in
+# it: a pointer parameter is not a comment.
+write_fixture pointer_line.h '/**
+ * @brief add one in place
+ */
+void add_one (int *x);
+void add_two (int *x);'
+run_checker 1 "a brief does not carry over a pointer-typed declaration" pointer_line.h
 
 write_fixture ends_in_brief.c '/**
  * @brief add one
