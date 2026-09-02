@@ -819,18 +819,24 @@ _gst_tensor_converter_chain_timestamp (GstTensorConverter * self,
           pts = self->old_timestamp + duration;
         }
       } else {
-        GstClock *clock;
+        GstClock *clock = NULL;
+        GstClockTime base = GST_CLOCK_TIME_NONE;
 
-        clock = gst_element_get_clock (GST_ELEMENT (self));
+        /* base_time is delivered right before PLAYING is committed */
+        GST_OBJECT_LOCK (self);
+        if (GST_STATE (self) == GST_STATE_PLAYING && GST_ELEMENT_CLOCK (self)) {
+          clock = gst_object_ref (GST_ELEMENT_CLOCK (self));
+          base = GST_ELEMENT_CAST (self)->base_time;
+        }
+        GST_OBJECT_UNLOCK (self);
 
         if (clock) {
-          GstClockTime now, base;
-
-          base = gst_element_get_base_time (GST_ELEMENT (self));
-          now = gst_clock_get_time (clock);
+          GstClockTime now = gst_clock_get_time (clock);
 
           pts = (base < now) ? (now - base) : 0;
           gst_object_unref (clock);
+        } else if (GST_CLOCK_TIME_IS_VALID (self->old_timestamp)) {
+          pts = self->old_timestamp;
         }
       }
 

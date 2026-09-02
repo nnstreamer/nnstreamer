@@ -75,6 +75,16 @@ When incoming media type is video, audio, or text, each frame (or a set of frame
 - Text
   - TBD.
 
+## Timestamps
+
+With ```set-timestamp=true``` (the default), a frame that arrives without a timestamp gets one:
+
+- If the input caps carry a framerate, the timestamp is the previous timestamp plus one frame duration, starting at the segment start.
+- Otherwise, while the element is PLAYING, the timestamp is the pipeline running time (clock time minus base time).
+- Otherwise (PAUSED, or no clock), the previous timestamp is reused; the very first frame gets the segment start.
+
+The running time is only taken while PLAYING because the base time reaches the element right before that state is committed. Using the clock earlier would stamp the absolute clock time and stall a synchronizing sink (see issue #4898).
+
 ## Properties
 
 - frames-per-tensor: The number of incoming media frames that will be contained in a single instance of tensors. With the value > 1, you can put multiple frames in a single tensor.

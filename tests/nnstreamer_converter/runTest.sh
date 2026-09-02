@@ -92,6 +92,27 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! videos
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_00.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=4:4:4:4:4 input-type=float32 ! fakesink" 8-1 0 0 $PERFORMANCE
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_01.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=3:10:10:4:5:6 input-type=uint8 ! fakesink" 8-2 0 0 $PERFORMANCE
 
+# Timestamp test cases (issue #4898): untimestamped frames without a framerate
+# must get a running time, so a synchronizing sink renders them and the
+# pipeline reaches EOS. A stall here is reported by the timeout.
+TS_PADDING=""
+for i in $(seq 1 40); do
+    TS_PADDING="${TS_PADDING}identity ! "
+done
+TS_SRC="fakesrc num-buffers=5 sizetype=fixed sizemax=10 ! application/octet-stream"
+TS_CONV="tensor_converter input-dim=10 input-type=uint8"
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${TS_SRC} ! ${TS_CONV} ! ${TS_PADDING}fakesink sync=true" 9-1 0 0 $PERFORMANCE 30
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${TS_SRC} ! ${TS_CONV} ! ${TS_PADDING}queue ! fakesink sync=true" 9-2 0 0 $PERFORMANCE 30
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${TS_SRC} ! ${TS_CONV} ! tee name=ts ts. ! queue ! fakesink sync=true ts. ! queue ! ${TS_PADDING}fakesink sync=true" 9-3 0 0 $PERFORMANCE 30
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${TS_SRC} ! ${TS_CONV} set-timestamp=false ! ${TS_PADDING}fakesink sync=true" 9-4 0 0 $PERFORMANCE 30
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc is-live=true num-buffers=5 ! video/x-raw,format=GRAY8,width=16,height=16,framerate=0/1 ! tensor_converter ! ${TS_PADDING}fakesink sync=true" 9-5 0 0 $PERFORMANCE 30
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc is-live=true num-buffers=5 samplesperbuffer=800 ! audio/x-raw,format=S16LE,rate=8000,channels=1 ! tensor_converter frames-per-tensor=800 ! ${TS_PADDING}fakesink sync=true" 9-6 0 0 $PERFORMANCE 30
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${TS_SRC} ! ${TS_CONV} set-timestamp=notabool ! fakesink sync=true" 9-7_n 0 1 $PERFORMANCE 30
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${TS_SRC} ! tensor_converter ! fakesink sync=true" 9-8_n 0 1 $PERFORMANCE 30
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${TS_SRC} ! ${TS_CONV} ! mux.sink_0 ${TS_SRC} ! ${TS_CONV} ! mux.sink_1 tensor_mux name=mux ! ${TS_PADDING}fakesink sync=true" 9-9 0 0 $PERFORMANCE 30
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${TS_SRC} ! ${TS_CONV} ! tensor_aggregator frames-in=1 frames-out=5 frames-flush=5 ! ${TS_PADDING}fakesink sync=true" 9-10 0 0 $PERFORMANCE 30
+
 rm *.log *.bmp *.png *.golden *.dat
 
 report
