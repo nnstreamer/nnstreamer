@@ -30,6 +30,9 @@
 
 using namespace dali;
 
+/**
+ * @brief Print the command line usage of this tool.
+ */
 void
 usage ()
 {
@@ -41,6 +44,9 @@ usage ()
   std::cout << "  C: Number of channels of the preprocessed image." << std::endl;
 }
 
+/**
+ * @brief Build a resize/normalize/transpose DALI pipeline and serialize it.
+ */
 int
 main (int argc, char *argv[])
 {

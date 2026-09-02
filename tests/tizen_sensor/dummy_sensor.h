@@ -125,41 +125,74 @@ typedef void* sensor_listener_h;
 
 
 /* main */
+/**
+ * @brief Dummy Tizen Sensor API: tell whether the sensor type is supported.
+ */
 extern int
 sensor_is_supported (sensor_type_e type, bool * supported);
 
+/**
+ * @brief Dummy Tizen Sensor API: get the first sensor handle of the type.
+ */
 extern int
 sensor_get_default_sensor (sensor_type_e type, sensor_h *sensor);
 
+/**
+ * @brief Dummy Tizen Sensor API: list every sensor handle of the type.
+ */
 extern int
 sensor_get_sensor_list (sensor_type_e type, sensor_h **list, int *sensor_count);
 
+/**
+ * @brief Dummy Tizen Sensor API: get the type of the given sensor handle.
+ */
 extern int
 sensor_get_type (sensor_h sensor, sensor_type_e *type);
 
 
 
 /* listener */
+/**
+ * @brief Dummy Tizen Sensor API: register a new listener on the sensor.
+ */
 extern int
 sensor_create_listener (sensor_h sensor, sensor_listener_h *listener);
 
+/**
+ * @brief Dummy Tizen Sensor API: unregister the listener from its sensor.
+ */
 extern int
 sensor_destroy_listener (sensor_listener_h listener);
 
+/**
+ * @brief Dummy Tizen Sensor API: let the listener read sensor data.
+ */
 extern int
 sensor_listener_start (sensor_listener_h listener);
 
+/**
+ * @brief Dummy Tizen Sensor API: stop the listener from reading data.
+ */
 extern int
 sensor_listener_stop (sensor_listener_h listener);
 
+/**
+ * @brief Dummy Tizen Sensor API: set the sampling interval of the listener.
+ */
 extern int
 sensor_listener_set_interval (sensor_listener_h listener, unsigned int interval_ms);
 
+/**
+ * @brief Dummy Tizen Sensor API: read the last event recorded by the sensor.
+ */
 extern int
 sensor_listener_read_data_list (sensor_listener_h listener, sensor_event_s ** events, int * count);
 
 
 /* publish data */
+/**
+ * @brief Record the given event as the sensor's latest data for listeners.
+ */
 extern int
 dummy_publish (sensor_h sensor, sensor_event_s * value);
 
