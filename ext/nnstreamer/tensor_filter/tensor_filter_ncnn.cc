@@ -533,18 +533,19 @@ ncnn_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
     memset (output_data, 0, output[i].size);
 
     for (int j = 0; j < out.h && j < max_rows; j++) {
-      float *values = out.row (j);
+      const float *values = out.row (j);
       const int label = (int) values[0];
 
-      values[2] = fmaxf (fminf (values[2], 1.0), 0.0);
-      values[3] = fmaxf (fminf (values[3], 1.0), 0.0);
-      values[4] = fmaxf (fminf (values[4], 1.0), 0.0);
-      values[5] = fmaxf (fminf (values[5], 1.0), 0.0);
+      /* clamp into locals; out is the extractor's blob, not ours to edit */
+      const float x1 = fmaxf (fminf (values[2], 1.0), 0.0);
+      const float y1 = fmaxf (fminf (values[3], 1.0), 0.0);
+      const float x2 = fmaxf (fminf (values[4], 1.0), 0.0);
+      const float y2 = fmaxf (fminf (values[5], 1.0), 0.0);
 
-      output_data[0] = (values[2] + values[4]) / 2;
-      output_data[1] = (values[3] + values[5]) / 2;
-      output_data[2] = values[4] - values[2];
-      output_data[3] = values[5] - values[3];
+      output_data[0] = (x1 + x2) / 2;
+      output_data[1] = (y1 + y2) / 2;
+      output_data[2] = x2 - x1;
+      output_data[3] = y2 - y1;
       output_data[4] = values[1];
       if (label >= 0 && label + 5 < label_count)
         output_data[5 + label] = 1;
