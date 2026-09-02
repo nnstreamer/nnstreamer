@@ -321,15 +321,12 @@ gst_tensor_transform_get_mode_string (tensor_transform_mode mode)
 {
   GEnumClass *klass;
   GEnumValue *val;
-  const gchar *nick = "unknown";
 
-  klass = g_type_class_ref (GST_TYPE_TENSOR_TRANSFORM_MODE);
-  val = g_enum_get_value (klass, mode);
-  if (val)
-    nick = val->value_nick;
-  g_type_class_unref (klass);
+  /* the class is kept alive by the "mode" property spec */
+  klass = (GEnumClass *) g_type_class_peek (GST_TYPE_TENSOR_TRANSFORM_MODE);
+  val = klass ? g_enum_get_value (klass, mode) : NULL;
 
-  return nick;
+  return val ? val->value_nick : "unknown";
 }
 
 /**
@@ -1862,7 +1859,7 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
   filter = GST_TENSOR_TRANSFORM_CAST (trans);
 
   if (!filter->loaded) {
-    GST_ELEMENT_ERROR (filter, STREAM, FAILED, (NULL),
+    GST_ELEMENT_ERROR (filter, CORE, NEGOTIATION, (NULL),
         ("Transform is not configured (mode=%s, option=%s).",
             gst_tensor_transform_get_mode_string (filter->mode),
             GST_STR_NULL (filter->option)));
