@@ -69,6 +69,13 @@ if [ "$SKIPGEN" == "YES" ]; then
 else
     echo "Test Case Generation Started"
     python3 ../nnstreamer_converter/generateTest.py
+    # A 3:4 float32 input for the two-output model, with the golden it
+    # implies: both of its inputs come from one tee, so its outputs are the
+    # input plus 1.0 and the same input plus 2.0, written back to back.
+    python3 -c "import numpy as np; \
+d = np.random.uniform(-100, 100, [3, 4]).astype(np.float32); \
+d.tofile('test_3x4.dat'); \
+np.concatenate([d + 1.0, d + 2.0]).astype(np.float32).tofile('test_3x4.golden')"
     sopath=$1
 fi
 
@@ -93,6 +100,13 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_00.dat\" bl
 ## correct input/output info
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_00.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=4:4:4:4:4 input-type=float32 ! tee name=t t. ! queue ! mux.sink_0 t. ! queue ! mux.sink_1  tensor_mux name=mux sync_mode=nosync ! queue ! tensor_filter framework=executorch model=${PATH_TO_MODEL} ! filesink location=tensorfilter.out.log" 5 0 0 $PERFORMANCE
 callCompareTest test_00.dat.golden tensorfilter.out.log 6 "Compare 5" 1 0
+
+# The cases above never look at what the two-output model computed, only at
+# whether the pipeline ran; swapping its two constants would still pass them.
+PATH_TO_MODEL="../test_models/models/sample_3x4_two_input_two_output.pte"
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} filesrc location=\"test_3x4.dat\" blocksize=-1 ! application/octet-stream ! tensor_converter input-dim=4:3 input-type=float32 ! tee name=t t. ! queue ! mux.sink_0 t. ! queue ! mux.sink_1  tensor_mux name=mux sync_mode=nosync ! queue ! tensor_filter framework=executorch model=${PATH_TO_MODEL} ! filesink location=tensorfilter.out.log" 7 0 0 $PERFORMANCE
+callCompareTest test_3x4.golden tensorfilter.out.log 8 "Compare 7" 1 0
 
 # Cleanup
 rm *.log *.golden *.dat

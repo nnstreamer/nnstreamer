@@ -467,7 +467,7 @@ tensor_filter_ext_enabled = tflite_support_is_available or \
     mxnet_support_is_available or litert_support_is_available or \
     onnxruntime_support_is_available or tensorrt_support_is_available or \
     tensorrt10_support_is_available or tvm_support_is_available or \
-    lua_support_is_available
+    executorch_support_is_available or lua_support_is_available
 if get_option('install-test') and tensor_filter_ext_enabled
   # host-only model generator scripts are not needed on target devices
   install_subdir('test_models', install_dir: unittest_install_dir,
@@ -531,7 +531,9 @@ if get_option('install-test')
     install_subdir('nnstreamer_protobuf', install_dir: unittest_install_dir)
   endif
   if executorch_support_is_available
-    install_subdir('nnstreamer_filter_executorch', install_dir: unittest_install_dir)
+    # generateModel.py is a host-only fixture generator, as in test_models above
+    install_subdir('nnstreamer_filter_executorch', install_dir: unittest_install_dir,
+      exclude_files: ['generateModel.py'])
   endif
   if litert_support_is_available
     install_subdir('nnstreamer_filter_litert', install_dir: unittest_install_dir)
