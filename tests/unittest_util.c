@@ -196,7 +196,7 @@ wait_pipeline_process_buffers (const guint * data_received,
   guint tick = TEST_DEFAULT_SLEEP_TIME / 1000U;
 
   /* Waiting for expected buffers to arrive */
-  while (*data_received < expected_num_buffers) {
+  while ((guint) g_atomic_int_get (data_received) < expected_num_buffers) {
     g_usleep (TEST_DEFAULT_SLEEP_TIME);
     timer += tick;
     if (timer > timeout_ms)

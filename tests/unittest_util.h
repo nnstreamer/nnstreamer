@@ -75,6 +75,7 @@ extern void leavePrivateWorkDir (gchar **work_dir);
 
 /**
  * @brief Wait until the pipeline processing the buffers
+ * @param data_received counter bumped by the streaming thread; read atomically
  * @return TRUE on success, FALSE when a time-out occurs
  */
 extern gboolean wait_pipeline_process_buffers (const guint * data_received, guint expected_num_buffers, guint timeout_ms);
