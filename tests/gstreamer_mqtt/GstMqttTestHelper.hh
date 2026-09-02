@@ -183,6 +183,7 @@ class GstMqttTestHelper
         fail_send (false), fail_disconnect (false), fail_subscribe (false),
         fail_unsubscribe (false), is_connected (false){};
 
+  /** @brief Disable the copy constructor to keep this class a singleton */
   GstMqttTestHelper (const GstMqttTestHelper &) = delete;
   GstMqttTestHelper &operator= (const GstMqttTestHelper &) = delete;
 

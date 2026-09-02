@@ -84,49 +84,72 @@ class NCSDKTensorFilterTestHelper
         [] () { mInstance.reset (new NCSDKTensorFilterTestHelper); });
     return *(mInstance.get ());
   }
+  /** @brief Destructor releasing the mocked device and graph resources */
   ~NCSDKTensorFilterTestHelper ();
+  /** @brief Set up the fake device, graph and tensor descriptors */
   void init (model_t model);
+  /** @brief Free the resources allocated by init () */
   void release ();
   /* Set/Get fail-stage */
+  /** @brief Set the NCSDK stage at which the mock should report failure */
   void setFailStage (const fail_stage_t stage);
+  /** @brief Get the NCSDK stage at which the mock reports failure */
   fail_stage_t getFailStage ();
 
   /* Mock methods that simulate NCSDK2 APIs */
   /* Mock Global APIs */
+  /** @brief Mock of ncGlobalGetOption (); returns the NCSDK version */
   ncStatus_t ncGlobalGetOption (int option, void *data, unsigned int *dataLength);
   /* Mock Device APIs */
+  /** @brief Mock of ncDeviceCreate (); hands out the fake device handle */
   ncStatus_t ncDeviceCreate (int index, struct ncDeviceHandle_t **deviceHandle);
+  /** @brief Mock of ncDeviceOpen (); checks the given device handle */
   ncStatus_t ncDeviceOpen (struct ncDeviceHandle_t *deviceHandle);
+  /** @brief Mock of ncDeviceClose (); checks the given device handle */
   ncStatus_t ncDeviceClose (struct ncDeviceHandle_t *deviceHandle);
+  /** @brief Mock of ncDeviceDestroy (); frees the fake device handle */
   ncStatus_t ncDeviceDestroy (struct ncDeviceHandle_t **deviceHandle);
 
   /* Mock Graph APIs */
+  /** @brief Mock of ncGraphCreate (); hands out the fake graph handle */
   ncStatus_t ncGraphCreate (const char *name, struct ncGraphHandle_t **graphHandle);
+  /** @brief Mock of ncGraphAllocate (); records the given graph buffer */
   ncStatus_t ncGraphAllocate (struct ncDeviceHandle_t *deviceHandle,
       struct ncGraphHandle_t *graphHandle, const void *graphBuffer,
       unsigned int graphBufferLength);
+  /** @brief Mock of ncGraphGetOption (); returns a tensor descriptor */
   ncStatus_t ncGraphGetOption (struct ncGraphHandle_t *graphHandle, int option,
       void *data, unsigned int *dataLength);
+  /** @brief Mock of ncGraphQueueInference (); does nothing */
   ncStatus_t ncGraphQueueInference (struct ncGraphHandle_t *graphHandle,
       struct ncFifoHandle_t **fifoIn, unsigned int inFifoCount,
       struct ncFifoHandle_t **fifoOut, unsigned int outFifoCount);
+  /** @brief Mock of ncGraphDestroy (); frees the fake graph handle */
   ncStatus_t ncGraphDestroy (struct ncGraphHandle_t **graphHandle);
 
   /* Mock FIFO APIs (returning only NC_OK) */
+  /** @brief Mock of ncFifoCreate (); fails only at the matching fail stage */
   ncStatus_t ncFifoCreate (
       const char *name, ncFifoType_t type, struct ncFifoHandle_t **fifoHandle);
+  /** @brief Mock of ncFifoAllocate (); fails only at the matching fail stage */
   ncStatus_t ncFifoAllocate (struct ncFifoHandle_t *fifoHandle,
       struct ncDeviceHandle_t *device, struct ncTensorDescriptor_t *tensorDesc,
       unsigned int numElem);
+  /** @brief Mock of ncFifoSetOption (); always returns NC_OK */
   ncStatus_t ncFifoSetOption (struct ncFifoHandle_t *fifoHandle, int option,
       const void *data, unsigned int dataLength);
+  /** @brief Mock of ncFifoGetOption (); always returns NC_OK */
   ncStatus_t ncFifoGetOption (struct ncFifoHandle_t *fifoHandle, int option,
       void *data, unsigned int *dataLength);
+  /** @brief Mock of ncFifoDestroy (); always returns NC_OK */
   ncStatus_t ncFifoDestroy (struct ncFifoHandle_t **fifoHandle);
+  /** @brief Mock of ncFifoWriteElem (); drops the given input tensor */
   ncStatus_t ncFifoWriteElem (struct ncFifoHandle_t *fifoHandle,
       const void *inputTensor, unsigned int *inputTensorLength, void *userParam);
+  /** @brief Mock of ncFifoReadElem (); leaves the output buffer untouched */
   ncStatus_t ncFifoReadElem (struct ncFifoHandle_t *fifoHandle,
       void *outputData, unsigned int *outputDataLen, void **userParam);
+  /** @brief Mock of ncFifoRemoveElem (); fails at the matching fail stage */
   ncStatus_t ncFifoRemoveElem (struct ncFifoHandle_t *fifoHandle); /* not supported yet */
 
   private:
@@ -135,7 +158,9 @@ class NCSDKTensorFilterTestHelper
   static std::once_flag mOnceFlag;
 
   /* Constructor and destructor */
+  /** @brief Default constructor; init () must be invoked before use */
   NCSDKTensorFilterTestHelper ();
+  /** @brief Disable the copy constructor to keep this class a singleton */
   NCSDKTensorFilterTestHelper (const NCSDKTensorFilterTestHelper &) = delete;
   NCSDKTensorFilterTestHelper &operator= (const NCSDKTensorFilterTestHelper &) = delete;
 

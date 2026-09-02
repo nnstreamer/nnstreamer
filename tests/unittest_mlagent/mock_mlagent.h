@@ -90,6 +90,9 @@ gint ml_agent_model_get_activated (
 struct MockModel {
   /* Constructors */
   MockModel () = delete;
+  /**
+   * @brief Construct a mock model with the given attributes
+   */
   MockModel (std::string name, std::string path = {}, std::string app_info = {},
       bool is_activated = false, std::string desc = {}, guint version = 0U)
       : name_{ name }, path_{ path }, app_info_{ app_info },
@@ -97,6 +100,9 @@ struct MockModel {
 
         };
   /* Copy constructor */
+  /**
+   * @brief Copy a mock model by delegating to the attribute constructor
+   */
   MockModel (const MockModel &other)
       : MockModel (other.name_, other.path_, other.app_info_,
           other.is_activated_, other.desc_, other.version_){
@@ -131,55 +137,88 @@ struct MockModel {
   }
 
   /* Getters */
+  /**
+   * @brief Get the model's name
+   */
   std::string name () const
   {
     return name_;
   }
 
+  /**
+   * @brief Get the model's file path
+   */
   std::string path () const
   {
     return path_;
   }
+  /**
+   * @brief Get the model's application info
+   */
   std::string app_info () const
   {
     return app_info_;
   }
+  /**
+   * @brief Get whether the model is activated
+   */
   bool is_activated () const
   {
     return is_activated_;
   }
 
+  /**
+   * @brief Get the model's description
+   */
   std::string desc () const
   {
     return desc_;
   }
 
+  /**
+   * @brief Get the model's version
+   */
   guint version () const
   {
     return version_;
   }
 
   /* Setters */
+  /**
+   * @brief Set the model's file path
+   */
   void path (const std::string &path)
   {
     path_ = path;
   }
 
+  /**
+   * @brief Set whether the model is activated
+   */
   void is_activated (bool flag)
   {
     is_activated_ = flag;
   }
 
+  /**
+   * @brief Set the model's description
+   */
   void desc (const std::string &description)
   {
     desc_ = description;
   }
 
+  /**
+   * @brief Set the model's application info
+   */
   void app_info (const std::string &info)
   {
     app_info_ = info;
   }
 
+  /**
+   * @brief Set the model's version
+   */
   void version (guint ver)
   {
     version_ = ver;

@@ -88,27 +88,37 @@ class Predictor
   Predictor ()
   {
   }
+  /** @brief construct a Predictor from the model, params and data iterator */
   Predictor (const std::string &model_json_file, const std::string &model_params_file,
       const Shape &input_shape, const std::string &data_layer_type,
       bool use_gpu, bool enable_tensorrt, MXDataIter *val_iter);
+  /** @brief destructor; releases the bound executor */
   ~Predictor ();
 
+  /** @brief create an ImageRecordIter for the given dataset and shape */
   static MXDataIter *CreateImageRecordIter (const std::string &dataset,
       const Shape &input_shape, const std::string &data_layer_type,
       const std::vector<float> &rgb_mean, const std::vector<float> &rgb_std,
       int shuffle_chunk_seed, int seed, const int data_nthreads, bool use_gpu);
+  /** @brief run the forward pass and log the top class of each batch */
   void LogInferenceResult (std::vector<mx_float> &log_vector, int num_inference_batches);
 
   private:
+  /** @brief skip the given number of batches in the validation iterator */
   bool AdvanceDataIter (int skipped_batches);
+  /** @brief load the model symbol from the given json file */
   void LoadModel (const std::string &model_json_file);
+  /** @brief load the model parameters from the given params file */
   void LoadParameters (const std::string &model_parameters_file);
+  /** @brief split a loaded param map into arg and aux maps */
   void SplitParamMap (const std::map<std::string, NDArray> &paramMap,
       std::map<std::string, NDArray> *argParamInTargetContext,
       std::map<std::string, NDArray> *auxParamInTargetContext, Context targetContext);
+  /** @brief copy the param map into the target context */
   void ConvertParamMapToTargetContext (const std::map<std::string, NDArray> &paramMap,
       std::map<std::string, NDArray> *paramMapInTargetContext, Context targetContext);
 
+  /** @brief map data_layer_type_ to a TypeFlag, or -1 if unsupported */
   int GetDataLayerType ();
 
   MXDataIter *val_iter_;
