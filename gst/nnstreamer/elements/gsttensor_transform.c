@@ -305,7 +305,6 @@ gst_tensor_transform_init (GstTensorTransform * filter)
   filter->operators = NULL;
   filter->acceleration = DEFAULT_ACCELERATION;
   filter->apply = NULL;
-  filter->data_typecast.to = _NNS_END;
 
   gst_tensors_config_init (&filter->in_config);
   gst_tensors_config_init (&filter->out_config);
@@ -690,8 +689,10 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
   gchar *filter_name;
   gboolean ret = FALSE;
 
-  if (filter->mode == GTT_UNKNOWN || filter->option == NULL)
+  if (filter->mode == GTT_UNKNOWN || filter->option == NULL) {
+    filter->loaded = FALSE;
     return TRUE;
+  }
 
   filter_name = gst_object_get_name ((GstObject *) filter);
 
@@ -1053,6 +1054,9 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
       GST_ERROR_OBJECT (filter, "Cannot identify mode\n");
       ret = FALSE;
   }
+
+  if (!ret)
+    filter->loaded = FALSE;
 
   g_free (filter_name);
   return ret;
@@ -2180,7 +2184,7 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
     if (out_config.info.format == _NNS_TENSOR_FORMAT_END) {
       out_caps = gst_pad_get_pad_template_caps (pad);
     } else {
-      if (gst_tensors_config_is_static (&out_config)) {
+      if (filter->loaded && gst_tensors_config_is_static (&out_config)) {
         for (j = 0; j < in_config.info.num_tensors; j++) {
           in_info = gst_tensors_info_get_nth_info (&in_config.info, j);
           out_info = gst_tensors_info_get_nth_info (&out_config.info, j);
@@ -2228,7 +2232,9 @@ gst_tensor_transform_transform_caps (GstBaseTransform * trans,
     gst_caps_unref (result);
     result = intersection;
   } else if (direction == GST_PAD_SINK && gst_caps_is_fixed (caps)
-      && !gst_caps_is_empty (result)) {
+      && !gst_caps_is_empty (result)
+      && gst_debug_category_get_threshold (GST_CAT_DEFAULT) >=
+      GST_LEVEL_WARNING) {
     GstCaps *peercaps = gst_pad_peer_query_caps (pad, NULL);
 
     if (peercaps) {
