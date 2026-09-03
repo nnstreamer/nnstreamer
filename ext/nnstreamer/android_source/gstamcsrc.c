@@ -243,8 +243,9 @@ G_DEFINE_BOXED_TYPE (GstWrappedBuf, gst_wrapped_buf,
 
 /**
  * @brief get system's nanotime
+ * @todo consider using g_get_monotonic_time_ns() (glib >= 2.88)
  */
-static int64_t
+static gint64
 systemnanotime (void)
 {
   struct timespec now;
@@ -642,26 +643,18 @@ feed_frame_buf (GstAMCSrc * self, guint8 * buf, gint idx, gsize real_size,
     gsize buf_size)
 {
   GstAMCSrcPrivate *priv;
-  GstElement *element;
   GstBuffer *buffer;
   GstMemory *mem;
   GstDataQueueItem *item;
   GstClockTime duration = GST_CLOCK_TIME_NONE;
   GstClockTime current_ts = GST_CLOCK_TIME_NONE;
-  GstClock *clock;
   GstWrappedBuf *wrapped_buf;
 
   g_return_if_fail (self != NULL);
   g_return_if_fail (buf != NULL);
 
   priv = GST_AMC_SRC_GET_PRIVATE (self);
-  element = GST_ELEMENT (self);
-
-  if ((clock = gst_element_get_clock (element))) {
-    current_ts =
-        gst_clock_get_time (clock) - gst_element_get_base_time (element);
-    gst_object_unref (clock);
-  }
+  current_ts = gst_element_get_current_running_time (GST_ELEMENT (self));
 
   g_mutex_lock (&priv->mutex);
 
@@ -687,7 +680,7 @@ feed_frame_buf (GstAMCSrc * self, guint8 * buf, gint idx, gsize real_size,
   wrapped_buf = g_new0 (GstWrappedBuf, 1);
   g_assert (wrapped_buf != NULL);
   wrapped_buf->refcount = 1;
-  wrapped_buf->amcsrc = g_object_ref (self);
+  wrapped_buf->amcsrc = gst_object_ref (self);
   wrapped_buf->buf = buf;
   wrapped_buf->idx = idx;
 
@@ -723,7 +716,7 @@ static void
 check_codec_buf (GstAMCSrc * self)
 {
   GstAMCSrcPrivate *priv = GST_AMC_SRC_GET_PRIVATE (self);
-  gint64 delay, presentation_time;
+  gint64 delay, presentation_time, time_ns;
   gssize buf_idx = -1;
   gsize buf_size;
 
@@ -754,6 +747,8 @@ check_codec_buf (GstAMCSrc * self)
     AMediaCodecBufferInfo info;
     buf_idx = AMediaCodec_dequeueOutputBuffer (priv->codec, &info, 0);
     if (buf_idx >= 0) {
+      time_ns = systemnanotime ();
+
       if (info.flags & AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM) {
         LOGI ("output EOS");
         priv->sawOutputEOS = TRUE;
@@ -761,11 +756,11 @@ check_codec_buf (GstAMCSrc * self)
 
       presentation_time = info.presentationTimeUs * 1000;
       if (priv->renderstart < 0)
-        priv->renderstart = systemnanotime () - presentation_time;
+        priv->renderstart = time_ns - presentation_time;
 
-      delay = (priv->renderstart + presentation_time) - systemnanotime ();
+      delay = (priv->renderstart + presentation_time) - time_ns;
       if (delay > 0)
-        usleep (delay / 1000);
+        g_usleep (delay / 1000);
 
       if (info.size > 0) {
         /**
