@@ -708,6 +708,8 @@ TEST (tensorConverterTimestampPipeline, syncSinkNoTimestampCompletes_p)
 
 /**
  * @brief Positive: a live video source without a framerate still completes.
+ * The source stamps its frames and streams only after its own transition,
+ * so this is a smoke test of the live path rather than a window regression.
  */
 TEST (tensorConverterTimestampPipeline, liveVideoNoFramerateCompletes_p)
 {
