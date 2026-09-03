@@ -39,7 +39,8 @@ jobs:
       if: env.rebuild == '1'
       run: |
         echo "deb [trusted=yes] http://download.tizen.org/tools/latest-release/Ubuntu_22.04/ /" | sudo tee /etc/apt/sources.list.d/tizen.list
-        sudo apt-get update && sudo apt-get install -y gbs
+        sudo apt-get update
+        sudo apt-get install -y gbs
         cp .github/workflows/tizen.gbs.conf ~/.gbs.conf
 
     - name: get date
