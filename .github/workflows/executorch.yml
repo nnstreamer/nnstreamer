@@ -104,6 +104,12 @@ jobs:
         # success with zero cases when the .so is absent.
         test -f build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_executorch.so
 
+    - name: unit test the ExecuTorch subplugin
+      run: |
+        export LD_LIBRARY_PATH="${EXECUTORCH_PREFIX}/lib:${LD_LIBRARY_PATH}"
+        # Naming the test makes meson fail outright if it was not registered,
+        # rather than reporting an empty run as success.
+        meson test -C build/ unittest_filter_executorch --print-errorlogs
     - name: SSAT run on filter-executorch
       run: |
         export LD_LIBRARY_PATH="${EXECUTORCH_PREFIX}/lib:${LD_LIBRARY_PATH}"
