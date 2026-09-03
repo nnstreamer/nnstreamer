@@ -21,7 +21,8 @@ jobs:
       run: |
         ubuntu_version=`lsb_release -rs`
         echo "deb [trusted=yes] http://download.tizen.org/tools/latest-release/Ubuntu_$ubuntu_version/ /" | sudo tee /etc/apt/sources.list.d/tizen.list
-        sudo apt-get update && sudo apt-get install -y gbs rpm2cpio cpio
+        sudo apt-get update
+        sudo apt-get install -y gbs rpm2cpio cpio
         cp .github/workflows/tizen.gbs.conf ~/.gbs.conf
 
     - name: Run nnstreamer gbs build

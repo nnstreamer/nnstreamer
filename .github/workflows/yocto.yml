@@ -78,8 +78,7 @@ jobs:
             echo "Enough free disk space (${avail_gb}G); skipping cleanup."
             exit 0
           fi
-          sudo apt-get update --fix-missing \
-            && sudo apt-get remove -y '^dotnet-.*' '^llvm-.*' '^mysql-server-core-.*' '^postgresql-.*' '^temurin-.*' \
+          sudo apt-get remove -y '^dotnet-.*' '^llvm-.*' '^mysql-server-core-.*' '^postgresql-.*' '^temurin-.*' \
             azure-cli google-chrome-stable google-cloud-cli firefox powershell microsoft-edge-stable mono-devel \
             && sudo apt-get purge docker-ce docker-ce-cli \
             && sudo apt-get autoremove -y \
