@@ -972,9 +972,13 @@ litert_subplugin::inputShapeDiffers (const GstTensorsInfo *in_info) const
     const GstTensorInfo *have = gst_tensors_info_get_nth_info (
         const_cast<GstTensorsInfo *> (std::addressof (inputTensorMeta)), i);
 
-    for (guint d = 0; d < NNS_TENSOR_RANK_LIMIT; ++d)
-      if (want->dimension[d] != have->dimension[d])
-        return true;
+    /** Ask the framework, not the array. The two sides are padded by
+     *  different rules - convertLayout() zero fills past the model's rank
+     *  while a pipeline carries explicit trailing 1s - so comparing
+     *  element by element calls one logical shape two different things and
+     *  reshapes on every buffer forever. */
+    if (!gst_tensor_dimension_is_equal (want->dimension, have->dimension))
+      return true;
   }
 
   return false;
@@ -1002,6 +1006,15 @@ litert_subplugin::reshapeTo (const GstTensorsInfo *in_info)
     throw std::invalid_argument ("A dynamic invoke cannot change the number of input tensors ("
                                  + std::to_string (inputTensorMeta.num_tensors) + " -> "
                                  + std::to_string (in_info->num_tensors) + ").");
+
+  /** Logged because a reshape is otherwise invisible: it produces the same
+   *  bytes as skipping one, so nothing downstream can tell that a pipeline
+   *  is rebuilding the model on every buffer.
+   *
+   *  dynamicInvokePaddedShapeSkipsReshape in unittest_filter_litert.cc
+   *  matches on "litert reshaping", so reword it and that test starts
+   *  passing for the wrong reason. Change both together. */
+  ml_logd ("litert reshaping inputs to the shape this buffer asks for");
 
   bool any_resized = false;
 
@@ -1107,16 +1120,31 @@ litert_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
         output_buffers.data ()));
   }
 
-  for (i = 0; i < outputTensorMeta.num_tensors; ++i) {
-    void *host_mem = nullptr;
+  /** Nothing reclaims these if the loop throws part way: the element skips
+   *  its output cleanup entirely when allocate_in_invoke is set, which a
+   *  dynamic invoke always is. So free what was handed out before letting
+   *  the exception go. */
+  try {
+    for (i = 0; i < outputTensorMeta.num_tensors; ++i) {
+      void *host_mem = nullptr;
 
-    output[i].size = output_tensor_sizes[i];
-    output[i].data = g_malloc (output[i].size);
+      LITERT_CHECK (LiteRtLockTensorBuffer (
+          output_buffers[i], &host_mem, kLiteRtTensorBufferLockModeRead));
 
-    LITERT_CHECK (LiteRtLockTensorBuffer (
-        output_buffers[i], &host_mem, kLiteRtTensorBufferLockModeRead));
-    std::memcpy (output[i].data, host_mem, output[i].size);
-    LITERT_CHECK (LiteRtUnlockTensorBuffer (output_buffers[i]));
+      output[i].size = output_tensor_sizes[i];
+      output[i].data = g_malloc (output[i].size);
+      std::memcpy (output[i].data, host_mem, output[i].size);
+
+      LITERT_CHECK (LiteRtUnlockTensorBuffer (output_buffers[i]));
+    }
+  } catch (...) {
+    /* only up to i: nothing past the throw was ever handed out */
+    for (guint done = 0; done <= i && done < outputTensorMeta.num_tensors; ++done) {
+      g_free (output[done].data);
+      output[done].data = nullptr;
+      output[done].size = 0;
+    }
+    throw;
   }
 
   gst_tensors_info_free (std::addressof (prop->output_meta));
