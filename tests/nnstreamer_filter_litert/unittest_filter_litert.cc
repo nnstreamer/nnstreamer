@@ -1943,6 +1943,10 @@ TEST (nnstreamerFilterLiteRT, dynamicInvokePaddedShapeSkipsReshape)
   ASSERT_TRUE (gst_tensor_dimension_is_equal (padded, model_in->dimension))
       << "the padded form is not the same shape by the framework's own rule; "
          "this test is built on a false premise";
+  ASSERT_NE (0, memcmp (padded, model_in->dimension, sizeof (tensor_dim)))
+      << "the padded form is byte-identical to the model's, so this case would "
+         "agree under either comparison and prove nothing; the fixture needs an "
+         "axis the model leaves unset";
 
   _reshape_count = 0;
   GLogFunc prev_handler = g_log_set_default_handler (_countReshapes, NULL);
