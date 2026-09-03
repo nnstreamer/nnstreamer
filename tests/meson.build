@@ -445,6 +445,18 @@ if gtest_dep.found()
     test('unittest_filter_llamacpp', unittest_filter_llamacpp, timeout: 60, env: testenv)
   endif
 
+  # ExecuTorch unittest
+  if executorch_support_is_available
+    unittest_filter_executorch = executable('unittest_filter_executorch',
+      join_paths('nnstreamer_filter_executorch', 'unittest_filter_executorch.cc'),
+      dependencies: [nnstreamer_unittest_deps],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+
+    test('unittest_filter_executorch', unittest_filter_executorch, timeout: 120, env: testenv)
+  endif
+
   # Run unittest_trainer
   unittest_trainer = executable('unittest_trainer',
     join_paths('nnstreamer_trainer', 'unittest_trainer.cc'),
