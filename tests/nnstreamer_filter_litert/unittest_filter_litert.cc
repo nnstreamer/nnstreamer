@@ -2132,11 +2132,20 @@ TEST (nnstreamerFilterLiteRT, dynamicInvokeNullInputData_n)
 /**
  * @brief Negative case: the input buffer must match the shape it asks for.
  *
- * The reshape happens first, so by the time the buffer is read the model is at
- * batch 2 and expects twice the bytes. Both directions are refused and for
- * different reasons: a short buffer would be read past, and a long one would
- * leave the tail of the model's buffer holding whatever the last invoke put
- * there. One check rejects both, so both are pinned.
+ * The copy is sized by the caller, so the two directions fail differently: a
+ * buffer larger than the model's tensor overflows it, while a smaller one
+ * leaves the tail of the reused buffer holding the last invoke's data and
+ * infers on stale bytes instead of failing.
+ *
+ * Only the first invoke reshapes. It asks for batch 2, is reshaped, and is
+ * then rejected by the size check - which leaves the instance at batch 2, so
+ * the second invoke asks for a shape it already has, skips the reshape, and
+ * reaches the size check by the shared-lock path.
+ *
+ * One != rejects both, so the second assertion reaches no branch the first
+ * does not. It is there for the loosening: narrowing the check to < would
+ * stop refusing oversized buffers and restore the overflow, and this is the
+ * case that then turns red.
  */
 TEST (nnstreamerFilterLiteRT, dynamicInvokeInputSizeMismatch_n)
 {
@@ -2172,8 +2181,9 @@ TEST (nnstreamerFilterLiteRT, dynamicInvokeInputSizeMismatch_n)
 
   g_free (input.data);
 
-  /* and the other way round: larger than the requested shape */
-  input.size = sizeof (float) * 4 * 3;
+  /** and the other way round. 36 B is not 4 floats times any batch, so it
+   *  cannot be mistaken for a shape the model would accept */
+  input.size = sizeof (float) * 4 * 2 + 4;
   input.data = g_malloc0 (input.size);
 
   EXPECT_NE (sp->invoke (NULL, &prop, data, &input, &output), 0)
