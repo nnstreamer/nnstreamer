@@ -210,9 +210,67 @@ jobs:
     - name: SSAT run on filter-ncnn
       if: env.rebuild == '1'
       run: if [ '${{ matrix.os }}' == 'ubuntu-22.04' ]; then export NNSTREAMER_BUILD_ROOT_PATH=`pwd`/build && export NNSTREAMER_FILTERS=`pwd`/build/ext/nnstreamer/tensor_filter && export NNSTREAMER_DECODERS=`pwd`/build/ext/nnstreamer/tensor_decoder && export NNSTREAMER_CONVERTERS=`pwd`/build/ext/nnstreamer/tensor_converter && export GST_PLUGIN_PATH=`pwd`/build/gst && export NNSTREAMER_CONF=`pwd`/build/nnstreamer-test.ini && pushd tests/nnstreamer_filter_ncnn && ssat -n -p=1 --summary summary.txt && popd; fi
+    # This memcheck pass is the longest step of the job, and what it costs is
+    # decided almost entirely by a few cases that drive a third-party inference
+    # runtime, every instruction of which memcheck instruments. Two runners
+    # measured, 33728622232 (fast) and 33723985896 (slow), per case:
+    #
+    #   nnstreamerFilterArmnn.invokeAdvanced                    11.0 / 11.2 min
+    #   nnstreamerFilterLiteRT.sharedEnvInvokeDuringConfigure    9.9 / 30.1 min
+    #   four more LiteRT cases that compile the model repeatedly 4.3 /  6.5 min
+    #
+    # Those are excluded by name below. Every other LiteRT and ArmNN case still
+    # runs, so each sub-plugin's open, configure and invoke paths stay covered;
+    # what is dropped is repeated inference, whose cost is the runtime's and
+    # not this project's. They are written out one at a time on purpose: a
+    # wildcard would silently take future cases with it.
+    #
+    # llama.cpp is handled the other way round, by naming the cases to keep.
+    # Generating a token under memcheck costs about 1 s on a fast runner and
+    # about 8 s on a slow one, while the tests wait 10 s for samples, so on a
+    # slow runner every case that generates anything at all times out and then
+    # pays for the whole generation in the NULL transition: 87 to 305 s each,
+    # measured in 33847412951. That is unbounded from this step's point of
+    # view, and a new test would inherit it, so the safe default is to leave a
+    # case out until it is known to be cheap. The ones kept here load the model
+    # and tear it down without generating; the lora cases stay out because the
+    # model they need is not in the tree and would be a 7B one if it were.
+    #
+    # Either way gtest exits 0 when a name matches nothing, so renaming a case
+    # on one of these lists takes it out of memcheck silently; keep them in
+    # step with the test sources.
+    #
+    # The excluded cases all still run, without memcheck, in the "build and
+    # unit test" step above. See
+    # https://github.com/nnstreamer/nnstreamer/issues/4894 for the measurements
+    # and for restoring them in a job that can afford them.
     - name: GTEST run with Valgrind on a case
-      if: env.rebuild == '1'
-      run: if [ '${{ matrix.os }}' == 'ubuntu-22.04' ]; then export NNSTREAMER_BUILD_ROOT_PATH=`pwd`/build && export NNSTREAMER_FILTERS=`pwd`/build/ext/nnstreamer/tensor_filter && export NNSTREAMER_DECODERS=`pwd`/build/ext/nnstreamer/tensor_decoder && export NNSTREAMER_CONVERTERS=`pwd`/build/ext/nnstreamer/tensor_converter && export GST_PLUGIN_PATH=`pwd`/build/gst && export NNSTREAMER_CONF=`pwd`/build/nnstreamer-test.ini && G_SLICE=always-malloc G_DEBUG=gc-friendly ./packaging/run_unittests_binaries.sh --valgrind ./tests/ || echo "There are Valgrind errors. Please fix it. As we have a lot of Valgrind errors from different libraries and possible from nnstreamer itself, we are not halting the build with Valgrind errors until we get them all."; fi
+      if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
+      timeout-minutes: 30
+      run: |
+        export NNSTREAMER_BUILD_ROOT_PATH=`pwd`/build
+        export NNSTREAMER_FILTERS=`pwd`/build/ext/nnstreamer/tensor_filter
+        export NNSTREAMER_DECODERS=`pwd`/build/ext/nnstreamer/tensor_decoder
+        export NNSTREAMER_CONVERTERS=`pwd`/build/ext/nnstreamer/tensor_converter
+        export GST_PLUGIN_PATH=`pwd`/build/gst
+        export NNSTREAMER_CONF=`pwd`/build/nnstreamer-test.ini
+        export G_SLICE=always-malloc
+        export G_DEBUG=gc-friendly
+        note="There are Valgrind errors. Please fix it. As we have a lot of Valgrind errors from different libraries and possible from nnstreamer itself, we are not halting the build with Valgrind errors until we get them all."
+        skip_cases="nnstreamerFilterArmnn.invokeAdvanced"
+        skip_cases="${skip_cases}:nnstreamerFilterLiteRT.sharedEnvInvokeDuringConfigure"
+        skip_cases="${skip_cases}:nnstreamerFilterLiteRT.zeroCopyRepeatedInvoke"
+        skip_cases="${skip_cases}:nnstreamerFilterLiteRT.zeroCopyPathEquivalence"
+        skip_cases="${skip_cases}:nnstreamerFilterLiteRT.sharedEnvConcurrentOpen"
+        skip_cases="${skip_cases}:nnstreamerFilterLiteRT.sharedEnvMultiInstance"
+        llamacpp_cases="NNStreamerFilterLlamaCppTest.negativeNumPredict_n"
+        llamacpp_cases="${llamacpp_cases}:NNStreamerFilterLlamaCppTest.invalidBatchSize_n"
+        llamacpp_cases="${llamacpp_cases}:NNStreamerFilterLlamaCppTest.invalidContextLength_n"
+        llamacpp_cases="${llamacpp_cases}:NNStreamerFilterLlamaCppTest.invalidModel_n"
+        llamacpp_cases="${llamacpp_cases}:NNStreamerFilterLlamaCppTest.zeroTokenGenerationSync_p"
+        llamacpp_cases="${llamacpp_cases}:NNStreamerFilterLlamaCppTest.zeroTokenGenerationAsync_p"
+        GTEST_FILTER="-${skip_cases}" ./packaging/run_unittests_binaries.sh --valgrind --skip unittest_filter_llamacpp ./tests/ || echo "${note}"
+        GTEST_FILTER="${llamacpp_cases}" ./packaging/run_unittests_binaries.sh --valgrind ./tests/unittest_filter_llamacpp || echo "${note}"
     - name: get NNStreamer example apps
       if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
       uses: actions/checkout@v4
