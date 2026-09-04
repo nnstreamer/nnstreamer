@@ -2042,10 +2042,13 @@ TEST (nnstreamerFilterLiteRT, dynamicInvokeNewShapeReshapesOnce)
 }
 
 /**
- * @brief Negative case: a dynamic invoke must reject a null argument.
+ * @brief Negative case: a dynamic invoke must reject a null tensor array.
  *
- * cpp_invoke hands prop, input and output straight through, so these guards
- * are the only thing between a null and a dereference.
+ * cpp_invoke hands input and output straight through, so the guard is the
+ * only thing between a null and a dereference. It does test prop itself
+ * (`if (prop && prop->invoke_dynamic)`), which routes a null prop to the
+ * static invoke instead, so that third of the guard cannot be reached from
+ * here and is not claimed below.
  */
 TEST (nnstreamerFilterLiteRT, dynamicInvokeNullArg_n)
 {
@@ -2120,7 +2123,7 @@ TEST (nnstreamerFilterLiteRT, dynamicInvokeNullInputData_n)
   EXPECT_NE (sp->invoke (NULL, &prop, data, &input, &output), 0)
       << "A null input buffer was accepted.";
 
-  g_free (output.data);
+  /* no free for output: the invoke never reaches the point that allocates it */
   gst_tensors_info_free (&prop.input_meta);
   gst_tensors_info_free (&prop.output_meta);
   sp->close (&prop, &data);
@@ -2130,8 +2133,10 @@ TEST (nnstreamerFilterLiteRT, dynamicInvokeNullInputData_n)
  * @brief Negative case: the input buffer must match the shape it asks for.
  *
  * The reshape happens first, so by the time the buffer is read the model is at
- * batch 2 and expects twice the bytes. Accepting the short buffer would read
- * past it, which is why the size is checked rather than trusted.
+ * batch 2 and expects twice the bytes. Both directions are refused and for
+ * different reasons: a short buffer would be read past, and a long one would
+ * leave the tail of the model's buffer holding whatever the last invoke put
+ * there. One check rejects both, so both are pinned.
  */
 TEST (nnstreamerFilterLiteRT, dynamicInvokeInputSizeMismatch_n)
 {
@@ -2164,6 +2169,15 @@ TEST (nnstreamerFilterLiteRT, dynamicInvokeInputSizeMismatch_n)
 
   EXPECT_NE (sp->invoke (NULL, &prop, data, &input, &output), 0)
       << "An input buffer smaller than the requested shape was accepted.";
+
+  g_free (input.data);
+
+  /* and the other way round: larger than the requested shape */
+  input.size = sizeof (float) * 4 * 3;
+  input.data = g_malloc0 (input.size);
+
+  EXPECT_NE (sp->invoke (NULL, &prop, data, &input, &output), 0)
+      << "An input buffer larger than the requested shape was accepted.";
 
   g_free (input.data);
   g_free (output.data);
