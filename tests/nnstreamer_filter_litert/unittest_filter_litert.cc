@@ -54,6 +54,9 @@ _GetModelFilePath (gchar **model_file, int option)
     case 3:
       model_name = "deeplabv3_257_mv_gpu.tflite";
       break;
+    case 4:
+      model_name = "dynamic_batch_add_one.tflite";
+      break;
     default:
       break;
   }
@@ -1560,6 +1563,839 @@ TEST (nnstreamerFilterLiteRT, sharedEnvInvokeDuringConfigure)
   EXPECT_TRUE (invoke_ok) << "Invoke " << invokes
                           << " failed while another instance was being configured.";
   EXPECT_TRUE (churn_ok.load ()) << "Concurrent open/close churn failed.";
+
+  g_free (input.data);
+  g_free (output.data);
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief Positive case: dynamic invoke reshapes across batches and produces
+ * byte-exact input+1 results, with prop.output_meta refreshed every time.
+ */
+TEST (nnstreamerFilterLiteRT, dynamicInvokeReshape)
+{
+  const guint batches[] = { 1U, 3U, 2U, 1U };
+  int ret;
+  void *data = NULL;
+  g_autofree gchar *model_file = NULL;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 4));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+  prop.invoke_dynamic = 1;
+
+  ret = sp->open (&prop, &data);
+  ASSERT_EQ (ret, 0);
+
+  for (guint b = 0; b < G_N_ELEMENTS (batches); ++b) {
+    const guint batch = batches[b];
+    const guint num_elems = 4U * batch;
+    GstTensorMemory input, output;
+    g_autofree gfloat *expected = NULL;
+
+    gst_tensors_info_free (&prop.input_meta);
+    gst_tensors_info_init (&prop.input_meta);
+    prop.input_meta.num_tensors = 1;
+    prop.input_meta.info[0].type = _NNS_FLOAT32;
+    prop.input_meta.info[0].dimension[0] = 4;
+    prop.input_meta.info[0].dimension[1] = batch;
+
+    input.size = sizeof (gfloat) * num_elems;
+    input.data = g_malloc (input.size);
+    for (guint i = 0; i < num_elems; ++i)
+      ((gfloat *) input.data)[i] = (gfloat) i - 1.5f;
+
+    expected = (gfloat *) g_malloc (input.size);
+    for (guint i = 0; i < num_elems; ++i)
+      expected[i] = ((gfloat *) input.data)[i] + 1.0f;
+
+    /* the dynamic path allocates the output; leave it unset going in */
+    output.size = 0;
+    output.data = NULL;
+
+    ret = sp->invoke (NULL, &prop, data, &input, &output);
+    EXPECT_EQ (ret, 0) << "invoke failed for batch " << batch;
+    ASSERT_NE (output.data, nullptr);
+    EXPECT_EQ (output.size, sizeof (gfloat) * num_elems);
+    EXPECT_EQ (memcmp (output.data, expected, output.size), 0)
+        << "Output was not exactly input+1 for batch " << batch;
+
+    EXPECT_EQ (prop.output_meta.info[0].dimension[0], 4U);
+    EXPECT_EQ (prop.output_meta.info[0].dimension[1], batch);
+
+    g_free (input.data);
+    g_free (output.data);
+  }
+
+  gst_tensors_info_free (&prop.input_meta);
+  gst_tensors_info_free (&prop.output_meta);
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief Positive case: repeated dynamic invoke with an unchanged input shape
+ * takes the resize-skipping path and must stay stable across repeats.
+ */
+TEST (nnstreamerFilterLiteRT, dynamicInvokeSameShapeRepeated)
+{
+  const guint iterations = 5U;
+  const guint batch = 2U;
+  const guint num_elems = 4U * batch;
+  int ret;
+  void *data = NULL;
+  GstTensorMemory input;
+  g_autofree gchar *model_file = NULL;
+  g_autofree gfloat *expected = NULL;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 4));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+  prop.invoke_dynamic = 1;
+
+  ret = sp->open (&prop, &data);
+  ASSERT_EQ (ret, 0);
+
+  gst_tensors_info_free (&prop.input_meta);
+  gst_tensors_info_init (&prop.input_meta);
+  prop.input_meta.num_tensors = 1;
+  prop.input_meta.info[0].type = _NNS_FLOAT32;
+  prop.input_meta.info[0].dimension[0] = 4;
+  prop.input_meta.info[0].dimension[1] = batch;
+
+  input.size = sizeof (gfloat) * num_elems;
+  input.data = g_malloc (input.size);
+  for (guint i = 0; i < num_elems; ++i)
+    ((gfloat *) input.data)[i] = (gfloat) i * 0.25f;
+
+  expected = (gfloat *) g_malloc (input.size);
+  for (guint i = 0; i < num_elems; ++i)
+    expected[i] = ((gfloat *) input.data)[i] + 1.0f;
+
+  for (guint iter = 0; iter < iterations; ++iter) {
+    GstTensorMemory output;
+
+    output.size = 0;
+    output.data = NULL;
+
+    ret = sp->invoke (NULL, &prop, data, &input, &output);
+    EXPECT_EQ (ret, 0) << "invoke failed on iteration " << iter;
+    ASSERT_NE (output.data, nullptr);
+    EXPECT_EQ (output.size, input.size);
+    EXPECT_EQ (memcmp (output.data, expected, output.size), 0)
+        << "Output diverged on iteration " << iter;
+
+    g_free (output.data);
+  }
+
+  g_free (input.data);
+  gst_tensors_info_free (&prop.input_meta);
+  gst_tensors_info_free (&prop.output_meta);
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief Negative case: invoke_dynamic on a static model must fail. The
+ * model signature declares no dynamic dimension, so the strict resize inside
+ * invoke_dynamic has to reject the reshape.
+ */
+TEST (nnstreamerFilterLiteRT, dynamicInvokeStaticModel_n)
+{
+  int ret;
+  void *data = NULL;
+  GstTensorMemory input, output;
+  GstTensorsInfo model_in_info, model_out_info;
+  g_autofree gchar *model_file = NULL;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 1));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+  prop.invoke_dynamic = 1;
+
+  ret = sp->open (&prop, &data);
+  ASSERT_EQ (ret, 0);
+
+  ret = sp->getModelInfo (NULL, &prop, data, GET_IN_OUT_INFO, &model_in_info, &model_out_info);
+  ASSERT_EQ (ret, 0);
+
+  gst_tensors_info_free (&prop.input_meta);
+  gst_tensors_info_init (&prop.input_meta);
+  gst_tensors_info_copy (&prop.input_meta, &model_in_info);
+  /* the model does not declare this dimension dynamic; the strict resize must reject it */
+  prop.input_meta.info[0].dimension[3] += 1;
+
+  /** Size the buffer to the shape being asked for, not the compiled one.
+   *  Leaving it at the old size lets fillInputBuffers' size check fail the
+   *  invoke instead, so the case would stay green even if the strict resize
+   *  one day accepted a fixed-shape model - which is the whole premise it
+   *  exists to pin. */
+  input.size = gst_tensors_info_get_size (&prop.input_meta, 0);
+  input.data = g_malloc0 (input.size);
+  output.size = 0;
+  output.data = NULL;
+
+  ret = sp->invoke (NULL, &prop, data, &input, &output);
+  EXPECT_NE (ret, 0) << "A static model accepted invoke_dynamic's strict resize.";
+
+  g_free (input.data);
+  g_free (output.data);
+  gst_tensors_info_free (&prop.input_meta);
+  gst_tensors_info_free (&model_in_info);
+  gst_tensors_info_free (&model_out_info);
+  gst_tensors_info_free (&prop.output_meta);
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief Positive case: a rejected reshape must leave the instance usable.
+ *
+ * Rejecting the only input happens before LiteRT changes anything, so the
+ * instance is still good at the shape it already had and the next invoke has
+ * to prove it. This is the reachable half of the reshape failure handling:
+ * once a resize has succeeded there is no way back, and the instance is
+ * dropped instead - which cannot be provoked from here, since the only model
+ * with a dynamic dimension has a single input.
+ */
+TEST (nnstreamerFilterLiteRT, dynamicInvokeRejectedReshapeKeepsInstance)
+{
+  void *data = NULL;
+  GstTensorMemory input, output;
+  GstTensorInfo *iinfo;
+  g_autofree gchar *model_file = NULL;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 4));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+  prop.invoke_dynamic = 1;
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  /** the last axis is fixed at 4, so asking for 5 is a shape the signature
+   *  does not admit and the strict resize refuses it */
+  gst_tensors_info_free (&prop.input_meta);
+  gst_tensors_info_init (&prop.input_meta);
+  prop.input_meta.num_tensors = 1;
+  iinfo = gst_tensors_info_get_nth_info (&prop.input_meta, 0);
+  iinfo->type = _NNS_FLOAT32;
+  iinfo->dimension[0] = 5;
+  iinfo->dimension[1] = 1;
+
+  input.size = sizeof (float) * 5;
+  input.data = g_malloc0 (input.size);
+  output.data = NULL;
+  output.size = 0;
+
+  EXPECT_NE (sp->invoke (NULL, &prop, data, &input, &output), 0)
+      << "The strict resize accepted a shape the model does not declare.";
+  g_free (input.data);
+  g_free (output.data);
+
+  /* nothing was resized, so the instance must still run at its own shape */
+  gst_tensors_info_free (&prop.input_meta);
+  gst_tensors_info_init (&prop.input_meta);
+  prop.input_meta.num_tensors = 1;
+  iinfo = gst_tensors_info_get_nth_info (&prop.input_meta, 0);
+  iinfo->type = _NNS_FLOAT32;
+  iinfo->dimension[0] = 4;
+  iinfo->dimension[1] = 1;
+
+  input.size = sizeof (float) * 4;
+  input.data = g_malloc (input.size);
+  for (guint k = 0; k < 4; ++k)
+    ((float *) input.data)[k] = (float) k;
+  output.data = NULL;
+  output.size = 0;
+
+  EXPECT_EQ (sp->invoke (NULL, &prop, data, &input, &output), 0)
+      << "A rejected reshape left the instance unusable.";
+  EXPECT_EQ (output.size, sizeof (float) * 4);
+  if (output.data != NULL) {
+    for (guint k = 0; k < 4; ++k) {
+      EXPECT_FLOAT_EQ (((float *) output.data)[k], (float) k + 1.0f);
+    }
+  }
+
+  g_free (input.data);
+  g_free (output.data);
+  gst_tensors_info_free (&prop.input_meta);
+  gst_tensors_info_free (&prop.output_meta);
+  sp->close (&prop, &data);
+}
+
+static std::atomic<int> _reshape_count (0);
+
+/**
+ * @brief GLib log handler counting the reshapes the subplugin performs.
+ * @param[in] domain log domain, forwarded to the default handler
+ * @param[in] level log level, forwarded to the default handler
+ * @param[in] message the log message to inspect
+ * @param[in] user_data unused, forwarded to the default handler
+ */
+static void
+_countReshapes (const gchar *domain, GLogLevelFlags level, const gchar *message, gpointer user_data)
+{
+  if (message != NULL && g_strstr_len (message, -1, "litert reshaping") != NULL)
+    ++_reshape_count;
+
+  g_log_default_handler (domain, level, message, user_data);
+}
+
+/**
+ * @brief Fill prop.input_meta with one float32 tensor of the given dimensions.
+ * @param[in,out] prop the properties whose input_meta is replaced
+ * @param[in] dims NNS_TENSOR_RANK_LIMIT entries, zero where the axis is absent
+ */
+static void
+_SetDynamicInputMeta (GstTensorFilterProperties *prop, const guint *dims)
+{
+  GstTensorInfo *info;
+
+  gst_tensors_info_free (&prop->input_meta);
+  gst_tensors_info_init (&prop->input_meta);
+  prop->input_meta.num_tensors = 1;
+  info = gst_tensors_info_get_nth_info (&prop->input_meta, 0);
+  info->type = _NNS_FLOAT32;
+  for (guint d = 0; d < NNS_TENSOR_RANK_LIMIT; ++d)
+    info->dimension[d] = dims[d];
+}
+
+/**
+ * @brief Positive case: a shape padded differently is still the same shape.
+ *
+ * The two sides of the comparison are padded by different rules. The model's
+ * own meta comes from convertLayout(), which zero fills past the model's rank,
+ * while a pipeline carries explicit trailing 1s - tensor_converter emits
+ * 3:224:224:1 from video, and a capsfilter saying dimensions=4:1:1:1 is
+ * ordinary. gst_tensor_dimension_is_equal() calls those the same shape.
+ *
+ * Comparing the arrays element by element instead calls them different, and
+ * nothing downstream can tell: the reshape produces exactly the bytes that
+ * skipping it would, so the only symptom is that every buffer silently
+ * rebuilds the model while holding the shared environment lock exclusively.
+ * That is why this reads the subplugin's own reshape log rather than the
+ * output, and why it drives the shape the model itself reports rather than
+ * one written out by hand - a hand-written shape reproduces convertLayout's
+ * padding by accident and agrees no matter how the comparison is done.
+ */
+TEST (nnstreamerFilterLiteRT, dynamicInvokePaddedShapeSkipsReshape)
+{
+  const guint rounds = 3U;
+  void *data = NULL;
+  g_autofree gchar *model_file = NULL;
+  GstTensorsInfo in_info, out_info;
+  guint padded[NNS_TENSOR_RANK_LIMIT];
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 4));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+  prop.invoke_dynamic = 1;
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+  ASSERT_EQ (sp->getModelInfo (NULL, &prop, data, GET_IN_OUT_INFO, &in_info, &out_info), 0);
+
+  /* the model's own shape, with every absent axis spelled out as 1 */
+  const GstTensorInfo *model_in = gst_tensors_info_get_nth_info (&in_info, 0);
+  gsize expected = gst_tensor_info_get_size (model_in);
+  for (guint d = 0; d < NNS_TENSOR_RANK_LIMIT; ++d)
+    padded[d] = (model_in->dimension[d] == 0) ? 1 : model_in->dimension[d];
+
+  ASSERT_TRUE (gst_tensor_dimension_is_equal (padded, model_in->dimension))
+      << "the padded form is not the same shape by the framework's own rule; "
+         "this test is built on a false premise";
+  ASSERT_NE (0, memcmp (padded, model_in->dimension, sizeof (tensor_dim)))
+      << "the padded form is byte-identical to the model's, so this case would "
+         "agree under either comparison and prove nothing; the fixture needs an "
+         "axis the model leaves unset";
+
+  _reshape_count = 0;
+  GLogFunc prev_handler = g_log_set_default_handler (_countReshapes, NULL);
+
+  gboolean invoked_ok = TRUE;
+  for (guint r = 0; r < rounds && invoked_ok; ++r) {
+    GstTensorMemory input, output;
+
+    _SetDynamicInputMeta (&prop, padded);
+    input.size = expected;
+    input.data = g_malloc0 (input.size);
+    output.data = NULL;
+    output.size = 0;
+
+    invoked_ok = (sp->invoke (NULL, &prop, data, &input, &output) == 0);
+
+    g_free (input.data);
+    g_free (output.data);
+  }
+
+  g_log_set_default_handler (prev_handler, NULL);
+
+  EXPECT_TRUE (invoked_ok) << "An invoke at the model's own shape failed.";
+  EXPECT_EQ (_reshape_count.load (), 0)
+      << "The model was reshaped for a shape it already had, so a pipeline that "
+         "spells out its trailing dimensions rebuilds the model on every buffer.";
+
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+  gst_tensors_info_free (&prop.input_meta);
+  gst_tensors_info_free (&prop.output_meta);
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief Positive case: a genuinely new shape reshapes once, then settles.
+ *
+ * The other half of the same decision. Skipping a reshape that is needed would
+ * be caught by the output; reshaping when one is not needed would not be, so
+ * both directions are pinned here rather than only the visible one.
+ */
+TEST (nnstreamerFilterLiteRT, dynamicInvokeNewShapeReshapesOnce)
+{
+  void *data = NULL;
+  g_autofree gchar *model_file = NULL;
+  guint dims[NNS_TENSOR_RANK_LIMIT] = { 0 };
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 4));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+  prop.invoke_dynamic = 1;
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  /* batch 3, which the model compiled at batch 1 does not have */
+  dims[0] = 4;
+  dims[1] = 3;
+
+  _reshape_count = 0;
+  GLogFunc prev_handler = g_log_set_default_handler (_countReshapes, NULL);
+
+  gboolean invoked_ok = TRUE;
+  for (guint r = 0; r < 3U && invoked_ok; ++r) {
+    GstTensorMemory input, output;
+
+    _SetDynamicInputMeta (&prop, dims);
+    input.size = sizeof (float) * 4 * 3;
+    input.data = g_malloc0 (input.size);
+    output.data = NULL;
+    output.size = 0;
+
+    invoked_ok = (sp->invoke (NULL, &prop, data, &input, &output) == 0
+                  && output.size == sizeof (float) * 4 * 3);
+
+    g_free (input.data);
+    g_free (output.data);
+  }
+
+  g_log_set_default_handler (prev_handler, NULL);
+
+  EXPECT_TRUE (invoked_ok) << "Invoking at a new shape failed.";
+  EXPECT_EQ (_reshape_count.load (), 1)
+      << "Expected exactly one reshape for three invokes at one new shape.";
+
+  gst_tensors_info_free (&prop.input_meta);
+  gst_tensors_info_free (&prop.output_meta);
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief Negative case: a dynamic invoke must reject a null tensor array.
+ *
+ * cpp_invoke hands input and output straight through, so the guard is the
+ * only thing between a null and a dereference. It does test prop itself
+ * (`if (prop && prop->invoke_dynamic)`), which routes a null prop to the
+ * static invoke instead, so that third of the guard cannot be reached from
+ * here and is not claimed below.
+ */
+TEST (nnstreamerFilterLiteRT, dynamicInvokeNullArg_n)
+{
+  void *data = NULL;
+  GstTensorMemory input, output;
+  g_autofree gchar *model_file = NULL;
+  guint dims[NNS_TENSOR_RANK_LIMIT] = { 0 };
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 4));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+  prop.invoke_dynamic = 1;
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  dims[0] = 4;
+  dims[1] = 1;
+  _SetDynamicInputMeta (&prop, dims);
+
+  input.size = sizeof (float) * 4;
+  input.data = g_malloc0 (input.size);
+  output.data = NULL;
+  output.size = 0;
+
+  EXPECT_NE (sp->invoke (NULL, &prop, data, NULL, &output), 0)
+      << "A null input tensor array was accepted.";
+  EXPECT_NE (sp->invoke (NULL, &prop, data, &input, NULL), 0)
+      << "A null output tensor array was accepted.";
+
+  g_free (input.data);
+  gst_tensors_info_free (&prop.input_meta);
+  gst_tensors_info_free (&prop.output_meta);
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief Negative case: a dynamic invoke must reject a null input buffer.
+ */
+TEST (nnstreamerFilterLiteRT, dynamicInvokeNullInputData_n)
+{
+  void *data = NULL;
+  GstTensorMemory input, output;
+  g_autofree gchar *model_file = NULL;
+  guint dims[NNS_TENSOR_RANK_LIMIT] = { 0 };
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 4));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+  prop.invoke_dynamic = 1;
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  dims[0] = 4;
+  dims[1] = 1;
+  _SetDynamicInputMeta (&prop, dims);
+
+  input.size = sizeof (float) * 4;
+  input.data = NULL;
+  output.data = NULL;
+  output.size = 0;
+
+  EXPECT_NE (sp->invoke (NULL, &prop, data, &input, &output), 0)
+      << "A null input buffer was accepted.";
+
+  /* no free for output: the invoke never reaches the point that allocates it */
+  gst_tensors_info_free (&prop.input_meta);
+  gst_tensors_info_free (&prop.output_meta);
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief An absent trailing axis must resize to 1, not to 0.
+ *
+ * gst_tensor_dimension_is_equal() calls 0 and 1 the same extent, so a shape
+ * carrying an absent axis is only ever seen as different while the model sits
+ * at some other extent - reshape to batch 2 first and a rank 1 buffer is then
+ * unequal to it and does reach reshapeTo(). What reshapeTo() must not do is
+ * pass the 0 through: the comparison just called that shape batch 1, so
+ * resizing to batch 0 gives one logical shape two different answers, and the
+ * failure is not local - a resize error outside the two statuses that mean
+ * 'refused, nothing touched' clears configured and kills the element for good,
+ * for a shape the framework considers perfectly legal.
+ */
+TEST (nnstreamerFilterLiteRT, dynamicInvokeAbsentAxisIsOne)
+{
+  void *data = NULL;
+  GstTensorMemory input, output;
+  g_autofree gchar *model_file = NULL;
+  guint dims[NNS_TENSOR_RANK_LIMIT] = { 0 };
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 4));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+  prop.invoke_dynamic = 1;
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  /* move the model off batch 1, so the rank 1 shape below is not equal to it */
+  dims[0] = 4;
+  dims[1] = 2;
+  _SetDynamicInputMeta (&prop, dims);
+  input.size = sizeof (float) * 4 * 2;
+  input.data = g_malloc0 (input.size);
+  output.data = NULL;
+  output.size = 0;
+  ASSERT_EQ (sp->invoke (NULL, &prop, data, &input, &output), 0)
+      << "The reshape to batch 2 that this case is built on did not happen.";
+  g_free (input.data);
+  g_free (output.data);
+
+  /* rank 1: the trailing axis is absent rather than spelled out as 1 */
+  dims[0] = 4;
+  dims[1] = 0;
+  _SetDynamicInputMeta (&prop, dims);
+  input.size = sizeof (float) * 4;
+  input.data = g_malloc0 (input.size);
+  output.data = NULL;
+  output.size = 0;
+
+  EXPECT_EQ (sp->invoke (NULL, &prop, data, &input, &output), 0)
+      << "A shape with an absent trailing axis was refused, so it was resized "
+         "to batch 0 rather than to the batch 1 the comparison called it.";
+  EXPECT_EQ (output.size, sizeof (float) * 4)
+      << "The output is not one batch of the model's output.";
+
+  g_free (input.data);
+  g_free (output.data);
+  gst_tensors_info_free (&prop.input_meta);
+  gst_tensors_info_free (&prop.output_meta);
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief Negative case: the element type must be the model's.
+ *
+ * int32 and float32 are both 4 bytes wide, so a substitution between them
+ * changes no dimension and no byte count. With a flexible sink pad the type
+ * in prop->input_meta is whatever the buffer's own meta header says, and the
+ * framework sizes its check from that same header, so nothing upstream
+ * objects either. Without an explicit check the model reads int32 bits as
+ * float32 and returns nonsense with a success code.
+ */
+TEST (nnstreamerFilterLiteRT, dynamicInvokeInputTypeMismatch_n)
+{
+  void *data = NULL;
+  GstTensorMemory input, output;
+  g_autofree gchar *model_file = NULL;
+  guint dims[NNS_TENSOR_RANK_LIMIT] = { 0 };
+  GstTensorInfo *info;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 4));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+  prop.invoke_dynamic = 1;
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  /* the model's own shape, so only the type is out of place */
+  dims[0] = 4;
+  dims[1] = 1;
+  _SetDynamicInputMeta (&prop, dims);
+  info = gst_tensors_info_get_nth_info (&prop.input_meta, 0);
+  info->type = _NNS_INT32;
+
+  input.size = sizeof (int32_t) * 4;
+  input.data = g_malloc0 (input.size);
+  output.data = NULL;
+  output.size = 0;
+
+  EXPECT_NE (sp->invoke (NULL, &prop, data, &input, &output), 0)
+      << "An int32 buffer was accepted by a float32 model, which infers on "
+         "reinterpreted bits and reports success.";
+
+  /** _NNS_END is what an uninitialised GstTensorInfo carries, and it has no
+   *  name - gst_tensor_get_type_string() returns NULL for it. The rejection
+   *  builds a message out of both names, so this pins that an unnamed type
+   *  is refused rather than appended to a std::string as NULL. */
+  info->type = _NNS_END;
+  EXPECT_NE (sp->invoke (NULL, &prop, data, &input, &output), 0)
+      << "A tensor of no known type was accepted.";
+
+  g_free (input.data);
+  g_free (output.data);
+  gst_tensors_info_free (&prop.input_meta);
+  gst_tensors_info_free (&prop.output_meta);
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief Negative case: the input buffer must match the shape it asks for.
+ *
+ * The copy is sized by the caller, so the two directions fail differently: a
+ * buffer larger than the model's tensor overflows it, while a smaller one
+ * leaves the tail of the reused buffer holding the last invoke's data and
+ * infers on stale bytes instead of failing.
+ *
+ * Only the first invoke reshapes. It asks for batch 2, is reshaped, and is
+ * then rejected by the size check - which leaves the instance at batch 2, so
+ * the second invoke asks for a shape it already has, skips the reshape, and
+ * reaches the size check by the shared-lock path.
+ *
+ * One != rejects both, so the second assertion reaches no branch the first
+ * does not. It is there for the loosening: narrowing the check to < would
+ * stop refusing oversized buffers and restore the overflow, and this is the
+ * case that then turns red.
+ */
+TEST (nnstreamerFilterLiteRT, dynamicInvokeInputSizeMismatch_n)
+{
+  void *data = NULL;
+  GstTensorMemory input, output;
+  g_autofree gchar *model_file = NULL;
+  guint dims[NNS_TENSOR_RANK_LIMIT] = { 0 };
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 4));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+  prop.invoke_dynamic = 1;
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  /* ask for batch 2 but hand over a batch 1 buffer */
+  dims[0] = 4;
+  dims[1] = 2;
+  _SetDynamicInputMeta (&prop, dims);
+
+  input.size = sizeof (float) * 4;
+  input.data = g_malloc0 (input.size);
+  output.data = NULL;
+  output.size = 0;
+
+  EXPECT_NE (sp->invoke (NULL, &prop, data, &input, &output), 0)
+      << "An input buffer smaller than the requested shape was accepted.";
+
+  g_free (input.data);
+
+  /** and the other way round. 36 B is not 4 floats times any batch, so it
+   *  cannot be mistaken for a shape the model would accept */
+  input.size = sizeof (float) * 4 * 2 + 4;
+  input.data = g_malloc0 (input.size);
+
+  EXPECT_NE (sp->invoke (NULL, &prop, data, &input, &output), 0)
+      << "An input buffer larger than the requested shape was accepted.";
+
+  g_free (input.data);
+  g_free (output.data);
+  gst_tensors_info_free (&prop.input_meta);
+  gst_tensors_info_free (&prop.output_meta);
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief Negative case: a dynamic invoke may not change the number of input
+ * tensors; it must fail before ever touching the input buffer.
+ */
+TEST (nnstreamerFilterLiteRT, dynamicInvokeTensorCountChange_n)
+{
+  int ret;
+  void *data = NULL;
+  GstTensorMemory input[2], output[2];
+  g_autofree gchar *model_file = NULL;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 4));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+  prop.invoke_dynamic = 1;
+
+  ret = sp->open (&prop, &data);
+  ASSERT_EQ (ret, 0);
+
+  gst_tensors_info_free (&prop.input_meta);
+  gst_tensors_info_init (&prop.input_meta);
+  prop.input_meta.num_tensors = 2; /* the model has exactly one input tensor */
+  prop.input_meta.info[0].type = _NNS_FLOAT32;
+  prop.input_meta.info[0].dimension[0] = 4;
+  prop.input_meta.info[0].dimension[1] = 1;
+  prop.input_meta.info[1].type = _NNS_FLOAT32;
+  prop.input_meta.info[1].dimension[0] = 4;
+  prop.input_meta.info[1].dimension[1] = 1;
+
+  input[0].size = input[1].size = sizeof (gfloat) * 4;
+  input[0].data = g_malloc0 (input[0].size);
+  input[1].data = g_malloc0 (input[1].size);
+  output[0].size = output[1].size = 0;
+  output[0].data = output[1].data = NULL;
+
+  ret = sp->invoke (NULL, &prop, data, input, output);
+  EXPECT_NE (ret, 0) << "A dynamic invoke changing the input tensor count was accepted.";
+
+  g_free (input[0].data);
+  g_free (input[1].data);
+  g_free (output[0].data);
+  g_free (output[1].data);
+  gst_tensors_info_free (&prop.input_meta);
+  gst_tensors_info_free (&prop.output_meta);
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief Positive case, regression: the same dynamic-capable model still
+ * works through the ordinary (non-dynamic) invoke path, at its default
+ * (batch = 1) compiled shape, with the caller allocating the output buffer.
+ */
+TEST (nnstreamerFilterLiteRT, dynamicInvokeStaticPathUnaffected)
+{
+  int ret;
+  void *data = NULL;
+  GstTensorMemory input, output;
+  g_autofree gchar *model_file = NULL;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 4));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files); /* invoke_dynamic defaults to 0 */
+
+  input.size = sizeof (gfloat) * 4;
+  output.size = sizeof (gfloat) * 4;
+  input.data = g_malloc (input.size);
+  output.data = g_malloc (output.size);
+  for (guint i = 0; i < 4; ++i)
+    ((gfloat *) input.data)[i] = (gfloat) i + 0.5f;
+
+  ret = sp->open (&prop, &data);
+  ASSERT_EQ (ret, 0);
+
+  ret = sp->invoke (NULL, &prop, data, &input, &output);
+  EXPECT_EQ (ret, 0);
+
+  for (guint i = 0; i < 4; ++i)
+    EXPECT_FLOAT_EQ (((gfloat *) output.data)[i], ((gfloat *) input.data)[i] + 1.0f);
 
   g_free (input.data);
   g_free (output.data);

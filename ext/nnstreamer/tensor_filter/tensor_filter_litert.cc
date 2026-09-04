@@ -36,7 +36,9 @@
  *       maps them GST_MAP_READ and the memory may be shared with another
  *       branch, so it would take a mapping change in the element plus a
  *       statement from upstream that a run never writes to an input.
- * @todo Support dynamic input dimensions (invoke_dynamic).
+ * @todo Let a dynamic invoke change the input rank, not just the extent of a
+ *       dimension the model already declared dynamic. LiteRT's strict resize
+ *       is what bounds this: it rejects a shape the signature does not admit.
  * @todo Expose accelerator-specific opaque options (GPU precision, NPU
  *       compiler plugin paths, etc.).
  */
@@ -254,6 +256,8 @@ class litert_subplugin final : public tensor_filter_subplugin
   tensor_filter_subplugin &getEmptyInstance ();
   void configure_instance (const GstTensorFilterProperties *prop);
   void invoke (const GstTensorMemory *input, GstTensorMemory *output);
+  void invoke_dynamic (GstTensorFilterProperties *prop,
+      const GstTensorMemory *input, GstTensorMemory *output);
   void getFrameworkInfo (GstTensorFilterFrameworkInfo &info);
   int getModelInfo (model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info);
   int eventHandler (event_ops ops, GstTensorFilterFrameworkEventData &data);
@@ -292,6 +296,11 @@ class litert_subplugin final : public tensor_filter_subplugin
   LiteRtParamIndex resolveSignature () const;
   void setTensorMeta (LiteRtSignature sig, bool is_input, GstTensorsInfo *meta);
   void createTensorBuffers ();
+  void releaseTensorBuffers ();
+  void fillInputBuffers (const GstTensorMemory *input);
+  bool inputShapeDiffers (const GstTensorsInfo *in_info) const;
+  void rejectTypeChange (const GstTensorsInfo *in_info) const;
+  void reshapeTo (const GstTensorsInfo *in_info);
 
   static tensor_type convertElementType (LiteRtElementType type);
   static void convertLayout (const LiteRtLayout &layout, tensor_dim dim);
@@ -328,17 +337,7 @@ litert_subplugin::cleanup ()
   {
     std::lock_guard<std::shared_mutex> guard (litert_env_lock);
 
-    for (auto &buf : input_buffers)
-      LiteRtDestroyTensorBuffer (buf);
-    input_buffers.clear ();
-    input_tensor_sizes.clear ();
-    for (auto &buf : output_buffers)
-      LiteRtDestroyTensorBuffer (buf);
-    output_buffers.clear ();
-    output_tensor_sizes.clear ();
-    output_types.clear ();
-    output_wrappable.clear ();
-    invoke_outputs.clear ();
+    releaseTensorBuffers ();
 
     if (compiled_model != nullptr) {
       LiteRtDestroyCompiledModel (compiled_model);
@@ -855,26 +854,7 @@ litert_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
    *  streaming thread the framework gives it. */
   std::shared_lock<std::shared_mutex> guard (litert_env_lock);
 
-  /* Fill input buffers */
-  for (i = 0; i < inputTensorMeta.num_tensors; ++i) {
-    void *host_mem = nullptr;
-
-    if (input[i].data == nullptr)
-      throw std::invalid_argument ("Input tensor memory is null.");
-
-    /** Reject any size mismatch: a larger input would overflow the LiteRT
-     *  buffer, and a smaller one would leave the tail of the reused buffer
-     *  holding the previous invoke's data (silently wrong inference). */
-    if (input[i].size != input_tensor_sizes[i])
-      throw std::invalid_argument ("Input tensor " + std::to_string (i) + " ("
-                                   + std::to_string (input[i].size) + " B) does not match the model tensor ("
-                                   + std::to_string (input_tensor_sizes[i]) + " B).");
-
-    LITERT_CHECK (LiteRtLockTensorBuffer (
-        input_buffers[i], &host_mem, kLiteRtTensorBufferLockModeWrite));
-    std::memcpy (host_mem, input[i].data, input[i].size);
-    LITERT_CHECK (LiteRtUnlockTensorBuffer (input_buffers[i]));
-  }
+  fillInputBuffers (input);
 
   /** Let the run write straight into the caller's tensor where LiteRT will
    *  accept it, which drops the read-back copy below for that tensor.
@@ -924,6 +904,306 @@ litert_subplugin::invoke (const GstTensorMemory *input, GstTensorMemory *output)
     std::memcpy (output[i].data, host_mem, output[i].size);
     LITERT_CHECK (LiteRtUnlockTensorBuffer (output_buffers[i]));
   }
+}
+
+/**
+ * @brief Release the tensor buffers and everything derived from the shapes.
+ */
+void
+litert_subplugin::releaseTensorBuffers ()
+{
+  for (auto &buf : input_buffers)
+    LiteRtDestroyTensorBuffer (buf);
+  input_buffers.clear ();
+  input_tensor_sizes.clear ();
+
+  for (auto &buf : output_buffers)
+    LiteRtDestroyTensorBuffer (buf);
+  output_buffers.clear ();
+  output_tensor_sizes.clear ();
+  output_types.clear ();
+  output_wrappable.clear ();
+  invoke_outputs.clear ();
+}
+
+/**
+ * @brief Copy the caller's inputs into the model's input buffers.
+ */
+void
+litert_subplugin::fillInputBuffers (const GstTensorMemory *input)
+{
+  for (guint i = 0; i < inputTensorMeta.num_tensors; ++i) {
+    void *host_mem = nullptr;
+
+    if (input[i].data == nullptr)
+      throw std::invalid_argument ("Input tensor memory is null.");
+
+    /** Reject any size mismatch: a larger input would overflow the LiteRT
+     *  buffer, and a smaller one would leave the tail of the reused buffer
+     *  holding the previous invoke's data (silently wrong inference). */
+    if (input[i].size != input_tensor_sizes[i])
+      throw std::invalid_argument ("Input tensor " + std::to_string (i) + " ("
+                                   + std::to_string (input[i].size) + " B) does not match the model tensor ("
+                                   + std::to_string (input_tensor_sizes[i]) + " B).");
+
+    LITERT_CHECK (LiteRtLockTensorBuffer (
+        input_buffers[i], &host_mem, kLiteRtTensorBufferLockModeWrite));
+    std::memcpy (host_mem, input[i].data, input[i].size);
+    LITERT_CHECK (LiteRtUnlockTensorBuffer (input_buffers[i]));
+  }
+}
+
+/**
+ * @brief Whether the requested input shapes differ from the compiled ones.
+ *
+ * Reads only this instance's own tensor meta, so it is safe to call before
+ * taking the environment lock - which is the point, since the answer decides
+ * whether the lock is needed in shared or exclusive mode and a shared_mutex
+ * cannot be upgraded.
+ */
+bool
+litert_subplugin::inputShapeDiffers (const GstTensorsInfo *in_info) const
+{
+  if (in_info->num_tensors != inputTensorMeta.num_tensors)
+    return true;
+
+  for (guint i = 0; i < in_info->num_tensors; ++i) {
+    const GstTensorInfo *want
+        = gst_tensors_info_get_nth_info (const_cast<GstTensorsInfo *> (in_info), i);
+    const GstTensorInfo *have = gst_tensors_info_get_nth_info (
+        const_cast<GstTensorsInfo *> (std::addressof (inputTensorMeta)), i);
+
+    /** Ask the framework, not the array. The two sides are padded by
+     *  different rules - convertLayout() zero fills past the model's rank
+     *  while a pipeline carries explicit trailing 1s - so comparing
+     *  element by element calls one logical shape two different things and
+     *  reshapes on every buffer forever. */
+    if (!gst_tensor_dimension_is_equal (want->dimension, have->dimension))
+      return true;
+  }
+
+  return false;
+}
+
+/**
+ * @brief Reject an input whose element type is not the model's.
+ *
+ * Nothing else on this path looks at the type. A flexible sink pad rewrites
+ * prop->input_meta from each buffer's own meta header, type included, and the
+ * framework derives its size check from that same refreshed meta - so a
+ * substitution between types of one width reaches the subplugin unchallenged
+ * and passes every guard here too, since inputShapeDiffers() and reshapeTo()
+ * read dimensions only and fillInputBuffers() counts bytes. The model would
+ * then read int32 bits as float32 and return nonsense with a success code,
+ * which is worse than failing.
+ *
+ * @todo The static invoke() path has the same hole and is not covered here;
+ * see issue #4928, which asks whether the check belongs in the framework
+ * rather than repeated in every subplugin.
+ */
+void
+litert_subplugin::rejectTypeChange (const GstTensorsInfo *in_info) const
+{
+  /* a count mismatch is reshapeTo()'s to report; it has more to say about it */
+  if (in_info->num_tensors != inputTensorMeta.num_tensors)
+    return;
+
+  for (guint i = 0; i < in_info->num_tensors; ++i) {
+    const GstTensorInfo *want
+        = gst_tensors_info_get_nth_info (const_cast<GstTensorsInfo *> (in_info), i);
+    const GstTensorInfo *have = gst_tensors_info_get_nth_info (
+        const_cast<GstTensorsInfo *> (std::addressof (inputTensorMeta)), i);
+
+    /** _STR_NULL: the name is NULL for _NNS_END, which is what an
+     * uninitialised GstTensorInfo carries, and appending NULL to a
+     * std::string is undefined rather than merely ugly */
+    if (want->type != have->type)
+      throw std::invalid_argument (
+          std::string ("Input tensor ") + std::to_string (i) + " is "
+          + _STR_NULL (gst_tensor_get_type_string (want->type)) + " but the model takes "
+          + _STR_NULL (gst_tensor_get_type_string (have->type)) + ".");
+  }
+}
+
+/**
+ * @brief Resize the model's inputs and rebuild everything the shapes decide.
+ *
+ * Must be called with the environment lock held exclusively: it destroys and
+ * recreates the tensor buffers, which is the construction path, not the run
+ * path.
+ *
+ * Every cached quantity here is derived from the shapes, so all of it is stale
+ * the moment a resize succeeds. output_wrappable matters most: it gates a wrap
+ * of the caller's memory on an exact size match, so leaving a stale entry would
+ * let a run write past the caller's tensor rather than merely returning the
+ * wrong bytes.
+ */
+void
+litert_subplugin::reshapeTo (const GstTensorsInfo *in_info)
+{
+  LiteRtSignature sig = nullptr;
+
+  if (in_info->num_tensors != inputTensorMeta.num_tensors)
+    throw std::invalid_argument ("A dynamic invoke cannot change the number of input tensors ("
+                                 + std::to_string (inputTensorMeta.num_tensors) + " -> "
+                                 + std::to_string (in_info->num_tensors) + ").");
+
+  /** Logged because a reshape is otherwise invisible: it produces the same
+   *  bytes as skipping one, so nothing downstream can tell that a pipeline
+   *  is rebuilding the model on every buffer.
+   *
+   *  dynamicInvokePaddedShapeSkipsReshape in unittest_filter_litert.cc
+   *  matches on "litert reshaping", so reword it and that test starts
+   *  passing for the wrong reason. Change both together. */
+  ml_logd ("litert reshaping inputs to the shape this buffer asks for");
+
+  bool any_resized = false;
+
+  for (guint i = 0; i < in_info->num_tensors; ++i) {
+    const GstTensorInfo *want
+        = gst_tensors_info_get_nth_info (const_cast<GstTensorsInfo *> (in_info), i);
+    LiteRtLayout layout;
+    std::vector<int> dims;
+
+    LITERT_CHECK (LiteRtGetCompiledModelInputTensorLayout (
+        compiled_model, signature_index, i, &layout));
+
+    /** nnstreamer orders dimensions the other way round from LiteRT.
+     *
+     *  The clamp keeps this in step with inputShapeDiffers(): the comparison
+     *  it uses treats an absent axis and an explicit 1 as one extent, so a 0
+     *  here has already been called batch 1 by whatever decided to reshape.
+     *  Passing it through would resize to batch 0 instead. */
+    dims.resize (layout.rank);
+    for (guint d = 0; d < layout.rank; ++d)
+      dims[layout.rank - 1 - d] = (int) MAX (want->dimension[d], 1U);
+
+    LiteRtStatus status = LiteRtCompiledModelResizeInputTensor (
+        compiled_model, signature_index, i, dims.data (), dims.size ());
+    if (status != kLiteRtStatusOk) {
+      /** Keep the instance only when nothing can have changed yet: no
+       *  earlier input resized, and the shape itself was refused rather
+       *  than the attempt going wrong. LiteRT documents no failure
+       *  semantics, so the second half is a reading of the status rather
+       *  than a guarantee - InvalidArgument and Unsupported describe the
+       *  request, which can only be judged before touching anything, while
+       *  the rest report the resize itself failing with no way to ask what
+       *  it left behind. Anything unclear costs a rebuild, not a wrong
+       *  answer. */
+      const bool refused_untouched = (status == kLiteRtStatusErrorInvalidArgument
+                                      || status == kLiteRtStatusErrorUnsupported);
+
+      if (any_resized || !refused_untouched)
+        configured = false;
+
+      ml_loge ("Failed to resize LiteRT input %u (status %d).", i, (int) status);
+      throw std::invalid_argument (
+          "Input tensor " + std::to_string (i)
+          + " cannot take the requested shape. The strict resize only admits a"
+            " shape the model signature declares dynamic, so a model with fixed"
+            " input dimensions cannot be reshaped by invoke-dynamic.");
+    }
+
+    any_resized = true;
+  }
+
+  /** There is no rolling back past a successful resize: LiteRT documents the
+   *  buffer requirements as invalidated by it, so the previous shape's buffers
+   *  are gone whether or not the rebuild below succeeds. Drop the configured
+   *  flag across it so a failure leaves the instance plainly unusable instead
+   *  of half built, where the next invoke would run against empty buffers. */
+  configured = false;
+
+  releaseTensorBuffers ();
+  gst_tensors_info_free (std::addressof (inputTensorMeta));
+  gst_tensors_info_free (std::addressof (outputTensorMeta));
+  gst_tensors_info_init (std::addressof (inputTensorMeta));
+  gst_tensors_info_init (std::addressof (outputTensorMeta));
+
+  LITERT_CHECK (LiteRtGetModelSignature (model, signature_index, &sig));
+  setTensorMeta (sig, true, std::addressof (inputTensorMeta));
+  setTensorMeta (sig, false, std::addressof (outputTensorMeta));
+  createTensorBuffers ();
+
+  configured = true;
+}
+
+/**
+ * @brief Invoke the model, reshaping it first when the input shape has changed.
+ *
+ * The framework forces allocate_in_invoke for a dynamic invoke
+ * (gst_tensor_filter_allocate_in_invoke), so the output memory is allocated
+ * here and handed over rather than written in place. That also means the
+ * zero-copy output wrap does not apply on this path: there is no caller buffer
+ * to write into, only one to produce.
+ */
+void
+litert_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
+    const GstTensorMemory *input, GstTensorMemory *output)
+{
+  guint i;
+
+  if (!configured)
+    throw std::runtime_error ("Invoke called before a model is configured.");
+
+  if (prop == nullptr || input == nullptr || output == nullptr)
+    throw std::invalid_argument ("Dynamic invoke called with a null argument.");
+
+  rejectTypeChange (std::addressof (prop->input_meta));
+
+  /** Exactly one of these is locked, and both outlive the read-back below,
+   *  which touches this instance's tensor buffers through LiteRT and so
+   *  belongs under the lock - the static invoke() holds its shared lock over
+   *  the same read for that reason. Scoping the guard to the branch would
+   *  drop the lock before it, and this path is what makes that matter:
+   *  reshapeTo() put the exclusive lock on the streaming path, so another
+   *  instance can now take it while a buffer is being read. */
+  std::shared_lock<std::shared_mutex> shared_guard (litert_env_lock, std::defer_lock);
+  std::unique_lock<std::shared_mutex> unique_guard (litert_env_lock, std::defer_lock);
+
+  if (inputShapeDiffers (std::addressof (prop->input_meta))) {
+    unique_guard.lock ();
+    reshapeTo (std::addressof (prop->input_meta));
+  } else {
+    shared_guard.lock ();
+  }
+
+  fillInputBuffers (input);
+  LITERT_CHECK (LiteRtRunCompiledModel (compiled_model, signature_index,
+      input_buffers.size (), input_buffers.data (), output_buffers.size (),
+      output_buffers.data ()));
+
+  /** Nothing reclaims these if the loop throws part way: the element skips
+   *  its output cleanup entirely when allocate_in_invoke is set, which a
+   *  dynamic invoke always is. So free what was handed out before letting
+   *  the exception go. */
+  try {
+    for (i = 0; i < outputTensorMeta.num_tensors; ++i) {
+      void *host_mem = nullptr;
+
+      LITERT_CHECK (LiteRtLockTensorBuffer (
+          output_buffers[i], &host_mem, kLiteRtTensorBufferLockModeRead));
+
+      output[i].size = output_tensor_sizes[i];
+      output[i].data = g_malloc (output[i].size);
+      std::memcpy (output[i].data, host_mem, output[i].size);
+
+      LITERT_CHECK (LiteRtUnlockTensorBuffer (output_buffers[i]));
+    }
+  } catch (...) {
+    /* only up to i: nothing past the throw was ever handed out */
+    for (guint done = 0; done <= i && done < outputTensorMeta.num_tensors; ++done) {
+      g_free (output[done].data);
+      output[done].data = nullptr;
+      output[done].size = 0;
+    }
+    throw;
+  }
+
+  gst_tensors_info_free (std::addressof (prop->output_meta));
+  gst_tensors_info_copy (
+      std::addressof (prop->output_meta), std::addressof (outputTensorMeta));
+  prop->output_meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
 }
 
 /**

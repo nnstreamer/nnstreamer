@@ -72,6 +72,8 @@ PATH_TO_IMAGE="../test_models/data/orange.png"
 PATH_TO_CLASS="class.out.log"
 PATH_TO_CLASS1="class1.out.log"
 PATH_TO_CLASS2="class2.out.log"
+PATH_TO_DYNAMIC_MODEL="../test_models/models/dynamic_batch_add_one.tflite"
+PATH_TO_DYNAMIC_OUT="dynamic.out.log"
 
 # Test 1: Positive. Golden classification result, same model and golden label
 # as the tensorflow2-lite SSAT tests; cross-runtime divergence fails here.
@@ -106,5 +108,41 @@ class1=$(cat ${PATH_TO_CLASS1})
 class2=$(cat ${PATH_TO_CLASS2})
 [ "$class1" = "orange" ] && [ "$class2" = "orange" ]
 testResult $? 6 "Golden test comparison with two concurrent litert instances" 0 1
+
+# Test 7: Positive. invoke-dynamic through a real pipeline. The gtest cases
+# drive the subplugin directly, which leaves the whole framework side of a
+# dynamic invoke untested: allocate_in_invoke being forced on, the flexible
+# output and its meta header, g_free as the destroy notify, and input_meta
+# being refreshed per buffer. The caps spell the trailing dimensions out as
+# 4:1:1:1, which is what an element upstream actually sends and what the
+# model reports as 4:1, so this also runs the padded form end to end.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=3 ! audio/x-raw,format=F32LE,rate=16000,channels=4 ! tensor_converter frames-per-tensor=1 ! other/tensors,format=static,num_tensors=1,dimensions=4:1:1:1,types=float32,framerate=16000/1 ! tensor_filter framework=litert model=${PATH_TO_DYNAMIC_MODEL} invoke-dynamic=true ! other/tensors,format=flexible ! fakesink" 7 0 0 $PERFORMANCE
+
+# Test 8: Negative. invoke-dynamic demands a flexible output; a static one
+# must be refused rather than silently reinterpreted.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=3 ! audio/x-raw,format=F32LE,rate=16000,channels=4 ! tensor_converter frames-per-tensor=1 ! tensor_filter framework=litert model=${PATH_TO_DYNAMIC_MODEL} invoke-dynamic=true ! other/tensors,format=static ! fakesink" 8_n 0 1 $PERFORMANCE
+
+# Test 9: Positive. Case 7 holds the model's own shape for the whole run, so
+# every buffer takes the skip path and reshapeTo() is never reached by a
+# pipeline at all - all of its coverage comes from direct invoke() calls. A
+# static sink pad cannot reach it either: those caps are pinned to the shape
+# the model reports while negotiating, so asking for a different one fails to
+# link rather than reshaping. A flexible sink pad is the arrangement where the
+# shape genuinely arrives per buffer, and two frames per tensor is not the
+# shape the model starts at, so this drives a real reshape and then the skip
+# path for the buffers behind it.
+#
+# The output size is the check, and it is exact. Non-empty would only prove a
+# reshape happened, not that it reshaped to the right thing: a stale output
+# size would still write something. samplesperbuffer pins one tensor per
+# buffer, so 3 buffers at batch 2 are 3 * (128 B flexible meta header + 8
+# floats) = 480. Disabling reshapeTo() leaves the file empty, and a 4 byte
+# error in the output size gives 468, so both are told apart from a correct
+# run. The 128 is the meta header size; if that ever changes, this number
+# moves with it.
+rm -f ${PATH_TO_DYNAMIC_OUT}
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=3 samplesperbuffer=2 ! audio/x-raw,format=F32LE,rate=16000,channels=4 ! tensor_converter frames-per-tensor=2 ! other/tensors,format=flexible ! tensor_filter framework=litert model=${PATH_TO_DYNAMIC_MODEL} invoke-dynamic=true ! other/tensors,format=flexible ! filesink location=${PATH_TO_DYNAMIC_OUT}" 9 0 0 $PERFORMANCE
+[ "$(wc -c < ${PATH_TO_DYNAMIC_OUT})" -eq 480 ]
+testResult $? 9 "Dynamic invoke reshaped to the shape a flexible pad asked for" 0 1
 
 report
