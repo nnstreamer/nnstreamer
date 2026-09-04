@@ -1870,7 +1870,12 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
     return GST_FLOW_ERROR;
   }
 
-  inbuf = gst_tensor_buffer_from_config (inbuf, &filter->in_config);
+  inbuf = gst_tensor_buffer_from_config (gst_buffer_ref (inbuf),
+      &filter->in_config);
+  if (!inbuf) {
+    ml_loge ("Cannot configure input buffer at tensor-transform.\n");
+    return GST_FLOW_ERROR;
+  }
 
   in_flexible =
       gst_tensor_pad_caps_is_flexible (GST_BASE_TRANSFORM_SINK_PAD (trans));
@@ -1880,10 +1885,18 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
   num_mems = gst_tensor_buffer_get_count (inbuf);
   if (in_flexible) {
     num_tensors = num_mems;
-    g_return_val_if_fail (out_flexible, GST_FLOW_ERROR);
+    if (!out_flexible) {
+      ml_loge ("Invalid caps, the output should be flexible tensor.\n");
+      res = GST_FLOW_ERROR;
+      goto done;
+    }
   } else {
     num_tensors = filter->in_config.info.num_tensors;
-    g_return_val_if_fail (num_mems == num_tensors, GST_FLOW_ERROR);
+    if (num_mems != num_tensors) {
+      ml_loge ("Invalid buffer, the number of tensors is not matched.\n");
+      res = GST_FLOW_ERROR;
+      goto done;
+    }
   }
 
   for (i = 0; i < num_tensors; i++) {
@@ -2027,6 +2040,7 @@ done:
     }
   }
 
+  gst_buffer_unref (inbuf);
   return res;
 }
 
