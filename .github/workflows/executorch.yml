@@ -17,6 +17,7 @@ on:
       - 'gst/nnstreamer/tensor_filter/**'
       - 'meson.build'
       - 'meson_options.txt'
+      - 'tests/meson.build'
       - 'tests/nnstreamer_filter_executorch/**'
       # the fixtures and the generator that SSAT suite runs on
       - 'tests/nnstreamer_converter/generateTest.py'
@@ -110,6 +111,7 @@ jobs:
         # Naming the test makes meson fail outright if it was not registered,
         # rather than reporting an empty run as success.
         meson test -C build/ unittest_filter_executorch --print-errorlogs
+
     - name: SSAT run on filter-executorch
       run: |
         export LD_LIBRARY_PATH="${EXECUTORCH_PREFIX}/lib:${LD_LIBRARY_PATH}"

@@ -137,6 +137,10 @@ executorch_subplugin::configure_instance (const GstTensorFilterProperties *prop)
 {
   try {
     /* Load network (.pte file) */
+    if (!prop->model_files[0] || prop->model_files[0][0] == '\0') {
+      throw std::invalid_argument ("Model path is not given.");
+    }
+
     if (!g_file_test (prop->model_files[0], G_FILE_TEST_IS_REGULAR)) {
       const std::string err_msg
           = "Given file " + (std::string) prop->model_files[0] + " is not valid";
