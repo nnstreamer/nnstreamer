@@ -1,3 +1,20 @@
+# Which control file applies depends on the build stage and the series:
+#
+#  - The Launchpad recipe builds and pdebuild install the Build-Depends of
+#    THIS file before debian/rules ever runs, so it has to be satisfiable on
+#    every Ubuntu series the PPA targets.
+#  - debian/rules then copies debian/control.ubuntu.ppa over it on Ubuntu 24.04
+#    and earlier, and debian/control.debian on Debian, before the source
+#    package is generated. Those copies decide what the binary build installs.
+#  - On Ubuntu 26.04 and later this file is used as it is: onnxruntime comes
+#    from the Ubuntu archive, and the PPA carries no openvino, onert (nnfw),
+#    tvm or pytorch build for those series.
+#
+# One consequence on Ubuntu 24.04 and earlier: dpkg-buildpackage checks the
+# build dependencies of THIS file before debian/rules runs, so a plain
+# dpkg-buildpackage there passes that check and then fails at meson configure
+# on the openvino that debian/rules still enables. Build with pbuilder, as the
+# PPA does, and the legacy build dependencies are the ones that get installed.
 Source: nnstreamer
 Section: libs
 Priority: optional
@@ -12,15 +29,10 @@ Build-Depends: gcc-9 | gcc-8 | gcc-7 | gcc-6 | gcc-5 (>=5.4) | gcc,
  protobuf-compiler (>=3.12), libprotobuf-dev [amd64 arm64 armhf],
  libpaho-mqtt-dev,
  tensorflow2-lite-dev,
- pytorch | libtorch-dev | gcc,
  libedgetpu1-std (>=12), libedgetpu-dev (>=12),
- openvino-dev, openvino-cpu-mkldnn [amd64],
- onert-dev [amd64],
- tvm-runtime-dev, onnxruntime-dev
+ onnxruntime-dev | libonnxruntime-dev
 Standards-Version: 3.9.6
 Homepage: https://github.com/nnstreamer/nnstreamer
-
-## @todo pytorch ppa build fails in Ubuntu 24.04. revive it when pytorch gets proper ppa support.
 
 Package: nnstreamer
 Architecture: any
@@ -60,20 +72,6 @@ Depends: nnstreamer-single, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer TensorFlow Lite 2.x Support
  This package allows nnstreamer to support tensorflow-lite 2.x.
 
-Package: nnstreamer-pytorch
-Architecture: any
-Multi-Arch: same
-Depends: nnstreamer-single, pytorch, ${shlibs:Depends}, ${misc:Depends}
-Description: NNStreamer Pytorch Support
- This package allows nnstreamer to support pytorch.
-
-Package: nnstreamer-caffe2
-Architecture: any
-Multi-Arch: same
-Depends: nnstreamer-single, pytorch, ${shlibs:Depends}, ${misc:Depends}
-Description: NNStreamer Caffe2 Support
- This package allows nnstreamer to support caffe2.
-
 Package: nnstreamer-python3
 Architecture: any
 Multi-Arch: same
@@ -88,31 +86,10 @@ Depends: nnstreamer-single, libedgetpu1-std, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer Edge TPU support
  This package allows nnstreamer to support Edge TPU.
 
-Package: nnstreamer-openvino
-Architecture: any
-Multi-Arch: same
-Depends: nnstreamer-single, openvino, ${shlibs:Depends}, ${misc:Depends}
-Description: NNStreamer OpenVino support
- This package allows nnstreamer to support OpenVino.
-
-Package: nnstreamer-nnfw
-Architecture: amd64
-Multi-Arch: same
-Depends: nnstreamer-single, onert, ${shlibs:Depends}, ${misc:Depends}
-Description: NNStreamer NNFW (ONE) support
- This package allows nnstreamer to support NNFW (ONE, On-Device Neural Engine).
-
-Package: nnstreamer-tvm
-Architecture: any
-Multi-Arch: same
-Depends: nnstreamer, tvm-runtime, ${shlibs:Depends}, ${misc:Depends}
-Description: NNStreamer TVM support
- This package allows nnstreamer to support TVM
-
 Package: nnstreamer-onnxruntime
 Architecture: any
 Multi-Arch: same
-Depends: nnstreamer, onnxruntime, ${shlibs:Depends}, ${misc:Depends}
+Depends: nnstreamer, ${shlibs:Depends}, ${misc:Depends}
 Description: NNStreamer onnxruntime support
  This package allows nnstreamer to support onnxruntime
 

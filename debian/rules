@@ -26,6 +26,27 @@ export NNSTREAMER_DECODERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_d
 export NNSTREAMER_CONVERTERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_converter
 export NNSTREAMER_TRAINERS=${NNSTREAMER_BUILD_ROOT_PATH}/ext/nnstreamer/tensor_trainer
 export PYTHONIOENCODING=utf-8
+
+# The PPA dependency stack differs between Ubuntu series; see debian/control.
+# Ubuntu 24.04 and earlier take the legacy stack from debian/control.ubuntu.ppa,
+# Ubuntu 26.04 and later use debian/control as committed.
+#
+# Both variables are only read inside the vendor guard below. The defaults
+# state what a non-Ubuntu vendor gets, so that a use added outside the guard
+# expands to a valid value instead of an empty one.
+UBUNTU_LEGACY_PPA ?= no
+ENABLE_OPENVINO ?= false
+ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes), yes)
+UBUNTU_VERSION_ID := $(shell . /etc/os-release 2>/dev/null && echo $$VERSION_ID)
+ifeq ($(shell dpkg --compare-versions "$(UBUNTU_VERSION_ID)" ge 26.04 2>/dev/null && echo yes), yes)
+UBUNTU_LEGACY_PPA := no
+# The PPA has no openvino for these series.
+ENABLE_OPENVINO := false
+else
+UBUNTU_LEGACY_PPA := yes
+ENABLE_OPENVINO := true
+endif
+endif
 ifeq ($(DEB_BUILD_ARCH_CPU), arm)
 FLOAT16 := -Denable-float16=true
 endif
@@ -44,8 +65,8 @@ override_dh_auto_configure:
 ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes), yes)
 	meson setup ${BUILDDIR} \
 	--buildtype=plain --prefix=/usr --sysconfdir=/etc --libdir=lib/$(DEB_HOST_MULTIARCH) --bindir=lib/nnstreamer/bin --includedir=include \
-	-Denable-edgetpu=true -Denable-openvino=true -Dgrpc-support=disabled -Dmqtt-support=enabled \
-	-Ddatarepo-support=enabled -Donnxruntime-support=enabled \
+	-Denable-edgetpu=true -Denable-openvino=$(ENABLE_OPENVINO) -Dgrpc-support=disabled -Dmqtt-support=enabled \
+	-Ddatarepo-support=enabled -Dtflite2-support=enabled -Donnxruntime-support=enabled \
 	-Denable-tizen=false -Denable-test=true -Dinstall-test=true -Dsubplugindir=/usr/lib/nnstreamer $(FLOAT16)
 else
 	# Debian has less packages ready.
@@ -85,12 +106,12 @@ override_dh_install:
 
 override_dh_clean:
 	dh_clean $@
-# Prepare SUBSTVARS for Linux distro differences
+# Pick the control file for the distro and series. It lands in the source
+# package, so it decides what the binary build installs. See debian/control.
 ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes), yes)
-	# Default debian/control targets Xenial.
-	# If you want different control for Bionic or later,
-	# you may create another control and copy it here.
+ifeq ($(UBUNTU_LEGACY_PPA), yes)
 	cp debian/control.ubuntu.ppa debian/control
+endif
 else
 	cp debian/control.debian debian/control
 endif
