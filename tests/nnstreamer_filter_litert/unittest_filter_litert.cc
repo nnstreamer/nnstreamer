@@ -2130,6 +2130,73 @@ TEST (nnstreamerFilterLiteRT, dynamicInvokeNullInputData_n)
 }
 
 /**
+ * @brief An absent trailing axis must resize to 1, not to 0.
+ *
+ * gst_tensor_dimension_is_equal() calls 0 and 1 the same extent, so a shape
+ * carrying an absent axis is only ever seen as different while the model sits
+ * at some other extent - reshape to batch 2 first and a rank 1 buffer is then
+ * unequal to it and does reach reshapeTo(). What reshapeTo() must not do is
+ * pass the 0 through: the comparison just called that shape batch 1, so
+ * resizing to batch 0 gives one logical shape two different answers, and the
+ * failure is not local - a resize error outside the two statuses that mean
+ * 'refused, nothing touched' clears configured and kills the element for good,
+ * for a shape the framework considers perfectly legal.
+ */
+TEST (nnstreamerFilterLiteRT, dynamicInvokeAbsentAxisIsOne)
+{
+  void *data = NULL;
+  GstTensorMemory input, output;
+  g_autofree gchar *model_file = NULL;
+  guint dims[NNS_TENSOR_RANK_LIMIT] = { 0 };
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 4));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+  prop.invoke_dynamic = 1;
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  /* move the model off batch 1, so the rank 1 shape below is not equal to it */
+  dims[0] = 4;
+  dims[1] = 2;
+  _SetDynamicInputMeta (&prop, dims);
+  input.size = sizeof (float) * 4 * 2;
+  input.data = g_malloc0 (input.size);
+  output.data = NULL;
+  output.size = 0;
+  ASSERT_EQ (sp->invoke (NULL, &prop, data, &input, &output), 0)
+      << "The reshape to batch 2 that this case is built on did not happen.";
+  g_free (input.data);
+  g_free (output.data);
+
+  /* rank 1: the trailing axis is absent rather than spelled out as 1 */
+  dims[0] = 4;
+  dims[1] = 0;
+  _SetDynamicInputMeta (&prop, dims);
+  input.size = sizeof (float) * 4;
+  input.data = g_malloc0 (input.size);
+  output.data = NULL;
+  output.size = 0;
+
+  EXPECT_EQ (sp->invoke (NULL, &prop, data, &input, &output), 0)
+      << "A shape with an absent trailing axis was refused, so it was resized "
+         "to batch 0 rather than to the batch 1 the comparison called it.";
+  EXPECT_EQ (output.size, sizeof (float) * 4)
+      << "The output is not one batch of the model's output.";
+
+  g_free (input.data);
+  g_free (output.data);
+  gst_tensors_info_free (&prop.input_meta);
+  gst_tensors_info_free (&prop.output_meta);
+  sp->close (&prop, &data);
+}
+
+/**
  * @brief Negative case: the element type must be the model's.
  *
  * int32 and float32 are both 4 bytes wide, so a substitution between them

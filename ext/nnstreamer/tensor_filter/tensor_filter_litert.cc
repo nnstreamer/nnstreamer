@@ -996,6 +996,10 @@ litert_subplugin::inputShapeDiffers (const GstTensorsInfo *in_info) const
  * read dimensions only and fillInputBuffers() counts bytes. The model would
  * then read int32 bits as float32 and return nonsense with a success code,
  * which is worse than failing.
+ *
+ * @todo The static invoke() path has the same hole and is not covered here;
+ * see issue #4928, which asks whether the check belongs in the framework
+ * rather than repeated in every subplugin.
  */
 void
 litert_subplugin::rejectTypeChange (const GstTensorsInfo *in_info) const
@@ -1064,10 +1068,15 @@ litert_subplugin::reshapeTo (const GstTensorsInfo *in_info)
     LITERT_CHECK (LiteRtGetCompiledModelInputTensorLayout (
         compiled_model, signature_index, i, &layout));
 
-    /* nnstreamer orders dimensions the other way round from LiteRT */
+    /** nnstreamer orders dimensions the other way round from LiteRT.
+     *
+     *  The clamp keeps this in step with inputShapeDiffers(): the comparison
+     *  it uses treats an absent axis and an explicit 1 as one extent, so a 0
+     *  here has already been called batch 1 by whatever decided to reshape.
+     *  Passing it through would resize to batch 0 instead. */
     dims.resize (layout.rank);
     for (guint d = 0; d < layout.rank; ++d)
-      dims[layout.rank - 1 - d] = (int) want->dimension[d];
+      dims[layout.rank - 1 - d] = (int) MAX (want->dimension[d], 1U);
 
     LiteRtStatus status = LiteRtCompiledModelResizeInputTensor (
         compiled_model, signature_index, i, dims.data (), dims.size ());
