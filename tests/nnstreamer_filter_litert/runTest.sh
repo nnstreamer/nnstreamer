@@ -136,9 +136,10 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=3 ! audio/
 # reshape happened, not that it reshaped to the right thing: a stale output
 # size would still write something. samplesperbuffer pins one tensor per
 # buffer, so 3 buffers at batch 2 are 3 * (128 B flexible meta header + 8
-# floats) = 480. The same run at batch 1 is 864, and disabling reshapeTo()
-# leaves the file empty, so all three outcomes are told apart. The 128 is the
-# meta header size; if that ever changes, this number moves with it.
+# floats) = 480. Disabling reshapeTo() leaves the file empty, and a 4 byte
+# error in the output size gives 468, so both are told apart from a correct
+# run - which is the point, since both write something. The 128 is the meta
+# header size; if that ever changes, this number moves with it.
 rm -f ${PATH_TO_DYNAMIC_OUT}
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=3 samplesperbuffer=2 ! audio/x-raw,format=F32LE,rate=16000,channels=4 ! tensor_converter frames-per-tensor=2 ! other/tensors,format=flexible ! tensor_filter framework=litert model=${PATH_TO_DYNAMIC_MODEL} invoke-dynamic=true ! other/tensors,format=flexible ! filesink location=${PATH_TO_DYNAMIC_OUT}" 9 0 0 $PERFORMANCE
 [ "$(wc -c < ${PATH_TO_DYNAMIC_OUT})" -eq 480 ]
