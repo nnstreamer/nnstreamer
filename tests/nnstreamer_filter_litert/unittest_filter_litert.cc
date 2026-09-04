@@ -2130,6 +2130,59 @@ TEST (nnstreamerFilterLiteRT, dynamicInvokeNullInputData_n)
 }
 
 /**
+ * @brief Negative case: the element type must be the model's.
+ *
+ * int32 and float32 are both 4 bytes wide, so a substitution between them
+ * changes no dimension and no byte count. With a flexible sink pad the type
+ * in prop->input_meta is whatever the buffer's own meta header says, and the
+ * framework sizes its check from that same header, so nothing upstream
+ * objects either. Without an explicit check the model reads int32 bits as
+ * float32 and returns nonsense with a success code.
+ */
+TEST (nnstreamerFilterLiteRT, dynamicInvokeInputTypeMismatch_n)
+{
+  void *data = NULL;
+  GstTensorMemory input, output;
+  g_autofree gchar *model_file = NULL;
+  guint dims[NNS_TENSOR_RANK_LIMIT] = { 0 };
+  GstTensorInfo *info;
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 4));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+  prop.invoke_dynamic = 1;
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  /* the model's own shape, so only the type is out of place */
+  dims[0] = 4;
+  dims[1] = 1;
+  _SetDynamicInputMeta (&prop, dims);
+  info = gst_tensors_info_get_nth_info (&prop.input_meta, 0);
+  info->type = _NNS_INT32;
+
+  input.size = sizeof (int32_t) * 4;
+  input.data = g_malloc0 (input.size);
+  output.data = NULL;
+  output.size = 0;
+
+  EXPECT_NE (sp->invoke (NULL, &prop, data, &input, &output), 0)
+      << "An int32 buffer was accepted by a float32 model, which infers on "
+         "reinterpreted bits and reports success.";
+
+  g_free (input.data);
+  g_free (output.data);
+  gst_tensors_info_free (&prop.input_meta);
+  gst_tensors_info_free (&prop.output_meta);
+  sp->close (&prop, &data);
+}
+
+/**
  * @brief Negative case: the input buffer must match the shape it asks for.
  *
  * The copy is sized by the caller, so the two directions fail differently: a
