@@ -222,6 +222,7 @@ gst_tensor_demux_dispose (GObject * object)
 
   gst_tensor_demux_remove_src_pads (tensor_demux);
   g_list_free_full (tensor_demux->tensorpick, g_free);
+  tensor_demux->tensorpick = NULL;
   G_OBJECT_CLASS (parent_class)->dispose (object);
 }
 
@@ -260,8 +261,37 @@ gst_tensor_demux_event (GstPad * pad, GstObject * parent, GstEvent * event)
 }
 
 /**
+ * @brief Copy a tensorpick entry.
+ */
+static gpointer
+gst_tensor_demux_copy_pick (gconstpointer src, gpointer data)
+{
+  UNUSED (data);
+  return g_strdup ((const gchar *) src);
+}
+
+/**
+ * @brief Get a private copy of the tensorpick property.
+ * @param tensor_demux "this" pointer
+ * @return copied list, which should be released with g_list_free_full()
+ */
+static GList *
+gst_tensor_demux_get_tensorpick (GstTensorDemux * tensor_demux)
+{
+  GList *tensorpick;
+
+  GST_OBJECT_LOCK (tensor_demux);
+  tensorpick = g_list_copy_deep (tensor_demux->tensorpick,
+      gst_tensor_demux_copy_pick, NULL);
+  GST_OBJECT_UNLOCK (tensor_demux);
+
+  return tensorpick;
+}
+
+/**
  * @brief Get tensor config info from configured tensors
  * @param tensor_demux "this" pointer
+ * @param tensorpick private copy of the tensorpick property
  * @param config tensor config to be filled
  * @param nth source ordering
  * @param total number of tensors
@@ -269,18 +299,20 @@ gst_tensor_demux_event (GstPad * pad, GstObject * parent, GstEvent * event)
  */
 static gboolean
 gst_tensor_demux_get_tensor_config (GstTensorDemux * tensor_demux,
-    GstTensorsConfig * config, const guint nth, const guint total)
+    GList * tensorpick, GstTensorsConfig * config, const guint nth,
+    const guint total)
 {
   gst_tensors_config_init (config);
 
-  if (tensor_demux->tensorpick != NULL) {
+  if (tensorpick != NULL) {
     gchar *selected_tensor;
     gchar **strv;
     guint i, num, idx;
 
-    g_assert (g_list_length (tensor_demux->tensorpick) >= nth);
+    selected_tensor = (gchar *) g_list_nth_data (tensorpick, nth);
+    if (selected_tensor == NULL)
+      return FALSE;
 
-    selected_tensor = (gchar *) g_list_nth_data (tensor_demux->tensorpick, nth);
     strv = g_strsplit_set (selected_tensor, ":+", -1);
     num = g_strv_length (strv);
 
@@ -320,6 +352,7 @@ gst_tensor_demux_get_tensor_config (GstTensorDemux * tensor_demux,
 /**
  * @brief Checking if the source pad is created and if not, create TensorPad
  * @param tensor_demux TensorDemux Object
+ * @param tensorpick private copy of the tensorpick property
  * @param[out] created will be updated in this function
  * @param nth source ordering
  * @param total number of tensors
@@ -328,7 +361,7 @@ gst_tensor_demux_get_tensor_config (GstTensorDemux * tensor_demux,
  */
 static GstTensorPad *
 gst_tensor_demux_get_tensor_pad (GstTensorDemux * tensor_demux,
-    gboolean * created, const guint nth, const guint total)
+    GList * tensorpick, gboolean * created, const guint nth, const guint total)
 {
   GstElement *element = GST_ELEMENT_CAST (tensor_demux);
   g_autofree gchar *element_name = gst_element_get_name (element);
@@ -399,7 +432,8 @@ gst_tensor_demux_get_tensor_pad (GstTensorDemux * tensor_demux,
   gst_event_unref (event);
 
   /* configure nth pad caps */
-  if (gst_tensor_demux_get_tensor_config (tensor_demux, &config, nth, total)) {
+  if (gst_tensor_demux_get_tensor_config (tensor_demux, tensorpick, &config,
+          nth, total)) {
     caps = gst_tensor_pad_caps_from_config (pad, &config);
 
     gst_pad_set_caps (pad, caps);
@@ -412,9 +446,9 @@ gst_tensor_demux_get_tensor_pad (GstTensorDemux * tensor_demux,
     *created = TRUE;
   }
 
-  if (tensor_demux->tensorpick != NULL) {
+  if (tensorpick != NULL) {
     GST_DEBUG_OBJECT (tensor_demux, "TensorPick is set! : %dth tensor\n", nth);
-    if (g_list_length (tensor_demux->tensorpick) == tensor_demux->num_srcpads) {
+    if (g_list_length (tensorpick) == tensor_demux->num_srcpads) {
       gst_element_no_more_pads (GST_ELEMENT_CAST (tensor_demux));
     }
   }
@@ -459,11 +493,12 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   guint num_tensors, num_srcs, i, idx;
   GstFlowReturn res = GST_FLOW_OK;
   GstTensorDemux *tensor_demux;
-  GList *list = NULL;
+  GList *tensorpick, *list = NULL;
   GstTensorInfo *_info;
 
   UNUSED (pad);
   tensor_demux = GST_TENSOR_DEMUX (parent);
+  tensorpick = gst_tensor_demux_get_tensorpick (tensor_demux);
 
   buf = gst_tensor_buffer_from_config (buf, &tensor_demux->tensors_config);
 
@@ -479,9 +514,9 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   GST_DEBUG_OBJECT (tensor_demux, " Number of Tensors: %d", num_tensors);
 
   num_srcs = num_tensors;
-  if (tensor_demux->tensorpick != NULL) {
-    num_srcs = g_list_length (tensor_demux->tensorpick);
-    list = tensor_demux->tensorpick;
+  if (tensorpick != NULL) {
+    num_srcs = g_list_length (tensorpick);
+    list = tensorpick;
   }
 
   for (i = 0; i < num_srcs; i++) {
@@ -491,11 +526,11 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     gboolean created;
     GstClockTime ts;
 
-    srcpad = gst_tensor_demux_get_tensor_pad (tensor_demux, &created, i,
-        num_tensors);
+    srcpad = gst_tensor_demux_get_tensor_pad (tensor_demux, tensorpick,
+        &created, i, num_tensors);
     outbuf = gst_buffer_new ();
 
-    if (tensor_demux->tensorpick != NULL) {
+    if (list != NULL) {
       guint num, j;
       gchar **strv = g_strsplit_set ((gchar *) list->data, ":+", -1);
 
@@ -507,6 +542,7 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
             idx);
         mem = gst_tensor_buffer_get_nth_memory (buf, idx);
         if (!gst_tensor_buffer_append_memory (outbuf, mem, _info)) {
+          g_strfreev (strv);
           gst_buffer_unref (outbuf);
           res = GST_FLOW_ERROR;
           goto error;
@@ -556,6 +592,7 @@ gst_tensor_demux_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   }
 
 error:
+  g_list_free_full (tensorpick, g_free);
   gst_buffer_unref (buf);
   return res;
 }
@@ -597,6 +634,8 @@ gst_tensor_demux_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
   GstTensorDemux *filter = GST_TENSOR_DEMUX (object);
+
+  GST_OBJECT_LOCK (filter);
   switch (prop_id) {
     case PROP_SILENT:
       filter->silent = g_value_get_boolean (value);
@@ -624,6 +663,7 @@ gst_tensor_demux_set_property (GObject * object, guint prop_id,
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
+  GST_OBJECT_UNLOCK (filter);
 }
 
 /**
@@ -634,6 +674,8 @@ gst_tensor_demux_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec)
 {
   GstTensorDemux *filter = GST_TENSOR_DEMUX (object);
+
+  GST_OBJECT_LOCK (filter);
   switch (prop_id) {
     case PROP_SILENT:
       g_value_set_boolean (value, filter->silent);
@@ -659,4 +701,5 @@ gst_tensor_demux_get_property (GObject * object, guint prop_id,
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
+  GST_OBJECT_UNLOCK (filter);
 }
