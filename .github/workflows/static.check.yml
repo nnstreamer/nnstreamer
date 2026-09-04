@@ -188,6 +188,19 @@ jobs:
           else
             echo "Skipped: $selftest is not in this branch's tree and this PR does not remove it."
           fi
+      - name: /Checker/ unittest runner self-test
+        # Runs a repository script unrelated to $changed_file_list, so it
+        # needs the same merge-ref guard as the steps above.
+        run: |
+          selftest=packaging/test_run_unittests_binaries.sh
+          if [ -f "$selftest" ]; then
+            bash "$selftest"
+          elif git show --pretty="format:" --name-only --no-renames --diff-filter=D ${{ github.event.pull_request.head.sha }} -${{ github.event.pull_request.commits }} | grep -qxF "$selftest"; then
+            echo "::error::This PR removes $selftest; remove its workflow step too, or restore the script (also update this step if the script moved)."
+            exit 1
+          else
+            echo "Skipped: $selftest is not in this branch's tree and this PR does not remove it."
+          fi
       - name: /Checker/ SSAT install list is in sync
         # Same guard as the check-rebuild self-test above: the step list comes
         # from the merge ref while the checkout is the PR head, so a branch that
