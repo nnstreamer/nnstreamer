@@ -73,7 +73,13 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num_buffers=1 ! videoc
 # THIS WON'T FAIL, BUT NOT MUCH MEANINGFUL.
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num_buffers=4 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=257,height=257 ! tee name=t t. ! queue ! mix. t. ! queue ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,div:255.0 ! tensor_filter framework=tensorflow2-lite model=${PATH_TO_MODEL} ! tensor_decoder mode=image_segment option1=tflite-deeplab ! mix. videomixer name=mix sink_0::alpha=0.7 sink_1::alpha=0.6 ! videoconvert ! fakesink" 0_p 0 0
 
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=257,height=257 ! tee name=t t. ! queue ! mix. t. ! queue ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,div:255.0 ! tensor_filter framework=tensorflow2-lite model=${PATH_TO_MODEL} ! tensor_decoder mode=image_segment option1=tflite-deeplab ! mix. videomixer name=mix sink_0::alpha=0.7 sink_1::alpha=0.6 ! filesink location=test_output.0" 1 0 0 $PERFORMANCE
+# The golden is the decoder's output, taken off a tee before videomixer, so
+# that the compare checks the image_segment decoder and not videomixer's alpha
+# blending, whose rounding differs between GStreamer releases (1.24 vs 1.28).
+# It is still an exact compare of an argmax over tensorflow-lite output, so a
+# rebuild of the tensorflow2-lite package with another compiler can move
+# boundary pixels. That is a golden to refresh, not a decoder to debug.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw,format=RGB,width=257,height=257 ! tee name=t t. ! queue ! mix. t. ! queue ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,div:255.0 ! tensor_filter framework=tensorflow2-lite model=${PATH_TO_MODEL} ! tensor_decoder mode=image_segment option1=tflite-deeplab ! tee name=d d. ! queue ! filesink location=test_output.0 d. ! queue ! mix. videomixer name=mix sink_0::alpha=0.7 sink_1::alpha=0.6 ! fakesink" 1 0 0 $PERFORMANCE
 
 callCompareTest test_golden.0 test_output.0 1 "test with videotestsrc" 0
 
