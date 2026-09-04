@@ -29,9 +29,15 @@ please file an issue. In the meantime you may build the packages yourself with
 [Ubuntu: Pbuilder / Pdebuild](getting-started-ubuntu-debuild.md) or
 [Linux generic: build with meson and ninja](getting-started-meson-build.md).
 
+On Ubuntu 26.04 and later the PPA builds against the Ubuntu archive wherever
+it can: `nnstreamer-onnxruntime` links the archive's onnxruntime, and the
+`nnstreamer-openvino`, `nnstreamer-nnfw`, `nnstreamer-tvm`, `nnstreamer-pytorch`
+and `nnstreamer-caffe2` packages are not provided for those releases because
+the PPA carries no build of those frameworks for them.
+
 ### Additional plugins available
 
-* nnstreamer-caffe2 : Allows to use caffe2 models in a pipeline. (From pytorch 1.3.1 by default)
+* nnstreamer-caffe2 : Allows to use caffe2 models in a pipeline. (From pytorch 1.3.1 by default. Needs the PPA's `pytorch` package, which is not built for 24.04 or later.)
 * nnstreamer-cpp : Allows to use C++ classes as filters of a pipeline.
 * nnstreamer-cpp-dev : Required to build C++ class-filters.
 * nnstreamer-dev : Required to build C function-filters and to build your own nnstreamer plugins.
@@ -42,7 +48,7 @@ please file an issue. In the meantime you may build the packages yourself with
 * nnstreamer-protobuf : Allows to convert-from and decode-to protobuf streams.
 * nnstreamer-python2 : Allows to use python2 classes as filters of a pipeline.
 * nnstreamer-python3 : Allows to use python3 classes as filters of a pipeline.
-* nnstreamer-pytorch : Allows to use Pytorch models in a pipeline. (From pytorch 1.3.1 by default)
+* nnstreamer-pytorch : Allows to use Pytorch models in a pipeline. (From pytorch 1.3.1 by default. Needs the PPA's `pytorch` package, which is not built for 24.04 or later.)
 * nnstreamer-tensorflow : Allows to use TensorFlow models in a pipeline. (From tensorflow 1.13.1 by default)
 * nnstreamer-tensorflow-lite : Allows to use TensorFlow-lite models in a pipeline. (From tensorflow 1.13.1 by default)
 
