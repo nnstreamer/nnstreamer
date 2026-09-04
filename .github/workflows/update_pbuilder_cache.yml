@@ -65,6 +65,7 @@ jobs:
           echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
 
       - name: make pbuilder base.tgz
+        id: make-base-tgz
         run: |
           echo "=== pbuilder create"
           echo "::group::pbuilder create --allow-untrusted"
@@ -86,7 +87,11 @@ jobs:
 
       - name: save pbuilder cache
         uses: actions/cache/save@v4
-        if: always() && github.ref == 'refs/heads/main'
+        # Saving after a failed "pbuilder create" would write an entry holding
+        # aptcache and no base.tgz. A later run hits that key exactly, skips
+        # its own create step, and fails on the missing chroot instead of on
+        # whatever actually broke, so only save once the chroot exists.
+        if: always() && github.ref == 'refs/heads/main' && steps.make-base-tgz.outcome == 'success'
         with:
           path: |
             /var/cache/pbuilder/aptcache
