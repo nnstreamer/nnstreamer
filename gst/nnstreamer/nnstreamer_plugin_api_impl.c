@@ -54,7 +54,6 @@ static gboolean
 gst_memory_map_is_extra_tensor (GstMapInfo * map)
 {
   GstTensorExtraInfo *extra_info;
-  gboolean is_extra;
 
   g_return_val_if_fail (map != NULL, FALSE);
 
@@ -64,9 +63,18 @@ gst_memory_map_is_extra_tensor (GstMapInfo * map)
   extra_info = (GstTensorExtraInfo *) map->data;
 
   /* check magic in header (extra info) of the memory */
-  is_extra = (extra_info && extra_info->magic == NNS_TENSOR_EXTRA_MAGIC);
+  if (extra_info->magic != NNS_TENSOR_EXTRA_MAGIC)
+    return FALSE;
 
-  return is_extra;
+  /* the header comes from the buffer data, do not trust its tensor count */
+  if (extra_info->num_extra_tensors > NNS_TENSOR_SIZE_EXTRA_LIMIT) {
+    nns_loge ("Invalid extra header, the number of extra tensors (%u) "
+        "exceeds the limit (%d).", extra_info->num_extra_tensors,
+        NNS_TENSOR_SIZE_EXTRA_LIMIT);
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 /**
@@ -1687,7 +1695,7 @@ GstMemory *
 gst_tensor_buffer_get_nth_memory (GstBuffer * buffer, const guint index)
 {
   guint i, num_tensors;
-  gsize offset;
+  gsize offset, size;
   GstMemory *extra_tensors_memory, *res_mem = NULL;
   GstMapInfo extra_tensors_map;
   GstTensorExtraInfo *extra_info;
@@ -1728,28 +1736,31 @@ gst_tensor_buffer_get_nth_memory (GstBuffer * buffer, const guint index)
     goto done;
   }
 
-  /* parse the memory */
+  /* parse the memory, the reserved data is followed by the extra tensors */
   extra_info = (GstTensorExtraInfo *) extra_tensors_map.data;
   offset = sizeof (GstTensorExtraInfo);
+  size = extra_info->reserved;
 
-  /* If index is NNS_TENSOR_MEMORY_MAX - 1 */
-  if (index == NNS_TENSOR_MEMORY_MAX - 1) {
-    res_mem =
-        gst_memory_share (extra_tensors_memory, offset, extra_info->reserved);
-    goto done;
+  /* every offset and size below is parsed from the buffer data, bound them */
+  for (i = NNS_TENSOR_MEMORY_MAX - 1; i < index; ++i) {
+    if (size > extra_tensors_map.size - offset)
+      goto invalid;
+
+    offset += size;
+    size = gst_tensor_info_get_size (&extra_info->infos[i -
+            (NNS_TENSOR_MEMORY_MAX - 1)]);
   }
 
-  offset += extra_info->reserved;
-
-  for (i = 1; i <= index - NNS_TENSOR_MEMORY_MAX; ++i) {
-    offset += gst_tensor_info_get_size (&extra_info->infos[i - 1]);
-  }
+  if (size > extra_tensors_map.size - offset)
+    goto invalid;
 
   /* wrap it as GstMemory */
-  res_mem =
-      gst_memory_share (extra_tensors_memory, offset,
-      gst_tensor_info_get_size (&extra_info->infos[index -
-              NNS_TENSOR_MEMORY_MAX]));
+  res_mem = gst_memory_share (extra_tensors_memory, offset, size);
+  goto done;
+
+invalid:
+  nns_loge ("Invalid extra header, the %u-th tensor is out of the memory.",
+      index);
 
 done:
   gst_memory_unmap (extra_tensors_memory, &extra_tensors_map);
@@ -1824,7 +1835,15 @@ gst_tensor_buffer_append_memory (GstBuffer * buffer, GstMemory * memory,
 
   /* if the memory does not have proper header, append it */
   is_extra = gst_memory_map_is_extra_tensor (&last_memory_map);
-  if (!is_extra) {
+  if (is_extra) {
+    extra_info = (GstTensorExtraInfo *) last_memory_map.data;
+
+    if (extra_info->num_extra_tensors >= NNS_TENSOR_SIZE_EXTRA_LIMIT) {
+      nns_loge ("Failed to append memory, the buffer already has the maximum "
+          "number of tensors (%d).", NNS_TENSOR_SIZE_LIMIT);
+      goto failed;
+    }
+  } else {
     new_mem_size += sizeof (GstTensorExtraInfo);
   }
 
