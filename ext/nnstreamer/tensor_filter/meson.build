@@ -872,8 +872,12 @@ if executorch_support_is_available
 
   # ExecuTorch's own module.h touches its deprecated debug_buffer_ from inline
   # members, so every translation unit that includes it warns - and -Werror
-  # then stops the build over a header we do not own.
-  executorch_compile_args = cxx.get_supported_arguments(['-Wno-deprecated-declarations'])
+  # then stops the build over a header we do not own. Downgraded rather than
+  # silenced: upstream has been signalling the removal of the torch::executor
+  # aliases this subplugin still uses, and if they annotate those before
+  # deleting them, silencing here would hide the warning until the build
+  # breaks outright.
+  executorch_compile_args = cxx.get_supported_arguments(['-Wno-error=deprecated-declarations'])
   nnstreamer_filter_executorch_deps += declare_dependency(compile_args: executorch_compile_args)
 
   shared_library('nnstreamer_filter_executorch',
