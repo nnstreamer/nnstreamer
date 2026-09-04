@@ -12,11 +12,12 @@
  * same from the outside whether open() rejected the model or the caps simply
  * did not match. These tests call the framework directly instead.
  *
- * The arithmetic is the point of the fixtures, so the golden values are exact:
- * sample_3x4_two_input_two_output.pte computes (x + 1.0, y + 2.0) and
- * sample_4x4x4x4x4_two_input_one_output.pte computes x + y. Adding a small
- * integral constant to a float32 is exact in IEEE-754, so these compare with
- * EXPECT_FLOAT_EQ rather than a tolerance.
+ * The arithmetic is the point of the fixtures, so the golden values are given
+ * exactly: sample_3x4_two_input_two_output.pte computes (x + 1.0, y + 2.0) and
+ * sample_4x4x4x4x4_two_input_one_output.pte computes x + y. Every value here is
+ * a small integer, well inside the range float32 represents exactly, so the
+ * expected results are the arithmetic ones and EXPECT_FLOAT_EQ's four-ULP
+ * window never has to absorb anything.
  */
 
 #include <gtest/gtest.h>
@@ -28,8 +29,6 @@
 
 #include <nnstreamer_plugin_api_filter.h>
 #include <nnstreamer_plugin_api_util.h>
-#include <nnstreamer_util.h>
-#include <unittest_util.h>
 
 #define FW_NAME "executorch"
 
@@ -315,6 +314,9 @@ TEST (nnstreamerFilterExecutorch, invoke00)
   const gsize num_elems = 3 * 4;
   const gsize tensor_size = sizeof (float) * num_elems;
 
+  ret = sp->open (&prop, &data);
+  ASSERT_EQ (ret, 0);
+
   for (int i = 0; i < 2; i++) {
     input[i].size = tensor_size;
     input[i].data = g_malloc0 (tensor_size);
@@ -326,9 +328,6 @@ TEST (nnstreamerFilterExecutorch, invoke00)
     ((float *) input[0].data)[i] = (float) i;
     ((float *) input[1].data)[i] = (float) i;
   }
-
-  ret = sp->open (&prop, &data);
-  ASSERT_EQ (ret, 0);
 
   ret = sp->invoke (NULL, &prop, data, input, output);
   EXPECT_EQ (ret, 0);
@@ -368,6 +367,9 @@ TEST (nnstreamerFilterExecutorch, invoke01)
   const gsize num_elems = 4 * 4 * 4 * 4 * 4;
   const gsize tensor_size = sizeof (float) * num_elems;
 
+  ret = sp->open (&prop, &data);
+  ASSERT_EQ (ret, 0);
+
   for (int i = 0; i < 2; i++) {
     input[i].size = tensor_size;
     input[i].data = g_malloc0 (tensor_size);
@@ -380,9 +382,6 @@ TEST (nnstreamerFilterExecutorch, invoke01)
     ((float *) input[1].data)[i] = (float) (2 * i);
   }
 
-  ret = sp->open (&prop, &data);
-  ASSERT_EQ (ret, 0);
-
   ret = sp->invoke (NULL, &prop, data, input, output);
   EXPECT_EQ (ret, 0);
 
@@ -392,6 +391,47 @@ TEST (nnstreamerFilterExecutorch, invoke01)
   for (int i = 0; i < 2; i++)
     g_free (input[i].data);
   g_free (output[0].data);
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief Negative case: invoke() rejects a NULL input or output buffer.
+ */
+TEST (nnstreamerFilterExecutorch, invoke00_n)
+{
+  int ret;
+  void *data = NULL;
+  GstTensorMemory input[2], output[2];
+  g_autofree gchar *model_file = _GetModelFilePath ("sample_3x4_two_input_two_output.pte");
+
+  ASSERT_TRUE (g_file_test (model_file, G_FILE_TEST_IS_REGULAR));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find (FW_NAME);
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, model_files);
+
+  const gsize tensor_size = sizeof (float) * 3 * 4;
+
+  ret = sp->open (&prop, &data);
+  ASSERT_EQ (ret, 0);
+
+  for (int i = 0; i < 2; i++) {
+    input[i].size = tensor_size;
+    input[i].data = g_malloc0 (tensor_size);
+    output[i].size = tensor_size;
+    output[i].data = g_malloc0 (tensor_size);
+  }
+
+  EXPECT_NE (sp->invoke (NULL, &prop, data, NULL, output), 0);
+  EXPECT_NE (sp->invoke (NULL, &prop, data, input, NULL), 0);
+
+  for (int i = 0; i < 2; i++) {
+    g_free (input[i].data);
+    g_free (output[i].data);
+  }
   sp->close (&prop, &data);
 }
 
@@ -438,7 +478,9 @@ TEST (nnstreamerFilterExecutorch, invokeRepeated)
     }
 
     ret = sp->invoke (NULL, &prop, data, input, output);
-    ASSERT_EQ (ret, 0) << "invoke failed on round " << round;
+    EXPECT_EQ (ret, 0) << "invoke failed on round " << round;
+    if (ret != 0)
+      break;
 
     for (gsize i = 0; i < num_elems; i++) {
       EXPECT_FLOAT_EQ (((float *) output[0].data)[i], (float) (i + round) + 1.0f);
