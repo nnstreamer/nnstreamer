@@ -1902,7 +1902,11 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
         gst_memory_unref (old);
       }
 
-      gst_tensor_buffer_append_memory (outbuf, mem, out_info);
+      if (!gst_tensor_buffer_append_memory (outbuf, mem, out_info)) {
+        ml_loge ("Failed to append memory to output buffer.\n");
+        res = GST_FLOW_ERROR;
+        goto done;
+      }
       continue;
     }
 
@@ -1910,6 +1914,8 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
     in_mem[i] = gst_tensor_buffer_get_nth_memory (inbuf, i);
     if (!gst_memory_map (in_mem[i], &in_map[i], GST_MAP_READ)) {
       ml_loge ("Cannot map input buffer to gst-buf at tensor-transform.\n");
+      gst_memory_unref (in_mem[i]);
+      in_mem[i] = NULL;
       res = GST_FLOW_ERROR;
       goto done;
     }
@@ -1942,10 +1948,10 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
     }
 
     out_mem[i] = gst_allocator_alloc (NULL, buf_size, NULL);
-    gst_tensor_buffer_append_memory (outbuf, out_mem[i], out_info);
-
     if (!gst_memory_map (out_mem[i], &out_map[i], GST_MAP_WRITE)) {
       ml_loge ("Cannot map output buffer to gst-buf at tensor-transform.\n");
+      gst_memory_unref (out_mem[i]);
+      out_mem[i] = NULL;
       res = GST_FLOW_ERROR;
       goto done;
     }
@@ -1990,6 +1996,23 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
         res = GST_FLOW_NOT_SUPPORTED;
         goto done;
     }
+
+    /* append the memory after filling it, appending may copy and release it */
+    gst_memory_unmap (out_mem[i], &out_map[i]);
+    if (res != GST_FLOW_OK) {
+      gst_memory_unref (out_mem[i]);
+      out_mem[i] = NULL;
+      goto done;
+    }
+
+    if (!gst_tensor_buffer_append_memory (outbuf, out_mem[i], out_info)) {
+      ml_loge ("Failed to append memory to output buffer.\n");
+      out_mem[i] = NULL;
+      res = GST_FLOW_ERROR;
+      goto done;
+    }
+
+    out_mem[i] = NULL;
   }
 
 done:
@@ -1998,8 +2021,10 @@ done:
       gst_memory_unmap (in_mem[i], &in_map[i]);
       gst_memory_unref (in_mem[i]);
     }
-    if (out_mem[i])
+    if (out_mem[i]) {
       gst_memory_unmap (out_mem[i], &out_map[i]);
+      gst_memory_unref (out_mem[i]);
+    }
   }
 
   return res;
