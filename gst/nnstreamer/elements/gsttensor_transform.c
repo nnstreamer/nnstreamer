@@ -1210,6 +1210,9 @@ gst_tensor_transform_finalize (GObject * object)
     filter->apply = NULL;
   }
 
+  gst_tensors_config_free (&filter->in_config);
+  gst_tensors_config_free (&filter->out_config);
+
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
@@ -2346,6 +2349,10 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
 
   filter = GST_TENSOR_TRANSFORM_CAST (trans);
 
+  gst_tensors_config_init (&in_config);
+  gst_tensors_config_init (&out_config);
+  gst_tensors_config_init (&config);
+
   silent_debug (filter, "Calling SetCaps\n");
   silent_debug_caps (filter, incaps, "incaps");
   silent_debug_caps (filter, outcaps, "outcaps");
@@ -2374,7 +2381,6 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
   out_flexible = gst_tensors_config_is_flexible (&out_config);
 
   /* compare type and dimension */
-  gst_tensors_config_init (&config);
   config.info.format = out_config.info.format;
 
   config.rate_n = in_config.rate_n;
@@ -2401,8 +2407,11 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
     GST_INFO_OBJECT (filter, "Output tensor is flexible.");
 
     /* set output configuration if input is static */
-    if (!in_flexible)
+    if (!in_flexible) {
+      gst_tensors_config_free (&out_config);
       out_config = config;
+      gst_tensors_config_init (&config);
+    }
   } else if (!gst_tensors_config_is_equal (&out_config, &config)) {
     gchar *cmp;
 
@@ -2418,13 +2427,20 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
   }
 
   /* set in/out tensor info */
+  gst_tensors_config_free (&filter->in_config);
+  gst_tensors_config_free (&filter->out_config);
   filter->in_config = in_config;
   filter->out_config = out_config;
   allowed = TRUE;
 
 error:
-  if (!allowed)
+  gst_tensors_config_free (&config);
+
+  if (!allowed) {
+    gst_tensors_config_free (&in_config);
+    gst_tensors_config_free (&out_config);
     GST_ERROR_OBJECT (filter, "Set Caps Failed!\n");
+  }
 
   return allowed;
 }
