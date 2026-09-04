@@ -461,15 +461,15 @@ TEST (nnstreamerFilterExecutorch, invokeRepeated)
   const gsize num_elems = 3 * 4;
   const gsize tensor_size = sizeof (float) * num_elems;
 
+  ret = sp->open (&prop, &data);
+  ASSERT_EQ (ret, 0);
+
   for (int i = 0; i < 2; i++) {
     input[i].size = tensor_size;
     input[i].data = g_malloc0 (tensor_size);
     output[i].size = tensor_size;
     output[i].data = g_malloc0 (tensor_size);
   }
-
-  ret = sp->open (&prop, &data);
-  ASSERT_EQ (ret, 0);
 
   for (int round = 0; round < 3; round++) {
     for (gsize i = 0; i < num_elems; i++) {
