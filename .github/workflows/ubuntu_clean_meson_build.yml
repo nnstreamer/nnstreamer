@@ -269,7 +269,7 @@ jobs:
         llamacpp_cases="${llamacpp_cases}:NNStreamerFilterLlamaCppTest.invalidModel_n"
         llamacpp_cases="${llamacpp_cases}:NNStreamerFilterLlamaCppTest.zeroTokenGenerationSync_p"
         llamacpp_cases="${llamacpp_cases}:NNStreamerFilterLlamaCppTest.zeroTokenGenerationAsync_p"
-        GTEST_FILTER="-${skip_cases}" ./packaging/run_unittests_binaries.sh --valgrind --skip unittest_filter_llamacpp ./tests/ || echo "${note}"
+        GTEST_FILTER="-${skip_cases}" ./packaging/run_unittests_binaries.sh --valgrind --recursive --skip unittest_filter_llamacpp ./tests/ || echo "${note}"
         GTEST_FILTER="${llamacpp_cases}" ./packaging/run_unittests_binaries.sh --valgrind ./tests/unittest_filter_llamacpp || echo "${note}"
     - name: get NNStreamer example apps
       if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
