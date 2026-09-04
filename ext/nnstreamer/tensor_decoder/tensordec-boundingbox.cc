@@ -776,13 +776,23 @@ BoundingBox::draw (GstMapInfo *out_info, GArray *results)
       }
     } else {
       int x1, x2, y1, y2; /* Box positions on the output surface */
+      gint64 bx1, bx2, by1, by2;
       int j;
       uint32_t *pos1, *pos2;
       /* 1. Draw Boxes */
-      x1 = (width * a->x) / i_width;
-      x2 = MIN (width - 1, (width * (a->x + a->width)) / i_width);
-      y1 = (height * a->y) / i_height;
-      y2 = MIN (height - 1, (height * (a->y + a->height)) / i_height);
+      bx1 = ((gint64) width * a->x) / i_width;
+      bx2 = ((gint64) width * ((gint64) a->x + a->width)) / i_width;
+      by1 = ((gint64) height * a->y) / i_height;
+      by2 = ((gint64) height * ((gint64) a->y + a->height)) / i_height;
+
+      if (bx2 < bx1 || by2 < by1 || bx2 < 0 || by2 < 0 || bx1 >= (gint64) width
+          || by1 >= (gint64) height)
+        continue;
+
+      x1 = (int) CLAMP (bx1, 0, (gint64) width - 1);
+      x2 = (int) CLAMP (bx2, 0, (gint64) width - 1);
+      y1 = (int) CLAMP (by1, 0, (gint64) height - 1);
+      y2 = (int) CLAMP (by2, 0, (gint64) height - 1);
 
       /* 1-1. Horizontal */
       pos1 = &frame[y1 * width + x1];
@@ -795,13 +805,9 @@ BoundingBox::draw (GstMapInfo *out_info, GArray *results)
       }
 
       /* 1-2. Vertical */
-      pos1 = &frame[(y1 + 1) * width + x1];
-      pos2 = &frame[(y1 + 1) * width + x2];
       for (j = y1 + 1; j < y2; j++) {
-        *pos1 = PIXEL_VALUE;
-        *pos2 = PIXEL_VALUE;
-        pos1 += width;
-        pos2 += width;
+        frame[j * width + x1] = PIXEL_VALUE;
+        frame[j * width + x2] = PIXEL_VALUE;
       }
 
       /* 2. Write Labels + tracking ID */
@@ -817,7 +823,6 @@ BoundingBox::draw (GstMapInfo *out_info, GArray *results)
 
         label_len = label ? strlen (label) : 0;
 
-        /* x1 is the same: x1 = MAX (0, (width * a->x) / i_width); */
         y1 = MAX (0, (y1 - 14));
         pos1 = &frame[y1 * width + x1];
         for (k = 0; k < label_len; k++) {
@@ -825,7 +830,7 @@ BoundingBox::draw (GstMapInfo *out_info, GArray *results)
           if ((x1 + 8) > (int) width)
             break; /* Stop drawing if it may overfill */
           pos2 = pos1;
-          for (y2 = 0; y2 < 13; y2++) {
+          for (y2 = 0; y2 < 13 && (y1 + y2) < (int) height; y2++) {
             /* 13 : character height */
             for (x2 = 0; x2 < 8; x2++) {
               /* 8: character width */

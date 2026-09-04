@@ -160,6 +160,12 @@ callCompareTest yolov8_obb_decoder_result_golden.raw yolo11n-obb_result.log "10 
 
 rm dota8-obb-label.txt
 
+# The label sprite must stay inside an output frame shorter than a character
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=mux ! tensor_decoder mode=bounding_boxes option1=mobilenet-ssd option2=coco_labels_list.txt option3=box_priors.txt option4=160:12 option5=300:300 ! video/x-raw,format=RGBA ! filesink location=mobilenetssd_short_output.log  multifilesrc name=fs1 location=mobilenetssd_tensors.0.%d start-index=$CASESTART stop-index=$CASEEND caps=application/octet-stream ! tensor_converter input-dim=4:1:1917:1 input-type=float32 ! mux.sink_0  multifilesrc name=fs2 location=mobilenetssd_tensors.1.%d start-index=$CASESTART stop-index=$CASEEND caps=application/octet-stream ! tensor_converter input-dim=91:1917:1 input-type=float32 ! mux.sink_1  " 12 0 0 $PERFORMANCE
+
+rm mobilenetssd_short_output.log
+
 # negative case for box properties
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=10 ! video/x-raw,format=RGB,width=224,height=224,framerate=0/1 ! videoconvert ! tensor_converter ! tensor_decoder mode=bounding_boxes option1=wrong_mode_name ! fakesink " 11_n 0 1
