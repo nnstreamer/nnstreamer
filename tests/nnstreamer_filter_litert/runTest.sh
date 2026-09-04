@@ -132,12 +132,16 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=3 ! audio/
 # shape the model starts at, so this drives a real reshape and then the skip
 # path for the buffers behind it.
 #
-# The output file is the check because the reshape is what decides there is
-# one: with reshapeTo() disabled every buffer is refused for its size and the
-# file is left empty, so an empty file is exactly the failure this pins.
+# The output size is the check, and it is exact. Non-empty would only prove a
+# reshape happened, not that it reshaped to the right thing: a stale output
+# size would still write something. samplesperbuffer pins one tensor per
+# buffer, so 3 buffers at batch 2 are 3 * (128 B flexible meta header + 8
+# floats) = 480. The same run at batch 1 is 864, and disabling reshapeTo()
+# leaves the file empty, so all three outcomes are told apart. The 128 is the
+# meta header size; if that ever changes, this number moves with it.
 rm -f ${PATH_TO_DYNAMIC_OUT}
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=6 ! audio/x-raw,format=F32LE,rate=16000,channels=4 ! tensor_converter frames-per-tensor=2 ! other/tensors,format=flexible ! tensor_filter framework=litert model=${PATH_TO_DYNAMIC_MODEL} invoke-dynamic=true ! other/tensors,format=flexible ! filesink location=${PATH_TO_DYNAMIC_OUT}" 9 0 0 $PERFORMANCE
-[ -s ${PATH_TO_DYNAMIC_OUT} ]
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=3 samplesperbuffer=2 ! audio/x-raw,format=F32LE,rate=16000,channels=4 ! tensor_converter frames-per-tensor=2 ! other/tensors,format=flexible ! tensor_filter framework=litert model=${PATH_TO_DYNAMIC_MODEL} invoke-dynamic=true ! other/tensors,format=flexible ! filesink location=${PATH_TO_DYNAMIC_OUT}" 9 0 0 $PERFORMANCE
+[ "$(wc -c < ${PATH_TO_DYNAMIC_OUT})" -eq 480 ]
 testResult $? 9 "Dynamic invoke reshaped to the shape a flexible pad asked for" 0 1
 
 report
