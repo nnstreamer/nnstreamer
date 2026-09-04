@@ -38,7 +38,7 @@ else
     TESTBINDIR="../../build/tests/nnstreamer_repo_dynamicity"
 fi
 
-${TESTBINDIR}/unittest_repo --gst-plugin-path=../../build
+${TESTBINDIR}/tensor_repo_dynamic_test --gst-plugin-path=../../build
 
 callCompareTest testsequence_1.golden tensorsequence01_1.log 1-1 "Compare 1-1" 1 0
 callCompareTest testsequence_2.golden tensorsequence01_2.log 1-2 "Compare 1-2" 1 0

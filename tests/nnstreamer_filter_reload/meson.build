@@ -1,4 +1,4 @@
-executable('unittest_filter_reload',
+executable('tensor_filter_reload_test',
   'tensor_filter_reload_test.c',
   dependencies: [unittest_util_dep, gst_dep, glib_dep],
   install: get_option('install-test'),
