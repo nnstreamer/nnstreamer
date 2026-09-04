@@ -12,6 +12,7 @@
 #include <gtest/gtest.h>
 #include <glib.h>
 #include <glib/gstdio.h>
+#include <gst/app/gstappsrc.h>
 #include <nnstreamer_conf.h>
 #include <nnstreamer_plugin_api.h>
 #include <tensor_common.h>
@@ -2527,6 +2528,368 @@ TEST (commonUtil, createTensorBufferInvalidSize_n)
 
   gst_buffer_unref (out);
   gst_tensors_config_free (&config);
+}
+
+/**
+ * @brief Mirror of the private GstTensorExtraInfo header defined in
+ *        gst/nnstreamer/nnstreamer_plugin_api_impl.c. This must be kept in
+ *        sync with that definition; the first test below self-validates the
+ *        layout so a drift is caught instead of silently testing nothing.
+ */
+typedef struct {
+  uint32_t magic;
+  uint32_t version;
+  uint32_t num_extra_tensors;
+  uint64_t reserved;
+  GstTensorInfo infos[NNS_TENSOR_SIZE_EXTRA_LIMIT];
+} TestTensorExtraInfo;
+
+/**
+ * @brief Internal util function to build a tensor buffer with @a num_tensors
+ *        tensors of @a tensor_size bytes each, appended one by one via
+ *        gst_tensor_buffer_append_memory (). Tensor i is filled with the
+ *        byte value (i % 256) so its content can be verified later.
+ */
+static GstBuffer *
+build_extra_tensors_buffer (guint num_tensors, gsize tensor_size)
+{
+  GstBuffer *buf;
+  GstTensorInfo tinfo;
+  guint i;
+
+  buf = gst_buffer_new ();
+
+  gst_tensor_info_init (&tinfo);
+  tinfo.type = _NNS_UINT8;
+  tinfo.dimension[0] = (uint32_t) tensor_size;
+  tinfo.dimension[1] = tinfo.dimension[2] = tinfo.dimension[3] = 1;
+
+  for (i = 0; i < num_tensors; i++) {
+    GstMemory *mem;
+    GstMapInfo map;
+    guint8 fill = (guint8) (i % 256);
+
+    mem = gst_allocator_alloc (NULL, tensor_size, NULL);
+    if (!gst_memory_map (mem, &map, GST_MAP_WRITE)) {
+      gst_memory_unref (mem);
+      gst_buffer_unref (buf);
+      gst_tensor_info_free (&tinfo);
+      return NULL;
+    }
+    memset (map.data, fill, map.size);
+    gst_memory_unmap (mem, &map);
+
+    if (!gst_tensor_buffer_append_memory (buf, mem, &tinfo)) {
+      gst_buffer_unref (buf);
+      gst_tensor_info_free (&tinfo);
+      return NULL;
+    }
+  }
+
+  gst_tensor_info_free (&tinfo);
+  return buf;
+}
+
+/**
+ * @brief Internal util function to map the last memory block of @a buf
+ *        (assumed to already hold NNS_TENSOR_MEMORY_MAX blocks, the last of
+ *        which is a genuine or forged extra-tensor header) writable, and
+ *        return it reinterpreted as the mirrored header. The caller must
+ *        gst_memory_unmap () @a out_map when done, and must not unref
+ *        @a out_mem (it is owned by @a buf).
+ */
+static TestTensorExtraInfo *
+map_extra_tensors_info (GstBuffer *buf, GstMemory **out_mem, GstMapInfo *out_map)
+{
+  guint num_mems = gst_buffer_n_memory (buf);
+
+  *out_mem = gst_buffer_peek_memory (buf, num_mems - 1);
+  if (!*out_mem)
+    return NULL;
+
+  if (!gst_memory_map (*out_mem, out_map, GST_MAP_WRITE))
+    return NULL;
+
+  return (TestTensorExtraInfo *) out_map->data;
+}
+
+/**
+ * @brief Test tensor buffer util (build and read back the maximum number of tensors)
+ */
+TEST (commonUtil, tensorBufferExtraTensors)
+{
+  GstBuffer *buf17, *buf;
+  GstMemory *mem;
+  GstMapInfo map;
+  TestTensorExtraInfo *mirror;
+  guint i;
+
+  /* self-validate the mirror header layout against the real (private) one */
+  buf17 = build_extra_tensors_buffer (17, 4);
+  ASSERT_TRUE (buf17 != NULL);
+
+  mirror = map_extra_tensors_info (buf17, &mem, &map);
+  ASSERT_TRUE (mirror != NULL);
+  EXPECT_EQ (mirror->magic, (uint32_t) 0xf00dc0de);
+  EXPECT_EQ (mirror->num_extra_tensors, 1U);
+  gst_memory_unmap (mem, &map);
+  gst_buffer_unref (buf17);
+
+  /* build a buffer with the maximum number of tensors and verify content */
+  buf = build_extra_tensors_buffer (NNS_TENSOR_SIZE_LIMIT, 4);
+  ASSERT_TRUE (buf != NULL);
+
+  EXPECT_EQ (gst_tensor_buffer_get_count (buf), (guint) NNS_TENSOR_SIZE_LIMIT);
+
+  for (i = 0; i < NNS_TENSOR_SIZE_LIMIT; i++) {
+    GstMemory *res_mem;
+    GstMapInfo res_map;
+    guint j;
+    guint8 expected = (guint8) (i % 256);
+
+    res_mem = gst_tensor_buffer_get_nth_memory (buf, i);
+    ASSERT_TRUE (res_mem != NULL);
+    ASSERT_TRUE (gst_memory_map (res_mem, &res_map, GST_MAP_READ));
+    EXPECT_EQ (res_map.size, (gsize) 4);
+    for (j = 0; j < res_map.size; j++)
+      EXPECT_EQ (res_map.data[j], expected);
+    gst_memory_unmap (res_mem, &res_map);
+    gst_memory_unref (res_mem);
+  }
+
+  gst_buffer_unref (buf);
+}
+
+/**
+ * @brief Test tensor buffer util (appending beyond NNS_TENSOR_SIZE_LIMIT tensors should fail)
+ */
+TEST (commonUtil, tensorBufferAppendOverLimit_n)
+{
+  GstBuffer *buf;
+  GstTensorInfo tinfo;
+  GstMemory *mem, *res_mem;
+  GstMapInfo map;
+
+  buf = build_extra_tensors_buffer (NNS_TENSOR_SIZE_LIMIT, 4);
+  ASSERT_TRUE (buf != NULL);
+
+  gst_tensor_info_init (&tinfo);
+  tinfo.type = _NNS_UINT8;
+  tinfo.dimension[0] = 4;
+  tinfo.dimension[1] = tinfo.dimension[2] = tinfo.dimension[3] = 1;
+
+  mem = gst_allocator_alloc (NULL, 4, NULL);
+
+  /* append_memory takes the ownership of mem even on failure */
+  EXPECT_FALSE (gst_tensor_buffer_append_memory (buf, mem, &tinfo));
+  gst_tensor_info_free (&tinfo);
+
+  EXPECT_EQ (gst_tensor_buffer_get_count (buf), (guint) NNS_TENSOR_SIZE_LIMIT);
+
+  /* the buffer must still be intact and readable after the rejected append */
+  res_mem = gst_tensor_buffer_get_nth_memory (buf, NNS_TENSOR_SIZE_LIMIT - 1);
+  ASSERT_TRUE (res_mem != NULL);
+  ASSERT_TRUE (gst_memory_map (res_mem, &map, GST_MAP_READ));
+  EXPECT_EQ (map.size, (gsize) 4);
+  gst_memory_unmap (res_mem, &map);
+  gst_memory_unref (res_mem);
+
+  gst_buffer_unref (buf);
+}
+
+/**
+ * @brief Test tensor buffer util (forged num_extra_tensors should degrade to NNS_TENSOR_MEMORY_MAX)
+ */
+TEST (commonUtil, tensorBufferForgedExtraCount_n)
+{
+  GstBuffer *buf;
+  GstMemory *mem;
+  GstMapInfo map;
+  TestTensorExtraInfo *mirror;
+
+  /* forge a wildly out-of-range tensor count */
+  buf = build_extra_tensors_buffer (17, 4);
+  ASSERT_TRUE (buf != NULL);
+
+  mirror = map_extra_tensors_info (buf, &mem, &map);
+  ASSERT_TRUE (mirror != NULL);
+  mirror->num_extra_tensors = 100000;
+  gst_memory_unmap (mem, &map);
+
+  EXPECT_EQ (gst_tensor_buffer_get_count (buf), (guint) NNS_TENSOR_MEMORY_MAX);
+  EXPECT_TRUE (gst_tensor_buffer_get_nth_memory (buf, NNS_TENSOR_MEMORY_MAX) == NULL);
+  EXPECT_TRUE (gst_tensor_buffer_get_nth_memory (buf, 100000) == NULL);
+
+  gst_buffer_unref (buf);
+
+  /* boundary: exactly one past NNS_TENSOR_SIZE_EXTRA_LIMIT must also be rejected */
+  buf = build_extra_tensors_buffer (17, 4);
+  ASSERT_TRUE (buf != NULL);
+
+  mirror = map_extra_tensors_info (buf, &mem, &map);
+  ASSERT_TRUE (mirror != NULL);
+  mirror->num_extra_tensors = NNS_TENSOR_SIZE_EXTRA_LIMIT + 1;
+  gst_memory_unmap (mem, &map);
+
+  EXPECT_EQ (gst_tensor_buffer_get_count (buf), (guint) NNS_TENSOR_MEMORY_MAX);
+
+  gst_buffer_unref (buf);
+}
+
+/**
+ * @brief Test tensor buffer util (forged magic should degrade to NNS_TENSOR_MEMORY_MAX)
+ */
+TEST (commonUtil, tensorBufferForgedExtraMagic_n)
+{
+  GstBuffer *buf;
+  GstMemory *mem;
+  GstMapInfo map;
+  TestTensorExtraInfo *mirror;
+
+  buf = build_extra_tensors_buffer (17, 4);
+  ASSERT_TRUE (buf != NULL);
+
+  mirror = map_extra_tensors_info (buf, &mem, &map);
+  ASSERT_TRUE (mirror != NULL);
+  mirror->magic = 0xdeadbeef;
+  gst_memory_unmap (mem, &map);
+
+  EXPECT_EQ (gst_tensor_buffer_get_count (buf), (guint) NNS_TENSOR_MEMORY_MAX);
+
+  gst_buffer_unref (buf);
+}
+
+/**
+ * @brief Test tensor buffer util (forged reserved size must not overrun the mapped block)
+ */
+TEST (commonUtil, tensorBufferForgedExtraReserved_n)
+{
+  GstBuffer *buf;
+  GstMemory *mem;
+  GstMapInfo map;
+  TestTensorExtraInfo *mirror;
+
+  /* case 1: absurdly large reserved value */
+  buf = build_extra_tensors_buffer (17, 4);
+  ASSERT_TRUE (buf != NULL);
+
+  mirror = map_extra_tensors_info (buf, &mem, &map);
+  ASSERT_TRUE (mirror != NULL);
+  mirror->reserved = G_MAXUINT64;
+  gst_memory_unmap (mem, &map);
+
+  EXPECT_TRUE (gst_tensor_buffer_get_nth_memory (buf, NNS_TENSOR_MEMORY_MAX - 1) == NULL);
+  EXPECT_TRUE (gst_tensor_buffer_get_nth_memory (buf, NNS_TENSOR_MEMORY_MAX) == NULL);
+
+  gst_buffer_unref (buf);
+
+  /* case 2: reserved slightly larger than the mapped block */
+  buf = build_extra_tensors_buffer (17, 4);
+  ASSERT_TRUE (buf != NULL);
+
+  mirror = map_extra_tensors_info (buf, &mem, &map);
+  ASSERT_TRUE (mirror != NULL);
+  mirror->reserved = map.size + 1;
+  gst_memory_unmap (mem, &map);
+
+  EXPECT_TRUE (gst_tensor_buffer_get_nth_memory (buf, NNS_TENSOR_MEMORY_MAX - 1) == NULL);
+  EXPECT_TRUE (gst_tensor_buffer_get_nth_memory (buf, NNS_TENSOR_MEMORY_MAX) == NULL);
+
+  gst_buffer_unref (buf);
+}
+
+/**
+ * @brief Test tensor buffer util (forged tensor size must not overrun the mapped block)
+ */
+TEST (commonUtil, tensorBufferForgedExtraSize_n)
+{
+  GstBuffer *buf;
+  GstMemory *mem;
+  GstMapInfo map;
+  TestTensorExtraInfo *mirror;
+
+  buf = build_extra_tensors_buffer (18, 4);
+  ASSERT_TRUE (buf != NULL);
+
+  mirror = map_extra_tensors_info (buf, &mem, &map);
+  ASSERT_TRUE (mirror != NULL);
+  EXPECT_EQ (mirror->num_extra_tensors, 2U);
+  /* forge the size of the 17th tensor (infos[0]) to overrun the block */
+  mirror->infos[0].dimension[0] = G_MAXUINT32;
+  gst_memory_unmap (mem, &map);
+
+  /* index NNS_TENSOR_MEMORY_MAX (16): caught by the final bound check */
+  EXPECT_TRUE (gst_tensor_buffer_get_nth_memory (buf, NNS_TENSOR_MEMORY_MAX) == NULL);
+  /* index NNS_TENSOR_MEMORY_MAX + 1 (17): caught by the in-loop bound check */
+  EXPECT_TRUE (gst_tensor_buffer_get_nth_memory (buf, NNS_TENSOR_MEMORY_MAX + 1) == NULL);
+
+  gst_buffer_unref (buf);
+}
+
+/**
+ * @brief Callback for tensor sink signal. A buffer with a forged extra-tensor
+ *        header should be seen as a buffer of NNS_TENSOR_MEMORY_MAX tensors.
+ */
+static void
+forged_extra_count_pipeline_new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
+{
+  (void) element;
+  (void) user_data;
+
+  EXPECT_EQ (gst_tensor_buffer_get_count (buffer), (guint) NNS_TENSOR_MEMORY_MAX);
+  EXPECT_TRUE (gst_tensor_buffer_get_nth_memory (buffer, NNS_TENSOR_MEMORY_MAX) == NULL);
+}
+
+/**
+ * @brief Test tensor buffer util (a forged extra-tensor header pushed through a real appsrc-to-tensor_sink pipeline must not drive the receiver out of bounds)
+ */
+TEST (commonUtil, tensorBufferForgedExtraCountPipeline_n)
+{
+  GstElement *pipeline, *appsrc, *sinkx;
+  GstBuffer *buf;
+  GstMemory *mem;
+  GstMapInfo map;
+  TestTensorExtraInfo *mirror;
+  guint received = 0U;
+  GstFlowReturn flow_ret;
+
+  /* flexible caps declare no tensor size, so the forged buffer is not rejected */
+  pipeline = gst_parse_launch ("appsrc name=appsrc caps=other/tensors,format=flexible,framerate=(fraction)0/1 ! "
+                               "tensor_sink name=sinkx async=false sync=false",
+      NULL);
+  ASSERT_TRUE (pipeline != nullptr);
+
+  appsrc = gst_bin_get_by_name (GST_BIN (pipeline), "appsrc");
+  ASSERT_TRUE (appsrc != nullptr);
+  sinkx = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  ASSERT_TRUE (sinkx != nullptr);
+
+  g_signal_connect (sinkx, "new-data",
+      (GCallback) forged_extra_count_pipeline_new_data_cb, NULL);
+  g_signal_connect (sinkx, "new-data", (GCallback) count_output, &received);
+
+  buf = build_extra_tensors_buffer (17, 4);
+  ASSERT_TRUE (buf != NULL);
+
+  mirror = map_extra_tensors_info (buf, &mem, &map);
+  ASSERT_TRUE (mirror != NULL);
+  mirror->num_extra_tensors = 100000;
+  gst_memory_unmap (mem, &map);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  /* gst_app_src_push_buffer () takes ownership of buf */
+  flow_ret = gst_app_src_push_buffer (GST_APP_SRC (appsrc), buf);
+  EXPECT_EQ (flow_ret, GST_FLOW_OK);
+  EXPECT_TRUE (wait_pipeline_process_buffers (&received, 1U, TEST_TIMEOUT_LIMIT_MS));
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  EXPECT_EQ (received, 1U);
+
+  gst_object_unref (appsrc);
+  gst_object_unref (sinkx);
+  gst_object_unref (pipeline);
 }
 
 /**
