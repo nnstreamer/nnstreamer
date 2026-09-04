@@ -258,7 +258,8 @@ gst_tensor_split_event (GstPad * pad, GstObject * parent, GstEvent * event)
  * @param[out] created will be updated in this function
  * @param nth source ordering
  * @return TensorPad if pad is already created, then return created pad.
- *         If not return new pad after creation.
+ *         If not return new pad after creation, or NULL if no segment rule
+ *         is left for it.
  */
 static GstTensorPad *
 gst_tensor_split_get_tensor_pad (GstTensorSplit * split, GArray * tensorseg,
@@ -288,6 +289,13 @@ gst_tensor_split_get_tensor_pad (GstTensorSplit * split, GArray * tensorseg,
       return pad;
     }
     walk = g_slist_next (walk);
+  }
+
+  if (split->num_srcpads >= tensorseg->len) {
+    GST_ERROR_OBJECT (split,
+        "The tensorseg has %u rules, which leaves none for the %uth source pad.",
+        tensorseg->len, split->num_srcpads);
+    return NULL;
   }
 
   tensorpad = g_new0 (GstTensorPad, 1);
@@ -503,6 +511,10 @@ gst_tensor_split_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
     srcpad = gst_tensor_split_get_tensor_pad (split, tensorseg, tensorpick, buf,
         &created, i);
+    if (srcpad == NULL) {
+      res = GST_FLOW_ERROR;
+      break;
+    }
 
     outbuf = gst_buffer_new ();
     mem = gst_tensor_split_get_splitted (split, tensorseg, buf, i);

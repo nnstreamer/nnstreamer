@@ -9365,6 +9365,8 @@ typedef struct {
   GCond cond;
   gboolean pad_added;
   gboolean prop_set;
+  guint pads_added;
+  guint pads_at_no_more;
 } padRaceSync;
 
 /**
@@ -9381,6 +9383,7 @@ _pad_race_pad_added (GstElement *element, GstPad *pad, gpointer user_data)
 
   g_mutex_lock (&sync->lock);
   sync->pad_added = TRUE;
+  sync->pads_added++;
   g_cond_broadcast (&sync->cond);
   while (!sync->prop_set) {
     if (!g_cond_wait_until (&sync->cond, &sync->lock, until))
@@ -9421,6 +9424,43 @@ _pad_race_set_property (padRaceSync *sync, GstElement *element,
 }
 
 /**
+ * @brief Handler of "no-more-pads", which runs on the streaming thread.
+ */
+static void
+_pad_race_no_more_pads (GstElement *element, gpointer user_data)
+{
+  padRaceSync *sync = (padRaceSync *) user_data;
+
+  UNUSED (element);
+
+  g_mutex_lock (&sync->lock);
+  sync->pads_at_no_more = sync->pads_added;
+  g_cond_broadcast (&sync->cond);
+  g_mutex_unlock (&sync->lock);
+}
+
+/**
+ * @brief Wait until the element reports that it has no more pads.
+ * @return the number of pads it had added by then, 0 if it never reported
+ */
+static guint
+_pad_race_wait_no_more_pads (padRaceSync *sync)
+{
+  gint64 until = g_get_monotonic_time () + TEST_TIMEOUT_LIMIT;
+  guint pads;
+
+  g_mutex_lock (&sync->lock);
+  while (sync->pads_at_no_more == 0) {
+    if (!g_cond_wait_until (&sync->cond, &sync->lock, until))
+      break;
+  }
+  pads = sync->pads_at_no_more;
+  g_mutex_unlock (&sync->lock);
+
+  return pads;
+}
+
+/**
  * @brief Initialize the rendezvous.
  */
 static void
@@ -9430,6 +9470,8 @@ _pad_race_sync_init (padRaceSync *sync)
   g_cond_init (&sync->cond);
   sync->pad_added = FALSE;
   sync->prop_set = FALSE;
+  sync->pads_added = 0;
+  sync->pads_at_no_more = 0;
 }
 
 /**
@@ -9511,6 +9553,246 @@ TEST (testTensorDemux, setTensorpickTwice)
 }
 
 /**
+ * @brief Set tensorseg while tensor_split is creating its first source pad.
+ */
+TEST (testTensorSplit, setTensorsegWhileAddingPad)
+{
+  gchar *pipeline_desc;
+  GstElement *pipeline, *split, *sink;
+  padRaceSync sync;
+  guint data_received = 0;
+
+  _pad_race_sync_init (&sync);
+
+  pipeline_desc = g_strdup ("videotestsrc num-buffers=5 ! "
+                            "video/x-raw,format=RGB,width=4,height=4,framerate=30/1 ! "
+                            "tensor_converter ! tensor_split name=split tensorseg=3:4:4 ! "
+                            "tensor_sink name=sinkx");
+  pipeline = gst_parse_launch (pipeline_desc, NULL);
+  g_free (pipeline_desc);
+  ASSERT_TRUE (pipeline != NULL);
+
+  split = gst_bin_get_by_name (GST_BIN (pipeline), "split");
+  sink = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  ASSERT_TRUE (split != NULL);
+  ASSERT_TRUE (sink != NULL);
+
+  g_signal_connect (split, "pad-added", G_CALLBACK (_pad_race_pad_added), &sync);
+  g_signal_connect (sink, "new-data", G_CALLBACK (count_output), &data_received);
+
+  gst_element_set_state (pipeline, GST_STATE_PLAYING);
+  EXPECT_TRUE (_pad_race_set_property (&sync, split, "tensorseg", "1:4:4,2:4:4"));
+  EXPECT_TRUE (wait_pipeline_process_buffers (&data_received, 1, TEST_TIMEOUT_LIMIT_MS));
+
+  gst_element_set_state (pipeline, GST_STATE_NULL);
+  gst_object_unref (sink);
+  gst_object_unref (split);
+  gst_object_unref (pipeline);
+  _pad_race_sync_clear (&sync);
+}
+
+/**
+ * @brief Setting tensorseg again replaces the previous rule.
+ */
+TEST (testTensorSplit, setTensorsegTwice)
+{
+  GstElement *split = gst_element_factory_make ("tensor_split", NULL);
+  gchar *tensorseg = NULL;
+  gchar **strv;
+
+  ASSERT_TRUE (split != NULL);
+  gst_object_ref_sink (split);
+
+  g_object_set (split, "tensorseg", "1:4:4,1:4:4", NULL);
+  g_object_set (split, "tensorseg", "1:4:4,1:4:4,1:4:4", NULL);
+
+  g_object_get (split, "tensorseg", &tensorseg, NULL);
+  strv = g_strsplit (tensorseg, ",", -1);
+  EXPECT_EQ (g_strv_length (strv), 3U);
+  g_strfreev (strv);
+  g_free (tensorseg);
+
+  g_object_set (split, "tensorseg", "2:4:4", NULL);
+  g_object_get (split, "tensorseg", &tensorseg, NULL);
+  strv = g_strsplit (tensorseg, ",", -1);
+  EXPECT_EQ (g_strv_length (strv), 1U);
+  g_strfreev (strv);
+  g_free (tensorseg);
+
+  gst_object_unref (split);
+}
+
+/**
+ * @brief A tensorseg rule longer than the tensor rank limit is truncated.
+ */
+TEST (testTensorSplit, setTensorsegOverRank_n)
+{
+  GstElement *split = gst_element_factory_make ("tensor_split", NULL);
+  gchar *tensorseg = NULL;
+  guint i;
+  GString *param = g_string_new (NULL);
+  GString *expected = g_string_new (NULL);
+
+  ASSERT_TRUE (split != NULL);
+  gst_object_ref_sink (split);
+
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT + 4; i++) {
+    if (i > 0)
+      g_string_append_c (param, ':');
+    g_string_append_printf (param, "%u", i + 1);
+  }
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    if (i > 0)
+      g_string_append_c (expected, ':');
+    g_string_append_printf (expected, "%u", i + 1);
+  }
+
+  g_object_set (split, "tensorseg", param->str, NULL);
+
+  g_object_get (split, "tensorseg", &tensorseg, NULL);
+  EXPECT_STREQ (tensorseg, expected->str);
+  g_free (tensorseg);
+
+  g_string_free (param, TRUE);
+  g_string_free (expected, TRUE);
+  gst_object_unref (split);
+}
+
+/**
+ * @brief Setting tensorpick again replaces the previous selection.
+ */
+TEST (testTensorSplit, setTensorpickTwice)
+{
+  GstElement *split = gst_element_factory_make ("tensor_split", NULL);
+  gchar *tensorpick = NULL;
+
+  ASSERT_TRUE (split != NULL);
+  gst_object_ref_sink (split);
+
+  g_object_set (split, "tensorpick", "0,1", NULL);
+  g_object_set (split, "tensorpick", "2", NULL);
+
+  g_object_get (split, "tensorpick", &tensorpick, NULL);
+  EXPECT_STREQ (tensorpick, "2");
+  g_free (tensorpick);
+
+  gst_object_unref (split);
+}
+
+/**
+ * @brief Set tensorpick while tensor_split is creating its first source pad.
+ * @details The pad creation decides whether to report no-more-pads by comparing
+ *          the pick count with the pads created so far. Reading the property
+ *          instead of the snapshot the buffer is being split by ends that
+ *          report after src_0, and src_1 is then added behind it.
+ */
+TEST (testTensorSplit, setTensorpickWhileAddingPad)
+{
+  gchar *pipeline_desc;
+  GstElement *pipeline, *split, *sink;
+  padRaceSync sync;
+  guint data_received = 0;
+  gchar *tensorpick = NULL;
+
+  _pad_race_sync_init (&sync);
+
+  pipeline_desc = g_strdup ("videotestsrc num-buffers=5 ! "
+                            "video/x-raw,format=RGB,width=4,height=4,framerate=30/1 ! "
+                            "tensor_converter ! tensor_split name=split tensorseg=1:4:4,2:4:4 "
+                            "tensorpick=0,1 ! tensor_sink name=sinkx");
+  pipeline = gst_parse_launch (pipeline_desc, NULL);
+  g_free (pipeline_desc);
+  ASSERT_TRUE (pipeline != NULL);
+
+  split = gst_bin_get_by_name (GST_BIN (pipeline), "split");
+  sink = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  ASSERT_TRUE (split != NULL);
+  ASSERT_TRUE (sink != NULL);
+
+  g_signal_connect (split, "pad-added", G_CALLBACK (_pad_race_pad_added), &sync);
+  g_signal_connect (split, "no-more-pads", G_CALLBACK (_pad_race_no_more_pads), &sync);
+  g_signal_connect (sink, "new-data", G_CALLBACK (count_output), &data_received);
+
+  gst_element_set_state (pipeline, GST_STATE_PLAYING);
+  EXPECT_TRUE (_pad_race_set_property (&sync, split, "tensorpick", "0"));
+  EXPECT_TRUE (wait_pipeline_process_buffers (&data_received, 1, TEST_TIMEOUT_LIMIT_MS));
+  EXPECT_EQ (_pad_race_wait_no_more_pads (&sync), 2U);
+
+  g_object_get (split, "tensorpick", &tensorpick, NULL);
+  EXPECT_STREQ (tensorpick, "0");
+  g_free (tensorpick);
+
+  gst_element_set_state (pipeline, GST_STATE_NULL);
+  gst_object_unref (sink);
+  gst_object_unref (split);
+  gst_object_unref (pipeline);
+  _pad_race_sync_clear (&sync);
+}
+
+/**
+ * @brief A buffer arriving before tensorseg is set is rejected and released.
+ */
+TEST (testTensorSplit, pushWithoutTensorseg_n)
+{
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_split", "sink", NULL);
+  GstTensorsConfig config;
+  GstBuffer *buf;
+
+  ASSERT_TRUE (h != NULL);
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1;
+  config.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("3:4:4", config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+
+  buf = gst_harness_create_buffer (h, gst_tensors_info_get_size (&config.info, 0));
+  gst_buffer_ref (buf);
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_ERROR);
+  EXPECT_EQ (GST_MINI_OBJECT_REFCOUNT_VALUE (buf), 1);
+  gst_buffer_unref (buf);
+
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A tensorseg asking for more bytes than the incoming tensor is refused.
+ * @details Nothing bounds the copy against the input, and with HAVE_ORC the
+ *          copy runs through orc_memcpy(), where neither a sanitizer nor
+ *          valgrind sees the over-read - so the element has to say no itself.
+ */
+TEST (testTensorSplit, pushOversizedTensorseg_n)
+{
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_split", "sink", NULL);
+  GstTensorsConfig config;
+  GstBuffer *buf;
+
+  ASSERT_TRUE (h != NULL);
+
+  g_object_set (h->element, "tensorseg", "6:4:4", NULL);
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1;
+  config.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("3:4:4", config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+
+  buf = gst_harness_create_buffer (h, gst_tensors_info_get_size (&config.info, 0));
+  gst_buffer_ref (buf);
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_ERROR);
+  EXPECT_EQ (GST_MINI_OBJECT_REFCOUNT_VALUE (buf), 1);
+  gst_buffer_unref (buf);
+
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Disposing twice does not free the tensorpick list twice.
  * @details GObject allows dispose to run more than once, so it has to leave
  *          the member it released in a state the next run can survive.
@@ -9555,6 +9837,41 @@ TEST (testTensorDemux, pushOutOfRangeTensorpick_n)
 
   buf = gst_harness_create_buffer (h, gst_tensors_info_get_size (&config.info, 0));
   EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_ERROR);
+
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A source pad with no segment rule left for it is refused.
+ * @details The rule array is replaced on every tensorseg set, so it can shrink
+ *          under source pads that already exist. The pad created after that
+ *          takes the next ordinal, which is then past the end of the array.
+ */
+TEST (testTensorSplit, addPadBeyondTensorseg_n)
+{
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_split", "sink", NULL);
+  GstTensorsConfig config;
+  gsize data_size;
+
+  ASSERT_TRUE (h != NULL);
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1;
+  config.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("2:8:8", config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  data_size = gst_tensors_info_get_size (&config.info, 0);
+
+  /* picking the second of two rules puts src_0 at ordinal 0 of two */
+  g_object_set (h->element, "tensorseg", "1:8:8,1:8:8", "tensorpick", "1", NULL);
+  EXPECT_NE (gst_harness_push (h, gst_harness_create_buffer (h, data_size)), GST_FLOW_ERROR);
+
+  /* one rule now, but src_0 already took ordinal 0 */
+  g_object_set (h->element, "tensorseg", "2:8:8", "tensorpick", "0", NULL);
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, data_size)), GST_FLOW_ERROR);
 
   gst_tensors_config_free (&config);
   gst_harness_teardown (h);
