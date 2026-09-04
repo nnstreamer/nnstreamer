@@ -83,7 +83,10 @@ override_dh_auto_build:
 	if [ -f './build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_pytorch.so' ]; then echo "pytorch exists" ; else rm debian/nnstreamer-pytorch.install; fi
 	if [ -f './build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_caffe2.so' ]; then echo "caffe2 exists" ; else rm debian/nnstreamer-caffe2.install; fi
 
+# dh honours DEB_BUILD_OPTIONS=nocheck for dh_auto_test itself, but not for
+# an override target at this compat level, so honour it here.
 override_dh_auto_test:
+ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	./packaging/run_unittests_binaries.sh ./tests
 	LD_LIBRARY_PATH=${NNSTREAMER_BUILD_ROOT_PATH}/tests/nnstreamer_edge ./packaging/run_unittests_binaries.sh ./tests/nnstreamer_edge
 	./packaging/run_unittests_binaries.sh ./tests/nnstreamer_datarepo
@@ -94,6 +97,9 @@ endif
 	cd tests && ssat -n -p=1 && cd ..
 else
 	echo "Skipping SSAT test because it's not in Debian."
+endif
+else
+	echo "Skipping the tests: DEB_BUILD_OPTIONS contains nocheck."
 endif
 
 override_dh_auto_install:
