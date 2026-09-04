@@ -73,6 +73,7 @@ PATH_TO_CLASS="class.out.log"
 PATH_TO_CLASS1="class1.out.log"
 PATH_TO_CLASS2="class2.out.log"
 PATH_TO_DYNAMIC_MODEL="../test_models/models/dynamic_batch_add_one.tflite"
+PATH_TO_DYNAMIC_OUT="dynamic.out.log"
 
 # Test 1: Positive. Golden classification result, same model and golden label
 # as the tensorflow2-lite SSAT tests; cross-runtime divergence fails here.
@@ -120,5 +121,23 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=3 ! audio/
 # Test 8: Negative. invoke-dynamic demands a flexible output; a static one
 # must be refused rather than silently reinterpreted.
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=3 ! audio/x-raw,format=F32LE,rate=16000,channels=4 ! tensor_converter frames-per-tensor=1 ! tensor_filter framework=litert model=${PATH_TO_DYNAMIC_MODEL} invoke-dynamic=true ! other/tensors,format=static ! fakesink" 8_n 0 1 $PERFORMANCE
+
+# Test 9: Positive. Case 7 holds the model's own shape for the whole run, so
+# every buffer takes the skip path and reshapeTo() is never reached by a
+# pipeline at all - all of its coverage comes from direct invoke() calls. A
+# static sink pad cannot reach it either: those caps are pinned to the shape
+# the model reports while negotiating, so asking for a different one fails to
+# link rather than reshaping. A flexible sink pad is the arrangement where the
+# shape genuinely arrives per buffer, and two frames per tensor is not the
+# shape the model starts at, so this drives a real reshape and then the skip
+# path for the buffers behind it.
+#
+# The output file is the check because the reshape is what decides there is
+# one: with reshapeTo() disabled every buffer is refused for its size and the
+# file is left empty, so an empty file is exactly the failure this pins.
+rm -f ${PATH_TO_DYNAMIC_OUT}
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} audiotestsrc num-buffers=6 ! audio/x-raw,format=F32LE,rate=16000,channels=4 ! tensor_converter frames-per-tensor=2 ! other/tensors,format=flexible ! tensor_filter framework=litert model=${PATH_TO_DYNAMIC_MODEL} invoke-dynamic=true ! other/tensors,format=flexible ! filesink location=${PATH_TO_DYNAMIC_OUT}" 9 0 0 $PERFORMANCE
+[ -s ${PATH_TO_DYNAMIC_OUT} ]
+testResult $? 9 "Dynamic invoke reshaped to the shape a flexible pad asked for" 0 1
 
 report
