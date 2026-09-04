@@ -2175,6 +2175,14 @@ TEST (nnstreamerFilterLiteRT, dynamicInvokeInputTypeMismatch_n)
       << "An int32 buffer was accepted by a float32 model, which infers on "
          "reinterpreted bits and reports success.";
 
+  /** _NNS_END is what an uninitialised GstTensorInfo carries, and it has no
+   *  name - gst_tensor_get_type_string() returns NULL for it. The rejection
+   *  builds a message out of both names, so this pins that an unnamed type
+   *  is refused rather than appended to a std::string as NULL. */
+  info->type = _NNS_END;
+  EXPECT_NE (sp->invoke (NULL, &prop, data, &input, &output), 0)
+      << "A tensor of no known type was accepted.";
+
   g_free (input.data);
   g_free (output.data);
   gst_tensors_info_free (&prop.input_meta);
