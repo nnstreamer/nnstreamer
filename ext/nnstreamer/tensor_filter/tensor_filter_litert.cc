@@ -1010,7 +1010,7 @@ litert_subplugin::rejectTypeChange (const GstTensorsInfo *in_info) const
     const GstTensorInfo *have = gst_tensors_info_get_nth_info (
         const_cast<GstTensorsInfo *> (std::addressof (inputTensorMeta)), i);
 
-    /* _STR_NULL: the name is NULL for _NNS_END, which is what an
+    /** _STR_NULL: the name is NULL for _NNS_END, which is what an
      * uninitialised GstTensorInfo carries, and appending NULL to a
      * std::string is undefined rather than merely ugly */
     if (want->type != have->type)
