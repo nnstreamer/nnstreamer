@@ -2840,6 +2840,232 @@ TEST (testTensorTransform, arithmeticStaticToFlexTensor)
 }
 
 /**
+ * @brief The number of tensors to test extra tensors (more than NNS_TENSOR_MEMORY_MAX).
+ */
+#define TEST_EXTRA_TENSORS_NUM (18U)
+
+/**
+ * @brief The number of elements of each tensor to test extra tensors.
+ */
+#define TEST_EXTRA_TENSORS_SIZE (64U)
+
+/**
+ * @brief Prepare tensors config to test extra tensors.
+ */
+static void
+_setup_extra_tensors_config (GstTensorsConfig *config)
+{
+  GstTensorInfo *_info;
+  guint i;
+
+  gst_tensors_config_init (config);
+  config->info.num_tensors = TEST_EXTRA_TENSORS_NUM;
+  config->rate_n = 0;
+  config->rate_d = 1;
+
+  for (i = 0; i < TEST_EXTRA_TENSORS_NUM; i++) {
+    _info = gst_tensors_info_get_nth_info (&config->info, i);
+    _info->type = _NNS_FLOAT32;
+    gst_tensor_parse_dimension ("64", _info->dimension);
+  }
+}
+
+/**
+ * @brief Test for tensor_transform arithmetic (more tensors than NNS_TENSOR_MEMORY_MAX)
+ */
+TEST (testTensorTransform, arithmeticExtraTensors)
+{
+  const guint num_buffers = 2U;
+
+  GstHarness *h;
+  GstBuffer *in_buf, *out_buf;
+  GstTensorsConfig config;
+  GstMemory *mem;
+  GstMapInfo map;
+  guint i, j, b;
+  gint refcount;
+  gsize dsize;
+  float *_data;
+
+  h = gst_harness_new ("tensor_transform");
+
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "add:1", NULL);
+
+  _setup_extra_tensors_config (&config);
+  dsize = gst_tensors_info_get_size (&config.info, 0);
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+
+  for (b = 0; b < num_buffers; b++) {
+    /* set input buffer */
+    in_buf = gst_buffer_new ();
+
+    for (i = 0; i < TEST_EXTRA_TENSORS_NUM; i++) {
+      mem = gst_allocator_alloc (NULL, dsize, NULL);
+      ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_WRITE));
+
+      _data = (float *) map.data;
+      for (j = 0; j < TEST_EXTRA_TENSORS_SIZE; j++)
+        _data[j] = (float) (b * 10000 + i * 100 + j);
+
+      gst_memory_unmap (mem, &map);
+      ASSERT_TRUE (gst_tensor_buffer_append_memory (
+          in_buf, mem, gst_tensors_info_get_nth_info (&config.info, i)));
+    }
+
+    /* keep the reference to check the ownership of the input buffer */
+    gst_buffer_ref (in_buf);
+
+    EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+    refcount = GST_MINI_OBJECT_REFCOUNT_VALUE (in_buf);
+    EXPECT_EQ (refcount, 1);
+    gst_buffer_unref (in_buf);
+
+    /* get output buffer */
+    out_buf = gst_harness_pull (h);
+
+    ASSERT_TRUE (out_buf != NULL);
+    ASSERT_EQ (gst_tensor_buffer_get_count (out_buf), TEST_EXTRA_TENSORS_NUM);
+
+    for (i = 0; i < TEST_EXTRA_TENSORS_NUM; i++) {
+      mem = gst_tensor_buffer_get_nth_memory (out_buf, i);
+      ASSERT_TRUE (mem != NULL);
+      ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_READ));
+      ASSERT_EQ (map.size, dsize);
+
+      _data = (float *) map.data;
+      for (j = 0; j < TEST_EXTRA_TENSORS_SIZE; j++)
+        EXPECT_FLOAT_EQ (_data[j], (float) (b * 10000 + i * 100 + j + 1));
+
+      gst_memory_unmap (mem, &map);
+      gst_memory_unref (mem);
+    }
+
+    gst_buffer_unref (out_buf);
+  }
+
+  EXPECT_EQ (gst_harness_buffers_received (h), num_buffers);
+
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_transform arithmetic with 'apply' property (more tensors than NNS_TENSOR_MEMORY_MAX)
+ */
+TEST (testTensorTransform, arithmeticExtraTensorsApply)
+{
+  GstHarness *h;
+  GstBuffer *in_buf, *out_buf;
+  GstTensorsConfig config;
+  GstMemory *mem;
+  GstMapInfo map;
+  guint i, j;
+  gint refcount;
+  gsize dsize;
+  float *_data;
+
+  h = gst_harness_new ("tensor_transform");
+
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "add:1", "apply",
+      "0,16,17", NULL);
+
+  _setup_extra_tensors_config (&config);
+  dsize = gst_tensors_info_get_size (&config.info, 0);
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+
+  /* set input buffer */
+  in_buf = gst_buffer_new ();
+
+  for (i = 0; i < TEST_EXTRA_TENSORS_NUM; i++) {
+    mem = gst_allocator_alloc (NULL, dsize, NULL);
+    ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_WRITE));
+
+    _data = (float *) map.data;
+    for (j = 0; j < TEST_EXTRA_TENSORS_SIZE; j++)
+      _data[j] = (float) (i * 100 + j);
+
+    gst_memory_unmap (mem, &map);
+    ASSERT_TRUE (gst_tensor_buffer_append_memory (
+        in_buf, mem, gst_tensors_info_get_nth_info (&config.info, i)));
+  }
+
+  /* keep the reference to check the ownership of the input buffer */
+  gst_buffer_ref (in_buf);
+
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+  refcount = GST_MINI_OBJECT_REFCOUNT_VALUE (in_buf);
+  EXPECT_EQ (refcount, 1);
+  gst_buffer_unref (in_buf);
+
+  /* get output buffer */
+  out_buf = gst_harness_pull (h);
+
+  ASSERT_TRUE (out_buf != NULL);
+  ASSERT_EQ (gst_tensor_buffer_get_count (out_buf), TEST_EXTRA_TENSORS_NUM);
+
+  for (i = 0; i < TEST_EXTRA_TENSORS_NUM; i++) {
+    /* the operator is applied to the tensor 0, 16 and 17 */
+    float diff = (i == 0U || i >= 16U) ? 1.0f : 0.0f;
+
+    mem = gst_tensor_buffer_get_nth_memory (out_buf, i);
+    ASSERT_TRUE (mem != NULL);
+    ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_READ));
+    ASSERT_EQ (map.size, dsize);
+
+    _data = (float *) map.data;
+    for (j = 0; j < TEST_EXTRA_TENSORS_SIZE; j++)
+      EXPECT_FLOAT_EQ (_data[j], (float) (i * 100 + j) + diff);
+
+    gst_memory_unmap (mem, &map);
+    gst_memory_unref (mem);
+  }
+
+  gst_buffer_unref (out_buf);
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_transform with insufficient buffer size (more tensors than NNS_TENSOR_MEMORY_MAX)
+ */
+TEST (testTensorTransform, arithmeticExtraTensorsInvalidSize_n)
+{
+  GstHarness *h;
+  GstBuffer *in_buf;
+  GstTensorsConfig config;
+  gint refcount;
+  gsize dsize;
+
+  h = gst_harness_new ("tensor_transform");
+
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "add:1", NULL);
+
+  _setup_extra_tensors_config (&config);
+  dsize = gst_tensors_info_get_size (&config.info, 0);
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+
+  /* the buffer has the data of a single tensor */
+  in_buf = gst_harness_create_buffer (h, dsize);
+  gst_buffer_ref (in_buf);
+
+  EXPECT_NE (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+  refcount = GST_MINI_OBJECT_REFCOUNT_VALUE (in_buf);
+  EXPECT_EQ (refcount, 1);
+  gst_buffer_unref (in_buf);
+
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Test data for tensor_aggregator (2 frames with dimension 3:4:2:2 or 3:2:2:2:2)
  */
 const gint aggr_test_frames[2][48]
