@@ -299,6 +299,7 @@ class litert_subplugin final : public tensor_filter_subplugin
   void releaseTensorBuffers ();
   void fillInputBuffers (const GstTensorMemory *input);
   bool inputShapeDiffers (const GstTensorsInfo *in_info) const;
+  void rejectTypeChange (const GstTensorsInfo *in_info) const;
   void reshapeTo (const GstTensorsInfo *in_info);
 
   static tensor_type convertElementType (LiteRtElementType type);
@@ -985,6 +986,39 @@ litert_subplugin::inputShapeDiffers (const GstTensorsInfo *in_info) const
 }
 
 /**
+ * @brief Reject an input whose element type is not the model's.
+ *
+ * Nothing else on this path looks at the type. A flexible sink pad rewrites
+ * prop->input_meta from each buffer's own meta header, type included, and the
+ * framework derives its size check from that same refreshed meta - so a
+ * substitution between types of one width reaches the subplugin unchallenged
+ * and passes every guard here too, since inputShapeDiffers() and reshapeTo()
+ * read dimensions only and fillInputBuffers() counts bytes. The model would
+ * then read int32 bits as float32 and return nonsense with a success code,
+ * which is worse than failing.
+ */
+void
+litert_subplugin::rejectTypeChange (const GstTensorsInfo *in_info) const
+{
+  /* a count mismatch is reshapeTo()'s to report; it has more to say about it */
+  if (in_info->num_tensors != inputTensorMeta.num_tensors)
+    return;
+
+  for (guint i = 0; i < in_info->num_tensors; ++i) {
+    const GstTensorInfo *want
+        = gst_tensors_info_get_nth_info (const_cast<GstTensorsInfo *> (in_info), i);
+    const GstTensorInfo *have = gst_tensors_info_get_nth_info (
+        const_cast<GstTensorsInfo *> (std::addressof (inputTensorMeta)), i);
+
+    if (want->type != have->type)
+      throw std::invalid_argument (
+          std::string ("Input tensor ") + std::to_string (i) + " is "
+          + gst_tensor_get_type_string (want->type) + " but the model takes "
+          + gst_tensor_get_type_string (have->type) + ".");
+  }
+}
+
+/**
  * @brief Resize the model's inputs and rebuild everything the shapes decide.
  *
  * Must be called with the environment lock held exclusively: it destroys and
@@ -1102,6 +1136,8 @@ litert_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
 
   if (prop == nullptr || input == nullptr || output == nullptr)
     throw std::invalid_argument ("Dynamic invoke called with a null argument.");
+
+  rejectTypeChange (std::addressof (prop->input_meta));
 
   /** Exactly one of these is locked, and both outlive the read-back below,
    *  which touches this instance's tensor buffers through LiteRT and so
