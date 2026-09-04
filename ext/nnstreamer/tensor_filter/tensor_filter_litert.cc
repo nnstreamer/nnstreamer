@@ -1103,22 +1103,27 @@ litert_subplugin::invoke_dynamic (GstTensorFilterProperties *prop,
   if (prop == nullptr || input == nullptr || output == nullptr)
     throw std::invalid_argument ("Dynamic invoke called with a null argument.");
 
+  /** Exactly one of these is locked, and both outlive the read-back below,
+   *  which touches this instance's tensor buffers through LiteRT and so
+   *  belongs under the lock - the static invoke() holds its shared lock over
+   *  the same read for that reason. Scoping the guard to the branch would
+   *  drop the lock before it, and this path is what makes that matter:
+   *  reshapeTo() put the exclusive lock on the streaming path, so another
+   *  instance can now take it while a buffer is being read. */
+  std::shared_lock<std::shared_mutex> shared_guard (litert_env_lock, std::defer_lock);
+  std::unique_lock<std::shared_mutex> unique_guard (litert_env_lock, std::defer_lock);
+
   if (inputShapeDiffers (std::addressof (prop->input_meta))) {
-    std::lock_guard<std::shared_mutex> guard (litert_env_lock);
-
+    unique_guard.lock ();
     reshapeTo (std::addressof (prop->input_meta));
-    fillInputBuffers (input);
-    LITERT_CHECK (LiteRtRunCompiledModel (compiled_model, signature_index,
-        input_buffers.size (), input_buffers.data (), output_buffers.size (),
-        output_buffers.data ()));
   } else {
-    std::shared_lock<std::shared_mutex> guard (litert_env_lock);
-
-    fillInputBuffers (input);
-    LITERT_CHECK (LiteRtRunCompiledModel (compiled_model, signature_index,
-        input_buffers.size (), input_buffers.data (), output_buffers.size (),
-        output_buffers.data ()));
+    shared_guard.lock ();
   }
+
+  fillInputBuffers (input);
+  LITERT_CHECK (LiteRtRunCompiledModel (compiled_model, signature_index,
+      input_buffers.size (), input_buffers.data (), output_buffers.size (),
+      output_buffers.data ()));
 
   /** Nothing reclaims these if the loop throws part way: the element skips
    *  its output cleanup entirely when allocate_in_invoke is set, which a
