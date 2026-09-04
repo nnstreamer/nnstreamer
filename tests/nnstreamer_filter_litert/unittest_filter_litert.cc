@@ -2042,6 +2042,137 @@ TEST (nnstreamerFilterLiteRT, dynamicInvokeNewShapeReshapesOnce)
 }
 
 /**
+ * @brief Negative case: a dynamic invoke must reject a null argument.
+ *
+ * cpp_invoke hands prop, input and output straight through, so these guards
+ * are the only thing between a null and a dereference.
+ */
+TEST (nnstreamerFilterLiteRT, dynamicInvokeNullArg_n)
+{
+  void *data = NULL;
+  GstTensorMemory input, output;
+  g_autofree gchar *model_file = NULL;
+  guint dims[NNS_TENSOR_RANK_LIMIT] = { 0 };
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 4));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+  prop.invoke_dynamic = 1;
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  dims[0] = 4;
+  dims[1] = 1;
+  _SetDynamicInputMeta (&prop, dims);
+
+  input.size = sizeof (float) * 4;
+  input.data = g_malloc0 (input.size);
+  output.data = NULL;
+  output.size = 0;
+
+  EXPECT_NE (sp->invoke (NULL, &prop, data, NULL, &output), 0)
+      << "A null input tensor array was accepted.";
+  EXPECT_NE (sp->invoke (NULL, &prop, data, &input, NULL), 0)
+      << "A null output tensor array was accepted.";
+
+  g_free (input.data);
+  gst_tensors_info_free (&prop.input_meta);
+  gst_tensors_info_free (&prop.output_meta);
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief Negative case: a dynamic invoke must reject a null input buffer.
+ */
+TEST (nnstreamerFilterLiteRT, dynamicInvokeNullInputData_n)
+{
+  void *data = NULL;
+  GstTensorMemory input, output;
+  g_autofree gchar *model_file = NULL;
+  guint dims[NNS_TENSOR_RANK_LIMIT] = { 0 };
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 4));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+  prop.invoke_dynamic = 1;
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  dims[0] = 4;
+  dims[1] = 1;
+  _SetDynamicInputMeta (&prop, dims);
+
+  input.size = sizeof (float) * 4;
+  input.data = NULL;
+  output.data = NULL;
+  output.size = 0;
+
+  EXPECT_NE (sp->invoke (NULL, &prop, data, &input, &output), 0)
+      << "A null input buffer was accepted.";
+
+  g_free (output.data);
+  gst_tensors_info_free (&prop.input_meta);
+  gst_tensors_info_free (&prop.output_meta);
+  sp->close (&prop, &data);
+}
+
+/**
+ * @brief Negative case: the input buffer must match the shape it asks for.
+ *
+ * The reshape happens first, so by the time the buffer is read the model is at
+ * batch 2 and expects twice the bytes. Accepting the short buffer would read
+ * past it, which is why the size is checked rather than trusted.
+ */
+TEST (nnstreamerFilterLiteRT, dynamicInvokeInputSizeMismatch_n)
+{
+  void *data = NULL;
+  GstTensorMemory input, output;
+  g_autofree gchar *model_file = NULL;
+  guint dims[NNS_TENSOR_RANK_LIMIT] = { 0 };
+
+  ASSERT_TRUE (_GetModelFilePath (&model_file, 4));
+
+  const gchar *model_files[] = { model_file, NULL };
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("litert");
+  ASSERT_TRUE (sp != nullptr);
+
+  GstTensorFilterProperties prop;
+  _SetFilterProp (&prop, "litert", model_files);
+  prop.invoke_dynamic = 1;
+
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  /* ask for batch 2 but hand over a batch 1 buffer */
+  dims[0] = 4;
+  dims[1] = 2;
+  _SetDynamicInputMeta (&prop, dims);
+
+  input.size = sizeof (float) * 4;
+  input.data = g_malloc0 (input.size);
+  output.data = NULL;
+  output.size = 0;
+
+  EXPECT_NE (sp->invoke (NULL, &prop, data, &input, &output), 0)
+      << "An input buffer smaller than the requested shape was accepted.";
+
+  g_free (input.data);
+  g_free (output.data);
+  gst_tensors_info_free (&prop.input_meta);
+  gst_tensors_info_free (&prop.output_meta);
+  sp->close (&prop, &data);
+}
+
+/**
  * @brief Negative case: a dynamic invoke may not change the number of input
  * tensors; it must fail before ever touching the input buffer.
  */
