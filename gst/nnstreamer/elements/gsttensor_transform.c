@@ -1112,11 +1112,17 @@ gst_tensor_transform_set_property (GObject * object, guint prop_id,
       guint i, num = g_strv_length (strv);
       gchar *endptr = NULL;
 
+      if (filter->apply) {
+        g_list_free (filter->apply);
+        filter->apply = NULL;
+      }
+
       for (i = 0; i < num; i++) {
         errno = 0;
         val = g_ascii_strtoll (strv[i], &endptr, 10);
         if (errno == ERANGE || errno == EINVAL || (endptr == strv[i])) {
           ml_loge ("Cannot convert string %s to a gint64 value", strv[i]);
+          continue;
         }
         filter->apply = g_list_append (filter->apply, GINT_TO_POINTER (val));
       }
@@ -1209,6 +1215,9 @@ gst_tensor_transform_finalize (GObject * object)
     g_list_free (filter->apply);
     filter->apply = NULL;
   }
+
+  gst_tensors_config_free (&filter->in_config);
+  gst_tensors_config_free (&filter->out_config);
 
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -1848,7 +1857,7 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
 {
   GstTensorTransform *filter;
   GstTensorInfo *in_info, *out_info;
-  GstFlowReturn res = GST_FLOW_ERROR;
+  GstFlowReturn res = GST_FLOW_OK;
   GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
   GstMemory *out_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
   GstMapInfo in_map[NNS_TENSOR_SIZE_LIMIT];
@@ -1870,7 +1879,12 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
     return GST_FLOW_ERROR;
   }
 
-  inbuf = gst_tensor_buffer_from_config (inbuf, &filter->in_config);
+  inbuf = gst_tensor_buffer_from_config (gst_buffer_ref (inbuf),
+      &filter->in_config);
+  if (!inbuf) {
+    ml_loge ("Cannot configure input buffer at tensor-transform.\n");
+    return GST_FLOW_ERROR;
+  }
 
   in_flexible =
       gst_tensor_pad_caps_is_flexible (GST_BASE_TRANSFORM_SINK_PAD (trans));
@@ -1880,10 +1894,18 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
   num_mems = gst_tensor_buffer_get_count (inbuf);
   if (in_flexible) {
     num_tensors = num_mems;
-    g_return_val_if_fail (out_flexible, GST_FLOW_ERROR);
+    if (!out_flexible) {
+      ml_loge ("Invalid caps, the output should be flexible tensor.\n");
+      res = GST_FLOW_ERROR;
+      goto done;
+    }
   } else {
     num_tensors = filter->in_config.info.num_tensors;
-    g_return_val_if_fail (num_mems == num_tensors, GST_FLOW_ERROR);
+    if (num_mems != num_tensors) {
+      ml_loge ("Invalid buffer, the number of tensors is not matched.\n");
+      res = GST_FLOW_ERROR;
+      goto done;
+    }
   }
 
   for (i = 0; i < num_tensors; i++) {
@@ -1902,7 +1924,11 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
         gst_memory_unref (old);
       }
 
-      gst_tensor_buffer_append_memory (outbuf, mem, out_info);
+      if (!gst_tensor_buffer_append_memory (outbuf, mem, out_info)) {
+        ml_loge ("Failed to append memory to output buffer.\n");
+        res = GST_FLOW_ERROR;
+        goto done;
+      }
       continue;
     }
 
@@ -1910,6 +1936,8 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
     in_mem[i] = gst_tensor_buffer_get_nth_memory (inbuf, i);
     if (!gst_memory_map (in_mem[i], &in_map[i], GST_MAP_READ)) {
       ml_loge ("Cannot map input buffer to gst-buf at tensor-transform.\n");
+      gst_memory_unref (in_mem[i]);
+      in_mem[i] = NULL;
       res = GST_FLOW_ERROR;
       goto done;
     }
@@ -1942,10 +1970,10 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
     }
 
     out_mem[i] = gst_allocator_alloc (NULL, buf_size, NULL);
-    gst_tensor_buffer_append_memory (outbuf, out_mem[i], out_info);
-
     if (!gst_memory_map (out_mem[i], &out_map[i], GST_MAP_WRITE)) {
       ml_loge ("Cannot map output buffer to gst-buf at tensor-transform.\n");
+      gst_memory_unref (out_mem[i]);
+      out_mem[i] = NULL;
       res = GST_FLOW_ERROR;
       goto done;
     }
@@ -1990,6 +2018,23 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
         res = GST_FLOW_NOT_SUPPORTED;
         goto done;
     }
+
+    /* append the memory after filling it, appending may copy and release it */
+    gst_memory_unmap (out_mem[i], &out_map[i]);
+    if (res != GST_FLOW_OK) {
+      gst_memory_unref (out_mem[i]);
+      out_mem[i] = NULL;
+      goto done;
+    }
+
+    if (!gst_tensor_buffer_append_memory (outbuf, out_mem[i], out_info)) {
+      ml_loge ("Failed to append memory to output buffer.\n");
+      out_mem[i] = NULL;
+      res = GST_FLOW_ERROR;
+      goto done;
+    }
+
+    out_mem[i] = NULL;
   }
 
 done:
@@ -1998,10 +2043,13 @@ done:
       gst_memory_unmap (in_mem[i], &in_map[i]);
       gst_memory_unref (in_mem[i]);
     }
-    if (out_mem[i])
+    if (out_mem[i]) {
       gst_memory_unmap (out_mem[i], &out_map[i]);
+      gst_memory_unref (out_mem[i]);
+    }
   }
 
+  gst_buffer_unref (inbuf);
   return res;
 }
 
@@ -2307,6 +2355,10 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
 
   filter = GST_TENSOR_TRANSFORM_CAST (trans);
 
+  gst_tensors_config_init (&in_config);
+  gst_tensors_config_init (&out_config);
+  gst_tensors_config_init (&config);
+
   silent_debug (filter, "Calling SetCaps\n");
   silent_debug_caps (filter, incaps, "incaps");
   silent_debug_caps (filter, outcaps, "outcaps");
@@ -2335,7 +2387,6 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
   out_flexible = gst_tensors_config_is_flexible (&out_config);
 
   /* compare type and dimension */
-  gst_tensors_config_init (&config);
   config.info.format = out_config.info.format;
 
   config.rate_n = in_config.rate_n;
@@ -2362,8 +2413,11 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
     GST_INFO_OBJECT (filter, "Output tensor is flexible.");
 
     /* set output configuration if input is static */
-    if (!in_flexible)
+    if (!in_flexible) {
+      gst_tensors_config_free (&out_config);
       out_config = config;
+      gst_tensors_config_init (&config);
+    }
   } else if (!gst_tensors_config_is_equal (&out_config, &config)) {
     gchar *cmp;
 
@@ -2379,13 +2433,20 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
   }
 
   /* set in/out tensor info */
+  gst_tensors_config_free (&filter->in_config);
+  gst_tensors_config_free (&filter->out_config);
   filter->in_config = in_config;
   filter->out_config = out_config;
   allowed = TRUE;
 
 error:
-  if (!allowed)
+  gst_tensors_config_free (&config);
+
+  if (!allowed) {
+    gst_tensors_config_free (&in_config);
+    gst_tensors_config_free (&out_config);
     GST_ERROR_OBJECT (filter, "Set Caps Failed!\n");
+  }
 
   return allowed;
 }
