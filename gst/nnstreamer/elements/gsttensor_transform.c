@@ -1851,7 +1851,7 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
 {
   GstTensorTransform *filter;
   GstTensorInfo *in_info, *out_info;
-  GstFlowReturn res = GST_FLOW_ERROR;
+  GstFlowReturn res = GST_FLOW_OK;
   GstMemory *in_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
   GstMemory *out_mem[NNS_TENSOR_SIZE_LIMIT] = { 0, };
   GstMapInfo in_map[NNS_TENSOR_SIZE_LIMIT];
