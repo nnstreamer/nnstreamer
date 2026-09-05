@@ -290,6 +290,57 @@ TEST (testTensorTransform, properties01)
 }
 
 /**
+ * @brief Test for setting the 'apply' property of tensor_transform
+ */
+TEST (testTensorTransform, applyProperty)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+
+  g_object_get (h->element, "apply", &str, NULL);
+  EXPECT_STREQ (str, "");
+  g_free (str);
+
+  g_object_set (h->element, "apply", "1,2", NULL);
+  g_object_get (h->element, "apply", &str, NULL);
+  EXPECT_STREQ (str, "1,2");
+  g_free (str);
+
+  /* setting the property again replaces the old list */
+  g_object_set (h->element, "apply", "3", NULL);
+  g_object_get (h->element, "apply", &str, NULL);
+  EXPECT_STREQ (str, "3");
+  g_free (str);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for setting the 'apply' property of tensor_transform with invalid value
+ */
+TEST (testTensorTransform, applyPropertyInvalid_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+
+  g_object_set (h->element, "apply", "1,invalid,3", NULL);
+  g_object_get (h->element, "apply", &str, NULL);
+  EXPECT_STREQ (str, "1,3");
+  g_free (str);
+
+  g_object_set (h->element, "apply", "invalid", NULL);
+  g_object_get (h->element, "apply", &str, NULL);
+  EXPECT_STREQ (str, "");
+  g_free (str);
+
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Test for invalid properties of tensor_transform
  */
 TEST (testTensorTransform, properties02_n)

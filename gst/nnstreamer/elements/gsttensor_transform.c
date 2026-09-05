@@ -1112,11 +1112,17 @@ gst_tensor_transform_set_property (GObject * object, guint prop_id,
       guint i, num = g_strv_length (strv);
       gchar *endptr = NULL;
 
+      if (filter->apply) {
+        g_list_free (filter->apply);
+        filter->apply = NULL;
+      }
+
       for (i = 0; i < num; i++) {
         errno = 0;
         val = g_ascii_strtoll (strv[i], &endptr, 10);
         if (errno == ERANGE || errno == EINVAL || (endptr == strv[i])) {
           ml_loge ("Cannot convert string %s to a gint64 value", strv[i]);
+          continue;
         }
         filter->apply = g_list_append (filter->apply, GINT_TO_POINTER (val));
       }
