@@ -1063,6 +1063,25 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
 }
 
 /**
+ * @brief Check whether the transform is applied to the given tensor.
+ * @param filter "this" pointer
+ * @param idx index of the tensor
+ * @return TRUE if the operator should be applied to the tensor
+ */
+static gboolean
+gst_tensor_transform_is_applied (GstTensorTransform * filter, guint idx)
+{
+  gboolean applied;
+
+  GST_OBJECT_LOCK (filter);
+  applied = (filter->apply == NULL
+      || g_list_find (filter->apply, GINT_TO_POINTER (idx)) != NULL);
+  GST_OBJECT_UNLOCK (filter);
+
+  return applied;
+}
+
+/**
  * @brief Set property (gst element vmethod)
  */
 static void
@@ -1111,16 +1130,24 @@ gst_tensor_transform_set_property (GObject * object, guint prop_id,
       gchar **strv = g_strsplit_set (param, ",", -1);
       guint i, num = g_strv_length (strv);
       gchar *endptr = NULL;
+      GList *apply = NULL;
 
       for (i = 0; i < num; i++) {
         errno = 0;
         val = g_ascii_strtoll (strv[i], &endptr, 10);
         if (errno == ERANGE || errno == EINVAL || (endptr == strv[i])) {
           ml_loge ("Cannot convert string %s to a gint64 value", strv[i]);
+          continue;
         }
-        filter->apply = g_list_append (filter->apply, GINT_TO_POINTER (val));
+        apply = g_list_append (apply, GINT_TO_POINTER (val));
       }
       g_strfreev (strv);
+
+      /* the list is walked by the streaming thread, replace it under the lock */
+      GST_OBJECT_LOCK (filter);
+      g_list_free (filter->apply);
+      filter->apply = apply;
+      GST_OBJECT_UNLOCK (filter);
       break;
     }
     default:
@@ -1158,16 +1185,15 @@ gst_tensor_transform_get_property (GObject * object, guint prop_id,
       GPtrArray *arr;
       gchar **strings;
 
-      if (filter->apply == NULL) {
-        g_value_set_string (value, "");
-        return;
-      }
-
       arr = g_ptr_array_new ();
+
+      GST_OBJECT_LOCK (filter);
       for (list = filter->apply; list != NULL; list = list->next) {
         g_ptr_array_add (arr, g_strdup_printf ("%i",
                 GPOINTER_TO_INT (list->data)));
       }
+      GST_OBJECT_UNLOCK (filter);
+
       g_ptr_array_add (arr, NULL);
       strings = (gchar **) g_ptr_array_free (arr, FALSE);
       p = g_strjoinv (",", strings);
@@ -1906,7 +1932,7 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
     in_info = gst_tensors_info_get_nth_info (&filter->in_config.info, i);
     out_info = gst_tensors_info_get_nth_info (&filter->out_config.info, i);
 
-    if (filter->apply && !g_list_find (filter->apply, GINT_TO_POINTER (i))) {
+    if (!gst_tensor_transform_is_applied (filter, i)) {
       GstMemory *mem = gst_tensor_buffer_get_nth_memory (inbuf, i);
 
       if (!in_flexible && out_flexible) {
@@ -2066,7 +2092,7 @@ gst_tensor_transform_convert_dimension (GstTensorTransform * filter,
   /* copy input info first, then update output info */
   gst_tensor_info_copy (out_info, in_info);
 
-  if (filter->apply && !g_list_find (filter->apply, GINT_TO_POINTER (idx)))
+  if (!gst_tensor_transform_is_applied (filter, idx))
     return TRUE;
 
   switch (filter->mode) {

@@ -290,6 +290,146 @@ TEST (testTensorTransform, properties01)
 }
 
 /**
+ * @brief Test for setting the 'apply' property of tensor_transform
+ */
+TEST (testTensorTransform, applyProperty)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+
+  g_object_get (h->element, "apply", &str, NULL);
+  EXPECT_STREQ (str, "");
+  g_free (str);
+
+  g_object_set (h->element, "apply", "1,2", NULL);
+  g_object_get (h->element, "apply", &str, NULL);
+  EXPECT_STREQ (str, "1,2");
+  g_free (str);
+
+  /* setting the property again replaces the old list */
+  g_object_set (h->element, "apply", "3", NULL);
+  g_object_get (h->element, "apply", &str, NULL);
+  EXPECT_STREQ (str, "3");
+  g_free (str);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for setting the 'apply' property of tensor_transform with invalid value
+ */
+TEST (testTensorTransform, applyPropertyInvalid_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+
+  g_object_set (h->element, "apply", "1,invalid,3", NULL);
+  g_object_get (h->element, "apply", &str, NULL);
+  EXPECT_STREQ (str, "1,3");
+  g_free (str);
+
+  g_object_set (h->element, "apply", "invalid", NULL);
+  g_object_get (h->element, "apply", &str, NULL);
+  EXPECT_STREQ (str, "");
+  g_free (str);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for changing the 'apply' property between the buffers
+ */
+TEST (testTensorTransform, applyChangedWhileStreaming)
+{
+  const guint num_tensors = 2U;
+  const guint array_size = 64U;
+  const gchar *apply_values[] = { "1", "0", "invalid" };
+  /* the operator is applied to the tensor selected by each value above */
+  const gboolean applied[3][2] = { { FALSE, TRUE }, { TRUE, FALSE }, { TRUE, TRUE } };
+
+  GstHarness *h;
+  GstBuffer *in_buf, *out_buf;
+  GstTensorsConfig config;
+  GstTensorInfo *_info;
+  GstMemory *mem;
+  GstMapInfo map;
+  guint i, j, p;
+  gsize dsize;
+  float *_data;
+
+  h = gst_harness_new ("tensor_transform");
+
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "add:1", NULL);
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = num_tensors;
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  for (i = 0; i < num_tensors; i++) {
+    _info = gst_tensors_info_get_nth_info (&config.info, i);
+    _info->type = _NNS_FLOAT32;
+    gst_tensor_parse_dimension ("64", _info->dimension);
+  }
+
+  dsize = gst_tensors_info_get_size (&config.info, 0);
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+
+  for (p = 0; p < G_N_ELEMENTS (apply_values); p++) {
+    g_object_set (h->element, "apply", apply_values[p], NULL);
+
+    /* set input buffer */
+    in_buf = gst_buffer_new ();
+
+    for (i = 0; i < num_tensors; i++) {
+      mem = gst_allocator_alloc (NULL, dsize, NULL);
+      ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_WRITE));
+
+      _data = (float *) map.data;
+      for (j = 0; j < array_size; j++)
+        _data[j] = (float) (i * 100 + j);
+
+      gst_memory_unmap (mem, &map);
+      ASSERT_TRUE (gst_tensor_buffer_append_memory (
+          in_buf, mem, gst_tensors_info_get_nth_info (&config.info, i)));
+    }
+
+    EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+    /* get output buffer */
+    out_buf = gst_harness_pull (h);
+
+    ASSERT_TRUE (out_buf != NULL);
+    ASSERT_EQ (gst_tensor_buffer_get_count (out_buf), num_tensors);
+
+    for (i = 0; i < num_tensors; i++) {
+      float diff = applied[p][i] ? 1.0f : 0.0f;
+
+      mem = gst_tensor_buffer_get_nth_memory (out_buf, i);
+      ASSERT_TRUE (mem != NULL);
+      ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_READ));
+      ASSERT_EQ (map.size, dsize);
+
+      _data = (float *) map.data;
+      for (j = 0; j < array_size; j++)
+        EXPECT_FLOAT_EQ (_data[j], (float) (i * 100 + j) + diff);
+
+      gst_memory_unmap (mem, &map);
+      gst_memory_unref (mem);
+    }
+
+    gst_buffer_unref (out_buf);
+  }
+
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Test for invalid properties of tensor_transform
  */
 TEST (testTensorTransform, properties02_n)
