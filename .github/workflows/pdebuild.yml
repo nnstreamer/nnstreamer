@@ -1,4 +1,4 @@
-name: Build and unit test/ Pdebuild Ubuntu 22.04
+name: Build and unit test/ Pdebuild Ubuntu
 
 # ${{ github.event.pull_request.commits }} : # commits in this PR
 # - changed_file_list in GITHUB_ENV: the list of files updated in this pull-request.
@@ -14,12 +14,22 @@ jobs:
     name: Ubuntu pdebuild on Ubuntu
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ ubuntu-22.04 ]
         arch: [ amd64 ]
         include:
           - distroname: jammy
             os: ubuntu-22.04
+          # Ubuntu 26.04 is bootstrapped from the 24.04 runner; its debootstrap
+          # learns the series name in the "prepare pdebuild" step. Plain pdebuild
+          # runs "debian/rules clean" on the host, whose /etc/os-release would make
+          # rules pick the 24.04 control for the .dsc; the internal mode runs it in
+          # the chroot, as the Launchpad recipe build does.
+          - distroname: resolute
+            os: ubuntu-24.04
+            arch: amd64
+            pdebuild_opts: --use-pdebuild-internal
 
     steps:
     - uses: actions/checkout@v4
@@ -51,10 +61,10 @@ jobs:
         path: |
           /var/cache/pbuilder/aptcache
           /var/cache/pbuilder/base.tgz
-        key: pbuilder-cache-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('**/debian/control') }}-${{ steps.get-date.outputs.date }}
+        key: pbuilder-cache-${{ matrix.os }}-${{ matrix.distroname }}-${{ matrix.arch }}-${{ hashFiles('**/debian/control') }}-${{ steps.get-date.outputs.date }}
         restore-keys: |
-          pbuilder-cache-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('**/debian/control') }}-
-          pbuilder-cache-${{ matrix.os }}-${{ matrix.arch }}-
+          pbuilder-cache-${{ matrix.os }}-${{ matrix.distroname }}-${{ matrix.arch }}-${{ hashFiles('**/debian/control') }}-
+          pbuilder-cache-${{ matrix.os }}-${{ matrix.distroname }}-${{ matrix.arch }}-
 
     - name: prepare pdebuild
       if: env.rebuild == '1'
@@ -82,6 +92,11 @@ jobs:
         echo "::group::apt-get install"
         sudo apt-get install -y pbuilder debootstrap curl ubuntu-dev-tools qemu-user-static debian-archive-keyring ubuntu-keyring debhelper
         echo "::endgroup::"
+        # debootstrap ships scripts only for the series known when it was
+        # released, and every Ubuntu series uses the same one. Alias it.
+        if [ ! -e /usr/share/debootstrap/scripts/${{ matrix.distroname }} ]; then
+          sudo ln -s gutsy /usr/share/debootstrap/scripts/${{ matrix.distroname }}
+        fi
         echo "DISTRIBUTION=${{ matrix.distroname }}" > ~/.pbuilderrc
         echo "OTHERMIRROR=\"deb [trusted=yes] http://archive.ubuntu.com/ubuntu ${{ matrix.distroname }}-backports universe |deb [trusted=yes] http://ppa.launchpad.net/nnstreamer/ppa/ubuntu ${{ matrix.distroname }} main\"" >> ~/.pbuilderrc
         cat ~/.pbuilderrc
@@ -106,4 +121,8 @@ jobs:
     - name: run pdebuild
       if: env.rebuild == '1'
       run: |
-        pdebuild --architecture ${{ matrix.arch }} -- --distribution ${{ matrix.distroname }}
+        # Results go to a runner-owned directory: in the internal mode pdebuild
+        # copies them itself, as the runner user, and the default
+        # /var/cache/pbuilder/result is root-owned.
+        mkdir -p ~/pdebuild_result
+        pdebuild ${{ matrix.pdebuild_opts }} --buildresult ~/pdebuild_result --architecture ${{ matrix.arch }} -- --distribution ${{ matrix.distroname }}
