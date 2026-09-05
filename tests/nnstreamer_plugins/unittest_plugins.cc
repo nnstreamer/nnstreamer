@@ -3030,6 +3030,83 @@ TEST (testTensorTransform, arithmeticExtraTensorsApply)
 }
 
 /**
+ * @brief Test for tensor_transform arithmetic with 'apply' property which selects no tensor
+ */
+TEST (testTensorTransform, arithmeticExtraTensorsApplyNone)
+{
+  GstHarness *h;
+  GstBuffer *in_buf, *out_buf;
+  GstTensorsConfig config;
+  GstMemory *mem;
+  GstMapInfo map;
+  guint i, j;
+  gint refcount;
+  gsize dsize;
+  float *_data;
+
+  h = gst_harness_new ("tensor_transform");
+
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "add:1", NULL);
+
+  /* no tensor of the stream is selected */
+  g_object_set (h->element, "apply", "99", NULL);
+
+  _setup_extra_tensors_config (&config);
+  dsize = gst_tensors_info_get_size (&config.info, 0);
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+
+  /* set input buffer */
+  in_buf = gst_buffer_new ();
+
+  for (i = 0; i < TEST_EXTRA_TENSORS_NUM; i++) {
+    mem = gst_allocator_alloc (NULL, dsize, NULL);
+    ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_WRITE));
+
+    _data = (float *) map.data;
+    for (j = 0; j < TEST_EXTRA_TENSORS_SIZE; j++)
+      _data[j] = (float) (i * 100 + j);
+
+    gst_memory_unmap (mem, &map);
+    ASSERT_TRUE (gst_tensor_buffer_append_memory (
+        in_buf, mem, gst_tensors_info_get_nth_info (&config.info, i)));
+  }
+
+  /* keep the reference to check the ownership of the input buffer */
+  gst_buffer_ref (in_buf);
+
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+  refcount = GST_MINI_OBJECT_REFCOUNT_VALUE (in_buf);
+  EXPECT_EQ (refcount, 1);
+  gst_buffer_unref (in_buf);
+
+  /* get output buffer, every tensor is passed through */
+  out_buf = gst_harness_pull (h);
+
+  ASSERT_TRUE (out_buf != NULL);
+  ASSERT_EQ (gst_tensor_buffer_get_count (out_buf), TEST_EXTRA_TENSORS_NUM);
+
+  for (i = 0; i < TEST_EXTRA_TENSORS_NUM; i++) {
+    mem = gst_tensor_buffer_get_nth_memory (out_buf, i);
+    ASSERT_TRUE (mem != NULL);
+    ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_READ));
+    ASSERT_EQ (map.size, dsize);
+
+    _data = (float *) map.data;
+    for (j = 0; j < TEST_EXTRA_TENSORS_SIZE; j++)
+      EXPECT_FLOAT_EQ (_data[j], (float) (i * 100 + j));
+
+    gst_memory_unmap (mem, &map);
+    gst_memory_unref (mem);
+  }
+
+  gst_buffer_unref (out_buf);
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Test for tensor_transform with insufficient buffer size (more tensors than NNS_TENSOR_MEMORY_MAX)
  */
 TEST (testTensorTransform, arithmeticExtraTensorsInvalidSize_n)
