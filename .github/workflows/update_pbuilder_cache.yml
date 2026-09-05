@@ -11,12 +11,21 @@ on:
 jobs:
   cache_pbuilder:
     strategy:
+      fail-fast: false
       matrix:
         os: [ ubuntu-22.04 ]
         arch: [ amd64 ]
         include:
           - distroname: jammy
             os: ubuntu-22.04
+          # Ubuntu 26.04 is bootstrapped from the 24.04 runner; its debootstrap
+          # learns the series name in the "prepare pdebuild" step. The internal
+          # mode keeps "debian/rules clean" inside the chroot, so rules reads the
+          # chroot's /etc/os-release, not the runner's (see pdebuild.yml).
+          - distroname: resolute
+            os: ubuntu-24.04
+            arch: amd64
+            pdebuild_opts: --use-pdebuild-internal
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -53,6 +62,11 @@ jobs:
           echo "::group::apt-get install"
           sudo apt-get install -y pbuilder debootstrap curl ubuntu-dev-tools qemu-user-static debian-archive-keyring ubuntu-keyring debhelper
           echo "::endgroup::"
+          # debootstrap ships scripts only for the series known when it was
+          # released, and every Ubuntu series uses the same one. Alias it.
+          if [ ! -e /usr/share/debootstrap/scripts/${{ matrix.distroname }} ]; then
+            sudo ln -s gutsy /usr/share/debootstrap/scripts/${{ matrix.distroname }}
+          fi
           echo "DISTRIBUTION=${{ matrix.distroname }}" > ~/.pbuilderrc
           echo "OTHERMIRROR=\"deb [trusted=yes] http://archive.ubuntu.com/ubuntu ${{ matrix.distroname }}-backports universe |deb [trusted=yes] http://ppa.launchpad.net/nnstreamer/ppa/ubuntu ${{ matrix.distroname }} main\"" >> ~/.pbuilderrc
           cat ~/.pbuilderrc
@@ -83,7 +97,7 @@ jobs:
         id: pdebuild
         run: |
           mkdir -p ~/daily_build/ubuntu
-          pdebuild --logfile ~/daily_build/pdebuild_log.txt --buildresult ~/daily_build/ubuntu --architecture ${{ matrix.arch }} -- --distribution ${{ matrix.distroname }}
+          pdebuild ${{ matrix.pdebuild_opts }} --logfile ~/daily_build/pdebuild_log.txt --buildresult ~/daily_build/ubuntu --architecture ${{ matrix.arch }} -- --distribution ${{ matrix.distroname }}
 
       - name: save pbuilder cache
         uses: actions/cache/save@v4
@@ -96,7 +110,7 @@ jobs:
           path: |
             /var/cache/pbuilder/aptcache
             /var/cache/pbuilder/base.tgz
-          key: pbuilder-cache-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('**/debian/control') }}-${{ steps.get-date.outputs.date }}
+          key: pbuilder-cache-${{ matrix.os }}-${{ matrix.distroname }}-${{ matrix.arch }}-${{ hashFiles('**/debian/control') }}-${{ steps.get-date.outputs.date }}
 
       - name: generate badge
         run: |
@@ -107,8 +121,10 @@ jobs:
             python3 -m pybadges --left-text=test --right-text=failure --right-color=red > ~/daily_build/pdebuild_result.svg
           fi
 
+      # The published result, log and badge are single files: keep them for the
+      # jammy build as before, rather than whichever matrix leg finishes last.
       - name: Release daily build result to release.nnstreamer.com
-        if: steps.pdebuild.outcome == 'success'
+        if: steps.pdebuild.outcome == 'success' && matrix.distroname == 'jammy'
         uses: ./.github/actions/s3_upload
         with:
           source: ~/daily_build/ubuntu/
@@ -118,6 +134,7 @@ jobs:
           s3_option: --recursive
 
       - name: Release daily build log to release.nnstreamer.com
+        if: matrix.distroname == 'jammy'
         uses: ./.github/actions/s3_upload
         with:
           source: ~/daily_build/pdebuild_log.txt
@@ -126,6 +143,7 @@ jobs:
           s3_key: ${{ secrets.AWS_S3_SECRET_ACCESS_KEY }}
 
       - name: update daily result badge
+        if: matrix.distroname == 'jammy'
         uses: ./.github/actions/gitpush
         with:
           source: ~/daily_build/pdebuild_result.svg
