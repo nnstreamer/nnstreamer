@@ -32,7 +32,7 @@ The submitter has the first responsibility of keeping the created PR clean and n
 * Each feature should come with a rich set of test cases that can be executed as unit tests during build. If the feature is more invasive or richer, you need more and richer test cases. Refer to other test cases in /tests directory, which use either GTest or SSAT.
 * When new test cases are introduced, the number of new negative test cases should be larger than or equal to the number of new positive test cases.
 * For C-code, try to stick with C89.
-* For C++-code, try to be compatible with C++11. C++ code should be able to be built optionally. In other words, by disabling C++ build option, we should be able to build the whole system without C++ compilers.
+* For C++-code, try to be compatible with C++17 (the project's `cpp_std`, set in [meson.build](https://github.com/nnstreamer/nnstreamer/blob/main/meson.build)). C++ code should be able to be built optionally. In other words, by disabling C++ build option, we should be able to build the whole system without C++ compilers.
 * Avoid introducing additional dependencies of libraries. If you are going to use additional libraries, your codes may be located at /ext/* so that they can be "optional" features.
 * If your functions or structs/classes are going to be accessed by other modules or NNStreamer users, provide full descriptions of all entries with Doxygen.
 * Passing all the tests of TAOS-CI is a necessary condition, but not a satisfying condition.
