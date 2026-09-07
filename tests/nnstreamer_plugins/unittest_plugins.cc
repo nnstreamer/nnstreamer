@@ -9357,6 +9357,210 @@ TEST (testTensorSparse, decInvalidProperty_n)
 }
 
 /**
+ * @brief Rendezvous used to set a property from the test thread exactly while
+ *        the streaming thread is adding a source pad.
+ */
+typedef struct {
+  GMutex lock;
+  GCond cond;
+  gboolean pad_added;
+  gboolean prop_set;
+} padRaceSync;
+
+/**
+ * @brief Handler of "pad-added", which runs on the streaming thread.
+ */
+static void
+_pad_race_pad_added (GstElement *element, GstPad *pad, gpointer user_data)
+{
+  padRaceSync *sync = (padRaceSync *) user_data;
+  gint64 until = g_get_monotonic_time () + TEST_TIMEOUT_LIMIT;
+
+  UNUSED (element);
+  UNUSED (pad);
+
+  g_mutex_lock (&sync->lock);
+  sync->pad_added = TRUE;
+  g_cond_broadcast (&sync->cond);
+  while (!sync->prop_set) {
+    if (!g_cond_wait_until (&sync->cond, &sync->lock, until))
+      break;
+  }
+  g_mutex_unlock (&sync->lock);
+}
+
+/**
+ * @brief Set the given property while the streaming thread is blocked in
+ *        _pad_race_pad_added(), then release the streaming thread.
+ * @return TRUE if the element reported a new pad before the time-out
+ */
+static gboolean
+_pad_race_set_property (padRaceSync *sync, GstElement *element,
+    const gchar *name, const gchar *value)
+{
+  gint64 until = g_get_monotonic_time () + TEST_TIMEOUT_LIMIT;
+  gboolean pad_added;
+
+  g_mutex_lock (&sync->lock);
+  while (!sync->pad_added) {
+    if (!g_cond_wait_until (&sync->cond, &sync->lock, until))
+      break;
+  }
+  pad_added = sync->pad_added;
+  g_mutex_unlock (&sync->lock);
+
+  if (pad_added)
+    g_object_set (G_OBJECT (element), name, value, NULL);
+
+  g_mutex_lock (&sync->lock);
+  sync->prop_set = TRUE;
+  g_cond_broadcast (&sync->cond);
+  g_mutex_unlock (&sync->lock);
+
+  return pad_added;
+}
+
+/**
+ * @brief Initialize the rendezvous.
+ */
+static void
+_pad_race_sync_init (padRaceSync *sync)
+{
+  g_mutex_init (&sync->lock);
+  g_cond_init (&sync->cond);
+  sync->pad_added = FALSE;
+  sync->prop_set = FALSE;
+}
+
+/**
+ * @brief Release the rendezvous.
+ */
+static void
+_pad_race_sync_clear (padRaceSync *sync)
+{
+  g_mutex_clear (&sync->lock);
+  g_cond_clear (&sync->cond);
+}
+
+/**
+ * @brief Set tensorpick while tensor_demux is creating its first source pad.
+ * @details The application thread may touch a property at any time, and the
+ *          first buffer keeps the streaming thread inside the pad creation for
+ *          a long while (caps negotiation and the delayed link downstream).
+ */
+TEST (testTensorDemux, setTensorpickWhileAddingPad)
+{
+  gchar *pipeline_desc;
+  GstElement *pipeline, *demux, *sink;
+  padRaceSync sync;
+  guint data_received = 0;
+  gchar *tensorpick = NULL;
+
+  _pad_race_sync_init (&sync);
+
+  pipeline_desc = g_strdup (
+      "videotestsrc num-buffers=3 ! "
+      "video/x-raw,format=RGB,width=16,height=16,framerate=30/1 ! "
+      "tensor_converter ! tensor_demux name=demux ! tensor_sink name=sinkx");
+  pipeline = gst_parse_launch (pipeline_desc, NULL);
+  g_free (pipeline_desc);
+  ASSERT_TRUE (pipeline != NULL);
+
+  demux = gst_bin_get_by_name (GST_BIN (pipeline), "demux");
+  sink = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  ASSERT_TRUE (demux != NULL);
+  ASSERT_TRUE (sink != NULL);
+
+  g_signal_connect (demux, "pad-added", G_CALLBACK (_pad_race_pad_added), &sync);
+  g_signal_connect (sink, "new-data", G_CALLBACK (count_output), &data_received);
+
+  gst_element_set_state (pipeline, GST_STATE_PLAYING);
+  EXPECT_TRUE (_pad_race_set_property (&sync, demux, "tensorpick", "0"));
+  EXPECT_TRUE (wait_pipeline_process_buffers (&data_received, 1, TEST_TIMEOUT_LIMIT_MS));
+
+  g_object_get (demux, "tensorpick", &tensorpick, NULL);
+  EXPECT_STREQ (tensorpick, "0");
+  g_free (tensorpick);
+
+  gst_element_set_state (pipeline, GST_STATE_NULL);
+  gst_object_unref (sink);
+  gst_object_unref (demux);
+  gst_object_unref (pipeline);
+  _pad_race_sync_clear (&sync);
+}
+
+/**
+ * @brief Setting tensorpick again replaces the previous selection.
+ */
+TEST (testTensorDemux, setTensorpickTwice)
+{
+  GstElement *demux = gst_element_factory_make ("tensor_demux", NULL);
+  gchar *tensorpick = NULL;
+
+  ASSERT_TRUE (demux != NULL);
+  gst_object_ref_sink (demux);
+
+  g_object_set (demux, "tensorpick", "0,1", NULL);
+  g_object_set (demux, "tensorpick", "2", NULL);
+
+  g_object_get (demux, "tensorpick", &tensorpick, NULL);
+  EXPECT_STREQ (tensorpick, "2");
+  g_free (tensorpick);
+
+  gst_object_unref (demux);
+}
+
+/**
+ * @brief Disposing twice does not free the tensorpick list twice.
+ * @details GObject allows dispose to run more than once, so it has to leave
+ *          the member it released in a state the next run can survive.
+ */
+TEST (testTensorDemux, disposeTwice)
+{
+  GstElement *demux = gst_element_factory_make ("tensor_demux", NULL);
+
+  ASSERT_TRUE (demux != NULL);
+  gst_object_ref_sink (demux);
+
+  g_object_set (demux, "tensorpick", "0,1", NULL);
+  g_object_run_dispose (G_OBJECT (demux));
+  g_object_run_dispose (G_OBJECT (demux));
+
+  gst_object_unref (demux);
+}
+
+/**
+ * @brief A tensorpick naming a tensor the buffer does not have is refused.
+ * @details This is the only way into the chain function's error exit, so it is
+ *          also what puts a buffer on the path that used to leak the split
+ *          pick string on the way out.
+ */
+TEST (testTensorDemux, pushOutOfRangeTensorpick_n)
+{
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_demux", "sink", NULL);
+  GstTensorsConfig config;
+  GstBuffer *buf;
+
+  ASSERT_TRUE (h != NULL);
+
+  g_object_set (h->element, "tensorpick", "5", NULL);
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1;
+  config.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("3:4:4", config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+
+  buf = gst_harness_create_buffer (h, gst_tensors_info_get_size (&config.info, 0));
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_ERROR);
+
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Main function for unit test.
  */
 int
