@@ -296,6 +296,147 @@ TEST (tensorIfProp, properties5_n)
   g_free (str_pipeline);
 }
 
+static guint glib_critical_cnt = 0;
+
+/**
+ * @brief Log handler counting the critical messages reported by glib itself
+ */
+static void
+_count_glib_critical (const gchar *, GLogLevelFlags, const gchar *, gpointer)
+{
+  glib_critical_cnt++;
+}
+
+/**
+ * @brief Test for the supplied value property of tensor_if
+ */
+TEST (tensorIfProp, suppliedValue)
+{
+  gchar *pipeline;
+  GstElement *gstpipe, *tif_handle;
+  gchar *str_val = NULL;
+
+  pipeline = g_strdup_printf (
+      "videotestsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! "
+      "video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! "
+      "tensor_if name=tif compared-value=A_VALUE compared-value-option=1:2:1:1,1 "
+      "supplied-value=100 operator=GE then=PASSTHROUGH else=SKIP ! tensor_sink");
+  gstpipe = gst_parse_launch (pipeline, NULL);
+  ASSERT_NE (gstpipe, nullptr);
+
+  tif_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "tif");
+  ASSERT_NE (tif_handle, nullptr);
+
+  /* the maximum number of the supplied values */
+  g_object_set (tif_handle, "supplied-value", "10,100", NULL);
+  g_object_get (tif_handle, "supplied-value", &str_val, NULL);
+  EXPECT_STREQ ("10,100", str_val);
+  g_free (str_val);
+
+  g_object_set (tif_handle, "supplied-value", "1.5,2.5", NULL);
+  g_object_get (tif_handle, "supplied-value", &str_val, NULL);
+  EXPECT_DOUBLE_EQ (1.5, g_ascii_strtod (str_val, NULL));
+  g_free (str_val);
+
+  g_object_set (tif_handle, "supplied-value", "", NULL);
+  g_object_get (tif_handle, "supplied-value", &str_val, NULL);
+  EXPECT_STREQ ("", str_val);
+  g_free (str_val);
+
+  gst_object_unref (tif_handle);
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+}
+
+/**
+ * @brief Test for tensor_if supplied value with more values than it can hold
+ */
+TEST (tensorIfProp, suppliedValue1_n)
+{
+  gchar *pipeline;
+  GstElement *gstpipe, *tif_handle;
+  gchar *str_val = NULL;
+
+  pipeline = g_strdup_printf (
+      "videotestsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! "
+      "video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! "
+      "tensor_if name=tif compared-value=A_VALUE compared-value-option=1:2:1:1,1 "
+      "supplied-value=100 operator=GE then=PASSTHROUGH else=SKIP ! tensor_sink");
+  gstpipe = gst_parse_launch (pipeline, NULL);
+  ASSERT_NE (gstpipe, nullptr);
+
+  tif_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "tif");
+  ASSERT_NE (tif_handle, nullptr);
+
+  g_object_set (tif_handle, "then-option", "1", NULL);
+  g_object_set (tif_handle, "else-option", "2", NULL);
+  g_object_set (tif_handle, "supplied-value", "10,100", NULL);
+
+  /* the values beyond the second one used to be written past the array */
+  g_object_set (tif_handle, "supplied-value", "1,2,3,4,5,6,7,8", NULL);
+
+  g_object_get (tif_handle, "supplied-value", &str_val, NULL);
+  EXPECT_STREQ ("10,100", str_val);
+  g_free (str_val);
+
+  /* the members stored next to the supplied value should be intact */
+  g_object_get (tif_handle, "compared-value-option", &str_val, NULL);
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal ("1:2:1:1,1", str_val));
+  g_free (str_val);
+
+  g_object_get (tif_handle, "then-option", &str_val, NULL);
+  EXPECT_STREQ ("1", str_val);
+  g_free (str_val);
+
+  g_object_get (tif_handle, "else-option", &str_val, NULL);
+  EXPECT_STREQ ("2", str_val);
+  g_free (str_val);
+
+  gst_object_unref (tif_handle);
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+}
+
+/**
+ * @brief Test for tensor_if supplied value set to null
+ */
+TEST (tensorIfProp, suppliedValue2_n)
+{
+  gchar *pipeline;
+  GstElement *gstpipe, *tif_handle;
+  gchar *str_val = NULL;
+  guint handler_id;
+
+  pipeline = g_strdup_printf (
+      "videotestsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! "
+      "video/x-raw,format=RGB,width=160,height=120 ! tensor_converter ! "
+      "tensor_if name=tif compared-value=A_VALUE compared-value-option=1:2:1:1,1 "
+      "supplied-value=100 operator=GE then=PASSTHROUGH else=SKIP ! tensor_sink");
+  gstpipe = gst_parse_launch (pipeline, NULL);
+  ASSERT_NE (gstpipe, nullptr);
+
+  tif_handle = gst_bin_get_by_name (GST_BIN (gstpipe), "tif");
+  ASSERT_NE (tif_handle, nullptr);
+
+  glib_critical_cnt = 0;
+  handler_id = g_log_set_handler ("GLib",
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
+      _count_glib_critical, NULL);
+  g_object_set (tif_handle, "supplied-value", NULL, NULL);
+  g_log_remove_handler ("GLib", handler_id);
+
+  /* the null value should be rejected before glib is fed with it */
+  EXPECT_EQ (0U, glib_critical_cnt);
+
+  g_object_get (tif_handle, "supplied-value", &str_val, NULL);
+  EXPECT_STREQ ("100", str_val);
+  g_free (str_val);
+
+  gst_object_unref (tif_handle);
+  gst_object_unref (gstpipe);
+  g_free (pipeline);
+}
+
 /**
  * @brief Test tensor_if behavior: PASSTHROUGH, SKIP
  */

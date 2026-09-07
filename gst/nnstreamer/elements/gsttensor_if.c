@@ -394,20 +394,29 @@ gst_tensor_if_set_property_cv_option (const GValue * value, GList ** prop_list)
 }
 
 /**
- * @brief Convert GValue to GList according to delimiters
+ * @brief Convert GValue to the supplied values according to delimiters
  */
 static void
 gst_tensor_if_set_property_supplied_value (const GValue * value,
     tensor_if_sv_s * sv, const gchar * delimiters)
 {
-  gint i;
+  guint i, num;
   gboolean is_float = FALSE;
   const gchar *param = g_value_get_string (value);
-  gchar **strv = g_strsplit_set (param, delimiters, -1);
-  gint num = g_strv_length (strv);
+  gchar **strv;
 
   if (!param) {
     ml_loge ("Invalid supplied value. The value is NULL.");
+    return;
+  }
+
+  strv = g_strsplit_set (param, delimiters, -1);
+  num = g_strv_length (strv);
+
+  if (num > G_N_ELEMENTS (sv->data)) {
+    ml_loge ("Invalid supplied value (%s). Up to %u values are allowed.",
+        param, (guint) G_N_ELEMENTS (sv->data));
+    g_strfreev (strv);
     return;
   }
 
@@ -642,7 +651,7 @@ gst_tensor_if_install_properties (GObjectClass * gobject_class)
 
   g_object_class_install_property (gobject_class, PROP_SV,
       g_param_spec_string ("supplied-value", "SV",
-          " Supplied Value by user ", "",
+          " Supplied Value by user, up to two values ", "",
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_OP,
