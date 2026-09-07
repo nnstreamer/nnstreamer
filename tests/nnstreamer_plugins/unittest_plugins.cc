@@ -21,6 +21,7 @@
 #include <nnstreamer_subplugin.h>
 #include <nnstreamer_util.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <tensor_common.h>
 #include <tensor_decoder_custom.h>
 #include <tensor_meta.h>
@@ -9864,14 +9865,13 @@ _crop_test_free (crop_test_data_s *crop_test)
   } while (0)
 
 /**
- * @brief Push raw and info buffer to tensor_crop.
+ * @brief Set the raw-pad caps of tensor_crop.
  */
 static void
-_crop_test_push_buffer (crop_test_data_s *crop_test)
+_crop_test_set_raw_caps (crop_test_data_s *crop_test)
 {
   GstTensorsConfig config;
 
-  /* caps for raw data */
   gst_tensors_config_init (&config);
   config.info.num_tensors = 1;
   config.info.info[0] = crop_test->raw_info;
@@ -9880,6 +9880,112 @@ _crop_test_push_buffer (crop_test_data_s *crop_test)
   config.rate_d = 1;
 
   gst_harness_set_src_caps (crop_test->raw_q, gst_tensors_caps_from_config (&config));
+}
+
+/**
+ * @brief Push a buffer of two memories to the given pad.
+ * @details gst_tensor_buffer_from_config() passes a multi-memory buffer through
+ *          as it is, so the element receives the given memories unchanged.
+ */
+static void
+_crop_test_push_two_memories (GstHarness *h, gsize first, gsize second)
+{
+  GstBuffer *buf = gst_buffer_new ();
+
+  gst_buffer_append_memory (buf, gst_allocator_alloc (NULL, first, NULL));
+  gst_buffer_append_memory (buf, gst_allocator_alloc (NULL, second, NULL));
+
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_OK);
+}
+
+/**
+ * @brief Release the mapping of a memory from _crop_test_new_guarded_memory().
+ */
+static void
+_crop_test_unmap_guarded (gpointer base)
+{
+  munmap (base, 2 * (gsize) sysconf (_SC_PAGESIZE));
+}
+
+/**
+ * @brief Create a memory of @a size bytes that is followed by an unreadable page.
+ * @details Reading a single byte past the memory faults, which turns an
+ *          out-of-bounds read into a deterministic failure without valgrind.
+ * @return The memory, or NULL when the guarded mapping is not available.
+ */
+static GstMemory *
+_crop_test_new_guarded_memory (gsize size)
+{
+  const gsize page = (gsize) sysconf (_SC_PAGESIZE);
+  guint8 *base;
+
+  if (size > page)
+    return NULL;
+
+  base = (guint8 *) mmap (NULL, 2 * page, PROT_READ | PROT_WRITE,
+      MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (base == MAP_FAILED)
+    return NULL;
+
+  if (mprotect (base + page, page, PROT_NONE) != 0) {
+    munmap (base, 2 * page);
+    return NULL;
+  }
+
+  return gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY, base + page - size,
+      size, 0, size, base, _crop_test_unmap_guarded);
+}
+
+/**
+ * @brief Push a buffer whose first memory is followed by an unreadable page.
+ */
+static void
+_crop_test_push_guarded_memory (GstHarness *h, gsize size)
+{
+  GstBuffer *buf;
+  GstMemory *mem = _crop_test_new_guarded_memory (size);
+
+  ASSERT_TRUE (mem != NULL);
+
+  buf = gst_buffer_new ();
+  gst_buffer_append_memory (buf, mem);
+  /* the second memory keeps gst_tensor_buffer_from_config() from re-splitting */
+  gst_buffer_append_memory (buf, gst_allocator_alloc (NULL, size, NULL));
+
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_OK);
+}
+
+/**
+ * @brief Push an info buffer carrying a flex tensor of the given dimension.
+ */
+static void
+_crop_test_push_info_dimension (crop_test_data_s *crop_test, guint d0, guint d1)
+{
+  GstBuffer *buf = gst_buffer_new ();
+  GstMemory *mem;
+  GstTensorMetaInfo meta;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = crop_test->info_type;
+  meta.dimension[0] = d0;
+  meta.dimension[1] = d1;
+  meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+  mem = gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY, crop_test->info_data,
+      crop_test->info_size, 0, crop_test->info_size, NULL, NULL);
+  gst_buffer_append_memory (buf, gst_tensor_meta_info_append_header (&meta, mem));
+  gst_memory_unref (mem);
+
+  EXPECT_EQ (gst_harness_push (crop_test->info_q, buf), GST_FLOW_OK);
+}
+
+/**
+ * @brief Push raw and info buffer to tensor_crop.
+ */
+static void
+_crop_test_push_buffer (crop_test_data_s *crop_test)
+{
+  _crop_test_set_raw_caps (crop_test);
 
   /* push raw buffer */
   _crop_test_push_raw_buffer (crop_test, crop_test->ts_raw);
@@ -10309,6 +10415,217 @@ TEST (testTensorCrop, infoDelayed_n)
 
   if (crop_test.received > 0)
     _crop_test_compare_res2 (&crop_test);
+
+  _crop_test_free (&crop_test);
+}
+
+/**
+ * @brief Prepare the raw data (uint32 1:10:4:1, [1, 2, ..., 40]) and one region.
+ */
+static void
+_crop_test_prepare_single_region (crop_test_data_s *crop_test)
+{
+  guint i;
+  guint *_data;
+
+  crop_test->raw_info.type = _NNS_UINT32;
+  gst_tensor_parse_dimension ("1:10:4:1", crop_test->raw_info.dimension);
+
+  crop_test->raw_size = sizeof (guint) * 40U;
+  crop_test->raw_data = g_malloc0 (crop_test->raw_size);
+  _data = (guint *) crop_test->raw_data;
+
+  for (i = 0; i < 40; i++)
+    _data[i] = i + 1;
+
+  crop_test->info_type = _NNS_UINT32;
+  crop_test->info_size = sizeof (guint) * 4U;
+  crop_test->info_num = 1U;
+  crop_test->info_data = g_malloc0 (crop_test->info_size);
+}
+
+/**
+ * @brief Set the single crop region [x, y, w, h].
+ */
+static void
+_crop_test_set_region (crop_test_data_s *crop_test, guint x, guint y, guint w, guint h)
+{
+  guint *_info = (guint *) crop_test->info_data;
+
+  _info[0] = x;
+  _info[1] = y;
+  _info[2] = w;
+  _info[3] = h;
+}
+
+/**
+ * @brief Wait for tensor_crop to handle the pushed buffers, expecting no output.
+ * @details The element decides in its chain function, so a short budget is
+ *          enough; a case that regresses crashes there instead of timing out.
+ */
+static guint
+_crop_test_wait_for_no_output (crop_test_data_s *crop_test)
+{
+  guint count;
+
+  for (count = 0; count < 5; count++) {
+    g_usleep (100000);
+    if (gst_harness_buffers_received (crop_test->crop) > 0)
+      break;
+  }
+
+  return gst_harness_buffers_received (crop_test->crop);
+}
+
+/**
+ * @brief Test for tensor_crop, an info tensor that does not hold whole regions.
+ * @details Without the fix the element aborts on the element-count assertion.
+ */
+TEST (testTensorCrop, cropInfoElementCount_n)
+{
+  crop_test_data_s crop_test;
+
+  _crop_test_init (&crop_test);
+  _crop_test_prepare_single_region (&crop_test);
+
+  crop_test.info_size = sizeof (guint) * 3U;
+
+  _crop_test_set_raw_caps (&crop_test);
+  _crop_test_push_raw_buffer (&crop_test, crop_test.ts_raw);
+  _crop_test_push_info_dimension (&crop_test, 3U, 1U);
+
+  crop_test.received = _crop_test_wait_for_no_output (&crop_test);
+  EXPECT_EQ (crop_test.received, 0U);
+
+  _crop_test_free (&crop_test);
+}
+
+/**
+ * @brief Test for tensor_crop, an info memory smaller than the meta header.
+ * @details Without the fix the header is parsed past the end of the memory.
+ */
+TEST (testTensorCrop, cropInfoShortHeader_n)
+{
+  crop_test_data_s crop_test;
+
+  _crop_test_init (&crop_test);
+  _crop_test_prepare_single_region (&crop_test);
+
+  _crop_test_set_raw_caps (&crop_test);
+  _crop_test_push_raw_buffer (&crop_test, crop_test.ts_raw);
+  _crop_test_push_guarded_memory (crop_test.info_q, 16U);
+
+  crop_test.received = _crop_test_wait_for_no_output (&crop_test);
+  EXPECT_EQ (crop_test.received, 0U);
+
+  _crop_test_free (&crop_test);
+}
+
+/**
+ * @brief Test for tensor_crop, a raw memory smaller than the meta header.
+ * @details Without the fix the header is parsed past the end of the memory.
+ */
+TEST (testTensorCrop, cropRawShortHeader_n)
+{
+  crop_test_data_s crop_test;
+
+  _crop_test_init (&crop_test);
+  _crop_test_prepare_single_region (&crop_test);
+  _crop_test_set_region (&crop_test, 0U, 0U, 1U, 1U);
+
+  crop_test.raw_format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+  _crop_test_set_raw_caps (&crop_test);
+  _crop_test_push_guarded_memory (crop_test.raw_q, 16U);
+  _crop_test_push_info_buffer (&crop_test, crop_test.ts_info);
+
+  crop_test.received = _crop_test_wait_for_no_output (&crop_test);
+  EXPECT_EQ (crop_test.received, 0U);
+
+  _crop_test_free (&crop_test);
+}
+
+/**
+ * @brief Test for tensor_crop, a raw buffer that does not match the caps.
+ * @details gst_tensor_buffer_from_config() returns NULL for it; without the fix
+ *          the element reads the timestamp of that NULL buffer.
+ */
+TEST (testTensorCrop, cropRawConfigMismatch_n)
+{
+  crop_test_data_s crop_test;
+
+  _crop_test_init (&crop_test);
+  _crop_test_prepare_single_region (&crop_test);
+  _crop_test_set_region (&crop_test, 0U, 0U, 1U, 1U);
+
+  /* the timestamp of the buffer is read only while lateness is set */
+  g_object_set (crop_test.crop->element, "lateness", 100, NULL);
+
+  _crop_test_set_raw_caps (&crop_test);
+  _crop_test_push_two_memories (crop_test.raw_q, 16U, 16U);
+  _crop_test_push_info_buffer (&crop_test, crop_test.ts_info);
+
+  crop_test.received = _crop_test_wait_for_no_output (&crop_test);
+  EXPECT_EQ (crop_test.received, 0U);
+
+  _crop_test_free (&crop_test);
+}
+
+/* set by _record_critical() when a critical is logged */
+static gboolean tensor_crop_logged_critical;
+
+/**
+ * @brief Log handler that records whether a critical was issued.
+ */
+static void
+_crop_record_critical (const gchar *domain, GLogLevelFlags level,
+    const gchar *message, gpointer user_data)
+{
+  UNUSED (domain);
+  UNUSED (message);
+  UNUSED (user_data);
+
+  if (level & G_LOG_LEVEL_CRITICAL)
+    tensor_crop_logged_critical = TRUE;
+}
+
+/**
+ * @brief Test for tensor_crop, a buffer that cannot be cropped is not pushed.
+ * @details Without the fix the NULL result of the cropping is handed to
+ *          gst_pad_push(), which rejects it with a critical.
+ */
+TEST (testTensorCrop, cropNoResultBuffer_n)
+{
+  crop_test_data_s crop_test;
+  guint handler_id;
+
+  _crop_test_init (&crop_test);
+
+  crop_test.raw_info.type = _NNS_UINT32;
+  gst_tensor_parse_dimension ("20:1:1:1", crop_test.raw_info.dimension);
+
+  /* the raw buffer is smaller than the caps describe */
+  crop_test.raw_size = sizeof (guint) * 10U;
+  crop_test.raw_data = g_malloc0 (crop_test.raw_size);
+
+  crop_test.info_type = _NNS_UINT32;
+  crop_test.info_size = sizeof (guint) * 4U;
+  crop_test.info_num = 1U;
+  crop_test.info_data = g_malloc0 (crop_test.info_size);
+  _crop_test_set_region (&crop_test, 0U, 0U, 1U, 1U);
+
+  tensor_crop_logged_critical = FALSE;
+  handler_id = g_log_set_handler ("GStreamer",
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
+      _crop_record_critical, NULL);
+  _crop_test_set_raw_caps (&crop_test);
+  _crop_test_push_raw_buffer (&crop_test, crop_test.ts_raw);
+  _crop_test_push_info_buffer (&crop_test, crop_test.ts_info);
+  crop_test.received = _crop_test_wait_for_no_output (&crop_test);
+  g_log_remove_handler ("GStreamer", handler_id);
+
+  EXPECT_EQ (crop_test.received, 0U);
+  EXPECT_FALSE (tensor_crop_logged_critical);
 
   _crop_test_free (&crop_test);
 }

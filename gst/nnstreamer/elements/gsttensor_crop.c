@@ -491,10 +491,13 @@ gst_tensor_crop_negotiate (GstTensorCrop * self)
 
 /**
  * @brief Internal function to prepare output meta info.
+ * @param[in] buffer mapped data of the first memory in the raw buffer
+ * @param[in] size mapped size of @a buffer
  */
 static gboolean
 gst_tensor_crop_prepare_out_meta (GstTensorCrop * self, gpointer buffer,
-    GstTensorMetaInfo * meta, GstTensorInfo * info, gboolean * is_flexible)
+    gsize size, GstTensorMetaInfo * meta, GstTensorInfo * info,
+    gboolean * is_flexible)
 {
   GstCaps *caps;
   GstTensorsConfig config;
@@ -519,6 +522,13 @@ gst_tensor_crop_prepare_out_meta (GstTensorCrop * self, gpointer buffer,
 
   if (*is_flexible) {
     /* meta from buffer */
+    if (size < gst_tensor_meta_info_get_header_size (meta)) {
+      GST_ERROR_OBJECT (self,
+          "Raw buffer is too small to have the meta header (received %zd).",
+          size);
+      goto done;
+    }
+
     if (gst_tensor_meta_info_parse_header (meta, buffer)) {
       ret = gst_tensor_meta_info_convert (meta, info);
     }
@@ -544,7 +554,7 @@ static gboolean
 gst_tensor_crop_get_crop_info (GstTensorCrop * self, GstBuffer * info,
     tensor_crop_info_s * cinfo)
 {
-  GstMemory *mem;
+  GstMemory *mem = NULL;
   GstMapInfo map;
   GstTensorMetaInfo meta;
   gsize hsize, dsize, esize;
@@ -552,8 +562,13 @@ gst_tensor_crop_get_crop_info (GstTensorCrop * self, GstBuffer * info,
   guint8 *pos, *src, *desc;
   gboolean ret = FALSE;
 
+  gst_tensor_meta_info_init (&meta);
+
   i = gst_tensor_buffer_get_count (info);
-  g_assert (i > 0);
+  if (i == 0) {
+    GST_ERROR_OBJECT (self, "Info buffer has no memory.");
+    goto done;
+  }
   if (i > 1) {
     GST_WARNING_OBJECT (self,
         "Info buffer has %u memories, parse first one.", i);
@@ -566,6 +581,13 @@ gst_tensor_crop_get_crop_info (GstTensorCrop * self, GstBuffer * info,
   }
 
   /* parse crop-info from flex tensor */
+  if (map.size < gst_tensor_meta_info_get_header_size (&meta)) {
+    GST_ERROR_OBJECT (self,
+        "Info buffer is too small to have the meta header (received %zd).",
+        map.size);
+    goto done;
+  }
+
   if (!gst_tensor_meta_info_parse_header (&meta, map.data)) {
     GST_ERROR_OBJECT (self, "Failed to get the meta from info buffer.");
     goto done;
@@ -586,7 +608,12 @@ gst_tensor_crop_get_crop_info (GstTensorCrop * self, GstBuffer * info,
    * @todo Add various mode to crop tensor.
    * Now tensor-crop handles NHWC data format only.
    */
-  g_assert ((dsize % (esize * 4)) == 0);
+  if (dsize == 0 || (dsize % (esize * 4)) != 0) {
+    GST_ERROR_OBJECT (self,
+        "Info buffer does not have a multiple of 4 elements (received %zd bytes of %zd-byte elements).",
+        dsize, esize);
+    goto done;
+  }
 
   memset (cinfo, 0, sizeof (tensor_crop_info_s));
 
@@ -622,7 +649,7 @@ gst_tensor_crop_do_cropping (GstTensorCrop * self, GstBuffer * raw,
     tensor_crop_info_s * cinfo)
 {
   GstBuffer *result = NULL;
-  GstMemory *mem;
+  GstMemory *mem = NULL;
   GstMapInfo map;
   GstTensorMetaInfo meta;
   GstTensorInfo info;
@@ -632,7 +659,10 @@ gst_tensor_crop_do_cropping (GstTensorCrop * self, GstBuffer * raw,
   guint i, j, ch, mw, mh, _x, _y, _w, _h;
 
   i = gst_tensor_buffer_get_count (raw);
-  g_assert (i > 0);
+  if (i == 0) {
+    GST_ERROR_OBJECT (self, "Raw data buffer has no memory.");
+    goto done;
+  }
   if (i > 1) {
     GST_WARNING_OBJECT (self,
         "Raw data buffer has %u memories, parse first one.", i);
@@ -644,7 +674,7 @@ gst_tensor_crop_do_cropping (GstTensorCrop * self, GstBuffer * raw,
     goto done;
   }
 
-  if (!gst_tensor_crop_prepare_out_meta (self, map.data, &meta,
+  if (!gst_tensor_crop_prepare_out_meta (self, map.data, map.size, &meta,
           &info, &flexible)) {
     GST_ERROR_OBJECT (self, "Failed to get the output meta.");
     goto done;
@@ -745,6 +775,13 @@ gst_tensor_crop_chain (GstTensorCrop * self,
   cpad = (GstTensorCropPadData *) data_info;
   buf_info = gst_tensor_buffer_from_config (buf_info, &cpad->config);
 
+  if (!buf_raw || !buf_info) {
+    GST_ERROR_OBJECT (self,
+        "Incoming buffer does not match the negotiated caps.");
+    ret = GST_FLOW_ERROR;
+    goto done;
+  }
+
   /**
    * The case when raw and info have different timestamp.
    * Compare timestamp and if time diff is less than lateness, crop raw buffer.
@@ -785,6 +822,11 @@ gst_tensor_crop_chain (GstTensorCrop * self,
   }
 
   result = gst_tensor_crop_do_cropping (self, buf_raw, &cinfo);
+  if (!result) {
+    ret = GST_FLOW_ERROR;
+    goto done;
+  }
+
   ret = gst_pad_push (self->srcpad, result);
 
 done:
