@@ -244,6 +244,17 @@ jobs:
     # unit test" step above. See
     # https://github.com/nnstreamer/nnstreamer/issues/4894 for the measurements
     # and for restoring them in a job that can afford them.
+    #
+    # What is left is then checked, and an error memcheck blames on a frame of
+    # ours fails the step. Errors blamed on a library do not - they are not
+    # ours to fix and there is a steady population of them - and leaks do not
+    # either, because a leak is reported at its allocation, which for most of
+    # ours is inside GLib. Both are still printed. The gate starts with nothing
+    # to forgive: the last errors of our own went with the tensor_transform fix
+    # in #4929, so there is no baseline file to keep in step with the code. A
+    # test failure in this pass still does not fail the step. Each run is
+    # checked on its own log, so one falling silent cannot be covered by the
+    # other having run.
     - name: GTEST run with Valgrind on a case
       if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
       timeout-minutes: 30
@@ -256,7 +267,6 @@ jobs:
         export NNSTREAMER_CONF=`pwd`/build/nnstreamer-test.ini
         export G_SLICE=always-malloc
         export G_DEBUG=gc-friendly
-        note="There are Valgrind errors. Please fix it. As we have a lot of Valgrind errors from different libraries and possible from nnstreamer itself, we are not halting the build with Valgrind errors until we get them all."
         skip_cases="nnstreamerFilterArmnn.invokeAdvanced"
         skip_cases="${skip_cases}:nnstreamerFilterLiteRT.sharedEnvInvokeDuringConfigure"
         skip_cases="${skip_cases}:nnstreamerFilterLiteRT.zeroCopyRepeatedInvoke"
@@ -269,8 +279,18 @@ jobs:
         llamacpp_cases="${llamacpp_cases}:NNStreamerFilterLlamaCppTest.invalidModel_n"
         llamacpp_cases="${llamacpp_cases}:NNStreamerFilterLlamaCppTest.zeroTokenGenerationSync_p"
         llamacpp_cases="${llamacpp_cases}:NNStreamerFilterLlamaCppTest.zeroTokenGenerationAsync_p"
-        GTEST_FILTER="-${skip_cases}" ./packaging/run_unittests_binaries.sh --valgrind --recursive --skip unittest_filter_llamacpp ./tests/ || echo "${note}"
-        GTEST_FILTER="${llamacpp_cases}" ./packaging/run_unittests_binaries.sh --valgrind ./tests/unittest_filter_llamacpp || echo "${note}"
+        GTEST_FILTER="-${skip_cases}" ./packaging/run_unittests_binaries.sh --valgrind --recursive --skip unittest_filter_llamacpp ./tests/ 2>&1 | tee valgrind-tests.log
+        GTEST_FILTER="${llamacpp_cases}" ./packaging/run_unittests_binaries.sh --valgrind ./tests/unittest_filter_llamacpp 2>&1 | tee valgrind-llamacpp.log
+        checked=0
+        bash ./tools/debugging/check_valgrind_log.sh --require-output valgrind-tests.log || checked=1
+        bash ./tools/debugging/check_valgrind_log.sh --require-output valgrind-llamacpp.log || checked=1
+        exit ${checked}
+    - name: Upload the Valgrind logs if something went wrong
+      if: failure() && env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
+      uses: actions/upload-artifact@v4
+      with:
+        name: Valgrind_logs
+        path: valgrind-*.log
     - name: get NNStreamer example apps
       if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
       uses: actions/checkout@v4
