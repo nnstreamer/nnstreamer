@@ -383,10 +383,11 @@ gst_tensor_sparse_enc_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   }
 
   ret = gst_pad_push (self->srcpad, outbuf);
+  outbuf = NULL;
 
 done:
   gst_buffer_unref (buf);
-  if (ret != GST_FLOW_OK)
+  if (outbuf)
     gst_buffer_unref (outbuf);
 
   return ret;

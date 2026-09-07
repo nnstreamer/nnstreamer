@@ -393,17 +393,17 @@ gst_tensor_sparse_dec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     if (!gst_tensors_info_is_equal (&self->out_config.info, &info)) {
       /* if it's not compatible with downstream, do not send the buffer */
       /** @todo consider more error handling */
-      gst_buffer_unref (outbuf);
       ret = GST_FLOW_OK;
       goto done;
     }
   }
 
   ret = gst_pad_push (self->srcpad, outbuf);
+  outbuf = NULL;
 
 done:
   gst_buffer_unref (buf);
-  if (ret != GST_FLOW_OK)
+  if (outbuf)
     gst_buffer_unref (outbuf);
 
   return ret;
