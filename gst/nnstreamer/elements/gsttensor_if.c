@@ -424,6 +424,7 @@ gst_tensor_if_set_property_supplied_value (const GValue * value,
     is_float = TRUE;
   }
 
+  memset (sv->data, 0, sizeof (sv->data));
   sv->num = num;
   for (i = 0; i < num; i++) {
     if (is_float) {
