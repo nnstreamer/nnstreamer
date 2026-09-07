@@ -10624,11 +10624,24 @@ TEST (testTensorCrop, cropRegionZeroIsWholeFrame)
     GstMemory *mem = gst_buffer_peek_memory (out_buf, i);
     GstMapInfo map;
     GstTensorMetaInfo meta;
+    gsize hsize;
+    guint j, elements;
+    guint *cropped;
 
     ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_READ));
     ASSERT_TRUE (gst_tensor_meta_info_parse_header (&meta, map.data));
     EXPECT_EQ (meta.dimension[1], (i == 0) ? 3U : 10U);
     EXPECT_EQ (meta.dimension[2], (i == 0) ? 1U : 4U);
+
+    hsize = gst_tensor_meta_info_get_header_size (&meta);
+    cropped = (guint *) (map.data + hsize);
+    elements = (i == 0) ? 3U : 40U;
+    EXPECT_EQ (map.size - hsize, sizeof (guint) * elements);
+
+    /* [4, 5, 6] for the detected region, the whole [1, 2, ..., 40] for the empty one */
+    for (j = 0; j < elements; j++)
+      EXPECT_EQ (cropped[j], (i == 0) ? j + 4U : j + 1U);
+
     gst_memory_unmap (mem, &map);
   }
 

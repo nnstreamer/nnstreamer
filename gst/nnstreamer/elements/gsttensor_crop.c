@@ -23,6 +23,9 @@
  * So, when incoming buffer on info pad has more than NNS_TENSOR_SIZE_LIMIT crop-info array, tensor_crop will ignore the data.
  *
  * The output is always in the format of other/tensors-flexible.
+ * A crop region of zero width or height means the rest of the frame, and a
+ * region that has nothing left to crop after clamping is skipped, so the output
+ * may hold fewer tensors than the info buffer describes.
  *
  * <refsect2>
  * <title>Example launch line</title>
@@ -660,6 +663,8 @@ gst_tensor_crop_do_cropping (GstTensorCrop * self, GstBuffer * raw,
   guint8 *cropped, *dpos, *desc, *src;
   guint i, j, ch, mw, mh, _x, _y, _w, _h;
 
+  gst_tensor_info_init (&info);
+
   i = gst_tensor_buffer_get_count (raw);
   if (i == 0) {
     GST_ERROR_OBJECT (self, "Raw data buffer has no memory.");
@@ -761,6 +766,7 @@ done:
     gst_memory_unmap (mem, &map);
     gst_memory_unref (mem);
   }
+  gst_tensor_info_free (&info);
 
   return result;
 }
