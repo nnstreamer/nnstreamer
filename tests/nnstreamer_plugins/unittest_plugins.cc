@@ -9800,6 +9800,413 @@ TEST (testTensorSparse, decInvalidProperty_n)
 }
 
 /**
+ * @brief Caps of the dense tensor stream used by the tensor_sparse tests.
+ */
+#define SPARSE_DENSE_CAPS_STR                  \
+  "other/tensors,format=static,num_tensors=1," \
+  "dimensions=(string)40:1:1:1,types=(string)int32,framerate=0/1"
+
+/**
+ * @brief Data for the src-pad probe watching the buffer pushed by tensor_sparse.
+ */
+typedef struct {
+  GstBuffer *buffer;
+  guint received;
+} sparse_probe_data_s;
+
+/**
+ * @brief Src-pad probe holding two extra references of the pushed buffer.
+ * @details Two references are taken on purpose. gst_pad_push() consumes the
+ * reference owned by the chain function, so a single extra reference would be
+ * dropped by the very double unref this probe is meant to detect and reading
+ * the refcount back would be a use-after-free. With two, the buffer stays
+ * alive either way and the refcount alone tells whether it was unreffed twice.
+ */
+static GstPadProbeReturn
+_sparse_probe_ref_buffer (GstPad *pad, GstPadProbeInfo *info, gpointer udata)
+{
+  sparse_probe_data_s *pdata = (sparse_probe_data_s *) udata;
+  GstBuffer *buffer = GST_PAD_PROBE_INFO_BUFFER (info);
+
+  UNUSED (pad);
+
+  if (pdata->received++ == 0U) {
+    pdata->buffer = gst_buffer_ref (buffer);
+    gst_buffer_ref (buffer);
+  }
+
+  return GST_PAD_PROBE_OK;
+}
+
+/**
+ * @brief Create a dense tensor memory of 40 int32 elements for the sparse tests.
+ */
+static GstMemory *
+_sparse_new_dense_memory (GstTensorInfo *info)
+{
+  gpointer data;
+  gsize data_size;
+  guint i;
+
+  gst_tensor_info_init (info);
+  info->type = _NNS_INT32;
+  gst_tensor_parse_dimension ("40", info->dimension);
+
+  data_size = gst_tensor_info_get_size (info);
+  data = g_malloc0 (data_size);
+  for (i = 0; i < 40U; i++)
+    ((gint32 *) data)[i] = (i % 7U == 0U) ? (gint32) (i + 1) : 0;
+
+  return gst_memory_new_wrapped (
+      GST_MEMORY_FLAG_READONLY, data, data_size, 0, data_size, data, g_free);
+}
+
+/**
+ * @brief Wrap a single memory into a new buffer.
+ */
+static GstBuffer *
+_sparse_new_buffer (GstMemory *mem)
+{
+  GstBuffer *buf = gst_buffer_new ();
+
+  gst_buffer_append_memory (buf, mem);
+  return buf;
+}
+
+/**
+ * @brief Compare a dense memory with the reference data of the sparse tests.
+ */
+static void
+_sparse_check_dense_memory (GstMemory *mem)
+{
+  GstMapInfo map;
+  guint i;
+
+  ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_READ));
+  ASSERT_EQ (map.size, 40U * sizeof (gint32));
+  for (i = 0; i < 40U; i++)
+    EXPECT_EQ (((gint32 *) map.data)[i], (i % 7U == 0U) ? (gint32) (i + 1) : 0);
+  gst_memory_unmap (mem, &map);
+}
+
+/**
+ * @brief Create a sparse tensor memory holding the reference data.
+ */
+static GstMemory *
+_sparse_new_sparse_memory (GstTensorInfo *info)
+{
+  GstMemory *dense, *sparse;
+  GstTensorMetaInfo meta;
+
+  dense = _sparse_new_dense_memory (info);
+  gst_tensor_info_convert_to_meta (info, &meta);
+  meta.format = _NNS_TENSOR_FORMAT_SPARSE;
+  meta.media_type = _NNS_TENSOR;
+
+  sparse = gst_tensor_sparse_from_dense (&meta, dense);
+  gst_memory_unref (dense);
+
+  return sparse;
+}
+
+/**
+ * @brief Test for tensor_sparse_enc, encoded buffer is pushed to the src pad.
+ */
+TEST (testTensorSparse, encPushBuffer)
+{
+  GstHarness *h;
+  GstBuffer *out;
+  GstMemory *dense;
+  GstTensorInfo info;
+  GstTensorMetaInfo meta;
+
+  h = gst_harness_new ("tensor_sparse_enc");
+  ASSERT_TRUE (h != NULL);
+
+  gst_harness_set_src_caps_str (h, SPARSE_DENSE_CAPS_STR);
+
+  ASSERT_EQ (gst_harness_push (h, _sparse_new_buffer (_sparse_new_dense_memory (&info))),
+      GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
+
+  out = gst_harness_pull (h);
+  ASSERT_TRUE (out != NULL);
+  ASSERT_EQ (gst_buffer_n_memory (out), 1U);
+
+  gst_tensor_meta_info_init (&meta);
+  dense = gst_tensor_sparse_to_dense (&meta, gst_buffer_peek_memory (out, 0));
+  ASSERT_TRUE (dense != NULL);
+  _sparse_check_dense_memory (dense);
+
+  gst_memory_unref (dense);
+  gst_buffer_unref (out);
+  gst_tensor_info_free (&info);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_sparse_enc, the output buffer is not unreffed twice
+ *        when the downstream push fails.
+ */
+TEST (testTensorSparse, encPushFailure_n)
+{
+  GstHarness *h;
+  GstPad *srcpad;
+  GstTensorInfo info;
+  sparse_probe_data_s pdata = { NULL, 0U };
+
+  h = gst_harness_new ("tensor_sparse_enc");
+  ASSERT_TRUE (h != NULL);
+
+  srcpad = gst_element_get_static_pad (h->element, "src");
+  ASSERT_TRUE (srcpad != NULL);
+  gst_pad_add_probe (
+      srcpad, GST_PAD_PROBE_TYPE_BUFFER, _sparse_probe_ref_buffer, &pdata, NULL);
+
+  gst_harness_set_src_caps_str (h, SPARSE_DENSE_CAPS_STR);
+
+  /* A deactivated peer fails the push, as a shutdown or seek does. */
+  gst_pad_set_active (h->sinkpad, FALSE);
+
+  EXPECT_EQ (gst_harness_push (h, _sparse_new_buffer (_sparse_new_dense_memory (&info))),
+      GST_FLOW_FLUSHING);
+
+  ASSERT_EQ (pdata.received, 1U);
+  ASSERT_TRUE (pdata.buffer != NULL);
+  EXPECT_EQ (GST_MINI_OBJECT_REFCOUNT_VALUE (pdata.buffer), 2);
+
+  gst_buffer_unref (pdata.buffer);
+  gst_buffer_unref (pdata.buffer);
+  gst_object_unref (srcpad);
+  gst_tensor_info_free (&info);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_sparse_dec, decoded buffer is pushed to the src pad.
+ */
+TEST (testTensorSparse, decPushBuffer)
+{
+  GstHarness *h;
+  GstBuffer *out;
+  GstMemory *sparse;
+  GstTensorInfo info;
+
+  h = gst_harness_new ("tensor_sparse_dec");
+  ASSERT_TRUE (h != NULL);
+
+  gst_harness_set_sink_caps_str (h, SPARSE_DENSE_CAPS_STR);
+  gst_harness_set_src_caps_str (h, "other/tensors,format=sparse,framerate=0/1");
+
+  sparse = _sparse_new_sparse_memory (&info);
+  ASSERT_TRUE (sparse != NULL);
+
+  ASSERT_EQ (gst_harness_push (h, _sparse_new_buffer (sparse)), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
+
+  out = gst_harness_pull (h);
+  ASSERT_TRUE (out != NULL);
+  ASSERT_EQ (gst_buffer_n_memory (out), 1U);
+  _sparse_check_dense_memory (gst_buffer_peek_memory (out, 0));
+
+  gst_buffer_unref (out);
+  gst_tensor_info_free (&info);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_sparse_dec, the output buffer is not unreffed twice
+ *        when the downstream push fails.
+ */
+TEST (testTensorSparse, decPushFailure_n)
+{
+  GstHarness *h;
+  GstPad *srcpad;
+  GstMemory *sparse;
+  GstTensorInfo info;
+  sparse_probe_data_s pdata = { NULL, 0U };
+
+  h = gst_harness_new ("tensor_sparse_dec");
+  ASSERT_TRUE (h != NULL);
+
+  srcpad = gst_element_get_static_pad (h->element, "src");
+  ASSERT_TRUE (srcpad != NULL);
+  gst_pad_add_probe (
+      srcpad, GST_PAD_PROBE_TYPE_BUFFER, _sparse_probe_ref_buffer, &pdata, NULL);
+
+  gst_harness_set_sink_caps_str (h, SPARSE_DENSE_CAPS_STR);
+  gst_harness_set_src_caps_str (h, "other/tensors,format=sparse,framerate=0/1");
+
+  sparse = _sparse_new_sparse_memory (&info);
+  ASSERT_TRUE (sparse != NULL);
+
+  /* A deactivated peer fails the push, as a shutdown or seek does. */
+  gst_pad_set_active (h->sinkpad, FALSE);
+
+  EXPECT_EQ (gst_harness_push (h, _sparse_new_buffer (sparse)), GST_FLOW_FLUSHING);
+
+  ASSERT_EQ (pdata.received, 1U);
+  ASSERT_TRUE (pdata.buffer != NULL);
+  EXPECT_EQ (GST_MINI_OBJECT_REFCOUNT_VALUE (pdata.buffer), 2);
+
+  gst_buffer_unref (pdata.buffer);
+  gst_buffer_unref (pdata.buffer);
+  gst_object_unref (srcpad);
+  gst_tensor_info_free (&info);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_sparse_dec, the decoded buffer is dropped when it does
+ *        not match the negotiated downstream config.
+ */
+TEST (testTensorSparse, decConfigMismatch_n)
+{
+  GstHarness *h;
+  GstMemory *sparse;
+  GstTensorInfo info;
+
+  h = gst_harness_new ("tensor_sparse_dec");
+  ASSERT_TRUE (h != NULL);
+
+  /* Downstream expects 20 elements while the buffer decodes into 40. */
+  gst_harness_set_sink_caps_str (h,
+      "other/tensors,format=static,num_tensors=1,"
+      "dimensions=(string)20:1:1:1,types=(string)int32,framerate=0/1");
+  gst_harness_set_src_caps_str (h, "other/tensors,format=sparse,framerate=0/1");
+
+  sparse = _sparse_new_sparse_memory (&info);
+  ASSERT_TRUE (sparse != NULL);
+
+  EXPECT_EQ (gst_harness_push (h, _sparse_new_buffer (sparse)), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  gst_tensor_info_free (&info);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Number of GStreamer critical logs of a tensor_sparse test.
+ */
+static guint sparse_gst_critical_count;
+
+/**
+ * @brief Last critical message of the GStreamer domain, for diagnostics.
+ */
+static gchar sparse_gst_critical_msg[256];
+
+/**
+ * @brief Log handler counting the critical logs of the GStreamer domain.
+ * @details A buffer released one time too many makes gst_mini_object_unref()
+ * log 'assertion refcount > 0 failed' there, so a zero count is what tells the
+ * error paths apart from a double unref.
+ */
+static void
+_sparse_count_gst_critical (const gchar *domain, GLogLevelFlags level,
+    const gchar *message, gpointer udata)
+{
+  UNUSED (domain);
+  UNUSED (udata);
+
+  if (level & G_LOG_LEVEL_CRITICAL) {
+    sparse_gst_critical_count++;
+    g_strlcpy (sparse_gst_critical_msg, message, sizeof (sparse_gst_critical_msg));
+  }
+}
+
+/**
+ * @brief Start counting the critical logs of the GStreamer domain.
+ * @details The counter is proven live before it is used, so that a handler that
+ * silently stops matching cannot turn the zero-critical assertions into no-ops.
+ */
+static guint
+_sparse_watch_gst_critical (void)
+{
+  guint handler = g_log_set_handler ("GStreamer",
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
+      _sparse_count_gst_critical, NULL);
+
+  sparse_gst_critical_count = 0;
+  g_log ("GStreamer", G_LOG_LEVEL_CRITICAL, "tensor_sparse test: counter self-check");
+  EXPECT_EQ (sparse_gst_critical_count, 1U);
+
+  sparse_gst_critical_count = 0;
+  sparse_gst_critical_msg[0] = '\0';
+  return handler;
+}
+
+/**
+ * @brief Test for tensor_sparse_dec, a buffer that carries no valid meta header
+ *        is rejected and its output buffer is released exactly once.
+ */
+TEST (testTensorSparse, decInvalidSparseData_n)
+{
+  GstHarness *h;
+  GstBuffer *in;
+  guint handler, i;
+  const gsize data_size = 200U;
+
+  h = gst_harness_new ("tensor_sparse_dec");
+  ASSERT_TRUE (h != NULL);
+
+  /* Sink caps avoid the unfixed-caps critical, which would be counted below. */
+  gst_harness_set_sink_caps_str (h, SPARSE_DENSE_CAPS_STR);
+  gst_harness_set_src_caps_str (h, "other/tensors,format=sparse,framerate=0/1");
+
+  /* Two memories: gst_tensor_buffer_from_config() passes the buffer through. */
+  in = gst_buffer_new ();
+  for (i = 0; i < 2U; i++) {
+    gpointer data = g_malloc0 (data_size);
+
+    gst_buffer_append_memory (in, gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY,
+                                      data, data_size, 0, data_size, data, g_free));
+  }
+
+  handler = _sparse_watch_gst_critical ();
+  EXPECT_EQ (gst_harness_push (h, in), GST_FLOW_ERROR);
+  g_log_remove_handler ("GStreamer", handler);
+
+  EXPECT_EQ (sparse_gst_critical_count, 0U) << sparse_gst_critical_msg;
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_sparse_enc, a tensor type the encoder cannot handle is
+ *        rejected and its output buffer is released exactly once.
+ */
+TEST (testTensorSparse, encUnsupportedType_n)
+{
+  GstHarness *h;
+  GstMemory *mem;
+  gpointer data;
+  guint handler;
+  const gsize data_size = 40U * 2U;
+
+  h = gst_harness_new ("tensor_sparse_enc");
+  ASSERT_TRUE (h != NULL);
+
+  /* float16 has no case in gst_tensor_sparse_from_dense(). */
+  gst_harness_set_src_caps_str (h,
+      "other/tensors,format=static,num_tensors=1,"
+      "dimensions=(string)40:1:1:1,types=(string)float16,framerate=0/1");
+
+  data = g_malloc0 (data_size);
+  mem = gst_memory_new_wrapped (
+      GST_MEMORY_FLAG_READONLY, data, data_size, 0, data_size, data, g_free);
+
+  handler = _sparse_watch_gst_critical ();
+  EXPECT_EQ (gst_harness_push (h, _sparse_new_buffer (mem)), GST_FLOW_ERROR);
+  g_log_remove_handler ("GStreamer", handler);
+
+  EXPECT_EQ (sparse_gst_critical_count, 0U) << sparse_gst_critical_msg;
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Rendezvous used to set a property from the test thread exactly while
  *        the streaming thread is adding a source pad.
  */
