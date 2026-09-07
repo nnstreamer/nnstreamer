@@ -358,7 +358,8 @@ TensorFilterMXNet::getFrameworkInfo (GstTensorFilterFrameworkInfo &info)
   info.allow_in_place = FALSE;
   info.allocate_in_invoke = FALSE;
   info.run_without_model = FALSE;
-  info.verify_model_path = TRUE;
+  /* The model property is a base path this sub-plugin appends extensions to. */
+  info.verify_model_path = FALSE;
   info.hw_list = hw_list;
   info.num_hw = num_hw;
   info.accl_auto = ACCL_CPU;
