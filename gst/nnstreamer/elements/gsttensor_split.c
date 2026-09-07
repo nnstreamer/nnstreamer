@@ -206,7 +206,8 @@ gst_tensor_split_finalize (GObject * object)
   split = GST_TENSOR_SPLIT (object);
   gst_tensor_split_remove_src_pads (split);
   g_list_free (split->tensorpick);
-  g_array_free (split->tensorseg, TRUE);
+  if (split->tensorseg)
+    g_array_unref (split->tensorseg);
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
@@ -251,15 +252,18 @@ gst_tensor_split_event (GstPad * pad, GstObject * parent, GstEvent * event)
 /**
  * @brief Checking if the source pad is created and if not, create TensorPad
  * @param split TensorSplit Object
+ * @param tensorseg private reference of the tensorseg property
+ * @param tensorpick private copy of the tensorpick property
  * @param inbuf inputbuf GstBuffer Object including GstMeta
  * @param[out] created will be updated in this function
  * @param nth source ordering
  * @return TensorPad if pad is already created, then return created pad.
- *         If not return new pad after creation.
+ *         If not return new pad after creation, or NULL if no segment rule
+ *         is left for it.
  */
 static GstTensorPad *
-gst_tensor_split_get_tensor_pad (GstTensorSplit * split, GstBuffer * inbuf,
-    gboolean * created, guint nth)
+gst_tensor_split_get_tensor_pad (GstTensorSplit * split, GArray * tensorseg,
+    GList * tensorpick, GstBuffer * inbuf, gboolean * created, guint nth)
 {
   GstElement *element = GST_ELEMENT_CAST (split);
   g_autofree gchar *element_name = gst_element_get_name (element);
@@ -287,6 +291,13 @@ gst_tensor_split_get_tensor_pad (GstTensorSplit * split, GstBuffer * inbuf,
     walk = g_slist_next (walk);
   }
 
+  if (split->num_srcpads >= tensorseg->len) {
+    GST_ERROR_OBJECT (split,
+        "The tensorseg has %u rules, which leaves none for the %uth source pad.",
+        tensorseg->len, split->num_srcpads);
+    return NULL;
+  }
+
   tensorpad = g_new0 (GstTensorPad, 1);
   g_assert (tensorpad != NULL);
   GST_DEBUG_OBJECT (split, "creating pad: %d(%dth)", split->num_srcpads, nth);
@@ -303,7 +314,7 @@ gst_tensor_split_get_tensor_pad (GstTensorSplit * split, GstBuffer * inbuf,
   tensorpad->last_ts = GST_CLOCK_TIME_NONE;
 
   split->srcpads = g_slist_append (split->srcpads, tensorpad);
-  dim = g_array_index (split->tensorseg, tensor_dim *, split->num_srcpads);
+  dim = g_array_index (tensorseg, tensor_dim *, split->num_srcpads);
 
   split->num_srcpads++;
 
@@ -351,9 +362,9 @@ gst_tensor_split_get_tensor_pad (GstTensorSplit * split, GstBuffer * inbuf,
     *created = TRUE;
   }
 
-  if (split->tensorpick != NULL) {
+  if (tensorpick != NULL) {
     GST_DEBUG_OBJECT (split, "TensorPick is set! : %dth tensor\n", nth);
-    if (g_list_length (split->tensorpick) == split->num_srcpads) {
+    if (g_list_length (tensorpick) == split->num_srcpads) {
       gst_element_no_more_pads (GST_ELEMENT_CAST (split));
     }
   }
@@ -392,13 +403,14 @@ done:
 /**
  * @brief Make splitted tensor
  * @param split TensorSplit object
+ * @param tensorseg private reference of the tensorseg property
  * @param buffer gstbuffer form src
  * @param nth orther of tensor
  * @return return GstMemory for splitted tensor
  */
 static GstMemory *
-gst_tensor_split_get_splitted (GstTensorSplit * split, GstBuffer * buffer,
-    gint nth)
+gst_tensor_split_get_splitted (GstTensorSplit * split, GArray * tensorseg,
+    GstBuffer * buffer, gint nth)
 {
   GstMemory *mem;
   tensor_dim *dim;
@@ -406,18 +418,18 @@ gst_tensor_split_get_splitted (GstTensorSplit * split, GstBuffer * buffer,
   gsize size, offset;
   GstMapInfo src_info, dest_info;
 
-  dim = g_array_index (split->tensorseg, tensor_dim *, nth);
+  dim = g_array_index (tensorseg, tensor_dim *, nth);
   size = gst_tensor_get_element_count (*dim) *
       gst_tensor_get_element_size (split->in_config.info.info[0].type);
 
   mem = gst_allocator_alloc (NULL, size, NULL);
   if (!gst_memory_map (mem, &dest_info, GST_MAP_WRITE)) {
-    ml_logf ("Cannot map memory for destination buffer.\n");
+    GST_ERROR_OBJECT (split, "Cannot map memory for destination buffer.");
     gst_memory_unref (mem);
     return NULL;
   }
   if (!gst_buffer_map (buffer, &src_info, GST_MAP_READ)) {
-    ml_logf ("Cannot map src-memory to gst buffer at tensor-split.\n");
+    GST_ERROR_OBJECT (split, "Cannot map src-memory to gst buffer.");
     gst_memory_unmap (mem, &dest_info);
     gst_memory_unref (mem);
     return NULL;
@@ -425,9 +437,19 @@ gst_tensor_split_get_splitted (GstTensorSplit * split, GstBuffer * buffer,
 
   offset = 0;
   for (i = 0; i < nth; i++) {
-    dim = g_array_index (split->tensorseg, tensor_dim *, i);
+    dim = g_array_index (tensorseg, tensor_dim *, i);
     offset += gst_tensor_get_element_count (*dim) *
         gst_tensor_get_element_size (split->in_config.info.info[0].type);
+  }
+
+  if (offset + size > src_info.size) {
+    GST_ERROR_OBJECT (split, "The tensorseg needs %" G_GSIZE_FORMAT
+        " bytes at offset %" G_GSIZE_FORMAT ", but the incoming buffer is %"
+        G_GSIZE_FORMAT " bytes.", size, offset, src_info.size);
+    gst_buffer_unmap (buffer, &src_info);
+    gst_memory_unmap (mem, &dest_info);
+    gst_memory_unref (mem);
+    return NULL;
   }
 
   nns_memcpy (dest_info.data, src_info.data + offset, size);
@@ -444,17 +466,26 @@ static GstFlowReturn
 gst_tensor_split_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 {
   GstTensorSplit *split;
+  GArray *tensorseg;
+  GList *tensorpick;
   guint num_tensors, i;
   GstFlowReturn res = GST_FLOW_OK;
   UNUSED (pad);
 
   split = GST_TENSOR_SPLIT (parent);
 
+  GST_OBJECT_LOCK (split);
   num_tensors = split->num_tensors;
+  tensorseg = split->tensorseg ? g_array_ref (split->tensorseg) : NULL;
+  tensorpick = g_list_copy (split->tensorpick);
+  GST_OBJECT_UNLOCK (split);
+
   GST_DEBUG_OBJECT (split, " Number of Tensors: %d", num_tensors);
 
-  if (split->tensorseg == NULL) {
+  if (tensorseg == NULL) {
     GST_ERROR_OBJECT (split, "No rule to split incoming buffers.");
+    g_list_free (tensorpick);
+    gst_buffer_unref (buf);
     return GST_FLOW_ERROR;
   }
 
@@ -465,10 +496,10 @@ gst_tensor_split_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
     gboolean created;
     GstClockTime ts;
 
-    if (split->tensorpick != NULL) {
+    if (tensorpick != NULL) {
       gboolean found = FALSE;
       GList *list;
-      for (list = split->tensorpick; list != NULL; list = list->next) {
+      for (list = tensorpick; list != NULL; list = list->next) {
         if (i == GPOINTER_TO_UINT (list->data)) {
           found = TRUE;
           break;
@@ -478,10 +509,20 @@ gst_tensor_split_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
         continue;
     }
 
-    srcpad = gst_tensor_split_get_tensor_pad (split, buf, &created, i);
+    srcpad = gst_tensor_split_get_tensor_pad (split, tensorseg, tensorpick, buf,
+        &created, i);
+    if (srcpad == NULL) {
+      res = GST_FLOW_ERROR;
+      break;
+    }
 
     outbuf = gst_buffer_new ();
-    mem = gst_tensor_split_get_splitted (split, buf, i);
+    mem = gst_tensor_split_get_splitted (split, tensorseg, buf, i);
+    if (mem == NULL) {
+      gst_buffer_unref (outbuf);
+      res = GST_FLOW_ERROR;
+      break;
+    }
     gst_buffer_append_memory (outbuf, mem);
     ts = GST_BUFFER_TIMESTAMP (buf);
 
@@ -511,6 +552,8 @@ gst_tensor_split_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
       break;
   }
 
+  g_list_free (tensorpick);
+  g_array_unref (tensorseg);
   gst_buffer_unref (buf);
   return res;
 }
@@ -567,68 +610,73 @@ gst_tensor_split_set_property (GObject * object, guint prop_id,
 
   split = GST_TENSOR_SPLIT (object);
 
+  GST_OBJECT_LOCK (split);
   switch (prop_id) {
     case PROP_SILENT:
       split->silent = g_value_get_boolean (value);
       break;
     case PROP_TENSORPICK:
     {
-      gint i;
+      guint i, num;
       gint64 val;
       const gchar *param = g_value_get_string (value);
       gchar **strv = g_strsplit_set (param, ",.;/", -1);
-      gint num = g_strv_length (strv);
+      GList *tensorpick = NULL;
+
+      num = g_strv_length (strv);
       for (i = 0; i < num; i++) {
         val = g_ascii_strtoll (strv[i], NULL, 10);
-        split->tensorpick =
-            g_list_append (split->tensorpick, GINT_TO_POINTER (val));
+        tensorpick = g_list_append (tensorpick, GINT_TO_POINTER (val));
       }
       g_strfreev (strv);
+
+      g_list_free (split->tensorpick);
+      split->tensorpick = tensorpick;
       break;
     }
     case PROP_TENSORSEG:
     {
-      guint i;
+      guint i, num;
       const gchar *param = g_value_get_string (value);
       gchar **strv = g_strsplit_set (param, ",.;/", -1);
-      GArray *tensorseg = split->tensorseg;
+      GArray *tensorseg;
 
-      split->num_tensors = g_strv_length (strv);
-      if (NULL == tensorseg) {
-        split->tensorseg =
-            g_array_sized_new (FALSE, FALSE, sizeof (tensor_dim *),
-            split->num_tensors);
-        g_array_set_clear_func (split->tensorseg,
-            (GDestroyNotify) _clear_tensorseg);
+      num = g_strv_length (strv);
+      tensorseg = g_array_sized_new (FALSE, FALSE, sizeof (tensor_dim *), num);
+      g_array_set_clear_func (tensorseg, (GDestroyNotify) _clear_tensorseg);
 
-        for (i = 0; i < split->num_tensors; i++) {
-          tensor_dim *d = g_new0 (tensor_dim, 1);
-          g_array_append_val (split->tensorseg, d);
+      for (i = 0; i < num; i++) {
+        tensor_dim *d = g_new0 (tensor_dim, 1);
+        gchar **p = g_strsplit_set (strv[i], ":", -1);
+        guint k, rank = g_strv_length (p);
+
+        if (rank > NNS_TENSOR_RANK_LIMIT) {
+          GST_WARNING_OBJECT (split,
+              "The rank of '%s' exceeds the limit %d, the rest is ignored.",
+              strv[i], NNS_TENSOR_RANK_LIMIT);
+          rank = NNS_TENSOR_RANK_LIMIT;
         }
-        tensorseg = split->tensorseg;
-      }
-      for (i = 0; i < split->num_tensors; i++) {
-        gchar **p;
-        gint num, k;
-        tensor_dim *d;
-        p = g_strsplit_set (strv[i], ":", -1);
-        num = g_strv_length (p);
 
-        d = g_array_index (tensorseg, tensor_dim *, i);
-
-        for (k = 0; k < num; k++) {
+        for (k = 0; k < rank; k++) {
           (*d)[k] = g_ascii_strtod (p[k], NULL);
         }
 
         g_strfreev (p);
+        g_array_append_val (tensorseg, d);
       }
       g_strfreev (strv);
+
+      if (split->tensorseg)
+        g_array_unref (split->tensorseg);
+      split->tensorseg = tensorseg;
+      split->num_tensors = num;
       break;
     }
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
+  GST_OBJECT_UNLOCK (split);
 }
 
 /**
@@ -642,6 +690,7 @@ gst_tensor_split_get_property (GObject * object, guint prop_id,
 
   split = GST_TENSOR_SPLIT (object);
 
+  GST_OBJECT_LOCK (split);
   switch (prop_id) {
     case PROP_SILENT:
       g_value_set_boolean (value, split->silent);
@@ -710,4 +759,5 @@ gst_tensor_split_get_property (GObject * object, guint prop_id,
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
+  GST_OBJECT_UNLOCK (split);
 }
