@@ -23,6 +23,7 @@ The input and output stream data type is either `other/tensor` or `other/tensors
 - supplied-value: Specifies the supplied value (SV) from the user.
   * SV
   * SV1, SV2 (used for RANGE operators)
+  * A value with more than two elements is rejected and the previous value is kept.
 
 - operator: Comparison Operator
   * EQ: Check if CV == SV

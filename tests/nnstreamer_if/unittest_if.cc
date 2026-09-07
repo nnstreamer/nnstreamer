@@ -315,6 +315,7 @@ TEST (tensorIfProp, suppliedValue)
   gchar *pipeline;
   GstElement *gstpipe, *tif_handle;
   gchar *str_val = NULL;
+  gchar **strv;
 
   pipeline = g_strdup_printf (
       "videotestsrc num-buffers=1 pattern=13 ! videoconvert ! videoscale ! "
@@ -335,7 +336,11 @@ TEST (tensorIfProp, suppliedValue)
 
   g_object_set (tif_handle, "supplied-value", "1.5,2.5", NULL);
   g_object_get (tif_handle, "supplied-value", &str_val, NULL);
-  EXPECT_DOUBLE_EQ (1.5, g_ascii_strtod (str_val, NULL));
+  strv = g_strsplit (str_val, ",", -1);
+  ASSERT_EQ (2U, g_strv_length (strv));
+  EXPECT_DOUBLE_EQ (1.5, g_ascii_strtod (strv[0], NULL));
+  EXPECT_DOUBLE_EQ (2.5, g_ascii_strtod (strv[1], NULL));
+  g_strfreev (strv);
   g_free (str_val);
 
   g_object_set (tif_handle, "supplied-value", "", NULL);
@@ -696,7 +701,7 @@ new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
 
   data_received++;
   /* Index 100 means a callback that is not allowed. */
-  EXPECT_NE (100, index);
+  ASSERT_NE (100, index);
   mem_res = gst_buffer_get_memory (buffer, 0);
   ret = gst_memory_map (mem_res, &info_res, GST_MAP_READ);
   ASSERT_TRUE (ret);
@@ -790,6 +795,76 @@ TEST (tensorIfAppsrc, action0)
 
   EXPECT_EQ (1, data_received);
 
+  gst_object_unref (appsrc_handle);
+  gst_object_unref (tif_handle);
+  gst_object_unref (pipeline);
+  g_free (str_pipeline);
+}
+
+/**
+ * @brief Test that a new supplied value fully replaces the previous one
+ */
+TEST (tensorIfAppsrc, suppliedValueReset)
+{
+  GstBuffer *buf_0, *buf_1;
+  GstMemory *mem;
+  GstMapInfo info;
+  GstElement *appsrc_handle, *sink_handle, *tif_handle;
+  gint idx;
+  gboolean ret;
+  gchar *str_pipeline = g_strdup (
+      "appsrc name=appsrc ! other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1 ! "
+      "tensor_if name=tif compared-value=A_VALUE compared-value-option=1:1:1:1,0 supplied-value=1000,2000 "
+      "operator=RANGE_INCLUSIVE then=PASSTHROUGH else=SKIP ! "
+      "other/tensors,num_tensors=1,dimensions=(string)3:4:2:2, types=(string)int32, framerate=(fraction)0/1 ! "
+      "tensor_sink name=sinkx async=false");
+
+  GstElement *pipeline = gst_parse_launch (str_pipeline, NULL);
+  ASSERT_NE (pipeline, nullptr);
+
+  appsrc_handle = gst_bin_get_by_name (GST_BIN (pipeline), "appsrc");
+  ASSERT_NE (appsrc_handle, nullptr);
+
+  tif_handle = gst_bin_get_by_name (GST_BIN (pipeline), "tif");
+  ASSERT_NE (tif_handle, nullptr);
+
+  sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  ASSERT_NE (sink_handle, nullptr);
+
+  g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, (gpointer) &idx);
+
+  buf_0 = gst_buffer_new ();
+  mem = gst_allocator_alloc (NULL, 192, NULL);
+  ret = gst_memory_map (mem, &info, GST_MAP_WRITE);
+  ASSERT_TRUE (ret);
+  memcpy (info.data, test_frames[0], 192);
+  gst_memory_unmap (mem, &info);
+  gst_buffer_append_memory (buf_0, mem);
+  buf_1 = gst_buffer_copy (buf_0);
+
+  data_received = 0;
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (100000);
+
+  /* the compared value 1217 is within [1000, 2000] */
+  idx = 0;
+  EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc_handle), buf_0), GST_FLOW_OK);
+  g_usleep (100000);
+
+  /* the second operand of the previous value should not survive */
+  g_object_set (tif_handle, "supplied-value", "1000", NULL);
+
+  idx = 100;
+  EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc_handle), buf_1), GST_FLOW_OK);
+  g_usleep (100000);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  g_usleep (100000);
+
+  EXPECT_EQ (1, data_received);
+
+  gst_object_unref (sink_handle);
   gst_object_unref (appsrc_handle);
   gst_object_unref (tif_handle);
   gst_object_unref (pipeline);
