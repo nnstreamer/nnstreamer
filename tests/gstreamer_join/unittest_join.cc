@@ -457,7 +457,20 @@ TEST (join, eosAfterPadRelease)
 typedef struct {
   GstElement *appsrc;
   gint stop;
+  guint *received;
+  guint pushed;
+  guint max_lead;
 } JoinFeeder;
+
+/**
+ * @brief Buffers the feeder may push before the sink has taken them.
+ * @detail appsrc queues whatever it is given, so an unheld feeder runs ahead
+ *         by as much as the test thread is slow - milliseconds natively, and
+ *         minutes under a memory checker, where the queue it leaves behind is
+ *         then torn down one buffer at a time. A lead keeps the pad streaming
+ *         without letting that cost grow with the environment.
+ */
+#define JOIN_FEEDER_LEAD (8U)
 
 /**
  * @brief Push buffers into an appsrc until the caller asks it to stop.
@@ -468,10 +481,24 @@ join_feeder_thread (gpointer data)
   JoinFeeder *feeder = (JoinFeeder *) data;
 
   while (!g_atomic_int_get (&feeder->stop)) {
-    GstBuffer *buf = gst_buffer_new_wrapped (_g_memdup (test_frames[0], 192), 192);
+    GstBuffer *buf;
+    guint taken = g_atomic_int_get (feeder->received);
+    guint lead = feeder->pushed > taken ? feeder->pushed - taken : 0;
+
+    if (lead > feeder->max_lead)
+      feeder->max_lead = lead;
+
+    if (lead >= JOIN_FEEDER_LEAD) {
+      g_thread_yield ();
+      continue;
+    }
+
+    buf = gst_buffer_new_wrapped (_g_memdup (test_frames[0], 192), 192);
 
     if (gst_app_src_push_buffer (GST_APP_SRC (feeder->appsrc), buf) != GST_FLOW_OK)
       break;
+
+    feeder->pushed++;
   }
 
   return NULL;
@@ -501,7 +528,7 @@ run_pad_release_while_streaming (void)
 {
   GstElement *appsrc_0, *join_handle, *sink_handle;
   GstPad *sinkpad_0, *active_pad = NULL;
-  JoinFeeder feeder = { NULL, 0 };
+  JoinFeeder feeder = {};
   GThread *thread;
   guint received = 0, n_pads = 0;
   gboolean released = FALSE, started = TRUE;
@@ -526,6 +553,7 @@ run_pad_release_while_streaming (void)
     started = FALSE;
 
   feeder.appsrc = appsrc_0;
+  feeder.received = &received;
   thread = g_thread_new ("join-feeder", join_feeder_thread, &feeder);
   if (!wait_pipeline_process_buffers (&received, 1, TEST_TIMEOUT_LIMIT_MS))
     started = FALSE;
@@ -536,6 +564,8 @@ run_pad_release_while_streaming (void)
 
   g_atomic_int_set (&feeder.stop, 1);
   g_thread_join (thread);
+  EXPECT_LE (feeder.max_lead, JOIN_FEEDER_LEAD);
+  EXPECT_GT (feeder.max_lead, 0U);
 
   g_object_get (join_handle, "active-pad", &active_pad, NULL);
   g_object_get (join_handle, "n-pads", &n_pads, NULL);
