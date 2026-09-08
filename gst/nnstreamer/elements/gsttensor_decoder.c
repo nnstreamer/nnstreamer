@@ -683,6 +683,82 @@ gst_tensordec_configure (GstTensorDecoder * self, const GstCaps * in_caps,
 }
 
 /**
+ * @brief Release the mapped memories of the incoming buffer.
+ * @param mem the memories acquired from the incoming buffer
+ * @param info the map info of each memory
+ * @param num the number of the memories to release
+ */
+static void
+gst_tensordec_release_input (GstMemory * mem[], GstMapInfo info[], guint num)
+{
+  guint i;
+
+  for (i = 0; i < num; i++) {
+    gst_memory_unmap (mem[i], &info[i]);
+    gst_memory_unref (mem[i]);
+  }
+}
+
+/**
+ * @brief Validate the memory of the incoming buffer with the negotiated config.
+ * @param self this pointer of tensor_decoder
+ * @param index the index of the tensor in the incoming buffer
+ * @param data the mapped memory of the tensor
+ * @param size the mapped size of @a data
+ * @return TRUE if the memory holds the tensor the decoder sub-plugin will read
+ */
+static gboolean
+gst_tensordec_check_input_size (GstTensorDecoder * self, guint index,
+    gpointer data, gsize size)
+{
+  gsize expected;
+
+  if (gst_tensors_config_is_flexible (&self->tensor_config)) {
+    GstTensorMetaInfo meta;
+    gsize hsize;
+
+    gst_tensor_meta_info_init (&meta);
+
+    if (size < gst_tensor_meta_info_get_header_size (&meta) ||
+        !gst_tensor_meta_info_parse_header (&meta, data)) {
+      GST_ERROR_OBJECT (self,
+          "Failed to parse the meta info of the %u'th tensor in the incoming buffer.",
+          index);
+      return FALSE;
+    }
+
+    /* a meta version this build cannot size gives no offset to the data */
+    hsize = gst_tensor_meta_info_get_header_size (&meta);
+    if (hsize == 0) {
+      GST_ERROR_OBJECT (self,
+          "The meta info of the %u'th tensor in the incoming buffer declares a version of which the header layout is unknown.",
+          index);
+      return FALSE;
+    }
+
+    expected = hsize + gst_tensor_meta_info_get_data_size (&meta);
+
+    if (size < expected) {
+      GST_ERROR_OBJECT (self,
+          "The %u'th tensor of the incoming buffer is %zd bytes, which is smaller than %zd bytes described by its own meta info.",
+          index, size, expected);
+      return FALSE;
+    }
+  } else {
+    expected = gst_tensors_info_get_size (&self->tensor_config.info, index);
+
+    if (size != expected) {
+      GST_ERROR_OBJECT (self,
+          "The %u'th tensor of the incoming buffer is %zd bytes, which is expected to be %zd bytes by the negotiated caps. Check whether the incoming stream is consistent with the caps of the sink pad.",
+          index, size, expected);
+      return FALSE;
+    }
+  }
+
+  return TRUE;
+}
+
+/**
  * @brief non-ip transform. required vmethod for BaseTransform class.
  */
 static GstFlowReturn
@@ -710,20 +786,26 @@ gst_tensordec_transform (GstBaseTransform * trans,
       self->tensor_config.info.num_tensors = num_mems;
     }
     num_tensors = self->tensor_config.info.num_tensors;
-    /** Internal logic error. Negotiation process should prevent this! */
-    g_assert (num_mems == num_tensors);
+    if (num_mems != num_tensors) {
+      GST_ERROR_OBJECT (self,
+          "The incoming buffer has %u memory chunks, which is expected to be %u, the number of tensors of the negotiated caps.",
+          num_mems, num_tensors);
+      return GST_FLOW_ERROR;
+    }
 
     for (i = 0; i < num_tensors; i++) {
       in_mem[i] = gst_tensor_buffer_get_nth_memory (inbuf, i);
       if (!gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
-        guint j;
         ml_logf ("Failed to map in_mem[%u].\n", i);
 
-        for (j = 0; j < i; j++) {
-          gst_memory_unmap (in_mem[j], &in_info[j]);
-          gst_memory_unref (in_mem[j]);
-        }
+        gst_tensordec_release_input (in_mem, in_info, i);
         gst_memory_unref (in_mem[i]);
+        return GST_FLOW_ERROR;
+      }
+
+      if (!gst_tensordec_check_input_size (self, i, in_info[i].data,
+              in_info[i].size)) {
+        gst_tensordec_release_input (in_mem, in_info, i + 1);
         return GST_FLOW_ERROR;
       }
 
@@ -741,10 +823,7 @@ gst_tensordec_transform (GstBaseTransform * trans,
       res = GST_FLOW_ERROR;
     }
 
-    for (i = 0; i < num_tensors; i++) {
-      gst_memory_unmap (in_mem[i], &in_info[i]);
-      gst_memory_unref (in_mem[i]);
-    }
+    gst_tensordec_release_input (in_mem, in_info, num_tensors);
   } else {
     GST_ERROR_OBJECT (self, "Decoder plugin not yet configured.");
     goto unknown_type;
