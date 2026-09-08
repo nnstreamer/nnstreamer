@@ -2455,6 +2455,301 @@ TEST (commonUtil, createFlexTensorBuffer)
 }
 
 /**
+ * @brief Internal util function to build a flexible tensor stream of @a num
+ *        tensors, each carrying @a dsize bytes filled with its own index.
+ *        The size of the whole block is stored in @a total and the size of a
+ *        single tensor, its header included, in @a each. The caller owns the
+ *        returned block.
+ */
+static guint8 *
+build_flex_tensor_data (guint num, gsize dsize, gsize *total, gsize *each)
+{
+  GstTensorInfo info;
+  GstTensorMetaInfo meta;
+  guint8 *data;
+  gsize hsize, offset = 0;
+  guint i;
+
+  gst_tensor_info_init (&info);
+  info.type = _NNS_UINT8;
+  info.dimension[0] = (uint32_t) dsize;
+
+  gst_tensor_info_convert_to_meta (&info, &meta);
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+
+  *each = hsize + dsize;
+  *total = *each * num;
+  data = (guint8 *) g_malloc (*total);
+
+  for (i = 0; i < num; i++) {
+    gst_tensor_meta_info_update_header (&meta, data + offset);
+    memset (data + offset + hsize, (int) i, dsize);
+    offset += *each;
+  }
+
+  gst_tensor_info_free (&info);
+  return data;
+}
+
+/**
+ * @brief Internal util function to run gst_tensor_buffer_from_config () on a
+ *        flexible config with @a data of @a size bytes, which it takes over.
+ */
+static GstBuffer *
+flex_buffer_from_config (guint8 *data, gsize size)
+{
+  GstTensorsConfig config;
+  GstBuffer *out;
+
+  gst_tensors_config_init (&config);
+  config.info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  config.rate_n = config.rate_d = 1;
+
+  out = gst_tensor_buffer_from_config (gst_buffer_new_wrapped (data, size), &config);
+
+  gst_tensors_config_free (&config);
+  return out;
+}
+
+/**
+ * @brief Internal util function to get the size of the nth memory of @a buf.
+ */
+static gsize
+peek_memory_size (GstBuffer *buf, guint nth)
+{
+  return gst_memory_get_sizes (gst_buffer_peek_memory (buf, nth), NULL, NULL);
+}
+
+/**
+ * @brief Test tensor buffer util (more flexible tensors than the memory limit)
+ */
+TEST (commonUtil, createFlexTensorBufferOverMemoryMax)
+{
+  GstBuffer *out;
+  guint8 *data;
+  gsize total, each;
+  guint i;
+
+  data = build_flex_tensor_data (20U, 16U, &total, &each);
+  out = flex_buffer_from_config (data, total);
+  ASSERT_TRUE (out != NULL);
+
+  EXPECT_EQ (gst_buffer_n_memory (out), (guint) NNS_TENSOR_MEMORY_MAX);
+  for (i = 0; i < NNS_TENSOR_MEMORY_MAX - 1U; i++)
+    EXPECT_EQ (peek_memory_size (out, i), each);
+
+  /* the tensors that do not fit are left in the last memory */
+  EXPECT_EQ (peek_memory_size (out, NNS_TENSOR_MEMORY_MAX - 1U),
+      each * (20U - (NNS_TENSOR_MEMORY_MAX - 1U)));
+  EXPECT_EQ (gst_buffer_get_size (out), total);
+
+  gst_buffer_unref (out);
+}
+
+/**
+ * @brief Test tensor buffer util (flexible buffer shorter than a meta header)
+ */
+TEST (commonUtil, createFlexTensorBufferShortHeader_n)
+{
+  GstBuffer *out;
+
+  out = flex_buffer_from_config ((guint8 *) g_malloc0 (4), 4);
+  ASSERT_TRUE (out != NULL);
+
+  EXPECT_EQ (gst_buffer_n_memory (out), 1U);
+  EXPECT_EQ (gst_buffer_get_size (out), (gsize) 4);
+
+  gst_buffer_unref (out);
+}
+
+/**
+ * @brief Test tensor buffer util (trailing bytes shorter than a meta header)
+ */
+TEST (commonUtil, createFlexTensorBufferShortTrailing_n)
+{
+  GstBuffer *out;
+  guint8 *data;
+  gsize total, each;
+
+  data = build_flex_tensor_data (1U, 16U, &total, &each);
+  data = (guint8 *) g_realloc (data, total + 4);
+  memset (data + total, 0, 4);
+
+  out = flex_buffer_from_config (data, total + 4);
+  ASSERT_TRUE (out != NULL);
+
+  EXPECT_EQ (gst_buffer_n_memory (out), 2U);
+  EXPECT_EQ (peek_memory_size (out, 0), each);
+  EXPECT_EQ (peek_memory_size (out, 1), (gsize) 4);
+
+  gst_buffer_unref (out);
+}
+
+/**
+ * @brief Test tensor buffer util (flexible buffer without a valid meta header)
+ */
+TEST (commonUtil, createFlexTensorBufferInvalidHeader_n)
+{
+  GstBuffer *out;
+
+  out = flex_buffer_from_config ((guint8 *) g_malloc0 (256), 256);
+  ASSERT_TRUE (out != NULL);
+
+  EXPECT_EQ (gst_buffer_n_memory (out), 1U);
+  EXPECT_EQ (gst_buffer_get_size (out), (gsize) 256);
+
+  gst_buffer_unref (out);
+}
+
+/**
+ * @brief Test tensor buffer util (trailing bytes without a valid meta header)
+ */
+TEST (commonUtil, createFlexTensorBufferInvalidTrailing_n)
+{
+  GstBuffer *out;
+  guint8 *data;
+  gsize total, each;
+
+  data = build_flex_tensor_data (1U, 16U, &total, &each);
+  data = (guint8 *) g_realloc (data, total + 256);
+  memset (data + total, 0, 256);
+
+  out = flex_buffer_from_config (data, total + 256);
+  ASSERT_TRUE (out != NULL);
+
+  EXPECT_EQ (gst_buffer_n_memory (out), 2U);
+  EXPECT_EQ (peek_memory_size (out, 0), each);
+  EXPECT_EQ (peek_memory_size (out, 1), (gsize) 256);
+
+  gst_buffer_unref (out);
+}
+
+/**
+ * @brief Internal util function to build a block of @a size bytes that starts
+ *        with a meta header of @a format and a version that passes the
+ *        validation of the meta but is not V1, so that the header size of the
+ *        tensor it describes is 0. The caller owns the returned block.
+ */
+static guint8 *
+build_unknown_version_data (gsize size, tensor_format format)
+{
+  guint8 *data = (guint8 *) g_malloc0 (size);
+  uint32_t *header = (uint32_t *) data;
+
+  header[0] = 0xfeedcced; /* magic */
+  header[1] = 0xDE002000; /* version */
+  header[2] = (uint32_t) _NNS_UINT8; /* type */
+  header[3] = 1U; /* dimension */
+  header[19] = (uint32_t) format;
+  header[20] = (uint32_t) _NNS_TENSOR; /* media type */
+
+  return data;
+}
+
+/**
+ * @brief Test tensor buffer util (meta header that describes no bytes)
+ */
+TEST (commonUtil, createFlexTensorBufferZeroSizeHeader_n)
+{
+  GstBuffer *out;
+
+  /* a sparse format without a non-zero element has a data size of 0 as well */
+  out = flex_buffer_from_config (
+      build_unknown_version_data (300, _NNS_TENSOR_FORMAT_SPARSE), 300);
+  ASSERT_TRUE (out != NULL);
+
+  EXPECT_EQ (gst_buffer_n_memory (out), 1U);
+  EXPECT_EQ (gst_buffer_get_size (out), (gsize) 300);
+
+  gst_buffer_unref (out);
+}
+
+/**
+ * @brief Test tensor buffer util (meta header of an unknown version)
+ */
+TEST (commonUtil, createFlexTensorBufferUnknownVersionHeader_n)
+{
+  GstBuffer *out;
+
+  /* the data size is known, but without a header size the tensors cannot be told apart */
+  out = flex_buffer_from_config (
+      build_unknown_version_data (300, _NNS_TENSOR_FORMAT_STATIC), 300);
+  ASSERT_TRUE (out != NULL);
+
+  EXPECT_EQ (gst_buffer_n_memory (out), 1U);
+  EXPECT_EQ (gst_buffer_get_size (out), (gsize) 300);
+
+  gst_buffer_unref (out);
+}
+
+/**
+ * @brief Callback for the new-data signal, keeping the size of the buffer.
+ */
+static void
+flex_trailing_new_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
+{
+  gsize *size = (gsize *) user_data;
+
+  (void) element;
+
+  EXPECT_EQ (gst_tensor_buffer_get_count (buffer), 1U);
+  *size = gst_buffer_get_size (buffer);
+}
+
+/**
+ * @brief Test tensor buffer util (trailing bytes of a flexible buffer in a pipeline)
+ */
+TEST (commonUtil, createFlexTensorBufferShortTrailingPipeline_n)
+{
+  GstElement *pipeline, *appsrc, *sinkx;
+  GstBuffer *buf;
+  guint8 *data;
+  gsize total, each;
+  guint received = 0U;
+  gsize received_size = 0;
+  GstFlowReturn flow_ret;
+
+  pipeline = gst_parse_launch ("appsrc name=appsrc caps=other/tensors,format=flexible,framerate=(fraction)0/1 ! "
+                               "tensor_demux ! tensor_sink name=sinkx async=false sync=false",
+      NULL);
+  ASSERT_TRUE (pipeline != nullptr);
+
+  appsrc = gst_bin_get_by_name (GST_BIN (pipeline), "appsrc");
+  ASSERT_TRUE (appsrc != nullptr);
+  sinkx = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  ASSERT_TRUE (sinkx != nullptr);
+
+  g_signal_connect (sinkx, "new-data", (GCallback) flex_trailing_new_data_cb, &received_size);
+  g_signal_connect (sinkx, "new-data", (GCallback) count_output, &received);
+
+  data = build_flex_tensor_data (1U, 16U, &total, &each);
+  data = (guint8 *) g_realloc (data, total + 4);
+  memset (data + total, 0, 4);
+  buf = gst_buffer_new_wrapped (data, total + 4);
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  /* gst_app_src_push_buffer () takes ownership of buf */
+  flow_ret = gst_app_src_push_buffer (GST_APP_SRC (appsrc), buf);
+  EXPECT_EQ (flow_ret, GST_FLOW_OK);
+  EXPECT_TRUE (wait_pipeline_process_buffers (&received, 1U, TEST_TIMEOUT_LIMIT_MS));
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  /**
+   * The trailing bytes are not a tensor, so the demux ends the flow with an
+   * error once it reaches them. The valid tensor is pushed before that, which
+   * is what this case asserts.
+   */
+  EXPECT_EQ (received, 1U);
+  EXPECT_EQ (received_size, each);
+
+  gst_object_unref (appsrc);
+  gst_object_unref (sinkx);
+  gst_object_unref (pipeline);
+}
+
+/**
  * @brief Test tensor buffer util (invalid config)
  */
 TEST (commonUtil, createTensorBufferInvalidConfig_n)

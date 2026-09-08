@@ -184,6 +184,7 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect, tensor_ti
  * @brief Configure gst-buffer with tensors information.
  * NNStreamer handles single memory chunk as single tensor.
  * If incoming buffer has invalid memories, separate it and generate new gst-buffer using tensors information.
+ * Bytes of a flexible buffer that do not describe a tensor are handed over as the last memory of the result.
  * Note that this function always takes the ownership of input buffer.
  * @param in input buffer
  * @param config tensors config structure

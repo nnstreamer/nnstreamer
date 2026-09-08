@@ -533,6 +533,7 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
  * @brief Configure gst-buffer with tensors information.
  * NNStreamer handles single memory chunk as single tensor.
  * If incoming buffer has invalid memories, separate it and generate new gst-buffer using tensors information.
+ * Bytes of a flexible buffer that do not describe a tensor are handed over as the last memory of the result.
  * Note that this function always takes the ownership of input buffer.
  * @param in input buffer
  * @param config tensors config structure
@@ -582,6 +583,9 @@ gst_tensor_buffer_from_config (GstBuffer * in, GstTensorsConfig * config)
         mem_size[num - 1] += gst_tensors_info_get_size (&config->info, i);
     }
   } else {
+    GstTensorMetaInfo meta;
+    gsize hsize;
+
     if (num > 1) {
       /* Suppose it is already configured. */
       out = gst_buffer_ref (in);
@@ -593,20 +597,27 @@ gst_tensor_buffer_from_config (GstBuffer * in, GstTensorsConfig * config)
       goto error;
     }
 
+    gst_tensor_meta_info_init (&meta);
+    hsize = gst_tensor_meta_info_get_header_size (&meta);
+
     num = 0;
     offset = 0;
     while (offset < total) {
-      GstTensorMetaInfo meta;
-      gpointer h = map.data + offset;
-
-      if (num >= NNS_TENSOR_MEMORY_MAX - 1) {
+      if (num >= NNS_TENSOR_MEMORY_MAX - 1 || (total - offset) < hsize ||
+          !gst_tensor_meta_info_parse_header (&meta, map.data + offset)) {
         /* Suppose remained memory may include extra tensors. */
         mem_size[num++] = total - offset;
         break;
       }
 
-      gst_tensor_meta_info_parse_header (&meta, h);
       mem_size[num] = gst_tensor_meta_info_get_header_size (&meta);
+
+      if (mem_size[num] == 0) {
+        /* Parsed header of an unknown version, cannot tell the tensors apart. */
+        mem_size[num++] = total - offset;
+        break;
+      }
+
       mem_size[num] += gst_tensor_meta_info_get_data_size (&meta);
 
       offset += mem_size[num];
