@@ -22,6 +22,7 @@
 #include <nnstreamer_util.h>
 #include <string.h>
 #include <tensor_common.h>
+#include <tensor_decoder_custom.h>
 #include <tensor_meta.h>
 #include <unistd.h>
 
@@ -10357,6 +10358,496 @@ TEST (testTensorSplit, finalizeWithoutTensorseg)
   g_log_set_default_handler (old_handler, NULL);
 
   EXPECT_FALSE (tensor_split_logged_critical);
+}
+
+/**
+ * @brief The dimension of the tensor the decoder input cases negotiate
+ */
+#define TEST_DECODER_DIM "3:16:16"
+
+/* how many times the custom decoder below was called, and with what size */
+static guint decoder_custom_invoked;
+static gsize decoder_custom_size;
+
+/**
+ * @brief Custom decoder recording what the element handed over
+ */
+static int
+_decoder_custom_cb (const GstTensorMemory *input,
+    const GstTensorsConfig *config, void *data, GstBuffer *out_buf)
+{
+  UNUSED (config);
+  UNUSED (data);
+
+  decoder_custom_invoked++;
+  decoder_custom_size = input[0].size;
+
+  gst_buffer_append_memory (out_buf, gst_allocator_alloc (NULL, 4, NULL));
+
+  return GST_FLOW_OK;
+}
+
+/**
+ * @brief Get a harness of a tensor_decoder negotiated with the given config
+ */
+static GstHarness *
+_get_decoder_harness (const gchar *mode, const gchar *option1, GstTensorsConfig *config)
+{
+  GstElement *dec = gst_element_factory_make ("tensor_decoder", NULL);
+  GstHarness *h;
+
+  if (!dec)
+    return NULL;
+  gst_object_ref_sink (dec);
+
+  /* the mode should be selected before the caps are negotiated */
+  g_object_set (dec, "mode", mode, NULL);
+  if (option1)
+    g_object_set (dec, "option1", option1, NULL);
+
+  h = gst_harness_new_with_element (dec, "sink", "src");
+  gst_object_unref (dec);
+
+  if (h)
+    gst_harness_set_src_caps (h, gst_tensors_caps_from_config (config));
+
+  return h;
+}
+
+/**
+ * @brief Get a static tensors config of a single uint8 tensor
+ */
+static void
+_get_decoder_config (GstTensorsConfig *config)
+{
+  gst_tensors_config_init (config);
+  config->info.num_tensors = 1;
+  config->info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension (TEST_DECODER_DIM, config->info.info[0].dimension);
+  config->rate_n = 0;
+  config->rate_d = 1;
+}
+
+/**
+ * @brief Get a flexible tensor buffer, of which the meta info describes
+ *        @a data_size bytes while the memory holds @a mem_size bytes
+ */
+static GstBuffer *
+_get_flex_decoder_buffer (GstHarness *h, gsize data_size, gsize mem_size)
+{
+  GstTensorMetaInfo meta;
+  GstBuffer *buf;
+  GstMapInfo map;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_UINT8;
+  meta.dimension[0] = (uint32_t) data_size;
+  meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+  buf = gst_harness_create_buffer (h, mem_size);
+
+  if (mem_size >= gst_tensor_meta_info_get_header_size (&meta)) {
+    if (!gst_buffer_map (buf, &map, GST_MAP_WRITE)) {
+      gst_buffer_unref (buf);
+      return NULL;
+    }
+    gst_tensor_meta_info_update_header (&meta, map.data);
+    gst_buffer_unmap (buf, &map);
+  }
+
+  return buf;
+}
+
+/**
+ * @brief The negotiated tensor is handed to the decoder sub-plugin as it is.
+ */
+TEST (testTensorDecoder, pushInputSize)
+{
+  GstTensorsConfig config;
+  GstHarness *h;
+  gsize data_size;
+
+  ASSERT_EQ (0, nnstreamer_decoder_custom_register ("tdec_size", _decoder_custom_cb, NULL));
+
+  _get_decoder_config (&config);
+  h = _get_decoder_harness ("custom-code", "tdec_size", &config);
+  ASSERT_TRUE (h != NULL);
+
+  data_size = gst_tensors_info_get_size (&config.info, 0);
+  decoder_custom_invoked = 0;
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, data_size)), GST_FLOW_OK);
+  EXPECT_EQ (decoder_custom_invoked, 1U);
+  EXPECT_EQ (decoder_custom_size, data_size);
+
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+  EXPECT_EQ (0, nnstreamer_decoder_custom_unregister ("tdec_size"));
+}
+
+/**
+ * @brief A buffer larger than the negotiated tensor is refused.
+ * @details The sub-plugin sizes its output from the caps while it reads as
+ *          many bytes as the incoming memory holds, so the surplus of an
+ *          oversized buffer is written past the end of that output.
+ */
+TEST (testTensorDecoder, pushInputSizeTooLarge_n)
+{
+  GstTensorsConfig config;
+  GstHarness *h;
+  gsize data_size;
+
+  ASSERT_EQ (0, nnstreamer_decoder_custom_register ("tdec_size", _decoder_custom_cb, NULL));
+
+  _get_decoder_config (&config);
+  h = _get_decoder_harness ("custom-code", "tdec_size", &config);
+  ASSERT_TRUE (h != NULL);
+
+  data_size = gst_tensors_info_get_size (&config.info, 0);
+  decoder_custom_invoked = 0;
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, data_size + 1)), GST_FLOW_ERROR);
+  EXPECT_EQ (decoder_custom_invoked, 0U);
+
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+  EXPECT_EQ (0, nnstreamer_decoder_custom_unregister ("tdec_size"));
+}
+
+/**
+ * @brief A buffer smaller than the negotiated tensor is refused.
+ */
+TEST (testTensorDecoder, pushInputSizeTooSmall_n)
+{
+  GstTensorsConfig config;
+  GstHarness *h;
+  gsize data_size;
+
+  ASSERT_EQ (0, nnstreamer_decoder_custom_register ("tdec_size", _decoder_custom_cb, NULL));
+
+  _get_decoder_config (&config);
+  h = _get_decoder_harness ("custom-code", "tdec_size", &config);
+  ASSERT_TRUE (h != NULL);
+
+  data_size = gst_tensors_info_get_size (&config.info, 0);
+  decoder_custom_invoked = 0;
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, data_size / 2)), GST_FLOW_ERROR);
+  EXPECT_EQ (decoder_custom_invoked, 0U);
+
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+  EXPECT_EQ (0, nnstreamer_decoder_custom_unregister ("tdec_size"));
+}
+
+/**
+ * @brief A buffer holding more memory chunks than the caps have tensors is refused.
+ * @details The element used to assert on this, which aborts the process for a
+ *          buffer an application or a remote peer has built.
+ */
+TEST (testTensorDecoder, pushInputMemoryCount_n)
+{
+  GstTensorsConfig config;
+  GstHarness *h;
+  GstBuffer *buf;
+  gsize data_size;
+
+  ASSERT_EQ (0, nnstreamer_decoder_custom_register ("tdec_size", _decoder_custom_cb, NULL));
+
+  _get_decoder_config (&config);
+  h = _get_decoder_harness ("custom-code", "tdec_size", &config);
+  ASSERT_TRUE (h != NULL);
+
+  data_size = gst_tensors_info_get_size (&config.info, 0);
+  decoder_custom_invoked = 0;
+
+  buf = gst_harness_create_buffer (h, data_size / 2);
+  gst_buffer_append_memory (buf, gst_allocator_alloc (NULL, data_size / 2, NULL));
+
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_ERROR);
+  EXPECT_EQ (decoder_custom_invoked, 0U);
+
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+  EXPECT_EQ (0, nnstreamer_decoder_custom_unregister ("tdec_size"));
+}
+
+/**
+ * @brief A buffer holding fewer memory chunks than the caps have tensors is refused.
+ */
+TEST (testTensorDecoder, pushInputMemoryCountShort_n)
+{
+  GstTensorsConfig config;
+  GstHarness *h;
+  gsize data_size;
+
+  ASSERT_EQ (0, nnstreamer_decoder_custom_register ("tdec_size", _decoder_custom_cb, NULL));
+
+  _get_decoder_config (&config);
+  config.info.num_tensors = 2;
+  gst_tensor_parse_dimension (TEST_DECODER_DIM, config.info.info[1].dimension);
+  config.info.info[1].type = _NNS_UINT8;
+
+  h = _get_decoder_harness ("custom-code", "tdec_size", &config);
+  ASSERT_TRUE (h != NULL);
+
+  data_size = gst_tensors_info_get_size (&config.info, -1);
+  decoder_custom_invoked = 0;
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, data_size)), GST_FLOW_ERROR);
+  EXPECT_EQ (decoder_custom_invoked, 0U);
+
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+  EXPECT_EQ (0, nnstreamer_decoder_custom_unregister ("tdec_size"));
+}
+
+/**
+ * @brief A flexible tensor is handed over with its meta header.
+ */
+TEST (testTensorDecoder, pushFlexibleInput)
+{
+  GstTensorsConfig config;
+  GstTensorMetaInfo meta;
+  GstHarness *h;
+  gsize hsize;
+
+  ASSERT_EQ (0, nnstreamer_decoder_custom_register ("tdec_size", _decoder_custom_cb, NULL));
+
+  gst_tensors_config_init (&config);
+  config.info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  h = _get_decoder_harness ("custom-code", "tdec_size", &config);
+  ASSERT_TRUE (h != NULL);
+
+  gst_tensor_meta_info_init (&meta);
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  decoder_custom_invoked = 0;
+
+  EXPECT_EQ (gst_harness_push (h, _get_flex_decoder_buffer (h, 64, hsize + 64)), GST_FLOW_OK);
+  EXPECT_EQ (decoder_custom_invoked, 1U);
+  EXPECT_EQ (decoder_custom_size, hsize + 64);
+
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+  EXPECT_EQ (0, nnstreamer_decoder_custom_unregister ("tdec_size"));
+}
+
+/**
+ * @brief A flexible tensor longer than its own meta info is accepted.
+ * @details A tensor that describes itself is allowed to carry slack, so the
+ *          header and the data have to fit in the memory, not to fill it.
+ */
+TEST (testTensorDecoder, pushFlexibleInputOversized)
+{
+  GstTensorsConfig config;
+  GstTensorMetaInfo meta;
+  GstHarness *h;
+  gsize hsize;
+
+  ASSERT_EQ (0, nnstreamer_decoder_custom_register ("tdec_size", _decoder_custom_cb, NULL));
+
+  gst_tensors_config_init (&config);
+  config.info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  h = _get_decoder_harness ("custom-code", "tdec_size", &config);
+  ASSERT_TRUE (h != NULL);
+
+  gst_tensor_meta_info_init (&meta);
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  decoder_custom_invoked = 0;
+
+  EXPECT_EQ (gst_harness_push (h, _get_flex_decoder_buffer (h, 64, hsize + 128)), GST_FLOW_OK);
+  EXPECT_EQ (decoder_custom_invoked, 1U);
+  EXPECT_EQ (decoder_custom_size, hsize + 128);
+
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+  EXPECT_EQ (0, nnstreamer_decoder_custom_unregister ("tdec_size"));
+}
+
+/**
+ * @brief A flexible tensor shorter than its own meta info is refused.
+ * @details The sub-plugins take the data size out of the meta header without
+ *          knowing how long the memory holding it is.
+ */
+TEST (testTensorDecoder, pushFlexibleInputTruncated_n)
+{
+  GstTensorsConfig config;
+  GstTensorMetaInfo meta;
+  GstHarness *h;
+  gsize hsize;
+
+  ASSERT_EQ (0, nnstreamer_decoder_custom_register ("tdec_size", _decoder_custom_cb, NULL));
+
+  gst_tensors_config_init (&config);
+  config.info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  h = _get_decoder_harness ("custom-code", "tdec_size", &config);
+  ASSERT_TRUE (h != NULL);
+
+  gst_tensor_meta_info_init (&meta);
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  decoder_custom_invoked = 0;
+
+  EXPECT_EQ (gst_harness_push (h, _get_flex_decoder_buffer (h, 64, hsize + 32)), GST_FLOW_ERROR);
+  EXPECT_EQ (decoder_custom_invoked, 0U);
+
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+  EXPECT_EQ (0, nnstreamer_decoder_custom_unregister ("tdec_size"));
+}
+
+/**
+ * @brief A flexible tensor long enough for a meta header but not holding one is refused.
+ * @details The memory passes the length guard, so this is the branch where the
+ *          content of the header itself decides.
+ */
+TEST (testTensorDecoder, pushFlexibleInputBrokenHeader_n)
+{
+  GstTensorsConfig config;
+  GstTensorMetaInfo meta;
+  GstHarness *h;
+  GstBuffer *buf;
+  gsize hsize;
+
+  ASSERT_EQ (0, nnstreamer_decoder_custom_register ("tdec_size", _decoder_custom_cb, NULL));
+
+  gst_tensors_config_init (&config);
+  config.info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  h = _get_decoder_harness ("custom-code", "tdec_size", &config);
+  ASSERT_TRUE (h != NULL);
+
+  gst_tensor_meta_info_init (&meta);
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  decoder_custom_invoked = 0;
+
+  buf = gst_harness_create_buffer (h, hsize + 64);
+  gst_buffer_memset (buf, 0, 0x11, hsize + 64);
+
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_ERROR);
+  EXPECT_EQ (decoder_custom_invoked, 0U);
+
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+  EXPECT_EQ (0, nnstreamer_decoder_custom_unregister ("tdec_size"));
+}
+
+/**
+ * @brief A flexible tensor declaring an unknown meta version is refused.
+ * @details The magic and the fields still validate, but the header layout of
+ *          another major version is unknown, so the data cannot be located.
+ */
+TEST (testTensorDecoder, pushFlexibleInputUnknownVersion_n)
+{
+  GstTensorsConfig config;
+  GstTensorMetaInfo meta;
+  GstHarness *h;
+  GstBuffer *buf;
+  GstMapInfo map;
+  gsize hsize;
+  guint major = 0;
+
+  ASSERT_EQ (0, nnstreamer_decoder_custom_register ("tdec_size", _decoder_custom_cb, NULL));
+
+  gst_tensors_config_init (&config);
+  config.info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  h = _get_decoder_harness ("custom-code", "tdec_size", &config);
+  ASSERT_TRUE (h != NULL);
+
+  gst_tensor_meta_info_init (&meta);
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  decoder_custom_invoked = 0;
+
+  buf = _get_flex_decoder_buffer (h, 64, hsize + 64);
+  ASSERT_TRUE (buf != NULL);
+
+  /**
+   * Keep the magic and raise the major of the version. The version marker and
+   * the major live in the second word of the header; both encodings are
+   * private to nnstreamer_plugin_api_util_impl.c, so the assertions below pin
+   * what this literal has to mean: a header that still validates, of a version
+   * whose layout cannot be sized. Without them a changed encoding would leave
+   * the case passing on the parse failure before the branch under test.
+   */
+  ASSERT_TRUE (gst_buffer_map (buf, &map, GST_MAP_WRITE));
+  ((uint32_t *) map.data)[1] = 0xDE002000U;
+
+  EXPECT_TRUE (gst_tensor_meta_info_parse_header (&meta, map.data));
+  EXPECT_TRUE (gst_tensor_meta_info_get_version (&meta, &major, NULL));
+  EXPECT_NE (major, 1U);
+  EXPECT_EQ (gst_tensor_meta_info_get_header_size (&meta), 0U);
+  gst_buffer_unmap (buf, &map);
+
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_ERROR);
+  EXPECT_EQ (decoder_custom_invoked, 0U);
+
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+  EXPECT_EQ (0, nnstreamer_decoder_custom_unregister ("tdec_size"));
+}
+
+/**
+ * @brief A flexible tensor too short to hold a meta header is refused.
+ */
+TEST (testTensorDecoder, pushFlexibleInputNoHeader_n)
+{
+  GstTensorsConfig config;
+  GstHarness *h;
+
+  ASSERT_EQ (0, nnstreamer_decoder_custom_register ("tdec_size", _decoder_custom_cb, NULL));
+
+  gst_tensors_config_init (&config);
+  config.info.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  h = _get_decoder_harness ("custom-code", "tdec_size", &config);
+  ASSERT_TRUE (h != NULL);
+
+  decoder_custom_invoked = 0;
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 16)), GST_FLOW_ERROR);
+  EXPECT_EQ (decoder_custom_invoked, 0U);
+
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+  EXPECT_EQ (0, nnstreamer_decoder_custom_unregister ("tdec_size"));
+}
+
+/**
+ * @brief An oversized buffer does not overrun the video frame of direct_video.
+ * @details direct_video copies as many bytes as the incoming memory holds into
+ *          an output frame sized from the negotiated dimensions.
+ */
+TEST (testTensorDecoder, pushDirectVideoInputSizeTooLarge_n)
+{
+  GstTensorsConfig config;
+  GstHarness *h;
+  gsize data_size;
+
+  _get_decoder_config (&config);
+  h = _get_decoder_harness ("direct_video", NULL, &config);
+  ASSERT_TRUE (h != NULL);
+
+  data_size = gst_tensors_info_get_size (&config.info, 0);
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, data_size * 64)), GST_FLOW_ERROR);
+
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
 }
 
 /**
