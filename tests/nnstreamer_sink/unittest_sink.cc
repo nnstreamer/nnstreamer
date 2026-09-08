@@ -4414,6 +4414,21 @@ test_custom_v0_setdim (const GstTensorFilterProperties *prop,
 }
 
 /**
+ * @brief Whether the open callback of the test sub-plugin has been called.
+ */
+static gboolean test_custom_v0_opened;
+
+/**
+ * @brief The optional callback for GstTensorFilterFramework.
+ */
+static int
+test_custom_v0_open (const GstTensorFilterProperties *prop, void **private_data)
+{
+  test_custom_v0_opened = TRUE;
+  return 0;
+}
+
+/**
  * @brief The optional callback for GstTensorFilterFramework.
  */
 static int
@@ -4605,6 +4620,343 @@ TEST (tensorStreamTest, subpluginV0Run)
   test_custom_run_pipeline ();
 
   /* unregister custom filter */
+  nnstreamer_filter_exit (test_fw_custom_name);
+  g_free (fw);
+}
+
+/**
+ * @brief Register the test sub-plugin that requires a model file.
+ * @return The allocated framework, to be freed after nnstreamer_filter_exit().
+ */
+static GstTensorFilterFramework *
+test_custom_v0_probe_with_model (void)
+{
+  GstTensorFilterFramework *fw = g_new0 (GstTensorFilterFramework, 1);
+
+  if (fw == NULL)
+    return NULL;
+
+  fw->version = GST_TENSOR_FILTER_FRAMEWORK_V0;
+  fw->name = (char *) test_fw_custom_name;
+  fw->run_without_model = FALSE;
+  fw->open = test_custom_v0_open;
+  fw->invoke_NN = test_custom_v0_invoke;
+  fw->setInputDimension = test_custom_v0_setdim;
+
+  test_custom_v0_opened = FALSE;
+  return fw;
+}
+
+/**
+ * @brief Test that a sub-plugin requiring a model is opened with one.
+ */
+TEST (tensorStreamTest, subpluginV0OpenWithModel)
+{
+  GstTensorFilterFramework *fw = test_custom_v0_probe_with_model ();
+  GstElement *filter;
+
+  ASSERT_TRUE (fw != NULL);
+  ASSERT_TRUE (nnstreamer_filter_probe (fw));
+
+  filter = gst_element_factory_make ("tensor_filter", NULL);
+  ASSERT_TRUE (filter != NULL);
+  g_object_set (filter, "framework", test_fw_custom_name, "model", "test-model", NULL);
+
+  EXPECT_EQ (gst_element_set_state (filter, GST_STATE_PAUSED), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_TRUE (test_custom_v0_opened);
+
+  gst_element_set_state (filter, GST_STATE_NULL);
+  gst_object_unref (filter);
+
+  nnstreamer_filter_exit (test_fw_custom_name);
+  g_free (fw);
+}
+
+/**
+ * @brief Test that a sub-plugin requiring a model is not opened without one.
+ */
+TEST (tensorStreamTest, subpluginV0OpenWithoutModel_n)
+{
+  GstTensorFilterFramework *fw = test_custom_v0_probe_with_model ();
+  GstElement *filter;
+
+  ASSERT_TRUE (fw != NULL);
+  ASSERT_TRUE (nnstreamer_filter_probe (fw));
+
+  filter = gst_element_factory_make ("tensor_filter", NULL);
+  ASSERT_TRUE (filter != NULL);
+  g_object_set (filter, "framework", test_fw_custom_name, NULL);
+
+  EXPECT_EQ (gst_element_set_state (filter, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  EXPECT_FALSE (test_custom_v0_opened);
+
+  gst_element_set_state (filter, GST_STATE_NULL);
+  gst_object_unref (filter);
+
+  nnstreamer_filter_exit (test_fw_custom_name);
+  g_free (fw);
+}
+
+/**
+ * @brief The flags the test V1 sub-plugin declares to the framework.
+ */
+static int test_custom_v1_run_without_model;
+static int test_custom_v1_verify_model_path;
+
+/**
+ * @brief Whether the test V1 sub-plugin fails to report its framework info.
+ */
+static gboolean test_custom_v1_fwinfo_fails;
+
+/**
+ * @brief The mandatory callback for GstTensorFilterFramework (v1).
+ * @details Unlike test_custom_v1_getFWInfo(), this one declares the model flags
+ *          the test asked for.
+ */
+static int
+test_custom_v1_getFWInfo_model (const GstTensorFilterFramework *self,
+    const GstTensorFilterProperties *prop, void *private_data,
+    GstTensorFilterFrameworkInfo *fw_info)
+{
+  if (test_custom_v1_fwinfo_fails)
+    return -EINVAL;
+
+  test_custom_v1_getFWInfo (self, prop, private_data, fw_info);
+  fw_info->run_without_model = test_custom_v1_run_without_model;
+  fw_info->verify_model_path = test_custom_v1_verify_model_path;
+  return 0;
+}
+
+/**
+ * @brief Register a V1 test sub-plugin that has an open callback.
+ * @param[in] run_without_model Whether the sub-plugin declares that it needs no model.
+ * @param[in] verify_model_path Whether the sub-plugin lets the framework test the paths.
+ * @return The allocated framework, to be freed after nnstreamer_filter_exit().
+ */
+static GstTensorFilterFramework *
+test_custom_v1_probe_open (int run_without_model, int verify_model_path)
+{
+  GstTensorFilterFramework *fw = g_new0 (GstTensorFilterFramework, 1);
+
+  if (fw == NULL)
+    return NULL;
+
+  fw->version = GST_TENSOR_FILTER_FRAMEWORK_V1;
+  fw->open = test_custom_v0_open;
+  fw->invoke = test_custom_v1_invoke;
+  fw->getFrameworkInfo = test_custom_v1_getFWInfo_model;
+  fw->getModelInfo = test_custom_v1_getModelInfo;
+  fw->eventHandler = test_custom_v1_eventHandler;
+
+  test_custom_v1_run_without_model = run_without_model;
+  test_custom_v1_verify_model_path = verify_model_path;
+  test_custom_v1_fwinfo_fails = FALSE;
+  test_custom_v0_opened = FALSE;
+  return fw;
+}
+
+/**
+ * @brief Test that a V1 sub-plugin declaring run_without_model is opened without a model.
+ */
+TEST (tensorStreamTest, subpluginV1OpenWithoutModel)
+{
+  GstTensorFilterFramework *fw = test_custom_v1_probe_open (1, 0);
+  GstElement *filter;
+
+  ASSERT_TRUE (fw != NULL);
+  ASSERT_TRUE (nnstreamer_filter_probe (fw));
+
+  filter = gst_element_factory_make ("tensor_filter", NULL);
+  ASSERT_TRUE (filter != NULL);
+  g_object_set (filter, "framework", test_fw_custom_name, NULL);
+
+  EXPECT_EQ (gst_element_set_state (filter, GST_STATE_PAUSED), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_TRUE (test_custom_v0_opened);
+
+  gst_element_set_state (filter, GST_STATE_NULL);
+  gst_object_unref (filter);
+
+  nnstreamer_filter_exit (test_fw_custom_name);
+  g_free (fw);
+}
+
+/**
+ * @brief Test that a V1 sub-plugin requiring a model is opened with an existing file.
+ */
+TEST (tensorStreamTest, subpluginV1OpenWithModel)
+{
+  GstTensorFilterFramework *fw = test_custom_v1_probe_open (0, 1);
+  GstElement *filter;
+  gchar *model_file = getTempFilename ();
+
+  ASSERT_TRUE (fw != NULL);
+  ASSERT_TRUE (model_file != NULL);
+  ASSERT_TRUE (nnstreamer_filter_probe (fw));
+
+  filter = gst_element_factory_make ("tensor_filter", NULL);
+  ASSERT_TRUE (filter != NULL);
+  g_object_set (filter, "framework", test_fw_custom_name, "model", model_file, NULL);
+
+  EXPECT_EQ (gst_element_set_state (filter, GST_STATE_PAUSED), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_TRUE (test_custom_v0_opened);
+
+  gst_element_set_state (filter, GST_STATE_NULL);
+  gst_object_unref (filter);
+
+  removeTempFile (&model_file);
+  nnstreamer_filter_exit (test_fw_custom_name);
+  g_free (fw);
+}
+
+/**
+ * @brief Test that a V1 sub-plugin requiring a model is not opened without one.
+ */
+TEST (tensorStreamTest, subpluginV1OpenWithoutModel_n)
+{
+  GstTensorFilterFramework *fw = test_custom_v1_probe_open (0, 1);
+  GstElement *filter;
+
+  ASSERT_TRUE (fw != NULL);
+  ASSERT_TRUE (nnstreamer_filter_probe (fw));
+
+  filter = gst_element_factory_make ("tensor_filter", NULL);
+  ASSERT_TRUE (filter != NULL);
+  g_object_set (filter, "framework", test_fw_custom_name, NULL);
+
+  EXPECT_EQ (gst_element_set_state (filter, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  EXPECT_FALSE (test_custom_v0_opened);
+
+  gst_element_set_state (filter, GST_STATE_NULL);
+  gst_object_unref (filter);
+
+  nnstreamer_filter_exit (test_fw_custom_name);
+  g_free (fw);
+}
+
+/**
+ * @brief Test that a model file the sub-plugin declared to be verified must exist.
+ */
+TEST (tensorStreamTest, subpluginV1OpenMissingModel_n)
+{
+  GstTensorFilterFramework *fw = test_custom_v1_probe_open (0, 1);
+  GstElement *filter;
+  gchar *model_file = getTempFilename ();
+
+  ASSERT_TRUE (fw != NULL);
+  ASSERT_TRUE (model_file != NULL);
+  ASSERT_TRUE (nnstreamer_filter_probe (fw));
+
+  g_remove (model_file);
+  ASSERT_FALSE (g_file_test (model_file, G_FILE_TEST_EXISTS));
+
+  filter = gst_element_factory_make ("tensor_filter", NULL);
+  ASSERT_TRUE (filter != NULL);
+  g_object_set (filter, "framework", test_fw_custom_name, "model", model_file, NULL);
+
+  EXPECT_EQ (gst_element_set_state (filter, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  EXPECT_FALSE (test_custom_v0_opened);
+
+  gst_element_set_state (filter, GST_STATE_NULL);
+  gst_object_unref (filter);
+
+  g_free (model_file);
+  nnstreamer_filter_exit (test_fw_custom_name);
+  g_free (fw);
+}
+
+/**
+ * @brief Test that a model entry the sub-plugin verifies itself is not tested as a file.
+ * @details mxnet takes a base path it derives file names from, and lua may carry a
+ *          script body; both declare verify_model_path = 0 to keep it unchecked.
+ */
+TEST (tensorStreamTest, subpluginV1OpenUnverifiedModel)
+{
+  GstTensorFilterFramework *fw = test_custom_v1_probe_open (0, 0);
+  GstElement *filter;
+
+  ASSERT_TRUE (fw != NULL);
+  ASSERT_TRUE (nnstreamer_filter_probe (fw));
+
+  filter = gst_element_factory_make ("tensor_filter", NULL);
+  ASSERT_TRUE (filter != NULL);
+  g_object_set (filter, "framework", test_fw_custom_name, "model", "not-a-file", NULL);
+
+  EXPECT_EQ (gst_element_set_state (filter, GST_STATE_PAUSED), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_TRUE (test_custom_v0_opened);
+
+  gst_element_set_state (filter, GST_STATE_NULL);
+  gst_object_unref (filter);
+
+  nnstreamer_filter_exit (test_fw_custom_name);
+  g_free (fw);
+}
+
+/**
+ * @brief Test that every model entry is verified, not only the first one.
+ */
+TEST (tensorStreamTest, subpluginV1OpenSecondModelMissing_n)
+{
+  GstTensorFilterFramework *fw = test_custom_v1_probe_open (0, 1);
+  GstElement *filter;
+  gchar *model_file = getTempFilename ();
+  gchar *missing_file = getTempFilename ();
+  gchar *models;
+
+  ASSERT_TRUE (fw != NULL);
+  ASSERT_TRUE (model_file != NULL && missing_file != NULL);
+  ASSERT_TRUE (nnstreamer_filter_probe (fw));
+
+  g_remove (missing_file);
+  models = g_strdup_printf ("%s,%s", model_file, missing_file);
+
+  filter = gst_element_factory_make ("tensor_filter", NULL);
+  ASSERT_TRUE (filter != NULL);
+  g_object_set (filter, "framework", test_fw_custom_name, "model", models, NULL);
+
+  EXPECT_EQ (gst_element_set_state (filter, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  EXPECT_FALSE (test_custom_v0_opened);
+
+  gst_element_set_state (filter, GST_STATE_NULL);
+  gst_object_unref (filter);
+
+  removeTempFile (&model_file);
+  g_free (missing_file);
+  g_free (models);
+  nnstreamer_filter_exit (test_fw_custom_name);
+  g_free (fw);
+}
+
+/**
+ * @brief Test that a sub-plugin which cannot report its framework info is not opened.
+ * @details Registration rejects such a sub-plugin, so the failure is made to start
+ *          only afterwards, the way a HAL backend that stops answering would. The
+ *          model property is set so that the refusal can only come from the failed
+ *          query: an unreported flag reads as "a model is needed", which a missing
+ *          model would satisfy on its own.
+ */
+TEST (tensorStreamTest, subpluginV1OpenNoFrameworkInfo_n)
+{
+  GstTensorFilterFramework *fw = test_custom_v1_probe_open (1, 0);
+  GstElement *filter;
+  gchar *model_file = getTempFilename ();
+
+  ASSERT_TRUE (fw != NULL);
+  ASSERT_TRUE (model_file != NULL);
+  ASSERT_TRUE (nnstreamer_filter_probe (fw));
+
+  filter = gst_element_factory_make ("tensor_filter", NULL);
+  ASSERT_TRUE (filter != NULL);
+  g_object_set (filter, "framework", test_fw_custom_name, "model", model_file, NULL);
+
+  test_custom_v1_fwinfo_fails = TRUE;
+  EXPECT_EQ (gst_element_set_state (filter, GST_STATE_PAUSED), GST_STATE_CHANGE_FAILURE);
+  EXPECT_FALSE (test_custom_v0_opened);
+  test_custom_v1_fwinfo_fails = FALSE;
+
+  gst_element_set_state (filter, GST_STATE_NULL);
+  gst_object_unref (filter);
+
+  removeTempFile (&model_file);
   nnstreamer_filter_exit (test_fw_custom_name);
   g_free (fw);
 }
