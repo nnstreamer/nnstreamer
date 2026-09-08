@@ -166,6 +166,13 @@ custom_open (const GstTensorFilterProperties * prop, void **private_data)
 {
   runtime_data *rd;
 
+  if (!prop->model_files || prop->num_models < 1 || !prop->model_files[0]
+      || prop->model_files[0][0] == '\0') {
+    ml_loge ("The easy-custom filter requires a registered model name. "
+        "Set the 'model' property of tensor_filter.");
+    return -EINVAL;
+  }
+
   rd = g_new (runtime_data, 1);
   if (!rd)
     return -ENOMEM;

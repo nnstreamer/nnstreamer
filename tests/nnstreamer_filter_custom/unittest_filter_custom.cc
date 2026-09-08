@@ -409,6 +409,49 @@ TEST (tensorFilterCustom, notRegisterFlexibleInvoke_n)
 }
 
 /**
+ * @brief Test custom-easy filter without the model property.
+ */
+TEST (tensorFilterCustom, easyOpenWithoutModel_n)
+{
+  GstElement *gstpipe;
+  GError *err = NULL;
+  const gchar *pipeline
+      = "videotestsrc num-buffers=3 ! videoconvert ! "
+        "video/x-raw,width=160,height=120,format=RGB,framerate=10/1 ! tensor_converter ! "
+        "tensor_filter framework=custom-easy ! tensor_sink sync=true";
+
+  gstpipe = gst_parse_launch (pipeline, &err);
+  ASSERT_TRUE (gstpipe != nullptr);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT),
+      -ESTRPIPE);
+
+  gst_object_unref (gstpipe);
+}
+
+/**
+ * @brief Test custom-easy filter with an empty model name.
+ * @details "," splits into two empty names, unlike "" which yields no name at all.
+ */
+TEST (tensorFilterCustom, easyOpenEmptyModel_n)
+{
+  GstElement *gstpipe;
+  GError *err = NULL;
+  const gchar *pipeline
+      = "videotestsrc num-buffers=3 ! videoconvert ! "
+        "video/x-raw,width=160,height=120,format=RGB,framerate=10/1 ! tensor_converter ! "
+        "tensor_filter framework=custom-easy model=\",\" ! tensor_sink sync=true";
+
+  gstpipe = gst_parse_launch (pipeline, &err);
+  ASSERT_TRUE (gstpipe != nullptr);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT),
+      -ESTRPIPE);
+
+  gst_object_unref (gstpipe);
+}
+
+/**
  * @brief Test dynamic invoke with invalid param.
  * @todo Enable the test after development is done.
  */
