@@ -7137,6 +7137,26 @@ class testTensorFilterCppSubplugin : public ::testing::Test
 };
 
 /**
+ * @brief Test that a C++ sub-plugin declaring run_without_model is opened by
+ *        the element without a model property.
+ * @details This drives cpp_getFrameworkInfo() with no private data, the path
+ *          every C++ sub-plugin takes while tensor_filter verifies the model.
+ */
+TEST_F (testTensorFilterCppSubplugin, elementOpenWithoutModel)
+{
+  GstElement *filter = gst_element_factory_make ("tensor_filter", NULL);
+
+  ASSERT_TRUE (filter != NULL);
+  g_object_set (filter, "framework", cpp_mock_subplugin::mock_name, NULL);
+
+  EXPECT_EQ (gst_element_set_state (filter, GST_STATE_PAUSED), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (cpp_mock_subplugin::resources_alive, 1U);
+
+  gst_element_set_state (filter, GST_STATE_NULL);
+  gst_object_unref (filter);
+}
+
+/**
  * @brief Test C++ subplugin open: when configure_instance() throws at any
  *        point, repeated open attempts must neither crash nor leak the
  *        spawned instance and the resources it acquired before throwing.

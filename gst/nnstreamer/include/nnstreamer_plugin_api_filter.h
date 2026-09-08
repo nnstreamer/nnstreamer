@@ -164,8 +164,8 @@ typedef struct _GstTensorFilterFrameworkInfo
   const char *name; /**< Name of the neural network framework, searchable by FRAMEWORK property. Subplugin is supposed to allocate/deallocate. */
   int allow_in_place; /**< TRUE(nonzero) if in-place transfer of input-to-output is allowed. Not supported in main, yet. */
   int allocate_in_invoke; /**< TRUE(nonzero) if invoke_NN is going to allocate output ptr by itself and return the address via output ptr. Do not change this value after cap negotiation is complete (or the stream has been started). */
-  int run_without_model; /**< TRUE(nonzero) when the neural network framework does not need a model file. Tensor-filter will run invoke_NN without model. */
-  int verify_model_path; /**< TRUE(nonzero) when the NNS framework, not the sub-plugin, should verify the path of model files. */
+  int run_without_model; /**< TRUE(nonzero) when the neural network framework does not need a model file. Tensor-filter will run invoke_NN without model. When this is FALSE, tensor-filter refuses to call open() unless the model property holds at least one entry, whatever verify_model_path says; a sub-plugin that defines no open callback is started without that check. */
+  int verify_model_path; /**< TRUE(nonzero) when the NNS framework, not the sub-plugin, should verify the path of model files. Consulted only when run_without_model is FALSE, and only to choose who tests that each given entry is a regular file. Declare FALSE if a model entry is not a path, or is a path the sub-plugin derives other paths from. */
   const accl_hw *hw_list; /**< List of supported hardware accelerators by the framework. Positive response of this check does not guarantee successful running of model with this accelerator. Subplugin is supposed to allocate/deallocate. */
   int num_hw; /**< number of hardware accelerators in the hw_list supported by the framework. */
   accl_hw accl_auto;  /**< accelerator to be used in auto mode (acceleration to be used but accelerator is not specified for the filter) - default -1 implies use first entry from hw_list. */
@@ -290,8 +290,8 @@ struct _GstTensorFilterFramework
       char *name; /**< Name of the neural network framework, searchable by FRAMEWORK property */
       int allow_in_place; /**< TRUE(nonzero) if in-place transfer of input-to-output is allowed. Not supported in main, yet */
       int allocate_in_invoke; /**< TRUE(nonzero) if invoke_NN is going to allocate output ptr by itself and return the address via output ptr. Do not change this value after cap negotiation is complete (or the stream has been started). */
-      int run_without_model; /**< TRUE(nonzero) when the neural network framework does not need a model file. Tensor-filter will run invoke_NN without model. */
-      int verify_model_path; /**< TRUE(nonzero) when the NNS framework, not the sub-plugin, should verify the path of model files. */
+      int run_without_model; /**< TRUE(nonzero) when the neural network framework does not need a model file. Tensor-filter will run invoke_NN without model. When this is FALSE, tensor-filter refuses to call open() unless the model property holds at least one entry, whatever verify_model_path says; a sub-plugin that defines no open callback is started without that check. */
+      int verify_model_path; /**< TRUE(nonzero) when the NNS framework, not the sub-plugin, should verify the path of model files. Consulted only when run_without_model is FALSE, and only to choose who tests that each given entry is a regular file. Declare FALSE if a model entry is not a path, or is a path the sub-plugin derives other paths from. */
 
       const GstTensorFilterFrameworkStatistics *statistics;  /**< usage statistics by the framework. This is shared across all opened instances of this framework. */
 
@@ -421,6 +421,7 @@ struct _GstTensorFilterFramework
        * @return 0 if OK. non-zero if error.
        *
        * @note CAUTION: private_data can be NULL if the framework is not yet opened by the caller.
+       * @note Tensor-filter issues this query before open() as well, to read run_without_model and verify_model_path. A sub-plugin that cannot report those two without an opened model is refused an open.
        */
 
       int (*getModelInfo) (const GstTensorFilterFramework * self,

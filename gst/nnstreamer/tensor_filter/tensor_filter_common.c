@@ -86,6 +86,8 @@ static gint _gtfc_setprop_IS_UPDATABLE (GstTensorFilterPrivate * priv,
     GstTensorFilterProperties * prop, const GValue * value);
 static gint _gtfc_setprop_ACCELERATOR (GstTensorFilterPrivate * priv,
     GstTensorFilterProperties * prop, const GValue * value);
+static void gst_tensor_filter_framework_info_init (GstTensorFilterFrameworkInfo
+    * info);
 
 /**
  * @brief mutex for shared model table.
@@ -459,7 +461,10 @@ create_regex (const gchar ** enum_list, const gchar ** regex_utils)
 }
 
 /**
- * @brief Verify validity of path for given model file if verify_model_path is set
+ * @brief Verify that the sub-plugin may be opened with the given model property
+ * @details A sub-plugin that does not declare run_without_model requires at least
+ *          one model entry; on top of that, each entry is checked to be a regular
+ *          file only if the sub-plugin declares verify_model_path.
  * @param[in] priv Struct containing the common tensor-filter properties of the object
  * @return TRUE if there is no error
  */
@@ -474,33 +479,41 @@ verify_model_path (const GstTensorFilterPrivate * priv)
 
   prop = &(priv->prop);
 
-  if (g_strcmp0 (prop->fwname, "custom-easy") == 0)
-    return TRUE;
-
   run_without_model = verify_model_path = 0;
 
   if (GST_TF_FW_V0 (priv->fw)) {
     run_without_model = priv->fw->run_without_model;
     verify_model_path = priv->fw->verify_model_path;
   } else if (GST_TF_FW_V1 (priv->fw)) {
-    run_without_model = priv->info.run_without_model;
-    verify_model_path = priv->info.verify_model_path;
+    GstTensorFilterFrameworkInfo info;
+
+    /* priv->info is filled after open(), so ask the sub-plugin directly. */
+    gst_tensor_filter_framework_info_init (&info);
+    if (priv->fw->getFrameworkInfo (priv->fw, prop, NULL, &info) != 0) {
+      ml_loge ("Cannot get the framework info of filter %s.", prop->fwname);
+      return FALSE;
+    }
+
+    run_without_model = info.run_without_model;
+    verify_model_path = info.verify_model_path;
   } else {
     /* Invalid version, internal error? */
     return FALSE;
   }
 
-  if (!run_without_model && verify_model_path) {
+  if (!run_without_model) {
     /* At least one model should be configured before opening fw. */
-    if (prop->num_models <= 0) {
+    if (prop->num_models <= 0 || prop->model_files == NULL) {
       ml_loge ("Set proper model file for filter %s.", prop->fwname);
       return FALSE;
     }
 
-    for (i = 0; i < prop->num_models; i++) {
-      if (!g_file_test (prop->model_files[i], G_FILE_TEST_IS_REGULAR)) {
-        ml_loge ("Cannot find the model file[%d] %s", i, prop->model_files[i]);
-        return FALSE;
+    if (verify_model_path) {
+      for (i = 0; i < prop->num_models; i++) {
+        if (!g_file_test (prop->model_files[i], G_FILE_TEST_IS_REGULAR)) {
+          ml_loge ("Cannot find the model file[%d] %s", i, prop->model_files[i]);
+          return FALSE;
+        }
       }
     }
   }
