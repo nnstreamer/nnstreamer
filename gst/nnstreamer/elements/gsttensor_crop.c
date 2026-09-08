@@ -577,6 +577,8 @@ gst_tensor_crop_get_crop_info (GstTensorCrop * self, GstBuffer * info,
   mem = gst_tensor_buffer_get_nth_memory (info, 0);
   if (!gst_memory_map (mem, &map, GST_MAP_READ)) {
     GST_ERROR_OBJECT (self, "Failed to map the info buffer.");
+    gst_memory_unref (mem);
+    mem = NULL;
     goto done;
   }
 
@@ -671,6 +673,8 @@ gst_tensor_crop_do_cropping (GstTensorCrop * self, GstBuffer * raw,
   mem = gst_tensor_buffer_get_nth_memory (raw, 0);
   if (!gst_memory_map (mem, &map, GST_MAP_READ)) {
     GST_ERROR_OBJECT (self, "Failed to map the raw buffer.");
+    gst_memory_unref (mem);
+    mem = NULL;
     goto done;
   }
 
@@ -703,12 +707,22 @@ gst_tensor_crop_do_cropping (GstTensorCrop * self, GstBuffer * raw,
     GstTensorInfo crop_info;
     GstMemory *crop_mem;
 
-    _x = (cinfo->region[i].x < mw) ? cinfo->region[i].x : mw;
-    _y = (cinfo->region[i].y < mh) ? cinfo->region[i].y : mh;
-    _w = (_x + cinfo->region[i].w - 1 < mw) ? cinfo->region[i].w : (mw - _x);
-    _h = (_y + cinfo->region[i].h - 1 < mh) ? cinfo->region[i].h : (mh - _y);
+    /* a zero size means the rest of the frame, as it always has */
+    _x = MIN (cinfo->region[i].x, mw);
+    _y = MIN (cinfo->region[i].y, mh);
+    _w = (cinfo->region[i].w > 0) ?
+        MIN (cinfo->region[i].w, mw - _x) : (mw - _x);
+    _h = (cinfo->region[i].h > 0) ?
+        MIN (cinfo->region[i].h, mh - _y) : (mh - _y);
 
-    g_assert (_w > 0 && _h > 0);
+    if (_w == 0 || _h == 0) {
+      GST_WARNING_OBJECT (self,
+          "Skip the crop region %u [%u, %u, %u, %u], the raw data is %u:%u.", i,
+          cinfo->region[i].x, cinfo->region[i].y, cinfo->region[i].w,
+          cinfo->region[i].h, mw, mh);
+      continue;
+    }
+
     dsize = hsize + (esize * ch * _w * _h);
     cropped = (guint8 *) g_malloc0 (dsize);
 
@@ -731,6 +745,12 @@ gst_tensor_crop_do_cropping (GstTensorCrop * self, GstBuffer * raw,
 
     gst_tensor_buffer_append_memory (result, crop_mem, &crop_info);
     gst_tensor_info_free (&crop_info);
+  }
+
+  if (gst_buffer_n_memory (result) == 0) {
+    GST_ERROR_OBJECT (self, "No crop region of the info buffer is usable.");
+    gst_buffer_replace (&result, NULL);
+    goto done;
   }
 
   /* set timestamp from raw buffer */
