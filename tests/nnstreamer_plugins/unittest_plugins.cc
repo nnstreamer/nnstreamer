@@ -9884,8 +9884,6 @@ _crop_test_set_raw_caps (crop_test_data_s *crop_test)
 
 /**
  * @brief Push a buffer of two memories to the given pad.
- * @details gst_tensor_buffer_from_config() passes a multi-memory buffer through
- *          as it is, so the element receives the given memories unchanged.
  */
 static void
 _crop_test_push_two_memories (GstHarness *h, gsize first, gsize second)
@@ -9911,6 +9909,7 @@ _crop_test_unmap_guarded (gpointer base)
  * @brief Create a memory of @a size bytes that is followed by an unreadable page.
  * @details Reading a single byte past the memory faults, which turns an
  *          out-of-bounds read into a deterministic failure without valgrind.
+ * @note @a size cannot exceed the page size, the memory ends on a page boundary.
  * @return The memory, or NULL when the guarded mapping is not available.
  */
 static GstMemory *
@@ -10459,6 +10458,43 @@ _crop_test_set_region (crop_test_data_s *crop_test, guint x, guint y, guint w, g
 }
 
 /**
+ * @brief Check the single cropped tensor against the expected elements.
+ */
+static void
+_crop_test_compare_single (crop_test_data_s *crop_test, guint width,
+    guint height, const guint *expected)
+{
+  GstBuffer *out_buf;
+  GstMemory *mem;
+  GstMapInfo map;
+  GstTensorMetaInfo meta;
+  gsize hsize;
+  guint i;
+  guint *cropped;
+
+  out_buf = gst_harness_pull (crop_test->crop);
+  ASSERT_EQ (gst_buffer_n_memory (out_buf), 1U);
+
+  mem = gst_buffer_peek_memory (out_buf, 0);
+  ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_READ));
+
+  gst_tensor_meta_info_parse_header (&meta, map.data);
+  EXPECT_EQ (meta.dimension[0], 1U);
+  EXPECT_EQ (meta.dimension[1], width);
+  EXPECT_EQ (meta.dimension[2], height);
+
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  cropped = (guint *) (map.data + hsize);
+  EXPECT_EQ (map.size - hsize, sizeof (guint) * width * height);
+
+  for (i = 0; i < width * height; i++)
+    EXPECT_EQ (cropped[i], expected[i]);
+
+  gst_memory_unmap (mem, &map);
+  gst_buffer_unref (out_buf);
+}
+
+/**
  * @brief Wait for tensor_crop to handle the pushed buffers, expecting no output.
  * @details The element decides in its chain function, so a short budget is
  *          enough; a case that regresses crashes there instead of timing out.
@@ -10475,6 +10511,153 @@ _crop_test_wait_for_no_output (crop_test_data_s *crop_test)
   }
 
   return gst_harness_buffers_received (crop_test->crop);
+}
+
+/**
+ * @brief Test for tensor_crop, a region wider than the frame is clamped.
+ * @details Without the fix the width is kept as it is, because the bounds test
+ *          'x + w - 1 < width' wraps around in 32-bit arithmetic.
+ */
+TEST (testTensorCrop, cropRegionWidthOverflow)
+{
+  crop_test_data_s crop_test;
+  const guint expected[] = { 3U, 4U, 5U, 6U, 7U, 8U, 9U, 10U };
+
+  _crop_test_init (&crop_test);
+  _crop_test_prepare_single_region (&crop_test);
+
+  /* the width wraps 'x + w - 1' to 0 */
+  _crop_test_set_region (&crop_test, 2U, 0U, G_MAXUINT32, 1U);
+
+  _crop_test_push_buffer (&crop_test);
+  EXPECT_EQ (crop_test.received, 1U);
+
+  if (crop_test.received > 0)
+    _crop_test_compare_single (&crop_test, 8U, 1U, expected);
+
+  _crop_test_free (&crop_test);
+}
+
+/**
+ * @brief Test for tensor_crop, a region taller than the frame is clamped.
+ * @details Without the fix the height is kept as it is, because the bounds test
+ *          'y + h - 1 < height' wraps around in 32-bit arithmetic.
+ */
+TEST (testTensorCrop, cropRegionHeightOverflow)
+{
+  crop_test_data_s crop_test;
+  const guint expected[] = { 21U, 31U };
+
+  _crop_test_init (&crop_test);
+  _crop_test_prepare_single_region (&crop_test);
+
+  /* the height wraps 'y + h - 1' to 0 */
+  _crop_test_set_region (&crop_test, 0U, 2U, 1U, G_MAXUINT32);
+
+  _crop_test_push_buffer (&crop_test);
+  EXPECT_EQ (crop_test.received, 1U);
+
+  if (crop_test.received > 0)
+    _crop_test_compare_single (&crop_test, 1U, 2U, expected);
+
+  _crop_test_free (&crop_test);
+}
+
+/**
+ * @brief Test for tensor_crop, a region of zero width crops the rest of the row.
+ * @details Without the fix the clamped width is 0 and the element aborts, unless
+ *          the region also starts at 0, which the tensor_region decoder relies on.
+ */
+TEST (testTensorCrop, cropRegionZeroWidth)
+{
+  crop_test_data_s crop_test;
+  const guint expected[] = { 4U, 5U, 6U, 7U, 8U, 9U, 10U };
+
+  _crop_test_init (&crop_test);
+  _crop_test_prepare_single_region (&crop_test);
+
+  _crop_test_set_region (&crop_test, 3U, 0U, 0U, 1U);
+
+  _crop_test_push_buffer (&crop_test);
+  EXPECT_EQ (crop_test.received, 1U);
+
+  if (crop_test.received > 0)
+    _crop_test_compare_single (&crop_test, 7U, 1U, expected);
+
+  _crop_test_free (&crop_test);
+}
+
+/**
+ * @brief Test for tensor_crop, an all-zero region crops the whole frame.
+ * @details The tensor_region decoder zero-fills the crop-info slots it has no
+ *          detection for, so this is what a pipeline of it emits every time
+ *          there are fewer detections than 'option1' asks for.
+ */
+TEST (testTensorCrop, cropRegionZeroIsWholeFrame)
+{
+  crop_test_data_s crop_test;
+  GstBuffer *out_buf;
+  guint i;
+  guint *_info;
+
+  _crop_test_init (&crop_test);
+  _crop_test_prepare_single_region (&crop_test);
+
+  /* one detected region and one the decoder left empty */
+  crop_test.info_size = sizeof (guint) * 8U;
+  crop_test.info_num = 2U;
+  g_free (crop_test.info_data);
+  crop_test.info_data = g_malloc0 (crop_test.info_size);
+  _info = (guint *) crop_test.info_data;
+  _info[0] = 3U;
+  _info[1] = 0U;
+  _info[2] = 3U;
+  _info[3] = 1U;
+
+  _crop_test_push_buffer (&crop_test);
+  ASSERT_EQ (crop_test.received, 1U);
+
+  out_buf = gst_harness_pull (crop_test.crop);
+  ASSERT_EQ (gst_buffer_n_memory (out_buf), 2U);
+
+  for (i = 0; i < 2U; i++) {
+    GstMemory *mem = gst_buffer_peek_memory (out_buf, i);
+    GstMapInfo map;
+    GstTensorMetaInfo meta;
+
+    ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_READ));
+    ASSERT_TRUE (gst_tensor_meta_info_parse_header (&meta, map.data));
+    EXPECT_EQ (meta.dimension[1], (i == 0) ? 3U : 10U);
+    EXPECT_EQ (meta.dimension[2], (i == 0) ? 1U : 4U);
+    gst_memory_unmap (mem, &map);
+  }
+
+  gst_buffer_unref (out_buf);
+  _crop_test_free (&crop_test);
+}
+
+/**
+ * @brief Test for tensor_crop, a region starting outside the frame is skipped.
+ * @details Without the fix the clamped width is 0 and the element aborts; here
+ *          it is the only region, so the buffer as a whole has nothing to crop.
+ */
+TEST (testTensorCrop, cropRegionOutOfFrame_n)
+{
+  crop_test_data_s crop_test;
+
+  _crop_test_init (&crop_test);
+  _crop_test_prepare_single_region (&crop_test);
+
+  /* the raw data is 10 wide */
+  _crop_test_set_region (&crop_test, 10U, 0U, 2U, 1U);
+
+  _crop_test_set_raw_caps (&crop_test);
+  _crop_test_push_raw_buffer (&crop_test, crop_test.ts_raw);
+  _crop_test_push_info_buffer (&crop_test, crop_test.ts_info);
+  crop_test.received = _crop_test_wait_for_no_output (&crop_test);
+  EXPECT_EQ (crop_test.received, 0U);
+
+  _crop_test_free (&crop_test);
 }
 
 /**
@@ -10571,7 +10754,7 @@ TEST (testTensorCrop, cropRawConfigMismatch_n)
   _crop_test_free (&crop_test);
 }
 
-/* set by _record_critical() when a critical is logged */
+/* set by _crop_record_critical() when a critical is logged */
 static gboolean tensor_crop_logged_critical;
 
 /**
