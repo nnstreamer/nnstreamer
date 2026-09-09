@@ -2942,6 +2942,244 @@ TEST (testTensorTransform, arithmeticPerChannel)
 }
 
 /**
+ * @brief Test for tensor_transform arithmetic, per-channel with acceleration
+ */
+TEST (testTensorTransform, arithmeticPerChannelAccel)
+{
+  const guint array_size = 6; /* 3 channels of 2 pixels */
+
+  GstHarness *h;
+  GstBuffer *in_buf, *out_buf;
+  GstTensorsConfig config;
+  GstMemory *mem;
+  GstMapInfo info;
+  guint i;
+  gsize data_size;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option",
+      "per-channel:true@0,add:10@1", NULL);
+  g_object_set (h->element, "acceleration", (gboolean) TRUE, NULL);
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1U;
+  config.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("3:2:1:1", config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  data_size = gst_tensors_info_get_size (&config.info, 0);
+
+  in_buf = gst_harness_create_buffer (h, data_size);
+  mem = gst_buffer_peek_memory (in_buf, 0);
+  ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_WRITE));
+  for (i = 0; i < array_size; i++)
+    ((uint8_t *) info.data)[i] = (uint8_t) i;
+  gst_memory_unmap (mem, &info);
+
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+  out_buf = gst_harness_pull (h);
+  ASSERT_TRUE (out_buf != NULL);
+  ASSERT_EQ (gst_buffer_get_size (out_buf), data_size);
+
+  mem = gst_buffer_peek_memory (out_buf, 0);
+  ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_READ));
+  for (i = 0; i < array_size; i++) {
+    uint8_t expected = (uint8_t) (i + ((i % 3 == 1) ? 10 : 0));
+    EXPECT_EQ (((uint8_t *) info.data)[i], expected);
+  }
+  gst_memory_unmap (mem, &info);
+  gst_buffer_unref (out_buf);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Configure tensor_transform for the per-channel arithmetic tests.
+ */
+static GstHarness *
+_arith_per_channel_harness (const gchar *option, gboolean accel)
+{
+  GstHarness *h;
+  GstTensorsConfig config;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  if (!h)
+    return NULL;
+
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", option, NULL);
+  g_object_set (h->element, "acceleration", accel, NULL);
+
+  g_object_get (h->element, "option", &str, NULL);
+  if (!str) {
+    gst_harness_teardown (h);
+    return NULL;
+  }
+  g_free (str);
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1U;
+  config.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("3:4:4:1", config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  return h;
+}
+
+/**
+ * @brief Test for tensor_transform arithmetic, the documented channel dimension range
+ */
+TEST (testTensorTransform, arithmeticPerChannelDimBound)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  /* the option regex spells the rank limit out, keep the two in step */
+  ASSERT_EQ (NNS_TENSOR_RANK_LIMIT, 16);
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option",
+      "per-channel:true@15,add:1", NULL);
+
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_STREQ (str, "per-channel:true@15,add:1");
+  g_free (str);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_transform arithmetic, channel dimension out of the rank
+ */
+TEST (testTensorTransform, arithmeticPerChannelDimOutOfRank_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option",
+      "per-channel:true@16,add:1", NULL);
+
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_transform arithmetic, channel dimension wrapping the rank
+ */
+TEST (testTensorTransform, arithmeticPerChannelDimOverflow_n)
+{
+  GstHarness *h;
+  gchar *str = NULL;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  /* a dimension index out of the rank, which truncates to 0 in 32 bits */
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option",
+      "per-channel:true@4294967296,add:1", NULL);
+
+  g_object_get (h->element, "option", &str, NULL);
+  EXPECT_TRUE (str == NULL);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_transform arithmetic, channel dimension not in the tensor
+ */
+TEST (testTensorTransform, arithmeticPerChannelDimNotInTensor_n)
+{
+  GstHarness *h;
+
+  h = _arith_per_channel_harness ("per-channel:true@5,add:1", FALSE);
+  ASSERT_TRUE (NULL != h);
+
+  EXPECT_EQ (_push_tensor_of_size (h, 48U), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_transform arithmetic, channel dimension not in the tensor
+ */
+TEST (testTensorTransform, arithmeticPerChannelDimNotInTensorAccel_n)
+{
+  GstHarness *h;
+
+  h = _arith_per_channel_harness ("per-channel:true@5,add:1", TRUE);
+  ASSERT_TRUE (NULL != h);
+
+  EXPECT_EQ (_push_tensor_of_size (h, 48U), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_transform arithmetic, channel index out of the channels
+ */
+TEST (testTensorTransform, arithmeticPerChannelIndexOutOfRange_n)
+{
+  GstHarness *h;
+
+  h = _arith_per_channel_harness ("per-channel:true@0,add:1@10", FALSE);
+  ASSERT_TRUE (NULL != h);
+
+  EXPECT_EQ (_push_tensor_of_size (h, 48U), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_transform arithmetic, channel index out of the channels
+ */
+TEST (testTensorTransform, arithmeticPerChannelIndexOutOfRangeAccel_n)
+{
+  GstHarness *h;
+
+  h = _arith_per_channel_harness ("per-channel:true@0,add:1@10", TRUE);
+  ASSERT_TRUE (NULL != h);
+
+  EXPECT_EQ (_push_tensor_of_size (h, 48U), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_transform arithmetic, channel index wrapping the int range
+ */
+TEST (testTensorTransform, arithmeticPerChannelIndexOverflow_n)
+{
+  GstHarness *h;
+
+  /* 4294967296 is 0 when it is truncated to a 32bit index */
+  h = _arith_per_channel_harness ("per-channel:true@0,add:1@4294967296", FALSE);
+  ASSERT_TRUE (NULL != h);
+
+  EXPECT_EQ (_push_tensor_of_size (h, 48U), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Test for tensor_transform arithmetic (changing option string dynamically)
  */
 TEST (testTensorTransform, arithmeticChangeOptionString)

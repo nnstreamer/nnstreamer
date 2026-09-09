@@ -75,7 +75,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_tensor_transform_debug);
     "((([-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?)))$"
 #define REGEX_PADDING_OPTION "^((left|right|top|bottom|front|back):(\\d)(,)?)+(layout:(NCHW|NHWC))?$"
 #define REGEX_ARITH_OPTION "^(typecast:([u]?int(8|16|32|64)|float(16|32|64)),)?"\
-    "(per-channel:(false|true@[0-9]+),)?"\
+    "(per-channel:(false|true@(0*([0-9]|1[0-5]))),)?"\
     "(((add|mul|div)(:([-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?))+(@[0-9]+)?)(,|))+$"
 
 #define REGEX_ARITH_OPTION_TYPECAST "(typecast:([u]?int(8|16|32|64)|float(16|32|64)))"
@@ -192,7 +192,8 @@ gst_tensor_transform_mode_get_type (void)
       {GTT_TYPECAST, "Mode for casting type of tensor, "
             "option=" REGEX_TYPECAST_OPTION, "typecast"},
       {GTT_ARITHMETIC, "Mode for arithmetic operations with tensor, "
-            "option=[typecast:TYPE,][per-channel:(false|true@DIM),]add|mul|div:NUMBER[@CH_IDX], ...",
+            "option=[typecast:TYPE,][per-channel:(false|true@DIM),]add|mul|div:NUMBER[@CH_IDX], ..."
+            " (DIM is less than NNS_TENSOR_RANK_LIMIT, 16, and CH_IDX is one of the channels)",
           "arithmetic"},
       {GTT_TRANSPOSE, "Mode for transposing shape of tensor, "
             "option=D1\':D2\':D3\':D4 (fixed to 3)",
@@ -776,8 +777,8 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
       if (!g_regex_match_simple (REGEX_ARITH_OPTION, str_option,
               G_REGEX_CASELESS, 0)) {
         ml_loge
-            ("%s: arithmetic: \'%s\' is not valid option string: it should be in the form of [typecast:TYPE,][per-channel:(false|true@DIM),]add|mul|div:NUMBER[@CH_IDX]..., ...\n",
-            filter_name, str_option);
+            ("%s: arithmetic: \'%s\' is not valid option string: it should be in the form of [typecast:TYPE,][per-channel:(false|true@DIM),]add|mul|div:NUMBER[@CH_IDX]..., ..., where DIM is less than %d\n",
+            filter_name, str_option, NNS_TENSOR_RANK_LIMIT);
         g_free (str_option);
         break;
       }
@@ -843,7 +844,10 @@ gst_tensor_transform_set_option_data (GstTensorTransform * filter)
                 }
 
                 if (filter->data_arithmetic.per_channel_arith && num_values > 1) {
-                  op_s->applying_ch = g_ascii_strtoll (values[1], NULL, 10);
+                  int64_t ch = g_ascii_strtoll (values[1], NULL, 10);
+
+                  /* the range check needs the channel count, saturate here */
+                  op_s->applying_ch = (int) MIN (ch, G_MAXINT);
                 }
 
               } else {
@@ -1378,6 +1382,48 @@ gst_tensor_transform_typecast (GstTensorTransform * filter,
 }
 
 /**
+ * @brief Check whether the per-channel arithmetic option fits the given tensor.
+ * @param[in] filter "this" pointer
+ * @param[in] in_info input tensor info
+ * @return TRUE if the channel dimension and every channel index are in range
+ */
+static gboolean
+gst_tensor_transform_check_per_channel (GstTensorTransform * filter,
+    const GstTensorInfo * in_info)
+{
+  guint i, ch_dim, num_ch;
+  GSList *walk;
+
+  ch_dim = filter->data_arithmetic.ch_dim;
+  if (ch_dim >= NNS_TENSOR_RANK_LIMIT) {
+    ml_loge ("The channel dimension index %u is out of range.\n", ch_dim);
+    return FALSE;
+  }
+
+  for (i = 0; i <= ch_dim; i++) {
+    if (in_info->dimension[i] == 0) {
+      ml_loge
+          ("The input tensor has no %u-th dimension, cannot apply the per-channel arithmetic to its %u-th dimension.\n",
+          i, ch_dim);
+      return FALSE;
+    }
+  }
+
+  num_ch = in_info->dimension[ch_dim];
+  for (walk = filter->operators; walk; walk = g_slist_next (walk)) {
+    int ch = ((tensor_transform_operator_s *) walk->data)->applying_ch;
+
+    if (ch < -1 || (ch >= 0 && (guint) ch >= num_ch)) {
+      ml_loge ("The channel index %d is out of range (0 <= index < %u).\n",
+          ch, num_ch);
+      return FALSE;
+    }
+  }
+
+  return TRUE;
+}
+
+/**
  * @brief subrouting for tensor-transform, "arithmetic" case.
  * @param[in/out] filter "this" pointer
  * @param[in] in_info input tensor info
@@ -1399,6 +1445,10 @@ gst_tensor_transform_arithmetic (GstTensorTransform * filter,
   tensor_data_s value;
 
   num = gst_tensor_get_element_count (in_info->dimension);
+
+  if (filter->data_arithmetic.per_channel_arith &&
+      !gst_tensor_transform_check_per_channel (filter, in_info))
+    return GST_FLOW_ERROR;
 
 #ifdef HAVE_ORC
   if (filter->acceleration) {

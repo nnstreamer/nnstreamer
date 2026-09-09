@@ -65,6 +65,7 @@ title: tensor_transform
         ```
 
       - For "per-channel", DIM means the dimension which should be viewed as channel and CH_IDX means the idx of channel the given operation should be applied to. When CH_IDX is not given, the operation is applied to all channels.
+      - DIM should be less than NNS_TENSOR_RANK_LIMIT (16), and the incoming tensor should have that dimension. CH_IDX should be one of the channels of that dimension. An option outside those ranges is refused, and so is a stream the option does not fit.
       - Example 3: Add 255 only for 1-th channel when 0-th dim is channel (for RGB image, add 255 for G channel)
 
         ```bash
