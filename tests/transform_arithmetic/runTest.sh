@@ -141,6 +141,11 @@ video/x-raw,format=RGB,width=8,height=4 ! filesink location=\"black_channel_op.l
 " 9 0 0 $PERFORMANCE
 callCompareTest black_channel_op.log red.log 9-1 "Compare red RGB value" 1 0
 
+# Fail Test for the per-channel operand of a channel the tensor does not have
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc pattern=2 num-buffers=1 ! videoscale ! \
+videoconvert ! video/x-raw,format=RGB,width=8,height=4 ! tensor_converter ! \
+tensor_transform mode=arithmetic option=per-channel:true@0,add:255@5 ! fakesink sync=true" 10_n 0 1 $PERFORMANCE
+
 rm *.log *.bmp *.png *.golden *.raw *.dat
 
 report
