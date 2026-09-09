@@ -374,6 +374,8 @@ gst_tensor_merge_sink_event (GstCollectPads * pads, GstCollectData * data,
  * @param in_config in tensors config data (multi tensors)
  * @param out_config out tensors config data (single tensor)
  * @return true / false
+ * @note Every FALSE return posts the reason on the bus, which is what lets
+ *       gst_tensor_merge_set_src_caps() give up without adding a vaguer one.
  */
 static gboolean
 gst_tensor_merge_get_merged_config (GstTensorMerge * tensor_merge,
@@ -398,8 +400,11 @@ gst_tensor_merge_get_merged_config (GstTensorMerge * tensor_merge,
   for (i = 1; i < in_config->info.num_tensors; i++) {
     _info = gst_tensors_info_get_nth_info (in_info, i);
 
-    if (type != _info->type)
-      GST_ELEMENT_ERROR (tensor_merge, CORE, NEGOTIATION, (NULL), (NULL));
+    if (type != _info->type) {
+      GST_ELEMENT_ERROR (tensor_merge, CORE, NEGOTIATION, (NULL),
+          ("The tensor type of the input %u does not match the input 0.", i));
+      return FALSE;
+    }
   }
 
   switch (tensor_merge->mode) {
@@ -413,9 +418,12 @@ gst_tensor_merge_get_merged_config (GstTensorMerge * tensor_merge,
           if (j == targetIdx) {
             dim[j] += _info->dimension[j];
           } else {
-            if (dim[j] != _info->dimension[j])
+            if (dim[j] != _info->dimension[j]) {
               GST_ELEMENT_ERROR (tensor_merge, CORE, NEGOTIATION, (NULL),
-                  (NULL));
+                  ("The dimension %d of the input %u does not match the input 0.",
+                      j, i));
+              return FALSE;
+            }
           }
         }
       }
@@ -431,6 +439,8 @@ gst_tensor_merge_get_merged_config (GstTensorMerge * tensor_merge,
     }
       break;
     default:
+      GST_ELEMENT_ERROR (tensor_merge, CORE, NEGOTIATION, (NULL),
+          ("The merge mode is not set to one this element knows."));
       ret = FALSE;
   }
 
@@ -465,6 +475,39 @@ gst_tensor_merge_collect_buffer (GstTensorMerge * tensor_merge,
 }
 
 /**
+ * @brief Get the number of bytes the merge reads from one input tensor.
+ * @details The copy loop takes the dimensions above the merge direction from
+ *          input 0 and the dimensions up to it from the input itself, and it
+ *          strides every input with the element size of input 0. What the loop
+ *          consumes is therefore not what the input's own caps declare: the two
+ *          part company as soon as a sink pad renegotiates, which does not
+ *          re-run the check in gst_tensor_merge_get_merged_config().
+ * @param tensor_merge tensor merger
+ * @param dim the dimensions of input 0
+ * @param element_size the element size of input 0
+ * @param info the tensor info of the input to measure
+ * @return the size in bytes, 0 if a dimension the loop needs is unset
+ * @note The direction is always one of the four the loop knows: an option
+ *       string it does not recognise leaves the previous one in place, and a
+ *       mode other than linear is refused while the source caps are negotiated.
+ */
+static gsize
+gst_tensor_merge_get_input_size (GstTensorMerge * tensor_merge,
+    const tensor_dim dim, gsize element_size, const GstTensorInfo * info)
+{
+  tensor_merge_linear_mode direction = tensor_merge->data_linear.direction;
+  gsize size = element_size;
+  guint i;
+
+  for (i = 0; i <= (guint) direction; i++)
+    size *= info->dimension[i];
+  for (i = (guint) direction + 1; i <= LINEAR_FOURTH; i++)
+    size *= dim[i];
+
+  return size;
+}
+
+/**
  * @brief Generate Output GstMemory
  * @param tensor_merge tensor merger
  * @param tensors_buf collected tensors buffer
@@ -487,7 +530,7 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
   guint i, j, k, l;
   size_t c, s;
   gsize outSize = 0;
-  gsize element_size;
+  gsize element_size, expected;
   tensor_dim dim;
   tensor_type type;
 
@@ -507,6 +550,21 @@ gst_tensor_merge_generate_mem (GstTensorMerge * tensor_merge,
       ret = GST_FLOW_ERROR;
       goto error_ret;
     }
+
+    _info = gst_tensors_info_get_nth_info (info, i);
+    expected = gst_tensor_merge_get_input_size (tensor_merge, dim,
+        element_size, _info);
+    if (mInfo[i].size != expected) {
+      GST_ELEMENT_ERROR (tensor_merge, STREAM, WRONG_TYPE,
+          ("An input does not fit the tensor the merge builds."),
+          ("The memory of the input %u holds %" G_GSIZE_FORMAT " bytes, "
+              "the merge reads %" G_GSIZE_FORMAT " from it.", i,
+              mInfo[i].size, expected));
+      num_mem = i + 1;
+      ret = GST_FLOW_ERROR;
+      goto error_ret;
+    }
+
     outSize += mInfo[i].size;
   }
 
@@ -637,7 +695,8 @@ gst_tensor_merge_set_src_caps (GstTensorMerge * tensor_merge)
 
     if (!gst_tensor_merge_get_merged_config (tensor_merge,
             &tensor_merge->tensors_config, &config)) {
-      goto nego_error;
+      /* the reason is already on the bus, do not post a second, vaguer one */
+      return FALSE;
     }
 
     /** Internal Logic Error? */
@@ -651,7 +710,6 @@ gst_tensor_merge_set_src_caps (GstTensorMerge * tensor_merge)
     gst_caps_unref (newcaps);
   }
 
-nego_error:
   if (!tensor_merge->negotiated) {
     GST_WARNING_OBJECT (tensor_merge, "failed to set caps");
     GST_ELEMENT_ERROR (tensor_merge, CORE, NEGOTIATION, (NULL), (NULL));
@@ -743,7 +801,11 @@ gst_tensor_merge_collected (GstCollectPads * pads,
     goto beach;
   }
 
-  gst_tensor_merge_generate_mem (tensor_merge, tensors_buf, tensor_buf);
+  ret = gst_tensor_merge_generate_mem (tensor_merge, tensors_buf, tensor_buf);
+  if (ret != GST_FLOW_OK) {
+    gst_buffer_unref (tensor_buf);
+    goto beach;
+  }
 
   ret = gst_pad_push (tensor_merge->srcpad, tensor_buf);
   tensor_merge->need_set_time = TRUE;
