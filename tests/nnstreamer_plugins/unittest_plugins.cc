@@ -2227,6 +2227,73 @@ TEST (testTensorTransform, dimchgFromNonZeroDim)
 }
 
 /**
+ * @brief Test for tensor_transform dimchg of a flexible tensor
+ */
+TEST (testTensorTransform, dimchgFlexible)
+{
+  GstHarness *h;
+  GstBuffer *buf, *out_buf;
+  GstCaps *caps;
+  GstMemory *mem;
+  GstTensorMetaInfo meta;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  g_object_set (h->element, "mode", GTT_DIMCHG, "option", "1:2", NULL);
+
+  caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+  gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
+  gst_harness_set_src_caps (h, caps);
+
+  buf = gst_buffer_new ();
+  gst_buffer_append_memory (buf, _new_flex_memory ("4:3:2", TRUE, 0U));
+  gst_buffer_append_memory (buf, _new_flex_memory ("4:3:2", TRUE, 0U));
+
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_OK);
+
+  out_buf = gst_harness_pull (h);
+  ASSERT_TRUE (out_buf != NULL);
+  mem = gst_buffer_peek_memory (out_buf, 0);
+  ASSERT_TRUE (gst_tensor_meta_info_parse_memory (&meta, mem));
+  EXPECT_EQ (meta.dimension[0], 4U);
+  EXPECT_EQ (meta.dimension[1], 2U);
+  EXPECT_EQ (meta.dimension[2], 3U);
+  gst_buffer_unref (out_buf);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_transform dimchg, a flexible tensor of a lower rank
+ */
+TEST (testTensorTransform, dimchgFlexibleShortRank_n)
+{
+  GstHarness *h;
+  GstBuffer *buf;
+  GstCaps *caps;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  g_object_set (h->element, "mode", GTT_DIMCHG, "option", "1:2", NULL);
+
+  caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+  gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
+  gst_harness_set_src_caps (h, caps);
+
+  /* the tensor has no third dimension for the second one to move to */
+  buf = gst_buffer_new ();
+  gst_buffer_append_memory (buf, _new_flex_memory ("4:3", TRUE, 0U));
+  gst_buffer_append_memory (buf, _new_flex_memory ("4:3", TRUE, 0U));
+
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Test for tensor_transform arithmetic (float32, add .5)
  */
 TEST (testTensorTransform, arithmetic1)

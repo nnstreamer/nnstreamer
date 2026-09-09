@@ -2044,8 +2044,14 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
         goto done;
       }
 
-      gst_tensor_transform_convert_dimension (filter, GST_PAD_SINK,
-          i, in_info, out_info);
+      if (!gst_tensor_transform_convert_dimension (filter, GST_PAD_SINK,
+              i, in_info, out_info) || !gst_tensor_info_validate (out_info)) {
+        ml_loge
+            ("Cannot transform the tensor %u, the mode does not fit its dimension.\n",
+            i);
+        res = GST_FLOW_ERROR;
+        goto done;
+      }
 
       hsize = gst_tensor_meta_info_get_header_size (&meta);
       inptr += hsize;
