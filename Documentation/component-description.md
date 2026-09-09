@@ -107,6 +107,7 @@ In this page, we focus on the status of each elements. For requirements and desi
   - This combines multiple single-tensored (```other/tensors,num_tensors=1```) streams into a single-tensored stream by merging dimensions of incoming tensor streams. For example, it may merge two ```dimensions=640:480``` streams into ```dimensions=1280:480```, ```dimensions=640:960```, or ```dimensions=640:480:2```, according to a given configuration.
   - Users can adjust sync-mode and sync-option to change its behaviors of when to create output tensors and how to choose input tensors.
   - Users can adjust how dimensions are merged (the rank merged, the order of merged streams).
+  - The incoming streams must share the type and every dimension except the one being merged, and merging is defined over four dimensions, so every stream should declare all four (```dimensions=3:640:480:1```, not ```dimensions=3:640:480```). A stream that disagrees, or whose shape does not fit those four dimensions, is refused — while the caps are negotiated when the disagreement is visible there, and when its first buffer arrives otherwise.
 - [tensor\_split](https://github.com/nnstreamer/nnstreamer/tree/main/gst/nnstreamer/elements/gsttensor_split.c) (stable)
   - This is the opposite of ```tensor_merge```. This splits a single-tensored (```other/tensors,num_tensors=1```) stream into multiple single-tensored streams. For example, a stream of ```dimensions=1920:1080``` may split into ```dimensions=1080:1080``` and ```dimensions=840:1080```.
   - Users can adjust how dimensions are split
