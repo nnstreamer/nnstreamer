@@ -163,6 +163,57 @@ callCompareTest testsynch08_1.golden testsynch08_1.log 19-2 "Compare 19-2" 1 0
 callCompareTest testsynch08_2.golden testsynch08_2.log 19-3 "Compare 19-3" 1 0
 callCompareTest testsynch08_3.golden testsynch08_3.log 19-4 "Compare 19-4" 1 0
 
+##
+## @brief Run a pipeline that the element has to refuse without crashing.
+## @details gstTest() passes a negative case on any non-zero exit, so it reads
+##          a segmentation fault as a refusal. gst-launch-1.0 exits 1 when the
+##          pipeline cannot start and 255 on a runtime error, while the shell
+##          reports a signal as 128 + n.
+##          A refusal that turns into a hang has to fail the case as well, so
+##          the pipeline runs under a time limit rather than holding the job.
+## @param $1 the pipeline to run
+## @param $2 the test case id
+function gstTestRefused() {
+    local prefix=""
+    local limit=30
+    local retcode
+
+    if [[ "$VALGRIND" -eq "1" ]]; then
+        prefix="valgrind --track-origins=yes ${VALGRIND_SUPPRESSION}"
+        limit=300
+    fi
+
+    if command -v timeout &> /dev/null; then
+        prefix="timeout ${limit} ${prefix}"
+    fi
+
+    if [[ "${SILENT}" -eq "1" ]]; then
+        eval $prefix gst-launch-1.0 -f -q $1 &> /dev/null
+    else
+        eval $prefix gst-launch-1.0 -f -q $1
+    fi
+    retcode=$?
+
+    if [[ "${retcode}" -eq "1" || "${retcode}" -eq "255" ]]; then
+        testResult 1 "$2" "gst-launch of case $2" 0
+    else
+        testResult 0 "$2" "gst-launch of case $2 exited with ${retcode}" 0
+    fi
+}
+
+# Inputs that differ outside the merge direction are refused. Merging them
+# reads 30000 bytes past the second input and writes 30000 past the output.
+gstTestRefused "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_merge name=merge mode=linear option=0 ! filesink location=mismatch.log filesrc location=channel_00.dat blocksize=60000 num_buffers=1 ! application/octet-stream ! tensor_converter input-dim=3:50:100:1 input-type=float32 ! merge.sink_0 filesrc location=channel_01.dat blocksize=10000 num_buffers=1 ! application/octet-stream ! tensor_converter input-dim=2:25:50:1 input-type=float32 ! merge.sink_1" 20_n
+
+# An input of another type is refused for the same reason: the element size of
+# input 0 decides the stride the copy loop uses for every input.
+gstTestRefused "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_merge name=merge mode=linear option=0 ! filesink location=mismatch.log filesrc location=channel_00.dat blocksize=60000 num_buffers=1 ! application/octet-stream ! tensor_converter input-dim=3:50:100:1 input-type=float32 ! merge.sink_0 filesrc location=channel_01.dat blocksize=15000 num_buffers=1 ! application/octet-stream ! tensor_converter input-dim=3:50:100:1 input-type=uint8 ! merge.sink_1" 21_n
+
+# The width direction, where merging 3:100:50:1 with 3:200:25:1 used to read
+# 60000 bytes past the second input and write 60000 past the output. The height
+# the two disagree on is what the element now refuses to negotiate.
+gstTestRefused "--gst-plugin-path=${PATH_TO_PLUGIN}  tensor_merge name=merge mode=linear option=1 ! filesink location=mismatch.log filesrc location=width_100.dat blocksize=60000 num_buffers=1 ! application/octet-stream ! tensor_converter input-dim=3:100:50:1 input-type=float32 ! merge.sink_0 filesrc location=width_200.dat blocksize=60000 num_buffers=1 ! application/octet-stream ! tensor_converter input-dim=3:200:25:1 input-type=float32 ! merge.sink_1" 22_n
+
 rm *.log *.bmp *.png *.golden *.raw *.dat
 
 report
