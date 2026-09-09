@@ -53,10 +53,19 @@ rightAnkle 14" > pose_label.txt
 # TEST OPTION3 and OPTION4
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num_buffers=20 ! videoconvert ! videoscale ! video/x-raw,width=17,height=17,format=RGB ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:128,div:255 ! tensor_split name=a tensorseg=1:17:17:1,2:17:17:1 a.src_0 ! tensor_transform mode=transpose option=1:2:0:3 ! tensor_decoder mode=pose_estimation option1=320:240 option2=17:17 option3=pose_label.txt option4=heatmap-only option5=ignored ! fakesink" 3 0 0 $PERFORMANCE
 
-rm pose_label.txt
-
 # TEST WITH ALL-NEGATIVE HEATMAP VALUES (path exercise only: the output is
 # not verified since keypoints with prob < 0.5 are never drawn)
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num_buffers=4 ! videoconvert ! videoscale ! video/x-raw,width=14,height=14,format=RGB ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:-256,div:255 ! tensor_split name=a tensorseg=1:14:14:1,2:14:14:1 a.src_0 ! tensor_transform mode=transpose option=1:2:0:3 ! tensor_decoder mode=pose_estimation option1=320:240 option2=14:14 ! fakesink" 4 0 0 $PERFORMANCE
+
+# TEST A LABEL CARRYING A NON-ASCII CHARACTER
+# The label bytes index the font sprite table, and a byte above 0x7f is negative
+# as a signed char. This is a path exercise: it shows the pipeline survives the
+# label, not what was drawn. The bounding box gtest checks the glyph itself.
+printf 'nos\xc3\xa9 1 2 3 4\n' > pose_label_utf8.txt
+tail -n +2 pose_label.txt >> pose_label_utf8.txt
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num_buffers=4 ! videoconvert ! videoscale ! video/x-raw,width=17,height=17,format=RGB ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:128,div:255 ! tensor_split name=a tensorseg=1:17:17:1,2:17:17:1 a.src_0 ! tensor_transform mode=transpose option=1:2:0:3 ! tensor_decoder mode=pose_estimation option1=320:240 option2=17:17 option3=pose_label_utf8.txt option4=heatmap-only ! fakesink" 5 0 0 $PERFORMANCE
+
+rm pose_label.txt pose_label_utf8.txt
 
 report

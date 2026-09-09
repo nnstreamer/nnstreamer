@@ -32,6 +32,10 @@
 #define LABEL_HEIGHT (12U)
 #define LABEL_PIXELS (OUT_WIDTH * LABEL_HEIGHT)
 #define LABEL_TEXT "X\n"
+/* A two-byte UTF-8 character; both bytes are negative as a signed char */
+#define LABEL_TEXT_NON_ASCII "\xc3\xa9\n"
+/* What the sprite table holds for every byte that is not printable ASCII */
+#define LABEL_TEXT_FALLBACK "**\n"
 
 #define BOX_PIXEL (0xFF0000FFU)
 
@@ -150,10 +154,11 @@ decodeBoundingBoxes (const float *tensor, uint32_t *frame)
  *          low enough that the label is written from row 0, and the output frame is
  *          shorter than the 13 rows of a character, which is what the sprite loop has
  *          to be clipped against.
+ * @param[in] label_text the content of the label file, one label per line
  * @param[out] frame LABEL_PIXELS RGBA pixels drawn by the decoder
  */
 static gboolean
-decodeLabelledBox (uint32_t *frame)
+decodeLabelledBox (const gchar *label_text, uint32_t *frame)
 {
   const float num[] = { 1.0f };
   const float classes[] = { 0.0f };
@@ -170,7 +175,7 @@ decodeLabelledBox (uint32_t *frame)
 
   if (num_file != NULL && class_file != NULL && score_file != NULL
       && box_file != NULL && label_file != NULL && out_file != NULL
-      && g_file_set_contents (label_file, LABEL_TEXT, -1, NULL)) {
+      && g_file_set_contents (label_file, label_text, -1, NULL)) {
     pipeline_str = g_strdup_printf (
         "tensor_mux name=mux ! tensor_decoder mode=bounding_boxes "
         "option1=mobilenet-ssd-postprocess option2=%s option4=%u:%u option5=%u:%u ! "
@@ -361,7 +366,7 @@ TEST (tensorDecoderBoundingBox, drawLabelInShortFrame)
   uint32_t frame[LABEL_PIXELS] = { 0U };
   guint i, label_pixels = 0;
 
-  ASSERT_TRUE (decodeLabelledBox (frame));
+  ASSERT_TRUE (decodeLabelledBox (LABEL_TEXT, frame));
 
   /* The box covers x 16 to 32 and y 6 to 9; its left columns are behind the label */
   EXPECT_EQ (frame[6 * OUT_WIDTH + 32], BOX_PIXEL);
@@ -373,6 +378,24 @@ TEST (tensorDecoderBoundingBox, drawLabelInShortFrame)
       label_pixels++;
   }
   EXPECT_GT (label_pixels, 0U);
+}
+
+/**
+ * @brief A label outside ASCII is drawn as the fallback glyph.
+ * @details The sprite table has an entry for every byte value, but a label byte
+ *          above 0x7f is negative as a signed char and used to index that table
+ *          several gigabytes past its end.
+ */
+TEST (tensorDecoderBoundingBox, drawNonAsciiLabel)
+{
+  uint32_t frame[LABEL_PIXELS] = { 0U };
+  uint32_t fallback[LABEL_PIXELS] = { 0U };
+
+  ASSERT_TRUE (decodeLabelledBox (LABEL_TEXT_NON_ASCII, frame));
+  ASSERT_TRUE (decodeLabelledBox (LABEL_TEXT_FALLBACK, fallback));
+
+  EXPECT_GT (countDrawnPixels (fallback, LABEL_PIXELS), 0U);
+  EXPECT_EQ (memcmp (frame, fallback, sizeof (frame)), 0);
 }
 
 /**
