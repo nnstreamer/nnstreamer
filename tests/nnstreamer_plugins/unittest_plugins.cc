@@ -2114,6 +2114,119 @@ TEST (testTensorTransform, pushSparseFlexibleTensor_n)
 }
 
 /**
+ * @brief Push a uint8 tensor through the dimchg mode and compare the result
+ *        with the reference permutation of the given dimension.
+ * @param dim_str dimension of the input tensor
+ * @param from index of the dimension to be moved
+ * @param to index the dimension is moved to
+ */
+static void
+_test_dimchg (const gchar *dim_str, guint from, guint to)
+{
+  GstHarness *h;
+  GstBuffer *in_buf, *out_buf;
+  GstTensorsConfig config, out_config;
+  GstCaps *caps;
+  GstMemory *mem;
+  GstMapInfo info;
+  uint32_t *dim, expected[NNS_TENSOR_RANK_LIMIT];
+  gchar *option;
+  guint i, b, f, m, r;
+  guint below = 1, moved, between = 1, above = 1;
+  gsize data_size;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  option = g_strdup_printf ("%u:%u", from, to);
+  g_object_set (h->element, "mode", GTT_DIMCHG, "option", option, NULL);
+  g_free (option);
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1U;
+  config.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension (dim_str, config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+  dim = config.info.info[0].dimension;
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  data_size = gst_tensors_info_get_size (&config.info, 0);
+  ASSERT_LE (data_size, 256U);
+
+  in_buf = gst_harness_create_buffer (h, data_size);
+  mem = gst_buffer_peek_memory (in_buf, 0);
+  ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_WRITE));
+  for (i = 0; i < data_size; i++)
+    ((uint8_t *) info.data)[i] = (uint8_t) i;
+  gst_memory_unmap (mem, &info);
+
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+  out_buf = gst_harness_pull (h);
+  ASSERT_TRUE (out_buf != NULL);
+  ASSERT_EQ (gst_buffer_get_size (out_buf), data_size);
+
+  /* the negotiated output dimension moves 'from' to 'to' as well */
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
+    expected[i] = (i < from || i > to) ? dim[i] : (i == to ? dim[from] : dim[i + 1]);
+
+  caps = gst_pad_get_current_caps (h->sinkpad);
+  ASSERT_TRUE (caps != NULL);
+  gst_tensors_config_init (&out_config);
+  ASSERT_TRUE (gst_tensors_config_from_structure (
+      &out_config, gst_caps_get_structure (caps, 0)));
+  gst_caps_unref (caps);
+  for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++)
+    EXPECT_EQ (out_config.info.info[0].dimension[i], expected[i]);
+  gst_tensors_config_free (&out_config);
+
+  /* the moved dimension splits the tensor into below/between/above blocks */
+  for (i = 0; i < from; i++)
+    below *= dim[i];
+  moved = dim[from];
+  for (i = from + 1; i <= to; i++)
+    between *= dim[i];
+  for (i = to + 1; i < NNS_TENSOR_RANK_LIMIT; i++)
+    if (dim[i] > 0)
+      above *= dim[i];
+
+  mem = gst_buffer_peek_memory (out_buf, 0);
+  ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_READ));
+  for (r = 0; r < above; r++)
+    for (f = 0; f < moved; f++)
+      for (m = 0; m < between; m++)
+        for (b = 0; b < below; b++)
+          EXPECT_EQ (((uint8_t *) info.data)[b + below * (m + between * (f + moved * r))],
+              (uint8_t) (b + below * (f + moved * (m + between * r))));
+  gst_memory_unmap (mem, &info);
+  gst_buffer_unref (out_buf);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_transform dimchg, moving the first dimension
+ */
+TEST (testTensorTransform, dimchg)
+{
+  _test_dimchg ("2:3:4:1", 0, 2);
+  _test_dimchg ("2:3:4:5", 0, 3);
+}
+
+/**
+ * @brief Test for tensor_transform dimchg, moving a dimension other than the first
+ */
+TEST (testTensorTransform, dimchgFromNonZeroDim)
+{
+  _test_dimchg ("2:3:4:1", 1, 2);
+  _test_dimchg ("2:3:4:5", 1, 2);
+  _test_dimchg ("2:3:4:5", 1, 3);
+  _test_dimchg ("2:3:4:5", 2, 3);
+  _test_dimchg ("2:3:4:2:2:2", 2, 4);
+}
+
+/**
  * @brief Test for tensor_transform arithmetic (float32, add .5)
  */
 TEST (testTensorTransform, arithmetic1)

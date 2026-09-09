@@ -1307,7 +1307,8 @@ gst_tensor_transform_dimchg (GstTensorTransform * filter,
         break;
       copyblocksize *= fromDim[i];
     }
-    for (i = 0; i < to; i++) {
+    /* the dims below 'from' are already counted in copyblocksize */
+    for (i = from; i < to; i++) {
       if (toDim[i] == 0)
         break;
       copyblocklimit *= toDim[i];
