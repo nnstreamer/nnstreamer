@@ -1862,6 +1862,258 @@ TEST_TRANSFORM_TYPECAST (typecast_14_accel, 3U, 5U, double, _NNS_FLOAT64,
     uint64_t, "uint64", _NNS_UINT64, TRUE)
 
 /**
+ * @brief Push a single buffer of the given size and return the flow status.
+ */
+static GstFlowReturn
+_push_tensor_of_size (GstHarness *h, gsize size)
+{
+  GstBuffer *buf = gst_harness_create_buffer (h, size);
+  GstMemory *mem = gst_buffer_peek_memory (buf, 0);
+  GstMapInfo info;
+
+  if (gst_memory_map (mem, &info, GST_MAP_WRITE)) {
+    memset (info.data, 1, info.size);
+    gst_memory_unmap (mem, &info);
+  }
+
+  return gst_harness_push (h, buf);
+}
+
+/**
+ * @brief Test for tensor_transform, a static tensor shorter than the caps
+ */
+TEST (testTensorTransform, pushShortTensor_n)
+{
+  GstHarness *h;
+  GstTensorsConfig config;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "add:1", NULL);
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1U;
+  config.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("3:4:4:1", config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+
+  /* the caps describe 48 bytes */
+  EXPECT_EQ (_push_tensor_of_size (h, 24U), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_transform, a static tensor larger than the caps
+ */
+TEST (testTensorTransform, pushLongTensor)
+{
+  GstHarness *h;
+  GstBuffer *out_buf;
+  GstTensorsConfig config;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "add:1", NULL);
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1U;
+  config.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("3:4:4:1", config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+
+  /* the caps describe 48 bytes, a memory holding more of them is not an error */
+  EXPECT_EQ (_push_tensor_of_size (h, 96U), GST_FLOW_OK);
+
+  out_buf = gst_harness_pull (h);
+  ASSERT_TRUE (out_buf != NULL);
+  EXPECT_EQ (gst_buffer_get_size (out_buf), 48U);
+  gst_buffer_unref (out_buf);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Build a uint8 flexible tensor memory of the given dimension.
+ * @param dim_str dimension the meta header describes
+ * @param with_data allocate the data the header describes, not the header alone
+ * @param size bytes the memory exposes, 0 for every allocated byte
+ */
+static GstMemory *
+_new_flex_memory (const gchar *dim_str, gboolean with_data, gsize size)
+{
+  GstTensorMetaInfo meta;
+  GstTensorInfo info;
+  guint8 *data;
+  gsize hsize, alloc;
+
+  gst_tensor_info_init (&info);
+  info.type = _NNS_UINT8;
+  gst_tensor_parse_dimension (dim_str, info.dimension);
+  gst_tensor_info_convert_to_meta (&info, &meta);
+
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  alloc = hsize + (with_data ? gst_tensor_info_get_size (&info) : 0);
+  if (size == 0)
+    size = alloc;
+  g_assert (size <= alloc);
+
+  data = (guint8 *) g_malloc0 (alloc);
+  gst_tensor_meta_info_update_header (&meta, data);
+
+  return gst_memory_new_wrapped ((GstMemoryFlags) 0, data, alloc, 0, size, data, g_free);
+}
+
+/**
+ * @brief Test for tensor_transform, a flexible tensor without a complete header
+ */
+TEST (testTensorTransform, pushShortFlexibleHeader_n)
+{
+  GstHarness *h;
+  GstBuffer *buf;
+  GstCaps *caps;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "add:1", NULL);
+
+  caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+  gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
+  gst_harness_set_src_caps (h, caps);
+
+  /**
+   * The memory exposes 8 bytes of a fully allocated tensor, so an element that
+   * parses the header anyway reads a valid one and keeps going, which is what
+   * makes the refusal below the only possible outcome. The second memory keeps
+   * the buffer from being re-split by the header.
+   */
+  buf = gst_buffer_new ();
+  gst_buffer_append_memory (buf, _new_flex_memory ("3:4:4:1", TRUE, 8U));
+  gst_buffer_append_memory (buf, _new_flex_memory ("3:4:4:1", TRUE, 0U));
+
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_transform, a flexible tensor shorter than its header says
+ */
+TEST (testTensorTransform, pushShortFlexibleData_n)
+{
+  GstHarness *h;
+  GstBuffer *buf;
+  GstCaps *caps;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "add:1", NULL);
+
+  caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+  gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
+  gst_harness_set_src_caps (h, caps);
+
+  /* the header describes 48 bytes of data, nothing beyond it is allocated */
+  buf = gst_buffer_new ();
+  gst_buffer_append_memory (buf, _new_flex_memory ("3:4:4:1", FALSE, 0U));
+  gst_buffer_append_memory (buf, _new_flex_memory ("3:4:4:1", TRUE, 0U));
+
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_transform, a tensor whose header says it is flexible
+ * @details tensor_crop and a dynamic tensor_filter stamp that format on every
+ *          header they append, so only a sparse payload may be refused.
+ */
+TEST (testTensorTransform, pushFlexibleFormatTensor)
+{
+  GstHarness *h;
+  GstBuffer *buf, *out_buf;
+  GstCaps *caps;
+  GstMemory *mem;
+  GstMapInfo info;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "add:1", NULL);
+
+  caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+  gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
+  gst_harness_set_src_caps (h, caps);
+
+  buf = gst_buffer_new ();
+  mem = _new_flex_memory ("3:4:4:1", TRUE, 0U);
+  ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_WRITE));
+  ((uint32_t *) info.data)[19] = (uint32_t) _NNS_TENSOR_FORMAT_FLEXIBLE;
+  gst_memory_unmap (mem, &info);
+  gst_buffer_append_memory (buf, mem);
+  gst_buffer_append_memory (buf, _new_flex_memory ("3:4:4:1", TRUE, 0U));
+
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_OK);
+
+  out_buf = gst_harness_pull (h);
+  ASSERT_TRUE (out_buf != NULL);
+  gst_buffer_unref (out_buf);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_transform, a flexible tensor declaring a sparse payload
+ */
+TEST (testTensorTransform, pushSparseFlexibleTensor_n)
+{
+  GstHarness *h;
+  GstBuffer *buf;
+  GstCaps *caps;
+  GstMemory *mem;
+  GstMapInfo info;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "add:1", NULL);
+
+  caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+  gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
+  gst_harness_set_src_caps (h, caps);
+
+  /**
+   * The memory is large enough for the dense size the element compares
+   * against, so nothing but the format tells the two payloads apart.
+   */
+  buf = gst_buffer_new ();
+  mem = _new_flex_memory ("3:4:4:1", TRUE, 0U);
+  ASSERT_TRUE (gst_memory_map (mem, &info, GST_MAP_WRITE));
+  ((uint32_t *) info.data)[19] = (uint32_t) _NNS_TENSOR_FORMAT_SPARSE;
+  gst_memory_unmap (mem, &info);
+  gst_buffer_append_memory (buf, mem);
+  gst_buffer_append_memory (buf, _new_flex_memory ("3:4:4:1", TRUE, 0U));
+
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Test for tensor_transform arithmetic (float32, add .5)
  */
 TEST (testTensorTransform, arithmetic1)

@@ -1967,9 +1967,28 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
       in_info = &in_flex_info;
       out_info = &out_flex_info;
 
-      gst_tensor_meta_info_parse_header (&meta, inptr);
       /** @todo max rank supported in tensor-transform is 4 */
-      if (!gst_tensor_meta_info_convert (&meta, in_info)) {
+      gst_tensor_meta_info_init (&meta);
+      hsize = gst_tensor_meta_info_get_header_size (&meta);
+      if (in_map[i].size < hsize) {
+        ml_loge ("Invalid buffer, the tensor %u has no meta header.\n", i);
+        res = GST_FLOW_ERROR;
+        goto done;
+      }
+
+      if (!gst_tensor_meta_info_parse_header (&meta, inptr) ||
+          !gst_tensor_meta_info_convert (&meta, in_info)) {
+        ml_loge
+            ("Invalid buffer, the meta header of the tensor %u is broken.\n",
+            i);
+        res = GST_FLOW_ERROR;
+        goto done;
+      }
+
+      if (meta.format == _NNS_TENSOR_FORMAT_SPARSE) {
+        ml_loge
+            ("The tensor %u is sparse, which tensor-transform cannot handle.\n",
+            i);
         res = GST_FLOW_ERROR;
         goto done;
       }
@@ -1979,6 +1998,15 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
 
       hsize = gst_tensor_meta_info_get_header_size (&meta);
       inptr += hsize;
+    }
+
+    if (in_map[i].size < (gsize) (inptr - in_map[i].data) +
+        gst_tensor_info_get_size (in_info)) {
+      ml_loge
+          ("Invalid buffer, the tensor %u is smaller than the size described by the stream.\n",
+          i);
+      res = GST_FLOW_ERROR;
+      goto done;
     }
 
     /* prepare output buffer */
