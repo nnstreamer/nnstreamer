@@ -172,4 +172,43 @@ rm mobilenetssd_short_output.log
 
 rm yolov*.log
 
+# The decoder scales the decoded boxes by the model input dimension of option5,
+# so a missing or unparsable one used to divide by zero on the first box. These
+# cases need a process of their own: the box properties are shared per process,
+# so within one process an earlier pipeline's option5 is still in place.
+MODELSIZE_SRC="multifilesrc name=fs1 location=mobilenetssd_tensors.0.%d start-index=$CASESTART stop-index=$CASEEND caps=application/octet-stream ! tensor_converter input-dim=4:1:1917:1 input-type=float32 ! mux.sink_0  multifilesrc name=fs2 location=mobilenetssd_tensors.1.%d start-index=$CASESTART stop-index=$CASEEND caps=application/octet-stream ! tensor_converter input-dim=91:1917:1 input-type=float32 ! mux.sink_1"
+MODELSIZE_DEC="tensor_mux name=mux ! tensor_decoder mode=bounding_boxes option1=mobilenet-ssd option2=coco_labels_list.txt option3=box_priors.txt option4=160:120"
+
+
+## @brief Run a pipeline the decoder must refuse, failing if it does anything else
+## @details gstTest cannot tell a refusal from a crash: it only asks for a non-zero
+##          exit, which a SIGFPE gives just as a refusal does. gst-launch-1.0
+##          reports a refusal as 1 or as 255 (its -1), and everything else here is
+##          a failure: 0 is a pipeline that ran, 128 + n is a signal, and 126/127
+##          is a launcher that could not be started at all.
+## @param $1 gst-launch-1.0 arguments
+## @param $2 test case ID
+function refusedTest() {
+    local prefix=""
+    if [[ "$VALGRIND" -eq "1" ]]; then
+        prefix="valgrind --track-origins=yes ${VALGRIND_SUPPRESSION}"
+    fi
+    eval $prefix gst-launch-1.0 -f -q "$1" &> /dev/null
+    retcode=$?
+    if [[ "${retcode}" -eq "1" || "${retcode}" -eq "255" ]]; then
+        testResult 1 "$2" "gst-launch of case $2, ret(${retcode})"
+    else
+        testResult 0 "$2" "gst-launch of case $2, ret(${retcode})"
+    fi
+}
+
+refusedTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${MODELSIZE_DEC} ! fakesink ${MODELSIZE_SRC}" 13_n
+
+refusedTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${MODELSIZE_DEC} option5=300 ! fakesink ${MODELSIZE_SRC}" 14_n
+
+refusedTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${MODELSIZE_DEC} option5=0:0 ! fakesink ${MODELSIZE_SRC}" 15_n
+
+# A third element is warned about and ignored, not refused.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${MODELSIZE_DEC} option5=300:300:3 ! fakesink ${MODELSIZE_SRC}" 16 0 0 $PERFORMANCE
+
 report
