@@ -659,7 +659,7 @@ draw_label (uint32_t * frame, pose_data * data, pose * xydata)
       y1 = MAX (0, (y1 - 14));
       pos1 = &frame[y1 * data->width + x1];
       for (j = 0; j < label_len; j++) {
-        unsigned int char_index = label[j];
+        unsigned int char_index = (unsigned char) label[j];
         if ((x1 + 8) > (int) data->width)
           break;
         pos2 = pos1;

@@ -827,7 +827,7 @@ BoundingBox::draw (GstMapInfo *out_info, GArray *results)
         y1 = MAX (0, (y1 - 14));
         pos1 = &frame[y1 * width + x1];
         for (k = 0; k < label_len; k++) {
-          unsigned int char_index = label[k];
+          unsigned int char_index = (unsigned char) label[k];
           if ((x1 + 8) > (int) width)
             break; /* Stop drawing if it may overfill */
           pos2 = pos1;
