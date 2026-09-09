@@ -11948,6 +11948,409 @@ TEST (testTensorDecoder, pushDirectVideoInputSizeTooLarge_n)
 }
 
 /**
+ * @brief What a tensor_merge test saw arrive at its tensor_sink.
+ */
+typedef struct {
+  guint received; /**< the number of buffers, bumped by the streaming thread */
+  gsize size; /**< the size of the last buffer */
+  guint8 head[12]; /**< the first bytes of the last buffer */
+  guint8 tail[12]; /**< the last bytes of the last buffer */
+  gchar error_src[32]; /**< the element an error was posted by, if any */
+  GQuark error_domain; /**< the domain of that error */
+  gint error_code; /**< the code of that error */
+} mergeOutput;
+
+/**
+ * @brief Record which element ended the run, so a refusal by something else in
+ *        the pipeline cannot stand in for the one the case is about.
+ */
+static void
+_record_merge_message (GstMessage *msg, mergeOutput *out)
+{
+  const gchar *name = NULL;
+  GError *err = NULL;
+
+  if (msg == NULL || GST_MESSAGE_TYPE (msg) != GST_MESSAGE_ERROR)
+    return;
+
+  if (GST_MESSAGE_SRC (msg))
+    name = GST_OBJECT_NAME (GST_MESSAGE_SRC (msg));
+  g_strlcpy (out->error_src, name ? name : "", sizeof (out->error_src));
+
+  gst_message_parse_error (msg, &err, NULL);
+  if (err) {
+    out->error_domain = err->domain;
+    out->error_code = err->code;
+    g_error_free (err);
+  }
+}
+
+/**
+ * @brief tensor_sink handler recording the merged buffer.
+ */
+static void
+_record_merge_output (GstElement *element, GstBuffer *buffer, gpointer user_data)
+{
+  mergeOutput *out = (mergeOutput *) user_data;
+  GstMapInfo info;
+
+  UNUSED (element);
+
+  if (gst_buffer_map (buffer, &info, GST_MAP_READ)) {
+    gsize taken = MIN (info.size, sizeof (out->head));
+
+    out->size = info.size;
+    memcpy (out->head, info.data, taken);
+    memcpy (out->tail, info.data + info.size - taken, taken);
+    gst_buffer_unmap (buffer, &info);
+  }
+
+  g_atomic_int_inc (&out->received);
+}
+
+/**
+ * @brief Run a tensor_merge pipeline until it ends and report what came out.
+ * @details The three ways this can end are told apart on purpose: a case that
+ *          expects a refusal has to fail, not pass, when the description no
+ *          longer builds or when the element hangs instead of refusing.
+ * @param[out] out what the tensor_sink named 'sinkx' received
+ * @return GST_MESSAGE_EOS or GST_MESSAGE_ERROR as the pipeline posted it,
+ *         GST_MESSAGE_ANY if it could not be built, GST_MESSAGE_UNKNOWN if it
+ *         posted neither within the time limit
+ */
+static GstMessageType
+_run_merge_pipeline (const gchar *desc, mergeOutput *out)
+{
+  GstElement *pipeline, *sink;
+  GstBus *bus;
+  GstMessage *msg;
+  GstMessageType type;
+
+  memset (out, 0, sizeof (mergeOutput));
+
+  pipeline = gst_parse_launch (desc, NULL);
+  if (pipeline == NULL)
+    return GST_MESSAGE_ANY;
+
+  sink = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  if (sink == NULL) {
+    gst_object_unref (pipeline);
+    return GST_MESSAGE_ANY;
+  }
+  g_signal_connect (sink, "new-data", G_CALLBACK (_record_merge_output), out);
+
+  setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
+
+  bus = gst_element_get_bus (pipeline);
+  msg = gst_bus_timed_pop_filtered (bus, 10 * GST_SECOND,
+      (GstMessageType) (GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+  type = (msg != NULL) ? GST_MESSAGE_TYPE (msg) : GST_MESSAGE_UNKNOWN;
+  _record_merge_message (msg, out);
+  if (msg)
+    gst_message_unref (msg);
+  gst_object_unref (bus);
+
+  setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
+  gst_object_unref (sink);
+  gst_object_unref (pipeline);
+
+  return type;
+}
+
+/**
+ * @brief Two identical streams merged along the channel direction.
+ * @details The bytes pin the interleave the copy loop performs: one pixel of
+ *          the black stream, then one pixel of the white stream.
+ */
+TEST (testTensorMerge, linearFirstDirection)
+{
+  mergeOutput out;
+
+  EXPECT_EQ (_run_merge_pipeline ("tensor_merge name=merge mode=linear option=0 ! tensor_sink name=sinkx "
+                                  "videotestsrc num-buffers=1 pattern=black ! "
+                                  "video/x-raw,format=RGB,width=20,height=20,framerate=30/1 ! tensor_converter ! merge.sink_0 "
+                                  "videotestsrc num-buffers=1 pattern=white ! "
+                                  "video/x-raw,format=RGB,width=20,height=20,framerate=30/1 ! tensor_converter ! merge.sink_1",
+                 &out),
+      GST_MESSAGE_EOS);
+
+  EXPECT_EQ (out.received, 1U);
+  EXPECT_EQ (out.size, 2400U);
+  for (guint i = 0; i < 3; i++) {
+    EXPECT_EQ (out.head[i], 0);
+    EXPECT_EQ (out.head[i + 3], 255);
+  }
+}
+
+/**
+ * @brief Two streams of different heights merged along the height direction.
+ * @details Nothing else in the tree merges streams that differ in the merge
+ *          direction with option=2: the existing height cases all carry equal
+ *          sizes, so the per-input chunk of that copy loop is never told apart
+ *          from input 0's. The bytes at both ends pin the two chunks.
+ */
+TEST (testTensorMerge, linearThirdDirection)
+{
+  mergeOutput out;
+
+  EXPECT_EQ (_run_merge_pipeline ("tensor_merge name=merge mode=linear option=2 ! tensor_sink name=sinkx "
+                                  "videotestsrc num-buffers=1 pattern=black ! "
+                                  "video/x-raw,format=RGB,width=20,height=20,framerate=30/1 ! tensor_converter ! merge.sink_0 "
+                                  "videotestsrc num-buffers=1 pattern=white ! "
+                                  "video/x-raw,format=RGB,width=20,height=10,framerate=30/1 ! tensor_converter ! merge.sink_1",
+                 &out),
+      GST_MESSAGE_EOS);
+
+  EXPECT_EQ (out.received, 1U);
+  EXPECT_EQ (out.size, (gsize) (3 * 20 * 30));
+  for (guint i = 0; i < sizeof (out.head); i++) {
+    EXPECT_EQ (out.head[i], 0);
+    EXPECT_EQ (out.tail[i], 255);
+  }
+}
+
+/**
+ * @brief An input whose other dimensions differ is refused.
+ * @details The copy loop walks every input with the dimensions of input 0, so
+ *          a smaller input is read past its end and the output, sized from the
+ *          input sizes, is written past its end (1200 B read from 300 B, 2400 B
+ *          written into 1500 B). The mismatch used to be reported and ignored.
+ */
+TEST (testTensorMerge, dimensionMismatch_n)
+{
+  mergeOutput out;
+
+  EXPECT_EQ (_run_merge_pipeline ("tensor_merge name=merge mode=linear option=0 ! tensor_sink name=sinkx "
+                                  "videotestsrc num-buffers=1 ! "
+                                  "video/x-raw,format=RGB,width=20,height=20,framerate=30/1 ! tensor_converter ! merge.sink_0 "
+                                  "videotestsrc num-buffers=1 ! "
+                                  "video/x-raw,format=RGB,width=10,height=10,framerate=30/1 ! tensor_converter ! merge.sink_1",
+                 &out),
+      GST_MESSAGE_ERROR);
+
+  EXPECT_STREQ (out.error_src, "merge");
+  EXPECT_EQ (out.error_domain, (GQuark) GST_CORE_ERROR);
+  EXPECT_EQ (out.error_code, GST_CORE_ERROR_NEGOTIATION);
+  EXPECT_EQ (out.received, 0U);
+}
+
+/**
+ * @brief An input of another type is refused.
+ * @details The element size of input 0 decides the stride for every input, so
+ *          a float32 input 0 makes the loop read four times the uint8 input.
+ */
+TEST (testTensorMerge, typeMismatch_n)
+{
+  mergeOutput out;
+
+  EXPECT_EQ (_run_merge_pipeline (
+                 "tensor_merge name=merge mode=linear option=0 ! tensor_sink name=sinkx "
+                 "videotestsrc num-buffers=1 ! "
+                 "video/x-raw,format=RGB,width=20,height=20,framerate=30/1 ! tensor_converter ! "
+                 "tensor_transform mode=typecast option=float32 ! merge.sink_0 "
+                 "videotestsrc num-buffers=1 ! "
+                 "video/x-raw,format=RGB,width=20,height=20,framerate=30/1 ! tensor_converter ! merge.sink_1",
+                 &out),
+      GST_MESSAGE_ERROR);
+
+  EXPECT_STREQ (out.error_src, "merge");
+  EXPECT_EQ (out.error_domain, (GQuark) GST_CORE_ERROR);
+  EXPECT_EQ (out.error_code, GST_CORE_ERROR_NEGOTIATION);
+  EXPECT_EQ (out.received, 0U);
+}
+
+/**
+ * @brief A sink pad that renegotiates to another dimension is refused.
+ * @details The element negotiates its source caps once and never looks at a
+ *          later caps event, so the check that compares the inputs with each
+ *          other runs only on the first buffer. The copy still strides input 1
+ *          with the dimensions of input 0 afterwards, which is the same
+ *          overrun by another route.
+ */
+TEST (testTensorMerge, renegotiatedDimension_n)
+{
+  mergeOutput out;
+
+  EXPECT_EQ (_run_merge_pipeline (
+                 "tensor_merge name=merge mode=linear option=0 ! tensor_sink name=sinkx "
+                 "videotestsrc num-buffers=4 ! "
+                 "video/x-raw,format=RGB,width=20,height=20,framerate=30/1 ! tensor_converter ! merge.sink_0 "
+                 "concat name=c ! merge.sink_1 "
+                 "videotestsrc num-buffers=2 ! "
+                 "video/x-raw,format=RGB,width=20,height=20,framerate=30/1 ! tensor_converter ! c. "
+                 "videotestsrc num-buffers=2 ! "
+                 "video/x-raw,format=RGB,width=10,height=10,framerate=30/1 ! tensor_converter ! c.",
+                 &out),
+      GST_MESSAGE_ERROR);
+
+  EXPECT_STREQ (out.error_src, "merge");
+  EXPECT_EQ (out.error_domain, (GQuark) GST_STREAM_ERROR);
+  EXPECT_EQ (out.error_code, GST_STREAM_ERROR_WRONG_TYPE);
+  /* the two 20x20 buffers concat hands over first are merged, the third is not */
+  EXPECT_EQ (out.received, 2U);
+  EXPECT_EQ (out.size, 2400U);
+}
+
+/**
+ * @brief Feed two appsrc buffers of a chosen size into tensor_merge.
+ * @details appsrc lets the caps and the memory disagree, which no in-tree
+ *          source does. Each buffer is pushed with the caps of the dimension
+ *          given for it, so the element sees a self-consistent stream.
+ * @param[out] out what the tensor_sink named 'sinkx' received
+ * @return GST_MESSAGE_EOS or GST_MESSAGE_ERROR as the pipeline posted it,
+ *         GST_MESSAGE_UNKNOWN if it posted neither within the time limit
+ */
+static GstMessageType
+_run_merge_appsrc (const gchar *option, const gchar *dim0, gsize size0,
+    const gchar *dim1, gsize size1, mergeOutput *out)
+{
+  GstElement *pipeline, *src[2], *sink;
+  GstTensorsConfig config;
+  GstBus *bus;
+  GstMessage *msg;
+  GstFlowReturn ret;
+  GstMessageType type;
+  const gchar *dim[2] = { dim0, dim1 };
+  gsize size[2] = { size0, size1 };
+  gchar *desc;
+  guint i;
+
+  memset (out, 0, sizeof (mergeOutput));
+
+  desc = g_strdup_printf ("tensor_merge name=merge mode=linear option=%s ! "
+                          "tensor_sink name=sinkx "
+                          "appsrc name=src0 ! merge.sink_0 appsrc name=src1 ! merge.sink_1",
+      option);
+  pipeline = gst_parse_launch (desc, NULL);
+  g_free (desc);
+  if (pipeline == NULL)
+    return GST_MESSAGE_ANY;
+
+  sink = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  if (sink == NULL) {
+    gst_object_unref (pipeline);
+    return GST_MESSAGE_ANY;
+  }
+  g_signal_connect (sink, "new-data", G_CALLBACK (_record_merge_output), out);
+
+  for (i = 0; i < 2; i++) {
+    gchar *name = g_strdup_printf ("src%u", i);
+    GstCaps *caps;
+
+    src[i] = gst_bin_get_by_name (GST_BIN (pipeline), name);
+    g_free (name);
+
+    gst_tensors_config_init (&config);
+    config.info.num_tensors = 1;
+    config.info.info[0].type = _NNS_UINT8;
+    gst_tensor_parse_dimension (dim[i], config.info.info[0].dimension);
+    config.rate_n = 30;
+    config.rate_d = 1;
+    caps = gst_tensor_caps_from_config (&config);
+    g_object_set (src[i], "caps", caps, NULL);
+    gst_caps_unref (caps);
+    gst_tensors_config_free (&config);
+  }
+
+  /* the sink prerolls on a merged buffer, so it may never reach PLAYING */
+  gst_element_set_state (pipeline, GST_STATE_PLAYING);
+
+  for (i = 0; i < 2; i++) {
+    /* zeroed: append_memory() sniffs a meta header from the first bytes */
+    GstBuffer *buf = gst_buffer_new_allocate (NULL, size[i], NULL);
+
+    gst_buffer_memset (buf, 0, 0, size[i]);
+    /* the push-buffer action signal is transfer-none, unlike the C entry point */
+    g_signal_emit_by_name (src[i], "push-buffer", buf, &ret);
+    gst_buffer_unref (buf);
+    if (ret != GST_FLOW_OK)
+      break;
+  }
+
+  bus = gst_element_get_bus (pipeline);
+  msg = gst_bus_timed_pop_filtered (bus, 10 * GST_SECOND,
+      (GstMessageType) (GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+  type = (msg != NULL) ? GST_MESSAGE_TYPE (msg) : GST_MESSAGE_UNKNOWN;
+  _record_merge_message (msg, out);
+  if (msg)
+    gst_message_unref (msg);
+  gst_object_unref (bus);
+
+  gst_element_set_state (pipeline, GST_STATE_NULL);
+  gst_object_unref (sink);
+  gst_object_unref (src[1]);
+  gst_object_unref (src[0]);
+  gst_object_unref (pipeline);
+
+  return type;
+}
+
+/**
+ * @brief A buffer smaller than the tensor its caps declare is refused.
+ * @details The dimensions agree here, so nothing at negotiation time can see
+ *          it; only the incoming memory tells the element the copy would run
+ *          past the end. Every direction is tried because the copy bounds are
+ *          written out once per direction, and so is the size they have to
+ *          agree with.
+ */
+TEST (testTensorMerge, undersizedMemory_n)
+{
+  mergeOutput out;
+
+  for (const gchar *option : { "0", "1", "2", "3" }) {
+    EXPECT_EQ (_run_merge_appsrc (option, "3:20:20:1", 3 * 20 * 20, "3:20:20:1",
+                   3 * 10 * 10, &out),
+        GST_MESSAGE_ERROR)
+        << "option=" << option;
+    EXPECT_STREQ (out.error_src, "merge") << "option=" << option;
+    EXPECT_EQ (out.error_domain, (GQuark) GST_STREAM_ERROR) << "option=" << option;
+    EXPECT_EQ (out.error_code, GST_STREAM_ERROR_WRONG_TYPE) << "option=" << option;
+    EXPECT_EQ (out.received, 0U) << "option=" << option;
+  }
+}
+
+/**
+ * @brief An input of a lower rank is refused in the batch direction.
+ * @details The dimension array ends at the first zero, so a rank 3 tensor has
+ *          dimension[3] == 0 and the batch-direction stride is zero: the input
+ *          is never copied and its share of the output, which is sized from
+ *          the input sizes, goes downstream uninitialised.
+ */
+TEST (testTensorMerge, lowerRankBatchDirection_n)
+{
+  mergeOutput out;
+
+  EXPECT_EQ (_run_merge_appsrc ("3", "3:4:4:1", 3 * 4 * 4, "3:4:4", 3 * 4 * 4, &out),
+      GST_MESSAGE_ERROR);
+  EXPECT_STREQ (out.error_src, "merge");
+  EXPECT_EQ (out.error_domain, (GQuark) GST_STREAM_ERROR);
+  EXPECT_EQ (out.error_code, GST_STREAM_ERROR_WRONG_TYPE);
+  EXPECT_EQ (out.received, 0U);
+}
+
+/**
+ * @brief A mode the element does not know is refused by the element itself.
+ * @details The source caps cannot be built without a mode, and the reason has
+ *          to come from here: the flow error alone only makes the source post
+ *          a generic stream error, which says nothing about what is wrong.
+ */
+TEST (testTensorMerge, unknownMode_n)
+{
+  mergeOutput out;
+
+  EXPECT_EQ (_run_merge_pipeline ("tensor_merge name=merge mode=nosuchmode ! tensor_sink name=sinkx "
+                                  "videotestsrc num-buffers=1 ! "
+                                  "video/x-raw,format=RGB,width=20,height=20,framerate=30/1 ! tensor_converter ! merge.sink_0",
+                 &out),
+      GST_MESSAGE_ERROR);
+
+  EXPECT_STREQ (out.error_src, "merge");
+  EXPECT_EQ (out.error_domain, (GQuark) GST_CORE_ERROR);
+  EXPECT_EQ (out.error_code, GST_CORE_ERROR_NEGOTIATION);
+  EXPECT_EQ (out.received, 0U);
+}
+
+/**
  * @brief Main function for unit test.
  */
 int
