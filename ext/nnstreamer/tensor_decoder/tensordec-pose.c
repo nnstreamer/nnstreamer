@@ -663,7 +663,7 @@ draw_label (uint32_t * frame, pose_data * data, pose * xydata)
         if ((x1 + 8) > (int) data->width)
           break;
         pos2 = pos1;
-        for (y2 = 0; y2 < 13; y2++) {
+        for (y2 = 0; y2 < 13 && (y1 + y2) < (int) data->height; y2++) {
           for (x2 = 0; x2 < 8; x2++) {
             *(pos2 + x2) = singleLineSprite[char_index][y2][x2];
           }

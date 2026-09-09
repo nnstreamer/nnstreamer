@@ -66,6 +66,16 @@ tail -n +2 pose_label.txt >> pose_label_utf8.txt
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num_buffers=4 ! videoconvert ! videoscale ! video/x-raw,width=17,height=17,format=RGB ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:128,div:255 ! tensor_split name=a tensorseg=1:17:17:1,2:17:17:1 a.src_0 ! tensor_transform mode=transpose option=1:2:0:3 ! tensor_decoder mode=pose_estimation option1=320:240 option2=17:17 option3=pose_label_utf8.txt option4=heatmap-only ! fakesink" 5 0 0 $PERFORMANCE
 
+# TEST A LABEL DRAWN INTO A FRAME SHORTER THAN A CHARACTER CELL
+# The sprite is 13 rows tall and the output frame is one row, so the rows that
+# do not fit are written past the end of it. The width is what makes that fatal
+# rather than silent: at one row of 65536 pixels the twelve rows that do not fit
+# are three megabytes past a frame of 256 KB, far enough out to fault. A narrow
+# frame overruns by too little to leave the heap and the case would pass either
+# way. That makes this a heuristic detector rather than a deterministic one: an
+# allocator that hands out enough slack could absorb the overrun.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num_buffers=4 ! videoconvert ! videoscale ! video/x-raw,width=17,height=17,format=RGB ! tensor_converter ! tensor_transform mode=arithmetic option=typecast:float32,add:128,div:255 ! tensor_split name=a tensorseg=1:17:17:1,2:17:17:1 a.src_0 ! tensor_transform mode=transpose option=1:2:0:3 ! tensor_decoder mode=pose_estimation option1=65536:1 option2=17:17 option3=pose_label.txt option4=heatmap-only ! fakesink" 6 0 0 $PERFORMANCE
+
 rm pose_label.txt pose_label_utf8.txt
 
 report
