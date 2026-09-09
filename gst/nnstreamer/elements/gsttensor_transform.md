@@ -34,6 +34,7 @@ title: tensor_transform
     - (0): dimchg
       - A mode for changing tensor dimensions
       - An option should be provided as option=FROM_DIM:TO_DIM (with a regex, ^([0-9]|1[0-5]):([0-9]|1[0-5])$, where NNS_TENSOR_RANK_LIMIT is 16).
+      - FROM_DIM should be less than TO_DIM, and the incoming tensor should have a TO_DIM-th dimension.
       - Example: Move 1st dim to 2nd dim (i.e., [a][H][W][C] ==> [a][C][H][W])
 
         ```bash
