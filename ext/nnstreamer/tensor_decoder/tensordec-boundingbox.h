@@ -90,6 +90,7 @@
  *          This is independent from option1
  * option5: Input Dimension (WIDTH:HEIGHT)
  *          This is independent from option1
+ *          Mandatory: the decoded boxes are scaled by this size
  * option6: Whether to track result bounding boxes or not
  *          0 (default, do not track)
  *          1 (track result bounding boxes, with naive centroid based algorithm)
@@ -272,14 +273,14 @@ class BoxProperties
   {
     return i_height;
   }
-  gchar *name;
+  gchar *name = nullptr;
 
   protected:
-  guint i_width; /**< Input Video Width */
-  guint i_height; /**< Input Video Height */
+  guint i_width = 0; /**< Input Video Width */
+  guint i_height = 0; /**< Input Video Height */
 
-  guint max_detection;
-  guint total_labels;
+  guint max_detection = 0;
+  guint total_labels = 0;
 };
 
 /**

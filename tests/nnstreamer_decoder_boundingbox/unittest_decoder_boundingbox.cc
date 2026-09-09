@@ -15,6 +15,9 @@
 #include <string.h>
 #include <unittest_util.h>
 
+#include <nnstreamer_plugin_api_decoder.h>
+#include <nnstreamer_plugin_api_util.h>
+
 #define OV_DESC_SIZE (7U)
 #define OV_DETECTION_MAX (200U)
 #define OV_TENSOR_ELEMENTS (OV_DESC_SIZE * OV_DETECTION_MAX)
@@ -370,6 +373,42 @@ TEST (tensorDecoderBoundingBox, drawLabelInShortFrame)
       label_pixels++;
   }
   EXPECT_GT (label_pixels, 0U);
+}
+
+/**
+ * @brief Swapping the mode of a configured decoder is refused, not divided by.
+ * @details option1 takes the box properties from a table shared by the whole
+ *          process and does not renegotiate, so a decoder that was configured
+ *          with one mode's model input size reaches decode () holding another
+ *          mode's, which may never have been given one. The mode swapped to
+ *          here is one no other case in this binary configures, so its size is
+ *          still the zero it was initialised with.
+ */
+TEST (tensorDecoderBoundingBox, swapModeOfConfiguredDecoder_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  GstTensorsConfig config;
+  GstTensorMemory input;
+  GstBuffer *outbuf;
+  void *pdata = NULL;
+
+  ASSERT_TRUE (decoder != NULL);
+  ASSERT_TRUE (decoder->init (&pdata));
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "ov-person-detection"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 3, "64:48"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 4, "640:480"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "mobilenet-ssd"));
+
+  gst_tensors_config_init (&config);
+  memset (&input, 0, sizeof (input));
+  outbuf = gst_buffer_new ();
+
+  EXPECT_EQ (decoder->decode (&pdata, &config, &input, outbuf), GST_FLOW_ERROR);
+
+  gst_buffer_unref (outbuf);
+  gst_tensors_config_free (&config);
+  decoder->exit (&pdata);
 }
 
 /**

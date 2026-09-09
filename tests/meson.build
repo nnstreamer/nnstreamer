@@ -106,7 +106,7 @@ if gtest_dep.found()
     # RUN unittest_decoder_boundingbox
     unittest_decoder_boundingbox = executable('unittest_decoder_boundingbox',
       join_paths('nnstreamer_decoder_boundingbox', 'unittest_decoder_boundingbox.cc'),
-      dependencies: [nnstreamer_unittest_deps],
+      dependencies: [nnstreamer_unittest_deps, nnstreamer_internal_deps],
       install: get_option('install-test'),
       install_dir: unittest_install_dir
     )

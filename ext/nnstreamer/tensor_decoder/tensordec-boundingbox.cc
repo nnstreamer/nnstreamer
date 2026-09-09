@@ -267,7 +267,8 @@ init_bb (void)
         "\t\t option3=0.5:4:0.2:0.8\n"
         "\t\t option3=0.5:4:1.0:1.0:0.5:0.5:8:16:16:16",
         "option4", "Video Output Dimension (WIDTH:HEIGHT). This is independent from option1.",
-        "option5", "Input Dimension (WIDTH:HEIGHT). This is independent from option1.", "option6",
+        "option5", "Input Dimension (WIDTH:HEIGHT). Mandatory; the decoded boxes are scaled by this size. This is independent from option1.",
+        "option6",
         "Whether to track result bounding boxes or not\n"
         "\t\t 0 (default, do not track)\n"
         "\t\t 1 (track result bounding boxes, with naive centroid based algorithm)",
@@ -982,17 +983,20 @@ BoundingBox::setInputModelSize (const char *param)
     return TRUE;
 
   rank = gst_tensor_parse_dimension (param, dim);
-  bdata->setInputWidth (0);
-  bdata->setInputHeight (0);
 
   if (rank < 2) {
-    GST_ERROR ("mode-option-3 of boundingbox is input video dimension (WIDTH:HEIGHT). The given parameter, \"%s\", is not acceptable.",
+    GST_ERROR ("option5 of boundingbox is input video dimension (WIDTH:HEIGHT). The given parameter, \"%s\", is not acceptable.",
         param);
-    return TRUE; /* Ignore this param */
+    return FALSE;
   }
   if (rank > 2) {
-    GST_WARNING ("mode-option-3 of boundingbox is input video dimension (WIDTH:HEIGHT). The third and later elements of the given parameter, \"%s\", are ignored.",
+    GST_WARNING ("option5 of boundingbox is input video dimension (WIDTH:HEIGHT). The third and later elements of the given parameter, \"%s\", are ignored.",
         param);
+  }
+  if (dim[0] == 0 || dim[1] == 0) {
+    GST_ERROR ("option5 of boundingbox is input video dimension (WIDTH:HEIGHT). The given parameter, \"%s\", has a zero dimension.",
+        param);
+    return FALSE;
   }
   bdata->setInputWidth (dim[0]);
   bdata->setInputHeight (dim[1]);
@@ -1044,6 +1048,11 @@ BoundingBox::getOutCaps (const GstTensorsConfig *config)
   if (!ret)
     return NULL;
 
+  if (bdata->getInputWidth () == 0 || bdata->getInputHeight () == 0) {
+    GST_ERROR ("The input video dimension of the model is not configured. Set option5 of boundingbox to the WIDTH:HEIGHT the model takes, which the decoder scales the decoded boxes by.");
+    return NULL;
+  }
+
   str = g_strdup_printf ("video/x-raw, format = RGBA, " /* Use alpha channel to make the background transparent */
                          "width = %u, height = %u",
       width, height);
@@ -1071,6 +1080,13 @@ BoundingBox::decode (const GstTensorsConfig *config,
   gboolean need_output_alloc;
 
   g_assert (outbuf);
+
+  /* option1 may have swapped bdata since getOutCaps () approved the stream */
+  if (bdata->getInputWidth () == 0 || bdata->getInputHeight () == 0) {
+    GST_ERROR ("The input video dimension of the model is zero. Set option5 of boundingbox to the WIDTH:HEIGHT the model takes.");
+    return GST_FLOW_ERROR;
+  }
+
   need_output_alloc = gst_buffer_get_size (outbuf) == 0;
 
   if (checkLabelProps ())
