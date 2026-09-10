@@ -17,6 +17,6 @@ NNStreamer elements are the basic building blocks for managing neural network pi
 * Tensor Repo
 * [Tensor Sink](/gst/nnstreamer/elements/gsttensor_sink.md)
 * Tensor Sparse
-* Tensor Split
+* [Tensor Split](/gst/nnstreamer/elements/gsttensor_split.md)
 * [Tensor Source](/gst/nnstreamer/elements/gsttensor_src.md)
 * [Tensor Transform](/gst/nnstreamer/elements/gsttensor_transform.md)
