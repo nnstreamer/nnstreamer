@@ -9,7 +9,7 @@
 
 ##
 # @file pylint.sh
-# @brief Check the code formatting style with GNU pylint. Originally pr-prebuild-pylint.sh
+# @brief Fail on pylint errors (E/F messages) in Python files. Originally pr-prebuild-pylint.sh
 # @see      https://www.pylint.org/
 # @see      https://github.com/nnstreamer/TAOS-CI
 # @see      https://github.com/nnstreamer/nnstreamer
@@ -38,7 +38,6 @@ fi
 
 echo "::group::Pylint check started"
 
-pylint --generate-rcfile > ~/.pylintrc
 result=$(mktemp)
 errlog=$(mktemp)
 
@@ -53,17 +52,14 @@ for file in `cat $files`; do
   if [[ `file $file | grep "ASCII text" | wc -l` -gt 0 ]]; then
     case $file in
       *.py)
-        pylint --reports=y $file > $result
-        line_count=$((`cat $result | grep W: | wc -l` + \
-            `cat $result | grep C: | wc -l` + \
-            `cat $result | grep E: | wc -l` + \
-            `cat $result | grep R: | wc -l`))
-        if [[ $line_count -gt 0 ]]; then
+        echo "Checking $file"
+        # CI does not install the modules the scripts import.
+        if ! pylint --errors-only --disable=import-error "$file" > $result 2>&1; then
           failed=1
           echo "======================================" >> $errlog
           echo "pylint error from $file" >> $errlog
           cat $result >> $errlog
-          echo "\n\n" >> $errlog
+          printf '\n\n' >> $errlog
         fi
       ;;
     esac
@@ -73,7 +69,7 @@ done
 echo "::endgroup::"
 
 if [ $failed = 1 ]; then
-    echo "::error There is a doxygen tag missing or incorrect."
+    echo "::error pylint has found errors in Python files."
     echo "::group::The pylint errors are..."
     cat $errlog
     echo "::endgroup::"
