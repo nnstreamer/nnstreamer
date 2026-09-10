@@ -66,6 +66,13 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  multifilesrc location=\"testsequen
 callCompareTest testcase_stream_2_0.golden split07_0.log 7_0 "Compare 7-0" 1 0
 callCompareTest testcase_stream_2_1.golden split07_1.log 7_1 "Compare 7-1" 1 0
 
+# Test tensor_pick skipping the first of differently-sized segments: src_0 carries, and is described by, the second one
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! tensor_split name=split tensorpick=1 tensorseg=1:16:16,2:16:16 split. ! queue ! other/tensors,num_tensors=1,dimensions=2:16:16,types=uint8 ! filesink location=split08.log" 8 0 0 $PERFORMANCE
+
+callCompareTest testcase_stream_1_1.golden split08.log 8 "Compare 8" 1 0
+
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN}  multifilesrc location=\"testsequence_%1d.png\" index=0 caps=\"image/png, framerate=(fraction)30/1\" ! pngdec ! tensor_converter ! tensor_split name=split tensorpick=1 tensorseg=1:16:16,2:16:16 split. ! queue ! other/tensors,num_tensors=1,dimensions=1:16:16,types=uint8 ! filesink location=split08_n.log" 8_n 0 1 $PERFORMANCE
+
 rm *.log *.bmp *.png *.golden *.raw *.dat
 
 report
