@@ -44,7 +44,7 @@ def main():
     """Convert the module and write the flatbuffer."""
     model = AddOne()
     converter = tf.lite.TFLiteConverter.from_concrete_functions(
-        [model.__call__.get_concrete_function()], model
+        [model.__call__.get_concrete_function()], model  # pylint: disable=no-member
     )
     tflite = converter.convert()
 
