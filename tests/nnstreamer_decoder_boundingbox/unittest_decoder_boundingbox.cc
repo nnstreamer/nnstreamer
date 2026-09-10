@@ -11,10 +11,12 @@
 
 #include <gtest/gtest.h>
 #include <glib.h>
+#include <gst/check/gstharness.h>
 #include <gst/gst.h>
 #include <string.h>
 #include <unittest_util.h>
 
+#include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_plugin_api_util.h>
 
@@ -432,6 +434,209 @@ TEST (tensorDecoderBoundingBox, swapModeOfConfiguredDecoder_n)
   gst_buffer_unref (outbuf);
   gst_tensors_config_free (&config);
   decoder->exit (&pdata);
+}
+
+/**
+ * @brief Build a tensors config the ov-person-detection mode accepts.
+ */
+static void
+setOvDetectionConfig (GstTensorsConfig *config)
+{
+  gst_tensors_config_init (config);
+  config->info.num_tensors = 1;
+  config->info.info[0].type = _NNS_FLOAT32;
+  gst_tensor_parse_dimension ("7:200:1:1", config->info.info[0].dimension);
+  config->rate_n = 0;
+  config->rate_d = 1;
+}
+
+/**
+ * @brief The label path is refused while no decoding mode has been chosen.
+ * @details Every option but the mode is handed to the box properties of the
+ *          mode, which option1 has not looked up yet. The label file has to
+ *          hold a label, because an empty one is refused before the box
+ *          properties are reached and would pass for the wrong reason.
+ */
+TEST (tensorDecoderBoundingBox, setLabelPathBeforeMode_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  gchar *label_file = getTempFilename ();
+  void *pdata = NULL;
+
+  ASSERT_TRUE (decoder != NULL);
+  ASSERT_TRUE (label_file != NULL);
+  ASSERT_TRUE (g_file_set_contents (label_file, "person\n", -1, NULL));
+  ASSERT_TRUE (decoder->init (&pdata));
+
+  EXPECT_FALSE (decoder->setOption (&pdata, 1, label_file));
+
+  decoder->exit (&pdata);
+  removeTempFile (&label_file);
+}
+
+/**
+ * @brief The per-mode option is refused while no decoding mode has been chosen.
+ */
+TEST (tensorDecoderBoundingBox, setOptionInternalBeforeMode_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  void *pdata = NULL;
+
+  ASSERT_TRUE (decoder != NULL);
+  ASSERT_TRUE (decoder->init (&pdata));
+
+  EXPECT_FALSE (decoder->setOption (&pdata, 2, "0:0.25:0.45"));
+
+  decoder->exit (&pdata);
+}
+
+/**
+ * @brief The model input size is refused while no decoding mode has been chosen.
+ */
+TEST (tensorDecoderBoundingBox, setInputModelSizeBeforeMode_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  void *pdata = NULL;
+
+  ASSERT_TRUE (decoder != NULL);
+  ASSERT_TRUE (decoder->init (&pdata));
+
+  EXPECT_FALSE (decoder->setOption (&pdata, 4, "300:300"));
+
+  decoder->exit (&pdata);
+}
+
+/**
+ * @brief A decoder without a mode describes no output caps.
+ * @details This is the path a pipeline that never gives option1 takes, and the
+ *          caps query runs before any option can still arrive.
+ */
+TEST (tensorDecoderBoundingBox, getOutCapsBeforeMode_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  GstTensorsConfig config;
+  void *pdata = NULL;
+
+  ASSERT_TRUE (decoder != NULL);
+  ASSERT_TRUE (decoder->init (&pdata));
+
+  setOvDetectionConfig (&config);
+  EXPECT_TRUE (decoder->getOutCaps (&pdata, &config) == NULL);
+
+  gst_tensors_config_free (&config);
+  decoder->exit (&pdata);
+}
+
+/**
+ * @brief A mode that cannot be looked up leaves the configured one in place.
+ * @details option1 is writable while the pipeline runs, so a mode name that
+ *          matches no box properties must not replace the working ones with
+ *          the nothing the lookup returned.
+ */
+TEST (tensorDecoderBoundingBox, keepModeOnUnknownMode_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  GstTensorsConfig config;
+  GstCaps *caps;
+  void *pdata = NULL;
+
+  ASSERT_TRUE (decoder != NULL);
+  ASSERT_TRUE (decoder->init (&pdata));
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "ov-person-detection"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 3, "64:48"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 4, "640:480"));
+
+  EXPECT_FALSE (decoder->setOption (&pdata, 0, "no-such-decoding-mode"));
+
+  setOvDetectionConfig (&config);
+  caps = decoder->getOutCaps (&pdata, &config);
+  EXPECT_TRUE (caps != NULL);
+  if (caps)
+    gst_caps_unref (caps);
+
+  gst_tensors_config_free (&config);
+  decoder->exit (&pdata);
+}
+
+/**
+ * @brief Push one ov-person-detection tensor and pull the frame drawn for it.
+ * @param[out] frame OUT_PIXELS RGBA pixels drawn by the decoder
+ */
+static gboolean
+pushAndPullFrame (GstHarness *h, const float *tensor, uint32_t *frame)
+{
+  GstBuffer *in = gst_buffer_new_allocate (NULL, OV_TENSOR_SIZE, NULL);
+  GstBuffer *out;
+  GstMapInfo map;
+  gboolean ret = FALSE;
+
+  gst_buffer_fill (in, 0, tensor, OV_TENSOR_SIZE);
+  if (gst_harness_push (h, in) != GST_FLOW_OK)
+    return FALSE;
+
+  out = gst_harness_try_pull (h);
+  if (out == NULL)
+    return FALSE;
+
+  if (gst_buffer_map (out, &map, GST_MAP_READ)) {
+    if (map.size == OUT_PIXELS * sizeof (uint32_t)) {
+      memcpy (frame, map.data, map.size);
+      ret = TRUE;
+    }
+    gst_buffer_unmap (out, &map);
+  }
+  gst_buffer_unref (out);
+
+  return ret;
+}
+
+/**
+ * @brief A renegotiated stream is decoded with the options it was given.
+ * @details A new tensor config re-initialises the sub-plugin, and the fresh
+ *          BoundingBox holds no decoding mode until the options are given
+ *          again. A framerate change is the least a config can change by, so
+ *          the frame drawn after it has to match the one drawn before.
+ */
+TEST (tensorDecoderBoundingBox, renegotiateKeepsOptions)
+{
+  float tensor[OV_TENSOR_ELEMENTS] = { 0.0f };
+  uint32_t before[OUT_PIXELS] = { 0U };
+  uint32_t after[OUT_PIXELS] = { 0U };
+  GstTensorsConfig config;
+  GstElement *dec;
+  GstHarness *h;
+  gchar *option4, *option5;
+
+  dec = gst_element_factory_make ("tensor_decoder", NULL);
+  ASSERT_TRUE (dec != NULL);
+  gst_object_ref_sink (dec);
+
+  option4 = g_strdup_printf ("%u:%u", OUT_WIDTH, OUT_HEIGHT);
+  option5 = g_strdup_printf ("%u:%u", MODEL_WIDTH, MODEL_HEIGHT);
+  g_object_set (dec, "mode", "bounding_boxes", "option1", "ov-person-detection",
+      "option4", option4, "option5", option5, NULL);
+  g_free (option4);
+  g_free (option5);
+
+  h = gst_harness_new_with_element (dec, "sink", "src");
+  gst_object_unref (dec);
+  ASSERT_TRUE (h != NULL);
+
+  setOvDetectionConfig (&config);
+  setDetection (tensor, 0.25f, 0.25f, 0.75f, 0.75f);
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  EXPECT_TRUE (pushAndPullFrame (h, tensor, before));
+  EXPECT_GT (countDrawnPixels (before, OUT_PIXELS), 0U);
+
+  config.rate_n = 30;
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  EXPECT_TRUE (pushAndPullFrame (h, tensor, after));
+  EXPECT_EQ (memcmp (before, after, sizeof (before)), 0);
+
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
 }
 
 /**
