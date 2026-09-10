@@ -139,7 +139,10 @@ jobs:
     - name: build and unit test
       if: env.rebuild == '1'
       run: |
-        meson setup build/ -Darmnn-support=enabled
+        # install-test only marks what gets installed; it builds and tests
+        # nothing extra. On x86, the last step installs the tree to run SSAT
+        # from it.
+        meson setup build/ -Darmnn-support=enabled -Dinstall-test=true
 
         # This job installs the newest meson from PyPI, so it configures
         # happily with a construct that the meson on a target distro does not
@@ -448,6 +451,57 @@ jobs:
         kill ${producer_id} || true
 
         popd
+    # A runTest.sh that probes for a sub-plugin looks in ../../build, and where
+    # that is absent - as in an installed tree - in the path it reads from
+    # /etc/nnstreamer.ini. Nothing else runs that second branch, and when it
+    # cannot find the sub-plugin the suite reports no cases, which SSAT passes.
+    # So install, run one suite from where it was installed, and require the
+    # very same result as its build-tree run above: a skip, or a script that
+    # stops early, then fails the step. ncnn is the suite because this leg
+    # asserts that its sub-plugin is built, so a skip can only be a regression.
+    #
+    # What gets installed is the tree the example app step rebuilt with
+    # tensorflow2-lite, while the build-tree run of the suite came before that
+    # rebuild; no ncnn case depends on the difference.
+    #
+    # It is the last step on purpose: it installs over the runner's prefix and
+    # replaces /etc/nnstreamer.ini, and no other step should see either.
+    # https://github.com/nnstreamer/nnstreamer/issues/4903
+    - name: SSAT run on filter-ncnn from the installed tree
+      if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
+      timeout-minutes: 10
+      run: |
+        meson introspect build/ --buildoptions > "${RUNNER_TEMP}/buildoptions.json"
+        opt () {
+          jq -er --arg n "$1" '.[] | select(.name == $n) | .value' "${RUNNER_TEMP}/buildoptions.json"
+        }
+        prefix=$(opt prefix)
+        sysconfdir=$(opt sysconfdir)
+        libdir=$(opt libdir)
+        suite=${prefix}/$(opt bindir)/unittest-nnstreamer/tests/nnstreamer_filter_ncnn
+
+        sudo "$(command -v meson)" install -C build/ --no-rebuild --quiet
+        sudo ldconfig
+        # Where a package puts it, and the only place runTest.sh looks.
+        sudo cp "${prefix}/${sysconfdir}/nnstreamer.ini" /etc/nnstreamer.ini
+        # runTest.sh writes its output files next to itself.
+        sudo chown -R "$(id -u):$(id -g)" "${suite}"
+
+        # The installed plugin only; a fresh registry keeps the build tree's,
+        # which the steps above registered, out of the picture.
+        export GST_PLUGIN_PATH=${prefix}/${libdir}/gstreamer-1.0
+        export GST_REGISTRY=${RUNNER_TEMP}/gst-registry-installed.bin
+        pushd "${suite}"
+        ssat -n -p=1 --summary "${RUNNER_TEMP}/ncnn-installed-summary.txt"
+        popd
+
+        echo "build tree: $(cat tests/nnstreamer_filter_ncnn/summary.txt)"
+        echo "installed:  $(cat "${RUNNER_TEMP}/ncnn-installed-summary.txt")"
+        if ! grep -q '^passed=[1-9]' "${RUNNER_TEMP}/ncnn-installed-summary.txt" ||
+           ! cmp -s tests/nnstreamer_filter_ncnn/summary.txt "${RUNNER_TEMP}/ncnn-installed-summary.txt"; then
+          echo "::error::The ncnn SSAT suite did not run the same cases from the installed tree as from the build tree. Check the /etc/nnstreamer.ini branch of its runTest.sh, and what the install put in place."
+          exit 1
+        fi
 
 # TODO: add more subplugins to be built
 # TODO: add unit testing
