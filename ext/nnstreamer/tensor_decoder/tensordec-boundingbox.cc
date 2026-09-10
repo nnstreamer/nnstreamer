@@ -215,7 +215,8 @@ init_bb (void)
 
     nnstreamer_decoder_set_custom_property_desc (decoder_subplugin_bounding_box,
         "option1", custom_prop_desc, "option2",
-        "Location of the label file. This is independent from option1.", "option3",
+        "Location of the label file. Set option1 first: the labels are given to the box properties of its mode.",
+        "option3",
         "Sub-option values that depend on option1;\n"
         "\tfor yolov5 and yolov8 mode:\n"
         "\t\tThe option3 requires up to 3 numbers, which tell\n"
@@ -267,7 +268,7 @@ init_bb (void)
         "\t\t option3=0.5:4:0.2:0.8\n"
         "\t\t option3=0.5:4:1.0:1.0:0.5:0.5:8:16:16:16",
         "option4", "Video Output Dimension (WIDTH:HEIGHT). This is independent from option1.",
-        "option5", "Input Dimension (WIDTH:HEIGHT). Mandatory; the decoded boxes are scaled by this size. This is independent from option1.",
+        "option5", "Input Dimension (WIDTH:HEIGHT). Mandatory; the decoded boxes are scaled by this size. Set option1 first: the size is given to the box properties of its mode.",
         "option6",
         "Whether to track result bounding boxes or not\n"
         "\t\t 0 (default, do not track)\n"
@@ -902,16 +903,17 @@ BoundingBox::setBoxDecodingMode (const char *param)
   }
 
   const char *mode_name = updateDecodingMode (param);
+  BoxProperties *new_bdata = getProperties (mode_name);
+
+  if (new_bdata == nullptr) {
+    nns_loge ("Could not find box properties name %s", param);
+    return FALSE;
+  }
 
   if (g_strcmp0 (mode_name, "yolov8-obb") == 0) {
     mode = YOLOV8_ORIENTED_BOUNDING_BOX;
   }
-  bdata = getProperties (mode_name);
-
-  if (bdata == nullptr) {
-    nns_loge ("Could not find box properties name %s", param);
-    return FALSE;
-  }
+  bdata = new_bdata;
 
   return TRUE;
 }
@@ -922,6 +924,11 @@ BoundingBox::setBoxDecodingMode (const char *param)
 int
 BoundingBox::setLabelPath (const char *param)
 {
+  if (bdata == nullptr) {
+    GST_ERROR ("option1 of boundingbox selects the box decoding mode and has to be set before option2.");
+    return FALSE;
+  }
+
   if (mode == MP_PALM_DETECTION_BOUNDING_BOX) {
     /* palm detection does not need label information */
     return TRUE;
@@ -982,6 +989,11 @@ BoundingBox::setInputModelSize (const char *param)
   if (param == NULL || *param == '\0')
     return TRUE;
 
+  if (bdata == nullptr) {
+    GST_ERROR ("option1 of boundingbox selects the box decoding mode and has to be set before option5.");
+    return FALSE;
+  }
+
   rank = gst_tensor_parse_dimension (param, dim);
 
   if (rank < 2) {
@@ -1015,6 +1027,10 @@ BoundingBox::setOption (BoundingBoxOption option, const char *param)
     return setLabelPath (param);
   } else if (option == BoundingBoxOption::INTERNAL) {
     /* option3 = per-decoding-mode option */
+    if (bdata == nullptr) {
+      GST_ERROR ("option1 of boundingbox selects the box decoding mode and has to be set before option3.");
+      return FALSE;
+    }
     return bdata->setOptionInternal (param);
   } else if (option == BoundingBoxOption::VIDEO_SIZE) {
     return setVideoSize (param);
@@ -1043,6 +1059,11 @@ BoundingBox::getOutCaps (const GstTensorsConfig *config)
 {
   GstCaps *caps;
   char *str;
+
+  if (bdata == nullptr) {
+    GST_ERROR ("The box decoding mode is not configured. Set option1 of boundingbox to the mode the model was trained for.");
+    return NULL;
+  }
 
   int ret = bdata->checkCompatible (config);
   if (!ret)

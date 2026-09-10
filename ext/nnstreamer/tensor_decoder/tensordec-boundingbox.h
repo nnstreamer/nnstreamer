@@ -35,7 +35,7 @@
  *                     tf-ssd (deprecated, recommend to use mobilenet-ssd-postprocess)
  *                     tflite-ssd (deprecated, recommend to use mobilenet-ssd)
  * option2: Location of label file
- *          This is independent from option1
+ *          Set option1 first: the labels are given to the box properties of its mode
  * option3: Any option1-dependent values
  *          !!This depends on option1 values!!
  *          for yolov5 and yolov8 mode:
@@ -89,7 +89,7 @@
  * option4: Video Output Dimension (WIDTH:HEIGHT)
  *          This is independent from option1
  * option5: Input Dimension (WIDTH:HEIGHT)
- *          This is independent from option1
+ *          Set option1 first: the size is given to the box properties of its mode
  *          Mandatory: the decoded boxes are scaled by this size
  * option6: Whether to track result bounding boxes or not
  *          0 (default, do not track)

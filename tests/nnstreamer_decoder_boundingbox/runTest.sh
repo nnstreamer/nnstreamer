@@ -160,10 +160,6 @@ callCompareTest yolov8_obb_decoder_result_golden.raw yolo11n-obb_result.log "10 
 
 rm dota8-obb-label.txt
 
-# negative case for box properties
-
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=10 ! video/x-raw,format=RGB,width=224,height=224,framerate=0/1 ! videoconvert ! tensor_converter ! tensor_decoder mode=bounding_boxes option1=wrong_mode_name ! fakesink " 11_n 0 1
-
 # The label sprite must stay inside an output frame shorter than a character
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=mux ! tensor_decoder mode=bounding_boxes option1=mobilenet-ssd option2=coco_labels_list.txt option3=box_priors.txt option4=160:12 option5=300:300 ! video/x-raw,format=RGBA ! filesink location=mobilenetssd_short_output.log  multifilesrc name=fs1 location=mobilenetssd_tensors.0.%d start-index=$CASESTART stop-index=$CASEEND caps=application/octet-stream ! tensor_converter input-dim=4:1:1917:1 input-type=float32 ! mux.sink_0  multifilesrc name=fs2 location=mobilenetssd_tensors.1.%d start-index=$CASESTART stop-index=$CASEEND caps=application/octet-stream ! tensor_converter input-dim=91:1917:1 input-type=float32 ! mux.sink_1  " 12 0 0 $PERFORMANCE
@@ -210,5 +206,25 @@ refusedTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${MODELSIZE_DEC} option5=0:0 ! 
 
 # A third element is warned about and ignored, not refused.
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${MODELSIZE_DEC} option5=300:300:3 ! fakesink ${MODELSIZE_SRC}" 16 0 0 $PERFORMANCE
+
+# The box properties of option1 are what every other option is given to, so a
+# mode that is missing or unknown leaves the decoder with none of them. These
+# also need a process each: gst-launch-1.0 sets the properties in the order
+# they are written, which is what puts an option ahead of the mode.
+BB_VIDEO_SRC="videotestsrc num-buffers=10 ! video/x-raw,format=RGB,width=224,height=224,framerate=0/1 ! videoconvert ! tensor_converter"
+
+refusedTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${BB_VIDEO_SRC} ! tensor_decoder mode=bounding_boxes option1=wrong_mode_name ! fakesink" 11_n
+
+refusedTest "--gst-plugin-path=${PATH_TO_PLUGIN} ${BB_VIDEO_SRC} ! tensor_decoder mode=bounding_boxes ! fakesink" 17_n
+
+refusedTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=mux ! tensor_decoder mode=bounding_boxes option5=300:300 option1=mobilenet-ssd option2=coco_labels_list.txt option3=box_priors.txt option4=160:120 ! fakesink ${MODELSIZE_SRC}" 18_n
+
+# An option ahead of the mode is dropped rather than taken by the wrong mode,
+# and setting it again once the mode is there is what makes it count.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=mux ! tensor_decoder mode=bounding_boxes option3=box_priors.txt option1=mobilenet-ssd option2=coco_labels_list.txt option3=box_priors.txt option4=160:120 option5=300:300 ! videoconvert ! video/x-raw,format=BGRx ! multifilesink location=mobilenetssd_output.%d ${MODELSIZE_SRC}" 19 0 0 $PERFORMANCE
+
+callCompareTest mobilenetssd_golden.0 mobilenetssd_output.0 19-1 "mobilenet-ssd Decode with option3 replayed" 0
+callCompareTest mobilenetssd_golden.1 mobilenetssd_output.1 19-2 "mobilenet-ssd Decode 2 with option3 replayed" 0
+rm mobilenetssd_output.*
 
 report
