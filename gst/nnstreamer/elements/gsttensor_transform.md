@@ -93,6 +93,16 @@ title: tensor_transform
 
 - acceleration (readable, writable): A flat indicating whether to enable ```orc``` acceleration
 
+## Changing properties while streaming
+
+- `mode`, `option` and `apply` can be changed while the pipeline is in PLAYING state. Each change takes effect from the next buffer.
+- If a change alters the type or dimension of the output tensors, the element renegotiates its output caps before the next buffer. If the downstream elements cannot accept the new caps, the stream stops with a not-negotiated error.
+- Setting a property while a buffer is being transformed waits until that buffer is done; that buffer uses the previous values.
+- A change that lands after the element has checked for a pending renegotiation, but before it transforms the buffer, drops that one buffer instead of sending it with caps that do not describe it.
+- A change that lands while a previous change is being renegotiated makes that negotiation fail. The element then negotiates again with the latest values, up to 8 attempts per buffer. Each failed attempt posts a "not negotiated" warning on the bus. If the properties keep changing through all the attempts, the stream stops with a not-negotiated error.
+- If downstream also accepts flexible tensors, a change that lands during such a negotiation may send one buffer as a flexible tensor. Its header describes the data, and the following buffer is negotiated with the latest values.
+- `mode` and `option` are separate properties. When changing both, a buffer arriving between the two changes sees the new mode with the old option; if that option does not fit the new mode, the stream stops with an error.
+
 ## Properties for debugging
 
 - silent: disable or enable debugging messages
