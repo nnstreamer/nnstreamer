@@ -245,17 +245,20 @@ gst_tensor_transform_class_init (GstTensorTransformClass * klass)
   g_object_class_install_property (gobject_class, PROP_MODE,
       g_param_spec_enum ("mode", "Mode", "Mode used for transforming tensor",
           GST_TYPE_TENSOR_TRANSFORM_MODE, GTT_UNKNOWN,
-          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          G_PARAM_READWRITE | GST_PARAM_MUTABLE_PLAYING |
+          G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_OPTION,
       g_param_spec_string ("option", "Option",
-          "Option for the tensor transform mode ?", "", G_PARAM_READWRITE));
+          "Option for the tensor transform mode ?", "",
+          G_PARAM_READWRITE | GST_PARAM_MUTABLE_PLAYING));
   g_object_class_install_property (gobject_class, PROP_ACCELERATION,
       g_param_spec_boolean ("acceleration", "Acceleration", "Orc acceleration",
           DEFAULT_ACCELERATION, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_APPLY,
       g_param_spec_string ("apply", "Apply", "Select tensors to apply, "
           "separated with ',' in case of multiple tensors. Default to apply all tensors.",
-          "", G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          "", G_PARAM_READWRITE | GST_PARAM_MUTABLE_PLAYING |
+          G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (gobject_class, PROP_TRANSPOSE_RANK_LIMIT,
       g_param_spec_uint ("transpose-rank-limit", "Transpose rank limit",
           "The rank limit of transpose, which varies per version of nnstreamer and may be lower than the global rank limit if it is over 4.",
@@ -306,6 +309,7 @@ gst_tensor_transform_init (GstTensorTransform * filter)
   filter->operators = NULL;
   filter->acceleration = DEFAULT_ACCELERATION;
   filter->apply = NULL;
+  filter->prop_changed = FALSE;
   g_mutex_init (&filter->lock);
 
   gst_tensors_config_init (&filter->in_config);
@@ -1082,6 +1086,20 @@ gst_tensor_transform_is_applied (GstTensorTransform * filter, guint idx)
 }
 
 /**
+ * @brief Mark that mode, option or apply changed, and renegotiate the output
+ *        caps before the next buffer.
+ * @param filter "this" pointer
+ * @note The caller should hold filter->lock, so that the streaming thread
+ *       never sees the change without the pending reconfiguration.
+ */
+static void
+gst_tensor_transform_mark_prop_changed (GstTensorTransform * filter)
+{
+  filter->prop_changed = TRUE;
+  gst_base_transform_reconfigure_src (GST_BASE_TRANSFORM_CAST (filter));
+}
+
+/**
  * @brief Set property (gst element vmethod)
  */
 static void
@@ -1095,11 +1113,17 @@ gst_tensor_transform_set_property (GObject * object, guint prop_id,
       filter->silent = g_value_get_boolean (value);
       break;
     case PROP_MODE:
+    {
+      tensor_transform_mode mode = g_value_get_enum (value);
+
       g_mutex_lock (&filter->lock);
-      filter->mode = g_value_get_enum (value);
+      if (filter->mode != mode)
+        gst_tensor_transform_mark_prop_changed (filter);
+      filter->mode = mode;
       gst_tensor_transform_set_option_data (filter);
       g_mutex_unlock (&filter->lock);
       break;
+    }
     case PROP_OPTION:
     {
       gchar *backup_option;
@@ -1110,6 +1134,8 @@ gst_tensor_transform_set_property (GObject * object, guint prop_id,
       if (gst_tensor_transform_set_option_data (filter)) {
         silent_debug (filter, "Option = %s --> %s\n", backup_option,
             filter->option);
+        if (g_strcmp0 (backup_option, filter->option) != 0)
+          gst_tensor_transform_mark_prop_changed (filter);
         g_free (backup_option);
       } else {
         /* ERROR! Revert the change! */
@@ -1152,6 +1178,7 @@ gst_tensor_transform_set_property (GObject * object, guint prop_id,
       g_mutex_lock (&filter->lock);
       g_list_free (filter->apply);
       filter->apply = apply;
+      gst_tensor_transform_mark_prop_changed (filter);
       g_mutex_unlock (&filter->lock);
       break;
     }
@@ -1922,6 +1949,63 @@ gst_tensor_transform_padding (GstTensorTransform * filter,
 }
 
 /**
+ * @brief Check the output config of a static input against the current mode,
+ *        option and apply, after one of them changed.
+ * @param filter "this" pointer
+ * @param out_flexible TRUE if the output caps are flexible
+ * @return GST_FLOW_OK if the buffer can be transformed with out_config,
+ *         GST_BASE_TRANSFORM_FLOW_DROPPED if the output caps change and the
+ *         renegotiation is still pending, or an error.
+ * @note The caller should hold filter->lock.
+ */
+static GstFlowReturn
+gst_tensor_transform_check_out_config (GstTensorTransform * filter,
+    gboolean out_flexible)
+{
+  GstPad *srcpad = GST_BASE_TRANSFORM_SRC_PAD (filter);
+  GstTensorInfo *in_info, *out_info;
+  GstTensorInfo info;
+  GstFlowReturn ret = GST_FLOW_OK;
+  guint i;
+
+  for (i = 0; i < filter->in_config.info.num_tensors; i++) {
+    in_info = gst_tensors_info_get_nth_info (&filter->in_config.info, i);
+    out_info = gst_tensors_info_get_nth_info (&filter->out_config.info, i);
+
+    gst_tensor_info_init (&info);
+
+    if (!gst_tensor_transform_convert_dimension (filter, GST_PAD_SINK, i,
+            in_info, &info) || !gst_tensor_info_validate (&info)) {
+      ml_loge
+          ("Cannot transform the tensor %u, the mode does not fit its dimension.\n",
+          i);
+      ret = GST_FLOW_ERROR;
+    } else if (!gst_tensor_info_is_equal (&info, out_info)) {
+      if (out_flexible) {
+        /* flexible caps do not describe the tensor, only the config changes */
+        gst_tensor_info_free (out_info);
+        gst_tensor_info_copy (out_info, &info);
+      } else if (gst_pad_needs_reconfigure (srcpad)) {
+        ret = GST_BASE_TRANSFORM_FLOW_DROPPED;
+      } else {
+        /* not expected, the base class renegotiates first; never write it */
+        ml_loge
+            ("The tensor %u does not match the negotiated caps after the properties changed.\n",
+            i);
+        ret = GST_FLOW_NOT_NEGOTIATED;
+      }
+    }
+
+    gst_tensor_info_free (&info);
+    if (ret != GST_FLOW_OK)
+      return ret;
+  }
+
+  filter->prop_changed = FALSE;
+  return GST_FLOW_OK;
+}
+
+/**
  * @brief non-ip transform. required vmethod for BaseTransform class.
  * @param[in/out] trans "super" pointer
  * @param[in] inbuf The input gst buffer
@@ -1991,6 +2075,12 @@ gst_tensor_transform_transform (GstBaseTransform * trans,
       ml_loge ("Invalid buffer, the number of tensors is not matched.\n");
       res = GST_FLOW_ERROR;
       goto done;
+    }
+
+    if (filter->prop_changed) {
+      res = gst_tensor_transform_check_out_config (filter, out_flexible);
+      if (res != GST_FLOW_OK)
+        goto done;
     }
   }
 
@@ -2529,7 +2619,7 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
       out_info = gst_tensors_info_get_nth_info (&config.info, i);
 
       if (!gst_tensor_transform_convert_dimension (filter, GST_PAD_SINK,
-              i, in_info, out_info)) {
+              i, in_info, out_info) || !gst_tensor_info_validate (out_info)) {
         GST_ERROR_OBJECT (filter,
             "Cannot derive the output info of tensor %u from the input caps "
             "with mode=%s option=%s.", i, mode_str,
@@ -2567,6 +2657,7 @@ gst_tensor_transform_set_caps (GstBaseTransform * trans,
   gst_tensors_config_free (&filter->out_config);
   filter->in_config = in_config;
   filter->out_config = out_config;
+  filter->prop_changed = FALSE;
   allowed = TRUE;
 
 error:
