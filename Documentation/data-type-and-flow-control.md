@@ -108,6 +108,8 @@ Unlike ```other/tensors,format=static```, flexible tensor does not contain the d
 An ```other/tensors,format=flexible``` tensor has its meta data - [GstTensorMetaInfo](https://github.com/nnstreamer/nnstreamer/blob/main/gst/nnstreamer/include/tensor_typedef.h) - in each tensor buffer, to prevent caps negotiation with fixed type of data stream.
 When processing a buffer with the capability ```other/tensors,format=flexible```, NNStreamer engine developer (not pipeline or application developers) should append or parse the tensor information in buffer using various [utility functions](https://github.com/nnstreamer/nnstreamer/blob/main/gst/nnstreamer/include/nnstreamer_plugin_api_util.h). Note that there are a few [other functions defined in another header](https://github.com/nnstreamer/nnstreamer/blob/main/gst/nnstreamer/include/nnstreamer_plugin_api.h): appending and parsing headers of GstMemory objects.
 
+A ```tensor_filter``` with flexible input checks the type and dimension in each tensor's meta against the model's input, and stops the stream with an error when they differ or when the tensor is tagged sparse. Only with ```invoke-dynamic=true``` may the flexible tensors change type, shape or format per buffer; the subplugin then decides what it accepts.
+
 The buffer of ```other/tensors,format=flexible``` may have single memory or multiple memory chunks.
 NNStreamer element with ```other/tensors,format=flexible``` capability gets the number of memories in a buffer and handles each memory as a tensor.
 Note that, it also has a limit, the maximum allowed number of memory chunks in a buffer is **256**.

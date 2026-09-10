@@ -676,6 +676,7 @@ _gst_tensor_filter_release_mem_until_idx (FilterTransformData * trans_data,
 
 /**
  * @brief Internal function to convert tensor meta and get header size of flexible tensor.
+ * @param info The tensors info to update from the header, or NULL to leave it as is.
  */
 static gsize
 _gst_tensor_filter_convert_meta (FilterTransformData * trans_data,
@@ -687,14 +688,70 @@ _gst_tensor_filter_convert_meta (FilterTransformData * trans_data,
 
   if (trans_data->is_flexible) {
     _meta = &trans_data->meta[idx];
-    _info = gst_tensors_info_get_nth_info (info, idx);
 
     gst_tensor_meta_info_parse_header (_meta, trans_data->info[idx].data);
     header_size = gst_tensor_meta_info_get_header_size (_meta);
-    gst_tensor_meta_info_convert (_meta, _info);
+
+    if (info) {
+      _info = gst_tensors_info_get_nth_info (info, idx);
+      gst_tensor_meta_info_convert (_meta, _info);
+    }
   }
 
   return header_size;
+}
+
+/**
+ * @brief Internal function to check that a flexible input tensor is the one the model takes.
+ */
+static gboolean
+_gst_tensor_filter_check_flexible_input (GstTensorFilter * self,
+    FilterTransformData * trans_data, guint buf_idx, guint model_idx)
+{
+  GstTensorFilterProperties *prop = &self->priv.prop;
+  GstTensorMetaInfo *meta = &trans_data->meta[buf_idx];
+  GstTensorInfo *model_info;
+  GstTensorInfo buf_info;
+  gchar *model_dim, *buf_dim;
+  gboolean equal = FALSE;
+
+  /* An out-of-range model index is reported by the size check. */
+  if (!trans_data->is_flexible || prop->invoke_dynamic ||
+      model_idx >= prop->input_meta.num_tensors)
+    return TRUE;
+
+  if (!gst_tensor_meta_info_validate (meta)) {
+    GST_ELEMENT_ERROR_BTRACE (self, STREAM, WRONG_TYPE,
+        ("gst_tensor_filter_transform: The %u'th tensor of the flexible input buffer does not have a valid tensor meta header.",
+            buf_idx));
+    return FALSE;
+  }
+
+  model_info = gst_tensors_info_get_nth_info (&prop->input_meta, model_idx);
+  gst_tensor_info_init (&buf_info);
+  gst_tensor_meta_info_convert (meta, &buf_info);
+
+  equal = (meta->format != _NNS_TENSOR_FORMAT_SPARSE &&
+      gst_tensor_info_is_equal (&buf_info, model_info));
+
+  if (!equal) {
+    model_dim = gst_tensor_get_dimension_string (model_info->dimension);
+    buf_dim = gst_tensor_get_dimension_string (meta->dimension);
+
+    GST_ELEMENT_ERROR_BTRACE (self, STREAM, WRONG_TYPE,
+        ("gst_tensor_filter_transform: The %u'th tensor of the flexible input buffer (type: %s, dimension: %s, format: %s) is not the %u'th input tensor that the model of tensor-filter (%s:%s) takes (type: %s, dimension: %s). Without invoke-dynamic, a flexible tensor has to carry the type and dimension of the model input, not sparse data.",
+            buf_idx, gst_tensor_get_type_string (meta->type),
+            GST_STR_NULL (buf_dim), gst_tensor_get_format_string (meta->format),
+            model_idx, GST_STR_NULL (prop->fwname), TF_MODELNAME (prop),
+            GST_STR_NULL (gst_tensor_get_type_string (model_info->type)),
+            GST_STR_NULL (model_dim)));
+
+    g_free (model_dim);
+    g_free (buf_dim);
+  }
+
+  gst_tensor_info_free (&buf_info);
+  return equal;
 }
 
 /**
@@ -735,7 +792,8 @@ _gst_tensor_filter_transform_get_all_input_data (GstBaseTransform * trans,
       return NULL;
     }
 
-    hsize = _gst_tensor_filter_convert_meta (trans_data, &prop->input_meta, i);
+    hsize = _gst_tensor_filter_convert_meta (trans_data,
+        prop->invoke_dynamic ? &prop->input_meta : NULL, i);
 
     trans_data->tensors[i].data = trans_data->info[i].data + hsize;
     trans_data->tensors[i].size = trans_data->info[i].size - hsize;
@@ -797,6 +855,12 @@ _gst_tensor_filter_transform_get_invoke_tensors (GstBaseTransform * trans,
         return NULL;
       }
 
+      if (!_gst_tensor_filter_check_flexible_input (self, trans_data, i,
+              info_idx)) {
+        g_free (invoke_tensors);
+        return NULL;
+      }
+
       expected = gst_tensor_filter_get_tensor_size (self, info_idx, TRUE);
       if (expected != trans_data->tensors[i].size) {
         ml_loge_stacktrace
@@ -810,6 +874,11 @@ _gst_tensor_filter_transform_get_invoke_tensors (GstBaseTransform * trans,
     }
   } else {
     for (i = 0; i < prop->input_meta.num_tensors; i++) {
+      if (!_gst_tensor_filter_check_flexible_input (self, trans_data, i, i)) {
+        g_free (invoke_tensors);
+        return NULL;
+      }
+
       expected = gst_tensor_filter_get_tensor_size (self, i, TRUE);
       if (expected != trans_data->tensors[i].size) {
         ml_loge_stacktrace
