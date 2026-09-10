@@ -262,10 +262,11 @@ PYCore::loadScript ()
 #endif
 
   int ret = -EINVAL;
+  PyObject *cls = NULL;
 
   PyObject *module = PyImport_ImportModule (module_name.c_str ());
   if (module) {
-    PyObject *cls = PyObject_GetAttrString (module, "CustomFilter");
+    cls = PyObject_GetAttrString (module, "CustomFilter");
     if (cls) {
       PyObject *py_args;
       if (!module_args.empty ()) {
@@ -308,15 +309,11 @@ PYCore::loadScript ()
         ret = -3;
         goto exit;
       }
-
-      Py_SAFEDECREF (cls);
     } else {
       Py_ERRMSG ("Cannot find 'CustomFilter' class in the script\n");
       ret = -2;
       goto exit;
     }
-
-    Py_SAFEDECREF (module);
   } else {
     Py_ERRMSG ("the script is not properly loaded\n");
     ret = -1;
@@ -332,6 +329,8 @@ PYCore::loadScript ()
 
   ret = 0;
 exit:
+  Py_SAFEDECREF (cls);
+  Py_SAFEDECREF (module);
   return ret;
 }
 

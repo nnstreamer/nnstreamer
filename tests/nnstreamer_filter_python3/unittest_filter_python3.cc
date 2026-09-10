@@ -9,6 +9,7 @@
  *
  */
 #include <gtest/gtest.h>
+#include <Python.h>
 #include <glib.h>
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
@@ -578,6 +579,38 @@ TEST_F (nnstreamerFilterPython3Output, raise_n)
   EXPECT_NE (sp->invoke (sp, &prop, data, &input, output), 0);
   expectNoOutput ();
   expectRecovered ();
+}
+
+/**
+ * @brief Negative case with a script whose constructor fails, twice
+ */
+TEST_F (nnstreamerFilterPython3Output, openInitError_n)
+{
+  PyGILState_STATE gstate;
+  PyObject *module, *cls;
+  Py_ssize_t module_ref, cls_ref;
+
+  /* the first attempt imports the script */
+  EXPECT_NE (openCase ("init_error"), 0);
+
+  gstate = PyGILState_Ensure ();
+  module = PyImport_ImportModule ("filter_output_cases");
+  cls = module ? PyObject_GetAttrString (module, "CustomFilter") : NULL;
+  module_ref = module ? Py_REFCNT (module) : 0;
+  cls_ref = cls ? Py_REFCNT (cls) : 0;
+  PyGILState_Release (gstate);
+  ASSERT_NE (module, nullptr);
+  ASSERT_NE (cls, nullptr);
+
+  EXPECT_NE (openCase ("init_error"), 0);
+  EXPECT_EQ (data, nullptr);
+
+  gstate = PyGILState_Ensure ();
+  EXPECT_EQ (Py_REFCNT (module), module_ref);
+  EXPECT_EQ (Py_REFCNT (cls), cls_ref);
+  Py_DECREF (cls);
+  Py_DECREF (module);
+  PyGILState_Release (gstate);
 }
 
 /**
