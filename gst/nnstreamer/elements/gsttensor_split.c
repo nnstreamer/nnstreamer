@@ -30,6 +30,8 @@
  *
  * A Deuxer that split tensors stream to tensor stream for NN frameworks.
  * The outputs are always in the format of other/tensor.
+ * With tensorpick, only the picked segments are pushed, on src_0, src_1, ...
+ * in ascending segment index, and each pad describes the segment it carries.
  *
  * <refsect2>
  * <title>Example launch line</title>
@@ -129,7 +131,9 @@ gst_tensor_split_class_init (GstTensorSplitClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_TENSORPICK,
       g_param_spec_string ("tensorpick", "TensorPick",
-          "Choose nth tensor among tensors ?", "", G_PARAM_READWRITE));
+          "Indices of the tensorseg segments to output (e.g., 1,2), which go "
+          "out on src_0, src_1, ... in ascending index order, each pad "
+          "carrying the dimensions of its own segment", "", G_PARAM_READWRITE));
 
   g_object_class_install_property (gobject_class, PROP_TENSORSEG,
       g_param_spec_string ("tensorseg", "TensorSeg",
@@ -256,10 +260,9 @@ gst_tensor_split_event (GstPad * pad, GstObject * parent, GstEvent * event)
  * @param tensorpick private copy of the tensorpick property
  * @param inbuf inputbuf GstBuffer Object including GstMeta
  * @param[out] created will be updated in this function
- * @param nth source ordering
+ * @param nth index of the tensorseg segment the pad carries
  * @return TensorPad if pad is already created, then return created pad.
- *         If not return new pad after creation, or NULL if no segment rule
- *         is left for it.
+ *         If not return new pad after creation, described by segment nth.
  */
 static GstTensorPad *
 gst_tensor_split_get_tensor_pad (GstTensorSplit * split, GArray * tensorseg,
@@ -291,13 +294,6 @@ gst_tensor_split_get_tensor_pad (GstTensorSplit * split, GArray * tensorseg,
     walk = g_slist_next (walk);
   }
 
-  if (split->num_srcpads >= tensorseg->len) {
-    GST_ERROR_OBJECT (split,
-        "The tensorseg has %u rules, which leaves none for the %uth source pad.",
-        tensorseg->len, split->num_srcpads);
-    return NULL;
-  }
-
   tensorpad = g_new0 (GstTensorPad, 1);
   g_assert (tensorpad != NULL);
   GST_DEBUG_OBJECT (split, "creating pad: %d(%dth)", split->num_srcpads, nth);
@@ -314,7 +310,7 @@ gst_tensor_split_get_tensor_pad (GstTensorSplit * split, GArray * tensorseg,
   tensorpad->last_ts = GST_CLOCK_TIME_NONE;
 
   split->srcpads = g_slist_append (split->srcpads, tensorpad);
-  dim = g_array_index (tensorseg, tensor_dim *, split->num_srcpads);
+  dim = g_array_index (tensorseg, tensor_dim *, nth);
 
   split->num_srcpads++;
 
@@ -511,10 +507,6 @@ gst_tensor_split_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
     srcpad = gst_tensor_split_get_tensor_pad (split, tensorseg, tensorpick, buf,
         &created, i);
-    if (srcpad == NULL) {
-      res = GST_FLOW_ERROR;
-      break;
-    }
 
     outbuf = gst_buffer_new ();
     mem = gst_tensor_split_get_splitted (split, tensorseg, buf, i);
