@@ -141,6 +141,7 @@ PYConverterCore::convert (GstBuffer *in_buf, GstTensorsConfig *config)
 
     if (!gst_memory_map (in_mem[i], &in_info[i], GST_MAP_READ)) {
       Py_ERRMSG ("Cannot map input memory / tensor_converter::custom-script");
+      gst_memory_unref (in_mem[i]);
       num = i;
       goto done;
     }
@@ -159,6 +160,11 @@ PYConverterCore::convert (GstBuffer *in_buf, GstTensorsConfig *config)
 
   pyValue = PyObject_CallMethod (core_obj, "convert", "(O)", param);
 
+  if (nullptr == pyValue) {
+    Py_ERRMSG ("Failed to call 'convert'");
+    goto done;
+  }
+
   if (!PyArg_ParseTuple (pyValue, "OOii", &tensors_info, &output, &rate_n, &rate_d)) {
     Py_ERRMSG ("Failed to parse converting result");
     goto done;
@@ -175,19 +181,34 @@ PYConverterCore::convert (GstBuffer *in_buf, GstTensorsConfig *config)
     GstTensorInfo *_info;
     Py_ssize_t num_tensors = PyList_Size (output);
 
-    if (num_tensors < 0 || num_tensors > NNS_TENSOR_SIZE_LIMIT) {
+    if (num_tensors < 0 || (guint) num_tensors != config->info.num_tensors) {
       Py_ERRMSG ("Fail to get output from 'convert', invalid output size.");
       goto done;
     }
 
     out_buf = gst_buffer_new ();
     for (i = 0; i < (guint) num_tensors; i++) {
-      PyArrayObject *output_array
-          = (PyArrayObject *) PyList_GetItem (output, (Py_ssize_t) i);
+      PyObject *item = PyList_GetItem (output, (Py_ssize_t) i);
+      PyArrayObject *output_array = nullptr;
 
       _info = gst_tensors_info_get_nth_info (&config->info, i);
-      mem_size = PyArray_SIZE (output_array);
+
+      if (PyArray_Check (item)
+          && (gsize) PyArray_NBYTES ((PyArrayObject *) item)
+                 == gst_tensor_info_get_size (_info))
+        output_array = PyArray_GETCONTIGUOUS ((PyArrayObject *) item);
+
+      if (nullptr == output_array) {
+        Py_ERRMSG ("Fail to get output from 'convert', the output tensor %u does not match its tensor info.",
+            i);
+        gst_buffer_unref (out_buf);
+        out_buf = NULL;
+        goto done;
+      }
+
+      mem_size = PyArray_NBYTES (output_array);
       mem_data = _g_memdup ((guint8 *) PyArray_DATA (output_array), mem_size);
+      Py_SAFEDECREF (output_array);
 
       out_mem = gst_memory_new_wrapped (
           (GstMemoryFlags) 0, mem_data, mem_size, 0, mem_size, mem_data, g_free);
