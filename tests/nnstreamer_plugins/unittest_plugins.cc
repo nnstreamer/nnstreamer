@@ -1880,6 +1880,208 @@ _push_tensor_of_size (GstHarness *h, gsize size)
 }
 
 /**
+ * @brief Data for the thread changing the properties of tensor_transform
+ */
+typedef struct {
+  GstElement *element; /**< tensor_transform to be changed */
+  gint stop; /**< set to stop the thread */
+  guint changes; /**< number of times the properties were changed */
+} transform_prop_changer_s;
+
+/**
+ * @brief Thread function toggling the option and apply of tensor_transform
+ */
+static gpointer
+_toggle_transform_props (gpointer user_data)
+{
+  transform_prop_changer_s *data = (transform_prop_changer_s *) user_data;
+  gchar *option;
+
+  while (!g_atomic_int_get (&data->stop)) {
+    g_object_set (data->element, "option", (data->changes % 2) ? "add:2" : "add:1", NULL);
+    /* both select the only tensor, the list is still freed and rebuilt */
+    g_object_set (data->element, "apply", (data->changes % 2) ? "0" : "", NULL);
+    g_object_get (data->element, "option", &option, NULL);
+    g_free (option);
+
+    data->changes++;
+    g_thread_yield ();
+  }
+
+  return NULL;
+}
+
+/**
+ * @brief Test for changing option and apply from another thread while
+ *        buffers are transformed (#4932). Every buffer must be transformed by
+ *        exactly one of the operators, never by a released or empty list.
+ */
+TEST (testTensorTransform, optionChangeFromAnotherThread)
+{
+  const guint num_buffers = 500U;
+  const guint array_size = 1024U;
+  transform_prop_changer_s data;
+  GstHarness *h;
+  GstTensorsConfig config;
+  GstBuffer *in_buf, *out_buf;
+  GstMemory *mem;
+  GstMapInfo info;
+  GThread *thread;
+  guint i, b, mismatched = 0;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "add:1", NULL);
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1U;
+  config.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("1024", config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+
+  data.element = h->element;
+  data.stop = 0;
+  data.changes = 0;
+  thread = g_thread_new ("transform-props", _toggle_transform_props, &data);
+
+  for (b = 0; b < num_buffers && mismatched == 0; b++) {
+    guint8 delta;
+
+    in_buf = gst_harness_create_buffer (h, array_size);
+    mem = gst_buffer_peek_memory (in_buf, 0);
+    if (!gst_memory_map (mem, &info, GST_MAP_WRITE)) {
+      gst_buffer_unref (in_buf);
+      mismatched++;
+      break;
+    }
+    for (i = 0; i < array_size; i++)
+      info.data[i] = i % 100;
+    gst_memory_unmap (mem, &info);
+
+    EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+    out_buf = gst_harness_try_pull (h);
+    if (out_buf == NULL) {
+      mismatched++;
+      break;
+    }
+
+    mem = gst_buffer_peek_memory (out_buf, 0);
+    if (!gst_memory_map (mem, &info, GST_MAP_READ)) {
+      gst_buffer_unref (out_buf);
+      mismatched++;
+      break;
+    }
+
+    delta = info.data[0];
+    if (info.size != array_size || (delta != 1 && delta != 2))
+      mismatched++;
+    for (i = 1; i < info.size && mismatched == 0; i++) {
+      if (info.data[i] != (guint8) (i % 100 + delta))
+        mismatched++;
+    }
+
+    gst_memory_unmap (mem, &info);
+    gst_buffer_unref (out_buf);
+  }
+
+  g_atomic_int_set (&data.stop, 1);
+  g_thread_join (thread);
+
+  EXPECT_EQ (mismatched, 0U);
+  EXPECT_EQ (b, num_buffers);
+  EXPECT_GT (data.changes, 0U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Data for the bus sync handler of tensor_transform
+ */
+typedef struct {
+  GstTensorTransform *transform; /**< tensor_transform posting the error */
+  gboolean error_posted; /**< TRUE if an error message was posted */
+  gboolean locked_on_post; /**< TRUE if the element was locked while posting */
+  gchar *option; /**< option read from the sync handler */
+} transform_bus_data_s;
+
+/**
+ * @brief Bus sync handler reading the option of tensor_transform on an error
+ */
+static GstBusSyncReply
+_transform_error_sync_handler (GstBus *bus, GstMessage *msg, gpointer user_data)
+{
+  transform_bus_data_s *data = (transform_bus_data_s *) user_data;
+
+  UNUSED (bus);
+
+  if (GST_MESSAGE_TYPE (msg) == GST_MESSAGE_ERROR) {
+    data->error_posted = TRUE;
+
+    /* reading the property would deadlock if the error is posted locked */
+    if (g_mutex_trylock (&data->transform->lock)) {
+      g_mutex_unlock (&data->transform->lock);
+      g_free (data->option);
+      g_object_get (data->transform, "option", &data->option, NULL);
+    } else {
+      data->locked_on_post = TRUE;
+    }
+  }
+
+  return GST_BUS_DROP;
+}
+
+/**
+ * @brief Test for a mode change that leaves the element unconfigured while
+ *        streaming (#4932). The error is posted without holding the lock, so
+ *        a bus sync handler can read the properties.
+ */
+TEST (testTensorTransform, notConfiguredWhileStreaming_n)
+{
+  transform_bus_data_s data = { NULL, FALSE, FALSE, NULL };
+  GstHarness *h;
+  GstTensorsConfig config;
+  GstBus *bus;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  g_object_set (h->element, "mode", GTT_ARITHMETIC, "option", "add:1", NULL);
+
+  bus = gst_bus_new ();
+  data.transform = GST_TENSOR_TRANSFORM (h->element);
+  gst_bus_set_sync_handler (bus, _transform_error_sync_handler, &data, NULL);
+  gst_element_set_bus (h->element, bus);
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1U;
+  config.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("5", config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  EXPECT_EQ (_push_tensor_of_size (h, 5), GST_FLOW_OK);
+  EXPECT_FALSE (data.error_posted);
+
+  /* "add:1" is not a valid dimchg option: the element is unconfigured again */
+  g_object_set (h->element, "mode", GTT_DIMCHG, NULL);
+  EXPECT_EQ (_push_tensor_of_size (h, 5), GST_FLOW_ERROR);
+
+  EXPECT_TRUE (data.error_posted);
+  EXPECT_FALSE (data.locked_on_post);
+  EXPECT_STREQ (data.option, "add:1");
+
+  gst_harness_teardown (h);
+  gst_bus_set_flushing (bus, TRUE);
+  gst_object_unref (bus);
+  g_free (data.option);
+}
+
+/**
  * @brief Test for tensor_transform, a static tensor shorter than the caps
  */
 TEST (testTensorTransform, pushShortTensor_n)
