@@ -13,6 +13,11 @@ You can embed arbitrary function calls in a nnstreamer pipeline with these subpl
 ### Custom/C Simplified (custom-easy)
 ### Lua
 ### Python3
+- subplugin name: 'python3'
+
+The model is a python script defining the class ```CustomFilter``` with either ```getInputDim()``` and ```getOutputDim()```, or ```setInputDim()```, and ```invoke(input_array)```. ```tests/test_models/models/passthrough.py``` is an example. The custom property is split by spaces into the arguments of the class constructor.
+
+```invoke()``` gets a list of 1-D numpy arrays, one for each input tensor, and returns a list of numpy arrays, one for each output tensor, each with the type and the byte size of its tensor. An output array is copied before it is pushed if it is not contiguous, if its data lies in an input tensor, or if its data pointer is the same as that of an output already given out. Any other array is pushed without a copy, including a read-only array and a view overlapping another output, so an element after tensor\_filter must not write into such an output. Any other result, or an exception, fails the invoke and the stream stops with an error.
 
 ## Neural network frameworks
 
