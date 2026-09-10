@@ -190,6 +190,28 @@ expect_not_in "myelement.c:90" "and not with any frame below it"
 expect_in "32 (16 direct, 16 indirect) bytes in 1 blocks are definitely lost" "a leak holding indirect blocks is listed with its sizes"
 expect_not_in "loss record" "the loss record number is not part of the listing"
 
+run_case leak_object_ours <<'EOF'
+==1== Command: ./tests/unittest_demo
+==1== 64 bytes in 1 blocks are definitely lost in loss record 7 of 9
+==1==    at 0x1111: malloc (vg_replace_malloc.c:381)
+==1==    by 0x2222: g_malloc (in /usr/lib/libglib-2.0.so.0)
+==1==    by 0x3333: some_symbol (in /home/runner/work/nnstreamer/build/gst/libnnstreamer.so)
+==1==    by 0x4444: my_test_body (myelement.c:50)
+==1==
+EOF
+expect_in "1 definite leak contexts from this repository" "a leak through an object under the build directory is ours"
+expect_in "libnnstreamer.so" "and is listed with that frame, the innermost of ours"
+expect_not_in "myelement.c:50" "not with the source frame below it"
+
+run_case leak_object_library_n <<'EOF'
+==1== Command: ./tests/unittest_demo
+==1== 64 bytes in 1 blocks are definitely lost in loss record 7 of 9
+==1==    at 0x1111: malloc (vg_replace_malloc.c:381)
+==1==    by 0x2222: some_symbol (in /opt/vendor/build/lib/libvendor.so)
+==1==
+EOF
+expect_in "0 definite leak contexts from this repository" "a leak through an object merely built somewhere is not ours"
+
 run_case leak_library_n <<'EOF'
 ==1== Command: ./tests/unittest_demo
 ==1== 64 bytes in 1 blocks are definitely lost in loss record 7 of 9
