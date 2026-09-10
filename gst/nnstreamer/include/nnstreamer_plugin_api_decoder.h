@@ -66,7 +66,10 @@ typedef struct _GstTensorDecoderDef
        *
        * @param[in/out] private_data A sub-plugin may save its internal private data here. The sub-plugin is responsible for alloc/free of this pointer.
        * @param[in] config The structure of input tensor info.
-       * @return GstCaps object describing media type.
+       * @return GstCaps object describing media type. NULL if the sub-plugin cannot decode the given config.
+       * @note Returning NULL refuses the config: tensor_decoder offers no output
+       *       for it and the negotiation fails. Do not use it to report a config
+       *       the sub-plugin has not been able to read yet.
        */
   GstFlowReturn (*decode) (void **private_data, const GstTensorsConfig *config,
       const GstTensorMemory *input, GstBuffer *outbuf);

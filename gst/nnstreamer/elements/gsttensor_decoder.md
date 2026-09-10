@@ -79,6 +79,9 @@ $ gst-launch videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! tensor
 $ gst-launch videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! tensor_converter ! tensor_decoder mode=flexbuf ! fakesink
 ```
 
+## Decoder sub-plugins
+A decoder sub-plugin registers a `GstTensorDecoderDef` (see `nnstreamer_plugin_api_decoder.h`), and its `getOutCaps ()` decides whether a tensor stream can be decoded at all. Returning `NULL` refuses the given config: tensor_decoder then offers no output for it and the pipeline fails to negotiate. Return `NULL` only for a config the sub-plugin cannot decode. Before this was stated, a `NULL` let the negotiation go on with any output caps, so a sub-plugin that used it for "not configured yet" now stops the pipeline instead.
+
 ## Custom decoder
 If you want to convert tensors to any media type, You can use custom mode of the tensor decoder.
 ### code mode
