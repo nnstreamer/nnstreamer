@@ -43,8 +43,7 @@ class CustomFilter(object):
                 # Use a unique filename to avoid conflicts
                 filename = f"/tmp/x_{threading.get_ident()}_{int(time.time() * 1000)}.png"
                 if not cv2.imwrite(filename, test_image):
-                    print(f"Warning: Failed to write image to {filename}")
-                    raise
+                    raise RuntimeError(f"Failed to write image to {filename}")
         except Exception as e:
             print(f"Warning: cv2 operation failed: {e}")
             raise
