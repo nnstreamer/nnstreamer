@@ -48,9 +48,14 @@
 # A definite leak is attributed differently. Memcheck reports it where its
 # block was allocated, which for most of ours is inside GLib, so it is ours
 # when any frame of that stack is, and it is decided by the innermost such
-# frame. Two callers are exempt even so: a block allocated while the dynamic
-# loader loads a library or runs its initialisers belongs to the loader or to
-# that library, and GStreamer leaks the list of log functions it replaces on
+# frame; for a leak a test drives, that is the test's own frame, nearer the
+# allocation than the gtest code linked into the same binary. A stack cut
+# short before any frame of ours is not ours, so memcheck has to be asked for
+# enough callers; packaging/run_unittests_binaries.sh asks for 200.
+#
+# Two callers are exempt even so: a block allocated while the dynamic loader
+# loads a library or runs its initialisers belongs to the loader or to that
+# library, and GStreamer leaks the list of log functions it replaces on
 # purpose. A stack that passes through either before reaching a frame of ours
 # is not ours. Definite leaks of ours are listed and warned about but do not
 # fail the check while the tree still holds some; possible and indirect leaks
