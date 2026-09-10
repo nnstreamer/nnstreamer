@@ -249,6 +249,14 @@ gst_tensordec_get_media_caps (GstTensorDecoder * self, const GstCaps * caps)
 
   if (gst_tensors_config_from_caps (&config, caps, TRUE)) {
     result = gst_tensordec_get_media_caps_from_config (self, &config);
+    gst_tensors_config_free (&config);
+
+    if (result == NULL) {
+      /* the sub-plugin cannot decode this config, so nothing may come out */
+      GST_ERROR_OBJECT (self,
+          "The decoder sub-plugin does not accept the coming tensor config.");
+      return gst_caps_new_empty ();
+    }
   }
 
   if (result == NULL) {
@@ -623,6 +631,7 @@ gst_tensordec_class_finalize (GObject * object)
 
   gst_tensor_decoder_clean_plugin (self);
 
+  gst_tensors_config_free (&self->tensor_config);
   g_free (self->config_path);
   for (i = 0; i < TensorDecMaxOpNum; ++i) {
     g_free (self->option[i]);
@@ -641,6 +650,7 @@ gst_tensordec_configure (GstTensorDecoder * self, const GstCaps * in_caps,
     const GstCaps * out_caps)
 {
   GstTensorsConfig config;
+  guint i;
 
   if (self->decoder == NULL && !self->is_custom) {
     GST_ERROR_OBJECT (self, "Decoder plugin is not yet configured.");
@@ -661,22 +671,36 @@ gst_tensordec_configure (GstTensorDecoder * self, const GstCaps * in_caps,
     gboolean compatible;
 
     supposed = gst_tensordec_get_media_caps_from_config (self, &config);
+    if (supposed == NULL) {
+      GST_ERROR_OBJECT (self,
+          "The decoder sub-plugin does not accept the coming tensor config.");
+      gst_tensors_config_free (&config);
+      return FALSE;
+    }
+
     compatible = gst_caps_is_always_compatible (out_caps, supposed);
     gst_caps_unref (supposed);
 
     /** Check if outcaps is compatible with new caps */
     if (!compatible) {
       GST_ERROR_OBJECT (self, "The coming tensor config is not valid.");
+      gst_tensors_config_free (&config);
       return FALSE;
     }
 
     gst_tensor_decoder_clean_plugin (self);
     if (self->decoder) {
-      /* not custom code */
-      self->decoder->init (&self->plugin_data);
+      /* not custom code; a fresh private data has none of the options yet */
+      if (self->decoder->init (&self->plugin_data)) {
+        for (i = 0; i < TensorDecMaxOpNum; i++)
+          if (!gst_tensordec_process_plugin_options (self, i))
+            GST_WARNING_OBJECT (self,
+                "Failed to configure while setting the option %d.", (i + 1));
+      }
     }
   }
 
+  gst_tensors_config_free (&self->tensor_config);
   self->tensor_config = config;
   self->configured = TRUE;
   return TRUE;
@@ -953,6 +977,22 @@ gst_tensordec_fixate_caps (GstBaseTransform * trans,
     supposed = gst_tensordec_get_media_caps (self, caps);
   }
 
+  /**
+   * An empty supposed is the refusal gst_tensordec_get_media_caps () reports,
+   * which must not reach the "keep othercaps" fallback below: that is there for
+   * an intersection which came out empty, not for a sub-plugin saying no.
+   * A refused config is normally turned away by transform_caps () before the
+   * fixation is reached, so this stands guard over whatever does not go there.
+   */
+  if (supposed == NULL || gst_caps_is_empty (supposed)) {
+    GST_ERROR_OBJECT (self,
+        "The decoder sub-plugin does not accept the coming tensor config.");
+    if (supposed)
+      gst_caps_unref (supposed);
+    gst_caps_unref (othercaps);
+    return gst_caps_new_empty ();
+  }
+
   result = gst_caps_intersect (othercaps, supposed);
   gst_caps_unref (supposed);
 
@@ -961,6 +1001,14 @@ gst_tensordec_fixate_caps (GstBaseTransform * trans,
     result = othercaps;
   } else {
     gst_caps_unref (othercaps);
+  }
+
+  if (gst_caps_is_any (result)) {
+    /* neither the config nor the peer says what to output, and ANY has no fixed form */
+    GST_ERROR_OBJECT (self,
+        "Cannot tell the output caps of the coming tensor config.");
+    gst_caps_unref (result);
+    return gst_caps_new_empty ();
   }
 
   GST_DEBUG_OBJECT (self, "now fixating %" GST_PTR_FORMAT, result);
@@ -988,12 +1036,26 @@ gst_tensordec_set_caps (GstBaseTransform * trans,
   silent_debug_caps (self, incaps, "from incaps");
   silent_debug_caps (self, outcaps, "from outcaps");
 
+  /**
+   * Answer for this negotiation only and leave the flag alone on a refusal: a
+   * refused caps event is not stored on the pad, and when the earlier caps
+   * come back, fixate_caps stores their config again while GstBaseTransform
+   * skips set_caps for caps equal to the current ones.
+   */
   if (gst_tensordec_configure (self, incaps, outcaps)) {
     GstCaps *supposed = gst_tensordec_get_media_caps_from_config (self,
         &self->tensor_config);
+    gboolean compatible;
+
+    if (supposed == NULL) {
+      GST_ERROR_OBJECT (self,
+          "The decoder sub-plugin does not accept the negotiated tensor config.");
+      return FALSE;
+    }
 
     /** Check if outcaps ==equivalent== supposed */
-    if (gst_caps_is_always_compatible (outcaps, supposed)) {
+    compatible = gst_caps_is_always_compatible (outcaps, supposed);
+    if (compatible) {
       self->negotiated = TRUE;
     } else {
       GST_ERROR_OBJECT (self,
@@ -1001,9 +1063,10 @@ gst_tensordec_set_caps (GstBaseTransform * trans,
     }
 
     gst_caps_unref (supposed);
+    return compatible;
   }
 
-  return self->negotiated;
+  return FALSE;
 }
 
 /**

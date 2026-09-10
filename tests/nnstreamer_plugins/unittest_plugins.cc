@@ -11947,6 +11947,689 @@ TEST (testTensorDecoder, pushDirectVideoInputSizeTooLarge_n)
   gst_harness_teardown (h);
 }
 
+#define TEST_DECODER_MOCK_NAME "tdec_mock"
+
+/**
+ * @brief Set while the mock decoder sub-plugin describes no output caps.
+ */
+static gboolean decoder_mock_refuses;
+
+/**
+ * @brief Number of GStreamer critical logs of a tensor_decoder test.
+ */
+static guint decoder_gst_critical_count;
+
+/**
+ * @brief Last critical message of the GStreamer domain, for diagnostics.
+ */
+static gchar decoder_gst_critical_msg[256];
+
+/**
+ * @brief Log handler counting the critical logs of the GStreamer domain.
+ * @details A sub-plugin describing no output leaves the element with no caps
+ * to intersect, and GStreamer answers every NULL handed to its caps helpers
+ * with a critical, so a zero count is what tells a refusal apart from the
+ * element walking on through the NULL.
+ */
+static void
+_decoder_count_gst_critical (const gchar *domain, GLogLevelFlags level,
+    const gchar *message, gpointer udata)
+{
+  UNUSED (domain);
+  UNUSED (udata);
+
+  if (level & G_LOG_LEVEL_CRITICAL) {
+    decoder_gst_critical_count++;
+    g_strlcpy (decoder_gst_critical_msg, message, sizeof (decoder_gst_critical_msg));
+  }
+}
+
+/**
+ * @brief Start counting the critical logs of the GStreamer domain.
+ * @details The counter is proven live before it is used, so that a handler that
+ * silently stops matching cannot turn the zero-critical assertions into no-ops.
+ */
+static guint
+_decoder_watch_gst_critical (void)
+{
+  guint handler = g_log_set_handler ("GStreamer",
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
+      _decoder_count_gst_critical, NULL);
+
+  decoder_gst_critical_count = 0;
+  g_log ("GStreamer", G_LOG_LEVEL_CRITICAL, "tensor_decoder test: counter self-check");
+  EXPECT_EQ (decoder_gst_critical_count, 1U);
+
+  decoder_gst_critical_count = 0;
+  decoder_gst_critical_msg[0] = '\0';
+  return handler;
+}
+
+/**
+ * @brief Mock decoder sub-plugin, object initialization.
+ */
+static int
+_decoder_mock_init (void **pdata)
+{
+  *pdata = NULL;
+  return TRUE;
+}
+
+/**
+ * @brief Mock decoder sub-plugin, object destruction.
+ */
+static void
+_decoder_mock_exit (void **pdata)
+{
+  UNUSED (pdata);
+}
+
+/**
+ * @brief Mock decoder sub-plugin, describing no output while it refuses.
+ */
+static GstCaps *
+_decoder_mock_get_out_caps (void **pdata, const GstTensorsConfig *config)
+{
+  UNUSED (pdata);
+  UNUSED (config);
+
+  if (decoder_mock_refuses)
+    return NULL;
+
+  return gst_caps_from_string ("application/octet-stream");
+}
+
+/**
+ * @brief Mock decoder sub-plugin, emitting a fixed-size output.
+ */
+static GstFlowReturn
+_decoder_mock_decode (void **pdata, const GstTensorsConfig *config,
+    const GstTensorMemory *input, GstBuffer *outbuf)
+{
+  UNUSED (pdata);
+  UNUSED (config);
+  UNUSED (input);
+
+  gst_buffer_append_memory (outbuf, gst_allocator_alloc (NULL, 4, NULL));
+  return GST_FLOW_OK;
+}
+
+/**
+ * @brief Register the mock decoder sub-plugin.
+ */
+static GstTensorDecoderDef *
+_decoder_mock_register (void)
+{
+  GstTensorDecoderDef *sub = g_new0 (GstTensorDecoderDef, 1);
+
+  sub->modename = g_strdup (TEST_DECODER_MOCK_NAME);
+  sub->init = _decoder_mock_init;
+  sub->exit = _decoder_mock_exit;
+  sub->getOutCaps = _decoder_mock_get_out_caps;
+  sub->decode = _decoder_mock_decode;
+
+  if (!nnstreamer_decoder_probe (sub)) {
+    g_free (sub->modename);
+    g_free (sub);
+    return NULL;
+  }
+
+  return sub;
+}
+
+/**
+ * @brief Unregister the mock decoder sub-plugin and release it.
+ */
+static void
+_decoder_mock_unregister (GstTensorDecoderDef *sub)
+{
+  nnstreamer_decoder_exit (TEST_DECODER_MOCK_NAME);
+  g_free (sub->modename);
+  g_free (sub);
+}
+
+/**
+ * @brief A sub-plugin that describes no output is refused, not dereferenced.
+ * @details The element intersects and unrefs whatever getOutCaps () hands back,
+ *          so a sub-plugin refusing the config used to take a NULL through the
+ *          whole of the caps fixation.
+ */
+TEST (testTensorDecoder, subpluginRefusesOutCaps_n)
+{
+  GstTensorDecoderDef *sub;
+  GstTensorsConfig config;
+  GstHarness *h;
+  guint handler;
+
+  sub = _decoder_mock_register ();
+  ASSERT_TRUE (sub != NULL);
+
+  decoder_mock_refuses = TRUE;
+  handler = _decoder_watch_gst_critical ();
+
+  _get_decoder_config (&config);
+  h = _get_decoder_harness (TEST_DECODER_MOCK_NAME, NULL, &config);
+  if (h == NULL) {
+    g_log_remove_handler ("GStreamer", handler);
+    gst_tensors_config_free (&config);
+    _decoder_mock_unregister (sub);
+  }
+  ASSERT_TRUE (h != NULL);
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_NOT_NEGOTIATED);
+  EXPECT_EQ (decoder_gst_critical_count, 0U) << decoder_gst_critical_msg;
+
+  g_log_remove_handler ("GStreamer", handler);
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+  _decoder_mock_unregister (sub);
+}
+
+/**
+ * @brief A sub-plugin refusing a renegotiated config is refused, not dereferenced.
+ * @details The element asks the sub-plugin again when a new caps event does not
+ *          match what it was configured with, which is a second place the NULL
+ *          used to reach gst_caps_unref ().
+ */
+TEST (testTensorDecoder, subpluginRefusesNewConfig_n)
+{
+  GstTensorDecoderDef *sub;
+  GstTensorsConfig config;
+  GstHarness *h;
+  gsize data_size;
+  guint handler;
+
+  sub = _decoder_mock_register ();
+  ASSERT_TRUE (sub != NULL);
+
+  decoder_mock_refuses = FALSE;
+
+  _get_decoder_config (&config);
+  data_size = gst_tensors_info_get_size (&config.info, 0);
+  h = _get_decoder_harness (TEST_DECODER_MOCK_NAME, NULL, &config);
+  if (h == NULL) {
+    gst_tensors_config_free (&config);
+    _decoder_mock_unregister (sub);
+  }
+  ASSERT_TRUE (h != NULL);
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, data_size)), GST_FLOW_OK);
+
+  handler = _decoder_watch_gst_critical ();
+  decoder_mock_refuses = TRUE;
+
+  gst_tensor_parse_dimension ("3:64:64:1", config.info.info[0].dimension);
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+
+  EXPECT_NE (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_OK);
+  EXPECT_EQ (decoder_gst_critical_count, 0U) << decoder_gst_critical_msg;
+
+  g_log_remove_handler ("GStreamer", handler);
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+  _decoder_mock_unregister (sub);
+}
+
+/**
+ * @brief A sub-plugin that describes an output is negotiated as before.
+ * @details The refusal must be told apart from an ordinary caps query, whose
+ *          config the element cannot read yet.
+ */
+TEST (testTensorDecoder, subpluginAcceptsOutCaps)
+{
+  GstTensorDecoderDef *sub;
+  GstTensorsConfig config;
+  GstHarness *h;
+  gsize data_size;
+  guint handler;
+
+  sub = _decoder_mock_register ();
+  ASSERT_TRUE (sub != NULL);
+
+  decoder_mock_refuses = FALSE;
+  handler = _decoder_watch_gst_critical ();
+
+  _get_decoder_config (&config);
+  data_size = gst_tensors_info_get_size (&config.info, 0);
+  h = _get_decoder_harness (TEST_DECODER_MOCK_NAME, NULL, &config);
+  if (h == NULL) {
+    g_log_remove_handler ("GStreamer", handler);
+    gst_tensors_config_free (&config);
+    _decoder_mock_unregister (sub);
+  }
+  ASSERT_TRUE (h != NULL);
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, data_size)), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
+  EXPECT_EQ (decoder_gst_critical_count, 0U) << decoder_gst_critical_msg;
+
+  g_log_remove_handler ("GStreamer", handler);
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+  _decoder_mock_unregister (sub);
+}
+
+/**
+ * @brief The refusal of a config carrying extra tensors walks the release path.
+ * @details The config the element parses out of a caps query allocates the
+ *          records of the 17th and later tensors on the heap, and the refusal
+ *          leaves the element holding it. A single-tensor config keeps that
+ *          allocation empty, so it takes a stream this wide to walk the path
+ *          the release is there for.
+ */
+TEST (testTensorDecoder, subpluginRefusesExtraTensors_n)
+{
+  GstTensorDecoderDef *sub;
+  GstTensorsConfig config;
+  GstHarness *h;
+  guint i, handler;
+
+  sub = _decoder_mock_register ();
+  ASSERT_TRUE (sub != NULL);
+
+  decoder_mock_refuses = TRUE;
+  handler = _decoder_watch_gst_critical ();
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = NNS_TENSOR_MEMORY_MAX + 1;
+  for (i = 0; i < config.info.num_tensors; i++) {
+    GstTensorInfo *info = gst_tensors_info_get_nth_info (&config.info, i);
+    info->type = _NNS_UINT8;
+    gst_tensor_parse_dimension (TEST_DECODER_DIM, info->dimension);
+  }
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  h = _get_decoder_harness (TEST_DECODER_MOCK_NAME, NULL, &config);
+  if (h == NULL) {
+    g_log_remove_handler ("GStreamer", handler);
+    gst_tensors_config_free (&config);
+    _decoder_mock_unregister (sub);
+  }
+  ASSERT_TRUE (h != NULL);
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_NOT_NEGOTIATED);
+  EXPECT_EQ (decoder_gst_critical_count, 0U) << decoder_gst_critical_msg;
+
+  g_log_remove_handler ("GStreamer", handler);
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+  _decoder_mock_unregister (sub);
+}
+
+/**
+ * @brief A caps query the element cannot read a config from still offers caps.
+ * @details Only a config the sub-plugin has seen and turned down is a refusal.
+ *          A query carrying no fixed config says nothing about what the
+ *          sub-plugin would accept, so answering it with the refusal would
+ *          stop every decoder from negotiating at all. The mock refuses
+ *          everything it is asked, which is what tells the two apart.
+ */
+TEST (testTensorDecoder, capsQueryWithoutConfig)
+{
+  GstTensorDecoderDef *sub;
+  GstElement *dec;
+  GstHarness *h;
+  GstCaps *queried;
+
+  sub = _decoder_mock_register ();
+  ASSERT_TRUE (sub != NULL);
+
+  decoder_mock_refuses = TRUE;
+
+  dec = gst_element_factory_make ("tensor_decoder", NULL);
+  if (dec == NULL)
+    _decoder_mock_unregister (sub);
+  ASSERT_TRUE (dec != NULL);
+  gst_object_ref_sink (dec);
+  g_object_set (dec, "mode", TEST_DECODER_MOCK_NAME, NULL);
+
+  h = gst_harness_new_with_element (dec, "sink", "src");
+  gst_object_unref (dec);
+  if (h == NULL)
+    _decoder_mock_unregister (sub);
+  ASSERT_TRUE (h != NULL);
+
+  /* no caps event yet, so the sink pad still carries the unfixed template */
+  queried = gst_pad_peer_query_caps (h->sinkpad, NULL);
+  ASSERT_TRUE (queried != NULL);
+  EXPECT_FALSE (gst_caps_is_empty (queried));
+
+  gst_caps_unref (queried);
+  gst_harness_teardown (h);
+  _decoder_mock_unregister (sub);
+}
+
+/**
+ * @brief Hand the decoder a caps pair straight through its set_caps vfunc.
+ * @details GstBaseTransform refuses a stream before set_caps whenever
+ *          transform_caps already has, so a decoder that was negotiated once
+ *          is the only way to ask set_caps about a config on its own.
+ */
+static gboolean
+_decoder_set_caps (GstHarness *h, const GstTensorsConfig *config, const gchar *out_str)
+{
+  GstBaseTransform *trans = GST_BASE_TRANSFORM (h->element);
+  GstCaps *incaps = gst_tensors_caps_from_config (config);
+  GstCaps *outcaps = gst_caps_from_string (out_str);
+  gboolean ret;
+
+  ret = GST_BASE_TRANSFORM_GET_CLASS (trans)->set_caps (trans, incaps, outcaps);
+
+  gst_caps_unref (incaps);
+  gst_caps_unref (outcaps);
+  return ret;
+}
+
+/**
+ * @brief set_caps fails when the sub-plugin refuses the renegotiated config.
+ * @details The refusal made gst_tensordec_configure () return FALSE, but
+ *          set_caps then returned what the flag held from the negotiation
+ *          before, which reported success for a config it had just refused.
+ */
+TEST (testTensorDecoder, setCapsRefusedRenegotiation_n)
+{
+  GstTensorDecoderDef *sub;
+  GstTensorsConfig config;
+  GstHarness *h;
+  gsize data_size;
+
+  sub = _decoder_mock_register ();
+  ASSERT_TRUE (sub != NULL);
+
+  decoder_mock_refuses = FALSE;
+
+  _get_decoder_config (&config);
+  data_size = gst_tensors_info_get_size (&config.info, 0);
+  h = _get_decoder_harness (TEST_DECODER_MOCK_NAME, NULL, &config);
+  if (h == NULL) {
+    gst_tensors_config_free (&config);
+    _decoder_mock_unregister (sub);
+  }
+  ASSERT_TRUE (h != NULL);
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, data_size)), GST_FLOW_OK);
+
+  decoder_mock_refuses = TRUE;
+  gst_tensor_parse_dimension ("3:64:64:1", config.info.info[0].dimension);
+  EXPECT_FALSE (_decoder_set_caps (h, &config, "application/octet-stream"));
+
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+  _decoder_mock_unregister (sub);
+}
+
+/**
+ * @brief set_caps fails when the output caps are not what the sub-plugin makes.
+ * @details The same stale flag answered for this branch too: the mismatch
+ *          was logged and the earlier success returned anyway. The refusal
+ *          must not stop the stream either, since the stored config still
+ *          describes the pad caps, which a refused caps event leaves as they
+ *          were.
+ */
+TEST (testTensorDecoder, setCapsIncompatibleOutput_n)
+{
+  GstTensorDecoderDef *sub;
+  GstTensorsConfig config;
+  GstHarness *h;
+  gsize data_size;
+
+  sub = _decoder_mock_register ();
+  ASSERT_TRUE (sub != NULL);
+
+  decoder_mock_refuses = FALSE;
+
+  _get_decoder_config (&config);
+  data_size = gst_tensors_info_get_size (&config.info, 0);
+  h = _get_decoder_harness (TEST_DECODER_MOCK_NAME, NULL, &config);
+  if (h == NULL) {
+    gst_tensors_config_free (&config);
+    _decoder_mock_unregister (sub);
+  }
+  ASSERT_TRUE (h != NULL);
+
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, data_size)), GST_FLOW_OK);
+
+  EXPECT_FALSE (_decoder_set_caps (h, &config, "video/x-raw"));
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, data_size)), GST_FLOW_OK);
+  EXPECT_TRUE (_decoder_set_caps (h, &config, "application/octet-stream"));
+
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+  _decoder_mock_unregister (sub);
+}
+
+/**
+ * @brief A stream that goes back to its caps after a refused change flows again.
+ * @details Caps without dimensions reach set_caps, since no config can be
+ *          read out of them any earlier, and are refused there. A refused caps
+ *          event is not stored on the pad, and GstBaseTransform does not call
+ *          set_caps for caps equal to the pad's current ones, so the element
+ *          has to still hold the earlier negotiation when those come back.
+ */
+TEST (testTensorDecoder, recoverAfterRefusedCaps)
+{
+  GstTensorDecoderDef *sub;
+  GstTensorsConfig config;
+  GstElement *dec;
+  GstHarness *h;
+  gsize data_size;
+
+  sub = _decoder_mock_register ();
+  ASSERT_TRUE (sub != NULL);
+
+  decoder_mock_refuses = FALSE;
+
+  dec = gst_element_factory_make ("tensor_decoder", NULL);
+  if (dec == NULL)
+    _decoder_mock_unregister (sub);
+  ASSERT_TRUE (dec != NULL);
+  gst_object_ref_sink (dec);
+  g_object_set (dec, "mode", TEST_DECODER_MOCK_NAME, NULL);
+
+  h = gst_harness_new_with_element (dec, "sink", "src");
+  gst_object_unref (dec);
+  if (h == NULL)
+    _decoder_mock_unregister (sub);
+  ASSERT_TRUE (h != NULL);
+
+  _get_decoder_config (&config);
+  data_size = gst_tensors_info_get_size (&config.info, 0);
+  gst_harness_set_sink_caps_str (h, "application/octet-stream");
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, data_size)), GST_FLOW_OK);
+
+  gst_harness_set_src_caps_str (
+      h, "other/tensors,format=static,num_tensors=1,types=uint8,framerate=0/1");
+
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, data_size)), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_buffers_received (h), 2U);
+
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+  _decoder_mock_unregister (sub);
+}
+
+/**
+ * @brief Caps nothing can be read out of are refused, not fixated as ANY.
+ * @details Without dimensions the element cannot tell its output, and a
+ *          downstream that takes anything does not tell it either, so the
+ *          fixation is left with ANY, which has no fixed form.
+ */
+TEST (testTensorDecoder, unreadableCapsToAnyDownstream_n)
+{
+  GstTensorDecoderDef *sub;
+  GstElement *dec;
+  GstHarness *h;
+  guint handler;
+
+  sub = _decoder_mock_register ();
+  ASSERT_TRUE (sub != NULL);
+
+  decoder_mock_refuses = FALSE;
+  handler = _decoder_watch_gst_critical ();
+
+  dec = gst_element_factory_make ("tensor_decoder", NULL);
+  if (dec == NULL) {
+    g_log_remove_handler ("GStreamer", handler);
+    _decoder_mock_unregister (sub);
+  }
+  ASSERT_TRUE (dec != NULL);
+  gst_object_ref_sink (dec);
+  g_object_set (dec, "mode", TEST_DECODER_MOCK_NAME, NULL);
+
+  h = gst_harness_new_with_element (dec, "sink", "src");
+  gst_object_unref (dec);
+  if (h == NULL) {
+    g_log_remove_handler ("GStreamer", handler);
+    _decoder_mock_unregister (sub);
+  }
+  ASSERT_TRUE (h != NULL);
+
+  gst_harness_set_src_caps_str (
+      h, "other/tensors,format=static,num_tensors=1,types=uint8,framerate=0/1");
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_NOT_NEGOTIATED);
+  EXPECT_EQ (decoder_gst_critical_count, 0U) << decoder_gst_critical_msg;
+
+  g_log_remove_handler ("GStreamer", handler);
+  gst_harness_teardown (h);
+  _decoder_mock_unregister (sub);
+}
+
+/**
+ * @brief A stream wider than the inline tensor records is decoded as before.
+ * @details Negotiation stores the config twice, at fixation and again at
+ *          set_caps, so the config holding the extra records is replaced and
+ *          released before the first buffer reads the one that replaced it.
+ */
+TEST (testTensorDecoder, subpluginAcceptsExtraTensors)
+{
+  GstTensorDecoderDef *sub;
+  GstTensorsConfig config;
+  GstHarness *h;
+  GstBuffer *buf;
+  GstMemory *mem;
+  GstMapInfo map;
+  gsize data_size;
+  guint i, handler;
+
+  sub = _decoder_mock_register ();
+  ASSERT_TRUE (sub != NULL);
+
+  decoder_mock_refuses = FALSE;
+  handler = _decoder_watch_gst_critical ();
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = NNS_TENSOR_MEMORY_MAX + 1;
+  for (i = 0; i < config.info.num_tensors; i++) {
+    GstTensorInfo *info = gst_tensors_info_get_nth_info (&config.info, i);
+    info->type = _NNS_UINT8;
+    gst_tensor_parse_dimension (TEST_DECODER_DIM, info->dimension);
+  }
+  config.rate_n = 0;
+  config.rate_d = 1;
+  data_size = gst_tensors_info_get_size (&config.info, 0);
+
+  h = _get_decoder_harness (TEST_DECODER_MOCK_NAME, NULL, &config);
+  if (h == NULL) {
+    g_log_remove_handler ("GStreamer", handler);
+    gst_tensors_config_free (&config);
+    _decoder_mock_unregister (sub);
+  }
+  ASSERT_TRUE (h != NULL);
+
+  buf = gst_buffer_new ();
+  for (i = 0; i < config.info.num_tensors; i++) {
+    mem = gst_allocator_alloc (NULL, data_size, NULL);
+    if (gst_memory_map (mem, &map, GST_MAP_WRITE)) {
+      memset (map.data, 0, map.size);
+      gst_memory_unmap (mem, &map);
+    }
+    EXPECT_TRUE (gst_tensor_buffer_append_memory (
+        buf, mem, gst_tensors_info_get_nth_info (&config.info, i)));
+  }
+
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
+  EXPECT_EQ (decoder_gst_critical_count, 0U) << decoder_gst_critical_msg;
+
+  g_log_remove_handler ("GStreamer", handler);
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+  _decoder_mock_unregister (sub);
+}
+
+/**
+ * @brief The video format a decoder negotiated for the stream, or NULL.
+ */
+static gchar *
+_decoder_output_format (GstHarness *h)
+{
+  GstCaps *caps = gst_pad_get_current_caps (h->sinkpad);
+  gchar *format = NULL;
+
+  if (caps) {
+    const gchar *f = gst_structure_get_string (gst_caps_get_structure (caps, 0), "format");
+    format = g_strdup (f);
+    gst_caps_unref (caps);
+  }
+
+  return format;
+}
+
+/**
+ * @brief A resolution change keeps the video format option1 chose.
+ * @details Renegotiating a new tensor config re-initialises the sub-plugin,
+ *          which starts with none of the options, so direct_video describes
+ *          RGB for a 3-channel tensor against the BGR caps just fixated. A
+ *          set_caps that answered with a stale success let that pass; one
+ *          that refuses it renegotiates the stream to RGB with its red and
+ *          blue swapped, or fails where the downstream takes only BGR.
+ */
+TEST (testTensorDecoder, directVideoResolutionChangeKeepsFormat)
+{
+  GstTensorsConfig config;
+  GstElement *dec;
+  GstHarness *h;
+  gsize data_size;
+  gchar *format;
+
+  dec = gst_element_factory_make ("tensor_decoder", NULL);
+  ASSERT_TRUE (dec != NULL);
+  gst_object_ref_sink (dec);
+  g_object_set (dec, "mode", "direct_video", "option1", "BGR", NULL);
+
+  h = gst_harness_new_with_element (dec, "sink", "src");
+  gst_object_unref (dec);
+  ASSERT_TRUE (h != NULL);
+
+  gst_harness_set_sink_caps_str (h, "video/x-raw");
+
+  _get_decoder_config (&config);
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  data_size = gst_tensors_info_get_size (&config.info, 0);
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, data_size)), GST_FLOW_OK);
+
+  format = _decoder_output_format (h);
+  EXPECT_STREQ (format, "BGR");
+  g_free (format);
+
+  gst_tensor_parse_dimension ("3:8:8", config.info.info[0].dimension);
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  data_size = gst_tensors_info_get_size (&config.info, 0);
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, data_size)), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_buffers_received (h), 2U);
+
+  format = _decoder_output_format (h);
+  EXPECT_STREQ (format, "BGR");
+  g_free (format);
+
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+}
+
 /**
  * @brief What a tensor_merge test saw arrive at its tensor_sink.
  */
