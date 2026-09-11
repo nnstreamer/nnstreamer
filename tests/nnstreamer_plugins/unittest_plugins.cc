@@ -12173,6 +12173,295 @@ TEST (testTensorSplit, finalizeWithoutTensorseg)
 }
 
 /**
+ * @brief What went out of a tensor_split across its source pads.
+ */
+typedef struct {
+  guint buffers; /**< buffers pushed on any source pad */
+  gsize bytes; /**< bytes pushed on any source pad */
+  guint mismatched; /**< buffers of another size than the caps of their pad say */
+} splitRestartOutput;
+
+/**
+ * @brief Buffer probe counting what a tensor_split source pad pushes.
+ * @details The buffer is dropped, which the pad reports as a successful push,
+ *          so the element goes on to the next segment as if it were linked.
+ */
+static GstPadProbeReturn
+_split_restart_count (GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
+{
+  splitRestartOutput *out = (splitRestartOutput *) user_data;
+  gsize size = gst_buffer_get_size (GST_PAD_PROBE_INFO_BUFFER (info));
+  GstCaps *caps = gst_pad_get_current_caps (pad);
+  GstTensorsConfig config;
+
+  gst_tensors_config_init (&config);
+  if (caps == NULL || !gst_tensors_config_from_caps (&config, caps, TRUE)
+      || gst_tensors_info_get_size (&config.info, 0) != size)
+    out->mismatched++;
+  gst_tensors_config_free (&config);
+  if (caps)
+    gst_caps_unref (caps);
+
+  out->buffers++;
+  out->bytes += size;
+  return GST_PAD_PROBE_DROP;
+}
+
+/**
+ * @brief Handler of "pad-added", which puts the counting probe on the new pad.
+ */
+static void
+_split_restart_pad_added (GstElement *element, GstPad *pad, gpointer user_data)
+{
+  UNUSED (element);
+
+  gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_BUFFER, _split_restart_count, user_data, NULL);
+}
+
+/**
+ * @brief Start a stream of uint8 tensors of the given shape into a tensor_split harness.
+ * @details The sink pad forgets its sticky events when it is deactivated, so
+ *          a restarted element needs the stream to start over.
+ * @return bytes of one tensor of the stream
+ */
+static gsize
+_split_restart_start_stream (GstHarness *h, const gchar *dimension)
+{
+  GstTensorsConfig config;
+  gsize size;
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = 1;
+  config.info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension (dimension, config.info.info[0].dimension);
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  gst_harness_push_event (h, gst_event_new_stream_start ("split-restart"));
+  gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
+  size = gst_tensors_info_get_size (&config.info, 0);
+  gst_tensors_config_free (&config);
+
+  return size;
+}
+
+/**
+ * @brief Take the element down to READY and back, as a stopped and restarted pipeline does.
+ */
+static void
+_split_restart_cycle (GstHarness *h)
+{
+  EXPECT_EQ (gst_element_set_state (h->element, GST_STATE_READY), GST_STATE_CHANGE_SUCCESS);
+  EXPECT_EQ (gst_element_set_state (h->element, GST_STATE_PLAYING), GST_STATE_CHANGE_SUCCESS);
+}
+
+/**
+ * @brief A tensor_split taken to READY and back splits by the tensorseg it had.
+ * @details Going down to READY removes the source pads, and a restart has to
+ *          create them again, under the same names, from the rule that is
+ *          still set.
+ */
+TEST (testTensorSplit, restartKeepsTensorseg)
+{
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_split", "sink", NULL);
+  splitRestartOutput out = { 0, 0, 0 };
+  GstPad *pad;
+  gsize size;
+
+  ASSERT_TRUE (h != NULL);
+  g_signal_connect (h->element, "pad-added", G_CALLBACK (_split_restart_pad_added), &out);
+  g_object_set (h->element, "tensorseg", "1:4:4,2:4:4", NULL);
+
+  size = _split_restart_start_stream (h, "3:4:4");
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, size)), GST_FLOW_OK);
+  EXPECT_EQ (out.buffers, 2U);
+  EXPECT_EQ (out.bytes, 48U);
+
+  _split_restart_cycle (h);
+  EXPECT_EQ ((guint) h->element->numsrcpads, 0U);
+
+  size = _split_restart_start_stream (h, "3:4:4");
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, size)), GST_FLOW_OK);
+  EXPECT_EQ (out.buffers, 4U);
+  EXPECT_EQ (out.bytes, 96U);
+  EXPECT_EQ (out.mismatched, 0U);
+  EXPECT_EQ ((guint) h->element->numsrcpads, 2U);
+
+  pad = gst_element_get_static_pad (h->element, "src_0");
+  EXPECT_TRUE (pad != NULL);
+  if (pad)
+    gst_object_unref (pad);
+  pad = gst_element_get_static_pad (h->element, "src_1");
+  EXPECT_TRUE (pad != NULL);
+  if (pad)
+    gst_object_unref (pad);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Handler of "no-more-pads" counting how many times the element reported it.
+ */
+static void
+_split_restart_no_more_pads (GstElement *element, gpointer user_data)
+{
+  UNUSED (element);
+
+  (*(guint *) user_data)++;
+}
+
+/**
+ * @brief A restarted tensor_split still outputs only the picked segment.
+ * @details The pads made for the pick are counted from zero again, so the
+ *          element reports that it has no more pads once per run. The pick
+ *          starts at segment 0, whose pad is described the same way with or
+ *          without the fix for #4927.
+ */
+TEST (testTensorSplit, restartKeepsTensorpick)
+{
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_split", "sink", NULL);
+  splitRestartOutput out = { 0, 0, 0 };
+  guint no_more_pads = 0;
+  GstPad *pad;
+  gsize size;
+
+  ASSERT_TRUE (h != NULL);
+  g_signal_connect (h->element, "pad-added", G_CALLBACK (_split_restart_pad_added), &out);
+  g_signal_connect (h->element, "no-more-pads",
+      G_CALLBACK (_split_restart_no_more_pads), &no_more_pads);
+  g_object_set (h->element, "tensorseg", "1:4:4,2:4:4", "tensorpick", "0", NULL);
+
+  size = _split_restart_start_stream (h, "3:4:4");
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, size)), GST_FLOW_OK);
+  EXPECT_EQ (out.buffers, 1U);
+  EXPECT_EQ (out.bytes, 16U);
+  EXPECT_EQ (no_more_pads, 1U);
+
+  _split_restart_cycle (h);
+
+  size = _split_restart_start_stream (h, "3:4:4");
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, size)), GST_FLOW_OK);
+  EXPECT_EQ (out.buffers, 2U);
+  EXPECT_EQ (out.bytes, 32U);
+  EXPECT_EQ (out.mismatched, 0U);
+  EXPECT_EQ (no_more_pads, 2U);
+  EXPECT_EQ ((guint) h->element->numsrcpads, 1U);
+
+  pad = gst_element_get_static_pad (h->element, "src_0");
+  EXPECT_TRUE (pad != NULL);
+  if (pad)
+    gst_object_unref (pad);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A restarted tensor_split still refuses a tensor its tensorseg does not fit.
+ * @details The rule kept across the restart asks for 48 bytes, and the new
+ *          stream only brings 12, so the buffer has to be refused rather than
+ *          passed over without a word.
+ */
+TEST (testTensorSplit, restartRefusesSmallerTensor_n)
+{
+  GstHarness *h = gst_harness_new_with_padnames ("tensor_split", "sink", NULL);
+  splitRestartOutput out = { 0, 0, 0 };
+  gsize size;
+
+  ASSERT_TRUE (h != NULL);
+  g_signal_connect (h->element, "pad-added", G_CALLBACK (_split_restart_pad_added), &out);
+  g_object_set (h->element, "tensorseg", "1:4:4,2:4:4", NULL);
+
+  size = _split_restart_start_stream (h, "3:4:4");
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, size)), GST_FLOW_OK);
+  EXPECT_EQ (out.buffers, 2U);
+
+  _split_restart_cycle (h);
+
+  size = _split_restart_start_stream (h, "3:2:2");
+  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, size)), GST_FLOW_ERROR);
+  EXPECT_EQ (out.buffers, 2U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Handler of "pad-added" linking the first source pad to the sink, as an application does.
+ */
+static void
+_split_restart_link_pad (GstElement *element, GstPad *pad, gpointer user_data)
+{
+  GstPad *sinkpad = gst_element_get_static_pad (GST_ELEMENT (user_data), "sink");
+
+  UNUSED (element);
+
+  if (!gst_pad_is_linked (sinkpad)) {
+    EXPECT_EQ (gst_pad_link (pad, sinkpad), GST_PAD_LINK_OK);
+  }
+  gst_object_unref (sinkpad);
+}
+
+/**
+ * @brief Play a pipeline until it ends.
+ * @return the type of the message it ended with, GST_MESSAGE_UNKNOWN on time-out
+ */
+static GstMessageType
+_split_restart_play (GstElement *pipeline)
+{
+  GstBus *bus = gst_element_get_bus (pipeline);
+  GstMessageType type = GST_MESSAGE_UNKNOWN;
+  GstMessage *msg;
+
+  gst_element_set_state (pipeline, GST_STATE_PLAYING);
+  msg = gst_bus_timed_pop_filtered (bus, (GstClockTime) TEST_TIMEOUT_LIMIT * GST_USECOND,
+      (GstMessageType) (GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+  if (msg) {
+    type = GST_MESSAGE_TYPE (msg);
+    gst_message_unref (msg);
+  }
+  gst_object_unref (bus);
+
+  return type;
+}
+
+/**
+ * @brief A pipeline stopped to NULL and played again gets its tensors again.
+ * @details The source pads go away when the pipeline stops, so the new ones
+ *          are linked from "pad-added" again, the way an application does it.
+ */
+TEST (testTensorSplit, replayPipeline)
+{
+  GstElement *pipeline, *split, *sink;
+  guint data_received = 0;
+
+  pipeline = gst_parse_launch ("videotestsrc num-buffers=2 ! "
+                               "video/x-raw,format=RGB,width=4,height=4,framerate=30/1 ! "
+                               "tensor_converter ! tensor_split name=split tensorseg=1:4:4,2:4:4 "
+                               "tensor_sink name=sinkx",
+      NULL);
+  ASSERT_TRUE (pipeline != NULL);
+
+  split = gst_bin_get_by_name (GST_BIN (pipeline), "split");
+  sink = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  ASSERT_TRUE (split != NULL);
+  ASSERT_TRUE (sink != NULL);
+
+  g_signal_connect (split, "pad-added", G_CALLBACK (_split_restart_link_pad), sink);
+  g_signal_connect (sink, "new-data", G_CALLBACK (count_output), &data_received);
+
+  EXPECT_EQ (_split_restart_play (pipeline), GST_MESSAGE_EOS);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (data_received, 2U);
+
+  EXPECT_EQ (_split_restart_play (pipeline), GST_MESSAGE_EOS);
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  EXPECT_EQ (data_received, 4U);
+
+  gst_object_unref (sink);
+  gst_object_unref (split);
+  gst_object_unref (pipeline);
+}
+
+/**
  * @brief The dimension of the tensor the decoder input cases negotiate
  */
 #define TEST_DECODER_DIM "3:16:16"
