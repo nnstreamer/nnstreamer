@@ -675,26 +675,47 @@ _gst_tensor_filter_release_mem_until_idx (FilterTransformData * trans_data,
 }
 
 /**
- * @brief Internal function to convert tensor meta and get header size of flexible tensor.
+ * @brief Internal function to parse the meta header of a flexible input tensor and get its header size.
+ * @details The configured input info is left as it is unless the dynamic invoke is enabled, which takes the type and dimension of each incoming tensor.
+ * @return FALSE if the memory does not carry a header describing the data after it.
  */
-static gsize
+static gboolean
 _gst_tensor_filter_convert_meta (FilterTransformData * trans_data,
-    GstTensorsInfo * info, guint idx)
+    GstTensorFilterProperties * prop, guint idx, gsize * hsize)
 {
-  gsize header_size = 0;
   GstTensorMetaInfo *_meta;
-  GstTensorInfo *_info;
+  GstMapInfo *map;
+  GstTensorInfo info, *_info;
 
-  if (trans_data->is_flexible) {
-    _meta = &trans_data->meta[idx];
-    _info = gst_tensors_info_get_nth_info (info, idx);
+  *hsize = 0;
+  if (!trans_data->is_flexible)
+    return TRUE;
 
-    gst_tensor_meta_info_parse_header (_meta, trans_data->info[idx].data);
-    header_size = gst_tensor_meta_info_get_header_size (_meta);
-    gst_tensor_meta_info_convert (_meta, _info);
+  _meta = &trans_data->meta[idx];
+  map = &trans_data->info[idx];
+
+  /* parse_header () reads a whole header of the default version before validating it */
+  gst_tensor_meta_info_init (_meta);
+  if (map->size < gst_tensor_meta_info_get_header_size (_meta) ||
+      !gst_tensor_meta_info_parse_header (_meta, map->data))
+    return FALSE;
+
+  *hsize = gst_tensor_meta_info_get_header_size (_meta);
+  if (*hsize == 0 || *hsize > map->size ||
+      _meta->format == _NNS_TENSOR_FORMAT_SPARSE)
+    return FALSE;
+
+  if (!gst_tensor_meta_info_convert (_meta, &info) ||
+      gst_tensor_info_get_size (&info) != map->size - *hsize)
+    return FALSE;
+
+  if (prop->invoke_dynamic) {
+    _info = gst_tensors_info_get_nth_info (&prop->input_meta, idx);
+    _info->type = info.type;
+    memcpy (_info->dimension, info.dimension, sizeof (info.dimension));
   }
 
-  return header_size;
+  return TRUE;
 }
 
 /**
@@ -735,7 +756,14 @@ _gst_tensor_filter_transform_get_all_input_data (GstBaseTransform * trans,
       return NULL;
     }
 
-    hsize = _gst_tensor_filter_convert_meta (trans_data, &prop->input_meta, i);
+    if (!_gst_tensor_filter_convert_meta (trans_data, prop, i, &hsize)) {
+      GST_ELEMENT_ERROR_BTRACE (self, STREAM, WRONG_TYPE,
+          ("The %u'th memory chunk (%zu bytes) of the flexible input buffer for tensor-filter (%s : %s) does not start with a valid tensor meta header that describes the data after it.",
+              i, trans_data->info[i].size, prop->fwname, TF_MODELNAME (prop)));
+      _gst_tensor_filter_release_mem_until_idx (trans_data, i + 1);
+      g_free (trans_data);
+      return NULL;
+    }
 
     trans_data->tensors[i].data = trans_data->info[i].data + hsize;
     trans_data->tensors[i].size = trans_data->info[i].size - hsize;
@@ -813,7 +841,7 @@ _gst_tensor_filter_transform_get_invoke_tensors (GstBaseTransform * trans,
       expected = gst_tensor_filter_get_tensor_size (self, i, TRUE);
       if (expected != trans_data->tensors[i].size) {
         ml_loge_stacktrace
-            ("gst_tensor_filter_transform: Input buffer size (%u'th memory chunk: %zd) is invalid, which is expected to be %zd, which is the frame size of the corresponding tensor. Maybe, the pad capability is not consistent with the actual input stream; if the size is supposed to change dynamically and the given neural network, framework, and the subpluigins can handle it, please consider using format=flexible.\n",
+            ("gst_tensor_filter_transform: Input buffer size (%u'th memory chunk: %zd) is invalid, which is expected to be %zd, which is the frame size of the corresponding tensor. Maybe, the pad capability is not consistent with the actual input stream; if the size is supposed to change dynamically and the given neural network, framework, and the subpluigins can handle it, please consider using format=flexible with invoke-dynamic=true.\n",
             i, trans_data->tensors[i].size, expected);
         g_free (invoke_tensors);
         return NULL;
@@ -982,8 +1010,9 @@ _gst_tensor_filter_transform_check_invoke_result (GstBaseTransform * trans,
 
 /**
  * @brief Internal function to make output buffer.
+ * @return FALSE if the dynamic invoke has left an output tensor info invalid. The output data not appended to the buffer is released.
  */
-static void
+static gboolean
 _gst_tensor_filter_transform_update_outbuf (GstBaseTransform * trans,
     FilterTransformData * in_trans_data, FilterTransformData * out_trans_data,
     GstBuffer * outbuf)
@@ -1061,6 +1090,16 @@ _gst_tensor_filter_transform_update_outbuf (GstBaseTransform * trans,
     if (prop->invoke_dynamic) {
       GstTensorMetaInfo meta;
 
+      if (!gst_tensor_info_validate (_info)) {
+        ml_loge_stacktrace
+            ("gst_tensor_filter_transform: The tensor-filter subplugin (%s : %s) has returned an invalid tensor info for the %u'th output tensor with the dynamic invoke.\n",
+            prop->fwname, TF_MODELNAME (prop), i);
+        for (; i < prop->output_meta.num_tensors; i++)
+          gst_tensor_filter_destroy_notify_util (priv,
+              out_trans_data->tensors[i].data);
+        return FALSE;
+      }
+
       /* Convert to flexible tensors */
       gst_tensor_info_convert_to_meta (_info, &meta);
       meta.media_type = _NNS_TENSOR;
@@ -1087,6 +1126,8 @@ _gst_tensor_filter_transform_update_outbuf (GstBaseTransform * trans,
     /* append the memory block to outbuf */
     gst_tensor_buffer_append_memory (outbuf, out_trans_data->mem[i], _info);
   }
+
+  return TRUE;
 }
 
 /**
@@ -1157,8 +1198,12 @@ gst_tensor_filter_async_output_callback (GstTensorMemory * data,
     out_trans_data->tensors[i].size = data[i].size;
   }
 
-  _gst_tensor_filter_transform_update_outbuf (trans, NULL, out_trans_data,
-      outbuf);
+  if (!_gst_tensor_filter_transform_update_outbuf (trans, NULL, out_trans_data,
+          outbuf)) {
+    g_clear_pointer (&outbuf, gst_buffer_unref);
+    g_clear_pointer (&out_trans_data, g_free);
+    return -1;
+  }
   g_clear_pointer (&out_trans_data, g_free);
 
   if (gst_pad_push (trans->srcpad, outbuf) != GST_FLOW_OK) {
@@ -1252,8 +1297,9 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     goto done;
   }
 
-  _gst_tensor_filter_transform_update_outbuf (trans, in_trans_data,
-      out_trans_data, outbuf);
+  if (!_gst_tensor_filter_transform_update_outbuf (trans, in_trans_data,
+          out_trans_data, outbuf))
+    retval = GST_FLOW_ERROR;
 
   goto done;
 
@@ -1679,6 +1725,7 @@ gst_tensor_filter_set_caps (GstBaseTransform * trans,
         ("Set-caps failed. Invalid output config (padcaps) for tensor-filter (%s:%s): its format is static, but not equal to the internal configuration: %s\nThis might be an internal error. Please report to https://github.com/nnstreamer/nnstreamer/issues .",
             GST_STR_NULL (prop->fwname), TF_MODELNAME (prop), compare));
     g_free (compare);
+    gst_tensors_config_free (&config);
     return FALSE;
   }
 
