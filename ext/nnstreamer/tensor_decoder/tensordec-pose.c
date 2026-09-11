@@ -71,6 +71,7 @@
  *	                    	(e.g., 17 x 9 x 9 )
  *   			Tensor[1]: #labels x 2: width : height (float32, Offset position within heatmap grid)
  *	                    	(e.g., 34 x 9 x 9 )
+ *   			Width and height have to be 2 or larger, and the same in both tensors.
  *
  * Pipeline:
  * 	v4l2src
@@ -279,6 +280,9 @@ pose_load_metadata_from_file (pose_data * pd, const gchar * file_path)
     return FALSE;
   }
 
+  if (pd->metadata != pose_metadata_default)
+    g_free (pd->metadata);
+
   pd->total_labels = g_strv_length (lines);
   pd->metadata = g_new0 (pose_metadata_t, pd->total_labels);
 
@@ -320,7 +324,7 @@ pose_get_metadata_by_id (pose_data * data, guint id)
 {
   pose_metadata_t *md = data->metadata;
 
-  if (id > data->total_labels)
+  if (id >= data->total_labels)
     return NULL;
 
   return &md[id];
@@ -460,6 +464,61 @@ _check_tensors (const GstTensorsConfig * config)
 }
 
 /**
+ * @brief Check the input tensors against what pose_decode () reads from them.
+ * @param[in] data The pose-estimation internal data.
+ * @param[in] config The configuration of the input tensors.
+ * @return TRUE if decoding the tensors stays within them, otherwise FALSE.
+ */
+static gboolean
+pose_check_input (const pose_data * data, const GstTensorsConfig * config)
+{
+  const GstTensorInfo *heatmap = &config->info.info[0];
+  const GstTensorInfo *offset = &config->info.info[1];
+  gboolean with_offset = (data->mode == HEATMAP_OFFSET);
+  guint i;
+
+  if (data->i_width == 0 || data->i_height == 0) {
+    GST_ERROR
+        ("The input video dimension of the model is zero. Set option2 of pose_estimation to the WIDTH:HEIGHT the model takes.");
+    return FALSE;
+  }
+
+  if (heatmap->type != _NNS_FLOAT32
+      || heatmap->dimension[0] != data->total_labels) {
+    GST_ERROR
+        ("The heatmap tensor of pose_estimation has to be float32 with the %u labels as its first dimension.",
+        data->total_labels);
+    return FALSE;
+  }
+
+  if (with_offset && (heatmap->dimension[1] < 2 || heatmap->dimension[2] < 2)) {
+    GST_ERROR
+        ("The heatmap of pose_estimation in heatmap-offset mode needs at least two cells in each direction.");
+    return FALSE;
+  }
+
+  if (with_offset && (config->info.num_tensors < 2
+          || offset->type != _NNS_FLOAT32
+          || offset->dimension[0] != 2 * data->total_labels
+          || offset->dimension[1] != heatmap->dimension[1]
+          || offset->dimension[2] != heatmap->dimension[2])) {
+    GST_ERROR
+        ("The offset tensor of pose_estimation has to be float32 with two values per label for each cell of the heatmap.");
+    return FALSE;
+  }
+
+  for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++) {
+    if (heatmap->dimension[i] > 1 || (with_offset && offset->dimension[i] > 1)) {
+      GST_ERROR
+          ("The tensors of pose_estimation cannot have more than three dimensions.");
+      return FALSE;
+    }
+  }
+
+  return TRUE;
+}
+
+/**
  * @brief tensordec-plugin's TensorDecDef callback
  *
  * [Pose Estimation]
@@ -473,30 +532,10 @@ pose_getOutCaps (void **pdata, const GstTensorsConfig * config)
 {
   pose_data *data = *pdata;
   GstCaps *caps;
-  int i;
   char *str;
-  guint pose_size;
 
-  const uint32_t *dim;
-
-  if (!_check_tensors (config))
+  if (!_check_tensors (config) || !pose_check_input (data, config))
     return NULL;
-
-  pose_size = data->total_labels;
-
-  /* Check if the first tensor is compatible */
-  dim = config->info.info[0].dimension;
-  g_return_val_if_fail (dim[0] == pose_size, NULL);
-  for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
-    g_return_val_if_fail (dim[i] <= 1, NULL);
-
-  if (data->mode == HEATMAP_OFFSET) {
-    dim = config->info.info[1].dimension;
-    g_return_val_if_fail (dim[0] == (2 * pose_size), NULL);
-
-    for (i = 3; i < NNS_TENSOR_RANK_LIMIT; i++)
-      g_return_val_if_fail (dim[i] <= 1, NULL);
-  }
 
   str = g_strdup_printf ("video/x-raw, format = RGBA, " /* Use alpha channel to make the background transparent */
       "width = %u, height = %u", data->width, data->height);
@@ -725,7 +764,7 @@ draw (GstMapInfo * out_info, pose_data * data, GArray * results)
     for (j = 0; j < smd->num_connections; j++) {
       guint k = smd->connections[j];
       /* Have we already drawn the connection ? */
-      if ((k > data->total_labels) || (k < i))
+      if ((k >= data->total_labels) || (k < i))
         continue;
       /* Is the body point valid ? */
       if (XYdata[k]->valid == FALSE)
@@ -757,6 +796,11 @@ pose_decode (void **pdata, const GstTensorsConfig * config,
   guint pose_size, index;
 
   g_assert (outbuf); /** GST Internal Bug */
+
+  /* An option may have changed since pose_getOutCaps () approved the stream */
+  if (!pose_check_input (data, config))
+    return GST_FLOW_ERROR;
+
   /* Ensure we have outbuf properly allocated */
   if (gst_buffer_get_size (outbuf) == 0) {
     out_mem = gst_allocator_alloc (NULL, size, NULL);
