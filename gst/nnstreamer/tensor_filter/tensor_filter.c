@@ -1010,8 +1010,9 @@ _gst_tensor_filter_transform_check_invoke_result (GstBaseTransform * trans,
 
 /**
  * @brief Internal function to make output buffer.
+ * @return FALSE if the dynamic invoke has left an output tensor info invalid. The output data not appended to the buffer is released.
  */
-static void
+static gboolean
 _gst_tensor_filter_transform_update_outbuf (GstBaseTransform * trans,
     FilterTransformData * in_trans_data, FilterTransformData * out_trans_data,
     GstBuffer * outbuf)
@@ -1089,6 +1090,16 @@ _gst_tensor_filter_transform_update_outbuf (GstBaseTransform * trans,
     if (prop->invoke_dynamic) {
       GstTensorMetaInfo meta;
 
+      if (!gst_tensor_info_validate (_info)) {
+        ml_loge_stacktrace
+            ("gst_tensor_filter_transform: The tensor-filter subplugin (%s : %s) has returned an invalid tensor info for the %u'th output tensor with the dynamic invoke.\n",
+            prop->fwname, TF_MODELNAME (prop), i);
+        for (; i < prop->output_meta.num_tensors; i++)
+          gst_tensor_filter_destroy_notify_util (priv,
+              out_trans_data->tensors[i].data);
+        return FALSE;
+      }
+
       /* Convert to flexible tensors */
       gst_tensor_info_convert_to_meta (_info, &meta);
       meta.media_type = _NNS_TENSOR;
@@ -1115,6 +1126,8 @@ _gst_tensor_filter_transform_update_outbuf (GstBaseTransform * trans,
     /* append the memory block to outbuf */
     gst_tensor_buffer_append_memory (outbuf, out_trans_data->mem[i], _info);
   }
+
+  return TRUE;
 }
 
 /**
@@ -1185,8 +1198,12 @@ gst_tensor_filter_async_output_callback (GstTensorMemory * data,
     out_trans_data->tensors[i].size = data[i].size;
   }
 
-  _gst_tensor_filter_transform_update_outbuf (trans, NULL, out_trans_data,
-      outbuf);
+  if (!_gst_tensor_filter_transform_update_outbuf (trans, NULL, out_trans_data,
+          outbuf)) {
+    g_clear_pointer (&outbuf, gst_buffer_unref);
+    g_clear_pointer (&out_trans_data, g_free);
+    return -1;
+  }
   g_clear_pointer (&out_trans_data, g_free);
 
   if (gst_pad_push (trans->srcpad, outbuf) != GST_FLOW_OK) {
@@ -1280,8 +1297,9 @@ gst_tensor_filter_transform (GstBaseTransform * trans,
     goto done;
   }
 
-  _gst_tensor_filter_transform_update_outbuf (trans, in_trans_data,
-      out_trans_data, outbuf);
+  if (!_gst_tensor_filter_transform_update_outbuf (trans, in_trans_data,
+          out_trans_data, outbuf))
+    retval = GST_FLOW_ERROR;
 
   goto done;
 
