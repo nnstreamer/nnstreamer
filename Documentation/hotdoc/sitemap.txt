@@ -46,6 +46,7 @@ index.md
 		gst/nnstreamer/elements/gsttensor_decoder.md
 		gst/nnstreamer/tensor_filter/README.md
 		gst/nnstreamer/elements/gsttensor_if.md
+		gst/nnstreamer/elements/gsttensor_split.md
 		gst/nnstreamer/elements/gsttensor_src.md
 		gst/nnstreamer/elements/gsttensor_transform.md
 		gst/nnstreamer/tensor_query/README.md

@@ -11384,38 +11384,337 @@ TEST (testTensorDemux, pushOutOfRangeTensorpick_n)
 }
 
 /**
- * @brief A source pad with no segment rule left for it is refused.
- * @details The rule array is replaced on every tensorseg set, so it can shrink
- *          under source pads that already exist. The pad created after that
- *          takes the next ordinal, which is then past the end of the array.
+ * @brief Number of tensor_split source pads a splitPadOutput array covers.
  */
-TEST (testTensorSplit, addPadBeyondTensorseg_n)
+#define SPLIT_TEST_MAX_PADS (4U)
+
+/**
+ * @brief What went out on one tensor_split source pad.
+ */
+typedef struct {
+  guint buffers; /**< number of buffers pushed on the pad */
+  gchar *dimension; /**< dimension in the caps of the pad at the last buffer */
+  gsize caps_size; /**< bytes of the tensor the caps of the pad describe */
+  gsize buffer_size; /**< bytes of the last buffer */
+  guint first_byte; /**< first byte of the last buffer */
+} splitPadOutput;
+
+/**
+ * @brief Buffer probe recording what goes out on a tensor_split source pad.
+ * @details The buffer is dropped, which the pad reports as a successful push,
+ *          so the element goes on to the next segment as if it were linked.
+ */
+static GstPadProbeReturn
+_split_record_output (GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
+{
+  splitPadOutput *outputs = (splitPadOutput *) user_data;
+  GstBuffer *buf = GST_PAD_PROBE_INFO_BUFFER (info);
+  gchar *name = gst_pad_get_name (pad);
+  guint idx = (guint) g_ascii_strtoull (name + strlen ("src_"), NULL, 10);
+  GstCaps *caps = gst_pad_get_current_caps (pad);
+  GstTensorsConfig config;
+  splitPadOutput *out;
+  guint8 first = 0;
+
+  g_free (name);
+  EXPECT_LT (idx, SPLIT_TEST_MAX_PADS);
+  EXPECT_TRUE (caps != NULL);
+  if (idx >= SPLIT_TEST_MAX_PADS || caps == NULL)
+    goto done;
+
+  out = &outputs[idx];
+  out->buffers++;
+  out->buffer_size = gst_buffer_get_size (buf);
+  gst_buffer_extract (buf, 0, &first, 1);
+  out->first_byte = first;
+
+  gst_tensors_config_init (&config);
+  if (gst_tensors_config_from_caps (&config, caps, TRUE)) {
+    g_free (out->dimension);
+    out->dimension = gst_tensor_get_dimension_string (config.info.info[0].dimension);
+    out->caps_size = gst_tensors_info_get_size (&config.info, 0);
+  }
+  gst_tensors_config_free (&config);
+
+done:
+  if (caps)
+    gst_caps_unref (caps);
+  return GST_PAD_PROBE_DROP;
+}
+
+/**
+ * @brief Handler of "pad-added", which puts the recording probe on the pad.
+ */
+static void
+_split_pad_added (GstElement *element, GstPad *pad, gpointer user_data)
+{
+  UNUSED (element);
+
+  gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_BUFFER, _split_record_output, user_data, NULL);
+}
+
+/**
+ * @brief Get a tensor_split harness fed with uint8 tensors of the given shape.
+ * @param[out] size bytes of one incoming tensor
+ */
+static GstHarness *
+_split_harness_new (const gchar *dimension, splitPadOutput *outputs, gsize *size)
 {
   GstHarness *h = gst_harness_new_with_padnames ("tensor_split", "sink", NULL);
   GstTensorsConfig config;
-  gsize data_size;
 
-  ASSERT_TRUE (h != NULL);
+  g_signal_connect (h->element, "pad-added", G_CALLBACK (_split_pad_added), outputs);
 
   gst_tensors_config_init (&config);
   config.info.num_tensors = 1;
   config.info.info[0].type = _NNS_UINT8;
-  gst_tensor_parse_dimension ("2:8:8", config.info.info[0].dimension);
+  gst_tensor_parse_dimension (dimension, config.info.info[0].dimension);
   config.rate_n = 0;
   config.rate_d = 1;
   gst_harness_set_src_caps (h, gst_tensors_caps_from_config (&config));
-  data_size = gst_tensors_info_get_size (&config.info, 0);
-
-  /* picking the second of two rules puts src_0 at ordinal 0 of two */
-  g_object_set (h->element, "tensorseg", "1:8:8,1:8:8", "tensorpick", "1", NULL);
-  EXPECT_NE (gst_harness_push (h, gst_harness_create_buffer (h, data_size)), GST_FLOW_ERROR);
-
-  /* one rule now, but src_0 already took ordinal 0 */
-  g_object_set (h->element, "tensorseg", "2:8:8", "tensorpick", "0", NULL);
-  EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, data_size)), GST_FLOW_ERROR);
-
+  *size = gst_tensors_info_get_size (&config.info, 0);
   gst_tensors_config_free (&config);
+
+  return h;
+}
+
+/**
+ * @brief Push a tensor whose byte i is i % 256, so a segment is known by its first byte.
+ */
+static GstFlowReturn
+_split_push (GstHarness *h, gsize size)
+{
+  GstBuffer *buf = gst_harness_create_buffer (h, size);
+  GstMapInfo map;
+  gsize i;
+
+  if (!gst_buffer_map (buf, &map, GST_MAP_WRITE)) {
+    gst_buffer_unref (buf);
+    return GST_FLOW_ERROR;
+  }
+  for (i = 0; i < size; i++)
+    map.data[i] = (guint8) i;
+  gst_buffer_unmap (buf, &map);
+
+  return gst_harness_push (h, buf);
+}
+
+/**
+ * @brief Release what a splitPadOutput array holds.
+ */
+static void
+_split_outputs_clear (splitPadOutput *outputs)
+{
+  guint i;
+
+  for (i = 0; i < SPLIT_TEST_MAX_PADS; i++)
+    g_free (outputs[i].dimension);
+}
+
+/**
+ * @brief Without tensorpick, src_n carries segment n.
+ */
+TEST (testTensorSplit, segmentsWithoutTensorpick)
+{
+  splitPadOutput out[SPLIT_TEST_MAX_PADS] = {};
+  gsize size;
+  GstHarness *h = _split_harness_new ("6:8:8", out, &size);
+
+  g_object_set (h->element, "tensorseg", "1:8:8,2:8:8,3:8:8", NULL);
+  EXPECT_EQ (_split_push (h, size), GST_FLOW_OK);
+
+  EXPECT_EQ (out[0].buffers, 1U);
+  EXPECT_STREQ (out[0].dimension, "1:8:8");
+  EXPECT_EQ (out[0].caps_size, 64U);
+  EXPECT_EQ (out[0].buffer_size, 64U);
+  EXPECT_EQ (out[0].first_byte, 0U);
+
+  EXPECT_EQ (out[1].buffers, 1U);
+  EXPECT_STREQ (out[1].dimension, "2:8:8");
+  EXPECT_EQ (out[1].caps_size, 128U);
+  EXPECT_EQ (out[1].buffer_size, 128U);
+  EXPECT_EQ (out[1].first_byte, 64U);
+
+  EXPECT_EQ (out[2].buffers, 1U);
+  EXPECT_STREQ (out[2].dimension, "3:8:8");
+  EXPECT_EQ (out[2].caps_size, 192U);
+  EXPECT_EQ (out[2].buffer_size, 192U);
+  EXPECT_EQ (out[2].first_byte, 192U);
+
+  _split_outputs_clear (out);
   gst_harness_teardown (h);
+}
+
+/**
+ * @brief A tensorpick that skips the first segment describes the segment it carries.
+ * @details The segments differ in size, so describing src_0 by the first
+ *          segment would announce 64 bytes for a 128-byte buffer.
+ */
+TEST (testTensorSplit, tensorpickSkippingFirstSegment)
+{
+  splitPadOutput out[SPLIT_TEST_MAX_PADS] = {};
+  gsize size;
+  GstHarness *h = _split_harness_new ("3:8:8", out, &size);
+
+  g_object_set (h->element, "tensorseg", "1:8:8,2:8:8", "tensorpick", "1", NULL);
+  EXPECT_EQ (_split_push (h, size), GST_FLOW_OK);
+
+  EXPECT_EQ (out[0].buffers, 1U);
+  EXPECT_STREQ (out[0].dimension, "2:8:8");
+  EXPECT_EQ (out[0].caps_size, 128U);
+  EXPECT_EQ (out[0].buffer_size, 128U);
+  EXPECT_EQ (out[0].first_byte, 64U);
+  EXPECT_EQ (out[1].buffers, 0U);
+
+  _split_outputs_clear (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A tensorpick with a gap is numbered in segment order, whatever order it lists.
+ */
+TEST (testTensorSplit, tensorpickWithGap)
+{
+  const gchar *picks[] = { "0,2", "2,0" };
+  guint i;
+
+  for (i = 0; i < G_N_ELEMENTS (picks); i++) {
+    splitPadOutput out[SPLIT_TEST_MAX_PADS] = {};
+    gsize size;
+    GstHarness *h = _split_harness_new ("6:8:8", out, &size);
+
+    SCOPED_TRACE (picks[i]);
+    g_object_set (h->element, "tensorseg", "1:8:8,2:8:8,3:8:8", "tensorpick",
+        picks[i], NULL);
+    EXPECT_EQ (_split_push (h, size), GST_FLOW_OK);
+
+    EXPECT_EQ (out[0].buffers, 1U);
+    EXPECT_STREQ (out[0].dimension, "1:8:8");
+    EXPECT_EQ (out[0].caps_size, 64U);
+    EXPECT_EQ (out[0].buffer_size, 64U);
+    EXPECT_EQ (out[0].first_byte, 0U);
+
+    EXPECT_EQ (out[1].buffers, 1U);
+    EXPECT_STREQ (out[1].dimension, "3:8:8");
+    EXPECT_EQ (out[1].caps_size, 192U);
+    EXPECT_EQ (out[1].buffer_size, 192U);
+    EXPECT_EQ (out[1].first_byte, 192U);
+
+    EXPECT_EQ (out[2].buffers, 0U);
+
+    _split_outputs_clear (out);
+    gst_harness_teardown (h);
+  }
+}
+
+/**
+ * @brief A pad added after tensorseg shrinks is described by its own segment.
+ * @details The rule array is replaced on every tensorseg set, so it can shrink
+ *          under source pads that already exist. The next pad is src_1, but it
+ *          carries segment 0 of the new rule and has to say so.
+ */
+TEST (testTensorSplit, addPadAfterTensorsegShrinks)
+{
+  splitPadOutput out[SPLIT_TEST_MAX_PADS] = {};
+  gsize size;
+  GstHarness *h = _split_harness_new ("2:8:8", out, &size);
+
+  g_object_set (h->element, "tensorseg", "1:8:8,1:8:8", "tensorpick", "1", NULL);
+  EXPECT_EQ (_split_push (h, size), GST_FLOW_OK);
+  EXPECT_EQ (out[0].buffers, 1U);
+  EXPECT_STREQ (out[0].dimension, "1:8:8");
+  EXPECT_EQ (out[0].first_byte, 64U);
+
+  g_object_set (h->element, "tensorseg", "2:8:8", "tensorpick", "0", NULL);
+  EXPECT_EQ (_split_push (h, size), GST_FLOW_OK);
+  EXPECT_EQ (out[0].buffers, 1U);
+  EXPECT_EQ (out[1].buffers, 1U);
+  EXPECT_STREQ (out[1].dimension, "2:8:8");
+  EXPECT_EQ (out[1].caps_size, 128U);
+  EXPECT_EQ (out[1].buffer_size, 128U);
+  EXPECT_EQ (out[1].first_byte, 0U);
+
+  _split_outputs_clear (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief A picked segment reaching past the incoming tensor is refused.
+ * @details Only the picked segment is copied, but it starts after the segments
+ *          before it, so its end is what has to fit.
+ */
+TEST (testTensorSplit, tensorpickPastBuffer_n)
+{
+  splitPadOutput out[SPLIT_TEST_MAX_PADS] = {};
+  gsize size;
+  GstHarness *h = _split_harness_new ("2:8:8", out, &size);
+
+  g_object_set (h->element, "tensorseg", "1:8:8,2:8:8", "tensorpick", "1", NULL);
+  EXPECT_EQ (_split_push (h, size), GST_FLOW_ERROR);
+  EXPECT_EQ (out[0].buffers, 0U);
+
+  _split_outputs_clear (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Run a pipeline until it ends.
+ * @return the type of the message it ended with, GST_MESSAGE_UNKNOWN on time-out
+ */
+static GstMessageType
+_split_run_pipeline (const gchar *description)
+{
+  GstElement *pipeline = gst_parse_launch (description, NULL);
+  GstMessageType type = GST_MESSAGE_UNKNOWN;
+  GstMessage *msg;
+  GstBus *bus;
+
+  if (pipeline == NULL)
+    return type;
+
+  setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
+
+  bus = gst_element_get_bus (pipeline);
+  msg = gst_bus_timed_pop_filtered (bus, (GstClockTime) TEST_TIMEOUT_LIMIT * GST_USECOND,
+      (GstMessageType) (GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+  if (msg) {
+    type = GST_MESSAGE_TYPE (msg);
+    gst_message_unref (msg);
+  }
+
+  setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
+  gst_object_unref (bus);
+  gst_object_unref (pipeline);
+  return type;
+}
+
+/**
+ * @brief A downstream element expecting the picked segment's shape gets it.
+ */
+TEST (testTensorSplit, tensorpickNegotiatesPickedSegment)
+{
+  const gchar *desc
+      = "videotestsrc num-buffers=2 ! "
+        "video/x-raw,format=RGB,width=4,height=4,framerate=30/1 ! "
+        "tensor_converter ! tensor_split tensorseg=1:4:4,2:4:4 tensorpick=1 ! "
+        "other/tensors,num_tensors=1,dimensions=2:4:4,types=uint8 ! fakesink";
+
+  EXPECT_EQ (_split_run_pipeline (desc), GST_MESSAGE_EOS);
+}
+
+/**
+ * @brief A downstream element expecting the first segment's shape is refused.
+ * @details The pad carries 32-byte buffers, so a 16-byte shape must not link.
+ */
+TEST (testTensorSplit, tensorpickRefusesFirstSegment_n)
+{
+  const gchar *desc
+      = "videotestsrc num-buffers=2 ! "
+        "video/x-raw,format=RGB,width=4,height=4,framerate=30/1 ! "
+        "tensor_converter ! tensor_split tensorseg=1:4:4,2:4:4 tensorpick=1 ! "
+        "other/tensors,num_tensors=1,dimensions=1:4:4,types=uint8 ! fakesink";
+
+  EXPECT_EQ (_split_run_pipeline (desc), GST_MESSAGE_ERROR);
 }
 
 /* set by _record_critical() when a critical is logged */
