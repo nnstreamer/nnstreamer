@@ -8,6 +8,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <errno.h>
 #include <glib/gstdio.h>
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
@@ -5215,6 +5216,51 @@ TEST (tensorStreamTest, filterOutCombinationMixedOverLimit_n)
   EXPECT_EQ (0U, combined.num_tensors);
 
   gst_tensors_info_free (&combined);
+}
+
+/**
+ * @brief Internal util function to set a combination property with errno set beforehand.
+ */
+static gboolean
+_set_combination_with_errno (guint prop_id, const gchar *param, int err)
+{
+  GstTensorFilterPrivate priv;
+  GValue value = G_VALUE_INIT;
+  gboolean ret;
+
+  gst_tensor_filter_common_init_property (&priv);
+
+  g_value_init (&value, G_TYPE_STRING);
+  g_value_set_string (&value, param);
+  errno = err;
+  ret = gst_tensor_filter_common_set_property (&priv, prop_id, &value, NULL);
+  g_value_unset (&value);
+
+  gst_tensor_filter_common_free_property (&priv);
+
+  return ret;
+}
+
+/**
+ * @brief Test for combination properties when an earlier call left errno at ERANGE.
+ */
+TEST (tensorStreamTest, filterCombinationStaleErrno)
+{
+  EXPECT_TRUE (_set_combination_with_errno (PROP_INPUTCOMBINATION, "0,1", ERANGE));
+  EXPECT_TRUE (_set_combination_with_errno (PROP_OUTPUTCOMBINATION, "i0,o0", ERANGE));
+}
+
+/**
+ * @brief Test for combination properties with an index past the range of the parser.
+ */
+TEST (tensorStreamTest, filterCombinationIndexOverflow_n)
+{
+  EXPECT_FALSE (
+      _set_combination_with_errno (PROP_INPUTCOMBINATION, "99999999999999999999", 0));
+  EXPECT_FALSE (_set_combination_with_errno (
+      PROP_OUTPUTCOMBINATION, "i99999999999999999999", 0));
+  EXPECT_FALSE (_set_combination_with_errno (
+      PROP_OUTPUTCOMBINATION, "o99999999999999999999", 0));
 }
 
 /**

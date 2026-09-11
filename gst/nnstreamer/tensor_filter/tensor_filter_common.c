@@ -1813,6 +1813,7 @@ _gtfc_setprop_INPUTCOMBINATION (GstTensorFilterPrivate * priv,
   *prop_list = NULL;
 
   for (i = 0; i < num; i++) {
+    errno = 0;
     val = g_ascii_strtoull (strv[i], NULL, 10);
     if (errno == ERANGE || val >= NNS_TENSOR_SIZE_LIMIT) {
       ml_loge ("Invalid value %s, cannot set combination option.", strv[i]);
@@ -1845,6 +1846,7 @@ _gtfc_setprop_OUTPUTCOMBINATION (GstTensorFilterPrivate * priv,
   *prop_list1 = *prop_list2 = NULL;
 
   for (i = 0; i < num; i++) {
+    errno = 0;
     if (strv[i][0] == 'i') {
       val = g_ascii_strtoull (&strv[i][1], NULL, 10);
       *prop_list1 = g_list_append (*prop_list1, GUINT_TO_POINTER (val));
