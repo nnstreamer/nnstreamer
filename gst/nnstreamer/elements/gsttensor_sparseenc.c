@@ -357,6 +357,11 @@ gst_tensor_sparse_enc_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
 
   info = &self->in_config.info;
   buf = gst_tensor_buffer_from_config (buf, &self->in_config);
+  if (!buf) {
+    nns_loge ("Failed to get the tensor buffer of the negotiated config");
+    return GST_FLOW_ERROR;
+  }
+
   outbuf = gst_buffer_new ();
 
   for (i = 0; i < info->num_tensors; ++i) {

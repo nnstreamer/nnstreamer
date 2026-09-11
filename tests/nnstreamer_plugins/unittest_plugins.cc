@@ -11261,6 +11261,358 @@ TEST (testTensorSparse, decTrailingRemainder_n)
 }
 
 /**
+ * @brief Test for tensor_sparse_dec, a buffer that cannot be split into the
+ *        tensors of the negotiated config.
+ * @details The single memory carries two meta headers, the second of which
+ * declares more data than is left, so gst_tensor_buffer_from_config() fails.
+ */
+TEST (testTensorSparse, decBufferFromConfigFailure_n)
+{
+  GstHarness *h;
+  GstBuffer *in;
+  GstMemory *mem;
+  GstMapInfo map;
+  GstTensorMetaInfo meta;
+  guint handler;
+  guint8 *data;
+  const gsize data_size = 300U;
+
+  h = gst_harness_new ("tensor_sparse_dec");
+  ASSERT_TRUE (h != NULL);
+
+  gst_harness_set_sink_caps_str (h, SPARSE_DENSE_CAPS_STR);
+  gst_harness_set_src_caps_str (h, "other/tensors,format=sparse,framerate=0/1");
+
+  data = (guint8 *) g_malloc0 (data_size);
+  mem = gst_memory_new_wrapped (
+      (GstMemoryFlags) 0, data, data_size, 0, data_size, data, g_free);
+  ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_WRITE));
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_INT32;
+  gst_tensor_parse_dimension ("40", meta.dimension);
+  meta.format = _NNS_TENSOR_FORMAT_SPARSE;
+  meta.media_type = _NNS_TENSOR;
+
+  /* 128 + 2 * 8 bytes, so the second header starts at 144. */
+  meta.sparse_info.nnz = 2U;
+  gst_tensor_meta_info_update_header (&meta, map.data);
+
+  /* 128 + 1000 * 8 bytes, far past the 156 bytes that are left. */
+  meta.sparse_info.nnz = 1000U;
+  gst_tensor_meta_info_update_header (&meta, map.data + 144U);
+
+  gst_memory_unmap (mem, &map);
+
+  in = gst_buffer_new ();
+  gst_buffer_append_memory (in, mem);
+
+  handler = _sparse_watch_gst_critical ();
+  EXPECT_EQ (gst_harness_push (h, in), GST_FLOW_ERROR);
+  g_log_remove_handler ("GStreamer", handler);
+
+  EXPECT_EQ (sparse_gst_critical_count, 0U) << sparse_gst_critical_msg;
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_sparse_enc, a buffer smaller than the negotiated caps.
+ */
+TEST (testTensorSparse, encBufferFromConfigFailure_n)
+{
+  GstHarness *h;
+  GstMemory *mem;
+  gpointer data;
+  guint handler;
+  const gsize data_size = 16U;
+
+  h = gst_harness_new ("tensor_sparse_enc");
+  ASSERT_TRUE (h != NULL);
+
+  /* Two tensors of 160 bytes are declared, one memory of 16 bytes is pushed. */
+  gst_harness_set_src_caps_str (h, "other/tensors,format=static,num_tensors=2,"
+                                   "dimensions=(string)40:1:1:1.40:1:1:1,types=(string)int32.int32,"
+                                   "framerate=0/1");
+
+  data = g_malloc0 (data_size);
+  mem = gst_memory_new_wrapped (
+      GST_MEMORY_FLAG_READONLY, data, data_size, 0, data_size, data, g_free);
+
+  handler = _sparse_watch_gst_critical ();
+  EXPECT_EQ (gst_harness_push (h, _sparse_new_buffer (mem)), GST_FLOW_ERROR);
+  g_log_remove_handler ("GStreamer", handler);
+
+  EXPECT_EQ (sparse_gst_critical_count, 0U) << sparse_gst_critical_msg;
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Number of the glib critical logs raised by gst_pad_set_caps().
+ */
+static guint sparse_setcaps_critical_count;
+
+/**
+ * @brief Log handler counting the caps assertions of gst_pad_set_caps().
+ * @details gst_pad_set_caps() is a static inline of gstcompat.h, so it is
+ * compiled into the caller rather than into GStreamer, and nnstreamer defines
+ * no G_LOG_DOMAIN of its own; its assertion therefore lands in the default
+ * domain, where the elements' own error messages are. Matching the name of the
+ * function is what keeps the two apart.
+ */
+static void
+_sparse_count_setcaps_critical (const gchar *domain, GLogLevelFlags level,
+    const gchar *message, gpointer udata)
+{
+  UNUSED (domain);
+  UNUSED (udata);
+
+  if ((level & G_LOG_LEVEL_CRITICAL) && message && strstr (message, "gst_pad_set_caps") != NULL)
+    sparse_setcaps_critical_count++;
+}
+
+/**
+ * @brief Start counting the caps assertions, proving the counter live first.
+ */
+static guint
+_sparse_watch_setcaps_critical (void)
+{
+  guint handler = g_log_set_handler (NULL,
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
+      _sparse_count_setcaps_critical, NULL);
+
+  sparse_setcaps_critical_count = 0;
+  g_critical ("tensor_sparse test: gst_pad_set_caps counter self-check");
+  EXPECT_EQ (sparse_setcaps_critical_count, 1U);
+
+  sparse_setcaps_critical_count = 0;
+  return handler;
+}
+
+/**
+ * @brief Test for tensor_sparse_dec, caps that cannot be read into a config are
+ *        refused rather than kept.
+ * @details gst_harness_push_event() reports success either way, so what the
+ * refusal changes is that the pad does not end up carrying caps the element
+ * cannot work with.
+ */
+TEST (testTensorSparse, decUnreadableCaps_n)
+{
+  GstHarness *h;
+  GstPad *sinkpad;
+  GstCaps *caps, *current;
+
+  h = gst_harness_new ("tensor_sparse_dec");
+  ASSERT_TRUE (h != NULL);
+
+  /* a sparse stream with no framerate, which no config can be built from */
+  caps = gst_caps_from_string ("other/tensors,format=sparse");
+  gst_harness_push_event (h, gst_event_new_caps (caps));
+  gst_caps_unref (caps);
+
+  sinkpad = gst_element_get_static_pad (h->element, "sink");
+  ASSERT_TRUE (sinkpad != NULL);
+
+  current = gst_pad_get_current_caps (sinkpad);
+  EXPECT_TRUE (current == NULL);
+  if (current)
+    gst_caps_unref (current);
+
+  gst_object_unref (sinkpad);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_sparse_dec, a downstream that leaves the decoded caps
+ *        unfixed is negotiated without a caps assertion.
+ * @details The tensors a sparse buffer decodes into are described by the buffer
+ * itself, so a downstream that does not constrain them leaves the config read
+ * back from the peer unfixed, and the caps built from it are not fixed either.
+ * They used to go straight into gst_pad_set_caps(), which rejects them with an
+ * assertion. The SSAT cases of tests/nnstreamer_sparse carry a caps filter that
+ * fixes the caps, which is why nothing had caught this.
+ */
+TEST (testTensorSparse, decUnfixedSrcCaps_n)
+{
+  GstHarness *h;
+  guint handler;
+
+  h = gst_harness_new ("tensor_sparse_dec");
+  ASSERT_TRUE (h != NULL);
+
+  handler = _sparse_watch_setcaps_critical ();
+  /* no sink caps, so the peer of the src pad keeps its template caps */
+  gst_harness_set_src_caps_str (h, "other/tensors,format=sparse,framerate=0/1");
+  g_log_remove_handler (NULL, handler);
+
+  EXPECT_EQ (sparse_setcaps_critical_count, 0U);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_sparse_dec, a pipeline that never negotiates fails
+ *        without raising a critical.
+ * @details tensor_sparse_enc does not carry the framerate of the stream into
+ * its sparse src caps, so a decoder linked to it directly is negotiated with a
+ * config it cannot validate. gst_tensor_buffer_from_config() then returns NULL
+ * for every buffer, which the chain used to count the tensors of and unref, so
+ * glib reported two critical logs of the GStreamer domain per buffer and an
+ * empty buffer went downstream. The SSAT cases of tests/nnstreamer_sparse cover
+ * the same pipeline with the caps filter that makes it work.
+ */
+TEST (testTensorSparse, decUnnegotiatedPipeline_n)
+{
+  GstElement *pipeline;
+  GstBus *bus;
+  GstMessage *msg;
+  guint handler;
+  const gchar *str_pipeline
+      = "videotestsrc num-buffers=1 ! "
+        "video/x-raw,format=RGB,width=10,height=10,framerate=0/1 ! videoconvert ! "
+        "tensor_converter ! tensor_sparse_enc ! tensor_sparse_dec ! fakesink";
+
+  pipeline = gst_parse_launch (str_pipeline, NULL);
+  ASSERT_TRUE (pipeline != nullptr);
+
+  handler = _sparse_watch_gst_critical ();
+
+  setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
+
+  bus = gst_element_get_bus (pipeline);
+  msg = gst_bus_timed_pop_filtered (bus, 10 * GST_SECOND,
+      (GstMessageType) (GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+  /* the pipeline has to settle either way, so a time-out is a failure of its own */
+  EXPECT_TRUE (msg != nullptr);
+  if (msg)
+    gst_message_unref (msg);
+  gst_object_unref (bus);
+
+  setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
+  g_log_remove_handler ("GStreamer", handler);
+
+  EXPECT_EQ (sparse_gst_critical_count, 0U) << sparse_gst_critical_msg;
+
+  gst_object_unref (pipeline);
+}
+
+/**
+ * @brief The number of tensors of the tensor_sparse extra-tensor test.
+ */
+#define SPARSE_EXTRA_TENSORS_NUM (18U)
+
+/**
+ * @brief Create a sparse tensor memory as long as the dense tensor it encodes.
+ * @details Four non-zero elements of 40 int32 encode into 128 + 4 * 8 bytes,
+ * exactly the 160 bytes the static tensor info declares. The two sizes have to
+ * agree because gst_tensor_buffer_append_memory() records only the dense size
+ * of an extra tensor, which truncates a longer sparse memory (item A6 of #4920,
+ * issue #4934).
+ */
+static GstMemory *
+_sparse_new_extra_memory (GstTensorInfo *info)
+{
+  GstMemory *dense, *sparse;
+  GstTensorMetaInfo meta;
+  gpointer data;
+  gsize data_size;
+  guint i;
+
+  gst_tensor_info_init (info);
+  info->type = _NNS_INT32;
+  gst_tensor_parse_dimension ("40", info->dimension);
+
+  data_size = gst_tensor_info_get_size (info);
+  data = g_malloc0 (data_size);
+  for (i = 0; i < 40U; i++)
+    ((gint32 *) data)[i] = (i % 10U == 0U) ? (gint32) (i + 1) : 0;
+
+  dense = gst_memory_new_wrapped (
+      GST_MEMORY_FLAG_READONLY, data, data_size, 0, data_size, data, g_free);
+
+  gst_tensor_info_convert_to_meta (info, &meta);
+  meta.format = _NNS_TENSOR_FORMAT_SPARSE;
+  meta.media_type = _NNS_TENSOR;
+
+  sparse = gst_tensor_sparse_from_dense (&meta, dense);
+  gst_memory_unref (dense);
+
+  return sparse;
+}
+
+/**
+ * @brief Test for tensor_sparse_dec, a buffer of more tensors than
+ *        NNS_TENSOR_MEMORY_MAX is decoded and its tensors info is released.
+ * @details The decoder allocates GstTensorsInfo.extra for the 17th tensor, so
+ * this is the case in which the tensors info of the chain function has to be
+ * freed. The leak itself is reported by the valgrind step of the CI.
+ */
+TEST (testTensorSparse, decExtraTensors)
+{
+  GstHarness *h;
+  GstBuffer *in, *out;
+  GstMemory *mem;
+  GstMapInfo map;
+  GstTensorsConfig config;
+  GstTensorInfo *_info;
+  guint i, j;
+
+  h = gst_harness_new ("tensor_sparse_dec");
+  ASSERT_TRUE (h != NULL);
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = SPARSE_EXTRA_TENSORS_NUM;
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  for (i = 0; i < SPARSE_EXTRA_TENSORS_NUM; i++) {
+    _info = gst_tensors_info_get_nth_info (&config.info, i);
+    _info->type = _NNS_INT32;
+    gst_tensor_parse_dimension ("40", _info->dimension);
+  }
+
+  gst_harness_set_sink_caps (h, gst_tensors_caps_from_config (&config));
+  gst_harness_set_src_caps_str (h, "other/tensors,format=sparse,framerate=0/1");
+
+  in = gst_buffer_new ();
+  for (i = 0; i < SPARSE_EXTRA_TENSORS_NUM; i++) {
+    GstTensorInfo info;
+
+    mem = _sparse_new_extra_memory (&info);
+    ASSERT_TRUE (mem != NULL);
+    ASSERT_TRUE (gst_tensor_buffer_append_memory (
+        in, mem, gst_tensors_info_get_nth_info (&config.info, i)));
+    gst_tensor_info_free (&info);
+  }
+  ASSERT_EQ (gst_tensor_buffer_get_count (in), SPARSE_EXTRA_TENSORS_NUM);
+
+  ASSERT_EQ (gst_harness_push (h, in), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
+
+  out = gst_harness_pull (h);
+  ASSERT_TRUE (out != NULL);
+  ASSERT_EQ (gst_tensor_buffer_get_count (out), SPARSE_EXTRA_TENSORS_NUM);
+
+  for (i = 0; i < SPARSE_EXTRA_TENSORS_NUM; i++) {
+    mem = gst_tensor_buffer_get_nth_memory (out, i);
+    ASSERT_TRUE (mem != NULL);
+    ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_READ));
+    ASSERT_EQ (map.size, 40U * sizeof (gint32));
+    for (j = 0; j < 40U; j++)
+      EXPECT_EQ (((gint32 *) map.data)[j], (j % 10U == 0U) ? (gint32) (j + 1) : 0);
+    gst_memory_unmap (mem, &map);
+    gst_memory_unref (mem);
+  }
+
+  gst_buffer_unref (out);
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Rendezvous used to set a property from the test thread exactly while
  *        the streaming thread is adding a source pad.
  */
