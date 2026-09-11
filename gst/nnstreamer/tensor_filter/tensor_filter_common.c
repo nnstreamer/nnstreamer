@@ -3272,17 +3272,21 @@ gst_tensor_filter_disable_invoke_async (GstTensorFilterProperties * prop)
  * Failure to do so will result in undefined behavior, as no callback and handle will be registered.
  *
  * @param[in] prop GstTensorFilterProperties object.
- * @param[in] output The GstTensorMemory holding the asynchronously generated output. Note that this function takes the ownership of each tensor data.
+ * @param[in] output The GstTensorMemory array holding the asynchronously generated output, one entry for each tensor prop->output_meta describes. Note that this function takes the ownership of each tensor data. When no callback is registered, e.g., once tensor-filter has stopped, the data is released with g_free().
  */
 void
 nnstreamer_filter_dispatch_output_async (GstTensorFilterProperties * prop,
     GstTensorMemory * output)
 {
+  guint i;
+
   g_return_if_fail (prop != NULL);
   g_return_if_fail (output != NULL);
 
   if (!prop->async_callback) {
     ml_loge ("Callback function is NULL. Unable to dispatch output.");
+    for (i = 0; i < prop->output_meta.num_tensors; i++)
+      g_clear_pointer (&output[i].data, g_free);
     return;
   }
 

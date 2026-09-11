@@ -7891,6 +7891,78 @@ TEST_F (testTensorFilterCppSubplugin, openCloseOwnership_p)
 }
 
 /**
+ * @brief Number of tensors the async output callback of a test has received.
+ */
+static guint dispatch_async_received;
+
+/**
+ * @brief Async output callback that takes and releases what it is handed.
+ */
+static int
+_dispatch_async_cb (GstTensorMemory *data, GstTensorsInfo *info, void *user_data)
+{
+  guint i;
+
+  for (i = 0; i < info->num_tensors; i++) {
+    if (data[i].data)
+      dispatch_async_received++;
+    g_clear_pointer (&data[i].data, g_free);
+  }
+
+  return 0;
+}
+
+/**
+ * @brief Async output goes to the registered callback, which owns it.
+ */
+TEST (testTensorFilterAsync, dispatchToCallback)
+{
+  GstTensorFilterProperties prop;
+  GstTensorMemory output[2];
+
+  memset (&prop, 0, sizeof (prop));
+  gst_tensors_info_init (&prop.output_meta);
+  prop.output_meta.num_tensors = 2;
+  prop.async_callback = _dispatch_async_cb;
+
+  output[0].size = 4;
+  output[0].data = g_malloc0 (output[0].size);
+  output[1].size = 8;
+  output[1].data = g_malloc0 (output[1].size);
+
+  dispatch_async_received = 0;
+  nnstreamer_filter_dispatch_output_async (&prop, output);
+  EXPECT_EQ (dispatch_async_received, 2U);
+
+  gst_tensors_info_free (&prop.output_meta);
+}
+
+/**
+ * @brief Async output dispatched with no callback registered, as it is once
+ *        tensor-filter has stopped, is released rather than dropped.
+ */
+TEST (testTensorFilterAsync, dispatchWithoutCallback_n)
+{
+  GstTensorFilterProperties prop;
+  GstTensorMemory output[2];
+
+  memset (&prop, 0, sizeof (prop));
+  gst_tensors_info_init (&prop.output_meta);
+  prop.output_meta.num_tensors = 2;
+
+  output[0].size = 4;
+  output[0].data = g_malloc0 (output[0].size);
+  output[1].size = 8;
+  output[1].data = g_malloc0 (output[1].size);
+
+  nnstreamer_filter_dispatch_output_async (&prop, output);
+  EXPECT_TRUE (output[0].data == NULL);
+  EXPECT_TRUE (output[1].data == NULL);
+
+  gst_tensors_info_free (&prop.output_meta);
+}
+
+/**
  * @brief Test to reload tf-lite model set_property of model/is-updatable
  */
 TEST_REQUIRE_TFLITE (testTensorFilter, reloadTFliteSetProperty)
