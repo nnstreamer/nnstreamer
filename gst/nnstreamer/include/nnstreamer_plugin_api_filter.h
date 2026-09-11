@@ -609,7 +609,7 @@ nnstreamer_filter_shared_model_replace (void *instance, const char *key,
  * Failure to do so will result in undefined behavior, as no callback and handle will be registered.
  *
  * @param[in] prop GstTensorFilterProperties object.
- * @param[in] output The GstTensorMemory holding the asynchronously generated output. Note that this function takes the ownership of each tensor data.
+ * @param[in] output The GstTensorMemory array holding the asynchronously generated output, one entry for each tensor prop->output_meta describes. Note that this function takes the ownership of each tensor data. When no callback is registered, e.g., once tensor-filter has stopped, the data is released with g_free().
  */
 extern void
 nnstreamer_filter_dispatch_output_async (GstTensorFilterProperties * prop, GstTensorMemory * output);
