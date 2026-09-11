@@ -10898,6 +10898,369 @@ TEST (testTensorSparse, encUnsupportedType_n)
 }
 
 /**
+ * @brief Build a sparse int32 tensor memory from the given header fields.
+ * @details Unlike _sparse_new_sparse_memory(), the header fields and the size
+ * of the memory are set independently of each other, so that a header
+ * describing more data than the memory holds can be handed to the decoder.
+ * @param dimension the dimension the meta info declares
+ * @param nnz the number of non-zero elements the meta info declares
+ * @param indices the indices to write after the values, NULL to leave them 0
+ * @param size the number of bytes the memory actually holds
+ */
+static GstMemory *
+_sparse_new_raw_memory_dim (const gchar *dimension, guint nnz, const guint *indices, gsize size)
+{
+  GstTensorMetaInfo meta;
+  guint8 *data;
+  gsize header_size;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_INT32;
+  gst_tensor_parse_dimension (dimension, meta.dimension);
+  meta.format = _NNS_TENSOR_FORMAT_SPARSE;
+  meta.media_type = _NNS_TENSOR;
+  meta.sparse_info.nnz = nnz;
+
+  header_size = gst_tensor_meta_info_get_header_size (&meta);
+  data = (guint8 *) g_malloc0 (size);
+
+  if (size >= header_size) {
+    gst_tensor_meta_info_update_header (&meta, data);
+
+    if (indices && size >= header_size + (gsize) nnz * (sizeof (gint32) + sizeof (guint)))
+      memcpy (data + header_size + (gsize) nnz * sizeof (gint32), indices,
+          (gsize) nnz * sizeof (guint));
+  }
+
+  return gst_memory_new_wrapped ((GstMemoryFlags) 0, data, size, 0, size, data, g_free);
+}
+
+/**
+ * @brief Build a sparse int32 tensor memory of a one-dimensional tensor.
+ */
+static GstMemory *
+_sparse_new_raw_memory (guint element_count, guint nnz, const guint *indices, gsize size)
+{
+  GstMemory *mem;
+  gchar *dim_str = g_strdup_printf ("%u", element_count);
+
+  mem = _sparse_new_raw_memory_dim (dim_str, nnz, indices, size);
+  g_free (dim_str);
+
+  return mem;
+}
+
+/**
+ * @brief Test for tensor_sparse util, a memory too short to hold a meta header.
+ * @details Without the length check gst_tensor_meta_info_parse_header() reads
+ * 88 bytes out of the 64 the memory holds, which only valgrind reports.
+ */
+TEST (testTensorSparse, utilToDenseShortHeader_n)
+{
+  GstTensorMetaInfo meta;
+  GstMemory *in, *out;
+
+  in = _sparse_new_raw_memory (40U, 0U, NULL, 64U);
+  ASSERT_TRUE (in != NULL);
+
+  out = gst_tensor_sparse_to_dense (&meta, in);
+  EXPECT_TRUE (out == NULL);
+
+  gst_memory_unref (in);
+}
+
+/**
+ * @brief Fill the given bytes with the start of a valid sparse int32 header.
+ * @details The header declares 40 elements and no non-zero one, and is cut to
+ * the given size, so that a memory can hold every field the parse reads while
+ * being shorter than the header it describes.
+ * @param data the bytes to fill
+ * @param size the number of header bytes to copy, at most the header size
+ */
+static void
+_sparse_fill_truncated_header (guint8 *data, gsize size)
+{
+  GstTensorMetaInfo meta;
+  guint8 header[128];
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_INT32;
+  gst_tensor_parse_dimension ("40", meta.dimension);
+  meta.format = _NNS_TENSOR_FORMAT_SPARSE;
+  meta.media_type = _NNS_TENSOR;
+  meta.sparse_info.nnz = 0U;
+
+  ASSERT_LE (gst_tensor_meta_info_get_header_size (&meta), sizeof (header));
+  ASSERT_LE (size, sizeof (header));
+  ASSERT_TRUE (gst_tensor_meta_info_update_header (&meta, header));
+  memcpy (data, header, size);
+}
+
+/**
+ * @brief Test for tensor_sparse util, a memory that holds every field of a
+ *        header but is shorter than the header itself.
+ * @details gst_tensor_meta_info_parse_header() reads 88 bytes, so a 100-byte
+ * memory parses as a valid header whose payload starts at byte 128, past the
+ * end of the memory. Without the length check map.size - header_size
+ * underflows, the payload bound passes, and the memory decodes into a whole
+ * tensor. utilToDenseShortHeader_n covers a memory shorter than what the parse
+ * reads; this covers the one in between.
+ */
+TEST (testTensorSparse, utilToDenseTruncatedHeader_n)
+{
+  GstTensorMetaInfo meta;
+  GstMemory *in, *out;
+  guint8 *data;
+  const gsize size = 100U;
+
+  data = (guint8 *) g_malloc0 (size);
+  _sparse_fill_truncated_header (data, size);
+  in = gst_memory_new_wrapped ((GstMemoryFlags) 0, data, size, 0, size, data, g_free);
+
+  out = gst_tensor_sparse_to_dense (&meta, in);
+  EXPECT_TRUE (out == NULL);
+  if (out)
+    gst_memory_unref (out);
+
+  gst_memory_unref (in);
+}
+
+/**
+ * @brief Test for tensor_sparse util, a header declaring more data than the
+ *        memory holds.
+ */
+TEST (testTensorSparse, utilToDenseShortPayload_n)
+{
+  GstTensorMetaInfo meta;
+  GstMemory *in, *out;
+
+  /* 1000 non-zero elements need 128 + 1000 * 8 bytes, the memory holds 200. */
+  in = _sparse_new_raw_memory (40U, 1000U, NULL, 200U);
+  ASSERT_TRUE (in != NULL);
+
+  out = gst_tensor_sparse_to_dense (&meta, in);
+  EXPECT_TRUE (out == NULL);
+
+  gst_memory_unref (in);
+}
+
+/**
+ * @brief Test for tensor_sparse util, a non-zero count that overflows the
+ *        offset of the index array.
+ */
+TEST (testTensorSparse, utilToDenseNnzOverflow_n)
+{
+  GstTensorMetaInfo meta;
+  GstMemory *in, *out;
+
+  in = _sparse_new_raw_memory (40U, G_MAXUINT32, NULL, 136U);
+  ASSERT_TRUE (in != NULL);
+
+  out = gst_tensor_sparse_to_dense (&meta, in);
+  EXPECT_TRUE (out == NULL);
+
+  gst_memory_unref (in);
+}
+
+/**
+ * @brief Test for tensor_sparse util, an index past the end of the dense tensor.
+ * @details The index is the offset of the write into the decoded tensor, so
+ * without the bound check this writes about 2 GB past a 160-byte allocation.
+ */
+TEST (testTensorSparse, utilToDenseIndexOutOfRange_n)
+{
+  GstTensorMetaInfo meta;
+  GstMemory *in, *out;
+  const guint indices[] = { 0x20000000U };
+
+  in = _sparse_new_raw_memory (40U, 1U, indices, 136U);
+  ASSERT_TRUE (in != NULL);
+
+  out = gst_tensor_sparse_to_dense (&meta, in);
+  EXPECT_TRUE (out == NULL);
+
+  gst_memory_unref (in);
+}
+
+/**
+ * @brief Test for tensor_sparse util, a header of a version this build cannot
+ *        size.
+ * @details gst_tensor_meta_info_validate() asks only for the magic of the
+ * version marker, while gst_tensor_meta_info_get_header_size() answers 128 for
+ * version 1 and 0 for every other. A header of an unknown version therefore
+ * validated and then placed the payload at offset 0, so the header itself was
+ * decoded as tensor data. Reported as item A7 of #4920, and refused here
+ * because the offset of the payload is what this function is bounding.
+ */
+TEST (testTensorSparse, utilToDenseUnknownVersion_n)
+{
+  GstTensorMetaInfo meta;
+  GstMemory *in, *out;
+  GstMapInfo map;
+
+  /* no non-zero element, so only the version decides the result */
+  in = _sparse_new_raw_memory (40U, 0U, NULL, 136U);
+  ASSERT_TRUE (in != NULL);
+
+  /* the magic of the version marker, with a major version of 0 */
+  ASSERT_TRUE (gst_memory_map (in, &map, GST_MAP_WRITE));
+  ((uint32_t *) map.data)[1] = 0xDE000000U;
+  gst_memory_unmap (in, &map);
+
+  out = gst_tensor_sparse_to_dense (&meta, in);
+  EXPECT_TRUE (out == NULL);
+
+  gst_memory_unref (in);
+}
+
+/**
+ * @brief Test for tensor_sparse util, a dimension whose byte size has overflowed.
+ * @details gst_tensor_meta_info_get_data_size() multiplies the element count by
+ * the element size in a gsize, so a dimension can name more elements than the
+ * size of the tensor it computes: 3340214413 x 1380655685 int32 elements are
+ * 2^62 + 1, whose 2^64 + 4 bytes wrap to 4. Bounding the indices by the element
+ * count alone would let an index of 2^62 through and write it into a four-byte
+ * allocation. The same wrap happens far sooner where gsize is 32 bits, which
+ * the armv7l build of the Tizen target is.
+ */
+TEST (testTensorSparse, utilToDenseDimensionOverflow_n)
+{
+  GstTensorMetaInfo meta;
+  GstMemory *in, *out;
+  const guint indices[] = { 0x20000000U };
+
+  in = _sparse_new_raw_memory_dim ("3340214413:1380655685", 1U, indices, 136U);
+  ASSERT_TRUE (in != NULL);
+
+  out = gst_tensor_sparse_to_dense (&meta, in);
+  EXPECT_TRUE (out == NULL);
+
+  gst_memory_unref (in);
+}
+
+/**
+ * @brief Test for tensor_sparse util, the last valid index is still decoded.
+ */
+TEST (testTensorSparse, utilToDenseLastIndex)
+{
+  GstTensorMetaInfo meta;
+  GstMemory *in, *out;
+  GstMapInfo map;
+  const guint indices[] = { 39U };
+
+  in = _sparse_new_raw_memory (40U, 1U, indices, 136U);
+  ASSERT_TRUE (in != NULL);
+
+  out = gst_tensor_sparse_to_dense (&meta, in);
+  ASSERT_TRUE (out != NULL);
+
+  ASSERT_TRUE (gst_memory_map (out, &map, GST_MAP_READ));
+  EXPECT_EQ (map.size, 40U * sizeof (gint32));
+  gst_memory_unmap (out, &map);
+
+  gst_memory_unref (out);
+  gst_memory_unref (in);
+}
+
+/**
+ * @brief Test for tensor_sparse util, a dense memory shorter than the meta info.
+ * @details Without the length check the encoder reads 64 MB out of the 64 bytes
+ * the memory holds.
+ */
+TEST (testTensorSparse, utilFromDenseShortMemory_n)
+{
+  GstTensorMetaInfo meta;
+  GstMemory *in, *out;
+  guint8 *data;
+  const gsize data_size = 64U;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_INT32;
+  gst_tensor_parse_dimension ("16777216", meta.dimension);
+  meta.media_type = _NNS_TENSOR;
+
+  data = (guint8 *) g_malloc0 (data_size);
+  in = gst_memory_new_wrapped (
+      GST_MEMORY_FLAG_READONLY, data, data_size, 0, data_size, data, g_free);
+
+  out = gst_tensor_sparse_from_dense (&meta, in);
+  EXPECT_TRUE (out == NULL);
+
+  gst_memory_unref (in);
+}
+
+/**
+ * @brief Test for tensor_sparse_dec, a flexible buffer whose last bytes cannot
+ *        hold a whole tensor.
+ * @details gst_tensor_buffer_from_config() hands the bytes after the last
+ * tensor it can size to the caller as one more memory, and leaves it to the
+ * caller to refuse them. Here they are a 100-byte tail carrying a valid header,
+ * which the decoder has to refuse after it has already decoded the tensor
+ * before it. Without the length check the tail decodes into a second tensor,
+ * the buffer no longer matches the negotiated config, and it is dropped with
+ * GST_FLOW_OK instead of being reported. The split is checked first, so that
+ * the case cannot keep passing by another route if that contract changes.
+ */
+TEST (testTensorSparse, decTrailingRemainder_n)
+{
+  GstHarness *h;
+  GstMemory *sparse, *all;
+  GstBuffer *in, *split;
+  GstCaps *caps;
+  GstMapInfo smap, amap;
+  GstTensorInfo info;
+  GstTensorsConfig config;
+  gsize sparse_size;
+  guint handler;
+  const gsize tail = 100U;
+
+  h = gst_harness_new ("tensor_sparse_dec");
+  ASSERT_TRUE (h != NULL);
+
+  gst_harness_set_sink_caps_str (h, SPARSE_DENSE_CAPS_STR);
+  gst_harness_set_src_caps_str (h, "other/tensors,format=sparse,framerate=0/1");
+
+  sparse = _sparse_new_sparse_memory (&info);
+  ASSERT_TRUE (sparse != NULL);
+  ASSERT_TRUE (gst_memory_map (sparse, &smap, GST_MAP_READ));
+
+  /* one memory: a whole sparse tensor, then a tail shorter than a header */
+  all = gst_allocator_alloc (NULL, smap.size + tail, NULL);
+  ASSERT_TRUE (gst_memory_map (all, &amap, GST_MAP_WRITE));
+  memcpy (amap.data, smap.data, smap.size);
+  _sparse_fill_truncated_header (amap.data + smap.size, tail);
+  sparse_size = smap.size;
+  gst_memory_unmap (all, &amap);
+  gst_memory_unmap (sparse, &smap);
+  gst_memory_unref (sparse);
+
+  in = gst_buffer_new ();
+  gst_buffer_append_memory (in, all);
+
+  /* the premise: the decoder is handed the tensor and the tail as two memories */
+  caps = gst_caps_from_string ("other/tensors,format=sparse,framerate=0/1");
+  ASSERT_TRUE (gst_tensors_config_from_caps (&config, caps, TRUE));
+  gst_caps_unref (caps);
+  split = gst_tensor_buffer_from_config (gst_buffer_ref (in), &config);
+  ASSERT_TRUE (split != NULL);
+  ASSERT_EQ (gst_buffer_n_memory (split), 2U);
+  EXPECT_EQ (gst_memory_get_sizes (gst_buffer_peek_memory (split, 0), NULL, NULL), sparse_size);
+  EXPECT_EQ (gst_memory_get_sizes (gst_buffer_peek_memory (split, 1), NULL, NULL), tail);
+  gst_buffer_unref (split);
+  gst_tensors_config_free (&config);
+
+  handler = _sparse_watch_gst_critical ();
+  EXPECT_EQ (gst_harness_push (h, in), GST_FLOW_ERROR);
+  g_log_remove_handler ("GStreamer", handler);
+
+  EXPECT_EQ (sparse_gst_critical_count, 0U) << sparse_gst_critical_msg;
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  gst_tensor_info_free (&info);
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Rendezvous used to set a property from the test thread exactly while
  *        the streaming thread is adding a source pad.
  */

@@ -31,11 +31,18 @@ gst_tensor_sparse_to_dense (GstTensorMetaInfo * meta, GstMemory * mem)
   guint i, nnz;
   guint8 *output, *input;
   guint *indices;
-  gsize output_size, element_size;
+  gsize output_size, element_size, header_size;
+  gulong element_count;
 
   if (!gst_memory_map (mem, &map, GST_MAP_READ)) {
     nns_loge ("Failed to map given memory");
     return NULL;
+  }
+
+  gst_tensor_meta_info_init (meta);
+  if (map.size < gst_tensor_meta_info_get_header_size (meta)) {
+    nns_loge ("Given memory is too small to hold a tensor meta header");
+    goto done;
   }
 
   if (!gst_tensor_meta_info_parse_header (meta, map.data)) {
@@ -43,9 +50,19 @@ gst_tensor_sparse_to_dense (GstTensorMetaInfo * meta, GstMemory * mem)
     goto done;
   }
 
+  nnz = meta->sparse_info.nnz;
+  header_size = gst_tensor_meta_info_get_header_size (meta);
+
+  if (header_size == 0) {
+    nns_loge ("Cannot get the header size of the meta info, version 0x%x",
+        meta->version);
+    goto done;
+  }
+
   meta->format = _NNS_TENSOR_FORMAT_STATIC;
 
   element_size = gst_tensor_get_element_size (meta->type);
+  element_count = gst_tensor_get_element_count (meta->dimension);
   output_size = gst_tensor_meta_info_get_data_size (meta);
 
   if (element_size == 0 || output_size == 0) {
@@ -53,43 +70,68 @@ gst_tensor_sparse_to_dense (GstTensorMetaInfo * meta, GstMemory * mem)
     goto done;
   }
 
-  output = (guint8 *) g_malloc0 (output_size);
+  if (element_count != output_size / element_size) {
+    nns_loge ("The %lu elements of the meta info do not fit the %"
+        G_GSIZE_FORMAT " bytes of the tensor they describe", element_count,
+        output_size);
+    goto done;
+  }
 
-  nnz = meta->sparse_info.nnz;
-  input = map.data + gst_tensor_meta_info_get_header_size (meta);
+  if (nnz > (map.size - header_size) / (element_size + sizeof (guint))) {
+    nns_loge ("Given memory holds %" G_GSIZE_FORMAT
+        " bytes, too small for the %u non-zero elements of the meta info",
+        map.size, nnz);
+    goto done;
+  }
+
+  input = map.data + header_size;
   indices = (guint *) (input + element_size * nnz);
 
+  output = (guint8 *) g_malloc0 (output_size);
+
   for (i = 0; i < nnz; ++i) {
+    guint index;
+
+    /* one read: unaligned for some types, and check and use must agree */
+    memcpy (&index, (guint8 *) indices + i * sizeof (guint), sizeof (guint));
+
+    if (index >= element_count) {
+      nns_loge ("Sparse tensor index %u is out of the %lu elements of the meta"
+          " info", index, element_count);
+      g_free (output);
+      goto done;
+    }
+
     switch (meta->type) {
       case _NNS_INT32:
-        ((int32_t *) output)[indices[i]] = ((int32_t *) input)[i];
+        ((int32_t *) output)[index] = ((int32_t *) input)[i];
         break;
       case _NNS_UINT32:
-        ((uint32_t *) output)[indices[i]] = ((uint32_t *) input)[i];
+        ((uint32_t *) output)[index] = ((uint32_t *) input)[i];
         break;
       case _NNS_INT16:
-        ((int16_t *) output)[indices[i]] = ((int16_t *) input)[i];
+        ((int16_t *) output)[index] = ((int16_t *) input)[i];
         break;
       case _NNS_UINT16:
-        ((uint16_t *) output)[indices[i]] = ((uint16_t *) input)[i];
+        ((uint16_t *) output)[index] = ((uint16_t *) input)[i];
         break;
       case _NNS_INT8:
-        ((int8_t *) output)[indices[i]] = ((int8_t *) input)[i];
+        ((int8_t *) output)[index] = ((int8_t *) input)[i];
         break;
       case _NNS_UINT8:
-        ((uint8_t *) output)[indices[i]] = ((uint8_t *) input)[i];
+        ((uint8_t *) output)[index] = ((uint8_t *) input)[i];
         break;
       case _NNS_FLOAT64:
-        ((double *) output)[indices[i]] = ((double *) input)[i];
+        ((double *) output)[index] = ((double *) input)[i];
         break;
       case _NNS_FLOAT32:
-        ((float *) output)[indices[i]] = ((float *) input)[i];
+        ((float *) output)[index] = ((float *) input)[i];
         break;
       case _NNS_INT64:
-        ((int64_t *) output)[indices[i]] = ((int64_t *) input)[i];
+        ((int64_t *) output)[index] = ((int64_t *) input)[i];
         break;
       case _NNS_UINT64:
-        ((uint64_t *) output)[indices[i]] = ((uint64_t *) input)[i];
+        ((uint64_t *) output)[index] = ((uint64_t *) input)[i];
         break;
       default:
         nns_loge ("Error occurred during get tensor value");
@@ -136,6 +178,14 @@ gst_tensor_sparse_from_dense (GstTensorMetaInfo * meta, GstMemory * mem)
 
   if (element_size == 0 || element_count == 0) {
     nns_loge ("Got invalid meta info");
+    goto done;
+  }
+
+  if (element_count > map.size / element_size
+      || element_count > G_MAXSIZE / sizeof (guint)) {
+    nns_loge ("Given memory holds %" G_GSIZE_FORMAT
+        " bytes, too small for the %lu elements of the meta info",
+        map.size, element_count);
     goto done;
   }
 
