@@ -54,6 +54,14 @@
 # it - a runner that died early, a flag that stopped matching - would otherwise
 # be indistinguishable here from a clean one.
 #
+# With the same option, a binary whose memcheck run never reached its ERROR
+# SUMMARY fails too, since nothing it did was checked. Valgrind prints the
+# Command line of its banner before it can abort at startup - a missing
+# redirection when glibc debug info is not installed is the usual reason - and
+# a killed run or a cut log stops short of the summary the same way. Runs are
+# matched by process id, so the summary a forked child prints under its own id
+# settles nothing.
+#
 
 set -u
 
@@ -167,6 +175,9 @@ function record(kind, where, frame,   key) {
   sub(/^[0-9-]+T[0-9:.]+Z /, "", line)
   if (line !~ /^==[0-9]+== /)
     next
+  pid = line
+  sub(/^==/, "", pid)
+  sub(/==.*$/, "", pid)
   sub(/^==[0-9]+== /, "", line)
 }
 
@@ -176,6 +187,8 @@ line ~ /^Command: / {
   sub(/^Command: /, "", binary)
   sub(/ .*$/, "", binary)
   sub(/.*\//, "", binary)
+  run_of[pid] = examined
+  run_binary[examined] = binary
   next
 }
 
@@ -229,6 +242,12 @@ line ~ /^ +(at|by) 0x[0-9A-Fa-f]+: / {
   next
 }
 
+# No next here: the line still reaches the rule below, as it always has.
+line ~ /^ERROR SUMMARY: / {
+  if (pid in run_of)
+    finished[run_of[pid]] = 1
+}
+
 {
   pending = 0
   candidate = (line ~ /^ *$/) ? "" : line
@@ -243,8 +262,21 @@ END {
   printf "%d from libraries, %d leak reports, %d binaries examined\n", library_count, leak_count, examined
   for (i = 1; i <= unclassified_count; i++)
     printf "::warning::valgrind log check does not classify this report, so it can neither pass nor fail on it: %s\n", unclassified[i]
+  unfinished = 0
+  if (require_output != "") {
+    for (i = 1; i <= examined; i++) {
+      if (i in finished)
+        continue
+      if (unfinished == 0) {
+        print ""
+        print "Memcheck never finished these runs, so nothing they did was checked:"
+      }
+      unfinished++
+      printf "  [%s] no ERROR SUMMARY: valgrind aborted at startup, was killed, or the log was cut\n", run_binary[i]
+    }
+  }
   if (ours_count == 0)
-    exit 0
+    exit (unfinished > 0)
   print ""
   print "Memcheck errors reported in this repository'\''s own code:"
   for (i = 1; i <= ours_count; i++) {

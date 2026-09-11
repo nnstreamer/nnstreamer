@@ -321,9 +321,71 @@ run_case examined_required --require-output <<'EOF'
 ==1== Invalid read of size 8
 ==1==    at 0x3333: strncmp (strcmp.S:172)
 ==1==
+==1== ERROR SUMMARY: 1 errors from 1 contexts (suppressed: 0 from 0)
 EOF
 expect_status 0 "--require-output passes a log that has memcheck output and no error of ours"
 expect_in "1 binaries examined" "the binary count is reported"
+
+# Valgrind prints the Command line of its banner before it can abort, so a run
+# that never started a test still names a binary. This is what it writes when
+# glibc debug info is missing, trimmed; --require-output has to refuse it.
+run_case startup_fatal_required_n --require-output <<'EOF'
+==1242== Memcheck, a memory error detector
+==1242== Copyright (C) 2002-2017, and GNU GPL'd, by Julian Seward et al.
+==1242== Using Valgrind-3.18.1-42b08ed5bd-20211015 and LibVEX; rerun with -h for copyright info
+==1242== Command: ./tests/unittest_demo
+==1242==
+--1242-- Valgrind options:
+--1242--    -v
+--1242-- Reading syms from /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+
+valgrind:  Fatal error at startup: a function redirection
+valgrind:  which is mandatory for this platform-tool combination
+valgrind:  cannot be set up.  Details of the redirection are:
+valgrind:
+valgrind:  Cannot continue -- exiting now.  Sorry.
+
+EOF
+expect_status 1 "--require-output rejects a run that valgrind aborted at startup"
+expect_in "[unittest_demo] no ERROR SUMMARY" "and names the binary that was never checked"
+
+run_case startup_fatal_unrequired <<'EOF'
+==1242== Command: ./tests/unittest_demo
+valgrind:  Cannot continue -- exiting now.  Sorry.
+EOF
+expect_status 0 "without --require-output an unfinished run is not judged"
+
+run_case one_of_two_unfinished_n --require-output <<'EOF'
+==1== Command: ./tests/unittest_one
+==1== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+==2== Command: ./tests/unittest_two
+valgrind:  Cannot continue -- exiting now.  Sorry.
+EOF
+expect_status 1 "one unfinished run fails the check even when another finished"
+expect_in "[unittest_two] no ERROR SUMMARY" "the unfinished run is named"
+expect_not_in "[unittest_one] no ERROR SUMMARY" "the finished run is not"
+
+# A forked child prints its own summary under its own process id and without a
+# Command line, which is what a real run does twice. It must not stand in for
+# the run it came from.
+run_case child_summary_only_n --require-output <<'EOF'
+==1== Command: ./tests/unittest_demo
+==2== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+EOF
+expect_status 1 "the summary of a forked child does not finish the run of its parent"
+
+run_case child_summary_extra --require-output <<'EOF'
+==1== Command: ./tests/unittest_demo
+==2== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+==1== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+EOF
+expect_status 0 "a summary with no Command line of its own is not an unfinished run"
+
+run_case timestamped_required --require-output <<'EOF'
+2026-09-07T07:21:27.4959062Z ==1== Command: ./tests/unittest_demo
+2026-09-07T07:21:27.4959062Z ==1== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+EOF
+expect_status 0 "a finished run is recognised under the timestamps a CI run adds"
 
 output=$(bash "${CHECKER}" --repo-root "${repo}" "${workdir}/does-not-exist.log" 2>&1)
 status=$?
