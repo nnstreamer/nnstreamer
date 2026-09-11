@@ -262,16 +262,23 @@ pose_load_metadata_from_file (pose_data * pd, const gchar * file_path)
     return FALSE;
   }
 
-  if (!g_file_get_contents (file_path, &contents, &len, &err) || len <= 0) {
+  if (!g_file_get_contents (file_path, &contents, &len, &err)) {
     ml_loge ("Unable to read file %s with error %s.", file_path, err->message);
     g_clear_error (&err);
     return FALSE;
   }
 
-  if (contents[len - 1] == '\n')
+  if (len > 0 && contents[len - 1] == '\n')
     contents[len - 1] = '\0';
 
   lines = g_strsplit (contents, "\n", -1);
+  if (g_strv_length (lines) == 0) {
+    ml_loge ("The label file %s has no label.", file_path);
+    g_strfreev (lines);
+    g_free (contents);
+    return FALSE;
+  }
+
   pd->total_labels = g_strv_length (lines);
   pd->metadata = g_new0 (pose_metadata_t, pd->total_labels);
 
@@ -282,6 +289,11 @@ pose_load_metadata_from_file (pose_data * pd, const gchar * file_path)
     g_strstrip (lines[i]);
     tokens = g_strsplit (lines[i], " ", -1);
     n_tokens = g_strv_length (tokens);
+    if (n_tokens == 0) {
+      /* A blank line is a keypoint without a label or connections */
+      g_strfreev (tokens);
+      continue;
+    }
     if (n_tokens > POSE_MD_MAX_CONNECTIONS_SZ) {
       GST_WARNING ("Too many connections (%d) declared, clamping (%d)\n",
           n_tokens, POSE_MD_MAX_CONNECTIONS_SZ);
