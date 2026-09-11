@@ -12662,6 +12662,47 @@ TEST (testTensorDecoder, pushDirectVideoInputSizeTooLarge_n)
   gst_harness_teardown (h);
 }
 
+/**
+ * @brief octet_stream hands a tensor on as its bytes.
+ * @details The bytes are a copy the output memory owns; the valgrind step of
+ *          CI reports that copy as a leak if the memory does not free it.
+ */
+TEST (testTensorDecoder, pushOctetStream)
+{
+  GstTensorsConfig config;
+  GstHarness *h;
+  GstBuffer *in_buf, *out_buf;
+  GstMapInfo map;
+  gsize data_size, i, mismatch = 0;
+
+  _get_decoder_config (&config);
+  h = _get_decoder_harness ("octet_stream", NULL, &config);
+  ASSERT_TRUE (h != NULL);
+
+  data_size = gst_tensors_info_get_size (&config.info, 0);
+  in_buf = gst_harness_create_buffer (h, data_size);
+  ASSERT_TRUE (gst_buffer_map (in_buf, &map, GST_MAP_WRITE));
+  for (i = 0; i < data_size; i++)
+    map.data[i] = (guint8) i;
+  gst_buffer_unmap (in_buf, &map);
+
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+  out_buf = gst_harness_pull (h);
+  ASSERT_TRUE (out_buf != NULL);
+  EXPECT_EQ (gst_buffer_get_size (out_buf), data_size);
+
+  ASSERT_TRUE (gst_buffer_map (out_buf, &map, GST_MAP_READ));
+  for (i = 0; i < map.size; i++)
+    if (map.data[i] != (guint8) i)
+      mismatch++;
+  gst_buffer_unmap (out_buf, &map);
+  EXPECT_EQ (mismatch, 0U);
+
+  gst_buffer_unref (out_buf);
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+}
+
 #define TEST_DECODER_MOCK_NAME "tdec_mock"
 
 /**
