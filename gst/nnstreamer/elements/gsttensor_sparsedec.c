@@ -24,7 +24,7 @@
  * <title>Example launch line</title>
  * |[
  * gst-launch-1.0 ... ! other/tensors,format=static ! \
- *    tensor_sparse_enc ! other/tensors,format=sparse ! \
+ *    tensor_sparse_enc ! other/tensors,format=sparse,framerate=0/1 ! \
  *    tensor_sparse_dec ! tensor_sink
  * ]|
  * </refsect2>
@@ -326,19 +326,27 @@ gst_tensor_sparse_dec_sink_event (GstPad * pad, GstObject * parent,
       silent_debug_caps (self, caps, "caps");
 
       /* set in_config */
-      gst_tensors_config_from_caps (&self->in_config, caps, TRUE);
+      if (!gst_tensors_config_from_caps (&self->in_config, caps, TRUE)) {
+        nns_loge ("Failed to configure the input, invalid caps.");
+        gst_event_unref (event);
+        return FALSE;
+      }
 
       /* set out_config as srcpad's peer */
-      gst_tensors_config_from_peer (self->srcpad, &self->out_config, NULL);
-      self->out_config.rate_n = self->in_config.rate_n;
-      self->out_config.rate_d = self->in_config.rate_d;
+      if (gst_tensors_config_from_peer (self->srcpad, &self->out_config, NULL)) {
+        self->out_config.rate_n = self->in_config.rate_n;
+        self->out_config.rate_d = self->in_config.rate_d;
 
-      out_caps = gst_tensor_pad_caps_from_config (self->srcpad,
-          &self->out_config);
+        out_caps = gst_tensor_pad_caps_from_config (self->srcpad,
+            &self->out_config);
 
-      silent_debug_caps (self, out_caps, "out_caps");
-      gst_pad_set_caps (self->srcpad, out_caps);
-      gst_caps_unref (out_caps);
+        silent_debug_caps (self, out_caps, "out_caps");
+        if (out_caps) {
+          if (gst_caps_is_fixed (out_caps))
+            gst_pad_set_caps (self->srcpad, out_caps);
+          gst_caps_unref (out_caps);
+        }
+      }
 
       gst_event_unref (event);
       return TRUE;
@@ -368,6 +376,11 @@ gst_tensor_sparse_dec_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   UNUSED (pad);
 
   buf = gst_tensor_buffer_from_config (buf, &self->in_config);
+  if (!buf) {
+    nns_loge ("Failed to get the tensor buffer of the negotiated config");
+    return GST_FLOW_ERROR;
+  }
+
   outbuf = gst_buffer_new ();
 
   gst_tensors_info_init (&info);
@@ -405,6 +418,7 @@ done:
   gst_buffer_unref (buf);
   if (outbuf)
     gst_buffer_unref (outbuf);
+  gst_tensors_info_free (&info);
 
   return ret;
 }
