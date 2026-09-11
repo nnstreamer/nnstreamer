@@ -940,7 +940,12 @@ gst_tensor_if_calculate_cv (GstTensorIf * tensor_if, GstBuffer * buf,
       GstMemory *in_mem;
       GstMapInfo in_info;
       GList *list;
-      uint32_t idx = 0, nth, i, offset = 1;
+      uint32_t nth, i, n = 0;
+      guint64 idx = 0, offset;
+#if GLIB_CHECK_VERSION (2, 48, 0)
+      guint64 term;
+#endif
+      gsize esize;
       tensor_dim target;
       const uint32_t *in_dim;
       tensor_type in_type;
@@ -951,7 +956,7 @@ gst_tensor_if_calculate_cv (GstTensorIf * tensor_if, GstBuffer * buf,
         return FALSE;
       }
       for (list = tensor_if->cv_option; list->next != NULL; list = list->next) {
-        target[idx++] = GPOINTER_TO_INT (list->data);
+        target[n++] = GPOINTER_TO_INT (list->data);
       }
 
       nth = GPOINTER_TO_INT (list->data);
@@ -964,6 +969,39 @@ gst_tensor_if_calculate_cv (GstTensorIf * tensor_if, GstBuffer * buf,
       in_type = _info->type;
       in_dim = _info->dimension;
 
+      esize = gst_tensor_get_element_size (in_type);
+      if (esize == 0) {
+        GST_ERROR_OBJECT (tensor_if, "The type of the tensor %u is invalid.",
+            nth);
+        return FALSE;
+      }
+
+      /* Find the byte offset of the element for mem access */
+      offset = esize;
+      for (i = 0; i < NNS_TENSOR_RANK_LIMIT; i++) {
+        uint32_t dim = (in_dim[i] > 0) ? in_dim[i] : 1;
+
+        if (target[i] >= dim) {
+          GST_ERROR_OBJECT (tensor_if,
+              "The compared value index %u of the dimension %u is out of bound, it should be less than %u.",
+              target[i], i, dim);
+          return FALSE;
+        }
+#if GLIB_CHECK_VERSION (2, 48, 0)
+        if (!g_uint64_checked_mul (&term, target[i], offset) ||
+            !g_uint64_checked_add (&idx, idx, term) ||
+            !g_uint64_checked_mul (&offset, offset, dim)) {
+          GST_ERROR_OBJECT (tensor_if,
+              "The offset of the compared value in the tensor %u overflows.",
+              nth);
+          return FALSE;
+        }
+#else
+        idx += (guint64) target[i] * offset;
+        offset *= dim;
+#endif
+      }
+
       in_mem = gst_tensor_buffer_get_nth_memory (buf, nth);
       if (!gst_memory_map (in_mem, &in_info, GST_MAP_READ)) {
         GST_WARNING_OBJECT (tensor_if, "Failed to map the input buffer.");
@@ -971,14 +1009,15 @@ gst_tensor_if_calculate_cv (GstTensorIf * tensor_if, GstBuffer * buf,
         return FALSE;
       }
 
-      /* Find data index for mem access */
-      idx = target[0];
-      for (i = 1; i < NNS_TENSOR_RANK_LIMIT; i++) {
-        offset *= in_dim[i - 1];
-        idx += (target[i]) * offset;
+      if (in_info.size < esize || idx > in_info.size - esize) {
+        GST_ERROR_OBJECT (tensor_if,
+            "The compared value of the tensor %u is at offset %"
+            G_GUINT64_FORMAT ", but the memory has %" G_GSIZE_FORMAT " bytes.",
+            nth, idx, in_info.size);
+        gst_memory_unmap (in_mem, &in_info);
+        gst_memory_unref (in_mem);
+        return FALSE;
       }
-
-      idx *= gst_tensor_get_element_size (in_type);
 
       gst_tensor_data_set (cv, in_type, in_info.data + idx);
       gst_memory_unmap (in_mem, &in_info);
@@ -1138,7 +1177,8 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   g_assert (gst_tensor_buffer_get_count (buf) == num_tensors);
 
   if (!gst_tensor_if_check_condition (tensor_if, buf, &condition_result)) {
-    GST_ERROR_OBJECT (tensor_if, " Failed to check condition");
+    GST_ELEMENT_ERROR (tensor_if, STREAM, WRONG_TYPE, (NULL),
+        ("Failed to check the condition of the incoming buffer."));
     return GST_FLOW_ERROR;
   }
 

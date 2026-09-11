@@ -19,6 +19,7 @@ The input and output stream data type is either `other/tensor` or `other/tensors
 - compared-value-option: Specifies an element of the nth tensor or you can pick one from the tensors.
   * [C][W][H][B],n: used for A_VALUE of the compared-value, for example 0:1:2:3,0 means [0][1][2][3] value of first tensor.
   * nth tensor: used for TENSOR_AVERAGE_VALUE of the compared-value, and specifies which tensor is used.
+  * Each element index should be less than the corresponding dimension of the tensor, and the buffer is refused if it is not.
 
 - supplied-value: Specifies the supplied value (SV) from the user.
   * SV
