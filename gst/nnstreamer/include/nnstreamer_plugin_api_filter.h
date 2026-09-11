@@ -117,7 +117,7 @@ typedef struct _GstTensorFilterProperties
   int num_models; /**< number of model files. Some frameworks need multiple model files to initialize the graph (caffe, caffe2) */
 
   int input_configured; /**< TRUE if input tensor is configured. Use int instead of gboolean because this is referred by custom plugins. */
-  GstTensorsInfo input_meta; /**< configured input tensor info */
+  GstTensorsInfo input_meta; /**< configured input tensor info. With invoke_dynamic and a flexible input, tensor-filter updates the type and dimension of each tensor from its meta header before invoke; otherwise a flexible input is checked against it and it is left as configured. */
   tensors_layout input_layout; /**< data layout info provided as a property to tensor_filter for the input, defaults to _NNS_LAYOUT_ANY for all the tensors */
   unsigned int input_ranks[NNS_TENSOR_SIZE_LIMIT];  /**< the rank list of input tensors, it is calculated based on the dimension string. */
 
