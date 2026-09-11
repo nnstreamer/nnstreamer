@@ -148,6 +148,7 @@ TEST (nnstreamerFilterArmnn, getDimension)
   EXPECT_EQ (res.info[0].dimension[1], info.info[0].dimension[1]);
   EXPECT_EQ (res.info[0].dimension[2], info.info[0].dimension[2]);
   EXPECT_EQ (res.info[0].dimension[3], info.info[0].dimension[3]);
+  gst_tensors_info_free (&res);
 
   ret = sp->getOutputDimension (&prop, &data, NULL);
   EXPECT_NE (ret, 0);
@@ -160,6 +161,7 @@ TEST (nnstreamerFilterArmnn, getDimension)
   EXPECT_EQ (res.info[0].dimension[1], info.info[0].dimension[1]);
   EXPECT_EQ (res.info[0].dimension[2], info.info[0].dimension[2]);
   EXPECT_EQ (res.info[0].dimension[3], info.info[0].dimension[3]);
+  gst_tensors_info_free (&res);
 
   sp->close (&prop, &data);
   g_free (model_file);
@@ -324,6 +326,8 @@ TEST (nnstreamerFilterArmnn, invoke01_n)
   ret = sp->invoke_NN (&prop, &data, &input, &output);
   EXPECT_NE (ret, 0);
 
+  g_free (input.data);
+  g_free (output.data);
   g_free (model_file);
 }
 
@@ -558,6 +562,7 @@ TEST (nnstreamerFilterArmnn, invokeAdvanced)
   EXPECT_EQ (res.info[0].dimension[3], info.info[0].dimension[3]);
 
   input.size = gst_tensor_info_get_size (&res.info[0]);
+  gst_tensors_info_free (&res);
 
   ret = sp->getOutputDimension (&prop, &data, &res);
   EXPECT_EQ (ret, 0);
@@ -578,6 +583,7 @@ TEST (nnstreamerFilterArmnn, invokeAdvanced)
   EXPECT_EQ (res.info[0].dimension[3], info.info[0].dimension[3]);
 
   output.size = gst_tensor_info_get_size (&res.info[0]);
+  gst_tensors_info_free (&res);
 
   input.data = g_malloc (input.size);
   output.data = g_malloc (output.size);

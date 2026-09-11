@@ -131,13 +131,13 @@ TEST (tensorDecoder, tensorRegion)
   if (root_path == nullptr)
     root_path = "..";
 
-  const gchar *tensor_0 = g_build_filename (root_path, "tests",
+  g_autofree gchar *tensor_0 = g_build_filename (root_path, "tests",
       "nnstreamer_decoder_tensor_region", "mobilenet_ssd_tensor.0", nullptr);
-  const gchar *tensor_1 = g_build_filename (root_path, "tests",
+  g_autofree gchar *tensor_1 = g_build_filename (root_path, "tests",
       "nnstreamer_decoder_tensor_region", "mobilenet_ssd_tensor.1", nullptr);
-  const gchar *labels_path = g_build_filename (
+  g_autofree gchar *labels_path = g_build_filename (
       root_path, "tests", "test_models", "labels", "labels.txt", nullptr);
-  const gchar *box_priors_path = g_build_filename (root_path, "tests",
+  g_autofree gchar *box_priors_path = g_build_filename (root_path, "tests",
       "nnstreamer_decoder_boundingbox", "box_priors.txt", nullptr);
 
   ASSERT_TRUE (g_file_test (tensor_0, G_FILE_TEST_EXISTS));

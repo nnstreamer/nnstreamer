@@ -7891,6 +7891,78 @@ TEST_F (testTensorFilterCppSubplugin, openCloseOwnership_p)
 }
 
 /**
+ * @brief Number of tensors the async output callback of a test has received.
+ */
+static guint dispatch_async_received;
+
+/**
+ * @brief Async output callback that takes and releases what it is handed.
+ */
+static int
+_dispatch_async_cb (GstTensorMemory *data, GstTensorsInfo *info, void *user_data)
+{
+  guint i;
+
+  for (i = 0; i < info->num_tensors; i++) {
+    if (data[i].data)
+      dispatch_async_received++;
+    g_clear_pointer (&data[i].data, g_free);
+  }
+
+  return 0;
+}
+
+/**
+ * @brief Async output goes to the registered callback, which owns it.
+ */
+TEST (testTensorFilterAsync, dispatchToCallback)
+{
+  GstTensorFilterProperties prop;
+  GstTensorMemory output[2];
+
+  memset (&prop, 0, sizeof (prop));
+  gst_tensors_info_init (&prop.output_meta);
+  prop.output_meta.num_tensors = 2;
+  prop.async_callback = _dispatch_async_cb;
+
+  output[0].size = 4;
+  output[0].data = g_malloc0 (output[0].size);
+  output[1].size = 8;
+  output[1].data = g_malloc0 (output[1].size);
+
+  dispatch_async_received = 0;
+  nnstreamer_filter_dispatch_output_async (&prop, output);
+  EXPECT_EQ (dispatch_async_received, 2U);
+
+  gst_tensors_info_free (&prop.output_meta);
+}
+
+/**
+ * @brief Async output dispatched with no callback registered, as it is once
+ *        tensor-filter has stopped, is released rather than dropped.
+ */
+TEST (testTensorFilterAsync, dispatchWithoutCallback_n)
+{
+  GstTensorFilterProperties prop;
+  GstTensorMemory output[2];
+
+  memset (&prop, 0, sizeof (prop));
+  gst_tensors_info_init (&prop.output_meta);
+  prop.output_meta.num_tensors = 2;
+
+  output[0].size = 4;
+  output[0].data = g_malloc0 (output[0].size);
+  output[1].size = 8;
+  output[1].data = g_malloc0 (output[1].size);
+
+  nnstreamer_filter_dispatch_output_async (&prop, output);
+  EXPECT_TRUE (output[0].data == NULL);
+  EXPECT_TRUE (output[1].data == NULL);
+
+  gst_tensors_info_free (&prop.output_meta);
+}
+
+/**
  * @brief Test to reload tf-lite model set_property of model/is-updatable
  */
 TEST_REQUIRE_TFLITE (testTensorFilter, reloadTFliteSetProperty)
@@ -12658,6 +12730,47 @@ TEST (testTensorDecoder, pushDirectVideoInputSizeTooLarge_n)
 
   EXPECT_EQ (gst_harness_push (h, gst_harness_create_buffer (h, data_size * 64)), GST_FLOW_ERROR);
 
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief octet_stream hands a tensor on as its bytes.
+ * @details The bytes are a copy the output memory owns; the valgrind step of
+ *          CI reports that copy as a leak if the memory does not free it.
+ */
+TEST (testTensorDecoder, pushOctetStream)
+{
+  GstTensorsConfig config;
+  GstHarness *h;
+  GstBuffer *in_buf, *out_buf;
+  GstMapInfo map;
+  gsize data_size, i, mismatch = 0;
+
+  _get_decoder_config (&config);
+  h = _get_decoder_harness ("octet_stream", NULL, &config);
+  ASSERT_TRUE (h != NULL);
+
+  data_size = gst_tensors_info_get_size (&config.info, 0);
+  in_buf = gst_harness_create_buffer (h, data_size);
+  ASSERT_TRUE (gst_buffer_map (in_buf, &map, GST_MAP_WRITE));
+  for (i = 0; i < data_size; i++)
+    map.data[i] = (guint8) i;
+  gst_buffer_unmap (in_buf, &map);
+
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+  out_buf = gst_harness_pull (h);
+  ASSERT_TRUE (out_buf != NULL);
+  EXPECT_EQ (gst_buffer_get_size (out_buf), data_size);
+
+  ASSERT_TRUE (gst_buffer_map (out_buf, &map, GST_MAP_READ));
+  for (i = 0; i < map.size; i++)
+    if (map.data[i] != (guint8) i)
+      mismatch++;
+  gst_buffer_unmap (out_buf, &map);
+  EXPECT_EQ (mismatch, 0U);
+
+  gst_buffer_unref (out_buf);
   gst_tensors_config_free (&config);
   gst_harness_teardown (h);
 }
