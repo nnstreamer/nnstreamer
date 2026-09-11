@@ -190,7 +190,6 @@ gst_tensor_split_remove_src_pads (GstTensorSplit * split)
     split->srcpads = g_slist_delete_link (split->srcpads, split->srcpads);
   }
   split->srcpads = NULL;
-  split->num_tensors = 0;
   split->num_srcpads = 0;
   gst_tensors_config_free (&split->in_config);
 }
