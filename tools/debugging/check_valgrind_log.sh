@@ -6,7 +6,7 @@
 # SPDX-License-Identifier: LGPL-2.1-only
 #
 # @file     check_valgrind_log.sh
-# @brief    Fail when a memcheck error comes from this repository's own code.
+# @brief    Fail when a memcheck error or leak comes from this repository's own code.
 # @see      https://github.com/nnstreamer/nnstreamer
 # @author   MyungJoo Ham <myungjoo.ham@samsung.com>
 #
@@ -14,7 +14,8 @@
 #
 # Reads the text memcheck writes and reports each error twice over: once by
 # what kind of error it is, and once by whose code the reported frame is in.
-# Only a non-leak error whose reported frame is ours makes this exit non-zero.
+# A non-leak error whose reported frame is ours makes this exit non-zero, and
+# so does a definite leak of ours.
 #
 # An error is attributed to the frame memcheck blames for it - the first one
 # that is not valgrind's own allocation wrapper - and that frame is ours when
@@ -57,11 +58,9 @@
 # loads a library or runs its initialisers belongs to the loader or to that
 # library, and GStreamer leaks the list of log functions it replaces on
 # purpose. A stack that passes through either before reaching a frame of ours
-# is not ours. Definite leaks of ours are listed and warned about but do not
-# fail the check while the tree still holds some; possible and indirect leaks
-# are only counted, the former being mostly the thread-local storage of
-# threads still running at exit and the latter reachable only through a
-# definite one.
+# is not ours. Possible and indirect leaks are only counted, the former being
+# mostly the thread-local storage of threads still running at exit and the
+# latter reachable only through a definite one.
 #
 # --require-output additionally fails when the log holds no memcheck output at
 # all. A caller that always runs memcheck wants that, because a log that lost
@@ -287,16 +286,15 @@ END {
   for (i = 1; i <= unclassified_count; i++)
     printf "::warning::valgrind log check does not classify this report, so it can neither pass nor fail on it: %s\n", unclassified[i]
   if (leak_ours_count > 0) {
-    printf "::warning::valgrind log check found %d definite leak contexts allocated in this repository; they are listed in the log and do not fail the check.\n", leak_ours_count
     print ""
-    print "Definite leaks allocated in this repository (reported, not failed on):"
+    print "Definite leaks allocated in this repository:"
     for (i = 1; i <= leak_ours_count; i++) {
       printf "  [%s] %s\n", leak_binary[i], leak_what[i]
       printf "      %s\n", leak_frame[i]
     }
   }
   if (ours_count == 0)
-    exit 0
+    exit (leak_ours_count > 0)
   print ""
   print "Memcheck errors reported in this repository'\''s own code:"
   for (i = 1; i <= ours_count; i++) {

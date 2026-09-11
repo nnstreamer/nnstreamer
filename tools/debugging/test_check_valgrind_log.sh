@@ -163,13 +163,13 @@ run_case leak <<'EOF'
 ==1==    at 0x8888: my_element_init (myelement.c:11)
 ==1==
 EOF
-expect_status 0 "a leak allocated by this repository does not fail the check"
+expect_status 1 "a definite leak allocated by this repository fails the check"
 expect_in "1 leak reports" "the leak is counted"
 expect_in "1 definite leak contexts from this repository" "the leak is counted as ours"
-expect_in "::warning::valgrind log check found 1 definite leak" "a leak of ours is warned about"
+expect_in "Definite leaks allocated in this repository:" "the leak is listed under its own heading"
 expect_in "[unittest_demo] 400 bytes in 1 blocks are definitely lost" "the leak is listed with its binary and size"
 expect_in "myelement.c:11" "the leak is listed with the frame of ours"
-expect_not_in "Memcheck errors reported" "the leak is not reported as a failing error"
+expect_not_in "Memcheck errors reported" "the leak is not listed as an error"
 
 # Memcheck reports a leak where the block was allocated, which is usually a
 # library; the leak is still ours when a frame of ours made that call.
@@ -183,7 +183,7 @@ run_case leak_through_library <<'EOF'
 ==1==    by 0x5555: my_element_class_init (myelement.c:90)
 ==1==
 EOF
-expect_status 0 "a leak of ours allocated inside a library does not fail the check"
+expect_status 1 "a leak of ours allocated inside a library fails the check"
 expect_in "1 definite leak contexts from this repository" "a leak allocated in a library for us is ours"
 expect_in "myelement.c:11" "the leak is listed with the innermost frame of ours"
 expect_not_in "myelement.c:90" "and not with any frame below it"
@@ -199,6 +199,7 @@ run_case leak_object_ours <<'EOF'
 ==1==    by 0x4444: my_test_body (myelement.c:50)
 ==1==
 EOF
+expect_status 1 "a leak through an object of ours fails the check"
 expect_in "1 definite leak contexts from this repository" "a leak through an object under the build directory is ours"
 expect_in "libnnstreamer.so" "and is listed with that frame, the innermost of ours"
 expect_not_in "myelement.c:50" "not with the source frame below it"
@@ -210,6 +211,7 @@ run_case leak_object_library_n <<'EOF'
 ==1==    by 0x2222: some_symbol (in /opt/vendor/build/lib/libvendor.so)
 ==1==
 EOF
+expect_status 0 "a leak through an object merely built somewhere passes"
 expect_in "0 definite leak contexts from this repository" "a leak through an object merely built somewhere is not ours"
 
 run_case leak_library_n <<'EOF'
@@ -257,6 +259,7 @@ run_case leak_loader_bookkeeping_n <<'EOF'
 ==1==    by 0x7777: my_element_open (myelement.c:30)
 ==1==
 EOF
+expect_status 0 "a leak in the bookkeeping of the loader passes"
 expect_in "0 definite leak contexts from this repository" "the bookkeeping of the loader itself is not ours"
 
 run_case leak_log_function_n <<'EOF'
@@ -276,6 +279,7 @@ run_case leak_log_function_n <<'EOF'
 ==1==
 EOF
 expect_in "2 leak reports" "the list GStreamer leaks on purpose is counted"
+expect_status 0 "the list GStreamer leaks on purpose passes"
 expect_in "0 definite leak contexts from this repository" "but adding or removing a log function does not make it ours"
 
 # The exemption covers what those callers allocate, not what they call.
@@ -288,6 +292,7 @@ run_case leak_ours_under_loader <<'EOF'
 ==1==    by 0x4444: _dl_init (dl-init.c:117)
 ==1==
 EOF
+expect_status 1 "an initialiser of ours that leaks fails the check"
 expect_in "1 definite leak contexts from this repository" "an initialiser of ours run by the loader still leaks as ours"
 expect_in "myelement.c:5" "and that initialiser is listed"
 
@@ -300,6 +305,7 @@ run_case leak_similar_name <<'EOF'
 ==1==    by 0x4444: my_element_init (myelement.c:11)
 ==1==
 EOF
+expect_status 1 "a leak through a function merely named like an exempt one fails the check"
 expect_in "1 definite leak contexts from this repository" "a function merely named like an exempt one exempts nothing"
 
 run_case possible_leak_n <<'EOF'
@@ -314,6 +320,7 @@ run_case possible_leak_n <<'EOF'
 ==1==
 EOF
 expect_in "2 leak reports" "possible and indirect leaks are counted"
+expect_status 0 "possible and indirect leaks of ours pass"
 expect_in "0 definite leak contexts from this repository" "but neither is listed as a definite leak of ours"
 
 # A definite leak with no frame of ours ends at the next report; the stack of
@@ -331,6 +338,7 @@ run_case leak_ends_at_next_report_n <<'EOF'
 ==1== LEAK SUMMARY:
 ==1==    definitely lost: 64 bytes in 1 blocks
 EOF
+expect_status 0 "a library leak followed by a possible leak of ours passes"
 expect_in "0 definite leak contexts from this repository" "a definite leak does not borrow the stack of the next report"
 
 run_case leak_repeated <<'EOF'
@@ -349,6 +357,7 @@ run_case leak_repeated <<'EOF'
 ==2==    by 0x2222: my_element_init (myelement.c:11)
 ==2==
 EOF
+expect_status 1 "repeated leaks of ours fail the check"
 expect_in "2 definite leak contexts from this repository" "a leak site counts once per binary"
 expect_in "[unittest_other]" "the second binary is listed"
 
@@ -362,10 +371,11 @@ run_case leak_and_error <<'EOF'
 ==1==    by 0x2222: my_element_init (myelement.c:11)
 ==1==
 EOF
-expect_status 1 "an error of ours still fails the check when leaks of ours are listed"
+expect_status 1 "an error and a leak of ours fail the check together"
 expect_in "1 error contexts from this repository" "the error is counted"
 expect_in "1 definite leak contexts from this repository" "and so is the leak"
 expect_in "myelement.c:42" "the failing error is printed"
+expect_in "myelement.c:11" "and so is the leak"
 
 run_case timestamped <<'EOF'
 2026-09-07T07:21:27.4959062Z ==1== Command: ./tests/unittest_demo
