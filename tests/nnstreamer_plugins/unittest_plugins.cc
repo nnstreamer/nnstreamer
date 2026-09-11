@@ -16180,19 +16180,48 @@ _record_critical (const gchar *domain, GLogLevelFlags level,
  * @brief Releasing a tensor_split that never got a tensorseg says nothing.
  * @details finalize releases the rule array, which is unset here; releasing an
  *          unset one the wrong way logs a critical rather than doing nothing.
+ *          Critical messages are recorded in every domain the finalize path
+ *          can log to: GLib, GLib-GObject, GStreamer, and the default domain
+ *          that ml_loge() uses on Linux builds.
  */
 TEST (testTensorSplit, finalizeWithoutTensorseg)
 {
+  /**
+   * Domains the finalize path can log to. GLib: g_array_unref();
+   * GLib-GObject: the parent finalize; GStreamer: pad removal;
+   * NULL (default domain): ml_loge() on Linux builds.
+   */
+  const gchar *domains[] = { "GLib", "GLib-GObject", "GStreamer", NULL };
+  const GLogLevelFlags levels
+      = (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION);
   GstElement *split = gst_element_factory_make ("tensor_split", NULL);
-  GLogFunc old_handler;
+  guint handlers[G_N_ELEMENTS (domains)];
+  gboolean recorded[G_N_ELEMENTS (domains)];
+  GLogLevelFlags fatal_mask;
+  guint i;
 
   ASSERT_TRUE (split != NULL);
   gst_object_ref_sink (split);
 
+  for (i = 0; i < G_N_ELEMENTS (domains); i++)
+    handlers[i] = g_log_set_handler (domains[i], levels, _record_critical, NULL);
+
+  /* Only the intentional probes may bypass fatal handling of critical messages. */
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
+  for (i = 0; i < G_N_ELEMENTS (domains); i++) {
+    tensor_split_logged_critical = FALSE;
+    g_log (domains[i], G_LOG_LEVEL_CRITICAL, "tensor_split test: handler self-check");
+    recorded[i] = tensor_split_logged_critical;
+  }
+  g_log_set_always_fatal (fatal_mask);
+  for (i = 0; i < G_N_ELEMENTS (domains); i++)
+    EXPECT_TRUE (recorded[i]) << "no live handler for the "
+                              << (domains[i] ? domains[i] : "default") << " domain";
+
   tensor_split_logged_critical = FALSE;
-  old_handler = g_log_set_default_handler (_record_critical, NULL);
   gst_object_unref (split);
-  g_log_set_default_handler (old_handler, NULL);
+  for (i = 0; i < G_N_ELEMENTS (domains); i++)
+    g_log_remove_handler (domains[i], handlers[i]);
 
   EXPECT_FALSE (tensor_split_logged_critical);
 }
