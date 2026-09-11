@@ -154,6 +154,8 @@ class CustomConverter(object):
     ## Write a code to convert any media type to tensors.
     return (tensors_info, out_array, rate_n, rate_d)
 ```
+`out_array` is a list of numpy arrays, one for each entry of `tensors_info`, and each array has to hold exactly as many bytes as its tensor (its dtype may differ, e.g., a `uint8` array of the raw bytes). Otherwise the conversion fails with a stream error.
+
 Example pipeline
 ```
 ... (any media stream) ! tensor_converter mode=custom-script:custom_converter_example.py ! (tensors) ...

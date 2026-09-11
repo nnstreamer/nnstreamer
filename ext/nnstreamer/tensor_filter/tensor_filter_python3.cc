@@ -130,6 +130,8 @@ class PYCore
 
   int checkTensorSize (GstTensorMemory *output, PyArrayObject *array);
   int checkTensorType (int nns_type, int np_type);
+  bool isReferencedData (const void *data, const GstTensorMemory *input,
+      const std::vector<PyArrayObject *> &arrays);
 
   /** @brief Lock python-related actions */
   void Py_LOCK ()
@@ -260,10 +262,11 @@ PYCore::loadScript ()
 #endif
 
   int ret = -EINVAL;
+  PyObject *cls = NULL;
 
   PyObject *module = PyImport_ImportModule (module_name.c_str ());
   if (module) {
-    PyObject *cls = PyObject_GetAttrString (module, "CustomFilter");
+    cls = PyObject_GetAttrString (module, "CustomFilter");
     if (cls) {
       PyObject *py_args;
       if (!module_args.empty ()) {
@@ -306,15 +309,11 @@ PYCore::loadScript ()
         ret = -3;
         goto exit;
       }
-
-      Py_SAFEDECREF (cls);
     } else {
       Py_ERRMSG ("Cannot find 'CustomFilter' class in the script\n");
       ret = -2;
       goto exit;
     }
-
-    Py_SAFEDECREF (module);
   } else {
     Py_ERRMSG ("the script is not properly loaded\n");
     ret = -1;
@@ -330,6 +329,8 @@ PYCore::loadScript ()
 
   ret = 0;
 exit:
+  Py_SAFEDECREF (cls);
+  Py_SAFEDECREF (module);
   return ret;
 }
 
@@ -387,6 +388,38 @@ PYCore::checkTensorSize (GstTensorMemory *output, PyArrayObject *array)
     total_size *= PyArray_DIM (array, i);
 
   return (output->size == total_size);
+}
+
+/**
+ * @brief	check whether the data of an output array is owned by someone else
+ * @param data   : the data of the output array
+ * @param input  : the input tensors given to the script
+ * @param arrays : the output arrays already taken in this invoke
+ * @return true if the data lies in an input tensor or is already handed out
+ */
+bool
+PYCore::isReferencedData (const void *data, const GstTensorMemory *input,
+    const std::vector<PyArrayObject *> &arrays)
+{
+  /** This is a private method that needs the lock kept locked */
+  uintptr_t addr = (uintptr_t) data;
+
+  if (outputArrayMap.find ((void *) data) != outputArrayMap.end ())
+    return true;
+
+  for (PyArrayObject *array : arrays) {
+    if (PyArray_DATA (array) == data)
+      return true;
+  }
+
+  for (unsigned int i = 0; i < inputTensorMeta.num_tensors; i++) {
+    uintptr_t base = (uintptr_t) input[i].data;
+
+    if (addr >= base && addr < base + input[i].size)
+      return true;
+  }
+
+  return false;
 }
 
 /**
@@ -541,7 +574,7 @@ PYCore::run (const GstTensorMemory *input, GstTensorMemory *output)
   GstTensorInfo *_info;
   int res = 0;
   PyObject *result;
-  std::vector<void *> newlyAddedItems;
+  std::vector<PyArrayObject *> arrays;
 
 #if (DBG)
   gint64 start_time = g_get_real_time ();
@@ -568,38 +601,58 @@ PYCore::run (const GstTensorMemory *input, GstTensorMemory *output)
   result = PyObject_CallMethod (core_obj, (char *) "invoke", (char *) "(O)", param);
 
   if (result) {
-    if ((unsigned int) PyList_Size (result) != outputTensorMeta.num_tensors) {
+    if (!PyList_Check (result)
+        || (unsigned int) PyList_Size (result) != outputTensorMeta.num_tensors) {
       res = -EINVAL;
-      ml_logf ("The Python allocated size mismatched. Cannot proceed.\n");
+      ml_loge ("The Python allocated size mismatched. Cannot proceed.\n");
       Py_SAFEDECREF (result);
       goto exit_decref;
     }
 
     for (unsigned int i = 0; i < outputTensorMeta.num_tensors; i++) {
-      PyArrayObject *output_array
-          = (PyArrayObject *) PyList_GetItem (result, (Py_ssize_t) i);
+      PyObject *item = PyList_GetItem (result, (Py_ssize_t) i);
+      PyArrayObject *output_array = (PyArrayObject *) item;
+      const char *mismatch = NULL;
 
       _info = gst_tensors_info_get_nth_info (&outputTensorMeta, i);
 
-      /** type/size checking */
-      if (checkTensorType (_info->type, PyArray_TYPE (output_array))
-          && checkTensorSize (&output[i], output_array)) {
-        /** obtain the pointer to the buffer for the output array */
-        output[i].data = PyArray_DATA (output_array);
-        Py_XINCREF (output_array);
-        outputArrayMap.insert (std::make_pair (output[i].data, output_array));
-        newlyAddedItems.push_back (output[i].data);
-      } else {
-        ml_loge ("Output tensor type/size is not matched\n");
+      if (!PyArray_Check (item))
+        mismatch = "is not a numpy array";
+      else if (!checkTensorType (_info->type, PyArray_TYPE (output_array)))
+        mismatch = "type is not matched";
+      else if (!checkTensorSize (&output[i], output_array))
+        mismatch = "size is not matched";
+
+      if (mismatch) {
+        ml_loge ("Output tensor %u %s\n", i, mismatch);
         res = -2;
         break;
       }
-    }
-    if (res != 0) {
-      /* Clean up only items added in this function call */
-      for (void *data : newlyAddedItems) {
-        freeOutputTensors (data);
+
+      /** the output buffer has to be contiguous and owned by this array alone */
+      if (!PyArray_IS_C_CONTIGUOUS (output_array)
+          || isReferencedData (PyArray_DATA (output_array), input, arrays)) {
+        output_array = (PyArrayObject *) PyArray_NewCopy (output_array, NPY_CORDER);
+        if (nullptr == output_array) {
+          Py_ERRMSG ("Failed to copy the output tensor\n");
+          res = -ENOMEM;
+          break;
+        }
+      } else {
+        Py_INCREF (output_array);
       }
+
+      arrays.push_back (output_array);
+    }
+
+    if (res == 0) {
+      for (unsigned int i = 0; i < outputTensorMeta.num_tensors; i++) {
+        output[i].data = PyArray_DATA (arrays[i]);
+        outputArrayMap.insert (std::make_pair (output[i].data, arrays[i]));
+      }
+    } else {
+      for (PyArrayObject *array : arrays)
+        Py_SAFEDECREF (array);
     }
     Py_SAFEDECREF (result);
   } else {
@@ -741,7 +794,8 @@ void
 TensorFilterPython::invoke (const GstTensorMemory *input, GstTensorMemory *output)
 {
   PyGILGuard gil_guard;
-  core->run (input, output);
+  if (core->run (input, output) != 0)
+    throw std::runtime_error ("Failed to invoke the python script: Python");
 }
 
 /**
