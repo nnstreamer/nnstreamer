@@ -95,7 +95,7 @@ os_decode (void **pdata, const GstTensorsConfig * config,
     }
     mem_data = _g_memdup ((guint8 *) input[i].data + offset, data_size);
     mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, mem_data, data_size,
-          0, data_size, NULL, g_free);
+        0, data_size, mem_data, g_free);
     gst_buffer_append_memory (outbuf, mem);
   }
 
