@@ -186,6 +186,9 @@ struct _GstTensorTransform
   GstTensorsConfig in_config; /**< input tensors config */
   GstTensorsConfig out_config; /**< output tensors config */
   GList *apply; /**< Select the tensors to apply transformation */
+
+  GMutex lock; /**< Serializes mode, option and apply with the streaming thread */
+  gboolean prop_changed; /**< TRUE if mode, option or apply changed after out_config was derived */
 };
 
 /**
