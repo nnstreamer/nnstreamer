@@ -68,7 +68,7 @@ The GStreamer pad capability of ```other/tensors``` is as follows:
 ```
 other/tensors
     format = {static, flexible, sparse}
-    num_tensors = (int) [1, 16]  # GST_MAX_MEMCHUNK_PER_BUFFER
+    num_tensors = (int) [1, 256]  # NNS_TENSOR_SIZE_LIMIT
     framerate = (fraction) [0/1, 2147483647/1]
     types = (string) Typestrings # Ignored with flexible and sparse
     dimensions = (string) Dimensions # Ignored with flexible and sparse

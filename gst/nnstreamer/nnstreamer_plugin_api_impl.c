@@ -974,7 +974,8 @@ _get_tensors_caps (const GstTensorsConfig * config)
     prev2 = gst_caps_from_string (GST_TENSORS_CAP_DEFAULT);
   }
 
-  if (config->info.num_tensors > 0) {
+  if (config->info.num_tensors > 0 &&
+      config->info.num_tensors <= NNS_TENSOR_SIZE_LIMIT) {
     g_autofree gchar *type_str =
         gst_tensors_info_get_types_string (&config->info);
     g_autofree gchar *dim_str =
@@ -1484,6 +1485,9 @@ gst_tensor_caps_from_config (const GstTensorsConfig * config)
  * @param config tensors config structure to be filled
  * @param structure structure to be interpreted
  * @return TRUE if no error
+ * @note A static structure declaring a number of tensors outside 1 to
+ * NNS_TENSOR_SIZE_LIMIT is rejected, and the config is left initialized so
+ * that a caller ignoring the return value cannot index the info out of bounds.
  */
 gboolean
 gst_tensors_config_from_structure (GstTensorsConfig * config,
@@ -1534,8 +1538,17 @@ gst_tensors_config_from_structure (GstTensorsConfig * config,
     config->info.format = format;
 
     if (config->info.format == _NNS_TENSOR_FORMAT_STATIC) {
-      gst_structure_get_int (structure, "num_tensors",
-          (gint *) (&config->info.num_tensors));
+      gint num_tensors = 0;
+
+      if (gst_structure_get_int (structure, "num_tensors", &num_tensors)) {
+        if (num_tensors < 1 || num_tensors > NNS_TENSOR_SIZE_LIMIT) {
+          nns_logw ("Invalid num_tensors %d, it should be between 1 and %d.\n",
+              num_tensors, NNS_TENSOR_SIZE_LIMIT);
+          return FALSE;
+        }
+
+        config->info.num_tensors = (guint) num_tensors;
+      }
 
       /* parse dimensions */
       if (gst_structure_has_field (structure, "dimensions")) {
