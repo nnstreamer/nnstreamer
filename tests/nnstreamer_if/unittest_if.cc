@@ -1123,6 +1123,286 @@ TEST (tensorIfCustom, invalidParam3_n)
 }
 
 /**
+ * @brief Callback counting the buffers that reach the sink.
+ */
+static void
+count_data_cb (GstElement *element, GstBuffer *buffer, gpointer user_data)
+{
+  guint *received = (guint *) user_data;
+
+  *received = *received + 1;
+}
+
+/**
+ * @brief Caps and size of the test frame test_frames[0].
+ */
+#define TEST_FRAME_CAPS \
+  "other/tensor,dimension=(string)3:4:2:2,type=(string)int32,framerate=(fraction)0/1"
+#define TEST_FRAME_SIZE (192U)
+
+/**
+ * @brief Push the first bytes of test_frames[0] as one buffer through a tensor_if.
+ * @param caps the caps the buffer is pushed with
+ * @param size the size of the buffer, at most TEST_FRAME_SIZE
+ * @param if_props the properties of the tensor_if element under test
+ * @param error_src name of the element the first bus error came from, or NULL
+ * @param error the first bus error, or NULL
+ * @param received number of the buffers that reached the sink
+ * @return the first bus message type, GST_MESSAGE_ANY if the pipeline could not
+ * be built and GST_MESSAGE_UNKNOWN if neither an error nor EOS arrived in time.
+ */
+static GstMessageType
+_push_if_frame (const gchar *caps, gsize size, const gchar *if_props,
+    gchar **error_src, GError **error, guint *received)
+{
+  GstElement *pipeline, *appsrc_handle, *sink_handle;
+  GstBuffer *buf;
+  GstBus *bus;
+  GstMessage *msg;
+  GstMessageType type = GST_MESSAGE_UNKNOWN;
+  gchar *str_pipeline;
+
+  *error_src = NULL;
+  *error = NULL;
+  *received = 0;
+
+  str_pipeline = g_strdup_printf ("appsrc name=appsrc ! %s ! tensor_if name=tif %s ! "
+                                  "tensor_sink name=sinkx async=false",
+      caps, if_props);
+
+  pipeline = gst_parse_launch (str_pipeline, NULL);
+  g_free (str_pipeline);
+  if (pipeline == NULL)
+    return GST_MESSAGE_ANY;
+
+  appsrc_handle = gst_bin_get_by_name (GST_BIN (pipeline), "appsrc");
+  sink_handle = gst_bin_get_by_name (GST_BIN (pipeline), "sinkx");
+  g_signal_connect (sink_handle, "new-data", (GCallback) count_data_cb, received);
+
+  buf = gst_buffer_new_allocate (NULL, size, NULL);
+  gst_buffer_fill (buf, 0, test_frames[0], size);
+
+  setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT);
+  gst_app_src_push_buffer (GST_APP_SRC (appsrc_handle), buf);
+  gst_app_src_end_of_stream (GST_APP_SRC (appsrc_handle));
+
+  bus = gst_element_get_bus (pipeline);
+  msg = gst_bus_timed_pop_filtered (bus, 5 * GST_SECOND,
+      (GstMessageType) (GST_MESSAGE_ERROR | GST_MESSAGE_EOS));
+  if (msg) {
+    type = GST_MESSAGE_TYPE (msg);
+    if (type == GST_MESSAGE_ERROR) {
+      *error_src = g_strdup (GST_OBJECT_NAME (GST_MESSAGE_SRC (msg)));
+      gst_message_parse_error (msg, error, NULL);
+    }
+    gst_message_unref (msg);
+  }
+  gst_object_unref (bus);
+
+  setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT);
+
+  gst_object_unref (sink_handle);
+  gst_object_unref (appsrc_handle);
+  gst_object_unref (pipeline);
+
+  return type;
+}
+
+/**
+ * @brief Push one buffer through tensor_if compared-value=A_VALUE.
+ * @param caps the caps the buffer is pushed with
+ * @param size the size of the buffer
+ * @param cv_option the compared-value-option to test
+ * @param supplied_value the value the element compares the picked element with
+ * @param error_src name of the element the first bus error came from, or NULL
+ * @param error the first bus error, or NULL
+ * @param received number of the buffers that reached the sink
+ * @return the first bus message type, as _push_if_frame() returns it.
+ */
+static GstMessageType
+_push_a_value_frame (const gchar *caps, gsize size, const gchar *cv_option,
+    const gchar *supplied_value, gchar **error_src, GError **error, guint *received)
+{
+  GstMessageType type;
+  gchar *if_props = g_strdup_printf ("compared-value=A_VALUE compared-value-option=%s supplied-value=%s "
+                                     "operator=EQ then=PASSTHROUGH else=SKIP",
+      cv_option, supplied_value);
+
+  type = _push_if_frame (caps, size, if_props, error_src, error, received);
+  g_free (if_props);
+
+  return type;
+}
+
+/**
+ * @brief Check that tensor_if refused the buffer instead of reading out of bounds.
+ */
+static void
+_expect_refused_cv_option (const gchar *caps, gsize size, const gchar *cv_option)
+{
+  gchar *error_src = NULL;
+  GError *error = NULL;
+  guint received = 0;
+
+  EXPECT_EQ (GST_MESSAGE_ERROR, _push_a_value_frame (caps, size, cv_option,
+                                    "1224", &error_src, &error, &received));
+  EXPECT_STREQ ("tif", error_src);
+  ASSERT_NE (error, nullptr);
+  EXPECT_EQ (GST_STREAM_ERROR, error->domain);
+  EXPECT_EQ (GST_STREAM_ERROR_WRONG_TYPE, error->code);
+  EXPECT_EQ (0U, received);
+
+  g_clear_error (&error);
+  g_free (error_src);
+}
+
+/**
+ * @brief Compare the elements at both ends of the tensor.
+ * @note Every element of the test frame is unique, so the buffer reaches the
+ * sink only if the element the option describes is the one that was read.
+ */
+TEST (tensorIfAppsrc, comparedValueBothEnds)
+{
+  gchar *error_src = NULL;
+  GError *error = NULL;
+  guint received = 0;
+
+  /* test_frames[0][0] */
+  EXPECT_EQ (GST_MESSAGE_EOS, _push_a_value_frame (TEST_FRAME_CAPS, TEST_FRAME_SIZE,
+                                  "0:0:0:0,0", "1101", &error_src, &error, &received));
+  EXPECT_EQ (1U, received);
+
+  /* test_frames[0][2 + 3 * 3 + 1 * 12 + 1 * 24], the last offset that fits */
+  EXPECT_EQ (GST_MESSAGE_EOS, _push_a_value_frame (TEST_FRAME_CAPS, TEST_FRAME_SIZE,
+                                  "2:3:1:1,0", "1224", &error_src, &error, &received));
+  EXPECT_EQ (1U, received);
+
+  g_clear_error (&error);
+  g_free (error_src);
+}
+
+/**
+ * @brief The element index of the first dimension is not in the tensor.
+ */
+TEST (tensorIfAppsrc, comparedValueIndexOverFirstDim_n)
+{
+  _expect_refused_cv_option (TEST_FRAME_CAPS, TEST_FRAME_SIZE, "3:0:0:0,0");
+}
+
+/**
+ * @brief The element index of the last dimension is one past the tensor.
+ */
+TEST (tensorIfAppsrc, comparedValueIndexOverLastDim_n)
+{
+  _expect_refused_cv_option (TEST_FRAME_CAPS, TEST_FRAME_SIZE, "0:0:0:2,0");
+}
+
+/**
+ * @brief The element index stays inside the tensor but not inside its dimension.
+ */
+TEST (tensorIfAppsrc, comparedValueIndexOverInnerDim_n)
+{
+  _expect_refused_cv_option (TEST_FRAME_CAPS, TEST_FRAME_SIZE, "0:4:0:0,0");
+}
+
+/**
+ * @brief The element index refers to a dimension the tensor does not have.
+ */
+TEST (tensorIfAppsrc, comparedValueIndexOverRank_n)
+{
+  _expect_refused_cv_option (TEST_FRAME_CAPS, TEST_FRAME_SIZE, "0:0:0:0:1,0");
+}
+
+/**
+ * @brief A negative element index wraps around the unsigned dimension index.
+ */
+TEST (tensorIfAppsrc, comparedValueNegativeIndex_n)
+{
+  _expect_refused_cv_option (TEST_FRAME_CAPS, TEST_FRAME_SIZE, "-1:0:0:0,0");
+}
+
+/**
+ * @brief An element index far past its dimension, which wrapped the 32-bit offset of main.
+ */
+TEST (tensorIfAppsrc, comparedValueHugeIndex_n)
+{
+  _expect_refused_cv_option (TEST_FRAME_CAPS, TEST_FRAME_SIZE, "2000000000:0:0:0,0");
+}
+
+/**
+ * @brief The caps declare more data than the buffer carries.
+ * @note The element is inside the dimensions, so only the size of the mapped
+ * memory can refuse it.
+ */
+TEST (tensorIfAppsrc, comparedValueBufferShorterThanCaps_n)
+{
+  _expect_refused_cv_option ("other/tensor,dimension=(string)4:2:1,type=(string)uint8,framerate=(fraction)0/1",
+      4, "0:1:0,0");
+}
+
+/**
+ * @brief The byte offset of the element is 2^64 - 1, one short of wrapping to 0.
+ * @note (2^32 - 1) * 2 + (2^32 - 1)^2 = 2^64 - 1, so a size check that adds the
+ * element size to the offset wraps and reads the byte before the buffer.
+ */
+TEST (tensorIfAppsrc, comparedValueOffsetWrapsAround_n)
+{
+  _expect_refused_cv_option ("other/tensor,dimension=(string)4294967295:4294967295:2,type=(string)uint8,framerate=(fraction)0/1",
+      4, "0:2:1,0");
+}
+
+#if GLIB_CHECK_VERSION(2, 48, 0)
+/**
+ * @brief The offset arithmetic overflows and wraps back into the buffer.
+ * @note 2^31 * 2^31 * 4 wraps to 0, so without the overflow check the last
+ * index adds nothing and the first byte of the buffer is compared silently.
+ */
+TEST (tensorIfAppsrc, comparedValueOffsetOverflow_n)
+{
+  _expect_refused_cv_option ("other/tensor,dimension=(string)2147483648:2147483648:4:2,type=(string)uint8,framerate=(fraction)0/1",
+      4, "0:0:0:1,0");
+}
+#endif
+
+/**
+ * @brief Custom callback that cannot tell the condition of the buffer.
+ */
+static gboolean
+tensor_if_custom_fail_cb (const GstTensorsInfo *info,
+    const GstTensorMemory *input, void *user_data, gboolean *result)
+{
+  return FALSE;
+}
+
+/**
+ * @brief The element reports the buffer a custom callback could not handle.
+ */
+TEST (tensorIfAppsrc, customCallbackFailure_n)
+{
+  gchar *error_src = NULL;
+  GError *error = NULL;
+  guint received = 0;
+  GstMessageType type;
+
+  ASSERT_EQ (0, nnstreamer_if_custom_register ("tif_fail", tensor_if_custom_fail_cb, NULL));
+
+  type = _push_if_frame (TEST_FRAME_CAPS, TEST_FRAME_SIZE,
+      "compared-value=CUSTOM compared-value-option=tif_fail then=PASSTHROUGH else=SKIP",
+      &error_src, &error, &received);
+  EXPECT_EQ (0, nnstreamer_if_custom_unregister ("tif_fail"));
+
+  EXPECT_EQ (GST_MESSAGE_ERROR, type);
+  EXPECT_STREQ ("tif", error_src);
+  ASSERT_NE (error, nullptr);
+  EXPECT_EQ (GST_STREAM_ERROR, error->domain);
+  EXPECT_EQ (GST_STREAM_ERROR_WRONG_TYPE, error->code);
+  EXPECT_EQ (0U, received);
+
+  g_clear_error (&error);
+  g_free (error_src);
+}
+
+/**
  * @brief Main GTest
  */
 int
