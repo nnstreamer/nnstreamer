@@ -34,17 +34,22 @@ loadImageLabels (const char *label_path, imglabel_t * l)
   _free_labels (l);
 
   /* Read file contents */
-  if (!g_file_get_contents (label_path, &contents, &len, &err) || len <= 0) {
+  if (!g_file_get_contents (label_path, &contents, &len, &err)) {
     ml_loge ("Unable to read file %s with error %s.", label_path, err->message);
     g_clear_error (&err);
     return;
   }
 
-  if (contents[len - 1] == '\n')
+  if (len > 0 && contents[len - 1] == '\n')
     contents[len - 1] = '\0';
 
   _labels = g_strsplit (contents, "\n", -1);
   l->total_labels = g_strv_length (_labels);
+  if (l->total_labels == 0) {
+    ml_loge ("The label file %s has no label.", label_path);
+    goto error;
+  }
+
   l->labels = g_new0 (char *, l->total_labels);
   if (l->labels == NULL) {
     ml_loge ("Failed to allocate memory for label data.");

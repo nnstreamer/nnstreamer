@@ -112,6 +112,15 @@ if gtest_dep.found()
     )
     test('unittest_decoder_boundingbox', unittest_decoder_boundingbox, env: testenv)
 
+    # RUN unittest_decoder_pose
+    unittest_decoder_pose = executable('unittest_decoder_pose',
+      join_paths('nnstreamer_decoder_pose', 'unittest_decoder_pose.cc'),
+      dependencies: [nnstreamer_unittest_deps, nnstreamer_internal_deps],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+    test('unittest_decoder_pose', unittest_decoder_pose, env: testenv)
+
     # Run unittest_plugins
     unittest_plugins = executable('unittest_plugins',
       join_paths('nnstreamer_plugins', 'unittest_plugins.cc'),
