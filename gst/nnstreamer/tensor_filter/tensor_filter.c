@@ -1725,6 +1725,7 @@ gst_tensor_filter_set_caps (GstBaseTransform * trans,
         ("Set-caps failed. Invalid output config (padcaps) for tensor-filter (%s:%s): its format is static, but not equal to the internal configuration: %s\nThis might be an internal error. Please report to https://github.com/nnstreamer/nnstreamer/issues .",
             GST_STR_NULL (prop->fwname), TF_MODELNAME (prop), compare));
     g_free (compare);
+    gst_tensors_config_free (&config);
     return FALSE;
   }
 
