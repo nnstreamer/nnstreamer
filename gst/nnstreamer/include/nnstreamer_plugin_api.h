@@ -44,6 +44,9 @@ gst_structure_get_media_type (const GstStructure * structure);
  * @param config tensors config structure to be filled
  * @param structure structure to be interpreted
  * @return TRUE if no error
+ * @note A static structure declaring a number of tensors outside 1 to
+ * NNS_TENSOR_SIZE_LIMIT is rejected, and the config is left initialized so
+ * that a caller ignoring the return value cannot index the info out of bounds.
  */
 extern gboolean
 gst_tensors_config_from_structure (GstTensorsConfig *config,

@@ -118,7 +118,7 @@
 /**
  * @brief Caps string for the caps template of flexible tensors.
  * This mimetype handles non-static, flexible tensor stream without specifying the data type and shape of the tensor.
- * The maximum number of tensors in a buffer is 16 (NNS_TENSOR_SIZE_LIMIT).
+ * The maximum number of tensors in a buffer is 256 (NNS_TENSOR_SIZE_LIMIT).
  */
 #define GST_TENSORS_FLEX_CAP_DEFAULT \
     GST_TENSORS_CAP_MAKE ("flexible")
@@ -126,7 +126,7 @@
 /**
  * @brief Caps string for the caps template of sparse tensors.
  * This mimetype handles non-static, sparse tensor stream without specifying the data type and shape of the tensor.
- * The maximum number of tensors in a buffer is 16 (NNS_TENSOR_SIZE_LIMIT).
+ * The maximum number of tensors in a buffer is 256 (NNS_TENSOR_SIZE_LIMIT).
  */
 #define GST_TENSORS_SPARSE_CAP_DEFAULT \
     GST_TENSORS_CAP_MAKE ("sparse")

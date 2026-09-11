@@ -2263,13 +2263,13 @@ gst_tensor_filter_common_get_combined_in_info (GstTensorFilterPrivate * priv,
         goto error;
       }
 
-      gst_tensor_info_copy (gst_tensors_info_get_nth_info (combined, idx++),
-          gst_tensors_info_get_nth_info ((GstTensorsInfo *) in, i));
-
       if (idx >= NNS_TENSOR_SIZE_LIMIT) {
         nns_loge ("The max number of tensors is %d.", NNS_TENSOR_SIZE_LIMIT);
         goto error;
       }
+
+      gst_tensor_info_copy (gst_tensors_info_get_nth_info (combined, idx++),
+          gst_tensors_info_get_nth_info ((GstTensorsInfo *) in, i));
     }
 
     combined->num_tensors = idx;
@@ -2311,6 +2311,11 @@ gst_tensor_filter_common_get_combined_out_info (GstTensorFilterPrivate * priv,
           goto error;
         }
 
+        if (idx >= NNS_TENSOR_SIZE_LIMIT) {
+          nns_loge ("The max number of tensors is %d.", NNS_TENSOR_SIZE_LIMIT);
+          goto error;
+        }
+
         gst_tensor_info_copy (gst_tensors_info_get_nth_info (combined, idx++),
             gst_tensors_info_get_nth_info ((GstTensorsInfo *) in, i));
       }
@@ -2322,6 +2327,11 @@ gst_tensor_filter_common_get_combined_out_info (GstTensorFilterPrivate * priv,
 
         if (i >= out->num_tensors) {
           nns_loge ("Invalid output index %u, failed to combine info.", i);
+          goto error;
+        }
+
+        if (idx >= NNS_TENSOR_SIZE_LIMIT) {
+          nns_loge ("The max number of tensors is %d.", NNS_TENSOR_SIZE_LIMIT);
           goto error;
         }
 
