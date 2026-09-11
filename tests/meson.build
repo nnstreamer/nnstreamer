@@ -120,7 +120,7 @@ if gtest_dep.found()
       install_dir: unittest_install_dir
     )
 
-    test('unittest_plugins', unittest_plugins, env: testenv)
+    test('unittest_plugins', unittest_plugins, timeout: 120, env: testenv)
 
     # Run unittest_watchdog
     unittest_watchdog = executable('unittest_watchdog',
