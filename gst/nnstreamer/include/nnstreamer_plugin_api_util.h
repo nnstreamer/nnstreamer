@@ -167,7 +167,7 @@ gst_tensors_info_parse_names_string (GstTensorsInfo * info,
 /**
  * @brief Get the string of dimensions in tensors info
  * @param info tensors info structure
- * @return string of dimensions in tensors info (NULL if the number of tensors is 0)
+ * @return string of dimensions in tensors info (NULL if the number of tensors is 0 or out of bound)
  * @note The returned value should be freed with g_free()
  */
 extern gchar *
@@ -178,7 +178,7 @@ gst_tensors_info_get_dimensions_string (const GstTensorsInfo * info);
  * @param info tensors info structure
  * @param rank rank count of given tensor dimension
  * @param padding fill 1 if actual rank is smaller than rank
- * @return Formatted string of given dimension
+ * @return Formatted string of given dimension (NULL if the number of tensors is 0 or out of bound)
  * @note If rank count is 3, then returned string is 'd1:d2:d3`.
  * The returned value should be freed with g_free()
  */
@@ -189,7 +189,7 @@ gst_tensors_info_get_rank_dimensions_string (const GstTensorsInfo * info,
 /**
  * @brief Get the string of types in tensors info
  * @param info tensors info structure
- * @return string of types in tensors info (NULL if the number of tensors is 0)
+ * @return string of types in tensors info (NULL if the number of tensors is 0 or out of bound)
  * @note The returned value should be freed with g_free()
  */
 extern gchar *
@@ -198,7 +198,7 @@ gst_tensors_info_get_types_string (const GstTensorsInfo * info);
 /**
  * @brief Get the string of tensor names in tensors info
  * @param info tensors info structure
- * @return string of names in tensors info (NULL if the number of tensors is 0)
+ * @return string of names in tensors info (NULL if the number of tensors is 0 or out of bound)
  * @note The returned value should be freed with g_free()
  */
 extern gchar *

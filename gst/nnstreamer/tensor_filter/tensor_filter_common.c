@@ -1813,6 +1813,7 @@ _gtfc_setprop_INPUTCOMBINATION (GstTensorFilterPrivate * priv,
   *prop_list = NULL;
 
   for (i = 0; i < num; i++) {
+    errno = 0;
     val = g_ascii_strtoull (strv[i], NULL, 10);
     if (errno == ERANGE || val >= NNS_TENSOR_SIZE_LIMIT) {
       ml_loge ("Invalid value %s, cannot set combination option.", strv[i]);
@@ -1845,6 +1846,7 @@ _gtfc_setprop_OUTPUTCOMBINATION (GstTensorFilterPrivate * priv,
   *prop_list1 = *prop_list2 = NULL;
 
   for (i = 0; i < num; i++) {
+    errno = 0;
     if (strv[i][0] == 'i') {
       val = g_ascii_strtoull (&strv[i][1], NULL, 10);
       *prop_list1 = g_list_append (*prop_list1, GUINT_TO_POINTER (val));
@@ -2263,13 +2265,13 @@ gst_tensor_filter_common_get_combined_in_info (GstTensorFilterPrivate * priv,
         goto error;
       }
 
-      gst_tensor_info_copy (gst_tensors_info_get_nth_info (combined, idx++),
-          gst_tensors_info_get_nth_info ((GstTensorsInfo *) in, i));
-
       if (idx >= NNS_TENSOR_SIZE_LIMIT) {
         nns_loge ("The max number of tensors is %d.", NNS_TENSOR_SIZE_LIMIT);
         goto error;
       }
+
+      gst_tensor_info_copy (gst_tensors_info_get_nth_info (combined, idx++),
+          gst_tensors_info_get_nth_info ((GstTensorsInfo *) in, i));
     }
 
     combined->num_tensors = idx;
@@ -2311,6 +2313,11 @@ gst_tensor_filter_common_get_combined_out_info (GstTensorFilterPrivate * priv,
           goto error;
         }
 
+        if (idx >= NNS_TENSOR_SIZE_LIMIT) {
+          nns_loge ("The max number of tensors is %d.", NNS_TENSOR_SIZE_LIMIT);
+          goto error;
+        }
+
         gst_tensor_info_copy (gst_tensors_info_get_nth_info (combined, idx++),
             gst_tensors_info_get_nth_info ((GstTensorsInfo *) in, i));
       }
@@ -2322,6 +2329,11 @@ gst_tensor_filter_common_get_combined_out_info (GstTensorFilterPrivate * priv,
 
         if (i >= out->num_tensors) {
           nns_loge ("Invalid output index %u, failed to combine info.", i);
+          goto error;
+        }
+
+        if (idx >= NNS_TENSOR_SIZE_LIMIT) {
+          nns_loge ("The max number of tensors is %d.", NNS_TENSOR_SIZE_LIMIT);
           goto error;
         }
 
