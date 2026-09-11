@@ -452,7 +452,7 @@ litert_subplugin::parseCustomProperties (const GstTensorFilterProperties *prop)
 
   try {
     for (guint i = 0; i < g_strv_length (options); ++i) {
-      gchar **option = g_strsplit (options[i], ":", 2);
+      g_auto (GStrv) option = g_strsplit (options[i], ":", 2);
 
       if (g_strv_length (option) == 2) {
         g_strstrip (option[0]);
@@ -466,12 +466,10 @@ litert_subplugin::parseCustomProperties (const GstTensorFilterProperties *prop)
           ml_logw ("Unknown custom property [%s]. This is ignored.", option[0]);
         }
       } else if (option[0] != nullptr && option[0][0] != '\0') {
-        g_strfreev (option);
         throw std::invalid_argument (
             std::string ("Malformed custom property \"") + options[i]
             + "\". Expected Key:Value pairs separated by ','.");
       }
-      g_strfreev (option);
     }
   } catch (...) {
     g_strfreev (options);
