@@ -988,6 +988,100 @@ TEST (commonTensorsInfo, getNameInvalidParam1_n)
 }
 
 /**
+ * @brief Test for getting dimension when the number of tensors is out of bound.
+ */
+TEST (commonTensorsInfo, getDimOverLimit_n)
+{
+  GstTensorsInfo info;
+
+  gst_tensors_info_init (&info);
+  info.num_tensors = NNS_TENSOR_SIZE_LIMIT + 1;
+
+  EXPECT_EQ (NULL, gst_tensors_info_get_dimensions_string (&info));
+
+  gst_tensors_info_free (&info);
+}
+
+/**
+ * @brief Test for getting type when the number of tensors is out of bound.
+ */
+TEST (commonTensorsInfo, getTypeOverLimit_n)
+{
+  GstTensorsInfo info;
+
+  gst_tensors_info_init (&info);
+  info.num_tensors = NNS_TENSOR_SIZE_LIMIT + 1;
+
+  EXPECT_EQ (NULL, gst_tensors_info_get_types_string (&info));
+
+  gst_tensors_info_free (&info);
+}
+
+/**
+ * @brief Test for getting name when the number of tensors is out of bound.
+ */
+TEST (commonTensorsInfo, getNameOverLimit_n)
+{
+  GstTensorsInfo info;
+
+  gst_tensors_info_init (&info);
+  info.num_tensors = NNS_TENSOR_SIZE_LIMIT + 1;
+
+  EXPECT_EQ (NULL, gst_tensors_info_get_names_string (&info));
+
+  gst_tensors_info_free (&info);
+}
+
+/**
+ * @brief Test for getting the strings of tensors info with the max number of tensors.
+ */
+TEST (commonTensorsInfo, getStringsMaxNumTensors_p)
+{
+  GstTensorsInfo info;
+  GstTensorInfo *_info;
+  GString *dims = g_string_new (NULL);
+  GString *types = g_string_new (NULL);
+  GString *names = g_string_new (NULL);
+  gchar *str;
+  guint i;
+
+  gst_tensors_info_init (&info);
+  info.num_tensors = NNS_TENSOR_SIZE_LIMIT;
+
+  /* Every tensor differs from its neighbours, so a dropped or reordered entry changes the string. */
+  for (i = 0; i < info.num_tensors; i++) {
+    _info = gst_tensors_info_get_nth_info (&info, i);
+    _info->type = (i % 2) ? _NNS_INT16 : _NNS_UINT8;
+    _info->dimension[0] = i + 1;
+    _info->name = g_strdup_printf ("t%u", i);
+
+    g_string_append_printf (dims, "%s%u", i > 0 ? "," : "", i + 1);
+    g_string_append_printf (types, "%s%s", i > 0 ? "," : "", (i % 2) ? "int16" : "uint8");
+    g_string_append_printf (names, "%st%u", i > 0 ? "," : "", i);
+  }
+
+  str = gst_tensors_info_get_dimensions_string (&info);
+  ASSERT_TRUE (str != NULL);
+  EXPECT_TRUE (gst_tensor_dimension_string_is_equal (str, dims->str));
+  g_free (str);
+
+  str = gst_tensors_info_get_types_string (&info);
+  ASSERT_TRUE (str != NULL);
+  EXPECT_STREQ (types->str, str);
+  g_free (str);
+
+  str = gst_tensors_info_get_names_string (&info);
+  ASSERT_TRUE (str != NULL);
+  EXPECT_STREQ (names->str, str);
+  g_free (str);
+
+  g_string_free (dims, TRUE);
+  g_string_free (types, TRUE);
+  g_string_free (names, TRUE);
+  gst_tensors_info_free (&info);
+}
+
+/**
  * @brief Test for printing tensors info with invalid param.
  */
 TEST (commonTensorsInfo, printInvalidParam_n)
@@ -1385,6 +1479,200 @@ TEST (commonTensorsConfig, parseUnfixedCaps_n)
   gst_tensors_config_free (&config);
 
   gst_caps_unref (caps);
+}
+
+/**
+ * @brief Internal util function to build static tensors caps with given number of tensors.
+ */
+static GstCaps *
+_caps_with_num_tensors (gint num_tensors)
+{
+  return gst_caps_new_simple ("other/tensors", "format", G_TYPE_STRING, "static", "num_tensors",
+      G_TYPE_INT, num_tensors, "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
+}
+
+/**
+ * @brief Test for parsing tensor cap with the max number of tensors.
+ */
+TEST (commonTensorsConfig, parseCapsMaxNumTensors_p)
+{
+  GstTensorsConfig config;
+  GstCaps *caps = _caps_with_num_tensors (NNS_TENSOR_SIZE_LIMIT);
+
+  EXPECT_TRUE (gst_tensors_config_from_caps (&config, caps, FALSE));
+  EXPECT_EQ ((guint) NNS_TENSOR_SIZE_LIMIT, config.info.num_tensors);
+
+  gst_tensors_config_free (&config);
+  gst_caps_unref (caps);
+}
+
+/**
+ * @brief Test for parsing tensor cap with too many tensors.
+ */
+TEST (commonTensorsConfig, parseCapsNumTensorsOverLimit_n)
+{
+  GstTensorsConfig config;
+  GstCaps *caps = _caps_with_num_tensors (NNS_TENSOR_SIZE_LIMIT + 1);
+
+  EXPECT_FALSE (gst_tensors_config_from_caps (&config, caps, FALSE));
+  EXPECT_EQ (0U, config.info.num_tensors);
+
+  gst_tensors_config_free (&config);
+  gst_caps_unref (caps);
+}
+
+/**
+ * @brief Test for parsing tensor cap with a negative number of tensors.
+ */
+TEST (commonTensorsConfig, parseCapsNumTensorsNegative_n)
+{
+  GstTensorsConfig config;
+  GstCaps *caps = _caps_with_num_tensors (-1);
+
+  EXPECT_FALSE (gst_tensors_config_from_caps (&config, caps, FALSE));
+  EXPECT_EQ (0U, config.info.num_tensors);
+
+  gst_tensors_config_free (&config);
+  gst_caps_unref (caps);
+}
+
+/**
+ * @brief Test for parsing tensor cap with no tensor.
+ */
+TEST (commonTensorsConfig, parseCapsNumTensorsZero_n)
+{
+  GstTensorsConfig config;
+  GstCaps *caps = _caps_with_num_tensors (0);
+
+  EXPECT_FALSE (gst_tensors_config_from_caps (&config, caps, FALSE));
+  EXPECT_EQ (0U, config.info.num_tensors);
+
+  gst_tensors_config_free (&config);
+  gst_caps_unref (caps);
+}
+
+/**
+ * @brief Test for parsing a structure with too many tensors, the config is left initialized.
+ */
+TEST (commonTensorsConfig, fromStructureNumTensorsOverLimit_n)
+{
+  GstTensorsConfig config;
+  GstCaps *caps = _caps_with_num_tensors (NNS_TENSOR_SIZE_LIMIT + 1);
+
+  /* Unlike gst_tensors_config_from_caps (), this does not reset the config on failure. */
+  EXPECT_FALSE (
+      gst_tensors_config_from_structure (&config, gst_caps_get_structure (caps, 0)));
+  EXPECT_EQ (0U, config.info.num_tensors);
+
+  gst_tensors_config_free (&config);
+  gst_caps_unref (caps);
+}
+
+/**
+ * @brief Test for getting tensors cap when the number of tensors is out of bound.
+ */
+TEST (commonTensorsConfig, capsFromOverLimitInfo_n)
+{
+  GstTensorsConfig config;
+  GstCaps *caps;
+  GstStructure *structure;
+  gint num_tensors = 0;
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = NNS_TENSOR_SIZE_LIMIT + 1;
+
+  caps = gst_tensors_caps_from_config (&config);
+  ASSERT_TRUE (caps != nullptr);
+
+  /* The count stays the range of the template instead of the one it cannot describe. */
+  structure = gst_caps_get_structure (caps, 0);
+  EXPECT_FALSE (gst_structure_get_int (structure, "num_tensors", &num_tensors));
+  EXPECT_FALSE (gst_structure_has_field (structure, "dimensions"));
+  EXPECT_FALSE (gst_structure_has_field (structure, "types"));
+
+  gst_caps_unref (caps);
+  gst_tensors_config_free (&config);
+}
+
+/**
+ * @brief Pad probe counting the caps queries answered with more tensors than an info holds.
+ */
+static GstPadProbeReturn
+_count_over_limit_caps_query (GstPad *, GstPadProbeInfo *info, gpointer user_data)
+{
+  GstQuery *query = GST_PAD_PROBE_INFO_QUERY (info);
+  GstCaps *caps = NULL;
+  gint num = 0;
+
+  /* The probe runs again with PULL set once the peer has answered. */
+  if (!(GST_PAD_PROBE_INFO_TYPE (info) & GST_PAD_PROBE_TYPE_PULL)
+      || GST_QUERY_TYPE (query) != GST_QUERY_CAPS)
+    return GST_PAD_PROBE_OK;
+
+  gst_query_parse_caps_result (query, &caps);
+  if (caps && gst_caps_get_size (caps) > 0
+      && gst_structure_get_int (gst_caps_get_structure (caps, 0), "num_tensors", &num)
+      && num > NNS_TENSOR_SIZE_LIMIT)
+    g_atomic_int_inc ((gint *) user_data);
+
+  return GST_PAD_PROBE_OK;
+}
+
+/**
+ * @brief Test for a peer declaring too many tensors in a pipeline.
+ */
+TEST (commonTensorsConfig, parseCapsNumTensorsOverLimitPipeline_n)
+{
+  GstElement *pipeline, *appsrc, *dec, *filter;
+  GstPad *pad;
+  GstCaps *caps;
+  GstBuffer *buf;
+  guint over_limit = 0U;
+
+  pipeline = gst_parse_launch ("appsrc name=appsrc caps=other/tensors,format=sparse,framerate=(fraction)0/1 ! "
+                               "tensor_sparse_dec name=dec ! capsfilter name=cf caps=other/tensors,format=static ! "
+                               "fakesink async=false sync=false",
+      NULL);
+  ASSERT_TRUE (pipeline != nullptr);
+
+  appsrc = gst_bin_get_by_name (GST_BIN (pipeline), "appsrc");
+  ASSERT_TRUE (appsrc != nullptr);
+  dec = gst_bin_get_by_name (GST_BIN (pipeline), "dec");
+  ASSERT_TRUE (dec != nullptr);
+  filter = gst_bin_get_by_name (GST_BIN (pipeline), "cf");
+  ASSERT_TRUE (filter != nullptr);
+
+  pad = gst_element_get_static_pad (dec, "src");
+  ASSERT_TRUE (pad != nullptr);
+  gst_pad_add_probe (pad, GST_PAD_PROBE_TYPE_QUERY_DOWNSTREAM,
+      _count_over_limit_caps_query, &over_limit, NULL);
+  gst_object_unref (pad);
+
+  /* A capsfilter holding the over-limit count cannot be linked, the pad template caps it. */
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  caps = _caps_with_num_tensors (NNS_TENSOR_SIZE_LIMIT + 1);
+  g_object_set (filter, "caps", caps, NULL);
+  gst_caps_unref (caps);
+
+  /* New caps on the source make the decoder read its peer again. */
+  caps = gst_caps_new_simple ("other/tensors", "format", G_TYPE_STRING,
+      "sparse", "framerate", GST_TYPE_FRACTION, 1, 1, NULL);
+  gst_app_src_set_caps (GST_APP_SRC (appsrc), caps);
+  gst_caps_unref (caps);
+
+  buf = gst_buffer_new_allocate (NULL, 128, NULL);
+  gst_buffer_memset (buf, 0, 0, 128);
+  EXPECT_EQ (gst_app_src_push_buffer (GST_APP_SRC (appsrc), buf), GST_FLOW_OK);
+
+  EXPECT_TRUE (wait_pipeline_process_buffers (&over_limit, 1U, TEST_TIMEOUT_LIMIT_MS));
+
+  EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  gst_object_unref (filter);
+  gst_object_unref (dec);
+  gst_object_unref (appsrc);
+  gst_object_unref (pipeline);
 }
 
 /**

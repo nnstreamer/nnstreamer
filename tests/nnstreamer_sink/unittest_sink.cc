@@ -5057,6 +5057,167 @@ TEST (tensorStreamTest, subpluginV0PreservedName_n)
 }
 
 /**
+ * @brief Internal util function to fill tensors info with the given number of uint8 tensors.
+ */
+static void
+_fill_combination_info (GstTensorsInfo *info, guint num)
+{
+  GstTensorInfo *_info;
+  guint i;
+
+  gst_tensors_info_init (info);
+  info->num_tensors = num;
+
+  for (i = 0; i < num; i++) {
+    _info = gst_tensors_info_get_nth_info (info, i);
+    _info->type = _NNS_UINT8;
+    gst_tensor_parse_dimension ("3:4:4:1", _info->dimension);
+  }
+}
+
+/**
+ * @brief Internal util function to run a combination with the given number of entries.
+ * @param is_input TRUE for input-combination, FALSE for output-combination
+ * @param num_i the number of entries selecting input tensors
+ * @param num_o the number of entries selecting output tensors (output-combination only)
+ * @param[out] combined combined tensors info, left initialized when this returns FALSE
+ * @return the result of combining the info with the combination property
+ * @note Entries select distinct tensors as far as the limit allows, so only a list longer than the limit repeats an index.
+ */
+static gboolean
+_run_combination (gboolean is_input, guint num_i, guint num_o, GstTensorsInfo *combined)
+{
+  GstTensorFilterPrivate priv;
+  GstTensorsInfo in, out;
+  GString *param = g_string_new (NULL);
+  GValue value = G_VALUE_INIT;
+  guint in_num = CLAMP (num_i, 1U, (guint) NNS_TENSOR_SIZE_LIMIT);
+  guint out_num = CLAMP (num_o, 1U, (guint) NNS_TENSOR_SIZE_LIMIT);
+  gboolean ret;
+  guint i;
+
+  for (i = 0; i < num_i; i++)
+    g_string_append_printf (param, "%s%s%u", param->len > 0 ? "," : "",
+        is_input ? "" : "i", i % in_num);
+  for (i = 0; i < num_o; i++)
+    g_string_append_printf (param, "%so%u", param->len > 0 ? "," : "", i % out_num);
+
+  gst_tensor_filter_common_init_property (&priv);
+
+  g_value_init (&value, G_TYPE_STRING);
+  g_value_take_string (&value, g_string_free (param, FALSE));
+  EXPECT_TRUE (gst_tensor_filter_common_set_property (&priv,
+      is_input ? PROP_INPUTCOMBINATION : PROP_OUTPUTCOMBINATION, &value, NULL));
+  g_value_unset (&value);
+
+  _fill_combination_info (&in, in_num);
+  _fill_combination_info (&out, out_num);
+
+  if (is_input)
+    ret = gst_tensor_filter_common_get_combined_in_info (&priv, &in, combined);
+  else
+    ret = gst_tensor_filter_common_get_combined_out_info (&priv, &in, &out, combined);
+
+  gst_tensors_info_free (&in);
+  gst_tensors_info_free (&out);
+  gst_tensor_filter_common_free_property (&priv);
+
+  return ret;
+}
+
+/**
+ * @brief Test for input combination with the max number of tensors.
+ */
+TEST (tensorStreamTest, filterInCombinationMax)
+{
+  GstTensorsInfo combined;
+
+  EXPECT_TRUE (_run_combination (TRUE, NNS_TENSOR_SIZE_LIMIT, 0U, &combined));
+  EXPECT_EQ ((guint) NNS_TENSOR_SIZE_LIMIT, combined.num_tensors);
+
+  gst_tensors_info_free (&combined);
+}
+
+/**
+ * @brief Test for input combination with too many tensors.
+ */
+TEST (tensorStreamTest, filterInCombinationOverLimit_n)
+{
+  GstTensorsInfo combined;
+
+  EXPECT_FALSE (_run_combination (TRUE, NNS_TENSOR_SIZE_LIMIT + 1, 0U, &combined));
+  EXPECT_EQ (0U, combined.num_tensors);
+
+  gst_tensors_info_free (&combined);
+}
+
+/**
+ * @brief Test for output combination with the max number of input tensors.
+ */
+TEST (tensorStreamTest, filterOutCombinationMax)
+{
+  GstTensorsInfo combined;
+
+  EXPECT_TRUE (_run_combination (FALSE, NNS_TENSOR_SIZE_LIMIT, 0U, &combined));
+  EXPECT_EQ ((guint) NNS_TENSOR_SIZE_LIMIT, combined.num_tensors);
+
+  gst_tensors_info_free (&combined);
+}
+
+/**
+ * @brief Test for output combination with the max number of tensors, taken from both input and output.
+ */
+TEST (tensorStreamTest, filterOutCombinationMixedMax)
+{
+  GstTensorsInfo combined;
+
+  EXPECT_TRUE (_run_combination (
+      FALSE, NNS_TENSOR_SIZE_LIMIT / 2, NNS_TENSOR_SIZE_LIMIT / 2, &combined));
+  EXPECT_EQ ((guint) NNS_TENSOR_SIZE_LIMIT, combined.num_tensors);
+
+  gst_tensors_info_free (&combined);
+}
+
+/**
+ * @brief Test for output combination with too many input tensors.
+ */
+TEST (tensorStreamTest, filterOutCombinationOverLimit_n)
+{
+  GstTensorsInfo combined;
+
+  EXPECT_FALSE (_run_combination (FALSE, NNS_TENSOR_SIZE_LIMIT + 1, 0U, &combined));
+  EXPECT_EQ (0U, combined.num_tensors);
+
+  gst_tensors_info_free (&combined);
+}
+
+/**
+ * @brief Test for output combination with too many output tensors.
+ */
+TEST (tensorStreamTest, filterOutCombinationModelOverLimit_n)
+{
+  GstTensorsInfo combined;
+
+  EXPECT_FALSE (_run_combination (FALSE, 0U, NNS_TENSOR_SIZE_LIMIT + 1, &combined));
+  EXPECT_EQ (0U, combined.num_tensors);
+
+  gst_tensors_info_free (&combined);
+}
+
+/**
+ * @brief Test for output combination of distinct tensors where the output tensors exceed what the input tensors left.
+ */
+TEST (tensorStreamTest, filterOutCombinationMixedOverLimit_n)
+{
+  GstTensorsInfo combined;
+
+  EXPECT_FALSE (_run_combination (FALSE, NNS_TENSOR_SIZE_LIMIT, 1U, &combined));
+  EXPECT_EQ (0U, combined.num_tensors);
+
+  gst_tensors_info_free (&combined);
+}
+
+/**
  * @brief Test for plugin registration with invalid param.
  */
 TEST (tensorStreamTest, subpluginV0NullName_n)
