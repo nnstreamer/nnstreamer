@@ -417,7 +417,7 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
      * this may cause unexpected exception.
      */
     if (!configured) {
-      return FALSE;
+      goto error;
     }
 
     if (in_configs.rate_d < old_denominator)
@@ -433,7 +433,7 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
       case SYNC_BASEPAD:
         if (!_gst_tensor_time_sync_buffer_update (collect, data,
                 current_time, base_time, sync))
-          return FALSE;
+          goto error;
         buf = gst_buffer_ref (pad->buffer);
         is_empty = (buf == NULL);
         break;
@@ -452,7 +452,7 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
           if (pad->buffer == NULL) {
             *is_eos = FALSE;
             ml_logd ("Not the all buffers are arrived yet.");
-            return FALSE;
+            goto error;
           }
           is_empty = TRUE;
           buf = gst_buffer_ref (pad->buffer);
@@ -512,6 +512,7 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
         gst_memory_unref (in_mem[j]);
 
       nns_loge ("Failed to append memory to buffer.");
+      gst_tensors_config_free (&in_configs);
       return FALSE;
     }
   }
@@ -527,6 +528,13 @@ gst_tensor_time_sync_buffer_from_collectpad (GstCollectPads * collect,
   /* check eos */
   *is_eos = _gst_tensor_time_sync_is_eos (collect, sync, empty_pad);
   return !(*is_eos);
+
+error:
+  for (i = 0; i < counting; i++)
+    gst_memory_unref (in_mem[i]);
+
+  gst_tensors_config_free (&in_configs);
+  return FALSE;
 }
 
 /**
