@@ -35,5 +35,23 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
     tensor_crop name=crop ! other/tensors,format=flexible ! tensor_converter ! tensor_decoder mode=direct_video ! videoconvert ! video/x-raw,format=RGBx  !  filesink location=tensor_region_output_orange.txt   " 0 0 0 $PERFORMANCE
 
 callCompareTest tensor_region_orange.txt tensor_region_output_orange.txt 0 "mobilenet-ssd Decode 1" 0
+
+# The decoder zero-fills the crop-info slots it has no detection for, so asking
+# for more regions than the image has is the case that hands tensor_crop a
+# region of size zero. It should crop the whole frame for those, not fail.
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
+    filesrc location=${PATH_TO_IMAGE} ! pngdec ! videoconvert ! videoscale ! video/x-raw,width=300,height=300,format=RGB,framerate=0/1 ! tensor_converter ! crop.raw \
+    filesrc  location=mobilenet_ssd_tensor.0 blocksize=-1 ! application/octet-stream ! tensor_converter name=el1 input-dim=4:1:1917:1 input-type=float32 ! mux.sink_0 \
+    filesrc  location=mobilenet_ssd_tensor.1 blocksize=-1 ! application/octet-stream ! tensor_converter name=el2 input-dim=91:1917:1 input-type=float32 ! mux.sink_1 \
+    tensor_mux name=mux ! other/tensors,format=static ! tensor_decoder mode=tensor_region option1=3 option2=${PATH_TO_LABELS} option3=${PATH_TO_BOX_PRIORS} ! crop.info\
+    tensor_crop name=crop ! other/tensors,format=flexible ! filesink location=tensor_region_output_zero.dat   " 1 0 0 $PERFORMANCE
+
+# A whole-frame crop is a 128-byte flex header plus the 300x300 RGB frame. Two of
+# the three regions are the empty ones, so both have to be in the output; without
+# them the file cannot reach this size.
+WHOLE_FRAME=$(( 128 + 300 * 300 * 3 ))
+[[ -f tensor_region_output_zero.dat ]] && [[ $(wc -c < tensor_region_output_zero.dat) -ge $(( WHOLE_FRAME * 2 )) ]]
+testResult $? 1 "mobilenet-ssd crop of the regions without a detection" 0 1
+
 rm tensor_region_output_*
 report
