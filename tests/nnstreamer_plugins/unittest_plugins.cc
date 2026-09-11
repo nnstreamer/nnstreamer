@@ -12159,15 +12159,26 @@ _record_critical (const gchar *domain, GLogLevelFlags level,
 TEST (testTensorSplit, finalizeWithoutTensorseg)
 {
   GstElement *split = gst_element_factory_make ("tensor_split", NULL);
-  GLogFunc old_handler;
+  guint handler;
+  GLogLevelFlags fatal_mask;
 
   ASSERT_TRUE (split != NULL);
   gst_object_ref_sink (split);
 
+  /* g_array_unref() reports invalid arguments in the GLib domain. */
+  handler = g_log_set_handler ("GLib",
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION),
+      _record_critical, NULL);
   tensor_split_logged_critical = FALSE;
-  old_handler = g_log_set_default_handler (_record_critical, NULL);
+  /* Only the intentional probe may bypass G_DEBUG=fatal-criticals. */
+  fatal_mask = g_log_set_always_fatal ((GLogLevelFlags) G_LOG_FATAL_MASK);
+  g_log ("GLib", G_LOG_LEVEL_CRITICAL, "tensor_split test: handler self-check");
+  g_log_set_always_fatal (fatal_mask);
+  EXPECT_TRUE (tensor_split_logged_critical);
+
+  tensor_split_logged_critical = FALSE;
   gst_object_unref (split);
-  g_log_set_default_handler (old_handler, NULL);
+  g_log_remove_handler ("GLib", handler);
 
   EXPECT_FALSE (tensor_split_logged_critical);
 }
