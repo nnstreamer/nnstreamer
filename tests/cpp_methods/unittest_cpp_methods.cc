@@ -193,6 +193,7 @@ TEST (cppFilterObj, base01_n)
   if (pipeline) {
     EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT),
         0);
+    EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
     gst_object_unref (pipeline);
   }
@@ -236,6 +237,7 @@ TEST (cppFilterObj, base02_n)
   if (pipeline) {
     EXPECT_NE (setPipelineStateSync (pipeline, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT),
         0);
+    EXPECT_EQ (setPipelineStateSync (pipeline, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
     gst_object_unref (pipeline);
   }

@@ -425,6 +425,7 @@ TEST_F (NNSRateTest, throttling)
 
   g_free (target_framerate);
   g_free (framework);
+  g_free (model_file);
 }
 
 /**
