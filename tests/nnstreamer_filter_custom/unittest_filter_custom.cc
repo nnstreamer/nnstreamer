@@ -611,6 +611,21 @@ _flex_in_harness (const gchar *model, gboolean dynamic)
 }
 
 /**
+ * @brief Tear down a harness of _flex_in_harness(), dropping what its bus holds.
+ * @details Nothing drains that bus, and a queued message keeps its source
+ * element, which keeps the bus, so the harness would never be freed.
+ */
+static void
+_flex_in_teardown (GstHarness *h)
+{
+  GstBus *bus = gst_element_get_bus (h->element);
+
+  gst_bus_set_flushing (bus, TRUE);
+  gst_object_unref (bus);
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Fill @a raw with a flexible uint8 tensor of @a dim bytes: a meta header, then 0, 1, 2, ...
  */
 static void
@@ -696,7 +711,7 @@ TEST (tensorFilterFlexInput, shortMemory_n)
   EXPECT_EQ (gst_harness_buffers_received (h), 0U);
   EXPECT_TRUE (_flex_in_refused_header (h));
 
-  gst_harness_teardown (h);
+  _flex_in_teardown (h);
   munmap (pages, 2 * page);
   EXPECT_EQ (NNS_custom_easy_unregister ("flex_in_short"), 0);
   g_free (data.in_name);
@@ -720,7 +735,7 @@ TEST (tensorFilterFlexInput, brokenHeaderMagic_n)
   EXPECT_EQ (data.invoked, 0U);
   EXPECT_TRUE (_flex_in_refused_header (h));
 
-  gst_harness_teardown (h);
+  _flex_in_teardown (h);
   EXPECT_EQ (NNS_custom_easy_unregister ("flex_in_magic"), 0);
   g_free (data.in_name);
 }
@@ -743,7 +758,7 @@ TEST (tensorFilterFlexInput, brokenHeaderType_n)
   EXPECT_EQ (data.invoked, 0U);
   EXPECT_TRUE (_flex_in_refused_header (h));
 
-  gst_harness_teardown (h);
+  _flex_in_teardown (h);
   EXPECT_EQ (NNS_custom_easy_unregister ("flex_in_type"), 0);
   g_free (data.in_name);
 }
@@ -766,7 +781,7 @@ TEST (tensorFilterFlexInput, headerSizeMismatch_n)
   EXPECT_EQ (data.invoked, 0U);
   EXPECT_TRUE (_flex_in_refused_header (h));
 
-  gst_harness_teardown (h);
+  _flex_in_teardown (h);
   EXPECT_EQ (NNS_custom_easy_unregister ("flex_in_mismatch"), 0);
   g_free (data.in_name);
 }
@@ -789,7 +804,7 @@ TEST (tensorFilterFlexInput, smallerThanModel_n)
   EXPECT_EQ (data.invoked, 0U);
   EXPECT_FALSE (_flex_in_refused_header (h));
 
-  gst_harness_teardown (h);
+  _flex_in_teardown (h);
   EXPECT_EQ (NNS_custom_easy_unregister ("flex_in_smaller"), 0);
   g_free (data.in_name);
 }
@@ -816,7 +831,7 @@ TEST (tensorFilterFlexInput, sparseHeader_n)
     EXPECT_EQ (data.invoked, 0U);
     EXPECT_TRUE (_flex_in_refused_header (h));
 
-    gst_harness_teardown (h);
+    _flex_in_teardown (h);
     EXPECT_EQ (NNS_custom_easy_unregister (models[i]), 0);
     g_free (data.in_name);
   }
@@ -846,7 +861,7 @@ TEST (tensorFilterFlexInput, unknownVersion_n)
   EXPECT_EQ (data.invoked, 0U);
   EXPECT_TRUE (_flex_in_refused_header (h));
 
-  gst_harness_teardown (h);
+  _flex_in_teardown (h);
   EXPECT_EQ (NNS_custom_easy_unregister ("flex_in_version"), 0);
   g_free (data.in_name);
 }
@@ -892,7 +907,7 @@ TEST (tensorFilterFlexInput, keepsConfiguredInfo)
   gst_object_unref (filter);
   EXPECT_FALSE (_flex_in_refused_header (h));
 
-  gst_harness_teardown (h);
+  _flex_in_teardown (h);
   EXPECT_EQ (NNS_custom_easy_unregister ("flex_in_keeps"), 0);
   g_free (data.in_name);
 }
@@ -937,7 +952,7 @@ TEST (tensorFilterFlexInput, dynamicTakesEachHeader)
     gst_buffer_unref (out);
   }
 
-  gst_harness_teardown (h);
+  _flex_in_teardown (h);
   EXPECT_EQ (NNS_custom_easy_unregister ("flex_in_dynamic"), 0);
   g_free (data.in_name);
 }
@@ -966,7 +981,7 @@ TEST (tensorFilterFlexInput, dynamicInvalidOutputInfo_n)
   EXPECT_EQ (_flex_in_push (h, raw, sizeof (raw)), GST_FLOW_OK);
   EXPECT_EQ (gst_harness_buffers_received (h), 1U);
 
-  gst_harness_teardown (h);
+  _flex_in_teardown (h);
   EXPECT_EQ (NNS_custom_easy_unregister ("flex_in_invalid_out"), 0);
   g_free (data.in_name);
 }

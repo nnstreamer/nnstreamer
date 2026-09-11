@@ -1105,6 +1105,7 @@ TEST (commonTensorsInfo, printInvalidIndex_n)
   EXPECT_EQ (1U, count_key_string (str, "out of bound"));
 
   g_free (str);
+  gst_tensors_info_free (&info);
 }
 
 /**
