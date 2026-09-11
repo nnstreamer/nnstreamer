@@ -509,8 +509,13 @@ gst_tensor_crop_prepare_out_meta (GstTensorCrop * self, gpointer buffer,
 
   gst_tensor_meta_info_init (meta);
   gst_tensor_info_init (info);
+  gst_tensors_config_init (&config);
 
   caps = gst_pad_get_current_caps (self->sinkpad_raw);
+  if (!caps) {
+    GST_ERROR_OBJECT (self, "The raw pad is not negotiated.");
+    goto done;
+  }
 
   if (!gst_tensors_config_from_caps (&config, caps, TRUE)) {
     GST_ERROR_OBJECT (self, "Failed to get the config from caps.");
@@ -545,7 +550,8 @@ gst_tensor_crop_prepare_out_meta (GstTensorCrop * self, gpointer buffer,
   meta->format = _NNS_TENSOR_FORMAT_FLEXIBLE;
 
 done:
-  gst_caps_unref (caps);
+  if (caps)
+    gst_caps_unref (caps);
   gst_tensors_config_free (&config);
   return ret;
 }
@@ -659,7 +665,7 @@ gst_tensor_crop_do_cropping (GstTensorCrop * self, GstBuffer * raw,
   GstTensorMetaInfo meta;
   GstTensorInfo info;
   gboolean flexible;
-  gsize hsize, esize, dsize;
+  gsize hsize, esize, dsize, fsize;
   guint8 *cropped, *dpos, *desc, *src;
   guint i, j, ch, mw, mh, _x, _y, _w, _h;
 
@@ -695,17 +701,35 @@ gst_tensor_crop_do_cropping (GstTensorCrop * self, GstBuffer * raw,
   if ((hsize + dsize) != map.size) {
     GST_ERROR_OBJECT (self,
         "Raw buffer has invalid data size (received %zd, expected %zd).",
-        map.size, dsize);
+        map.size, hsize + dsize);
     goto done;
   }
-
-  result = gst_buffer_new ();
 
   /** @todo Add various mode to crop tensor. */
   ch = info.dimension[0];
   mw = info.dimension[1];
   mh = info.dimension[2];
   esize = gst_tensor_get_element_size (info.type);
+
+  /**
+   * The frame is read as ch * mw * mh elements. dsize above cannot bound it: it
+   * comes from gst_tensor_meta_info_get_data_size(), whose element count is an
+   * unchecked product of the dimensions, so a flexible header can declare a
+   * frame whose byte size wraps below map.size. Recompute the frame with
+   * overflow-checked arithmetic and require it to fit the mapped payload.
+   */
+  if (!g_size_checked_mul (&fsize, esize, ch) ||
+      !g_size_checked_mul (&fsize, fsize, mw) ||
+      !g_size_checked_mul (&fsize, fsize, mh) ||
+      fsize > map.size - hsize) {
+    GST_ERROR_OBJECT (self,
+        "Raw tensor dimension %u:%u:%u does not fit the buffer (%zd bytes).",
+        ch, mw, mh, map.size - hsize);
+    goto done;
+  }
+
+  result = gst_buffer_new ();
+
   hsize = gst_tensor_meta_info_get_header_size (&meta);
 
   for (i = 0; i < cinfo->num; i++) {
@@ -802,8 +826,8 @@ gst_tensor_crop_chain (GstTensorCrop * self,
   buf_info = gst_tensor_buffer_from_config (buf_info, &cpad->config);
 
   if (!buf_raw || !buf_info) {
-    GST_ERROR_OBJECT (self,
-        "Incoming buffer does not match the negotiated caps.");
+    GST_ELEMENT_ERROR (self, STREAM, FORMAT, (NULL),
+        ("Incoming buffer does not match the negotiated caps."));
     ret = GST_FLOW_ERROR;
     goto done;
   }
@@ -843,12 +867,16 @@ gst_tensor_crop_chain (GstTensorCrop * self,
   }
 
   if (!gst_tensor_crop_get_crop_info (self, buf_info, &cinfo)) {
+    GST_ELEMENT_ERROR (self, STREAM, FORMAT, (NULL),
+        ("Failed to parse the crop info buffer."));
     ret = GST_FLOW_ERROR;
     goto done;
   }
 
   result = gst_tensor_crop_do_cropping (self, buf_raw, &cinfo);
   if (!result) {
+    GST_ELEMENT_ERROR (self, STREAM, FORMAT, (NULL),
+        ("Failed to crop the raw buffer."));
     ret = GST_FLOW_ERROR;
     goto done;
   }
