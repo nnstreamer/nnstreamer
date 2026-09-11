@@ -24,7 +24,7 @@ PATH_TO_LABELS="../nnstreamer_decoder_boundingbox/coco_labels_list.txt"
 PATH_TO_BOX_PRIORS="../nnstreamer_decoder_boundingbox/box_priors.txt"
 PATH_TO_MODEL="../test_models/models/ssd_mobilenet_v2_coco.tflite"
 CASESTART=0
-CASEEND=3
+CASEEND=1
 
 
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
@@ -51,7 +51,7 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} \
 # them the file cannot reach this size.
 WHOLE_FRAME=$(( 128 + 300 * 300 * 3 ))
 [[ -f tensor_region_output_zero.dat ]] && [[ $(wc -c < tensor_region_output_zero.dat) -ge $(( WHOLE_FRAME * 2 )) ]]
-testResult $? 2 "mobilenet-ssd crop of the regions without a detection" 0 1
+testResult $? 1 "mobilenet-ssd crop of the regions without a detection" 0 1
 
 rm tensor_region_output_*
 report
