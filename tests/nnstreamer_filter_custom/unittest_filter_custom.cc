@@ -1127,6 +1127,286 @@ TEST (tensorFilterFlexInput, asyncInvalidOutputInfo_n)
   g_free (fw);
 }
 
+
+/**
+ * @brief What the custom-easy filters of the typed flexible input tests have seen.
+ */
+typedef struct {
+  guint invoked;
+  gsize in_size[2];
+  tensor_type in_type;
+} flex_in_typed_data;
+
+/**
+ * @brief Static custom-easy filter recording its input sizes and copying each input to its output.
+ */
+static int
+_flex_in_typed_static (void *data, const GstTensorFilterProperties *prop,
+    const GstTensorMemory *input, GstTensorMemory *output)
+{
+  flex_in_typed_data *d = (flex_in_typed_data *) data;
+  guint i;
+
+  d->invoked++;
+  for (i = 0; i < MIN (prop->input_meta.num_tensors, G_N_ELEMENTS (d->in_size)); i++) {
+    d->in_size[i] = input[i].size;
+    memcpy (output[i].data, input[i].data, MIN (input[i].size, output[i].size));
+  }
+  return 0;
+}
+
+/**
+ * @brief Dynamic custom-easy filter recording the input type it is given and echoing its input.
+ */
+static int
+_flex_in_typed_dynamic (void *data, const GstTensorsInfo *in_info,
+    GstTensorsInfo *out_info, const GstTensorMemory *input, GstTensorMemory *output)
+{
+  flex_in_typed_data *d = (flex_in_typed_data *) data;
+
+  d->invoked++;
+  d->in_type = in_info->info[0].type;
+
+  gst_tensors_info_free (out_info);
+  gst_tensors_info_copy (out_info, in_info);
+  out_info->format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+  output[0].size = input[0].size;
+  output[0].data = _g_memdup (input[0].data, input[0].size);
+  return 0;
+}
+
+/**
+ * @brief Register a custom-easy model whose input and output tensors are given as comma-separated lists.
+ */
+static int
+_flex_in_typed_register (const gchar *model, gboolean dynamic, const gchar *types,
+    const gchar *dims, const gchar *names, flex_in_typed_data *d)
+{
+  GstTensorsInfo info;
+  int ret;
+
+  memset (d, 0, sizeof (*d));
+  d->in_type = _NNS_END;
+
+  gst_tensors_info_init (&info);
+  info.num_tensors = gst_tensors_info_parse_types_string (&info, types);
+  gst_tensors_info_parse_dimensions_string (&info, dims);
+  gst_tensors_info_parse_names_string (&info, names);
+
+  if (dynamic)
+    ret = NNS_custom_easy_dynamic_register (model, _flex_in_typed_dynamic, d, &info);
+  else
+    ret = NNS_custom_easy_register (model, _flex_in_typed_static, d, &info, &info);
+
+  gst_tensors_info_free (&info);
+  return ret;
+}
+
+/**
+ * @brief Append a flexible tensor of @a type and @a dim, with a zero-filled payload, to @a buf.
+ */
+static void
+_flex_in_typed_append (GstBuffer *buf, tensor_type type, const gchar *dim)
+{
+  GstTensorInfo info;
+  GstTensorMetaInfo meta;
+  GstMemory *mem;
+  gpointer payload;
+  gsize size;
+
+  gst_tensor_info_init (&info);
+  info.type = type;
+  gst_tensor_parse_dimension (dim, info.dimension);
+  size = gst_tensor_info_get_size (&info);
+
+  ASSERT_TRUE (gst_tensor_info_convert_to_meta (&info, &meta));
+  meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  meta.media_type = _NNS_TENSOR;
+
+  payload = g_malloc0 (size);
+  mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, payload, size, 0, size, payload, g_free);
+  gst_buffer_append_memory (buf, gst_tensor_meta_info_append_header (&meta, mem));
+  gst_memory_unref (mem);
+}
+
+/**
+ * @brief Push a buffer of one flexible tensor of @a type and @a dim.
+ */
+static GstFlowReturn
+_flex_in_typed_push (GstHarness *h, tensor_type type, const gchar *dim)
+{
+  GstBuffer *buf = gst_buffer_new ();
+
+  _flex_in_typed_append (buf, type, dim);
+  return gst_harness_push (h, buf);
+}
+
+/**
+ * @brief A flexible tensor with the type and dimension of the configured input is invoked, also with a lower rank ending in 1s.
+ */
+TEST (tensorFilterFlexInput, typedMatch)
+{
+  const gchar *dims[] = { "4:2:1:1", "4:2" };
+  flex_in_typed_data data;
+  GstHarness *h;
+  GstBuffer *out;
+  guint i;
+
+  ASSERT_EQ (_flex_in_typed_register ("flex_in_typed_match", FALSE, "float32",
+                 "4:2:1:1", "in0", &data),
+      0);
+  h = _flex_in_harness ("flex_in_typed_match", FALSE);
+
+  for (i = 0; i < G_N_ELEMENTS (dims); i++) {
+    EXPECT_EQ (_flex_in_typed_push (h, _NNS_FLOAT32, dims[i]), GST_FLOW_OK);
+    EXPECT_EQ (data.invoked, i + 1);
+    EXPECT_EQ (data.in_size[0], 32U);
+
+    out = gst_harness_pull (h);
+    ASSERT_TRUE (out != NULL);
+    gst_buffer_unref (out);
+  }
+  EXPECT_FALSE (_flex_in_refused_header (h));
+
+  _flex_in_teardown (h);
+  EXPECT_EQ (NNS_custom_easy_unregister ("flex_in_typed_match"), 0);
+}
+
+/**
+ * @brief A flexible tensor of the configured size but of another type or shape is refused, not invoked.
+ */
+TEST (tensorFilterFlexInput, typedSameSizeMismatch_n)
+{
+  const tensor_type types[] = { _NNS_INT32, _NNS_FLOAT32 };
+  const gchar *dims[] = { "4:2:1:1", "2:4:1:1" };
+  flex_in_typed_data data;
+  GstHarness *h;
+  guint i;
+
+  ASSERT_EQ (_flex_in_typed_register ("flex_in_typed_mismatch", FALSE,
+                 "float32", "4:2:1:1", "in0", &data),
+      0);
+  h = _flex_in_harness ("flex_in_typed_mismatch", FALSE);
+
+  for (i = 0; i < G_N_ELEMENTS (types); i++) {
+    EXPECT_EQ (_flex_in_typed_push (h, types[i], dims[i]), GST_FLOW_ERROR);
+    EXPECT_EQ (data.invoked, 0U);
+    EXPECT_TRUE (_flex_in_refused_header (h));
+  }
+
+  _flex_in_teardown (h);
+  EXPECT_EQ (NNS_custom_easy_unregister ("flex_in_typed_mismatch"), 0);
+}
+
+/**
+ * @brief Each tensor of a two-tensor flexible input is checked against its own configured tensor.
+ * @details The second tensor of the refused buffer has the configured size but another type, so only a per-index check refuses it.
+ */
+TEST (tensorFilterFlexInput, typedSecondTensor_n)
+{
+  flex_in_typed_data data;
+  GstHarness *h;
+  GstBuffer *buf, *out;
+
+  ASSERT_EQ (_flex_in_typed_register ("flex_in_typed_second", FALSE,
+                 "float32,int32", "4:2:1:1,4:1:1:1", "in0,in1", &data),
+      0);
+  h = _flex_in_harness ("flex_in_typed_second", FALSE);
+
+  buf = gst_buffer_new ();
+  _flex_in_typed_append (buf, _NNS_FLOAT32, "4:2:1:1");
+  _flex_in_typed_append (buf, _NNS_INT32, "4:1:1:1");
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_OK);
+  EXPECT_EQ (data.invoked, 1U);
+  EXPECT_EQ (data.in_size[0], 32U);
+  EXPECT_EQ (data.in_size[1], 16U);
+  out = gst_harness_pull (h);
+  ASSERT_TRUE (out != NULL);
+  EXPECT_EQ (gst_buffer_n_memory (out), 2U);
+  gst_buffer_unref (out);
+  EXPECT_FALSE (_flex_in_refused_header (h));
+
+  buf = gst_buffer_new ();
+  _flex_in_typed_append (buf, _NNS_FLOAT32, "4:2:1:1");
+  _flex_in_typed_append (buf, _NNS_FLOAT32, "4:1:1:1");
+  EXPECT_EQ (gst_harness_push (h, buf), GST_FLOW_ERROR);
+  EXPECT_EQ (data.invoked, 1U);
+  EXPECT_TRUE (_flex_in_refused_header (h));
+
+  _flex_in_teardown (h);
+  EXPECT_EQ (NNS_custom_easy_unregister ("flex_in_typed_second"), 0);
+}
+
+/**
+ * @brief A refused flexible tensor leaves the configured input info as it is, and a matching tensor after it is invoked.
+ */
+TEST (tensorFilterFlexInput, typedKeepsConfiguredInfo)
+{
+  flex_in_typed_data data;
+  GstElement *filter;
+  GstHarness *h;
+  GstBuffer *out;
+  gchar *str;
+
+  ASSERT_EQ (_flex_in_typed_register ("flex_in_typed_keeps", FALSE, "float32",
+                 "4:2:1:1", "in0", &data),
+      0);
+  h = _flex_in_harness ("flex_in_typed_keeps", FALSE);
+
+  EXPECT_EQ (_flex_in_typed_push (h, _NNS_INT32, "4:2:1:1"), GST_FLOW_ERROR);
+  EXPECT_EQ (data.invoked, 0U);
+  EXPECT_TRUE (_flex_in_refused_header (h));
+
+  filter = gst_harness_find_element (h, "tensor_filter");
+  ASSERT_TRUE (filter != NULL);
+  g_object_get (filter, "inputtype", &str, NULL);
+  EXPECT_STREQ (str, "float32");
+  g_free (str);
+  g_object_get (filter, "input", &str, NULL);
+  EXPECT_STREQ (str, "4:2:1:1");
+  g_free (str);
+  g_object_get (filter, "inputname", &str, NULL);
+  EXPECT_STREQ (str, "in0");
+  g_free (str);
+  gst_object_unref (filter);
+
+  EXPECT_EQ (_flex_in_typed_push (h, _NNS_FLOAT32, "4:2:1:1"), GST_FLOW_OK);
+  EXPECT_EQ (data.invoked, 1U);
+  out = gst_harness_pull (h);
+  ASSERT_TRUE (out != NULL);
+  gst_buffer_unref (out);
+
+  _flex_in_teardown (h);
+  EXPECT_EQ (NNS_custom_easy_unregister ("flex_in_typed_keeps"), 0);
+}
+
+/**
+ * @brief The dynamic invoke is not checked against the configured type: it takes the type of each incoming tensor.
+ */
+TEST (tensorFilterFlexInput, typedDynamicTakesType)
+{
+  flex_in_typed_data data;
+  GstHarness *h;
+  GstBuffer *out;
+
+  ASSERT_EQ (_flex_in_typed_register ("flex_in_typed_dynamic", TRUE, "float32",
+                 "4:2:1:1", "in0", &data),
+      0);
+  h = _flex_in_harness ("flex_in_typed_dynamic", TRUE);
+
+  EXPECT_EQ (_flex_in_typed_push (h, _NNS_INT32, "4:2:1:1"), GST_FLOW_OK);
+  EXPECT_EQ (data.invoked, 1U);
+  EXPECT_EQ (data.in_type, _NNS_INT32);
+  out = gst_harness_pull (h);
+  ASSERT_TRUE (out != NULL);
+  gst_buffer_unref (out);
+  EXPECT_FALSE (_flex_in_refused_header (h));
+
+  _flex_in_teardown (h);
+  EXPECT_EQ (NNS_custom_easy_unregister ("flex_in_typed_dynamic"), 0);
+}
+
 /**
  * @brief Main gtest
  */
