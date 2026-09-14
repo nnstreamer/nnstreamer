@@ -1179,6 +1179,7 @@ gst_tensor_if_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
   if (!gst_tensor_if_check_condition (tensor_if, buf, &condition_result)) {
     GST_ELEMENT_ERROR (tensor_if, STREAM, WRONG_TYPE, (NULL),
         ("Failed to check the condition of the incoming buffer."));
+    gst_buffer_unref (buf);
     return GST_FLOW_ERROR;
   }
 
