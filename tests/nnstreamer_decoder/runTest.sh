@@ -113,7 +113,7 @@ function video_format_test() {
 }
 
 VIDEO_FORMAT=("GRAY8" "GRAY16_LE" "GRAY16_BE" "RGB" "BGR" "RGBx" "BGRx" "xRGB" "xBGR" "RGBA" "BGRA" "ARGB" "ABGR")
-for FORMAT in ${VIDEO_FORMAT[@]}; do
+for FORMAT in "${VIDEO_FORMAT[@]}"; do
     video_format_test ${FORMAT}
 done
 

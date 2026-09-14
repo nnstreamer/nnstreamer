@@ -41,7 +41,7 @@ if [ -z $1 ]; then
   exit 1
 fi
 if [ -z $2 ]; then
-  2=0
+  set -- "$1" 0
 fi
 
 function check(){
