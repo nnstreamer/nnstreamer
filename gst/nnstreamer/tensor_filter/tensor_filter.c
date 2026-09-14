@@ -719,6 +719,43 @@ _gst_tensor_filter_convert_meta (FilterTransformData * trans_data,
 }
 
 /**
+ * @brief Internal function to check that a flexible input tensor has the type and dimension of the configured input tensor it feeds.
+ * @details Without the dynamic invoke, the subplugin reads the configured input. The size check passes a tensor of the same size but of another type or shape, which is refused here. The header has been validated by _gst_tensor_filter_convert_meta ().
+ */
+static gboolean
+_gst_tensor_filter_check_flexible_input (GstTensorFilter * self,
+    FilterTransformData * trans_data, guint buf_idx, guint conf_idx)
+{
+  GstTensorFilterProperties *prop = &self->priv.prop;
+  GstTensorInfo info, *conf;
+  gchar *info_str, *conf_str;
+  gboolean equal;
+
+  if (!trans_data->is_flexible || prop->invoke_dynamic)
+    return TRUE;
+
+  conf = gst_tensors_info_get_nth_info (&prop->input_meta, conf_idx);
+  gst_tensor_info_init (&info);
+  equal = gst_tensor_meta_info_convert (&trans_data->meta[buf_idx], &info) &&
+      gst_tensor_info_is_equal (&info, conf);
+
+  if (!equal) {
+    info_str = gst_tensor_info_to_string (&info);
+    conf_str = gst_tensor_info_to_string (conf);
+
+    GST_ELEMENT_ERROR_BTRACE (self, STREAM, WRONG_TYPE,
+        ("The %u'th tensor of the flexible input buffer, %s, is not the %u'th input tensor, %s, of tensor-filter (%s : %s). Without invoke-dynamic, a flexible tensor has to have the type and dimension of the configured input.",
+            buf_idx, GST_STR_NULL (info_str), conf_idx, GST_STR_NULL (conf_str),
+            GST_STR_NULL (prop->fwname), TF_MODELNAME (prop)));
+
+    g_free (info_str);
+    g_free (conf_str);
+  }
+
+  return equal;
+}
+
+/**
  * @brief Internal function to get input tensors.
  */
 static FilterTransformData *
@@ -834,6 +871,12 @@ _gst_tensor_filter_transform_get_invoke_tensors (GstBaseTransform * trans,
         return NULL;
       }
 
+      if (!_gst_tensor_filter_check_flexible_input (self, trans_data, i,
+              info_idx)) {
+        g_free (invoke_tensors);
+        return NULL;
+      }
+
       invoke_tensors[info_idx++] = trans_data->tensors[i];
     }
   } else {
@@ -843,6 +886,11 @@ _gst_tensor_filter_transform_get_invoke_tensors (GstBaseTransform * trans,
         ml_loge_stacktrace
             ("gst_tensor_filter_transform: Input buffer size (%u'th memory chunk: %zd) is invalid, which is expected to be %zd, which is the frame size of the corresponding tensor. Maybe, the pad capability is not consistent with the actual input stream; if the size is supposed to change dynamically and the given neural network, framework, and the subpluigins can handle it, please consider using format=flexible with invoke-dynamic=true.\n",
             i, trans_data->tensors[i].size, expected);
+        g_free (invoke_tensors);
+        return NULL;
+      }
+
+      if (!_gst_tensor_filter_check_flexible_input (self, trans_data, i, i)) {
         g_free (invoke_tensors);
         return NULL;
       }
