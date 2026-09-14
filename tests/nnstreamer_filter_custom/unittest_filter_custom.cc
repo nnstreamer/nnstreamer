@@ -166,6 +166,8 @@ TEST (tensorFilterCustom, flexibleInvoke_p)
   EXPECT_TRUE (wait_pipeline_process_buffers (&data.sink_received, 6, TEST_TIMEOUT_LIMIT_MS));
   g_usleep (1000000);
 
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
   /** cleanup registered custom_easy filter */
   ret = NNS_custom_easy_unregister ("flexible_filter");
   ASSERT_EQ (0, ret);
@@ -224,6 +226,8 @@ TEST (tensorFilterCustom, staticFlexibleInvoke_p)
   EXPECT_TRUE (wait_pipeline_process_buffers (&data.sink_received, 6, TEST_TIMEOUT_LIMIT_MS));
   g_usleep (1000000);
 
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
   /** cleanup registered custom_easy filter */
   ret = NNS_custom_easy_unregister ("flexible_filter");
   ASSERT_EQ (0, ret);
@@ -278,6 +282,8 @@ TEST (tensorFilterCustom, flexibleInvokeInvalidProp_n)
   g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, &data);
 
   EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   /** cleanup registered custom_easy filter */
   ret = NNS_custom_easy_unregister ("flexible_filter");
@@ -367,6 +373,8 @@ TEST (tensorFilterCustom, staticInvoke_n)
   g_signal_connect (sink_handle, "new-data", (GCallback) new_data_cb, NULL);
 
   EXPECT_NE (setPipelineStateSync (gstpipe, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  EXPECT_EQ (setPipelineStateSync (gstpipe, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
 
   /** cleanup registered custom_easy filter */
   ret = NNS_custom_easy_unregister ("normal_filter");
