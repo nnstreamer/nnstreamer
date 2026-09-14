@@ -53,7 +53,7 @@ check grep
 check wc
 
 shell_syntax_analysis_sw="shellcheck"
-shell_syntax_analysis_rules="-s bash"
+shell_syntax_analysis_rules="-s bash -S error"
 shell_syntax_check_result=$(mktemp)
 
 # Inspect all files that contributor modifed.
@@ -68,25 +68,24 @@ for file in `cat $files`; do
   fi
   # Handle only text files in case that there are lots of files in one commit.
   echo "[DEBUG] file name is ($file)."
-  if [[ `file $file | grep "shell script" | wc -l` -gt 0 ]]; then
+  if [[ `file $file | grep "text" | wc -l` -gt 0 ]]; then
     case $file in
       # In case of .sh or .bash file
       *.sh | *.bash)
-        echo "($file) file is a shell script file with the 'shell script' text format."
+        echo "($file) file is a shell script file."
 
-        cat $file | $shell_syntax_analysis_sw $shell_syntax_analysis_rules > ${shell_syntax_check_result}
-        line_count=`cat ${shell_syntax_check_result} | wc -l`
+        $shell_syntax_analysis_sw $shell_syntax_analysis_rules "$file" > ${shell_syntax_check_result} 2>&1
+        result=$?
 
         echo "::group::shellcheck result of $file"
         cat ${shell_syntax_check_result}
         echo "::endgroup::"
 
-        # TODO: 9,000 is declared by heuristic method from our experiment.
-        if  [[ $line_count -gt 9000 ]]; then
-          echo "$shell_syntax_analysis_sw: failed. file name: $file There are $line_count lines."
+        if [[ $result -ne 0 ]]; then
+          echo "$shell_syntax_analysis_sw: failed. file name: $file"
           failed=1
         else
-          echo "$shell_syntax_analysis_sw: passed. file name: $file There are $line_count lines."
+          echo "$shell_syntax_analysis_sw: passed. file name: $file"
         fi
         ;;
     esac
@@ -94,6 +93,6 @@ for file in `cat $files`; do
 done
 
 if [[ "$failed" == "1" ]]; then
-  echo "::error These is a enough number of errors in a shell file with shellcheck. Please refer to the log above".
+  echo "::error shellcheck has found errors in shell scripts. Please refer to the log above."
   exit 1
 fi

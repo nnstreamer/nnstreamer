@@ -18,7 +18,7 @@ fi
 for ext_obj in $(find ${MEDIAPIPE_HOME}/bazel-bin/external/ -name '*.o' ); do
   ext_obj_arr+=($ext_obj)
 done
-$($CC ${ext_obj_arr[@]} -shared -o libmediapipe_external.so)
+$($CC "${ext_obj_arr[@]}" -shared -o libmediapipe_external.so)
 if [ $? -ne 0 ]; then
   exit 1
 fi
@@ -31,7 +31,7 @@ for int_obj in $(find ${MEDIAPIPE_HOME}/bazel-bin/mediapipe/ -name '*.o' ); do
     int_obj_arr+=($int_obj)
   fi
 done
-out=$($CC ${int_obj_arr[@]} -shared -o libmediapipe_internal.so)
+out=$($CC "${int_obj_arr[@]}" -shared -o libmediapipe_internal.so)
 if [ $? -ne 0 ]; then
   exit 1
 fi

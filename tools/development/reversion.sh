@@ -5,7 +5,7 @@ paramerr () {
 	echo "    \$ $0 old-major old-mid old-minor new-version(full) \"Name <Email>\""
 	echo ""
 	echo ""
-	exit -1
+	exit 1
 }
 
 if [ "$#" -ne 5 ]; then paramerr; fi
