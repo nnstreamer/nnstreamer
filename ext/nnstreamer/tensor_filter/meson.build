@@ -162,6 +162,10 @@ if tflite_support_is_available
   )
 endif
 
+if get_option('tflite2-custom-support').enabled()
+  error('The tensorflow2-lite-custom subplugin is removed. Drop -Dtflite2-custom-support and use the tensorflow2-lite subplugin.')
+endif
+
 tflite2_ver_dep = disabler()
 if tflite2_support_is_available
   tflite2_ver = tflite2_support_deps[0].version()
@@ -239,7 +243,6 @@ if tflite2_support_is_available
     tflite2_compile_args += '-DTFLITE_EXTERNAL_DELEGATE_SUPPORTED'
   endif
 
-  tflite2_custom_compile_args = tflite2_compile_args
   tflite2_compile_args += '-DTFLITE_SUBPLUGIN_NAME="tensorflow2-lite"'
 
   tflite2_extra_dep = declare_dependency(
@@ -262,86 +265,6 @@ if tflite2_support_is_available
     install: true,
     install_dir: nnstreamer_libdir
   )
-
-
-  if (get_option('tflite2-custom-support').enabled() or get_option('tflite2-custom-support').auto()) and not meson.is_cross_build()
-    ## Create libtensorflow2-lite-custom.so support.
-
-    ## @todo This assumes the same tflite version with the above.
-    ##       If the user has downloaded libtensorflow-lite manually, it may incur inconsistency.
-    ## @todo This does not use pkgconfig or find_library/meson-dep info
-    ##       because it does not allow querying libpath and static/shared of a dependency object.
-
-    filepaths = [
-        join_paths(meson.current_source_dir(), 'libtensorflow2-lite.so'),
-        join_paths(meson.current_build_dir(), 'libtensorflow2-lite.so'),
-        join_paths(nnstreamer_libdir, 'libtensorflow2-lite.so'),
-        '/usr/lib/libtensorflow2-lite.so',
-        '/usr/lib64/libtensorflow2-lite.so',
-        './libtensorflow2-lite.so'
-    ]
-    filepath = ''
-    foreach file : filepaths
-      if fs.is_file(file)
-        message('Found: ' + file)
-        filepath = file
-        configure_file (
-          input: file,
-          output: 'libtensorflow2-lite-custom.so',
-          copy: true
-        )
-        break
-      endif
-    endforeach
-
-    if filepath == ''
-      ## No shared tfl lib found. Get static lib and convert it
-      custom_tflite_lib = join_paths(meson.current_build_dir(), 'libtensorflow2-lite-custom.so')
-
-      filepaths = [join_paths(nnstreamer_libdir, 'libtensorflow2-lite.a'),
-          '/usr/lib/libtensorflow2-lite.a',
-          '/usr/lib64/libtensorflow2-lite.a',
-          './libtensorflow2-lite.a',
-          join_paths(meson.current_build_dir(), 'libtensorflow2-lite.a'),
-          join_paths(meson.current_source_dir(), 'libtensorflow2-lite.a')
-      ]
-
-      foreach file : filepaths
-        if fs.is_file(file)
-          somake = run_command('gcc', '-shared', '-o', custom_tflite_lib, '-Wl,--whole-archive', file, '-Wl,--no-whole-archive', check : false)
-          if somake.returncode() == 0
-            message('Successfully created libtensorflow2-lite-custom.so from archive: ' + file)
-            filepath = file
-            break
-          else
-            error('Cannot create .so from: ' + file)
-          endif
-        endif
-      endforeach
-    endif
-
-    if filepath != ''
-      tflite2_custom_compile_args += '-DTFLITE_SUBPLUGIN_NAME="tensorflow2-lite-custom"'
-      tflite2_custom_extra_dep = declare_dependency( compile_args : tflite2_custom_compile_args )
-      tflc_dep = declare_dependency (
-        link_args: ['-L' + meson.current_build_dir(), '-ltensorflow2-lite-custom']
-      )
-      shared_library('nnstreamer_filter_tensorflow2-lite-custom',
-        filter_sub_tflite2_sources,
-        dependencies: [tflc_dep, thread_dep, libdl_dep, nnstreamer_single_dep, tflite2_ver_dep, tflite2_custom_extra_dep],
-        install: true,
-        install_dir:filter_subplugin_install_dir
-      )
-    else # no custom mode built
-      if get_option('tflite2-custom-support').enabled()
-        error('Cannot create tflite2-custom tensor-filter subplugin. No valid .so/.a of tensorflow2-lite found.')
-      endif
-    endif
-  endif
-else # no tflite2
-  if get_option('tflite2-custom-support').enabled()
-    error('tflite2-custom-support requires tflite2-support')
-  endif
 endif
 
 if pytorch_support_is_available

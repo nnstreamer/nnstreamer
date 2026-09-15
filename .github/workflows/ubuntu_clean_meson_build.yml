@@ -184,6 +184,30 @@ jobs:
         meson test -C build/ -v
       env:
         CC: gcc
+    # The tensorflow2-lite-custom sub-plugin is gone, but out-of-tree build
+    # scripts still pass its option, and meson aborts on an option it does not
+    # know. So the option stays behind, selecting nothing, and a request for
+    # the removed sub-plugin is refused. Nothing else exercises either path.
+    # A refusal for any other reason does not count, and the check cannot
+    # differ by architecture, so it runs on the x86 leg only.
+    # Drop this step with the option itself.
+    # https://github.com/nnstreamer/nnstreamer/issues/4268
+    # https://github.com/nnstreamer/nnstreamer/issues/4978
+    - name: Removed tflite2-custom option keeps configuring
+      if: env.rebuild == '1' && matrix.os == 'ubuntu-22.04'
+      run: |
+        meson setup "${RUNNER_TEMP}/build-optshim" -Dtflite2-custom-support=disabled
+        log=${RUNNER_TEMP}/optshim-enabled.log
+        if meson setup --reconfigure "${RUNNER_TEMP}/build-optshim" -Dtflite2-custom-support=enabled > "${log}" 2>&1; then
+          cat "${log}"
+          echo "::error::-Dtflite2-custom-support=enabled must fail to configure: the sub-plugin it asks for was removed."
+          exit 1
+        fi
+        cat "${log}"
+        if ! grep -q "tensorflow2-lite-custom subplugin is removed" "${log}"; then
+          echo "::error::-Dtflite2-custom-support=enabled failed to configure, but not because the sub-plugin was removed."
+          exit 1
+        fi
     - name: Upload core if something went wrong
       uses: actions/upload-artifact@v4
       if: ${{ failure() }}
