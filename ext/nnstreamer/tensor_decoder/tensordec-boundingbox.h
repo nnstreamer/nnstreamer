@@ -47,7 +47,7 @@
  *            An example of option3 is "option3=0:0.65:0.6"
  *          for mobilenet-ssd mode:
  *            The option3 definition scheme is, in order, the following:
- *                - box priors location file (mandatory)
+ *                - box priors location file (mandatory), with a prior for every detection
  *                - Detection threshold (optional, default set to 0.5)
  *                - Y box scale (optional, default set to 10.0)
  *                - X box scale (optional, default set to 10.0)
