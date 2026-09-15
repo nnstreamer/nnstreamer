@@ -92,6 +92,15 @@ callCompareTest palm_detection_result_golden.0 palm_detection_result_0.log 5-0 "
 callCompareTest palm_detection_result_golden.1 palm_detection_result_1.log 5-1 "palm detection Decode 1 (with config_file.2)" 0
 rm palm_detection_result_*.log
 
+## option3 with the threshold only generates the anchors of the default layers and strides
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_mux name=mux ! tensor_decoder mode=bounding_boxes option1=mp-palm-detection option3=0.5 option4=160:120 option5=300:300 ! videoconvert !  video/x-raw,format=RGBA ! multifilesink location=palm_detection_result_%1d.log \
+    multifilesrc location=palm_detection_input_0.%1d start-index=$CASESTART stop-index=$CASEEND caps=application/octet-stream ! tensor_converter input-dim=18:2016:1:1 input-type=float32 ! mux.sink_0 \
+    multifilesrc location=palm_detection_input_1.%1d start-index=$CASESTART stop-index=$CASEEND caps=application/octet-stream ! tensor_converter input-dim=1:2016:1:1 input-type=float32 ! mux.sink_1" 5-2 0 0 $PERFORMANCE
+
+callCompareTest palm_detection_result_golden.0 palm_detection_result_0.log 5-3 "palm detection Decode 0 (option3 with the threshold only)" 0
+callCompareTest palm_detection_result_golden.1 palm_detection_result_1.log 5-4 "palm detection Decode 1 (option3 with the threshold only)" 0
+rm palm_detection_result_*.log
+
 # yolov5 decoder test
 ## wrong tensor dimension
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov5_decoder_input.raw start-index=0 stop-index=0 caps=application/octet-stream ! tensor_converter input-dim=85:10647:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov5 option2=coco-80.txt option3=0:0.25:0.45 option4=320:320 option5=320:320 option6=0 option7=1 ! fakesink" "6 yolov5 decoder_n" 0 1

@@ -840,6 +840,240 @@ TEST (tensorDecoderBoundingBox, ssdPpDetectionCountNegative_n)
   EXPECT_EQ (countDrawnPixels (frame, BOX_OUT_PIXELS), 0U);
 }
 
+#define PALM_DETECTIONS (72U)
+#define PALM_INFO_SIZE (18U)
+/* One layer of stride 32: 6x6 cells of 2 anchors, as many anchors as PALM_DETECTIONS */
+#define PALM_OPTION_STRIDE_32 "0.5:1:1.0:1.0:0.5:0.5:32"
+/* The same anchors moved to the corner of their cells */
+#define PALM_OPTION_STRIDE_32_CORNER "0.5:1:1.0:1.0:0.0:0.0:32"
+/* One layer of stride 64: 3x3 cells of 2 anchors, fewer than PALM_DETECTIONS */
+#define PALM_OPTION_STRIDE_64 "0.5:1:1.0:1.0:0.5:0.5:64"
+/* The first anchor of cell (2, 2), which only the stride-32 anchors reach */
+#define PALM_DETECTION_INDEX (28U)
+
+/**
+ * @brief mp-palm-detection tensors with one detection, as many as PALM_DETECTIONS.
+ * @details Each case of this binary gives this mode PALM_DETECTIONS detections,
+ *          because the mode keeps the first count it accepts for the whole process.
+ */
+class PalmDetectionTensors
+{
+  public:
+  float boxes[PALM_INFO_SIZE * PALM_DETECTIONS]; /**< box tensor */
+  float scores[PALM_DETECTIONS]; /**< score tensor */
+  GstTensorMemory input[2]; /**< the two tensors */
+  GstTensorsConfig config; /**< their config */
+
+  /**
+   * @brief Put a 48x48 box of the model input on the anchor PALM_DETECTION_INDEX.
+   */
+  PalmDetectionTensors ()
+  {
+    const gchar *const dims[] = { "18:72:1", "1:72:1" };
+    guint i;
+
+    memset (boxes, 0, sizeof (boxes));
+    for (i = 0; i < PALM_DETECTIONS; i++)
+      scores[i] = -10.0f;
+
+    boxes[PALM_DETECTION_INDEX * PALM_INFO_SIZE + 2] = 48.0f;
+    boxes[PALM_DETECTION_INDEX * PALM_INFO_SIZE + 3] = 48.0f;
+    scores[PALM_DETECTION_INDEX] = 10.0f;
+
+    input[0].data = boxes;
+    input[0].size = sizeof (boxes);
+    input[1].data = scores;
+    input[1].size = sizeof (scores);
+    setFloatConfig (&config, 2, dims);
+  }
+
+  /**
+   * @brief Release the config.
+   */
+  ~PalmDetectionTensors ()
+  {
+    gst_tensors_config_free (&config);
+  }
+};
+
+/**
+ * @brief Start a mp-palm-detection decoder with the output and model sizes set.
+ */
+static gboolean
+initPalmDecoder (const GstTensorDecoderDef *decoder, void **pdata)
+{
+  return decoder != NULL && decoder->init (pdata)
+         && decoder->setOption (pdata, 0, "mp-palm-detection")
+         && decoder->setOption (pdata, 3, "64:48")
+         && decoder->setOption (pdata, 4, "192:192");
+}
+
+/**
+ * @brief A new option3 replaces the anchors instead of adding to them.
+ * @details The anchors used to be appended on every option3, so a stream kept
+ *          being decoded with the first anchors ever generated in the process.
+ */
+TEST (tensorDecoderBoundingBox, palmOptionReplacesAnchors)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  PalmDetectionTensors t;
+  uint32_t first[BOX_OUT_PIXELS] = { 0U };
+  uint32_t corner[BOX_OUT_PIXELS] = { 0U };
+  uint32_t again[BOX_OUT_PIXELS] = { 0U };
+  void *pdata = NULL;
+
+  ASSERT_TRUE (initPalmDecoder (decoder, &pdata));
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, PALM_OPTION_STRIDE_32));
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &t.config));
+  EXPECT_TRUE (decodeFrame (decoder, &pdata, &t.config, t.input, first));
+  EXPECT_GT (countDrawnPixels (first, BOX_OUT_PIXELS), 0U);
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, PALM_OPTION_STRIDE_32_CORNER));
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &t.config));
+  EXPECT_TRUE (decodeFrame (decoder, &pdata, &t.config, t.input, corner));
+  EXPECT_GT (countDrawnPixels (corner, BOX_OUT_PIXELS), 0U);
+  EXPECT_NE (memcmp (first, corner, sizeof (first)), 0);
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, PALM_OPTION_STRIDE_32));
+  EXPECT_TRUE (decodeFrame (decoder, &pdata, &t.config, t.input, again));
+  EXPECT_EQ (memcmp (first, again, sizeof (first)), 0);
+
+  decoder->exit (&pdata);
+}
+
+/**
+ * @brief A stream with more detections than anchors is refused.
+ */
+TEST (tensorDecoderBoundingBox, palmFewerAnchorsThanDetections_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  PalmDetectionTensors t;
+  void *pdata = NULL;
+
+  ASSERT_TRUE (initPalmDecoder (decoder, &pdata));
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, PALM_OPTION_STRIDE_64));
+  EXPECT_FALSE (acceptsConfig (decoder, &pdata, &t.config));
+
+  decoder->exit (&pdata);
+}
+
+/**
+ * @brief Anchors reduced while the stream runs bound the detections decoded.
+ * @details option3 is writable in PLAYING without a renegotiation, so decode ()
+ *          cannot rely on the anchor count checked with the caps.
+ */
+TEST (tensorDecoderBoundingBox, palmAnchorsReducedWhileDecoding_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  PalmDetectionTensors t;
+  uint32_t frame[BOX_OUT_PIXELS] = { 0U };
+  void *pdata = NULL;
+
+  ASSERT_TRUE (initPalmDecoder (decoder, &pdata));
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, PALM_OPTION_STRIDE_32));
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &t.config));
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, PALM_OPTION_STRIDE_64));
+  EXPECT_TRUE (decodeFrame (decoder, &pdata, &t.config, t.input, frame));
+  EXPECT_EQ (countDrawnPixels (frame, BOX_OUT_PIXELS), 0U);
+
+  decoder->exit (&pdata);
+}
+
+/**
+ * @brief An option3 whose layers cannot be generated is refused and changes nothing.
+ * @details The number of layers indexes a stride table of 13 entries of which the
+ *          option can set 7, and a stride divides the feature map size.
+ */
+TEST (tensorDecoderBoundingBox, palmInvalidLayers_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  PalmDetectionTensors t;
+  uint32_t expected[BOX_OUT_PIXELS] = { 0U };
+  uint32_t frame[BOX_OUT_PIXELS] = { 0U };
+  void *pdata = NULL;
+
+  ASSERT_TRUE (initPalmDecoder (decoder, &pdata));
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, PALM_OPTION_STRIDE_32));
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &t.config));
+  EXPECT_TRUE (decodeFrame (decoder, &pdata, &t.config, t.input, expected));
+
+  EXPECT_FALSE (decoder->setOption (&pdata, 2, "0.5:0"));
+  EXPECT_FALSE (decoder->setOption (&pdata, 2, "0.5:-1"));
+  EXPECT_FALSE (decoder->setOption (&pdata, 2, "0.5:8:1.0:1.0:0.5:0.5:32:32:32:32:32:32:32"));
+  EXPECT_FALSE (decoder->setOption (&pdata, 2, "0.5:100"));
+  EXPECT_FALSE (decoder->setOption (&pdata, 2, "0.5:2:1.0:1.0:0.5:0.5:32:0"));
+  EXPECT_FALSE (decoder->setOption (&pdata, 2, "0.5:2:1.0:1.0:0.5:0.5:-8:32"));
+  /* No case of this binary gives the fifth to seventh layers a stride */
+  EXPECT_FALSE (decoder->setOption (&pdata, 2, "0.5:7:1.0:1.0:0.5:0.5:32:32:32:32"));
+
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &t.config));
+  EXPECT_TRUE (decodeFrame (decoder, &pdata, &t.config, t.input, frame));
+  EXPECT_EQ (memcmp (frame, expected, sizeof (frame)), 0);
+
+  decoder->exit (&pdata);
+}
+
+/**
+ * @brief Layers without a stride in option3 take the strides already set.
+ */
+TEST (tensorDecoderBoundingBox, palmLayersKeepSetStrides)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  PalmDetectionTensors t;
+  uint32_t expected[BOX_OUT_PIXELS] = { 0U };
+  uint32_t frame[BOX_OUT_PIXELS] = { 0U };
+  void *pdata = NULL;
+
+  ASSERT_TRUE (initPalmDecoder (decoder, &pdata));
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, PALM_OPTION_STRIDE_32));
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &t.config));
+  EXPECT_TRUE (decodeFrame (decoder, &pdata, &t.config, t.input, expected));
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, "0.5:1"));
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &t.config));
+  EXPECT_TRUE (decodeFrame (decoder, &pdata, &t.config, t.input, frame));
+  EXPECT_EQ (memcmp (frame, expected, sizeof (frame)), 0);
+
+  decoder->exit (&pdata);
+}
+
+/**
+ * @brief Check a mp-palm-detection decoder that has never been given option3.
+ * @details Runs in a fresh process, where no case has generated anchors yet.
+ */
+static void
+exitWithPalmCapsWithoutOption ()
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  PalmDetectionTensors t;
+  void *pdata = NULL;
+  int status = 2;
+
+  if (initPalmDecoder (decoder, &pdata)) {
+    status = acceptsConfig (decoder, &pdata, &t.config) ? 1 : 0;
+    decoder->exit (&pdata);
+  }
+
+  exit (status);
+}
+
+/**
+ * @brief A mp-palm-detection stream without option3 is refused.
+ * @details Without option3 no anchor is generated, and decode () used to index
+ *          the empty anchor array for every detection.
+ */
+TEST (tensorDecoderBoundingBox, palmWithoutOption_n)
+{
+  testing::GTEST_FLAG (death_test_style) = "threadsafe";
+  EXPECT_EXIT (exitWithPalmCapsWithoutOption (), testing::ExitedWithCode (0), "");
+}
+
 /**
  * @brief Main GTest
  */
