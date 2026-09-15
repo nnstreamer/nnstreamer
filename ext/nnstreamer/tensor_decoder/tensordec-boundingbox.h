@@ -75,12 +75,14 @@
  *          for mp-palm-detection mode:
  *            The option3 is required to have 5 float numbers, as following
  *                - box score threshold (mandatory)
- *                - number of layers for anchor generation (optional, default set to 4)
+ *                - number of layers for anchor generation (optional, default set to 4, at most 7)
  *                - minimum scale factor for anchor generation (optional, default set to 1.0)
  *                - maximum scale factor for anchor generation (optional, default set to 1.0)
  *                - X offset (optional, default set to 0.5)
  *                - Y offset (optional, default set to 0.5)
  *                - strides for each layer for anchor generation (optional, default set to 8:16:16:16)
+ *            A layer beyond the fourth needs its stride given, and a stride has to be positive.
+ *            The anchors generated have to be at least as many as the detections of the model.
  *            The default parameter value could be set in the following ways:
  *            option3=0.5
  *            option3=0.5:4:0.2:0.8

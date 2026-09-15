@@ -55,7 +55,7 @@ class MpPalmDetection : public BoxProperties
   gfloat max_scale; /** Maximum scale */
   gfloat offset_x; /** anchor X offset */
   gfloat offset_y; /** anchor Y offset */
-  gint strides[PARAMS_MAX]; /** Stride data for each layers */
+  gint strides[PARAMS_MAX] = { 0 }; /** Stride data for each layers */
   gfloat min_score_threshold; /** minimum threshold of score */
 
   GArray *anchors;
@@ -76,7 +76,7 @@ class MpPalmDetection : public BoxProperties
       int d_;                                                                           \
       _type *scores_ = (_type *) scoreinput;                                            \
       _type *boxes_ = (_type *) boxesinput;                                             \
-      int num_ = max_detection;                                                         \
+      int num_ = MIN (max_detection, this->anchors->len);                               \
       info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, 0);       \
       size_t boxbpi_ = info->dimension[0];                                              \
       results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), num_);         \
@@ -155,6 +155,8 @@ MpPalmDetection::mp_palm_detection_generate_anchors ()
 {
   int layer_id = 0;
   guint i;
+
+  g_array_set_size (anchors, 0);
 
   while (layer_id < num_layers) {
     GArray *aspect_ratios = g_array_new (FALSE, TRUE, sizeof (gfloat));
@@ -254,7 +256,7 @@ MpPalmDetection::setOptionInternal (const char *param)
 {
   /* Load palm detection info from option3 */
   gchar **options;
-  int noptions, idx;
+  int noptions, idx, layers;
   int ret = TRUE;
 
   options = g_strsplit (param, ":", -1);
@@ -264,6 +266,26 @@ MpPalmDetection::setOptionInternal (const char *param)
     GST_ERROR ("Invalid MP PALM DETECTION PARAM length: %d", noptions);
     ret = FALSE;
     goto exit_mp_palm_detection;
+  }
+
+  layers = (noptions > 1) ? (gint) g_strtod (options[1], NULL) : num_layers;
+  if (layers < 1 || layers > PARAMS_MAX - 6) {
+    GST_ERROR ("Invalid MP PALM DETECTION number of layers: %d", layers);
+    ret = FALSE;
+    goto exit_mp_palm_detection;
+  }
+
+  for (idx = 0; idx < layers; idx++) {
+    gint stride = strides[idx];
+
+    if (noptions > idx + 6)
+      stride = (gint) g_strtod (options[idx + 6], NULL);
+
+    if (stride <= 0) {
+      GST_ERROR ("Invalid MP PALM DETECTION stride of layer %d: %d", idx, stride);
+      ret = FALSE;
+      goto exit_mp_palm_detection;
+    }
   }
 
   mp_palm_detection_option (min_score_threshold, gfloat, 0);
@@ -322,6 +344,12 @@ MpPalmDetection::checkCompatible (const GstTensorsConfig *config)
 
   if (max_detection > MAX_DETECTION) {
     GST_ERROR ("Incoming tensor has too large detection-max : %u", max_detection);
+    return FALSE;
+  }
+
+  if (anchors->len < max_detection) {
+    GST_ERROR ("Incoming tensor has %u detections but option3 generates %u anchors",
+        max_detection, anchors->len);
     return FALSE;
   }
   return TRUE;
