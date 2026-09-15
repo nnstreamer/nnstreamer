@@ -213,6 +213,12 @@ class TFLiteInterpreter
   {
     return &outputTensorMeta;
   }
+  /** @brief check other has the same input and output tensor meta (hold this lock; other is only read) */
+  gboolean hasSameTensorsInfo (TFLiteInterpreter *other)
+  {
+    return gst_tensors_info_is_equal (&inputTensorMeta, other->getInputTensorsInfo ())
+           && gst_tensors_info_is_equal (&outputTensorMeta, other->getOutputTensorsInfo ());
+  }
 
   /** @brief lock this interpreter */
   void lock ()
@@ -1259,18 +1265,12 @@ int
 TFLiteCore::reloadInterpreter (TFLiteInterpreter *new_interpreter)
 {
   TFLiteInterpreter *old_interpreter = interpreter;
-  gboolean in_matched, out_matched;
   int ret = 0;
 
   old_interpreter->lock ();
   new_interpreter->lock ();
 
-  in_matched = gst_tensors_info_is_equal (old_interpreter->getInputTensorsInfo (),
-      new_interpreter->getInputTensorsInfo ());
-  out_matched = gst_tensors_info_is_equal (old_interpreter->getOutputTensorsInfo (),
-      new_interpreter->getOutputTensorsInfo ());
-
-  if (!in_matched || !out_matched) {
+  if (!old_interpreter->hasSameTensorsInfo (new_interpreter)) {
     ml_loge ("The model has unmatched tensors info\n");
     ret = -EINVAL;
   } else {
@@ -1315,6 +1315,7 @@ TFLiteCore::reloadModel (const char *_model_path)
   TFLiteInterpreter *interpreter_sub = new TFLiteInterpreter ();
   const char *_ext_delegate_path;
   GHashTable *_ext_delegate_kv;
+  gboolean compatible;
 
   interpreter_sub->setModelPath (_model_path);
   interpreter->getExtDelegate (&_ext_delegate_path, &_ext_delegate_kv);
@@ -1342,6 +1343,16 @@ TFLiteCore::reloadModel (const char *_model_path)
   }
 
   if (shared_tensor_filter_key) {
+    /* The helper frees the old interpreter even if a core refuses the new one. */
+    interpreter->lock ();
+    compatible = interpreter->hasSameTensorsInfo (interpreter_sub);
+    interpreter->unlock ();
+
+    if (!compatible) {
+      ml_loge ("The model has unmatched tensors info, the shared model is not reloaded\n");
+      goto error;
+    }
+
     /* update cores with new interpreter that has shared key */
     nnstreamer_filter_shared_model_replace (this, shared_tensor_filter_key,
         interpreter_sub, replace_interpreter, free_interpreter);
