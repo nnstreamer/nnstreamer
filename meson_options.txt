@@ -5,7 +5,7 @@ option('tizen-hal-support', type: 'feature', value: 'auto')
 option('tf-support', type: 'feature', value: 'auto')
 option('tflite-support', type: 'feature', value: 'auto')
 option('tflite2-support', type: 'feature', value: 'auto')
-option('tflite2-custom-support', type: 'feature', value: 'disabled') # requires tflite2-support. disabled due to incompleteness.
+option('tflite2-custom-support', type: 'feature', value: 'disabled') # The subplugin is removed (#4268). Kept so that a build script still passing it keeps configuring; it selects nothing, and 'enabled' is rejected. Drop it with #4978.
 option('litert-support', type: 'feature', value: 'auto') # LiteRT 2.x CompiledModel API. Provide litert.pc or LITERT_ROOT.
 option('pytorch-support', type: 'feature', value: 'auto')
 option('caffe2-support', type: 'feature', value: 'auto')

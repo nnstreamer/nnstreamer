@@ -270,9 +270,6 @@ BuildRequires: tensorflow-lite-devel
 %if 0%{?tensorflow2_lite_support}
 # for tensorflow2-lite
 BuildRequires: tensorflow2-lite-devel
-# tensorflow2-lite-custom requires scripts for rpm >= 4.9
-BuildRequires:  rpm >= 4.9
-%global __requires_exclude ^libtensorflow2-lite-custom.*$
 %endif
 # custom_example_opencv filter requires opencv-devel
 BuildRequires: opencv-devel
@@ -877,9 +874,9 @@ NNStreamer's datareposrc/sink plugins for reading and writing files in MLOps Dat
 
 # Support tensorflow2-lite
 %if 0%{?tensorflow2_lite_support}
-%define enable_tf2_lite -Dtflite2-support=enabled -Dtflite2-custom-support=disabled
+%define enable_tf2_lite -Dtflite2-support=enabled
 %else
-%define enable_tf2_lite -Dtflite2-support=disabled -Dtflite2-custom-support=disabled
+%define enable_tf2_lite -Dtflite2-support=disabled
 %endif
 
 # Support pytorch
