@@ -228,9 +228,15 @@ jobs:
       with:
         name: Meson_Testlog
         path: build/meson-logs/testlog.txt
+    # SSAT discards what valgrind prints, so VALGRIND_OPTS sends each run to a log
+    # of its own and asks for the leak stacks the checker judges. A child that is
+    # forked to exec something else - the plugin scanner - would otherwise open a
+    # log of its own and leave it without a summary, which reads as a run that
+    # never finished.
     - name: SSAT run with Valgrind on decoder-bounding-box
       if: env.rebuild == '1'
-      run: if [ '${{ matrix.os }}' == 'ubuntu-22.04' ]; then export NNSTREAMER_BUILD_ROOT_PATH=`pwd`/build && export NNSTREAMER_FILTERS=`pwd`/build/ext/nnstreamer/tensor_filter && export NNSTREAMER_DECODERS=`pwd`/build/ext/nnstreamer/tensor_decoder && export NNSTREAMER_CONVERTERS=`pwd`/build/ext/nnstreamer/tensor_converter && export GST_PLUGIN_PATH=`pwd`/build/gst && export NNSTREAMER_CONF=`pwd`/build/nnstreamer-test.ini && pushd tests/nnstreamer_decoder_boundingbox && G_SLICE=always-malloc G_DEBUG=gc-friendly ssat -n -p=1 --enable-valgrind --valgrind-suppression ../../tools/debugging/valgrind_suppression --summary summary.txt -cn _n && popd; fi
+      timeout-minutes: 30
+      run: if [ '${{ matrix.os }}' == 'ubuntu-22.04' ]; then export NNSTREAMER_BUILD_ROOT_PATH=`pwd`/build && export NNSTREAMER_FILTERS=`pwd`/build/ext/nnstreamer/tensor_filter && export NNSTREAMER_DECODERS=`pwd`/build/ext/nnstreamer/tensor_decoder && export NNSTREAMER_CONVERTERS=`pwd`/build/ext/nnstreamer/tensor_converter && export GST_PLUGIN_PATH=`pwd`/build/gst && export NNSTREAMER_CONF=`pwd`/build/nnstreamer-test.ini && export VALGRIND_OPTS="--leak-check=full --num-callers=200 --child-silent-after-fork=yes --log-file=`pwd`/valgrind-ssat.%p.log" && pushd tests/nnstreamer_decoder_boundingbox && G_SLICE=always-malloc G_DEBUG=gc-friendly ssat -n -p=1 --enable-valgrind --valgrind-suppression ../../tools/debugging/valgrind_suppression --summary summary.txt -cn _n && popd && bash ./tools/debugging/check_valgrind_log.sh --require-output valgrind-ssat.*.log; fi
     - name: SSAT run on filter-litert
       if: env.rebuild == '1'
       run: if [ '${{ matrix.os }}' == 'ubuntu-22.04' ] && [ -n "$LITERT_ROOT" ]; then export NNSTREAMER_BUILD_ROOT_PATH=`pwd`/build && export NNSTREAMER_FILTERS=`pwd`/build/ext/nnstreamer/tensor_filter && export NNSTREAMER_DECODERS=`pwd`/build/ext/nnstreamer/tensor_decoder && export NNSTREAMER_CONVERTERS=`pwd`/build/ext/nnstreamer/tensor_converter && export GST_PLUGIN_PATH=`pwd`/build/gst && export NNSTREAMER_CONF=`pwd`/build/nnstreamer-test.ini && pushd tests/nnstreamer_filter_litert && ssat -n -p=1 --summary summary.txt && popd; fi
