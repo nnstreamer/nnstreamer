@@ -379,8 +379,15 @@ addToSysPath (const gchar *path)
     return -1;
   }
 
-  PyList_Append (sys_path, PyUnicode_FromString ("."));
-  PyList_Append (sys_path, PyUnicode_FromString (path));
+  const gchar *entries[] = { ".", path };
+  for (const gchar *entry : entries) {
+    PyObject *item = PyUnicode_FromString (entry);
+
+    if (item && PySequence_Contains (sys_path, item) == 0)
+      PyList_Append (sys_path, item);
+    Py_SAFEDECREF (item);
+    PyErr_Clear ();
+  }
 
   Py_SAFEDECREF (sys_path);
   Py_SAFEDECREF (sys_module);
@@ -529,7 +536,10 @@ PyTensorShape_New (PyObject *shape_cls, const GstTensorInfo *info)
   PyTuple_SetItem (args, 0, dims);
   PyTuple_SetItem (args, 1, type);
 
-  return PyObject_CallObject (shape_cls, args);
+  PyObject *shape = PyObject_CallObject (shape_cls, args);
+  Py_SAFEDECREF (args);
+
+  return shape;
   /* Its value is checked by setInputTensorDim */
 }
 

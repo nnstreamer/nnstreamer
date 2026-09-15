@@ -325,6 +325,15 @@ if gtest_dep.found()
     )
 
     test('unittest_filter_python3', unittest_filter_python3, env: testenv)
+
+    unittest_decoder_python3 = executable('unittest_decoder_python3',
+      join_paths('nnstreamer_decoder_python3', 'unittest_decoder_python3.cc'),
+      dependencies: [nnstreamer_unittest_deps, python3_dep],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+
+    test('unittest_decoder_python3', unittest_decoder_python3, env: testenv)
   endif
 
   # Run unittest_decoder

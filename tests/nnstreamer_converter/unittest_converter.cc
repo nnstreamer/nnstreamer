@@ -16,6 +16,7 @@
 #include <nnstreamer_util.h>
 #include <tensor_common.h>
 #include <tensor_converter_custom.h>
+#include <unittest_python3_util.h>
 #include <unittest_util.h>
 
 
@@ -929,6 +930,62 @@ TEST (tensorConverterPython, unmappableInput_n)
   gst_buffer_unref (in_buf);
   gst_tensors_config_free (&config);
   ex->close (&py_core);
+}
+
+/**
+ * @brief Opening the python custom converter again does not grow sys.path.
+ */
+TEST (tensorConverterPython, reopenKeepsSysPath)
+{
+  void *py_core = NULL;
+  const NNStreamerExternalConverter *ex = _python_open_output_cases (&py_core);
+  Py_ssize_t first, last = -1;
+
+  ASSERT_NE (nullptr, ex);
+  ex->close (&py_core);
+  first = py_test_sys_path_length ();
+  ASSERT_GT (first, 0);
+
+  for (guint i = 0; i < 20; i++) {
+    ex = _python_open_output_cases (&py_core);
+    ASSERT_NE (nullptr, ex);
+    ex->close (&py_core);
+    last = py_test_sys_path_length ();
+  }
+
+  EXPECT_EQ (first, last);
+}
+
+/**
+ * @brief A script that fails to load neither opens the converter nor grows sys.path.
+ */
+TEST (tensorConverterPython, openInvalidScriptKeepsSysPath_n)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  const NNStreamerExternalConverter *ex = nnstreamer_converter_find ("python3");
+  gchar *test_model;
+  Py_ssize_t first = -1, last = -1;
+
+  /** supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  ASSERT_NE (nullptr, ex);
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "NOT_EXIST_converter.py", NULL);
+  for (guint i = 0; i < 10; i++) {
+    void *py_core = NULL;
+
+    EXPECT_NE (0, ex->open (test_model, &py_core));
+    EXPECT_EQ (nullptr, py_core);
+    if (i == 0)
+      first = py_test_sys_path_length ();
+    last = py_test_sys_path_length ();
+  }
+
+  EXPECT_GT (first, 0);
+  EXPECT_EQ (first, last);
+  g_free (test_model);
 }
 
 /**
