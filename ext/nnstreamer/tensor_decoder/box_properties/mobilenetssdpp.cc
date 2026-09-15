@@ -73,7 +73,8 @@ class MobilenetSSDPP : public BoxProperties
       _type *boxes_ = (_type *) boxesinput;                                                   \
       int locations_idx                                                                       \
           = get_mobilenet_ssd_pp_tensor_idx (MOBILENET_SSD_PP_BBOX_IDX_LOCATIONS);            \
-      num = (int) num_detection_[0];                                                          \
+      gdouble num_declared = (gdouble) num_detection_[0];                                     \
+      num = (num_declared > 0) ? (int) MIN (num_declared, (gdouble) max_detection) : 0;       \
       results = g_array_sized_new (FALSE, TRUE, sizeof (detectedObject), num);                \
       info = gst_tensors_info_get_nth_info ((GstTensorsInfo *) &config->info, locations_idx); \
       boxbpi = info->dimension[0];                                                            \

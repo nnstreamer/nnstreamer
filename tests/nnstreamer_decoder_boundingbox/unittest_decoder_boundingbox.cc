@@ -10,10 +10,13 @@
  */
 
 #include <gtest/gtest.h>
+#include <cmath>
 #include <glib.h>
 #include <gst/check/gstharness.h>
 #include <gst/gst.h>
 #include <string.h>
+#include <sys/mman.h>
+#include <unistd.h>
 #include <unittest_util.h>
 
 #include <nnstreamer_plugin_api.h>
@@ -637,6 +640,204 @@ TEST (tensorDecoderBoundingBox, renegotiateKeepsOptions)
 
   gst_tensors_config_free (&config);
   gst_harness_teardown (h);
+}
+
+#define BOX_OUT_WIDTH (64U)
+#define BOX_OUT_HEIGHT (48U)
+#define BOX_OUT_PIXELS (BOX_OUT_WIDTH * BOX_OUT_HEIGHT)
+
+/**
+ * @brief Build a float32 tensors config with the given dimensions.
+ */
+static void
+setFloatConfig (GstTensorsConfig *config, guint num_tensors, const gchar *const *dims)
+{
+  guint i;
+
+  gst_tensors_config_init (config);
+  config->info.num_tensors = num_tensors;
+  for (i = 0; i < num_tensors; i++) {
+    config->info.info[i].type = _NNS_FLOAT32;
+    gst_tensor_parse_dimension (dims[i], config->info.info[i].dimension);
+  }
+  config->rate_n = 0;
+  config->rate_d = 1;
+}
+
+/**
+ * @brief Tell whether the decoder accepts the given config.
+ */
+static gboolean
+acceptsConfig (const GstTensorDecoderDef *decoder, void **pdata, const GstTensorsConfig *config)
+{
+  GstCaps *caps = decoder->getOutCaps (pdata, config);
+
+  if (caps == NULL)
+    return FALSE;
+
+  gst_caps_unref (caps);
+  return TRUE;
+}
+
+/**
+ * @brief Decode the given tensors and copy out the BOX_OUT_PIXELS frame drawn for them.
+ */
+static gboolean
+decodeFrame (const GstTensorDecoderDef *decoder, void **pdata,
+    const GstTensorsConfig *config, const GstTensorMemory *input, uint32_t *frame)
+{
+  GstBuffer *outbuf = gst_buffer_new ();
+  gboolean ret = FALSE;
+
+  if (decoder->decode (pdata, config, input, outbuf) == GST_FLOW_OK
+      && gst_buffer_get_size (outbuf) == BOX_OUT_PIXELS * sizeof (uint32_t)) {
+    gst_buffer_extract (outbuf, 0, frame, BOX_OUT_PIXELS * sizeof (uint32_t));
+    ret = TRUE;
+  }
+
+  gst_buffer_unref (outbuf);
+  return ret;
+}
+
+/**
+ * @brief Floats placed at the end of a page that is followed by an unreadable one.
+ */
+typedef struct {
+  guint8 *base; /**< start of the two mapped pages */
+  gsize page; /**< page size */
+} GuardedFloats;
+
+/**
+ * @brief Copy the floats right in front of an unreadable page.
+ * @details Reading one element past them faults at once, so an over-read is
+ *          observable without a memory checker.
+ * @return pointer to the copied floats, or NULL if the pages cannot be mapped
+ */
+static float *
+newGuardedFloats (GuardedFloats *g, const float *src, guint elements)
+{
+  gsize size = elements * sizeof (float);
+
+  g->page = (gsize) sysconf (_SC_PAGESIZE);
+  g->base = (guint8 *) mmap (NULL, 2 * g->page, PROT_READ | PROT_WRITE,
+      MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (g->base == MAP_FAILED) {
+    g->base = NULL;
+    return NULL;
+  }
+
+  if (mprotect (g->base + g->page, g->page, PROT_NONE) != 0) {
+    munmap (g->base, 2 * g->page);
+    g->base = NULL;
+    return NULL;
+  }
+
+  memcpy (g->base + g->page - size, src, size);
+  return (float *) (g->base + g->page - size);
+}
+
+/**
+ * @brief Release the pages of newGuardedFloats ().
+ */
+static void
+freeGuardedFloats (GuardedFloats *g)
+{
+  if (g->base != NULL)
+    munmap (g->base, 2 * g->page);
+  g->base = NULL;
+}
+
+/**
+ * @brief Decode one mobilenet-ssd-postprocess detection whose count tensor says @a num.
+ * @details Every tensor holds exactly one detection and ends right in front of an
+ *          unreadable page. Each case of this binary gives this mode one detection,
+ *          because the mode keeps the first count it accepts for the whole process.
+ */
+static gboolean
+decodeSsdPpCount (float num, uint32_t *frame)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  const gchar *const dims[] = { "1", "1:1", "1:1", "4:1" };
+  const float classes[] = { 0.0f };
+  const float scores[] = { 0.9f };
+  const float boxes[] = { 0.25f, 0.25f, 0.75f, 0.75f };
+  GuardedFloats g[4] = { { NULL, 0 }, { NULL, 0 }, { NULL, 0 }, { NULL, 0 } };
+  GstTensorMemory input[4];
+  GstTensorsConfig config;
+  void *pdata = NULL;
+  gboolean ret = FALSE;
+  guint i;
+
+  if (decoder == NULL || !decoder->init (&pdata))
+    return FALSE;
+
+  input[0].data = newGuardedFloats (&g[0], &num, 1);
+  input[1].data = newGuardedFloats (&g[1], classes, 1);
+  input[2].data = newGuardedFloats (&g[2], scores, 1);
+  input[3].data = newGuardedFloats (&g[3], boxes, 4);
+  for (i = 0; i < 4; i++)
+    input[i].size = (i == 3) ? 4 * sizeof (float) : sizeof (float);
+
+  setFloatConfig (&config, 4, dims);
+
+  if (input[0].data && input[1].data && input[2].data && input[3].data
+      && decoder->setOption (&pdata, 0, "mobilenet-ssd-postprocess")
+      && decoder->setOption (&pdata, 3, "64:48") && decoder->setOption (&pdata, 4, "640:480")
+      && acceptsConfig (decoder, &pdata, &config))
+    ret = decodeFrame (decoder, &pdata, &config, input, frame);
+
+  gst_tensors_config_free (&config);
+  for (i = 0; i < 4; i++)
+    freeGuardedFloats (&g[i]);
+  decoder->exit (&pdata);
+
+  return ret;
+}
+
+/**
+ * @brief A detection count within the tensors draws the detection.
+ */
+TEST (tensorDecoderBoundingBox, ssdPpDetectionCountWithinTensors)
+{
+  uint32_t frame[BOX_OUT_PIXELS] = { 0U };
+  uint32_t none[BOX_OUT_PIXELS] = { 0U };
+
+  ASSERT_TRUE (decodeSsdPpCount (1.0f, frame));
+  EXPECT_GT (countDrawnPixels (frame, BOX_OUT_PIXELS), 0U);
+
+  ASSERT_TRUE (decodeSsdPpCount (0.0f, none));
+  EXPECT_EQ (countDrawnPixels (none, BOX_OUT_PIXELS), 0U);
+}
+
+/**
+ * @brief A detection count larger than the tensors is bounded by them.
+ * @details The count is a value the model writes, and the decoder used to read
+ *          that many classes, scores and boxes, past the end of the tensors.
+ */
+TEST (tensorDecoderBoundingBox, ssdPpDetectionCountAboveTensors_n)
+{
+  uint32_t frame[BOX_OUT_PIXELS] = { 0U };
+  uint32_t expected[BOX_OUT_PIXELS] = { 0U };
+
+  ASSERT_TRUE (decodeSsdPpCount (1.0f, expected));
+  ASSERT_TRUE (decodeSsdPpCount (5.0f, frame));
+  EXPECT_EQ (memcmp (frame, expected, sizeof (frame)), 0);
+}
+
+/**
+ * @brief A negative or NaN detection count decodes no detection.
+ * @details The count used to be converted to int unchecked and handed to
+ *          g_array_sized_new (), which takes it as a huge unsigned size.
+ */
+TEST (tensorDecoderBoundingBox, ssdPpDetectionCountNegative_n)
+{
+  uint32_t frame[BOX_OUT_PIXELS] = { 0U };
+
+  ASSERT_TRUE (decodeSsdPpCount (-1.0f, frame));
+  EXPECT_EQ (countDrawnPixels (frame, BOX_OUT_PIXELS), 0U);
+
+  ASSERT_TRUE (decodeSsdPpCount (NAN, frame));
+  EXPECT_EQ (countDrawnPixels (frame, BOX_OUT_PIXELS), 0U);
 }
 
 /**
