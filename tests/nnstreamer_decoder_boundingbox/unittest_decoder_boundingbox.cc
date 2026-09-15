@@ -426,7 +426,7 @@ TEST (tensorDecoderBoundingBox, swapModeOfConfiguredDecoder_n)
   EXPECT_TRUE (decoder->setOption (&pdata, 0, "ov-person-detection"));
   EXPECT_TRUE (decoder->setOption (&pdata, 3, "64:48"));
   EXPECT_TRUE (decoder->setOption (&pdata, 4, "640:480"));
-  EXPECT_TRUE (decoder->setOption (&pdata, 0, "mobilenet-ssd"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "yolov10"));
 
   gst_tensors_config_init (&config);
   memset (&input, 0, sizeof (input));
@@ -1072,6 +1072,219 @@ TEST (tensorDecoderBoundingBox, palmWithoutOption_n)
 {
   testing::GTEST_FLAG (death_test_style) = "threadsafe";
   EXPECT_EXIT (exitWithPalmCapsWithoutOption (), testing::ExitedWithCode (0), "");
+}
+
+#define SSD_DETECTIONS (4U)
+#define SSD_LABELS (2U)
+
+/**
+ * @brief Write a box prior file of 4 rows, each of @a columns priors of @a value.
+ * @return the file name, to be released with removeTempFile ()
+ */
+static gchar *
+writeBoxPriors (guint columns, const gchar *value)
+{
+  GString *text = g_string_new (NULL);
+  gchar *name = getTempFilename ();
+  guint row, col;
+
+  for (row = 0; row < 4; row++) {
+    for (col = 0; col < columns; col++)
+      g_string_append_printf (text, "%s%s", col ? " " : "", value);
+    g_string_append (text, "\n");
+  }
+
+  if (name != NULL && !g_file_set_contents (name, text->str, -1, NULL))
+    removeTempFile (&name);
+
+  g_string_free (text, TRUE);
+  return name;
+}
+
+/**
+ * @brief mobilenet-ssd tensors with one detection of class 1 at @a index.
+ * @details Each case of this binary gives this mode SSD_DETECTIONS detections,
+ *          because the mode keeps the first count it accepts for the whole process.
+ */
+class SsdTensors
+{
+  public:
+  float boxes[4 * SSD_DETECTIONS]; /**< box tensor */
+  float detections[SSD_LABELS * SSD_DETECTIONS]; /**< class score tensor */
+  GstTensorMemory input[2]; /**< the two tensors */
+  GstTensorsConfig config; /**< their config */
+
+  /**
+   * @brief Build the tensors.
+   */
+  SsdTensors (guint index)
+  {
+    const gchar *const dims[] = { "4:1:4", "2:4" };
+    guint i;
+
+    memset (boxes, 0, sizeof (boxes));
+    for (i = 0; i < SSD_LABELS * SSD_DETECTIONS; i++)
+      detections[i] = -5.0f;
+    detections[index * SSD_LABELS + 1] = 5.0f;
+
+    input[0].data = boxes;
+    input[0].size = sizeof (boxes);
+    input[1].data = detections;
+    input[1].size = sizeof (detections);
+    setFloatConfig (&config, 2, dims);
+  }
+
+  /**
+   * @brief Release the config.
+   */
+  ~SsdTensors ()
+  {
+    gst_tensors_config_free (&config);
+  }
+};
+
+/**
+ * @brief Start a mobilenet-ssd decoder with labels, output and model sizes set.
+ */
+static gboolean
+initSsdDecoder (const GstTensorDecoderDef *decoder, void **pdata, const gchar *label_file)
+{
+  return decoder != NULL && label_file != NULL && decoder->init (pdata)
+         && decoder->setOption (pdata, 0, "mobilenet-ssd")
+         && decoder->setOption (pdata, 1, label_file)
+         && decoder->setOption (pdata, 3, "64:48")
+         && decoder->setOption (pdata, 4, "300:300");
+}
+
+/**
+ * @brief Write the label file of SSD_LABELS labels.
+ */
+static gchar *
+writeSsdLabels (void)
+{
+  gchar *name = getTempFilename ();
+
+  if (name != NULL && !g_file_set_contents (name, "background\nobject\n", -1, NULL))
+    removeTempFile (&name);
+
+  return name;
+}
+
+/**
+ * @brief A box prior file with a prior for every detection is accepted and decoded.
+ */
+TEST (tensorDecoderBoundingBox, ssdPriorsForEveryDetection)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  gchar *labels = writeSsdLabels ();
+  gchar *priors = writeBoxPriors (SSD_DETECTIONS, "0.5");
+  SsdTensors t (SSD_DETECTIONS - 1);
+  uint32_t frame[BOX_OUT_PIXELS] = { 0U };
+  void *pdata = NULL;
+
+  ASSERT_TRUE (priors != NULL);
+  ASSERT_TRUE (initSsdDecoder (decoder, &pdata, labels));
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, priors));
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &t.config));
+  EXPECT_TRUE (decodeFrame (decoder, &pdata, &t.config, t.input, frame));
+  EXPECT_GT (countDrawnPixels (frame, BOX_OUT_PIXELS), 0U);
+
+  decoder->exit (&pdata);
+  removeTempFile (&priors);
+  removeTempFile (&labels);
+}
+
+/**
+ * @brief A stream with more detections than box priors is refused.
+ * @details The priors of the missing columns used to be read uninitialised, or
+ *          left over from a previous box prior file.
+ */
+TEST (tensorDecoderBoundingBox, ssdFewerPriorsThanDetections_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  gchar *labels = writeSsdLabels ();
+  gchar *priors = writeBoxPriors (SSD_DETECTIONS - 1, "0.5");
+  SsdTensors t (0);
+  void *pdata = NULL;
+
+  ASSERT_TRUE (priors != NULL);
+  ASSERT_TRUE (initSsdDecoder (decoder, &pdata, labels));
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, priors));
+  EXPECT_FALSE (acceptsConfig (decoder, &pdata, &t.config));
+
+  decoder->exit (&pdata);
+  removeTempFile (&priors);
+  removeTempFile (&labels);
+}
+
+/**
+ * @brief Box priors reduced while the stream runs bound the detections decoded.
+ * @details The detection is at the column the second file does not have, which
+ *          still holds the prior of the first file.
+ */
+TEST (tensorDecoderBoundingBox, ssdPriorsReducedWhileDecoding_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  gchar *labels = writeSsdLabels ();
+  gchar *priors = writeBoxPriors (SSD_DETECTIONS, "0.5");
+  gchar *fewer = writeBoxPriors (SSD_DETECTIONS - 1, "0.5");
+  SsdTensors t (SSD_DETECTIONS - 1);
+  uint32_t frame[BOX_OUT_PIXELS] = { 0U };
+  void *pdata = NULL;
+
+  ASSERT_TRUE (priors != NULL);
+  ASSERT_TRUE (fewer != NULL);
+  ASSERT_TRUE (initSsdDecoder (decoder, &pdata, labels));
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, priors));
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &t.config));
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, fewer));
+  EXPECT_TRUE (decodeFrame (decoder, &pdata, &t.config, t.input, frame));
+  EXPECT_EQ (countDrawnPixels (frame, BOX_OUT_PIXELS), 0U);
+
+  decoder->exit (&pdata);
+  removeTempFile (&fewer);
+  removeTempFile (&priors);
+  removeTempFile (&labels);
+}
+
+/**
+ * @brief A box prior file that fails to load leaves no priors to decode with.
+ * @details The rows are parsed into the prior table in place, so the priors
+ *          of the previous file are no longer intact.
+ */
+TEST (tensorDecoderBoundingBox, ssdFailedPriorLoad_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  gchar *labels = writeSsdLabels ();
+  gchar *priors = writeBoxPriors (SSD_DETECTIONS, "0.5");
+  gchar *inconsistent = getTempFilename ();
+  SsdTensors t (0);
+  void *pdata = NULL;
+
+  ASSERT_TRUE (priors != NULL);
+  ASSERT_TRUE (inconsistent != NULL);
+  ASSERT_TRUE (g_file_set_contents (
+      inconsistent, "1 1 1 1\n1 1 1 1\n1 1\n1 1 1 1\n", -1, NULL));
+  ASSERT_TRUE (initSsdDecoder (decoder, &pdata, labels));
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, priors));
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &t.config));
+  EXPECT_FALSE (decoder->setOption (&pdata, 2, inconsistent));
+  EXPECT_FALSE (acceptsConfig (decoder, &pdata, &t.config));
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 2, priors));
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &t.config));
+  removeTempFile (&inconsistent);
+  EXPECT_FALSE (decoder->setOption (&pdata, 2, "/no/such/box_priors.txt"));
+  EXPECT_FALSE (acceptsConfig (decoder, &pdata, &t.config));
+
+  decoder->exit (&pdata);
+  removeTempFile (&priors);
+  removeTempFile (&labels);
 }
 
 /**

@@ -55,6 +55,7 @@ class MobilenetSSD : public BoxProperties
   private:
   char *box_prior_path; /**< Box Prior file path */
   gfloat box_priors[BOX_SIZE][DETECTION_MAX + 1]; /** loaded box prior */
+  guint box_prior_count = 0; /** number of priors loaded per row */
   gfloat params[PARAMS_MAX]; /** Post Processing parameters */
   gfloat sigmoid_threshold; /** Inverse value of valid detection threshold in sigmoid domain */
 };
@@ -154,7 +155,8 @@ class MobilenetSSD : public BoxProperties
 /** @brief Macro to simplify calling _get_objects_mobilenet_ssd */
 #define _get_objects_mobilenet_ssd_(type, typename)                      \
   _get_objects_mobilenet_ssd (type, typename, box_priors, (boxes->data), \
-      (detections->data), config, results, i_width, i_height, max_detection)
+      (detections->data), config, results, i_width, i_height,            \
+      MIN (max_detection, box_prior_count))
 
 /** @brief Mathematic inverse of sigmoid function, aka logit */
 static float
@@ -200,6 +202,7 @@ MobilenetSSD::MobilenetSSD ()
 /** @brief Destructor of MobilenetSSD */
 MobilenetSSD::~MobilenetSSD ()
 {
+  g_free (box_prior_path);
   g_free (name);
 }
 
@@ -218,6 +221,8 @@ MobilenetSSD::mobilenet_ssd_loadBoxPrior ()
   gchar *contents = NULL;
   guint row;
   gint prev_reg = -1;
+
+  box_prior_count = 0;
 
   /* Read file contents */
   if (!g_file_get_contents (box_prior_path, &contents, NULL, &err)) {
@@ -269,6 +274,9 @@ MobilenetSSD::mobilenet_ssd_loadBoxPrior ()
     prev_reg = registered;
   }
 
+  if (!failed)
+    box_prior_count = prev_reg;
+
 error:
   g_strfreev (priors);
   g_free (contents);
@@ -311,8 +319,6 @@ MobilenetSSD::setOptionInternal (const char *param)
   }
 
   sigmoid_threshold = logit (params[THRESHOLD_IDX]);
-
-  return TRUE;
 
 exit_mobilenet_ssd:
   g_strfreev (options);
@@ -368,6 +374,12 @@ MobilenetSSD::checkCompatible (const GstTensorsConfig *config)
 
   if (max_detection > DETECTION_MAX) {
     GST_ERROR ("Incoming tensor has too large detection-max : %u", max_detection);
+    return FALSE;
+  }
+
+  if (box_prior_count < max_detection) {
+    GST_ERROR ("Incoming tensor has %u detections but the box prior file has %u priors",
+        max_detection, box_prior_count);
     return FALSE;
   }
 

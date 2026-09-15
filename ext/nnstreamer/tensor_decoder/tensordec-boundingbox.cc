@@ -236,7 +236,7 @@ init_bb (void)
         "\t\tAn example of option3 is option3=1:0.5:0.5:1\n"
         "\tfor mobilenet-ssd mode:\n"
         "\t\tThe option3 definition scheme is, in order, as follows\n"
-        "\t\t- box priors location file (mandatory)\n"
+        "\t\t- box priors location file (mandatory), with a prior for every detection\n"
         "\t\t- detection threshold (optional, default set to 0.5)box priors location file (mandatory)\n"
         "\t\t- Y box scale (optional, default set to 10.0)\n"
         "\t\t- X box scale (optional, default set to 10.0)\n"
