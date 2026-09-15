@@ -30,8 +30,8 @@ failed=0
 
 trap 'rm -rf "${workdir}"' EXIT
 
-mkdir -p "${repo}/gst"
-touch "${repo}/gst/myelement.c" "${repo}/gst/myelement.h"
+mkdir -p "${repo}/gst" "${repo}/tests"
+touch "${repo}/gst/myelement.c" "${repo}/gst/myelement.h" "${repo}/tests/mytest.cc"
 
 ##
 # @brief Report one expectation and remember a failure.
@@ -176,8 +176,8 @@ run_case leak <<'EOF'
 EOF
 expect_status 1 "a definite leak allocated by this repository fails the check"
 expect_in "1 leak reports" "the leak is counted"
-expect_in "1 definite leak contexts from this repository" "the leak is counted as ours"
-expect_in "Definite leaks allocated in this repository:" "the leak is listed under its own heading"
+expect_in "1 definite leak contexts from core and plugin code" "the leak is counted as ours"
+expect_in "Definite leaks allocated in core and plugin code:" "the leak is listed under its own heading"
 expect_in "[unittest_demo] 400 bytes in 1 blocks are definitely lost" "the leak is listed with its binary and size"
 expect_in "myelement.c:11" "the leak is listed with the frame of ours"
 expect_not_in "Memcheck errors reported" "the leak is not listed as an error"
@@ -195,7 +195,7 @@ run_case leak_through_library <<'EOF'
 ==1==
 EOF
 expect_status 1 "a leak of ours allocated inside a library fails the check"
-expect_in "1 definite leak contexts from this repository" "a leak allocated in a library for us is ours"
+expect_in "1 definite leak contexts from core and plugin code" "a leak allocated in a library for us is ours"
 expect_in "myelement.c:11" "the leak is listed with the innermost frame of ours"
 expect_not_in "myelement.c:90" "and not with any frame below it"
 expect_in "32 (16 direct, 16 indirect) bytes in 1 blocks are definitely lost" "a leak holding indirect blocks is listed with its sizes"
@@ -211,7 +211,7 @@ run_case leak_object_ours <<'EOF'
 ==1==
 EOF
 expect_status 1 "a leak through an object of ours fails the check"
-expect_in "1 definite leak contexts from this repository" "a leak through an object under the build directory is ours"
+expect_in "1 definite leak contexts from core and plugin code" "a leak through an object under the build directory is ours"
 expect_in "libnnstreamer.so" "and is listed with that frame, the innermost of ours"
 expect_not_in "myelement.c:50" "not with the source frame below it"
 
@@ -223,7 +223,7 @@ run_case leak_object_library_n <<'EOF'
 ==1==
 EOF
 expect_status 0 "a leak through an object merely built somewhere passes"
-expect_in "0 definite leak contexts from this repository" "a leak through an object merely built somewhere is not ours"
+expect_in "0 definite leak contexts from core and plugin code" "a leak through an object merely built somewhere is not ours"
 
 run_case leak_ggml_n <<'EOF'
 ==1== Command: ./tests/unittest_filter_llamacpp
@@ -234,7 +234,7 @@ run_case leak_ggml_n <<'EOF'
 ==1==
 EOF
 expect_status 0 "a leak allocated only by a ggml backend passes"
-expect_in "0 definite leak contexts from this repository" "a ggml backend in the build directory is not ours"
+expect_in "0 definite leak contexts from core and plugin code" "a ggml backend in the build directory is not ours"
 
 run_case leak_ggml_then_test <<'EOF'
 ==1== Command: ./tests/unittest_filter_llamacpp
@@ -245,7 +245,7 @@ run_case leak_ggml_then_test <<'EOF'
 ==1==
 EOF
 expect_status 1 "a ggml allocation our frame asked for fails the check"
-expect_in "1 definite leak contexts from this repository" "a ggml allocation our frame asked for is ours, like a GLib one"
+expect_in "1 definite leak contexts from core and plugin code" "a ggml allocation our frame asked for is ours, like a GLib one"
 expect_in "myelement.c:50" "and it is listed with that frame"
 expect_not_in "libggml-cpu-haswell.so" "not with the ggml frame"
 
@@ -259,7 +259,7 @@ run_case leak_library_n <<'EOF'
 EOF
 expect_status 0 "a leak with no frame of ours passes"
 expect_in "1 leak reports" "that leak is counted"
-expect_in "0 definite leak contexts from this repository" "but it is not ours"
+expect_in "0 definite leak contexts from core and plugin code" "but it is not ours"
 expect_not_in "::warning::" "and nothing is warned about"
 
 # A library allocates while the dynamic loader runs its initialisers; that
@@ -278,7 +278,7 @@ run_case leak_loader_n <<'EOF'
 ==1==
 EOF
 expect_status 0 "a leak from a library initialiser passes"
-expect_in "0 definite leak contexts from this repository" "a leak made while loading a library is not ours"
+expect_in "0 definite leak contexts from core and plugin code" "a leak made while loading a library is not ours"
 expect_not_in "myelement.c:30" "the frame of ours that asked for the load is not listed"
 
 run_case leak_loader_bookkeeping_n <<'EOF'
@@ -295,7 +295,7 @@ run_case leak_loader_bookkeeping_n <<'EOF'
 ==1==
 EOF
 expect_status 0 "a leak in the bookkeeping of the loader passes"
-expect_in "0 definite leak contexts from this repository" "the bookkeeping of the loader itself is not ours"
+expect_in "0 definite leak contexts from core and plugin code" "the bookkeeping of the loader itself is not ours"
 
 run_case leak_log_function_n <<'EOF'
 ==1== Command: ./tests/unittest_demo
@@ -315,7 +315,7 @@ run_case leak_log_function_n <<'EOF'
 EOF
 expect_in "2 leak reports" "the list GStreamer leaks on purpose is counted"
 expect_status 0 "the list GStreamer leaks on purpose passes"
-expect_in "0 definite leak contexts from this repository" "but adding or removing a log function does not make it ours"
+expect_in "0 definite leak contexts from core and plugin code" "but adding or removing a log function does not make it ours"
 
 # The exemption covers what those callers allocate, not what they call.
 run_case leak_ours_under_loader <<'EOF'
@@ -328,7 +328,7 @@ run_case leak_ours_under_loader <<'EOF'
 ==1==
 EOF
 expect_status 1 "an initialiser of ours that leaks fails the check"
-expect_in "1 definite leak contexts from this repository" "an initialiser of ours run by the loader still leaks as ours"
+expect_in "1 definite leak contexts from core and plugin code" "an initialiser of ours run by the loader still leaks as ours"
 expect_in "myelement.c:5" "and that initialiser is listed"
 
 run_case leak_similar_name <<'EOF'
@@ -341,7 +341,7 @@ run_case leak_similar_name <<'EOF'
 ==1==
 EOF
 expect_status 1 "a leak through a function merely named like an exempt one fails the check"
-expect_in "1 definite leak contexts from this repository" "a function merely named like an exempt one exempts nothing"
+expect_in "1 definite leak contexts from core and plugin code" "a function merely named like an exempt one exempts nothing"
 
 run_case possible_leak_n <<'EOF'
 ==1== Command: ./tests/unittest_demo
@@ -356,7 +356,7 @@ run_case possible_leak_n <<'EOF'
 EOF
 expect_in "2 leak reports" "possible and indirect leaks are counted"
 expect_status 0 "possible and indirect leaks of ours pass"
-expect_in "0 definite leak contexts from this repository" "but neither is listed as a definite leak of ours"
+expect_in "0 definite leak contexts from core and plugin code" "but neither is listed as a definite leak of ours"
 
 # A definite leak with no frame of ours ends at the next report; the stack of
 # that report must not be read as its continuation.
@@ -374,7 +374,7 @@ run_case leak_ends_at_next_report_n <<'EOF'
 ==1==    definitely lost: 64 bytes in 1 blocks
 EOF
 expect_status 0 "a library leak followed by a possible leak of ours passes"
-expect_in "0 definite leak contexts from this repository" "a definite leak does not borrow the stack of the next report"
+expect_in "0 definite leak contexts from core and plugin code" "a definite leak does not borrow the stack of the next report"
 
 run_case leak_repeated <<'EOF'
 ==1== Command: ./tests/unittest_demo
@@ -393,7 +393,7 @@ run_case leak_repeated <<'EOF'
 ==2==
 EOF
 expect_status 1 "repeated leaks of ours fail the check"
-expect_in "2 definite leak contexts from this repository" "a leak site counts once per binary"
+expect_in "2 definite leak contexts from core and plugin code" "a leak site counts once per binary"
 expect_in "[unittest_other]" "the second binary is listed"
 
 run_case leak_and_error <<'EOF'
@@ -408,9 +408,101 @@ run_case leak_and_error <<'EOF'
 EOF
 expect_status 1 "an error and a leak of ours fail the check together"
 expect_in "1 error contexts from this repository" "the error is counted"
-expect_in "1 definite leak contexts from this repository" "and so is the leak"
+expect_in "1 definite leak contexts from core and plugin code" "and so is the leak"
 expect_in "myelement.c:42" "the failing error is printed"
 expect_in "myelement.c:11" "and so is the leak"
+
+# Only core and plugin code gates on leaks; a leak of unit-test code alone does
+# not, whether its frame names a test source or an object under build/tests.
+run_case leak_test_code_n <<'EOF'
+==1== Command: ./tests/unittest_demo
+==1== 128 bytes in 1 blocks are definitely lost in loss record 3 of 9
+==1==    at 0x1111: malloc (vg_replace_malloc.c:381)
+==1==    by 0x2222: g_strdup (in /usr/lib/libglib-2.0.so.0)
+==1==    by 0x3333: my_test_body (mytest.cc:20)
+==1==    by 0x4444: some_gtest_frame (in /home/runner/work/nnstreamer/nnstreamer/build/tests/unittest_demo)
+==1==    by 0x5555: main (mytest.cc:99)
+==1==
+EOF
+expect_status 0 "a leak of unit-test code alone passes"
+expect_in "1 leak reports" "that leak is counted"
+expect_in "0 definite leak contexts from core and plugin code" "but it is not one of core or plugin code"
+expect_not_in "mytest.cc" "and it is not listed"
+
+# Sources are told apart by base name, and no name in the tree lives both under
+# tests/ and under gst/ or ext/ today. Should one ever appear, the shipped half
+# has to win, so that a leak of core or plugin code is not lost with it.
+touch "${repo}/gst/shared_name.c" "${repo}/tests/shared_name.c"
+run_case leak_shared_basename <<'EOF'
+==1== Command: ./tests/unittest_demo
+==1== 48 bytes in 1 blocks are definitely lost in loss record 3 of 9
+==1==    at 0x1111: malloc (vg_replace_malloc.c:381)
+==1==    by 0x2222: some_function (shared_name.c:12)
+==1==
+EOF
+expect_status 1 "a base name under both tests/ and gst/ counts as core or plugin code"
+expect_in "1 definite leak contexts from core and plugin code" "so the leak is not lost with the test half"
+rm -f "${repo}/gst/shared_name.c" "${repo}/tests/shared_name.c"
+
+run_case leak_test_object_n <<'EOF'
+==1== Command: ./tests/unittest_demo
+==1== 64 bytes in 1 blocks are definitely lost in loss record 3 of 9
+==1==    at 0x1111: malloc (vg_replace_malloc.c:381)
+==1==    by 0x2222: some_symbol (in /home/runner/work/nnstreamer/nnstreamer/build/tests/libtestplugin.so)
+==1==
+EOF
+expect_status 0 "a leak through an object under build/tests passes"
+expect_in "0 definite leak contexts from core and plugin code" "an object built for the tests is not core or plugin code"
+
+# Test frames are walked past: a test callback that allocates for an element
+# further out leaves the leak with that element.
+run_case leak_test_then_shipped <<'EOF'
+==1== Command: ./tests/unittest_demo
+==1== 256 bytes in 1 blocks are definitely lost in loss record 3 of 9
+==1==    at 0x1111: malloc (vg_replace_malloc.c:381)
+==1==    by 0x2222: my_test_invoke_cb (mytest.cc:30)
+==1==    by 0x3333: my_element_invoke (myelement.c:60)
+==1==    by 0x4444: my_test_body (mytest.cc:40)
+==1==
+EOF
+expect_status 1 "a leak a test callback makes for core or plugin code fails the check"
+expect_in "1 definite leak contexts from core and plugin code" "the leak is counted"
+expect_in "myelement.c:60" "and listed with the frame of core or plugin code"
+expect_not_in "mytest.cc" "not with the test frames around it"
+
+run_case leak_object_ext <<'EOF'
+==1== Command: ./tests/unittest_demo
+==1== 64 bytes in 1 blocks are definitely lost in loss record 7 of 9
+==1==    at 0x1111: malloc (vg_replace_malloc.c:381)
+==1==    by 0x2222: some_symbol (in /home/runner/work/nnstreamer/nnstreamer/build/ext/nnstreamer/tensor_filter/libnnstreamer_filter_x.so)
+==1==    by 0x3333: my_test_body (mytest.cc:50)
+==1==
+EOF
+expect_status 1 "a leak through a plugin object under build/ext fails the check"
+expect_in "libnnstreamer_filter_x.so" "and is listed with that frame"
+
+# The scope is for leaks only; an error in test code still fails.
+run_case error_test_code <<'EOF'
+==1== Command: ./tests/unittest_demo
+==1== Invalid read of size 4
+==1==    at 0x1111: my_test_body (mytest.cc:20)
+==1==
+EOF
+expect_status 1 "an error in unit-test code still fails the check"
+expect_in "1 error contexts from this repository" "and is counted as ours"
+
+# A leak in gst-launch-1.0, as the SSAT step runs it, has no test frame at all.
+run_case leak_gst_launch <<'EOF'
+==1== Command: gst-launch-1.0 -f -q tensor_mux name=mux ! tensor_decoder mode=bounding_boxes ! fakesink
+==1== 24 bytes in 1 blocks are definitely lost in loss record 3 of 9
+==1==    at 0x1111: malloc (vg_replace_malloc.c:381)
+==1==    by 0x2222: g_malloc (in /usr/lib/libglib-2.0.so.0)
+==1==    by 0x3333: my_element_init (myelement.c:11)
+==1==    by 0x4444: gst_element_change_state (in /usr/lib/libgstreamer-1.0.so.0)
+==1==
+EOF
+expect_status 1 "a leak of core or plugin code in gst-launch-1.0 fails the check"
+expect_in "[gst-launch-1.0] 24 bytes in 1 blocks are definitely lost" "and names gst-launch-1.0 as the binary"
 
 run_case timestamped <<'EOF'
 2026-09-07T07:21:27.4959062Z ==1== Command: ./tests/unittest_demo
@@ -683,6 +775,27 @@ output=$(bash "${CHECKER}" --repo-root "${empty}" "${workdir}/for-empty-root.log
 status=$?
 expect_status 2 "a repository root holding no source is a usage error, not a pass"
 expect_in "no source file found" "and says why"
+
+# Without core or plugin sources no leak could ever count, so the leak half of
+# the check would pass anything.
+tests_only="${workdir}/tests-only-root"
+mkdir -p "${tests_only}/tests"
+touch "${tests_only}/tests/mytest.cc"
+output=$(bash "${CHECKER}" --repo-root "${tests_only}" "${workdir}/for-empty-root.log" 2>&1)
+status=$?
+expect_status 2 "a repository root with no core or plugin source is a usage error, not a pass"
+expect_in "no source under gst/ or ext/" "and says why"
+
+# The root is given with a trailing slash; sources must still be told apart.
+run_case leak_trailing_slash_root <<'EOF'
+==1== Command: ./tests/unittest_demo
+==1== 400 bytes in 1 blocks are definitely lost in loss record 3 of 9
+==1==    at 0x8888: my_element_init (myelement.c:11)
+==1==
+EOF
+output=$(bash "${CHECKER}" --repo-root "${repo}/" "${workdir}/leak_trailing_slash_root.log" 2>&1)
+status=$?
+expect_status 1 "a root given with a trailing slash still finds core and plugin code"
 
 if [ ${failed} -ne 0 ]; then
   echo "check_valgrind_log.sh self-test failed."

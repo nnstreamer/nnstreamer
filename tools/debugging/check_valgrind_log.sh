@@ -6,7 +6,7 @@
 # SPDX-License-Identifier: LGPL-2.1-only
 #
 # @file     check_valgrind_log.sh
-# @brief    Fail when a memcheck error or leak comes from this repository's own code.
+# @brief    Fail on memcheck errors of this repository and leaks of its core and plugins.
 # @see      https://github.com/nnstreamer/nnstreamer
 # @author   MyungJoo Ham <myungjoo.ham@samsung.com>
 #
@@ -15,7 +15,7 @@
 # Reads the text memcheck writes and reports each error twice over: once by
 # what kind of error it is, and once by whose code the reported frame is in.
 # A non-leak error whose reported frame is ours makes this exit non-zero, and
-# so does a definite leak of ours.
+# so does a definite leak of core or plugin code.
 #
 # An error is attributed to the frame memcheck blames for it - the first one
 # that is not valgrind's own allocation wrapper - and that frame is ours when
@@ -50,24 +50,26 @@
 # A report whose first line matches none of the kinds below is neither passed
 # nor failed on, so it is printed as a warning instead of disappearing.
 #
-# A definite leak is attributed differently. Memcheck reports it where its
-# block was allocated, which for most of ours is inside GLib, so it is ours
-# when any frame of that stack is, and it is decided by the innermost such
-# frame; for a leak a test drives, that is the test's own frame, nearer the
-# allocation than the gtest code linked into the same binary. A stack cut
-# short before any frame of ours is not ours, so memcheck has to be asked for
-# enough callers; packaging/run_unittests_binaries.sh asks for 200. The rule
-# cannot see a block allocated wholly by library code that our code then drops,
-# such as a buffer from an upstream element on a streaming thread: no frame of
-# ours is on that stack, so such a leak passes as a library one.
+# A definite leak is attributed differently, and only to core and plugin code:
+# a source under gst/ or ext/, or an object under build/gst or build/ext. A leak
+# of unit-test code alone is not worth failing CI on. Memcheck reports a leak
+# where its block was allocated, which for most of ours is inside GLib, so it
+# counts when a frame of core or plugin code is on that stack, and it is decided
+# by the innermost such frame. Frames of test code are walked past, so a block a
+# test callback allocates on behalf of an element further out still counts. A
+# stack cut short before such a frame is not counted, so memcheck has to be
+# asked for enough callers; packaging/run_unittests_binaries.sh asks for 200.
+# The rule cannot see a block allocated elsewhere that core or plugin code then
+# drops, such as a buffer a test or an upstream element pushed: the frames on
+# that stack are those of whoever allocated it.
 #
 # Two callers are exempt even so: a block allocated while the dynamic loader
 # loads a library or runs its initialisers belongs to the loader or to that
 # library, and GStreamer leaks the list of log functions it replaces on
-# purpose. A stack that passes through either before reaching a frame of ours
-# is not ours. Possible and indirect leaks are only counted, the former being
-# mostly the thread-local storage of threads still running at exit and the
-# latter reachable only through a definite one.
+# purpose. A stack that passes through either before reaching a frame of core
+# or plugin code is not counted. Possible and indirect leaks are only counted,
+# the former being mostly the thread-local storage of threads still running at
+# exit and the latter reachable only through a definite one.
 #
 # --require-output additionally fails when the log holds no memcheck output at
 # all. A caller that always runs memcheck wants that, because a log that lost
@@ -144,12 +146,13 @@ if ! sources=$(mktemp); then
 fi
 trap 'rm -f "${sources}"' EXIT
 
-find "${repo_root}" \
-    -path "${repo_root}/.git" -prune -o \
-    -path "${repo_root}/build" -prune -o \
+(cd "${repo_root}" && find . \
+    -path ./.git -prune -o \
+    -path ./build -prune -o \
     -type f \( -name '*.c' -o -name '*.cc' -o -name '*.cpp' -o \
-               -name '*.h' -o -name '*.hh' -o -name '*.hpp' \) -print |
-  sed 's|.*/||' | sort -u > "${sources}"
+               -name '*.h' -o -name '*.hh' -o -name '*.hpp' \) -print) |
+  awk -F/ '{ print (($2 == "gst" || $2 == "ext") ? "shipped" : "other"), $NF }' |
+  sort -u > "${sources}"
 
 # Without this list every frame looks like a library's, and the check would
 # pass whatever it was given.
@@ -157,11 +160,19 @@ if [ ! -s "${sources}" ]; then
   echo "$0: ${repo_root}: no source file found; is that the repository root?" >&2
   exit 2
 fi
+if ! grep -q '^shipped ' "${sources}"; then
+  echo "$0: ${repo_root}: no source under gst/ or ext/; is that the repository root?" >&2
+  exit 2
+fi
 
 awk -v sources="${sources}" -v require_output="${require_output}" '
 BEGIN {
-  while ((getline name < sources) > 0)
-    ours_source[name] = 1
+  while ((getline entry < sources) > 0) {
+    split(entry, part, " ")
+    ours_source[part[2]] = 1
+    if (part[1] == "shipped")
+      shipped_source[part[2]] = 1
+  }
   close(sources)
   binary = "(unknown)"
 }
@@ -181,6 +192,14 @@ function is_ours(where,   file) {
   file = where
   sub(/:[0-9]+$/, "", file)
   return (file in ours_source)
+}
+
+function is_shipped(where,   file) {
+  if (where ~ /^in /)
+    return (where !~ /\/libggml[^\/]*$/ && where ~ /\/build\/(gst|ext)\//)
+  file = where
+  sub(/:[0-9]+$/, "", file)
+  return (file in shipped_source)
 }
 
 function is_exempt_from_leaks(frame,   symbol) {
@@ -289,7 +308,7 @@ line ~ /^ +(at|by) 0x[0-9A-Fa-f]+: / {
   if (pending == "leak") {
     if (is_exempt_from_leaks(frame)) {
       pending = 0
-    } else if (is_ours(where)) {
+    } else if (is_shipped(where)) {
       record_leak(pending_kind, where, frame)
       pending = 0
     }
@@ -318,12 +337,12 @@ END {
   }
   printf "valgrind log check: %d error contexts from this repository, ", ours_count
   printf "%d from libraries, %d leak reports, ", library_count, leak_count
-  printf "%d definite leak contexts from this repository, %d binaries examined\n", leak_ours_count, examined
+  printf "%d definite leak contexts from core and plugin code, %d binaries examined\n", leak_ours_count, examined
   for (i = 1; i <= unclassified_count; i++)
     printf "::warning::valgrind log check does not classify this report, so it can neither pass nor fail on it: %s\n", unclassified[i]
   if (leak_ours_count > 0) {
     print ""
-    print "Definite leaks allocated in this repository:"
+    print "Definite leaks allocated in core and plugin code:"
     for (i = 1; i <= leak_ours_count; i++) {
       printf "  [%s] %s\n", leak_binary[i], leak_what[i]
       printf "      %s\n", leak_frame[i]
