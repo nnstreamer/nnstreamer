@@ -13,6 +13,7 @@
 #include <glib.h>
 #include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
+#include <unittest_python3_util.h>
 #include <unittest_util.h>
 
 #include <nnstreamer_plugin_api_filter.h>
@@ -738,6 +739,119 @@ TEST (nnstreamerFilterPython3, pipelineSecondInvalid_n)
   EXPECT_EQ (_python3_run_pipeline ("second_bad", received), GST_MESSAGE_ERROR);
   EXPECT_EQ (received->len, 0U);
   g_byte_array_unref (received);
+}
+
+/**
+ * @brief Build the path of a script under tests/test_models/models
+ */
+static gchar *
+_python3_model_path (const gchar *name)
+{
+  return g_build_filename (g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH"), "tests",
+      "test_models", "models", name, NULL);
+}
+
+/**
+ * @brief Setting the input dimension releases the tensor shapes built for the script.
+ */
+TEST (nnstreamerFilterPython3, setInputDimRepeatedKeepsObjects)
+{
+  void *data = NULL;
+  gchar *model_file = _python3_model_path ("scaler.py");
+  const gchar *model_files[] = { model_file, NULL };
+  GstTensorFilterProperties prop;
+  GstTensorsInfo in_info, out_info;
+  guint failed = 0;
+  Py_ssize_t before, after;
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("python3");
+
+  ASSERT_NE (sp, nullptr);
+  _SetFilterProp (&prop, "python3", model_files);
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+
+  gst_tensors_info_init (&in_info);
+  in_info.num_tensors = 1;
+  in_info.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("3:4:4:1", in_info.info[0].dimension);
+
+  for (guint i = 0; i < 10; i++) {
+    sp->getModelInfo (sp, &prop, data, SET_INPUT_INFO, &in_info, &out_info);
+    gst_tensors_info_free (&out_info);
+  }
+
+  before = py_test_gc_object_count ();
+  ASSERT_GT (before, 0);
+  for (guint i = 0; i < 300; i++) {
+    if (sp->getModelInfo (sp, &prop, data, SET_INPUT_INFO, &in_info, &out_info) != 0
+        || !gst_tensor_dimension_is_equal (
+            in_info.info[0].dimension, out_info.info[0].dimension))
+      failed++;
+    gst_tensors_info_free (&out_info);
+  }
+  after = py_test_gc_object_count ();
+
+  EXPECT_EQ (failed, 0U);
+  EXPECT_LE (after - before, PY_TEST_GC_SLACK);
+
+  sp->close (&prop, &data);
+  gst_tensors_info_free (&in_info);
+  g_free (model_file);
+}
+
+/**
+ * @brief Opening the filter again does not grow sys.path.
+ */
+TEST (nnstreamerFilterPython3, reopenKeepsSysPath)
+{
+  void *data = NULL;
+  gchar *model_file = _python3_model_path ("passthrough.py");
+  const gchar *model_files[] = { model_file, NULL };
+  GstTensorFilterProperties prop;
+  Py_ssize_t first, last = -1;
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("python3");
+
+  ASSERT_NE (sp, nullptr);
+  _SetFilterProp (&prop, "python3", model_files);
+  ASSERT_EQ (sp->open (&prop, &data), 0);
+  sp->close (&prop, &data);
+  first = py_test_sys_path_length ();
+  ASSERT_GT (first, 0);
+
+  for (guint i = 0; i < 20; i++) {
+    ASSERT_EQ (sp->open (&prop, &data), 0);
+    sp->close (&prop, &data);
+    last = py_test_sys_path_length ();
+  }
+
+  EXPECT_EQ (last, first);
+  g_free (model_file);
+}
+
+/**
+ * @brief A script that fails to load neither opens the filter nor grows sys.path.
+ */
+TEST (nnstreamerFilterPython3, openInvalidScriptKeepsSysPath_n)
+{
+  void *data = NULL;
+  gchar *model_file = _python3_model_path ("NOT_EXIST_filter.py");
+  const gchar *model_files[] = { model_file, NULL };
+  GstTensorFilterProperties prop;
+  Py_ssize_t first = -1, last = -1;
+  const GstTensorFilterFramework *sp = nnstreamer_filter_find ("python3");
+
+  ASSERT_NE (sp, nullptr);
+  _SetFilterProp (&prop, "python3", model_files);
+  for (guint i = 0; i < 10; i++) {
+    EXPECT_NE (sp->open (&prop, &data), 0);
+    EXPECT_EQ (data, nullptr);
+    if (i == 0)
+      first = py_test_sys_path_length ();
+    last = py_test_sys_path_length ();
+  }
+
+  EXPECT_GT (first, 0);
+  EXPECT_EQ (last, first);
+  g_free (model_file);
 }
 
 /**

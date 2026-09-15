@@ -67,7 +67,7 @@ extern NPY_TYPES getNumpyType (tensor_type tType);
 extern int loadScript (PyObject **core_obj, const gchar *module_name, const gchar *class_name);
 /** @brief dlopen the libpython shared object with RTLD_GLOBAL */
 extern int openPythonLib (void **handle);
-/** @brief Append the given path and "." to the python sys.path list */
+/** @brief Append "." and the given path to the python sys.path list unless already present */
 extern int addToSysPath (const gchar *path);
 /** @brief Fill tensors info from the tensor-shape list returned by python */
 extern int parseTensorsInfo (PyObject *result, GstTensorsInfo *info);

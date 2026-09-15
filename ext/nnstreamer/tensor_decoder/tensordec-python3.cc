@@ -175,7 +175,7 @@ PYDecoderCore::decode (const GstTensorsConfig *config,
 
     if (!gst_memory_map (out_mem, &out_info, GST_MAP_WRITE)) {
       gst_memory_unref (out_mem);
-      nns_loge ("Cannot map gst memory (tensor decoder flexbuf)\n");
+      nns_loge ("Cannot map gst memory (tensor decoder python3)\n");
       ret = GST_FLOW_ERROR;
       goto done;
     }
@@ -191,11 +191,14 @@ PYDecoderCore::decode (const GstTensorsConfig *config,
 
     Py_SAFEDECREF (output);
   } else {
-    Py_ERRMSG ("Fail to get output from 'convert'");
+    Py_ERRMSG ("Fail to get output from 'decode'");
     ret = GST_FLOW_ERROR;
   }
 
 done:
+  Py_SAFEDECREF (output);
+  Py_SAFEDECREF (raw_data);
+  Py_SAFEDECREF (in_info);
   Py_UNLOCK ();
   return ret;
 }
