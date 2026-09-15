@@ -31,6 +31,7 @@
 
 /**
  * @brief tensor repo global variable with init.
+ * @note The static repo_lock and repo_cond need no g_mutex_init() or g_cond_init().
  */
 static GstTensorRepo _repo = {.num_data = 0,.initialized = FALSE };
 
@@ -131,12 +132,17 @@ gst_tensor_repo_set_changed (guint o_nth, guint nth, gboolean is_sink)
 gboolean
 gst_tensor_repo_add_repodata (guint nth, gboolean is_sink)
 {
-  gboolean ret = FALSE;
   GstTensorRepoData *data;
 
-  data = gst_tensor_repo_ref_repodata (nth);
+  g_return_val_if_fail (_repo.initialized, FALSE);
+
+  GST_REPO_LOCK ();
+  data = g_hash_table_lookup (_repo.hash, GINT_TO_POINTER (nth));
 
   if (data != NULL) {
+    g_atomic_int_inc (&data->refcount);
+    GST_REPO_UNLOCK ();
+
     g_mutex_lock (&data->lock);
 
     if (is_sink)
@@ -155,40 +161,19 @@ gst_tensor_repo_add_repodata (guint nth, gboolean is_sink)
   }
 
   data = g_new0 (GstTensorRepoData, 1);
-  if (data == NULL) {
-    GST_ERROR ("Failed to allocate memory for repo data.");
-    return FALSE;
-  }
-
   data->refcount = 1;
   g_cond_init (&data->cond_push);
   g_cond_init (&data->cond_pull);
   g_mutex_init (&data->lock);
 
-  g_mutex_lock (&data->lock);
-  data->eos = FALSE;
-  data->buffer = NULL;
-  data->caps = NULL;
-  data->sink_changed = FALSE;
-  data->src_changed = FALSE;
-  data->pushed = FALSE;
-  g_mutex_unlock (&data->lock);
+  g_hash_table_insert (_repo.hash, GINT_TO_POINTER (nth), data);
+  _repo.num_data++;
 
-  GST_REPO_LOCK ();
-  ret = g_hash_table_insert (_repo.hash, GINT_TO_POINTER (nth), data);
-
-  if (ret) {
-    _repo.num_data++;
-
-    if (DBG)
-      GST_DEBUG ("Successfully added in hash table with key[%d]", nth);
-  } else {
-    gst_tensor_repo_unref_repodata (data);
-    ml_logf ("The key[%d] is duplicated. Cannot proceed.\n", nth);
-  }
+  if (DBG)
+    GST_DEBUG ("Successfully added in hash table with key[%d]", nth);
 
   GST_REPO_UNLOCK ();
-  return ret;
+  return TRUE;
 }
 
 /**
@@ -403,17 +388,14 @@ gst_tensor_repo_remove_repodata (guint nth)
 void
 gst_tensor_repo_init (void)
 {
-  if (_repo.initialized)
-    return;
-
-  g_mutex_init (&_repo.repo_lock);
-  g_cond_init (&_repo.repo_cond);
   GST_REPO_LOCK ();
-  _repo.num_data = 0;
-  _repo.hash = g_hash_table_new_full (g_direct_hash, g_direct_equal, NULL,
-      gst_tensor_repo_unref_repodata);
-  _repo.initialized = TRUE;
-  GST_REPO_BROADCAST ();
+  if (!_repo.initialized) {
+    _repo.num_data = 0;
+    _repo.hash = g_hash_table_new_full (g_direct_hash, g_direct_equal, NULL,
+        gst_tensor_repo_unref_repodata);
+    _repo.initialized = TRUE;
+    GST_REPO_BROADCAST ();
+  }
   GST_REPO_UNLOCK ();
 }
 
