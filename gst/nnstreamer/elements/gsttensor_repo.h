@@ -50,6 +50,7 @@ typedef struct
   gboolean sink_changed;
   guint sink_id;
   gboolean pushed;
+  gint refcount;
 } GstTensorRepoData;
 
 /**
@@ -63,12 +64,6 @@ typedef struct
   GHashTable* hash;
   gboolean initialized;
 } GstTensorRepo;
-
-/**
- * @brief Getter to get nth GstTensorRepoData.
- */
-GstTensorRepoData *
-gst_tensor_repo_get_repodata (guint nth);
 
 /**
  * @brief Add GstTensorRepoData into repo.
