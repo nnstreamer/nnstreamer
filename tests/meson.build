@@ -339,6 +339,26 @@ if gtest_dep.found()
     test('unittest_decoder', unittest_decoder, env: testenv)
   endif
 
+  # Run unittest_converter_serialized
+  if flatbuf_support_is_available or protobuf_support_is_available
+    converter_serialized_deps = [nnstreamer_unittest_deps, nnstreamer_internal_deps]
+    if flatbuf_support_is_available
+      converter_serialized_deps += flatbuf_util_dep
+    endif
+    if protobuf_support_is_available
+      converter_serialized_deps += protobuf_util_dep
+    endif
+
+    unittest_converter_serialized = executable('unittest_converter_serialized',
+      join_paths('nnstreamer_converter_serialized', 'unittest_converter_serialized.cc'),
+      dependencies: converter_serialized_deps,
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+
+    test('unittest_converter_serialized', unittest_converter_serialized, env: testenv)
+  endif
+
   # gRPC unittest
   if grpc_support_is_available
     unittest_grpc = executable('unittest_grpc',
