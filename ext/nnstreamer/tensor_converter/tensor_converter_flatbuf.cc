@@ -90,36 +90,60 @@ fbc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
     return NULL;
   }
 
+  {
+    flatbuffers::Verifier verifier (in_info.data, in_info.size);
+
+    if (!VerifyTensorsBuffer (verifier)) {
+      nns_loge ("The incoming buffer is not a valid flatbuffers message of tensors / tensor_converter::flatbuf");
+      goto done;
+    }
+  }
+
   tensors = GetTensors (in_info.data);
-  g_assert (tensors);
 
   config->info.num_tensors = tensors->num_tensor ();
   config->info.format = (tensor_format) tensors->format ();
 
-  if (tensors->num_tensor () > NNS_TENSOR_SIZE_LIMIT) {
-    nns_loge ("The number of tensors is limited to %d", NNS_TENSOR_SIZE_LIMIT);
+  if (config->info.num_tensors == 0 || config->info.num_tensors > NNS_TENSOR_SIZE_LIMIT) {
+    nns_loge ("The number of tensors must be between 1 and %d", NNS_TENSOR_SIZE_LIMIT);
+    goto done;
+  }
+
+  tensor = tensors->tensor ();
+  if (!tensors->fr () || !tensor || tensor->size () < config->info.num_tensors) {
+    nns_loge ("The flatbuffers message has no frame rate or fewer tensors than it declares / tensor_converter::flatbuf");
     goto done;
   }
   config->rate_n = tensors->fr ()->rate_n ();
   config->rate_d = tensors->fr ()->rate_d ();
 
-  tensor = tensors->tensor ();
   out_buf = gst_buffer_new ();
 
   for (guint i = 0; i < config->info.num_tensors; i++) {
     gsize offset;
-    std::string _name = tensor->Get (i)->name ()->str ();
-    const gchar *name = _name.c_str ();
+    const flatbuffers::String *name = tensor->Get (i)->name ();
+    const flatbuffers::Vector<uint32_t> *dimension = tensor->Get (i)->dimension ();
 
     _info = gst_tensors_info_get_nth_info (&config->info, i);
 
     g_free (_info->name);
-    _info->name = (name && strlen (name) > 0) ? g_strdup (name) : NULL;
+    _info->name = (name && name->size () > 0) ? g_strdup (name->c_str ()) : NULL;
     _info->type = (tensor_type) tensor->Get (i)->type ();
     tensor_data = tensor->Get (i)->data ();
 
     for (guint j = 0; j < NNS_TENSOR_RANK_LIMIT; j++) {
-      _info->dimension[j] = tensor->Get (i)->dimension ()->Get (j);
+      _info->dimension[j]
+          = (dimension && j < dimension->size ()) ? dimension->Get (j) : 0;
+    }
+
+    if (!tensor_data
+        || !tcu_check_tensor_data (
+            config, _info, tensor_data->data (), tensor_data->size ())) {
+      nns_loge ("Cannot convert the %u'th tensor of the flatbuffers message / tensor_converter::flatbuf",
+          i);
+      gst_buffer_unref (out_buf);
+      out_buf = NULL;
+      goto done;
     }
     mem_size = VectorLength (tensor_data);
 

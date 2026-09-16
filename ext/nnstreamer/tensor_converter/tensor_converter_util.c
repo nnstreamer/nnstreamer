@@ -45,3 +45,58 @@ tcu_get_out_config (const GstCaps * in_cap, GstTensorsConfig * config)
   }
   return TRUE;
 }
+
+/**
+ * @brief Check that the data a serialized stream carries for a tensor holds what the stream declares for it.
+ */
+gboolean
+tcu_check_tensor_data (const GstTensorsConfig * config,
+    const GstTensorInfo * info, const guint8 * data, gsize size)
+{
+  GstTensorMetaInfo meta;
+  gsize hsize, expected;
+
+  g_return_val_if_fail (config != NULL, FALSE);
+  g_return_val_if_fail (info != NULL, FALSE);
+
+  if (config->info.format >= _NNS_TENSOR_FORMAT_END) {
+    ml_loge ("The stream declares an unknown tensor format %d.",
+        config->info.format);
+    return FALSE;
+  }
+
+  if (gst_tensors_config_is_static (config)) {
+    if ((guint) info->type >= _NNS_END || !gst_tensor_info_validate (info)) {
+      ml_loge ("The stream declares an invalid type or dimension of a tensor.");
+      return FALSE;
+    }
+
+    expected = gst_tensor_info_get_size (info);
+    if (size != expected) {
+      ml_loge
+          ("The stream carries %zu bytes for a tensor declared as %zu bytes.",
+          size, expected);
+      return FALSE;
+    }
+
+    return TRUE;
+  }
+
+  gst_tensor_meta_info_init (&meta);
+  if (!data || size < gst_tensor_meta_info_get_header_size (&meta) ||
+      !gst_tensor_meta_info_parse_header (&meta, (gpointer) data)) {
+    ml_loge ("The stream carries a tensor without a valid meta header.");
+    return FALSE;
+  }
+
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  expected = hsize + gst_tensor_meta_info_get_data_size (&meta);
+  if (hsize == 0 || size < expected) {
+    ml_loge
+        ("The stream carries %zu bytes for a tensor whose meta header declares %zu bytes.",
+        size, expected);
+    return FALSE;
+  }
+
+  return TRUE;
+}
