@@ -45,7 +45,7 @@ struct _GstDataRepoSrc {
   gboolean is_start;            /**< check if datareposrc is started */
   gboolean successful_read;     /**< used for checking EOS when reading more than one images(multi-files) from a path */
   gint fd;                      /**< open file descriptor */
-  gint file_size;               /**< file size, in bytes */
+  guint64 file_size;            /**< file size, in bytes */
   guint64 read_position;        /**< position of fd */
   guint64 fd_offset;            /**< offset of fd */
   guint64 start_offset;         /**< start offset to read */
