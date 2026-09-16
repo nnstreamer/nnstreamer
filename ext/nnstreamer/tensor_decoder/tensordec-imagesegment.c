@@ -347,7 +347,7 @@ set_color_according_to_label (image_segments * idata, GstMapInfo * out_info)
   v_alpha = vdupq_n_u32 (ALPHA_HEX);
   v_zero = vdupq_n_u32 (0);
 
-  for (idx = 0; idx < num_pixels; idx += num_lanes) {
+  for (idx = 0; num_pixels - idx >= num_lanes; idx += num_lanes) {
     /* load float32 vector */
     v_src_float = vld1q_f32 (input);
     input += num_lanes;
@@ -376,7 +376,6 @@ set_color_according_to_label (image_segments * idata, GstMapInfo * out_info)
   /* handle remaining data */
   input = (float *) idata->segment_map;
   output = (uint32_t *) out_info->data;
-  idx -= num_lanes;
 #endif
   for (; idx < num_pixels; idx++) {
     label_idx = (guint) input[idx];
@@ -405,7 +404,7 @@ find_max_grayscale (image_segments * idata)
   v_max = vdupq_n_f32 (0);
 
   /* find the maximum value per lane */
-  for (idx = 0; idx < num_pixels; idx += num_lanes) {
+  for (idx = 0; num_pixels - idx >= num_lanes; idx += num_lanes) {
     v_src = vld1q_f32 (input);
     input += num_lanes;
 
@@ -423,7 +422,6 @@ find_max_grayscale (image_segments * idata)
 
   /* handle remaining data */
   input = idata->segment_map;
-  idx -= num_lanes;
 #endif
   for (; idx < num_pixels; idx++)
     gray_max = MAX (gray_max, input[idx]);
@@ -464,7 +462,7 @@ set_color_grayscale (image_segments * idata, GstMapInfo * out_info)
     v_magic = vdupq_n_u32 (GRAYSCALE_HEX);
     v_alpha = vdupq_n_u32 (ALPHA_HEX);
 
-    for (idx = 0; idx < num_pixels; idx += num_lanes) {
+    for (idx = 0; num_pixels - idx >= num_lanes; idx += num_lanes) {
       /* load float32 vector */
       v_src_float = vld1q_f32 (input);
       input += num_lanes;
@@ -491,7 +489,6 @@ set_color_grayscale (image_segments * idata, GstMapInfo * out_info)
     /* handle remaining data */
     input = idata->segment_map;
     output = (uint32_t *) out_info->data;
-    idx -= num_lanes;
   }
 #endif
   for (; idx < num_pixels; idx++) {
