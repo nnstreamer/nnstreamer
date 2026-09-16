@@ -1891,6 +1891,13 @@ gst_tensor_src_iio_setup_scan_channels (GstTensorSrcIIO * self)
   self->scan_size = gst_tensor_get_size_from_channels (self->channels);
   self->num_channels_enabled = g_list_length (self->channels);
 
+  if ((guint64) self->scan_size * self->buffer_capacity > G_MAXINT) {
+    GST_ERROR_OBJECT (self,
+        "A buffer capacity of %u scans of %u bytes each exceeds the %d bytes which can be read at once.",
+        self->buffer_capacity, self->scan_size, G_MAXINT);
+    goto error_channels_free;
+  }
+
   /** set fixed caps for the src pad */
   gst_pad_use_fixed_caps (GST_BASE_SRC (self)->srcpad);
 

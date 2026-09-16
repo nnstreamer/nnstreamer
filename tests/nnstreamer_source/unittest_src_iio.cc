@@ -1965,6 +1965,98 @@ TEST (testTensorSrcIio, channelNameEmpty_n)
 }
 
 /**
+ * @brief tests that a buffer capacity larger than the readable size is refused
+ */
+TEST (testTensorSrcIio, bufferCapacityOverflow_n)
+{
+  iio_dev_dir_struct *dev0;
+  GstHarness *hrnss = NULL;
+  GstElement *src_iio = NULL;
+  GstStateChangeReturn status;
+
+  /** Make device, 8 channels of 2 bytes make a scan of 16 bytes */
+  dev0 = make_full_device (DATA, 16);
+  ASSERT_NE (dev0, nullptr);
+
+  /** setup */
+  hrnss = gst_harness_new_empty ();
+  ASSERT_TRUE (hrnss != NULL);
+  gst_harness_add_parse (hrnss, ELEMENT_NAME);
+  src_iio = gst_harness_find_element (hrnss, ELEMENT_NAME);
+  ASSERT_TRUE (src_iio != NULL);
+
+  g_object_set (src_iio, "iio-base-dir", dev0->iio_base_dir_sim, NULL);
+  g_object_set (src_iio, "dev-dir", dev0->dev_dir, NULL);
+  g_object_set (src_iio, "device", DEVICE_NAME, NULL);
+  /** 16 bytes per scan of this capacity do not fit in a signed int */
+  g_object_set (src_iio, "buffer-capacity", 268435457U, NULL);
+
+  status = gst_element_set_state (src_iio, GST_STATE_PAUSED);
+  EXPECT_EQ (status, GST_STATE_CHANGE_FAILURE);
+  EXPECT_EQ (gst_element_set_state (src_iio, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+
+  /** teardown */
+  gst_object_unref (src_iio);
+  gst_harness_teardown (hrnss);
+
+  ASSERT_EQ (destroy_dev_dir (dev0), 0);
+  clean_iio_dev_structure (dev0);
+}
+
+/**
+ * @brief tests that the buffer capacity of a configured device does not change
+ * @note the size of a read is checked against the buffer capacity when the
+ * device is configured, which holds only while the property stays where the
+ * check left it
+ */
+TEST (testTensorSrcIio, bufferCapacityWhileConfigured_n)
+{
+  iio_dev_dir_struct *dev0;
+  GstHarness *hrnss = NULL;
+  GstElement *src_iio = NULL;
+  GstStateChangeReturn status;
+  guint ret_buffer_capacity;
+
+  /** Make device */
+  dev0 = make_full_device (DATA, 16);
+  ASSERT_NE (dev0, nullptr);
+
+  /** setup */
+  hrnss = gst_harness_new_empty ();
+  ASSERT_TRUE (hrnss != NULL);
+  gst_harness_add_parse (hrnss, ELEMENT_NAME);
+  src_iio = gst_harness_find_element (hrnss, ELEMENT_NAME);
+  ASSERT_TRUE (src_iio != NULL);
+
+  g_object_set (src_iio, "iio-base-dir", dev0->iio_base_dir_sim, NULL);
+  g_object_set (src_iio, "dev-dir", dev0->dev_dir, NULL);
+  g_object_set (src_iio, "device", DEVICE_NAME, NULL);
+  g_object_set (src_iio, "buffer-capacity", 2U, NULL);
+
+  status = gst_element_set_state (src_iio, GST_STATE_PAUSED);
+  EXPECT_EQ (status, GST_STATE_CHANGE_NO_PREROLL);
+
+  /** the buffer of the device and the caps are sized by the old value */
+  g_object_set (src_iio, "buffer-capacity", 1000U, NULL);
+  g_object_get (src_iio, "buffer-capacity", &ret_buffer_capacity, NULL);
+  EXPECT_EQ (ret_buffer_capacity, 2U);
+
+  EXPECT_EQ (gst_element_set_state (src_iio, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+
+  /** the value is writable again once the device is released */
+  g_object_set (src_iio, "buffer-capacity", 1000U, NULL);
+  g_object_get (src_iio, "buffer-capacity", &ret_buffer_capacity, NULL);
+  EXPECT_EQ (ret_buffer_capacity, 1000U);
+
+  /** teardown */
+  gst_object_unref (src_iio);
+  gst_harness_teardown (hrnss);
+
+  ASSERT_EQ (destroy_dev_dir (dev0), 0);
+  clean_iio_dev_structure (dev0);
+}
+
+/**
  * @brief Main function for unit test.
  */
 int
