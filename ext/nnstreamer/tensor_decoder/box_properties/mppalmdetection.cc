@@ -136,13 +136,10 @@ _calculate_scale (float min_scale, float max_scale, int stride_index, int num_st
   }
 }
 
-static BoxProperties *mp_palm_detection = nullptr;
-
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
 void init_properties_mp_palm_detection (void) __attribute__ ((constructor));
-void fini_properties_mp_palm_detection (void) __attribute__ ((destructor));
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
@@ -236,7 +233,6 @@ MpPalmDetection::MpPalmDetection ()
   strides[3] = STRIDE_3_DEFAULT;
   min_score_threshold = MIN_SCORE_THRESHOLD_DEFAULT;
   anchors = g_array_new (FALSE, TRUE, sizeof (anchor));
-  name = g_strdup_printf ("mp-palm-detection");
 }
 
 /** @brief Destructor of MpPalmDetection */
@@ -245,7 +241,6 @@ MpPalmDetection::~MpPalmDetection ()
   if (anchors)
     g_array_free (anchors, TRUE);
   anchors = NULL;
-  g_free (name);
 }
 
 /** @brief Set internal option of MpPalmDetection
@@ -396,17 +391,16 @@ MpPalmDetection::decode (const GstTensorsConfig *config, const GstTensorMemory *
   return results;
 }
 
-/** @brief Initialize this object for tensor decoder bounding box */
+/** @brief Create a new instance of the mp-palm-detection box properties */
+static BoxProperties *
+create_properties_mp_palm_detection (void)
+{
+  return new MpPalmDetection ();
+}
+
+/** @brief Register the mp-palm-detection box properties for tensor decoder bounding box */
 void
 init_properties_mp_palm_detection ()
 {
-  mp_palm_detection = new MpPalmDetection ();
-  BoundingBox::addProperties (mp_palm_detection);
-}
-
-/** @brief Destruct this object for tensor decoder bounding box */
-void
-fini_properties_mp_palm_detection ()
-{
-  delete mp_palm_detection;
+  BoundingBox::addProperties ("mp-palm-detection", create_properties_mp_palm_detection);
 }

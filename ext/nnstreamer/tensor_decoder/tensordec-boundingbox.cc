@@ -535,6 +535,8 @@ BoundingBox::BoundingBox ()
   labeldata.max_word_length = 0;
   labeldata.total_labels = 0;
   bdata = nullptr;
+  properties = g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
+      [] (gpointer data) { delete static_cast<BoxProperties *> (data); });
 }
 
 /** @brief destructor of BoundingBox */
@@ -547,6 +549,8 @@ BoundingBox::~BoundingBox ()
 
   g_array_free (centroids, TRUE);
   g_array_free (distanceArray, TRUE);
+
+  g_hash_table_destroy (properties);
 }
 
 /**
@@ -905,11 +909,17 @@ BoundingBox::setBoxDecodingMode (const char *param)
   }
 
   const char *mode_name = updateDecodingMode (param);
-  BoxProperties *new_bdata = getProperties (mode_name);
+  BoxProperties *new_bdata
+      = static_cast<BoxProperties *> (g_hash_table_lookup (properties, mode_name));
 
   if (new_bdata == nullptr) {
-    nns_loge ("Could not find box properties name %s", param);
-    return FALSE;
+    new_bdata = createProperties (mode_name);
+    if (new_bdata == nullptr) {
+      nns_loge ("Could not create the box properties of mode %s: unknown mode or out of memory",
+          param);
+      return FALSE;
+    }
+    g_hash_table_insert (properties, g_strdup (mode_name), new_bdata);
   }
 
   if (g_strcmp0 (mode_name, "yolov8-obb") == 0) {
@@ -1169,38 +1179,50 @@ error_free:
 }
 
 /**
- * @brief Get bounding box properties from hash table
+ * @brief Create a new instance of the box properties registered under a mode name
+ * @return the instance the caller owns, or nullptr if no mode has the name or it cannot be allocated
  */
 BoxProperties *
-BoundingBox::getProperties (const gchar *properties_name)
+BoundingBox::createProperties (const gchar *properties_name)
 {
-  gpointer data;
+  BoxPropertiesCreator creator = nullptr;
+  BoxPropertiesCreator *slot = nullptr;
+
   G_LOCK (box_properties_table);
-  if (properties_table == nullptr) {
-    properties_table = g_hash_table_new (g_str_hash, g_str_equal);
-  }
-  data = g_hash_table_lookup (properties_table, properties_name);
+  if (properties_table != nullptr)
+    slot = static_cast<BoxPropertiesCreator *> (
+        g_hash_table_lookup (properties_table, properties_name));
+  if (slot != nullptr)
+    creator = *slot;
   G_UNLOCK (box_properties_table);
 
-  return static_cast<BoxProperties *> (data);
+  if (creator == nullptr)
+    return nullptr;
+
+  try {
+    return creator ();
+  } catch (...) {
+    return nullptr;
+  }
 }
 
 /**
- * @brief Add bounding box properties into hash table
+ * @brief Register the creator of box properties under a mode name
  */
 gboolean
-BoundingBox::addProperties (BoxProperties *boxProperties)
+BoundingBox::addProperties (const gchar *properties_name, BoxPropertiesCreator creator)
 {
-  BoxProperties *data;
-  gboolean ret;
-
-  data = getProperties (boxProperties->name);
-  if (NULL != data) {
-    return TRUE;
-  }
+  gboolean ret = TRUE;
 
   G_LOCK (box_properties_table);
-  ret = g_hash_table_insert (properties_table, boxProperties->name, boxProperties);
+  if (properties_table == nullptr)
+    properties_table = g_hash_table_new (g_str_hash, g_str_equal);
+  if (!g_hash_table_contains (properties_table, properties_name)) {
+    BoxPropertiesCreator *slot = g_new (BoxPropertiesCreator, 1);
+
+    *slot = creator;
+    ret = g_hash_table_insert (properties_table, (gpointer) properties_name, slot);
+  }
   G_UNLOCK (box_properties_table);
 
   return ret;

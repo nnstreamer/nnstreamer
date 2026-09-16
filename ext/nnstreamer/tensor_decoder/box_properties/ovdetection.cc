@@ -27,8 +27,6 @@
 class OVDetection : public BoxProperties
 {
   public:
-  OVDetection ();
-  ~OVDetection ();
   /** @brief Accept and ignore the option string; this mode has no options */
   int setOptionInternal (const char *param)
   {
@@ -96,28 +94,13 @@ class OVDetection : public BoxProperties
     }                                                                        \
     break
 
-static BoxProperties *ov_detection = nullptr;
-
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
 void init_properties_ovdetection (void) __attribute__ ((constructor));
-void fini_properties_ovdetection (void) __attribute__ ((destructor));
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
-/** @brief Constructor of OVDetection */
-OVDetection::OVDetection ()
-{
-  name = g_strdup_printf ("ov-person-detection");
-}
-
-/** @brief Destructor of OVDetection */
-OVDetection::~OVDetection ()
-{
-  g_free (name);
-}
 
 /** @brief Check compatibility of given tensors config */
 int
@@ -179,17 +162,16 @@ OVDetection::decode (const GstTensorsConfig *config, const GstTensorMemory *inpu
   return results;
 }
 
-/** @brief Initialize this object for tensor decoder bounding box */
+/** @brief Create a new instance of the ov-person-detection box properties */
+static BoxProperties *
+create_properties_ovdetection (void)
+{
+  return new OVDetection ();
+}
+
+/** @brief Register the ov-person-detection box properties for tensor decoder bounding box */
 void
 init_properties_ovdetection ()
 {
-  ov_detection = new OVDetection ();
-  BoundingBox::addProperties (ov_detection);
-}
-
-/** @brief Destruct this object for tensor decoder bounding box */
-void
-fini_properties_ovdetection ()
-{
-  delete ov_detection;
+  BoundingBox::addProperties ("ov-person-detection", create_properties_ovdetection);
 }

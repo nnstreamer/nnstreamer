@@ -275,7 +275,6 @@ class BoxProperties
   {
     return i_height;
   }
-  gchar *name = nullptr;
 
   protected:
   guint i_width = 0; /**< Input Video Width */
@@ -284,6 +283,11 @@ class BoxProperties
   guint max_detection = 0;
   guint total_labels = 0;
 };
+
+/**
+ * @brief Function that creates a new instance of the box properties of a mode
+ */
+typedef BoxProperties *(*BoxPropertiesCreator) (void);
 
 /**
  * @brief	Class for Bounding box tensor decoder
@@ -320,14 +324,15 @@ class BoundingBox
   GstFlowReturn decode (const GstTensorsConfig *config,
       const GstTensorMemory *input, GstBuffer *outbuf);
 
-  /** @brief Look up registered box properties by mode name */
-  static BoxProperties *getProperties (const gchar *properties_name);
-  /** @brief Register box properties into the mode name table */
-  static gboolean addProperties (BoxProperties *boxProperties);
+  /** @brief Create a new instance of the box properties registered under a mode name */
+  static BoxProperties *createProperties (const gchar *properties_name);
+  /** @brief Register the creator of box properties under a mode name */
+  static gboolean addProperties (const gchar *properties_name, BoxPropertiesCreator creator);
 
   private:
   bounding_box_modes mode;
-  BoxProperties *bdata;
+  BoxProperties *bdata; /**< The box properties of the mode option1 selected */
+  GHashTable *properties; /**< The box properties of every mode selected, kept until exit */
 
   /* From option2 */
   imglabel_t labeldata;
@@ -351,7 +356,7 @@ class BoundingBox
 
   gboolean flag_use_label;
 
-  /* Table for box properties data */
+  /* Table for the creators of box properties, by mode name */
   inline static GHashTable *properties_table;
 };
 #endif /* _TENSORDECBB_H__ */

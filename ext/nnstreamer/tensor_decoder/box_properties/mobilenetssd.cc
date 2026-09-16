@@ -171,13 +171,10 @@ logit (float x)
   return log (x / (1.0 - x));
 }
 
-static BoxProperties *mobilenet = nullptr;
-
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
 void init_properties_mobilenetssd (void) __attribute__ ((constructor));
-void fini_properties_mobilenetssd (void) __attribute__ ((destructor));
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
@@ -196,14 +193,12 @@ MobilenetSSD::MobilenetSSD ()
   max_detection = 0;
   total_labels = 0;
   box_prior_path = nullptr;
-  name = g_strdup_printf ("mobilenet-ssd");
 }
 
 /** @brief Destructor of MobilenetSSD */
 MobilenetSSD::~MobilenetSSD ()
 {
   g_free (box_prior_path);
-  g_free (name);
 }
 
 /**
@@ -431,17 +426,16 @@ MobilenetSSD::decode (const GstTensorsConfig *config, const GstTensorMemory *inp
   return results;
 }
 
-/** @brief Initialize this object for tensor decoder bounding box */
+/** @brief Create a new instance of the mobilenet-ssd box properties */
+static BoxProperties *
+create_properties_mobilenetssd (void)
+{
+  return new MobilenetSSD ();
+}
+
+/** @brief Register the mobilenet-ssd box properties for tensor decoder bounding box */
 void
 init_properties_mobilenetssd ()
 {
-  mobilenet = new MobilenetSSD ();
-  BoundingBox::addProperties (mobilenet);
-}
-
-/** @brief Destruct this object for tensor decoder bounding box */
-void
-fini_properties_mobilenetssd ()
-{
-  delete mobilenet;
+  BoundingBox::addProperties ("mobilenet-ssd", create_properties_mobilenetssd);
 }

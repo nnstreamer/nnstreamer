@@ -127,6 +127,11 @@ gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov8_decode
 
 callCompareTest yolov8_result_golden.raw yolov8_result_0.log "8 diff" "yolov8 golden" 0
 
+## two yolov8 decoders of different model sizes in one pipeline: each keeps its own option5
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov8_decoder_input.raw caps=application/octet-stream start-index=0 stop-index=0 ! tensor_converter input-dim=84:2100:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov8 option2=coco-80.txt option3=0:0.25:0.45 option4=320:320 option5=320:320 option6=0 option7=1 ! videoconvert ! video/x-raw,format=RGBA ! multifilesink location=yolov8_two_decoders_result_%1d.log  multifilesrc location=yolov8_decoder_input.raw caps=application/octet-stream start-index=0 stop-index=0 ! tensor_converter input-dim=84:525:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov8 option2=coco-80.txt option3=0:0.25:0.45 option4=160:160 option5=160:160 ! fakesink" "8-2 yolov8 two decoders" 0 0
+
+callCompareTest yolov8_result_golden.raw yolov8_two_decoders_result_0.log "8-2 diff" "yolov8 golden with another yolov8 decoder" 0
+
 # yolov10 decoder test
 ## wrong tensor dimension
 gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} multifilesrc location=yolov10_decoder_input.raw caps=application/octet-stream start-index=0 stop-index=0 ! tensor_converter input-dim=4:300:1 input-type=float32 ! tensor_decoder mode=bounding_boxes option1=yolov10 option2=coco-80.txt option3=0:0.25:0.45 option4=320:320 option5=320:320 option6=0 option7=1 ! fakesink" "9 yolov10 decoder dim_n" 0 1
@@ -178,9 +183,7 @@ rm mobilenetssd_short_output.log
 rm yolov*.log
 
 # The decoder scales the decoded boxes by the model input dimension of option5,
-# so a missing or unparsable one used to divide by zero on the first box. These
-# cases need a process of their own: the box properties are shared per process,
-# so within one process an earlier pipeline's option5 is still in place.
+# so a missing or unparsable one used to divide by zero on the first box.
 MODELSIZE_SRC="multifilesrc name=fs1 location=mobilenetssd_tensors.0.%d start-index=$CASESTART stop-index=$CASEEND caps=application/octet-stream ! tensor_converter input-dim=4:1:1917:1 input-type=float32 ! mux.sink_0  multifilesrc name=fs2 location=mobilenetssd_tensors.1.%d start-index=$CASESTART stop-index=$CASEEND caps=application/octet-stream ! tensor_converter input-dim=91:1917:1 input-type=float32 ! mux.sink_1"
 MODELSIZE_DEC="tensor_mux name=mux ! tensor_decoder mode=bounding_boxes option1=mobilenet-ssd option2=coco_labels_list.txt option3=box_priors.txt option4=160:120"
 

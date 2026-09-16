@@ -38,7 +38,6 @@ class MobilenetSSDPP : public BoxProperties
 {
   public:
   MobilenetSSDPP ();
-  ~MobilenetSSDPP ();
   int get_mobilenet_ssd_pp_tensor_idx (int idx);
 
   int setOptionInternal (const char *param);
@@ -105,13 +104,10 @@ class MobilenetSSDPP : public BoxProperties
   _get_objects_mobilenet_ssd_pp (type, typename, (mem_num->data), (mem_classes->data), \
       (mem_scores->data), (mem_boxes->data), config, results, i_width, i_height)
 
-static BoxProperties *mobilenetpp = nullptr;
-
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
 void init_properties_mobilenetssd_pp (void) __attribute__ ((constructor));
-void fini_properties_mobilenetssd_pp (void) __attribute__ ((destructor));
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
@@ -136,13 +132,6 @@ MobilenetSSDPP::MobilenetSSDPP ()
   tensor_mapping[SCORES_IDX] = SCORES_DEFAULT;
   tensor_mapping[NUM_IDX] = NUM_DEFAULT;
   threshold = THRESHOLD_DEFAULT;
-  name = g_strdup_printf ("mobilenet-ssd-postprocess");
-}
-
-/** @brief Destructor of MobilenetSSDPP */
-MobilenetSSDPP::~MobilenetSSDPP ()
-{
-  g_free (name);
 }
 
 /** @brief Helper to retrieve tensor index by feature */
@@ -287,17 +276,16 @@ MobilenetSSDPP::decode (const GstTensorsConfig *config, const GstTensorMemory *i
   return results;
 }
 
-/** @brief Initialize this object for tensor decoder bounding box */
+/** @brief Create a new instance of the mobilenet-ssd-postprocess box properties */
+static BoxProperties *
+create_properties_mobilenetssd_pp (void)
+{
+  return new MobilenetSSDPP ();
+}
+
+/** @brief Register the mobilenet-ssd-postprocess box properties for tensor decoder bounding box */
 void
 init_properties_mobilenetssd_pp ()
 {
-  mobilenetpp = new MobilenetSSDPP ();
-  BoundingBox::addProperties (mobilenetpp);
-}
-
-/** @brief Destruct this object for tensor decoder bounding box */
-void
-fini_properties_mobilenetssd_pp ()
-{
-  delete mobilenetpp;
+  BoundingBox::addProperties ("mobilenet-ssd-postprocess", create_properties_mobilenetssd_pp);
 }
