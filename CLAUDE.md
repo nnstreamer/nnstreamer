@@ -15,6 +15,7 @@ Supplementary documents — read them when the task touches their area:
 - Pull requests MUST be opened **from the fork branch** against `nnstreamer/nnstreamer:main`.
 - Before any `git push`, verify the target remote points to the personal fork (`git remote -v`), not to `nnstreamer/nnstreamer`.
 - Do not merge PRs; merging is done manually by maintainers.
+- Do not edit `CHANGES` outside a release PR, and do not ask for `CHANGES` entries in reviews: maintainers write it when a version is released, from the accumulated history. Record user-visible behavior changes in the PR body, the commit message, and the component documentation instead.
 
 ## Test case policy
 
