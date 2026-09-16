@@ -590,6 +590,68 @@ build_dev_dir_scan_elements (iio_dev_dir_struct *iio_dev, const guint num_bits,
 }
 
 /**
+ * @brief build scan data elements dir with an exact storage size
+ * @param[in] iio_dev struct of iio device
+ * @param[in] num_bits num of bits used and stored for the data, multiple of 8
+ * @param[in] value data stored in every channel
+ * @returns 0 on success, non-zero on failure
+ * @note the IIO ABI also allows a storage size of 3, 5, 6 and 7 bytes, which
+ * build_dev_dir_scan_elements() cannot describe as it rounds the size up
+ */
+static gint
+build_dev_dir_scan_elements_exact (
+    iio_dev_dir_struct *iio_dev, const guint num_bits, const guint64 value)
+{
+  gint status = 0;
+  gchar *type_data;
+  gchar endianchar, signchar;
+  guint num_bytes, byte_idx;
+  guint8 data_byte;
+  gsize data_size;
+  gchar *scan_el_data;
+  gint location = 0;
+
+  if (!g_file_test (iio_dev->scan_el, G_FILE_TEST_IS_DIR)) {
+    status += g_mkdir_with_parents (iio_dev->scan_el, 0777);
+  }
+
+  num_bytes = ((num_bits - 1) >> 3) + 1;
+  data_size = num_bytes * iio_dev->num_scan_elements;
+  scan_el_data = (gchar *) g_malloc0 (data_size);
+  if (scan_el_data == NULL) {
+    return -1;
+  }
+
+  for (int idx = 0; idx < iio_dev->num_scan_elements; idx++) {
+    endianchar = (idx % 2) ? 'l' : 'b';
+    signchar = (idx % 4 < 2) ? 's' : 'u';
+
+    status += write_file_int (iio_dev->scan_el_en[idx], 1);
+    status += write_file_int (iio_dev->scan_el_index[idx], idx);
+    type_data = g_strdup_printf (
+        "%ce:%c%u/%u>>0", endianchar, signchar, num_bits, num_bytes * 8);
+    status += write_file_string (iio_dev->scan_el_type[idx], type_data);
+    g_free (type_data);
+
+    for (byte_idx = 0; byte_idx < num_bytes; byte_idx++) {
+      data_byte = (guint8) ((value >> (8 * byte_idx)) & 0xFF);
+      if (endianchar == 'l') {
+        scan_el_data[location + byte_idx] = data_byte;
+      } else {
+        scan_el_data[location + num_bytes - 1 - byte_idx] = data_byte;
+      }
+    }
+    location += num_bytes;
+  }
+
+  status += write_file_string_single_trigger (
+      iio_dev->dev_device_dir_fd, scan_el_data, data_size);
+  g_free (scan_el_data);
+
+  return status;
+}
+
+/**
  * @brief build timestamp in scan data elements dir for iio device simulation
  * @param[in] iio_dev struct of iio device
  * @returns 0 on success, non-zero on failure
@@ -899,11 +961,13 @@ TEST (testTensorSrcIio, properties)
  * @param[in] data_value value of the data for making
  * @param[in] data_bits number of bits for the data
  * @param[in] trigger if the device should support trigger
+ * @param[in] skip skip some of the channels
+ * @param[in] exact_storage keep the storage size of the channels unrounded
  * @returns allocated device structure on success, NULL on error
  */
 static iio_dev_dir_struct *
 make_full_device (const guint64 data_value, const gint data_bits,
-    const gboolean trigger = TRUE, const gint skip = 1)
+    const gboolean trigger = TRUE, const gint skip = 1, const gboolean exact_storage = FALSE)
 {
   iio_dev_dir_struct *dev0;
   gint status = 0;
@@ -923,7 +987,11 @@ make_full_device (const guint64 data_value, const gint data_bits,
   /** dir for continuous mode */
   status += build_dev_dir_buffer (dev0);
   status += build_dev_dir_dev_data (dev0);
-  status += build_dev_dir_scan_elements (dev0, data_bits, data_value, data_value, skip);
+  if (exact_storage) {
+    status += build_dev_dir_scan_elements_exact (dev0, data_bits, data_value);
+  } else {
+    status += build_dev_dir_scan_elements (dev0, data_bits, data_value, data_value, skip);
+  }
   status += build_dev_dir_timestamp (dev0);
 
   /** dir for single-shot mode */
@@ -1703,6 +1771,115 @@ TEST (testTensorSrcIio, setBaseDir_n)
   /** teardown */
   gst_object_unref (src_iio);
   gst_harness_teardown (hrnss);
+}
+
+/**
+ * @brief run a pipeline and verify the data of channels with an exact storage
+ * @param[in] num_bits num of bits used and stored for the data, multiple of 8
+ */
+static void
+run_data_verify_exact_storage (const guint num_bits)
+{
+  static const gint MAX_NUM_TRY = 100;
+  gint num_try;
+  iio_dev_dir_struct *dev0;
+  GstElement *src_iio_pipeline;
+  GstStateChangeReturn status;
+  GstState state;
+  gchar *parse_launch;
+  gint samp_freq;
+  gint fd, ret;
+  size_t idx, bytes_read, bytes_to_read;
+  gchar *data_buffer;
+  gfloat expect_val, actual_val;
+  guint64 expect_val_mask;
+  gchar *expect_val_char, *actual_val_char;
+  struct stat stat_buf;
+
+  /** Make device */
+  dev0 = make_full_device (DATA, num_bits, FALSE, 1, TRUE);
+  ASSERT_NE (dev0, nullptr);
+
+  /** setup */
+  samp_freq = (gint) g_ascii_strtoll (samp_freq_avail[0], NULL, 10);
+  dev0->log_file = g_build_filename (dev0->base_dir, "temp.log", NULL);
+  parse_launch = g_strdup_printf (
+      "%s iio-base-dir=%s dev-dir=%s device=%s silent=FALSE ! multifilesink location=%s",
+      ELEMENT_NAME, dev0->iio_base_dir_sim, dev0->dev_dir, DEVICE_NAME, dev0->log_file);
+  src_iio_pipeline = gst_parse_launch (parse_launch, NULL);
+  g_free (parse_launch);
+  ASSERT_NE (src_iio_pipeline, nullptr);
+
+  EXPECT_EQ (setPipelineStateSync (src_iio_pipeline, GST_STATE_PLAYING, DEFAULT_POLL_TIMEOUT), 0);
+
+  /** feed the device till multifilesink makes the needed file */
+  num_try = 0;
+  while ((fd = open (dev0->log_file, O_RDONLY)) < 0) {
+    if (num_try >= MAX_NUM_TRY) {
+      FAIL () << "Failed to open " << dev0->log_file;
+    }
+    g_usleep (MAX (10, 1000000 / samp_freq));
+    num_try++;
+  }
+  for (num_try = 0; num_try < MAX_NUM_TRY; ++num_try) {
+    g_usleep (MAX (10, 1000000 / samp_freq));
+    if (build_dev_dir_scan_elements_exact (dev0, num_bits, DATA) != 0) {
+      close (fd);
+      FAIL () << "Failed to build and fill scan elements directory";
+    }
+    ret = stat (dev0->log_file, &stat_buf);
+    if (ret == 0 && stat_buf.st_size != 0) {
+      status = gst_element_set_state (src_iio_pipeline, GST_STATE_NULL);
+      EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS);
+      status = gst_element_get_state (src_iio_pipeline, &state, NULL, GST_CLOCK_TIME_NONE);
+      EXPECT_EQ (status, GST_STATE_CHANGE_SUCCESS);
+      EXPECT_EQ (state, GST_STATE_NULL);
+      break;
+    }
+  }
+
+  /** verify correctness of data of every channel */
+  bytes_to_read = sizeof (float) * BUF_LENGTH * dev0->num_scan_elements;
+  data_buffer = (gchar *) g_malloc (bytes_to_read);
+  ret = read (fd, data_buffer, bytes_to_read);
+  close (fd);
+  ASSERT_GE (ret, 0);
+  bytes_read = static_cast<size_t> (ret);
+  EXPECT_EQ (bytes_read, bytes_to_read);
+
+  expect_val_mask = G_MAXUINT64 >> (64 - num_bits);
+  expect_val = ((DATA & expect_val_mask) + OFFSET) * SCALE;
+  expect_val_char = g_strdup_printf ("%.2f", expect_val);
+  for (idx = 0; idx < bytes_read / sizeof (float); idx++) {
+    actual_val = ((gfloat *) data_buffer)[idx];
+    actual_val_char = g_strdup_printf ("%.2f", actual_val);
+    EXPECT_STREQ (expect_val_char, actual_val_char);
+    g_free (actual_val_char);
+  }
+  g_free (expect_val_char);
+  g_free (data_buffer);
+
+  /** delete device structure */
+  ASSERT_EQ (safe_remove (dev0->log_file), 0);
+  gst_object_unref (src_iio_pipeline);
+  ASSERT_EQ (destroy_dev_dir (dev0), 0);
+  clean_iio_dev_structure (dev0);
+}
+
+/**
+ * @brief tests data of channels stored in 3 bytes
+ */
+TEST (testTensorSrcIio, dataVerifyExactStorage24)
+{
+  run_data_verify_exact_storage (24);
+}
+
+/**
+ * @brief tests data of channels stored in 7 bytes
+ */
+TEST (testTensorSrcIio, dataVerifyExactStorage56)
+{
+  run_data_verify_exact_storage (56);
 }
 
 /**
