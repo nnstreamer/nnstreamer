@@ -728,7 +728,8 @@ gst_data_repo_src_get_num_tensors (GstDataRepoSrc * src, guint shuffled_index)
   g_return_val_if_fail (src != NULL, 0);
 
   val = json_array_get_int_element (src->tensor_count_array, shuffled_index);
-  g_return_val_if_fail (val >= 0, 0);
+  if (val < 0 || val > (gint64) src->tensor_size_array_len)
+    return 0;
 
   cur_idx_tensor_cnt = (guint) val;
   GST_DEBUG_OBJECT (src, "cur_idx_tensor_cnt:%u", cur_idx_tensor_cnt);
@@ -738,11 +739,16 @@ gst_data_repo_src_get_num_tensors (GstDataRepoSrc * src, guint shuffled_index)
   } else {
     val = json_array_get_int_element (src->tensor_count_array,
         shuffled_index + 1);
-    g_return_val_if_fail (val >= 0, 0);
+    if (val < 0 || val > (gint64) src->tensor_size_array_len)
+      return 0;
 
     next_idx_tensor_cnt = (guint) val;
   }
   GST_DEBUG_OBJECT (src, "next_idx_tensor_cnt:%u", next_idx_tensor_cnt);
+
+  if (next_idx_tensor_cnt < cur_idx_tensor_cnt
+      || next_idx_tensor_cnt - cur_idx_tensor_cnt > NNS_TENSOR_SIZE_LIMIT)
+    return 0;
 
   num_tensors = next_idx_tensor_cnt - cur_idx_tensor_cnt;
   GST_DEBUG_OBJECT (src, "num_tensors:%u", num_tensors);
@@ -771,7 +777,7 @@ gst_data_repo_src_read_flexible_or_sparse_tensors (GstDataRepoSrc * src,
   gssize read_size;
   guint8 *data;
   guint tensor_count;
-  gsize tensor_size;
+  gsize tensor_size, hsize;
 
   g_return_val_if_fail (src->fd != 0, GST_FLOW_ERROR);
   g_return_val_if_fail (src->shuffled_index_array != NULL, GST_FLOW_ERROR);
@@ -797,10 +803,19 @@ gst_data_repo_src_read_flexible_or_sparse_tensors (GstDataRepoSrc * src,
   GST_LOG_OBJECT (src, "shuffled_index [%d] -> %d", src->array_index - 1,
       shuffled_index);
 
+  if (shuffled_index >= src->sample_offset_array_len
+      || shuffled_index >= src->tensor_count_array_len) {
+    GST_ELEMENT_ERROR (src, STREAM, FORMAT, (NULL),
+        ("Sample %u is not described in the JSON file.", shuffled_index));
+    return GST_FLOW_ERROR;
+  }
+
   /* sample offset from 0 */
   val = json_array_get_int_element (src->sample_offset_array, shuffled_index);
   if (val < 0) {
-    GST_ERROR_OBJECT (src, "Could not get the sample offset from json.");
+    GST_ELEMENT_ERROR (src, STREAM, FORMAT, (NULL),
+        ("Invalid sample_offset of sample %u in the JSON file: %"
+            G_GINT64_FORMAT, shuffled_index, val));
     return GST_FLOW_ERROR;
   }
 
@@ -811,19 +826,41 @@ gst_data_repo_src_read_flexible_or_sparse_tensors (GstDataRepoSrc * src,
 
   val = json_array_get_int_element (src->tensor_count_array, shuffled_index);
   if (val < 0) {
-    GST_ERROR_OBJECT (src, "Could not get the tensor count from json.");
+    GST_ELEMENT_ERROR (src, STREAM, FORMAT, (NULL),
+        ("Invalid tensor_count of sample %u in the JSON file: %"
+            G_GINT64_FORMAT, shuffled_index, val));
     return GST_FLOW_ERROR;
   }
   tensor_count = (guint) val;
 
   num_tensors = gst_data_repo_src_get_num_tensors (src, shuffled_index);
+  if (num_tensors == 0) {
+    GST_ELEMENT_ERROR (src, STREAM, FORMAT, (NULL),
+        ("Invalid tensor_count of sample %u in the JSON file.",
+            shuffled_index));
+    return GST_FLOW_ERROR;
+  }
+
+  gst_tensor_meta_info_init (&meta);
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
 
   buf = gst_buffer_new ();
 
   for (i = 0; i < num_tensors; i++) {
     val = json_array_get_int_element (src->tensor_size_array, tensor_count + i);
     if (val < 0) {
-      GST_ERROR_OBJECT (src, "Could not get the size of tensor from json.");
+      GST_ELEMENT_ERROR (src, STREAM, FORMAT, (NULL),
+          ("Invalid size of tensor %u in sample %u: %" G_GINT64_FORMAT,
+              i, shuffled_index, val));
+      ret = GST_FLOW_ERROR;
+      goto error;
+    }
+
+    if ((guint64) val < hsize || src->fd_offset > src->file_size
+        || (guint64) val > src->file_size - src->fd_offset) {
+      GST_ELEMENT_ERROR (src, STREAM, FORMAT, (NULL),
+          ("Invalid size of tensor %u in sample %u: %" G_GINT64_FORMAT,
+              i, shuffled_index, val));
       ret = GST_FLOW_ERROR;
       goto error;
     }
@@ -1152,6 +1189,9 @@ gst_data_repo_src_start (GstDataRepoSrc * src)
     /* no longer used */
     gst_data_repo_src_safe_close_fd (src);
   } else {
+    if (src->sample_size > src->file_size)
+      goto sample_too_large;
+
     /* set start offset and last offset */
     src->start_offset =
         gst_data_repo_src_get_file_offset (src, src->start_sample_index);
@@ -1205,6 +1245,13 @@ was_socket:
   {
     GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ,
         (("File \"%s\" is a socket."), src->filename), (NULL));
+    goto error_close;
+  }
+sample_too_large:
+  {
+    GST_ELEMENT_ERROR (src, STREAM, FORMAT, (NULL),
+        ("A sample of %zu bytes is larger than \"%s\".", src->sample_size,
+            src->filename));
     goto error_close;
   }
 

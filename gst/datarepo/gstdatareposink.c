@@ -346,7 +346,7 @@ gst_data_repo_sink_write_flexible_or_sparse_tensors (GstDataRepoSink * sink,
       goto mem_map_error;
     }
 
-    if (!gst_tensor_meta_info_parse_header (&meta, info.data)) {
+    if (!gst_tensor_meta_info_parse_memory (&meta, mem)) {
       GST_ERROR_OBJECT (sink,
           "Invalid format of tensors, the format is static.");
       goto error;
