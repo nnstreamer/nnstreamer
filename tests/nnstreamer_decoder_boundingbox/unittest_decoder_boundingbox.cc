@@ -750,8 +750,7 @@ freeGuardedFloats (GuardedFloats *g)
 /**
  * @brief Decode one mobilenet-ssd-postprocess detection whose count tensor says @a num.
  * @details Every tensor holds exactly one detection and ends right in front of an
- *          unreadable page. Each case of this binary gives this mode one detection,
- *          because the mode keeps the first count it accepts for the whole process.
+ *          unreadable page.
  */
 static gboolean
 decodeSsdPpCount (float num, uint32_t *frame)
@@ -853,8 +852,6 @@ TEST (tensorDecoderBoundingBox, ssdPpDetectionCountNegative_n)
 
 /**
  * @brief mp-palm-detection tensors with one detection, as many as PALM_DETECTIONS.
- * @details Each case of this binary gives this mode PALM_DETECTIONS detections,
- *          because the mode keeps the first count it accepts for the whole process.
  */
 class PalmDetectionTensors
 {
@@ -1008,7 +1005,6 @@ TEST (tensorDecoderBoundingBox, palmInvalidLayers_n)
   EXPECT_FALSE (decoder->setOption (&pdata, 2, "0.5:100"));
   EXPECT_FALSE (decoder->setOption (&pdata, 2, "0.5:2:1.0:1.0:0.5:0.5:32:0"));
   EXPECT_FALSE (decoder->setOption (&pdata, 2, "0.5:2:1.0:1.0:0.5:0.5:-8:32"));
-  /* No case of this binary gives the fifth to seventh layers a stride */
   EXPECT_FALSE (decoder->setOption (&pdata, 2, "0.5:7:1.0:1.0:0.5:0.5:32:32:32:32"));
 
   EXPECT_TRUE (acceptsConfig (decoder, &pdata, &t.config));
@@ -1044,34 +1040,27 @@ TEST (tensorDecoderBoundingBox, palmLayersKeepSetStrides)
 }
 
 /**
- * @brief Check a mp-palm-detection decoder that has never been given option3.
- * @details Runs in a fresh process, where no case has generated anchors yet.
- */
-static void
-exitWithPalmCapsWithoutOption ()
-{
-  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
-  PalmDetectionTensors t;
-  void *pdata = NULL;
-  int status = 2;
-
-  if (initPalmDecoder (decoder, &pdata)) {
-    status = acceptsConfig (decoder, &pdata, &t.config) ? 1 : 0;
-    decoder->exit (&pdata);
-  }
-
-  exit (status);
-}
-
-/**
  * @brief A mp-palm-detection stream without option3 is refused.
  * @details Without option3 no anchor is generated, and decode () used to index
- *          the empty anchor array for every detection.
+ *          the empty anchor array for every detection. Another decoder of this
+ *          process has generated anchors, which this one must not see.
  */
 TEST (tensorDecoderBoundingBox, palmWithoutOption_n)
 {
-  testing::GTEST_FLAG (death_test_style) = "threadsafe";
-  EXPECT_EXIT (exitWithPalmCapsWithoutOption (), testing::ExitedWithCode (0), "");
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  PalmDetectionTensors t;
+  void *other = NULL;
+  void *pdata = NULL;
+
+  ASSERT_TRUE (initPalmDecoder (decoder, &other));
+  EXPECT_TRUE (decoder->setOption (&other, 2, PALM_OPTION_STRIDE_32));
+  EXPECT_TRUE (acceptsConfig (decoder, &other, &t.config));
+
+  ASSERT_TRUE (initPalmDecoder (decoder, &pdata));
+  EXPECT_FALSE (acceptsConfig (decoder, &pdata, &t.config));
+
+  decoder->exit (&pdata);
+  decoder->exit (&other);
 }
 
 #define SSD_DETECTIONS (4U)
@@ -1103,8 +1092,6 @@ writeBoxPriors (guint columns, const gchar *value)
 
 /**
  * @brief mobilenet-ssd tensors with one detection of class 1 at @a index.
- * @details Each case of this binary gives this mode SSD_DETECTIONS detections,
- *          because the mode keeps the first count it accepts for the whole process.
  */
 class SsdTensors
 {
@@ -1285,6 +1272,295 @@ TEST (tensorDecoderBoundingBox, ssdFailedPriorLoad_n)
   decoder->exit (&pdata);
   removeTempFile (&priors);
   removeTempFile (&labels);
+}
+
+/* yolov8 has a box for every cell of its three strides, 32, 16 and 8 */
+#define YOLO_SMALL_MODEL "32:32"
+#define YOLO_SMALL_BOXES (21U) /* 1 + 4 + 16 */
+#define YOLO_LARGE_MODEL "64:64"
+#define YOLO_LARGE_BOXES (84U) /* 4 + 16 + 64 */
+#define YOLO_BOX_INFO (5U) /* cx, cy, w, h and the score of the single label */
+
+/**
+ * @brief Start a yolov8 decoder of one label for a model of the input size @a model.
+ */
+static gboolean
+initYoloV8Decoder (const GstTensorDecoderDef *decoder, void **pdata,
+    const gchar *label_file, const gchar *model)
+{
+  return decoder != NULL && label_file != NULL && decoder->init (pdata)
+         && decoder->setOption (pdata, 0, "yolov8")
+         && decoder->setOption (pdata, 1, label_file)
+         && decoder->setOption (pdata, 3, "64:48")
+         && decoder->setOption (pdata, 4, model);
+}
+
+/**
+ * @brief Build the tensors config of a yolov8 model of one label and @a boxes boxes.
+ */
+static void
+setYoloV8Config (GstTensorsConfig *config, guint boxes)
+{
+  gchar *dim = g_strdup_printf ("%u:%u:1", YOLO_BOX_INFO, boxes);
+  const gchar *const dims[] = { dim };
+
+  setFloatConfig (config, 1, dims);
+  g_free (dim);
+}
+
+/**
+ * @brief Two decoders of the same mode for models of different sizes decode their own streams.
+ * @details The box properties of a mode used to be one object per process, so
+ *          the second decoder's option5 became the first one's too, and the
+ *          first decoder read the boxes of the larger model past its own tensor.
+ *          The tensor of the first decoder ends in front of an unreadable page,
+ *          so that over-read faults at once.
+ */
+TEST (tensorDecoderBoundingBox, yoloV8DecodersOfDifferentModelSizes)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  gchar *labels = getTempFilename ();
+  float small[YOLO_BOX_INFO * YOLO_SMALL_BOXES] = { 0.0f };
+  float large[YOLO_BOX_INFO * YOLO_LARGE_BOXES] = { 0.0f };
+  const guint last = (YOLO_SMALL_BOXES - 1) * YOLO_BOX_INFO;
+  uint32_t frame[BOX_OUT_PIXELS] = { 0U };
+  uint32_t large_frame[BOX_OUT_PIXELS] = { 0U };
+  GstTensorsConfig small_config, large_config;
+  GstTensorMemory small_input, large_input;
+  GuardedFloats g = { NULL, 0 };
+  void *small_pdata = NULL;
+  void *large_pdata = NULL;
+
+  ASSERT_TRUE (labels != NULL);
+  ASSERT_TRUE (g_file_set_contents (labels, "object\n", -1, NULL));
+
+  small[last] = 0.5f;
+  small[last + 1] = 0.5f;
+  small[last + 2] = 0.5f;
+  small[last + 3] = 0.5f;
+  small[last + 4] = 0.9f;
+  small_input.data = newGuardedFloats (&g, small, YOLO_BOX_INFO * YOLO_SMALL_BOXES);
+  small_input.size = sizeof (small);
+  ASSERT_TRUE (small_input.data != NULL);
+  large_input.data = large;
+  large_input.size = sizeof (large);
+
+  setYoloV8Config (&small_config, YOLO_SMALL_BOXES);
+  setYoloV8Config (&large_config, YOLO_LARGE_BOXES);
+
+  ASSERT_TRUE (initYoloV8Decoder (decoder, &small_pdata, labels, YOLO_SMALL_MODEL));
+  EXPECT_TRUE (acceptsConfig (decoder, &small_pdata, &small_config));
+
+  ASSERT_TRUE (initYoloV8Decoder (decoder, &large_pdata, labels, YOLO_LARGE_MODEL));
+  EXPECT_TRUE (acceptsConfig (decoder, &large_pdata, &large_config));
+  EXPECT_FALSE (acceptsConfig (decoder, &large_pdata, &small_config));
+
+  EXPECT_TRUE (decodeFrame (decoder, &small_pdata, &small_config, &small_input, frame));
+  EXPECT_GT (countDrawnPixels (frame, BOX_OUT_PIXELS), 0U);
+  EXPECT_TRUE (acceptsConfig (decoder, &small_pdata, &small_config));
+
+  EXPECT_TRUE (decodeFrame (decoder, &large_pdata, &large_config, &large_input, large_frame));
+  EXPECT_EQ (countDrawnPixels (large_frame, BOX_OUT_PIXELS), 0U);
+
+  decoder->exit (&large_pdata);
+  decoder->exit (&small_pdata);
+  gst_tensors_config_free (&large_config);
+  gst_tensors_config_free (&small_config);
+  freeGuardedFloats (&g);
+  removeTempFile (&labels);
+}
+
+/**
+ * @brief Two mobilenet-ssd-postprocess decoders accept their own detection counts.
+ * @details The mode keeps the first detection count it accepts. That used to
+ *          hold for the whole process, so a model of another count was refused
+ *          by every other decoder.
+ */
+TEST (tensorDecoderBoundingBox, ssdPpDecodersOfDifferentDetectionCounts)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  const gchar *const one_dims[] = { "1", "1:1", "1:1", "4:1" };
+  const gchar *const two_dims[] = { "1", "2:1", "2:1", "4:2" };
+  GstTensorsConfig one, two;
+  void *one_pdata = NULL;
+  void *two_pdata = NULL;
+
+  ASSERT_TRUE (decoder != NULL);
+  setFloatConfig (&one, 4, one_dims);
+  setFloatConfig (&two, 4, two_dims);
+
+  ASSERT_TRUE (decoder->init (&one_pdata));
+  EXPECT_TRUE (decoder->setOption (&one_pdata, 0, "mobilenet-ssd-postprocess"));
+  EXPECT_TRUE (decoder->setOption (&one_pdata, 3, "64:48"));
+  EXPECT_TRUE (decoder->setOption (&one_pdata, 4, "640:480"));
+  EXPECT_TRUE (acceptsConfig (decoder, &one_pdata, &one));
+
+  ASSERT_TRUE (decoder->init (&two_pdata));
+  EXPECT_TRUE (decoder->setOption (&two_pdata, 0, "mobilenet-ssd-postprocess"));
+  EXPECT_TRUE (decoder->setOption (&two_pdata, 3, "64:48"));
+  EXPECT_TRUE (decoder->setOption (&two_pdata, 4, "640:480"));
+  EXPECT_TRUE (acceptsConfig (decoder, &two_pdata, &two));
+
+  EXPECT_TRUE (acceptsConfig (decoder, &one_pdata, &one));
+  EXPECT_FALSE (acceptsConfig (decoder, &one_pdata, &two));
+
+  decoder->exit (&two_pdata);
+  decoder->exit (&one_pdata);
+  gst_tensors_config_free (&two);
+  gst_tensors_config_free (&one);
+}
+
+/**
+ * @brief A decoder does not take the options another decoder gave the same mode.
+ * @details The second decoder is never given option5, so it has no model input
+ *          size to scale boxes by, whatever the first decoder was given.
+ */
+TEST (tensorDecoderBoundingBox, optionsOfAnotherDecoder_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  GstTensorsConfig config;
+  GstTensorMemory input;
+  GstBuffer *outbuf;
+  void *configured = NULL;
+  void *pdata = NULL;
+
+  ASSERT_TRUE (decoder != NULL);
+  setOvDetectionConfig (&config);
+
+  ASSERT_TRUE (decoder->init (&configured));
+  EXPECT_TRUE (decoder->setOption (&configured, 0, "ov-person-detection"));
+  EXPECT_TRUE (decoder->setOption (&configured, 3, "64:48"));
+  EXPECT_TRUE (decoder->setOption (&configured, 4, "640:480"));
+  EXPECT_TRUE (acceptsConfig (decoder, &configured, &config));
+
+  ASSERT_TRUE (decoder->init (&pdata));
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "ov-person-detection"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 3, "64:48"));
+  EXPECT_FALSE (acceptsConfig (decoder, &pdata, &config));
+
+  memset (&input, 0, sizeof (input));
+  outbuf = gst_buffer_new ();
+  EXPECT_EQ (decoder->decode (&pdata, &config, &input, outbuf), GST_FLOW_ERROR);
+  gst_buffer_unref (outbuf);
+
+  decoder->exit (&pdata);
+  EXPECT_TRUE (acceptsConfig (decoder, &configured, &config));
+  decoder->exit (&configured);
+  gst_tensors_config_free (&config);
+}
+
+/**
+ * @brief Giving option1 the mode it already has keeps the options of the mode.
+ * @details tf-ssd is the deprecated name of mobilenet-ssd-postprocess, so it
+ *          selects the same mode as well.
+ */
+TEST (tensorDecoderBoundingBox, sameModeKeepsOptions)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  const gchar *const dims[] = { "1", "1:1", "1:1", "4:1" };
+  GstTensorsConfig config;
+  void *pdata = NULL;
+
+  ASSERT_TRUE (decoder != NULL);
+  setFloatConfig (&config, 4, dims);
+
+  ASSERT_TRUE (decoder->init (&pdata));
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "mobilenet-ssd-postprocess"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 3, "64:48"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 4, "640:480"));
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &config));
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "mobilenet-ssd-postprocess"));
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &config));
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "tf-ssd"));
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &config));
+
+  decoder->exit (&pdata);
+  gst_tensors_config_free (&config);
+}
+
+/**
+ * @brief Switching option1 to another mode and back restores the options of the mode.
+ * @details option1 is writable while the stream runs, so the box properties a
+ *          decoder switches away from are kept until the decoder exits: decode ()
+ *          may still be using them. The other mode starts from its defaults.
+ */
+TEST (tensorDecoderBoundingBox, switchModeBackKeepsOptions)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  GstTensorsConfig config;
+  void *pdata = NULL;
+
+  ASSERT_TRUE (decoder != NULL);
+  setOvDetectionConfig (&config);
+
+  ASSERT_TRUE (decoder->init (&pdata));
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "ov-person-detection"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 3, "64:48"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 4, "640:480"));
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &config));
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "yolov8"));
+  EXPECT_FALSE (acceptsConfig (decoder, &pdata, &config));
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "ov-person-detection"));
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &config));
+
+  decoder->exit (&pdata);
+  gst_tensors_config_free (&config);
+}
+
+/**
+ * @brief A mode selected after another one does not take the options of the other.
+ */
+TEST (tensorDecoderBoundingBox, switchModeTakesNoOptions_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  const gchar *const dims[] = { "1", "1:1", "1:1", "4:1" };
+  GstTensorsConfig config;
+  void *pdata = NULL;
+
+  ASSERT_TRUE (decoder != NULL);
+  setFloatConfig (&config, 4, dims);
+
+  ASSERT_TRUE (decoder->init (&pdata));
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "ov-person-detection"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 3, "64:48"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 4, "640:480"));
+
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "mobilenet-ssd-postprocess"));
+  EXPECT_FALSE (acceptsConfig (decoder, &pdata, &config));
+
+  decoder->exit (&pdata);
+  gst_tensors_config_free (&config);
+}
+
+/**
+ * @brief Every mode name option1 accepts gives a decoder box properties of its own.
+ * @details A decoder that selects every mode, and every mode again, keeps one of each.
+ */
+TEST (tensorDecoderBoundingBox, createEveryMode)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  const gchar *const modes[] = { "mobilenet-ssd", "mobilenet-ssd-postprocess",
+    "ov-person-detection", "tflite-ssd", "tf-ssd", "yolov5",
+    "mp-palm-detection", "yolov8", "yolov8-obb", "yolov10" };
+  void *pdata = NULL;
+  guint i;
+
+  ASSERT_TRUE (decoder != NULL);
+
+  for (i = 0; i < G_N_ELEMENTS (modes); i++) {
+    ASSERT_TRUE (decoder->init (&pdata));
+    EXPECT_TRUE (decoder->setOption (&pdata, 0, modes[i])) << modes[i];
+    EXPECT_TRUE (decoder->setOption (&pdata, 4, "320:320")) << modes[i];
+    decoder->exit (&pdata);
+  }
+
+  ASSERT_TRUE (decoder->init (&pdata));
+  for (i = 0; i < 2 * G_N_ELEMENTS (modes); i++)
+    EXPECT_TRUE (decoder->setOption (&pdata, 0, modes[i % G_N_ELEMENTS (modes)]))
+        << modes[i % G_N_ELEMENTS (modes)];
+  decoder->exit (&pdata);
 }
 
 /**
