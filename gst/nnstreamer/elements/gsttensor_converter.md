@@ -113,6 +113,7 @@ $ gst-launch videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! tensor
 
 ### flexbuffers to tensors stream
 Convert to flexbuffers using tensor decoder and then convert back to tensors stream.
+* Note: the blob of each tensor should hold exactly the bytes of that tensor. A producer written in Python should pass the bytes of its array (`array.tobytes()`), because `flexbuffers.Builder.Blob()` records the length of what it is given, which is the number of elements for a numpy array.
 ```
 $ gst-launch videotestsrc ! video/x-raw,format=RGB,width=640,height=480 ! tensor_converter ! tensor_decoder mode=flexbuf ! tensor_converter ! tensor_sink
 ```

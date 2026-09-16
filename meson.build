@@ -178,6 +178,9 @@ if flatc.found()
       )
   flatbuf_version_check_dep = dependency('flatbuffers', version: '>=2.0.0',
       required : get_option('flatbuf-support'))
+  if flatbuf_version_check_dep.found() and flatbuf_version_check_dep.version().version_compare('<2.0.6')
+    warning('flatbuffers older than 2.0.6 has no flexbuffers verifier, so tensor_converter::flexbuf cannot verify an incoming message before parsing it.')
+  endif
   flatc_dep = declare_dependency()
 endif
 

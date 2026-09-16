@@ -107,11 +107,22 @@ flxc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
     return NULL;
   }
 
+  /* flatbuffers < 2.0.6 has no VerifyBuffer (); the input stays unverified */
+#if FLATBUFFERS_VERSION_MAJOR > 2 \
+    || (FLATBUFFERS_VERSION_MAJOR == 2 && FLATBUFFERS_VERSION_REVISION >= 6)
+  if (!flexbuffers::VerifyBuffer (in_info.data, in_info.size)) {
+    ml_loge ("The incoming buffer is not a valid flexbuffers message / tensor_converter::flexbuf.\n");
+    gst_memory_unmap (in_mem, &in_info);
+    gst_memory_unref (in_mem);
+    return NULL;
+  }
+#endif
+
   flexbuffers::Map tensors = flexbuffers::GetRoot (in_info.data, in_info.size).AsMap ();
   config->info.num_tensors = tensors["num_tensors"].AsUInt32 ();
 
-  if (config->info.num_tensors > NNS_TENSOR_SIZE_LIMIT) {
-    nns_loge ("The number of tensors is limited to %d", NNS_TENSOR_SIZE_LIMIT);
+  if (config->info.num_tensors == 0 || config->info.num_tensors > NNS_TENSOR_SIZE_LIMIT) {
+    nns_loge ("The number of tensors must be between 1 and %d", NNS_TENSOR_SIZE_LIMIT);
     goto done;
   }
   config->rate_n = tensors["rate_n"].AsInt32 ();
@@ -137,11 +148,18 @@ flxc_convert (GstBuffer *in_buf, GstTensorsConfig *config, void *priv_data)
       _info->dimension[j] = dim[j].AsInt32 ();
     }
     flexbuffers::Blob tensor_data = tensor[3].AsBlob ();
-    mem_size = gst_tensor_info_get_size (_info);
-    if (gst_tensors_config_is_flexible (config)) {
-      GstTensorMetaInfo meta;
-      gst_tensor_meta_info_parse_header (&meta, (gpointer) tensor_data.data ());
-      mem_size += gst_tensor_meta_info_get_header_size (&meta);
+    mem_size = tensor_data.size ();
+
+    if (!tensor[3].IsBlob () || tensor_data.data () < in_info.data
+        || tensor_data.data () > in_info.data + in_info.size
+        || mem_size > (gsize) (in_info.data + in_info.size - tensor_data.data ())
+        || !tcu_check_tensor_data (config, _info, tensor_data.data (), mem_size)) {
+      ml_loge ("Cannot convert the %u'th tensor of the flexbuffers message / tensor_converter::flexbuf.\n",
+          i);
+      g_free (tensor_key);
+      gst_buffer_unref (out_buf);
+      out_buf = NULL;
+      goto done;
     }
 
     offset = tensor_data.data () - in_info.data;

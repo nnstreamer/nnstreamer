@@ -72,7 +72,7 @@ class CustomDecoder(object):
                     with fbb.TypedVector():
                         for d in dims:
                             fbb.Int(d)
-                    fbb.Blob(raw_data[i])
+                    fbb.Blob(raw_data[i].tobytes())
 
         data = bytes(fbb.Finish())
         return data
