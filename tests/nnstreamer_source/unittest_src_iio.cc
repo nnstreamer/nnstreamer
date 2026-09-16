@@ -1883,6 +1883,88 @@ TEST (testTensorSrcIio, dataVerifyExactStorage56)
 }
 
 /**
+ * @brief add scan elements of a disabled channel and run the device
+ * @param[in] names files of the extra channel, contents in the same order
+ * @param[in] contents contents of the files
+ * @param[in] num_files number of the extra files
+ * @param[in] expected state change expected when the device is configured
+ * @note the generic name of a channel is its name without the trailing digits,
+ * which is empty for the names used here
+ */
+static void
+run_extra_channel_case (const gchar *const *names, const gchar *const *contents,
+    const guint num_files, const GstStateChangeReturn expected)
+{
+  iio_dev_dir_struct *dev0;
+  GstHarness *hrnss = NULL;
+  GstElement *src_iio = NULL;
+  GstStateChangeReturn status;
+  gchar **extra_files;
+  guint idx;
+
+  /** Make device */
+  dev0 = make_full_device (DATA, 16);
+  ASSERT_NE (dev0, nullptr);
+
+  extra_files = g_new0 (gchar *, num_files);
+  for (idx = 0; idx < num_files; idx++) {
+    extra_files[idx] = g_build_filename (dev0->scan_el, names[idx], NULL);
+    ASSERT_EQ (write_file_string (extra_files[idx], contents[idx]), 0);
+  }
+
+  /** setup */
+  hrnss = gst_harness_new_empty ();
+  ASSERT_TRUE (hrnss != NULL);
+  gst_harness_add_parse (hrnss, ELEMENT_NAME);
+  src_iio = gst_harness_find_element (hrnss, ELEMENT_NAME);
+  ASSERT_TRUE (src_iio != NULL);
+
+  g_object_set (src_iio, "iio-base-dir", dev0->iio_base_dir_sim, NULL);
+  g_object_set (src_iio, "dev-dir", dev0->dev_dir, NULL);
+  g_object_set (src_iio, "device", DEVICE_NAME, NULL);
+
+  status = gst_element_set_state (src_iio, GST_STATE_PAUSED);
+  EXPECT_EQ (status, expected);
+  EXPECT_EQ (gst_element_set_state (src_iio, GST_STATE_NULL), GST_STATE_CHANGE_SUCCESS);
+
+  /** teardown */
+  gst_object_unref (src_iio);
+  gst_harness_teardown (hrnss);
+
+  for (idx = 0; idx < num_files; idx++) {
+    EXPECT_EQ (safe_remove (extra_files[idx]), 0);
+    g_free (extra_files[idx]);
+  }
+  g_free (extra_files);
+  ASSERT_EQ (destroy_dev_dir (dev0), 0);
+  clean_iio_dev_structure (dev0);
+}
+
+/**
+ * @brief tests a channel whose name holds nothing but its index
+ */
+TEST (testTensorSrcIio, channelNameDigitsOnly)
+{
+  const gchar *names[] = { "123_en", "123_index", "123_type" };
+  const gchar *contents[] = { "0", "8", "le:s16/16>>0" };
+
+  /** the extra channel is disabled, so the device is configured as usual */
+  run_extra_channel_case (names, contents, G_N_ELEMENTS (names), GST_STATE_CHANGE_NO_PREROLL);
+}
+
+/**
+ * @brief tests a channel whose name is empty
+ */
+TEST (testTensorSrcIio, channelNameEmpty_n)
+{
+  const gchar *names[] = { "_en", "_index", "_type" };
+  const gchar *contents[] = { "0", "8", "le:s16/16>>0" };
+
+  /** such a channel has no file of its own to read the state from */
+  run_extra_channel_case (names, contents, G_N_ELEMENTS (names), GST_STATE_CHANGE_FAILURE);
+}
+
+/**
  * @brief Main function for unit test.
  */
 int

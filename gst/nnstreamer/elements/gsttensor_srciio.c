@@ -807,7 +807,8 @@ gst_tensor_src_iio_get_generic_name (const gchar * channel_name)
   gchar *generic_name;
   gsize channel_name_len = strlen (channel_name);
 
-  while (g_ascii_isdigit (channel_name[channel_name_len - digit_len])) {
+  while (digit_len <= channel_name_len
+      && g_ascii_isdigit (channel_name[channel_name_len - digit_len])) {
     digit_len++;
   }
   generic_name = g_strndup (channel_name, channel_name_len - digit_len + 1);
