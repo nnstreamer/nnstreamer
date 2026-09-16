@@ -11,6 +11,7 @@
 #include <glib.h>
 #include <glib/gstdio.h>
 #include <gst/gst.h>
+#include <nnstreamer_plugin_api_util.h>
 #include <unittest_util.h>
 
 static const gchar filename[] = "mnist.data";
@@ -662,6 +663,114 @@ TEST (datareposink, writeSparseTensors_n)
   g_remove ("img.json");
   g_remove ("sparse.json");
   g_remove ("sparse.data");
+}
+
+/**
+ * @brief Bus callback recording the first EOS or ERROR.
+ */
+static gboolean
+_short_bus_cb (GstBus *bus, GstMessage *message, gpointer user_data)
+{
+  GstMessageType *type = (GstMessageType *) user_data;
+
+  if (GST_MESSAGE_TYPE (message) == GST_MESSAGE_EOS
+      || GST_MESSAGE_TYPE (message) == GST_MESSAGE_ERROR) {
+    if (*type == GST_MESSAGE_UNKNOWN)
+      *type = GST_MESSAGE_TYPE (message);
+  }
+
+  return TRUE;
+}
+
+/**
+ * @brief Write one flexible tensor (128-byte header + 4 bytes) of which the memory maps only @a mem_size bytes.
+ * @return the size of the data file written by datareposink.
+ */
+static gint64
+_write_short_flexible_memory (gsize mem_size, GstMessageType *type)
+{
+  const gsize tensor_size = 128 + 4;
+  GstElement *pipeline, *src;
+  GstBus *bus;
+  GstBuffer *buf;
+  GstFlowReturn flow;
+  GstTensorMetaInfo meta;
+  GStatBuf st;
+  guint8 *data = (guint8 *) g_malloc0 (tensor_size);
+  gint64 size = -1;
+  guint i;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_UINT8;
+  meta.dimension[0] = 4;
+  meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+  EXPECT_TRUE (gst_tensor_meta_info_update_header (&meta, data));
+
+  buf = gst_buffer_new ();
+  gst_buffer_append_memory (buf, gst_memory_new_wrapped ((GstMemoryFlags) 0, data,
+                                     tensor_size, 0, mem_size, data, g_free));
+
+  pipeline = gst_parse_launch ("appsrc name=src0 caps=other/tensors,format=flexible,framerate=0/1 ! "
+                               "datareposink location=short.data json=short.json",
+      NULL);
+  EXPECT_NE (pipeline, nullptr);
+  if (!pipeline) {
+    gst_buffer_unref (buf);
+    return size;
+  }
+
+  src = gst_bin_get_by_name (GST_BIN (pipeline), "src0");
+  bus = gst_pipeline_get_bus (GST_PIPELINE (pipeline));
+  *type = GST_MESSAGE_UNKNOWN;
+  gst_bus_add_signal_watch (bus);
+  g_signal_connect (bus, "message", G_CALLBACK (_short_bus_cb), type);
+
+  EXPECT_NE (gst_element_set_state (pipeline, GST_STATE_PLAYING), GST_STATE_CHANGE_FAILURE);
+  /* push-buffer does not take the buffer. */
+  g_signal_emit_by_name (src, "push-buffer", buf, &flow);
+  gst_buffer_unref (buf);
+  g_signal_emit_by_name (src, "end-of-stream", &flow);
+
+  for (i = 0; i < 500 && *type == GST_MESSAGE_UNKNOWN; i++) {
+    g_main_context_iteration (NULL, FALSE);
+    g_usleep (10000);
+  }
+
+  gst_element_set_state (pipeline, GST_STATE_NULL);
+  gst_bus_remove_signal_watch (bus);
+  gst_object_unref (bus);
+  gst_object_unref (src);
+  gst_object_unref (pipeline);
+
+  if (g_stat ("short.data", &st) == 0)
+    size = st.st_size;
+
+  g_remove ("short.data");
+  g_remove ("short.json");
+  return size;
+}
+
+/**
+ * @brief A flexible tensor whose memory holds the whole meta header is written.
+ */
+TEST (datareposink, writeFlexibleTensorMemory)
+{
+  GstMessageType type;
+
+  EXPECT_EQ (_write_short_flexible_memory (132, &type), 132);
+  EXPECT_EQ (type, GST_MESSAGE_EOS);
+}
+
+/**
+ * @brief A flexible tensor memory shorter than the meta header is refused.
+ * The bytes behind the mapping hold a valid header, so reading past the memory would accept it.
+ */
+TEST (datareposink, writeFlexibleTensorShortMemory_n)
+{
+  GstMessageType type;
+
+  EXPECT_EQ (_write_short_flexible_memory (8, &type), 0);
+  EXPECT_EQ (type, GST_MESSAGE_ERROR);
 }
 
 /**
