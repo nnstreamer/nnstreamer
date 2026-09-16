@@ -1204,37 +1204,41 @@ gst_tensor_src_iio_set_property (GObject * object, guint prop_id,
         gchar **strv;
         gchar *endptr = NULL;
         gboolean status = TRUE;
+        GHashTable *table;
 
         /**
          * using direct as we only need to store keys
          * and keys form a unique set
          */
-        self->custom_channel_table =
-            g_hash_table_new (g_direct_hash, g_direct_equal);
+        table = g_hash_table_new (g_direct_hash, g_direct_equal);
         strv = g_strsplit_set (param, ",;", -1);
         num = g_strv_length (strv);
         for (i = 0; i < num; i++) {
+          errno = 0;
           val = g_ascii_strtoll (strv[i], &endptr, 10);
           if (errno == ERANGE || errno == EINVAL || (endptr == strv[i]
-                  && val == 0)) {
+                  && val == 0) || val < 0 || val > G_MAXINT) {
             GST_ERROR_OBJECT (self,
                 "Cannot parse received custom channels %s. The property values for CHANNELS are ignored.",
                 param);
-            g_hash_table_destroy (self->custom_channel_table);
-            self->custom_channel_table = NULL;
             status = FALSE;
             break;
           }
-          if (!g_hash_table_insert (self->custom_channel_table,
-                  GINT_TO_POINTER (val), NULL)) {
+          if (!g_hash_table_insert (table, GINT_TO_POINTER (val), NULL)) {
             /** this means val is duplicated. just skip it, then. */
             ml_logw
                 ("tensor-src-iio's CHANNELS property value has a duplicated entry, '%s', which is registered only once.\n",
                 strv[i]);
           }
         }
-        if (status)
+        if (status) {
+          if (self->custom_channel_table)
+            g_hash_table_destroy (self->custom_channel_table);
+          self->custom_channel_table = table;
           self->channels_enabled = CHANNELS_ENABLED_CUSTOM;
+        } else {
+          g_hash_table_destroy (table);
+        }
         g_strfreev (strv);
         break;
       }
@@ -1312,6 +1316,8 @@ gst_tensor_src_iio_get_property (GObject * object, guint prop_id,
         g_value_set_string (value, CHANNELS_ENABLED_ALL_CHAR);
       } else if (self->channels_enabled == CHANNELS_ENABLED_AUTO) {
         g_value_set_string (value, CHANNELS_ENABLED_AUTO_CHAR);
+      } else if (self->custom_channel_table == NULL) {
+        g_value_set_string (value, "");
       } else {
         GHashTableIter iter;
         gpointer key;
