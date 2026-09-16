@@ -33,6 +33,7 @@
  *          Available : snpe-depth
  *
  * option2: Maximum number of class labels (except background), default is 20 (Pascal)
+ *          Available : 1 to 16777214
  *
  * expected models
  * - tflite-deeplab : deeplabv3_257_mv_gpu.tflite (designed for embedded devices)
@@ -93,6 +94,7 @@
 #endif
 
 #define DEFAULT_LABELS  (20)
+#define MAX_LABELS      (0xFFFFFE)      /* keeps rgb_modifier above zero */
 #define RGBA_CHANNEL    (4)
 #define MAX_RGB         (255)
 
@@ -129,9 +131,11 @@ typedef struct
 {
   image_segment_modes mode; /**< The image segmentation decoding mode */
   float *segment_map;       /**< The image segmentated map */
+  guint segment_map_len;    /**< Number of pixels allocated in segment_map */
 
   guint max_labels;         /**< Maximum number of labels */
   guint *color_map;         /**< The RGBA color map (up to max labels) */
+  guint color_map_len;      /**< Number of colors allocated in color_map */
 
   guint width;              /**< Input video width */
   guint height;             /**< Input video height */
@@ -158,7 +162,9 @@ is_init (void **pdata)
   idata->height = 0;
   idata->max_labels = DEFAULT_LABELS;
   idata->segment_map = NULL;
+  idata->segment_map_len = 0;
   idata->color_map = NULL;
+  idata->color_map_len = 0;
   idata->rgb_modifier = 0;
 
   return TRUE;
@@ -198,14 +204,14 @@ _fill_color_map (image_segments * idata)
   idata->color_map[0] = 0;      /* background */
 
 #if defined (NEON64_ENABLED)
-  idata->rgb_modifier = 0xFFFFFF / (idata->max_labels + 1);
-  for (i = 1; i <= idata->max_labels; i++) {
+  idata->rgb_modifier = 0xFFFFFF / idata->color_map_len;
+  for (i = 1; i < idata->color_map_len; i++) {
     /* colors should be the same with neon calculations */
     idata->color_map[i] = idata->rgb_modifier * i;
     ((guint8 *) & idata->color_map[i])[3] = '\xff';     /* alpha */
   }
 #else
-  for (i = 1; i <= idata->max_labels; i++) {
+  for (i = 1; i < idata->color_map_len; i++) {
     /* any color value would be acceptable */
     idata->color_map[i] = g_rand_int_range (idata->rand, 0x101010, 0xFFFFFF);
     ((guint8 *) & idata->color_map[i])[3] = '\xff';     /* alpha */
@@ -234,13 +240,35 @@ is_setOption (void **pdata, int op_num, const char *param)
     }
     return TRUE;
   } else if (op_num == 1) {
-    guint64 max_labels_64 = g_ascii_strtoll (param, NULL, 10);
-    if (max_labels_64 != 0 && max_labels_64 <= UINT_MAX)
-      idata->max_labels = (guint) max_labels_64;
+    gchar *end = NULL;
+    guint64 max_labels_64 = g_ascii_strtoull (param, &end, 10);
+
+    if (max_labels_64 == 0 || max_labels_64 > MAX_LABELS || *end != '\0') {
+      GST_ERROR ("option2 (%s) should be a number of labels in [1, %u].",
+          param, MAX_LABELS);
+      return FALSE;
+    }
+
+    idata->max_labels = (guint) max_labels_64;
+    return TRUE;
   }
 
   GST_WARNING ("mode-option-\"%d\" is not defined.", op_num);
   return TRUE;
+}
+
+/** @brief (Re)allocate the color map if the number of labels has changed */
+static void
+_init_color_map (image_segments * idata)
+{
+  guint len = idata->max_labels + 1;
+
+  if (idata->color_map == NULL || idata->color_map_len != len) {
+    g_free (idata->color_map);
+    idata->color_map = g_new (guint, len);
+    idata->color_map_len = len;
+    _fill_color_map (idata);
+  }
 }
 
 /** @brief Initialize image_segments per mode */
@@ -248,21 +276,18 @@ static gboolean
 _init_modes (image_segments * idata)
 {
   if (idata->mode == MODE_TFLITE_DEEPLAB) {
-    /* init image segments if seg map is null */
-    if (idata->segment_map == NULL)
-      idata->segment_map = g_new0 (float, idata->height * idata->width);
+    guint num_pixels = idata->height * idata->width;
 
-    if (idata->color_map == NULL) {
-      idata->color_map = g_new (guint, idata->max_labels + 1);
-      _fill_color_map (idata);
+    if (idata->segment_map == NULL || idata->segment_map_len != num_pixels) {
+      g_free (idata->segment_map);
+      idata->segment_map = g_new0 (float, num_pixels);
+      idata->segment_map_len = num_pixels;
     }
 
+    _init_color_map (idata);
     return TRUE;
   } else if (idata->mode == MODE_SNPE_DEEPLAB) {
-    if (idata->color_map == NULL) {
-      idata->color_map = g_new (guint, idata->max_labels + 1);
-      _fill_color_map (idata);
-    }
+    _init_color_map (idata);
     return TRUE;
   } else if (idata->mode == MODE_SNPE_DEPTH) {
     return TRUE;
@@ -270,6 +295,20 @@ _init_modes (image_segments * idata)
 
   GST_ERROR ("Failed to initialize, unknown mode %d.", idata->mode);
   return FALSE;
+}
+
+/** @brief Get the frame size of the tensors config in the current mode */
+static void
+_get_frame_size (image_segments * idata, const GstTensorsConfig * config,
+    guint * width, guint * height)
+{
+  if (idata->mode == MODE_SNPE_DEEPLAB) {
+    *width = config->info.info[0].dimension[0];
+    *height = config->info.info[0].dimension[1];
+  } else {
+    *width = config->info.info[0].dimension[1];
+    *height = config->info.info[0].dimension[2];
+  }
 }
 
 /**
@@ -284,22 +323,17 @@ is_getOutCaps (void **pdata, const GstTensorsConfig * config)
 {
   image_segments *idata = *pdata;
   GstCaps *caps;
+  guint width, height;
   char *str;
 
   g_return_val_if_fail (config != NULL, NULL);
   GST_INFO ("Num Tensors = %d", config->info.num_tensors);
   g_return_val_if_fail (config->info.num_tensors >= 1, NULL);
 
-  if (idata->mode == MODE_SNPE_DEEPLAB) {
-    idata->width = config->info.info[0].dimension[0];
-    idata->height = config->info.info[0].dimension[1];
-  } else {
-    idata->width = config->info.info[0].dimension[1];
-    idata->height = config->info.info[0].dimension[2];
-  }
+  _get_frame_size (idata, config, &width, &height);
 
   str = g_strdup_printf ("video/x-raw, format = RGBA, "
-      "width = %u, height = %u", idata->width, idata->height);
+      "width = %u, height = %u", width, height);
   caps = gst_caps_from_string (str);
   setFramerateFromConfig (caps, config);
   g_free (str);
@@ -381,7 +415,7 @@ set_color_according_to_label (image_segments * idata, GstMapInfo * out_info)
     label_idx = (guint) input[idx];
 
     /* If out-of-range, don't draw it */
-    if (G_UNLIKELY (label_idx > idata->max_labels))
+    if (G_UNLIKELY (label_idx >= idata->color_map_len))
       continue;
 
     output[idx] = idata->color_map[label_idx];
@@ -512,10 +546,10 @@ set_label_index (image_segments * idata, void *data)
   guint idx, i, j;
   int max_idx;
   float max_prob;
-  guint total_labels = idata->max_labels + 1;
+  guint total_labels = idata->color_map_len;
 
   memset (idata->segment_map, '\x00',
-      (size_t) idata->width * idata->height * sizeof (float));
+      (size_t) idata->segment_map_len * sizeof (float));
 
   for (i = 0; i < idata->height; i++) {
     for (j = 0; j < idata->width; j++) {
@@ -564,7 +598,7 @@ check_sanity (image_segments * idata, const GstTensorsConfig * config)
 {
   if (idata->mode == MODE_TFLITE_DEEPLAB) {
     return (config->info.info[0].type == _NNS_FLOAT32) &&
-        (config->info.info[0].dimension[0] == idata->max_labels + 1);
+        (config->info.info[0].dimension[0] == idata->color_map_len);
   } else if (idata->mode == MODE_SNPE_DEEPLAB) {
     return (config->info.info[0].type == _NNS_FLOAT32);
   } else if (idata->mode == MODE_SNPE_DEPTH) {
@@ -581,12 +615,24 @@ is_decode (void **pdata, const GstTensorsConfig * config,
     const GstTensorMemory * input, GstBuffer * outbuf)
 {
   image_segments *idata = *pdata;
-  const size_t size = (size_t) idata->width * idata->height * RGBA_CHANNEL;
+  size_t size;
   gboolean need_output_alloc;
   GstMapInfo out_info;
   GstMemory *out_mem;
 
-  if (!_init_modes (idata) || outbuf == NULL)
+  if (config == NULL || outbuf == NULL)
+    return GST_FLOW_ERROR;
+
+  _get_frame_size (idata, config, &idata->width, &idata->height);
+  if ((guint64) idata->width * idata->height >
+      MIN (G_MAXUINT, G_MAXSIZE / RGBA_CHANNEL)) {
+    ml_loge ("The frame of %u x %u pixels is too large to decode.\n",
+        idata->width, idata->height);
+    return GST_FLOW_ERROR;
+  }
+  size = (size_t) idata->width * idata->height * RGBA_CHANNEL;
+
+  if (!_init_modes (idata))
     return GST_FLOW_ERROR;
 
   need_output_alloc = (gst_buffer_get_size (outbuf) == 0);
@@ -650,7 +696,8 @@ init_is (void)
   nnstreamer_decoder_set_custom_property_desc ( decoder_subplugin_image_segment,
       "option1",
       "Mode of image segmentation. { tflite-deeplab (input: #labels x width x height (float32, label probability). e.g., deeplabv3_257_mv_gpu.tflite), snpe-deeplab (input: width x height x 1 (float32, label index) e.g., deeplabv3_mnv2_pascal_train_aug.dlc), snpe-depth (input: 1 x width x height (float32, grayscale) e.g., .dlc snpe models producing grayscale images) }",
-      "option2", "Maximum number of labels. 20 is applied if not specified.",
+      "option2",
+      "Maximum number of labels, 1 to 16777214. 20 is applied if not specified.",
       NULL);
 }
 
