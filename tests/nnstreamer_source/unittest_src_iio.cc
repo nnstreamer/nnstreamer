@@ -2057,6 +2057,117 @@ TEST (testTensorSrcIio, bufferCapacityWhileConfigured_n)
 }
 
 /**
+ * @brief counts the critical logs of glib
+ */
+static void
+count_glib_critical (const gchar *, GLogLevelFlags, const gchar *, gpointer user_data)
+{
+  guint *count = (guint *) user_data;
+
+  *count = *count + 1;
+}
+
+/**
+ * @brief tests the custom channels property
+ */
+TEST (testTensorSrcIio, channelsCustom)
+{
+  GstHarness *hrnss = NULL;
+  GstElement *src_iio = NULL;
+  gchar *ret_channels;
+  gchar **strv;
+
+  /** setup */
+  hrnss = gst_harness_new_empty ();
+  ASSERT_TRUE (hrnss != NULL);
+  gst_harness_add_parse (hrnss, ELEMENT_NAME);
+  src_iio = gst_harness_find_element (hrnss, ELEMENT_NAME);
+  ASSERT_TRUE (src_iio != NULL);
+
+  g_object_set (src_iio, "channels", "1", NULL);
+  g_object_get (src_iio, "channels", &ret_channels, NULL);
+  EXPECT_STREQ (ret_channels, "1");
+  g_free (ret_channels);
+
+  /** a new value replaces the previous one */
+  g_object_set (src_iio, "channels", "2", NULL);
+  g_object_get (src_iio, "channels", &ret_channels, NULL);
+  EXPECT_STREQ (ret_channels, "2");
+  g_free (ret_channels);
+
+  g_object_set (src_iio, "channels", "3,4;5", NULL);
+  g_object_get (src_iio, "channels", &ret_channels, NULL);
+  strv = g_strsplit (ret_channels, ",", -1);
+  EXPECT_EQ (g_strv_length (strv), 3U);
+  EXPECT_TRUE (g_strv_contains ((const gchar *const *) strv, "3"));
+  EXPECT_TRUE (g_strv_contains ((const gchar *const *) strv, "4"));
+  EXPECT_TRUE (g_strv_contains ((const gchar *const *) strv, "5"));
+  g_strfreev (strv);
+  g_free (ret_channels);
+
+  /** a duplicated index is registered once */
+  g_object_set (src_iio, "channels", "6,6", NULL);
+  g_object_get (src_iio, "channels", &ret_channels, NULL);
+  EXPECT_STREQ (ret_channels, "6");
+  g_free (ret_channels);
+
+  /** the enum values are still accepted */
+  g_object_set (src_iio, "channels", channels[1], NULL);
+  g_object_get (src_iio, "channels", &ret_channels, NULL);
+  EXPECT_STREQ (ret_channels, channels[1]);
+  g_free (ret_channels);
+
+  /** teardown */
+  gst_object_unref (src_iio);
+  gst_harness_teardown (hrnss);
+}
+
+/**
+ * @brief tests that an unparsable custom channels value keeps the old one
+ */
+TEST (testTensorSrcIio, channelsCustomInvalid_n)
+{
+  GstHarness *hrnss = NULL;
+  GstElement *src_iio = NULL;
+  gchar *ret_channels;
+  guint critical_count = 0;
+  guint log_id;
+  const gchar *invalid[] = { "abc", "-1", "2,abc", "99999999999999999999", "4294967297" };
+  guint idx;
+
+  /** setup */
+  hrnss = gst_harness_new_empty ();
+  ASSERT_TRUE (hrnss != NULL);
+  gst_harness_add_parse (hrnss, ELEMENT_NAME);
+  src_iio = gst_harness_find_element (hrnss, ELEMENT_NAME);
+  ASSERT_TRUE (src_iio != NULL);
+
+  log_id = g_log_set_handler ("GLib", G_LOG_LEVEL_CRITICAL, count_glib_critical, &critical_count);
+
+  g_object_set (src_iio, "channels", "7", NULL);
+
+  for (idx = 0; idx < G_N_ELEMENTS (invalid); idx++) {
+    g_object_set (src_iio, "channels", invalid[idx], NULL);
+    g_object_get (src_iio, "channels", &ret_channels, NULL);
+    EXPECT_STREQ (ret_channels, "7") << "with the value " << invalid[idx];
+    g_free (ret_channels);
+  }
+
+  /** a refused value does not block the next one */
+  g_object_set (src_iio, "channels", "8", NULL);
+  g_object_get (src_iio, "channels", &ret_channels, NULL);
+  EXPECT_STREQ (ret_channels, "8");
+  g_free (ret_channels);
+
+  EXPECT_EQ (critical_count, 0U);
+  g_log_remove_handler ("GLib", log_id);
+
+  /** teardown */
+  gst_object_unref (src_iio);
+  gst_harness_teardown (hrnss);
+}
+
+/**
  * @brief Main function for unit test.
  */
 int
