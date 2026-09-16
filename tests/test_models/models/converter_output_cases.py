@@ -7,10 +7,14 @@
 # @brief   Python custom converter returning well-formed and ill-formed outputs
 # @author  MyungJoo Ham <myungjoo.ham@samsung.com>
 #
-# @note    The first byte of the input selects what convert returns.
+# @note    The first byte of the input selects what convert returns;
+#          8 gives KEPT, the array this module holds, and a byte matching no case
+#          passes the input through.
 
 import numpy as np
 import nnstreamer_python as nns
+
+KEPT = np.arange(4, dtype=np.int32)
 
 
 ##
@@ -31,6 +35,7 @@ class CustomConverter:
             5: (int32x4, [seq[:2].copy()]),
             6: (int32x4 * 2, [seq[:4].copy()]),
             7: (int32x4, (seq[:4].copy(),)),
+            8: (int32x4, [KEPT]),
         }
 
         if mode == 3:

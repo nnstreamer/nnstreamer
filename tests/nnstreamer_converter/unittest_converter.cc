@@ -933,6 +933,98 @@ TEST (tensorConverterPython, unmappableInput_n)
 }
 
 /**
+ * @brief Arguments of a converting thread
+ */
+typedef struct {
+  const NNStreamerExternalConverter *ex;
+  void *py_core;
+  guint seed;
+  guint rounds;
+  guint mismatch;
+} ConverterThreadData;
+
+/**
+ * @brief Convert in a thread of its own with the instance it was given.
+ * @note Each round alternates between the case giving the array the script module holds and the
+ *       passthrough case, so both what the converter copies and what it hands back are checked.
+ */
+static gpointer
+_python_convert_thread (gpointer user_data)
+{
+  ConverterThreadData *td = (ConverterThreadData *) user_data;
+
+  for (guint i = 0; i < td->rounds; i++) {
+    const gint32 kept[4] = { 0, 1, 2, 3 };
+    guint8 in_data[8];
+    gboolean give_kept = ((i % 2) == 0);
+    gconstpointer expected = give_kept ? (gconstpointer) kept : (gconstpointer) in_data;
+    gsize expected_size = give_kept ? sizeof (kept) : sizeof (in_data);
+    GstTensorsConfig config;
+    GstBuffer *in_buf, *out_buf;
+
+    /* the first byte selects the case of converter_output_cases.py, passing through when above 8 */
+    in_data[0] = give_kept ? 8 : (guint8) (9 + (td->seed + i) % 200);
+    for (guint k = 1; k < sizeof (in_data); k++)
+      in_data[k] = (guint8) (td->seed + i + k);
+
+    gst_tensors_config_init (&config);
+    in_buf = gst_buffer_new_wrapped (
+        _g_memdup (in_data, sizeof (in_data)), sizeof (in_data));
+    out_buf = td->ex->convert (in_buf, &config, td->py_core);
+    gst_buffer_unref (in_buf);
+
+    if (!out_buf || gst_buffer_get_size (out_buf) != expected_size
+        || gst_buffer_memcmp (out_buf, 0, expected, expected_size) != 0)
+      td->mismatch++;
+    if (out_buf)
+      gst_buffer_unref (out_buf);
+    gst_tensors_config_free (&config);
+  }
+
+  return NULL;
+}
+
+/**
+ * @brief Converters running in threads of their own convert correctly and release what they build.
+ */
+TEST (tensorConverterPython, convertMultiThreadKeepsObjects)
+{
+  ConverterThreadData td[4];
+  GThread *threads[4];
+  Py_ssize_t before, after, refs_before, refs_after;
+
+  for (guint t = 0; t < 4; t++) {
+    td[t].py_core = NULL;
+    td[t].ex = _python_open_output_cases (&td[t].py_core);
+    ASSERT_NE (nullptr, td[t].ex);
+    td[t].seed = t * 30;
+    td[t].mismatch = 0;
+    /* warm up the lazy imports of the first conversion outside the measured window */
+    td[t].rounds = 10;
+    _python_convert_thread (&td[t]);
+    td[t].rounds = 300;
+  }
+
+  before = py_test_gc_object_count ();
+  refs_before = py_test_attr_refcount ("converter_output_cases", "KEPT");
+  ASSERT_GT (before, 0);
+  ASSERT_GT (refs_before, 0);
+  for (guint t = 0; t < 4; t++)
+    threads[t] = g_thread_new ("convert", _python_convert_thread, &td[t]);
+  for (guint t = 0; t < 4; t++)
+    g_thread_join (threads[t]);
+  after = py_test_gc_object_count ();
+  refs_after = py_test_attr_refcount ("converter_output_cases", "KEPT");
+
+  for (guint t = 0; t < 4; t++) {
+    EXPECT_EQ (0U, td[t].mismatch);
+    td[t].ex->close (&td[t].py_core);
+  }
+  EXPECT_LE (after - before, PY_TEST_GC_SLACK);
+  EXPECT_EQ (refs_before, refs_after);
+}
+
+/**
  * @brief Opening the python custom converter again does not grow sys.path.
  */
 TEST (tensorConverterPython, reopenKeepsSysPath)

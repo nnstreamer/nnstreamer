@@ -10,9 +10,12 @@
 # @note    The first custom argument selects what invoke returns.
 #          The filter takes a uint8 tensor of 8 and gives two uint8 tensors of 4.
 #          A failing case fails only its first invoke and copies afterwards.
+#          The kept case gives KEPT, the array this module holds, as its first output.
 
 import numpy as np
 import nnstreamer_python as nns
+
+KEPT = np.arange(4, dtype=np.uint8)
 
 
 ##
@@ -28,7 +31,6 @@ class CustomFilter:
         self.input_dims = [nns.TensorShape([8], np.uint8)]
         self.output_dims = [nns.TensorShape([4], np.uint8),
                             nns.TensorShape([4], np.uint8)]
-        self.kept = np.arange(4, dtype=np.uint8)
         self.invoked = False
 
     ##
@@ -54,7 +56,7 @@ class CustomFilter:
             'alias': lambda: [data[:4], data[4:]],
             'strided': lambda: [seq[:8:2], seq[7::-2]],
             'same': lambda: [seq[:4]] * 2,
-            'kept': lambda: [self.kept, data[4:].copy()],
+            'kept': lambda: [KEPT, data[4:].copy()],
             'not_array': lambda: [data[:4].tobytes(), data[4:].copy()],
             'not_list': lambda: (data[:4].copy(), data[4:].copy()),
             'count': lambda: [data[:4].copy()],
