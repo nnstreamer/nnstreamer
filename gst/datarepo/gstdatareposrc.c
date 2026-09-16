@@ -1483,6 +1483,13 @@ gst_data_repo_src_read_json_file (GstDataRepoSrc * src)
     g_object_unref (src->parser);
   src->parser = json_parser_new ();
 
+  src->sample_offset_array = NULL;
+  src->sample_offset_array_len = 0;
+  src->tensor_size_array = NULL;
+  src->tensor_size_array_len = 0;
+  src->tensor_count_array = NULL;
+  src->tensor_count_array_len = 0;
+
   if (!json_parser_load_from_data (src->parser, contents, -1, NULL)) {
     GST_ERROR_OBJECT (src, "Failed to load data from %s", src->json_filename);
     goto error;
@@ -1615,8 +1622,9 @@ gst_data_repo_src_set_property (GObject * object, guint prop_id,
           g_value_get_string (value), NULL);
       break;
     case PROP_JSON:
-      gst_data_repo_src_set_file_path (src, PROP_JSON,
-          g_value_get_string (value), NULL);
+      if (!gst_data_repo_src_set_file_path (src, PROP_JSON,
+              g_value_get_string (value), NULL))
+        break;
       /** To get caps, read JSON before Caps negotiation,
           to get information on sample data */
       if (!gst_data_repo_src_read_json_file (src)) {
