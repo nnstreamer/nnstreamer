@@ -2376,6 +2376,8 @@ error:
  * @returns FALSE if fail, else TRUE
  *
  * assumes each data starting point is byte aligned
+ * @note a channel may be stored in 3, 5, 6 or 7 bytes, so only the bytes the
+ * channel occupies are read into the container of the next larger size
  */
 static gboolean
 gst_tensor_src_iio_process_scanned_data (GstTensorSrcIIOChannelProperties *
@@ -2413,7 +2415,8 @@ gst_tensor_src_iio_process_scanned_data (GstTensorSrcIIOChannelProperties *
       /** follow through */
     case 4:
     {
-      guint32 value = *(guint32 *) (data + prop->location);
+      guint32 value = 0;
+      memcpy (&value, data + prop->location, prop->storage_bytes);
       if (prop->big_endian) {
         value = GUINT32_FROM_BE (value);
           /** right shift the extra storage bits for big endian */
@@ -2436,7 +2439,8 @@ gst_tensor_src_iio_process_scanned_data (GstTensorSrcIIOChannelProperties *
       /** follow through */
     case 8:
     {
-      guint64 value = *(guint64 *) (data + prop->location);
+      guint64 value = 0;
+      memcpy (&value, data + prop->location, prop->storage_bytes);
       if (prop->big_endian) {
         value = GUINT64_FROM_BE (value);
           /** right shift the extra storage bits for big endian */
