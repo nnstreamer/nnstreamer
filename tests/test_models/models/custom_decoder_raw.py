@@ -9,7 +9,8 @@
 #
 # @note    NNS_TEST_PY_DECODER_MODE, read when an instance is created, selects what decode does:
 #          concat (default) checks raw_data against in_info and returns the tensors as bytes,
-#          raise raises an exception, fixed returns FIXED.
+#          raise raises an exception, fixed returns FIXED,
+#          init-raise raises in the constructor.
 
 import os
 
@@ -25,6 +26,8 @@ class CustomDecoder:
     # @brief  The constructor, which reads the mode
     def __init__(self):
         self.mode = os.environ.get('NNS_TEST_PY_DECODER_MODE', 'concat')
+        if self.mode == 'init-raise':
+            raise RuntimeError('init-raise is requested')
 
     ##
     # @brief  Python callback: getOutCaps
