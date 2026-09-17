@@ -195,17 +195,201 @@ nnstreamer_decoder_set_custom_property_desc (const char *name, const char *prop,
 }
 
 /**
- * @brief Macro to clean sub-plugin data
+ * @brief How often a property set rebuilds the private data for caps that changed under it
  */
-#define gst_tensor_decoder_clean_plugin(self) do { \
-    if (self->decoder) { \
-      if (self->decoder->exit) \
-        self->decoder->exit (&self->plugin_data); \
-      else \
-        g_free (self->plugin_data); \
-      self->plugin_data = NULL; \
-    } \
-  } while (0)
+#define TENSOR_DECODER_REBUILD_RETRY (4)
+
+/**
+ * @brief The private data of a decoder sub-plugin with the calls that use it.
+ */
+struct _GstTensorDecoderPlugin
+{
+  const GstTensorDecoderDef *decoder; /**< The sub-plugin the data belongs to */
+  void *data; /**< The sub-plugin's private data */
+  gint refcount; /**< The element's reference and one per call in progress */
+};
+
+/**
+ * @brief Drop a reference to the sub-plugin's private data, releasing it with the last one.
+ */
+static void
+gst_tensordec_plugin_unref (GstTensorDecoderPlugin * plugin)
+{
+  if (plugin == NULL || !g_atomic_int_dec_and_test (&plugin->refcount))
+    return;
+
+  if (plugin->decoder->exit)
+    plugin->decoder->exit (&plugin->data);
+  else
+    g_free (plugin->data);
+  g_free (plugin);
+}
+
+/**
+ * @brief Take a reference to the current private data of the sub-plugin.
+ * @return The private data to call the sub-plugin with, or NULL if there is none.
+ */
+static GstTensorDecoderPlugin *
+gst_tensordec_plugin_ref (GstTensorDecoder * self)
+{
+  GstTensorDecoderPlugin *plugin;
+
+  g_mutex_lock (&self->plugin_lock);
+  plugin = self->plugin;
+  if (plugin)
+    g_atomic_int_inc (&plugin->refcount);
+  g_mutex_unlock (&self->plugin_lock);
+
+  return plugin;
+}
+
+/**
+ * @brief Create the private data of the current sub-plugin with the current options and put it in place.
+ * @param self "this" pointer
+ * @param opnum The option (0-based) being set, whose failure is an error, or TensorDecMaxOpNum to start over from the numbered order of the options
+ * @param config The negotiated tensor config to give the new private data with getOutCaps () before it is used, or NULL
+ * @note The sub-plugin is called without the lock. The previous private data is released when the last call using it returns, and a rebuild overtaken by a newer one is dropped.
+ */
+static void
+gst_tensordec_plugin_rebuild (GstTensorDecoder * self, guint opnum,
+    const GstTensorsConfig * config)
+{
+  const GstTensorDecoderDef *decoder;
+  GstTensorDecoderPlugin *plugin = NULL, *old;
+  gchar *option[TensorDecMaxOpNum];
+  guint order[TensorDecMaxOpNum];
+  guint gen, i, n;
+
+  g_mutex_lock (&self->plugin_lock);
+  decoder = self->decoder;
+  if (opnum < TensorDecMaxOpNum && (!decoder || !decoder->setOption)) {
+    /* the sub-plugin takes no options */
+    g_mutex_unlock (&self->plugin_lock);
+    return;
+  }
+  gen = ++self->plugin_gen;
+  for (i = 0; i < TensorDecMaxOpNum; i++) {
+    if (opnum == TensorDecMaxOpNum)
+      self->option_order[i] = i;
+    order[i] = self->option_order[i];
+    option[i] = g_strdup (self->option[i]);
+  }
+  g_mutex_unlock (&self->plugin_lock);
+
+  if (decoder) {
+    plugin = g_new0 (GstTensorDecoderPlugin, 1);
+    plugin->decoder = decoder;
+    plugin->refcount = 1;
+
+    if (0 == decoder->init (&plugin->data)) {
+      ml_loge ("Failed to initialize a decode subplugin, \"%s\".\n",
+          decoder->modename);
+      config = NULL;
+    } else if (decoder->setOption) {
+      for (i = 0; i < TensorDecMaxOpNum; i++) {
+        n = order[i];
+        if (option[n] == NULL || decoder->setOption (&plugin->data, n,
+                option[n]))
+          continue;
+
+        if (n == opnum)
+          GST_ERROR_OBJECT (self,
+              "Configuring option for tensor-decoder failed (option %u = %s)",
+              n + 1, option[n]);
+        else
+          GST_WARNING_OBJECT (self,
+              "Failed to configure while setting the option %u.", n + 1);
+      }
+    }
+
+    /* a sub-plugin may set up what decode () needs in getOutCaps () */
+    if (config) {
+      GstCaps *caps = decoder->getOutCaps (&plugin->data, config);
+
+      if (caps)
+        gst_caps_unref (caps);
+    }
+  }
+
+  g_mutex_lock (&self->plugin_lock);
+  if (gen == self->plugin_gen) {
+    old = self->plugin;
+    self->plugin = plugin;
+  } else {
+    old = plugin;
+  }
+  g_mutex_unlock (&self->plugin_lock);
+
+  gst_tensordec_plugin_unref (old);
+  for (i = 0; i < TensorDecMaxOpNum; i++)
+    g_free (option[i]);
+}
+
+/**
+ * @brief Rebuild the private data for a property set. If the stream is negotiated, the new data gets its config and the element renegotiates, since the property may change the output caps.
+ * @note The incoming caps may change while the data is built. The rebuild is then repeated, so that the data which stays is the one the stream was described by, and not one built for caps the stream has left. A change that arrives after the rebuild took its generation is covered by the generation itself; what the repeat covers is the few instructions between reading the caps and taking it, which no test can hold a thread in.
+ */
+static void
+gst_tensordec_plugin_rebuild_on_property (GstTensorDecoder * self, guint opnum)
+{
+  GstBaseTransform *trans = GST_BASE_TRANSFORM (self);
+  GstPad *sinkpad = GST_BASE_TRANSFORM_SINK_PAD (trans);
+  GstCaps *caps = gst_pad_get_current_caps (sinkpad);
+  guint retry;
+
+  for (retry = 0; retry < TENSOR_DECODER_REBUILD_RETRY; retry++) {
+    GstTensorsConfig config;
+    GstCaps *now;
+
+    if (caps && gst_tensors_config_from_caps (&config, caps, TRUE)) {
+      gst_tensordec_plugin_rebuild (self, opnum, &config);
+      gst_tensors_config_free (&config);
+      gst_base_transform_reconfigure_src (trans);
+    } else {
+      gst_tensordec_plugin_rebuild (self, opnum, NULL);
+    }
+
+    now = gst_pad_get_current_caps (sinkpad);
+    if (now == caps || (now && caps && gst_caps_is_equal (now, caps))) {
+      if (now)
+        gst_caps_unref (now);
+      break;
+    }
+
+    if (caps)
+      gst_caps_unref (caps);
+    caps = now;
+  }
+
+  if (retry == TENSOR_DECODER_REBUILD_RETRY)
+    GST_WARNING_OBJECT (self,
+        "The incoming caps kept changing while the decoder sub-plugin was given the property, so its data may still be built for the caps from before the last change.");
+
+  if (caps)
+    gst_caps_unref (caps);
+}
+
+/**
+ * @brief Store an option and rebuild the private data, giving the options to the sub-plugin in the order they were set since the mode.
+ */
+static void
+gst_tensordec_set_option (GstTensorDecoder * self, guint opnum,
+    const GValue * value)
+{
+  guint i, j;
+
+  g_mutex_lock (&self->plugin_lock);
+  g_free (self->option[opnum]);
+  self->option[opnum] = g_value_dup_string (value);
+  for (i = 0, j = 0; i < TensorDecMaxOpNum; i++) {
+    if (self->option_order[i] != opnum)
+      self->option_order[j++] = self->option_order[i];
+  }
+  self->option_order[j] = opnum;
+  g_mutex_unlock (&self->plugin_lock);
+
+  gst_tensordec_plugin_rebuild_on_property (self, opnum);
+}
 
 /**
  * @brief Get media caps from tensor config
@@ -217,11 +401,14 @@ static GstCaps *
 gst_tensordec_get_media_caps_from_config (GstTensorDecoder * self,
     const GstTensorsConfig * config)
 {
+  GstTensorDecoderPlugin *plugin;
+  GstCaps *caps;
+
   g_return_val_if_fail (config != NULL, NULL);
 
-  if (self->decoder == NULL) {
+  plugin = gst_tensordec_plugin_ref (self);
+  if (plugin == NULL) {
     if (self->is_custom) {
-      GstCaps *caps;
       caps = gst_caps_from_string ("application/octet-stream");
       if (config->rate_n >= 0 && config->rate_d > 0)
         gst_caps_set_simple (caps, "framerate",
@@ -233,7 +420,10 @@ gst_tensordec_get_media_caps_from_config (GstTensorDecoder * self,
   }
 
   /* call sub-plugin vmethod */
-  return self->decoder->getOutCaps (&self->plugin_data, config);
+  caps = plugin->decoder->getOutCaps (&plugin->data, config);
+  gst_tensordec_plugin_unref (plugin);
+
+  return caps;
 }
 
 /**
@@ -428,33 +618,19 @@ gst_tensordec_init (GstTensorDecoder * self)
   self->configured = FALSE;
   self->negotiated = FALSE;
   self->decoder = NULL;
-  self->plugin_data = NULL;
+  self->plugin = NULL;
+  self->plugin_gen = 0;
+  g_mutex_init (&self->plugin_lock);
   self->is_custom = FALSE;
   self->custom.func = NULL;
   self->custom.data = NULL;
   self->config_path = NULL;
-  for (i = 0; i < TensorDecMaxOpNum; i++)
+  for (i = 0; i < TensorDecMaxOpNum; i++) {
     self->option[i] = NULL;
+    self->option_order[i] = i;
+  }
 
   gst_tensors_config_init (&self->tensor_config);
-}
-
-/**
- * @brief Process plugin (self->decoder) with given options if available
- * @retval FALSE if error. TRUE if OK (or SKIP)
- */
-static gboolean
-gst_tensordec_process_plugin_options (GstTensorDecoder * self, guint opnum)
-{
-  g_assert (opnum < TensorDecMaxOpNum); /* Internal logic error! */
-  if (self->decoder == NULL)
-    return TRUE;                /* decoder plugin not available. */
-  if (self->decoder->setOption == NULL)
-    return TRUE;                /* This decoder cannot process options */
-  if (self->option[opnum] == NULL)
-    return TRUE;                /* No option to process */
-  return self->decoder->setOption (&self->plugin_data, opnum,
-      self->option[opnum]);
 }
 
 /**
@@ -463,11 +639,7 @@ gst_tensordec_process_plugin_options (GstTensorDecoder * self, guint opnum)
  */
 #define PROP_MODE_OPTION(opnum) \
     case PROP_MODE_OPTION ## opnum: \
-      g_free (self->option[(opnum) - 1]); \
-      self->option[(opnum) - 1] = g_value_dup_string (value); \
-      if (!gst_tensordec_process_plugin_options (self, (opnum) - 1)) \
-        GST_ERROR_OBJECT (self, "Configuring option for tensor-decoder failed (option %d = %s)", \
-            (opnum), self->option[(opnum) - 1]); \
+      gst_tensordec_set_option (self, (opnum) - 1, value); \
       break
 
 /**
@@ -487,9 +659,8 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
       break;
     case PROP_MODE:
     {
-      const GstTensorDecoderDef *decoder;
+      const GstTensorDecoderDef *decoder, *prev;
       const gchar *mode_string;
-      guint i;
 
       mode_string = g_value_get_string (value);
       if (g_ascii_strcasecmp (mode_string, "custom-code") == 0) {
@@ -500,37 +671,29 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
       decoder = nnstreamer_decoder_find (mode_string);
 
       /* See if we are using "plugin" */
-      if (nnstreamer_decoder_validate (decoder)) {
-        silent_debug (self, "tensor_decoder plugin mode (%s)\n", mode_string);
-
-        if (decoder == self->decoder) {
-          /* Already configured??? */
-          GST_WARNING_OBJECT (self,
-              "nnstreamer tensor_decoder %s is already configured.\n",
-              mode_string);
-        }
-
-        /* init () below allocates new private data. Deallocate the previous */
-        gst_tensor_decoder_clean_plugin (self);
-        self->decoder = decoder;
-
-        if (0 == self->decoder->init (&self->plugin_data)) {
-          ml_loge ("Failed to initialize a decode subplugin, \"%s\".\n",
-              mode_string);
-          break;
-        }
-
-        for (i = 0; i < TensorDecMaxOpNum; i++)
-          if (!gst_tensordec_process_plugin_options (self, i))
-            GST_WARNING_OBJECT (self,
-                "Failed to configure while setting the option %d.", (i + 1));
-      } else {
+      if (!nnstreamer_decoder_validate (decoder)) {
         GST_ERROR_OBJECT (self,
             "The given mode for tensor_decoder, %s, is unrecognized.\n",
             mode_string);
-        gst_tensor_decoder_clean_plugin (self);
-        self->decoder = NULL;
+        decoder = NULL;
+      } else {
+        silent_debug (self, "tensor_decoder plugin mode (%s)\n", mode_string);
       }
+
+      g_mutex_lock (&self->plugin_lock);
+      prev = self->decoder;
+      self->decoder = decoder;
+      g_mutex_unlock (&self->plugin_lock);
+
+      if (decoder && decoder == prev) {
+        /* Already configured??? */
+        GST_WARNING_OBJECT (self,
+            "nnstreamer tensor_decoder %s is already configured.\n",
+            mode_string);
+      }
+
+      /* The new private data replaces the previous, which is released when no call uses it */
+      gst_tensordec_plugin_rebuild_on_property (self, TensorDecMaxOpNum);
       break;
     }
     case PROP_CONFIG:
@@ -562,7 +725,9 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
  */
 #define PROP_READ_OPTION(opnum) \
     case PROP_MODE_OPTION ## opnum: \
+      g_mutex_lock (&self->plugin_lock); \
       g_value_set_string (value, self->option[opnum - 1]); \
+      g_mutex_unlock (&self->plugin_lock); \
       break
 
 /**
@@ -581,12 +746,14 @@ gst_tensordec_get_property (GObject * object, guint prop_id,
       g_value_set_boolean (value, self->silent);
       break;
     case PROP_MODE:
+      g_mutex_lock (&self->plugin_lock);
       if (self->is_custom)
         g_value_set_string (value, "custom-code");
       else if (self->decoder)
         g_value_set_string (value, self->decoder->modename);
       else
         g_value_set_string (value, "");
+      g_mutex_unlock (&self->plugin_lock);
       break;
       PROP_READ_OPTION (1);
       PROP_READ_OPTION (2);
@@ -629,7 +796,9 @@ gst_tensordec_class_finalize (GObject * object)
 
   self = GST_TENSOR_DECODER (object);
 
-  gst_tensor_decoder_clean_plugin (self);
+  gst_tensordec_plugin_unref (self->plugin);
+  self->plugin = NULL;
+  g_mutex_clear (&self->plugin_lock);
 
   gst_tensors_config_free (&self->tensor_config);
   g_free (self->config_path);
@@ -650,7 +819,6 @@ gst_tensordec_configure (GstTensorDecoder * self, const GstCaps * in_caps,
     const GstCaps * out_caps)
 {
   GstTensorsConfig config;
-  guint i;
 
   if (self->decoder == NULL && !self->is_custom) {
     GST_ERROR_OBJECT (self, "Decoder plugin is not yet configured.");
@@ -688,16 +856,7 @@ gst_tensordec_configure (GstTensorDecoder * self, const GstCaps * in_caps,
       return FALSE;
     }
 
-    gst_tensor_decoder_clean_plugin (self);
-    if (self->decoder) {
-      /* not custom code; a fresh private data has none of the options yet */
-      if (self->decoder->init (&self->plugin_data)) {
-        for (i = 0; i < TensorDecMaxOpNum; i++)
-          if (!gst_tensordec_process_plugin_options (self, i))
-            GST_WARNING_OBJECT (self,
-                "Failed to configure while setting the option %d.", (i + 1));
-      }
-    }
+    gst_tensordec_plugin_rebuild (self, TensorDecMaxOpNum, NULL);
   }
 
   gst_tensors_config_free (&self->tensor_config);
@@ -837,8 +996,16 @@ gst_tensordec_transform (GstBaseTransform * trans,
       input[i].size = in_info[i].size;
     }
     if (!self->is_custom) {
-      res = self->decoder->decode (&self->plugin_data, &self->tensor_config,
-          input, outbuf);
+      GstTensorDecoderPlugin *plugin = gst_tensordec_plugin_ref (self);
+
+      if (plugin) {
+        res = plugin->decoder->decode (&plugin->data, &self->tensor_config,
+            input, outbuf);
+        gst_tensordec_plugin_unref (plugin);
+      } else {
+        GST_ERROR_OBJECT (self, "Decoder plugin is not configured.");
+        res = GST_FLOW_ERROR;
+      }
     } else if (self->custom.func != NULL) {
       res = self->custom.func (input, &self->tensor_config, self->custom.data,
           outbuf);
@@ -893,12 +1060,16 @@ gst_tensordec_transform_caps (GstBaseTransform * trans,
 
   if (self->is_custom) {
     const decoder_custom_cb_s *ptr = NULL;
+
+    g_mutex_lock (&self->plugin_lock);
     if (self->option[0] == NULL) {
+      g_mutex_unlock (&self->plugin_lock);
       nns_logw ("Tensor decoder custom option is not given.");
       return NULL;
     }
     self->custom.func = NULL;
     ptr = get_subplugin (NNS_CUSTOM_DECODER, self->option[0]);
+    g_mutex_unlock (&self->plugin_lock);
     if (!ptr) {
       nns_logw ("Failed to find custom subplugin of the tensor_decoder");
       return NULL;
@@ -1080,6 +1251,7 @@ gst_tensordec_transform_size (GstBaseTransform * trans,
     GstCaps * othercaps, gsize * othersize)
 {
   GstTensorDecoder *self;
+  GstTensorDecoderPlugin *plugin;
 
   if (direction == GST_PAD_SRC)
     return FALSE;
@@ -1088,11 +1260,13 @@ gst_tensordec_transform_size (GstBaseTransform * trans,
 
   g_assert (self->configured);
 
-  if (!self->is_custom && self->decoder->getTransformSize)
-    *othersize = self->decoder->getTransformSize (&self->plugin_data,
+  plugin = self->is_custom ? NULL : gst_tensordec_plugin_ref (self);
+  if (plugin && plugin->decoder->getTransformSize)
+    *othersize = plugin->decoder->getTransformSize (&plugin->data,
         &self->tensor_config, caps, size, othercaps, direction);
   else
     *othersize = 0;
+  gst_tensordec_plugin_unref (plugin);
 
   return TRUE;
 }
