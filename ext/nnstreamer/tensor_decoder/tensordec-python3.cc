@@ -280,7 +280,8 @@ decoder_py_exit (void **pdata)
 {
   PYDecoderCore *core = static_cast<PYDecoderCore *> (*pdata);
 
-  g_return_if_fail (core != NULL);
+  if (core == NULL)
+    return;
 
   PyGILGuard gil_guard;
   delete core;
@@ -349,6 +350,11 @@ decoder_py_getOutCaps (void **pdata, const GstTensorsConfig *config)
   GstCaps *caps;
   PYDecoderCore *core = static_cast<PYDecoderCore *> (*pdata);
 
+  if (core == NULL) {
+    ml_loge ("The python3 decoder has no script loaded; set option1 to a valid script.\n");
+    return NULL;
+  }
+
   PyGILGuard gil_guard;
   caps = core->getOutCaps (config);
   setFramerateFromConfig (caps, config);
@@ -365,6 +371,11 @@ decoder_py_decode (void **pdata, const GstTensorsConfig *config,
   g_return_val_if_fail (config, GST_FLOW_ERROR);
   g_return_val_if_fail (input, GST_FLOW_ERROR);
   g_return_val_if_fail (outbuf, GST_FLOW_ERROR);
+
+  if (core == NULL) {
+    ml_loge ("The python3 decoder has no script loaded; set option1 to a valid script.\n");
+    return GST_FLOW_ERROR;
+  }
 
   PyGILGuard gil_guard;
   ret = core->decode (config, input, outbuf);

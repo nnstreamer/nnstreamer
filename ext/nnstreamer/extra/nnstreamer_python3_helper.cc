@@ -317,6 +317,11 @@ loadScript (PyObject **core_obj, const gchar *module_name, const gchar *class_na
     if (cls) {
       *core_obj = PyObject_CallObject (cls, NULL);
       Py_SAFEDECREF (cls);
+
+      if (*core_obj == NULL) {
+        Py_ERRMSG ("Cannot create an instance of '%s' in the script.\n", class_name);
+        return -3;
+      }
     } else {
       Py_ERRMSG ("Cannot find '%s' class in the script.\n", class_name);
       return -2;

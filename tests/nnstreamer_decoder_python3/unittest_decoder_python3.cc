@@ -11,6 +11,7 @@
 #include <glib.h>
 #include <glib/gstdio.h>
 #include <gst/gst.h>
+#include <string.h>
 #include <unittest_python3_util.h>
 #include <unittest_util.h>
 
@@ -438,6 +439,185 @@ TEST (nnstreamerDecoderPython3, openInvalidScript_n)
 
   EXPECT_GT (first, 0);
   EXPECT_EQ (last, first);
+  g_free (script);
+}
+
+/**
+ * @brief Count the failed GLib assertions (g_return_if_fail and its kin) of a log message.
+ */
+static void
+_count_assertion (const gchar *log_domain, GLogLevelFlags log_level,
+    const gchar *message, gpointer user_data)
+{
+  guint *count = (guint *) user_data;
+
+  if (message && strstr (message, "assertion '") != NULL)
+    (*count)++;
+  g_log_default_handler (log_domain, log_level, message, NULL);
+}
+
+/**
+ * @brief Log handlers counting failed assertions in the domains the decoder may hit.
+ */
+typedef struct {
+  guint count;
+  guint gst_id;
+  guint glib_id;
+  GLogFunc prev;
+} AssertionCounter;
+
+/**
+ * @brief Start counting failed assertions.
+ */
+static void
+_assertion_counter_start (AssertionCounter *counter)
+{
+  GLogLevelFlags levels = (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_WARNING);
+
+  counter->count = 0;
+  counter->gst_id
+      = g_log_set_handler ("GStreamer", levels, _count_assertion, &counter->count);
+  counter->glib_id
+      = g_log_set_handler ("GLib", levels, _count_assertion, &counter->count);
+  counter->prev = g_log_set_default_handler (_count_assertion, &counter->count);
+}
+
+/**
+ * @brief Stop counting failed assertions.
+ * @return the number of failed assertions logged since the start.
+ */
+static guint
+_assertion_counter_stop (AssertionCounter *counter)
+{
+  g_log_set_default_handler (counter->prev, NULL);
+  g_log_remove_handler ("GLib", counter->glib_id);
+  g_log_remove_handler ("GStreamer", counter->gst_id);
+
+  return counter->count;
+}
+
+/**
+ * @brief Without a script the decoder refuses caps and decoding, and closes quietly.
+ */
+TEST (nnstreamerDecoderPython3, noScript_n)
+{
+  const GstTensorDecoderDef *dec = nnstreamer_decoder_find ("python3");
+  void *pdata = NULL;
+  GstTensorsConfig config;
+  guint8 data[2 * TENSOR_SIZE] = { 0 };
+  GstTensorMemory input[2];
+  GstBuffer *outbuf;
+  AssertionCounter counter;
+
+  ASSERT_NE (dec, nullptr);
+  ASSERT_TRUE (dec->init (&pdata));
+  _init_config (&config);
+  for (guint i = 0; i < 2; i++) {
+    input[i].data = data + i * TENSOR_SIZE;
+    input[i].size = TENSOR_SIZE;
+  }
+
+  _assertion_counter_start (&counter);
+  EXPECT_EQ (dec->getOutCaps (&pdata, &config), nullptr);
+
+  outbuf = gst_buffer_new ();
+  EXPECT_EQ (dec->decode (&pdata, &config, input, outbuf), GST_FLOW_ERROR);
+  EXPECT_EQ (gst_buffer_get_size (outbuf), 0U);
+  gst_buffer_unref (outbuf);
+
+  dec->exit (&pdata);
+  EXPECT_EQ (_assertion_counter_stop (&counter), 0U);
+  EXPECT_EQ (pdata, nullptr);
+
+  gst_tensors_config_free (&config);
+}
+
+/**
+ * @brief A script whose decoder class raises in its constructor is not loaded.
+ */
+TEST (nnstreamerDecoderPython3, openRaisingConstructor_n)
+{
+  void *pdata = NULL;
+  const GstTensorDecoderDef *dec = _open_decoder (&pdata, "init-raise");
+
+  EXPECT_EQ (dec, nullptr);
+  EXPECT_EQ (pdata, nullptr);
+
+  /* a wrongly opened decoder is closed so that the next cases start clean */
+  if (pdata) {
+    dec = nnstreamer_decoder_find ("python3");
+    ASSERT_NE (dec, nullptr);
+    dec->exit (&pdata);
+  }
+}
+
+/**
+ * @brief Run a pipeline with the python3 decoder until an error, EOS or a timeout.
+ * @param option1 The option1 of the decoder, or NULL to leave it unset.
+ * @return the type of the message that ended the run, GST_MESSAGE_UNKNOWN on a timeout,
+ *         or GST_MESSAGE_ANY if the pipeline was not made.
+ */
+static GstMessageType
+_run_decoder_pipeline (const gchar *option1)
+{
+  gchar *desc = g_strdup_printf (
+      "videotestsrc num-buffers=1 ! video/x-raw,format=RGB,width=4,height=4 ! "
+      "tensor_converter ! tensor_decoder mode=python3 %s%s ! fakesink",
+      option1 ? "option1=" : "", option1 ? option1 : "");
+  GstElement *pipeline = gst_parse_launch (desc, NULL);
+  GstMessageType type = GST_MESSAGE_ANY;
+
+  g_free (desc);
+  if (pipeline) {
+    GstBus *bus = gst_element_get_bus (pipeline);
+    GstMessage *msg;
+
+    gst_element_set_state (pipeline, GST_STATE_PLAYING);
+    msg = gst_bus_timed_pop_filtered (bus, 10 * GST_SECOND,
+        (GstMessageType) (GST_MESSAGE_ERROR | GST_MESSAGE_EOS));
+    type = msg ? GST_MESSAGE_TYPE (msg) : GST_MESSAGE_UNKNOWN;
+    if (msg)
+      gst_message_unref (msg);
+
+    gst_element_set_state (pipeline, GST_STATE_NULL);
+    gst_object_unref (bus);
+    gst_object_unref (pipeline);
+  }
+
+  return type;
+}
+
+/**
+ * @brief A pipeline whose python3 decoder has no script fails with an error.
+ */
+TEST (nnstreamerDecoderPython3, pipelineNoScript_n)
+{
+  EXPECT_EQ (_run_decoder_pipeline (NULL), GST_MESSAGE_ERROR);
+}
+
+/**
+ * @brief A pipeline whose python3 decoder failed to load its script fails with an error.
+ */
+TEST (nnstreamerDecoderPython3, pipelineInvalidScript_n)
+{
+  gchar *script = g_build_filename (g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH"),
+      "tests", "test_models", "models", "NOT_EXIST_decoder.py", NULL);
+
+  EXPECT_EQ (_run_decoder_pipeline (script), GST_MESSAGE_ERROR);
+  g_free (script);
+}
+
+/**
+ * @brief A pipeline with a valid script reaches EOS.
+ */
+TEST (nnstreamerDecoderPython3, pipelineScript)
+{
+  gchar *script = _script_path ();
+
+  /* loading the sub-plugin starts the interpreter the environment is set in */
+  ASSERT_NE (nnstreamer_decoder_find ("python3"), nullptr);
+  ASSERT_TRUE (py_test_setenv ("NNS_TEST_PY_DECODER_MODE", "concat"));
+  EXPECT_EQ (_run_decoder_pipeline (script), GST_MESSAGE_EOS);
   g_free (script);
 }
 

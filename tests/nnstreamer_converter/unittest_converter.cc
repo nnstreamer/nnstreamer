@@ -723,6 +723,33 @@ TEST (tensorConverterPython, invalidParam6_n)
 }
 
 /**
+ * @brief Test for python custom converter whose class raises in its constructor
+ */
+TEST (tensorConverterPython, raisingConstructor_n)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  const NNStreamerExternalConverter *ex;
+  void *py_core = NULL;
+  gchar *test_model;
+
+  /** supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  ex = nnstreamer_converter_find ("python3");
+  ASSERT_NE (nullptr, ex);
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      "raise_init_custom_converter.py", NULL);
+  EXPECT_NE (0, ex->open (test_model, &py_core));
+  EXPECT_EQ (nullptr, py_core);
+
+  if (py_core)
+    ex->close (&py_core);
+  g_free (test_model);
+}
+
+/**
  * @brief Open the python custom converter with converter_output_cases.py.
  */
 static const NNStreamerExternalConverter *
