@@ -508,11 +508,11 @@ gst_tensordec_set_property (GObject * object, guint prop_id,
           GST_WARNING_OBJECT (self,
               "nnstreamer tensor_decoder %s is already configured.\n",
               mode_string);
-        } else {
-          /* Changing decoder. Deallocate the previous */
-          gst_tensor_decoder_clean_plugin (self);
-          self->decoder = decoder;
         }
+
+        /* init () below allocates new private data. Deallocate the previous */
+        gst_tensor_decoder_clean_plugin (self);
+        self->decoder = decoder;
 
         if (0 == self->decoder->init (&self->plugin_data)) {
           ml_loge ("Failed to initialize a decode subplugin, \"%s\".\n",
