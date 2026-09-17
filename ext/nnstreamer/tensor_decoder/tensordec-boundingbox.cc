@@ -622,7 +622,7 @@ BoundingBox::updateCentroids (GArray *boxes)
     for (j = 0; j < boxes->len; j++) {
       detectedObject *box = &g_array_index (boxes, detectedObject, j);
       distanceArrayData *d
-          = &g_array_index (distanceArray, distanceArrayData, i * centroids->len + j);
+          = &g_array_index (distanceArray, distanceArrayData, i * boxes->len + j);
 
       d->centroid_idx = i;
       d->box_idx = j;

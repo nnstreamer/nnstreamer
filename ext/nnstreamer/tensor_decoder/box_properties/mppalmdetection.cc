@@ -84,7 +84,7 @@ class MpPalmDetection : public BoxProperties
         gfloat y_center, x_center, h, w;                                                \
         gfloat ymin, xmin;                                                              \
         int y, x, width, height;                                                        \
-        detectedObject object;                                                          \
+        detectedObject object = {};                                                     \
         gfloat score = (gfloat) scores_[d_];                                            \
         _type *box = boxes_ + boxbpi_ * d_;                                             \
         anchor *a = &g_array_index (this->anchors, anchor, d_);                         \

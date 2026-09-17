@@ -79,7 +79,7 @@ class MobilenetSSDPP : public BoxProperties
       boxbpi = info->dimension[0];                                                            \
       for (d = 0; d < num; d++) {                                                             \
         _type x1, x2, y1, y2;                                                                 \
-        detectedObject object;                                                                \
+        detectedObject object = {};                                                           \
         gfloat score = (gfloat) scores_[d];                                                   \
         if (score < threshold)                                                                \
           continue;                                                                           \
