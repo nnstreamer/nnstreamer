@@ -1407,6 +1407,387 @@ TEST (tensorFilterFlexInput, typedDynamicTakesType)
   EXPECT_EQ (NNS_custom_easy_unregister ("flex_in_typed_dynamic"), 0);
 }
 
+#define OUT_COMBI_MODEL "out_combi_4_8"
+#define OUT_COMBI_IN_CAPS \
+  "other/tensors,num_tensors=1,dimensions=(string)4,types=uint8,format=static,framerate=(fraction)0/1"
+
+/** @brief How the output-combination test model is invoked */
+typedef enum {
+  OUT_COMBI_STATIC = 0, /**< static invoke returning both outputs */
+  OUT_COMBI_DYNAMIC, /**< dynamic invoke returning both outputs */
+  OUT_COMBI_DYNAMIC_FEWER, /**< dynamic invoke returning the 4-byte output only */
+  OUT_COMBI_DYNAMIC_INVALID, /**< dynamic invoke leaving the info of the 8-byte output invalid */
+} out_combi_mode;
+
+/**
+ * @brief In-code model for output-combination tests: fills a 4-byte output with 0xA0 and an 8-byte output with 0xB0.
+ */
+static int
+cef_func_out_combi (void *data, const GstTensorFilterProperties *prop,
+    const GstTensorMemory *in, GstTensorMemory *out)
+{
+  UNUSED (data);
+  UNUSED (prop);
+  UNUSED (in);
+  memset (out[0].data, 0xA0, out[0].size);
+  memset (out[1].data, 0xB0, out[1].size);
+  return 0;
+}
+
+/**
+ * @brief Register the custom-easy model taking a 4-byte uint8 tensor and returning a 4-byte and an 8-byte uint8 tensor.
+ */
+static int
+_out_combi_register (void)
+{
+  GstTensorsInfo info_in;
+  GstTensorsInfo info_out;
+
+  gst_tensors_info_init (&info_in);
+  gst_tensors_info_init (&info_out);
+  info_in.num_tensors = 1U;
+  info_in.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("4", info_in.info[0].dimension);
+
+  info_out.num_tensors = 2U;
+  info_out.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("4", info_out.info[0].dimension);
+  info_out.info[1].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("8", info_out.info[1].dimension);
+
+  return NNS_custom_easy_register (
+      OUT_COMBI_MODEL, cef_func_out_combi, NULL, &info_in, &info_out);
+}
+
+/**
+ * @brief Harness a tensor_filter running the output-combination test model, with a bus to catch its errors.
+ */
+static GstHarness *
+_out_combi_harness (const gchar *combi, gboolean flexible)
+{
+  GstHarness *h;
+  GstBus *bus;
+  gchar *desc;
+
+  desc = g_strdup_printf ("tensor_filter framework=custom-easy model=%s output-combination=%s",
+      OUT_COMBI_MODEL, combi);
+  h = gst_harness_new_parse (desc);
+  g_free (desc);
+
+  bus = gst_bus_new ();
+  gst_element_set_bus (h->element, bus);
+  gst_object_unref (bus);
+
+  if (flexible)
+    gst_harness_set_sink_caps_str (h, "other/tensors,format=flexible");
+  gst_harness_set_src_caps_str (h, OUT_COMBI_IN_CAPS);
+  return h;
+}
+
+/**
+ * @brief Tear down a harness of the output-combination tests and unregister the model.
+ */
+static void
+_out_combi_teardown (GstHarness *h)
+{
+  _flex_in_teardown (h);
+  EXPECT_EQ (NNS_custom_easy_unregister (OUT_COMBI_MODEL), 0);
+}
+
+/**
+ * @brief Dynamic variant of cef_func_out_combi(), behaving as the out_combi_mode in @a data says.
+ */
+static int
+cef_func_out_combi_dynamic (void *data, const GstTensorsInfo *in_info,
+    GstTensorsInfo *out_info, const GstTensorMemory *input, GstTensorMemory *output)
+{
+  out_combi_mode mode = (out_combi_mode) GPOINTER_TO_UINT (data);
+  guint i, num = (mode == OUT_COMBI_DYNAMIC_FEWER) ? 1U : 2U;
+
+  UNUSED (in_info);
+  UNUSED (input);
+
+  gst_tensors_info_free (out_info);
+  gst_tensors_info_init (out_info);
+  out_info->num_tensors = num;
+  out_info->format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+  for (i = 0; i < num; i++) {
+    output[i].size = (i == 0) ? 4 : 8;
+    output[i].data = g_malloc (output[i].size);
+    memset (output[i].data, (i == 0) ? 0xA0 : 0xB0, output[i].size);
+
+    if (i == 1 && mode == OUT_COMBI_DYNAMIC_INVALID)
+      continue;
+    out_info->info[i].type = _NNS_UINT8;
+    out_info->info[i].dimension[0] = (guint) output[i].size;
+  }
+  return 0;
+}
+
+/**
+ * @brief Harness a dynamic-invoke tensor_filter whose output info is given by properties, so an output combination negotiates.
+ */
+static GstHarness *
+_out_combi_dynamic_harness (const gchar *combi, out_combi_mode mode)
+{
+  GstTensorsInfo info_in;
+  GstHarness *h;
+  GstBus *bus;
+  gchar *desc;
+  int ret;
+
+  gst_tensors_info_init (&info_in);
+  info_in.num_tensors = 1U;
+  info_in.info[0].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("4", info_in.info[0].dimension);
+  ret = NNS_custom_easy_dynamic_register (OUT_COMBI_MODEL,
+      cef_func_out_combi_dynamic, GUINT_TO_POINTER (mode), &info_in);
+  EXPECT_EQ (ret, 0);
+
+  desc = g_strdup_printf ("tensor_filter framework=custom-easy model=%s invoke-dynamic=true "
+                          "output=4,8 outputtype=uint8,uint8 output-combination=%s",
+      OUT_COMBI_MODEL, combi);
+  h = gst_harness_new_parse (desc);
+  g_free (desc);
+
+  bus = gst_bus_new ();
+  gst_element_set_bus (h->element, bus);
+  gst_object_unref (bus);
+
+  gst_harness_set_sink_caps_str (h, "other/tensors,format=flexible");
+  gst_harness_set_src_caps_str (h, OUT_COMBI_IN_CAPS);
+  return h;
+}
+
+/**
+ * @brief Log handler counting the critical messages it receives in the guint @a user_data.
+ */
+static void
+_out_combi_count_critical (const gchar *domain, GLogLevelFlags level,
+    const gchar *message, gpointer user_data)
+{
+  UNUSED (domain);
+  UNUSED (level);
+  UNUSED (message);
+  (*(guint *) user_data)++;
+}
+
+/**
+ * @brief Run one 0x11-filled input buffer through the model with @a combi and check the output against the negotiated caps.
+ * @details No GStreamer critical may be raised on the way, e.g., by appending a memory the model did not return.
+ * @param combi value of the output-combination property
+ * @param flexible negotiate flexible output tensors
+ * @param mode how the model is invoked; the output of a dynamic invoke is always flexible
+ * @param num expected number of memories in the output buffer
+ * @param bytes expected byte each tensor is filled with, in buffer order
+ * @param sizes expected data size of each tensor, in buffer order
+ */
+static void
+_out_combi_run (const gchar *combi, gboolean flexible, out_combi_mode mode,
+    guint num, const guint8 *bytes, const gsize *sizes)
+{
+  GstHarness *h;
+  GstBuffer *in_buf, *out_buf;
+  GstCaps *caps;
+  GstTensorsConfig config;
+  GstTensorMetaInfo meta;
+  GstMemory *mem;
+  GstMapInfo map;
+  gsize hsize;
+  guint i, handler, critical = 0;
+
+  if (mode != OUT_COMBI_STATIC) {
+    flexible = TRUE;
+    h = _out_combi_dynamic_harness (combi, mode);
+  } else {
+    ASSERT_EQ (_out_combi_register (), 0);
+    h = _out_combi_harness (combi, flexible);
+  }
+
+  handler = g_log_set_handler ("GStreamer",
+      (GLogLevelFlags) (G_LOG_LEVEL_CRITICAL | G_LOG_FLAG_FATAL),
+      _out_combi_count_critical, &critical);
+
+  in_buf = gst_harness_create_buffer (h, 4);
+  gst_buffer_memset (in_buf, 0, 0x11, 4);
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+
+  out_buf = gst_harness_try_pull (h);
+  caps = gst_pad_get_current_caps (h->sinkpad);
+  gst_tensors_config_init (&config);
+
+  EXPECT_TRUE (out_buf != NULL);
+  EXPECT_TRUE (caps != NULL);
+  if (out_buf && caps) {
+    EXPECT_TRUE (gst_tensors_config_from_structure (
+        &config, gst_caps_get_structure (caps, 0)));
+    EXPECT_EQ (gst_tensors_config_is_flexible (&config), flexible);
+    if (!flexible) {
+      EXPECT_EQ (config.info.num_tensors, num);
+    }
+    EXPECT_EQ (gst_tensor_buffer_get_count (out_buf), num);
+
+    for (i = 0; i < num && i < gst_tensor_buffer_get_count (out_buf); i++) {
+      mem = gst_tensor_buffer_get_nth_memory (out_buf, i);
+      if (!gst_memory_map (mem, &map, GST_MAP_READ)) {
+        ADD_FAILURE () << "Cannot map memory " << i;
+        gst_memory_unref (mem);
+        continue;
+      }
+
+      hsize = 0;
+      if (flexible) {
+        EXPECT_TRUE (gst_tensor_meta_info_parse_header (&meta, map.data));
+        hsize = gst_tensor_meta_info_get_header_size (&meta);
+        EXPECT_EQ (gst_tensor_meta_info_get_data_size (&meta), sizes[i]);
+      } else {
+        EXPECT_EQ (map.size, gst_tensors_info_get_size (&config.info, i));
+      }
+
+      EXPECT_EQ (map.size, hsize + sizes[i]);
+      if (map.size == hsize + sizes[i]) {
+        EXPECT_EQ (map.data[hsize], bytes[i]);
+        EXPECT_EQ (map.data[map.size - 1], bytes[i]);
+      }
+      gst_memory_unmap (mem, &map);
+      gst_memory_unref (mem);
+    }
+  }
+
+  gst_tensors_config_free (&config);
+  if (caps)
+    gst_caps_unref (caps);
+  if (out_buf)
+    gst_buffer_unref (out_buf);
+  _out_combi_teardown (h);
+
+  EXPECT_EQ (critical, 0U);
+  /* The handler is live: a critical of the domain is counted */
+  g_log ("GStreamer", G_LOG_LEVEL_CRITICAL, "self-check of the counter");
+  EXPECT_EQ (critical, 1U);
+  g_log_remove_handler ("GStreamer", handler);
+}
+
+/**
+ * @brief Test output-combination selecting the model outputs in model order.
+ */
+TEST (tensorFilterOutputCombination, modelOrder)
+{
+  const guint8 bytes[] = { 0xA0, 0xB0 };
+  const gsize sizes[] = { 4, 8 };
+
+  _out_combi_run ("o0,o1", FALSE, OUT_COMBI_STATIC, 2U, bytes, sizes);
+}
+
+/**
+ * @brief Test output-combination selecting a single model output.
+ */
+TEST (tensorFilterOutputCombination, subset)
+{
+  const guint8 bytes[] = { 0xB0 };
+  const gsize sizes[] = { 8 };
+
+  _out_combi_run ("o1", FALSE, OUT_COMBI_STATIC, 1U, bytes, sizes);
+}
+
+/**
+ * @brief Test output-combination listing the model outputs in reverse order; the buffer must follow the caps.
+ */
+TEST (tensorFilterOutputCombination, reorder)
+{
+  const guint8 bytes[] = { 0xB0, 0xA0 };
+  const gsize sizes[] = { 8, 4 };
+
+  _out_combi_run ("o1,o0", FALSE, OUT_COMBI_STATIC, 2U, bytes, sizes);
+}
+
+/**
+ * @brief Test output-combination listing a model output twice.
+ */
+TEST (tensorFilterOutputCombination, repeat)
+{
+  const guint8 bytes[] = { 0xA0, 0xA0, 0xB0 };
+  const gsize sizes[] = { 4, 4, 8 };
+
+  _out_combi_run ("o0,o0,o1", FALSE, OUT_COMBI_STATIC, 3U, bytes, sizes);
+}
+
+/**
+ * @brief Test output-combination mixing an input tensor with reordered and repeated model outputs.
+ */
+TEST (tensorFilterOutputCombination, inputAndReorder)
+{
+  const guint8 bytes[] = { 0x11, 0xB0, 0xA0, 0xB0 };
+  const gsize sizes[] = { 4, 8, 4, 8 };
+
+  _out_combi_run ("o1,i0,o0,o1", FALSE, OUT_COMBI_STATIC, 4U, bytes, sizes);
+}
+
+/**
+ * @brief Test output-combination reordering flexible output tensors.
+ */
+TEST (tensorFilterOutputCombination, reorderFlexible)
+{
+  const guint8 bytes[] = { 0xB0, 0xB0, 0xA0 };
+  const gsize sizes[] = { 8, 8, 4 };
+
+  _out_combi_run ("o1,o1,o0", TRUE, OUT_COMBI_STATIC, 3U, bytes, sizes);
+}
+
+/**
+ * @brief Test output-combination reordering and repeating the outputs of a dynamic invoke.
+ */
+TEST (tensorFilterOutputCombination, reorderDynamic)
+{
+  const guint8 bytes[] = { 0xB0, 0xA0, 0xA0 };
+  const gsize sizes[] = { 8, 4, 4 };
+
+  _out_combi_run ("o1,o0,o0", FALSE, OUT_COMBI_DYNAMIC, 3U, bytes, sizes);
+}
+
+/**
+ * @brief Test output-combination on a dynamic invoke returning fewer outputs than the list names; the missing one is left out.
+ */
+TEST (tensorFilterOutputCombination, dynamicFewerOutputs)
+{
+  const guint8 bytes[] = { 0xA0, 0xA0 };
+  const gsize sizes[] = { 4, 4 };
+
+  _out_combi_run ("o1,o0,o0", FALSE, OUT_COMBI_DYNAMIC_FEWER, 2U, bytes, sizes);
+}
+
+/**
+ * @brief Test output-combination with an output index the model does not have.
+ */
+TEST (tensorFilterOutputCombination, invalidIndex_n)
+{
+  GstHarness *h;
+
+  ASSERT_EQ (_out_combi_register (), 0);
+  h = _out_combi_harness ("o0,o2", FALSE);
+
+  EXPECT_NE (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  _out_combi_teardown (h);
+}
+
+/**
+ * @brief Test output-combination on a dynamic invoke returning an invalid info after a selected output is prepared.
+ */
+TEST (tensorFilterOutputCombination, invalidDynamicInfo_n)
+{
+  GstHarness *h;
+
+  h = _out_combi_dynamic_harness ("o1,o0", OUT_COMBI_DYNAMIC_INVALID);
+
+  EXPECT_NE (gst_harness_push (h, gst_harness_create_buffer (h, 4)), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_buffers_received (h), 0U);
+
+  _out_combi_teardown (h);
+}
+
 /**
  * @brief Main gtest
  */

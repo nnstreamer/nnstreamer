@@ -73,6 +73,7 @@ Select the output tensor(s) from the input tensor(s) and/or model output
 ```
 Suppose the model receives tensors '0,1' as an input and outputs tensor '0,1,2'.  
 Src pad of the tensor_filter can produce input tensor '0' and output tensors '0,2' using output-combination.  
+The selected input tensors come first, then the selected output tensors. Each group keeps the order given in the property, and an index listed twice appears twice (e.g., `o2,o0,o0` produces output tensors '2,0,0').  
 
 ### Comparison of tee and combination option
 #### Object detection using tee
