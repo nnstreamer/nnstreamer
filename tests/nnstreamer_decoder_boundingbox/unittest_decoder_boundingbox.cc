@@ -22,6 +22,7 @@
 #include <nnstreamer_plugin_api.h>
 #include <nnstreamer_plugin_api_decoder.h>
 #include <nnstreamer_plugin_api_util.h>
+#include <nnstreamer_util.h>
 
 #define OV_DESC_SIZE (7U)
 #define OV_DETECTION_MAX (200U)
@@ -2083,6 +2084,148 @@ TEST (tensorDecoderBoundingBox, palmTrackEveryType)
     EXPECT_EQ (memcmp (frame, expected, sizeof (frame)), 0)
         << gst_tensor_get_type_string (decoded_types[i]);
   }
+}
+
+/**
+ * @brief Collect every message logged to the default GLib log handler.
+ */
+static void
+collectLog (const gchar *log_domain, GLogLevelFlags log_level,
+    const gchar *message, gpointer user_data)
+{
+  UNUSED (log_domain);
+  UNUSED (log_level);
+
+  g_ptr_array_add ((GPtrArray *) user_data, g_strdup (message));
+}
+
+/**
+ * @brief Count the collected messages that start with @a prefix.
+ */
+static guint
+countLogLines (GPtrArray *log, const gchar *prefix)
+{
+  guint i, count = 0;
+
+  for (i = 0; i < log->len; i++) {
+    if (g_str_has_prefix ((const gchar *) g_ptr_array_index (log, i), prefix))
+      count++;
+  }
+
+  return count;
+}
+
+/**
+ * @brief Decode the boxes of @a t with option7 set and collect what the decoder logs.
+ */
+static gboolean
+logSsdPpBoxes (const gchar *label_file, SsdPpBoxes *t, GPtrArray *log)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  uint32_t frame[BOX_OUT_PIXELS] = { 0U };
+  GLogFunc old_handler;
+  void *pdata = NULL;
+  gboolean ret = FALSE;
+
+  if (!initSsdPpDecoder (decoder, &pdata, label_file, "0", "1"))
+    return FALSE;
+
+  if (acceptsConfig (decoder, &pdata, &t->config)) {
+    old_handler = g_log_set_default_handler (collectLog, log);
+    ret = decodeFrame (decoder, &pdata, &t->config, t->input, frame);
+    g_log_set_default_handler (old_handler, NULL);
+  }
+
+  decoder->exit (&pdata);
+  return ret;
+}
+
+/**
+ * @brief A logged box of a known class is logged with its label.
+ */
+TEST (tensorDecoderBoundingBox, logLabelOfBox)
+{
+  gchar *labels = writeLabelFile ("X\nY\n");
+  GPtrArray *log = g_ptr_array_new_with_free_func (g_free);
+  SsdPpBoxes t;
+
+  t.add (1.0f, TRACK_LEFT);
+  EXPECT_TRUE (logSsdPpBoxes (labels, &t, log));
+#ifndef __TIZEN__
+  EXPECT_EQ (countLogLines (log, "[Y] x:"), 1U);
+#endif
+
+  g_ptr_array_unref (log);
+  removeTempFile (&labels);
+}
+
+/**
+ * @brief A logged box of a class past the labels is logged without a label.
+ * @details The label used to be read from past the end of the label array.
+ */
+TEST (tensorDecoderBoundingBox, logBoxOfClassPastLabels_n)
+{
+  gchar *labels = writeLabelFile ("X\nY\n");
+  GPtrArray *log = g_ptr_array_new_with_free_func (g_free);
+  SsdPpBoxes t;
+
+  t.add (2.0f, TRACK_LEFT);
+  t.add (100000000.0f, TRACK_RIGHT);
+  EXPECT_TRUE (logSsdPpBoxes (labels, &t, log));
+  EXPECT_EQ (countLogLines (log, "["), 0U);
+#ifndef __TIZEN__
+  EXPECT_EQ (countLogLines (log, "x:"), 2U);
+#endif
+
+  g_ptr_array_unref (log);
+  removeTempFile (&labels);
+}
+
+/**
+ * @brief A logged ov-person-detection box, which has no class, is logged without a label.
+ * @details The mode gives its boxes the class -1, and the label used to be read
+ *          from in front of the label array.
+ */
+TEST (tensorDecoderBoundingBox, logBoxOfNegativeClass_n)
+{
+  const GstTensorDecoderDef *decoder = nnstreamer_decoder_find ("bounding_boxes");
+  gchar *labels = writeLabelFile ("X\n");
+  GPtrArray *log = g_ptr_array_new_with_free_func (g_free);
+  float tensor[OV_TENSOR_ELEMENTS] = { 0.0f };
+  uint32_t frame[BOX_OUT_PIXELS] = { 0U };
+  GstTensorMemory input;
+  GstTensorsConfig config;
+  GLogFunc old_handler;
+  void *pdata = NULL;
+
+  ASSERT_TRUE (decoder != NULL);
+  ASSERT_TRUE (labels != NULL);
+  ASSERT_TRUE (decoder->init (&pdata));
+  EXPECT_TRUE (decoder->setOption (&pdata, 0, "ov-person-detection"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 1, labels));
+  EXPECT_TRUE (decoder->setOption (&pdata, 3, "64:48"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 4, "640:480"));
+  EXPECT_TRUE (decoder->setOption (&pdata, 6, "1"));
+
+  setOvDetectionConfig (&config);
+  setDetection (tensor, 0.25f, 0.25f, 0.75f, 0.75f);
+  input.data = tensor;
+  input.size = sizeof (tensor);
+
+  EXPECT_TRUE (acceptsConfig (decoder, &pdata, &config));
+  old_handler = g_log_set_default_handler (collectLog, log);
+  EXPECT_TRUE (decodeFrame (decoder, &pdata, &config, &input, frame));
+  g_log_set_default_handler (old_handler, NULL);
+
+  EXPECT_EQ (countLogLines (log, "["), 0U);
+#ifndef __TIZEN__
+  EXPECT_EQ (countLogLines (log, "x:"), 1U);
+#endif
+
+  gst_tensors_config_free (&config);
+  decoder->exit (&pdata);
+  g_ptr_array_unref (log);
+  removeTempFile (&labels);
 }
 
 /**

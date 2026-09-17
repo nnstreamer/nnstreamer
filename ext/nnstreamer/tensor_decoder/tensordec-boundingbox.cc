@@ -866,7 +866,7 @@ BoundingBox::logBoxes (GArray *results)
       bdata->getInputWidth (), bdata->getInputHeight ());
   for (i = 0; i < results->len; i++) {
     detectedObject *b = &g_array_index (results, detectedObject, i);
-    if (labeldata.total_labels > 0) {
+    if (b->class_id >= 0 && b->class_id < (int) labeldata.total_labels) {
       if (mode == YOLOV8_ORIENTED_BOUNDING_BOX) {
         nns_logi ("[%s] x:%d y:%d w:%d h:%d angle:%.2f prob:%.4f",
             labeldata.labels[b->class_id], b->x, b->y, b->width, b->height,
