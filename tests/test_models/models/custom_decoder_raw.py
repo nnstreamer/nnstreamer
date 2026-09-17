@@ -9,8 +9,8 @@
 #
 # @note    NNS_TEST_PY_DECODER_MODE, read when an instance is created, selects what decode does:
 #          concat (default) checks raw_data against in_info and returns the tensors as bytes,
-#          raise raises an exception, fixed returns FIXED,
-#          init-raise raises in the constructor.
+#          raise raises an exception, fixed returns FIXED, text returns a str from decode
+#          and getOutCaps, init-raise raises in the constructor.
 
 import os
 
@@ -33,6 +33,8 @@ class CustomDecoder:
     # @brief  Python callback: getOutCaps
     # @return the output caps
     def getOutCaps(self):
+        if self.mode == 'text':
+            return 'application/octet-stream'
         return b'application/octet-stream'
 
     ##
@@ -47,6 +49,8 @@ class CustomDecoder:
             raise RuntimeError('raise is requested')
         if self.mode == 'fixed':
             return FIXED
+        if self.mode == 'text':
+            return FIXED.decode()
         if len(raw_data) != len(in_info):
             raise ValueError('raw_data and in_info disagree')
         for data, info in zip(raw_data, in_info):

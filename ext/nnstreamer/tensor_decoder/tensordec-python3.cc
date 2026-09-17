@@ -161,14 +161,25 @@ PYDecoderCore::decode (const GstTensorsConfig *config,
   output = PyObject_CallMethod (core_obj, "decode", "OOii", raw_data, in_info, rate_n, rate_d);
 
   if (output) {
+    if (!PyBytes_Check (output)) {
+      ml_loge ("'decode' of the python3 decoder has to return bytes, not '%s'.\n",
+          Py_TYPE (output)->tp_name);
+      ret = GST_FLOW_ERROR;
+      goto done;
+    }
+
     need_alloc = (gst_buffer_get_size (outbuf) == 0);
-    mem_size = PyBytes_Size (output);
+    mem_size = PyBytes_GET_SIZE (output);
 
     if (need_alloc) {
       out_mem = gst_allocator_alloc (NULL, mem_size, NULL);
     } else {
       if (gst_buffer_get_size (outbuf) < mem_size) {
-        gst_buffer_set_size (outbuf, mem_size);
+        gsize offset, maxsize;
+
+        gst_buffer_get_sizes (outbuf, &offset, &maxsize);
+        if (maxsize >= offset + mem_size)
+          gst_buffer_set_size (outbuf, mem_size);
       }
       out_mem = gst_buffer_get_all_memory (outbuf);
     }
@@ -180,7 +191,16 @@ PYDecoderCore::decode (const GstTensorsConfig *config,
       goto done;
     }
 
-    memcpy (out_info.data, PyBytes_AsString (output), mem_size);
+    if (out_info.size < mem_size) {
+      ml_loge ("The output buffer (%zu bytes) cannot hold the %zu bytes 'decode' of the python3 decoder returned.\n",
+          out_info.size, mem_size);
+      gst_memory_unmap (out_mem, &out_info);
+      gst_memory_unref (out_mem);
+      ret = GST_FLOW_ERROR;
+      goto done;
+    }
+
+    memcpy (out_info.data, PyBytes_AS_STRING (output), mem_size);
 
     gst_memory_unmap (out_mem, &out_info);
 
@@ -222,6 +242,13 @@ PYDecoderCore::getOutCaps (const GstTensorsConfig *config)
   }
 
   result = PyObject_CallMethod (core_obj, (char *) "getOutCaps", NULL);
+  if (result && !PyBytes_Check (result)) {
+    ml_loge ("'getOutCaps' of the python3 decoder has to return bytes, not '%s'.\n",
+        Py_TYPE (result)->tp_name);
+    Py_SAFEDECREF (result);
+    goto done;
+  }
+
   if (result) {
     gchar *caps_str = PyBytes_AsString (result);
     caps = gst_caps_from_string (caps_str);
@@ -357,7 +384,8 @@ decoder_py_getOutCaps (void **pdata, const GstTensorsConfig *config)
 
   PyGILGuard gil_guard;
   caps = core->getOutCaps (config);
-  setFramerateFromConfig (caps, config);
+  if (caps)
+    setFramerateFromConfig (caps, config);
   return caps;
 }
 
