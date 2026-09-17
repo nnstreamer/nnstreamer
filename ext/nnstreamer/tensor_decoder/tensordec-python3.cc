@@ -146,9 +146,21 @@ PYDecoderCore::decode (const GstTensorsConfig *config,
         = { (npy_intp) (input[i].size / gst_tensor_get_element_size (nns_type)) };
     PyObject *input_array = PyArray_SimpleNewFromData (
         1, input_dims, getNumpyType (nns_type), input[i].data);
+    if (!input_array) {
+      Py_ERRMSG ("Cannot pass the tensor %u (%s) to 'decode' of the python3 decoder.\n",
+          i, gst_tensor_get_type_string (nns_type));
+      ret = GST_FLOW_ERROR;
+      goto done;
+    }
     PyList_SetItem (raw_data, i, input_array);
 
     PyObject *shape = PyTensorShape_New (shape_cls, _info);
+    if (!shape) {
+      Py_ERRMSG ("Cannot pass the shape of the tensor %u to 'decode' of the python3 decoder.\n",
+          i);
+      ret = GST_FLOW_ERROR;
+      goto done;
+    }
     PyList_SetItem (in_info, i, shape);
   }
 

@@ -785,6 +785,56 @@ TEST (nnstreamerDecoderPython3, decodeIntoSmallBuffer_n)
 }
 
 /**
+ * @brief Tensors of different types reach the script with their own types.
+ */
+TEST (nnstreamerDecoderPython3, decodeMixedTypes)
+{
+  void *pdata = NULL;
+  GstTensorsConfig config;
+  gboolean matched = FALSE;
+  const GstTensorDecoderDef *dec = _open_decoder (&pdata, "concat");
+
+  ASSERT_NE (dec, nullptr);
+  _init_config (&config);
+  config.info.info[1].type = _NNS_INT16;
+  gst_tensor_parse_dimension ("2", config.info.info[1].dimension);
+
+  EXPECT_EQ (_decode_and_check (dec, &pdata, &config, 3, &matched), GST_FLOW_OK);
+  EXPECT_TRUE (matched);
+
+  dec->exit (&pdata);
+  gst_tensors_config_free (&config);
+}
+
+/**
+ * @brief A tensor type numpy is not given for (float16) fails decoding before the script runs.
+ */
+TEST (nnstreamerDecoderPython3, decodeFloat16_n)
+{
+  void *pdata = NULL;
+  GstTensorsConfig config;
+  gboolean matched = TRUE;
+  const GstTensorDecoderDef *dec = _open_decoder (&pdata, "concat");
+
+  ASSERT_NE (dec, nullptr);
+  _init_config (&config);
+  config.info.info[1].type = _NNS_FLOAT16;
+  gst_tensor_parse_dimension ("2", config.info.info[1].dimension);
+
+  EXPECT_EQ (_decode_and_check (dec, &pdata, &config, 3, &matched), GST_FLOW_ERROR);
+  EXPECT_FALSE (matched);
+
+  /* the instance still decodes what it can */
+  config.info.info[1].type = _NNS_UINT8;
+  gst_tensor_parse_dimension ("4", config.info.info[1].dimension);
+  EXPECT_EQ (_decode_and_check (dec, &pdata, &config, 5, &matched), GST_FLOW_OK);
+  EXPECT_TRUE (matched);
+
+  dec->exit (&pdata);
+  gst_tensors_config_free (&config);
+}
+
+/**
  * @brief Main gtest
  */
 int
