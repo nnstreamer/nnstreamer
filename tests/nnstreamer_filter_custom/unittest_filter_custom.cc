@@ -846,7 +846,7 @@ TEST (tensorFilterFlexInput, sparseHeader_n)
 }
 
 /**
- * @brief A header of a version that validates but cannot be sized is refused.
+ * @brief A header of a version this build cannot size is refused.
  * @details The dimension covers the whole memory, so taking the header size of 0 at its word would pass every size check.
  */
 TEST (tensorFilterFlexInput, unknownVersion_n)
@@ -861,7 +861,7 @@ TEST (tensorFilterFlexInput, unknownVersion_n)
   ((guint32 *) raw)[1] = 0xDE002000U;
   ((guint32 *) raw)[3] = sizeof (raw);
 
-  EXPECT_TRUE (gst_tensor_meta_info_parse_header (&meta, raw));
+  EXPECT_FALSE (gst_tensor_meta_info_parse_header (&meta, raw));
   EXPECT_EQ (gst_tensor_meta_info_get_header_size (&meta), 0U);
 
   h = _flex_in_harness ("flex_in_version", TRUE);
