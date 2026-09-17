@@ -150,6 +150,16 @@ if gtest_dep.found()
 
     test('unittest_plugins', unittest_plugins, timeout: 120, env: testenv)
 
+    # Run unittest_sparse
+    unittest_sparse = executable('unittest_sparse',
+      join_paths('nnstreamer_sparse', 'unittest_sparse.cc'),
+      dependencies: [nnstreamer_unittest_deps, nnstreamer_internal_deps],
+      install: get_option('install-test'),
+      install_dir: unittest_install_dir
+    )
+
+    test('unittest_sparse', unittest_sparse, env: testenv)
+
     # Run unittest_watchdog
     unittest_watchdog = executable('unittest_watchdog',
       join_paths('nnstreamer_watchdog', 'unittest_watchdog.cc'),
