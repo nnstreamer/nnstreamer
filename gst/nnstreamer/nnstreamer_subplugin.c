@@ -272,14 +272,17 @@ register_subplugin (subpluginType type, const char *name, const void *data)
   g_datalist_init (&spdata->custom_dlist);
 
   G_LOCK (splock);
-  sp_name = g_strdup (name);
-  ret = g_hash_table_insert (subplugins[type], sp_name, spdata);
-  if (!ret) {
-    _spdata_destroy (spdata);
-    g_free (sp_name);
-    ml_loge ("Failed to add subplugin data into the table.");
+  ret = !g_hash_table_contains (subplugins[type], name);
+  if (ret) {
+    sp_name = g_strdup (name);
+    g_hash_table_insert (subplugins[type], sp_name, spdata);
   }
   G_UNLOCK (splock);
+
+  if (!ret) {
+    ml_logw ("Subplugin %s is already registered.", name);
+    _spdata_destroy (spdata);
+  }
 
   return ret;
 }
