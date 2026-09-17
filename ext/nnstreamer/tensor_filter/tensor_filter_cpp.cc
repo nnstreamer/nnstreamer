@@ -55,7 +55,7 @@ static GstTensorFilterFramework NNS_support_cpp = { .version = GST_TENSOR_FILTER
   { .v0 = {
         .name = filter_subplugin_cpp,
         .allow_in_place = FALSE, /** @todo: support this to optimize performance later. */
-        .allocate_in_invoke = FALSE,
+        .allocate_in_invoke = TRUE,
         .run_without_model = FALSE,
         .verify_model_path = FALSE,
         .statistics = nullptr,
@@ -67,7 +67,7 @@ static GstTensorFilterFramework NNS_support_cpp = { .version = GST_TENSOR_FILTER
         .reloadModel = nullptr,
         .handleEvent = nullptr,
         .checkAvailability = nullptr,
-        .allocateInInvoke = nullptr,
+        .allocateInInvoke = tensor_filter_cpp::allocateInInvoke,
     } } };
 
 G_BEGIN_DECLS
@@ -205,6 +205,16 @@ tensor_filter_cpp::invoke (const GstTensorFilterProperties *prop,
 }
 
 /**
+ * @brief Standard tensor_filter callback
+ */
+int
+tensor_filter_cpp::allocateInInvoke (void **private_data)
+{
+  loadClass (cpp, private_data);
+  return cpp->isAllocatedBeforeInvoke () ? -EINVAL : 0;
+}
+
+/**
  * @brief Printout only once for a given error
  */
 __attribute__ ((format (printf, 3, 4))) static void
@@ -272,8 +282,6 @@ tensor_filter_cpp::open (const GstTensorFilterProperties *prop, void **private_d
   *private_data = cpp = filters[prop->model_files[0]];
   cpp->ref_count++;
   cpp->prop = prop;
-
-  NNS_support_cpp.v0.allocate_in_invoke = !cpp->isAllocatedBeforeInvoke ();
 
   return 0;
 }

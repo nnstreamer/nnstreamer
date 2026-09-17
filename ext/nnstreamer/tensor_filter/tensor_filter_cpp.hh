@@ -160,6 +160,8 @@ class tensor_filter_cpp
   /** @brief tensor_filter callback dispatching invoke to the instance */
   static int invoke (const GstTensorFilterProperties *prop, void **private_data,
       const GstTensorMemory *input, GstTensorMemory *output);
+  /** @brief tensor_filter callback telling whether this instance allocates its output in invoke */
+  static int allocateInInvoke (void **private_data);
   /** @brief tensor_filter callback opening the filter given by model prop */
   static int open (const GstTensorFilterProperties *prop, void **private_data);
   /** @brief tensor_filter callback releasing a reference to the filter */
