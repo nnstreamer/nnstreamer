@@ -622,6 +622,169 @@ TEST (nnstreamerDecoderPython3, pipelineScript)
 }
 
 /**
+ * @brief Caps a script gives as other than bytes are refused.
+ */
+TEST (nnstreamerDecoderPython3, getOutCapsNotBytes_n)
+{
+  void *pdata = NULL;
+  GstTensorsConfig config;
+  GstCaps *caps;
+  AssertionCounter counter;
+  const GstTensorDecoderDef *dec = _open_decoder (&pdata, "text");
+
+  ASSERT_NE (dec, nullptr);
+  _init_config (&config);
+
+  _assertion_counter_start (&counter);
+  caps = dec->getOutCaps (&pdata, &config);
+  EXPECT_EQ (_assertion_counter_stop (&counter), 0U);
+  EXPECT_EQ (caps, nullptr);
+  if (caps)
+    gst_caps_unref (caps);
+
+  dec->exit (&pdata);
+  gst_tensors_config_free (&config);
+}
+
+/**
+ * @brief Decoded data a script gives as other than bytes is refused.
+ */
+TEST (nnstreamerDecoderPython3, decodeNotBytes_n)
+{
+  void *pdata = NULL;
+  GstTensorsConfig config;
+  gboolean matched = TRUE;
+  AssertionCounter counter;
+  GstFlowReturn ret;
+  const GstTensorDecoderDef *dec = _open_decoder (&pdata, "text");
+
+  ASSERT_NE (dec, nullptr);
+  _init_config (&config);
+
+  _assertion_counter_start (&counter);
+  ret = _decode_and_check (dec, &pdata, &config, 0, &matched);
+  EXPECT_EQ (_assertion_counter_stop (&counter), 0U);
+  EXPECT_EQ (ret, GST_FLOW_ERROR);
+  EXPECT_FALSE (matched);
+
+  dec->exit (&pdata);
+  gst_tensors_config_free (&config);
+}
+
+/**
+ * @brief Decode "fixed" (4 bytes) into a caller buffer wrapping area.
+ * @param maxsize The bytes of area the buffer may use.
+ * @param offset The offset of the buffer's data in area.
+ * @param size The initial size of the buffer.
+ * @param out_size The size of the buffer after decoding.
+ */
+static GstFlowReturn
+_decode_fixed_into (const GstTensorDecoderDef *dec, void **pdata,
+    const GstTensorsConfig *config, guint8 *area, gsize maxsize, gsize offset,
+    gsize size, gsize *out_size)
+{
+  guint8 data[2 * TENSOR_SIZE] = { 0 };
+  GstTensorMemory input[2];
+  GstBuffer *outbuf = gst_buffer_new_wrapped_full (
+      (GstMemoryFlags) 0, area, maxsize, offset, size, NULL, NULL);
+  GstFlowReturn ret;
+
+  for (guint i = 0; i < 2; i++) {
+    input[i].data = data + i * TENSOR_SIZE;
+    input[i].size = TENSOR_SIZE;
+  }
+
+  ret = dec->decode (pdata, config, input, outbuf);
+  *out_size = gst_buffer_get_size (outbuf);
+  gst_buffer_unref (outbuf);
+
+  return ret;
+}
+
+/**
+ * @brief The decoder writes the script's bytes into a caller buffer that can hold them.
+ */
+TEST (nnstreamerDecoderPython3, decodeIntoCallerBuffer)
+{
+  void *pdata = NULL;
+  GstTensorsConfig config;
+  const guint8 fixed[] = { 1, 2, 3, 4 };
+  guint8 area[8];
+  gsize out_size = 0;
+  AssertionCounter counter;
+  const GstTensorDecoderDef *dec = _open_decoder (&pdata, "fixed");
+
+  ASSERT_NE (dec, nullptr);
+  _init_config (&config);
+  _assertion_counter_start (&counter);
+
+  /* exactly as large */
+  memset (area, 0xAA, sizeof (area));
+  EXPECT_EQ (_decode_fixed_into (dec, &pdata, &config, area, 4, 0, 4, &out_size), GST_FLOW_OK);
+  EXPECT_EQ (out_size, 4U);
+  EXPECT_EQ (memcmp (area, fixed, 4), 0);
+  EXPECT_EQ (area[4], 0xAA);
+
+  /* smaller, but grows within what it may use */
+  memset (area, 0xAA, sizeof (area));
+  EXPECT_EQ (_decode_fixed_into (dec, &pdata, &config, area, 6, 0, 2, &out_size), GST_FLOW_OK);
+  EXPECT_EQ (out_size, 4U);
+  EXPECT_EQ (memcmp (area, fixed, 4), 0);
+  EXPECT_EQ (area[4], 0xAA);
+
+  /* starting at an offset, grows up to the end of what it may use */
+  memset (area, 0xAA, sizeof (area));
+  EXPECT_EQ (_decode_fixed_into (dec, &pdata, &config, area, 6, 2, 2, &out_size), GST_FLOW_OK);
+  EXPECT_EQ (out_size, 4U);
+  EXPECT_EQ (area[1], 0xAA);
+  EXPECT_EQ (memcmp (area + 2, fixed, 4), 0);
+  EXPECT_EQ (area[6], 0xAA);
+
+  EXPECT_EQ (_assertion_counter_stop (&counter), 0U);
+  dec->exit (&pdata);
+  gst_tensors_config_free (&config);
+}
+
+/**
+ * @brief The decoder refuses, without writing past it, a caller buffer too small for the script's bytes.
+ */
+TEST (nnstreamerDecoderPython3, decodeIntoSmallBuffer_n)
+{
+  void *pdata = NULL;
+  GstTensorsConfig config;
+  guint8 area[8];
+  gsize out_size = 0;
+  AssertionCounter counter;
+  GstFlowReturn ret;
+  const GstTensorDecoderDef *dec = _open_decoder (&pdata, "fixed");
+
+  ASSERT_NE (dec, nullptr);
+  _init_config (&config);
+
+  memset (area, 0xAA, sizeof (area));
+  _assertion_counter_start (&counter);
+  ret = _decode_fixed_into (dec, &pdata, &config, area, 3, 0, 3, &out_size);
+  EXPECT_EQ (_assertion_counter_stop (&counter), 0U);
+  EXPECT_EQ (ret, GST_FLOW_ERROR);
+  EXPECT_EQ (out_size, 3U);
+  for (guint i = 3; i < sizeof (area); i++)
+    EXPECT_EQ (area[i], 0xAA) << "byte " << i << " past the buffer was written";
+
+  /* the room before the offset cannot be used */
+  memset (area, 0xAA, sizeof (area));
+  _assertion_counter_start (&counter);
+  ret = _decode_fixed_into (dec, &pdata, &config, area, 5, 2, 2, &out_size);
+  EXPECT_EQ (_assertion_counter_stop (&counter), 0U);
+  EXPECT_EQ (ret, GST_FLOW_ERROR);
+  EXPECT_EQ (out_size, 2U);
+  for (guint i = 4; i < sizeof (area); i++)
+    EXPECT_EQ (area[i], 0xAA) << "byte " << i << " past the buffer was written";
+
+  dec->exit (&pdata);
+  gst_tensors_config_free (&config);
+}
+
+/**
  * @brief Main gtest
  */
 int
