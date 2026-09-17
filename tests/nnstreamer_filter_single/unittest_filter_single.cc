@@ -8,8 +8,12 @@
  */
 
 #include <gtest/gtest.h>
+#include <errno.h>
 #include <glib.h>
+#include <nnstreamer_cppplugin_api_filter.hh>
+#include <nnstreamer_plugin_api_filter.h>
 #include <nnstreamer_plugin_api_util.h>
+#include <nnstreamer_util.h>
 
 #include "../gst/nnstreamer/tensor_filter/tensor_filter_single.h"
 
@@ -511,6 +515,315 @@ TEST (testTensorFilterSingle, invokeUnknownFW_n)
   g_object_unref (single);
   g_free (in.data);
   g_free (out.data);
+}
+
+#define PDATA_FW_NAME "single_private_data"
+
+static int pdata_model;
+static void *pdata_received;
+static guint pdata_set_input_calls;
+
+/**
+ * @brief Open callback of the plain-C V1 sub-plugin, stores its own private data.
+ */
+static int
+_pdata_open (const GstTensorFilterProperties *prop, void **private_data)
+{
+  UNUSED (prop);
+  *private_data = &pdata_model;
+  return 0;
+}
+
+/**
+ * @brief Close callback of the plain-C V1 sub-plugin.
+ */
+static void
+_pdata_close (const GstTensorFilterProperties *prop, void **private_data)
+{
+  UNUSED (prop);
+  *private_data = NULL;
+}
+
+/**
+ * @brief Invoke callback of the plain-C V1 sub-plugin (not used).
+ */
+static int
+_pdata_invoke (const GstTensorFilterFramework *self, GstTensorFilterProperties *prop,
+    void *private_data, const GstTensorMemory *input, GstTensorMemory *output)
+{
+  UNUSED (self);
+  UNUSED (prop);
+  UNUSED (private_data);
+  UNUSED (input);
+  UNUSED (output);
+  return -EINVAL;
+}
+
+/**
+ * @brief Framework info callback of the plain-C V1 sub-plugin.
+ */
+static int
+_pdata_fw_info (const GstTensorFilterFramework *self, const GstTensorFilterProperties *prop,
+    void *private_data, GstTensorFilterFrameworkInfo *fw_info)
+{
+  UNUSED (self);
+  UNUSED (prop);
+  UNUSED (private_data);
+  fw_info->name = PDATA_FW_NAME;
+  fw_info->run_without_model = 1;
+  return 0;
+}
+
+/**
+ * @brief Model info callback of the plain-C V1 sub-plugin.
+ * @details SET_INPUT_INFO records the private data it is given, refuses any
+ *          other than the one open() stored, and accepts a uint8 tensor only.
+ */
+static int
+_pdata_model_info (const GstTensorFilterFramework *self,
+    const GstTensorFilterProperties *prop, void *private_data,
+    model_info_ops ops, GstTensorsInfo *in_info, GstTensorsInfo *out_info)
+{
+  UNUSED (self);
+  UNUSED (prop);
+
+  if (ops != SET_INPUT_INFO)
+    return -ENOENT;
+
+  pdata_set_input_calls++;
+  pdata_received = private_data;
+
+  if (private_data != &pdata_model)
+    return -EINVAL;
+
+  if (in_info->num_tensors != 1U || in_info->info[0].type != _NNS_UINT8)
+    return -EINVAL;
+
+  gst_tensors_info_copy (out_info, in_info);
+  return 0;
+}
+
+/**
+ * @brief Event callback of the plain-C V1 sub-plugin.
+ */
+static int
+_pdata_event (const GstTensorFilterFramework *self, const GstTensorFilterProperties *prop,
+    void *private_data, event_ops ops, GstTensorFilterFrameworkEventData *data)
+{
+  UNUSED (self);
+  UNUSED (prop);
+  UNUSED (private_data);
+  UNUSED (ops);
+  UNUSED (data);
+  return -ENOENT;
+}
+
+/**
+ * @brief Test fixture registering a plain-C V1 sub-plugin for tensor_filter_single.
+ */
+class NNSFilterSingleTestPrivateData : public ::testing::Test
+{
+  protected:
+  GstTensorFilterFramework *fw;
+  GTensorFilterSingle *single;
+  GTensorFilterSingleClass *klass;
+  GstTensorsInfo in_info;
+  GstTensorsInfo out_info;
+
+  public:
+  /**
+   * @brief Construct a new NNSFilterSingleTestPrivateData object
+   */
+  NNSFilterSingleTestPrivateData ()
+      : fw (nullptr), single (nullptr), klass (nullptr)
+  {
+  }
+
+  /**
+   * @brief SetUp method for each test case
+   */
+  void SetUp () override
+  {
+    pdata_received = nullptr;
+    pdata_set_input_calls = 0U;
+
+    fw = g_new0 (GstTensorFilterFramework, 1);
+    fw->version = GST_TENSOR_FILTER_FRAMEWORK_V1;
+    fw->open = _pdata_open;
+    fw->close = _pdata_close;
+    fw->invoke = _pdata_invoke;
+    fw->getFrameworkInfo = _pdata_fw_info;
+    fw->getModelInfo = _pdata_model_info;
+    fw->eventHandler = _pdata_event;
+    ASSERT_TRUE (nnstreamer_filter_probe (fw));
+
+    single = (GTensorFilterSingle *) g_object_new (G_TYPE_TENSOR_FILTER_SINGLE, NULL);
+    klass = (GTensorFilterSingleClass *) g_type_class_ref (G_TYPE_TENSOR_FILTER_SINGLE);
+    g_object_set (G_OBJECT (single), "framework", PDATA_FW_NAME, NULL);
+
+    gst_tensors_info_init (&in_info);
+    gst_tensors_info_init (&out_info);
+    in_info.num_tensors = 1U;
+    in_info.info[0].type = _NNS_UINT8;
+    gst_tensor_parse_dimension ("3:4:5", in_info.info[0].dimension);
+  }
+
+  /**
+   * @brief TearDown method for each test case
+   */
+  void TearDown () override
+  {
+    gst_tensors_info_free (&in_info);
+    gst_tensors_info_free (&out_info);
+    if (single)
+      g_object_unref (single);
+    if (klass)
+      g_type_class_unref (klass);
+    if (fw) {
+      nnstreamer_filter_exit (PDATA_FW_NAME);
+      g_free (fw);
+    }
+  }
+};
+
+/**
+ * @brief A V1 sub-plugin receives in getModelInfo the private data its open() stored.
+ */
+TEST_F (NNSFilterSingleTestPrivateData, setInputInfo)
+{
+  ASSERT_TRUE (klass->start (single));
+
+  EXPECT_EQ (klass->set_input_info (single, &in_info, &out_info), 0);
+  EXPECT_EQ (pdata_set_input_calls, 1U);
+  EXPECT_EQ (pdata_received, (void *) &pdata_model);
+  EXPECT_TRUE (gst_tensors_info_is_equal (&in_info, &out_info));
+
+  EXPECT_TRUE (klass->stop (single));
+}
+
+/**
+ * @brief An info the V1 sub-plugin refuses is reported, still with the right private data.
+ */
+TEST_F (NNSFilterSingleTestPrivateData, setInputInfoRefused_n)
+{
+  ASSERT_TRUE (klass->start (single));
+
+  in_info.info[0].type = _NNS_FLOAT32;
+  EXPECT_NE (klass->set_input_info (single, &in_info, &out_info), 0);
+  EXPECT_EQ (pdata_set_input_calls, 1U);
+  EXPECT_EQ (pdata_received, (void *) &pdata_model);
+
+  EXPECT_TRUE (klass->stop (single));
+}
+
+/**
+ * @brief Setting input info before the V1 sub-plugin is opened does not reach it.
+ */
+TEST_F (NNSFilterSingleTestPrivateData, setInputInfoNotOpened_n)
+{
+  EXPECT_EQ (klass->set_input_info (single, &in_info, &out_info), -EINVAL);
+  EXPECT_EQ (pdata_set_input_calls, 0U);
+  EXPECT_TRUE (pdata_received == nullptr);
+}
+
+/**
+ * @brief C++ sub-plugin whose getModelInfo accepts any input info.
+ */
+class single_set_input_subplugin : public nnstreamer::tensor_filter_subplugin
+{
+  public:
+  static const char *name;
+  static single_set_input_subplugin *registered;
+  static guint set_input_calls;
+
+  /** @brief mandatory method */
+  tensor_filter_subplugin &getEmptyInstance () override
+  {
+    return *(new single_set_input_subplugin ());
+  }
+
+  /** @brief mandatory method */
+  void configure_instance (const GstTensorFilterProperties *prop) override
+  {
+    UNUSED (prop);
+  }
+
+  /** @brief mandatory method */
+  void invoke (const GstTensorMemory *input, GstTensorMemory *output) override
+  {
+    UNUSED (input);
+    UNUSED (output);
+  }
+
+  /** @brief mandatory method */
+  void getFrameworkInfo (GstTensorFilterFrameworkInfo &info) override
+  {
+    info.name = name;
+    info.run_without_model = TRUE;
+  }
+
+  /** @brief mandatory method, echoes the input info on SET_INPUT_INFO */
+  int getModelInfo (model_info_ops ops, GstTensorsInfo &in_info, GstTensorsInfo &out_info) override
+  {
+    if (ops != SET_INPUT_INFO)
+      return -ENOENT;
+
+    set_input_calls++;
+    gst_tensors_info_copy (&out_info, &in_info);
+    return 0;
+  }
+
+  /** @brief register this sub-plugin */
+  static void init ()
+  {
+    registered = register_subplugin<single_set_input_subplugin> ();
+  }
+
+  /** @brief unregister this sub-plugin */
+  static void fini ()
+  {
+    unregister_subplugin<single_set_input_subplugin> (registered);
+    registered = nullptr;
+  }
+};
+
+const char *single_set_input_subplugin::name = "single_set_input_cpp";
+single_set_input_subplugin *single_set_input_subplugin::registered = nullptr;
+guint single_set_input_subplugin::set_input_calls = 0;
+
+/**
+ * @brief A C++ V1 sub-plugin accepts input info set through tensor_filter_single.
+ */
+TEST (testTensorFilterSingle, setInputInfoCppSubplugin)
+{
+  GTensorFilterSingle *single;
+  GTensorFilterSingleClass *klass;
+  GstTensorsInfo in_info, out_info;
+
+  single_set_input_subplugin::set_input_calls = 0U;
+  single_set_input_subplugin::init ();
+
+  gst_tensors_info_init (&in_info);
+  gst_tensors_info_init (&out_info);
+  in_info.num_tensors = 1U;
+  in_info.info[0].type = _NNS_FLOAT32;
+  gst_tensor_parse_dimension ("2:3", in_info.info[0].dimension);
+
+  single = (GTensorFilterSingle *) g_object_new (G_TYPE_TENSOR_FILTER_SINGLE, NULL);
+  klass = (GTensorFilterSingleClass *) g_type_class_ref (G_TYPE_TENSOR_FILTER_SINGLE);
+  g_object_set (G_OBJECT (single), "framework", single_set_input_subplugin::name, NULL);
+
+  ASSERT_TRUE (klass->start (single));
+  EXPECT_EQ (klass->set_input_info (single, &in_info, &out_info), 0);
+  EXPECT_EQ (single_set_input_subplugin::set_input_calls, 1U);
+  EXPECT_TRUE (gst_tensors_info_is_equal (&in_info, &out_info));
+  EXPECT_TRUE (klass->stop (single));
+
+  g_type_class_unref (klass);
+  g_object_unref (single);
+  gst_tensors_info_free (&in_info);
+  gst_tensors_info_free (&out_info);
+  single_set_input_subplugin::fini ();
 }
 
 #ifdef ENABLE_LLAMACPP

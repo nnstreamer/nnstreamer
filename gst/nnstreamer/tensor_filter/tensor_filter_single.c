@@ -495,7 +495,7 @@ g_tensor_filter_single_set_input_info (GTensorFilterSingle * self,
       status = -ENOENT;
     }
   } else {
-    status = priv->fw->getModelInfo (priv->fw, &priv->prop, &priv->privateData,
+    status = priv->fw->getModelInfo (priv->fw, &priv->prop, priv->privateData,
         SET_INPUT_INFO, (GstTensorsInfo *) in_info, out_info);
   }
 
