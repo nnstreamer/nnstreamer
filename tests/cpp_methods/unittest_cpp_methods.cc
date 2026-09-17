@@ -10,6 +10,7 @@
 #include <glib.h>
 #include <gst/gst.h>
 
+#include <nnstreamer_util.h>
 #include <unittest_util.h>
 #include "../../gst/nnstreamer/tensor_filter/tensor_filter.h"
 #include "cppfilter_test.hh"
@@ -38,6 +39,113 @@ class filter_self_alloc : public filter_basic
     return filter_basic::invoke (in, out);
   }
 };
+
+/** @brief Test C++ filter recording the tensor_filter properties its callbacks see */
+class filter_prop_probe : public filter_basic
+{
+  public:
+  const GstTensorFilterProperties *hold_for; /**< invoke with these properties waits for release */
+  const GstTensorFilterProperties *release_from; /**< invoke with these properties releases the waiting one and waits until it has recorded */
+  const GstTensorFilterProperties *seen_by_held; /**< properties the waiting invoke sees after release */
+  const GstTensorFilterProperties *seen_by_releaser; /**< properties the releasing invoke sees after the waiting one has recorded */
+  std::atomic<const GstTensorFilterProperties *> seen; /**< properties the latest callback saw */
+  bool held; /**< the invoke with hold_for is waiting */
+  bool released; /**< let the waiting invoke go on */
+  bool recorded; /**< the released invoke has set seen_by_held */
+  GMutex lock; /**< protects the members above except seen */
+  GCond cond; /**< signals held, released and recorded */
+
+  /** @brief Construct the test filter with the given filter name */
+  filter_prop_probe (const char *str)
+      : filter_basic (str), hold_for (nullptr), release_from (nullptr),
+        seen_by_held (nullptr), seen_by_releaser (nullptr), seen (nullptr),
+        held (false), released (false), recorded (false)
+  {
+    g_mutex_init (&lock);
+    g_cond_init (&cond);
+  }
+
+  /** @brief Destructor of the test filter */
+  ~filter_prop_probe ()
+  {
+    g_cond_clear (&cond);
+    g_mutex_clear (&lock);
+  }
+
+  /** @brief The properties the filter would see on the calling thread now */
+  const GstTensorFilterProperties *current ()
+  {
+    return prop;
+  }
+
+  /** @brief Record the properties, then report the input dimension */
+  int getInputDim (GstTensorsInfo *info)
+  {
+    seen = prop;
+    return filter_basic::getInputDim (info);
+  }
+
+  /** @brief Record the properties, then report the output dimension */
+  int getOutputDim (GstTensorsInfo *info)
+  {
+    seen = prop;
+    return filter_basic::getOutputDim (info);
+  }
+
+  /** @brief Record the properties, then reject the dimension */
+  int setInputDim (const GstTensorsInfo *in, GstTensorsInfo *out)
+  {
+    seen = prop;
+    return filter_basic::setInputDim (in, out);
+  }
+
+  /** @brief Wait for or give the release if asked to, record the properties, then run filter_basic */
+  int invoke (const GstTensorMemory *in, GstTensorMemory *out)
+  {
+    gint64 end = g_get_monotonic_time () + 5 * G_TIME_SPAN_SECOND;
+
+    g_mutex_lock (&lock);
+    if (hold_for && prop == hold_for) {
+      held = true;
+      g_cond_broadcast (&cond);
+      while (!released && g_cond_wait_until (&cond, &lock, end))
+        ;
+      seen_by_held = prop;
+      recorded = true;
+      g_cond_broadcast (&cond);
+    } else if (release_from && prop == release_from) {
+      released = true;
+      g_cond_broadcast (&cond);
+      while (!recorded && g_cond_wait_until (&cond, &lock, end))
+        ;
+      seen_by_releaser = prop;
+    }
+    g_mutex_unlock (&lock);
+
+    seen = prop;
+    return filter_basic::invoke (in, out);
+  }
+};
+
+/** @brief Arguments of an invoke run on another thread */
+typedef struct {
+  const GstTensorFilterFramework *fw; /**< the cpp framework */
+  GstTensorFilterProperties *prop; /**< properties of the invoking element */
+  void *private_data; /**< opened filter */
+  GstTensorMemory in; /**< input tensor */
+  GstTensorMemory out; /**< output tensor */
+  int ret; /**< invoke result */
+} invoke_thread_args;
+
+/** @brief Invoke an opened cpp filter on another thread */
+static gpointer
+_invoke_thread (gpointer data)
+{
+  invoke_thread_args *args = (invoke_thread_args *) data;
+
+  args->ret = args->fw->invoke_NN (args->prop, &args->private_data, &args->in, &args->out);
+  return NULL;
+}
 
 /**
  * @brief Prepare the properties a tensor_filter opens a filter_basic-shaped cpp model with
@@ -481,6 +589,214 @@ TEST (cppFilterShared, allocContractPipeline)
 
   EXPECT_EQ (self._unregister (), 0);
   EXPECT_EQ (pre._unregister (), 0);
+}
+
+/** @brief A shared cpp filter sees the properties of the element calling it, not of the last one opened */
+TEST (cppFilterShared, propFollowsCaller)
+{
+  filter_prop_probe probe ("b11_probe");
+  const gchar *models[] = { "b11_probe" };
+  GstTensorFilterProperties prop1, prop2;
+  GstTensorsInfo info;
+  void *pd1 = NULL, *pd2 = NULL;
+  uint8_t in_data[48] = { 0 };
+  uint8_t out_data[96];
+  GstTensorMemory in = { in_data, sizeof (in_data) };
+  GstTensorMemory out = { out_data, sizeof (out_data) };
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find ("cpp");
+
+  ASSERT_NE (fw, nullptr);
+  EXPECT_EQ (probe._register (), 0);
+  _init_basic_prop (&prop1, models);
+  _init_basic_prop (&prop2, models);
+
+  EXPECT_EQ (fw->open (&prop1, &pd1), 0);
+  EXPECT_EQ (fw->open (&prop2, &pd2), 0);
+  fw->close (&prop2, &pd2);
+
+  EXPECT_EQ (fw->getInputDimension (&prop1, &pd1, &info), 0);
+  EXPECT_EQ (probe.seen.load (), &prop1);
+  probe.seen = nullptr;
+  EXPECT_EQ (fw->getOutputDimension (&prop1, &pd1, &info), 0);
+  EXPECT_EQ (probe.seen.load (), &prop1);
+  probe.seen = nullptr;
+  EXPECT_NE (fw->setInputDimension (&prop1, &pd1, &prop1.input_meta, &info), 0);
+  EXPECT_EQ (probe.seen.load (), &prop1);
+  probe.seen = nullptr;
+  EXPECT_EQ (fw->invoke_NN (&prop1, &pd1, &in, &out), 0);
+  EXPECT_EQ (probe.seen.load (), &prop1);
+  EXPECT_EQ (out_data[0], 0);
+  EXPECT_EQ (out_data[48], 1);
+
+  fw->close (&prop1, &pd1);
+  EXPECT_EQ (probe._unregister (), 0);
+}
+
+/** @brief A shared cpp filter has no element properties outside a callback */
+TEST (cppFilterShared, propOutsideCallback_n)
+{
+  filter_prop_probe probe ("b11_outside_n");
+  const gchar *models[] = { "b11_outside_n" };
+  GstTensorFilterProperties prop1;
+  GstTensorsInfo info;
+  void *pd1 = NULL;
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find ("cpp");
+
+  ASSERT_NE (fw, nullptr);
+  EXPECT_EQ (probe._register (), 0);
+  _init_basic_prop (&prop1, models);
+
+  EXPECT_EQ (fw->open (&prop1, &pd1), 0);
+  EXPECT_EQ (probe.current (), nullptr);
+  EXPECT_EQ (fw->getInputDimension (&prop1, &pd1, &info), 0);
+  EXPECT_EQ (probe.seen.load (), &prop1);
+  EXPECT_EQ (probe.current (), nullptr);
+
+  fw->close (&prop1, &pd1);
+  EXPECT_EQ (probe.current (), nullptr);
+  EXPECT_EQ (probe._unregister (), 0);
+}
+
+/** @brief Elements invoking a shared cpp filter at the same time each keep their own properties */
+TEST (cppFilterShared, propPerThread)
+{
+  filter_prop_probe probe ("b11_thread");
+  const gchar *models[] = { "b11_thread" };
+  GstTensorFilterProperties prop1, prop2;
+  void *pd2 = NULL;
+  uint8_t in1[48] = { 0 }, in2[48] = { 0 };
+  uint8_t out1[96], out2[96];
+  GstTensorMemory in = { in2, sizeof (in2) };
+  GstTensorMemory out = { out2, sizeof (out2) };
+  invoke_thread_args args;
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find ("cpp");
+  gint64 end;
+  bool held;
+
+  ASSERT_NE (fw, nullptr);
+  EXPECT_EQ (probe._register (), 0);
+  _init_basic_prop (&prop1, models);
+  _init_basic_prop (&prop2, models);
+
+  args.fw = fw;
+  args.prop = &prop1;
+  args.private_data = NULL;
+  args.in.data = in1;
+  args.in.size = sizeof (in1);
+  args.out.data = out1;
+  args.out.size = sizeof (out1);
+  args.ret = -1;
+  EXPECT_EQ (fw->open (&prop1, &args.private_data), 0);
+  probe.hold_for = &prop1;
+  probe.release_from = &prop2;
+
+  GThread *thread = g_thread_new ("b11_invoke", _invoke_thread, &args);
+
+  g_mutex_lock (&probe.lock);
+  end = g_get_monotonic_time () + 5 * G_TIME_SPAN_SECOND;
+  while (!probe.held && g_cond_wait_until (&probe.cond, &probe.lock, end))
+    ;
+  held = probe.held;
+  g_mutex_unlock (&probe.lock);
+  EXPECT_TRUE (held);
+
+  /* The waiting invoke records its properties while this one is still running */
+  EXPECT_EQ (fw->open (&prop2, &pd2), 0);
+  EXPECT_EQ (fw->invoke_NN (&prop2, &pd2, &in, &out), 0);
+  fw->close (&prop2, &pd2);
+
+  g_mutex_lock (&probe.lock);
+  EXPECT_TRUE (probe.recorded);
+  probe.released = true;
+  g_cond_broadcast (&probe.cond);
+  g_mutex_unlock (&probe.lock);
+  g_thread_join (thread);
+
+  EXPECT_EQ (args.ret, 0);
+  EXPECT_EQ (probe.seen_by_held, &prop1);
+  EXPECT_EQ (probe.seen_by_releaser, &prop2);
+
+  fw->close (&prop1, &args.private_data);
+  EXPECT_EQ (probe._unregister (), 0);
+}
+
+/** @brief Count the buffers a fakesink receives */
+static void
+_handoff_count (GstElement *sink, GstBuffer *buffer, GstPad *pad, gpointer user_data)
+{
+  UNUSED (sink);
+  UNUSED (buffer);
+  UNUSED (pad);
+  g_atomic_int_inc ((gint *) user_data);
+}
+
+/** @brief A cpp filter keeps working after another element sharing it is destroyed */
+TEST (cppFilterShared, propAfterPeerDestroyed)
+{
+  filter_prop_probe probe ("b11_pl");
+  gint received = 0;
+  GstFlowReturn flow = GST_FLOW_ERROR;
+
+  GstElement *pipeline1 = gst_parse_launch (
+      "appsrc name=src caps=other/tensors,num_tensors=1,dimensions=(string)3:4:4:1,types=(string)uint8,format=static,framerate=(fraction)0/1 ! "
+      "tensor_filter name=filter framework=cpp model=b11_pl ! fakesink name=sink signal-handoffs=true sync=false async=false",
+      NULL);
+  ASSERT_NE (pipeline1, nullptr);
+  EXPECT_EQ (probe._register (), 0);
+
+  GstElement *src = gst_bin_get_by_name (GST_BIN (pipeline1), "src");
+  GstElement *filter = gst_bin_get_by_name (GST_BIN (pipeline1), "filter");
+  GstElement *sink = gst_bin_get_by_name (GST_BIN (pipeline1), "sink");
+  EXPECT_NE (src, nullptr);
+  EXPECT_NE (filter, nullptr);
+  EXPECT_NE (sink, nullptr);
+  g_signal_connect (sink, "handoff", G_CALLBACK (_handoff_count), &received);
+  EXPECT_EQ (setPipelineStateSync (pipeline1, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT), 0);
+
+  GstElement *pipeline2 = gst_parse_launch (
+      "videotestsrc num-buffers=1 ! videoconvert ! videoscale ! video/x-raw,width=4,height=4,format=RGB ! "
+      "tensor_converter ! tensor_filter framework=cpp model=b11_pl ! fakesink sync=false async=false",
+      NULL);
+  EXPECT_NE (pipeline2, nullptr);
+  if (pipeline2) {
+    EXPECT_EQ (setPipelineStateSync (pipeline2, GST_STATE_PLAYING, UNITTEST_STATECHANGE_TIMEOUT),
+        0);
+    GstBus *bus = gst_element_get_bus (pipeline2);
+    GstMessage *msg = gst_bus_timed_pop_filtered (bus, 5 * GST_SECOND,
+        (GstMessageType) (GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+    EXPECT_NE (msg, nullptr);
+    if (msg) {
+      EXPECT_EQ (GST_MESSAGE_TYPE (msg), GST_MESSAGE_EOS);
+      gst_message_unref (msg);
+    }
+    gst_object_unref (bus);
+    EXPECT_EQ (setPipelineStateSync (pipeline2, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+    gst_object_unref (pipeline2);
+  }
+
+  GstBuffer *buf = gst_buffer_new_allocate (NULL, 48, NULL);
+  gst_buffer_memset (buf, 0, 0, 48);
+  probe.seen = nullptr;
+  g_signal_emit_by_name (src, "push-buffer", buf, &flow);
+  gst_buffer_unref (buf);
+  EXPECT_EQ (flow, GST_FLOW_OK);
+
+  for (int i = 0; i < 500 && g_atomic_int_get (&received) < 1; i++)
+    g_usleep (10000);
+  EXPECT_EQ (g_atomic_int_get (&received), 1);
+  if (filter) {
+    EXPECT_EQ (probe.seen.load (), &GST_TENSOR_FILTER_CAST (filter)->priv.prop);
+  }
+
+  EXPECT_EQ (setPipelineStateSync (pipeline1, GST_STATE_NULL, UNITTEST_STATECHANGE_TIMEOUT), 0);
+  if (src)
+    gst_object_unref (src);
+  if (filter)
+    gst_object_unref (filter);
+  if (sink)
+    gst_object_unref (sink);
+  gst_object_unref (pipeline1);
+  EXPECT_EQ (probe._unregister (), 0);
 }
 
 /**
