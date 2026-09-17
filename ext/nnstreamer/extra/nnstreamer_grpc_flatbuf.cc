@@ -48,7 +48,8 @@ ServiceImplFlatbuf::parse_tensors (Message<Tensors> &tensors)
 {
   GstBuffer *buffer;
 
-  _get_buffer_from_tensors (tensors, &buffer);
+  if (!_get_buffer_from_tensors (tensors, &buffer))
+    return;
 
   if (cb_)
     cb_ (cb_data_, buffer);
@@ -109,28 +110,49 @@ ServiceImplFlatbuf::_write_tensors (T writer)
 }
 
 /** @brief convert tensors to buffer */
-void
+gboolean
 ServiceImplFlatbuf::_get_buffer_from_tensors (Message<Tensors> &msg, GstBuffer **buffer)
 {
   const Tensors *tensors = msg.GetRoot ();
-  guint num_tensor = tensors->num_tensor ();
+  gint num_tensor = tensors->num_tensor ();
   GstTensorInfo *_info;
   GstMemory *memory;
 
+  if (!_check_tensor_count (num_tensor, VectorLength (tensors->tensor ())))
+    return FALSE;
+
   *buffer = gst_buffer_new ();
 
-  for (guint i = 0; i < num_tensor; i++) {
+  for (gint i = 0; i < num_tensor; i++) {
     const Tensor *tensor = tensors->tensor ()->Get (i);
+
+    if (!tensor->data ()) {
+      ml_loge ("Failed to get tensors, tensor %d has no data.", i);
+      goto error;
+    }
+
     const void *data = tensor->data ()->data ();
     gsize size = VectorLength (tensor->data ());
+
+    if (!_check_tensor_size (i, size))
+      goto error;
+
     gpointer new_data = _g_memdup (data, size);
 
     _info = gst_tensors_info_get_nth_info (&config_->info, i);
 
     memory = gst_memory_new_wrapped (
         (GstMemoryFlags) 0, new_data, size, 0, size, new_data, g_free);
-    gst_tensor_buffer_append_memory (*buffer, memory, _info);
+    if (!gst_tensor_buffer_append_memory (*buffer, memory, _info))
+      goto error;
   }
+
+  return TRUE;
+
+error:
+  gst_buffer_unref (*buffer);
+  *buffer = NULL;
+  return FALSE;
 }
 
 /** @brief convert buffer to tensors */

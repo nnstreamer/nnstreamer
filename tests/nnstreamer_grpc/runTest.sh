@@ -74,9 +74,9 @@ TIMEOUT_SEC=10
 
 ## Initial pipelines to generate reference outputs
 # passthrough, other/tensor
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=${NUM_BUFFERS} ! video/x-raw,width=640,height=480,framerate=5/1 ! tensor_converter ! multifilesink location=original1_%1d.log" Initial-1 0 0 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=${NUM_BUFFERS} ! video/x-raw,format=RGB,width=640,height=480,framerate=5/1 ! tensor_converter ! multifilesink location=original1_%1d.log" Initial-1 0 0 $PERFORMANCE
 # passthrough, other/tensors
-gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=${NUM_BUFFERS} ! video/x-raw,width=640,height=480,framerate=5/1 ! tensor_converter frames-per-tensor=2 ! multifilesink location=original2_%1d.log" Initial-2 0 0 $PERFORMANCE
+gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=${NUM_BUFFERS} ! video/x-raw,format=RGB,width=640,height=480,framerate=5/1 ! tensor_converter frames-per-tensor=2 ! multifilesink location=original2_%1d.log" Initial-2 0 0 $PERFORMANCE
 
 INDEX=1
 BLOCKING_LIST=("TRUE" "FALSE")
@@ -100,7 +100,7 @@ for BLOCKING in "${BLOCKING_LIST[@]}"; do
   # tensor_sink (client) --> tensor_src (server), other/tensor
   gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_src_grpc port=${PORT} num-buffers=${NUM_BUFFERS} idl=${IDL} blocking=${BLOCKING} ! other/tensor,dimension=3:640:480,type=uint8,framerate=5/1 ! multifilesink async=false location=result_%1d.log" ${INDEX}-1 1 0 ${TIMEOUT_SEC}
   pid=$!
-  gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=${NUM_BUFFERS} ! video/x-raw,width=640,height=480,framerate=5/1 ! tensor_converter ! tensor_sink_grpc port=${PORT} idl=${IDL} blocking=${BLOCKING}" ${INDEX}-2 0 0 $PERFORMANCE
+  gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=${NUM_BUFFERS} ! video/x-raw,format=RGB,width=640,height=480,framerate=5/1 ! tensor_converter ! tensor_sink_grpc port=${PORT} idl=${IDL} blocking=${BLOCKING}" ${INDEX}-2 0 0 $PERFORMANCE
   kill -9 $pid &> /dev/null
   wait $pid
 
@@ -114,7 +114,7 @@ for BLOCKING in "${BLOCKING_LIST[@]}"; do
 
   PORT=`python3 ../get_available_port.py`
   # tensor_sink (server) --> tensor_src (client), other/tensor
-  gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=${NUM_BUFFERS} ! video/x-raw,width=640,height=480,framerate=5/1 ! tensor_converter ! tensor_sink_grpc port=${PORT} server=true idl=${IDL} blocking=${BLOCKING} async=false" ${INDEX}-1 1 0 ${TIMEOUT_SEC}
+  gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=${NUM_BUFFERS} ! video/x-raw,format=RGB,width=640,height=480,framerate=5/1 ! tensor_converter ! tensor_sink_grpc port=${PORT} server=true idl=${IDL} blocking=${BLOCKING} async=false" ${INDEX}-1 1 0 ${TIMEOUT_SEC}
   pid=$!
   gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_src_grpc port=${PORT} num-buffers=${NUM_BUFFERS} server=false idl=${IDL} blocking=${BLOCKING} ! other/tensor,dimension=3:640:480,type=uint8,framerate=5/1 ! multifilesink location=result_%1d.log" ${INDEX}-2 0 0 $PERFORMANCE
   kill -9 $pid &> /dev/null
@@ -130,9 +130,9 @@ for BLOCKING in "${BLOCKING_LIST[@]}"; do
 
   PORT=`python3 ../get_available_port.py`
   # tensor_sink (client) --> tensor_src (server), other/tensors
-  gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_src_grpc port=${PORT} num-buffers=$((NUM_BUFFERS/2)) idl=${IDL} blocking=${BLOCKING} ! other/tensors,num_tensors=2,dimensions=3:640:480.3:640:480,types=uint8.uint8,framerate=5/1 ! multifilesink async=false location=result_%1d.log" ${INDEX}-1 1 0 ${TIMEOUT_SEC}
+  gstTestBackground "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_src_grpc port=${PORT} num-buffers=$((NUM_BUFFERS/2)) idl=${IDL} blocking=${BLOCKING} ! other/tensors,num_tensors=1,dimensions=3:640:480:2,types=uint8,framerate=5/1 ! multifilesink async=false location=result_%1d.log" ${INDEX}-1 1 0 ${TIMEOUT_SEC}
   pid=$!
-  gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=${NUM_BUFFERS} ! video/x-raw,width=640,height=480,framerate=5/1 ! tensor_converter frames-per-tensor=2 ! tensor_sink_grpc port=${PORT} idl=${IDL} blocking=${BLOCKING}" ${INDEX}-2 0 0 $PERFORMANCE
+  gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=${NUM_BUFFERS} ! video/x-raw,format=RGB,width=640,height=480,framerate=5/1 ! tensor_converter frames-per-tensor=2 ! tensor_sink_grpc port=${PORT} idl=${IDL} blocking=${BLOCKING}" ${INDEX}-2 0 0 $PERFORMANCE
   kill -9 $pid &> /dev/null
   wait $pid
 
@@ -146,9 +146,9 @@ for BLOCKING in "${BLOCKING_LIST[@]}"; do
 
   PORT=`python3 ../get_available_port.py`
   # tensor_sink (server) --> tensor_src (client), other/tensors
-  gstTestBackground " --gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=${NUM_BUFFERS} ! video/x-raw,width=640,height=480,framerate=5/1 ! tensor_converter frames-per-tensor=2 ! tensor_sink_grpc port=${PORT} server=true idl=${IDL} blocking=${BLOCKING} async=false" ${INDEX}-1 1 0 ${TIMEOUT_SEC}
+  gstTestBackground " --gst-plugin-path=${PATH_TO_PLUGIN} videotestsrc num-buffers=${NUM_BUFFERS} ! video/x-raw,format=RGB,width=640,height=480,framerate=5/1 ! tensor_converter frames-per-tensor=2 ! tensor_sink_grpc port=${PORT} server=true idl=${IDL} blocking=${BLOCKING} async=false" ${INDEX}-1 1 0 ${TIMEOUT_SEC}
   pid=$!
-  gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_src_grpc port=${PORT} num-buffers=$((NUM_BUFFERS/2)) server=false idl=${IDL} blocking=${BLOCKING} ! other/tensors,num_tensors=2,dimensions=3:640:480.3:640:480,types=uint8.uint8,framerate=5/1 ! multifilesink location=result_%1d.log" ${INDEX}-2 0 0 $PERFORMANCE
+  gstTest "--gst-plugin-path=${PATH_TO_PLUGIN} tensor_src_grpc port=${PORT} num-buffers=$((NUM_BUFFERS/2)) server=false idl=${IDL} blocking=${BLOCKING} ! other/tensors,num_tensors=1,dimensions=3:640:480:2,types=uint8,framerate=5/1 ! multifilesink location=result_%1d.log" ${INDEX}-2 0 0 $PERFORMANCE
   kill -9 $pid &> /dev/null
   wait $pid
 

@@ -179,6 +179,43 @@ NNStreamerRPC::_start_client ()
   return start_client (address);
 }
 
+/** @brief check the number of tensors a received message declares */
+gboolean
+NNStreamerRPC::_check_tensor_count (gint64 declared, gint64 carried)
+{
+  if (declared > carried) {
+    ml_loge ("Failed to get tensors, the message declares %" G_GINT64_FORMAT
+             " tensors but carries %" G_GINT64_FORMAT ".",
+        declared, carried);
+    return FALSE;
+  }
+
+  if (declared != config_->info.num_tensors) {
+    ml_loge ("Failed to get tensors, the message declares %" G_GINT64_FORMAT
+             " tensors but the caps have %u.",
+        declared, config_->info.num_tensors);
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+/** @brief check the data size of a received tensor */
+gboolean
+NNStreamerRPC::_check_tensor_size (guint index, gsize size)
+{
+  GstTensorInfo *info = gst_tensors_info_get_nth_info (&config_->info, index);
+  gsize expected = gst_tensor_info_get_size (info);
+
+  if (size != expected) {
+    ml_loge ("Failed to get tensors, tensor %u has %zu bytes but the caps need %zu.",
+        index, size, expected);
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
 /** @brief private method to check full  */
 gboolean
 NNStreamerRPC::_data_queue_check_full_cb (GstDataQueue *queue, guint visible,

@@ -42,7 +42,8 @@ ServiceImplProtobuf::parse_tensors (Tensors &tensors)
 {
   GstBuffer *buffer;
 
-  _get_buffer_from_tensors (tensors, &buffer);
+  if (!_get_buffer_from_tensors (tensors, &buffer))
+    return;
 
   if (cb_)
     cb_ (cb_data_, buffer);
@@ -103,12 +104,15 @@ ServiceImplProtobuf::_write_tensors (T writer)
 }
 
 /** @brief convert tensors to buffer */
-void
+gboolean
 ServiceImplProtobuf::_get_buffer_from_tensors (Tensors &tensors, GstBuffer **buffer)
 {
   guint num_tensor = tensors.num_tensor ();
   GstTensorInfo *_info;
   GstMemory *memory;
+
+  if (!_check_tensor_count (num_tensor, tensors.tensor_size ()))
+    return FALSE;
 
   *buffer = gst_buffer_new ();
 
@@ -116,14 +120,26 @@ ServiceImplProtobuf::_get_buffer_from_tensors (Tensors &tensors, GstBuffer **buf
     const Tensor *tensor = &tensors.tensor (i);
     const void *data = tensor->data ().c_str ();
     gsize size = tensor->data ().length ();
+
+    if (!_check_tensor_size (i, size))
+      goto error;
+
     gpointer new_data = _g_memdup (data, size);
 
     _info = gst_tensors_info_get_nth_info (&config_->info, i);
 
     memory = gst_memory_new_wrapped (
         (GstMemoryFlags) 0, new_data, size, 0, size, new_data, g_free);
-    gst_tensor_buffer_append_memory (*buffer, memory, _info);
+    if (!gst_tensor_buffer_append_memory (*buffer, memory, _info))
+      goto error;
   }
+
+  return TRUE;
+
+error:
+  gst_buffer_unref (*buffer);
+  *buffer = NULL;
+  return FALSE;
 }
 
 /** @brief convert buffer to tensors */

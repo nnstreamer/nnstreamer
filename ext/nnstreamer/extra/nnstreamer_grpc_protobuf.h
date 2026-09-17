@@ -51,7 +51,7 @@ class ServiceImplProtobuf : public NNStreamerRPC
     /** @brief serialize a GstBuffer into a protobuf tensors message */
     void _get_tensors_from_buffer (GstBuffer *buffer, Tensors &tensors);
     /** @brief build a GstBuffer from a protobuf tensors message */
-    void _get_buffer_from_tensors (Tensors &tensors, GstBuffer **buffer);
+    gboolean _get_buffer_from_tensors (Tensors &tensors, GstBuffer **buffer);
 
     std::unique_ptr<nnstreamer::protobuf::TensorService::Stub> client_stub_;
 };

@@ -408,9 +408,20 @@ if gtest_dep.found()
 
   # gRPC unittest
   if grpc_support_is_available
+    unittest_grpc_src = [join_paths('nnstreamer_grpc', 'unittest_grpc.cc')]
+    unittest_grpc_deps = [nnstreamer_unittest_deps]
+    if protobuf_support_is_available
+      unittest_grpc_src += grpc_pb_gen_src
+      unittest_grpc_deps += [grpc_support_deps, protobuf_util_dep]
+    endif
+    if flatbuf_support_is_available
+      unittest_grpc_src += grpc_fb_gen_src
+      unittest_grpc_deps += [grpc_support_deps, flatbuf_dep]
+    endif
+
     unittest_grpc = executable('unittest_grpc',
-      join_paths('nnstreamer_grpc', 'unittest_grpc.cc'),
-      dependencies: nnstreamer_unittest_deps,
+      unittest_grpc_src,
+      dependencies: unittest_grpc_deps,
       install: get_option('install-test'),
       install_dir: unittest_install_dir
     )
