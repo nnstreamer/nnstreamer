@@ -52,7 +52,7 @@ class ServiceImplFlatbuf : public NNStreamerRPC
     /** @brief serialize a GstBuffer into a flatbuf tensors message */
     void _get_tensors_from_buffer (GstBuffer *buffer, Message<Tensors> &tensors);
     /** @brief build a GstBuffer from a flatbuf tensors message */
-    void _get_buffer_from_tensors (Message<Tensors> &tensors, GstBuffer **buffer);
+    gboolean _get_buffer_from_tensors (Message<Tensors> &tensors, GstBuffer **buffer);
 
     std::unique_ptr<nnstreamer::flatbuf::TensorService::Stub> client_stub_;
 };

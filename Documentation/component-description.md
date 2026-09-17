@@ -155,7 +155,7 @@ In this page, we focus on the status of each elements. For requirements and desi
 - [tensor\_src\_tizensensor](https://github.com/nnstreamer/nnstreamer/tree/main/ext/nnstreamer/tensor_source) (stable)
   - This element imports data from Tizen sensor framework, which can provide sensor-fusion service, and generates tensor stream from it. Obviously, this works only in Tizen.
 - [tensor\_src\_grpc](https://github.com/nnstreamer/nnstreamer/tree/main/ext/nnstreamer/tensor_source) (stable)
-  - This element generates tensor streams from data received via grpc connection.
+  - This element generates tensor streams from data received via grpc connection. A received message whose tensor count or data sizes do not match the negotiated caps is dropped.
 - [tensor\_sink\_grpc](https://github.com/nnstreamer/nnstreamer/tree/main/ext/nnstreamer/tensor_sink) (stable)
   - This element sends data via grpc connection from tensor streams.
 - [android supports](https://github.com/nnstreamer/nnstreamer/tree/main/ext/nnstreamer/android_source) (stable)

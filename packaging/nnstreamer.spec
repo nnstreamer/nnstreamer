@@ -1081,7 +1081,7 @@ popd
 
 # If "unit_test"==0, don't run these for the sake of build speed.
 %if 0%{?unit_test}
-    bash %{test_script} ./tests
+    LD_LIBRARY_PATH=./ext/nnstreamer/extra bash %{test_script} ./tests
     bash %{test_script} ./tests/cpp_methods
     bash %{test_script} ./tests/nnstreamer_filter_extensions_common
 %if 0%{?datarepo_support}

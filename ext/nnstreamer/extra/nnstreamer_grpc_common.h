@@ -92,6 +92,11 @@ class NNStreamerRPC {
     void * handle_;
     gboolean stop_;
 
+    /** @brief check the tensor count of a received message; FALSE to drop it */
+    gboolean _check_tensor_count (gint64 declared, gint64 carried);
+    /** @brief check the data size of a received tensor; FALSE to drop the message */
+    gboolean _check_tensor_size (guint index, gsize size);
+
   private:
     /** @brief start gRPC server */
     virtual gboolean start_server (std::string address) { return FALSE; }
