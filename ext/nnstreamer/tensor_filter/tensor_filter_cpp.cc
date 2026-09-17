@@ -44,6 +44,7 @@
 
 std::unordered_map<std::string, tensor_filter_cpp *> tensor_filter_cpp::filters;
 std::vector<void *> tensor_filter_cpp::handles;
+thread_local const GstTensorFilterProperties *tensor_filter_cpp::prop = nullptr;
 G_LOCK_DEFINE_STATIC (lock_handles);
 
 static gchar filter_subplugin_cpp[] = "cpp";
@@ -97,10 +98,33 @@ G_END_DECLS
   assert (name->isValid ());
 
 /**
+ * @brief Keeps prop set to the calling element's properties while it lives
+ */
+class tensor_filter_cpp::prop_scope
+{
+  public:
+  /** @brief Expose the caller's properties on this thread */
+  prop_scope (const GstTensorFilterProperties *caller)
+      : outer (tensor_filter_cpp::prop)
+  {
+    tensor_filter_cpp::prop = caller;
+  }
+
+  /** @brief Restore what was exposed before */
+  ~prop_scope ()
+  {
+    tensor_filter_cpp::prop = outer;
+  }
+
+  private:
+  const GstTensorFilterProperties *outer; /**< prop when this scope began */
+};
+
+/**
  * @brief Class constructor
  */
 tensor_filter_cpp::tensor_filter_cpp (const char *name)
-    : validity (0xdeafdead), name (g_strdup (name)), ref_count (0), prop (NULL)
+    : validity (0xdeafdead), name (g_strdup (name)), ref_count (0)
 {
 }
 
@@ -164,7 +188,7 @@ tensor_filter_cpp::getInputDim (const GstTensorFilterProperties *prop,
     void **private_data, GstTensorsInfo *info)
 {
   loadClass (cpp, private_data);
-  UNUSED (prop);
+  prop_scope scope (prop);
   return cpp->getInputDim (info);
 }
 
@@ -176,7 +200,7 @@ tensor_filter_cpp::getOutputDim (const GstTensorFilterProperties *prop,
     void **private_data, GstTensorsInfo *info)
 {
   loadClass (cpp, private_data);
-  UNUSED (prop);
+  prop_scope scope (prop);
   return cpp->getOutputDim (info);
 }
 
@@ -188,7 +212,7 @@ tensor_filter_cpp::setInputDim (const GstTensorFilterProperties *prop,
     void **private_data, const GstTensorsInfo *in, GstTensorsInfo *out)
 {
   loadClass (cpp, private_data);
-  UNUSED (prop);
+  prop_scope scope (prop);
   return cpp->setInputDim (in, out);
 }
 
@@ -200,7 +224,7 @@ tensor_filter_cpp::invoke (const GstTensorFilterProperties *prop,
     void **private_data, const GstTensorMemory *input, GstTensorMemory *output)
 {
   loadClass (cpp, private_data);
-  UNUSED (prop);
+  prop_scope scope (prop);
   return cpp->invoke (input, output);
 }
 
@@ -281,7 +305,6 @@ tensor_filter_cpp::open (const GstTensorFilterProperties *prop, void **private_d
 
   *private_data = cpp = filters[prop->model_files[0]];
   cpp->ref_count++;
-  cpp->prop = prop;
 
   return 0;
 }
