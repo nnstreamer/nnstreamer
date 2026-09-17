@@ -87,7 +87,12 @@ gst_tensor_sparse_to_dense (GstTensorMetaInfo * meta, GstMemory * mem)
   input = map.data + header_size;
   indices = (guint *) (input + element_size * nnz);
 
-  output = (guint8 *) g_malloc0 (output_size);
+  output = (guint8 *) g_try_malloc0 (output_size);
+  if (!output) {
+    nns_loge ("Failed to allocate %" G_GSIZE_FORMAT
+        " bytes for the dense tensor of the meta info", output_size);
+    goto done;
+  }
 
   for (i = 0; i < nnz; ++i) {
     guint index;
