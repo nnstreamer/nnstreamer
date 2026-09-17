@@ -2127,6 +2127,78 @@ TEST (commonMetaInfo, validateInvalidParam04_n)
 }
 
 /**
+ * @brief Test for tensor meta info (a version this build cannot size is invalid).
+ */
+TEST (commonMetaInfo, validateUnknownVersion_n)
+{
+  GstTensorMetaInfo meta;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_UINT8;
+  meta.dimension[0] = 10;
+  meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+  /* the version marker of a major version this build does not know */
+  meta.version = 0xDE002000U;
+  EXPECT_FALSE (gst_tensor_meta_info_validate (&meta));
+  EXPECT_EQ (gst_tensor_meta_info_get_header_size (&meta), 0U);
+  EXPECT_EQ (gst_tensor_meta_info_get_data_size (&meta), 0U);
+
+  meta.version = 0xDE003000U;
+  EXPECT_FALSE (gst_tensor_meta_info_validate (&meta));
+  EXPECT_EQ (gst_tensor_meta_info_get_header_size (&meta), 0U);
+
+  meta.version = 0xDE000000U;
+  EXPECT_FALSE (gst_tensor_meta_info_validate (&meta));
+  EXPECT_EQ (gst_tensor_meta_info_get_header_size (&meta), 0U);
+}
+
+/**
+ * @brief Test for tensor meta info (any minor of the known major version is valid).
+ */
+TEST (commonMetaInfo, validateKnownVersion)
+{
+  GstTensorMetaInfo meta;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_UINT8;
+  meta.dimension[0] = 10;
+  meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+  EXPECT_TRUE (gst_tensor_meta_info_validate (&meta));
+  EXPECT_EQ (gst_tensor_meta_info_get_header_size (&meta), 128U);
+
+  meta.version = 0xDE001001U;
+  EXPECT_TRUE (gst_tensor_meta_info_validate (&meta));
+  EXPECT_EQ (gst_tensor_meta_info_get_header_size (&meta), 128U);
+}
+
+/**
+ * @brief Test for tensor meta info (parsing a header of an unknown version fails).
+ */
+TEST (commonMetaInfo, parseHeaderUnknownVersion_n)
+{
+  GstTensorMetaInfo meta;
+  uint32_t *header;
+  gsize hsize;
+
+  gst_tensor_meta_info_init (&meta);
+  meta.type = _NNS_UINT8;
+  meta.dimension[0] = 16;
+  meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+  hsize = gst_tensor_meta_info_get_header_size (&meta);
+  header = (uint32_t *) g_malloc0 (hsize);
+  ASSERT_TRUE (gst_tensor_meta_info_update_header (&meta, header));
+  EXPECT_TRUE (gst_tensor_meta_info_parse_header (&meta, header));
+
+  header[1] = 0xDE002000U;
+  EXPECT_FALSE (gst_tensor_meta_info_parse_header (&meta, header));
+
+  g_free (header);
+}
+
+/**
  * @brief Test for tensor meta info (update header with invalid param).
  */
 TEST (commonMetaInfo, updateHeaderInvalidParam_n)
@@ -3282,6 +3354,41 @@ TEST (commonUtil, tensorBufferAppendOverLimit_n)
 }
 
 /**
+ * @brief Test tensor buffer util (a memory the extra header cannot size is refused)
+ */
+TEST (commonUtil, tensorBufferAppendOversizedMemory_n)
+{
+  GstBuffer *buf;
+  GstTensorInfo tinfo;
+  GstMemory *mem;
+  guint8 *data;
+  gsize claimed = (gsize) G_MAXUINT32 + 1;
+
+  if (sizeof (gsize) <= sizeof (guint32)) {
+    /* a memory of that size cannot be described on this target at all */
+    GTEST_SKIP ();
+  }
+
+  buf = build_extra_tensors_buffer (NNS_TENSOR_MEMORY_MAX, 4);
+  ASSERT_TRUE (buf != NULL);
+
+  gst_tensor_info_init (&tinfo);
+  tinfo.type = _NNS_UINT8;
+  tinfo.dimension[0] = 4;
+
+  /* a memory claiming more bytes than it holds, refused before it is read */
+  data = (guint8 *) g_malloc0 (256);
+  mem = gst_memory_new_wrapped ((GstMemoryFlags) 0, data, claimed, 0, claimed, data, g_free);
+
+  EXPECT_FALSE (gst_tensor_buffer_append_memory (buf, mem, &tinfo));
+  gst_tensor_info_free (&tinfo);
+
+  EXPECT_EQ (gst_tensor_buffer_get_count (buf), (guint) NNS_TENSOR_MEMORY_MAX);
+
+  gst_buffer_unref (buf);
+}
+
+/**
  * @brief Test tensor buffer util (forged num_extra_tensors should degrade to NNS_TENSOR_MEMORY_MAX)
  */
 TEST (commonUtil, tensorBufferForgedExtraCount_n)
@@ -3405,6 +3512,124 @@ TEST (commonUtil, tensorBufferForgedExtraSize_n)
   /* index NNS_TENSOR_MEMORY_MAX (16): caught by the final bound check */
   EXPECT_TRUE (gst_tensor_buffer_get_nth_memory (buf, NNS_TENSOR_MEMORY_MAX) == NULL);
   /* index NNS_TENSOR_MEMORY_MAX + 1 (17): caught by the in-loop bound check */
+  EXPECT_TRUE (gst_tensor_buffer_get_nth_memory (buf, NNS_TENSOR_MEMORY_MAX + 1) == NULL);
+
+  gst_buffer_unref (buf);
+}
+
+/**
+ * @brief Internal util function to build a tensor buffer of @a num_tensors
+ *        flexible tensors, appended one by one via
+ *        gst_tensor_buffer_append_memory (). The i-th tensor holds (i + 1)
+ *        uint8 elements of the value (i % 256) behind its meta header, so its
+ *        size and its content both identify it.
+ */
+static GstBuffer *
+build_extra_flex_tensors_buffer (guint num_tensors)
+{
+  GstBuffer *buf;
+  guint i;
+
+  buf = gst_buffer_new ();
+
+  for (i = 0; i < num_tensors; i++) {
+    GstTensorMetaInfo meta;
+    GstTensorInfo tinfo;
+    GstMemory *mem;
+    GstMapInfo map;
+    gsize hsize, dsize;
+
+    gst_tensor_meta_info_init (&meta);
+    meta.type = _NNS_UINT8;
+    meta.dimension[0] = i + 1;
+    meta.format = _NNS_TENSOR_FORMAT_FLEXIBLE;
+
+    hsize = gst_tensor_meta_info_get_header_size (&meta);
+    dsize = gst_tensor_meta_info_get_data_size (&meta);
+
+    mem = gst_allocator_alloc (NULL, hsize + dsize, NULL);
+    if (!gst_memory_map (mem, &map, GST_MAP_WRITE)) {
+      gst_memory_unref (mem);
+      gst_buffer_unref (buf);
+      return NULL;
+    }
+    gst_tensor_meta_info_update_header (&meta, map.data);
+    memset (map.data + hsize, (guint8) (i % 256), dsize);
+    gst_memory_unmap (mem, &map);
+
+    gst_tensor_info_init (&tinfo);
+    gst_tensor_meta_info_convert (&meta, &tinfo);
+
+    if (!gst_tensor_buffer_append_memory (buf, mem, &tinfo)) {
+      gst_buffer_unref (buf);
+      return NULL;
+    }
+  }
+
+  return buf;
+}
+
+/**
+ * @brief Test tensor buffer util (flexible tensors past NNS_TENSOR_MEMORY_MAX)
+ */
+TEST (commonUtil, tensorBufferExtraFlexTensors)
+{
+  GstBuffer *buf;
+  guint i;
+  const guint num_tensors = NNS_TENSOR_MEMORY_MAX + 4;
+
+  buf = build_extra_flex_tensors_buffer (num_tensors);
+  ASSERT_TRUE (buf != NULL);
+
+  EXPECT_EQ (gst_tensor_buffer_get_count (buf), num_tensors);
+
+  for (i = 0; i < num_tensors; i++) {
+    GstTensorMetaInfo meta;
+    GstMemory *res_mem;
+    GstMapInfo map;
+    gsize hsize, j;
+
+    res_mem = gst_tensor_buffer_get_nth_memory (buf, i);
+    ASSERT_TRUE (res_mem != NULL);
+
+    ASSERT_TRUE (gst_tensor_meta_info_parse_memory (&meta, res_mem));
+    EXPECT_EQ (meta.type, _NNS_UINT8);
+    EXPECT_EQ (meta.dimension[0], i + 1);
+    EXPECT_EQ (meta.format, (guint32) _NNS_TENSOR_FORMAT_FLEXIBLE);
+
+    hsize = gst_tensor_meta_info_get_header_size (&meta);
+    ASSERT_TRUE (gst_memory_map (res_mem, &map, GST_MAP_READ));
+    EXPECT_EQ (map.size, hsize + (gsize) (i + 1));
+    for (j = hsize; j < map.size; j++)
+      EXPECT_EQ (map.data[j], (guint8) (i % 256));
+    gst_memory_unmap (res_mem, &map);
+
+    gst_memory_unref (res_mem);
+  }
+
+  gst_buffer_unref (buf);
+}
+
+/**
+ * @brief Test tensor buffer util (forged size of a flexible extra tensor)
+ */
+TEST (commonUtil, tensorBufferExtraFlexForgedSize_n)
+{
+  GstBuffer *buf;
+  GstMemory *mem;
+  GstMapInfo map;
+  TestTensorExtraInfo *mirror;
+
+  buf = build_extra_flex_tensors_buffer (NNS_TENSOR_MEMORY_MAX + 2);
+  ASSERT_TRUE (buf != NULL);
+
+  mirror = map_extra_tensors_info (buf, &mem, &map);
+  ASSERT_TRUE (mirror != NULL);
+  EXPECT_EQ (mirror->num_extra_tensors, 2U);
+  mirror->infos[0].dimension[0] = G_MAXUINT32;
+  gst_memory_unmap (mem, &map);
+
+  EXPECT_TRUE (gst_tensor_buffer_get_nth_memory (buf, NNS_TENSOR_MEMORY_MAX) == NULL);
   EXPECT_TRUE (gst_tensor_buffer_get_nth_memory (buf, NNS_TENSOR_MEMORY_MAX + 1) == NULL);
 
   gst_buffer_unref (buf);

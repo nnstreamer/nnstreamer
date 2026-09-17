@@ -3409,6 +3409,80 @@ TEST (testTensorTransform, typecastApplyChangeFlexibleInput)
 }
 
 /**
+ * @brief Test for tensor_transform, more flexible tensors than NNS_TENSOR_MEMORY_MAX
+ * @details The tensors past the 16th are packed into the last memory of the
+ * buffer, and a flexible one is packed with its meta header, which the sizes
+ * recorded for them have to account for (item A6 of #4920, issue #4934).
+ */
+TEST (testTensorTransform, typecastFlexibleExtraTensors)
+{
+  const guint num_tensors = NNS_TENSOR_MEMORY_MAX + 2U;
+  const guint array_size = 8U;
+  GstHarness *h;
+  GstBuffer *in_buf, *out_buf;
+  GstTensorMetaInfo meta;
+  GstTensorInfo info;
+  GstCaps *caps;
+  GstMemory *mem;
+  GstMapInfo map;
+  gsize hsize;
+  guint i, j;
+
+  h = gst_harness_new ("tensor_transform");
+  ASSERT_TRUE (NULL != h);
+
+  g_object_set (h->element, "mode", GTT_TYPECAST, "option", "float32", NULL);
+  g_object_set (h->element, "acceleration", (gboolean) FALSE, NULL);
+
+  caps = gst_caps_from_string (GST_TENSORS_FLEX_CAP_DEFAULT);
+  gst_caps_set_simple (caps, "framerate", GST_TYPE_FRACTION, 0, 1, NULL);
+  gst_harness_set_src_caps (h, caps);
+
+  in_buf = gst_buffer_new ();
+  for (i = 0; i < num_tensors; i++) {
+    mem = _new_flex_memory ("8", TRUE, 0U);
+    ASSERT_TRUE (gst_tensor_meta_info_parse_memory (&meta, mem));
+    hsize = gst_tensor_meta_info_get_header_size (&meta);
+
+    ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_WRITE));
+    for (j = 0; j < array_size; j++)
+      map.data[hsize + j] = (guint8) (i * 10 + j);
+    gst_memory_unmap (mem, &map);
+
+    gst_tensor_info_init (&info);
+    gst_tensor_meta_info_convert (&meta, &info);
+    ASSERT_TRUE (gst_tensor_buffer_append_memory (in_buf, mem, &info));
+    gst_tensor_info_free (&info);
+  }
+  ASSERT_EQ (gst_tensor_buffer_get_count (in_buf), num_tensors);
+
+  EXPECT_EQ (gst_harness_push (h, in_buf), GST_FLOW_OK);
+  out_buf = gst_harness_try_pull (h);
+  ASSERT_TRUE (out_buf != NULL);
+  ASSERT_EQ (gst_tensor_buffer_get_count (out_buf), num_tensors);
+
+  for (i = 0; i < num_tensors; i++) {
+    mem = gst_tensor_buffer_get_nth_memory (out_buf, i);
+    ASSERT_TRUE (mem != NULL);
+    ASSERT_TRUE (gst_tensor_meta_info_parse_memory (&meta, mem));
+    EXPECT_EQ (meta.type, _NNS_FLOAT32);
+    hsize = gst_tensor_meta_info_get_header_size (&meta);
+
+    ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_READ));
+    EXPECT_EQ (map.size, hsize + array_size * sizeof (float));
+    if (map.size == hsize + array_size * sizeof (float)) {
+      for (j = 0; j < array_size; j++)
+        EXPECT_FLOAT_EQ (((float *) (map.data + hsize))[j], (float) (i * 10 + j));
+    }
+    gst_memory_unmap (mem, &map);
+    gst_memory_unref (mem);
+  }
+
+  gst_buffer_unref (out_buf);
+  gst_harness_teardown (h);
+}
+
+/**
  * @brief Test for tensor_transform, a flexible tensor without a complete header
  */
 TEST (testTensorTransform, pushShortFlexibleHeader_n)
@@ -13786,15 +13860,15 @@ TEST (testTensorSparse, decUnnegotiatedPipeline_n)
 #define SPARSE_EXTRA_TENSORS_NUM (18U)
 
 /**
- * @brief Create a sparse tensor memory as long as the dense tensor it encodes.
- * @details Four non-zero elements of 40 int32 encode into 128 + 4 * 8 bytes,
- * exactly the 160 bytes the static tensor info declares. The two sizes have to
- * agree because gst_tensor_buffer_append_memory() records only the dense size
- * of an extra tensor, which truncates a longer sparse memory (item A6 of #4920,
- * issue #4934).
+ * @brief Create a sparse tensor memory of 40 int32, of which every @a stride-th
+ *        element is non-zero.
+ * @details With a stride of 10 the four non-zero elements encode into
+ * 128 + 4 * 8 bytes, exactly the 160 bytes the dense tensor info declares; a
+ * larger stride encodes into fewer bytes than that, which is what an extra
+ * tensor of such a buffer has to be sized by (item A6 of #4920, issue #4934).
  */
 static GstMemory *
-_sparse_new_extra_memory (GstTensorInfo *info)
+_sparse_new_extra_memory (GstTensorInfo *info, guint stride)
 {
   GstMemory *dense, *sparse;
   GstTensorMetaInfo meta;
@@ -13809,7 +13883,7 @@ _sparse_new_extra_memory (GstTensorInfo *info)
   data_size = gst_tensor_info_get_size (info);
   data = g_malloc0 (data_size);
   for (i = 0; i < 40U; i++)
-    ((gint32 *) data)[i] = (i % 10U == 0U) ? (gint32) (i + 1) : 0;
+    ((gint32 *) data)[i] = (i % stride == 0U) ? (gint32) (i + 1) : 0;
 
   dense = gst_memory_new_wrapped (
       GST_MEMORY_FLAG_READONLY, data, data_size, 0, data_size, data, g_free);
@@ -13862,7 +13936,7 @@ TEST (testTensorSparse, decExtraTensors)
   for (i = 0; i < SPARSE_EXTRA_TENSORS_NUM; i++) {
     GstTensorInfo info;
 
-    mem = _sparse_new_extra_memory (&info);
+    mem = _sparse_new_extra_memory (&info, 10U);
     ASSERT_TRUE (mem != NULL);
     ASSERT_TRUE (gst_tensor_buffer_append_memory (
         in, mem, gst_tensors_info_get_nth_info (&config.info, i)));
@@ -13884,6 +13958,76 @@ TEST (testTensorSparse, decExtraTensors)
     ASSERT_EQ (map.size, 40U * sizeof (gint32));
     for (j = 0; j < 40U; j++)
       EXPECT_EQ (((gint32 *) map.data)[j], (j % 10U == 0U) ? (gint32) (j + 1) : 0);
+    gst_memory_unmap (mem, &map);
+    gst_memory_unref (mem);
+  }
+
+  gst_buffer_unref (out);
+  gst_tensors_config_free (&config);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Test for tensor_sparse_dec, the extra tensors of a buffer are shorter
+ *        than the dense tensors they encode.
+ * @details A single non-zero element encodes into 136 bytes where the dense
+ * tensor is 160, so the buffer only reads back when each extra tensor is sized
+ * by the memory that was appended (item A6 of #4920, issue #4934).
+ */
+TEST (testTensorSparse, decExtraTensorsShorterThanDense)
+{
+  GstHarness *h;
+  GstBuffer *in, *out;
+  GstMemory *mem;
+  GstMapInfo map;
+  GstTensorsConfig config;
+  GstTensorInfo *_info;
+  guint i, j;
+
+  h = gst_harness_new ("tensor_sparse_dec");
+  ASSERT_TRUE (h != NULL);
+
+  gst_tensors_config_init (&config);
+  config.info.num_tensors = SPARSE_EXTRA_TENSORS_NUM;
+  config.rate_n = 0;
+  config.rate_d = 1;
+
+  for (i = 0; i < SPARSE_EXTRA_TENSORS_NUM; i++) {
+    _info = gst_tensors_info_get_nth_info (&config.info, i);
+    _info->type = _NNS_INT32;
+    gst_tensor_parse_dimension ("40", _info->dimension);
+  }
+
+  gst_harness_set_sink_caps (h, gst_tensors_caps_from_config (&config));
+  gst_harness_set_src_caps_str (h, "other/tensors,format=sparse,framerate=0/1");
+
+  in = gst_buffer_new ();
+  for (i = 0; i < SPARSE_EXTRA_TENSORS_NUM; i++) {
+    GstTensorInfo info;
+
+    mem = _sparse_new_extra_memory (&info, 40U);
+    ASSERT_TRUE (mem != NULL);
+    ASSERT_EQ (gst_memory_get_sizes (mem, NULL, NULL), (gsize) 136);
+    ASSERT_TRUE (gst_tensor_buffer_append_memory (
+        in, mem, gst_tensors_info_get_nth_info (&config.info, i)));
+    gst_tensor_info_free (&info);
+  }
+  ASSERT_EQ (gst_tensor_buffer_get_count (in), SPARSE_EXTRA_TENSORS_NUM);
+
+  ASSERT_EQ (gst_harness_push (h, in), GST_FLOW_OK);
+  EXPECT_EQ (gst_harness_buffers_received (h), 1U);
+
+  out = gst_harness_pull (h);
+  ASSERT_TRUE (out != NULL);
+  ASSERT_EQ (gst_tensor_buffer_get_count (out), SPARSE_EXTRA_TENSORS_NUM);
+
+  for (i = 0; i < SPARSE_EXTRA_TENSORS_NUM; i++) {
+    mem = gst_tensor_buffer_get_nth_memory (out, i);
+    ASSERT_TRUE (mem != NULL);
+    ASSERT_TRUE (gst_memory_map (mem, &map, GST_MAP_READ));
+    ASSERT_EQ (map.size, 40U * sizeof (gint32));
+    for (j = 0; j < 40U; j++)
+      EXPECT_EQ (((gint32 *) map.data)[j], (j == 0U) ? (gint32) 1 : 0);
     gst_memory_unmap (mem, &map);
     gst_memory_unref (mem);
   }
