@@ -7,6 +7,7 @@
  * @bug		No known bugs.
  */
 #include <gtest/gtest.h>
+#include <cmath>
 #include <glib/gstdio.h>
 #include <gst/check/gstcheck.h>
 #include <gst/gst.h>
@@ -16,6 +17,7 @@
 #include <tensor_common.h>
 #include <tensor_meta.h>
 #include <unistd.h>
+#include <unittest_util.h>
 
 
 /**
@@ -181,6 +183,346 @@ TEST (tensorDecoder, tensorRegion)
 
   /** Unref app_sink */
   gst_object_unref (app_sink);
+}
+
+/** The number of detections in the input tensors of the direct decoder tests */
+#define DETECTIONS (2U)
+/** The number of labels in the input tensors of the direct decoder tests */
+#define LABELS (2U)
+/** A detection score far above the default threshold */
+#define DETECTED (10.0f)
+/** A detection score far below the default threshold */
+#define NOT_DETECTED (-10.0f)
+
+/**
+ * @brief Test fixture holding an instance of the tensor_region decoder.
+ *
+ * Every box prior is 0.5, so with the default scales a box offset of
+ * { 0, 0, 0, 0 } is the centered box of half the frame size, a center offset of
+ * 10 moves the center by half the frame, and a size offset of 5 * ln (k)
+ * multiplies the size by k.
+ */
+class tensorRegionDecode : public ::testing::Test
+{
+  protected:
+  const GstTensorDecoderDef *decoder;
+  void *pdata;
+  gchar *label_file;
+  gchar *prior_file;
+  GstTensorsConfig config;
+
+  /**
+   * @brief Initialize the decoder with a label file, box priors and input.
+   */
+  void SetUp () override
+  {
+    GstCaps *caps;
+    GstTensorInfo *info;
+
+    pdata = NULL;
+    label_file = getTempFilename ();
+    prior_file = getTempFilename ();
+    ASSERT_TRUE (label_file != NULL);
+    ASSERT_TRUE (prior_file != NULL);
+    ASSERT_TRUE (g_file_set_contents (label_file, "background\nobject\n", -1, NULL));
+    ASSERT_TRUE (g_file_set_contents (
+        prior_file, "0.5 0.5\n0.5 0.5\n0.5 0.5\n0.5 0.5\n", -1, NULL));
+
+    decoder = nnstreamer_decoder_find ("tensor_region");
+    ASSERT_TRUE (decoder != NULL);
+    ASSERT_TRUE (decoder->init (&pdata));
+    ASSERT_TRUE (decoder->setOption (&pdata, 1, label_file));
+    ASSERT_TRUE (decoder->setOption (&pdata, 2, prior_file));
+
+    gst_tensors_config_init (&config);
+    config.rate_n = 0;
+    config.rate_d = 1;
+    config.info.num_tensors = 2;
+
+    info = gst_tensors_info_get_nth_info (&config.info, 0);
+    info->type = _NNS_FLOAT32;
+    info->dimension[0] = 4;
+    info->dimension[1] = 1;
+    info->dimension[2] = DETECTIONS;
+    info->dimension[3] = 1;
+
+    info = gst_tensors_info_get_nth_info (&config.info, 1);
+    info->type = _NNS_FLOAT32;
+    info->dimension[0] = LABELS;
+    info->dimension[1] = DETECTIONS;
+    info->dimension[2] = 1;
+
+    caps = decoder->getOutCaps (&pdata, &config);
+    ASSERT_TRUE (caps != NULL);
+    gst_caps_unref (caps);
+  }
+
+  /**
+   * @brief Release the decoder and the files.
+   */
+  void TearDown () override
+  {
+    if (pdata != NULL)
+      decoder->exit (&pdata);
+    gst_tensors_config_free (&config);
+    removeTempFile (&label_file);
+    removeTempFile (&prior_file);
+  }
+
+  /**
+   * @brief Decode the given boxes and scores into num regions.
+   * @param[in] boxes DETECTIONS boxes of 4 offsets each
+   * @param[in] scores The score of the only non-background label per detection
+   * @param[in] num The number of regions to request (option1)
+   * @param[out] regions num regions of 4 values each (x, y, w, h)
+   * @return TRUE if the decoder produced exactly num regions.
+   */
+  gboolean decode (const float *boxes, const float *scores, guint num, guint32 *regions)
+  {
+    GstTensorMemory input[2];
+    float detections[LABELS * DETECTIONS];
+    g_autofree gchar *num_str = g_strdup_printf ("%u", num);
+    GstBuffer *outbuf;
+    GstMemory *mem;
+    GstMapInfo map;
+    GstTensorMetaInfo meta;
+    gboolean ret = FALSE;
+    guint d;
+
+    for (d = 0; d < DETECTIONS; d++) {
+      detections[d * LABELS] = NOT_DETECTED;
+      detections[d * LABELS + 1] = scores[d];
+    }
+
+    input[0].data = (gpointer) boxes;
+    input[0].size = 4 * DETECTIONS * sizeof (float);
+    input[1].data = detections;
+    input[1].size = sizeof (detections);
+
+    if (!decoder->setOption (&pdata, 0, num_str))
+      return FALSE;
+
+    outbuf = gst_buffer_new ();
+    if (decoder->decode (&pdata, &config, input, outbuf) != GST_FLOW_OK
+        || gst_buffer_n_memory (outbuf) != 1U)
+      goto done;
+
+    mem = gst_buffer_peek_memory (outbuf, 0);
+    if (!gst_memory_map (mem, &map, GST_MAP_READ))
+      goto done;
+
+    if (gst_tensor_meta_info_parse_header (&meta, map.data)
+        && gst_tensor_meta_info_get_data_size (&meta) == 4 * num * sizeof (guint32)
+        && gst_tensor_meta_info_get_header_size (&meta)
+                   + gst_tensor_meta_info_get_data_size (&meta)
+               == map.size) {
+      memcpy (regions, map.data + gst_tensor_meta_info_get_header_size (&meta),
+          4 * num * sizeof (guint32));
+      ret = TRUE;
+    }
+
+    gst_memory_unmap (mem, &map);
+  done:
+    gst_buffer_unref (outbuf);
+    return ret;
+  }
+
+  /**
+   * @brief Decode a single detected box into one region.
+   */
+  gboolean decodeOne (float y, float x, float h, float w, guint32 *region)
+  {
+    const float boxes[4 * DETECTIONS] = { y, x, h, w, 0, 0, 0, 0 };
+    const float scores[DETECTIONS] = { DETECTED, NOT_DETECTED };
+
+    return decode (boxes, scores, 1, region);
+  }
+};
+
+/**
+ * @brief Expect a region to be the given values.
+ */
+static void
+expectRegion (const guint32 *region, guint32 x, guint32 y, guint32 w, guint32 h)
+{
+  EXPECT_EQ (x, region[0]);
+  EXPECT_EQ (y, region[1]);
+  EXPECT_EQ (w, region[2]);
+  EXPECT_EQ (h, region[3]);
+}
+
+/**
+ * @brief A box inside the frame is emitted as it is.
+ */
+TEST_F (tensorRegionDecode, regionInFrame)
+{
+  guint32 region[4];
+
+  ASSERT_TRUE (decodeOne (0, 0, 0, 0, region));
+  expectRegion (region, 75U, 75U, 150U, 150U);
+}
+
+/**
+ * @brief A box crossing the right edge is cut at the edge.
+ */
+TEST_F (tensorRegionDecode, regionPastRightEdge)
+{
+  guint32 region[4];
+
+  ASSERT_TRUE (decodeOne (0, 10.0f, 0, 0, region));
+  expectRegion (region, 225U, 75U, 75U, 150U);
+}
+
+/**
+ * @brief A box crossing the left edge keeps only its part inside the frame.
+ */
+TEST_F (tensorRegionDecode, regionPastLeftEdge)
+{
+  guint32 region[4];
+
+  ASSERT_TRUE (decodeOne (0, -10.0f, 0, 0, region));
+  expectRegion (region, 0U, 75U, 75U, 150U);
+}
+
+/**
+ * @brief A box crossing the top and bottom edges is cut at both.
+ */
+TEST_F (tensorRegionDecode, regionPastTopAndBottomEdges)
+{
+  guint32 region[4];
+
+  /** 5 * ln (4): the height becomes twice the frame height */
+  ASSERT_TRUE (decodeOne (0, 0, 5.0f * log (4.0f), 0, region));
+  expectRegion (region, 75U, 0U, 150U, 300U);
+}
+
+/**
+ * @brief A box entirely right of the frame gives no region.
+ */
+TEST_F (tensorRegionDecode, regionRightOfFrame_n)
+{
+  guint32 region[4];
+
+  ASSERT_TRUE (decodeOne (0, 30.0f, 0, 0, region));
+  expectRegion (region, 0U, 0U, 0U, 0U);
+}
+
+/**
+ * @brief A box too far right for its start to fit in an int gives no region.
+ */
+TEST_F (tensorRegionDecode, regionFarRightOfFrame_n)
+{
+  guint32 region[4];
+
+  ASSERT_TRUE (decodeOne (0, 1.0e10f, 0, 0, region));
+  expectRegion (region, 0U, 0U, 0U, 0U);
+}
+
+/**
+ * @brief A box entirely left of the frame gives no region.
+ */
+TEST_F (tensorRegionDecode, regionLeftOfFrame_n)
+{
+  guint32 region[4];
+
+  ASSERT_TRUE (decodeOne (0, -30.0f, 0, 0, region));
+  expectRegion (region, 0U, 0U, 0U, 0U);
+}
+
+/**
+ * @brief A box entirely below the frame gives no region.
+ */
+TEST_F (tensorRegionDecode, regionBelowFrame_n)
+{
+  guint32 region[4];
+
+  ASSERT_TRUE (decodeOne (30.0f, 0, 0, 0, region));
+  expectRegion (region, 0U, 0U, 0U, 0U);
+}
+
+/**
+ * @brief A box whose size overflows to infinity gives no region.
+ */
+TEST_F (tensorRegionDecode, regionInfiniteSize_n)
+{
+  guint32 region[4];
+
+  ASSERT_TRUE (decodeOne (0, 0, 0, 1.0e6f, region));
+  expectRegion (region, 0U, 0U, 0U, 0U);
+}
+
+/**
+ * @brief A box with a NaN coordinate gives no region.
+ */
+TEST_F (tensorRegionDecode, regionNotANumber_n)
+{
+  guint32 region[4];
+
+  ASSERT_TRUE (decodeOne (0, NAN, 0, 0, region));
+  expectRegion (region, 0U, 0U, 0U, 0U);
+}
+
+/**
+ * @brief A box narrower than a pixel gives no region, not a zero-width one.
+ */
+TEST_F (tensorRegionDecode, regionBelowOnePixel_n)
+{
+  guint32 region[4];
+
+  /** the width becomes 0.5 * e^-6 of the frame, less than a pixel of 300 */
+  ASSERT_TRUE (decodeOne (0, 0, 0, -30.0f, region));
+  expectRegion (region, 0U, 0U, 0U, 0U);
+}
+
+/**
+ * @brief Without a frame size (empty option4), no box gives a region.
+ */
+TEST_F (tensorRegionDecode, regionEmptyFrame_n)
+{
+  guint32 region[4];
+
+  ASSERT_TRUE (decoder->setOption (&pdata, 3, ""));
+  ASSERT_TRUE (decodeOne (0, 0, 0, 0, region));
+  expectRegion (region, 0U, 0U, 0U, 0U);
+}
+
+/**
+ * @brief A frame wider than an int keeps the region within an int.
+ */
+TEST_F (tensorRegionDecode, regionLargeFrame)
+{
+  guint32 region[4];
+
+  ASSERT_TRUE (decoder->setOption (&pdata, 3, "4000000000:300"));
+  ASSERT_TRUE (decodeOne (0, 0, 0, 0, region));
+  expectRegion (region, 1000000000U, 75U, (guint32) G_MAXINT - 1000000000U, 150U);
+}
+
+/**
+ * @brief The option4 frame size bounds the region, not the default one.
+ */
+TEST_F (tensorRegionDecode, regionFrameFromOption)
+{
+  guint32 region[4];
+
+  ASSERT_TRUE (decoder->setOption (&pdata, 3, "640:480"));
+  ASSERT_TRUE (decodeOne (10.0f, 10.0f, 0, 0, region));
+  expectRegion (region, 480U, 360U, 160U, 120U);
+}
+
+/**
+ * @brief A dropped box does not take a region away from a box in the frame.
+ */
+TEST_F (tensorRegionDecode, droppedBoxTakesNoRegion_n)
+{
+  /** the first box is outside the frame and has the higher score */
+  const float boxes[4 * DETECTIONS] = { 0, 30.0f, 0, 0, 0, 0, 0, 0 };
+  const float scores[DETECTIONS] = { DETECTED + 1.0f, DETECTED };
+  guint32 regions[8];
+
+  ASSERT_TRUE (decode (boxes, scores, 2, regions));
+  expectRegion (regions, 75U, 75U, 150U, 150U);
+  expectRegion (regions + 4, 0U, 0U, 0U, 0U);
 }
 
 

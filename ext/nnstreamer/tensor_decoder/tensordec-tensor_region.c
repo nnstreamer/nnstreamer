@@ -40,6 +40,9 @@
  * option4: Video input Dimension (WIDTH:HEIGHT) (default 300:300)
  *          This is independent from option1
  *
+ * A region is the part of a detected box inside the option4 frame. A box with
+ * no pixel in the frame, or with a non-finite coordinate, is dropped.
+ *
  * @todo Remove duplicate codes*
  * @todo give support for other models*
  */
@@ -419,6 +422,37 @@ gst_tensor_top_detectedObjects_cropInfo (GstMapInfo *out_info, const tensor_regi
 
 #define _expit(x) (1.f / (1.f + expf (-((float) x))))
 
+/**
+ * @brief Convert one axis of a model box to the part of it inside the frame.
+ * @param[in] start The box start, relative to the frame size
+ * @param[in] size The box size, relative to the frame size
+ * @param[in] frame The frame size in pixels
+ * @param[out] pos The start of the region in pixels
+ * @param[out] len The length of the region in pixels
+ * @return TRUE if at least one pixel of the box is inside the frame.
+ */
+static gboolean
+_clamp_to_frame (float start, float size, guint frame, int *pos, int *len)
+{
+  const double limit = MIN (frame, (guint) G_MAXINT);
+  float p = start * frame;
+  float l = size * frame;
+
+  if (!isfinite (p) || !isfinite (l))
+    return FALSE;
+
+  if (p < 0) {
+    l += p;
+    p = 0;
+  }
+
+  if (p >= limit || l <= 0)
+    return FALSE;
+
+  *pos = (int) p;
+  *len = (int) MIN ((double) l, limit - *pos);
+  return *len > 0;
+}
 
 /**
  * @brief C++-Template-like box location calculation for box-priors
@@ -453,15 +487,15 @@ gst_tensor_top_detectedObjects_cropInfo (GstMapInfo *out_info, const tensor_regi
         float w = (float) expf (boxinputptr[3] / w_scale) * boxprior[3][index];   \
         float ymin = ycenter - h / 2.f;                                           \
         float xmin = xcenter - w / 2.f;                                           \
-        int x = xmin * bb->i_width;                                               \
-        int y = ymin * bb->i_height;                                              \
-        int width = w * bb->i_width;                                              \
-        int height = h * bb->i_height;                                            \
+        int _x, _y, _w, _h;                                                       \
+        if (!_clamp_to_frame (xmin, w, bb->i_width, &_x, &_w)                     \
+            || !_clamp_to_frame (ymin, h, bb->i_height, &_y, &_h))                \
+          break;                                                                  \
         result->class_id = c;                                                     \
-        result->x = MAX (0, x);                                                   \
-        result->y = MAX (0, y);                                                   \
-        result->width = width;                                                    \
-        result->height = height;                                                  \
+        result->x = _x;                                                           \
+        result->y = _y;                                                           \
+        result->width = _w;                                                       \
+        result->height = _h;                                                      \
         result->score = score;                                                    \
         result->valid = TRUE;                                                     \
         break;                                                                    \
