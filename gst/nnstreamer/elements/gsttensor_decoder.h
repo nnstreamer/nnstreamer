@@ -53,6 +53,7 @@ G_BEGIN_DECLS
 
 typedef struct _GstTensorDecoder GstTensorDecoder;
 typedef struct _GstTensorDecoderClass GstTensorDecoderClass;
+typedef struct _GstTensorDecoderPlugin GstTensorDecoderPlugin;
 typedef struct
 {
   tensor_decoder_custom func;
@@ -73,6 +74,7 @@ struct _GstTensorDecoder
   gboolean silent; /**< True if logging is minimized */
   gchar *config_path; /**< Path to configuration file */
   gchar *option[TensorDecMaxOpNum]; /**< Assume we have two options */
+  guint option_order[TensorDecMaxOpNum]; /**< The order the options are given to the sub-plugin in */
 
   /** For Tensor */
   gboolean configured; /**< TRUE if already successfully configured tensor metadata */
@@ -83,7 +85,9 @@ struct _GstTensorDecoder
   decoder_custom_cb_s custom;
 
   const GstTensorDecoderDef *decoder; /**< Plugin object */
-  void *plugin_data;
+  GstTensorDecoderPlugin *plugin; /**< Private data of the sub-plugin, kept alive by the calls using it */
+  guint plugin_gen; /**< Incremented by every rebuild of the private data */
+  GMutex plugin_lock; /**< Guards decoder, plugin, plugin_gen, option and option_order */
 };
 
 /**
