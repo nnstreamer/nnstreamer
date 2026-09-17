@@ -560,10 +560,11 @@ gst_tensor_aggregator_check_concat_axis (GstTensorAggregator * self,
 /**
  * @brief Change the data in buffer with given axis.
  * @param self this pointer to GstTensorAggregator
- * @param outbuf buffer to be concatenated
+ * @param outbuf buffer to be concatenated (transfer full)
  * @param info tensor info for one frame
+ * @return the concatenated buffer (transfer full), or NULL on failure (outbuf is released)
  */
-static gboolean
+static GstBuffer *
 gst_tensor_aggregator_concat (GstTensorAggregator * self, GstBuffer * outbuf,
     const GstTensorInfo * info)
 {
@@ -583,13 +584,15 @@ gst_tensor_aggregator_concat (GstTensorAggregator * self, GstBuffer * outbuf,
   if (!gst_buffer_map (srcbuf, &src_info, GST_MAP_READ)) {
     ml_logf ("Failed to map source buffer with tensor_aggregator.\n");
     gst_buffer_unref (srcbuf);
-    return FALSE;
+    gst_buffer_unref (outbuf);
+    return NULL;
   }
   if (!gst_buffer_map (outbuf, &dest_info, GST_MAP_WRITE)) {
     ml_logf ("Failed to map destination buffer with tensor_aggregator.\n");
     gst_buffer_unmap (srcbuf, &src_info);
     gst_buffer_unref (srcbuf);
-    return FALSE;
+    gst_buffer_unref (outbuf);
+    return NULL;
   }
 
   /**
@@ -793,7 +796,7 @@ gst_tensor_aggregator_concat (GstTensorAggregator * self, GstBuffer * outbuf,
 
   gst_buffer_unref (srcbuf);
 
-  return TRUE;
+  return outbuf;
 }
 
 /**
@@ -815,12 +818,14 @@ gst_tensor_aggregator_push (GstTensorAggregator * self, GstBuffer * outbuf,
     ml_logf
         ("Invalid output capability of tensor_aggregator. Frame size = %"
         G_GSIZE_FORMAT "\n", frame_size);
+    gst_buffer_unref (outbuf);
     return GST_FLOW_ERROR;
   }
 
   if (gst_tensor_aggregator_check_concat_axis (self, &info)) {
     /** change data in buffer with given axis */
-    if (!gst_tensor_aggregator_concat (self, outbuf, &info))
+    outbuf = gst_tensor_aggregator_concat (self, outbuf, &info);
+    if (!outbuf)
       return GST_FLOW_ERROR;
   }
 
