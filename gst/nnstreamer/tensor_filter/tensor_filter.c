@@ -1139,9 +1139,15 @@ _gst_tensor_filter_transform_update_outbuf (GstBaseTransform * trans,
       GstTensorMetaInfo meta;
 
       if (!gst_tensor_info_validate (_info)) {
+        guint j;
+
         ml_loge_stacktrace
             ("gst_tensor_filter_transform: The tensor-filter subplugin (%s : %s) has returned an invalid tensor info for the %u'th output tensor with the dynamic invoke.\n",
             prop->fwname, TF_MODELNAME (prop), i);
+        for (j = 0; priv->combi.out_combi_o_defined && j < i; j++) {
+          if (g_list_find (priv->combi.out_combi_o, GUINT_TO_POINTER (j)))
+            gst_memory_unref (out_trans_data->mem[j]);
+        }
         for (; i < prop->output_meta.num_tensors; i++)
           gst_tensor_filter_destroy_notify_util (priv,
               out_trans_data->tensors[i].data);
@@ -1171,8 +1177,26 @@ _gst_tensor_filter_transform_update_outbuf (GstBaseTransform * trans,
       }
     }
 
-    /* append the memory block to outbuf */
-    gst_tensor_buffer_append_memory (outbuf, out_trans_data->mem[i], _info);
+    if (!priv->combi.out_combi_o_defined)
+      gst_tensor_buffer_append_memory (outbuf, out_trans_data->mem[i], _info);
+  }
+
+  if (priv->combi.out_combi_o_defined) {
+    /* append in the order of the combi list, as the caps describe it */
+    for (list = priv->combi.out_combi_o; list != NULL; list = list->next) {
+      i = GPOINTER_TO_UINT (list->data);
+      if (i >= prop->output_meta.num_tensors)
+        continue;
+
+      gst_tensor_buffer_append_memory (outbuf,
+          gst_memory_ref (out_trans_data->mem[i]),
+          gst_tensors_info_get_nth_info (&prop->output_meta, i));
+    }
+
+    for (i = 0; i < prop->output_meta.num_tensors; i++) {
+      if (g_list_find (priv->combi.out_combi_o, GUINT_TO_POINTER (i)))
+        gst_memory_unref (out_trans_data->mem[i]);
+    }
   }
 
   return TRUE;
