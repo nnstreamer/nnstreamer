@@ -1220,6 +1220,7 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
               s1, s2, (n + 1), tmp.info.num_tensors);
           gst_memory_unref (mem);
           gst_buffer_unref (inbuf);
+          gst_tensors_config_free (&tmp);
           goto error;
         }
 
@@ -1235,12 +1236,16 @@ gst_tensor_converter_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
           nns_loge
               ("Incoming buffer does not match with given tensors info. It appears that it is trying to convert other/tensors,format=flexible to other/tensors,format=static. The converted output appears not compatible with the given configuration.");
           gst_buffer_unref (inbuf);
+          gst_tensors_config_free (&tmp);
           goto error;
         }
 
         /* update caps with new configuration */
+        gst_tensors_config_free (config);
         *config = tmp;
         gst_tensor_converter_update_caps (self);
+      } else {
+        gst_tensors_config_free (&tmp);
       }
       break;
     }
@@ -1752,13 +1757,14 @@ gst_tensor_converter_parse_octet (GstTensorConverter * self,
 {
   GstTensorsInfo *info = &self->tensors_info;
   GstTensorsConfig peer;
-  gboolean flexible, configured;
+  gboolean flexible, configured, ret = FALSE;
   guint i;
 
   g_return_val_if_fail (config != NULL, FALSE);
   g_return_val_if_fail (structure != NULL, FALSE);
 
   gst_tensors_config_init (config);
+  gst_tensors_config_init (&peer);
   flexible = configured = FALSE;
 
   /* get possible tensors info from peer if no property is given */
@@ -1777,7 +1783,7 @@ gst_tensor_converter_parse_octet (GstTensorConverter * self,
 
       ml_loge
           ("tensor_converter: Please set the properties input-dim and input-type to convert application/stream to non-flexible other/tensors. Use other/tensors,format=flexible if you want flexible dimensions. For static (non-flexible) tensors, you may, for example, use input-dim=30,input-type=uint8 to handle 30 bytes of bin data as a single frame.");
-      return FALSE;
+      goto done;
     }
   }
 
@@ -1789,13 +1795,13 @@ gst_tensor_converter_parse_octet (GstTensorConverter * self,
       ml_loge
           ("tensor_converter: Cannot configure multiple tensors (num_tensors = %u) from an application/octet stream with frames_per_tensor (= %u)> 1. Please set the property frames-per-tensor 1 to convert stream to multiple-tensors (num_tensors > 1).",
           info->num_tensors, self->frames_per_tensor);
-      return FALSE;
+      goto done;
     }
     if (flexible) {
       ml_loge
           ("tensor_converter: Cannot configure flexible tensors from an application/octet stream with frames_per_tensor (%u) > 1. Please set the property frames-per-tensor 1 to convert stream to flexible tensors.",
           self->frames_per_tensor);
-      return FALSE;
+      goto done;
     }
   }
 
@@ -1828,7 +1834,11 @@ gst_tensor_converter_parse_octet (GstTensorConverter * self,
     self->frame_size = gst_tensors_info_get_size (&config->info, -1);
   }
 
-  return TRUE;
+  ret = TRUE;
+
+done:
+  gst_tensors_config_free (&peer);
+  return ret;
 }
 
 /**
@@ -1912,7 +1922,7 @@ gst_tensor_converter_parse_custom (GstTensorConverter * self,
 
   if (self->mode == _CONVERTER_MODE_CUSTOM_CODE) {
     if (!is_fixed) {
-      gst_tensors_config_init (config);
+      gst_tensors_config_free (config);
       /* All tensor info should be updated later in chain function. */
       config->info.num_tensors = 1;
       config->info.info[0].type = _NNS_UINT8;
@@ -1946,6 +1956,7 @@ gst_tensor_converter_parse_custom (GstTensorConverter * self,
             mimetype, STRING_CUSTOM_MODE (self), self->mode_option);
         return FALSE;
       }
+      gst_tensors_config_free (config);
       if (!ex->get_out_config (caps, config)) {
         char *capstr = gst_caps_to_string (caps);
         ml_loge
@@ -2143,6 +2154,7 @@ gst_tensor_converter_get_possible_media_caps (GstTensorConverter * self)
     }
   }
 
+  gst_tensors_config_free (&config);
   return media_caps;
 }
 
@@ -2207,6 +2219,8 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
   g_return_val_if_fail (caps != NULL, FALSE);
   g_return_val_if_fail (gst_caps_is_fixed (caps), FALSE);
 
+  gst_tensors_config_init (&config);
+
   structure = gst_caps_get_structure (caps, 0);
   if (self->mode != _CONVERTER_MODE_NONE) {
     in_type = _NNS_MEDIA_ANY;
@@ -2223,14 +2237,14 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
               "Failed to configure tensor from gst cap \"%s\" for video streams.",
               capstr);
           g_free (capstr);
-          return FALSE;
+          goto error;
         }
 
         frames_dim = 3;
       } else {
         ml_loge
             ("tensor_converter: This binary does not support video type. Please build NNStreamer with -Dvideo-support=enabled (default). You have configured -Dvideo-support=disabled when you build this binary.\n");
-        return FALSE;
+        goto error;
       }
       break;
     case _NNS_AUDIO:
@@ -2241,14 +2255,14 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
               "Failed to configure tensor from gst cap \"%s\" for audio streams.",
               capstr);
           g_free (capstr);
-          return FALSE;
+          goto error;
         }
 
         frames_dim = 1;
       } else {
         ml_loge
             ("tensor_converter: This binary does not support audio type. Please build NNStreamer with -Daudio-support=enabled (default). You have configured -Daudio-support=disabled when you build this binary.\n");
-        return FALSE;
+        goto error;
       }
       break;
     case _NNS_TEXT:
@@ -2258,7 +2272,7 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
             "Failed to configure tensor from gst cap \"%s\" for text streams.",
             capstr);
         g_free (capstr);
-        return FALSE;
+        goto error;
       }
 
       frames_dim = 1;
@@ -2270,7 +2284,7 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
             "Failed to configure tensors from gst cap \"%s\" for octet streams.",
             capstr);
         g_free (capstr);
-        return FALSE;
+        goto error;
       }
       break;
     case _NNS_TENSOR:
@@ -2281,7 +2295,7 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
             "Failed to configure tensor from flexible tensor (%s); trying to convert to static tensor.",
             capstr);
         g_free (capstr);
-        return FALSE;
+        goto error;
       }
       break;
     default:
@@ -2291,7 +2305,7 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
             "Failed to configure tensors with custom mode from streams of gst cap (%s) with custom converter subplugins.",
             capstr);
         g_free (capstr);
-        return FALSE;
+        goto error;
       }
       in_type = _NNS_MEDIA_ANY;
       break;
@@ -2311,7 +2325,7 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
         capstr, cfgstr);
     g_free (capstr);
     g_free (cfgstr);
-    return FALSE;
+    goto error;
   }
 
   if (gst_tensors_info_validate (&self->tensors_info)) {
@@ -2324,15 +2338,20 @@ gst_tensor_converter_parse_caps (GstTensorConverter * self,
           str1, str2);
       g_free (str1);
       g_free (str2);
-      return FALSE;
+      goto error;
     }
   }
 
   self->in_media_type = in_type;
   self->tensors_configured = TRUE;
+  gst_tensors_config_free (&self->tensors_config);
   self->tensors_config = config;
 
   return TRUE;
+
+error:
+  gst_tensors_config_free (&config);
+  return FALSE;
 }
 
 /**
