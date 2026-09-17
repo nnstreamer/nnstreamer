@@ -480,6 +480,7 @@ gst_tensor_converter_set_property (GObject * object, guint prop_id,
         break;
       }
 
+      g_free (self->mode_option);
       self->mode_option = g_strdup (strv[1]);
       if (g_ascii_strcasecmp (strv[0], "custom-code") == 0) {
         self->mode = _CONVERTER_MODE_CUSTOM_CODE;
@@ -488,13 +489,15 @@ gst_tensor_converter_set_property (GObject * object, guint prop_id,
           nns_logw
               ("Failed to find custom subplugin of the tensor_converter. The custom-code for tensor_converter, \"%s\" is not registered by nnstreamer_converter_custom_register() function. Refer to https://github.com/nnstreamer/nnstreamer/blob/main/gst/nnstreamer/elements/gsttensor_converter.md#custom-converter for detail.",
               strv[1]);
-          return;
+          g_strfreev (strv);
+          break;
         }
         self->custom.func = ptr->func;
         self->custom.data = ptr->data;
       } else if (g_ascii_strcasecmp (strv[0], "custom-script") == 0) {
         self->mode = _CONVERTER_MODE_CUSTOM_SCRIPT;
         /** @todo detects framework based on the script extension */
+        g_free (self->ext_fw);
         self->ext_fw = g_strdup ("python3");
       }
       g_strfreev (strv);
