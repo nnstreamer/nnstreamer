@@ -15459,14 +15459,13 @@ TEST (testTensorDecoder, pushFlexibleInputUnknownVersion_n)
    * Keep the magic and raise the major of the version. The version marker and
    * the major live in the second word of the header; both encodings are
    * private to nnstreamer_plugin_api_util_impl.c, so the assertions below pin
-   * what this literal has to mean: a header that still validates, of a version
-   * whose layout cannot be sized. Without them a changed encoding would leave
-   * the case passing on the parse failure before the branch under test.
+   * what this literal has to mean: a header of a version whose layout cannot
+   * be sized, which the parser refuses since item A7 of #4920.
    */
   ASSERT_TRUE (gst_buffer_map (buf, &map, GST_MAP_WRITE));
   ((uint32_t *) map.data)[1] = 0xDE002000U;
 
-  EXPECT_TRUE (gst_tensor_meta_info_parse_header (&meta, map.data));
+  EXPECT_FALSE (gst_tensor_meta_info_parse_header (&meta, map.data));
   EXPECT_TRUE (gst_tensor_meta_info_get_version (&meta, &major, NULL));
   EXPECT_NE (major, 1U);
   EXPECT_EQ (gst_tensor_meta_info_get_header_size (&meta), 0U);

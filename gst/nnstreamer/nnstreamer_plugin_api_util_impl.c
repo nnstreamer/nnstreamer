@@ -1443,7 +1443,7 @@ gst_tensor_get_format_string (tensor_format format)
 /**
  * @brief Macro to check the version of tensor meta.
  */
-#define GST_TENSOR_META_IS_V1(v) (GST_TENSOR_META_VERSION_VALID(v) && (((v) & 0x00FFF000) & GST_TENSOR_META_MAKE_VERSION(1,0)))
+#define GST_TENSOR_META_IS_V1(v) (GST_TENSOR_META_VERSION_VALID(v) && (((v) & 0x00FFF000) == (GST_TENSOR_META_MAKE_VERSION(1,0) & 0x00FFF000)))
 
 /**
  * @brief Macro to check the meta is valid.
@@ -1502,6 +1502,13 @@ gboolean
 gst_tensor_meta_info_validate (GstTensorMetaInfo * meta)
 {
   if (!GST_TENSOR_META_IS_VALID (meta)) {
+    return FALSE;
+  }
+
+  /* the payload of a version this build cannot size cannot be located */
+  if (gst_tensor_meta_info_get_header_size (meta) == 0) {
+    nns_logd ("Failed to validate tensor meta info. Unsupported version: 0x%x.",
+        meta->version);
     return FALSE;
   }
 
@@ -1564,7 +1571,8 @@ gst_tensor_meta_info_get_data_size (GstTensorMetaInfo * meta)
 {
   gsize dsize;
 
-  if (!GST_TENSOR_META_IS_VALID (meta)) {
+  /* the fields are described by the version, which must be one we can size */
+  if (gst_tensor_meta_info_get_header_size (meta) == 0) {
     return 0;
   }
 
