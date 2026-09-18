@@ -1131,6 +1131,7 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
   GstMqttSrc *self;
   GstClock *clock;
   GstCaps *recv_caps;
+  gchar caps_str[GST_MQTT_MAX_LEN_GST_CAPS_STR + 1];
   gsize offset;
   guint i;
   UNUSED (topic_name);
@@ -1187,7 +1188,11 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
     goto ret_unmap_hdr_mem;
   }
 
-  recv_caps = gst_caps_from_string (mqtt_msg_hdr->gst_caps_str);
+  memcpy (caps_str, mqtt_msg_hdr->gst_caps_str,
+      GST_MQTT_MAX_LEN_GST_CAPS_STR);
+  caps_str[GST_MQTT_MAX_LEN_GST_CAPS_STR] = '\0';
+
+  recv_caps = gst_caps_from_string (caps_str);
   if (recv_caps) {
     if (!self->caps || !gst_caps_is_equal (self->caps, recv_caps)) {
       gst_caps_replace (&self->caps, recv_caps);

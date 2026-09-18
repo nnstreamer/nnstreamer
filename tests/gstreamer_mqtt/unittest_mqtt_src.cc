@@ -547,6 +547,22 @@ _fixture_wait_buffers (src_fixture_s *fixture, guint expected)
 }
 
 /**
+ * @brief Take a copy of the caps the last pushed buffer was sent with
+ */
+static GstCaps *
+_fixture_last_caps (src_fixture_s *fixture)
+{
+  GstCaps *caps = NULL;
+
+  g_mutex_lock (&fixture->lock);
+  if (fixture->last_caps)
+    caps = gst_caps_ref (fixture->last_caps);
+  g_mutex_unlock (&fixture->lock);
+
+  return caps;
+}
+
+/**
  * @brief Start the pipeline and wait until the element has subscribed
  */
 static gboolean
@@ -654,6 +670,20 @@ _freed_messages (void)
   g_mutex_unlock (&g_mock.lock);
 
   return num;
+}
+
+/**
+ * @brief Build a caps string that fills the whole header field, with no room for a terminator
+ */
+static gchar *
+_full_length_caps_str (void)
+{
+  GString *str = g_string_new ("video/x-raw,format=RGB,width=640,height=320,pad=(string)");
+
+  while (str->len < GST_MQTT_MAX_LEN_GST_CAPS_STR)
+    g_string_append_c (str, 'A');
+
+  return g_string_free (str, FALSE);
 }
 
 /**
@@ -808,6 +838,70 @@ TEST (testMqttSrc, messageShorterThanHeader_n)
   g_usleep (SETTLE_TIME_US);
   EXPECT_EQ (_fixture_num_buffers (&fixture), 0U);
   EXPECT_EQ (_freed_messages (), 1U);
+
+  _fixture_teardown (&fixture);
+}
+
+/**
+ * @brief mqttsrc parses no more than the caps field of a header that has no terminator
+ */
+TEST (testMqttSrc, messageCapsWithoutTerminator)
+{
+  src_fixture_s fixture;
+  GstMQTTMessageHdr hdr = {};
+  MQTTAsync_message *msg;
+  gchar *caps_str = _full_length_caps_str ();
+  GstCaps *caps;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  ASSERT_TRUE (_fixture_play (&fixture));
+
+  _set_header_timestamps (fixture.src, &hdr);
+  _set_header_caps (&hdr, caps_str, ",framerate=(fraction)30/1");
+  hdr.num_mems = 1;
+  hdr.size_mems[0] = 512;
+  msg = _new_message (&hdr, 512);
+
+  EXPECT_TRUE (_deliver (msg));
+  ASSERT_TRUE (_fixture_wait_buffers (&fixture, 1));
+
+  caps = _fixture_last_caps (&fixture);
+  ASSERT_TRUE (caps != NULL);
+  EXPECT_FALSE (gst_structure_has_field (gst_caps_get_structure (caps, 0), "framerate"));
+  EXPECT_STREQ (gst_structure_get_string (gst_caps_get_structure (caps, 0), "pad"),
+      caps_str + strlen ("video/x-raw,format=RGB,width=640,height=320,pad=(string)"));
+  gst_caps_unref (caps);
+
+  g_free (caps_str);
+  _fixture_teardown (&fixture);
+}
+
+/**
+ * @brief mqttsrc keeps its caps when the header carries a caps string it cannot parse
+ */
+TEST (testMqttSrc, messageCapsUnparsable_n)
+{
+  src_fixture_s fixture;
+  GstMQTTMessageHdr hdr = {};
+  MQTTAsync_message *msg;
+  GstCaps *caps;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  ASSERT_TRUE (_fixture_play (&fixture));
+
+  _set_header_timestamps (fixture.src, &hdr);
+  _set_header_caps (&hdr, ",,,,", NULL);
+  hdr.num_mems = 1;
+  hdr.size_mems[0] = 512;
+  msg = _new_message (&hdr, 512);
+
+  EXPECT_TRUE (_deliver (msg));
+  ASSERT_TRUE (_fixture_wait_buffers (&fixture, 1));
+
+  caps = _fixture_last_caps (&fixture);
+  EXPECT_TRUE (caps == NULL || gst_caps_is_any (caps));
+  if (caps)
+    gst_caps_unref (caps);
 
   _fixture_teardown (&fixture);
 }
