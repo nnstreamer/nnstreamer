@@ -122,7 +122,6 @@ typedef struct {
   guint num;  /**number of cropped regions required */
 
   guint max_detections;
-  GArray *regions;
   gboolean flag_use_label;
 
 } tensor_region;
@@ -268,7 +267,6 @@ tr_init (void **pdata)
   trData->mode = MOBILENET_SSD_BOUNDING_BOX;
   trData->num = 1;
   trData->max_detections = 0;
-  trData->regions = NULL;
   trData->flag_use_label = FALSE;
   trData->i_width = INPUT_VIDEO_WIDTH_DEFAULT;
   trData->i_height = INPUT_VIDEO_HEIGHT_DEFAULT;
@@ -280,7 +278,6 @@ static void
 tr_exit (void **pdata)
 {
   tensor_region *trData = *pdata;
-  g_array_free (trData->regions, TRUE);
   _free_labels (&trData->labeldata);
   _cleanup_mode_properties (trData);
 
