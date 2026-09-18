@@ -255,8 +255,10 @@ class TFLiteInterpreter
   QNNBackendType qnn_backend_type; /**< QNN Delegate backend type */
   QNNPerformanceMode qnn_performance_mode; /**< QNN Delegate performance mode */
 
-  std::unique_ptr<tflite::Interpreter> interpreter;
+  /* The interpreter uses the delegate and the model: declare it last so it is destroyed first. */
+  tflite::Interpreter::TfLiteDelegatePtr delegate_ptr; /**< single delegate supported */
   std::unique_ptr<tflite::FlatBufferModel> model;
+  std::unique_ptr<tflite::Interpreter> interpreter;
 
   GstTensorsInfo inputTensorMeta; /**< The tensor info of input tensors */
   GstTensorsInfo outputTensorMeta; /**< The tensor info of output tensors */
@@ -267,7 +269,6 @@ class TFLiteInterpreter
   int getTensorDim (int tensor_idx, tensor_dim dim);
   int setTensorProp (const std::vector<int> &tensor_idx_list, GstTensorsInfo *tensorMeta);
 
-  tflite::Interpreter::TfLiteDelegatePtr delegate_ptr; /**< single delegate supported */
   friend class TFLiteCore;
 };
 
@@ -461,13 +462,14 @@ int
 TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate_e)
 {
   TfLiteDelegate *delegate;
+  std::unique_ptr<tflite::FlatBufferModel> new_model;
 #if (DBG)
   gint64 start_time, stop_time;
   start_time = g_get_monotonic_time ();
 #endif
 
-  model = tflite::FlatBufferModel::BuildFromFile (model_path);
-  if (!model) {
+  new_model = tflite::FlatBufferModel::BuildFromFile (model_path);
+  if (!new_model) {
     ml_loge ("Failed to mmap model\n");
     return -1;
   }
@@ -478,6 +480,7 @@ TFLiteInterpreter::loadModel (int num_threads, tflite_delegate_e delegate_e)
    */
 
   interpreter = nullptr;
+  model = std::move (new_model);
 
 #ifdef TFLITE_RESOLVER_WITHOUT_DEFAULT_DELEGATES
   tflite::ops::builtin::BuiltinOpResolverWithoutDefaultDelegates resolver;
@@ -1452,6 +1455,7 @@ tflite_parseCustomOption (const GstTensorFilterProperties *prop, tflite_option_s
           else
             ml_logw ("Unknown option to set tensorflow-lite delegate (%s).", pair[1]);
         } else if (g_ascii_strcasecmp (pair[0], "ExtDelegateLib") == 0) {
+          g_free ((gpointer) option->ext_delegate_path);
           option->ext_delegate_path = g_strdup (pair[1]);
         } else if (g_ascii_strcasecmp (pair[0], "ExtDelegateKeyVal") == 0) {
           gchar **kvpairs;
