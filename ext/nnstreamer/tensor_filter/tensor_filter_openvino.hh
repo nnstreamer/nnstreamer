@@ -65,6 +65,9 @@ class TensorFilterOpenvino
       const GstTensorMemory *gstTensor, const tensor_type gstType);
   /** @brief Check the given hw has a matching device in devsVector */
   static bool isAcclDevSupported (std::vector<std::string> &devsVector, accl_hw hw);
+  /** @brief Resolve the name to be used as the key of an IE blob map */
+  static bool getBlobName (const std::vector<std::string> &modelNames,
+      const GstTensorInfo *info, guint nth, std::string &name);
 
   /** @brief Construct with the paths to the XML and bin model files */
   TensorFilterOpenvino (std::string path_model_xml, std::string path_model_bin);
@@ -100,6 +103,10 @@ class TensorFilterOpenvino
   protected:
   InferenceEngine::InputsDataMap _inputsDataMap;
   InferenceEngine::OutputsDataMap _outputsDataMap;
+  std::vector<std::string> _inputTensorNames;
+  std::vector<std::string> _outputTensorNames;
+  InferenceEngine::TensorDesc _inputTensorDescs[NNS_TENSOR_SIZE_LIMIT];
+  InferenceEngine::TensorDesc _outputTensorDescs[NNS_TENSOR_SIZE_LIMIT];
 
   private:
   /** @brief Hidden default constructor; the model paths are mandatory */
@@ -108,8 +115,6 @@ class TensorFilterOpenvino
   InferenceEngine::Core _ieCore;
   InferenceEngine::CNNNetReader _networkReaderCNN;
   InferenceEngine::CNNNetwork _networkCNN;
-  InferenceEngine::TensorDesc _inputTensorDescs[NNS_TENSOR_SIZE_LIMIT];
-  InferenceEngine::TensorDesc _outputTensorDescs[NNS_TENSOR_SIZE_LIMIT];
   InferenceEngine::ExecutableNetwork _executableNet;
   InferenceEngine::InferRequest _inferRequest;
   static std::map<accl_hw, std::string> _nnsAcclHwToOVDevMap;

@@ -48,6 +48,12 @@ class TensorFilterOpenvinoTest : public TensorFilterOpenvino
   void setInputsDataMap (InferenceEngine::InputsDataMap &map);
   InferenceEngine::OutputsDataMap &getOutputsDataMap ();
   void setOutputsDataMap (InferenceEngine::OutputsDataMap &map);
+  const std::vector<std::string> &getInputTensorNames ();
+  void setInputTensorNames (const std::vector<std::string> &names);
+  const std::vector<std::string> &getOutputTensorNames ();
+  void setOutputTensorNames (const std::vector<std::string> &names);
+  const InferenceEngine::TensorDesc &getInputTensorDesc (guint nth);
+  const InferenceEngine::TensorDesc &getOutputTensorDesc (guint nth);
 
   private:
   TensorFilterOpenvinoTest ();
@@ -96,6 +102,48 @@ void
 TensorFilterOpenvinoTest::setOutputsDataMap (InferenceEngine::OutputsDataMap &map)
 {
   this->_outputsDataMap = map;
+}
+
+/** @brief Get the names of the input tensors that the given model declares */
+const std::vector<std::string> &
+TensorFilterOpenvinoTest::getInputTensorNames ()
+{
+  return this->_inputTensorNames;
+}
+
+/** @brief Replace the names of the input tensors that the given model declares */
+void
+TensorFilterOpenvinoTest::setInputTensorNames (const std::vector<std::string> &names)
+{
+  this->_inputTensorNames = names;
+}
+
+/** @brief Get the names of the output tensors that the given model declares */
+const std::vector<std::string> &
+TensorFilterOpenvinoTest::getOutputTensorNames ()
+{
+  return this->_outputTensorNames;
+}
+
+/** @brief Replace the names of the output tensors that the given model declares */
+void
+TensorFilterOpenvinoTest::setOutputTensorNames (const std::vector<std::string> &names)
+{
+  this->_outputTensorNames = names;
+}
+
+/** @brief Get the descriptor of the nth input tensor of the given model */
+const InferenceEngine::TensorDesc &
+TensorFilterOpenvinoTest::getInputTensorDesc (guint nth)
+{
+  return this->_inputTensorDescs[nth];
+}
+
+/** @brief Get the descriptor of the nth output tensor of the given model */
+const InferenceEngine::TensorDesc &
+TensorFilterOpenvinoTest::getOutputTensorDesc (guint nth)
+{
+  return this->_outputTensorDescs[nth];
 }
 
 /**
@@ -1299,6 +1347,396 @@ TEST (tensorFilterOpenvino, convertGstTensorMemoryToBlobPtr0)
   g_free (test_model_xml);
   g_free (test_model_bin);
 }
+
+/**
+ * @brief A test case checking that the tensor names of the model are kept
+ */
+TEST (tensorFilterOpenvino, getTensorNames0)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  GstTensorsInfo nns_tensors_info;
+  GstTensorInfo *_info;
+  std::string str_test_model;
+  gchar *test_model_xml;
+  gchar *test_model_bin;
+  guint i;
+  gint ret;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model_xml = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extXml)
+          .c_str (),
+      NULL);
+  test_model_bin = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extBin)
+          .c_str (),
+      NULL);
+
+  {
+    TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml),
+        str_test_model.assign (test_model_bin));
+
+    /** The names are known from the construction on, so that a run that does
+     *  not call the dimension callbacks again still has them. */
+    ASSERT_EQ (tfOvTest.getInputTensorNames ().size (), MOBINET_V2_IN_NUM_TENSOR);
+    ASSERT_EQ (tfOvTest.getOutputTensorNames ().size (), MOBINET_V2_OUT_NUM_TENSOR);
+
+    ret = tfOvTest.getInputTensorDim (&nns_tensors_info);
+    ASSERT_EQ (ret, 0);
+    ASSERT_EQ (tfOvTest.getInputTensorNames ().size (), nns_tensors_info.num_tensors);
+    for (i = 0; i < nns_tensors_info.num_tensors; ++i) {
+      _info = gst_tensors_info_get_nth_info (&nns_tensors_info, i);
+      EXPECT_STREQ (tfOvTest.getInputTensorNames ()[i].c_str (), _info->name);
+    }
+    gst_tensors_info_free (&nns_tensors_info);
+
+    ret = tfOvTest.getOutputTensorDim (&nns_tensors_info);
+    ASSERT_EQ (ret, 0);
+    ASSERT_EQ (tfOvTest.getOutputTensorNames ().size (), nns_tensors_info.num_tensors);
+    for (i = 0; i < nns_tensors_info.num_tensors; ++i) {
+      _info = gst_tensors_info_get_nth_info (&nns_tensors_info, i);
+      EXPECT_STREQ (tfOvTest.getOutputTensorNames ()[i].c_str (), _info->name);
+    }
+    gst_tensors_info_free (&nns_tensors_info);
+  }
+
+  g_free (test_model_xml);
+  g_free (test_model_bin);
+}
+
+/**
+ * @brief A test case checking that the tensor descriptors of the model are kept
+ */
+TEST (tensorFilterOpenvino, getTensorDescs0)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  InferenceEngine::SizeVector dims;
+  std::string str_test_model;
+  gchar *test_model_xml;
+  gchar *test_model_bin;
+  size_t i;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model_xml = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extXml)
+          .c_str (),
+      NULL);
+  test_model_bin = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extBin)
+          .c_str (),
+      NULL);
+
+  {
+    TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml),
+        str_test_model.assign (test_model_bin));
+
+    /** invoke () builds its blobs from these, so they are to be known from the
+     *  construction on, as the names are. IE orders the dimensions the other
+     *  way around than NNStreamer does. */
+    dims = tfOvTest.getInputTensorDesc (0).getDims ();
+    ASSERT_GT (dims.size (), 0U);
+    for (i = 0; i < dims.size (); ++i)
+      EXPECT_EQ (dims[dims.size () - 1 - i], (size_t) MOBINET_V2_IN_DIMS[i]);
+
+    dims = tfOvTest.getOutputTensorDesc (0).getDims ();
+    ASSERT_GT (dims.size (), 0U);
+    for (i = 0; i < dims.size (); ++i)
+      EXPECT_EQ (dims[dims.size () - 1 - i], (size_t) MOBINET_V2_OUT_DIMS[i]);
+  }
+
+  g_free (test_model_xml);
+  g_free (test_model_bin);
+}
+
+/**
+ * @brief A test case for the helper function, getBlobName ()
+ */
+TEST (tensorFilterOpenvino, getBlobName0)
+{
+  const std::vector<std::string> model_names = { "model_0", "model_1" };
+  GstTensorInfo info;
+  std::string name;
+
+  gst_tensor_info_init (&info);
+
+  info.name = g_strdup ("user_given");
+  EXPECT_TRUE (TensorFilterOpenvino::getBlobName (model_names, &info, 0, name));
+  EXPECT_STREQ (name.c_str (), "user_given");
+  g_free (info.name);
+
+  /** The name a user does not give is the one the model declares */
+  info.name = NULL;
+  EXPECT_TRUE (TensorFilterOpenvino::getBlobName (model_names, &info, 0, name));
+  EXPECT_STREQ (name.c_str (), "model_0");
+  EXPECT_TRUE (TensorFilterOpenvino::getBlobName (model_names, &info, 1, name));
+  EXPECT_STREQ (name.c_str (), "model_1");
+}
+
+/**
+ * @brief A negative test case for the helper function, getBlobName ()
+ */
+TEST (tensorFilterOpenvino, getBlobName0_n)
+{
+  const std::vector<std::string> no_model_names;
+  const std::vector<std::string> model_names = { "model_0" };
+  GstTensorInfo info;
+  std::string name;
+
+  gst_tensor_info_init (&info);
+
+  EXPECT_FALSE (TensorFilterOpenvino::getBlobName (no_model_names, &info, 0, name));
+  EXPECT_FALSE (TensorFilterOpenvino::getBlobName (model_names, &info, 1, name));
+}
+
+/**
+ * @brief A negative test case for the invoke callback with an unknown tensor name
+ */
+TEST (tensorFilterOpenvino, invoke0_n)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  GstTensorFilterProperties *prop = NULL;
+  GstTensorMemory input[MOBINET_V2_IN_NUM_TENSOR];
+  GstTensorMemory output[MOBINET_V2_OUT_NUM_TENSOR] = {};
+  GstTensorsInfo nns_tensors_info;
+  GstTensorInfo *_info;
+  std::string str_test_model;
+  gchar *test_model_xml;
+  gchar *test_model_bin;
+  guint i;
+  gint ret;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model_xml = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extXml)
+          .c_str (),
+      NULL);
+  test_model_bin = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extBin)
+          .c_str (),
+      NULL);
+
+  prop = g_new0 (GstTensorFilterProperties, 1);
+  ASSERT_TRUE (prop != NULL);
+
+  {
+    TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml),
+        str_test_model.assign (test_model_bin));
+
+    ret = tfOvTest.getInputTensorDim (&nns_tensors_info);
+    ASSERT_EQ (ret, 0);
+    ASSERT_EQ (nns_tensors_info.num_tensors, MOBINET_V2_IN_NUM_TENSOR);
+    gst_tensors_info_copy (&prop->input_meta, &nns_tensors_info);
+    gst_tensors_info_free (&nns_tensors_info);
+
+    /** A user who gives the dimensions and the types only leaves no names */
+    for (i = 0; i < prop->input_meta.num_tensors; ++i) {
+      _info = gst_tensors_info_get_nth_info (&prop->input_meta, i);
+      g_free (_info->name);
+      _info->name = NULL;
+      input[i].size = gst_tensor_info_get_size (_info);
+      input[i].data = g_malloc0 (input[i].size);
+    }
+
+    tfOvTest.setInputTensorNames (std::vector<std::string> ());
+
+    ret = tfOvTest.invoke (prop, input, output);
+    EXPECT_EQ (ret, TensorFilterOpenvino::RetEInval);
+
+    for (i = 0; i < prop->input_meta.num_tensors; ++i)
+      g_free (input[i].data);
+  }
+
+  gst_tensors_info_free (&prop->input_meta);
+  g_free (prop);
+  g_free (test_model_xml);
+  g_free (test_model_bin);
+}
+
+/**
+ * @brief A negative test case for the invoke callback with an unknown output name
+ */
+TEST (tensorFilterOpenvino, invoke1_n)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  GstTensorFilterProperties *prop = NULL;
+  GstTensorMemory input[MOBINET_V2_IN_NUM_TENSOR] = {};
+  GstTensorMemory output[MOBINET_V2_OUT_NUM_TENSOR];
+  GstTensorsInfo nns_tensors_info;
+  GstTensorInfo *_info;
+  std::string str_test_model;
+  gchar *test_model_xml;
+  gchar *test_model_bin;
+  guint i;
+  gint ret;
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model_xml = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extXml)
+          .c_str (),
+      NULL);
+  test_model_bin = g_build_filename (root_path, "tests", "test_models", "models",
+      str_test_model.assign (MODEL_BASE_NAME_MOBINET_V2)
+          .append (TensorFilterOpenvino::extBin)
+          .c_str (),
+      NULL);
+
+  prop = g_new0 (GstTensorFilterProperties, 1);
+  ASSERT_TRUE (prop != NULL);
+
+  {
+    TensorFilterOpenvinoTest tfOvTest (str_test_model.assign (test_model_xml),
+        str_test_model.assign (test_model_bin));
+
+    ret = tfOvTest.getOutputTensorDim (&nns_tensors_info);
+    ASSERT_EQ (ret, 0);
+    ASSERT_EQ (nns_tensors_info.num_tensors, MOBINET_V2_OUT_NUM_TENSOR);
+    gst_tensors_info_copy (&prop->output_meta, &nns_tensors_info);
+    gst_tensors_info_free (&nns_tensors_info);
+
+    /** No input tensor is asked for, so that the output loop is the one run */
+    for (i = 0; i < prop->output_meta.num_tensors; ++i) {
+      _info = gst_tensors_info_get_nth_info (&prop->output_meta, i);
+      g_free (_info->name);
+      _info->name = NULL;
+      output[i].size = gst_tensor_info_get_size (_info);
+      output[i].data = g_malloc0 (output[i].size);
+    }
+
+    tfOvTest.setOutputTensorNames (std::vector<std::string> ());
+
+    ret = tfOvTest.invoke (prop, input, output);
+    EXPECT_EQ (ret, TensorFilterOpenvino::RetEInval);
+
+    for (i = 0; i < prop->output_meta.num_tensors; ++i)
+      g_free (output[i].data);
+  }
+
+  gst_tensors_info_free (&prop->output_meta);
+  g_free (prop);
+  g_free (test_model_xml);
+  g_free (test_model_bin);
+}
+
+#ifdef __OPENVINO_CPU_EXT__
+/**
+ * @brief A test case for the invoke callback when a user gives no tensor names
+ */
+TEST (tensorFilterOpenvino, invoke0)
+{
+  const gchar *root_path = g_getenv ("NNSTREAMER_SOURCE_ROOT_PATH");
+  const gchar fw_name[] = "openvino";
+  const GstTensorFilterFramework *fw = nnstreamer_filter_find (fw_name);
+  GstTensorFilterProperties *prop = NULL;
+  gpointer private_data = NULL;
+  GstTensorMemory input[MOBINET_V2_IN_NUM_TENSOR];
+  GstTensorMemory output[MOBINET_V2_OUT_NUM_TENSOR];
+  GstTensorsInfo nns_tensors_info;
+  GstTensorInfo *_info;
+  gchar *test_model;
+  guint i;
+  gint ret;
+
+  /* Check if mandatory methods are contained */
+  ASSERT_TRUE (fw && fw->open && fw->close && fw->invoke_NN);
+
+  /* supposed to run test in build directory */
+  if (root_path == NULL)
+    root_path = "..";
+
+  test_model = g_build_filename (root_path, "tests", "test_models", "models",
+      MODEL_BASE_NAME_MOBINET_V2, NULL);
+  const gchar *model_files[] = {
+    test_model,
+    NULL,
+  };
+
+  /* prepare properties */
+  prop = g_new0 (GstTensorFilterProperties, 1);
+  ASSERT_TRUE (prop != NULL);
+  prop->fwname = fw_name;
+  prop->model_files = model_files;
+  prop->num_models = 1;
+  prop->accl_str = "true:cpu";
+
+  ret = fw->open (prop, &private_data);
+  ASSERT_EQ (ret, 0);
+
+  ret = fw->getInputDimension (prop, &private_data, &nns_tensors_info);
+  ASSERT_EQ (ret, 0);
+  ASSERT_EQ (nns_tensors_info.num_tensors, MOBINET_V2_IN_NUM_TENSOR);
+  gst_tensors_info_copy (&prop->input_meta, &nns_tensors_info);
+  gst_tensors_info_free (&nns_tensors_info);
+
+  ret = fw->getOutputDimension (prop, &private_data, &nns_tensors_info);
+  ASSERT_EQ (ret, 0);
+  ASSERT_EQ (nns_tensors_info.num_tensors, MOBINET_V2_OUT_NUM_TENSOR);
+  gst_tensors_info_copy (&prop->output_meta, &nns_tensors_info);
+  gst_tensors_info_free (&nns_tensors_info);
+
+  /**
+   * The framework keeps the tensor info given by a user as it is when the info
+   * matches the model, and the comparison it uses ignores the names. A user who
+   * gives the dimensions and the types only, therefore, leaves the names unset.
+   */
+  for (i = 0; i < prop->input_meta.num_tensors; ++i) {
+    _info = gst_tensors_info_get_nth_info (&prop->input_meta, i);
+    g_free (_info->name);
+    _info->name = NULL;
+    input[i].size = gst_tensor_info_get_size (_info);
+    input[i].data = g_malloc0 (input[i].size);
+  }
+  for (i = 0; i < prop->output_meta.num_tensors; ++i) {
+    _info = gst_tensors_info_get_nth_info (&prop->output_meta, i);
+    g_free (_info->name);
+    _info->name = NULL;
+    output[i].size = gst_tensor_info_get_size (_info);
+    output[i].data = g_malloc0 (output[i].size);
+  }
+
+  ret = fw->invoke_NN (prop, &private_data, input, output);
+  EXPECT_EQ (ret, 0);
+
+  /** A stop and a start of a pipeline replaces the instance, and the framework
+   *  does not ask for the dimensions again once it has them configured. */
+  fw->close (prop, &private_data);
+  ret = fw->open (prop, &private_data);
+  ASSERT_EQ (ret, 0);
+
+  ret = fw->invoke_NN (prop, &private_data, input, output);
+  EXPECT_EQ (ret, 0);
+
+  for (i = 0; i < prop->input_meta.num_tensors; ++i)
+    g_free (input[i].data);
+  for (i = 0; i < prop->output_meta.num_tensors; ++i)
+    g_free (output[i].data);
+
+  fw->close (prop, &private_data);
+
+  gst_tensors_info_free (&prop->input_meta);
+  gst_tensors_info_free (&prop->output_meta);
+  g_free (prop);
+  g_free (test_model);
+}
+#endif /* __OPENVINO_CPU_EXT__ */
 
 /**
  * @brief Main function for unit test.
