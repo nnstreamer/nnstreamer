@@ -13,6 +13,8 @@
 #include <string.h>
 #include <tensor_common.h>
 
+#include "../gst/nnstreamer/elements/gsttensor_sparsedec.h"
+#include "../gst/nnstreamer/elements/gsttensor_sparseenc.h"
 #include "../gst/nnstreamer/elements/gsttensor_sparseutil.h"
 #include "../unittest_util.h"
 
@@ -182,6 +184,87 @@ TEST (testTensorSparseSize, decHugeDimension_n)
   gst_buffer_unmap (out, &map);
 
   gst_buffer_unref (out);
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Number of tensors a stream carries to reach GstTensorsInfo::extra.
+ */
+#define EXTRA_NUM_TENSORS ((guint) (NNS_TENSOR_MEMORY_MAX + 4))
+
+/**
+ * @brief Renegotiate a stream of more tensors than NNS_TENSOR_MEMORY_MAX, which
+ *        reparses the input configuration of tensor_sparse_enc.
+ */
+TEST (testTensorSparseExtra, encCapsRenegotiation)
+{
+  GstHarness *h = gst_harness_new ("tensor_sparse_enc");
+  GstTensorSparseEnc *self;
+  GstCaps *caps;
+
+  ASSERT_NE (h, nullptr);
+  self = GST_TENSOR_SPARSE_ENC (h->element);
+
+  caps = caps_with_tensors (EXTRA_NUM_TENSORS, EXTRA_NUM_TENSORS);
+  gst_harness_set_src_caps (h, gst_caps_copy (caps));
+  EXPECT_EQ (self->in_config.info.num_tensors, EXTRA_NUM_TENSORS);
+  EXPECT_NE (self->in_config.info.extra, nullptr);
+
+  gst_harness_set_src_caps (h, caps);
+  EXPECT_EQ (self->in_config.info.num_tensors, EXTRA_NUM_TENSORS);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Renegotiate the sparse input of tensor_sparse_dec while its peer
+ *        carries more tensors than NNS_TENSOR_MEMORY_MAX.
+ */
+TEST (testTensorSparseExtra, decCapsRenegotiation)
+{
+  GstHarness *h = gst_harness_new ("tensor_sparse_dec");
+  GstTensorSparseDec *self;
+  GstCaps *caps;
+
+  ASSERT_NE (h, nullptr);
+  self = GST_TENSOR_SPARSE_DEC (h->element);
+
+  gst_harness_set_sink_caps (h, caps_with_tensors (EXTRA_NUM_TENSORS, EXTRA_NUM_TENSORS));
+
+  caps = gst_caps_from_string ("other/tensors,format=sparse,framerate=0/1");
+  gst_harness_set_src_caps (h, gst_caps_copy (caps));
+  EXPECT_EQ (self->out_config.info.num_tensors, EXTRA_NUM_TENSORS);
+  EXPECT_NE (self->out_config.info.extra, nullptr);
+
+  gst_harness_set_src_caps (h, caps);
+  EXPECT_EQ (self->out_config.info.num_tensors, EXTRA_NUM_TENSORS);
+
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Negotiate a stream whose tensors are not all described.
+ */
+TEST (testTensorSparseExtra, encCapsRenegotiation_n)
+{
+  GstHarness *h = gst_harness_new ("tensor_sparse_enc");
+  GstTensorSparseEnc *self;
+  GstCaps *caps;
+  GstPad *sinkpad;
+
+  ASSERT_NE (h, nullptr);
+  self = GST_TENSOR_SPARSE_ENC (h->element);
+
+  caps = caps_with_tensors (EXTRA_NUM_TENSORS, EXTRA_NUM_TENSORS - 1);
+
+  sinkpad = gst_element_get_static_pad (h->element, "sink");
+  ASSERT_NE (sinkpad, nullptr);
+  EXPECT_FALSE (gst_pad_send_event (sinkpad, gst_event_new_caps (caps)));
+  gst_caps_unref (caps);
+  gst_object_unref (sinkpad);
+
+  EXPECT_EQ (self->in_config.info.num_tensors, 0U);
+
   gst_harness_teardown (h);
 }
 
