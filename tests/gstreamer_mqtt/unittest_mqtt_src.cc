@@ -673,6 +673,21 @@ _freed_messages (void)
 }
 
 /**
+ * @brief Get the number of topic names the element has released
+ */
+static guint
+_freed_topics (void)
+{
+  guint num;
+
+  g_mutex_lock (&g_mock.lock);
+  num = g_mock.free_topic_count;
+  g_mutex_unlock (&g_mock.lock);
+
+  return num;
+}
+
+/**
  * @brief Build a caps string that fills the whole header field, with no room for a terminator
  */
 static gchar *
@@ -902,6 +917,68 @@ TEST (testMqttSrc, messageCapsUnparsable_n)
   EXPECT_TRUE (caps == NULL || gst_caps_is_any (caps));
   if (caps)
     gst_caps_unref (caps);
+
+  _fixture_teardown (&fixture);
+}
+
+/**
+ * @brief mqttsrc releases the message and the topic name of every message it takes
+ */
+TEST (testMqttSrc, messageReleased)
+{
+  src_fixture_s fixture;
+  GstMQTTMessageHdr hdr = {};
+  MQTTAsync_message *msg;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+  ASSERT_TRUE (_fixture_play (&fixture));
+
+  _set_header_timestamps (fixture.src, &hdr);
+  _set_header_caps (&hdr, "video/x-raw,format=RGB,width=640,height=320", NULL);
+  hdr.num_mems = 1;
+  hdr.size_mems[0] = 1024;
+  msg = _new_message (&hdr, 1024);
+
+  EXPECT_TRUE (_deliver (msg));
+  ASSERT_TRUE (_fixture_wait_buffers (&fixture, 1));
+  EXPECT_EQ (_freed_topics (), 1U);
+
+  /** the message outlives the callback: it is released with the buffer */
+  gst_element_set_state (fixture.pipeline, GST_STATE_NULL);
+  gst_element_get_state (fixture.pipeline, NULL, NULL, GST_CLOCK_TIME_NONE);
+  EXPECT_EQ (_freed_messages (), 1U);
+
+  _fixture_teardown (&fixture);
+}
+
+/**
+ * @brief mqttsrc releases a message that arrives while it is not subscribed
+ */
+TEST (testMqttSrc, messageWhileNotSubscribed_n)
+{
+  src_fixture_s fixture;
+  GstMQTTMessageHdr hdr = {};
+  MQTTAsync_message *msg;
+
+  ASSERT_TRUE (_fixture_setup (&fixture, "test_topic", "video/x-raw"));
+
+  g_mutex_lock (&g_mock.lock);
+  g_mock.fail_subscribe = TRUE;
+  g_mutex_unlock (&g_mock.lock);
+
+  ASSERT_TRUE (_fixture_play (&fixture));
+
+  _set_header_timestamps (fixture.src, &hdr);
+  _set_header_caps (&hdr, "video/x-raw,format=RGB,width=640,height=320", NULL);
+  hdr.num_mems = 1;
+  hdr.size_mems[0] = 1024;
+  msg = _new_message (&hdr, 1024);
+
+  EXPECT_TRUE (_deliver (msg));
+  g_usleep (SETTLE_TIME_US);
+  EXPECT_EQ (_fixture_num_buffers (&fixture), 0U);
+  EXPECT_EQ (_freed_messages (), 1U);
+  EXPECT_EQ (_freed_topics (), 1U);
 
   _fixture_teardown (&fixture);
 }

@@ -1115,6 +1115,8 @@ cb_mqtt_on_connection_lost (void *context, char *cause)
 
 /**
   * @brief A callback to handle the arrived message
+  * @note Returning TRUE passes the ownership of both the message and the
+  *       topic name to this callback, which has to release them.
   */
 static int
 cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
@@ -1129,12 +1131,11 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
   GstBuffer *buffer;
   GstBaseSrc *basesrc;
   GstMqttSrc *self;
-  GstClock *clock;
+  GstClock *clock = NULL;
   GstCaps *recv_caps;
   gchar caps_str[GST_MQTT_MAX_LEN_GST_CAPS_STR + 1];
   gsize offset;
   guint i;
-  UNUSED (topic_name);
   UNUSED (topic_len);
 
   self = GST_MQTT_SRC_CAST (context);
@@ -1142,7 +1143,7 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
   if (!self->is_subscribed) {
     g_mutex_unlock (&self->mqtt_src_mutex);
 
-    return TRUE;
+    goto ret_free_message;
   }
   g_mutex_unlock (&self->mqtt_src_mutex);
 
@@ -1158,6 +1159,8 @@ cb_mqtt_on_message_arrived (void *context, char *topic_name, int topic_len,
     }
     goto ret_unref_clock;
   }
+  /** The wrapped memory releases the message from now on */
+  message = NULL;
 
   if (size < GST_MQTT_LEN_MSG_HDR) {
     if (!self->err) {
@@ -1251,6 +1254,11 @@ ret_unref_received_mem:
 ret_unref_clock:
   if (clock)
     gst_object_unref (clock);
+
+ret_free_message:
+  if (message)
+    MQTTAsync_freeMessage (&message);
+  MQTTAsync_free (topic_name);
 
   return TRUE;
 }
