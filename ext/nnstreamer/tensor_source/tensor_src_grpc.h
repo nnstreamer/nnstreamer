@@ -36,10 +36,16 @@ G_BEGIN_DECLS
 typedef struct _GstTensorSrcGRPC GstTensorSrcGRPC;
 typedef struct _GstTensorSrcGRPCClass GstTensorSrcGRPCClass;
 
+/**
+ * @brief Element flags of tensor_src_grpc.
+ *
+ * GstBaseSrc keeps its own STARTING and STARTED flags right above
+ * GST_ELEMENT_FLAG_LAST, so these must start above GST_BASE_SRC_FLAG_LAST.
+ */
 typedef enum
 {
-  GST_TENSOR_SRC_GRPC_CONFIGURED = (GST_ELEMENT_FLAG_LAST << 0),
-  GST_TENSOR_SRC_GRPC_STARTED = (GST_ELEMENT_FLAG_LAST << 1),
+  GST_TENSOR_SRC_GRPC_CONFIGURED = (GST_BASE_SRC_FLAG_LAST << 0),
+  GST_TENSOR_SRC_GRPC_STARTED = (GST_BASE_SRC_FLAG_LAST << 1),
 } GstTensorSrcGRPCFlags;
 
 /**
