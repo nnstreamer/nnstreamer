@@ -1037,7 +1037,7 @@ TEST (tensorFilterOpenvino, getTensorDim2_n)
     InferenceEngine::SizeVector dims = InferenceEngine::SizeVector ();
 
     for (int i = 0; i < NNS_TENSOR_SIZE_LIMIT + 1; ++i) {
-      std::string name_output_n = std::string ((char *) &i);
+      std::string name_output_n = std::to_string (i);
       InferenceEngine::Data *data = new InferenceEngine::Data (
           name_output_n, dims, InferenceEngine::Precision::FP32);
       InferenceEngine::DataPtr outputDataPtr (data);
