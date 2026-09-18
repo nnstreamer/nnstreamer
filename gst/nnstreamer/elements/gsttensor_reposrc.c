@@ -147,8 +147,8 @@ gst_tensor_reposrc_dispose (GObject * object)
     GST_ELEMENT_ERROR (self, RESOURCE, WRITE,
         ("Cannot remove [key: %d] in repo", self->myid), NULL);
 
-  if (self->caps)
-    gst_caps_unref (self->caps);
+  gst_caps_replace (&self->caps, NULL);
+  gst_tensors_config_free (&self->config);
 
   G_OBJECT_CLASS (parent_class)->dispose (object);
 }
@@ -161,6 +161,7 @@ gst_tensor_reposrc_getcaps (GstBaseSrc * src, GstCaps * filter)
 {
   GstTensorRepoSrc *self = GST_TENSOR_REPOSRC (src);
   GstCaps *caps, *check, *result;
+  GstTensorsConfig config;
 
   GST_DEBUG_OBJECT (self, "returning %" GST_PTR_FORMAT, self->caps);
 
@@ -184,12 +185,18 @@ gst_tensor_reposrc_getcaps (GstBaseSrc * src, GstCaps * filter)
   gst_caps_unref (check);
   gst_caps_unref (caps);
 
-  if (!gst_tensors_config_from_caps (&self->config, result, TRUE)) {
+  if (!gst_tensors_config_from_caps (&config, result, TRUE)) {
     GST_ELEMENT_ERROR (GST_ELEMENT (self), STREAM, WRONG_TYPE,
         ("Only Tensor/Tensors MIME are supported for now"), (NULL));
 
     g_clear_pointer (&result, gst_caps_unref);
   }
+
+  /** The streaming thread reads the config while a caps query replaces it. */
+  GST_OBJECT_LOCK (self);
+  gst_tensors_config_free (&self->config);
+  self->config = config;
+  GST_OBJECT_UNLOCK (self);
 
   return result;
 }
@@ -291,22 +298,29 @@ gst_tensor_reposrc_gen_dummy_buffer (GstTensorRepoSrc * self)
 {
   GstBuffer *buf = NULL;
   GstTensorInfo *_info;
+  GstTensorsInfo info;
   GstMemory *mem;
   GstMapInfo map;
   guint i, num_tensors;
   gsize size = 0;
 
+  /** A caps query may replace the config of the element while this runs. */
+  GST_OBJECT_LOCK (self);
+  gst_tensors_info_copy (&info, &self->config.info);
+  GST_OBJECT_UNLOCK (self);
+
   buf = gst_buffer_new ();
-  num_tensors = self->config.info.num_tensors;
+  num_tensors = info.num_tensors;
 
   for (i = 0; i < num_tensors; i++) {
-    _info = gst_tensors_info_get_nth_info (&self->config.info, i);
+    _info = gst_tensors_info_get_nth_info (&info, i);
     size = gst_tensor_info_get_size (_info);
     mem = gst_allocator_alloc (NULL, size, NULL);
 
     if (!gst_memory_map (mem, &map, GST_MAP_WRITE)) {
       gst_memory_unref (mem);
       gst_buffer_unref (buf);
+      gst_tensors_info_free (&info);
       ml_logf ("Cannot map gst memory (tensor-repo-src).");
       return NULL;
     }
@@ -317,6 +331,7 @@ gst_tensor_reposrc_gen_dummy_buffer (GstTensorRepoSrc * self)
     gst_tensor_buffer_append_memory (buf, mem, _info);
   }
 
+  gst_tensors_info_free (&info);
   return buf;
 }
 

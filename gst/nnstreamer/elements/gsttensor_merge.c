@@ -277,6 +277,8 @@ gst_tensor_merge_finalize (GObject * object)
     tensor_merge->sync.option = NULL;
   }
 
+  gst_tensors_config_free (&tensor_merge->tensors_config);
+
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
 
