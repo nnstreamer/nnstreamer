@@ -586,6 +586,7 @@ static struct {
   guint8 pushed_first; /**< first byte of the first input tensor last pushed */
   gchar expect_config[512]; /**< model-config every push_data() should see */
   gboolean config_matched; /**< whether the last push_data() saw it */
+  gint push_ret; /**< what push_data() returns */
 } fake_stat;
 
 /**
@@ -657,7 +658,7 @@ fake_trainer_push_data (const GstTensorTrainerFramework *,
     fake_stat.pushed_first = ((guint8 *) input[0].data)[0];
 
   g_atomic_int_inc (&fake_stat.push_done);
-  return 0;
+  return fake_stat.push_ret;
 }
 
 /**
@@ -1020,6 +1021,330 @@ TEST_F (TensorTrainerFakeFw, flexibleHeaderUnknownVersion_n)
   EXPECT_EQ (g_atomic_int_get (&fake_stat.push_calls), 0);
 
   gst_harness_teardown (h);
+}
+
+/**
+ * @brief Memory of the allocator below.
+ */
+typedef struct {
+  GstMemory mem;
+  guint8 data[8];
+} TrainerMapTestMemory;
+
+/**
+ * @brief Allocator counting its maps and unmaps, which can refuse to map.
+ */
+typedef struct {
+  GstAllocator parent;
+  gboolean refuse_map; /**< refuse every map */
+  guint maps; /**< number of maps granted */
+  guint unmaps; /**< number of unmaps */
+  guint freed; /**< number of memories freed */
+} TrainerMapTestAllocator;
+
+/**
+ * @brief Class of TrainerMapTestAllocator.
+ */
+typedef struct {
+  GstAllocatorClass parent_class;
+} TrainerMapTestAllocatorClass;
+
+G_DEFINE_TYPE (TrainerMapTestAllocator, trainer_map_test_allocator, GST_TYPE_ALLOCATOR);
+
+/**
+ * @brief Map a memory of TrainerMapTestAllocator unless it refuses to.
+ */
+static gpointer
+trainer_map_test_memory_map (GstMemory *mem, gsize, GstMapFlags)
+{
+  TrainerMapTestAllocator *self = (TrainerMapTestAllocator *) mem->allocator;
+
+  if (self->refuse_map)
+    return NULL;
+
+  self->maps++;
+  return ((TrainerMapTestMemory *) mem)->data;
+}
+
+/**
+ * @brief Unmap a memory of TrainerMapTestAllocator.
+ */
+static void
+trainer_map_test_memory_unmap (GstMemory *mem)
+{
+  ((TrainerMapTestAllocator *) mem->allocator)->unmaps++;
+}
+
+/**
+ * @brief Free a memory of TrainerMapTestAllocator.
+ */
+static void
+trainer_map_test_allocator_free (GstAllocator *allocator, GstMemory *mem)
+{
+  ((TrainerMapTestAllocator *) allocator)->freed++;
+  g_free (mem);
+}
+
+/**
+ * @brief Initialize the class of TrainerMapTestAllocator.
+ */
+static void
+trainer_map_test_allocator_class_init (TrainerMapTestAllocatorClass *klass)
+{
+  GST_ALLOCATOR_CLASS (klass)->free = trainer_map_test_allocator_free;
+}
+
+/**
+ * @brief Initialize a TrainerMapTestAllocator.
+ */
+static void
+trainer_map_test_allocator_init (TrainerMapTestAllocator *self)
+{
+  GstAllocator *allocator = GST_ALLOCATOR_CAST (self);
+
+  allocator->mem_type = "TrainerMapTest";
+  allocator->mem_map = trainer_map_test_memory_map;
+  allocator->mem_unmap = trainer_map_test_memory_unmap;
+  GST_OBJECT_FLAG_SET (allocator, GST_ALLOCATOR_FLAG_CUSTOM_ALLOC);
+}
+
+/**
+ * @brief Create a TrainerMapTestAllocator.
+ */
+static TrainerMapTestAllocator *
+trainer_map_test_allocator_new (gboolean refuse_map)
+{
+  TrainerMapTestAllocator *self = (TrainerMapTestAllocator *) g_object_new (
+      trainer_map_test_allocator_get_type (), NULL);
+
+  self->refuse_map = refuse_map;
+  return self;
+}
+
+/**
+ * @brief Append a memory of @a allocator, @a size bytes of @a value, to @a buf.
+ */
+static void
+trainer_map_test_append_memory (
+    GstBuffer *buf, TrainerMapTestAllocator *allocator, gsize size, guint8 value)
+{
+  TrainerMapTestMemory *mem = g_new0 (TrainerMapTestMemory, 1);
+
+  gst_memory_init (GST_MEMORY_CAST (mem), GST_MEMORY_FLAG_NO_SHARE,
+      GST_ALLOCATOR_CAST (allocator), NULL, sizeof (mem->data), 0, 0, size);
+  memset (mem->data, value, size);
+  gst_buffer_append_memory (buf, GST_MEMORY_CAST (mem));
+}
+
+/**
+ * @brief Count the critical messages of GStreamer.
+ */
+static void
+trainer_count_critical_log (const gchar *, GLogLevelFlags, const gchar *, gpointer user_data)
+{
+  (*(guint *) user_data)++;
+}
+
+/**
+ * @brief What one push of the two tensors below did.
+ */
+typedef struct {
+  GstFlowReturn ret; /**< flow return of the push */
+  gint push_calls; /**< push_data() calls the buffer caused */
+  gsize pushed_size; /**< size of the first tensor the sub-plugin saw */
+  guint8 pushed_first; /**< its first byte */
+  guint num_critical; /**< critical messages GStreamer logged during the push */
+  TrainerMapTestAllocator *first; /**< allocator of the first tensor */
+  TrainerMapTestAllocator *second; /**< allocator of the second tensor */
+} TrainerMapTestResult;
+
+/**
+ * @brief Push @a num_mems tensors of @a mem_size bytes, each of which may refuse to map.
+ *
+ * The caps always announce two tensors of 4 bytes, so a different count or
+ * size is what the element refuses. The counters are read before the harness
+ * is torn down, because the dummy-data thread the element starts when it
+ * pauses pushes as well. Both allocators outlive the harness and are unreffed
+ * by the caller, even the second one that a single-memory push leaves unused.
+ */
+static void
+trainer_map_test_push (guint num_mems, gsize mem_size, gboolean refuse_first,
+    gboolean refuse_second, TrainerMapTestResult *result)
+{
+  GstHarness *h = make_fake_trainer_harness ();
+  GstBuffer *buf;
+  guint handler;
+
+  memset (result, 0, sizeof (*result));
+  result->first = trainer_map_test_allocator_new (refuse_first);
+  result->second = trainer_map_test_allocator_new (refuse_second);
+  ASSERT_NE (h, nullptr);
+
+  gst_harness_set_src_caps_str (h,
+      "other/tensors,format=static,num_tensors=2,framerate=0/1,"
+      "dimensions=(string)\"4:1:1:1.4:1:1:1\",types=(string)\"uint8,uint8\"");
+
+  buf = gst_buffer_new ();
+  trainer_map_test_append_memory (buf, result->first, mem_size, 7);
+  if (num_mems > 1)
+    trainer_map_test_append_memory (buf, result->second, mem_size, 8);
+
+  handler = g_log_set_handler ("GStreamer", G_LOG_LEVEL_CRITICAL,
+      trainer_count_critical_log, &result->num_critical);
+  result->ret = gst_harness_push (h, buf);
+  g_log_remove_handler ("GStreamer", handler);
+
+  result->push_calls = g_atomic_int_get (&fake_stat.push_calls);
+  result->pushed_size = fake_stat.pushed_size;
+  result->pushed_first = fake_stat.pushed_first;
+
+  /* the dummy-data thread below repeats push_data () until it succeeds */
+  fake_stat.push_ret = 0;
+  gst_harness_teardown (h);
+}
+
+/**
+ * @brief Release the allocators of a push.
+ */
+static void
+trainer_map_test_result_clear (TrainerMapTestResult *result)
+{
+  gst_object_unref (result->first);
+  gst_object_unref (result->second);
+}
+
+/**
+ * @brief Push tensors of a custom allocator; each is mapped once and unmapped once.
+ */
+TEST_F (TensorTrainerFakeFw, customAllocatorInput)
+{
+  TrainerMapTestResult result;
+
+  trainer_map_test_push (2, 4, FALSE, FALSE, &result);
+  EXPECT_EQ (result.ret, GST_FLOW_OK);
+  EXPECT_EQ (result.push_calls, 1);
+  EXPECT_EQ (result.pushed_size, 4U);
+  EXPECT_EQ ((guint) result.pushed_first, 7U);
+  EXPECT_EQ (result.num_critical, 0U);
+  EXPECT_EQ (result.first->maps, 1U);
+  EXPECT_EQ (result.first->unmaps, 1U);
+  EXPECT_EQ (result.first->freed, 1U);
+  EXPECT_EQ (result.second->maps, 1U);
+  EXPECT_EQ (result.second->unmaps, 1U);
+  EXPECT_EQ (result.second->freed, 1U);
+
+  trainer_map_test_result_clear (&result);
+}
+
+/**
+ * @brief Push a tensor that cannot be mapped.
+ *
+ * The element must not unmap the memory it could not map: GStreamer refuses
+ * an unmap whose map info does not belong to the memory with a critical
+ * message, and hands it to the allocator when the stack happens to hold the
+ * memory itself.
+ */
+TEST_F (TensorTrainerFakeFw, unmappableInput_n)
+{
+  TrainerMapTestResult result;
+
+  trainer_map_test_push (2, 4, TRUE, FALSE, &result);
+  EXPECT_EQ (result.ret, GST_FLOW_ERROR);
+  EXPECT_EQ (result.push_calls, 0);
+  EXPECT_EQ (result.num_critical, 0U);
+  EXPECT_EQ (result.first->unmaps, 0U);
+  EXPECT_EQ (result.first->freed, 1U);
+  EXPECT_EQ (result.second->maps, 0U);
+  EXPECT_EQ (result.second->unmaps, 0U);
+  EXPECT_EQ (result.second->freed, 1U);
+
+  trainer_map_test_result_clear (&result);
+}
+
+/**
+ * @brief Push two tensors, the second of which cannot be mapped.
+ *
+ * The first tensor is mapped by then and must still be unmapped, while the
+ * second one must not be.
+ */
+TEST_F (TensorTrainerFakeFw, unmappableSecondInput_n)
+{
+  TrainerMapTestResult result;
+
+  trainer_map_test_push (2, 4, FALSE, TRUE, &result);
+  EXPECT_EQ (result.ret, GST_FLOW_ERROR);
+  EXPECT_EQ (result.push_calls, 0);
+  EXPECT_EQ (result.num_critical, 0U);
+  EXPECT_EQ (result.first->maps, 1U);
+  EXPECT_EQ (result.first->unmaps, 1U);
+  EXPECT_EQ (result.first->freed, 1U);
+  EXPECT_EQ (result.second->unmaps, 0U);
+  EXPECT_EQ (result.second->freed, 1U);
+
+  trainer_map_test_result_clear (&result);
+}
+
+/**
+ * @brief Push fewer memories than the caps announce; nothing is mapped.
+ *
+ * The element refuses the buffer before the mapping loop, so the cleanup
+ * runs with no memory taken at all.
+ */
+TEST_F (TensorTrainerFakeFw, fewerMemoriesThanTensors_n)
+{
+  TrainerMapTestResult result;
+
+  trainer_map_test_push (1, 4, FALSE, FALSE, &result);
+  EXPECT_EQ (result.ret, GST_FLOW_ERROR);
+  EXPECT_EQ (result.push_calls, 0);
+  EXPECT_EQ (result.num_critical, 0U);
+  EXPECT_EQ (result.first->maps, 0U);
+  EXPECT_EQ (result.first->unmaps, 0U);
+  EXPECT_EQ (result.first->freed, 1U);
+
+  trainer_map_test_result_clear (&result);
+}
+
+/**
+ * @brief Push memories larger than the caps announce; what was mapped is unmapped.
+ */
+TEST_F (TensorTrainerFakeFw, tensorSizeMismatch_n)
+{
+  TrainerMapTestResult result;
+
+  trainer_map_test_push (2, 8, FALSE, FALSE, &result);
+  EXPECT_EQ (result.ret, GST_FLOW_ERROR);
+  EXPECT_EQ (result.push_calls, 0);
+  EXPECT_EQ (result.num_critical, 0U);
+  EXPECT_EQ (result.first->maps, 1U);
+  EXPECT_EQ (result.first->unmaps, 1U);
+  EXPECT_EQ (result.first->freed, 1U);
+  EXPECT_EQ (result.second->maps, 0U);
+  EXPECT_EQ (result.second->freed, 1U);
+
+  trainer_map_test_result_clear (&result);
+}
+
+/**
+ * @brief A sub-plugin that refuses the data still gets every memory released.
+ */
+TEST_F (TensorTrainerFakeFw, subpluginPushFailure_n)
+{
+  TrainerMapTestResult result;
+
+  fake_stat.push_ret = -1;
+  trainer_map_test_push (2, 4, FALSE, FALSE, &result);
+  EXPECT_EQ (result.ret, GST_FLOW_ERROR);
+  EXPECT_EQ (result.push_calls, 1);
+  EXPECT_EQ (result.num_critical, 0U);
+  EXPECT_EQ (result.first->maps, 1U);
+  EXPECT_EQ (result.first->unmaps, 1U);
+  EXPECT_EQ (result.first->freed, 1U);
+  EXPECT_EQ (result.second->maps, 1U);
+  EXPECT_EQ (result.second->unmaps, 1U);
+  EXPECT_EQ (result.second->freed, 1U);
+
+  trainer_map_test_result_clear (&result);
 }
 
 /**
